@@ -89,6 +89,7 @@ import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.ViewList
 import com.droiddeck.launcher.stores.sortCatalogItems
+import com.droiddeck.launcher.stores.retainCatalogOrder
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.material.icons.filled.PlayArrow
@@ -763,12 +764,16 @@ private fun Storefront(
     val candidateKeys = remember(candidates) { candidates.map { it.key } }
     var resolvedSizeSortKey by remember(store, tab) { mutableStateOf<List<String>?>(null) }
     val sizeSortPending = isSizeSort && resolvedSizeSortKey != candidateKeys
-    var stableVisible by remember { mutableStateOf(emptyList<CatalogItem>()) }
-    val resolvedSizes = if (isSizeSort) com.droiddeck.launcher.stores.StoreSizes.known + com.droiddeck.launcher.stores.StoreSizes.onDisk else emptyMap<String, Long>()
-    val sizeFor = remember(resolvedSizes) {
+    var stableVisible by remember(store, tab) { mutableStateOf(emptyList<CatalogItem>()) }
+    val resolvedSizes = when {
+        !isSizeSort -> emptyMap<String, Long>()
+        installedOnly -> com.droiddeck.launcher.stores.StoreSizes.onDisk.toMap()
+        else -> com.droiddeck.launcher.stores.StoreSizes.known.toMap()
+    }
+    val sizeFor = remember(resolvedSizes, installedOnly) {
         val resolved = resolvedSizes
         val lookup: (CatalogItem) -> Long = { item ->
-            resolved[item.key] ?: if (tab == "installed") 0L else item.sizeBytes
+            resolved[item.key] ?: if (installedOnly) 0L else item.sizeBytes
         }
         lookup
     }
@@ -777,9 +782,9 @@ private fun Storefront(
             sortCatalogItems(candidates, sort, lastPlayed = lastPlayedFor, installedAt = installedAtFor, size = sizeFor)
         else candidates
     }
-    val visible = if (sizeSortPending)
-        stableVisible.takeIf { it.map { item -> item.key } == candidateKeys } ?: candidates
-    else sortedVisible
+    val visible = remember(sizeSortPending, candidates, stableVisible, sortedVisible) {
+        if (sizeSortPending) retainCatalogOrder(candidates, stableVisible) else sortedVisible
+    }
     SideEffect {
         if (!sizeSortPending && stableVisible != sortedVisible) stableVisible = sortedVisible
     }

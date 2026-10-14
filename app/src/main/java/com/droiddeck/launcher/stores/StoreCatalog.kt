@@ -74,6 +74,13 @@ fun sortCatalogItems(
     else -> items
 }
 
+internal fun retainCatalogOrder(items: List<CatalogItem>, previous: List<CatalogItem>): List<CatalogItem> {
+    if (items.size != previous.size) return items
+    val byKey = items.associateBy { it.key }
+    if (previous.any { it.key !in byKey }) return items
+    return previous.map { byKey.getValue(it.key) }
+}
+
 fun mergeItems(old: List<CatalogItem>?, new: List<CatalogItem>): List<CatalogItem> {
     if (old.isNullOrEmpty()) return new
     val before = old.associateBy { it.key }
