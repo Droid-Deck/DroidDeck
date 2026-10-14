@@ -2213,7 +2213,6 @@
     <string name="glasses_refresh">Bildwiederholrate</string>
     <string name="glasses_3d">3D (Side-by-Side)</string>
     <string name="glasses_3d_hint">Jedes Auge bekommt seine eigene Hälfte eines 3840×1080-Bildes. Fällt das Bild aus, halte die 2D/3D-Taste der Brille gedrückt.</string>
-    <string name="glasses_3d_unsupported">Dieses Smartphone kann das 3840×1080-Signal für 3D nicht ausgeben. VR-Spiele zeigen die Sicht eines Auges, mit Kopf-Tracking.</string>
     <string name="glasses_3d_failed">Das 3D-Signal wurde nicht bestätigt. Versuche es erneut, sobald das 2D-Bild wieder da ist.</string>
     <string name="glasses_no_signal">Kein Bild: Die Brille ist in einem Modus, den dieses Smartphone nicht ausgeben kann. Halte ihre 2D/3D-Taste gedrückt oder steck sie aus und wieder ein.</string>
     <string name="glasses_3d_refresh">3D-Bildwiederholrate</string>

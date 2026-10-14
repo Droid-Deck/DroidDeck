@@ -2196,7 +2196,6 @@
     <string name="glasses_refresh">주사율</string>
     <string name="glasses_3d">3D (사이드 바이 사이드)</string>
     <string name="glasses_3d_hint">각 눈이 3840×1080 화면의 절반씩을 봅니다. 화면이 끊기면 안경의 2D/3D 버튼을 길게 누르세요.</string>
-    <string name="glasses_3d_unsupported">이 휴대폰은 3D에 필요한 3840×1080 신호를 보낼 수 없습니다. VR 게임은 헤드 트래킹과 함께 한쪽 눈의 화면을 보여 줍니다.</string>
     <string name="glasses_3d_failed">3D 신호를 확인하지 못했습니다. 2D 화면이 돌아오면 다시 시도하세요.</string>
     <string name="glasses_no_signal">화면 없음: 안경이 이 휴대폰에서 보낼 수 없는 모드에 있습니다. 2D/3D 버튼을 길게 누르거나 안경을 뺐다가 다시 연결하세요.</string>
     <string name="glasses_3d_refresh">3D 주사율</string>

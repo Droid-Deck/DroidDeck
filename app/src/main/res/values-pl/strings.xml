@@ -2263,7 +2263,6 @@
     <string name="glasses_refresh">Częstotliwość odświeżania</string>
     <string name="glasses_3d">3D (obok siebie)</string>
     <string name="glasses_3d_hint">Każde oko dostaje własną połowę obrazu 3840×1080. Jeśli obraz zniknie, przytrzymaj przycisk 2D/3D na okularach.</string>
-    <string name="glasses_3d_unsupported">Ten telefon nie może wysłać sygnału 3840×1080 potrzebnego do 3D. Gry VR pokazują widok jednego oka ze śledzeniem głowy.</string>
     <string name="glasses_3d_failed">Nie udało się potwierdzić sygnału 3D. Spróbuj ponownie, gdy wróci obraz 2D.</string>
     <string name="glasses_no_signal">Brak obrazu: okulary są w trybie, którego ten telefon nie obsługuje. Przytrzymaj ich przycisk 2D/3D albo odłącz je i podłącz ponownie.</string>
     <string name="glasses_3d_refresh">Częstotliwość odświeżania w 3D</string>

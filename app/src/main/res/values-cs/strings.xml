@@ -2263,7 +2263,6 @@
     <string name="glasses_refresh">Obnovovací frekvence</string>
     <string name="glasses_3d">3D (vedle sebe)</string>
     <string name="glasses_3d_hint">Každé oko dostane vlastní polovinu obrazu 3840×1080. Pokud obraz vypadne, podržte na brýlích tlačítko 2D/3D.</string>
-    <string name="glasses_3d_unsupported">Tento telefon neumí vyslat signál 3840×1080, který 3D vyžaduje. Hry VR zobrazí pohled jednoho oka se sledováním hlavy.</string>
     <string name="glasses_3d_failed">Signál 3D se nepodařilo potvrdit. Zkuste to znovu, až se vrátí obraz 2D.</string>
     <string name="glasses_no_signal">Žádný obraz: brýle jsou v režimu, který tento telefon neumí vyslat. Podržte jejich tlačítko 2D/3D, nebo je odpojte a znovu připojte.</string>
     <string name="glasses_3d_refresh">Obnovovací frekvence ve 3D</string>

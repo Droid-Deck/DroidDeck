@@ -7,6 +7,7 @@ import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.view.Display
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
@@ -24,9 +25,11 @@ import org.robolectric.annotation.Implements
 import org.robolectric.annotation.LooperMode
 import org.robolectric.shadow.api.Shadow
 import org.robolectric.shadows.ShadowDisplayManager
+import org.robolectric.shadows.ShadowSystemClock
 import org.robolectric.shadows.ShadowUsbManager
 import org.robolectric.util.ReflectionHelpers
 import org.robolectric.util.ReflectionHelpers.ClassParameter.from
+import java.time.Duration
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], manifest = Config.NONE, shadows = [GlassesUsbTest.RecordingUsbManager::class])
@@ -75,7 +78,7 @@ class GlassesUsbTest {
             refresh(ask = true)
             assertTrue(manager.requests.isEmpty())
             assertEquals(Glasses.Permission.NONE, state.value.permission)
-            assertTrue(state.value.present)
+            assertEquals(pid == 0x1201, state.value.present)
             assertFalse(state.value.controllable)
             assertFalse(state.value.connected)
         }
@@ -95,6 +98,36 @@ class GlassesUsbTest {
         assertEquals(displayId, state.value.displayId)
         assertTrue(manager.requests.isEmpty())
         assertEquals(Glasses.Permission.NONE, state.value.permission)
+    }
+
+    @Test fun noSignalStereoFailureIsRememberedPerModel() {
+        val prefs = RuntimeEnvironment.getApplication().getSharedPreferences("glasses", Context.MODE_PRIVATE)
+        prefs.edit().clear().commit()
+        val hdmi = ReflectionHelpers.getStaticField<Int>(Display::class.java, "TYPE_HDMI")
+        val displayId = ShadowDisplayManager.addDisplay("w640dp-h480dp", hdmi)
+        val displays = RuntimeEnvironment.getApplication().getSystemService(DisplayManager::class.java)
+        shadowOf(displays.getDisplay(displayId)).setFlags(Display.FLAG_PRESENTATION)
+        val pro = device(0x1019)
+        manager.devices[pro.deviceName] = pro
+        refresh()
+        assertTrue(state.value.noSignal)
+        (field("modeState").get(null) as GlassesModeState).sent(true, SystemClock.uptimeMillis())
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(21))
+        refresh()
+        assertEquals(GlassesState.SBS_FAILS, state.value.sbsSupport)
+        assertEquals(setOf("1019"), prefs.getStringSet("sbsFailed", null))
+        ShadowDisplayManager.removeDisplay(displayId)
+
+        val xr = device(0x101d)
+        manager.devices.clear()
+        manager.devices[xr.deviceName] = xr
+        refresh()
+        assertEquals(GlassesState.SBS_UNKNOWN, state.value.sbsSupport)
+        manager.devices.clear()
+        manager.devices[pro.deviceName] = pro
+        refresh()
+        assertEquals(GlassesState.SBS_FAILS, state.value.sbsSupport)
+        assertFalse(state.value.can3d)
     }
 
     private fun refresh(ask: Boolean = false) {

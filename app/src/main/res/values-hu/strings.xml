@@ -2213,7 +2213,6 @@
     <string name="glasses_refresh">Frissítési frekvencia</string>
     <string name="glasses_3d">3D (egymás melletti)</string>
     <string name="glasses_3d_hint">Mindkét szem egy 3840×1080-as kép saját felét kapja. Ha a kép eltűnik, tartsa lenyomva a szemüveg 2D/3D gombját.</string>
-    <string name="glasses_3d_unsupported">Ez a telefon nem tudja küldeni a 3D-hez szükséges 3840×1080-as jelet. A VR-játékok egy szem nézetét mutatják, fejkövetéssel.</string>
     <string name="glasses_3d_failed">Nem sikerült megerősíteni a 3D-jelet. Próbáld újra, ha visszatér a 2D-kép.</string>
     <string name="glasses_no_signal">Nincs kép: a szemüveg olyan módban van, amelyet ez a telefon nem tud küldeni. Tartsa lenyomva a 2D/3D gombját, vagy húzza ki, és dugja vissza.</string>
     <string name="glasses_3d_refresh">3D frissítési frekvencia</string>

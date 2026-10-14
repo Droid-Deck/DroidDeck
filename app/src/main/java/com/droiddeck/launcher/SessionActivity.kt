@@ -1283,7 +1283,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         if (!CompositorHost.isStarted) {
             val mode = SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM)
-            val probe = HdrSupport.probe(this)
+            val probe = HdrSupport.probe(this, glassesScreen?.display)
             WaylandCompositor.nativeSetHdrDisplay(
                 probe.displayId, probe.name, probe.formats, probe.hdr10,
                 probe.maxLuminance, probe.maxAverageLuminance, probe.minLuminance,

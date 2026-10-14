@@ -2246,7 +2246,6 @@
     <string name="glasses_refresh">Fréquence d\'affichage</string>
     <string name="glasses_3d">3D (côte à côte)</string>
     <string name="glasses_3d_hint">Chaque œil reçoit sa propre moitié d\'une image de 3840×1080. Si l\'image disparaît, maintenez le bouton 2D/3D des lunettes.</string>
-    <string name="glasses_3d_unsupported">Ce téléphone ne peut pas envoyer le signal 3840×1080 nécessaire à la 3D. Les jeux VR affichent la vue d\'un seul œil, avec le suivi de la tête.</string>
     <string name="glasses_3d_failed">Le signal 3D n\'a pas été confirmé. Réessayez une fois l\'image 2D rétablie.</string>
     <string name="glasses_no_signal">Pas d\'image : les lunettes sont dans un mode que ce téléphone ne peut pas envoyer. Maintenez leur bouton 2D/3D, ou débranchez-les puis rebranchez-les.</string>
     <string name="glasses_3d_refresh">Fréquence en 3D</string>

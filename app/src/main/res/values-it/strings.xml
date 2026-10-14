@@ -2238,7 +2238,6 @@
     <string name="glasses_refresh">Frequenza di aggiornamento</string>
     <string name="glasses_3d">3D (affiancato)</string>
     <string name="glasses_3d_hint">Ogni occhio riceve la propria metà di un\'immagine 3840×1080. Se l\'immagine scompare, tieni premuto il pulsante 2D/3D degli occhiali.</string>
-    <string name="glasses_3d_unsupported">Questo telefono non può inviare il segnale 3840×1080 richiesto dal 3D. I giochi VR mostrano la vista di un solo occhio, con il tracciamento della testa.</string>
     <string name="glasses_3d_failed">Il segnale 3D non è stato confermato. Riprova quando torna l\'immagine 2D.</string>
     <string name="glasses_no_signal">Nessuna immagine: gli occhiali sono in una modalità che questo telefono non può inviare. Tieni premuto il loro pulsante 2D/3D, oppure scollegali e ricollegali.</string>
     <string name="glasses_3d_refresh">Frequenza di aggiornamento 3D</string>

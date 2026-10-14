@@ -2188,7 +2188,6 @@
     <string name="glasses_refresh">อัตรารีเฟรช</string>
     <string name="glasses_3d">3D (แบบเคียงข้าง)</string>
     <string name="glasses_3d_hint">ตาแต่ละข้างจะเห็นภาพคนละครึ่งของภาพขนาด 3840×1080 หากภาพหายไป ให้กดปุ่ม 2D/3D ของแว่นตาค้างไว้</string>
-    <string name="glasses_3d_unsupported">โทรศัพท์นี้ส่งสัญญาณ 3840×1080 ที่ 3D ต้องใช้ไม่ได้ เกม VR จะแสดงภาพของตาข้างเดียวพร้อมการติดตามศีรษะ</string>
     <string name="glasses_3d_failed">ยังยืนยันสัญญาณ 3D ไม่ได้ ลองอีกครั้งเมื่อภาพ 2D กลับมา</string>
     <string name="glasses_no_signal">ไม่มีภาพ: แว่นตาอยู่ในโหมดที่โทรศัพท์นี้ส่งสัญญาณให้ไม่ได้ กดปุ่ม 2D/3D ของแว่นตาค้างไว้ หรือถอดสายแล้วเสียบใหม่</string>
     <string name="glasses_3d_refresh">อัตรารีเฟรช 3D</string>

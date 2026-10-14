@@ -2213,7 +2213,6 @@
     <string name="glasses_refresh">Oppdateringsfrekvens</string>
     <string name="glasses_3d">3D (side ved side)</string>
     <string name="glasses_3d_hint">Hvert øye får sin egen halvdel av et bilde på 3840×1080. Hvis bildet faller ut, holder du inne 2D/3D-knappen på brillene.</string>
-    <string name="glasses_3d_unsupported">Denne telefonen kan ikke sende 3840×1080-signalet som 3D krever. VR-spill viser bildet for ett øye, med hodesporing.</string>
     <string name="glasses_3d_failed">3D-signalet ble ikke bekreftet. Prøv igjen når 2D-bildet er tilbake.</string>
     <string name="glasses_no_signal">Ikke noe bilde: brillene er i en modus denne telefonen ikke kan sende. Hold inne 2D/3D-knappen deres, eller koble dem fra og til igjen.</string>
     <string name="glasses_3d_refresh">3D-oppdateringsfrekvens</string>

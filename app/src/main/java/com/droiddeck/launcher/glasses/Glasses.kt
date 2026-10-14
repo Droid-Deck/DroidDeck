@@ -97,7 +97,7 @@ object Glasses {
     private const val TAG = "Glasses"
     private const val ACTION_PERMISSION = "com.droiddeck.launcher.glasses.USB_PERMISSION"
     private const val PREFS = "glasses"
-    private const val KEY_SBS_SUPPORT = "sbsSupport"
+    private const val KEY_SBS_FAILED = "sbsFailed"
     private const val SBS_CONFIRM_MS = 20_000L
 
     private val _state = MutableStateFlow(GlassesState())
@@ -133,7 +133,6 @@ object Glasses {
         usb = app.getSystemService(Context.USB_SERVICE) as UsbManager
         displays = app.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
         _settings.value = load()
-        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(KEY_SBS_SUPPORT).apply()
         handler = Handler(HandlerThread("droiddeck-glasses").apply { start() }.looper)
         handler.post {
             val filter = IntentFilter(ACTION_PERMISSION).apply {
@@ -180,7 +179,10 @@ object Glasses {
         modeState.manual()
         val s = _state.value
         if (!s.canControl || (on && s.noSignal)) return@post
-        if (on) rememberSbs(GlassesState.SBS_UNKNOWN)
+        if (on) {
+            markSbsFailed(linkDevice?.productId, false)
+            rememberSbs(GlassesState.SBS_UNKNOWN)
+        }
         sendMode(on)
     }
 
@@ -213,7 +215,11 @@ object Glasses {
         sendFilm(on)
     }
 
-    fun setSbsSupport(support: Int) = post { rememberSbs(support.coerceIn(GlassesState.SBS_FAILS, GlassesState.SBS_WORKS)) }
+    fun setSbsSupport(support: Int) = post {
+        val s = support.coerceIn(GlassesState.SBS_FAILS, GlassesState.SBS_WORKS)
+        markSbsFailed(linkDevice?.productId, s == GlassesState.SBS_FAILS)
+        rememberSbs(s)
+    }
     fun setGameOnGlasses(on: Boolean) = post { update { it.copy(gameOnGlasses = on) } }
     fun setHeadTracking(on: Boolean) = post { update { it.copy(headTracking = on) } }
     fun setAuto3d(on: Boolean) = post { update { it.copy(auto3d = on) } }
@@ -350,7 +356,7 @@ object Glasses {
             GlassesModeState.Device(it.productId, if (permitted) runCatching { it.serialNumber }.getOrNull() else null)
         }
         if (modeState.updateDevice(identity, SystemClock.uptimeMillis())) {
-            rememberSbs(GlassesState.SBS_UNKNOWN)
+            rememberSbs(if (identity != null && sbsFailed(identity.productId)) GlassesState.SBS_FAILS else GlassesState.SBS_UNKNOWN)
         }
         if (device == null || (linkDevice != null && linkDevice?.deviceName != device.deviceName)) closeLink()
         model = m
@@ -363,16 +369,20 @@ object Glasses {
         when (modeState.observe(sbsByDisplay, SystemClock.uptimeMillis())) {
             GlassesModeState.Confirmation.FAILED -> {
                 Log.w(TAG, "3D signal was not confirmed at ${width}x$height; restoring 2D")
+                if (noSignal) markSbsFailed(device?.productId, true)
                 rememberSbs(GlassesState.SBS_FAILS)
             }
             else -> Unit
         }
-        if (sbsByDisplay) rememberSbs(GlassesState.SBS_WORKS)
+        if (sbsByDisplay) {
+            markSbsFailed(device?.productId, false)
+            rememberSbs(GlassesState.SBS_WORKS)
+        }
         if (controllable && device != null && !permitted && (ask || !asked) && _state.value.permission != Permission.ASKING) askPermission(device)
         if (device != null && permitted && link == null) openLink(device)
         publish {
             it.copy(
-                present = devices.isNotEmpty() || display != null,
+                present = device != null || display != null,
                 model = m?.name ?: display?.let(::displayName) ?: "VITURE",
                 controllable = controllable,
                 permission = when {
@@ -464,6 +474,17 @@ object Glasses {
         publish { it.copy(sbsSupport = support) }
     }
 
+    private fun sbsFailed(productId: Int): Boolean =
+        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getStringSet(KEY_SBS_FAILED, null)?.contains(productId.toString(16)) == true
+
+    private fun markSbsFailed(productId: Int?, failed: Boolean) {
+        if (productId == null || sbsFailed(productId) == failed) return
+        val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val ids = prefs.getStringSet(KEY_SBS_FAILED, null).orEmpty()
+        val id = productId.toString(16)
+        prefs.edit().putStringSet(KEY_SBS_FAILED, if (failed) ids + id else ids - id).apply()
+    }
+
     private fun applyMode(force: Boolean) {
         val s = _state.value
         val m = model ?: return
@@ -521,9 +542,9 @@ object Glasses {
     private fun linkListener(generation: Long) = object : VitureLink.Listener {
         override fun onFrame(frame: VitureProtocol.Frame) = post {
             if (generation != linkGeneration) return@post
-            val line = "%s 0x%04X %s".format(
+            val line = "%s 0x%04X %s%s".format(
                 when (frame.magic) { VitureProtocol.MAGIC_REPORT -> "FD"; VitureProtocol.MAGIC_COMMAND -> "FE"; else -> "FC" },
-                frame.msgId, frame.payload.joinToString("") { "%02X".format(it) },
+                frame.msgId, frame.payload.joinToString("") { "%02X".format(it) }, if (frame.crcOk) "" else " crc!",
             )
             synchronized(frames) {
                 frames.addLast(line)

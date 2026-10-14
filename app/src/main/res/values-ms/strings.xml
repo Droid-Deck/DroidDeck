@@ -2188,7 +2188,6 @@
     <string name="glasses_refresh">Kadar penyegaran</string>
     <string name="glasses_3d">3D (sebelah-menyebelah)</string>
     <string name="glasses_3d_hint">Setiap mata mendapat separuh gambar 3840×1080 sendiri. Jika gambar hilang, tahan butang 2D/3D cermin mata.</string>
-    <string name="glasses_3d_unsupported">Telefon ini tidak dapat menghantar isyarat 3840×1080 yang diperlukan oleh 3D. Permainan VR memaparkan pandangan sebelah mata, dengan penjejakan kepala.</string>
     <string name="glasses_3d_failed">Isyarat 3D tidak dapat disahkan. Cuba lagi selepas gambar 2D kembali.</string>
     <string name="glasses_no_signal">Tiada gambar: cermin mata dalam mod yang tidak dapat dihantar oleh telefon ini. Tahan butang 2D/3D-nya, atau cabut dan pasang semula.</string>
     <string name="glasses_3d_refresh">Kadar penyegaran 3D</string>

@@ -60,9 +60,17 @@ checksum. The Astra negotiated 1920×1080/120, but enumerated only the dock's
 USB interfaces, not the glasses' `35ca:101d` control/IMU interfaces. A one-second
 DroidDeck IMU sample returned zero packets.
 
-DroidDeck now keeps the dock's display available without requesting unsupported
-USB control access. The updated build was installed on this connection: no USB
-permission prompt appeared, video remained at 1080p/120 and tracking stayed off.
+DroidDeck treats the glasses as a display behind the dock: no USB permission
+prompt, video at 1080p/120 on the glasses, no Play SteamVR, refresh, 3D or tracking
+settings. The dock alone, without glasses, does not count as glasses.
+
+VITURE's updater calls this dock P9 (app `35ca:3011`, bootloader `35ca:3010`). Its
+HID messages cover dock versions, battery, inputs and LEDs; none sets a display
+mode or forwards glasses commands or IMU data. `2.01.03.0.03` is public release
+`1.03.0.03_20250709`; the latest, `1.03.0.06_20260409`, adds Beast support and
+updater fixes only. The updater also reads a Lontium LT8668 in the dock, a
+DisplayPort receiver with its own EDID handling, so the tablet most likely sees the
+dock as its DisplayPort sink rather than the glasses.
 
 [VITURE's Pro Dock specifications](https://www.viture.com/product/viture-pro-mobile-dock)
 confirm 3840×1080/60 video support and exclude phone features requiring
@@ -107,9 +115,11 @@ A wide screenshot or `wm size` override alone does not meet those conditions.
 
 ## App safeguards
 
-DroidDeck waits up to 20 seconds for physical stereo confirmation. A temporary
-low-resolution mode does not permanently blacklist the device. Failed attempts
-offer manual retry once the 2D signal returns; automatic retries do not loop.
+DroidDeck waits up to 20 seconds for physical stereo confirmation. When the
+attempt ends at a low-resolution fallback, DroidDeck remembers it for that glasses
+model on this device, so Play SteamVR stops requesting 3D after a restart; **Retry** in the
+glasses settings clears it. A display that stays missing, such as an unanswered
+cast prompt, fails only that attempt. Automatic retries do not loop.
 USB mode reports are tracked separately from the physical display. When a session
 enabled 3D, stopping it requests a return to 2D, including during negotiation;
 this firmware can still require a cable reconnect. Output timing follows
@@ -118,28 +128,3 @@ the active glasses display rather than the tablet's requested refresh rate.
 Keep hardware experiments separate from game loads. End the session, force-stop
 DroidDeck, and reopen its home screen after each game test. Read current HAL
 temperatures rather than cached thermal-service samples.
-
-## Validation of this update
-
-- Full debug APK build, including the Rust store engine; native-library, session
-  asset and runtime-input packaging checks passed.
-- 846 Android unit tests across 141 suites passed, including mode deadlines,
-  reconnect ownership, stale USB callbacks, dock selection and permission handling,
-  truncated USB frames and model-specific protocol cases.
-- Four host tests passed, including native refresh notification, event coalescing,
-  full-pipe handling and Cardboard output checks.
-- On the Astra: brightness changed and was restored; IMU delivered 400 packets
-  in two seconds; Steam reached its first frame in 4.9 seconds and exited cleanly.
-  Wayland reported the actual 120 Hz tablet mode. Four complete steady-state
-  ten-second windows recorded 116.8–119.5 screen frames/s in Steam's UI.
-- After reconnect: a fresh stereo attempt remained pending during the 640×480
-  fallback, failed at the 20-second deadline and issued one 2D request. The MCU
-  refused that request; another 28 seconds of observation showed no retry loop.
-- DroidDeck was force-stopped and relaunched after testing. Debugging tools and
-  temporary logging/display overrides were restored. Current HAL temperatures
-  after the session were 25°C battery and 28.3°C skin.
-- The dock checks ran without a game load; the idle battery temperature was 24°C.
-
-These checks do not establish stereo-game performance or a sustained thermal
-baseline. Direct-cable stereo and the powered-adapter design remain unverified
-as working solutions on this Astra firmware.

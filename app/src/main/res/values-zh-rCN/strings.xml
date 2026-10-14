@@ -2196,7 +2196,6 @@
     <string name="glasses_refresh">刷新率</string>
     <string name="glasses_3d">3D（左右分屏）</string>
     <string name="glasses_3d_hint">每只眼睛各看 3840×1080 画面的一半。如果画面消失，请长按眼镜上的 2D/3D 按钮。</string>
-    <string name="glasses_3d_unsupported">这部手机无法输出 3D 所需的 3840×1080 信号。VR 游戏会显示单眼画面，并带有头部追踪。</string>
     <string name="glasses_3d_failed">未能确认 3D 信号。请在 2D 画面恢复后重试。</string>
     <string name="glasses_no_signal">无画面：眼镜处于这部手机无法输出的模式。请长按眼镜的 2D/3D 按钮，或拔下后重新连接。</string>
     <string name="glasses_3d_refresh">3D 刷新率</string>

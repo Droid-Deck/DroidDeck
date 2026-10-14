@@ -2279,7 +2279,6 @@
     <string name="glasses_refresh">Refresh rate</string>
     <string name="glasses_3d">3D (side-by-side)</string>
     <string name="glasses_3d_hint">Each eye gets its own half of a 3840×1080 picture. If the picture drops out, hold the glasses\' 2D/3D button.</string>
-    <string name="glasses_3d_unsupported">This phone can\'t send the 3840×1080 signal 3D needs. VR games show one eye\'s view, with head tracking.</string>
     <string name="glasses_3d_failed">The 3D signal was not confirmed. Try again once the 2D picture returns.</string>
     <string name="glasses_no_signal">No picture: the glasses are in a mode this phone can\'t send. Hold their 2D/3D button, or unplug and replug them.</string>
     <string name="glasses_3d_refresh">3D refresh rate</string>

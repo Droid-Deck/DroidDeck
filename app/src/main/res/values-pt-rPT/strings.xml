@@ -2238,7 +2238,6 @@
     <string name="glasses_refresh">Taxa de atualização</string>
     <string name="glasses_3d">3D (lado a lado)</string>
     <string name="glasses_3d_hint">Cada olho recebe a sua metade de uma imagem de 3840×1080. Se a imagem desaparecer, mantenha premido o botão 2D/3D dos óculos.</string>
-    <string name="glasses_3d_unsupported">Este telemóvel não consegue enviar o sinal de 3840×1080 de que o 3D precisa. Os jogos de RV mostram a vista de um só olho, com seguimento da cabeça.</string>
     <string name="glasses_3d_failed">O sinal 3D não foi confirmado. Tenta novamente quando a imagem 2D voltar.</string>
     <string name="glasses_no_signal">Sem imagem: os óculos estão num modo que este telemóvel não consegue enviar. Mantenha premido o botão 2D/3D ou desligue-os e volte a ligá-los.</string>
     <string name="glasses_3d_refresh">Taxa de atualização em 3D</string>

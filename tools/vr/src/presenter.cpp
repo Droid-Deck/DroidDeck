@@ -15,7 +15,6 @@ typedef unsigned long VisualID;
 #include <algorithm>
 #include <atomic>
 #include <chrono>
-#include <climits>
 #include <condition_variable>
 #include <cstdarg>
 #include <cstdio>
@@ -460,7 +459,7 @@ private:
         VkSemaphoreCreateInfo semci = {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, nullptr, 0};
         vk_.CreateSemaphore(dev_, &semci, nullptr, &acquired_);
         vk_.CreateSemaphore(dev_, &semci, nullptr, &rendered_);
-        if (!CreateSwapchain()) return false;
+        if (!CreateSwapchain() && !wayland_) return false;
         Log("presenter: Vulkan on %s, queue family %u", props.deviceName, qfam_);
         return true;
     }

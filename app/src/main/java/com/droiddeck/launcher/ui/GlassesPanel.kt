@@ -92,11 +92,13 @@ internal fun GlassesGroups(
             stringResource(if (g.sbs) R.string.glasses_mode_3d else R.string.glasses_mode_2d)) else null
         when {
             g.noSignal -> SettingsRow(stringResource(R.string.glasses_output), stringResource(R.string.glasses_no_signal)) {}
-            !g.controllable && g.present && g.permission == Glasses.Permission.NONE && !g.connected ->
-                SettingsRow(stringResource(R.string.glasses_control), status ?: stringResource(R.string.glasses_no_control)) {}
+            !g.controllable -> {
+                if (status != null) SettingsRow(stringResource(R.string.glasses_output), status) {}
+                SettingsRow(stringResource(R.string.glasses_control), stringResource(R.string.glasses_no_control)) {}
+            }
             g.permission == Glasses.Permission.ASKING ->
                 SettingsRow(stringResource(R.string.glasses_control), stringResource(R.string.glasses_asking)) {}
-            !g.connected && g.controllable -> ActionRow(stringResource(R.string.glasses_control),
+            !g.connected -> ActionRow(stringResource(R.string.glasses_control),
                 stringResource(if (g.permission == Glasses.Permission.DENIED) R.string.glasses_denied else R.string.glasses_allow_hint),
                 stringResource(R.string.glasses_allow), { Glasses.requestControl() })
             status != null -> SettingsRow(stringResource(R.string.glasses_output), status) {}
@@ -115,9 +117,9 @@ internal fun GlassesGroups(
                 g.sbs, chipModifier = track("glasses-3d")) { Glasses.set3d(it) }
             if (g.sbs90) ChoiceRow(host, "glasses-3d-hz", stringResource(R.string.glasses_3d_refresh), null,
                 listOf(60, 90).map { it to "$it Hz" }, s.sbsHz, chipModifier = track("glasses-3d-hz")) { Glasses.setSbsHz(it) }
-            ToggleRow(host, "glasses-auto3d", stringResource(R.string.glasses_auto3d), stringResource(R.string.glasses_auto3d_hint),
-                s.auto3d, chipModifier = track("glasses-auto3d")) { Glasses.setAuto3d(it) }
         }
+        ToggleRow(host, "glasses-auto3d", stringResource(R.string.glasses_auto3d), stringResource(R.string.glasses_auto3d_hint),
+            s.auto3d, chipModifier = track("glasses-auto3d")) { Glasses.setAuto3d(it) }
         ChoiceRow(host, "glasses-picture", stringResource(R.string.glasses_picture), stringResource(R.string.glasses_picture_hint),
             listOf(
                 GlassesSettings.PICTURE_AUTO to stringResource(R.string.glasses_picture_auto),

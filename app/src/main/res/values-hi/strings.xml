@@ -2213,7 +2213,6 @@
     <string name="glasses_refresh">रिफ्रेश रेट</string>
     <string name="glasses_3d">3D (साइड-बाय-साइड)</string>
     <string name="glasses_3d_hint">हर आंख को 3840×1080 तस्वीर का अपना आधा हिस्सा मिलता है। अगर तस्वीर चली जाए, तो चश्मे का 2D/3D बटन दबाकर रखें।</string>
-    <string name="glasses_3d_unsupported">यह फ़ोन 3D के लिए ज़रूरी 3840×1080 सिग्नल नहीं भेज सकता। VR गेम हेड ट्रैकिंग के साथ एक आंख का व्यू दिखाते हैं।</string>
     <string name="glasses_3d_failed">3D सिग्नल की पुष्टि नहीं हुई। 2D तस्वीर वापस आने पर फिर कोशिश करें।</string>
     <string name="glasses_no_signal">कोई तस्वीर नहीं: चश्मा ऐसे मोड में है जिसे यह फ़ोन नहीं भेज सकता। उसका 2D/3D बटन दबाकर रखें, या केबल निकालकर फिर से लगाएं।</string>
     <string name="glasses_3d_refresh">3D रिफ्रेश रेट</string>

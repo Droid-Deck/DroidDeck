@@ -1523,7 +1523,7 @@ static void bind_output(struct wl_client *c, void *data, uint32_t ver, uint32_t 
     wl_list_insert(&g_outputs, wl_resource_get_link(r));
     wl_output_send_geometry(r, 0, 0, 340, 190, WL_OUTPUT_SUBPIXEL_UNKNOWN,
                             "DroidDeck", "Wayland", WL_OUTPUT_TRANSFORM_NORMAL);
-    output_send_mode(r, atomic_load(&g_output_refresh_mhz));
+    output_send_mode(r, g_output_announced_refresh_mhz);
     if (ver >= WL_OUTPUT_NAME_SINCE_VERSION) {
         wl_output_send_name(r, "DroidDeck-1");
         wl_output_send_description(r, "DroidDeck display");

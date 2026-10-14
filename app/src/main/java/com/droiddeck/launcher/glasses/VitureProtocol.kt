@@ -85,14 +85,6 @@ object VitureProtocol {
         return Model(name, family)
     }
 
-    fun modeIsSbs(mode: Int): Boolean = mode == 0x32 || mode == 0x35 || mode == 0x42 || mode == 0x45
-
-    fun modeHz(mode: Int): Int = when (mode) {
-        0x34, 0x44 -> 120
-        0x33, 0x35, 0x43, 0x45 -> 90
-        else -> 60
-    }
-
     private val CRC_TABLE = IntArray(256) { i ->
         var c = i shl 8
         repeat(8) { c = if (c and 0x8000 != 0) (c shl 1) xor 0x1021 else c shl 1 }

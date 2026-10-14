@@ -319,6 +319,23 @@ static uint32_t mode_mhz(void) {
 
 static uint64_t frame_ns(void) { return 1000000000000ull / mode_mhz(); }
 
+static pthread_mutex_t g_vblank_lock = PTHREAD_MUTEX_INITIALIZER;
+static uint64_t g_vblank_base, g_vblank_at, g_vblank_frame;
+
+static uint64_t vblank_count(void) {
+    uint64_t f = frame_ns();
+    pthread_mutex_lock(&g_vblank_lock);
+    uint64_t t = now_ns();
+    if (f != g_vblank_frame) {
+        g_vblank_base = g_vblank_frame ? g_vblank_base + (t - g_vblank_at) / g_vblank_frame : t / f;
+        g_vblank_at = t;
+        g_vblank_frame = f;
+    }
+    uint64_t n = g_vblank_base + (t - g_vblank_at) / f;
+    pthread_mutex_unlock(&g_vblank_lock);
+    return n;
+}
+
 static VkDisplayPropertiesKHR display_props(void) {
     mode_init();
     VkDisplayPropertiesKHR p = {0};
@@ -454,7 +471,7 @@ static VkResult VKAPI_CALL RegisterDisplayEventEXT(VkDevice d, VkDisplayKHR disp
 }
 static VkResult VKAPI_CALL GetSwapchainCounterEXT(VkDevice d, VkSwapchainKHR sc, VkSurfaceCounterFlagBitsEXT counter, uint64_t *value) {
     mode_init();
-    *value = now_ns() / frame_ns();
+    *value = vblank_count();
     return VK_SUCCESS;
 }
 

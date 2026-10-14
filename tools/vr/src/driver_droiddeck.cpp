@@ -102,16 +102,26 @@ public:
     void WaitForPresent() override {}
     bool GetTimeSinceLastVsync(float *seconds, uint64_t *counter) override {
         using namespace std::chrono;
-        double t = duration<double>(steady_clock::now().time_since_epoch()).count();
-        double period = VsyncPeriodSeconds();
-        *seconds = (float)fmod(t, period);
-        *counter = (uint64_t)(t / period);
+        const double period = VsyncPeriodSeconds();
+        std::lock_guard<std::mutex> lock(vsyncMutex_);
+        const double t = duration<double>(steady_clock::now().time_since_epoch()).count();
+        if (period != period_) {
+            vsyncBase_ = period_ > 0.0 ? vsyncBase_ + (uint64_t)((t - vsyncAt_) / period_) : (uint64_t)(t / period);
+            vsyncAt_ = t;
+            period_ = period;
+        }
+        const double since = t - vsyncAt_;
+        *seconds = (float)fmod(since, period);
+        *counter = vsyncBase_ + (uint64_t)(since / period);
         return true;
     }
 
 private:
     uint64_t frames_ = 0;
     std::chrono::steady_clock::time_point last_;
+    std::mutex vsyncMutex_;
+    double period_ = 0.0, vsyncAt_ = 0.0;
+    uint64_t vsyncBase_ = 0;
 };
 
 class Vsync {
@@ -490,6 +500,8 @@ public:
         if (pose_.Read(&hp) && hp.tan_half_fov > 0.0f) {
             tanHalf_ = hp.tan_half_fov;
             if (hp.eye_aspect > 0.0f) eyeAspect_ = hp.eye_aspect;
+            sentMono_ = (hp.flags & DROIDDECK_HEADPOSE_MONO) != 0;
+            renderScale_ = sentMono_ ? 1.0f : 1.4f;
         }
         if (pose_.Read(&hp) && hp.display_hz >= 24.0f) hz = hp.display_hz;
         Vsync::SetRate(hz);
@@ -599,7 +611,8 @@ private:
     void UpdateEye(const droiddeck_headpose &hp) {
         sentTan_ = tanHalf_ = hp.tan_half_fov;
         sentAspect_ = eyeAspect_ = hp.eye_aspect;
-        renderScale_ = (hp.flags & DROIDDECK_HEADPOSE_MONO) ? 1.0f : 1.4f;
+        sentMono_ = (hp.flags & DROIDDECK_HEADPOSE_MONO) != 0;
+        renderScale_ = sentMono_ ? 1.0f : 1.4f;
         HmdRect2_t r;
         r.vTopLeft.v[0] = -tanHalf_ * eyeAspect_;
         r.vTopLeft.v[1] = -tanHalf_;
@@ -635,7 +648,8 @@ private:
                 if (fresh) {
                     lastSeq = hp.seq;
                     if (hp.eye_w > 0 && hp.tan_half_fov > 0.0f && hp.eye_aspect > 0.0f &&
-                        (fabsf(hp.tan_half_fov - sentTan_) > 1e-3f || fabsf(hp.eye_aspect - sentAspect_) > 1e-3f))
+                        (fabsf(hp.tan_half_fov - sentTan_) > 1e-3f || fabsf(hp.eye_aspect - sentAspect_) > 1e-3f ||
+                         ((hp.flags & DROIDDECK_HEADPOSE_MONO) != 0) != sentMono_))
                         UpdateEye(hp);
                     if (hp.display_hz >= 24.0f && fabsf(hp.display_hz - sentHz_) > 0.5f) UpdateRate(hp.display_hz);
                     const bool worn = (hp.flags & DROIDDECK_HEADPOSE_ENABLED) != 0;
@@ -690,6 +704,7 @@ private:
     int32_t width_ = 1920, height_ = 1080;
     std::atomic<float> tanHalf_{1.0f}, eyeAspect_{0.889f}, renderScale_{1.4f};
     float sentTan_ = 0.0f, sentAspect_ = 0.0f, sentHz_ = 0.0f;
+    bool sentMono_ = false;
     PropertyContainerHandle_t container_ = k_ulInvalidPropertyContainer;
 public:
     void SetHands(CardboardController *left, CardboardController *right) { hands_[0] = left; hands_[1] = right; }

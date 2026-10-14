@@ -2213,7 +2213,6 @@
     <string name="glasses_refresh">Virkistystaajuus</string>
     <string name="glasses_3d">3D (rinnakkain)</string>
     <string name="glasses_3d_hint">Kumpikin silmä saa oman puoliskonsa 3840×1080-kuvasta. Jos kuva katoaa, pidä lasien 2D/3D-painiketta pohjassa.</string>
-    <string name="glasses_3d_unsupported">Tämä puhelin ei pysty lähettämään 3D:n vaatimaa 3840×1080-signaalia. VR-pelit näyttävät yhden silmän näkymän pään seurannalla.</string>
     <string name="glasses_3d_failed">3D-signaalia ei voitu vahvistaa. Yritä uudelleen, kun 2D-kuva palautuu.</string>
     <string name="glasses_no_signal">Ei kuvaa: lasit ovat tilassa, jota tämä puhelin ei pysty lähettämään. Pidä niiden 2D/3D-painiketta pohjassa tai irrota ja kytke ne uudelleen.</string>
     <string name="glasses_3d_refresh">3D-virkistystaajuus</string>

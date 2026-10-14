@@ -139,13 +139,16 @@ Verified on the AYN Thor (SD 8 Gen 2, Turnip): SteamVR 2.17.10 starts with the D
 the compositor runs driver-direct at about 60 fps, the dashboard (Steam's library in VR, with the
 controller's laser) shows cleanly in both eyes at the panel's resolution while Steam keeps running, and
 a pose written to the shared file turns SteamVR's view. Started from the drawer button through the agent.
-With VITURE glasses connected, the Steam page also offers **Play SteamVR**, which starts Steam and then
+With VITURE glasses connected and under DroidDeck's control, the Steam page also offers **Play SteamVR**, which starts Steam and then
 SteamVR (installing it first if needed), and stops SteamVR when the glasses are unplugged. **Play
 Steam** never starts it: while SteamVR runs, Steam keeps its own window in front of flat games.
+Through a VITURE Mobile Dock the glasses are only a display: the dock does not pass their controls or
+head tracking to the phone, so there is no Play SteamVR, refresh, 3D or tracking setting.
 
 Stereo also requires a physical side-by-side display mode. On the tested Astra 2
 firmware the Pro XR command succeeds but DisplayPort falls back to 640×480;
-direct-connection stereo remains unresolved. See the
+direct-connection stereo remains unresolved. DroidDeck remembers such a fallback for that glasses
+model and stops asking for 3D on its own; **Retry** in the glasses settings tries again. See the
 [Astra/VITURE investigation](development/astra-viture-stereo.md) for measured
 results, app recovery behavior, and the unverified powered-adapter design.
 

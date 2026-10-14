@@ -118,14 +118,6 @@ class VitureProtocolTest {
         assertEquals("VITURE One", VitureProtocol.model(0x1011, "Something else")!!.name)
     }
 
-    @Test fun modeHelpers() {
-        listOf(0x32, 0x35, 0x42, 0x45).forEach { assertTrue(VitureProtocol.modeIsSbs(it)) }
-        listOf(0x31, 0x33, 0x34, 0x41, 0x44).forEach { assertFalse(VitureProtocol.modeIsSbs(it)) }
-        assertEquals(120, VitureProtocol.modeHz(0x34))
-        assertEquals(90, VitureProtocol.modeHz(0x35))
-        assertEquals(60, VitureProtocol.modeHz(0x32))
-    }
-
     @Test fun imuPrefersTheQuaternion() {
         val half = Math.toRadians(30.0) / 2
         val payload = ByteBuffer.allocate(40)

@@ -2238,7 +2238,6 @@
     <string name="glasses_refresh">Rată de reîmprospătare</string>
     <string name="glasses_3d">3D (alăturat)</string>
     <string name="glasses_3d_hint">Fiecare ochi primește propria jumătate dintr-o imagine de 3840×1080. Dacă imaginea dispare, ține apăsat butonul 2D/3D al ochelarilor.</string>
-    <string name="glasses_3d_unsupported">Acest telefon nu poate trimite semnalul de 3840×1080 de care are nevoie 3D-ul. Jocurile VR arată imaginea unui singur ochi, cu urmărirea capului.</string>
     <string name="glasses_3d_failed">Semnalul 3D nu a fost confirmat. Încearcă din nou când revine imaginea 2D.</string>
     <string name="glasses_no_signal">Nicio imagine: ochelarii sunt într-un mod pe care acest telefon nu îl poate trimite. Ține apăsat butonul lor 2D/3D sau deconectează-i și reconectează-i.</string>
     <string name="glasses_3d_refresh">Rată de reîmprospătare 3D</string>
