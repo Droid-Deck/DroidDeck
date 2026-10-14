@@ -9,6 +9,7 @@ use jni::{JNIEnv, JavaVM};
 
 use super::assemble::{build_assemble_plan, run_assemble, AssembleRequest};
 use super::driver::{build_plan, run_plan, EpicRequest};
+use super::stream::{build_stream_plan, run_stream, Hooks, StreamProgress, StreamRequest};
 
 #[cfg(target_os = "android")]
 #[link(name = "log")]
@@ -421,6 +422,184 @@ pub extern "system" fn Java_com_droiddeck_launcher_stores_epic_EpicNative_native
         );
     });
     let handle = Box::new(EpicDownloadHandle { cancel, worker: Some(worker) });
+
+    Box::into_raw(handle) as jlong
+}
+
+fn call_on_stream_progress(env: &mut JNIEnv, listener: &JObject, p: &StreamProgress) {
+    if listener.is_null() {
+        return;
+    }
+    let _ = env.call_method(
+        listener,
+        "onStreamProgress",
+        "(JJIIJ)V",
+        &[
+            JValue::Long(p.bytes_written as jlong),
+            JValue::Long(p.bytes_total as jlong),
+            JValue::Int(p.files_done.min(i32::MAX as u64) as jint),
+            JValue::Int(p.files_total.min(i32::MAX as u64) as jint),
+            JValue::Long(p.files_bytes as jlong),
+        ],
+    );
+    clear_pending_exception(env);
+}
+
+/// `boolean onBeforeReplace()`: the Java side marks an existing install `updating`. A thrown
+/// exception or `false` is a refusal.
+fn call_on_before_replace(env: &mut JNIEnv, listener: &JObject) -> Result<(), String> {
+    if listener.is_null() {
+        return Ok(());
+    }
+    let result = env
+        .call_method(listener, "onBeforeReplace", "()Z", &[])
+        .and_then(|v| v.z());
+    let threw = env.exception_check().unwrap_or(false);
+    clear_pending_exception(env);
+    match result {
+        Ok(true) if !threw => Ok(()),
+        _ => Err("could not mark the install as updating".to_string()),
+    }
+}
+
+/// `EpicNative.nativeStream(...)`: the adaptive install (see `stream.rs`). Parse, plan and cache
+/// preparation run on the calling thread, so a refusal returns 0 (after a synchronous
+/// `onComplete(false, reason, 0)`) before anything is fetched or written, and the manager runs
+/// the bounded Java writer instead. The run itself is on a new thread; `onComplete` fires after
+/// every unfinished staging file of a cancelled or failed run is gone.
+#[no_mangle]
+pub extern "system" fn Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeStream(
+    mut env: JNIEnv,
+    _class: JClass,
+    manifest: JByteArray,
+    install_dir: JString,
+    chunk_cache_dir: JString,
+    cdn_prefixes: JObjectArray,
+    pending_file_idx: JIntArray,
+    expected_bytes: jlong,
+    cache_budget: jlong,
+    ca_bundle_path: JString,
+    max_workers: jint,
+    process_workers: jint,
+    listener: JObject,
+) -> jlong {
+    if listener.is_null() {
+        android_log("nativeStream: null listener");
+        return 0;
+    }
+    let Ok(manifest_bytes) = env.convert_byte_array(manifest) else {
+        clear_pending_exception(&mut env);
+        call_on_complete(&mut env, &listener, false, "manifest bytes unreadable", 0);
+        return 0;
+    };
+    let install_dir = jstring_to_string(&mut env, &install_dir).unwrap_or_default();
+    let chunk_cache_dir = jstring_to_string(&mut env, &chunk_cache_dir).unwrap_or_default();
+    let cdn_prefixes = string_array_to_vec(&mut env, &cdn_prefixes);
+    let pending_file_indices: Vec<usize> = int_array_to_vec(&env, &pending_file_idx)
+        .into_iter()
+        .map(|i| i.max(0) as usize)
+        .collect();
+    let ca_bundle_path = jstring_to_string(&mut env, &ca_bundle_path).unwrap_or_default();
+    let max_workers = max_workers.max(1) as usize;
+    let process_workers = process_workers.max(1) as usize;
+    let label = {
+        let base = std::path::Path::new(&install_dir)
+            .file_name()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        format!("epic app={base}")
+    };
+    log_both(
+        &mut env,
+        &listener,
+        &format!(
+            "engine=rust-stream label=\"{label}\" install_dir={install_dir} cache_dir={} cdns={} pending_files={} cache_budget={} workers={max_workers} process_workers={process_workers} manifest_bytes={}",
+            if chunk_cache_dir.is_empty() { "<installDir>/.chunks" } else { chunk_cache_dir.as_str() },
+            cdn_prefixes.len(),
+            pending_file_indices.len(),
+            cache_budget.max(0),
+            manifest_bytes.len()
+        ),
+    );
+
+    let req = StreamRequest {
+        manifest_bytes,
+        install_dir,
+        chunk_cache_dir,
+        cdn_prefixes,
+        pending_file_indices,
+        expected_bytes: if expected_bytes >= 0 {
+            Some(expected_bytes as u64)
+        } else {
+            None
+        },
+        cache_budget: cache_budget.max(0) as u64,
+        ca_bundle_path,
+        max_workers,
+        process_workers,
+        label,
+    };
+    let plan = match build_stream_plan(&req) {
+        Ok(plan) => plan,
+        Err(err) => {
+            log_both(&mut env, &listener, &format!("not started: {err}"));
+            call_on_complete(&mut env, &listener, false, &err, 0);
+            return 0;
+        }
+    };
+    let Ok(vm) = env.get_java_vm() else {
+        clear_pending_exception(&mut env);
+        call_on_complete(&mut env, &listener, false, "JavaVM unavailable", 0);
+        return 0;
+    };
+    let Ok(listener) = env.new_global_ref(&listener) else {
+        clear_pending_exception(&mut env);
+        call_on_complete(&mut env, &listener, false, "listener ref failed", 0);
+        return 0;
+    };
+
+    let cancel = Arc::new(AtomicBool::new(false));
+    let thread_cancel = Arc::clone(&cancel);
+    let handle = Box::new(EpicDownloadHandle { cancel });
+
+    thread::spawn(move || {
+        crate::priority::background();
+        let progress = |p: &StreamProgress| {
+            let Ok(mut env) = vm.attach_current_thread_as_daemon() else {
+                return;
+            };
+            call_on_stream_progress(&mut env, listener.as_obj(), p);
+        };
+        let before_replace = || {
+            let Ok(mut env) = vm.attach_current_thread_as_daemon() else {
+                return Err("JavaVM attach failed".to_string());
+            };
+            call_on_before_replace(&mut env, listener.as_obj())
+        };
+        let log = |line: &str| {
+            android_log(line);
+            let Ok(mut env) = vm.attach_current_thread_as_daemon() else {
+                return;
+            };
+            call_on_log(&mut env, listener.as_obj(), line);
+        };
+        let hooks = Hooks {
+            progress: &progress,
+            before_replace: &before_replace,
+            log: &log,
+        };
+        let outcome = run_stream(&plan, &req, thread_cancel.as_ref(), &hooks);
+        let Ok(mut env) = vm.attach_current_thread_as_daemon() else {
+            return;
+        };
+        call_on_complete(
+            &mut env,
+            listener.as_obj(),
+            outcome.success,
+            &outcome.error,
+            outcome.bytes_written,
+        );
+    });
 
     Box::into_raw(handle) as jlong
 }

@@ -7,6 +7,7 @@ pub mod driver;
 pub mod jni;
 pub mod manifest;
 pub mod plan;
+pub mod stream;
 
 pub const USER_AGENT: &str =
     "UELauncher/11.0.1-14907503+++Portal+Release-Live Windows/10.0.19041.1.256.64bit";
