@@ -119,6 +119,35 @@ class LayoutTest(unittest.TestCase):
         inst.select()
         self.assertEqual(inst.included_components, {"Up", "Wide"})
 
+    def test_a_duplicate_onto_the_file_itself_is_skipped(self):
+        # The .NET host packages (dotnet-host-*-win-x86.msi) duplicate dotnet.exe into its own
+        # folder under its own name; copying it onto itself raised SameFileError and stopped every
+        # .NET Core / Desktop runtime install.
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "cab" / "dotnet.exe"
+            src.parent.mkdir()
+            src.write_bytes(b"MZ")
+            out = Path(tmp) / "out"
+            inst = installer({
+                "Directory": rows("Directory Directory_Parent DefaultDir",
+                                  ("TARGETDIR", "", "SourceDir"),
+                                  ("ProgramFilesFolder", "TARGETDIR", "PFiles"),
+                                  ("DOTNETHOME", "ProgramFilesFolder", "dotnet"),
+                                  ("DOTNETHOME_X86", "ProgramFilesFolder", "dotnet")),
+                "Component": rows("Component Directory_ Attributes Condition KeyPath",
+                                  ("Host", "DOTNETHOME", "0", "", "DotnetExe")),
+                "Feature": rows("Feature Feature_Parent Level", ("Main", "", "1")),
+                "FeatureComponents": rows("Feature_ Component_", ("Main", "Host")),
+                "File": rows("File Component_ FileName", ("DotnetExe", "Host", "dotnet.exe")),
+                "DuplicateFile": rows("FileKey Component_ File_ DestName DestFolder",
+                                      ("Dup", "Host", "DotnetExe", "", "DOTNETHOME_X86")),
+            }, out=str(out))
+            inst.select()
+            inst.install_files({"DotnetExe": src})
+            placed = out / "drive_c/Program Files (x86)/dotnet/dotnet.exe"
+            self.assertEqual(placed.read_bytes(), b"MZ")
+            self.assertEqual(inst.counts["files"], 1)
+
     def test_global_assembly_paths(self):
         with tempfile.TemporaryDirectory() as tmp:
             dll = Path(tmp) / "a.dll"
