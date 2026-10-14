@@ -116,6 +116,7 @@ class MainActivity : ComponentActivity() {
     private var frameGenLabel by mutableStateOf("")
     private var lossless by mutableStateOf(Lossless.State.NONE)
     private var showRemove by mutableStateOf(false)
+    private var showResetSettings by mutableStateOf(false)
     private var showNonAdreno by mutableStateOf<LinuxRuntimeInstaller.Release?>(null)
     private var glThread by mutableStateOf(true)
     private var noGlError by mutableStateOf(true)
@@ -350,6 +351,8 @@ class MainActivity : ComponentActivity() {
     private var touchMode by mutableStateOf(SessionPrefs.TOUCH_AUTO)
     private var suspendPolicy by mutableStateOf(SessionPrefs.SUSPEND_MANUAL)
     private var steamDownloadsInBackground by mutableStateOf(false)
+    private var zramCompression by mutableStateOf(false)
+    private var zramSupported by mutableStateOf<Boolean?>(null)
     private var oscMode by mutableStateOf(SessionPrefs.OSC_AUTO)
     private var backActionsInverted by mutableStateOf(false)
     private var gameStorage by mutableStateOf("")
@@ -725,6 +728,10 @@ class MainActivity : ComponentActivity() {
                                 }
                             }, "clear-logs").start()
                         },
+                        onResetSettings = {
+                            if (SessionState.running) android.widget.Toast.makeText(this, R.string.setup_reset_settings_session_running, android.widget.Toast.LENGTH_LONG).show()
+                            else showResetSettings = true
+                        },
                         onOffline = {
                             OfflineMode.setEnabled(this, !OfflineMode.enabled(this))
                             offline = OfflineMode.enabled(this)
@@ -869,6 +876,10 @@ class MainActivity : ComponentActivity() {
                     confirm = androidx.compose.ui.res.stringResource(R.string.store_remove),
                     onConfirm = { showRemove = false; removeRuntime() },
                     onDismiss = { showRemove = false },
+                )
+                if (showResetSettings) com.droiddeck.launcher.ui.ResetSettingsDialog(
+                    onConfirm = { gameProfiles -> resetSettings(gameProfiles) },
+                    onDismiss = { showResetSettings = false },
                 )
                 flood?.let { f -> com.droiddeck.launcher.ui.LaunchFlood(f.from, onProgress = { floodProgress = it }) { launchFlooded(f) } }
                 returning?.let { r ->
@@ -1293,6 +1304,8 @@ class MainActivity : ComponentActivity() {
                 touchMode = touchMode,
                 suspendPolicy = suspendPolicy,
                 steamDownloadsInBackground = steamDownloadsInBackground,
+                zramCompression = if (mode == SessionService.MODE_STEAM) zramCompression else null,
+                zramSupported = zramSupported,
                 pipSupported = com.droiddeck.launcher.session.SessionPipController.supported(this),
                 pipAutoEnter = pipAutoEnter,
                 unfoldedControls = if (mode == SessionService.MODE_STEAM &&
@@ -1351,6 +1364,7 @@ class MainActivity : ComponentActivity() {
                     SessionPrefs.setSteamDownloadsInBackground(this, enabled)
                     steamDownloadsInBackground = enabled
                 },
+                onZramCompression = { on -> SessionPrefs.setZramCompression(this, on); zramCompression = on },
                 onPipAutoEnter = { on -> SessionPrefs.setPipAutoEnter(this, on); pipAutoEnter = on },
                 onUnfoldedControls = { on -> SessionPrefs.setUnfoldedControls(this, on); unfoldedControls = on },
                 onOsc = { o -> SessionPrefs.setOscMode(this, o); oscMode = o },
@@ -1539,6 +1553,9 @@ class MainActivity : ComponentActivity() {
         // The sheet lifts at once, on what was last read; the slow part (driver files, a walk of the
         // added-games folders, the storage volumes) lands while it rises.
         Thread({
+            val zram = com.droiddeck.launcher.core.ZramSupport.supported()
+            val zramOn = SessionPrefs.zramCompression(this)
+            ui.post { zramSupported = zram; zramCompression = zramOn }
             drivers.refreshDrivers()
             val storage = GameStorage.options(this)
             val deckyInstalled = if (mode == SessionService.MODE_STEAM) DeckyManager.installed(this) else null
@@ -1740,6 +1757,22 @@ class MainActivity : ComponentActivity() {
         followRuntimeOperation { listener ->
             operation.run(listener) { progress -> DesktopCatalog.removeDesktop(this, progress) }
         }
+    }
+
+    /** Setup's Reset all settings; the activity is recreated so every screen reads the defaults (and the language) again. */
+    private fun resetSettings(gameProfiles: Boolean) {
+        if (SessionState.running) return
+        val scopes = steamGames.map { it.profileKey }
+        Thread({
+            val ok = com.droiddeck.launcher.session.SettingsReset.resetAll(this, gameProfiles, scopes)
+            ui.post {
+                if (isDestroyed) return@post
+                com.droiddeck.launcher.core.AppLanguage.setChosen(this, com.droiddeck.launcher.core.AppLanguage.SYSTEM)
+                if (!ok) android.widget.Toast.makeText(this, R.string.setup_reset_settings_partial, android.widget.Toast.LENGTH_LONG).show()
+                com.droiddeck.launcher.ui.Motion.refresh(this)
+                recreate()
+            }
+        }, "reset-settings").start()
     }
 
     private fun removeRuntime() {

@@ -43,8 +43,14 @@ struct sem_header {
     uint32_t key;
     uint32_t mode;
     int32_t creator_pid;
-    int32_t pad[11];
+    /* What IPC_STAT reports as sem_otime / sem_ctime (seconds). The usual race-free init has the
+     * creator semop the new set once, and every other process wait until sem_otime is non-zero;
+     * SteamVR's web helper spins on exactly that. */
+    _Atomic uint32_t otime;
+    _Atomic uint32_t ctime;
+    int32_t pad[9];
 };
+_Static_assert(sizeof(struct sem_header) == 64, "semaphore files written by older sessions keep their layout");
 /* The counters follow the header, one 32-bit word each (a futex word). */
 
 struct sem_map { int id; struct sem_header *hdr; size_t len; };
@@ -176,7 +182,8 @@ int semget(key_t key, int nsems, int semflg) {
         size_t len = sizeof(struct sem_header) + (size_t)nsems * sizeof(int32_t);
         if (ftruncate(fd, (off_t)len) != 0) { close(fd); return -1; }
         struct sem_header h = {.magic = SEM_MAGIC, .nsems = (uint32_t)nsems, .key = (uint32_t)key,
-                               .mode = (uint32_t)(semflg & 0777), .creator_pid = (int32_t)getpid()};
+                               .mode = (uint32_t)(semflg & 0777), .creator_pid = (int32_t)getpid(),
+                               .ctime = (uint32_t)time(NULL)};
         if (pwrite(fd, &h, sizeof(h), 0) != (ssize_t)sizeof(h)) { close(fd); return -1; }
     } else {
         struct sem_header h;
@@ -222,6 +229,7 @@ int semtimedop(int semid, struct sembuf *sops, size_t nsops, const struct timesp
         }
         if (sops[i].sem_op < 0) futex(w, FUTEX_WAKE, INT_MAX, NULL); /* zero-waiters see the change */
     }
+    atomic_store(&h->otime, (uint32_t)time(NULL));
     return 0;
 }
 
@@ -256,6 +264,7 @@ int semctl(int semid, int semnum, int cmd, ...) {
         if (semnum < 0 || (uint32_t)semnum >= h->nsems) { errno = EINVAL; return -1; }
         atomic_store(&words[semnum], (int32_t)(intptr_t)arg.buf);
         futex(&words[semnum], FUTEX_WAKE, INT_MAX, NULL);
+        atomic_store(&h->ctime, (uint32_t)time(NULL));
         return 0;
     case GETALL:
         for (uint32_t i = 0; i < h->nsems; i++) arg.array[i] = (unsigned short)atomic_load(&words[i]);
@@ -265,6 +274,7 @@ int semctl(int semid, int semnum, int cmd, ...) {
             atomic_store(&words[i], arg.array[i]);
             futex(&words[i], FUTEX_WAKE, INT_MAX, NULL);
         }
+        atomic_store(&h->ctime, (uint32_t)time(NULL));
         return 0;
     case GETPID: return h->creator_pid;
     case GETNCNT: case GETZCNT: return 0;
@@ -275,8 +285,10 @@ int semctl(int semid, int semnum, int cmd, ...) {
         arg.buf->sem_perm.gid = arg.buf->sem_perm.cgid = getgid();
         arg.buf->sem_perm.mode = (unsigned short)h->mode;
         arg.buf->sem_nsems = h->nsems;
+        arg.buf->sem_otime = (time_t)atomic_load(&h->otime);
+        arg.buf->sem_ctime = (time_t)atomic_load(&h->ctime);
         return 0;
-    case IPC_SET: return 0;
+    case IPC_SET: atomic_store(&h->ctime, (uint32_t)time(NULL)); return 0;
     default: errno = EINVAL; return -1;
     }
 }

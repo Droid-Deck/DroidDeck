@@ -47,9 +47,11 @@ static int is_status_path(const char *path) {
 }
 
 /* Chromium stands its hang watchdogs down when it sees a tracer, and the client's web helper does
- * not come up within their patience here: it is left reading the truth. */
+ * not come up within their patience here: it is left reading the truth. SteamVR's web helper (the
+ * dashboard, Cardboard mode's SteamVR) is the same Chromium and stalls the same way. */
 static int is_web_helper(void) {
-  return strcmp(program_invocation_short_name, "steamwebhelper") == 0;
+  return strcmp(program_invocation_short_name, "steamwebhelper") == 0 ||
+         strcmp(program_invocation_short_name, "vrwebhelper") == 0;
 }
 
 static int write_all(int fd, const char *data, size_t len) {

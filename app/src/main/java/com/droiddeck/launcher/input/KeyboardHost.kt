@@ -2,10 +2,12 @@ package com.droiddeck.launcher.input
 
 import android.app.Activity
 import android.content.Context
+import android.os.Build
 import android.text.InputType
 import android.view.KeyCharacterMap
 import android.view.KeyEvent
 import android.view.View
+import android.view.WindowInsets
 import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
@@ -53,7 +55,10 @@ class KeyboardHost(
         return KeyConnection()
     }
 
-    fun toggle() = if (shown) hide() else show()
+    fun toggle() = if (shown && imeVisible()) hide() else show()
+
+    private fun imeVisible() = Build.VERSION.SDK_INT < Build.VERSION_CODES.R ||
+        rootWindowInsets?.isVisible(WindowInsets.Type.ime()) != false
 
     fun show() {
         shown = true

@@ -41,7 +41,7 @@ internal object StoreNet {
         }
     }
 
-    fun postJson(url: String, body: String, bearer: String? = null, userAgent: String = BROWSER_UA, timeoutMs: Int = 25_000): String? {
+    fun postJson(url: String, body: String, bearer: String? = null, userAgent: String = BROWSER_UA, timeoutMs: Int = 25_000, headers: Map<String, String> = emptyMap()): String? {
         var conn: HttpURLConnection? = null
         return try {
             conn = (URL(url).openConnection() as HttpURLConnection).apply {
@@ -53,6 +53,7 @@ internal object StoreNet {
                 setRequestProperty("Content-Type", "application/json")
                 setRequestProperty("Accept", "application/json")
                 if (bearer != null) setRequestProperty("Authorization", "Bearer $bearer")
+                headers.forEach { (k, v) -> setRequestProperty(k, v) }
             }
             OutputStreamWriter(conn.outputStream, "UTF-8").use { it.write(body) }
             val code = conn.responseCode

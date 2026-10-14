@@ -1,0 +1,11 @@
+{
+	"driver_droiddeck": {
+		"enable": true,
+		"windowWidth": 1920,
+		"windowHeight": 1080,
+		"displayFrequency": 60.0,
+		"virtualDisplay": false,
+		"directMode": true,
+		"gamepadControllers": true
+	}
+}

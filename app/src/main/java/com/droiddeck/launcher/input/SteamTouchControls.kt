@@ -13,6 +13,7 @@ import android.util.Log
 import android.view.MotionEvent
 import android.view.View
 import android.widget.Toast
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.input.SteamTouchConfig.Element
 import java.util.concurrent.Executors
 import kotlin.math.abs
@@ -335,7 +336,7 @@ class SteamTouchControls(
                 if (editing) {
                     text.textSize = r * 0.3f
                     text.color = Color.argb(alpha / 2, 255, 255, 255)
-                    canvas.drawText("Trackpad", x, y - (text.descent() + text.ascent()) / 2, text)
+                    canvas.drawText(context.getString(R.string.deck_surface_trackpad), x, y - (text.descent() + text.ascent()) / 2, text)
                 }
             }
             SteamTouchConfig.STEAM -> {
@@ -579,7 +580,7 @@ class SteamTouchControls(
         SteamTouchConfig.STEAM -> "STEAM"
         SteamTouchConfig.THUMB -> "…"
         SteamTouchConfig.KEYBOARD -> "⌨"
-        SteamTouchConfig.PASTE -> "Paste"
+        SteamTouchConfig.PASTE -> context.getString(R.string.touch_paste)
         SteamTouchConfig.SELECT -> "⧉"
         SteamTouchConfig.START -> "☰"
         SteamTouchConfig.BUMPER_LEFT -> "LB"
@@ -880,15 +881,15 @@ class SteamTouchControls(
     }
 
     private fun controlName(type: Int) = when (type) {
-        SteamTouchConfig.DPAD -> "D-pad"
-        SteamTouchConfig.JOYSTICK_LEFT -> "Left stick"
-        SteamTouchConfig.JOYSTICK_RIGHT -> "Right stick"
-        SteamTouchConfig.TRACKPAD_LEFT -> "Left trackpad"
-        SteamTouchConfig.TRACKPAD_RIGHT -> "Right trackpad"
-        SteamTouchConfig.TRACKPAD_CENTER -> "Trackpad"
+        SteamTouchConfig.DPAD -> context.getString(R.string.touch_dpad)
+        SteamTouchConfig.JOYSTICK_LEFT -> context.getString(R.string.touch_left_stick)
+        SteamTouchConfig.JOYSTICK_RIGHT -> context.getString(R.string.touch_right_stick)
+        SteamTouchConfig.TRACKPAD_LEFT -> context.getString(R.string.deck_left_trackpad)
+        SteamTouchConfig.TRACKPAD_RIGHT -> context.getString(R.string.deck_right_trackpad)
+        SteamTouchConfig.TRACKPAD_CENTER -> context.getString(R.string.deck_surface_trackpad)
         SteamTouchConfig.STEAM -> "Steam"
-        SteamTouchConfig.THUMB -> "Menu"
-        SteamTouchConfig.KEYBOARD -> "Keyboard"
+        SteamTouchConfig.THUMB -> context.getString(R.string.touch_menu)
+        SteamTouchConfig.KEYBOARD -> context.getString(R.string.touch_keyboard)
         else -> label(type)
     }
 
@@ -899,22 +900,22 @@ class SteamTouchControls(
         val list = android.widget.LinearLayout(context).apply { orientation = android.widget.LinearLayout.VERTICAL; setPadding((12 * density).toInt(), 0, (12 * density).toInt(), 0) }
         var close: () -> Unit = {}
         val copied = prefs.getString("copiedLayout", null)
-        fun item(name: String, enabled: Boolean = true, action: () -> Unit) = list.addView(android.widget.Button(context).apply {
-            text = name
+        fun item(name: Int, enabled: Boolean = true, action: () -> Unit) = list.addView(android.widget.Button(context).apply {
+            setText(name)
             isAllCaps = false
             isEnabled = enabled
             setOnClickListener { close(); action(); invalidate() }
         })
-        item("Colour and opacity…") { pickColor() }
-        item("Copy this layout") {
+        item(R.string.touch_color_opacity) { pickColor() }
+        item(R.string.touch_copy_layout) {
             prefs.edit().putString("copiedLayout", (editElements + hidden).joinToString(";") {
                 "${it.type},${it.visible},${it.x},${it.y},${it.xScale},${it.yScale}"
             }).apply()
-            Toast.makeText(context, "Layout copied; paste it into any game's touch layout", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, R.string.touch_layout_copied, Toast.LENGTH_SHORT).show()
         }
-        item("Paste copied layout", copied != null) { pasteLayout(copied ?: "") }
-        item("Reset to Steam's default") { resetEditSet() }
-        close = SteamTouchIconPicker.showPanel(host, "Layout", list, listOf("Close" to {}))
+        item(R.string.touch_paste_layout, copied != null) { pasteLayout(copied ?: "") }
+        item(R.string.touch_reset_layout) { resetEditSet() }
+        close = SteamTouchIconPicker.showPanel(host, context.getString(R.string.ctrl_layout), list, listOf(context.getString(R.string.common_close) to {}))
     }
 
     /** A copied layout onto this action set: each control the set has takes the copied place. */
@@ -985,11 +986,12 @@ class SteamTouchControls(
         RectF(frame.left + l * s, frame.top + t * s, frame.left + r * s, frame.top + b * s)
 
     private fun text(canvas: Canvas, str: String, x: Float, y: Float, size: Float, color: Int = Color.WHITE, bold: Boolean = true,
-                      align: Paint.Align = Paint.Align.CENTER) {
+                      align: Paint.Align = Paint.Align.CENTER, maxWidth: Float = 0f) {
         val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.color = color; textSize = size; textAlign = align
             typeface = if (bold) android.graphics.Typeface.DEFAULT_BOLD else android.graphics.Typeface.DEFAULT
         }
+        if (maxWidth > 0f) p.measureText(str).let { if (it > maxWidth) p.textSize = size * maxWidth / it }
         canvas.drawText(str, x, y - (p.descent() + p.ascent()) / 2, p)
     }
 
@@ -1004,7 +1006,7 @@ class SteamTouchControls(
             canvas.drawRoundRect(r, radius, radius, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = line2; style = Paint.Style.STROKE; strokeWidth = 1.2f * s })
         }
         val ink = when { !enabled -> Color.argb(110, 242, 244, 247); primary -> onAccent; else -> onSurface }
-        text(canvas, text, r.centerX(), r.centerY(), 14f * s, ink)
+        text(canvas, text, r.centerX(), r.centerY(), 14f * s, ink, maxWidth = r.width() - 16f * s)
         if (enabled) hots += Hot(r, onTap)
     }
 
@@ -1044,7 +1046,7 @@ class SteamTouchControls(
         BIG_PICTURE -> "Steam"
         else -> gameNames[appId] ?: run {
             val app = appId
-            gameNames[app] = "app $app"
+            gameNames[app] = context.getString(R.string.touch_app_id, app)
             loader.execute {
                 val name = SteamTouchConfig.gameName(context, app) ?: return@execute
                 handler.post { gameNames[app] = name; invalidate() }
@@ -1061,7 +1063,7 @@ class SteamTouchControls(
         // Header: power (DroidDeck's own menu: stop, settings), the Steam mark, what is running, close.
         iconButton(canvas, ref(f, s, 494f, 18f, 531f, 55f), false, { menuOpen = false; onMenu() }) { c, r, col -> drawPower(c, r, col) }
         drawMark(canvas, f.left + 104f * s, f.top + 37f * s, 13f * s)
-        text(canvas, "Touch controls", f.left + 124f * s, f.top + 30f * s, 14f * s, onSurface, align = Paint.Align.LEFT)
+        text(canvas, context.getString(R.string.touch_title), f.left + 124f * s, f.top + 30f * s, 14f * s, onSurface, align = Paint.Align.LEFT)
         text(canvas, gameName(), f.left + 124f * s, f.top + 46f * s, 11f * s, muted, bold = false, align = Paint.Align.LEFT)
         closeButton(canvas, f, s) { menuOpen = false }
         val controller = options.inputMode != SteamTouchConfig.INPUT_MOUSE
@@ -1071,10 +1073,10 @@ class SteamTouchControls(
             m -> SteamTouchConfig.INPUT_MOUSE
             else -> SteamTouchConfig.INPUT_CONTROLLER
         }))
-        tile(canvas, ref(f, s, 45f, 81f, 249f, 271f), s, "Touch Controller", controller, { setModes(!controller, mouse || controller) }) { c, r, col ->
+        tile(canvas, ref(f, s, 45f, 81f, 249f, 271f), s, context.getString(R.string.touch_controller), controller, { setModes(!controller, mouse || controller) }) { c, r, col ->
             drawPhonePad(c, r, col)
         }
-        tile(canvas, ref(f, s, 271f, 81f, 475f, 271f), s, "Mouse", mouse, { setModes(controller || mouse, !mouse) }) { c, r, col ->
+        tile(canvas, ref(f, s, 271f, 81f, 475f, 271f), s, context.getString(R.string.touch_mouse), mouse, { setModes(controller || mouse, !mouse) }) { c, r, col ->
             drawMouse(c, r, col, crossed = false)
         }
         // Under the controller: gyroscope, fade, vibrate on touch.
@@ -1102,10 +1104,13 @@ class SteamTouchControls(
         val speed = speeds.indexOfFirst { abs(it - options.trackpadSensitivity) < 0.2f }.coerceAtLeast(1)
         iconButton(canvas, ref(f, s, 412f, 278f, 475f, 318f), mouse && relative, {
             setOptions(options.copy(trackpadSensitivity = speeds[(speed + 1) % speeds.size]))
-        }) { c, r, col -> text(c, listOf("Slow", "Normal", "Fast")[speed], r.centerX(), r.centerY(), r.height() * 0.32f, col) }
+        }) { c, r, col ->
+            val name = context.getString(listOf(R.string.touch_speed_slow, R.string.touch_speed_normal, R.string.touch_speed_fast)[speed])
+            text(c, name, r.centerX(), r.centerY(), r.height() * 0.32f, col, maxWidth = r.width() - 6f * s)
+        }
         drawVolume(canvas, f, s)
-        blueButton(canvas, ref(f, s, 45f, 329f, 249f, 372f), "Edit layout", s, primary = true) { menuOpen = false; startEditing() }
-        blueButton(canvas, ref(f, s, 271f, 329f, 475f, 372f), "DroidDeck menu", s) { menuOpen = false; onMenu() }
+        blueButton(canvas, ref(f, s, 45f, 329f, 249f, 372f), context.getString(R.string.touch_edit_layout), s, primary = true) { menuOpen = false; startEditing() }
+        blueButton(canvas, ref(f, s, 271f, 329f, 475f, 372f), context.getString(R.string.touch_droiddeck_menu), s) { menuOpen = false; onMenu() }
     }
 
     private val audio by lazy { context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager }
@@ -1173,7 +1178,7 @@ class SteamTouchControls(
         canvas.drawRoundRect(r, radius, radius, Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = if (on) accent else line; style = Paint.Style.STROKE; strokeWidth = (if (on) 2f else 1.2f) * s
         })
-        text(canvas, title, r.left + 16f * s, r.top + 22f * s, 14f * s, onSurface, align = Paint.Align.LEFT)
+        text(canvas, title, r.left + 16f * s, r.top + 22f * s, 14f * s, onSurface, align = Paint.Align.LEFT, maxWidth = r.width() - 72f * s)
         // A switch, top right.
         val sw = RectF(r.right - 50f * s, r.top + 12f * s, r.right - 14f * s, r.top + 32f * s)
         canvas.drawRoundRect(sw, sw.height() / 2, sw.height() / 2, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = if (on) accent else line2 })
@@ -1181,7 +1186,7 @@ class SteamTouchControls(
             Paint(Paint.ANTI_ALIAS_FLAG).apply { color = if (on) onAccent else muted })
         val artRect = RectF(r.centerX() - 58f * s, r.top + 62f * s, r.centerX() + 58f * s, r.top + 140f * s)
         art(canvas, artRect, if (on) onSurface else muted)
-        text(canvas, if (on) "On" else "Off", r.left + 16f * s, r.bottom - 18f * s, 12f * s, if (on) accent else muted, bold = false, align = Paint.Align.LEFT)
+        text(canvas, context.getString(if (on) R.string.touch_on else R.string.touch_off), r.left + 16f * s, r.bottom - 18f * s, 12f * s, if (on) accent else muted, bold = false, align = Paint.Align.LEFT)
         hots += Hot(r, toggle)
     }
 
@@ -1194,9 +1199,9 @@ class SteamTouchControls(
         closeButton(canvas, f, s) { save() }
         val sets = SteamTouchConfig.actionSets(config)
         val setName = sets.firstOrNull { it.first == editSet }?.second
-        val title = if (sets.size > 1 && setName != null) "${gameName()} · $setName" else "${gameName()} ${config.title ?: "Layout"}"
-        text(canvas, title, f.centerX(), f.top + 30f * s, 14f * s, onSurface)
-        text(canvas, "Drag controls onto the screen", f.centerX(), f.top + 47f * s, 11f * s, muted, bold = false)
+        val title = if (sets.size > 1 && setName != null) "${gameName()} · $setName" else "${gameName()} ${config.title ?: context.getString(R.string.ctrl_layout)}"
+        text(canvas, title, f.centerX(), f.top + 30f * s, 14f * s, onSurface, maxWidth = f.width() - 200f * s)
+        text(canvas, context.getString(R.string.touch_drag_hint), f.centerX(), f.top + 47f * s, 11f * s, muted, bold = false, maxWidth = f.width() - 200f * s)
         if (sets.size > 1) {
             arrowPill(canvas, ref(f, s, 120f, 26f, 150f, 44f), -1) { stepEditSet(-1) }
             arrowPill(canvas, ref(f, s, 474f, 26f, 504f, 44f), 1) { stepEditSet(1) }
@@ -1251,8 +1256,8 @@ class SteamTouchControls(
             shader = android.graphics.RadialGradient(wheel.centerX(), wheel.centerY(), wheel.width() / 2f, Color.WHITE, Color.TRANSPARENT, android.graphics.Shader.TileMode.CLAMP)
         })
         hots += Hot(wheel, { pickColor() })
-        blueButton(canvas, ref(f, s, 45f, 329f, 232f, 372f), "Arrange", s, primary = true) { trayOpen = false }
-        blueButton(canvas, ref(f, s, 254f, 329f, 441f, 372f), "Discard", s) { stopEditing() }
+        blueButton(canvas, ref(f, s, 45f, 329f, 232f, 372f), context.getString(R.string.touch_arrange), s, primary = true) { trayOpen = false }
+        blueButton(canvas, ref(f, s, 254f, 329f, 441f, 372f), context.getString(R.string.touch_discard), s) { stopEditing() }
     }
 
     private fun arrowPill(canvas: Canvas, r: RectF, dir: Int, onTap: () -> Unit) {
@@ -1290,7 +1295,10 @@ class SteamTouchControls(
         return RectF(x - r, y - r, x + r, y + r)
     }
 
-    private val contextLabels = listOf("Icon", "W−", "W+", "H−", "H+", "Hide")
+    private val contextLabels by lazy {
+        listOf(R.string.touch_icon, R.string.touch_narrower, R.string.touch_wider, R.string.touch_shorter, R.string.touch_taller, R.string.touch_hide)
+            .map(context::getString)
+    }
 
     private fun contextRects(): List<RectF> {
         val e = editElements.getOrNull(selected) ?: return emptyList()
@@ -1313,11 +1321,11 @@ class SteamTouchControls(
         canvas.drawRoundRect(m, m.width() * 0.15f, m.width() * 0.15f, p)
         drawDots(canvas, m.centerX(), m.centerY() - m.height() * 0.1f, m.width() * 0.5f, Color.WHITE)
         hots += Hot(m, { trayOpen = true })
-        if (saving) text(canvas, "Saving…", width / 2f, height * 0.08f, 22f * max(unit(), 0.6f))
+        if (saving) text(canvas, context.getString(R.string.touch_saving), width / 2f, height * 0.08f, 22f * max(unit(), 0.6f))
         contextRects().forEachIndexed { i, r ->
             canvas.drawRoundRect(r, r.height() * 0.3f, r.height() * 0.3f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = surface })
             canvas.drawRoundRect(r, r.height() * 0.3f, r.height() * 0.3f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = line2; style = Paint.Style.STROKE; strokeWidth = 1.2f })
-            text(canvas, contextLabels[i], r.centerX(), r.centerY(), r.height() * 0.4f, onSurface, bold = false)
+            text(canvas, contextLabels[i], r.centerX(), r.centerY(), r.height() * 0.4f, onSurface, bold = false, maxWidth = r.width() - 6f)
             hots += Hot(r, { contextTool(i) })
         }
     }
@@ -1448,12 +1456,14 @@ class SteamTouchControls(
         val ref = visual?.ref
         val binding = visual?.binding
         if (ref == null || binding == null) {
-            Toast.makeText(context, "This control has no binding in Steam to put an icon on", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, R.string.touch_no_binding, Toast.LENGTH_SHORT).show()
             return
         }
-        val name = if (e.type == SteamTouchConfig.DPAD) "D-pad " + listOf("up", "down", "left", "right")[selectedArm] else label(e.type)
+        val name = if (e.type == SteamTouchConfig.DPAD) {
+            context.getString(listOf(R.string.touch_dpad_up, R.string.touch_dpad_down, R.string.touch_dpad_left, R.string.touch_dpad_right)[selectedArm])
+        } else label(e.type)
         val host = parent as? android.view.ViewGroup ?: return
-        SteamTouchIconPicker(context, host, appId, "Icon for $name", binding) { picked ->
+        SteamTouchIconPicker(context, host, appId, context.getString(R.string.touch_icon_for, name), binding) { picked ->
             pendingBindings[ref] = picked
             rebuildVisuals()
             invalidate()
@@ -1480,9 +1490,9 @@ class SteamTouchControls(
                 }
             }, android.widget.LinearLayout.LayoutParams(dp(30), dp(30)).apply { marginEnd = dp(6) })
         }
-        root.addView(android.widget.TextView(context).apply { text = "Colour" })
+        root.addView(android.widget.TextView(context).apply { setText(R.string.ctrl_color) })
         root.addView(android.widget.HorizontalScrollView(context).apply { addView(swatchRow) })
-        root.addView(android.widget.TextView(context).apply { text = "Opacity"; setPadding(0, dp(12), 0, 0) })
+        root.addView(android.widget.TextView(context).apply { setText(R.string.ctrl_opacity); setPadding(0, dp(12), 0, 0) })
         val opacityRow = android.widget.LinearLayout(context)
         listOf(20, 35, 50, 65, 80, 100).forEach { percent ->
             opacityRow.addView(android.widget.Button(context).apply {
@@ -1497,7 +1507,7 @@ class SteamTouchControls(
         }
         root.addView(android.widget.HorizontalScrollView(context).apply { addView(opacityRow) })
         val host = parent as? android.view.ViewGroup ?: return
-        SteamTouchIconPicker.showPanel(host, "Touch layout colour", root, listOf("Done" to {}))
+        SteamTouchIconPicker.showPanel(host, context.getString(R.string.touch_layout_color), root, listOf(context.getString(R.string.touch_done) to {}))
     }
 
     private fun save() {
@@ -1528,11 +1538,11 @@ class SteamTouchControls(
             handler.post {
                 saving = false
                 if (file == null) {
-                    Toast.makeText(context, "Could not save the touch layout", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, R.string.touch_save_failed, Toast.LENGTH_SHORT).show()
                     invalidate()
                     return@post
                 }
-                Toast.makeText(context, "Touch layout saved to Steam", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, R.string.touch_saved, Toast.LENGTH_SHORT).show()
                 onSaved()
                 stopEditing()
                 reloadConfig()

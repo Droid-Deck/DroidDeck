@@ -50,6 +50,7 @@
 #include "framegen_bridge.h"
 #include <pthread.h>
 #include "effects_chain.h"
+#include "cardboard.h"
 #include "droiddeck_ext.h"
 #include "droiddeck_color.h"
 #include "compositor_internal.h"
@@ -260,6 +261,7 @@ struct surface {
     /* Toplevel placement on the scene. */
     int mapped;                             /* in g_toplevels */
     struct wl_list toplevel_link;
+    int keep_on_top; /* Cardboard mode's SteamVR window: above every other toplevel (raise_kept_on_top) */
     int x, y, placed;
     uint32_t hwnd;
 
@@ -291,6 +293,7 @@ static struct wl_event_source *g_render_idle, *g_frame_timer;
  * window) a fallback timer renders instead. */
 static int g_dirty;                         /* something changed since the last render */
 static int64_t g_last_vsync_ns;             /* last tick, 0 = none yet */
+static int64_t g_tick_vsync_ns;             /* the vsync that tick is for (Choreographer's frame time) */
 static int64_t g_refresh_ns = 16666667;     /* measured tick interval (pacing only, never reported) */
 static struct wl_event_source *g_fallback_timer;
 static int g_fallback_armed;
@@ -631,6 +634,8 @@ static struct surface *toplevel_by_hwnd(uint32_t hwnd) {
     return NULL;
 }
 
+static void raise_kept_on_top(void);
+
 /* Reorder the mapped toplevels to match the last reported Windows z-order. Windows the
  * report doesn't mention keep their relative order below the ones it does. */
 static void apply_zorder(void) {
@@ -640,6 +645,17 @@ static void apply_zorder(void) {
         wl_list_remove(&s->toplevel_link);
         wl_list_insert(g_toplevels.prev, &s->toplevel_link);
     }
+    raise_kept_on_top();
+}
+
+/* Windows marked keep_on_top go back to the top of the stack (the end of g_toplevels). */
+static void raise_kept_on_top(void) {
+    struct surface *s, *tmp, *kept[4];
+    int n = 0;
+    wl_list_for_each_safe(s, tmp, &g_toplevels, toplevel_link) {
+        if (s->keep_on_top && n < 4) { wl_list_remove(&s->toplevel_link); kept[n++] = s; }
+    }
+    for (int i = 0; i < n; i++) wl_list_insert(g_toplevels.prev, &kept[i]->toplevel_link);
 }
 
 static void map_toplevel(struct surface *s) {
@@ -654,6 +670,7 @@ static void map_toplevel(struct surface *s) {
                    s->placed ? "" : " (no desktop position yet)");
     }
     wl_list_insert(g_toplevels.prev, &s->toplevel_link); /* new windows start on top */
+    raise_kept_on_top();
     /* Without a Wine desktop the clients are whole programs (the Linux desktop, a gamescope a
      * program on it started over it): a window that opens on top takes the keys too, as it would
      * on any desktop, rather than the one clicked last that is now underneath it. */
@@ -763,8 +780,11 @@ static void take_pixel(struct surface *s, const uint8_t bgra[4], struct wl_resou
 /* The window the app's performance HUD follows: the latest one at least as big as the last to
  * start presenting GPU frames (take_dmabuf) (X11 binds the HUD to the _MESA_DRV window and counts X presents instead). JNI upcalls. */
 static struct surface *g_hud_surface;
-/* When the HUD's window last presented a frame (now_ns), to let a replacement take over. */
-static int64_t g_hud_last_ns;
+/* When the HUD's window last presented a new frame (now_ns), and when it last committed at all,
+ * a repeat of the frame it shows included. A replacement may take over only once it has gone
+ * quiet in the second sense: gamescope repeats a paused game's frame under a busy overlay, and
+ * that overlay must not become the game. */
+static int64_t g_hud_last_ns, g_hud_alive_ns;
 /* That window committed a frame the screen has not drawn yet. */
 static int g_hud_fresh;
 extern void droiddeck_on_game_surface(const char *window, const char *gpu); /* window NULL = gone */
@@ -774,7 +794,14 @@ extern void droiddeck_on_game_frame(void);
 extern void droiddeck_on_game_program(int pid, const char *program);
 
 static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_resource *buffer) {
-    if (s->dmabuf != buffer || s->dmabuf_buf != b) {
+    /* The buffer this surface already shows, committed again. Gamescope's Wayland backend attaches
+     * every plane on every frame it outputs, so its game plane comes back unchanged whenever only
+     * something above it moved (MangoHud's graph, Steam's overlay). The surface still holds it and
+     * never released it, so the client cannot have drawn into it: it is no new frame. Counted as
+     * one, a game capped at 30 read 50-60 fps in the HUD, and frame generation took those repeats
+     * as source frames ("LSFG 2x 59 -> 54" instead of 30 -> 60). */
+    const int repeat = s->dmabuf == buffer && s->dmabuf_buf == b;
+    if (!repeat) {
         drop_dmabuf(s, 1);
         s->dmabuf = buffer;
         s->dmabuf_buf = b;
@@ -809,7 +836,7 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
     s->buf_h = b->height;
     s->buf_alpha = (b->format & 0xff) == 'A';
     s->has_content = b->img != NULL;
-    g_stat_dmabuf++;
+    if (!repeat) g_stat_dmabuf++;
     const int announced_now = !s->announced_vulkan;
     if (!s->announced_vulkan) {
         char name[160];
@@ -840,7 +867,7 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
      * full-screen gamescope over the desktop still does), and a window gone quiet for a second
      * gives way to whatever draws next. */
     if (s != g_hud_surface && (b->img || ahb_swapchain_has_ahb(b)) &&
-        (!g_hud_surface || now_ns() - g_hud_last_ns > 1000000000LL ||
+        (!g_hud_surface || now_ns() - g_hud_alive_ns > 1000000000LL ||
          (announced_now && (int64_t)b->width * b->height >= (int64_t)g_hud_surface->buf_w * g_hud_surface->buf_h))) {
         char name[160];
         describe(s, name, sizeof(name));
@@ -869,7 +896,10 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
      * Asking whether the compositor could import it, as this used to, is a question about the
      * copy path and not about whether a frame happened: a game whose buffers go straight to
      * the display layer draws on screen while the counter sat at 0.0 fps and 1000.0 ms. */
-    if (s == g_hud_surface) { g_hud_last_ns = now_ns(); g_hud_fresh = 1; droiddeck_on_game_frame(); }
+    if (s == g_hud_surface) {
+        g_hud_alive_ns = now_ns();
+        if (!repeat) { g_hud_last_ns = g_hud_alive_ns; g_hud_fresh = 1; droiddeck_on_game_frame(); }
+    }
 }
 
 /* ---- hooks for ahb_swapchain.c (zero-copy layers) */
@@ -931,6 +961,20 @@ static uint32_t nominal_refresh_ns(void) {
     int mhz = g_output_refresh_mhz;
     if (mhz <= 0) mhz = 60000;
     return (uint32_t)(1000000000000LL / (int64_t)mhz);
+}
+
+/* The vblank a scene drawn at render_ns belongs to, for wp_presentation: the vsync of the tick that
+ * drew it (Choreographer's frame time). Gamescope's Wayland backend anchors its vblank clock to this
+ * and wakes a red zone before the next refresh. Reporting the end of the render instead (a few ms
+ * past the tick) put its wakeups on top of the next tick: some frames missed it and showed twice,
+ * others were replaced before they were shown (a 60 Hz Thor got ~50 distinct frames a second from
+ * gamescope). Not the refresh after it either: gamescope then wakes a whole refresh late and runs
+ * at half rate. Without a fresh tick (the fallback timer) it is the render time. */
+static int64_t presented_ns(int64_t render_ns) {
+    if (!g_tick_vsync_ns || render_ns - g_last_vsync_ns > (int64_t)nominal_refresh_ns() ||
+        render_ns < g_tick_vsync_ns)
+        return render_ns;
+    return g_tick_vsync_ns;
 }
 
 static void feedback_present_all(struct wl_list *list, int64_t t) {
@@ -1458,7 +1502,13 @@ static void xdg_toplevel_set_title(struct wl_client *c, struct wl_resource *r, c
         droiddeck_log("window", "renamed %s -> %s", before, after);
     }
 }
-static void xdg_toplevel_set_app_id(struct wl_client *c, struct wl_resource *r, const char *id) {}
+static void xdg_toplevel_set_app_id(struct wl_client *c, struct wl_resource *r, const char *id) {
+    struct surface *s = wl_resource_get_user_data(r);
+    /* Cardboard mode's SteamVR window (tools/vr/src/presenter.cpp) stays above every other window,
+     * gamescope's included: gamescope reopens its window when Steam notices VR, and a reopened window
+     * would otherwise come up over it (new windows start on top). */
+    if (s && id && !strcmp(id, "droiddeck-cardboard-vr")) s->keep_on_top = 1;
+}
 static void xdg_toplevel_show_menu(struct wl_client *c, struct wl_resource *r, struct wl_resource *seat,
                                    uint32_t serial, int32_t x, int32_t y) {}
 static void xdg_toplevel_move(struct wl_client *c, struct wl_resource *r, struct wl_resource *seat,
@@ -2071,6 +2121,8 @@ static void render_scene(void) {
     int rendered = 0;
     int fx_on = vkp_effects_active();
     int framegen = vkp_framegen_active();
+    /* Cardboard mode draws the whole panel itself, so the game never gets a display layer of its own. */
+    const int cardboard = vkp_cardboard_active();
     /* HDR (see hdr_plan): route 0 = the old paths below; 1 / 2 = composed; 3 = layer only, effects and
      * frame generation skipped. Always 0 while the HDR gate is closed: nothing changes for that session. */
     struct hdr_scene hs;
@@ -2117,7 +2169,7 @@ static void render_scene(void) {
      *   - screen effects DO when a window is drawn above the game: the chain has to see the whole
      *     scene to look the way it does on the copy path, and here the game is only part of it. */
     const int pass_on = fx_on || framegen;
-    int li = (g_zero_copy && !framegen) ? layer_candidate(&dl, w, h) : -1;
+    int li = (g_zero_copy && !framegen && !cardboard) ? layer_candidate(&dl, w, h) : -1;
     int over = li >= 0 ? dl.n - 1 - li : 0; /* draws above the fullscreen game (0 or 1) */
     const int fx_blocks = (li >= 0 && fx_on && over > 0);
     if (fx_blocks) { li = -1; over = 0; }
@@ -2147,6 +2199,7 @@ static void render_scene(void) {
     /* HDR: the same, for a game's SUBSURFACE swapchain whose 10-bit frame the compositor could not
      * import (NULL whenever the HDR gate is closed - nothing is ever noted then). */
     if (li < 0 && !ls) ls = hdr_unimported_fullscreen(&dl, w, h);
+    if (cardboard) ls = NULL;
     if (ls && pass_on && li < 0 && !g_zero_copy_fx_skip_said) {
         g_zero_copy_fx_skip_said = 1;
         droiddeck_log(framegen ? "framegen" : "effects",
@@ -2218,7 +2271,7 @@ static void render_scene(void) {
     free(hs.is_hdr);
     if (hdr_copy && rendered && droiddeck_color_hdr_open()) hdr_count_copied(&dl, hdr_copy);
     if (rendered) {
-        int64_t t = now_ns();
+        int64_t t = presented_ns(t_scene);
         g_stat_frames++;
         /* A surface outside the scene (role-less, not placed yet, a hidden helper window such
          * as wined3d's device window) was not shown, so its feedback is discarded rather than
@@ -2283,12 +2336,14 @@ static void on_vsync(int64_t frame_time_ns) {
         if (d > 3000000LL && d < 40000000LL) g_refresh_ns = (g_refresh_ns * 7 + d) / 8;
     }
     g_last_vsync_ns = now;
-    (void)frame_time_ns;
+    g_tick_vsync_ns = frame_time_ns;
     /* The app's surface may have been replaced or taken away since the last frame: apply that now
      * (the app never waits for us), and redraw the scene onto a new one. */
     if (vkp_apply_window_request()) g_dirty = 1;
     /* A screen-effect setting changed (JNI, any thread): redraw so it shows on a static scene too. */
     if (vkp_effects_sync()) g_dirty = 1;
+    /* Cardboard mode: a new head pose (or setting) moves the virtual screen, static scene or not. */
+    if (vkp_cardboard_pose_changed()) g_dirty = 1;
     if (g_dirty && !scene_waits_for_game(now)) render_scene();
 }
 

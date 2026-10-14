@@ -193,7 +193,7 @@ class DroiddeckctlTest(FakeAdbTest):
         code, out = self.run_ctl("run", "/usr/bin/sh", "--", "-c", "true")
         self.assertEqual(7, code)
         self.assertEqual("AGENT_COMMANDS_DISABLED", out["error"]["code"])
-        self.assertIn("Debugging tools", out["error"]["message"])
+        self.assertIn("Setup > Diagnostics > Debugging tools", out["error"]["message"])
         self.assertEqual(["access"], [c.get("method") for c in self.calls()])
 
     def test_override_checks_names_before_pushing_any_file(self):

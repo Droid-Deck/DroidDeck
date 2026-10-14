@@ -137,6 +137,8 @@ import com.droiddeck.launcher.core.TextureFiltering
 import com.droiddeck.launcher.gpu.FrameGen
 import com.droiddeck.launcher.gpu.Lossless
 import com.droiddeck.launcher.gpu.ScreenEffectLooks
+import com.droiddeck.launcher.gpu.Cardboard
+import com.droiddeck.launcher.gpu.SteamVr
 import com.droiddeck.launcher.gpu.ScreenEffects
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.ComponentsManager
@@ -209,6 +211,12 @@ class DrawerActions(
     val upscaleSharpness: Int = 75,
     /** The compositor's post chain (gpu/ScreenEffects), changed live. */
     val effects: ScreenEffects = ScreenEffects.OFF,
+    /** Cardboard mode (gpu/Cardboard): side-by-side eyes for a phone VR viewer, changed live. */
+    val cardboard: Cardboard = Cardboard.OFF,
+    /** Whether the device has a rotation sensor (head tracking possible). */
+    val cardboardSensor: Boolean = false,
+    /** SteamVR in the guest for Cardboard mode (gpu/SteamVr); null while unknown. */
+    val steamVr: SteamVr.Status? = null,
     /** Texture filtering for DirectX 9-11 games (core/TextureFiltering); lands on their next launch. */
     val textureAnisotropy: Int? = 0,
     val textureLodBias: String? = TextureFiltering.LOD_BIAS_OFF,
@@ -244,6 +252,10 @@ class DrawerActions(
     val onUpscaler: (Int) -> Unit = {},
     val onUpscaleSharpness: (Int) -> Unit = {},
     val onEffects: (ScreenEffects) -> Unit = {},
+    val onCardboard: (Cardboard) -> Unit = {},
+    val onCardboardRecenter: () -> Unit = {},
+    /** install, start or stop SteamVR. */
+    val onSteamVr: (String) -> Unit = {},
     val onTextureAnisotropy: (Int?) -> Unit = {},
     val onTextureLodBias: (String?) -> Unit = {},
     val onSecondScreenMode: (SecondScreenMode) -> Unit,
@@ -465,6 +477,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     stringResource(R.string.display_sharpness), null, a.upscaleSharpness, 0..100, step = 5,
                                     format = { "$it%" }, modifier = focus.track(page, "upscale-sharpness"), onChange = a.onUpscaleSharpness)
                             }
+                            CardboardGroup(host, a) { key -> focus.track(page, key) }
                         }
                         SessionDrawerPage.EFFECTS -> {
                             ScreenEffectsGroup(host, a, advancedEffectsExpanded,
@@ -899,6 +912,53 @@ private fun ScreenEffectsGroup(
                 format = { String.format(Locale.US, "%.2f", it / 100f) }, modifier = track("gamma")) { a.onEffects(e.copy(gamma = it / 100f)) }
             SliderRow(stringResource(R.string.drawer_saturation), null, e.saturation, 0..200, step = 5,
                 format = { "$it%" }, modifier = track("saturation")) { a.onEffects(e.copy(saturation = it)) }
+        }
+    }
+}
+
+/** Cardboard mode: the eyes, the lens and the virtual screen; everything applies live. */
+@Composable
+private fun CardboardGroup(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
+    val c = a.cardboard
+    SettingsGroup(stringResource(R.string.cardboard_title)) {
+        ToggleRow(host, "cardboard", stringResource(R.string.cardboard_mode), stringResource(R.string.cardboard_mode_hint),
+            c.enabled, chipModifier = track("cardboard")) { a.onCardboard(c.copy(enabled = it)) }
+        if (!c.enabled) return@SettingsGroup
+        ChoiceRow(host, "cardboard-source", stringResource(R.string.cardboard_source), null,
+            listOf(Cardboard.SOURCE_SCREEN to stringResource(R.string.cardboard_source_screen),
+                Cardboard.SOURCE_SBS to stringResource(R.string.cardboard_source_sbs)),
+            c.source, chipModifier = track("cardboard-source")) { a.onCardboard(c.copy(source = it)) }
+        ChoiceRow(host, "cardboard-viewer", stringResource(R.string.cardboard_viewer), null,
+            listOf(Cardboard.Viewer.CARDBOARD_V2.id to stringResource(R.string.cardboard_viewer_v2),
+                Cardboard.Viewer.CARDBOARD_V1.id to stringResource(R.string.cardboard_viewer_v1),
+                Cardboard.Viewer.NONE.id to stringResource(R.string.cardboard_viewer_none)),
+            c.viewer, chipModifier = track("cardboard-viewer")) { a.onCardboard(c.copy(viewer = it)) }
+        SliderRow(stringResource(R.string.cardboard_ipd), null, c.ipdMm, 50..80, step = 1,
+            format = { "$it mm" }, modifier = track("cardboard-ipd")) { a.onCardboard(c.copy(ipdMm = it)) }
+        if (c.source == Cardboard.SOURCE_SCREEN) {
+            SliderRow(stringResource(R.string.cardboard_screen_width), null, c.screenWidthDm, 5..200, step = 5,
+                format = { String.format(Locale.US, "%.1f m", it / 10f) }, modifier = track("cardboard-width")) { a.onCardboard(c.copy(screenWidthDm = it)) }
+            SliderRow(stringResource(R.string.cardboard_screen_distance), null, c.screenDistanceDm, 5..200, step = 5,
+                format = { String.format(Locale.US, "%.1f m", it / 10f) }, modifier = track("cardboard-distance")) { a.onCardboard(c.copy(screenDistanceDm = it)) }
+        }
+        ToggleRow(host, "cardboard-tracking", stringResource(R.string.cardboard_head_tracking),
+            if (a.cardboardSensor) null else stringResource(R.string.cardboard_no_sensor),
+            c.headTracking && a.cardboardSensor, enabled = a.cardboardSensor, chipModifier = track("cardboard-tracking")) {
+            a.onCardboard(c.copy(headTracking = it))
+        }
+        if (c.headTracking && a.cardboardSensor)
+            ActionRow(stringResource(R.string.cardboard_recenter), null, stringResource(R.string.cardboard_recenter_button), a.onCardboardRecenter)
+        val vrLabel = stringResource(R.string.cardboard_steamvr)
+        when (a.steamVr) {
+            SteamVr.Status.NOT_INSTALLED -> ActionRow(vrLabel, stringResource(R.string.cardboard_steamvr_install_hint),
+                stringResource(R.string.cardboard_steamvr_install), { a.onSteamVr("install") })
+            SteamVr.Status.INSTALLING -> SettingsRow(vrLabel, stringResource(R.string.cardboard_steamvr_installing)) {}
+            SteamVr.Status.READY -> ActionRow(vrLabel, stringResource(R.string.cardboard_steamvr_ready_hint),
+                stringResource(R.string.cardboard_steamvr_start), { a.onSteamVr("start") })
+            SteamVr.Status.RUNNING -> ActionRow(vrLabel, stringResource(R.string.cardboard_steamvr_running_hint),
+                stringResource(R.string.cardboard_steamvr_stop), { a.onSteamVr("stop") })
+            SteamVr.Status.UNAVAILABLE -> SettingsRow(vrLabel, stringResource(R.string.cardboard_steamvr_unavailable)) {}
+            null -> {}
         }
     }
 }

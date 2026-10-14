@@ -1,0 +1,17 @@
+{
+    "file_format_version": "1.2.0",
+    "layer": {
+        "name": "VK_LAYER_DROIDDECK_vr",
+        "type": "GLOBAL",
+        "library_path": "/usr/local/lib/droiddeck-vr/layer/libVkLayer_droiddeck_vr.so",
+        "api_version": "1.3.0",
+        "implementation_version": "1",
+        "description": "Cardboard SteamVR: shared-texture semaphores and a stand-in display on Turnip/KGSL; passes through unless SteamVR runs",
+        "functions": {
+            "vkNegotiateLoaderLayerInterfaceVersion": "DroidDeckVr_NegotiateLoaderLayerInterfaceVersion"
+        },
+        "disable_environment": {
+            "DROIDDECK_VR_LAYER_DISABLE": "1"
+        }
+    }
+}

@@ -3,6 +3,7 @@ package com.droiddeck.launcher.stores.amazon
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreNet
@@ -66,38 +67,38 @@ object AmazonLibrary {
             val p = AmazonPrefs.get(app)
             val cachedList = cached(app)
             if (!force && cachedList.isNotEmpty() && System.currentTimeMillis() - p.getLong(LAST_SYNC_KEY, 0L) < THROTTLE_MS) {
-                backfillPosters(p, cachedList, onStatus)
+                backfillPosters(app, p, cachedList, onStatus)
                 return SyncResult.Throttled
             }
-            onStatus("Checking sign-in…")
+            onStatus(app.getString(R.string.stores_sync_sign_in))
             val creds = AmazonCredentialStore.load(app) ?: return SyncResult.NotLoggedIn
             val token = AmazonCredentialStore.getValidAccessToken(app) ?: return SyncResult.Failed(StoresState.notSignedInLine(Store.AMAZON))
-            onStatus("Fetching game list…")
+            onStatus(app.getString(R.string.stores_sync_game_list))
             // Refused with the stored token (revoked, or an expiry read wrong): once more on a fresh one.
             val all = AmazonApiClient.getEntitlements(token, creds.deviceSerial)
                 ?: AmazonCredentialStore.refresh(app)?.let { AmazonApiClient.getEntitlements(it, creds.deviceSerial) }
-            if (all == null) return if (cachedList.isEmpty()) SyncResult.Failed("Amazon Games did not answer for your library: refresh, or sign in again") else SyncResult.Ok(cachedList)
-            if (all.isEmpty()) return if (cachedList.isEmpty()) SyncResult.Failed("No games found in your Amazon library") else SyncResult.Ok(cachedList)
+            if (all == null) return if (cachedList.isEmpty()) SyncResult.Failed(app.getString(R.string.stores_sync_amazon_no_answer)) else SyncResult.Ok(cachedList)
+            if (all.isEmpty()) return if (cachedList.isEmpty()) SyncResult.Failed(app.getString(R.string.stores_sync_no_games, Store.AMAZON.label)) else SyncResult.Ok(cachedList)
             val games = all.filter { !(it.isDLC && it.parentProductId.isNotEmpty()) }.ifEmpty { all }
                 .sortedWith { a, b -> a.title.compareTo(b.title, ignoreCase = true) }
             for (fresh in games) cachedList.firstOrNull { it.productId == fresh.productId }?.let { fresh.versionId = it.versionId }
             saveCache(p, games)
             p.edit().putLong(LAST_SYNC_KEY, System.currentTimeMillis()).apply()
-            backfillPosters(p, games, onStatus)
+            backfillPosters(app, p, games, onStatus)
             Log.i(TAG, "sync: entitlements=${all.size} games=${games.size}")
             return SyncResult.Ok(games)
         } catch (e: Exception) {
             Log.w(TAG, "sync failed: ${e.message}")
-            return SyncResult.Failed(e.message ?: "Sync failed")
+            return SyncResult.Failed(e.message ?: context.getString(R.string.stores_sync_failed))
         } finally {
             syncing.set(false)
         }
     }
 
-    private fun backfillPosters(p: SharedPreferences, games: List<AmazonGame>, onStatus: (String) -> Unit) {
+    private fun backfillPosters(app: Context, p: SharedPreferences, games: List<AmazonGame>, onStatus: (String) -> Unit) {
         val missing = games.filter { it.productId.isNotEmpty() && !p.contains("vcover_${it.productId}") }.take(POSTER_BUDGET)
         if (missing.isEmpty()) return
-        onStatus("Fetching cover art…")
+        onStatus(app.getString(R.string.stores_sync_cover_art))
         val pool = Executors.newFixedThreadPool(4)
         val futures = missing.map { g -> pool.submit(Callable { g.productId to StoreNet.sgdbPoster(g.title) }) }
         pool.shutdown()

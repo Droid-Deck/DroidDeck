@@ -91,6 +91,37 @@ class AgentTest(unittest.TestCase):
         self.assertFalse(path.exists(), "the request file is consumed")
         return json.loads((self.dir / "resp" / "req.json").read_text())
 
+    def vr_helper(self, body):
+        helper = self.dir / "droiddeck-steamvr"
+        helper.write_text("#!/bin/sh\n" + body)
+        old = os.environ.get("DROIDDECK_VR_HELPER")
+        os.environ["DROIDDECK_VR_HELPER"] = str(helper)
+        self.addCleanup(lambda: os.environ.pop("DROIDDECK_VR_HELPER") if old is None
+                        else os.environ.__setitem__("DROIDDECK_VR_HELPER", old))
+        return helper
+
+    def test_vr_status_is_parsed(self):
+        self.vr_helper('echo "installed=1 running=0 installing=0 driver=1"\n')
+        answer = self.ask({"kind": "vr", "action": "status"})
+        self.assertTrue(answer["ok"])
+        self.assertEqual((True, False, False, True),
+                         (answer["installed"], answer["running"], answer["installing"], answer["driver"]))
+
+    def test_vr_runs_only_its_own_actions(self):
+        log = self.dir / "args"
+        self.vr_helper('echo "$@" > %s\n' % log)
+        self.assertTrue(self.ask({"kind": "vr", "action": "start"})["ok"])
+        self.assertEqual("start", log.read_text().strip())
+        answer = self.ask({"kind": "vr", "action": "rm -rf /"})
+        self.assertFalse(answer["ok"])
+        self.assertEqual("INVALID_REQUEST", answer["error"]["code"])
+
+    def test_vr_without_a_helper_is_unavailable(self):
+        os.environ["DROIDDECK_VR_HELPER"] = str(self.dir / "missing")
+        self.addCleanup(os.environ.pop, "DROIDDECK_VR_HELPER")
+        answer = self.ask({"kind": "vr", "action": "status"})
+        self.assertEqual("UNAVAILABLE", answer["error"]["code"])
+
     def test_exec_output_and_status(self):
         answer = self.ask({"kind": "exec", "argv": ["sh", "-c", "echo out; echo err >&2; exit 3"], "env": {"X": "1"}})
         self.assertTrue(answer["ok"])

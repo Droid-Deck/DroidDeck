@@ -205,6 +205,8 @@ class FrontEndActions(
     val onAgentCommands: () -> Unit = {},
     val onShareLogs: () -> Unit = {},
     val onClearLogs: () -> Unit = {},
+    /** Setup's Reset all settings: asks first, then puts every setting back to its default. */
+    val onResetSettings: () -> Unit = {},
     val onOffline: () -> Unit,
     val onPageBack: () -> Unit = {},
     val onTheme: (String) -> Unit = {},

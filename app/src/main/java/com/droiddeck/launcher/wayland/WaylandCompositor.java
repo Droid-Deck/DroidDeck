@@ -450,6 +450,20 @@ public final class WaylandCompositor {
     /** The Look the controls currently match ({@code null} = Custom); only named in the log line. */
     public static native void nativeSetLookName(String name);
 
+    /** Cardboard mode (waylandcomp/src/cardboard.h): two lens-distorted eye views side by side.
+     *  {@code source} 0 = the frame as a virtual screen, 1 = the frame is already a side-by-side
+     *  stereo pair. Distances in metres, field of view in degrees. */
+    public static native void nativeSetCardboard(boolean enabled, int source, float ipdM, float screenDistM,
+                                                 float screenWidthM, float k1, float k2, float fovDeg,
+                                                 float lensInset, float chroma);
+
+    /** The head pose for Cardboard mode: head -> world rotation, row-major 3x3 (any thread). {@code live}
+     *  = a sensor produced it. */
+    public static native void nativeSetCardboardPose(float[] rotation, boolean live);
+
+    /** Where the head pose is shared with the guest (waylandcomp/src/headpose_shm.h); set once. */
+    public static native void nativeSetCardboardPoseFile(String path);
+
     /** The in-game FPS limiter: frames per second, 0 = unlimited. Paces when replaced buffers go
      *  back to the game, like the X11 IdleNotify pacer, so the game itself slows to the cap. */
     public static native void nativeSetFpsLimit(int fps);

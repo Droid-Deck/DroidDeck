@@ -18,6 +18,18 @@ class SteamLanguageTest {
         assertEquals("tchinese", steam("zh-HK"))
     }
 
+    @Test fun everyAppLanguageButHindiHasSteamsOwn() {
+        com.droiddeck.launcher.core.AppLanguage.supported.forEach {
+            val steam = steam(it)
+            assertTrue("$it -> $steam", (steam == "english") == (it == "en" || it == "hi"))
+        }
+        assertEquals("brazilian", steam("pt-BR"))
+        assertEquals("portuguese", steam("pt-PT"))
+        assertEquals("latam", steam("es-419"))
+        assertEquals("indonesian", steam("id"))
+        assertEquals("malay", steam("ms"))
+    }
+
     @Test fun chineseFollowsTheScriptBeforeTheRegion() {
         assertEquals("tchinese", steam("zh-Hant-CN"))
         assertEquals("schinese", steam("zh-Hans-HK"))

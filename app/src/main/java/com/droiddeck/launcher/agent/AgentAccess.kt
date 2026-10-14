@@ -8,7 +8,7 @@ import android.content.Context
  * permission). Running commands in the guest, evaluating JavaScript in the Steam client, session
  * environment, binary overrides and preference writes reach inside the app's sandbox - the guest
  * holds the Steam login - which the shell of a stock device otherwise cannot. They require
- * Setup > Session > Debugging tools to be on, in every build. The bridge itself cannot turn it on.
+ * Setup > Diagnostics > Debugging tools to be on, in every build. The bridge itself cannot turn it on.
  */
 object AgentAccess {
     const val MAX_REQUEST_CHARS = 256 * 1024
@@ -33,7 +33,7 @@ object AgentAccess {
     fun requireCommands(context: Context) {
         if (!commandsAllowed(context)) throw AgentException(
             "AGENT_COMMANDS_DISABLED",
-            "Debugging tools are off: turn on Setup > Session > Debugging tools on the device",
+            "Debugging tools are off: turn on Setup > Diagnostics > Debugging tools on the device",
         )
     }
 

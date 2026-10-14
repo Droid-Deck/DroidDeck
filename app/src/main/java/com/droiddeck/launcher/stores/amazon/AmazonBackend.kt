@@ -51,7 +51,7 @@ object AmazonBackend : StoreBackend {
             val quiet = cached.isNotEmpty() && !force
             StoresState.post {
                 if (cached.isNotEmpty()) publish(app, cached)
-                if (!quiet) StoresState.status[store] = "Fetching your library…"
+                if (!quiet) StoresState.status[store] = app.getString(com.droiddeck.launcher.R.string.stores_sync_library)
             }
             val result = AmazonLibrary.sync(app, force) { line -> if (!quiet) StoresState.post { StoresState.status[store] = line } }
             StoresState.post {
@@ -94,7 +94,7 @@ object AmazonBackend : StoreBackend {
         private val cancelled = AtomicBoolean(false)
 
         override fun run(handle: DownloadQueue.JobHandle): String? {
-            handle.stage(DownloadStage.MANIFEST, "Checking sign-in…")
+            handle.stage(DownloadStage.MANIFEST, app.getString(com.droiddeck.launcher.R.string.stores_sync_sign_in))
             val token = AmazonCredentialStore.getValidAccessToken(app) ?: throw AmazonDownloadManager.InstallException("Not signed in to Amazon Games")
             StoreInstalls.begin(folder, Store.AMAZON, game.productId, game.title, item.tallImageUrl ?: item.imageUrl, item.imageUrl)
             var downloading = false
@@ -111,7 +111,7 @@ object AmazonBackend : StoreBackend {
                 override fun onSizes(downloadBytes: Long, diskBytes: Long) { handle.diskSize(diskBytes) }
             }) ?: return null
             if (cancelled.get()) return null
-            handle.stage(DownloadStage.INSTALL, "Registering with Steam…")
+            handle.stage(DownloadStage.INSTALL, app.getString(com.droiddeck.launcher.R.string.stores_registering))
             AmazonLibrary.rememberSize(app, game.productId, result.bytes)
             AmazonPrefs.get(app).edit().putString("version_${game.productId}", result.versionId).apply()
             val spec = AmazonLaunchHelper.buildLaunchSpec(folder, game.title)
