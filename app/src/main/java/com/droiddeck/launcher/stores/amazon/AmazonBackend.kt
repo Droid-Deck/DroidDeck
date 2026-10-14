@@ -55,7 +55,21 @@ object AmazonBackend : StoreBackend {
         Thread({ AmazonLibrary.sync(app, force) }, "amazon-sync").start()
     }
 
-    override fun loadShelves(context: Context, force: Boolean) {}
+    override fun loadShelves(context: Context, force: Boolean) {
+        val app = context.applicationContext
+        AmazonShelves.cached(app)?.let { s -> StoresState.post { withArt(s.art) } }
+        Thread({
+            val shelves = AmazonShelves.featured(app, force)
+            if (shelves != null) StoresState.post { withArt(shelves.art) }
+        }, "amazon-shelves").start()
+    }
+
+    /** The library sync owns the listed games; the featured art only rides along for the sign-in wall. */
+    private fun withArt(art: List<String>) {
+        val s = StoresState.shelves[store]
+        StoresState.shelves[store] = if (s == null) com.droiddeck.launcher.stores.StoreShelves(art = art)
+            else com.droiddeck.launcher.stores.StoreShelves(s.whatsNew, s.deals, s.free, s.trending, art)
+    }
 
     override fun install(context: Context, item: CatalogItem, root: java.io.File) {
         val app = context.applicationContext

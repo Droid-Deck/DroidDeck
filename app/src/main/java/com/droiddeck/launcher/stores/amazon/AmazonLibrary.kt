@@ -102,7 +102,7 @@ object AmazonLibrary {
         StoresState.post {
             StoresState.library[store] = mergeItems(StoresState.library[store], items)
             val installed = StoresState.installed.filter { it.sidecar.store == store }.map { it.sidecar.id }.toSet()
-            StoresState.shelves[store] = StoreShelves(trending = items.filterNot { it.id in installed })
+            StoresState.shelves[store] = StoreShelves(trending = items.filterNot { it.id in installed }, art = StoresState.shelves[store]?.art.orEmpty())
         }
     }
 

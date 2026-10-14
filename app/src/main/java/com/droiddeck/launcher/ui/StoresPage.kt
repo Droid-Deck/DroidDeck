@@ -649,8 +649,17 @@ private fun SignInCard(store: Store, height: Dp) {
     val c = sourceColours(store.id)
     LaunchedEffect(store) { StoresState.preview(ctx, store) }
     val art = remember(StoresState.shelves[store]) {
-        StoresState.shelves[store]?.all.orEmpty().filter { !it.mature }.mapNotNull { it.tallImageUrl ?: it.imageUrl }.distinct().take(48)
-            .takeIf { it.size >= 8 }.orEmpty()
+        val shelves = StoresState.shelves[store]
+        // A store's curated art (Epic's promotions, Amazon's featured games) wins over its search shelves,
+        // which can surface unrated uploads the mature check cannot see.
+        val urls = (shelves?.art?.takeIf { it.isNotEmpty() }
+            ?: shelves?.all.orEmpty().filter { !it.mature && !it.owned }.mapNotNull { it.tallImageUrl ?: it.imageUrl }).distinct().take(48)
+        when {
+            urls.size >= 8 -> urls
+            // A short list (Amazon's featured games) repeats with a shift so neighbouring columns differ.
+            urls.size >= 4 -> urls + urls.drop(urls.size / 2) + urls.take(urls.size / 2)
+            else -> emptyList()
+        }
     }
     val shape = RoundedCornerShape(20.dp)
     val blank = WallCapsule(Brush.linearGradient(listOf(c.fill, colors.background)), edge = c.dot.copy(alpha = 0.22f))
