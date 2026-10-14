@@ -157,6 +157,10 @@ android {
     testOptions {
         unitTests.returnDefaultValues = true
         unitTests.includeAndroidResources = true
+        unitTests.all {
+            def logTarget = providers.systemProperty('robolectric.logging').orNull
+            if (logTarget != null) systemProperty 'robolectric.logging', logTarget
+        }
     }
 
     compileOptions {

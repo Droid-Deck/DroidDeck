@@ -47,9 +47,10 @@ documents a related failure on its separately identified REDMAGIC firmware.
 The [VITURE SDK matrix](https://www.viture.com/en-SG/developer/glasses-sdk/glasses)
 specifies full SBS at 3840×1080/60 for Pro. Persistent startup mode is restricted
 to Luma/Luma Pro. Among the Luma families supported here, 90 Hz stereo is an
-Ultra capability. The connected Pro firmware matches the N6PL entry in the
-[public updater catalog](https://static.viture.com/dfu-util/js/vers.js); that
-fallback catalog does not establish whether the update service offers another build.
+Ultra capability. The connected Pro firmware matches both the N6PL entry in the
+[public updater catalog](https://static.viture.com/dfu-util/js/vers.js) and the newest
+N6P entry in the [public release-note service](https://cloud.viture.dev/api/v1/system/releasenote)
+checked on 2026-10-14. This does not rule out unpublished, device-specific updates.
 
 ## No-root hardware design to test
 
