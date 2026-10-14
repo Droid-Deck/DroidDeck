@@ -747,14 +747,20 @@ private fun Storefront(
         val lookup: (CatalogItem) -> Long = { i -> byKey[i.key] ?: 0L }
         lookup
     }
-    val visible = remember(library, installedItems, everything, tab, q, s.storesShowMature, sort, lastPlayedFor, installedAtFor) {
+    val resolvedSizes = if (sort == "sizeAsc" || sort == "sizeDesc") com.droiddeck.launcher.stores.StoreSizes.known + com.droiddeck.launcher.stores.StoreSizes.onDisk else emptyMap<String, Long>()
+    val sizeFor = remember(resolvedSizes) {
+        val resolved = resolvedSizes
+        val lookup: (CatalogItem) -> Long = { i -> resolved[i.key] ?: i.sizeBytes }
+        lookup
+    }
+    val visible = remember(library, installedItems, everything, tab, q, s.storesShowMature, sort, lastPlayedFor, installedAtFor, sizeFor) {
         val base = when (tab) {
             "library" -> library.filter(::matches)
             "installed" -> installedItems.filter(::matches)
             else -> everything.filter { matches(it) && shown(it) }
         }
         if (tab == "library" || tab == "installed")
-            sortCatalogItems(base, sort, lastPlayed = lastPlayedFor, installedAt = installedAtFor)
+            sortCatalogItems(base, sort, lastPlayed = lastPlayedFor, installedAt = installedAtFor, size = sizeFor)
         else base
     }
     val empty = stringResource(when {
@@ -1027,6 +1033,11 @@ private fun GameListRow(
     val hot = rememberHot(src)
     val installed = item.id in installedKeys
     val download = StoresState.download("${store.id}:${item.id}")?.takeIf { it.isActive }
+    if (installed) {
+        val ctx = LocalContext.current
+        val game = StoresState.installedGame(store, item.id)
+        if (game != null) androidx.compose.runtime.LaunchedEffect(item.key) { com.droiddeck.launcher.stores.StoreSizes.requestDisk(ctx, item.key, game) }
+    }
     val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
     val corner = with(androidx.compose.ui.platform.LocalDensity.current) { 10.dp.toPx() }
     val open = {
