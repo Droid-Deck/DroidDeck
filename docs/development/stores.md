@@ -39,11 +39,11 @@ volumes. A successful run removes the cache.
 ```json
 {
   "version": 1,
-  "store": "epic",                    // gog | epic | amazon
-  "id": "Samorost3",                  // the store's own id: GOG product id, Epic app name, Amazon product id
+  "store": "epic",
+  "id": "Samorost3",
   "title": "Samorost 3",
-  "exe": "Samorost3.exe",             // relative to the folder, forward slashes; what the icon is read from
-  "launcher": ".droiddeck-launch.bat",// optional; what the shortcut runs instead of exe
+  "exe": "Samorost3.exe",
+  "launcher": ".droiddeck-launch.bat",
   "args": ["-EpicPortal", "-epicusername=\"Name\"", "..."],
   "env": {"FUEL_DIR": "C:\\ProgramData\\Amazon Games Services\\Legacy"},
   "installVersion": "1.4.0",

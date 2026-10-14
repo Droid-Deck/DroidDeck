@@ -5,9 +5,7 @@ import androidx.compose.ui.res.stringResource
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.stores.StoresNative
 
-// Controls the Stores section and its Setup group share.
 
-/** Whether the native download engine is in this build, said where the stores are turned on. */
 @Composable
 internal fun StoresEngineRow() {
     val version = StoresNative.version

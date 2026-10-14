@@ -12,12 +12,10 @@ import java.io.File
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** Immediate download and installation of the optional ARM64 Proton builds. */
 object ProtonExtras {
     private const val TAG = "ProtonExtras"
     private const val NEED_BYTES = 4L * 1024 * 1024 * 1024
     private const val RELEASES = "https://api.github.com/repos/%s/releases?per_page=15"
-    /** How long a release check stands before the next one goes to GitHub. */
     const val CHECK_EVERY_MS = 6L * 60 * 60 * 1000
     @Volatile
     var installInProgress = false
@@ -25,7 +23,6 @@ object ProtonExtras {
 
     class Tool(val id: String, val name: String, val prefix: String, val repo: String, val assetPattern: Regex)
 
-    /** [sha256] from GitHub's asset digest; [sha512] the URL of a checksum file published beside it. */
     internal data class Asset(val tag: String, val name: String, val url: String, val sha512: String?, val size: Long,
                              val sha256: String? = null)
 
@@ -38,15 +35,11 @@ object ProtonExtras {
     private fun home(context: Context) = File(LinuxRuntime.rootDir(context), "root")
     private fun requests(context: Context) = File(home(context), ".bl-proton-extra")
     private fun toolsDir(context: Context) = File(home(context), ".local/share/Steam/compatibilitytools.d")
-    /** The release tag each build was installed from, by directory name. */
     private fun releasesFile(context: Context) = File(context.filesDir, "proton-extras.json")
-    /** The newest release seen per source, and when it was looked up. */
     private fun latestFile(context: Context) = File(context.filesDir, "proton-latest.json")
 
-    /** The installed build's directory name (e.g. GE-Proton11-7), the newest when there are several, or null. */
     fun installed(context: Context, tool: Tool): String? = installedIn(toolsDir(context), tool).lastOrNull()
 
-    /** Every installed build's directory name, oldest first. */
     fun installedAll(context: Context, tool: Tool): List<String> = installedIn(toolsDir(context), tool)
 
     internal fun installedIn(dir: File, tool: Tool): List<String> =
@@ -56,15 +49,12 @@ object ProtonExtras {
             ?.sortedWith { a, b -> compareVersions(a, b) }
             ?: emptyList()
 
-    // Architecture names carry digits (aarch64, x86_64) that are not part of a version.
     private val ARCH = Regex("(?i)aarch64|arm64|x86_64|x86-64|amd64")
     private val NUMBER = Regex("\\d+")
 
-    /** The numbers in a release tag or build folder, in order: GE-Proton11-10 is 11, 10. */
     internal fun versionKey(name: String): List<Long> =
         NUMBER.findAll(ARCH.replace(name, " ")).mapNotNull { it.value.toLongOrNull() }.toList()
 
-    /** Orders by those numbers, so 11-10 is after 11-9; the name itself only breaks a tie. */
     internal fun compareVersions(a: String, b: String): Int {
         val x = versionKey(a)
         val y = versionKey(b)
@@ -72,7 +62,6 @@ object ProtonExtras {
         return if (x.size != y.size) x.size.compareTo(y.size) else a.compareTo(b)
     }
 
-    /** [latest] when it is newer than every installed release, else null. Nothing installed is not an update. */
     internal fun updateFor(installed: List<String>, latest: String?): String? {
         if (latest == null || installed.isEmpty()) return null
         val newest = installed.maxWithOrNull { a, b -> compareVersions(a, b) } ?: return null
@@ -82,28 +71,20 @@ object ProtonExtras {
         return if (x.size > y.size) latest else null
     }
 
-    /** The release each installed build came from: the tag recorded at install, else its folder name. */
     fun installedTags(context: Context, tool: Tool): List<String> {
         val recorded = readJson(releasesFile(context))
         return installedAll(context, tool).map { recorded.optString(it).ifEmpty { it } }
     }
 
-    /** A newer release than the installed one, from the last check (no network), or null. */
     fun update(context: Context, tool: Tool): String? = updateFor(installedTags(context, tool), cachedLatest(context, tool))
 
     fun cachedLatest(context: Context, tool: Tool): String? =
         readJson(latestFile(context)).optJSONObject(tool.id)?.optString("tag")?.ifEmpty { null }
 
-    /** Its own lock, not the install's: a check must not wait behind a download. */
     private val checkLock = Any()
-    /** A failed look-up (offline) is not repeated on every resume, only after this long. */
     private const val RETRY_MS = 15L * 60 * 1000
     private var lastAttempt = 0L
 
-    /**
-     * Looks up each source's newest release unless it was looked up within [CHECK_EVERY_MS] (or
-     * [force]). Offline or rate limited, the last answer stands. True when anything was asked.
-     */
     fun checkLatest(context: Context, force: Boolean = false, now: Long = System.currentTimeMillis()): Boolean {
         synchronized(checkLock) {
             val file = latestFile(context)
@@ -143,7 +124,6 @@ object ProtonExtras {
     private fun readJson(file: File): JSONObject =
         runCatching { JSONObject(FileUtils.readString(file) ?: "{}") }.getOrDefault(JSONObject())
 
-    /** A request left by an earlier app version, still consumed by the session shim. */
     fun queued(context: Context, tool: Tool): Boolean =
         requestLines(context).any { it.trim() == tool.id || it.trim().startsWith(tool.id + " ") }
 
@@ -154,18 +134,15 @@ object ProtonExtras {
         else file.writeText(lines.joinToString("\n") + "\n")
     }
 
-    /** Deletes one installed build ([dir], else the newest); Steam discovers its absence on its next start. */
     fun remove(context: Context, tool: Tool, dir: String? = null) {
         val name = if (dir != null) dir.takeIf { it in installedAll(context, tool) } ?: return else installed(context, tool) ?: return
         File(toolsDir(context), name).deleteRecursively()
     }
 
-    /** Deletes every build but the newest. */
     fun removeOlder(context: Context, tool: Tool) {
         installedAll(context, tool).dropLast(1).forEach { File(toolsDir(context), it).deleteRecursively() }
     }
 
-    /** Downloads, verifies and registers the latest build without waiting for another session. */
     @Synchronized
     fun install(context: Context, tool: Tool, onProgress: (String, Int) -> Unit): String? {
         if (installInProgress) return context.getString(R.string.pextra_busy)
@@ -211,8 +188,6 @@ object ProtonExtras {
             return context.getString(R.string.pextra_incomplete)
         }
 
-        // One checksum has to be found and has to match: GitHub's sha256 digest, else the
-        // release's own sha512 file. A download neither vouches for is not installed.
         onProgress(context.getString(R.string.pextra_verifying), -1)
         val verified = when {
             asset.sha256 != null -> asset.sha256.equals(Hashes.sha256(archive), ignoreCase = true)
@@ -257,7 +232,6 @@ object ProtonExtras {
             child.inputStream.bufferedReader().useLines { lines ->
                 lines.forEach { line ->
                     Log.i(TAG, line)
-                    // "droiddeck-proton-extra: installed <folder>", the folder as the tarball names it.
                     line.substringAfter("droiddeck-proton-extra: installed ", "").takeIf { it.isNotEmpty() }?.let { placed = it }
                     if (line.contains("unpacking", ignoreCase = true) || line.contains("adopted", ignoreCase = true)) {
                         onProgress(installing, -1)
@@ -296,7 +270,6 @@ object ProtonExtras {
         }
     }
 
-    /** The newest full release in GitHub's list (newest first) that carries [tool]'s ARM64 archive. */
     internal fun pickAsset(tool: Tool, array: JSONArray): Asset? {
         for (i in 0 until array.length()) {
             val release = array.getJSONObject(i)

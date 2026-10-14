@@ -11,9 +11,6 @@
 #include <sys/uio.h>
 #include <unistd.h>
 
-/* zRAM for the Steam client while a game runs: on SIGURG the process pages its private anonymous
- * memory out (ZR_CTL holds 1) or reads it back (0). Raw syscalls only, as this library wraps
- * close(), openat() and syscall(). */
 
 #ifndef MADV_PAGEOUT
 #define MADV_PAGEOUT 21
@@ -56,8 +53,6 @@ static unsigned long zr_hex(const char **p) {
   }
 }
 
-/* Paged out: private writable anonymous memory (the heap, unnamed and [anon:name] mappings).
- * Read back: every private readable mapping, as the kernel may have swapped others meanwhile. */
 static int zr_eligible(const char *line, int compress, unsigned long *start, unsigned long *end) {
   const char *p = line;
   *start = zr_hex(&p);

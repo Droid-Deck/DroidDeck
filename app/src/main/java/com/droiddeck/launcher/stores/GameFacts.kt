@@ -11,38 +11,27 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.util.concurrent.ConcurrentHashMap
 
-/**
- * What other sites know of a store game, looked up by its title: the Metacritic score (as Steam's
- * store search carries it) and HowLongToBeat's times. Neither store publishes these, so every
- * lookup is a name match against someone else's catalog, kept on disk a fortnight (a miss for two
- * days) and in memory for the process. Blocking: call off the main thread.
- */
 object GameFacts {
     private const val TAG = "GameFacts"
     private const val HIT_TTL_MS = 14L * 24 * 60 * 60 * 1000
     private const val MISS_TTL_MS = 2L * 24 * 60 * 60 * 1000
     private const val TIMEOUT_MS = 10_000
 
-    /** Metacritic's critic score (0-100) and the game's page there. */
     data class Metacritic(val score: Int, val url: String)
 
-    /** HowLongToBeat's community times, in seconds (0 when nobody has logged that kind of run), and the game's page there. */
     data class Hltb(val main: Int, val extras: Int, val completionist: Int, val url: String) {
         val isEmpty: Boolean get() = main <= 0 && extras <= 0 && completionist <= 0
     }
 
-    /** A remembered answer: [value] null is a remembered miss. */
     private class Entry<T>(val value: T?, val at: Long) {
         fun fresh(now: Long) = now - at < if (value != null) HIT_TTL_MS else MISS_TTL_MS
     }
 
     private val memory = ConcurrentHashMap<String, Entry<*>>()
 
-    /** The score or the times already in memory, without touching disk or network; null when not yet known. */
     fun peekMetacritic(title: String): Lookup<Metacritic>? = peek("metacritic", title)
     fun peekHltb(title: String): Lookup<Hltb>? = peek("hltb", title)
 
-    /** The score, or null when Steam does not list the game or has no score for it. */
     fun metacritic(context: Context, title: String): Metacritic? =
         remembered(context, "metacritic", title,
             read = { o -> o.optInt("score").takeIf { it > 0 }?.let { Metacritic(it, o.optString("url").ifEmpty { metacriticSearch(title) }) } },
@@ -55,7 +44,6 @@ object GameFacts {
             write = { o, v -> o.put("main", v.main).put("extras", v.extras).put("completionist", v.completionist).put("url", v.url) },
         ) { searchHltb(title) }
 
-    // Where a game goes when its own page is not known: the site's search for its name.
     private fun metacriticSearch(title: String) = "https://www.metacritic.com/search/${encodePath(TitleMatch.searchTerm(title))}/?category=13"
     private fun hltbSearch(title: String) = "$HLTB/?q=${URLEncoder.encode(TitleMatch.searchTerm(title), "UTF-8")}"
     private fun encodePath(s: String) = URLEncoder.encode(s, "UTF-8").replace("+", "%20")
@@ -66,10 +54,6 @@ object GameFacts {
         return e.value?.let { Lookup.Found(it) } ?: Lookup.None
     }
 
-    /**
-     * The memory copy, else the disk copy while fresh, else [fetch]. [fetch] answers a [Fetched]:
-     * a failed request is not a miss, so it leaves the stale copy (if any) standing.
-     */
     @Suppress("UNCHECKED_CAST")
     private fun <T : Any> remembered(
         context: Context, kind: String, title: String,
@@ -107,8 +91,6 @@ object GameFacts {
 
     private fun fileName(title: String) = TitleMatch.normalize(title).take(80).ifEmpty { "_" + title.hashCode().toUInt() }
 
-    // Steam's store search lists a game's Metacritic score beside its name: one request, no key.
-    // The game's own Metacritic page is in its app details, asked for only once there is a score.
     private fun searchSteamScore(title: String): Fetched<Metacritic> {
         val term = URLEncoder.encode(TitleMatch.searchTerm(title), "UTF-8")
         val body = StoreNet.get("https://store.steampowered.com/api/storesearch/?l=english&cc=US&term=$term", timeoutMs = TIMEOUT_MS)
@@ -123,7 +105,6 @@ object GameFacts {
         }.getOrElse { Fetched.Failed }
     }
 
-    /** Steam's link to the game on Metacritic, without its tracking tag; null when Steam gives none. */
     private fun metacriticPage(appId: Long): String? {
         if (appId <= 0) return null
         val body = StoreNet.get("https://store.steampowered.com/api/appdetails?appids=$appId&filters=metacritic", timeoutMs = TIMEOUT_MS) ?: return null
@@ -133,8 +114,6 @@ object GameFacts {
         }.getOrNull()
     }
 
-    // HowLongToBeat's own site search: a short-lived token from init, sent back as x-auth-token.
-    // The token is bound to the User-Agent that asked for it, so both calls send the same one.
     private const val HLTB = "https://howlongtobeat.com"
     private val hltbHeaders = mapOf("Referer" to "$HLTB/", "Origin" to HLTB)
     @Volatile private var hltbToken: Pair<String, Long>? = null
@@ -162,7 +141,6 @@ object GameFacts {
                 .put("filter", "").put("sort", 0).put("randomizer", 0))
             .put("useCache", true)
             .toString()
-        // A token can lapse between init and search; one fresh one is worth a second try.
         var body: String? = null
         for (renew in listOf(false, true)) {
             val token = hltbToken(renew) ?: return Fetched.Failed
@@ -185,16 +163,13 @@ object GameFacts {
         }
     }
 
-    /** A store's release date ("2015.05.19", "2015-05-19T00:00:00+02:00", ...) in the reader's own words, or null. */
     fun releaseLabel(raw: String): String? {
         val m = Regex("""^(\d{4})[.\-/](\d{2})[.\-/](\d{2})""").find(raw.trim()) ?: return null
         val (y, mo, d) = m.destructured
-        // Epic dates a title it has no date for 2099-01-01.
         val date = runCatching { LocalDate.of(y.toInt(), mo.toInt(), d.toInt()) }.getOrNull()?.takeIf { it.year in 1970..2098 } ?: return null
         return date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
     }
 
-    /** Whole hours, with a half when the time is nearer one: "51½". Under an hour, null (the caller says minutes). */
     fun hours(seconds: Int): String? {
         if (seconds < 3600) return null
         val halves = Math.round(seconds / 1800.0).toInt()
@@ -202,38 +177,26 @@ object GameFacts {
     }
 }
 
-/** A fact looked up off the page: still asking, found, or not to be had. */
 sealed interface Lookup<out T> {
     object Pending : Lookup<Nothing>
     object None : Lookup<Nothing>
     data class Found<T>(val value: T) : Lookup<T>
 }
 
-/**
- * Whether two catalogs mean the same game. Store titles carry marks, editions and subtitles the
- * other site spells differently ("The Witcher 3: Wild Hunt" is Steam's "...Wild Hunt — Remastered");
- * a sequel is never the same game ("Hades" is not "Hades II").
- */
 internal object TitleMatch {
     private val MARKS = Regex("[™®©]")
     private val EDITION = Regex(
         "(?i)[\\s:\\-–—]*\\b(?:(?:complete|definitive|legendary|deluxe|ultimate|enhanced|gold|premium|standard|special|anniversary|collector'?s|digital deluxe|game of the year|goty)\\s+edition|goty|director'?s cut)\\b",
     )
-    // Where a subtitle starts: a colon or dash with space around it, or an opening bracket.
     private val SUBTITLE = Regex("\\s*[:–—]\\s*|\\s+-\\s+|\\s*\\(")
 
     fun normalize(s: String): String = s.lowercase().replace(MARKS, "").replace("&", "and").replace(Regex("[^\\p{L}\\p{N}]"), "")
 
     fun stripEdition(s: String): String = s.replace(EDITION, " ").trim().ifEmpty { s }
 
-    /**
-     * What to type into another site's search: the title without its marks, edition or subtitle
-     * punctuation (Steam finds nothing for "Disco Elysium - The Final Cut", all of it for the words).
-     */
     fun searchTerm(title: String): String =
         stripEdition(title.replace(MARKS, "")).replace(Regex("\\s+[-–—]\\s+|[:–—()\\[\\]]"), " ").replace(Regex("\\s+"), " ").trim()
 
-    /** 3 the same name, 2 the same but for the edition, 1 one is the other with a subtitle, 0 not the same game. */
     fun score(want: String, got: String): Int {
         val w = normalize(want)
         val g = normalize(got)
@@ -246,11 +209,9 @@ internal object TitleMatch {
         return 0
     }
 
-    /** The title up to each place a subtitle could start, normalized. */
     private fun heads(title: String): Set<String> =
         SUBTITLE.findAll(title).map { normalize(title.substring(0, it.range.first)) }.filter { it.isNotEmpty() }.toSet()
 
-    /** The best-named of [items] in their order (the site's own ranking breaks a tie), or null when none is the game. */
     fun <T> pick(want: String, items: List<T>, names: (T) -> List<String>): T? {
         var best: T? = null
         var bestScore = 0

@@ -1,5 +1,3 @@
-// The first desktop: DroidDeck's wallpaper, and SteamOS's Plasma's default bottom panel with the Steam Deck
-// launcher icon, Steam, the file manager, the browser and Konsole pinned to the task manager.
 var desktops = desktopsForActivity(currentActivity());
 for (var i = 0; i < desktops.length; i++) {
     desktops[i].wallpaperPlugin = "org.kde.image";
@@ -36,7 +34,6 @@ if (trayId) {
     trayContainment.currentConfigGroup = ["General"];
     trayContainment.writeConfig("scaleIconsToFit", true);
 }
-// The runtime has no locale of its own (C.UTF-8), whose short date reads "9 10 2026".
 var clock = panel.addWidget("org.kde.plasma.digitalclock");
 clock.currentConfigGroup = ["Appearance"];
 clock.writeConfig("dateFormat", "isoDate");

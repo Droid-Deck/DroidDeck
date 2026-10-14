@@ -45,14 +45,6 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
 
-/**
- * The Steam tab with nothing installed. The blank wall drifts as the full one does, and the
- * DroidDeck mark wanders over it, bouncing off the page's edges and off [avoid] (the words and
- * buttons) like an idle DVD logo, carrying a clearing in the wall with it. On arrival its outline
- * traces in, the D fills, and the ball pops toward the viewer, flips twice and slams back into its
- * socket; the ring the slam sends out fills each blank capsule it reaches. Poking the ball plays
- * the pop again, without the mark stopping. [fade] is drawn over the wall and under the mark.
- */
 @Composable
 internal fun EmptyLibrary(avoid: Rect?, fade: @Composable () -> Unit) {
     val clock = rememberMarkClock(avoid)
@@ -63,23 +55,16 @@ internal fun EmptyLibrary(avoid: Rect?, fade: @Composable () -> Unit) {
     }
 }
 
-// The trace and fill, in ms from arrival.
 private const val TRACE_MS = 1250f
 private const val FILL_FROM = 450f
-// The ball's timeline: its fade-in, pop, flip and slam, the ripple and the capsules it lights.
 private const val POP_FROM = 900f
 private const val IMPACT = 2200f
 private const val RIPPLE_MS = 1250f
 private const val HIT_MS = 900f
 private const val END = 3600f
-// Where a poke restarts the ball's timeline: just before the wind-up.
 private const val POKE = 880f
 private const val DRIFT_MS = 75_000f
 
-/**
- * Time into the mark's arrival, into the ball's timeline (a poke restarts only that), into the
- * wall's drift, and where the mark is on the page and where its last slam landed.
- */
 private class MarkClock {
     var intro by mutableFloatStateOf(0f)
     var ball by mutableFloatStateOf(0f)
@@ -107,7 +92,6 @@ private fun rememberMarkClock(avoid: Rect?): MarkClock {
             if (clock.page == Size.Zero) { withFrameMillis { }; continue }
             val f = MarkFrame(clock.page, Offset.Zero)
             if (clock.at == Offset.Unspecified) clock.at = Offset(clock.page.width * 0.64f, clock.page.height * 0.42f)
-            // Animations off in the system settings: the finished mark, still, on a still wall.
             if (Motion.scale == 0f) {
                 clock.intro = END
                 clock.ball = END
@@ -123,7 +107,6 @@ private fun rememberMarkClock(avoid: Rect?): MarkClock {
                 val before = clock.ball
                 clock.ball += dt
 
-                // Drift, bouncing off the page edges and off whatever it should keep clear of.
                 var x = clock.at.x + vx * dt / 1000f
                 var y = clock.at.y + vy * dt / 1000f
                 val hw = f.halfWidth
@@ -152,10 +135,6 @@ private fun rememberMarkClock(avoid: Rect?): MarkClock {
     return clock
 }
 
-/**
- * The mark on a page of [size], centred on [centre]: about a third of the page tall. [k] scales
- * the timeline's distances, which were drawn on a 460px mark.
- */
 private class MarkFrame(size: Size, val centre: Offset) {
     val height = min(size.height * 0.3f, size.width * 0.28f * LogoShape.HEIGHT / LogoShape.WIDTH)
     val s = height / LogoShape.HEIGHT
@@ -180,11 +159,9 @@ private val HitEase = CubicBezierEasing(0.2f, 0.7f, 0.3f, 1f)
 private fun clamp01(v: Float) = v.coerceIn(0f, 1f)
 private fun mix(a: Float, b: Float, t: Float) = a + (b - a) * t
 
-/** One stretch of a keyframed value: [from] to [to] while [p] runs from [a] to [b]. */
 private fun span(p: Float, a: Float, b: Float, from: Float, to: Float, ease: Easing) =
     mix(from, to, ease.transform(clamp01((p - a) / (b - a))))
 
-/** When the ripple's edge reaches [progress] of its way out, as a share of the ripple's time. */
 private val rippleTime: FloatArray = FloatArray(257) { RippleEase.transform(it / 256f) }
 private fun rippleReaches(progress: Float): Float {
     var lo = 0
@@ -196,14 +173,12 @@ private fun rippleReaches(progress: Float): Float {
     return lo / 256f
 }
 
-/** How lit a capsule the ripple reached [since] ms ago is: up fast, then fading back. */
 private fun hitAmount(since: Float): Float {
     if (since < 0f || since > HIT_MS) return 0f
     val p = since / HIT_MS
     return if (p < 0.14f) HitEase.transform(p / 0.14f) else 1f - HitEase.transform((p - 0.14f) / 0.86f)
 }
 
-/** The blank wall: the same tilted, drifting columns as [CapsuleWall], each capsule lit as the ripple passes. */
 @Composable
 private fun EmptyWall(clock: MarkClock) {
     val pal = LocalPalette.current
@@ -239,7 +214,6 @@ private fun EmptyWall(clock: MarkClock) {
                 val dy = if (c % 2 == 0) -shift else shift - run
                 for (i in 0 until perRun * 2) {
                     val y = top + i * (capH + gap) + dy
-                    // The capsule's centre on the page, out of the wall's tilt.
                     val lx = x + capW / 2 - pivot.x
                     val ly = y + capH / 2 - pivot.y
                     val sx = pivot.x + lx * cs + ly * sn
@@ -266,7 +240,6 @@ private fun EmptyWall(clock: MarkClock) {
                 }
             }
         }
-        // The clearing the mark carries with it.
         drawRect(
             Brush.radialGradient(
                 0f to bg, 255f / 420f to bg, 330f / 420f to bg.copy(alpha = 0.7f), 1f to Color.Transparent,
@@ -276,7 +249,6 @@ private fun EmptyWall(clock: MarkClock) {
     }
 }
 
-/** The mark, its ball's pop and flip, and the ring the slam sends out. */
 @Composable
 private fun Mark(clock: MarkClock) {
     val pal = LocalPalette.current
@@ -303,7 +275,6 @@ private fun Mark(clock: MarkClock) {
         val t = clock.ball
         val intro = clock.intro
 
-        // The ripple, from where the slam landed, under the mark.
         if (clock.slam != Offset.Unspecified && t in IMPACT..IMPACT + RIPPLE_MS) {
             val p = (t - IMPACT) / RIPPLE_MS
             val alpha = if (p < 0.7f) mix(0.9f, 0.35f, p / 0.7f) else mix(0.35f, 0f, (p - 0.7f) / 0.3f)
@@ -323,7 +294,6 @@ private fun Mark(clock: MarkClock) {
         } else 0f
 
         translate(0f, shake) {
-            // The D, as flat raised slabs with a solid edge underneath.
             val fill = Out.transform(clamp01((intro - FILL_FROM) / 450f))
             if (fill > 0f) {
                 val lift = 8f * k * (1f - fill)
@@ -338,7 +308,6 @@ private fun Mark(clock: MarkClock) {
                 drawPath(right, ink.copy(alpha = fill))
             }
 
-            // The trace around both halves on arrival, the GameCube nod.
             if (intro < TRACE_MS) {
                 val drawn = TraceEase.transform(clamp01(intro / 775f))
                 val alpha = if (intro < 775f) 1f else 1f - (intro - 775f) / 475f
@@ -352,7 +321,6 @@ private fun Mark(clock: MarkClock) {
                 }
             }
 
-            // The ball.
             val shown = Out.transform(clamp01((intro - 650f) / 300f))
             if (shown > 0f) {
                 val p = (t - POP_FROM) / (IMPACT - POP_FROM)
@@ -366,7 +334,6 @@ private fun Mark(clock: MarkClock) {
                 val q = clamp01((pop - 1f) / 0.6f)
                 val bob = if (t > END) -4f * k * (0.5f - 0.5f * cos(2f * PI.toFloat() * (t - END) / 5200f)) else 0f
 
-                // Its shadow stays on the slabs, spreading and softening as the ball rises.
                 val blur = mix(10f, 28f, q) * k
                 val sr = f.ball * 0.93f * mix(1f, 1.4f, q)
                 val dark = Color.Black.copy(alpha = mix(0.6f, 0.25f, q) * shown)
@@ -396,7 +363,6 @@ private fun Mark(clock: MarkClock) {
                 }
             }
 
-            // The flash where it lands.
             if (t in IMPACT..IMPACT + 420f) {
                 val p = Out.transform((t - IMPACT) / 420f)
                 drawCircle(pal.signal.copy(alpha = 1f - p), (f.ball + 6f * k) * mix(1f, 1.4f, p), f.centre, style = Stroke(max(4f * k, 2.dp.toPx())))
@@ -405,10 +371,6 @@ private fun Mark(clock: MarkClock) {
     }
 }
 
-/**
- * The ball as a coin of [thick]ness turned [deg] about its vertical axis: flat faces in the logo's
- * blue, and between them a solid rim that shows as it turns edge-on.
- */
 private fun DrawScope.coin(c: Offset, r: Float, thick: Float, deg: Float, face: Color, rim: Color) {
     val a = Math.toRadians(deg.toDouble())
     val cs = cos(a).toFloat()

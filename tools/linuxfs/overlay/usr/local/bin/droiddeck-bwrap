@@ -1,17 +1,4 @@
 #!/usr/bin/python3
-# bubblewrap for Flatpak (FLATPAK_BWRAP), in a runtime that cannot have it.
-#
-# bwrap builds each sandbox from mount namespaces, which Android gives no app. proot gives the same
-# picture - Flatpak's runtime as /usr, the app as /app, host paths bound where Flatpak asks - but a
-# proot nested inside the session's proot runs every system call through two tracers, some thirty
-# times slower on a program's start. So a sandbox is described to the app instead, over a socket
-# only this app's uid may use, and the app starts it as a proot of its own beside the session's
-# (BwrapSpawner). This process stands in for the sandbox until it ends: its output, its pid for
-# --info-fd, and its exit status come back here.
-#
-# Sandboxes that remap nothing - Flatpak's install triggers (`--ro-bind / /` and the directory they
-# update) and the D-Bus proxy (every top-level directory bound onto itself) - need no proot at all
-# and run here directly, with the file descriptors Flatpak handed them.
 import base64
 import json
 import os
@@ -23,7 +10,6 @@ import sys
 SOCKET = "\0" + os.environ.get("DROIDDECK_BWRAP_SOCKET", "com.droiddeck.launcher.bwrap")
 VERSION = "bubblewrap 0.11.0 (droiddeck)"
 
-# Options and how many arguments each takes; bwrap(1).
 NO_ARG = {
     "--unshare-user", "--unshare-user-try", "--unshare-ipc", "--unshare-pid", "--unshare-net",
     "--unshare-uts", "--unshare-cgroup", "--unshare-cgroup-try", "--unshare-all", "--share-net",
@@ -68,7 +54,6 @@ def expand(argv):
         a = argv[i]
         if a == "--args" and i + 1 < len(argv):
             data = read_fd(int(argv[i + 1]))
-            # Each argument ends in a NUL; an empty one (--setenv LD_LIBRARY_PATH "") is kept.
             parts = data.split(b"\0")
             if parts and parts[-1] == b"":
                 parts.pop()
@@ -155,7 +140,6 @@ def parse(argv):
         elif a == "--dev":
             s.ops.append({"t": "dev", "dest": args[0]})
         elif a in ("--seccomp", "--add-seccomp-fd"):
-            # proot is the sandbox; there is no filter to install under it.
             os.close(int(args[0]))
         elif a == "--block-fd":
             read_fd(int(args[0]))
@@ -165,8 +149,6 @@ def parse(argv):
             s.info_fds.append(int(args[0]))
         elif a == "--json-status-fd":
             s.json_fds.append(int(args[0]))
-        # Everything else - namespaces, capabilities, labels, locks, --remount-ro, --chmod - has
-        # nothing to act on under proot.
     if not s.command:
         sys.stderr.write("bwrap: No command specified\n")
         sys.exit(1)
@@ -196,7 +178,6 @@ def remaps_nothing(s):
             if not os.path.islink(op["dest"]) or os.readlink(op["dest"]) != op["target"]:
                 return False
         elif t == "file":
-            # The D-Bus proxy's /.flatpak-info names the app to the bus; nothing here reads it.
             if op["dest"] != "/.flatpak-info":
                 return False
         elif t == "dir":
@@ -258,7 +239,6 @@ def run_by_app(s):
     for op in s.ops:
         op = dict(op)
         if op["t"] == "bind":
-            # The app resolves no guest symlinks; hand it the path they lead to.
             op["src"] = real(op["src"])
         if op["t"] == "file":
             op["data"] = base64.b64encode(op["data"]).decode()
@@ -274,7 +254,6 @@ def run_by_app(s):
         sys.stderr.write("bwrap: DroidDeck is not answering (%s); open DroidDeck and try again\n" % e)
         sys.exit(1)
     send(sock, b"R", json.dumps(request).encode())
-    # This process is the sandbox as far as Flatpak is concerned: ended, it takes the sandbox down.
     for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
         signal.signal(sig, lambda *_: os._exit(128 + 15))
     status = 1

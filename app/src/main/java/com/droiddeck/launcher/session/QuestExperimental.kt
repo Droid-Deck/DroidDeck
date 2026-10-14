@@ -6,7 +6,6 @@ import android.util.Log
 import com.droiddeck.launcher.BuildConfig
 import java.io.File
 
-/** Device-detected defaults and launch evidence for experimental Quest compatibility. */
 object QuestExperimental {
     private const val TAG = "QuestExperimental"
     const val DRIVER = "turnip25.1.0-quest1"
@@ -30,14 +29,10 @@ object QuestExperimental {
         val prefs = context.getSharedPreferences("session", Context.MODE_PRIVATE)
         val defaultsKey = if (isQuest2()) "quest2DefaultsV1" else "questDefaultsV1"
         if (!prefs.getBoolean(defaultsKey, false)) {
-            // Auto would download an unwrapped display driver and lose the compatibility path.
-            // Apply once so deliberate changes made during headset testing remain possible.
             prefs.edit()
                 .putString("gpuDriverMode", SessionPrefs.GPU_DRIVERS_MANUAL)
                 .putString("androidDriver", if (isQuest2()) DRIVER_A6XX else DRIVER)
                 .putString("linuxDriver", "")
-                // The existing HDR option uses SurfaceControl presentation. This is a
-                // corruption workaround from upstream issue #245, not a claim of HDR accuracy.
                 .putBoolean("hdr.steam", true)
                 .putBoolean(defaultsKey, true)
                 .apply()

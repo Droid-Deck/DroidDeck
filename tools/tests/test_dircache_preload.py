@@ -21,7 +21,6 @@ FAKE = r"""
 
 int real_opendirs;
 
-/* COARSE=1: directory stats that never change, like NTFS's whole-second times and fixed size. */
 static void coarse(const char *path, struct stat *st) {
   if (getenv("COARSE") && strstr(path, "/fuse/") && S_ISDIR(st->st_mode)) {
     st->st_mtim = st->st_ctim = (struct timespec){1, 0};
@@ -70,7 +69,6 @@ int statfs(const char *path, struct statfs *out) {
   return r;
 }
 
-/* FASTPATH=1: open directories the way the fast-path preload does, through fdopendir. */
 DIR *opendir(const char *path) {
   static DIR *(*next)(const char *);
   if (!next) next = dlsym(RTLD_NEXT, "opendir");

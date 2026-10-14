@@ -16,11 +16,11 @@ index 0b381bb..1116ab2 100644
  #include <stdint.h>        /* uint*_t, UINT*_MAX, */
  #include <stdbool.h>
  #include <sys/resource.h>
-+#include <sys/utsname.h>   /* uname(2), */
-+#include <stdio.h>         /* sscanf(3), */
-+#include <asm/ioctls.h>    /* TCGETS2, TCSETS*2, */
-+#include <asm/termbits.h>  /* struct termios2, */
-+#include <linux/fs.h>      /* FICLONE, */
++#include <sys/utsname.h>
++#include <stdio.h>
++#include <asm/ioctls.h>
++#include <asm/termbits.h>
++#include <linux/fs.h>
  #include <assert.h>        /* assert(3), */
  
  #include "syscall/seccomp.h"
@@ -28,27 +28,27 @@ index 0b381bb..1116ab2 100644
  	return add_statements(program, LENGTH_TRACE_PRLIMIT_STACK, statements);
  }
  
-+/**
-+ * Append to @program->filter the statements that trace @syscall
-+ * (ioctl) only for the requests enter.c and exit.c act on - the
-+ * termios requests Android's policy denies an app on a pty, rewritten
-+ * to ones it allows, and FICLONE, whose EACCES is turned into
-+ * EOPNOTSUPP - and allow any other request at once.  Every GPU submit
-+ * and wait is an ioctl, so they no longer stop in the tracer, and the
-+ * block is emitted first so they are also spared the rest of the list.
-+ * (After WinNative, maxjivi05, 53836ca9.)
-+ */
++
++
++
++
++
++
++
++
++
++
 +static int add_trace_ioctl_requests(struct sock_fprog *program, word_t syscall, int flag)
 +{
 +	const size_t request_offset = offsetof(struct seccomp_data, args[1]);
 +
 +	#define LENGTH_TRACE_IOCTL 10
 +	struct sock_filter statements[LENGTH_TRACE_IOCTL] = {
-+		/* Not this syscall: skip the block, the accumulator
-+		 * still holds the syscall number.  */
++
++
 +		BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, syscall, 0, 9),
 +
-+		/* Load the request's low word into the accumulator.  */
++
 +		BPF_STMT(BPF_LD + BPF_W + BPF_ABS, request_offset),
 +
 +		BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, TCSETSF,  5, 0),
@@ -102,8 +102,8 @@ index 0b381bb..1116ab2 100644
  		if (status < 0)
  			goto end;
  
-+		/* Two passes: ioctl first, it is by far the most frequent
-+		 * syscall and almost every one of them is allowed.  */
++
++
 +		for (pass = 0; pass < 2; pass++)
  		for (j = 0; j < seccomp_archs[i].nb_abis; j++) {
  			for (k = 0; sysnums[k].value != PR_void; k++) {
@@ -117,15 +117,15 @@ index 0b381bb..1116ab2 100644
  	return 0;
  }
  
-+/**
-+ * Drop the exit stops PRoot only needs on kernels older than the one it
-+ * runs on.  The faccessat2 exit stop restores the arguments for glibc's
-+ * fallback to faccessat on ENOSYS (kernels before 5.8, termux 5ba8b95);
-+ * the statx one emulates the call when it fails, which only a kernel
-+ * before 4.11 does for want of it - a statx Android's policy traps is
-+ * emulated from SIGSYS instead.  Both stops re-read and re-translate
-+ * the path, and are paid on every call.
-+ */
++
++
++
++
++
++
++
++
++
 +static void drop_unneeded_exit_stops(void)
 +{
 +	static bool done = false;

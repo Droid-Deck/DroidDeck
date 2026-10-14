@@ -95,7 +95,6 @@ def required():
 
 
 def record(root=ROOT):
-    # Refresh scripts even on a CI native-cache hit; these are source, not cached binaries.
     if root == ROOT:
         from check_session_assets import source_assets
         for source, asset in source_assets().items():
@@ -112,7 +111,6 @@ def record(root=ROOT):
                 gzip.decompress((root / path).read_bytes())
             except (OSError, EOFError) as error:
                 raise ValueError('Invalid desktop removal inventory: ' + name) from error
-    # Check inside the compressed payload, where a plain Gradle build used to ship no sinks.
     process = subprocess.Popen(['zstd', '-dc', str(root / paths['assets/pulseaudio.tzst'])], stdout=subprocess.PIPE)
     try:
         with tarfile.open(fileobj=process.stdout, mode='r|') as archive:

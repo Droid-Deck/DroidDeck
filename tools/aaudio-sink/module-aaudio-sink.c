@@ -1,15 +1,4 @@
 /*
- * module-aaudio-sink: a PulseAudio 13 sink on Android's AAudio, for the DroidDeck app.
- *
- * The daemon's IO thread pulls rendered audio from the sink one burst at a time and hands it to
- * a blocking AAudio output stream; the stream's own buffer paces the thread, and the latency the
- * sink reports comes from the stream's playback timestamp. With adaptive=1 the buffer grows by a
- * burst after each underrun, up to a cap, so a device that cannot keep a small buffer fed settles
- * on one it can.
- *
- * Module arguments keep the names the app has always passed (performance_mode, adaptive, volume,
- * buffer_frames, max_buffer_frames) so the daemon's config line did not have to change.
- *
  * SPDX-License-Identifier: LGPL-2.1-or-later
  */
 #ifdef HAVE_CONFIG_H
@@ -58,18 +47,11 @@ PA_MODULE_USAGE(
         "buffer_frames=<initial buffer size in frames, 0 = two bursts> "
         "max_buffer_frames=<largest the buffer may grow to, 0 = the stream's capacity>");
 
-/* The name the app's daemon config addresses (set-default-sink). */
 #define DEFAULT_SINK_NAME "AAudioSink"
-/* Underruns are polled every so many writes, not every write. */
 #define XRUN_CHECK_EVERY 8
 #define FALLBACK_BURST_FRAMES 192
-/* The buffer starts at whichever is larger: this many bursts, or this much time. The daemon runs
- * under proot, where every system call is traced, and a buffer of two bursts (8 ms) left the
- * client's menu sounds choppy on device; 30 ms is inaudible for a menu and games have their own
- * path. adaptive=1 still grows it further after real underruns. */
 #define MIN_BUFFER_BURSTS 2
 #define MIN_BUFFER_USEC (30 * PA_USEC_PER_MSEC)
-/* Android's own audio threads run at nice -16 (THREAD_PRIORITY_AUDIO); an app may ask for it. */
 #define AUDIO_NICE (-16)
 #define STATS_EVERY_USEC (30 * PA_USEC_PER_SEC)
 
@@ -109,7 +91,6 @@ struct userdata {
     int32_t max_buffer_frames;
     int32_t requested_buffer_frames;
     bool adaptive;
-    /* rate= was given: ask the device for exactly that instead of its own rate. */
     bool rate_requested;
     int32_t xruns_seen;
     unsigned writes_since_xrun_check;
@@ -127,8 +108,6 @@ static int32_t usec_to_frames(const struct userdata *u, pa_usec_t usec) {
     return (int32_t) ((uint64_t) usec * u->ss.rate / PA_USEC_PER_SEC);
 }
 
-/* Each write hands the device half the buffer, whole bursts, at least one: fewer, larger
- * trips through proot's tracing than a burst at a time, with half the buffer of slack left. */
 static void set_chunk(struct userdata *u) {
     int32_t frames = u->buffer_frames / 2;
     frames -= frames % u->burst_frames;
@@ -166,7 +145,6 @@ static void apply_buffer_size(struct userdata *u, int32_t frames) {
     set_chunk(u);
 }
 
-/* Opens the stream for u->ss; on return u->ss holds what the device actually gave. */
 static int open_stream(struct userdata *u) {
     AAudioStreamBuilder *builder = NULL;
     aaudio_result_t r;
@@ -180,9 +158,6 @@ static int open_stream(struct userdata *u) {
     AAudioStreamBuilder_setSharingMode(builder, AAUDIO_SHARING_MODE_SHARED);
     AAudioStreamBuilder_setPerformanceMode(builder, u->performance_mode);
     AAudioStreamBuilder_setFormat(builder, u->ss.format == PA_SAMPLE_FLOAT32NE ? AAUDIO_FORMAT_PCM_FLOAT : AAUDIO_FORMAT_PCM_I16);
-    /* The device's own rate unless one was asked for: at any other rate Android falls back to a
-     * legacy stream with 20 ms bursts and room for three of them, and the daemon under proot
-     * cannot keep that fed. The sink takes whatever rate comes back; PulseAudio resamples clients. */
     AAudioStreamBuilder_setSampleRate(builder, u->rate_requested ? (int32_t) u->ss.rate : AAUDIO_UNSPECIFIED);
     AAudioStreamBuilder_setChannelCount(builder, (int32_t) u->ss.channels);
 
@@ -240,7 +215,6 @@ static void stop_stream(struct userdata *u) {
     u->started = false;
 }
 
-/* How much audio the device still holds: frames written less frames it reports played. */
 static pa_usec_t stream_latency(struct userdata *u) {
     int64_t position = 0, when_ns = 0;
 
@@ -267,7 +241,6 @@ static void check_underruns(struct userdata *u) {
     u->writes_since_xrun_check = 0;
 
     xruns = AAudioStream_getXRunCount(u->stream);
-    /* A line every so often while underruns keep coming, so a session log shows the count. */
     if (xruns != u->xruns_reported && pa_rtclock_now() - u->stats_at >= STATS_EVERY_USEC) {
         pa_log("aaudio-sink: %d underrun(s) so far, buffer %d frames", xruns, u->buffer_frames);
         u->xruns_reported = xruns;
@@ -285,7 +258,6 @@ static void check_underruns(struct userdata *u) {
     pa_log("aaudio-sink: underrun %d: buffer now %d frames (%u ms)", xruns, u->buffer_frames, (unsigned) (frames_to_usec(u, u->buffer_frames) / PA_USEC_PER_MSEC));
 }
 
-/* One burst from the sink into the device. Returns <0 when the stream is gone for good. */
 static int write_one_burst(struct userdata *u) {
     const void *data;
     aaudio_result_t written = 0;
@@ -315,8 +287,6 @@ static int write_one_burst(struct userdata *u) {
         return 0;
     }
 
-    /* The device went away (headphones, a route change). Reopen once with the same settings; if
-     * the new stream differs in rate or format there is nothing sane to do but give up. */
     pa_log("aaudio-sink: AAudioStream_write: %s; reopening the stream", AAudio_convertResultToText(written));
     {
         pa_sample_spec before = u->ss;
@@ -346,8 +316,6 @@ static int sink_process_msg(pa_msgobject *o, int code, void *data, int64_t offse
     return pa_sink_process_msg(o, code, data, offset, chunk);
 }
 
-/* Runs in the IO thread: an opened sink means a running stream and a busy loop; a suspended
- * one means a stopped stream and a thread asleep until a message arrives. */
 static int sink_set_state_in_io_thread_cb(pa_sink *s, pa_sink_state_t new_state, pa_suspend_cause_t new_suspend_cause) {
     struct userdata *u = s->userdata;
 
@@ -368,8 +336,6 @@ static void thread_func(void *userdata) {
 
     pa_log_debug("IO thread starting");
     pa_thread_mq_install(&u->thread_mq);
-    /* Ahead of everything else in the app, as Android's own audio threads are; realtime on top
-     * of that where the kernel allows (it does not, for an app, but it costs nothing to ask). */
     if (setpriority(PRIO_PROCESS, (id_t) syscall(SYS_gettid), AUDIO_NICE) < 0)
         pa_log_debug("aaudio-sink: could not raise the IO thread's priority (%s)", strerror(errno));
     if (u->core->realtime_scheduling)
@@ -379,7 +345,6 @@ static void thread_func(void *userdata) {
         int ret;
 
         if (PA_SINK_IS_OPENED(u->sink->thread_info.state) && u->started) {
-            /* Nothing written can be taken back from the device, so a rewind is just acknowledged. */
             if (u->sink->thread_info.rewind_requested)
                 pa_sink_process_rewind(u->sink, 0);
             if (write_one_burst(u) < 0)
@@ -426,7 +391,6 @@ int pa__init(pa_module *m) {
         pa_log("Invalid sample format specification or channel map");
         goto fail;
     }
-    /* AAudio speaks 16-bit or float; anything else is rendered as 16-bit. */
     if (ss.format != PA_SAMPLE_FLOAT32NE)
         ss.format = PA_SAMPLE_S16NE;
 

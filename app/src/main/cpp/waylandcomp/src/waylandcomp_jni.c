@@ -1,9 +1,3 @@
-/*
- * JNI entry for the embedded Wayland compositor (experimental parallel runtime).
- * Starts the compositor on a dedicated thread (it blocks in the wl event loop).
- * The render-to-Surface backend + input are added in the M4 phase; this brings up
- * the server so a Wayland client (eventually winewayland.drv) can connect.
- */
 #include <jni.h>
 #include <errno.h>
 #include <stdbool.h>
@@ -44,15 +38,15 @@ extern volatile int g_output_w, g_output_h;
 #define TAG "DroidDeckWayland"
 
 static JavaVM *g_jvm;
-static volatile pid_t g_comp_tid;    /* the compositor thread, for the app's ADPF hint session */
-static jclass g_compositor_cls;      /* global ref */
-static jmethodID g_on_first_frame;   /* static void onFirstFramePresented() */
-static jmethodID g_on_game_surface;  /* static void onGameSurface(String, String) */
-static jmethodID g_on_game_frame;    /* static void onGameFrame() */
-static jmethodID g_on_game_program;  /* static void onGameProgram(int, String) */
-static jmethodID g_on_pointer_lock;  /* static void onPointerLock(boolean, int, int) */
-static jmethodID g_on_clipboard;     /* static void onClipboardText(byte[]) */
-static jmethodID g_on_text_input;    /* static void onTextInput(boolean, String, int, int, int, int) */
+static volatile pid_t g_comp_tid;
+static jclass g_compositor_cls;
+static jmethodID g_on_first_frame;
+static jmethodID g_on_game_surface;
+static jmethodID g_on_game_frame;
+static jmethodID g_on_game_program;
+static jmethodID g_on_pointer_lock;
+static jmethodID g_on_clipboard;
+static jmethodID g_on_text_input;
 
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
     (void)reserved;
@@ -79,9 +73,6 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
     return JNI_VERSION_1_6;
 }
 
-/* Called from vk_present.c on the compositor thread when the first client frame is
- * presented. Attaches to the JVM (this thread is a bare pthread) and calls back into
- * Java so the launch overlay can dismiss. Fires exactly once. */
 void droiddeck_on_first_frame(void) {
     if (!g_jvm || !g_compositor_cls || !g_on_first_frame) return;
     JNIEnv *env = NULL;
@@ -96,8 +87,6 @@ void droiddeck_on_first_frame(void) {
     __android_log_print(ANDROID_LOG_INFO, TAG, "first client frame presented -> notified app");
 }
 
-/* The compositor thread stays attached once it first calls into Java: the HUD gets an upcall
- * for every game frame. */
 static __thread JNIEnv *t_env;
 static __thread int t_attached;
 
@@ -112,7 +101,6 @@ static JNIEnv *thread_env(void) {
     return t_env = env;
 }
 
-/* A window started presenting GPU frames (window = its description), or NULL when it closed. */
 void droiddeck_on_game_surface(const char *window, const char *gpu) {
     JNIEnv *env;
     if (!g_compositor_cls || !g_on_game_surface || !(env = thread_env())) return;
@@ -124,8 +112,6 @@ void droiddeck_on_game_surface(const char *window, const char *gpu) {
     if (jg) (*env)->DeleteLocalRef(env, jg);
 }
 
-/* The program behind the game window that just started presenting: its Linux pid and executable name
- * ("" = unknown). The app arms its launch-time CPU affinity on it. Compositor thread. */
 void droiddeck_on_game_program(int pid, const char *program) {
     JNIEnv *env;
     if (!g_compositor_cls || !g_on_game_program || !(env = thread_env())) return;
@@ -135,7 +121,6 @@ void droiddeck_on_game_program(int pid, const char *program) {
     if (jp) (*env)->DeleteLocalRef(env, jp);
 }
 
-/* One GPU frame from that window. */
 void droiddeck_on_game_frame(void) {
     JNIEnv *env;
     if (!g_compositor_cls || !g_on_game_frame || !(env = thread_env())) return;
@@ -143,9 +128,6 @@ void droiddeck_on_game_frame(void) {
     if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
 }
 
-/* A program locked the pointer (locked = 1; the app's input path switches to deltas) or the lock
- * ended (locked = 0; x,y = where the pointer is now, in scene coordinates, for the app to re-sync
- * its own pointer to). Compositor thread. */
 void droiddeck_on_pointer_lock(int locked, int x, int y) {
     JNIEnv *env;
     if (!g_compositor_cls || !g_on_pointer_lock || !(env = thread_env())) return;
@@ -153,8 +135,6 @@ void droiddeck_on_pointer_lock(int locked, int x, int y) {
     if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
 }
 
-/* A program copied text (UTF-8, not NUL-terminated for the app's sake - a byte[] so emoji and
- * NULs survive JNI). Compositor thread. */
 void droiddeck_on_clipboard_text(const char *utf8, int len) {
     JNIEnv *env;
     if (!g_compositor_cls || !g_on_clipboard || !(env = thread_env())) return;
@@ -166,8 +146,6 @@ void droiddeck_on_clipboard_text(const char *utf8, int len) {
     (*env)->DeleteLocalRef(env, arr);
 }
 
-/* A program started (enabled) or stopped accepting IME text; x,y,w,h = its caret rectangle in
- * scene pixels (all 0 = unknown). Compositor thread. */
 void droiddeck_on_text_input(int enabled, const char *program, int x, int y, int w, int h) {
     JNIEnv *env;
     if (!g_compositor_cls || !g_on_text_input || !(env = thread_env())) return;
@@ -178,16 +156,11 @@ void droiddeck_on_text_input(int enabled, const char *program, int x, int y, int
     if (jp) (*env)->DeleteLocalRef(env, jp);
 }
 
-/* android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY: the level the hwui RenderThread runs at. */
 #define COMPOSITOR_NICE (-8)
 
 static void *comp_thread(void *arg) {
     (void)arg;
     __android_log_print(ANDROID_LOG_INFO, TAG, "compositor thread starting");
-    /* Every buffer release, frame callback and layer transaction of the session goes through this one
-     * thread. It is named, so `ps -T`, the logs and the drawer's Thread Priority Boost (PerfPriority
-     * matches thread names) can find it, and it runs at display priority instead of whatever the
-     * thread that started it had. Never lowered: a thread that already runs hotter keeps its value. */
     pthread_setname_np(pthread_self(), "wl-compositor");
     const id_t tid = (id_t)gettid();
     g_comp_tid = (pid_t)tid;
@@ -225,15 +198,12 @@ static void start_thread(void) {
         __android_log_print(ANDROID_LOG_ERROR, TAG, "pthread_create failed");
 }
 
-/* The compositor thread's tid, or 0 before it starts. The app opens a PerformanceHintManager session
- * on it and reports each presented frame's interval, so the governor sees a frame that ran long. */
 JNIEXPORT jint JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeCompositorTid(JNIEnv *env, jclass clazz) {
     (void)env; (void)clazz;
     return (jint)g_comp_tid;
 }
 
-/* Headless start (no output window) - used for bring-up tests. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeStart(JNIEnv *env, jclass clazz,
                                                              jstring xdgRuntimeDir) {
@@ -249,8 +219,6 @@ static char *dup_jstr(JNIEnv *env, jstring s) {
     return out;
 }
 
-/* Start with a real output Surface + the container's Turnip driver (adrenotools).
- * Frames committed by clients are composited to this Surface via Turnip. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeStartWithSurface(
         JNIEnv *env, jclass clazz, jobject surface, jstring xdgRuntimeDir,
@@ -263,14 +231,12 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeStartWithSurface(
     free(dp); free(ln); free(nl);
     if (surface) {
         ANativeWindow *win = ANativeWindow_fromSurface(env, surface);
-        vk_present_set_window(win); /* backend acquires; released on nativeSetSurface(null) */
+        vk_present_set_window(win);
         __android_log_print(ANDROID_LOG_INFO, TAG, "output window bound (%p)", (void *)win);
     }
     start_thread();
 }
 
-/* Inject a pointer event from the Android SurfaceView touch listener (UI thread).
- * action: 0=down 1=move 2=up; x/y in output space (0..1919, 0..1079). */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSendPointer(
         JNIEnv *env, jclass clazz, jint action, jint x, jint y) {
@@ -283,9 +249,6 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSendTouch(
     droiddeck_wayland_send_touch(action, pointer_id, x, y);
 }
 
-/* The client's pointer image and whether it wants one at all (wl_pointer.set_cursor).
- * out = [serial, hidden, w, h, hotspotX, hotspotY, ARGB pixels...]; returns ints written, 0 if the
- * array is too small. The app polls the serial and only rebuilds its overlay when it changes. */
 JNIEXPORT jint JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeCursorSnapshot(
         JNIEnv *env, jclass clazz, jintArray out) {
@@ -298,98 +261,75 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeCursorSnapshot(
     return n;
 }
 
-/* The serial nativeCursorSnapshot would return, without copying anything. */
 JNIEXPORT jint JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeCursorSerial(JNIEnv *env, jclass clazz) {
     (void)env; (void)clazz;
     return droiddeck_cursor_serial();
 }
 
-/* Inject a key event. evdev = Linux input keycode (KEY_A=30…); state 1=down 0=up. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSendKey(
         JNIEnv *env, jclass clazz, jint evdev, jint state) {
     droiddeck_wayland_send_key(evdev, state);
 }
 
-/* App X-server input in scene (virtual desktop) coordinates; see droiddeck_wayland_send_scene_input. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSendSceneInput(
         JNIEnv *env, jclass clazz, jint type, jint a, jint b) {
     droiddeck_wayland_send_scene_input(type, a, b);
 }
 
-/* One screen refresh (Choreographer frame callback, UI thread): the compositor draws once. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeVsync(JNIEnv *env, jclass clazz, jlong frameTimeNanos) {
     droiddeck_wayland_vsync((int64_t)frameTimeNanos);
 }
 
-/* Shortcut launches: don't draw explorer's windows (desktop, taskbar), like X11's unviewable classes. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetHideShell(JNIEnv *env, jclass clazz, jboolean hide) {
     g_hide_shell = hide ? 1 : 0;
 }
 
-/* Zero-copy layer mode (DROIDDECK_WAYLAND_ZERO_COPY=1 at launch, the drawer's switch live): one fullscreen
- * window on its own Android layer instead of the swapchain blit (sc_layer.c / ahb_swapchain.c). Any
- * thread, any time: before the compositor starts it is the launch default; afterwards the compositor
- * thread flips the state, tells the bound games to rebuild their swapchains for it and redraws. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetZeroCopy(JNIEnv *env, jclass clazz, jboolean on) {
     int live = droiddeck_get_display() != NULL;
-    if (!live) g_zero_copy = on ? 1 : 0; /* read by ahb_swapchain_init before the queue drains */
+    if (!live) g_zero_copy = on ? 1 : 0;
     droiddeck_host_zero_copy(on ? 1 : 0, live);
     __android_log_print(ANDROID_LOG_INFO, TAG, "zero-copy layer mode %s%s", on ? "on" : "off", live ? " (live)" : "");
 }
 
-/* Milliseconds since the compositor last put a game frame on the layer without a copy; -1 = never
- * this session. The drawer's status line ("switching..." until the frames arrive / stop). */
 JNIEXPORT jint JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeZeroCopyLastFrameAgeMs(JNIEnv *env, jclass clazz) {
     return (jint)ahb_swapchain_last_frame_age_ms();
 }
 
-/* Zero-copy frames in the last completed 10 s stats window (on_stats_timer), for the drawer's live line. */
 JNIEXPORT jint JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeZeroCopyFrames(JNIEnv *env, jclass clazz) {
     return (jint)g_zero_copy_last;
 }
 
-/* Compressed (UBWC) game buffers: advertise DRM_FORMAT_MOD_QCOM_COMPRESSED on zwp_linux_dmabuf_v1 when
- * the renderer's driver imports it (default on; DROIDDECK_WAYLAND_UBWC=0 = off). Set before the compositor
- * starts. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetUbwc(JNIEnv *env, jclass clazz, jboolean on) {
     g_ubwc = on ? 1 : 0;
     __android_log_print(ANDROID_LOG_INFO, TAG, "compressed (UBWC) game buffers %s", on ? "on" : "off");
 }
 
-/* Debug: name no DRM device in the dma-buf feedback (DROIDDECK_WAYLAND_NO_RENDER_NODE=1), the way a
- * phone that exposes no /dev/dri node to apps does. Set before the compositor starts. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetNoRenderNode(JNIEnv *env, jclass clazz, jboolean on) {
     g_no_render_node = on ? 1 : 0;
     if (on) __android_log_print(ANDROID_LOG_INFO, TAG, "debug: advertising no DRM device (main device 0:0)");
 }
 
-/* VRR / refresh-rate matching: the rate the app is voting for the panel, mirrored onto the game's
- * own SurfaceControl layer. Under zero-copy the game's frames bypass the app's surface entirely, so
- * without this SurfaceFlinger never sees the game's cadence. 0 = clear the vote. Any thread, any
- * time; the compositor applies it with its next layer transaction and logs the change. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetLayerFrameRate(JNIEnv *env, jclass clazz, jfloat hz) {
     (void)env; (void)clazz;
     sc_layer_set_frame_rate((float)hz);
 }
 
-/* The panel's refresh rate (Hz) for the advertised wl_output mode. Set before the compositor starts. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetOutputRefreshRate(JNIEnv *env, jclass clazz, jfloat hz) {
     g_output_refresh_mhz = hz > 1.0f ? (int)(hz * 1000.0f + 0.5f) : 0;
 }
 
-/* The container's screen size for the advertised wl_output mode. Set before the compositor starts. */
 extern void vkp_reset_first_frame(void);
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeResetFirstFrame(JNIEnv *env, jclass clazz) {
@@ -403,8 +343,6 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetOutputSize(JNIEnv
     g_output_h = h > 0 ? h : 0;
 }
 
-/* The output's size changed while the compositor runs (a foldable opening or closing with the
- * session following the screen): store it and have the compositor thread tell the clients. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeResizeOutput(JNIEnv *env, jclass clazz, jint w, jint h) {
     (void)env; (void)clazz;
@@ -414,57 +352,44 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeResizeOutput(JNIEnv 
     droiddeck_wayland_output_resized();
 }
 
-/* Fullscreen mode + screen alignment (Container.FULLSCREEN_* / ALIGN_* values): how the scene is
- * fitted onto the output. Any thread, any time; the next frame uses it. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetScaleMode(JNIEnv *env, jclass clazz, jint mode, jint alignment) {
     vk_present_set_scale_mode(mode, alignment);
     __android_log_print(ANDROID_LOG_INFO, TAG, "scale mode %d alignment %d", mode, alignment);
 }
 
-/* ---- screen effects (effects_chain.c): the X11 Vulkan renderer's post chain in the compositor.
- * Any thread, any time; the compositor thread applies them on its next frame and logs one
- * `effects` line per change. Values are 1:1 with VulkanRenderer's setters. */
 
-/* Scaling mode: 0=None 1=Linear 2=Nearest 3=SGSR 4=FSR 5=FSR Fit 6=Sharpen 7=NIS 8=SGSR HQ. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetUpscaler(JNIEnv *env, jclass clazz, jint mode) {
     vkp_effects_set_scaling(mode);
 }
 
-/* The upscaler's sharpness slider 0..100 (RCAS lobe / SGSR edge / NIS sharpness). */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetUpscaleSharpness(JNIEnv *env, jclass clazz, jint sharpness) {
     vkp_effects_set_upscale_sharpness(sharpness);
 }
 
-/* AMD CAS sharpen toggle + level 0..100 (0 = pass off). */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetCas(JNIEnv *env, jclass clazz, jboolean enabled, jint sharpness) {
     vkp_effects_set_cas(enabled ? 1 : 0, sharpness);
 }
 
-/* Fake-HDR toggle. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetHdr(JNIEnv *env, jclass clazz, jboolean enabled) {
     vkp_effects_set_hdr(enabled ? 1 : 0);
 }
 
-/* Terminal debanding toggle + strength 0..200 (100 = 1 LSB). */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetDeband(JNIEnv *env, jclass clazz, jboolean enabled, jint strength) {
     vkp_effects_set_deband(enabled ? 1 : 0, strength);
 }
 
-/* Colour grade (slider units: brightness/contrast -100..100, gamma 0.5..3, saturation 0..200 %) and the
- * FXAA / Toon / CRT / NTSC toggles - VulkanRenderer.setScreenEffects. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetScreenEffects(JNIEnv *env, jclass clazz, jfloat brightness,
         jfloat contrast, jfloat gamma, jfloat saturation, jboolean fxaa, jboolean toon, jboolean crt, jboolean ntsc) {
     vkp_effects_set_screen(brightness, contrast, gamma, saturation, fxaa ? 1 : 0, toon ? 1 : 0, crt ? 1 : 0, ntsc ? 1 : 0);
 }
 
-/* Cardboard mode - WaylandCompositor.nativeSetCardboard. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetCardboard(JNIEnv *env, jclass clazz, jboolean enabled,
         jint source, jfloat ipd, jfloat dist, jfloat width, jfloat k1, jfloat k2, jfloat fov, jfloat inset, jfloat chroma) {
@@ -474,7 +399,6 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetCardboard(JNIEnv 
     vkp_cardboard_set(&p);
 }
 
-/* The head pose (row-major 3x3, head -> world), from the sensor thread. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetCardboardPose(JNIEnv *env, jclass clazz, jfloatArray rot,
         jboolean live) {
@@ -484,7 +408,6 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetCardboardPose(JNI
     vkp_cardboard_set_pose(m, live ? 1 : 0);
 }
 
-/* Where the head pose is shared with the guest - WaylandCompositor.nativeSetCardboardPoseFile. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetCardboardPoseFile(JNIEnv *env, jclass clazz, jstring path) {
     if (!path) return;
@@ -494,9 +417,6 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetCardboardPoseFile
     (*env)->ReleaseStringUTFChars(env, path, p);
 }
 
-/* One "display" line in the session log, written from Java: facts that live in the Android
- * framework (the panel's HDR capability) rather than in the compositor. droiddeck_log() mirrors to
- * logcat and appends to the session file when one is open, so this is safe at any point. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeLogDisplay(JNIEnv *env, jclass clazz, jstring message) {
     char *s = dup_jstr(env, message);
@@ -504,8 +424,6 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeLogDisplay(JNIEnv *e
     free(s);
 }
 
-/* The same under the "perf" area: facts the app knows about the session's performance setup (the CPU
- * cores the game is pinned to, say). Same safety as nativeLogDisplay. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeLogPerf(JNIEnv *env, jclass clazz, jstring message) {
     char *s = dup_jstr(env, message);
@@ -513,9 +431,7 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeLogPerf(JNIEnv *env,
     free(s);
 }
 
-/* ---- HDR10 output, round 1 (droiddeck_color.h / wl_color_mgmt.c) ---- */
 
-/* The opt-in: mode 0 off, 1 DROIDDECK_WAYLAND_HDR=1, 2 =force (testing). Before the compositor starts. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetHdrRequest(JNIEnv *env, jclass clazz, jint mode,
         jstring source, jboolean dxvkHdr, jboolean zeroCopyForced) {
@@ -524,7 +440,6 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetHdrRequest(JNIEnv
     free(s);
 }
 
-/* The game's display as android.view.Display reports it (before the start; again on every change). */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetHdrDisplay(JNIEnv *env, jclass clazz, jint id, jstring name,
         jstring formats, jboolean hdr10, jfloat maxLum, jfloat maxAvg, jfloat minLum, jboolean ratioAvailable,
@@ -535,38 +450,32 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetHdrDisplay(JNIEnv
     free(n); free(f);
 }
 
-/* One Display.getHdrSdrRatio() reading (listener = from the display's ratio listener). Any thread. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeHdrSdrRatioSample(JNIEnv *env, jclass clazz, jfloat ratio,
         jboolean listener) {
     droiddeck_color_ratio_sample((float)ratio, listener ? 1 : 0);
 }
 
-/* ms since an HDR frame last reached a display layer, -1 = never this session. Any thread. */
 JNIEXPORT jint JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeHdrLastFrameAgeMs(JNIEnv *env, jclass clazz) {
     return (jint)droiddeck_color_last_frame_age_ms();
 }
 
-/* -1 = not decided yet, 0 = closed, 1 = open. Any thread. */
 JNIEXPORT jint JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeHdrGateState(JNIEnv *env, jclass clazz) {
     return (jint)droiddeck_color_gate_state();
 }
 
-/* The session is ending: the "HDR on screen: ..." summary line. Any thread, once. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeHdrSessionEnd(JNIEnv *env, jclass clazz) {
     droiddeck_color_session_end();
 }
 
-/* HDR frames really on screen right now (the HUD badge). Any thread. */
 JNIEXPORT jboolean JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeHdrOnScreen(JNIEnv *env, jclass clazz) {
     return droiddeck_color_hdr_on_screen() ? JNI_TRUE : JNI_FALSE;
 }
 
-/* One "color" line in the session log from Java. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeLogColor(JNIEnv *env, jclass clazz, jstring message) {
     char *s = dup_jstr(env, message);
@@ -574,8 +483,6 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeLogColor(JNIEnv *env
     free(s);
 }
 
-/* One line in the session log under an area Java names ("gpu", "nvapi"): launch facts the app decides.
- * The area is the log's 9-character column; an empty one reads "app". */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeLog(JNIEnv *env, jclass clazz, jstring area, jstring message) {
     char *a = dup_jstr(env, area), *s = dup_jstr(env, message);
@@ -584,18 +491,15 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeLog(JNIEnv *env, jcl
     free(s);
 }
 
-/* SDR content's level inside an HDR picture, in nits (default 203). */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetHdrSdrWhite(JNIEnv *env, jclass clazz, jfloat nits) {
     droiddeck_color_set_sdr_white((float)nits);
 }
 
-/* The drawer's live HDR output switch: on = HDR frames as HDR, off = the same frames tone-mapped to SDR.
- * Applied on the compositor thread (logged there, with a redraw). */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetHdrOutput(JNIEnv *env, jclass clazz, jboolean on) {
     if (droiddeck_get_display()) droiddeck_host_hdr_output(on ? 1 : 0);
-    else droiddeck_color_set_output(on ? 1 : 0); /* no compositor thread yet: nothing is drawing either */
+    else droiddeck_color_set_output(on ? 1 : 0);
 }
 
 JNIEXPORT jboolean JNICALL
@@ -603,7 +507,6 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeHdrOutput(JNIEnv *en
     return droiddeck_color_output() ? JNI_TRUE : JNI_FALSE;
 }
 
-/* Device evidence for the HDR lines: thermal status + headroom, brightness + mode. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeHdrEnvSample(JNIEnv *env, jclass clazz, jint thermal,
                                                                    jfloat headroom, jint brightness, jint mode) {
@@ -611,13 +514,11 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeHdrEnvSample(JNIEnv 
                             (int)brightness, (int)mode);
 }
 
-/* Display.getHighestHdrSdrRatio() (Android 16+), <= 0 = not reported. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetHdrHighestRatio(JNIEnv *env, jclass clazz, jfloat ratio) {
     droiddeck_color_set_highest_ratio((float)ratio == (float)ratio ? (float)ratio : -1.0f);
 }
 
-/* The HDR headroom the screen surface should ask for (HDR10 swapchain frames in the last 1.5 s), 0 = none. */
 JNIEXPORT jfloat JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeHdrScreenHeadroom(JNIEnv *env, jclass clazz) {
     return (jfloat)droiddeck_color_screen_headroom(NULL, 0);
@@ -630,25 +531,21 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeHdrScreenHeadroomWhy
     return (*env)->NewStringUTF(env, why);
 }
 
-/* The app's screen-surface request, for the no-headroom lines: > 0 asked, 0 cleared, -1 not possible. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeHdrNoteHeadroomRequest(JNIEnv *env, jclass clazz, jfloat ratio) {
     droiddeck_color_note_headroom_request((float)ratio);
 }
 
-/* 0 none, 1 HDR frames on screen with headroom, 2 HDR frames on screen without headroom for 5 s+. */
 JNIEXPORT jint JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeHdrState(JNIEnv *env, jclass clazz) {
     return (jint)droiddeck_color_hdr_state();
 }
 
-/* An HDR game's frames were shown tone-mapped to SDR in the last 1.5 s (the drawer's status line). */
 JNIEXPORT jboolean JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeHdrToneMappedOnScreen(JNIEnv *env, jclass clazz) {
     return droiddeck_color_tonemapped_on_screen() ? JNI_TRUE : JNI_FALSE;
 }
 
-/* The Look the controls currently match (null = Custom) - only named in the session log. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetLookName(JNIEnv *env, jclass clazz, jstring name) {
     char *s = dup_jstr(env, name);
@@ -656,14 +553,12 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetLookName(JNIEnv *
     free(s);
 }
 
-/* The in-game FPS limiter: frames per second, 0 = unlimited. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetFpsLimit(JNIEnv *env, jclass clazz, jint fps) {
     g_fps_limit = fps > 0 ? fps : 0;
     __android_log_print(ANDROID_LOG_INFO, TAG, "fps limit %d", fps);
 }
 
-/* Swap/clear the output window (e.g. SurfaceView recreated/destroyed). */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetSurface(
         JNIEnv *env, jclass clazz, jobject surface) {
@@ -674,8 +569,6 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetSurface(
     }
 }
 
-/* ---- clipboard + text input (any thread; queued to the compositor thread) ----
- * Text crosses as UTF-8 byte arrays: JNI's modified UTF-8 would mangle emoji. */
 
 static char *dup_bytes(JNIEnv *env, jbyteArray arr, int *len) {
     *len = 0;
@@ -689,7 +582,6 @@ static char *dup_bytes(JNIEnv *env, jbyteArray arr, int *len) {
     return buf;
 }
 
-/* Android's clipboard text becomes the guest's selection (empty/null = clear). */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetClipboardText(JNIEnv *env, jclass clazz, jbyteArray utf8) {
     int len;
@@ -698,7 +590,6 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetClipboardText(JNI
     free(buf);
 }
 
-/* Soft-keyboard text committed to the program accepting text input. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeTextInputCommit(JNIEnv *env, jclass clazz, jbyteArray utf8) {
     int len;
@@ -707,7 +598,6 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeTextInputCommit(JNIE
     free(buf);
 }
 
-/* Composing (pre-edit) text; cursorBegin/cursorEnd are character indexes into it, -1 = end. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeTextInputPreedit(JNIEnv *env, jclass clazz, jbyteArray utf8,
                                                                         jint cursorBegin, jint cursorEnd) {
@@ -717,15 +607,11 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeTextInputPreedit(JNI
     free(buf);
 }
 
-/* The IME deleted characters around the caret. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeTextInputDelete(JNIEnv *env, jclass clazz, jint before, jint after) {
     droiddeck_host_text_delete(before, after);
 }
 
-/* KGSL's power control, off (the GPU held at its top clock) or back on. The property is the
- * device's, not this process's: it outlives the fd and the app, so the caller clears it at stop
- * and again at every app start. No root; the kernel's thermal limits still apply. */
 extern void adrenotools_set_turbo(bool turbo);
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetGpuTurbo(JNIEnv *env, jclass clazz, jboolean on) {
@@ -733,10 +619,6 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetGpuTurbo(JNIEnv *
     adrenotools_set_turbo(on == JNI_TRUE);
 }
 
-/* Raises one of our own processes or threads to `nice` with a bare setpriority(), never lowering
- * it. android.os.Process.setThreadPriority is not used for this: it also moves the thread between
- * scheduling groups by priority, and a guest process must stay where Android put the app. Returns
- * the nice value it is left at, or 100 when it could not be read. */
 JNIEXPORT jint JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeRaisePriority(JNIEnv *env, jclass clazz, jint tid, jint nice) {
     (void)env; (void)clazz;

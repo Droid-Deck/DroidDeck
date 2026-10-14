@@ -28,7 +28,7 @@
 -    // intentionally ignored, as it would get overwritten
 -    // with the fractional scale protocol anyways
 -    // next.scale = props->scale.value_or(m_state.scale);
-+    // DroidDeck owns the outer window size; Display Settings owns the inner UI scale.
++
 +    if (qEnvironmentVariableIsSet("DROIDDECK_NESTED_SCALE")) {
 +        next.scale = props->scale.value_or(m_state.scale);
 +        next.scaleSetting = props->scaleSetting.value_or(m_state.scaleSetting);
@@ -53,7 +53,7 @@
  
      void init(const QSize &pixelSize, qreal scale, bool fullscreen);
  
-+    // The outer window scale, independent of the desktop UI scale in DroidDeck.
++
 +    qreal presentationScale() const;
      bool isReady() const;
      KWayland::Client::Surface *surface() const;

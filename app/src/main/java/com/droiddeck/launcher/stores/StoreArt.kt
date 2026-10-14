@@ -9,17 +9,9 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 
-/**
- * The store's art, placed in the game's folder under the names AddedGameArt already looks for -
- * `cover.jpg` (the portrait capsule), `hero.jpg` and `header.jpg` (the wide art) - so a store game
- * shows real art in the Games tab and the session's shortcuts writer copies it into the client's
- * grid. Each image is decoded and re-encoded as an opaque JPEG over a dark ground: a store's PNG
- * with an alpha fade would otherwise end in white, which is what the washed-out cards were.
- */
 object StoreArt {
     private const val TAG = "StoreArt"
 
-    /** Fetches what the sidecar names; a missing or unreadable image is skipped, never an error. Blocking. */
     fun fetchInto(folder: File, sidecar: StoreGameSidecar) {
         sidecar.cover?.let { place(it, File(folder, "cover.jpg")) }
         val wide = sidecar.hero ?: return

@@ -6,20 +6,6 @@ import com.droiddeck.launcher.wayland.WaylandCompositor
 import org.json.JSONObject
 import kotlin.math.abs
 
-/**
- * The compositor's post chain (waylandcomp/src/effects_chain.c) as the session menu drives it:
- * the colour grade, the sharpening, the shader toggles and terminal debanding. Units are the
- * menu's own, so a value goes straight from a row into the setter it drives:
- *
- *  - [brightness] / [contrast]   -100..100, 0 = neutral
- *  - [gamma]                     0.5..3.0, 1.0 = neutral
- *  - [saturation]                0..200 percent, 100 = neutral
- *  - [casLevel]                  0..100; the pass runs only while [cas] is on
- *  - [debandStrength]            0..200, 100 = one LSB
- *
- * Applies live: the compositor picks the change up on its next frame. While any pass is on, a
- * zero-copy game goes through the compositor pass instead, which costs a little GPU time.
- */
 data class ScreenEffects(
     val brightness: Int = 0,
     val contrast: Int = 0,
@@ -35,14 +21,11 @@ data class ScreenEffects(
     val crt: Boolean = false,
     val ntsc: Boolean = false,
 ) {
-    /** The sharpening level the picture gets: 0 while the pass is off, whatever its level is parked at. */
     val effectiveCas: Int get() = if (cas) casLevel else 0
 
-    /** Whether any pass runs, so the menu can say when the picture is untouched. */
     val any: Boolean get() = brightness != 0 || contrast != 0 || abs(gamma - 1f) > 0.005f || saturation != 100 ||
         effectiveCas > 0 || hdr || deband || fxaa || toon || crt || ntsc
 
-    /** Hands every pass to the compositor, with the Look's name for its log line. */
     fun push(upscaler: Int) {
         WaylandCompositor.nativeSetCas(cas, casLevel)
         WaylandCompositor.nativeSetHdr(hdr)
@@ -77,30 +60,19 @@ data class ScreenEffects(
     }
 }
 
-/**
- * One Look: a named set of values for the rows that already exist on the Display page. Picking
- * a Look moves those rows; each stays adjustable afterwards, and the moment one moves the Look
- * row reads Custom. [scalingMode] null leaves the scaling mode alone; otherwise it is a
- * SessionPrefs.upscalerChoices mode the Look switches to.
- */
 data class Look(
-    /** The Look's id: what the row picks by and the compositor logs. */
     val name: String,
     val effects: ScreenEffects,
     val scalingMode: Int? = null,
-    /** One line under the row while this Look is picked. */
     val desc: String,
-    /** [name] and [desc] in the app's language, for the menu. */
     @StringRes val label: Int,
     @StringRes val descRes: Int,
 )
 
 object ScreenEffectLooks {
-    // Scaling modes as the compositor numbers them (WaylandCompositor.nativeSetUpscaler).
     private const val SCALING_NEAREST = 2
     private const val SCALING_FSR = 4
 
-    /** Index 0 is the neutral state a fresh session matches, so the row always names something. */
     val LOOKS: List<Look> = listOf(
         Look("Off", ScreenEffects.OFF, desc = "Nothing applied.", label = R.string.frame_gen_off, descRes = R.string.look_off_desc),
         Look("Game Clarity", ScreenEffects(brightness = 2, contrast = 12, saturation = 108, cas = true, casLevel = 55),
@@ -127,11 +99,6 @@ object ScreenEffectLooks {
             desc = "Toon outlines plus sharpening.", label = R.string.look_anime_edge, descRes = R.string.look_anime_edge_desc),
     )
 
-    /**
-     * The Look the live values are, or null for Custom. A Look's sharpening is compared as the
-     * effective level, so a pass switched off matches a Look without one whatever its level is
-     * parked at; a Look with no scaling mode of its own matches under any.
-     */
     fun match(e: ScreenEffects, upscaler: Int): Look? = LOOKS.firstOrNull { l ->
         val t = l.effects
         t.brightness == e.brightness && t.contrast == e.contrast && abs(t.gamma - e.gamma) < 0.005f &&

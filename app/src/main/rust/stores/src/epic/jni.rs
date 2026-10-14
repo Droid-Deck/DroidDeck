@@ -1,25 +1,3 @@
-//! JNI exports for `com.droiddeck.launcher.stores.epic.EpicNative`.
-//!
-//! ```text
-//! nativeStart(manifest: byte[], installDir: String, chunkCacheDir: String, cdnPrefixes: String[],
-//!             pendingFileIdx: int[], expectedChunks: int, expectedBytes: long,
-//!             caBundlePath: String, maxWorkers: int, processWorkers: int,
-//!             listener: EpicNative.Listener) -> long handle (0 = not started)
-//! nativeAssemble(manifest: byte[], installDir: String, chunkCacheDir: String, fileIdx: int[],
-//!             listener: EpicNative.Listener) -> long handle (0 = not started)
-//! nativeCancel(handle)      — flips the run's AtomicBool; fetch or assembly stops promptly
-//! nativeRelease(handle)     — frees the handle (after onComplete)
-//! ```
-//! `chunkCacheDir` = "" keeps the cache at `<installDir>/.chunks`; any other directory is a
-//! scratch cache (see `assemble.rs`). Listener (all methods run on native threads):
-//! `onPlan(int chunksTotal, long bytesTotal, String chunkDir)` once before any fetch,
-//! `onProgress(long bytesDone, long bytesTotal, int done, int total)` per chunk fetched (or, in
-//! an assembly run, per file written), `onLog(String line)`,
-//! `onComplete(boolean success, String error, long bytes)`.
-//!
-//! Planning (manifest parse + cross-check) runs synchronously on the calling thread so a plan
-//! failure returns 0 BEFORE any fetch and Java can fall back to its own pool; the fetch runs on
-//! a new thread. JavaVM attach / GlobalRef handling is the same shape as the GOG facade.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -59,8 +37,6 @@ fn android_log(message: &str) {
     }
 }
 
-/// Per-run native state behind the `jlong` handle — the same type for a fetch run and an
-/// assembly run, so one `nativeCancel` / `nativeRelease` pair serves both.
 pub struct EpicDownloadHandle {
     cancel: Arc<AtomicBool>,
 }
@@ -200,7 +176,6 @@ fn call_on_complete(env: &mut JNIEnv, listener: &JObject, success: bool, error: 
     clear_pending_exception(env);
 }
 
-/// Log to logcat AND to the listener (the Kotlin manager mirrors it into its own debug log).
 fn log_both(env: &mut JNIEnv, listener: &JObject, line: &str) {
     android_log(line);
     call_on_log(env, listener, line);
@@ -334,8 +309,6 @@ fn run_on_thread(
     let bytes_total = plan.total_bytes;
     let chunks_total = plan.needed.len() as u64;
 
-    // Progress fires from the core's process-pool threads; attach each as a daemon like the
-    // Steam engine's `dispatch_download_progress` does.
     let progress = |bytes_done: u64, chunks_done: u64| {
         let Ok(mut env) = vm.attach_current_thread_as_daemon() else {
             return;
@@ -371,11 +344,6 @@ fn run_on_thread(
     );
 }
 
-/// `EpicNative.nativeAssemble(manifest, installDir, chunkCacheDir, fileIdx, listener)`: write
-/// the files `fileIdx` names from the chunk cache (see `assemble.rs`). Parse + plan run on the
-/// calling thread, so bad inputs return 0 (after `onComplete(false, reason, 0)`) before anything
-/// is written; the assembly runs on a new thread and reports per file through `onProgress(bytes,
-/// bytesTotal, filesDone, filesTotal)`, then `onComplete(success, error, bytesWritten)`.
 #[no_mangle]
 pub extern "system" fn Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeAssemble(
     mut env: JNIEnv,
@@ -481,7 +449,5 @@ pub extern "system" fn Java_com_droiddeck_launcher_stores_epic_EpicNative_native
     if handle == 0 {
         return;
     }
-    // The worker thread owns its own Arc clone of the cancel flag and its own GlobalRef, so
-    // freeing the handle is safe even if a (cancelled) run is still winding down.
     drop(unsafe { Box::from_raw(handle as *mut EpicDownloadHandle) });
 }

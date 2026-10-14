@@ -62,13 +62,11 @@ import com.droiddeck.launcher.session.GameStorage
 import com.droiddeck.launcher.stores.formatBytes
 import java.io.File
 
-/** What a picker lists besides folders. */
 internal enum class PickKind(val extensions: Set<String>) {
     EXE(setOf("exe")),
     IMAGE(setOf("png", "jpg", "jpeg", "webp", "ico")),
 }
 
-/** A place a file can be picked from: internal storage or a card, at its root. */
 internal class PickVolume(val root: File, val label: String, val removable: Boolean) {
     val free: Long get() = runCatching { StatFs(root.path).availableBytes }.getOrDefault(0L)
 }
@@ -79,15 +77,10 @@ internal fun pickVolumes(context: Context): List<PickVolume> =
             File(o.path.substringBefore("/Android/")).takeIf { it.isDirectory }?.let { PickVolume(it, o.name, removable = true) }
         }.distinctBy { it.root.absolutePath }
 
-/** A folder in a listing; [readable] false = shown greyed, not opened. */
 internal class PickFolder(val dir: File, val readable: Boolean)
 
 internal class PickListing(val folders: List<PickFolder>, val files: List<File>)
 
-/**
- * Every folder of [dir] (dot-folders left out, the unreadable ones marked), then the files [kind]
- * takes; each A-Z.
- */
 internal fun pickListing(dir: File, kind: PickKind): PickListing {
     val all = dir.listFiles()?.filter { !it.name.startsWith(".") }.orEmpty().sortedBy { it.name.lowercase() }
     return PickListing(
@@ -96,13 +89,6 @@ internal fun pickListing(dir: File, kind: PickKind): PickListing {
     )
 }
 
-/**
- * The compact in-app file picker: [title] and a red X on one line; the storage rows (internal
- * storage, each card, free space); inside one, its root first, a breadcrumb, "..", every folder
- * and the [kind] files, scrolling in the dialog. Its width is what the first step needed and stays;
- * long names are cut short. B / Back goes up a folder, and closes from the storage rows. [start]
- * opens in a folder. [onAddAll] adds a row on top of a folder with subfolders.
- */
 @Composable
 internal fun ExePickerDialog(
     title: String, kind: PickKind = PickKind.EXE, start: File? = null,
@@ -165,7 +151,6 @@ internal fun ExePickerDialog(
     }
 }
 
-/** A compact dialog's title line: [leading] (a back arrow), the title, a small red X. */
 @Composable
 internal fun DialogTitleRow(title: String, onClose: () -> Unit, leading: (@Composable () -> Unit)? = null) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
@@ -175,7 +160,6 @@ internal fun DialogTitleRow(title: String, onClose: () -> Unit, leading: (@Compo
     }
 }
 
-/** A 32 dp icon button for a dialog's title line. */
 @Composable
 internal fun SmallIconButton(icon: ImageVector, description: String, tint: androidx.compose.ui.graphics.Color, onClick: () -> Unit) {
     val src = remember { MutableInteractionSource() }
@@ -193,7 +177,6 @@ internal fun SmallIconButton(icon: ImageVector, description: String, tint: andro
     }
 }
 
-/** One row of a compact dialog's list, the Install dialog's style: [content] laid out in a row. */
 @Composable
 internal fun ListRow(
     enabled: Boolean = true, accent: Boolean = false, tall: Boolean = false, focus: FocusRequester? = null,
@@ -217,7 +200,6 @@ internal fun ListRow(
     ) { content(hot) }
 }
 
-/** A list row with an icon, a name (cut short when long) and a detail on the right. */
 @Composable
 internal fun PickerRow(
     icon: ImageVector?, name: String, detail: String?, tall: Boolean = false, file: Boolean = false, accent: Boolean = false,

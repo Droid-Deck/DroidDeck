@@ -1,34 +1,7 @@
 /*
- * Ported from WinNative (maxjivi05, feature/wayland-gamescope, 2026-09-18/19), GPL-3.0, with names
- * changed to this project's. The reasoning below is the original author's.
- *
- * The session's controllers, described to libudev's callers.
- *
- * The pads are evdev nodes the app backs with its own input rings, bound over /dev/input. Wine's
- * HID bus finds them there, but it identifies a node by resolving /sys/class/input/<name> and
- * asking libudev about the result: on Android that resolves to whatever real input device the
- * host numbered the same, whose device node libudev cannot read, so every pad is discarded before
- * its identity is ever looked at. The fallback is Wine's SDL bus, and SDL enumerates through udev
- * too, over a netlink socket the app sandbox refuses. A game was left with no controller at all
- * while the Steam client, which reads the nodes itself, had one.
- *
- * So the pads are described here instead: the resolved path is answered for the session's own
- * nodes, and libudev's accessors answer for that path from what the app already knows. They carry
- * the identity of the pad Steam Input would present if it could - it has no /dev/uinput here to
- * make one - which is the one identity Wine's own bus keeps rather than handing on to SDL.
- *
- * Only Wine's device host is answered, and only for the session's own nodes: the Steam client
- * enumerates the same nodes for itself and would take a pad wearing Steam Input's identity for one
- * of its own and ignore it. Every other caller, path and device object goes straight through.
- *
- * With libfakeinput's /dev/uinput stand-in (FAKE_EVDEV_UINPUT=1) Steam Input's own virtual pads
- * exist too, as event16 and up, and those are what Wine is meant to read: each is described with
- * the identity the client gave it, from the .uevent file libfakeinput writes beside the node.
- * While one exists the app's pads are described as what they are, an Xbox 360 controller, which
- * Wine's HID bus leaves alone - the game reads Steam Input's output, not the pad under it, as on
- * a Steam Deck. With none (Steam Input off for the game) they keep the virtual identity, so the
- * game still has a controller.
+ * Ported from WinNative (maxjivi05, feature/wayland-gamescope, 2026-09-18/19), GPL-3.0.
  */
+
 #define _GNU_SOURCE
 #include <dlfcn.h>
 #include <limits.h>
@@ -39,20 +12,16 @@
 #include <sys/sysmacros.h>
 #include <sys/types.h>
 
-/* The app opens one ring per configured controller; four is what its launcher offers. Nodes from
- * UINPUT_BASE up are the virtual pads made through libfakeinput's /dev/uinput stand-in. */
 #define RING_MAX 4
 #define UINPUT_BASE 16
 #define PAD_MAX 64
 #define EVENT_MINOR_BASE 64
 
-/* BUS_VIRTUAL, and the identity Steam Input gives the gamepad it presents to a game. */
 #define PAD_UEVENT_FORMAT                                                                          \
   "PRODUCT=6/28de/11ff/110\n"                                                                      \
   "NAME=\"Generic HID Gamepad %d\"\n"                                                              \
   "PHYS=\"usb-fakeinput/input%d\"\n"
 
-/* The identity libfakeinput gives the pad itself (FAKE_EVDEV_IDENTITY=xbox360). */
 #define PAD_PHYSICAL_UEVENT_FORMAT                                                                 \
   "PRODUCT=3/45e/28e/110\n"                                                                        \
   "NAME=\"Xbox 360 Controller (%d)\"\n"                                                            \
@@ -70,11 +39,6 @@ static struct pad pads[PAD_MAX];
 static int pad_count;
 static pthread_mutex_t virtual_lock = PTHREAD_MUTEX_INITIALIZER;
 
-/*
- * The slots the app published rings for, named in FAKE_EVDEV_MEMFD_PATHS as "<slot>=<path>"
- * separated by semicolons. Without it the process has no pads of the session's and every call
- * here is a passthrough.
- */
 static void discover_pads(void) {
   const char *spec = getenv("FAKE_EVDEV_MEMFD_PATHS");
   const char *entry;
@@ -113,7 +77,6 @@ static int uinput_enabled(void) {
   return enabled != NULL && atoi(enabled) != 0;
 }
 
-/* Reads the .uevent libfakeinput wrote for virtual pad <node> into buf; 0 when there is none. */
 static int read_virtual_uevent(int node, char *buf, size_t size) {
   const char *dir = getenv("FAKE_EVDEV_DIR");
   char path[PATH_MAX];
@@ -138,10 +101,6 @@ static int any_virtual_pad(void) {
   return 0;
 }
 
-/*
- * Brings the entry for event<node> up to date before Wine resolves it: a virtual pad comes and
- * goes with the client, and the app's pads change identity with it.
- */
 static void refresh_pad(int node) {
   struct pad *pad;
 
@@ -168,7 +127,6 @@ static void refresh_pad(int node) {
   pthread_mutex_unlock(&virtual_lock);
 }
 
-/* The pad a synthetic syspath names, or NULL when the path is not one of ours. */
 static struct pad *pad_for_syspath(const char *syspath) {
   int i;
 
@@ -180,7 +138,6 @@ static struct pad *pad_for_syspath(const char *syspath) {
   return NULL;
 }
 
-/* A device object is ours exactly when it is one of the pads. */
 static struct pad *pad_for_device(void *device) {
   int i;
 
@@ -192,7 +149,6 @@ static struct pad *pad_for_device(void *device) {
   return NULL;
 }
 
-/* The pad /sys/class/input/<name> stands for, or NULL when the path names something else. */
 static struct pad *pad_for_syslink(const char *path) {
   static const char prefix[] = "/sys/class/input/";
   const char *name;
@@ -213,7 +169,6 @@ static void *next_symbol(const char *name) { return dlsym(RTLD_NEXT, name); }
 char *bl_cached_realpath(const char *path, char *resolved, char *(*real)(const char *, char *))
     __attribute__((visibility("hidden")));
 
-/* Wine reaches libudev from its HID bus driver, which is the only caller these pads are for. */
 static int caller_is_winebus(void *caller) {
   Dl_info info;
 
@@ -228,7 +183,6 @@ char *realpath(const char *path, char *resolved) {
 
   if (pad != NULL) {
     if (resolved == NULL) return strdup(pad->syspath);
-    /* PATH_MAX is what the caller promises when it passes a buffer. */
     memcpy(resolved, pad->syspath, strlen(pad->syspath) + 1);
     return resolved;
   }
@@ -336,10 +290,6 @@ dev_t udev_device_get_devnum(void *device) {
   return real_get(device);
 }
 
-/*
- * A pad has no bus behind it, so it stands in for its own input device and has no other parent.
- * The reference is a borrowed one either way.
- */
 void *udev_device_get_parent_with_subsystem_devtype(void *device, const char *subsystem,
                                                     const char *devtype) {
   static void *(*real_get)(void *, const char *, const char *);

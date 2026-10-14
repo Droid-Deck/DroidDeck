@@ -67,23 +67,14 @@ import coil.size.Scale
 import coil.transform.RoundedCornersTransformation
 import kotlin.math.roundToInt
 
-/** From this many games the Steam tab is a wall; fewer would only repeat the same covers. */
 private const val WALL_MIN_GAMES = 4
 
 private const val DRIFT_STEP_NS = 15_000_000L
 
-/**
- * The Steam tab: the library as a slowly drifting, tilted wall of capsules (a few games instead
- * lean on their own; none, the DroidDeck mark wandering a blank wall), and over it the wordmark and the one thing to do here -
- * Play. Everything about a single game lives on the Games tab.
- */
 @Composable
 internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier) {
-    // A fixed order, ties included: the wall places each game by its position, so an order that
-    // came out differently from one read of the library to the next moved every capsule.
     val games = remember(s.steamGames) { s.steamGames.sortedWith(compareByDescending<Library.SteamGame> { it.lastPlayed }.thenBy { it.gameId }) }
     val narrow = LocalNarrowPane.current
-    // Where the words and buttons sit, for the empty library's wandering mark to keep off.
     var words by remember { mutableStateOf<Rect?>(null) }
     val mode = com.droiddeck.launcher.session.SessionService.MODE_STEAM
     val tabs = modeSheetTabs(steam = true).map { it to sheetTabLabel(it) }
@@ -92,7 +83,6 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
         frameGen = { FrameGenGroup(s, a) },
         performance = { PerformanceLink(a, "steam", SheetTab.SESSION) },
         drivers = { summary -> DriversLink(a, summary, "steam", back) },
-        // Offline mode lives with Steam's other settings; Setup only checks the account.
         account = { host ->
             SettingsGroup(stringResource(R.string.setup_account)) {
                 ToggleRow(
@@ -110,8 +100,6 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
         start = if (narrow) 20.dp else 44.dp, bottom = if (narrow) 20.dp else 44.dp,
         background = {
             when {
-                // The mark wanders over this fade, so it sinks with the wall: drawn a little oversized,
-                // it still reaches the pane's edges at the sink's 0.95.
                 games.isEmpty() -> EmptyLibrary(avoid = words) { Box(Modifier.fillMaxSize().graphicsLayer { scaleX = 1.06f; scaleY = 1.06f }) { WallFade() } }
                 games.size < WALL_MIN_GAMES -> CapsuleFan(games)
                 else -> CapsuleWall(games)
@@ -124,19 +112,16 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
                 modifier = Modifier.onPlaced { words = it.boundsInParent() },
             ) {
                 Wordmark(if (narrow) 30.dp else 40.dp)
-                // Said only when something stands between Play and Steam; a ready runtime needs no words.
                 if (s.busy || !s.ready || (s.available != null && s.available != s.installed)) RuntimeChip(s)
             }
         },
         button = { click ->
-            // Enabled without a runtime: the session's loading screen installs it first.
             PrimaryButton(stringResource(R.string.games_play_steam), enabled = !s.busy, main = true, large = true, icon = Icons.Filled.PlayArrow, modifier = Modifier.testTag("play-steam"), onClick = click)
         },
         rows = { tab -> a.modeSheet(mode, tab, extras) },
     )
 }
 
-/** The wall fades out behind the words, and toward the bottom where the buttons sit. */
 @Composable
 internal fun WallFade() {
     val colors = MaterialTheme.colorScheme
@@ -153,11 +138,6 @@ internal fun WallFade() {
     Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to colors.background.copy(alpha = 0.9f))))
 }
 
-/**
- * Columns of capsules tilted a few degrees, alternate columns drifting up and down. Each column
- * holds its run of covers twice and moves by exactly one run, so the loop has no seam. An empty
- * library draws the same wall in blank capsules, slower.
- */
 @Composable
 internal fun CapsuleWall(
     games: List<Library.SteamGame>,
@@ -169,37 +149,20 @@ internal fun CapsuleWall(
     TiltedWall(games.size, driftMs, modifier) { i -> if (games.isEmpty()) blank else WallCapsule(artBrush(hueOf(games[i].name)), games[i].art) }
 }
 
-/**
- * One capsule of a [TiltedWall]: its ground, the art laid over it once loaded, and an outline. A
- * tile that is an app rather than a cover carries an [icon] instead (a drawable id or an image),
- * drawn whole at the tile's centre, and a window's [bar] along its foot.
- */
 internal class WallCapsule(val ground: Brush, val art: Any? = null, val edge: Color? = null, val icon: Any? = null, val bar: Color? = null)
 
-/**
- * [CapsuleWall]'s tilted, drifting columns for any [count] of capsules; [capsule] describes number i
- * (0 until [count], or 0 for each blank one when [count] is 0). Each column is one drawing with the
- * covers' corners cut into their bitmaps: a rounded clip under the tilt is rasterised on the CPU,
- * for every capsule on every frame.
- */
 @Composable
 internal fun TiltedWall(
     count: Int,
     driftMs: Int,
     modifier: Modifier = Modifier,
-    /** One tile's size, the gap between tiles and their corner: portrait capsules unless a wall says otherwise. */
     capW: androidx.compose.ui.unit.Dp = 112.dp,
     capH: androidx.compose.ui.unit.Dp = 168.dp,
     gap: androidx.compose.ui.unit.Dp = 14.dp,
     corner: androidx.compose.ui.unit.Dp = 10.dp,
     capsule: (index: Int) -> WallCapsule,
 ) {
-    // Animations off in the system settings: a still wall.
     val still = Motion.scale == 0f
-    // The wall moves a few pixels a step. Stepped on frames at most every 15 ms it looks the same as
-    // stepped on every frame, which on a 120 Hz screen drew it twice as often. The phase advances by
-    // the time since the last step over the period now, so a period that changes (Flathub's wall
-    // slowing while it sets up) changes the speed without the wall jumping.
     val drift = remember { mutableFloatStateOf(0f) }
     val period = androidx.compose.runtime.rememberUpdatedState(driftMs)
     if (!still) LaunchedEffect(Unit) {
@@ -214,7 +177,6 @@ internal fun TiltedWall(
     }
     val density = LocalDensity.current
     BoxWithConstraints(modifier.fillMaxSize()) {
-        // Centred on the page and big enough that, once tilted, it still covers every corner.
         val tilt = Math.toRadians(13.0)
         val cos = kotlin.math.cos(tilt).toFloat()
         val sin = kotlin.math.sin(tilt).toFloat()
@@ -263,7 +225,6 @@ internal fun TiltedWall(
     }
 }
 
-/** A cover sized for a capsule, its corners already cut, so it draws without a clip. */
 @Composable
 private fun rememberCapsuleArt(model: Any, size: Size, radius: Float): Painter {
     val context = LocalContext.current
@@ -277,7 +238,6 @@ private fun rememberCapsuleArt(model: Any, size: Size, radius: Float): Painter {
     )
 }
 
-/** An app's icon for a wall tile: a bundled drawable, or an image Coil loads. */
 @Composable
 private fun rememberIcon(model: Any): Painter =
     if (model is Int) androidx.compose.ui.res.painterResource(model) else rememberAsyncImagePainter(model)
@@ -286,7 +246,6 @@ private fun DrawScope.drawCapsule(look: WallCapsule, art: Painter?, radius: Floa
     drawRoundRect(look.ground, size = size, cornerRadius = CornerRadius(radius))
     look.bar?.let { drawRect(it, Offset(0f, size.height - barH), Size(size.width, barH)) }
     if (art != null && look.icon != null) {
-        // An app's icon whole at the tile's centre (above a window's bar), not cropped over it.
         val side = minOf(size.width, size.height - (if (look.bar != null) barH else 0f)) * 0.5f
         val cy = (size.height - (if (look.bar != null) barH else 0f)) / 2f
         translate((size.width - side) / 2f, cy - side / 2f) { with(art) { draw(Size(side, side)) } }
@@ -296,7 +255,6 @@ private fun DrawScope.drawCapsule(look: WallCapsule, art: Painter?, radius: Floa
     }
 }
 
-/** One to three games, each a large capsule leaning on the others and floating a little. */
 @Composable
 private fun CapsuleFan(games: List<Library.SteamGame>) {
     val pal = LocalPalette.current
@@ -306,7 +264,6 @@ private fun CapsuleFan(games: List<Library.SteamGame>) {
         transition.animateFloat(0f, 1f, infiniteRepeatable(tween(ms, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "float")
     }
     val still = Motion.scale == 0f
-    // Where each sits (share of the page), its height (share of the page's) and its lean; front first.
     val slots = listOf(
         FanSlot(0.54f, 0.14f, 0.62f, -9f),
         FanSlot(0.70f, 0.24f, 0.56f, 5f),

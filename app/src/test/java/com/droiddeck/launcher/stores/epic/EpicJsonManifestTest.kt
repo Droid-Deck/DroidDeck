@@ -8,7 +8,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/** The JSON manifest's numbers are blobs; the same values as the Rust engine's manifest tests. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class EpicJsonManifestTest {
