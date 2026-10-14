@@ -243,6 +243,12 @@ public final class PadBridge {
             case KeyEvent.KEYCODE_BUTTON_THUMBR: pad.press(9, pressed); break;
             case KeyEvent.KEYCODE_BUTTON_MODE:
             case KeyEvent.KEYCODE_HOME: pad.press(PadState.GUIDE, pressed); break;
+            case KeyEvent.KEYCODE_BUTTON_C:
+                if (slot == 0) DeckControls.INSTANCE.setGrip(DeckControls.L4, pressed);
+                break;
+            case KeyEvent.KEYCODE_BUTTON_Z:
+                if (slot == 0) DeckControls.INSTANCE.setGrip(DeckControls.R4, pressed);
+                break;
             case KeyEvent.KEYCODE_BUTTON_L2: pad.leftTrigger = pressed ? 1f : 0f; break;
             case KeyEvent.KEYCODE_BUTTON_R2: pad.rightTrigger = pressed ? 1f : 0f; break;
             case KeyEvent.KEYCODE_DPAD_UP: pad.up = pressed; break;
@@ -322,6 +328,8 @@ public final class PadBridge {
     }
 
     public synchronized void releaseAll() {
+        DeckControls.INSTANCE.setGrip(DeckControls.L4, false);
+        DeckControls.INSTANCE.setGrip(DeckControls.R4, false);
         state.clear();
         publish();
         for (int slot = 1; slot < SLOTS; slot++) {
