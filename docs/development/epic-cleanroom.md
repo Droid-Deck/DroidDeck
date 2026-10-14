@@ -66,9 +66,10 @@ Numbers in brackets refer to the spec's list of unknowns.
 **Chosen where the spec left it open**
 
 3. **User-Agent** [1]: every HTTP request (account, library, catalog, build info, CDNs, store
-   GraphQL, promotions, achievements, cloud saves) sends `DroidDeck/<versionName>`, defined once in
-   `epic/net.rs` (`USER_AGENT_PRODUCT`). Whether every endpoint accepts it is untested; changing that
-   constant is the one place to adjust. The sign-in **WebView** keeps the launcher-style UA it used
+   GraphQL, promotions, cloud saves) sends `DroidDeck/<versionName>`, defined once in
+   `epic/net.rs` (`USER_AGENT_PRODUCT`); changing that constant is the one place to adjust.
+   Achievements are the exception: Epic's achievements service rejects other agents, so
+   `epic/achievements.rs` sends Epic's launcher agent (`net.rs::EPIC_LAUNCHER_USER_AGENT`). The sign-in **WebView** keeps the launcher-style UA it used
    before, because a sign-in page that rejects the UA would lock every user out; that string lives
    in `epic/account.rs` (`WEBVIEW_USER_AGENT`).
 4. **Shared fetch core** [14]: chunk downloads reuse the crate's store-agnostic `fetch_core` (also
@@ -138,6 +139,6 @@ Numbers in brackets refer to the spec's list of unknowns.
 - Sign-in through the WebView, and that an **existing** saved account (sealed `credentials.json`)
   stays signed in after the update.
 - Every endpoint with the DroidDeck User-Agent: library, catalog, build info, CDN downloads, store
-  GraphQL and promotions, achievements, cloud saves.
+  GraphQL and promotions, cloud saves (achievements use the launcher agent, see above).
 - Library sync and shelves; install, pause/resume, cancel, update and repair; a card install with
   the internal scratch cache; launch with an exchange code; cloud-save up/down.

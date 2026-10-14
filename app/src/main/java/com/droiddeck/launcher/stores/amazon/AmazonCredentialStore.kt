@@ -70,6 +70,9 @@ object AmazonCredentialStore {
     private fun fresh(a: Account): Boolean =
         a.expiresAt - System.currentTimeMillis() > REFRESH_MARGIN_MS || a.refreshToken.isEmpty()
 
+    private fun unexpired(a: Account): String? =
+        a.accessToken.takeIf { a.expiresAt <= 0 || a.expiresAt > System.currentTimeMillis() }
+
     private fun refreshLocked(context: Context, a: Account): String? {
         if (a.refreshToken.isEmpty()) return null
         val answer = AmazonNative.call("auth.refresh", JSONObject().put("refreshToken", a.refreshToken))
@@ -90,7 +93,7 @@ object AmazonCredentialStore {
         synchronized(refreshLock) {
             val again = load(context) ?: return null
             if (fresh(again)) return again.accessToken
-            return refreshLocked(context, again) ?: again.accessToken
+            return refreshLocked(context, again) ?: unexpired(again)
         }
     }
 
