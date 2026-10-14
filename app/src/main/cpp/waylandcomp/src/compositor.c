@@ -2194,6 +2194,7 @@ struct constraint {
     int pending_region_set;
     int hint_set, pending_hint_set;
     double hint_x, hint_y, pending_hint_x, pending_hint_y;
+    int gave_keys;                          /* keyboard focus came with this constraint */
 };
 static struct wl_list g_constraints;
 static struct constraint *g_active_constraint;
@@ -2272,6 +2273,15 @@ static void constraint_end(struct constraint *k, int tell_client, const char *wh
         g_ptr_y = oy + k->hint_y;
     }
     g_raw_valid = 0;
+    if (k->gave_keys) {
+        /* Hand back the keyboard focus the lock brought (constraint_activate); a key gives it again. */
+        k->gave_keys = 0;
+        for (int i = 0; i < g_nkbs; i++) {
+            if (!k->surface || g_kbs[i].focus != k->surface->resource) continue;
+            wl_keyboard_send_leave(g_kbs[i].kb, wl_display_next_serial(g_display), g_kbs[i].focus);
+            g_kbs[i].focus = NULL;
+        }
+    }
     if (tell_client) constraint_send_state(k, 0);
     constraint_describe(k, name, sizeof(name));
     droiddeck_log("pointer", "%s: %s (%s), pointer at %d,%d", k->is_lock ? "unlocked" : "unconfined",
@@ -2292,12 +2302,16 @@ static void constraint_activate(struct constraint *k) {
     pointer_focus(k->surface->resource, wl_fixed_from_double(g_ptr_x - ox), wl_fixed_from_double(g_ptr_y - oy));
     /* Keyboard focus is otherwise first given with a key, and gamescope's Wayland backend drops
      * relative motion while it has none: a touchpad-driven game that locks the pointer never saw
-     * its cursor move until a key was pressed. Only taken when no window holds the keys yet. */
+     * its cursor move until a key was pressed. Only taken when no window holds the keys yet, and
+     * only for the lock (constraint_end): with the keys, gamescope stops showing its own arrow
+     * over a client that defines none, such as the Steam client's Big Picture. */
     {
         int focused = 0;
         for (int i = 0; i < g_nkbs; i++) if (g_kbs[i].focus) focused = 1;
-        if (!focused && keyboard_for(wl_resource_get_client(k->surface->resource)))
+        if (!focused && keyboard_for(wl_resource_get_client(k->surface->resource))) {
             keyboard_focus(k->surface->resource);
+            k->gave_keys = 1;
+        }
     }
     constraint_send_state(k, 1);
     constraint_describe(k, name, sizeof(name));
