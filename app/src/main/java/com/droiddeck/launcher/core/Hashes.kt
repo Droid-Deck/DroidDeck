@@ -3,7 +3,6 @@ package com.droiddeck.launcher.core
 import java.io.File
 import java.security.MessageDigest
 
-/** File checksums as lowercase hex, and GitHub's release-asset digests, in one place. */
 object Hashes {
     private val GITHUB_SHA256 = Regex("(?i)sha256:[0-9a-f]{64}")
 
@@ -13,11 +12,9 @@ object Hashes {
     @JvmStatic
     fun sha512(file: File): String = hex(file, "SHA-512")
 
-    /** True when [digest] is GitHub's asset digest form, "sha256:" and 64 hex digits. */
     @JvmStatic
     fun isGithubSha256(digest: String?): Boolean = digest != null && digest.matches(GITHUB_SHA256)
 
-    /** The hex of a GitHub asset digest ("sha256:<hex>"), or null when [digest] is not one. */
     @JvmStatic
     fun githubSha256(digest: String?): String? = digest?.takeIf { isGithubSha256(it) }?.substringAfter(':')
 

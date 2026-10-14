@@ -80,7 +80,7 @@ class SleepHandshakeTest(unittest.TestCase):
         token = self.suspend()
         self.assertTrue(self.preparing())
         self.state(token, "paused")
-        self.state("0" * 32, "awake")  # stale session acknowledgments cannot wake this one
+        self.state("0" * 32, "awake")
         time.sleep(0.1)
         self.assertTrue(self.preparing())
         self.state(token, "awake")

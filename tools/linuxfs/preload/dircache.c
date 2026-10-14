@@ -1,10 +1,3 @@
-/*
- * The Steam client lists a whole content directory about ten times per file it creates, moves or
- * deletes, to match names case-insensitively. On Android's FUSE storage that made reserving space
- * quadratic. Listings under steamapps/ on FUSE are kept for at most DIR_TTL_NS and dropped on any
- * inotify event the client's own patched changes don't account for; directory timestamps alone
- * can't be trusted, as NTFS volumes report whole seconds. BL_NO_DIR_CACHE=1 turns it off.
- */
 #define _GNU_SOURCE
 #include <dirent.h>
 #include <dlfcn.h>
@@ -32,7 +25,6 @@
 #define FUSE_MAGIC 0x65735546
 #define WATCHED (IN_CREATE | IN_DELETE | IN_MOVED_FROM | IN_MOVED_TO | IN_DELETE_SELF | IN_MOVE_SELF | IN_ONLYDIR)
 
-/* The client is 64-bit; 32-bit builds only pass creates through. */
 #if __SIZEOF_POINTER__ == 8
 
 _Static_assert(sizeof(struct dirent) == sizeof(struct dirent64), "dirent layouts differ");
@@ -88,7 +80,6 @@ static long long now_ns(void) {
   return (long long)t.tv_sec * 1000000000LL + t.tv_nsec;
 }
 
-/* A child shares the parent's inotify queue, so it stops keeping listings. */
 static void after_fork(void) {
   pthread_mutex_init(&lock, NULL);
   pthread_mutex_init(&oplock, NULL);
@@ -162,7 +153,6 @@ static void unref(struct listing *l) {
   if (--l->refs == 0 && l->detached) destroy(l);
 }
 
-/* The rest is called with lock held. */
 
 static void release(int wd) {
   if (wd < 0 || notify < 0) return;
@@ -179,7 +169,6 @@ static void detach(struct listing *l) {
   if (l->refs == 0) destroy(l);
 }
 
-/* Takes the listing out of the table; freed now or when its last reader closes. */
 static void drop(int slot) {
   struct listing *l = table[slot];
   int wd = l->wd;
@@ -195,7 +184,6 @@ static void changed(int wd) {
     if (handles[i] && (handles[i]->wd == wd || wd < 0)) __atomic_store_n(&handles[i]->dirty, 1, __ATOMIC_RELAXED);
 }
 
-/* Applies queued events; the expected ones are the client's own changes, already patched in. */
 static void pump(struct expect *x, int nx) {
   char buf[4096] __attribute__((aligned(__alignof__(struct inotify_event))));
   if (notify < 0 || forked) return;
@@ -302,7 +290,6 @@ static DIR *wrap(struct handle *h) {
 
 #define RECLEN(namelen) ((offsetof(struct dirent64, d_name) + (namelen) + 1 + 7) & ~(size_t)7)
 
-/* The listing as packed dirent64 records, built once per version. */
 static int records(struct listing *l) {
   if (l->recs) return 0;
   size_t len = 0;
@@ -326,7 +313,6 @@ static int records(struct listing *l) {
   return 0;
 }
 
-/* Lock-free from here on unless noted: a stream is only ever used by one thread at a time. */
 
 static struct handle *lookup(DIR *d) {
   return registered(d) >= 0 ? (struct handle *)d : NULL;
@@ -356,7 +342,6 @@ REAL(symlink);
 REAL(readdir64_r);
 REAL(readdir_r);
 
-/* Resolved before the client starts threads; the calls below only fill gaps for earlier callers. */
 __attribute__((constructor)) static void resolve(void) {
   NEXT(opendir);
   NEXT(readdir64);
@@ -378,7 +363,6 @@ __attribute__((constructor)) static void resolve(void) {
 }
 #pragma GCC diagnostic pop
 
-/* A reader of the kept listing when it is still current. */
 static DIR *hit(const struct stat *st, struct handle *h, long long now) {
   pthread_mutex_lock(&lock);
   if (!changing) pump(NULL, 0);
@@ -401,7 +385,6 @@ static DIR *hit(const struct stat *st, struct handle *h, long long now) {
   return NULL;
 }
 
-/* Registers the stream and its watch before anything is read, so no change goes unseen. */
 static int track(struct handle *h, const char *path) {
   pthread_mutex_lock(&lock);
   h->wd = watch(path);
@@ -411,7 +394,6 @@ static int track(struct handle *h, const char *path) {
   return d != NULL;
 }
 
-/* Reads through the real stream, keeping what it returns. */
 static void filling(struct handle *h, DIR *real, const struct stat *st, long long now) {
   h->real = real;
   h->fill = calloc(1, sizeof(*h->fill));
@@ -625,7 +607,6 @@ static int watching(const char *path) {
   return eligible(path) && __atomic_load_n(&cached_listings, __ATOMIC_ACQUIRE) > 0;
 }
 
-/* Called with oplock held: the client's tracked changes happen one at a time. */
 static void begin(void) {
   pthread_mutex_lock(&lock);
   pump(NULL, 0);
@@ -639,7 +620,6 @@ static void before(struct side *s) {
 
 enum { ADDED, REMOVED };
 
-/* Patches the listing after the client's own change, or drops it when unsure. Called with lock held. */
 static int patch(struct side *s, int what, uint32_t event, int ok, int error, const char *target, struct expect *x) {
   struct stat now;
   if (!s->known) return 0;
@@ -795,7 +775,6 @@ ONE_PATH(remove, REMOVED, IN_DELETE, next_remove(path))
     return r; \
   }
 
-/* A refused hard link to a lock file is taken as a symlink (links.c). */
 int bl_link_lock(const char *oldpath, const char *newpath, int result) __attribute__((visibility("hidden")));
 static int link_or_lock(const char *from, const char *to) { return bl_link_lock(from, to, next_link(from, to)); }
 

@@ -7,12 +7,6 @@
 
 namespace dxvk {
   
-  /**
-   * \brief DXBC bytecode reader
-   * 
-   * Holds references to the shader byte code and
-   * provides methods to read 
-   */
   class DxbcReader {
     
   public:

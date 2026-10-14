@@ -60,43 +60,43 @@ struct IMapper : public IBase {
     int32_t height __attribute__((aligned(4)));
   };
 
-  static sp<IMapper> getService(const std::string& /* serviceName */, const bool /* getStub */);
+  static sp<IMapper> getService(const std::string&  , const bool  );
 };
 
-}  // namespace V2_0
+}
 namespace V3_0 {
 
 struct IMapper : public IBase {
-  static sp<IMapper> getService(const std::string& /* serviceName */, const bool /* getStub */);
+  static sp<IMapper> getService(const std::string&  , const bool  );
 };
 
-}  // namespace V3_0
+}
 namespace V4_0 {
 
 struct IMapper : public IBase {
-  static sp<IMapper> getService(const std::string& /* serviceName */, const bool /* getStub */);
+  static sp<IMapper> getService(const std::string&  , const bool  );
 };
 
-}  // namespace V4_0
-}  // namespace android::hardware::graphics::mapper
+}
+}
 
 namespace vendor::qti::hardware::display::mapper {
 namespace V4_0 {
 
 struct IQtiMapper : public IBase {
-  static Return<sp<IQtiMapper>> castFrom(const sp<graphics::mapper::V4_0::IMapper>& /* parent */,
-                                         bool /* emitError */);
+  static Return<sp<IQtiMapper>> castFrom(const sp<graphics::mapper::V4_0::IMapper>&  ,
+                                         bool  );
 };
 
-}  // namespace V4_0
+}
 namespace V3_0 {
 
 struct IQtiMapper : public IBase {
-  static Return<sp<IQtiMapper>> castFrom(const sp<graphics::mapper::V3_0::IMapper>& /* parent */,
-                                         bool /* emitError */);
+  static Return<sp<IQtiMapper>> castFrom(const sp<graphics::mapper::V3_0::IMapper>&  ,
+                                         bool  );
 };
 
-}  // namespace V3_0
+}
 namespace V2_0 {
 
 struct IQtiMapper : public IBase {
@@ -175,9 +175,9 @@ struct IQtiMapper : public IBase {
                                                  V1_0::IQtiMapperExtensions>& extensions)>;
   virtual Return<void> getMapperExtensions(getMapperExtensions_cb _hidl_cb);
 
-  static Return<sp<IQtiMapper>> castFrom(const sp<graphics::mapper::V2_0::IMapper>& /* parent */,
-                                         bool /* emitError */);
+  static Return<sp<IQtiMapper>> castFrom(const sp<graphics::mapper::V2_0::IMapper>&  ,
+                                         bool  );
 };
 
-}  // namespace V2_0
-}  // namespace vendor::qti::hardware::display::mapper
+}
+}

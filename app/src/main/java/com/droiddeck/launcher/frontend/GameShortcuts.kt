@@ -42,7 +42,6 @@ object GameShortcuts {
         if (!requested) Toast.makeText(activity, R.string.game_shortcut_unsupported, Toast.LENGTH_LONG).show()
     }
 
-    /** Standard shortcut picker result, understood by launchers that import Android shortcuts. */
     fun result(activity: Activity, game: Library.SteamGame): Intent =
         activity.getSystemService(ShortcutManager::class.java).createShortcutResultIntent(info(activity, game))
 }

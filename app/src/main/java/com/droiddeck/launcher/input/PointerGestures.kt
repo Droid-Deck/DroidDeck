@@ -7,25 +7,12 @@ import android.view.ViewConfiguration
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-/**
- * Touch as a mouse, the way a remote desktop does it: where you touch is where the pointer goes.
- *
- *  - tap ............................ left click
- *  - drag ........................... moves the pointer, no button (hover)
- *  - hold, then lift ................ right click
- *  - hold, then drag ................ left-button drag (a window by its title bar, a selection)
- *  - two fingers up / down .......... scroll wheel
- *
- * The listener gets pointer positions in the view's pixels; the activity maps them onto the
- * compositor. Mouse events are not handled here - a mouse has real buttons.
- */
 class PointerGestures(
     private val slopPx: Float,
     private val listener: Listener,
 ) {
     interface Listener {
         fun onMove(x: Float, y: Float)
-        /** [button] is an evdev code: BTN_LEFT, BTN_RIGHT. */
         fun onButton(button: Int, pressed: Boolean, x: Float, y: Float)
         fun onWheel(steps: Int)
         fun onLongPress()
@@ -36,8 +23,8 @@ class PointerGestures(
     private var downY = 0f
     private var downAt = 0L
     private var moved = false
-    private var held = false          // the long press fired
-    private var dragging = false      // left button down after a hold
+    private var held = false
+    private var dragging = false
     private var scrolling = false
     private var scrollAnchorY = 0f
     private val longPress = Runnable {
@@ -55,7 +42,6 @@ class PointerGestures(
                 return true
             }
             MotionEvent.ACTION_POINTER_DOWN -> {
-                // A second finger: scrolling, and whatever the first one was doing is off.
                 handler.removeCallbacks(longPress)
                 if (dragging) { listener.onButton(BTN_LEFT, false, event.x, event.y); dragging = false }
                 scrolling = true
@@ -67,7 +53,6 @@ class PointerGestures(
                     val dy = event.getY(0) - scrollAnchorY
                     val steps = (dy / SCROLL_STEP_PX).toInt()
                     if (steps != 0) {
-                        // Finger down = content up = wheel "up", which the compositor takes as negative.
                         listener.onWheel(-steps)
                         scrollAnchorY += steps * SCROLL_STEP_PX
                     }
@@ -77,7 +62,6 @@ class PointerGestures(
                     moved = true
                     handler.removeCallbacks(longPress)
                     if (held) {
-                        // Held, then moved: a drag with the left button, from where the hold was.
                         dragging = true
                         listener.onButton(BTN_LEFT, true, downX, downY)
                     }

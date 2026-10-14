@@ -6,21 +6,11 @@ import java.io.File
 import java.io.RandomAccessFile
 import kotlin.math.max
 
-/**
- * Extracts the embedded application icon from a Windows PE executable (.exe).
- *
- * Walks the PE resource directory to the first RT_GROUP_ICON, picks the largest /
- * deepest-colour entry it references, then decodes that RT_ICON image. Icon images
- * are either PNG (Vista+) - decoded directly - or a classic DIB (BITMAPINFOHEADER +
- * XOR pixels + 1-bpp AND mask) - decoded by hand here.
- *
- * Everything is best-effort: any malformed/oversized/unsupported input returns null.
- */
 object PeIconExtractor {
 
     private const val RT_ICON = 3
     private const val RT_GROUP_ICON = 14
-    private const val MAX_RES_SECTION = 64 * 1024 * 1024 // don't slurp absurd resource sections
+    private const val MAX_RES_SECTION = 64 * 1024 * 1024
     private const val MAX_ICON_DIM = 1024
 
     fun extract(file: File): Bitmap? = try {
@@ -31,11 +21,11 @@ object PeIconExtractor {
 
     private fun parse(raf: RandomAccessFile): Bitmap? {
         val dos = read(raf, 0, 0x40) ?: return null
-        if (u8(dos, 0) != 0x4D || u8(dos, 1) != 0x5A) return null // "MZ"
+        if (u8(dos, 0) != 0x4D || u8(dos, 1) != 0x5A) return null
         val peOff = u32(dos, 0x3C).toInt()
 
         val coff = read(raf, peOff.toLong(), 24) ?: return null
-        if (u8(coff, 0) != 0x50 || u8(coff, 1) != 0x45 || u8(coff, 2) != 0 || u8(coff, 3) != 0) return null // "PE\0\0"
+        if (u8(coff, 0) != 0x50 || u8(coff, 1) != 0x45 || u8(coff, 2) != 0 || u8(coff, 3) != 0) return null
         val numSections = u16(coff, 6)
         val sizeOpt = u16(coff, 20)
         if (numSections <= 0 || numSections > 96 || sizeOpt <= 0) return null
@@ -43,8 +33,8 @@ object PeIconExtractor {
         val optOff = peOff + 24L
         val opt = read(raf, optOff, sizeOpt) ?: return null
         val magic = u16(opt, 0)
-        val ddOff = if (magic == 0x20B) 112 else 96 // PE32+ vs PE32 data-directory offset
-        val resDirEntry = ddOff + 2 * 8 // data directory index 2 = resource table
+        val ddOff = if (magic == 0x20B) 112 else 96
+        val resDirEntry = ddOff + 2 * 8
         if (resDirEntry + 8 > opt.size) return null
         val resRVA = u32(opt, resDirEntry).toInt()
         val resSize = u32(opt, resDirEntry + 4).toInt()
@@ -75,7 +65,6 @@ object PeIconExtractor {
         val resDirStart = resRVA - secVA
         if (resDirStart < 0 || resDirStart + 16 > res.size) return null
 
-        // RT_GROUP_ICON -> first group's data entry -> GRPICONDIR
         val grpTypeDir = findIdSubdir(res, resDirStart, RT_GROUP_ICON, resDirStart) ?: return null
         val grpData = firstDataEntry(res, grpTypeDir, resDirStart) ?: return null
         val grp = dataEntryBytes(res, grpData, secVA) ?: return null
@@ -97,7 +86,6 @@ object PeIconExtractor {
         }
         if (bestId < 0) return null
 
-        // RT_ICON with the chosen id -> image bytes
         val iconTypeDir = findIdSubdir(res, resDirStart, RT_ICON, resDirStart) ?: return null
         val iconIdDir = findIdSubdir(res, iconTypeDir, bestId, resDirStart) ?: return null
         val iconData = firstDataEntry(res, iconIdDir, resDirStart) ?: return null
@@ -106,9 +94,7 @@ object PeIconExtractor {
         return decodeIcon(img)
     }
 
-    // ── resource-directory navigation ──
 
-    /** Resolve the sub-directory under [dirIdx] whose id matches [wantId]; null if absent or not a directory. */
     private fun findIdSubdir(res: ByteArray, dirIdx: Int, wantId: Int, resDirStart: Int): Int? {
         if (dirIdx + 16 > res.size) return null
         val total = u16(res, dirIdx + 12) + u16(res, dirIdx + 14)
@@ -126,7 +112,6 @@ object PeIconExtractor {
         return null
     }
 
-    /** Descend the first entry of each level until an IMAGE_RESOURCE_DATA_ENTRY; returns its index. */
     private fun firstDataEntry(res: ByteArray, dirIdx: Int, resDirStart: Int): Int? {
         if (dirIdx + 16 > res.size) return null
         if (u16(res, dirIdx + 12) + u16(res, dirIdx + 14) == 0) return null
@@ -140,7 +125,6 @@ object PeIconExtractor {
         }
     }
 
-    /** Read the bytes an IMAGE_RESOURCE_DATA_ENTRY points at (its OffsetToData is an RVA). */
     private fun dataEntryBytes(res: ByteArray, entryIdx: Int, secVA: Int): ByteArray? {
         if (entryIdx < 0 || entryIdx + 8 > res.size) return null
         val rva = u32(res, entryIdx).toInt()
@@ -150,7 +134,6 @@ object PeIconExtractor {
         return res.copyOfRange(start, start + size)
     }
 
-    // ── icon image decoding ──
 
     private fun decodeIcon(b: ByteArray): Bitmap? {
         if (b.size >= 8 && u8(b, 0) == 0x89 && u8(b, 1) == 0x50 && u8(b, 2) == 0x4E && u8(b, 3) == 0x47) {
@@ -164,7 +147,7 @@ object PeIconExtractor {
         val headerSize = u32(b, 0).toInt()
         val width = s32(b, 4)
         val heightFull = s32(b, 8)
-        val height = heightFull / 2 // DIB icon height counts XOR + AND mask
+        val height = heightFull / 2
         val bitCount = u16(b, 14)
         if (width <= 0 || height <= 0 || width > MAX_ICON_DIM || height > MAX_ICON_DIM) return null
 
@@ -183,7 +166,6 @@ object PeIconExtractor {
         val andRowSize = ((width + 31) / 32) * 4
         val andStart = xorStart + rowSize * height
 
-        // 32-bit icons sometimes ship an all-zero alpha channel; fall back to the AND mask then.
         var hasAlpha = false
         if (bitCount == 32) {
             var y = 0
@@ -245,7 +227,6 @@ object PeIconExtractor {
         return Bitmap.createBitmap(pixels, width, height, Bitmap.Config.ARGB_8888)
     }
 
-    /** AND-mask alpha for a pixel: returns 0xFF000000 (opaque) or 0 (transparent), shifted into place. */
     private fun maskAlpha(b: ByteArray, andStart: Int, andRowSize: Int, srcRow: Int, x: Int): Int {
         val o = andStart + srcRow * andRowSize + x / 8
         if (o >= b.size) return 0xFF shl 24
@@ -253,7 +234,6 @@ object PeIconExtractor {
         return if (bit == 1) 0 else (0xFF shl 24)
     }
 
-    // ── little-endian readers ──
 
     private fun u8(b: ByteArray, off: Int): Int = b[off].toInt() and 0xFF
     private fun u16(b: ByteArray, off: Int): Int = u8(b, off) or (u8(b, off + 1) shl 8)

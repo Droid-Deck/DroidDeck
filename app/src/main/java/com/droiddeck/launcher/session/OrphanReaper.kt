@@ -3,26 +3,10 @@ package com.droiddeck.launcher.session
 import android.util.Log
 import java.io.File
 
-/**
- * Kills every process of this app's uid other than the app itself.
- *
- * A session is a tree of processes under proot, and proot dies with the app only when the app's
- * own teardown runs. When the app is killed or crashes instead, the tree stays: proot holding the
- * rootfs, gamescope holding the GPU, Steam holding its lock file - and the next session never
- * comes up, or comes up beside a client that is already running. A user on a Thor Pro had to
- * force-stop the app before every launch. Everything of ours that should be alive between
- * sessions is inside the app process, so at session start anything else under our uid is a
- * leftover, and this sweeps it. Each pid is checked by uid at kill time, never by name.
- *
- * The one exception is work the app started outside any session and is still waiting on - a
- * Flatpak install from the store - registered with [keep]: that process and everything under it
- * are left to finish.
- */
 object OrphanReaper {
     private const val TAG = "OrphanReaper"
     private val kept = java.util.concurrent.ConcurrentHashMap.newKeySet<Int>()
 
-    /** Spares [pid] and its descendants until [release]. */
     fun keep(pid: Int) { if (pid > 0) kept.add(pid) }
 
     fun release(pid: Int) { kept.remove(pid) }
@@ -49,14 +33,12 @@ object OrphanReaper {
         return killed
     }
 
-    /** [roots] and every process below them, by each process's parent in /proc/<pid>/stat. */
     private fun descendants(roots: Set<Int>): Set<Int> {
         if (roots.isEmpty()) return emptySet()
         val parent = HashMap<Int, Int>()
         File("/proc").listFiles()?.forEach { entry ->
             val pid = entry.name.toIntOrNull() ?: return@forEach
             val stat = try { File(entry, "stat").readText() } catch (e: Exception) { return@forEach }
-            // "pid (comm) state ppid ...": comm may hold spaces and parentheses; the last ')' ends it.
             stat.substringAfterLast(") ").split(' ').getOrNull(1)?.toIntOrNull()?.let { parent[pid] = it }
         }
         val out = HashSet(roots)

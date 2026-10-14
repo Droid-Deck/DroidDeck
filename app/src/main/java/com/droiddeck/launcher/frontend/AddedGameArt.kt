@@ -11,14 +11,6 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 
-/**
- * Artwork for an added game: what the user put in the game's folder first, else what Steam has
- * for it - by the Steam appid its files name, else by a store search on its title - else what
- * SteamGridDB has ([SteamGridDb]), fetched once into the app's cache. Four pieces, named the way
- * the client names them in its grid folder: the portrait capsule, the wide header, the hero
- * background and the logo; plus an icon pulled out of the game's own .exe. The session hands
- * the paths to the runtime's shortcuts writer, which copies them into the client's grid.
- */
 object AddedGameArt {
     private const val TAG = "AddedGameArt"
     private const val STORE_SEARCH = "https://store.steampowered.com/api/storesearch/?l=english&cc=US&term="
@@ -29,15 +21,10 @@ object AddedGameArt {
         val any get() = portrait != null || header != null || hero != null || logo != null
     }
 
-    /**
-     * The pieces a user can choose, as the client takes them: [assetType] is its custom-artwork
-     * number (null: the icon, set by path); [cacheName] the automatic file in the game's cache.
-     */
     enum class Slot(val key: String, val cacheName: String, val assetType: Int?) {
         COVER("p", "p.jpg", 0), BACKGROUND("hero", "hero.jpg", 1), LOGO("logo", "logo.png", 2), ICON("icon", "icon.png", null),
     }
 
-    /** Where a piece came from; [AUTO] = nothing found yet. */
     const val FOLDER = "folder"
     const val STEAM = "steam"
     const val SGDB = "sgdb"
@@ -45,10 +32,8 @@ object AddedGameArt {
     const val EXE = "exe"
     const val AUTO = ""
 
-    /** A slot as it stands: the file shown and where it came from (one of [FOLDER].. [AUTO]); [chosen] = the user picked it. */
     class SlotState(val slot: Slot, val file: File?, val source: String, val chosen: Boolean)
 
-    /** One image the chooser offers: its group ([FOLDER], [STEAM], [SGDB]), a thumbnail and the full image (URL or path). */
     class Option(val group: String, val thumb: String, val full: String)
 
     private val CHOSEN = Regex("""chosen-(\w+)\.(\w+)""")
@@ -64,7 +49,6 @@ object AddedGameArt {
 
     internal fun cacheDir(context: Context, game: AddedGames.Game) = File(context.filesDir, "added-art/${game.appId}")
 
-    /** An image in the folder (or its `art` subfolder) under one of the given names, any image extension. */
     private fun find(folder: File, names: List<String>): File? {
         val dirs = listOf(folder, File(folder, "art"), File(folder, ".art"))
         for (dir in dirs) for (name in names) for (ext in IMAGE) {
@@ -74,7 +58,6 @@ object AddedGameArt {
         return null
     }
 
-    /** What the folder itself offers; the file named after the folder counts as the portrait. */
     private fun local(game: AddedGames.Game): Art {
         val folder = game.folder
         return Art(
@@ -86,7 +69,6 @@ object AddedGameArt {
         )
     }
 
-    /** The user's choice for each piece, else the folder's art, else the cached art; no network. */
     fun resolve(context: Context, game: AddedGames.Game): Art {
         val own = local(game)
         val cache = cacheDir(context, game)
@@ -100,7 +82,6 @@ object AddedGameArt {
         )
     }
 
-    /** Each choosable piece with its file and where it came from, for the game's editor; no network. */
     fun describe(context: Context, game: AddedGames.Game): List<SlotState> {
         val own = local(game)
         val cache = cacheDir(context, game)
@@ -122,17 +103,11 @@ object AddedGameArt {
 
     private val CHOOSABLE = setOf("png", "jpg", "jpeg", "webp")
 
-    /** Images in the game's folder (and its art folders) that could stand for a piece. */
     internal fun folderImages(folder: File): List<File> =
         listOf(folder, File(folder, "art"), File(folder, ".art")).flatMap { dir ->
             dir.listFiles { f -> f.isFile && f.extension.lowercase() in CHOOSABLE }?.sortedBy { it.name.lowercase() }.orEmpty()
         }.take(12)
 
-    /**
-     * What the chooser offers for [slot]: the game folder's images, Steam's official piece (when the
-     * game has a Steam appid and Steam has the piece), and SteamGridDB's best few (with a key).
-     * Blocking: it asks the network.
-     */
     fun options(context: Context, game: AddedGames.Game, slot: Slot): List<Option> {
         val out = ArrayList<Option>()
         folderImages(game.folder).forEach { out.add(Option(FOLDER, it.path, it.path)) }
@@ -155,7 +130,6 @@ object AddedGameArt {
         return out
     }
 
-    /** Sets [slot] to [option] (a file is copied, a URL fetched) and records where it came from. False when it could not be had. Blocking. */
     fun choose(context: Context, game: AddedGames.Game, slot: Slot, option: Option): Boolean {
         val bytes = if (option.full.startsWith("https://")) get(option.full) else runCatching { File(option.full).readBytes() }.getOrNull()
         bytes ?: return false
@@ -170,13 +144,11 @@ object AddedGameArt {
         return true
     }
 
-    /** Where the user's choice for [slot] came from and which image it was ("" both when automatic). */
     fun chosenSource(context: Context, game: AddedGames.Game, slot: Slot): Pair<String, String> {
         val value = SessionPrefs.addedGameArtSource(context, game.folder.path, slot.key)
         return value.substringBefore('|') to value.substringAfter('|', "")
     }
 
-    /** [slot] back to what is found by itself. */
     fun reset(context: Context, game: AddedGames.Game, slot: Slot) {
         chosen(cacheDir(context, game), slot)?.delete()
         SessionPrefs.setAddedGameArtSource(context, game.folder.path, slot.key, "")
@@ -191,7 +163,6 @@ object AddedGameArt {
         try { c.responseCode == 200 } finally { c.disconnect() }
     }.getOrDefault(false)
 
-    /** The first icon inside the game's .exe, kept as a PNG beside the cached art. */
     private fun exeIcon(context: Context, game: AddedGames.Game): File? {
         val cache = cacheDir(context, game)
         val png = File(cache, "icon.png")
@@ -206,12 +177,6 @@ object AddedGameArt {
         return if (tmp.renameTo(png)) png else null
     }
 
-    /**
-     * Fetches the art that is missing: Steam first (the appid the game's files name, else a store
-     * search on its title whose result carries the same name), then SteamGridDB when a key is
-     * set. Each lookup runs once per game; a miss is retried after a week. Blocking: run it off
-     * the main thread. Returns true when anything new arrived.
-     */
     fun fetchMissing(context: Context, games: List<AddedGames.Game>): Boolean {
         if (!SessionPrefs.addedGamesArt(context)) return false
         val sgdbKey = SteamGridDb.key(context)
@@ -236,17 +201,12 @@ object AddedGameArt {
         return changed
     }
 
-    /**
-     * The game's Steam app, the one record its Windows components use too ([SteamMatch]): what its
-     * files name, else a store search on its title ([search]) whose result has the same name.
-     */
     internal fun steamMatch(context: Context, game: AddedGames.Game, search: (String) -> Int?): SteamMatch.Match {
         val match = SteamMatch.resolve(context, game.folder.path, game.exe, game.name, legacy = File(cacheDir(context, game), "steam-appid"), search = search)
         match.appId?.let { Log.i(TAG, "${game.name}: Steam app $it (${match.certainty.name.lowercase()})") }
         return match
     }
 
-    /** What [marker] remembers (an id, or "none" for a week), else [find]'s answer written to it. */
     private fun remembered(marker: File, find: () -> String?): String? {
         if (marker.isFile) {
             val value = marker.readText().trim()
@@ -262,11 +222,6 @@ object AddedGameArt {
 
     private val EDITION = Regex("(?i)\\b(complete|definitive|legendary|goty|game of the year|deluxe|ultimate|remastered)( edition)?\\b")
 
-    /**
-     * How well a result's name [got] matches the game's [name]: 3 the same, 2 the same once
-     * edition words are dropped, 1 one starts with the other; 0 no match. Nothing is taken for
-     * being the first result.
-     */
     internal fun nameMatch(name: String, got: String): Int {
         val want = normalize(name)
         val wantShort = normalize(name.replace(EDITION, " ").trim().ifEmpty { name })
@@ -280,13 +235,11 @@ object AddedGameArt {
         }
     }
 
-    /** The id of the store result whose name matches [name] best, or null when none does. */
     internal fun pickStoreResult(name: String, items: List<Pair<String, String>>): String? =
         items.map { (id, got) -> id to nameMatch(name, got) }
             .filter { it.second > 0 && it.first.isNotEmpty() }
             .maxByOrNull { it.second }?.first
 
-    /** The Steam appid whose store name matches [name], or null for no match. */
     private fun search(name: String): String? {
         val term = name.replace(EDITION, " ").trim().ifEmpty { name }
         val json = get(STORE_SEARCH + URLEncoder.encode(term, "UTF-8"))?.toString(Charsets.UTF_8) ?: return null
@@ -309,10 +262,6 @@ object AddedGameArt {
         return got
     }
 
-    /**
-     * Newer Steam games keep their art under hashed paths (store_item_assets/steam/apps/<id>/<hash>/…),
-     * where the fixed CDN names above 404. The store's item API names those paths; once per appid.
-     */
     private fun steamAssetUrl(id: String, remote: String): String? {
         val assets = steamAssets.getOrPut(id) {
             runCatching {
@@ -336,11 +285,6 @@ object AddedGameArt {
 
     private val steamAssets = java.util.concurrent.ConcurrentHashMap<String, Map<String, String>>()
 
-    /**
-     * When nothing else gave a cover (or header), one made from the exe's icon: the icon centred on
-     * its own colour, darkened toward the bottom, so the game still has a face in the list and in
-     * Steam. Made once per game; real art found later takes over because it is looked at first.
-     */
     private fun exeArt(context: Context, game: AddedGames.Game, cover: Boolean): File? {
         val cache = cacheDir(context, game)
         val out = File(cache, if (cover) "p-exe.png" else "header-exe.png")

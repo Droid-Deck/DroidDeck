@@ -10,7 +10,6 @@ import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
-/** Runs while DroidDeck's process is alive, including downloads in a background Steam session. */
 object GameFileSync {
     private val worker = Executors.newSingleThreadScheduledExecutor { task -> Thread(task, "game-file-sync").apply { isDaemon = true } }
     private fun prefs(context: Context) = context.getSharedPreferences("game_files", Context.MODE_PRIVATE)
@@ -39,7 +38,6 @@ object GameFileSync {
 
     @Synchronized private fun sync(context: Context, folder: File) {
         check(LinuxRuntime.isInstalled(context)) { context.getString(R.string.game_sync_err_runtime) }
-        // A disconnected library must not be interpreted as a mass uninstall.
         check(File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/steamapps").isDirectory) { context.getString(R.string.game_sync_err_steam_library) }
         val storage = GameStorage.effective(context)
         val storageSetting = SessionPrefs.gameStorage(context)

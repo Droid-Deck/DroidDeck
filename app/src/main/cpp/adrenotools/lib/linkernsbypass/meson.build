@@ -11,8 +11,3 @@ linkernsbypass_lib = static_library (
     include_directories: ([linkernsbypass_inc, adrenotools_inc]),
     dependencies: ([libandroid_dep, libdl_dep])
 )
-
-# linkernsbypass_include = static_library('linkernsbypass', sources)
-# target_compile_options(['linkernsbypass', 'PRIVATE', '-Wall', '-Wextra'])
-# target_link_libraries(['linkernsbypass', 'android', 'dl'])
-# target_include_directories(['linkernsbypass', 'PUBLIC', '.'])

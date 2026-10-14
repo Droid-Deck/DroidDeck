@@ -4,13 +4,6 @@
 
 namespace dxvk {
   
-  /**
-   * \brief SPIR-V instruction
-   * 
-   * Helps parsing a single instruction, providing
-   * access to the op code, instruction length and
-   * instruction arguments.
-   */
   class SpirvInstruction {
     
   public:
@@ -19,64 +12,29 @@ namespace dxvk {
     SpirvInstruction(uint32_t* code, uint32_t offset, uint32_t length)
     : m_code(code), m_offset(offset), m_length(length) { }
     
-    /**
-     * \brief SPIR-V Op code
-     * \returns The op code
-     */
     spv::Op opCode() const {
       return static_cast<spv::Op>(
         this->arg(0) & spv::OpCodeMask);
     }
     
-    /**
-     * \brief Instruction length
-     * \returns Number of DWORDs
-     */
     uint32_t length() const {
       return this->arg(0) >> spv::WordCountShift;
     }
     
-    /**
-     * \brief Instruction offset
-     * \returns Offset in DWORDs
-     */
     uint32_t offset() const {
       return m_offset;
     }
     
-    /**
-     * \brief Argument value
-     * 
-     * Retrieves an argument DWORD. Note that some instructions
-     * take 64-bit arguments which require more than one DWORD.
-     * Arguments start at index 1. Calling this method with an
-     * argument ID of 0 will return the opcode token.
-     * \param [in] idx Argument index, starting at 1
-     * \returns The argument value
-     */
     uint32_t arg(uint32_t idx) const {
       const uint32_t index = m_offset + idx;
       return index < m_length ? m_code[index] : 0;
     }
 
-    /**
-     * \brief Argument string
-     *
-     * Retrieves a pointer to a UTF-8-encoded string.
-     * \param [in] idx Argument index, starting at 1
-     * \returns Pointer to the literal string
-     */
     const char* chr(uint32_t idx) const {
       const uint32_t index = m_offset + idx;
       return index < m_length ? reinterpret_cast<const char*>(&m_code[index]) : nullptr;
     }
     
-    /**
-     * \brief Changes the value of an argument
-     * 
-     * \param [in] idx Argument index, starting at 1
-     * \param [in] word New argument word
-     */
     void setArg(uint32_t idx, uint32_t word) const {
       if (m_offset + idx < m_length)
         m_code[m_offset + idx] = word;
@@ -91,12 +49,6 @@ namespace dxvk {
   };
   
   
-  /**
-   * \brief SPIR-V instruction iterator
-   * 
-   * Convenient iterator that can be used
-   * to process raw SPIR-V shader code.
-   */
   class SpirvInstructionIterator {
     
   public:

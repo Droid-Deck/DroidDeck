@@ -36,7 +36,6 @@ import com.termux.terminal.TerminalSessionClient
 import com.termux.view.TerminalView
 import com.termux.view.TerminalViewClient
 
-/** Touch controls drawn on a second Android display while the compositor remains on the main one. */
 class SecondScreenPresentation(
     private val sessionActivity: SessionActivity,
     display: Display,
@@ -83,7 +82,6 @@ class SecondScreenPresentation(
         if (created) renderMode()
     }
 
-    /** Releases the auxiliary Linux shell before the window is dismissed. */
     fun closeControls() {
         closeTerminal()
         keyboardHost?.hide()

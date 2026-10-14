@@ -1,14 +1,3 @@
-/* Cost of the syscall-interception mechanisms available to an Android app, measured on the
- * trapped call getppid() (the tracer/handler does no work, so this is pure mechanism cost).
- *
- *   mechbench filter <n_linear>        allowed syscall through a filter of n JEQs (linear, proot-style)
- *   mechbench tree                     allowed syscall through a binary-search filter (~150 entries)
- *   mechbench ptrace [spin] [regs]     seccomp RET_TRACE + ptrace tracer (proot's mechanism)
- *   mechbench sigsys                   seccomp RET_TRAP + in-process SIGSYS handler
- *   mechbench notif [sync] [spin]      seccomp RET_USER_NOTIF + supervisor thread
- *   mechbench openat2 <root> <path>    openat2(RESOLVE_IN_ROOT) vs openat on the host path
- * Env CPU_T / CPU_S pin the trapped thread / the tracer-supervisor to a cpu.
- */
 #define _GNU_SOURCE
 #include <errno.h>
 #include <fcntl.h>
@@ -68,8 +57,6 @@ static double time_trapped(void) {
   return (now() - t0) / N;
 }
 
-/* A filter: arch check, then `n` JEQs on numbers that never match (like proot's list of ~150
- * traced syscalls seen by an allowed syscall), then `action` for TRAPPED, else ALLOW. */
 static int install(int n_linear, uint32_t action, unsigned flags) {
   struct sock_filter *f = calloc(n_linear + 16, sizeof *f);
   int k = 0;
@@ -77,7 +64,7 @@ static int install(int n_linear, uint32_t action, unsigned flags) {
   f[k++] = (struct sock_filter)BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AUDIT_ARCH_AARCH64, 1, 0);
   f[k++] = (struct sock_filter)BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW);
   f[k++] = (struct sock_filter)BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr));
-  for (int i = 0; i < n_linear; i++)  /* numbers far above any real syscall */
+  for (int i = 0; i < n_linear; i++)
     f[k++] = (struct sock_filter)BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 5000 + i, 0, 0);
   f[k++] = (struct sock_filter)BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, TRAPPED, 0, 1);
   f[k++] = (struct sock_filter)BPF_STMT(BPF_RET | BPF_K, action);
@@ -87,7 +74,6 @@ static int install(int n_linear, uint32_t action, unsigned flags) {
   return syscall(SYS_seccomp, SECCOMP_SET_MODE_FILTER, flags, &p);
 }
 
-/* ~150 traced numbers as a balanced binary search (what libseccomp's optimize=2 emits). */
 static int emit_tree(struct sock_filter *f, int *k, int lo, int hi) {
   if (lo > hi) { f[(*k)++] = (struct sock_filter)BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW); return 0; }
   int mid = (lo + hi) / 2;
@@ -106,7 +92,7 @@ static void *sigsys_unused;
 static void on_sigsys(int sig, siginfo_t *si, void *ctx) {
   (void)sig; (void)si;
   ucontext_t *uc = ctx;
-  uc->uc_mcontext.regs[0] = 4242; /* the emulated result */
+  uc->uc_mcontext.regs[0] = 4242;
 }
 
 struct notif_arg { int fd; int spin; };
@@ -184,22 +170,17 @@ int main(int argc, char **argv) {
       if (ioctl(notif_fd, SECCOMP_IOCTL_NOTIF_SET_FLAGS, SECCOMP_USER_NOTIF_FD_SYNC_WAKE_UP) < 0) perror("SYNC_WAKE_UP");
       else printf("(sync wake-up on)\n");
     }
-    /* The filter lives on thread w, which has exited; install again on a fresh worker that
-     * does the timing. */
     struct notif_arg na = {.fd = -1};
     (void)na;
     printf("note: user-notif is measured in 'notif2'\n");
     return 0;
   }
   if (!strcmp(mode, "notif2")) {
-    /* Supervisor = child thread (unfiltered), timed thread = main after installing. */
     int sync = argc > 2 && !strcmp(argv[2], "sync");
     pin("CPU_T");
     int fd = install(0, SECCOMP_RET_USER_NOTIF, SECCOMP_FILTER_FLAG_NEW_LISTENER);
     if (fd < 0) { perror("NEW_LISTENER"); return 1; }
     if (sync && ioctl(fd, SECCOMP_IOCTL_NOTIF_SET_FLAGS, SECCOMP_USER_NOTIF_FD_SYNC_WAKE_UP, 0) < 0) perror("SYNC_WAKE_UP");
-    /* The supervisor thread is created AFTER the filter, so it inherits it - but it only
-     * makes ioctl calls, which the filter allows. */
     static struct notif_arg na;
     na.fd = fd;
     pthread_t s;

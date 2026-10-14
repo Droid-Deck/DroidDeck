@@ -61,12 +61,7 @@ import coil.compose.AsyncImage
 import com.droiddeck.launcher.frontend.Library
 import kotlinx.coroutines.launch
 
-// The Games page: the list, the hero for the selected game and its labels.
 
-/**
- * The Games tab: installed Steam games down the left, most recently played first, and the one
- * picked beside them - its banner, Launch and the launch settings. One game skips the list.
- */
 @Composable
 internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, onSelect: (String) -> Unit, modifier: Modifier) {
     val games = remember(s.steamGames) { s.steamGames.sortedByDescending { it.lastPlayed } }
@@ -155,11 +150,9 @@ private fun GameActions(g: Library.SteamGame, s: FrontEndState, a: FrontEndActio
         }
         g.protonPrefix?.takeIf { it.isDirectory }?.let { dir ->
             SecondaryButton(stringResource(R.string.games_prefix), compact = true) { a.onBrowseFiles(dir) }
-            // Only games added to the library; Steam titles keep their saves with Steam Cloud.
             if (g.library == Library.ADDED) ManageSaves(g, dir, a)
         }
         if (!s.shortcutPicker) GameShortcutMenu(g, a)
-        // A game added in DroidDeck (Custom): its editor, Steam's Properties for a non-Steam game.
         if (!s.shortcutPicker && g.library == Library.ADDED && g.source == Library.ADDED && g.gameFiles != null) EditGameButton { onEdit(g) }
         BusyChip(s)
     }
@@ -184,10 +177,6 @@ private fun GameShortcutMenu(g: Library.SteamGame, a: FrontEndActions) {
     }
 }
 
-/**
- * Manage saves: import a GameHub or Winlator save zip into this game's prefix, export its saves as
- * either, or open the save folder found for it. The saves are looked for when the menu opens.
- */
 @Composable
 private fun ManageSaves(g: Library.SteamGame, prefix: java.io.File, a: FrontEndActions) {
     var open by remember(g.gameId) { androidx.compose.runtime.mutableStateOf(false) }
@@ -211,7 +200,6 @@ private fun ManageSaves(g: Library.SteamGame, prefix: java.io.File, a: FrontEndA
         }
     }
     Box {
-        // A GOG or Epic game's saves are its cloud saves: the one place for them, named so.
         val cloudGame = com.droiddeck.launcher.stores.Store.byId(g.source).let { it == com.droiddeck.launcher.stores.Store.GOG || it == com.droiddeck.launcher.stores.Store.EPIC }
         val label = stringResource(if (cloudGame) R.string.store_cloud_saves else R.string.games_manage_saves)
         SecondaryButton(label, compact = true) { open = !open }
@@ -235,12 +223,6 @@ private fun ManageSaves(g: Library.SteamGame, prefix: java.io.File, a: FrontEndA
     }
 }
 
-/**
- * A GOG or Epic game's cloud saves: the Cloud saves switch, Upload and Download - three rows from
- * the first frame, so nothing moves under the pad while the cloud is checked. Until the check is
- * back the two actions are disabled and read "…"; then only their subtitles change: the last sync,
- * "No cloud saves", or a conflict, when Upload and Download become Keep local and Keep cloud.
- */
 @Composable
 private fun CloudRows(g: Library.SteamGame, open: Boolean, first: androidx.compose.ui.focus.FocusRequester) {
     val store = com.droiddeck.launcher.stores.Store.byId(g.source)?.takeIf { it != com.droiddeck.launcher.stores.Store.AMAZON } ?: return
@@ -253,7 +235,6 @@ private fun CloudRows(g: Library.SteamGame, open: Boolean, first: androidx.compo
             runCatching { com.droiddeck.launcher.stores.CloudSaves.status(context, store, id) }.getOrNull()
         }
     }
-    // The game's own switch (sidecar "cloud"), known locally: right from the first frame.
     val folder = g.gameFiles
     var enabled by remember(g.gameId, open) { androidx.compose.runtime.mutableStateOf(folder?.let { com.droiddeck.launcher.stores.StoreGameSidecar.read(it)?.cloud } ?: true) }
     val st = status
@@ -285,17 +266,14 @@ private fun CloudRows(g: Library.SteamGame, open: Boolean, first: androidx.compo
         st.lastSync > 0 -> stringResource(R.string.cloud_last_sync, android.text.format.DateUtils.getRelativeTimeSpanString(st.lastSync).toString())
         else -> stringResource(R.string.cloud_never)
     }
-    // A conflict turns the two actions into its two answers; the rows stay where they are.
     MenuItem(stringResource(if (conflict) R.string.cloud_keep_local else R.string.cloud_upload), checked = false, enabled = ready, detail = summary) { sync(up = true, force = conflict) }
     MenuItem(stringResource(if (conflict) R.string.cloud_keep_cloud else R.string.cloud_download), checked = false, enabled = ready, detail = if (st == null || busy != null) pending else null) { sync(up = false, force = conflict) }
 }
 
-/** When it was last played (or where it is, if never) over its name, then room for Launch. */
 @Composable
 private fun ColumnScope.GameHeroCopy(g: Library.SteamGame, titleSize: androidx.compose.ui.unit.TextUnit) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         SourceChip(g.source)
-        // A Custom game's chip already says what its eyebrow would; the line then stays empty.
         val eyebrow = lastPlayedText(g.lastPlayed) ?: libraryLabel(g)
         if (eyebrow.isNotEmpty()) Text(
             eyebrow.uppercase(),
@@ -316,14 +294,11 @@ private fun GameList(
     onSelect: (Library.SteamGame) -> Unit, onLaunch: (Library.SteamGame) -> Unit, onAdd: (() -> Unit)?, modifier: Modifier,
 ) {
     val colors = MaterialTheme.colorScheme
-    // Laid out whole, as the art grid is: the pad's focus search only finds rows that exist.
     Column(
         verticalArrangement = Arrangement.spacedBy(2.dp),
         modifier = modifier.verticalScroll(rememberScrollState()).padding(start = 12.dp, end = 10.dp, top = 16.dp, bottom = 16.dp),
     ) {
         GamesHeader(games.size, onAdd, Modifier.padding(start = 6.dp, bottom = 10.dp))
-        // A game that arrives while the list is up (Steam installed it in the session that just
-        // ended, or it was added) eases in; the ones there when the page opened are simply there.
         val seen = remember { HashSet<Int>() }
         var settled by remember { androidx.compose.runtime.mutableStateOf(false) }
         for (g in games) key(g.appId) {
@@ -338,7 +313,6 @@ private fun GameList(
     }
 }
 
-/** "Games N", and the + that adds a game from its .exe beside it ([onAdd] null: no +). */
 @Composable
 private fun GamesHeader(count: Int, onAdd: (() -> Unit)?, modifier: Modifier) {
     val colors = MaterialTheme.colorScheme
@@ -349,17 +323,11 @@ private fun GamesHeader(count: Int, onAdd: (() -> Unit)?, modifier: Modifier) {
     }
 }
 
-/**
- * The Games tab's dialogs, one at a time: the + picker, the summary after "Add all games in this
- * folder", and a game's editor (from the page's ✎ or a summary row, with back to the summary).
- */
 internal object GamesDialogState {
     var adding by androidx.compose.runtime.mutableStateOf(false)
     var summary by androidx.compose.runtime.mutableStateOf<Pair<List<com.droiddeck.launcher.frontend.AddedGames.Game>, Int>?>(null)
     var editing by androidx.compose.runtime.mutableStateOf<EditRequest?>(null)
-    /** The subfolder "Add all games in this folder" is looking at; null when it is done. */
     var checking by androidx.compose.runtime.mutableStateOf<String?>(null)
-    /** The summary an editor opened from it goes back to. */
     var behindEditor: Pair<List<com.droiddeck.launcher.frontend.AddedGames.Game>, Int>? = null
 }
 
@@ -409,7 +377,6 @@ private fun GamesDialogs(a: FrontEndActions) {
     }
 }
 
-/** The ✎ on a Custom game's page: icon only. */
 @Composable
 private fun EditGameButton(onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
@@ -430,7 +397,6 @@ private fun EditGameButton(onClick: () -> Unit) {
     }
 }
 
-/** A round + that opens the .exe picker. */
 @Composable
 private fun AddGameButton(onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
@@ -452,7 +418,6 @@ private fun AddGameButton(onClick: () -> Unit) {
     }
 }
 
-/** Fades and slides a row in once when [arriving]; nothing for one already there (or with animations off). */
 @Composable
 internal fun Modifier.arriveIn(arriving: Boolean): Modifier {
     val t = remember { androidx.compose.animation.core.Animatable(if (arriving) 0f else 1f) }
@@ -460,7 +425,6 @@ internal fun Modifier.arriveIn(arriving: Boolean): Modifier {
     return graphicsLayer { alpha = t.value; translationY = (1f - t.value) * 12.dp.toPx() }
 }
 
-/** One game in the list. Moving onto it with the pad shows it; A launches it, a tap only shows it. */
 @Composable
 private fun GameRow(g: Library.SteamGame, selected: Boolean, onSelect: () -> Unit, onLaunch: () -> Unit) {
     val colors = MaterialTheme.colorScheme
@@ -484,7 +448,6 @@ private fun GameRow(g: Library.SteamGame, selected: Boolean, onSelect: () -> Uni
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(g.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            // Where it came from beside when it was played: a store's games sit among Steam's own.
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 SourceChip(g.source, small = true)
                 Text(
@@ -496,7 +459,6 @@ private fun GameRow(g: Library.SteamGame, selected: Boolean, onSelect: () -> Uni
     }
 }
 
-/** A page's title, with room at its right for controls or status. */
 @Composable
 internal fun PageHeader(title: String, trailing: @Composable RowScope.() -> Unit = {}) {
     Row(
@@ -511,13 +473,11 @@ internal fun PageHeader(title: String, trailing: @Composable RowScope.() -> Unit
     }
 }
 
-/** Why a launch button is greyed out: the runtime is being worked on. Nothing when it is not. */
 @Composable
 internal fun BusyChip(s: FrontEndState) {
     if (s.busy) ActionChip(if (s.percent >= 0) stringResource(R.string.games_runtime_busy_percent, s.percent) else s.stage, ok = false)
 }
 
-/** Whether Steam can start, said where Play is rather than only in Setup. */
 @Composable
 internal fun RuntimeChip(s: FrontEndState) = when {
     s.busy -> Chip(if (s.percent >= 0) stringResource(R.string.setup_runtime_progress, s.stage, s.percent) else s.stage, ok = false)
@@ -527,12 +487,10 @@ internal fun RuntimeChip(s: FrontEndState) = when {
     else -> Chip(stringResource(R.string.games_runtime_ready), ok = true)
 }
 
-/** "Last played 3 days ago" from Steam's unix seconds; null for a game never played. */
 @Composable
 private fun lastPlayedText(lastPlayed: Long): String? =
     playedSpan(lastPlayed)?.let { stringResource(R.string.games_last_played, it.replaceFirstChar { c -> c.lowercase() }) }
 
-/** "3 days ago" from Steam's unix seconds; null for a game never played. */
 private fun playedSpan(lastPlayed: Long): String? {
     if (lastPlayed <= 0L) return null
     return android.text.format.DateUtils.getRelativeTimeSpanString(
@@ -540,10 +498,6 @@ private fun playedSpan(lastPlayed: Long): String? {
     ).toString()
 }
 
-/**
- * Where a never-played game lives, beside its source chip: Steam's library, the Games storage for
- * a store install (the chip names the store), "Custom game" for a folder the user added.
- */
 @Composable
 private fun libraryLabel(g: Library.SteamGame): String = when {
     g.library != Library.ADDED -> if (g.library == "internal") stringResource(R.string.games_internal) else g.library
@@ -551,11 +505,6 @@ private fun libraryLabel(g: Library.SteamGame): String = when {
     else -> ""
 }
 
-/**
- * A game's wide banner: Steam's hero art where the client cached one, else its capsule blurred to
- * fill the width. The copy sits bottom-left over a scrim of the ground colour so it always reads;
- * the art takes the banner's size, so a banner given a minimum height grows to fit its copy.
- */
 @Composable
 private fun GameHero(g: Library.SteamGame, modifier: Modifier, content: @Composable ColumnScope.() -> Unit) {
     val colors = MaterialTheme.colorScheme

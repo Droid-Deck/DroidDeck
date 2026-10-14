@@ -1,5 +1,3 @@
-/* The calls the fast path took over from proot, timed: run under fpoff and fastpath and compare.
- * Usage: fpbench <scratch dir in the guest> [iterations]. Builds a Wine-like prefix there. */
 #define _GNU_SOURCE
 #include <fcntl.h>
 #include <limits.h>

@@ -1,30 +1,3 @@
-/*
- * libssbs.so - keep PSTATE.SSBS set across signal returns, without rebuilding Wine.
- *
- * Wine's arm64 signal code writes PSTATE back from a Windows CONTEXT, whose Cpsr never carries
- * SSBS (bit 12). Every signal return through that code (exception fixups, NtSetContextThread on
- * another thread, the SIGUSR2 suspend path) therefore resumes the thread with SSBS clear, so the
- * CPU runs it with speculative store bypass disabled - slower on cores such as Oryon.
- * force_ssbs.diff (Sonicadvance1, FEX) fixes this inside ntdll; this library does the same from
- * outside, for Protons that cannot be rebuilt: the Valve, GE and CachyOS ARM64 builds DroidDeck
- * runs, which come prebuilt from Steam. Same source as Bannerlator's adapter (bionic), built here
- * for glibc.
- *
- * How: interpose sigaction()/signal() via LD_PRELOAD. Every handler is installed behind one
- * SA_SIGINFO trampoline that calls the real handler and then sets SSBS in the ucontext it is
- * about to return through. The kernel accepts SSBS from userspace on sigreturn and context-
- * switches it per thread, so the bit sticks until the next sigreturn. Handlers that never return
- * (siglongjmp) are unaffected either way.
- *
- * Env:
- *   SSBS_ADAPTER_DISABLE=1  pass everything through untouched.
- *   SSBS_ADAPTER_OBSERVE=1  wrap and count, but leave SSBS as the handler left it (the baseline).
- *   SSBS_ADAPTER_DEBUG=1    log to stderr (implied by OBSERVE):
- *     - "returned with SSBS clear": a handler was about to resume a thread without SSBS.
- *     - "arrived with SSBS clear": a thread was RUNNING without SSBS when a signal reached it.
- *       Under the adapter this should stop after each thread's first fixed return; if it keeps
- *       counting, something other than a signal return is clearing the bit.
- */
 #define _GNU_SOURCE
 #include <dlfcn.h>
 #include <signal.h>
@@ -41,7 +14,6 @@ typedef void (*sigact_fn)(int, siginfo_t *, void *);
 typedef void (*sighand_fn)(int);
 typedef int (*sigaction_fn)(int, const struct sigaction *, struct sigaction *);
 
-/* Per signal: the handler the program asked for, and whether it wanted SA_SIGINFO. */
 static _Atomic(void *) real_handler[MAX_SIG];
 static atomic_bool real_siginfo[MAX_SIG];
 
@@ -69,7 +41,6 @@ __attribute__((constructor)) static void ctor(void)
     if (debug) fprintf(stderr, "libssbs: loaded (%s)\n", disabled ? "disabled" : observe ? "observing only" : "active");
 }
 
-/* 1, 2, 4, 8, ...: enough lines to see a trend without flooding the log. */
 static int milestone(unsigned long n) { return (n & (n - 1)) == 0; }
 
 static void trampoline(int sig, siginfo_t *info, void *uc_v)
@@ -130,7 +101,6 @@ int sigaction(int sig, const struct sigaction *act, struct sigaction *oldact)
 
     void *prev_h = atomic_load(&real_handler[sig]);
     int prev_info = atomic_load(&real_siginfo[sig]);
-    /* Publish before installing so the trampoline never runs with a stale handler. */
     if (act && wrapped(new_h)) {
         atomic_store(&real_siginfo[sig], new_info);
         atomic_store_explicit(&real_handler[sig], new_h, memory_order_release);
@@ -142,7 +112,6 @@ int sigaction(int sig, const struct sigaction *act, struct sigaction *oldact)
         atomic_store(&real_handler[sig], prev_h);
     }
 
-    /* Report the caller's own handler, not the trampoline, so handler chaining keeps working. */
     if (ret == 0 && oldact && oldact->sa_sigaction == trampoline && prev_h) {
         if (prev_info) {
             oldact->sa_sigaction = (sigact_fn)prev_h;
@@ -167,7 +136,6 @@ sighandler_t signal(int sig, sighandler_t handler)
 
 sighandler_t bsd_signal(int sig, sighandler_t handler) { return signal(sig, handler); }
 
-/* glibc's System V flavour: a one-shot handler with no restart. */
 sighandler_t sysv_signal(int sig, sighandler_t handler)
 {
     struct sigaction sa, old;

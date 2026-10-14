@@ -1,11 +1,3 @@
-/*
- * binfmt_misc for the desktop, which proot does not have: an exec of an x86 Linux program, a Windows
- * program, or a program or script on noexec shared storage goes to droiddeck-open --exec, which runs
- * it under FEX, Proton or its interpreter. x86 and Windows programs are caught before the exec: proot
- * loads a static x86 program as a native one, which dies on its first instruction, and execvp runs a
- * Windows program as a shell script. A program on noexec storage also passes access(X_OK), which KIO
- * and Qt ask before they start one. Only in the desktop session.
- */
 #define _GNU_SOURCE
 #include <dlfcn.h>
 #include <elf.h>
@@ -27,7 +19,6 @@
 typedef int (*spawn_fn)(pid_t *, const char *, const posix_spawn_file_actions_t *, const posix_spawnattr_t *,
                         char *const[], char *const[]);
 
-/* BINFMT_TEST: tools/tests builds it for the host, whose own x86 programs stand in for foreign ones. */
 #if defined(__aarch64__) || defined(BINFMT_TEST)
 
 static int desktop(void) {
@@ -35,7 +26,6 @@ static int desktop(void) {
   return value && value[0] == '1' && value[1] == 0;
 }
 
-/* 1: x86 program or noexec storage, 2: Windows program, 3: script; 0 for anything else. */
 static int foreign(const char *path, int error) {
   if (!path || !strcmp(path, BINFMT_HANDLER)) return 0;
   int fd = open(path, O_RDONLY | O_CLOEXEC);
@@ -52,7 +42,6 @@ static int foreign(const char *path, int error) {
   } else if (n >= 2 && head[0] == '#' && head[1] == '!' && error == EACCES) {
     kind = 3;
   }
-  /* What the kernel refuses for its permissions stays refused; noexec storage has no execute bits to give. */
   struct statvfs vfs;
   int allowed = kind && (((st.st_mode & 0111) && error != EACCES) || (fstatvfs(fd, &vfs) == 0 && (vfs.f_flag & ST_NOEXEC)));
   close(fd);
@@ -63,7 +52,6 @@ static int wanted(const char *path, int error) {
   return (error == ENOEXEC || error == ENOENT || error == EACCES) && desktop() && foreign(path, error);
 }
 
-/* The program on PATH as execvp would find it, into [out]. */
 static int lookup(const char *file, char *out, size_t size) {
   if (!file || !*file) return 0;
   if (strchr(file, '/')) return snprintf(out, size, "%s", file) < (int)size;
@@ -111,19 +99,16 @@ static int spawn_handler(pid_t *pid, const char *path, const posix_spawn_file_ac
   return real(pid, BINFMT_HANDLER, fa, attr, args, envp);
 }
 
-/* Before an exec of [path]: an x86 or Windows program goes to the handler instead. */
 __attribute__((visibility("hidden"))) void bl_binfmt_before(const char *path, char *const argv[], char *const envp[]) {
   if (desktop() && foreign(path, ENOEXEC)) hand_off(path, argv, envp);
 }
 
-/* After a failed exec of [path]: the handler takes it over, or the exec's own error stands. */
 __attribute__((visibility("hidden"))) int bl_binfmt_retry(const char *path, char *const argv[], char *const envp[], int error) {
   if (wanted(path, error)) hand_off(path, argv, envp);
   errno = error;
   return -1;
 }
 
-/* The same around execvp, for the program it finds on PATH. */
 __attribute__((visibility("hidden"))) void bl_binfmt_before_search(const char *file, char *const argv[], char *const envp[]) {
   char path[PATH_MAX];
   if (desktop() && lookup(file, path, sizeof path)) bl_binfmt_before(path, argv, envp);
@@ -136,7 +121,6 @@ __attribute__((visibility("hidden"))) int bl_binfmt_after_search(const char *fil
   return -1;
 }
 
-/* After access(X_OK) of [path] was refused (pathcache.c): a program on noexec storage runs all the same. */
 __attribute__((visibility("hidden"))) int bl_binfmt_runnable(const char *path, int mode) {
   if (mode != X_OK || !desktop()) return 0;
   int runs = foreign(path, EACCES) != 0;

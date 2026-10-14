@@ -1,5 +1,4 @@
 #!/bin/bash
-# Port the old desktop's melonDS window rule once; later window rules belong to the user.
 set -euo pipefail
 config=${XDG_CONFIG_HOME:-$HOME/.config}
 marker=$config/droiddeck-window-rules-v1

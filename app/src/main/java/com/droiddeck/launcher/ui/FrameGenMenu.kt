@@ -8,11 +8,6 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.gpu.FrameGen
 import com.droiddeck.launcher.gpu.Lossless
 
-/**
- * The frame generation picker, anchored to whatever opened it (host key "fg"). One copy for Setup,
- * a game's launch settings and the session drawer, so they say the same thing. Importing a
- * Lossless.dll is offered once the account is known to own Lossless Scaling.
- */
 @Composable
 internal fun FrameGenMenu(
     host: MenuHost, mode: FrameGen.Mode, lossless: Lossless.State,

@@ -119,6 +119,32 @@ class LayoutTest(unittest.TestCase):
         inst.select()
         self.assertEqual(inst.included_components, {"Up", "Wide"})
 
+    def test_a_duplicate_onto_the_file_itself_is_skipped(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "cab" / "dotnet.exe"
+            src.parent.mkdir()
+            src.write_bytes(b"MZ")
+            out = Path(tmp) / "out"
+            inst = installer({
+                "Directory": rows("Directory Directory_Parent DefaultDir",
+                                  ("TARGETDIR", "", "SourceDir"),
+                                  ("ProgramFilesFolder", "TARGETDIR", "PFiles"),
+                                  ("DOTNETHOME", "ProgramFilesFolder", "dotnet"),
+                                  ("DOTNETHOME_X86", "ProgramFilesFolder", "dotnet")),
+                "Component": rows("Component Directory_ Attributes Condition KeyPath",
+                                  ("Host", "DOTNETHOME", "0", "", "DotnetExe")),
+                "Feature": rows("Feature Feature_Parent Level", ("Main", "", "1")),
+                "FeatureComponents": rows("Feature_ Component_", ("Main", "Host")),
+                "File": rows("File Component_ FileName", ("DotnetExe", "Host", "dotnet.exe")),
+                "DuplicateFile": rows("FileKey Component_ File_ DestName DestFolder",
+                                      ("Dup", "Host", "DotnetExe", "", "DOTNETHOME_X86")),
+            }, out=str(out))
+            inst.select()
+            inst.install_files({"DotnetExe": src})
+            placed = out / "drive_c/Program Files (x86)/dotnet/dotnet.exe"
+            self.assertEqual(placed.read_bytes(), b"MZ")
+            self.assertEqual(inst.counts["files"], 1)
+
     def test_global_assembly_paths(self):
         with tempfile.TemporaryDirectory() as tmp:
             dll = Path(tmp) / "a.dll"
@@ -240,13 +266,11 @@ class RegistryApplyTest(unittest.TestCase):
         text = (self.pfx / "system.reg").read_text()
         self.assertIn('"Version"="4.0"', text)
         self.assertIn('"Kept"="mine"', text)
-        # Through the Wow6432Node\Classes link into the shared Classes\Wow6432Node key, never under the link.
         self.assertIn('[Software\\\\Classes\\\\Wow6432Node\\\\CLSID\\\\{X}]', text)
         self.assertNotIn('[Software\\\\Wow6432Node\\\\Classes\\\\CLSID', text)
         self.assertIn('"PATH"=str(2):"C:\\\\PhysX;%SystemRoot%\\\\system32;%SystemRoot%"', text)
         self.assertNotIn("[System\\\\CurrentControlSet\\\\", text)
         self.assertIn('"Opt"=dword:00000002', (self.pfx / "user.reg").read_text())
-        # The prefix's own spelling of Program Files (x86) is kept.
         self.assertTrue((self.pfx / "drive_c/program files (x86)/Microsoft XNA/xna.dll").is_file())
         self.assertFalse((self.pfx / "drive_c/Program Files (x86)").exists())
 

@@ -18,18 +18,9 @@ import java.util.zip.GZIPInputStream
 import javax.net.ssl.SSLSocket
 import javax.net.ssl.SSLSocketFactory
 
-/**
- * Steam's own app info (PICS) for apps the client in the runtime has never seen, asked of Steam
- * anonymously: a connection to one of Steam's connection managers (the list from Steam's public
- * ISteamDirectory/GetCMListForConnect, the WebSocket transport Steam's web clients use), an
- * anonymous logon - no account, nothing of the user's Steam sign-in - a request for the apps'
- * access tokens and then their product info, the app KeyValues read for their Steamworks Shared
- * depots and name, and the connection closed. What steamcmd's anonymous `app_info_print` sees.
- */
 object SteamPics {
     private const val TAG = "SteamPics"
     private const val CM_LIST = "https://api.steampowered.com/ISteamDirectory/GetCMListForConnect/v1/?cellid=0&format=json"
-    /** At most this many apps per request. */
     const val BATCH = 25
     private const val PROTO = 0x80000000.toInt()
     private const val EMSG_MULTI = 1
@@ -41,13 +32,8 @@ object SteamPics {
     private const val EMSG_INFO_REQUEST = 8903
     private const val EMSG_INFO_RESPONSE = 8904
     private const val PROTOCOL_VERSION = 65580
-    /** An anonymous user's SteamID: universe Public, account type AnonUser, instance 0. */
     private const val ANON_STEAMID = (1L shl 56) or (10L shl 52)
 
-    /**
-     * [appIds]' info, one connection for all of them in batches of [BATCH]: each known app's
-     * info, null for an app Steam does not know. Null when Steam could not be reached. Blocking.
-     */
     fun lookup(appIds: List<Int>): Map<Int, SteamAppInfo.Info?>? {
         if (appIds.isEmpty()) return emptyMap()
         val host = runCatching { cmHost() }.getOrNull() ?: return null
@@ -56,7 +42,6 @@ object SteamPics {
                 ws.send(message(EMSG_LOGON, header(ANON_STEAMID, 0), Proto().varint(1, PROTOCOL_VERSION.toLong()).varint(7, 16).string(6, "english").bytes()))
                 var steamId = 0L
                 var session = 0
-                // The logon's answer (other messages before it are passed over).
                 loop@ while (true) for ((emsg, hdr, body) in messages(ws.receive() ?: return null)) if (emsg == EMSG_LOGON_RESPONSE) {
                     val h = fields(hdr); val b = fields(body)
                     if ((b[1]?.firstOrNull() as? Long ?: 0L) != 1L) { Log.w(TAG, "anonymous logon refused: ${b[1]}"); return null }
@@ -99,10 +84,8 @@ object SteamPics {
         }
     }
 
-    /** [appIds] in requests of at most [BATCH], each once. */
     fun batches(appIds: List<Int>): List<List<Int>> = appIds.distinct().chunked(BATCH)
 
-    /** A connection manager for the WebSocket transport, least loaded first as Steam lists them. */
     private fun cmHost(): String? {
         val c = URL(CM_LIST).openConnection() as HttpURLConnection
         c.connectTimeout = 10_000; c.readTimeout = 10_000
@@ -112,11 +95,9 @@ object SteamPics {
             .firstOrNull { it.optString("type") == "websockets" }?.optString("endpoint")?.substringBefore(':')
     }
 
-    // ---- the product info answer ----
 
     class InfoResponse(val apps: Map<Int, SteamAppInfo.Info>, val unknown: List<Int>, val pending: Boolean)
 
-    /** A CMsgClientPICSProductInfoResponse: each app's KeyValues read, the unknown ones, whether more follows. */
     @VisibleForTesting
     internal fun parseInfoResponse(body: ByteArray): InfoResponse {
         val f = fields(body)
@@ -132,17 +113,14 @@ object SteamPics {
         return InfoResponse(apps, unknown, (f[6]?.firstOrNull() as? Long ?: 0L) != 0L)
     }
 
-    /** An app's KeyValues text ("appinfo" { "common" {...} "depots" {...} }) to its name and shared depots. */
     @VisibleForTesting
     internal fun infoFromKeyValues(text: String): SteamAppInfo.Info? {
-        // The buffer ends in a NUL, kept or not by whoever handed it over.
         val tree = runCatching { KeyValues(text.trimEnd('\u0000', ' ', '\n', '\r', '\t')).read() }.getOrNull() ?: return null
         @Suppress("UNCHECKED_CAST")
         val app = tree["appinfo"] as? Map<String, Any> ?: return null
         return SteamAppInfo.infoOf(app)
     }
 
-    /** Valve's text KeyValues: quoted keys and values, nested braces. */
     private class KeyValues(private val s: String) {
         private var i = 0
         fun read(): Map<String, Any> = map(top = true)
@@ -182,7 +160,6 @@ object SteamPics {
         }
     }
 
-    // ---- messages ----
 
     private fun header(steamId: Long, session: Int) = Proto().fixed64(1, steamId).varint(2, session.toLong()).bytes()
 
@@ -190,7 +167,6 @@ object SteamPics {
         ByteBuffer.allocate(8 + header.size + body.size).order(ByteOrder.LITTLE_ENDIAN)
             .putInt(emsg or PROTO).putInt(header.size).put(header).put(body).array()
 
-    /** One message off the wire as (emsg, header, body); a Multi unpacked (gunzipped when it says so) into the ones inside. */
     @VisibleForTesting
     internal fun messages(data: ByteArray): List<Triple<Int, ByteArray, ByteArray>> {
         if (data.size < 8) return emptyList()
@@ -217,9 +193,7 @@ object SteamPics {
         return out
     }
 
-    // ---- protobuf, the little needed ----
 
-    /** Writes protobuf fields. */
     @VisibleForTesting
     internal class Proto {
         private val out = ByteArrayOutputStream()
@@ -231,7 +205,6 @@ object SteamPics {
         fun bytes(): ByteArray = out.toByteArray()
     }
 
-    /** Reads protobuf fields: number to values (Long for varint and fixed, ByteArray for length-delimited). */
     @VisibleForTesting
     internal fun fields(b: ByteArray): Map<Int, List<Any>> {
         val out = HashMap<Int, MutableList<Any>>()
@@ -258,16 +231,13 @@ object SteamPics {
         return out
     }
 
-    // ---- WebSocket over TLS, binary frames ----
 
     private class Wss(host: String, timeoutMs: Int) : AutoCloseable {
-        // Made with the host name, so it goes out as SNI.
         private val socket: SSLSocket = (SSLSocketFactory.getDefault().createSocket(host, 443) as SSLSocket).apply { soTimeout = timeoutMs }
         private val out: OutputStream
         private val input: DataInputStream
 
         init {
-            // Host name checked against the certificate, as HTTPS does.
             socket.sslParameters = socket.sslParameters.apply { endpointIdentificationAlgorithm = "HTTPS" }
             socket.startHandshake()
             out = socket.outputStream
@@ -305,7 +275,6 @@ object SteamPics {
             out.write(frame.toByteArray()); out.flush()
         }
 
-        /** The next binary message (fragments joined); null on close. */
         fun receive(): ByteArray? {
             val message = ByteArrayOutputStream()
             while (true) {

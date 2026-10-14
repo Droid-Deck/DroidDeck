@@ -1,4 +1,3 @@
-// JNI symbols depend on this package path and class name (app/src/main/rust/stores/JNI.md).
 package com.droiddeck.launcher.stores.epic
 
 import android.util.Log
@@ -8,35 +7,16 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
-/**
- * The native half of an Epic install in `libdroiddeckstores.so`: [run] fills the chunk cache with
- * verified, decompressed chunks for the files the manager says are pending, [assemble] writes those
- * files from the cache. Everything around them (manifest, install tags, delta pass, post-install)
- * stays in the manager.
- *
- * The cache is `<installDir>/.chunks` when `chunkCacheDir` is `""`, else the scratch folder given -
- * the app's own cache when the game installs to a card, where the assembler drops each chunk right
- * after its last use and the folder at the end. Both calls take the same value for one install.
- *
- * Both block like the Java loops they replace and poll [AtomicBoolean] `cancel` every 250 ms: on
- * cancel they flip the native flag, wait up to 5 s for the run to wind down, then return.
- */
 object EpicNative {
     private const val TAG = "EpicNative"
 
-    /** Callbacks from a native run; every method is called on a native thread. One interface serves both runs. */
     interface Listener {
-        /** Fetch only, once before any fetch: the plan the engine derived (the manager cross-checks it). */
         fun onPlan(chunksTotal: Int, bytesTotal: Long, chunkDir: String)
-        /** Fetch: per accounted chunk (cached-skip or fetched), done/total = chunks. Assembly: per file written, done/total = files. */
         fun onProgress(bytesDone: Long, bytesTotal: Long, done: Int, total: Int)
-        /** Engine log line (already in logcat under `EpicNative`). */
         fun onLog(line: String)
-        /** Terminal. Fetch: bytes credited; assembly: bytes written. */
         fun onComplete(success: Boolean, error: String, bytes: Long)
     }
 
-    /** Outcome of a run. `started == false`: nothing happened on disk, the caller runs its own loop. */
     class Result(
         @JvmField val started: Boolean, @JvmField val success: Boolean, @JvmField val cancelled: Boolean,
         @JvmField val error: String, @JvmField val bytes: Long, @JvmField val done: Int, @JvmField val total: Int,
@@ -44,7 +24,6 @@ object EpicNative {
 
     private class Completion(val success: Boolean, val error: String, val bytes: Long)
 
-    /** The fetch: chunks for [pendingFileIdx] into the cache. */
     @JvmStatic
     fun run(
         manifest: ByteArray, installDir: String, chunkCacheDir: String, cdnPrefixes: Array<String>, pendingFileIdx: IntArray, expectedChunks: Int, expectedBytes: Long,
@@ -53,7 +32,6 @@ object EpicNative {
         nativeStart(manifest, installDir, chunkCacheDir, cdnPrefixes, pendingFileIdx, expectedChunks, expectedBytes, caBundlePath, maxWorkers, processWorkers, inner)
     }
 
-    /** The assembly: the files [fileIdx] written from the cache, the cache removed on success. */
     @JvmStatic
     fun assemble(manifest: ByteArray, installDir: String, chunkCacheDir: String, fileIdx: IntArray, cancel: AtomicBoolean?, listener: Listener): Result =
         drive("nativeAssemble", cancel, listener) { inner -> nativeAssemble(manifest, installDir, chunkCacheDir, fileIdx, inner) }
