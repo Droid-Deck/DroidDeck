@@ -45,6 +45,35 @@ with a placeholder job. Failures are kept in the Downloads UI, notification and 
 duplicated as transient failure toasts. Active queue persistence and ordinary backend pause/retry
 are unchanged.
 
+Epic installs have three writers, all with the same per-file safety rules (below):
+
+- **Adaptive (default when `libdroiddeckstores.so` loads)** - `EpicNative.stream`,
+  `epic/stream.rs`. The chunks go through the shared fetch core in the order their files need
+  them, with its full adaptivity (window ramp, per-host caps, in-flight byte budget, retries,
+  host rotation, stall handoff). A chunk only one file part uses is verified and written straight
+  into that file's staging file at the part's offset, in whatever order it arrives; no cache. A
+  chunk several parts use is written into every part whose file the download has reached and kept,
+  decompressed, in the cache until its last part is written. The cache has a byte budget; the plan
+  simulates the install in file order and, when the budget would be exceeded, drops the cached
+  chunk needed furthest ahead and downloads it again later. Files are opened only once the
+  download reaches them, so the set of half-written files stays within the fetch window. All writes
+  happen in the fetch core's process pool, whose completion frees the in-flight byte budget: a slow
+  card throttles the download instead of growing memory. Each file's SHA-1 is computed as its
+  parts are written (parts that arrived out of order are read back once the bytes before them are
+  in). The run logs `stream-plan` (direct vs shared chunks, planned refetches, budget) and
+  `stream-summary mode=adaptive` (peak cache, peak staging, refetches, bytes written from the
+  download vs from the cache, average MB/s).
+- **Bounded Java** - when the library does not load or link, when the engine refuses the plan,
+  or when the adaptive space plan does not fit while this one might. It fetches one chunk at a
+  time, verifies it, and writes the required parts into the current game file. Chunks are deleted
+  after their last use; reusable chunks are retained up to 64 MiB, with at most one additional
+  incoming chunk before eviction. Evicted shared chunks may be downloaded again. It logs
+  `epic: summary mode=java-bounded`.
+- **Batch** - the earlier native design, kept for A/B benchmarks: every chunk fetched into the
+  cache in parallel, then the files assembled from it (`EpicNative.run` + `EpicNative.assemble`).
+  It needs the cache and the files at once (about twice the game) and checks exactly that before
+  starting; it writes files in place, so an existing install is marked `updating` before assembly.
+  It logs `epic: summary mode=batch`.
 Epic installs use **native adaptive fetch/assembly** when `libdroiddeckstores.so` loads.
 The Java delta pass sends a versioned snapshot of pending files, chunk metadata, verified cache
 lengths, old output lengths and both measured free-space probes to Rust. The native planner and
@@ -98,7 +127,25 @@ the cache before assembly. Production native adaptive and Java fallback paths in
 network fetches with assembly without retaining a whole-game cache. No native or Java throughput
 benchmark is claimed.
 
-The bounded Epic download bar, measured rate and ETA count pending file bytes written, not unique
+The writer is chosen by the hidden `storesEpicMode` string in the `session` preferences:
+`adaptive` (default), `batch` or `java`. There is no UI for it; set it on a test device to compare
+the modes on the same game.
+
+The adaptive space plan (`EpicDownloadManager.planAdaptiveSpace`, unit-tested in
+`EpicAdaptivePlanTest`) checks each volume for what lands on it. The game volume: the sequential
+staged-file peak (remaining file bytes, each replaced file's old copy credited only after its
+swap), plus, for an update, the largest old file plus 256 MiB for files finishing out of order
+within the fetch window, plus the cache when it is beside the game. The cache volume: the budget
+plus 64 MiB of chunks in transit. The budget is half the cache volume's free space after those
+needs, at most 1 GiB (256 MiB when free space is unknown; 0 is allowed and means every reuse is a
+refetch). On a card install the cache stays on internal scratch unless internal storage cannot
+hold at least 64 MiB of it; then the cache goes beside the game (still released chunk by chunk)
+instead of failing. A plan that does not fit names the short storage and the shortfall in the log
+and hands over to the bounded writer, whose own checks decide. Running out of space in the middle
+of an adaptive run is not destructive: a failed write fails the run, unfinished staging files are
+removed, the old files stay.
+
+The Epic download bar, measured rate and ETA (adaptive and bounded) count pending file bytes written, not unique
 compressed chunks fetched. Shared chunks therefore cannot complete the bar before later files
 are written, and an evicted chunk's refetch is reflected in the time spent doing that work.
 Streaming stays in the Download stage until all files are written and verified, then enters
