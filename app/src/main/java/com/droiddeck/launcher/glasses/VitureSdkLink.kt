@@ -12,6 +12,7 @@ internal class VitureSdkLink private constructor(
     private val connection: UsbDeviceConnection,
     private val token: Long,
     private val listener: Listener,
+    family: VitureProtocol.Family?,
 ) : GlassesLink {
     interface Listener {
         fun onValue(msgId: Int, value: Int)
@@ -24,7 +25,7 @@ internal class VitureSdkLink private constructor(
     @Volatile private var tracking = false
     override val ready: Boolean get() = running
     override val hasImu = true
-    private val carina = VitureSdk.nativeType(token) == VitureSdk.CARINA
+    private val openGlAxes = VitureSdkPose.usesOpenGlAxes(VitureSdk.nativeType(token) == VitureSdk.CARINA, family)
     private val worker = Thread({ poll() }, "viture-sdk-pose").apply { isDaemon = true; start() }
 
     override fun send(msgId: Int, payload: ByteArray): Boolean = synchronized(lock) {
@@ -87,7 +88,7 @@ internal class VitureSdkLink private constructor(
             }
             if (timestamp > 0) {
                 failures = 0
-                VitureSdkPose.toGlasses(pose, carina)?.let { listener.onPose(it, timestamp) }
+                VitureSdkPose.toGlasses(pose, openGlAxes)?.let { listener.onPose(it, timestamp) }
             } else if (timestamp == -2L || timestamp == -3L) {
                 if (++failures >= 10) {
                     Log.w("VitureSdkLink", "closing after $failures pose USB errors; last SDK result: $timestamp")
@@ -111,7 +112,8 @@ internal class VitureSdkLink private constructor(
     }
 
     companion object {
-        fun open(usb: UsbManager, device: UsbDevice, cacheDirectory: File, listener: Listener): VitureSdkLink? {
+        fun open(usb: UsbManager, device: UsbDevice, cacheDirectory: File, listener: Listener,
+            family: VitureProtocol.Family? = null): VitureSdkLink? {
             if (!VitureSdk.available) return null
             val conn = usb.openDevice(device) ?: return null
             val token = runCatching {
@@ -119,7 +121,7 @@ internal class VitureSdkLink private constructor(
                 VitureSdk.nativeOpen(device.productId, conn.fileDescriptor, cacheDirectory.absolutePath)
             }.onFailure { Log.w("VitureSdkLink", "SDK initialization failed", it) }.getOrDefault(0)
             if (token <= 0) { conn.close(); return null }
-            return runCatching { VitureSdkLink(conn, token, listener) }.getOrElse {
+            return runCatching { VitureSdkLink(conn, token, listener, family) }.getOrElse {
                 VitureSdk.nativeClose(token)
                 conn.close()
                 Log.w("VitureSdkLink", "SDK worker could not start", it)

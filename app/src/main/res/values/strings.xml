@@ -2330,4 +2330,7 @@
     <string name="glasses_calibration_reset">Reset tracking calibration</string>
     <string name="glasses_calibration_reset_hint">Remove the saved calibration and restore the model defaults? Recenter after putting the glasses back on.</string>
     <string name="glasses_calibration_reset_button">Reset</string>
+    <string name="glasses_xreal_network_missing">Waiting for the glasses’ USB Ethernet connection. This phone may not expose it to apps.</string>
+    <string name="glasses_xreal_connection_failed">The XREAL connection was interrupted or returned an unsupported response. Retrying…</string>
+    <string name="glasses_xreal_experimental">Experimental 1S support. Use Follow mode and disable stabilization in the glasses menu. Tracking directions and display modes still need device testing.</string>
 </resources>

@@ -55,7 +55,7 @@ The parser/filter are adapted from the user's scaffold at
 with little-endian acceleration at byte 4, gyro (degrees/sec) at 16 and a uint32
 100us device tick at 40. Fragmented and coalesced reports are assembled before decoding.
 Board 0x3a (Air 4 Pro) receives the scaffold's -20-degree X IMU mounting correction.
-GT `3941:af50` instead uses the mapping measured on GT Max on 2026-10-14:
+GT Max (`3941:af50`, board `0x41`) uses the mapping measured on 2026-10-14:
 gyro and acceleration `(-y, z, -x)`, then +35 degrees around X.
 At the user's level pose the raw acceleration was approximately
 `(5.70, 0.00, 7.95)` m/s². A directed left-turn-and-hold capture produced positive
@@ -65,7 +65,26 @@ not manufacturer calibration; frame fit and other GT variants remain unverified.
 Gravity initializes orientation before the first published pose. Subsequent
 body-to-world fusion uses `measuredUp × predictedUp`, correcting tilt toward gravity
 instead of amplifying the error. These fusion corrections also apply to Air;
-the GT sensor remapping does not apply to Air or VITURE.
+the GT Max sensor remapping does not apply to Air or VITURE.
+
+The non-Max GT shares USB `3941:af50` but reports board `0x40`, confirmed by
+switching between both physical pairs on the same phone. Its sensor axes use
+the ordinary XYZ basis with a measured -25-degree X mounting correction, rather
+than the Max permutation. Its confirmed upside-down resting acceleration was
+approximately `(0.020, -8.819, -4.106)` m/s²; the worn level capture was near
+`(0.09, 9.26, 3.11)`. Left turns produced positive Y/Z gyro. The mounting estimate
+uses the resting surface; per-device calibration refines its tilt and gyro bias.
+Both the pose filter and calibration collector select the same board profile.
+Non-Max calibration keys have a `:gt-standard-v1` suffix so they cannot replace
+existing Max profiles when USB identity fields coincide. Calibration loading
+waits for the device-info response; detached-device callbacks cannot change the
+replacement device's calibration key. Existing Max keys remain compatible.
+After installing this correction, the non-Max completed the upside-down
+calibration on the phone with `saved=true`, phase `SAVED`, progress 100.
+All 186 glasses/shared-pose/SteamVR-launch/UI regression checks passed and the
+installed APK's packaged runtime inputs verified. After calibration and the
+recenter check, the wearer confirmed on 2026-10-14 that the non-Max GT view
+looks and feels good.
 
 ## Existing pose and SteamVR pipeline
 

@@ -98,6 +98,7 @@ internal fun GlassesGroups(
     val virtualScreen = outputActive && picture == GlassesRendering.Picture.VIRTUAL_SCREEN
     val directView = outputActive && picture == GlassesRendering.Picture.STEREO
     if (display) SettingsGroup(g.model) {
+        if (g.experimental) SettingsRow(stringResource(R.string.glasses_control), stringResource(R.string.glasses_xreal_experimental)) {}
         val status = if (g.hasDisplay) stringResource(R.string.glasses_status, g.width, g.height, kotlin.math.round(g.hz).toInt(),
             stringResource(if (g.sbs) R.string.glasses_mode_3d else R.string.glasses_mode_2d)) else null
         when {
@@ -162,9 +163,9 @@ internal fun GlassesGroups(
             format = { "$it°" }, modifier = track("glasses-vr-fov")) { Glasses.setVrFovDeg(it) }
     }
     if ((tab == null || tab == GlassesTab.HARDWARE) && g.canControl && g.hardwareControls) SettingsGroup(stringResource(R.string.glasses_hardware)) {
-        SliderRow(stringResource(R.string.glasses_brightness), null, g.brightness.coerceAtLeast(0), 0..g.brightnessMax, step = 1,
+        if (g.brightnessMax > 0) SliderRow(stringResource(R.string.glasses_brightness), null, g.brightness.coerceAtLeast(0), 0..g.brightnessMax, step = 1,
             modifier = track("glasses-brightness")) { Glasses.setBrightness(it) }
-        SliderRow(stringResource(R.string.glasses_volume), null, g.volume.coerceAtLeast(0), 0..g.volumeMax, step = 1,
+        if (g.volumeMax > 0) SliderRow(stringResource(R.string.glasses_volume), null, g.volume.coerceAtLeast(0), 0..g.volumeMax, step = 1,
             modifier = track("glasses-volume")) { Glasses.setVolume(it) }
         if (g.hasSunblock) ToggleRow(host, "glasses-sunblock", stringResource(R.string.glasses_sunblock), stringResource(R.string.glasses_sunblock_hint),
             g.sunblock, chipModifier = track("glasses-sunblock")) { Glasses.setSunblock(it) }
