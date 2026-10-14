@@ -1,0 +1,11 @@
+#!/bin/sh
+export XDG_SESSION_TYPE=x11
+starts=/tmp/droiddeck-mangoapp-starts
+now=$(date +%s)
+recent=$(awk -v now="$now" '$1 > now - 60' "$starts" 2>/dev/null)
+printf '%s\n%s\n' "$recent" "$now" | sed '/^$/d' > "$starts"
+if [ "$(wc -l < "$starts")" -gt 5 ]; then
+  echo "mangoapp: started $(wc -l < "$starts") times in 60 s; the performance overlay stays off for this session" >&2
+  exec sleep infinity
+fi
+LD_LIBRARY_PATH=/usr/local/lib/mangoapp${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH} exec /usr/local/lib/mangoapp/mangoapp "$@"

@@ -1,0 +1,107 @@
+Thor SD storage investigation: selected saved evidence
+Recorded 2026-10-04; event timestamps are EDT.
+These are excerpts, not complete logs or a continuous attribution profile.
+See ../thor-sd-storage-investigation.md for context and live-only observations.
+
+=== Reporter unsupported allocation ===
+Source: Reporter diagnostic storage.log
+volume_removable=true
+filesystem=fuse
+allocation pid=29062 comm=steam api=fallocate result=-1 api_error=95 errno_after=95 flags=0x0 offset=0 length=374272 elapsed_us=212
+
+=== Thor unsupported allocation ===
+Source: candidate-storage.log
+volume_removable=true
+filesystem=fuse
+allocation pid=9810 comm=steam api=fallocate result=-1 api_error=95 errno_after=95 flags=0x0 offset=0 length=650752 elapsed_us=310
+
+=== Native-path allocation diagnostics ===
+Source: direct-storage-completed.log / session 64
+DroidDeck storage diagnostics v1
+selected_library=secondary
+volume_removable=true
+filesystem=exfat
+truncate_allocation_probe=passed
+block_size_bytes=131072
+total_bytes=393855500288
+available_bytes=101076697088
+native_observation=enabled
+public_symbol_interposition=enabled
+direct_syscalls_and_libc_internal_calls=not_observed
+pwrite_timing=sampled_1_in_32
+per_process_allocation_detail_limit=64
+storage_log_limit_bytes=524288
+summary pid=26725 comm=python3 allocation_calls=0 allocation_failures=0 allocation_total_us=0 pwrite_sample_every=32 pwrite_samples=0 pwrite_bytes=0 pwrite_failures=0 pwrite_sample_total_us=0 pwrite_sample_max_us=0 ftruncate_calls=0 ftruncate_failures=0 ftruncate_total_us=0 ftruncate_max_us=0 fstat_calls=1 fstat_total_us=0 fstat_max_us=0 fsync_calls=0 fsync_failures=0 fsync_total_us=0 fsync_max_us=0
+allocation pid=26825 comm=steam api=fallocate_ftruncate result=0 api_error=0 errno_after=0 flags=0x0 offset=0 length=667648 elapsed_us=387
+allocation pid=26825 comm=steam api=fallocate_ftruncate result=0 api_error=0 errno_after=0 flags=0x0 offset=0 length=39 elapsed_us=32
+allocation pid=26825 comm=steam api=fallocate_ftruncate result=0 api_error=0 errno_after=0 flags=0x0 offset=0 length=156 elapsed_us=25
+allocation pid=26825 comm=steam api=fallocate_ftruncate result=0 api_error=0 errno_after=0 flags=0x0 offset=0 length=457428 elapsed_us=351
+allocation pid=26825 comm=steam api=fallocate_ftruncate result=0 api_error=0 errno_after=0 flags=0x0 offset=0 length=901928 elapsed_us=864
+allocation pid=26825 comm=steam api=fallocate_ftruncate result=0 api_error=0 errno_after=0 flags=0x0 offset=0 length=15041920 elapsed_us=15292
+allocation pid=26825 comm=steam api=fallocate_ftruncate result=0 api_error=0 errno_after=0 flags=0x0 offset=0 length=337563 elapsed_us=2783
+
+=== Fresh real Steam install ===
+Source: direct-content-completed.log / session 64
+[2026-10-04 17:31:20] AppID 1675830 App update changed : Running Update,Preallocating,
+[2026-10-04 17:38:04] AppID 1675830 preallocated 2216 files (7626 MB)
+[2026-10-04 17:38:06] AppID 1675830 App update changed : Running Update,Downloading,Staging,
+[2026-10-04 17:45:25] AppID 1675830 App update changed : Running Update,Committing,
+[2026-10-04 17:45:25] AppID 1675830 starting commit from "/mnt/droiddeck-sd/steamapps/downloading/1675830" to "/mnt/droiddeck-sd/steamapps/common/1000xRESIST" : 2230 updated, 0 moved, 0 deleted files
+[2026-10-04 17:47:55] AppID 1675830 state changed : Fully Installed,Update Queued,Update Running,
+[2026-10-04 17:47:55] AppID 1675830 finished update, 1 mounted depots (BuildID 21498291) : 1675831 (3663189783241284849),
+[2026-10-04 17:47:56] AppID 1675830 state changed : Fully Installed,Update Queued,
+[2026-10-04 17:47:56] AppID 1675830 state changed : Fully Installed,
+[2026-10-04 17:47:56] AppID 1675830 scheduler finished : removed from schedule (result No Error, state 0xc)
+
+=== Normal-app native/FUSE directory read ===
+Source: app-raw-probe-session.log / session 62
+APP_RAW_PROBE uid=10195 path=/mnt/media_rw/FF7F-F56A/Android/data/com.droiddeck.launcher/files/steam/steamapps/downloading/1675830-fuse-control/1000xRESIST_Data/StreamingAssets/aa/StandaloneWindows64 seconds=0.002288 calls=2 bytes=154920 read_error=0
+APP_RAW_PROBE uid=10195 path=/storage/FF7F-F56A/Android/data/com.droiddeck.launcher/files/steam/steamapps/downloading/1675830-fuse-control/1000xRESIST_Data/StreamingAssets/aa/StandaloneWindows64 seconds=0.501306 calls=112 bytes=154872 read_error=0
+
+=== Binding regression: bind-probe-before.log ===
+Source: bind-probe-before.log
+BIND_PROBE index=0 pass=1 errno=0 bytes=17 path=/mnt/droiddeck-sd/steamapps/common/SteamLinuxRuntime_4-arm64/.droiddeck-bind-probe
+BIND_PROBE index=1 pass=1 errno=0 bytes=17 path=/mnt/droiddeck-sd/steamapps/common/steamlinuxruntime_4-arm64/.droiddeck-bind-probe
+BIND_PROBE index=2 pass=0 errno=2 bytes=-1 path=/mnt/droiddeck-sd/steamapps/common/proton experimental (arm64)/.droiddeck-bind-probe
+BIND_PROBE index=3 pass=0 errno=2 bytes=-1 path=/mnt/bannerlator-sd/steamapps/shadercache/.droiddeck-bind-probe
+
+=== Binding regression: bind-probe-after.log ===
+Source: bind-probe-after.log
+BIND_PROBE index=0 pass=1 errno=0 bytes=17 path=/mnt/droiddeck-sd/steamapps/common/SteamLinuxRuntime_4-arm64/.droiddeck-bind-probe
+BIND_PROBE index=1 pass=1 errno=0 bytes=17 path=/mnt/droiddeck-sd/steamapps/common/steamlinuxruntime_4-arm64/.droiddeck-bind-probe
+BIND_PROBE index=2 pass=1 errno=0 bytes=17 path=/mnt/droiddeck-sd/steamapps/common/proton experimental (arm64)/.droiddeck-bind-probe
+BIND_PROBE index=3 pass=1 errno=0 bytes=17 path=/mnt/bannerlator-sd/steamapps/shadercache/.droiddeck-bind-probe
+
+=== Root metadata/mount experiment: metadata-mount-comparison.log ===
+Source: metadata-mount-comparison.log
+original_mount
+/dev/block/vold/public:179,1 /mnt/media_rw/FF7F-F56A exfat rw,dirsync,nosuid,nodev,noexec,noatime,uid=1023,gid=1023,fmask=0007,dmask=0007,allow_utime=0020,iocharset=utf8,errors=remount-ro 0 0
+files=64 bytes_per_file=262144 open_seconds=6.707435 truncate_seconds=0.084806 wall_seconds=6.794807 error=0
+mount: '/dev/block/vold/public:179,1'->'/mnt/media_rw/FF7F-F56A': Invalid argument
+mount: '/dev/block/vold/public:179,1'->'/mnt/media_rw/FF7F-F56A': Invalid argument
+
+=== Root metadata/mount experiment: metadata-syscall-comparison.log ===
+Source: metadata-syscall-comparison.log
+original_mount
+/dev/block/vold/public:179,1 /mnt/media_rw/FF7F-F56A exfat rw,dirsync,nosuid,nodev,noexec,noatime,uid=1023,gid=1023,fmask=0007,dmask=0007,allow_utime=0020,iocharset=utf8,errors=remount-ro 0 0
+files=64 bytes_per_file=262144 open_seconds=25.181255 truncate_seconds=0.309577 wall_seconds=25.493210 error=0
+temporary_mount
+/dev/block/vold/public:179,1 /mnt/media_rw/FF7F-F56A exfat rw,dirsync,nosuid,nodev,noexec,noatime,uid=1023,gid=1023,fmask=0007,dmask=0007,allow_utime=0020,iocharset=utf8,errors=remount-ro 0 0
+files=64 bytes_per_file=262144 open_seconds=2.013194 truncate_seconds=0.095924 wall_seconds=2.112288 error=0
+
+=== Post-install Android low-memory exit ===
+Source: game-launch-exit-info.txt
+        ApplicationExitInfo #0:
+          timestamp=2026-10-04 18:13:48.454 pid=14709 realUid=10195 packageUid=10195 definingUid=10195 user=0
+          process=com.droiddeck.launcher reason=3 (LOW_MEMORY) subreason=0 (UNKNOWN) status=0
+          importance=100 pss=227MB rss=344MB description=null state=empty trace=null
+
+=== Combined release unit-test completion ===
+Source: combined-233-tests.log
+> Task :app:testReleaseUnitTest
+BUILD SUCCESSFUL in 10s
+
+=== Combined release build completion ===
+Source: combined-233-build.log
+BUILD SUCCESSFUL in 25s
+APK: /Users/danhimebauch/.codex/worktrees/steam-sd-preallocation/DroidDeck/app/build/outputs/apk/release/app-release.apk

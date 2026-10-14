@@ -1,0 +1,236 @@
+#!/bin/bash
+set -u
+steam_root=${1:?steam root}
+LIBRARIES=${DROIDDECK_LIBRARIES-/mnt/droiddeck /mnt/droiddeck-sd}
+
+redist="$steam_root/steamapps/common/Steamworks Shared/_CommonRedist"
+
+read_scripts() { xargs -0 -r awk -v want="${1:-redists}" '
+  FNR == 1 { depth = 0; pending = "" }
+  /^[[:space:]]*\{/ { depth++; name[depth] = pending; key[depth] = ""; vulkan[depth] = 0; pending = ""; next }
+  /^[[:space:]]*\}/ {
+    if (depth > 0 && key[depth] != "" && name[depth] != "" && vulkan[depth] == (want == "vulkan"))
+      printf "%s\t%s\n", key[depth], name[depth]
+    if (depth > 0) depth--
+    next
+  }
+  {
+    n = split($0, part, "\"")
+    if (n >= 5 && tolower(part[2]) == "hasrunkey") { key[depth] = part[4]; next }
+    if (n >= 5 && tolower(part[2]) ~ /^process [0-9]+$/) {
+      program = tolower(part[4])
+      sub(/.*[\\\/]/, "", program)
+      if (program ~ /vulkan/) vulkan[depth] = 1
+      next
+    }
+    if (n == 3) pending = part[2]
+  }
+'; }
+pairs=$(find "$redist" -name installscript.vdf -print0 2>/dev/null | sort -z | read_scripts)
+[ -n "$pairs" ] || pairs=$(sed 's/^\([^ ]*\) /HKEY_LOCAL_MACHINE\\\\Software\\\\Valve\\\\Steam\\\\Apps\\\\CommonRedist\\\\\1\t/' <<'KNOWN'
+DirectX\\Jun2010 dxsetup
+.NET\\4.8 4.8
+vcredist\\2008 x86 SP1
+vcredist\\2008 x64 SP1
+vcredist\\2010 x86
+vcredist\\2010 x64
+vcredist\\2013 x86 12.0.30501
+vcredist\\2013 x64 12.0.30501
+vcredist\\2015 x86 Update 3 14.0.24215.0
+vcredist\\2015 x64 Update 3 14.0.24215.0
+vcredist\\2017 x86 14.10.25008.0
+vcredist\\2017 x64 14.10.25008.0
+vcredist\\2019 x86 14.28.29334.0
+vcredist\\2019 x64 14.28.29334.0
+vcredist\\2022 x86 14.51.36247.0
+vcredist\\2022 x64 14.51.36247.0
+KNOWN
+)
+
+cache="$steam_root/.droiddeck-game-scripts"
+libraries="$steam_root"
+for library in $LIBRARIES; do libraries="$libraries
+$library"; done
+libraries=$(printf '%s\n%s\n' "$libraries" "$(sed -n 's/^[[:space:]]*"path"[[:space:]]*"\(.*\)"[[:space:]]*$/\1/p' "$steam_root/steamapps/libraryfolders.vdf" 2>/dev/null)" | awk 'NF && !seen[$0]++')
+sig=$(while IFS= read -r library; do ls -l --time-style=+%s "$library"/steamapps/appmanifest_*.acf 2>/dev/null; done <<<"$libraries" | cksum)
+if [ "$(head -n 1 "$cache" 2>/dev/null)" != "$sig" ]; then
+  {
+    printf '%s\n' "$sig"
+    while IFS= read -r library; do
+      [ -d "$library/steamapps/common" ] || continue
+      find "$library/steamapps/common" -mindepth 2 -maxdepth 5 -iname 'installscript*.vdf' \
+        -not -path '*/Steamworks Shared/*' 2>/dev/null
+    done <<<"$libraries" | sort -u
+  } >"$cache.tmp" && mv -f "$cache.tmp" "$cache"
+fi
+game_scripts() { { tail -n +2 "$cache" 2>/dev/null; printf '%s\n' "${DROIDDECK_SEED_SCRIPTS:-}"; } | sed '/^$/d' | tr '\n' '\0'; }
+game_pairs=$(game_scripts | read_scripts)
+[ -n "$(printf '%s' "$game_pairs" | tr -d '[:space:]')" ] && pairs=$(printf '%s\n%s\n' "$pairs" "$game_pairs" | sort -u | sed '/^$/d')
+declare -A vulkan=()
+while IFS= read -r line; do
+  [[ $line == *$'\t'* ]] && vulkan[$line]=1
+done < <(game_scripts | read_scripts vulkan)
+
+VCRT_MAJOR=14 VCRT_MINOR=51 VCRT_BUILD=36247
+vcrt() {
+  local view arch
+  for view in 'Software' 'Software\\Wow6432Node'; do
+    for arch in x86 x64 arm64; do
+      printf '\n[%s\\\\Microsoft\\\\VisualStudio\\\\14.0\\\\VC\\\\Runtimes\\\\%s] %d\n' "$view" "$arch" "$1"
+      printf '"Bld"=dword:%08x\n"Installed"=dword:00000001\n"Major"=dword:%08x\n"Minor"=dword:%08x\n"Rbld"=dword:00000000\n' \
+        "$VCRT_BUILD" "$VCRT_MAJOR" "$VCRT_MINOR"
+      printf '"Version"="v%d.%d.%d.00"\n' "$VCRT_MAJOR" "$VCRT_MINOR" "$VCRT_BUILD"
+    done
+  done
+}
+
+want=()
+declare -A wanted=()
+while IFS= read -r line; do
+  [[ $line == *$'\t'* ]] && [ -z "${wanted[$line]:-}" ] && wanted[$line]=1 && want+=("$line")
+done <<<"$pairs"
+want+=("vcrt"$'\t'"$VCRT_MAJOR.$VCRT_MINOR.$VCRT_BUILD")
+
+printf -v now '%(%s)T' -1
+block_for() { printf '%s\n' "$@" | awk -F'\t' -v now="$now" '
+  {
+    path = $1
+    sub(/^HKEY_LOCAL_MACHINE\\\\/, "", path)
+    if (path == $1)
+      next
+    printf "\n[%s] %d\n\"%s\"=dword:00000001\n", path, now, $2
+    if (substr(path, 1, 10) != "Software\\\\")
+      next
+    printf "\n[%s] %d\n\"%s\"=dword:00000001\n", "Software\\\\Wow6432Node\\\\" substr(path, 11), now, $2
+  }
+'
+  local line
+  for line; do [[ $line == vcrt$'\t'* ]] && vcrt "$now"; done
+}
+
+unseed() {
+  local reg=$1 out
+  shift
+  out=$(mktemp "${reg%/*}/.system.reg.XXXXXX") || return 1
+  if printf '%s\n' "$@" | awk -F'\t' '
+    NR == FNR {
+      path = $1
+      sub(/^HKEY_LOCAL_MACHINE\\\\/, "", path)
+      if (path == $1)
+        next
+      path = tolower(path)
+      drop["[" path "]" SUBSEP tolower($2)] = 1
+      if (substr(path, 1, 10) == "software\\\\")
+        drop["[software\\\\wow6432node\\\\" substr(path, 11) "]" SUBSEP tolower($2)] = 1
+      next
+    }
+    /^\[/ { section = tolower(substr($0, 1, index($0, "]"))) }
+    /^"/ {
+      value = substr($0, 2)
+      value = tolower(substr(value, 1, index(value, "\"=") - 1))
+      if ((section SUBSEP value) in drop)
+        next
+    }
+    { print }
+  ' - "$reg" >"$out" && touch -r "$reg" "$out" && mv -f "$out" "$reg"; then
+    return 0
+  fi
+  rm -f "$out"
+  return 1
+}
+
+# The ledger lines whose values the registry still holds, in both views where we wrote both. A Proton
+# update replaces its default_pfx system.reg but not our ledger beside it, and new prefixes copy both.
+present() { awk -F'\t' '
+  NR == FNR {
+    path = $1
+    if (path != "vcrt") {
+      sub(/^HKEY_LOCAL_MACHINE\\\\/, "", path)
+      if (path == $1)
+        next
+    }
+    n++
+    line[n] = $0
+    need[n] = 0
+    if (path == "vcrt") {
+      for (a = split("x86 x64 arm64", arch, " "); a > 0; a--) {
+        runtime = "microsoft\\\\visualstudio\\\\14.0\\\\vc\\\\runtimes\\\\" arch[a]
+        key[n, ++need[n]] = "[software\\\\" runtime "]" SUBSEP "installed"
+        key[n, ++need[n]] = "[software\\\\wow6432node\\\\" runtime "]" SUBSEP "installed"
+      }
+    } else {
+      both = substr(path, 1, 10) == "Software\\\\"
+      path = tolower(path)
+      key[n, ++need[n]] = "[" path "]" SUBSEP tolower($2)
+      if (both)
+        key[n, ++need[n]] = "[software\\\\wow6432node\\\\" substr(path, 11) "]" SUBSEP tolower($2)
+    }
+    for (j = 1; j <= need[n]; j++) wanted[key[n, j]] = 1
+    next
+  }
+  /^\[/ { section = tolower(substr($0, 1, index($0, "]"))) }
+  /^"/ {
+    value = substr($0, 2)
+    value = tolower(substr(value, 1, index(value, "\"=") - 1))
+    if ((section SUBSEP value) in wanted)
+      seen[section SUBSEP value] = 1
+  }
+  END {
+    for (i = 1; i <= n; i++) {
+      ok = 1
+      for (j = 1; j <= need[i]; j++) if (!(key[i, j] in seen)) ok = 0
+      if (ok) print line[i]
+    }
+  }
+' - "$1"; }
+
+for reg in "$steam_root"/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
+           /mnt/droiddeck-sd/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
+           /root/Games/*/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
+           "$steam_root"/compatibilitytools.d/*/files/share/default_pfx*/system.reg \
+           "$steam_root"/steamapps/compatdata/*/pfx/system.reg \
+           /mnt/droiddeck-sd/steamapps/compatdata/*/pfx/system.reg \
+           /root/Games/*/steamapps/compatdata/*/pfx/system.reg; do
+  [ -f "$reg" ] || continue
+  seeded=${reg%/*}/.droiddeck-redists
+  legacy=${reg%/*}/.bannerlator-redists
+  if [ -f "$legacy" ] && [ ! -f "$seeded" ]; then
+    mv -f "$legacy" "$seeded"
+  fi
+  declare -A had=()
+  if [ -f "$seeded" ]; then
+    while IFS= read -r line; do [[ $line == *$'\t'* ]] && had[$line]=1; done <"$seeded"
+  fi
+  stale=() kept=()
+  for line in "${!had[@]}"; do
+    if [ -n "${vulkan[$line]:-}" ]; then stale+=("$line"); else kept+=("$line"); fi
+  done
+  if [ ${#stale[@]} -gt 0 ] && unseed "$reg" "${stale[@]}"; then
+    had=()
+    for line in "${kept[@]}"; do had[$line]=1; done
+    printf '%s\n' "${kept[@]}" >"$seeded"
+    echo "== took Vulkan runtime markers out of $reg"
+  fi
+  if [ ${#had[@]} -gt 0 ]; then
+    declare -A held=()
+    while IFS= read -r line; do [[ $line == *$'\t'* ]] && held[$line]=1; done < <(printf '%s\n' "${!had[@]}" | present "$reg")
+    if [ ${#held[@]} -lt ${#had[@]} ]; then
+      echo "== $((${#had[@]} - ${#held[@]})) recorded redist markers are gone from $reg"
+      had=()
+      for line in "${!held[@]}"; do had[$line]=1; done
+      printf '%s\n' "${!had[@]}" >"$seeded"
+    fi
+    unset held
+  fi
+  missing=()
+  for line in "${want[@]}"; do [ -n "${had[$line]:-}" ] || missing+=("$line"); done
+  [ ${#missing[@]} -eq 0 ] && continue
+  dated=$(mktemp) || continue
+  touch -r "$reg" "$dated"
+  if printf '%s\n' "$(block_for "${missing[@]}")" >>"$reg"; then
+    printf '%s\n' "${!had[@]}" "${missing[@]}" >"$seeded"
+    echo "== seeded redist markers into $reg"
+  fi
+  touch -r "$dated" "$reg"
+  rm -f "$dated"
+done

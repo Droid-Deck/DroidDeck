@@ -1,0 +1,32 @@
+[$Version]
+update_info=kwinrules.upd:replace-placement-string-to-enum,kwinrules.upd:use-virtual-desktop-ids
+
+[1]
+Description=Window settings for Steam Keyboard
+above=true
+aboverule=2
+skiptaskbar=true
+skiptaskbarrule=2
+title=Steam Keyboard
+titlematch=2
+type=16
+typerule=2
+wmclass=steam
+wmclasscomplete=true
+wmclassmatch=2
+
+[9bd6e503-ac60-4e7b-9131-0b10c84b37eb]
+Description=Window settings for Steam Keyboard
+above=true
+aboverule=2
+title=Steam Keyboard
+titlematch=2
+type=16
+typerule=2
+wmclass=steam
+wmclasscomplete=true
+wmclassmatch=2
+
+[General]
+count=1
+rules=1

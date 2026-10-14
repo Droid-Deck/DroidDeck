@@ -1,0 +1,13 @@
+# Steam desktop client in KDE
+
+The [Discord report](https://discord.com/channels/1552707793247539220/1552707794430459916/1558974992753098874) describes Steam replacing KDE with a gamescope session. The launcher unconditionally wrote `steam-launch`, which tells the Android app to end KDE and start Steam under gamescope. Other desktop applications have a separate GPU wrapper; this change addresses Steam's desktop client.
+
+Desktop Steam now runs the existing session supervisor with `BL_INSIDE=1` on KDE's inherited Xwayland display and authentication. CEF uses software rendering because KDE's QPainter compositor accepts shared-memory buffers. Big Picture continues to request the explicit gaming session. A lock keeps repeated menu clicks from starting another supervisor while Steam is starting or updating; subsequent clicks wait for Steam's live IPC pipe and then forward the Steam URL to the existing client. This also prevents a second click during cold startup from launching a client without software CEF. KDE retains its own agent and clipboard helpers when Steam starts and exits.
+
+Validation on AYN Thor uses the full wireless ADB serial `adb-d234a848-fv2FDl (2)._adb-tls-connect._tcp`. Live script testing displayed the authenticated library, restored the main window from maximized to windowed, opened Settings as a separate window, and forwarded a second launch to Downloads. KDE's panel remained visible, no gamescope process started, and no session handoff file was written. Quitting Steam returned to the running Plasma desktop with its agent still available. An explicit Big Picture launch then switched to a Steam session and reached READY with Steam focused.
+
+Rapid repeated desktop-icon taps were also tested: one client started with software CEF and the library remained on KDE.
+
+Host regression tests cover desktop display preservation, game URLs, duplicate launches before and after IPC is ready, explicit Big Picture handoff, non-desktop callers, invalid targets, and software CEF limited to the KDE desktop client. Gameplay through Steam's library on KDE has not been validated; the desktop's existing GPU presentation limitations remain.
+
+The final release-signed APK was built with `tools/build_local.sh`, verified to contain the exact tested Steam scripts, and installed with `adb install -r`. APK SHA-256: `d104b1e6e20fb10e85fcdd95eaf2a8ca69061547164640b8590e41e4495663e4`. On that installation, two rapid desktop-icon taps started one software-rendered Steam client; the library displayed on KDE and restored to a desktop window. Final session: `2026-10-12-09-desktop`, READY, mode `lxqt`, with no gamescope process or handoff request. The Thor was left running this desktop Steam client.

@@ -1,0 +1,242 @@
+package com.droiddeck.launcher.runtime
+
+import android.content.Context
+import android.graphics.BitmapFactory
+import android.os.StatFs
+import android.system.Os
+import android.util.Log
+import androidx.annotation.StringRes
+import com.droiddeck.launcher.R
+import com.droiddeck.launcher.core.FileUtils
+import java.io.File
+import java.io.RandomAccessFile
+
+object AppImageManager {
+    private const val TAG = "AppImageManager"
+    const val GUEST_DIR = "/opt/appimages/user"
+    const val LAUNCHER = "/usr/local/bin/droiddeck-appimage-run"
+    private const val SHARP_ICON = 128
+
+    class Item(val id: String, val name: String, val icon: File?, val comment: String?) {
+        val guestDir: String get() = "$GUEST_DIR/$id"
+    }
+
+    internal class Problem(@StringRes val text: Int, vararg val args: Any) {
+        fun describe(context: Context): String = context.getString(text, *args)
+    }
+
+    private fun root(context: Context) = File(LinuxRuntime.rootDir(context), GUEST_DIR.substring(1))
+
+    fun list(context: Context): List<Item> =
+        root(context).listFiles()?.filter { File(it, "app/AppRun").exists() || Files.isLink(File(it, "app/AppRun")) }
+            ?.map { dir ->
+                Item(
+                    dir.name,
+                    FileUtils.readString(File(dir, "name"))?.trim()?.takeIf { it.isNotEmpty() } ?: dir.name,
+                    File(dir, "icon.png").takeIf { it.isFile },
+                    FileUtils.readString(File(dir, "comment"))?.trim()?.takeIf { it.isNotEmpty() },
+                )
+            }?.sortedBy { it.name.lowercase() } ?: emptyList()
+
+    internal fun problem(file: File): Problem? {
+        if (!file.isFile) return Problem(R.string.user_apps_file_gone)
+        val head = ByteArray(20)
+        try {
+            RandomAccessFile(file, "r").use { if (it.read(head) < head.size) return Problem(R.string.appimg_too_small) }
+        } catch (e: Exception) {
+            return Problem(R.string.appimg_unreadable, e.message.toString())
+        }
+        if (head[0] != 0x7f.toByte() || head[1] != 'E'.code.toByte() || head[2] != 'L'.code.toByte() || head[3] != 'F'.code.toByte()) {
+            return Problem(R.string.appimg_not_linux)
+        }
+        val machine = (head[18].toInt() and 0xff) or ((head[19].toInt() and 0xff) shl 8)
+        return when {
+            machine != LinuxFex.ELF_AARCH64 && !LinuxFex.isX86(machine) -> Problem(R.string.appimg_wrong_arch)
+            head[8] != 'A'.code.toByte() || head[9] != 'I'.code.toByte() -> Problem(R.string.appimg_not_appimage)
+            head[10].toInt() != 2 -> Problem(R.string.appimg_wrong_type, head[10].toInt())
+            else -> null
+        }
+    }
+
+    internal fun idFor(fileName: String, taken: Set<String>): String {
+        val base = fileName.removeSuffix(".AppImage").removeSuffix(".appimage").lowercase()
+            .replace(Regex("[^a-z0-9]+"), "-").trim('-').take(48).ifEmpty { "appimage" }
+        var id = base
+        var n = 2
+        while (id in taken) id = "$base-${n++}"
+        return id
+    }
+
+    fun dir(context: Context, id: String) = File(root(context), id)
+
+    fun import(
+        context: Context, file: File, name: String?, icon: File?, meta: Map<String, String> = emptyMap(), onProgress: (String) -> Unit,
+    ): String? {
+        if (!LinuxRuntime.isInstalled(context)) return context.getString(R.string.user_apps_runtime_required)
+        problem(file)?.let { return it.describe(context) }
+        val base = root(context).apply { mkdirs() }
+        if (StatFs(base.path).availableBytes < file.length() * 3) {
+            return context.getString(R.string.appimg_no_space_import, FileUtils.sizeToString(file.length() * 3))
+        }
+        val dir = File(base, idFor(name ?: file.name, base.list()?.toSet() ?: emptySet()))
+        try {
+            extract(context, dir, file, onProgress)?.let { FileUtils.delete(dir); return it }
+            LinuxFex.writeArch(dir, LinuxFex.elfMachine(file))
+            describe(dir, file)
+            if (name != null) FileUtils.writeString(File(dir, "name"), name)
+            if (icon != null && !UserApps.saveIcon(icon, File(dir, "icon.png"))) Log.w(TAG, "icon ${icon.path} could not be read")
+            meta.forEach { (k, v) -> FileUtils.writeString(File(dir, k), v) }
+            writeMenuEntry(context, dir)
+            return null
+        } catch (e: Exception) {
+            Log.e(TAG, "import ${file.name}", e)
+            FileUtils.delete(dir)
+            return e.message ?: context.getString(R.string.appimg_import_failed)
+        }
+    }
+
+    fun replace(context: Context, id: String, file: File, meta: Map<String, String>, onProgress: (String) -> Unit): String? {
+        problem(file)?.let { return it.describe(context) }
+        val dir = dir(context, id)
+        if (!File(dir, "app").isDirectory) return context.getString(R.string.appimg_gone)
+        if (StatFs(dir.path).availableBytes < file.length() * 3) {
+            return context.getString(R.string.appimg_no_space_update, FileUtils.sizeToString(file.length() * 3))
+        }
+        return try {
+            extract(context, dir, file, onProgress) ?: run {
+                LinuxFex.writeArch(dir, LinuxFex.elfMachine(file))
+                meta.forEach { (k, v) -> FileUtils.writeString(File(dir, k), v) }
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "replace $id", e)
+            e.message ?: context.getString(R.string.appimg_update_failed)
+        }
+    }
+
+    private fun extract(context: Context, dir: File, file: File, onProgress: (String) -> Unit): String? {
+        val image = File(dir, "image.AppImage")
+        val links = File(dir, ".links").apply { mkdirs() }
+        try {
+            dir.mkdirs()
+            onProgress(context.getString(R.string.user_apps_copying, file.name))
+            file.inputStream().use { input -> image.outputStream().use { FileUtils.copy(input, it) } }
+            image.setExecutable(true, false)
+            onProgress(context.getString(R.string.appimg_extracting, file.name))
+            val unpack = if (LinuxFex.isX86(LinuxFex.elfMachine(image))) "${LinuxFex.TOOL} extract ./image.AppImage"
+                else "./image.AppImage --appimage-extract || { rm -rf squashfs-root AppDir; ${LinuxFex.TOOL} extract ./image.AppImage; }"
+            val out = StringBuilder()
+            val status = GuestCommand.run(context, listOf(
+                "/bin/bash", "-c",
+                "cd \"$1\" && rm -rf squashfs-root AppDir && { $unpack; } >/dev/null && " +
+                    "rm -rf app && mv \"$(readlink -f squashfs-root)\" app && rm -f squashfs-root",
+                "extract", "$GUEST_DIR/${dir.name}",
+            ), logName = "appimage-import", linkDir = links) { line -> if (out.length < 2000) out.appendLine(line) }
+            if (status != 0 || !File(dir, "app").isDirectory) {
+                listOf("squashfs-root", "AppDir").forEach { FileUtils.delete(File(dir, it)) }
+                return out.lines().lastOrNull { it.isNotBlank() }?.let { context.getString(R.string.appimg_extract_failed_detail, it) }
+                    ?: context.getString(R.string.appimg_extract_failed)
+            }
+            copyLinkedFiles(File(dir, "app"), links)
+            return null
+        } finally {
+            image.delete()
+            FileUtils.delete(links)
+        }
+    }
+
+    private fun copyLinkedFiles(app: File, links: File) {
+        val roots = setOf(links.path + "/", links.canonicalPath + "/")
+        app.walkTopDown().onEnter { !Files.isLink(it) }.forEach { f ->
+            if (!Files.isLink(f)) return@forEach
+            val target = runCatching { Os.readlink(f.path) }.getOrNull() ?: return@forEach
+            if (roots.none { target.startsWith(it) }) return@forEach
+            val data = f.toPath().toRealPath()
+            java.nio.file.Files.delete(f.toPath())
+            java.nio.file.Files.copy(data, f.toPath())
+            if (java.nio.file.Files.isExecutable(data)) f.setExecutable(true, false)
+        }
+    }
+
+    private fun describe(dir: File, source: File) {
+        val app = File(dir, "app")
+        val entry = app.listFiles { f -> f.isFile && f.name.endsWith(".desktop") }?.firstOrNull()
+        val text = entry?.let { FileUtils.readString(it) }
+        fun key(k: String) = text?.let { desktopKey(it, k) }
+        val name = key("Name") ?: source.name.substringBeforeLast('.')
+        FileUtils.writeString(File(dir, "name"), name)
+        key("Comment")?.let { FileUtils.writeString(File(dir, "comment"), it) }
+        key("Categories")?.let { FileUtils.writeString(File(dir, "categories"), it) }
+        restoreIcon(dir)
+    }
+
+    internal fun restoreIcon(dir: File) {
+        val app = File(dir, "app")
+        val entry = app.listFiles { f -> f.isFile && f.name.endsWith(".desktop") }?.firstOrNull()
+        val iconName = entry?.let { FileUtils.readString(it) }?.let { desktopKey(it, "Icon") }
+        val named = iconName?.let { n ->
+            app.walkTopDown().maxDepth(8).filter { it.isFile && (it.name == "$n.png" || it.name == "$n.svg") }.toList()
+        }.orEmpty()
+        val png = named.filter(::isPng).maxByOrNull(::pngSide)
+        val svg = named.firstOrNull { it.name.endsWith(".svg") }
+        val pick = png?.takeIf { pngSide(it) >= SHARP_ICON } ?: svg ?: png ?: File(app, ".DirIcon").takeIf { it.isFile }
+        val icon = File(dir, "icon.png")
+        if (pick == null || !UserApps.saveIcon(pick, icon)) icon.delete()
+    }
+
+    private fun pngSide(f: File): Int {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(f.path, bounds)
+        return minOf(bounds.outWidth, bounds.outHeight)
+    }
+
+    private fun isPng(f: File): Boolean = try {
+        f.inputStream().use { val b = ByteArray(4); it.read(b) == 4 && b[1] == 'P'.code.toByte() && b[2] == 'N'.code.toByte() && b[3] == 'G'.code.toByte() }
+    } catch (e: Exception) { false }
+
+    internal fun desktopKey(desktop: String, key: String): String? {
+        var inMain = false
+        for (line in desktop.lineSequence()) {
+            val t = line.trim()
+            if (t.startsWith("[")) { inMain = t == "[Desktop Entry]"; continue }
+            if (inMain && t.startsWith("$key=")) return t.substringAfter('=').trim().takeIf { it.isNotEmpty() }
+        }
+        return null
+    }
+
+    private fun menuEntry(context: Context, id: String) =
+        File(LinuxRuntime.rootDir(context), "usr/local/share/applications/droiddeck-appimage-$id.desktop")
+
+    internal fun writeMenuEntry(context: Context, dir: File) {
+        val id = dir.name
+        val name = FileUtils.readString(File(dir, "name"))?.trim() ?: id
+        val categories = FileUtils.readString(File(dir, "categories"))?.trim()?.takeIf { it.isNotEmpty() } ?: "Utility;"
+        val icon = if (File(dir, "icon.png").isFile) "$GUEST_DIR/$id/icon.png" else "application-x-executable"
+        FileUtils.writeString(menuEntry(context, id),
+            "[Desktop Entry]\nType=Application\nName=$name\nExec=$LAUNCHER $GUEST_DIR/$id %U\nIcon=$icon\n" +
+            "Terminal=false\nCategories=$categories\nX-DroidDeck-AppImage=$id\n")
+    }
+
+    fun desktopImport(context: Context, key: String, path: String): String? {
+        var found: String? = null
+        root(context).listFiles()?.forEach { dir ->
+            val asked = FileUtils.readString(File(dir, UserApps.DESKTOP_IMPORT))?.lines() ?: return@forEach
+            if (asked.firstOrNull() == key) {
+                if (File(dir, "app").isDirectory) found = dir.name
+            } else if (asked.getOrNull(1) == path) {
+                remove(context, dir.name)
+            }
+        }
+        return found
+    }
+
+    fun remove(context: Context, id: String) {
+        if (id.isEmpty() || '/' in id || id.startsWith(".")) return
+        FileUtils.delete(File(root(context), id))
+        menuEntry(context, id).delete()
+    }
+
+    private object Files {
+        fun isLink(f: File) = java.nio.file.Files.isSymbolicLink(f.toPath())
+    }
+}

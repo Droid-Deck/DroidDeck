@@ -1,0 +1,5 @@
+5b203a711e4e48f01fdffaa4f5a330f8fef22f1eab865f067a3e60bd99a28a5c  https://holo-packages.steamos.cloud/archlinux-deckard-hotfixes/release/0.4.x/mangohud-20260902.1-1-aarch64.pkg.tar.zst
+ef7411229ea4e9b3ab4e36ac356a85b5072f362ee1de68b28d09c43f0b0ecc44  https://steamdeck-packages.steamos.cloud/archlinux-deckard/archlinux/mash-20240705.2/extra/os/aarch64/fmt-10.2.0-1-aarch64.pkg.tar.zst
+c9bfd2c3f15071329d381b9c2061d07503c4787ceb7001b9dfbf72a23c85cb04  https://steamdeck-packages.steamos.cloud/archlinux-deckard/archlinux/mash-20240705.2/extra/os/aarch64/spdlog-1.13.0-1-aarch64.pkg.tar.zst
+f9fae6c84a0382188f1cb20761424051593fd09b1456191cc250bd16e0a1d7a5  https://steamdeck-packages.steamos.cloud/archlinux-deckard/archlinux/mash-20240705.2/extra/os/aarch64/glfw-3.4-2-aarch64.pkg.tar.zst
+0cccdc9c92cb3cae1e37ebeb0ed20b93bb3b5000c8f955b63d0e07bd878c7018  https://steamdeck-packages.steamos.cloud/archlinux-deckard/archlinux/mash-20240705.2/extra/os/aarch64/libtraceevent-1%3A1.8.2-2-aarch64.pkg.tar.zst

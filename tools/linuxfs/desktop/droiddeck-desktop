@@ -1,0 +1,75 @@
+#!/bin/bash
+set -u
+export XDG_SESSION_TYPE=wayland XDG_CURRENT_DESKTOP=KDE XDG_SESSION_DESKTOP=KDE DESKTOP_SESSION=plasma
+export KDE_FULL_SESSION=true KDE_SESSION_VERSION=6 KDE_APPLICATIONS_AS_SCOPE=0
+export QT_QPA_PLATFORM="wayland;xcb" GDK_BACKEND=wayland,x11 SDL_VIDEODRIVER=wayland,x11
+unset QT_QPA_PLATFORMTHEME
+export QT_FORCE_STDERR_LOGGING=1
+export MOZ_ENABLE_WAYLAND=1 MOZ_USE_XINPUT2=1
+export SHELL=/bin/bash
+export MOZ_DISABLE_CONTENT_SANDBOX=1 MOZ_DISABLE_GMP_SANDBOX=1 MOZ_DISABLE_RDD_SANDBOX=1
+export MOZ_DISABLE_SOCKET_PROCESS_SANDBOX=1 MOZ_DISABLE_UTILITY_SANDBOX=1
+export MOZ_SHM_NO_SEALS=1
+export KWIN_COMPOSE=Q QT_QUICK_BACKEND=software LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe
+[ -e /etc/mpv/mpv.conf ] || { mkdir -p /etc/mpv && echo gpu-sw=yes >/etc/mpv/mpv.conf; } 2>/dev/null
+export DROIDDECK_NESTED_SCALE=1
+export DROIDDECK_GLTHREAD=${mesa_glthread:-}
+unset MESA_LOADER_DRIVER_OVERRIDE LIBGL_KOPPER_DRI2 mesa_glthread
+if [ -n "${BL_DEBUG_DIR:-}" ]; then
+  mkdir -p "$BL_DEBUG_DIR" 2>/dev/null || true
+  exec >>"$BL_DEBUG_DIR/desktop.log" 2>&1
+  echo "== droiddeck-desktop $(date -u '+%Y-%m-%d %H:%M:%S UTC') ${BL_WIDTH:-1280}x${BL_HEIGHT:-720}"
+fi
+find "$XDG_RUNTIME_DIR" -mindepth 1 -maxdepth 1 ! -name 'wayland-0*' ! -name 'keymap.xkb' -exec rm -rf {} + 2>/dev/null
+chmod 700 "$XDG_RUNTIME_DIR" 2>/dev/null
+mkdir -p /tmp/.X11-unix /tmp/.ICE-unix && chmod 1777 /tmp/.X11-unix /tmp/.ICE-unix 2>/dev/null
+export BL_DESKTOP=1
+ln -sf /usr/local/bin/droiddeck-steam-launch /usr/local/bin/steamdeck-steam 2>/dev/null
+ln -sf /usr/local/bin/droiddeck-steam-shim /usr/local/bin/steam 2>/dev/null
+python3 /usr/local/bin/droiddeck-desktop-games 2>&1 | sed 's/^/[games] /'
+python3 /usr/local/bin/droiddeck-pad-defaults 2>&1 | sed 's/^/[pads] /'
+( while sleep 30; do python3 /usr/local/bin/droiddeck-pad-defaults 2>&1 | sed 's/^/[pads] /'; done ) &
+python3 /usr/local/bin/droiddeck-desktop-gpu 2>&1 | sed 's/^/[gpu] /'
+/usr/local/bin/droiddeck-desktop-window-rules 2>&1 | sed 's/^/[rules] /'
+python3 /usr/local/bin/droiddeck-open --install 2>&1 | sed 's/^/[open] /'
+export APPIMAGE_EXTRACT_AND_RUN=1
+[ -e /etc/xdg/kiorc ] || printf '[Executable scripts]\nbehaviourOnLaunch=execute\n' >/etc/xdg/kiorc 2>/dev/null
+desktop_dir=$(xdg-user-dir DESKTOP 2>/dev/null); [ -n "$desktop_dir" ] && [ "$desktop_dir" != "$HOME" ] || desktop_dir=$HOME/Desktop
+if [ ! -e "$HOME/.config/droiddeck-desktop-icons" ]; then
+  mkdir -p "$desktop_dir" "$HOME/.config"
+  cp -f /usr/share/applications/droiddeck-return-gaming.desktop "$desktop_dir/Return.desktop" 2>/dev/null
+  cp -f /usr/share/applications/steamdeck-steam.desktop "$desktop_dir/steam.desktop" 2>/dev/null
+  chmod +x "$desktop_dir"/*.desktop 2>/dev/null
+  touch "$HOME/.config/droiddeck-desktop-icons"
+fi
+[ -f "$desktop_dir/Return.desktop" ] && cp -f /usr/share/applications/droiddeck-return-gaming.desktop "$desktop_dir/Return.desktop" 2>/dev/null
+update-mime-database /usr/share/mime >/dev/null 2>&1 &
+[ -f /usr/share/icons/hicolor/icon-theme.cache ] || gtk-update-icon-cache -q -t /usr/share/icons/hicolor 2>/dev/null &
+[ -f /usr/share/glib-2.0/schemas/gschemas.compiled ] || glib-compile-schemas /usr/share/glib-2.0/schemas 2>/dev/null
+if [ -f "$HOME/.droiddeck-desktop-debug" ]; then
+  mkdir -p "$HOME/.cache/droiddeck"
+  export MOZ_LOG="nsHttp:3,nsSocketTransport:3,nsHostResolver:4,NetworkLinkService:5,NetworkConnectivityService:5,nsIOService:5"
+  export MOZ_LOG_FILE="$HOME/.cache/droiddeck/firefox-net.log"
+  export QT_LOGGING_RULES="kwin_*.debug=true"
+fi
+if [ -f "$HOME/.droiddeck-remote-run" ]; then
+  mkdir -p "$HOME/.cache/droiddeck/run"
+  (
+    while sleep 1; do
+      for f in "$HOME"/.cache/droiddeck/run/*.sh; do
+        [ -f "$f" ] || continue
+        mv -f "$f" "$f.running" || continue
+        ( echo "[run] $(basename "$f") started"; WAYLAND_DISPLAY=wayland-1 DISPLAY=:1 bash "$f.running" 2>&1 | sed "s/^/[run] /"; echo "[run] $(basename "$f") exited"; rm -f "$f.running" ) &
+      done
+    done
+  ) &
+fi
+echo "== droiddeck-desktop: Plasma on $WAYLAND_DISPLAY"
+dbus-run-session -- startplasma-wayland
+rc=$?
+echo "== droiddeck-desktop: Plasma ended ($rc)"
+if [ "$rc" -eq 0 ]; then
+  /usr/local/bin/droiddeck-steam-launch bigpicture
+  sleep 30
+fi
+exit $rc

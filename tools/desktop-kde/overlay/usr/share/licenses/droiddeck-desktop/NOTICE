@@ -1,0 +1,17 @@
+Third-party files in DroidDeck's KDE desktop package (tools/desktop-kde/overlay):
+
+- Vapor (color scheme, Plasma theme, look-and-feel package, Konsole profile and color scheme) and the
+  steamdeck-gaming-return / distributor-logo-steamdeck icons: Valve's steamdeck-kde-presets
+  (https://github.com/Jovian-Experiments/steamdeck-kde-presets), GPL-2.0-or-later (look-and-feel)
+  and GPL-3.0 (Plasma theme), as their metadata states. The look-and-feel package's defaults, setup
+  scripts and layout were adapted for DroidDeck; its Plasma 5 splash screen was left out.
+- steam.svg: Papirus icon theme (https://github.com/PapirusDevelopmentTeam/papirus-icon-theme),
+  GPL-3.0.
+
+- kwin_wayland: KWin 6.7.5, GPL-2.0-or-later. Built with DroidDeck's nested desktop scale patch.
+  Corresponding source: https://download.kde.org/stable/plasma/6.7.5/kwin-6.7.5.tar.xz and
+  https://github.com/Droid-Deck/DroidDeck/tree/fix/kde-desktop-followups/tools/desktop-kde/patches
+  (the source and patch hashes are recorded in desktop-kde.kwin.txt beside the package).
+
+Everything else in the package is Arch Linux ARM's own packages, under their own licenses
+(/usr/share/licenses).

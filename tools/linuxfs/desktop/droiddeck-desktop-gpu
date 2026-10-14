@@ -1,0 +1,118 @@
+#!/usr/bin/python3
+import os
+import re
+
+HOME = os.environ.get("HOME", "/root")
+SYSTEM_DIR = "/usr/share/applications"
+LOCAL_DIR = "/usr/local/share/applications"
+FLATPAK_DIR = os.path.join(HOME, ".local/share/flatpak/exports/share/applications")
+USER_DIR = os.path.join(HOME, ".local/share/applications")
+MARK = "X-DroidDeck-GPU=1"
+SKIP = re.compile(r"^(steam|droiddeck-game-|droiddeck-steam|steamdeck-)", re.I)
+
+
+def enabled():
+    return os.environ.get("BL_DESKTOP_GPU", "on").strip().lower() not in ("off", "0", "no", "false")
+
+
+def main_group(text):
+    """The [Desktop Entry] group's lines, and everything after it."""
+    lines = text.splitlines()
+    start = next((i for i, l in enumerate(lines) if l.strip() == "[Desktop Entry]"), None)
+    if start is None:
+        return None, None, None
+    end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith("[")), len(lines))
+    return lines[:start + 1], lines[start + 1:end], lines[end:]
+
+
+def gpu_exec(exec_line):
+    """The Exec that runs a program on the GPU; a Flatpak app goes through its launcher, which
+    keeps it on gamescope's X server instead of the desktop's Wayland socket."""
+    if exec_line.startswith("/usr/bin/flatpak run ") or exec_line.startswith("flatpak run "):
+        exec_line = "/usr/local/bin/droiddeck-flatpak-run " + exec_line.split(" run ", 1)[1]
+    return "droiddeck-gpu " + exec_line
+
+
+def wrap(text):
+    head, group, rest = main_group(text)
+    if group is None:
+        return None
+    keys = {}
+    for l in group:
+        if "=" in l and not l.lstrip().startswith("#"):
+            k, v = l.split("=", 1)
+            keys.setdefault(k.strip(), v)
+    cats = set(filter(None, keys.get("Categories", "").split(";")))
+    if not cats & {"Game", "Emulator"}:
+        return None
+    if keys.get("Type", "Application") != "Application" or keys.get("NoDisplay", "").lower() == "true":
+        return None
+    exec_line = keys.get("Exec", "").strip()
+    if not exec_line or exec_line.startswith("droiddeck-gpu "):
+        return None
+    out_group = []
+    actions = keys.get("Actions", "")
+    for l in group:
+        k = l.split("=", 1)[0].strip() if "=" in l else None
+        if k == "Exec":
+            out_group.append("Exec=" + gpu_exec(exec_line))
+        elif k == "Actions":
+            continue
+        else:
+            out_group.append(l)
+    while out_group and not out_group[-1].strip():
+        out_group.pop()
+    out_group.append("Actions=" + ("droiddeck-window;" + actions if actions else "droiddeck-window;"))
+    out_group.append(MARK)
+    window = ["", "[Desktop Action droiddeck-window]", "Name=Run in a desktop window", "Exec=" + exec_line]
+    wrapped_rest = []
+    for l in rest:
+        if l.startswith("Exec=") and not l[5:].startswith("droiddeck-gpu "):
+            l = "Exec=" + gpu_exec(l[5:])
+        wrapped_rest.append(l)
+    if wrapped_rest and wrapped_rest[0].strip():
+        wrapped_rest.insert(0, "")
+    return "\n".join(head + out_group + window + wrapped_rest) + "\n"
+
+
+def ours(path):
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            return MARK in f.read()
+    except OSError:
+        return False
+
+
+def main():
+    on = enabled()
+    os.makedirs(USER_DIR, exist_ok=True)
+    written = set()
+    sources = [d for d in (SYSTEM_DIR, LOCAL_DIR, FLATPAK_DIR) if os.path.isdir(d)] if on else []
+    for source in sources:
+        for name in sorted(os.listdir(source)):
+            if not name.endswith(".desktop") or SKIP.match(name):
+                continue
+            target = os.path.join(USER_DIR, name)
+            if os.path.exists(target) and not ours(target):
+                continue
+            try:
+                with open(os.path.join(source, name), encoding="utf-8", errors="replace") as f:
+                    text = wrap(f.read())
+            except OSError:
+                continue
+            if text is None:
+                continue
+            with open(target + ".tmp", "w", encoding="utf-8") as f:
+                f.write(text)
+            os.replace(target + ".tmp", target)
+            written.add(name)
+    removed = 0
+    for name in os.listdir(USER_DIR):
+        path = os.path.join(USER_DIR, name)
+        if name.endswith(".desktop") and name not in written and ours(path):
+            os.remove(path)
+            removed += 1
+    print(f"droiddeck-desktop-gpu: {'on' if on else 'off'}, {len(written)} entries on the GPU, {removed} removed")
+
+
+main()

@@ -1,0 +1,26 @@
+#!/bin/bash
+set -u
+[ $# -gt 0 ] || { echo "usage: droiddeck-gpu <program> [args...]" >&2; exit 64; }
+if [ -n "${BL_DEBUG_DIR:-}" ]; then
+  exec >>"$BL_DEBUG_DIR/desktop.log" 2>&1
+fi
+width=${BL_WIDTH:-1280}
+height=${BL_HEIGHT:-720}
+args=(--backend wayland --expose-wayland -f -W "$width" -H "$height" -w "$width" -h "$height")
+if [ "${BL_FPS:-0}" -gt 0 ]; then
+  args+=(-r "$BL_FPS")
+elif [ "${BL_REFRESH:-0}" -gt 0 ]; then
+  args+=(-r "$BL_REFRESH")
+fi
+[ "${BL_HDR:-0}" = 1 ] && args+=(--hdr-enabled)
+echo "== droiddeck-gpu $(date -u +%H:%M:%S): $* (gamescope ${width}x${height} on wayland-0)"
+export WAYLAND_DISPLAY=wayland-0
+export GDK_BACKEND=x11 QT_QPA_PLATFORM=xcb SDL_VIDEODRIVER=x11
+unset LIBGL_ALWAYS_SOFTWARE QT_QUICK_BACKEND KWIN_COMPOSE
+export MESA_LOADER_DRIVER_OVERRIDE=zink GALLIUM_DRIVER=zink LIBGL_KOPPER_DRI2=true
+[ -n "${DROIDDECK_GLTHREAD:-}" ] && export mesa_glthread=$DROIDDECK_GLTHREAD
+export APPIMAGE_EXTRACT_AND_RUN=1
+gamescope "${args[@]}" -- /usr/local/bin/droiddeck-gpu-window "$@"
+rc=$?
+echo "== droiddeck-gpu $(date -u +%H:%M:%S): exited $rc"
+exit $rc

@@ -1,0 +1,14 @@
+#!/bin/bash
+set -u
+if [ "${BL_DESKTOP:-}" = 1 ]; then
+  url=
+  ui=desktop
+  for arg in "$@"; do
+    case $arg in
+      steam://*) url=$arg ;;
+      -gamepadui|-bigpicture) ui=bigpicture ;;
+    esac
+  done
+  exec /usr/local/bin/droiddeck-steam-launch "$ui" ${url:+"$url"}
+fi
+exec "${HOME:-/root}/.local/share/Steam/steamrtarm64/steam" "$@"

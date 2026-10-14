@@ -1,0 +1,15 @@
+labwc
+lxqt-panel
+lxqt-config
+lxqt-runner
+lxqt-session
+lxqt-wayland-session
+lxqt-themes
+lxqt-qtplugin
+pcmanfm-qt
+qterminal
+featherpad
+lximage-qt
+papirus-icon-theme
+swaybg
+wlr-randr
