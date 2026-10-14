@@ -32,20 +32,13 @@ from pathlib import Path
 
 STORE = Path("/opt/droiddeck/wincomponents")
 SELECTION = Path.home() / ".config/droiddeck/wincomponents.json"
-# Components the app is still downloading for a game Steam installed during this session:
-# {"games": {"<appid>": ["vcredist2019_dll", ...]}}. A launch waits a little for them.
 PENDING = Path.home() / ".config/droiddeck/wincomponents-pending.json"
 PENDING_WAIT = 10.0
-# What this prefix holds from us, so a component the user turns off is taken out again.
 STATE = ".droiddeck-wincomponents.json"
-# A file ours replaced that was not Proton's (a real installer's, the user's own), put back when the
-# component is turned off. Proton's builtins need no copy: it restores those itself.
 BACKUP = ".droiddeck-wincomponents-backup"
 BUILTIN_MARKS = (b"Wine builtin DLL", b"Wine placeholder DLL")
 ARCH_DIRS = ("system32", "syswow64")
 ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
-# The registry file of each hive in a prefix, and the kinds of value registry.json holds: "key"
-# makes a key, "append"/"prepend" add to a list such as PATH unless it is already there.
 HIVES = {"HKLM": "system.reg", "HKCU": "user.reg"}
 VALUE_TYPES = {"key", "sz", "expand_sz", "multi_sz", "dword", "binary", "append", "prepend"}
 
@@ -80,7 +73,6 @@ def component(store, cid):
     for arch in ARCH_DIRS:
         folder = root / arch
         if folder.is_dir():
-            # A few go one level down (gmdls: system32/drivers/gm.dls).
             for entry in sorted(folder.rglob("*")):
                 if entry.is_file() and not entry.is_symlink():
                     rel = entry.relative_to(folder).as_posix().lower()
@@ -195,12 +187,10 @@ def place(src, target, backup=None):
     final = found or target
     temp = final.with_name(".%s.droiddeck" % final.name)
     shutil.copy2(src, temp)
-    # Over a Proton builtin this swaps its symlink for our file.
     os.replace(temp, final)
     return True
 
 
-# ---------------------------------------------------------------- the prefix's registry files
 
 def reg_escape(text, extra=""):
     """A string as Wine's registry files write it."""
@@ -556,7 +546,6 @@ def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING
     """Brings the prefix in line with the game's picks. Returns (overrides, notes)."""
     compat = Path(compat_path)
     pfx = compat / "pfx"
-    # A game Steam installed during this session may have components still on their way.
     waited = wait(app_id, pending, store) if wait else None
     ids = wanted(app_id, selection)
     state = load_state(compat)
@@ -576,7 +565,6 @@ def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING
         overrides += names
         values += [(cid, value) for value in registry]
         for rel, src in files:
-            # A file this prefix already has from us is ours to replace; anything else is kept.
             if place(src, pfx / rel, None if rel in state["files"] else compat / BACKUP / rel):
                 copied += 1
             keep[rel] = cid
@@ -594,8 +582,6 @@ def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING
             path.unlink()
             removed += 1
     if removed:
-        # Proton refreshes its builtins only when its config changes; forgetting the config puts
-        # its own DLLs back where ours were on the next launch - this one.
         try:
             (compat / "config_info").unlink()
         except FileNotFoundError:
@@ -627,7 +613,6 @@ def overrides_value(names):
 
 
 def main():
-    # droiddeck-wincomponents <compatdata dir> <appid>: what a launch would do, for a shell.
     if len(sys.argv) != 3:
         print("usage: droiddeck-wincomponents <compatdata dir> <appid>", file=sys.stderr)
         return 2

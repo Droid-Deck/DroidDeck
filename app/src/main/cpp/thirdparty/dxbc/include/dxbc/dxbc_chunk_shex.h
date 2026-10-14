@@ -6,13 +6,6 @@
 
 namespace dxvk {
   
-  /**
-   * \brief Shader code chunk
-   * 
-   * Stores the DXBC shader code itself, as well
-   * as some meta info about the shader, i.e. what
-   * type of shader this is.
-   */
   class DxbcShex : public RcObject {
     
   public:

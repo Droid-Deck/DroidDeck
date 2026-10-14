@@ -23,11 +23,6 @@ import com.droiddeck.launcher.stores.download.DownloadStage
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
-/**
- * Amazon Games in the Stores section. Amazon has no browsable catalog for third-party clients -
- * Prime Gaming's claims live on gaming.amazon.com, signed in - so the Store tab's shelves are cut
- * from the account's own library: owned-not-installed as Trending, installed as Your library.
- */
 object AmazonBackend : StoreBackend {
     private const val TAG = "AmazonBackend"
     override val store: Store = Store.AMAZON
@@ -46,12 +41,11 @@ object AmazonBackend : StoreBackend {
     override fun syncLibrary(context: Context, force: Boolean) {
         val app = context.applicationContext
         Thread({
-            // The cache off the main thread; with it on screen a background sync keeps quiet.
             val cached = AmazonLibrary.cached(app)
             val quiet = cached.isNotEmpty() && !force
             StoresState.post {
                 if (cached.isNotEmpty()) publish(app, cached)
-                if (!quiet) StoresState.status[store] = "Fetching your library…"
+                if (!quiet) StoresState.status[store] = app.getString(com.droiddeck.launcher.R.string.stores_sync_library)
             }
             val result = AmazonLibrary.sync(app, force) { line -> if (!quiet) StoresState.post { StoresState.status[store] = line } }
             StoresState.post {
@@ -67,7 +61,6 @@ object AmazonBackend : StoreBackend {
         }, "amazon-sync").start()
     }
 
-    /** The library and, from it, the shelves. */
     private fun publish(app: Context, games: List<AmazonGame>) {
         val items = games.map { AmazonLibrary.toCatalogItem(app, it) }
         StoresState.library[store] = com.droiddeck.launcher.stores.mergeItems(StoresState.library[store], items)
@@ -75,8 +68,6 @@ object AmazonBackend : StoreBackend {
         StoresState.shelves[store] = StoreShelves(trending = items.filter { it.id !in installed }, free = emptyList(), deals = emptyList(), whatsNew = emptyList())
     }
 
-    // Nothing public to fetch; the shelves follow the library sync, which StoresState.open starts
-    // alongside this. A second sync here only came back Busy and cleared the first one's status.
     override fun loadShelves(context: Context, force: Boolean) {}
 
     override fun install(context: Context, item: CatalogItem, root: File) {
@@ -94,7 +85,7 @@ object AmazonBackend : StoreBackend {
         private val cancelled = AtomicBoolean(false)
 
         override fun run(handle: DownloadQueue.JobHandle): String? {
-            handle.stage(DownloadStage.MANIFEST, "Checking sign-in…")
+            handle.stage(DownloadStage.MANIFEST, app.getString(com.droiddeck.launcher.R.string.stores_sync_sign_in))
             val token = AmazonCredentialStore.getValidAccessToken(app) ?: throw AmazonDownloadManager.InstallException("Not signed in to Amazon Games")
             StoreInstalls.begin(folder, Store.AMAZON, game.productId, game.title, item.tallImageUrl ?: item.imageUrl, item.imageUrl)
             var downloading = false
@@ -111,7 +102,7 @@ object AmazonBackend : StoreBackend {
                 override fun onSizes(downloadBytes: Long, diskBytes: Long) { handle.diskSize(diskBytes) }
             }) ?: return null
             if (cancelled.get()) return null
-            handle.stage(DownloadStage.INSTALL, "Registering with Steam…")
+            handle.stage(DownloadStage.INSTALL, app.getString(com.droiddeck.launcher.R.string.stores_registering))
             AmazonLibrary.rememberSize(app, game.productId, result.bytes)
             AmazonPrefs.get(app).edit().putString("version_${game.productId}", result.versionId).apply()
             val spec = AmazonLaunchHelper.buildLaunchSpec(folder, game.title)
@@ -135,7 +126,6 @@ object AmazonBackend : StoreBackend {
         }
     }
 
-    /** Amazon's device sign-in: a PKCE challenge on the sign-in page, the code on the return URL, a device registration for tokens. */
     private class LoginFlow : StoreLoginActivity.Flow {
         private val serial = AmazonPkce.generateDeviceSerial()
         private val clientId = AmazonPkce.generateClientId(serial)

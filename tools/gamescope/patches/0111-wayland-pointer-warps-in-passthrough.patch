@@ -7,9 +7,9 @@ index bf72267..c400978 100644
  
          wlserver_lock();
 -        wlserver_touchmotion( flX, flY, 0, ++m_uFakeTimestamp );
-+        // Always move the real pointer too: in Passthrough (what Steam's Big Picture asks for) a
-+        // touch motion for an id that is not down moves nothing, so hover never reached the
-+        // client and a click landed wherever the pointer had last been.
++
++
++
 +        wlserver_touchmotion( flX, flY, 0, ++m_uFakeTimestamp, true );
          wlserver_unlock();
      }

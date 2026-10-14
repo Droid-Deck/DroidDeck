@@ -11,7 +11,6 @@ namespace dxvk {
       DxbcScalarType::Sint32, DxbcScalarType::Float32,
     };
 
-    // https://github.com/DarkStarSword/3d-fixes/blob/master/dx11shaderanalyse.py#L101
     bool hasStream    = (tag == "ISG1") || (tag == "OSG1") || (tag == "PSG1") || (tag == "OSG5");
     bool hasPrecision = (tag == "ISG1") || (tag == "OSG1") || (tag == "PSG1");
     

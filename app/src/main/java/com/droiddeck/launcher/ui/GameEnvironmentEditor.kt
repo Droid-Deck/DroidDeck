@@ -48,8 +48,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-// Environment variables for Proton games: one shared profile and one per game, in the app's own
-// dialog, with each variable's actions in a menu off its value as everywhere else.
 
 @Composable
 fun GameEnvironmentRow(
@@ -58,8 +56,6 @@ fun GameEnvironmentRow(
     initialScope: String = "",
 ) {
     var open by remember { mutableStateOf(false) }
-    // Opened with a pad, the editor starts with focus in it; the dialog is a window of its own and
-    // would otherwise give the pad nothing to move from.
     var byPad by remember { mutableStateOf(false) }
     val inputMode = LocalInputModeManager.current
     SettingsRow(stringResource(R.string.game_env_title), if (showHint) stringResource(R.string.game_env_hint) else null) {
@@ -71,7 +67,6 @@ fun GameEnvironmentRow(
     if (open) GameEnvironmentEditor(byPad, initialScope) { open = false }
 }
 
-/** With a pad driving, focus [target] once the dialog is laid out, and keep the dialog in pad mode. */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 internal fun PadFocus(byPad: Boolean, target: FocusRequester) {
@@ -128,7 +123,6 @@ internal fun GameEnvironmentEditor(byPad: Boolean, initialScope: String = "", on
         PadFocus(byPad, firstFocus)
         DialogHeader(stringResource(R.string.game_env_eyebrow), stringResource(R.string.game_env_title))
         Small(stringResource(R.string.game_env_applies))
-        // Which profile: everything shared, or one game's.
         Panel {
             Row(
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -173,7 +167,6 @@ internal fun GameEnvironmentEditor(byPad: Boolean, initialScope: String = "", on
                         name, value, inherited = !own.containsKey(name), open = menu == "var:$name", enabled = !busy,
                         onToggle = { menu = if (menu == "var:$name") null else "var:$name" }, onDismiss = { if (menu == "var:$name") menu = null },
                         onEdit = { menu = null; editByPad = dialogInput.inputMode == InputMode.Keyboard; editing = EnvironmentVariableEdit(scope, profileName, name, value ?: "") },
-                        // A value set here or inherited can be switched off for this profile; one set here can go back to inheriting.
                         onUnset = if (value != null) ({ menu = null; save(current.withEntries(scope, own + (name to null))) }) else null,
                         onRestore = if (own.containsKey(name)) ({ menu = null; save(current.withEntries(scope, own - name)) }) else null,
                         shared = scope.isEmpty(),
@@ -182,9 +175,7 @@ internal fun GameEnvironmentEditor(byPad: Boolean, initialScope: String = "", on
             }
         }
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-        // Footer: add a variable, reset the profile, done.
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 4.dp)) {
-            // Only once the settings are in: a button drawn disabled first comes up without its box.
             if (current != null) Box {
                 SecondaryButton(stringResource(R.string.game_env_add), enabled = !busy) { menu = if (menu == "add") null else "add" }
                 AnchoredMenu(menu == "add", onDismiss = { if (menu == "add") menu = null }, title = stringResource(R.string.game_env_add)) { first ->
@@ -216,12 +207,10 @@ internal fun GameEnvironmentEditor(byPad: Boolean, initialScope: String = "", on
 
 private data class EnvironmentVariableEdit(val scope: String, val profileName: String, val name: String, val value: String)
 
-/** The panel the profile and the variables sit in, as a settings group does. */
 @Composable
 private fun Panel(content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) =
     Column(Modifier.fillMaxWidth().clip(Shape14).background(MaterialTheme.colorScheme.surface).border(1.dp, LocalPalette.current.line, Shape14), content = content)
 
-/** One variable: its name, what it is set to (and whether that comes from the shared profile), and a menu of what to do with it. */
 @Composable
 private fun VariableRow(
     name: String, value: String?, inherited: Boolean, open: Boolean, enabled: Boolean, shared: Boolean,
@@ -299,7 +288,6 @@ private fun VariableValueEditor(name: String, value: String, onChange: (String) 
     var open by remember(name) { mutableStateOf(false) }
     var custom by remember(name) { mutableStateOf(option == null || value !in option.choices && option.type != GameEnvironmentOptions.Type.MULTIPLE) }
     when {
-        // On/off variables pick from their two values like any other choice: one way to set a value.
         option != null && option.choices.isNotEmpty() -> {
             SettingsRow(stringResource(R.string.game_env_value), null, highlighted = open) {
                 Box {

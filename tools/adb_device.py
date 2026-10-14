@@ -45,7 +45,6 @@ def _identity(adb: str, serial: str) -> str | None:
 
 
 def _rank(serial: str) -> tuple[int, str]:
-    # Prefer a stable mDNS transport over a network address with an ephemeral port.
     if "_adb-tls-connect._tcp" in serial:
         return (0, serial)
     if not re.search(r":\d+$", serial):

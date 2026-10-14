@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-2-Clause
 // Copyright © 2021 Billy Laws
 
+
 #include <string>
 #include <string_view>
 #include <sys/stat.h>
@@ -17,17 +18,14 @@
 #include <unistd.h>
 
 void *adrenotools_open_libvulkan(int dlopenFlags, int featureFlags, const char *tmpLibDir, const char *hookLibDir, const char *customDriverDir, const char *customDriverName, const char *fileRedirectDir, void **userMappingHandle) {
-    // Bail out if linkernsbypass failed to load, this probably means we're on api < 28
     if (!linkernsbypass_load_status()) {
         __android_log_print( ANDROID_LOG_ERROR, "adrenotools", "Could not load linkernsbypass\n");
         return nullptr;
     }    
 
-    // Use memfd on Q+ since it's guaranteed to work, but only if tmpLibDir wasn't set
     if (android_get_device_api_level() >= 29 && !tmpLibDir)
         tmpLibDir = nullptr;
 
-    // Verify that params for specific features are only passed if they are enabled
     if (!(featureFlags & ADRENOTOOLS_DRIVER_FILE_REDIRECT) && fileRedirectDir) {
         __android_log_print( ANDROID_LOG_ERROR, "adrenotools", "ADRENOTOOLS_DRIVER_FILE_REDIRECT present but no file redirect folder found\n");
         return nullptr;
@@ -43,7 +41,6 @@ void *adrenotools_open_libvulkan(int dlopenFlags, int featureFlags, const char *
         return nullptr;
     }   
 
-    // Verify that params for enabled features are correct
     struct stat buf{};
 
     if (featureFlags & ADRENOTOOLS_DRIVER_CUSTOM) {
@@ -58,7 +55,6 @@ void *adrenotools_open_libvulkan(int dlopenFlags, int featureFlags, const char *
          }   
     }
 
-    // Verify that params for enabled features are correct
     if (featureFlags & ADRENOTOOLS_DRIVER_FILE_REDIRECT) {
         if (!fileRedirectDir) {
             __android_log_print( ANDROID_LOG_ERROR, "adrenotools", "ADRENOTOOLS_DRIVER_REDIRECT_DIR present but no folder parameter was found\n");
@@ -71,22 +67,18 @@ void *adrenotools_open_libvulkan(int dlopenFlags, int featureFlags, const char *
          }   
     }
 
-    // Create a namespace that can isolate our hook from the classloader namespace
     auto hookNs{android_create_namespace("adrenotools-libvulkan", hookLibDir, nullptr, ANDROID_NAMESPACE_TYPE_SHARED, nullptr, nullptr)};
 
-    // Link it to the default namespace so the hook can use libandroid etc
     if (!linkernsbypass_link_namespace_to_default_all_libs(hookNs)) {
         __android_log_print( ANDROID_LOG_ERROR, "adrenotools", "Failed to hook our namespace to the default one\n");
         return nullptr;
      }
-    // Preload the hook implementation, otherwise we get a weird issue where despite being in NEEDED of the hook lib the hook's symbols will overwrite ours and cause an infinite loop
     auto hookImpl{linkernsbypass_namespace_dlopen("libhook_impl.so", RTLD_NOW, hookNs)};
     if (!hookImpl) {
         __android_log_print( ANDROID_LOG_ERROR, "adrenotools", "Couldn't preload the hook implementation\n");
         return nullptr;
     }    
 
-    // Pass parameters to the hook implementation
     auto initHookParam{reinterpret_cast<void (*)(const void *)>(dlsym(hookImpl, "init_hook_param"))};
     if (!initHookParam) {
         __android_log_print( ANDROID_LOG_ERROR, "adrenotools", "Couldn't init hook params\n");
@@ -95,7 +87,6 @@ void *adrenotools_open_libvulkan(int dlopenFlags, int featureFlags, const char *
 
     auto importMapping{[&]() -> adrenotools_gpu_mapping * {
         if (featureFlags & ADRENOTOOLS_DRIVER_GPU_MAPPING_IMPORT) {
-            // This will be leaked, but it's not a big deal since it's only a few bytes
             adrenotools_gpu_mapping *mapping{new adrenotools_gpu_mapping{}};
             *userMappingHandle = mapping;
             return mapping;
@@ -107,7 +98,6 @@ void *adrenotools_open_libvulkan(int dlopenFlags, int featureFlags, const char *
 
     initHookParam(new HookImplParams(featureFlags, tmpLibDir, hookLibDir, customDriverDir, customDriverName, fileRedirectDir, importMapping));
 
-    // Load the libvulkan hook into the isolated namespace
     if (!linkernsbypass_namespace_dlopen("libmain_hook.so", RTLD_GLOBAL, hookNs)) {
         __android_log_print( ANDROID_LOG_ERROR, "adrenotools", "Failed to load libvulkan into the isolated namespace\n");
         return nullptr;
@@ -150,7 +140,7 @@ bool adrenotools_import_user_mem(void *handle, void *hostPtr, uint64_t size) {
     importMapping->host_ptr = hostPtr;
     importMapping->gpu_addr = info.gpuaddr;
     importMapping->size = size;
-    importMapping->flags = 0xc2600; //!< Unknown flags, but they are required for the mapping to work
+    importMapping->flags = 0xc2600;
 
     close(kgslFd);
     return true;
@@ -189,7 +179,7 @@ bool adrenotools_mem_gpu_allocate(void *handle, uint64_t *size) {
     mapping->host_ptr = nullptr;
     mapping->gpu_addr = info.gpuaddr;
     mapping->size = *size;
-    mapping->flags = 0xc2600; //!< Unknown flags, but they are required for the mapping to work
+    mapping->flags = 0xc2600;
 
     close(kgslFd);
     return true;

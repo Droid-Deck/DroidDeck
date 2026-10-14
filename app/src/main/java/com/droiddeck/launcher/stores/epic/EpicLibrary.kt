@@ -3,18 +3,13 @@ package com.droiddeck.launcher.stores.epic
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.Store
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.atomic.AtomicBoolean
 
-/**
- * The signed-in account's Epic library: the library service's records, each enriched from the
- * catalog (title, art, DLC flag), cached so the tab paints at once and re-synced when forced or
- * 15 minutes stale. DLC entries are folded away under their base game. Ported from Bannerlator's
- * EpicLibraryRepo.
- */
 object EpicLibrary {
     private const val TAG = "EpicLibrary"
     private const val CACHE_KEY = "library_cache"
@@ -44,13 +39,14 @@ object EpicLibrary {
                 g.developer = j.optString("developer", ""); g.description = j.optString("description", ""); g.version = j.optString("version", "")
                 g.installSize = j.optLong("installSize", 0L).let { if (it > 1_099_511_627_776L) 0L else it }
                 g.canRunOffline = j.optBoolean("canRunOffline", true)
+                g.releaseDate = j.optString("releaseDate", "")
+                g.publisher = j.optString("publisher", "")
                 if (g.appName.isNotEmpty()) list.add(g)
             }
             list.distinctBy { it.appName }.sortedBy { it.title.lowercase() }
         }.getOrDefault(emptyList())
     }
 
-    /** Remembers a game's install size once the manifest said it, for the Install button. */
     fun rememberSize(context: Context, appName: String, bytes: Long) {
         if (bytes <= 0) return
         val p = EpicPrefs.get(context)
@@ -65,18 +61,17 @@ object EpicLibrary {
             val cachedList = cached(app)
             val lastSync = p.getLong(LAST_SYNC_KEY, 0L)
             if (!force && cachedList.isNotEmpty() && System.currentTimeMillis() - lastSync < THROTTLE_MS) return SyncResult.Throttled
-            onStatus("Checking sign-in…")
+            onStatus(app.getString(R.string.stores_sync_sign_in))
             val token = EpicCredentialStore.getValidAccessToken(app) ?: return SyncResult.NotLoggedIn
-            onStatus("Fetching game list…")
+            onStatus(app.getString(R.string.stores_sync_game_list))
             val raw = EpicApiClient.getLibraryItems(token)
-            if (raw.isNullOrEmpty()) return if (cachedList.isEmpty()) SyncResult.Failed("No games found in your Epic library") else SyncResult.Ok(cachedList)
+            if (raw.isNullOrEmpty()) return if (cachedList.isEmpty()) SyncResult.Failed(app.getString(R.string.stores_sync_no_games, Store.EPIC.label)) else SyncResult.Ok(cachedList)
             val total = raw.size
             var done = 0
             for (game in raw) {
                 EpicApiClient.enrichFromCatalog(token, game)
-                if (game.releaseDate.isNotEmpty()) p.edit().putString("release_${game.appName}", game.releaseDate).apply()
                 done++
-                if (done % 5 == 0) onStatus("Loading game details… ($done/$total)")
+                if (done % 5 == 0) onStatus(app.getString(R.string.stores_sync_details, done, total))
             }
             val main = raw.filter { !it.isDLC }
             val display = (if (main.isEmpty()) raw else main).distinctBy { it.appName }.sortedWith { a, b -> a.title.compareTo(b.title, ignoreCase = true) }
@@ -91,7 +86,7 @@ object EpicLibrary {
             return SyncResult.Ok(display)
         } catch (e: Exception) {
             Log.w(TAG, "sync failed: ${e.message}")
-            return SyncResult.Failed(e.message ?: "Sync failed")
+            return SyncResult.Failed(e.message ?: context.getString(R.string.stores_sync_failed))
         } finally {
             syncing.set(false)
         }
@@ -102,7 +97,8 @@ object EpicLibrary {
             val arr = JSONArray()
             for (g in games) arr.put(JSONObject().put("appName", g.appName).put("namespace", g.namespace).put("catalogItemId", g.catalogItemId)
                 .put("title", g.title).put("artCover", g.artCover).put("artSquare", g.artSquare).put("developer", g.developer)
-                .put("description", g.description).put("version", g.version).put("installSize", g.installSize).put("canRunOffline", g.canRunOffline))
+                .put("description", g.description).put("version", g.version).put("installSize", g.installSize).put("canRunOffline", g.canRunOffline)
+                .put("releaseDate", g.releaseDate).put("publisher", g.publisher))
             prefs.edit().putString(CACHE_KEY, arr.toString()).apply()
         }
     }
@@ -111,7 +107,8 @@ object EpicLibrary {
         store = Store.EPIC, id = g.appName, title = g.title.ifBlank { g.appName },
         imageUrl = g.artSquare.ifBlank { null } ?: g.artCover.ifBlank { null },
         tallImageUrl = g.artCover.ifBlank { null } ?: g.artSquare.ifBlank { null },
-        developer = g.developer, description = com.droiddeck.launcher.stores.cleanStoreText(g.description), owned = true,
+        developer = g.developer, publisher = g.publisher, description = com.droiddeck.launcher.stores.cleanStoreText(g.description), owned = true,
+        releaseDate = g.releaseDate.ifEmpty { EpicPrefs.get(context).getString("release_${g.appName}", "").orEmpty() },
         sizeBytes = EpicPrefs.get(context).getLong("size_${g.appName}", g.installSize),
         storeUrl = "https://store.epicgames.com/en-US/browse?q=${java.net.URLEncoder.encode(g.title, "UTF-8")}",
         extra = mapOf("namespace" to g.namespace, "catalogItemId" to g.catalogItemId, "version" to (g.version ?: "")),

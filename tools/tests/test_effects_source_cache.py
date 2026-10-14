@@ -29,7 +29,6 @@ class EffectsSourceCacheTest(unittest.TestCase):
         cls.temp = tempfile.TemporaryDirectory(prefix='droiddeck-effects-cache-')
         cls.addClassCleanup(cls.temp.cleanup)
         folder = Path(cls.temp.name)
-        # Copy only Vulkan headers so Android's libc headers cannot shadow the host's libc.
         shutil.copytree(headers, folder / 'include/vulkan', ignore=shutil.ignore_patterns('*.hpp'))
         if (headers.parent / 'vk_video').is_dir():
             shutil.copytree(headers.parent / 'vk_video', folder / 'include/vk_video')

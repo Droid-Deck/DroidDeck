@@ -7,16 +7,9 @@ import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 
-/**
- * The small HTTP the storefront catalogs and account calls need: a GET or a JSON POST with the
- * right User-Agent, a bearer token when the call is signed in, and a body or null. Store URLs
- * carry their authorization in the query string or the path, so a URL is only ever logged
- * through [StoreLog.redactUrl]. Plain HttpURLConnection, like the rest of the app.
- */
 internal object StoreNet {
     private const val TAG = "StoreNet"
 
-    /** A desktop browser: GOG's catalog and Epic's store GraphQL answer it; Epic's edge refuses the bare Java UA. */
     const val BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
 
     fun get(url: String, bearer: String? = null, userAgent: String = BROWSER_UA, timeoutMs: Int = 20_000, headers: Map<String, String> = emptyMap()): String? {
@@ -41,7 +34,7 @@ internal object StoreNet {
         }
     }
 
-    fun postJson(url: String, body: String, bearer: String? = null, userAgent: String = BROWSER_UA, timeoutMs: Int = 25_000): String? {
+    fun postJson(url: String, body: String, bearer: String? = null, userAgent: String = BROWSER_UA, timeoutMs: Int = 25_000, headers: Map<String, String> = emptyMap()): String? {
         var conn: HttpURLConnection? = null
         return try {
             conn = (URL(url).openConnection() as HttpURLConnection).apply {
@@ -53,6 +46,7 @@ internal object StoreNet {
                 setRequestProperty("Content-Type", "application/json")
                 setRequestProperty("Accept", "application/json")
                 if (bearer != null) setRequestProperty("Authorization", "Bearer $bearer")
+                headers.forEach { (k, v) -> setRequestProperty(k, v) }
             }
             OutputStreamWriter(conn.outputStream, "UTF-8").use { it.write(body) }
             val code = conn.responseCode
@@ -65,10 +59,6 @@ internal object StoreNet {
         }
     }
 
-    /**
-     * A 600x900 poster for [title] from SteamGridDB by name, or "" - the lookup the GOG library and
-     * the Amazon poster backfill use, since those stores publish no tall art of their own.
-     */
     fun sgdbPoster(title: String): String = try {
         val enc = java.net.URLEncoder.encode(title, "UTF-8")
         val search = get("https://www.steamgriddb.com/api/v2/search/autocomplete/$enc", bearer = SGDB_KEY)
@@ -94,14 +84,7 @@ internal object StoreNet {
     }
 }
 
-/**
- * Keeps credentials out of the logs. A store's CDN, manifest and token URLs carry their
- * authorization in the query string (signed, time-limited tokens, `client_secret`,
- * `refresh_token`) or in the authority's userinfo; one such line in logcat or a shared log hands a
- * reader a live download. Every store URL that is written anywhere goes through [redactUrl] first.
- */
 object StoreLog {
-    /** `scheme://host/path` only: query, fragment and `user:pass@` dropped; "[url]" when it cannot be parsed. */
     @JvmStatic
     fun redactUrl(url: String?): String? {
         if (url == null) return null
@@ -125,11 +108,6 @@ object StoreLog {
         }
     }
 
-    /**
-     * What any store line may say, for the stores' log and logcat alike: URLs cut to their host and a
-     * plain first path segment, token values and Authorization / Cookie headers blanked - the shared
-     * rules of [com.droiddeck.launcher.core.SecretScrub], which a shared log zip applies too.
-     */
     @JvmStatic
     fun redactLine(text: String): String =
         com.droiddeck.launcher.core.SecretScrub.scrub(text, com.droiddeck.launcher.core.SecretScrub.Urls.SHORT, "…")

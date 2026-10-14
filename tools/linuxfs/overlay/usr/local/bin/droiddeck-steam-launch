@@ -1,11 +1,4 @@
 #!/bin/bash
-# Starts the Steam client from inside a session (the desktop's menu entries and the per-game
-# launchers droiddeck-desktop-games writes):
-#   droiddeck-steam-launch desktop [appid|steam-url]     Steam's desktop UI, optionally a game
-#   droiddeck-steam-launch bigpicture [appid|steam-url]  Big Picture
-#
-# The desktop client stays on KDE's Xwayland. Big Picture is the explicit handoff
-# to the app's gaming session.
 set -u
 ui=${1:-desktop}
 target=${2:-}
@@ -21,13 +14,9 @@ esac
 if [ "$ui" = desktop ] && [ "${BL_DESKTOP:-}" = 1 ]; then
   steam_root=${XDG_DATA_HOME:-${HOME:-/root}/.local/share}/Steam
   export LD_LIBRARY_PATH=$steam_root/steamrtarm64:$steam_root/steamrtarm64/panorama${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
-  # A second menu click forwards its URL to Steam's existing instance. Keep only
-  # one session supervisor, including while the client restarts for an update.
   mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}/droiddeck"
   exec 9>"${XDG_CACHE_HOME:-$HOME/.cache}/droiddeck/steam-desktop.lock"
   if ! flock -n 9; then
-    # The supervisor may still be preparing Proton or updating Steam. Invoking
-    # the binary before its IPC pipe exists would start a competing client.
     for ((attempt = 0; attempt < 180; attempt++)); do
       pid=$(cat "$HOME/.steam/steam.pid" 2>/dev/null || true)
       if [ -p "$HOME/.steam/steam.pipe" ] && [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
@@ -43,12 +32,10 @@ if [ "$ui" = desktop ] && [ "${BL_DESKTOP:-}" = 1 ]; then
   exec /usr/local/bin/droiddeck-session steam "${url:-steam://open/library}"
 fi
 
-# Ask the app for a Steam session.
 dir=${BL_LAUNCH_DIR:-}
 if [ -z "$dir" ] || [ ! -d "$dir" ]; then
   echo "droiddeck-steam-launch: not inside a DroidDeck session (BL_LAUNCH_DIR unset)" >&2
   exit 69
 fi
-# Written whole, then renamed: the app reads it on close, never half-written.
 printf 'ui=%s\nurl=%s\n' "$ui" "$url" > "$dir/steam-launch.tmp" && mv -f "$dir/steam-launch.tmp" "$dir/steam-launch"
 echo "droiddeck-steam-launch: asked the app for Steam ($ui${url:+, $url})"

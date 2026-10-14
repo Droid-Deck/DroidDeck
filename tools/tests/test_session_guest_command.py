@@ -53,8 +53,6 @@ class SessionGuestCommandTest(unittest.TestCase):
     def test_child_receives_its_package_socket_after_environment_is_cleared(self):
         for package in PACKAGES:
             with self.subTest(package=package):
-                # env with no command prints the environment it would pass to the
-                # session. A misplaced assignment fails at exec, before it runs.
                 result = subprocess.run(
                     guest_prefix(package), capture_output=True, text=True, check=True,
                     timeout=5, env={"DROIDDECK_BWRAP_SOCKET": "wrong.bwrap", "STALE_HOST": "1"})

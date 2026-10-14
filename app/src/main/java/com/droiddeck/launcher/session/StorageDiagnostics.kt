@@ -5,14 +5,9 @@ import android.system.Os
 import android.util.Log
 import java.io.File
 
-/** The opt-in snapshot written beside a session's other logs. */
 object StorageDiagnostics {
     private const val TAG = "StorageDiagnostics"
 
-    /**
-     * Records facts about the library actually selected for this session and returns its device
-     * number for the preload shim. The path and volume ID stay out of the shared log.
-     */
     fun writeSnapshot(
         sessionDir: File,
         library: File,
@@ -46,7 +41,6 @@ object StorageDiagnostics {
         }
     }
 
-    /** The longest matching mount entry determines the filesystem for nested bindable folders. */
     private fun filesystemType(path: File): String? = runCatching {
         val canonical = path.canonicalPath
         File("/proc/mounts").useLines { lines ->

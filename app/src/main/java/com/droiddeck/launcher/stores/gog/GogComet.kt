@@ -22,7 +22,6 @@ import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-/** Owns one Galaxy companion; only its structured, secret-free events reach Android logs. */
 object GogComet {
     private const val TAG = "GogComet"
     private const val BIN = "/usr/local/lib/droiddeck-comet/comet"
@@ -52,7 +51,6 @@ object GogComet {
         AchievementNotifications.begin(generation)
     }
 
-    /** Account replacement and launch preparation use the same lock, preventing stale restarts. */
     fun replaceAccount(change: () -> Unit) = synchronized(lock) {
         stopLocked()
         AchievementNotifications.begin(generation)
@@ -95,7 +93,6 @@ object GogComet {
         return file
     }
 
-    /** No arbitrary paths or credentials from the guest are accepted. */
     fun prepare(context: Context, id: String): JSONObject = synchronized(lock) {
         fun reply(ready: Boolean, reason: String): JSONObject {
             report(reason)
@@ -134,7 +131,6 @@ object GogComet {
             process = child; account = user; session = SessionState.sessionId
             Thread({
                 runCatching { child.inputStream.bufferedReader().useLines { lines -> lines.forEach { line ->
-                    // Raw upstream errors/payloads can contain tokens. Never forward them.
                     when {
                         line.startsWith("DROIDDECK_COMET_READY:") -> {
                             val childPid = line.substringAfter(':').toIntOrNull() ?: -1
@@ -177,7 +173,6 @@ object GogComet {
 
     private fun stopLocked() {
         val child = process ?: return
-        // Signal the announced daemon, not proot; start time prevents signalling a reused PID.
         if (started != null && identity(pid) == started) android.os.Process.sendSignal(pid, 2)
         if (!child.waitFor(5, TimeUnit.SECONDS)) {
             if (started != null && identity(pid) == started) android.os.Process.sendSignal(pid, 15)

@@ -36,68 +36,36 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.Inflater;
 
-/**
- * The GOG install pipeline, ported from Bannerlator's GogDownloadManager and made blocking: the
- * download queue runs {@link #install} on its own thread and reads progress through {@link Callback}.
- *
- * Gen 2: builds → build manifest → depot manifests (base product, matching language) → secure
- * link → per file: chunks fetched, inflated, MD5-checked, assembled (the native engine when it is
- * there, else the Java pool here). Gen 1: build manifest → per-file Range GET. Neither available:
- * the product's Windows installer is downloaded as a file to run once.
- *
- * Resume and repair come from the per-file size + MD5 check: a complete file is skipped, a damaged
- * one re-fetched. Nothing here writes outside the install folder; URLs are only logged redacted.
- */
 public final class GogDownloadManager {
 
     private static final String TAG = "GogDownload";
     private static final int TIMEOUT = 30_000;
     private static final String MARKER = "_gog_manifest.json";
 
-    /** Progress out of a running install. Every method is called on the install's thread. */
     public interface Callback {
-        /** A new phase or file, as text, with the install's overall percentage. */
         void onProgress(String message, int pct);
-        /** Bytes landed against the planned total, and the current speed (0 = unknown). */
         default void onBytes(long done, long total, long speedBps) {}
-        /** A diagnostic line for the engine log. */
         default void onLog(String line) {}
-        /** What this run fetches and what the game takes on disk. */
         default void onSizes(long downloadBytes, long diskBytes) {}
-        /**
-         * The active stage's own count: {@code stage} is "verify" or "install", {@code done} of
-         * {@code total} an amount (bytes, or items when there are no bytes), {@code items} of
-         * {@code itemsTotal} the files, when it counts files.
-         */
         default void onStage(String stage, long done, long total, int items, int itemsTotal) {}
 
     }
 
-    /** What an install leaves behind for the sidecar. */
     public static final class Result {
-        /** The chosen exe, relative to the install folder (forward slashes), or "" when none was found. */
         public final String exeRelative;
         public final String buildId;
         public final long bytes;
-        /** The build manifest's "dependencies" (GOG's redistributable ids: MSVC2017_x64, DirectX...), for Windows components. */
         public List<String> dependencies = new ArrayList<>();
-        /** The dependencies come from a gen2 build manifest read whole (gen1 builds and installers have none). */
         public boolean dependenciesRead = false;
         Result(String exeRelative, String buildId, long bytes) { this.exeRelative = exeRelative; this.buildId = buildId; this.bytes = bytes; }
     }
 
-    /** Thrown for every way an install can fail; the message is what the Downloads page shows. */
     public static final class InstallException extends Exception {
         InstallException(String message) { super(message); }
     }
 
     private GogDownloadManager() {}
 
-    /**
-     * Installs {@code game} into {@code installPath}. Blocks until done; {@code cancelled} set from
-     * another thread stops it at the next file boundary (what was written stays for a resume).
-     * Returns null when cancelled.
-     */
     public static Result install(Context ctx, GogGame game, File installPath, Callback cb, AtomicBoolean cancelled) throws InstallException {
         cb.onProgress("Checking sign-in…", 0);
         String token = GogAuth.validToken(ctx);
@@ -127,7 +95,6 @@ public final class GogDownloadManager {
         return runInstaller(ctx, game, token, installPath, cb, cancelled);
     }
 
-    // ---- gen2 -----------------------------------------------------------------------------------
 
     private static final class Gen2Outcome {
         Result result; String error; boolean hardStop;
@@ -148,14 +115,10 @@ public final class GogDownloadManager {
                 tempExe = products.getJSONObject(0).optString("temp_executable", null);
                 if (tempExe != null && tempExe.isEmpty()) tempExe = null;
             }
-            // The build manifest lists every product's depots (base + DLC), each tagged by productId;
-            // the base install takes the base product's only, under a secure link scoped to it.
             String baseProductId = manifest.optString("baseProductId", null);
             if ((baseProductId == null || baseProductId.isEmpty()) && products != null && products.length() > 0)
                 baseProductId = products.getJSONObject(0).optString("productId", null);
             if (baseProductId == null || baseProductId.isEmpty()) baseProductId = game.gameId;
-            // The build's required redistributables (MSVC, DirectX, ...): logged, and kept in the
-            // sidecar, where Windows components take them as this game's list (WinCompSources).
             JSONArray deps = manifest.optJSONArray("dependencies");
             List<String> dependencies = new ArrayList<>();
             if (deps != null) for (int i = 0; i < deps.length(); i++) { String d = deps.optString(i, ""); if (!d.isEmpty()) dependencies.add(d); }
@@ -189,15 +152,15 @@ public final class GogDownloadManager {
             installPath.mkdirs();
             long plannedBytes = 0;
             for (DepotFile df : files) plannedBytes += df.totalSize;
-            if (plannedBytes > 0) {
-                long usable = installPath.getUsableSpace();
-                if (usable > 0 && plannedBytes > usable) {
+            long remainingBytes = remainingInstallBytes(files, installPath);
+            if (remainingBytes > 0) {
+                long usable = com.droiddeck.launcher.stores.StoreInstallRoot.availableBytes(installPath);
+                if (com.droiddeck.launcher.stores.StoreInstallRoot.insufficientSpace(remainingBytes, usable)) {
                     out.hardStop = true;
-                    out.error = "Not enough free space: need " + formatBytes(plannedBytes) + ", only " + formatBytes(usable) + " free";
+                    out.error = "Not enough free space: need " + formatBytes(remainingBytes) + ", only " + formatBytes(usable) + " free";
                     return out;
                 }
             }
-            // Largest first: the biggest archives start first and small files fill the tail.
             Collections.sort(files, (a, b) -> Long.compare(b.totalSize, a.totalSize));
 
             final int total = files.size();
@@ -264,7 +227,6 @@ public final class GogDownloadManager {
             deleteCounted(new File(installPath, ".gog_chunks"), cb);
             String clientId = manifest.optString("clientId", null);
             if (clientId != null && !clientId.isEmpty()) GogPrefs.get(ctx).edit().putString("client_id_" + game.gameId, clientId).apply();
-            // The game's own client secret: cloud saves need a token issued to the game's client.
             String clientSecret = manifest.optString("clientSecret", null);
             if (clientSecret != null && !clientSecret.isEmpty()) GogPrefs.get(ctx).edit().putString("client_secret_" + game.gameId, clientSecret).apply();
             out.result = new Result(pickExe(installPath, tempExe, game.title), gm.buildId, planned);
@@ -282,7 +244,6 @@ public final class GogDownloadManager {
         Gen2Manifest(JSONObject manifest, String buildId) { this.manifest = manifest; this.buildId = buildId; }
     }
 
-    /** The first Windows build's manifest, inflated and parsed; null on any failure. */
     private static Gen2Manifest resolveGen2Manifest(String buildsJson, String token, Callback cb) {
         try {
             JSONArray items = new JSONObject(buildsJson).optJSONArray("items");
@@ -309,7 +270,6 @@ public final class GogDownloadManager {
         }
     }
 
-    /** English or every-language depots; GOG tags the rest by language code. */
     private static boolean languageCompatible(JSONObject depot) {
         JSONArray languages = depot.optJSONArray("languages");
         if (languages == null || languages.length() == 0) return true;
@@ -317,7 +277,6 @@ public final class GogDownloadManager {
         return s.contains("*") || s.contains("en-US") || s.contains("\"en\"") || s.contains("english");
     }
 
-    // ---- gen1 -----------------------------------------------------------------------------------
 
     private static final class Gen1Outcome { Result result; String error; }
 
@@ -420,9 +379,7 @@ public final class GogDownloadManager {
         }
     }
 
-    // ---- installer fallback ---------------------------------------------------------------------
 
-    /** Games with no content-system builds: the Windows installer, as one file, to run once in Proton. */
     private static Result runInstaller(Context ctx, GogGame game, String token, File installPath, Callback cb, AtomicBoolean cancelled) throws InstallException {
         try {
             String productJson = httpGet("https://api.gog.com/products/" + game.gameId + "?expand=downloads", token);
@@ -526,13 +483,7 @@ public final class GogDownloadManager {
         }
     }
 
-    // ---- native engine --------------------------------------------------------------------------
 
-    /**
-     * Drives the native engine for one fetch loop, producing what the Java pool produces: the same
-     * counters, progress strings and percentages. A secure-link expiry (the run dying on
-     * 401/403/404/500) refreshes the link and re-runs for the files not yet done.
-     */
     private static void runNativeEngine(Context ctx, int kind, String verifiedMsg, List<String> depotJsons, File installPath,
                                         AtomicReference<String> cdnBaseRef, String secureLinkUrl, String token,
                                         AtomicInteger cdnRefreshCount, int maxCdnRefresh, int maxWorkers, int processWorkers,
@@ -542,7 +493,6 @@ public final class GogDownloadManager {
         StoreDownloadTier tier = StoreDownloadTier.Companion.current(ctx);
         int workers = Math.max(1, Math.min(128, tier.getNetworkWindow()));
         int process = Math.max(16, Math.max(processWorkers, tier.getProcessWorkers()));
-        // The tier's window goes to the engine as its ceiling (Max = 96); the per-host spread is the engine's.
         cb.onLog("gog: plan kind=" + kind + " files=" + total + " bytes=" + planned + " window=" + workers + " process_workers=" + process + " tier=" + tier.getId() + " engine=native");
         final String[] manifests = depotJsons.toArray(new String[0]);
         final java.util.Set<String> donePaths = java.util.concurrent.ConcurrentHashMap.newKeySet();
@@ -554,9 +504,6 @@ public final class GogDownloadManager {
             final AtomicBoolean okRef = new AtomicBoolean(false);
             final AtomicBoolean linkExpiryRef = new AtomicBoolean(false);
             final AtomicReference<String> errRef = new AtomicReference<>("");
-            // The bar between file completions: what earlier runs counted, plus the files this run
-            // skipped as already verified (the engine credits those no bytes), plus the engine's own
-            // byte count, which includes the files still in flight. Never shown going back.
             final long runStart = totalBytes.get();
             final AtomicLong verifiedInRun = new AtomicLong(0);
             final AtomicLong shownBytes = new AtomicLong(runStart);
@@ -583,7 +530,6 @@ public final class GogDownloadManager {
                     okRef.set(success); linkExpiryRef.set(linkExpiry); errRef.set(error == null ? "" : error); latch.countDown();
                 }
             };
-            // Every CDN of the set: the engine spreads its window across the hosts (JNI.md).
             String[] bases = (base == null || base.isEmpty()) ? new String[0] : base.split("\n");
             if (run == 1) cb.onLog("gog: " + bases.length + " CDN host(s) offered");
             long handle = GogNative.start(kind, manifests, bases, installPath.getAbsolutePath(), donePaths.toArray(new String[0]), "",
@@ -611,7 +557,6 @@ public final class GogDownloadManager {
         }
     }
 
-    // ---- gen2 helpers (shared with the Java pool) -----------------------------------------------
 
     private static void parseDepotManifest(String json, List<DepotFile> out) {
         try {
@@ -675,17 +620,11 @@ public final class GogDownloadManager {
         return tmpFile.renameTo(outFile);
     }
 
-    /**
-     * Every CDN the secure link offers, as one value - their bases, one per line - so the set is
-     * refreshed (and compared on expiry) as a whole. GOG answers with several hosts in {@code urls[]};
-     * taking only the first left every request on one host.
-     */
     private static String parseCdnUrl(String json) {
         java.util.List<String> all = parseCdnUrls(json);
         return all.isEmpty() ? null : String.join("\n", all);
     }
 
-    /** The CDN bases of a secure_link answer, in the order GOG gives them. */
     static java.util.List<String> parseCdnUrls(String json) {
         java.util.List<String> out = new ArrayList<>();
         if (json == null) return out;
@@ -712,13 +651,11 @@ public final class GogDownloadManager {
 
     private static final AtomicInteger CDN_TURN = new AtomicInteger();
 
-    /** One of the set's CDNs, in turn, so the Java pool spreads its requests over all of them. */
     static String pickCdn(String set) {
         String[] all = set.split("\n");
         return all[Math.floorMod(CDN_TURN.getAndIncrement(), all.length)];
     }
 
-    /** The first CDN of the set - what a caller that takes a single base gets. */
     static String firstCdn(String set) {
         int nl = set.indexOf('\n');
         return nl < 0 ? set : set.substring(0, nl);
@@ -768,7 +705,6 @@ public final class GogDownloadManager {
 
     static byte[] fetchBytes(String url, String token) { return fetchBytesEx(url, token).body; }
 
-    /** gzip or zlib detected by magic, else the bytes as UTF-8. */
     static String decompressBytes(byte[] data) {
         if (data == null || data.length < 2) return null;
         try {
@@ -840,7 +776,6 @@ public final class GogDownloadManager {
         }
     }
 
-    /** The chunk path goes before the query string so the secure link's token survives. */
     private static String buildChunkUrl(String base, String chunkPath) {
         int q = base.indexOf('?');
         return q >= 0 ? base.substring(0, q) + "/" + chunkPath + base.substring(q) : base + "/" + chunkPath;
@@ -946,7 +881,6 @@ public final class GogDownloadManager {
 
     private static String baseName(String path) { return path.contains("/") ? path.substring(path.lastIndexOf('/') + 1) : path; }
 
-    /** Download-pool threads for the built-in loop: cores times two, between 6 and 16. */
     private static int downloadThreads() {
         int threads = Runtime.getRuntime().availableProcessors() * 2;
         return Math.max(6, Math.min(16, threads));
@@ -956,7 +890,6 @@ public final class GogDownloadManager {
         try (FileOutputStream fos = new FileOutputStream(f)) { fos.write(data); }
     }
 
-    /** Removes the chunk cache, counting its files as the Install stage's progress (a large cache takes a while). */
     private static void deleteCounted(File dir, Callback cb) {
         File[] files = dir.listFiles();
         if (files == null) { dir.delete(); return; }
@@ -976,10 +909,6 @@ public final class GogDownloadManager {
         dir.delete();
     }
 
-    /**
-     * The exe to run, relative to the install folder: the manifest's hint when present, else the
-     * candidate named most like the title, else the shallowest. "" when the folder has none.
-     */
     static String pickExe(File installPath, String tempExe, String title) {
         if (tempExe != null) {
             File hinted = new File(installPath, tempExe);
@@ -1018,7 +947,16 @@ public final class GogDownloadManager {
         for (File f : files) if (f.isDirectory()) collectExeRecursive(f, out);
     }
 
-    private static final class DepotFile {
+    static long remainingInstallBytes(List<DepotFile> files, File installPath) {
+        long remaining = 0;
+        for (DepotFile file : files) {
+            File output = new File(installPath, file.relativePath);
+            if (!fileVerified(output, file.totalSize, file.md5)) remaining += file.totalSize;
+        }
+        return remaining;
+    }
+
+    static final class DepotFile {
         final String relativePath;
         final List<ChunkRef> chunks = new ArrayList<>();
         String md5;
@@ -1038,12 +976,6 @@ public final class GogDownloadManager {
         Gen1File(String path, String url, long offset, long size) { this.path = path; this.url = url; this.offset = offset; this.size = size; }
     }
 
-    /** The install size of the Windows build (English / all-language depots), or -1. Blocking. */
-    /**
-     * The "dependencies" of the build [buildId] of [gameId] (else the newest Windows build), from
-     * its build manifest alone: no game file is fetched. Null when the builds or the manifest
-     * could not be had; empty when the build lists none. Blocking.
-     */
     public static List<String> fetchDependencies(String gameId, String buildId, String token) {
         try {
             String buildsUrl = "https://content-system.gog.com/products/" + gameId + "/os/windows/builds?generation=2";
@@ -1067,7 +999,6 @@ public final class GogDownloadManager {
             String manifestStr = decompressBytes(raw);
             if (manifestStr == null) return null;
             JSONObject manifest = new JSONObject(manifestStr);
-            // A manifest without depots is not one this reads right: no list rather than an empty one.
             JSONArray depots = manifest.optJSONArray("depots");
             if (depots == null) { Log.w(TAG, "gog: build manifest for " + gameId + " has no depots; keys " + manifest.names()); return null; }
             JSONArray deps = manifest.optJSONArray("dependencies");
@@ -1124,6 +1055,5 @@ public final class GogDownloadManager {
         return String.format("%.2f GB", bytes / (1024.0 * 1024 * 1024));
     }
 
-    /** Keeps the import used: every URL a log line names goes through here. */
     static String safe(String url) { return StoreLog.redactUrl(url); }
 }

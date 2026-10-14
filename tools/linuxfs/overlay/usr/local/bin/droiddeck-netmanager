@@ -1,8 +1,4 @@
 #!/usr/bin/python3
-# Based on WinNative (maxjivi05, feature/wayland-gamescope e7a224ae), GPL-3.0.
-# Steam speaks NetworkManager; Android owns the radios, routes and connection. Export the
-# app's live snapshot through that API, including nearby Wi-Fi access points. Requests to
-# scan are handed to Android; Android settings still handle joining networks.
 import ipaddress
 import json
 import re
@@ -16,7 +12,7 @@ from xml.sax.saxutils import escape
 import gi
 
 gi.require_version("Gio", "2.0")
-from gi.repository import Gio, GLib  # noqa: E402
+from gi.repository import Gio, GLib
 
 NAME = "org.freedesktop.NetworkManager"
 ROOT = "/org/freedesktop/NetworkManager"
@@ -60,7 +56,6 @@ def v(signature, value):
 
 
 def read_snapshot():
-    # Atomic replacement by the app means we never see a partially written handover.
     try:
         state = json.loads(SNAPSHOT.read_text())
         if not isinstance(state, dict) or not isinstance(state.get("connected"), bool):
@@ -71,7 +66,6 @@ def read_snapshot():
 
 
 def legacy_snapshot():
-    # Older APKs do not publish transport metadata. Never guess Wi-Fi from an interface name.
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
             sock.connect(("192.0.2.1", 9))
@@ -101,10 +95,10 @@ def connection_name(state):
 
 def connectivity(state):
     if not state["connected"]:
-        return 1  # NONE
+        return 1
     if state.get("validated"):
-        return 4  # FULL
-    return 2 if state.get("captivePortal") else 3  # PORTAL / LIMITED
+        return 4
+    return 2 if state.get("captivePortal") else 3
 
 
 def metered(state):
@@ -155,7 +149,6 @@ def active_ap(state):
 
 
 def ap_security(capabilities):
-    # NetworkManager's cipher/key-management flags, from Android's beacon capabilities.
     wpa = rsn = 0
     for group in re.findall(r"\[([^]]+)\]", capabilities.upper()):
         flags = 0
@@ -280,7 +273,6 @@ def objects(state):
             if present:
                 found[path] = {NAME + f".IP{version}Config": ip_config(state, version)}
     if up and not wifi and state.get("wifiEnabled"):
-        # Android can keep its Wi-Fi radio available while cellular/VPN is the default route.
         wireless = objects(dict(state, connected=False, transport="none",
                                 interface=state.get("wifiInterface", "wlan0"), metered=None))
         wifi_device = ROOT + "/Devices/Wifi"
@@ -304,13 +296,11 @@ def settings(state):
             "ssid": v("ay", list((state.get("ssid") or "Wi-Fi").encode("utf-8"))), "mode": v("s", "infrastructure"),
         }
     elif state.get("transport") == "cellular":
-        result["gsm"] = {}  # Android owns the SIM/APN; no credentials are exported.
+        result["gsm"] = {}
     return result
 
 
 def interface_info(interface, values):
-    # Register properties on the actual objects as well as returning ObjectManager snapshots.
-    # Steam/libnm also use Properties.Get/GetAll and introspect the wireless methods.
     props = "".join(f'<property name="{escape(key)}" type="{value.get_type_string()}" access="read"/>'
                     for key, value in values.items())
     node = Gio.DBusNodeInfo.new_for_xml(f'<node><interface name="{interface}">{METHODS.get(interface, "")}{props}</interface></node>')
@@ -372,7 +362,7 @@ class NetworkManager:
     def check(self):
         state = read_snapshot()
         if state is None:
-            return True  # A transient read failure must not replace a known link with Ethernet.
+            return True
         if state == self.state:
             return True
         before, after = self.objects, objects(state)
@@ -418,8 +408,7 @@ class NetworkManager:
             self.bus.emit_signal(None, path, OBJECT_MANAGER, signal, body)
 
 
-def main():
-    loop = GLib.MainLoop()
+def own(loop):
     state = {}
 
     def acquired(bus, name):
@@ -429,7 +418,12 @@ def main():
         print("== netmanager: the system bus is gone", file=sys.stderr)
         loop.quit()
 
-    Gio.bus_own_name(Gio.BusType.SYSTEM, NAME, Gio.BusNameOwnerFlags.NONE, acquired, None, lost)
+    return Gio.bus_own_name(Gio.BusType.SYSTEM, NAME, Gio.BusNameOwnerFlags.NONE, acquired, None, lost)
+
+
+def main():
+    loop = GLib.MainLoop()
+    own(loop)
     loop.run()
 
 

@@ -19,23 +19,15 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
 
-/**
- * Installs one of DroidDeck's own builds over itself: download into the cache, check the file
- * against GitHub's sha256, then hand it to PackageInstaller. Android shows its own "Update this
- * app?" prompt, and the app is restarted on the new build.
- */
 object SelfInstaller {
-    /** The broadcast PackageInstaller answers on; the launcher registers for it while it is open. */
     const val ACTION_STATUS = "com.droiddeck.launcher.update.INSTALL_STATUS"
 
-    /** Android lets an app install packages only once the user allows it in "Install unknown apps". */
     fun canInstall(context: Context): Boolean =
         Build.VERSION.SDK_INT < 26 || context.packageManager.canRequestPackageInstalls()
 
     fun permissionIntent(context: Context): Intent =
         Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${context.packageName}"))
 
-    /** Downloads [apk] into the cache and checks it; a download left from before is replaced. */
     fun download(context: Context, apk: AppUpdates.Apk, progress: (Int) -> Unit): File {
         val dir = File(context.cacheDir, "updates")
         FileUtils.delete(dir)
@@ -80,7 +72,6 @@ object SelfInstaller {
         }
     }
 
-    /** Inspect the actual downloaded APK before giving it to Android's installer. */
     private fun validateDownloaded(context: Context, file: File, apk: AppUpdates.Apk) {
         if (apk.packageName != context.packageName) {
             throw IOException(context.getString(R.string.selfinst_wrong_package, apk.packageName, context.packageName))
@@ -108,8 +99,6 @@ object SelfInstaller {
             throw IOException(context.getString(R.string.selfinst_downgrade, code, BuildConfig.VERSION_CODE))
         }
 
-        // Before Android 9 this lineage intentionally presents the public legacy test key. Android
-        // 9+ understands the v3 hand-over and must see DroidDeck's private release key as current.
         if (Build.VERSION.SDK_INT >= 28) {
             val signing = info.signingInfo ?: throw IOException(context.getString(R.string.selfinst_no_signing))
             val digests = signing.apkContentsSigners.orEmpty().map { cert ->
@@ -122,13 +111,11 @@ object SelfInstaller {
         }
     }
 
-    /** Writes [apk] into an install session and commits it; the answer comes as an [ACTION_STATUS] broadcast. */
     fun install(context: Context, apk: File) {
         val installer = context.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
             setAppPackageName(context.packageName)
             setSize(apk.length())
-            // Skips Android's prompt where it allows that (the app installed its current build itself).
             if (Build.VERSION.SDK_INT >= 31) setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
         }
         val id = installer.createSession(params)
@@ -145,7 +132,6 @@ object SelfInstaller {
         }
     }
 
-    /** What went wrong, in words for the user, from PackageInstaller's status and message. */
     fun describeFailure(context: Context, status: Int, message: String?): String = when {
         message?.contains("VERSION_DOWNGRADE") == true -> context.getString(R.string.upd_fail_downgrade)
         status == PackageInstaller.STATUS_FAILURE_CONFLICT || message?.contains("UPDATE_INCOMPATIBLE") == true ->

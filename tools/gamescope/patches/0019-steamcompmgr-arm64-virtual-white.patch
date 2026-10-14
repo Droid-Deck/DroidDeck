@@ -22,9 +22,9 @@ index e54194b..4131467 100644
  			g_ColorMgmt.pending.outputVirtualWhite.x = santitize_float( bit_cast<float>( user_vec[0] ) );
  			g_ColorMgmt.pending.outputVirtualWhite.y = santitize_float( bit_cast<float>( user_vec[1] ) );
 +#if defined(__aarch64__)
-+			// The ARM64 Steam client packs the pair as one 64-bit element, so only x arrives;
-+			// Steam derives the pair from the CIE daylight locus, so y follows from x.
-+			// Drop once the client sends both floats (y arrives non-zero).
++
++
++
 +			float x = g_ColorMgmt.pending.outputVirtualWhite.x;
 +			if ( x >= 0.25f && x <= 0.55f && g_ColorMgmt.pending.outputVirtualWhite.y <= 0.01f )
 +				g_ColorMgmt.pending.outputVirtualWhite.y = -3.0f * x * x + 2.87f * x - 0.275f;

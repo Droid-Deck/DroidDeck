@@ -112,7 +112,45 @@ On-disk protocol (what a resumed run, by either engine, relies on): a file is as
 
 ## `com.droiddeck.launcher.stores.epic.EpicNative`
 
-Two runs make up the native half of an Epic install:
+The manager's default Epic install is the **stream** run (`nativeStream`, mode `adaptive`,
+below): the chunks are fetched in parallel and written straight into staged files as they arrive;
+on device it measured about 83 MB/s on a 71 GB install. The **lookahead** install
+(`nativeInstallAdaptive`, mode `lookahead`) is its fallback when the stream engine's space plan
+does not fit, and is selectable directly, as is the legacy batch pair (`nativeStart` +
+`nativeAssemble`, mode `batch`), through the hidden `storesEpicMode` preference.
+
+### Lookahead install (snapshot schema v1)
+
+`nativeInstallAdaptive(request: String, listener: EpicNative.Listener): Long`
+exports `Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeInstallAdaptive`.
+Its exact Kotlin descriptor is
+`(Ljava/lang/String;Lcom/droiddeck/launcher/stores/epic/EpicNative$Listener;)J`.
+The listener must also implement `EpicNative.InstallListener.beforeSwap(): Boolean` (`()Z`).
+Rust invokes it synchronously after staging/hash/sync and before the first atomic replacement;
+false or a Java exception aborts without replacing that output. Java marks the sidecar updating
+there. Later verified swaps preserve mixed-update/resume semantics.
+
+The UTF-8 JSON request contains:
+
+- `schema_version: 1`, absolute `install_dir`, `cache_dir`, owned `staging_dir`,
+  `same_volume`, signed `free_game`/`free_cache` (`-1` unknown), `max_workers`, CDN `hosts`.
+- `chunks`: distinct `guid`, relative CDN `path`, decoded `size`, `exact_size`, `wire_size`,
+  SHA-1 hex `sha1` (empty/all-zero means absent), `cached` verified length (`-1` absent).
+- `files`: pending manifest-order relative `path`, `sha1`, current `old_size`, ordered `parts`
+  containing `guid`, unsigned `offset` and `size`.
+
+Parse, owned-namespace validation and adaptive storage planning happen synchronously. Errors
+return zero after `onComplete(false, error, 0)` and are **terminal**, not fallback signals.
+`onPlan` reports the selected lookahead/retention/peaks; `onProgress` counts staged file bytes
+and verified swapped file counts, not fetched wire bytes. Fetch and staged assembly overlap
+in one native run, using the same pure reservation/release policy as the peak planner.
+Cancellation/release joins native workers; no worker survives the terminal callback/handle
+release. Only `StoresNative.ensureLoaded() == false` selects bounded parallel Java; the same rule
+holds for `nativeStream`.
+
+### Legacy batch APIs (mode `batch`, for A/B runs)
+
+Two explicit calls provide the legacy batch interface:
 
 1. **Fetch** (`nativeStart`): fills the chunk cache with verified, decompressed chunks for the
    files the manager says are pending. The Kotlin manager still fetches and parses the manifest
@@ -223,6 +261,57 @@ Bannerlator's `BlEpicDownload.run(...)` wraps `nativeStart` in a blocking call t
 `AtomicBoolean` cancel flag every 250 ms, calls `nativeCancel` on cancel, waits up to 5 s for
 `onComplete`, then `nativeRelease` in `finally`. The same wrapper shape fits `nativeAssemble`
 (cancel is honoured between files; a multi-GB file finishes before the run stops).
+
+### `nativeStream` — the adaptive install
+
+| Method | JNI signature | Symbol |
+|---|---|---|
+| `nativeStream(...)`: Long | `([BLjava/lang/String;Ljava/lang/String;Ljava/lang/String;[Ljava/lang/String;[IJJJLjava/lang/String;IILcom/droiddeck/launcher/stores/epic/EpicNative$StreamListener;)J` | `Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeStream` |
+
+```kotlin
+@JvmStatic private external fun nativeStream(
+    manifest: ByteArray, installDir: String, chunkCacheDir: String, stagingDir: String,
+    cdnPrefixes: Array<String>, pendingFileIdx: IntArray, expectedBytes: Long, cacheBudget: Long,
+    overlapBudget: Long, caBundlePath: String,
+    maxWorkers: Int, processWorkers: Int, listener: StreamListener,
+): Long
+```
+
+Parameters as `nativeStart`, plus `stagingDir` (the manager's owned
+`<installDir>/.droiddeck-epic-staging`, which must exist; `""` = stage beside each file), and
+except `expectedBytes` (the manager's `Σ fileSize` of the pending
+files, `-1` = no cross-check; no chunk count) and `cacheBudget` (the most bytes of shared chunks
+the cache may hold; the manager sizes it from free space, `0` = never cache, refetch instead) and
+`overlapBudget` (the most planned bytes of *replaced* files - destination already holds data -
+staged at once, since each sits beside its old copy until its swap; one is always allowed so the
+run progresses; `-1` = no limit). Files are admitted in order and a chunk is dispatched only once
+the file of its first use is admitted; fresh files are never held back.
+`chunkCacheDir` is `""` (`<installDir>/.chunks`) or a scratch directory; the manager falls back to
+`""` for a card install when internal storage cannot hold the budget.
+
+What the run does (`epic/stream.rs`): a chunk one file part uses is decompressed, verified and
+written at the part's offset into a unique `stream-*.stage` file in `stagingDir`; a
+chunk several parts use is also kept in the cache, decompressed, as `<GUID>` (a later copy after
+an eviction as `<GUID>.<n>`) and deleted after its last covered part. The plan evicts by furthest
+next use when the budget would be exceeded and fetches the evicted chunk again later. Each file,
+once complete: synced, size and SHA-1 checked, `onBeforeReplace()` once for the whole run, then
+renamed over its destination. Cancel or failure removes every unfinished stage file before
+`onComplete`, leaves the destinations and the cache; success removes the cache directory.
+
+Planning runs on the calling thread and also prepares the cache (keeps verified chunks this
+install needs, deletes everything else, as the Java writer does). A refusal returns `0` after a
+synchronous `onComplete(false, reason, 0)`; nothing was fetched or written, and the manager fails
+the install with that reason (it does not switch engines once the library is loaded).
+
+| `StreamListener` method | JNI signature | When |
+|---|---|---|
+| `onStreamProgress(bytesWritten: Long, bytesTotal: Long, filesDone: Int, filesTotal: Int, filesBytes: Long)` | `(JJIIJ)V` | after written parts (at most every 50 ms) and after every finished file; `filesBytes` = sizes of the files swapped in |
+| `onLog(line: String)` | `(Ljava/lang/String;)V` | engine lines: `stream-plan …`, the fetch core's lines, `stream-summary mode=adaptive …` (peak cache, peak staging, refetches, direct vs cached bytes) |
+| `onBeforeReplace(): Boolean` | `()Z` | once, before the first file replaces its destination; `false` or a throw fails the run with nothing replaced |
+| `onComplete(success: Boolean, error: String, bytes: Long)` | `(ZLjava/lang/String;J)V` | terminal, exactly once; `bytes` = file bytes written; `error` = `"cancelled"` on cancel |
+
+Unlike the batch runs, the Kotlin wrapper (`EpicNative.stream`) waits for `onComplete` after a
+cancel without a time limit: the stage-file cleanup must be finished before the manager returns.
 
 ## `com.droiddeck.launcher.stores.amazon.AmazonNative`
 
