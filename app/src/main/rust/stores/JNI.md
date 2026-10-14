@@ -266,12 +266,13 @@ Bannerlator's `BlEpicDownload.run(...)` wraps `nativeStart` in a blocking call t
 
 | Method | JNI signature | Symbol |
 |---|---|---|
-| `nativeStream(...)`: Long | `([BLjava/lang/String;Ljava/lang/String;Ljava/lang/String;[Ljava/lang/String;[IJJLjava/lang/String;IILcom/droiddeck/launcher/stores/epic/EpicNative$StreamListener;)J` | `Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeStream` |
+| `nativeStream(...)`: Long | `([BLjava/lang/String;Ljava/lang/String;Ljava/lang/String;[Ljava/lang/String;[IJJJLjava/lang/String;IILcom/droiddeck/launcher/stores/epic/EpicNative$StreamListener;)J` | `Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeStream` |
 
 ```kotlin
 @JvmStatic private external fun nativeStream(
     manifest: ByteArray, installDir: String, chunkCacheDir: String, stagingDir: String,
-    cdnPrefixes: Array<String>, pendingFileIdx: IntArray, expectedBytes: Long, cacheBudget: Long, caBundlePath: String,
+    cdnPrefixes: Array<String>, pendingFileIdx: IntArray, expectedBytes: Long, cacheBudget: Long,
+    overlapBudget: Long, caBundlePath: String,
     maxWorkers: Int, processWorkers: Int, listener: StreamListener,
 ): Long
 ```
@@ -280,7 +281,11 @@ Parameters as `nativeStart`, plus `stagingDir` (the manager's owned
 `<installDir>/.droiddeck-epic-staging`, which must exist; `""` = stage beside each file), and
 except `expectedBytes` (the manager's `Σ fileSize` of the pending
 files, `-1` = no cross-check; no chunk count) and `cacheBudget` (the most bytes of shared chunks
-the cache may hold; the manager sizes it from free space, `0` = never cache, refetch instead).
+the cache may hold; the manager sizes it from free space, `0` = never cache, refetch instead) and
+`overlapBudget` (the most planned bytes of *replaced* files - destination already holds data -
+staged at once, since each sits beside its old copy until its swap; one is always allowed so the
+run progresses; `-1` = no limit). Files are admitted in order and a chunk is dispatched only once
+the file of its first use is admitted; fresh files are never held back.
 `chunkCacheDir` is `""` (`<installDir>/.chunks`) or a scratch directory; the manager falls back to
 `""` for a card install when internal storage cannot hold the budget.
 

@@ -65,12 +65,6 @@ public final class EpicDownloadManager {
     static final long ADAPTIVE_CACHE_MIN_SCRATCH_BYTES = MAX_RETAINED_CHUNK_CACHE_BYTES;
     /** Chunks being decoded, written or released at any moment, beyond the budget itself. */
     static final long ADAPTIVE_TRANSIENT_BYTES = 64L * 1024 * 1024;
-    /**
-     * Files the fetch window has open beyond the sequential plan: the parallel writer can finish
-     * files a little out of order, so replaced files near the front of the window may not have
-     * released their old copies yet.
-     */
-    static final long ADAPTIVE_OPEN_WINDOW_BYTES = 256L * 1024 * 1024;
 
     static final String MODE_ADAPTIVE = "adaptive";
     static final String MODE_LOOKAHEAD = "lookahead";
@@ -196,6 +190,15 @@ public final class EpicDownloadManager {
     static Result installManifest(Manifest manifest, String installDirPath, String chunkCacheDirPath,
                                   List<String> installTags, AtomicBoolean cancel, Callback cb,
                                   NativeOptions nativeOptions) throws InstallException {
+        Result result = installSelected(manifest, installDirPath, chunkCacheDirPath, installTags, cancel, cb, nativeOptions);
+        // A finished install leaves no staging; the owned namespace is recreated by the next run.
+        if (result != null) releaseOwnedStaging(new File(installDirPath));
+        return result;
+    }
+
+    private static Result installSelected(Manifest manifest, String installDirPath, String chunkCacheDirPath,
+                                          List<String> installTags, AtomicBoolean cancel, Callback cb,
+                                          NativeOptions nativeOptions) throws InstallException {
         try {
             List<CdnUrl> cdnUrls = manifest.cdnUrls;
             File installDir = new File(installDirPath);
@@ -432,6 +435,11 @@ public final class EpicDownloadManager {
     static final class AdaptiveSpacePlan {
         boolean cacheBesideGame;
         long cacheBudget;
+        /**
+         * Most planned bytes of replaced files the engine may stage at once (each sits beside its
+         * old copy until its swap); -1 = nothing is replaced, no limit.
+         */
+        long overlapBudget = -1;
         long gameNeed;
         long scratchNeed;
         String error;
@@ -446,30 +454,57 @@ public final class EpicDownloadManager {
     }
 
     /**
-     * Space the game volume needs beyond the sequential staged plan: none for a fresh install (a
-     * staged file becomes the file itself); for replaced files, the largest old copy that may not
-     * be released yet plus what the fetch window spans, never more than all old copies together.
+     * The game volume's net growth at its worst point when files are swapped in order and each
+     * replaced file's old copy is released at its swap: the running Σ(new − old) after each file.
+     * What a staged file costs while it sits beside its old copy is the overlap budget's part.
      */
-    static long adaptiveOpenStagingAllowance(Map<String, Long> oldFileBytes) {
-        long total = 0, largest = 0;
-        for (long bytes : oldFileBytes.values()) { total += bytes; largest = Math.max(largest, bytes); }
-        return Math.min(total, largest + ADAPTIVE_OPEN_WINDOW_BYTES);
+    static long settledNetPeak(List<FileInfo> files, Map<String, Long> oldFileBytes) {
+        long running = 0, peak = 0;
+        for (FileInfo file : files) {
+            Long old = oldFileBytes.get(file.filename);
+            running += file.fileSize() - (old == null ? 0 : old);
+            peak = Math.max(peak, running);
+        }
+        return peak;
     }
 
-    static AdaptiveSpacePlan planAdaptiveSpace(long stagedPeak, long openAllowance, long freeGame, boolean scratchRequested, long freeScratch) {
+    /** The largest pending file whose destination has data (the engine's smallest overlap budget). */
+    static long largestReplacedFile(List<FileInfo> files, Map<String, Long> oldFileBytes) {
+        long largest = 0;
+        for (FileInfo file : files) {
+            Long old = oldFileBytes.get(file.filename);
+            if (old != null && old > 0) largest = Math.max(largest, file.fileSize());
+        }
+        return largest;
+    }
+
+    /**
+     * The cache placement and budget as before; for an update, the replacement-overlap budget is
+     * what the game volume has left after the net growth and the cache, never below the largest
+     * replaced file (one at a time is the minimum that still progresses). The check is the
+     * lookahead planner's: the need must not exceed the free reading, no extra margin.
+     */
+    static AdaptiveSpacePlan planAdaptiveSpace(long netPeak, long largestReplaced, long freeGame, boolean scratchRequested, long freeScratch) {
         AdaptiveSpacePlan plan = new AdaptiveSpacePlan();
-        long files = stagedPeak + openAllowance;
+        long minimum = netPeak + largestReplaced;
         long scratchBudget = scratchRequested ? adaptiveCacheBudget(freeScratch, 0) : 0;
         plan.cacheBesideGame = !scratchRequested || (freeScratch >= 0 && scratchBudget < ADAPTIVE_CACHE_MIN_SCRATCH_BYTES);
+        long cacheOnGame;
         if (plan.cacheBesideGame) {
-            plan.cacheBudget = adaptiveCacheBudget(freeGame, files);
-            plan.gameNeed = files + plan.cacheBudget + ADAPTIVE_TRANSIENT_BYTES;
+            plan.cacheBudget = adaptiveCacheBudget(freeGame, minimum);
+            cacheOnGame = plan.cacheBudget + ADAPTIVE_TRANSIENT_BYTES;
             plan.scratchNeed = 0;
         } else {
             plan.cacheBudget = scratchBudget;
-            plan.gameNeed = files;
+            cacheOnGame = 0;
             plan.scratchNeed = plan.cacheBudget + ADAPTIVE_TRANSIENT_BYTES;
         }
+        long overlap = 0;
+        if (largestReplaced > 0) {
+            overlap = freeGame < 0 ? largestReplaced : Math.max(largestReplaced, freeGame - netPeak - cacheOnGame);
+            plan.overlapBudget = overlap;
+        }
+        plan.gameNeed = netPeak + overlap + cacheOnGame;
         if (StoreInstallRoot.insufficientSpace(plan.gameNeed, freeGame)) {
             plan.error = "Not enough free space on the game's storage: need " + fmt(plan.gameNeed)
                     + (plan.cacheBesideGame && scratchRequested ? " (download cache moved beside the game: internal storage is full)" : "")
@@ -493,12 +528,12 @@ public final class EpicDownloadManager {
         if (manifest.rawBytes == null || pendingIdx == null) {
             throw new InstallException("Native Epic install failed: the manifest is not available to the native engine");
         }
-        long stagedPeak = estimateStagedFilePeak(pending, oldFileBytes);
-        long openAllowance = adaptiveOpenStagingAllowance(oldFileBytes);
+        long netPeak = settledNetPeak(pending, oldFileBytes);
+        long largestReplaced = largestReplacedFile(pending, oldFileBytes);
         long freeGame = StoreInstallRoot.availableBytes(installDir);
         boolean scratchRequested = !cachePath.isEmpty();
         long freeScratch = scratchRequested ? StoreInstallRoot.availableBytes(chunkCacheDir) : -1;
-        AdaptiveSpacePlan space = planAdaptiveSpace(stagedPeak, openAllowance, freeGame, scratchRequested, freeScratch);
+        AdaptiveSpacePlan space = planAdaptiveSpace(netPeak, largestReplaced, freeGame, scratchRequested, freeScratch);
         if (space.error != null) {
             cb.onLog("epic: adaptive space plan does not fit (" + space.error + "); mode=lookahead");
             return NativeAttempt.FALLBACK;
@@ -511,6 +546,7 @@ public final class EpicDownloadManager {
         if (cancel.get()) return NativeAttempt.done(null);
         cb.onLog("epic: mode=adaptive tier=" + options.tierId + " workers=" + options.maxWorkers + " process_workers=" + options.processWorkers
                 + " cache=" + (engineCache.isEmpty() ? "beside the game" : "scratch") + " budget=" + fmt(space.cacheBudget)
+                + " overlap_budget=" + (space.overlapBudget < 0 ? "none" : fmt(space.overlapBudget))
                 + " game need=" + fmt(space.gameNeed) + " of " + fmt(freeGame) + (space.cacheBesideGame ? "" : ", scratch need=" + fmt(space.scratchNeed) + " of " + fmt(freeScratch)));
         cb.onSizes(pendingBytes, planned);
         cb.onBytes(0, pendingBytes, 0);
@@ -520,7 +556,7 @@ public final class EpicDownloadManager {
         final long started = System.nanoTime();
         final long[] state = new long[] {0, 0, System.currentTimeMillis(), 0, 0}; // bytes, files, speed ms, speed bytes, speed bps
         EpicNative.Result res = EpicNative.stream(manifest.rawBytes, installDir.getPath(), engineCache, stagingDir.getCanonicalPath(), cdnPrefixes(manifest.cdnUrls), pendingIdx, pendingBytes,
-                space.cacheBudget, "", options.maxWorkers, options.processWorkers, cancel, new EpicNative.StreamListener() {
+                space.cacheBudget, space.overlapBudget, "", options.maxWorkers, options.processWorkers, cancel, new EpicNative.StreamListener() {
                     @Override public void onStreamProgress(long bytesWritten, long bytesTotal, int filesDone, int filesTotal, long filesBytes) {
                         synchronized (lock) {
                             if (bytesWritten < state[0] && filesDone <= state[1]) return; // a late, older sample
@@ -694,6 +730,28 @@ public final class EpicDownloadManager {
             }
         }
         return staging;
+    }
+
+    /**
+     * Remove the owned staging namespace when it holds nothing but its own marker. Same no-follow
+     * and canonical-path checks as {@link #recoverOwnedStaging}; anything unexpected is left alone.
+     */
+    static void releaseOwnedStaging(File installDir) {
+        try {
+            File staging = new File(installDir, STAGING_DIRECTORY);
+            if (!Files.isDirectory(staging.toPath(), LinkOption.NOFOLLOW_LINKS)) return;
+            Path expected = installDir.getCanonicalFile().toPath().resolve(STAGING_DIRECTORY);
+            if (!staging.getCanonicalFile().toPath().equals(expected)) return;
+            String[] names = staging.list();
+            if (names == null || names.length != 1 || !names[0].equals("owner")) return;
+            File owner = new File(staging, "owner");
+            if (!Files.isRegularFile(owner.toPath(), LinkOption.NOFOLLOW_LINKS)
+                    || owner.length() != STAGING_OWNER.length()
+                    || !STAGING_OWNER.equals(new String(Files.readAllBytes(owner.toPath()), StandardCharsets.UTF_8))) return;
+            if (owner.delete()) staging.delete();
+        } catch (IOException e) {
+            Log.w(TAG, "staging namespace kept: " + e.getMessage());
+        }
     }
 
     private static JSONObject nativeRequest(Manifest manifest, List<FileInfo> files,

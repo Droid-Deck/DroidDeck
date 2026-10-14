@@ -118,6 +118,25 @@ pub fn run_fetch(
     progress: &(dyn Fn(u64, u64) + Sync),
     log: &(dyn Fn(&str) + Sync),
 ) -> FetchOutcome {
+    run_fetch_gated(items, hosts, opts, sink, cancel, progress, log, &|_: usize| true)
+}
+
+/// [`run_fetch`] with an admission gate: the next fresh item (by index) is only dispatched once
+/// `gate(index)` says so. Items are still taken strictly in order, and retries are never held
+/// back. While the gate is closed the driver idles as it does on a full window, so a gate that
+/// opens as the sink makes progress (e.g. as files finish) paces the run without stalling the
+/// requests already in flight. The adaptivity is unchanged.
+#[allow(clippy::too_many_arguments)]
+pub fn run_fetch_gated(
+    items: Vec<FetchItem>,
+    hosts: &[String],
+    opts: &FetchOptions,
+    sink: &dyn FetchSink,
+    cancel: &AtomicBool,
+    progress: &(dyn Fn(u64, u64) + Sync),
+    log: &(dyn Fn(&str) + Sync),
+    gate: &(dyn Fn(usize) -> bool + Sync),
+) -> FetchOutcome {
     let started = Instant::now();
     let label = opts.label.as_str();
     let stream = opts.stream;
@@ -359,6 +378,7 @@ mode={}",
             Ok(rt) => {
                 rt.block_on(run_driver(DriverCtx {
                     items: items.as_slice(),
+                    gate,
                     hosts: hosts.as_slice(),
                     opts,
                     label,
@@ -832,6 +852,7 @@ struct FetchDone {
 
 struct DriverCtx<'a> {
     items: &'a [FetchItem],
+    gate: &'a (dyn Fn(usize) -> bool + Sync),
     hosts: &'a [String],
     opts: &'a FetchOptions,
     label: &'a str,
@@ -853,6 +874,7 @@ struct DriverCtx<'a> {
 async fn run_driver(ctx: DriverCtx<'_>) {
     let DriverCtx {
         items,
+        gate,
         hosts,
         opts,
         label,
@@ -997,7 +1019,7 @@ async fn run_driver(ctx: DriverCtx<'_>) {
             let (idx, attempts) = if use_retry {
                 let p = *retry.front().expect("retry nonempty");
                 (p.idx, p.attempts)
-            } else if next_item < items.len() {
+            } else if next_item < items.len() && gate(next_item) {
                 (next_item, 0u32)
             } else {
                 break;

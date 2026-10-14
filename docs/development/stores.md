@@ -71,12 +71,25 @@ The run logs `stream-plan` (direct vs shared chunks, planned refetches, budget) 
 `stream-summary mode=adaptive` (peak cache, peak staging, refetches, bytes written from the
 download vs from the cache).
 
+On an update, a staged file that replaces an existing one sits beside its old copy until its swap,
+so the engine paces replacements with an overlap budget: files are admitted in order, a replaced
+file only while the planned sizes of admitted, not-yet-swapped replaced files fit the budget (one
+is always admitted, so the run progresses), and a chunk is fetched only once its file is admitted.
+Fresh files are never held back, and admission only delays files, never reorders them, so the
+cache plan stays exact. The run logs `overlap_budget=` in `stream-plan` and
+`peak_replace_overlap_bytes=` in `stream-summary`. With room to spare the budget is large and
+updates run as wide as fresh installs; on a nearly full volume, replaced files are staged one
+after another and the fetch pauses at each replaced-file boundary until the previous one is
+swapped in.
+
 Its space plan (`EpicDownloadManager.planAdaptiveSpace`, unit-tested in `EpicAdaptivePlanTest`)
-checks each volume for what lands on it. The game volume: the sequential staged-file peak
-(remaining file bytes, each replaced file's old copy credited only after its swap), plus, for an
-update, the largest old file plus 256 MiB for files finishing out of order within the fetch
-window, plus the cache when it is beside the game. The cache volume: the budget plus 64 MiB of
-chunks in transit. The budget is half the cache volume's free space after those needs, at most
+checks each volume for what lands on it, with the lookahead planner's rule (the need must not
+exceed the free reading). The game volume: the net growth at its worst point (`settledNetPeak`,
+the running Σ(new − old) with each old copy released at its swap), plus the overlap budget, plus
+the cache when it is beside the game. The overlap budget is whatever the game volume has left
+after the net growth and the cache, never less than the largest replaced file; when even that
+does not fit, the plan hands over to the lookahead engine. The cache volume: the budget plus 64 MiB of
+chunks in transit. The cache budget is half the cache volume's free space after those needs, at most
 1 GiB (256 MiB when free space is unknown; 0 is allowed and means every reuse is a refetch). On a
 card install the cache stays on internal scratch unless internal storage cannot hold at least
 64 MiB of it; then the cache goes beside the game (still released chunk by chunk) instead of
@@ -158,7 +171,8 @@ are checked separately. File SHA-1 hashes are checked where supplied by the mani
 or cancelled staging files are removed without deleting old outputs. A successful run removes the
 cache. A resume within a large incomplete file restarts that file, not its individual parts.
 All three staged writers (adaptive, lookahead, Java) use `<installDir>/.droiddeck-epic-staging/`, whose `owner` marker identifies this
-namespace. Before the delta pass and free-space probes, the manager removes orphan `.stage`
+namespace. A successful install removes it when it holds nothing but the marker (same no-follow
+and canonical-path checks); the next run recreates it. Before the delta pass and free-space probes, the manager removes orphan `.stage`
 entries only from this owned namespace. A manifest naming that directory or any descendant
 fails without deletion; an unowned directory or unexpected entry also fails conservatively.
 The namespace must be a real directory at the expected canonical child of the install root.

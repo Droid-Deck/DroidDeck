@@ -479,6 +479,7 @@ pub extern "system" fn Java_com_droiddeck_launcher_stores_epic_EpicNative_native
     pending_file_idx: JIntArray,
     expected_bytes: jlong,
     cache_budget: jlong,
+    overlap_budget: jlong,
     ca_bundle_path: JString,
     max_workers: jint,
     process_workers: jint,
@@ -537,6 +538,12 @@ pub extern "system" fn Java_com_droiddeck_launcher_stores_epic_EpicNative_native
             None
         },
         cache_budget: cache_budget.max(0) as u64,
+        // Negative = no limit (nothing the manager knows of is being replaced).
+        replace_overlap_budget: if overlap_budget < 0 {
+            u64::MAX
+        } else {
+            overlap_budget as u64
+        },
         ca_bundle_path,
         max_workers,
         process_workers,

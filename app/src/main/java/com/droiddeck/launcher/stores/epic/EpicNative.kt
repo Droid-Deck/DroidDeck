@@ -62,13 +62,14 @@ object EpicNative {
 
     /**
      * The adaptive install of the files [pendingFileIdx] (indices into the manifest's file list),
-     * with at most [cacheBudget] bytes of shared chunks cached, staged in [stagingDir] (the
+     * with at most [cacheBudget] bytes of shared chunks cached and at most [overlapBudget] planned
+     * bytes of replaced files staged at once (`-1` = no limit), staged in [stagingDir] (the
      * manager's owned staging directory). `started == false` means nothing was fetched or written.
      */
     @JvmStatic
     fun stream(
         manifest: ByteArray, installDir: String, chunkCacheDir: String, stagingDir: String, cdnPrefixes: Array<String>, pendingFileIdx: IntArray, expectedBytes: Long,
-        cacheBudget: Long, caBundlePath: String, maxWorkers: Int, processWorkers: Int, cancel: AtomicBoolean?, listener: StreamListener,
+        cacheBudget: Long, overlapBudget: Long, caBundlePath: String, maxWorkers: Int, processWorkers: Int, cancel: AtomicBoolean?, listener: StreamListener,
     ): Result {
         if (!StoresNative.ensureLoaded()) return Result(false, false, false, "engine not built", 0L, 0, 0)
         val latch = CountDownLatch(1)
@@ -89,7 +90,7 @@ object EpicNative {
             }
         }
         val handle: Long = try {
-            nativeStream(manifest, installDir, chunkCacheDir, stagingDir, cdnPrefixes, pendingFileIdx, expectedBytes, cacheBudget, caBundlePath, maxWorkers, processWorkers, inner)
+            nativeStream(manifest, installDir, chunkCacheDir, stagingDir, cdnPrefixes, pendingFileIdx, expectedBytes, cacheBudget, overlapBudget, caBundlePath, maxWorkers, processWorkers, inner)
         } catch (t: Throwable) {
             Log.w(TAG, "engine unavailable: ${t.javaClass.simpleName}: ${t.message}")
             return Result(false, false, false, "nativeStream: ${t.javaClass.simpleName}: ${t.message}", 0L, 0, 0)
@@ -177,7 +178,7 @@ object EpicNative {
     @JvmStatic
     private external fun nativeStream(
         manifest: ByteArray, installDir: String, chunkCacheDir: String, stagingDir: String, cdnPrefixes: Array<String>, pendingFileIdx: IntArray, expectedBytes: Long,
-        cacheBudget: Long, caBundlePath: String, maxWorkers: Int, processWorkers: Int, listener: StreamListener,
+        cacheBudget: Long, overlapBudget: Long, caBundlePath: String, maxWorkers: Int, processWorkers: Int, listener: StreamListener,
     ): Long
 
     @JvmStatic

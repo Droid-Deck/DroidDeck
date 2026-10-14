@@ -30,6 +30,18 @@
 //! cached chunk is written into every newly reached file at once, so what stays in the cache is
 //! exactly what the simulation kept at that point of the file order.
 //!
+//! **Updates are paced by a replacement-overlap budget.** A staged file that replaces an existing
+//! one sits beside the old copy until its swap, so every replaced file open at once costs its full
+//! new size in extra space (on a fresh install a staged file simply becomes the file). Files are
+//! admitted in order; a replaced file is admitted only while the planned sizes of admitted,
+//! not-yet-swapped replaced files stay within the budget the manager computed from free space,
+//! and one is always admitted when none is open, so the install always progresses. The fetch core
+//! dispatches a chunk only once the file of its first use is admitted ([`run_fetch_gated`]).
+//! Admission never changes the order files are reached in, only when, so the cache simulation
+//! below (which works in file order) stays exact: the cache holds at any moment what the plan holds
+//! at that point of the order. Nothing waits on a gated file: every chunk an admitted file needs is
+//! first used at or before that file, so it was dispatched before the gate closed.
+//!
 //! **A slow disk throttles the download by itself.** Every write happens in the fetch core's
 //! process pool, inside [`FetchSink::process`]; the core frees a body's share of its in-flight
 //! byte budget only when `process` returns, so while the disk is behind, the budget fills and no
@@ -52,13 +64,13 @@ use std::fs::{self, File, OpenOptions};
 use std::io::ErrorKind;
 use std::os::unix::fs::FileExt;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Mutex;
 use std::time::Instant;
 
 use sha1::{Digest, Sha1};
 
-use crate::fetch_core::{run_fetch, FetchItem, FetchOptions, FetchSink, SinkError};
+use crate::fetch_core::{run_fetch_gated, FetchItem, FetchOptions, FetchSink, SinkError};
 
 use super::assemble::relative_path;
 use super::chunk::{chunk_window_bytes, decode_verified_chunk, part_path};
@@ -222,6 +234,9 @@ pub struct StreamRequest {
     pub expected_bytes: Option<u64>,
     /// Most bytes of shared chunks the cache may hold.
     pub cache_budget: u64,
+    /// Most planned bytes of replaced files (destination already there) staged at once; one is
+    /// always allowed. Fresh files are not limited by it.
+    pub replace_overlap_budget: u64,
     pub ca_bundle_path: String,
     pub max_workers: usize,
     pub process_workers: usize,
@@ -246,6 +261,8 @@ pub struct PlanFile {
     pub parts: Vec<PlanPart>,
     /// Position of the file's first part in the install's part sequence.
     pub first_use: usize,
+    /// The destination exists with data: staging this file costs space until its swap.
+    pub replaces: bool,
 }
 
 #[derive(Debug)]
@@ -272,6 +289,7 @@ pub struct StreamPlan {
     pub staging_dir: Option<PathBuf>,
     pub bytes_total: u64,
     pub budget: u64,
+    pub overlap_budget: u64,
     pub hosts: Vec<String>,
     pub direct_chunks: usize,
     pub shared_chunks: usize,
@@ -349,7 +367,11 @@ pub fn build_stream_plan(req: &StreamRequest) -> Result<StreamPlan, String> {
             chunk_of_use.push(ci);
         }
         bytes_total += file_offset;
+        let replaces = fs::metadata(Path::new(&req.install_dir).join(&rel_path))
+            .map(|m| m.is_file() && m.len() > 0)
+            .unwrap_or(false);
         files.push(PlanFile {
+            replaces,
             rel_path,
             size: file_offset,
             sha1: f.sha1.filter(|h| h.iter().any(|&b| b != 0)),
@@ -458,6 +480,7 @@ pub fn build_stream_plan(req: &StreamRequest) -> Result<StreamPlan, String> {
         staging_dir,
         bytes_total,
         budget: req.cache_budget,
+        overlap_budget: req.replace_overlap_budget,
         hosts,
         direct_chunks,
         shared_chunks,
@@ -535,6 +558,11 @@ struct Shared {
     reached: usize,
     /// `fetch_events[..next_fetch]` have all been downloaded.
     next_fetch: usize,
+    /// Files `[0, admitted)` passed the replacement-overlap budget; `active` never passes it.
+    admitted: usize,
+    /// Planned bytes of admitted replaced files not swapped in yet.
+    overlap_open: u64,
+    peak_overlap: u64,
     cache_bytes: u64,
     peak_cache: u64,
 }
@@ -585,6 +613,8 @@ pub struct Engine<'a> {
     replace_gate: Mutex<Option<Result<(), String>>>,
     stats: Stats,
     started: Instant,
+    /// `Shared::admitted`, readable by the fetch driver without the lock.
+    admitted: AtomicUsize,
 }
 
 fn fatal_write(rel: &str, err: impl std::fmt::Display) -> SinkError {
@@ -629,6 +659,9 @@ impl<'a> Engine<'a> {
                 active: 0,
                 reached: 0,
                 next_fetch: 0,
+                admitted: 0,
+                overlap_open: 0,
+                peak_overlap: 0,
                 cache_bytes,
                 peak_cache: cache_bytes,
             }),
@@ -636,18 +669,45 @@ impl<'a> Engine<'a> {
             replace_gate: Mutex::new(None),
             stats: Stats::default(),
             started: Instant::now(),
+            admitted: AtomicUsize::new(0),
+        }
+    }
+
+    /// The fetch driver's gate: fetch item `id` may go out once its first file is admitted.
+    pub fn may_dispatch(&self, id: usize) -> bool {
+        let p = self.plan;
+        match p.fetch_events.get(id) {
+            Some(&e) => p.event_first_file[e] < self.admitted.load(Ordering::Acquire),
+            None => true,
+        }
+    }
+
+    /// The most planned bytes of replaced files that were staged at once.
+    pub fn peak_replace_overlap(&self) -> u64 {
+        self.shared.lock().map(|st| st.peak_overlap).unwrap_or_default()
+    }
+
+    /// Keep reaching files until nothing new can be written: a file that finishes can admit the
+    /// next replaced file, whose parts may already be in the cache. Iterative, so a long run of
+    /// cache-only files never deepens the stack.
+    fn settle(&self) -> Result<(), SinkError> {
+        loop {
+            let mut work = Work::default();
+            {
+                let mut st = self.shared.lock().expect("stream state poisoned");
+                self.advance(&mut st, &mut work);
+            }
+            if work.from_cache.is_empty() && work.empty_files.is_empty() {
+                return Ok(());
+            }
+            self.run_work(work)?;
         }
     }
 
     /// Before the first fetch: the files before the first chunk to download can be written from
     /// the cache an earlier run left (or are empty).
     pub fn start(&self) -> Result<(), SinkError> {
-        let mut work = Work::default();
-        {
-            let mut st = self.shared.lock().expect("stream state poisoned");
-            self.advance(&mut st, &mut work);
-        }
-        self.run_work(work)
+        self.settle()
     }
 
     /// Reach every file that can be written now: all files before the first chunk still to
@@ -655,6 +715,18 @@ impl<'a> Engine<'a> {
     /// of newly reached files whose chunk is in the cache are claimed for writing.
     fn advance(&self, st: &mut Shared, work: &mut Work) {
         let p = self.plan;
+        while st.admitted < p.files.len() {
+            let file = &p.files[st.admitted];
+            if file.replaces {
+                if st.overlap_open > 0 && st.overlap_open + file.size > p.overlap_budget {
+                    break;
+                }
+                st.overlap_open += file.size;
+                st.peak_overlap = st.peak_overlap.max(st.overlap_open);
+            }
+            st.admitted += 1;
+        }
+        self.admitted.store(st.admitted, Ordering::Release);
         while st.next_fetch < p.fetch_events.len()
             && st.state[p.fetch_events[st.next_fetch]] != EventState::Pending
         {
@@ -664,7 +736,7 @@ impl<'a> Engine<'a> {
             Some(&e) => p.event_first_file[e],
             None => p.files.len(),
         };
-        let target = st.active.max(frontier).max(st.reached).min(p.files.len());
+        let target = st.active.max(frontier).max(st.reached).min(st.admitted);
         for f in st.active..target {
             let file = &p.files[f];
             if file.parts.is_empty() {
@@ -746,6 +818,7 @@ impl<'a> Engine<'a> {
             }
             self.write_from_memory(&data, &more)?;
         }
+        self.settle()?;
         Ok(chunk.credit_bytes())
     }
 
@@ -934,6 +1007,10 @@ impl<'a> Engine<'a> {
             .fetch_sub(staged.min(self.stats.staging_now.load(Ordering::Relaxed)), Ordering::Relaxed);
         if result.is_ok() {
             let size = self.plan.files[f].size;
+            if self.plan.files[f].replaces {
+                let mut st = self.shared.lock().expect("stream state poisoned");
+                st.overlap_open = st.overlap_open.saturating_sub(size);
+            }
             self.stats.files_done.fetch_add(1, Ordering::Relaxed);
             self.stats.files_bytes.fetch_add(size, Ordering::Relaxed);
             self.report(true);
@@ -1036,13 +1113,13 @@ impl<'a> Engine<'a> {
     pub fn summary(&self) -> String {
         let secs = self.started.elapsed().as_secs_f64().max(0.001);
         let written = self.stats.written.load(Ordering::Relaxed);
-        let peak_cache = self
+        let (peak_cache, peak_overlap) = self
             .shared
             .lock()
-            .map(|st| st.peak_cache)
+            .map(|st| (st.peak_cache, st.peak_overlap))
             .unwrap_or_default();
         format!(
-            "stream-summary mode=adaptive files={}/{} bytes_written={written} direct_bytes={} from_cache_bytes={} cache_stored_bytes={} peak_cache_bytes={peak_cache} budget={} plan_peak_cache_bytes={} peak_staging_bytes={} fetched_chunks={} refetches={} elapsed={secs:.1}s avg_MBps={:.2}",
+            "stream-summary mode=adaptive files={}/{} bytes_written={written} direct_bytes={} from_cache_bytes={} cache_stored_bytes={} peak_cache_bytes={peak_cache} budget={} plan_peak_cache_bytes={} peak_staging_bytes={} peak_replace_overlap_bytes={peak_overlap} overlap_budget={} fetched_chunks={} refetches={} elapsed={secs:.1}s avg_MBps={:.2}",
             self.stats.files_done.load(Ordering::Relaxed),
             self.plan.files.len(),
             self.stats.direct.load(Ordering::Relaxed),
@@ -1051,6 +1128,7 @@ impl<'a> Engine<'a> {
             self.plan.budget,
             self.plan.schedule.peak_cache_bytes,
             self.stats.staging_peak.load(Ordering::Relaxed),
+            self.plan.overlap_budget,
             self.stats.fetched.load(Ordering::Relaxed),
             self.plan.refetches,
             written as f64 / secs / (1024.0 * 1024.0),
@@ -1101,7 +1179,7 @@ pub fn run_stream(
     let log = hooks.log;
     let host_cap = per_host_cap(req.max_workers, plan.hosts.len());
     log(&format!(
-        "stream-plan chunk_dir={} cache_dir={} scratch={} {} files={} bytes={} uses={} chunks_direct={} chunks_shared={} fetches={} preloaded={} refetches={} budget={} plan_peak_cache={} hosts={} workers={} per_host_cap={host_cap} process_workers={}",
+        "stream-plan chunk_dir={} cache_dir={} scratch={} {} files={} bytes={} uses={} chunks_direct={} chunks_shared={} fetches={} preloaded={} refetches={} budget={} plan_peak_cache={} replaced_files={} overlap_budget={} hosts={} workers={} per_host_cap={host_cap} process_workers={}",
         plan.manifest.chunk_dir,
         plan.cache_dir.display(),
         plan.scratch_cache,
@@ -1116,6 +1194,8 @@ pub fn run_stream(
         plan.refetches,
         plan.budget,
         plan.schedule.peak_cache_bytes,
+        plan.files.iter().filter(|f| f.replaces).count(),
+        plan.overlap_budget,
         plan.hosts.len(),
         req.max_workers,
         req.process_workers
@@ -1167,7 +1247,17 @@ pub fn run_stream(
         // Progress is the engine's (file bytes written); the core's own credit only feeds its
         // `fetch-end` line.
         let no_progress = |_: u64, _: u64| {};
-        let fetched = run_fetch(items, &plan.hosts, &opts, &engine, cancel, &no_progress, log);
+        let gate = |id: usize| engine.may_dispatch(id);
+        let fetched = run_fetch_gated(
+            items,
+            &plan.hosts,
+            &opts,
+            &engine,
+            cancel,
+            &no_progress,
+            log,
+            &gate,
+        );
         error = fetched.error;
     }
 
@@ -1355,6 +1445,7 @@ mod tests {
                 pending_file_indices: pending,
                 expected_bytes: None,
                 cache_budget: budget,
+                replace_overlap_budget: u64::MAX,
                 ca_bundle_path: String::new(),
                 max_workers: 4,
                 process_workers: 2,
@@ -1662,6 +1753,192 @@ mod tests {
         let plan = build_stream_plan(&fx.request(vec![0, 1, 2], 1 << 20)).unwrap();
         assert!(plan.reserved.contains(&fx.install.join("dir/b.bin")));
         assert!(plan.reserved.contains(&fx.install.join("a.bin")));
+    }
+
+    // ── replacement-overlap gate ──
+
+    /// `n` files of `len` bytes, one chunk each.
+    fn big_fixture(tag: &str, n: usize, len: usize) -> Fixture {
+        let dir = temp_dir(tag);
+        let install = dir.join("game");
+        fs::create_dir_all(&install).unwrap();
+        let guid = |i: usize| [0x100 + i as u32, 0, 0, 0];
+        Fixture {
+            dir,
+            install,
+            chunks: (0..n).map(|i| (guid(i), data(i as u32 + 10, len))).collect(),
+            files: (0..n)
+                .map(|i| (format!("f{i}.bin"), vec![(guid(i), 0, len as i32)]))
+                .collect(),
+        }
+    }
+
+    /// Drive the engine the way the fetch core does: items in order while the gate allows,
+    /// bodies handed back newest first (the most out-of-order the core can be).
+    fn drive_gated(fx: &Fixture, plan: &StreamPlan, engine: &Engine) -> Result<(), SinkError> {
+        engine.start()?;
+        let mut next = 0;
+        let mut in_flight: Vec<usize> = Vec::new();
+        while next < plan.fetch_events.len() || !in_flight.is_empty() {
+            while next < plan.fetch_events.len() && engine.may_dispatch(next) {
+                in_flight.push(next);
+                next += 1;
+            }
+            let id = in_flight.pop().expect("gate closed with nothing in flight: deadlock");
+            engine.process(&item(id), fx.body_for(plan, id))?;
+        }
+        Ok(())
+    }
+
+    fn write_old(fx: &Fixture, files: &[usize]) {
+        for &i in files {
+            fs::write(fx.install.join(&fx.files[i].0), b"old").unwrap();
+        }
+    }
+
+    #[test]
+    fn replaced_files_stay_within_the_overlap_budget_and_complete() {
+        let fx = big_fixture("stream-overlap", 6, 1000);
+        write_old(&fx, &[0, 1, 2, 3, 4, 5]);
+        let mut req = fx.request((0..6).collect(), 1 << 20);
+        req.replace_overlap_budget = 2500;
+        let plan = build_stream_plan(&req).unwrap();
+        assert!(plan.files.iter().all(|f| f.replaces));
+        let cancel = AtomicBool::new(false);
+        let rec = Recorder::new();
+        with_engine(&plan, &cancel, &rec, |engine| {
+            engine.start().unwrap();
+            assert!(engine.may_dispatch(1), "two 1000-byte files fit 2500");
+            assert!(!engine.may_dispatch(2), "a third does not");
+            drive_gated(&fx, &plan, engine).unwrap();
+            assert_eq!(engine.peak_replace_overlap(), 2000);
+            assert_eq!(engine.unfinished_files(), 0);
+        });
+        for i in 0..6 {
+            assert_eq!(fs::read(fx.install.join(&fx.files[i].0)).unwrap(), fx.expected(i));
+        }
+        assert!(fx.stages().is_empty());
+    }
+
+    #[test]
+    fn a_budget_below_the_largest_file_still_progresses_one_at_a_time() {
+        let fx = big_fixture("stream-overlap-one", 4, 800);
+        write_old(&fx, &[0, 1, 2, 3]);
+        let mut req = fx.request((0..4).collect(), 1 << 20);
+        req.replace_overlap_budget = 1;
+        let plan = build_stream_plan(&req).unwrap();
+        let cancel = AtomicBool::new(false);
+        let rec = Recorder::new();
+        with_engine(&plan, &cancel, &rec, |engine| {
+            engine.start().unwrap();
+            assert!(engine.may_dispatch(0));
+            assert!(!engine.may_dispatch(1));
+            drive_gated(&fx, &plan, engine).unwrap();
+            assert_eq!(engine.peak_replace_overlap(), 800);
+            assert_eq!(engine.unfinished_files(), 0);
+        });
+        for i in 0..4 {
+            assert_eq!(fs::read(fx.install.join(&fx.files[i].0)).unwrap(), fx.expected(i));
+        }
+    }
+
+    #[test]
+    fn a_fresh_install_is_never_gated() {
+        let fx = big_fixture("stream-overlap-fresh", 5, 600);
+        let mut req = fx.request((0..5).collect(), 1 << 20);
+        req.replace_overlap_budget = 1;
+        let plan = build_stream_plan(&req).unwrap();
+        assert!(plan.files.iter().all(|f| !f.replaces));
+        let cancel = AtomicBool::new(false);
+        let rec = Recorder::new();
+        with_engine(&plan, &cancel, &rec, |engine| {
+            engine.start().unwrap();
+            assert!((0..5).all(|id| engine.may_dispatch(id)));
+            drive_gated(&fx, &plan, engine).unwrap();
+            assert_eq!(engine.peak_replace_overlap(), 0);
+        });
+        assert_eq!(fs::read(fx.install.join("f4.bin")).unwrap(), fx.expected(4));
+    }
+
+    #[test]
+    fn mixed_fresh_and_replaced_files_gate_only_the_replacements() {
+        let fx = big_fixture("stream-overlap-mixed", 6, 700);
+        write_old(&fx, &[1, 3, 5]);
+        let mut req = fx.request((0..6).collect(), 1 << 20);
+        req.replace_overlap_budget = 700;
+        let plan = build_stream_plan(&req).unwrap();
+        let cancel = AtomicBool::new(false);
+        let rec = Recorder::new();
+        with_engine(&plan, &cancel, &rec, |engine| {
+            engine.start().unwrap();
+            // f0 fresh, f1 replaced (admitted), f2 fresh, f3 replaced (waits for f1's swap).
+            assert!(engine.may_dispatch(2));
+            assert!(!engine.may_dispatch(3));
+            drive_gated(&fx, &plan, engine).unwrap();
+            assert_eq!(engine.peak_replace_overlap(), 700);
+            assert_eq!(engine.unfinished_files(), 0);
+        });
+        for i in 0..6 {
+            assert_eq!(fs::read(fx.install.join(&fx.files[i].0)).unwrap(), fx.expected(i));
+        }
+    }
+
+    #[test]
+    fn a_shared_chunk_for_a_gated_file_waits_in_the_cache() {
+        // f0 and f2 are replaced and share chunk A; f1 is fresh. With room for one replaced file,
+        // f2 is admitted only after f0's swap, and A is cached until then.
+        let dir = temp_dir("stream-overlap-shared");
+        let install = dir.join("game");
+        fs::create_dir_all(&install).unwrap();
+        let fx = Fixture {
+            dir,
+            install,
+            chunks: vec![(A, data(1, 300)), (B, data(2, 50))],
+            files: vec![
+                ("f0.bin".to_string(), vec![(A, 0, 100)]),
+                ("f1.bin".to_string(), vec![(B, 0, 50)]),
+                ("f2.bin".to_string(), vec![(A, 100, 200)]),
+            ],
+        };
+        write_old(&fx, &[0, 2]);
+        let mut req = fx.request(vec![0, 1, 2], 1 << 20);
+        req.replace_overlap_budget = 150;
+        let plan = build_stream_plan(&req).unwrap();
+        let cancel = AtomicBool::new(false);
+        let rec = Recorder::new();
+        with_engine(&plan, &cancel, &rec, |engine| {
+            drive_gated(&fx, &plan, engine).unwrap();
+            assert!(engine.peak_replace_overlap() <= 200);
+            assert_eq!(engine.unfinished_files(), 0);
+        });
+        for i in 0..3 {
+            assert_eq!(fs::read(fx.install.join(&fx.files[i].0)).unwrap(), fx.expected(i));
+        }
+        assert_eq!(fs::read_dir(&plan.cache_dir).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn cancelling_a_gated_update_keeps_every_old_file() {
+        let fx = big_fixture("stream-overlap-cancel", 4, 900);
+        write_old(&fx, &[0, 1, 2, 3]);
+        let mut req = fx.request((0..4).collect(), 1 << 20);
+        req.replace_overlap_budget = 1000;
+        let plan = build_stream_plan(&req).unwrap();
+        let cancel = AtomicBool::new(false);
+        let rec = Recorder::new();
+        with_engine(&plan, &cancel, &rec, |engine| {
+            engine.start().unwrap();
+            engine.process(&item(0), fx.body_for(&plan, 0)).unwrap(); // f0 swapped in
+            assert!(engine.may_dispatch(1));
+            cancel.store(true, Ordering::Relaxed);
+            assert!(engine.process(&item(1), fx.body_for(&plan, 1)).is_err());
+            engine.discard_staging();
+        });
+        assert_eq!(fs::read(fx.install.join("f0.bin")).unwrap(), fx.expected(0));
+        for i in 1..4 {
+            assert_eq!(fs::read(fx.install.join(&fx.files[i].0)).unwrap(), b"old");
+        }
+        assert!(fx.stages().is_empty());
     }
 
     fn item(id: usize) -> FetchItem {

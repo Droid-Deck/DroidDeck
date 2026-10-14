@@ -578,7 +578,8 @@ class EpicBoundedInstallTest {
         ShadowStatFs.registerStats(root.path, 1024, peak / 4096, peak / 4096)
         assertNotNull(install())
         assertEquals("keep", legitimate.readText())
-        assertEquals(listOf("owner"), staging.listFiles()!!.map { it.name })
+        // The orphan was recovered, and a finished install removes the then-empty owned namespace.
+        assertFalse(staging.exists())
     }
 
     @Test fun stagingRecoveryRefusesUnownedAndManifestOwnedNamespaces() {
