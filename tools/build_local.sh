@@ -47,7 +47,6 @@ fi
 
 ndk_version=${DROIDDECK_NDK_VERSION:-}
 if [[ -z "${ndk_version}" ]]; then
-    # Only complete NDKs: an interrupted sdkmanager install leaves a directory without source.properties.
     ndk_path=$(find "${sdk_dir}/ndk" -mindepth 2 -maxdepth 2 -name source.properties -print | xargs -n1 dirname | sort -V | tail -1)
     ndk_version=${ndk_path##*/}
 fi
@@ -73,7 +72,6 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-# A wedged daemon used to hang indefinitely and then trigger an unnecessary image rebuild.
 python3 "${repo_root}/tools/docker_preflight.py" "${image_name}"
 rm -rf -- "${linuxfs_dir}"
 mkdir -p "${linuxfs_dir}"
@@ -84,6 +82,7 @@ docker run --rm --platform linux/amd64 \
         set -euo pipefail
         d=app/src/main/assets/linuxfs
         mkdir -p "$d"
+        put() { mkdir -p "$(dirname "$2")" && cat "$1" > "$2"; }
         aarch64-linux-gnu-g++ -shared -fPIC -O2 -Wall -Wno-attributes -Wno-nonnull-compare \
             -pthread -std=c++17 -static-libstdc++ -static-libgcc -Wl,--exclude-libs,ALL \
             -o "$d/libfakeinput.so" app/src/main/cpp/fakeinput_steam.cpp -ldl
@@ -104,16 +103,16 @@ docker run --rm --platform linux/amd64 \
         aarch64-linux-gnu-gcc -O2 -Wall -Wextra -o "$d/usr/local/bin/droiddeck-clipboard" tools/linuxfs/clipboard/clipboard.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/bin/droiddeck-clipboard"
         for script in tools/linuxfs/overlay/usr/local/bin/droiddeck-* tools/linuxfs/overlay/usr/local/bin/steam-compatibility; do
-            install -Dm644 "$script" "$d/usr/local/bin/$(basename "$script")"
+            put "$script" "$d/usr/local/bin/$(basename "$script")"
         done
         for f in tools/linuxfs/overlay/usr/bin/* tools/linuxfs/overlay/usr/bin/steamos-polkit-helpers/*; do
-            [ -f "$f" ] && install -Dm644 "$f" "$d/${f#tools/linuxfs/overlay/}"
+            [ -f "$f" ] && put "$f" "$d/${f#tools/linuxfs/overlay/}"
         done
-        install -Dm644 tools/linuxfs/desktop/droiddeck-desktop "$d/usr/local/bin/droiddeck-desktop"
-        install -Dm644 tools/linuxfs/desktop/droiddeck-gpu "$d/usr/local/bin/droiddeck-gpu"
-        install -Dm644 tools/linuxfs/desktop/droiddeck-desktop-gpu "$d/usr/local/bin/droiddeck-desktop-gpu"
-        install -Dm644 tools/linuxfs/desktop/kwin_wayland_wrapper "$d/usr/local/bin/kwin_wayland_wrapper"
-        install -Dm644 tools/linuxfs/desktop/firefox-droiddeck.js \
+        put tools/linuxfs/desktop/droiddeck-desktop "$d/usr/local/bin/droiddeck-desktop"
+        put tools/linuxfs/desktop/droiddeck-gpu "$d/usr/local/bin/droiddeck-gpu"
+        put tools/linuxfs/desktop/droiddeck-desktop-gpu "$d/usr/local/bin/droiddeck-desktop-gpu"
+        put tools/linuxfs/desktop/kwin_wayland_wrapper "$d/usr/local/bin/kwin_wayland_wrapper"
+        put tools/linuxfs/desktop/firefox-droiddeck.js \
             "$d/usr/lib/firefox/defaults/pref/droiddeck.js"
 
         READELF=aarch64-linux-gnu-readelf bash tools/linuxfs/check-preloads.sh "$d"
@@ -128,6 +127,8 @@ docker run --rm --platform linux/amd64 \
         tools/linuxfs/build-x86-preloads.sh app/src/main/assets/linuxfs
         chown -R '"$(id -u):$(id -g)"' app/src/main/assets/linuxfs
     '
+
+DROIDDECK_BUILD_IMAGE="${image_name}" "${repo_root}/tools/vr/build.sh" "${linuxfs_dir}/usr/local/lib/droiddeck-vr"
 
 github_repo=${DROIDDECK_GITHUB_REPOSITORY:-}
 if [[ -z "${github_repo}" ]]; then
@@ -145,12 +146,8 @@ if [[ -z "${github_repo}" ]]; then
     github_repo=${github_repo%.git}
 fi
 
-# Pinned downloads are kept between builds, named by their checksum, so a rebuild fetches nothing
-# it already has. A cached file is checked again before use; a bad one is fetched anew.
 cache_dir=${DROIDDECK_BUILD_CACHE:-"${HOME}/.cache/droiddeck-build"}
 mkdir -p "${cache_dir}"
-# cached <sha256> <name> <command...>: prints the cached path, running the command (which writes
-# to "$out") only when the cache has no file with that checksum.
 cached() {
     local sha=$1 name=$2 out
     shift 2
@@ -177,8 +174,9 @@ fi
 . "${repo_root}/tools/linuxfs/uruntime.env"
 uruntime_binary=$(cached "${URUNTIME_SHA256}" "${URUNTIME_ASSET}" \
     bash -c 'curl -fsSL --retry 3 -o "$out" "$0"' "https://github.com/VHSgunzo/uruntime/releases/download/${URUNTIME_VERSION}/${URUNTIME_ASSET}")
-install -Dm644 "${uruntime_binary}" "${linuxfs_dir}/usr/local/lib/droiddeck/uruntime"
-install -Dm644 "${repo_root}/tools/linuxfs/licenses/uruntime-LICENSE" "${linuxfs_dir}/usr/local/share/licenses/uruntime/LICENSE"
+mkdir -p "${linuxfs_dir}/usr/local/lib/droiddeck" "${linuxfs_dir}/usr/local/share/licenses/uruntime"
+install -m644 "${uruntime_binary}" "${linuxfs_dir}/usr/local/lib/droiddeck/uruntime"
+install -m644 "${repo_root}/tools/linuxfs/licenses/uruntime-LICENSE" "${linuxfs_dir}/usr/local/share/licenses/uruntime/LICENSE"
 
 sync_assets="${repo_root}/app/src/main/assets/droiddeck-esync"
 if [[ -f "${repo_root}/tools/droiddeck-esync/release.env" ]]; then
@@ -237,7 +235,6 @@ install -m644 "${mango_pkgs}/usr/bin/mangoapp" "${mango_dir}/mangoapp"
 for library in libfmt.so.10 libspdlog.so.1.13 libglfw.so.3 libtraceevent.so.1; do
     cp -L "${mango_pkgs}/usr/lib/${library}" "${mango_dir}/${library}"
 done
-# Ours, not the package's: GPU memory without tracefs (tools/mangoapp/libtracefs-shim.c).
 docker run --rm --platform linux/amd64 --user "$(id -u):$(id -g)" -v "${repo_root}:/src" -w /src "${image_name}" \
     aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wl,-soname,libtracefs.so.1 \
     -o app/src/main/assets/linuxfs/usr/local/lib/mangoapp/libtracefs.so.1 tools/mangoapp/libtracefs-shim.c
@@ -263,8 +260,6 @@ fi
 sink_output="${staging_dir}/sink-out"
 "${repo_root}/tools/directaudio/fetch.sh" "${repo_root}" "${sink_output}"
 "${repo_root}/tools/aaudio-sink/build.sh" "${pa_source}" "${sink_output}"
-# proot is rebuilt only when its sources (source.env, the patches, the build script) changed since
-# the libraries in jniLibs were built.
 proot_out="${repo_root}/app/src/main/jniLibs/arm64-v8a"
 proot_sources=$(cd "${repo_root}/tools/proot" && find . -type f ! -name '*.pyc' | LC_ALL=C sort | xargs shasum -a 256 | shasum -a 256 | cut -d' ' -f1)
 proot_inputs=$(printf '%s\n' "${proot_sources}" "${ndk_version}" | shasum -a 256 | cut -d' ' -f1)
@@ -294,10 +289,6 @@ tar -cf - -C "${bundle_dir}" . | zstd -19 -T0 -c > "${staging_dir}/pulseaudio.tz
 mkdir -p "${repo_root}/app/build/prepared-assets"
 mv "${staging_dir}/pulseaudio.tzst" "${repo_root}/app/build/prepared-assets/pulseaudio.tzst"
 
-# The GOG / Epic / Amazon download engines are Rust (app/src/main/rust/stores); Gradle's
-# buildRustStores task cross-compiles them with cargo-ndk, which needs the Android target and the
-# cargo-ndk binary installed once. DROIDDECK_SKIP_RUST=1 builds an apk without the engines (the
-# stores then report themselves unavailable) for a machine without a Rust toolchain.
 gradle_rust_arg=""
 if [[ "${DROIDDECK_SKIP_RUST:-0}" == 1 ]]; then
     gradle_rust_arg="-PskipRust=true"
@@ -316,6 +307,8 @@ else
 fi
 
 cd "${repo_root}"
+python3 tools/quest/build-driver.py "${NDK}"
+bash tools/comet/build-local.sh
 python3 tools/release/runtime_inputs.py record
 ./gradlew "${gradle_task}" --console=plain -PndkVersion="${ndk_version}" ${gradle_rust_arg}
 python3 tools/release/check_session_assets.py "app/build/outputs/apk/${build_variant}/app-${build_variant}.apk"
@@ -376,10 +369,6 @@ grep -qi 'CN=Android, OU=Android, O=Android' <<<"${signature_output}" || {
     exit 1
 }
 
-# With DroidDeck's own key at hand, sign as CI's main builds are (tools/release/sign-apk.sh), so
-# the apk installs over a release instead of being refused as a different signer. The key's
-# location and password live in an untracked .signing.env (RELEASE_KEYSTORE, RELEASE_STORE_PASSWORD,
-# RELEASE_KEY_ALIAS), looked for in this checkout and then in the main one, which worktrees share.
 signing_env=${DROIDDECK_SIGNING_ENV:-}
 if [[ -z "${signing_env}" ]]; then
     for candidate in "${repo_root}/.signing.env" \
@@ -391,7 +380,6 @@ if [[ -n "${signing_env}" ]]; then
     echo "Signing with DroidDeck's key (${signing_env})"
     (
         set -a
-        # shellcheck disable=SC1090
         cd "$(dirname "${signing_env}")"
         . "${signing_env}"
         set +a

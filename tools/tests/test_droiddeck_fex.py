@@ -198,12 +198,10 @@ class PrepareTest(FexTestCase):
         for arch in ("x86_64", "i386"):
             for name in ("libblsession.so", "libfakeinput.so"):
                 self.write(self.tmp / "preloads" / arch / name, arch.encode() + name.encode())
-        self.write(self.tmp / "preloads/x86_64/libfaultreport.so", b"report")
         self.write(self.tmp / "preloads/x86_64/libthunkaudit.so", b"audit")
         self.write(self.tmp / "preloads/x86_64/libvulkan-thunk.so", b"pin")
         self.write(self.tmp / "ld.so.preload", "/usr/local/lib/libblsession.so\n/usr/local/lib/libfakeinput.so\n")
         FEX["install_preloads"](str(root))
-        self.assertEqual((root / "lib/x86_64-linux-gnu/droiddeck/libfaultreport.so").read_bytes(), b"report")
         self.assertEqual((root / "lib/x86_64-linux-gnu/droiddeck/libthunkaudit.so").read_bytes(), b"audit")
         self.assertEqual((root / "lib/x86_64-linux-gnu/droiddeck/libvulkan-thunk.so").read_bytes(), b"pin")
         self.assertEqual((root / "etc/ld.so.preload").read_text(),
@@ -212,6 +210,17 @@ class PrepareTest(FexTestCase):
         self.write(self.tmp / "ld.so.preload", "/usr/local/lib/libblsession.so\n")
         FEX["install_preloads"](str(root))
         self.assertEqual((root / "etc/ld.so.preload").read_text(), "/usr/$LIB/droiddeck/libblsession.so\n")
+
+    def test_only_x86_loaders_preload_the_fault_report(self):
+        root = self.tmp / "root"
+        self.write(self.tmp / "preloads/x86_64/libfaultreport.so", b"report64")
+        FEX["install_preloads"](str(root))
+        self.assertNotIn("libfaultreport.so", (root / "etc/ld.so.preload").read_text())
+        self.write(self.tmp / "preloads/i386/libfaultreport.so", b"report32")
+        FEX["install_preloads"](str(root))
+        self.assertEqual((root / "lib/x86_64-linux-gnu/droiddeck/libfaultreport.so").read_bytes(), b"report64")
+        self.assertEqual((root / "lib/i386-linux-gnu/droiddeck/libfaultreport.so").read_bytes(), b"report32")
+        self.assertEqual((root / "etc/ld.so.preload").read_text(), "/usr/$LIB/droiddeck/libfaultreport.so\n")
 
     def test_config_turns_thunks_on_only_when_complete(self):
         FEX["write_config"]({"host_thunks": "/h", "guest_thunks": "/g", "thunks_db": "/db"}, "/root")
@@ -345,6 +354,15 @@ class LaunchTest(FexTestCase):
         self.assertNotIn("LD_PRELOAD", guest)
         self.assertNotIn("FEX_PORTABLE", guest)
 
+    def test_the_server_socket_stays_under_the_runtime_directory(self):
+        runtime = self.tmp / "run"
+        runtime.mkdir()
+        guest = FEX["guest_environment"]({"portable": True}, {"XDG_RUNTIME_DIR": str(runtime)})
+        self.assertEqual(guest["FEX_APP_DATA_LOCATION"], str(runtime / "fex") + "/")
+        self.assertTrue((runtime / "fex").is_dir())
+        guest = FEX["guest_environment"]({"portable": True}, {"XDG_RUNTIME_DIR": str(self.tmp / "missing")})
+        self.assertEqual(guest["FEX_APP_DATA_LOCATION"], G["DATA_DIR"] + "/")
+
     def test_the_runtime_and_thunks_are_passed_to_fex(self):
         fex = {"portable": True, "rootfs": "/rt/files", "host_thunks": "/h", "guest_thunks": "/g", "thunks_db": "/db"}
         guest = FEX["guest_environment"](fex, {})
@@ -376,11 +394,12 @@ class LaunchTest(FexTestCase):
         self.assertEqual(env["FEX_PORTABLE"], "1")
         self.assertNotIn("LD_PRELOAD", env)
         self.assertEqual(env["FEX_ROOTFS"], str(self.steam / "steamapps/common/SteamLinuxRuntime_sniper/sniper_platform_3.0.20260805.254768/files"))
-        self.write(self.tmp / "preloads/x86_64/libfaultreport.so", elf(62))
+        for arch in ("x86_64", "i386"):
+            self.write(self.tmp / "preloads" / arch / "libfaultreport.so", elf(62 if arch == "x86_64" else 3))
         x86 = self.write(self.tmp / "x86.so", elf(62))
         with mock.patch("os.execve") as emulated:
             self.quiet(FEX["launch"], [str(program)], {"LD_PRELOAD": str(x86)}, "auto")
-        self.assertEqual(emulated.call_args[0][2]["LD_PRELOAD"], "/usr/lib/x86_64-linux-gnu/droiddeck/libfaultreport.so:%s" % x86)
+        self.assertEqual(emulated.call_args[0][2]["LD_PRELOAD"], str(x86))
         old = self.write(self.tmp / "game.i386", elf(3), 0o755)
         with mock.patch("os.execve") as emulated:
             self.quiet(FEX["launch"], [str(old)], {}, "auto")
@@ -480,19 +499,23 @@ class AppInfoTest(unittest.TestCase):
         table = struct.pack("<I", len(strings)) + b"".join(s.encode() + b"\0" for s in strings)
         return struct.pack("<IIq", magic, 1, table_at) + body + table
 
-    def test_linux_only_titles_are_sent_to_fex(self):
+    def test_linux_only_titles_are_sent_to_fex_and_dual_platform_is_deferred(self):
         for magic in (0x07564427, 0x07564428, 0x07564429):
             with tempfile.TemporaryDirectory() as tmp:
                 steam = Path(tmp)
                 (steam / "appcache").mkdir()
                 (steam / "appcache/appinfo.vdf").write_bytes(self.appinfo({
                     10: ("windows", "", "Game"), 20: ("linux", "64", "Game"), 30: ("windows,linux,macos", "", "game"),
-                    40: ("linux", "arm64", "game"), 50: ("linux", "", "Demo"), 70: ("linux", "", "Tool"), 80: ("linux", "", "config"),
+                    40: ("linux", "arm64", "game"), 41: ("windows,linux", "aarch64", "game"),
+                    50: ("linux", "", "Demo"), 70: ("linux", "", "Tool"), 80: ("linux", "", "config"),
                     90: ("linux", "", ""),
                 }, magic))
                 self.COMPAT["APPINFO_CACHE"].clear()
-                targets = self.COMPAT["native_targets"](str(steam), ["10", "20", "30", "40", "50", "70", "80", "90", "1628350", "60"])
-                self.assertEqual(targets, {"20": "droiddeck-fex", "50": "droiddeck-fex"}, hex(magic))
+                targets = self.COMPAT["native_targets"](str(steam), ["10", "20", "30", "40", "41", "50", "70", "80", "90", "1628350", "60"])
+                self.assertEqual(targets, {
+                    "20": "droiddeck-fex", "30": self.COMPAT["NATIVE_CHOICE"],
+                    "40": None, "41": None, "50": "droiddeck-fex",
+                }, hex(magic))
 
     def test_titles_with_a_valve_pick_are_found_installed_or_not(self):
         def deck(oslist, runtime, kind="game"):
@@ -526,14 +549,34 @@ class AppInfoTest(unittest.TestCase):
         self.assertEqual(changes, {"30": "GE-Proton11-7", "32": "GE-Proton11-7"})
         self.assertEqual(auto, {"30": "GE-Proton11-7", "32": "GE-Proton11-7"})
 
-    def test_the_mapping_sends_native_titles_to_fex_and_keeps_picks(self):
+    def test_automatic_native_mapping_uses_fex_and_keeps_explicit_tools(self):
         tool, fex = self.COMPAT["TOOL"], self.COMPAT["FEX_TOOL"]
         changes, auto = self.COMPAT["plan_mapping"](
             {"0": tool, "20": "fex", "21": "steamlinuxruntime_sniper", "22": "GE-Proton11-7"},
             ["20", "21", "22", "23", "24"], [tool, "GE-Proton11-7"], tool, {},
             {"20": fex, "21": fex, "22": fex, "23": fex})
-        self.assertEqual(changes, {"20": fex, "21": fex, "23": fex, "24": tool})
-        self.assertEqual(auto, {"20": fex, "21": fex, "23": fex, "24": tool})
+        self.assertEqual(changes, {"23": fex, "24": tool})
+        self.assertEqual(auto, {"23": fex, "24": tool})
+
+    def test_explicit_linux_runtime_and_fex_selections_survive_default_maintenance(self):
+        tool, fex = self.COMPAT["TOOL"], self.COMPAT["FEX_TOOL"]
+        changes, auto = self.COMPAT["plan_mapping"](
+            {"0": tool, "20": "steamlinuxruntime_arm64", "21": fex},
+            ["20", "21"], [tool], tool, {}, {"20": None, "21": fex}, ["20", "21"])
+        self.assertEqual(changes, {})
+        self.assertEqual(auto, {})
+
+    def test_native_arm64_default_stays_unmapped_and_old_auto_proton_is_cleared(self):
+        tool = self.COMPAT["TOOL"]
+        changes, auto = self.COMPAT["plan_mapping"](
+            {"0": tool, "20": tool}, ["20"], [tool], tool, {"20": tool}, {"20": None}, ["20"])
+        self.assertEqual(changes, {"20": None})
+        self.assertEqual(auto, {})
+
+        changes, auto = self.COMPAT["plan_mapping"](
+            {"0": tool}, ["20"], [tool], tool, {}, {"20": None}, ["20"])
+        self.assertEqual(changes, {})
+        self.assertEqual(auto, {})
 
     def test_the_tool_files(self):
         with tempfile.TemporaryDirectory() as tmp:

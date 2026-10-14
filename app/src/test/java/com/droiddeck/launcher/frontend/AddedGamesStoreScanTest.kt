@@ -13,7 +13,6 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
-/** A store install is one more folder the scan finds, named and aimed by its sidecar. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class AddedGamesStoreScanTest {
@@ -38,7 +37,6 @@ class AddedGamesStoreScanTest {
         assertEquals("HOMM3.exe", game.exe.name)
         assertEquals(Store.GOG.id, game.source)
         assertEquals("1207658924", game.storeId)
-        // Inside the runtime's tree the folder needs no bind: its guest path is its path from the tree's root.
         assertEquals("/root/Games/Stores/GOG/Heroes of Might and Magic 3 Complete/HOMM3.exe", game.guestExe)
         assertEquals("/root/Games/Stores/GOG/Heroes of Might and Magic 3 Complete", game.guestDir)
     }

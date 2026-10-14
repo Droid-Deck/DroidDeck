@@ -1,6 +1,5 @@
 package com.droiddeck.launcher.session
 
-/** Platform-independent eligibility; a service existing alone does not mean it has a picture. */
 object PipPolicy {
     fun eligible(running: Boolean, frameSeen: Boolean, phase: SessionPhase, suspended: Boolean, automatic: Boolean): Boolean =
         running && frameSeen && phase in setOf(SessionPhase.READY, SessionPhase.SUSPENDED) &&

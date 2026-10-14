@@ -19,63 +19,38 @@ import java.io.FileOutputStream
 import java.security.MessageDigest
 import java.util.zip.ZipInputStream
 
-/**
- * Windows components (OpenAL, d3dx9, XAudio, VC++ DLLs...) for a game's Proton prefix, picked per
- * game, from Bannerlator's catalog (components.json on winlator-contents, Bottles' manifest format).
- *
- * Installing one runs its steps once, into the runtime: the archives it names are downloaded and
- * its DLLs copied to /opt/droiddeck/wincomponents/<name>/{system32,syswow64}, with component.json
- * holding its DLL overrides and the components it bundles. The picks go to the runtime as
- * ~/.config/droiddeck/wincomponents.json, and droiddeck-wincomponents copies the picked components
- * into the game's prefix at every launch (see that script for why every launch).
- *
- * A component whose installer is a Windows Installer package (.msi: XNA, PhysX, Games for Windows
- * Live, MSXML...) installs here too, without running it: droiddeck-msi-install reads the package's
- * tables in the runtime and lays out its files (Program Files, the .NET GAC, winsxs) and registry
- * values the way Wine's msiexec would, under the same store folder. One that runs any other
- * installer (.exe), unpacks a cabinet or edits the prefix's registry by itself is listed with the
- * reason it cannot be installed yet.
- */
 object WinComponents {
     private const val TAG = "WinComponents"
-    const val CATALOG_URL = "https://raw.githubusercontent.com/The412Banner/winlator-contents/main/components.json"
+    const val CATALOG_URL = "https://raw.githubusercontent.com/Droid-Deck/DroidDeck-Components/main/components.json"
     private const val SELECTION = "wincomponents.json"
     private const val GUEST_SELECTION = "root/.config/droiddeck/wincomponents.json"
     private const val STORE = "opt/droiddeck/wincomponents"
     private val ID = Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
-    // register_dll is left out on purpose: the DLLs it names are ones Wine ships and has registered
-    // at the same path, so the native file at that path is the one the registration loads.
     private val FILE_STEPS = setOf("download_archive", "archive_extract", "copy_dll", "copy_file", "override_dll", "register_dll")
     private val INSTALLER_STEPS = setOf("install_exe", "install_msi")
-    /**
-     * Steps done here without any installer running: a Windows version or registry value for the
-     * prefix (written by droiddeck-wincomponents with the rest), files picked out of a cabinet, and
-     * "uninstall Wine Mono", which the mscoree override beside it already does for the game.
-     */
     private val OFFLINE_STEPS = setOf("set_windows", "set_register_key", "get_from_cab", "uninstall")
-    /**
-     * Installers that are their own setup program (NSIS, InnoSetup, IExpress scripts): nothing
-     * inside them is a package to lay out, so they wait for a way to run them.
-     */
     private val RUNS_OWN_SETUP = setOf(
         "K-Lite", "ffdshow", "lavfilters702", "lavfilters741", "quicktime72", "dirac", "webview2", "aairruntime",
         "gfw", "ie8_kb2936068", "art2k7min", "vcredist6sp6", "VulkanRT", "jet40", "mdac28", "oalinst",
         "dotnet20", "dotnet20sp1", "dotnet35", "dotnet35sp1",
     )
     private const val MSI_INSTALL = "/usr/local/bin/droiddeck-msi-install"
-    /** Where a downloaded package or installer waits for the installer, inside the runtime so it can read it. */
     private const val MSI_CACHE = "$STORE/.packages"
-    /**
-     * Catalog entries every Proton here already ships, which an install would only shadow: Wine
-     * Gecko and Mono, the Chinese/Japanese/Korean fonts (Malgun, MS Gothic, YaHei, SimSun are in
-     * share/fonts of Proton Experimental, GE-Proton and proton-cachyos alike), Wine's own
-     * PowerShell wrapper and the Vulkan loader (vulkan-1.dll, 32- and 64-bit, in all three).
-     */
     private val PROTON_PROVIDES = setOf("gecko", "mono", "cjkfonts", "powershell", "VulkanRT")
-    /** The keys the catalog nests under "environment" on a few .NET entries. */
     private val NESTED_KEYS = setOf("url", "file_name", "file_checksum", "file_size")
 
     fun validId(id: String): Boolean = ID.matches(id) && ".." !in id
+
+    private val BACKGROUND = ThreadLocal<Boolean>()
+
+    fun <T> background(block: () -> T): T {
+        BACKGROUND.set(true)
+        try { return block() } finally { BACKGROUND.remove() }
+    }
+
+    private fun guest(argv: List<String>): List<String> = if (BACKGROUND.get() != true) argv else listOf(
+        "/bin/sh", "-c", "if command -v ionice >/dev/null 2>&1; then exec nice -n 19 ionice -c3 \"\$@\"; else exec nice -n 19 \"\$@\"; fi", "sh",
+    ) + argv
 
     class Step(val action: String, val json: JSONObject) {
         fun str(key: String): String = json.optString(key, "").ifEmpty {
@@ -86,50 +61,47 @@ object WinComponents {
     class Component(
         val name: String, val description: String, val provider: String, val status: String,
         val dependencies: List<String>, val steps: List<Step>,
-        /**
-         * A recording of what the component's own installer leaves in a prefix (winlator-contents'
-         * component-snapshots release, made by tools/snapshot/record.py): the files it places and
-         * the registry values it writes. With one, the installer never runs: the files come from
-         * the archive beside the recording or out of the vendor's installer, the registry from the
-         * recording. Empty for a component without one.
-         */
         val snapshot: String = "",
     )
 
     enum class Support { READY, NEEDS_INSTALLER, UNSUPPORTED }
 
-    /** The two halves of an install the page shows one after the other, each 0..100. */
     enum class Phase { DOWNLOAD, INSTALL }
 
-    /** Progress: the component being worked on, what it is doing, the phase, 0..100 or -1 when unknown. */
     class Progress(val component: String, val stage: String, val phase: Phase, val percent: Int)
 
-    /** The percent a droiddeck-msi-install progress line carries ("progress 37% placing files"), or -1. */
     private val PERCENT_LINE = Regex("""^(\d{1,3})% (.*)$""")
     private fun engineLine(text: String): Pair<String, Int> =
         PERCENT_LINE.find(text)?.let { it.groupValues[2] to it.groupValues[1].toInt().coerceIn(0, 100) } ?: (text to -1)
 
-    /**
-     * A step that installs a Windows Installer package, or an installer .exe that is a wrapper
-     * around packages (a WiX bundle, a self-extracting cabinet or 7-Zip archive), which
-     * droiddeck-msi-install lays out here without running it.
-     */
     private fun isPackage(step: Step): Boolean = step.action in INSTALLER_STEPS && step.str("url").startsWith("https://") &&
         (step.action == "install_msi" || listOf(step.str("file_name"), step.str("url").substringBefore('?'))
             .any { it.endsWith(".msi", ignoreCase = true) || it.endsWith(".exe", ignoreCase = true) })
 
-    /** Catalog entries nothing here can use: the IE8 security update patches a browser no prefix has. */
-    private val POINTLESS = setOf("ie8_kb2936068")
+    private val POINTLESS = setOf("ie8_kb2936068", "oalinst", "webview2")
 
     private fun protonProvides(name: String): Boolean = name in PROTON_PROVIDES || name in POINTLESS || name.startsWith("mono-")
 
     fun hasSnapshot(c: Component): Boolean = c.snapshot.startsWith("https://github.com/") && c.snapshot.endsWith(".snapshot.json")
 
-    /** The steps a recording makes redundant: everything that places files or edits the registry. */
     private val SNAPSHOT_COVERS = INSTALLER_STEPS + setOf("download_archive", "archive_extract", "copy_dll", "copy_file") + OFFLINE_STEPS
 
-    fun fetch(): List<Component>? {
-        val body = Downloader.downloadString(CATALOG_URL) ?: return null
+    fun fetch(): List<Component>? = Downloader.downloadString(CATALOG_URL)?.let { parse(it) }
+
+    private const val CATALOG_CACHE = "wincomponents-catalog.json"
+
+    fun fetch(context: Context): List<Component>? {
+        val cache = File(context.filesDir, CATALOG_CACHE)
+        Downloader.downloadString(CATALOG_URL)?.let { body ->
+            parse(body)?.let { runCatching { write(cache, body) }; return it }
+        }
+        return runCatching { parse(cache.readText()) }.getOrNull()
+    }
+
+    fun cached(context: Context): List<Component>? =
+        runCatching { parse(File(context.filesDir, CATALOG_CACHE).readText()) }.getOrNull()
+
+    private fun parse(body: String): List<Component>? {
         return try {
             val arr = JSONObject(body).getJSONArray("components")
             (0 until arr.length()).mapNotNull { i ->
@@ -150,11 +122,14 @@ object WinComponents {
         }
     }
 
-    /** Whether [c] can be installed here, its bundled components included. */
+    fun installable(name: String, all: Map<String, Component>): String {
+        val twin = all[if (name == "oalinst") "oalinst_dll" else "${name}_dll"]
+        return if (twin != null && support(twin, all) == Support.READY) twin.name else name
+    }
+
     fun support(c: Component, all: Map<String, Component>, depth: Int = 0): Support {
         if (c.status != "ready" || depth > 8 || protonProvides(c.name)) return Support.UNSUPPORTED
         val installers = c.steps.filter { it.action in INSTALLER_STEPS }
-        // A recording of the installer's result stands in for running it, whatever the steps say.
         if (hasSnapshot(c)) {
             return c.dependencies.map { all[it]?.let { d -> support(d, all, depth + 1) } ?: Support.UNSUPPORTED }
                 .maxOrNull() ?: Support.READY
@@ -173,7 +148,6 @@ object WinComponents {
     }
 
     private fun fileStepOk(step: Step): Boolean = when (step.action) {
-        // An .exe or .cab archive (DirectX's redistributable) is opened by the runtime's tools.
         "download_archive", "archive_extract" -> step.str("url").let { url ->
             !url.startsWith("http") || url.startsWith("https://github.com/") &&
                 url.substringBefore('?').lowercase().let { it.endsWith(".tar.xz") || it.endsWith(".zip") || it.endsWith(".exe") || it.endsWith(".cab") }
@@ -182,20 +156,14 @@ object WinComponents {
         else -> true
     }
 
-    /** The installed version of a component, or null. */
     fun installed(context: Context, id: String): String? = runCatching {
         JSONObject(File(LinuxRuntime.rootDir(context), "$STORE/$id/component.json").readText()).optString("version", "?")
     }.getOrNull()
 
-    /** Every component in the runtime, by id. */
     fun installedIds(context: Context): List<String> =
         File(LinuxRuntime.rootDir(context), STORE).listFiles { f -> f.isDirectory && validId(f.name) }
             .orEmpty().map { it.name }.filter { installed(context, it) != null }.sorted()
 
-    /**
-     * Installs [c] and the components it bundles that are not installed yet. [onProgress] gets a
-     * line for the step and 0..100 (or -1). Returns null on success, else a message.
-     */
     fun install(context: Context, c: Component, all: Map<String, Component>, onProgress: (Progress) -> Unit): String? {
         if (support(c, all) != Support.READY) return "${c.name} cannot be installed here yet"
         val order = ArrayList<Component>()
@@ -205,8 +173,6 @@ object WinComponents {
             if (x.name == c.name || installed(context, x.name) == null) order.add(x)
         }
         visit(c, 0)
-        // One download per archive however many components copy out of it (DirectMusic's eleven
-        // parts all come from dxnt, 100 MB).
         val work = File(context.cacheDir, "wincomponents").apply { FileUtils.delete(this); mkdirs() }
         val archives = HashMap<String, File>()
         return try {
@@ -230,10 +196,7 @@ object WinComponents {
         val overrides = ArrayList<String>()
         var source: File? = null
         var msi: JSONObject? = null
-        // The registry values the steps themselves set (a Windows version, a key), beside the packages'.
         val registry = ArrayList<JSONObject>()
-        // Archives the runtime's tools opened (installer .exe, cabinets), by the name the catalog
-        // calls them, and the folders they were opened into; cleaned up at the end.
         val runtimeArchives = HashMap<String, File>()
         val runtimeDirs = ArrayList<File>()
         val cabs = HashMap<String, File>()
@@ -247,8 +210,6 @@ object WinComponents {
         for (step in c.steps) when {
             hasSnapshot(c) && step.action in SNAPSHOT_COVERS -> Unit
             else -> when (step.action) {
-            // A component may have several packages (PowerShell's 32- and 64-bit): each adds to the
-            // same folder, the first one names the component.
             "install_msi", "install_exe" -> {
                 val (result, problem) = installPackage(context, c, step, staging, onProgress)
                 if (result == null) return problem
@@ -257,15 +218,12 @@ object WinComponents {
                     result.optJSONArray("notes")?.let { for (i in 0 until it.length()) notes.put(it.get(i)) }
                 } ?: result
             }
-            // A catalog step that makes room for the installer's own copy; ours is copied anyway.
             "delete_dlls" -> Unit
             "download_archive", "archive_extract" -> {
                 val url = step.str("url")
                 if (!url.startsWith("http")) continue
                 source = archives[url] ?: run {
                     val name = url.substringBefore('?').substringAfterLast('/')
-                    // A zip or tar.xz is opened here; an .exe or .cab by the runtime's tools, so it
-                    // is downloaded where the runtime can read it and kept for get_from_cab steps.
                     val byRuntime = name.lowercase().let { it.endsWith(".exe") || it.endsWith(".cab") }
                     val file = if (byRuntime) File(root, "$MSI_CACHE/${archives.size}-$name").apply { parentFile?.mkdirs() }
                         else File(work, "${archives.size}-$name")
@@ -287,8 +245,6 @@ object WinComponents {
                     dir.also { archives[url] = it }
                 }
             }
-            // Files picked out of a cabinet: one the catalog downloaded (DirectX's redistributable,
-            // a self-extracting cabinet), or cabinets an earlier pick put under temp/.
             "get_from_cab" -> {
                 val pattern = step.str("source")
                 val containers = runtimeArchives[pattern]?.let { listOf(it) } ?: run {
@@ -316,7 +272,6 @@ object WinComponents {
                     }
                 }
             }
-            // The Windows version a game sees: HKCU\Software\Wine "Version", the last word wins.
             "set_windows" -> step.str("version").takeIf { it.isNotEmpty() }?.let { version ->
                 registry.removeAll { it.optString("key") == "Software\\Wine" && it.optString("name") == "Version" }
                 registry += JSONObject().put("hive", "HKCU").put("key", "Software\\Wine").put("name", "Version").put("type", "sz").put("data", version)
@@ -339,8 +294,6 @@ object WinComponents {
                 }
                 registry += value
             }
-            // "Uninstall Wine Mono" before a real .NET Framework: the mscoree override the catalog
-            // sets beside it is what takes Mono out of the game's way; nothing to remove here.
             "uninstall" -> Unit
             "copy_dll", "copy_file" -> {
                 val from = source ?: return "a copy step before any archive"
@@ -378,7 +331,6 @@ object WinComponents {
             FileUtils.delete(temp)
         }
         if (registry.isNotEmpty()) {
-            // The packages' values are already in registry.json; the steps' own go after them.
             val file = File(staging, "registry.json")
             val values = runCatching { JSONObject(file.readText()).optJSONArray("values") }.getOrNull() ?: JSONArray()
             registry.forEach { values.put(it) }
@@ -398,13 +350,6 @@ object WinComponents {
         return null
     }
 
-    /**
-     * Lays the component out from its recording: downloads the snapshot, then its files (the
-     * archive beside it when the recording carries them, else out of the vendor's installer by
-     * the paths the recording maps, small generated ones inline) into [staging]/drive_c, and the
-     * recorded registry values into registry.json. Returns a result like the MSI engine's, or
-     * null and why.
-     */
     private fun installSnapshot(context: Context, c: Component, staging: File, work: File, onProgress: (Progress) -> Unit): Pair<JSONObject?, String> {
         val root = LinuxRuntime.rootDir(context)
         val name = c.snapshot.substringAfterLast('/')
@@ -435,7 +380,6 @@ object WinComponents {
             file.delete()
             placed = drive.walkTopDown().count { it.isFile }
         } else {
-            // The files come out of the installer the catalog names, by the paths the recording maps.
             val step = c.steps.firstOrNull { it.action in INSTALLER_STEPS && it.str("url").startsWith("https://") }
                 ?: return null to "the recording needs the installer, which the catalog does not name"
             val url = step.str("url")
@@ -486,14 +430,9 @@ object WinComponents {
             .put("notes", JSONArray(notes + listOfNotNull(installerVersion.takeIf { it.isNotEmpty() }?.let { "recorded from $it on ${snapshot.optString("wine")}" }))) to ""
     }
 
-    /** The regex for a catalog file pattern: * matches anything, case does not matter. */
     private fun globRegex(pattern: String) =
         Regex("^" + pattern.split("*").joinToString(".*") { Regex.escape(it) } + "$", RegexOption.IGNORE_CASE)
 
-    /**
-     * Has the runtime's tools open [archive] (an installer .exe, a cabinet, a self-extracting
-     * one) into a folder of the package cache called [tag]; that folder, or null and a log line.
-     */
     private fun unpackInRuntime(context: Context, c: Component, archive: File, tag: String, onProgress: (Progress) -> Unit): File? {
         val root = LinuxRuntime.rootDir(context)
         val cache = File(root, MSI_CACHE)
@@ -501,7 +440,7 @@ object WinComponents {
         val inside = archive.relativeTo(root).path
         var problem: String? = null
         var ok = false
-        val status = GuestCommand.run(context, listOf(MSI_INSTALL, "--unpack", "/$inside", "/$MSI_CACHE/${dir.name}"),
+        val status = GuestCommand.run(context, guest(listOf(MSI_INSTALL, "--unpack", "/$inside", "/$MSI_CACHE/${dir.name}")),
             logName = "wincomponents-${c.name}") { line ->
             when {
                 line.startsWith("progress ") -> engineLine(line.removePrefix("progress ")).let { (text, _) -> onProgress(Progress(c.name, text, Phase.INSTALL, -1)) }
@@ -517,12 +456,6 @@ object WinComponents {
         return dir
     }
 
-    /**
-     * Downloads the component's package (.msi) or installer (.exe) into the runtime and has
-     * droiddeck-msi-install lay it out in [staging]. Returns the installer's result (product,
-     * version, counts, notes), or null and why. Everything the installer prints also goes to
-     * files/logs/tools.
-     */
     private fun installPackage(context: Context, c: Component, step: Step, staging: File, onProgress: (Progress) -> Unit): Pair<JSONObject?, String> {
         val root = LinuxRuntime.rootDir(context)
         val url = step.str("url")
@@ -540,7 +473,7 @@ object WinComponents {
             onProgress(Progress(c.name, "installing", Phase.INSTALL, 0))
             var result: JSONObject? = null
             var problem: String? = null
-            val status = GuestCommand.run(context, listOf(MSI_INSTALL, "/$MSI_CACHE/${file.name}", "/$STORE/${staging.name}"),
+            val status = GuestCommand.run(context, guest(listOf(MSI_INSTALL, "/$MSI_CACHE/${file.name}", "/$STORE/${staging.name}")),
                 logName = "wincomponents-${c.name}") { line ->
                 when {
                     line.startsWith("progress ") -> engineLine(line.removePrefix("progress ")).let { (text, pct) -> onProgress(Progress(c.name, text, Phase.INSTALL, pct)) }
@@ -595,10 +528,6 @@ object WinComponents {
         Log.w(TAG, "extract ${archive.name}", e); false
     }
 
-    /**
-     * Bannerlator's rule: the manifest's own temp paths are Bottles', so the files are found by name
-     * anywhere in the unpacked tree, preferring the ones under the matching win32/win64 folder.
-     */
     private fun copyMatching(srcRoot: File, pattern: String, dest: File, arch: String?) {
         if (pattern.isEmpty()) return
         val rx = Regex("^" + pattern.split("*").joinToString(".*") { Regex.escape(it) } + "$", RegexOption.IGNORE_CASE)
@@ -612,50 +541,94 @@ object WinComponents {
         matches.forEach { f -> f.copyTo(File(dest, f.name.lowercase()), overwrite = true) }
     }
 
-    /** Removes a component from the runtime and from every game's picks. */
     @Synchronized
     fun uninstall(context: Context, id: String) {
         require(validId(id))
         FileUtils.delete(File(LinuxRuntime.rootDir(context), "$STORE/$id"))
-        save(context, read(context).mapValues { (_, ids) -> ids - id }.filterValues { it.isNotEmpty() })
+        save(context, selections(context).mapValues { (_, sel) -> Selection(sel.auto - id, sel.user - id) })
     }
 
-    /** Each game's picks, by the appid its prefix is named after. */
+    class AutoReason(val kind: String, val args: List<String>)
+
+    class Selection(val auto: Map<String, AutoReason>, val user: Map<String, Boolean>) {
+        val effective: List<String>
+            get() = (auto.keys.filter { user[it] != false } + user.filterValues { it }.keys).distinct()
+    }
+
     @Synchronized
-    fun read(context: Context): Map<String, List<String>> = try {
+    fun selections(context: Context): Map<String, Selection> = try {
         val json = JSONObject(AtomicFile(File(context.filesDir, SELECTION)).readFully().toString(Charsets.UTF_8))
         val games = json.optJSONObject("games") ?: JSONObject()
-        games.keys().asSequence().associateWith { app ->
-            val ids = games.getJSONArray(app)
-            (0 until ids.length()).map { ids.getString(it) }.filter { validId(it) }
+        val autos = json.optJSONObject("auto") ?: JSONObject()
+        val users = json.optJSONObject("user")
+        val keys = games.keys().asSequence().toSet() + autos.keys().asSequence().toSet() + (users?.keys()?.asSequence()?.toSet() ?: emptySet())
+        keys.associateWith { app ->
+            val auto = autos.optJSONObject(app)?.let { o ->
+                o.keys().asSequence().filter { validId(it) }.associateWith { id ->
+                    val r = o.optJSONObject(id) ?: JSONObject()
+                    val a = r.optJSONArray("args") ?: JSONArray()
+                    AutoReason(r.optString("kind"), (0 until a.length()).map { a.optString(it) })
+                }
+            }.orEmpty()
+            val user = if (users == null) games.optJSONArray(app)?.let { ids -> (0 until ids.length()).map { ids.getString(it) }.filter { validId(it) }.associateWith { true } }.orEmpty()
+            else users.optJSONObject(app)?.let { o -> o.keys().asSequence().filter { validId(it) }.associateWith { o.optBoolean(it) } }.orEmpty()
+            Selection(auto, user)
         }
     } catch (_: java.io.FileNotFoundException) {
         emptyMap()
     }
 
-    fun picks(context: Context, appKey: String): List<String> = read(context)[appKey].orEmpty()
+    fun read(context: Context): Map<String, List<String>> =
+        selections(context).mapValues { it.value.effective }.filterValues { it.isNotEmpty() }
+
+    fun picks(context: Context, appKey: String): List<String> = selections(context)[appKey]?.effective.orEmpty()
+
+    fun selection(context: Context, appKey: String): Selection = selections(context)[appKey] ?: Selection(emptyMap(), emptyMap())
+
+    @Synchronized
+    fun setUser(context: Context, appKey: String, id: String, on: Boolean) {
+        require(validId(id))
+        val all = selections(context).toMutableMap()
+        val now = all[appKey] ?: Selection(emptyMap(), emptyMap())
+        all[appKey] = Selection(now.auto, now.user + (id to on))
+        save(context, all)
+    }
+
+    @Synchronized
+    fun setAuto(context: Context, appKey: String, auto: Map<String, AutoReason>) {
+        require(auto.keys.all { validId(it) })
+        val all = selections(context).toMutableMap()
+        val now = all[appKey] ?: Selection(emptyMap(), emptyMap())
+        all[appKey] = Selection(auto, now.user)
+        save(context, all)
+    }
 
     @Synchronized
     fun setPicks(context: Context, appKey: String, ids: List<String>) {
         require(ids.all { validId(it) })
-        val all = read(context).toMutableMap()
-        if (ids.isEmpty()) all.remove(appKey) else all[appKey] = ids.distinct()
+        val all = selections(context).toMutableMap()
+        val now = all[appKey] ?: Selection(emptyMap(), emptyMap())
+        all[appKey] = Selection(now.auto, ids.distinct().associateWith { true } + now.auto.keys.filter { it !in ids }.associateWith { false })
         save(context, all)
     }
 
-    private fun save(context: Context, games: Map<String, List<String>>) {
-        val text = JSONObject().put("version", 1).put("games", JSONObject().apply {
-            games.forEach { (app, ids) -> put(app, JSONArray(ids)) }
-        }).toString()
+    private fun save(context: Context, games: Map<String, Selection>) {
+        val kept = games.filterValues { it.auto.isNotEmpty() || it.user.isNotEmpty() }
+        val text = JSONObject().put("version", 1)
+            .put("games", JSONObject().apply { kept.forEach { (app, sel) -> sel.effective.takeIf { it.isNotEmpty() }?.let { put(app, JSONArray(it)) } } })
+            .put("auto", JSONObject().apply {
+                kept.forEach { (app, sel) ->
+                    if (sel.auto.isNotEmpty()) put(app, JSONObject().apply {
+                        sel.auto.forEach { (id, r) -> put(id, JSONObject().put("kind", r.kind).put("args", JSONArray(r.args))) }
+                    })
+                }
+            })
+            .put("user", JSONObject().apply { kept.forEach { (app, sel) -> if (sel.user.isNotEmpty()) put(app, JSONObject(sel.user as Map<*, *>)) } })
+            .toString()
         write(File(context.filesDir, SELECTION), text)
         publish(context, text)
     }
 
-    /**
-     * Writes the picks where the launch script reads them; SessionFiles calls this at every session
-     * start too, so a runtime reinstalled since keeps them. An empty selection still writes a file,
-     * which is how a component turned off for every game is taken out of their prefixes.
-     */
     @Synchronized
     fun publish(context: Context, text: String? = null) {
         val body = text ?: runCatching { AtomicFile(File(context.filesDir, SELECTION)).readFully().toString(Charsets.UTF_8) }.getOrNull() ?: return

@@ -6,9 +6,7 @@ import java.io.File
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** Offline equivalent of Decky's identity-based replacement and loader settings update. */
 internal object DeckyPluginInstall {
-    /** A failure the user is told about: [text] is its string resource. */
     class Failure(@StringRes val text: Int) : IllegalStateException()
 
     fun activate(staged: File, plugins: File, name: String, settingsFile: File, backupSuffix: String) {
@@ -26,7 +24,6 @@ internal object DeckyPluginInstall {
             .distinct())
         if ((0 until order.length()).none { order.optString(it) == name }) order.put(name)
         settings.put("pluginOrder", order)
-        // Decky's reinstall removes these flags while retaining the plugin's order and data.
         for (key in listOf("frozenPlugins", "hiddenPlugins", "disabled_plugins")) {
             val values = settings.optJSONArray(key) ?: continue
             settings.put(key, JSONArray((0 until values.length()).map { values.get(it) }.filter { it != name }))

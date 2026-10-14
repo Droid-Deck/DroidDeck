@@ -1,16 +1,12 @@
-/* Screen-effect chain - see effects_chain.h. Compositor thread unless noted. */
 #define _POSIX_C_SOURCE 200809L
 #include "effects_chain.h"
 #include "vk_loader.h"
-#include "vk_present.h" /* droiddeck_log */
+#include "vk_present.h"
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-/* The X11 Vulkan renderer's SPIR-V, pre-compiled by app/src/main/cpp/framegen/gen_shaders.sh
- * (glslangValidator --vn) and committed next to the GLSL: the NDK build compiles no shaders, so
- * there is no build-time tooling for CI to break. Same bytes as the X11 chain runs. */
 #include "upscale_vert.h"
 #include "sgsr_frag.h"
 #include "sgsr_quality_frag.h"
@@ -26,25 +22,24 @@
 #include "crt_frag.h"
 #include "deband_frag.h"
 
-#define FX_FORMAT VK_FORMAT_R8G8B8A8_UNORM /* the default: every SDR frame */
-/* The chain's target format and the scene's view format. R8G8B8A8 always, except while an HDR scene
- * runs through the chain (hdr_compose.h): then the scene and the targets are A2B10G10R10, so a PQ
- * picture keeps 10 bits through every pass. A change rebuilds the chain's objects once
- * (vkp_effects_set_formats). */
-static VkFormat g_fx_fmt = FX_FORMAT, g_scene_fmt = FX_FORMAT;
-#define FX_MAX_DIM 4096 /* a FILL-mapped scene can exceed the panel; cap the chain resolution */
+#define FX_FORMAT VK_FORMAT_R8G8B8A8_UNORM
 
-/* ------------------------------------------------------------------ settings */
+
+
+
+static VkFormat g_fx_fmt = FX_FORMAT, g_scene_fmt = FX_FORMAT;
+#define FX_MAX_DIM 4096
+
 
 struct fx_settings {
-    int scaling;        /* 0..8 */
-    int sharp_pct;      /* 0..100, the upscaler's own slider */
+    int scaling;
+    int sharp_pct;
     int cas_on, cas_pct;
     int hdr_on;
-    int deband_on, deband_pct; /* 0..200 */
-    int color_on;       /* derived: grade not neutral */
-    float brightness, contrast, gamma, saturation; /* shader units (already mapped/clamped) */
-    float b_raw, c_raw, s_raw;                     /* slider units, for the log */
+    int deband_on, deband_pct;
+    int color_on;
+    float brightness, contrast, gamma, saturation;
+    float b_raw, c_raw, s_raw;
     int fxaa, toon, crt, ntsc;
     char look[48];
 };
@@ -54,7 +49,7 @@ static struct fx_settings g_set = {
     .scaling = 0, .sharp_pct = 75, .cas_on = 0, .cas_pct = 60, .deband_pct = 100,
     .gamma = 1.0f, .saturation = 1.0f, .s_raw = 100.0f, .look = "Off"};
 static volatile int g_changed;
-static struct fx_settings g_cur; /* the compositor thread's per-frame snapshot */
+static struct fx_settings g_cur;
 static int g_cur_valid;
 
 static void set_begin(void) { pthread_mutex_lock(&g_lock); }
@@ -83,7 +78,6 @@ void vkp_effects_set_deband(int enabled, int pct) {
 static float clampf(float v, float lo, float hi) { return v < lo ? lo : v > hi ? hi : v; }
 void vkp_effects_set_screen(float brightness, float contrast, float gamma, float saturation,
                             int fxaa, int toon, int crt, int ntsc) {
-    /* Same mapping as VulkanRendererContext::setColorGrade (GL ColorEffect clamps). */
     int on = !(brightness == 0.0f && contrast == 0.0f && gamma == 1.0f && saturation == 100.0f);
     set_begin();
     g_set.color_on = on;
@@ -157,18 +151,17 @@ VkFilter vkp_effects_blit_filter(void) {
     return g_cur.scaling == 2 ? VK_FILTER_NEAREST : VK_FILTER_LINEAR;
 }
 
-/* ------------------------------------------------------------------ push constants
- * Byte-identical to VulkanRendererContext.h: vec4 ndc first (upscale.vert), the rest fragment-only. */
-struct pc_sgsr  { float ndc[4]; float vp[4]; float edge; };        /* also NIS: vp + sharpness */
+
+
+struct pc_sgsr  { float ndc[4]; float vp[4]; float edge; };
 struct pc_easu  { float ndc[4]; uint32_t con0[4], con1[4], con2[4], con3[4]; float outW, outH; };
 struct pc_rcas  { float ndc[4]; uint32_t con[4]; float outW, outH; };
-struct pc_res   { float ndc[4]; float res[2]; float extra; float pad; }; /* fxaa/toon/hdr/crt (res), cas (sharpness), ntsc (frameCount), deband (strength) */
+struct pc_res   { float ndc[4]; float res[2]; float extra; float pad; };
 struct pc_color { float ndc[4]; float b, c, g, s; };
-#define PC_MAX_SIZE sizeof(struct pc_easu) /* 88 bytes, the largest */
+#define PC_MAX_SIZE sizeof(struct pc_easu)
 
 static uint32_t packf(float f) { uint32_t u; memcpy(&u, &f, 4); return u; }
 
-/* Mirrors ffx_fsr1.h FsrEasuCon / FsrRcasCon exactly as the X11 renderer packs them. */
 static void easu_con(struct pc_easu *e, float inW, float inH, float outW, float outH) {
     e->con0[0] = packf(inW / outW);            e->con0[1] = packf(inH / outH);
     e->con0[2] = packf(0.5f * inW / outW - 0.5f); e->con0[3] = packf(0.5f * inH / outH - 0.5f);
@@ -183,7 +176,6 @@ static void rcas_con(struct pc_rcas *r, float scale01) {
     r->con[0] = packf(scale01); r->con[1] = 0; r->con[2] = 0; r->con[3] = 0;
 }
 
-/* ------------------------------------------------------------------ Vulkan objects */
 
 struct fx_target {
     VkImage img; VkDeviceMemory mem; VkImageView view; VkFramebuffer fb; VkDescriptorSet ds;
@@ -193,16 +185,16 @@ struct fx_target {
 static VkDevice g_dev;
 static VkPhysicalDevice g_pd;
 static VkPhysicalDeviceMemoryProperties g_mp;
-static int g_ready;          /* 0 = objects not built, 1 = ok, -1 = failed (chain disabled, said once) */
+static int g_ready;
 static VkRenderPass g_rp;
 static VkDescriptorSetLayout g_dsl;
 static VkPipelineLayout g_pl;
 static VkDescriptorPool g_dpool;
-static VkSampler g_sampler;  /* linear, clamp-to-edge: what the X11 chain samples its targets with */
+static VkSampler g_sampler;
 enum { P_SGSR, P_SGSR_HQ, P_NIS, P_EASU, P_RCAS, P_CAS, P_COLOR, P_FXAA, P_TOON, P_HDR, P_NTSC, P_CRT, P_DEBAND, P_COUNT };
 static VkPipeline g_pipe[P_COUNT];
-static struct fx_target g_t[2], g_mid; /* ping-pong pair + the EASU output (FSR only) */
-/* The scene image belongs to vk_present; only its view + descriptor live here. */
+static struct fx_target g_t[2], g_mid;
+
 static struct { VkImage img; VkImageView view; VkDescriptorSet ds; int w, h; } g_scene;
 static uint32_t g_ntsc_frame;
 
@@ -249,13 +241,11 @@ static void target_destroy(struct fx_target *t) {
     memset(t, 0, sizeof(*t));
 }
 
-/* A chain target: rendered into (colour attachment), sampled by the next pass, and blitted to
- * the swapchain when it ends up holding the result. Frames are fenced, so a resize never races
- * the GPU. 0 = ok. */
 static int target_ensure(struct fx_target *t, int w, int h, const char *what) {
     if (t->img && t->w == w && t->h == h) return 0;
     target_destroy(t);
-    VkImageCreateInfo ii = {.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO, .imageType = VK_IMAGE_TYPE_2D,
+    VkImageCreateInfo ii = {.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+                            .flags = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT, .imageType = VK_IMAGE_TYPE_2D,
                             .format = g_fx_fmt, .extent = {(uint32_t)w, (uint32_t)h, 1}, .mipLevels = 1,
                             .arrayLayers = 1, .samples = VK_SAMPLE_COUNT_1_BIT, .tiling = VK_IMAGE_TILING_OPTIMAL,
                             .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
@@ -292,6 +282,10 @@ static void scene_release(void) {
     memset(&g_scene, 0, sizeof(g_scene));
 }
 
+void vkp_effects_forget_image(VkImage img) {
+    if (img && g_scene.img == img) scene_release();
+}
+
 static int scene_ensure(VkImage img, int w, int h) {
     if (g_scene.img == img && g_scene.w == w && g_scene.h == h && g_scene.ds) return 0;
     scene_release();
@@ -308,8 +302,6 @@ static VkShaderModule shader(const uint32_t *code, size_t size) {
     return m;
 }
 
-/* One full-quad post pipeline: upscale.vert + the effect's fragment shader, opaque, dynamic
- * viewport/scissor - the X11 renderer's createPostPipeline. */
 static VkPipeline post_pipeline(VkShaderModule vert, const uint32_t *frag_code, size_t frag_size, const char *name) {
     VkShaderModule frag = shader(frag_code, frag_size);
     if (!frag) { droiddeck_log("error", "effects: %s: vkCreateShaderModule failed", name); return VK_NULL_HANDLE; }
@@ -362,7 +354,6 @@ void vkp_effects_destroy(void) { objects_destroy(); g_dev = VK_NULL_HANDLE; }
 
 void vkp_effects_set_formats(VkFormat scene_fmt, VkFormat target_fmt) {
     if (target_fmt != g_fx_fmt) {
-        /* The render pass, the pipelines and the targets are built for one format: start over. */
         if (g_ready) objects_destroy();
         g_fx_fmt = target_fmt;
         g_scene_fmt = scene_fmt;
@@ -379,14 +370,9 @@ void vkp_effects_set_formats(VkFormat scene_fmt, VkFormat target_fmt) {
     }
 }
 
-/* Build every device object once, on the first active frame. 0 = ok, -1 = the chain is
- * unavailable for this session (logged once; frames fall back to the plain blit). */
 static int objects_ensure(void) {
     if (g_ready) return g_ready == 1 ? 0 : -1;
     if (!g_dev || !g_vk.CreateGraphicsPipelines) { g_ready = -1; droiddeck_log("error", "effects: no device for the chain"); return -1; }
-    /* Render pass: one colour target, overwritten whole (DONT_CARE), left SHADER_READ_ONLY for the
-     * next pass. The dependencies order this pass after whoever read the target last (previous
-     * pass / previous frame's blit) and before whoever samples or blits it next. */
     VkAttachmentDescription att = {.format = g_fx_fmt, .samples = VK_SAMPLE_COUNT_1_BIT,
                                    .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE, .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
                                    .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE, .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
@@ -457,7 +443,6 @@ fail:
     return -1;
 }
 
-/* ------------------------------------------------------------------ recording */
 
 static void barrier(VkCommandBuffer cmd, VkImage img, VkImageLayout from, VkImageLayout to,
                     VkPipelineStageFlags src_stage, VkAccessFlags src_access,
@@ -469,7 +454,6 @@ static void barrier(VkCommandBuffer cmd, VkImage img, VkImageLayout from, VkImag
     g_vk.CmdPipelineBarrier(cmd, src_stage, dst_stage, 0, 0, NULL, 0, NULL, 1, &b);
 }
 
-/* One pass: sample `src` (a descriptor in SHADER_READ_ONLY_OPTIMAL), draw the full quad into `dst`. */
 static void pass(VkCommandBuffer cmd, VkPipeline p, struct fx_target *dst, VkDescriptorSet src,
                  const void *pc, uint32_t pcsz) {
     VkRenderPassBeginInfo rpi = {.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO, .renderPass = g_rp, .framebuffer = dst->fb,
@@ -496,36 +480,26 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
     s = &g_cur;
     *res_w = scene_w; *res_h = scene_h;
 
-    /* The chain's resolution: the scene's mapped size (X11 runs its effects at the output extent,
-     * with the scene already scaled by the base sampler). Clamped so a FILL-mapped 4K scene does
-     * not allocate beyond reason; the final blit resizes the remainder. */
     int cw = out_w > 0 ? out_w : scene_w, ch = out_h > 0 ? out_h : scene_h;
     if (cw > FX_MAX_DIM) cw = FX_MAX_DIM;
     if (ch > FX_MAX_DIM) ch = FX_MAX_DIM;
     if (cw < 1) cw = 1;
     if (ch < 1) ch = 1;
-    /* Spatial upscalers only have work when the scene is shown larger than it is (the X11
-     * renderer's "render below display" gate); Sharpen (RCAS) runs at any size. */
     const int upscaling = cw > scene_w || ch > scene_h;
     int spatial = 0;
     if (spatial_mode(s->scaling) && (s->scaling == 6 || upscaling)) spatial = s->scaling;
     const int nfx = effect_count(s);
     const int resize = cw != scene_w || ch != scene_h;
-    /* Passes that write the ping-pong pair: the scaling/resize stage (if any) + the effects.
-     * Two targets are needed once any pass reads what an earlier one wrote. */
     const int npasses = ((spatial || resize) ? 1 : 0) + nfx;
 
     if ((spatial || nfx) && objects_ensure() == 0 && scene_ensure(scene, scene_w, scene_h) == 0 &&
         target_ensure(&g_t[0], cw, ch, "chain") == 0 && (npasses < 2 || target_ensure(&g_t[1], cw, ch, "chain") == 0) &&
         (!(spatial == 4 || spatial == 5) || target_ensure(&g_mid, cw, ch, "EASU") == 0)) {
-        /* `cur` = the image the next pass samples; `cur_ds` its descriptor. Every pass writes the
-         * target that is not being read (the pair alternates; the scene is read only first). */
         VkDescriptorSet cur_ds;
-        struct fx_target *cur = NULL;   /* NULL = the scene image */
+        struct fx_target *cur = NULL;
 #define FREE_TARGET() ((cur == &g_t[0]) ? &g_t[1] : &g_t[0])
         const float sharp01 = (float)s->sharp_pct / 100.0f;
 
-        /* ---- stage 1: scaling (scene -> chain res) */
         if (spatial) {
             barrier(cmd, scene, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                     VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
@@ -536,20 +510,17 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
                 SET_NDC(pc);
                 pc.vp[0] = 1.0f / (float)scene_w; pc.vp[1] = 1.0f / (float)scene_h;
                 pc.vp[2] = (float)scene_w;        pc.vp[3] = (float)scene_h;
-                /* SGSR EdgeSharpness 0.5 (slider 0) .. 4.5 (slider 100); NIS takes the slider as is. */
                 pc.edge = spatial == 7 ? sharp01 : 0.5f + sharp01 * 4.0f;
                 pass(cmd, g_pipe[spatial == 3 ? P_SGSR : spatial == 8 ? P_SGSR_HQ : P_NIS], dst, g_scene.ds, &pc, sizeof(pc));
             } else if (spatial == 6) {
-                /* Sharpen: RCAS fetches the scene 1:1 (outputSize = scene size) while the quad
-                 * covers the chain target = nearest scale + sharpen, as the X11 renderer does. */
                 struct pc_rcas pc = {0};
                 SET_NDC(pc);
                 rcas_con(&pc, sharp01);
                 pc.outW = (float)scene_w; pc.outH = (float)scene_h;
                 pass(cmd, g_pipe[P_RCAS], dst, g_scene.ds, &pc, sizeof(pc));
-            } else { /* FSR (4) / FSR Fit (5): EASU scene -> mid, RCAS mid -> dst, both at chain res.
-                      * Fill vs fit is the Fullscreen Mode's business here (the mapping), so both
-                      * run the same EASU+RCAS pair. */
+            } else {
+
+
                 struct pc_easu e = {0};
                 struct pc_rcas r = {0};
                 SET_NDC(e);
@@ -563,8 +534,6 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
             }
             cur = dst; cur_ds = dst->ds;
         } else if (resize) {
-            /* No spatial pass: a plain filtered resize to the chain resolution first (Linear or
-             * Nearest per the scaling mode), so the effects run at output resolution like X11. */
             struct fx_target *dst = FREE_TARGET();
             barrier(cmd, scene, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                     VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
@@ -580,16 +549,12 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
                     VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
             cur = dst; cur_ds = dst->ds;
         } else {
-            /* Scene already at output size: the first effect samples it directly. */
             barrier(cmd, scene, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                     VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
                     VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
             cur = NULL; cur_ds = g_scene.ds;
         }
 
-        /* ---- stage 2: the effects, in the X11 renderer's locked order
-         *      FXAA -> Toon -> Colour -> CAS -> HDR -> NTSC -> CRT -> Debanding (terminal dither).
-         * Each writes the free ping-pong target; the one just read becomes free. */
         enum { FX_FXAA, FX_TOON, FX_COLOR, FX_CAS, FX_HDR, FX_NTSC, FX_CRT, FX_DEBAND };
         int order[8], n = 0;
         if (s->fxaa) order[n++] = FX_FXAA;
@@ -618,7 +583,6 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
             case FX_CAS: pr.extra = (float)s->cas_pct / 100.0f; pass(cmd, g_pipe[P_CAS], dst, cur_ds, &pr, sizeof(pr)); break;
             case FX_HDR: pass(cmd, g_pipe[P_HDR], dst, cur_ds, &pr, sizeof(pr)); break;
             case FX_NTSC:
-                /* cos/sin(chromaPhase*0.5) has period 4 in the counter: mod 4 keeps the shimmer exact. */
                 pr.extra = (float)(g_ntsc_frame++ & 3u);
                 pass(cmd, g_pipe[P_NTSC], dst, cur_ds, &pr, sizeof(pr));
                 break;
@@ -630,23 +594,18 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
 
 #undef FREE_TARGET
         if (cur) {
-            /* The result: written by the last render pass, now for the output blit. */
             barrier(cmd, cur->img, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                     VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
                     VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT);
             *res_w = cur->w; *res_h = cur->h;
             return cur->img;
         }
-        /* Nothing ran after all (cannot happen with nfx > 0): the scene was moved to
-         * SHADER_READ_ONLY above; bring it to TRANSFER_SRC for the blit. */
         barrier(cmd, scene, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                 VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT,
                 VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT);
         return scene;
     }
 
-    /* Nothing to do (a spatial mode with no room to upscale and no effect), or the chain is
-     * unavailable: present the scene as composited. */
     barrier(cmd, scene, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
             VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
             VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT);

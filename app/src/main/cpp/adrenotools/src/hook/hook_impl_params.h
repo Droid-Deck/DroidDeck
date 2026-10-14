@@ -1,15 +1,12 @@
 // SPDX-License-Identifier: BSD-2-Clause
 // Copyright © 2021 Billy Laws
 
+
 #pragma once
 
 #include <string>
 #include <adrenotools/priv.h>
 
-/**
- * @brief Holds the parameters needed for all hooks
- * @note See comments for adrenotools_open_libvulkan as a reference for member variables
- */
 struct HookImplParams {
     int featureFlags;
     std::string tmpLibDir;

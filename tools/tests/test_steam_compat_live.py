@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 BIN = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin"
 LIVE = runpy.run_path(str(BIN / "droiddeck-steam-compat"))
@@ -207,11 +208,306 @@ class ReconcileTest(unittest.TestCase):
         self.assertEqual((state["pending"], state.get("applied", 0)), (TOOL_11, 0))
         self.assertTrue(self.helper.request_waiting())
 
+    def test_per_game_customize_and_inherit_apply_live(self):
+        page = FakePage({"0": TOOL, "10": TOOL, "11": TOOL_11}, [TOOL, TOOL_11])
+        (self.state / "games.json").write_text(json.dumps({
+            "version": 1,
+            "games": {
+                "10": {"valve": True, "dir": "Proton 11.0 (ARM64)"},
+                "11": None,
+            },
+        }))
+        state = self.reconcile(page)
+        self.assertEqual(page.sets, [("10", TOOL_11), ("11", TOOL)])
+        self.assertEqual(state["auto"], {"11": TOOL})
+
+    def test_native_arm64_title_drops_auto_proton_once_and_keeps_explicit_choices(self):
+        (self.steam / "steamapps/appmanifest_11.acf").unlink()
+        (self.state / "state.json").write_text(json.dumps({
+            "default": TOOL,
+            "auto": {"10": TOOL},
+        }))
+        page = FakePage({"0": TOOL, "10": TOOL}, [TOOL, TOOL_11])
+        original_native_targets = COMPAT["native_targets"]
+        COMPAT["native_targets"] = lambda _root, _apps: {"10": None}
+        try:
+            state = self.reconcile(page)
+            self.assertEqual(page.sets, [("10", "")])
+            self.assertEqual(page.mapping["10"], "")
+            self.assertEqual(state["auto"], {})
+
+            page.sets.clear()
+            self.reconcile(page)
+            self.assertEqual(page.sets, [])
+
+            (self.state / "games.json").write_text(json.dumps({
+                "version": 1,
+                "games": {"10": {"valve": True, "dir": "Proton 11.0 (ARM64)"}},
+            }))
+            state = self.reconcile(page)
+            self.assertEqual(page.sets, [("10", TOOL_11)])
+            self.assertEqual(page.mapping["10"], TOOL_11)
+            self.assertEqual(state["auto"], {})
+            (self.state / "games.json").unlink()
+
+            page.sets.clear()
+            page.mapping["10"] = "steamlinuxruntime_arm64"
+            self.reconcile(page)
+            self.assertEqual(page.mapping["10"], "steamlinuxruntime_arm64")
+            self.assertEqual(page.sets, [])
+
+            page.mapping["10"] = TOOL_11
+            self.reconcile(page)
+            self.assertEqual(page.mapping["10"], TOOL_11)
+            self.assertEqual(page.sets, [])
+
+            page.mapping["10"] = COMPAT["FEX_TOOL"]
+            self.reconcile(page)
+            self.assertEqual(page.mapping["10"], COMPAT["FEX_TOOL"])
+            self.assertEqual(page.sets, [])
+
+            page.mapping["10"] = "GE-Proton11-7"
+            self.reconcile(page)
+            self.assertEqual(page.mapping["10"], "GE-Proton11-7")
+            self.assertEqual(page.sets, [])
+        finally:
+            COMPAT["native_targets"] = original_native_targets
+
+    def test_factorio_native_choice_survives_inherited_live_selection_and_restart(self):
+        app = "427520"
+        (self.steam / ("steamapps/appmanifest_%s.acf" % app)).write_text("")
+        config = self.steam / "config/config.vdf"
+        config.parent.mkdir(parents=True)
+        config.write_text(
+            '"InstallConfigStore" { "Software" { "Valve" { "Steam" { '
+            '"CompatToolMapping" { "0" { "name" "%s" } } } } } }' % TOOL)
+        (self.state / "state.json").write_text(json.dumps({
+            "default": TOOL,
+            "auto": {app: TOOL},
+        }))
+
+        original_native_targets = COMPAT["native_targets"]
+        COMPAT["native_targets"] = lambda _root, apps: {
+            app: COMPAT["NATIVE_CHOICE"]
+        } if app in apps else {}
+        try:
+            page = FakePage({"0": TOOL, "10": TOOL, "11": TOOL, app: "proton"}, [TOOL, TOOL_11])
+            state = self.reconcile(page)
+            self.assertEqual(page.sets, [])
+            self.assertEqual(state["auto"], {})
+            self.assertEqual(state["native"], [app])
+            self.assertEqual(COMPAT["read_config_mapping"](str(config)), {"0": TOOL})
+
+            page.sets.clear()
+            state = self.reconcile(page)
+            self.assertEqual(page.sets, [])
+            self.assertEqual(state["native"], [app])
+            restarted = LIVE["Helper"](str(self.steam), 1)
+            restarted.page = page
+            restarted.reconcile()
+            state = json.loads((self.state / "state.json").read_text())
+            self.assertEqual(page.sets, [])
+            self.assertEqual(state["native"], [app])
+
+            config.write_text(
+                '"InstallConfigStore" { "Software" { "Valve" { "Steam" { '
+                '"CompatToolMapping" { "0" { "name" "%s" } '
+                '"%s" { "name" "GE-Proton11-7" } } } } } }' % (TOOL, app))
+            page.mapping[app] = "GE-Proton11-7"
+            state = self.reconcile(page)
+            self.assertEqual(page.mapping[app], "GE-Proton11-7")
+            self.assertEqual(page.sets, [])
+            self.assertEqual(state["native"], [])
+
+            for choice in ("steamlinuxruntime", COMPAT["FEX_TOOL"], TOOL_11):
+                (self.state / "state.json").write_text(json.dumps({
+                    "default": TOOL,
+                    "auto": {},
+                    "native": [app],
+                }))
+                config.write_text(
+                    '"InstallConfigStore" { "Software" { "Valve" { "Steam" { '
+                    '"CompatToolMapping" { "0" { "name" "%s" } '
+                    '"%s" { "name" "%s" } } } } } }' % (TOOL, app, choice))
+                page.mapping[app] = choice
+                page.sets.clear()
+                state = self.reconcile(page)
+                self.assertEqual(page.mapping[app], choice)
+                self.assertEqual(page.sets, [])
+                self.assertEqual(state["native"], [], choice)
+        finally:
+            COMPAT["native_targets"] = original_native_targets
+
+    def test_saved_native_choice_survives_live_restart_without_manifest_or_appinfo(self):
+        app = "452280"
+        config = self.steam / "config/config.vdf"
+        config.parent.mkdir(parents=True)
+        config.write_text(
+            '"InstallConfigStore" { "Software" { "Valve" { "Steam" { '
+            '"CompatToolMapping" { "0" { "name" "%s" } } } } } }' % TOOL)
+        (self.state / "state.json").write_text(json.dumps({
+            "default": TOOL,
+            "auto": {},
+            "native": [app],
+        }))
+
+        original_native_targets = COMPAT["native_targets"]
+        COMPAT["native_targets"] = lambda _root, _apps: {}
+        try:
+            page = FakePage({"0": TOOL, app: "proton"}, [TOOL, TOOL_11])
+            state = self.reconcile(page)
+            self.assertNotIn(app, self.helper.installed)
+            self.assertEqual(state["native"], [app])
+            self.assertNotIn(app, state["auto"])
+            self.assertNotIn((app, TOOL), page.sets)
+            self.assertEqual(COMPAT["read_config_mapping"](str(config)), {"0": TOOL})
+
+            config.write_text('"InstallConfigStore" { "Software" { "Other" {} } }')
+            state = self.reconcile(page)
+            self.assertEqual(state["native"], [app])
+            self.assertNotIn((app, TOOL), page.sets)
+
+            config.write_text(
+                '"InstallConfigStore" { "Software" { "Valve" { "Steam" { '
+                '"CompatToolMapping" { "0" { "name" "%s" } '
+                '"%s" { "name" "GE-Proton11-7" } } } } } }' % (TOOL, app))
+            page.mapping[app] = "proton"
+            state = self.reconcile(page)
+            self.assertEqual(state["native"], [])
+            self.assertNotIn((app, TOOL), page.sets)
+            self.assertEqual(COMPAT["read_config_mapping"](str(config))[app], "GE-Proton11-7")
+        finally:
+            COMPAT["native_targets"] = original_native_targets
+
+    def test_factorio_without_prior_auto_state_uses_the_default_proton(self):
+        app = "427520"
+        (self.steam / ("steamapps/appmanifest_%s.acf" % app)).write_text("")
+        config = self.steam / "config/config.vdf"
+        config.parent.mkdir(parents=True)
+        config.write_text(
+            '"InstallConfigStore" { "Software" { "Valve" { "Steam" { '
+            '"CompatToolMapping" { "0" { "name" "%s" } } } } } }' % TOOL)
+        (self.state / "state.json").write_text(json.dumps({"default": TOOL, "auto": {}}))
+        page = FakePage({"0": TOOL, "10": TOOL, "11": TOOL, app: "proton"}, [TOOL, TOOL_11])
+        original_native_targets = COMPAT["native_targets"]
+        COMPAT["native_targets"] = lambda _root, apps: {
+            app: COMPAT["NATIVE_CHOICE"]
+        } if app in apps else {}
+        try:
+            state = self.reconcile(page)
+            self.assertEqual(page.sets, [(app, TOOL)])
+            self.assertEqual(state["auto"], {app: TOOL})
+            self.assertEqual(state["native"], [])
+            self.assertEqual(COMPAT["read_config_mapping"](str(config)), {"0": TOOL})
+        finally:
+            COMPAT["native_targets"] = original_native_targets
+
+    def test_missing_per_game_proton_stays_deferred_live(self):
+        page = FakePage({"0": TOOL, "10": "GE-Proton9-1", "11": TOOL_11}, [TOOL, TOOL_11])
+        (self.state / "games.json").write_text(json.dumps({
+            "version": 1,
+            "games": {
+                "10": {"valve": False, "dir": "GE-Proton9-1"},
+                "11": None,
+            },
+        }))
+        state = self.reconcile(page)
+        self.assertEqual(page.sets, [("11", TOOL)])
+        self.assertEqual(page.mapping["10"], "GE-Proton9-1")
+        self.assertEqual(state["auto"], {"11": TOOL})
+
     def test_file_mode_defers_to_the_live_helper(self):
         (self.state / "live.pid").write_text("%d\n" % os.getpid())
         self.assertTrue(COMPAT["live_helper_running"]())
         LIVE["detach"]()
         self.assertFalse(COMPAT["live_helper_running"]())
+
+
+SWITCH_HARNESS = r"""
+const sent = [], asked = [];
+class FakeSocket { send(data) { sent.push(data); } }
+globalThis.window = globalThis;
+globalThis.WebSocket = FakeSocket;
+window.droiddeckSwitchToDesktop = (x) => asked.push(x);
+const install = require("fs").readFileSync(process.argv[2], "utf8");
+const frame = (method) => {
+  const name = new TextEncoder().encode(method), h = [0x51, 1, 0, 0, 0, 0, 0, 0, 0, 0x62, name.length, ...name];
+  const out = new Uint8Array(8 + h.length), dv = new DataView(out.buffer);
+  dv.setUint32(0, (0x80000000 | 146) >>> 0, true); dv.setUint32(4, h.length, true); out.set(h, 8);
+  return out;
+};
+if (eval(install) !== "installed" || eval(install) !== "present") throw new Error("install is not idempotent");
+const ws = new FakeSocket();
+ws.send(frame("CompatManager.GetCompatTools#1"));
+ws.send(frame("SteamOSManager.SwitchToDesktop#1").buffer);
+ws.send(frame("SteamOSManager.SwitchToDesktop#1"));
+ws.send("SteamOSManager.SwitchToDesktop#1");
+console.log(JSON.stringify({ sent: sent.length, asked: asked.length }));
+"""
+
+
+@unittest.skipUnless(shutil.which("node"), "node is not installed")
+class SwitchScriptTest(unittest.TestCase):
+    def test_the_request_is_reported_and_still_sent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            script = Path(tmp) / "switch.js"
+            script.write_text(LIVE["SWITCH_JS"])
+            harness = Path(tmp) / "harness.js"
+            harness.write_text(SWITCH_HARNESS)
+            result = subprocess.run(["node", str(harness), str(script)], capture_output=True, text=True, timeout=60)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(result.stdout), {"sent": 4, "asked": 2})
+
+
+class AttachPage:
+    def __init__(self, port, path):
+        self.calls, self.scripts = [], []
+        self.ws = mock.Mock()
+
+    def evaluate(self, expression, timeout=30):
+        self.scripts.append(expression)
+        return True
+
+    def call(self, method, params=None, timeout=30):
+        self.calls.append((method, (params or {}).get("name")))
+        return {}
+
+    def compat(self, call):
+        return {"selected": "", "fallback": "", "tools": []}
+
+
+class SwitchToDesktopTest(unittest.TestCase):
+    def setUp(self):
+        self.globals = LIVE["Helper"].attach.__globals__
+        patcher = mock.patch.dict(self.globals, {"shared_context": lambda port: "/devtools/page/1", "Page": AttachPage})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_only_a_client_without_its_steamos_manager_is_watched(self):
+        helper = LIVE["Helper"]("/steam", 1, steamos=False)
+        helper.attach()
+        self.assertIn(("Runtime.addBinding", LIVE["SWITCH_BINDING"]), helper.page.calls)
+        self.assertIn(LIVE["SWITCH_JS"], helper.page.scripts)
+        helper = LIVE["Helper"]("/steam", 1, steamos=True)
+        helper.attach()
+        self.assertNotIn(("Runtime.addBinding", LIVE["SWITCH_BINDING"]), helper.page.calls)
+        self.assertNotIn(LIVE["SWITCH_JS"], helper.page.scripts)
+
+    def test_the_request_goes_to_steamos_session_select(self):
+        helper = LIVE["Helper"]("/steam", 1)
+        helper.page = mock.Mock()
+        helper.page.drain.return_value = [
+            {"method": "Runtime.bindingCalled", "params": {"name": LIVE["BINDING"], "payload": "1"}},
+            {"method": "Runtime.bindingCalled", "params": {"name": LIVE["SWITCH_BINDING"], "payload": ""}},
+        ]
+        with mock.patch.object(self.globals["subprocess"], "call", return_value=0) as call:
+            events = helper.drain()
+        call.assert_called_once_with(["/usr/bin/steamos-session-select", "plasma"])
+        self.assertTrue(any(LIVE["called"](e, LIVE["BINDING"]) for e in events))
+        helper.page.drain.return_value = [{"method": "Runtime.bindingCalled", "params": {"name": LIVE["BINDING"]}}]
+        with mock.patch.object(self.globals["subprocess"], "call") as call:
+            helper.drain()
+        call.assert_not_called()
 
 
 if __name__ == "__main__":

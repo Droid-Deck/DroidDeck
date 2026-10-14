@@ -1,0 +1,174 @@
+diff --git a/src/api/gog/users.rs b/src/api/gog/users.rs
+index 77d8ecf..6a6da12 100644
+--- a/src/api/gog/users.rs
++++ b/src/api/gog/users.rs
+@@ -26,9 +26,9 @@ pub async fn get_token_for(
+         .get(url)
+         .timeout(time::Duration::from_secs(10))
+         .send()
+-        .await?;
++        .await.map_err(reqwest::Error::without_url)?;
+ 
+-    let result = result.error_for_status()?;
+-    let token: Token = result.json().await?;
++    let result = result.error_for_status().map_err(reqwest::Error::without_url)?;
++    let token: Token = result.json().await.map_err(reqwest::Error::without_url)?;
+     Ok(token)
+ }
+diff --git a/src/api/handlers.rs b/src/api/handlers.rs
+index 43a8180..fbbba1b 100644
+--- a/src/api/handlers.rs
++++ b/src/api/handlers.rs
+@@ -59,6 +59,9 @@ pub async fn entry_point(
+     let mut topic_receiver_clone = topic_receiver.resubscribe();
+     let mut overlay_event_receiver_clone = overlay_event_receiver.resubscribe();
+     let main_socket = tokio::spawn(async move {
++        let mut sync_interval = time::interval(time::Duration::from_secs(10));
++        sync_interval.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
++        sync_interval.tick().await;
+         loop {
+             tokio::select! {
+                 size_read = context_clone.socket_read_u16() => {
+@@ -101,7 +104,7 @@ pub async fn entry_point(
+                     }
+                 }
+ 
+-                _ = time::sleep(time::Duration::from_secs(10)) => {
++                _ = sync_interval.tick() => {
+                     sync_routine(&context_clone, &reqwest_clone, user_clone.clone()).await
+                 },
+ 
+@@ -338,6 +341,7 @@ async fn sync_routine(context: &HandlerContext, reqwest_client: &Client, user_in
+     let Some(client_id) = &context.client_id().await else {
+         return;
+     };
++    if !crate::client_allowed(client_id) { return; }
+     let Some(client_secret) = &context.client_secret().await else {
+         return;
+     };
+@@ -391,6 +395,8 @@ async fn sync_routine(context: &HandlerContext, reqwest_client: &Client, user_in
+                     .expect("Failed to get database connection");
+                 let mut transaction = connection.begin().await.unwrap();
+ 
++                let mut pending = false;
++                let mut uploaded = 0;
+                 for achievement in achievements {
+                     debug!("Setting achievement {}", achievement.achievement_key());
+                     let result = gog::achievements::set_achievement(
+@@ -409,11 +415,15 @@ async fn sync_routine(context: &HandlerContext, reqwest_client: &Client, user_in
+                             .execute(&mut *transaction)
+                             .await
+                             .expect("Failed to update changed status");
++                        uploaded += 1;
++                    } else {
++                        pending = true;
+                     }
+                 }
+                 transaction.commit().await.expect("Failed to save changes");
+-                context.set_updated_achievements(false).await;
+-                info!("Uploaded achievements");
++                context.set_updated_achievements(pending).await;
++                if uploaded > 0 { eprintln!("DROIDDECK_COMET_UPLOADED:{uploaded}"); }
++                if pending { eprintln!("DROIDDECK_COMET_PENDING"); }
+             }
+             Err(err) => error!("Failed to read local database {:?}", err),
+         }
+diff --git a/src/api/handlers/communication_service.rs b/src/api/handlers/communication_service.rs
+index c1bed3b..1dda644 100644
+--- a/src/api/handlers/communication_service.rs
++++ b/src/api/handlers/communication_service.rs
+@@ -35,6 +35,9 @@ pub async fn entry_point(
+     debug!("Handling in communication service");
+     let header = &payload.header;
+ 
++    if let Some(client) = context.client_id().await {
++        if !crate::client_allowed(&client) { return Err(MessageHandlingError::unauthorized()); }
++    }
+     let message_type: i32 = header.type_().try_into().unwrap();
+ 
+     if message_type == MessageType::LIBRARY_INFO_REQUEST.value() {
+@@ -132,6 +135,7 @@ async fn auth_info_request(
+ 
+     let client_id = request_data.client_id();
+     let client_secret = request_data.client_secret();
++    if !crate::client_allowed(client_id) { return Err(MessageHandlingError::unauthorized()); }
+     let openid = request_data.openid();
+     let pid = request_data.game_pid();
+ 
+@@ -551,6 +555,14 @@ async fn unlock_user_achievement(
+             .await
+             .expect("Failed to write achievement to database");
+         context.set_updated_achievements(true).await;
++        eprintln!("DROIDDECK_COMET_UNLOCKED:{}", serde_json::json!({
++            "client_id": context.client_id().await,
++            "id": achievement.achievement_key(),
++            "name": achievement.name(),
++            "description": achievement.description(),
++            "icon": achievement.image_url_unlocked(),
++            "unlocked_at": timestamp,
++        }));
+         achievement.date_unlocked = timestamp_string;
+         let pid = context.get_pid().await;
+         let _ = context
+diff --git a/src/lib.rs b/src/lib.rs
+index 0c539f1..50fdd21 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -16,3 +16,10 @@ lazy_static! {
+         .and_then(|x| if !x.contains("-") { None } else { Some(x) })
+         .unwrap_or_else(|| String::from("en-US"));
+ }
++
++
++pub fn client_allowed(client_id: &str) -> bool {
++    let Ok(path) = std::env::var("COMET_ALLOWED_CLIENTS") else { return true; };
++    std::fs::read(path).ok().and_then(|data| serde_json::from_slice::<Vec<String>>(&data).ok())
++        .is_some_and(|clients| clients.iter().any(|id| id == client_id))
++}
+diff --git a/src/main.rs b/src/main.rs
+index 109098f..8301edb 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -41,11 +41,13 @@ enum SubCommand {
+ struct Args {
+     #[arg(long, help = "Provide access token (for getting user data)")]
+     access_token: Option<String>,
++    #[arg(long, help = "Read credentials as JSON from stdin")]
++    credentials_stdin: bool,
+     #[arg(long, help = "Provide refresh token (for creating game sessions)")]
+     refresh_token: Option<String>,
+     #[arg(long, help = "Galaxy user id from /userData.json")]
+     user_id: Option<String>,
+-    #[arg(long, help = "User name")]
++    #[arg(long, help = "User name", default_value = "")]
+     username: String,
+     #[arg(
+         long = "from-heroic",
+@@ -86,7 +88,18 @@ struct Args {
+ 
+ #[tokio::main]
+ async fn main() {
+-    let args = Args::parse();
++    let mut args = Args::parse();
++    if args.credentials_stdin {
++        use std::io::Read;
++        let value: serde_json::Value = serde_json::from_reader(std::io::stdin().take(32768))
++            .expect("Invalid credential input");
++        let field = |key: &str| value.get(key).and_then(|v| v.as_str())
++            .filter(|v| !v.is_empty()).expect("Missing credential field").to_owned();
++        args.access_token = Some(field("access_token"));
++        args.refresh_token = Some(field("refresh_token"));
++        args.user_id = Some(field("user_id"));
++        args.username = field("username");
++    }
+     #[cfg(debug_assertions)]
+     let log_level = "debug";
+     #[cfg(not(debug_assertions))]
+@@ -306,6 +319,7 @@ async fn main() {
+     });
+ 
+     info!("Listening on port 9977");
++    eprintln!("DROIDDECK_COMET_READY:{}", std::process::id());
+     let socket_shutdown = cloned_shutdown.clone();
+     let cloned_user_info = user_info.clone();
+ 

@@ -24,26 +24,112 @@ scanned (`StoreInstallRoot.roots`): internal, every card, and the Steam library'
 installs an earlier build put there. `<Store>` is `GOG`, `Epic` or `Amazon`; `<title>` is the title
 with unsafe characters dropped, at most 60 characters (`StoreInstallRoot.folderName`), chosen once;
 a rerun (repair, update) lands on the folder whose sidecar carries the game's id, wherever it is.
-An Epic install on a card keeps its in-flight chunks in `cacheDir/stores/epic/<id>/`: the
-`chunkCacheDir` of both native calls (`EpicNative.run` fetches into it, `EpicNative.assemble`
-writes the files from it and drops each chunk after its last use, then the folder), and of the
-manager's own loops when the engine is not there; `""` keeps the cache beside the game, as an
-internal install has it. The scratch folder is removed on cancel-with-delete and on uninstall.
-The cache holds whole ~1 MiB chunk windows, shared with files this device does not install, so it
-is often larger than the game (Metalstorm: 9.1 GB of chunks for 4.4 GB of files); the free-space
-check, made after the delta pass, counts the missing chunks and the missing files on their own
-volumes. A successful run removes the cache.
+An Epic install on a card keeps its in-flight chunks in `cacheDir/stores/epic/<id>/`;
+`""` keeps the cache beside the game, as an internal install has it. The scratch folder is
+removed on cancel-with-delete and on uninstall.
+
+Preflight resolves an existing game's folder before selecting its target root, so a resume or
+repair on a card checks and remembers that volume rather than internal storage. Fresh GOG and
+Amazon installs can reject insufficient catalog-size space immediately; existing installs defer
+to manifest checks of the files still needing work (GOG MD5, Amazon SHA-256 where supplied).
+Free-space display probes the nearest existing ancestor without creating the target folder; if
+the probe cannot determine space, it reports **Free space unknown** rather than blocking an install.
+`StoreInstallRoot` uses `-1` for unknown and preserves a measured `StatFs` zero as **0 B free**.
+Fresh GOG/Amazon preflight and the backends' own space checks (GOG in Kotlin, Epic and Amazon in
+the Rust engine) reject known zero when bytes remain. The read-only probe walks existing ancestors without creating directories; a failed
+`StatFs` probe can use a positive `File.usableSpace` fallback, but that API's ambiguous zero is
+unknown, not a measurement of a full disk.
+Preflight failures remain failed Downloads rows with Clear and Retry. Retry reruns preflight
+outside the worker lifecycle and then enqueues the real backend; it never occupies a queue slot
+with a placeholder job. Failures are kept in the Downloads UI, notification and logs rather than
+duplicated as transient failure toasts. Active queue persistence and ordinary backend pause/retry
+are unchanged.
+
+Epic installs run in the Rust `epic` module of `libdroiddeckstores.so` (`epic/install/`), driven by
+`EpicInstaller` through `EpicNative.install`. There is one engine; the old hidden `storesEpicMode`
+switch is no longer read. Without the native library the Epic store cannot install (the facade
+reports "the store engine is not available"). The design, and how it was written from a
+functional spec only, is in [epic-cleanroom.md](epic-cleanroom.md).
+
+A run, in order: CDN list from the build information (`EpicApiClient.getManifestApiJson`) →
+manifest from the first CDN that serves it → parse (binary or JSON) → files selected by the device
+language's install tags (`EpicInstallTags`) → staging recovery → the delta pass (a selected file is
+up to date when it has the manifest size and SHA-1; a file without a manifest hash is always
+rewritten) → space plan → chunk cache preparation → fetch schedule → download and write → the
+installed record (`StoreInstalls.complete`). Resume, update and repair are the same rerun.
+
+- **Schedule** (`epic/install/schedule.rs`). The pending files' parts form one timeline. A chunk is
+  downloaded at its first use and feeds every later use in the same file directly. If it is used
+  again in a later file it is kept, decompressed and verified, in the chunk cache, which has a byte
+  budget; when keeping a chunk would exceed it, the cached chunk needed furthest in the future is
+  dropped and downloaded again when needed. Chunks a previous run left in the cache are reused,
+  soonest-needed first, as far as the budget allows.
+- **Writing** (`epic/install/writer.rs`). Files are admitted strictly in order, a little ahead of
+  the download, and a download is dispatched only once the file of its first use is admitted, so
+  the number of half-written files stays small. Each admitted file is written into a unique
+  `epic-<pid>-<seq>-<nanos>.stage` file in `<game>/.droiddeck-epic-staging/`; the file SHA-1 is
+  computed in file order as parts land. A complete file is synced, size- and hash-checked, and
+  renamed over its destination. Right before the first rename of the run `StoreInstalls.markUpdating`
+  switches an installed record to `updating`; a refusal fails the run with nothing replaced.
+- **Fetching** uses the shared `fetch_core` (adaptive window, CDN rotation, retries with back-off,
+  stall and 429 cooldowns) with the speed tier's window and decode workers. Every chunk is checked
+  (header, zlib stream end, exact size, SHA-1) before any byte reaches a file or the cache.
+- **Space** (`epic/install/space.rs`). Free space is probed per volume (`statvfs`; unknown is never
+  "no space"). The plan: net peak of the pending files in order (each old copy credited at its own
+  swap), a cache budget of half the remaining space (at most 1 GiB, 256 MiB when unknown, 0 is
+  allowed), an overlap budget that limits how many bytes of files replacing existing data are
+  staged at once on an update (at least the largest replaced file), and a 64 MiB transient
+  allowance. A card install keeps its cache in `cacheDir/stores/epic/<id>/` when internal storage
+  can hold a useful cache and the game has no non-empty `.chunks` yet; otherwise the cache is
+  `<game>/.chunks`. When the full plan does not fit, the run falls back to one file at a time with
+  no cache (needs only the net peak); when even that does not fit the install is refused before any
+  chunk request, naming the storage, the need, the free space and the shortfall.
+- **Progress**: the bar counts pending-file bytes written (not compressed chunk bytes), at most every
+  50 ms plus once per finished file. The run logs `epic: plan …` and `epic: summary mode=adaptive|narrow
+  files=… bytes_written=… avg_mbps=… fetches=… refetches=… peak_cache_mib=… hosts=…`.
+- **Cancel / pause / failure**: the cancel flag is forwarded within 250 ms; the run stops its
+  requests, joins its threads, removes every unfinished stage file and `.part` cache entry, and only
+  then returns. Swapped files stay; unswapped destinations keep their old content; the chunk cache
+  stays for the next run. Success removes the cache and the staging folder (when only its marker is
+  left).
+
+The staging folder is recognised by its `owner` marker (`DroidDeck Epic staging v1` + LF). Before
+the delta pass the run checks that the folder is a real directory at the expected canonical path,
+that the marker matches and that every other entry is a plain `.stage` file directly inside it; only
+then are those orphans deleted. Anything unexpected fails the run without deleting. A manifest path
+naming the staging folder, an absolute path or a `..` segment is refused. `.stage` / `.part` files
+elsewhere in the game folder are never touched.
+
+Amazon installs run in the Rust `amazon` module (`amazon/install/`), driven by `AmazonInstaller`
+through `AmazonNative.install`; sign-in, the library sync and the size lookup call the same module
+through `AmazonNative.call`. The design, and how it was written from a functional spec only, is in
+[amazon-cleanroom.md](amazon-cleanroom.md).
+
+An Amazon run, in order: download lookup for the entitlement (`GetGameDownload`: a CDN base URL with
+a signed query, and the version id) → `manifest.proto` from that base (a 4-byte big-endian header
+length, an opaque header, then an xz or LZMA-alone compressed protobuf) → parse (every file of every
+package; paths refused when absolute, with a drive letter, `..`, empty segments, or naming
+DroidDeck's own root files) → leftover `<file>.tmp` siblings removed → the check of files on disk (a
+file is complete when it has the manifest size and SHA-256; the same test drives the space check and
+the download plan) → space check (`Not enough free space: need …, only … free`; unknown free space
+never blocks) → empty files created locally → every other pending file fetched from
+`files/<sha256 hex>` under the base, one streamed GET each through the shared fetch core (the speed
+tier's window; at least half the CPU cores verifying and writing), hashed as it arrives, written to
+`<file>.tmp` and renamed over the destination after the size and hash checks → the installed record.
+Before the first file is put in place the record is switched to `updating`, so an interrupted repair
+is offered as "Resume install". There is no partial-file resume: a file is complete or fetched again
+from its first byte. Files the manifest does not list are left alone.
 
 ## The sidecar
 
 ```json
 {
   "version": 1,
-  "store": "epic",                    // gog | epic | amazon
-  "id": "Samorost3",                  // the store's own id: GOG product id, Epic app name, Amazon product id
+  "store": "epic",
+  "id": "Samorost3",
   "title": "Samorost 3",
-  "exe": "Samorost3.exe",             // relative to the folder, forward slashes; what the icon is read from
-  "launcher": ".droiddeck-launch.bat",// optional; what the shortcut runs instead of exe
+  "exe": "Samorost3.exe",
+  "launcher": ".droiddeck-launch.bat",
   "args": ["-EpicPortal", "-epicusername=\"Name\"", "..."],
   "env": {"FUEL_DIR": "C:\\ProgramData\\Amazon Games Services\\Legacy"},
   "installVersion": "1.4.0",
@@ -59,7 +145,18 @@ store root whose sidecar says `installing`, or that has no sidecar at all, is an
 install: `AddedGames.scan` leaves it out (it is neither a game nor a Custom folder), and the Stores
 card and page offer **Resume install**, which reuses that folder - and an Epic `.chunks` beside it -
 instead of starting a fresh one (`StoreInstallRoot.existingFolder`). A finished install being
-repaired keeps its finished sidecar. The launcher and the finished sidecar are written before the
+repaired keeps its finished sidecar until Epic reaches the first verified file swap. Immediately
+before that swap Epic atomically changes the record to `"state": "updating"`, preserves launch
+choices and identifiers, and clears `installVersion`. Network/hash failures or cancellation before
+that point leave the old installed record and files intact. A later failure can leave a mixture of
+verified new files and untouched old files: replacement is atomic **per file**, not a transactional
+whole-game update or rollback. The updating folder is excluded from installed scans and offered
+for resume. Cancellation with deletion clears caches but retains that folder and its verified
+swaps; retry preserves the updating record's metadata. If marking or swapping fails, no destructive
+fallback is attempted (the conservative updating state can remain even when a swap fails).
+Completion writes the installed record with the new version only after all selected files succeed.
+An already registered live Steam shortcut is not revoked at each file swap; do not launch an
+in-progress update. The launcher and the finished sidecar are written before the
 art and the Steam registration; a failure writing them fails the download with its message.
 
 `StoreGameSidecar.parse` refuses anything whose `exe` or `launcher` would point outside the folder.
@@ -106,6 +203,15 @@ An Epic game's launch choices are the Epic card in the Games tab's launch settin
 read the same thing - and "Resolve Epic sign-in", which opens Epic's account page behind its
 sign-in in Android's browser.
 
+An Amazon game's exe and arguments come from its `fuel.json` (`Main.Command`, used when it names
+an existing file; `Main.Args`, used even when it does not), else from a score over every `.exe`
+below the folder (Unreal shipping binaries and `Binaries/Win64` first, crash handlers, setups,
+launchers and tiny stubs last; the rules see paths relative to the install folder), else the shared
+picker. Its launcher sets five FuelPump variables frozen at install time: `FUEL_DIR`,
+`AMAZON_GAMES_SDK_PATH`, `AMAZON_GAMES_FUEL_ENTITLEMENT_ID`, `AMAZON_GAMES_FUEL_PRODUCT_SKU` and
+`AMAZON_GAMES_FUEL_DISPLAY_NAME` (the account name, `Player` without one). No Amazon Games SDK files
+are deployed into the prefix and `fuel.json` `PostInstall` steps are not run.
+
 A game's web links reach Android: `droiddeck-store-launch` sets the prefix's
 `HKCU\Software\Wine\WineBrowser` `Browsers` to `/usr/local/bin/droiddeck-open-url`, which is also
 `xdg-open` first on the game's PATH, and hands http(s) addresses to the app, which opens them in
@@ -146,7 +252,9 @@ the prefix's user folder appears, within a minute. Every path logs
   has no cloud saves.
 - **The services:** GOG `cloudstorage.gog.com/v1/<user>/<client>` with a token issued to the game's
   own client (the client secret is kept at install; the Galaxy token is the fallback); Epic's
-  savesync data storage with signed read and write links.
+  savesync data storage with signed read and write links (`EpicCloud` → `EpicSaveSync` → the Rust
+  `epic/savesync.rs`; the template's root token and `{EpicId}` / `{AppName}` are read by
+  `EpicSaveTemplate`).
 - **Which launches:** `droiddeck-store-launch` recognises a store game by the launcher .bat Steam runs
   or, for a game without one (most GOG games), by its exe - the folders above it are searched for
   the sidecar.
@@ -172,7 +280,9 @@ keeps the files; every store's install skips complete, verified files on the rer
 rerun. Cancel deletes the folder. `StoreDownloadService` holds a foreground notification while
 anything runs. The native engine (`libdroiddeckstores.so`, `StoresNative`, `GogNative`, `EpicNative`,
 `AmazonNative`; contract in `app/src/main/rust/stores/JNI.md`) is loaded on first use; without it
-each manager runs its Java fetch loop.
+the GOG manager runs its Java fetch loop, and the Epic and Amazon stores (all of whose service calls
+and installs run in the Rust `epic` and `amazon` modules) are unavailable: sign-in, sync and install
+report "the store engine is not available".
 
 ## Settings
 

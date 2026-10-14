@@ -26,9 +26,14 @@ for arch in x86_64 i386; do
     fi
   done
 done
-for name in faultreport thunkaudit; do
-  lib=$out/x86_64/lib$name.so
-  gcc -m64 -shared -fPIC -O2 -Wall -Wextra -nostdlib -fno-stack-protector -fno-builtin -fvisibility=hidden \
+for target in x86_64/faultreport i386/faultreport x86_64/thunkaudit; do
+  arch=${target%/*} name=${target#*/}
+  case $arch in
+    x86_64) bits=-m64 ;;
+    i386) bits=-m32 ;;
+  esac
+  lib=$out/$arch/lib$name.so
+  gcc $bits -shared -fPIC -O2 -Wall -Wextra -nostdlib -fno-stack-protector -fno-builtin -fvisibility=hidden \
     -o "$lib" tools/linuxfs/fex/$name.c
   strip --strip-unneeded "$lib"
   if objdump -p "$lib" | grep -q NEEDED || [ -n "$(nm -D --undefined-only "$lib" 2>/dev/null)" ]; then
