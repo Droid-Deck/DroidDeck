@@ -303,6 +303,7 @@ class SessionService : Service() {
         val size = SessionState.outputSize
         val guest = ArrayList<String>()
         val steamHere = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP
+        val direct = SessionState.mode == MODE_RUN && SessionState.program == DIRECT_LAUNCHER
         if (steamHere) {
             runCatching { ComponentsManager.ensureForcedPackages(this) }
                 .onSuccess { if (it != null) Log.i(TAG, it) }
@@ -334,13 +335,15 @@ class SessionService : Service() {
             addControllerEnvironment(guest, fakeInputDir, sessionDir)
             SessionState.padBridge?.syncConnectedControllers()
         }
-        if (steamHere) {
+        if (steamHere || direct) {
             val added = com.droiddeck.launcher.frontend.AddedGames.scan(this)
             val listing = com.droiddeck.launcher.frontend.AddedGames.writeListing(this, added)
             guest.add("BL_ADDED_GAMES=" + listing.path)
-            if (OfflineMode.enabled(this)) guest.add("BL_STEAM_OFFLINE=1")
-            if (com.droiddeck.launcher.gpu.Lossless.owned(this)) guest.add("BL_LOSSLESS_OWNED=1")
-            if (added.isNotEmpty()) Log.i(TAG, "added games: " + added.joinToString { "${it.name} (${it.exe.name})" })
+            if (steamHere) {
+                if (OfflineMode.enabled(this)) guest.add("BL_STEAM_OFFLINE=1")
+                if (com.droiddeck.launcher.gpu.Lossless.owned(this)) guest.add("BL_LOSSLESS_OWNED=1")
+                if (added.isNotEmpty()) Log.i(TAG, "added games: " + added.joinToString { "${it.name} (${it.exe.name})" })
+            }
         }
         guest.add("BL_LAUNCH_DIR=" + sessionRoot.path)
         GameStorage.effective(this)?.let { guest.add("BL_LIBRARY_LABEL=" + it.label.replace('"', ' ')) }
@@ -1580,6 +1583,7 @@ class SessionService : Service() {
         const val MODE_STEAM = "steam"
         const val MODE_DESKTOP = "lxqt"
         const val MODE_RUN = "run"
+        const val DIRECT_LAUNCHER = "/usr/local/bin/droiddeck-proton-run"
         const val EXTRA_PROGRAM = "program"
         const val EXTRA_PROGRAM_ARGS = "programArgs"
         const val EXTRA_STEAM_UI = "steamUi"

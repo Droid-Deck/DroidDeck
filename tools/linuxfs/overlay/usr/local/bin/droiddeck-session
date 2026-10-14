@@ -277,6 +277,9 @@ case $mode in
   run)
     target=${1:?program path}
     shift
+    if [ "${target##*/}" = droiddeck-proton-run ]; then
+      /usr/local/bin/steam-compatibility "$XDG_DATA_HOME/Steam" || true
+    fi
     cores=$(program_cores)
     if [ -n "$cores" ]; then
       echo "== program cores: $cores"

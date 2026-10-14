@@ -454,6 +454,13 @@ class MainActivity : ComponentActivity() {
             android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
             return false
         }
+        if (game.library == Library.ADDED && game.guestExe != null &&
+            com.droiddeck.launcher.core.GameEnvironment.gameNoSteam(
+                com.droiddeck.launcher.session.GameEnvironmentStore.read(this), game.profileKey,
+            )
+        ) {
+            return launchWithoutSteam(game, returnHome)
+        }
         if (SessionState.running) {
             if (SessionState.mode != SessionService.MODE_STEAM || SessionState.stopRequested) {
                 android.widget.Toast.makeText(this, R.string.game_link_session_busy, android.widget.Toast.LENGTH_LONG).show()
@@ -472,6 +479,26 @@ class MainActivity : ComponentActivity() {
                 .putExtra(SessionActivity.EXTRA_RETURN_HOME, returnHome)
                 .putExtra(SessionService.EXTRA_STEAM_URL,
                 com.droiddeck.launcher.frontend.GameLaunchLink.steamUrl(game.gameIdString)), steamSession = true)
+    }
+
+    private fun launchWithoutSteam(game: Library.SteamGame, returnHome: Boolean): Boolean {
+        val exe = game.guestExe ?: return false
+        val args = listOf(exe) + com.droiddeck.launcher.frontend.AddedGames.launchArguments(game.launchOptions)
+        val intent = Intent(this, SessionActivity::class.java)
+            .putExtra(SessionActivity.EXTRA_RETURN_HOME, returnHome)
+            .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_RUN)
+            .putExtra(SessionService.EXTRA_PROGRAM, SessionService.DIRECT_LAUNCHER)
+            .putExtra(SessionService.EXTRA_PROGRAM_ARGS, args.toTypedArray())
+        if (SessionState.running) {
+            if (SessionState.mode != SessionService.MODE_STEAM || SessionState.stopRequested) {
+                android.widget.Toast.makeText(this, R.string.game_link_session_busy, android.widget.Toast.LENGTH_LONG).show()
+                return true
+            }
+            SessionState.relaunch = intent
+            SessionService.stop(this)
+            return true
+        }
+        return startSession(intent, steamSession = true)
     }
 
     private fun handleGameLink(games: List<Library.SteamGame>) {

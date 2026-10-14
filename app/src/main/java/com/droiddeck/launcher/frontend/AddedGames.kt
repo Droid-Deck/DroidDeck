@@ -409,5 +409,13 @@ object AddedGames {
         return guestPath(context, file)
     }
 
+    internal fun launchArguments(options: String): List<String> {
+        if (options.isEmpty() || options.contains("%command%")) return emptyList()
+        return Regex("\"([^\"]*)\"|(\\S+)").findAll(options)
+            .map { it.groupValues[1].ifEmpty { it.groupValues[2] } }
+            .filter { it.isNotEmpty() }
+            .toList()
+    }
+
     private fun quote(s: String): String = JSONObject.quote(s)
 }
