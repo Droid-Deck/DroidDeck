@@ -37,16 +37,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.zip.Inflater;
 
-/**
- * The Epic install pipeline, ported from Bannerlator's EpicDownloadManager: the manifest API's CDN
- * list, the manifest binary (ChunksV4, or the older JSON form), the files narrowed to the base
- * set plus the device's language, a delta pass that skips files already on disk with the right
- * size and SHA-1, the chunk fetch into `.chunks/<GUID>` (the native engine when it is there, the
- * Java pool otherwise), and the assembly of files from those chunks.
- *
- * Chunk URLs carry no auth tokens; the subfolder is the decimal group number; the Cloudflare
- * mirror is skipped (it refuses chunks). Blocking; the download queue runs it on its own thread.
- */
 public final class EpicDownloadManager {
 
     private static final String TAG = "EpicDownload";
@@ -56,14 +46,7 @@ public final class EpicDownloadManager {
         void onProgress(String message, int pct);
         default void onBytes(long done, long total, long speedBps) {}
         default void onLog(String line) {}
-        /**
-         * The active stage's own count: {@code stage} is "check" (the files already there, before
-         * anything is fetched), "verify" or "install" (bytes written), {@code done} of
-         * {@code total} an amount (bytes, or items when there are no bytes), {@code items} of
-         * {@code itemsTotal} the files, when it counts files.
-         */
         default void onStage(String stage, long done, long total, int items, int itemsTotal) {}
-        /** What this run fetches (compressed) and what the game takes on disk. */
         default void onSizes(long downloadBytes, long diskBytes) {}
     }
 
@@ -99,7 +82,6 @@ public final class EpicDownloadManager {
         public long fileSize() { long t = 0; for (ChunkPart p : parts) t += (p.size & 0xFFFFFFFFL); return t; }
     }
 
-    /** The parsed manifest: its chunks, files, and from the meta block the exe the launcher starts. */
     public static final class Manifest {
         public String chunkDir = "ChunksV4";
         public List<ChunkInfo> uniqueChunks = new ArrayList<>();
@@ -107,20 +89,16 @@ public final class EpicDownloadManager {
         public String launchExe = "";
         public String launchCommand = "";
         public String buildVersion = "";
-        /** The prerequisite the launcher runs first (UE4PrereqSetup_x64.exe...): what it is called and its path in the install. */
         public String prereqName = "";
         public String prereqPath = "";
-        /** The prerequisite fields were read (an empty name and path then mean the build names none). */
         public boolean prereqRead = false;
         public List<CdnUrl> cdnUrls = new ArrayList<>();
     }
 
-    /** What an install leaves for the sidecar. */
     public static final class Result {
         public final String launchExe;
         public final String buildVersion;
         public final long bytes;
-        /** The manifest's prerequisite, for Windows components; "" when it names none. */
         public String prereqName = "";
         public String prereqPath = "";
         Result(String launchExe, String buildVersion, long bytes) { this.launchExe = launchExe; this.buildVersion = buildVersion; this.bytes = bytes; }
@@ -132,12 +110,6 @@ public final class EpicDownloadManager {
         InstallException(String message) { super(message); }
     }
 
-    /**
-     * Installs the app the manifest API JSON describes into {@code installDir}. {@code installTags}
-     * null = every file. {@code chunkCacheDirPath} "" keeps the chunk cache beside the game
-     * ({@code <installDir>/.chunks}); a path puts it there instead - the app's cache when the game
-     * goes to a card. Returns null when cancelled; throws when it fails.
-     */
     public static Result install(Context ctx, String manifestApiJson, String installDirPath, String chunkCacheDirPath, List<String> installTags, AtomicBoolean cancel, Callback cb) throws InstallException {
         try {
             if (cancel.get()) return null;
@@ -157,8 +129,6 @@ public final class EpicDownloadManager {
 
             File installDir = new File(installDirPath);
             installDir.mkdirs();
-            // "" = the cache beside the game; a path = the scratch cache (the app's own storage when
-            // the game goes to a card). The engine and the Java loops read the same value.
             final String cachePath = chunkCacheDirPath == null ? "" : chunkCacheDirPath;
             final File chunkCacheDir = cachePath.isEmpty() ? new File(installDir, ".chunks") : new File(cachePath);
             chunkCacheDir.mkdirs();
@@ -168,7 +138,6 @@ public final class EpicDownloadManager {
             long installBytes = 0;
             for (FileInfo f : selected) installBytes += f.fileSize();
             final long planned = installBytes;
-            // Free space is checked after the delta pass, against what is still missing (below).
 
             cb.onProgress("Checking files…", 0);
             List<FileInfo> pending = new ArrayList<>(selected.size());
@@ -191,10 +160,6 @@ public final class EpicDownloadManager {
                 return new Result(manifest.launchExe, manifest.buildVersion, planned).withPrereq(manifest);
             }
             List<ChunkInfo> needed = uniqueChunksForFiles(manifest, pending);
-            // The cache holds whole chunk windows (~1 MiB each), and a window is shared with files
-            // this device does not install (other tags, other builds' data): the cache is often
-            // larger than the game itself (Metalstorm: 9.1 GB of chunks for 4.4 GB of files). Both
-            // have to fit at once until assembly, so the check counts both, on their own volumes.
             long cacheMissing = 0, pendingBytes = 0;
             for (ChunkInfo c : needed) if (!new File(chunkCacheDir, c.guidStr()).isFile()) cacheMissing += Math.max(c.windowSize, 1);
             for (FileInfo f : pending) pendingBytes += f.fileSize();
@@ -267,8 +232,6 @@ public final class EpicDownloadManager {
             if (cancel.get()) return null;
             if (failCount.get() > 0) throw new InstallException(failCount.get() + " chunk(s) failed to download");
 
-            // The engine's assembler when it starts (it drops each chunk after its last use and the
-            // cache at the end); the loop below when it does not.
             if (engine) {
                 NativeOutcome r = runNativeAssembly(manifestBytes, pendingIdx, pending.size(), installDirPath, cachePath, cancel, cb);
                 if (r.started) {
@@ -314,7 +277,6 @@ public final class EpicDownloadManager {
 
     private static final class NativeOutcome { boolean started, success, cancelled; String error = ""; }
 
-    /** The pending files as indices into the manifest's file list, what both native runs take; null when one is not in it. */
     private static int[] pendingIndices(Manifest manifest, List<FileInfo> pending) {
         java.util.IdentityHashMap<FileInfo, Integer> index = new java.util.IdentityHashMap<>();
         for (int i = 0; i < manifest.files.size(); i++) index.put(manifest.files.get(i), i);
@@ -327,7 +289,6 @@ public final class EpicDownloadManager {
         return pendingIdx;
     }
 
-    /** The native chunk pool on the same counters; never throws. */
     private static NativeOutcome runNativePool(Context ctx, byte[] manifestBytes, int[] pendingIdx, List<ChunkInfo> needed, long totalBytes,
                                                String installDirPath, String cachePath, List<CdnUrl> cdnUrls, AtomicBoolean cancel, Callback cb,
                                                AtomicLong completedBytes, AtomicInteger completedCount, AtomicLong lastSpeedMs, AtomicLong lastSpeedBytes, AtomicLong speedBps) {
@@ -361,7 +322,6 @@ public final class EpicDownloadManager {
         return r;
     }
 
-    /** The native assembler: the pending files written from the cache, the cache removed on success; never throws. */
     private static NativeOutcome runNativeAssembly(byte[] manifestBytes, int[] pendingIdx, int totalFiles, String installDirPath, String cachePath, AtomicBoolean cancel, Callback cb) {
         NativeOutcome r = new NativeOutcome();
         try {
@@ -383,7 +343,6 @@ public final class EpicDownloadManager {
         return r;
     }
 
-    // ---- CDN list and manifest download ---------------------------------------------------------
 
     public static List<CdnUrl> parseCdnUrls(String json) {
         List<CdnUrl> result = new ArrayList<>();
@@ -419,7 +378,6 @@ public final class EpicDownloadManager {
         return result;
     }
 
-    /** The manifest binary from the first CDN that serves it; the auth query goes on this URL only. */
     public static byte[] downloadManifest(String json, List<CdnUrl> cdnUrls) {
         try {
             JSONArray manifests = new JSONObject(json).optJSONArray("manifests");
@@ -439,7 +397,6 @@ public final class EpicDownloadManager {
         return null;
     }
 
-    // ---- manifest parsing -----------------------------------------------------------------------
 
     public static Manifest parseManifest(byte[] bytes) {
         try {
@@ -468,24 +425,22 @@ public final class EpicDownloadManager {
             ByteBuffer b = ByteBuffer.wrap(body).order(ByteOrder.LITTLE_ENDIAN);
             Manifest m = new Manifest();
             m.chunkDir = chunkDir;
-            // ManifestMeta: the launch exe and build version live here; the rest is skipped by size.
             int metaStart = b.position();
             int metaSize = b.getInt();
             try {
-                b.get();            // data version
-                b.getInt();         // feature level
-                b.get();            // isFileData
-                b.getInt();         // app id
-                readFString(b);     // app name
+                b.get();
+                b.getInt();
+                b.get();
+                b.getInt();
+                readFString(b);
                 m.buildVersion = readFString(b);
                 m.launchExe = readFString(b).replace('\\', '/');
                 m.launchCommand = readFString(b);
-                // PrereqIds (an array), PrereqName, PrereqPath, PrereqArgs.
                 int prereqIds = b.getInt();
                 for (int i = 0; i < prereqIds && i < 64; i++) readFString(b);
                 m.prereqName = readFString(b);
                 m.prereqPath = readFString(b).replace('\\', '/');
-                readFString(b); // PrereqArgs
+                readFString(b);
                 m.prereqRead = true;
             } catch (Exception e) {
                 Log.w(TAG, "manifest meta: " + e.getClass().getSimpleName());
@@ -603,11 +558,6 @@ public final class EpicDownloadManager {
         }
     }
 
-    /**
-     * A JSON manifest writes every number as a "blob": each byte as three decimal digits, least
-     * significant first ("013000000000" = 13), as Legendary's blob_to_num reads it. Bits past 64
-     * are dropped; a group that is not digits throws.
-     */
     static long blobToNum(String blob) {
         long num = 0;
         for (int i = 0, shift = 0; i < blob.length(); i += 3, shift += 8) {
@@ -637,7 +587,6 @@ public final class EpicDownloadManager {
         return new String(bytes, StandardCharsets.US_ASCII);
     }
 
-    // ---- chunk fetch (the built-in pool) --------------------------------------------------------
 
     public static byte[] downloadBytes(String urlStr) {
         HttpURLConnection conn = null;
@@ -656,7 +605,6 @@ public final class EpicDownloadManager {
         }
     }
 
-    /** One chunk streamed from the first CDN that serves it, SHA-1 checked, published by rename. */
     private static boolean downloadChunkStreaming(ChunkInfo chunk, String chunkDir, List<CdnUrl> cdnUrls, File outFile) {
         String chunkPath = chunk.getPath(chunkDir);
         File tmp = new File(outFile.getPath() + ".part");
@@ -743,7 +691,6 @@ public final class EpicDownloadManager {
         while (remaining > 0) { int n = in.read(skip, 0, Math.min(skip.length, remaining)); if (n < 0) throw new IOException("stream ended"); remaining -= n; }
     }
 
-    // ---- selection and verification -------------------------------------------------------------
 
     public static List<FileInfo> getRequiredInstallFiles(Manifest manifest) {
         List<FileInfo> required = new ArrayList<>();
@@ -751,7 +698,6 @@ public final class EpicDownloadManager {
         return required.isEmpty() ? new ArrayList<>(manifest.files) : required;
     }
 
-    /** Base files plus any file carrying one of the tags; null tags = every file; nothing matched = base only. */
     public static List<FileInfo> resolveInstallFiles(Manifest manifest, List<String> selectedTags) {
         if (selectedTags == null) return new ArrayList<>(manifest.files);
         if (selectedTags.isEmpty()) return getRequiredInstallFiles(manifest);
@@ -790,7 +736,6 @@ public final class EpicDownloadManager {
         }
     }
 
-    /** The manifest's prerequisite as {name, path}, from the manifest alone; null on failure. Blocking. */
     public static String[] fetchPrereq(String manifestApiJson) {
         try {
             List<CdnUrl> cdnUrls = parseCdnUrls(manifestApiJson);
@@ -806,7 +751,6 @@ public final class EpicDownloadManager {
         }
     }
 
-    /** The install size for the tags (null = every file), from the manifest alone; -1 on failure. Blocking. */
     public static long fetchInstallSizeBytes(String manifestApiJson, List<String> installTags) {
         try {
             List<CdnUrl> cdnUrls = parseCdnUrls(manifestApiJson);
@@ -823,7 +767,6 @@ public final class EpicDownloadManager {
         }
     }
 
-    // ---- helpers --------------------------------------------------------------------------------
 
     static byte[] readFile(File f) throws IOException {
         try (FileInputStream fis = new FileInputStream(f)) {

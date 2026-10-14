@@ -12,7 +12,7 @@ SESSION = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin/d
 STEAM = ["mangohud.Ab3dE6gH", ".com.valvesoftware.Steam.x1Y2z3/", "steam_chrome_shmem_uid10480_0", "steamADfAnd/"]
 CHROMIUM = ["scoped_dir3yu9Xt/SingletonSocket"]
 APPIMAGE = ["droiddeck-appimage.19PoOD"]
-BUS = ["dbus-1zWfOP1IaR="]  # = a socket
+BUS = ["dbus-1zWfOP1IaR="]
 KDE = ["plasma-csd-generator.BVWIWA/"]
 STALE = STEAM + CHROMIUM + APPIMAGE + BUS + KDE
 KEPT = ["droiddeck-mangohud.conf", ".X11-unix/", "steamworks", "steamABCDEF/inside", "notes.txt",

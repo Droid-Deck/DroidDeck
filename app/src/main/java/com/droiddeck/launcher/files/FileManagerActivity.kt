@@ -13,7 +13,6 @@ import androidx.compose.ui.Modifier
 import com.droiddeck.launcher.ui.DroidDeckTheme
 import java.io.File
 
-/** The File Manager as a screen of its own, from the Files tile on the main screen. */
 class FileManagerActivity : ComponentActivity() {
     override fun attachBaseContext(newBase: android.content.Context) {
         super.attachBaseContext(newBase)

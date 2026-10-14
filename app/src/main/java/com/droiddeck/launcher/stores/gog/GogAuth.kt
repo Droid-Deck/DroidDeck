@@ -10,19 +10,12 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
-/**
- * The GOG sign-in: the token the OAuth page hands back, kept in StoreAccounts' private file,
- * refreshed through auth.gog.com when it has expired (the client id and secret are GOG Galaxy's
- * own, public ones, as every third-party GOG client uses). Nothing here is ever logged: the token
- * endpoint's URL itself carries the secret and the refresh token.
- */
 object GogAuth {
     private const val TAG = "GogAuth"
     private const val CLIENT_ID = "46899977096215655"
     private const val CLIENT_SECRET = "9d85c43b1482497dbbce61f6e4aa173a433796eeae2ca8c5f6129f2dc4de46d9"
     private const val TOKEN_URL = "https://auth.gog.com/token?client_id=$CLIENT_ID&client_secret=$CLIENT_SECRET&grant_type=refresh_token&refresh_token="
 
-    /** The login page, as GOG Galaxy opens it: an implicit grant that returns the token in the redirect's fragment. */
     const val AUTH_URL = "https://auth.gog.com/auth?client_id=$CLIENT_ID" +
         "&redirect_uri=https%3A%2F%2Fembed.gog.com%2Fon_login_success%3Forigin%3Dclient&response_type=token&layout=client2"
     const val REDIRECT_PREFIX = "https://embed.gog.com/on_login_success"
@@ -32,7 +25,6 @@ object GogAuth {
 
     fun isSignedIn(context: Context): Boolean = StoreAccounts.read(context, Store.GOG)?.optString("access_token", "")?.isNotEmpty() == true
 
-    /** Saves a fresh sign-in and looks the account's name up for the chip. Blocking. */
     fun saveLogin(context: Context, accessToken: String, refreshToken: String?, userId: String?) = GogComet.replaceAccount {
         saveAccount(context, accessToken, refreshToken, userId)
     }
@@ -52,10 +44,8 @@ object GogAuth {
         Log.i(TAG, "signed in")
     }
 
-    /** The raw stored token, expired or not; null when signed out. */
     fun storedToken(context: Context): String? = StoreAccounts.read(context, Store.GOG)?.optString("access_token", "")?.ifEmpty { null }
 
-    /** A usable access token, refreshed when the recorded login time says it has expired; null when signed out or the refresh failed. */
     @JvmStatic
     @Synchronized
     fun validToken(context: Context): String? {
@@ -67,7 +57,6 @@ object GogAuth {
         return if (loginTime == 0L || now >= loginTime + expiresIn - 60) refresh(context) else token
     }
 
-    /** Refreshes the access token; the new one, or null on any failure. Blocking. */
     @JvmStatic
     @Synchronized
     fun refresh(context: Context): String? {
@@ -86,7 +75,6 @@ object GogAuth {
             StoreAccounts.write(context, Store.GOG, json)
             access
         } catch (e: Exception) {
-            // Not the throwable: HttpURLConnection's messages echo the URL, which embeds the secrets.
             Log.w(TAG, "refresh failed: ${e.javaClass.simpleName}")
             null
         } finally {
@@ -94,7 +82,6 @@ object GogAuth {
         }
     }
 
-    /** A complete companion snapshot. Never exported through the guest request channel. */
     @Synchronized
     fun cometCredentials(context: Context): JSONObject? {
         val access = validToken(context) ?: return null
@@ -117,7 +104,6 @@ object GogAuth {
 
     class GameToken(val accessToken: String, val userId: String)
 
-    /** The Galaxy refresh token exchanged for one scoped to a game's own client. Blocking. */
     fun gameToken(context: Context, clientId: String, clientSecret: String): GameToken? {
         val json = StoreAccounts.read(context, Store.GOG) ?: return null
         val refresh = json.optString("refresh_token", "").ifEmpty { return null }
@@ -139,7 +125,6 @@ object GogAuth {
         }
     }
 
-    /** Hosts the GOG login page hands off to for a social sign-in; they refuse an embedded browser's identity. */
     fun isIdentityProviderHost(host: String?): Boolean {
         val h = host?.lowercase() ?: return false
         return h == "google.com" || h.endsWith(".google.com") || h == "youtube.com" || h.endsWith(".youtube.com") ||

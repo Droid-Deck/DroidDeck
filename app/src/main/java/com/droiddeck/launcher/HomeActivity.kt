@@ -5,7 +5,6 @@ import android.content.Intent
 import android.os.Bundle
 import com.droiddeck.launcher.session.SessionService
 
-/** Receives the system Home launch and routes it without consuming KEYCODE_HOME. */
 class HomeActivity : Activity() {
     override fun attachBaseContext(newBase: android.content.Context) {
         super.attachBaseContext(newBase)

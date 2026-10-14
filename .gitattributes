@@ -1,3 +1,2 @@
-# Vendored files preserve upstream license spacing and unified-diff context lines.
 tools/comet/LICENSE whitespace=-blank-at-eof
 tools/comet/droiddeck.patch whitespace=-blank-at-eol,-blank-at-eof

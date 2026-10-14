@@ -1,18 +1,3 @@
-/*
- * Path lookups the Steam client repeats, answered from a short-lived cache.
- *
- * While it registers its compatibility tools after logon, the client resolves the same few
- * directories - its local tools under compatibilitytools.d and its own platform directory - with
- * realpath() and access() thousands of times a second. Each realpath() is one readlinkat() per
- * path component, and under proot every one of those is a trapped syscall with a round trip
- * through the tracer. Measured on an AYN Thor, that loop was 23 of the client's 31 seconds of
- * startup, with proot busy for 16 of them.
- *
- * Only the client itself uses the cache, never a game or a helper. Only successful answers are
- * kept, and only for a moment: a path that stops existing is noticed within PATH_CACHE_TTL_NS, and
- * one that starts existing is never hidden, since failures always go to the filesystem.
- * BL_NO_PATH_CACHE=1 turns it off.
- */
 #define _GNU_SOURCE
 #include <dlfcn.h>
 #include <errno.h>
@@ -152,7 +137,6 @@ static int (*next_faccessat(void))(int, const char *, int, int) {
   return real;
 }
 
-/* binfmt.c: a program on noexec storage, which the desktop runs all the same. */
 __attribute__((visibility("hidden"))) int bl_binfmt_runnable(const char *path, int mode);
 
 static int check_cwd(const char *path, int mode, int flags) {

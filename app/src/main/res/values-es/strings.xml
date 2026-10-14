@@ -1153,16 +1153,12 @@
     <string name="game_file_exported">Archivos de juegos guardados en %1$s</string>
     <string name="game_frontend_files">Archivos para frontends</string>
 
-    <!-- Launcher, session and menus -->
-    <!-- Launcher (MainActivity) -->
     <string name="main_wait_runtime">Espera a que termine la operación del runtime</string>
     <string name="main_wait_proton_install">Espera a que termine la instalación de la herramienta de compatibilidad</string>
     <string name="main_wait_desktop_install">Espera a que termine la instalación de la app de escritorio</string>
     <string name="main_wait_install_game">Espera a que termine la instalación antes de iniciar un juego</string>
     <string name="main_saves_close_session">Cierra primero la sesión de Steam para que el juego no guarde encima de lo importado</string>
-    <!-- Busy line while saves are imported; %1$s is the game's name -->
     <string name="main_saves_importing">Importando en %1$s</string>
-    <!-- %1$d files, %2$s the save layout (e.g. GameHub zip), %3$s the game's name -->
     <plurals name="main_saves_imported">
         <item quantity="one">Se importó %1$d archivo del %2$s en %3$s</item>
         <item quantity="many">Se importaron %1$d archivos del %2$s en %3$s</item>
@@ -1174,17 +1170,13 @@
         <item quantity="other">Se importaron %1$d archivos del %2$s en %3$s. Copia de las partidas anteriores en Download/DroidDeck/Saves/backups</item>
     </plurals>
     <string name="main_saves_pick_zip">Elige un zip de partidas guardadas para %1$s</string>
-    <!-- Busy line while saves are exported; %1$s is the game's name -->
     <string name="main_saves_exporting">Exportando %1$s</string>
-    <!-- %1$d files, %2$s the save layout (e.g. GameHub zip), %3$s the zip's path -->
     <plurals name="main_saves_exported">
         <item quantity="one">Se exportó %1$d archivo como %2$s: %3$s</item>
         <item quantity="many">Se exportaron %1$d archivos como %2$s: %3$s</item>
         <item quantity="other">Se exportaron %1$d archivos como %2$s: %3$s</item>
     </plurals>
-    <!-- %1$s is the game's name, %2$s the save layout -->
     <string name="main_saves_pick_folder">Elige dónde guardar %1$s (%2$s)</string>
-    <!-- %1$s is what was being done (e.g. Importing into Portal 2, Swapping), %2$s the error -->
     <string name="main_action_failed">%1$s falló: %2$s</string>
     <string name="main_no_logs_yet">Aún no hay registros de sesión: inicia una sesión primero.</string>
     <string name="main_no_logs_to_clear">No hay registros de sesión que borrar.</string>
@@ -1199,68 +1191,55 @@
     <string name="main_adb_copied">Comando ADB copiado</string>
     <string name="main_pick_roms">Elige la carpeta de ROMs</string>
     <string name="main_non_adreno_title">La GPU no es Adreno</string>
-    <!-- %1$s is the GPU's name, %2$.0f the download size in MB -->
     <string name="main_non_adreno_text">Turnip es compatible con GPU Adreno. En %1$s, Steam puede mostrar una pantalla negra. Descarga: %2$.0f MB.</string>
     <string name="main_install_anyway">Instalar de todos modos</string>
     <string name="main_remove_runtime_title">Eliminar el runtime de Linux</string>
     <string name="main_remove_runtime_text">Esto elimina el runtime, el cliente de Steam que contiene y todos los juegos instalados en él.</string>
-    <!-- Toast; %1$s is a list of components, separated by commas -->
     <string name="main_applied">Aplicado: %1$s</string>
     <string name="android_app_open_failed_primary">No se pudo abrir %1$s en la pantalla principal</string>
-    <!-- %1$s is the app, %2$s the name of the display -->
     <string name="android_app_open_failed_on">No se pudo abrir %1$s en %2$s</string>
-    <!-- %1$s is the app, %2$d the display's number -->
     <string name="android_app_open_failed_display">No se pudo abrir %1$s en la pantalla %2$d</string>
-    <!-- Components page busy lines, shown with … after them -->
     <string name="comp_busy_importing">Importando</string>
     <string name="comp_busy_swapping">Reemplazando</string>
     <string name="comp_busy_restoring">Restaurando</string>
     <string name="comp_busy_cancelling">Cancelando</string>
     <string name="comp_busy_deleting">Eliminando</string>
     <string name="comp_cannot_read">no se puede leer el archivo</string>
-    <!-- %1$s is a version or a name -->
     <string name="comp_imported">%1$s importado</string>
     <string name="comp_swap_cancelled">Se canceló el reemplazo pendiente.</string>
     <string name="comp_pick_wcp">Elige un paquete de componentes (-linux .wcp)</string>
     <string name="comp_nightlies_unreachable">No se pudo acceder a las Nightlies</string>
-    <!-- %1$s is the package version -->
     <string name="comp_stored">%1$s guardado</string>
     <string name="comp_download_failed">La descarga falló: %1$s</string>
     <string name="drivers_pick_linux">Elige un controlador de runtime de Linux (zip -Linux o paquete Android + Linux)</string>
     <string name="drivers_pick_android">Elige un controlador de pantalla (zip de AdrenoTools o paquete Android + Linux)</string>
     <string name="drivers_pick_any">Elige un zip de controlador o un paquete Android + Linux</string>
-    <!-- %1$s is a desktop app's name, %2$s what went wrong -->
     <string name="main_pkg_problem">%1$s: %2$s</string>
     <string name="main_removing_named">Quitando %1$s…</string>
     <string name="main_forgetting_named">Olvidando %1$s…</string>
     <string name="main_pick_game_storage">Elige la carpeta de almacenamiento de juegos</string>
     <string name="main_pick_decky_zip">Elige un ZIP de plugin de Decky</string>
     <string name="main_storage_not_usable">No se puede usar: %1$s</string>
-    <!-- What is running, when it is a program without a known name -->
     <string name="main_running_program">Programa</string>
     <string name="main_removing_runtime">Eliminando el runtime de Linux</string>
     <string name="main_settings_main_screen">No se pudieron abrir los Ajustes en la pantalla inferior; se abrieron en la pantalla principal.</string>
     <string name="main_open_dev_options">Abre Opciones de desarrollador en Ajustes</string>
 
-    <!-- Updates -->
     <string name="upd_unknown_apps_failed">No se pudo abrir el ajuste \"Instalar apps desconocidas\" de Android</string>
     <string name="upd_couldnt_check">No se pudo comprobar: %1$s</string>
     <string name="upd_no_download">Esta versión no tiene descarga para esta copia de DroidDeck</string>
     <string name="upd_stop_first">Detén primero la sesión en ejecución y después actualiza</string>
-    <!-- Update stages, shown with … after them -->
     <string name="upd_stage_downloading">Descargando</string>
     <string name="upd_stage_installing">Instalando</string>
     <string name="upd_stage_confirm">Esperando tu confirmación</string>
     <string name="upd_failed">La actualización falló</string>
     <string name="upd_not_offered">Android no ofreció instalar la actualización</string>
 
-    <!-- Decky -->
     <string name="decky_install_failed">Falló la instalación de Decky: %1$s</string>
     <string name="decky_plugin_starting">Iniciando la importación del plugin…</string>
     <string name="decky_plugin_failed">Falló la importación del plugin: %1$s</string>
     <string name="decky_plugin_installed">Plugin instalado. Reinicia Steam para cargarlo.</string>
 
-    <!-- GPU drivers -->
     <string name="drivers_not_checked">Aún sin comprobar - toca actualizar para buscar controladores nuevos</string>
     <string name="drivers_bundle_sets_display">Android + Linux: define también el controlador de pantalla</string>
     <string name="drivers_bundle_sets_runtime">Android + Linux: define también el controlador de runtime</string>
@@ -1268,16 +1247,13 @@
     <string name="drivers_system_vulkan">Vulkan del sistema: no hay versión incluida para esta GPU</string>
     <string name="drivers_bundled">%1$s (incluido)</string>
     <string name="drivers_manual">Manual</string>
-    <!-- Driver mode, then the driver pair in use -->
     <string name="drivers_summary">%1$s · %2$s</string>
     <string name="drivers_half_published">Por ahora solo se ha publicado una de las mitades</string>
     <string name="drivers_pair_size">%1$.0f MB para ambos</string>
-    <!-- %1$s says why (the GPU's support status) -->
     <string name="drivers_none_to_set">No hay controladores que definir: %1$s</string>
     <string name="drivers_checking_latest">Buscando los controladores más recientes…</string>
     <string name="drivers_up_to_date_check_failed">Al día (no se pudo comprobar: %1$s)</string>
     <string name="drivers_recommended_unpublished">Los controladores recomendados no están publicados ahora mismo</string>
-    <!-- %1$s is the driver pair's name, %2$s its version -->
     <string name="drivers_downloading_pair">Descargando %1$s %2$s…</string>
     <string name="drivers_updated_to">Actualizado a %1$s %2$s.</string>
     <string name="drivers_updated_to_restart">Actualizado a %1$s %2$s. El controlador de pantalla se aplica al reiniciar DroidDeck.</string>
@@ -1292,9 +1268,7 @@
     <string name="drivers_using_bundle_restart">Usando %1$s como controlador de runtime y de pantalla. El controlador de pantalla se aplica al reiniciar DroidDeck.</string>
     <string name="drivers_deleted_bundle">%1$s eliminado (ambos controladores)</string>
     <string name="drivers_deleted">%1$s eliminado</string>
-    <!-- %1$s lists the latest releases, %2$s when they were checked (e.g. 5 min ago) -->
     <string name="drivers_release_status">Últimas: %1$s · comprobado %2$s</string>
-    <!-- %1$s lists the latest releases, %2$s the sources that could not be reached, %3$s when they were checked -->
     <string name="drivers_release_status_failed">Últimas: %1$s · sin acceso a %2$s · comprobado %3$s</string>
     <plurals name="drivers_ago_minutes">
         <item quantity="one">hace %1$d min</item>
@@ -1313,33 +1287,25 @@
     </plurals>
     <string name="drivers_checking_sources">Comprobando Banners-Turnip, WinNative y DroidDeck…</string>
     <string name="drivers_check_failed">falló la comprobación</string>
-    <!-- %1$s is the driver's name -->
     <string name="drivers_installed_pick_either">%1$s instalado - elígelo en cualquiera de las listas para definir ambos controladores</string>
     <string name="drivers_installed_pick">%1$s instalado - elígelo en el menú</string>
 
-    <!-- Session (SessionActivity) -->
     <string name="session_wait_removal">Espera a que termine la eliminación del runtime</string>
-    <!-- Drawer title when the running program has no known name -->
     <string name="session_title_game">Juego</string>
-    <!-- Shown as "Auto (touchpad)" in the drawer's touch setting -->
     <string name="session_touch_auto_touchpad">touchpad</string>
-    <!-- Shown as "Auto (direct)" in the drawer's touch setting -->
     <string name="session_touch_auto_direct">directo</string>
     <string name="session_swap_failed">El reemplazo falló: %1$s</string>
     <string name="session_profile_save_failed">No se pudo guardar el perfil: %1$s</string>
     <string name="session_desktop_paused">El escritorio está en pausa</string>
-    <!-- %1$s is the program's name -->
     <string name="session_named_paused">%1$s está en pausa</string>
     <string name="session_program_paused">El programa está en pausa</string>
     <string name="session_starting_desktop">Iniciando el escritorio</string>
-    <!-- %1$s is the program's name -->
     <string name="session_starting_named">Iniciando %1$s</string>
     <string name="session_starting_program">Iniciando el programa</string>
     <string name="session_no_logs">No hay registros de esta sesión.</string>
     <string name="session_logs_archive_failed">No se pudo crear el archivo de registros de la sesión.</string>
     <string name="session_logs_share_failed">No se pudieron compartir los registros de la sesión.</string>
     <string name="session_starting_session">Iniciando la sesión…</string>
-    <!-- Loading screen lines while packages download; %1$d and %2$d are megabytes -->
     <string name="session_runtime_downloading">descargando el runtime de Linux</string>
     <string name="session_runtime_downloading_mb">descargando el runtime de Linux · %1$d de %2$d MB</string>
     <string name="session_runtime_checking">comprobando el runtime de Linux</string>
@@ -1354,29 +1320,22 @@
     <string name="session_proton_unpacking">descomprimiendo Proton Experimental (ARM64)</string>
     <string name="session_runtime_catalog_unreachable">No se pudo acceder al catálogo del runtime. Revisa la conexión y vuelve a pulsar Jugar.</string>
     <string name="session_runtime_install_failed">El runtime de Linux no se instaló. Revisa el runtime en Configuración y vuelve a pulsar Jugar.</string>
-    <!-- %1$s says what went wrong -->
     <string name="session_desktop_install_failed">El escritorio no se instaló (%1$s). Revisa la conexión y pulsa Escritorio de nuevo.</string>
-    <!-- %1$s is the program's name, or Steam -->
     <string name="session_ended_named">%1$s se detuvo inesperadamente. Comparte los registros en un informe de error o inténtalo de nuevo.</string>
     <string name="session_ended_program">El programa se detuvo inesperadamente. Comparte los registros en un informe de error o inténtalo de nuevo.</string>
     <string name="session_ended_desktop">El escritorio se detuvo inesperadamente. Comparte los registros en un informe de error o inténtalo de nuevo.</string>
-    <!-- %1$d is the exit status, %2$s the log file's path -->
     <string name="session_ended_detail">Código de salida %1$d · %2$s</string>
     <string name="session_ended_no_log">sin registro</string>
-    <!-- %1$d errors; %2$s, %3$s and %4$s are the Performance page and its two settings -->
     <plurals name="session_hint_enosys">
         <item quantity="one">El registro muestra %1$d error \"Function not implemented\": la aceleración seccomp de proot hace fallar un proceso auxiliar en este dispositivo. Prueba %2$s → \"%3$s\" (o \"%4$s\") y vuelve a iniciar.</item>
         <item quantity="many">El registro muestra %1$d errores \"Function not implemented\": la aceleración seccomp de proot hace fallar un proceso auxiliar en este dispositivo. Prueba %2$s → \"%3$s\" (o \"%4$s\") y vuelve a iniciar.</item>
         <item quantity="other">El registro muestra %1$d errores \"Function not implemented\": la aceleración seccomp de proot hace fallar un proceso auxiliar en este dispositivo. Prueba %2$s → \"%3$s\" (o \"%4$s\") y vuelve a iniciar.</item>
     </plurals>
 
-    <!-- Screens, files, controller and store -->
-    <!-- Mode settings -->
     <string name="mode_decky_plugins">Plugins</string>
     <string name="mode_decky_plugins_hint">Instala un ZIP de plugin para la próxima sesión de Steam.</string>
     <string name="mode_decky_plugin_downloading">Descargando…</string>
     <string name="mode_decky_plugin_install_zip">Instalar desde ZIP</string>
-    <!-- Store -->
     <string name="store_cat_games">Juegos</string>
     <string name="store_cat_audio_video">Audio y vídeo</string>
     <string name="store_cat_graphics">Gráficos</string>
@@ -1389,21 +1348,14 @@
     <string name="store_cat_utilities">Utilidades</string>
     <string name="store_section_popular">Populares</string>
     <string name="store_section_trending">En tendencia</string>
-    <!-- Store front-page section of recently added apps -->
     <string name="store_section_new">Nuevas</string>
-    <!-- Store front-page section of recently updated apps -->
     <string name="store_section_updated">Actualizadas</string>
     <string name="store_section_loading">cargando…</string>
     <string name="store_flatpak_setup">Configuración de Flatpak</string>
-    <!-- %1$s is what failed (an app name or "Flatpak setup"), %2$s the error -->
     <string name="store_problem">%1$s: %2$s</string>
     <string name="store_updates_check_failed">No se pudieron buscar actualizaciones en Flathub</string>
-    <!-- Library tiles -->
-    <!-- Subtitle of a game tile whose cover art was found -->
     <string name="content_rom_installed">instalado</string>
-    <!-- Subtitle of a game that is a folder rather than a single file -->
     <string name="content_rom_folder">carpeta</string>
-    <!-- Launcher themes -->
     <string name="theme_graphite">Grafito</string>
     <string name="theme_graphite_detail">Superficies grafito, con el azul del orbe del logotipo para todo lo seleccionado, enfocado o pulsado.</string>
     <string name="theme_paper">Papel sobre negro</string>
@@ -1412,7 +1364,6 @@
     <string name="theme_icon_blue_detail">Fondo negro, texto blanco y el azul para todo lo seleccionado, enfocado o pulsado.</string>
     <string name="theme_electric">Azul marino eléctrico</string>
     <string name="theme_electric_detail">Un azul más vivo, sobre superficies que tiran a azul marino en vez de gris.</string>
-    <!-- PC keyboard key caps (keep them short; they label physical PC keys) -->
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Insert</string>
     <string name="pckb_key_del">Supr</string>
@@ -1430,22 +1381,17 @@
     <string name="pckb_key_alt">Alt</string>
     <string name="pckb_key_space">Espacio</string>
     <string name="pckb_key_altgr">AltGr</string>
-    <!-- Terminal key strip on the second screen -->
     <string name="second_key_tab">Tab</string>
-    <!-- A modifier key (%1$s, e.g. Ctrl) that is currently held -->
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
-    <!-- Game file sync errors -->
     <string name="game_sync_err_runtime">Instala primero el runtime</string>
     <string name="game_sync_err_steam_library">La biblioteca de Steam no está disponible</string>
     <string name="game_sync_err_previous_sd">La biblioteca anterior de la SD no está disponible</string>
     <string name="game_sync_err_game_storage">El almacenamiento de juegos no está disponible</string>
     <string name="game_sync_err_added_games">La carpeta de juegos añadidos no está disponible</string>
     <string name="game_sync_err_manifests">Los manifiestos de Steam no están disponibles</string>
-    <!-- The systems RetroArch emulates, shown under its name -->
     <string name="content_system_many">Varios sistemas</string>
-    <!-- File manager -->
     <string name="fm_drive_internal">Interno</string>
     <string name="fm_drive_linux">Sistema Linux</string>
     <string name="fm_drive_sd">Tarjeta SD</string>
@@ -1463,7 +1409,6 @@
     <string name="fm_no_favorites">Aún no hay favoritos - fija una carpeta con su menú ⋮ para volver aquí rápidamente.</string>
     <string name="fm_unpin_favorite">Quitar de favoritos</string>
     <string name="fm_size_zero">0 bytes</string>
-    <!-- Size unit for sizes under 1 KB, shown after a number -->
     <string name="fm_unit_bytes">bytes</string>
     <string name="fm_prop_location">Ubicación</string>
     <string name="fm_prop_type">Tipo</string>
@@ -1471,7 +1416,6 @@
     <string name="fm_prop_modified">Modificado</string>
     <string name="fm_type_folder">Carpeta</string>
     <string name="fm_type_file">Archivo</string>
-    <!-- File type in Properties; %1$s is the file extension in capitals, e.g. TXT -->
     <string name="fm_type_ext_file">Archivo %1$s</string>
     <string name="fm_read_only">Solo lectura</string>
     <string name="fm_read_only_hint">Impide que los juegos (y Wine) sobrescriban o eliminen este archivo.</string>
@@ -1485,15 +1429,11 @@
     <string name="fm_delete_failed">No se pudo eliminar</string>
     <string name="fm_op_moving">Moviendo...</string>
     <string name="fm_op_copying">Copiando...</string>
-    <!-- %1$s is the file name -->
     <string name="fm_op_moving_item">Moviendo - %1$s</string>
     <string name="fm_op_copying_item">Copiando - %1$s</string>
-    <!-- %1$d is the item number, %2$d the number of items, %3$s the file name -->
     <string name="fm_op_moving_batch">Moviendo %1$d/%2$d - %3$s</string>
     <string name="fm_op_copying_batch">Copiando %1$d/%2$d - %3$s</string>
-    <!-- Paste result; %1$d items done, %2$d items failed -->
     <string name="fm_paste_failed">%1$d hechos, %2$d con error</string>
-    <!-- Paste result; %1$d items done, %2$d items skipped -->
     <string name="fm_paste_skipped">%1$d hechos, %2$d omitidos</string>
     <plurals name="fm_paste_moved">
         <item quantity="one">%1$d elemento movido</item>
@@ -1505,7 +1445,6 @@
         <item quantity="many">%1$d elementos copiados</item>
         <item quantity="other">%1$d elementos copiados</item>
     </plurals>
-    <!-- %1$s is a file or folder name -->
     <string name="fm_already_exists">\"%1$s\" ya existe</string>
     <string name="fm_op_renaming">Renombrando...</string>
     <string name="fm_rename_failed">No se pudo renombrar</string>
@@ -1516,7 +1455,6 @@
     <string name="fm_create">Crear</string>
     <string name="fm_new_name">Nuevo nombre</string>
     <string name="fm_delete_title">¿Eliminar?</string>
-    <!-- %1$s is a file or folder name -->
     <string name="fm_delete_text">¿Eliminar \"%1$s\" de forma permanente?</string>
     <plurals name="fm_delete_items_title">
         <item quantity="one">¿Eliminar %1$d elemento?</item>
@@ -1524,13 +1462,11 @@
         <item quantity="other">¿Eliminar %1$d elementos?</item>
     </plurals>
     <string name="fm_cannot_undo">Esta acción no se puede deshacer.</string>
-    <!-- After a list of the first five names in a delete confirmation -->
     <plurals name="fm_and_more">
         <item quantity="one">…y %1$d más</item>
         <item quantity="many">…y %1$d más</item>
         <item quantity="other">…y %1$d más</item>
     </plurals>
-    <!-- %1$d is the item number, %2$d the number of items, %3$s the file name -->
     <string name="fm_op_deleting_batch">Eliminando %1$d/%2$d - %3$s</string>
     <plurals name="fm_delete_some_failed">
         <item quantity="one">No se pudo eliminar %1$d</item>
@@ -1546,7 +1482,6 @@
     <string name="fm_conflict_skip">Omitir</string>
     <string name="fm_select_this_folder">Seleccionar esta carpeta</string>
     <string name="fm_back">Atrás</string>
-    <!-- %1$s is a storage name, e.g. SD card -->
     <string name="fm_drive_not_readable">%1$s está montado, pero ahora mismo no se puede leer</string>
     <string name="fm_list_view">Vista de lista</string>
     <string name="fm_grid_view">Vista de cuadrícula</string>
@@ -1561,12 +1496,9 @@
     <string name="fm_hide_favorites">Ocultar favoritos</string>
     <string name="fm_show_favorites">Mostrar favoritos</string>
     <string name="fm_filter_folder">Filtrar esta carpeta</string>
-    <!-- Free space on the storage being browsed; %1$s is a size, e.g. 12.50 GB -->
     <string name="fm_free_space">%1$s libres</string>
     <string name="fm_selected_count">%1$d seleccionados</string>
-    <!-- Selection bar: clear the selection -->
     <string name="fm_select_none">Ninguno</string>
-    <!-- Selection bar: select every item -->
     <string name="fm_select_all">Todo</string>
     <string name="fm_paste">Pegar</string>
     <plurals name="fm_items">
@@ -1574,30 +1506,23 @@
         <item quantity="many">%1$d elementos</item>
         <item quantity="other">%1$d elementos</item>
     </plurals>
-    <!-- %1$s is a file name or a number of items -->
     <string name="fm_paste_here">Pegar %1$s aquí</string>
-    <!-- %1$s is a file name or a number of items -->
     <string name="fm_paste_move_here">Pegar %1$s aquí (mover)</string>
     <string name="fm_rail_title">Archivos</string>
     <string name="fm_rail_storage">ALMACENAMIENTO</string>
-    <!-- Rail section of shortcut folders (Downloads, ROMs, …) -->
     <string name="fm_rail_quick">ATAJOS</string>
     <string name="fm_rail_favorites">FAVORITOS</string>
     <string name="fm_rail_downloads">Descargas</string>
-    <!-- Downloads shortened to fit under an icon (about 8 characters) -->
     <string name="fm_rail_downloads_short">Descargas</string>
     <string name="fm_rail_roms">ROMs</string>
     <string name="fm_rail_session_logs">Registros de sesión</string>
     <string name="fm_rail_pictures">Imágenes</string>
-    <!-- %1$s is a folder name -->
     <string name="fm_favorite_added">Se añadió \"%1$s\" a Favoritos</string>
-    <!-- %1$s is a folder name -->
     <string name="fm_favorite_removed">Se quitó \"%1$s\" de Favoritos</string>
     <string name="fm_empty_directory">Carpeta vacía</string>
     <string name="fm_up_one_level">Subir un nivel</string>
     <string name="fm_choose_folder">Elige una carpeta</string>
     <string name="fm_choose_file">Elige un archivo</string>
-    <!-- On-screen controller tint colors -->
     <string name="ctrl_tint_steam_blue">Azul Steam</string>
     <string name="ctrl_tint_sky">Celeste</string>
     <string name="ctrl_tint_white">Blanco</string>
@@ -1606,7 +1531,6 @@
     <string name="ctrl_tint_amber">Ámbar</string>
     <string name="ctrl_tint_red">Rojo</string>
     <string name="ctrl_tint_pink">Rosa</string>
-    <!-- On-screen buttons that can be remapped -->
     <string name="ctrl_button_a">Botón A</string>
     <string name="ctrl_button_b">Botón B</string>
     <string name="ctrl_button_x">Botón X</string>
@@ -1617,28 +1541,21 @@
     <string name="ctrl_button_rt">Gatillo derecho</string>
     <string name="ctrl_button_view">Botón Vista</string>
     <string name="ctrl_button_menu">Botón Menú</string>
-    <!-- What a remapped on-screen button sends; letters and Steam are controller button names -->
-    <!-- Controller View button -->
     <string name="ctrl_target_view">Vista</string>
-    <!-- Controller Menu button -->
     <string name="ctrl_target_menu">Menú</string>
     <string name="ctrl_target_up">Cruceta arriba</string>
     <string name="ctrl_target_down">Cruceta abajo</string>
     <string name="ctrl_target_left">Cruceta izquierda</string>
     <string name="ctrl_target_right">Cruceta derecha</string>
-    <!-- The on-screen button is not shown -->
     <string name="ctrl_target_hidden">Oculto</string>
     <string name="ctrl_editor_drag">Arrastra para mover</string>
     <string name="ctrl_editor_snap">Ajustar</string>
     <string name="ctrl_editor_save">Guardar</string>
-    <!-- What the second screen shows during a session -->
     <string name="second_mode_none">Nada</string>
     <string name="second_mode_keyboard_trackpad">Teclado + trackpad</string>
     <string name="second_mode_terminal">Terminal</string>
     <string name="second_mode_deck_controls">Agarres de Deck + trackpads</string>
 
-    <!-- Runtime, updates and setup helpers -->
-    <!-- Linux runtime install / removal (LinuxRuntimeInstaller, RuntimeInstallService) -->
     <string name="rtinst_removing">Eliminando el runtime de Linux</string>
     <plurals name="rtinst_removing_entries">
         <item quantity="one">Eliminando el runtime de Linux · %1$d elemento</item>
@@ -1655,63 +1572,47 @@
     <string name="rtinst_title_installing">Instalando el runtime de Linux</string>
     <string name="rtinst_title_removing">Eliminando el runtime de Linux</string>
 
-    <!-- Hosted desktop and emulator packages (DesktopCatalog) -->
     <string name="deskpkg_runtime_missing">El runtime de Linux no está instalado</string>
-    <!-- %1$s: package name -->
     <string name="deskpkg_no_checksum">El catálogo no tiene suma de verificación para %1$s</string>
     <string name="deskpkg_checksum_mismatch">La suma de verificación no coincide - no se cambió nada</string>
-    <!-- %1$s: package name -->
     <string name="deskpkg_installing">Instalando %1$s</string>
     <string name="deskpkg_place_failed">No se pudo colocar el AppImage</string>
     <string name="deskpkg_extract_failed">La extracción falló</string>
     <string name="deskpkg_install_failed">La instalación falló</string>
 
-    <!-- Flatpak store operations (FlatpakManager) -->
     <string name="flatpakmgr_setup_failed">La configuración de Flatpak falló (salida %1$d)</string>
     <string name="flatpakmgr_setup_unfinished">La configuración de Flatpak no terminó</string>
     <string name="flatpakmgr_busy">Hay otra tarea de la tienda en curso</string>
     <string name="flatpakmgr_not_ready">Configura Flatpak primero</string>
     <string name="flatpakmgr_starting">Iniciando</string>
     <string name="flatpakmgr_exit_status">Flatpak terminó con el código %1$d</string>
-    <!-- %1$s: an app or runtime name, e.g. "SuperTux" or "GNOME runtime 50" -->
     <string name="flatpakmgr_installing">Instalando %1$s</string>
     <string name="flatpakmgr_updating">Actualizando %1$s</string>
     <string name="flatpakmgr_removing">Quitando %1$s</string>
-    <!-- %1$s: an app or runtime name; %2$d of %3$d: this step and the number of steps -->
     <string name="flatpakmgr_installing_step">Instalando %1$s (%2$d/%3$d)</string>
     <string name="flatpakmgr_updating_step">Actualizando %1$s (%2$d/%3$d)</string>
     <string name="flatpakmgr_removing_step">Quitando %1$s (%2$d/%3$d)</string>
-    <!-- Names for Flatpak runtime parts, shown inside "Installing %1$s" -->
     <string name="flatpakmgr_ref_translations">traducciones</string>
     <string name="flatpakmgr_ref_graphics_drivers">controladores gráficos</string>
     <string name="flatpakmgr_ref_media_codecs">códecs multimedia</string>
-    <!-- %1$s: runtime vendor, e.g. GNOME, KDE, Freedesktop -->
     <string name="flatpakmgr_ref_runtime">runtime de %1$s</string>
-    <!-- %1$s: runtime vendor, e.g. GNOME; %2$s: its version, e.g. 50 -->
     <string name="flatpakmgr_ref_runtime_branch">runtime de %1$s %2$s</string>
 
-    <!-- Imported AppImages (AppImageManager) -->
     <string name="appimg_too_small">El archivo es demasiado pequeño para ser un AppImage</string>
-    <!-- %1$s: the system's reason -->
     <string name="appimg_unreadable">No se puede leer el archivo: %1$s</string>
     <string name="appimg_not_linux">Esto no es un AppImage (no es un programa de Linux)</string>
     <string name="appimg_wrong_arch">Este AppImage no está hecho ni para ARM64 (aarch64) ni para PC x86</string>
     <string name="appimg_not_appimage">Es un programa de Linux, pero no un AppImage</string>
     <string name="appimg_wrong_type">Solo se pueden importar AppImages de tipo 2 (este es de tipo %1$d)</string>
-    <!-- %1$s: a size such as "3.2 GB" -->
     <string name="appimg_no_space_import">No hay espacio libre suficiente: importarlo necesita unos %1$s</string>
-    <!-- %1$s: a size such as "3.2 GB" -->
     <string name="appimg_no_space_update">No hay espacio libre suficiente: actualizarlo necesita unos %1$s</string>
     <string name="appimg_import_failed">La importación falló</string>
     <string name="appimg_gone">Ese AppImage ya no está</string>
     <string name="appimg_update_failed">La actualización falló</string>
-    <!-- %1$s: file name -->
     <string name="appimg_extracting">Extrayendo %1$s</string>
     <string name="appimg_extract_failed">No se pudo extraer el AppImage</string>
-    <!-- %1$s: the last line the extractor printed -->
     <string name="appimg_extract_failed_detail">No se pudo extraer el AppImage: %1$s</string>
 
-    <!-- Decky Loader and plugin installs (DeckyManager) -->
     <string name="deckymgr_stop_session_loader">Detén la sesión activa antes de instalar Decky Loader</string>
     <string name="deckymgr_download_failed">Falló la descarga de Decky Loader</string>
     <string name="deckymgr_size_mismatch">El tamaño de Decky Loader no coincide con los metadatos de la versión</string>
@@ -1747,20 +1648,13 @@
     <string name="deckymgr_remote_entry_invalid">Entrada remote_binary no válida</string>
     <string name="deckymgr_remote_name_invalid">Nombre de binario remoto no válido</string>
     <string name="deckymgr_remote_url_https">La URL del binario remoto debe usar HTTPS</string>
-    <!-- %1$s: binary file name -->
     <string name="deckymgr_remote_hash_invalid">El binario remoto %1$s tiene un hash SHA-256 no válido</string>
     <string name="deckymgr_bin_dir_failed">No se pudo crear la carpeta bin del plugin</string>
-    <!-- %1$s: binary file name -->
     <string name="deckymgr_downloading_binary">Descargando el binario del plugin · %1$s</string>
-    <!-- %1$s: binary file name -->
     <string name="deckymgr_binary_download_failed">No se pudo descargar el binario del plugin %1$s</string>
-    <!-- %1$s: binary file name -->
     <string name="deckymgr_binary_checksum_mismatch">La suma de verificación del binario del plugin no coincide · %1$s</string>
-    <!-- %1$s: binary file name -->
     <string name="deckymgr_binary_not_executable">No se pudo marcar como ejecutable el binario del plugin · %1$s</string>
-    <!-- %1$s: binary file name -->
     <string name="deckymgr_binary_replace_failed">No se pudo reemplazar el binario del plugin · %1$s</string>
-    <!-- %1$s: binary file name -->
     <string name="deckymgr_binary_install_failed">No se pudo instalar el binario del plugin · %1$s</string>
     <string name="deckymgr_folder_taken">La carpeta del plugin pertenece a otro plugin</string>
     <string name="deckymgr_preserve_failed">No se pudo conservar el plugin existente</string>
@@ -1768,20 +1662,14 @@
     <string name="deckymgr_settings_failed">No se pudieron actualizar los ajustes de plugins de Decky</string>
     <string name="deckymgr_restore_failed">No se pudo restaurar el plugin existente</string>
 
-    <!-- Child-process limit change over Wireless debugging (WirelessAdbFix) -->
     <string name="adbfix_save_failed">No se pudo guardar la identidad de la Depuración inalámbrica</string>
-    <!-- %1$d: the command's exit status -->
     <string name="adbfix_command_failed">Falló el comando ADB (%1$d)</string>
-    <!-- %1$s: what Android answered -->
     <string name="adbfix_not_confirmed">Android no confirmó el cambio del límite de procesos secundarios: %1$s</string>
     <string name="adbfix_no_pairing">No hay ninguna vinculación de Depuración inalámbrica guardada</string>
     <string name="adbfix_enter_address">Introduce la dirección IP y el puerto actuales de la Depuración inalámbrica</string>
 
-    <!-- Wireless debugging pairing notification (WirelessAdbPairingService) -->
     <string name="adbpair_timed_out">Se agotó el tiempo de espera de la ventana de vinculación. Inténtalo de nuevo desde DroidDeck.</string>
-    <!-- %1$d: Android's error code -->
     <string name="adbpair_discovery_failed_code">No se pudo buscar la ventana de vinculación (%1$d). Comprueba que el Wi-Fi esté activado.</string>
-    <!-- %1$s: the system's reason -->
     <string name="adbpair_discovery_failed">No se pudo buscar la ventana de vinculación: %1$s</string>
     <string name="adbpair_six_digits">Introduce los 6 dígitos del código</string>
     <string name="adbpair_pairing">Vinculando…</string>
@@ -1795,27 +1683,22 @@
     <string name="adbpair_title_pair">Vincular Depuración inalámbrica</string>
     <string name="adbpair_waiting_text">Activa la Depuración inalámbrica y toca “Vincular dispositivo con código de vinculación”.</string>
     <string name="adbpair_waiting_long">Activa la Depuración inalámbrica y toca “Vincular dispositivo con código de vinculación”. Quédate en Ajustes: el código se introduce en esta notificación.</string>
-    <!-- Label of the notification's reply field -->
     <string name="adbpair_code_label">Código de vinculación de 6 dígitos</string>
     <string name="adbpair_code_hint">Toca Introducir código y escribe los 6 dígitos que muestra Ajustes.</string>
     <string name="adbpair_title_code">Introduce el código de vinculación Wi-Fi</string>
     <string name="adbpair_title_retry">Vuelve a probar el código</string>
-    <!-- Notification action button -->
     <string name="adbpair_enter_code">Introducir código</string>
     <string name="adbpair_title_working">Preparando Steam</string>
     <string name="adbpair_title_done">Steam está listo</string>
     <string name="adbpair_done_text">Toca para volver a DroidDeck. Ya puedes desactivar la Depuración inalámbrica.</string>
     <string name="adbpair_title_failed">Se detuvo la configuración de la Depuración inalámbrica</string>
 
-    <!-- DroidDeck's own updates (SelfInstaller, AppUpdates) -->
     <string name="selfinst_http">La descarga respondió HTTP %1$d</string>
     <string name="selfinst_size_mismatch">El tamaño de la descarga no coincidía con el APK publicado y se descartó - inténtalo de nuevo</string>
     <string name="selfinst_checksum_mismatch">La descarga no coincidía con su suma de verificación y se descartó - inténtalo de nuevo</string>
-    <!-- %1$s: the update's Android package name; %2$s: this app's -->
     <string name="selfinst_wrong_package">La actualización es para el paquete de Android %1$s, no %2$s</string>
     <string name="selfinst_metadata_signer">Los metadatos de la actualización no indican la clave de firma de publicación de DroidDeck</string>
     <string name="selfinst_unreadable">Android no pudo leer el APK descargado</string>
-    <!-- %1$s: the APK's Android package name; %2$s: this app's -->
     <string name="selfinst_apk_wrong_package">El APK descargado es para %1$s, no %2$s</string>
     <string name="selfinst_version_mismatch">El APK descargado indica versionCode %1$d, no el %2$d publicado</string>
     <string name="selfinst_downgrade">Android no instalará versionCode %1$d sobre el %2$d instalado</string>
@@ -1823,16 +1706,11 @@
     <string name="selfinst_wrong_signer">El APK descargado no está firmado con la clave de publicación de DroidDeck</string>
     <string name="appupd_http">El catálogo de actualizaciones respondió HTTP %1$d</string>
 
-    <!-- Session, GPU and display -->
-    <!-- Session loading screen -->
     <string name="loadstate_starting">Iniciando la sesión…</string>
-    <!-- %1$d minutes, %2$02d seconds since the session started -->
     <string name="loadstate_elapsed">%1$d:%2$02d transcurridos · sigue en marcha</string>
     <string name="loadstate_steam_update">Descargando la actualización del cliente de Steam · %1$d%%</string>
-    <!-- %1$s is the client's own download progress, as it prints it -->
     <string name="loadstate_steam_client">Descargando el cliente de Steam · %1$s</string>
 
-    <!-- Installing GE-Proton / proton-cachyos (%1$s is the tool's name, %2$s its release tag) -->
     <string name="pextra_busy">Ya se está instalando una herramienta de compatibilidad</string>
     <string name="pextra_stop_session">Detén la sesión activa antes de instalar herramientas de compatibilidad</string>
     <string name="pextra_no_release">No se encontró una versión ARM64 de %1$s</string>
@@ -1849,48 +1727,38 @@
     <string name="pextra_checksum_mismatch">La suma de verificación no coincide; se eliminó la descarga</string>
     <string name="pextra_session_started">Se inició una sesión durante la descarga; detenla antes de instalar herramientas de compatibilidad</string>
     <string name="pextra_installing">Instalando %1$s</string>
-    <!-- %2$d is the installer's exit status -->
     <string name="pextra_install_failed">Falló la instalación de %1$s (salida %2$d)</string>
     <string name="pextra_could_not_install">No se pudo instalar %1$s</string>
     <string name="esync_fetching">Descargando el paquete droiddeck-esync</string>
 
-    <!-- Components (FEX / DXVK / VKD3D-Proton swapped into a Proton). %1$s component, %2$s version, %3$s Proton -->
     <string name="cmgr_fex_linux_helpers">con auxiliares de Linux</string>
     <string name="cmgr_fex_dlls_only">Solo DLL</string>
     <string name="cmgr_original_proton_updated">Original (Proton se actualizó desde el último reemplazo)</string>
     <string name="cmgr_changed_outside">Cambiado fuera de Componentes</string>
-    <!-- A component version that could not be found in a Proton -->
     <string name="cmgr_not_present">no presente</string>
-    <!-- %1$s is the Proton build the original files were saved from -->
     <string name="cmgr_original_version">Original %1$s</string>
     <string name="cmgr_original_from">Original de %1$s</string>
     <string name="cmgr_swap_queued">%1$s %2$s entrará en %3$s cuando se cierre el juego que lo está usando.</string>
     <string name="cmgr_swap_done">%1$s %2$s ya está en %3$s. Se aplica la próxima vez que se inicie un juego.</string>
     <string name="cmgr_original_missing">Ese paquete original no está guardado</string>
-    <!-- %1$s component, %2$s Proton -->
     <string name="cmgr_restore_queued">%1$s de %2$s volverá a su original cuando se cierre el juego que lo está usando.</string>
-    <!-- %1$s component, %2$s Proton, %3$s the Proton build the original came from -->
     <string name="cmgr_restore_done">%1$s de %2$s restaurado desde su original de %3$s.</string>
-    <!-- %1$s package file, %2$s Proton id -->
     <string name="cmgr_package_in_use">%1$s está en uso en %2$s. Cambia antes ese Proton a otra cosa.</string>
     <string name="cmgr_package_not_stored">%1$s no está guardado</string>
     <string name="cmgr_deleted">%1$s eliminado.</string>
     <string name="cmgr_original_kept">El original de la versión instalada se conserva: es el camino de vuelta.</string>
     <string name="cmgr_not_stored">No guardado</string>
-    <!-- %1$s Proton build, %2$s component -->
     <string name="cmgr_deleted_original">Se eliminó el original de %1$s de %2$s.</string>
     <string name="cmgr_nightlies_only">Las descargas solo proceden de las versiones Nightlies</string>
     <string name="cmgr_list_predates_checksums">Esta lista de paquetes es anterior a las sumas de verificación - actualízala e inténtalo de nuevo</string>
     <string name="cmgr_checksum_mismatch">La suma de verificación no coincide</string>
 
-    <!-- Display choices -->
     <string name="sprefs_upscaler_linear">Lineal</string>
     <string name="sprefs_upscaler_nearest">Más cercano</string>
     <string name="sprefs_upscaler_gsr_quality">Snapdragon GSR (calidad)</string>
     <string name="sprefs_upscaler_sharpen">Solo nitidez</string>
     <string name="sprefs_lod_bias_auto">Auto (según el escalado)</string>
 
-    <!-- Screen effect Looks: preset names and the line under the row -->
     <string name="look_off_desc">Sin efectos.</string>
     <string name="look_game_clarity">Claridad</string>
     <string name="look_game_clarity_desc">Nitidez con un toque de contraste: el de todos los días.</string>
@@ -1915,27 +1783,23 @@
     <string name="look_anime_edge">Bordes anime</string>
     <string name="look_anime_edge_desc">Contornos toon más nitidez.</string>
 
-    <!-- GPU support line -->
     <string name="gpuinfo_not_adreno">La GPU no es Adreno</string>
     <string name="gpuinfo_supported">Compatible</string>
     <string name="gpuinfo_experimental">Experimental: sus controladores son versiones de prueba</string>
     <string name="gpuinfo_below_tested">Por debajo del hardware probado (Adreno 725 y posteriores): puede que no funcione</string>
     <string name="gpuinfo_unsupported">No compatible: DroidDeck necesita una GPU Adreno (Snapdragon)</string>
 
-    <!-- Driver downloads and imports -->
     <string name="turnip_rate_limited">Se alcanzó el límite de solicitudes de GitHub - inténtalo más tarde</string>
     <string name="turnip_github_http">GitHub respondió HTTP %1$d</string>
     <string name="turnip_download_http">la descarga respondió HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Esta lista de controladores es anterior a las sumas de verificación - actualízala e inténtalo de nuevo</string>
     <string name="turnip_checksum_mismatch">La suma de verificación no coincide - se descartó la descarga</string>
-    <!-- %1$s is one of the turnip_reject_* reasons -->
     <string name="turnip_not_adrenotools">No es un controlador de AdrenoTools: %1$s</string>
     <string name="turnip_reject_no_meta">no hay meta.json</string>
     <string name="turnip_reject_meta_unreadable">no se puede leer meta.json (%1$s)</string>
     <string name="turnip_reject_linux_driver">es un controlador de runtime de Linux (impórtalo en \"Controlador de runtime\")</string>
     <string name="turnip_reject_wayland">es un controlador de juegos para Wayland, que esta app no usa</string>
     <string name="turnip_reject_no_library_name">meta.json no indica ningún libraryName, así que no se pudo pasar nada a AdrenoTools</string>
-    <!-- %1$s is a library file name -->
     <string name="turnip_reject_library_missing">meta.json indica %1$s, que no está en el zip</string>
     <string name="turnip_reject_not_aarch64">%1$s no es una biblioteca compartida ELF AArch64 de 64 bits</string>
     <string name="turnip_reject_glibc">%1$s enlaza glibc - es un Turnip \"-Linux\", que va en \"Controlador de runtime\"</string>
@@ -1946,90 +1810,61 @@
     <string name="bundle_entry_outside">No es un paquete de controladores: %1$s apunta fuera de él</string>
     <string name="bundle_too_large">No es un paquete de controladores: ocupa más de %1$d MB al descomprimirse</string>
 
-    <!-- Game storage -->
     <string name="gstore_sd_card">Tarjeta SD</string>
-    <!-- %1$s is a size, like 12.3 GB -->
     <string name="gstore_folder">Carpeta</string>
 
     <string name="logshare_chooser">Compartir registros de sesión</string>
-    <!-- Stands in for the Steam account name when the client did not record one -->
 
-    <!-- Why the HDR switch is greyed out -->
     <string name="hdr_needs_android_10">requiere Android 10 o posterior (capas de pantalla con espacio de color)</string>
     <string name="hdr_none">esta pantalla no indica compatibilidad con HDR</string>
-    <!-- %1$s lists HDR formats, like Dolby Vision, HDR10+ -->
     <string name="hdr_not_hdr10">esta pantalla admite %1$s, no HDR10</string>
 
-    <!-- Follow-up -->
-    <!-- Stands in for the GPU name when the device does not report one -->
     <string name="gpu_this_gpu">esta GPU</string>
     <string name="phantom_title_on">El límite de procesos secundarios está activado</string>
     <string name="phantom_title_unset">El límite de procesos secundarios no está definido</string>
     <string name="phantom_title_unreadable">No se pudo comprobar el límite de procesos secundarios</string>
     <string name="phantom_title_off">El límite de procesos secundarios está desactivado</string>
     <string name="phantom_title_not_required">El límite de procesos secundarios no es necesario</string>
-    <!-- %1$s is the sentence saying how to turn the limit off on this device -->
     <string name="phantom_instructions_fix">%1$s Si no es posible, conecta este dispositivo a un ordenador con ADB y ejecuta el comando de abajo. Después vuelve aquí y comprueba de nuevo.</string>
     <string name="phantom_instructions_off">Ya se pueden iniciar sesiones de Steam.</string>
     <string name="phantom_instructions_not_applicable">Esta versión de Android no usa este límite.</string>
     <string name="phantom_fix_toggle">Activa “Desactivar restricciones de procesos secundarios” en Opciones de desarrollador y deja activadas las Opciones de desarrollador después.</string>
     <string name="phantom_fix_no_toggle">Esta versión de Android no tiene un interruptor para ello. Usa la Depuración inalámbrica para cambiarlo desde este dispositivo.</string>
     <string name="upd_block_no_apk">Esta versión no tiene descarga para esta copia de DroidDeck.</string>
-    <!-- %1$d is the offered build's versionCode, %2$d the installed one's -->
     <string name="upd_block_version_code">Android no la instalará sobre esta versión porque su versionCode %1$d es inferior al %2$d instalado.</string>
     <string name="upd_fail_downgrade">Android no instala una versión anterior sobre una más reciente. Quédate en esta versión hasta que el canal la alcance.</string>
     <string name="upd_fail_signature">Esta copia de DroidDeck está firmada de otro modo (¿una compilación local?), así que Android no la actualizará sobre la instalada.</string>
     <string name="upd_fail_storage">No hay espacio libre suficiente para la actualización.</string>
     <string name="upd_fail_aborted">Se canceló la actualización.</string>
-    <!-- %1$s is Android's own (English) installer message -->
     <string name="upd_fail_with_message">La actualización no se instaló: %1$s</string>
     <string name="upd_fail_generic">La actualización no se instaló.</string>
-    <!-- A save zip's layout; %1$s is the app it comes from (GameHub, Winlator) -->
     <string name="saves_layout_zip">zip de %1$s</string>
-    <!-- A save zip whose layout is not known -->
     <string name="saves_zip">zip</string>
-    <!-- %1$s is the game's name -->
     <string name="saves_not_launched">%1$s aún no se ha iniciado</string>
     <string name="saves_none_found">No se encontraron partidas guardadas de %1$s</string>
-    <!-- %1$s is the zip's file name -->
     <string name="saves_not_save_zip">%1$s no tiene carpeta drive_c, así que no es un zip de partidas de GameHub ni de Winlator</string>
-    <!-- %1$s is a folder path -->
     <string name="gstore_cannot_create">no se pueden crear carpetas en %1$s</string>
     <string name="gstore_cannot_write">no se puede escribir en %1$s</string>
-    <!-- %1$s is a folder path, %2$s the system's error -->
     <string name="gstore_cannot_write_detail">no se puede escribir en %1$s (%2$s)</string>
     <string name="gfiles_folder_unavailable">La carpeta no está disponible</string>
-    <!-- %1$s is a file name -->
     <string name="gfiles_name_taken">Otro archivo ya usa %1$s</string>
     <string name="gfiles_art_unavailable">La carpeta de imágenes no está disponible</string>
     <string name="gfiles_unrelated_inventory">La carpeta tiene un inventario de sincronización ajeno</string>
-    <!-- %1$s is a file name -->
     <string name="gfiles_remove_failed">No se pudo quitar %1$s</string>
     <string name="gfiles_outside_folder">El archivo sale de la carpeta de exportación</string>
-    <!-- A FEX build whose DLL carries no version name -->
     <string name="cmgr_fex_unnamed">FEX (compilación sin nombre de versión)</string>
-    <!-- %1$s is a package file name -->
     <string name="cmgr_no_profile">no hay profile.json en %1$s</string>
-    <!-- %1$s is a package file name, %2$s the type its profile.json gives -->
     <string name="cmgr_not_component_package">%1$s no es un paquete de componentes de Linux (tipo %2$s)</string>
-    <!-- A storage volume in the second-library menu; %1$s is its name, %2$s its free space, like 12.3 GB -->
     <string name="gstore_volume_free">%1$s · %2$s libres</string>
-    <!-- The second-library setting's value when it is automatic (short form of mode_storage_auto) -->
     <string name="mode_storage_auto_short">Automático</string>
-    <!-- %1$s is the technical reason, kept in English -->
     <string name="appupd_catalog_rejected">El catálogo de actualizaciones no superó las comprobaciones (%1$s)</string>
-    <!-- Label of the copied ADB command on the clipboard -->
     <string name="main_adb_clip_label">Ajuste de procesos secundarios de DroidDeck</string>
-    <!-- Signed in, but the Steam client recorded no account name -->
     <string name="setup_signed_in_offline_unnamed">Sesión iniciada · modo sin conexión</string>
     <string name="setup_signed_in_unnamed">Sesión iniciada</string>
-    <!-- Small uppercase tags beside a driver's name: where it came from -->
     <string name="driver_tag_bundled">INCLUIDO</string>
     <string name="driver_tag_downloaded">DESCARGADO</string>
     <string name="driver_tag_imported">IMPORTADO</string>
-    <!-- The driver is one half of a bundle that sets both drivers -->
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
-    <!-- %1$s is the limit's state (e.g. Child-process limit is on), %2$s what to do, %3$s the ADB command -->
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Pantalla de la sesión</string>
     <string name="display_resolution">Resolución</string>

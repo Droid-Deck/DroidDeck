@@ -24,7 +24,6 @@ import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
-/** Epic Games in the Stores section: sign-in, the library, the public store, installs and the per-launch sign-in code. */
 object EpicBackend : StoreBackend, EpicLaunchSupport {
     private const val TAG = "EpicBackend"
     override val store: Store = Store.EPIC
@@ -42,7 +41,6 @@ object EpicBackend : StoreBackend, EpicLaunchSupport {
     override fun syncLibrary(context: Context, force: Boolean) {
         val app = context.applicationContext
         Thread({
-            // The cache off the main thread; with it on screen a background sync keeps quiet.
             val cached = EpicLibrary.cached(app).map { EpicLibrary.toCatalogItem(app, it) }
             val quiet = cached.isNotEmpty() && !force
             StoresState.post {
@@ -74,13 +72,11 @@ object EpicBackend : StoreBackend, EpicLaunchSupport {
         }, "epic-shelves").start()
     }
 
-    /** Store offers whose catalog item is in the library are owned: their cards offer Install under the library's id. */
     private fun markOwned(s: StoreShelves): StoreShelves {
         val owned = StoresState.library[store] ?: return s
         val byCatalogItem = owned.associateBy { it.extra["catalogItemId"] ?: "" }
         fun mark(l: List<CatalogItem>) = l.map { i ->
             val match = i.extra["items"]?.split(',')?.firstNotNullOfOrNull { byCatalogItem[it] }
-            // The offer's art, and its facts where the library's catalog record has none.
             if (match != null) match.copy(
                 imageUrl = i.imageUrl ?: match.imageUrl, tallImageUrl = i.tallImageUrl ?: match.tallImageUrl,
                 developer = match.developer.ifBlank { i.developer }, publisher = match.publisher.ifBlank { i.publisher },
@@ -102,21 +98,15 @@ object EpicBackend : StoreBackend, EpicLaunchSupport {
 
     override fun uninstall(context: Context, game: InstalledStoreGame) {}
 
-    /** A fresh exchange code for the signed-in account; null when signed out or offline. Blocking. */
     override fun exchangeCode(context: Context): String? {
         val token = EpicCredentialStore.getValidAccessToken(context) ?: return null
         return EpicAuthClient.getExchangeCode(token)
     }
 
-    /** The access token is past its time and the refresh just failed: only a new sign-in helps. */
     override fun signInExpired(context: Context): Boolean = EpicCredentialStore.expired(context)
 
     private class InstallJob(val app: Context, val item: CatalogItem, val namespace: String, val catalogItemId: String, val folder: File) : DownloadQueue.DownloadJob {
         private val cancelled = AtomicBoolean(false)
-        // On a card the in-flight chunks go to the app's cache instead: the card's write rate paces
-        // the whole install, and chunks are read back once at assembly. Internal installs keep the
-        // cache beside the game. A resume keeps whichever cache the stopped run filled: a
-        // `.chunks` already beside the game is reused, not fetched again into the scratch folder.
         private val scratch: File? = if (StoreInstallRoot.isRemovable(app, folder) && !hasChunks(File(folder, ".chunks"))) StoreInstallRoot.scratchDir(app, Store.EPIC, item.id) else null
 
         private fun hasChunks(dir: File): Boolean = dir.isDirectory && (dir.list()?.isNotEmpty() == true)
@@ -161,7 +151,6 @@ object EpicBackend : StoreBackend, EpicLaunchSupport {
                 Store.EPIC, item.id, item.title, exe = exe.ifEmpty { "game.exe" }, args = args,
                 installVersion = result.buildVersion, installedAt = System.currentTimeMillis(),
                 cover = item.tallImageUrl ?: item.imageUrl, hero = item.imageUrl,
-                // Both kept even when empty: the manifest was read, and names no prerequisite.
                 extra = EpicLaunchData.extras(item.id, namespace, catalogItemId, deploymentId) + mapOf(
                     com.droiddeck.launcher.frontend.WinCompSources.EPIC_PREREQ_PATH to result.prereqPath,
                     com.droiddeck.launcher.frontend.WinCompSources.EPIC_PREREQ_NAME to result.prereqName,
@@ -177,10 +166,6 @@ object EpicBackend : StoreBackend, EpicLaunchSupport {
         }
     }
 
-    /**
-     * Epic's web sign-in: the login page redirects to a JSON page carrying an authorization code,
-     * read out of the document and exchanged for tokens.
-     */
     private object LoginFlow : StoreLoginActivity.Flow {
         private const val REDIRECT = "https://www.epicgames.com/id/api/redirect"
         override val startUrl: String = "https://www.epicgames.com/id/login?redirectUrl=https%3A%2F%2Fwww.epicgames.com%2Fid%2Fapi%2Fredirect%3FclientId%3D${EpicAuthClient.CLIENT_ID}%26responseType%3Dcode"
@@ -189,7 +174,6 @@ object EpicBackend : StoreBackend, EpicLaunchSupport {
         override fun isRedirect(url: String): Boolean = url.startsWith(REDIRECT)
 
         override fun finish(activity: StoreLoginActivity, view: WebView, url: String): String? {
-            // The document's text comes JSON-quoted from evaluateJavascript.
             var text = url
             if (text.startsWith("\"")) text = text.substring(1, text.length - 1)
             text = text.replace("\\n", "").replace("\\r", "").replace("\\\"", "\"")

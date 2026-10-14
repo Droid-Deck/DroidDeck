@@ -62,7 +62,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-/** Each art slot's thumbnail, in its true shape: width, height, corner. */
 private fun AddedGameArt.Slot.shape(): Triple<Dp, Dp, Dp> = when (this) {
     AddedGameArt.Slot.COVER -> Triple(28.dp, 41.dp, 5.dp)
     AddedGameArt.Slot.BACKGROUND -> Triple(60.dp, 34.dp, 5.dp)
@@ -92,7 +91,6 @@ private fun artSourceLabel(source: String): String = stringResource(
     },
 )
 
-/** A thumbnail of [model] (a file or URL) in [slot]'s shape, scaled by [scale]. */
 @Composable
 private fun SlotThumb(slot: AddedGameArt.Slot, model: Any?, scale: Float = 1f, selected: Boolean = false) {
     val pal = LocalPalette.current
@@ -110,7 +108,6 @@ private fun SlotThumb(slot: AddedGameArt.Slot, model: Any?, scale: Float = 1f, s
     }
 }
 
-/** A row of the editor: a label column, then the value. */
 @Composable
 private fun FieldRow(label: String, focus: FocusRequester? = null, onClick: () -> Unit, value: @Composable () -> Unit) {
     ListRow(focus = focus, onClick = onClick) {
@@ -119,20 +116,13 @@ private fun FieldRow(label: String, focus: FocusRequester? = null, onClick: () -
     }
 }
 
-/** Where the editor opens: its game's folder, straight on Target, and whether it came from the added-games summary. */
 internal class EditRequest(val folder: String, val openTarget: Boolean, val fromSummary: Boolean, val preview: EditPreview)
 
-/**
- * What the editor shows on its first frame, from what the page already has (the game's row, or
- * the summary's); the rest (the ranked exes, where each piece of art came from) follows.
- * [exeName] / [startIn] null = not known yet.
- */
 internal class EditPreview(
     val name: String, val exeName: String?, val startIn: String?, val launchOptions: String,
     val art: Map<AddedGameArt.Slot, File?>,
 ) {
     companion object {
-        /** From the Games tab's row for [game] and the few preferences the edits keep. */
         fun of(context: android.content.Context, game: com.droiddeck.launcher.frontend.Library.SteamGame, folder: String): EditPreview {
             val exe = SessionPrefs.addedGameExe(context, folder).ifEmpty {
                 com.droiddeck.launcher.frontend.AddedExes.list(context).firstOrNull { it.folder == folder && it.picked }?.exe.orEmpty()
@@ -144,28 +134,20 @@ internal class EditPreview(
             )
         }
 
-        /** From a summary row's game and its cover. */
         fun of(game: AddedGames.Game, cover: File?) = EditPreview(
             game.name, game.exe.name, game.guestDir.substringAfterLast('/'), game.launchOptions, mapOf(AddedGameArt.Slot.COVER to cover),
         )
     }
 }
 
-/** A small spinner where a value is still being read. */
 @Composable
 private fun Loading() {
     androidx.compose.material3.CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
 }
 
-/**
- * An added game's editor, Steam's non-Steam Properties in the app: Name, Target (the ranked exes,
- * "?" where nothing clearly won, Other exe…), Start in, Launch options, the four pieces of art, and
- * Remove (two presses; the files stay). Every change goes through the game's own Steam shortcut.
- */
 @Composable
 internal fun AddedGameEditor(
     request: EditRequest, onBack: () -> Unit, onClose: () -> Unit, onChanged: () -> Unit,
-    /** Remove pressed twice: the game's folder, its shortcut appid when known, its name. */
     onRemove: (folder: String, appId: Long?, name: String) -> Unit,
 ) {
     val ctx = LocalContext.current
@@ -260,7 +242,6 @@ internal fun AddedGameEditor(
             RemoveRow(armed) {
                 if (!armed) armed = true else {
                     armed = false
-                    // At once: the page drops the game and the rest runs off this dialog's life.
                     onRemove(folder, game?.appId, game?.name ?: preview.name)
                     if (request.fromSummary) onBack()
                     close()
@@ -304,7 +285,6 @@ internal fun AddedGameEditor(
     }
 }
 
-/** Start in as a path on the device: the override mapped back under the game's folder, else the exe's folder. */
 private fun hostPath(context: android.content.Context, game: AddedGames.Game): String {
     val folderGuest = AddedGames.guestPath(context, game.folder) ?: return game.exe.parentFile?.path.orEmpty()
     return when {
@@ -322,7 +302,6 @@ private fun ValueText(text: String, muted: Boolean = false) {
     )
 }
 
-/** "Remove" in red; pressed once it asks, a second press within four seconds removes. */
 @Composable
 private fun RemoveRow(armed: Boolean, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
@@ -344,7 +323,6 @@ private fun RemoveRow(armed: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** One line of text in a compact dialog: [title] and a red X, the field, OK. */
 @Composable
 internal fun TextEntryDialog(title: String, initial: String, onDismiss: () -> Unit, onSave: (String) -> Unit) {
     val shown = rememberShown(onDismiss)
@@ -365,11 +343,6 @@ internal fun TextEntryDialog(title: String, initial: String, onDismiss: () -> Un
     }
 }
 
-/**
- * The art chooser for one [slot]: back, the slot's name and a red X; the images grouped by where
- * they come from (the game's folder, Steam, SteamGridDB, fetched as it opens), the current one
- * outlined, a tap applies it; "Pick image…" and "Reset to automatic".
- */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ArtChooserDialog(
@@ -456,12 +429,6 @@ private fun ArtOption(slot: AddedGameArt.Slot, option: AddedGameArt.Option, sele
     }
 }
 
-/**
- * After "Add all games in this folder": how many were added and how many were there already, then
- * one row per added game (cover, name, exe, "?" where unsure); a row opens that game's editor.
- * [games] are the added games as the add left them, shown at once; the rows then follow edits and
- * removals, and the covers arrive.
- */
 @Composable
 internal fun AddedGamesSummaryDialog(
     games: List<AddedGames.Game>, already: Int, checking: String? = null,
@@ -478,8 +445,6 @@ internal fun AddedGamesSummaryDialog(
     var gone by remember { mutableStateOf(emptySet<String>()) }
     var armed by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(armed) { if (armed != null) { kotlinx.coroutines.delay(4_000); armed = null } }
-    // Rows show as the games arrive; each is refreshed once (current name and exe, a removed one
-    // dropped) and gets its cover, without redoing the ones already done when more arrive.
     var resolved by remember { mutableStateOf(emptyMap<String, Pair<AddedGames.Game, File?>?>()) }
     LaunchedEffect(games) {
         for (old in games) {
@@ -534,7 +499,6 @@ internal fun AddedGamesSummaryDialog(
     }
 }
 
-/** A summary row's red X: the first press arms it (filled), a second within 4 s removes the game. */
 @Composable
 private fun RemoveX(armed: Boolean, description: String, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme

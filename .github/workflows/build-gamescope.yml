@@ -1,9 +1,5 @@
 name: Build gamescope (patched)
 
-# The runtime's own gamescope (Arch Linux ARM's 3.16.29 package) rebuilt with the patches under
-# tools/gamescope/patches, in an Arch Linux ARM container on an arm64 runner, then published as a
-# release asset the apk build fetches (tools/gamescope/release.env names the tag and sha). The
-# hosted runtime image is never changed: the apk stages the binary over /usr/local/bin.
 on:
   push:
     paths:
@@ -43,6 +39,4 @@ jobs:
         run: |
           set -euo pipefail
           gh release create "${{ inputs.tag }}" --latest=false --prerelease=false --title "${{ inputs.tag }}" --notes "gamescope 3.16.29 with tools/gamescope/patches; staged by the apk over /usr/local/bin/gamescope. sha256 $(cut -d' ' -f1 gamescope.tzst.sha256)" gamescope.tzst gamescope.tzst.sha256 || gh release upload "${{ inputs.tag }}" gamescope.tzst gamescope.tzst.sha256 --clobber
-          # A component the apk fetches by tag, never something users install: it must not
-          # become the repo's Latest release or appear as a pre-release, also when re-uploaded.
           gh release edit "${{ inputs.tag }}" --latest=false --prerelease=false

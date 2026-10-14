@@ -30,18 +30,15 @@ import com.droiddeck.launcher.runtime.DeckyManager
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionService
 
-/** [tag] is shown beside the name: [BUNDLED], [DOWNLOADED], [IMPORTED], or "" for Auto / Runtime default. */
 class DriverRow(val id: String, val name: String, val detail: String, val removable: Boolean, val tag: String = "") {
     companion object {
         const val BUNDLED = "BUNDLED"
         const val DOWNLOADED = "DOWNLOADED"
         const val IMPORTED = "IMPORTED"
-        /** One half of an Android + Linux bundle: picked and deleted together with the other. */
         const val BUNDLE = "ANDROID + LINUX"
     }
 }
 
-/** A [DriverRow.tag] as shown, in the app's language. */
 @Composable
 internal fun driverTagLabel(tag: String): String = when (tag) {
     DriverRow.BUNDLED -> stringResource(R.string.driver_tag_bundled)
@@ -51,7 +48,6 @@ internal fun driverTagLabel(tag: String): String = when (tag) {
     else -> tag
 }
 
-/** A release driver (Banners-Turnip, WinNative) that is not installed yet; [key] is its asset name. */
 class DownloadRow(val key: String, val label: String, val detail: String, val progress: Int? = null)
 
 class ModeSettings(
@@ -60,61 +56,43 @@ class ModeSettings(
     val panelSize: Pair<Int, Int> = 1280 to 720,
     val hdr: Boolean,
     val hdrReason: String?,
-    /** The GPU drivers in use, as the row that opens them on the Components page says it. */
-    /** The drivers line; null shows Auto. */
     val gpuDrivers: String? = null,
-    /** Frames per second the session is capped at; 0 = none. */
     val fpsLimit: Int = 0,
     val upscaler: Int = 0,
     val upscaleSharpness: Int = 75,
     val touchMode: String,
     val suspendPolicy: String,
     val steamDownloadsInBackground: Boolean = false,
-    /** Steam only; null hides it. */
     val zramCompression: Boolean? = null,
-    /** Null until checked off the main thread. */
     val zramSupported: Boolean? = null,
     val pipSupported: Boolean = false,
     val pipAutoEnter: Boolean = false,
-    /** Steam only. */
     val oscMode: String?,
-    /** Steam only: whether single and double Back actions are swapped. */
     val backActionsInverted: Boolean = false,
     val directAudio: Boolean?,
     val mic: Boolean?,
     val gameStorage: String? = null,
     val storageOptions: List<com.droiddeck.launcher.session.GameStorage.Option> = emptyList(),
-    /** Steam only: record allocation and sampled storage timings in the next session's Share logs. */
     val storageDiagnostics: Boolean = false,
     val fexPreset: String? = null,
-    /** Steam only: Force SSBS for Proton games (SessionPrefs.forceSsbs). */
     val forceSsbs: Boolean = false,
-    /** Steam only: SessionPrefs.SYNC_* chosen for Proton games; null outside Steam. */
     val syncBackend: String? = null,
     val stretch16x9: Boolean? = null,
     val steamRepairQueued: Boolean = false,
-    /** Steam: the QAM's performance overlay (mangoapp) is started. */
     val mangoapp: Boolean = true,
-    /** Steam only: what the pad is to the client (SessionPrefs.CONTROLLER_*); null outside Steam. */
     val steamController: String? = null,
-    /** Unfolded controls (Steam only; null hides the row). */
     val unfoldedControls: Boolean? = null,
-    /** Steam only: start a Steam session when DroidDeck opens. */
     val runSteamAtStartup: Boolean = false,
-    /** Null outside Steam; the saved choice is separate from Android's access and device switch. */
     val wifiDiscovery: Boolean? = null,
     val wifiDiscoveryPermission: Boolean = false,
     val wifiDiscoveryLocation: Boolean = false,
     val wifiDiscoveryAsked: Boolean = false,
     val wifiDiscoveryBlocked: Boolean = false,
-    /** Latest Banners-Turnip release: what each driver menu offers to download, and the refresh line. */
-    /** Steam only: Decky Loader is managed from the Steam session settings. */
     val deckyInstalled: String? = null,
     val deckyLatestRelease: DeckyManager.Release? = null,
     val deckyChecking: Boolean = false,
     val deckyStage: String? = null,
     val deckyPercent: Int = -1,
-    /** The stage is the Decky plugin's binary download. */
     val deckyDownloadingBinary: Boolean = false,
     val deckyEnabled: Boolean = false,
     val deckySessionRunning: Boolean = false,
@@ -123,7 +101,6 @@ class ModeSettings(
 class ModeSettingsActions(
     val onResolution: (String) -> Unit,
     val onHdr: (Boolean) -> Unit,
-    /** Opens the GPU drivers on the Components page: they are shared by every session. */
     val onGpuDrivers: () -> Unit = {},
     val onFpsLimit: (Int) -> Unit = {},
     val onUpscaler: (Int) -> Unit = {},
@@ -159,15 +136,10 @@ class ModeSettingsActions(
     val onDismiss: () -> Unit,
 )
 
-/**
- * The chips of a mode's lifted sheet, in order: Steam's six; the desktop's Display, Controls and
- * Session (its Files chip is the Desktop page's own).
- */
 internal fun modeSheetTabs(steam: Boolean): List<String> =
     if (steam) listOf(SheetTab.STEAM, SheetTab.DISPLAY, SheetTab.CONTROLS, SheetTab.AUDIO, SheetTab.SESSION, SheetTab.LIBRARY)
     else listOf(SheetTab.DISPLAY, SheetTab.CONTROLS, SheetTab.SESSION)
 
-/** A sheet tab's chip label. */
 @Composable
 internal fun sheetTabLabel(tab: String): String = when (tab) {
     SheetTab.DISPLAY -> stringResource(R.string.drawer_page_display)
@@ -179,19 +151,13 @@ internal fun sheetTabLabel(tab: String): String = when (tab) {
     else -> stringResource(R.string.setup_tool_files)
 }
 
-/**
- * Rows the front end adds to a sheet's tabs: frame generation (Display), Performance (Session) and
- * the Graphics drivers link to Components (Display, given the drivers' summary).
- */
 class SheetExtras(
     val frameGen: @Composable () -> Unit = {},
     val performance: @Composable () -> Unit = {},
     val drivers: @Composable (summary: String?) -> Unit = {},
-    /** The Steam tab's account rows (offline mode), from the front end's own state. */
     val account: @Composable (host: MenuHost) -> Unit = {},
 )
 
-/** One tab of a mode's lifted sheet: the rows the settings page had, grouped by what they are for. */
 @Composable
 fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: SheetExtras = SheetExtras()) {
     val steam = s.mode == SessionService.MODE_STEAM
@@ -331,7 +297,6 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
     if (tab == SheetTab.LIBRARY && steam) {
         if (s.gameStorage != null) SettingsGroup(stringResource(R.string.mode_storage)) {
             val custom = s.gameStorage.isNotEmpty() && s.gameStorage != "off" && s.storageOptions.none { it.path == s.gameStorage }
-            // Each choice: its path, its menu line, the chip's shorter line, and the label it is saved with.
             class StorageChoice(val path: String, val label: String, val chip: String, val saved: String)
             val internal = stringResource(R.string.mode_storage_internal)
             val options = buildList {
@@ -478,10 +443,6 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
     )
 }
 
-/**
- * The options that apply to every Proton - how Wine syncs, FEX's preset, Force SSBS and the games'
- * environment - for the Components page's Proton layer.
- */
 @Composable
 internal fun ProtonOptions(
     syncBackend: String, fexPreset: String, forceSsbs: Boolean,
@@ -508,10 +469,6 @@ internal fun ProtonOptions(
     GameEnvironmentRow()
 }
 
-/**
- * Uninstall for Decky Loader: are you sure steps out of it in red, Cancel first, so a stray A
- * costs nothing.
- */
 @Composable
 private fun DeckyUninstall(enabled: Boolean, onUninstall: () -> Unit) {
     val colors = MaterialTheme.colorScheme
@@ -538,8 +495,6 @@ private fun DeckyUninstall(enabled: Boolean, onUninstall: () -> Unit) {
     }
 }
 
-/** Width × height for the session, with the common handheld shapes one tap away. */
-/** Entry for the user's SteamGridDB API key; the saved key is never shown back. */
 @Composable
 internal fun SgdbKeyDialog(hasKey: Boolean, onSave: (String) -> Unit, onDismiss: () -> Unit) {
     var key by remember { mutableStateOf("") }

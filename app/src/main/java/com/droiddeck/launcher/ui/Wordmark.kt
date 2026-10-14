@@ -17,10 +17,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import com.droiddeck.launcher.R
 
-/**
- * The DroidDeck wordmark from the README banner (artwork/droiddeck-banner-*.svg): the mark
- * standing in as the D, then "roidDeck". Letters and D in the theme's ink, the ball in its blue.
- */
 @Composable
 internal fun Wordmark(height: Dp, modifier: Modifier = Modifier) {
     val ink = MaterialTheme.colorScheme.onBackground
@@ -34,7 +30,6 @@ internal fun Wordmark(height: Dp, modifier: Modifier = Modifier) {
         scale(k, k, Offset.Zero) {
             translate(-BOX_X, -BOX_Y) {
                 drawPath(letters, ink)
-                // The mark's placement in the banner: translate(239.135 123.36) scale(0.527445) translate(31.98 0).
                 translate(239.135f, 123.36f) {
                     scale(MARK_SCALE, MARK_SCALE, Offset.Zero) {
                         translate(31.98f, 0f) {
@@ -49,7 +44,6 @@ internal fun Wordmark(height: Dp, modifier: Modifier = Modifier) {
     }
 }
 
-// The banner's own units: the wordmark spans x 239.135..1040.7 and y 120.02..243.2.
 private const val BOX_X = 239.135f
 private const val BOX_Y = 120.02f
 private const val BOX_W = 1040.7f - 239.135f

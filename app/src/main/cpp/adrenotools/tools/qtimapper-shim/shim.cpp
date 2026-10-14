@@ -46,14 +46,13 @@
 using namespace android::hardware;
 using namespace android;
 
-// These two functions are used by the blob and aren't present on Q so weakly stub them
 extern "C" uint64_t __attribute__((weak)) atrace_get_enabled_tags() {
   return 0;
 }
 
 namespace android::hardware::details {
 void __attribute__((weak)) return_status::onValueRetrieval() const {}
-}  // namespace android::hardware::details
+}
 
 bool IBase::isRemote() const {
   return false;
@@ -146,7 +145,7 @@ sp<IMapper> IMapper::getService(const std::string& serviceName, const bool getSt
   return nullptr;
 }
 
-}  // namespace V2_0
+}
 namespace V3_0 {
 
 sp<IMapper> IMapper::getService(const std::string& serviceName, const bool getStub) {
@@ -154,7 +153,7 @@ sp<IMapper> IMapper::getService(const std::string& serviceName, const bool getSt
   return nullptr;
 }
 
-}  // namespace V3_0
+}
 namespace V4_0 {
 
 sp<IMapper> IMapper::getService(const std::string& serviceName, const bool getStub) {
@@ -162,8 +161,8 @@ sp<IMapper> IMapper::getService(const std::string& serviceName, const bool getSt
   return nullptr;
 }
 
-}  // namespace V4_0
-}  // namespace android::hardware::graphics::mapper
+}
+}
 namespace vendor::qti::hardware::display {
 namespace mapper {
 namespace V4_0 {
@@ -174,7 +173,7 @@ Return<sp<IQtiMapper>> IQtiMapper::castFrom(const sp<graphics::mapper::V4_0::IMa
   return nullptr;
 }
 
-}  // namespace V4_0
+}
 namespace V3_0 {
 
 Return<sp<IQtiMapper>> IQtiMapper::castFrom(const sp<graphics::mapper::V3_0::IMapper>& parent,
@@ -183,7 +182,7 @@ Return<sp<IQtiMapper>> IQtiMapper::castFrom(const sp<graphics::mapper::V3_0::IMa
   return nullptr;
 }
 
-}  // namespace V3_0
+}
 namespace V2_0 {
 
 Return<sp<IQtiMapper>> IQtiMapper::castFrom(const sp<graphics::mapper::V2_0::IMapper>& parent,
@@ -200,8 +199,8 @@ Return<void> IQtiMapper::getMapperExtensions(getMapperExtensions_cb _hidl_cb) {
   return Void();
 }
 
-}  // namespace V2_0
-}  // namespace mapper
+}
+}
 namespace mapperextensions {
 namespace V1_1 {
 
@@ -467,6 +466,6 @@ Return<void> IQtiMapperExtensions::getFormatLayout(int32_t format, uint64_t usag
   return Void();
 }
 
-}  // namespace V1_1
-}  // namespace mapperextensions
-}  // namespace vendor::qti::hardware::display
+}
+}
+}

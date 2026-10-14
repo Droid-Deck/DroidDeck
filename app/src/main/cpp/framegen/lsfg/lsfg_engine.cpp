@@ -1,8 +1,3 @@
-// See lsfg_engine.h.
-//
-// LSFG from the work of Camille LaVey / the Eden Emulator Project, following
-// upstream lsfg-vk. Ported to WinNative (vkr_lsfg.cpp) and DroidDeck by
-// @maxjivi05, where it runs on gamescope's output in the compositor.
 
 #include "lsfg_engine.h"
 
@@ -21,9 +16,6 @@
 namespace lsfg {
 namespace {
 
-// The chain needs two real frames in its history before anything it produces
-// is meaningful, and we require the plan to stay warm for a couple of frames
-// so a single settled sample cannot start generation from garbage.
 constexpr uint64_t kRequiredFrames    = 2;
 constexpr uint32_t kRecurrenceFrames  = 2;
 constexpr uint64_t kTelemetryInterval = 120;
@@ -50,8 +42,6 @@ VkImageMemoryBarrier makeTransition(VkImage image, VkAccessFlags srcAccess,
     return b;
 }
 
-// Copy the just-composited frame into the chain's input ring. `source` is the
-// composite target, which the composite render pass leaves in GENERAL.
 void copyPresentedFrame(VkCommandBuffer cmd, VkImage source, LsfgImage& destination,
                         VkExtent2D extent) {
     const VkImageMemoryBarrier before[] = {
@@ -88,7 +78,7 @@ void copyPresentedFrame(VkCommandBuffer cmd, VkImage source, LsfgImage& destinat
     destination.SetLayout(VK_IMAGE_LAYOUT_GENERAL);
 }
 
-} // namespace
+}
 
 Engine::Engine() = default;
 
@@ -142,9 +132,6 @@ void Engine::setGuestExtent(uint32_t width, uint32_t height) {
     peakGuestExtent_.height = std::max(peakGuestExtent_.height, height);
 }
 
-// The flow pyramid is the expensive part, so its resolution is scaled relative
-// to the largest guest surface seen: a game running well below panel
-// resolution does not need a panel-resolution flow field.
 float Engine::effectiveFlowScale(uint32_t width) const {
     if (width == 0 || peakGuestExtent_.width == 0) return flowScale_;
     const float ratio = (float)peakGuestExtent_.width / (float)width;
@@ -171,8 +158,6 @@ bool Engine::prepare(uint32_t width, uint32_t height, VkFormat format) {
     chain_ = std::make_unique<LsfgChain>(device_, *shaders_, VkExtent2D{width, height}, format,
                                          scale);
     if (!chain_->Valid()) {
-        // A device that cannot build the chain reports unsupported once and
-        // stops trying, rather than thrashing allocations every frame.
         LSFG_LOGW("chain build failed at %ux%u; frame generation unavailable", width, height);
         chain_.reset();
         unavailable_ = true;
@@ -204,17 +189,9 @@ uint32_t Engine::plan(uint32_t capacity, uint64_t sourceFrames) {
 
     plan_ = pacer_.Plan(std::min<size_t>(capacity, kMaxGenerations), sourceFrames);
 
-    // The pacer says how many frames FIT in the panel's budget. The governor
-    // says how many this device can actually afford right now - on a handheld
-    // the chain competes with the game for one GPU, so an extra generation has
-    // to prove it improves total output without collapsing the real frame rate.
     if (governorEnabled_) {
         const LsfgPacerStats s = pacer_.Stats();
         governor_.configure((uint32_t)std::min<size_t>(pacer_.MaxGenerations(), kMaxGenerations));
-        // presentedRate_, NOT the pacer's loop rate. The pacer samples its loop
-        // once per SOURCE frame, so its "loop rate" is the guest rate by
-        // construction and can never show that generation added anything - the
-        // governor could not accept a probe on any hardware.
         plan_.generations = governor_.cap((uint32_t)plan_.generations, s.source_rate,
                                           presentedRate_);
     }
@@ -223,12 +200,6 @@ uint32_t Engine::plan(uint32_t capacity, uint64_t sourceFrames) {
     warmStreak_ = warm_ ? warmStreak_ + 1 : 0;
     generating_ = warm_ && warmStreak_ >= kRecurrenceFrames && plan_.generations > 0;
 
-    // The ring is only seeded while generating, so the first frame after any
-    // gap - arming, or a pacer discontinuity after a hitch - would interpolate
-    // between this frame and whatever the other slot held when generation last
-    // stopped. That is a visible warp, and it happens every time the engine
-    // starts. Spend this frame filling the ring instead and generate from the
-    // next one, when both slots are genuinely consecutive.
     primeHistory_ = false;
     if (generating_ && !historyFresh()) {
         primeHistory_ = true;
@@ -265,11 +236,6 @@ void Engine::process(VkCommandBuffer cmd, VkImage source, uint32_t width, uint32
     lastCount_ = count;
     lastGenerations_ = generations;
 
-    // Seeding the input ring is a full-resolution image copy every frame, so it
-    // is NOT free at 100 fps - it was costing real frame rate while producing
-    // nothing. Copy only when generating, on the one priming frame that
-    // precedes generation, or while the governor is warming up towards a
-    // probe - so the ring is populated by the time it is needed.
     const bool needHistory = generations > 0 || primeHistory_ || followEveryFrame()
         || (governorEnabled_ && governor_.wantsHistory());
     if (needHistory) {
@@ -278,13 +244,6 @@ void Engine::process(VkCommandBuffer cmd, VkImage source, uint32_t width, uint32
         haveCopied_ = true;
     }
 
-    // The SHARED chain is 24 of the 25 shaders - the whole flow pyramid - and
-    // only `generate` runs per generated frame. Running it while producing
-    // nothing spends almost the entire cost of frame generation for no frames
-    // at all, every frame. That is what pinned the GPU at 100% on device
-    // regardless of the game's own settings, and it fed straight back into the
-    // governor: the chain made the source rate collapse, the governor saw the
-    // collapse and refused to generate, and refusing did not stop the chain.
     if (warm_ && (generations > 0 || followEveryFrame())) chain_->DispatchShared(cmd, count);
 }
 
@@ -318,4 +277,4 @@ void Engine::reset() {
     plan_ = {};
 }
 
-} // namespace lsfg
+}

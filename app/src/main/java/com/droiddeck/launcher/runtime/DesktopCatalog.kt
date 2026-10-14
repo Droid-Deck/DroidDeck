@@ -10,28 +10,15 @@ import com.droiddeck.launcher.core.FileUtils
 import org.json.JSONObject
 import java.io.File
 
-/**
- * The hosted packages that go into the runtime on request - the desktop, the emulators, and the
- * builds we mirror or make ourselves - described by desktop.json beside the runtime's own catalog.
- *
- * Two kinds. A `tar` extracts over the rootfs like the runtime itself (the same extractor, links
- * and modes preserved). An `appimage` is one file dropped in /opt/appimages with a .desktop entry
- * written for it; proot has no FUSE, so it runs extracted (APPIMAGE_EXTRACT_AND_RUN).
- */
 object DesktopCatalog {
     private const val TAG = "DesktopCatalog"
     const val CATALOG_URL = "https://raw.githubusercontent.com/Droid-Deck/DroidDeck-Components/main/desktop.json"
-    /**
-     * Valve's Proton Experimental (ARM64) with its appmanifest, laid out as the client keeps it.
-     * In a catalog of its own so it never shows among the packages a user picks from.
-     */
     const val STEAM_SEED_URL = "https://raw.githubusercontent.com/Droid-Deck/DroidDeck-Components/main/steam-seed.json"
     const val PROTON_SEED_ID = "proton-arm64"
 
     class Entry(
         val id: String, val name: String, val tier: Int, val version: String, val kind: String,
         val url: String, val sha256: String, val size: Long, val notes: String,
-        /** For an appimage: the icon name and menu category of its .desktop entry. */
         val icon: String, val category: String,
     )
 
@@ -40,8 +27,6 @@ object DesktopCatalog {
         return try {
             val json = JSONObject(body)
             val arr = json.getJSONArray("packages")
-            // A package built per memory page size (ARMSX2: 4K and 16K kernels) names the others
-            // under "pages"; the device's own size picks one, and the top-level file is the 4K one.
             val pageSize = try {
                 android.system.Os.sysconf(android.system.OsConstants._SC_PAGESIZE).toString()
             } catch (e: Exception) { "4096" }
@@ -62,42 +47,21 @@ object DesktopCatalog {
 
     private fun marker(context: Context, id: String) = File(LinuxRuntime.rootDir(context), ".droiddeck-pkg-$id")
 
-    /** The installed version of a package, or null. */
     fun installed(context: Context, id: String): String? =
         FileUtils.readString(marker(context, id))?.trim()?.takeIf { it.isNotEmpty() }
 
-    /**
-     * True until the ARM64 Proton has been placed once. Its appmanifest counts too, so an install
-     * the client fetched itself is never overwritten; after the first placement the client owns it
-     * and updates it like any other app, and a user who removes it is not given it back.
-     */
     fun protonSeedNeeded(context: Context): Boolean =
         installed(context, PROTON_SEED_ID) == null &&
             !File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/steamapps/appmanifest_4427310.acf").isFile
 
-    /**
-     * The desktop: KDE Plasma (tools/desktop-kde). It replaced an LXQt/labwc package of id
-     * "desktop", which a runtime may still carry; that one does not count, so the first desktop
-     * after the update installs this one over it.
-     */
     const val DESKTOP_ID = "desktop-kde"
 
-    /**
-     * The desktop package this apk installs: pinned in tools/desktop-kde/release.env and published
-     * in DroidDeck-Components, not read from the catalog, so the desktop scripts staged by this
-     * apk always get the package they were made for.
-     */
     fun desktopEntry(context: Context) = Entry(
         DESKTOP_ID, context.getString(R.string.content_linux_desktop), 1, BuildConfig.DESKTOP_KDE_TAG, "tar",
         BuildConfig.DESKTOP_KDE_URL, BuildConfig.DESKTOP_KDE_SHA256, BuildConfig.DESKTOP_KDE_SIZE, "",
         "", "",
     )
 
-    // The desktop package installed to the end: KWin is there and the marker install() writes once
-    // the whole package is extracted. An install cut short (the app killed, storage full) leaves
-    // KWin without the marker, and the next desktop installs it again. A newer pinned package also
-    // replaces the installed one, keeping the user's home and settings. The launcher is staged by
-    // the app at every session, so it cannot tell. SessionFiles uses the same test.
     fun desktopInstalled(context: Context): Boolean = desktopInstalled(LinuxRuntime.rootDir(context))
 
     fun desktopInstalled(root: File): Boolean =
@@ -110,7 +74,6 @@ object DesktopCatalog {
         return File(root, DesktopRemoval.PENDING).exists() || marker(context, DESKTOP_ID).exists()
     }
 
-    /** The installed desktop's size on disk; off the main thread. */
     fun desktopSize(context: Context): Long = DesktopRemoval.installedSize(context)
 
     fun cleanLegacy(context: Context, listener: LinuxRuntimeInstaller.ProgressListener? = null) =
@@ -119,11 +82,9 @@ object DesktopCatalog {
     fun removeDesktop(context: Context, listener: LinuxRuntimeInstaller.ProgressListener): String? =
         DesktopRemoval.remove(context, listener)
 
-    /** Downloads, verifies and installs one package. Returns null on success, else a message. */
     fun install(context: Context, entry: Entry, listener: LinuxRuntimeInstaller.ProgressListener?): String? {
         val root = LinuxRuntime.rootDir(context)
         if (!root.isDirectory) return context.getString(R.string.deskpkg_runtime_missing)
-        // Every catalog row carries a sha256; one without is refused rather than trusted.
         if (entry.sha256.isEmpty()) return context.getString(R.string.deskpkg_no_checksum, entry.name)
         val download = File(context.cacheDir, "pkg-${entry.id}.download")
         try {
@@ -141,7 +102,6 @@ object DesktopCatalog {
                 "appimage" -> {
                     val dir = File(root, "opt/appimages").apply { mkdirs() }
                     val target = File(dir, "${entry.id}.AppImage")
-                    // Some projects zip the AppImage (melonDS); the one file inside is what we want.
                     val placed = if (entry.url.endsWith(".zip", ignoreCase = true)) unzipAppImage(download, target)
                                  else download.renameTo(target)
                     if (!placed) return context.getString(R.string.deskpkg_place_failed)
@@ -152,8 +112,6 @@ object DesktopCatalog {
                         "Icon=${entry.icon}\nTerminal=false\nCategories=${entry.category};\n")
                 }
                 else -> {
-                    // Not complete until written again at the end: a reinstall cut short must not
-                    // leave the last install's marker saying it is.
                     marker(context, entry.id).delete()
                     if (!LinuxRuntimeInstaller.extract(context, download, root, listener)) return context.getString(R.string.deskpkg_extract_failed)
                 }
@@ -192,10 +150,6 @@ object DesktopCatalog {
         return false
     }
 
-    /**
-     * Removes an appimage package outright. A tar package is spread through the rootfs and is
-     * not tracked file by file; only its marker is dropped, which offers it again.
-     */
     fun remove(context: Context, entry: Entry) {
         val root = LinuxRuntime.rootDir(context)
         if (entry.kind == "appimage") {

@@ -16,7 +16,6 @@ import java.util.zip.ZipInputStream
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** Optional Decky Loader installation for the ARM64 Linux guest. */
 object DeckyManager {
     private const val TAG = "DeckyManager"
     const val REPOSITORY = "Droid-Deck/decky-loader"
@@ -25,7 +24,6 @@ object DeckyManager {
     private const val VERSION = "root/homebrew/services/.droiddeck-decky-version"
     private const val CEF_REMOTE_DEBUG_MARKER = "root/.local/share/Steam/.cef-enable-remote-debugging"
 
-    /** True while a plugin's remote binary downloads: what the UI branches on, not the stage's words. */
     @Volatile var downloadingBinary = false
         private set
 
@@ -41,7 +39,6 @@ object DeckyManager {
     fun loader(context: Context) = File(LinuxRuntime.rootDir(context), PATH)
     fun supervisorEnabled(context: Context) = File(LinuxRuntime.rootDir(context), "root/.droiddeck-decky-enabled").isFile
 
-    /** Remove the legacy install-time debugger marker unless the user opted into Decky. */
     fun syncCefMarker(context: Context) {
         val marker = File(LinuxRuntime.rootDir(context), CEF_REMOTE_DEBUG_MARKER)
         if (!supervisorEnabled(context)) {
@@ -105,7 +102,6 @@ object DeckyManager {
         } catch (e: Exception) { Log.w(TAG, "release metadata", e); ReleaseChannels(emptyList(), emptyList()) }
     }
 
-    /** Downloads to a sibling temp file and atomically renames only after size, digest and ELF checks. */
     fun install(context: Context, release: Release, progress: (String, Int) -> Unit): String? {
         if (SessionState.running) return context.getString(R.string.deckymgr_stop_session_loader)
         val target = loader(context)
@@ -124,7 +120,6 @@ object DeckyManager {
         if (!validElf(temp, release.machine)) { temp.delete(); return context.getString(R.string.deckymgr_not_elf) }
         if (SessionState.running) { temp.delete(); return context.getString(R.string.deckymgr_session_started_loader) }
         if (!temp.setExecutable(true, false)) { temp.delete(); return context.getString(R.string.deckymgr_loader_not_executable) }
-        // Decky needs Steam's local CEF debugger only when its session supervisor is enabled.
         val cefMarker = File(LinuxRuntime.rootDir(context), CEF_REMOTE_DEBUG_MARKER)
         val cefReady = !supervisorEnabled(context) || cefMarker.isFile || runCatching {
             cefMarker.parentFile?.mkdirs()
@@ -149,7 +144,6 @@ object DeckyManager {
         return null
     }
 
-    /** Imports a Decky distribution ZIP into homebrew/plugins for the next Steam session. */
     fun installPluginZip(context: Context, archive: File, progress: (String, Int) -> Unit): String? {
         if (SessionState.running) return context.getString(R.string.deckymgr_stop_session_plugin)
         if (installed(context) == null) return context.getString(R.string.deckymgr_loader_required)
@@ -216,8 +210,6 @@ object DeckyManager {
                             out.write(buffer, 0, read)
                         }
                     }
-                    // Decky distributions place plugin executables under bin/. Java's ZIP reader
-                    // does not expose Unix mode bits, so restore execution on those payload files.
                     if (relative.split('/').dropLast(1).any { it == "bin" } && !output.setExecutable(true, false)) {
                         throw IllegalStateException(context.getString(R.string.deckymgr_bundled_not_executable))
                     }

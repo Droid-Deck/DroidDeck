@@ -1,26 +1,3 @@
-//! Files from the chunk cache: the last stage of an Epic install, as a native run.
-//!
-//! The Kotlin manager's own loop does this too (`EpicDownloadManager.install`, after the chunk
-//! fetch): for every pending file, open it, and for every part read the cached chunk and write
-//! `chunk[offset..offset+size]`. This module does the same thing, in the same order, with the
-//! same wording on a missing chunk, plus what the Kotlin loop cannot do without re-reading the
-//! finished file from a slow card:
-//!
-//! - the file's SHA-1 is computed from the bytes as they are written (no extra I/O) and compared
-//!   with the manifest's, when the manifest has one; a mismatch deletes the file and fails the
-//!   run, so a bad assembly can never pass the next delta pass by size alone;
-//! - with a scratch cache — one the caller placed apart from the install directory — every chunk
-//!   is reference-counted across the pending files and deleted the moment the last file that
-//!   needs it is written and verified, so the cache never holds more than what is still owed.
-//!
-//! The cache directory itself goes at the end of a successful run, scratch or not, which is what
-//! the Kotlin loop does with `<installDir>/.chunks`. Cancellation and failure leave the cache
-//! exactly as it stands, so the next run's delta pass skips the finished files and the fetch
-//! skips the chunks still cached — on either engine.
-//!
-//! Why the cache may live elsewhere at all: an install to an SD card wrote every byte twice to
-//! the card (chunk cache, then assembled file). With the cache on internal storage the card sees
-//! each byte once, and the fetchers stop waiting on the card's write speed.
 
 use std::collections::HashMap;
 use std::fs::{self, File};
@@ -33,33 +10,25 @@ use sha1::{Digest, Sha1};
 use super::manifest::{parse_manifest, FileInfo, Manifest};
 use super::plan::resolve_cache_dir;
 
-/// Everything the JNI layer hands over for one assembly run.
 pub struct AssembleRequest {
     pub manifest_bytes: Vec<u8>,
     pub install_dir: String,
-    /// `""` = `<installDir>/.chunks` (no scratch semantics); anything else = scratch cache.
     pub chunk_cache_dir: String,
-    /// Indices into `manifest.files` of the files to assemble, in order.
     pub file_indices: Vec<usize>,
 }
 
-/// Terminal result of an assembly run.
 #[derive(Clone, Debug, Default)]
 pub struct AssembleOutcome {
     pub success: bool,
     pub cancelled: bool,
     pub error: String,
-    /// Bytes written into assembled files this run.
     pub bytes_written: u64,
     pub files_done: u64,
     pub files_total: u64,
     pub bytes_total: u64,
-    /// Chunk files deleted early because no remaining file needed them (scratch cache only).
     pub chunks_removed: u64,
 }
 
-/// The parsed plan: manifest, the files to write, and how many of them still need each chunk.
-/// Built up front so a bad index fails before anything is written.
 #[derive(Debug)]
 pub struct AssemblePlan {
     pub manifest: Manifest,
@@ -68,12 +37,9 @@ pub struct AssemblePlan {
     pub scratch_cache: bool,
     pub files: Vec<usize>,
     pub bytes_total: u64,
-    /// GUID → number of files in `files` whose parts reference it (a file counts once per GUID,
-    /// however many of its parts use the chunk).
     pub refs: HashMap<String, u32>,
 }
 
-/// Parse + plan. `Err` = nothing was written.
 pub fn build_assemble_plan(req: &AssembleRequest) -> Result<AssemblePlan, String> {
     if req.install_dir.is_empty() {
         return Err("assemble: empty install dir".to_string());
@@ -104,7 +70,6 @@ pub fn build_assemble_plan(req: &AssembleRequest) -> Result<AssemblePlan, String
     })
 }
 
-/// How many of `file_indices` reference each chunk GUID.
 pub fn chunk_refs(m: &Manifest, file_indices: &[usize]) -> HashMap<String, u32> {
     let mut refs: HashMap<String, u32> = HashMap::new();
     for &fi in file_indices {
@@ -118,7 +83,6 @@ pub fn chunk_refs(m: &Manifest, file_indices: &[usize]) -> HashMap<String, u32> 
     refs
 }
 
-/// The GUIDs a file's parts reference, each once, in first-seen order.
 fn distinct_guids(f: &FileInfo) -> Vec<String> {
     let mut out: Vec<String> = Vec::with_capacity(f.parts.len());
     for p in &f.parts {
@@ -130,19 +94,14 @@ fn distinct_guids(f: &FileInfo) -> Vec<String> {
     out
 }
 
-/// The manifest's relative path with Windows separators normalised, as the Kotlin loop does
-/// (`filename.replace("\\", "/")`).
 pub fn relative_path(f: &FileInfo) -> String {
     f.filename.replace('\\', "/")
 }
 
-/// A manifest SHA-1 that is all zero means "none" (the Kotlin delta pass treats it the same way).
 fn expected_sha1(f: &FileInfo) -> Option<&[u8; 20]> {
     f.sha1.as_ref().filter(|h| h.iter().any(|&b| b != 0))
 }
 
-/// Chunk bytes, read whole, with the last chunk kept: consecutive parts of one file usually come
-/// from the same chunk, and a file's parts are the only place a chunk is read.
 struct ChunkReader {
     cache_dir: PathBuf,
     last: Option<(String, Vec<u8>)>,
@@ -161,7 +120,6 @@ impl ChunkReader {
         Ok(self.last.as_ref().map(|(_, d)| d.as_slice()).unwrap_or(&[]))
     }
 
-    /// Drop the kept copy of a chunk that is about to be deleted.
     fn forget(&mut self, guid: &str) {
         if self.last.as_ref().map(|(g, _)| g.as_str()) == Some(guid) {
             self.last = None;
@@ -169,8 +127,6 @@ impl ChunkReader {
     }
 }
 
-/// Write one file from the cache. Returns the bytes written. The output is removed on any error,
-/// so a file only ever exists complete (and, when the manifest hashes it, verified) or not at all.
 fn write_file(reader: &mut ChunkReader, f: &FileInfo, out_path: &Path) -> Result<u64, String> {
     let rel_path = relative_path(f);
     if let Some(parent) = out_path.parent() {
@@ -219,8 +175,6 @@ fn write_file(reader: &mut ChunkReader, f: &FileInfo, out_path: &Path) -> Result
     result
 }
 
-/// Run the plan. `progress(bytes_done, bytes_total, files_done, files_total)` fires after every
-/// file; `log` receives the start line, failures and the terminal summary.
 pub fn run_assemble(
     plan: &AssemblePlan,
     cancel: &AtomicBool,
@@ -270,9 +224,6 @@ pub fn run_assemble(
                 return outcome;
             }
         }
-        // Scratch cache: this file was the last user of a chunk → the chunk goes now, not at the
-        // end, so the cache holds only what is still owed to files not yet written. Released
-        // before the progress event, so "file done" also means "its chunks are freed".
         if plan.scratch_cache {
             for guid in distinct_guids(f) {
                 let Some(count) = refs.get_mut(&guid) else {
@@ -297,8 +248,6 @@ pub fn run_assemble(
     }
 
     outcome.success = true;
-    // Done with the cache: remove it whole (a scratch cache is already down to the chunks no
-    // pending file referenced; the default one is what the Kotlin loop deleted at this point).
     match fs::remove_dir_all(&plan.cache_dir) {
         Ok(()) => log(&format!("cache removed {}", plan.cache_dir.display())),
         Err(e) => log(&format!(
@@ -337,7 +286,6 @@ mod tests {
         out
     }
 
-    /// file 0 = A[0..100] ++ B[10..60]; file 1 = A[100..300]. A is shared, B is file 0's alone.
     fn expected_files() -> (Vec<u8>, Vec<u8>) {
         let (a, b) = (chunk_a(), chunk_b());
         let mut f0 = a[0..100].to_vec();
@@ -426,7 +374,6 @@ mod tests {
         fill_cache(&cache);
         let plan = build_assemble_plan(&request(&install, cache.to_str().unwrap())).unwrap();
         assert!(plan.scratch_cache);
-        // After file 0: B (only file 0 used it) must be gone, A (file 1 still needs it) must stay.
         let seen = Mutex::new(Vec::new());
         let progress = |_: u64, _: u64, files_done: u64, _: u64| {
             if files_done == 1 {

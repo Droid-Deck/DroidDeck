@@ -26,7 +26,7 @@ index f00b62c..cb3b9c6 100644
  
  				if (w && w->xwayland().id == ev.xmap.window)
 +				{
-+					// Wine flips override-redirect while unmapped and the flip itself sends no event.
++
 +					w->xwayland().a.override_redirect = ev.xmap.override_redirect;
  					map_win(ctx, ev.xmap.window, ev.xmap.serial);
 +				}

@@ -1,4 +1,3 @@
-// Upstream: termux/termux-app v0.118.0, terminal-emulator/src/main/jni/termux.c.
 // Licensed under the repository's GPL-3.0 license (see LICENSE).
 #include <dirent.h>
 #include <fcntl.h>
@@ -51,14 +50,12 @@ static int create_subprocess(JNIEnv* env,
         return throw_runtime_exception(env, "Cannot grantpt()/unlockpt()/ptsname_r() on /dev/ptmx");
     }
 
-    // Enable UTF-8 mode and disable flow control to prevent Ctrl+S from locking up the display.
     struct termios tios;
     tcgetattr(ptm, &tios);
     tios.c_iflag |= IUTF8;
     tios.c_iflag &= ~(IXON | IXOFF);
     tcsetattr(ptm, TCSANOW, &tios);
 
-    /** Set initial winsize. */
     struct winsize sz = { .ws_row = (unsigned short) rows, .ws_col = (unsigned short) columns };
     ioctl(ptm, TIOCSWINSZ, &sz);
 
@@ -69,7 +66,6 @@ static int create_subprocess(JNIEnv* env,
         *pProcessId = (int) pid;
         return ptm;
     } else {
-        // Clear signals which the Android java process may have blocked:
         sigset_t signals_to_unblock;
         sigfillset(&signals_to_unblock);
         sigprocmask(SIG_UNBLOCK, &signals_to_unblock, 0);
@@ -100,13 +96,11 @@ static int create_subprocess(JNIEnv* env,
 
         if (chdir(cwd) != 0) {
             char* error_message;
-            // No need to free asprintf()-allocated memory since doing execvp() or exit() below.
             if (asprintf(&error_message, "chdir(\"%s\")", cwd) == -1) error_message = "chdir()";
             perror(error_message);
             fflush(stderr);
         }
         execvp(cmd, argv);
-        // Show terminal output about failing exec() call:
         char* error_message;
         if (asprintf(&error_message, "exec(\"%s\")", cmd) == -1) error_message = "exec()";
         perror(error_message);
@@ -207,7 +201,6 @@ JNIEXPORT jint JNICALL Java_com_termux_terminal_JNI_waitFor(JNIEnv* TERMUX_UNUSE
     } else if (WIFSIGNALED(status)) {
         return -WTERMSIG(status);
     } else {
-        // Should never happen - waitpid(2) says "One of the first three macros will evaluate to a non-zero (true) value".
         return 0;
     }
 }

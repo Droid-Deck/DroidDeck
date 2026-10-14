@@ -113,7 +113,6 @@ def method(obj, slot, result, *args):
 
 
 def probe(steam_root, ids):
-    # Slots belong to Valve's SteamClient020, SteamUser021 and STEAMAPPS_INTERFACE_VERSION008.
     library = C.CDLL(str(Path(steam_root) / "steamrtarm64/steamclient.so"))
     library.CreateInterface.argtypes = [C.c_char_p, C.c_void_p]
     library.CreateInterface.restype = C.c_void_p
@@ -185,12 +184,6 @@ def watch(steam_root, listing):
     candidates, sources = {}, {}
     next_lookup = 0
     last_status = None
-    # The probe is a fresh python that loads steamclient.so, seconds of CPU under proot. Ownership
-    # only moves with a purchase or a new match, so it runs when the matches or their sources
-    # change, after a failed probe, and otherwise every five minutes - not on every 30 s beat.
-    # A failed probe is retried on a doubling delay up to those five minutes rather than on every
-    # beat (a client that is not logged on fails it for as long as it stays that way), and none
-    # starts while a game is running: the answer can wait, the game's cores cannot.
     probed, next_probe, failures = None, 0, 0
     pending, requested = [], []
     while True:

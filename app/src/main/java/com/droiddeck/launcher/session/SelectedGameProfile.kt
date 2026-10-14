@@ -16,7 +16,6 @@ data class SelectedGameProfile(
     val componentFiles: Map<String, String>,
     val environmentOverrides: Int,
     val windowsComponentNames: List<String>,
-    /** Start without Steam (GameEnvironment.NO_STEAM) is on for this game. */
     val startWithoutSteam: Boolean = false,
 ) {
     val hasOverrides: Boolean
@@ -53,7 +52,6 @@ data class SelectedGameProfile(
                     inherited = override == null,
                 )
             }
-            // Start without Steam is a switch of its own on the Games page, listed by name.
             val otherEnvironment = environment.games[game.profileKey].orEmpty().keys - FexPreset.environmentKeys -
                 GameEnvironment.NO_STEAM
             return SelectedGameProfile(

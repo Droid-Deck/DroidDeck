@@ -12,13 +12,6 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
 
-/**
- * DroidDeck's published builds. CI turns GitHub Releases into one static catalog in DroidDeck-CI;
- * the app consumes that contract instead of inferring channels from tags and release-note prose.
- *
- * [Channel.NIGHTLY] is intentionally kept as the internal enum/pref value for upgrades from older
- * DroidDeck versions. The channel is presented to users as Preview.
- */
 object AppUpdates {
     private const val REPO = "Droid-Deck/DroidDeck"
     private const val CI_REPO = "Droid-Deck/DroidDeck-CI"
@@ -164,7 +157,6 @@ object AppUpdates {
             r.commit.startsWith(me.commit, ignoreCase = true)
     }
 
-    /** Recent Preview changes relative to a CI-installed commit, when its position is known. */
     fun previewHistory(catalog: Catalog, me: Installed = installed()): PreviewHistory? {
         if (!me.ciBuild || catalog.recentPreviews.isEmpty()) return null
         val stable = catalog.stable
@@ -195,14 +187,12 @@ object AppUpdates {
             (installed.length < 40 && published.startsWith(installed, ignoreCase = true))
     }
 
-    /** Why Android cannot install this published build over [me], before downloading anything. */
     fun installBlock(r: Release, me: Installed = installed()): InstallBlock? = when {
         r.apk == null -> InstallBlock(R.string.upd_block_no_apk)
         r.apk.versionCode < me.versionCode -> InstallBlock(R.string.upd_block_version_code, r.apk.versionCode, me.versionCode)
         else -> null
     }
 
-    /** Why Android would refuse a build, as a line for the user. */
     class InstallBlock(@androidx.annotation.StringRes val text: Int, private vararg val args: Any) {
         fun message(context: Context): String = context.getString(text, *args)
     }
@@ -222,7 +212,6 @@ object AppUpdates {
     }
 
     fun setFollow(context: Context, follow: Follow) {
-        // Keep "nightly" on disk so an older DroidDeck still understands the preference after rollback.
         val value = if (follow.channel == Channel.TEST) "test:${follow.pr}"
         else follow.channel.name.lowercase()
         prefs(context).edit().putString(KEY_CHANNEL, value).apply()
@@ -245,11 +234,9 @@ object AppUpdates {
         return runCatching { readCachedCatalog(JSONObject(raw)) }.getOrNull()
     }
 
-    /** One static request, rather than several unauthenticated GitHub API requests. */
     fun refresh(context: Context): Catalog {
         val checkedAt = System.currentTimeMillis()
         val published = JSONObject(get(context, "$CATALOG_URL?checked=$checkedAt"))
-        // Its checks say why in English; the user gets that inside a sentence in the app's language.
         val catalog = try {
             readPublishedCatalog(published, context.packageName, checkedAt)
         } catch (e: IOException) {

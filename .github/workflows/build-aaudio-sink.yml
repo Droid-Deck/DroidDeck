@@ -1,7 +1,5 @@
 name: Build AAudio sink module
 
-# A quick check of tools/aaudio-sink on its own; the APK build compiles the same module into the
-# audio bundle. Runs on pushes that touch the module.
 on:
   push:
     paths:

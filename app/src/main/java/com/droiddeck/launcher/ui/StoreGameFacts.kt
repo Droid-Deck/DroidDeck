@@ -69,13 +69,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-// A store game's facts under its hero: who made it and when, from the store; the Metacritic score
-// and HowLongToBeat's times, looked up elsewhere by name. The store's facts are there at once; the
-// looked-up ones hold their place while they come and step out if there is nothing to show.
 
 internal class GameScores(val metacritic: Lookup<GameFacts.Metacritic>, val hltb: Lookup<GameFacts.Hltb>)
 
-/** Both lookups at once and off the main thread, each landing on its own; what memory already has shows without a wait. */
 @Composable
 internal fun rememberGameScores(title: String?): GameScores {
     val ctx = LocalContext.current.applicationContext
@@ -89,16 +85,10 @@ internal fun rememberGameScores(title: String?): GameScores {
     return GameScores(metacritic, hltb)
 }
 
-/**
- * The facts: who made it, when, and what critics made of it on the first row; how long it takes,
- * across the page, on the second. A looked-up tile holds its place while it asks and steps out if
- * the site does not have the game; nothing is drawn when there is nothing to say.
- */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun StoreGameFacts(developer: String, publisher: String, releaseDate: String, scores: GameScores, modifier: Modifier = Modifier) {
     val released = remember(releaseDate) { GameFacts.releaseLabel(releaseDate) }
-    // A studio that publishes itself is named once.
     val publishedBy = publisher.takeUnless { it.isBlank() || it.trim().equals(developer.trim(), ignoreCase = true) }
     val firstRow = developer.isNotBlank() || publishedBy != null || released != null || scores.metacritic != Lookup.None
     if (!firstRow && scores.hltb == Lookup.None) return
@@ -123,10 +113,8 @@ internal fun StoreGameFacts(developer: String, publisher: String, releaseDate: S
     }
 }
 
-/** A looked-up tile: in from the start (holding its place while it asks), out with a fade when there was nothing. */
 @Composable
 private fun <T> Looked(lookup: Lookup<T>, exit: ExitTransition, content: @Composable (Lookup<T>) -> Unit) {
-    // The last answer worth drawing, so the tile does not blank as it leaves.
     var shown by remember { mutableStateOf(lookup) }
     if (lookup != Lookup.None) shown = lookup
     AnimatedVisibility(visible = lookup != Lookup.None, enter = fadeIn(), exit = fadeOut() + exit) { content(shown) }
@@ -135,10 +123,6 @@ private fun <T> Looked(lookup: Lookup<T>, exit: ExitTransition, content: @Compos
 private val FactShape = RoundedCornerShape(12.dp)
 private val ValueHeight = 24.dp
 
-/**
- * A label over its value; [fill] takes the row's whole width, for a value laid out across it. With
- * a [link] it is a control like any other on the page: focus, hover and A or a tap open the page.
- */
 @Composable
 private fun FactTile(label: String, fill: Boolean = false, link: String? = null, value: @Composable () -> Unit) {
     val pal = LocalPalette.current
@@ -166,7 +150,6 @@ private fun FactTile(label: String, fill: Boolean = false, link: String? = null,
 private fun FactText(text: String) =
     Text(text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
 
-/** Metacritic's own bands: green from 75, yellow from 50, red below. */
 internal fun metacriticColour(score: Int): Color = when {
     score >= 75 -> Color(0xFF66CC33)
     score >= 50 -> Color(0xFFFFCC33)
@@ -180,7 +163,6 @@ private fun MetacriticBadge(score: Int) {
     }
 }
 
-/** Each kind of run HowLongToBeat has times for, sharing the tile's width: the hours in full, what they are for beside them. */
 @Composable
 private fun HltbTimes(t: GameFacts.Hltb) {
     val colors = MaterialTheme.colorScheme
@@ -201,7 +183,6 @@ private fun HltbTimes(t: GameFacts.Hltb) {
     }
 }
 
-/** Where a value will be, breathing while it is asked for. */
 @Composable
 private fun Placeholder(width: Dp) {
     val pulse by rememberInfiniteTransition(label = "fact").animateFloat(
@@ -210,7 +191,6 @@ private fun Placeholder(width: Dp) {
     Box(Modifier.width(width).height(16.dp).alpha(pulse).clip(RoundedCornerShape(5.dp)).background(LocalPalette.current.line2))
 }
 
-// Previews: every state the row can be in, at a TV pane's width and a narrow one.
 
 private val previewScores = GameScores(
     Lookup.Found(GameFacts.Metacritic(93, "https://www.metacritic.com/game/the-witcher-3-wild-hunt/")),
@@ -272,7 +252,6 @@ private fun FactsPaperPreview() = FactsPreview(theme = Themes.PAPER) {
     StoreGameFacts("CD PROJEKT RED", "CD PROJEKT RED", "2015-05-19T00:00:00+02:00", previewScores)
 }
 
-// The real hero reads the stores' live state, so this stands one in to show where the row sits.
 @Preview(name = "Game page, facts in place", widthDp = 800, heightDp = 520)
 @Composable
 private fun FactsOnPagePreview() = FactsPreview {

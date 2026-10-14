@@ -21,7 +21,6 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-// Render the component without starting runtime services or installing the app crash handler.
 @Config(sdk = [28], application = android.app.Application::class)
 class PresetScaleTest {
     @get:Rule val compose = createRobolectricComposeRule()
@@ -39,7 +38,6 @@ class PresetScaleTest {
             }
         }
         val originalWidth = compose.onNodeWithTag("page-size").fetchSemanticsNode().boundsInRoot.width
-        // Notify changes driven by the test before asking Compose to become idle again.
         compose.runOnIdle {
             scale.intValue = 75
             Snapshot.sendApplyNotifications()
