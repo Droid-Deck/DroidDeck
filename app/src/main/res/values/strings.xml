@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="steamvr_recovery_title">SteamVR graphics stopped</string>
+    <string name="steamvr_recovery_countdown">DroidDeck will restart in %1$d seconds to reset graphics and reopen SteamVR. Your running game will close; unsaved progress cannot be restored.</string>
+    <string name="steamvr_recovery_repeated">The graphics fault returned after a recent restart. Automatic recovery is paused to prevent a loop. Restarting will close your game; unsaved progress cannot be restored.</string>
+    <string name="steamvr_recovery_restart">Restart now</string>
+    <string name="steamvr_recovery_cancel">Keep open</string>
+    <string name="steamvr_recovery_restarting">Resetting graphics and reopening SteamVR…</string>
+    <string name="steamvr_recovery_failed">DroidDeck could not restart automatically. Close the app completely, then reopen it.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>First run downloads Steam. This may take a few minutes.</item>

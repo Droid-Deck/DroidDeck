@@ -261,6 +261,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var steamVrStatus by mutableStateOf<SteamVr.Status?>(null)
     private var steamVrSwitchedPicture by mutableStateOf(false)
     private var steamVrSeenRunning = false
+    private val steamVrRecovery by lazy { com.droiddeck.launcher.gpu.SteamVrRecovery(this) {
+        resumed && !ended && SessionState.running && !isInPictureInPictureMode
+    } }
     private var activeCardboard = Cardboard.OFF
     private var glasses by mutableStateOf(Glasses.state.value)
     private var glassesSettings by mutableStateOf(Glasses.settings.value)
@@ -368,6 +371,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (intent.action == SessionService.ACTION_AGENT_START) {
             SessionEvents.record("agent.start_requested", mapOf("mode" to SessionState.mode))
         }
+        com.droiddeck.launcher.gpu.SteamVrHealth.begin(this, SessionState.sessionId)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         if (!SessionState.running) {
             SessionState.fpsLimit = SessionPrefs.fpsLimit(
@@ -452,6 +456,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         setContentView(root)
         glassesScope.launch { Glasses.state.collect { glasses = it; onGlassesChanged() } }
         glassesScope.launch { Glasses.settings.collect { glassesSettings = it; onGlassesChanged() } }
+        glassesScope.launch {
+            while (true) {
+                if (SessionState.running && SessionState.mode == SessionService.MODE_STEAM &&
+                    (SessionState.steamVr || steamVrStatus == SteamVr.Status.RUNNING)) {
+                    val lost = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        com.droiddeck.launcher.gpu.SteamVrHealth.deviceLost()
+                    }
+                    if (lost) steamVrRecovery.detected()
+                }
+                kotlinx.coroutines.delay(2000)
+            }
+        }
         pip = com.droiddeck.launcher.session.SessionPipController(this, ::pipBounds, ::showPipUi)
         surfaceView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> pip.refresh() }
         pip.refresh()
@@ -531,7 +547,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         releaseDrawerDirection()
                     }
                 }
-                val glassesVr = glassesOutputActive && glasses.canControl
+                val glassesVr = glasses.usable && glasses.canControl
                 val steamVrRequested = SessionState.steamVr
                 LaunchedEffect(cardboard.enabled, steamVrSwitchedPicture, glassesVr, steamVrRequested) {
                     while (cardboard.enabled || steamVrSwitchedPicture || glassesVr || steamVrRequested) {
@@ -2375,7 +2391,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun steamVrAction(action: String) {
         if (action == "stop") SessionState.steamVr = false
-        if (glasses.present && glassesSettings.gameOnGlasses) {
+        if (glasses.present) {
             if (action == "start" && glassesSettings.auto3d && glasses.can3d && !glasses.sbs) {
                 glasses3dForVr = true
                 Glasses.set3dForVr(true)
@@ -2422,9 +2438,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val was = steamVrStatus
         steamVrStatus = now
         autoStartSteamVr(now)
-        if (glassesOutputActive) {
-            onGlassesSteamVr(now)
-            if ((was == SteamVr.Status.RUNNING) != (now == SteamVr.Status.RUNNING)) applyCardboard(cardboard)
+        if ((was == SteamVr.Status.RUNNING) != (now == SteamVr.Status.RUNNING)) applyCardboard(cardboard)
+        if (glasses.present) onGlassesSteamVr(now)
+        if (GlassesRendering.usesGlasses(glasses, glassesScreen != null, now == SteamVr.Status.RUNNING)) {
             return
         }
         if (now == SteamVr.Status.RUNNING && cardboard.enabled && !steamVrSwitchedPicture &&
@@ -2476,9 +2492,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     )
 
     private fun updateHeadTracker() {
-        val onGlasses = glassesScreen != null
+        val onGlasses = GlassesRendering.usesGlasses(glasses, glassesScreen != null,
+            steamVrStatus == SteamVr.Status.RUNNING)
         val c = activeCardboard
-        val want = !ended && (resumed || (onGlasses && started)) && c.enabled && c.headTracking
+        val want = !ended && (resumed || (glassesScreen != null && started)) && c.enabled && c.headTracking
         val current = headTracker
         if (current != null && (!want || current.usesGlasses != onGlasses)) {
             current.stop()
@@ -2673,6 +2690,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun onDestroy() {
+        steamVrRecovery.close()
         uiHandler.removeCallbacks(steamTouchRetry)
         if (runtimeRemovalBlocked) { super.onDestroy(); return }
         watching = false

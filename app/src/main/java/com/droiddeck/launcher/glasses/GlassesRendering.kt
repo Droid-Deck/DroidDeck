@@ -6,6 +6,9 @@ import com.droiddeck.launcher.gpu.Cardboard
 internal object GlassesRendering {
     enum class Picture { FLAT, VIRTUAL_SCREEN, STEREO }
 
+    fun usesGlasses(state: GlassesState, outputActive: Boolean, steamVrRunning: Boolean): Boolean =
+        outputActive || (steamVrRunning && state.usable)
+
     fun picture(settings: GlassesSettings, stereoDisplay: Boolean, steamVrRunning: Boolean): Picture =
         when (settings.picture3d) {
             GlassesSettings.PICTURE_SCREEN -> Picture.VIRTUAL_SCREEN
@@ -24,7 +27,18 @@ internal object GlassesRendering {
         outputActive: Boolean,
         steamVrRunning: Boolean,
     ): Cardboard {
-        if (!outputActive) return base
+        // Mirror output still uses the glasses' picture and sensors during VR.
+        if (!usesGlasses(state, outputActive, steamVrRunning)) {
+            // SteamVR uses the renderer's enabled flag as headset proximity.
+            // A flat phone preview still needs an active HMD and one SBS eye;
+            // otherwise SteamVR enters standby and leaves a frozen frame.
+            return if (steamVrRunning && !base.enabled) base.copy(
+                enabled = true,
+                source = Cardboard.SOURCE_SBS,
+                viewer = Cardboard.Viewer.NONE.id,
+                mono = true,
+            ) else base
+        }
         val picture = picture(settings, state.sbs, steamVrRunning)
         if (picture == Picture.FLAT) return Cardboard.OFF
         return Cardboard(

@@ -66,6 +66,52 @@ class GlassesRenderingTest {
         assertSame(phone, GlassesRendering.cardboard(phone, settings, ultra, false, false))
     }
 
+    @Test fun steamVrOnPhoneKeepsHeadsetActiveWithoutEnablingTheSavedCardboardSetting() {
+        val settings = GlassesSettings(gameOnGlasses = false, headTracking = false,
+            picture3d = GlassesSettings.PICTURE_SCREEN)
+        for (state in listOf(ultra.copy(displayId = -1), GlassesState())) {
+            val preview = GlassesRendering.cardboard(base, settings, state, false, true)
+            assertTrue(preview.enabled) // Published as headset proximity, preventing standby.
+            assertTrue(preview.mono)
+            assertEquals(Cardboard.SOURCE_SBS, preview.source)
+            assertEquals(Cardboard.Viewer.NONE.id, preview.viewer)
+            assertTrue(preview.headTracking) // Phone preference, not dormant glasses settings.
+            assertFalse(base.enabled)
+            assertSame(base, GlassesRendering.cardboard(base, settings, state, false, false))
+        }
+        val noTracking = base.copy(headTracking = false)
+        assertFalse(GlassesRendering.cardboard(noTracking, settings, GlassesState(), false, true).headTracking)
+    }
+
+    @Test fun steamVrKeepsAnEnabledPhoneViewerAndSwitchesBackToGlassesRenderingOnHandoff() {
+        val phone = base.copy(enabled = true, source = Cardboard.SOURCE_SBS)
+        val settings = GlassesSettings()
+        assertSame(phone, GlassesRendering.cardboard(phone, settings, GlassesState(), false, true))
+        val glasses = GlassesRendering.cardboard(base, settings, ultra.copy(sbs = true), true, true)
+        assertTrue(glasses.enabled)
+        assertFalse(glasses.mono)
+        assertEquals(Cardboard.Viewer.VITURE.id, glasses.viewer)
+        assertEquals(Cardboard.SOURCE_SBS, glasses.source)
+    }
+
+    @Test fun steamVrMirroringKeepsTheSameGlassesPictureAndSensorSource() {
+        for (stereo in listOf(false, true)) {
+            val state = ultra.copy(sbs = stereo)
+            for (picture in listOf(GlassesSettings.PICTURE_AUTO, GlassesSettings.PICTURE_SCREEN, GlassesSettings.PICTURE_SBS)) {
+                val settings = GlassesSettings(picture3d = picture)
+                val dedicated = GlassesRendering.cardboard(base, settings, state, true, true)
+                val mirrored = GlassesRendering.cardboard(base, settings.copy(gameOnGlasses = false), state, false, true)
+                assertEquals(dedicated, mirrored)
+                assertTrue(mirrored.enabled)
+                assertTrue(mirrored.headTracking)
+                assertTrue(GlassesRendering.usesGlasses(state, false, true))
+            }
+        }
+        assertFalse(GlassesRendering.usesGlasses(ultra, false, false))
+        assertFalse(GlassesRendering.usesGlasses(GlassesState(), false, true))
+        assertTrue(GlassesRendering.usesGlasses(ultra, true, false))
+    }
+
     @Test fun missingUsbControlOnlyDisablesTrackingNotScreenSize() {
         val settings = GlassesSettings(picture3d = GlassesSettings.PICTURE_SCREEN, screenWidthDm = 35)
         val projection = render(settings, ultra.copy(connected = false))
