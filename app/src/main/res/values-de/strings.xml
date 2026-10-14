@@ -1924,7 +1924,8 @@
     <string name="stores_sort_recently_installed">Zuletzt installiert</string>
     <string name="stores_sort_title_asc">Titel A–Z</string>
     <string name="stores_sort_title_desc">Titel Z–A</string>
-    <string name="stores_sort_size">Größe</string>
+    <string name="stores_sort_size_desc">Größe: größte</string>
+    <string name="stores_sort_size_asc">Größe: kleinste</string>
     <string name="stores_sort_release_date">Erscheinungsdatum</string>
     <string name="stores_view_list">Listenansicht</string>
     <string name="stores_view_cards">Kartenansicht</string>

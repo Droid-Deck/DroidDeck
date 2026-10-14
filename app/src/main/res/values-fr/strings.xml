@@ -1953,7 +1953,8 @@
     <string name="stores_sort_recently_installed">Installés récemment</string>
     <string name="stores_sort_title_asc">Titre A–Z</string>
     <string name="stores_sort_title_desc">Titre Z–A</string>
-    <string name="stores_sort_size">Taille</string>
+    <string name="stores_sort_size_desc">Taille : plus grand</string>
+    <string name="stores_sort_size_asc">Taille : plus petit</string>
     <string name="stores_sort_release_date">Date de sortie</string>
     <string name="stores_view_list">Vue liste</string>
     <string name="stores_view_cards">Vue cartes</string>

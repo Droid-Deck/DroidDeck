@@ -1911,7 +1911,8 @@
     <string name="stores_sort_recently_installed">最近インストール</string>
     <string name="stores_sort_title_asc">タイトル A–Z</string>
     <string name="stores_sort_title_desc">タイトル Z–A</string>
-    <string name="stores_sort_size">サイズ</string>
+    <string name="stores_sort_size_desc">サイズ: 大きい順</string>
+    <string name="stores_sort_size_asc">サイズ: 小さい順</string>
     <string name="stores_sort_release_date">リリース日</string>
     <string name="stores_view_list">リスト表示</string>
     <string name="stores_view_cards">カード表示</string>

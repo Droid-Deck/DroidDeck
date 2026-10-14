@@ -1924,7 +1924,8 @@
     <string name="stores_sort_recently_installed">Son yüklenen</string>
     <string name="stores_sort_title_asc">Başlık A–Z</string>
     <string name="stores_sort_title_desc">Başlık Z–A</string>
-    <string name="stores_sort_size">Boyut</string>
+    <string name="stores_sort_size_desc">Boyut: en büyük</string>
+    <string name="stores_sort_size_asc">Boyut: en küçük</string>
     <string name="stores_sort_release_date">Çıkış tarihi</string>
     <string name="stores_view_list">Liste görünümü</string>
     <string name="stores_view_cards">Kart görünümü</string>

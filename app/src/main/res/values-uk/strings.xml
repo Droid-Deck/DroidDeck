@@ -1966,7 +1966,8 @@
     <string name="stores_sort_recently_installed">Нещодавно встановлені</string>
     <string name="stores_sort_title_asc">Назва А–Я</string>
     <string name="stores_sort_title_desc">Назва Я–А</string>
-    <string name="stores_sort_size">Розмір</string>
+    <string name="stores_sort_size_desc">Розмір: найбільший</string>
+    <string name="stores_sort_size_asc">Розмір: найменший</string>
     <string name="stores_sort_release_date">Дата виходу</string>
     <string name="stores_view_list">Вигляд списком</string>
     <string name="stores_view_cards">Вигляд картками</string>

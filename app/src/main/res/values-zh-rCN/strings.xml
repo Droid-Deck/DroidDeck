@@ -1911,7 +1911,8 @@
     <string name="stores_sort_recently_installed">最近安装</string>
     <string name="stores_sort_title_asc">标题 A–Z</string>
     <string name="stores_sort_title_desc">标题 Z–A</string>
-    <string name="stores_sort_size">大小</string>
+    <string name="stores_sort_size_desc">大小: 从大到小</string>
+    <string name="stores_sort_size_asc">大小: 从小到大</string>
     <string name="stores_sort_release_date">发行日期</string>
     <string name="stores_view_list">列表视图</string>
     <string name="stores_view_cards">卡片视图</string>

@@ -1903,7 +1903,8 @@
     <string name="stores_sort_recently_installed">Baru dipasang</string>
     <string name="stores_sort_title_asc">Judul A–Z</string>
     <string name="stores_sort_title_desc">Judul Z–A</string>
-    <string name="stores_sort_size">Ukuran</string>
+    <string name="stores_sort_size_desc">Ukuran: terbesar</string>
+    <string name="stores_sort_size_asc">Ukuran: terkecil</string>
     <string name="stores_sort_release_date">Tanggal rilis</string>
     <string name="stores_view_list">Tampilan daftar</string>
     <string name="stores_view_cards">Tampilan kartu</string>

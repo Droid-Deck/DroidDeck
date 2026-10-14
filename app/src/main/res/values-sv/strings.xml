@@ -1924,7 +1924,8 @@
     <string name="stores_sort_recently_installed">Senast installerade</string>
     <string name="stores_sort_title_asc">Titel A–Ö</string>
     <string name="stores_sort_title_desc">Titel Ö–A</string>
-    <string name="stores_sort_size">Storlek</string>
+    <string name="stores_sort_size_desc">Storlek: störst</string>
+    <string name="stores_sort_size_asc">Storlek: minst</string>
     <string name="stores_sort_release_date">Utgivningsdatum</string>
     <string name="stores_view_list">Listvy</string>
     <string name="stores_view_cards">Kortvy</string>

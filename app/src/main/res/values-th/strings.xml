@@ -1903,7 +1903,8 @@
     <string name="stores_sort_recently_installed">เพิ่งติดตั้ง</string>
     <string name="stores_sort_title_asc">ชื่อ A–Z</string>
     <string name="stores_sort_title_desc">ชื่อ Z–A</string>
-    <string name="stores_sort_size">ขนาด</string>
+    <string name="stores_sort_size_desc">ขนาด: ใหญ่สุด</string>
+    <string name="stores_sort_size_asc">ขนาด: เล็กสุด</string>
     <string name="stores_sort_release_date">วันวางจำหน่าย</string>
     <string name="stores_view_list">มุมมองรายการ</string>
     <string name="stores_view_cards">มุมมองการ์ด</string>

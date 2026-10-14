@@ -1974,7 +1974,8 @@
     <string name="stores_sort_recently_installed">Недавно установленные</string>
     <string name="stores_sort_title_asc">Название А–Я</string>
     <string name="stores_sort_title_desc">Название Я–А</string>
-    <string name="stores_sort_size">Размер</string>
+    <string name="stores_sort_size_desc">Размер: по убыванию</string>
+    <string name="stores_sort_size_asc">Размер: по возрастанию</string>
     <string name="stores_sort_release_date">Дата выхода</string>
     <string name="stores_view_list">Вид списком</string>
     <string name="stores_view_cards">Вид карточками</string>

@@ -1924,7 +1924,8 @@
     <string name="stores_sort_recently_installed">Nemrég telepített</string>
     <string name="stores_sort_title_asc">Cím A–Z</string>
     <string name="stores_sort_title_desc">Cím Z–A</string>
-    <string name="stores_sort_size">Méret</string>
+    <string name="stores_sort_size_desc">Méret: legnagyobb</string>
+    <string name="stores_sort_size_asc">Méret: legkisebb</string>
     <string name="stores_sort_release_date">Megjelenés dátuma</string>
     <string name="stores_view_list">Listanézet</string>
     <string name="stores_view_cards">Kártyanézet</string>

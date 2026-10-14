@@ -118,7 +118,7 @@ object SessionPrefs {
         prefs(context).edit().putString("storesView", if (view in STORES_VIEWS) view else STORES_VIEWS.first()).apply()
     }
 
-    val STORES_SORTS = listOf("lastPlayed", "recentlyInstalled", "titleAsc", "titleDesc", "sizeDesc", "releaseDateDesc")
+    val STORES_SORTS = listOf("lastPlayed", "recentlyInstalled", "titleAsc", "titleDesc", "sizeDesc", "sizeAsc", "releaseDateDesc")
     val STORES_VIEWS = listOf("cards", "list")
 
     const val STORES_OPEN_LIBRARY = "library"

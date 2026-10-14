@@ -1903,7 +1903,8 @@
     <string name="stores_sort_recently_installed">Cài gần đây</string>
     <string name="stores_sort_title_asc">Tên A–Z</string>
     <string name="stores_sort_title_desc">Tên Z–A</string>
-    <string name="stores_sort_size">Kích thước</string>
+    <string name="stores_sort_size_desc">Kích thước: lớn nhất</string>
+    <string name="stores_sort_size_asc">Kích thước: nhỏ nhất</string>
     <string name="stores_sort_release_date">Ngày phát hành</string>
     <string name="stores_view_list">Chế độ danh sách</string>
     <string name="stores_view_cards">Chế độ thẻ</string>

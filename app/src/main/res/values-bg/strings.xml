@@ -1924,7 +1924,8 @@
     <string name="stores_sort_recently_installed">Инсталирани наскоро</string>
     <string name="stores_sort_title_asc">Заглавие А–Я</string>
     <string name="stores_sort_title_desc">Заглавие Я–А</string>
-    <string name="stores_sort_size">Размер</string>
+    <string name="stores_sort_size_desc">Размер: най-голям</string>
+    <string name="stores_sort_size_asc">Размер: най-малък</string>
     <string name="stores_sort_release_date">Дата на издаване</string>
     <string name="stores_view_list">Изглед на списък</string>
     <string name="stores_view_cards">Изглед с карти</string>

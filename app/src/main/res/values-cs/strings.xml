@@ -1966,7 +1966,8 @@
     <string name="stores_sort_recently_installed">Nedávno nainstalované</string>
     <string name="stores_sort_title_asc">Název A–Z</string>
     <string name="stores_sort_title_desc">Název Z–A</string>
-    <string name="stores_sort_size">Velikost</string>
+    <string name="stores_sort_size_desc">Velikost: největší</string>
+    <string name="stores_sort_size_asc">Velikost: nejmenší</string>
     <string name="stores_sort_release_date">Datum vydání</string>
     <string name="stores_view_list">Zobrazení seznamu</string>
     <string name="stores_view_cards">Zobrazení karet</string>

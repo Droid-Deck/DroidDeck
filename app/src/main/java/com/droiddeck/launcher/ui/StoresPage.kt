@@ -987,7 +987,8 @@ private fun SortButton(s: FrontEndState, a: FrontEndActions) {
                             "recentlyInstalled" -> stringResource(R.string.stores_sort_recently_installed)
                             "titleAsc" -> stringResource(R.string.stores_sort_title_asc)
                             "titleDesc" -> stringResource(R.string.stores_sort_title_desc)
-                            "sizeDesc" -> stringResource(R.string.stores_sort_size)
+                            "sizeDesc" -> stringResource(R.string.stores_sort_size_desc)
+                            "sizeAsc" -> stringResource(R.string.stores_sort_size_asc)
                             else -> stringResource(R.string.stores_sort_release_date)
                         }
                         StepChoice(

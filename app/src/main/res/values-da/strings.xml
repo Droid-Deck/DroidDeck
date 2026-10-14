@@ -1924,7 +1924,8 @@
     <string name="stores_sort_recently_installed">Senest installeret</string>
     <string name="stores_sort_title_asc">Titel A–Å</string>
     <string name="stores_sort_title_desc">Titel Å–A</string>
-    <string name="stores_sort_size">Størrelse</string>
+    <string name="stores_sort_size_desc">Størrelse: størst</string>
+    <string name="stores_sort_size_asc">Størrelse: mindst</string>
     <string name="stores_sort_release_date">Udgivelsesdato</string>
     <string name="stores_view_list">Listevisning</string>
     <string name="stores_view_cards">Kortvisning</string>

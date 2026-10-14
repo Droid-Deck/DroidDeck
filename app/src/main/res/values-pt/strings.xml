@@ -1945,7 +1945,8 @@
     <string name="stores_sort_recently_installed">Instalados recentemente</string>
     <string name="stores_sort_title_asc">Título A–Z</string>
     <string name="stores_sort_title_desc">Título Z–A</string>
-    <string name="stores_sort_size">Tamanho</string>
+    <string name="stores_sort_size_desc">Tamanho: maior</string>
+    <string name="stores_sort_size_asc">Tamanho: menor</string>
     <string name="stores_sort_release_date">Data de lançamento</string>
     <string name="stores_view_list">Vista de lista</string>
     <string name="stores_view_cards">Vista de cartões</string>

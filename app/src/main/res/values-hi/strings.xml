@@ -1924,7 +1924,8 @@
     <string name="stores_sort_recently_installed">हाल में इंस्टॉल किए गए</string>
     <string name="stores_sort_title_asc">शीर्षक A–Z</string>
     <string name="stores_sort_title_desc">शीर्षक Z–A</string>
-    <string name="stores_sort_size">आकार</string>
+    <string name="stores_sort_size_desc">आकार: सबसे बड़ा</string>
+    <string name="stores_sort_size_asc">आकार: सबसे छोटा</string>
     <string name="stores_sort_release_date">रिलीज़ तिथि</string>
     <string name="stores_view_list">सूची दृश्य</string>
     <string name="stores_view_cards">कार्ड दृश्य</string>

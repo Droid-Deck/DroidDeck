@@ -1966,7 +1966,8 @@
     <string name="stores_sort_recently_installed">Ostatnio zainstalowane</string>
     <string name="stores_sort_title_asc">Tytuł A–Z</string>
     <string name="stores_sort_title_desc">Tytuł Z–A</string>
-    <string name="stores_sort_size">Rozmiar</string>
+    <string name="stores_sort_size_desc">Rozmiar: największy</string>
+    <string name="stores_sort_size_asc">Rozmiar: najmniejszy</string>
     <string name="stores_sort_release_date">Data wydania</string>
     <string name="stores_view_list">Widok listy</string>
     <string name="stores_view_cards">Widok kart</string>

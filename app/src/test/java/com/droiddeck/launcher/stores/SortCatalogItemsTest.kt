@@ -22,6 +22,10 @@ class SortCatalogItemsTest {
         assertEquals(listOf(d, c, a, b), sortCatalogItems(items, "sizeDesc"))
     }
 
+    @Test fun sizeAscendingTiesByTitle() {
+        assertEquals(listOf(a, b, c, d), sortCatalogItems(items, "sizeAsc"))
+    }
+
     @Test fun releaseDateDescending() {
         assertEquals(listOf(d, c, a, b), sortCatalogItems(items, "releaseDateDesc"))
     }

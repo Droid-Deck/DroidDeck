@@ -1924,7 +1924,8 @@
     <string name="stores_sort_recently_installed">Onlangs geïnstalleerd</string>
     <string name="stores_sort_title_asc">Titel A–Z</string>
     <string name="stores_sort_title_desc">Titel Z–A</string>
-    <string name="stores_sort_size">Grootte</string>
+    <string name="stores_sort_size_desc">Grootte: grootste</string>
+    <string name="stores_sort_size_asc">Grootte: kleinste</string>
     <string name="stores_sort_release_date">Releasedatum</string>
     <string name="stores_view_list">Lijstweergave</string>
     <string name="stores_view_cards">Kaartweergave</string>

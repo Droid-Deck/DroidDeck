@@ -1903,7 +1903,8 @@
     <string name="stores_sort_recently_installed">Baru dipasang</string>
     <string name="stores_sort_title_asc">Tajuk A–Z</string>
     <string name="stores_sort_title_desc">Tajuk Z–A</string>
-    <string name="stores_sort_size">Saiz</string>
+    <string name="stores_sort_size_desc">Saiz: terbesar</string>
+    <string name="stores_sort_size_asc">Saiz: terkecil</string>
     <string name="stores_sort_release_date">Tarikh keluaran</string>
     <string name="stores_view_list">Paparan senarai</string>
     <string name="stores_view_cards">Paparan kad</string>

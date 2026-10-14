@@ -1924,7 +1924,8 @@
     <string name="stores_sort_recently_installed">Viimeksi asennetut</string>
     <string name="stores_sort_title_asc">Nimi A–Ö</string>
     <string name="stores_sort_title_desc">Nimi Ö–A</string>
-    <string name="stores_sort_size">Koko</string>
+    <string name="stores_sort_size_desc">Koko: suurin</string>
+    <string name="stores_sort_size_asc">Koko: pienin</string>
     <string name="stores_sort_release_date">Julkaisupäivä</string>
     <string name="stores_view_list">Luettelonäkymä</string>
     <string name="stores_view_cards">Korttinäkymä</string>
