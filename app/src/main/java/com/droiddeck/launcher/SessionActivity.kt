@@ -243,6 +243,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var drawerPage by mutableStateOf(SessionDrawerPage.CONTROLLER)
     private var drawerControllerActive by mutableStateOf(false)
     private var backActionsInverted by mutableStateOf(false)
+    private var lowLatencyController by mutableStateOf(false)
+    private var lowLatencyTouch by mutableStateOf(false)
     private var padType by mutableStateOf(SessionPrefs.CONTROLLER_DECK)
     private var pcKeyboardOpen by mutableStateOf(false)
     private var achievementsInFront by mutableStateOf<AchievementsInFront?>(null)
@@ -611,6 +613,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     onBackActionsInverted = { inverted ->
                         SessionPrefs.setBackActionsInverted(this@SessionActivity, inverted)
                         backActionsInverted = inverted
+                    },
+                    lowLatencyController = lowLatencyController,
+                    lowLatencyTouch = lowLatencyTouch,
+                    onLowLatencyController = { on ->
+                        SessionPrefs.setLowLatencyController(this@SessionActivity, on)
+                        lowLatencyController = on
+                        applyLowLatency()
+                    },
+                    onLowLatencyTouch = { on ->
+                        SessionPrefs.setLowLatencyTouch(this@SessionActivity, on)
+                        lowLatencyTouch = on
+                        applyLowLatency()
                     },
                     onOsc = { v ->
                         SessionPrefs.setOscMode(this@SessionActivity, v)
@@ -1081,6 +1095,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         steamDownloadsInBackground = SessionPrefs.steamDownloadsInBackground(this)
         oscMode = SessionPrefs.oscMode(this)
         backActionsInverted = SessionPrefs.backActionsInverted(this)
+        lowLatencyController = SessionPrefs.lowLatencyController(this)
+        lowLatencyTouch = SessionPrefs.lowLatencyTouch(this)
         padType = SessionPrefs.steamController(this)
     }
 
@@ -2389,8 +2405,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         super.onAttachedToWindow()
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
         val decor = window.decorView
-        decor.requestUnbufferedDispatch(UNBUFFERED_SOURCES)
-        decor.viewTreeObserver.addOnGlobalFocusChangeListener { _, _ -> decor.post { decor.requestUnbufferedDispatch(UNBUFFERED_SOURCES) } }
+        decor.requestUnbufferedDispatch(unbufferedSources())
+        decor.viewTreeObserver.addOnGlobalFocusChangeListener { _, _ -> decor.post { decor.requestUnbufferedDispatch(unbufferedSources()) } }
+    }
+
+    private fun unbufferedSources() =
+        if (lowLatencyTouch) UNBUFFERED_SOURCES or InputDevice.SOURCE_CLASS_POINTER else UNBUFFERED_SOURCES
+
+    private fun applyLowLatency() {
+        com.droiddeck.launcher.input.FakeInputWriter.setLowLatency(lowLatencyController, lowLatencyTouch)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) window.decorView.requestUnbufferedDispatch(unbufferedSources())
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
