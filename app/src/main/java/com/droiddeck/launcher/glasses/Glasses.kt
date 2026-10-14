@@ -542,9 +542,9 @@ object Glasses {
     private fun linkListener(generation: Long) = object : VitureLink.Listener {
         override fun onFrame(frame: VitureProtocol.Frame) = post {
             if (generation != linkGeneration) return@post
-            val line = "%s 0x%04X %s%s".format(
+            val line = "%s 0x%04X %s".format(
                 when (frame.magic) { VitureProtocol.MAGIC_REPORT -> "FD"; VitureProtocol.MAGIC_COMMAND -> "FE"; else -> "FC" },
-                frame.msgId, frame.payload.joinToString("") { "%02X".format(it) }, if (frame.crcOk) "" else " crc!",
+                frame.msgId, frame.payload.joinToString("") { "%02X".format(it) },
             )
             synchronized(frames) {
                 frames.addLast(line)

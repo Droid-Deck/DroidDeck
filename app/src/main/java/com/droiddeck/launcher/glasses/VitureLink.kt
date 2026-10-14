@@ -32,10 +32,10 @@ internal class VitureLink private constructor(
     val hasImu: Boolean get() = imuIn != null
 
     private fun startReaders() {
-        mcuIn?.let { ep -> readers += reader("viture-mcu", ep) { buf, n -> VitureProtocol.parse(buf, n)?.let(listener::onFrame) } }
+        mcuIn?.let { ep -> readers += reader("viture-mcu", ep) { buf, n -> VitureProtocol.parse(buf, n)?.takeIf { it.crcOk }?.let(listener::onFrame) } }
         imuIn?.let { ep ->
             readers += reader("viture-imu", ep) { buf, n ->
-                val frame = VitureProtocol.parse(buf, n) ?: return@reader
+                val frame = VitureProtocol.parse(buf, n)?.takeIf { it.crcOk } ?: return@reader
                 if (frame.magic == VitureProtocol.MAGIC_IMU) listener.onImu(frame.payload, SystemClock.elapsedRealtimeNanos())
                 else listener.onFrame(frame)
             }
