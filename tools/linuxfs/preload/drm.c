@@ -1,10 +1,3 @@
-/*
- * GEM handle emulation for the KGSL device presented as a DRM render node.
- *
- * Compositors and Mesa validate or convert dma-bufs with PRIME ioctls on the render node; KGSL
- * has no GEM. Handles only serve as tokens to these callers, so a table of duplicated dma-buf
- * descriptors stands in for the kernel's, and every other device is left to libdrm.
- */
 #define _GNU_SOURCE
 #include <dlfcn.h>
 #include <errno.h>
@@ -19,7 +12,6 @@
 
 #define MAX_HANDLES 4096
 
-/* DRM_IOCTL_GEM_CLOSE from drm.h: _IOW('d', 0x09, struct drm_gem_close { u32 handle, pad; }). */
 struct gem_close {
   uint32_t handle;
   uint32_t pad;
@@ -36,7 +28,7 @@ static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static struct handle_entry handle_entries[MAX_HANDLES];
 static uint32_t next_handle = 1;
 static dev_t kgsl_dev;
-static int kgsl_state; /* 0 unknown, 1 known, -1 absent */
+static int kgsl_state;
 
 static int is_kgsl(int fd) {
   struct stat st;
@@ -63,7 +55,7 @@ static int same_file_description(int a, int b) {
   }
 #ifdef SYS_kcmp
   int saved_errno = errno;
-  long ret = syscall(SYS_kcmp, getpid(), getpid(), 0 /* KCMP_FILE */, a, b);
+  long ret = syscall(SYS_kcmp, getpid(), getpid(), 0  , a, b);
   errno = saved_errno;
   return ret == 0;
 #else
@@ -81,11 +73,6 @@ static int find_handle_locked(int fd, uint32_t handle) {
   return -1;
 }
 
-/*
- * The old table used its slot index as the public handle. Once #275 started freeing slots,
- * rapidly recreated swapchains immediately reused those numbers. Keep storage slots reusable but
- * make the public token monotonic so a stale handle can fail instead of aliasing a newer buffer.
- */
 static uint32_t alloc_handle_locked(void) {
   for (int tries = 0; tries <= MAX_HANDLES; tries++) {
     uint32_t candidate = next_handle++;
@@ -157,7 +144,6 @@ int drmPrimeHandleToFD(int fd, uint32_t handle, uint32_t flags, int *prime_fd) {
   return ret;
 }
 
-/* Drops only a handle belonging to this KGSL file description. */
 static int release_handle(int fd, uint32_t handle) {
   int found = 0;
   pthread_mutex_lock(&lock);
@@ -179,16 +165,6 @@ int drmCloseBufferHandle(int fd, uint32_t handle) {
   return release_handle(fd, handle) ? 0 : -EINVAL;
 }
 
-/*
- * Zink gives its handles back with the GEM_CLOSE ioctl itself, not drmCloseBufferHandle
- * (zink_bo.c, bo_destroy). KGSL refuses the ioctl, so the duplicated descriptor stayed open and
- * kept the whole buffer alive. Preserve #275's reclamation without letting another KGSL file
- * description release the token or making a new buffer immediately inherit a retired token.
- *
- * Caught at ioctl() (netif.c), which libdrm's drmIoctl calls, rather than by exporting drmIoctl:
- * every session process preloads this library, and exporting drmIoctl from it brought on a
- * judder replaying old frames in No Man's Sky on an Adreno 840 even with no handle released.
- */
 __attribute__((visibility("hidden"))) int bl_drm_gem_close(int fd, unsigned long request, void *arg, int *rc) {
   if (request != GEM_CLOSE || !arg || !is_kgsl(fd)) {
     return 0;
@@ -202,12 +178,6 @@ __attribute__((visibility("hidden"))) int bl_drm_gem_close(int fd, unsigned long
   return 1;
 }
 
-/*
- * fork() carries over only the calling thread, so a lock another thread was holding at that
- * instant stays held in the child by a thread that is not there to release it. Taking it before
- * the fork makes the copy consistent; the parent then unlocks it and the child, whose one thread
- * never locked it, gets a fresh one. (WinNative 79aa7f68.)
- */
 static void drm_lock_before_fork(void) { pthread_mutex_lock(&lock); }
 static void drm_unlock_after_fork(void) { pthread_mutex_unlock(&lock); }
 static void drm_reset_after_fork(void) { pthread_mutex_init(&lock, NULL); }

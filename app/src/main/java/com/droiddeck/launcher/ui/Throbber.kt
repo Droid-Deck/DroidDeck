@@ -20,17 +20,12 @@ import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
 
-/**
- * The DroidDeck mark as the loading indicator. Every loop the D's square half bends into an arc,
- * the ring they make turns once around the ball, and the half straightens back into the D.
- */
 @Composable
 internal fun LogoThrobber(modifier: Modifier = Modifier, running: Boolean = true) {
     val ink = MaterialTheme.colorScheme.onBackground
     val ball = LocalPalette.current.signal
     val loop = rememberInfiniteTransition(label = "throbber")
         .animateFloat(0f, 1f, infiniteRepeatable(tween(LOOP_MS, easing = LinearEasing)), label = "loop")
-    // Animations off in the system settings, or nothing running: the plain D.
     val still = !running || Motion.scale == 0f
     val left = remember { Path() }
     val right = remember { Path() }
@@ -64,7 +59,6 @@ internal fun LogoThrobber(modifier: Modifier = Modifier, running: Boolean = true
     }
 }
 
-/** The ball of a throbber laid out in [bounds]: its centre and its radius, at rest. */
 internal fun throbberBall(bounds: androidx.compose.ui.geometry.Rect): Pair<Offset, Float> {
     val s = bounds.width / LogoShape.WIDTH
     return Offset(bounds.left + (LogoShape.CX - LogoShape.LEFT) * s, bounds.top + LogoShape.CY * s) to LogoShape.BALL * s
@@ -74,12 +68,6 @@ private const val LOOP_MS = 1900
 private val Settle = CubicBezierEasing(0.5f, 0f, 0.3f, 1f)
 private val Turn = CubicBezierEasing(0.65f, 0f, 0.35f, 1f)
 
-/**
- * The logo's geometry in its SVG's own units (viewBox -55.98 0 239.92 223.72): a D of a square
- * left side and a round right side, cut by a ring around the ball and split top and bottom.
- * The left half is sampled along rays from the centre so it can bend, point for point, into the
- * mirror of the right half's arc.
- */
 internal object LogoShape {
     const val LEFT = -55.98f
     const val WIDTH = 239.92f
@@ -97,7 +85,6 @@ internal object LogoShape {
 
     private fun at(a: Double, r: Float) = Pt((CX + r * cos(a)).toFloat(), (CY + r * sin(a)).toFloat())
     private fun angle(x: Float, y: Float) = atan2((y - CY).toDouble(), (x - CX).toDouble())
-    // Angles taken the long way round, through the left: from about -94 degrees down to -266.
     private fun leftward(a: Double) = if (a < 0) a else a - 2 * Math.PI
 
     private val rays: List<Double> = run {
@@ -105,7 +92,6 @@ internal object LogoShape {
         val topCorner = angle(SQUARE_X, 0f)
         val bottomCorner = leftward(angle(SQUARE_X, HEIGHT))
         val bottom = leftward(angle(SPLIT_LEFT, HEIGHT))
-        // The corners are rays of their own, so the square half keeps sharp corners.
         fun span(a: Double, b: Double, n: Int) = List(n) { i -> a + (b - a) * i / (n - 1) }
         span(top, topCorner, 9).dropLast(1) + span(topCorner, bottomCorner, 25).dropLast(1) + span(bottomCorner, bottom, 9)
     }
@@ -148,7 +134,6 @@ internal object LogoShape {
             List(40) { i -> at(innerFrom + (innerTo - innerFrom) * i / 39, INNER) }
     }
 
-    /** The left half, [bend] of the way from the square D side (0) to the arc (1). */
     fun left(path: Path, bend: Float, px: (Float, Float) -> Offset) {
         path.reset()
         square.forEachIndexed { i, q ->

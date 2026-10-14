@@ -8,13 +8,6 @@
 
 namespace dxvk {
 
-  /**
-   * \brief Pointer for reference-counted objects
-   * 
-   * This only requires the given type to implement \c incRef
-   * and \c decRef methods that adjust the reference count.
-   * \tparam T Object type
-   */
   template<typename T>
   class Rc {
     template<typename Tx>
@@ -108,36 +101,15 @@ namespace dxvk {
       return m_object != nullptr;
     }
 
-    /**
-     * \brief Sets pointer without acquiring a reference
-     *
-     * Must only be use when a reference has been taken via
-     * other means.
-     * \param [in] object Object pointer
-     */
     void unsafeInsert(T* object) {
       this->decRef();
       m_object = object;
     }
 
-    /**
-     * \brief Extracts raw pointer
-     *
-     * Sets the smart pointer to null without decrementing the
-     * reference count. Must only be used when the reference
-     * count is decremented in some other way.
-     * \returns Pointer to owned object
-     */
     T* unsafeExtract() {
       return std::exchange(m_object, nullptr);
     }
 
-    /**
-     * \brief Creates smart pointer without taking reference
-     *
-     * Must only be used when a refernece has been obtained via other means.
-     * \param [in] object Pointer to object to take ownership of
-     */
     static Rc<T> unsafeCreate(T* object) {
       return Rc<T>(object, false);
     }
@@ -159,7 +131,6 @@ namespace dxvk {
         if constexpr (std::is_void_v<decltype(m_object->decRef())>) {
           m_object->decRef();
         } else {
-          // Deprecated, objects should manage themselves now.
           if (!m_object->decRef())
             delete m_object;
         }

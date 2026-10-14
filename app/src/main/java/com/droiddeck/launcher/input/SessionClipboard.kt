@@ -11,7 +11,6 @@ import com.droiddeck.launcher.wayland.WaylandCompositor
 import java.io.File
 import java.io.IOException
 
-/** Text selections shared by Android and the guest while the session is visible. */
 class SessionClipboard(context: Context, private val hasFocus: () -> Boolean) {
     private val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     private val handler = Handler(Looper.getMainLooper())
@@ -20,8 +19,6 @@ class SessionClipboard(context: Context, private val hasFocus: () -> Boolean) {
     private val androidListener = ClipboardManager.OnPrimaryClipChangedListener { refresh() }
     private val guestListener = object : WaylandCompositor.ClipboardListener {
         override fun onGuestClipboardText(text: String) {
-            // Native callbacks arrive on the compositor thread. Do not publish a delayed callback
-            // after this activity has paused or been replaced.
             handler.post {
                 if (active && hasFocus() && WaylandCompositor.isClipboardListener(this)) {
                     val current = clipboard.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.text
@@ -49,11 +46,9 @@ class SessionClipboard(context: Context, private val hasFocus: () -> Boolean) {
         handler.removeCallbacksAndMessages(null)
     }
 
-    /** Android 10+ permits clipboard reads only with window focus. Resume can precede focus. */
     fun refresh() {
         if (!active || !hasFocus()) return
         val clip = clipboard.primaryClip
-        // Only share literal text, never resolve content URIs or load copied files.
         if (clip == null) {
             publish(null)
         } else if (clip.itemCount > 0) {
@@ -63,8 +58,6 @@ class SessionClipboard(context: Context, private val hasFocus: () -> Boolean) {
 
     private fun publish(text: String?) {
         WaylandCompositor.setClipboardText(text)
-        // Gamescope needs the same selection in its own Xwayland. Rename complete UTF-8 text
-        // into place so its helper never sees half a launch command. Kept in private app data.
         val pending = File(hostFile.parentFile, "android-clipboard.pending")
         try {
             hostFile.parentFile?.mkdirs()

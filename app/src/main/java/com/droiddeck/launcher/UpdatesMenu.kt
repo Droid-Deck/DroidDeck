@@ -18,13 +18,7 @@ import com.droiddeck.launcher.ui.UpdatesState
 import com.droiddeck.launcher.update.AppUpdates
 import com.droiddeck.launcher.update.SelfInstaller
 
-/**
- * The Updates page's state: the channels' latest builds, the one followed, and an update being
- * downloaded or installed. Checked when the launcher comes to the front - opening the app, and
- * coming back from a session - at most once a minute.
- */
 internal class UpdatesMenu(private val activity: Activity, private val ui: Handler) {
-    // Read in start(): the activity has no context yet while its fields are made.
     var catalog by mutableStateOf<AppUpdates.Catalog?>(null)
     var follow by mutableStateOf(AppUpdates.Follow(AppUpdates.Channel.STABLE))
     var checking by mutableStateOf(false)
@@ -32,7 +26,6 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
     var stage by mutableStateOf<String?>(null)
     var percent by mutableIntStateOf(-1)
     var askPermission by mutableStateOf(false)
-    // An install waiting for the user to allow "Install unknown apps"; it goes on when they come back.
     private var pending: AppUpdates.Release? = null
     private var lastCheck = 0L
     private var request = 0
@@ -53,7 +46,6 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
 
     val hasUpdate: Boolean get() = AppUpdates.hasUpdate(catalog, follow)
 
-    /** On every return to the launcher: go on with an install the user just allowed, and check if due. */
     fun onResume() {
         pending?.let { r ->
             if (SelfInstaller.canInstall(activity)) { pending = null; install(r) }
@@ -107,7 +99,6 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
         }, "app-update-install").start()
     }
 
-    /** PackageInstaller's answer: Android's confirm prompt to show, or why it failed. Success restarts the app. */
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             when (val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)) {
@@ -127,7 +118,6 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
         }
     }
 
-    /** From onCreate: the last check, the channel followed, and PackageInstaller's answers. */
     fun start() {
         catalog = AppUpdates.cached(activity)
         follow = AppUpdates.follow(activity, catalog)

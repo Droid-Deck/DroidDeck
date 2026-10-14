@@ -102,7 +102,6 @@ class ProtonExtrasTest {
         assertTrue(ProtonExtras.compareVersions("DroidDeck-Proton 11-7", "DroidDeck-Proton 11-7.1") < 0)
         assertTrue(ProtonExtras.compareVersions("cachyos-11.0-20260703-slr", "cachyos-11.0-20261005-slr") < 0)
         assertTrue(ProtonExtras.compareVersions("cachyos-10.0-sunset-slr", "cachyos-11.0-20260601-slr") < 0)
-        // The architecture in a folder name is not part of its version.
         assertEquals(listOf(11L, 7L), ProtonExtras.versionKey("GE-Proton11-7-aarch64"))
         assertEquals(listOf(11L, 0L, 20261005L), ProtonExtras.versionKey("proton-cachyos-11.0-20261005-slr-arm64"))
         assertEquals(listOf(11L, 7L, 5L), ProtonExtras.versionKey("DroidDeck-Proton 11-7.5"))
@@ -114,9 +113,8 @@ class ProtonExtrasTest {
         val tools = temp.newFolder("compatibilitytools.d")
         for (name in listOf("GE-Proton11-10", "GE-Proton11-9", "DroidDeck-Proton 11-7.10", "DroidDeck-Proton 11-7.5",
                 "droiddeck-proton-arm64", "droiddeck-proton-11-arm64", "proton-cachyos-11.0-20261005-slr-arm64")) installTool(tools, name)
-        File(tools, "DroidDeck-Proton 11-6").mkdirs() // no manifest: half unpacked, not installed
+        File(tools, "DroidDeck-Proton 11-6").mkdirs()
         assertEquals(listOf("GE-Proton11-9", "GE-Proton11-10"), ProtonExtras.installedIn(tools, tool("ge")))
-        // Ours, not DroidDeck's own droiddeck-proton-* tools: the prefix is matched with its case.
         assertEquals(listOf("DroidDeck-Proton 11-7.5", "DroidDeck-Proton 11-7.10"), ProtonExtras.installedIn(tools, tool("droiddeck")))
         assertEquals(listOf("proton-cachyos-11.0-20261005-slr-arm64"), ProtonExtras.installedIn(tools, tool("cachyos")))
         assertEquals(emptyList<String>(), ProtonExtras.installedIn(File(tools, "missing"), tool("ge")))
@@ -149,13 +147,11 @@ class ProtonExtrasTest {
             .put("cachyos", JSONObject().put("tag", "cachyos-11.0-20261005-slr").put("at", now - 60_000))
             .put("droiddeck", JSONObject().put("tag", "DroidDeck-Proton-11-7.6").put("at", now - ProtonExtras.CHECK_EVERY_MS + 60_000))
         File(context.filesDir, "proton-latest.json").writeText(latest.toString())
-        // Every source was looked up within the last six hours: nothing goes to GitHub.
         assertFalse(ProtonExtras.checkLatest(context, now = now))
         assertEquals("DroidDeck-Proton-11-7.6", ProtonExtras.update(context, tool("droiddeck")))
         assertNull(ProtonExtras.update(context, tool("ge")))
         assertNull(ProtonExtras.update(context, tool("cachyos")))
         assertEquals(listOf("DroidDeck-Proton 11-7.5"), ProtonExtras.installedTags(context, tool("droiddeck")))
-        // The tag recorded at install stands for the folder.
         File(context.filesDir, "proton-extras.json").writeText(JSONObject().put("DroidDeck-Proton 11-7.5", "DroidDeck-Proton-11-7.6").toString())
         assertEquals(listOf("DroidDeck-Proton-11-7.6"), ProtonExtras.installedTags(context, tool("droiddeck")))
         assertNull(ProtonExtras.update(context, tool("droiddeck")))
@@ -168,7 +164,6 @@ class ProtonExtrasTest {
         for (name in listOf("DroidDeck-Proton 11-7.5", "DroidDeck-Proton 11-7.6", "DroidDeck-Proton 11-7.10", "GE-Proton11-7")) installTool(tools, name)
         ProtonExtras.remove(context, tool("droiddeck"), "DroidDeck-Proton 11-7.6")
         assertEquals(listOf("DroidDeck-Proton 11-7.5", "DroidDeck-Proton 11-7.10"), ProtonExtras.installedAll(context, tool("droiddeck")))
-        // A folder of another source is never removed through this one.
         ProtonExtras.remove(context, tool("droiddeck"), "GE-Proton11-7")
         assertTrue(File(tools, "GE-Proton11-7").isDirectory)
         assertEquals(listOf("DroidDeck-Proton 11-7.5", "DroidDeck-Proton 11-7.10"), ProtonExtras.installedAll(context, tool("droiddeck")))

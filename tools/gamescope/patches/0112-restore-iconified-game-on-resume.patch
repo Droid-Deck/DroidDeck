@@ -28,11 +28,11 @@ index 08afbc4..372a82c 100644
  	if ( keyboardFocusWindow && ctx->currentKeyboardFocusWindow && find_win( ctx, ctx->currentKeyboardFocusWindow ) == keyboardFocusWin )
  		keyboardFocusWindow = ctx->currentKeyboardFocusWindow;
  
-+	// An overlay that takes input (the Steam menu) moves input away without changing the focus window, and a
-+	// fullscreen game iconifies itself when it loses input. The focus window never changed, so it is never taken
-+	// out of iconic above, and wine will not activate a window it believes iconic: the game stays minimized
-+	// (its 160x24 caption in the corner) after Resume. Put it back to NormalState before input returns to it,
-+	// then hand focus over again so wine sees the restore first and the activation after it.
++
++
++
++
++
 +	if ( inputFocus == ctx->focus.focusWindow && ctx->focus.focusWindow->iconifyRequested )
 +	{
 +		ctx->focus.focusWindow->iconifyRequested = false;
@@ -59,8 +59,8 @@ index 08afbc4..372a82c 100644
  	}
 +	if ( ev->atom == ctx->atoms.gamescopeRestoreFocusWindow )
 +	{
-+		// Anything outside (the session's watcher) can ask for the same restore: NormalState on the focus
-+		// window and focus handed to it again. Harmless on a window that is not iconic.
++
++
 +		if ( ctx->focus.focusWindow && get_prop( ctx, ctx->root, ctx->atoms.gamescopeRestoreFocusWindow, 0 ) )
 +		{
 +			xwm_log.infof( "restore requested for focus window 0x%lx", ctx->focus.focusWindow->xwayland().id );
@@ -89,7 +89,7 @@ index 66022d7..af93a23 100644
  
  	bool isFullscreen = false;
  	bool isSysTrayIcon = false;
-+	// The client asked to be iconified (WM_CHANGE_STATE) and has not been put back to NormalState since.
++
 +	bool iconifyRequested = false;
  	bool sizeHintsSpecified = false;
  	bool skipTaskbar = false; 

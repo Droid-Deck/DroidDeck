@@ -358,7 +358,6 @@ internal fun AdbTextField(
     onFocusChange: (Boolean) -> Unit = {},
     onNext: (() -> Unit)? = null,
     onDone: (() -> Unit)? = null,
-    /** Takes focus (and the keyboard) once, as soon as it is shown: a field that opened on request. */
     focusOnShow: Boolean = false,
 ) {
     val context = LocalContext.current

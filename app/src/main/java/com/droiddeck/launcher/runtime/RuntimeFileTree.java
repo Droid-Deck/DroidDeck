@@ -12,11 +12,9 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.function.LongConsumer;
 import java.util.function.Predicate;
 
-/** Checked removal of an app-owned runtime tree, including read-only directories. */
 final class RuntimeFileTree {
     private RuntimeFileTree() {}
 
-    /** Unit tests stand in for an entry the app cannot unlink (a file another SELinux user made). */
     static volatile Predicate<Path> refuseForTest;
 
     static void delete(File root, LongConsumer progress) throws IOException {
@@ -28,8 +26,6 @@ final class RuntimeFileTree {
         try { attrs = Files.readAttributes(path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS); }
         catch (NoSuchFileException e) { return; }
         if (attrs.isDirectory()) {
-            // Change directory permissions before opening it, so mode 000 also works. Links
-            // are inspected with lstat and unlinked directly; never chmod or visit their target.
             makeWritable(path.toFile());
             try (DirectoryStream<Path> children = Files.newDirectoryStream(path)) {
                 for (Path child : children) delete(child, progress, removed);
@@ -39,10 +35,6 @@ final class RuntimeFileTree {
         if (progress != null) progress.accept(++removed[0]);
     }
 
-    /**
-     * Removes what it can of {@code root} and carries on past entries it cannot, rather than
-     * stopping at the first. Returns true when nothing is left.
-     */
     static boolean deleteWhatCan(File root, LongConsumer progress) {
         return deleteWhatCan(root.toPath(), progress, new long[]{0});
     }

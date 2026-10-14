@@ -15,7 +15,6 @@ REPOS = ("core", "extra", "alarm")
 
 
 def vercmp_part(a, b):
-    # rpmvercmp, as pacman compares version strings.
     if a == b:
         return 0
     sa = re.findall(r"\d+|[a-zA-Z]+", a)
@@ -104,14 +103,11 @@ def main():
     def resolve(dep):
         """The package to take for a dependency string, and whether the runtime's copy serves."""
         name, op, want = parse_dep(dep)
-        # A runtime package that is the dependency or provides it, at a version that serves.
         if name in runtime and satisfies(runtime[name], op, want):
             return name, True
         candidates = providers.get(name, [])
         for real, _ in candidates:
             if real in runtime:
-                # A provided name (a soname, mostly): the runtime's build serves as long as it is
-                # the repository's own, or nothing asks for a particular version.
                 if not op or runtime[real] == pkgs[real]["version"]:
                     return real, True
                 if satisfies_provider(real, name, op, want):

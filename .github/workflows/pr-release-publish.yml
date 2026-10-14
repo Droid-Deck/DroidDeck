@@ -11,8 +11,6 @@ on:
   pull_request_target:
     types: [labeled]
     branches: [main]
-  # A PR from a branch of this repo is signed on its own after each green build: only people who
-  # can push here can change it. A fork's PR waits for a maintainer's publish-test label.
   workflow_run:
     workflows: [Build APK]
     types: [completed]
@@ -53,7 +51,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      # Every variant a main build ships, so a PR build can be tried under any of them.
       - name: The packages a signed build ships as
         id: variants
         run: echo "list=$(awk '!/^#/ && NF { print $1 }' tools/release/variants.txt | jq -R . | jq -sc .)" >> "$GITHUB_OUTPUT"
@@ -68,8 +65,6 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || { echo "::error::Invalid PR number '$PR_NUMBER'"; exit 1; }
-          # The automatic path stands down quietly, never failing: a draft, a PR labelled
-          # no-test-build, or a build that a later push has already overtaken.
           skip() { echo "::notice::Not publishing PR #$PR_NUMBER: $1"; echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0; }
           if [ "$EVENT_NAME" = workflow_run ]; then
             echo "automatic=true" >> "$GITHUB_OUTPUT"
@@ -94,9 +89,6 @@ jobs:
           head=$(jq -r '.head.sha' <<<"$pr")
           base=$(jq -r '.base.sha' <<<"$pr")
 
-          # The label is often added while the PR's build is still running, or just after a push
-          # before it has started: wait for the latest build of the head commit to finish (a PR
-          # build takes about 4 minutes) rather than fail and need the label added again.
           run_id=
           for attempt in $(seq 1 60); do
             latest=$(gh run list -R "$GITHUB_REPOSITORY" --workflow build.yml \
@@ -116,8 +108,6 @@ jobs:
             sleep 30
           done
           [[ -n "$run_id" ]] || { echo '::error::The PR build did not finish within 30 minutes'; exit 1; }
-          # GitHub leaves a run's pull_requests empty when its head is in a fork, so the build is
-          # tied to this PR by its head repository, branch and commit instead.
           run=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id")
           jq -e --arg head "$head" --arg repo "$(jq -r .head.repo.full_name <<<"$pr")" --arg ref "$(jq -r .head.ref <<<"$pr")" '
             .event == "pull_request" and .head_sha == $head and .conclusion == "success" and
@@ -127,8 +117,6 @@ jobs:
 
           sdk=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}
           tools=$(find "$sdk/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
-          # A PR build is made from the PR merged onto main, so it must install over main's own
-          # build. main is what this job checked out; no release has to exist or be marked latest.
           main_code=$(sed -n 's/^[[:space:]]*versionCode[[:space:]][[:space:]]*\([0-9][0-9]*\)[[:space:]]*$/\1/p' app/build.gradle)
           [[ "$main_code" =~ ^[0-9]+$ ]] || { echo "::error::No numeric versionCode in main's app/build.gradle"; exit 1; }
           mkdir -p "$RUNNER_TEMP/pr"
@@ -188,8 +176,6 @@ jobs:
           pattern: droiddeck-pr-signed-*
           merge-multiple: true
           path: signed
-      # What this build is, for the top of the release notes: the PR's title and the first
-      # paragraph of its description.
       - name: Describe the change
         env:
           GH_TOKEN: ${{ github.token }}
@@ -208,7 +194,6 @@ jobs:
             fi
           } > notes-head.md
           cat notes-head.md
-      # A token of the org's "DroidDeck CI Publisher" app, as build.yml's announce job uses.
       - uses: actions/create-github-app-token@v2
         id: ci-token
         with:
@@ -250,7 +235,6 @@ jobs:
           echo "first=$first" >> "$GITHUB_OUTPUT"
           gh release upload "$tag" signed/* -R "$repo" --clobber
           gh release edit "$tag" -R "$repo" --title "PR #$PR_NUMBER" --notes "$notes" --prerelease
-          # Drop the previous build's files: anything this build did not just upload.
           keep=$(cd signed && ls | jq -R . | jq -sc .)
           gh api "repos/$repo/releases/tags/$tag" |
             jq -r --argjson keep "$keep" '.assets[] | select(.name as $n | $keep | index($n) | not) | .id' |

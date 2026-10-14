@@ -11,37 +11,18 @@ import java.io.File
 import java.io.IOException
 import java.util.zip.ZipInputStream
 
-/**
- * An all-in-one driver package: one zip carrying both halves of a matched pair, the display
- * (Android, bionic) driver in one directory and the runtime (Linux, glibc) driver in another,
- * indexed by a root `manifest.json` - DroidDeck's own DD-Turnip releases (Droid-Deck/Drivers):
- *
- * ```
- * manifest.json   {"package", "version", "drivers": {"android": {"path"}, "linux": {"path"}}}
- * android/        meta.json (AdrenoTools) + libvulkan_freedreno.so
- * linux/          meta.json + libvulkan_freedreno.so
- * ```
- *
- * Installing one puts each half through its own importer, with that importer's checks, and
- * remembers the two as one bundle: picking either half sets both, and deleting either deletes both,
- * so a bundle is always used whole. Zips of the older kind, one driver each, never reach this.
- */
 object DriverBundle {
     private const val TAG = "DriverBundle"
     private const val PREFS = "driver_bundles"
     private const val MANIFEST = "manifest.json"
-    /** Refuses a zip that unpacks to more than this: both halves together are about 30 MB. */
     private const val MAX_BYTES = 512L shl 20
 
     class Manifest(val name: String, val version: String, val tag: String, val androidPath: String, val linuxPath: String)
 
-    /** An installed bundle: [androidId] in TurnipDriver's list, [linuxId] in LinuxVulkanDriverManager's. */
     class Bundle(val id: String, val name: String, val version: String, val androidId: String, val linuxId: String) {
-        /** "DD-Turnip 0.1.0". */
         val label: String get() = if (version.isEmpty()) name else "$name $version"
     }
 
-    /** The manifest of a bundle, or null when [json] is not one (both halves, in two directories). */
     fun parseManifest(json: JSONObject): Manifest? {
         val drivers = json.optJSONObject("drivers") ?: return null
         val android = cleanPath(drivers.optJSONObject("android")?.optString("path").orEmpty()) ?: return null
@@ -58,7 +39,6 @@ object DriverBundle {
         return p.takeIf { it.isNotEmpty() && it.split('/').none { part -> part.isEmpty() || part == "." || part == ".." } }
     }
 
-    /** True when the zip at [uri] is a bundle rather than a single driver. */
     fun isBundle(context: Context, uri: Uri): Boolean = try {
         context.contentResolver.openInputStream(uri)?.use { input ->
             ZipInputStream(input).use { zip ->
@@ -71,11 +51,6 @@ object DriverBundle {
         false
     }
 
-    /**
-     * Install both halves of the bundle at [uri]. Both or neither: a half that is refused removes
-     * the one already in. Throws [IllegalArgumentException] with a user-facing reason when the zip
-     * is not a usable bundle, [IOException] on read failures.
-     */
     fun install(context: Context, uri: Uri): Bundle {
         val work = File(context.cacheDir, "bundle-${System.nanoTime()}")
         val td = TurnipDriver(context)
@@ -153,7 +128,6 @@ object DriverBundle {
         } ?: throw IOException("cannot open $uri")
     }
 
-    /** Every installed bundle whose two halves are both still there. */
     fun all(context: Context): List<Bundle> {
         val td = TurnipDriver(context)
         val lm = LinuxVulkanDriverManager(context)
@@ -167,24 +141,20 @@ object DriverBundle {
 
     fun get(context: Context, id: String): Bundle? = all(context).firstOrNull { it.id == id }
 
-    /** The bundle [driverId] is a half of, in the runtime list when [linux], else the display list. */
     fun containing(context: Context, driverId: String, linux: Boolean): Bundle? =
         all(context).firstOrNull { (if (linux) it.linuxId else it.androidId) == driverId }
 
-    /** The bundle both drivers are set to right now, if they are one. */
     fun active(context: Context): Bundle? {
         val android = SessionPrefs.androidDriver(context)
         val linux = SessionPrefs.linuxDriver(context)
         return all(context).firstOrNull { it.androidId == android && it.linuxId == linux }
     }
 
-    /** Set both halves as the drivers in use. */
     fun select(context: Context, bundle: Bundle) {
         SessionPrefs.setAndroidDriver(context, bundle.androidId)
         SessionPrefs.setLinuxDriver(context, bundle.linuxId)
     }
 
-    /** Delete both halves; a driver still set to either goes back to its default. */
     fun remove(context: Context, bundle: Bundle) {
         TurnipDriver(context).remove(bundle.androidId)
         LinuxVulkanDriverManager(context).removeDriver(bundle.linuxId)

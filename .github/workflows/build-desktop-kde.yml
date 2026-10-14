@@ -1,13 +1,5 @@
 name: Build desktop package (KDE Plasma)
 
-# The desktop the app installs into its Linux runtime on first use: KDE Plasma as SteamOS's desktop
-# mode has it, the closure of tools/desktop-kde/seeds.txt over Arch Linux ARM minus what the runtime
-# already carries, plus tools/desktop-kde/overlay (tools/desktop-kde/build.sh), every package
-# signature-checked. Published as a release in Droid-Deck/DroidDeck-Components with DroidDeck's
-# other components; the apk pins it in tools/desktop-kde/release.env (tag, sha256, size). A
-# published tag is never rebuilt: the packages are Arch Linux ARM's current ones, so a rebuild
-# would not match the pinned sha256. A changed package gets a new tag (desktop-kde-r2, ...) and a
-# release.env update.
 on:
   push:
     paths:
@@ -72,7 +64,6 @@ jobs:
           KDE_KWIN_OVERRIDE="$PWD/out/kwin" tools/desktop-kde/build.sh out
           cp out/kwin/desktop-kde.kwin.txt out/
           echo "size $(stat -c %s out/desktop-kde.tar.zst) sha256 $(cat out/desktop-kde.sha256)"
-      # The package itself too, briefly: enough to try a build on a device before publishing it.
       - uses: actions/upload-artifact@v4
         with:
           name: desktop-kde

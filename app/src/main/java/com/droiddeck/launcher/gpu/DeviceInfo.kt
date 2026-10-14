@@ -9,25 +9,17 @@ import com.droiddeck.launcher.session.SessionPrefs
 import java.io.File
 import java.util.Locale
 
-/**
- * Everything the device info window shows about the phone's chip: SoC, GPU, CPU, memory, system,
- * the phone's own Vulkan driver and the drivers DroidDeck uses. Reads files and asks Vulkan once
- * ([VulkanInfo]), so [collect] belongs off the main thread. Values the phone does not give are
- * left out rather than guessed.
- */
 object DeviceInfo {
     class Section(val title: String, val rows: List<Pair<String, String>>)
 
     fun collect(context: Context): List<Section> {
         val vk = VulkanInfo.query()
-        // After Vulkan has been asked, detection can use its name too.
         val gpu = GpuInfo.detect()
         return listOf(
             chip(), gpu(gpu), cpu(), memory(context), system(), vulkan(context, vk), drivers(context, gpu),
         ).filter { it.rows.isNotEmpty() }
     }
 
-    /** The whole window as plain text, for a bug report. */
     fun text(sections: List<Section>): String = buildString {
         append("DroidDeck device info\n")
         for (s in sections) {
@@ -78,7 +70,6 @@ object DeviceInfo {
 
     private fun cpu() = Section("CPU", buildList<Pair<String, String>> {
         add("Cores", Runtime.getRuntime().availableProcessors().toString())
-        // Each cpufreq policy is one cluster: the cores it covers and their speed range.
         val policies = File("/sys/devices/system/cpu/cpufreq").listFiles { f -> f.name.matches(Regex("policy\\d+")) }
             ?.sortedBy { it.name.removePrefix("policy").toInt() }.orEmpty()
         for (p in policies) {
@@ -94,7 +85,6 @@ object DeviceInfo {
 
     private fun ghz(khz: Long) = String.format(Locale.US, "%.2f GHz", khz / 1e6)
 
-    /** The GPU's slowest and fastest step: KGSL's list, else a devfreq GPU node (Mali and others). */
     private fun gpuRange(): String? {
         fun mhz(hz: Long) = "${hz / 1_000_000} MHz"
         val kgsl = read("/sys/class/kgsl/kgsl-3d0/gpu_available_frequencies")
@@ -134,7 +124,6 @@ object DeviceInfo {
         add("API version", vk["api"])
         add("Loader version", vk["loader"])
         add("Driver", listOfNotNull(vk["driver_name"], vk["driver_version"]).joinToString(" "))
-        // Qualcomm's build string starts with its own label ("Driver Build: 43c70540de, ...").
         add("Driver build", vk["driver_info"]?.replace(Regex("(?i)^driver build:\\s*"), ""))
         add("Conformance", vk["conformance"])
         add("Vendor / device id", listOfNotNull(vk["vendor_id"], vk["device_id"]).joinToString(" / "))
@@ -144,7 +133,6 @@ object DeviceInfo {
         val features = listOf("geometry_shader" to "Geometry shaders", "tessellation_shader" to "Tessellation", "texture_bc" to "BC textures")
         for ((key, label) in features) add(label, vk[key])
         for ((key, value) in vk) if (key.startsWith("ext.")) add(key.removePrefix("ext."), value)
-        // What Android certifies the phone for.
         val pm = context.packageManager
         val hw = pm.systemAvailableFeatures.associate { it.name to it.version }
         hw[PackageManager.FEATURE_VULKAN_HARDWARE_VERSION]?.let {

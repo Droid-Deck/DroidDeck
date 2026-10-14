@@ -27,14 +27,6 @@ import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-/**
- * The shell's control surface (docs/agent-control.md), in every build: the provider and its start
- * Activity need android.permission.DUMP, held by the shell and privileged or explicitly granted callers. Commands that
- * reach into the app's sandbox are further gated by [AgentAccess].
- *
- * A method's request is JSON, base64-encoded in the "request" extra; every answer is JSON in the
- * "json" key of the returned Bundle, {"ok": true, ...} or {"ok": false, "error": {code, message}}.
- */
 class AgentBridgeProvider : ContentProvider() {
     override fun onCreate(): Boolean {
         val appContext = context?.applicationContext ?: return false
@@ -58,7 +50,6 @@ class AgentBridgeProvider : ContentProvider() {
 
         val response = try {
             val request = decode(extras?.getString(EXTRA_REQUEST))
-            // Binder identity is the shell's; everything below acts as the app.
             val token = Binder.clearCallingIdentity()
             try {
                 dispatch(context, method, request)
@@ -136,8 +127,6 @@ class AgentBridgeProvider : ContentProvider() {
             .put("status", SessionState.failureStatus ?: JSONObject.NULL)
         session.put("failure", failure)
 
-        // gamescope's focus as last published by the guest agent, without the window lists
-        // (the focus command returns those, fresh).
         val focus = AgentGuest.focus(context)?.let { snap ->
             JSONObject()
                 .put("focusedApp", snap.opt("focusedApp") ?: JSONObject.NULL)
@@ -225,11 +214,9 @@ class AgentBridgeProvider : ContentProvider() {
         return result.put("ok", true).put("command", "prefs")
     }
 
-    /** A guest agent request; its own answer already carries ok or error. */
     private fun guest(context: Context, request: JSONObject, timeoutMs: Long): JSONObject =
         AgentGuest.call(context, request, timeoutMs)
 
-    /** The guest's own timeout plus slack for the round trip. */
     private fun timeoutMs(request: JSONObject, defaultSeconds: Double, slackMs: Long): Long {
         val seconds = if (request.has("timeout")) request.opt("timeout")?.toString()?.toDoubleOrNull()
             ?: throw AgentException("INVALID_REQUEST", "timeout must be a number") else defaultSeconds
@@ -262,7 +249,6 @@ class AgentBridgeProvider : ContentProvider() {
     companion object {
         const val RESULT_JSON = "json"
         const val EXTRA_REQUEST = "request"
-        /** 2 added agent and session.focus; everything in 1 is unchanged. */
         const val SCHEMA = 2
         private val recoveryComplete = CountDownLatch(1)
 

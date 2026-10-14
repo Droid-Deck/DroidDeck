@@ -1,6 +1,3 @@
-/* Host test for sysv.c: IPC_STAT's sem_otime turns non-zero with the first semop, which the usual
- * race-free init (and SteamVR's web helper) waits for. Linked with sysv.c, whose semget/semop/semctl
- * replace libc's. */
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <sys/ipc.h>

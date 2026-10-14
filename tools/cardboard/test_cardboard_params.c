@@ -1,5 +1,3 @@
-/* Host test for the cardboard pass's pure helpers (waylandcomp/src/cardboard.c, built with
- * CARDBOARD_HOST_TEST): clamping and the push-constant layout cardboard.frag reads. */
 #include "cardboard.h"
 #include <math.h>
 #include <stdio.h>
@@ -28,20 +26,15 @@ int main(void) {
     const float pose[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
     float pc[24];
     cardboard_push_constants(&q, pose, 1920, 1080, 2400, 1080, pc);
-    /* rot rows with the scalars in w */
     CHECK(near(pc[0], 1) && near(pc[1], 2) && near(pc[2], 3) && near(pc[3], 0.032f));
     CHECK(near(pc[4], 4) && near(pc[5], 5) && near(pc[6], 6) && near(pc[7], 3.0f));
     CHECK(near(pc[8], 7) && near(pc[9], 8) && near(pc[10], 9) && near(pc[11], 2.0f));
-    /* lens: k1, k2, tan(fov/2), chroma */
     CHECK(near(pc[12], 0.34f) && near(pc[13], 0.55f) && near(pc[14], 1.0f) && near(pc[15], 0.006f));
-    /* view: inset, source aspect, mode, eye viewport aspect (half the panel) */
     CHECK(near(pc[16], 0.05f) && near(pc[17], 1920.0f / 1080.0f) && near(pc[18], 0.0f) && near(pc[19], 1200.0f / 1080.0f));
 
-    /* A side-by-side source: each eye's aspect is half the frame's. */
     q.source = CARDBOARD_SOURCE_SBS;
     cardboard_push_constants(&q, pose, 3840, 1080, 2400, 1080, pc);
     CHECK(near(pc[17], 1920.0f / 1080.0f) && near(pc[18], 1.0f));
-    /* Unknown sizes fall back instead of dividing by zero. */
     cardboard_push_constants(&q, pose, 0, 0, 0, 0, pc);
     CHECK(isfinite(pc[17]) && isfinite(pc[19]));
 

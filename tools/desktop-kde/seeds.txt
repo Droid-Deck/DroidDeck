@@ -1,6 +1,3 @@
-# The desktop: KDE Plasma, as SteamOS's desktop mode has it - KWin nested as a client of the app's
-# compositor, Plasma's shell on it, and the apps SteamOS puts on its desktop. One package name per
-# line; build.sh takes the closure over Arch Linux ARM at build time, minus what the runtime has.
 kwin
 plasma-workspace
 plasma-desktop

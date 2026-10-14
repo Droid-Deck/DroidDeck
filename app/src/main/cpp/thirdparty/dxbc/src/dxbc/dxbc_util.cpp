@@ -4,14 +4,14 @@ namespace dxvk {
   
   uint32_t primitiveVertexCount(DxbcPrimitive primitive) {
     static const std::array<uint32_t, 8> s_vertexCounts = {
-       0, // Undefined
-       1, // Point
-       2, // Line
-       3, // Triangle
-       0, // Undefined
-       0, // Undefined
-       4, // Line with adjacency
-       6, // Triangle with adjacency
+       0,
+       1,
+       2,
+       3,
+       0,
+       0,
+       4,
+       6,
     };
     
     if (primitive >= DxbcPrimitive::Patch1) {

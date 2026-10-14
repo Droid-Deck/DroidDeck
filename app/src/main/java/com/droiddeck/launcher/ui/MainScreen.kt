@@ -66,7 +66,6 @@ fun ConfirmDialog(title: String, text: String, confirm: String, onConfirm: () ->
     )
 }
 
-/** Setup's Reset all settings, with the choice to clear game profiles too (off unless ticked). */
 @Composable
 fun ResetSettingsDialog(onConfirm: (gameProfiles: Boolean) -> Unit, onDismiss: () -> Unit) {
     var gameProfiles by remember { mutableStateOf(false) }

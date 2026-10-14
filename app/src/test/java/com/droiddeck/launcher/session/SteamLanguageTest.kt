@@ -42,7 +42,6 @@ class SteamLanguageTest {
         assertEquals("latam", steam("es-MX"))
         assertEquals("latam", steam("es-419"))
         assertEquals("spanish", steam("es-ES"))
-        // The app's Spanish has no region; the system's says where the player is.
         assertEquals("latam", steam("es", region = "AR"))
         assertEquals("spanish", steam("es", region = "ES"))
     }

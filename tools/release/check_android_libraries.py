@@ -12,9 +12,10 @@ SYSTEM = set('libc.so libm.so libdl.so liblog.so libandroid.so libz.so libvulkan
              'libOpenSLES.so libmediandk.so libcamera2ndk.so libsync.so libneuralnetworks.so'.split())
 EXPORTS = ['Java_com_droiddeck_launcher_stores_StoresNative_nativeVersion',
            'Java_com_droiddeck_launcher_stores_gog_GogNative_nativeStart',
-           'Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeStart',
-           'Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeAssemble',
-           'Java_com_droiddeck_launcher_stores_amazon_AmazonNative_nativeStart']
+           'Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeCall',
+           'Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeInstall',
+           'Java_com_droiddeck_launcher_stores_amazon_AmazonNative_nativeCall',
+           'Java_com_droiddeck_launcher_stores_amazon_AmazonNative_nativeInstall']
 
 
 def check(apk, readelf, stores=True):

@@ -13,11 +13,6 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-/**
- * The small zstd tarballs that ship inside the apk (the Turnip driver, the PulseAudio modules).
- * The runtime rootfs is not one of these - it needs hard links and symlinks preserved, which
- * {@link com.droiddeck.launcher.runtime.LinuxRuntimeInstaller} handles itself.
- */
 public final class TarZst {
     private static final String TAG = "TarZst";
 
@@ -33,7 +28,6 @@ public final class TarZst {
     }
 
     public static boolean extract(InputStream source, File destination) {
-        //noinspection ResultOfMethodCallIgnored
         destination.mkdirs();
         try (InputStream in = new ZstdCompressorInputStream(new BufferedInputStream(source, 1 << 16));
              TarArchiveInputStream tar = new TarArchiveInputStream(in)) {
@@ -42,15 +36,13 @@ public final class TarZst {
                 File file = ArchivePaths.inside(destination, entry.getName());
                 if (file == null) continue;
                 if (entry.isDirectory()) {
-                    //noinspection ResultOfMethodCallIgnored
                     file.mkdirs();
                     continue;
                 }
                 File parent = file.getParentFile();
-                if (parent != null && !parent.isDirectory()) //noinspection ResultOfMethodCallIgnored
+                if (parent != null && !parent.isDirectory())
                     parent.mkdirs();
                 if (entry.isSymbolicLink()) {
-                    //noinspection ResultOfMethodCallIgnored
                     file.delete();
                     FileUtils.symlink(entry.getLinkName(), file.getAbsolutePath());
                     continue;
@@ -59,7 +51,7 @@ public final class TarZst {
                 try (OutputStream out = new FileOutputStream(file)) {
                     FileUtils.copy(tar, out);
                 }
-                if ((entry.getMode() & 0111) != 0) //noinspection ResultOfMethodCallIgnored
+                if ((entry.getMode() & 0111) != 0)
                     file.setExecutable(true, false);
             }
             return true;

@@ -117,7 +117,6 @@ class NetworkObjectsTest(unittest.TestCase):
         self.assertTrue(secured["RsnFlags"].unpack() & 0x100)
         self.assertTrue(secured["RsnFlags"].unpack() & 0x400)
         self.assertEqual(found[nm.ap_path(other["bssid"])][nm.NAME + ".AccessPoint"]["Flags"].unpack(), 0)
-        # Keep nearby-network discovery while a cellular connection provides the default route.
         cellular = nm.objects(dict(CELLULAR, accessPoints=[other]))
         self.assertIn(nm.ap_path(other["bssid"]), cellular)
         self.assertEqual(cellular[nm.ROOT + "/Devices/Wifi"][nm.NAME + ".Device.Wireless"]["ActiveAccessPoint"].unpack(), "/")
@@ -131,7 +130,6 @@ class NetworkBusTest(unittest.TestCase):
         self.write(WIFI)
         self.bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
         env = dict(os.environ, DBUS_SYSTEM_BUS_ADDRESS=os.environ["DBUS_SESSION_BUS_ADDRESS"])
-        # Use the production service and only redirect its input file for the fixture.
         launch = "import runpy,sys; from pathlib import Path; n=runpy.run_path(sys.argv[1]); g=n['main'].__globals__; g['SNAPSHOT']=Path(sys.argv[2]); g['SCAN_REQUEST']=Path(sys.argv[2]).with_suffix('.request'); n['main']()"
         self.process = subprocess.Popen([sys.executable, "-c", launch, str(SCRIPT), str(self.snapshot)], env=env,
                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -217,7 +215,6 @@ class NetworkBusTest(unittest.TestCase):
         self.assertTrue(any(interface == nm.OBJECT_MANAGER and member == "InterfacesRemoved" and args[0] == nm.AP
                             for _, interface, member, args in signals))
         self.assertTrue(any(member == "AccessPointAdded" for _, _, member, _ in signals))
-        # A missing/invalid snapshot is a transient input error, never a fake Ethernet handover.
         self.snapshot.write_text("{")
         time.sleep(1.2)
         self.assertEqual(self.prop(nm.ROOT, nm.NAME, "PrimaryConnectionType"), "802-11-wireless")
@@ -250,8 +247,6 @@ class NetworkBusTest(unittest.TestCase):
             from gi.repository import NM
         except ValueError:
             self.skipTest("requires gir1.2-nm-1.0")
-        # libnm is a real consumer of the same API Steam reads. It caches objects by path,
-        # so the handover must replace the Wi-Fi device with a modem rather than mutate its type.
         previous = os.environ.get("DBUS_SYSTEM_BUS_ADDRESS")
         os.environ["DBUS_SYSTEM_BUS_ADDRESS"] = os.environ["DBUS_SESSION_BUS_ADDRESS"]
         try:

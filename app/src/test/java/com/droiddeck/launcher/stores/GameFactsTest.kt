@@ -7,7 +7,6 @@ import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 
-/** The name match that finds a store game on Steam and HowLongToBeat, and how its facts read. */
 class GameFactsTest {
     private val saved = Locale.getDefault()
 
@@ -42,7 +41,6 @@ class GameFactsTest {
         val results = listOf("Hades II", "The Witcher 3: Wild Hunt — Songs of the Past", "Hades", "Hades")
         assertEquals(2, TitleMatch.pick("Hades", results.withIndex().toList()) { listOf(it.value) }?.index)
         assertNull(TitleMatch.pick("Hades", listOf("Hades II", "Hadesville")) { listOf(it) })
-        // An alias counts as a name.
         assertEquals("x", TitleMatch.pick("The Witcher III: Wild Hunt", listOf("x" to "The Witcher 3: Wild Hunt, The Witcher III: Wild Hunt")) { it.second.split(',') }?.first)
     }
 

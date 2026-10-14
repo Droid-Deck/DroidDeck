@@ -2,9 +2,12 @@
 
 The Kotlin side of the store download engines mirrors this file exactly. Every symbol the library
 exports is listed here with the class it binds to, the JNI signature, when it is called and on
-which thread. The engines came from Bannerlator's `bl-steam-client` crate; the method names and
-signatures are identical to Bannerlator's `BlGogDownload` / `BlEpicDownload` / `BlAmazonDownload`,
-only the package and class names changed.
+which thread. The GOG engine and the shared fetch core came from Bannerlator's
+`bl-steam-client` crate (method names and signatures match Bannerlator's `BlGogDownload`, only the
+package and class names changed). The Epic module (`src/epic/`) and the Amazon module
+(`src/amazon/`) are DroidDeck's own, each written from a functional spec (see
+`docs/development/epic-cleanroom.md` and `docs/development/amazon-cleanroom.md`); their JNI
+surfaces below are new.
 
 Load it once with `System.loadLibrary("droiddeckstores")`. The library is built by Gradle
 (`buildRustStores`, see `app/build.gradle`) and is absent from a `-PskipRust=true` build, so every
@@ -112,161 +115,173 @@ On-disk protocol (what a resumed run, by either engine, relies on): a file is as
 
 ## `com.droiddeck.launcher.stores.epic.EpicNative`
 
-Two runs make up the native half of an Epic install:
+Everything Epic runs in the Rust `epic` module: the web-service calls (sign-in, refresh, exchange
+codes, library, catalog, build information, shop shelves, achievements, cloud saves), manifest
+parsing and the install engine. Tokens are passed in per call and never stored or logged by the
+library; the Kotlin facade keeps them in the shared Keystore-sealed account store. Requests send
+`DroidDeck/<versionName>` (`epic/net.rs::USER_AGENT_PRODUCT`; the version comes from
+`nativeConfigure`), except achievements, which Epic only answers for its launcher agent
+(`epic/net.rs::EPIC_LAUNCHER_USER_AGENT`).
 
-1. **Fetch** (`nativeStart`): fills the chunk cache with verified, decompressed chunks for the
-   files the manager says are pending. The Kotlin manager still fetches and parses the manifest
-   API JSON, downloads the manifest, selects files (install tags), runs the delta/verify pass and
-   does every post-install step. The engine re-parses the same manifest bytes (ChunksV4 binary
-   or legacy JSON), rebuilds the chunk plan for the pending files, skips chunks already in the
-   cache, and writes verified chunks with a `.part` + rename protocol, so the on-disk state is the
-   same whichever side fetched.
-2. **Assemble** (`nativeAssemble`): writes the pending files from the cache, one sequential write
-   per file, SHA-1 checked as the bytes go out when the manifest hashes the file. This is the
-   same loop the Kotlin manager runs today (`for part in file.parts: write(chunk[offset..+size])`,
-   same "Missing chunk X for Y" wording); the Kotlin loop remains a valid fallback.
-
-**The chunk cache directory** is the `chunkCacheDir` parameter of both calls (always pass the
-same value to both for one install):
-
-- `""` — today's behaviour: the cache is `<installDir>/.chunks`. The fetch leaves it in place;
-  `nativeAssemble` removes it whole at the end of a successful run (as the Kotlin loop's
-  `deleteDir(.chunks)` does), and never deletes a chunk early.
-- any other absolute path — a **scratch cache**, meant for internal storage when the game
-  installs to an SD card (each byte then hits the card once instead of twice; the card's write
-  speed stops starving the fetchers). The fetch fills it exactly like `.chunks`. The assembler
-  reference-counts chunk GUIDs across the files it was given and **deletes each cached chunk as
-  soon as the last file that uses it has been written and verified**, then removes the directory
-  at the end of a successful run. A cancelled or failed run (fetch or assembly) leaves the cache
-  exactly as it stands, for resume: the next run's delta pass skips finished files and the next
-  fetch skips chunks still cached. The directory is created by the fetch if it does not exist;
-  give each install its own (e.g. `<cacheRoot>/epic/<appName>`), since a successful assembly
-  removes it.
-
-| Method | JNI signature | Symbol |
+| Method | JNI signature | Symbol suffix |
 |---|---|---|
-| `nativeStart(...)`: Long | `([BLjava/lang/String;Ljava/lang/String;[Ljava/lang/String;[IIJLjava/lang/String;IILjava/lang/Object;)J` (last parameter is the listener) | `Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeStart` |
-| `nativeAssemble(...)`: Long | `([BLjava/lang/String;Ljava/lang/String;[ILjava/lang/Object;)J` (last parameter is the listener) | `Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeAssemble` |
-| `nativeCancel(handle: Long)` | `(J)V` | `Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeCancel` |
-| `nativeRelease(handle: Long)` | `(J)V` | `Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeRelease` |
+| `nativeConfigure(appVersion: String)` | `(Ljava/lang/String;)V` | `nativeConfigure` |
+| `nativeCall(op: String, request: String): String?` | `(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;` | `nativeCall` |
+| `nativeFetch(op: String, request: String): ByteArray?` | `(Ljava/lang/String;Ljava/lang/String;)[B` | `nativeFetch` |
+| `nativeSend(op: String, request: String, body: ByteArray): String?` | `(Ljava/lang/String;Ljava/lang/String;[B)Ljava/lang/String;` | `nativeSend` |
+| `nativeInspect(manifest: ByteArray, request: String): String?` | `([BLjava/lang/String;)Ljava/lang/String;` | `nativeInspect` |
+| `nativeInstall(request: String, listener: InstallListener): Long` | `(Ljava/lang/String;Lcom/droiddeck/launcher/stores/epic/EpicNative$InstallListener;)J` | `nativeInstall` |
+| `nativeCancel(handle: Long)` | `(J)V` | `nativeCancel` |
+| `nativeRelease(handle: Long)` | `(J)V` | `nativeRelease` |
 
-`nativeCancel` / `nativeRelease` take the handle of either run. There is no `nativeProbe`;
-Bannerlator probes by catching the `Throwable` from `loadLibrary` / the first `nativeStart`.
+Full symbols are `Java_com_droiddeck_launcher_stores_epic_EpicNative_<suffix>`. Every call is
+synchronous on the calling thread (network calls block: call them off the main thread) except
+`nativeInstall`, which returns at once. A Rust panic is caught at the boundary (`null` / 0 result).
 
-```kotlin
-@JvmStatic private external fun nativeStart(
-    manifest: ByteArray, installDir: String, chunkCacheDir: String, cdnPrefixes: Array<String>,
-    pendingFileIdx: IntArray, expectedChunks: Int, expectedBytes: Long, caBundlePath: String,
-    maxWorkers: Int, processWorkers: Int, listener: Listener,
-): Long
-@JvmStatic private external fun nativeAssemble(
-    manifest: ByteArray, installDir: String, chunkCacheDir: String, fileIdx: IntArray, listener: Listener,
-): Long
-```
+### `nativeCall` operations
 
-### `nativeStart` parameters, in order
+`request` and the answer are JSON objects. A failure answers `{"error": "…"}`.
 
-| # | Parameter | Meaning |
+| op | request | answer |
 |---|---|---|
-| 1 | `manifest: ByteArray` | the raw manifest bytes the manager downloaded (binary ChunksV4 or JSON) |
-| 2 | `installDir: String` | absolute install directory |
-| 3 | `chunkCacheDir: String` | `""` = `<installDir>/.chunks`; else the scratch cache directory (see above) |
-| 4 | `cdnPrefixes: Array<String>` | the CDN base URLs from the manifest API answer (`.../ChunksV4/<n>/` style); one or many, distinct hosts widen the window |
-| 5 | `pendingFileIdx: IntArray` | indices into the manifest's file list of the files still to fetch (the manager's delta/verify result) |
-| 6 | `expectedChunks: Int` | the manager's own needed-chunk count for a cross-check; `-1` = no cross-check |
-| 7 | `expectedBytes: Long` | the manager's `Σ max(fileSize, 1)` for a cross-check; `-1` = no cross-check |
-| 8 | `caBundlePath: String` | see conventions |
-| 9 | `maxWorkers: Int` | window ceiling (Bannerlator: 8) |
-| 10 | `processWorkers: Int` | inflate/verify/write threads |
-| 11 | `listener` | see below |
+| `auth.config` | – | `startUrl`, `redirectPrefix`, `webViewUserAgent` for the login WebView |
+| `auth.codeFromPage` | `text` (the redirect page body as the WebView returns it) | `code`, or `{}` |
+| `auth.signIn` | `code` | `access_token`, `refresh_token`?, `account_id`?, `display_name`?, `expires_at` (epoch ms) |
+| `auth.refresh` | `refreshToken` | same as `auth.signIn` (absent fields: keep the stored ones) |
+| `auth.exchange` | `accessToken` | `code` (single-use launch exchange code) |
+| `library.owned` | `accessToken` | `records[]` of `appName`, `namespace`, `catalogItemId` (all pages; filtered to installable Windows games). A refused token answers `{"error":…, "signIn": true}`; any failed page fails the whole call |
+| `catalog.details` | `accessToken`, `namespace`, `catalogItemId` | `details`: `title`, `developer`, `description`, `publisher`, `releaseDate`, `tall`, `wide`, `canRunOffline`, `dlc`, `mainGameId` |
+| `catalog.attribute` | `accessToken`, `namespace`, `catalogItemId`, `name` | `value` (`""` = absent), or `unknown: true` when the service could not be asked |
+| `build.info` | `accessToken`, `namespace`, `catalogItemId`, `appName` | `info`: the opaque build description (`manifest`, `buildVersion`, `deploymentId`, `cdns[]` of `base`/`dir`/`auth`) |
+| `build.cdns` | `info` | `cdns[]` |
+| `build.prereq` | `info` | `name`, `path`, `read` (downloads and parses the manifest) |
+| `shop.shelves` | `country` | `new`, `deals`, `free`, `trending`: arrays in the `store_featured` item shape plus `allTags`; `art`: cover URLs from every promotion, for the signed-out wall |
+| `achievements` | `accessToken`, `namespace`, `accountId`, `locale` | `list[]` of `id`, `name`, `description`, `hidden`, `unlocked`, `unlockedAt` (s), `icon`, `iconLocked` |
+| `cloud.list` | `accessToken`, `accountId`, `appName` | `files[]` of `name`, `modified` (ms, -1 unknown), `hash`, `readLink` |
+| `cloud.writeLinks` | `accessToken`, `accountId`, `appName`, `names[]` | `links`: name → write link |
+| `launch.args` | `displayName`, `accountId`, `namespace`, `locale`, `appName`, `deploymentId`, `additional` | `args[]` |
+| `locale` | `language`, `region` | `key`, `tags[]`, `launchLocale` |
 
-Planning (manifest parse + plan + cross-check) runs synchronously on the calling thread, so a
-plan failure returns `0` BEFORE any fetch; the manager then runs its own fallback loop. On `0`,
-`onComplete(false, reason, 0)` has already been called synchronously (except for a null listener).
-On success, `onPlan` has been called synchronously before `nativeStart` returns, then the fetch
-runs on a new thread. The engine's `plan` log line names the cache:
-`plan chunk_dir=ChunksV4 cache_dir=<dir> scratch=<bool> files_pending=… chunks=… bytes=… …`.
+`nativeFetch` ops: `manifest.download` (`info`, optional `cdns`) → the manifest bytes;
+`cloud.read` (`url`) → the file. `null` = failed. `nativeSend` op: `cloud.write` (`url`) with the
+body → `{"ok": true}` or an error. `nativeInspect` parses manifest bytes: `{"op":"summary"}` →
+`buildVersion`, `launchExe`, `prereqName`, `prereqPath`, `prereqRead`, `files[]` (`path`, `size`,
+`tags`); `{"op":"select","tags":[…]}` → `indices[]` of the files an install with those tags gets.
 
-### `nativeAssemble` parameters, in order
+### `nativeInstall`
 
-| # | Parameter | Meaning |
+`request` (JSON): `info` (from `build.info`), absolute `gameDir`, `scratchDir` (`""` or the internal
+scratch cache for a card install), `storageLabel` (for space messages), `tags[]` (device install
+tags), `maxWorkers` (network window, 1–128), `processWorkers` (decode/write threads), `caBundle`
+(`""` = the roots rustls ships with).
+
+An unreadable request returns `0` after a synchronous `onComplete(false, false, error, "")`.
+Otherwise the run happens on a thread named `epic-install` (background priority) and
+`onComplete` fires exactly once, last. `nativeCancel` is idempotent and may be called at any time
+before `nativeRelease`; call `nativeRelease` exactly once per non-zero handle, after `onComplete`.
+The Kotlin wrapper (`EpicNative.install`) polls its cancel flag every 250 ms, forwards it, and waits
+for `onComplete` without a time limit: the run removes its unfinished stage files before it
+completes.
+
+| `InstallListener` method | JNI signature | When |
 |---|---|---|
-| 1 | `manifest: ByteArray` | the same manifest bytes as the fetch |
-| 2 | `installDir: String` | absolute install directory (files are written at `installDir/<filename with \\ → />`) |
-| 3 | `chunkCacheDir: String` | the same value the fetch was given (`""` or the scratch directory) |
-| 4 | `fileIdx: IntArray` | indices into the manifest's file list of the files to write — the fetch's `pendingFileIdx`, in one call |
-| 5 | `listener` | see below |
+| `onStatus(text)` | `(Ljava/lang/String;)V` | manifest-stage status lines |
+| `onCheck(doneBytes, totalBytes, files, filesTotal)` | `(JJII)V` | the delta pass, every 16 files and at its end |
+| `onSizes(pendingBytes, diskBytes)` | `(JJ)V` | once pending work is known |
+| `onProgress(written, total, files, filesTotal)` | `(JJII)V` | pending-file bytes written; at most every 50 ms plus per finished file; may arrive out of order from several threads |
+| `onInstall(done, total, files, filesTotal)` | `(JJII)V` | every file is written and verified |
+| `onLog(line)` | `(Ljava/lang/String;)V` | `manifest …`, `plan …`, the fetch core's lines, `summary …`; also in logcat under `EpicNative` |
+| `beforeReplace(): Boolean` | `()Z` | once, before the first file replaces its destination; `false` or a throw fails the run with nothing replaced |
+| `onComplete(success, cancelled, error, result)` | `(ZZLjava/lang/String;Ljava/lang/String;)V` | terminal. `result` (on success) is JSON: `buildVersion`, `launchExe`, `prereqName`, `prereqPath`, `prereqRead`, `deploymentId`, `diskBytes`, `bytesWritten`, `filesWritten`; `error` is `"cancelled"` on cancel |
 
-Parse + plan run on the calling thread: an unparsable manifest, an index out of range or an
-empty `installDir` returns `0` after a synchronous `onComplete(false, reason, 0)` and nothing is
-written. Otherwise the assembly runs on a new thread. Each file is created fresh and written in
-part order; on any error (missing chunk, short chunk, I/O error, SHA-1 mismatch) the file being
-written is deleted, the run fails with that error, no further files are touched and the cache is
-left as it is. A manifest SHA-1 of all zeros (and a JSON manifest, which has none) means no hash
-check — the Kotlin delta pass treats those the same way. The run's log lines:
-`assemble cache_dir=… scratch=… files=… bytes=… chunks_referenced=…`, then `cache removed …` /
-`cache not removed …: <why>` (not fatal) and `assembled files=… bytes=… chunks_removed_early=…`.
-
-### Listener
-
-Suggested: `com.droiddeck.launcher.stores.epic.EpicNative.Listener` (nested interface, as in
-Bannerlator). One interface serves both runs.
-
-| Listener method | JNI signature | When |
-|---|---|---|
-| `onPlan(chunksTotal: Int, bytesTotal: Long, chunkDir: String)` | `(IJLjava/lang/String;)V` | fetch only: once, synchronously inside `nativeStart`, before any fetch: the plan the engine derived (`chunkDir` is the manifest's, e.g. `ChunksV4`, not the cache directory) |
-| `onProgress(bytesDone: Long, bytesTotal: Long, done: Int, total: Int)` | `(JJII)V` | fetch: per accounted chunk (cached-skip or fetched), `done`/`total` = chunks; assembly: after each file written, `bytesDone` = bytes written so far, `done`/`total` = files. Native threads. |
-| `onLog(line: String)` | `(Ljava/lang/String;)V` | engine log line, already in logcat under `EpicNative`; any native thread (also synchronously from `nativeStart`/`nativeAssemble` for the start line) |
-| `onComplete(success: Boolean, error: String, bytes: Long)` | `(ZLjava/lang/String;J)V` | terminal, exactly once (worker thread; or synchronously when the call returns `0`). Fetch: `bytes` = credited bytes (cached-skip + fetched). Assembly: `bytes` = bytes written. `error` is `"cancelled"` on cancel. |
-
-Bannerlator's `BlEpicDownload.run(...)` wraps `nativeStart` in a blocking call that polls an
-`AtomicBoolean` cancel flag every 250 ms, calls `nativeCancel` on cancel, waits up to 5 s for
-`onComplete`, then `nativeRelease` in `finally`. The same wrapper shape fits `nativeAssemble`
-(cancel is honoured between files; a multi-GB file finishes before the run stops).
+On-disk protocol: game files are staged in `<gameDir>/.droiddeck-epic-staging/*.stage` (owner
+marker `owner` = `DroidDeck Epic staging v1\n`) and renamed over their destination after size and
+SHA-1 checks; reusable chunks live, decompressed, as `<GUID>` (extra copies `<GUID>.<n>`, writes via
+`.part`) in `<gameDir>/.chunks` or the scratch directory.
 
 ## `com.droiddeck.launcher.stores.amazon.AmazonNative`
 
-The file-fetch pool of an Amazon Games install: one streamed HTTP GET per manifest file, SHA-256
-checked, written as `<dest>.tmp` and renamed. The manager keeps manifest/auth/markers/post-install
-and hands the engine a JSON plan.
+Everything Amazon Games runs in the Rust `amazon` module (`src/amazon/`, written from a functional
+spec, see `docs/development/amazon-cleanroom.md`): device sign-in values and registration, token
+refresh, deregistration, the entitlement library, the download lookup, manifest framing,
+decompression and parsing, the install engine, and the launch details (exe, arguments, FuelPump
+environment). Tokens are passed in per call and never stored or logged by the library; the Kotlin
+facade keeps them in the shared Keystore-sealed account store.
 
-| Method | JNI signature | Symbol |
+User-Agents (all in `amazon/net.rs`): the sign-in WebView and `api.amazon.com` get a desktop
+Firefox string (`BROWSER_USER_AGENT`); the distribution service (`gaming.amazon.com`) gets the
+Windows games launcher's `User-Agent: AGSLauncher/1.0.0` plus its non-standard
+`UserAgent: com.amazon.agslauncher.win/3.0.9202.1` header; the CDN (manifest and files) gets
+`DroidDeck/<versionName>` (`USER_AGENT_PRODUCT`; the version comes from `nativeConfigure`).
+
+| Method | JNI signature | Symbol suffix |
 |---|---|---|
-| `nativeStart(...)`: Long | `(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;IILjava/lang/Object;)J` (last parameter is the listener) | `Java_com_droiddeck_launcher_stores_amazon_AmazonNative_nativeStart` |
-| `nativeCancel(handle: Long)` | `(J)V` | `Java_com_droiddeck_launcher_stores_amazon_AmazonNative_nativeCancel` |
-| `nativeRelease(handle: Long)` | `(J)V` | `Java_com_droiddeck_launcher_stores_amazon_AmazonNative_nativeRelease` |
+| `nativeConfigure(appVersion: String)` | `(Ljava/lang/String;)V` | `nativeConfigure` |
+| `nativeCall(op: String, request: String): String?` | `(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;` | `nativeCall` |
+| `nativeFetch(op: String, request: String): ByteArray?` | `(Ljava/lang/String;Ljava/lang/String;)[B` | `nativeFetch` |
+| `nativeInspect(manifest: ByteArray, request: String): String?` | `([BLjava/lang/String;)Ljava/lang/String;` | `nativeInspect` |
+| `nativeInstall(request: String, listener: InstallListener): Long` | `(Ljava/lang/String;Lcom/droiddeck/launcher/stores/amazon/AmazonNative$InstallListener;)J` | `nativeInstall` |
+| `nativeCancel(handle: Long)` | `(J)V` | `nativeCancel` |
+| `nativeRelease(handle: Long)` | `(J)V` | `nativeRelease` |
 
-`nativeStart` parameters, in order:
+Full symbols are `Java_com_droiddeck_launcher_stores_amazon_AmazonNative_<suffix>`. Every call is
+synchronous on the calling thread (network calls block: call them off the main thread) except
+`nativeInstall`, which returns at once. A Rust panic is caught at the boundary (`null` / 0 result).
+The Amazon module writes nothing to logcat itself; install lines reach the app through `onLog`.
 
-| # | Parameter | Meaning |
+### `nativeCall` operations
+
+`request` and the answer are JSON objects. A failure answers `{"error": "…"}`.
+
+| op | request | answer |
 |---|---|---|
-| 1 | `planJson: String` | a JSON array, one object per manifest file: `{"relPath": "...", "url": "https://...", "size": <long>, "sha256hex": "..."}` (`sha256hex` may be `""` = no hash check). Every manifest file goes in: the engine applies the size-based resume-skip itself. |
-| 2 | `installDir: String` | absolute install directory |
-| 3 | `caBundlePath: String` | see conventions |
-| 4 | `maxWorkers: Int` | window size; `<= 0` = the engine default (8, Amazon's own `MAX_PARALLEL`) |
-| 5 | `processWorkers: Int` | sync verify+write threads (`<= 0` → 1) |
-| 6 | `listener` | see below |
+| `auth.start` | – | `startUrl` (the sign-in page with a fresh PKCE challenge), `userAgent` (for the WebView), `redirectMarker` (`openid.oa2.authorization_code=`), and the attempt's `serial`, `clientId`, `verifier` (kept by the flow object until `auth.register`) |
+| `auth.register` | `url` (the return URL) or `code`, plus `serial`, `clientId`, `verifier` | `access_token`, `refresh_token`, `expires_at` (epoch ms), `device_serial`, `client_id`, `display_name`? — the credential record's own key names; `{"error":…, "noCode": true}` when the URL carries no code |
+| `auth.refresh` | `refreshToken` | `access_token`, `expires_at` (the refresh token does not change) |
+| `auth.deregister` | `accessToken` | `{}` (the answer is not interpreted) |
+| `library.entitlements` | `accessToken`, `deviceSerial` | `total` (entitlements before filtering) and `games[]` of `productId`, `entitlementId`, `title`, `sku`, `art`, `hero`, `developer`, `publisher`, `dlc`, `parentProductId` — all pages, de-duplicated by product id, add-ons with a parent hidden (unless that hides everything), sorted by title. A refused token (HTTP 401/403, or 400 `NotAuthorizedException`) answers `{"error":…, "signIn": true}`; any failed page fails the whole call |
+| `download.lookup` | `accessToken`, `entitlementId` | `downloadUrl`, `versionId` |
+| `download.size` | `accessToken`, `entitlementId` | `bytes` (0 = unknown) |
+| `launch.spec` | `gameDir`, `title` | `exe` (relative, `/`, `""` when the folder has no `.exe`), `args[]`, `source` (`fuel` / `score`), `warning` (or null) |
+| `launch.env` | `entitlementId`, `sku`, `displayName` | `env[]` of `[name, value]` pairs, in order |
 
-Returns `0` when the listener is null (no callback), or when `planJson` / `installDir` is empty
-(`onComplete(false, "empty plan or install dir", 0)` fires synchronously first), or when the
-listener `GlobalRef` cannot be taken (no callback). The engine keeps the `JavaVM` it takes from
-the first `nativeStart`.
+`nativeFetch` op: `cdn.get` (`url`, optional `accessToken` sent as `x-amzn-token`) → the body, or
+`null`. `nativeInspect` parses a manifest object: `totalBytes`, `files`, or an error.
 
-Suggested listener: `com.droiddeck.launcher.stores.amazon.AmazonNative.Listener` (an interface).
+### `nativeInstall`
 
-| Listener method | JNI signature | When |
+`request` (JSON): `accessToken`, `entitlementId`, absolute `gameDir`, `maxWorkers` (request window,
+1–128), `processWorkers` (verify/write workers; the engine uses at least half the CPU cores),
+`caBundle` (`""` = the roots rustls ships with).
+
+An unusable request returns `0` after a synchronous `onComplete(false, false, error, "")`.
+Otherwise the run happens on a thread named `amazon-install` (background priority) and
+`onComplete` fires exactly once, last. `nativeCancel` is idempotent and may be called at any time
+before `nativeRelease`; call `nativeRelease` exactly once per non-zero handle, after `onComplete`.
+The Kotlin wrapper (`AmazonNative.install`) polls its cancel flag every 250 ms, forwards it once,
+and waits for `onComplete` without a time limit: the run removes its `.tmp` files before it
+completes.
+
+| `InstallListener` method | JNI signature | When |
 |---|---|---|
-| `onProgress(bytesDone: Long, bytesTotal: Long, filesDone: Long, filesTotal: Long)` | `(JJJJ)V` | once up front with the resume-skipped credit, then after each committed file (and as pieces stream in); `bytesDone` includes skipped files. Native threads. |
-| `onLog(line: String)` | `(Ljava/lang/String;)V` | one diagnostic line (`engine=rust …`, `fetch-window …`, `summary …`). The Amazon engine does NOT write to logcat itself: the Kotlin side is the one place that logs these, so each line appears once. |
-| `onComplete(success: Boolean, error: String, bytesWritten: Long)` | `(ZLjava/lang/String;J)V` | exactly once, when the run succeeds, fails or is cancelled (`error = "cancelled"`). |
+| `onStatus(text)` | `(Ljava/lang/String;)V` | manifest-stage status lines |
+| `onCheck(doneBytes, totalBytes, files, filesTotal)` | `(JJII)V` | the check of files already on disk, at most every 200 ms and at its end |
+| `onSizes(pendingBytes, totalBytes)` | `(JJ)V` | once the pending work is known |
+| `onProgress(done, total, files, filesTotal)` | `(JJII)V` | bytes of the whole install that are complete (skipped files included); at most every 50 ms plus per placed file; never moves backwards on the native side, but may arrive out of order from several threads |
+| `onLog(line)` | `(Ljava/lang/String;)V` | `manifest …`, `resume …`, `engine …`, the fetch core's lines, `summary …` (URL query strings removed) |
+| `beforeReplace(): Boolean` | `()Z` | once, before the first file is put in place; `false` or a throw fails the run with nothing replaced |
+| `onComplete(success, cancelled, error, result)` | `(ZZLjava/lang/String;Ljava/lang/String;)V` | terminal. `result` (on success) is JSON: `versionId`, `totalBytes`, `fileCount`, `filesWritten`, `bytesWritten`; `error` is `"cancelled"` on cancel, else a user-facing message |
 
-Bannerlator's `BlAmazonDownload.runBlocking(...)` polls a cancel probe every 100 ms, calls
-`nativeCancel` once, and `nativeRelease` in `finally` after `onComplete`; on thread interrupt it
-cancels and waits up to 30 s for the run to wind down before releasing.
+On-disk protocol: each file is written to `<file>.tmp` beside its destination and renamed over it
+after the size and SHA-256 checks; leftover `.tmp` siblings of manifest files are removed when a
+run starts. A file whose size and SHA-256 already match is skipped. Empty files whose hash is
+absent or that of empty input are created without a request. `.amazon_download_in_progress` is
+created when a run starts and removed when it succeeds, which also creates
+`.amazon_download_complete`; nothing reads either marker.
 
 ## Log tags
 
-Lines go to logcat under `GogNative` and `EpicNative` (the Amazon engine logs only through
-`onLog`). Bannerlator used `BL_GOG_DL` / `BL_EPIC_DL` / `BL_AMAZON_DL`; the line grammar
+Lines go to logcat under `GogNative` and `EpicNative` (the Amazon module logs only through
+`onLog`). Bannerlator used `BL_GOG_DL` for the GOG engine; the fetch core's line grammar
 (`fetch-start`, `fetch-window`, `throughput`, `fetch-end`, `summary`) is unchanged, so its tuning
 notes still read against a DroidDeck log.

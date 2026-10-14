@@ -1,3 +1,2 @@
 #!/bin/sh
-# No Deck BIOS here. The client calls this in Deck mode; a clean exit is "nothing to do".
 exit 0

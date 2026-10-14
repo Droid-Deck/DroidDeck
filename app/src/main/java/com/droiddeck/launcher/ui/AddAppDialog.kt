@@ -111,10 +111,8 @@ private enum class AddSource(val label: Int, val hint: Int) {
 private val ICON_TYPES = listOf("png", "jpg", "jpeg", "webp")
 private val FieldShape = RoundedCornerShape(8.dp)
 
-/** What an icon choice shows: a picked file, or a suggestion's link. */
 private fun iconModel(ref: String): Any = if (ref.startsWith("https://")) ref else File(ref)
 
-/** The Desktop page's Add: a script, an AppImage, a GitHub release or a Flatpak, with a name and icon. */
 @Composable
 internal fun AddAppDialog(runtimeReady: Boolean, onDismiss: () -> Unit, onAdd: (UserApps.Request, String) -> Unit) {
     val ctx = LocalContext.current
@@ -159,7 +157,6 @@ internal fun AddAppDialog(runtimeReady: Boolean, onDismiss: () -> Unit, onAdd: (
     val busy = UserAppsState.working
     val tabFocus = remember { AddSource.entries.map { FocusRequester() } }
     val inputMode = LocalInputModeManager.current.inputMode
-    // Once, as it opens: typing a name switches the input mode too, and must keep its field.
     LaunchedEffect(Unit) {
         if (inputMode == InputMode.Keyboard) {
             repeat(2) { androidx.compose.runtime.withFrameNanos { } }
@@ -240,10 +237,6 @@ internal fun AddAppDialog(runtimeReady: Boolean, onDismiss: () -> Unit, onAdd: (
     }
 }
 
-/**
- * An added app's name and icon, changed on its page. [icon]: null keeps the current one, "" goes
- * back to the default, else a picked file or a suggestion.
- */
 @Composable
 internal fun EditAppDialog(app: UserApps.App, onDismiss: () -> Unit, onSave: (String, String?, String?) -> Unit) {
     val ctx = LocalContext.current
@@ -299,7 +292,6 @@ internal fun EditAppDialog(app: UserApps.App, onDismiss: () -> Unit, onSave: (St
     }
 }
 
-/** Open from the first frame; [onDismiss] once the closing animation has run. */
 @Composable
 internal fun rememberShown(onDismiss: () -> Unit): MutableTransitionState<Boolean> {
     val shown = remember { MutableTransitionState(false).apply { targetState = true } }
@@ -307,25 +299,17 @@ internal fun rememberShown(onDismiss: () -> Unit): MutableTransitionState<Boolea
     return shown
 }
 
-/**
- * The card both dialogs sit in, sized to fit a landscape handheld without scrolling: it scales in
- * like the app's menus, rises above the keyboard, and closes on a tap outside or B.
- */
 @Composable
 internal fun AppDialog(
     shown: MutableTransitionState<Boolean>, close: () -> Unit, label: String, wide: Boolean,
     modifier: Modifier = Modifier, maxWidth: Dp? = null,
-    /** [width] fixed, else as wide as its content when [fitContent], else as wide as it may be. */
     width: Dp? = null, fitContent: Boolean = false,
-    /** What B / Back does, when not [close] (a picker goes up a folder first). */
     back: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val pal = LocalPalette.current
-    // The page's ring stays out of sight behind it.
     VeilRing()
     Dialog(onDismissRequest = back ?: close, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-      // The page's focus memory stays the page's: nothing in here is a place to come back to.
       CompositionLocalProvider(LocalFrontFocus provides null) {
         Box(
             contentAlignment = Alignment.Center,
@@ -368,7 +352,6 @@ internal fun AppDialog(
     }
 }
 
-/** The eyebrow and title, with [trailing] (the tabs) beside them when there is room, else under them. */
 @Composable
 internal fun DialogHeader(eyebrow: String, title: String, trailing: (@Composable () -> Unit)? = null) {
     val heading = @Composable {
@@ -391,7 +374,6 @@ internal fun DialogHeader(eyebrow: String, title: String, trailing: (@Composable
     }
 }
 
-/** Side by side and of one height on a wide card, stacked on a narrow one. */
 @Composable
 private fun Columns(first: @Composable ColumnScope.() -> Unit, second: @Composable ColumnScope.() -> Unit) {
     Rise(1) {
@@ -407,7 +389,6 @@ private fun Columns(first: @Composable ColumnScope.() -> Unit, second: @Composab
     }
 }
 
-/** A titled inset of the card; it fills the height its column is given. */
 @Composable
 private fun Panel(title: String, content: @Composable ColumnScope.() -> Unit) {
     val colors = MaterialTheme.colorScheme
@@ -421,7 +402,6 @@ private fun Panel(title: String, content: @Composable ColumnScope.() -> Unit) {
     }
 }
 
-/** Why the main button is off (or nothing), then Cancel and the main button, at the card's foot. */
 @Composable
 internal fun DialogFooter(note: String?, confirm: String, enabled: Boolean, onCancel: () -> Unit, onConfirm: () -> Unit) {
     val lineColor = LocalPalette.current.line
@@ -446,7 +426,6 @@ private fun hideKeyboard(view: View) {
         ?.hideSoftInputFromWindow(view.windowToken, 0)
 }
 
-/** The app's text field, with what is wrong with its value under it. */
 @Composable
 private fun CheckedField(value: String, onChange: (String) -> Unit, label: String, placeholder: String, problem: String?) {
     val view = LocalView.current
@@ -468,7 +447,6 @@ private fun NameField(name: String, onName: (String) -> Unit, placeholder: Strin
     )
 }
 
-/** The app as the Desktop page will show it: its icon, its name ([name] null: not known yet) and kind. */
 @Composable
 private fun AppPreview(icon: Any?, glyph: ImageVector, name: String?, kind: String) {
     val colors = MaterialTheme.colorScheme
@@ -493,7 +471,6 @@ private fun AppPreview(icon: Any?, glyph: ImageVector, name: String?, kind: Stri
     }
 }
 
-/** The icon's picker and [clear] (a label and what it does). */
 @Composable
 private fun IconActions(onChoose: () -> Unit, clear: Pair<Int, () -> Unit>?) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -504,7 +481,6 @@ private fun IconActions(onChoose: () -> Unit, clear: Pair<Int, () -> Unit>?) {
     }
 }
 
-/** Icons found in [repo], looked up off the main thread once the name has settled; [selected] is ringed. */
 @Composable
 private fun IconSuggestions(repo: String, selected: String?, onPick: (String) -> Unit) {
     val found by produceState<List<String>?>(null, repo) {
@@ -537,7 +513,6 @@ private fun SuggestedIcon(url: String, selected: Boolean, onClick: () -> Unit) {
             .controllerConfirm(onClick = onClick),
     ) {
         AsyncImage(model = ImageRequest.Builder(LocalContext.current).data(url).crossfade(true).build(), contentDescription = stringResource(R.string.add_app_icon), contentScale = ContentScale.Fit, modifier = Modifier.size(34.dp))
-        // The chosen one is ticked; the ring stays with focus.
         if (selected) Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier.align(Alignment.TopEnd).padding(2.dp).size(14.dp).clip(androidx.compose.foundation.shape.CircleShape).background(pal.signal),
@@ -545,7 +520,6 @@ private fun SuggestedIcon(url: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** The chosen file, or none yet, laid out like the app's text fields, with the button that picks it. */
 @Composable
 private fun FileRow(path: String?, onChoose: () -> Unit) {
     val colors = MaterialTheme.colorScheme
@@ -567,7 +541,6 @@ private fun FileRow(path: String?, onChoose: () -> Unit) {
     }
 }
 
-/** Whether the script's folder will be linked or copied in, worked out off the main thread. */
 @Composable
 private fun FolderNote(scriptPath: String) {
     var plan by remember(scriptPath) { mutableStateOf<UserApps.ScriptPlan?>(null) }

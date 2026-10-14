@@ -1,9 +1,5 @@
 // SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
 // SPDX-License-Identifier: GPL-3.0-or-later
-//
-// LSFG from the work of Camille LaVey / the Eden Emulator Project, following
-// upstream lsfg-vk. Ported to WinNative and DroidDeck by @maxjivi05; only the
-// Vulkan dispatch differs here (see lsfg_vkd.h).
 
 #pragma once
 

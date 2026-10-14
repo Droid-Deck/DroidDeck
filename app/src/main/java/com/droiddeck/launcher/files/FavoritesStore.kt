@@ -3,15 +3,6 @@ package com.droiddeck.launcher.files
 import android.content.Context
 import org.json.JSONArray
 
-/**
- * Persists the File Manager's favourite / bookmarked directories.
- *
- * Stores an ordered (insertion-order) list of absolute path strings as a JSON array
- * under "file_manager_favorites" in SharedPreferences "file_manager_prefs". Only the
- * absolute path is kept - everything shown on a favourite card (drive label, container
- * name, display path) is derived live, so a renamed or deleted container resolves
- * correctly for free.
- */
 object FavoritesStore {
 
     private const val PREFS_NAME = "file_manager_prefs"
@@ -20,7 +11,6 @@ object FavoritesStore {
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    /** Ordered list of favourited absolute paths (insertion order). */
     fun list(context: Context): List<String> {
         val raw = prefs(context).getString(KEY, null) ?: return emptyList()
         return runCatching {
@@ -31,7 +21,6 @@ object FavoritesStore {
 
     fun isFavorite(context: Context, path: String): Boolean = list(context).contains(path)
 
-    /** Add [path] if not already present (deduped); keeps insertion order. */
     fun add(context: Context, path: String) {
         val current = list(context)
         if (current.contains(path)) return
@@ -44,7 +33,6 @@ object FavoritesStore {
         save(context, current.filterNot { it == path })
     }
 
-    /** Toggle [path]; returns true if it is now a favourite, false if it was removed. */
     fun toggle(context: Context, path: String): Boolean =
         if (isFavorite(context, path)) {
             remove(context, path); false

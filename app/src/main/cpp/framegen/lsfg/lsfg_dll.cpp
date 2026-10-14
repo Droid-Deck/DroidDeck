@@ -1,9 +1,5 @@
-// See lsfg_dll.h. PE resource walk + on-device SPIR-V cache for the Lossless
-// Scaling frame-generation chain.
-//
-// LSFG from the work of Camille LaVey / the Eden Emulator Project, following
-// upstream lsfg-vk (PancakeTAS). Ported to WinNative (lsfg_dll.c) and DroidDeck
-// by @maxjivi05. GPL-3.0-or-later.
+// LSFG from Camille LaVey / the Eden Emulator Project, following upstream lsfg-vk (PancakeTAS).
+// Ported to WinNative and DroidDeck by @maxjivi05. GPL-3.0-or-later.
 
 #include "lsfg_dll.h"
 #include "lsfg_dxbc.h"
@@ -25,9 +21,9 @@
 namespace lsfg {
 namespace {
 
-// ---- PE constants ---------------------------------------------------------
-constexpr uint16_t kDosMagic       = 0x5A4Du;   // "MZ"
-constexpr uint32_t kPeSignature    = 0x00004550u; // "PE\0\0"
+
+constexpr uint16_t kDosMagic       = 0x5A4Du;
+constexpr uint32_t kPeSignature    = 0x00004550u;
 constexpr uint16_t kPe32Magic      = 0x010Bu;
 constexpr uint16_t kPe32PlusMagic  = 0x020Bu;
 
@@ -47,7 +43,6 @@ constexpr size_t   kResourceEntrySize       = 8u;
 constexpr uint32_t kResourceSubdirectoryBit = 0x80000000u;
 constexpr uint32_t kResourceTypeRcData      = 10u;
 
-// ---- SPIR-V constants -----------------------------------------------------
 constexpr uint32_t kSpirvMagic          = 0x07230203u;
 constexpr size_t   kSpirvHeaderWords    = 5u;
 constexpr uint32_t kSpirvWordCountShift = 16u;
@@ -64,7 +59,7 @@ constexpr uint32_t kVariantFp32Offset = 98u;
 constexpr uint32_t kMaxResourceId = 512u;
 constexpr size_t   kMaxSpirvWords = 16u * 1024u * 1024u;
 
-constexpr uint32_t kCacheMagic   = 0x4C534642u;  // "BFSL" little-endian
+constexpr uint32_t kCacheMagic   = 0x4C534642u;
 constexpr uint32_t kCacheVersion = 1u;
 
 struct CacheHeader {
@@ -83,7 +78,6 @@ struct PeSection {
     uint32_t rawSize        = 0;
 };
 
-// Read-only mapping of the DLL. Closes itself; the DLL is never executed.
 class PeImage {
 public:
     ~PeImage() { close(); }
@@ -168,7 +162,6 @@ private:
     std::vector<PeSection> sections_;
 };
 
-// RCDATA id -> blob, for the ids we care about.
 struct ResourceTable {
     const uint8_t* data[kMaxResourceId] = {};
     uint32_t       size[kMaxResourceId] = {};
@@ -217,7 +210,6 @@ bool resourceReadLeaf(const PeImage& img, size_t leafOffset,
     return true;
 }
 
-// Walk type -> name -> language and keep the first language of every RCDATA id.
 bool collectRcData(const PeImage& img, size_t resourceBase, ResourceTable& out) {
     size_t typeTotal = 0;
     if (!resourceEntryCount(img, resourceBase, typeTotal)) return false;
@@ -256,7 +248,7 @@ bool collectRcData(const PeImage& img, size_t resourceBase, ResourceTable& out) 
                 if (!resourceReadLeaf(img, resourceBase + langOffset, blob, blobSize)) continue;
                 out.data[nameId] = blob;
                 out.size[nameId] = blobSize;
-                break;   // first language wins
+                break;
             }
         }
     }
@@ -289,7 +281,6 @@ DllStatus parseResources(PeImage& img, ResourceTable& table) {
     return DllStatus::Ok;
 }
 
-// ---- SPIR-V adoption (precompiled-variant path) ---------------------------
 
 bool isSpirvModule(const uint8_t* blob, uint32_t size) {
     if (!blob || size < kSpirvHeaderWords * sizeof(uint32_t)) return false;
@@ -315,9 +306,6 @@ uint32_t lookupDescriptorSet(const std::vector<uint32_t>& w, uint32_t targetId) 
     return 0;
 }
 
-// Precompiled blobs are renumbered into set/binding order - that is the
-// convention they were built with. The DXBC path uses encounter order instead
-// (see lsfg_dxbc), which is what DXVK's output pairs with. Do not merge them.
 bool renumberBindingsSetOrder(std::vector<uint32_t>& w) {
     struct Slot { uint32_t set; uint32_t binding; size_t literalOffset; };
     std::vector<Slot> slots;
@@ -399,8 +387,6 @@ bool writeCache(const std::string& cachePath, const CacheHeader& header, const M
     if (ok) ok = fsync(fileno(f)) == 0;
     fclose(f);
 
-    // Temp file + rename, so a failed or interrupted build can never leave a
-    // half-written cache that would later be loaded as if it were complete.
     if (!ok || rename(tempPath.c_str(), cachePath.c_str()) != 0) {
         unlink(tempPath.c_str());
         return false;
@@ -416,9 +402,8 @@ bool readCacheHeader(const std::string& cachePath, CacheHeader& out) {
     return ok && out.magic == kCacheMagic && out.version == kCacheVersion;
 }
 
-} // namespace
+}
 
-// ---- public API -----------------------------------------------------------
 
 const std::vector<uint32_t>& shaderIds() {
     static const std::vector<uint32_t> ids = [] {
@@ -584,7 +569,6 @@ DllStatus loadModules(const std::string& cachePath, ModuleSet& outSet) {
     return status;
 }
 
-// ---- SPIR-V version lowering (Vulkan 1.1/1.2 compat) ----------------------
 
 namespace {
 
@@ -593,14 +577,14 @@ constexpr uint32_t kSpirvOpExtInstImport= 11u;
 constexpr uint32_t kSpirvOpMemoryModel  = 14u;
 constexpr uint32_t kSpirvOpCapability   = 17u;
 
-// Capabilities that are core in the version the translator emits but not in
-// the versions we lower to.
-constexpr uint32_t kCapVulkanMemoryModel            = 5345u;  // core from 1.5
-constexpr uint32_t kCapVulkanMemoryModelDeviceScope = 5346u;  // core from 1.5
-constexpr uint32_t kCapDemoteToHelperInvocation     = 5379u;  // core from 1.6
+
+
+constexpr uint32_t kCapVulkanMemoryModel            = 5345u;
+constexpr uint32_t kCapVulkanMemoryModelDeviceScope = 5346u;
+constexpr uint32_t kCapDemoteToHelperInvocation     = 5379u;
 
 std::vector<uint32_t> encodeOpExtension(const char* name) {
-    const size_t len = strlen(name) + 1;                 // incl. NUL
+    const size_t len = strlen(name) + 1;
     const size_t strWords = (len + 3) / 4;
     std::vector<uint32_t> ins(1 + strWords, 0u);
     ins[0] = ((uint32_t)(1 + strWords) << kSpirvWordCountShift) | kSpirvOpExtension;
@@ -624,17 +608,13 @@ bool hasOpExtension(const std::vector<uint32_t>& w, const char* name) {
     return false;
 }
 
-} // namespace
+}
 
 bool downgradeSpirv(std::vector<uint32_t>& w, uint32_t targetVersion) {
     if (w.size() < kSpirvHeaderWords || w[0] != kSpirvMagic) return false;
     if (targetVersion < kSpirv14) return false;
-    if (w[1] <= targetVersion) return true;             // already low enough
+    if (w[1] <= targetVersion) return true;
 
-    // Walk the preamble first and only touch the module once it is known to
-    // be lowerable: note which extension-gated capabilities are declared and
-    // where the capability block ends (OpExtension must follow every
-    // OpCapability and precede OpExtInstImport / OpMemoryModel).
     bool needMemoryModel = false;
     size_t insertAt = kSpirvHeaderWords;
     size_t off = kSpirvHeaderWords;
@@ -645,9 +625,6 @@ bool downgradeSpirv(std::vector<uint32_t>& w, uint32_t targetVersion) {
         if (opcode == kSpirvOpCapability && length >= 2) {
             const uint32_t cap = w[off + 1];
             if (cap == kCapVulkanMemoryModel || cap == kCapVulkanMemoryModelDeviceScope) needMemoryModel = true;
-            // Core only in 1.6, and VK_EXT_shader_demote_to_helper_invocation
-            // is never enabled on the compat path: refuse rather than hand the
-            // driver a module that is not legal at the lowered version.
             if (cap == kCapDemoteToHelperInvocation) return false;
             insertAt = off + length;
         } else if (opcode == kSpirvOpExtension) {
@@ -659,7 +636,6 @@ bool downgradeSpirv(std::vector<uint32_t>& w, uint32_t targetVersion) {
         off += length;
     }
 
-    // 1.5 has the memory model as core; only 1.4 needs it declared.
     if (targetVersion < kSpirv15 && needMemoryModel
         && !hasOpExtension(w, "SPV_KHR_vulkan_memory_model")) {
         const auto e = encodeOpExtension("SPV_KHR_vulkan_memory_model");
@@ -669,4 +645,4 @@ bool downgradeSpirv(std::vector<uint32_t>& w, uint32_t targetVersion) {
     return true;
 }
 
-} // namespace lsfg
+}

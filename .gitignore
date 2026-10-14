@@ -8,24 +8,17 @@ captures/
 .externalNativeBuild/
 .cxx/
 .kotlin/
-# Built in CI from tools/linuxfs and app/src/main/cpp/fakeinput.cpp, never committed, so the two
-# copies cannot drift.
 app/src/main/assets/linuxfs/
 app/src/main/jniLibs/arm64-v8a/libproot.so
 app/src/main/jniLibs/arm64-v8a/.proot-inputs
 app/src/main/jniLibs/arm64-v8a/.proot-outputs
 app/src/main/jniLibs/arm64-v8a/libproot-loader.so
 app/src/main/jniLibs/arm64-v8a/libdirectaudiorelay.so
-# The store download engines (app/src/main/rust/stores) are cross-compiled by Gradle into
-# app/build/rustJniLibs; cargo's own build tree stays next to the crate. Neither is source.
 app/src/main/rust/stores/target/
 app/src/main/assets/droiddeck-esync/
 
-# Kotlin compiler session files (build-tool state, never source).
 .kotlin/
 
-# Signing keys never enter the repo (DroidDeck's lives in GitHub environment secrets; see
-# tools/release/make-release-key.sh). keystore/testkey.p12 is the public AOSP testkey.
 *.jks
 *.keystore
 *.p12
@@ -37,7 +30,6 @@ droiddeck-release-key/
 password.txt
 __pycache__/
 
-# Local signing with the release key (tools/build_local.sh); holds a password.
 .signing.env
 app/src/main/assets/directaudio/
 /tools/vr/out/

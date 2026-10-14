@@ -120,9 +120,6 @@ class LayoutTest(unittest.TestCase):
         self.assertEqual(inst.included_components, {"Up", "Wide"})
 
     def test_a_duplicate_onto_the_file_itself_is_skipped(self):
-        # The .NET host packages (dotnet-host-*-win-x86.msi) duplicate dotnet.exe into its own
-        # folder under its own name; copying it onto itself raised SameFileError and stopped every
-        # .NET Core / Desktop runtime install.
         with tempfile.TemporaryDirectory() as tmp:
             src = Path(tmp) / "cab" / "dotnet.exe"
             src.parent.mkdir()
@@ -269,13 +266,11 @@ class RegistryApplyTest(unittest.TestCase):
         text = (self.pfx / "system.reg").read_text()
         self.assertIn('"Version"="4.0"', text)
         self.assertIn('"Kept"="mine"', text)
-        # Through the Wow6432Node\Classes link into the shared Classes\Wow6432Node key, never under the link.
         self.assertIn('[Software\\\\Classes\\\\Wow6432Node\\\\CLSID\\\\{X}]', text)
         self.assertNotIn('[Software\\\\Wow6432Node\\\\Classes\\\\CLSID', text)
         self.assertIn('"PATH"=str(2):"C:\\\\PhysX;%SystemRoot%\\\\system32;%SystemRoot%"', text)
         self.assertNotIn("[System\\\\CurrentControlSet\\\\", text)
         self.assertIn('"Opt"=dword:00000002', (self.pfx / "user.reg").read_text())
-        # The prefix's own spelling of Program Files (x86) is kept.
         self.assertTrue((self.pfx / "drive_c/program files (x86)/Microsoft XNA/xna.dll").is_file())
         self.assertFalse((self.pfx / "drive_c/Program Files (x86)").exists())
 

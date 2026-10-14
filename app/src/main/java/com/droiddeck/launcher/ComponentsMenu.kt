@@ -8,10 +8,6 @@ import androidx.compose.runtime.setValue
 import com.droiddeck.launcher.session.ComponentsManager
 import com.droiddeck.launcher.session.ProtonDefault
 
-/**
- * Component state and work for the launcher and session drawer: the Protons and their
- * DXVK/VKD3D sets, the Nightlies catalog, downloads and the swap/restore actions.
- */
 internal class ComponentsMenu(private val activity: android.app.Activity, private val ui: Handler) {
     var compSnapshot by mutableStateOf<ComponentsManager.Snapshot?>(null)
     var compCatalog by mutableStateOf<List<ComponentsManager.CatalogItem>>(emptyList())
@@ -26,7 +22,6 @@ internal class ComponentsMenu(private val activity: android.app.Activity, privat
     val compDownloadRevision: Long get() = downloadRevision
     private var shownDefault: String? = null
 
-    /** Reads the Protons (and on first open saves their originals) off the UI thread; the Nightlies list comes from its cache. */
     fun refreshComponents(snapshotFirst: Boolean = false) {
         Thread({
             if (snapshotFirst) runCatching { ComponentsManager.snapshotAll(activity) }
@@ -107,8 +102,6 @@ internal class ComponentsMenu(private val activity: android.app.Activity, privat
 
     private companion object {
         const val TAG = "ComponentsMenu"
-        // Both screens use the same package store and .part files. Keep the in-flight registry
-        // across menu/activity instances so a package cannot be downloaded twice at once.
         var downloads by mutableStateOf<Map<String, Int>>(emptyMap())
         var downloadRevision by mutableStateOf(0L)
     }

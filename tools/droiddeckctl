@@ -15,7 +15,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from adb_device import DeviceResolutionError, resolve_serial  # noqa: E402
+from adb_device import DeviceResolutionError, resolve_serial
 
 
 AUTHORITY = "content://com.droiddeck.launcher.agent"
@@ -215,7 +215,6 @@ def add_serial(response: dict, serial: str) -> dict:
     return response
 
 
-# --- displays ------------------------------------------------------------------------------------
 
 def displays(adb: str, serial: str) -> list[dict]:
     """Logical displays with the SurfaceFlinger (physical) id screencap and screenrecord want."""
@@ -285,7 +284,6 @@ def record(adb: str, serial: str, path: str, seconds: float, display: int | None
     return {"ok": True, "command": "record", "path": str(destination), "seconds": seconds, "display": display}
 
 
-# --- commands ------------------------------------------------------------------------------------
 
 def start_session(adb: str, serial: str, request: dict) -> dict:
     if request.get("mode") == "run":
@@ -341,8 +339,6 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
                     raise ControlError("Steam URL must start with steam://", "INVALID_STEAM_URL")
                 request["steamUrl"] = args.url
         if args.reuse:
-            # A scenario's per-run "before": keep a session of this mode that is already up, so only
-            # a run after one that ended (a crash, the low-memory killer) starts a new one.
             current = get_state(adb, serial)["session"]
             wanted = {"steam": "steam", "desktop": "lxqt"}[args.mode]
             if current.get("running") and current.get("mode") == wanted and current.get("phase") not in {"STOPPING", "FAILED"}:
@@ -508,7 +504,6 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
         return add_serial(record(adb, serial, args.path, args.seconds, args.display), serial)
 
     if command == "wake":
-        # A sleeping device stops the session and hides the app's windows from ui dump.
         run_adb(adb, serial, "shell", "input", "keyevent", "KEYCODE_WAKEUP")
         run_adb(adb, serial, "shell", "wm", "dismiss-keyguard")
         power = run_adb(adb, serial, "shell", "dumpsys", "power").stdout.decode(errors="replace")
@@ -549,7 +544,6 @@ def build_parser() -> argparse.ArgumentParser:
 
     stop = commands.add_parser("stop", help="stop the session and wait for IDLE")
     stop.add_argument("--timeout", type=float, default=90)
-    # Collecting the client's logs and redacting them took about two minutes after a Skyrim session.
     stop.add_argument("--artifact-timeout", type=float, default=300)
     commands.add_parser("resume", help="resume a suspended session")
 
@@ -711,7 +705,7 @@ def main(argv: list[str] | None = None) -> int:
     except (ControlError, DeviceResolutionError) as exc:
         error = {"code": getattr(exc, "code", "DEVICE_RESOLUTION_FAILED"), "message": str(exc)}
         code = exit_code(exc)
-    except Exception as exc:  # the contract is JSON on stdout, even for a bug in this tool
+    except Exception as exc:
         error = {"code": "INTERNAL_ERROR", "message": f"{type(exc).__name__}: {exc}"}
         code = 2
     response = {"ok": False, "error": error}
