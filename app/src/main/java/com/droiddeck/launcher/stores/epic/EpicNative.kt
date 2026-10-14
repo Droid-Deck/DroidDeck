@@ -17,6 +17,18 @@ object EpicNative {
         fun onComplete(success: Boolean, error: String, bytes: Long)
     }
 
+    interface InstallListener : Listener {
+        /** Synchronous approval before the first verified atomic replacement. False aborts. */
+        fun beforeSwap(): Boolean
+    }
+
+    /** One native budgeted fetch/assembly run. A loaded-engine failure is never a Java retry. */
+    @JvmStatic
+    fun installAdaptive(request: String, cancel: AtomicBoolean, listener: InstallListener): Result =
+        drive("nativeInstallAdaptive", cancel, listener, strict = true) { inner ->
+            nativeInstallAdaptive(request, inner)
+        }
+
     class Result(
         @JvmField val started: Boolean, @JvmField val success: Boolean, @JvmField val cancelled: Boolean,
         @JvmField val error: String, @JvmField val bytes: Long, @JvmField val done: Int, @JvmField val total: Int,
@@ -36,13 +48,14 @@ object EpicNative {
     fun assemble(manifest: ByteArray, installDir: String, chunkCacheDir: String, fileIdx: IntArray, cancel: AtomicBoolean?, listener: Listener): Result =
         drive("nativeAssemble", cancel, listener) { inner -> nativeAssemble(manifest, installDir, chunkCacheDir, fileIdx, inner) }
 
-    private fun drive(what: String, cancel: AtomicBoolean?, listener: Listener, start: (Listener) -> Long): Result {
+    private fun drive(what: String, cancel: AtomicBoolean?, listener: Listener, strict: Boolean = false, start: (Listener) -> Long): Result {
         if (!StoresNative.ensureLoaded()) return Result(false, false, false, "engine not built", 0L, 0, 0)
         val latch = CountDownLatch(1)
         val completion = AtomicReference<Completion?>(null)
         val doneRef = AtomicReference(0)
         val totalRef = AtomicReference(0)
-        val inner = object : Listener {
+        val inner = object : InstallListener {
+            override fun beforeSwap(): Boolean = (listener as? InstallListener)?.beforeSwap() ?: false
             override fun onPlan(chunksTotal: Int, bytesTotal: Long, chunkDir: String) { totalRef.set(chunksTotal); listener.onPlan(chunksTotal, bytesTotal, chunkDir) }
             override fun onProgress(bytesDone: Long, bytesTotal: Long, done: Int, total: Int) { doneRef.set(done); totalRef.set(total); listener.onProgress(bytesDone, bytesTotal, done, total) }
             override fun onLog(line: String) = listener.onLog(line)
@@ -55,21 +68,26 @@ object EpicNative {
         val handle: Long = try {
             start(inner)
         } catch (t: Throwable) {
-            Log.w(TAG, "engine unavailable: ${t.javaClass.simpleName}: ${t.message}")
-            return Result(false, false, false, "$what: ${t.javaClass.simpleName}", 0L, 0, 0)
+            Log.w(TAG, "${if (strict) "engine start failed (no fallback)" else "engine unavailable"}: ${t.javaClass.simpleName}: ${t.message}")
+            return Result(strict, false, false, "$what: ${t.javaClass.simpleName}: ${t.message}", 0L, 0, 0)
         }
-        if (handle == 0L) return Result(false, false, false, completion.get()?.error ?: "not started", 0L, 0, totalRef.get())
+        if (handle == 0L) return Result(strict, false, false, completion.get()?.error ?: "not started", 0L, 0, totalRef.get())
         var cancelSent = false
         try {
             while (!latch.await(250, TimeUnit.MILLISECONDS)) {
                 if (cancel != null && cancel.get()) {
                     nativeCancel(handle)
                     cancelSent = true
-                    latch.await(5, TimeUnit.SECONDS)
+                    if (strict) {
+                        while (!latch.await(250, TimeUnit.MILLISECONDS)) { }
+                    } else {
+                        latch.await(5, TimeUnit.SECONDS)
+                    }
                     break
                 }
             }
         } finally {
+            if (completion.get() == null) nativeCancel(handle)
             nativeRelease(handle)
         }
         val c = completion.get()
@@ -77,6 +95,9 @@ object EpicNative {
         val error = when { cancelSent -> "cancelled"; c == null -> "no completion"; else -> c.error }
         return Result(true, success, cancelSent, error, c?.bytes ?: 0L, doneRef.get(), totalRef.get())
     }
+
+    @JvmStatic
+    private external fun nativeInstallAdaptive(request: String, listener: Listener): Long
 
     @JvmStatic
     private external fun nativeStart(

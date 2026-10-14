@@ -14,14 +14,14 @@ import org.robolectric.annotation.Config
 @Config(sdk = [33])
 class EpicJsonManifestTest {
     @Test
-    fun boundedInstallPeakCountsOnlyOneLiveChunkForSequentialChunks() {
+    fun boundedInstallPeakReservesParallelIncomingChunksBeforeWriting() {
         val first = chunk(1)
         val second = chunk(2)
         val file = file(part(1, 0, 100), part(2, 0, 100))
         val chunks = mapOf(first.guidStr() to first, second.guidStr() to second)
 
         assertEquals(300L, EpicDownloadManager.estimatePeakAdditionalBytes(listOf(file), chunks, emptyMap(), true))
-        assertEquals(100L, EpicDownloadManager.estimatePeakAdditionalBytes(listOf(file), chunks, emptyMap(), false))
+        assertEquals(200L, EpicDownloadManager.estimatePeakAdditionalBytes(listOf(file), chunks, emptyMap(), false))
     }
 
     @Test
@@ -44,7 +44,7 @@ class EpicJsonManifestTest {
     }
 
     @Test
-    fun distantSharedChunksAreEvictedAndRefetchedWithinTheCacheCeiling() {
+    fun sharedChunksWithinTheWindowStayPinnedWithinTheCacheCeiling() {
         val first = chunk(1).apply { windowSize = 40 * 1024 * 1024 }
         val second = chunk(2).apply { windowSize = 40 * 1024 * 1024 }
         val files = listOf(
@@ -60,6 +60,43 @@ class EpicJsonManifestTest {
 
         assertEquals(200L * 1024 * 1024, gamePeak)
         assertTrue(cachePeak <= EpicDownloadManager.MAX_RETAINED_CHUNK_CACHE_BYTES + 40L * 1024 * 1024)
+    }
+
+    @Test fun scheduleDeduplicatesWindowAndEvictsOnlyUnpinnedReusableChunks() {
+        val size = 40L * 1024 * 1024
+        val chunks = (1..12).map { chunk(it).apply { windowSize = size.toInt() } }
+            .associateBy { it.guidStr() }
+        val files = (1..12).map { file(part(it, 0, 1)) } + (1..12).map { file(part(it, 0, 1)) }
+        val schedule = EpicDownloadManager.PrefetchSchedule(files, chunks, emptyMap())
+        assertEquals(chunks.keys.take(8), schedule.fill())
+        assertEquals(emptyList<String>(), schedule.fill())
+        assertEquals(8 * size, schedule.bytes())
+        assertEquals(emptyList<String>(), schedule.consume())
+        assertEquals(listOf(chunks.keys.elementAt(8)), schedule.fill())
+        assertEquals(9 * size, schedule.bytes())
+        assertEquals(listOf(chunks.keys.first()), schedule.consume())
+        var refetchedFirst = false
+        repeat(22) {
+            val fetched = schedule.fill()
+            if (chunks.keys.first() in fetched) refetchedFirst = true
+            assertTrue(schedule.bytes() <= EpicDownloadManager.MAX_RETAINED_CHUNK_CACHE_BYTES + 8 * size)
+            val released = schedule.consume()
+            assertTrue(released.none { it in schedule.window() })
+        }
+        assertTrue(refetchedFirst)
+        assertEquals(0L, schedule.bytes())
+        assertEquals(9 * size, EpicDownloadManager.estimatePeakAdditionalBytes(files, chunks, emptyMap(), false))
+    }
+
+    @Test fun cachedAndOldOutputBytesAreCreditedOnlyWhenTheScheduleReleasesThem() {
+        val chunks = (1..8).map { chunk(it) }.associateBy { it.guidStr() }
+        val files = (1..8).map { id -> file(part(id, 0, 100)).apply { filename = "file-$id" } }
+        val existing = chunks.keys.associateWith { 100L }
+        val old = files.associate { it.filename to 100L }
+        assertEquals(800L, EpicDownloadManager.estimatePeakAdditionalBytes(files, chunks, emptyMap(), false))
+        assertEquals(0L, EpicDownloadManager.estimatePeakAdditionalBytes(files, chunks, existing, false))
+        assertEquals(900L, EpicDownloadManager.estimatePeakAdditionalBytes(files, chunks, emptyMap(), true, old))
+        assertEquals(100L, EpicDownloadManager.estimatePeakAdditionalBytes(files, chunks, existing, true, old))
     }
 
     @Test

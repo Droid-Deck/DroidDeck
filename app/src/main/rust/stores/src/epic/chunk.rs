@@ -71,10 +71,14 @@ struct HashingWriter<W: Write> {
     inner: W,
     sha: Option<Sha1>,
     written: u64,
+    limit: u64,
 }
 
 impl<W: Write> Write for HashingWriter<W> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        if self.written.saturating_add(buf.len() as u64) > self.limit {
+            return Err(io::Error::other("chunk exceeds reserved decoded window"));
+        }
         let n = self.inner.write(buf)?;
         if let Some(sha) = self.sha.as_mut() {
             sha.update(&buf[..n]);
@@ -102,10 +106,21 @@ pub fn write_verified_chunk(
     let tmp = part_path(final_path);
     let _ = fs::remove_file(&tmp);
 
-    let result = write_part(body, expected_sha1, &tmp, final_path);
+    let result = write_part(body, expected_sha1, &tmp, final_path, u64::MAX, false);
     if result.is_err() {
         let _ = fs::remove_file(&tmp);
     }
+
+    result
+}
+
+pub fn write_verified_chunk_bounded(
+    body: &[u8], expected_sha1: Option<&[u8; 20]>, final_path: &Path,
+    decoded_limit: u64, exact_size: bool,
+) -> Result<u64, String> {
+    let tmp = part_path(final_path);
+    let result = write_part(body, expected_sha1, &tmp, final_path, decoded_limit, exact_size);
+    if result.is_err() { let _ = fs::remove_file(tmp); }
     result
 }
 
@@ -114,20 +129,43 @@ fn write_part(
     expected_sha1: Option<&[u8; 20]>,
     tmp: &Path,
     final_path: &Path,
+    limit: u64,
+    exact_size: bool,
 ) -> Result<u64, String> {
     let hdr = parse_chunk_header(body)?;
     let payload = chunk_payload(body, &hdr)?;
+    if limit != u64::MAX && (hdr.compressed_size < 0 || payload.len() != hdr.compressed_size as usize) {
+        return Err("truncated chunk body".into());
+    }
 
     let file = File::create(tmp).map_err(|e| format!("open {}: {e}", tmp.display()))?;
     let mut out = HashingWriter {
         inner: BufWriter::with_capacity(128 * 1024, file),
         sha: expected_sha1.map(|_| Sha1::new()),
         written: 0,
+        limit,
     };
 
     if hdr.is_compressed() {
-        let mut dec = flate2::read::ZlibDecoder::new(payload);
-        io::copy(&mut dec, &mut out).map_err(|e| format!("inflate: {e}"))?;
+        if limit == u64::MAX {
+            let mut dec = flate2::read::ZlibDecoder::new(payload);
+            io::copy(&mut dec, &mut out).map_err(|e| format!("inflate: {e}"))?;
+        } else {
+            let mut dec = flate2::Decompress::new(true);
+            let mut buffer = [0u8; 128 * 1024];
+            loop {
+                let input = dec.total_in() as usize;
+                let before = dec.total_out();
+                let status = dec.decompress(&payload[input..], &mut buffer, flate2::FlushDecompress::None)
+                    .map_err(|e| format!("inflate: {e}"))?;
+                let count = (dec.total_out() - before) as usize;
+                out.write_all(&buffer[..count]).map_err(|e| format!("inflate write: {e}"))?;
+                if status == flate2::Status::StreamEnd { break; }
+                if count == 0 && dec.total_in() as usize == input {
+                    return Err("truncated compressed Epic chunk".into());
+                }
+            }
+        }
     } else {
         out.write_all(payload).map_err(|e| format!("write: {e}"))?;
     }
@@ -135,6 +173,9 @@ fn write_part(
     let written = out.written;
     let digest = out.sha.take().map(|s| s.finalize());
     drop(out);
+    if exact_size && written != limit {
+        return Err("chunk decoded size mismatch".into());
+    }
 
     if let (Some(expected), Some(actual)) = (expected_sha1, digest) {
         if actual.as_slice() != &expected[..] {

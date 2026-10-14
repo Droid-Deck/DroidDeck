@@ -1,6 +1,7 @@
 //! Derived from GameNative's Epic manager (itself derived from Legendary); both are GPL-3.0 and this crate carries the same licence (see Cargo.toml).
 
 pub mod assemble;
+pub mod adaptive;
 pub mod chunk;
 pub mod driver;
 pub mod jni;

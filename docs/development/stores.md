@@ -45,13 +45,46 @@ with a placeholder job. Failures are kept in the Downloads UI, notification and 
 duplicated as transient failure toasts. Active queue persistence and ordinary backend pause/retry
 are unchanged.
 
-Epic installs use the same bounded Java writer whether the native engine is available or not.
-It fetches one chunk at a time, verifies it, and writes the required parts into the current
-game file. Chunks are deleted after their last use; reusable chunks are retained up to 64 MiB,
-with at most one additional incoming chunk before eviction. Evicted shared chunks may be
-downloaded again. This trades parallel-download throughput and potentially extra network
-traffic for bounded temporary disk usage. The native batch APIs remain available but are not
-used by this install path.
+Epic installs use **native adaptive fetch/assembly** when `libdroiddeckstores.so` loads.
+The Java delta pass sends a versioned snapshot of pending files, chunk metadata, verified cache
+lengths, old output lengths and both measured free-space probes to Rust. The native planner and
+execution share one ordered moving-window policy. Before any chunk request, Rust chooses the
+largest safe lookahead (128, 64, 32, 16, 8, 4, 2 or 1 part references) and reusable-cache budget
+(64 MiB, 16 MiB or zero) whose simulated staged-file and cache peaks fit.
+Native device IDs also detect an explicitly named cache on the game volume, so two separate
+paths cannot incorrectly turn one filesystem's requirement into two independent checks.
+
+| Storage situation | Native policy |
+| --- | --- |
+| Plenty of room | Up to 128 references ahead, up to 32 network requests, 64 MiB reusable data |
+| Tight | Smaller lookahead and/or reusable budget; parallel fetching remains where space permits |
+| Barely fits | One-reference lookahead, one request, no reusable retention if needed |
+| Does not fit even the minimal schedule | Explicit preflight error before requests or replacement |
+| Free space unknown | Conservative bounded lookahead (at most eight), not an invented zero |
+
+The native fetch coordinator reuses `fetch_core`'s host scheduling, retries, adaptive network
+window and decode pool. The staged writer runs concurrently, waiting only for its next required
+chunk, and reads parts through the native assembler's streaming copy primitive. GUIDs in the
+lookahead are reserved once before submission, at their full decoded size. Chunks are released
+at last use on **both** cache layouts; distant reusable data is oldest-first bounded and may
+be refetched. At most the selected reusable budget plus distinct lookahead decoded sizes is
+resident/reserved. New request admission re-probes both volumes and can shrink unsent lookahead
+or retention if headroom disappears; already in-flight reservations remain protected.
+If even existing reservations cannot fit, the run fails and joins its workers rather than
+waiting indefinitely or deleting old game files. An install to SD retains its internal scratch
+cache, so assembled output is the only game data written to the card.
+
+Only failure to **load** the native library selects the Java fallback. An ABI mismatch, native
+planning/network/hash/I/O failure or unsupported atomic swap does not silently rerun Java.
+Eight fallback Java workers prefetch the next eight chunk-part references, across file boundaries,
+while one writer assembles and verifies files in manifest order. Shared GUIDs within that window
+are fetched only once. Chunks are deleted after their last use; other reusable chunks are retained
+up to 64 MiB. At most eight additional decoded chunks (complete or in flight) coexist with that
+retained cache. The size bound is 64 MiB plus the decoded sizes of the window's distinct GUIDs,
+not a fixed eight-MiB allowance: manifests can supply larger chunk windows. Evicted distant shared
+chunks may be downloaded again. No worker downloads outside the moving window; cancellation and
+failure disconnect and join all workers before returning or removing the cache.
+The legacy native batch APIs remain available but are not used by the production install path.
 
 The earlier batch design intentionally prioritizes parallel-download throughput. Native
 `epic/assemble.rs::build_assemble_plan` enables `scratch_cache` only for a nonempty cache path.
@@ -61,9 +94,9 @@ when that flag is set**; the default beside-game cache is removed at the end. Th
 the scratch-cache assembly tests cover that distinction. Extending last-use reclamation to
 internal native assembly could keep parallel batch throughput and reduce the overlapping
 cache/output peak, but batch fetching still fills
-the cache before assembly. That is not equivalent to the bounded sequential writer's fixed
-retained-cache ceiling. This change keeps the bounded path and its explicit throughput/refetch
-tradeoff; it does not redesign or benchmark native download throughput.
+the cache before assembly. Production native adaptive and Java fallback paths instead overlap
+network fetches with assembly without retaining a whole-game cache. No native or Java throughput
+benchmark is claimed.
 
 The bounded Epic download bar, measured rate and ETA count pending file bytes written, not unique
 compressed chunks fetched. Shared chunks therefore cannot complete the bar before later files
@@ -71,9 +104,12 @@ are written, and an evicted chunk's refetch is reflected in the time spent doing
 Streaming stays in the Download stage until all files are written and verified, then enters
 Install for registration; it does not bounce between stages for each file.
 
-The space check follows the manifest delta pass and simulates file writes, chunk fetches,
-and evictions, rather than adding the entire cache to the entire game. Each file is written to a
-unique sibling staging file on its output volume (never the literal `<filename>.part`, which can
+The space check follows the manifest delta pass and uses the same pure moving-window policy as
+execution, reserving all incoming decoded chunk sizes before writing parts and simulating
+last-use releases and unpinned oldest-first evictions. Existing verified cache bytes count against
+current free space and are credited only at their scheduled release. This avoids adding the entire
+cache to the entire game without undercounting concurrent downloads. Each file is written to a
+unique file in an owned staging namespace on its output volume (never the literal `<filename>.part`, which can
 be a legitimate manifest file), size/hash verified, synced and atomically renamed over its output.
 The old file remains until that swap succeeds. The planner credits its bytes only after that
 file's complete staging write, not by subtracting all old outputs up front. Both volume checks
@@ -84,8 +120,17 @@ verified cached chunks are accounted for on resume. On a card, game and cache re
 are checked separately. File SHA-1 hashes are checked where supplied by the manifest; failed
 or cancelled staging files are removed without deleting old outputs. A successful run removes the
 cache. A resume within a large incomplete file restarts that file, not its individual parts.
-Abrupt process termination can leave a unique staging file; unlike normal failure/cancellation,
-its cleanup is not guaranteed, and the next space probe includes its occupied bytes.
+Both writers use `<installDir>/.droiddeck-epic-staging/`, whose `owner` marker identifies this
+namespace. Before the delta pass and free-space probes, the manager removes orphan `.stage`
+entries only from this owned namespace. A manifest naming that directory or any descendant
+fails without deletion; an unowned directory or unexpected entry also fails conservatively.
+The namespace must be a real directory at the expected canonical child of the install root.
+Ownership markers and staging entries must be no-follow regular files; symlink directories,
+markers and entries are rejected before recovery deletes anything.
+Ordinary game files with `.stage` or `.part` suffixes elsewhere are never recovery targets.
+Abrupt process termination is therefore recoverable on the next run without inferring ownership
+from a loose filename prefix. Cancellation/failure waits for all native/Java fetch writers before
+returning; completed verified cache chunks remain usable on resume.
 
 ## The sidecar
 

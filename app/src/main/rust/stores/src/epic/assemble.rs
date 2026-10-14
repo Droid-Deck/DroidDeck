@@ -1,7 +1,7 @@
 
 use std::collections::HashMap;
 use std::fs::{self, File};
-use std::io::{BufWriter, Write};
+use std::io::{BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -9,6 +9,33 @@ use sha1::{Digest, Sha1};
 
 use super::manifest::{parse_manifest, FileInfo, Manifest};
 use super::plan::resolve_cache_dir;
+
+/// Streaming assembly primitive used by the budgeted installer; never holds a decoded chunk
+/// in memory and closes the reader before the caller releases the cache reservation.
+pub fn copy_chunk_part(
+    cache_path: &Path, offset: u64, size: u64, output: &mut impl Write,
+    sha: &mut Sha1, cancel: &AtomicBool,
+) -> Result<u64, String> {
+    let mut input = File::open(cache_path).map_err(|e| format!("read chunk: {e}"))?;
+    let length = input.metadata().map_err(|e| e.to_string())?.len();
+    if offset.checked_add(size).filter(|end| *end <= length).is_none() {
+        return Err("chunk part exceeds cached data".into());
+    }
+    input.seek(SeekFrom::Start(offset)).map_err(|e| e.to_string())?;
+    let mut left = size;
+    let mut buffer = [0u8; 64 * 1024];
+    while left > 0 {
+        if cancel.load(Ordering::Acquire) { return Err("cancelled".into()); }
+        let take = left.min(buffer.len() as u64) as usize;
+        let count = input.read(&mut buffer[..take])
+            .map_err(|e| e.to_string())?;
+        if count == 0 { return Err("short cached chunk".into()); }
+        output.write_all(&buffer[..count]).map_err(|e| e.to_string())?;
+        sha.update(&buffer[..count]);
+        left -= count as u64;
+    }
+    Ok(size)
+}
 
 pub struct AssembleRequest {
     pub manifest_bytes: Vec<u8>,

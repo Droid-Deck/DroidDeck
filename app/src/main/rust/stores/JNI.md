@@ -112,7 +112,37 @@ On-disk protocol (what a resumed run, by either engine, relies on): a file is as
 
 ## `com.droiddeck.launcher.stores.epic.EpicNative`
 
-Two runs make up the native half of an Epic install:
+### Production adaptive install (snapshot schema v1)
+
+`nativeInstallAdaptive(request: String, listener: EpicNative.Listener): Long`
+exports `Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeInstallAdaptive`.
+Its exact Kotlin descriptor is
+`(Ljava/lang/String;Lcom/droiddeck/launcher/stores/epic/EpicNative$Listener;)J`.
+The listener must also implement `EpicNative.InstallListener.beforeSwap(): Boolean` (`()Z`).
+Rust invokes it synchronously after staging/hash/sync and before the first atomic replacement;
+false or a Java exception aborts without replacing that output. Java marks the sidecar updating
+there. Later verified swaps preserve mixed-update/resume semantics.
+
+The UTF-8 JSON request contains:
+
+- `schema_version: 1`, absolute `install_dir`, `cache_dir`, owned `staging_dir`,
+  `same_volume`, signed `free_game`/`free_cache` (`-1` unknown), `max_workers`, CDN `hosts`.
+- `chunks`: distinct `guid`, relative CDN `path`, decoded `size`, `exact_size`, `wire_size`,
+  SHA-1 hex `sha1` (empty/all-zero means absent), `cached` verified length (`-1` absent).
+- `files`: pending manifest-order relative `path`, `sha1`, current `old_size`, ordered `parts`
+  containing `guid`, unsigned `offset` and `size`.
+
+Parse, owned-namespace validation and adaptive storage planning happen synchronously. Errors
+return zero after `onComplete(false, error, 0)` and are **terminal**, not fallback signals.
+`onPlan` reports the selected lookahead/retention/peaks; `onProgress` counts staged file bytes
+and verified swapped file counts, not fetched wire bytes. Fetch and staged assembly overlap
+in one native run, using the same pure reservation/release policy as the peak planner.
+Cancellation/release joins native workers; no worker survives the terminal callback/handle
+release. Only `StoresNative.ensureLoaded() == false` selects bounded parallel Java.
+
+### Legacy batch APIs (not the production installer)
+
+Two explicit calls provide the legacy batch interface:
 
 1. **Fetch** (`nativeStart`): fills the chunk cache with verified, decompressed chunks for the
    files the manager says are pending. The Kotlin manager still fetches and parses the manifest

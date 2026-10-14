@@ -39,6 +39,7 @@ fn android_log(message: &str) {
 
 pub struct EpicDownloadHandle {
     cancel: Arc<AtomicBool>,
+    worker: Option<thread::JoinHandle<()>>,
 }
 
 fn clear_pending_exception(env: &mut JNIEnv) {
@@ -289,12 +290,11 @@ pub extern "system" fn Java_com_droiddeck_launcher_stores_epic_EpicNative_native
 
     let cancel = Arc::new(AtomicBool::new(false));
     let thread_cancel = Arc::clone(&cancel);
-    let handle = Box::new(EpicDownloadHandle { cancel });
-
-    thread::spawn(move || {
+    let worker = thread::spawn(move || {
         crate::priority::background();
         run_on_thread(vm, listener, plan, req, thread_cancel);
     });
+    let handle = Box::new(EpicDownloadHandle { cancel, worker: Some(worker) });
 
     Box::into_raw(handle) as jlong
 }
@@ -393,9 +393,7 @@ pub extern "system" fn Java_com_droiddeck_launcher_stores_epic_EpicNative_native
 
     let cancel = Arc::new(AtomicBool::new(false));
     let thread_cancel = Arc::clone(&cancel);
-    let handle = Box::new(EpicDownloadHandle { cancel });
-
-    thread::spawn(move || {
+    let worker = thread::spawn(move || {
         crate::priority::background();
         let progress = |bytes_done: u64, bytes_total: u64, files_done: u64, files_total: u64| {
             let Ok(mut env) = vm.attach_current_thread_as_daemon() else {
@@ -422,6 +420,7 @@ pub extern "system" fn Java_com_droiddeck_launcher_stores_epic_EpicNative_native
             outcome.bytes_written,
         );
     });
+    let handle = Box::new(EpicDownloadHandle { cancel, worker: Some(worker) });
 
     Box::into_raw(handle) as jlong
 }
@@ -449,5 +448,73 @@ pub extern "system" fn Java_com_droiddeck_launcher_stores_epic_EpicNative_native
     if handle == 0 {
         return;
     }
-    drop(unsafe { Box::from_raw(handle as *mut EpicDownloadHandle) });
+    let mut handle = unsafe { Box::from_raw(handle as *mut EpicDownloadHandle) };
+    if let Some(worker) = handle.worker.take() { let _ = worker.join(); }
+}
+
+/// ABI v1 snapshot: selected chunks/files, verified cache lengths, old output lengths and both
+/// measured free-space probes. Parse/budget failures are terminal, never fallback requests.
+#[no_mangle]
+pub extern "system" fn Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeInstallAdaptive(
+    mut env: JNIEnv, _class: JClass, request: JString, listener: JObject,
+) -> jlong {
+    if listener.is_null() { return 0; }
+    let parsed = jstring_to_string(&mut env, &request).ok_or("unreadable adaptive request".to_string())
+        .and_then(|s| super::adaptive::Request::parse(&s))
+        .and_then(|req| super::adaptive::choose_budget(&req).map(|budget| (req, budget)));
+    let (req, budget) = match parsed {
+        Ok(plan) => plan,
+        Err(error) => {
+            call_on_complete(&mut env, &listener, false, &error, 0);
+            return 0;
+        }
+    };
+    call_on_plan(&mut env, &listener, req.chunks.len() as u64, 0,
+        &format!("lookahead={} retained={} game_peak={} cache_peak={}",
+            budget.lookahead, budget.retained, budget.game_peak, budget.cache_peak));
+    let Ok(vm) = env.get_java_vm() else {
+        call_on_complete(&mut env, &listener, false, "JavaVM unavailable", 0);
+        return 0;
+    };
+    let Ok(listener) = env.new_global_ref(&listener) else {
+        call_on_complete(&mut env, &listener, false, "listener ref failed", 0);
+        return 0;
+    };
+    let cancel = Arc::new(AtomicBool::new(false));
+    let thread_cancel = cancel.clone();
+    let worker = thread::spawn(move || {
+        crate::priority::background();
+        let progress = |done, total, files, files_total| {
+            if let Ok(mut env) = vm.attach_current_thread_as_daemon() {
+                call_on_progress(&mut env, listener.as_obj(), done, total, files, files_total);
+            }
+        };
+        let before_swap = || -> Result<(), String> {
+            let mut env = vm.attach_current_thread_as_daemon().map_err(|e| e.to_string())?;
+            match env.call_method(listener.as_obj(), "beforeSwap", "()Z", &[]) {
+                Ok(value) => if value.z().unwrap_or(false) { Ok(()) } else { Err("Could not mark installed record updating before replacement".into()) },
+                _ => {
+                    clear_pending_exception(&mut env);
+                    Err("Could not mark installed record updating before replacement".into())
+                }
+            }
+        };
+        let log = |line: &str| {
+            android_log(line);
+            if let Ok(mut env) = vm.attach_current_thread_as_daemon() {
+                call_on_log(&mut env, listener.as_obj(), line);
+            }
+        };
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(||
+            super::adaptive::run(&req, budget, &thread_cancel, &before_swap, &progress, &log)))
+            .unwrap_or_else(|_| Err("Native Epic install panicked".into()));
+        let (success, error, bytes) = match outcome {
+            Ok(bytes) => (true, String::new(), bytes),
+            Err(error) => (false, error, 0),
+        };
+        if let Ok(mut env) = vm.attach_current_thread_as_daemon() {
+            call_on_complete(&mut env, listener.as_obj(), success, &error, bytes);
+        }
+    });
+    Box::into_raw(Box::new(EpicDownloadHandle { cancel, worker: Some(worker) })) as jlong
 }
