@@ -61,6 +61,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -869,29 +871,76 @@ internal fun ModeHeader(
     val pal = LocalPalette.current
     var searching by remember { mutableStateOf(query.isNotEmpty()) }
     val open by animateFloatAsState(if (searching) 1f else 0f, Motion.sp(0.75f, 420f), label = "searchOpen")
-    Column(Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(vertical = 4.dp)) {
-            Text(
-                title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1,
-                modifier = Modifier.padding(start = 4.dp, end = 4.dp),
-            )
-            BoxWithConstraints(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val narrow = maxWidth < NarrowPaneWidth
+        Column(Modifier.fillMaxWidth()) {
+            if (narrow) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(vertical = 4.dp),
+                ) {
+                    Text(
+                        title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1,
+                        modifier = Modifier.weight(1f).padding(start = 4.dp, end = 4.dp),
+                    )
+                    if (!searching && open <= 0.01f) SearchIcon(stringResource(R.string.stores_search_open)) { searching = true }
+                }
                 if (searching || open > 0.01f) {
-                    val w = androidx.compose.ui.unit.lerp(44.dp, maxWidth.coerceAtMost(520.dp), open)
-                    Box(Modifier.width(w).graphicsLayer { alpha = (open * 1.6f).coerceAtMost(1f) }) {
-                        AdbTextField(
-                            value = query, onValueChange = onQuery, label = "", keyboardType = KeyboardType.Text, imeAction = ImeAction.Search,
-                            placeholder = placeholder, compact = true, focusOnShow = true,
-                            onFocusChange = { focused -> if (!focused && query.isEmpty()) searching = false },
-                        )
+                    StoreSearchField(query, onQuery, placeholder, searching, open) { searching = false }
+                }
+                NarrowHeaderActions { tools(); trailing() }
+            } else {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(vertical = 4.dp),
+                ) {
+                    Text(
+                        title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1,
+                        modifier = Modifier.padding(start = 4.dp, end = 4.dp),
+                    )
+                    BoxWithConstraints(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                        if (searching || open > 0.01f) {
+                            val width = androidx.compose.ui.unit.lerp(44.dp, maxWidth.coerceAtMost(520.dp), open)
+                            Box(Modifier.width(width).graphicsLayer { alpha = (open * 1.6f).coerceAtMost(1f) }) {
+                                StoreSearchField(query, onQuery, placeholder, searching, open) { searching = false }
+                            }
+                        } else SearchIcon(stringResource(R.string.stores_search_open)) { searching = true }
                     }
-                } else SearchIcon(stringResource(R.string.stores_search_open)) { searching = true }
+                    tools()
+                    trailing()
+                }
             }
-            tools()
-            trailing()
+            Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
         }
-        Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
     }
+}
+
+@Composable
+private fun StoreSearchField(
+    query: String, onQuery: (String) -> Unit, placeholder: String,
+    searching: Boolean, open: Float, onClose: () -> Unit,
+) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val width = androidx.compose.ui.unit.lerp(44.dp, maxWidth.coerceAtMost(520.dp), open)
+        Box(Modifier.width(width).graphicsLayer { alpha = (open * 1.6f).coerceAtMost(1f) }) {
+            AdbTextField(
+                value = query, onValueChange = onQuery, label = "", keyboardType = KeyboardType.Text, imeAction = ImeAction.Search,
+                placeholder = placeholder, compact = true, focusOnShow = true,
+                onFocusChange = { focused -> if (!focused && query.isEmpty() && searching) onClose() },
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun NarrowHeaderActions(content: @Composable () -> Unit) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+        content = { content() },
+    )
 }
 
 @Composable
