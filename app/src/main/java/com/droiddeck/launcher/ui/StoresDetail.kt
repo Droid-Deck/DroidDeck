@@ -58,7 +58,8 @@ import com.droiddeck.launcher.stores.formatBytes
 
 
 @Composable
-internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: FrontEndActions, onBack: () -> Unit) {
+internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: FrontEndActions, lead: androidx.compose.ui.focus.FocusRequester, onBack: () -> Unit) {
+    val leadOn = Modifier.focusRequester(lead)
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -117,19 +118,19 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
                             ActionChip(stringResource(R.string.stores_in_steam), ok = true)
                             val gone = StoresState.uninstalling["${store.id}:$id"]
                             if (gone != null) SecondaryButton(stringResource(R.string.stores_uninstalling), enabled = false, progress = gone) {}
-                            else UninstallButton(title, installed, enabled = download == null) {
+                            else UninstallButton(title, installed, enabled = download == null, modifier = leadOn) {
                                 StoresState.uninstall(ctx, installed) { StoresState.refresh(ctx); a.onLibraryChanged() }
                             }
                         }
                         download != null -> {
                             ActionChip(downloadLabel(download), ok = false)
-                            if (download.state != DownloadState.PAUSED) SecondaryButton(stringResource(R.string.stores_dl_pause)) { com.droiddeck.launcher.stores.download.DownloadQueue.pause(download.key) }
-                            else PrimaryButton(stringResource(R.string.stores_dl_resume), main = true) { com.droiddeck.launcher.stores.download.DownloadQueue.resume(ctx, download.key) }
+                            if (download.state != DownloadState.PAUSED) SecondaryButton(stringResource(R.string.stores_dl_pause), modifier = leadOn) { com.droiddeck.launcher.stores.download.DownloadQueue.pause(download.key) }
+                            else PrimaryButton(stringResource(R.string.stores_dl_resume), main = true, modifier = leadOn) { com.droiddeck.launcher.stores.download.DownloadQueue.resume(ctx, download.key) }
                             ConfirmButton(stringResource(R.string.stores_dl_cancel), stringResource(R.string.stores_dl_cancel_confirm)) { com.droiddeck.launcher.stores.download.DownloadQueue.cancel(ctx, download.key) }
                         }
                         failedDownload != null -> {
                             ActionChip(stringResource(R.string.stores_dl_failed), ok = false)
-                            PrimaryButton(stringResource(R.string.stores_dl_resume), main = true) {
+                            PrimaryButton(stringResource(R.string.stores_dl_resume), main = true, modifier = leadOn) {
                                 if (item != null) StoresState.requestInstall(ctx, item)
                                 else com.droiddeck.launcher.stores.download.DownloadQueue.retry(ctx, failedDownload.key)
                             }
@@ -138,14 +139,15 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
                             }
                         }
                         item?.owned == true && StoresState.isUnfinished(item) -> {
-                            InstallButton(stringResource(R.string.stores_resume_install)) { StoresState.requestInstall(ctx, item) }
+                            InstallButton(stringResource(R.string.stores_resume_install), leadOn) { StoresState.requestInstall(ctx, item) }
                             ConfirmButton(stringResource(R.string.stores_dl_clear), stringResource(R.string.stores_dl_cancel_confirm), compact = true) { StoresState.clearUnfinished(ctx, item) }
                         }
                         item?.owned == true -> InstallButton(
                             if (item.sizeBytes > 0) stringResource(R.string.stores_install_size, formatBytes(item.sizeBytes)) else stringResource(R.string.stores_install),
+                            leadOn,
                         ) { StoresState.requestInstall(ctx, item) }
-                        item != null && item.isFree -> PrimaryButton(stringResource(R.string.stores_get_free), main = true) { openStoreUrl(ctx, item) }
-                        item != null -> PrimaryButton(if (item.hasPrice && item.finalPrice.isNotBlank()) stringResource(R.string.stores_buy_price, item.finalPrice) else stringResource(R.string.stores_view_on, store.shortLabel), main = true) { openStoreUrl(ctx, item) }
+                        item != null && item.isFree -> PrimaryButton(stringResource(R.string.stores_get_free), main = true, modifier = leadOn) { openStoreUrl(ctx, item) }
+                        item != null -> PrimaryButton(if (item.hasPrice && item.finalPrice.isNotBlank()) stringResource(R.string.stores_buy_price, item.finalPrice) else stringResource(R.string.stores_view_on, store.shortLabel), main = true, modifier = leadOn) { openStoreUrl(ctx, item) }
                     }
                     BusyChip(s)
                 }
@@ -221,7 +223,7 @@ private fun StoreAbout(text: String, height: Dp, modifier: Modifier = Modifier) 
 }
 
 @Composable
-private fun UninstallButton(title: String, game: com.droiddeck.launcher.stores.InstalledStoreGame, enabled: Boolean, onUninstall: () -> Unit) {
+private fun UninstallButton(title: String, game: com.droiddeck.launcher.stores.InstalledStoreGame, enabled: Boolean, modifier: Modifier = Modifier, onUninstall: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
     val heading = stringResource(R.string.stores_uninstall_title, title)
@@ -230,7 +232,7 @@ private fun UninstallButton(title: String, game: com.droiddeck.launcher.stores.I
     val keep = stringResource(R.string.stores_notification_keep)
     val remove = stringResource(R.string.stores_uninstall)
     Box(Modifier.onGloballyPositioned { placed[0] = it }) {
-        SecondaryButton(remove, enabled = enabled) {
+        SecondaryButton(remove, enabled = enabled, modifier = modifier) {
             val at = placed[0]?.takeIf { it.isAttached }?.boundsInRoot() ?: return@SecondaryButton
             var confirmed = false
             StoresMotion.ask(StepAsk(anchor = at, side = StepSide.Right, accent = colors.error, items = 3, pillCorner = 12.dp, maxWidth = 340.dp,
@@ -249,10 +251,10 @@ private fun UninstallButton(title: String, game: com.droiddeck.launcher.stores.I
 }
 
 @Composable
-private fun InstallButton(label: String, onInstall: () -> Unit) {
+private fun InstallButton(label: String, modifier: Modifier = Modifier, onInstall: () -> Unit) {
     val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
     Box(Modifier.onGloballyPositioned { placed[0] = it }) {
-        PrimaryButton(label, main = true) {
+        PrimaryButton(label, main = true, modifier = modifier) {
             StoresMotion.markInstall(placed[0]?.takeIf { it.isAttached }?.boundsInRoot(), label)
             onInstall()
         }
