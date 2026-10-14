@@ -26,6 +26,10 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
   of the scroll or the focus. A product this round finds uninstallable is dropped when the round ends, not in
   the middle of it. The progress bar is gone once the grid has games, so a sync in progress no longer reads
   as a list still loading.
+- **The art swap has no gap** (`GogLibrary.sync`, `StoresPage`): a card that swaps from the listing's cover to
+  the wide background keeps the cover while the new one decodes - the fetched record carries the cover the
+  card already shows, and the card's request names it as the memory-cache placeholder - so no card goes dark
+  in the middle of a sync.
 - **The per-product fetch stays** (`fetchGame`): `api.gog.com` is what has the description, the developer,
   the publisher, the Galaxy portrait and the build generation, and the detail page reads all of those from
   the library entry, so the listing alone cannot replace it.

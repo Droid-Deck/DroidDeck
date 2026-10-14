@@ -107,7 +107,9 @@ object GogLibrary {
             for ((idx, f) in futures.withIndex()) {
                 val g = runCatching { f.get() }.getOrNull()
                 if (g != null) {
-                    merged[g.gameId] = g; detailed.add(g.gameId); fetched++; skipped.remove(g.gameId); onItems(listOf(g))
+                    // The cover the card already shows stays, so the wide art lands over it instead of over a gap.
+                    val filled = g.withCover(merged[g.gameId]?.verticalCover)
+                    merged[g.gameId] = filled; detailed.add(g.gameId); fetched++; skipped.remove(g.gameId); onItems(listOf(filled))
                 }
                 if ((idx + 1) % 5 == 0) onStatus("Syncing… ${idx + 1}/${futures.size}")
             }
@@ -282,6 +284,11 @@ object GogLibrary {
             prefs.edit().putString(CACHE_KEY, arr.toString()).apply()
         }
     }
+
+    /** The fetched record with the cover the card already shows, so the wide art lands over it. */
+    private fun GogGame.withCover(cover: String?): GogGame =
+        if (cover.isNullOrBlank() || cover == verticalCover) this
+        else GogGame(gameId, title, imageUrl, description, developer, category, generation, cover, releaseDate, publisher)
 
     /** A cached game as the page's card. */
     fun toCatalogItem(context: Context, g: GogGame): CatalogItem = CatalogItem(

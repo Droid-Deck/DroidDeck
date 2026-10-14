@@ -1172,6 +1172,16 @@ private fun SyncBar(line: String) {
 /** How tall the card's one line is, over the blurred foot of its art. */
 private val CardStrip = 26.dp
 
+/** The wide art with the card's own cover under it, so a card whose art is swapped keeps a picture while the new one decodes. */
+@Composable
+private fun cardArtRequest(url: String?, cover: String?): coil.request.ImageRequest? {
+    val ctx = LocalContext.current
+    val under = cover?.takeIf { it != url }
+    return remember(url, under) {
+        url?.let { coil.request.ImageRequest.Builder(ctx).data(it).apply { if (under != null) placeholderMemoryCacheKey(under) }.build() }
+    }
+}
+
 /**
  * The card is its art: sharp above, and under the one line a blurred, darkened copy of the same
  * picture, placed so the two meet without a seam. Blur needs API 31; below it the copy is only
@@ -1181,14 +1191,15 @@ private val CardStrip = 26.dp
 @Composable
 private fun CardFace(item: CatalogItem, download: com.droiddeck.launcher.stores.download.DownloadEntry?, hot: Boolean, marker: @Composable () -> Unit) {
     val url = item.imageUrl ?: item.tallImageUrl
+    val art = cardArtRequest(url, item.tallImageUrl)
     val blurs = android.os.Build.VERSION.SDK_INT >= 31
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val total = maxWidth * 9f / 16f + CardStrip
         Box(Modifier.fillMaxWidth().height(total).background(Color(0xFF101318)).then(if (url == null) Modifier.background(artBrush(hueOf(item.title))) else Modifier)) {
-            if (url != null) AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+            if (art != null) AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
             Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(CardStrip).clipToBounds()) {
-                if (url != null) AsyncImage(
-                    model = url, contentDescription = null, contentScale = ContentScale.Crop,
+                if (art != null) AsyncImage(
+                    model = art, contentDescription = null, contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxWidth().wrapContentHeight(Alignment.Bottom, unbounded = true).height(total).blur(24.dp),
                 )
                 Spacer(Modifier.matchParentSize().background(Color.Black.copy(alpha = if (blurs) 0.45f else 0.7f)))
@@ -1245,11 +1256,12 @@ private fun CardMarker(item: CatalogItem, installed: Boolean, download: com.droi
 @Composable
 internal fun CardArt(item: CatalogItem, modifier: Modifier) {
     val url = item.imageUrl ?: item.tallImageUrl
+    val art = cardArtRequest(url, item.tallImageUrl)
     val colors = MaterialTheme.colorScheme
     // A dark ground under the image, so art with transparency never ends in white, and a quiet
     // fade into the card's surface at the foot.
     Box(modifier.background(colors.surfaceVariant).then(if (url == null) Modifier.background(artBrush(hueOf(item.title))) else Modifier)) {
-        if (url != null) AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+        if (art != null) AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
         else Text(item.title, fontSize = 10.sp, fontWeight = FontWeight.Black, color = Color.White, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.align(Alignment.BottomStart).padding(6.dp))
         Spacer(Modifier.matchParentSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(0.6f to Color.Transparent, 1f to colors.surface.copy(alpha = 0.85f))))
     }
