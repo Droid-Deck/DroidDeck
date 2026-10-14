@@ -1012,20 +1012,6 @@ private fun DrawerLocaleRow(host: MenuHost, a: DrawerActions, modifier: Modifier
     ) { locale -> a.onGameLocale(appId, locale) }
 }
 
-private fun localeLabel(tag: String) = when (tag.substringBefore('.')) {
-    "ja_JP" -> "日本語"
-    "ko_KR" -> "한국어"
-    "zh_CN" -> "简体中文"
-    "zh_TW" -> "繁體中文"
-    "en_US" -> "English"
-    "ru_RU" -> "Русский"
-    "de_DE" -> "Deutsch"
-    "fr_FR" -> "Français"
-    "es_ES" -> "Español"
-    "pt_BR" -> "Português"
-    else -> tag
-}
-
 @Composable
 private fun TextureFilteringGroup(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
     val inherited = a.selectedGameProfileId != null
