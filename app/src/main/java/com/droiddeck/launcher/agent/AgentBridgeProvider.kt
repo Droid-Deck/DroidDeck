@@ -133,6 +133,9 @@ class AgentBridgeProvider : ContentProvider() {
                 if (!g.simulate(request.optInt("seconds", 20).coerceIn(1, 600), angle("yaw"), angle("pitch"))) return error("BUSY", "Already simulating")
             }
             "stop-simulate" -> g.stopSimulation()
+            "calibrate" -> g.startCalibration()
+            "cancel-calibration" -> g.cancelCalibration()
+            "reset-calibration" -> g.resetCalibration()
             "query" -> { g.query(); Thread.sleep(600) }
             "mode" -> {
                 val mode = hex(request.optString("mode"), 0xFF) ?: return error("INVALID_VALUE", "mode must be one hex byte, e.g. 0x31")

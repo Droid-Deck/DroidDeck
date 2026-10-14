@@ -40,6 +40,11 @@ data class RayNeoEndpointSelection(
 object RayNeoProtocol {
     const val VENDOR_ID = 0x1BBB
     const val PRODUCT_ID = 0xAF50
+    // verncat/RayNeo-Air-3S-Pro-OpenVR PR #3 (MIT), tested on GT hardware.
+    const val GT_VENDOR_ID = 0x3941
+    private const val GT_CONTROL_INTERFACE = 5
+
+    fun isGt(vid: Int, pid: Int) = vid == GT_VENDOR_ID && pid == PRODUCT_ID
 
     const val BOARD_AIR_4_PRO = 0x3A
 
@@ -110,6 +115,8 @@ object RayNeoProtocol {
     }
 
     fun selectEndpoints(device: UsbDevice): RayNeoEndpointSelection? {
+        val gt = isGt(device.vendorId, device.productId)
+        val gtCandidates = mutableListOf<RayNeoEndpointSelection>()
         var fallback: RayNeoEndpointSelection? = null
 
         for (i in 0 until device.interfaceCount) {
@@ -123,6 +130,8 @@ object RayNeoProtocol {
                     endpoint.type != UsbConstants.USB_ENDPOINT_XFER_BULK) {
                     continue
                 }
+                // Exclude small button reports from GT's protocol transport.
+                if (gt && endpoint.maxPacketSize < 64) continue
 
                 if (endpoint.direction == UsbConstants.USB_DIR_IN && inEndpoint == null) {
                     inEndpoint = endpoint
@@ -133,6 +142,11 @@ object RayNeoProtocol {
 
             if (inEndpoint != null && outEndpoint != null) {
                 val selection = RayNeoEndpointSelection(usbInterface, inEndpoint, outEndpoint)
+                if (gt) {
+                    if (usbInterface.id == GT_CONTROL_INTERFACE) return selection
+                    gtCandidates += selection
+                    continue
+                }
                 if (inEndpoint.type == UsbConstants.USB_ENDPOINT_XFER_INT &&
                     outEndpoint.type == UsbConstants.USB_ENDPOINT_XFER_INT
                 ) {
@@ -144,7 +158,9 @@ object RayNeoProtocol {
             }
         }
 
-        return fallback
+        // Interface numbers can change with firmware. Use a unique protocol-sized
+        // pair when interface 5 is absent, never an arbitrary composite interface.
+        return if (gt) gtCandidates.singleOrNull() else fallback
     }
 
     private fun parseSensorSample(raw: ByteArray): RayNeoSensorSample? {

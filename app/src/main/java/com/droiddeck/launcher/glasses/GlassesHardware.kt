@@ -8,6 +8,7 @@ interface GlassesModel {
     val volumeMax: Int
     val diagonalFovDeg: Float
     val sbs90: Boolean
+    val hasSunblock: Boolean get() = true
     fun mode(hz: Int, sbs: Boolean): Int
     fun modeForStep(step: Int): Int?
 }
@@ -17,6 +18,7 @@ interface GlassesModel {
  */
 internal interface GlassesLink {
     val hasImu: Boolean
+    val ready: Boolean get() = true
     fun send(msgId: Int, payload: ByteArray = ByteArray(0)): Boolean
     fun close()
 }

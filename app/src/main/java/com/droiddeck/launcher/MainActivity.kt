@@ -459,19 +459,27 @@ class MainActivity : ComponentActivity() {
                 android.widget.Toast.makeText(this, R.string.game_link_session_busy, android.widget.Toast.LENGTH_LONG).show()
                 return true
             }
-            if (!SessionService.launchGame(this, game.gameIdString)) {
+            val steamVr = game.gameIdString == com.droiddeck.launcher.gpu.SteamVr.APP_ID
+            if (!steamVr && !SessionService.launchGame(this, game.gameIdString)) {
                 android.widget.Toast.makeText(this, R.string.game_link_failed, android.widget.Toast.LENGTH_LONG).show()
                 return false
             }
             startActivity(Intent(this, SessionActivity::class.java).setAction(SessionService.ACTION_RESUME)
+                .putExtra(SessionActivity.EXTRA_STEAMVR, steamVr)
                 .putExtra(SessionActivity.EXTRA_RETURN_HOME, returnHome)
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
             return true
         }
         return startSession(Intent(this, SessionActivity::class.java)
                 .putExtra(SessionActivity.EXTRA_RETURN_HOME, returnHome)
-                .putExtra(SessionService.EXTRA_STEAM_URL,
-                com.droiddeck.launcher.frontend.GameLaunchLink.steamUrl(game.gameIdString)), steamSession = true)
+                .apply {
+                    if (game.gameIdString == com.droiddeck.launcher.gpu.SteamVr.APP_ID) {
+                        putExtra(SessionActivity.EXTRA_STEAMVR, true)
+                    } else {
+                        putExtra(SessionService.EXTRA_STEAM_URL,
+                            com.droiddeck.launcher.frontend.GameLaunchLink.steamUrl(game.gameIdString))
+                    }
+                }, steamSession = true)
     }
 
     private fun handleGameLink(games: List<Library.SteamGame>) {

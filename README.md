@@ -29,6 +29,10 @@ Run `tools/build_local.sh` with Docker, Java 17, the Android SDK/NDK, Rust throu
 
 After preparation, ordinary `./gradlew :app:assembleRelease` builds can reuse the verified inputs. If native sources, component pins or staged files change, packaging stops with instructions to rerun the helper. Generated audio stays under `app/build/`; the tracked base bundle is never modified. `./gradlew -PskipRust=true :app:testDebugUnitTest` needs no native preparation. For an APK without store engines, use `DROIDDECK_SKIP_RUST=1 tools/build_local.sh`; it omits cached engine libraries too.
 
+For the prepared Windows checkout, run `./tools/run_windows.ps1` (optionally with `-Serial <adb-serial>`), or select **DroidDeck XR** in Android Studio and run the **app** module on the connected phone. Machine-specific options live in the ignored `local.properties`: `droiddeck.python` selects a Python executable, `droiddeck.skipRust=true` omits the optional store download engines, and `droiddeck.debugApplicationIdSuffix=.xr` installs **DroidDeck XR Dev** alongside the signed release. The development app has its own runtime and Steam login. The local Java selection is in `.gradle/config.properties`.
+
+`tools/prepare_windows_runtime.py` restores this checkout's audited runtime inputs from the pinned CI APK, three locally rebuilt preload libraries, and the checksum-pinned Gamescope archive in `build/windows-setup/`. It checks the actual CI merge tree, rejects unreviewed source changes, and records component provenance in `app/build/windows-runtime-provenance.json`. It is specific to the audited source revision; changed runtime sources require a fresh native build. Preserve these ignored preparation files when rebuilding locally; `clean` removes the prepared assets and their verification manifest.
+
 Run the helper and preload regression suite with `bash tools/test_local.sh`. On macOS it runs in Linux through Docker, matching the helpers' runtime and CI instead of compiling Linux preloads against macOS headers.
 
 ## Limits

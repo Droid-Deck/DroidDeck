@@ -71,6 +71,31 @@ class RayNeoProtocolTest {
         assertTrue(Glasses.isGlassesDisplayName("VITURE Pro"))
     }
 
+    @Test fun gtIdentityWorksWithoutProductNameAndPreservesMaxName() {
+        assertEquals("RayNeo GT series", RayNeoModel.model(0x3941, 0xaf50, null)?.name)
+        assertEquals("RayNeo GT series", RayNeoModel.model(0x3941, 0xaf50, "USB device")?.name)
+        for (name in listOf("RayNeo GT", "RayNeo GT MAX")) {
+            val model = RayNeoModel.model(0x3941, 0xaf50, name)!!
+            assertEquals(name, model.name)
+            assertEquals(6, model.mode(60, true))
+            assertEquals(7, model.mode(120, false))
+            assertTrue(Glasses.isGlassesDisplayName(name))
+        }
+        assertNull(RayNeoModel.model(0x3941, 0x1234, "RayNeo GT"))
+        assertNull(RayNeoModel.model(0x1234, 0xaf50, "RayNeo GT MAX"))
+    }
+
+    @Test fun gtNotificationsAndControlAcksAreNotDeviceInfo() {
+        for (cmd in listOf(0x08, 6, 7, 0x50)) {
+            val raw = ByteArray(64).apply {
+                this[0] = 0x99.toByte(); this[1] = 0xc8.toByte(); this[2] = 64
+                this[8] = cmd.toByte()
+            }
+            assertEquals(cmd, (RayNeoProtocol.classifyPacket(raw) as RayNeoPacket.Response).cmd)
+            assertNull(RayNeoProtocol.parseDeviceInfo(raw))
+        }
+    }
+
     private fun sample(tick: Long, yawDps: Float = 0f) = RayNeoSensorSample(
         floatArrayOf(0f, 9.81f, 0f), floatArrayOf(0f, yawDps, 0f), 0f,
         FloatArray(3), 0f, 0f, tick,

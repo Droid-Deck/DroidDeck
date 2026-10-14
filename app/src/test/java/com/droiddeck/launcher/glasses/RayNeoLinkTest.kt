@@ -23,27 +23,38 @@ import org.robolectric.util.ReflectionHelpers.ClassParameter.from
 @Config(sdk = [28], manifest = Config.NONE, shadows = [RayNeoLinkTest.Connection::class])
 @LooperMode(LooperMode.Mode.PAUSED)
 class RayNeoLinkTest {
-    @Test fun handshakeWarmupPoseAndShutdownUseOnlyRayNeoWireCommands() {
+    @Test fun handshakeWarmupPoseAndShutdownUseOnlyRayNeoWireCommands() = exerciseLink(false)
+
+    @Test fun gtControlTrafficDoesNotBreakHandshakeOrTracking() = exerciseLink(true)
+
+    private fun exerciseLink(gtTraffic: Boolean) {
         fun endpoint(address: Int) = ReflectionHelpers.callConstructor(UsbEndpoint::class.java,
             from(Int::class.javaPrimitiveType, address), from(Int::class.javaPrimitiveType, 3),
             from(Int::class.javaPrimitiveType, 64), from(Int::class.javaPrimitiveType, 1))
         val iface = Shadow.newInstanceOf(UsbInterface::class.java)
         val conn = Shadow.newInstanceOf(UsbDeviceConnection::class.java)
         val io = Shadow.extract<Connection>(conn)
+        io.gtTraffic = gtTraffic
         lateinit var link: RayNeoLink
         var ready = false
         var pose: FloatArray? = null
         var lost = false
         val listener = object : RayNeoLink.Listener {
-            override fun onReady() { ready = true }
+            override fun onReady() {
+                ready = true
+                if (gtTraffic) {
+                    assertTrue(link.send(VitureProtocol.MSG_DISPLAY, byteArrayOf(6)))
+                    assertTrue(link.send(VitureProtocol.MSG_DISPLAY, byteArrayOf(7)))
+                }
+            }
             override fun onPose(raw: ByteArray, xyzw: FloatArray, timeNs: Long) {
                 pose = xyzw
                 link.close()
             }
             override fun onLost() { lost = true }
         }
-        val ctor = RayNeoLink::class.java.declaredConstructors.first { it.parameterCount == 3 }.apply { isAccessible = true }
-        link = ctor.newInstance(conn, RayNeoEndpointSelection(iface, endpoint(0x81), endpoint(0x01)), listener) as RayNeoLink
+        val ctor = RayNeoLink::class.java.declaredConstructors.first { it.parameterCount == 5 }.apply { isAccessible = true }
+        link = ctor.newInstance(conn, RayNeoEndpointSelection(iface, endpoint(0x81), endpoint(0x01)), listener, gtTraffic, null) as RayNeoLink
         ReflectionHelpers.setField(link, "worker", Thread.currentThread())
         assertFalse(link.send(VitureProtocol.MSG_BRIGHTNESS, byteArrayOf(8)))
         assertFalse(link.send(VitureProtocol.MSG_FILM, byteArrayOf(1)))
@@ -53,7 +64,7 @@ class RayNeoLinkTest {
         RayNeoLink::class.java.getDeclaredMethod("run").apply { isAccessible = true }.invoke(link)
         assertTrue(ready)
         assertFalse(lost)
-        assertEquals(listOf(0, 1, 2), io.commands)
+        assertEquals(if (gtTraffic) listOf(0, 6, 7, 1, 2) else listOf(0, 1, 2), io.commands)
         assertTrue(io.samples >= 200)
         assertTrue(io.closed)
         assertTrue(io.released)
@@ -70,6 +81,7 @@ class RayNeoLinkTest {
         var samples = 0
         var closed = false
         var released = false
+        var gtTraffic = false
         private var streaming = false
 
         @Implementation fun bulkTransfer(ep: UsbEndpoint, bytes: ByteArray, count: Int, timeout: Int): Int {
@@ -77,6 +89,15 @@ class RayNeoLinkTest {
                 check(bytes[0] == 0x66.toByte() && count == 64)
                 val cmd = bytes[1].toInt() and 0xff
                 commands += cmd
+                if (gtTraffic && cmd in listOf(0, 1)) {
+                    // Notifications and unrelated ACKs can precede the requested response.
+                    for (other in listOf(0x08, 6, 7, 0x50)) {
+                        responses += ByteArray(64).apply {
+                            this[0] = 0x99.toByte(); this[1] = 0xc8.toByte(); this[2] = 64
+                            this[8] = other.toByte()
+                        }
+                    }
+                }
                 responses += ByteArray(64).apply {
                     this[0] = 0x99.toByte(); this[1] = 0xc8.toByte(); this[2] = 64
                     this[8] = cmd.toByte()
@@ -91,7 +112,15 @@ class RayNeoLinkTest {
                 check(++samples < 500) { "Warmup never delivered a pose" }
                 ByteBuffer.allocate(64).order(ByteOrder.LITTLE_ENDIAN).apply {
                     put(0, 0x99.toByte()); put(1, 0x65); put(2, 64)
-                    putFloat(8, 9.81f); putFloat(20, 90f); putInt(40, samples * 100)
+                    if (gtTraffic) {
+                        val s = kotlin.math.sin(Math.toRadians(35.0)).toFloat()
+                        val c = kotlin.math.cos(Math.toRadians(35.0)).toFloat()
+                        putFloat(4, 9.81f * s); putFloat(12, 9.81f * c)
+                        putFloat(16, 90f * s); putFloat(24, 90f * c)
+                    } else {
+                        putFloat(8, 9.81f); putFloat(20, 90f)
+                    }
+                    putInt(40, samples * 100)
                 }.array()
             }
             packet.copyInto(bytes)
