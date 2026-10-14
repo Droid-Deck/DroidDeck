@@ -159,6 +159,8 @@ class MainActivity : ComponentActivity() {
     private var storesOpenTab by mutableStateOf(SessionPrefs.STORES_OPEN_LIBRARY)
     private var navRequest by mutableStateOf<String?>(null)
     private var storesShowMature by mutableStateOf(false)
+    private var storesSort by mutableStateOf(SessionPrefs.STORES_SORTS.first())
+    private var storesView by mutableStateOf(SessionPrefs.STORES_VIEWS.first())
     private var mic by mutableStateOf(false)
     private var wifiDiscovery by mutableStateOf(false)
     private var wifiDiscoveryPermission by mutableStateOf(false)
@@ -516,6 +518,8 @@ class MainActivity : ComponentActivity() {
         gameStoresSpeedTier = SessionPrefs.gameStoresSpeedTier(this)
         storesOpenTab = SessionPrefs.storesOpenTab(this)
         storesShowMature = SessionPrefs.storesShowMature(this)
+        storesSort = SessionPrefs.storesSort(this)
+        storesView = SessionPrefs.storesView(this)
         applyLauncherFullscreen()
         updates.start()
         setContent {
@@ -573,6 +577,8 @@ class MainActivity : ComponentActivity() {
                         addedGamesArt = addedGamesArt,
                         sgdbUserKey = sgdbUserKey,
                         storesShowMature = storesShowMature,
+                        storesSort = storesSort,
+                        storesView = storesView,
                         storeDownloadsActive = com.droiddeck.launcher.stores.StoresState.activeDownloads,
                     ),
                     FrontEndActions(
@@ -728,6 +734,8 @@ class MainActivity : ComponentActivity() {
                         onStoresOpenTab = { tab -> SessionPrefs.setStoresOpenTab(this, tab); storesOpenTab = tab },
                         onNavigated = { navRequest = null },
                         onStoresShowMature = { show -> SessionPrefs.setStoresShowMature(this, show); storesShowMature = show },
+                        onStoresSort = { sort -> SessionPrefs.setStoresSort(this, sort); storesSort = sort },
+                        onStoresView = { view -> SessionPrefs.setStoresView(this, view); storesView = view },
                         onLibraryChanged = { refreshAddedGames(); refresh() },
                         onAnimationsEnabled = { on ->
                             SessionPrefs.setAnimationsEnabled(this, on)

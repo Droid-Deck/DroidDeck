@@ -52,6 +52,27 @@ fun installedCards(store: Store, installed: List<InstalledStoreGame>, library: L
     }.distinctBy { it.id }.sortedBy { it.title.lowercase() }
 }
 
+private fun releaseDateValue(item: CatalogItem): Long =
+    item.releaseDate.take(10).takeIf { it.length == 10 }?.let { raw ->
+        runCatching { java.time.LocalDate.parse(raw).toEpochDay() }.getOrDefault(0L)
+    } ?: 0L
+
+fun sortCatalogItems(
+    items: List<CatalogItem>,
+    sort: String,
+    lastPlayed: (CatalogItem) -> Long = { 0L },
+    installedAt: (CatalogItem) -> Long = { 0L },
+    size: (CatalogItem) -> Long = { it.sizeBytes },
+): List<CatalogItem> = when (sort) {
+    "lastPlayed" -> items.sortedWith(compareByDescending(lastPlayed).thenBy { it.title.lowercase() })
+    "recentlyInstalled" -> items.sortedWith(compareByDescending(installedAt).thenBy { it.title.lowercase() })
+    "titleAsc" -> items.sortedBy { it.title.lowercase() }
+    "titleDesc" -> items.sortedByDescending { it.title.lowercase() }
+    "sizeDesc" -> items.sortedWith(compareByDescending(size).thenBy { it.title.lowercase() })
+    "releaseDateDesc" -> items.sortedWith(compareByDescending(::releaseDateValue).thenBy { it.title.lowercase() })
+    else -> items
+}
+
 fun mergeItems(old: List<CatalogItem>?, new: List<CatalogItem>): List<CatalogItem> {
     if (old.isNullOrEmpty()) return new
     val before = old.associateBy { it.key }

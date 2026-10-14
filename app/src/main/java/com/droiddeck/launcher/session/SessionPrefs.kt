@@ -104,6 +104,23 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("storesShowMature", show).apply()
     }
 
+    fun storesSort(context: Context): String =
+        prefs(context).getString("storesSort", null)?.takeIf { it in STORES_SORTS } ?: STORES_SORTS.first()
+
+    fun setStoresSort(context: Context, sort: String) {
+        prefs(context).edit().putString("storesSort", if (sort in STORES_SORTS) sort else STORES_SORTS.first()).apply()
+    }
+
+    fun storesView(context: Context): String =
+        prefs(context).getString("storesView", null)?.takeIf { it in STORES_VIEWS } ?: STORES_VIEWS.first()
+
+    fun setStoresView(context: Context, view: String) {
+        prefs(context).edit().putString("storesView", if (view in STORES_VIEWS) view else STORES_VIEWS.first()).apply()
+    }
+
+    val STORES_SORTS = listOf("lastPlayed", "recentlyInstalled", "titleAsc", "titleDesc", "sizeDesc", "releaseDateDesc")
+    val STORES_VIEWS = listOf("cards", "list")
+
     const val STORES_OPEN_LIBRARY = "library"
     const val STORES_OPEN_STORE = "store"
 
