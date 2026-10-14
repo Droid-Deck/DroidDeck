@@ -2308,7 +2308,7 @@ static void constraint_activate(struct constraint *k) {
     {
         int focused = 0;
         for (int i = 0; i < g_nkbs; i++) if (g_kbs[i].focus) focused = 1;
-        if (!focused && keyboard_for(wl_resource_get_client(k->surface->resource))) {
+        if (k->is_lock && !focused && keyboard_for(wl_resource_get_client(k->surface->resource))) {
             keyboard_focus(k->surface->resource);
             k->gave_keys = 1;
         }
