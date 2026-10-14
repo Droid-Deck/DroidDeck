@@ -1,4 +1,3 @@
-
 use crate::fetch_tuning::{
     budget_admits, connect_timeout, inflight_budget_bytes, retry_backoff_millis, AsyncFetchError,
     FetchFailKind, BOOTSTRAP_WINDOW, MAX_CHUNK_ATTEMPTS, NOMINAL_CHUNK_RESERVE_BYTES,
@@ -25,20 +24,17 @@ pub const MAX_ITEM_ATTEMPTS: u32 = MAX_CHUNK_ATTEMPTS;
 pub const THROUGHPUT_SAMPLE_INTERVAL_MS: u64 = 5_000;
 const DRIVER_POLL_MS: u64 = 250;
 
-
 pub const LATENCY_MIN_SAMPLES: u32 = 3;
 pub const LATENCY_HOLD_FACTOR: f64 = 2.5;
 pub const LATENCY_MIN_EXCESS_MS: f64 = 250.0;
 pub const LATENCY_GAIN_EPS: f64 = 0.25;
 pub const LATENCY_SHRINK_FACTOR: f64 = 0.85;
 
-
 pub const HOST_STALL_MS: u64 = if cfg!(test) { 1_500 } else { 10_000 };
 pub const HOST_STALL_COOLDOWN_MS: u64 = 30_000;
 pub const HOST_STALL_COOLDOWN_MAX_MS: u64 = 300_000;
 const STALL_CHECK_MS: u64 = 250;
 pub const STREAM_IDLE_CAP: Duration = Duration::from_secs(30);
-
 
 #[derive(Clone, Debug)]
 pub struct FetchItem {
@@ -121,11 +117,6 @@ pub fn run_fetch(
     run_fetch_gated(items, hosts, opts, sink, cancel, progress, log, &|_: usize| true)
 }
 
-/// [`run_fetch`] with an admission gate: the next fresh item (by index) is only dispatched once
-/// `gate(index)` says so. Items are still taken strictly in order, and retries are never held
-/// back. While the gate is closed the driver idles as it does on a full window, so a gate that
-/// opens as the sink makes progress (e.g. as files finish) paces the run without stalling the
-/// requests already in flight. The adaptivity is unchanged.
 #[allow(clippy::too_many_arguments)]
 pub fn run_fetch_gated(
     items: Vec<FetchItem>,
@@ -446,7 +437,6 @@ avg_mbps={avg_mbps:.2} peak_mbps={peak_mbps:.2} result={result}",
     outcome
 }
 
-
 pub fn reserve_bytes(item: &FetchItem) -> u64 {
     if item.reserve == 0 {
         NOMINAL_CHUNK_RESERVE_BYTES
@@ -567,7 +557,6 @@ fn record_first_error(slot: &Mutex<Option<String>>, err: String) {
         *guard = Some(err);
     }
 }
-
 
 struct Http {
     client: reqwest::Client,
@@ -788,7 +777,6 @@ async fn fetch_stream(
     validate_body_len(offset, content_length, range)?;
     Ok(offset)
 }
-
 
 const NO_ATTEMPT: u32 = u32::MAX;
 
@@ -1256,7 +1244,6 @@ fn silent_since(last_rx_at: Option<Instant>, watch_from: Instant) -> Instant {
     }
 }
 
-
 pub struct BandwidthMeter {
     start: Instant,
     total_bytes: AtomicU64,
@@ -1341,7 +1328,6 @@ impl BandwidthMeter {
         )
     }
 }
-
 
 #[derive(Clone, Debug, Default)]
 struct ServerHealth {
@@ -1803,7 +1789,6 @@ stalled_hosts={}",
         )
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -2287,7 +2272,7 @@ mod tests {
         let mut options = opts("stream app=stub");
         options.stream = true;
         options.per_host_cap = 8;
-        options.headers.push(("User-Agent".to_string(), "nile/0.1 Amazon".to_string()));
+        options.headers.push(("User-Agent".to_string(), "DroidDeck/test".to_string()));
         let cancel = AtomicBool::new(false);
         let lines: Mutex<Vec<String>> = Mutex::new(Vec::new());
         let outcome = run_fetch(
@@ -2309,7 +2294,7 @@ mod tests {
         assert_eq!(got[&3], vec![9u8; 20_000]);
         assert_eq!(got[&4].len(), 1000);
         assert_eq!(got[&4][0], 100u8);
-        assert_eq!(got[&5], b"nile/0.1 Amazon".to_vec());
+        assert_eq!(got[&5], b"DroidDeck/test".to_vec());
         let finished = sink.finished.lock().unwrap();
         assert_eq!(finished.len(), 5);
         let written: u64 = got.values().map(|b| b.len() as u64).sum();
