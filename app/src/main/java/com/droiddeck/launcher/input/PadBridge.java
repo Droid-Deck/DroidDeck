@@ -100,6 +100,7 @@ public final class PadBridge {
     }
 
     public synchronized void stop() {
+        releaseBackPaddles();
         activeControllerId = NO_CONTROLLER;
         for (int slot = 0; slot < SLOTS; slot++) {
             owners[slot] = NO_CONTROLLER;
@@ -243,6 +244,12 @@ public final class PadBridge {
             case KeyEvent.KEYCODE_BUTTON_THUMBR: pad.press(9, pressed); break;
             case KeyEvent.KEYCODE_BUTTON_MODE:
             case KeyEvent.KEYCODE_HOME: pad.press(PadState.GUIDE, pressed); break;
+            case KeyEvent.KEYCODE_BUTTON_Z:
+                if (isPrimary(event)) DeckControls.INSTANCE.setGrip(DeckControls.L4, pressed);
+                break;
+            case KeyEvent.KEYCODE_BUTTON_C:
+                if (isPrimary(event)) DeckControls.INSTANCE.setGrip(DeckControls.R4, pressed);
+                break;
             case KeyEvent.KEYCODE_BUTTON_L2: pad.leftTrigger = pressed ? 1f : 0f; break;
             case KeyEvent.KEYCODE_BUTTON_R2: pad.rightTrigger = pressed ? 1f : 0f; break;
             case KeyEvent.KEYCODE_DPAD_UP: pad.up = pressed; break;
@@ -322,6 +329,7 @@ public final class PadBridge {
     }
 
     public synchronized void releaseAll() {
+        releaseBackPaddles();
         state.clear();
         publish();
         for (int slot = 1; slot < SLOTS; slot++) {
@@ -415,11 +423,21 @@ public final class PadBridge {
         return slot == 0 ? state : playerStates[slot];
     }
 
+    private boolean isPrimary(KeyEvent event) {
+        return owners[0] == event.getDevice().getId();
+    }
+
+    private void releaseBackPaddles() {
+        DeckControls.INSTANCE.setGrip(DeckControls.L4, false);
+        DeckControls.INSTANCE.setGrip(DeckControls.R4, false);
+    }
+
     private void free(int slot) {
         Log.i(TAG, "player " + (slot + 1) + " (id " + owners[slot] + ") left");
         owners[slot] = NO_CONTROLLER;
         slotControllers.set(slot, NO_CONTROLLER);
         if (slot == 0) {
+            releaseBackPaddles();
             state.clear();
             publish();
             return;
