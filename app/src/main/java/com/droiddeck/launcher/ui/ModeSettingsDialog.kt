@@ -78,6 +78,7 @@ class ModeSettings(
     val forceSsbs: Boolean = false,
     val syncBackend: String? = null,
     val stretch16x9: Boolean? = null,
+    val steamClientArch: String? = null,
     val steamRepairQueued: Boolean = false,
     val mangoapp: Boolean = true,
     val steamController: String? = null,
@@ -122,6 +123,7 @@ class ModeSettingsActions(
     val onSyncBackend: (String) -> Unit = {},
     val onStretch16x9: (Boolean) -> Unit = {},
     val onSteamRepair: () -> Unit = {},
+    val onSteamClientArch: (String) -> Unit = {},
     val onMangoapp: (Boolean) -> Unit = {},
     val onSteamController: (String) -> Unit = {},
     val onUnfoldedControls: (Boolean) -> Unit = {},
@@ -407,6 +409,11 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
             ) {
                 SecondaryButton(stringResource(R.string.mode_steam_repair_button), enabled = !s.steamRepairQueued, onClick = a.onSteamRepair)
             }
+            if (s.steamClientArch != null) ChoiceRow(
+                host, "clientArch", stringResource(R.string.mode_client_arch), stringResource(R.string.mode_client_arch_hint),
+                listOf("arm64" to stringResource(R.string.mode_client_arch_arm64), "x86_64" to stringResource(R.string.mode_client_arch_x64)), s.steamClientArch,
+                onPick = a.onSteamClientArch,
+            )
         }
         if (s.wifiDiscovery != null) SettingsGroup(stringResource(R.string.mode_network)) {
             val hint = when {

@@ -2260,4 +2260,10 @@
     <string name="stores_sync_gog_unreachable">Couldn\'t reach GOG</string>
     <string name="stores_sync_gog_unreadable">Could not read your GOG library</string>
     <string name="stores_registering">Registering with Steam…</string>
+    <string name="mode_client_arch">Steam client</string>
+    <string name="mode_client_arch_hint">Applies next session. The x86-64 client runs under FEX with its own sign-in and library, and draws its interface without the GPU.</string>
+    <string name="mode_client_arch_arm64">ARM64 (recommended)</string>
+    <string name="mode_client_arch_x64">x86-64 (FEX, experimental)</string>
+    <string name="setup_vac_diag">VAC diagnostics</string>
+    <string name="setup_vac_diag_hint">Source games log their console (-condebug); vac.txt in the session logs says secure or insecure</string>
 </resources>

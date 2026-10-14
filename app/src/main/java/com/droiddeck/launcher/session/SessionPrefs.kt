@@ -410,6 +410,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("storageDiagnostics", on).apply()
     }
 
+    fun vacDiagnostics(context: Context): Boolean =
+        prefs(context).getBoolean("vac_diagnostics", false)
+
+    fun setVacDiagnostics(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("vac_diagnostics", on).apply()
+    }
 
     private fun resolutionCap(context: Context, mode: String): Int = prefs(context).getInt("resolutionCap.$mode", 720)
 
@@ -456,6 +462,17 @@ object SessionPrefs {
         runCatching { GameEnvironmentStore.publish(context) }
             .onFailure { android.util.Log.e("GameEnvironment", "Could not update game environment", it) }
     }
+
+    fun steamClientArch(context: Context): String = prefs(context).getString("steamClientArch", null) ?: "arm64"
+
+    fun setSteamClientArch(context: Context, id: String) {
+        prefs(context).edit().putString("steamClientArch", id).apply()
+    }
+
+    fun activeSteamRoot(context: Context): java.io.File = java.io.File(
+        com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context),
+        if (steamClientArch(context) == "x86_64") "root/.droiddeck-x64/.local/share/Steam" else "root/.local/share/Steam",
+    )
 
     fun runSteamAtStartup(context: Context): Boolean = prefs(context).getBoolean("runSteamAtStartup", false)
 

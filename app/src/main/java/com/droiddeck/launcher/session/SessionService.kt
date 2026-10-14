@@ -291,6 +291,7 @@ class SessionService : Service() {
         val runtimeDir = File(filesDir, ".wayland-rt").apply { mkdirs() }
         killStragglers()
         SessionFiles.stage(this, root)
+        VacDiagnostics.arm(this)
         com.droiddeck.launcher.agent.AgentGuest.reset(this)
         com.droiddeck.launcher.stores.gog.GogComet.begin()
         com.droiddeck.launcher.stores.StoreLaunchRequests.start(this)
@@ -534,6 +535,7 @@ class SessionService : Service() {
         guest.add("MESA_DISK_CACHE_DATABASE=1")
         guest.add("GLIBC_TUNABLES=glibc.pthread.rseq=0:glibc.malloc.top_pad=16777216")
         if (SessionState.mode == MODE_STEAM) guest.add("BL_MANGOAPP=" + (if (SessionPrefs.mangoapp(this)) "1" else "0"))
+        if (steamHere) guest.add("BL_STEAM_CLIENT_ARCH=" + SessionPrefs.steamClientArch(this))
         if (SessionState.mode == MODE_STEAM) {
             guest.add("BL_GAMESCOPE_STRETCH_16X9=" + (if (SessionPrefs.stretch16x9(this)) "1" else "0"))
         }

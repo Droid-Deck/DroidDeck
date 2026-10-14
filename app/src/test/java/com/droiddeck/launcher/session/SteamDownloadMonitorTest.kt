@@ -24,6 +24,21 @@ class SteamDownloadMonitorTest {
         }
     }
 
+    @Test fun followsTheX8664ClientsOwnLibrary() {
+        val root = Files.createTempDirectory("droiddeck-steam-download-").toFile()
+        try {
+            val steam = File(root, "root/.droiddeck-x64/.local/share/Steam")
+            val manifest = manifest(steam, "49520", downloaded = 10, total = 100, flags = 6)
+            val monitor = SteamDownloadMonitor()
+
+            assertFalse(monitor.poll(root, now = 1_000L))
+            manifest.writeText(appManifest(downloaded = 20, total = 100, flags = 6))
+            assertTrue(monitor.poll(root, now = 3_000L))
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
     @Test fun findsDownloadsInAdditionalSteamLibraries() {
         val root = Files.createTempDirectory("droiddeck-steam-download-").toFile()
         try {

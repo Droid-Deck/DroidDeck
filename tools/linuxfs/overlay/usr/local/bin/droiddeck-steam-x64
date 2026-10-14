@@ -1,0 +1,897 @@
+#!/bin/bash
+# EXPERIMENT, opt-in: Valve's x86-64 Linux Steam client under FEX, beside the default arm64 one.
+#   droiddeck-steam-x64 [steam:// URL or client arguments]   run it (the desktop menu entry)
+#   droiddeck-steam-x64 --prepare                            install and set up, then exit
+#   droiddeck-steam-x64 --sync-login                         copy the newer sign-in to the other client
+#   droiddeck-steam-x64 --exec ARGS...                       run the client binary with ARGS in
+#                                                              its environment (droiddeck-session
+#                                                              with BL_STEAM_CLIENT_ARCH=x86_64)
+#
+# Why: the arm64 Linux client never runs VAC (TF2, L4D2: "Connection Blocked ... VAC secured
+# server", no VAC line in any client log) - VAC modules are x86 code. The x86-64 client under FEX
+# has a module it can run, the way SteamLite does in Wine. This runs Valve's client unchanged.
+#
+# Everything lives in its own home ($X64_HOME): the x86 client gets its own ~/.steam links, config
+# and library, and never touches the arm64 client's games. The sign-in is the one thing shared
+# (x64_sync_login), so the user signs in once. Only one client runs at a
+# time (same account), so the arm64 one is shut down first.
+#
+# First run downloads FEX (this repo's release), FEX's Ubuntu 24.04 x86 rootfs (~525 MB, unpacked
+# ~1.5 GB) and the x86 client (~600 MB). Log: $X64_HOME/steam-x64.log.
+set -eu
+FEX_TAG=fex-2609-r3
+FEX_SHA256=cf3a87805ec51f8c42e197ff4883575e5bdec5247abe4c0beefb1796db358b5f
+FEX_URL=https://github.com/Droid-Deck/DroidDeck/releases/download/$FEX_TAG/fex.tzst
+ROOTFS_URL=https://rootfs.fex-emu.gg/Ubuntu_24_04/2026-08-11/Ubuntu_24_04.sqsh
+ROOTFS_SHA256=2854b06d3ff1b8f6e526135bfb6dd5b7b30ab3ab73e79ae933a3d9fed959a178
+CDN=https://client-update.fastly.steamstatic.com
+MANIFEST=steam_client_publicbeta_ubuntu12
+
+REAL_HOME=${HOME:-/root}
+X64_HOME=${BL_X64_HOME:-$REAL_HOME/.droiddeck-x64}
+ROOTFS=$X64_HOME/rootfs
+STEAM_X64=$X64_HOME/.local/share/Steam
+ARM_STEAM=${XDG_DATA_HOME:-$REAL_HOME/.local/share}/Steam
+LOG=$X64_HOME/steam-x64.log
+mkdir -p "$X64_HOME"
+step() { echo "== $(date -u +%H:%M:%S) $*" | tee -a "$LOG"; }
+
+# The arm64 Proton wrapper this client maps Windows titles to: the newest GE-Proton, else the arm64
+# client's own (droiddeck-proton-arm64, Proton Experimental). Prints its folder; --default-tool
+# prints its tool name, which the session hands to droiddeck-steam-compat and the shortcuts.
+x64_default_dir() {
+  local d
+  for d in $(ls -d "$STEAM_X64"/compatibilitytools.d/GE-Proton*-aarch64 2>/dev/null | sort -V -r); do
+    [ -f "$d/.droiddeck-arm64-proton" ] && { echo "$d"; return; }
+  done
+  echo "$STEAM_X64/compatibilitytools.d/droiddeck-proton-arm64"
+}
+x64_default_tool() {
+  sed -n 's/^[[:space:]]*"\([^"]*\)"[[:space:]]*$/\1/p' "$(x64_default_dir)/compatibilitytool.vdf" 2>/dev/null |
+    grep -v -x -e compatibilitytools -e compat_tools | head -n 1
+}
+
+x64_prepare() {
+# --- FEX -------------------------------------------------------------------------------------
+if [ ! -x /usr/local/bin/FEX ] || [ "$(cat /usr/local/share/fex-emu/.droiddeck-tag 2>/dev/null)" != "$FEX_TAG" ]; then
+  step "downloading FEX ($FEX_TAG)"
+  tmp=$(mktemp -d)
+  curl -fL --progress-bar "$FEX_URL" -o "$tmp/fex.tzst"
+  if [ "$FEX_SHA256" != PENDING ]; then echo "$FEX_SHA256  $tmp/fex.tzst" | sha256sum -c --quiet; fi
+  zstd -dc "$tmp/fex.tzst" | tar -C / -x
+  rm -rf "$tmp"
+  mkdir -p /usr/local/share/fex-emu && echo "$FEX_TAG" > /usr/local/share/fex-emu/.droiddeck-tag
+fi
+step "FEX ready ($FEX_TAG)"
+# The client takes this file in its folder as the opt-in to its SteamRT3 build (steamrt64/steam).
+# Without it, it re-executes itself in the scout environment through steam.sh, whose start-up checks
+# need what proot cannot give, and the session stalls before the interface (device, Bannerlator).
+mkdir -p "$STEAM_X64" && : > "$STEAM_X64/.steam-enable-steamrt64-client"
+
+# --- x86 rootfs --------------------------------------------------------------------------------
+if [ ! -f "$ROOTFS/.droiddeck-complete" ]; then
+  step "downloading FEX's Ubuntu 24.04 x86 rootfs"
+  # Resumes a part-done download; a finished one answers 416, which is not a failure here.
+  curl -fL --progress-bar -C - "$ROOTFS_URL" -o "$X64_HOME/rootfs.sqsh" || {
+    rc=$?
+    [ "$rc" = 22 ] && [ -s "$X64_HOME/rootfs.sqsh" ] || { step "rootfs download failed (curl $rc)"; exit 1; }
+  }
+  if ! echo "$ROOTFS_SHA256  $X64_HOME/rootfs.sqsh" | sha256sum -c --quiet >/dev/null 2>&1; then
+    rm -f "$X64_HOME/rootfs.sqsh"; step "rootfs download did not match its checksum; try again"; exit 1
+  fi
+  step "unpacking the rootfs"
+  rm -rf "$ROOTFS"
+  # Ownership and xattrs mean nothing in this guest; device nodes cannot be made here and are not
+  # needed (FEX passes /dev through from the host).
+  /usr/local/bin/unsquashfs -no-xattrs -no-progress -ignore-errors -d "$ROOTFS" "$X64_HOME/rootfs.sqsh" >>"$LOG" 2>&1 || true
+  [ -x "$ROOTFS/usr/bin/bash" ] || { step "rootfs unpack failed (no usr/bin/bash); see $LOG"; exit 1; }
+  rm -f "$X64_HOME/rootfs.sqsh"
+  touch "$ROOTFS/.droiddeck-complete"
+fi
+# The rootfs's own ld.so.preload: a path missing from the rootfs falls through to the guest, whose
+# list names the session's arm64 preloads. In it, the session shim built for x86-64 (System V IPC,
+# which Android kernels lack: the client's tier0 gives up on start without its semaphore).
+# Each architecture's copy under the rootfs's own multiarch folder, named once through glibc's $LIB
+# (lib/x86_64-linux-gnu or lib/i386-linux-gnu): every process loads the one built for it, so the
+# 32-bit games get them too. A missing copy is skipped by the loader.
+: > "$ROOTFS/etc/ld.so.preload"
+for lib in libblsession libfakeinput; do
+  have=0
+  # The 32-bit controller reader crashes Left 4 Dead 2: its fake devices reach the game's own SDL2
+  # through udev with a missing attribute, and SDL strdup()s the NULL (device, segvlog: strlen in
+  # libc <- __strdup <- libSDL2 <- udev_device_get_sysattr_value). Until it is fixed, 32-bit
+  # programs get only the session shim; its preload line names the x86_64 copy outright, since
+  # with $LIB FEX falls through to the session's own /usr/local/lib/i386-linux-gnu copy.
+  arches="x86_64 i386"; [ "$lib" = libfakeinput ] && arches=x86_64
+  rm -f "$ROOTFS/usr/local/lib/i386-linux-gnu/libfakeinput.so"
+  for arch in $arches; do
+    # The x86 builds the app stages for FEX programs (tools/linuxfs/build-x86-preloads.sh).
+    [ -f "/usr/local/lib/droiddeck-fex/$arch/$lib.so" ] || continue
+    mkdir -p "$ROOTFS/usr/local/lib/$arch-linux-gnu"
+    cp -f "/usr/local/lib/droiddeck-fex/$arch/$lib.so" "$ROOTFS/usr/local/lib/$arch-linux-gnu/$lib.so"
+    have=1
+  done
+  if [ "$have" = 1 ] && [ "$lib" = libfakeinput ]; then
+    echo "/usr/local/lib/x86_64-linux-gnu/$lib.so" >> "$ROOTFS/etc/ld.so.preload"
+  elif [ "$have" = 1 ]; then echo "/usr/local/\$LIB/$lib.so" >> "$ROOTFS/etc/ld.so.preload"
+  else step "warning: no x86 build of $lib (/usr/local/lib/droiddeck-fex/x86_64/$lib.so)"; fi
+done
+rm -f "$ROOTFS/usr/local/lib/libblsession-x86_64.so" "$ROOTFS/usr/local/lib/libfakeinput-x86_64.so"
+# --- the x86-64 client -------------------------------------------------------------------------
+if [ ! -x "$STEAM_X64/steamrt64/steam" ] || [ ! -f "$STEAM_X64/package/droiddeck-installed" ]; then
+  step "downloading the x86-64 Steam client ($MANIFEST)"
+  work=$(mktemp -d)
+  curl -fsSL "$CDN/$MANIFEST" -o "$work/manifest"
+  version=$(awk -F'"' '$2 == "version" { print $4; exit }' "$work/manifest")
+  # Same parsing as droiddeck-steam-install: every component block's plain zip and sha256.
+  awk -F'"' '
+    /^\t"/ && NF >= 3 && $4 == "" { block = $2 }
+    $2 == "file" { file[block] = $4 }
+    $2 == "sha2" { sha[block] = $4 }
+    END { for (b in file) if (b ~ /_all$/ || b ~ /_ubuntu12$/) print b, file[b], sha[b] }
+  ' "$work/manifest" | sort > "$work/parts"
+  [ -s "$work/parts" ] || { step "no client components in $MANIFEST"; exit 1; }
+  mkdir -p "$STEAM_X64/package"
+  total=$(grep -c . "$work/parts")
+  i=0
+  while read -r block file sum; do
+    i=$((i + 1))
+    step "client: $block ($i/$total)"
+    curl -fsSL "$CDN/$file" -o "$work/$file"
+    echo "$sum  $work/$file" | sha256sum -c --quiet
+    unzip -qo "$work/$file" -d "$STEAM_X64"
+    rm -f "$work/$file"
+  done < "$work/parts"
+  rm -rf "$work"
+  echo publicbeta > "$STEAM_X64/package/beta"
+  echo "$version" > "$STEAM_X64/package/droiddeck-installed"
+  chmod +x "$STEAM_X64/steam.sh" "$STEAM_X64/steamrt64/steam" "$STEAM_X64/ubuntu12_32/steam" 2>/dev/null || true
+fi
+# Its own library (see the library folders below): the arm64 client's installs are not this one's.
+[ -L "$STEAM_X64/steamapps" ] && rm -f "$STEAM_X64/steamapps"
+mkdir -p "$STEAM_X64/steamapps"
+# They still enumerate /dev/dri, find the session's KGSL node there, and spin on it (x86 Turnip
+# "failed to query kernel driver version", KMS dumb-buffer ioctls in a loop) - the webhelper never
+# got a browser up. FEX looks in the rootfs first: an empty /dev/dri there hides the node.
+mkdir -p "$ROOTFS/dev/dri"
+# What steam.sh sets up before it runs the client, for the x86 tree.
+mkdir -p "$X64_HOME/.steam"
+ln -sfn "$STEAM_X64" "$X64_HOME/.steam/root"
+ln -sfn "$STEAM_X64" "$X64_HOME/.steam/steam"
+ln -sfn "$STEAM_X64/ubuntu12_32" "$X64_HOME/.steam/bin32"
+ln -sfn "$STEAM_X64/ubuntu12_64" "$X64_HOME/.steam/bin64"
+ln -sfn "$STEAM_X64/linux32" "$X64_HOME/.steam/sdk32"
+ln -sfn "$STEAM_X64/linux64" "$X64_HOME/.steam/sdk64"
+# Unlike the arm64 client, this one carries pressure-vessel (steamrt64/pv-runtime) and refuses to
+# start when steam-runtime-check-requirements' bwrap probe cannot make a user namespace, which no
+# Android app can. proot is the container here, as it is for the arm64 client, which has no such
+# probe. STEAM_RUNTIME_STEAMRT names the runtime the client takes the probe from: Valve's own,
+# linked file by file, with only the probe answering that the requirements are met.
+srt_real=$STEAM_X64/steamrt64/pv-runtime/steam-runtime-steamrt
+srt_shim=$X64_HOME/steamrt-shim
+if [ -d "$srt_real" ]; then
+  rm -rf "$srt_shim"
+  mkdir -p "$srt_shim/bin"
+  for e in "$srt_real"/* "$srt_real"/.[!.]*; do
+    [ -e "$e" ] || continue
+    [ "$(basename "$e")" = bin ] || ln -s "$e" "$srt_shim/$(basename "$e")"
+  done
+  for e in "$srt_real"/bin/*; do ln -s "$e" "$srt_shim/bin/$(basename "$e")"; done
+  rm -f "$srt_shim/bin/steam-runtime-check-requirements"
+  printf '#!/bin/sh
+# droiddeck-steam-x64: proot stands in for user namespaces here.
+exit 0
+' > "$srt_shim/bin/steam-runtime-check-requirements"
+  chmod 755 "$srt_shim/bin/steam-runtime-check-requirements"
+  # steam-runtime-launch-client --alongside-steam [options] -- COMMAND: no container to leave here.
+  rm -f "$srt_shim/bin/steam-runtime-launch-client"
+  cat > "$srt_shim/bin/steam-runtime-launch-client" <<'LAUNCH'
+#!/bin/sh
+# droiddeck-steam-x64: no SteamRT container here, so "alongside Steam" is right here - run it.
+while [ $# -gt 0 ]; do
+  case $1 in
+    --) shift; break ;;
+    --directory=*) cd "${1#--directory=}" || exit 127 ;;
+    --env=*) export "${1#--env=}" ;;
+    --unset-env=*) unset "${1#--unset-env=}" ;;
+  esac
+  shift
+done
+[ $# -gt 0 ] || exit 0
+exec "$@"
+LAUNCH
+  chmod 755 "$srt_shim/bin/steam-runtime-launch-client"
+fi
+# The libraries the SteamRT container would give the client and the rootfs lacks (GTK 2 for
+# steamui.so, ...): Valve's own platform runtime files, for what the rootfs does not have.
+# They ship without their soname links (pressure-vessel makes those when it builds the container),
+# so they are linked into a folder of our own and the rootfs's ldconfig adds the soname links there.
+srt_libs=$X64_HOME/steamrt-libs
+rm -rf "$srt_libs"
+mkdir -p "$srt_libs"
+for d in "$STEAM_X64"/steamrt64/pv-runtime/steam-runtime-steamrt/steamrt3c_platform_*/files/lib/x86_64-linux-gnu \
+         "$STEAM_X64"/steamrt64/pv-runtime/steam-runtime-steamrt/steamrt3c_platform_*/files/usr/lib/x86_64-linux-gnu; do
+  [ -d "$d" ] || continue
+  for f in "$d"/*.so*; do [ -e "$srt_libs/$(basename "$f")" ] || ln -s "$f" "$srt_libs/"; done
+done
+FEX_ROOTFS=$ROOTFS /usr/local/bin/FEX "$ROOTFS/usr/sbin/ldconfig.real" -n "$srt_libs" >>"$LOG" 2>&1 || step "ldconfig on $srt_libs failed"
+# LD_LIBRARY_PATH beats the system folders whatever its order, so only what the rootfs lacks stays:
+# the platform's own (older) glibc and the rest must not shadow the rootfs's.
+for f in "$srt_libs"/*; do
+  n=$(basename "$f")
+  if [ -e "$ROOTFS/usr/lib/x86_64-linux-gnu/$n" ] || [ -e "$ROOTFS/lib/x86_64-linux-gnu/$n" ]; then rm -f "$f"; fi
+done
+  # Native Linux games: Steam runs them in the Steam Linux Runtime container (pressure-vessel), which
+  # needs bwrap - no user namespaces here, as for the client. "DroidDeck direct" runs them with
+  # Valve's scout library runtime instead, directly under FEX; the titles below are mapped to it.
+  tool=$STEAM_X64/compatibilitytools.d/droiddeck-direct
+  mkdir -p "$tool"
+  cat > "$tool/compatibilitytool.vdf" <<'VDF'
+"compatibilitytools"
+{
+  "compat_tools"
+  {
+    "droiddeck-direct"
+    {
+      "install_path" "."
+      "display_name" "DroidDeck direct (no container)"
+      "from_oslist" "linux"
+      "to_oslist" "linux"
+    }
+  }
+}
+VDF
+  cat > "$tool/toolmanifest.vdf" <<'VDF'
+"manifest"
+{
+  "version" "2"
+  "commandline" "/run %verb%"
+}
+VDF
+  cat > "$tool/run" <<'RUN'
+#!/bin/sh
+# DroidDeck direct: a native Linux game with Valve's scout library runtime, no container.
+verb=$1; shift
+rt=$HOME/.local/share/Steam/ubuntu12_32/steam-runtime.old
+[ -x "$rt/run.sh" ] || rt=$HOME/.local/share/Steam/ubuntu12_32/steam-runtime
+# Source games keep their console in console.log (-condebug): what the VAC diagnostics read - the
+# server they joined and whether it is secure.
+case "$*" in *hl2.sh*|*hl2_linux*|*srcds*) set -- "$@" -condebug ;; esac
+# The GPU: FEX's host thunks and the session's GPU settings, saved by the launcher (the client
+# itself draws in software). BL_X64_GAME_SOFTWARE=1 keeps the game in software too. game-gpu.env is
+# rewritten whenever the launcher runs; game-gpu.local (yours, never rewritten) is read after it.
+gpu=$HOME/game-gpu.env
+if [ -f "$gpu" ] && [ "${BL_X64_GAME_SOFTWARE:-0}" != 1 ]; then
+  . "$gpu"
+  [ -f "$HOME/game-gpu.local" ] && . "$HOME/game-gpu.local"
+else
+  # GL threading is a GPU-path tuning from the session; with software GL under FEX it is no help.
+  export mesa_glthread=false
+fi
+case $verb in
+  run|waitforexitandrun)
+    # Titles Valve gives a newer runtime (sniper, soldier; the launcher lists them in direct-sniper)
+    # are built for newer libraries than scout's: they run on the rootfs (Ubuntu 24.04) as it is.
+    if grep -qx "${STEAM_COMPAT_APP_ID:-${SteamAppId:-none}}" "$HOME/direct-sniper" 2>/dev/null; then
+      exec "$@"
+    fi
+    exec "$rt/run.sh" "$@" ;;
+  *) exec "$@" ;;
+esac
+RUN
+  chmod 755 "$tool/run"
+  # The mapping lives in config.vdf, which the client rewrites from memory as it exits: written
+  # here, while no x86 client runs.
+  if [ -f "$STEAM_X64/config/config.vdf" ] && ! pgrep -f 'steamrt64/steam( |$)' >/dev/null 2>&1; then
+    python3 - "$STEAM_X64/config/config.vdf" "$STEAM_X64/appcache/appinfo.vdf" "$X64_HOME/direct-auto.json" \
+      "$X64_HOME/direct-sniper" "$STEAM_X64/steamapps" "$(x64_default_tool)" ${BL_X64_DIRECT_APPS:-550} \
+      <<'PY' || step "could not map titles to DroidDeck direct"
+# Every game with a Linux build goes to DroidDeck direct: Steam would run it in its Linux runtime
+# container, which needs user namespaces no Android app has, and the game would not start. The
+# client's own appinfo cache says which games have a Linux build and which runtime Valve gives them
+# (config/app_mappings: SteamLinuxRuntime_sniper or _soldier; none = scout). Those ids go to
+# direct-sniper for the tool's run script. A title on a tool chosen in Properties keeps it, except
+# BL_X64_DIRECT_APPS (Left 4 Dead 2 by default), which is always taken back.
+# direct-auto.json lists what this mapped.
+# A game whose Windows build is the one installed (it ran on a Proton before) stays a Windows game, on
+# the client's default Proton: Steam does not swap an installed build when the tool changes, so
+# DroidDeck direct was handed Launcher.exe and the game ended at once (device: Borderlands 2), and
+# getting the Linux build back means downloading the game again.
+import json, os, re, struct, sys
+path, appinfo, auto_file, sniper_file, steamapps, proton = sys.argv[1:7]
+extra = sys.argv[7:]
+WINDOWS_DEPOTS = {}
+
+
+def read_kv(buf, pos, strings):
+    out = {}
+    while True:
+        t = buf[pos]
+        pos += 1
+        if t == 0x08:
+            return out, pos
+        if strings is not None:
+            key = strings[struct.unpack_from("<I", buf, pos)[0]]
+            pos += 4
+        else:
+            end = buf.index(b"\0", pos)
+            key = buf[pos:end].decode("utf-8", "replace")
+            pos = end + 1
+        if t == 0x00:
+            out[key], pos = read_kv(buf, pos, strings)
+        elif t == 0x01:
+            end = buf.index(b"\0", pos)
+            out[key] = buf[pos:end].decode("utf-8", "replace")
+            pos = end + 1
+        elif t in (0x02, 0x03, 0x04, 0x06):
+            pos += 4
+        elif t in (0x07, 0x0A):
+            pos += 8
+        else:
+            raise ValueError("type %#x" % t)
+
+
+def linux_games(file):
+    """{appid: runtime} for the games with a Linux build in the client's appinfo cache."""
+    try:
+        buf = open(file, "rb").read()
+    except OSError:
+        return {}
+    magic = struct.unpack_from("<I", buf, 0)[0]
+    strings, pos = None, 8
+    if magic == 0x07564429:
+        table = struct.unpack_from("<q", buf, 8)[0]
+        count, p = struct.unpack_from("<I", buf, table)[0], table + 4
+        strings = []
+        for _ in range(count):
+            end = buf.index(b"\0", p)
+            strings.append(buf[p:end].decode("utf-8", "replace"))
+            p = end + 1
+        pos = 16
+    elif magic != 0x07564428:
+        return {}
+    games = {}
+    while True:
+        appid, size = struct.unpack_from("<II", buf, pos)
+        if appid == 0:
+            break
+        try:
+            info = read_kv(buf, pos + 8 + 60, strings)[0].get("appinfo", {})
+        except (ValueError, IndexError, struct.error):
+            info = {}
+        pos += 8 + size
+        common = info.get("common", {})
+        if str(common.get("type", "")).lower() != "game" or "linux" not in str(common.get("oslist", "")):
+            continue
+        runtime = "scout"
+        for m in (info.get("config", {}).get("app_mappings") or {}).values():
+            if isinstance(m, dict) and m.get("platform") == "linux":
+                tool = str(m.get("tool", "")).lower()
+                runtime = "sniper" if "sniper" in tool else "soldier" if "soldier" in tool else runtime
+        games[str(appid)] = runtime
+        WINDOWS_DEPOTS[str(appid)] = {
+            d for d, v in (info.get("depots") or {}).items()
+            if isinstance(v, dict) and "windows" in str((v.get("config") or {}).get("oslist", ""))
+            and "linux" not in str((v.get("config") or {}).get("oslist", ""))
+        }
+    return games
+
+
+def windows_installed(app):
+    """Whether the installed build of `app` is its Windows one (a Windows depot among those installed)."""
+    try:
+        text = open(os.path.join(steamapps, "appmanifest_%s.acf" % app), encoding="utf-8", errors="replace").read()
+    except OSError:
+        return False
+    found = block(text, "InstalledDepots")
+    if not found:
+        return False
+    installed = set(re.findall(r'"(\d+)"\s*\{', text[found[1]:found[2]]))
+    return bool(installed & WINDOWS_DEPOTS.get(app, set()))
+
+
+def block(text, key):
+    """(start of the key, index after its opening brace, index of its closing brace) or None."""
+    m = re.search(r'"%s"\s*\{' % re.escape(key), text)
+    if not m:
+        return None
+    depth, k = 1, m.end()
+    while depth:
+        c = text[k]
+        depth += c == "{"
+        depth -= c == "}"
+        k += 1
+    return m.start(), m.end(), k - 1
+
+
+games = linux_games(appinfo)
+for app in extra:
+    games.setdefault(app, "scout")
+s = open(path, encoding="utf-8", errors="surrogateescape").read()
+if not block(s, "CompatToolMapping"):
+    st = block(s, "Steam")
+    if not st:
+        sys.exit("no Steam section")
+    s = s[:st[1]] + '\n\t\t\t\t"CompatToolMapping"\n\t\t\t\t{\n\t\t\t\t}' + s[st[1]:]
+mapped, windows = [], []
+for app in sorted(games, key=int):
+    on_windows = windows_installed(app)
+    _, open_, close = block(s, "CompatToolMapping")
+    inner = s[open_:close]
+    old = block(inner, app)
+    if old:
+        name = re.search(r'"name"\s*"([^"]*)"', inner[old[1]:old[2]])
+        name = name.group(1) if name else ""
+        # Another tool chosen for it in Properties stays; the forced ones are retaken, and so are the
+        # automatic ones: Valve's own Proton names and droiddeck-proton-arm64, the arm64 client's
+        # name for its Proton, which only its live compat pass writes (here the wrapper is -a64).
+        automatic = name in ("", "droiddeck-direct", "droiddeck-proton-arm64") or name.startswith("proton_")
+        if not automatic and app not in extra:
+            continue
+        if on_windows and (name == proton or not proton):
+            continue
+        inner = inner[:old[0]] + inner[old[2] + 1:]
+    elif on_windows and not proton:
+        continue
+    tool = proton if on_windows else "droiddeck-direct"
+    entry = ('\n\t\t\t\t\t"%s"\n\t\t\t\t\t{\n\t\t\t\t\t\t"name"\t\t"%s"\n'
+             '\t\t\t\t\t\t"config"\t\t""\n\t\t\t\t\t\t"priority"\t\t"250"\n\t\t\t\t\t}' % (app, tool))
+    s = s[:open_] + entry + inner + s[close:]
+    (windows if on_windows else mapped).append(app)
+open(path, "w", encoding="utf-8", errors="surrogateescape").write(s)
+json.dump(mapped, open(auto_file, "w"))
+open(sniper_file, "w").write("".join("%s\n" % a for a in mapped if games[a] != "scout"))
+print("droiddeck-steam-x64: %d Linux title(s) on DroidDeck direct (%d on the newer runtime)%s"
+      % (len(mapped), sum(games[a] != "scout" for a in mapped),
+         "; %d installed as Windows games kept on %s" % (len(windows), proton) if windows else ""))
+PY
+  fi
+  # The arm64 client's Proton tools (droiddeck-proton-arm64, GE-Proton, CachyOS): one wrapper per
+  # tool, same folder and tool name (Components swaps and per-title mappings are keyed by them). The
+  # wrapper is an x86 script under FEX; it starts droiddeck-x64-arm-proton through an arm64 binary,
+  # which FEX hands to the CPU, so Wine and the game run exactly as from the arm64 client.
+  arm_tools=$ARM_STEAM/compatibilitytools.d
+  mkdir -p "$X64_HOME/arm64"
+  cp -f /usr/bin/env "$X64_HOME/arm64/env"
+  for w in "$STEAM_X64"/compatibilitytools.d/*/.droiddeck-arm64-proton; do
+    [ -e "$w" ] || continue
+    d=${w%/.droiddeck-arm64-proton}
+    [ -d "$arm_tools/${d##*/}" ] && [ "${d##*/}" != droiddeck-fex ] || rm -rf "$d"
+  done
+  for src in "$arm_tools"/*/; do
+    src=${src%/}; name=${src##*/}
+    [ -f "$src/compatibilitytool.vdf" ] && [ -f "$src/toolmanifest.vdf" ] || continue
+    # droiddeck-fex is the arm64 client's way to x86 Linux titles; this client runs them itself. Its
+    # wrapper ran the arm64 client's droiddeck-fex when the client probed its tools after logon, which
+    # took that for an x86 program wanting FEX and had the arm64 client install Valve's FEX (device).
+    case $name in droiddeck-direct|droiddeck-fex) continue ;; esac
+    dst=$STEAM_X64/compatibilitytools.d/$name
+    mkdir -p "$dst"
+    : > "$dst/.droiddeck-arm64-proton"
+    # The tool's own name and display name, as the arm64 client shows it.
+    python3 - "$src/compatibilitytool.vdf" "$dst/compatibilitytool.vdf" <<'PY' || { rm -rf "$dst"; continue; }
+import re, sys
+s = open(sys.argv[1], encoding="utf-8", errors="replace").read()
+m = re.search(r'"compat_tools"\s*\{\s*"([^"]+)"', s)
+if not m:
+    sys.exit(1)
+# The x86-64 client takes a tool named *arm64* for one built for the arm64 client and ignores it
+# ("for a different target platform linux arm64"): the wrapper's name says a64 instead.
+key = re.sub(r"arm64|aarch64", "a64", m.group(1))
+d = re.search(r'"display_name"\s*"([^"]*)"', s)
+name = d.group(1) if d else key
+open(sys.argv[2], "w").write(
+    '"compatibilitytools"\n{\n  "compat_tools"\n  {\n    "%s"\n    {\n      "install_path" "."\n'
+    '      "display_name" "%s"\n      "from_oslist" "windows"\n      "to_oslist" "linux"\n    }\n  }\n}\n'
+    % (key, name))
+PY
+    cat > "$dst/toolmanifest.vdf" <<'VDF'
+"manifest"
+{
+  "version" "2"
+  "commandline" "/run %verb%"
+}
+VDF
+    printf '#!/bin/sh\n# The arm64 client'"'"'s %s, run natively (droiddeck-x64-arm-proton).\nexec "%s" /usr/local/bin/droiddeck-x64-arm-proton "%s" "$@"\n' \
+      "$name" "$X64_HOME/arm64/env" "$name" > "$dst/run"
+    chmod 755 "$dst/run"
+  done
+  x64_sync_login
+  # Its own library only. The arm64 client's folders (internal storage and the card) are not this
+  # client's: with them shared, each client could update, verify or switch the other's games - a
+  # title with a Linux build runs as that here and as the Windows build there, so opening it in the
+  # other client switched the files and the first one downloaded its version again (Left 4 Dead 2,
+  # 8.6 GB). A game wanted in both clients is installed in both. Folders an earlier version shared
+  # are taken out of this client's lists; the games stay where they are, in the arm64 client's
+  # library. Written while no x86 client runs: it rewrites these files on exit.
+  if ! pgrep -f 'steamrt64/steam( |$)' >/dev/null 2>&1; then
+    python3 - "$STEAM_X64" "$STEAM_X64/config/libraryfolders.vdf" "$STEAM_X64/steamapps/libraryfolders.vdf" <<'PY' || step "could not check the x86-64 client's library folders"
+import os, re, sys
+own = os.path.realpath(sys.argv[1])
+for path in sys.argv[2:]:
+    if not os.path.isfile(path):
+        continue
+    s = open(path, encoding="utf-8", errors="surrogateescape").read()
+    out, removed, i = [], [], 0
+    # Each library is a numbered block: "N" { "path" "..." ... "apps" { ... } }.
+    for m in re.finditer(r'^\t"(\d+)"\s*\n\t\{', s, re.M):
+        if m.start() < i:
+            continue
+        depth, k = 1, m.end()
+        while depth and k < len(s):
+            depth += s[k] == "{"
+            depth -= s[k] == "}"
+            k += 1
+        block = s[m.start():k]
+        p = re.search(r'"path"\s*"([^"]*)"', block)
+        if p and os.path.realpath(p.group(1)) != own:
+            out.append(s[i:m.start()])
+            i = k + (1 if s[k:k + 1] == "\n" else 0)
+            removed.append(p.group(1))
+    if not removed:
+        continue
+    out.append(s[i:])
+    open(path, "w", encoding="utf-8", errors="surrogateescape").write("".join(out))
+    print("droiddeck-steam-x64: no longer shared with the arm64 client: %s" % ", ".join(removed))
+PY
+  fi
+  # Steam Play for every title not mapped otherwise: one of the arm64 client's own ARM64 Protons. The
+  # newest GE-Proton first:
+  # with droiddeck-proton-arm64 (Proton Experimental) Xwayland never got its window buffers back
+  # and FlatOut took the device's RAM with it (10.5 GB of dma-buf in 35 s); GE-Proton, same game,
+  # same client, stayed flat. droiddeck-proton-a64 when no GE-Proton is installed.
+  default=$(x64_default_dir)
+  if [ -f "$default/compatibilitytool.vdf" ] && [ -f "$STEAM_X64/config/config.vdf" ] &&
+     ! pgrep -f 'steamrt64/steam( |$)' >/dev/null 2>&1; then
+    python3 - "$STEAM_X64/config/config.vdf" "$default/compatibilitytool.vdf" <<'PY' || step "could not make ARM64 Proton the default"
+import re, sys
+path = sys.argv[1]
+tool = re.search(r'"compat_tools"\s*\{\s*"([^"]+)"', open(sys.argv[2]).read()).group(1)
+s = open(path, encoding="utf-8", errors="surrogateescape").read()
+m = re.search(r'"CompatToolMapping"\s*\{', s)
+if not m:
+    sys.exit(0)
+depth, k = 1, m.end()
+while depth:
+    depth += s[k] == "{"
+    depth -= s[k] == "}"
+    k += 1
+block = s[m.end():k]
+z = re.search(r'^\s*"0"\s*\{([^{}]*)\}', block, re.M)
+if z:
+    # Kept when the user chose another default; replaced when it names a tool this client ignores,
+    # or is the earlier default this script set (droiddeck-proton-a64 at priority 75).
+    ours = re.search(r'"name"\s*"droiddeck-proton-a64"', z.group(1)) and \
+        re.search(r'"priority"\s*"75"', z.group(1))
+    if "arm64" not in z.group(1) and not ours:
+        sys.exit(0)
+    if re.search(r'"name"\s*"%s"' % re.escape(tool), z.group(1)):
+        sys.exit(0)
+    s = s[:m.end() + z.start()] + s[m.end() + z.end():]
+entry = ('\n\t\t\t\t\t"0"\n\t\t\t\t\t{\n\t\t\t\t\t\t"name"\t\t"%s"\n' % tool +
+         '\t\t\t\t\t\t"config"\t\t""\n\t\t\t\t\t\t"priority"\t\t"75"\n\t\t\t\t\t}')
+s = s[:m.end()] + entry + s[m.end():]
+open(path, "w", encoding="utf-8", errors="surrogateescape").write(s)
+PY
+  fi
+  # The startup movie the app stages for the arm64 client (its config/uioverrides/movies, chosen in
+  # its config.vdf as StartupMovie): the same one here, through a link to that folder and the same
+  # choice in this client's config. And Decky's marker for the client's CEF debugging port, which the
+  # loader talks to whichever client runs: the browser is the arm64 one either way.
+  if [ -d "$ARM_STEAM/config/uioverrides" ] && [ ! -e "$STEAM_X64/config/uioverrides" ]; then
+    ln -s "$ARM_STEAM/config/uioverrides" "$STEAM_X64/config/uioverrides"
+  fi
+  if [ -f "$ARM_STEAM/.cef-enable-remote-debugging" ]; then
+    : > "$STEAM_X64/.cef-enable-remote-debugging"
+  else
+    rm -f "$STEAM_X64/.cef-enable-remote-debugging"
+  fi
+  if [ -f "$ARM_STEAM/config/config.vdf" ] && [ -f "$STEAM_X64/config/config.vdf" ] &&
+     ! pgrep -f 'steamrt64/steam( |$)' >/dev/null 2>&1; then
+    python3 - "$ARM_STEAM/config/config.vdf" "$STEAM_X64/config/config.vdf" <<'PY' || step "could not copy the startup movie choice"
+import re, sys
+movie = re.search(r'\n([ \t]*)"StartupMovie"\s*\{[^{}]*\}', open(sys.argv[1], encoding="utf-8", errors="replace").read())
+if not movie:
+    sys.exit(0)
+path = sys.argv[2]
+s = open(path, encoding="utf-8", errors="surrogateescape").read()
+old = re.search(r'\n[ \t]*"StartupMovie"\s*\{[^{}]*\}', s)
+if old:
+    if old.group(0).split(None, 1)[1] == movie.group(0).split(None, 1)[1]:
+        sys.exit(0)
+    s = s[:old.start()] + s[old.end():]
+steam = re.search(r'"Valve"\s*\{\s*"Steam"\s*\{', s)
+if not steam:
+    sys.exit(0)
+s = s[:steam.end()] + movie.group(0) + s[steam.end():]
+open(path, "w", encoding="utf-8", errors="surrogateescape").write(s)
+PY
+  fi
+  # A FEX process takes its rootfs from FEXServer, not from its own environment, and a server
+  # started earlier without FEX_ROOTFS (any FEX run in this guest) answers with no rootfs at all:
+  # every x86 library lookup then falls through to the arm64 guest. Stop it while no x86 client
+  # runs, so the next FEX starts one with this rootfs.
+  if ! pgrep -f 'steamrt64/steam( |$)' >/dev/null 2>&1; then
+    FEX_ROOTFS=$ROOTFS /usr/local/bin/FEXServer -k >/dev/null 2>&1 || true
+  fi
+}
+
+# Whether the client draws on the GPU: FEX built with its host thunks (Vulkan and GL to the runtime's
+# own drivers), unless BL_X64_SOFTWARE=1. Without them, software rendering (llvmpipe).
+x64_gpu() {
+  [ "${BL_X64_SOFTWARE:-0}" != 1 ] && [ -d /usr/local/share/fex-emu/GuestThunks ] && [ -d /usr/local/lib/fex-emu/HostThunks ]
+}
+
+# The environment the client and everything it starts run in.
+x64_env() {
+# The arm64 session's environment as it is now, for the arm64 Proton tools this client starts
+# (droiddeck-x64-arm-proton puts it back before Proton runs).
+export -p | grep -v -E '^declare -x (PWD|OLDPWD|SHLVL|_)=' > "$X64_HOME/arm-session.env.new" || true
+mv -f "$X64_HOME/arm-session.env.new" "$X64_HOME/arm-session.env"
+# The arm64 session's library paths and preloads are aarch64 and mean nothing to x86 processes.
+unset LD_LIBRARY_PATH LD_PRELOAD STEAM_RUNTIME STEAM_RUNTIME_PREFER_HOST_LIBRARIES
+# The client and its browser draw in software, as they always have: with the thunks the browser's
+# GPU process (even under -cef-disable-gpu it probes GL and Vulkan) gets the host drivers, fails
+# ("MESA-LOADER: failed to retrieve device information") and dies, and the client never opens a
+# window (device: 0 windows, "Starting display and audio" forever). Games get the GPU: the session's
+# GPU settings are saved for DroidDeck direct, which hands them, and FEX's host thunks, to the game.
+gpu_vars="GALLIUM_DRIVER MESA_LOADER_DRIVER_OVERRIDE VK_ICD_FILENAMES VK_DRIVER_FILES LIBGL_KOPPER_DRI2 ZINK_DEBUG ZINK_DESCRIPTORS TU_DEBUG MESA_NO_ERROR mesa_glthread"
+rm -f "$X64_HOME/game-gpu.env"
+if x64_gpu; then
+  printf '{"ThunksDB": {"GL": 1, "Vulkan": 1}}\n' > "$X64_HOME/thunks.json"
+  {
+    echo "export FEX_THUNKCONFIG='$X64_HOME/thunks.json'"
+    echo "unset LIBGL_ALWAYS_SOFTWARE LIBGL_DRI3_DISABLE GALLIUM_DRIVER"
+    for v in $gpu_vars; do
+      eval "val=\${$v-}"; [ -n "$val" ] && printf "export %s='%s'\n" "$v" "$val"
+    done
+  } > "$X64_HOME/game-gpu.env"
+fi
+# The web helper is the arm64 client's (droiddeck-x64-arm-webhelper), which sets its own GPU
+# environment, so the client itself can have the GPU now: it shows every Big Picture frame the helper
+# draws, and in software (llvmpipe under FEX) that held the UI at ~20 fps. BL_X64_CLIENT_SOFTWARE=1
+# keeps it in software.
+if x64_gpu && [ "${BL_X64_CLIENT_SOFTWARE:-0}" != 1 ]; then
+  export FEX_THUNKCONFIG=$X64_HOME/thunks.json
+  unset LIBGL_ALWAYS_SOFTWARE LIBGL_DRI3_DISABLE
+else
+unset FEX_THUNKCONFIG $gpu_vars
+# x86 Mesa has no driver for this GPU, so software: llvmpipe for GL (the client's own window needs
+# GLX), and the rootfs's own Vulkan ICDs (lavapipe) found by the x86 loader instead of the arm64 one.
+export LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe
+# The X server hands out the GPU node (DRI3 open), and Mesa's software path then tries KMS dumb
+# buffers on it in a loop: present through plain X instead.
+export LIBGL_DRI3_DISABLE=1
+fi
+# The proot fast path (libblfastpath, preloaded into every guest process, FEX included) stands down
+# by itself when FEX is about to run a 32-bit program (it broke FEX's 32-bit mode: SIGILL at start);
+# 64-bit ones keep it. BL_X64_FP_OFF=1 turns it off for everything, as before.
+[ "${BL_X64_FP_OFF:-0}" = 1 ] && export PROOT_FP_OFF=1
+# FEX tuning: the app's default preset for games (core/FexPreset.kt PERFORMANCE_TSO, WinNative's
+# default) - FEX's own defaults keep half-barrier TSO and full-precision x87, which cost every x86
+# program time. A value already in the environment wins.
+export FEX_TSOENABLED=${FEX_TSOENABLED:-1} FEX_VECTORTSOENABLED=${FEX_VECTORTSOENABLED:-0} \
+  FEX_MEMCPYSETTSOENABLED=${FEX_MEMCPYSETTSOENABLED:-0} FEX_HALFBARRIERTSOENABLED=${FEX_HALFBARRIERTSOENABLED:-0} \
+  FEX_X87REDUCEDPRECISION=${FEX_X87REDUCEDPRECISION:-1} FEX_MULTIBLOCK=${FEX_MULTIBLOCK:-1}
+export HOME=$X64_HOME
+# The session points these at the arm64 client's home; this client has its own.
+export XDG_DATA_HOME=$X64_HOME/.local/share XDG_CONFIG_HOME=$X64_HOME/.config XDG_CACHE_HOME=$X64_HOME/.cache
+export FEX_ROOTFS=$ROOTFS
+export STEAM_EXTRA_COMPAT_TOOLS_PATHS=
+# Valve's 64-bit SteamRT3 client (steamrt64/steam), the x86 twin of the arm64 one, started the way
+# the session starts that one (droiddeck-session): directly, STEAM_RUNTIME=1, its own library
+# folders first. Through steam.sh it would first run steam-runtime-check-requirements, whose
+# bwrap probe needs user namespaces - proot has none. Software rendering: no x86 GPU driver.
+export STEAM_RUNTIME=1
+[ -d "$X64_HOME/steamrt-shim" ] && export STEAM_RUNTIME_STEAMRT=$X64_HOME/steamrt-shim
+# The client believes it is inside the SteamRT container (the recursion guard), so it starts games
+# and system commands "alongside Steam" through steam-runtime-launch-client: Valve's asks a launcher
+# service on the session bus (there is none - the game ended at once), and without one on PATH the
+# launch fails (No such file). The shim's own launch client runs the command right here.
+[ -d "$X64_HOME/steamrt-shim/bin" ] && export PATH=$X64_HOME/steamrt-shim/bin:$PATH
+export LD_LIBRARY_PATH=$STEAM_X64/steamrt64:$STEAM_X64/steamrt64/panorama:$X64_HOME/steamrt-libs
+# After an update the client re-executes itself inside the SteamRT container through
+# pressure-vessel-wrap, which needs bwrap. The FEX rootfs with the client's own steamrt64 libraries
+# is that container here; the client's recursion guard says it is already inside one.
+export STEAM_STEAMRT_RECURSION_GUARD=1
+# proot is a tracer, so tier0 believes a debugger is attached and breaks into it with int3 on the
+# first failed assertion: the web helper died of SIGTRAP a second after every start. The session
+# shim hides the tracer from the x86 web helper too (preload/tracer.c).
+export BL_WEBHELPER_HIDE_TRACER=1
+}
+
+# The client binary under FEX, for the session: the starting arguments, or -shutdown / a steam://
+# URL handed to the running instance.
+x64_exec() {
+  x64_env
+  cd "$STEAM_X64"
+  # The client's web helper is the arm64 client's (droiddeck-x64-arm-webhelper; FEX hands that arm64
+  # program to the CPU): the session shim turns steamrt64/steamwebhelper.sh's exec of ./steamwebhelper
+  # into it (preload/net.c). Nothing of the client's is edited - it checksums its files as it starts
+  # and reinstalled itself over an edited launcher (2-3 minutes) on every start.
+  # Only while both clients are one build: the helper talks to the client over IPC, and one of another
+  # build never comes up - the client restarted it every 10 s (device: 1790721607 against 1790904859).
+  # Otherwise the client keeps its own (x86, software) helper. The session updates the arm64 parts first.
+  # Neither manifest is there before that client's first run (a fresh install): no build to compare,
+  # and under set -e the failed read would end this script with rc=2 before the client starts.
+  if [ "${BL_X64_X86_WEBHELPER:-0}" != 1 ] && [ -x /usr/local/bin/droiddeck-x64-arm-webhelper ] &&
+     [ -x "$ARM_STEAM/steamrtarm64/steamwebhelper" ]; then
+    local chan x86_build arm_build
+    chan=$(cat "$STEAM_X64/package/beta" 2>/dev/null || echo publicbeta)
+    x86_build=$(awk -F'"' '$2 == "version" { print $4; exit }' "$STEAM_X64/package/steam_client_${chan}_ubuntu12.manifest" 2>/dev/null || true)
+    arm_build=$(awk -F'"' '$2 == "version" { print $4; exit }' "$ARM_STEAM/package/steam_client_${chan}_linuxarm64.manifest" 2>/dev/null || true)
+    if [ -n "$x86_build" ] && [ "$x86_build" = "$arm_build" ]; then
+      export BL_X64_ARM_WEBHELPER=/usr/local/bin/droiddeck-x64-arm-webhelper
+    else
+      echo "== x86-64 client build ${x86_build:-?}, arm64 web helper's ${arm_build:-?}: keeping the x86 web helper" >&2
+    fi
+  fi
+  # The session asks for the GPU on the arm64 helper's behalf; the x86 one has no driver for this GPU
+  # and its GPU process dies at once (exit_code=11), the client restarting the helper without end
+  # (device: a fresh install's first start, -startcount=15 in three minutes). It draws in software.
+  if [ -z "${BL_X64_ARM_WEBHELPER:-}" ] && [ "${BL_X64_CEF_GPU:-0}" != 1 ]; then
+    local a args=() soft=0
+    for a in "$@"; do
+      case $a in
+        -cef-force-gpu|-cef-ozone-platform=*|-cef-use-gl=*|-cef-use-angle=*) soft=1 ;;
+        *) args+=("$a") ;;
+      esac
+    done
+    [ "$soft" = 1 ] && set -- "${args[@]}" -cef-disable-gpu
+  fi
+  exec "${BL_FEX:-/usr/local/bin/FEX}" "$STEAM_X64/steamrt64/steam" "$@"
+}
+
+# One sign-in for both clients, games kept apart. Before either client starts, the newer sign-in -
+# the account list, the login token in local.vdf, the auto-login name - is copied to the other, so
+# signing in (or switching accounts) in one counts for both. Steam renews its token every few days and
+# an old copy is refused (device: a 3-day-old one asked for the password), which is why it is the
+# newest that is copied, every start, and not once. Never while either client runs: each rewrites
+# these files. The rest of registry.vdf (language, skin) and everything else stay each client's.
+x64_sync_login() {
+  pgrep -f 'steamrt64/steam( |$)' >/dev/null 2>&1 && return 0
+  pgrep -f 'steamrtarm64/steam( |$)' >/dev/null 2>&1 && return 0
+  python3 - "$ARM_STEAM" "$STEAM_X64" "$REAL_HOME/.steam/registry.vdf" "$X64_HOME/.steam/registry.vdf" <<'PY' || step "could not share the sign-in between the clients"
+import os, re, shutil, sys
+arm, x64, arm_reg, x64_reg = sys.argv[1:5]
+FILES = ("config/loginusers.vdf", "local.vdf")
+
+
+def stamp(root):
+    if not all(os.path.isfile(os.path.join(root, f)) for f in FILES):
+        return None
+    # A client that refused its token rewrites local.vdf with an empty ConnectCache: newest, and
+    # nothing to share - copied over the other it would sign that one out too (device: the x86-64
+    # client's "Invalid Password" left one newer than the arm64 client's working sign-in).
+    text = open(os.path.join(root, "local.vdf"), encoding="utf-8", errors="surrogateescape").read()
+    if not re.search(r'"ConnectCache"\s*\{\s*"[^"]+"\s*"[^"]+"', text):
+        return None
+    return os.path.getmtime(os.path.join(root, "local.vdf"))
+
+
+a, x = stamp(arm), stamp(x64)
+if a is None and x is None:
+    sys.exit(0)
+if a is not None and x is not None and abs(a - x) < 1:
+    sys.exit(0)
+if x is None or (a is not None and a > x):
+    src, dst, sreg, dreg, who = arm, x64, arm_reg, x64_reg, "arm64"
+else:
+    src, dst, sreg, dreg, who = x64, arm, x64_reg, arm_reg, "x86-64"
+for f in FILES:
+    os.makedirs(os.path.dirname(os.path.join(dst, f)), exist_ok=True)
+    # copy2 keeps the time stamp, so both match until one client signs in again.
+    shutil.copy2(os.path.join(src, f), os.path.join(dst, f))
+if os.path.isfile(sreg):
+    st = open(sreg, encoding="utf-8", errors="surrogateescape").read()
+    if not os.path.isfile(dreg):
+        os.makedirs(os.path.dirname(dreg), exist_ok=True)
+        shutil.copy2(sreg, dreg)
+    else:
+        dt = open(dreg, encoding="utf-8", errors="surrogateescape").read()
+        for key in ("AutoLoginUser", "RememberPassword"):
+            v = re.search(r'"%s"\s*"([^"]*)"' % key, st)
+            if v and re.search(r'"%s"\s*"' % key, dt):
+                dt = re.sub(r'("%s"\s*")[^"]*(")' % key, lambda m: m.group(1) + v.group(1) + m.group(2), dt, count=1)
+        open(dreg, "w", encoding="utf-8", errors="surrogateescape").write(dt)
+print("droiddeck-steam-x64: sign-in shared from the %s client (the newer one)" % who)
+PY
+}
+
+case "${1:-}" in
+  --sync-login) x64_sync_login; exit 0 ;;
+  --prepare) x64_prepare; exit 0 ;;
+  --exec) shift; x64_exec "$@" ;;
+  --gpu) x64_gpu; exit $? ;;
+  --default-tool) x64_default_tool; exit 0 ;;
+esac
+
+# --- standalone (the desktop menu entry) ------------------------------------------------------
+# --- one client at a time ----------------------------------------------------------------------
+if pgrep -f 'steamrtarm64/steam( |$)' >/dev/null 2>&1; then
+  step "shutting down the arm64 client first"
+  "$ARM_STEAM/steamrtarm64/steam" -shutdown >/dev/null 2>&1 || true
+  for _ in $(seq 1 30); do pgrep -f 'steamrtarm64/steam( |$)' >/dev/null 2>&1 || break; sleep 1; done
+fi
+x64_prepare
+step "FEX, rootfs and client ready"
+# BL_FEXSERVER_LOG: a FEXServer of our own in the foreground, logging there - every FEX process that
+# logs to "server" (FEX_OUTPUTLOG, or an AppConfig) then has its lines tagged with its pid.
+if [ -n "${BL_FEXSERVER_LOG:-}" ]; then
+  FEX_ROOTFS=$ROOTFS "$(dirname "${BL_FEX:-/usr/local/bin/FEX}")/FEXServer" -f -p 600 >"$BL_FEXSERVER_LOG" 2>&1 &
+  sleep 1
+fi
+# --- what droiddeck-session gives the arm64 client ---------------------------------------
+# The client's connection header and Settings > Internet come from NetworkManager on the SYSTEM
+# bus; without them it shows no connection while downloads run. Same bus config and stand-in as the
+# session, started here when no system bus is up (a desktop has none), stopped with the client.
+x64_bus= x64_nm= x64_pin=
+x64_cleanup() {
+  [ -n "$x64_pin" ] && kill "$x64_pin" 2>/dev/null
+  [ -n "$x64_nm" ] && kill "$x64_nm" 2>/dev/null
+  [ -n "$x64_bus" ] && kill "$x64_bus" 2>/dev/null
+  return 0
+}
+trap x64_cleanup EXIT
+if ! pgrep -f 'dbus-daemon --config-file=/usr/local/share/droiddeck/system-bus.conf' >/dev/null 2>&1 \
+   && command -v dbus-daemon >/dev/null 2>&1 && command -v droiddeck-netmanager >/dev/null 2>&1; then
+  mkdir -p /run/dbus /usr/local/share/droiddeck
+  cat > /usr/local/share/droiddeck/system-bus.conf <<'BUSCONF'
+<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
+<busconfig>
+  <type>system</type>
+  <listen>unix:path=/run/dbus/system_bus_socket</listen>
+  <auth>EXTERNAL</auth>
+  <policy context="default">
+    <allow user="*"/>
+    <allow own="*"/>
+    <allow send_destination="*"/>
+    <allow receive_sender="*"/>
+  </policy>
+</busconfig>
+BUSCONF
+  rm -f /run/dbus/system_bus_socket
+  dbus-daemon --config-file=/usr/local/share/droiddeck/system-bus.conf --nofork --nopidfile &
+  x64_bus=$!
+  for _ in $(seq 1 50); do [ -S /run/dbus/system_bus_socket ] && break; sleep 0.1; done
+  if [ -S /run/dbus/system_bus_socket ]; then
+    droiddeck-netmanager &
+    x64_nm=$!
+    step "network: system bus up, NetworkManager stand-in running"
+  else
+    step "network: the system bus did not come up; the client will show no connection"
+  fi
+fi
+# What a killed client leaves behind: .crash opens the update UI on its spinner, stale htmlcache
+# Singleton* locks can leave the UI blank (as in droiddeck-session).
+if ! pgrep -f 'steamrt64/steam( |$)' >/dev/null 2>&1; then
+  for f in "$STEAM_X64/.crash" "$STEAM_X64/steam.pid" "$STEAM_X64/config/htmlcache/SingletonLock" \
+           "$STEAM_X64/config/htmlcache/SingletonCookie" "$STEAM_X64/config/htmlcache/SingletonSocket"; do
+    { [ -e "$f" ] || [ -L "$f" ]; } && rm -f "$f"
+  done
+fi
+# The session's CPU set for the client (BL_CLIENT_CPUS): Steam pins itself and its web helper to a
+# few cores; re-pin every 5 s as the session does for the arm64 client.
+if [ -n "${BL_CLIENT_CPUS:-}" ] && command -v taskset >/dev/null 2>&1; then
+  (
+    while sleep 5; do
+      for pid in $(ps -A -o PID,ARGS | awk '$2=="FEX" && ($3 ~ /steamrt64\/steam$/ || $3 ~ /steamwebhelper$/) {print $1}'); do
+        taskset -a -p -c "$BL_CLIENT_CPUS" "$pid" >/dev/null 2>&1
+      done
+    done
+  ) &
+  x64_pin=$!
+fi
+# BL_FEX: another FEX build for the client and everything it starts (a DEBUG_STRACE one, say).
+# Restart on request (42, as steam.sh does), at most a few times.
+for attempt in 1 2 3 4 5; do
+  # The branch on disk must match -clientbeta before every start, or the client loops on rc=42.
+  echo publicbeta > "$STEAM_X64/package/beta"
+  step "starting the x86-64 SteamRT3 client under FEX (attempt $attempt): $*"
+  rc=0
+  if [ "${BL_X64_X86_WEBHELPER:-0}" != 1 ] || { [ "${BL_X64_CEF_GPU:-0}" = 1 ] && x64_gpu; }; then cef=(-cef-force-gpu -cef-ozone-platform=x11 -cef-use-gl=angle -cef-use-angle=vulkan); else cef=(-cef-disable-gpu); fi
+  ( x64_exec -clientbeta publicbeta -no-cef-sandbox "${cef[@]}" "$@" ) >>"$LOG" 2>&1 || rc=$?
+  step "client exited rc=$rc"
+  [ "$rc" = 42 ] || break
+done
