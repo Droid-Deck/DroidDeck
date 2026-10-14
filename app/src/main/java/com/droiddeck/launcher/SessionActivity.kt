@@ -1714,8 +1714,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             if (pointerLocked) moveLockedPointer(x, y) else movePointer(x, y)
         }
         override fun onButton(button: Int, pressed: Boolean, x: Float, y: Float) {
-            // Under a lock the program's pointer stays where the deltas left it: no absolute move,
-            // which the compositor would turn into a jump by the arrow's distance from it.
             if (!pointerLocked) movePointer(x, y)
             WaylandCompositor.nativeSendSceneInput(3, button, if (pressed) 1 else 0)
         }
@@ -1726,12 +1724,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
     }
 
-    /**
-     * The touchpad while a program holds a pointer lock: its finger deltas go out as relative motion,
-     * as a captured mouse's do. The program draws its own cursor (or none), so the arrow stays hidden,
-     * and the touchpad's own position goes back to the middle after each move: clamped at an edge,
-     * it would stop the program's pointer there too, wherever that pointer was.
-     */
     private fun moveLockedPointer(x: Float, y: Float) {
         val rect = drawnRect() ?: return
         val scale = SessionState.outputSize.first / rect.width()
