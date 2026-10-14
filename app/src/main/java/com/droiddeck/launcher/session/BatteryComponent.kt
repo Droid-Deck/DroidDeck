@@ -8,30 +8,11 @@ import com.droiddeck.launcher.core.SessionPart
 import java.io.File
 import kotlin.math.abs
 
-/**
- * The battery the Steam client can see.
- *
- * The client reads `/sys/class/power_supply/BAT<n>/...` - a laptop's or a Deck's naming and files
- * (`energy_now`, `power_now`, `time_to_empty_now`, a `uevent` of `POWER_SUPPLY_*` lines). Android
- * names its supply `battery` and lays it out differently, and on many phones an app may not read
- * it at all, so the client showed no battery. This writes one `BAT1` (the Deck's name)
- * from Android's own battery API - the same on every device - into a directory the session binds
- * over `/sys/class/power_supply`, refreshed every few seconds while the session runs.
- *
- * Steam's Quick Access Menu takes its time estimates from neither: it reads the files in `/run/vpower` (as on
- * SteamOS), and with those absent showed "?h ?m" for projected battery life and for time to full.
- * The same estimates are written there too, into [vpowerDir] in the guest's own `/run`.
- *
- * Values: charge in µAh from the charge counter; energy in µWh from charge × voltage; power in µW
- * from |current| × voltage; time to empty from charge ÷ |average current| while discharging. Where
- * a device reports no current, the client still gets status and percentage.
- */
 class BatteryComponent(val dir: File, private val vpowerDir: File) : SessionPart() {
     @Volatile private var running = false
     private var thread: Thread? = null
 
     override fun start() {
-        // Older builds exported the same aggregate battery twice; MangoHud counts both supplies.
         File(dir, "BAT0").deleteRecursively()
         running = true
         write()
@@ -48,7 +29,6 @@ class BatteryComponent(val dir: File, private val vpowerDir: File) : SessionPart
         running = false
         thread?.interrupt()
         thread = null
-        // Stale estimates would outlive the session in the rootfs; Steam falls back to "?h ?m".
         for (name in VPOWER_FILES) File(vpowerDir, name).delete()
     }
 
@@ -67,7 +47,6 @@ class BatteryComponent(val dir: File, private val vpowerDir: File) : SessionPart
             val chargeNowUah = bm?.getLongProperty(BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER)?.takeIf { it > 0 && it != Long.MIN_VALUE } ?: 0L
             val currentNowUa = bm?.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)?.takeIf { it != Long.MIN_VALUE } ?: 0L
             val currentAvgUa = bm?.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_AVERAGE)?.takeIf { it != Long.MIN_VALUE && it != 0L } ?: currentNowUa
-            // Android's sign convention varies by vendor; the status says which way the current flows.
             val discharging = status == BatteryManager.BATTERY_STATUS_DISCHARGING || status == BatteryManager.BATTERY_STATUS_NOT_CHARGING
             val chargeFullUah = if (chargeNowUah > 0 && pct > 0) chargeNowUah * 100 / pct else 0L
             val energyNowUwh = chargeNowUah * voltageUv / 1_000_000L
@@ -129,7 +108,6 @@ class BatteryComponent(val dir: File, private val vpowerDir: File) : SessionPart
                 "ac_status" to if (plugged) "Connected" else "Disconnected",
                 "battery_percent" to "%.2f".format(java.util.Locale.ROOT, pct.toDouble()),
                 "battery_status" to statusText,
-                // Steam reads a separate file for each direction; -1 = no estimate.
                 "secs_until_battery_full" to (if (timeToFullS > 0) timeToFullS else -1L).toString(),
                 "secs_until_shutdown_request" to (if (timeToEmptyS > 0) timeToEmptyS else -1L).toString(),
             )
@@ -139,7 +117,6 @@ class BatteryComponent(val dir: File, private val vpowerDir: File) : SessionPart
         }
     }
 
-    /** Atomic per file: a reader in the guest never sees a half-written value. */
     private fun put(target: File, text: String) {
         val tmp = File(target.parentFile, "." + target.name + ".tmp")
         tmp.writeText(text)

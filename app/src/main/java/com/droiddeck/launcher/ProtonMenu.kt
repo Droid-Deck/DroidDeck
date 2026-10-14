@@ -9,15 +9,12 @@ import com.droiddeck.launcher.session.ProtonExtras
 import com.droiddeck.launcher.ui.ProtonRow
 import com.droiddeck.launcher.session.SessionState
 
-/**
- * The optional ARM64 Protons (GE-Proton, proton-cachyos): the rows the page lists and an install or
- * removal in progress. The launcher screen keeps one and shows it.
- */
 internal class ProtonMenu(private val activity: android.app.Activity, private val ui: android.os.Handler) {
     var protonRows by mutableStateOf<List<ProtonRow>>(emptyList())
     var protonBusyId by mutableStateOf<String?>(null)
     var protonStage by mutableStateOf<String?>(null)
     var protonPercent by mutableIntStateOf(-1)
+    private val checking = java.util.concurrent.atomic.AtomicBoolean(false)
 
     fun installProton(id: String) {
         val tool = ProtonExtras.tools.firstOrNull { it.id == id } ?: return
@@ -40,14 +37,14 @@ internal class ProtonMenu(private val activity: android.app.Activity, private va
         }, "install-proton-$id").start()
     }
 
-    fun removeProton(id: String) {
+    fun removeProton(id: String, dir: String? = null, older: Boolean = false) {
         val tool = ProtonExtras.tools.firstOrNull { it.id == id } ?: return
         if (protonBusyId != null || SessionState.running) return
         protonBusyId = id
-        protonStage = activity.getString(R.string.main_removing_named, tool.name)
+        protonStage = activity.getString(R.string.main_removing_named, dir ?: tool.name)
         protonPercent = -1
         Thread({
-            ProtonExtras.remove(activity, tool)
+            if (older) ProtonExtras.removeOlder(activity, tool) else ProtonExtras.remove(activity, tool, dir)
             ui.post {
                 protonBusyId = null
                 protonStage = null
@@ -57,6 +54,17 @@ internal class ProtonMenu(private val activity: android.app.Activity, private va
     }
 
     fun refreshProtons() {
-        protonRows = ProtonExtras.tools.map { ProtonRow(it.id, it.name, ProtonExtras.installed(activity, it), ProtonExtras.queued(activity, it)) }
+        protonRows = ProtonExtras.tools.map {
+            val all = ProtonExtras.installedAll(activity, it)
+            ProtonRow(it.id, it.name, all.lastOrNull(), ProtonExtras.queued(activity, it), all, ProtonExtras.update(activity, it))
+        }
+    }
+
+    fun checkUpdates(force: Boolean = false) {
+        if (!checking.compareAndSet(false, true)) return
+        Thread({
+            val asked = try { ProtonExtras.checkLatest(activity, force) } catch (_: Throwable) { false } finally { checking.set(false) }
+            if (asked) ui.post { refreshProtons() }
+        }, "proton-updates").start()
     }
 }

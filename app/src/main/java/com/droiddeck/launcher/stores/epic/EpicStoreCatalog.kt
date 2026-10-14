@@ -14,14 +14,6 @@ import java.util.Locale
 import java.util.TimeZone
 import java.util.concurrent.ConcurrentHashMap
 
-/**
- * The Epic Games Store catalog through the GraphQL endpoint the store website uses
- * (`store.epicgames.com/graphql`, which wants a browser User-Agent): `Catalog.searchStore` with
- * the base-game category, sorted by price / release date / relevance, on sale or free. Elements
- * carry the offer id, the namespace, the catalog item ids (what the library records, so ownership
- * is matched on those), key images and pre-formatted prices. "Free this week" comes from the
- * static `freeGamesPromotions` feed.
- */
 object EpicStoreCatalog {
     private const val TAG = "EpicStore"
     private const val GRAPHQL = "https://store.epicgames.com/graphql"
@@ -32,7 +24,7 @@ object EpicStoreCatalog {
 
     private const val ELEMENT_FIELDS =
         "title id namespace description effectiveDate releaseDate offerType productSlug urlSlug " +
-            "items{id namespace} keyImages{type url} seller{name} tags{name} " +
+            "items{id namespace} keyImages{type url} seller{name} tags{name} customAttributes{key value} " +
             "catalogNs{mappings(pageType:\"productHome\"){pageSlug pageType}} " +
             "price(country:\$country){totalPrice{discountPrice originalPrice discount currencyCode " +
             "fmtPrice(locale:\$locale){originalPrice discountPrice}}}"
@@ -82,7 +74,6 @@ object EpicStoreCatalog {
                 val img = imgs.optJSONObject(k) ?: continue
                 val url = img.optString("url", "")
                 if (url.isBlank()) continue
-                // The opaque box images first; the logo variants are transparent and never used.
                 when (img.optString("type", "")) {
                     "DieselGameBox" -> wide = url
                     "OfferImageWide", "DieselStoreFrontWide" -> if (wide == null) wide = url
@@ -105,8 +96,6 @@ object EpicStoreCatalog {
         val tagLine = buildList {
             e.optJSONArray("tags")?.let { tags -> for (t in 0 until tags.length()) { val n = tags.optJSONObject(t)?.optString("name").orEmpty(); if (n.isNotBlank() && n != "Windows" && size < 3) add(n) } }
         }.joinToString(", ")
-        // Epic's public store GraphQL has no age rating on an offer (no ageGatings/ratings field on
-        // CatalogOffer or StoreConfig); only a content tag, if Epic sets one, can mark it.
         val allTags = buildList { e.optJSONArray("tags")?.let { t -> for (k in 0 until t.length()) t.optJSONObject(k)?.optString("name")?.let { add(it) } } }
         val itemIds = buildList {
             e.optJSONArray("items")?.let { items -> for (j in 0 until items.length()) items.optJSONObject(j)?.optString("id")?.takeIf { it.isNotBlank() }?.let { add(it) } }
@@ -116,11 +105,18 @@ object EpicStoreCatalog {
         return CatalogItem(
             store = Store.EPIC, id = id, title = title, imageUrl = wide ?: thumb, tallImageUrl = tall ?: thumb, tags = tagLine,
             isFree = isFree, hasPrice = hasPrice, finalPrice = finalPrice, originalPrice = if (discountPct > 0) fmtOriginal else "", discountPercent = discountPct,
-            storeUrl = storeUrl, developer = e.optJSONObject("seller")?.optString("name", "").orEmpty(),
+            storeUrl = storeUrl, developer = attribute(e, "developerName"),
+            publisher = attribute(e, "publisherName").ifEmpty { e.optJSONObject("seller")?.optString("name", "").orEmpty() },
             releaseDate = e.optString("releaseDate", e.optString("effectiveDate", "")), description = com.droiddeck.launcher.stores.cleanStoreText(e.optString("description", "")),
             extra = buildMap { put("namespace", ns); if (itemIds.isNotEmpty()) put("items", itemIds.joinToString(",")); if (slug.isNotBlank()) put("slug", slug) },
             mature = com.droiddeck.launcher.stores.matureByTags(allTags),
         )
+    }
+
+    private fun attribute(e: JSONObject, key: String): String {
+        val attrs = e.optJSONArray("customAttributes") ?: return ""
+        return (0 until attrs.length()).mapNotNull { attrs.optJSONObject(it) }.firstOrNull { it.optString("key") == key }
+            ?.optString("value", "")?.trim().orEmpty()
     }
 
     private fun pageSlugOf(e: JSONObject): String {
@@ -132,11 +128,9 @@ object EpicStoreCatalog {
         return slug.removeSuffix("/home")
     }
 
-    /** The Store tab's shelves: this week's giveaways as Free, sales as Deals, newest releases, trending = free-to-play picks. Blocking. */
     fun featured(context: Context, force: Boolean = false): StoreShelves? {
         val now = System.currentTimeMillis()
         featuredCache?.let { if (!force && now - it.at < FEATURED_TTL_MS) return it.value }
-        // Shelves saved on an earlier run are as good while they are young: shown, not fetched again.
         if (!force && now - EpicPrefs.get(context).getLong("store_featured_at", 0L) < FEATURED_TTL_MS) cachedFeatured(context)?.let { return it }
         val freeNow = fetchPromos()
         val onSale = searchStore(24, sortBy = "currentPrice", sortDir = "ASC", onSale = true).filter { it.discountPercent > 0 }
@@ -166,7 +160,6 @@ object EpicStoreCatalog {
         return results
     }
 
-    /** This week's giveaway titles (100% off right now). */
     private fun fetchPromos(): List<CatalogItem> {
         val body = StoreNet.get("$PROMOS?locale=en-US&country=${country()}&allowCountries=${country()}") ?: return emptyList()
         return runCatching {
@@ -193,7 +186,7 @@ object EpicStoreCatalog {
     private fun itemToJson(i: CatalogItem): JSONObject = JSONObject().apply {
         put("id", i.id); put("title", i.title); put("image", i.imageUrl ?: ""); put("tall", i.tallImageUrl ?: ""); put("tags", i.tags)
         put("free", i.isFree); put("hasPrice", i.hasPrice); put("final", i.finalPrice); put("orig", i.originalPrice); put("disc", i.discountPercent)
-        put("url", i.storeUrl); put("dev", i.developer); put("rel", i.releaseDate); put("desc", i.description); put("extra", JSONObject(i.extra as Map<*, *>))
+        put("url", i.storeUrl); put("dev", i.developer); put("pub", i.publisher); put("rel", i.releaseDate); put("desc", i.description); put("extra", JSONObject(i.extra as Map<*, *>))
         if (i.mature) put("mature", true)
     }
 
@@ -203,7 +196,7 @@ object EpicStoreCatalog {
         return CatalogItem(
             store = Store.EPIC, id = o.optString("id"), title = o.optString("title"), imageUrl = o.optString("image").ifBlank { null }, tallImageUrl = o.optString("tall").ifBlank { null },
             tags = o.optString("tags"), isFree = o.optBoolean("free"), hasPrice = o.optBoolean("hasPrice"), finalPrice = o.optString("final"), originalPrice = o.optString("orig"),
-            discountPercent = o.optInt("disc"), storeUrl = o.optString("url"), developer = o.optString("dev"), releaseDate = o.optString("rel"), description = o.optString("desc"), extra = extra,
+            discountPercent = o.optInt("disc"), storeUrl = o.optString("url"), developer = o.optString("dev"), publisher = o.optString("pub"), releaseDate = o.optString("rel"), description = o.optString("desc"), extra = extra,
             mature = o.optBoolean("mature"),
         )
     }

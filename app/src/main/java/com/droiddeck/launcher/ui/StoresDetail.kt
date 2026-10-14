@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.foundation.background
@@ -35,11 +36,11 @@ import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.Store
+import com.droiddeck.launcher.stores.StoreAchievements
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.download.DownloadState
 import com.droiddeck.launcher.stores.formatBytes
 
-// A store game's own page: hero, the one main action, how it is launched and where it lives.
 
 @Composable
 internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: FrontEndActions, onBack: () -> Unit) {
@@ -51,9 +52,6 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
     val item = (StoresState.library[store].orEmpty() + StoresState.shelves[store]?.all.orEmpty()).firstOrNull { it.id == id }
     val installed = StoresState.installedGame(store, id)
     val download = StoresState.download("${store.id}:$id")?.takeIf { it.isActive }
-    // Removal asks twice: one stray press of A should not cost a download.
-    var confirmRemove by remember(key) { mutableStateOf(false) }
-    LaunchedEffect(confirmRemove) { if (confirmRemove) { kotlinx.coroutines.delay(4000); confirmRemove = false } }
     val title = item?.title ?: installed?.sidecar?.title ?: id
     Rise(0) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(bottom = 12.dp)) {
@@ -61,13 +59,17 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
             SourceChip(store.id)
         }
     }
-    Rise(1) {
-        Box(Modifier.fillMaxWidth().heightIn(min = if (narrow) 150.dp else 180.dp).clip(Shape16).background(artBrush(hueOf(title)))) {
+    val hero: @Composable () -> Unit = {
+        androidx.compose.runtime.DisposableEffect(Unit) { onDispose { StoresMotion.heroAt = null } }
+        Box(
+            Modifier.fillMaxWidth().heightIn(min = if (narrow) 150.dp else 180.dp)
+                .onGloballyPositioned { StoresMotion.heroAt = it.boundsInRoot() }
+                .clip(Shape16).background(artBrush(hueOf(title))),
+        ) {
             val art = item?.imageUrl ?: installed?.sidecar?.hero ?: installed?.sidecar?.cover
             if (art != null) AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
             Spacer(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to colors.background.copy(alpha = 0.94f), 0.5f to colors.background.copy(alpha = 0.55f), 1f to Color.Transparent)))
             Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.align(Alignment.BottomStart).padding(horizontal = 22.dp, vertical = 18.dp)) {
-                // An install names where it went (internal storage, the card), a download where it is going.
                 val state = when {
                     installed != null -> stringResource(R.string.stores_eyebrow_installed) + " · " + com.droiddeck.launcher.stores.StoreInstallRoot.labelFor(ctx, installed.folder)
                     download != null && download.location.isNotBlank() -> stringResource(R.string.stores_eyebrow_library) + " · " + download.location
@@ -80,13 +82,11 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
                 Actions {
                     when {
                         installed != null -> {
-                            // Launching, the prefix and the files belong to the Games tab, where every
-                            // installed game has them; here an install only says it is in Steam and
-                            // offers the one thing Games does not: removing it.
                             ActionChip(stringResource(R.string.stores_in_steam), ok = true)
-                            SecondaryButton(if (confirmRemove) stringResource(R.string.stores_uninstall_confirm) else stringResource(R.string.stores_uninstall), enabled = download == null) {
-                                if (!confirmRemove) confirmRemove = true
-                                else { confirmRemove = false; StoresState.uninstall(ctx, installed) { StoresState.refresh(ctx); a.onLibraryChanged() }; onBack() }
+                            val gone = StoresState.uninstalling["${store.id}:$id"]
+                            if (gone != null) SecondaryButton(stringResource(R.string.stores_uninstalling), enabled = false, progress = gone) {}
+                            else UninstallButton(title, installed, enabled = download == null) {
+                                StoresState.uninstall(ctx, installed) { StoresState.refresh(ctx); a.onLibraryChanged() }
                             }
                         }
                         download != null -> {
@@ -110,19 +110,59 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
             }
         }
     }
-    // Plain text only, and nothing at all when the store sent a template key instead of words.
-    // A description that is only the title again (some stores fill it so) is no description.
+    if (StoresMotion.heroLands) hero() else Rise(1) { hero() }
+    if (store == Store.GOG || store == Store.EPIC) {
+        val listed = StoresState.shelves[store]?.all.orEmpty().firstOrNull { it.id == id }
+        val developer = item?.developer?.ifBlank { null } ?: listed?.developer.orEmpty()
+        val publisher = item?.publisher?.ifBlank { null } ?: listed?.publisher.orEmpty()
+        val releaseDate = item?.releaseDate?.ifBlank { null } ?: listed?.releaseDate.orEmpty()
+        val scores = rememberGameScores(title.takeIf { it != id })
+        Rise(2) { StoreGameFacts(developer, publisher, releaseDate, scores) }
+    }
     val description = item?.let { com.droiddeck.launcher.stores.cleanStoreText(it.description) }.orEmpty()
         .takeUnless { it.trim().equals(title.trim(), ignoreCase = true) }.orEmpty()
-    if (description.isNotBlank()) Rise(2) {
+    if (description.isNotBlank()) Rise(3) {
         Text(description, fontSize = 13.sp, lineHeight = 19.sp, color = colors.onSurfaceVariant, maxLines = 6, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 12.dp))
+    }
+    val achievements = remember(store, id, item?.owned, installed) {
+        when {
+            StoreAchievements.forSource(store.id) == null -> null
+            item?.owned == true -> StoreAchievements.Game.of(item)
+            installed != null -> StoreAchievements.Game.of(installed.sidecar)
+            else -> null
+        }
+    }
+    if (achievements != null) Rise(4) { StoreAchievementsSection(achievements) }
+}
+
+@Composable
+private fun UninstallButton(title: String, game: com.droiddeck.launcher.stores.InstalledStoreGame, enabled: Boolean, onUninstall: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
+    val heading = stringResource(R.string.stores_uninstall_title, title)
+    val size = com.droiddeck.launcher.stores.StoreSizes.onDisk["${game.sidecar.store.id}:${game.sidecar.id}"]
+    val body = if (size != null && size > 0) stringResource(R.string.stores_uninstall_body_size, formatBytes(size)) else stringResource(R.string.stores_uninstall_body)
+    val keep = stringResource(R.string.stores_notification_keep)
+    val remove = stringResource(R.string.stores_uninstall)
+    Box(Modifier.onGloballyPositioned { placed[0] = it }) {
+        SecondaryButton(remove, enabled = enabled) {
+            val at = placed[0]?.takeIf { it.isAttached }?.boundsInRoot() ?: return@SecondaryButton
+            var confirmed = false
+            StoresMotion.ask(StepAsk(anchor = at, side = StepSide.Right, accent = colors.error, items = 3, pillCorner = 12.dp, maxWidth = 340.dp,
+                onDismiss = { if (confirmed) onUninstall() }, handle = {
+                Text(remove, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.error, maxLines = 1)
+            }) {
+                StepTitle(heading)
+                Text(body, fontSize = 13.sp, lineHeight = 18.sp, color = colors.onSurfaceVariant, modifier = Modifier.stepItem(1).padding(start = 4.dp, bottom = 12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), modifier = Modifier.fillMaxWidth().stepItem(2)) {
+                    StepChoice(keep, enabled = open, modifier = Modifier.focusRequester(first)) { StoresMotion.fold() }
+                    StepChoice(remove, danger = true, enabled = open) { confirmed = true; StoresMotion.fold() }
+                }
+            })
+        }
     }
 }
 
-/**
- * Install (or Resume install) that says where it sits when pressed: where to install grows out of
- * it, and the download it starts leaves it as a dot for the Downloads chip.
- */
 @Composable
 private fun InstallButton(label: String, onInstall: () -> Unit) {
     val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }

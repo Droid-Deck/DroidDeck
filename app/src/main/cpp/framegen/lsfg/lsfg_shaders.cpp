@@ -1,9 +1,5 @@
 // SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
 // SPDX-License-Identifier: GPL-3.0-or-later
-//
-// LSFG from the work of Camille LaVey / the Eden Emulator Project, following
-// upstream lsfg-vk. Ported to WinNative and DroidDeck by @maxjivi05; only the
-// Vulkan dispatch differs here (see lsfg_vkd.h).
 
 #include "lsfg_shaders.hpp"
 #include "lsfg_common.hpp"
@@ -27,12 +23,6 @@ LsfgShaders::LsfgShaders(const Device& device_, const std::string& cache_path,
         return;
     }
 
-    // Vulkan 1.1/1.2 compat: the cache is always built at the translator's
-    // native SPIR-V 1.6 (no device exists at import time), so lower each module
-    // to what THIS device accepts. A no-op on 1.3+ devices. Only the
-    // DXBC-translated chain is lowered: downgradeSpirv knows the capabilities
-    // DXVK emits, not whatever a precompiled vendor SPIR-V variant may carry,
-    // and relabelling one of those could hand the driver invalid SPIR-V.
     uint32_t lowered = 0;
     for (Module& module : set.modules) {
         if (module.words.size() > 1 && module.words[1] > spirv_target) {

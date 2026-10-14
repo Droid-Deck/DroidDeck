@@ -13,7 +13,6 @@ namespace display {
 namespace mapperextensions {
 namespace V1_0 {
 
-// Forward declaration for forward reference support:
 enum class Error : int32_t;
 struct YCbCrLayout;
 enum class PlaneComponent : uint32_t;
@@ -36,61 +35,22 @@ struct YCbCrLayout final {
   uint32_t chromaStep;
 };
 
-/**
- * Plane Component type definitions.
- */
 enum class PlaneComponent : uint32_t {
-  PLANE_COMPONENT_Y = 1u /* (1 << 0) */,
-  PLANE_COMPONENT_Cb = 2u /* (1 << 1) */,
-  PLANE_COMPONENT_Cr = 4u /* (1 << 2) */,
-  PLANE_COMPONENT_R = 1024u /* (1 << 10) */,
-  PLANE_COMPONENT_G = 2048u /* (1 << 11) */,
-  PLANE_COMPONENT_B = 4096u /* (1 << 12) */,
-  PLANE_COMPONENT_A = 1048576u /* (1 << 20) */,
-  PLANE_COMPONENT_RAW = 1073741824u /* (1 << 30) */,
-  PLANE_COMPONENT_META = 2147483648u /* (1 << 31) */,
+  PLANE_COMPONENT_Y = 1u  ,
+  PLANE_COMPONENT_Cb = 2u  ,
+  PLANE_COMPONENT_Cr = 4u  ,
+  PLANE_COMPONENT_R = 1024u  ,
+  PLANE_COMPONENT_G = 2048u  ,
+  PLANE_COMPONENT_B = 4096u  ,
+  PLANE_COMPONENT_A = 1048576u  ,
+  PLANE_COMPONENT_RAW = 1073741824u  ,
+  PLANE_COMPONENT_META = 2147483648u  ,
 };
 
-/**
- * Flags to send with getFormatLayout for extra information for e.g. interlaced,
- * otherwise send 0.
- */
 enum class Flags : int32_t {
-  LAYOUT_INTERLACED_FLAG = 1 /* (1 << 0) */,
+  LAYOUT_INTERLACED_FLAG = 1  ,
 };
 
-/**
- * Structure for describing plane layout information for YUVA/RGBA/RAW formats
- * YUV formats can be planar or semi-planar.
- *
- * This layout structure is used with any pixel format that can be
- * represented by it, such as:
- *  - HAL_PIXEL_FORMAT_YCbCr_*
- *  - HAL_PIXEL_FORMAT_RGB*_*
- *  - even implementation defined formats that can be represented by
- *    the structures
- *
- * Each plane can be made up of one or more PlaneComponents depending on
- * the format.
- *
- * Each plane can be subsampled either vertically or horizontally by
- * a power-of-two factor.
- *
- * Pixel increment describes the distance in bytes from one pixel to the
- * next pixel (to the right) on the same row for the component plane.
- * This can be negative.
- *
- * Stride is provided in both pixels and bytes.
- * Stride_bytes describes the distance in bytes from the first pixel of
- * one row to the first pixel of the next row (below) for the component plane.
- * This can be negative.
- *
- * Scanlines describes the height of the plane in terms of number of rows.
- *
- * Size of plane is stride_bytes * scanlines + any padding required for
- * alignment as per format specification.
- *
- */
 struct PlaneLayout final {
   ::android::hardware::hidl_bitfield<
       ::vendor::qti::hardware::display::mapperextensions::V1_0::PlaneComponent>
@@ -137,9 +97,6 @@ static_assert(sizeof(::vendor::qti::hardware::display::mapperextensions::V1_0::P
 static_assert(__alignof(::vendor::qti::hardware::display::mapperextensions::V1_0::PlaneLayout) == 4,
               "wrong alignment");
 
-//
-// type declarations for package
-//
 
 template <typename>
 static inline std::string toString(int32_t o);
@@ -185,7 +142,6 @@ constexpr int32_t& operator&=(
 
 static inline std::string toString(
     const ::vendor::qti::hardware::display::mapperextensions::V1_0::YCbCrLayout& o);
-// operator== and operator!= are not generated for YCbCrLayout
 
 template <typename>
 static inline std::string toString(uint32_t o);
@@ -284,9 +240,6 @@ static inline bool operator!=(
     const ::vendor::qti::hardware::display::mapperextensions::V1_0::PlaneLayout& lhs,
     const ::vendor::qti::hardware::display::mapperextensions::V1_0::PlaneLayout& rhs);
 
-//
-// type header definitions for package
-//
 
 template <>
 inline std::string toString<::vendor::qti::hardware::display::mapperextensions::V1_0::Error>(
@@ -379,7 +332,6 @@ static inline std::string toString(
   return os;
 }
 
-// operator== and operator!= are not generated for YCbCrLayout
 
 template <>
 inline std::string
@@ -642,16 +594,13 @@ static inline bool operator!=(
   return !(lhs == rhs);
 }
 
-}  // namespace V1_0
-}  // namespace mapperextensions
-}  // namespace display
-}  // namespace hardware
-}  // namespace qti
-}  // namespace vendor
+}
+}
+}
+}
+}
+}
 
-//
-// global type declarations for package
-//
 
 namespace android {
 namespace hardware {
@@ -664,9 +613,9 @@ constexpr std::array<::vendor::qti::hardware::display::mapperextensions::V1_0::E
         ::vendor::qti::hardware::display::mapperextensions::V1_0::Error::NO_RESOURCES,
         ::vendor::qti::hardware::display::mapperextensions::V1_0::Error::UNSUPPORTED,
 };
-}  // namespace details
-}  // namespace hardware
-}  // namespace android
+}
+}
+}
 
 namespace android {
 namespace hardware {
@@ -688,9 +637,9 @@ constexpr std::array<::vendor::qti::hardware::display::mapperextensions::V1_0::P
         ::vendor::qti::hardware::display::mapperextensions::V1_0::PlaneComponent::
             PLANE_COMPONENT_META,
 };
-}  // namespace details
-}  // namespace hardware
-}  // namespace android
+}
+}
+}
 
 namespace android {
 namespace hardware {
@@ -700,8 +649,8 @@ constexpr std::array<::vendor::qti::hardware::display::mapperextensions::V1_0::F
     hidl_enum_values<::vendor::qti::hardware::display::mapperextensions::V1_0::Flags> = {
         ::vendor::qti::hardware::display::mapperextensions::V1_0::Flags::LAYOUT_INTERLACED_FLAG,
 };
-}  // namespace details
-}  // namespace hardware
-}  // namespace android
+}
+}
+}
 
-#endif  // HIDL_GENERATED_VENDOR_QTI_HARDWARE_DISPLAY_MAPPEREXTENSIONS_V1_0_TYPES_H
+#endif

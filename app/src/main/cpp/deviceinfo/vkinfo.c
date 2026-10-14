@@ -1,6 +1,3 @@
-// What the phone's own Vulkan driver says about its GPU, for the app's device info window: one
-// instance on the system loader, the first physical device's properties, a few limits and the
-// extensions DXVK and VKD3D-Proton lean on. Returned as "key=value" lines; nothing is kept open.
 #include <dlfcn.h>
 #include <jni.h>
 #include <stdio.h>
@@ -62,12 +59,10 @@ Java_com_droiddeck_launcher_gpu_VulkanInfo_nativeQuery(JNIEnv *env, jclass clazz
         LINE("device=%s\n", p.deviceName);
         LINE("type=%s\n", type_name(p.deviceType));
         LINE("api=%u.%u.%u\n", VK_API_VERSION_MAJOR(p.apiVersion), VK_API_VERSION_MINOR(p.apiVersion), VK_API_VERSION_PATCH(p.apiVersion));
-        // Qualcomm packs its driver version as 10.10.12 bits, the same layout as VK_MAKE_VERSION.
         LINE("driver_version=%u.%u.%u\n", p.driverVersion >> 22, (p.driverVersion >> 12) & 0x3ff, p.driverVersion & 0xfff);
         LINE("vendor_id=0x%04x\ndevice_id=0x%08x\n", p.vendorID, p.deviceID);
         LINE("max_image_2d=%u\n", p.limits.maxImageDimension2D);
 
-        // Driver name and build string (Vulkan 1.2 or VK_KHR_driver_properties).
         uint32_t extCount = 0;
         if (vkEnumerateDeviceExtensionProperties) vkEnumerateDeviceExtensionProperties(device, NULL, &extCount, NULL);
         static VkExtensionProperties exts[512];

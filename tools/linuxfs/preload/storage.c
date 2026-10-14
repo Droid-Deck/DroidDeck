@@ -1,13 +1,3 @@
-/*
- * Opt-in observations for file allocation and writes to the selected Steam library.
- *
- * The session enables them only when storage diagnostics are turned on. Counters are local to
- * each process, allocation details are capped, writes are sampled, and storage.log has a global
- * size limit because every Steam child shares it.
- *
- * LD_PRELOAD cannot see direct syscalls or libc-internal calls that bypass public symbols. A
- * missing entry therefore does not prove the operation did not happen.
- */
 #define _GNU_SOURCE
 #include <dlfcn.h>
 #include <errno.h>
@@ -126,7 +116,6 @@ static void append_line(const char *line, size_t length) {
     syscall(SYS_close, (long)fd, 0L, 0L, 0L, 0L, 0L);
     goto done;
   }
-  /* One small append write per complete line; no per-write log flood. */
   (void)syscall(SYS_write, (long)fd, (long)line, (long)length, 0L, 0L, 0L);
   syscall(SYS_close, (long)fd, 0L, 0L, 0L, 0L, 0L);
 done:
@@ -223,7 +212,7 @@ int posix_fallocate(int fd, off_t offset, off_t length) {
   int call_errno = errno;
   uint64_t elapsed = now_ns() - start;
   allocation_line("posix_fallocate", result, call_errno, 0, offset, length, elapsed);
-  errno = entry_errno; /* POSIX requires the error to be returned, leaving errno unchanged. */
+  errno = entry_errno;
   return result;
 }
 
@@ -262,8 +251,6 @@ int ftruncate(int fd, off_t length) {
   int known = 0;
   if (steam_client()) {
     if (next_fstat == NULL) next_fstat = dlsym(RTLD_NEXT, "fstat");
-    /* staging_file() reads /proc/self/fd, a round trip through proot: skip it for a shrink, which
-     * is passed through untouched either way. */
     known = next_fstat != NULL && next_fstat(fd, &st) == 0 && S_ISREG(st.st_mode) &&
             length >= st.st_size && staging_file(fd);
   }

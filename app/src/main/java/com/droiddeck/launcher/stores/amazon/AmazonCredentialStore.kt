@@ -6,10 +6,6 @@ import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreAccounts
 import org.json.JSONObject
 
-/**
- * The Amazon sign-in in StoreAccounts' private file: the bearer tokens, the device serial and
- * client id the registration was made with (the entitlements call hashes the serial), the expiry.
- */
 object AmazonCredentialStore {
     private const val TAG = "AmazonAuth"
 
@@ -34,7 +30,6 @@ object AmazonCredentialStore {
     @JvmStatic
     fun isLoggedIn(context: Context): Boolean = load(context) != null
 
-    /** A fresh access token whatever the stored expiry says: for a call Amazon refused with the stored one. */
     @JvmStatic
     fun refresh(context: Context): String? {
         val creds = load(context) ?: return null
@@ -44,7 +39,6 @@ object AmazonCredentialStore {
         return result.accessToken
     }
 
-    /** A valid access token, refreshed within five minutes of expiry; null when signed out or the refresh failed. */
     @JvmStatic
     fun getValidAccessToken(context: Context): String? {
         val creds = load(context) ?: return null

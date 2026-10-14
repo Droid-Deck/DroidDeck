@@ -12,7 +12,6 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
-/** Where a store game goes: internal storage unless the user picks a card, and back to its own folder on a rerun. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class StoreInstallRootTest {
@@ -22,7 +21,6 @@ class StoreInstallRootTest {
         val card = File(app.filesDir, "fake-card/steam").apply { mkdirs() }
         SessionPrefs.setGameStorage(app, card.path, "Card")
         assertEquals(File(LinuxRuntime.rootDir(app), "root/Games/Stores").absolutePath, StoreInstallRoot.installRoot(app).absolutePath)
-        // The library's Games folder is still scanned, for installs an earlier build put there.
         assertTrue(StoreInstallRoot.roots(app).any { it.absolutePath == File(card, "Games").absolutePath })
         assertFalse(StoreInstallRoot.targets(app).first().removable)
     }
@@ -44,9 +42,7 @@ class StoreInstallRootTest {
         File(half, "Metalstorm.exe").writeText("MZ")
         assertFalse(StoreInstallRoot.isFinished(half))
         assertTrue(StoreInstallRoot.unfinished(app).any { it.store == Store.EPIC && it.id == null && it.folder.absolutePath == half.absolutePath })
-        // Install again, even with another root picked: the same folder, no duplicate.
         assertEquals(half.absolutePath, StoreInstallRoot.folderFor(app, Store.EPIC, "abc", "Metalstorm", File(app.filesDir, "card/Games")).absolutePath)
-        // Begun and finished: the folder becomes a game.
         StoreInstalls.begin(half, Store.EPIC, "abc", "Metalstorm", null, null)
         assertTrue(StoreInstallRoot.unfinished(app).any { it.id == "abc" })
         StoreGameSidecar(Store.EPIC, "abc", "Metalstorm", "Metalstorm.exe").write(half)

@@ -37,7 +37,6 @@ def value(text, *path):
 STEAM = ('Registry', 'HKCU', 'Software', 'Valve', 'Steam', 'language')
 GLOBAL = ('Registry', 'HKCU', 'Software', 'Valve', 'Steamsteamglobal', 'language')
 
-# As the client leaves it on a device (trimmed): both keys, other values beside them, and HKLM.
 CLIENT = '''"Registry"
 {
 	"HKLM"

@@ -63,7 +63,6 @@ jobs:
       artifact: droiddeck-release
     secrets: inherit
 
-  # The release is made here, from the apks this run signed, so it traces back to its Build APK run.
   publish:
     name: publish the release
     needs: [find, sign]
@@ -94,7 +93,6 @@ jobs:
           if gh release view "$VERSION" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "::error::release $VERSION already exists"; exit 1
           fi
-          # The notes' first line is the title; media paths become raw URLs at this release's tag.
           title=$(sed -n '1s/^# *//p' "$notes")
           [ -n "$title" ] || title="DroidDeck $VERSION"
           raw="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$VERSION/docs/releases/media/"
@@ -110,7 +108,6 @@ jobs:
             --target "$GITHUB_SHA" --title "$title" --notes-file "$RUNNER_TEMP/body.md" --latest
           echo "Published [$title]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$VERSION)" >> "$GITHUB_STEP_SUMMARY"
 
-  # A release made with this run's token fires no release event, so the in-app catalog is refreshed here.
   catalog:
     needs: publish
     uses: ./.github/workflows/update-catalog.yml

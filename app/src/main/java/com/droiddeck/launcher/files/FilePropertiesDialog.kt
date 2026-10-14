@@ -39,17 +39,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-// The File Manager's properties dialog.
 
-/**
- * Properties sheet for a single file or folder: basic info plus the two Windows/Wine file attributes
- * the in-container file manager (wfm.exe) also exposes - Read-only and Hidden. Each toggle applies
- * immediately (off the main thread) and refreshes the listing via [onChanged].
- *
- * State is keyed on the file so it always reflects the entry it was opened for. On a filesystem that
- * can't store Wine's DOSATTRIB xattr (the FUSE /storage volumes) only the Hidden toggle is disabled;
- * Read-only keeps working everywhere.
- */
 @Composable
 internal fun FilePropertiesDialog(
     file: File,
@@ -60,7 +50,6 @@ internal fun FilePropertiesDialog(
     val scope = rememberCoroutineScope()
     val dateFormat = remember { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
     var attrs by remember(file.absolutePath) { mutableStateOf<FileAttrState?>(null) }
-    // Guards against a second toggle landing while the first is still being applied off-thread.
     var busy by remember(file.absolutePath) { mutableStateOf(false) }
     LaunchedEffect(file.absolutePath) {
         attrs = withContext(Dispatchers.IO) { readFileAttrs(file) }
@@ -71,7 +60,6 @@ internal fun FilePropertiesDialog(
         title = { Text(stringResource(R.string.fm_properties)) },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                // ── Basic info ──
                 Text(
                     text = file.name,
                     color = MaterialTheme.colorScheme.onBackground,
@@ -95,7 +83,6 @@ internal fun FilePropertiesDialog(
                 Spacer(Modifier.height(6.dp))
 
                 val state = attrs
-                // ── Read-only ── checked when the owner can't write (Wine's FILE_ATTRIBUTE_READONLY).
                 AttributeToggleRow(
                     label = stringResource(R.string.fm_read_only),
                     description = stringResource(R.string.fm_read_only_hint),
@@ -116,7 +103,6 @@ internal fun FilePropertiesDialog(
                     },
                 )
                 Spacer(Modifier.height(2.dp))
-                // ── Hidden ── Wine's DOS hidden bit in the user.DOSATTRIB xattr.
                 val hiddenSupported = state?.hiddenSupported == true
                 AttributeToggleRow(
                     label = stringResource(R.string.fm_hidden),
@@ -134,7 +120,6 @@ internal fun FilePropertiesDialog(
                                 attrs = attrs?.copy(hidden = want)
                                 onChanged()
                             } else {
-                                // The write failed after all - disable the toggle rather than lie.
                                 attrs = attrs?.copy(hiddenSupported = false)
                                 Toast.makeText(context, R.string.fm_hidden_failed, Toast.LENGTH_SHORT).show()
                             }
@@ -147,7 +132,6 @@ internal fun FilePropertiesDialog(
     )
 }
 
-// One "label: value" line in the Properties info block.
 @Composable
 private fun PropertyLine(label: String, value: String) {
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
@@ -168,7 +152,6 @@ private fun PropertyLine(label: String, value: String) {
     }
 }
 
-// A labelled attribute switch with a one-line description, used by the Properties sheet.
 @Composable
 private fun AttributeToggleRow(
     label: String,

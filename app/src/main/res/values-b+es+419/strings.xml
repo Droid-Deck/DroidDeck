@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="loading_hints">
+        <item>La primera vez se descarga Steam. Puede tardar unos minutos.</item>
+        <item>De forma predeterminada, al salir de la app Steam se pausa y continúa donde lo dejaste cuando vuelves.</item>
+        <item>Tu control aparece como un control de Xbox 360. Si no, usa los controles en pantalla.</item>
+    </string-array>
+    <string-array name="loading_hints_desktop">
+        <item>La primera vez se prepara el escritorio. Puede tardar unos minutos.</item>
+        <item>De forma predeterminada, al salir de la app la sesión se pausa y continúa donde la dejaste cuando vuelves.</item>
+        <item>El tacto funciona como un touchpad: arrastra para mover el puntero y toca para hacer clic.</item>
+        <item>Tu control aparece como un control de Xbox 360. Si no, usa los controles en pantalla.</item>
+    </string-array>
+    <string name="second_library_import_hint">Agrega una biblioteca de Steam y busca juegos de Windows en ella. Los juegos que tienes usan sus entradas de Steam; el resto se convierten en accesos directos ajenos a Steam.</string>
+    <string name="game_env_add">Agregar variable</string>
+    <string name="game_env_xalia">Pon 0 para desactivar el asistente de navegación con control de Proton en este juego.</string>
+    <string name="user_apps_add">Agregar</string>
+    <string name="user_apps_added">%1$s agregada</string>
+    <string name="user_apps_remove_confirm">Presiona de nuevo para quitar</string>
+    <string name="user_apps_failed">No se pudo agregar la app</string>
+    <string name="add_app_title">Agregar una app</string>
+    <string name="add_app_confirm">Agregar</string>
+    <string name="common_add_ellipsis">Agregar…</string>
+    <string name="mode_osc_note">Auto muestra los controles en pantalla cuando no hay ningún control conectado.</string>
+    <string name="mode_controller">Control</string>
+    <string name="mode_controller_hint">Cómo ve Steam tu control. Se aplica en la próxima sesión.</string>
+    <string name="mode_controller_deck">Control de Steam Deck</string>
+    <string name="mode_controller_x360">Control de Xbox 360</string>
+    <string name="games_add">Agregar juego</string>
+    <string name="games_add_title">Agregar un juego:</string>
+    <string name="mode_storage_note">Los juegos que cargan recursos desde la SD o el almacenamiento compartido pueden tener microcortes.</string>
+    <string name="comp_no_proton">Aún no hay ningún Proton instalado. Inicia Steam una vez para descargar su Proton ARM64, o agrega GE-Proton o CachyOS desde Configuración.</string>
+    <string name="perf_gpuclock_hint">Solo Adreno. Menos microcortes, más consumo de batería y calor.</string>
+    <string name="perf_xalia_hint">Desactiva el asistente de navegación con control de Proton, que consume CPU en cada juego.</string>
+    <string name="perf_fastpath_hint">Búsquedas de archivos más rápidas y menos microcortes. Desactívalo si un programa no encuentra sus archivos.</string>
+    <string name="drawer_page_controller">Control</string>
+    <string name="setup_manage">Administrar</string>
+    <string name="setup_tab_controller">Control</string>
+    <string name="setup_sign_in">Presiona Jugar en Steam e inicia sesión</string>
+    <string name="setup_controller">Control</string>
+    <string name="setup_controller_unavailable">Los ajustes del control no están disponibles.</string>
+    <string name="setup_tool_files_hint">Explorar y administrar archivos</string>
+    <string name="store_setup_text">Agrega Flatpak y lo conecta a Flathub (unos 20 MB). La primera app también descarga su runtime.</string>
+    <string name="store_press_again">Presiona de nuevo para quitar</string>
+    <string name="gate_no_toggle">Esta versión de Android no tiene un interruptor para ello, así que DroidDeck lo cambia mediante la Depuración inalámbrica. Tarda un minuto y no necesitas una computadora.</string>
+    <string name="gate_code_needed">Ventana encontrada. Ingresa su código en la notificación.</string>
+    <string name="gate_other_toggle">Depuración inalámbrica, dirección manual, ADB desde una computadora</string>
+    <string name="gate_other_no_toggle">Dirección manual, ADB desde una computadora, Opciones de desarrollador</string>
+    <string name="gate_some_roms">Algunas ROM agregan el interruptor de todos modos. Busca “procesos secundarios” en Opciones de desarrollador.</string>
+    <string name="gate_manual_hint">Si la notificación no funciona, ingresa manualmente la dirección y el código de la ventana.</string>
+    <string name="gate_enter_manually">Ingresar dirección manualmente</string>
+    <string name="gate_from_computer">Desde una computadora con ADB:</string>
+    <string name="wadb_enter_port">Vinculado. Ingresa el puerto de Ajustes.</string>
+    <string name="wadb_computer_last">3 · ADB desde una computadora (último recurso)</string>
+    <string name="wadb_computer_group">3 · ADB desde una computadora (último recurso)</string>
+    <string name="ctrl_select_steam">Presiona Select para abrir el menú de Steam</string>
+    <string name="ctrl_reset_all">Restablecer control</string>
+    <string name="ctrl_reset_all_hint">Restaura todos los ajustes del control y la disposición</string>
+    <string name="content_add_roms">Agrega juegos de %1$s a ROMs/%2$s.</string>
+    <string name="desktop_remove_text">Elimina el escritorio y sus apps incluidas. Se conservan los juegos, las apps agregadas, los ajustes y las bibliotecas compartidas.</string>
+    <string name="games_manage_saves">Administrar partidas guardadas</string>
+    <string name="games_added">Juego agregado</string>
+    <string name="deck_tab_gamepad">Control</string>
+    <string name="game_shortcut_add">Agregar a la pantalla de inicio</string>
+    <string name="game_shortcut_unsupported">Este launcher no puede agregar accesos directos. Usa Copiar enlace de inicio.</string>
+    <string name="session_runtime_catalog_unreachable">No se pudo acceder al catálogo del runtime. Revisa la conexión y vuelve a presionar Jugar.</string>
+    <string name="session_runtime_install_failed">El runtime de Linux no se instaló. Revisa el runtime en Configuración y vuelve a presionar Jugar.</string>
+    <string name="session_desktop_install_failed">El escritorio no se instaló (%1$s). Revisa la conexión y presiona Escritorio de nuevo.</string>
+    <string name="store_cat_audio_video">Audio y video</string>
+    <string name="theme_graphite_detail">Superficies grafito, con el azul del orbe del logotipo para todo lo seleccionado, enfocado o presionado.</string>
+    <string name="theme_icon_blue_detail">Fondo negro, texto blanco y el azul para todo lo seleccionado, enfocado o presionado.</string>
+    <string name="pckb_key_enter">Enter ⏎</string>
+    <string name="game_sync_err_added_games">La carpeta de juegos agregados no está disponible</string>
+    <string name="fm_favorite_add">Agregar a Favoritos</string>
+    <string name="fm_conflict_merge_hint">Combinar agrega y reemplaza archivos dentro de la carpeta existente.</string>
+    <string name="fm_favorite_added">Se agregó \"%1$s\" a Favoritos</string>
+    <string name="adbfix_enter_address">Ingresa la dirección IP y el puerto actuales de la Depuración inalámbrica</string>
+    <string name="adbpair_six_digits">Ingresa los 6 dígitos del código</string>
+    <string name="adbpair_code_rejected">Ese código no funcionó. Vuelve a abrir la ventana de vinculación e ingresa su nuevo código.</string>
+    <string name="adbpair_waiting_long">Activa la Depuración inalámbrica y toca “Vincular dispositivo con código de vinculación”. Quédate en Ajustes: el código se ingresa en esta notificación.</string>
+    <string name="adbpair_code_hint">Toca Ingresar código y escribe los 6 dígitos que muestra Ajustes.</string>
+    <string name="adbpair_title_code">Ingresa el código de vinculación Wi-Fi</string>
+    <string name="adbpair_enter_code">Ingresar código</string>
+    <string name="phantom_instructions_fix">%1$s Si no es posible, conecta este dispositivo a una computadora con ADB y ejecuta el comando de abajo. Después vuelve aquí y comprueba de nuevo.</string>
+    <string name="stores_kv_steam_on">se agrega a Steam al instalar (interfaz Deck + Steam Input)</string>
+    <string name="stores_download_manager">Administrador de descargas</string>
+    <string name="games_add_all">Agregar todos los juegos de esta carpeta</string>
+    <plurals name="games_added_n">
+        <item quantity="one">%1$d juego agregado</item>
+        <item quantity="many">%1$d juegos agregados</item>
+        <item quantity="other">%1$d juegos agregados</item>
+    </plurals>
+</resources>

@@ -9,12 +9,6 @@
 
 namespace dxvk {
   
-  /**
-   * \brief Signature entry
-   * 
-   * Stores the semantic name of an input or
-   * output and the corresponding register.
-   */
   struct DxbcSgnEntry {
     std::string       semanticName;
     uint32_t          semanticIndex;
@@ -26,12 +20,6 @@ namespace dxvk {
     uint32_t          streamId;
   };
   
-  /**
-   * \brief Input/Output signature chunk
-   * 
-   * Stores information about the input and
-   * output registers used by the shader stage.
-   */
   class DxbcIsgn : public RcObject {
     
   public:

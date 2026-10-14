@@ -18,7 +18,7 @@ index 64430a5..f4dcd98 100644
  {
 -    // Use red as a sentinal for a wide-gamut display
 -    return ( nativeDisplayOutput.primaries.r.x > 0.650f && nativeDisplayOutput.primaries.r.y < 0.320f );
-+    // Use red as a sentinal for a wide-gamut display; DCI-P3 red sits exactly on the threshold
++
 +    return ( nativeDisplayOutput.primaries.r.x > 0.650f && nativeDisplayOutput.primaries.r.y <= 0.320f );
  }
  

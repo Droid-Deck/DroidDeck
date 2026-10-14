@@ -9,7 +9,6 @@ class ProotFastPathTest {
     private val root = File("/data/data/com.droiddeck.launcher/files/linuxfs")
 
     @Test fun aSessionsUsualBindsGetAKey() {
-        // 87 on a device with two Games folders: past the old limit of 64, which dropped them.
         val binds = (1..87).map { "/host/$it:/guest/$it" }
         assertNotNull(ProotFastPath.key(root, binds))
     }

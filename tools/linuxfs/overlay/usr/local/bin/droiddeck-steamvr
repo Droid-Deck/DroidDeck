@@ -1,0 +1,96 @@
+#!/bin/sh
+set -u
+
+steamvr=${STEAMVR:-/opt/steamvr}
+vrdir=${DROIDDECK_VR_DIR:-/usr/local/lib/droiddeck-vr}
+driver=$vrdir/droiddeck
+layer=$vrdir/layer
+logs=$HOME/.local/share/Steam/logs
+state=${XDG_RUNTIME_DIR:-/tmp}/droiddeck-steamvr
+mkdir -p "$state"
+
+PKG_URL=https://steamdeck-packages.steamos.cloud/archlinux-deckard-hotfixes/release/0.3.x/deckard-steamvr-rel-r25358740%2B28b72a4f-1-aarch64.pkg.tar.zst
+PKG_SHA256=90a600775eb3e8856dc475f83166a93a290a0b1f3b4e82a69c8e2a8f06b9ddc9
+
+running() { pgrep -x vrserver >/dev/null 2>&1; }
+installed() { [ -x "$steamvr/bin/linuxarm64/vrstartup" ]; }
+
+stop() {
+    rm -f "$state/active"
+    for n in vrcompositor vrserver vrmonitor vrdashboard vrstartup vrwebhelper; do
+        for p in $(pgrep -x "$n"); do kill "$p" 2>/dev/null; done
+    done
+    for p in $(pgrep -f "$steamvr/bin/linuxarm64/vrcompositor-launcher"); do kill "$p" 2>/dev/null; done
+    return 0
+}
+
+case "${1:-status}" in
+status)
+    i=0; installed && i=1
+    r=0; running && r=1
+    if [ "$r" = 0 ] && [ -n "$(find "$state/active" -mmin +2 2>/dev/null)" ]; then rm -f "$state/active"; fi
+    n=0; [ -f "$state/installing" ] && n=1
+    d=0; [ -f "$driver/bin/linuxarm64/driver_droiddeck.so" ] && [ -f "$layer/libVkLayer_droiddeck_vr.so" ] && d=1
+    echo "installed=$i running=$r installing=$n driver=$d"
+    ;;
+install)
+    installed && { echo "SteamVR is already in $steamvr"; exit 0; }
+    [ -f "$state/installing" ] && { echo "already installing"; exit 0; }
+    : > "$state/installing"
+    trap 'rm -f "$state/installing"' EXIT
+    cache=$HOME/.cache/droiddeck-vr
+    mkdir -p "$cache"
+    pkg=$cache/steamvr.pkg.tar.zst
+    echo "downloading SteamVR (571 MB) from Valve's package server"
+    curl -fsSL --retry 5 -C - -o "$pkg" "$PKG_URL" || { echo "download failed"; exit 1; }
+    echo "$PKG_SHA256  $pkg" | sha256sum -c - >/dev/null 2>&1 || { echo "checksum mismatch: removing the download"; rm -f "$pkg"; exit 1; }
+    tmp=$cache/extract
+    rm -rf "$tmp" && mkdir -p "$tmp"
+    zstd -dc "$pkg" | tar -x -C "$tmp" opt/steamvr || { echo "extract failed"; rm -rf "$tmp"; exit 1; }
+    mkdir -p "$(dirname "$steamvr")"
+    rm -rf "$steamvr" && mv "$tmp/opt/steamvr" "$steamvr" && rm -rf "$tmp" "$pkg"
+    echo "SteamVR installed in $steamvr"
+    ;;
+stop)
+    stop
+    ;;
+start)
+    installed || { echo "SteamVR is not installed (droiddeck-steamvr install)"; exit 1; }
+    [ -f "$driver/bin/linuxarm64/driver_droiddeck.so" ] || { echo "the Cardboard driver is missing from $driver"; exit 1; }
+    stop
+    sleep 1
+    mkdir -p "$HOME/.config/openvr" "$HOME/.config/openxr/1" "$logs" "$HOME/.local/share/Steam/config"
+    cat > "$HOME/.config/openvr/openvrpaths.vrpath" <<JSON
+{
+  "config": ["$HOME/.local/share/Steam/config"],
+  "external_drivers": ["$driver"],
+  "jsonid": "vrpathreg",
+  "log": ["$logs"],
+  "runtime": ["$steamvr"],
+  "version": 1
+}
+JSON
+    ln -sf "$steamvr/steamxr_linuxarm64.json" "$HOME/.config/openxr/1/active_runtime.json"
+
+    export VK_LAYER_PATH="$layer${VK_LAYER_PATH:+:$VK_LAYER_PATH}"
+    export VK_INSTANCE_LAYERS="VK_LAYER_DROIDDECK_vr${VK_INSTANCE_LAYERS:+:$VK_INSTANCE_LAYERS}"
+    export VK_LOADER_LAYERS_DISABLE="${VK_LOADER_LAYERS_DISABLE:-~implicit~}"
+
+    shims=$state/shims
+    mkdir -p "$shims"
+    if ! command -v xset >/dev/null 2>&1; then
+        printf '#!/bin/sh\n# xset stand-in for vrwebhelper.sh: "q" only checks the display answers.\nexec xprop -root -display "${DISPLAY:-:0}" _NET_SUPPORTED >/dev/null 2>&1\n' > "$shims/xset"
+        chmod +x "$shims/xset"
+        export PATH="$shims:$PATH"
+    fi
+
+    : > "$state/active"
+    cd "$steamvr/bin/linuxarm64" || exit 1
+    setsid ./vrstartup > "$state/vrstartup.log" 2>&1 < /dev/null &
+    echo "SteamVR starting; logs in $logs and $state/vrstartup.log"
+    ;;
+*)
+    echo "usage: droiddeck-steamvr status|install|start|stop" >&2
+    exit 2
+    ;;
+esac

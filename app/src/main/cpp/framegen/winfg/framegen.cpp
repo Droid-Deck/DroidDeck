@@ -1,4 +1,3 @@
-// win-fg - compute frame-generation engine implementation.
 #include "framegen.hpp"
 #include "embedded_shaders.hpp"
 #include "log.hpp"
@@ -49,10 +48,6 @@ void FrameGen::destroyImage(Img& i) {
     i = Img{};
 }
 
-// C1: allocate the per-slot host-visible SSBOs the LK reduce writes partials into.
-// Host-visible + coherent so the CPU can read them back after the owning frame's
-// fence signals (no staging copy needed; the buffers are tiny - kGmThreads*kGmStride
-// floats each, ~64 KB). Persistently mapped.
 bool FrameGen::makeGmBuffers() {
     const VkDeviceSize sz = (VkDeviceSize)kGmThreads * kGmStride * sizeof(float);
     const VkMemoryPropertyFlags want = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
@@ -75,8 +70,6 @@ bool FrameGen::makeGmBuffers() {
 
 bool FrameGen::makePipe(Pipe& p, int shaderId,
                         const std::vector<VkDescriptorType>&) {
-    // binding layout is derived per shader below in init(); here we only build
-    // the module + a generic layout supplied by caller via setLayout already set.
     embedded::Blob b = embedded::blob((embedded::Shader)shaderId);
     VkShaderModuleCreateInfo mi{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
     mi.codeSize = b.words * 4; mi.pCode = b.code;
@@ -101,7 +94,6 @@ void FrameGen::destroyPipe(Pipe& p) {
     p = Pipe{};
 }
 
-// Build a descriptor-set layout from an explicit (binding, type) list.
 static bool buildSetLayout(const DeviceDispatch* dd, VkDevice dev,
                            const std::vector<std::pair<uint32_t, VkDescriptorType>>& binds,
                            VkDescriptorSetLayout& out) {
@@ -123,12 +115,11 @@ bool FrameGen::init(const DeviceDispatch* dd, const InstanceDispatch* id,
     si.addressModeU = si.addressModeV = si.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     VKOK(dd_->CreateSampler(device_, &si, nullptr, &linear_));
 
-    // descriptor pool sized generously for our per-frame sets.
     VkDescriptorPoolSize sizes[] = {
         {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 256},
         {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 256},
         {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 64},
-        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 16},   // C1 LK-reduce SSBOs
+        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 16},
     };
     VkDescriptorPoolCreateInfo pci{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
     pci.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
@@ -141,19 +132,15 @@ bool FrameGen::init(const DeviceDispatch* dd, const InstanceDispatch* id,
     const auto U = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     const auto SB = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 
-    // per-shader binding sets (match the GLSL layout(binding=...) declarations)
     if (!buildSetLayout(dd_, dev, {B{32,S},B{48,W}}, pLuma_.setLayout)) return false;
     if (!buildSetLayout(dd_, dev, {B{32,S},B{48,W}}, pDown_.setLayout)) return false;
     if (!buildSetLayout(dd_, dev, {B{0,U},B{32,S},B{33,S},B{34,S},B{48,W}}, pFlow_.setLayout)) return false;
     if (!buildSetLayout(dd_, dev, {B{0,U},B{32,S},B{33,S},B{34,S},B{48,W}}, pFlowM4_.setLayout)) return false;
-    // C1: expand sets gain a second UBO (binding 1 = GMUBO) for the global-motion add-back.
     if (!buildSetLayout(dd_, dev, {B{0,U},B{1,U},B{32,S},B{48,W},B{49,W}}, pExpand_.setLayout)) return false;
     if (!buildSetLayout(dd_, dev, {B{0,U},B{1,U},B{32,S},B{48,W},B{49,W}}, pExpandM4_.setLayout)) return false;
     if (!buildSetLayout(dd_, dev, {B{0,U},B{32,S},B{33,S},B{34,S},B{35,S},B{48,W}}, pSynth_.setLayout)) return false;
-    // C1: LK-reduce (UBO, SSBO, prev, curr) and curr-luma stabilization prewarp (UBO, src, dst).
     if (!buildSetLayout(dd_, dev, {B{1,U},B{16,SB},B{32,S},B{33,S}}, pGmReduce_.setLayout)) return false;
     if (!buildSetLayout(dd_, dev, {B{1,U},B{32,S},B{48,W}}, pGmPrewarp_.setLayout)) return false;
-    // C2: flow-reg (UBO, u_in, f0_obs, luma, out).
     if (!buildSetLayout(dd_, dev, {B{0,U},B{32,S},B{33,S},B{34,S},B{48,W}}, pFlowReg_.setLayout)) return false;
 
     std::vector<VkDescriptorType> unused;
@@ -177,23 +164,19 @@ static VkExtent2D levelExtent(VkExtent2D e, int l) {
     return { e.width >> l ? e.width >> l : 1u, e.height >> l ? e.height >> l : 1u };
 }
 
-bool FrameGen::onResize(VkExtent2D extent, VkFormat /*colorFormat*/, bool force) {
-    // force skips the same-extent early-out so a perf_preset change (which alters
-    // flowFinest_ and therefore the per-size flow-image resolutions) rebuilds them.
+bool FrameGen::onResize(VkExtent2D extent, VkFormat  , bool force) {
+
+
     if (!force && ready_ && extent.width == extent_.width && extent.height == extent_.height) return true;
-    // tear down previous size
     for (auto& i : pyrA_) destroyImage(i); pyrA_.clear();
     for (auto& i : pyrB_) destroyImage(i); pyrB_.clear();
     for (auto& i : pyrAs_) destroyImage(i); pyrAs_.clear();
     for (auto& i : flowLvl_) destroyImage(i); flowLvl_.clear();
     destroyImage(flowExpA_); destroyImage(flowExpB_);
-    destroyImage(flowRegA_); destroyImage(flowRegB_);   // C2
+    destroyImage(flowRegA_); destroyImage(flowRegB_);
     extent_ = extent; ready_ = false;
 
     const VkImageUsageFlags lumaUsage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
-    // flowLvl_ is cleared every frame (per-frame reset) and C2 copies the cleaned
-    // finest level back into it - both need TRANSFER_DST. The C2 ping-pong images
-    // are the copy SOURCE (TRANSFER_SRC).
     const VkImageUsageFlags flowUsage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     const VkImageUsageFlags regUsage  = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
     pyrA_.resize(kLevels); pyrB_.resize(kLevels); flowLvl_.resize(kLevels);
@@ -203,13 +186,11 @@ bool FrameGen::onResize(VkExtent2D extent, VkFormat /*colorFormat*/, bool force)
         if (!makeImage(pyrB_[l], e, VK_FORMAT_R32_SFLOAT, lumaUsage)) return false;
         if (!makeImage(flowLvl_[l], e, VK_FORMAT_R16G16B16A16_SFLOAT, flowUsage)) return false;
     }
-    // C1: stabilized curr luma - only the levels the dense flow reads (finest..coarsest).
     pyrAs_.resize(kLevels);
     for (int l = flowFinest_; l < kLevels; ++l)
         if (!makeImage(pyrAs_[l], levelExtent(extent, l), VK_FORMAT_R32_SFLOAT, lumaUsage)) return false;
     if (!makeImage(flowExpA_, extent, VK_FORMAT_R16G16B16A16_SFLOAT, flowUsage)) return false;
     if (!makeImage(flowExpB_, extent, VK_FORMAT_R16G16B16A16_SFLOAT, flowUsage)) return false;
-    // C2: TV-L1 ping-pong scratch at the finest solved flow level (perf_preset-driven res).
     if (!makeImage(flowRegA_, levelExtent(extent, flowFinest_), VK_FORMAT_R16G16B16A16_SFLOAT, regUsage)) return false;
     if (!makeImage(flowRegB_, levelExtent(extent, flowFinest_), VK_FORMAT_R16G16B16A16_SFLOAT, regUsage)) return false;
     ready_ = true;
@@ -229,13 +210,6 @@ void FrameGen::barrier(VkCommandBuffer cmd, VkImage img, VkImageLayout from, VkI
         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &b);
 }
 
-// NOTE: descriptor-set allocation/update per record() and the exact per-level
-// flow wiring are implemented in record_impl.inc for readability; the graph is:
-//   luma(curr)->pyrA[0], luma(prev)->pyrB[0]
-//   downsample pyrA/pyrB to kLevels
-//   coarse->fine flow (per level) into flowLvl
-//   expand flowLvl[0] -> flowExpA/flowExpB
-//   synth(prev,curr,flowExpA,flowExpB, alpha) -> out
 
 void FrameGen::destroy() {
     if (!device_) return;
@@ -245,11 +219,11 @@ void FrameGen::destroy() {
     for (auto& i : pyrAs_) destroyImage(i); pyrAs_.clear();
     for (auto& i : flowLvl_) destroyImage(i); flowLvl_.clear();
     destroyImage(flowExpA_); destroyImage(flowExpB_);
-    destroyImage(flowRegA_); destroyImage(flowRegB_);   // C2
+    destroyImage(flowRegA_); destroyImage(flowRegB_);
     destroyPipe(pLuma_); destroyPipe(pDown_); destroyPipe(pFlow_); destroyPipe(pFlowM4_);
     destroyPipe(pExpand_); destroyPipe(pExpandM4_); destroyPipe(pSynth_);
     destroyPipe(pGmReduce_); destroyPipe(pGmPrewarp_);
-    destroyPipe(pFlowReg_);   // C2
+    destroyPipe(pFlowReg_);
     for (int s = 0; s < kGmSlots; ++s) {
         if (gmSsboMem_[s]) dd_->UnmapMemory(device_, gmSsboMem_[s]);
         if (gmSsbo_[s]) dd_->DestroyBuffer(device_, gmSsbo_[s], nullptr);
@@ -262,8 +236,6 @@ void FrameGen::destroy() {
     descPool_ = VK_NULL_HANDLE; linear_ = VK_NULL_HANDLE; device_ = VK_NULL_HANDLE; ready_ = false;
 }
 
-} // namespace winfg
+}
 
-// record() + its scratch helpers reopen namespace winfg themselves, so include
-// this OUTSIDE the namespace block above (keeps FrameGen:: members attached).
 #include "record_impl.inc"
