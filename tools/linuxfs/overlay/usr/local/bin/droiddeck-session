@@ -846,6 +846,7 @@ BUSCONF
       "$steam_root/steamrtarm64/steam" "${_bl_ui[@]}" "${_bl_cdp[@]}" "${_bl_lang[@]}" -clientbeta "$steam_channel" \
         -no-cef-sandbox -cef-ozone-platform=x11 "${_bl_cef[@]}" "$@"
       rc=$?
+      steam_ran=$((SECONDS - steam_started))
       if [ -n "$desktop_ui_pid" ]; then
         kill "$desktop_ui_pid" 2>/dev/null || true
         wait "$desktop_ui_pid" 2>/dev/null || true
@@ -880,7 +881,7 @@ BUSCONF
         continue
       fi
       [ "$rc" -eq 42 ] || break
-      if steam_update_stuck $((SECONDS - steam_started)); then
+      if steam_update_stuck "$steam_ran"; then
         echo "== steam: asked to restart for an update $steam_updates times and it is not installing; the session stops here rather than loop"
         break
       fi
