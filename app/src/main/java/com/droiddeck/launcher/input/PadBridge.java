@@ -245,10 +245,10 @@ public final class PadBridge {
             case KeyEvent.KEYCODE_BUTTON_MODE:
             case KeyEvent.KEYCODE_HOME: pad.press(PadState.GUIDE, pressed); break;
             case KeyEvent.KEYCODE_BUTTON_C:
-                if (slot == 0) DeckControls.INSTANCE.setGrip(DeckControls.L4, pressed);
+                if (isPrimary(event)) DeckControls.INSTANCE.setGrip(DeckControls.L4, pressed);
                 break;
             case KeyEvent.KEYCODE_BUTTON_Z:
-                if (slot == 0) DeckControls.INSTANCE.setGrip(DeckControls.R4, pressed);
+                if (isPrimary(event)) DeckControls.INSTANCE.setGrip(DeckControls.R4, pressed);
                 break;
             case KeyEvent.KEYCODE_BUTTON_L2: pad.leftTrigger = pressed ? 1f : 0f; break;
             case KeyEvent.KEYCODE_BUTTON_R2: pad.rightTrigger = pressed ? 1f : 0f; break;
@@ -421,6 +421,10 @@ public final class PadBridge {
 
     private PadState stateFor(int slot) {
         return slot == 0 ? state : playerStates[slot];
+    }
+
+    private boolean isPrimary(KeyEvent event) {
+        return owners[0] == event.getDevice().getId();
     }
 
     private void releaseBackPaddles() {
