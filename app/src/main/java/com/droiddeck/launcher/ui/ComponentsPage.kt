@@ -170,6 +170,7 @@ fun ComponentsPage(
     var selectedGameKey by remember { mutableStateOf<String?>(null) }
     var fexMenu by remember { mutableStateOf(false) }
     var gameProtonMenu by remember { mutableStateOf(false) }
+    var gameLocaleMenu by remember { mutableStateOf(false) }
     var gameProtonId by remember { mutableStateOf<String?>(null) }
     var gameProtonChoice by remember { mutableStateOf<ProtonDefault.GameChoice?>(null) }
     var gameComponents by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
@@ -255,6 +256,30 @@ fun ComponentsPage(
             runCatching {
                 withContext(Dispatchers.IO) {
                     GameEnvironmentStore.setGameFexPreset(ctx, game.profileKey, preset)
+                }
+            }.onSuccess { saved ->
+                environment = saved
+                if (selectedGameKey == game.profileKey) {
+                    environmentError = false
+                    profileNotice = ctx.getString(R.string.comp_game_saved_next, game.name)
+                }
+            }.onFailure {
+                if (selectedGameKey == game.profileKey) {
+                    environmentError = true
+                    profileNotice = ctx.getString(R.string.comp_game_save_failed, it.message ?: it.javaClass.simpleName)
+                }
+            }
+            environmentBusy = false
+        }
+    }
+    fun setGameLocale(locale: String?) {
+        val game = selectedGame ?: return
+        environmentBusy = true
+        profileNotice = null
+        coroutine.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    GameEnvironmentStore.setGameLocale(ctx, game.profileKey, locale)
                 }
             }.onSuccess { saved ->
                 environment = saved
@@ -831,12 +856,15 @@ fun ComponentsPage(
                     componentMenu = gameComponentMenu,
                     protonMenu = gameProtonMenu,
                     fexMenu = fexMenu,
+                    localeMenu = gameLocaleMenu,
                     busy = environmentBusy || profileLoading,
                     error = environmentError,
                     notice = profileNotice,
                     winComponentsRevision = winComponentsRevision,
                     onFexMenu = { fexMenu = it },
                     onFexPreset = ::setGameFexPreset,
+                    onLocaleMenu = { gameLocaleMenu = it },
+                    onLocale = ::setGameLocale,
                     onProtonMenu = { gameProtonMenu = it },
                     onProton = ::setGameProton,
                     onComponentMenu = { gameComponentMenu = it },
@@ -1128,6 +1156,7 @@ private fun GameComponentOverrides(
     componentMenu: String?,
     protonMenu: Boolean,
     fexMenu: Boolean,
+    localeMenu: Boolean,
     busy: Boolean,
     error: Boolean,
     notice: String?,
@@ -1136,6 +1165,8 @@ private fun GameComponentOverrides(
     onFexPreset: (String?) -> Unit,
     onProtonMenu: (Boolean) -> Unit,
     onProton: (String?) -> Unit,
+    onLocaleMenu: (Boolean) -> Unit,
+    onLocale: (String?) -> Unit,
     onComponentMenu: (String?) -> Unit,
     onComponent: (String, String?) -> Unit,
     onEnvironment: () -> Unit,
@@ -1145,6 +1176,7 @@ private fun GameComponentOverrides(
 ) {
     val context = LocalContext.current
     val override = config?.let { GameEnvironment.gameFexPreset(it, game.profileKey) }
+    val locale = config?.let { GameEnvironment.gameLocale(it, game.profileKey) }
     val proton = protons.firstOrNull { it.id == protonId }
     val effectiveProton = if (protonChoice == null) generalProton else proton
     val picks = remember(game.profileKey, winComponentsRevision) { WinComponents.picks(context, game.profileKey) }
@@ -1209,6 +1241,36 @@ private fun GameComponentOverrides(
                             MenuItem(option.name, checked = proton?.id == option.id) {
                                 onProton(option.id)
                                 onProtonMenu(false)
+                            }
+                        }
+                    }
+                }
+            }
+            SettingsRow(
+                stringResource(R.string.game_locale_title),
+                stringResource(if (locale == null) R.string.game_locale_inherited else R.string.game_locale_override),
+            ) {
+                Box {
+                    ValueChip(
+                        locale?.let { localeLabel(it) } ?: stringResource(R.string.comp_game_use_general),
+                        localeMenu,
+                        enabled = config != null && !busy,
+                        modifier = Modifier.widthIn(max = 280.dp),
+                    ) { onLocaleMenu(!localeMenu) }
+                    AnchoredMenu(
+                        localeMenu,
+                        onDismiss = { onLocaleMenu(false) },
+                        title = stringResource(R.string.game_locale_title),
+                    ) { first ->
+                        MenuItem(
+                            stringResource(R.string.comp_game_use_general),
+                            checked = locale == null,
+                            focusRequester = first,
+                        ) { onLocale(null); onLocaleMenu(false) }
+                        GameEnvironment.locales.forEach { option ->
+                            MenuItem(localeLabel(option), checked = locale == option) {
+                                onLocale(option)
+                                onLocaleMenu(false)
                             }
                         }
                     }
