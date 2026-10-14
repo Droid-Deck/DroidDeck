@@ -52,6 +52,25 @@ Ultra capability. The connected Pro firmware matches both the N6PL entry in the
 N6P entry in the [public release-note service](https://cloud.viture.dev/api/v1/system/releasenote)
 checked on 2026-10-14. This does not rule out unpublished, device-specific updates.
 
+## Powered dock results
+
+A VITURE Pro Mobile Dock (`35ca:3011`) was connected between the Astra and Pro XR.
+Its official read-only P9 version query returned `2.01.03.0.03` with a valid
+checksum. The Astra negotiated 1920×1080/120, but enumerated only the dock's
+USB interfaces, not the glasses' `35ca:101d` control/IMU interfaces. A one-second
+DroidDeck IMU sample returned zero packets.
+
+DroidDeck now keeps the dock's display available without requesting unsupported
+USB control access. The updated build was installed on this connection: no USB
+permission prompt appeared, video remained at 1080p/120 and tracking stayed off.
+
+[VITURE's Pro Dock specifications](https://www.viture.com/product/viture-pro-mobile-dock)
+confirm 3840×1080/60 video support and exclude phone features requiring
+communication with the glasses. The vendor SDK also treats the dock as a separate
+accessory, not an IMU device. This dock may test the video path, but it does not
+provide DroidDeck's current head-tracking path. Stereo negotiation and mode
+retention during an upstream-only reconnect still require a physical test.
+
 ## No-root hardware design to test
 
 A powered pass-through connection may let the tablet see the stereo EDID on a
@@ -104,8 +123,9 @@ temperatures rather than cached thermal-service samples.
 
 - Full debug APK build, including the Rust store engine; native-library, session
   asset and runtime-input packaging checks passed.
-- 840 Android unit tests across 140 suites passed, including mode deadlines,
-  reconnect ownership, stale USB callbacks and model-specific protocol cases.
+- 846 Android unit tests across 141 suites passed, including mode deadlines,
+  reconnect ownership, stale USB callbacks, dock selection and permission handling,
+  truncated USB frames and model-specific protocol cases.
 - Four host tests passed, including native refresh notification, event coalescing,
   full-pipe handling and Cardboard output checks.
 - On the Astra: brightness changed and was restored; IMU delivered 400 packets
@@ -118,6 +138,7 @@ temperatures rather than cached thermal-service samples.
 - DroidDeck was force-stopped and relaunched after testing. Debugging tools and
   temporary logging/display overrides were restored. Current HAL temperatures
   after the session were 25°C battery and 28.3°C skin.
+- The dock checks ran without a game load; the idle battery temperature was 24°C.
 
 These checks do not establish stereo-game performance or a sustained thermal
 baseline. Direct-cable stereo and the powered-adapter design remain unverified

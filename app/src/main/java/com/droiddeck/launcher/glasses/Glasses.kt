@@ -337,18 +337,24 @@ object Glasses {
     }
 
     private fun refresh(ask: Boolean = false) {
-        val device = usb.deviceList.values.firstOrNull { it.vendorId == VitureProtocol.VENDOR_ID }
-        val permitted = device != null && usb.hasPermission(device)
+        val devices = usb.deviceList.values.filter { it.vendorId == VitureProtocol.VENDOR_ID }
+        val known = devices.mapNotNull { device ->
+            VitureProtocol.model(device.productId, runCatching { device.productName }.getOrNull())?.let { device to it }
+        }
+        val selected = known.firstOrNull { it.second.controllable } ?: known.firstOrNull()
+        val device = selected?.first
+        val m = selected?.second
+        val controllable = m?.controllable == true
+        val permitted = controllable && device != null && usb.hasPermission(device)
         val identity = device?.let {
             GlassesModeState.Device(it.productId, if (permitted) runCatching { it.serialNumber }.getOrNull() else null)
         }
         if (modeState.updateDevice(identity, SystemClock.uptimeMillis())) {
             rememberSbs(GlassesState.SBS_UNKNOWN)
         }
-        val m = device?.let { VitureProtocol.model(it.productId, runCatching { it.productName }.getOrNull()) }
         if (device == null || (linkDevice != null && linkDevice?.deviceName != device.deviceName)) closeLink()
         model = m
-        val display = findDisplay(device != null)
+        val display = findDisplay(devices.isNotEmpty())
         val mode = display?.mode
         val width = mode?.physicalWidth ?: 0
         val height = mode?.physicalHeight ?: 0
@@ -362,15 +368,15 @@ object Glasses {
             else -> Unit
         }
         if (sbsByDisplay) rememberSbs(GlassesState.SBS_WORKS)
-        if (device != null && !permitted && (ask || !asked) && _state.value.permission != Permission.ASKING) askPermission(device)
-        if (device != null && permitted && link == null && m?.controllable == true) openLink(device)
+        if (controllable && device != null && !permitted && (ask || !asked) && _state.value.permission != Permission.ASKING) askPermission(device)
+        if (device != null && permitted && link == null) openLink(device)
         publish {
             it.copy(
-                present = device != null || display != null,
+                present = devices.isNotEmpty() || display != null,
                 model = m?.name ?: display?.let(::displayName) ?: "VITURE",
-                controllable = m?.controllable == true,
+                controllable = controllable,
                 permission = when {
-                    device == null -> Permission.NONE
+                    !controllable -> Permission.NONE
                     permitted -> Permission.GRANTED
                     it.permission == Permission.ASKING || it.permission == Permission.DENIED -> it.permission
                     else -> Permission.NONE

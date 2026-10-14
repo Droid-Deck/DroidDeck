@@ -127,13 +127,13 @@ object VitureProtocol {
     class Frame(val magic: Int, val msgId: Int, val payload: ByteArray, val crcOk: Boolean)
 
     fun parse(buf: ByteArray, size: Int): Frame? {
-        if (size < HEADER || (buf[0].toInt() and 0xFF) != 0xFF) return null
+        if (size < HEADER || size > buf.size || (buf[0].toInt() and 0xFF) != 0xFF) return null
         val magic = buf[1].toInt() and 0xFF
         if (magic != MAGIC_COMMAND && magic != MAGIC_REPORT && magic != MAGIC_IMU) return null
         val len = u16(buf, 4)
-        if (len < 0x0C) return null
-        val dataLen = (len - 0x0C).coerceAtMost(size - HEADER)
-        val crcOk = len + 6 <= size && crc16(buf, 4, len + 2) == u16(buf, 2)
+        if (len < 0x0C || len + 6 > size) return null
+        val dataLen = len - 0x0C
+        val crcOk = crc16(buf, 4, len + 2) == u16(buf, 2)
         return Frame(magic, u16(buf, 14), buf.copyOfRange(HEADER, HEADER + dataLen), crcOk)
     }
 

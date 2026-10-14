@@ -41,7 +41,40 @@ class VitureProtocolTest {
         assertArrayEquals(byteArrayOf(0x34), f.payload)
         assertTrue(f.crcOk)
         p[18] = 0x31
-        assertFalse(VitureProtocol.parse(p, p.size)!!.crcOk)
+        val badCrc = VitureProtocol.parse(p, p.size)!!
+        assertFalse(badCrc.crcOk)
+        assertArrayEquals(byteArrayOf(0x31), badCrc.payload)
+    }
+
+    @Test fun parseAcceptsPaddingOutsideDeclaredFrame() {
+        val payload = byteArrayOf(0, 0x32)
+        val p = VitureProtocol.packet(VitureProtocol.MSG_DISPLAY, payload)
+        val end = 18 + payload.size
+        p.fill(0x5A, end)
+        for (size in listOf(end, p.size)) {
+            val frame = VitureProtocol.parse(p, size)!!
+            assertArrayEquals(payload, frame.payload)
+            assertTrue(frame.crcOk)
+        }
+    }
+
+    @Test fun parseRejectsTruncatedDeclaredFrame() {
+        val p = VitureProtocol.packet(VitureProtocol.MSG_DISPLAY, byteArrayOf(0, 0x32))
+        val received = 19
+        assertNull(VitureProtocol.parse(p, received))
+        assertNull(VitureProtocol.parse(p.copyOf(received), received))
+        p[4] = 0xFF.toByte()
+        p[5] = 0xFF.toByte()
+        assertNull(VitureProtocol.parse(p, p.size))
+    }
+
+    @Test fun parseRejectsInvalidReceiveSize() {
+        val p = VitureProtocol.packet(VitureProtocol.MSG_DISPLAY, byteArrayOf(0, 0x32))
+        assertNull(VitureProtocol.parse(p, p.size + 1))
+        assertNull(VitureProtocol.parse(p, 17))
+        assertNull(VitureProtocol.parse(ByteArray(0), 18))
+        assertNull(VitureProtocol.parse(ByteArray(0), 0))
+        assertNull(VitureProtocol.parse(p, -1))
     }
 
     @Test fun parseReadsRepliesAndRejectsJunk() {

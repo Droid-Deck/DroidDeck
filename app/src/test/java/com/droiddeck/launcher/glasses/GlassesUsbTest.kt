@@ -1,0 +1,129 @@
+package com.droiddeck.launcher.glasses
+
+import android.app.PendingIntent
+import android.content.Context
+import android.hardware.display.DisplayManager
+import android.hardware.usb.UsbDevice
+import android.hardware.usb.UsbManager
+import android.os.Handler
+import android.os.Looper
+import android.view.Display
+import kotlinx.coroutines.flow.MutableStateFlow
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.Implementation
+import org.robolectric.annotation.Implements
+import org.robolectric.annotation.LooperMode
+import org.robolectric.shadow.api.Shadow
+import org.robolectric.shadows.ShadowDisplayManager
+import org.robolectric.shadows.ShadowUsbManager
+import org.robolectric.util.ReflectionHelpers
+import org.robolectric.util.ReflectionHelpers.ClassParameter.from
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [28], manifest = Config.NONE, shadows = [GlassesUsbTest.RecordingUsbManager::class])
+@LooperMode(LooperMode.Mode.PAUSED)
+class GlassesUsbTest {
+    private lateinit var manager: RecordingUsbManager
+    private lateinit var state: MutableStateFlow<GlassesState>
+    private fun field(name: String) = Glasses::class.java.getDeclaredField(name).apply { isAccessible = true }
+
+    @Before fun prepare() {
+        val context = RuntimeEnvironment.getApplication()
+        val usb = context.getSystemService(Context.USB_SERVICE) as UsbManager
+        manager = Shadow.extract(usb)
+        field("app").set(null, context)
+        field("usb").set(null, usb)
+        field("displays").set(null, context.getSystemService(Context.DISPLAY_SERVICE))
+        field("handler").set(null, Handler(Looper.getMainLooper()))
+        field("asked").setBoolean(null, false)
+        @Suppress("UNCHECKED_CAST")
+        state = field("_state").get(null) as MutableStateFlow<GlassesState>
+        state.value = GlassesState()
+    }
+
+    @Test fun controllableGlassesTakePriorityOverDockAndUnsupportedGlasses() {
+        val dock = device(0x3011)
+        val beast = device(0x1201)
+        val pro = device(0x101d)
+        manager.devices.putAll(listOf(dock, beast, pro).associateBy { it.deviceName })
+        refresh()
+        assertEquals(listOf(pro), manager.requests)
+        assertTrue(state.value.controllable)
+        assertEquals(Glasses.Permission.ASKING, state.value.permission)
+    }
+
+    @Test fun unsupportedDevicesNeverRequestOrAdvertiseUsbPermission() {
+        for (pid in listOf(0x3011, 0xffff, 0x1201)) {
+            val device = device(pid)
+            manager.devices.clear()
+            manager.devices[device.deviceName] = device
+            state.value = GlassesState()
+            refresh(ask = true)
+            assertTrue(manager.requests.isEmpty())
+            assertEquals(Glasses.Permission.NONE, state.value.permission)
+            manager.granted.add(device.deviceName)
+            state.value = GlassesState(permission = Glasses.Permission.ASKING)
+            refresh(ask = true)
+            assertTrue(manager.requests.isEmpty())
+            assertEquals(Glasses.Permission.NONE, state.value.permission)
+            assertTrue(state.value.present)
+            assertFalse(state.value.controllable)
+            assertFalse(state.value.connected)
+        }
+    }
+
+    @Test fun dockPresenceStillIdentifiesAnUnnamedPresentationDisplay() {
+        val hdmi = ReflectionHelpers.getStaticField<Int>(Display::class.java, "TYPE_HDMI")
+        val displayId = ShadowDisplayManager.addDisplay("w1920dp-h1080dp", hdmi)
+        val displays = RuntimeEnvironment.getApplication().getSystemService(DisplayManager::class.java)
+        val display = displays.getDisplay(displayId)
+        shadowOf(display).setFlags(Display.FLAG_PRESENTATION)
+        assertEquals(displayId, displays.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION).single().displayId)
+        assertFalse(display.name.contains("VITURE", ignoreCase = true))
+        val dock = device(0x3011)
+        manager.devices[dock.deviceName] = dock
+        refresh()
+        assertEquals(displayId, state.value.displayId)
+        assertTrue(manager.requests.isEmpty())
+        assertEquals(Glasses.Permission.NONE, state.value.permission)
+    }
+
+    private fun refresh(ask: Boolean = false) {
+        Glasses::class.java.getDeclaredMethod("refresh", Boolean::class.javaPrimitiveType)
+            .apply { isAccessible = true }.invoke(Glasses, ask)
+    }
+
+    private fun device(pid: Int): UsbDevice = ReflectionHelpers.callConstructor(
+        UsbDevice::class.java,
+        from(String::class.java, "/dev/bus/usb/$pid"),
+        from(Int::class.javaPrimitiveType, VitureProtocol.VENDOR_ID),
+        from(Int::class.javaPrimitiveType, pid),
+        from(Int::class.javaPrimitiveType, 0),
+        from(Int::class.javaPrimitiveType, 0),
+        from(Int::class.javaPrimitiveType, 0),
+        from(String::class.java, "VITURE"),
+        from(String::class.java, "VITURE device"),
+        from(String::class.java, "1.0"),
+        from(String::class.java, "test-$pid"),
+    )
+
+    @Implements(UsbManager::class)
+    class RecordingUsbManager : ShadowUsbManager() {
+        val devices = linkedMapOf<String, UsbDevice>()
+        val granted = mutableSetOf<String>()
+        val requests = mutableListOf<UsbDevice>()
+
+        @Implementation override fun getDeviceList(): HashMap<String, UsbDevice> = LinkedHashMap(devices)
+        @Implementation override fun hasPermission(device: UsbDevice): Boolean = device.deviceName in granted
+        @Implementation fun requestPermission(device: UsbDevice, intent: PendingIntent) { requests += device }
+    }
+}
