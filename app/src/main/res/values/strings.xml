@@ -444,9 +444,6 @@
     <string name="game_no_steam_title">Start without Steam</string>
     <string name="game_no_steam_detail">For a game that closes right away: starts it without Proton\'s Steam setup. Steam features such as the overlay are off for it.</string>
     <string name="game_no_steam_on">On</string>
-    <string name="game_locale_title">Locale</string>
-    <string name="game_locale_inherited">Using the Default profile locale.</string>
-    <string name="game_locale_override">Custom locale saved for this game.</string>
     <string name="comp_game_proton_live">%1$s\'s Proton choice is saved and available in Steam now.</string>
     <string name="comp_game_proton_next">%1$s\'s Proton choice is saved. Restart Steam before launching the game.</string>
     <string name="comp_game_proton_not_runnable">%1$s cannot use the selected Proton on this device.</string>
