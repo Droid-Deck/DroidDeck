@@ -12,12 +12,13 @@ trap 'rm -rf "${work}"' EXIT
 cache=${DROIDDECK_BUILD_CACHE:-"${HOME}/.cache/droiddeck-build"}
 mkdir -p "${cache}"
 fetch() {
-  local name=$1 sha=$2 kept="${cache}/$2-$1"
+  local name=$1 sha=$2 kept="${cache}/$2-$1" part
   if ! echo "${sha}  ${kept}" | sha256sum -c - >/dev/null 2>&1; then
-    curl -fsSL --retry 3 -o "${kept}.part" \
+    part=$(mktemp "${kept}.part.XXXXXX")
+    curl -fsSL --retry 3 -o "${part}" \
       "https://github.com/${DIRECTAUDIO_REPO}/releases/download/${DIRECTAUDIO_TAG}/${name}"
-    echo "${sha}  ${kept}.part" | sha256sum -c - >/dev/null || { echo "${name}: checksum mismatch" >&2; rm -f "${kept}.part"; exit 1; }
-    mv "${kept}.part" "${kept}"
+    echo "${sha}  ${part}" | sha256sum -c - >/dev/null || { echo "${name}: checksum mismatch" >&2; rm -f "${part}"; exit 1; }
+    mv "${part}" "${kept}"
   fi
   cp "${kept}" "${work}/${name}"
 }

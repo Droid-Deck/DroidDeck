@@ -84,20 +84,21 @@ restore_step() {
     local stored="${cache_dir}/steps/$1/$2"
     [[ -f "${stored}/.complete" ]] || return 1
     mkdir -p "$3"
-    (cd "${stored}" && tar -cf - --exclude .complete .) | tar -xf - -C "$3"
+    (cd "${stored}" && tar -cf - --exclude .complete .) | tar -xf - -C "$3" || return 1
     echo "$1: inputs unchanged, reused ${stored}"
 }
 save_step() {
-    local stored="${cache_dir}/steps/$1/$2"
-    rm -rf "${stored}.part"
-    mkdir -p "${stored}.part"
-    (cd "$3" && tar -cf - .) | tar -xf - -C "${stored}.part"
-    touch "${stored}.part/.complete"
-    rm -rf "${stored}"
-    mv "${stored}.part" "${stored}"
+    local stored="${cache_dir}/steps/$1/$2" part
+    mkdir -p "${cache_dir}/steps/$1"
+    part=$(mktemp -d "${stored}.part.XXXXXX")
+    (cd "$3" && tar -cf - .) | tar -xf - -C "${part}"
+    touch "${part}/.complete"
+    # Another checkout may have published the same key meanwhile; its copy is equivalent.
+    if [[ -e "${stored}" ]]; then rm -rf "${part}"; else mv "${part}" "${stored}" || rm -rf "${part}"; fi
 }
 
 python3 "${repo_root}/tools/docker_preflight.py" "${image_name}"
+image_id=$(docker image inspect --format '{{.Id}}' "${image_name}")
 rm -rf -- "${linuxfs_dir}"
 mkdir -p "${linuxfs_dir}"
 
@@ -162,7 +163,7 @@ if restore_step x86-preloads "${x86_key}" "${linuxfs_dir}"; then :; else
 fi
 
 vr_out="${linuxfs_dir}/usr/local/lib/droiddeck-vr"
-vr_key=$(inputs_hash "${image_name}" tools/vr app/src/main/cpp/waylandcomp/generated/xdg-shell-protocol.c)
+vr_key=$(inputs_hash "${image_id} ${ndk_version} ${VK_INCLUDE:-}" tools/vr app/src/main/cpp/waylandcomp/generated/xdg-shell-protocol.c)
 if ! restore_step vr "${vr_key}" "${vr_out}"; then
     DROIDDECK_BUILD_IMAGE="${image_name}" "${repo_root}/tools/vr/build.sh" "${vr_out}"
     save_step vr "${vr_key}" "${vr_out}"
@@ -351,9 +352,9 @@ fi
 cd "${repo_root}"
 python3 tools/quest/build-driver.py "${NDK}"
 comet_out="${linuxfs_dir}/usr/local/lib/droiddeck-comet"
-comet_key=$(inputs_hash "${image_name}" tools/comet)
+comet_key=$(inputs_hash "${image_id}" tools/comet)
 if ! restore_step comet "${comet_key}" "${comet_out}"; then
-    COMET_BUILD_DIR="${cache_dir}/comet-build" DROIDDECK_BUILD_IMAGE="${image_name}" bash tools/comet/build-local.sh
+    DROIDDECK_BUILD_IMAGE="${image_name}" bash tools/comet/build-local.sh
     save_step comet "${comet_key}" "${comet_out}"
 fi
 python3 tools/release/runtime_inputs.py record
