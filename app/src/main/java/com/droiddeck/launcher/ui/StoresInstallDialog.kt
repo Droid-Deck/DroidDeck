@@ -40,11 +40,6 @@ import com.droiddeck.launcher.stores.StoreInstallRoot
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.formatBytes
 
-/**
- * "Install <game>:" over one row per place - internal storage, the card - each the action
- * itself: icon, name, free space. Asked only when a card is there. The row picked last time
- * starts focused, so a pad confirms the usual place with one press; nothing is chosen for the user.
- */
 @Composable
 internal fun InstallWhereDialog(item: CatalogItem, onDismiss: () -> Unit) {
     val ctx = LocalContext.current

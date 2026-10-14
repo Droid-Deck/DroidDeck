@@ -8,8 +8,16 @@ import unittest
 
 SESSION = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin/droiddeck-session"
 SOURCE = SESSION.read_text()
-START = SOURCE.index("    # Steam's launch-action handler maps a shortcut CGameID")
-END = SOURCE.index("    # Debug aid while the runtime is being brought up", START)
+END = SOURCE.index(
+    '    if [ -s "$HOME/.bl-autolaunch" ]; then',
+    SOURCE.index("          _bl_launch_ready="),
+)
+START = SOURCE.rfind(
+    '    if [ -n "${BL_LAUNCH_DIR:-}" ] && [ -z "${BL_DESKTOP:-}" ]; then',
+    0,
+    END,
+)
+assert START >= 0
 LAUNCH_BLOCK = textwrap.dedent(SOURCE[START:END])
 
 

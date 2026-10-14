@@ -10,12 +10,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.atomic.AtomicBoolean
 
-/**
- * The signed-in account's Epic library: the library service's records, each enriched from the
- * catalog (title, art, DLC flag), cached so the tab paints at once and re-synced when forced or
- * 15 minutes stale. DLC entries are folded away under their base game. Ported from Bannerlator's
- * EpicLibraryRepo.
- */
 object EpicLibrary {
     private const val TAG = "EpicLibrary"
     private const val CACHE_KEY = "library_cache"
@@ -53,7 +47,6 @@ object EpicLibrary {
         }.getOrDefault(emptyList())
     }
 
-    /** Remembers a game's install size once the manifest said it, for the Install button. */
     fun rememberSize(context: Context, appName: String, bytes: Long) {
         if (bytes <= 0) return
         val p = EpicPrefs.get(context)
@@ -115,7 +108,6 @@ object EpicLibrary {
         imageUrl = g.artSquare.ifBlank { null } ?: g.artCover.ifBlank { null },
         tallImageUrl = g.artCover.ifBlank { null } ?: g.artSquare.ifBlank { null },
         developer = g.developer, publisher = g.publisher, description = com.droiddeck.launcher.stores.cleanStoreText(g.description), owned = true,
-        // A cache from before the release date was kept still has it under the older per-game key.
         releaseDate = g.releaseDate.ifEmpty { EpicPrefs.get(context).getString("release_${g.appName}", "").orEmpty() },
         sizeBytes = EpicPrefs.get(context).getLong("size_${g.appName}", g.installSize),
         storeUrl = "https://store.epicgames.com/en-US/browse?q=${java.net.URLEncoder.encode(g.title, "UTF-8")}",

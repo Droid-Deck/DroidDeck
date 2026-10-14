@@ -28,8 +28,6 @@ def load(name):
 ctl = load("droiddeckctl")
 scenario = load("droiddeck-scenario")
 
-# A stand-in for adb: answers the provider's content calls from a JSON config (a list answers
-# successive calls), records every invocation, and fakes the few shell commands droiddeckctl uses.
 FAKE_ADB = textwrap.dedent('''\
     #!/usr/bin/env python3
     import base64, json, os, sys
@@ -136,7 +134,6 @@ class DroiddeckctlTest(FakeAdbTest):
             "launch": {"ok": True, "command": "launch", "appId": "489830"},
             "state": [state(focused=769, focusable=[769]), state(focused=489830, focusable=[769])],
         })
-        # Focus alone is not enough: the game must also be in the list Steam orders from.
         code, out = self.run_ctl("launch", "489830", "--wait", "--timeout", "1")
         self.assertEqual(5, code)
         self.assertEqual("TIMEOUT", out["error"]["code"])
@@ -333,7 +330,7 @@ class ScenarioTest(FakeAdbTest):
                            "steps": [["state"], {"assert": "session.focus.focusedApp", "equals": 489830}]})
         code, report = self.run_scenario(path)
         self.assertEqual(1, code)
-        self.assertEqual(1, len(report["runs"]))  # stops at the first failure without --keep-going
+        self.assertEqual(1, len(report["runs"]))
         self.assertIn("is 769", report["runs"][0]["error"])
         evidence = json.loads((Path(report["runs"][0]["folder"]) / "evidence.json").read_text())
         self.assertEqual(769, evidence["focus"]["focusedApp"])

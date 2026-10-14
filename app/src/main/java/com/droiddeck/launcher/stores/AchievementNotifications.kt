@@ -5,7 +5,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import org.json.JSONObject
 
-/** Session-owned unlocks; history reads and upload acknowledgements never create notifications. */
 object AchievementNotifications {
     data class Unlock(val client: String, val id: String, val name: String, val description: String, val icon: String?, val game: String)
 
@@ -38,7 +37,6 @@ object AchievementNotifications {
         if (pending.firstOrNull() === unlock) pending = pending.drop(1)
     }
 
-    /** Only presentation fields from the owned daemon, bounded before entering Compose. */
     fun parse(event: JSONObject, game: String): Unlock? {
         val client = event.optString("client_id")
         val id = event.optString("id")

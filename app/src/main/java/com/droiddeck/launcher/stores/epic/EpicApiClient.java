@@ -10,13 +10,6 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Epic's library, catalog and launcher-assets services, as the launcher calls them:
- *   library-service.live.use1a.on.epicgames.com/library/api/public/items   (owned items, paginated)
- *   catalog-public-service-prod06.ol.epicgames.com/catalog/api/shared/namespace/{ns}/bulk/items
- *   launcher-public-service-prod06.ol.epicgames.com/launcher/api/public/assets/v2/platform/Windows/...
- * All with a bearer token.
- */
 public final class EpicApiClient {
 
     private static final String TAG = "EpicApi";
@@ -27,7 +20,6 @@ public final class EpicApiClient {
 
     private EpicApiClient() {}
 
-    /** The owned games, every page; Unreal assets, private sandboxes and non-Windows items left out. */
     public static List<EpicGame> getLibraryItems(String accessToken) {
         List<EpicGame> result = new ArrayList<>();
         String cursor = null;
@@ -72,7 +64,6 @@ public final class EpicApiClient {
         return result;
     }
 
-    /** Fills title, developer, art, description and the DLC flag from the catalog; true on success. */
     public static boolean enrichFromCatalog(String accessToken, EpicGame game) {
         if (game.namespace.isEmpty() || game.catalogItemId.isEmpty()) return false;
         try {
@@ -118,10 +109,6 @@ public final class EpicApiClient {
         }
     }
 
-    /**
-     * The manifest API answer for a game, flattened to {"manifests": [...], "versionId": "..."} as
-     * the download manager reads it. {@code appName} is the library record's, not the catalog's.
-     */
     public static String getManifestApiJson(String accessToken, String namespace, String catalogItemId, String appName) {
         try {
             String url = MANIFEST_BASE + "/" + namespace + "/catalogItem/" + catalogItemId + "/app/" + appName + "/label/Live";
@@ -136,7 +123,6 @@ public final class EpicApiClient {
             String ver = first.optString("buildVersion", "");
             if (ver.isEmpty()) ver = first.optString("versionId", "");
             wrapper.put("versionId", ver);
-            // The sidecar's EOS deployment id, when the app has one.
             JSONObject sidecar = first.optJSONObject("sidecar");
             if (sidecar != null) {
                 String config = sidecar.optString("config", "");
@@ -151,12 +137,10 @@ public final class EpicApiClient {
         }
     }
 
-    /** `customAttributes.AdditionalCommandLine.value` for the game, "" when it has none, null when the call failed. */
     public static String getAdditionalCommandLine(String accessToken, String namespace, String catalogItemId) {
         return getCustomAttribute(accessToken, namespace, catalogItemId, "AdditionalCommandLine");
     }
 
-    /** `customAttributes.<name>.value` for the game (CloudSaveFolder, AdditionalCommandLine), "" when it has none, null when the call failed. */
     public static String getCustomAttribute(String accessToken, String namespace, String catalogItemId, String name) {
         try {
             String url = CATALOG_BASE + "/" + namespace + "/bulk/items?id=" + catalogItemId + "&country=US";

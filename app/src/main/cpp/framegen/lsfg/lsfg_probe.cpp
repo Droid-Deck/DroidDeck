@@ -1,4 +1,3 @@
-// See lsfg_probe.h. Capability gate for native compositor-side LSFG.
 
 #include "lsfg_probe.h"
 #include "../VulkanRendererContext.h"
@@ -16,7 +15,7 @@ bool hasExtension(const std::vector<VkExtensionProperties>& exts, const char* na
     return false;
 }
 
-} // namespace
+}
 
 FeatureSupport queryFeatures(const VkTable& vk, VkPhysicalDevice pd,
                              const std::vector<VkExtensionProperties>& deviceExtensions,
@@ -33,33 +32,21 @@ FeatureSupport queryFeatures(const VkTable& vk, VkPhysicalDevice pd,
 
     const bool below12 = props.apiVersion < VK_API_VERSION_1_2;
     if (below12) {
-        // Below 1.2 there is no VkPhysicalDeviceVulkan12Features to chain, and
-        // the SPIR-V 1.6 modules will not load anyway. Unless the experimental
-        // compat path is on AND the driver offers the extensions that make the
-        // chain loadable as SPIR-V 1.4, don't touch the device further:
-        // device creation stays exactly as it is today.
         if (!allowVk11) return fs;
         fs.hasSpirv14 = hasExtension(deviceExtensions, VK_KHR_SPIRV_1_4_EXTENSION_NAME);
         fs.hasFloatControls = hasExtension(deviceExtensions, VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME);
         fs.hasMemoryModelExt = hasExtension(deviceExtensions, VK_KHR_VULKAN_MEMORY_MODEL_EXTENSION_NAME);
         if (!fs.hasSpirv14 || !fs.hasFloatControls || !fs.hasMemoryModelExt) {
-            // Report what was looked at so explain() can name the gap.
             fs.queried = true;
             return fs;
         }
         fs.extensionPath = true;
         fs.spirvTarget = kSpirv14;
     } else if (!fs.apiAtLeast13 && allowVk11) {
-        // 1.2: SPIR-V 1.5 is core, VulkanMemoryModel is core. Nothing to
-        // enable beyond the features; the modules only need their header
-        // lowered from 1.6 to 1.5. Same experimental gate as the 1.1 path so
-        // a production build keeps rejecting 1.2 exactly as before.
         fs.extensionPath = true;
         fs.spirvTarget = kSpirv15;
     }
 
-    // On 1.2+ the Vulkan12Features struct carries the memory model; below
-    // that the KHR struct does (same sType value, same layout).
     VkPhysicalDeviceVulkan12Features v12{};
     v12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
     VkPhysicalDeviceVulkanMemoryModelFeaturesKHR mm{};
@@ -87,7 +74,7 @@ FeatureSupport queryFeatures(const VkTable& vk, VkPhysicalDevice pd,
 std::vector<const char*> extensionNames(const FeatureSupport& f) {
     std::vector<const char*> out;
     if (!f.extensionPath || f.deviceApiVersion >= VK_API_VERSION_1_2) return out;
-    out.push_back(VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME);   // dependency of spirv_1_4
+    out.push_back(VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME);
     out.push_back(VK_KHR_SPIRV_1_4_EXTENSION_NAME);
     out.push_back(VK_KHR_VULKAN_MEMORY_MODEL_EXTENSION_NAME);
     return out;
@@ -108,10 +95,6 @@ bool probeStorageFormat(const VkTable& vk, VkPhysicalDevice pd, VkFormat fmt) {
     VkFormatProperties fp{};
     vk.GetPhysicalDeviceFormatProperties(pd, fmt, &fp);
 
-    // The composite target is COLOR_ATTACHMENT (effect chain writes it),
-    // SAMPLED (next frame's LSFG input reads it), STORAGE (generate writes it)
-    // and both blit ends (it is copied - or, below panel resolution, blitted -
-    // into the swapchain image).
     const VkFormatFeatureFlags need =
           VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT
         | VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT
@@ -163,4 +146,4 @@ void explain(Caps& caps) {
     }
 }
 
-} // namespace lsfg
+}

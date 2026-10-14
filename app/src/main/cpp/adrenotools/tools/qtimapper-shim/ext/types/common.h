@@ -12,7 +12,6 @@ namespace graphics {
 namespace common {
 namespace V1_0 {
 
-// Forward declaration for forward reference support:
 enum class PixelFormat : int32_t;
 enum class BufferUsage : uint64_t;
 enum class Transform : int32_t;
@@ -21,1402 +20,1072 @@ enum class ColorMode : int32_t;
 enum class ColorTransform : int32_t;
 enum class Hdr : int32_t;
 
-/**
- * Common enumeration and structure definitions for all graphics HALs.
- *
- *
- * Pixel formats for graphics buffers.
- */
 enum class PixelFormat : int32_t {
-  /**
-   * 32-bit format that has 8-bit R, G, B, and A components, in that order,
-   * from the lowest memory address to the highest memory address.
-   *
-   * The component values are unsigned normalized to the range [0, 1], whose
-   * interpretation is defined by the dataspace.
-   */
-  RGBA_8888 = 1 /* 0x1 */,
-  /**
-   * 32-bit format that has 8-bit R, G, B, and unused components, in that
-   * order, from the lowest memory address to the highest memory address.
-   *
-   * The component values are unsigned normalized to the range [0, 1], whose
-   * interpretation is defined by the dataspace.
-   */
-  RGBX_8888 = 2 /* 0x2 */,
-  /**
-   * 24-bit format that has 8-bit R, G, and B components, in that order,
-   * from the lowest memory address to the highest memory address.
-   *
-   * The component values are unsigned normalized to the range [0, 1], whose
-   * interpretation is defined by the dataspace.
-   */
-  RGB_888 = 3 /* 0x3 */,
-  /**
-   * 16-bit packed format that has 5-bit R, 6-bit G, and 5-bit B components,
-   * in that order, from the most-sigfinicant bits to the least-significant
-   * bits.
-   *
-   * The component values are unsigned normalized to the range [0, 1], whose
-   * interpretation is defined by the dataspace.
-   */
-  RGB_565 = 4 /* 0x4 */,
-  /**
-   * 32-bit format that has 8-bit B, G, R, and A components, in that order,
-   * from the lowest memory address to the highest memory address.
-   *
-   * The component values are unsigned normalized to the range [0, 1], whose
-   * interpretation is defined by the dataspace.
-   */
-  BGRA_8888 = 5 /* 0x5 */,
-  /**
-   * Legacy formats deprecated in favor of YCBCR_420_888.
-   */
-  YCBCR_422_SP = 16 /* 0x10 */,
-  YCRCB_420_SP = 17 /* 0x11 */,
-  YCBCR_422_I = 20 /* 0x14 */,
-  /**
-   * 64-bit format that has 16-bit R, G, B, and A components, in that order,
-   * from the lowest memory address to the highest memory address.
-   *
-   * The component values are signed floats, whose interpretation is defined
-   * by the dataspace.
-   */
-  RGBA_FP16 = 22 /* 0x16 */,
-  /**
-   * RAW16 is a single-channel, 16-bit, little endian format, typically
-   * representing raw Bayer-pattern images from an image sensor, with minimal
-   * processing.
-   *
-   * The exact pixel layout of the data in the buffer is sensor-dependent, and
-   * needs to be queried from the camera device.
-   *
-   * Generally, not all 16 bits are used; more common values are 10 or 12
-   * bits. If not all bits are used, the lower-order bits are filled first.
-   * All parameters to interpret the raw data (black and white points,
-   * color space, etc) must be queried from the camera device.
-   *
-   * This format assumes
-   * - an even width
-   * - an even height
-   * - a horizontal stride multiple of 16 pixels
-   * - a vertical stride equal to the height
-   * - strides are specified in pixels, not in bytes
-   *
-   *   size = stride * height * 2
-   *
-   * This format must be accepted by the allocator when used with the
-   * following usage flags:
-   *
-   *    - BufferUsage::CAMERA_*
-   *    - BufferUsage::CPU_*
-   *    - BufferUsage::RENDERSCRIPT
-   *
-   * The mapping of the dataspace to buffer contents for RAW16 is as
-   * follows:
-   *
-   *  Dataspace value               | Buffer contents
-   * -------------------------------+-----------------------------------------
-   *  Dataspace::ARBITRARY          | Raw image sensor data, layout is as
-   *                                | defined above.
-   *  Dataspace::DEPTH              | Unprocessed implementation-dependent raw
-   *                                | depth measurements, opaque with 16 bit
-   *                                | samples.
-   *  Other                         | Unsupported
-   */
-  RAW16 = 32 /* 0x20 */,
-  /**
-   * BLOB is used to carry task-specific data which does not have a standard
-   * image structure. The details of the format are left to the two
-   * endpoints.
-   *
-   * A typical use case is for transporting JPEG-compressed images from the
-   * Camera HAL to the framework or to applications.
-   *
-   * Buffers of this format must have a height of 1, and width equal to their
-   * size in bytes.
-   *
-   * The mapping of the dataspace to buffer contents for BLOB is as
-   * follows:
-   *
-   *  Dataspace value               | Buffer contents
-   * -------------------------------+-----------------------------------------
-   *  Dataspace::JFIF               | An encoded JPEG image
-   *  Dataspace::DEPTH              | An android_depth_points buffer
-   *  Dataspace::SENSOR             | Sensor event data.
-   *  Other                         | Unsupported
-   */
-  BLOB = 33 /* 0x21 */,
-  /**
-   * A format indicating that the choice of format is entirely up to the
-   * allocator.
-   *
-   * The allocator should examine the usage bits passed in when allocating a
-   * buffer with this format, and it should derive the pixel format from
-   * those usage flags. This format must never be used with any of the
-   * BufferUsage::CPU_* usage flags.
-   *
-   * Even when the internally chosen format has an alpha component, the
-   * clients must assume the alpha vlaue to be 1.0.
-   *
-   * The interpretation of the component values is defined by the dataspace.
-   */
-  IMPLEMENTATION_DEFINED = 34 /* 0x22 */,
-  /**
-   * This format allows platforms to use an efficient YCbCr/YCrCb 4:2:0
-   * buffer layout, while still describing the general format in a
-   * layout-independent manner. While called YCbCr, it can be used to
-   * describe formats with either chromatic ordering, as well as
-   * whole planar or semiplanar layouts.
-   *
-   * This format must be accepted by the allocator when BufferUsage::CPU_*
-   * are set.
-   *
-   * Buffers with this format must be locked with IMapper::lockYCbCr.
-   * Locking with IMapper::lock must return an error.
-   *
-   * The interpretation of the component values is defined by the dataspace.
-   */
-  YCBCR_420_888 = 35 /* 0x23 */,
-  /**
-   * RAW_OPAQUE is a format for unprocessed raw image buffers coming from an
-   * image sensor. The actual structure of buffers of this format is
-   * implementation-dependent.
-   *
-   * This format must be accepted by the allocator when used with the
-   * following usage flags:
-   *
-   *    - BufferUsage::CAMERA_*
-   *    - BufferUsage::CPU_*
-   *    - BufferUsage::RENDERSCRIPT
-   *
-   * The mapping of the dataspace to buffer contents for RAW_OPAQUE is as
-   * follows:
-   *
-   *  Dataspace value               | Buffer contents
-   * -------------------------------+-----------------------------------------
-   *  Dataspace::ARBITRARY          | Raw image sensor data.
-   *  Other                         | Unsupported
-   */
-  RAW_OPAQUE = 36 /* 0x24 */,
-  /**
-   * RAW10 is a single-channel, 10-bit per pixel, densely packed in each row,
-   * unprocessed format, usually representing raw Bayer-pattern images coming from
-   * an image sensor.
-   *
-   * In an image buffer with this format, starting from the first pixel of each
-   * row, each 4 consecutive pixels are packed into 5 bytes (40 bits). Each one
-   * of the first 4 bytes contains the top 8 bits of each pixel, The fifth byte
-   * contains the 2 least significant bits of the 4 pixels, the exact layout data
-   * for each 4 consecutive pixels is illustrated below (Pi[j] stands for the jth
-   * bit of the ith pixel):
-   *
-   *          bit 7                                     bit 0
-   *          =====|=====|=====|=====|=====|=====|=====|=====|
-   * Byte 0: |P0[9]|P0[8]|P0[7]|P0[6]|P0[5]|P0[4]|P0[3]|P0[2]|
-   *         |-----|-----|-----|-----|-----|-----|-----|-----|
-   * Byte 1: |P1[9]|P1[8]|P1[7]|P1[6]|P1[5]|P1[4]|P1[3]|P1[2]|
-   *         |-----|-----|-----|-----|-----|-----|-----|-----|
-   * Byte 2: |P2[9]|P2[8]|P2[7]|P2[6]|P2[5]|P2[4]|P2[3]|P2[2]|
-   *         |-----|-----|-----|-----|-----|-----|-----|-----|
-   * Byte 3: |P3[9]|P3[8]|P3[7]|P3[6]|P3[5]|P3[4]|P3[3]|P3[2]|
-   *         |-----|-----|-----|-----|-----|-----|-----|-----|
-   * Byte 4: |P3[1]|P3[0]|P2[1]|P2[0]|P1[1]|P1[0]|P0[1]|P0[0]|
-   *          ===============================================
-   *
-   * This format assumes
-   * - a width multiple of 4 pixels
-   * - an even height
-   * - a vertical stride equal to the height
-   * - strides are specified in bytes, not in pixels
-   *
-   *   size = stride * height
-   *
-   * When stride is equal to width * (10 / 8), there will be no padding bytes at
-   * the end of each row, the entire image data is densely packed. When stride is
-   * larger than width * (10 / 8), padding bytes will be present at the end of each
-   * row (including the last row).
-   *
-   * This format must be accepted by the allocator when used with the
-   * following usage flags:
-   *
-   *    - BufferUsage::CAMERA_*
-   *    - BufferUsage::CPU_*
-   *    - BufferUsage::RENDERSCRIPT
-   *
-   * The mapping of the dataspace to buffer contents for RAW10 is as
-   * follows:
-   *
-   *  Dataspace value               | Buffer contents
-   * -------------------------------+-----------------------------------------
-   *  Dataspace::ARBITRARY          | Raw image sensor data.
-   *  Other                         | Unsupported
-   */
-  RAW10 = 37 /* 0x25 */,
-  /**
-   * RAW12 is a single-channel, 12-bit per pixel, densely packed in each row,
-   * unprocessed format, usually representing raw Bayer-pattern images coming from
-   * an image sensor.
-   *
-   * In an image buffer with this format, starting from the first pixel of each
-   * row, each two consecutive pixels are packed into 3 bytes (24 bits). The first
-   * and second byte contains the top 8 bits of first and second pixel. The third
-   * byte contains the 4 least significant bits of the two pixels, the exact layout
-   * data for each two consecutive pixels is illustrated below (Pi[j] stands for
-   * the jth bit of the ith pixel):
-   *
-   *           bit 7                                            bit 0
-   *          ======|======|======|======|======|======|======|======|
-   * Byte 0: |P0[11]|P0[10]|P0[ 9]|P0[ 8]|P0[ 7]|P0[ 6]|P0[ 5]|P0[ 4]|
-   *         |------|------|------|------|------|------|------|------|
-   * Byte 1: |P1[11]|P1[10]|P1[ 9]|P1[ 8]|P1[ 7]|P1[ 6]|P1[ 5]|P1[ 4]|
-   *         |------|------|------|------|------|------|------|------|
-   * Byte 2: |P1[ 3]|P1[ 2]|P1[ 1]|P1[ 0]|P0[ 3]|P0[ 2]|P0[ 1]|P0[ 0]|
-   *          =======================================================
-   *
-   * This format assumes:
-   * - a width multiple of 4 pixels
-   * - an even height
-   * - a vertical stride equal to the height
-   * - strides are specified in bytes, not in pixels
-   *
-   *   size = stride * height
-   *
-   * When stride is equal to width * (12 / 8), there will be no padding bytes at
-   * the end of each row, the entire image data is densely packed. When stride is
-   * larger than width * (12 / 8), padding bytes will be present at the end of
-   * each row (including the last row).
-   *
-   * This format must be accepted by the allocator when used with the
-   * following usage flags:
-   *
-   *    - BufferUsage::CAMERA_*
-   *    - BufferUsage::CPU_*
-   *    - BufferUsage::RENDERSCRIPT
-   *
-   * The mapping of the dataspace to buffer contents for RAW12 is as
-   * follows:
-   *
-   *  Dataspace value               | Buffer contents
-   * -------------------------------+-----------------------------------------
-   *  Dataspace::ARBITRARY          | Raw image sensor data.
-   *  Other                         | Unsupported
-   */
-  RAW12 = 38 /* 0x26 */,
-  /**
-   * 0x27 to 0x2A are reserved for flexible formats
-   *
-   *
-   * 32-bit packed format that has 2-bit A, 10-bit B, G, and R components,
-   * in that order, from the most-sigfinicant bits to the least-significant
-   * bits.
-   *
-   * The component values are unsigned normalized to the range [0, 1], whose
-   * interpretation is defined by the dataspace.
-   */
-  RGBA_1010102 = 43 /* 0x2B */,
-  /**
-   * 0x100 - 0x1FF
-   *
-   * This range is reserved for vendor extensions. Formats in this range
-   * must support BufferUsage::GPU_TEXTURE. Clients must assume they do not
-   * have an alpha component.
-   *
-   *
-   * Y8 is a YUV planar format comprised of a WxH Y plane, with each pixel
-   * being represented by 8 bits. It is equivalent to just the Y plane from
-   * YV12.
-   *
-   * This format assumes
-   * - an even width
-   * - an even height
-   * - a horizontal stride multiple of 16 pixels
-   * - a vertical stride equal to the height
-   *
-   *   size = stride * height
-   *
-   * This format must be accepted by the allocator when used with the
-   * following usage flags:
-   *
-   *    - BufferUsage::CAMERA_*
-   *    - BufferUsage::CPU_*
-   *
-   * The component values are unsigned normalized to the range [0, 1], whose
-   * interpretation is defined by the dataspace.
-   */
-  Y8 = 538982489 /* 0x20203859 */,
-  /**
-   * Y16 is a YUV planar format comprised of a WxH Y plane, with each pixel
-   * being represented by 16 bits. It is just like Y8, but has double the
-   * bits per pixel (little endian).
-   *
-   * This format assumes
-   * - an even width
-   * - an even height
-   * - a horizontal stride multiple of 16 pixels
-   * - a vertical stride equal to the height
-   * - strides are specified in pixels, not in bytes
-   *
-   *   size = stride * height * 2
-   *
-   * This format must be accepted by the allocator when used with the
-   * following usage flags:
-   *
-   *    - BufferUsage::CAMERA_*
-   *    - BufferUsage::CPU_*
-   *
-   * The component values are unsigned normalized to the range [0, 1], whose
-   * interpretation is defined by the dataspace. When the dataspace is
-   * Dataspace::DEPTH, each pixel is a distance value measured by a depth
-   * camera, plus an associated confidence value.
-   */
-  Y16 = 540422489 /* 0x20363159 */,
-  /**
-   * YV12 is a 4:2:0 YCrCb planar format comprised of a WxH Y plane followed
-   * by (W/2) x (H/2) Cr and Cb planes.
-   *
-   * This format assumes
-   * - an even width
-   * - an even height
-   * - a horizontal stride multiple of 16 pixels
-   * - a vertical stride equal to the height
-   *
-   *   y_size = stride * height
-   *   c_stride = ALIGN(stride/2, 16)
-   *   c_size = c_stride * height/2
-   *   size = y_size + c_size * 2
-   *   cr_offset = y_size
-   *   cb_offset = y_size + c_size
-   *
-   * This range is reserved for vendor extensions. Formats in this range
-   * must support BufferUsage::GPU_TEXTURE. Clients must assume they do not
-   * have an alpha component.
-   *
-   * This format must be accepted by the allocator when used with the
-   * following usage flags:
-   *
-   *    - BufferUsage::CAMERA_*
-   *    - BufferUsage::CPU_*
-   *    - BufferUsage::GPU_TEXTURE
-   *
-   * The component values are unsigned normalized to the range [0, 1], whose
-   * interpretation is defined by the dataspace.
-   */
-  YV12 = 842094169 /* 0x32315659 */,
+
+
+
+
+
+
+
+  RGBA_8888 = 1  ,
+
+
+
+
+
+
+
+  RGBX_8888 = 2  ,
+
+
+
+
+
+
+
+  RGB_888 = 3  ,
+
+
+
+
+
+
+
+
+  RGB_565 = 4  ,
+
+
+
+
+
+
+
+  BGRA_8888 = 5  ,
+
+
+
+  YCBCR_422_SP = 16  ,
+  YCRCB_420_SP = 17  ,
+  YCBCR_422_I = 20  ,
+
+
+
+
+
+
+
+  RGBA_FP16 = 22  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  RAW16 = 32  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  BLOB = 33  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  IMPLEMENTATION_DEFINED = 34  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  YCBCR_420_888 = 35  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  RAW_OPAQUE = 36  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  RAW10 = 37  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  RAW12 = 38  ,
+
+
+
+
+
+
+
+
+
+
+
+  RGBA_1010102 = 43  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  Y8 = 538982489  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  Y16 = 540422489  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  YV12 = 842094169  ,
 };
 
-/**
- * Buffer usage definitions.
- */
 enum class BufferUsage : uint64_t {
-  /**
-   * bit 0-3 is an enum
-   */
-  CPU_READ_MASK = 15ull /* 0xfULL */,
-  /**
-   * buffer is never read by CPU
-   */
+
+
+
+  CPU_READ_MASK = 15ull  ,
+
+
+
   CPU_READ_NEVER = 0ull,
-  /**
-   * buffer is rarely read by CPU
-   */
   CPU_READ_RARELY = 2ull,
-  /**
-   * buffer is often read by CPU
-   */
   CPU_READ_OFTEN = 3ull,
-  /**
-   * bit 4-7 is an enum
-   */
-  CPU_WRITE_MASK = 240ull /* (0xfULL << 4) */,
-  /**
-   * buffer is never written by CPU
-   */
-  CPU_WRITE_NEVER = 0ull /* (0 << 4) */,
-  /**
-   * buffer is rarely written by CPU
-   */
-  CPU_WRITE_RARELY = 32ull /* (2 << 4) */,
-  /**
-   * buffer is often written by CPU
-   */
-  CPU_WRITE_OFTEN = 48ull /* (3 << 4) */,
-  /**
-   * buffer is used as a GPU texture
-   */
-  GPU_TEXTURE = 256ull /* (1ULL << 8) */,
-  /**
-   * buffer is used as a GPU render target
-   */
-  GPU_RENDER_TARGET = 512ull /* (1ULL << 9) */,
-  /**
-   * bit 10 must be zero
-   *
-   *
-   * buffer is used as a composer HAL overlay layer
-   */
-  COMPOSER_OVERLAY = 2048ull /* (1ULL << 11) */,
-  /**
-   * buffer is used as a composer HAL client target
-   */
-  COMPOSER_CLIENT_TARGET = 4096ull /* (1ULL << 12) */,
-  /**
-   * bit 13 must be zero
-   *
-   *
-   * Buffer is allocated with hardware-level protection against copying the
-   * contents (or information derived from the contents) into unprotected
-   * memory.
-   */
-  PROTECTED = 16384ull /* (1ULL << 14) */,
-  /**
-   * buffer is used as a hwcomposer HAL cursor layer
-   */
-  COMPOSER_CURSOR = 32768ull /* (1ULL << 15) */,
-  /**
-   * buffer is used as a video encoder input
-   */
-  VIDEO_ENCODER = 65536ull /* (1ULL << 16) */,
-  /**
-   * buffer is used as a camera HAL output
-   */
-  CAMERA_OUTPUT = 131072ull /* (1ULL << 17) */,
-  /**
-   * buffer is used as a camera HAL input
-   */
-  CAMERA_INPUT = 262144ull /* (1ULL << 18) */,
-  /**
-   * bit 19 must be zero
-   *
-   *
-   * buffer is used as a renderscript allocation
-   */
-  RENDERSCRIPT = 1048576ull /* (1ULL << 20) */,
-  /**
-   * bit 21 must be zero
-   *
-   *
-   * buffer is used as a video decoder output
-   */
-  VIDEO_DECODER = 4194304ull /* (1ULL << 22) */,
-  /**
-   * buffer is used as a sensor direct report output
-   */
-  SENSOR_DIRECT_DATA = 8388608ull /* (1ULL << 23) */,
-  /**
-   * buffer is used as as an OpenGL shader storage or uniform
-   * buffer object
-   */
-  GPU_DATA_BUFFER = 16777216ull /* (1ULL << 24) */,
-  /**
-   * bits 25-27 must be zero and are reserved for future versions
-   *
-   *
-   * bits 28-31 are reserved for vendor extensions
-   */
-  VENDOR_MASK = 4026531840ull /* (0xfULL << 28) */,
-  /**
-   * bits 32-47 must be zero and are reserved for future versions
-   *
-   *
-   * bits 48-63 are reserved for vendor extensions
-   */
-  VENDOR_MASK_HI = 18446462598732840960ull /* (0xffffULL << 48) */,
+
+
+
+  CPU_WRITE_MASK = 240ull  ,
+
+
+
+  CPU_WRITE_NEVER = 0ull  ,
+
+
+
+  CPU_WRITE_RARELY = 32ull  ,
+
+
+
+  CPU_WRITE_OFTEN = 48ull  ,
+
+
+
+  GPU_TEXTURE = 256ull  ,
+
+
+
+  GPU_RENDER_TARGET = 512ull  ,
+
+
+
+
+
+
+  COMPOSER_OVERLAY = 2048ull  ,
+
+
+
+  COMPOSER_CLIENT_TARGET = 4096ull  ,
+
+
+
+
+
+
+
+
+  PROTECTED = 16384ull  ,
+
+
+
+  COMPOSER_CURSOR = 32768ull  ,
+
+
+
+  VIDEO_ENCODER = 65536ull  ,
+
+
+
+  CAMERA_OUTPUT = 131072ull  ,
+
+
+
+  CAMERA_INPUT = 262144ull  ,
+
+
+
+
+
+
+  RENDERSCRIPT = 1048576ull  ,
+
+
+
+
+
+
+  VIDEO_DECODER = 4194304ull  ,
+
+
+
+  SENSOR_DIRECT_DATA = 8388608ull  ,
+
+
+
+
+  GPU_DATA_BUFFER = 16777216ull  ,
+
+
+
+
+
+
+  VENDOR_MASK = 4026531840ull  ,
+
+
+
+
+
+
+  VENDOR_MASK_HI = 18446462598732840960ull  ,
 };
 
-/**
- * Transformation definitions
- */
 enum class Transform : int32_t {
-  /**
-   * Horizontal flip. FLIP_H/FLIP_V is applied before ROT_90.
-   */
-  FLIP_H = 1 /* (1 << 0) */,
-  /**
-   * Vertical flip. FLIP_H/FLIP_V is applied before ROT_90.
-   */
-  FLIP_V = 2 /* (1 << 1) */,
-  /**
-   * 90 degree clockwise rotation. FLIP_H/FLIP_V is applied before ROT_90.
-   */
-  ROT_90 = 4 /* (1 << 2) */,
-  /**
-   * Commonly used combinations.
-   */
-  ROT_180 = 3 /* (FLIP_H | FLIP_V) */,
-  ROT_270 = 7 /* ((FLIP_H | FLIP_V) | ROT_90) */,
+
+
+
+  FLIP_H = 1  ,
+
+
+
+  FLIP_V = 2  ,
+
+
+
+  ROT_90 = 4  ,
+
+
+
+  ROT_180 = 3  ,
+  ROT_270 = 7  ,
 };
 
-/**
- * Dataspace Definitions
- * ======================
- *
- * Dataspace is the definition of how pixel values should be interpreted.
- *
- * For many formats, this is the colorspace of the image data, which includes
- * primaries (including white point) and the transfer characteristic function,
- * which describes both gamma curve and numeric range (within the bit depth).
- *
- * Other dataspaces include depth measurement data from a depth camera.
- *
- * A dataspace is comprised of a number of fields.
- *
- * Version
- * --------
- * The top 2 bits represent the revision of the field specification. This is
- * currently always 0.
- *
- *
- * bits    31-30 29                      -                          0
- *        +-----+----------------------------------------------------+
- * fields | Rev |            Revision specific fields                |
- *        +-----+----------------------------------------------------+
- *
- * Field layout for version = 0:
- * ----------------------------
- *
- * A dataspace is comprised of the following fields:
- *      Standard
- *      Transfer function
- *      Range
- *
- * bits    31-30 29-27 26 -  22 21 -  16 15             -           0
- *        +-----+-----+--------+--------+----------------------------+
- * fields |  0  |Range|Transfer|Standard|    Legacy and custom       |
- *        +-----+-----+--------+--------+----------------------------+
- *          VV    RRR   TTTTT    SSSSSS    LLLLLLLL       LLLLLLLL
- *
- * If range, transfer and standard fields are all 0 (e.g. top 16 bits are
- * all zeroes), the bottom 16 bits contain either a legacy dataspace value,
- * or a custom value.
- */
 enum class Dataspace : int32_t {
-  /**
-   * Default-assumption data space, when not explicitly specified.
-   *
-   * It is safest to assume the buffer is an image with sRGB primaries and
-   * encoding ranges, but the consumer and/or the producer of the data may
-   * simply be using defaults. No automatic gamma transform should be
-   * expected, except for a possible display gamma transform when drawn to a
-   * screen.
-   */
-  UNKNOWN = 0 /* 0x0 */,
-  /**
-   * Arbitrary dataspace with manually defined characteristics.  Definition
-   * for colorspaces or other meaning must be communicated separately.
-   *
-   * This is used when specifying primaries, transfer characteristics,
-   * etc. separately.
-   *
-   * A typical use case is in video encoding parameters (e.g. for H.264),
-   * where a colorspace can have separately defined primaries, transfer
-   * characteristics, etc.
-   */
-  ARBITRARY = 1 /* 0x1 */,
-  /**
-   * Color-description aspects
-   *
-   * The following aspects define various characteristics of the color
-   * specification. These represent bitfields, so that a data space value
-   * can specify each of them independently.
-   */
+
+
+
+
+
+
+
+
+
+  UNKNOWN = 0  ,
+
+
+
+
+
+
+
+
+
+
+
+  ARBITRARY = 1  ,
+
+
+
+
+
+
+
   STANDARD_SHIFT = 16,
-  /**
-   * Standard aspect
-   *
-   * Defines the chromaticity coordinates of the source primaries in terms of
-   * the CIE 1931 definition of x and y specified in ISO 11664-1.
-   */
-  STANDARD_MASK = 4128768 /* (63 << STANDARD_SHIFT) */,
-  /**
-   * Chromacity coordinates are unknown or are determined by the application.
-   * Implementations shall use the following suggested standards:
-   *
-   * All YCbCr formats: BT709 if size is 720p or larger (since most video
-   *                    content is letterboxed this corresponds to width is
-   *                    1280 or greater, or height is 720 or greater).
-   *                    BT601_625 if size is smaller than 720p or is JPEG.
-   * All RGB formats:   BT709.
-   *
-   * For all other formats standard is undefined, and implementations should use
-   * an appropriate standard for the data represented.
-   */
-  STANDARD_UNSPECIFIED = 0 /* (0 << STANDARD_SHIFT) */,
-  /**
-   * Primaries:       x       y
-   *  green           0.300   0.600
-   *  blue            0.150   0.060
-   *  red             0.640   0.330
-   *  white (D65)     0.3127  0.3290
-   *
-   * Use the unadjusted KR = 0.2126, KB = 0.0722 luminance interpretation
-   * for RGB conversion.
-   */
-  STANDARD_BT709 = 65536 /* (1 << STANDARD_SHIFT) */,
-  /**
-   * Primaries:       x       y
-   *  green           0.290   0.600
-   *  blue            0.150   0.060
-   *  red             0.640   0.330
-   *  white (D65)     0.3127  0.3290
-   *
-   *  KR = 0.299, KB = 0.114. This adjusts the luminance interpretation
-   *  for RGB conversion from the one purely determined by the primaries
-   *  to minimize the color shift into RGB space that uses BT.709
-   *  primaries.
-   */
-  STANDARD_BT601_625 = 131072 /* (2 << STANDARD_SHIFT) */,
-  /**
-   * Primaries:       x       y
-   *  green           0.290   0.600
-   *  blue            0.150   0.060
-   *  red             0.640   0.330
-   *  white (D65)     0.3127  0.3290
-   *
-   * Use the unadjusted KR = 0.222, KB = 0.071 luminance interpretation
-   * for RGB conversion.
-   */
-  STANDARD_BT601_625_UNADJUSTED = 196608 /* (3 << STANDARD_SHIFT) */,
-  /**
-   * Primaries:       x       y
-   *  green           0.310   0.595
-   *  blue            0.155   0.070
-   *  red             0.630   0.340
-   *  white (D65)     0.3127  0.3290
-   *
-   *  KR = 0.299, KB = 0.114. This adjusts the luminance interpretation
-   *  for RGB conversion from the one purely determined by the primaries
-   *  to minimize the color shift into RGB space that uses BT.709
-   *  primaries.
-   */
-  STANDARD_BT601_525 = 262144 /* (4 << STANDARD_SHIFT) */,
-  /**
-   * Primaries:       x       y
-   *  green           0.310   0.595
-   *  blue            0.155   0.070
-   *  red             0.630   0.340
-   *  white (D65)     0.3127  0.3290
-   *
-   * Use the unadjusted KR = 0.212, KB = 0.087 luminance interpretation
-   * for RGB conversion (as in SMPTE 240M).
-   */
-  STANDARD_BT601_525_UNADJUSTED = 327680 /* (5 << STANDARD_SHIFT) */,
-  /**
-   * Primaries:       x       y
-   *  green           0.170   0.797
-   *  blue            0.131   0.046
-   *  red             0.708   0.292
-   *  white (D65)     0.3127  0.3290
-   *
-   * Use the unadjusted KR = 0.2627, KB = 0.0593 luminance interpretation
-   * for RGB conversion.
-   */
-  STANDARD_BT2020 = 393216 /* (6 << STANDARD_SHIFT) */,
-  /**
-   * Primaries:       x       y
-   *  green           0.170   0.797
-   *  blue            0.131   0.046
-   *  red             0.708   0.292
-   *  white (D65)     0.3127  0.3290
-   *
-   * Use the unadjusted KR = 0.2627, KB = 0.0593 luminance interpretation
-   * for RGB conversion using the linear domain.
-   */
-  STANDARD_BT2020_CONSTANT_LUMINANCE = 458752 /* (7 << STANDARD_SHIFT) */,
-  /**
-   * Primaries:       x      y
-   *  green           0.21   0.71
-   *  blue            0.14   0.08
-   *  red             0.67   0.33
-   *  white (C)       0.310  0.316
-   *
-   * Use the unadjusted KR = 0.30, KB = 0.11 luminance interpretation
-   * for RGB conversion.
-   */
-  STANDARD_BT470M = 524288 /* (8 << STANDARD_SHIFT) */,
-  /**
-   * Primaries:       x       y
-   *  green           0.243   0.692
-   *  blue            0.145   0.049
-   *  red             0.681   0.319
-   *  white (C)       0.310   0.316
-   *
-   * Use the unadjusted KR = 0.254, KB = 0.068 luminance interpretation
-   * for RGB conversion.
-   */
-  STANDARD_FILM = 589824 /* (9 << STANDARD_SHIFT) */,
-  /**
-   * SMPTE EG 432-1 and SMPTE RP 431-2. (DCI-P3)
-   * Primaries:       x       y
-   *  green           0.265   0.690
-   *  blue            0.150   0.060
-   *  red             0.680   0.320
-   *  white (D65)     0.3127  0.3290
-   */
-  STANDARD_DCI_P3 = 655360 /* (10 << STANDARD_SHIFT) */,
-  /**
-   * Adobe RGB
-   * Primaries:       x       y
-   *  green           0.210   0.710
-   *  blue            0.150   0.060
-   *  red             0.640   0.330
-   *  white (D65)     0.3127  0.3290
-   */
-  STANDARD_ADOBE_RGB = 720896 /* (11 << STANDARD_SHIFT) */,
+
+
+
+
+
+
+  STANDARD_MASK = 4128768  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+  STANDARD_UNSPECIFIED = 0  ,
+
+
+
+
+
+
+
+
+
+
+  STANDARD_BT709 = 65536  ,
+
+
+
+
+
+
+
+
+
+
+
+
+  STANDARD_BT601_625 = 131072  ,
+
+
+
+
+
+
+
+
+
+
+  STANDARD_BT601_625_UNADJUSTED = 196608  ,
+
+
+
+
+
+
+
+
+
+
+
+
+  STANDARD_BT601_525 = 262144  ,
+
+
+
+
+
+
+
+
+
+
+  STANDARD_BT601_525_UNADJUSTED = 327680  ,
+
+
+
+
+
+
+
+
+
+
+  STANDARD_BT2020 = 393216  ,
+
+
+
+
+
+
+
+
+
+
+  STANDARD_BT2020_CONSTANT_LUMINANCE = 458752  ,
+
+
+
+
+
+
+
+
+
+
+  STANDARD_BT470M = 524288  ,
+
+
+
+
+
+
+
+
+
+
+  STANDARD_FILM = 589824  ,
+
+
+
+
+
+
+
+
+  STANDARD_DCI_P3 = 655360  ,
+
+
+
+
+
+
+
+
+  STANDARD_ADOBE_RGB = 720896  ,
   TRANSFER_SHIFT = 22,
-  /**
-   * Transfer aspect
-   *
-   * Transfer characteristics are the opto-electronic transfer characteristic
-   * at the source as a function of linear optical intensity (luminance).
-   *
-   * For digital signals, E corresponds to the recorded value. Normally, the
-   * transfer function is applied in RGB space to each of the R, G and B
-   * components independently. This may result in color shift that can be
-   * minized by applying the transfer function in Lab space only for the L
-   * component. Implementation may apply the transfer function in RGB space
-   * for all pixel formats if desired.
-   */
-  TRANSFER_MASK = 130023424 /* (31 << TRANSFER_SHIFT) */,
-  /**
-   * Transfer characteristics are unknown or are determined by the
-   * application.
-   *
-   * Implementations should use the following transfer functions:
-   *
-   * For YCbCr formats: use TRANSFER_SMPTE_170M
-   * For RGB formats: use TRANSFER_SRGB
-   *
-   * For all other formats transfer function is undefined, and implementations
-   * should use an appropriate standard for the data represented.
-   */
-  TRANSFER_UNSPECIFIED = 0 /* (0 << TRANSFER_SHIFT) */,
-  /**
-   * Transfer characteristic curve:
-   *  E = L
-   *      L - luminance of image 0 <= L <= 1 for conventional colorimetry
-   *      E - corresponding electrical signal
-   */
-  TRANSFER_LINEAR = 4194304 /* (1 << TRANSFER_SHIFT) */,
-  /**
-   * Transfer characteristic curve:
-   *
-   * E = 1.055 * L^(1/2.4) - 0.055  for 0.0031308 <= L <= 1
-   *   = 12.92 * L                  for 0 <= L < 0.0031308
-   *     L - luminance of image 0 <= L <= 1 for conventional colorimetry
-   *     E - corresponding electrical signal
-   */
-  TRANSFER_SRGB = 8388608 /* (2 << TRANSFER_SHIFT) */,
-  /**
-   * BT.601 525, BT.601 625, BT.709, BT.2020
-   *
-   * Transfer characteristic curve:
-   *  E = 1.099 * L ^ 0.45 - 0.099  for 0.018 <= L <= 1
-   *    = 4.500 * L                 for 0 <= L < 0.018
-   *      L - luminance of image 0 <= L <= 1 for conventional colorimetry
-   *      E - corresponding electrical signal
-   */
-  TRANSFER_SMPTE_170M = 12582912 /* (3 << TRANSFER_SHIFT) */,
-  /**
-   * Assumed display gamma 2.2.
-   *
-   * Transfer characteristic curve:
-   *  E = L ^ (1/2.2)
-   *      L - luminance of image 0 <= L <= 1 for conventional colorimetry
-   *      E - corresponding electrical signal
-   */
-  TRANSFER_GAMMA2_2 = 16777216 /* (4 << TRANSFER_SHIFT) */,
-  /**
-   *  display gamma 2.6.
-   *
-   * Transfer characteristic curve:
-   *  E = L ^ (1/2.6)
-   *      L - luminance of image 0 <= L <= 1 for conventional colorimetry
-   *      E - corresponding electrical signal
-   */
-  TRANSFER_GAMMA2_6 = 20971520 /* (5 << TRANSFER_SHIFT) */,
-  /**
-   *  display gamma 2.8.
-   *
-   * Transfer characteristic curve:
-   *  E = L ^ (1/2.8)
-   *      L - luminance of image 0 <= L <= 1 for conventional colorimetry
-   *      E - corresponding electrical signal
-   */
-  TRANSFER_GAMMA2_8 = 25165824 /* (6 << TRANSFER_SHIFT) */,
-  /**
-   * SMPTE ST 2084 (Dolby Perceptual Quantizer)
-   *
-   * Transfer characteristic curve:
-   *  E = ((c1 + c2 * L^n) / (1 + c3 * L^n)) ^ m
-   *  c1 = c3 - c2 + 1 = 3424 / 4096 = 0.8359375
-   *  c2 = 32 * 2413 / 4096 = 18.8515625
-   *  c3 = 32 * 2392 / 4096 = 18.6875
-   *  m = 128 * 2523 / 4096 = 78.84375
-   *  n = 0.25 * 2610 / 4096 = 0.1593017578125
-   *      L - luminance of image 0 <= L <= 1 for HDR colorimetry.
-   *          L = 1 corresponds to 10000 cd/m2
-   *      E - corresponding electrical signal
-   */
-  TRANSFER_ST2084 = 29360128 /* (7 << TRANSFER_SHIFT) */,
-  /**
-   * ARIB STD-B67 Hybrid Log Gamma
-   *
-   * Transfer characteristic curve:
-   *  E = r * L^0.5                 for 0 <= L <= 1
-   *    = a * ln(L - b) + c         for 1 < L
-   *  a = 0.17883277
-   *  b = 0.28466892
-   *  c = 0.55991073
-   *  r = 0.5
-   *      L - luminance of image 0 <= L for HDR colorimetry. L = 1 corresponds
-   *          to reference white level of 100 cd/m2
-   *      E - corresponding electrical signal
-   */
-  TRANSFER_HLG = 33554432 /* (8 << TRANSFER_SHIFT) */,
+
+
+
+
+
+
+
+
+
+
+
+
+
+  TRANSFER_MASK = 130023424  ,
+
+
+
+
+
+
+
+
+
+
+
+
+  TRANSFER_UNSPECIFIED = 0  ,
+
+
+
+
+
+
+  TRANSFER_LINEAR = 4194304  ,
+
+
+
+
+
+
+
+
+  TRANSFER_SRGB = 8388608  ,
+
+
+
+
+
+
+
+
+
+  TRANSFER_SMPTE_170M = 12582912  ,
+
+
+
+
+
+
+
+
+  TRANSFER_GAMMA2_2 = 16777216  ,
+
+
+
+
+
+
+
+
+  TRANSFER_GAMMA2_6 = 20971520  ,
+
+
+
+
+
+
+
+
+  TRANSFER_GAMMA2_8 = 25165824  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  TRANSFER_ST2084 = 29360128  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  TRANSFER_HLG = 33554432  ,
   RANGE_SHIFT = 27,
-  /**
-   * Range aspect
-   *
-   * Defines the range of values corresponding to the unit range of 0-1.
-   * This is defined for YCbCr only, but can be expanded to RGB space.
-   */
-  RANGE_MASK = 939524096 /* (7 << RANGE_SHIFT) */,
-  /**
-   * Range is unknown or are determined by the application.  Implementations
-   * shall use the following suggested ranges:
-   *
-   * All YCbCr formats: limited range.
-   * All RGB or RGBA formats (including RAW and Bayer): full range.
-   * All Y formats: full range
-   *
-   * For all other formats range is undefined, and implementations should use
-   * an appropriate range for the data represented.
-   */
-  RANGE_UNSPECIFIED = 0 /* (0 << RANGE_SHIFT) */,
-  /**
-   * Full range uses all values for Y, Cb and Cr from
-   * 0 to 2^b-1, where b is the bit depth of the color format.
-   */
-  RANGE_FULL = 134217728 /* (1 << RANGE_SHIFT) */,
-  /**
-   * Limited range uses values 16/256*2^b to 235/256*2^b for Y, and
-   * 1/16*2^b to 15/16*2^b for Cb, Cr, R, G and B, where b is the bit depth of
-   * the color format.
-   *
-   * E.g. For 8-bit-depth formats:
-   * Luma (Y) samples should range from 16 to 235, inclusive
-   * Chroma (Cb, Cr) samples should range from 16 to 240, inclusive
-   *
-   * For 10-bit-depth formats:
-   * Luma (Y) samples should range from 64 to 940, inclusive
-   * Chroma (Cb, Cr) samples should range from 64 to 960, inclusive
-   */
-  RANGE_LIMITED = 268435456 /* (2 << RANGE_SHIFT) */,
-  /**
-   * Extended range is used for scRGB. Intended for use with
-   * floating point pixel formats. [0.0 - 1.0] is the standard
-   * sRGB space. Values outside the range 0.0 - 1.0 can encode
-   * color outside the sRGB gamut.
-   * Used to blend / merge multiple dataspaces on a single display.
-   */
-  RANGE_EXTENDED = 402653184 /* (3 << RANGE_SHIFT) */,
-  /**
-   * Legacy dataspaces
-   *
-   *
-   * sRGB linear encoding:
-   *
-   * The red, green, and blue components are stored in sRGB space, but
-   * are linear, not gamma-encoded.
-   * The RGB primaries and the white point are the same as BT.709.
-   *
-   * The values are encoded using the full range ([0,255] for 8-bit) for all
-   * components.
-   */
-  SRGB_LINEAR = 512 /* 0x200 */,
-  V0_SRGB_LINEAR = 138477568 /* ((STANDARD_BT709 | TRANSFER_LINEAR) | RANGE_FULL) */,
-  /**
-   * scRGB linear encoding:
-   *
-   * The red, green, and blue components are stored in extended sRGB space,
-   * but are linear, not gamma-encoded.
-   * The RGB primaries and the white point are the same as BT.709.
-   *
-   * The values are floating point.
-   * A pixel value of 1.0, 1.0, 1.0 corresponds to sRGB white (D65) at 80 nits.
-   * Values beyond the range [0.0 - 1.0] would correspond to other colors
-   * spaces and/or HDR content.
-   */
-  V0_SCRGB_LINEAR = 406913024 /* ((STANDARD_BT709 | TRANSFER_LINEAR) | RANGE_EXTENDED) */,
-  /**
-   * sRGB gamma encoding:
-   *
-   * The red, green and blue components are stored in sRGB space, and
-   * converted to linear space when read, using the SRGB transfer function
-   * for each of the R, G and B components. When written, the inverse
-   * transformation is performed.
-   *
-   * The alpha component, if present, is always stored in linear space and
-   * is left unmodified when read or written.
-   *
-   * Use full range and BT.709 standard.
-   */
-  SRGB = 513 /* 0x201 */,
-  V0_SRGB = 142671872 /* ((STANDARD_BT709 | TRANSFER_SRGB) | RANGE_FULL) */,
-  /**
-   * scRGB:
-   *
-   * The red, green, and blue components are stored in extended sRGB space,
-   * but are linear, not gamma-encoded.
-   * The RGB primaries and the white point are the same as BT.709.
-   *
-   * The values are floating point.
-   * A pixel value of 1.0, 1.0, 1.0 corresponds to sRGB white (D65) at 80 nits.
-   * Values beyond the range [0.0 - 1.0] would correspond to other colors
-   * spaces and/or HDR content.
-   */
-  V0_SCRGB = 411107328 /* ((STANDARD_BT709 | TRANSFER_SRGB) | RANGE_EXTENDED) */,
-  /**
-   * YCbCr Colorspaces
-   * -----------------
-   *
-   * Primaries are given using (x,y) coordinates in the CIE 1931 definition
-   * of x and y specified by ISO 11664-1.
-   *
-   * Transfer characteristics are the opto-electronic transfer characteristic
-   * at the source as a function of linear optical intensity (luminance).
-   *
-   *
-   * JPEG File Interchange Format (JFIF)
-   *
-   * Same model as BT.601-625, but all values (Y, Cb, Cr) range from 0 to 255
-   *
-   * Use full range, BT.601 transfer and BT.601_625 standard.
-   */
-  JFIF = 257 /* 0x101 */,
-  V0_JFIF = 146931712 /* ((STANDARD_BT601_625 | TRANSFER_SMPTE_170M) | RANGE_FULL) */,
-  /**
-   * ITU-R Recommendation 601 (BT.601) - 625-line
-   *
-   * Standard-definition television, 625 Lines (PAL)
-   *
-   * Use limited range, BT.601 transfer and BT.601_625 standard.
-   */
-  BT601_625 = 258 /* 0x102 */,
-  V0_BT601_625 = 281149440 /* ((STANDARD_BT601_625 | TRANSFER_SMPTE_170M) | RANGE_LIMITED) */,
-  /**
-   * ITU-R Recommendation 601 (BT.601) - 525-line
-   *
-   * Standard-definition television, 525 Lines (NTSC)
-   *
-   * Use limited range, BT.601 transfer and BT.601_525 standard.
-   */
-  BT601_525 = 259 /* 0x103 */,
-  V0_BT601_525 = 281280512 /* ((STANDARD_BT601_525 | TRANSFER_SMPTE_170M) | RANGE_LIMITED) */,
-  /**
-   * ITU-R Recommendation 709 (BT.709)
-   *
-   * High-definition television
-   *
-   * Use limited range, BT.709 transfer and BT.709 standard.
-   */
-  BT709 = 260 /* 0x104 */,
-  V0_BT709 = 281083904 /* ((STANDARD_BT709 | TRANSFER_SMPTE_170M) | RANGE_LIMITED) */,
-  /**
-   * SMPTE EG 432-1 and SMPTE RP 431-2.
-   *
-   * Digital Cinema DCI-P3
-   *
-   * Use full range, linear transfer and D65 DCI-P3 standard
-   */
-  DCI_P3_LINEAR = 139067392 /* ((STANDARD_DCI_P3 | TRANSFER_LINEAR) | RANGE_FULL) */,
-  /**
-   * SMPTE EG 432-1 and SMPTE RP 431-2.
-   *
-   * Digital Cinema DCI-P3
-   *
-   * Use full range, gamma 2.6 transfer and D65 DCI-P3 standard
-   * Note: Application is responsible for gamma encoding the data as
-   * a 2.6 gamma encoding is not supported in HW.
-   */
-  DCI_P3 = 155844608 /* ((STANDARD_DCI_P3 | TRANSFER_GAMMA2_6) | RANGE_FULL) */,
-  /**
-   * Display P3
-   *
-   * Display P3 uses same primaries and white-point as DCI-P3
-   * linear transfer function makes this the same as DCI_P3_LINEAR.
-   */
-  DISPLAY_P3_LINEAR = 139067392 /* ((STANDARD_DCI_P3 | TRANSFER_LINEAR) | RANGE_FULL) */,
-  /**
-   * Display P3
-   *
-   * Use same primaries and white-point as DCI-P3
-   * but sRGB transfer function.
-   */
-  DISPLAY_P3 = 143261696 /* ((STANDARD_DCI_P3 | TRANSFER_SRGB) | RANGE_FULL) */,
-  /**
-   * Adobe RGB
-   *
-   * Use full range, gamma 2.2 transfer and Adobe RGB primaries
-   * Note: Application is responsible for gamma encoding the data as
-   * a 2.2 gamma encoding is not supported in HW.
-   */
-  ADOBE_RGB = 151715840 /* ((STANDARD_ADOBE_RGB | TRANSFER_GAMMA2_2) | RANGE_FULL) */,
-  /**
-   * ITU-R Recommendation 2020 (BT.2020)
-   *
-   * Ultra High-definition television
-   *
-   * Use full range, linear transfer and BT2020 standard
-   */
-  BT2020_LINEAR = 138805248 /* ((STANDARD_BT2020 | TRANSFER_LINEAR) | RANGE_FULL) */,
-  /**
-   * ITU-R Recommendation 2020 (BT.2020)
-   *
-   * Ultra High-definition television
-   *
-   * Use full range, BT.709 transfer and BT2020 standard
-   */
-  BT2020 = 147193856 /* ((STANDARD_BT2020 | TRANSFER_SMPTE_170M) | RANGE_FULL) */,
-  /**
-   * ITU-R Recommendation 2020 (BT.2020)
-   *
-   * Ultra High-definition television
-   *
-   * Use full range, SMPTE 2084 (PQ) transfer and BT2020 standard
-   */
-  BT2020_PQ = 163971072 /* ((STANDARD_BT2020 | TRANSFER_ST2084) | RANGE_FULL) */,
-  /**
-   * Data spaces for non-color formats
-   *
-   *
-   * The buffer contains depth ranging measurements from a depth camera.
-   * This value is valid with formats:
-   *    HAL_PIXEL_FORMAT_Y16: 16-bit samples, consisting of a depth measurement
-   *       and an associated confidence value. The 3 MSBs of the sample make
-   *       up the confidence value, and the low 13 LSBs of the sample make up
-   *       the depth measurement.
-   *       For the confidence section, 0 means 100% confidence, 1 means 0%
-   *       confidence. The mapping to a linear float confidence value between
-   *       0.f and 1.f can be obtained with
-   *         float confidence = (((depthSample >> 13) - 1) & 0x7) / 7.0f;
-   *       The depth measurement can be extracted simply with
-   *         uint16_t range = (depthSample & 0x1FFF);
-   *    HAL_PIXEL_FORMAT_BLOB: A depth point cloud, as
-   *       a variable-length float (x,y,z, confidence) coordinate point list.
-   *       The point cloud will be represented with the android_depth_points
-   *       structure.
-   */
-  DEPTH = 4096 /* 0x1000 */,
-  /**
-   * The buffer contains sensor events from sensor direct report.
-   * This value is valid with formats:
-   *    HAL_PIXEL_FORMAT_BLOB: an array of sensor event structure that forms
-   *       a lock free queue. Format of sensor event structure is specified
-   *       in Sensors HAL.
-   */
-  SENSOR = 4097 /* 0x1001 */,
+
+
+
+
+
+
+  RANGE_MASK = 939524096  ,
+
+
+
+
+
+
+
+
+
+
+
+  RANGE_UNSPECIFIED = 0  ,
+
+
+
+
+  RANGE_FULL = 134217728  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+  RANGE_LIMITED = 268435456  ,
+
+
+
+
+
+
+
+  RANGE_EXTENDED = 402653184  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+  SRGB_LINEAR = 512  ,
+  V0_SRGB_LINEAR = 138477568  ,
+
+
+
+
+
+
+
+
+
+
+
+
+  V0_SCRGB_LINEAR = 406913024  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+  SRGB = 513  ,
+  V0_SRGB = 142671872  ,
+
+
+
+
+
+
+
+
+
+
+
+
+  V0_SCRGB = 411107328  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  JFIF = 257  ,
+  V0_JFIF = 146931712  ,
+
+
+
+
+
+
+
+  BT601_625 = 258  ,
+  V0_BT601_625 = 281149440  ,
+
+
+
+
+
+
+
+  BT601_525 = 259  ,
+  V0_BT601_525 = 281280512  ,
+
+
+
+
+
+
+
+  BT709 = 260  ,
+  V0_BT709 = 281083904  ,
+
+
+
+
+
+
+
+  DCI_P3_LINEAR = 139067392  ,
+
+
+
+
+
+
+
+
+
+  DCI_P3 = 155844608  ,
+
+
+
+
+
+
+  DISPLAY_P3_LINEAR = 139067392  ,
+
+
+
+
+
+
+  DISPLAY_P3 = 143261696  ,
+
+
+
+
+
+
+
+  ADOBE_RGB = 151715840  ,
+
+
+
+
+
+
+
+  BT2020_LINEAR = 138805248  ,
+
+
+
+
+
+
+
+  BT2020 = 147193856  ,
+
+
+
+
+
+
+
+  BT2020_PQ = 163971072  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  DEPTH = 4096  ,
+
+
+
+
+
+
+
+  SENSOR = 4097  ,
 };
 
-/**
- * Color modes that may be supported by a display.
- *
- * Definitions:
- * Rendering intent generally defines the goal in mapping a source (input)
- * color to a destination device color for a given color mode.
- *
- *  It is important to keep in mind three cases where mapping may be applied:
- *  1. The source gamut is much smaller than the destination (display) gamut
- *  2. The source gamut is much larger than the destination gamut (this will
- *  ordinarily be handled using colorimetric rendering, below)
- *  3. The source and destination gamuts are roughly equal, although not
- *  completely overlapping
- *  Also, a common requirement for mappings is that skin tones should be
- *  preserved, or at least remain natural in appearance.
- *
- *  Colorimetric Rendering Intent (All cases):
- *  Colorimetric indicates that colors should be preserved. In the case
- *  that the source gamut lies wholly within the destination gamut or is
- *  about the same (#1, #3), this will simply mean that no manipulations
- *  (no saturation boost, for example) are applied. In the case where some
- *  source colors lie outside the destination gamut (#2, #3), those will
- *  need to be mapped to colors that are within the destination gamut,
- *  while the already in-gamut colors remain unchanged.
- *
- *  Non-colorimetric transforms can take many forms. There are no hard
- *  rules and it's left to the implementation to define.
- *  Two common intents are described below.
- *
- *  Stretched-Gamut Enhancement Intent (Source < Destination):
- *  When the destination gamut is much larger than the source gamut (#1), the
- *  source primaries may be redefined to reflect the full extent of the
- *  destination space, or to reflect an intermediate gamut.
- *  Skin-tone preservation would likely be applied. An example might be sRGB
- *  input displayed on a DCI-P3 capable device, with skin-tone preservation.
- *
- *  Within-Gamut Enhancement Intent (Source >= Destination):
- *  When the device (destination) gamut is not larger than the source gamut
- *  (#2 or #3), but the appearance of a larger gamut is desired, techniques
- *  such as saturation boost may be applied to the source colors. Skin-tone
- *  preservation may be applied. There is no unique method for within-gamut
- *  enhancement; it would be defined within a flexible color mode.
- *
- */
 enum class ColorMode : int32_t {
-  /**
-   * DEFAULT is the "native" gamut of the display.
-   * White Point: Vendor/OEM defined
-   * Panel Gamma: Vendor/OEM defined (typically 2.2)
-   * Rendering Intent: Vendor/OEM defined (typically 'enhanced')
-   */
   NATIVE = 0,
-  /**
-   * STANDARD_BT601_625 corresponds with display
-   * settings that implement the ITU-R Recommendation BT.601
-   * or Rec 601. Using 625 line version
-   * Rendering Intent: Colorimetric
-   * Primaries:
-   *                  x       y
-   *  green           0.290   0.600
-   *  blue            0.150   0.060
-   *  red             0.640   0.330
-   *  white (D65)     0.3127  0.3290
-   *
-   *  KR = 0.299, KB = 0.114. This adjusts the luminance interpretation
-   *  for RGB conversion from the one purely determined by the primaries
-   *  to minimize the color shift into RGB space that uses BT.709
-   *  primaries.
-   *
-   * Gamma Correction (GC):
-   *
-   *  if Vlinear < 0.018
-   *    Vnonlinear = 4.500 * Vlinear
-   *  else
-   *    Vnonlinear = 1.099 * (Vlinear)^(0.45) – 0.099
-   */
   STANDARD_BT601_625 = 1,
-  /**
-   * Primaries:
-   *                  x       y
-   *  green           0.290   0.600
-   *  blue            0.150   0.060
-   *  red             0.640   0.330
-   *  white (D65)     0.3127  0.3290
-   *
-   *  Use the unadjusted KR = 0.222, KB = 0.071 luminance interpretation
-   *  for RGB conversion.
-   *
-   * Gamma Correction (GC):
-   *
-   *  if Vlinear < 0.018
-   *    Vnonlinear = 4.500 * Vlinear
-   *  else
-   *    Vnonlinear = 1.099 * (Vlinear)^(0.45) – 0.099
-   */
   STANDARD_BT601_625_UNADJUSTED = 2,
-  /**
-   * Primaries:
-   *                  x       y
-   *  green           0.310   0.595
-   *  blue            0.155   0.070
-   *  red             0.630   0.340
-   *  white (D65)     0.3127  0.3290
-   *
-   *  KR = 0.299, KB = 0.114. This adjusts the luminance interpretation
-   *  for RGB conversion from the one purely determined by the primaries
-   *  to minimize the color shift into RGB space that uses BT.709
-   *  primaries.
-   *
-   * Gamma Correction (GC):
-   *
-   *  if Vlinear < 0.018
-   *    Vnonlinear = 4.500 * Vlinear
-   *  else
-   *    Vnonlinear = 1.099 * (Vlinear)^(0.45) – 0.099
-   */
   STANDARD_BT601_525 = 3,
-  /**
-   * Primaries:
-   *                  x       y
-   *  green           0.310   0.595
-   *  blue            0.155   0.070
-   *  red             0.630   0.340
-   *  white (D65)     0.3127  0.3290
-   *
-   *  Use the unadjusted KR = 0.212, KB = 0.087 luminance interpretation
-   *  for RGB conversion (as in SMPTE 240M).
-   *
-   * Gamma Correction (GC):
-   *
-   *  if Vlinear < 0.018
-   *    Vnonlinear = 4.500 * Vlinear
-   *  else
-   *    Vnonlinear = 1.099 * (Vlinear)^(0.45) – 0.099
-   */
   STANDARD_BT601_525_UNADJUSTED = 4,
-  /**
-   * REC709 corresponds with display settings that implement
-   * the ITU-R Recommendation BT.709 / Rec. 709 for high-definition television.
-   * Rendering Intent: Colorimetric
-   * Primaries:
-   *                  x       y
-   *  green           0.300   0.600
-   *  blue            0.150   0.060
-   *  red             0.640   0.330
-   *  white (D65)     0.3127  0.3290
-   *
-   * HDTV REC709 Inverse Gamma Correction (IGC): V represents normalized
-   * (with [0 to 1] range) value of R, G, or B.
-   *
-   *  if Vnonlinear < 0.081
-   *    Vlinear = Vnonlinear / 4.5
-   *  else
-   *    Vlinear = ((Vnonlinear + 0.099) / 1.099) ^ (1/0.45)
-   *
-   * HDTV REC709 Gamma Correction (GC):
-   *
-   *  if Vlinear < 0.018
-   *    Vnonlinear = 4.5 * Vlinear
-   *  else
-   *    Vnonlinear = 1.099 * (Vlinear) ^ 0.45 – 0.099
-   */
   STANDARD_BT709 = 5,
-  /**
-   * DCI_P3 corresponds with display settings that implement
-   * SMPTE EG 432-1 and SMPTE RP 431-2
-   * Rendering Intent: Colorimetric
-   * Primaries:
-   *                  x       y
-   *  green           0.265   0.690
-   *  blue            0.150   0.060
-   *  red             0.680   0.320
-   *  white (D65)     0.3127  0.3290
-   *
-   * Gamma: 2.6
-   */
   DCI_P3 = 6,
-  /**
-   * SRGB corresponds with display settings that implement
-   * the sRGB color space. Uses the same primaries as ITU-R Recommendation
-   * BT.709
-   * Rendering Intent: Colorimetric
-   * Primaries:
-   *                  x       y
-   *  green           0.300   0.600
-   *  blue            0.150   0.060
-   *  red             0.640   0.330
-   *  white (D65)     0.3127  0.3290
-   *
-   * PC/Internet (sRGB) Inverse Gamma Correction (IGC):
-   *
-   *  if Vnonlinear ≤ 0.03928
-   *    Vlinear = Vnonlinear / 12.92
-   *  else
-   *    Vlinear = ((Vnonlinear + 0.055)/1.055) ^ 2.4
-   *
-   * PC/Internet (sRGB) Gamma Correction (GC):
-   *
-   *  if Vlinear ≤ 0.0031308
-   *    Vnonlinear = 12.92 * Vlinear
-   *  else
-   *    Vnonlinear = 1.055 * (Vlinear)^(1/2.4) – 0.055
-   */
   SRGB = 7,
-  /**
-   * ADOBE_RGB corresponds with the RGB color space developed
-   * by Adobe Systems, Inc. in 1998.
-   * Rendering Intent: Colorimetric
-   * Primaries:
-   *                  x       y
-   *  green           0.210   0.710
-   *  blue            0.150   0.060
-   *  red             0.640   0.330
-   *  white (D65)     0.3127  0.3290
-   *
-   * Gamma: 2.2
-   */
   ADOBE_RGB = 8,
-  /**
-   * DISPLAY_P3 is a color space that uses the DCI_P3 primaries,
-   * the D65 white point and the SRGB transfer functions.
-   * Rendering Intent: Colorimetric
-   * Primaries:
-   *                  x       y
-   *  green           0.265   0.690
-   *  blue            0.150   0.060
-   *  red             0.680   0.320
-   *  white (D65)     0.3127  0.3290
-   *
-   * PC/Internet (sRGB) Gamma Correction (GC):
-   *
-   *  if Vlinear ≤ 0.0030186
-   *    Vnonlinear = 12.92 * Vlinear
-   *  else
-   *    Vnonlinear = 1.055 * (Vlinear)^(1/2.4) – 0.055
-   *
-   * Note: In most cases sRGB transfer function will be fine.
-   */
   DISPLAY_P3 = 9,
 };
 
-/**
- * Color transforms that may be applied by hardware composer to the whole
- * display.
- */
 enum class ColorTransform : int32_t {
-  /**
-   * Applies no transform to the output color
-   */
   IDENTITY = 0,
-  /**
-   * Applies an arbitrary transform defined by a 4x4 affine matrix
-   */
   ARBITRARY_MATRIX = 1,
-  /**
-   * Applies a transform that inverts the value or luminance of the color, but
-   * does not modify hue or saturation
-   */
   VALUE_INVERSE = 2,
-  /**
-   * Applies a transform that maps all colors to shades of gray
-   */
   GRAYSCALE = 3,
-  /**
-   * Applies a transform which corrects for protanopic color blindness
-   */
   CORRECT_PROTANOPIA = 4,
-  /**
-   * Applies a transform which corrects for deuteranopic color blindness
-   */
   CORRECT_DEUTERANOPIA = 5,
-  /**
-   * Applies a transform which corrects for tritanopic color blindness
-   */
   CORRECT_TRITANOPIA = 6,
 };
 
-/**
- * Supported HDR formats. Must be kept in sync with equivalents in Display.java.
- */
 enum class Hdr : int32_t {
-  /**
-   * Device supports Dolby Vision HDR
-   */
   DOLBY_VISION = 1,
-  /**
-   * Device supports HDR10
-   */
   HDR10 = 2,
-  /**
-   * Device supports hybrid log-gamma HDR
-   */
   HLG = 3,
 };
 
-//
-// type declarations for package
-//
 
 template <typename>
 static inline std::string toString(int32_t o);
@@ -1691,9 +1360,6 @@ constexpr int32_t& operator&=(int32_t& v,
   return v;
 }
 
-//
-// type header definitions for package
-//
 
 template <>
 inline std::string toString<::android::hardware::graphics::common::V1_0::PixelFormat>(int32_t o) {
@@ -3183,15 +2849,12 @@ static inline std::string toString(::android::hardware::graphics::common::V1_0::
   return os;
 }
 
-}  // namespace V1_0
-}  // namespace common
-}  // namespace graphics
-}  // namespace hardware
-}  // namespace android
+}
+}
+}
+}
+}
 
-//
-// global type declarations for package
-//
 
 namespace android {
 namespace hardware {
@@ -3220,9 +2883,9 @@ constexpr std::array<::android::hardware::graphics::common::V1_0::PixelFormat, 2
         ::android::hardware::graphics::common::V1_0::PixelFormat::Y16,
         ::android::hardware::graphics::common::V1_0::PixelFormat::YV12,
 };
-}  // namespace details
-}  // namespace hardware
-}  // namespace android
+}
+}
+}
 
 namespace android {
 namespace hardware {
@@ -3254,9 +2917,9 @@ constexpr std::array<::android::hardware::graphics::common::V1_0::BufferUsage, 2
         ::android::hardware::graphics::common::V1_0::BufferUsage::VENDOR_MASK,
         ::android::hardware::graphics::common::V1_0::BufferUsage::VENDOR_MASK_HI,
 };
-}  // namespace details
-}  // namespace hardware
-}  // namespace android
+}
+}
+}
 
 namespace android {
 namespace hardware {
@@ -3270,9 +2933,9 @@ constexpr std::array<::android::hardware::graphics::common::V1_0::Transform, 5>
         ::android::hardware::graphics::common::V1_0::Transform::ROT_180,
         ::android::hardware::graphics::common::V1_0::Transform::ROT_270,
 };
-}  // namespace details
-}  // namespace hardware
-}  // namespace android
+}
+}
+}
 
 namespace android {
 namespace hardware {
@@ -3338,9 +3001,9 @@ constexpr std::array<::android::hardware::graphics::common::V1_0::Dataspace, 57>
         ::android::hardware::graphics::common::V1_0::Dataspace::DEPTH,
         ::android::hardware::graphics::common::V1_0::Dataspace::SENSOR,
 };
-}  // namespace details
-}  // namespace hardware
-}  // namespace android
+}
+}
+}
 
 namespace android {
 namespace hardware {
@@ -3359,9 +3022,9 @@ constexpr std::array<::android::hardware::graphics::common::V1_0::ColorMode, 10>
         ::android::hardware::graphics::common::V1_0::ColorMode::ADOBE_RGB,
         ::android::hardware::graphics::common::V1_0::ColorMode::DISPLAY_P3,
 };
-}  // namespace details
-}  // namespace hardware
-}  // namespace android
+}
+}
+}
 
 namespace android {
 namespace hardware {
@@ -3377,9 +3040,9 @@ constexpr std::array<::android::hardware::graphics::common::V1_0::ColorTransform
         ::android::hardware::graphics::common::V1_0::ColorTransform::CORRECT_DEUTERANOPIA,
         ::android::hardware::graphics::common::V1_0::ColorTransform::CORRECT_TRITANOPIA,
 };
-}  // namespace details
-}  // namespace hardware
-}  // namespace android
+}
+}
+}
 
 namespace android {
 namespace hardware {
@@ -3391,11 +3054,11 @@ constexpr std::array<::android::hardware::graphics::common::V1_0::Hdr, 3>
         ::android::hardware::graphics::common::V1_0::Hdr::HDR10,
         ::android::hardware::graphics::common::V1_0::Hdr::HLG,
 };
-}  // namespace details
-}  // namespace hardware
-}  // namespace android
+}
+}
+}
 
-#endif  // HIDL_GENERATED_ANDROID_HARDWARE_GRAPHICS_COMMON_V1_0_TYPES_H
+#endif
 
 #ifndef HIDL_GENERATED_ANDROID_HARDWARE_GRAPHICS_COMMON_V1_1_TYPES_H
 #define HIDL_GENERATED_ANDROID_HARDWARE_GRAPHICS_COMMON_V1_1_TYPES_H
@@ -3411,1449 +3074,1158 @@ namespace graphics {
 namespace common {
 namespace V1_1 {
 
-// Forward declaration for forward reference support:
 enum class PixelFormat : int32_t;
 enum class BufferUsage : uint64_t;
 enum class Dataspace : int32_t;
 enum class ColorMode : int32_t;
 enum class RenderIntent : int32_t;
 
-/**
- * Pixel formats for graphics buffers.
- */
 enum class PixelFormat : int32_t {
-  /**
-   * 32-bit format that has 8-bit R, G, B, and A components, in that order,
-   * from the lowest memory address to the highest memory address.
-   *
-   * The component values are unsigned normalized to the range [0, 1], whose
-   * interpretation is defined by the dataspace.
-   */
-  RGBA_8888 = 1 /* 0x1 */,
-  /**
-   * 32-bit format that has 8-bit R, G, B, and unused components, in that
-   * order, from the lowest memory address to the highest memory address.
-   *
-   * The component values are unsigned normalized to the range [0, 1], whose
-   * interpretation is defined by the dataspace.
-   */
-  RGBX_8888 = 2 /* 0x2 */,
-  /**
-   * 24-bit format that has 8-bit R, G, and B components, in that order,
-   * from the lowest memory address to the highest memory address.
-   *
-   * The component values are unsigned normalized to the range [0, 1], whose
-   * interpretation is defined by the dataspace.
-   */
-  RGB_888 = 3 /* 0x3 */,
-  /**
-   * 16-bit packed format that has 5-bit R, 6-bit G, and 5-bit B components,
-   * in that order, from the most-sigfinicant bits to the least-significant
-   * bits.
-   *
-   * The component values are unsigned normalized to the range [0, 1], whose
-   * interpretation is defined by the dataspace.
-   */
-  RGB_565 = 4 /* 0x4 */,
-  /**
-   * 32-bit format that has 8-bit B, G, R, and A components, in that order,
-   * from the lowest memory address to the highest memory address.
-   *
-   * The component values are unsigned normalized to the range [0, 1], whose
-   * interpretation is defined by the dataspace.
-   */
-  BGRA_8888 = 5 /* 0x5 */,
-  /**
-   * Legacy formats deprecated in favor of YCBCR_420_888.
-   */
-  YCBCR_422_SP = 16 /* 0x10 */,
-  YCRCB_420_SP = 17 /* 0x11 */,
-  YCBCR_422_I = 20 /* 0x14 */,
-  /**
-   * 64-bit format that has 16-bit R, G, B, and A components, in that order,
-   * from the lowest memory address to the highest memory address.
-   *
-   * The component values are signed floats, whose interpretation is defined
-   * by the dataspace.
-   */
-  RGBA_FP16 = 22 /* 0x16 */,
-  /**
-   * RAW16 is a single-channel, 16-bit, little endian format, typically
-   * representing raw Bayer-pattern images from an image sensor, with minimal
-   * processing.
-   *
-   * The exact pixel layout of the data in the buffer is sensor-dependent, and
-   * needs to be queried from the camera device.
-   *
-   * Generally, not all 16 bits are used; more common values are 10 or 12
-   * bits. If not all bits are used, the lower-order bits are filled first.
-   * All parameters to interpret the raw data (black and white points,
-   * color space, etc) must be queried from the camera device.
-   *
-   * This format assumes
-   * - an even width
-   * - an even height
-   * - a horizontal stride multiple of 16 pixels
-   * - a vertical stride equal to the height
-   * - strides are specified in pixels, not in bytes
-   *
-   *   size = stride * height * 2
-   *
-   * This format must be accepted by the allocator when used with the
-   * following usage flags:
-   *
-   *    - BufferUsage::CAMERA_*
-   *    - BufferUsage::CPU_*
-   *    - BufferUsage::RENDERSCRIPT
-   *
-   * The mapping of the dataspace to buffer contents for RAW16 is as
-   * follows:
-   *
-   *  Dataspace value               | Buffer contents
-   * -------------------------------+-----------------------------------------
-   *  Dataspace::ARBITRARY          | Raw image sensor data, layout is as
-   *                                | defined above.
-   *  Dataspace::DEPTH              | Unprocessed implementation-dependent raw
-   *                                | depth measurements, opaque with 16 bit
-   *                                | samples.
-   *  Other                         | Unsupported
-   */
-  RAW16 = 32 /* 0x20 */,
-  /**
-   * BLOB is used to carry task-specific data which does not have a standard
-   * image structure. The details of the format are left to the two
-   * endpoints.
-   *
-   * A typical use case is for transporting JPEG-compressed images from the
-   * Camera HAL to the framework or to applications.
-   *
-   * Buffers of this format must have a height of 1, and width equal to their
-   * size in bytes.
-   *
-   * The mapping of the dataspace to buffer contents for BLOB is as
-   * follows:
-   *
-   *  Dataspace value               | Buffer contents
-   * -------------------------------+-----------------------------------------
-   *  Dataspace::JFIF               | An encoded JPEG image
-   *  Dataspace::DEPTH              | An android_depth_points buffer
-   *  Dataspace::SENSOR             | Sensor event data.
-   *  Other                         | Unsupported
-   */
-  BLOB = 33 /* 0x21 */,
-  /**
-   * A format indicating that the choice of format is entirely up to the
-   * allocator.
-   *
-   * The allocator should examine the usage bits passed in when allocating a
-   * buffer with this format, and it should derive the pixel format from
-   * those usage flags. This format must never be used with any of the
-   * BufferUsage::CPU_* usage flags.
-   *
-   * Even when the internally chosen format has an alpha component, the
-   * clients must assume the alpha vlaue to be 1.0.
-   *
-   * The interpretation of the component values is defined by the dataspace.
-   */
-  IMPLEMENTATION_DEFINED = 34 /* 0x22 */,
-  /**
-   * This format allows platforms to use an efficient YCbCr/YCrCb 4:2:0
-   * buffer layout, while still describing the general format in a
-   * layout-independent manner. While called YCbCr, it can be used to
-   * describe formats with either chromatic ordering, as well as
-   * whole planar or semiplanar layouts.
-   *
-   * This format must be accepted by the allocator when BufferUsage::CPU_*
-   * are set.
-   *
-   * Buffers with this format must be locked with IMapper::lockYCbCr.
-   * Locking with IMapper::lock must return an error.
-   *
-   * The interpretation of the component values is defined by the dataspace.
-   */
-  YCBCR_420_888 = 35 /* 0x23 */,
-  /**
-   * RAW_OPAQUE is a format for unprocessed raw image buffers coming from an
-   * image sensor. The actual structure of buffers of this format is
-   * implementation-dependent.
-   *
-   * This format must be accepted by the allocator when used with the
-   * following usage flags:
-   *
-   *    - BufferUsage::CAMERA_*
-   *    - BufferUsage::CPU_*
-   *    - BufferUsage::RENDERSCRIPT
-   *
-   * The mapping of the dataspace to buffer contents for RAW_OPAQUE is as
-   * follows:
-   *
-   *  Dataspace value               | Buffer contents
-   * -------------------------------+-----------------------------------------
-   *  Dataspace::ARBITRARY          | Raw image sensor data.
-   *  Other                         | Unsupported
-   */
-  RAW_OPAQUE = 36 /* 0x24 */,
-  /**
-   * RAW10 is a single-channel, 10-bit per pixel, densely packed in each row,
-   * unprocessed format, usually representing raw Bayer-pattern images coming from
-   * an image sensor.
-   *
-   * In an image buffer with this format, starting from the first pixel of each
-   * row, each 4 consecutive pixels are packed into 5 bytes (40 bits). Each one
-   * of the first 4 bytes contains the top 8 bits of each pixel, The fifth byte
-   * contains the 2 least significant bits of the 4 pixels, the exact layout data
-   * for each 4 consecutive pixels is illustrated below (Pi[j] stands for the jth
-   * bit of the ith pixel):
-   *
-   *          bit 7                                     bit 0
-   *          =====|=====|=====|=====|=====|=====|=====|=====|
-   * Byte 0: |P0[9]|P0[8]|P0[7]|P0[6]|P0[5]|P0[4]|P0[3]|P0[2]|
-   *         |-----|-----|-----|-----|-----|-----|-----|-----|
-   * Byte 1: |P1[9]|P1[8]|P1[7]|P1[6]|P1[5]|P1[4]|P1[3]|P1[2]|
-   *         |-----|-----|-----|-----|-----|-----|-----|-----|
-   * Byte 2: |P2[9]|P2[8]|P2[7]|P2[6]|P2[5]|P2[4]|P2[3]|P2[2]|
-   *         |-----|-----|-----|-----|-----|-----|-----|-----|
-   * Byte 3: |P3[9]|P3[8]|P3[7]|P3[6]|P3[5]|P3[4]|P3[3]|P3[2]|
-   *         |-----|-----|-----|-----|-----|-----|-----|-----|
-   * Byte 4: |P3[1]|P3[0]|P2[1]|P2[0]|P1[1]|P1[0]|P0[1]|P0[0]|
-   *          ===============================================
-   *
-   * This format assumes
-   * - a width multiple of 4 pixels
-   * - an even height
-   * - a vertical stride equal to the height
-   * - strides are specified in bytes, not in pixels
-   *
-   *   size = stride * height
-   *
-   * When stride is equal to width * (10 / 8), there will be no padding bytes at
-   * the end of each row, the entire image data is densely packed. When stride is
-   * larger than width * (10 / 8), padding bytes will be present at the end of each
-   * row (including the last row).
-   *
-   * This format must be accepted by the allocator when used with the
-   * following usage flags:
-   *
-   *    - BufferUsage::CAMERA_*
-   *    - BufferUsage::CPU_*
-   *    - BufferUsage::RENDERSCRIPT
-   *
-   * The mapping of the dataspace to buffer contents for RAW10 is as
-   * follows:
-   *
-   *  Dataspace value               | Buffer contents
-   * -------------------------------+-----------------------------------------
-   *  Dataspace::ARBITRARY          | Raw image sensor data.
-   *  Other                         | Unsupported
-   */
-  RAW10 = 37 /* 0x25 */,
-  /**
-   * RAW12 is a single-channel, 12-bit per pixel, densely packed in each row,
-   * unprocessed format, usually representing raw Bayer-pattern images coming from
-   * an image sensor.
-   *
-   * In an image buffer with this format, starting from the first pixel of each
-   * row, each two consecutive pixels are packed into 3 bytes (24 bits). The first
-   * and second byte contains the top 8 bits of first and second pixel. The third
-   * byte contains the 4 least significant bits of the two pixels, the exact layout
-   * data for each two consecutive pixels is illustrated below (Pi[j] stands for
-   * the jth bit of the ith pixel):
-   *
-   *           bit 7                                            bit 0
-   *          ======|======|======|======|======|======|======|======|
-   * Byte 0: |P0[11]|P0[10]|P0[ 9]|P0[ 8]|P0[ 7]|P0[ 6]|P0[ 5]|P0[ 4]|
-   *         |------|------|------|------|------|------|------|------|
-   * Byte 1: |P1[11]|P1[10]|P1[ 9]|P1[ 8]|P1[ 7]|P1[ 6]|P1[ 5]|P1[ 4]|
-   *         |------|------|------|------|------|------|------|------|
-   * Byte 2: |P1[ 3]|P1[ 2]|P1[ 1]|P1[ 0]|P0[ 3]|P0[ 2]|P0[ 1]|P0[ 0]|
-   *          =======================================================
-   *
-   * This format assumes:
-   * - a width multiple of 4 pixels
-   * - an even height
-   * - a vertical stride equal to the height
-   * - strides are specified in bytes, not in pixels
-   *
-   *   size = stride * height
-   *
-   * When stride is equal to width * (12 / 8), there will be no padding bytes at
-   * the end of each row, the entire image data is densely packed. When stride is
-   * larger than width * (12 / 8), padding bytes will be present at the end of
-   * each row (including the last row).
-   *
-   * This format must be accepted by the allocator when used with the
-   * following usage flags:
-   *
-   *    - BufferUsage::CAMERA_*
-   *    - BufferUsage::CPU_*
-   *    - BufferUsage::RENDERSCRIPT
-   *
-   * The mapping of the dataspace to buffer contents for RAW12 is as
-   * follows:
-   *
-   *  Dataspace value               | Buffer contents
-   * -------------------------------+-----------------------------------------
-   *  Dataspace::ARBITRARY          | Raw image sensor data.
-   *  Other                         | Unsupported
-   */
-  RAW12 = 38 /* 0x26 */,
-  /**
-   * 0x27 to 0x2A are reserved for flexible formats
-   *
-   *
-   * 32-bit packed format that has 2-bit A, 10-bit B, G, and R components,
-   * in that order, from the most-sigfinicant bits to the least-significant
-   * bits.
-   *
-   * The component values are unsigned normalized to the range [0, 1], whose
-   * interpretation is defined by the dataspace.
-   */
-  RGBA_1010102 = 43 /* 0x2B */,
-  /**
-   * 0x100 - 0x1FF
-   *
-   * This range is reserved for vendor extensions. Formats in this range
-   * must support BufferUsage::GPU_TEXTURE. Clients must assume they do not
-   * have an alpha component.
-   *
-   *
-   * Y8 is a YUV planar format comprised of a WxH Y plane, with each pixel
-   * being represented by 8 bits. It is equivalent to just the Y plane from
-   * YV12.
-   *
-   * This format assumes
-   * - an even width
-   * - an even height
-   * - a horizontal stride multiple of 16 pixels
-   * - a vertical stride equal to the height
-   *
-   *   size = stride * height
-   *
-   * This format must be accepted by the allocator when used with the
-   * following usage flags:
-   *
-   *    - BufferUsage::CAMERA_*
-   *    - BufferUsage::CPU_*
-   *
-   * The component values are unsigned normalized to the range [0, 1], whose
-   * interpretation is defined by the dataspace.
-   */
-  Y8 = 538982489 /* 0x20203859 */,
-  /**
-   * Y16 is a YUV planar format comprised of a WxH Y plane, with each pixel
-   * being represented by 16 bits. It is just like Y8, but has double the
-   * bits per pixel (little endian).
-   *
-   * This format assumes
-   * - an even width
-   * - an even height
-   * - a horizontal stride multiple of 16 pixels
-   * - a vertical stride equal to the height
-   * - strides are specified in pixels, not in bytes
-   *
-   *   size = stride * height * 2
-   *
-   * This format must be accepted by the allocator when used with the
-   * following usage flags:
-   *
-   *    - BufferUsage::CAMERA_*
-   *    - BufferUsage::CPU_*
-   *
-   * The component values are unsigned normalized to the range [0, 1], whose
-   * interpretation is defined by the dataspace. When the dataspace is
-   * Dataspace::DEPTH, each pixel is a distance value measured by a depth
-   * camera, plus an associated confidence value.
-   */
-  Y16 = 540422489 /* 0x20363159 */,
-  /**
-   * YV12 is a 4:2:0 YCrCb planar format comprised of a WxH Y plane followed
-   * by (W/2) x (H/2) Cr and Cb planes.
-   *
-   * This format assumes
-   * - an even width
-   * - an even height
-   * - a horizontal stride multiple of 16 pixels
-   * - a vertical stride equal to the height
-   *
-   *   y_size = stride * height
-   *   c_stride = ALIGN(stride/2, 16)
-   *   c_size = c_stride * height/2
-   *   size = y_size + c_size * 2
-   *   cr_offset = y_size
-   *   cb_offset = y_size + c_size
-   *
-   * This range is reserved for vendor extensions. Formats in this range
-   * must support BufferUsage::GPU_TEXTURE. Clients must assume they do not
-   * have an alpha component.
-   *
-   * This format must be accepted by the allocator when used with the
-   * following usage flags:
-   *
-   *    - BufferUsage::CAMERA_*
-   *    - BufferUsage::CPU_*
-   *    - BufferUsage::GPU_TEXTURE
-   *
-   * The component values are unsigned normalized to the range [0, 1], whose
-   * interpretation is defined by the dataspace.
-   */
-  YV12 = 842094169 /* 0x32315659 */,
-  /**
-   * 16-bit format that has a single 16-bit depth component.
-   *
-   * The component values are unsigned normalized to the range [0, 1], whose
-   * interpretation is defined by the dataspace.
-   */
-  DEPTH_16 = 48 /* 0x30 */,
-  /**
-   * 32-bit format that has a single 24-bit depth component and, optionally,
-   * 8 bits that are unused.
-   *
-   * The component values are unsigned normalized to the range [0, 1], whose
-   * interpretation is defined by the dataspace.
-   */
-  DEPTH_24 = 49 /* 0x31 */,
-  /**
-   * 32-bit format that has a 24-bit depth component and an 8-bit stencil
-   * component packed into 32-bits.
-   *
-   * The depth component values are unsigned normalized to the range [0, 1],
-   * whose interpretation is defined by the dataspace. The stencil values are
-   * unsigned integers, whose interpretation is defined by the dataspace.
-   */
-  DEPTH_24_STENCIL_8 = 50 /* 0x32 */,
-  /**
-   * 32-bit format that has a single 32-bit depth component.
-   *
-   * The component values are signed floats, whose interpretation is defined
-   * by the dataspace.
-   */
-  DEPTH_32F = 51 /* 0x33 */,
-  /**
-   * Two-component format that has a 32-bit depth component, an 8-bit stencil
-   * component, and optionally 24-bits unused.
-   *
-   * The depth component values are signed floats, whose interpretation is
-   * defined by the dataspace. The stencil bits are unsigned integers, whose
-   * interpretation is defined by the dataspace.
-   */
-  DEPTH_32F_STENCIL_8 = 52 /* 0x34 */,
-  /**
-   * 8-bit format that has a single 8-bit stencil component.
-   *
-   * The component values are unsigned integers, whose interpretation is
-   * defined by the dataspace.
-   */
-  STENCIL_8 = 53 /* 0x35 */,
-  /**
-   * P010 is a 4:2:0 YCbCr semiplanar format comprised of a WxH Y plane
-   * followed immediately by a Wx(H/2) CbCr plane. Each sample is
-   * represented by a 16-bit little-endian value, with the lower 6 bits set
-   * to zero.
-   *
-   * This format assumes
-   * - an even height
-   * - a vertical stride equal to the height
-   *
-   *   stride_in_bytes = stride * 2
-   *   y_size = stride_in_bytes * height
-   *   cbcr_size = stride_in_bytes * (height / 2)
-   *   cb_offset = y_size
-   *   cr_offset = cb_offset + 2
-   *
-   * This format must be accepted by the allocator when used with the
-   * following usage flags:
-   *
-   *    - BufferUsage::VIDEO_*
-   *    - BufferUsage::CPU_*
-   *    - BufferUsage::GPU_TEXTURE
-   *
-   * The component values are unsigned normalized to the range [0, 1], whose
-   * interpretation is defined by the dataspace.
-   *
-   * This format is appropriate for 10bit video content.
-   *
-   * Buffers with this format must be locked with IMapper::lockYCbCr
-   * or with IMapper::lock.
-   */
-  YCBCR_P010 = 54 /* 0x36 */,
+
+
+
+
+
+
+
+  RGBA_8888 = 1  ,
+
+
+
+
+
+
+
+  RGBX_8888 = 2  ,
+
+
+
+
+
+
+
+  RGB_888 = 3  ,
+
+
+
+
+
+
+
+
+  RGB_565 = 4  ,
+
+
+
+
+
+
+
+  BGRA_8888 = 5  ,
+
+
+
+  YCBCR_422_SP = 16  ,
+  YCRCB_420_SP = 17  ,
+  YCBCR_422_I = 20  ,
+
+
+
+
+
+
+
+  RGBA_FP16 = 22  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  RAW16 = 32  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  BLOB = 33  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  IMPLEMENTATION_DEFINED = 34  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  YCBCR_420_888 = 35  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  RAW_OPAQUE = 36  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  RAW10 = 37  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  RAW12 = 38  ,
+
+
+
+
+
+
+
+
+
+
+
+  RGBA_1010102 = 43  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  Y8 = 538982489  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  Y16 = 540422489  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  YV12 = 842094169  ,
+
+
+
+
+
+
+  DEPTH_16 = 48  ,
+
+
+
+
+
+
+
+  DEPTH_24 = 49  ,
+
+
+
+
+
+
+
+
+  DEPTH_24_STENCIL_8 = 50  ,
+
+
+
+
+
+
+  DEPTH_32F = 51  ,
+
+
+
+
+
+
+
+
+  DEPTH_32F_STENCIL_8 = 52  ,
+
+
+
+
+
+
+  STENCIL_8 = 53  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  YCBCR_P010 = 54  ,
 };
 
-/**
- * Buffer usage definitions.
- */
 enum class BufferUsage : uint64_t {
-  /**
-   * bit 0-3 is an enum
-   */
-  CPU_READ_MASK = 15ull /* 0xfULL */,
-  /**
-   * buffer is never read by CPU
-   */
+
+
+
+  CPU_READ_MASK = 15ull  ,
+
+
+
   CPU_READ_NEVER = 0ull,
-  /**
-   * buffer is rarely read by CPU
-   */
   CPU_READ_RARELY = 2ull,
-  /**
-   * buffer is often read by CPU
-   */
   CPU_READ_OFTEN = 3ull,
-  /**
-   * bit 4-7 is an enum
-   */
-  CPU_WRITE_MASK = 240ull /* (0xfULL << 4) */,
-  /**
-   * buffer is never written by CPU
-   */
-  CPU_WRITE_NEVER = 0ull /* (0 << 4) */,
-  /**
-   * buffer is rarely written by CPU
-   */
-  CPU_WRITE_RARELY = 32ull /* (2 << 4) */,
-  /**
-   * buffer is often written by CPU
-   */
-  CPU_WRITE_OFTEN = 48ull /* (3 << 4) */,
-  /**
-   * buffer is used as a GPU texture
-   */
-  GPU_TEXTURE = 256ull /* (1ULL << 8) */,
-  /**
-   * buffer is used as a GPU render target
-   */
-  GPU_RENDER_TARGET = 512ull /* (1ULL << 9) */,
-  /**
-   * bit 10 must be zero
-   *
-   *
-   * buffer is used as a composer HAL overlay layer
-   */
-  COMPOSER_OVERLAY = 2048ull /* (1ULL << 11) */,
-  /**
-   * buffer is used as a composer HAL client target
-   */
-  COMPOSER_CLIENT_TARGET = 4096ull /* (1ULL << 12) */,
-  /**
-   * bit 13 must be zero
-   *
-   *
-   * Buffer is allocated with hardware-level protection against copying the
-   * contents (or information derived from the contents) into unprotected
-   * memory.
-   */
-  PROTECTED = 16384ull /* (1ULL << 14) */,
-  /**
-   * buffer is used as a hwcomposer HAL cursor layer
-   */
-  COMPOSER_CURSOR = 32768ull /* (1ULL << 15) */,
-  /**
-   * buffer is used as a video encoder input
-   */
-  VIDEO_ENCODER = 65536ull /* (1ULL << 16) */,
-  /**
-   * buffer is used as a camera HAL output
-   */
-  CAMERA_OUTPUT = 131072ull /* (1ULL << 17) */,
-  /**
-   * buffer is used as a camera HAL input
-   */
-  CAMERA_INPUT = 262144ull /* (1ULL << 18) */,
-  /**
-   * bit 19 must be zero
-   *
-   *
-   * buffer is used as a renderscript allocation
-   */
-  RENDERSCRIPT = 1048576ull /* (1ULL << 20) */,
-  /**
-   * bit 21 must be zero
-   *
-   *
-   * buffer is used as a video decoder output
-   */
-  VIDEO_DECODER = 4194304ull /* (1ULL << 22) */,
-  /**
-   * buffer is used as a sensor direct report output
-   */
-  SENSOR_DIRECT_DATA = 8388608ull /* (1ULL << 23) */,
-  /**
-   * buffer is used as as an OpenGL shader storage or uniform
-   * buffer object
-   */
-  GPU_DATA_BUFFER = 16777216ull /* (1ULL << 24) */,
-  /**
-   * bits 25-27 must be zero and are reserved for future versions
-   *
-   *
-   * bits 28-31 are reserved for vendor extensions
-   */
-  VENDOR_MASK = 4026531840ull /* (0xfULL << 28) */,
-  /**
-   * bits 32-47 must be zero and are reserved for future versions
-   *
-   *
-   * bits 48-63 are reserved for vendor extensions
-   */
-  VENDOR_MASK_HI = 18446462598732840960ull /* (0xffffULL << 48) */,
-  /**
-   * buffer is used as a cube map texture
-   */
-  GPU_CUBE_MAP = 33554432ull /* (1ULL << 25) */,
-  /**
-   * buffer contains a complete mipmap hierarchy
-   */
-  GPU_MIPMAP_COMPLETE = 67108864ull /* (1ULL << 26) */,
+
+
+
+  CPU_WRITE_MASK = 240ull  ,
+
+
+
+  CPU_WRITE_NEVER = 0ull  ,
+
+
+
+  CPU_WRITE_RARELY = 32ull  ,
+
+
+
+  CPU_WRITE_OFTEN = 48ull  ,
+
+
+
+  GPU_TEXTURE = 256ull  ,
+
+
+
+  GPU_RENDER_TARGET = 512ull  ,
+
+
+
+
+
+
+  COMPOSER_OVERLAY = 2048ull  ,
+
+
+
+  COMPOSER_CLIENT_TARGET = 4096ull  ,
+
+
+
+
+
+
+
+
+  PROTECTED = 16384ull  ,
+
+
+
+  COMPOSER_CURSOR = 32768ull  ,
+
+
+
+  VIDEO_ENCODER = 65536ull  ,
+
+
+
+  CAMERA_OUTPUT = 131072ull  ,
+
+
+
+  CAMERA_INPUT = 262144ull  ,
+
+
+
+
+
+
+  RENDERSCRIPT = 1048576ull  ,
+
+
+
+
+
+
+  VIDEO_DECODER = 4194304ull  ,
+
+
+
+  SENSOR_DIRECT_DATA = 8388608ull  ,
+
+
+
+
+  GPU_DATA_BUFFER = 16777216ull  ,
+
+
+
+
+
+
+  VENDOR_MASK = 4026531840ull  ,
+
+
+
+
+
+
+  VENDOR_MASK_HI = 18446462598732840960ull  ,
+
+
+
+  GPU_CUBE_MAP = 33554432ull  ,
+
+
+
+  GPU_MIPMAP_COMPLETE = 67108864ull  ,
 };
 
 enum class Dataspace : int32_t {
-  /**
-   * Default-assumption data space, when not explicitly specified.
-   *
-   * It is safest to assume the buffer is an image with sRGB primaries and
-   * encoding ranges, but the consumer and/or the producer of the data may
-   * simply be using defaults. No automatic gamma transform should be
-   * expected, except for a possible display gamma transform when drawn to a
-   * screen.
-   */
-  UNKNOWN = 0 /* 0x0 */,
-  /**
-   * Arbitrary dataspace with manually defined characteristics.  Definition
-   * for colorspaces or other meaning must be communicated separately.
-   *
-   * This is used when specifying primaries, transfer characteristics,
-   * etc. separately.
-   *
-   * A typical use case is in video encoding parameters (e.g. for H.264),
-   * where a colorspace can have separately defined primaries, transfer
-   * characteristics, etc.
-   */
-  ARBITRARY = 1 /* 0x1 */,
-  /**
-   * Color-description aspects
-   *
-   * The following aspects define various characteristics of the color
-   * specification. These represent bitfields, so that a data space value
-   * can specify each of them independently.
-   */
+
+
+
+
+
+
+
+
+
+  UNKNOWN = 0  ,
+
+
+
+
+
+
+
+
+
+
+
+  ARBITRARY = 1  ,
+
+
+
+
+
+
+
   STANDARD_SHIFT = 16,
-  /**
-   * Standard aspect
-   *
-   * Defines the chromaticity coordinates of the source primaries in terms of
-   * the CIE 1931 definition of x and y specified in ISO 11664-1.
-   */
-  STANDARD_MASK = 4128768 /* (63 << STANDARD_SHIFT) */,
-  /**
-   * Chromacity coordinates are unknown or are determined by the application.
-   * Implementations shall use the following suggested standards:
-   *
-   * All YCbCr formats: BT709 if size is 720p or larger (since most video
-   *                    content is letterboxed this corresponds to width is
-   *                    1280 or greater, or height is 720 or greater).
-   *                    BT601_625 if size is smaller than 720p or is JPEG.
-   * All RGB formats:   BT709.
-   *
-   * For all other formats standard is undefined, and implementations should use
-   * an appropriate standard for the data represented.
-   */
-  STANDARD_UNSPECIFIED = 0 /* (0 << STANDARD_SHIFT) */,
-  /**
-   * Primaries:       x       y
-   *  green           0.300   0.600
-   *  blue            0.150   0.060
-   *  red             0.640   0.330
-   *  white (D65)     0.3127  0.3290
-   *
-   * Use the unadjusted KR = 0.2126, KB = 0.0722 luminance interpretation
-   * for RGB conversion.
-   */
-  STANDARD_BT709 = 65536 /* (1 << STANDARD_SHIFT) */,
-  /**
-   * Primaries:       x       y
-   *  green           0.290   0.600
-   *  blue            0.150   0.060
-   *  red             0.640   0.330
-   *  white (D65)     0.3127  0.3290
-   *
-   *  KR = 0.299, KB = 0.114. This adjusts the luminance interpretation
-   *  for RGB conversion from the one purely determined by the primaries
-   *  to minimize the color shift into RGB space that uses BT.709
-   *  primaries.
-   */
-  STANDARD_BT601_625 = 131072 /* (2 << STANDARD_SHIFT) */,
-  /**
-   * Primaries:       x       y
-   *  green           0.290   0.600
-   *  blue            0.150   0.060
-   *  red             0.640   0.330
-   *  white (D65)     0.3127  0.3290
-   *
-   * Use the unadjusted KR = 0.222, KB = 0.071 luminance interpretation
-   * for RGB conversion.
-   */
-  STANDARD_BT601_625_UNADJUSTED = 196608 /* (3 << STANDARD_SHIFT) */,
-  /**
-   * Primaries:       x       y
-   *  green           0.310   0.595
-   *  blue            0.155   0.070
-   *  red             0.630   0.340
-   *  white (D65)     0.3127  0.3290
-   *
-   *  KR = 0.299, KB = 0.114. This adjusts the luminance interpretation
-   *  for RGB conversion from the one purely determined by the primaries
-   *  to minimize the color shift into RGB space that uses BT.709
-   *  primaries.
-   */
-  STANDARD_BT601_525 = 262144 /* (4 << STANDARD_SHIFT) */,
-  /**
-   * Primaries:       x       y
-   *  green           0.310   0.595
-   *  blue            0.155   0.070
-   *  red             0.630   0.340
-   *  white (D65)     0.3127  0.3290
-   *
-   * Use the unadjusted KR = 0.212, KB = 0.087 luminance interpretation
-   * for RGB conversion (as in SMPTE 240M).
-   */
-  STANDARD_BT601_525_UNADJUSTED = 327680 /* (5 << STANDARD_SHIFT) */,
-  /**
-   * Primaries:       x       y
-   *  green           0.170   0.797
-   *  blue            0.131   0.046
-   *  red             0.708   0.292
-   *  white (D65)     0.3127  0.3290
-   *
-   * Use the unadjusted KR = 0.2627, KB = 0.0593 luminance interpretation
-   * for RGB conversion.
-   */
-  STANDARD_BT2020 = 393216 /* (6 << STANDARD_SHIFT) */,
-  /**
-   * Primaries:       x       y
-   *  green           0.170   0.797
-   *  blue            0.131   0.046
-   *  red             0.708   0.292
-   *  white (D65)     0.3127  0.3290
-   *
-   * Use the unadjusted KR = 0.2627, KB = 0.0593 luminance interpretation
-   * for RGB conversion using the linear domain.
-   */
-  STANDARD_BT2020_CONSTANT_LUMINANCE = 458752 /* (7 << STANDARD_SHIFT) */,
-  /**
-   * Primaries:       x      y
-   *  green           0.21   0.71
-   *  blue            0.14   0.08
-   *  red             0.67   0.33
-   *  white (C)       0.310  0.316
-   *
-   * Use the unadjusted KR = 0.30, KB = 0.11 luminance interpretation
-   * for RGB conversion.
-   */
-  STANDARD_BT470M = 524288 /* (8 << STANDARD_SHIFT) */,
-  /**
-   * Primaries:       x       y
-   *  green           0.243   0.692
-   *  blue            0.145   0.049
-   *  red             0.681   0.319
-   *  white (C)       0.310   0.316
-   *
-   * Use the unadjusted KR = 0.254, KB = 0.068 luminance interpretation
-   * for RGB conversion.
-   */
-  STANDARD_FILM = 589824 /* (9 << STANDARD_SHIFT) */,
-  /**
-   * SMPTE EG 432-1 and SMPTE RP 431-2. (DCI-P3)
-   * Primaries:       x       y
-   *  green           0.265   0.690
-   *  blue            0.150   0.060
-   *  red             0.680   0.320
-   *  white (D65)     0.3127  0.3290
-   */
-  STANDARD_DCI_P3 = 655360 /* (10 << STANDARD_SHIFT) */,
-  /**
-   * Adobe RGB
-   * Primaries:       x       y
-   *  green           0.210   0.710
-   *  blue            0.150   0.060
-   *  red             0.640   0.330
-   *  white (D65)     0.3127  0.3290
-   */
-  STANDARD_ADOBE_RGB = 720896 /* (11 << STANDARD_SHIFT) */,
+
+
+
+
+
+
+  STANDARD_MASK = 4128768  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+  STANDARD_UNSPECIFIED = 0  ,
+
+
+
+
+
+
+
+
+
+
+  STANDARD_BT709 = 65536  ,
+
+
+
+
+
+
+
+
+
+
+
+
+  STANDARD_BT601_625 = 131072  ,
+
+
+
+
+
+
+
+
+
+
+  STANDARD_BT601_625_UNADJUSTED = 196608  ,
+
+
+
+
+
+
+
+
+
+
+
+
+  STANDARD_BT601_525 = 262144  ,
+
+
+
+
+
+
+
+
+
+
+  STANDARD_BT601_525_UNADJUSTED = 327680  ,
+
+
+
+
+
+
+
+
+
+
+  STANDARD_BT2020 = 393216  ,
+
+
+
+
+
+
+
+
+
+
+  STANDARD_BT2020_CONSTANT_LUMINANCE = 458752  ,
+
+
+
+
+
+
+
+
+
+
+  STANDARD_BT470M = 524288  ,
+
+
+
+
+
+
+
+
+
+
+  STANDARD_FILM = 589824  ,
+
+
+
+
+
+
+
+
+  STANDARD_DCI_P3 = 655360  ,
+
+
+
+
+
+
+
+
+  STANDARD_ADOBE_RGB = 720896  ,
   TRANSFER_SHIFT = 22,
-  /**
-   * Transfer aspect
-   *
-   * Transfer characteristics are the opto-electronic transfer characteristic
-   * at the source as a function of linear optical intensity (luminance).
-   *
-   * For digital signals, E corresponds to the recorded value. Normally, the
-   * transfer function is applied in RGB space to each of the R, G and B
-   * components independently. This may result in color shift that can be
-   * minized by applying the transfer function in Lab space only for the L
-   * component. Implementation may apply the transfer function in RGB space
-   * for all pixel formats if desired.
-   */
-  TRANSFER_MASK = 130023424 /* (31 << TRANSFER_SHIFT) */,
-  /**
-   * Transfer characteristics are unknown or are determined by the
-   * application.
-   *
-   * Implementations should use the following transfer functions:
-   *
-   * For YCbCr formats: use TRANSFER_SMPTE_170M
-   * For RGB formats: use TRANSFER_SRGB
-   *
-   * For all other formats transfer function is undefined, and implementations
-   * should use an appropriate standard for the data represented.
-   */
-  TRANSFER_UNSPECIFIED = 0 /* (0 << TRANSFER_SHIFT) */,
-  /**
-   * Transfer characteristic curve:
-   *  E = L
-   *      L - luminance of image 0 <= L <= 1 for conventional colorimetry
-   *      E - corresponding electrical signal
-   */
-  TRANSFER_LINEAR = 4194304 /* (1 << TRANSFER_SHIFT) */,
-  /**
-   * Transfer characteristic curve:
-   *
-   * E = 1.055 * L^(1/2.4) - 0.055  for 0.0031308 <= L <= 1
-   *   = 12.92 * L                  for 0 <= L < 0.0031308
-   *     L - luminance of image 0 <= L <= 1 for conventional colorimetry
-   *     E - corresponding electrical signal
-   */
-  TRANSFER_SRGB = 8388608 /* (2 << TRANSFER_SHIFT) */,
-  /**
-   * BT.601 525, BT.601 625, BT.709, BT.2020
-   *
-   * Transfer characteristic curve:
-   *  E = 1.099 * L ^ 0.45 - 0.099  for 0.018 <= L <= 1
-   *    = 4.500 * L                 for 0 <= L < 0.018
-   *      L - luminance of image 0 <= L <= 1 for conventional colorimetry
-   *      E - corresponding electrical signal
-   */
-  TRANSFER_SMPTE_170M = 12582912 /* (3 << TRANSFER_SHIFT) */,
-  /**
-   * Assumed display gamma 2.2.
-   *
-   * Transfer characteristic curve:
-   *  E = L ^ (1/2.2)
-   *      L - luminance of image 0 <= L <= 1 for conventional colorimetry
-   *      E - corresponding electrical signal
-   */
-  TRANSFER_GAMMA2_2 = 16777216 /* (4 << TRANSFER_SHIFT) */,
-  /**
-   *  display gamma 2.6.
-   *
-   * Transfer characteristic curve:
-   *  E = L ^ (1/2.6)
-   *      L - luminance of image 0 <= L <= 1 for conventional colorimetry
-   *      E - corresponding electrical signal
-   */
-  TRANSFER_GAMMA2_6 = 20971520 /* (5 << TRANSFER_SHIFT) */,
-  /**
-   *  display gamma 2.8.
-   *
-   * Transfer characteristic curve:
-   *  E = L ^ (1/2.8)
-   *      L - luminance of image 0 <= L <= 1 for conventional colorimetry
-   *      E - corresponding electrical signal
-   */
-  TRANSFER_GAMMA2_8 = 25165824 /* (6 << TRANSFER_SHIFT) */,
-  /**
-   * SMPTE ST 2084 (Dolby Perceptual Quantizer)
-   *
-   * Transfer characteristic curve:
-   *  E = ((c1 + c2 * L^n) / (1 + c3 * L^n)) ^ m
-   *  c1 = c3 - c2 + 1 = 3424 / 4096 = 0.8359375
-   *  c2 = 32 * 2413 / 4096 = 18.8515625
-   *  c3 = 32 * 2392 / 4096 = 18.6875
-   *  m = 128 * 2523 / 4096 = 78.84375
-   *  n = 0.25 * 2610 / 4096 = 0.1593017578125
-   *      L - luminance of image 0 <= L <= 1 for HDR colorimetry.
-   *          L = 1 corresponds to 10000 cd/m2
-   *      E - corresponding electrical signal
-   */
-  TRANSFER_ST2084 = 29360128 /* (7 << TRANSFER_SHIFT) */,
-  /**
-   * ARIB STD-B67 Hybrid Log Gamma
-   *
-   * Transfer characteristic curve:
-   *  E = r * L^0.5                 for 0 <= L <= 1
-   *    = a * ln(L - b) + c         for 1 < L
-   *  a = 0.17883277
-   *  b = 0.28466892
-   *  c = 0.55991073
-   *  r = 0.5
-   *      L - luminance of image 0 <= L for HDR colorimetry. L = 1 corresponds
-   *          to reference white level of 100 cd/m2
-   *      E - corresponding electrical signal
-   */
-  TRANSFER_HLG = 33554432 /* (8 << TRANSFER_SHIFT) */,
+
+
+
+
+
+
+
+
+
+
+
+
+
+  TRANSFER_MASK = 130023424  ,
+
+
+
+
+
+
+
+
+
+
+
+
+  TRANSFER_UNSPECIFIED = 0  ,
+
+
+
+
+
+
+  TRANSFER_LINEAR = 4194304  ,
+
+
+
+
+
+
+
+
+  TRANSFER_SRGB = 8388608  ,
+
+
+
+
+
+
+
+
+
+  TRANSFER_SMPTE_170M = 12582912  ,
+
+
+
+
+
+
+
+
+  TRANSFER_GAMMA2_2 = 16777216  ,
+
+
+
+
+
+
+
+
+  TRANSFER_GAMMA2_6 = 20971520  ,
+
+
+
+
+
+
+
+
+  TRANSFER_GAMMA2_8 = 25165824  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  TRANSFER_ST2084 = 29360128  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  TRANSFER_HLG = 33554432  ,
   RANGE_SHIFT = 27,
-  /**
-   * Range aspect
-   *
-   * Defines the range of values corresponding to the unit range of 0-1.
-   * This is defined for YCbCr only, but can be expanded to RGB space.
-   */
-  RANGE_MASK = 939524096 /* (7 << RANGE_SHIFT) */,
-  /**
-   * Range is unknown or are determined by the application.  Implementations
-   * shall use the following suggested ranges:
-   *
-   * All YCbCr formats: limited range.
-   * All RGB or RGBA formats (including RAW and Bayer): full range.
-   * All Y formats: full range
-   *
-   * For all other formats range is undefined, and implementations should use
-   * an appropriate range for the data represented.
-   */
-  RANGE_UNSPECIFIED = 0 /* (0 << RANGE_SHIFT) */,
-  /**
-   * Full range uses all values for Y, Cb and Cr from
-   * 0 to 2^b-1, where b is the bit depth of the color format.
-   */
-  RANGE_FULL = 134217728 /* (1 << RANGE_SHIFT) */,
-  /**
-   * Limited range uses values 16/256*2^b to 235/256*2^b for Y, and
-   * 1/16*2^b to 15/16*2^b for Cb, Cr, R, G and B, where b is the bit depth of
-   * the color format.
-   *
-   * E.g. For 8-bit-depth formats:
-   * Luma (Y) samples should range from 16 to 235, inclusive
-   * Chroma (Cb, Cr) samples should range from 16 to 240, inclusive
-   *
-   * For 10-bit-depth formats:
-   * Luma (Y) samples should range from 64 to 940, inclusive
-   * Chroma (Cb, Cr) samples should range from 64 to 960, inclusive
-   */
-  RANGE_LIMITED = 268435456 /* (2 << RANGE_SHIFT) */,
-  /**
-   * Extended range is used for scRGB. Intended for use with
-   * floating point pixel formats. [0.0 - 1.0] is the standard
-   * sRGB space. Values outside the range 0.0 - 1.0 can encode
-   * color outside the sRGB gamut.
-   * Used to blend / merge multiple dataspaces on a single display.
-   */
-  RANGE_EXTENDED = 402653184 /* (3 << RANGE_SHIFT) */,
-  /**
-   * Legacy dataspaces
-   *
-   *
-   * sRGB linear encoding:
-   *
-   * The red, green, and blue components are stored in sRGB space, but
-   * are linear, not gamma-encoded.
-   * The RGB primaries and the white point are the same as BT.709.
-   *
-   * The values are encoded using the full range ([0,255] for 8-bit) for all
-   * components.
-   */
-  SRGB_LINEAR = 512 /* 0x200 */,
-  V0_SRGB_LINEAR = 138477568 /* ((STANDARD_BT709 | TRANSFER_LINEAR) | RANGE_FULL) */,
-  /**
-   * scRGB linear encoding:
-   *
-   * The red, green, and blue components are stored in extended sRGB space,
-   * but are linear, not gamma-encoded.
-   * The RGB primaries and the white point are the same as BT.709.
-   *
-   * The values are floating point.
-   * A pixel value of 1.0, 1.0, 1.0 corresponds to sRGB white (D65) at 80 nits.
-   * Values beyond the range [0.0 - 1.0] would correspond to other colors
-   * spaces and/or HDR content.
-   */
-  V0_SCRGB_LINEAR = 406913024 /* ((STANDARD_BT709 | TRANSFER_LINEAR) | RANGE_EXTENDED) */,
-  /**
-   * sRGB gamma encoding:
-   *
-   * The red, green and blue components are stored in sRGB space, and
-   * converted to linear space when read, using the SRGB transfer function
-   * for each of the R, G and B components. When written, the inverse
-   * transformation is performed.
-   *
-   * The alpha component, if present, is always stored in linear space and
-   * is left unmodified when read or written.
-   *
-   * Use full range and BT.709 standard.
-   */
-  SRGB = 513 /* 0x201 */,
-  V0_SRGB = 142671872 /* ((STANDARD_BT709 | TRANSFER_SRGB) | RANGE_FULL) */,
-  /**
-   * scRGB:
-   *
-   * The red, green, and blue components are stored in extended sRGB space,
-   * but are linear, not gamma-encoded.
-   * The RGB primaries and the white point are the same as BT.709.
-   *
-   * The values are floating point.
-   * A pixel value of 1.0, 1.0, 1.0 corresponds to sRGB white (D65) at 80 nits.
-   * Values beyond the range [0.0 - 1.0] would correspond to other colors
-   * spaces and/or HDR content.
-   */
-  V0_SCRGB = 411107328 /* ((STANDARD_BT709 | TRANSFER_SRGB) | RANGE_EXTENDED) */,
-  /**
-   * YCbCr Colorspaces
-   * -----------------
-   *
-   * Primaries are given using (x,y) coordinates in the CIE 1931 definition
-   * of x and y specified by ISO 11664-1.
-   *
-   * Transfer characteristics are the opto-electronic transfer characteristic
-   * at the source as a function of linear optical intensity (luminance).
-   *
-   *
-   * JPEG File Interchange Format (JFIF)
-   *
-   * Same model as BT.601-625, but all values (Y, Cb, Cr) range from 0 to 255
-   *
-   * Use full range, BT.601 transfer and BT.601_625 standard.
-   */
-  JFIF = 257 /* 0x101 */,
-  V0_JFIF = 146931712 /* ((STANDARD_BT601_625 | TRANSFER_SMPTE_170M) | RANGE_FULL) */,
-  /**
-   * ITU-R Recommendation 601 (BT.601) - 625-line
-   *
-   * Standard-definition television, 625 Lines (PAL)
-   *
-   * Use limited range, BT.601 transfer and BT.601_625 standard.
-   */
-  BT601_625 = 258 /* 0x102 */,
-  V0_BT601_625 = 281149440 /* ((STANDARD_BT601_625 | TRANSFER_SMPTE_170M) | RANGE_LIMITED) */,
-  /**
-   * ITU-R Recommendation 601 (BT.601) - 525-line
-   *
-   * Standard-definition television, 525 Lines (NTSC)
-   *
-   * Use limited range, BT.601 transfer and BT.601_525 standard.
-   */
-  BT601_525 = 259 /* 0x103 */,
-  V0_BT601_525 = 281280512 /* ((STANDARD_BT601_525 | TRANSFER_SMPTE_170M) | RANGE_LIMITED) */,
-  /**
-   * ITU-R Recommendation 709 (BT.709)
-   *
-   * High-definition television
-   *
-   * Use limited range, BT.709 transfer and BT.709 standard.
-   */
-  BT709 = 260 /* 0x104 */,
-  V0_BT709 = 281083904 /* ((STANDARD_BT709 | TRANSFER_SMPTE_170M) | RANGE_LIMITED) */,
-  /**
-   * SMPTE EG 432-1 and SMPTE RP 431-2.
-   *
-   * Digital Cinema DCI-P3
-   *
-   * Use full range, linear transfer and D65 DCI-P3 standard
-   */
-  DCI_P3_LINEAR = 139067392 /* ((STANDARD_DCI_P3 | TRANSFER_LINEAR) | RANGE_FULL) */,
-  /**
-   * SMPTE EG 432-1 and SMPTE RP 431-2.
-   *
-   * Digital Cinema DCI-P3
-   *
-   * Use full range, gamma 2.6 transfer and D65 DCI-P3 standard
-   * Note: Application is responsible for gamma encoding the data as
-   * a 2.6 gamma encoding is not supported in HW.
-   */
-  DCI_P3 = 155844608 /* ((STANDARD_DCI_P3 | TRANSFER_GAMMA2_6) | RANGE_FULL) */,
-  /**
-   * Display P3
-   *
-   * Display P3 uses same primaries and white-point as DCI-P3
-   * linear transfer function makes this the same as DCI_P3_LINEAR.
-   */
-  DISPLAY_P3_LINEAR = 139067392 /* ((STANDARD_DCI_P3 | TRANSFER_LINEAR) | RANGE_FULL) */,
-  /**
-   * Display P3
-   *
-   * Use same primaries and white-point as DCI-P3
-   * but sRGB transfer function.
-   */
-  DISPLAY_P3 = 143261696 /* ((STANDARD_DCI_P3 | TRANSFER_SRGB) | RANGE_FULL) */,
-  /**
-   * Adobe RGB
-   *
-   * Use full range, gamma 2.2 transfer and Adobe RGB primaries
-   * Note: Application is responsible for gamma encoding the data as
-   * a 2.2 gamma encoding is not supported in HW.
-   */
-  ADOBE_RGB = 151715840 /* ((STANDARD_ADOBE_RGB | TRANSFER_GAMMA2_2) | RANGE_FULL) */,
-  /**
-   * ITU-R Recommendation 2020 (BT.2020)
-   *
-   * Ultra High-definition television
-   *
-   * Use full range, linear transfer and BT2020 standard
-   */
-  BT2020_LINEAR = 138805248 /* ((STANDARD_BT2020 | TRANSFER_LINEAR) | RANGE_FULL) */,
-  /**
-   * ITU-R Recommendation 2020 (BT.2020)
-   *
-   * Ultra High-definition television
-   *
-   * Use full range, BT.709 transfer and BT2020 standard
-   */
-  BT2020 = 147193856 /* ((STANDARD_BT2020 | TRANSFER_SMPTE_170M) | RANGE_FULL) */,
-  /**
-   * ITU-R Recommendation 2020 (BT.2020)
-   *
-   * Ultra High-definition television
-   *
-   * Use full range, SMPTE 2084 (PQ) transfer and BT2020 standard
-   */
-  BT2020_PQ = 163971072 /* ((STANDARD_BT2020 | TRANSFER_ST2084) | RANGE_FULL) */,
-  /**
-   * Data spaces for non-color formats
-   *
-   *
-   * The buffer contains depth ranging measurements from a depth camera.
-   * This value is valid with formats:
-   *    HAL_PIXEL_FORMAT_Y16: 16-bit samples, consisting of a depth measurement
-   *       and an associated confidence value. The 3 MSBs of the sample make
-   *       up the confidence value, and the low 13 LSBs of the sample make up
-   *       the depth measurement.
-   *       For the confidence section, 0 means 100% confidence, 1 means 0%
-   *       confidence. The mapping to a linear float confidence value between
-   *       0.f and 1.f can be obtained with
-   *         float confidence = (((depthSample >> 13) - 1) & 0x7) / 7.0f;
-   *       The depth measurement can be extracted simply with
-   *         uint16_t range = (depthSample & 0x1FFF);
-   *    HAL_PIXEL_FORMAT_BLOB: A depth point cloud, as
-   *       a variable-length float (x,y,z, confidence) coordinate point list.
-   *       The point cloud will be represented with the android_depth_points
-   *       structure.
-   */
-  DEPTH = 4096 /* 0x1000 */,
-  /**
-   * The buffer contains sensor events from sensor direct report.
-   * This value is valid with formats:
-   *    HAL_PIXEL_FORMAT_BLOB: an array of sensor event structure that forms
-   *       a lock free queue. Format of sensor event structure is specified
-   *       in Sensors HAL.
-   */
-  SENSOR = 4097 /* 0x1001 */,
-  /**
-   * ITU-R Recommendation 2020 (BT.2020)
-   *
-   * Ultra High-definition television
-   *
-   * Use limited range, BT.709 transfer and BT2020 standard
-   */
-  BT2020_ITU = 281411584 /* ((STANDARD_BT2020 | TRANSFER_SMPTE_170M) | RANGE_LIMITED) */,
-  /**
-   * ITU-R Recommendation 2100 (BT.2100)
-   *
-   * High dynamic range television
-   *
-   * Use limited/full range, PQ/HLG transfer, and BT2020 standard
-   * limited range is the preferred / normative definition for BT.2100
-   */
-  BT2020_ITU_PQ = 298188800 /* ((STANDARD_BT2020 | TRANSFER_ST2084) | RANGE_LIMITED) */,
-  BT2020_ITU_HLG = 302383104 /* ((STANDARD_BT2020 | TRANSFER_HLG) | RANGE_LIMITED) */,
-  BT2020_HLG = 168165376 /* ((STANDARD_BT2020 | TRANSFER_HLG) | RANGE_FULL) */,
+
+
+
+
+
+
+  RANGE_MASK = 939524096  ,
+
+
+
+
+
+
+
+
+
+
+
+  RANGE_UNSPECIFIED = 0  ,
+
+
+
+
+  RANGE_FULL = 134217728  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+  RANGE_LIMITED = 268435456  ,
+
+
+
+
+
+
+
+  RANGE_EXTENDED = 402653184  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+  SRGB_LINEAR = 512  ,
+  V0_SRGB_LINEAR = 138477568  ,
+
+
+
+
+
+
+
+
+
+
+
+
+  V0_SCRGB_LINEAR = 406913024  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+  SRGB = 513  ,
+  V0_SRGB = 142671872  ,
+
+
+
+
+
+
+
+
+
+
+
+
+  V0_SCRGB = 411107328  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  JFIF = 257  ,
+  V0_JFIF = 146931712  ,
+
+
+
+
+
+
+
+  BT601_625 = 258  ,
+  V0_BT601_625 = 281149440  ,
+
+
+
+
+
+
+
+  BT601_525 = 259  ,
+  V0_BT601_525 = 281280512  ,
+
+
+
+
+
+
+
+  BT709 = 260  ,
+  V0_BT709 = 281083904  ,
+
+
+
+
+
+
+
+  DCI_P3_LINEAR = 139067392  ,
+
+
+
+
+
+
+
+
+
+  DCI_P3 = 155844608  ,
+
+
+
+
+
+
+  DISPLAY_P3_LINEAR = 139067392  ,
+
+
+
+
+
+
+  DISPLAY_P3 = 143261696  ,
+
+
+
+
+
+
+
+  ADOBE_RGB = 151715840  ,
+
+
+
+
+
+
+
+  BT2020_LINEAR = 138805248  ,
+
+
+
+
+
+
+
+  BT2020 = 147193856  ,
+
+
+
+
+
+
+
+  BT2020_PQ = 163971072  ,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  DEPTH = 4096  ,
+
+
+
+
+
+
+
+  SENSOR = 4097  ,
+
+
+
+
+
+
+
+  BT2020_ITU = 281411584  ,
+
+
+
+
+
+
+
+
+  BT2020_ITU_PQ = 298188800  ,
+  BT2020_ITU_HLG = 302383104  ,
+  BT2020_HLG = 168165376  ,
 };
 
 enum class ColorMode : int32_t {
-  /**
-   * DEFAULT is the "native" gamut of the display.
-   * White Point: Vendor/OEM defined
-   * Panel Gamma: Vendor/OEM defined (typically 2.2)
-   * Rendering Intent: Vendor/OEM defined (typically 'enhanced')
-   */
   NATIVE = 0,
-  /**
-   * STANDARD_BT601_625 corresponds with display
-   * settings that implement the ITU-R Recommendation BT.601
-   * or Rec 601. Using 625 line version
-   * Rendering Intent: Colorimetric
-   * Primaries:
-   *                  x       y
-   *  green           0.290   0.600
-   *  blue            0.150   0.060
-   *  red             0.640   0.330
-   *  white (D65)     0.3127  0.3290
-   *
-   *  KR = 0.299, KB = 0.114. This adjusts the luminance interpretation
-   *  for RGB conversion from the one purely determined by the primaries
-   *  to minimize the color shift into RGB space that uses BT.709
-   *  primaries.
-   *
-   * Gamma Correction (GC):
-   *
-   *  if Vlinear < 0.018
-   *    Vnonlinear = 4.500 * Vlinear
-   *  else
-   *    Vnonlinear = 1.099 * (Vlinear)^(0.45) – 0.099
-   */
   STANDARD_BT601_625 = 1,
-  /**
-   * Primaries:
-   *                  x       y
-   *  green           0.290   0.600
-   *  blue            0.150   0.060
-   *  red             0.640   0.330
-   *  white (D65)     0.3127  0.3290
-   *
-   *  Use the unadjusted KR = 0.222, KB = 0.071 luminance interpretation
-   *  for RGB conversion.
-   *
-   * Gamma Correction (GC):
-   *
-   *  if Vlinear < 0.018
-   *    Vnonlinear = 4.500 * Vlinear
-   *  else
-   *    Vnonlinear = 1.099 * (Vlinear)^(0.45) – 0.099
-   */
   STANDARD_BT601_625_UNADJUSTED = 2,
-  /**
-   * Primaries:
-   *                  x       y
-   *  green           0.310   0.595
-   *  blue            0.155   0.070
-   *  red             0.630   0.340
-   *  white (D65)     0.3127  0.3290
-   *
-   *  KR = 0.299, KB = 0.114. This adjusts the luminance interpretation
-   *  for RGB conversion from the one purely determined by the primaries
-   *  to minimize the color shift into RGB space that uses BT.709
-   *  primaries.
-   *
-   * Gamma Correction (GC):
-   *
-   *  if Vlinear < 0.018
-   *    Vnonlinear = 4.500 * Vlinear
-   *  else
-   *    Vnonlinear = 1.099 * (Vlinear)^(0.45) – 0.099
-   */
   STANDARD_BT601_525 = 3,
-  /**
-   * Primaries:
-   *                  x       y
-   *  green           0.310   0.595
-   *  blue            0.155   0.070
-   *  red             0.630   0.340
-   *  white (D65)     0.3127  0.3290
-   *
-   *  Use the unadjusted KR = 0.212, KB = 0.087 luminance interpretation
-   *  for RGB conversion (as in SMPTE 240M).
-   *
-   * Gamma Correction (GC):
-   *
-   *  if Vlinear < 0.018
-   *    Vnonlinear = 4.500 * Vlinear
-   *  else
-   *    Vnonlinear = 1.099 * (Vlinear)^(0.45) – 0.099
-   */
   STANDARD_BT601_525_UNADJUSTED = 4,
-  /**
-   * REC709 corresponds with display settings that implement
-   * the ITU-R Recommendation BT.709 / Rec. 709 for high-definition television.
-   * Rendering Intent: Colorimetric
-   * Primaries:
-   *                  x       y
-   *  green           0.300   0.600
-   *  blue            0.150   0.060
-   *  red             0.640   0.330
-   *  white (D65)     0.3127  0.3290
-   *
-   * HDTV REC709 Inverse Gamma Correction (IGC): V represents normalized
-   * (with [0 to 1] range) value of R, G, or B.
-   *
-   *  if Vnonlinear < 0.081
-   *    Vlinear = Vnonlinear / 4.5
-   *  else
-   *    Vlinear = ((Vnonlinear + 0.099) / 1.099) ^ (1/0.45)
-   *
-   * HDTV REC709 Gamma Correction (GC):
-   *
-   *  if Vlinear < 0.018
-   *    Vnonlinear = 4.5 * Vlinear
-   *  else
-   *    Vnonlinear = 1.099 * (Vlinear) ^ 0.45 – 0.099
-   */
   STANDARD_BT709 = 5,
-  /**
-   * DCI_P3 corresponds with display settings that implement
-   * SMPTE EG 432-1 and SMPTE RP 431-2
-   * Rendering Intent: Colorimetric
-   * Primaries:
-   *                  x       y
-   *  green           0.265   0.690
-   *  blue            0.150   0.060
-   *  red             0.680   0.320
-   *  white (D65)     0.3127  0.3290
-   *
-   * Gamma: 2.6
-   */
   DCI_P3 = 6,
-  /**
-   * SRGB corresponds with display settings that implement
-   * the sRGB color space. Uses the same primaries as ITU-R Recommendation
-   * BT.709
-   * Rendering Intent: Colorimetric
-   * Primaries:
-   *                  x       y
-   *  green           0.300   0.600
-   *  blue            0.150   0.060
-   *  red             0.640   0.330
-   *  white (D65)     0.3127  0.3290
-   *
-   * PC/Internet (sRGB) Inverse Gamma Correction (IGC):
-   *
-   *  if Vnonlinear ≤ 0.03928
-   *    Vlinear = Vnonlinear / 12.92
-   *  else
-   *    Vlinear = ((Vnonlinear + 0.055)/1.055) ^ 2.4
-   *
-   * PC/Internet (sRGB) Gamma Correction (GC):
-   *
-   *  if Vlinear ≤ 0.0031308
-   *    Vnonlinear = 12.92 * Vlinear
-   *  else
-   *    Vnonlinear = 1.055 * (Vlinear)^(1/2.4) – 0.055
-   */
   SRGB = 7,
-  /**
-   * ADOBE_RGB corresponds with the RGB color space developed
-   * by Adobe Systems, Inc. in 1998.
-   * Rendering Intent: Colorimetric
-   * Primaries:
-   *                  x       y
-   *  green           0.210   0.710
-   *  blue            0.150   0.060
-   *  red             0.640   0.330
-   *  white (D65)     0.3127  0.3290
-   *
-   * Gamma: 2.2
-   */
   ADOBE_RGB = 8,
-  /**
-   * DISPLAY_P3 is a color space that uses the DCI_P3 primaries,
-   * the D65 white point and the SRGB transfer functions.
-   * Rendering Intent: Colorimetric
-   * Primaries:
-   *                  x       y
-   *  green           0.265   0.690
-   *  blue            0.150   0.060
-   *  red             0.680   0.320
-   *  white (D65)     0.3127  0.3290
-   *
-   * PC/Internet (sRGB) Gamma Correction (GC):
-   *
-   *  if Vlinear ≤ 0.0030186
-   *    Vnonlinear = 12.92 * Vlinear
-   *  else
-   *    Vnonlinear = 1.055 * (Vlinear)^(1/2.4) – 0.055
-   *
-   * Note: In most cases sRGB transfer function will be fine.
-   */
   DISPLAY_P3 = 9,
-  /**
-   * BT2020 corresponds with display settings that implement the ITU-R
-   * Recommendation BT.2020 / Rec. 2020 for UHDTV.
-   *
-   * Primaries:
-   *                  x       y
-   *  green           0.170   0.797
-   *  blue            0.131   0.046
-   *  red             0.708   0.292
-   *  white (D65)     0.3127  0.3290
-   *
-   * Inverse Gamma Correction (IGC): V represents normalized (with [0 to 1]
-   * range) value of R, G, or B.
-   *
-   *  if Vnonlinear < b * 4.5
-   *    Vlinear = Vnonlinear / 4.5
-   *  else
-   *    Vlinear = ((Vnonlinear + (a - 1)) / a) ^ (1/0.45)
-   *
-   * Gamma Correction (GC):
-   *
-   *  if Vlinear < b
-   *    Vnonlinear = 4.5 * Vlinear
-   *  else
-   *    Vnonlinear = a * Vlinear ^ 0.45 - (a - 1)
-   *
-   * where
-   *
-   *   a = 1.09929682680944, b = 0.018053968510807
-   *
-   * For practical purposes, these a/b values can be used instead
-   *
-   *   a = 1.099, b = 0.018 for 10-bit display systems
-   *   a = 1.0993, b = 0.0181 for 12-bit display systems
-   */
   BT2020 = 10,
-  /**
-   * BT2100_PQ and BT2100_HLG correspond with display settings that
-   * implement the ITU-R Recommendation BT.2100 / Rec. 2100 for HDR TV.
-   *
-   * Primaries:
-   *                  x       y
-   *  green           0.170   0.797
-   *  blue            0.131   0.046
-   *  red             0.708   0.292
-   *  white (D65)     0.3127  0.3290
-   *
-   * For BT2100_PQ, the transfer function is Perceptual Quantizer (PQ). For
-   * BT2100_HLG, the transfer function is Hybrid Log-Gamma (HLG).
-   */
   BT2100_PQ = 11,
   BT2100_HLG = 12,
 };
 
-/**
- * RenderIntent defines the mapping from color mode colors to display colors.
- *
- * A render intent must not change how it maps colors when the color mode
- * changes. That is to say that when a render intent maps color C to color C',
- * the fact that color C can have different pixel values in different color
- * modes should not affect the mapping.
- *
- * RenderIntent overrides the render intents defined for individual color
- * modes. It is ignored when the color mode is ColorMode::NATIVE, because
- * ColorMode::NATIVE colors are already display colors.
- */
 enum class RenderIntent : int32_t {
-  /**
-   * Colors in the display gamut are unchanged. Colors out of the display
-   * gamut are hard-clipped.
-   *
-   * This implies that the display must have been calibrated unless
-   * ColorMode::NATIVE is the only supported color mode.
-   */
   COLORIMETRIC = 0,
-  /**
-   * Enhance colors that are in the display gamut. Colors out of the display
-   * gamut are hard-clipped.
-   *
-   * The enhancement typically picks the biggest standard color space (e.g.
-   * DCI-P3) that is narrower than the display gamut and stretches it to the
-   * display gamut. The stretching is recommended to preserve skin tones.
-   */
   ENHANCE = 1,
-  /**
-   * Tone map high-dynamic-range colors to the display's dynamic range. The
-   * dynamic range of the colors are communicated separately. After tone
-   * mapping, the mapping to the display gamut is as defined in
-   * COLORIMETRIC.
-   */
   TONE_MAP_COLORIMETRIC = 2,
-  /**
-   * Tone map high-dynamic-range colors to the display's dynamic range. The
-   * dynamic range of the colors are communicated separately. After tone
-   * mapping, the mapping to the display gamut is as defined in ENHANCE.
-   *
-   * The tone mapping step and the enhancing step must match
-   * TONE_MAP_COLORIMETRIC and ENHANCE respectively when they are also
-   * supported.
-   */
   TONE_MAP_ENHANCE = 3,
 };
 
-//
-// type declarations for package
-//
 
 template <typename>
 static inline std::string toString(int32_t o);
@@ -5050,9 +4422,6 @@ constexpr int32_t& operator&=(int32_t& v,
   return v;
 }
 
-//
-// type header definitions for package
-//
 
 template <>
 inline std::string toString<::android::hardware::graphics::common::V1_1::PixelFormat>(int32_t o) {
@@ -6546,15 +5915,12 @@ static inline std::string toString(::android::hardware::graphics::common::V1_1::
   return os;
 }
 
-}  // namespace V1_1
-}  // namespace common
-}  // namespace graphics
-}  // namespace hardware
-}  // namespace android
+}
+}
+}
+}
+}
 
-//
-// global type declarations for package
-//
 
 namespace android {
 namespace hardware {
@@ -6590,9 +5956,9 @@ constexpr std::array<::android::hardware::graphics::common::V1_1::PixelFormat, 2
         ::android::hardware::graphics::common::V1_1::PixelFormat::STENCIL_8,
         ::android::hardware::graphics::common::V1_1::PixelFormat::YCBCR_P010,
 };
-}  // namespace details
-}  // namespace hardware
-}  // namespace android
+}
+}
+}
 
 namespace android {
 namespace hardware {
@@ -6626,9 +5992,9 @@ constexpr std::array<::android::hardware::graphics::common::V1_1::BufferUsage, 2
         ::android::hardware::graphics::common::V1_1::BufferUsage::GPU_CUBE_MAP,
         ::android::hardware::graphics::common::V1_1::BufferUsage::GPU_MIPMAP_COMPLETE,
 };
-}  // namespace details
-}  // namespace hardware
-}  // namespace android
+}
+}
+}
 
 namespace android {
 namespace hardware {
@@ -6698,9 +6064,9 @@ constexpr std::array<::android::hardware::graphics::common::V1_1::Dataspace, 61>
         ::android::hardware::graphics::common::V1_1::Dataspace::BT2020_ITU_HLG,
         ::android::hardware::graphics::common::V1_1::Dataspace::BT2020_HLG,
 };
-}  // namespace details
-}  // namespace hardware
-}  // namespace android
+}
+}
+}
 
 namespace android {
 namespace hardware {
@@ -6722,9 +6088,9 @@ constexpr std::array<::android::hardware::graphics::common::V1_1::ColorMode, 13>
         ::android::hardware::graphics::common::V1_1::ColorMode::BT2100_PQ,
         ::android::hardware::graphics::common::V1_1::ColorMode::BT2100_HLG,
 };
-}  // namespace details
-}  // namespace hardware
-}  // namespace android
+}
+}
+}
 
 namespace android {
 namespace hardware {
@@ -6737,8 +6103,8 @@ constexpr std::array<::android::hardware::graphics::common::V1_1::RenderIntent, 
         ::android::hardware::graphics::common::V1_1::RenderIntent::TONE_MAP_COLORIMETRIC,
         ::android::hardware::graphics::common::V1_1::RenderIntent::TONE_MAP_ENHANCE,
 };
-}  // namespace details
-}  // namespace hardware
-}  // namespace android
+}
+}
+}
 
-#endif  // HIDL_GENERATED_ANDROID_HARDWARE_GRAPHICS_COMMON_V1_1_TYPES_H
+#endif

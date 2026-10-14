@@ -126,10 +126,6 @@ INSTALL_JS = r"""
   return "installed";
 })()
 """.replace("__BINDING__", BINDING)
-# Big Picture's "Switch to Desktop" asks the client's SteamOS manager, which the client has only when it
-# runs as SteamOS (-steamos3, Deck mode); otherwise the request fails and the screen stays on "Switching
-# to Desktop..." for good. The request is caught on its way to the client and answered as SteamOS's
-# own path does, with steamos-session-select.
 SWITCH_BINDING = "droiddeckSwitchToDesktop"
 SWITCH_JS = r"""
 (() => {
@@ -526,7 +522,6 @@ def main():
     os.makedirs(COMPAT["COMPAT_DIR"], exist_ok=True)
     watcher = Watcher([COMPAT["state_path"]("request.json"), COMPAT["state_path"]("games.json")] +
                       [os.path.join(lib, "steamapps", "libraryfolders.vdf") for lib in (steam_root, COMPAT["LIBRARY"] + "-sd")])
-    # The client has its own SteamOS manager when started as SteamOS (droiddeck-session's Deck mode).
     steamos = os.environ.get("BL_STEAMDECK") == "1" and os.environ.get("BL_STEAM_UI") != "desktop"
     helper = Helper(steam_root, port, steamos)
     failures = 0

@@ -1,9 +1,3 @@
-# ── Embedded Wayland compositor (experimental parallel runtime) ──────────────
-# Runs a libwayland-server compositor in-process so games launched via Wine's
-# winewayland.drv can present into it. Protocol glue is pre-generated in
-# generated/ (no host wayland-scanner needed at app build time). Built by the app
-# (add_subdirectory from ../CMakeLists.txt) and on its own by standalone/ for
-# build-waylandcomp.yml.
 add_library(droiddeckwayland SHARED
         src/compositor.c
         src/vk_present.c
@@ -38,25 +32,15 @@ add_library(droiddeckwayland SHARED
         src/framegen_bridge.c
         src/framegen_jni.c
 )
-# Warnings on for the compositor's own C. They do not fail the build; they are there to be read.
 target_compile_options(droiddeckwayland PRIVATE
         $<$<COMPILE_LANGUAGE:C>:-Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers>)
 target_include_directories(droiddeckwayland PRIVATE
         generated
         prebuilt/include
         src
-        # The X11 Vulkan renderer's committed SPIR-V headers (*_frag.h / upscale_vert.h, made by
-        # Bannerlator's gen_shaders.sh): the screen-effect chain (src/effects_chain.c) runs the same bytes.
         ${CMAKE_CURRENT_SOURCE_DIR}/../shaders
 )
 
-# ── Frame generation (feat/wayland-framegen) ─────────────────────────────────
-# The two native engines the X11 renderer runs (LSFG Native: framegen/lsfg, Win-FG Native:
-# framegen/winfg) are compiled into this library unmodified and driven by
-# src/framegen_engine.cpp through the compositor's own Turnip entry points. They need the
-# framegen tree and the vendored DXBC translator (thirdparty/dxbc, for the LSFG cache format),
-# which only the app build has: the standalone build (standalone/) gets the stub, which reports
-# every engine unavailable and generates nothing.
 set(DROIDDECK_FRAMEGEN_LSFG_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../framegen/lsfg)
 set(DROIDDECK_FRAMEGEN_WINFG_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../framegen/winfg)
 if (TARGET dxbc AND EXISTS ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_engine.cpp
@@ -80,15 +64,14 @@ if (TARGET dxbc AND EXISTS ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_engine.cpp
             ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_pacer.cpp
             ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_engine.cpp
             ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_governor.cpp
-            # The Lossless.dll import (validate / extract / cache) for the app's LsfgNative.
             ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_jni.cpp
             ${DROIDDECK_FRAMEGEN_WINFG_DIR}/framegen.cpp
             ${DROIDDECK_FRAMEGEN_WINFG_DIR}/winfg_vkd.cpp
             ${DROIDDECK_FRAMEGEN_WINFG_DIR}/winfg_engine.cpp
     )
     target_include_directories(droiddeckwayland PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/..            # <thirdparty/...> as the frame-generation engines see it
-            ${CMAKE_CURRENT_SOURCE_DIR}/../framegen   # VulkanRendererContext.h (VkTable), lsfg/, winfg/
+            ${CMAKE_CURRENT_SOURCE_DIR}/..
+            ${CMAKE_CURRENT_SOURCE_DIR}/../framegen
     )
     target_compile_options(droiddeckwayland PRIVATE
             $<$<COMPILE_LANGUAGE:CXX>:-std=c++17 -fvisibility=hidden>)
@@ -104,8 +87,6 @@ endif()
 add_library(wayland-server SHARED IMPORTED)
 set_target_properties(wayland-server PROPERTIES IMPORTED_LOCATION
         ${CMAKE_CURRENT_SOURCE_DIR}/prebuilt/lib/libwayland-server.so)
-# Vulkan is loaded at runtime via adrenotools (Turnip), not linked directly - so the
-# compositor uses Turnip's driver, which supports dmabuf import (drm_format_modifier).
 target_link_libraries(droiddeckwayland
         wayland-server
         adrenotools

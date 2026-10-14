@@ -25,35 +25,21 @@ import com.droiddeck.launcher.ui.GpuDriversState
 import com.droiddeck.launcher.ui.PairRow
 import com.droiddeck.launcher.wayland.CompositorHost
 
-/**
- * The GPU drivers: what this GPU is, the matched driver pairs the release repos offer for it, and
- * - in Auto, the default - keeping the recommended pair installed and set. Under Advanced, the
- * Linux (runtime) and Android (display) lists as before, each picked on its own - except a
- * bundle's two halves (DriverBundle), which are always picked, and deleted, together. The launcher
- * screen keeps one and hands it to the Components page's GPU drivers tab.
- */
 internal class DriverMenus(private val activity: Activity, private val ui: Handler) {
     var linuxRows by mutableStateOf<List<DriverRow>>(emptyList())
-    /** The latest Banners-Turnip release as each driver menu offers it (see [refreshReleaseRows]). */
     var linuxDownloads by mutableStateOf<List<com.droiddeck.launcher.ui.DownloadRow>>(emptyList())
     var androidDownloads by mutableStateOf<List<com.droiddeck.launcher.ui.DownloadRow>>(emptyList())
-    // Empty until the first refresh: the activity has no context yet while its fields are made.
     var releaseStatus by mutableStateOf("")
     var releaseChecking by mutableStateOf(false)
     var canRestoreBundled by mutableStateOf(false)
-    /** Asset name -> download percent, while it downloads. */
     private val releaseProgress = HashMap<String, Int>()
     var linuxSelected by mutableStateOf("")
     val gpu: GpuInfo = GpuInfo.detect()
-    // Read in refreshDrivers/ensureAuto: the activity has no context yet while its fields are made.
     var mode by mutableStateOf(SessionPrefs.GPU_DRIVERS_AUTO)
     var pairRows by mutableStateOf<List<PairRow>>(emptyList())
-    /** The pair being installed, and how far along. */
     var pairBusy by mutableStateOf<String?>(null)
     var pairPercent by mutableIntStateOf(-1)
-    /** What Auto last did or found, for the line under the pair in use. */
     var autoStatus by mutableStateOf("")
-    /** The bundle both drivers are set to, as "DD-Turnip 0.1.0", or null when they are not one. */
     var activeBundle by mutableStateOf<String?>(null)
     private var autoCheckedThisProcess = false
 
@@ -107,14 +93,12 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         refreshPairs()
     }
 
-    /** One line for the settings row that opens this: "Auto · WinNative · Balanced". */
     fun summary(): String {
         val active = pairRows.firstOrNull { it.active }?.name ?: activeBundle
         val label = activity.getString(if (mode == SessionPrefs.GPU_DRIVERS_AUTO) R.string.common_auto else R.string.drivers_manual)
         return active?.let { activity.getString(R.string.drivers_summary, label, it) } ?: label
     }
 
-    /** The pairs the last check found, with what is installed and in use; this GPU's first. */
     fun refreshPairs() {
         val lm = LinuxVulkanDriverManager(activity)
         val td = TurnipDriver(activity)
@@ -143,12 +127,6 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         if (auto) ensureAuto(force = false)
     }
 
-    /**
-     * Auto: make the recommended pair for this GPU the one installed and set. Looks online when
-     * [force]d (refresh), or when the last check is a day old - Banners-Turnip rebuilds hourly, and
-     * a new pair a day is plenty - otherwise works from the last check. Once per app start on its
-     * own; the pair it replaces is removed, anything the user imported or picked is left alone.
-     */
     fun ensureAuto(force: Boolean) {
         mode = SessionPrefs.gpuDriverMode(activity)
         if (mode != SessionPrefs.GPU_DRIVERS_AUTO || pairBusy != null || releaseChecking) return
@@ -184,18 +162,12 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         }, "gpu-driver-auto").start()
     }
 
-    /** Manual: install (if need be) and set both halves of a pair. */
     fun selectPair(key: String) {
         if (pairBusy != null) return
         val pair = DriverPairs.from(TurnipReleases.cached(activity)).firstOrNull { it.key == key && it.complete } ?: return
         installPair(pair, auto = false)
     }
 
-    /**
-     * Download what is missing of [pair], then set both halves - only once both are in, so a
-     * failed download never leaves a half-changed pair. Auto's own downloads are recorded, and the
-     * ones the new pair replaces are removed.
-     */
     private fun installPair(pair: DriverPairs.DriverPair, auto: Boolean) {
         if (!pair.complete) return
         pairBusy = pair.key
@@ -252,21 +224,15 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         }, "gpu-driver-pair").start()
     }
 
-    /** The bundle a release bundle was downloaded as, while both its halves are installed. */
     private fun installedBundle(asset: TurnipReleases.Asset): DriverBundle.Bundle? =
         TurnipReleases.installedId(activity, asset) { DriverBundle.get(activity, it) != null }?.let { DriverBundle.get(activity, it) }
 
-    /** The id a release asset was installed as (a bundle's id for a bundle), or null when it is not installed. */
     private fun installedIdOf(asset: TurnipReleases.Asset): String? = when {
         asset.bundle -> installedBundle(asset)?.id
         asset.linux -> TurnipReleases.installedId(activity, asset, LinuxVulkanDriverManager(activity)::isInstalled)
         else -> TurnipReleases.installedId(activity, asset, TurnipDriver(activity)::isInstalled)
     }
 
-    /**
-     * One release asset, downloaded, checked and installed through the importer; returns its id,
-     * a bundle's id for a bundle.
-     */
     private fun installAsset(asset: TurnipReleases.Asset, progress: (Int) -> Unit): String {
         var file: File? = null
         try {
@@ -284,12 +250,6 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         }
     }
 
-    /**
-     * Import off the main thread - a driver zip is a few MB and the glibc check reads the whole
-     * library - then say what happened. A refusal's message is the user-facing reason. A bundle,
-     * from any import, installs both halves and is set as both drivers at once. [linux] null (the
-     * tab's own Import .zip) takes a single driver to whichever list its libc belongs in.
-     */
     fun importDriver(uri: Uri, linux: Boolean?) {
         val name = activity.displayNameOf(uri)
         Thread({
@@ -328,10 +288,6 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         }, "import-driver").start()
     }
 
-    /**
-     * Pick one driver from a list, which is Manual (Auto would put its pair back). A bundle's half
-     * sets the bundle's other half in the other list as well.
-     */
     fun selectDriver(id: String, linux: Boolean) {
         val bundle = DriverBundle.containing(activity, id, linux)
         when {
@@ -343,7 +299,6 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         refreshDrivers()
     }
 
-    /** Set both halves of [bundle] as the drivers in use; returns what to tell the user. */
     private fun useBundle(bundle: DriverBundle.Bundle): String {
         val displayChanged = SessionPrefs.androidDriver(activity) != bundle.androidId
         DriverBundle.select(activity, bundle)
@@ -354,11 +309,6 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         )
     }
 
-    /**
-     * Delete an imported or downloaded driver. A mode still set to it goes back to its default, so a
-     * session never starts on a driver that is gone; a release download is forgotten, so the menu
-     * offers it again.
-     */
     fun deleteDriver(id: String, linux: Boolean) {
         val bundle = DriverBundle.containing(activity, id, linux)
         if (bundle != null) {
@@ -381,7 +331,6 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         refreshDrivers()
     }
 
-    /** The download entries and the refresh line, from what the last check found. */
     fun refreshReleaseRows() {
         val check = TurnipReleases.cached(activity)
         fun rows(linux: Boolean) = check?.assets.orEmpty()
@@ -413,7 +362,6 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         }
     }
 
-    /** Only when the user taps refresh: nothing goes online on its own. */
     fun checkLatestTurnip() {
         if (releaseChecking) return
         releaseChecking = true
@@ -431,7 +379,6 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         }, "turnip-release-check").start()
     }
 
-    /** Download one release driver and import it through the same importer a picked zip uses. */
     fun downloadReleaseDriver(assetName: String) {
         val asset = TurnipReleases.cached(activity)?.assets?.firstOrNull { it.name == assetName } ?: return
         if (releaseProgress.containsKey(assetName)) return

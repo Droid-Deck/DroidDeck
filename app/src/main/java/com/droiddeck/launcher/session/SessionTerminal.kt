@@ -4,7 +4,6 @@ import com.termux.terminal.TerminalSession
 import com.termux.terminal.TerminalSessionClient
 import java.io.File
 
-/** Immutable launch context for the optional PTY shell attached to the active Linux runtime. */
 object SessionTerminal {
     private data class Launch(
         val command: Array<String>,

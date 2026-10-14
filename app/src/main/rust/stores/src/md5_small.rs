@@ -1,17 +1,10 @@
-//! Minimal MD5 (RFC 1321) for the store download engines (GOG chunk / file verification).
-//!
-//! In-crate on purpose: the crate is built `--locked` in CI with no way to add a dependency from
-//! this environment, and the algorithm is 100 lines. Not for anything security-sensitive — it only
-//! mirrors the checksum the Java managers already compare against.
 
-/// One-shot digest.
 pub fn md5(data: &[u8]) -> [u8; 16] {
     let mut h = Md5::new();
     h.update(data);
     h.finalize()
 }
 
-/// Lower-case hex of a 16-byte digest.
 pub fn md5_hex(digest: &[u8; 16]) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut out = String::with_capacity(32);
@@ -22,7 +15,6 @@ pub fn md5_hex(digest: &[u8; 16]) -> String {
     out
 }
 
-/// Streaming MD5: `update` any number of times, then `finalize`.
 #[derive(Clone, Debug)]
 pub struct Md5 {
     state: [u32; 4],
@@ -93,7 +85,6 @@ impl Md5 {
         let bit_len = self.total_len.wrapping_mul(8);
         let mut pad = [0u8; 72];
         pad[0] = 0x80;
-        // Pad to 56 mod 64, then append the 64-bit little-endian bit length.
         let pad_len = if self.buffer_len < 56 {
             56 - self.buffer_len
         } else {
@@ -189,7 +180,6 @@ mod tests {
 
     #[test]
     fn padding_edge_lengths() {
-        // 55 / 56 / 64 bytes exercise the "pad fits in one block" vs "needs a second block" paths.
         assert_eq!(hex(&[b'a'; 55]), "ef1772b6dff9a122358552954ad0df65");
         assert_eq!(hex(&[b'a'; 56]), "3b0c8ac703f828b04c6c197006d17218");
         assert_eq!(hex(&[b'a'; 64]), "014842d480b571495a4a0363793f7367");

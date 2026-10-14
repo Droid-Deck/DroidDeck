@@ -21,7 +21,6 @@ import tempfile
 
 DISPLAY = "External: gamescope|||Windowed"
 NATIVE_RESOLUTION = "EnableSteamNativeExternalResolution"
-# screensaver_while_ingame: kept in config.vdf like the Gamescope settings, under this path.
 SCREENSAVER_IN_GAME = ("Customization", "Screensaver", "WhileInGame")
 TOKEN = re.compile(r'\s+|//[^\n]*|"(?:\\.|[^"\\])*"|[{}]')
 
@@ -79,8 +78,6 @@ def parse(text):
 
 
 def initial_scale(width, height):
-    # The Thor setting chosen on device at 1280x720 was 140% of its automatic scale.
-    # Adjust with canvas area so choosing a different session resolution keeps the UI usable.
     if not 320 <= width <= 16384 or not 320 <= height <= 16384:
         raise ValueError("invalid session size")
     return 1.3281567096710205 * math.sqrt(width * height / (1280 * 720))
@@ -97,8 +94,6 @@ def seed_text(text, scale):
     if display is not None and not isinstance(display, Block):
         raise ValueError("invalid display settings")
     if display is not None:
-        # Current describes the active display and is written even with automatic scaling.
-        # Named display entries are the user's saved choices, including a return to Auto.
         if any(name.lower() != 'current' and isinstance(value, Block)
                and value.get('ScaleFactor') is not None for name, value in display.pairs):
             return text, False
@@ -111,7 +106,6 @@ def seed_text(text, scale):
     else:
         entry = '"UI"\n{\n"display"\n{\n' + entry + '}\n}\n'
         at, indent = root.end, 1
-    # Insert only the new block; leave every existing byte, comment and credential untouched.
     insertion = '\n' + '\n'.join('\t' * indent + line for line in entry.splitlines()) + '\n'
     return text[:at] + insertion + text[at:], True
 
@@ -138,7 +132,6 @@ def seed_value(text, path, value):
     for level, section in reversed(list(enumerate(sections))):
         lines = [(level, f'"{section}"'), (level, '{')] + lines + [(level, '}')]
     insertion = ''.join('\t' * (depth + level) + line + '\n' for level, line in lines)
-    # Before the line the block closes on, when it has one of its own; else beside the brace.
     at = text.rfind('\n', 0, block.end) + 1
     if text[at:block.end].strip():
         at, insertion = block.end, '\n' + insertion

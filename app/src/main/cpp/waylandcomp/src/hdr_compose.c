@@ -1,16 +1,10 @@
-/* HDR composition: the encode pass over the mixed scene - see hdr_compose.h. Compositor thread. */
 #define _POSIX_C_SOURCE 200809L
 #include "hdr_compose.h"
 #include "vk_loader.h"
-#include "vk_present.h" /* droiddeck_log, vkp_gpu_name */
+#include "vk_present.h"
 #include <stdio.h>
 #include <string.h>
 
-/* SPIR-V, pre-compiled (glslangValidator -V hdr_encode.frag --vn hdr_encode_code) and committed next
- * to the GLSL, like every other shader of the compositor: the NDK build compiles no shaders. The quad
- * is the effect chain's upscale.vert (same bytes, from app/src/main/cpp/framegen). */
-/* The headers define plain (external) arrays and effects_chain.c includes upscale_vert.h too: this
- * translation unit gets its own copy under another name, so the link sees no duplicate symbol. */
 #define upscale_vert_code hdrc_upscale_vert_code
 #include "upscale_vert.h"
 #undef upscale_vert_code
@@ -18,24 +12,20 @@
 
 #define MIXED_FORMAT VK_FORMAT_A2B10G10R10_UNORM_PACK32
 
-struct pc_encode { float ndc[4]; float params[4]; float rects[HDRC_MAX_RECTS][4]; }; /* 128 bytes */
+struct pc_encode { float ndc[4]; float params[4]; float rects[HDRC_MAX_RECTS][4]; };
 
 static VkDevice g_dev;
-static int g_ready;                 /* 0 = not built, 1 = ok, -1 = unavailable (said once) */
+static int g_ready;
 static VkSampler g_sampler;
 static VkDescriptorSetLayout g_dsl;
 static VkPipelineLayout g_pl;
 static VkDescriptorPool g_dpool;
 static VkShaderModule g_vert, g_frag;
 
-/* One render pass + pipeline per output format: the HDR picture is 10-bit, frame generation's scene
- * 8-bit - or FP16 where the engine takes it (vk_present.c FG_HDR_FMT). */
 #define NFMT 3
 static struct { VkFormat fmt; VkRenderPass rp; VkPipeline pipe; } g_out[NFMT] = {
     {VK_FORMAT_A2B10G10R10_UNORM_PACK32}, {VK_FORMAT_R8G8B8A8_UNORM}, {VK_FORMAT_R16G16B16A16_SFLOAT}};
 
-/* The mixed image's view + descriptor, and each output image's view + framebuffer: kept while the
- * image handle (and size) stays the same, rebuilt when vk_present re-creates the image. */
 static struct { VkImage img; int w, h; VkImageView view; VkDescriptorSet ds; } g_src;
 #define NOUT 3
 static struct { VkImage img; VkFormat fmt; int w, h; VkImageView view; VkFramebuffer fb; } g_dst[NOUT];
@@ -92,9 +82,6 @@ static VkShaderModule shader(const uint32_t *code, size_t size) {
     return m;
 }
 
-/* The render pass: one colour target written whole (DONT_CARE), left in TRANSFER_DST_OPTIMAL for the
- * effects chain / the copies that follow. The dependencies order it after whoever read or wrote the
- * target last (last frame's blit or chain) and before whoever samples, blits or copies it next. */
 static VkRenderPass make_rp(VkFormat fmt) {
     VkAttachmentDescription att = {.format = fmt, .samples = VK_SAMPLE_COUNT_1_BIT,
                                    .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE, .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -261,7 +248,6 @@ int hdrc_encode(VkCommandBuffer cmd, VkImage mixed, VkImage out, VkFormat out_fm
     VkFramebuffer fb = dst_ensure(out, out_fmt, w, h, g_out[slot].rp);
     if (!fb) return -1;
 
-    /* The composite blits wrote the mixed image; the pass samples it. */
     VkImageMemoryBarrier b = {.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
                               .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                               .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,

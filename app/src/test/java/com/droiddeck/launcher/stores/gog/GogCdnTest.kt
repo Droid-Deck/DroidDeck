@@ -6,7 +6,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/** Every CDN GOG's secure link offers is used, not only the first. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class GogCdnTest {

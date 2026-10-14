@@ -14,18 +14,10 @@ import java.util.concurrent.Callable
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
-/**
- * The signed-in account's GOG library: the owned ids from embed.gog.com, each product's details
- * from api.gog.com, and a cache so the tab paints at once. A sync fetches only what the cache
- * lacks unless forced or 15 minutes stale. Ported from Bannerlator's GogLibraryRepo.
- */
 object GogLibrary {
     private const val TAG = "GogLibrary"
-    // v2: the card art moved from the store page's backdrop to the Galaxy library art; an older cache is re-fetched.
     private const val CACHE_KEY = "library_cache_v2"
     private const val LAST_SYNC_KEY = "library_synced_at"
-    // Owned products that are not Windows games (DLC, films, soundtracks, other platforms): never in
-    // the cache, so without this every sync would fetch each of them again.
     private const val SKIPPED_KEY = "library_skipped"
     private const val THROTTLE_MS = 6L * 60L * 60L * 1000L
 
@@ -38,7 +30,6 @@ object GogLibrary {
         object Busy : SyncResult
     }
 
-    /** The cached library, alphabetical; empty until the first sync. */
     fun cached(context: Context): List<GogGame> {
         val json = GogPrefs.get(context).getString(CACHE_KEY, null) ?: return emptyList()
         return runCatching {
@@ -54,7 +45,6 @@ object GogLibrary {
 
     fun sizeOf(context: Context, gameId: String): Long = GogPrefs.get(context).getLong("size_$gameId", 0L)
 
-    /** Owned ids diffed against the cache; fetches what is new, or everything when forced / empty / stale. Blocking. */
     fun sync(context: Context, force: Boolean = false, onStatus: (String) -> Unit = {}): SyncResult {
         if (!syncing.compareAndSet(false, true)) return SyncResult.Busy
         try {
@@ -69,7 +59,6 @@ object GogLibrary {
                 val owned = JSONObject(gamesJson).optJSONArray("owned")
                 if (owned != null) for (i in 0 until owned.length()) {
                     val id = owned.optLong(i).toString()
-                    // 1801418160 is GOG's own "Galaxy" entry, in every library.
                     if (id != "1801418160" && id != "0") ids.add(id)
                 }
             }.isSuccess
@@ -118,9 +107,7 @@ object GogLibrary {
         }
     }
 
-    /** One product's details, or null for anything that is not a Windows game (DLC, movies, other platforms). */
     private fun fetchGame(prefs: SharedPreferences, id: String, token: String, skipped: MutableSet<String>): GogGame? {
-        // Not a game this app installs: remembered, so the next sync does not ask again.
         fun skip(): GogGame? { skipped.add(id); return null }
         try {
             val productJson = StoreNet.get("https://api.gog.com/products/$id?expand=downloads,description", bearer = token) ?: return null
@@ -131,10 +118,6 @@ object GogLibrary {
             var title = prod.optJSONObject("title")?.optString("*")
             if (title.isNullOrEmpty()) title = prod.optString("title")
             if (title.isNullOrEmpty()) return skip()
-            // Card art from the v2 game record, the way the Galaxy client draws its library: the dark
-            // Galaxy background for the wide card and the box art for the tall one. The product's
-            // `images.background` is the store page's fade-out backdrop (it ends in white on a
-            // card) and is never used; the logo or icon is the last resort.
             val images = prod.optJSONObject("images")
             var imageUrl = ""
             var boxArt = ""
@@ -145,12 +128,9 @@ object GogLibrary {
             }
             if (imageUrl.isEmpty()) imageUrl = images?.optString("logo2x", "") ?: ""
             if (imageUrl.isEmpty()) imageUrl = images?.optString("icon", "") ?: ""
-            // The account endpoint hands back template keys for some products; the v2 record's text
-            // is tried next, and when that is a template too the game simply has no description.
             val desc = cleanStoreText(prod.optJSONObject("description")?.optString("lead", ""))
                 .ifEmpty { cleanStoreText(v2?.optString("overview", "")) }
                 .ifEmpty { cleanStoreText(v2?.optString("description", "")) }
-            // The products endpoint names no developer or publisher; the v2 record does, with the worldwide release date.
             val embedded = v2?.optJSONObject("_embedded")
             fun names(key: String) = embedded?.optJSONArray(key)
                 ?.let { arr -> (0 until arr.length()).mapNotNull { arr.optJSONObject(it)?.optString("name")?.takeIf(String::isNotBlank) } }
@@ -218,13 +198,11 @@ object GogLibrary {
         }
     }
 
-    /** A cached game as the page's card. */
     fun toCatalogItem(context: Context, g: GogGame): CatalogItem = CatalogItem(
         store = Store.GOG, id = g.gameId, title = g.title,
         imageUrl = GogStoreCatalog.absolutize(g.imageUrl).ifBlank { null },
         tallImageUrl = GogStoreCatalog.absolutize(g.verticalCover ?: g.imageUrl).ifBlank { null },
         tags = g.category, developer = g.developer, publisher = g.publisher, description = g.description, owned = true,
-        // A cache from before the release date was kept still has it under the older per-game key.
         releaseDate = g.releaseDate.ifEmpty { GogPrefs.get(context).getString("release_${g.gameId}", "").orEmpty() },
         sizeBytes = sizeOf(context, g.gameId),
         storeUrl = "https://www.gog.com/en/game/${g.gameId}",

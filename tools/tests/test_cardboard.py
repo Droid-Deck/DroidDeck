@@ -28,8 +28,6 @@ class CardboardParamsTest(unittest.TestCase):
 
     @staticmethod
     def _env(folder):
-        # cardboard.h includes <vulkan/vulkan.h>; the host test only needs the types, so a stub
-        # header stands in when the Vulkan SDK is not installed.
         import os
         stub = Path(folder) / 'vulkan'
         stub.mkdir(exist_ok=True)
@@ -50,7 +48,6 @@ class CardboardShaderTest(unittest.TestCase):
                              'cardboard_frag.h is stale: regenerate it from cardboard.frag (see cardboard.c)')
 
     def test_push_constants_fit_the_guaranteed_range(self):
-        # 7 vec4 = 112 bytes in the shader; Vulkan guarantees 128.
         glsl = (SRC / 'cardboard.frag').read_text()
         block = glsl[glsl.index('uniform PC {'):glsl.index('} pc;')]
         self.assertLessEqual(16 * len(re.findall(r'\bvec4\b', block)), 128)

@@ -5,7 +5,6 @@ import android.content.Context
 import android.os.Build
 import java.io.File
 
-/** Whether the client's memory can be paged out to compressed swap: MADV_PAGEOUT (Linux 5.4) and a zram or other swap device. */
 object ZramSupport {
     private const val GIB = 1L shl 30
 

@@ -10,7 +10,6 @@ class LiftSheetTest {
     }
 
     @Test fun theButtonKeeps16dpAboveIt() {
-        // A short pane: the edge comes down so the button riding it still clears the top by 16.
         val top = sheetTop(150f, 56f, 16f, 3f)
         assertEquals(41f, top, 0.01f)
         assertEquals(16f, top + 3f - 56f / 2f, 0.01f)

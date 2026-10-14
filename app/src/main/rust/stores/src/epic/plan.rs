@@ -1,19 +1,9 @@
-//! Chunk plan — the part of `EpicDownloadManager.install` between "manifest parsed" and "submit
-//! to the pool", ported 1:1: install-tag file selection (`resolveInstallFiles` /
-//! `getRequiredInstallFiles`), the unique-chunk list for a file set (`uniqueChunksForFiles`),
-//! the byte total (`Σ max(fileSize, 1)`), chunk cache paths and CDN URLs.
-//!
-//! At runtime the Java manager passes the INDICES of its `pendingFiles` (post delta/verify), so
-//! the file selection functions here are exercised by the unit tests (and available to a future
-//! caller) while the driver only runs `unique_chunks_for_files` on Java's pending set — the same
-//! function Java runs, on the same manifest, in the same order.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use super::manifest::{ChunkInfo, Manifest};
 
-/// `getRequiredInstallFiles`: files with no install tags; if NONE carries a tag, every file.
 pub fn required_install_files(m: &Manifest) -> Vec<usize> {
     let required: Vec<usize> = m
         .files
@@ -29,11 +19,6 @@ pub fn required_install_files(m: &Manifest) -> Vec<usize> {
     }
 }
 
-/// `resolveInstallFiles(manifest, selectedTags)`:
-/// - `None` → every file (legacy / DLC / overlay path);
-/// - `Some([])` → required(base) files only;
-/// - otherwise → base files + any file carrying at least one selected tag, falling back to
-///   required-only when nothing matched.
 pub fn resolve_install_files(m: &Manifest, selected_tags: Option<&[String]>) -> Vec<usize> {
     let Some(tags) = selected_tags else {
         return (0..m.files.len()).collect();
@@ -59,8 +44,6 @@ pub fn resolve_install_files(m: &Manifest, selected_tags: Option<&[String]>) -> 
     }
 }
 
-/// `uniqueChunksForFiles(manifest, files)`: chunk indices (into `unique_chunks`) in first-seen
-/// order over `files[*].parts`, each GUID once, GUIDs absent from the chunk list dropped.
 pub fn unique_chunks_for_files(m: &Manifest, file_indices: &[usize]) -> Vec<usize> {
     let by_guid: HashMap<String, usize> = m.chunk_index_by_guid();
     let mut seen: HashSet<String> = HashSet::new();
@@ -81,7 +64,6 @@ pub fn unique_chunks_for_files(m: &Manifest, file_indices: &[usize]) -> Vec<usiz
     chunks
 }
 
-/// `totalBytes += Math.max(chunk.fileSize, 1)` over the needed chunks.
 pub fn total_credit_bytes(m: &Manifest, chunk_indices: &[usize]) -> u64 {
     chunk_indices
         .iter()
@@ -90,15 +72,10 @@ pub fn total_credit_bytes(m: &Manifest, chunk_indices: &[usize]) -> u64 {
         .sum()
 }
 
-/// `<installDir>/.chunks`.
 pub fn chunk_cache_dir(install_dir: &str) -> PathBuf {
     Path::new(install_dir).join(super::CHUNK_CACHE_DIR)
 }
 
-/// Where this run's chunks go: `cache_dir` when the caller named one, else the default
-/// `<installDir>/.chunks`. A separate directory exists so the cache can sit on internal storage
-/// while the game installs to an SD card: a chunk is written once into the cache and once into
-/// the assembled file, and with both on a 26 MB/s card the second write starved the fetchers.
 pub fn resolve_cache_dir(install_dir: &str, cache_dir: &str) -> PathBuf {
     if cache_dir.is_empty() {
         chunk_cache_dir(install_dir)
@@ -107,37 +84,23 @@ pub fn resolve_cache_dir(install_dir: &str, cache_dir: &str) -> PathBuf {
     }
 }
 
-/// Final cache file for a chunk: `new File(chunkCacheDir, chunk.guidStr())`.
 pub fn cached_chunk_path(cache_dir: &Path, chunk: &ChunkInfo) -> PathBuf {
     cache_dir.join(chunk.guid_str())
 }
 
-/// The Java pool's skip rule: a chunk whose cache file EXISTS (any size) is not fetched.
 pub fn is_chunk_cached(cache_dir: &Path, chunk: &ChunkInfo) -> bool {
     cached_chunk_path(cache_dir, chunk).exists()
 }
 
-/// One CDN entry as the Java manager passes it: `cdn.baseUrl + cdn.cloudDir` (auth params are
-/// never used on chunk URLs). Chunk URL = `prefix + "/" + chunk.getPath(chunkDir)`.
 pub fn chunk_url(cdn_prefix: &str, chunk_dir: &str, chunk: &ChunkInfo) -> String {
     format!("{}/{}", cdn_prefix, chunk.path(chunk_dir))
 }
 
-/// Undo the JSON string escaping the Java CDN scanner passes through. `EpicApiClient` re-serializes
-/// the manifest API response with Android's `org.json`, which escapes every `/` as `\/`, and
-/// `parseCdnUrls` takes the raw substrings — so a base URL arrives as `https:\/\/host\` and a cloud
-/// dir as `/Builds\/Org\/…\/default\`. Java's `HttpURLConnection` (OkHttp) treats `\` as `/` and
-/// only ever reached the first CDN, so it never noticed; reqwest's URL parser does the same
-/// mapping, which leaves empty `//` path segments that Fastly/Akamai tolerate but CloudFront
-/// rejects outright (immediate 4xx). Produce the URL Java intended: `\/` → `/`, any other `\`
-/// dropped, and no trailing slash (the chunk path is joined with one).
 pub fn normalize_prefix(raw: &str) -> String {
     let unescaped = raw.replace("\\/", "/").replace('\\', "");
     unescaped.trim_end_matches('/').to_string()
 }
 
-/// Distinct CDN prefixes in first-seen order, normalized (the fetch core wants one host key per
-/// distinct endpoint; Java would simply try an identical URL twice, which changes nothing).
 pub fn distinct_prefixes(cdn_prefixes: &[String]) -> Vec<String> {
     let mut seen = HashSet::new();
     let mut out = Vec::new();
@@ -153,9 +116,6 @@ pub fn distinct_prefixes(cdn_prefixes: &[String]) -> Vec<String> {
     out
 }
 
-/// Improvements round 1: split the window across the distinct CDNs so the whole ceiling is
-/// reachable whatever the host count — `max(6, ceil(max_workers / hosts))` (3 Epic CDNs at a
-/// ceiling of 32 → 11 each; a single host gets all 32).
 pub fn per_host_cap(max_workers: usize, host_count: usize) -> usize {
     let hosts = host_count.max(1);
     let workers = max_workers.max(1);
@@ -176,14 +136,10 @@ mod tests {
     #[test]
     fn install_tag_rules_match_java() {
         let m = manifest();
-        // null → all
         assert_eq!(resolve_install_files(&m, None), vec![0, 1, 2]);
-        // empty → required only (file 0 has no tags)
         assert_eq!(resolve_install_files(&m, Some(&[])), vec![0]);
-        // German → base + the German file
         let de = vec!["German".to_string(), "de-DE".to_string()];
         assert_eq!(resolve_install_files(&m, Some(&de)), vec![0, 1]);
-        // unknown tag → nothing extra matched, but base files matched, so base only
         let xx = vec!["Klingon".to_string()];
         assert_eq!(resolve_install_files(&m, Some(&xx)), vec![0]);
     }
@@ -204,7 +160,6 @@ mod tests {
         let mut files = sample_files();
         files[0].tags = vec!["English".to_string()];
         let m = parse_manifest(&build_manifest(&sample_chunks(), &files, 21, false)).unwrap();
-        // No untagged file, unknown tag selected → matched nothing → required → (none) → all.
         let xx = vec!["Klingon".to_string()];
         assert_eq!(resolve_install_files(&m, Some(&xx)), vec![0, 1, 2]);
     }
@@ -212,12 +167,10 @@ mod tests {
     #[test]
     fn unique_chunks_follow_first_seen_part_order() {
         let m = manifest();
-        // file 2 first: chunk c[2] then c[0]; then file 0: c[0] (dup), c[1].
         assert_eq!(unique_chunks_for_files(&m, &[2, 0]), vec![2, 0, 1]);
         assert_eq!(unique_chunks_for_files(&m, &[1]), vec![1]);
         assert!(unique_chunks_for_files(&m, &[]).is_empty());
         assert!(unique_chunks_for_files(&m, &[99]).is_empty(), "out-of-range index ignored");
-        // total = 700000 + max(0,1) + 9
         assert_eq!(total_credit_bytes(&m, &[0, 1, 2]), 700_000 + 1 + 9);
     }
 
@@ -256,13 +209,11 @@ mod tests {
 
     #[test]
     fn prefixes_are_unescaped_from_the_java_json_scan() {
-        // Exactly what Bannerlator's Epic debug log shows its Java manager extracting for a real title.
         let raw = "https:\\/\\/egdownload.fastly-edge.com\\/Builds\\/Org\\/o-83e8\\/04b7\\/default\\";
         assert_eq!(
             normalize_prefix(raw),
             "https://egdownload.fastly-edge.com/Builds/Org/o-83e8/04b7/default"
         );
-        // Already-clean input is untouched (minus a trailing slash).
         assert_eq!(
             normalize_prefix("https://download.epicgames.com/Builds/x/default/"),
             "https://download.epicgames.com/Builds/x/default"

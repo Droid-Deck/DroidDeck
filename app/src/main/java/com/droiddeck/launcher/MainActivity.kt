@@ -79,11 +79,6 @@ import com.droiddeck.launcher.session.GameStorage
 import com.droiddeck.launcher.input.SecondScreenDisplay
 import com.droiddeck.launcher.input.SecondScreenDisplays
 
-/**
- * The whole app outside a session: is the runtime installed, is there a newer one, frame
- * generation, and one button that starts Steam. Everything a Steam client can do - the library,
- * the store, downloads, settings - is the client's own job once [SessionActivity] has it on screen.
- */
 class MainActivity : ComponentActivity() {
     override fun attachBaseContext(newBase: android.content.Context) {
         super.attachBaseContext(newBase)
@@ -97,13 +92,10 @@ class MainActivity : ComponentActivity() {
     private val updates = UpdatesMenu(this, ui)
     private val protons = ProtonMenu(this, ui)
 
-    // The screen's state. Compose redraws whatever reads these when they change.
     private var installed by mutableStateOf<String?>(null)
-    /** A session launch waiting on its button to fill the page (LaunchFlood). */
     private var flood by mutableStateOf<PendingFlood?>(null)
     private var floodProgress by androidx.compose.runtime.mutableFloatStateOf(0f)
     private class PendingFlood(val from: androidx.compose.ui.geometry.Rect, val intent: Intent)
-    /** A session stopped behind a flood: its blue, drawn back into the button it started from (FloodReturn). */
     private var returning by mutableStateOf<ReturningFlood?>(null)
     private class ReturningFlood(val color: Int, val to: androidx.compose.ui.geometry.Rect?)
     private var ready by mutableStateOf(false)
@@ -123,12 +115,10 @@ class MainActivity : ComponentActivity() {
     private var steamRepairQueued by mutableStateOf(false)
     private var mangoapp by mutableStateOf(true)
     private var steamController by mutableStateOf(SessionPrefs.CONTROLLER_DECK)
-    // Components page: FEX / DXVK / VKD3D-Proton per Proton (ComponentsManager).
     private var showComponents by mutableStateOf(false)
     private var focusComponentsContent by mutableStateOf(true)
     private var showMapping by mutableStateOf(false)
     private var saveBusy: String? = null
-    /** What to do with the zip or folder the file picker hands back after a game page's Manage saves. */
     private var onSavePicked: ((File) -> Unit)? = null
     private var controllerSettings by mutableStateOf<ControllerPrefs.Settings?>(null)
     private var catalog by mutableStateOf<List<DesktopCatalog.Entry>?>(null)
@@ -167,7 +157,6 @@ class MainActivity : ComponentActivity() {
     private var gameStoresEnabled by mutableStateOf(true)
     private var gameStoresSpeedTier by mutableStateOf("fast")
     private var storesOpenTab by mutableStateOf(SessionPrefs.STORES_OPEN_LIBRARY)
-    /** A page a notification asked for ("stores:downloads", "app:<id>"), until the front end has gone there. */
     private var navRequest by mutableStateOf<String?>(null)
     private var storesShowMature by mutableStateOf(false)
     private var mic by mutableStateOf(false)
@@ -200,8 +189,6 @@ class MainActivity : ComponentActivity() {
         refreshWifiDiscovery()
     }
 
-    // The app's own picker (files/), once per kind of pick: the two driver lists validate
-    // differently, and the reason a zip is refused names the list it belongs in.
     private val pickComponent = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedUri(r.data)?.let { importComponent(it) }
     }
@@ -235,7 +222,6 @@ class MainActivity : ComponentActivity() {
         wifiDiscoveryAsked = SessionPrefs.wifiDiscoveryAsked(this)
         wifiDiscoveryBlocked = !wifiDiscoveryPermission && wifiDiscoveryAsked &&
             WifiDiscovery.permissions.none { shouldShowRequestPermissionRationale(it) }
-        // A revoked grant must not leave an enabled switch behind.
         if (!wifiDiscoveryPermission && SessionPrefs.wifiDiscoveryEnabled(this)) {
             SessionPrefs.setWifiDiscoveryEnabled(this, false)
         }
@@ -251,7 +237,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** Takes a new or updated Lossless Scaling from Steam and shows what LSFG can use. */
     private fun syncLossless() {
         Thread({
             Lossless.sync(this)
@@ -271,7 +256,6 @@ class MainActivity : ComponentActivity() {
         }, "lossless-import").start()
     }
 
-    /** Import a save zip into [game]: pick it in the app's file picker, then back up and unzip off the main thread. */
     private fun importSaves(name: String, game: () -> GameSaves.Game) {
         if (SessionState.running) {
             android.widget.Toast.makeText(this, R.string.main_saves_close_session, android.widget.Toast.LENGTH_LONG).show()
@@ -290,7 +274,6 @@ class MainActivity : ComponentActivity() {
         pickSaveZip.launch(InAppFilePicker.buildIntent(this, listOf("zip"), getString(R.string.main_saves_pick_zip, name), GameSaves.savesDir().parentFile?.parentFile?.path))
     }
 
-    /** Export [game]'s saves in [layout] to a folder picked in the app's file picker. */
     private fun exportSaves(name: String, layout: GameSaves.Layout, game: () -> GameSaves.Game) {
         onSavePicked = { dir ->
             saveAction(getString(R.string.main_saves_exporting, name)) {
@@ -301,7 +284,6 @@ class MainActivity : ComponentActivity() {
         GameSaves.savesDir().mkdirs()
         pickSaveDir.launch(InAppFilePicker.buildDirIntent(this, getString(R.string.main_saves_pick_folder, name, layout.label(this)), GameSaves.savesDir().path))
     }
-    /** The Games tab's +: the picked .exe becomes a game (or selects / switches the one it belongs to). */
     private fun addGameExe(path: String) {
         val exe = java.io.File(path)
         Thread({
@@ -327,7 +309,6 @@ class MainActivity : ComponentActivity() {
     }
     private var addedGamesArt by mutableStateOf(true)
     @Volatile private var artFetchRunning = false
-    /** The user entered a SteamGridDB API key of their own. */
     private var sgdbUserKey by mutableStateOf(false)
     private val pickRomsDir = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedPath(r.data)?.let { path ->
@@ -335,7 +316,6 @@ class MainActivity : ComponentActivity() {
             romsDir = path
         }
     }
-    // The mode whose lifted sheet last read its settings, with what it shows; refreshed by loadModeSettings().
     private var settingsMode by mutableStateOf<String?>(null)
     private var resolution by mutableStateOf(com.droiddeck.launcher.session.SessionDisplay.DEFAULT_RESOLUTION)
     private var fexPreset by mutableStateOf("")
@@ -386,7 +366,6 @@ class MainActivity : ComponentActivity() {
         refreshHomeAppState()
     }
 
-    /** The session surface rises over the front end instead of cutting to it. */
     override fun startActivity(intent: Intent?) {
         if (intent?.component?.className == SessionActivity::class.java.name) {
             when {
@@ -406,8 +385,6 @@ class MainActivity : ComponentActivity() {
         }
         if (intent?.component?.className == SessionActivity::class.java.name) {
             if (flood != null) return
-            // Started by a blue button: it floods the page first. A running session is re-joined
-            // as before, rising over the front end.
             val from = com.droiddeck.launcher.ui.LaunchOrigin.take()
             if (from != null && !SessionState.running && com.droiddeck.launcher.ui.Motion.scale != 0f) {
                 flood = PendingFlood(from, intent)
@@ -419,7 +396,6 @@ class MainActivity : ComponentActivity() {
         if (intent?.component?.className == SessionActivity::class.java.name) overridePendingTransition(R.anim.session_rise, R.anim.session_hold)
     }
 
-    /** The page is all blue: the session opens on the same blue, with no animation of its own. */
     private fun launchFlooded(f: PendingFlood) {
         if (busy || LinuxRuntimeInstaller.isBusy()) { flood = null; floodProgress = 0f; return }
         val signal = com.droiddeck.launcher.ui.Themes.byId(theme).signal
@@ -453,7 +429,6 @@ class MainActivity : ComponentActivity() {
         request.getStringExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV)?.let { navRequest = it; request.removeExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV) }
         shortcutPicker = request.action == Intent.ACTION_CREATE_SHORTCUT
         if (shortcutPicker) {
-            // The shortcut picker must only offer games from the scan started for this request.
             steamGames = emptyList()
             shortcutLibraryScanning = true
         } else shortcutLibraryScanning = false
@@ -531,7 +506,6 @@ class MainActivity : ComponentActivity() {
         theme = SessionPrefs.theme(this)
         frameGenLabel = getString(R.string.frame_gen_off)
         appScale = com.droiddeck.launcher.core.AppUiPrefs.scale(this)
-        // Last start's game list, so the Steam wall is up on the first frame; refresh() replaces it.
         steamGames = if (shortcutPicker) emptyList() else com.droiddeck.launcher.frontend.LibraryCache.load(this)
         backActionsInverted = SessionPrefs.backActionsInverted(this)
         orientation = SessionPrefs.orientation(this)
@@ -603,18 +577,14 @@ class MainActivity : ComponentActivity() {
                     ),
                     FrontEndActions(
                         onPlay = { startSteamSession() },
-                        // The client's desktop UI, with gamescope's Deck integration disabled.
                         onPlayDesktopUi = {
                             startSession(Intent(this, SessionActivity::class.java)
                                 .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_STEAM)
                                 .putExtra(SessionService.EXTRA_STEAM_UI, "desktop"), steamSession = true)
                         },
-                        // A store game may need something done first (an Epic game its sign-in code).
                         onSteamGame = { g ->
                             if (shortcutPicker) chooseGameShortcut(g)
                             else {
-                                // The launch takes the Windows components already on; the game's list is
-                                // looked at again in the background once the session is over.
                                 com.droiddeck.launcher.frontend.AutoComponents.beforeLaunch(this, g)
                                 com.droiddeck.launcher.stores.StoreLaunch.prepare(this, g) { launchGame(g) }
                             }
@@ -624,7 +594,6 @@ class MainActivity : ComponentActivity() {
                         onSyncGameFiles = { pickGameExport(null) },
                         onAddGameExe = { path -> addGameExe(path) },
                         onAddedGamesChanged = { folders ->
-                            // New games want art; an edit does not.
                             val known = steamGames.mapNotNull { it.gameFiles?.path }.toSet()
                             updateAddedGames(folders, then = { if (folders.any { it !in known }) fetchAddedGameArt() })
                         },
@@ -652,7 +621,6 @@ class MainActivity : ComponentActivity() {
                                 .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_DESKTOP))
                         },
                         onEmulator = { e -> launchProgram(e.program) },
-                        // An app added on the Desktop page, full screen under gamescope like an emulator.
                         onUserApp = { app ->
                             app.args.firstOrNull()?.let { Library.flatpakNames[it] = app.name }
                             startActivity(Intent(this, SessionActivity::class.java)
@@ -660,7 +628,6 @@ class MainActivity : ComponentActivity() {
                                 .putExtra(SessionService.EXTRA_PROGRAM, app.program)
                                 .putExtra(SessionService.EXTRA_PROGRAM_ARGS, app.args.toTypedArray()))
                         },
-                        // A Flatpak app from the store, full screen under gamescope like an emulator.
                         onFlatpakApp = { id, name ->
                             Library.flatpakNames[id] = name
                             startActivity(Intent(this, SessionActivity::class.java)
@@ -675,7 +642,6 @@ class MainActivity : ComponentActivity() {
                                 .putExtra(SessionService.EXTRA_PROGRAM, e.program)
                                 .putExtra(SessionService.EXTRA_PROGRAM_ARGS, Library.launchArgs(e.id, g.guestPath).toTypedArray()))
                         },
-                        // The activity re-attaches to the session that is running; nothing restarts.
                         onResume = { startActivity(Intent(this, SessionActivity::class.java)) },
                         onSteamSettings = { loadModeSettings(SessionService.MODE_STEAM) },
                         onRemoveDesktop = { removeDesktop() },
@@ -694,7 +660,6 @@ class MainActivity : ComponentActivity() {
                         onProtons = { openProtons() },
                         onComponents = { focusContent -> openComponents(focusContent) },
                         onComponentsTab = { tab -> openComponents(focusContent = true, tab = tab) },
-                        // A game page's Manage saves: the game's Proton and saves are read when the work runs, off the main thread.
                         onSaveImport = { sg -> importSaves(sg.name) { GameSaves.game(sg) } },
                         onSaveExport = { sg, layout -> exportSaves(sg.name, layout) { GameSaves.game(sg) } },
                         onPerformance = { refreshCores(); showComponents = false; showMapping = false; showPerformance = true },
@@ -742,7 +707,6 @@ class MainActivity : ComponentActivity() {
                         onLanguage = { tag ->
                             if (tag != com.droiddeck.launcher.core.AppLanguage.chosen(this)) {
                                 com.droiddeck.launcher.core.AppLanguage.setChosen(this, tag)
-                                // Redrawn in the new language; Setup's page and tab are saved state.
                                 recreate()
                             }
                         },
@@ -895,25 +859,17 @@ class MainActivity : ComponentActivity() {
 
         if (savedInstanceState == null) ui.post { startSteamAtStartupIfEnabled() }
 
-        // The session's logs land in Downloads so a failed run can be handed over as a folder
-        // rather than dug out of app-private storage. targetSdk 28 means the old permission still
-        // grants exactly that.
         val wanted = ArrayList<String>()
         if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
             wanted.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
         }
-        // The microphone is off by default. Someone who turned it on before the permission was
-        // granted is asked once here, with the storage prompt; a refusal is not asked again - the
-        // toggle asks when used.
         if (SessionPrefs.micEnabled(this) && !SessionPrefs.micAsked(this)
             && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             wanted.add(Manifest.permission.RECORD_AUDIO)
             SessionPrefs.setMicAsked(this)
         }
         if (wanted.isNotEmpty()) requestPermissions(wanted.toTypedArray(), 1)
-        // A store sign-in an earlier build left in plain text is sealed with the Keystore key.
         Thread({ com.droiddeck.launcher.stores.StoreAccounts.encryptAll(this) }, "store-credentials").start()
-        // A session folder left without its ending - the process was killed - gets it now.
         if (!SessionState.running) Thread({
             com.droiddeck.launcher.session.LogMigration.run(this)
             com.droiddeck.launcher.frontend.GamesFolderMigration.run(this)
@@ -969,7 +925,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** On the Components page the pad's LB / RB step through the stack's layers, wrapping around. */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.keyCode == KeyEvent.KEYCODE_BUTTON_A) com.droiddeck.launcher.ui.HeldKeys.confirm = event.action == KeyEvent.ACTION_DOWN
         if (showComponents && (event.keyCode == KeyEvent.KEYCODE_BUTTON_L1 || event.keyCode == KeyEvent.KEYCODE_BUTTON_R1)) {
@@ -978,8 +933,6 @@ class MainActivity : ComponentActivity() {
             }
             return true
         }
-        // Compose throws when its focus tree has lost the focused node; one key is dropped
-        // instead of the app.
         return try {
             super.dispatchKeyEvent(event)
         } catch (e: IllegalStateException) {
@@ -994,25 +947,17 @@ class MainActivity : ComponentActivity() {
         orientation = SessionPrefs.orientation(this)
         requestedOrientation = orientation
         refreshWifiDiscovery()
-        // Back from a store's sign-in page: the Stores chips show the account at once. A store
-        // install finishing while this screen is up rebuilds the Games list through the listener.
         com.droiddeck.launcher.stores.StoresState.refresh(this)
         com.droiddeck.launcher.stores.StoresState.libraryListener = { refreshAddedGames(); refresh() }
         com.droiddeck.launcher.ui.Motion.refresh(this)
-        // Back from a session stopped behind a flood: open on its blue, before the first frame.
         com.droiddeck.launcher.ui.QuitFlood.take()?.let { c ->
             returning = ReturningFlood(c, com.droiddeck.launcher.ui.LaunchOrigin.takeReturn())
         }
         refreshPhantomStatus()
         syncLossless()
-        // Opening the app and coming back from a session both land here.
         updates.onResume()
-        // Auto keeps this GPU's recommended driver pair installed and set: once per app start.
         drivers.ensureAuto(force = false)
-        // Newer GE-Proton / proton-cachyos / DroidDeck-Proton releases: looked up every few hours at most.
         protons.checkUpdates()
-        // Swaps queued while a game ran on that Proton go in once nothing uses it (usually the
-        // session has just ended). Cheap when nothing is queued.
         if (!SessionState.running) Thread({
             val applied = runCatching { ComponentsManager.applyQueued(this) }.getOrDefault(emptyList())
             if (applied.isNotEmpty()) ui.post {
@@ -1029,8 +974,6 @@ class MainActivity : ComponentActivity() {
         decky.deckyInstalled = DeckyManager.installed(this)
         DeckyManager.syncCefMarker(this)
         decky.deckySupervisor = DeckyManager.supervisorEnabled(this)
-        // Added games' art (a store lookup for what the folders lack) starts here, not only when
-        // the cog opens.
         refreshAddedGames()
         if (catalog == null) loadDesktopCatalog()
         if (!busy) Thread({ checkCatalog() }, "catalog").start()
@@ -1057,10 +1000,8 @@ class MainActivity : ComponentActivity() {
         unregisterReceiver(wifiLocationReceiver)
         unregisterReceiver(mediaReceiver)
         ui.removeCallbacks(mediaRefresh)
-        // An install finishing while this screen is away is picked up by onResume's refresh.
         com.droiddeck.launcher.stores.StoresState.libraryListener = null
         displayManager.unregisterDisplayListener(secondScreenDisplayListener)
-        // The session covers the page by now; coming back finds it as it was.
         flood = null
         returning = null
         floodProgress = 0f
@@ -1116,7 +1057,6 @@ class MainActivity : ComponentActivity() {
         }, "catalog-desktop").start()
     }
 
-    /** Runs a save import or export off the main thread, one at a time, and says how it went. */
     private fun saveAction(label: String, work: () -> String) {
         if (busy || LinuxRuntimeInstaller.isBusy() || saveBusy != null) return
         saveBusy = label
@@ -1129,7 +1069,6 @@ class MainActivity : ComponentActivity() {
         }, "game-saves-action").start()
     }
 
-    /** The Protons DroidDeck installs are the Components page's Proton layer. */
     private fun openProtons() = openComponents(focusContent = true, tab = com.droiddeck.launcher.ui.PROTON_TAB)
 
     private fun refreshController() {
@@ -1153,7 +1092,6 @@ class MainActivity : ComponentActivity() {
         showPerformance = false
         showMapping = false
         showComponents = true
-        // The Proton layer's options for every Proton, as they are now.
         fexPreset = SessionPrefs.fexPreset(this)
         forceSsbs = SessionPrefs.forceSsbs(this)
         fastSync = SessionPrefs.fastSync(this)
@@ -1196,7 +1134,6 @@ class MainActivity : ComponentActivity() {
             onDownload = { components.downloadComponent(it) },
             onRefresh = { components.refreshComponentCatalog() },
             onImport = { pickComponent.launch(InAppFilePicker.buildIntent(this, WCP_EXT, getString(R.string.comp_pick_wcp))) },
-            // Reached by a hop (a game's Components card, Play's Graphics drivers): back the way it came.
             onBack = { if (!com.droiddeck.launcher.ui.Hops.back { showComponents = false }) showComponents = false },
             games = steamGames,
             generalFexPreset = fexPreset,
@@ -1206,7 +1143,6 @@ class MainActivity : ComponentActivity() {
                 onAuto = { on -> drivers.setMode(on) },
                 onPair = { key -> drivers.selectPair(key) },
                 onRefresh = { if (drivers.mode == SessionPrefs.GPU_DRIVERS_AUTO) drivers.ensureAuto(force = true) else drivers.checkLatestTurnip() },
-                // Picking one driver on its own is Manual: Auto would put its pair back.
                 onSelectLinux = { id -> drivers.selectDriver(id, linux = true) },
                 onSelectAndroid = { id -> drivers.selectDriver(id, linux = false) },
                 onRemoveLinux = { id -> drivers.deleteDriver(id, linux = true) },
@@ -1241,9 +1177,7 @@ class MainActivity : ComponentActivity() {
                 )
             },
         )
-        // A download can finish in the session drawer while this page is visible.
         androidx.compose.runtime.LaunchedEffect(components.compDownloadRevision) { components.refreshComponents() }
-        // A Proton installed or removed changes the stack's list of Protons.
         androidx.compose.runtime.LaunchedEffect(protons.protonBusyId) { if (protons.protonBusyId == null) components.refreshComponents() }
     }
 
@@ -1292,7 +1226,6 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun ModeSheetHost(mode: String, tab: String, extras: com.droiddeck.launcher.ui.SheetExtras) {
-        // Read for the other mode last (or not yet): what this one shows is read as it opens.
         if (settingsMode != mode) return
         com.droiddeck.launcher.ui.ModeSheetRows(
             ModeSettings(
@@ -1377,8 +1310,6 @@ class MainActivity : ComponentActivity() {
                 onMic = { on ->
                     SessionPrefs.setMicEnabled(this, on)
                     mic = on
-                    // The session checks the grant itself at start; asking here means the
-                    // answer is in before the first session that wants it.
                     if (on && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
                         requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 2)
                     }
@@ -1461,17 +1392,12 @@ class MainActivity : ComponentActivity() {
         )
     }
 
-    /**
-     * The Games tab after these added games were added or edited: each read alone and put in
-     * place of its old entry (or added), no library-wide scan. [then] runs after, on the main thread.
-     */
     private fun updateAddedGames(folders: List<String>, then: () -> Unit = {}) {
         if (folders.isEmpty()) return
         Thread({
             val fresh = folders.mapNotNull { f ->
                 com.droiddeck.launcher.frontend.AddedGames.single(this, f)?.let { com.droiddeck.launcher.frontend.Library.addedGame(this, it) }
             }
-            // An added or edited game's Windows components, from its source's list.
             fresh.forEach { com.droiddeck.launcher.frontend.AutoComponents.refreshLater(this, it) }
             ui.post {
                 val paths = folders.toSet()
@@ -1481,19 +1407,16 @@ class MainActivity : ComponentActivity() {
         }, "added-games-update").start()
     }
 
-    /** An added game removed: off the Games tab now; the rest (cache, Steam, listing) off the main thread. */
     private fun removeAddedGame(folder: String, appId: Long?, name: String) {
         steamGames = steamGames.filterNot { it.library == Library.ADDED && it.gameFiles?.path == folder }
         Thread({ com.droiddeck.launcher.frontend.AddedGames.remove(this, java.io.File(folder), appId, name) }, "added-game-remove").start()
     }
 
-    /** After the added games changed: art that is missing is fetched (off the main thread). */
     private fun refreshAddedGames() {
         sgdbKeyKnown()
         fetchAddedGameArt()
     }
 
-    /** Whether the user has a SteamGridDB key of their own, for Setup; read off the main thread. */
     private fun sgdbKeyKnown() {
         Thread({
             val set = com.droiddeck.launcher.frontend.SteamGridDb.userKey(this).isNotEmpty()
@@ -1502,8 +1425,6 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun fetchAddedGameArt() {
-        // Art the games do not have yet, from Steam's store, off the main thread; the rail
-        // redraws when something arrives.
         if (SessionPrefs.addedGamesArt(this) && !artFetchRunning) {
             artFetchRunning = true
             Thread({
@@ -1550,8 +1471,6 @@ class MainActivity : ComponentActivity() {
         gameStorage = SessionPrefs.gameStorage(this)
         storageDiagnostics = SessionPrefs.storageDiagnosticsEnabled(this)
         settingsMode = mode
-        // The sheet lifts at once, on what was last read; the slow part (driver files, a walk of the
-        // added-games folders, the storage volumes) lands while it rises.
         Thread({
             val zram = com.droiddeck.launcher.core.ZramSupport.supported()
             val zramOn = SessionPrefs.zramCompression(this)
@@ -1572,7 +1491,6 @@ class MainActivity : ComponentActivity() {
         }, "mode-settings").start()
     }
 
-    /** A second Steam library, proven writable first; "" = internal only. */
     private fun setGameStorage(path: String, label: String) {
         if (path.isNotEmpty() && path != SessionPrefs.GAME_STORAGE_OFF) {
             val problem = GameStorage.prepare(this, path)
@@ -1585,7 +1503,6 @@ class MainActivity : ComponentActivity() {
         gameStorage = path
     }
 
-    /** The two masks as the dialog shows them; an empty stored list shows as every core ticked. */
     private fun refreshCores() {
         clientOverride = SessionPrefs.clientCpusOverride(this)
         glThread = SessionPrefs.glThread(this)
@@ -1626,17 +1543,11 @@ class MainActivity : ComponentActivity() {
                 ?: SessionState.program?.substringAfterLast('/')?.substringBefore('.') ?: getString(R.string.main_running_program)
             else -> "Steam"
         } else null
-        // The libraries, off the main thread: manifests and a folder scan.
         val scanGeneration = ++libraryScanGeneration
         if (shortcutPicker) shortcutLibraryScanning = true
         Thread({
-            // The emulators first: they need no walk of the games, and Desktop's dock is made of them.
             val emus = Library.emulators(this) { id -> DesktopCatalog.installed(this, id) != null }
             ui.post { if (scanGeneration == libraryScanGeneration) emulatorList = emus }
-            // Steam's own games next, from their manifests alone (quick), beside the added games
-            // already listed: a game Steam installed during the session shows as the session ends,
-            // without waiting for the added games' walk below. Its Windows components' list is
-            // queued then too, on the low-priority worker, so its page is usually ready.
             if (ready) {
                 val quick = runCatching { Library.steamGames(this) }.getOrNull()
                 if (quick != null) ui.post {
@@ -1650,15 +1561,9 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
-            // Then one update with the whole list: the wall places games by their position in it,
-            // so a partial list first would shuffle every capsule when the rest arrived.
-            // LibraryCache covers the wait.
             val games = if (ready) Library.launchableGames(this) else emptyList()
             val all = games.distinctBy { it.gameId }
             if (ready) com.droiddeck.launcher.frontend.LibraryCache.save(this, all)
-            // Once per app start: the Steam games' Windows components from Steam's lists.
-            // Queued only, after the launcher has been up a little; the worker takes them one at a time.
-            // And again after each session (a game installed in it, files changed).
             val endedSession = SessionState.sessionId.takeIf { !SessionState.running && it != null && it != componentSweepSession }
             if (ready && (!componentSweepDone || endedSession != null)) {
                 componentSweepDone = true
@@ -1672,8 +1577,6 @@ class MainActivity : ComponentActivity() {
                     handleGameLink(all)
                 }
             }
-            // Box art for the games that have none, fetched after the list is up; the list is
-            // rebuilt once if any was found.
             if (!OfflineMode.enabled(this) && CoverArt.fetchMissing(this, emus.flatMap { it.games })) {
                 val refreshed = Library.emulators(this) { id -> DesktopCatalog.installed(this, id) != null }
                 ui.post { emulatorList = refreshed }
@@ -1685,7 +1588,6 @@ class MainActivity : ComponentActivity() {
         if (runtimeChangesBlocked()) return
         val release = available
         if (removalPending || installed != null && release?.version == installed) {
-            // Nothing to install: offer the one destructive thing this screen can do.
             showRemove = true
             return
         }
@@ -1693,14 +1595,10 @@ class MainActivity : ComponentActivity() {
             Thread({ checkCatalog() }, "catalog").start()
             return
         }
-        // The runtime draws with Turnip, an Adreno driver: on Mali, Xclipse or PowerVR the
-        // compositor gets no usable Vulkan device and a session is sound over a black screen.
-        // Said before the download, not after it; the user may still go ahead.
         if (installed == null && !com.droiddeck.launcher.core.DeviceSupport.adreno()) { showNonAdreno = release; return }
         install(release)
     }
 
-    /** Starts a session; with no runtime on a non-Adreno, the same warning Setup gives comes first, before any download. */
     private fun startSession(intent: Intent, steamSession: Boolean = false): Boolean {
         if (busy || LinuxRuntimeInstaller.isBusy()) return false
         refreshPhantomStatus()
@@ -1759,7 +1657,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** Setup's Reset all settings; the activity is recreated so every screen reads the defaults (and the language) again. */
     private fun resetSettings(gameProfiles: Boolean) {
         if (SessionState.running) return
         val scopes = steamGames.map { it.profileKey }
@@ -1784,16 +1681,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun install(release: LinuxRuntimeInstaller.Release) {
-        // The service keeps the process alive if the user switches away; this screen joins the
-        // same install (or starts it, if it gets there first) to show the progress.
         com.droiddeck.launcher.runtime.RuntimeInstallService.start(this, release)
         followRuntimeOperation { listener -> LinuxRuntimeInstaller.install(this, release, listener) }
     }
 
-    /**
-     * Shows a runtime operation's progress until it ends. [run] either starts one or joins the one already
-     * running (null: nothing was), which is how a launcher rebuilt mid-install picks it back up.
-     */
     private fun followRuntimeOperation(run: (LinuxRuntimeInstaller.ProgressListener) -> Boolean?) {
         busy = true
         failed = false
@@ -1823,7 +1714,6 @@ class MainActivity : ComponentActivity() {
     companion object {
         private const val TAG = "MainActivity"
         private const val MEDIA_SETTLE_MS = 1500L
-        /** What the picker offers for a driver zip; some file apps label a zip as a plain stream. */
         private val ZIP_EXT = listOf("zip")
         private val WCP_EXT = listOf("wcp")
     }
