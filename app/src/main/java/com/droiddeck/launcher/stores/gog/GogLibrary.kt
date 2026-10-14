@@ -112,6 +112,8 @@ object GogLibrary {
                     merged[g.gameId] = filled; detailed.add(g.gameId); fetched++; skipped.remove(g.gameId); onItems(listOf(filled))
                 }
                 if ((idx + 1) % 5 == 0) onStatus("Syncing… ${idx + 1}/${futures.size}")
+                // Saved as it goes: a sync the user closes the app on still leaves a library to paint next launch.
+                if ((idx + 1) % 20 == 0) saveCache(p, merged.values.filter { it.gameId in detailed })
             }
             // A product this round found uninstallable leaves when the round is over, not in the middle of it.
             for (id in skipped) merged.remove(id)
@@ -136,13 +138,14 @@ object GogLibrary {
         var page = 1
         var pages = 1
         while (page <= pages && page <= LIST_MAX_PAGES) {
-            val json = StoreNet.get("$LIST_URL&page=$page", bearer = token, userAgent = GogAuth.GALAXY_UA) ?: return null
-            val listed = parseListing(json) ?: return null
+            // A page that cannot be read ends the listing; the pages already read still name most of the library.
+            val listed = StoreNet.get("$LIST_URL&page=$page", bearer = token, userAgent = GogAuth.GALAXY_UA)?.let { parseListing(it) } ?: break
             all.addAll(listed.games)
             pages = listed.totalPages
             page++
         }
-        return all
+        // Not one page read: the caller falls back to the owned ids.
+        return all.ifEmpty { null }
     }
 
     /** The owned product ids from the older account endpoint, which carries no titles: the fallback when the listing cannot be read. */

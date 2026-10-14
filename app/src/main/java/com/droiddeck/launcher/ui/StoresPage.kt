@@ -841,7 +841,14 @@ private fun Storefront(
     val density = androidx.compose.ui.platform.LocalDensity.current
     val focus = LocalFrontFocus.current
     val scope = rememberCoroutineScope()
-    val headerItems = 1 + (if (StoresState.status[store] != null) 1 else 0) + (if (StoresState.problems[store] != null) 1 else 0)
+    // A bar only where the tab has nothing else on it: shelves or installs on screen are not a library still loading.
+    val gridEmpty = when {
+        installedOnly -> false
+        showGrid -> visible.isEmpty()
+        else -> shelves == null || shelves.isEmpty
+    }
+    val barLine = StoresState.status[store]?.takeIf { gridEmpty && syncCount(it) != null }
+    val headerItems = 1 + (if (barLine != null) 1 else 0) + (if (StoresState.problems[store] != null) 1 else 0)
     val card: @Composable (CatalogItem) -> Unit = { item ->
         val first = if (showGrid) item.key == visible.firstOrNull()?.key else !firstPlaced
         firstPlaced = true
@@ -907,7 +914,7 @@ private fun Storefront(
                 }
             }
         }
-        if (library.isEmpty()) StoresState.status[store]?.let { line -> item(key = "sync", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { SyncBar(line) } } }
+        barLine?.let { line -> item(key = "sync", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { SyncBar(line) } } }
         StoresState.problems[store]?.let { line -> item(key = "problem", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { Box(Modifier.padding(bottom = 8.dp)) { Note(line) } } } }
         when (tab) {
             "library", "installed" -> if (!loaded) Unit
@@ -1154,18 +1161,23 @@ private fun GameCard(item: CatalogItem, store: Store, s: FrontEndState, a: Front
     }
 }
 
-/** A store's sync as a thin bar and its count ("25/55"); a moving bar when it has no count yet. */
+/** The "25/55" in a store's sync line, when it carries one. */
+private fun syncCount(line: String): Pair<Int, Int>? {
+    val match = Regex("(\\d+)\\s*/\\s*(\\d+)").find(line) ?: return null
+    val done = match.groupValues[1].toIntOrNull() ?: return null
+    val total = match.groupValues[2].toIntOrNull()?.takeIf { it > 0 } ?: return null
+    return done to total
+}
+
+/** A store's sync as a thin bar and its count ("25/55"). */
 @Composable
 private fun SyncBar(line: String) {
-    val count = Regex("(\\d+)\\s*/\\s*(\\d+)").find(line)
-    val done = count?.groupValues?.get(1)?.toIntOrNull()
-    val total = count?.groupValues?.get(2)?.toIntOrNull()?.takeIf { it > 0 }
+    val count = syncCount(line) ?: return
+    val done = count.first
+    val total = count.second
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
-        Box(Modifier.weight(1f)) {
-            if (done != null && total != null) androidx.compose.material3.LinearProgressIndicator(progress = { (done.toFloat() / total).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(3.dp))
-            else androidx.compose.material3.LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(3.dp))
-        }
-        if (done != null && total != null) Text("$done/$total", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+        Box(Modifier.weight(1f)) { androidx.compose.material3.LinearProgressIndicator(progress = { (done.toFloat() / total).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(3.dp)) }
+        Text("$done/$total", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
     }
 }
 

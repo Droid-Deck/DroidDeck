@@ -37,7 +37,18 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
   next sync rather than kept as a bare title, and a product the last sync found uninstallable stays out of
   the list while it is re-checked. The cache's own entry stays on screen even while it is re-fetched, so a
   forced refresh does not drop back to box art.
-- **Tests** (`GogListingTest`): the filters - movies, other platforms, Galaxy's own entry, empty titles - the
+- **A card patch adds what it brought** (`patchItems`, `GogBackend`): a product that comes back is patched into the
+grid where its title belongs, whether or not the grid already had that card. Replacing only the entries already
+there left a sync with nothing painted - the owned-ids fallback - showing an empty grid for the whole round. An
+empty listing is no longer posted either: that dropped the cards already on screen.
+- **A bar needs an empty tab** (`StoresPage`): the bar is drawn only for a sync line that carries a count ("25/55")
+  and only where the tab has nothing else on it - the storefront's shelves and the Installed tab's own cards are
+  content - so a library sync no longer creeps along above cards that are already there, and a line that only says
+  what it is doing leaves the empty state to say it.
+- **A page that fails keeps the pages that came** (`GogLibrary`): a listing page that cannot be read ends the
+listing instead of discarding it, so a page lost to a flaky request no longer costs the whole early paint. The
+cache is saved as the round goes, so a sync the user closes the app on still leaves a library to paint next launch.
+- **Tests** (`GogListingTest`, `StoreCatalogPatchTest`): the filters - movies, other platforms, Galaxy's own entry, empty titles - the
   fields a card needs, and a response that is not a listing.
 
 ## 2026-10-10 - `feat/wincomp-auto-sources`: Windows components picked by the game's source
