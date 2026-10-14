@@ -319,6 +319,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var glassesScreen: GlassesScreen? = null
     private var glassesOutputActive by mutableStateOf(false)
     private var glasses3dForVr = false
+    private var ended = false
     private var glassesPresent = false
     private var steamVrAutoTried = false
     private var steamVrInstallTried = false
@@ -1373,7 +1374,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun surfaceCreated(holder: SurfaceHolder) {
         if (holder !== outputHolder()) return
-        if (installingRuntime || SessionState.stopRequested) return
+        if (installingRuntime || SessionState.stopRequested || ended) return
         if (!SessionState.running) {
             SessionEvents.transition(SessionPhase.STARTING_COMPOSITOR, "compositor.starting")
         }
@@ -1654,6 +1655,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun onSessionEnded(status: Int) {
+        ended = true
         if (isInPictureInPictureMode) {
             runOnUiThread { finish() }
             return
@@ -2653,7 +2655,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (glassesOutputActive) {
             if (action == "start" && glassesSettings.auto3d && glasses.can3d && !glasses.sbs) {
                 glasses3dForVr = true
-                Glasses.set3d(true)
+                Glasses.set3dForVr(true)
             }
             if (action == "install") steamVrStatus = SteamVr.Status.INSTALLING
             steamVrWorker.execute {
@@ -2843,7 +2845,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun updateGlassesScreen() {
         if (!::surfaceView.isInitialized) return
         val g = glasses
-        val want = started && !isInPictureInPictureMode && !runtimeRemovalBlocked && g.usable && glassesSettings.gameOnGlasses
+        val want = started && !ended && !isInPictureInPictureMode && !runtimeRemovalBlocked && g.usable && glassesSettings.gameOnGlasses
         val target = if (want) Glasses.glassesDisplay()?.takeIf { it.isValid } else null
         val current = glassesScreen
         if (current != null && current.display.displayId == target?.displayId) {
@@ -2882,11 +2884,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (now == SteamVr.Status.RUNNING) {
             if (glassesSettings.auto3d && g.can3d && !g.sbs && !glasses3dForVr) {
                 glasses3dForVr = true
-                Glasses.set3d(true)
+                Glasses.set3dForVr(true)
             }
         } else if (glasses3dForVr && now != SteamVr.Status.UNAVAILABLE) {
             glasses3dForVr = false
-            if (g.sbs) Glasses.set3d(false)
+            Glasses.set3dForVr(false)
         }
     }
 

@@ -9,6 +9,7 @@ typedef unsigned long VisualID;
 #include <vulkan/vulkan_wayland.h>
 #include "xdg-shell-client-protocol.h"
 
+#include "../../../app/src/main/cpp/waylandcomp/src/headpose_shm.h"
 #include "presenter.h"
 #include "present_sync.h"
 
@@ -231,6 +232,7 @@ private:
             } else if (f.texture[0]) {
                 std::this_thread::sleep_until(at + guard_);
             }
+            if (f.texture[0] && wayland_) FollowPanel();
             if (f.texture[0] && Draw(f)) shown++;
             auto now = std::chrono::steady_clock::now();
             if (now - lastLog > std::chrono::seconds(10)) {
@@ -243,6 +245,42 @@ private:
             }
         }
         if (dev_) vk_.DeviceWaitIdle(dev_);
+    }
+
+    bool PanelSize(uint32_t *w, uint32_t *h) {
+        if (!pose_) {
+            int fd = open("/run/droiddeck/" DROIDDECK_HEADPOSE_FILE, O_RDONLY | O_CLOEXEC);
+            if (fd < 0) return false;
+            void *m = mmap(nullptr, sizeof(droiddeck_headpose), PROT_READ, MAP_SHARED, fd, 0);
+            close(fd);
+            if (m == MAP_FAILED) return false;
+            pose_ = (const volatile droiddeck_headpose *)m;
+        }
+        for (int tries = 0; tries < 8; tries++) {
+            const uint32_t a = __atomic_load_n(&pose_->seq, __ATOMIC_ACQUIRE);
+            if (a & 1u) continue;
+            const uint32_t ew = pose_->eye_w, eh = pose_->eye_h;
+            __atomic_thread_fence(__ATOMIC_ACQUIRE);
+            if (__atomic_load_n(&pose_->seq, __ATOMIC_RELAXED) != a) continue;
+            if (!ew || !eh || pose_->magic != DROIDDECK_HEADPOSE_MAGIC) return false;
+            *w = ew * 2;
+            *h = eh;
+            return true;
+        }
+        return false;
+    }
+
+    void FollowPanel() {
+        uint32_t w = 0, h = 0;
+        if (!PanelSize(&w, &h) || (w == width_ && h == height_)) return;
+        vk_.DeviceWaitIdle(dev_);
+        vk_.DestroySwapchainKHR(dev_, swapchain_, nullptr);
+        swapchain_ = VK_NULL_HANDLE;
+        images_.clear();
+        Log("presenter: panel now %ux%u (was %ux%u)", w, h, width_, height_);
+        width_ = w;
+        height_ = h;
+        CreateSwapchain();
     }
 
     std::chrono::microseconds guard_{4000};
@@ -339,12 +377,7 @@ private:
         // scales the picture down on the way. The compositor's configure carries the session's output
         // size, which is often smaller; it is the fallback.
         width_ = height_ = 0;
-        int fd = open("/run/droiddeck/droiddeck-headpose", O_RDONLY | O_CLOEXEC);
-        if (fd >= 0) {
-            uint32_t eye[2] = {0, 0};
-            if (pread(fd, eye, sizeof(eye), 72) == (ssize_t)sizeof(eye) && eye[0] && eye[1]) { width_ = eye[0] * 2; height_ = eye[1]; }
-            close(fd);
-        }
+        if (!PanelSize(&width_, &height_)) width_ = height_ = 0;
         if (!width_ && cfgW_ > 0 && cfgH_ > 0) { width_ = (uint32_t)cfgW_; height_ = (uint32_t)cfgH_; }
         if (!width_) { width_ = 1920; height_ = 1080; }
         Log("presenter: %ux%u fullscreen window on Wayland display %s (configured %s)", width_, height_, name, configured_ ? "yes" : "no");
@@ -564,7 +597,7 @@ private:
 
     bool Draw(const EyeFrame &f) {
         const Imported *eye[2] = {Find(f.texture[0]), Find(f.texture[1])};
-        if (!eye[0] || !eye[1]) return false;
+        if (!eye[0] || !eye[1] || !swapchain_) return false;
         vk_.WaitForFences(dev_, 1, &fence_, VK_TRUE, UINT64_MAX);
         uint32_t idx = 0;
         VkResult r = vk_.AcquireNextImageKHR(dev_, swapchain_, 100000000ull, acquired_, VK_NULL_HANDLE, &idx);
@@ -640,6 +673,7 @@ private:
     uint32_t frameMark_ = 0, lastIssued_ = 0;
     bool frameTracked_ = false;
     const droiddeck_present_sync *sync_ = nullptr;
+    const volatile droiddeck_headpose *pose_ = nullptr;
     std::chrono::steady_clock::time_point syncTried_{};
     bool haveFrame_ = false, exit_ = false, started_ = false;
     std::atomic<uint64_t> submitted_{0};

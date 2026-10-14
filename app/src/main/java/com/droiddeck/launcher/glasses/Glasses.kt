@@ -116,6 +116,7 @@ object Glasses {
     private var sbsAskedAt = 0L
     private var glassesMode = 0
     private var autoModeSent = false
+    private var vr3d = false
 
     @Volatile private var sink: PoseSink? = null
     @Volatile private var probe: ((ByteArray) -> Unit)? = null
@@ -174,8 +175,21 @@ object Glasses {
     }
 
     fun set3d(on: Boolean) = post {
+        vr3d = false
         val s = _state.value
         if (if (on) s.can3d else s.canControl) sendMode(on)
+    }
+
+    fun set3dForVr(on: Boolean) = post {
+        val s = _state.value
+        if (on) {
+            if (!s.can3d || s.sbs) return@post
+            vr3d = true
+            sendMode(true)
+        } else if (vr3d) {
+            vr3d = false
+            if (s.sbs && s.canControl) sendMode(false)
+        }
     }
 
     fun setBrightness(level: Int) = post {

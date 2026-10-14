@@ -3290,19 +3290,22 @@ static void output_resized(void) {
 /* wl event-loop callback: drain queued input events written by the Android UI thread. */
 static int on_input_readable(int fd, uint32_t mask, void *data) {
     struct input_msg m;
+    int vsync = 0;
+    int64_t vsync_ns = 0;
     while (read(fd, &m, sizeof(m)) == (ssize_t)sizeof(m)) {
         switch (m.type) {
         case 1: deliver_key(&m); break;
         case 2: pointer_event(m.p1, m.p2, 0, 0); break;          /* scene motion */
         case 3: pointer_button(m.p1, m.p2); break;               /* button at pointer */
         case 4: scroll_event(m.p1); break;
-        case 5: on_vsync(((int64_t)m.p1 << 32) | (uint32_t)m.p2); break;
+        case 5: vsync = 1; vsync_ns = ((int64_t)m.p1 << 32) | (uint32_t)m.p2; break;
         case 6: pointer_delta(m.p1 / 256.0, m.p2 / 256.0); break; /* relative motion, 1/256 px */
         case 7: deliver_touch(&m); break;
         case 8: output_resized(); break;
         default: deliver_pointer(&m); break;
         }
     }
+    if (vsync) on_vsync(vsync_ns);
     return 0;
 }
 
