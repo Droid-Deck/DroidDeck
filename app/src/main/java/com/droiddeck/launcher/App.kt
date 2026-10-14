@@ -16,6 +16,10 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // The restart screen must not initialize USB, guest processes, or another graphics context.
+        val process = (getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager)
+            .runningAppProcesses?.firstOrNull { it.pid == android.os.Process.myPid() }?.processName
+        if (process == "$packageName:vr_recovery") return
         CrashHandler.install(this)
         com.droiddeck.launcher.session.QuestExperimental.initialize(this)
         com.droiddeck.launcher.session.SessionPrefs.settleGpuDriverMode(this)
