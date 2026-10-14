@@ -10,7 +10,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/** The rules that keep a cloud sync from replacing real saves. (Robolectric for org.json.) */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class CloudPlanTest {
@@ -42,20 +41,16 @@ class CloudPlanTest {
 
     @Test fun theSideThatChangedWins() {
         val base = mapOf("s" to Entry("a", "a", 1000))
-        // Only local changed: up sends it, down leaves it.
         assertEquals(listOf("s"), CloudPlan.up(mapOf("s" to Local("b")), mapOf("s" to Remote("a", 1000)), base).transfer)
         assertTrue(CloudPlan.down(mapOf("s" to Local("b")), mapOf("s" to Remote("a", 1000)), base).transfer.isEmpty())
-        // Only the cloud changed: down takes it, up leaves it.
         assertEquals(listOf("s"), CloudPlan.down(mapOf("s" to Local("a")), mapOf("s" to Remote("c", 9000)), base).transfer)
         assertTrue(CloudPlan.up(mapOf("s" to Local("a")), mapOf("s" to Remote("c", 9000)), base).transfer.isEmpty())
-        // The same bytes on both sides: nothing moves.
         assertEquals(listOf("s"), CloudPlan.up(mapOf("s" to Local("c")), mapOf("s" to Remote("c", 9000)), base).same)
     }
 
     @Test fun timesAloneDecideWhenTheServiceGivesNoHash() {
         val base = mapOf("s" to Entry("a", null, 1000))
         assertEquals(listOf("s"), CloudPlan.down(mapOf("s" to Local("a")), mapOf("s" to Remote(null, 60_000)), base).transfer)
-        // Within two seconds of the baseline: the same cloud copy.
         assertTrue(CloudPlan.down(mapOf("s" to Local("a")), mapOf("s" to Remote(null, 2500)), base).transfer.isEmpty())
     }
 

@@ -73,7 +73,6 @@ internal class AchievementsState(val list: List<Achievement>?, val reason: Reaso
     companion object { val READING = AchievementsState(null, null, true) }
 }
 
-/** The cached list at once, then the store's answer (the cache stays if the store fails). */
 @Composable
 internal fun rememberAchievements(game: StoreAchievements.Game?): AchievementsState? {
     val ctx = LocalContext.current.applicationContext
@@ -134,14 +133,12 @@ private fun AchievementGroupLabel(label: String) {
     }
 }
 
-/** Unlocked (newest first), locked, then hidden ones not yet unlocked. */
 private fun groups(list: List<Achievement>): List<Pair<Int, List<Achievement>>> = listOf(
     R.string.achievements_group_unlocked to list.filter { it.unlocked }.sortedByDescending { it.unlockedAt },
     R.string.achievements_group_locked to list.filter { !it.unlocked && !it.hidden },
     R.string.achievements_group_hidden to list.filter { !it.unlocked && it.hidden },
 ).filter { it.second.isNotEmpty() }
 
-/** Focusable so the pad can scroll the list. */
 @Composable
 internal fun AchievementRow(a: Achievement, compact: Boolean, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.colorScheme
@@ -200,7 +197,6 @@ internal fun StoreAchievementsSection(game: StoreAchievements.Game) {
 internal fun StoreAchievementsSectionContent(label: String, state: AchievementsState) {
     val colors = MaterialTheme.colorScheme
     val list = state.list
-    // Hidden for games without achievements.
     if (list.isNullOrEmpty() && !state.reading && state.reason != Reason.SIGNED_OUT && state.reason != Reason.UNREACHABLE) return
     val narrow = LocalNarrowPane.current
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = 18.dp)) {
@@ -278,7 +274,7 @@ internal fun SessionAchievementsPanel(label: String, state: AchievementsState, t
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) { achievementItems(list, short, first) }
                 LaunchedEffect(list.isNotEmpty()) {
-                    withFrameNanos {} // rows lay out a frame after composition
+                    withFrameNanos {}
                     runCatching { first.requestFocus() }
                 }
             }
@@ -286,7 +282,6 @@ internal fun SessionAchievementsPanel(label: String, state: AchievementsState, t
     }
 }
 
-/** [progress]: (unlocked, total), or null when unknown. */
 @Composable
 internal fun DrawerAchievementsRow(progress: Pair<Int, Int>?, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme

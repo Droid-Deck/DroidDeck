@@ -9,17 +9,12 @@ import com.droiddeck.launcher.runtime.DeckyManager
 import com.droiddeck.launcher.session.SessionState
 import java.io.File
 
-/**
- * Decky Loader's state in the launcher: what is installed, the releases on offer and an install
- * in progress. The launcher screen keeps one and shows it.
- */
 internal class DeckyMenu(private val activity: android.app.Activity, private val ui: android.os.Handler) {
     var deckyInstalled by mutableStateOf<String?>(null)
     var deckyReleases by mutableStateOf<List<DeckyManager.Release>>(emptyList())
     var deckyChecking by mutableStateOf(false)
     var deckyStage by mutableStateOf<String?>(null)
     var deckyPercent by mutableIntStateOf(-1)
-    /** True while the stage is the plugin's binary download (DeckyManager.downloadingBinary). */
     var deckyDownloadingBinary by mutableStateOf(false)
     var deckySupervisor by mutableStateOf(false)
     var deckyReleaseRequest = 0
@@ -32,8 +27,6 @@ internal class DeckyMenu(private val activity: android.app.Activity, private val
                 .getOrElse { DeckyManager.ReleaseChannels(emptyList(), emptyList()) }
             ui.post {
                 if (request == deckyReleaseRequest) {
-                    // Use the newest compatible stable build, or the newest compatible
-                    // prerelease when the fork has not published a stable ARM64 asset.
                     deckyReleases = channels.stable.ifEmpty { channels.prerelease }
                     deckyChecking = false
                 }

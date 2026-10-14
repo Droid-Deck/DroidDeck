@@ -1,6 +1,3 @@
-/* Link-time stand-in for libwayland-client.so.0 (tools/vr/build.sh): the symbols the presenter uses, so
- * the driver links with -z defs against a library the build machine does not have. Never loaded: the
- * runtime's real libwayland-client.so.0 satisfies the dependency on the device. */
 #include <stdint.h>
 #include <stddef.h>
 #include "wayland-util.h"

@@ -15,17 +15,9 @@ import com.droiddeck.launcher.stores.epic.EpicPrefs
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 
-/**
- * Install sizes for owned Epic and Amazon games, whose library answers carry none: Epic's from the
- * game's build manifest (the files this device installs), Amazon's from its download manifest.
- * Asked for a card as it comes on screen, three at a time in the background, once per game - the
- * answer is kept in the store's prefs (`size_<id>`, where the library reads it too). Until it is
- * known the card shows nothing.
- */
 object StoreSizes {
     private const val TAG = "StoreSizes"
 
-    /** Sizes found this run, by card key; the cards read them. */
     val known = mutableStateMapOf<String, Long>()
 
     private val asked = ConcurrentHashMap.newKeySet<String>()
@@ -36,7 +28,6 @@ object StoreSizes {
     private val caches = ConcurrentHashMap<Store, SizeCache>()
     private fun cache(context: Context, store: Store) = caches.getOrPut(store) { SizeCache.forStore(context.applicationContext.filesDir, store) }
 
-    /** A card for [item] is on screen (or about to be): its size from the cache for this version, else looked up. */
     fun request(context: Context, item: CatalogItem) {
         if (!item.owned || item.sizeBytes > 0 || item.store == Store.GOG) return
         if (known.containsKey(item.key) || !asked.add(item.key)) return
@@ -58,7 +49,6 @@ object StoreSizes {
         }
     }
 
-    /** An installed game's size on disk, by card key; worked out once per install. */
     val onDisk = mutableStateMapOf<String, Long>()
 
     fun requestDisk(context: Context, key: String, game: InstalledStoreGame) {

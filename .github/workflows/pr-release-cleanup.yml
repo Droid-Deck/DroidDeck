@@ -1,9 +1,9 @@
 name: PR Release Cleanup
-run-name: remove PR #${{ github.event.pull_request.number }}'s test build
+run-name: remove PR
 
-# A merged or closed PR's test build leaves DroidDeck-CI, so the app's Updates page stops offering it
-# (a merged fix is in the next Preview). pull_request_target for the publisher app's secrets; nothing
-# from the PR is checked out or run.
+
+
+
 on:
   pull_request_target:
     types: [ closed ]
@@ -32,7 +32,6 @@ jobs:
           set -euo pipefail
           state=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .state)
           echo "closed=$([ "$state" = closed ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
-      # A token of the org's "DroidDeck CI Publisher" app, as build.yml's announce job uses.
       - uses: actions/create-github-app-token@v2
         if: ${{ steps.state.outputs.closed == 'true' }}
         id: ci-token

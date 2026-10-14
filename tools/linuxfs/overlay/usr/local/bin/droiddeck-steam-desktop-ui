@@ -16,7 +16,6 @@ def select_desktop(evaluate, timeout=90):
             if result.get('value') is True:
                 return True
         except Exception:
-            # CEF and SharedJSContext are not ready during the client's initial startup/update.
             pass
         time.sleep(1)
     return False

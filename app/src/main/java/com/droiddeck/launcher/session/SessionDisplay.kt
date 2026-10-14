@@ -3,26 +3,14 @@ package com.droiddeck.launcher.session
 import android.content.Context
 import android.view.WindowManager
 
-/** The virtual display advertised to the guest, before it is fitted onto the Android panel. */
 object SessionDisplay {
     const val MATCH_SCREEN = "screen"
-    /** The window's size, kept in step while the session runs: a foldable opening or closing, a
-     *  split screen or a freeform window resizes the guest's display instead of letterboxing it. */
     const val FOLLOW_SCREEN = "follow"
-    /** Below this a side is a picture-in-picture or a sliver of split screen: not worth a resize. */
     const val FOLLOW_MIN_SIDE = 480
 
-    /**
-     * Presets are heights, not sizes: "720p" is the panel's own shape at 720 lines, never narrower
-     * than 16:9 and never taller than the panel (SHAPE_AUTO). The client treats the output as the
-     * games' native resolution, so the height is what bounds a game's default size on a 1440p
-     * phone; the shape is what keeps the client's interface edge to edge on a 20:9 one (1600x720)
-     * and keeps games at 16:9 or wider on a foldable's near-square panel.
-     */
     const val DEFAULT_RESOLUTION = "720p"
     private val PRESET_HEIGHTS = listOf(720, 900, 1080)
 
-    /** The height of a preset choice ("900p"), or null for Match screen and fixed sizes. */
     fun presetHeight(choice: String): Int? =
         if (choice.endsWith("p")) choice.dropLast(1).toIntOrNull()?.takeIf { it > 0 } else null
 
@@ -32,42 +20,27 @@ object SessionDisplay {
     fun resolveChoice(panel: Pair<Int, Int>, choice: String): Pair<Int, Int> {
         if (choice == MATCH_SCREEN || choice == FOLLOW_SCREEN) return screenSize(panel)
         presetHeight(choice)?.let { return resolve(panel, it, SessionPrefs.SHAPE_AUTO) }
-        // Fixed sizes (custom, or a preset saved before presets were heights) keep their exact size,
-        // including legacy ones past the custom dialog's limit.
         val parts = choice.split('x').map { it.toIntOrNull() }
         return if (parts.size == 2 && parts.all { it != null && it > 0 }) parts[0]!! to parts[1]!!
         else resolve(panel, 720, SessionPrefs.SHAPE_AUTO)
     }
 
-    /** The height presets the panel is tall enough for, then the panel itself, with no duplicate
-     *  sizes, then Follow screen. */
     fun resolutionOptions(panel: Pair<Int, Int>): List<String> {
         val panelHeight = minOf(panel.first, panel.second)
         return PRESET_HEIGHTS.filter { it <= panelHeight }.map { "${it}p" }
             .filter { resolveChoice(panel, it) != screenSize(panel) } + MATCH_SCREEN + FOLLOW_SCREEN
     }
 
-    /** A Follow screen session's display for a window of this size: its own shape, square or
-     *  portrait included, with even sides; null when it is too small to follow (PiP). */
     fun followSize(width: Int, height: Int): Pair<Int, Int>? =
         if (minOf(width, height) < FOLLOW_MIN_SIDE) null else (width and 1.inv()) to (height and 1.inv())
 
-    /** Unfolded controls: the most of the window the game may take, so a window near 16:9 itself
-     *  still leaves the Deck controls room. */
     const val UNFOLDED_MAX_GAME_SHARE = 0.8f
 
-    /** A foldable: Android 11's hinge angle sensor, which foldables report and slates do not. Unfolded
-     *  controls are offered only there - untested on tablets, whose 16:10 landscape leaves them
-     *  little room under a 16:9 game. */
     fun foldable(context: Context): Boolean =
         context.packageManager.hasSystemFeature("android.hardware.sensor.hinge_angle")
 
-    /** A panel at least this wide on its shortest side (dp) is a foldable's unfolded inner screen. */
     const val UNFOLDED_MIN_DP = 600
 
-    /** Unfolded controls: the game's height in a window of this size - 16:9 across the full width,
-     *  held either way, with even sides - and the Deck controls take the rest below it, laid out to
-     *  whatever that leaves (DeckControlsPanel's GamepadLayout). */
     fun unfoldedGameHeight(width: Int, height: Int): Int =
         minOf(width * 9 / 16, (height * UNFOLDED_MAX_GAME_SHARE).toInt()) and 1.inv()
 
@@ -79,13 +52,10 @@ object SessionDisplay {
         return maxOf(mode.physicalWidth, mode.physicalHeight) to minOf(mode.physicalWidth, mode.physicalHeight)
     }
 
-    /** Interpret an older cap/aspect combination without altering the saved picture size. */
     fun resolve(panel: Pair<Int, Int>, cap: Int, shape: String, custom: Pair<Int, Int>? = null): Pair<Int, Int> {
         custom?.let { return it }
         val panelW = maxOf(panel.first, panel.second).toFloat()
         val panelH = minOf(panel.first, panel.second).toFloat().coerceAtLeast(1f)
-        // Auto retains wide panels but floors squarer ones at 16:9 for game compatibility.
-        // Match screen removes that floor; fixed 16:9 also keeps foldable sessions stable.
         val aspect = when (shape) {
             SessionPrefs.SHAPE_WIDE -> 16f / 9f
             SessionPrefs.SHAPE_EXACT -> panelW / panelH
@@ -95,7 +65,6 @@ object SessionDisplay {
         return ((height * aspect).toInt() and 1.inv()) to (height and 1.inv())
     }
 
-    /** Mirrors gamescope's even-width 16:9 calculation, including near-16:9 rounding. */
     fun canStretch16x9(size: Pair<Int, Int>): Boolean =
         (size.second * 16 + 4) / 9 / 2 * 2 > size.first
 }

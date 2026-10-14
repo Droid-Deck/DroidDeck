@@ -1,13 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-    What Android's GameManager (12+) and the OEM game services keyed to it may do to a session.
-    Performance mode is welcome: it is what raises the clock floor on a regular flagship the way a
-    gaming phone's mode does out of the box. What is refused is the two "helpful" interventions
-    that make a game look slow: Samsung's Game Optimizing Service and its cousins cap unknown
-    games' frame rate (allowGameFpsOverride) and render them at a lower resolution
-    (allowGameDownscaling). gamescope already owns the output size; a cap on top of Big Picture's
-    own pacing is exactly the low-fps-on-a-flagship symptom.
--->
 <game-mode-config xmlns:android="http://schemas.android.com/apk/res/android"
     android:supportsPerformanceGameMode="true"
     android:supportsBatteryGameMode="true"

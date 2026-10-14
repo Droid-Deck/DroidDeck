@@ -1,28 +1,3 @@
-//! Shared adaptive HTTP fetch core for the store download engines (Epic / GOG / Amazon).
-//!
-//! This is the generic half of the fetch layer Bannerlator's Steam depot writer grew: an
-//! adaptive in-flight window (slow-start → hold at plateau → shrink on REAL errors only), a
-//! speed-ranked per-host-capped scheduler, an in-flight RAW byte budget sized from the window
-//! ceiling, per-item retry with exponential back-off + host rotation, one current-thread tokio
-//! runtime driving every request through a [`FuturesUnordered`], and an mpsc hand-off to a sync
-//! process pool that calls the adapter's [`FetchSink::process`] (inflate + hash + write).
-//!
-//! The tunables come from [`crate::fetch_tuning`], copied number for number from Bannerlator's
-//! depot writer, so a `fetch-window` line from either app reads against the same tuning notes.
-//!
-//! What the core does NOT know: manifests, resume/skip rules, output layout, hashing. The adapter
-//! builds the item list (already excluding present+verified items, exactly as its Java manager
-//! does), maps host index → URL, and does everything with the body inside its sink.
-//!
-//! Log grammar (all lines go through the `log` callback; `label` is adapter-chosen, e.g.
-//! `epic app=Fortnite`):
-//! - `fetch-start label=… items=… bytes_reserved=… hosts=… ceiling=… budget=…MiB tier_max=… per_host_cap=… distinct_hosts=… window=… mode=body|stream`
-//! - `fetch-window label=… window=N (min=… max=…) in_flight=… last=…MB/s ewma=…MB/s best=…MB/s reason=… cooldown=…ms err_rate=…% phase=… rtt=…ms budget_stalls=… host_stalls=…`
-//!   (same fields as the Steam engine's `fetch-window depot=…` line, so the two are A/B-comparable)
-//! - `throughput label=… overall=…MB/s total=…MB elapsed=…s used=x/y servers: [host …MB/s …MB] …` every 5 s
-//! - `fetch-end label=… items_ok=… bytes=… credited=… elapsed_ms=… avg_mbps=… peak_mbps=… result=ok|cancelled|error [error=…]`
-//!
-//! `MB/s` here means MiB/s (1024²), matching the Steam engine's lines.
 
 use crate::fetch_tuning::{
     budget_admits, connect_timeout, inflight_budget_bytes, retry_backoff_millis, AsyncFetchError,
@@ -46,95 +21,42 @@ use std::thread;
 use std::time::{Duration, Instant};
 use tokio::sync::{Notify, Semaphore};
 
-/// Maximum attempts per item (fetch failures AND `SinkError::Retry` both count). Same as Steam.
 pub const MAX_ITEM_ATTEMPTS: u32 = MAX_CHUNK_ATTEMPTS;
-/// How often the throughput reporter samples (and logs) — the samples feed `peak_mbps`.
 pub const THROUGHPUT_SAMPLE_INTERVAL_MS: u64 = 5_000;
-/// Upper bound on how long the driver sits in one `await` before re-checking cancel/error/feedback.
 const DRIVER_POLL_MS: u64 = 250;
 
-// ── Delay awareness (bufferbloat) ──
-// On a 5G hotspot the window kept growing (31 → 84) while the per-request delay went from 3 s to
-// 11 s and throughput stayed at 10-20 MB/s: every extra request only queued behind the others in
-// the link's buffer. The signal used here is time-to-first-byte (request sent → response headers),
-// which on a link with a deep buffer grows with the queue, while on a fast link it stays at a few
-// round trips however wide the window gets. The baseline is the lowest per-probe mean seen.
 
-/// A probe needs at least this many TTFB samples before its mean is trusted.
 pub const LATENCY_MIN_SAMPLES: u32 = 3;
-/// Mean TTFB at or above `baseline ×` this counts as queueing delay…
 pub const LATENCY_HOLD_FACTOR: f64 = 2.5;
-/// …and only when it is also this far above the baseline in absolute terms: a fast link whose
-/// TTFB goes from 20 ms to 60 ms (new connections' TLS handshakes) is not bufferbloat.
 pub const LATENCY_MIN_EXCESS_MS: f64 = 250.0;
-/// Throughput above `best × (1 + this)` is a gain that justifies the extra delay: hold, but never
-/// shrink, while it lasts.
 pub const LATENCY_GAIN_EPS: f64 = 0.25;
-/// Gentle proportional shrink while the delay keeps rising (gentler than the error shrink).
 pub const LATENCY_SHRINK_FACTOR: f64 = 0.85;
 
-// ── Stalled hosts ──
-// A CDN host can stop delivering while its connections stay open: on the device the Fastly host
-// froze at 49 MB for the rest of the run while the other host carried everything, and its requests
-// sat until their idle timeout. A host whose in-flight requests receive no byte for this long,
-// while another host is receiving, has its requests cancelled and re-queued and is put to rest.
 
-/// No byte from any of a host's in-flight requests for this long (while another host delivers).
 pub const HOST_STALL_MS: u64 = if cfg!(test) { 1_500 } else { 10_000 };
-/// First rest for a stalled host; doubles per further stall of the same host, reset on success.
 pub const HOST_STALL_COOLDOWN_MS: u64 = 30_000;
 pub const HOST_STALL_COOLDOWN_MAX_MS: u64 = 300_000;
-/// How often the driver looks for stalled hosts.
 const STALL_CHECK_MS: u64 = 250;
-/// Stream mode: the longest a request may sit with no byte arriving before it is failed (the
-/// store's own timeout when it is shorter). A dead connection on a single-host run, where the
-/// stall detector has no healthy host to compare with, never holds an item longer than this.
 pub const STREAM_IDLE_CAP: Duration = Duration::from_secs(30);
 
-// ─────────────────────────────────────────────────────────────────────────────────────────────
-// Public contract
-// ─────────────────────────────────────────────────────────────────────────────────────────────
 
-/// One unit of work: a body to fetch from one of the hosts and hand to the sink.
 #[derive(Clone, Debug)]
 pub struct FetchItem {
-    /// Adapter-defined (index into the adapter's own table). Only echoed in errors / logs.
     pub id: u64,
-    /// `len == hosts.len()` → `urls[host_idx]`; `len == 1` → the same URL on every host. Any other
-    /// non-zero length falls back to `urls.get(host_idx)` then `urls[0]`. Empty = fatal.
     pub urls: Vec<String>,
-    /// Expected RAW (wire) bytes, for the in-flight byte budget; `0` → nominal 1 MiB. Ignored in
-    /// stream mode (streams are budgeted piece by piece as they arrive).
     pub reserve: u64,
-    /// Inclusive HTTP `Range` (`bytes=a-b`); `None` = whole body.
     pub range: Option<(u64, u64)>,
 }
 
 #[derive(Clone, Debug)]
 pub struct FetchOptions {
-    /// Window ceiling (tier); the core clamps it to `hosts × per_host_cap` and the hard cap.
     pub max_workers: usize,
-    /// Max concurrent requests per distinct host (6 unless the store needs otherwise). Honoured
-    /// as given: 1 host × `per_host_cap` 8 = a ceiling of 8.
     pub per_host_cap: usize,
-    /// Whole-body mode: the deadline for the entire request (connect + headers + body). Stream
-    /// mode: the deadline for the response headers, then an IDLE deadline per received piece.
     pub timeout: Duration,
-    /// Sent on EVERY request (applied on the request builder, so they override the client-level
-    /// defaults — e.g. a store's own `User-Agent`, or `Authorization: Bearer …`). Validated once
-    /// when the client is built.
     pub headers: Vec<(String, String)>,
-    /// PEM bundle path; `""` = the platform roots reqwest/rustls ships with.
     pub ca_bundle_path: String,
-    /// Sync process-pool threads (inflate + hash + write).
     pub process_workers: usize,
-    /// Log prefix, e.g. `"epic app=Fortnite"`.
     pub label: String,
-    /// `false` (default): each item's whole body is buffered and handed to
-    /// [`FetchSink::process`]. `true`: the body is streamed — pieces go to
-    /// [`FetchSink::on_chunk`] in order as they arrive, then [`FetchSink::on_finish`]; for
-    /// multi-GB files (Amazon) that keeps memory at "pieces not yet written", not whole files.
-    /// Applies to every item of the run.
     pub stream: bool,
 }
 
@@ -153,36 +75,20 @@ impl Default for FetchOptions {
     }
 }
 
-/// What the sink says about a body it was handed.
 #[derive(Clone, Debug)]
 pub enum SinkError {
-    /// Counts as a failed attempt for that item: host cooled + demoted, back-off, re-dispatch on a
-    /// different host, up to [`MAX_ITEM_ATTEMPTS`]. In stream mode the whole item is re-streamed
-    /// (`on_chunk` sees `offset == 0` again).
     Retry(String),
-    /// Abort the whole run; this becomes the run's first error.
     Fatal(String),
 }
 
-/// Runs on a process-pool thread. Whole-body mode uses [`FetchSink::process`]; stream mode uses
-/// [`FetchSink::on_chunk`] + [`FetchSink::on_finish`] (default impls refuse, so a whole-body sink
-/// is unaffected by the stream option existing).
 pub trait FetchSink: Send + Sync {
-    /// Whole-body mode: the raw wire body. Do inflate + hash verify + write here. Returns the
-    /// number of bytes to credit to progress (adapter's choice, e.g. decompressed bytes).
     fn process(&self, item: &FetchItem, body: Vec<u8>) -> Result<u64, SinkError>;
 
-    /// Stream mode: one piece of the body, delivered in order (`offset` = bytes of this attempt
-    /// delivered before this piece). `offset == 0` marks the (re)start of an attempt — truncate any
-    /// partial output from a previous attempt. Each processed piece credits `data.len()` bytes.
     fn on_chunk(&self, item: &FetchItem, offset: u64, data: &[u8]) -> Result<(), SinkError> {
         let _ = (item, offset, data);
         Err(SinkError::Fatal("streaming not supported by this sink".to_string()))
     }
 
-    /// Stream mode: the body ended after `total_len` bytes. Finalize (rename `.tmp`, verify the
-    /// hash, …). Returns EXTRA bytes to credit (pieces were already credited as they were
-    /// written; return 0 for none).
     fn on_finish(&self, item: &FetchItem, total_len: u64) -> Result<u64, SinkError> {
         let _ = (item, total_len);
         Err(SinkError::Fatal("streaming not supported by this sink".to_string()))
@@ -191,15 +97,9 @@ pub trait FetchSink: Send + Sync {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct FetchOutcome {
-    /// Sum of what the sink returned for every successfully processed item (stream mode: every
-    /// piece written + every `on_finish` extra; pieces of an attempt that later failed stay
-    /// counted).
     pub bytes_credited: u64,
-    /// First error (fetch after max attempts, sink `Fatal`, client build failure).
     pub error: Option<String>,
-    /// `cancel` was observed set.
     pub cancelled: bool,
-    /// Items the sink accepted.
     pub items_ok: u64,
 }
 
@@ -209,10 +109,6 @@ impl FetchOutcome {
     }
 }
 
-/// Blocking: spawns its own current-thread tokio runtime + process pool and returns when every
-/// item is processed, `cancel` is set, or the first fatal error is recorded. `progress` fires from
-/// a process-pool thread after each successful `process` / each written piece + `on_finish` (the
-/// caller throttles).
 pub fn run_fetch(
     items: Vec<FetchItem>,
     hosts: &[String],
@@ -254,8 +150,6 @@ mode={}",
     let error_slot: Mutex<Option<String>> = Mutex::new(None);
     let reporter_done = AtomicBool::new(false);
     let meter = BandwidthMeter::new(&hosts);
-    // Stream mode: per-item "attempt N was rejected by the sink mid-stream" flags, so the driver's
-    // in-flight stream stops reading instead of feeding pieces nobody wants.
     let abandon: Vec<AtomicU32> = if stream {
         items.iter().map(|_| AtomicU32::new(NO_ATTEMPT)).collect()
     } else {
@@ -268,11 +162,6 @@ mode={}",
     let abandon = &abandon;
 
     thread::scope(|scope| {
-        // Async(fetch) → sync(process): tokio unbounded mpsc drained with `blocking_recv`. Memory is
-        // bounded by the RAW byte budget enforced at DISPATCH (whole-body) / per piece (stream), not
-        // by channel capacity. Whole-body mode: ONE channel shared by every worker (any worker takes
-        // the next body). Stream mode: one channel PER worker and an item's pieces always go to the
-        // same worker (`idx % workers`), so pieces are written in order.
         let channel_count = if stream { proc_count } else { 1 };
         let mut txs: Vec<tokio::sync::mpsc::UnboundedSender<ProcessMsg>> =
             Vec::with_capacity(channel_count);
@@ -283,7 +172,6 @@ mode={}",
             txs.push(tx);
             rxs.push(Arc::new(Mutex::new(rx)));
         }
-        // Sync(process) → async(driver): sink verdicts, polled non-blocking by the driver.
         let (fb_tx, fb_rx) = std_mpsc::channel::<Feedback>();
         let bytes_credited = &bytes_credited;
         let items_ok = &items_ok;
@@ -291,8 +179,6 @@ mode={}",
         let error_slot = &error_slot;
         let reporter_done = &reporter_done;
 
-        // Periodic throughput reporter — atomics only, never on the fetch hot path. Its samples are
-        // also the `peak_mbps` source.
         let reporter = scope.spawn(move || {
             crate::priority::background();
             loop {
@@ -312,15 +198,12 @@ mode={}",
             }
         });
 
-        // ── Process pool ──
         let mut proc_handles = Vec::with_capacity(proc_count);
         for worker in 0..proc_count {
             let rx = Arc::clone(&rxs[if stream { worker } else { 0 }]);
             let fb = fb_tx.clone();
             proc_handles.push(scope.spawn(move || {
                 crate::priority::background();
-                // Stream mode: (item → attempt, message) whose pieces the sink rejected; the rest
-                // of that attempt's pieces are dropped and its Finish becomes a Retry verdict.
                 let mut poisoned: HashMap<usize, (u32, String)> = HashMap::new();
                 loop {
                     if cancel.load(Ordering::Relaxed) {
@@ -344,8 +227,6 @@ mode={}",
                             body,
                         } => {
                             let raw_len = body.len() as u64;
-                            // A body that was already queued when cancel / the first error landed
-                            // must not be written any more.
                             if cancel.load(Ordering::Relaxed)
                                 || error_slot.lock().expect("err slot poisoned").is_some()
                             {
@@ -354,7 +235,6 @@ mode={}",
                             }
                             let item = &items[idx];
                             let res = sink.process(item, body);
-                            // Free the budget on PROCESS-COMPLETE (actual raw bytes).
                             in_flight.fetch_sub(raw_len, Ordering::Relaxed);
                             let verdict = match res {
                                 Ok(credited) => {
@@ -390,7 +270,7 @@ mode={}",
                             let len = data.len() as u64;
                             in_flight.fetch_sub(len, Ordering::Relaxed);
                             if poisoned.get(&idx).is_some_and(|(a, _)| *a == attempts) {
-                                continue; // rest of a rejected attempt
+                                continue;
                             }
                             if cancel.load(Ordering::Relaxed)
                                 || error_slot.lock().expect("err slot poisoned").is_some()
@@ -471,11 +351,6 @@ mode={}",
         }
         drop(fb_tx);
 
-        // ── Async fetch driver on one current-thread runtime. `txs` are moved in and dropped when
-        // the driver returns, which closes the channels so the pool's `blocking_recv` yields
-        // `None`. ──
-        // The runtime drives on this (already lowered) thread; `on_thread_start` covers the
-        // blocking pool it starts for DNS lookups.
         match tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .on_thread_start(crate::priority::background)
@@ -515,7 +390,6 @@ mode={}",
         let _ = reporter.join();
     });
 
-    // Final partial-interval sample so a short run still has a peak.
     meter.sample();
     let elapsed = started.elapsed();
     let elapsed_secs = elapsed.as_secs_f64().max(0.001);
@@ -552,11 +426,7 @@ avg_mbps={avg_mbps:.2} peak_mbps={peak_mbps:.2} result={result}",
     outcome
 }
 
-// ─────────────────────────────────────────────────────────────────────────────────────────────
-// Pure helpers (unit-tested)
-// ─────────────────────────────────────────────────────────────────────────────────────────────
 
-/// Bytes reserved against the in-flight budget at DISPATCH (nominal when the adapter has none).
 pub fn reserve_bytes(item: &FetchItem) -> u64 {
     if item.reserve == 0 {
         NOMINAL_CHUNK_RESERVE_BYTES
@@ -565,8 +435,6 @@ pub fn reserve_bytes(item: &FetchItem) -> u64 {
     }
 }
 
-/// Window bounds: `max` = tier ceiling clamped to distinct-hosts × per-host-cap and the hard cap;
-/// `min` = the floor; `bootstrap` = the start. Same arithmetic as the Steam depot writer.
 pub fn window_bounds(
     max_workers: usize,
     distinct_hosts: usize,
@@ -579,7 +447,6 @@ pub fn window_bounds(
     (bootstrap, min, max)
 }
 
-/// Distinct host count (string equality) — the multiplier for the window's host ceiling.
 pub fn distinct_host_count(hosts: &[String]) -> usize {
     let mut keys: Vec<&str> = Vec::new();
     for h in hosts {
@@ -590,8 +457,6 @@ pub fn distinct_host_count(hosts: &[String]) -> usize {
     keys.len().max(1)
 }
 
-/// The URL to use for `item` on host `host_idx` (see [`FetchItem::urls`]). `None` when the item
-/// carries no URL at all.
 pub fn url_for_host(item: &FetchItem, host_idx: usize) -> Option<&str> {
     if item.urls.is_empty() {
         return None;
@@ -607,7 +472,6 @@ pub fn url_for_host(item: &FetchItem, host_idx: usize) -> Option<&str> {
     )
 }
 
-/// Byte count an inclusive range must deliver; `None` for an inverted range.
 pub fn range_len(range: (u64, u64)) -> Option<u64> {
     let (a, b) = range;
     if b < a {
@@ -617,8 +481,6 @@ pub fn range_len(range: (u64, u64)) -> Option<u64> {
     }
 }
 
-/// Validates a received body's length: for a range request it must be exactly `b-a+1`; otherwise
-/// it must match `Content-Length` when the server sent one (as the Steam client does).
 pub fn validate_body_len(
     body_len: u64,
     content_length: Option<u64>,
@@ -653,13 +515,10 @@ pub fn validate_body_len(
     Ok(())
 }
 
-/// Whether an HTTP status is acceptable for this request shape (200 always; 206 only when a range
-/// was asked for).
 pub fn status_accepted(status: u16, ranged: bool) -> bool {
     status == 200 || (ranged && status == 206)
 }
 
-/// Classifies a rejected HTTP status the same way the Steam async client does.
 pub fn classify_status(status: u16) -> FetchFailKind {
     if status == 429 {
         FetchFailKind::RateLimited
@@ -670,10 +529,6 @@ pub fn classify_status(status: u16) -> FetchFailKind {
     }
 }
 
-/// The HTTP status carried by a `send_checked` rejection message, if that is what the error was.
-/// A 4xx other than 429 is a CLIENT rejection (bad/expired signed URL, wrong host for this path,
-/// 404): it says nothing about congestion, so the driver demotes the host but does not shrink the
-/// shared window for it — one CDN that refuses a path must not throttle the healthy ones.
 pub fn rejected_status(message: &str) -> Option<u16> {
     let rest = message.strip_prefix("unexpected HTTP status (")?;
     let digits = rest.strip_suffix(')')?;
@@ -684,8 +539,6 @@ pub fn is_client_rejection(message: &str) -> bool {
     matches!(rejected_status(message), Some(s) if (400..500).contains(&s) && s != 429)
 }
 
-/// How many individual fetch failures a run logs verbatim before going quiet (the window and
-/// throughput lines keep reporting the aggregate).
 pub const FETCH_ERROR_LOG_LIMIT: u32 = 12;
 
 fn record_first_error(slot: &Mutex<Option<String>>, err: String) {
@@ -695,11 +548,7 @@ fn record_first_error(slot: &Mutex<Option<String>>, err: String) {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────────────────────
-// HTTP client (one pooled reqwest client + per-request headers + optional Range + streaming)
-// ─────────────────────────────────────────────────────────────────────────────────────────────
 
-/// The pooled client plus the pre-validated per-request headers.
 struct Http {
     client: reqwest::Client,
     headers: Vec<(reqwest::header::HeaderName, reqwest::header::HeaderValue)>,
@@ -732,8 +581,6 @@ fn build_http(opts: &FetchOptions, pool_max_idle_per_host: usize) -> Result<Http
 }
 
 impl Http {
-    /// `GET url` with the run's headers (set per request, so they override the client defaults —
-    /// a store's own `User-Agent` wins over the Steam one) and the optional `Range`.
     fn request(&self, url: &str, range: Option<(u64, u64)>) -> reqwest::RequestBuilder {
         let mut request = self.client.get(url);
         for (name, value) in &self.headers {
@@ -756,7 +603,6 @@ fn classify_reqwest_error(err: &reqwest::Error) -> FetchFailKind {
     }
 }
 
-/// Sends the request and checks the status; shared by both modes.
 async fn send_checked(
     http: &Http,
     url: &str,
@@ -786,9 +632,6 @@ async fn send_checked(
     Ok(response)
 }
 
-/// Whole-body mode: one attempt for one item (the driver owns retry/rotation). `timeout` bounds the
-/// whole request (headers + body). The body is read piece by piece so `host_rx` sees every byte as
-/// it arrives (the stall detector's signal); `ttfb` is set when the response headers arrive.
 async fn fetch_once(
     http: &Http,
     url: &str,
@@ -835,10 +678,6 @@ async fn fetch_once(
     }
 }
 
-/// Stream mode: one attempt for one item. Pieces are pushed to the item's pool worker as they
-/// arrive (each one added to the in-flight budget until the pool consumes it); the future waits
-/// while the budget is full, and stops early on cancel or when the sink rejected this attempt.
-/// Returns the total body length after the last piece was queued.
 #[allow(clippy::too_many_arguments)]
 async fn fetch_stream(
     http: &Http,
@@ -871,7 +710,6 @@ async fn fetch_stream(
     let content_length = response.content_length();
     let mut offset = 0u64;
     loop {
-        // Budget gate: don't read ahead of the pool by more than the budget.
         while in_flight.load(Ordering::Relaxed) >= budget {
             if cancel.load(Ordering::Relaxed) {
                 return Err(AsyncFetchError {
@@ -931,29 +769,22 @@ async fn fetch_stream(
     Ok(offset)
 }
 
-// ─────────────────────────────────────────────────────────────────────────────────────────────
-// Driver plumbing
-// ─────────────────────────────────────────────────────────────────────────────────────────────
 
-/// `abandon` sentinel: no attempt of this item has been rejected by the sink.
 const NO_ATTEMPT: u32 = u32::MAX;
 
 enum ProcessMsg {
-    /// Whole-body mode: the complete raw body.
     Body {
         idx: usize,
         attempts: u32,
         server_idx: usize,
         body: Vec<u8>,
     },
-    /// Stream mode: one in-order piece of attempt `attempts` of item `idx`.
     Piece {
         idx: usize,
         attempts: u32,
         offset: u64,
         data: Vec<u8>,
     },
-    /// Stream mode: the body ended; the pool finalizes and reports a verdict.
     Finish {
         idx: usize,
         attempts: u32,
@@ -975,7 +806,6 @@ struct Feedback {
     verdict: SinkVerdict,
 }
 
-/// An item awaiting (re)dispatch: `attempts` already spent; not eligible before `not_before`.
 #[derive(Clone, Copy, Debug)]
 struct PendingItem {
     idx: usize,
@@ -988,18 +818,14 @@ enum Fetched {
     Streamed(u64),
 }
 
-/// The result the driver awaits for each dispatched fetch.
 struct FetchDone {
     idx: usize,
     attempts: u32,
     reserve: u64,
     server_idx: usize,
     elapsed: Duration,
-    /// Request sent → response headers, when the headers arrived.
     ttfb: Option<Duration>,
-    /// Key in the driver's registry of running requests.
     req_id: u64,
-    /// The request was cancelled because its host stalled (not a failure of the item).
     stalled: bool,
     res: Result<Fetched, AsyncFetchError>,
 }
@@ -1061,11 +887,7 @@ async fn run_driver(ctx: DriverCtx<'_>) {
     let mut retry: VecDeque<PendingItem> = VecDeque::new();
     let mut next_item = 0usize;
     let mut errors_logged: u32 = 0;
-    // Bodies / finishes handed to the pool whose verdict has not come back yet.
     let mut outstanding = 0usize;
-    // Stall detection: bytes received per server (bumped by the request futures as pieces
-    // arrive), when that count last moved, since when the server has had requests to answer,
-    // how many requests it is running, and each running request's abort switch.
     let host_rx: Vec<AtomicU64> = hosts.iter().map(|_| AtomicU64::new(0)).collect();
     let mut last_rx: Vec<u64> = vec![0; hosts.len()];
     let mut last_rx_at: Vec<Option<Instant>> = vec![None; hosts.len()];
@@ -1075,7 +897,6 @@ async fn run_driver(ctx: DriverCtx<'_>) {
     let mut aborts: HashMap<u64, (usize, Arc<Notify>)> = HashMap::new();
     let mut next_req_id: u64 = 0;
     let mut last_stall_check = Instant::now();
-    // Declared AFTER `txs`/`http` so it is dropped BEFORE them (its futures borrow both).
     let mut inflight: FuturesUnordered<_> = FuturesUnordered::new();
 
     'outer: loop {
@@ -1085,8 +906,6 @@ async fn run_driver(ctx: DriverCtx<'_>) {
             break;
         }
 
-        // ── Sink verdicts: Retry = counts as a failed attempt (cool + demote host, back-off,
-        // rotate); Fatal was already recorded in the error slot by the pool. ──
         while let Ok(fb) = fb_rx.try_recv() {
             outstanding = outstanding.saturating_sub(1);
             match fb.verdict {
@@ -1123,7 +942,6 @@ async fn run_driver(ctx: DriverCtx<'_>) {
             log(&window.summary_line(label, inflight.len(), probe_now));
         }
 
-        // ── Stalled hosts: requests that receive nothing while another host delivers. ──
         if probe_now.duration_since(last_stall_check) >= Duration::from_millis(STALL_CHECK_MS) {
             last_stall_check = probe_now;
             for s in 0..hosts.len() {
@@ -1163,12 +981,10 @@ async fn run_driver(ctx: DriverCtx<'_>) {
                     hosts[s],
                     probe_now.duration_since(silent_since).as_millis()
                 ));
-                // Do not fire again for the same silence while the cancelled requests wind down.
                 watch_from[s] = probe_now;
             }
         }
 
-        // ── Dispatch up to the current window ──
         while inflight.len() < window.current {
             if cancel.load(Ordering::Relaxed)
                 || error_slot.lock().expect("err slot poisoned").is_some()
@@ -1177,7 +993,6 @@ async fn run_driver(ctx: DriverCtx<'_>) {
             }
             let now = Instant::now();
 
-            // A due retry first, else the next fresh item.
             let use_retry = retry.front().is_some_and(|p| p.not_before <= now);
             let (idx, attempts) = if use_retry {
                 let p = *retry.front().expect("retry nonempty");
@@ -1185,23 +1000,19 @@ async fn run_driver(ctx: DriverCtx<'_>) {
             } else if next_item < items.len() {
                 (next_item, 0u32)
             } else {
-                break; // nothing dispatchable now (retry not due, or all dispatched)
+                break;
             };
             let item = &items[idx];
 
-            // Byte-budget gate (hard memory bound): reserve at DISPATCH. Always admits when nothing
-            // is in flight, so an item bigger than the whole budget can't deadlock. Streams reserve
-            // nothing here — their pieces are budgeted as they arrive.
             let reserve = if stream { 0 } else { reserve_bytes(item) };
             if !budget_admits(in_flight.load(Ordering::Relaxed), reserve, budget) {
                 window.note_budget_stall();
-                break; // wait for a completion to free budget
+                break;
             }
 
-            // Speed-ranked, per-host-capped host pick.
             let Some(server_idx) = sched.pick(now) else {
                 window.note_host_stall();
-                break; // every host at cap or cooling → wait for a completion
+                break;
             };
             let permit = match sched.host_sem(server_idx).clone().try_acquire_owned() {
                 Ok(permit) => permit,
@@ -1218,7 +1029,6 @@ async fn run_driver(ctx: DriverCtx<'_>) {
             let url = url.to_string();
             let range = item.range;
 
-            // Commit: pop the work item, reserve budget, launch the fetch future.
             if use_retry {
                 retry.pop_front();
             } else {
@@ -1231,7 +1041,6 @@ async fn run_driver(ctx: DriverCtx<'_>) {
             let rx_counter = &host_rx[server_idx];
             let started = Instant::now();
             if running[server_idx] == 0 {
-                // The host had nothing to answer until now: its silence is measured from here.
                 watch_from[server_idx] = started;
             }
             running[server_idx] += 1;
@@ -1268,7 +1077,6 @@ async fn run_driver(ctx: DriverCtx<'_>) {
                                 .map(Fetched::Body)
                         }
                     };
-                    // The stall detector's switch: dropping the fetch future closes its connection.
                     match select(pin!(fetch), pin!(abort.notified())).await {
                         Either::Left((res, _)) => (res, false),
                         Either::Right(((), _)) => (
@@ -1280,7 +1088,7 @@ async fn run_driver(ctx: DriverCtx<'_>) {
                         ),
                     }
                 };
-                drop(permit); // RAII per-host permit release (also on future drop / cancel-abort)
+                drop(permit);
                 FetchDone {
                     idx,
                     attempts: attempts + 1,
@@ -1295,17 +1103,14 @@ async fn run_driver(ctx: DriverCtx<'_>) {
             });
         }
 
-        // ── Nothing in flight? finished, or waiting on retry-not-due / host cooldown / the pool. ──
         if inflight.is_empty() {
             if next_item >= items.len() && retry.is_empty() && outstanding == 0 {
-                break; // every item fetched and processed
+                break;
             }
             tokio::time::sleep(Duration::from_millis(5)).await;
             continue;
         }
 
-        // ── Await one completion (drives ALL in-flight requests cooperatively), bounded so
-        // cancel / a pool Fatal / a Retry verdict are noticed promptly even mid-fetch. ──
         let done = match tokio::time::timeout(Duration::from_millis(DRIVER_POLL_MS), inflight.next())
             .await
         {
@@ -1317,9 +1122,6 @@ async fn run_driver(ctx: DriverCtx<'_>) {
         aborts.remove(&done.req_id);
         running[done.server_idx] = running[done.server_idx].saturating_sub(1);
         if done.stalled {
-            // Not the item's fault: straight back into the queue for a healthy host, no window
-            // or host penalty beyond the rest the detector already gave the host. It still counts
-            // as an attempt, which keeps each stream attempt's pieces distinguishable.
             in_flight.fetch_sub(done.reserve, Ordering::Relaxed);
             retry.push_front(PendingItem {
                 idx: done.idx,
@@ -1340,8 +1142,6 @@ async fn run_driver(ctx: DriverCtx<'_>) {
                 meter.record(done.server_idx, raw_len);
                 sched.on_success(done.server_idx, raw_len, done.elapsed);
                 window.record_ok(done.elapsed.as_secs_f64() * 1000.0);
-                // Reconcile the dispatch reservation to the actual raw size; the pool subtracts the
-                // actual size on process-complete, netting this item's budget to zero.
                 if raw_len >= done.reserve {
                     in_flight.fetch_add(raw_len - done.reserve, Ordering::Relaxed);
                 } else {
@@ -1357,7 +1157,7 @@ async fn run_driver(ctx: DriverCtx<'_>) {
                     })
                     .is_err()
                 {
-                    break; // process side gone
+                    break;
                 }
             }
             Ok(Fetched::Streamed(total_len)) => {
@@ -1374,7 +1174,7 @@ async fn run_driver(ctx: DriverCtx<'_>) {
                     })
                     .is_err()
                 {
-                    break; // process side gone
+                    break;
                 }
             }
             Err(err) => {
@@ -1423,14 +1223,10 @@ window_shrink={} msg={}",
         }
     }
 
-    // Dropping `inflight` aborts any still-running requests (the cancel / error / final-failure
-    // teardown path); dropping the senders then closes the channels so the pool drains and exits.
     drop(inflight);
     drop(txs);
 }
 
-/// Since when a server has been silent: its last byte, or when it was last given work to do if
-/// that came later.
 fn silent_since(last_rx_at: Option<Instant>, watch_from: Instant) -> Instant {
     match last_rx_at {
         Some(at) if at > watch_from => at,
@@ -1438,16 +1234,12 @@ fn silent_since(last_rx_at: Option<Instant>, watch_from: Instant) -> Instant {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────────────────────
-// Bandwidth meter (per-host bytes + 5-s samples for peak)
-// ─────────────────────────────────────────────────────────────────────────────────────────────
 
 pub struct BandwidthMeter {
     start: Instant,
     total_bytes: AtomicU64,
     per_server_bytes: Vec<AtomicU64>,
     hosts: Vec<String>,
-    /// (bytes, instant) at the last sample; peak = max sample rate in bytes/s.
     last_sample: Mutex<(u64, Instant)>,
     peak_bps: Mutex<f64>,
 }
@@ -1478,8 +1270,6 @@ impl BandwidthMeter {
         self.total_bytes.load(Ordering::Relaxed)
     }
 
-    /// Take a throughput sample since the previous one (≥ 1 s apart to be counted) and fold it
-    /// into the peak.
     pub fn sample(&self) {
         let now = Instant::now();
         let total = self.total_bytes();
@@ -1530,9 +1320,6 @@ impl BandwidthMeter {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────────────────────
-// Scheduler + adaptive window — a copy of the Steam depot writer's (keyed on host strings).
-// ─────────────────────────────────────────────────────────────────────────────────────────────
 
 #[derive(Clone, Debug, Default)]
 struct ServerHealth {
@@ -1542,10 +1329,6 @@ struct ServerHealth {
     cooldown_until: Option<Instant>,
 }
 
-/// Speed-ranked, per-host-capped host picker. Cold hosts are probed first, then selection is
-/// epsilon-greedy over the measured EWMA so a demoted-but-recovered host returns. Per-host caps key
-/// on the host STRING (one `tokio::sync::Semaphore` each) so two entries that share a host still
-/// share one cap.
 struct FetchScheduler {
     health: Vec<ServerHealth>,
     server_host: Vec<usize>,
@@ -1635,8 +1418,6 @@ impl FetchScheduler {
         h.cooldown_until = None;
     }
 
-    /// A stalled host: out of the rotation for `rest`, and its speed estimate cut so it comes
-    /// back behind the hosts that kept delivering.
     fn rest(&mut self, server_idx: usize, now: Instant, rest: Duration) {
         let h = &mut self.health[server_idx];
         h.cooldown_until = Some(now + rest);
@@ -1710,8 +1491,6 @@ impl WindowReason {
     }
 }
 
-/// Adaptive in-flight window: slow-start doubles every healthy probe until the first real back-off,
-/// then grows additively; holds on plateau; shrinks proportionally only on real errors.
 #[derive(Clone, Debug)]
 struct AdaptiveWindow {
     current: usize,
@@ -1733,14 +1512,10 @@ struct AdaptiveWindow {
     last_budget_stalls: u32,
     last_host_stalls: u32,
     latency_ewma_ms: f64,
-    /// TTFB samples of the current probe interval.
     ttfb_sum_ms: f64,
     ttfb_samples: u32,
-    /// Lowest per-probe mean TTFB seen this run (0 = none yet): the no-queue baseline.
     ttfb_base_ms: f64,
-    /// Mean TTFB of the last probe that had enough samples.
     ttfb_last_ms: f64,
-    /// Consecutive probes with queueing delay.
     latency_streak: u32,
     stalled_hosts: u32,
     cooldown_until: Option<Instant>,
@@ -1803,7 +1578,6 @@ impl AdaptiveWindow {
         self.stalled_hosts = self.stalled_hosts.saturating_add(1);
     }
 
-    /// The latency brake's shrink: proportional and gentle, never below the floor, at least −1.
     fn shrink_latency(&mut self, now: Instant) {
         let scaled = (self.current as f64 * LATENCY_SHRINK_FACTOR).floor() as usize;
         self.current = scaled.min(self.current.saturating_sub(1)).max(self.min);
@@ -1884,7 +1658,6 @@ impl AdaptiveWindow {
         let before = self.current;
         let cooling = self.cooldown_until.is_some_and(|t| now < t);
 
-        // Queueing delay: this probe's mean TTFB against the run's baseline.
         let probe_ttfb = (self.ttfb_samples >= LATENCY_MIN_SAMPLES)
             .then(|| self.ttfb_sum_ms / self.ttfb_samples as f64);
         let mut queueing = false;
@@ -1909,9 +1682,6 @@ impl AdaptiveWindow {
         } else if cooling {
             self.last_reason = WindowReason::HoldCooldown;
         } else if queueing {
-            // More requests only made each one wait longer. Hold while a real gain still comes
-            // with the delay; once the delay keeps rising without one, give some of the window
-            // back, gently, and let the cooldown show whether that helped.
             let gain = self.bps_ewma > self.best_bps * (1.0 + LATENCY_GAIN_EPS);
             if gain {
                 self.best_bps = self.bps_ewma;
@@ -2012,9 +1782,6 @@ stalled_hosts={}",
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────────────────────
-// Tests
-// ─────────────────────────────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
@@ -2154,8 +1921,6 @@ mod tests {
 
     const MIB: u64 = 1024 * 1024;
 
-    /// Drive the window through probes 2.1 s apart, each with `samples` TTFB values and the
-    /// bytes that arrived in it; returns (reason, window) after every probe.
     fn run_probes(w: &mut AdaptiveWindow, t0: Instant, probes: &[(f64, u64)]) -> Vec<(WindowReason, usize)> {
         let mut total = 0u64;
         let mut out = Vec::new();
@@ -2174,7 +1939,6 @@ mod tests {
     fn rising_delay_without_more_throughput_holds_then_shrinks_gently() {
         let t0 = Instant::now();
         let mut w = AdaptiveWindow::new(8, 2, 256, t0);
-        // Flat ~15 MB/s while the time to first byte climbs from 0.4 s to 12 s (the 5G log).
         let flat = 32 * MIB;
         let probes: Vec<(f64, u64)> = [400.0, 400.0, 450.0, 900.0, 1500.0, 2500.0, 4000.0, 6000.0, 9000.0, 12000.0]
             .iter()
@@ -2186,7 +1950,6 @@ mod tests {
         assert!(first_hold < first_shrink, "{seen:?}");
         let before = seen[first_shrink - 1].1;
         assert_eq!(seen[first_shrink].1, (before as f64 * LATENCY_SHRINK_FACTOR).floor() as usize, "{seen:?}");
-        // From the first sign of queueing on, the window never grows again.
         for pair in seen[first_hold..].windows(2) {
             assert!(pair[1].1 <= pair[0].1, "grew under queueing delay: {seen:?}");
         }
@@ -2199,7 +1962,6 @@ mod tests {
     fn a_fast_link_keeps_growing_while_its_delay_stays_low() {
         let t0 = Instant::now();
         let mut w = AdaptiveWindow::new(8, 2, 256, t0);
-        // Throughput doubles with the window; TTFB wobbles between 25 and 70 ms (new connections).
         let probes: Vec<(f64, u64)> = (0..6)
             .map(|k| ([25.0, 70.0, 40.0, 60.0, 30.0, 65.0][k], (8 * MIB) << k))
             .collect();
@@ -2211,8 +1973,6 @@ mod tests {
         assert!(w.current >= 128, "{seen:?}");
     }
 
-    /// Two-behaviour stub for the stall test: `freeze` answers the headers and 100 bytes, then
-    /// never sends another byte; otherwise every path gets 10 000 bytes in ten paced slices.
     fn start_paced_stub(freeze: bool) -> String {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
         let port = listener.local_addr().expect("addr").port();
@@ -2296,12 +2056,10 @@ mod tests {
             .unwrap_or_else(|| panic!("no host-stall line: {lines:?}"));
         assert!(stall.contains(&format!(" host={frozen} ")), "{stall}");
         assert!(!stall.contains(" requeued=0 "), "{stall}");
-        // Well inside the 10 s request timeout that would otherwise have freed the items.
         assert!(elapsed < Duration::from_secs(8), "took {elapsed:?}: {lines:?}");
         assert!(!lines.iter().any(|l| l.contains(&format!("host={healthy}")) && l.starts_with("host-stall")));
     }
 
-    // ── Minimal HTTP/1.1 stub: one thread per connection, `Connection: close`, Range-aware. ──
     struct Stub {
         base: String,
         hits: Arc<Mutex<HashMap<String, usize>>>,
@@ -2444,11 +2202,9 @@ mod tests {
         }
     }
 
-    /// Stream-mode sink: appends pieces per item (offset 0 restarts), finalizes by length check.
     struct StreamSink {
         got: Mutex<HashMap<u64, Vec<u8>>>,
         finished: Mutex<HashMap<u64, u64>>,
-        /// Reject the first piece of this item once (exercises the mid-stream Retry path).
         retry_once_id: Option<u64>,
         retried: AtomicUsize,
     }
@@ -2534,8 +2290,6 @@ mod tests {
         assert_eq!(got[&5], b"nile/0.1 Amazon".to_vec());
         let finished = sink.finished.lock().unwrap();
         assert_eq!(finished.len(), 5);
-        // Pieces credited as written + 7 extra per on_finish; the rejected attempt of /big
-        // contributed nothing (its first piece was refused before any write).
         let written: u64 = got.values().map(|b| b.len() as u64).sum();
         assert_eq!(outcome.bytes_credited, written + 5 * 7);
         let hits = stub.hits.lock().unwrap();
@@ -2575,7 +2329,6 @@ mod tests {
             &sink,
             &cancel,
             &|bytes: u64, ok: u64| {
-                // Pool threads race on the callback order; keep the high-water mark.
                 let mut cur = last_progress.lock().unwrap();
                 if bytes >= cur.0 {
                     *cur = (bytes, ok);
@@ -2595,7 +2348,6 @@ mod tests {
         let expected_credit: u64 = got.values().map(|b| b.len() as u64 * 2).sum();
         assert_eq!(outcome.bytes_credited, expected_credit);
         assert_eq!(*last_progress.lock().unwrap(), (expected_credit, 4));
-        // /c was served 503 once, then 200; /a was re-fetched once after the sink's Retry.
         let hits = stub.hits.lock().unwrap();
         assert_eq!(hits["/c"], 2);
         assert_eq!(hits["/a"], 2);

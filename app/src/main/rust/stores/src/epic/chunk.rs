@@ -1,16 +1,3 @@
-//! One chunk: header parse → (zlib inflate | copy) → SHA-1 → `.part` → rename into the cache.
-//!
-//! Port of `EpicDownloadManager.downloadChunkStreaming` minus the HTTP part (the fetch core
-//! hands us the whole response body). Java's protocol, kept exactly:
-//!  - 41-byte header: magic(4) headerVersion(4) headerSize(4) compressedSize(4) GUID(16) hash(8)
-//!    storedAs(1); payload starts at `max(headerSize, 41)` (Java never seeks back);
-//!  - payload = the next `compressedSize` bytes, or whatever the body still has (a short body
-//!    is NOT an error — the SHA-1 check decides);
-//!  - `storedAs & 1` → zlib; corrupt zlib = failure; a stream that ends early = partial output;
-//!  - the decompressed bytes go to `<final>.part`; the SHA-1 (when the manifest has one) must
-//!    match or the `.part` is deleted; then an atomic rename publishes `<final>`.
-//! A cache file therefore exists under its final name ONLY if it fully downloaded and verified,
-//! on either engine.
 
 use std::fs::{self, File};
 use std::io::{self, BufWriter, Write};
@@ -18,10 +5,8 @@ use std::path::{Path, PathBuf};
 
 use sha1::{Digest, Sha1};
 
-/// Chunk file magic (`0xB1FE3AA2`).
 pub const CHUNK_MAGIC: u32 = 0xB1FE_3AA2;
 
-/// Bytes Java reads before looking at the header (`byte[] hdrBuf = new byte[41]`).
 pub const CHUNK_HEADER_PREFIX: usize = 41;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -37,7 +22,6 @@ impl ChunkHeader {
         (self.stored_as & 1) != 0
     }
 
-    /// Where the payload begins in the body (`if (headerSize > 41) skipFully(headerSize - 41)`).
     pub fn payload_start(&self) -> usize {
         if self.header_size > CHUNK_HEADER_PREFIX as i32 {
             self.header_size as usize
@@ -47,8 +31,6 @@ impl ChunkHeader {
     }
 }
 
-/// `readFully(hdrBuf)` + header decode. `Err` = the Java `continue`/exception paths
-/// (short stream, bad magic).
 pub fn parse_chunk_header(body: &[u8]) -> Result<ChunkHeader, String> {
     if body.len() < CHUNK_HEADER_PREFIX {
         return Err(format!(
@@ -70,9 +52,6 @@ pub fn parse_chunk_header(body: &[u8]) -> Result<ChunkHeader, String> {
     })
 }
 
-/// The payload slice Java's read loop would consume: `compressedSize` bytes after the header,
-/// truncated to what the body holds (`if (n <= 0) break;`). `Err` when the header skip runs
-/// past the body (`skipFully` throws).
 pub fn chunk_payload<'a>(body: &'a [u8], hdr: &ChunkHeader) -> Result<&'a [u8], String> {
     let start = hdr.payload_start();
     if start > body.len() {
@@ -88,7 +67,6 @@ pub fn chunk_payload<'a>(body: &'a [u8], hdr: &ChunkHeader) -> Result<&'a [u8], 
     Ok(&body[start..start + take])
 }
 
-/// `Writer` that mirrors `fos.write(...)` + `sha.update(...)` on every block.
 struct HashingWriter<W: Write> {
     inner: W,
     sha: Option<Sha1>,
@@ -110,23 +88,18 @@ impl<W: Write> Write for HashingWriter<W> {
     }
 }
 
-/// `new File(outFile.getPath() + ".part")`.
 pub fn part_path(final_path: &Path) -> PathBuf {
     let mut s = final_path.as_os_str().to_os_string();
     s.push(".part");
     PathBuf::from(s)
 }
 
-/// Process one downloaded body into `final_path`. Returns the number of DECOMPRESSED bytes
-/// written. `Err(reason)` = Java's "try the next CDN" outcome; the `.part` never survives an
-/// error and `final_path` is only ever created by the rename after verification.
 pub fn write_verified_chunk(
     body: &[u8],
     expected_sha1: Option<&[u8; 20]>,
     final_path: &Path,
 ) -> Result<u64, String> {
     let tmp = part_path(final_path);
-    // `tmp.delete()` — clear any stale partial from a prior interrupted attempt.
     let _ = fs::remove_file(&tmp);
 
     let result = write_part(body, expected_sha1, &tmp, final_path);
@@ -153,9 +126,6 @@ fn write_part(
     };
 
     if hdr.is_compressed() {
-        // Java: inflate until the stream finishes or the input runs out; a corrupt stream throws
-        // (DataFormatException) → this CDN attempt fails. flate2 behaves the same way: EOF on a
-        // truncated stream is a clean end (partial output), corruption is an error.
         let mut dec = flate2::read::ZlibDecoder::new(payload);
         io::copy(&mut dec, &mut out).map_err(|e| format!("inflate: {e}"))?;
     } else {
@@ -164,7 +134,7 @@ fn write_part(
     out.flush().map_err(|e| format!("flush: {e}"))?;
     let written = out.written;
     let digest = out.sha.take().map(|s| s.finalize());
-    drop(out); // close the file before the rename
+    drop(out);
 
     if let (Some(expected), Some(actual)) = (expected_sha1, digest) {
         if actual.as_slice() != &expected[..] {
@@ -172,7 +142,6 @@ fn write_part(
         }
     }
 
-    // Verified → publish atomically (same directory → same filesystem).
     fs::rename(tmp, final_path).map_err(|e| format!("Chunk rename failed: {e}"))?;
     Ok(written)
 }
@@ -181,7 +150,6 @@ fn write_part(
 pub(crate) mod test_support {
     use super::*;
 
-    /// Build a chunk body the way the CDN serves it.
     pub fn build_chunk_body(
         decompressed: &[u8],
         compress: bool,
@@ -199,15 +167,15 @@ pub(crate) mod test_support {
         let header_size = (CHUNK_HEADER_PREFIX + extra_header) as i32;
         let mut out = Vec::new();
         out.extend_from_slice(&CHUNK_MAGIC.to_le_bytes());
-        out.extend_from_slice(&3i32.to_le_bytes()); // headerVersion
+        out.extend_from_slice(&3i32.to_le_bytes());
         out.extend_from_slice(&header_size.to_le_bytes());
         out.extend_from_slice(
             &declared_compressed_size
                 .unwrap_or(payload.len() as i32)
                 .to_le_bytes(),
         );
-        out.extend_from_slice(&[0xAB; 16]); // GUID (unused by the reader)
-        out.extend_from_slice(&[0xCD; 8]); // hash (unused by the reader)
+        out.extend_from_slice(&[0xAB; 16]);
+        out.extend_from_slice(&[0xCD; 8]);
         out.push(if compress { 1 } else { 0 });
         out.extend(std::iter::repeat(0x5A).take(extra_header));
         assert_eq!(out.len(), header_size as usize);
@@ -280,7 +248,6 @@ mod tests {
         let neg = build_chunk_body(b"abcdef", false, 0, Some(-1));
         let h = parse_chunk_header(&neg).unwrap();
         assert_eq!(chunk_payload(&neg, &h).unwrap(), b"");
-        // headerSize past the body → skipFully throws.
         let mut far = build_chunk_body(b"abcdef", false, 0, None);
         far[8..12].copy_from_slice(&5000i32.to_le_bytes());
         let h = parse_chunk_header(&far).unwrap();
@@ -345,12 +312,10 @@ mod tests {
         let data = sample_data();
         let mut body = build_chunk_body(&data, true, 0, None);
         let final_path = dir.join("chunk");
-        // Truncate the body: inflate ends early → partial output → SHA-1 mismatch.
         let cut = body.len() - 1000;
         let err = write_verified_chunk(&body[..cut], Some(&sha1_of(&data)), &final_path).unwrap_err();
         assert!(err.contains("SHA-1 mismatch") || err.contains("inflate"), "{err}");
         assert!(!final_path.exists());
-        // Corrupt the deflate stream itself.
         for b in body.iter_mut().skip(60).take(64) {
             *b ^= 0x55;
         }
@@ -366,7 +331,7 @@ mod tests {
         let dir = temp_dir("stale");
         let final_path = dir.join("chunk");
         fs::write(part_path(&final_path), b"stale").unwrap();
-        let body = [0u8; 10]; // too short → header failure
+        let body = [0u8; 10];
         assert!(write_verified_chunk(&body, None, &final_path).is_err());
         assert!(!part_path(&final_path).exists());
         assert!(!final_path.exists());

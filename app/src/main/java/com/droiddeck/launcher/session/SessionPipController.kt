@@ -12,7 +12,6 @@ import android.widget.Toast
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.SessionActivity
 
-/** Owns Android's PiP parameters, while the service continues to own the session. */
 class SessionPipController(
     private val activity: SessionActivity,
     private val bounds: () -> Rect,

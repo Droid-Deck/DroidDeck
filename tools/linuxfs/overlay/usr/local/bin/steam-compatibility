@@ -1,20 +1,4 @@
 #!/usr/bin/python3
-# Makes the ARM64 Proton the client already downloaded usable here, and sets it as the default tool
-# for Windows titles (CompatToolMapping "0" in config.vdf) when the user has not chosen one. Run
-# before the client starts; it rewrites config.vdf on exit.
-#
-#   steam-compatibility <steam root>
-#
-# Valve ships a native aarch64 Proton (arm64ec Wine with FEX as the x86 layer) as an ordinary depot,
-# which is exactly what this runtime wants. Its toolmanifest declares require_tool_appid 4185400 -
-# Steam Linux Runtime 4 for arm64 - so Steam stacks pressure-vessel underneath it, and
-# pressure-vessel needs unprivileged user namespaces, which an Android app does not get. Steam then
-# drops the launch on the floor: no window, no log, straight back to the library.
-#
-# So the depot is re-registered here as a compatibility tool of our own: every entry symlinked so
-# nothing is copied and Steam still updates the real depot, but with a toolmanifest that leaves out
-# require_tool_appid. Proton takes its base directory from dirname(sys.argv[0]) without resolving
-# it, so it reads files/ through those symlinks and runs directly on this rootfs.
 import json
 import os
 import re
@@ -26,22 +10,10 @@ TOOL = "droiddeck-proton-arm64"
 TOOL_11 = "droiddeck-proton-11-arm64"
 LEGACY_TOOL = "bannerlator-proton-arm64"
 LABEL_FILE = "/etc/steam-compatibility-label"
-# The ARM64 Proton depot the client downloads for itself, as a compatibility-tool appid.
-# The session asks the client to install it on the command line the first time (steam://install),
-# so a new client has it before a Windows title is first launched. It is deliberately NOT named as
-# this tool's dependency: a dependency is composed with its own dependencies, and this depot
-# requires 4185400, the arm64 Steam Linux Runtime, whose container needs user namespaces Android
-# does not give - the launch would be wrapped in it and die before this tool ever ran.
 PROTON_ARM64_APPID = "4427310"
 LAUNCHER = "droiddeck-proton"
 LEGACY_LAUNCHER = "bannerlator-proton"
-# The extra Steam library the app mounts the installed games into (see droiddeck-steam-library).
-# installed_apps() scans it too; it lives only in the sibling script, so define it here as well.
-LIBRARY = "/mnt/droiddeck"  # the card library is LIBRARY + "-sd"; internal storage is steam_root itself
-# The client lists its own "Proton Experimental (ARM64)" and "Proton 11.0 (ARM64)" in the same
-# Compatibility dropdown, and those are the two that cannot start a game here. Ours has to be
-# unmistakable at a glance, or a user picks a neighbour and gets a launch that fails silently.
-# Newest first: whichever the client has downloaded is used.
+LIBRARY = "/mnt/droiddeck"
 SOURCES = ("Proton Experimental (ARM64)", "Proton 11.0 (ARM64)")
 OWN_TOOLS = ((TOOL, SOURCES), (TOOL_11, ("Proton 11.0 (ARM64)",)))
 FEX_TOOL = "droiddeck-fex"
@@ -53,13 +25,7 @@ FEX_DEPENDENCIES = (FEX_APPID, SNIPER_APPID)
 REQUEST_HANDOFF_SECONDS = 30
 PLAYABLE_TYPES = frozenset(("game", "demo", "application", "beta"))
 COMPAT_DIR = os.path.join(os.environ.get("HOME", "/root"), ".local", "share", "droiddeck-compat")
-# Written by us; everything else in the depot is symlinked through.
 OWN_FILES = ("toolmanifest.vdf", "compatibilitytool.vdf", LAUNCHER)
-# The client assigns a Proton to a Windows title by itself, as a per-app CompatToolMapping entry at
-# priority 250 - which outranks the "0" default, so setting that default alone changes nothing. Every
-# Proton it can pick is one this runtime cannot start: the ARM64 ones want pressure-vessel (see
-# above) and the x86_64 ones want pressure-vessel and FEX on top. Ours is the only one that runs
-# here, so every Proton mapping is repointed at it. Tools that are not Proton are left alone.
 COMPAT_TOOL_VDF = """"compatibilitytools"
 {
 	"compat_tools"
@@ -84,49 +50,25 @@ TOOL_MANIFEST_VDF = """"manifest"
 """ % LAUNCHER
 
 
-# Steam runs its own graphics probe through EVERY registered tool at once, ~40 s after logging in,
-# all with STEAM_COMPAT_DATA_PATH=.../compatdata/0, and those concurrent Protons can write their
-# builtin DLLs through each other's prefix links into each other's trees (seen: GE's FEX DLLs became
-# Proton Experimental's). Moving those runs to a prefix per tool was tried and crashed the Steam
-# client right after the probe started (segfault, rc 139, first ever in 25 sessions), so the client
-# relies on compatdata/0 itself. The launch-time check below is the protection instead.
-
-# The Components page's choices, enforced in the one place every game launch passes: the app keeps
-# desired.tsv (scope, tool dir, Proton build, component, file, sha256, source copy) and an unpacked
-# copy of each package in use. A game's rows replace General rows for that component. A `-` source
-# removes a managed file absent from the selected package, so one game's package cannot leak into
-# the next game. A file that no longer matches - whatever changed it - is put back before Proton
-# starts. Only the matching Proton build is changed; after a Steam update the build differs and the
-# Proton's own new files are left alone until the user chooses again.
-# A store game (GOG, Epic, Amazon) is started through the launcher .bat DroidDeck wrote beside it.
-# An Epic game needs a fresh sign-in code, which only the app can mint: droiddeck-store-launch asks
-# for it and the app writes it into the game's folder, so a launch from the client's own Play
-# button signs in just as one from the app does. A real launch only; never in the way of it.
 BL_STORE_SETUP = """
 bl_store_launch() {
   [ "${verb:-}" = waitforexitandrun ] || return 0
-  # A web address the game opens (Wine's winebrowser runs xdg-open) goes to Android's browser:
-  # droiddeck-open-url as xdg-open, first on the game's PATH, with the session channel left in a
-  # file in case Wine does not pass BL_LAUNCH_DIR on. (The prefix also names it as Wine's browser.)
   if [ -x /usr/local/bin/droiddeck-open-url ]; then
     mkdir -p /tmp/droiddeck-browser
     ln -sfn /usr/local/bin/droiddeck-open-url /tmp/droiddeck-browser/xdg-open
-    [ -n "${BL_LAUNCH_DIR:-}" ] && printf '%s\n' "$BL_LAUNCH_DIR" > /tmp/droiddeck-browser/launch-dir
+    [ -n "${BL_LAUNCH_DIR:-}" ] && printf '%s
+' "$BL_LAUNCH_DIR" > /tmp/droiddeck-browser/launch-dir
     PATH="/tmp/droiddeck-browser:$PATH"; export PATH
   fi
-  # BL_DEBUG_BROWSER=1 (droiddeck-env): Wine traces how the game opens a web address.
   if [ "${BL_DEBUG_BROWSER:-}" = 1 ]; then
     WINEDEBUG="${WINEDEBUG:+$WINEDEBUG,}+shell,+winebrowser"; export WINEDEBUG
   fi
   [ -x /usr/local/bin/droiddeck-store-launch ] || return 0
   /usr/local/bin/droiddeck-store-launch "$@"
-  # 10: a store game with cloud saves - the launch waits for Proton and uploads after (bl_run).
   [ $? -eq 10 ] && BL_STORE_EXIT=1
   return 0
 }
 
-# Runs Proton: exec'd as always, except for a store game with cloud saves, where the wrapper stays
-# to tell the app the game has exited so it can upload what changed.
 bl_run() {
   if [ -n "${BL_STORE_EXIT:-}" ]; then
     "$@"
@@ -143,11 +85,6 @@ bl_components() {
   base=$1
   cm_dir="${HOME:-/root}/.local/share/droiddeck-components"
   cm_list="$cm_dir/desired.tsv"
-  # A real game launch only: the verb the client starts a game with and the game's own prefix. Every
-  # other run - above all the client's own probes right after login, which all share compatdata/0 -
-  # is left exactly as it was: with this check running through them, the client segfaulted (rc 139)
-  # within seconds of starting its probes, four sessions out of four. The prefix decides rather than
-  # the app id because a non-Steam shortcut launches with app id 0 but still gets a prefix of its own.
   [ "${verb:-}" = waitforexitandrun ] || return 0
   case "${STEAM_COMPAT_DATA_PATH:-}" in ''|*/compatdata/0|*/compatdata/0/|*/compatdata/0-*) return 0 ;; esac
   [ -f "$cm_list" ] || return 0
@@ -192,8 +129,6 @@ bl_components() {
         if (scopes[i] == app || (scopes[i] == "*" && !specific[comps[i]])) print rows[i]
     }
   ' "$cm_list")
-  # One sha256sum for every file: each program started here pays a dozen traced library lookups
-  # under the game's search path before it does anything.
   local cm_rows=() cm_files=() row h p
   local -A cm_sums=()
   while IFS=$'\\t' read -r scope t want comp rel sum src; do
@@ -230,36 +165,17 @@ bl_components() {
 }
 """
 
-# Resolves the depot at launch time, so the tool can be registered before the depot exists and
-# survives the client updating or replacing it. Proton takes its base directory from
-# dirname(sys.argv[0]) without resolving it, so it is run from the depot itself.
-# Cores for a game the client launches, kept separate from the client's own. One mask suits the
-# client's menus and another suits a game, and they are wanted at the same time - so the game's is
-# applied here, in the launch path every game goes through, rather than to the session as a whole.
 BL_GAME_CPUS_SETUP = """
 bl_game_cpus() {
   [ -n "${BL_GAME_CPUS:-}" ] || return 0
   command -v taskset >/dev/null 2>&1 || return 0
-  # exec'd through taskset rather than set afterwards: a mask applied to a pid races the process
-  # into spawning its own threads, and this way every thread inherits it from the first instruction.
   BL_TASKSET="taskset -c $BL_GAME_CPUS"
   echo "droiddeck-proton: game cores $BL_GAME_CPUS" >&2
 }
 """
 
-# Quake III engine games (id Tech 3) set their own resolution and switch the display to it. Under
-# gamescope with the ARM64 Proton that switch is refused ("calling CDS: failed, bad mode") and the
-# game never gets OpenGL; left at its own size in a window, it draws small in a corner. So these
-# titles are told to stay windowed at the session's own size - unless the user's launch options
-# already say something about the video mode, which are left as they are.
-# The session puts the client's own libraries (steamrtarm64, its panorama/) ahead of everything for
-# the client, and a game inherits that: Wine then resolved gnutls, SDL, FFmpeg and the rest against
-# the client's private copies instead of the rootfs it was built for. Inside Steam's runtime
-# container that path never reaches Proton either. (WinNative's winnative-proton-launch.)
 BL_LIBPATH_SETUP = """
 bl_libpath() {
-  # A Proton built to prefer PipeWire (CachyOS's among the adopted ones) hung its audio thread
-  # here, where only PulseAudio answers. (WinNative, winnative-proton-launch.)
   export PROTON_USE_PIPEWIRE=${PROTON_USE_PIPEWIRE:-0}
   [ -n "${LD_LIBRARY_PATH:-}" ] || return 0
   local kept= dir old_ifs=$IFS
@@ -279,7 +195,6 @@ BL_IDTECH3_SETUP = """
 bl_idtech3() {
   BL_EXTRA_ARGS=()
   case "${SteamAppId:-${STEAM_COMPAT_APP_ID:-}}" in
-    # Quake III Arena, Quake III: Team Arena, Return to Castle Wolfenstein, Jedi Academy.
     2200|2350|9010|6020) ;;
     *) return 0 ;;
   esac
@@ -307,10 +222,6 @@ bl_directaudio() {
     echo "droiddeck-proton: DirectAudio left off - it is built for Wine 11 and this Proton is '${version:-unknown}'. Pairing them would be silent rather than broken, so it is not worth guessing." >&2
     return 0
   fi
-  # Two builds of the driver ship, one per Wine audio interface, and both Wines call themselves
-  # 11.0: the private mmdevapi table is not versioned, and the wrong set plays silence, not an
-  # error. Proton's own winepulse.so tells them apart - it imports PsCreateSystemThread only on
-  # the system-thread table (Proton-CachyOS), never on the classic one (Valve, GE-Proton).
   winepulse="$base/files/lib/wine/aarch64-unix/winepulse.so"
   if [ ! -f "$winepulse" ]; then
     echo "droiddeck-proton: DirectAudio left off - no winepulse.so to read this Proton's audio interface from" >&2
@@ -322,20 +233,10 @@ bl_directaudio() {
     echo "droiddeck-proton: DirectAudio left off - no driver set for the $set interface is staged" >&2
     return 0
   fi
-  # Wine appends the per-architecture subdirectory to each entry, so the directory holding
-  # aarch64-unix/ and aarch64-windows/ is what goes here.
   WINEDLLPATH="$da/lib/wine${WINEDLLPATH:+:$WINEDLLPATH}"
   export WINEDLLPATH
-  # Proton-CachyOS's launcher sets WINE_AUDIO_DRIVER=pulse,alsa (setdefault, so an existing value
-  # wins), and its mmdevapi reads that variable BEFORE the registry - so the selection below was
-  # being overridden to pulse on every CachyOS game. Valve's and GE's mmdevapi do not read the
-  # variable at all and take the registry, which is why both are done. A value the user set for
-  # the game still wins: the per-game environment is applied after this.
   WINE_AUDIO_DRIVER="directaudio,pulse"
   export WINE_AUDIO_DRIVER
-  # mmdevapi only tries the drivers named in the registry; its built-in list is pulse, alsa, oss and
-  # coreaudio and knows nothing about this one. The key is appended to the prefix's user.reg rather
-  # than written with `wine reg`, which would start a wineserver here just to set one value.
   pfx="${STEAM_COMPAT_DATA_PATH:-}/pfx"
   reg="$pfx/user.reg"
   if [ -f "$reg" ]; then
@@ -352,46 +253,21 @@ bl_directaudio() {
     elif ! BL_KEY="$key" awk 'index($0, "[") == 1 { inside = index($0, ENVIRON["BL_KEY"] " ") == 1 } inside && index($0, "\\"Audio\\"=") == 1 { last = $0 } END { exit last != "\\"Audio\\"=\\"directaudio,pulse\\"" }' "$reg" 2>/dev/null; then
       printf '\\n%s %s\\n"Audio"="directaudio,pulse"\\n' "$key" "$(date +%s)" >> "$reg"
       echo "droiddeck-proton: DirectAudio selected in the prefix" >&2
-      # Steam runs this tool several times per launch (getcompatpath, run, waitforexitandrun); a
-      # wineserver from an earlier verb that still holds the registry saves its own copy on exit
-      # and drops this line. Said out loud so a game that stays on pulse once is explained; it
-      # takes on the next launch. (Writing through the live server with a bare `wine reg add` was
-      # tried and withdrawn: a second Wine invocation inside Steam's launch sequence is not safe.)
       srv="${BL_WINE_SERVER_BASE:-/tmp/.wine-$(id -u)}/server-$(printf '%x-%x' $(stat -c '%d %i' "$pfx" 2>/dev/null || echo 0 0))/socket"
       if [ -S "$srv" ]; then
         echo "droiddeck-proton: a wineserver is already running for this prefix; DirectAudio may only engage on the next launch" >&2
       fi
     fi
   else
-    # A prefix that does not exist yet is created by Proton moments from now, after this runs, so
-    # the value lands on the NEXT launch of that game. Said out loud so a first launch on Proton's
-    # own audio does not look like a fault. (Having Proton create the prefix from here first was
-    # tried and withdrawn: a second Proton run inside Steam's launch sequence got the launch
-    # aborted - Steam games bounced back to their page with a half-made prefix.)
     echo "droiddeck-proton: no prefix yet - DirectAudio takes effect the next time this game starts" >&2
   fi
   echo "droiddeck-proton: DirectAudio ready (Wine $major, $set)" >&2
 }
 """
 
-# Resolves the depot at launch time, so the tool can be registered before the depot exists and
-# survives the client updating or replacing it. Proton takes its base directory from
-# dirname(sys.argv[0]) without resolving it, so it is run from the depot itself.
 LAUNCHER_SH = """#!/bin/bash
-# DroidDeck's Proton ARM64: runs the ARM64 Proton the Steam client downloaded, without the
-# Steam Linux Runtime container its own manifest asks for (no user namespaces on Android).
 verb=$1; shift
 steam_root=${STEAM_COMPAT_CLIENT_INSTALL_PATH:-${XDG_DATA_HOME:-$HOME/.local/share}/Steam}
-# Steam's overlay is preloaded into every game Valve launches, and used to be dropped here: it was
-# landing in front of open() and read() on /dev/input, letting Wine open the session's pad and
-# answering every read of it with nothing - a controller that never reports, and Wine's HID thread
-# spinning a core on it.
-#
-# Removing it was the wrong cure for an ordering problem. glibc processes LD_PRELOAD BEFORE
-# /etc/ld.so.preload, and the interposer lives in the latter, so the overlay was simply ahead of it.
-# Naming the interposer first in LD_PRELOAD puts it back in front and the overlay loads as Valve
-# intends. That matters beyond the overlay itself: every deviation from the launch Valve ships is a
-# difference this runtime would otherwise have to justify.
 for fake in /usr/local/lib/libfakeinput.so /usr/local/lib/libblsession.so; do
   if [ -f "$fake" ]; then
     case ":${LD_PRELOAD:-}:" in
@@ -400,9 +276,6 @@ for fake in /usr/local/lib/libfakeinput.so /usr/local/lib/libblsession.so; do
     esac
   fi
 done
-# ld.so looks every library up along the game's search path (its own directory, Steam's runtime
-# and video directories, Proton's), and under proot each miss is a round trip to the tracer. With
-# the fast path, the audit module skips the misses it can prove (tools/proot/fastpath/audit.c).
 audit=/usr/local/lib/libblaudit.so
 if [ -n "${PROOT_FP_KEY:-}" ] && [ -f "$audit" ]; then
   case ":${LD_AUDIT:-}:" in
@@ -410,8 +283,6 @@ if [ -n "${PROOT_FP_KEY:-}" ] && [ -f "$audit" ]; then
     *) LD_AUDIT="$audit${LD_AUDIT:+:$LD_AUDIT}"; export LD_AUDIT ;;
   esac
 fi
-# The depot this tool is named after, newest across the libraries that hold it; the others in the
-# list stand in only when it is missing.
 depot=
 libraries=$(printf '%%s\\n' "$steam_root" /mnt/droiddeck-sd; sed -n 's/^[[:space:]]*"path"[[:space:]]*"\\(.*\\)"[[:space:]]*$/\\1/p' "$steam_root/steamapps/libraryfolders.vdf" 2>/dev/null)
 for name in %s; do
@@ -447,9 +318,6 @@ LAUNCHER_TEMPLATE = LAUNCHER_SH
 
 
 def launcher_sh(sources=SOURCES):
-    # Spliced in after the formatting, never through it: the function body contains ${major%%.*}
-    # and a % format would eat that into a single %, leaving a shell expansion that silently does
-    # something else.
     return (LAUNCHER_TEMPLATE % " ".join('"%s"' % n for n in sources)).replace(
         "verb=$1; shift", "verb=$1; shift\n" + BL_DIRECTAUDIO_SETUP + BL_GAME_CPUS_SETUP + BL_IDTECH3_SETUP
         + BL_COMPONENTS_SETUP + BL_LIBPATH_SETUP + BL_STORE_SETUP, 1)
@@ -457,10 +325,6 @@ def launcher_sh(sources=SOURCES):
 
 LAUNCHER_SH = launcher_sh()
 
-# A third-party Proton dropped into compatibilitytools.d - GE-Proton, proton-cachyos, anything of
-# that shape - is adopted rather than used as shipped, for the same two reasons Valve's ARM64 depot
-# is: its manifest declares require_tool_appid, and the client's overlay library has to come out of
-# LD_PRELOAD. Its own entry point is left untouched and called through this wrapper.
 EXTRA_WRAPPER = "droiddeck-proton-wrap"
 LEGACY_EXTRA_WRAPPER = "bannerlator-proton-wrap"
 ORIGINAL_SUFFIX = ".droiddeck-orig"
@@ -473,16 +337,9 @@ EXTRA_MANIFEST_VDF = """"manifest"
 	"compatmanager_layer_name" "proton"
 }
 """ % EXTRA_WRAPPER
-# %s is the tool's own entry point, read out of the manifest it shipped with.
 EXTRA_WRAPPER_SH = """#!/bin/bash
-# DroidDeck: runs a Proton installed into compatibilitytools.d without the Steam Linux Runtime
-# container its own manifest asks for - pressure-vessel needs unprivileged user namespaces, which
-# an Android app does not get, and the launch dies before Proton is reached.
 verb=$1; shift
 here=$(dirname "$0")
-# See droiddeck-proton: the interposer goes first in LD_PRELOAD rather than the overlay being
-# removed, because glibc reads LD_PRELOAD before /etc/ld.so.preload and the overlay was simply
-# ahead of it on /dev/input.
 for fake in /usr/local/lib/libfakeinput.so /usr/local/lib/libblsession.so; do
   if [ -f "$fake" ]; then
     case ":${LD_PRELOAD:-}:" in
@@ -491,7 +348,6 @@ for fake in /usr/local/lib/libfakeinput.so /usr/local/lib/libblsession.so; do
     esac
   fi
 done
-# See droiddeck-proton: library lookups that cannot succeed are skipped with the fast path.
 audit=/usr/local/lib/libblaudit.so
 if [ -n "${PROOT_FP_KEY:-}" ] && [ -f "$audit" ]; then
   case ":${LD_AUDIT:-}:" in
@@ -507,8 +363,6 @@ bl_libpath
 BL_STORE_PROTON="$here/%s"; export BL_STORE_PROTON
 bl_store_launch "$@"
 BL_STORE_ARGS=("$@")
-# Proton takes its base directory from dirname(sys.argv[0]) without resolving it, so it has to be
-# started from its own tree.
 bl_run ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env "$BL_STORE_PROTON" "$verb" "$@" "${BL_EXTRA_ARGS[@]}"
 """
 EXTRA_COMPAT_TOOL_VDF = """"compatibilitytools"
@@ -707,8 +561,6 @@ def adopt_extras(tools):
         manifest = os.path.join(tool_dir, "toolmanifest.vdf")
         if not os.path.isdir(tool_dir) or not os.path.isfile(manifest):
             continue
-        # The shipped manifest is kept, once, and stays the source of the entry point: re-running
-        # must not read back our own rewritten commandline and wrap the wrapper.
         original = manifest + ORIGINAL_SUFFIX
         legacy = manifest + LEGACY_ORIGINAL_SUFFIX
         if not os.path.isfile(original) and os.path.isfile(legacy):
@@ -731,8 +583,6 @@ def adopt_extras(tools):
         name = first_key(compat_vdf, ["compatibilitytools", "compat_tools"]) or entry
         wrapper = os.path.join(tool_dir, EXTRA_WRAPPER)
         try:
-            # Formatted first, spliced second: the function carries a printf %s and a
-            # ${major%%.*} of its own, and putting it through the format would eat both.
             body = (EXTRA_WRAPPER_SH % entry_point).replace(
                     'here=$(dirname "$0")',
                     'here=$(dirname "$0")\n' + BL_DIRECTAUDIO_SETUP + BL_GAME_CPUS_SETUP + BL_IDTECH3_SETUP
@@ -750,19 +600,17 @@ def adopt_extras(tools):
     return adopted
 
 
-# Steam's own tools and runtimes live in steamapps beside the games; they are not titles and must
-# not be mapped to a compatibility tool.
 NOT_GAMES = frozenset((
-    "228980",    # Steamworks Common Redistributables
-    "1070560",   # Steam Linux Runtime 1.0 (scout)
-    "1391110",   # Steam Linux Runtime 2.0 (soldier)
-    "1628350",   # Steam Linux Runtime 3.0 (sniper)
-    "1493710",   # Proton Experimental
-    "3127680",   # FEX
-    "4183110",   # Steam Linux Runtime 4.0
-    "4185400",   # Steam Linux Runtime 4.0 - Arm64
-    "4427310",   # Proton Experimental (ARM64)
-    "4628740",   # Proton 11.0 (ARM64)
+    "228980",
+    "1070560",
+    "1391110",
+    "1628350",
+    "1493710",
+    "3127680",
+    "4183110",
+    "4185400",
+    "4427310",
+    "4628740",
 ))
 
 
@@ -1299,8 +1147,6 @@ def build_tool(tool_dir, depot, sources=SOURCES, name=TOOL):
     if os.path.islink(tool_dir):
         os.unlink(tool_dir)
     elif os.path.isdir(tool_dir) and set(os.listdir(tool_dir)) - set(OWN_FILES):
-        # Earlier versions mirrored the depot in here as symlinks; start clean. A directory holding
-        # only our own files is kept, and each file rewritten only when it changed.
         shutil.rmtree(tool_dir)
     os.makedirs(tool_dir, exist_ok=True)
     write_changed(os.path.join(tool_dir, "toolmanifest.vdf"), TOOL_MANIFEST_VDF)

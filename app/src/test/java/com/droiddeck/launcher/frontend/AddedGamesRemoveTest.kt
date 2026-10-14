@@ -12,7 +12,6 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
-/** Removing an added game stops listing it and keeps it off after a rescan, until it is added again; nothing on disk goes. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class AddedGamesRemoveTest {
@@ -47,7 +46,6 @@ class AddedGamesRemoveTest {
 
         SessionPrefs.setAddedGameRemoved(app, File(games, "Beta").path, true)
         assertEquals(listOf("Alpha", "Gamma"), AddedGames.scan(app).map { it.name })
-        // A rescan does not bring it back.
         assertEquals(listOf("Alpha", "Gamma"), AddedGames.scan(app).map { it.name })
 
         SessionPrefs.setAddedGameRemoved(app, File(games, "Beta").path, false)
@@ -66,7 +64,6 @@ class AddedGamesRemoveTest {
         assertTrue(!listing.contains("\"Beta\""))
         assertTrue(File(beta, "Beta.exe").isFile)
 
-        // Added again with the +: it comes back.
         assertTrue(AddedGames.addExe(app, File(beta, "Beta.exe")) is AddedGames.AddResult.Switched)
         assertEquals(emptyList<String>(), SessionPrefs.removedAddedGames(app))
         assertTrue(File(app.filesDir, "session/added-games.json").readText().contains("\"Beta\""))

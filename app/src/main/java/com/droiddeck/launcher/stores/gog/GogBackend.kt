@@ -17,7 +17,6 @@ import com.droiddeck.launcher.stores.download.DownloadStage
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
-/** GOG in the Stores section: sign-in, the library, the public shelves, installs. */
 object GogBackend : StoreBackend {
     override val store: Store = Store.GOG
 
@@ -32,8 +31,6 @@ object GogBackend : StoreBackend {
     override fun syncLibrary(context: Context, force: Boolean) {
         val app = context.applicationContext
         Thread({
-            // The cache first, so the tab has something while the sync runs; read here, not on the
-            // main thread. With a cache on screen a background sync keeps quiet: only Refresh shows its bar.
             val cached = GogLibrary.cached(app).map { GogLibrary.toCatalogItem(app, it) }
             val quiet = cached.isNotEmpty() && !force
             StoresState.post {
@@ -62,7 +59,6 @@ object GogBackend : StoreBackend {
         }, "gog-shelves").start()
     }
 
-    /** The shelves with the library's titles marked owned, so their cards offer Install. */
     private fun markOwned(s: com.droiddeck.launcher.stores.StoreShelves): com.droiddeck.launcher.stores.StoreShelves {
         val owned = StoresState.library[store]?.associateBy { it.id } ?: return s
         fun mark(l: List<CatalogItem>) = l.map { i -> owned[i.id]?.let { o -> i.copy(owned = true, sizeBytes = o.sizeBytes) } ?: i }
@@ -79,7 +75,6 @@ object GogBackend : StoreBackend {
 
     override fun uninstall(context: Context, game: InstalledStoreGame) {}
 
-    /** One GOG install, as the queue runs it. */
     private class InstallJob(val app: Context, val game: GogGame, val item: CatalogItem, val folder: File) : DownloadQueue.DownloadJob {
         private val cancelled = AtomicBoolean(false)
 
@@ -111,7 +106,6 @@ object GogBackend : StoreBackend {
                 Store.GOG, game.gameId, game.title, exe = result.exeRelative.ifEmpty { "" },
                 installVersion = result.buildId, installedAt = System.currentTimeMillis(),
                 cover = item.tallImageUrl ?: item.imageUrl, hero = item.imageUrl,
-                // Kept even when empty: the build was read, and lists none.
                 extra = mapOf(com.droiddeck.launcher.frontend.WinCompSources.GOG_DEPENDENCIES to result.dependencies.joinToString(","))
                     + (if (result.dependenciesRead) mapOf(com.droiddeck.launcher.frontend.WinCompSources.LIST_READ to "1") else emptyMap()),
             )

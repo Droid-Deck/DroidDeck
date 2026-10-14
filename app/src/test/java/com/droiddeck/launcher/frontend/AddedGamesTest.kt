@@ -19,7 +19,6 @@ class AddedGamesTest {
             "\"AppState\"\n{\n\t\"appid\"\t\t\"17410\"\n\t\"installdir\"\t\t\"Mirrors Edge\"\n}\n",
         )
         assertEquals(setOf("monster_hunter_stories_3_twisted_reflection", "mirrors edge"), AddedGames.steamInstallDirs(common))
-        // Loose game folders at the library root are never Steam's.
         assertEquals(emptySet<String>(), AddedGames.steamInstallDirs(library))
     }
 }

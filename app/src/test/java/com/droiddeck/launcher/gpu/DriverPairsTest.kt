@@ -60,7 +60,6 @@ class DriverPairsTest {
             listOf(
                 asset("Turnip-r4.zip", "r4", false, DriverPairs.BANNER),
                 asset("Turnip-r4-Linux.zip", "r4", true, DriverPairs.BANNER),
-                // The A8xx set's newest display build is r4, but its Linux half is only in r3.
                 asset("Turnip-r4-A8xx.zip", "r4", false, DriverPairs.BANNER_A8XX),
                 asset("Turnip-r3-A8xx-Linux.zip", "r3", true, DriverPairs.BANNER_A8XX),
                 asset("WN-Turnip-1.19-b_Axxx.zip", "v1.19", false, DriverPairs.WN_BALANCED),

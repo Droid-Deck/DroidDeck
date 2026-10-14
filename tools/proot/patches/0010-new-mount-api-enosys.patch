@@ -15,8 +15,8 @@ index 1d3b3fd..32d2503 100644
  		status = -ENOSYS;
  		break;
  
-+	/* The new mount API opens and moves paths proot never sees: open_tree(AT_FDCWD, "/")
-+	 * hands back the host's root. Callers (libglnx, systemd) fall back to openat. */
++
++
 +	case PR_open_tree:
 +	case PR_move_mount:
 +	case PR_fspick:

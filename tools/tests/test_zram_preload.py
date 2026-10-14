@@ -47,7 +47,6 @@ static uint64_t sum(const unsigned char *p, size_t n) {
   return s;
 }
 
-/* Rewrites its pages with a round number and checks every page it wrote last round. */
 static void *writer(void *arg) {
   unsigned char *mine = shared + (size_t)(uintptr_t)arg * (size / 4);
   for (unsigned char round = 1; !stop; round++) {
@@ -78,7 +77,6 @@ int main(int argc, char **argv) {
   sigaction(SIGURG, NULL, &sa);
   printf("handler %d\n", (sa.sa_flags & SA_SIGINFO) ? 1 : 0);
   if (argc > 4) {
-    /* Read-only memory the process never pages out itself, swapped as the kernel would. */
     unsigned char *ro = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     memset(ro, 0x5a, size);
     mprotect(ro, size, PROT_READ);

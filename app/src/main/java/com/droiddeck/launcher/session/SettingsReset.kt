@@ -6,15 +6,6 @@ import com.droiddeck.launcher.core.GameEnvironment
 import com.droiddeck.launcher.input.ControllerPrefs
 import com.droiddeck.launcher.runtime.LinuxRuntime
 
-/**
- * Setup's "Reset all settings": every choice goes back to the default its getter falls back to.
- *
- * Only settings are removed. The "session" file also holds the library (added games' names, exes,
- * appids and art picks), migration records, the drivers Auto installed, the storage and ROMs
- * folders and the one-time permission prompts; those stay, as do store sign-ins, imported drivers
- * and Lossless Scaling. Game profiles (each game's and the Default profile's environment
- * overrides) are cleared only when asked for.
- */
 object SettingsReset {
     private const val TAG = "SettingsReset"
 
@@ -30,11 +21,9 @@ object SettingsReset {
         "guestHostname", "fexPreset", "forceSsbs", "logs", "storageDiagnostics",
         "upscaler", "upscaleSharpness", "screenEffects", "textureAnisotropy", "textureLodBias",
         "steamDownloadsInBackground", "steam_offline",
-        // Cleared so the Quest's one-time compatibility defaults are written again.
         "questDefaultsV1",
     )
 
-    /** Per-mode settings, stored as "<prefix><mode>". */
     internal val SESSION_PREFIXES = listOf(
         "resolutionCap.", "displayResolution.", "customRes.", "hdr.", "fpsLimit.", "suspendPolicy.",
     )
@@ -43,13 +32,6 @@ object SettingsReset {
 
     internal fun isSessionSetting(key: String) = key in SESSION_KEYS || SESSION_PREFIXES.any { key.startsWith(it) }
 
-    /**
-     * Resets the settings, then per-game profiles when [gameProfiles] is set ([gameScopes] are the
-     * library's profile keys; scopes with saved overrides are found on their own). Blocking: call
-     * off the main thread. Returns false if a part could not be reset; the rest is still done.
-     * The language is not reset here: AppLanguage.setChosen changes the process locale, so the
-     * caller does that on the main thread.
-     */
     fun resetAll(context: Context, gameProfiles: Boolean, gameScopes: Collection<String> = emptyList()): Boolean {
         var ok = true
         val session = context.getSharedPreferences("session", Context.MODE_PRIVATE)
