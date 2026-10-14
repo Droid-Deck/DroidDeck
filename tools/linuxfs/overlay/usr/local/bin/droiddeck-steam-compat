@@ -457,21 +457,13 @@ class Helper:
             raw_mapping = COMPAT["read_config_mapping"](
                 os.path.join(self.steam_root, "config", "config.vdf"))
             if raw_mapping is None:
-                # A persisted native choice survives a transient unreadable config too. The live
-                # API exposes the inherited global tool in this case; it is not evidence of an
-                # explicit per-game selection. A later valid read will still honor any raw choice.
                 for app in native_choices:
                     current[app] = ""
             else:
                 for app in set(native) | native_choices:
                     if app in raw_mapping:
-                        # The config file records explicit choices, while GetCompatTools exposes
-                        # Steam's resolved fallback for an empty/inherited per-game choice.
                         current[app] = raw_mapping[app]
                     elif app in prior_auto or app in native_choices:
-                        # Steam removes CompatToolMapping altogether for its native choice. The
-                        # live API reports the inherited global Proton in this case, so use raw
-                        # absence plus our previous ownership to preserve the opt-out.
                         current[app] = ""
             changes, auto = COMPAT["plan_mapping"](
                 current, installed, [t["name"] for t in live], default,

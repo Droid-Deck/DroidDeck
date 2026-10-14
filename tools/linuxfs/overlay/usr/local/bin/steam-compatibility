@@ -790,14 +790,9 @@ def native_targets(steam_root, apps):
         if kind not in PLAYABLE_TYPES or "linux" not in oslist:
             continue
         if "arm64" in osarch or "aarch64" in osarch:
-            # Leave an ARM64 Linux title to Steam's native Linux runtime. Mapping it to the
-            # global Proton tool makes Steam try to run an ARM64 Linux executable through Wine.
             targets[app] = None
             continue
         if "windows" in oslist:
-            # A Linux launch exists, but appinfo alone does not tell us whether Steam's missing
-            # per-game mapping is an intentional native choice. The plan preserves it only when
-            # config/state shows a user selection; new titles still follow the Proton default.
             targets[app] = NATIVE_CHOICE
             continue
         targets[app] = FEX_TOOL
@@ -910,27 +905,17 @@ def plan_mapping(current, installed, runnable, default, auto, native=None, picks
             continue
         mine = auto.get(app)
         target = native.get(app, default)
-        # A saved native choice remains authoritative when Steam temporarily omits the app from
-        # its installed/pick lists or appinfo is unavailable during startup. An explicit per-app
-        # mapping above still wins because `name` is non-empty in that case.
         if not name and app in native_choices:
             target = NATIVE_CHOICE
         stale = unrunnable(name, runnable)
         if name and not stale and (mine is None or name != mine):
             continue
         if target is NATIVE_CHOICE:
-            # Steam removes CompatToolMapping when the user chooses its native Linux option. A
-            # prior DroidDeck mapping in `auto` distinguishes that choice from a new install with
-            # no per-game entry; persist the opt-out so the scanner does not restore Proton later.
             if not name and (app in native_choices or app in current or app in managed):
                 kept[app] = NATIVE_CHOICE
                 continue
             target = default
         if target is None:
-            # An empty Steam mapping is the native default for ARM64 Linux titles. Clear only
-            # a mapping DroidDeck previously wrote; a non-Proton per-game choice belongs to Steam.
-            # Legacy state may infer followers from their mapping, so require explicit managed-state
-            # evidence before removing a choice that could have been selected in Steam.
             if stale:
                 target = default
                 if name != target:

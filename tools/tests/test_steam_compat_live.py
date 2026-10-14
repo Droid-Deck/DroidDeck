@@ -291,8 +291,6 @@ class ReconcileTest(unittest.TestCase):
             app: COMPAT["NATIVE_CHOICE"]
         } if app in apps else {}
         try:
-            # CompatManager reports the inherited Proton despite there being no raw per-game
-            # entry. Prior auto ownership plus that absence is the native-choice evidence.
             page = FakePage({"0": TOOL, "10": TOOL, "11": TOOL, app: "proton"}, [TOOL, TOOL_11])
             state = self.reconcile(page)
             self.assertEqual(page.sets, [])
@@ -300,8 +298,6 @@ class ReconcileTest(unittest.TestCase):
             self.assertEqual(state["native"], [app])
             self.assertEqual(COMPAT["read_config_mapping"](str(config)), {"0": TOOL})
 
-            # Repeated live reconciliation and a fresh helper process retain the opt-out without
-            # attempting to set the inherited global value as a per-game Proton.
             page.sets.clear()
             state = self.reconcile(page)
             self.assertEqual(page.sets, [])
@@ -313,8 +309,6 @@ class ReconcileTest(unittest.TestCase):
             self.assertEqual(page.sets, [])
             self.assertEqual(state["native"], [app])
 
-            # A real explicit per-game tool in config remains authoritative and clears the
-            # persisted native marker.
             config.write_text(
                 '"InstallConfigStore" { "Software" { "Valve" { "Steam" { '
                 '"CompatToolMapping" { "0" { "name" "%s" } '
@@ -360,8 +354,6 @@ class ReconcileTest(unittest.TestCase):
         original_native_targets = COMPAT["native_targets"]
         COMPAT["native_targets"] = lambda _root, _apps: {}
         try:
-            # The game is absent from installed_apps and appinfo. Steam's page still reports the
-            # inherited global Proton, but a valid config with no per-app entry proves native.
             page = FakePage({"0": TOOL, app: "proton"}, [TOOL, TOOL_11])
             state = self.reconcile(page)
             self.assertNotIn(app, self.helper.installed)
@@ -370,15 +362,11 @@ class ReconcileTest(unittest.TestCase):
             self.assertNotIn((app, TOOL), page.sets)
             self.assertEqual(COMPAT["read_config_mapping"](str(config)), {"0": TOOL})
 
-            # A transiently malformed VDF cannot tell an inherited Proton from an explicit
-            # per-game choice, so retain the already-persisted native selection without writing.
             config.write_text('"InstallConfigStore" { "Software" { "Other" {} } }')
             state = self.reconcile(page)
             self.assertEqual(state["native"], [app])
             self.assertNotIn((app, TOOL), page.sets)
 
-            # A real raw per-app tool selection supersedes the saved native choice even while
-            # appinfo is unavailable; the native marker must not mask GE-Proton or FEX.
             config.write_text(
                 '"InstallConfigStore" { "Software" { "Valve" { "Steam" { '
                 '"CompatToolMapping" { "0" { "name" "%s" } '

@@ -514,13 +514,10 @@ class ProtonDefaultTest(unittest.TestCase):
                 app: COMPAT["NATIVE_CHOICE"]
             } if app in wanted else {}
             try:
-                # The main compatibility scan sees the installed native game.
                 COMPAT["register_default"](
                     str(config), [app], catalog=self.CATALOG, directory=tmp)
                 self.assertEqual(json.loads((root / "state.json").read_text())["native"], [app])
 
-                # droiddeck-steam-shortcuts runs a second scan using only its own shortcut IDs.
-                # That pass must not forget the earlier native choice while mapping the new game.
                 COMPAT["register_default"](
                     str(config), [added_shortcut], catalog=self.CATALOG, directory=tmp)
                 state = json.loads((root / "state.json").read_text())
@@ -551,7 +548,6 @@ class ProtonDefaultTest(unittest.TestCase):
                 native = COMPAT["native_targets"](str(steam), ["427520"])
                 self.assertIs(native["427520"], COMPAT["NATIVE_CHOICE"])
 
-                # An absent mapping on a new install still follows the existing Proton default.
                 changes, auto = COMPAT["plan_mapping"](
                     {"0": self.TOOL}, ["427520"], self.NAMES, self.TOOL, {}, native)
                 self.assertEqual(changes, {"427520": self.TOOL})
@@ -561,8 +557,6 @@ class ProtonDefaultTest(unittest.TestCase):
                     str(config), ["427520"], catalog=self.CATALOG, directory=tmp)
                 self.assertEqual(mapping_of(config.read_text()), {"0": self.TOOL, "427520": self.TOOL})
 
-                # Steam's native choice removes the per-game mapping. Prior auto state is the
-                # evidence that this removal is intentional rather than a new install.
                 state["auto"] = {"427520": self.TOOL}
                 (Path(tmp) / "state.json").write_text(json.dumps(state))
                 config.write_text(config_text([("0", self.TOOL)]))
@@ -597,8 +591,6 @@ class ProtonDefaultTest(unittest.TestCase):
                     self.assertEqual(mapping_of(config.read_text()), {"0": self.TOOL, "427520": choice})
                     self.assertEqual(json.loads((Path(tmp) / "state.json").read_text())["native"], [])
 
-                # A later explicit built-in Proton choice must cancel the native opt-out and
-                # resume the existing wrapper path even though Steam deleted the original map.
                 state = json.loads((Path(tmp) / "state.json").read_text())
                 state["native"] = ["427520"]
                 state["auto"] = {}
