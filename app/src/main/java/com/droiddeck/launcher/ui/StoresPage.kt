@@ -171,6 +171,8 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current
     var focusMove by remember { mutableStateOf<Pair<String, Int>?>(null) }
     var lastOpened by remember { mutableStateOf<String?>(null) }
+    val heroFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+    var detailFocused by remember { mutableStateOf(false) }
     fun move(kind: String) { focusMove = kind to (focusMove?.second ?: 0) + 1 }
     fun open(key: String) { lastOpened = key; openGame = key; move("detail") }
     fun closeGame() { openGame = null; move("card") }
@@ -238,8 +240,6 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
         fun target(): Pair<androidx.compose.ui.focus.FocusRequester, String?>? {
             val kind = focusMove?.first
             return when {
-                openGame != null -> if (ff.primaryAttached > 0) ff.primary to FrontFocus.PRIMARY
-                    else "back:${store?.label}".let { id -> ff.items[id]?.takeIf { attached(id) }?.let { it to id } }
                 kind == "card" -> lastOpened?.let { "card:$it" }?.let { id -> ff.items[id]?.takeIf { attached(id) }?.let { it to id } }
                     ?: ff.firstTile.takeIf { ff.firstTileAttached > 0 }?.let { it to null }
                 kind == "first" -> ff.firstTile.takeIf { ff.firstTileAttached > 0 }?.let { it to null }
@@ -250,6 +250,16 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
             }
         }
         repeat(60) { if (!HeldKeys.confirm) return@repeat; androidx.compose.runtime.withFrameNanos { } }
+        if (openGame != null) {
+            val back = "back:${ctx.getString(R.string.common_back)}"
+            repeat(45) { n ->
+                androidx.compose.runtime.withFrameNanos { }
+                if (detailFocused) return@LaunchedEffect
+                val req = if (n < 20) heroFocus else ff.items[back]?.takeIf { attached(back) } ?: heroFocus
+                runCatching { req.requestFocus() }
+            }
+            return@LaunchedEffect
+        }
         repeat(45) {
             androidx.compose.runtime.withFrameNanos { }
             val (req, id) = target() ?: return@repeat
@@ -374,7 +384,12 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                             Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { } }
                                 .verticalScroll(detailScroll).padding(top = 4.dp, bottom = 16.dp),
                         ) {
-                            if (detailStore != null) Column(Modifier.fillMaxWidth().focusGroup()) { StoreGameDetail(detailStore, key, s, a, onBack = { closeGame() }) }
+                            if (detailStore != null) Column(
+                                Modifier.fillMaxWidth()
+                                    .onFocusChanged { detailFocused = it.hasFocus }
+                                    .focusProperties { exit = { if (coveringNow.value) androidx.compose.ui.focus.FocusRequester.Cancel else androidx.compose.ui.focus.FocusRequester.Default } }
+                                    .focusGroup(),
+                            ) { StoreGameDetail(detailStore, key, s, a, heroFocus, onBack = { closeGame() }) }
                         }
                     }
                     val from = detailFrom
