@@ -1,189 +1,130 @@
 package com.droiddeck.launcher.stores.epic
 
 import android.util.Log
+import com.droiddeck.launcher.BuildConfig
 import com.droiddeck.launcher.stores.StoresNative
+import org.json.JSONObject
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicReference
 
 object EpicNative {
     private const val TAG = "EpicNative"
+    private const val CANCEL_POLL_MS = 250L
 
-    interface Listener {
-        fun onPlan(chunksTotal: Int, bytesTotal: Long, chunkDir: String)
-        fun onProgress(bytesDone: Long, bytesTotal: Long, done: Int, total: Int)
-        fun onLog(line: String)
-        fun onComplete(success: Boolean, error: String, bytes: Long)
-    }
+    @Volatile private var configured = false
 
-    interface InstallListener : Listener {
-        /** Synchronous approval before the first verified atomic replacement. False aborts. */
-        fun beforeSwap(): Boolean
-    }
-
-    /** One native budgeted fetch/assembly run. A loaded-engine failure is never a Java retry. */
-    @JvmStatic
-    fun installAdaptive(request: String, cancel: AtomicBoolean, listener: InstallListener): Result =
-        drive("nativeInstallAdaptive", cancel, listener, strict = true) { inner ->
-            nativeInstallAdaptive(request, inner)
-        }
-
-    /** Callbacks from a [stream] run; every method is called on a native thread. */
-    interface StreamListener {
-        /** File bytes written so far (staging included), and the files verified and swapped in so far. */
-        fun onStreamProgress(bytesWritten: Long, bytesTotal: Long, filesDone: Int, filesTotal: Int, filesBytes: Long)
-        /** Engine log line (already in logcat under `EpicNative`). */
-        fun onLog(line: String)
-        /** Once, before the first file replaces its destination; false (or a throw) fails the run with nothing replaced. */
-        fun onBeforeReplace(): Boolean
-        /** Terminal; `bytes` = file bytes written. */
-        fun onComplete(success: Boolean, error: String, bytes: Long)
-    }
-
-    class Result(
-        @JvmField val started: Boolean, @JvmField val success: Boolean, @JvmField val cancelled: Boolean,
-        @JvmField val error: String, @JvmField val bytes: Long, @JvmField val done: Int, @JvmField val total: Int,
-    )
-
-    private class Completion(val success: Boolean, val error: String, val bytes: Long)
-
-    @JvmStatic
-    fun run(
-        manifest: ByteArray, installDir: String, chunkCacheDir: String, cdnPrefixes: Array<String>, pendingFileIdx: IntArray, expectedChunks: Int, expectedBytes: Long,
-        caBundlePath: String, maxWorkers: Int, processWorkers: Int, cancel: AtomicBoolean?, listener: Listener,
-    ): Result = drive("nativeStart", cancel, listener) { inner ->
-        nativeStart(manifest, installDir, chunkCacheDir, cdnPrefixes, pendingFileIdx, expectedChunks, expectedBytes, caBundlePath, maxWorkers, processWorkers, inner)
-    }
-
-    @JvmStatic
-    fun assemble(manifest: ByteArray, installDir: String, chunkCacheDir: String, fileIdx: IntArray, cancel: AtomicBoolean?, listener: Listener): Result =
-        drive("nativeAssemble", cancel, listener) { inner -> nativeAssemble(manifest, installDir, chunkCacheDir, fileIdx, inner) }
-
-    /**
-     * The adaptive install of the files [pendingFileIdx] (indices into the manifest's file list),
-     * with at most [cacheBudget] bytes of shared chunks cached and at most [overlapBudget] planned
-     * bytes of replaced files staged at once (`-1` = no limit), staged in [stagingDir] (the
-     * manager's owned staging directory). `started == false` means nothing was fetched or written.
-     */
-    @JvmStatic
-    fun stream(
-        manifest: ByteArray, installDir: String, chunkCacheDir: String, stagingDir: String, cdnPrefixes: Array<String>, pendingFileIdx: IntArray, expectedBytes: Long,
-        cacheBudget: Long, overlapBudget: Long, caBundlePath: String, maxWorkers: Int, processWorkers: Int, cancel: AtomicBoolean?, listener: StreamListener,
-    ): Result {
-        if (!StoresNative.ensureLoaded()) return Result(false, false, false, "engine not built", 0L, 0, 0)
-        val latch = CountDownLatch(1)
-        val completion = AtomicReference<Completion?>(null)
-        val doneRef = AtomicReference(0)
-        val totalRef = AtomicReference(pendingFileIdx.size)
-        val inner = object : StreamListener {
-            override fun onStreamProgress(bytesWritten: Long, bytesTotal: Long, filesDone: Int, filesTotal: Int, filesBytes: Long) {
-                doneRef.set(filesDone); totalRef.set(filesTotal)
-                listener.onStreamProgress(bytesWritten, bytesTotal, filesDone, filesTotal, filesBytes)
-            }
-            override fun onLog(line: String) = listener.onLog(line)
-            override fun onBeforeReplace(): Boolean = runCatching { listener.onBeforeReplace() }.getOrDefault(false)
-            override fun onComplete(success: Boolean, error: String, bytes: Long) {
-                completion.set(Completion(success, error, bytes))
-                latch.countDown()
-                runCatching { listener.onComplete(success, error, bytes) }
+    fun ready(): Boolean {
+        if (!StoresNative.ensureLoaded()) return false
+        if (!configured) synchronized(this) {
+            if (!configured) {
+                runCatching { nativeConfigure(BuildConfig.VERSION_NAME) }
+                    .onFailure { Log.w(TAG, "configure: ${it.javaClass.simpleName}") }
+                configured = true
             }
         }
-        val handle: Long = try {
-            nativeStream(manifest, installDir, chunkCacheDir, stagingDir, cdnPrefixes, pendingFileIdx, expectedBytes, cacheBudget, overlapBudget, caBundlePath, maxWorkers, processWorkers, inner)
+        return true
+    }
+
+    fun call(op: String, request: JSONObject = JSONObject()): JSONObject? {
+        if (!ready()) return null
+        val text = try {
+            nativeCall(op, request.toString())
         } catch (t: Throwable) {
-            Log.w(TAG, "engine unavailable: ${t.javaClass.simpleName}: ${t.message}")
-            return Result(false, false, false, "nativeStream: ${t.javaClass.simpleName}: ${t.message}", 0L, 0, 0)
+            Log.w(TAG, "$op: ${t.javaClass.simpleName}")
+            null
+        } ?: return null
+        return runCatching { JSONObject(text) }.getOrNull()
+    }
+
+    fun fetch(op: String, request: JSONObject): ByteArray? {
+        if (!ready()) return null
+        return try {
+            nativeFetch(op, request.toString())
+        } catch (t: Throwable) {
+            Log.w(TAG, "$op: ${t.javaClass.simpleName}")
+            null
         }
-        if (handle == 0L) return Result(false, false, false, completion.get()?.error ?: "not started", 0L, 0, totalRef.get())
-        var cancelSent = false
+    }
+
+    fun send(op: String, request: JSONObject, body: ByteArray): JSONObject? {
+        if (!ready()) return null
+        val text = try {
+            nativeSend(op, request.toString(), body)
+        } catch (t: Throwable) {
+            Log.w(TAG, "$op: ${t.javaClass.simpleName}")
+            null
+        } ?: return null
+        return runCatching { JSONObject(text) }.getOrNull()
+    }
+
+    fun inspect(manifest: ByteArray, request: JSONObject): JSONObject? {
+        if (!ready()) return null
+        val text = try {
+            nativeInspect(manifest, request.toString())
+        } catch (t: Throwable) {
+            Log.w(TAG, "inspect: ${t.javaClass.simpleName}")
+            null
+        } ?: return null
+        return runCatching { JSONObject(text) }.getOrNull()
+    }
+
+    interface InstallListener {
+        fun onStatus(text: String)
+        fun onCheck(doneBytes: Long, totalBytes: Long, files: Int, filesTotal: Int)
+        fun onSizes(pendingBytes: Long, diskBytes: Long)
+        fun onProgress(written: Long, total: Long, files: Int, filesTotal: Int)
+        fun onInstall(done: Long, total: Long, files: Int, filesTotal: Int)
+        fun onLog(line: String)
+        fun beforeReplace(): Boolean
+        fun onComplete(success: Boolean, cancelled: Boolean, error: String, result: String)
+    }
+
+    class InstallOutcome(val success: Boolean, val cancelled: Boolean, val error: String, val result: JSONObject?)
+
+    fun install(request: JSONObject, events: InstallListener, cancelled: AtomicBoolean): InstallOutcome {
+        if (!ready()) return InstallOutcome(false, false, "Native Epic install failed: the store engine is not available", null)
+        val done = CountDownLatch(1)
+        val holder = arrayOfNulls<InstallOutcome>(1)
+        val bridge = object : InstallListener by events {
+            override fun onComplete(success: Boolean, cancelled: Boolean, error: String, result: String) {
+                holder[0] = InstallOutcome(success, cancelled, error, result.takeIf { it.isNotEmpty() }?.let { runCatching { JSONObject(it) }.getOrNull() })
+                done.countDown()
+            }
+        }
+        val handle = try {
+            nativeInstall(request.toString(), bridge)
+        } catch (t: Throwable) {
+            return InstallOutcome(false, false, "Native Epic install failed: ${t.javaClass.simpleName}", null)
+        }
+        if (handle == 0L) return holder[0] ?: InstallOutcome(false, false, "Native Epic install failed: the install could not start", null)
         try {
-            while (!latch.await(250, TimeUnit.MILLISECONDS)) {
-                if (!cancelSent && cancel != null && cancel.get()) {
+            var forwarded = false
+            while (true) {
+                val finished = try {
+                    done.await(CANCEL_POLL_MS, TimeUnit.MILLISECONDS)
+                } catch (e: InterruptedException) {
+                    cancelled.set(true)
+                    false
+                }
+                if (finished) break
+                if (!forwarded && cancelled.get()) {
                     nativeCancel(handle)
-                    cancelSent = true
+                    forwarded = true
                 }
             }
         } finally {
-            if (completion.get() == null) nativeCancel(handle)
             nativeRelease(handle)
         }
-        val c = completion.get()
-        val cancelled = cancelSent || (c != null && !c.success && c.error == "cancelled")
-        val success = !cancelled && c != null && c.success
-        val error = when { cancelled -> "cancelled"; c == null -> "no completion"; else -> c.error }
-        return Result(true, success, cancelled, error, c?.bytes ?: 0L, doneRef.get(), totalRef.get())
+        return holder[0] ?: InstallOutcome(false, false, "Native Epic install failed: no result", null)
     }
 
-    private fun drive(what: String, cancel: AtomicBoolean?, listener: Listener, strict: Boolean = false, start: (Listener) -> Long): Result {
-        if (!StoresNative.ensureLoaded()) return Result(false, false, false, "engine not built", 0L, 0, 0)
-        val latch = CountDownLatch(1)
-        val completion = AtomicReference<Completion?>(null)
-        val doneRef = AtomicReference(0)
-        val totalRef = AtomicReference(0)
-        val inner = object : InstallListener {
-            override fun beforeSwap(): Boolean = (listener as? InstallListener)?.beforeSwap() ?: false
-            override fun onPlan(chunksTotal: Int, bytesTotal: Long, chunkDir: String) { totalRef.set(chunksTotal); listener.onPlan(chunksTotal, bytesTotal, chunkDir) }
-            override fun onProgress(bytesDone: Long, bytesTotal: Long, done: Int, total: Int) { doneRef.set(done); totalRef.set(total); listener.onProgress(bytesDone, bytesTotal, done, total) }
-            override fun onLog(line: String) = listener.onLog(line)
-            override fun onComplete(success: Boolean, error: String, bytes: Long) {
-                completion.set(Completion(success, error, bytes))
-                latch.countDown()
-                runCatching { listener.onComplete(success, error, bytes) }
-            }
-        }
-        val handle: Long = try {
-            start(inner)
-        } catch (t: Throwable) {
-            Log.w(TAG, "${if (strict) "engine start failed (no fallback)" else "engine unavailable"}: ${t.javaClass.simpleName}: ${t.message}")
-            return Result(strict, false, false, "$what: ${t.javaClass.simpleName}: ${t.message}", 0L, 0, 0)
-        }
-        if (handle == 0L) return Result(strict, false, false, completion.get()?.error ?: "not started", 0L, 0, totalRef.get())
-        var cancelSent = false
-        try {
-            while (!latch.await(250, TimeUnit.MILLISECONDS)) {
-                if (cancel != null && cancel.get()) {
-                    nativeCancel(handle)
-                    cancelSent = true
-                    if (strict) {
-                        while (!latch.await(250, TimeUnit.MILLISECONDS)) { }
-                    } else {
-                        latch.await(5, TimeUnit.SECONDS)
-                    }
-                    break
-                }
-            }
-        } finally {
-            if (completion.get() == null) nativeCancel(handle)
-            nativeRelease(handle)
-        }
-        val c = completion.get()
-        val success = !cancelSent && c != null && c.success
-        val error = when { cancelSent -> "cancelled"; c == null -> "no completion"; else -> c.error }
-        return Result(true, success, cancelSent, error, c?.bytes ?: 0L, doneRef.get(), totalRef.get())
-    }
-
-    @JvmStatic
-    private external fun nativeInstallAdaptive(request: String, listener: Listener): Long
-
-    @JvmStatic
-    private external fun nativeStart(
-        manifest: ByteArray, installDir: String, chunkCacheDir: String, cdnPrefixes: Array<String>, pendingFileIdx: IntArray, expectedChunks: Int, expectedBytes: Long,
-        caBundlePath: String, maxWorkers: Int, processWorkers: Int, listener: Listener,
-    ): Long
-
-    @JvmStatic
-    private external fun nativeAssemble(manifest: ByteArray, installDir: String, chunkCacheDir: String, fileIdx: IntArray, listener: Listener): Long
-
-    @JvmStatic
-    private external fun nativeStream(
-        manifest: ByteArray, installDir: String, chunkCacheDir: String, stagingDir: String, cdnPrefixes: Array<String>, pendingFileIdx: IntArray, expectedBytes: Long,
-        cacheBudget: Long, overlapBudget: Long, caBundlePath: String, maxWorkers: Int, processWorkers: Int, listener: StreamListener,
-    ): Long
-
-    @JvmStatic
-    private external fun nativeCancel(handle: Long)
-
-    @JvmStatic
-    private external fun nativeRelease(handle: Long)
+    @JvmStatic private external fun nativeConfigure(appVersion: String)
+    @JvmStatic private external fun nativeCall(op: String, request: String): String?
+    @JvmStatic private external fun nativeFetch(op: String, request: String): ByteArray?
+    @JvmStatic private external fun nativeSend(op: String, request: String, body: ByteArray): String?
+    @JvmStatic private external fun nativeInspect(manifest: ByteArray, request: String): String?
+    @JvmStatic private external fun nativeInstall(request: String, listener: InstallListener): Long
+    @JvmStatic private external fun nativeCancel(handle: Long)
+    @JvmStatic private external fun nativeRelease(handle: Long)
 }
