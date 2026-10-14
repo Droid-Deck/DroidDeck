@@ -20,23 +20,11 @@ import java.net.Socket
 import java.net.URL
 import java.security.SecureRandom
 
-/**
- * Adds and removes a store game's shortcut in a Steam client that is running right now, so it
- * shows without waiting for the next client start. The runtime starts the client with its
- * DevTools port open (droiddeck-session writes it to session/agent/cdp-port) and the client's own
- * JavaScript API has `SteamClient.Apps.AddShortcut`; this speaks the small part of the DevTools
- * protocol that one `Runtime.evaluate` needs, over a plain socket, nothing else.
- *
- * Best-effort throughout: no session, no port, no SharedJSContext, or an API that moved and the
- * shortcut simply arrives with the shortcuts writer at the next start. The appid Steam derives
- * (CRC of the quoted exe plus the name) is the one the writer computes, so the two never disagree.
- */
 object SteamLiveShortcuts {
     private const val TAG = "SteamLive"
     private const val TAG_NAME = "droiddeck-app"
     private const val COMPAT_TOOL = "droiddeck-proton-arm64"
 
-    /** Adds every game in [games] that [include] takes (store games by default) and the client does not list yet. Blocking; worker thread. */
     fun sync(context: Context, games: List<AddedGames.Game>, include: (AddedGames.Game) -> Boolean = { it.source != Library.ADDED }) {
         val wanted = games.filter(include)
         if (wanted.isEmpty() || !clientRunning()) return
@@ -64,17 +52,12 @@ object SteamLiveShortcuts {
         if (result != "0") StoresState.logLine("Steam: $result shortcut(s) added to the running client")
     }
 
-    /** Removes the shortcut with [appId] from the running client. Blocking; worker thread. */
     fun remove(context: Context, appId: Long) {
         if (!clientRunning()) return
         val result = evaluate(context, "(async () => { await SteamClient.Apps.RemoveShortcut(${appId and 0xFFFFFFFFL}); return 1; })()")
         if (result != null) Log.i(TAG, "live shortcuts: removed $appId")
     }
 
-    /**
-     * The running client's shortcut for [game] made to match it: name, target, Start in and
-     * launch options, on the same appid (an edit never adds a second shortcut). Blocking.
-     */
     fun update(context: Context, game: AddedGames.Game) {
         if (!clientRunning()) return
         val id = game.appId and 0xFFFFFFFFL
@@ -91,11 +74,6 @@ object SteamLiveShortcuts {
         if (evaluate(context, js) != null) Log.i(TAG, "live shortcuts: updated $id")
     }
 
-    /**
-     * One piece of art for the running client's shortcut [appId]: [assetType] as the client numbers
-     * them (0 portrait capsule, 1 hero, 2 logo, 3 wide capsule), from [file]; null clears it. The
-     * icon goes by path ([iconPath]). Blocking.
-     */
     fun setArt(context: Context, appId: Long, assetType: Int?, file: java.io.File?, iconPath: String? = null) {
         if (!clientRunning()) return
         val id = appId and 0xFFFFFFFFL
@@ -114,7 +92,6 @@ object SteamLiveShortcuts {
 
     private fun clientRunning(): Boolean = SessionState.running && SessionState.mode == SessionService.MODE_STEAM && !SessionState.stopRequested
 
-    /** `Runtime.evaluate` of [expression] in the client's SharedJSContext; the value as text, or null. */
     private fun evaluate(context: Context, expression: String): String? {
         val portFile = File(LinuxRuntime.sessionRoot(context), "agent/cdp-port")
         val port = runCatching { portFile.readText().trim().toInt() }.getOrNull() ?: return null
@@ -152,7 +129,6 @@ object SteamLiveShortcuts {
         try { return c.inputStream.bufferedReader().readText() } finally { c.disconnect() }
     }
 
-    /** The least of RFC 6455 a localhost DevTools talk needs: upgrade, masked text out, text in. */
     private class WebSocket(url: String, timeoutMs: Int) : AutoCloseable {
         private val socket: Socket
         private val out: OutputStream
@@ -198,7 +174,6 @@ object SteamLiveShortcuts {
             out.write(frame.toByteArray()); out.flush()
         }
 
-        /** The next text message (fragments joined); null on close. */
         fun receiveText(): String? {
             val message = ByteArrayOutputStream()
             while (true) {

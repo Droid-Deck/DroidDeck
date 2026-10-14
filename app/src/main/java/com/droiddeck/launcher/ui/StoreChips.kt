@@ -17,16 +17,12 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.stores.Store
 
-// Where a game came from, as a small coloured chip: Steam, one of the stores, or an added folder.
 
-/** Flathub's own accent, as each store has one, and the ink that reads on it. */
 internal val FlathubTeal = Color(0xFF3FB8AF)
 internal val FlathubInk = Color(0xFF04211F)
 
-/** The Store rail section's source id, for its colours. */
 internal const val FLATHUB = "flathub"
 
-/** The chip's colours per source: a tinted ground and a readable ink on it, one pair per store. */
 internal class SourceColours(val fill: Color, val ink: Color, val dot: Color)
 
 internal fun sourceColours(source: String): SourceColours = when (source) {
@@ -47,7 +43,6 @@ internal fun sourceLabel(source: String): String = when (source) {
     else -> stringResource(R.string.source_added)
 }
 
-/** The source chip itself; [small] for a list row, the regular size for a hero or a card. */
 @Composable
 internal fun SourceChip(source: String, small: Boolean = false, modifier: Modifier = Modifier) {
     val c = sourceColours(source)
@@ -59,7 +54,6 @@ internal fun SourceChip(source: String, small: Boolean = false, modifier: Modifi
     )
 }
 
-/** A status chip in the stores' colours: green for done ("Installed"), blue for busy, amber for a warning. */
 @Composable
 internal fun StateChip(text: String, tone: ChipTone, small: Boolean = false) {
     val pal = LocalPalette.current

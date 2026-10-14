@@ -5,30 +5,10 @@ import android.os.Looper
 import android.view.MotionEvent
 import kotlin.math.abs
 
-/**
- * The screen as a touchpad, the way Bannerlator's desktop containers work: the arrow is where it
- * was, and a finger dragged anywhere moves it from there.
- *
- *  - drag one finger .................. moves the pointer (relative, with a little acceleration)
- *  - tap .............................. left click, where the pointer is
- *  - second finger taps while one holds  right click
- *  - two-finger tap ................... right click
- *  - two fingers up / down ............ scroll wheel
- *  - hold still, then drag ............ left-button drag
- *  - double-tap, hold, drag ........... left-button drag as well
- *  - one finger held, another slides .. left-button drag, as on a laptop's pad: the held finger is
- *                                       the button, the other moves the pointer (a window by its
- *                                       title bar or edge, a desktop icon). The sliding finger may
- *                                       lift and slide again; lifting the held one drops.
- *
- * Positions handed to the listener are the pointer's, in the view's pixels; the caller keeps them
- * inside the picture.
- */
 class TouchpadGestures(
     private val slopPx: Float,
     private val listener: PointerGestures.Listener,
 ) {
-    /** The pointer, tracked here since every move is relative. */
     var x = 0f
         private set
     var y = 0f
@@ -49,7 +29,6 @@ class TouchpadGestures(
     private var twoFingers = false
     private var scrollAnchorY = 0f
     private var scrolled = false
-    // Hold-and-slide: the first finger stays as the button, the second moves the pointer.
     private var anchorId = -1
     private var anchorStartX = 0f
     private var anchorStartY = 0f
@@ -106,7 +85,6 @@ class TouchpadGestures(
                 downAt = event.eventTime
                 travelled = 0f; held = false; twoFingers = false; scrolled = false; secondWasTap = false
                 anchorId = event.getPointerId(0); moverId = -1; holdDrag = false
-                // A tap shortly before this touch: holding now drags (double-tap-and-hold).
                 if (event.eventTime - lastTapAt < DOUBLE_TAP_MS) {
                     dragging = true
                     listener.onButton(PointerGestures.BTN_LEFT, true, x, y)
@@ -127,7 +105,6 @@ class TouchpadGestures(
                         anchorStartX = event.getX(it); anchorStartY = event.getY(it)
                     }
                 }
-                // Mid-drag, a finger coming back only picks the sliding up again.
                 if (holdDrag) return true
                 twoFingers = true
                 secondDownAt = event.eventTime
@@ -140,8 +117,6 @@ class TouchpadGestures(
                 val mi = if (moverId == -1) -1 else event.findPointerIndex(moverId)
                 if (ai >= 0 && mi >= 0) {
                     val mx = event.getX(mi); val my = event.getY(mi)
-                    // One finger still, the other on the move: that is a drag, not a scroll (which
-                    // moves both). Decided once, before anything has scrolled.
                     if (!holdDrag && !scrolled) {
                         val anchorMoved = abs(event.getX(ai) - anchorStartX) + abs(event.getY(ai) - anchorStartY)
                         val moverMoved = abs(mx - moverStartX) + abs(my - moverStartY)
@@ -165,7 +140,6 @@ class TouchpadGestures(
                         return true
                     }
                 } else if (holdDrag) {
-                    // Only the held finger is down: the drag waits for the next slide.
                     return true
                 }
                 if (twoFingers && event.pointerCount >= 2) {
@@ -186,7 +160,6 @@ class TouchpadGestures(
                 travelled += abs(dx) + abs(dy)
                 if (travelled > slopPx) {
                     handler.removeCallbacks(longPress)
-                    // A little acceleration: a slow finger is precise, a fast one crosses the screen.
                     val speed = (abs(dx) + abs(dy))
                     val gain = sensitivity * (1f + minOf(speed / 40f, 1.5f))
                     place(x + dx * gain, y + dy * gain)
@@ -198,7 +171,6 @@ class TouchpadGestures(
                 val gone = event.getPointerId(event.actionIndex)
                 if (holdDrag) {
                     if (gone == anchorId) {
-                        // The held finger lifted: drop. The other finger carries on as the pointer.
                         listener.onButton(PointerGestures.BTN_LEFT, false, x, y)
                         dragging = false; holdDrag = false; twoFingers = false
                         anchorId = moverId; moverId = -1
@@ -213,13 +185,11 @@ class TouchpadGestures(
                 }
                 if (gone == moverId) moverId = -1
                 if (gone == anchorId) {
-                    // The first finger left a two-finger gesture: the other one is the pointer now.
                     anchorId = event.getPointerId(if (event.actionIndex == 0) 1 else 0)
                     event.findPointerIndex(anchorId).takeIf { it >= 0 }?.let {
                         lastX = event.getX(it); lastY = event.getY(it)
                     }
                 }
-                // The second finger lifting quickly, with nothing scrolled: a right click.
                 if (twoFingers && secondWasTap && event.eventTime - secondDownAt < TAP_MS && !scrolled) {
                     click(PointerGestures.BTN_RIGHT)
                     secondWasTap = false
@@ -232,7 +202,6 @@ class TouchpadGestures(
                 when {
                     dragging -> listener.onButton(PointerGestures.BTN_LEFT, false, x, y)
                     twoFingers -> {
-                        // Both fingers down and up together, no scroll: a right click.
                         if (secondWasTap && !scrolled && !cancelled && event.eventTime - downAt < TAP_MS * 2) {
                             click(PointerGestures.BTN_RIGHT)
                         }

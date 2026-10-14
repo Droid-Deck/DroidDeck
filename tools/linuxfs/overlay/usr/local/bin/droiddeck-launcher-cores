@@ -22,14 +22,10 @@ import sys
 import time
 from pathlib import Path
 
-# Image paths (lower case, backslashes), matched at the end: the helpers held back, and the
-# programs whose window having focus means the user is looking at the launcher.
 HELPERS = ("\\rockstar games\\social club\\socialclubhelper.exe",)
 FRONTS = HELPERS + ("\\rockstar games\\launcher\\launcher.exe",)
 NICE = 19
 POLL = 2.0
-# How often a held launcher is looked over again: for a helper the unheld Launcher.exe started
-# since, and for threads the program has moved back.
 RESCAN = 10.0
 STEAM_CLIENT = 769
 
@@ -72,8 +68,6 @@ class Cores:
         try:
             os.sched_setaffinity(tid, cpus)
         except OSError:
-            # A mask outside the app's cpuset now (Android shrinks it in the background) is
-            # EINVAL; the session's own is always allowed.
             os.sched_setaffinity(tid, self.own())
         os.setpriority(os.PRIO_PROCESS, tid, nice)
 
@@ -83,7 +77,7 @@ class Holder:
         self.proc = proc
         self.cpufreq = cpufreq
         self.cores = cores or Cores()
-        self.held = {}  # pid -> {tid: (cpus, nice) before the hold}
+        self.held = {}
         self.core = None
 
     def slow_core(self):
@@ -117,10 +111,8 @@ class Holder:
                     if now != hold:
                         self.cores.set(tid, *hold)
                 except OSError:
-                    continue  # the thread ended
+                    continue
                 if tid not in before:
-                    # A thread that already has the hold inherited it from a held parent: it gets
-                    # what its process had, or the helpers' first.
                     before[tid] = now if now != hold else before.get(pid) or self.first() or now
         for pid in [pid for pid in self.held if not (self.proc / str(pid)).exists()]:
             del self.held[pid]
@@ -191,8 +183,6 @@ class Governor:
                 self.holder.release()
                 self.report("released: the launcher has focus")
             return
-        # Nothing to look for until a game has had focus: launchers only run for one, and a launcher
-        # left running after its game stays held through the Steam client's own focus.
         if self.app in (None, 0, STEAM_CLIENT) and not self.holder.held:
             return
         now = self.clock()

@@ -1,9 +1,3 @@
-/*
- * The two stores' cloud-save services, after Bannerlator's GogCloudSaveManager and
- * EpicCloudSaveManager (device-proven there, August 2026): GOG's cloudstorage (one object per
- * file, Last-Modified and an MD5 ETag on a HEAD) and Epic's savesync data storage (a listing with
- * lastModified and signed read links; signed write links asked for per upload).
- */
 package com.droiddeck.launcher.stores
 
 import java.io.ByteArrayOutputStream
@@ -16,17 +10,12 @@ import java.util.TimeZone
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** One file in a game's cloud: its key (a path with '/'), when it was written (-1 unknown) and its MD5 when known. */
 class CloudFile(val name: String, var modifiedMs: Long, var md5: String? = null, val readLink: String? = null)
 
-/** A store's cloud for one game. Every call is blocking network. */
 interface CloudTransport {
     fun list(): List<CloudFile>
-    /** Fills in [CloudFile.modifiedMs] / [CloudFile.md5] where the listing left them out. */
     fun details(file: CloudFile) {}
-    /** The file's bytes and its cloud time (-1 unknown). */
     fun get(file: CloudFile): Pair<ByteArray, Long>
-    /** Writes [files] (key → bytes); the cloud times assigned, where the service says (-1 unknown). */
     fun put(files: Map<String, ByteArray>): Map<String, Long>
 }
 
@@ -60,15 +49,12 @@ internal fun isoDate(s: String?): Long {
     } catch (e: Exception) { -1L }
 }
 
-/** Thrown when the store says the game has no cloud saves for this client. */
 class NoCloudSaves : Exception("no cloud saves")
 
-/** GOG cloudstorage: `/v1/<userId>/<clientId>[/<key>]`. */
 class GogCloud(private val userId: String, private val clientId: String, private val token: String) : CloudTransport {
     private val base = "https://cloudstorage.gog.com/v1/$userId/$clientId"
     private val ua = "GOG Galaxy"
 
-    /** A path segment: '+' from a space is wrong in a path (it stores a second, '+'-named copy). */
     private fun key(name: String) = URLEncoder.encode(name, "UTF-8").replace("+", "%20")
 
     override fun list(): List<CloudFile> {
@@ -84,7 +70,6 @@ class GogCloud(private val userId: String, private val clientId: String, private
         val text = c.body().decodeToString().trim()
         c.disconnect()
         if (text.isEmpty() || text == "[]") return emptyList()
-        // A plain newline-separated list of keys (checked on device); a JSON array is read too.
         if (text.startsWith("[")) {
             val a = JSONArray(text)
             return (0 until a.length()).mapNotNull { a.optJSONObject(it) }.mapNotNull { o ->
@@ -122,12 +107,10 @@ class GogCloud(private val userId: String, private val clientId: String, private
         val code = c.responseCode
         c.disconnect()
         if (code !in 200..299) throw java.io.IOException("GOG cloud put HTTP $code")
-        // The server stamps the object itself; that time, so the next sync sees the two as equal.
         CloudFile(name, -1L).also { details(it) }.modifiedMs
     }
 }
 
-/** Epic savesync: `/api/v1/access/egstore/savesync/<accountId>/<appName>/`. */
 class EpicCloud(private val accountId: String, private val appName: String, private val token: String) : CloudTransport {
     private val base = "https://datastorage-public-service-liveegs.live.use1a.on.epicgames.com/api/v1/access/egstore/savesync/$accountId/$appName/"
     private val ua = "EpicGamesLauncher/15.17.1-22692490"
@@ -146,7 +129,6 @@ class EpicCloud(private val accountId: String, private val appName: String, priv
         }.toList()
     }
 
-    /** The listing names a file `<...>/<appName>/<key>`; the key is what is under the save folder. */
     private fun strip(key: String): String {
         val marker = "/$appName/"
         val i = key.indexOf(marker)

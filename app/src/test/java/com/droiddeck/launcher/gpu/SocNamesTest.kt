@@ -8,7 +8,6 @@ class SocNamesTest {
     private fun props(vararg pairs: Pair<String, String>): (String) -> String = { pairs.toMap()[it].orEmpty() }
 
     @Test fun theModelIsFoundWhereVendorsPutIt() {
-        // AYANEO Pocket FIT: ro.soc.model blank, the vendor property set, ro.fota.platform a branch name.
         assertEquals("SG8350P", SocNames.model(props("ro.vendor.qti.soc_model" to "SG8350P", "ro.fota.platform" to "MSM_13.0")))
         assertEquals("QCS8550", SocNames.model(props("ro.soc.model" to "QCS8550", "ro.vendor.qti.soc_model" to "other")))
         assertEquals("", SocNames.model(props("ro.fota.platform" to "MSM_13.0")))

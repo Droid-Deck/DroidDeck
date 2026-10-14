@@ -53,11 +53,16 @@ def outputs(root):
     result['assets/pulseaudio.tzst'] = 'app/build/prepared-assets/pulseaudio.tzst'
     result['assets/graphics_driver/adrenotools-turnip25.1.0-quest1.tzst'] = \
         'app/build/prepared-assets/graphics_driver/adrenotools-turnip25.1.0-quest1.tzst'
+    for name in ['turnip26.3.0-a6xx', 'turnip26.3.0-quest2']:
+        result[f'assets/graphics_driver/adrenotools-{name}.tzst'] = \
+            f'app/build/prepared-assets/graphics_driver/adrenotools-{name}.tzst'
     return result
 
 
 def required():
     paths = ['assets/graphics_driver/adrenotools-turnip25.1.0-quest1.tzst']
+    paths += [f'assets/graphics_driver/adrenotools-{name}.tzst'
+              for name in ['turnip26.3.0-a6xx', 'turnip26.3.0-quest2']]
     paths += ['assets/linuxfs/' + name for name in ['libfakeinput.so', 'libblsession.so',
              'libblfastpath.so', 'libssbs.so', 'usr/local/bin/droiddeck-clipboard',
              'usr/local/bin/gamescope', 'usr/local/lib/droiddeck/uruntime']]
@@ -90,7 +95,6 @@ def required():
 
 
 def record(root=ROOT):
-    # Refresh scripts even on a CI native-cache hit; these are source, not cached binaries.
     if root == ROOT:
         from check_session_assets import source_assets
         for source, asset in source_assets().items():
@@ -107,7 +111,6 @@ def record(root=ROOT):
                 gzip.decompress((root / path).read_bytes())
             except (OSError, EOFError) as error:
                 raise ValueError('Invalid desktop removal inventory: ' + name) from error
-    # Check inside the compressed payload, where a plain Gradle build used to ship no sinks.
     process = subprocess.Popen(['zstd', '-dc', str(root / paths['assets/pulseaudio.tzst'])], stdout=subprocess.PIPE)
     try:
         with tarfile.open(fileobj=process.stdout, mode='r|') as archive:

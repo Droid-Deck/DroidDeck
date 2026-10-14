@@ -89,7 +89,6 @@ class ProtonExtraTest(unittest.TestCase):
             steam = Path(tmp) / "Steam"
             adopted = []
             real = subprocess.call
-            # tar runs for real; steam-compatibility (the adoption step) is only recorded.
             fake = lambda args, **kw: adopted.append(args) or 0 if args[0] == "steam-compatibility" else real(args, **kw)
             with mock.patch.object(GLOBALS["subprocess"], "call", fake), contextlib.redirect_stdout(io.StringIO()) as said:
                 with mock.patch.object(GLOBALS["sys"], "argv", ["droiddeck-proton-extra", str(steam), str(tarball)]):
@@ -98,7 +97,6 @@ class ProtonExtraTest(unittest.TestCase):
             self.assertEqual(sorted(os.listdir(tools)), [".droiddeck-download", "DroidDeck-Proton 11-7.5"])
             self.assertTrue((tools / "DroidDeck-Proton 11-7.5" / "toolmanifest.vdf").is_file())
             self.assertEqual(adopted, [["steam-compatibility", str(steam)]])
-            # The app reads the folder from this line, space and all.
             self.assertIn("droiddeck-proton-extra: installed DroidDeck-Proton 11-7.5\n", said.getvalue())
             self.assertEqual(EXTRA["installed"](str(tools)), ["DroidDeck-Proton 11-7.5"])
 

@@ -5,10 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.droiddeck.launcher.R
 
-// The rows the lifted sheets add to what the session settings already had: frame generation,
-// Performance and the link to the GPU drivers on Components.
 
-/** Frame generation, moved here from Setup: it is how Play's games are drawn. */
 @Composable
 internal fun FrameGenGroup(s: FrontEndState, a: FrontEndActions) {
     val host = rememberMenuHost()
@@ -22,10 +19,6 @@ internal fun FrameGenGroup(s: FrontEndState, a: FrontEndActions) {
     }
 }
 
-/**
- * Performance (CPU core assignment), opened from the sheet's Session chip: its page floods out of
- * this row, and Back draws it into the row again with the sheet lifted where it was.
- */
 @Composable
 internal fun PerformanceLink(a: FrontEndActions, rail: String, tab: String) {
     val id = "sheet:performance"
@@ -41,10 +34,6 @@ internal fun PerformanceLink(a: FrontEndActions, rail: String, tab: String) {
     }
 }
 
-/**
- * The GPU drivers in use, read only, and a link to where they are set: A hops to Components with
- * the GPU drivers layer chosen, and B there comes back to this row.
- */
 @Composable
 internal fun DriversLink(a: FrontEndActions, summary: String?, rail: String, back: String) {
     val id = "sheet:gpu-drivers"

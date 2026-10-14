@@ -3,6 +3,7 @@ package com.droiddeck.launcher.stores.gog
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreNet
@@ -14,18 +15,10 @@ import java.util.concurrent.Callable
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
-/**
- * The signed-in account's GOG library: the owned games from embed.gog.com's account listing, each
- * product's details from api.gog.com, and a cache so the tab paints at once. A sync fetches only what
- * the cache lacks unless forced or 15 minutes stale. Ported from Bannerlator's GogLibraryRepo.
- */
 object GogLibrary {
     private const val TAG = "GogLibrary"
-    // v2: the card art moved from the store page's backdrop to the Galaxy library art; an older cache is re-fetched.
     private const val CACHE_KEY = "library_cache_v2"
     private const val LAST_SYNC_KEY = "library_synced_at"
-    // Owned products that are not Windows games (DLC, films, soundtracks, other platforms): never in
-    // the cache, so without this every sync would fetch each of them again.
     private const val SKIPPED_KEY = "library_skipped"
     private const val THROTTLE_MS = 6L * 60L * 60L * 1000L
     // mediaType=1 leaves the movies and soundtracks out, hiddenFlag=0 the hidden ones.
@@ -46,7 +39,6 @@ object GogLibrary {
         object Busy : SyncResult
     }
 
-    /** The cached library, alphabetical; empty until the first sync. */
     fun cached(context: Context): List<GogGame> {
         val json = GogPrefs.get(context).getString(CACHE_KEY, null) ?: return emptyList()
         return runCatching {
@@ -62,21 +54,19 @@ object GogLibrary {
 
     fun sizeOf(context: Context, gameId: String): Long = GogPrefs.get(context).getLong("size_$gameId", 0L)
 
-    /** Owned games diffed against the cache; fetches what is new, or everything when forced / empty / stale. [onList] gets the whole library as soon as the account listing has it, [onItems] each product's details as they come back. Blocking. */
     fun sync(context: Context, force: Boolean = false, onStatus: (String) -> Unit = {}, onList: (List<GogGame>) -> Unit = {}, onItems: (List<GogGame>) -> Unit = {}): SyncResult {
         if (!syncing.compareAndSet(false, true)) return SyncResult.Busy
         try {
             val app = context.applicationContext
             val p = GogPrefs.get(app)
             val token = GogAuth.validToken(app) ?: return SyncResult.NotLoggedIn
-            onStatus("Fetching game list…")
+            onStatus(app.getString(R.string.stores_sync_game_list))
             val listing = ownedListing(token)
             // The listing is the only source of titles: without it the owned ids still sync, just without the early paint.
             val listed: List<GogGame> = listing
                 ?: ownedIds(token)?.map { GogGame(it, "", "", "", "", "", 1, null, "", "") }
-                ?: return SyncResult.Failed("Couldn't reach GOG")
+                ?: return SyncResult.Failed(app.getString(R.string.stores_sync_gog_unreachable))
             val named = listing != null
-            // In the stores' log, where a shared log can show what the account listing gave.
             StoresState.logLine(if (named) "GOG: listing ${listed.size} games" else "GOG: listing unreadable, ${listed.size} owned ids")
             val ownedSet = listed.mapTo(HashSet()) { it.gameId }
             val cachedList = cached(app)
@@ -102,7 +92,7 @@ object GogLibrary {
                 saveCache(p, list.filter { it.gameId in detailed })
                 return SyncResult.Ok(sorted(merged), 0)
             }
-            onStatus("Syncing ${idsToFetch.size} game${if (idsToFetch.size == 1) "" else "s"}…")
+            onStatus(app.resources.getQuantityString(R.plurals.stores_sync_games, idsToFetch.size, idsToFetch.size))
             val pool = Executors.newFixedThreadPool(5)
             val futures = idsToFetch.map { id -> pool.submit(Callable<GogGame?> { fetchGame(p, id, token, skipped) }) }
             pool.shutdown()
@@ -114,7 +104,7 @@ object GogLibrary {
                     val filled = g.withCover(merged[g.gameId]?.verticalCover)
                     merged[g.gameId] = filled; detailed.add(g.gameId); fetched++; skipped.remove(g.gameId); onItems(listOf(filled))
                 }
-                if ((idx + 1) % 5 == 0) onStatus("Syncing… ${idx + 1}/${futures.size}")
+                if ((idx + 1) % 5 == 0) onStatus(app.getString(R.string.stores_sync_progress, idx + 1, futures.size))
                 // Saved as it goes: a sync the user closes the app on still leaves a library to paint next launch.
                 if ((idx + 1) % 20 == 0) saveCache(p, merged.values.filter { it.gameId in detailed })
             }
@@ -129,13 +119,12 @@ object GogLibrary {
             return SyncResult.Ok(sorted(merged), fetched)
         } catch (e: Exception) {
             Log.w(TAG, "sync failed: ${e.message}")
-            return SyncResult.Failed(e.message ?: "Sync failed")
+            return SyncResult.Failed(e.message ?: context.getString(R.string.stores_sync_failed))
         } finally {
             syncing.set(false)
         }
     }
 
-    /** The account's owned games as the store lists them: titles and art, no description or build. Null when the account cannot be read. */
     private fun ownedListing(token: String): List<GogGame>? {
         val all = ArrayList<GogGame>()
         var page = 1
@@ -155,7 +144,6 @@ object GogLibrary {
         return all.ifEmpty { null }
     }
 
-    /** The owned product ids from the older account endpoint, which carries no titles: the fallback when the listing cannot be read. */
     private fun ownedIds(token: String): List<String>? {
         val json = StoreNet.get(OWNED_URL, bearer = token, userAgent = GogAuth.GALAXY_UA) ?: return null
         val owned = runCatching { JSONObject(json).optJSONArray("owned") }.getOrNull() ?: return null
@@ -167,7 +155,6 @@ object GogLibrary {
         return ids
     }
 
-    /** One page of the account listing, or null when the response is not one. */
     fun parseListing(json: String): ListingPage? = runCatching {
         val root = JSONObject(json)
         val arr = root.optJSONArray("products") ?: return@runCatching null
@@ -190,14 +177,11 @@ object GogLibrary {
         ListingPage(games, maxOf(1, root.optInt("totalPages", 1)))
     }.getOrNull()
 
-    /** A page of the account listing: the games on it, and how many pages there are. */
     class ListingPage(val games: List<GogGame>, val totalPages: Int)
 
     private fun sorted(merged: Map<String, GogGame>): List<GogGame> = merged.values.sortedBy { it.title.lowercase() }
 
-    /** One product's details, or null for anything that is not a Windows game (DLC, movies, other platforms). */
     private fun fetchGame(prefs: SharedPreferences, id: String, token: String, skipped: MutableSet<String>): GogGame? {
-        // Not a game this app installs: remembered, so the next sync does not ask again.
         fun skip(): GogGame? { skipped.add(id); return null }
         try {
             val productJson = StoreNet.get("https://api.gog.com/products/$id?expand=downloads,description", bearer = token) ?: return null
@@ -208,10 +192,6 @@ object GogLibrary {
             var title = prod.optJSONObject("title")?.optString("*")
             if (title.isNullOrEmpty()) title = prod.optString("title")
             if (title.isNullOrEmpty()) return skip()
-            // Card art from the v2 game record, the way the Galaxy client draws its library: the dark
-            // Galaxy background for the wide card and the box art for the tall one. The product's
-            // `images.background` is the store page's fade-out backdrop (it ends in white on a
-            // card) and is never used; the logo or icon is the last resort.
             val images = prod.optJSONObject("images")
             var imageUrl = ""
             var boxArt = ""
@@ -222,12 +202,9 @@ object GogLibrary {
             }
             if (imageUrl.isEmpty()) imageUrl = images?.optString("logo2x", "") ?: ""
             if (imageUrl.isEmpty()) imageUrl = images?.optString("icon", "") ?: ""
-            // The account endpoint hands back template keys for some products; the v2 record's text
-            // is tried next, and when that is a template too the game simply has no description.
             val desc = cleanStoreText(prod.optJSONObject("description")?.optString("lead", ""))
                 .ifEmpty { cleanStoreText(v2?.optString("overview", "")) }
                 .ifEmpty { cleanStoreText(v2?.optString("description", "")) }
-            // The products endpoint names no developer or publisher; the v2 record does, with the worldwide release date.
             val embedded = v2?.optJSONObject("_embedded")
             fun names(key: String) = embedded?.optJSONArray(key)
                 ?.let { arr -> (0 until arr.length()).mapNotNull { arr.optJSONObject(it)?.optString("name")?.takeIf(String::isNotBlank) } }
@@ -295,18 +272,15 @@ object GogLibrary {
         }
     }
 
-    /** The fetched record with the cover the card already shows, so the wide art lands over it. */
     private fun GogGame.withCover(cover: String?): GogGame =
         if (cover.isNullOrBlank() || cover == verticalCover) this
         else GogGame(gameId, title, imageUrl, description, developer, category, generation, cover, releaseDate, publisher)
 
-    /** A cached game as the page's card. */
     fun toCatalogItem(context: Context, g: GogGame): CatalogItem = CatalogItem(
         store = Store.GOG, id = g.gameId, title = g.title,
         imageUrl = GogStoreCatalog.absolutize(g.imageUrl).ifBlank { null },
         tallImageUrl = GogStoreCatalog.absolutize(g.verticalCover ?: g.imageUrl).ifBlank { null },
         tags = g.category, developer = g.developer, publisher = g.publisher, description = g.description, owned = true,
-        // A cache from before the release date was kept still has it under the older per-game key.
         releaseDate = g.releaseDate.ifEmpty { GogPrefs.get(context).getString("release_${g.gameId}", "").orEmpty() },
         sizeBytes = sizeOf(context, g.gameId),
         storeUrl = "https://www.gog.com/en/game/${g.gameId}",

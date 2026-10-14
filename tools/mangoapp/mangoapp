@@ -1,15 +1,5 @@
 #!/bin/sh
-# gamescope --mangoapp runs `mangoapp` from PATH; this puts Valve's build beside the libraries the
-# runtime lacks (fmt 10, spdlog 1.13, glfw, libtracefs, libtraceevent), staged by the app.
-# mangoapp reads its window through GLFW's X11 API. GLFW 3.4 takes XDG_SESSION_TYPE=wayland with a
-# WAYLAND_DISPLAY as Wayland-only, and unset, libwayland falls back to wayland-0 - DroidDeck's own
-# compositor, which shares XDG_RUNTIME_DIR - so both fail; x11 makes GLFW use gamescope's X server.
 export XDG_SESSION_TYPE=x11
-# gamescope's reaper restarts mangoapp the moment it exits, with no backoff. One that dies at start
-# (a stale session preload without the System V queue, a driver it crashes on) was started about
-# once a second for the whole session, each start a full exec under proot - the Steam menu itself
-# lagged. More than 5 starts in 60 s leaves the overlay off: this waits instead of exiting, so the
-# reaper has nothing to restart until the session ends.
 starts=/tmp/droiddeck-mangoapp-starts
 now=$(date +%s)
 recent=$(awk -v now="$now" '$1 > now - 60' "$starts" 2>/dev/null)

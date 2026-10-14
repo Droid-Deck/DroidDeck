@@ -2,7 +2,6 @@
 #ifndef DROIDDECK_QUEST_KGSL_COMPAT_H
 #define DROIDDECK_QUEST_KGSL_COMPAT_H
 
-/* Use the vendored Qualcomm UAPI, including its architecture-dependent ioctl sizes. */
 #ifndef __user
 #define __user
 #endif

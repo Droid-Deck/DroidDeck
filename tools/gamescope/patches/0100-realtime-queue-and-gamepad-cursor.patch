@@ -6,10 +6,10 @@ index 54e4efc..024af02 100644
  	}
  
  	float queuePriorities = 1.0f;
-+	// Without CAP_SYS_NICE gamescope never asks for realtime-priority queues. Under proot on
-+	// Android there is no capability to have; the fallback below covers a driver that refuses. KGSL
-+	// Turnip accepts but ignores it (one submit-queue priority, contexts created alike). Opt in with
-+	// GAMESCOPE_FORCE_VULKAN_REALTIME=1. (Armada's --force-vulkan-realtime, as an environment switch.)
++
++
++
++
 +	const char *pszForceRealtime = getenv( "GAMESCOPE_FORCE_VULKAN_REALTIME" );
 +	const bool useRealtimeVulkanQueue = gamescope::Process::HasCapSysNice() || ( pszForceRealtime && atoi( pszForceRealtime ) != 0 );
 +	if ( useRealtimeVulkanQueue && !gamescope::Process::HasCapSysNice() )
@@ -67,8 +67,8 @@ index 10990b8..08afbc4 100644
  	}
 -	else
 +	m_bConstrained = false;
-+	// Nothing to draw (the gamepad UI, most games): the position only feeds focus and zoom, and
-+	// wlserver's copy is what stock gamescope uses for those. No round trip to X.
++
++
 +	if ( m_imageEmpty )
  	{
 -		m_bConstrained = false;
@@ -80,12 +80,12 @@ index 10990b8..08afbc4 100644
  	}
  	wlserver_unlock();
 +
-+	// The gamepad-driven cursor is moved through XTest, which moves the X pointer and nothing
-+	// else: wlserver's copy of the position never changes, so the sprite sat frozen while the
-+	// pointer moved. Ask X where the pointer is. (Armada 0001, on 3.16.29.) That is a blocking
-+	// round trip to Xwayland on the paint thread, which waits while Xwayland is busy drawing the
-+	// client's interface: once per vblank only while the sprite is shown, and every 50 ms while
-+	// it is hidden for inactivity - enough to bring it back within a few frames of a move.
++
++
++
++
++
++
 +	if ( wlserver.bCursorHidden )
 +	{
 +		const uint64_t now = get_time_in_nanos();

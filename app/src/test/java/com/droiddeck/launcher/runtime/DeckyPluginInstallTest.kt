@@ -69,7 +69,6 @@ class DeckyPluginInstallTest {
         val plugins = temporary.newFolder()
         val old = plugin(plugins, "Unifideck", "Unifideck")
         File(old, "old-version").writeText("keep")
-        // An empty staged directory makes the plugin activation fail after backing up the old one.
         val staged = plugin(temporary.newFolder(), "Unifideck", "Unifideck")
         staged.deleteRecursively()
         val settings = File(temporary.newFolder(), "loader.json").apply { writeText("{}") }

@@ -24,26 +24,175 @@ scanned (`StoreInstallRoot.roots`): internal, every card, and the Steam library'
 installs an earlier build put there. `<Store>` is `GOG`, `Epic` or `Amazon`; `<title>` is the title
 with unsafe characters dropped, at most 60 characters (`StoreInstallRoot.folderName`), chosen once;
 a rerun (repair, update) lands on the folder whose sidecar carries the game's id, wherever it is.
-An Epic install on a card keeps its in-flight chunks in `cacheDir/stores/epic/<id>/`: the
-`chunkCacheDir` of both native calls (`EpicNative.run` fetches into it, `EpicNative.assemble`
-writes the files from it and drops each chunk after its last use, then the folder), and of the
-manager's own loops when the engine is not there; `""` keeps the cache beside the game, as an
-internal install has it. The scratch folder is removed on cancel-with-delete and on uninstall.
-The cache holds whole ~1 MiB chunk windows, shared with files this device does not install, so it
-is often larger than the game (Metalstorm: 9.1 GB of chunks for 4.4 GB of files); the free-space
-check, made after the delta pass, counts the missing chunks and the missing files on their own
-volumes. A successful run removes the cache.
+An Epic install on a card keeps its in-flight chunks in `cacheDir/stores/epic/<id>/`;
+`""` keeps the cache beside the game, as an internal install has it. The scratch folder is
+removed on cancel-with-delete and on uninstall.
+
+Preflight resolves an existing game's folder before selecting its target root, so a resume or
+repair on a card checks and remembers that volume rather than internal storage. Fresh GOG and
+Amazon installs can reject insufficient catalog-size space immediately; existing installs defer
+to manifest checks of the files still needing work (GOG MD5, Amazon SHA-256 where supplied).
+Free-space display probes the nearest existing ancestor without creating the target folder; if
+the probe cannot determine space, it reports **Free space unknown** rather than blocking an install.
+`StoreInstallRoot` uses `-1` for unknown and preserves a measured `StatFs` zero as **0 B free**.
+Fresh GOG/Amazon preflight and all three Java backend space checks reject known zero when bytes
+remain. The read-only probe walks existing ancestors without creating directories; a failed
+`StatFs` probe can use a positive `File.usableSpace` fallback, but that API's ambiguous zero is
+unknown, not a measurement of a full disk.
+Preflight failures remain failed Downloads rows with Clear and Retry. Retry reruns preflight
+outside the worker lifecycle and then enqueues the real backend; it never occupies a queue slot
+with a placeholder job. Failures are kept in the Downloads UI, notification and logs rather than
+duplicated as transient failure toasts. Active queue persistence and ordinary backend pause/retry
+are unchanged.
+
+Epic installs have four writers, all with the same per-file safety rules (below). The hidden
+`storesEpicMode` string in the `session` preferences picks one: `adaptive` (default), `lookahead`,
+`batch` or `java`. There is no UI for it; set it on a test device to compare the modes on the same
+game. Every mode logs an `epic: summary mode=<mode>` line (files, bytes written, elapsed, average
+MB/s). When `libdroiddeckstores.so` does not load, every mode runs the Java writer. Once it is
+loaded, an engine failure (refused plan, ABI mismatch, network, hash or I/O failure, unsupported
+atomic swap) fails the install; it never silently reruns as Java downloads.
+
+**Adaptive (default)** - `EpicNative.stream`, `epic/stream.rs`. Measured on device: about
+83 MB/s on a 71 GB install. The chunks go through the shared fetch core in the order their files
+need them, with its full adaptivity (window ramp, per-host caps, in-flight byte budget, retries,
+host rotation, stall handoff). A chunk only one file part uses is verified and written straight
+into that file's staging file at the part's offset, in whatever order it arrives; it is never
+cached, so each byte is written once. A chunk several parts use is written into every part whose
+file the download has reached and kept, decompressed, in the cache until its last part is written.
+The cache has a byte budget; the plan simulates the install in file order and, when the budget
+would be exceeded, drops the cached chunk needed furthest ahead and downloads it again later.
+Files are opened only once the download reaches them, so the set of half-written files stays
+within the fetch window. All writes happen in the fetch core's process pool, whose completion
+frees the in-flight byte budget: a slow card throttles the download instead of growing memory.
+Each file's SHA-1 is computed as its parts are written (parts that arrived out of order are read
+back once the bytes before them are in). Stage files go into the owned staging namespace below.
+The run logs `stream-plan` (direct vs shared chunks, planned refetches, budget) and
+`stream-summary mode=adaptive` (peak cache, peak staging, refetches, bytes written from the
+download vs from the cache).
+
+On an update, a staged file that replaces an existing one sits beside its old copy until its swap,
+so the engine paces replacements with an overlap budget: files are admitted in order, a replaced
+file only while the planned sizes of admitted, not-yet-swapped replaced files fit the budget (one
+is always admitted, so the run progresses), and a chunk is fetched only once its file is admitted.
+Fresh files are never held back, and admission only delays files, never reorders them, so the
+cache plan stays exact. The run logs `overlap_budget=` in `stream-plan` and
+`peak_replace_overlap_bytes=` in `stream-summary`. With room to spare the budget is large and
+updates run as wide as fresh installs; on a nearly full volume, replaced files are staged one
+after another and the fetch pauses at each replaced-file boundary until the previous one is
+swapped in.
+
+Its space plan (`EpicDownloadManager.planAdaptiveSpace`, unit-tested in `EpicAdaptivePlanTest`)
+checks each volume for what lands on it, with the lookahead planner's rule (the need must not
+exceed the free reading). The game volume: the net growth at its worst point (`settledNetPeak`,
+the running Σ(new − old) with each old copy released at its swap), plus the overlap budget, plus
+the cache when it is beside the game. The overlap budget is whatever the game volume has left
+after the net growth and the cache, never less than the largest replaced file; when even that
+does not fit, the plan hands over to the lookahead engine. The cache volume: the budget plus 64 MiB of
+chunks in transit. The cache budget is half the cache volume's free space after those needs, at most
+1 GiB (256 MiB when free space is unknown; 0 is allowed and means every reuse is a refetch). On a
+card install the cache stays on internal scratch unless internal storage cannot hold at least
+64 MiB of it; then the cache goes beside the game (still released chunk by chunk) instead of
+failing. A plan that does not fit logs the short storage and the shortfall and hands over to the
+lookahead engine, which narrows its window to the space there is (or fails its own preflight with
+an explicit error). Running out of space in the middle of an adaptive run is not destructive: a
+failed write fails the run, unfinished staging files are removed, the old files stay.
+
+**Lookahead** - `EpicNative.installAdaptive`, `epic/adaptive.rs`; also the adaptive engine's
+fallback when its space plan does not fit. The Java delta pass sends a versioned snapshot of
+pending files, chunk metadata, verified cache lengths, old output lengths and both measured
+free-space probes to Rust. The native planner and execution share one ordered moving-window
+policy. Before any chunk request, Rust chooses the largest safe lookahead (128, 64, 32, 16, 8, 4,
+2 or 1 part references) and reusable-cache budget (64 MiB, 16 MiB or zero) whose simulated
+staged-file and cache peaks fit. Native device IDs also detect an explicitly named cache on the
+game volume, so two separate paths cannot incorrectly turn one filesystem's requirement into two
+independent checks.
+
+| Storage situation | Lookahead policy |
+| --- | --- |
+| Plenty of room | Up to 128 references ahead, up to 32 network requests, 64 MiB reusable data |
+| Tight | Smaller lookahead and/or reusable budget; parallel fetching remains where space permits |
+| Barely fits | One-reference lookahead, one request, no reusable retention if needed |
+| Does not fit even the minimal schedule | Explicit preflight error before requests or replacement |
+| Free space unknown | Conservative bounded lookahead (at most eight), not an invented zero |
+
+The lookahead fetch coordinator reuses `fetch_core`'s host scheduling, retries, adaptive network
+window and decode pool. Each chunk is cached, then its parts are copied into staged files by a
+writer that runs concurrently, waiting only for its next required chunk, through the native
+assembler's streaming copy primitive. GUIDs in the lookahead are reserved once before submission,
+at their full decoded size. Chunks are released at last use on **both** cache layouts; distant
+reusable data is oldest-first bounded and may be refetched. At most the selected reusable budget
+plus distinct lookahead decoded sizes is resident/reserved. New request admission re-probes both
+volumes and can shrink unsent lookahead or retention if headroom disappears; already in-flight
+reservations remain protected. If even existing reservations cannot fit, the run fails and joins
+its workers rather than waiting indefinitely or deleting old game files. An install to SD retains
+its internal scratch cache, so assembled output is the only game data written to the card.
+
+**Java** - without the native library, or with `storesEpicMode=java`. Eight Java workers prefetch
+the next eight chunk-part references, across file boundaries, while one writer assembles and
+verifies files in manifest order. Shared GUIDs within that window are fetched only once. Chunks
+are deleted after their last use; other reusable chunks are retained up to 64 MiB. At most eight
+additional decoded chunks (complete or in flight) coexist with that retained cache. The size
+bound is 64 MiB plus the decoded sizes of the window's distinct GUIDs, not a fixed eight-MiB
+allowance: manifests can supply larger chunk windows. Evicted distant shared chunks may be
+downloaded again. No worker downloads outside the moving window; cancellation and failure
+disconnect and join all workers before returning or removing the cache. Its summary line is
+`mode=java-bounded`.
+
+**Batch** - the earlier native design, kept for A/B benchmarks: every chunk fetched into the
+cache in parallel, then the files assembled from it (`EpicNative.run` + `EpicNative.assemble`).
+It needs the cache and the files at once (about twice the game) and checks exactly that before
+starting; it writes files in place, so an existing install is marked `updating` before assembly.
+`epic/assemble.rs::build_assemble_plan` enables `scratch_cache` only for a nonempty cache path:
+`run_assemble` then removes chunks at their last use; the default beside-game cache is removed at
+the end (`default_cache_assembles_like_the_kotlin_loop_and_removes_the_cache_at_the_end` and the
+scratch-cache assembly tests cover that distinction).
+
+The Epic download bar, measured rate and ETA (adaptive, lookahead and Java) count pending file bytes written, not unique
+compressed chunks fetched. Shared chunks therefore cannot complete the bar before later files
+are written, and an evicted chunk's refetch is reflected in the time spent doing that work.
+Streaming stays in the Download stage until all files are written and verified, then enters
+Install for registration; it does not bounce between stages for each file.
+
+For the lookahead and Java writers, the space check follows the manifest delta pass and uses the
+same pure moving-window policy as execution, reserving all incoming decoded chunk sizes before writing parts and simulating
+last-use releases and unpinned oldest-first evictions. Existing verified cache bytes count against
+current free space and are credited only at their scheduled release. This avoids adding the entire
+cache to the entire game without undercounting concurrent downloads. Each file is written to a
+unique file in an owned staging namespace on its output volume (never the literal `<filename>.part`, which can
+be a legitimate manifest file), size/hash verified, synced and atomically renamed over its output.
+The old file remains until that swap succeeds. The planner credits its bytes only after that
+file's complete staging write, not by subtracting all old outputs up front. Both volume checks
+must accept this safe staging peak; insufficient space is rejected explicitly, with no destructive
+delete-first fallback. An unsupported/failed atomic rename fails the install and retains the old
+destination. Completed files and
+verified cached chunks are accounted for on resume. On a card, game and cache requirements
+are checked separately. File SHA-1 hashes are checked where supplied by the manifest; failed
+or cancelled staging files are removed without deleting old outputs. A successful run removes the
+cache. A resume within a large incomplete file restarts that file, not its individual parts.
+All three staged writers (adaptive, lookahead, Java) use `<installDir>/.droiddeck-epic-staging/`, whose `owner` marker identifies this
+namespace. A successful install removes it when it holds nothing but the marker (same no-follow
+and canonical-path checks); the next run recreates it. Before the delta pass and free-space probes, the manager removes orphan `.stage`
+entries only from this owned namespace. A manifest naming that directory or any descendant
+fails without deletion; an unowned directory or unexpected entry also fails conservatively.
+The namespace must be a real directory at the expected canonical child of the install root.
+Ownership markers and staging entries must be no-follow regular files; symlink directories,
+markers and entries are rejected before recovery deletes anything.
+Ordinary game files with `.stage` or `.part` suffixes elsewhere are never recovery targets.
+Abrupt process termination is therefore recoverable on the next run without inferring ownership
+from a loose filename prefix. Cancellation/failure waits for all native/Java fetch writers before
+returning; completed verified cache chunks remain usable on resume.
 
 ## The sidecar
 
 ```json
 {
   "version": 1,
-  "store": "epic",                    // gog | epic | amazon
-  "id": "Samorost3",                  // the store's own id: GOG product id, Epic app name, Amazon product id
+  "store": "epic",
+  "id": "Samorost3",
   "title": "Samorost 3",
-  "exe": "Samorost3.exe",             // relative to the folder, forward slashes; what the icon is read from
-  "launcher": ".droiddeck-launch.bat",// optional; what the shortcut runs instead of exe
+  "exe": "Samorost3.exe",
+  "launcher": ".droiddeck-launch.bat",
   "args": ["-EpicPortal", "-epicusername=\"Name\"", "..."],
   "env": {"FUEL_DIR": "C:\\ProgramData\\Amazon Games Services\\Legacy"},
   "installVersion": "1.4.0",
@@ -59,7 +208,18 @@ store root whose sidecar says `installing`, or that has no sidecar at all, is an
 install: `AddedGames.scan` leaves it out (it is neither a game nor a Custom folder), and the Stores
 card and page offer **Resume install**, which reuses that folder - and an Epic `.chunks` beside it -
 instead of starting a fresh one (`StoreInstallRoot.existingFolder`). A finished install being
-repaired keeps its finished sidecar. The launcher and the finished sidecar are written before the
+repaired keeps its finished sidecar until Epic reaches the first verified file swap. Immediately
+before that swap Epic atomically changes the record to `"state": "updating"`, preserves launch
+choices and identifiers, and clears `installVersion`. Network/hash failures or cancellation before
+that point leave the old installed record and files intact. A later failure can leave a mixture of
+verified new files and untouched old files: replacement is atomic **per file**, not a transactional
+whole-game update or rollback. The updating folder is excluded from installed scans and offered
+for resume. Cancellation with deletion clears caches but retains that folder and its verified
+swaps; retry preserves the updating record's metadata. If marking or swapping fails, no destructive
+fallback is attempted (the conservative updating state can remain even when a swap fails).
+Completion writes the installed record with the new version only after all selected files succeed.
+An already registered live Steam shortcut is not revoked at each file swap; do not launch an
+in-progress update. The launcher and the finished sidecar are written before the
 art and the Steam registration; a failure writing them fails the download with its message.
 
 `StoreGameSidecar.parse` refuses anything whose `exe` or `launcher` would point outside the folder.

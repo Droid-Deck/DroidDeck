@@ -26,12 +26,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * The Amazon Games install pipeline, ported from Bannerlator: GetGameDownload for the download
- * root and version, `manifest.proto`, then every file fetched (the native engine when it is
- * there, eight Java threads otherwise), SHA-256 checked, written as `.tmp` and renamed. A
- * complete file on disk is skipped by size, so a rerun resumes. Blocking; the queue runs it.
- */
 public final class AmazonDownloadManager {
 
     private static final String TAG = "AmazonDownload";
@@ -46,7 +40,6 @@ public final class AmazonDownloadManager {
         void onProgress(String message, int pct);
         default void onBytes(long done, long total, long speedBps) {}
         default void onLog(String line) {}
-        /** What this run fetches and what the game takes on disk. */
         default void onSizes(long downloadBytes, long diskBytes) {}
     }
 
@@ -62,7 +55,6 @@ public final class AmazonDownloadManager {
 
     private AmazonDownloadManager() {}
 
-    /** Installs the game into {@code installDir}; null when cancelled, an exception when it fails. */
     public static Result install(Context ctx, AmazonGame game, String accessToken, File installDir, AtomicBoolean cancel, Callback cb) throws InstallException {
         if (game.entitlementId == null || game.entitlementId.isEmpty()) throw new InstallException("This game has no entitlement to download with");
         try {
@@ -77,9 +69,10 @@ public final class AmazonDownloadManager {
             if (manifestBytes == null) throw new InstallException("The manifest could not be downloaded");
             AmazonManifest.ParsedManifest manifest = AmazonManifest.parse(manifestBytes);
             cb.onLog("amazon: " + manifest.allFiles.size() + " files, " + fmt(manifest.totalInstallSize));
-            long usable = installDir.getUsableSpace();
-            if (manifest.totalInstallSize > 0 && usable > 0 && manifest.totalInstallSize > usable)
-                throw new InstallException("Not enough free space: need " + fmt(manifest.totalInstallSize) + ", only " + fmt(usable) + " free");
+            long remainingBytes = remainingInstallBytes(manifest.allFiles, installDir);
+            long usable = com.droiddeck.launcher.stores.StoreInstallRoot.availableBytes(installDir);
+            if (com.droiddeck.launcher.stores.StoreInstallRoot.insufficientSpace(remainingBytes, usable))
+                throw new InstallException("Not enough free space: need " + fmt(remainingBytes) + ", only " + fmt(usable) + " free");
             cb.onSizes(manifest.totalInstallSize, manifest.totalInstallSize);
             cb.onBytes(0, manifest.totalInstallSize, 0);
             if (cancel.get()) return null;
@@ -134,7 +127,6 @@ public final class AmazonDownloadManager {
         }
     }
 
-    /** One entry per manifest file with the exact URL the Java loop would open and the SHA-256 when it would check it. */
     static String buildPlan(List<AmazonManifest.ManifestFile> files, String baseUrl) {
         JSONArray arr = new JSONArray();
         try {
@@ -184,7 +176,7 @@ public final class AmazonDownloadManager {
                                                  AtomicLong lastSpeedMs, AtomicLong lastSpeedBytes, AtomicLong speedBps, Callback cb, AtomicBoolean cancel) {
         File destFile = new File(installDir, file.unixPath());
         File tmpFile = new File(installDir, file.unixPath() + ".tmp");
-        if (destFile.exists() && destFile.length() == file.size) { totalDownloaded.addAndGet(file.size); return true; }
+        if (fileComplete(file, destFile)) { totalDownloaded.addAndGet(file.size); return true; }
         String fileUrl = AmazonApiClient.appendPath(baseUrl, "files/" + file.hashHex());
         for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
             destFile.getParentFile().mkdirs();
@@ -211,7 +203,6 @@ public final class AmazonDownloadManager {
         return false;
     }
 
-    /** Streams one file; false = cancelled. */
     private static boolean downloadFile(String urlStr, File tmpFile, AtomicLong totalDownloaded, AtomicLong lastEmit, long totalSize,
                                         AtomicLong lastSpeedMs, AtomicLong lastSpeedBytes, AtomicLong speedBps, Callback cb, AtomicBoolean cancel) throws IOException {
         HttpURLConnection conn = (HttpURLConnection) new URL(urlStr).openConnection();
@@ -240,7 +231,6 @@ public final class AmazonDownloadManager {
         return true;
     }
 
-    /** The install size from the manifest alone, or -1. Blocking. */
     public static long fetchInstallSizeBytes(String accessToken, String entitlementId) {
         try {
             AmazonApiClient.GameDownloadSpec spec = AmazonApiClient.getGameDownload(accessToken, entitlementId);
@@ -255,6 +245,21 @@ public final class AmazonDownloadManager {
     }
 
     public static boolean isInstalled(File installDir) { return new File(installDir, COMPLETE_MARKER).exists(); }
+
+    static long remainingInstallBytes(List<AmazonManifest.ManifestFile> files, File installDir) {
+        long remaining = 0;
+        for (AmazonManifest.ManifestFile file : files) {
+            if (!fileComplete(file, new File(installDir, file.unixPath()))) remaining += file.size;
+        }
+        return remaining;
+    }
+
+    private static boolean fileComplete(AmazonManifest.ManifestFile file, File output) {
+        if (!output.isFile() || output.length() != file.size) return false;
+        if (file.hashAlgorithm != 0 || file.hashBytes.length == 0) return true;
+        try { return Arrays.equals(sha256(output), file.hashBytes); }
+        catch (Exception e) { return false; }
+    }
 
     private static byte[] sha256(File file) throws Exception {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");

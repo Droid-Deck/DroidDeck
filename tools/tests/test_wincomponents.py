@@ -98,7 +98,7 @@ class WinComponentsTest(unittest.TestCase):
         self.pick("vc")
         self.apply()
         self.assertEqual(installer.read_bytes(), b"ours")
-        self.apply()  # a second launch keeps the first backup, not ours
+        self.apply()
         self.pick()
         names, notes = self.apply()
         self.assertEqual(installer.read_bytes(), b"from a real installer")

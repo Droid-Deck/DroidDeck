@@ -1,11 +1,5 @@
 package com.droiddeck.launcher.input
 
-/**
- * What one Xbox-shaped pad is doing right now: two sticks and two triggers as -1..1 / 0..1, the
- * four d-pad directions, and a bitmask of the buttons numbered the way the fake evdev node
- * reports them. Written by whatever drives the pad (a physical controller, the on-screen one, or
- * both at once) and read by [FakeInputWriter] into the guest's input ring.
- */
 class PadState {
     @JvmField var leftX = 0f
     @JvmField var leftY = 0f
@@ -25,7 +19,6 @@ class PadState {
 
     fun isDown(button: Int): Boolean = buttons and (1 shl button) != 0
 
-    /** The d-pad as a hat: -1 left, 1 right; -1 up, 1 down. Opposites cancel to 0. */
     fun hatX(): Int = if (right && !left) 1 else if (left && !right) -1 else 0
     fun hatY(): Int = if (down && !up) 1 else if (up && !down) -1 else 0
 
@@ -36,7 +29,6 @@ class PadState {
         buttons = other.buttons
     }
 
-    /** Everything released and centred. */
     fun clear() {
         leftX = 0f; leftY = 0f; rightX = 0f; rightY = 0f
         leftTrigger = 0f; rightTrigger = 0f
@@ -55,9 +47,7 @@ class PadState {
         const val START = 7
         const val L3 = 8
         const val R3 = 9
-        /** The Steam/Guide button, which the fake evdev node reports as BTN_MODE. */
         const val GUIDE = 12
-        /** The Quick Access button: a Deck controller's (SteamDeckPad) only, since an Xbox pad has none. */
         const val QAM = 13
     }
 }

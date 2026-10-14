@@ -14,6 +14,7 @@ EXPORTS = ['Java_com_droiddeck_launcher_stores_StoresNative_nativeVersion',
            'Java_com_droiddeck_launcher_stores_gog_GogNative_nativeStart',
            'Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeStart',
            'Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeAssemble',
+           'Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeStream',
            'Java_com_droiddeck_launcher_stores_amazon_AmazonNative_nativeStart']
 
 

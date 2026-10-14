@@ -16,12 +16,6 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 
-/**
- * Amazon's device-auth endpoints, as the Amazon Games launcher registers itself:
- *   POST api.amazon.com/auth/register    (the PKCE code for bearer tokens, with a device registration)
- *   POST api.amazon.com/auth/token       (access token renewal; the refresh token stays)
- *   POST api.amazon.com/auth/deregister  (sign-out, best-effort)
- */
 public final class AmazonAuthClient {
 
     private static final String TAG = "AmazonAuth";
@@ -39,13 +33,11 @@ public final class AmazonAuthClient {
         public String refreshToken;
         public long expiresIn;
         public String name;
-        /** The serial Amazon registered the device under; the entitlements call hashes this one. */
         public String deviceSerial;
     }
 
     private AmazonAuthClient() {}
 
-    /** Exchanges the PKCE authorization code for bearer tokens; null on failure. */
     public static RegisterResult registerDevice(String authCode, String codeVerifier, String deviceSerial, String clientId) {
         try {
             JSONObject authData = new JSONObject();
@@ -93,7 +85,6 @@ public final class AmazonAuthClient {
         }
     }
 
-    /** A new access token; the refresh token is not returned and stays as it was. */
     public static RegisterResult refreshAccessToken(String refreshToken) {
         try {
             JSONObject body = new JSONObject();

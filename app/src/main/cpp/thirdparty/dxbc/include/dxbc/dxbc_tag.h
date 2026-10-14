@@ -4,12 +4,6 @@
 
 namespace dxvk {
   
-  /**
-   * \brief Four-character tag
-   * 
-   * Used to identify chunks in the
-   * compiled DXBC file by name.
-   */
   class DxbcTag {
     
   public:
