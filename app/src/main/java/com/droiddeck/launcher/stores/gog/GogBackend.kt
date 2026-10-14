@@ -44,6 +44,13 @@ object GogBackend : StoreBackend {
                 // Mapped here, off the main thread: the listing paints the tab before any product is asked about.
                 val items = list.map { GogLibrary.toCatalogItem(app, it) }
                 StoresState.post { StoresState.library[store] = com.droiddeck.launcher.stores.mergeItems(StoresState.library[store], items) }
+            }, onItems = { changed ->
+                // Only the products that came back are replaced: the cards already on screen keep their objects, and their own art lands as it is fetched.
+                val items = changed.map { GogLibrary.toCatalogItem(app, it) }
+                StoresState.post {
+                    val byId = items.associateBy { it.id }
+                    StoresState.library[store] = StoresState.library[store].orEmpty().map { byId[it.id] ?: it }
+                }
             })
             StoresState.post {
                 StoresState.status.remove(store)

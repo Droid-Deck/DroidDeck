@@ -61,8 +61,8 @@ object GogLibrary {
 
     fun sizeOf(context: Context, gameId: String): Long = GogPrefs.get(context).getLong("size_$gameId", 0L)
 
-    /** Owned games diffed against the cache; fetches what is new, or everything when forced / empty / stale. [onList] gets the whole library as soon as the account listing has it, and again as products come back. Blocking. */
-    fun sync(context: Context, force: Boolean = false, onStatus: (String) -> Unit = {}, onList: (List<GogGame>) -> Unit = {}): SyncResult {
+    /** Owned games diffed against the cache; fetches what is new, or everything when forced / empty / stale. [onList] gets the whole library as soon as the account listing has it, [onItems] each product's details as they come back. Blocking. */
+    fun sync(context: Context, force: Boolean = false, onStatus: (String) -> Unit = {}, onList: (List<GogGame>) -> Unit = {}, onItems: (List<GogGame>) -> Unit = {}): SyncResult {
         if (!syncing.compareAndSet(false, true)) return SyncResult.Busy
         try {
             val app = context.applicationContext
@@ -103,14 +103,13 @@ object GogLibrary {
             val pool = Executors.newFixedThreadPool(5)
             val futures = idsToFetch.map { id -> pool.submit(Callable<GogGame?> { fetchGame(p, id, token, skipped) }) }
             pool.shutdown()
-            // What the grid is showing right now: a fetched game's own art and title only land when the round ends.
-            val shown = HashMap(merged)
             var fetched = 0
             for ((idx, f) in futures.withIndex()) {
                 val g = runCatching { f.get() }.getOrNull()
-                if (g != null) { merged[g.gameId] = g; detailed.add(g.gameId); fetched++; skipped.remove(g.gameId) }
+                if (g != null) {
+                    merged[g.gameId] = g; detailed.add(g.gameId); fetched++; skipped.remove(g.gameId); onItems(listOf(g))
+                }
                 if ((idx + 1) % 5 == 0) onStatus("Syncing… ${idx + 1}/${futures.size}")
-                if (named && (idx + 1) % 20 == 0) onList(sorted(merged.mapValues { (key, v) -> shown[key]?.let { v.detailsOver(it) } ?: v }))
             }
             // A product this round found uninstallable leaves when the round is over, not in the middle of it.
             for (id in skipped) merged.remove(id)
@@ -183,10 +182,6 @@ object GogLibrary {
     class ListingPage(val games: List<GogGame>, val totalPages: Int)
 
     private fun sorted(merged: Map<String, GogGame>): List<GogGame> = merged.values.sortedBy { it.title.lowercase() }
-
-    /** The round's details on the card that is already on screen: its art and title wait for the end of the round. */
-    private fun GogGame.detailsOver(shown: GogGame): GogGame =
-        GogGame(gameId, shown.title, shown.imageUrl, description, developer, category, generation, shown.verticalCover, releaseDate, publisher)
 
     /** One product's details, or null for anything that is not a Windows game (DLC, movies, other platforms). */
     private fun fetchGame(prefs: SharedPreferences, id: String, token: String, skipped: MutableSet<String>): GogGame? {
