@@ -734,11 +734,12 @@ private fun Storefront(
     val density = androidx.compose.ui.platform.LocalDensity.current
     val focus = LocalFrontFocus.current
     val scope = rememberCoroutineScope()
-    // A bar only where the tab has nothing else on it: shelves or installs on screen are not a library still loading.
+    // A bar only where the tab has nothing else on it: shelves, the shelf of owned games, or installs on screen
+    // are not a library still loading.
     val gridEmpty = when {
         installedOnly -> false
         showGrid -> visible.isEmpty()
-        else -> shelves == null || shelves.isEmpty
+        else -> (shelves == null || shelves.isEmpty) && library.isEmpty()
     }
     val barLine = StoresState.status[store]?.takeIf { gridEmpty && syncCount(it) != null }
     val headerItems = 1 + (if (barLine != null) 1 else 0) + (if (StoresState.problems[store] != null) 1 else 0)
