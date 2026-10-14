@@ -4,6 +4,17 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +41,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -54,11 +68,10 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
     val download = StoresState.download("${store.id}:$id")?.takeIf { it.isActive }
     val title = item?.title ?: installed?.sidecar?.title ?: id
     Rise(0) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(bottom = 12.dp)) {
-            BackLink(store.label, compact = true, onClick = onBack)
-            SourceChip(store.id)
-        }
+        // The store tab above already names the store, so the link just says Back.
+        Box(Modifier.padding(bottom = 12.dp)) { BackLink(stringResource(R.string.common_back), compact = true, onClick = onBack) }
     }
+    val scores = if (store == Store.GOG || store == Store.EPIC) rememberGameScores(title.takeIf { it != id }) else null
     val hero: @Composable () -> Unit = {
         androidx.compose.runtime.DisposableEffect(Unit) { onDispose { StoresMotion.heroAt = null } }
         Box(
@@ -69,6 +82,11 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
             val art = item?.imageUrl ?: installed?.sidecar?.hero ?: installed?.sidecar?.cover
             if (art != null) AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
             Spacer(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to colors.background.copy(alpha = 0.94f), 0.5f to colors.background.copy(alpha = 0.55f), 1f to Color.Transparent)))
+            if (scores != null && !narrow) {
+                // A second scrim from the right keeps the scores readable over bright art.
+                Spacer(Modifier.matchParentSize().background(Brush.horizontalGradient(0.45f to Color.Transparent, 1f to colors.background.copy(alpha = 0.75f))))
+                HeroScores(scores, Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 18.dp))
+            }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.align(Alignment.BottomStart).padding(horizontal = 22.dp, vertical = 18.dp)) {
                 val state = when {
                     installed != null -> stringResource(R.string.stores_eyebrow_installed) + " · " + com.droiddeck.launcher.stores.StoreInstallRoot.labelFor(ctx, installed.folder)
@@ -111,19 +129,15 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
         }
     }
     if (StoresMotion.heroLands) hero() else Rise(1) { hero() }
-    if (store == Store.GOG || store == Store.EPIC) {
+    if (scores != null) Rise(2) {
         val listed = StoresState.shelves[store]?.all.orEmpty().firstOrNull { it.id == id }
         val developer = item?.developer?.ifBlank { null } ?: listed?.developer.orEmpty()
         val publisher = item?.publisher?.ifBlank { null } ?: listed?.publisher.orEmpty()
         val releaseDate = item?.releaseDate?.ifBlank { null } ?: listed?.releaseDate.orEmpty()
-        val scores = rememberGameScores(title.takeIf { it != id })
-        Rise(2) { StoreGameFacts(developer, publisher, releaseDate, scores) }
+        StoreGameFacts(developer, publisher, releaseDate, scores, scoresInHero = !narrow)
     }
     val description = item?.let { com.droiddeck.launcher.stores.cleanStoreText(it.description) }.orEmpty()
         .takeUnless { it.trim().equals(title.trim(), ignoreCase = true) }.orEmpty()
-    if (description.isNotBlank()) Rise(3) {
-        Text(description, fontSize = 13.sp, lineHeight = 19.sp, color = colors.onSurfaceVariant, maxLines = 6, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 12.dp))
-    }
     val achievements = remember(store, id, item?.owned, installed) {
         when {
             StoreAchievements.forSource(store.id) == null -> null
@@ -132,7 +146,61 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
             else -> null
         }
     }
-    if (achievements != null) Rise(4) { StoreAchievementsSection(achievements) }
+    // About on the left, the achievements card beside it; a narrow pane stacks them.
+    if (description.isNotBlank() || achievements != null) Rise(3) {
+        val about: @Composable (Modifier, Dp) -> Unit = { m, h -> if (description.isNotBlank()) StoreAbout(description, h, m) }
+        val card: @Composable (Modifier) -> Unit = { m -> if (achievements != null) StoreAchievementsCard(achievements, title, m) }
+        if (narrow) Column(verticalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth().padding(top = 14.dp)) {
+            about(Modifier.fillMaxWidth(), AboutHeight)
+            card(Modifier.fillMaxWidth())
+        } else Row(horizontalArrangement = Arrangement.spacedBy(24.dp), modifier = Modifier.fillMaxWidth().padding(top = 14.dp)) {
+            // The description box matches the card's height, so the two share a top and bottom edge.
+            val density = LocalDensity.current
+            var cardHeight by remember { mutableStateOf<Dp?>(null) }
+            about(Modifier.weight(1f), cardHeight ?: AboutHeight)
+            card(Modifier.width(340.dp).onSizeChanged { cardHeight = with(density) { it.height.toDp() } })
+        }
+    }
+}
+
+private val AboutHeight = 150.dp
+
+/**
+ * The store's description in a box [height] tall. Longer text scrolls inside the box: focus it and the D-pad
+ * scrolls it, and once it reaches either end the D-pad moves focus on as usual.
+ */
+@Composable
+private fun StoreAbout(text: String, height: Dp, modifier: Modifier = Modifier) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val scroll = rememberScrollState()
+    val scope = rememberCoroutineScope()
+    val src = remember { MutableInteractionSource() }
+    val more = scroll.maxValue > 0
+    val hot = more && rememberHot(src)
+    val shape = RoundedCornerShape(12.dp)
+    Box(
+        modifier.heightIn(max = height).clip(shape)
+            .glideBorder(hot, shape, pal.signal, restColor = Color.Transparent)
+            .then(if (more) Modifier.paneItem("about") else Modifier)
+            .focusable(enabled = more, interactionSource = src)
+            .onPreviewKeyEvent { e ->
+                val step = when (e.nativeKeyEvent.keyCode) {
+                    android.view.KeyEvent.KEYCODE_DPAD_DOWN -> if (scroll.value < scroll.maxValue) 120f else return@onPreviewKeyEvent false
+                    android.view.KeyEvent.KEYCODE_DPAD_UP -> if (scroll.value > 0) -120f else return@onPreviewKeyEvent false
+                    else -> return@onPreviewKeyEvent false
+                }
+                if (e.nativeKeyEvent.action == android.view.KeyEvent.ACTION_DOWN) scope.launch { scroll.animateScrollBy(step) }
+                true
+            },
+    ) {
+        Text(text, fontSize = 14.sp, lineHeight = 21.sp, color = colors.onSurfaceVariant, modifier = Modifier.verticalScroll(scroll).padding(horizontal = 10.dp, vertical = 6.dp))
+        // A fade over the last line while there is more below.
+        if (scroll.value < scroll.maxValue) Box(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(28.dp)
+                .background(Brush.verticalGradient(listOf(Color.Transparent, colors.background))),
+        )
+    }
 }
 
 @Composable
