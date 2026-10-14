@@ -62,14 +62,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 
-/** One matched driver pair in the list (DriverPairs), and what this device makes of it. */
 class PairRow(
     val key: String,
     val name: String,
     val version: String,
     val detail: String,
     val recommended: Boolean,
-    /** Built for this GPU's family; the others only show when asked. */
     val suits: Boolean,
     val complete: Boolean,
     val installed: Boolean,
@@ -85,13 +83,11 @@ class GpuDriversState(
     val unsupported: Boolean = false,
     val auto: Boolean = true,
     val pairs: List<PairRow> = emptyList(),
-    /** The pair key being installed, and how far along (-1 = unknown). */
     val busy: String? = null,
     val percent: Int = -1,
     val autoStatus: String = "",
     val releaseStatus: String = "",
     val checking: Boolean = false,
-    // Advanced: each driver on its own.
     val linuxRows: List<DriverRow> = emptyList(),
     val linuxSelected: String = "",
     val androidRows: List<DriverRow> = emptyList(),
@@ -99,10 +95,8 @@ class GpuDriversState(
     val linuxDownloads: List<DownloadRow> = emptyList(),
     val androidDownloads: List<DownloadRow> = emptyList(),
     val canRestoreBundled: Boolean = false,
-    /** The Android + Linux bundle both drivers are set to ("DD-Turnip 0.1.0"), or null. */
     val activeBundle: String? = null,
 ) {
-    /** The pair both drivers are set to, if they make one. */
     val activePair: PairRow? get() = pairs.firstOrNull { it.active }
 }
 
@@ -117,16 +111,10 @@ class GpuDriversActions(
     val onDownloadDriver: (String) -> Unit = {},
     val onImportLinux: () -> Unit = {},
     val onImportAndroid: () -> Unit = {},
-    /** The tab's own import: a bundle, or a single driver of either kind. */
     val onImportZip: () -> Unit = {},
     val onRestoreBundled: () -> Unit = {},
 )
 
-/**
- * Everything about the chip - SoC, GPU, CPU, memory, system, the phone's own Vulkan driver, the
- * drivers in use - gathered once, off the main thread, with a button that copies it for a bug
- * report. Stepped out of the Components page's device chip; [first] is where a pad starts.
- */
 @Composable
 internal fun DeviceDetails(first: FocusRequester) {
     val colors = MaterialTheme.colorScheme
@@ -159,7 +147,6 @@ internal fun DeviceDetails(first: FocusRequester) {
     }
 }
 
-/** One part of the device details: its title, then label/value rows. Focusable, so the d-pad walks the list. */
 @Composable
 private fun DeviceInfoSection(section: DeviceInfo.Section) {
     val colors = MaterialTheme.colorScheme

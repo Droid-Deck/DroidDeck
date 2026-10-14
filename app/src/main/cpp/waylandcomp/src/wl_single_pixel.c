@@ -1,15 +1,9 @@
-/*
- * wp_single_pixel_buffer_manager_v1 (version 1): a wl_buffer of one pixel of one colour, which a
- * client stretches over a surface with wp_viewporter. KWin's Wayland backend - the desktop's KWin
- * nested in this compositor - refuses to start without it. The surface takes the pixel as a 1x1
- * image, the way it takes a wl_shm buffer (compositor.c, take_pixel).
- */
 #include <stdlib.h>
 #include "droiddeck_ext.h"
 #include "single-pixel-buffer-v1-server-protocol.h"
 
 struct single_pixel {
-    uint8_t bgra[4]; /* premultiplied, as wl_shm's ARGB8888 lies in memory */
+    uint8_t bgra[4];
 };
 
 static void buffer_destroy(struct wl_client *c, struct wl_resource *r) { wl_resource_destroy(r); }
@@ -30,7 +24,6 @@ static void mgr_create_buffer(struct wl_client *c, struct wl_resource *r, uint32
     struct single_pixel *p = calloc(1, sizeof(*p));
     struct wl_resource *buffer = p ? wl_resource_create(c, &wl_buffer_interface, 1, id) : NULL;
     if (!buffer) { free(p); wl_client_post_no_memory(c); return; }
-    /* The protocol's values span the whole u32 range; the top byte is the 8-bit channel. */
     p->bgra[0] = blue >> 24;
     p->bgra[1] = green >> 24;
     p->bgra[2] = red >> 24;

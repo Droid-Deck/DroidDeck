@@ -6,7 +6,6 @@ import com.droiddeck.launcher.stores.StoreAchievements
 import com.droiddeck.launcher.stores.StoreNet
 import org.json.JSONObject
 
-/** Epic's GraphQL: the sandbox's achievements, then the player's records in it. */
 object EpicAchievements : StoreAchievements(Store.EPIC.id, Store.EPIC.shortLabel) {
     private const val GRAPHQL = "https://launcher.store.epicgames.com/graphql"
     private const val USER_AGENT = "EpicGamesLauncher/14.0.8-22004686+++Portal+Release-Live"
@@ -44,7 +43,6 @@ object EpicAchievements : StoreAchievements(Store.EPIC.id, Store.EPIC.shortLabel
         return Result.Found(out)
     }
 
-    /** Achievement name to unlock time, for the ones the player has. */
     private fun unlockTimes(token: String, account: String, namespace: String): Map<String, Long> {
         val out = HashMap<String, Long>()
         val records = query(token, PLAYER_ACHIEVEMENTS, JSONObject().put("epicAccountId", account).put("sandboxId", namespace))

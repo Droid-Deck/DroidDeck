@@ -94,7 +94,6 @@ def build(ndk, output=OUTPUT):
     with tempfile.TemporaryDirectory(prefix='quest-driver-') as folder:
         work = Path(folder)
         with tarfile.open(fileobj=io.BytesIO(data)) as archive:
-            # Only read the known driver entry; no archive paths are extracted.
             driver = archive.extractfile('vulkan.ad07xx.so').read()
         (work / 'vulkan.ad07xx.so').write_bytes(driver)
         wrapper = work / 'libquest_turnip.so'

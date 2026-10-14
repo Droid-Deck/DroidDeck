@@ -7,7 +7,6 @@ import java.nio.file.StandardCopyOption.COPY_ATTRIBUTES
 import java.security.MessageDigest
 import java.util.Locale
 
-/** Android shared storage cannot create the links in Wine prefixes or native Steam depots. */
 object SecondaryLibrary {
     private val bootstrapTools = linkedMapOf(
         "4185400" to "SteamLinuxRuntime_4-arm64",
@@ -25,12 +24,10 @@ object SecondaryLibrary {
 
     val CARD_GUESTS = listOf("/mnt/droiddeck-sd", "/mnt/bannerlator-sd")
 
-    /** Parent binds come first; the more specific private directories override them in PRoot. */
     fun binds(files: File, library: File, guests: List<String> = CARD_GUESTS): List<String> {
         val private = privateRoot(files, library)
         val apps = File(library, "steamapps")
         val tools = LinkedHashMap(bootstrapTools)
-        // Include other installed Proton/runtime versions, without routing ordinary game depots.
         apps.listFiles()?.filter { it.name.matches(Regex("appmanifest_\\d+\\.acf")) }?.forEach { manifest ->
             val text = manifest.readText()
             val id = Regex("\"appid\"\\s+\"(\\d+)\"").find(text)?.groupValues?.get(1)
@@ -48,13 +45,8 @@ object SecondaryLibrary {
             for (relative in listOf("steamapps/common/$dir", "steamapps/downloading/$id")) {
                 val target = File(private, relative)
                 migrate(File(library, relative), target)
-                // FUSE discarded the executable bits. Steam will restore the depot's exact modes
-                // on verification; its launchers must already be executable when importing it.
                 target.walkTopDown().filter { it.isFile }.forEach { it.setExecutable(true, true) }
                 overrides.add(target to relative)
-                // Steam normalizes depot install directories to lowercase on Android's
-                // case-insensitive shared storage. PRoot binds are case-sensitive, so both
-                // spellings must reach the same private directory during the commit.
                 val lower = relative.lowercase(Locale.ROOT)
                 if (lower != relative) overrides.add(target to lower)
             }
@@ -64,7 +56,6 @@ object SecondaryLibrary {
         }
     }
 
-    /** Copy once into a staging directory; retain the source and never merge over a live prefix. */
     private fun migrate(source: File, target: File) {
         val migrated = File(target.parentFile, ".${target.name}.migrated")
         if (target.isDirectory) {

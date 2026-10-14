@@ -158,7 +158,6 @@
            summary="low 32 bits of layout modifier"/>
     </event>
 
-    <!-- Version 4 additions -->
 
     <request name="get_default_feedback" since="4">
       <description summary="get default feedback">

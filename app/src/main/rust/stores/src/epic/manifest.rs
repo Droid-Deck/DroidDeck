@@ -1,43 +1,24 @@
-//! Epic build manifest parsers — a 1:1 port of `EpicDownloadManager.parseManifest` (binary,
-//! magic `0x44BEC00C`) and `parseJsonManifest` (legacy JSON manifests).
-//!
-//! Every quirk of the Java reader is kept on purpose (the Java manager stays the reference and
-//! the two engines must derive the same plan from the same bytes): section skips by declared
-//! size, `readFString` UTF-16LE/ASCII decoding, duplicate-GUID handling (last value, first
-//! position), the JSON blob decoding (`blobToNum`) and its fallbacks, and "any exception →
-//! parse failed".
 
 use std::collections::HashMap;
 use std::io::Read;
 
-/// Binary manifest magic (`EpicDownloadManager.parseManifest`).
 pub const MANIFEST_MAGIC: u32 = 0x44BE_C00C;
 
-/// One entry of the ChunkDataList section (`EpicDownloadManager.ChunkInfo`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ChunkInfo {
-    /// Four uint32 in binary read order.
     pub guid: [u32; 4],
-    /// uint64 "hash" that forms the first half of the chunk file name.
     pub hash: u64,
-    /// SHA-1 of the DECOMPRESSED chunk; `None` for JSON manifests (Java: `sha1 == null`).
     pub sha1: Option<[u8; 20]>,
-    /// Subfolder number (DECIMAL `%02d`). `i32` so the JSON parser's `Integer.parseInt` range is
-    /// representable exactly (binary manifests always yield 0..=255).
     pub group_num: i32,
-    /// Uncompressed size (0 for JSON manifests).
     pub window_size: i32,
-    /// Compressed (wire) size. Signed like the Java `long`; JSON manifests may yield anything.
     pub file_size: i64,
 }
 
 impl ChunkInfo {
-    /// `String.format("%08X%08X%08X%08X", guid[0..4])`.
     pub fn guid_str(&self) -> String {
         guid_to_string(&self.guid)
     }
 
-    /// `ChunkInfo.getPath`: `"<chunkDir>/<%02d groupNum>/<%016X hash>_<GUID>.chunk"`.
     pub fn path(&self, chunk_dir: &str) -> String {
         format!(
             "{}/{:02}/{:016X}_{}.chunk",
@@ -48,8 +29,6 @@ impl ChunkInfo {
         )
     }
 
-    /// Java `chunk.sha1 != null && length == 20 && !allZero` — the condition under which the
-    /// streaming downloader verifies the decompressed chunk.
     pub fn verifiable_sha1(&self) -> Option<&[u8; 20]> {
         match &self.sha1 {
             Some(h) if h.iter().any(|b| *b != 0) => Some(h),
@@ -57,7 +36,6 @@ impl ChunkInfo {
         }
     }
 
-    /// `Math.max(chunk.fileSize, 1)` — the byte credit the Java pool uses for totals/progress.
     pub fn credit_bytes(&self) -> u64 {
         if self.file_size < 1 {
             1
@@ -67,13 +45,10 @@ impl ChunkInfo {
     }
 }
 
-/// One file part referencing a chunk (`EpicDownloadManager.ChunkPart`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ChunkPart {
     pub guid: [u32; 4],
-    /// Offset into the DECOMPRESSED chunk (Java `int`).
     pub offset: i32,
-    /// Part length (Java `int`; summed as `size & 0xFFFFFFFFL`).
     pub size: i32,
 }
 
@@ -83,26 +58,20 @@ impl ChunkPart {
     }
 }
 
-/// One entry of the FileManifestList section (`EpicDownloadManager.FileInfo`).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct FileInfo {
     pub filename: String,
     pub parts: Vec<ChunkPart>,
-    /// Install-tag names; empty = required/base file.
     pub install_tags: Vec<String>,
-    /// Full-file SHA-1; `None` for JSON manifests.
     pub sha1: Option<[u8; 20]>,
 }
 
 impl FileInfo {
-    /// `FileInfo.fileSize()` = Σ `(part.size & 0xFFFFFFFFL)`.
     pub fn file_size(&self) -> u64 {
         self.parts.iter().map(|p| p.size as u32 as u64).sum()
     }
 }
 
-/// Parsed manifest (`EpicDownloadManager.EpicManifest.ParsedManifest`, minus the CDN list which
-/// the Java side still owns).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Manifest {
     pub chunk_dir: String,
@@ -111,8 +80,6 @@ pub struct Manifest {
 }
 
 impl Manifest {
-    /// `byGuid` map as `uniqueChunksForFiles` builds it: `LinkedHashMap.put` per chunk, so a
-    /// duplicate GUID resolves to the LAST `ChunkInfo`.
     pub fn chunk_index_by_guid(&self) -> HashMap<String, usize> {
         let mut map = HashMap::with_capacity(self.unique_chunks.len());
         for (i, c) in self.unique_chunks.iter().enumerate() {
@@ -126,7 +93,6 @@ pub fn guid_to_string(guid: &[u32; 4]) -> String {
     format!("{:08X}{:08X}{:08X}{:08X}", guid[0], guid[1], guid[2], guid[3])
 }
 
-/// `chunkDir` from the binary header version (`parseManifest`).
 pub fn chunk_dir_for_binary_version(version: i32) -> &'static str {
     if version >= 15 {
         "ChunksV4"
@@ -139,7 +105,6 @@ pub fn chunk_dir_for_binary_version(version: i32) -> &'static str {
     }
 }
 
-/// `chunkDir` from `ManifestFileVersion` (`parseJsonManifest`; note the different `< 3` default).
 pub fn chunk_dir_for_json_version(version: i32) -> &'static str {
     if version >= 15 {
         "ChunksV4"
@@ -152,10 +117,7 @@ pub fn chunk_dir_for_json_version(version: i32) -> &'static str {
     }
 }
 
-// ── little-endian cursor with ByteBuffer-like failure semantics ─────────────────────────────
 
-/// Mirrors the `ByteBuffer` calls the Java parser makes: every under-run or out-of-range
-/// `position()` is an exception there, which the Java code turns into "parse failed" (null).
 struct Cursor<'a> {
     buf: &'a [u8],
     pos: usize,
@@ -170,7 +132,6 @@ impl<'a> Cursor<'a> {
         self.pos
     }
 
-    /// `ByteBuffer.position(p)` — `p` must be within `0..=limit`.
     fn set_position(&mut self, p: i64) -> Result<(), String> {
         if p < 0 || p as u64 > self.buf.len() as u64 {
             return Err(format!("position {p} out of range (limit {})", self.buf.len()));
@@ -223,7 +184,6 @@ impl<'a> Cursor<'a> {
         Ok(out)
     }
 
-    /// `ByteBuffer.position(position + n)` with the same range check.
     fn skip(&mut self, n: i64) -> Result<(), String> {
         let target = self.pos as i64 + n;
         self.set_position(target)
@@ -233,23 +193,19 @@ impl<'a> Cursor<'a> {
         &self.buf[self.pos..]
     }
 
-    /// `EpicDownloadManager.readFString`: int32 length; `0` → ""; negative → `(-len)-1` UTF-16LE
-    /// code units + 2-byte terminator; positive → `len-1` US-ASCII bytes + 1-byte terminator.
     fn fstring(&mut self) -> Result<String, String> {
         let length = self.i32()?;
         if length == 0 {
             return Ok(String::new());
         }
         if length < 0 {
-            // Java: `int chars = (-length) - 1;` — `-Integer.MIN_VALUE` wraps to itself, then -1
-            // gives Integer.MAX_VALUE; `new byte[chars * 2]` overflows negative → exception.
             let chars = length.wrapping_neg().wrapping_sub(1);
             let byte_len = chars.checked_mul(2).ok_or("fstring length overflow")?;
             if byte_len < 0 {
                 return Err("negative fstring length".to_string());
             }
             let bytes = self.take(byte_len as usize)?;
-            self.take(2)?; // null terminator
+            self.take(2)?;
             let units: Vec<u16> = bytes
                 .chunks_exact(2)
                 .map(|p| u16::from_le_bytes([p[0], p[1]]))
@@ -257,8 +213,8 @@ impl<'a> Cursor<'a> {
             Ok(String::from_utf16_lossy(&units))
         } else {
             let bytes = self.take((length - 1) as usize)?;
-            self.take(1)?; // null terminator
-            // `new String(bytes, US_ASCII)`: every byte > 0x7F decodes to U+FFFD.
+            self.take(1)?;
+
             Ok(bytes
                 .iter()
                 .map(|&b| if b < 0x80 { b as char } else { '\u{FFFD}' })
@@ -267,10 +223,7 @@ impl<'a> Cursor<'a> {
     }
 }
 
-// ── binary manifest ──────────────────────────────────────────────────────────────────────
 
-/// `EpicDownloadManager.parseManifest(bytes)`: binary when the magic matches, otherwise the JSON
-/// parser. `Err` wherever Java returns `null`.
 pub fn parse_manifest(bytes: &[u8]) -> Result<Manifest, String> {
     let mut cur = Cursor::new(bytes);
     let magic = cur.u32()?;
@@ -284,7 +237,7 @@ fn parse_binary_after_magic(cur: &mut Cursor<'_>) -> Result<Manifest, String> {
     let header_size = cur.i32()?;
     let size_uncompressed = cur.i32()?;
     let _size_compressed = cur.i32()?;
-    cur.skip(20)?; // SHA-1 of the body, not checked by the Java parser
+    cur.skip(20)?;
     let stored_as = cur.u8()?;
     let version = cur.i32()?;
     let chunk_dir = chunk_dir_for_binary_version(version);
@@ -297,8 +250,6 @@ fn parse_binary_after_magic(cur: &mut Cursor<'_>) -> Result<Manifest, String> {
         if size_uncompressed < 0 {
             return Err("negative sizeUncompressed".to_string());
         }
-        // Java: `inflater.inflate(new byte[sizeUncompressed])` — a single call that fills at most
-        // `sizeUncompressed` bytes; anything else (short, corrupt) is a size mismatch → null.
         let mut out = Vec::with_capacity(size_uncompressed as usize);
         let mut dec = flate2::read::ZlibDecoder::new(body_slice).take(size_uncompressed as u64);
         dec.read_to_end(&mut out)
@@ -317,18 +268,16 @@ fn parse_binary_after_magic(cur: &mut Cursor<'_>) -> Result<Manifest, String> {
 
     let mut b = Cursor::new(body);
 
-    // ManifestMeta: skipped by its declared size (the size field counts itself).
     let meta_size = b.i32()?;
     let meta_end = b.position() as i64 - 4 + meta_size as i64;
     b.set_position(meta_end)?;
 
-    // ChunkDataList
     let cdl_start = b.position();
     let cdl_size = b.i32()?;
     let _cdl_version = b.u8()?;
     let chunk_count = b.i32()?;
     if chunk_count < 0 {
-        return Err("negative chunkCount".to_string()); // `new ArrayList<>(negative)` throws
+        return Err("negative chunkCount".to_string());
     }
     let chunk_count = chunk_count as usize;
     let mut chunks: Vec<ChunkInfo> = (0..chunk_count)
@@ -361,7 +310,6 @@ fn parse_binary_after_magic(cur: &mut Cursor<'_>) -> Result<Manifest, String> {
     }
     b.set_position(cdl_start as i64 + cdl_size as i64)?;
 
-    // FileManifestList
     let fml_start = b.position();
     let fml_size = b.i32()?;
     let _fml_version = b.u8()?;
@@ -375,12 +323,12 @@ fn parse_binary_after_magic(cur: &mut Cursor<'_>) -> Result<Manifest, String> {
         f.filename = b.fstring()?;
     }
     for _ in 0..file_count {
-        b.fstring()?; // symlink targets
+        b.fstring()?;
     }
     for f in files.iter_mut() {
         f.sha1 = Some(b.sha1()?);
     }
-    b.skip(file_count as i64)?; // per-file flags byte
+    b.skip(file_count as i64)?;
     for f in files.iter_mut() {
         let tag_count = b.i32()?;
         let mut j = 0;
@@ -415,8 +363,6 @@ fn parse_binary_after_magic(cur: &mut Cursor<'_>) -> Result<Manifest, String> {
     })
 }
 
-/// `LinkedHashMap<String, ChunkInfo>` keyed by GUID string: a repeated key keeps its FIRST
-/// position but takes the LAST value.
 fn dedup_last_wins_first_position(chunks: Vec<ChunkInfo>) -> Vec<ChunkInfo> {
     let mut order: Vec<ChunkInfo> = Vec::with_capacity(chunks.len());
     let mut index: HashMap<String, usize> = HashMap::with_capacity(chunks.len());
@@ -433,10 +379,7 @@ fn dedup_last_wins_first_position(chunks: Vec<ChunkInfo>) -> Vec<ChunkInfo> {
     order
 }
 
-// ── JSON manifest (older games) ──────────────────────────────────────────────────────────
 
-/// `org.json` value → string coercion as `optString` / `getString` do on Android (numbers and
-/// booleans print as-is, JSON null prints "null", containers print their JSON).
 fn json_to_string(v: &serde_json::Value) -> String {
     match v {
         serde_json::Value::String(s) => s.clone(),
@@ -445,9 +388,6 @@ fn json_to_string(v: &serde_json::Value) -> String {
     }
 }
 
-/// `EpicDownloadManager.blobToNum`: a JSON manifest writes every number as a "blob", each byte
-/// as three decimal digits, least significant first ("013000000000" = 13). Bits past 64 are
-/// dropped; `None` when a group is not a number (Java: `NumberFormatException`).
 pub fn blob_to_num(s: &str) -> Option<u64> {
     let bytes = s.as_bytes();
     let mut num: u64 = 0;
@@ -464,7 +404,6 @@ pub fn blob_to_num(s: &str) -> Option<u64> {
     Some(num)
 }
 
-/// `obj.optString(key, fallback)`.
 fn opt_string(obj: &serde_json::Map<String, serde_json::Value>, key: &str, fallback: &str) -> String {
     match obj.get(key) {
         Some(v) => json_to_string(v),
@@ -472,16 +411,12 @@ fn opt_string(obj: &serde_json::Map<String, serde_json::Value>, key: &str, fallb
     }
 }
 
-/// `(int) Long.parseLong(hex8, 16)` — the Java GUID quarter parse; invalid hex throws out of the
-/// whole parse.
 fn parse_guid_quarter(s: &str) -> Result<u32, String> {
     let v = i64::from_str_radix(s, 16).map_err(|e| format!("bad guid hex '{s}': {e}"))?;
     Ok(v as i32 as u32)
 }
 
 fn parse_guid_from_hex(s: &str) -> Result<[u32; 4], String> {
-    // Java substrings by UTF-16 unit and `parseLong` throws on anything non-hex; a non-ASCII
-    // prefix can never parse, so refuse it before slicing (keeps the slice on char boundaries).
     if s.len() < 32 || !s.as_bytes()[..32].is_ascii() {
         return Err(format!("bad guid hex '{s}'"));
     }
@@ -493,7 +428,6 @@ fn parse_guid_from_hex(s: &str) -> Result<[u32; 4], String> {
     ])
 }
 
-/// `EpicDownloadManager.parseJsonManifest`.
 pub fn parse_json_manifest(bytes: &[u8]) -> Result<Manifest, String> {
     let text = String::from_utf8_lossy(bytes);
     let root: serde_json::Value =
@@ -513,7 +447,6 @@ pub fn parse_json_manifest(bytes: &[u8]) -> Result<Manifest, String> {
     let data_group_list = root.get("DataGroupList").and_then(|v| v.as_object());
     let chunk_filesize_list = root.get("ChunkFilesizeList").and_then(|v| v.as_object());
 
-    // `LinkedHashMap<String, ChunkInfo>` keyed by the RAW key string (not the normalized GUID).
     let mut chunk_order: Vec<ChunkInfo> = Vec::new();
     let mut chunk_index: HashMap<String, usize> = HashMap::new();
     for (guid_hex, hash_value) in chunk_hash_list.iter() {
@@ -598,12 +531,9 @@ pub fn parse_json_manifest(bytes: &[u8]) -> Result<Manifest, String> {
     })
 }
 
-// ── tests ────────────────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 pub(crate) mod test_support {
-    //! Synthetic binary-manifest builder used by this module's tests and by `plan`/`driver`
-    //! tests. Emits exactly the layout `parseManifest` walks (meta / CDL / FML with sizes).
 
     use super::*;
     use std::io::Write;
@@ -621,7 +551,6 @@ pub(crate) mod test_support {
         pub name: String,
         pub sha1: [u8; 20],
         pub tags: Vec<String>,
-        /// (guid, offset, size)
         pub parts: Vec<([u32; 4], i32, i32)>,
     }
 
@@ -648,17 +577,14 @@ pub(crate) mod test_support {
         v
     }
 
-    /// Body (meta + CDL + FML) without the outer header.
     pub fn build_body(chunks: &[TestChunk], files: &[TestFile], meta_padding: usize) -> Vec<u8> {
         let mut body = Vec::new();
-        // ManifestMeta: size field counts itself.
         let meta_size = 4 + meta_padding;
         body.extend_from_slice(&(meta_size as i32).to_le_bytes());
         body.extend(std::iter::repeat(0xEEu8).take(meta_padding));
 
-        // ChunkDataList
         let mut cdl = Vec::new();
-        cdl.push(0u8); // version
+        cdl.push(0u8);
         cdl.extend_from_slice(&(chunks.len() as i32).to_le_bytes());
         for c in chunks {
             for g in c.guid {
@@ -680,14 +606,12 @@ pub(crate) mod test_support {
         for c in chunks {
             cdl.extend_from_slice(&c.file_size.to_le_bytes());
         }
-        // Trailing padding the parser must skip via cdlSize.
         cdl.extend_from_slice(&[0xAA, 0xBB, 0xCC]);
         body.extend_from_slice(&((cdl.len() + 4) as i32).to_le_bytes());
         body.extend_from_slice(&cdl);
 
-        // FileManifestList
         let mut fml = Vec::new();
-        fml.push(0u8); // version
+        fml.push(0u8);
         fml.extend_from_slice(&(files.len() as i32).to_le_bytes());
         for f in files {
             if f.name.is_ascii() {
@@ -697,13 +621,13 @@ pub(crate) mod test_support {
             }
         }
         for _ in files {
-            fml.extend_from_slice(&fstring_ascii("")); // symlink target
+            fml.extend_from_slice(&fstring_ascii(""));
         }
         for f in files {
             fml.extend_from_slice(&f.sha1);
         }
         for _ in files {
-            fml.push(0); // flags
+            fml.push(0);
         }
         for f in files {
             fml.extend_from_slice(&(f.tags.len() as i32).to_le_bytes());
@@ -714,7 +638,6 @@ pub(crate) mod test_support {
         for f in files {
             fml.extend_from_slice(&(f.parts.len() as i32).to_le_bytes());
             for (guid, offset, size) in &f.parts {
-                // struct size 4 + 16 + 4 + 4 = 28, plus 2 bytes of padding the parser skips.
                 fml.extend_from_slice(&30i32.to_le_bytes());
                 for g in guid {
                     fml.extend_from_slice(&g.to_le_bytes());
@@ -729,7 +652,6 @@ pub(crate) mod test_support {
         body
     }
 
-    /// Full manifest bytes: header + (optionally zlib-compressed) body.
     pub fn build_manifest(
         chunks: &[TestChunk],
         files: &[TestFile],
@@ -745,7 +667,7 @@ pub(crate) mod test_support {
         } else {
             body.clone()
         };
-        let header_size: i32 = 41 + 3; // 3 bytes of extra header the parser must jump over
+        let header_size: i32 = 41 + 3;
         let mut out = Vec::new();
         out.extend_from_slice(&MANIFEST_MAGIC.to_le_bytes());
         out.extend_from_slice(&header_size.to_le_bytes());
@@ -916,13 +838,9 @@ mod tests {
     fn bad_uncompressed_size_is_a_parse_failure() {
         let good = build_manifest(&sample_chunks(), &sample_files(), 21, true);
         let real = i32::from_le_bytes([good[8], good[9], good[10], good[11]]);
-        // Claim MORE than the body inflates to: Java's single `inflate()` returns fewer bytes
-        // than `sizeUncompressed` → "Decomp size mismatch" → null.
         let mut bigger = good.clone();
         bigger[8..12].copy_from_slice(&(real + 1).to_le_bytes());
         assert!(parse_manifest(&bigger).is_err());
-        // Claim LESS: Java fills exactly `sizeUncompressed` bytes (silently truncating), then the
-        // FileManifestList end position lands past the limit → exception → null.
         let mut smaller = good;
         smaller[8..12].copy_from_slice(&(real - 1).to_le_bytes());
         assert!(parse_manifest(&smaller).is_err());
@@ -933,7 +851,7 @@ mod tests {
         let mut v = fstring_ascii("abc");
         v.extend_from_slice(&fstring_utf16("dé"));
         v.extend_from_slice(&fstring_ascii(""));
-        v.extend_from_slice(&[4, 0, 0, 0, b'a', 0xFF, b'b', 0]); // non-ASCII byte → U+FFFD
+        v.extend_from_slice(&[4, 0, 0, 0, b'a', 0xFF, b'b', 0]);
         let mut c = Cursor::new(&v);
         assert_eq!(c.fstring().unwrap(), "abc");
         assert_eq!(c.fstring().unwrap(), "dé");

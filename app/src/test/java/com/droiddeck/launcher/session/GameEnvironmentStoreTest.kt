@@ -60,7 +60,6 @@ class GameEnvironmentStoreTest {
             "d3d9.samplerAnisotropy = 16; d3d11.samplerAnisotropy = 16; d3d9.samplerLodBias = -0.58; d3d11.samplerLodBias = -0.58",
             json.getString(GameEnvironmentStore.DXVK_CONFIG),
         )
-        // The user's own entry is untouched; the launcher appends the options at launch.
         assertEquals("dxvk.tearFree = True", json.getJSONObject("shared").getString("DXVK_CONFIG"))
         assertEquals(GameEnvironment.Config(shared = mapOf("DXVK_CONFIG" to "dxvk.tearFree = True")), GameEnvironmentStore.read(context))
         SessionPrefs.setTextureAnisotropy(context, 0)

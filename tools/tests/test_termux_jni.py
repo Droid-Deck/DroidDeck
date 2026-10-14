@@ -59,8 +59,6 @@ class TermuxJniTest(unittest.TestCase):
         return {key: int(value) for key, value in re.findall(r"(\w+)=(\d+)", line)}
 
     def test_a_long_argv_and_environment_stay_under_the_local_reference_limit(self):
-        # 300 + 300 is under 512 for each loop on its own but over it together, as the issue says:
-        # ART aborts with "local reference table overflow (max=512)".
         stats = self.run_harness(300, 300)
         self.assertEqual(stats["overflowed"], 0, stats)
 

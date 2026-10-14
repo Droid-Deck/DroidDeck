@@ -99,7 +99,6 @@ import com.droiddeck.launcher.runtime.UserApps
 import com.droiddeck.launcher.store.UserAppsState
 import java.io.File
 
-// The front end's right-hand pane and the page it shows: backdrop, desktop card and emulators.
 
 @OptIn(androidx.compose.animation.ExperimentalAnimationApi::class)
 @Composable
@@ -119,35 +118,25 @@ internal fun Pane(
         }
         Backdrop(backdropArt)
         val pal = LocalPalette.current
-        // Pages keep drawing while they leave, so one can fold away instead of blinking out.
         val pages = remember { HashMap<String, @Composable () -> Unit>() }
-        // Pages opened from a control (the cog), with where that control sat, in this pane's coordinates.
         val origins = remember { HashMap<String, Origin>() }
         val paneAt = remember { arrayOf(Offset.Zero) }
         val livePage by rememberUpdatedState(s.pageKey)
-        // Picking another game changes the detail beside the list, not the whole page.
         val railContent = if (selected.startsWith("app:")) "games" else selected
         val target = if (page != null && s.pageKey != null) s.pageKey else railContent
-        // The game the Games page shows. It must outlive the selection: while the page animates out,
-        // drawing it with what is selected now (another rail item) turned it into a copy of that page.
         val gameShown = remember { arrayOf("games") }
         if (selected == "games" || selected.startsWith("app:")) gameShown[0] = selected
-        // What the pane showed before this change: the content a page opened over belongs to it.
         val before = remember { arrayOf(target) }
         if (page != null && s.pageKey != null) {
             pages[s.pageKey] = page
             if (s.pageKey !in origins) PageOrigin.take()?.let { o ->
-                // A hop's page came out of its own rail item, and is that item's content.
                 origins[s.pageKey] = inPane(o.translate(-paneAt[0])).let { if (it.owner == null) it.ownedBy(railContent) else it }
             }
         } else if (target != before[0] && target !in origins) {
-            // A section's own page opened from a control in it (an emulator's card, a ROM's) floods
-            // out of that control and belongs to what was showing; a hop's comes out of its rail item.
             PageOrigin.take()?.let { o -> origins[target] = inPane(o.translate(-paneAt[0])).let { if (it.owner == null) it.ownedBy(before[0]) else it } }
         }
         before[0] = target
         val targetNow by rememberUpdatedState(target)
-        // A page leaving through a hop's link is not coming back to its control.
         val leave = if (Hops.linking) PageLeave.Link else PageLeave.Ordinary
         LaunchedEffect(target) { Hops.linking = false }
         AnimatedContent(
@@ -155,16 +144,13 @@ internal fun Pane(
             modifier = Modifier.onGloballyPositioned { paneAt[0] = it.positionInRoot() },
             transitionSpec = {
                 when {
-                    // Into a page from its control: the control floods the pane (PageFlood) as it sinks back.
                     targetState in origins -> (fadeIn(Motion.tw(120)))
                         .togetherWith(fadeOut(Motion.tw(320, 80)) + scaleOut(Motion.tw(480), targetScale = 0.95f))
                         .apply { targetContentZIndex = 1f }
-                    // Back out of it: the flood draws back into the control as the pane comes forward again.
                     initialState in origins && pageExit(origins[initialState]?.owner, targetState, leave) == PageExit.Drain ->
                         (fadeIn(Motion.tw(300, 100)) + scaleIn(Motion.tw(460, 40), initialScale = 0.95f))
                             .togetherWith(ExitTransition.None)
                             .apply { targetContentZIndex = -1f }
-                    // Away to something else: the control is not coming back, so the page sinks with the pane.
                     initialState in origins -> (fadeIn(Motion.tw(300, 80)) + slideInVertically(Motion.tw(420, 80)) { it / 24 })
                         .togetherWith(fadeOut(Motion.tw(170)) + scaleOut(Motion.tw(170), targetScale = 0.95f))
                         .apply { targetContentZIndex = 1f }
@@ -177,8 +163,6 @@ internal fun Pane(
         ) { key ->
             val drawn = (if (page != null && key == s.pageKey) page else pages[key])
                 ?: { Content(s, if (key == "games") gameShown[0] else key, a, Modifier.fillMaxSize(), onSelect, onAndroidAppClick, onOpenDeveloperOptions, onRequestWirelessAdb) }
-            // A hop leaving this content: it sinks back as the dot leaves it (and comes forward
-            // again, freshly drawn, when the hop is undone).
             val hopSink by androidx.compose.animation.core.animateFloatAsState(
                 if (Hops.sinking == key) 1f else 0f, Motion.tw(260), label = "hopSink",
             )
@@ -190,16 +174,13 @@ internal fun Pane(
                 val from = origins[key]
                 if (from == null) shown()
                 else {
-                    // The control's own picture (a card's art, an emulator's icon) on the tile as it grows.
                     val art = when (val m = from.art) {
                         null -> null
                         is Int -> androidx.compose.ui.res.painterResource(m)
                         else -> coil.compose.rememberAsyncImagePainter(m)
                     }
                     val leaving = transition.targetState == EnterExitState.PostExit
-                    // Settled as the page starts to leave, from what is coming in, not from where it came in.
                     val drains = remember(leaving) { !leaving || pageExit(from.owner, target, leave) == PageExit.Drain }
-                    // Keeps a leaving page on screen while its flood draws back into the control.
                     transition.animateFloat(
                         transitionSpec = { if (targetState == EnterExitState.PostExit && drains) Motion.tw(PAGE_RETURN_MS) else snap() },
                         label = "pageReturn",
@@ -212,11 +193,6 @@ internal fun Pane(
     }
 }
 
-/**
- * An origin left of the pane (a rail item a hop flew to) starts half inside it, at the item's
- * height: the page swells out of the pane's edge beside the item. Wholly outside, its tile was a
- * bar that raced across from the far edge.
- */
 internal fun inPane(o: Origin): Origin =
     if (o.bounds.right > 0f) o else o.translate(Offset(-o.bounds.right + o.bounds.width / 2f, 0f))
 
@@ -225,8 +201,6 @@ private fun Backdrop(art: File?) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     Crossfade(targetState = art, animationSpec = Motion.tw(700), label = "backdrop") { a ->
-        // A game's own art, blurred, where it has some; otherwise the plain ground with one quiet
-        // glow of the theme's signal colour - a colour per title hash read as noise.
         if (a != null && Build.VERSION.SDK_INT >= 31) {
             Box(modifier = Modifier.fillMaxSize().alpha(0.26f).blur(70.dp)) {
                 AsyncImage(model = a, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = 1.5f; scaleY = 1.5f })
@@ -257,7 +231,6 @@ private fun Content(
     val density = androidx.compose.ui.platform.LocalDensity.current.density
     val padH = if (narrow) 16.dp else 22.dp
     val padV = if (narrow) 12.dp else 18.dp
-    // Setup scrolls inside itself, under its tabs.
     if (selected == "setup") {
         Column(modifier = modifier.padding(horizontal = padH, vertical = padV)) {
             SetupPanel(s, a, onOpenDeveloperOptions, onRequestWirelessAdb)
@@ -268,33 +241,26 @@ private fun Content(
         UpdatesPage(s, a, modifier.padding(horizontal = padH, vertical = padV))
         return
     }
-    // Steam is a full-bleed wall of the library with Play over it.
     if (selected == "steam") {
         SteamHome(s, a, modifier)
         return
     }
-    // The Store scrolls and navigates inside itself (its tabs and an app's page).
     if (selected == "store") {
         StorePage(s, a, modifier)
         return
     }
-    // Stores (GOG, Epic, Amazon) takes the whole pane: chips, shelves and a game's page inside it.
     if (selected == "stores") {
         StoresPage(s, a, modifier)
         return
     }
-    // The Games tab lays out its own list and detail.
     if (selected == "games" || selected.startsWith("app:")) {
         GamesPage(s, a, selected, onSelect, modifier)
         return
     }
-    // Desktop is the Steam tab's shape: a hero with its lifted sheet, and shelves under it.
     if (selected == "desktop") {
         DesktopPage(s, a, modifier, onSelect)
         return
     }
-    // Every other page scrolls as one - header, hero and grid - so a short screen reaches the grid
-    // instead of showing a sliver of it under a fixed hero. A focused tile scrolls itself into view.
     Column(modifier = modifier.verticalScroll(rememberScrollState()).padding(horizontal = padH, vertical = padV)) {
         when {
             selected == "android-apps" && s.isHomeApp -> {
@@ -322,7 +288,6 @@ private fun Content(
                 if (e == null) Note(stringResource(R.string.content_not_installed)) else {
                     val pkgId = Library.packageId(e.id)
                     val pkg = pkgId?.let { id -> s.packages?.firstOrNull { it.id == id } }
-                    // Out of its card on Desktop, with the card's icon; B draws it back in.
                     Rise(1) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -367,8 +332,6 @@ private fun Content(
                         }
                         else Rise(5, Modifier.fillMaxWidth()) {
                             Column {
-                                // RetroArch's games come from many systems: chips filter them, one
-                                // selection gliding between them.
                                 val systems = remember(e.games) { e.games.map { romSystem(it) }.distinct() }
                                 var system by rememberSaveable(e.id) { mutableStateOf<String?>(null) }
                                 if (systems.size > 1) Box(Modifier.padding(top = 10.dp)) {
@@ -467,7 +430,6 @@ internal fun UserApps.Kind.label() = when (this) {
     UserApps.Kind.FLATPAK -> R.string.user_apps_kind_flatpak
 }
 
-/** An added app's icon: its own, or the kind's when it has none. */
 @Composable
 private fun UserAppIcon(app: UserApps.App, size: Int) {
     if (app.icon != null) AppIcon(app.icon, app.name, size)
@@ -482,7 +444,6 @@ private fun UserAppIcon(app: UserApps.App, size: Int) {
     }
 }
 
-/** The add or remove under way, or why the last one failed. */
 @Composable
 private fun UserAppsProgress() {
     val colors = MaterialTheme.colorScheme
@@ -501,7 +462,6 @@ private fun UserAppsProgress() {
     }
 }
 
-/** An added app's page: open it, change its name and icon, update one added from GitHub, or remove it (asked first). */
 @Composable
 private fun UserAppPage(app: UserApps.App, s: FrontEndState, a: FrontEndActions, onSelect: (String) -> Unit) {
     val colors = MaterialTheme.colorScheme
@@ -556,7 +516,6 @@ private fun UserAppPage(app: UserApps.App, s: FrontEndState, a: FrontEndActions,
     }
 }
 
-/** Remove, which asks first: are you sure steps out of it in red, Keep first and focused. */
 @Composable
 private fun RemoveAppButton(app: UserApps.App, enabled: Boolean, onRemove: () -> Unit) {
     val colors = MaterialTheme.colorScheme
@@ -581,7 +540,6 @@ private fun RemoveAppButton(app: UserApps.App, enabled: Boolean, onRemove: () ->
     }
 }
 
-/** Looks up a newer release of an app added from GitHub, then installs it. */
 @Composable
 private fun UpdateButton(app: UserApps.App, s: FrontEndState) {
     val ctx = LocalContext.current
@@ -604,13 +562,8 @@ private fun UpdateButton(app: UserApps.App, s: FrontEndState) {
     }
 }
 
-/**
- * One emulator: its icon, system and games. One not yet installed says so in words and keeps full
- * contrast - dimming it read as disabled rather than one press from installing.
- */
 @Composable
 private fun systemLabel(e: Library.Emulator): String =
     if (e.systemRes != 0) stringResource(e.systemRes) else e.system.replaceFirstChar { it.uppercase() }
 
-/** The system a ROM belongs to: the folder it sits in under the ROMs folder. */
 private fun romSystem(rom: Library.Rom): String = rom.hostPath.parentFile?.name.orEmpty()

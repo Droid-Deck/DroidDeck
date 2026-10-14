@@ -12,11 +12,6 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 
-/**
- * The two fetches this app makes: the runtime catalog (a few hundred bytes of JSON) and the
- * runtime tarball itself (~790 MB). Plain HttpURLConnection - nothing here needs a client library,
- * and one fewer dependency is one fewer thing that can fail a release build.
- */
 public final class Downloader {
     private static final String TAG = "Downloader";
     private static final int TIMEOUT_MS = 30_000;
@@ -44,11 +39,6 @@ public final class Downloader {
         }
     }
 
-    /**
-     * Downloads to {@code destination}, reporting a 0..1 fraction (or -1 when the server sends no
-     * length). {@code resume} continues a partial file with a Range request, which is what makes a
-     * 790 MB download survive a dropped connection instead of starting over.
-     */
     public static boolean downloadFile(String url, File destination, boolean resume,
                                        java.util.function.Consumer<Float> progress) {
         HttpURLConnection connection = null;
@@ -59,10 +49,8 @@ public final class Downloader {
             int code = connection.getResponseCode();
             boolean appending = code == HttpURLConnection.HTTP_PARTIAL;
             if (code / 100 != 2) {
-                // The server ignored or refused the range: start the file again.
                 if (have > 0) {
                     connection.disconnect();
-                    //noinspection ResultOfMethodCallIgnored
                     destination.delete();
                     return downloadFile(url, destination, false, progress);
                 }
@@ -73,7 +61,7 @@ public final class Downloader {
             long length = connection.getContentLengthLong();
             long total = length < 0 ? -1 : length + have;
             File parent = destination.getParentFile();
-            if (parent != null && !parent.isDirectory()) //noinspection ResultOfMethodCallIgnored
+            if (parent != null && !parent.isDirectory())
                 parent.mkdirs();
             long written = have;
             try (InputStream in = new BufferedInputStream(connection.getInputStream(), 1 << 16);
@@ -83,8 +71,6 @@ public final class Downloader {
                 for (int read = in.read(buffer); read > 0; read = in.read(buffer)) {
                     out.write(buffer, 0, read);
                     written += read;
-                    // A callback per 64 KB would be tens of thousands of UI hops; once per MB is
-                    // enough to move a progress bar smoothly.
                     if (progress != null && written - lastReport > (1 << 20)) {
                         lastReport = written;
                         progress.accept(total > 0 ? written / (float) total : -1f);

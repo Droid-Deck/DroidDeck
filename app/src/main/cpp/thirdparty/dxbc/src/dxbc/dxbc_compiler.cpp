@@ -20,17 +20,13 @@ namespace dxvk {
     m_osgn       (osgn),
     m_psgn       (psgn),
     m_analysis   (&analysis) {
-    // Declare an entry point ID. We'll need it during the
-    // initialization phase where the execution mode is set.
     m_entryPointId = m_module.allocateId();
     
-    // Set the shader name so that we recognize it in renderdoc
     m_module.setDebugSource(
       spv::SourceLanguageUnknown, 0,
       m_module.addDebugString(fileName.c_str()),
       nullptr);
 
-    // Set the memory model. This is the same for all shaders.
     m_module.enableCapability(
       spv::CapabilityVulkanMemoryModel);
 
@@ -38,7 +34,6 @@ namespace dxvk {
       spv::AddressingModelLogical,
       spv::MemoryModelVulkan);
     
-    // Make sure our interface registers are clear
     for (uint32_t i = 0; i < DxbcMaxInterfaceRegs; i++) {
       m_vRegs.at(i) = DxbcRegisterPointer { };
       m_oRegs.at(i) = DxbcRegisterPointer { };
@@ -194,7 +189,6 @@ namespace dxvk {
         DxbcInterpolationMode::Undefined);
     }
 
-    // Figure out which streams to enable
     uint32_t streamMask = 0;
 
     for (size_t i = 0; i < m_xfbVars.size(); i++)
@@ -205,18 +199,13 @@ namespace dxvk {
       m_module.opEmitVertex(m_module.constu32(streamId));
     }
 
-    // End the main function
     emitFunctionEnd();
 
-    // For pass-through we always assume points
     m_inputTopology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
   }
   
   
   SpirvCodeBuffer DxbcCompiler::finalize() {
-    // Depending on the shader type, this will prepare
-    // input registers, call various shader functions
-    // and write back the output registers.
     switch (m_programInfo.type()) {
       case DxbcProgramType::VertexShader:   this->emitVsFinalize(); break;
       case DxbcProgramType::HullShader:     this->emitHsFinalize(); break;
@@ -227,11 +216,8 @@ namespace dxvk {
       default: throw DxvkError("Invalid shader stage");
     }
 
-    // Emit float control mode if the extension is supported
     this->emitFloatControl();
     
-    // Declare the entry point, we now have all the
-    // information we need, including the interfaces
     m_module.addEntryPoint(m_entryPointId,
       m_programInfo.executionModel(), "main");
     m_module.setDebugName(m_entryPointId, "main");
@@ -341,9 +327,6 @@ namespace dxvk {
   
   
   void DxbcCompiler::emitDclIndexRange(const DxbcShaderInstruction& ins) {
-    // dcl_index_range has one operand:
-    //    (0) Range start, either an input or output register
-    //    (1) Range end
     uint32_t index = ins.dst[0].idxDim - 1u;
 
     DxbcIndexRange range = { };
@@ -356,19 +339,11 @@ namespace dxvk {
 
 
   void DxbcCompiler::emitDclTemps(const DxbcShaderInstruction& ins) {
-    // dcl_temps has one operand:
-    //    (imm0) Number of temp registers
 
-    // Ignore this and declare temps on demand.
   }
   
   
   void DxbcCompiler::emitDclIndexableTemp(const DxbcShaderInstruction& ins) {
-    // dcl_indexable_temps has three operands:
-    //    (imm0) Array register index (x#)
-    //    (imm1) Number of vectors stored in the array
-    //    (imm2) Component count of each individual vector. This is
-    //    always 4 in fxc-generated binaries and therefore useless.
     const uint32_t regId = ins.imm[0].u32;
 
     DxbcRegisterInfo info;
@@ -398,21 +373,9 @@ namespace dxvk {
 
       case DxbcOperandType::Input:
       case DxbcOperandType::Output: {
-        // dcl_input and dcl_output instructions
-        // have the following operands:
-        //    (dst0) The register to declare
-        //    (imm0) The system value (optional)
         uint32_t regDim = 0;
         uint32_t regIdx = 0;
         
-        // In the vertex and fragment shader stage, the
-        // operand indices will have the following format:
-        //    (0) Register index
-        // 
-        // In other stages, the input and output registers
-        // may be declared as arrays of a fixed size:
-        //    (0) Array length
-        //    (1) Register index
         if (ins.dst[0].idxDim == 2) {
           regDim = ins.dst[0].idx[0].offset;
           regIdx = ins.dst[0].idx[1].offset;
@@ -425,9 +388,6 @@ namespace dxvk {
           return;
         }
         
-        // This declaration may map an output register to a system
-        // value. If that is the case, the system value type will
-        // be stored in the second operand.
         const bool hasSv =
             ins.op == DxbcOpcode::DclInputSgv
          || ins.op == DxbcOpcode::DclInputSiv
@@ -441,8 +401,6 @@ namespace dxvk {
         if (hasSv)
           sv = static_cast<DxbcSystemValue>(ins.imm[0].u32);
         
-        // In the pixel shader, inputs are declared with an
-        // interpolation mode that is part of the op token.
         const bool hasInterpolationMode =
             ins.op == DxbcOpcode::DclInputPs
          || ins.op == DxbcOpcode::DclInputPsSiv;
@@ -452,7 +410,6 @@ namespace dxvk {
         if (hasInterpolationMode)
           im = ins.controls.interpolation();
         
-        // Declare the actual input/output variable
         switch (ins.op) {
           case DxbcOpcode::DclInput:
           case DxbcOpcode::DclInputSgv:
@@ -599,14 +556,10 @@ namespace dxvk {
       } break;
       
       case DxbcOperandType::OutputControlPointId: {
-        // This system value map to the invocation
-        // ID, which has been declared already.
       } break;
       
       case DxbcOperandType::InputPatchConstant:
       case DxbcOperandType::OutputControlPoint: {
-        // These have been declared as global input and
-        // output arrays, so there's nothing left to do.
       } break;
       
       case DxbcOperandType::InputGsInstanceId: {
@@ -621,8 +574,6 @@ namespace dxvk {
         m_module.enableExtension("SPV_EXT_fragment_fully_covered");
         m_module.enableCapability(spv::CapabilityFragmentFullyCoveredEXT);
 
-        // This is bool in SPIR-V but uint32 in DXBC. A bool value of
-        // false must be 0, and bit 1 must be set to represent true.
         uint32_t builtinId = emitNewBuiltinVariable({
           { DxbcScalarType::Bool, 1, 0 },
           spv::StorageClassInput },
@@ -660,9 +611,6 @@ namespace dxvk {
           DxbcRegMask             regMask,
           DxbcSystemValue         sv,
           DxbcInterpolationMode   im) {
-    // Avoid declaring the same variable multiple times.
-    // This may happen when multiple system values are
-    // mapped to different parts of the same register.
     if (m_vRegs.at(regIdx).id == 0 && sv == DxbcSystemValue::None) {
       const DxbcVectorType regType = getInputRegType(regIdx);
       
@@ -679,7 +627,6 @@ namespace dxvk {
       
       m_vRegs.at(regIdx) = { regType, varId };
       
-      // Interpolation mode, used in pixel shaders
       if (im == DxbcInterpolationMode::Constant)
         m_module.decorate(varId, spv::DecorationFlat);
       
@@ -706,11 +653,9 @@ namespace dxvk {
         }
       }
 
-      // Declare the input slot as defined
       m_inputMask |= 1u << regIdx;
       m_vArrayLength = std::max(m_vArrayLength, regIdx + 1);
     } else if (sv != DxbcSystemValue::None) {
-      // Add a new system value mapping if needed
       bool skipSv = sv == DxbcSystemValue::ClipDistance
                  || sv == DxbcSystemValue::CullDistance;
       
@@ -726,21 +671,15 @@ namespace dxvk {
           DxbcRegMask             regMask,
           DxbcSystemValue         sv,
           DxbcInterpolationMode   im) {
-    // Add a new system value mapping if needed. Clip
-    // and cull distances are handled separately.
     if (sv != DxbcSystemValue::None
      && sv != DxbcSystemValue::ClipDistance
      && sv != DxbcSystemValue::CullDistance)
       m_oMappings.push_back({ regIdx, regMask, sv });
     
     if (m_programInfo.type() == DxbcProgramType::HullShader) {
-      // Hull shaders don't use standard outputs
       if (getCurrentHsForkJoinPhase() != nullptr)
         m_hs.outputPerPatchMask |= 1 << regIdx;
     } else if (m_oRegs.at(regIdx).id == 0) {
-      // Avoid declaring the same variable multiple times.
-      // This may happen when multiple system values are
-      // mapped to different parts of the same register.
       const DxbcVectorType regType = getOutputRegType(regIdx);
       
       DxbcRegisterInfo info;
@@ -749,14 +688,9 @@ namespace dxvk {
       info.type.alength = regDim;
       info.sclass = spv::StorageClassOutput;
 
-      // In xfb mode, we set up the actual
-      // output vars when emitting a vertex
       if (m_moduleInfo.xfb != nullptr)
         info.sclass = spv::StorageClassPrivate;
       
-      // In geometry shaders, don't duplicate system value outputs
-      // to stay within device limits. The pixel shader will read
-      // all GS system value outputs as system value inputs.
       if (m_programInfo.type() == DxbcProgramType::GeometryShader && sv != DxbcSystemValue::None)
         info.sclass = spv::StorageClassPrivate;
 
@@ -766,33 +700,24 @@ namespace dxvk {
       if (info.sclass == spv::StorageClassOutput) {
         m_module.decorateLocation(varId, regIdx);
 
-        // Add index decoration for potential dual-source blending
         if (m_programInfo.type() == DxbcProgramType::PixelShader)
           m_module.decorateIndex(varId, 0);
 
-        // Declare vertex positions in all stages as invariant, even if
-        // this is not the last stage, to help with potential Z fighting.
         if (sv == DxbcSystemValue::Position && m_moduleInfo.options.invariantPosition)
           m_module.decorate(varId, spv::DecorationInvariant);
       }
       
       m_oRegs.at(regIdx) = { regType, varId };
       
-      // Declare the output slot as defined
       m_outputMask |= 1u << regIdx;
     }
   }
   
   
   void DxbcCompiler::emitDclConstantBuffer(const DxbcShaderInstruction& ins) {
-    // dcl_constant_buffer has one operand with two indices:
-    //    (0) Constant buffer register ID (cb#)
-    //    (1) Number of constants in the buffer
     uint32_t bufferId     = ins.dst[0].idx[0].offset;
     uint32_t elementCount = ins.dst[0].idx[1].offset;
 
-    // With dynamic indexing, games will often index constant buffers
-    // out of bounds. Declare an upper bound to stay within spec.
     if (ins.controls.accessType() == DxbcConstantBufferAccessType::DynamicallyIndexed)
       elementCount = 4096;
 
@@ -806,15 +731,11 @@ namespace dxvk {
           uint32_t                numConstants,
           uint32_t                numComponents,
     const char*                   name) {
-    // Uniform buffer data is stored as a fixed-size array
-    // of 4x32-bit vectors. SPIR-V requires explicit strides.
     const uint32_t arrayType = m_module.defArrayTypeUnique(
       getVectorTypeId({ DxbcScalarType::Float32, numComponents }),
       m_module.constu32(numConstants));
     m_module.decorateArrayStride(arrayType, sizeof(uint32_t) * numComponents);
     
-    // SPIR-V requires us to put that array into a
-    // struct and decorate that struct as a block.
     const uint32_t structType = m_module.defStructTypeUnique(1, &arrayType);
     
     m_module.decorate(structType, spv::DecorationBlock);
@@ -823,15 +744,12 @@ namespace dxvk {
     m_module.setDebugName        (structType, str::format(name, "_t").c_str());
     m_module.setDebugMemberName  (structType, 0, "m");
     
-    // Variable that we'll use to access the buffer
     const uint32_t varId = m_module.newVar(
       m_module.defPointerType(structType, spv::StorageClassUniform),
       spv::StorageClassUniform);
     
     m_module.setDebugName(varId, name);
     
-    // Compute the DXVK binding slot index for the buffer.
-    // D3D11 needs to bind the actual buffers to this slot.
     uint32_t bindingId = computeConstantBufferBinding(
       m_programInfo.type(), regIdx);
     
@@ -843,7 +761,6 @@ namespace dxvk {
     buf.size   = numConstants;
     m_constantBuffers.at(regIdx) = buf;
     
-    // Store descriptor info for the shader interface
     DxvkBindingInfo binding = { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER };
     binding.viewType = VK_IMAGE_VIEW_TYPE_MAX_ENUM;
     binding.access = VK_ACCESS_UNIFORM_READ_BIT;
@@ -854,17 +771,12 @@ namespace dxvk {
 
 
   void DxbcCompiler::emitDclSampler(const DxbcShaderInstruction& ins) {
-    // dclSampler takes one operand:
-    //    (dst0) The sampler register to declare
     const uint32_t samplerId = ins.dst[0].idx[0].offset;
     
-    // The sampler type is opaque, but we still have to
-    // define a pointer and a variable in oder to use it
     const uint32_t samplerType = m_module.defSamplerType();
     const uint32_t samplerPtrType = m_module.defPointerType(
       samplerType, spv::StorageClassUniformConstant);
     
-    // Define the sampler variable
     const uint32_t varId = m_module.newVar(samplerPtrType,
       spv::StorageClassUniformConstant);
     m_module.setDebugName(varId,
@@ -873,14 +785,12 @@ namespace dxvk {
     m_samplers.at(samplerId).varId  = varId;
     m_samplers.at(samplerId).typeId = samplerType;
     
-    // Compute binding slot index for the sampler
     uint32_t bindingId = computeSamplerBinding(
       m_programInfo.type(), samplerId);
     
     m_module.decorateDescriptorSet(varId, 0);
     m_module.decorateBinding(varId, bindingId);
     
-    // Store descriptor info for the shader interface
     DxvkBindingInfo binding = { VK_DESCRIPTOR_TYPE_SAMPLER };
     binding.viewType = VK_IMAGE_VIEW_TYPE_MAX_ENUM;
     binding.resourceBinding = bindingId;
@@ -895,12 +805,8 @@ namespace dxvk {
   
   
   void DxbcCompiler::emitDclResourceTyped(const DxbcShaderInstruction& ins) {
-    // dclResource takes two operands:
-    //    (dst0) The resource register ID
-    //    (imm0) The resource return type
     const uint32_t registerId = ins.dst[0].idx[0].offset;
     
-    // We also handle unordered access views here
     const bool isUav = ins.op == DxbcOpcode::DclUavTyped;
     
     if (isUav) {
@@ -909,12 +815,8 @@ namespace dxvk {
       m_module.enableCapability(spv::CapabilityStorageImageWriteWithoutFormat);
     }
     
-    // Defines the type of the resource (texture2D, ...)
     const DxbcResourceDim resourceType = ins.controls.resourceDim();
     
-    // Defines the type of a read operation. DXBC has the ability
-    // to define four different types whereas SPIR-V only allows
-    // one, but in practice this should not be much of a problem.
     auto xType = static_cast<DxbcResourceReturnType>(
       bit::extract(ins.imm[0].u32, 0, 3));
     auto yType = static_cast<DxbcResourceReturnType>(
@@ -927,12 +829,9 @@ namespace dxvk {
     if ((xType != yType) || (xType != zType) || (xType != wType))
       Logger::warn("DxbcCompiler: dcl_resource: Ignoring resource return types");
     
-    // Declare the actual sampled type
     const DxbcScalarType sampledType = [xType] {
       switch (xType) {
-        // FIXME is this correct? There's no documentation about it
         case DxbcResourceReturnType::Mixed: return DxbcScalarType::Uint32;
-        // FIXME do we have to manually clamp writes to SNORM/UNORM resources?
         case DxbcResourceReturnType::Snorm: return DxbcScalarType::Float32;
         case DxbcResourceReturnType::Unorm: return DxbcScalarType::Float32;
         case DxbcResourceReturnType::Float: return DxbcScalarType::Float32;
@@ -942,11 +841,9 @@ namespace dxvk {
       }
     }();
     
-    // Declare the resource type
     const uint32_t sampledTypeId = getScalarTypeId(sampledType);
     const DxbcImageInfo typeInfo = getResourceType(resourceType, isUav);    
     
-    // Declare additional capabilities if necessary
     switch (resourceType) {
       case DxbcResourceDim::Buffer:
         m_module.enableCapability(isUav
@@ -967,13 +864,9 @@ namespace dxvk {
         break;
       
       default:
-        // No additional capabilities required
         break;
     }
     
-    // If the read-without-format capability is not set and this
-    // image is access via a typed load, or if atomic operations
-    // are used,, we must define the image format explicitly.
     spv::ImageFormat imageFormat = spv::ImageFormatUnknown;
     
     if (isUav) {
@@ -983,15 +876,10 @@ namespace dxvk {
         imageFormat = getScalarImageFormat(sampledType);
     }
     
-    // We do not know whether the image is going to be used as
-    // a color image or a depth image yet, but we can pick the
-    // correct type when creating a sampled image object.
     const uint32_t imageTypeId = m_module.defImageType(sampledTypeId,
       typeInfo.dim, 0, typeInfo.array, typeInfo.ms, typeInfo.sampled,
       imageFormat);
     
-    // We'll declare the texture variable with the color type
-    // and decide which one to use when the texture is sampled.
     const uint32_t resourcePtrType = m_module.defPointerType(
       imageTypeId, spv::StorageClassUniformConstant);
     
@@ -1001,8 +889,6 @@ namespace dxvk {
     m_module.setDebugName(varId,
       str::format(isUav ? "u" : "t", registerId).c_str());
     
-    // Compute the DXVK binding slot index for the resource.
-    // D3D11 needs to bind the actual resource to this slot.
     uint32_t bindingId = isUav
       ? computeUavBinding(m_programInfo.type(), registerId)
       : computeSrvBinding(m_programInfo.type(), registerId);
@@ -1010,8 +896,6 @@ namespace dxvk {
     m_module.decorateDescriptorSet(varId, 0);
     m_module.decorateBinding(varId, bindingId);
     
-    // Declare a specialization constant which will
-    // store whether or not the resource is bound.
     if (isUav) {
       DxbcUav uav;
       uav.type          = DxbcResourceType::Typed;
@@ -1053,7 +937,6 @@ namespace dxvk {
       m_textures.at(registerId) = res;
     }
     
-    // Store descriptor info for the shader interface
     DxvkBindingInfo binding = { };
     binding.viewType = typeInfo.vtype;
     binding.resourceBinding = bindingId;
@@ -1084,11 +967,6 @@ namespace dxvk {
   
   
   void DxbcCompiler::emitDclResourceRawStructured(const DxbcShaderInstruction& ins) {
-    // dcl_resource_raw and dcl_uav_raw take one argument:
-    //    (dst0) The resource register ID
-    // dcl_resource_structured and dcl_uav_structured take two arguments:
-    //    (dst0) The resource register ID
-    //    (imm0) Structure stride, in bytes
     const uint32_t registerId = ins.dst[0].idx[0].offset;
     
     const bool isUav = ins.op == DxbcOpcode::DclUavRaw
@@ -1102,11 +980,9 @@ namespace dxvk {
     
     const DxbcImageInfo typeInfo = { spv::DimBuffer, 0, 0, isUav ? 2u : 1u, VK_IMAGE_VIEW_TYPE_MAX_ENUM };
     
-    // Declare the resource type
     uint32_t resTypeId = 0;
     uint32_t varId     = 0;
     
-    // Write back resource info
     DxbcResourceType resType = isStructured
       ? DxbcResourceType::Structured
       : DxbcResourceType::Raw;
@@ -1119,12 +995,10 @@ namespace dxvk {
       ? (resStride & -resStride)
       : 16;
     
-    // Compute the DXVK binding slot index for the resource.
     uint32_t bindingId = isUav
       ? computeUavBinding(m_programInfo.type(), registerId)
       : computeSrvBinding(m_programInfo.type(), registerId);
     
-    // Test whether we should use a raw SSBO for this resource
     bool hasSparseFeedback = isUav
       ? m_analysis->uavInfos[registerId].sparseFeedback
       : m_analysis->srvInfos[registerId].sparseFeedback;
@@ -1148,8 +1022,6 @@ namespace dxvk {
         str::format(isUav ? "u" : "t", registerId, "_t").c_str());
       m_module.setDebugMemberName(structType, 0, "m");
     } else {
-      // Structured and raw buffers are represented as
-      // texel buffers consisting of 32-bit integers.
       m_module.enableCapability(isUav
         ? spv::CapabilityImageBuffer
         : spv::CapabilitySampledBuffer);
@@ -1197,7 +1069,6 @@ namespace dxvk {
       m_textures.at(registerId) = res;
     }
     
-    // Store descriptor info for the shader interface
     DxvkBindingInfo binding = { };
     binding.descriptorType = useRawSsbo
       ? VK_DESCRIPTOR_TYPE_STORAGE_BUFFER
@@ -1222,7 +1093,6 @@ namespace dxvk {
 
     m_bindings.push_back(binding);
 
-    // If supported, we'll be using raw access chains to access this
     if (!m_hasRawAccessChains && m_moduleInfo.options.supportsRawAccessChains) {
       m_module.enableExtension("SPV_NV_raw_access_chains");
       m_module.enableCapability(spv::CapabilityRawAccessChainsNV);
@@ -1233,13 +1103,6 @@ namespace dxvk {
   
   
   void DxbcCompiler::emitDclThreadGroupSharedMemory(const DxbcShaderInstruction& ins) {
-    // dcl_tgsm_raw takes two arguments:
-    //    (dst0) The resource register ID
-    //    (imm0) Block size, in bytes
-    // dcl_tgsm_structured takes three arguments:
-    //    (dst0) The resource register ID
-    //    (imm0) Structure stride, in bytes
-    //    (imm1) Structure count
     const bool isStructured = ins.op == DxbcOpcode::DclThreadGroupSharedMemoryStructured;
     
     const uint32_t regId = ins.dst[0].idx[0].offset;
@@ -1271,9 +1134,6 @@ namespace dxvk {
   
   
   void DxbcCompiler::emitDclGsInputPrimitive(const DxbcShaderInstruction& ins) {
-    // The input primitive type is stored within in the
-    // control bits of the opcode token. In SPIR-V, we
-    // have to define an execution mode.
     const auto mode = [&] {
       switch (ins.controls.primitive()) {
         case DxbcPrimitive::Point:       return std::make_pair(VK_PRIMITIVE_TOPOLOGY_POINT_LIST,                   spv::ExecutionModeInputPoints);
@@ -1294,9 +1154,6 @@ namespace dxvk {
   
   
   void DxbcCompiler::emitDclGsOutputTopology(const DxbcShaderInstruction& ins) {
-    // The input primitive topology is stored within in the
-    // control bits of the opcode token. In SPIR-V, we have
-    // to define an execution mode.
     auto mode = [&] {
       switch (ins.controls.primitiveTopology()) {
         case DxbcPrimitiveTopology::PointList:     return std::make_pair(VK_PRIMITIVE_TOPOLOGY_POINT_LIST,    spv::ExecutionModeOutputPoints);
@@ -1312,8 +1169,6 @@ namespace dxvk {
   
   
   void DxbcCompiler::emitDclMaxOutputVertexCount(const DxbcShaderInstruction& ins) {
-    // dcl_max_output_vertex_count has one operand:
-    //    (imm0) The maximum number of vertices
     m_gs.outputVertexCount = ins.imm[0].u32;
     
     m_module.setOutputVertices(m_entryPointId, m_gs.outputVertexCount);
@@ -1321,8 +1176,6 @@ namespace dxvk {
   
   
   void DxbcCompiler::emitDclInputControlPointCount(const DxbcShaderInstruction& ins) {
-    // dcl_input_control_points has the control point
-    // count embedded within the opcode token.
     if (m_programInfo.type() == DxbcProgramType::HullShader) {
       m_hs.vertexCountIn = ins.controls.controlPointCount();
       
@@ -1337,8 +1190,6 @@ namespace dxvk {
   
   
   void DxbcCompiler::emitDclOutputControlPointCount(const DxbcShaderInstruction& ins) {
-    // dcl_output_control_points has the control point
-    // count embedded within the opcode token.
     m_hs.vertexCountOut = ins.controls.controlPointCount();
     
     m_hs.outputPerPatch  = emitTessInterfacePerPatch(spv::StorageClassPrivate);
@@ -1407,10 +1258,6 @@ namespace dxvk {
   
   
   void DxbcCompiler::emitDclThreadGroup(const DxbcShaderInstruction& ins) {
-    // dcl_thread_group has three operands:
-    //    (imm0) Number of threads in X dimension
-    //    (imm1) Number of threads in Y dimension
-    //    (imm2) Number of threads in Z dimension
     m_cs.workgroupSizeX = ins.imm[0].u32;
     m_cs.workgroupSizeY = ins.imm[1].u32;
     m_cs.workgroupSizeZ = ins.imm[2].u32;
@@ -1421,15 +1268,12 @@ namespace dxvk {
   
   
   void DxbcCompiler::emitDclGsInstanceCount(const DxbcShaderInstruction& ins) {
-    // dcl_gs_instance_count has one operand:
-    //    (imm0) Number of geometry shader invocations
     m_module.setInvocations(m_entryPointId, ins.imm[0].u32);
     m_gs.invocationCount = ins.imm[0].u32;
   }
   
   
   uint32_t DxbcCompiler::emitDclUavCounter(uint32_t regId) {
-    // Declare a structure type which holds the UAV counter
     if (m_uavCtrStructType == 0) {
       const uint32_t t_u32    = m_module.defIntType(32, 0);
       const uint32_t t_struct = m_module.defStructTypeUnique(1, &t_u32);
@@ -1445,7 +1289,6 @@ namespace dxvk {
         t_struct, spv::StorageClassStorageBuffer);
     }
     
-    // Declare the buffer variable
     const uint32_t varId = m_module.newVar(
       m_uavCtrPointerType, spv::StorageClassStorageBuffer);
     
@@ -1458,7 +1301,6 @@ namespace dxvk {
     m_module.decorateDescriptorSet(varId, 0);
     m_module.decorateBinding(varId, bindingId);
     
-    // Declare the storage buffer binding
     DxvkBindingInfo binding = { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER };
     binding.resourceBinding = bindingId;
     binding.viewType = VK_IMAGE_VIEW_TYPE_MAX_ENUM;
@@ -1476,8 +1318,6 @@ namespace dxvk {
     if ((ins.customDataSize & 0x3) != 0)
       throw DxvkError("DxbcCompiler: Immediate constant buffer size not a multiple of four DWORDs");
 
-    // A lot of the time we'll be dealing with a scalar or vec2
-    // array here, there's no reason to emit all those zeroes.
     uint32_t componentCount = 1u;
 
     for (uint32_t i = 0; i < ins.customDataSize; i += 4u) {
@@ -1507,7 +1347,6 @@ namespace dxvk {
           uint32_t                dwordCount,
     const uint32_t*               dwordArray,
           uint32_t                componentCount) {
-    // Declare individual vector constants as 4x32-bit vectors
     small_vector<uint32_t, Icb_MaxBakedDwords> vectorIds;
     
     DxbcVectorType vecType;
@@ -1530,11 +1369,8 @@ namespace dxvk {
       vectorIds.push_back(id);
     }
 
-    // Pad array with one entry of zeroes so that we can
-    // handle out-of-bounds accesses more conveniently.
     vectorIds.push_back(emitBuildZeroVector(vecType).id);
 
-    // Declare the array that contains all the vectors
     DxbcArrayType arrInfo;
     arrInfo.ctype   = DxbcScalarType::Uint32;
     arrInfo.ccount  = componentCount;
@@ -1544,8 +1380,6 @@ namespace dxvk {
     uint32_t arrayId = m_module.constComposite(
       arrayTypeId, vectorIds.size(), vectorIds.data());
 
-    // Declare the variable that will hold the constant
-    // data and initialize it with the constant array.
     uint32_t pointerTypeId = m_module.defPointerType(
       arrayTypeId, spv::StorageClassPrivate);
 
@@ -1567,15 +1401,11 @@ namespace dxvk {
           uint32_t                componentCount) {
     uint32_t vectorCount = dwordCount / 4u;
 
-    // Tightly pack vec2 or scalar arrays if possible. Don't bother with
-    // vec3 since we'd rather have properly vectorized loads in that case.
     if (m_moduleInfo.options.supportsTightIcbPacking && componentCount <= 2u)
       m_icbComponents = componentCount;
     else
       m_icbComponents = 4u;
 
-    // Immediate constant buffer can be read out of bounds, declare
-    // it with the maximum possible size and rely on robustness.
     this->emitDclConstantBufferVar(Icb_BindingSlotId, 4096u, m_icbComponents, "icb");
 
     m_icbData.reserve(vectorCount * componentCount);
@@ -1618,15 +1448,11 @@ namespace dxvk {
     const uint32_t typeId = getVectorTypeId(dst.type);
     
     switch (ins.op) {
-      /////////////////////
-      // Move instructions
       case DxbcOpcode::Mov:
       case DxbcOpcode::DMov:
         dst.id = src.at(0).id;
         break;
         
-      /////////////////////////////////////
-      // ALU operations on float32 numbers
       case DxbcOpcode::Add:
       case DxbcOpcode::DAdd:
         dst.id = m_module.opFAdd(typeId,
@@ -1657,8 +1483,6 @@ namespace dxvk {
       case DxbcOpcode::Mad:
       case DxbcOpcode::DFma:
         if (ins.controls.precise()) {
-          // FXC only emits precise mad if the shader explicitly uses
-          // the HLSL mad()/fma() intrinsics, let's preserve that.
           dst.id = m_module.opFFma(typeId,
             src.at(0).id, src.at(1).id, src.at(2).id);
         } else {
@@ -1730,8 +1554,6 @@ namespace dxvk {
           typeId, src.at(0).id);
         break;
       
-      /////////////////////////////////////
-      // ALU operations on signed integers
       case DxbcOpcode::IAdd:
         dst.id = m_module.opIAdd(typeId,
           src.at(0).id, src.at(1).id);
@@ -1760,8 +1582,6 @@ namespace dxvk {
           typeId, src.at(0).id);
         break;
       
-      ///////////////////////////////////////
-      // ALU operations on unsigned integers
       case DxbcOpcode::UMax:
         dst.id = m_module.opUMax(typeId,
           src.at(0).id, src.at(1).id);
@@ -1772,8 +1592,6 @@ namespace dxvk {
           src.at(0).id, src.at(1).id);
         break;
       
-      ///////////////////////////////////////
-      // Bit operations on unsigned integers
       case DxbcOpcode::And:
         dst.id = m_module.opBitwiseAnd(typeId,
           src.at(0).id, src.at(1).id);
@@ -1804,8 +1622,6 @@ namespace dxvk {
           typeId, src.at(0).id);
         break;
       
-      ///////////////////////////
-      // Conversion instructions
       case DxbcOpcode::ItoF:
         dst.id = m_module.opConvertStoF(
           typeId, src.at(0).id);
@@ -1836,19 +1652,12 @@ namespace dxvk {
     if (ins.controls.precise() || m_precise)
       m_module.decorate(dst.id, spv::DecorationNoContraction);
     
-    // Store computed value
     dst = emitDstOperandModifiers(dst, ins.modifiers);
     emitRegisterStore(ins.dst[0], dst);
   }
   
   
   void DxbcCompiler::emitVectorCmov(const DxbcShaderInstruction& ins) {
-    // movc and swapc have the following operands:
-    //    (dst0) The first destination register
-    //    (dst1) The second destination register (swapc only)
-    //    (src0) The condition vector
-    //    (src1) Vector to select from if the condition is not 0
-    //    (src2) Vector to select from if the condition is 0
     DxbcRegMask condMask = ins.dst[0].mask;
 
     if (ins.dst[0].dataType == DxbcScalarType::Float64) {
@@ -1864,8 +1673,6 @@ namespace dxvk {
     
     uint32_t componentCount = condMask.popCount();
     
-    // We'll compare against a vector of zeroes to generate a
-    // boolean vector, which in turn will be used by OpSelect
     uint32_t zeroType = m_module.defIntType(32, 0);
     uint32_t boolType = m_module.defBoolType();
     
@@ -1879,8 +1686,6 @@ namespace dxvk {
       zero = m_module.constComposite(zeroType, componentCount, zeroVec.data());
     }
     
-    // In case of swapc, the second destination operand receives
-    // the output that a cmov instruction would normally get
     const uint32_t trueIndex = ins.op == DxbcOpcode::Swapc ? 1 : 0;
     
     for (uint32_t i = 0; i < ins.dstCount; i++) {
@@ -1899,14 +1704,8 @@ namespace dxvk {
   }
   
   void DxbcCompiler::emitVectorCmp(const DxbcShaderInstruction& ins) {
-    // Compare instructions have three operands:
-    //    (dst0) The destination register
-    //    (src0) The first vector to compare
-    //    (src1) The second vector to compare
     uint32_t componentCount = ins.dst[0].mask.popCount();
 
-    // For 64-bit operations, we'll return a 32-bit
-    // vector, so we have to adjust the read mask
     DxbcRegMask srcMask = ins.dst[0].mask;
 
     if (isDoubleType(ins.src[0].dataType)) {
@@ -1920,8 +1719,6 @@ namespace dxvk {
       emitRegisterLoad(ins.src[1], srcMask),
     };
     
-    // Condition, which is a boolean vector used
-    // to select between the ~0u and 0u vectors.
     uint32_t condition     = 0;
     uint32_t conditionType = m_module.defBoolType();
     
@@ -1991,7 +1788,6 @@ namespace dxvk {
         return;
     }
     
-    // Generate constant vectors for selection
     uint32_t sFalse = m_module.constu32( 0u);
     uint32_t sTrue  = m_module.constu32(~0u);
     
@@ -2012,8 +1808,6 @@ namespace dxvk {
     if (invert)
       std::swap(sFalse, sTrue);
 
-    // Perform component-wise mask selection
-    // based on the condition evaluated above.
     result.id = m_module.opSelect(
       typeId, condition, sTrue, sFalse);
     
@@ -2022,9 +1816,6 @@ namespace dxvk {
   
   
   void DxbcCompiler::emitVectorDeriv(const DxbcShaderInstruction& ins) {
-    // Derivative instructions have two operands:
-    //    (dst0) Destination register for the derivative
-    //    (src0) The operand to compute the derivative of
     DxbcRegisterValue value = emitRegisterLoad(ins.src[0], ins.dst[0].mask);
     const uint32_t typeId = getVectorTypeId(value.type);
     
@@ -2096,9 +1887,6 @@ namespace dxvk {
           m_module.opCompositeExtract(componentType, src.at(1).id, 1, &i));
       }
 
-      // Unconditionally mark as precise since the exact order of operation
-      // matters for some games, even if the instruction itself is not marked
-      // as precise.
       m_module.decorate(dst.id, spv::DecorationNoContraction);
     }
 
@@ -2108,16 +1896,10 @@ namespace dxvk {
   
   
   void DxbcCompiler::emitVectorIdiv(const DxbcShaderInstruction& ins) {
-    // udiv has four operands:
-    //    (dst0) Quotient destination register
-    //    (dst1) Remainder destination register
-    //    (src0) The first vector to compare
-    //    (src1) The second vector to compare
     if (ins.dst[0].type == DxbcOperandType::Null
      && ins.dst[1].type == DxbcOperandType::Null)
       return;
     
-    // FIXME support this if applications require it
     if (ins.dst[0].type != DxbcOperandType::Null
      && ins.dst[1].type != DxbcOperandType::Null
      && ins.dst[0].mask != ins.dst[1].mask) {
@@ -2125,8 +1907,6 @@ namespace dxvk {
       return;
     }
     
-    // Load source operands as integers with the
-    // mask of one non-NULL destination operand
     const DxbcRegMask srcMask =
       ins.dst[0].type != DxbcOperandType::Null
         ? ins.dst[0].mask
@@ -2137,7 +1917,6 @@ namespace dxvk {
       emitRegisterLoad(ins.src[1], srcMask),
     };
     
-    // Division by zero will return 0xffffffff for both results
     auto bvecId = getVectorTypeId({ DxbcScalarType::Bool, srcMask.popCount() });
 
     DxbcRegisterValue const0  = emitBuildConstVecu32( 0u,  0u,  0u,  0u, srcMask);
@@ -2145,8 +1924,6 @@ namespace dxvk {
 
     uint32_t cmpValue = m_module.opINotEqual(bvecId, src.at(1).id, const0.id);
 
-    // Compute results only if the destination
-    // operands are not NULL.
     if (ins.dst[0].type != DxbcOperandType::Null) {
       DxbcRegisterValue quotient;
       quotient.type.ctype  = ins.dst[0].dataType;
@@ -2184,17 +1961,10 @@ namespace dxvk {
   
   
   void DxbcCompiler::emitVectorImul(const DxbcShaderInstruction& ins) {
-    // imul and umul have four operands:
-    //    (dst0) High destination register
-    //    (dst1) Low destination register
-    //    (src0) The first vector to compare
-    //    (src1) The second vector to compare
     if (ins.dst[0].type == DxbcOperandType::Null) {
       if (ins.dst[1].type == DxbcOperandType::Null)
         return;
       
-      // If dst0 is NULL, this instruction behaves just
-      // like any other three-operand ALU instruction
       const std::array<DxbcRegisterValue, 2> src = {
         emitRegisterLoad(ins.src[0], ins.dst[1].mask),
         emitRegisterLoad(ins.src[1], ins.dst[1].mask),
@@ -2210,18 +1980,12 @@ namespace dxvk {
       result = emitDstOperandModifiers(result, ins.modifiers);
       emitRegisterStore(ins.dst[1], result);
     } else {
-      // TODO implement this
       Logger::warn("DxbcCompiler: Extended Imul not yet supported");
     }
   }
   
   
   void DxbcCompiler::emitVectorMsad(const DxbcShaderInstruction& ins) {
-    // msad has four operands:
-    //    (dst0) Destination
-    //    (src0) Reference (packed uint8)
-    //    (src1) Source (packed uint8)
-    //    (src2) Accumulator
     DxbcRegisterValue refReg = emitRegisterLoad(ins.src[0], ins.dst[0].mask);
     DxbcRegisterValue srcReg = emitRegisterLoad(ins.src[1], ins.dst[0].mask);
     DxbcRegisterValue result = emitRegisterLoad(ins.src[2], ins.dst[0].mask);
@@ -2249,10 +2013,6 @@ namespace dxvk {
 
 
   void DxbcCompiler::emitVectorShift(const DxbcShaderInstruction& ins) {
-    // Shift operations have three operands:
-    //    (dst0) The destination register
-    //    (src0) The register to shift
-    //    (src1) The shift amount (scalar)
     DxbcRegisterValue shiftReg = emitRegisterLoad(ins.src[0], ins.dst[0].mask);
     DxbcRegisterValue countReg = emitRegisterLoad(ins.src[1], ins.dst[0].mask);
 
@@ -2298,12 +2058,7 @@ namespace dxvk {
   
     
   void DxbcCompiler::emitVectorSinCos(const DxbcShaderInstruction& ins) {
-    // sincos has three operands:
-    //    (dst0) Destination register for sin(x)
-    //    (dst1) Destination register for cos(x)
-    //    (src0) Source operand x
     
-    // Load source operand as 32-bit float vector.
     const DxbcRegisterValue srcValue = emitRegisterLoad(
       ins.src[0], DxbcRegMask(true, true, true, true));
 
@@ -2315,7 +2070,6 @@ namespace dxvk {
     DxbcRegisterValue cosVector = { };
     cosVector.type.ctype = DxbcScalarType::Float32;
 
-    // Only compute sincos for enabled components
     std::array<uint32_t, 4> sinIds = { };
     std::array<uint32_t, 4> cosIds = { };
 
@@ -2353,8 +2107,6 @@ namespace dxvk {
   
   
   void DxbcCompiler::emitGeometryEmit(const DxbcShaderInstruction& ins) {
-    // In xfb mode we might have multiple streams, so
-    // we have to figure out which stream to write to
     uint32_t streamId  = 0;
     uint32_t streamVar = 0;
 
@@ -2363,7 +2115,6 @@ namespace dxvk {
       streamVar = m_module.constu32(streamId);
     }
 
-    // Checking the negation is easier for EmitThenCut/EmitThenCutStream
     bool doEmit = ins.op != DxbcOpcode::Cut && ins.op != DxbcOpcode::CutStream;
     bool doCut = ins.op != DxbcOpcode::Emit && ins.op != DxbcOpcode::EmitStream;
 
@@ -2382,26 +2133,15 @@ namespace dxvk {
   
   
   void DxbcCompiler::emitAtomic(const DxbcShaderInstruction& ins) {
-    // atomic_* operations have the following operands:
-    //    (dst0) Destination u# or g# register
-    //    (src0) Index into the texture or buffer
-    //    (src1) The source value for the operation
-    //    (src2) Second source operand (optional)
-    // imm_atomic_* operations have the following operands:
-    //    (dst0) Register that receives the result
-    //    (dst1) Destination u# or g# register
-    //    (srcX) As above
     const DxbcBufferInfo bufferInfo = getBufferInfo(ins.dst[ins.dstCount - 1]);
     
     bool isImm = ins.dstCount == 2;
     bool isUav = ins.dst[ins.dstCount - 1].type == DxbcOperandType::UnorderedAccessView;
     bool isSsbo = bufferInfo.isSsbo;
 
-    // Retrieve destination pointer for the atomic operation>
     const DxbcRegisterPointer pointer = emitGetAtomicPointer(
       ins.dst[ins.dstCount - 1], ins.src[0]);
     
-    // Load source values
     std::array<DxbcRegisterValue, 2> src;
     
     for (uint32_t i = 1; i < ins.srcCount; i++) {
@@ -2410,7 +2150,6 @@ namespace dxvk {
         pointer.type.ctype);
     }
     
-    // Define memory scope and semantics based on the operands
     uint32_t scope     = 0;
     uint32_t semantics = 0;
     
@@ -2430,12 +2169,10 @@ namespace dxvk {
     const uint32_t scopeId     = m_module.constu32(scope);
     const uint32_t semanticsId = m_module.constu32(semantics);
     
-    // Perform the atomic operation on the given pointer
     DxbcRegisterValue value;
     value.type = pointer.type;
     value.id   = 0;
     
-    // The result type, which is a scalar integer
     const uint32_t typeId = getVectorTypeId(value.type);
     
     switch (ins.op) {
@@ -2516,23 +2253,17 @@ namespace dxvk {
         return;
     }
     
-    // Write back the result to the destination
-    // register if this is an imm_atomic_* opcode.
     if (isImm)
       emitRegisterStore(ins.dst[0], value);
   }
   
   
   void DxbcCompiler::emitAtomicCounter(const DxbcShaderInstruction& ins) {
-    // imm_atomic_alloc and imm_atomic_consume have the following operands:
-    //    (dst0) The register that will hold the old counter value
-    //    (dst1) The UAV whose counter is going to be modified
     const uint32_t registerId = ins.dst[1].idx[0].offset;
     
     if (m_uavs.at(registerId).ctrId == 0)
       m_uavs.at(registerId).ctrId = emitDclUavCounter(registerId);
     
-    // Get a pointer to the atomic counter in question
     DxbcRegisterInfo ptrType;
     ptrType.type.ctype   = DxbcScalarType::Uint32;
     ptrType.type.ccount  = 1;
@@ -2545,7 +2276,6 @@ namespace dxvk {
       m_uavs.at(registerId).ctrId,
       1, &zeroId);
     
-    // Define memory scope and semantics based on the operands
     uint32_t scope     = spv::ScopeQueueFamily;
     uint32_t semantics = spv::MemorySemanticsUniformMemoryMask
                        | spv::MemorySemanticsAcquireReleaseMask;
@@ -2553,7 +2283,6 @@ namespace dxvk {
     uint32_t scopeId     = m_module.constu32(scope);
     uint32_t semanticsId = m_module.constu32(semantics);
     
-    // Compute the result value
     DxbcRegisterValue value;
     value.type.ctype  = DxbcScalarType::Uint32;
     value.type.ccount = 1;
@@ -2580,14 +2309,11 @@ namespace dxvk {
         return;
     }
 
-    // Store the result
     emitRegisterStore(ins.dst[0], value);
   }
   
   
   void DxbcCompiler::emitBarrier(const DxbcShaderInstruction& ins) {
-    // sync takes no operands. Instead, the synchronization
-    // scope is defined by the operand control bits.
     const DxbcSyncFlags flags = ins.controls.syncFlags();
     
     uint32_t executionScope   = spv::ScopeInvocation;
@@ -2643,11 +2369,6 @@ namespace dxvk {
   
   
   void DxbcCompiler::emitBitExtract(const DxbcShaderInstruction& ins) {
-    // ibfe and ubfe take the following arguments:
-    //    (dst0) The destination register
-    //    (src0) Number of bits to extact
-    //    (src1) Offset of the bits to extract
-    //    (src2) Register to extract bits from
     const bool isSigned = ins.op == DxbcOpcode::IBfe;
     
     DxbcRegisterValue bitCnt = emitRegisterLoad(ins.src[0], ins.dst[0].mask);
@@ -2688,12 +2409,6 @@ namespace dxvk {
   
   
   void DxbcCompiler::emitBitInsert(const DxbcShaderInstruction& ins) {
-    // ibfe and ubfe take the following arguments:
-    //    (dst0) The destination register
-    //    (src0) Number of bits to extact
-    //    (src1) Offset of the bits to extract
-    //    (src2) Register to take bits from
-    //    (src3) Register to replace bits in
     DxbcRegisterValue bitCnt = emitRegisterLoad(ins.src[0], ins.dst[0].mask);
     DxbcRegisterValue bitOfs = emitRegisterLoad(ins.src[1], ins.dst[0].mask);
     
@@ -2733,16 +2448,12 @@ namespace dxvk {
   
   
   void DxbcCompiler::emitBitScan(const DxbcShaderInstruction& ins) {
-    // firstbit(lo|hi|shi) have two operands:
-    //    (dst0) The destination operant
-    //    (src0) Source operand to scan
     DxbcRegisterValue src = emitRegisterLoad(ins.src[0], ins.dst[0].mask);
     
     DxbcRegisterValue dst;
     dst.type.ctype  = ins.dst[0].dataType;
     dst.type.ccount = ins.dst[0].mask.popCount();
     
-    // Result type, should be an unsigned integer
     const uint32_t typeId = getVectorTypeId(dst.type);
     
     switch (ins.op) {
@@ -2752,8 +2463,6 @@ namespace dxvk {
       default: Logger::warn(str::format("DxbcCompiler: Unhandled instruction: ", ins.op)); return;
     }
     
-    // The 'Hi' variants are counted from the MSB in DXBC
-    // rather than the LSB, so we have to invert the number
     if (ins.op == DxbcOpcode::FirstBitHi || ins.op == DxbcOpcode::FirstBitShi) {
       uint32_t boolTypeId = m_module.defBoolType();
 
@@ -2769,28 +2478,20 @@ namespace dxvk {
         constff.id);
     }
     
-    // No modifiers are supported
     emitRegisterStore(ins.dst[0], dst);
   }
   
   
   void DxbcCompiler::emitBufferQuery(const DxbcShaderInstruction& ins) {
-    // bufinfo takes two arguments
-    //    (dst0) The destination register
-    //    (src0) The buffer register to query
     const DxbcBufferInfo bufferInfo = getBufferInfo(ins.src[0]);
     bool isSsbo = bufferInfo.isSsbo;
     
-    // We'll store this as a scalar unsigned integer
     DxbcRegisterValue result = isSsbo
       ? emitQueryBufferSize(ins.src[0])
       : emitQueryTexelBufferSize(ins.src[0]);
     
     uint32_t typeId = getVectorTypeId(result.type);
     
-    // Adjust returned size if this is a raw or structured
-    // buffer, as emitQueryTexelBufferSize only returns the
-    // number of typed elements in the buffer.
     if (bufferInfo.type == DxbcResourceType::Raw) {
       result.id = m_module.opIMul(typeId,
         result.id, m_module.constu32(4));
@@ -2799,56 +2500,34 @@ namespace dxvk {
         m_module.constu32(bufferInfo.stride / 4));
     }
 
-    // Store the result. The scalar will be extended to a
-    // vector if the write mask consists of more than one
-    // component, which is the desired behaviour.
     emitRegisterStore(ins.dst[0], result);
   }
   
   
   void DxbcCompiler::emitBufferLoad(const DxbcShaderInstruction& ins) {
-    // ld_raw takes three arguments:
-    //    (dst0) Destination register
-    //    (src0) Byte offset
-    //    (src1) Source register
-    // ld_structured takes four arguments:
-    //    (dst0) Destination register
-    //    (src0) Structure index
-    //    (src1) Byte offset
-    //    (src2) Source register
     const bool isStructured = ins.op == DxbcOpcode::LdStructured
                            || ins.op == DxbcOpcode::LdStructuredS;
     
-    // Source register. The exact way we access
-    // the data depends on the register type.
     const DxbcRegister& dstReg = ins.dst[0];
     const DxbcRegister& srcReg = isStructured ? ins.src[2] : ins.src[1];
 
     if (dstReg.type == DxbcOperandType::UnorderedAccessView)
       emitUavBarrier(uint64_t(1u) << srcReg.idx[0].offset, 0u);
 
-    // Retrieve common info about the buffer
     const DxbcBufferInfo bufferInfo = getBufferInfo(srcReg);
 
-    // Shared memory is the only type of buffer that
-    // is not accessed through a texel buffer view
     bool isTgsm = srcReg.type == DxbcOperandType::ThreadGroupSharedMemory;
     bool isSsbo = bufferInfo.isSsbo;
 
-    // Common types and IDs used while loading the data
     uint32_t bufferId = isTgsm || isSsbo ? 0 : m_module.opLoad(bufferInfo.typeId, bufferInfo.varId);
 
     uint32_t vectorTypeId = getVectorTypeId({ DxbcScalarType::Uint32, 4 });
     uint32_t scalarTypeId = getVectorTypeId({ DxbcScalarType::Uint32, 1 });
 
-    // Since all data is represented as a sequence of 32-bit
-    // integers, we have to load each component individually.
     std::array<uint32_t, 4> ccomps = { 0, 0, 0, 0 };
     std::array<uint32_t, 4> scomps = { 0, 0, 0, 0 };
     uint32_t                scount = 0;
 
-    // The sparse feedback ID will be non-zero for sparse
-    // instructions on input. We need to reset it to 0.
     SpirvMemoryOperands memoryOperands;
     SpirvImageOperands imageOperands;
     imageOperands.sparse = ins.dstCount == 2;
@@ -2987,8 +2666,6 @@ namespace dxvk {
             throw DxvkError("DxbcCompiler: Invalid operand type for strucured/raw load");
           }
 
-          // Only read sparse feedback once. This may be somewhat inaccurate
-          // for reads that straddle pages, but we can't easily emulate this.
           if (imageOperands.sparse) {
             imageOperands.sparse = false;
             sparseFeedbackId = resultId;
@@ -3029,19 +2706,8 @@ namespace dxvk {
   
   
   void DxbcCompiler::emitBufferStore(const DxbcShaderInstruction& ins) {
-    // store_raw takes three arguments:
-    //    (dst0) Destination register
-    //    (src0) Byte offset
-    //    (src1) Source register
-    // store_structured takes four arguments:
-    //    (dst0) Destination register
-    //    (src0) Structure index
-    //    (src1) Byte offset
-    //    (src2) Source register
     const bool isStructured = ins.op == DxbcOpcode::StoreStructured;
     
-    // Source register. The exact way we access
-    // the data depends on the register type.
     const DxbcRegister& dstReg = ins.dst[0];
     const DxbcRegister& srcReg = isStructured ? ins.src[2] : ins.src[1];
 
@@ -3051,10 +2717,8 @@ namespace dxvk {
     DxbcRegisterValue value = emitRegisterLoad(srcReg, dstReg.mask);
     value = emitRegisterBitcast(value, DxbcScalarType::Uint32);
 
-    // Retrieve common info about the buffer
     const DxbcBufferInfo bufferInfo = getBufferInfo(dstReg);
 
-    // Thread Group Shared Memory is not accessed through a texel buffer view
     bool isTgsm = dstReg.type == DxbcOperandType::ThreadGroupSharedMemory;
     bool isSsbo = bufferInfo.isSsbo;
 
@@ -3063,7 +2727,6 @@ namespace dxvk {
     uint32_t scalarTypeId = getVectorTypeId({ DxbcScalarType::Uint32, 1 });
     uint32_t vectorTypeId = getVectorTypeId({ DxbcScalarType::Uint32, 4 });
 
-    // Set memory operands according to resource properties
     SpirvMemoryOperands memoryOperands;
     SpirvImageOperands imageOperands;
 
@@ -3087,7 +2750,6 @@ namespace dxvk {
       }
     }
 
-    // Compute flat element index as necessary
     bool useRawAccessChains = isSsbo && m_hasRawAccessChains;
 
     DxbcRegisterValue index = emitRegisterLoad(ins.src[0], DxbcRegMask(true, false, false, false));
@@ -3206,42 +2868,31 @@ namespace dxvk {
   
   
   void DxbcCompiler::emitConvertFloat16(const DxbcShaderInstruction& ins) {
-    // f32tof16 takes two operands:
-    //    (dst0) Destination register as a uint32 vector
-    //    (src0) Source register as a float32 vector
-    // f16tof32 takes two operands:
-    //    (dst0) Destination register as a float32 vector
-    //    (src0) Source register as a uint32 vector
     const DxbcRegisterValue src = emitRegisterLoad(ins.src[0], ins.dst[0].mask);
     
-    // We handle both packing and unpacking here
     const bool isPack = ins.op == DxbcOpcode::F32toF16;
     
-    // The conversion instructions do not map very well to the
-    // SPIR-V pack instructions, which operate on 2D vectors.
     std::array<uint32_t, 4> scalarIds  = {{ 0, 0, 0, 0 }};
     
     const uint32_t componentCount = src.type.ccount;
     
-    // These types are used in both pack and unpack operations
     const uint32_t t_u32   = getVectorTypeId({ DxbcScalarType::Uint32,  1 });
     const uint32_t t_f32   = getVectorTypeId({ DxbcScalarType::Float32, 1 });
     const uint32_t t_f32v2 = getVectorTypeId({ DxbcScalarType::Float32, 2 });
     
-    // Constant zero-bit pattern, used for packing
     const uint32_t zerof32 = isPack ? m_module.constf32(0.0f) : 0;
     
     for (uint32_t i = 0; i < componentCount; i++) {
       const DxbcRegisterValue componentValue
         = emitRegisterExtract(src, DxbcRegMask::select(i));
       
-      if (isPack) {  // f32tof16
+      if (isPack) {
         const std::array<uint32_t, 2> packIds =
           {{ componentValue.id, zerof32 }};
         
         scalarIds[i] = m_module.opPackHalf2x16(t_u32,
           m_module.opCompositeConstruct(t_f32v2, packIds.size(), packIds.data()));
-      } else {  // f16tof32
+      } else {
         const uint32_t zeroIndex = 0;
         
         scalarIds[i] = m_module.opCompositeExtract(t_f32,
@@ -3261,10 +2912,6 @@ namespace dxvk {
       : scalarIds[0];
 
     if (isPack) {
-      // Some drivers return infinity if the input value is above a certain
-      // threshold, but D3D wants us to return infinity only if the input is
-      // actually infinite. Fix this up to return the maximum representable
-      // 16-bit floating point number instead, but preserve input infinity.
       uint32_t t_bvec = getVectorTypeId({ DxbcScalarType::Bool, componentCount });
       uint32_t f16Infinity = m_module.constuReplicant(0x7C00, componentCount);
       uint32_t f16Unsigned = m_module.constuReplicant(0x7FFF, componentCount);
@@ -3279,22 +2926,17 @@ namespace dxvk {
         result.id);
     }
 
-    // Store result in the destination register
     emitRegisterStore(ins.dst[0], result);
   }
 
 
   void DxbcCompiler::emitConvertFloat64(const DxbcShaderInstruction& ins) {
-    // ftod and dtof take the following operands:
-    //  (dst0) Destination operand
-    //  (src0) Number to convert
     uint32_t dstBits = ins.dst[0].mask.popCount();
 
     DxbcRegMask srcMask = isDoubleType(ins.dst[0].dataType)
       ? DxbcRegMask(dstBits >= 2, dstBits >= 4, false, false)
       : DxbcRegMask(dstBits >= 1, dstBits >= 1, dstBits >= 2, dstBits >= 2);
 
-    // Perform actual conversion, destination modifiers are not applied
     DxbcRegisterValue val = emitRegisterLoad(ins.src[0], srcMask);
 
     DxbcRegisterValue result;
@@ -3393,8 +3035,6 @@ namespace dxvk {
   void DxbcCompiler::emitInterpolate(const DxbcShaderInstruction& ins) {
     m_module.enableCapability(spv::CapabilityInterpolationFunction);
 
-    // The SPIR-V instructions operate on input variable pointers,
-    // which are all declared as four-component float vectors.
     uint32_t registerId = ins.src[0].idx[0].offset;
     
     DxbcRegisterValue result;
@@ -3418,7 +3058,6 @@ namespace dxvk {
       } break;
       
       case DxbcOpcode::EvalSnapped: {
-        // The offset is encoded as a 4-bit fixed point value
         DxbcRegisterValue offset = emitRegisterLoad(
           ins.src[1], DxbcRegMask(true, true, false, false));
         offset.id = m_module.opBitFieldSExtract(
@@ -3454,9 +3093,6 @@ namespace dxvk {
   
   void DxbcCompiler::emitSparseCheckAccess(
     const DxbcShaderInstruction&  ins) {
-    // check_access_mapped has two operands:
-    //    (dst0) The destination register
-    //    (src0) The residency code
     m_module.enableCapability(spv::CapabilitySparseResidency);
 
     DxbcRegisterValue srcValue = emitRegisterLoad(ins.src[0], ins.dst[0].mask);
@@ -3474,34 +3110,22 @@ namespace dxvk {
 
 
   void DxbcCompiler::emitTextureQuery(const DxbcShaderInstruction& ins) {
-    // resinfo has three operands:
-    //    (dst0) The destination register
-    //    (src0) Resource LOD to query
-    //    (src1) Resource to query
     const DxbcBufferInfo resourceInfo = getBufferInfo(ins.src[1]);
     const DxbcResinfoType resinfoType = ins.controls.resinfoType();
     
-    // Read the exact LOD for the image query
     const DxbcRegisterValue mipLod = emitRegisterLoad(
       ins.src[0], DxbcRegMask(true, false, false, false));
     
     const DxbcScalarType returnType = resinfoType == DxbcResinfoType::Uint
       ? DxbcScalarType::Uint32 : DxbcScalarType::Float32;
     
-    // Query the size of the selected mip level, as well as the
-    // total number of mip levels. We will have to combine the
-    // result into a four-component vector later.
     DxbcRegisterValue imageSize   = emitQueryTextureSize(ins.src[1], mipLod);
     DxbcRegisterValue imageLevels = emitQueryTextureLods(ins.src[1]);
 
-    // If the mip level is out of bounds, D3D requires us to return
-    // zero before applying modifiers, whereas SPIR-V is undefined,
-    // so we need to fix it up manually here.
     imageSize.id = m_module.opSelect(getVectorTypeId(imageSize.type),
       m_module.opULessThan(m_module.defBoolType(), mipLod.id, imageLevels.id),
       imageSize.id, emitBuildZeroVector(imageSize.type).id);
 
-    // Convert intermediates to the requested type
     if (returnType == DxbcScalarType::Float32) {
       imageSize.type.ctype = DxbcScalarType::Float32;
       imageSize.id = m_module.opConvertUtoF(
@@ -3514,9 +3138,6 @@ namespace dxvk {
         imageLevels.id);
     }
     
-    // If the selected return type is rcpFloat, we need
-    // to compute the reciprocal of the image dimensions,
-    // but not the array size, so we need to separate it.
     const uint32_t imageCoordDim = imageSize.type.ccount;
     
     DxbcRegisterValue imageLayers;
@@ -3536,8 +3157,6 @@ namespace dxvk {
         imageSize.id);
     }
     
-    // Concatenate result vectors and scalars to form a
-    // 4D vector. Unused components will be set to zero.
     std::array<uint32_t, 4> vectorIds = { imageSize.id, 0, 0, 0 };
     uint32_t numVectorIds = 1;
     
@@ -3555,7 +3174,6 @@ namespace dxvk {
     
     vectorIds[numVectorIds++] = imageLevels.id;
     
-    // Create the actual result vector
     DxbcRegisterValue result;
     result.type.ctype  = returnType;
     result.type.ccount = 4;
@@ -3563,8 +3181,6 @@ namespace dxvk {
       getVectorTypeId(result.type),
       numVectorIds, vectorIds.data());
     
-    // Swizzle components using the resource swizzle
-    // and the destination operand's write mask
     result = emitRegisterSwizzle(result,
       ins.src[1].swizzle, ins.dst[0].mask);
     emitRegisterStore(ins.dst[0], result);
@@ -3572,32 +3188,21 @@ namespace dxvk {
   
   
   void DxbcCompiler::emitTextureQueryLod(const DxbcShaderInstruction& ins) {
-    // All sample instructions have at least these operands:
-    //    (dst0) The destination register
-    //    (src0) Texture coordinates
-    //    (src1) The texture itself
-    //    (src2) The sampler object
     const DxbcRegister& texCoordReg = ins.src[0];
     const DxbcRegister& textureReg  = ins.src[1];
     const DxbcRegister& samplerReg  = ins.src[2];
     
-    // Texture and sampler register IDs
     const auto& texture = m_textures.at(textureReg.idx[0].offset);
     const auto& sampler = m_samplers.at(samplerReg.idx[0].offset);
     
-    // Load texture coordinates
     const DxbcRegisterValue coord = emitRegisterLoad(texCoordReg,
       DxbcRegMask::firstN(getTexLayerDim(texture.imageInfo)));
     
-    // Query the LOD. The result is a two-dimensional float32
-    // vector containing the mip level and virtual LOD numbers.
     const uint32_t sampledImageId = emitLoadSampledImage(texture, sampler, false);
     const uint32_t queriedLodId = m_module.opImageQueryLod(
       getVectorTypeId({ DxbcScalarType::Float32, 2 }),
       sampledImageId, coord.id);
     
-    // Build the result array vector by filling up
-    // the remaining two components with zeroes.
     const uint32_t zero = m_module.constf32(0.0f);
     const std::array<uint32_t, 3> resultIds
       = {{ queriedLodId, zero, zero }};
@@ -3614,9 +3219,6 @@ namespace dxvk {
   
   
   void DxbcCompiler::emitTextureQueryMs(const DxbcShaderInstruction& ins) {
-    // sampleinfo has two operands:
-    //    (dst0) The destination register
-    //    (src0) Resource to query
     DxbcRegisterValue sampleCount = emitQueryTextureSamples(ins.src[0]);
     
     if (ins.controls.returnType() != DxbcInstructionReturnType::Uint) {
@@ -3631,15 +3233,9 @@ namespace dxvk {
   
   
   void DxbcCompiler::emitTextureQueryMsPos(const DxbcShaderInstruction& ins) {
-    // samplepos has three operands:
-    //    (dst0) The destination register
-    //    (src0) Resource to query 
-    //    (src1) Sample index
     if (m_samplePositions == 0)
       m_samplePositions = emitSamplePosArray();
     
-    // The lookup index is qual to the sample count plus the
-    // sample index, or 0 if the resource cannot be queried.
     DxbcRegisterValue sampleCount = emitQueryTextureSamples(ins.src[0]);
     DxbcRegisterValue sampleIndex = emitRegisterLoad(
       ins.src[1], DxbcRegMask(true, false, false, false));
@@ -3648,7 +3244,6 @@ namespace dxvk {
       getVectorTypeId(sampleCount.type),
       sampleCount.id, sampleIndex.id);
     
-    // Validate the parameters
     uint32_t sampleCountValid = m_module.opULessThanEqual(
       m_module.defBoolType(),
       sampleCount.id,
@@ -3659,8 +3254,6 @@ namespace dxvk {
       sampleIndex.id,
       sampleCount.id);
     
-    // If the lookup cannot be performed, set the lookup
-    // index to zero, which will return a zero vector.
     lookupIndex = m_module.opSelect(
       getVectorTypeId(sampleCount.type),
       m_module.opLogicalAnd(
@@ -3670,8 +3263,6 @@ namespace dxvk {
       lookupIndex,
       m_module.constu32(0));
     
-    // Load sample pos vector and write the masked
-    // components to the destination register.
     DxbcRegisterPointer samplePos;
     samplePos.type.ctype  = DxbcScalarType::Float32;
     samplePos.type.ccount = 2;
@@ -3681,7 +3272,6 @@ namespace dxvk {
         spv::StorageClassPrivate),
       m_samplePositions, 1, &lookupIndex);
     
-    // Expand to vec4 by appending zeroes
     DxbcRegisterValue result = emitValueLoad(samplePos);
 
     DxbcRegisterValue zero;
@@ -3699,28 +3289,15 @@ namespace dxvk {
   
   
   void DxbcCompiler::emitTextureFetch(const DxbcShaderInstruction& ins) {
-    // ld has three operands:
-    //    (dst0) The destination register
-    //    (src0) Source address
-    //    (src1) Source texture
-    // ld2dms has four operands:
-    //    (dst0) The destination register
-    //    (src0) Source address
-    //    (src1) Source texture
-    //    (src2) Sample number
     const auto& texture = m_textures.at(ins.src[1].idx[0].offset);
     const uint32_t imageLayerDim = getTexLayerDim(texture.imageInfo);
     
     bool isMultisampled = ins.op == DxbcOpcode::LdMs
                        || ins.op == DxbcOpcode::LdMsS;
 
-    // Load the texture coordinates. The last component
-    // contains the LOD if the resource is an image.
     const DxbcRegisterValue address = emitRegisterLoad(
       ins.src[0], DxbcRegMask(true, true, true, true));
     
-    // Additional image operands. This will store
-    // the LOD and the address offset if present.
     SpirvImageOperands imageOperands;
     imageOperands.sparse = ins.dstCount == 2;
     
@@ -3741,8 +3318,6 @@ namespace dxvk {
       }
     }
     
-    // The LOD is not present when reading from
-    // a buffer or from a multisample texture.
     if (texture.imageInfo.dim != spv::DimBuffer && texture.imageInfo.ms == 0) {
       DxbcRegisterValue imageLod;
       
@@ -3750,7 +3325,6 @@ namespace dxvk {
         imageLod = emitRegisterExtract(
           address, DxbcRegMask(false, false, false, true));
       } else {
-        // If we force-disabled MSAA, fetch from LOD 0
         imageLod.type = { DxbcScalarType::Uint32, 1 };
         imageLod.id = m_module.constu32(0);
       }
@@ -3759,8 +3333,6 @@ namespace dxvk {
       imageOperands.sLod = imageLod.id;
     }
     
-    // The ld2dms instruction has a sample index, but we
-    // are only allowed to set it for multisample views
     if (isMultisampled && texture.imageInfo.ms == 1) {
       DxbcRegisterValue sampleId = emitRegisterLoad(
         ins.src[2], DxbcRegMask(true, false, false, false));
@@ -3769,11 +3341,8 @@ namespace dxvk {
       imageOperands.sSampleId = sampleId.id;
     }
     
-    // Extract coordinates from address
     const DxbcRegisterValue coord = emitCalcTexCoord(address, texture.imageInfo);
     
-    // Reading a typed image or buffer view
-    // always returns a four-component vector.
     const uint32_t imageId = m_module.opLoad(texture.imageTypeId, texture.varId);
 
     DxbcVectorType texelType;
@@ -3796,8 +3365,6 @@ namespace dxvk {
       ? emitExtractSparseTexel(texelTypeId, resultId)
       : resultId;
     
-    // Swizzle components using the texture swizzle
-    // and the destination operand's write mask
     result = emitRegisterSwizzle(result,
       ins.src[1].swizzle, ins.dst[0].mask);
     
@@ -3809,18 +3376,6 @@ namespace dxvk {
   
   
   void DxbcCompiler::emitTextureGather(const DxbcShaderInstruction& ins) {
-    // Gather4 takes the following operands:
-    //    (dst0) The destination register
-    //    (dst1) The residency code for sparse ops
-    //    (src0) Texture coordinates
-    //    (src1) The texture itself
-    //    (src2) The sampler, with a component selector
-    // Gather4C takes the following additional operand:
-    //    (src3) The depth reference value
-    // The Gather4Po variants take an additional operand
-    // which defines an extended constant offset.
-    // TODO reduce code duplication by moving some common code
-    // in both sample() and gather() into separate methods
     const bool isExtendedGather = ins.op == DxbcOpcode::Gather4Po
                                || ins.op == DxbcOpcode::Gather4PoC
                                || ins.op == DxbcOpcode::Gather4PoS
@@ -3830,18 +3385,13 @@ namespace dxvk {
     const DxbcRegister& textureReg  = ins.src[1 + isExtendedGather];
     const DxbcRegister& samplerReg  = ins.src[2 + isExtendedGather];
     
-    // Texture and sampler register IDs
     const auto& texture = m_textures.at(textureReg.idx[0].offset);
     const auto& sampler = m_samplers.at(samplerReg.idx[0].offset);
     
-    // Image type, which stores the image dimensions etc.
     const uint32_t imageLayerDim = getTexLayerDim(texture.imageInfo);
     
-    // Load the texture coordinates. SPIR-V allows these
-    // to be float4 even if not all components are used.
     DxbcRegisterValue coord = emitLoadTexCoord(texCoordReg, texture.imageInfo);
     
-    // Load reference value for depth-compare operations
     const bool isDepthCompare = ins.op == DxbcOpcode::Gather4C
                              || ins.op == DxbcOpcode::Gather4PoC
                              || ins.op == DxbcOpcode::Gather4CS
@@ -3852,7 +3402,6 @@ namespace dxvk {
           DxbcRegMask(true, false, false, false))
       : DxbcRegisterValue();
     
-    // Accumulate additional image operands.
     SpirvImageOperands imageOperands;
     imageOperands.sparse = ins.dstCount == 2;
 
@@ -3881,8 +3430,6 @@ namespace dxvk {
       }
     }
 
-    // Gathering texels always returns a four-component
-    // vector, even for the depth-compare variants.
     uint32_t sampledImageId = emitLoadSampledImage(texture, sampler, isDepthCompare);
 
     DxbcVectorType texelType;
@@ -3898,7 +3445,6 @@ namespace dxvk {
 
     if (sampledImageId) {
       switch (ins.op) {
-        // Simple image gather operation
         case DxbcOpcode::Gather4:
         case DxbcOpcode::Gather4S:
         case DxbcOpcode::Gather4Po:
@@ -3909,7 +3455,6 @@ namespace dxvk {
             imageOperands);
         } break;
 
-        // Depth-compare operation
         case DxbcOpcode::Gather4C:
         case DxbcOpcode::Gather4CS:
         case DxbcOpcode::Gather4PoC:
@@ -3930,15 +3475,12 @@ namespace dxvk {
       resultId = m_module.constNull(resultTypeId);
     }
 
-    // If necessary, deal with the sparse result
     DxbcRegisterValue result;
     result.type = texelType;
     result.id = imageOperands.sparse
       ? emitExtractSparseTexel(texelTypeId, resultId)
       : resultId;
 
-    // Swizzle components using the texture swizzle
-    // and the destination operand's write mask
     result = emitRegisterSwizzle(result,
       textureReg.swizzle, ins.dst[0].mask);
     
@@ -3950,25 +3492,16 @@ namespace dxvk {
   
   
   void DxbcCompiler::emitTextureSample(const DxbcShaderInstruction& ins) {
-    // All sample instructions have at least these operands:
-    //    (dst0) The destination register
-    //    (src0) Texture coordinates
-    //    (src1) The texture itself
-    //    (src2) The sampler object
     const DxbcRegister& texCoordReg = ins.src[0];
     const DxbcRegister& textureReg  = ins.src[1];
     const DxbcRegister& samplerReg  = ins.src[2];
     
-    // Texture and sampler register IDs
     const auto& texture = m_textures.at(textureReg.idx[0].offset);
     const auto& sampler = m_samplers.at(samplerReg.idx[0].offset);
     const uint32_t imageLayerDim = getTexLayerDim(texture.imageInfo);
     
-    // Load the texture coordinates. SPIR-V allows these
-    // to be float4 even if not all components are used.
     DxbcRegisterValue coord = emitLoadTexCoord(texCoordReg, texture.imageInfo);
     
-    // Load reference value for depth-compare operations
     const bool isDepthCompare = ins.op == DxbcOpcode::SampleC
                              || ins.op == DxbcOpcode::SampleClz
                              || ins.op == DxbcOpcode::SampleCClampS
@@ -3978,7 +3511,6 @@ namespace dxvk {
       ? emitRegisterLoad(ins.src[3], DxbcRegMask(true, false, false, false))
       : DxbcRegisterValue();
     
-    // Load explicit gradients for sample operations that require them
     const bool hasExplicitGradients = ins.op == DxbcOpcode::SampleD
                                    || ins.op == DxbcOpcode::SampleDClampS;
     
@@ -3990,7 +3522,6 @@ namespace dxvk {
       ? emitRegisterLoad(ins.src[4], DxbcRegMask::firstN(imageLayerDim))
       : DxbcRegisterValue();
     
-    // LOD for certain sample operations
     const bool hasLod = ins.op == DxbcOpcode::SampleL
                      || ins.op == DxbcOpcode::SampleLS
                      || ins.op == DxbcOpcode::SampleB
@@ -4000,7 +3531,6 @@ namespace dxvk {
       ? emitRegisterLoad(ins.src[3], DxbcRegMask(true, false, false, false))
       : DxbcRegisterValue();
 
-    // Min LOD for certain sparse operations
     const bool hasMinLod = ins.op == DxbcOpcode::SampleClampS
                         || ins.op == DxbcOpcode::SampleBClampS
                         || ins.op == DxbcOpcode::SampleDClampS
@@ -4010,8 +3540,6 @@ namespace dxvk {
       ? emitRegisterLoad(ins.src[ins.srcCount - 1], DxbcRegMask(true, false, false, false))
       : DxbcRegisterValue();
 
-    // Accumulate additional image operands. These are
-    // not part of the actual operand token in SPIR-V.
     SpirvImageOperands imageOperands;
     imageOperands.sparse = ins.dstCount == 2;
 
@@ -4039,11 +3567,8 @@ namespace dxvk {
       imageOperands.sMinLod = minLod.id;
     }
 
-    // Combine the texture and the sampler into a sampled image
     uint32_t sampledImageId = emitLoadSampledImage(texture, sampler, isDepthCompare);
     
-    // Sampling an image always returns a four-component
-    // vector, whereas depth-compare ops return a scalar.
     DxbcVectorType texelType;
     texelType.ctype  = texture.sampledType;
     texelType.ccount = isDepthCompare ? 1 : 4;
@@ -4057,7 +3582,6 @@ namespace dxvk {
 
     if (sampledImageId) {
       switch (ins.op) {
-        // Simple image sample operation
         case DxbcOpcode::Sample:
         case DxbcOpcode::SampleClampS: {
           resultId = m_module.opImageSampleImplicitLod(
@@ -4065,7 +3589,6 @@ namespace dxvk {
             imageOperands);
         } break;
 
-        // Depth-compare operation
         case DxbcOpcode::SampleC:
         case DxbcOpcode::SampleCClampS: {
           resultId = m_module.opImageSampleDrefImplicitLod(
@@ -4073,7 +3596,6 @@ namespace dxvk {
             referenceValue.id, imageOperands);
         } break;
 
-        // Depth-compare operation on mip level zero
         case DxbcOpcode::SampleClz:
         case DxbcOpcode::SampleClzS: {
           imageOperands.flags |= spv::ImageOperandsLodMask;
@@ -4084,7 +3606,6 @@ namespace dxvk {
             referenceValue.id, imageOperands);
         } break;
 
-        // Sample operation with explicit gradients
         case DxbcOpcode::SampleD:
         case DxbcOpcode::SampleDClampS: {
           imageOperands.flags |= spv::ImageOperandsGradMask;
@@ -4096,7 +3617,6 @@ namespace dxvk {
             imageOperands);
         } break;
 
-        // Sample operation with explicit LOD
         case DxbcOpcode::SampleL:
         case DxbcOpcode::SampleLS: {
           imageOperands.flags |= spv::ImageOperandsLodMask;
@@ -4107,7 +3627,6 @@ namespace dxvk {
             imageOperands);
         } break;
 
-        // Sample operation with LOD bias
         case DxbcOpcode::SampleB:
         case DxbcOpcode::SampleBClampS: {
           imageOperands.flags |= spv::ImageOperandsBiasMask;
@@ -4135,8 +3654,6 @@ namespace dxvk {
       ? emitExtractSparseTexel(texelTypeId, resultId)
       : resultId;
 
-    // Swizzle components using the texture swizzle
-    // and the destination operand's write mask
     if (result.type.ccount != 1) {
       result = emitRegisterSwizzle(result,
         textureReg.swizzle, ins.dst[0].mask);
@@ -4150,16 +3667,11 @@ namespace dxvk {
   
   
   void DxbcCompiler::emitTypedUavLoad(const DxbcShaderInstruction& ins) {
-    // load_uav_typed has three operands:
-    //    (dst0) The destination register
-    //    (src0) The texture or buffer coordinates
-    //    (src1) The UAV to load from
     const uint32_t registerId = ins.src[1].idx[0].offset;
     const DxbcUav uavInfo = m_uavs.at(registerId);
 
     emitUavBarrier(uint64_t(1u) << registerId, 0u);
 
-    // Load texture coordinates
     DxbcRegisterValue texCoord = emitLoadTexCoord(
       ins.src[0], uavInfo.imageInfo);
 
@@ -4183,12 +3695,10 @@ namespace dxvk {
     if (imageOperands.sparse)
       resultTypeId = getSparseResultTypeId(texelTypeId);
 
-    // Load source value from the UAV
     resultId = m_module.opImageRead(resultTypeId,
       m_module.opLoad(uavInfo.imageTypeId, uavInfo.varId),
       texCoord.id, imageOperands);
     
-    // Apply component swizzle and mask
     DxbcRegisterValue uavValue;
     uavValue.type = texelType;
     uavValue.id = imageOperands.sparse
@@ -4206,14 +3716,9 @@ namespace dxvk {
   
   
   void DxbcCompiler::emitTypedUavStore(const DxbcShaderInstruction& ins) {
-    // store_uav_typed has three operands:
-    //    (dst0) The destination UAV
-    //    (src0) The texture or buffer coordinates
-    //    (src1) The value to store
     const DxbcBufferInfo uavInfo = getBufferInfo(ins.dst[0]);
     emitUavBarrier(0u, uint64_t(1u) << ins.dst[0].idx[0].offset);
 
-    // Set image operands for coherent access if necessary    
     SpirvImageOperands imageOperands;
 
     if (uavInfo.coherence) {
@@ -4222,16 +3727,12 @@ namespace dxvk {
       imageOperands.makeAvailable = m_module.constu32(uavInfo.coherence);
     }
 
-    // Load texture coordinates
     DxbcRegisterValue texCoord = emitLoadTexCoord(ins.src[0], uavInfo.image);
 
-    // Load the value that will be written to the image. We'll
-    // have to cast it to the component type of the image.
     const DxbcRegisterValue texValue = emitRegisterBitcast(
       emitRegisterLoad(ins.src[1], DxbcRegMask(true, true, true, true)),
       uavInfo.stype);
     
-    // Write the given value to the image
     m_module.opImageWrite(
       m_module.opLoad(uavInfo.typeId, uavInfo.varId),
       texCoord.id, texValue.id, imageOperands);
@@ -4239,14 +3740,9 @@ namespace dxvk {
   
   
   void DxbcCompiler::emitControlFlowIf(const DxbcShaderInstruction& ins) {
-    // Load the first component of the condition
-    // operand and perform a zero test on it.
     const DxbcRegisterValue condition = emitRegisterLoad(
       ins.src[0], DxbcRegMask(true, false, false, false));
     
-    // Declare the 'if' block. We do not know if there
-    // will be an 'else' block or not, so we'll assume
-    // that there is one and leave it empty otherwise.
     DxbcCfgBlock block;
     block.type = DxbcCfgBlockType::If;
     block.b_if.ztestId   = emitRegisterZeroTest(condition, ins.controls.zeroTest()).id;
@@ -4256,9 +3752,6 @@ namespace dxvk {
     block.b_if.headerPtr = m_module.getInsertionPtr();
     m_controlFlowBlocks.push_back(block);
     
-    // We'll insert the branch instruction when closing
-    // the block, since we don't know whether or not an
-    // else block is needed right now.
     m_module.opLabel(block.b_if.labelIf);
   }
   
@@ -4269,13 +3762,9 @@ namespace dxvk {
      || m_controlFlowBlocks.back().b_if.labelElse != 0)
       throw DxvkError("DxbcCompiler: 'Else' without 'If' found");
     
-    // Set the 'Else' flag so that we do
-    // not insert a dummy block on 'EndIf'
     DxbcCfgBlock& block = m_controlFlowBlocks.back();
     block.b_if.labelElse = m_module.allocateId();
     
-    // Close the 'If' block by branching to
-    // the merge block we declared earlier
     m_module.opBranch(block.b_if.labelEnd);
     m_module.opLabel (block.b_if.labelElse);
   }
@@ -4286,11 +3775,9 @@ namespace dxvk {
      || m_controlFlowBlocks.back().type != DxbcCfgBlockType::If)
       throw DxvkError("DxbcCompiler: 'EndIf' without 'If' found");
     
-    // Remove the block from the stack, it's closed
     DxbcCfgBlock block = m_controlFlowBlocks.back();
     m_controlFlowBlocks.pop_back();
     
-    // Write out the 'if' header
     m_module.beginInsertion(block.b_if.headerPtr);
     
     m_module.opSelectionMerge(
@@ -4306,20 +3793,15 @@ namespace dxvk {
     
     m_module.endInsertion();
     
-    // End the active 'if' or 'else' block
     m_module.opBranch(block.b_if.labelEnd);
     m_module.opLabel (block.b_if.labelEnd);
   }
   
   
   void DxbcCompiler::emitControlFlowSwitch(const DxbcShaderInstruction& ins) {
-    // Load the selector as a scalar unsigned integer
     const DxbcRegisterValue selector = emitRegisterLoad(
       ins.src[0], DxbcRegMask(true, false, false, false));
     
-    // Declare switch block. We cannot insert the switch
-    // instruction itself yet because the number of case
-    // statements and blocks is unknown at this point.
     DxbcCfgBlock block;
     block.type = DxbcCfgBlockType::Switch;
     block.b_switch.insertPtr    = m_module.getInsertionPtr();
@@ -4330,7 +3812,6 @@ namespace dxvk {
     block.b_switch.labelCases   = nullptr;
     m_controlFlowBlocks.push_back(block);
     
-    // Define the first 'case' label
     m_module.opLabel(block.b_switch.labelCase);
   }
   
@@ -4340,11 +3821,9 @@ namespace dxvk {
      || m_controlFlowBlocks.back().type != DxbcCfgBlockType::Switch)
       throw DxvkError("DxbcCompiler: 'Case' without 'Switch' found");
     
-    // The source operand must be a 32-bit immediate.
     if (ins.src[0].type != DxbcOperandType::Imm32)
       throw DxvkError("DxbcCompiler: Invalid operand type for 'Case'");
 
-    // Use the last label allocated for 'case'.
     DxbcCfgBlockSwitch* block = &m_controlFlowBlocks.back().b_switch;
 
     if (caseBlockIsFallthrough()) {
@@ -4376,7 +3855,6 @@ namespace dxvk {
       m_module.opLabel (block->labelCase);
     }
 
-    // Set the last label allocated for 'case' as the default label.
     block->labelDefault = block->labelCase;
   }
   
@@ -4386,7 +3864,6 @@ namespace dxvk {
      || m_controlFlowBlocks.back().type != DxbcCfgBlockType::Switch)
       throw DxvkError("DxbcCompiler: 'EndSwitch' without 'Switch' found");
     
-    // Remove the block from the stack, it's closed
     DxbcCfgBlock block = m_controlFlowBlocks.back();
     m_controlFlowBlocks.pop_back();
 
@@ -4396,17 +3873,13 @@ namespace dxvk {
         : block.b_switch.labelCase;
     }
     
-    // Close the current 'case' block
     m_module.opBranch(block.b_switch.labelBreak);
     
-    // Insert the 'switch' statement. For that, we need to
-    // gather all the literal-label pairs for the construct.
     m_module.beginInsertion(block.b_switch.insertPtr);
     m_module.opSelectionMerge(
       block.b_switch.labelBreak,
       spv::SelectionControlMaskNone);
     
-    // We'll restore the original order of the case labels here
     std::vector<SpirvSwitchCaseLabel> jumpTargets;
     for (auto i = block.b_switch.labelCases; i != nullptr; i = i->next)
       jumpTargets.insert(jumpTargets.begin(), i->desc);
@@ -4418,20 +3891,16 @@ namespace dxvk {
       jumpTargets.data());
     m_module.endInsertion();
     
-    // Destroy the list of case labels
-    // FIXME we're leaking memory if compilation fails.
     DxbcSwitchLabel* caseLabel = block.b_switch.labelCases;
     
     while (caseLabel != nullptr)
       delete std::exchange(caseLabel, caseLabel->next);
 
-    // Begin new block after switch blocks
     m_module.opLabel(block.b_switch.labelBreak);
   }
   
     
   void DxbcCompiler::emitControlFlowLoop(const DxbcShaderInstruction& ins) {
-    // Declare the 'loop' block
     DxbcCfgBlock block;
     block.type = DxbcCfgBlockType::Loop;
     block.b_loop.labelHeader   = m_module.allocateId();
@@ -4458,15 +3927,12 @@ namespace dxvk {
      || m_controlFlowBlocks.back().type != DxbcCfgBlockType::Loop)
       throw DxvkError("DxbcCompiler: 'EndLoop' without 'Loop' found");
     
-    // Remove the block from the stack, it's closed
     const DxbcCfgBlock block = m_controlFlowBlocks.back();
     m_controlFlowBlocks.pop_back();
     
-    // Declare the continue block
     m_module.opBranch(block.b_loop.labelContinue);
     m_module.opLabel (block.b_loop.labelContinue);
     
-    // Declare the merge block
     m_module.opBranch(block.b_loop.labelHeader);
     m_module.opLabel (block.b_loop.labelBreak);
   }
@@ -4486,17 +3952,13 @@ namespace dxvk {
       m_module.opBranch(isBreak
         ? cfgBlock->b_loop.labelBreak
         : cfgBlock->b_loop.labelContinue);
-    } else /* if (cfgBlock->type == DxbcCfgBlockType::Switch) */ {
+    } else   {
       m_module.opBranch(cfgBlock->b_switch.labelBreak);
     }
     
-    // Subsequent instructions assume that there is an open block
     const uint32_t labelId = m_module.allocateId();
     m_module.opLabel(labelId);
     
-    // If this is on the same level as a switch-case construct,
-    // rather than being nested inside an 'if' statement, close
-    // the current 'case' block.
     if (m_controlFlowBlocks.back().type == DxbcCfgBlockType::Switch)
       cfgBlock->b_switch.labelCase = labelId;
   }
@@ -4512,14 +3974,12 @@ namespace dxvk {
     if (cfgBlock == nullptr)
       throw DxvkError("DxbcCompiler: 'Breakc' or 'Continuec' outside 'Loop' or 'Switch' found");
     
-    // Perform zero test on the first component of the condition
     const DxbcRegisterValue condition = emitRegisterLoad(
       ins.src[0], DxbcRegMask(true, false, false, false));
     
     const DxbcRegisterValue zeroTest = emitRegisterZeroTest(
       condition, ins.controls.zeroTest());
     
-    // We basically have to wrap this into an 'if' block
     const uint32_t breakBlock = m_module.allocateId();
     const uint32_t mergeBlock = m_module.allocateId();
     
@@ -4535,7 +3995,7 @@ namespace dxvk {
       m_module.opBranch(isBreak
         ? cfgBlock->b_loop.labelBreak
         : cfgBlock->b_loop.labelContinue);
-    } else /* if (cfgBlock->type == DxbcCfgBlockType::Switch) */ {
+    } else   {
       m_module.opBranch(cfgBlock->b_switch.labelBreak);
     }
     
@@ -4550,27 +4010,23 @@ namespace dxvk {
       m_module.opReturn();
       m_module.opLabel(labelId);
 
-      // return can be used in place of break to terminate a case block
       if (m_controlFlowBlocks.back().type == DxbcCfgBlockType::Switch)
         m_controlFlowBlocks.back().b_switch.labelCase = labelId;
 
       m_topLevelIsUniform = false;
     } else {
-      // Last instruction in the current function
       this->emitFunctionEnd();
     }
   }
 
 
   void DxbcCompiler::emitControlFlowRetc(const DxbcShaderInstruction& ins) {
-    // Perform zero test on the first component of the condition
     const DxbcRegisterValue condition = emitRegisterLoad(
       ins.src[0], DxbcRegMask(true, false, false, false));
     
     const DxbcRegisterValue zeroTest = emitRegisterZeroTest(
       condition, ins.controls.zeroTest());
     
-    // We basically have to wrap this into an 'if' block
     const uint32_t returnLabel = m_module.allocateId();
     const uint32_t continueLabel = m_module.allocateId();
     
@@ -4585,14 +4041,11 @@ namespace dxvk {
 
     m_module.opLabel(continueLabel);
 
-    // The return condition may be non-uniform
     m_topLevelIsUniform = false;
   }
   
   
   void DxbcCompiler::emitControlFlowDiscard(const DxbcShaderInstruction& ins) {
-    // Discard actually has an operand that determines
-    // whether or not the fragment should be discarded
     const DxbcRegisterValue condition = emitRegisterLoad(
       ins.src[0], DxbcRegMask(true, false, false, false));
     
@@ -4614,7 +4067,6 @@ namespace dxvk {
 
     m_module.enableCapability(spv::CapabilityDemoteToHelperInvocation);
 
-    // Discard is just retc in a trenchcoat
     m_topLevelIsUniform = false;
   }
 
@@ -4634,8 +4086,6 @@ namespace dxvk {
     
     m_insideFunction = true;
 
-    // We have to assume that this function gets
-    // called from non-uniform control flow
     m_topLevelIsUniform = false;
   }
 
@@ -4654,14 +4104,12 @@ namespace dxvk {
     uint32_t functionNr = ins.src[1].idx[0].offset;
     uint32_t functionId = getFunctionId(functionNr);
 
-    // Perform zero test on the first component of the condition
     const DxbcRegisterValue condition = emitRegisterLoad(
       ins.src[0], DxbcRegMask(true, false, false, false));
     
     const DxbcRegisterValue zeroTest = emitRegisterZeroTest(
       condition, ins.controls.zeroTest());
     
-    // We basically have to wrap this into an 'if' block
     const uint32_t callLabel = m_module.allocateId();
     const uint32_t skipLabel = m_module.allocateId();
     
@@ -4778,7 +4226,6 @@ namespace dxvk {
           float                   z,
           float                   w,
     const DxbcRegMask&            writeMask) {
-    // TODO refactor these functions into one single template
     std::array<uint32_t, 4> ids = { 0, 0, 0, 0 };
     uint32_t componentIndex = 0;
     
@@ -4947,8 +4394,6 @@ namespace dxvk {
         indices[dstIndex++] = swizzle[i];
     }
     
-    // If the swizzle combined with the mask can be reduced
-    // to a no-op, we don't need to insert any instructions.
     bool isIdentitySwizzle = dstIndex == value.type.ccount;
     
     for (uint32_t i = 0; i < dstIndex && isIdentitySwizzle; i++)
@@ -4957,8 +4402,6 @@ namespace dxvk {
     if (isIdentitySwizzle)
       return value;
     
-    // Use OpCompositeExtract if the resulting vector contains
-    // only one component, and OpVectorShuffle if it is a vector.
     DxbcRegisterValue result;
     result.type.ctype  = value.type.ctype;
     result.type.ccount = dstIndex;
@@ -4996,24 +4439,15 @@ namespace dxvk {
     const uint32_t typeId = getVectorTypeId(result.type);
     
     if (srcMask.popCount() == 0) {
-      // Nothing to do if the insertion mask is empty
       result.id = dstValue.id;
     } else if (dstValue.type.ccount == 1) {
-      // Both values are scalar, so the first component
-      // of the write mask decides which one to take.
       result.id = srcMask[0] ? srcValue.id : dstValue.id;
     } else if (srcValue.type.ccount == 1) {
-      // The source value is scalar. Since OpVectorShuffle
-      // requires both arguments to be vectors, we have to
-      // use OpCompositeInsert to modify the vector instead.
       const uint32_t componentId = srcMask.firstSet();
       
       result.id = m_module.opCompositeInsert(typeId,
         srcValue.id, dstValue.id, 1, &componentId);
     } else {
-      // Both arguments are vectors. We can determine which
-      // components to take from which vector and use the
-      // OpVectorShuffle instruction.
       std::array<uint32_t, 4> components;
       uint32_t srcComponentId = dstValue.type.ccount;
       
@@ -5232,8 +4666,6 @@ namespace dxvk {
   
   DxbcRegisterPointer DxbcCompiler::emitGetTempPtr(
     const DxbcRegister&           operand) {
-    // r# regs are indexed as follows:
-    //    (0) register index (immediate)
     uint32_t regIdx = operand.idx[0].offset;
 
     if (regIdx >= m_rRegs.size())
@@ -5269,14 +4701,6 @@ namespace dxvk {
   
   DxbcRegisterPointer DxbcCompiler::emitGetInputPtr(
     const DxbcRegister&           operand) {
-    // In the vertex and pixel stages,
-    // v# regs are indexed as follows:
-    //    (0) register index (relative)
-    // 
-    // In the tessellation and geometry
-    // stages, the index has two dimensions:
-    //    (0) vertex index (relative)
-    //    (1) register index (relative)
     DxbcRegisterPointer result;
     result.type.ctype  = DxbcScalarType::Float32;
     result.type.ccount = 4;
@@ -5286,8 +4710,6 @@ namespace dxvk {
     for (uint32_t i = 0; i < operand.idxDim; i++)
       indices.at(i) = emitIndexLoad(operand.idx[i]).id;
     
-    // Pick the input array depending on
-    // the program type and operand type
     struct InputArray {
       uint32_t          id;
       spv::StorageClass sclass;
@@ -5327,9 +4749,6 @@ namespace dxvk {
   DxbcRegisterPointer DxbcCompiler::emitGetOutputPtr(
     const DxbcRegister&           operand) {
     if (m_programInfo.type() == DxbcProgramType::HullShader) {
-      // Hull shaders are special in that they have two sets of
-      // output registers, one for per-patch values and one for
-      // per-vertex values.
       DxbcRegisterPointer result;
       result.type.ctype  = DxbcScalarType::Float32;
       result.type.ccount = 4;
@@ -5361,8 +4780,6 @@ namespace dxvk {
 
       return result;
     } else {
-      // Regular shaders have their output
-      // registers set up at declaration time
       return m_oRegs.at(operand.idx[0].offset);
     }
   }
@@ -5373,8 +4790,6 @@ namespace dxvk {
     DxbcRegisterValue constId = emitIndexLoad(operand.idx[0]);
 
     if (m_icbArray) {
-      // We pad the icb array with an extra zero vector, so we can
-      // clamp the index and get correct robustness behaviour.
       constId.id = m_module.opUMin(getVectorTypeId(constId.type),
         constId.id, m_module.constu32(m_icbSize));
 
@@ -5542,16 +4957,12 @@ namespace dxvk {
   DxbcRegisterPointer DxbcCompiler::emitGetAtomicPointer(
     const DxbcRegister&           operand,
     const DxbcRegister&           address) {
-    // Query information about the resource itself
     const uint32_t registerId = operand.idx[0].offset;
     const DxbcBufferInfo resourceInfo = getBufferInfo(operand);
     
-    // For UAVs and shared memory, different methods
-    // of obtaining the final pointer are used.
     bool isTgsm = operand.type == DxbcOperandType::ThreadGroupSharedMemory;
     bool isSsbo = resourceInfo.isSsbo;
     
-    // Compute the actual address into the resource
     const DxbcRegisterValue addressValue = [&] {
       switch (resourceInfo.type) {
         case DxbcResourceType::Raw:
@@ -5581,7 +4992,6 @@ namespace dxvk {
       }
     }();
     
-    // Compute the actual pointer
     DxbcRegisterPointer result;
     result.type.ctype  = resourceInfo.stype;
     result.type.ccount = 1;
@@ -5620,14 +5030,11 @@ namespace dxvk {
   
   DxbcRegisterValue DxbcCompiler::emitQueryTexelBufferSize(
     const DxbcRegister&           resource) {
-    // Load the texel buffer object. This cannot be used with
-    // constant buffers or any other type of resource.
     const DxbcBufferInfo bufferInfo = getBufferInfo(resource);
     
     const uint32_t bufferId = m_module.opLoad(
       bufferInfo.typeId, bufferInfo.varId);
     
-    // We'll store this as a scalar unsigned integer
     DxbcRegisterValue result;
     result.type.ctype  = DxbcScalarType::Uint32;
     result.type.ccount = 1;
@@ -5651,7 +5058,6 @@ namespace dxvk {
         getVectorTypeId(result.type),
         m_module.opLoad(info.typeId, info.varId));
     } else {
-      // Report one LOD in case of UAVs or multisampled images
       result.id = m_module.constu32(1);
     }
 
@@ -5662,8 +5068,6 @@ namespace dxvk {
   DxbcRegisterValue DxbcCompiler::emitQueryTextureSamples(
     const DxbcRegister&           resource) {
     if (resource.type == DxbcOperandType::Rasterizer) {
-      // SPIR-V has no gl_NumSamples equivalent, so we
-      // have to work around it using a push constant
       if (!m_ps.pushConstantId)
         m_ps.pushConstantId = emitPushConstants();
 
@@ -5689,7 +5093,6 @@ namespace dxvk {
           getVectorTypeId(result.type),
           m_module.opLoad(info.typeId, info.varId));
       } else {
-        // OpImageQuerySamples requires MSAA images
         result.id = m_module.constu32(1);
       }
       
@@ -5812,22 +5215,15 @@ namespace dxvk {
           DxbcRegisterPointer     ptr,
           DxbcRegisterValue       value,
           DxbcRegMask             writeMask) {
-    // If the component types are not compatible,
-    // we need to bit-cast the source variable.
     if (value.type.ctype != ptr.type.ctype)
       value = emitRegisterBitcast(value, ptr.type.ctype);
     
-    // If the source value consists of only one component,
-    // it is stored in all components of the destination.
     if (value.type.ccount == 1)
       value = emitRegisterExtend(value, writeMask.popCount());
     
     if (ptr.type.ccount == writeMask.popCount()) {
-      // Simple case: We write to the entire register
       m_module.opStore(ptr.id, value.id);
     } else {
-      // We only write to part of the destination
-      // register, so we need to load and modify it
       DxbcRegisterValue tmp = emitValueLoad(ptr);
       tmp = emitRegisterInsert(tmp, value, writeMask);
       
@@ -5838,7 +5234,6 @@ namespace dxvk {
 
   DxbcRegisterValue DxbcCompiler::emitRegisterLoadRaw(
     const DxbcRegister&           reg) {
-    // Try to find index range for the given register
     const DxbcIndexRange* indexRange = nullptr;
 
     if (reg.idxDim && reg.idx[reg.idxDim - 1u].relReg) {
@@ -5870,8 +5265,6 @@ namespace dxvk {
             m_module.constu32(indexRange->length));
         }
 
-        // Kind of ugly to have an empty else block here but there's no
-        // way for us to know the current block ID for the phi below
         DxbcConditional cond;
         cond.labelIf   = m_module.allocateId();
         cond.labelElse = m_module.allocateId();
@@ -5906,7 +5299,6 @@ namespace dxvk {
 
     DxbcRegisterValue value = emitValueLoad(emitGetOperandPtr(reg));
 
-    // Pad icb values to a vec4 since the app may access components that are always 0
     if (reg.type == DxbcOperandType::ImmediateConstantBuffer && value.type.ccount < 4u) {
       DxbcVectorType zeroType;
       zeroType.ctype = value.type.ctype;
@@ -5928,9 +5320,6 @@ namespace dxvk {
   DxbcRegisterValue DxbcCompiler::emitConstantBufferLoad(
     const DxbcRegister&           reg,
           DxbcRegMask             writeMask) {
-    // Constant buffers take a two-dimensional index:
-    //    (0) register index (immediate)
-    //    (1) constant offset (relative)
     DxbcRegisterInfo info;
     info.type.ctype   = DxbcScalarType::Float32;
     info.type.ccount  = 4;
@@ -5952,7 +5341,6 @@ namespace dxvk {
       m_constantBuffers.at(regId).varId,
       indices.size(), indices.data());
 
-    // Load individual components from buffer
     std::array<uint32_t, 4> ccomps = { 0, 0, 0, 0 };
     std::array<uint32_t, 4> scomps = { 0, 0, 0, 0 };
     uint32_t                scount = 0;
@@ -5993,7 +5381,6 @@ namespace dxvk {
         scount, scomps.data());
     }
 
-    // Apply any post-processing that might be necessary
     result = emitRegisterBitcast(result, reg.dataType);
     result = emitSrcOperandModifiers(result, reg.modifiers);
     return result;
@@ -6008,14 +5395,12 @@ namespace dxvk {
       DxbcRegisterValue result;
       
       if (reg.componentCount == DxbcComponentCount::Component1) {
-        // Create one single u32 constant
         result.type.ctype  = DxbcScalarType::Uint32;
         result.type.ccount = 1;
         result.id = m_module.constu32(reg.imm.u32_1);
 
         result = emitRegisterExtend(result, writeMask.popCount());
       } else if (reg.componentCount == DxbcComponentCount::Component4) {
-        // Create a u32 vector with as many components as needed
         std::array<uint32_t, 4> indices = { };
         uint32_t indexId = 0;
         
@@ -6037,26 +5422,19 @@ namespace dxvk {
         }
         
       } else {
-        // Something went horribly wrong in the decoder or the shader is broken
         throw DxvkError("DxbcCompiler: Invalid component count for immediate operand");
       }
       
-      // Cast constants to the requested type
       return emitRegisterBitcast(result, reg.dataType);
     } else if (reg.type == DxbcOperandType::ConstantBuffer) {
       return emitConstantBufferLoad(reg, writeMask);
     } else {
-      // Load operand from the operand pointer
       DxbcRegisterValue result = emitRegisterLoadRaw(reg);
       
-      // Apply operand swizzle to the operand value
       result = emitRegisterSwizzle(result, reg.swizzle, writeMask);
       
-      // Cast it to the requested type. We need to do
-      // this after the swizzling for 64-bit types.
       result = emitRegisterBitcast(result, reg.dataType);
       
-      // Apply operand modifiers
       result = emitSrcOperandModifiers(result, reg.modifiers);
       return result;
     }
@@ -6100,7 +5478,6 @@ namespace dxvk {
   void DxbcCompiler::emitInputSetup() {
     m_module.setLateConst(m_vArrayLengthId, &m_vArrayLength);
 
-    // Copy all defined v# registers into the input array
     const uint32_t vecTypeId = m_module.defVectorType(m_module.defFloatType(32), 4);
     const uint32_t ptrTypeId = m_module.defPointerType(vecTypeId, spv::StorageClassPrivate);
     
@@ -6121,8 +5498,6 @@ namespace dxvk {
       }
     }
     
-    // Copy all system value registers into the array,
-    // preserving any previously written contents.
     for (const DxbcSvMapping& map : m_vMappings) {
       const uint32_t registerId = m_module.consti32(map.regId);
       
@@ -6147,8 +5522,6 @@ namespace dxvk {
   void DxbcCompiler::emitInputSetup(uint32_t vertexCount) {
     m_module.setLateConst(m_vArrayLengthId, &m_vArrayLength);
 
-    // Copy all defined v# registers into the input array. Note
-    // that the outer index of the array is the vertex index.
     const uint32_t vecTypeId    = m_module.defVectorType(m_module.defFloatType(32), 4);
     const uint32_t dstPtrTypeId = m_module.defPointerType(vecTypeId, spv::StorageClassPrivate);
     
@@ -6179,8 +5552,6 @@ namespace dxvk {
       }
     }
     
-    // Copy all system value registers into the array,
-    // preserving any previously written contents.
     for (const DxbcSvMapping& map : m_vMappings) {
       const uint32_t registerId = m_module.consti32(map.regId);
       
@@ -6240,9 +5611,6 @@ namespace dxvk {
 
 
   void DxbcCompiler::emitOutputDepthClamp() {
-    // HACK: Some drivers do not clamp FragDepth to [minDepth..maxDepth]
-    // before writing to the depth attachment, but we do not have acccess
-    // to those. Clamp to [0..1] instead.
     if (m_ps.builtinDepth) {
       DxbcRegisterPointer ptr;
       ptr.type = { DxbcScalarType::Float32, 1 };
@@ -6466,9 +5834,6 @@ namespace dxvk {
         ptrIn.type = { DxbcScalarType::Float32, 4 };
         ptrIn.id = m_ps.builtinFragCoord;
         
-        // The X, Y and Z components of the SV_POSITION semantic
-        // are identical to Vulkan's FragCoord builtin, but we
-        // need to compute the reciprocal of the W component.
         DxbcRegisterValue fragCoord = emitValueLoad(ptrIn);
         
         uint32_t componentIndex = 3;
@@ -6675,18 +6040,18 @@ namespace dxvk {
       };
       
       static const std::array<TessFactor, 12> s_tessFactors = {{
-        { m_hs.builtinTessLevelOuter, 0 },  // FinalQuadUeq0EdgeTessFactor
-        { m_hs.builtinTessLevelOuter, 1 },  // FinalQuadVeq0EdgeTessFactor
-        { m_hs.builtinTessLevelOuter, 2 },  // FinalQuadUeq1EdgeTessFactor
-        { m_hs.builtinTessLevelOuter, 3 },  // FinalQuadVeq1EdgeTessFactor
-        { m_hs.builtinTessLevelInner, 0 },  // FinalQuadUInsideTessFactor
-        { m_hs.builtinTessLevelInner, 1 },  // FinalQuadVInsideTessFactor
-        { m_hs.builtinTessLevelOuter, 0 },  // FinalTriUeq0EdgeTessFactor
-        { m_hs.builtinTessLevelOuter, 1 },  // FinalTriVeq0EdgeTessFactor
-        { m_hs.builtinTessLevelOuter, 2 },  // FinalTriWeq0EdgeTessFactor
-        { m_hs.builtinTessLevelInner, 0 },  // FinalTriInsideTessFactor
-        { m_hs.builtinTessLevelOuter, 0 },  // FinalLineDensityTessFactor
-        { m_hs.builtinTessLevelOuter, 1 },  // FinalLineDetailTessFactor
+        { m_hs.builtinTessLevelOuter, 0 },
+        { m_hs.builtinTessLevelOuter, 1 },
+        { m_hs.builtinTessLevelOuter, 2 },
+        { m_hs.builtinTessLevelOuter, 3 },
+        { m_hs.builtinTessLevelInner, 0 },
+        { m_hs.builtinTessLevelInner, 1 },
+        { m_hs.builtinTessLevelOuter, 0 },
+        { m_hs.builtinTessLevelOuter, 1 },
+        { m_hs.builtinTessLevelOuter, 2 },
+        { m_hs.builtinTessLevelInner, 0 },
+        { m_hs.builtinTessLevelOuter, 0 },
+        { m_hs.builtinTessLevelOuter, 1 },
       }};
       
       const TessFactor tessFactor = s_tessFactors.at(uint32_t(sv)
@@ -6695,7 +6060,6 @@ namespace dxvk {
       const uint32_t tessFactorArrayIndex
         = m_module.constu32(tessFactor.index);
       
-      // Apply global tess factor limit
       float maxTessFactor = m_hs.maxTessFactor;
 
       if (m_moduleInfo.tess != nullptr) {
@@ -6841,7 +6205,6 @@ namespace dxvk {
     
     for (auto e = m_isgn->begin(); e != m_isgn->end(); e++) {
       if (e->systemValue == sv) {
-        // Load individual components from the source array
         uint32_t                componentIndex = 0;
         std::array<uint32_t, 4> componentIds   = {{ 0, 0, 0, 0 }};
         
@@ -6862,7 +6225,6 @@ namespace dxvk {
           }
         }
         
-        // Put everything into one vector
         DxbcRegisterValue dstValue;
         dstValue.type = { DxbcScalarType::Float32, componentIndex };
         dstValue.id = componentIds[0];
@@ -6873,7 +6235,6 @@ namespace dxvk {
             componentIndex, componentIds.data());
         }
         
-        // Store vector to the input array
         uint32_t registerId = m_module.consti32(e->registerId);
         
         DxbcRegisterPointer dstInput;
@@ -6904,12 +6265,9 @@ namespace dxvk {
 
 
   void DxbcCompiler::emitInit() {
-    // Set up common capabilities for all shaders
     m_module.enableCapability(spv::CapabilityShader);
     m_module.enableCapability(spv::CapabilityImageQuery);
     
-    // Initialize the shader module with capabilities
-    // etc. Each shader type has its own peculiarities.
     switch (m_programInfo.type()) {
       case DxbcProgramType::VertexShader:   emitVsInit(); break;
       case DxbcProgramType::HullShader:     emitHsInit(); break;
@@ -6966,10 +6324,8 @@ namespace dxvk {
     m_module.enableCapability(spv::CapabilityCullDistance);
     m_module.enableCapability(spv::CapabilityDrawParameters);
     
-    // Standard input array
     emitDclInputArray(0);
     
-    // Cull/clip distances as outputs
     m_clipDistances = emitDclClipCullDistanceArray(
       m_analysis->clipCullOut.numClipPlanes,
       spv::BuiltInClipDistance,
@@ -6980,7 +6336,6 @@ namespace dxvk {
       spv::BuiltInCullDistance,
       spv::StorageClassOutput);
     
-    // Main function of the vertex shader
     m_vs.functionId = m_module.allocateId();
     m_module.setDebugName(m_vs.functionId, "vs_main");
     
@@ -7018,7 +6373,6 @@ namespace dxvk {
     m_ds.builtinTessLevelOuter = emitBuiltinTessLevelOuter(spv::StorageClassInput);
     m_ds.builtinTessLevelInner = emitBuiltinTessLevelInner(spv::StorageClassInput);
     
-    // Cull/clip distances as outputs
     m_clipDistances = emitDclClipCullDistanceArray(
       m_analysis->clipCullOut.numClipPlanes,
       spv::BuiltInClipDistance,
@@ -7029,7 +6383,6 @@ namespace dxvk {
       spv::BuiltInCullDistance,
       spv::StorageClassOutput);
     
-    // Main function of the domain shader
     m_ds.functionId = m_module.allocateId();
     m_module.setDebugName(m_ds.functionId, "ds_main");
     
@@ -7047,7 +6400,6 @@ namespace dxvk {
     m_module.enableCapability(spv::CapabilityClipDistance);
     m_module.enableCapability(spv::CapabilityCullDistance);
 
-    // Enable capabilities for xfb mode if necessary
     if (m_moduleInfo.xfb) {
       m_module.enableCapability(spv::CapabilityGeometryStreams);
       m_module.enableCapability(spv::CapabilityTransformFeedback);
@@ -7055,11 +6407,9 @@ namespace dxvk {
       m_module.setExecutionMode(m_entryPointId, spv::ExecutionModeXfb);
     }
 
-    // We only need outputs if rasterization is enabled
     m_gs.needsOutputSetup = !m_moduleInfo.xfb
       || m_moduleInfo.xfb->rasterizedStream >= 0;
     
-    // Cull/clip distances as outputs
     m_clipDistances = emitDclClipCullDistanceArray(
       m_analysis->clipCullOut.numClipPlanes,
       spv::BuiltInClipDistance,
@@ -7070,11 +6420,9 @@ namespace dxvk {
       spv::BuiltInCullDistance,
       spv::StorageClassOutput);
     
-    // Emit Xfb variables if necessary
     if (m_moduleInfo.xfb)
       emitXfbOutputDeclarations();
 
-    // Main function of the vertex shader
     m_gs.functionId = m_module.allocateId();
     m_module.setDebugName(m_gs.functionId, "gs_main");
     
@@ -7093,10 +6441,8 @@ namespace dxvk {
     m_module.setExecutionMode(m_entryPointId,
       spv::ExecutionModeOriginUpperLeft);
     
-    // Standard input array
     emitDclInputArray(0);
     
-    // Cull/clip distances as inputs
     m_clipDistances = emitDclClipCullDistanceArray(
       m_analysis->clipCullIn.numClipPlanes,
       spv::BuiltInClipDistance,
@@ -7107,7 +6453,6 @@ namespace dxvk {
       spv::BuiltInCullDistance,
       spv::StorageClassInput);
     
-    // Main function of the pixel shader
     m_ps.functionId = m_module.allocateId();
     m_module.setDebugName(m_ps.functionId, "ps_main");
     
@@ -7121,7 +6466,6 @@ namespace dxvk {
   
   
   void DxbcCompiler::emitCsInit() {
-    // Main function of the compute shader
     m_cs.functionId = m_module.allocateId();
     m_module.setDebugName(m_cs.functionId, "cs_main");
     
@@ -7152,13 +6496,11 @@ namespace dxvk {
     if (m_hs.cpPhase.functionId == 0)
       m_hs.cpPhase = this->emitNewHullShaderPassthroughPhase();
     
-    // Control point phase
     this->emitMainFunctionBegin();
     this->emitInputSetup(m_hs.vertexCountIn);
     this->emitHsControlPointPhase(m_hs.cpPhase);
     this->emitHsPhaseBarrier();
     
-    // Fork-join phases and output setup
     this->emitHsInvocationBlockBegin(1);
     
     for (const auto& phase : m_hs.forkPhases)
@@ -7196,8 +6538,6 @@ namespace dxvk {
     m_module.opFunctionCall(
       m_module.defVoidType(),
       m_gs.functionId, 0, nullptr);
-    // No output setup at this point as that was
-    // already done during the EmitVertex step
     this->emitFunctionEnd();
   }
   
@@ -7209,8 +6549,6 @@ namespace dxvk {
     this->emitClipCullLoad(DxbcSystemValue::CullDistance, m_cullDistances);
 
     if (m_hasRasterizerOrderedUav) {
-      // For simplicity, just lock the entire fragment shader
-      // if there are any rasterizer ordered views.
       m_module.enableExtension("SPV_EXT_fragment_shader_interlock");
 
       if (m_module.hasCapability(spv::CapabilitySampleRateShading)
@@ -7293,7 +6631,6 @@ namespace dxvk {
         m_moduleInfo.xfb->strides[xfbEntry->bufferId]);
     }
 
-    // TODO Compact location/component assignment
     for (uint32_t i = 0; i < m_xfbVars.size(); i++) {
       m_xfbVars[i].location  = i;
       m_xfbVars[i].component = 0;
@@ -7362,9 +6699,6 @@ namespace dxvk {
     info.ctype   = DxbcScalarType::Float32;
     info.ccount  = 4;
 
-    // Define the array type. This will be two-dimensional
-    // in some shaders, with the outer index representing
-    // the vertex ID within an invocation.
     m_vArrayLength   = m_isgn != nullptr ? std::max(1u, m_isgn->maxRegisterCount()) : 1;
     m_vArrayLengthId = m_module.lateConst32(getScalarTypeId(DxbcScalarType::Uint32));
 
@@ -7376,9 +6710,6 @@ namespace dxvk {
         arrayTypeId, m_module.constu32(vertexCount));
     }
     
-    // Define the actual variable. Note that this is private
-    // because we will copy input registers and some system
-    // variables to the array during the setup phase.
     const uint32_t ptrTypeId = m_module.defPointerType(
       arrayTypeId, spv::StorageClassPrivate);
     
@@ -7433,7 +6764,6 @@ namespace dxvk {
     uint32_t funTypeId = m_module.defFunctionType(
       m_module.defVoidType(), 0, nullptr);
     
-    // Begin passthrough function
     uint32_t funId = m_module.allocateId();
     m_module.setDebugName(funId, "hs_passthrough");
     
@@ -7442,8 +6772,6 @@ namespace dxvk {
       funTypeId);
     this->emitFunctionLabel();
     
-    // We'll basically copy each input variable to the corresponding
-    // output, using the shader's invocation ID as the array index.
     const uint32_t invocationId = m_module.opLoad(
       getScalarTypeId(DxbcScalarType::Uint32),
       m_hs.builtinInvocationId);
@@ -7455,7 +6783,6 @@ namespace dxvk {
         DxbcSystemValue::None,
         DxbcInterpolationMode::Undefined);
       
-      // Vector type index
       const std::array<uint32_t, 2> dstIndices
         = {{ invocationId, m_module.constu32(i->registerId) }};
       
@@ -7477,7 +6804,6 @@ namespace dxvk {
       emitValueStore(dstPtr, srcValue, DxbcRegMask::firstN(srcValue.type.ccount));
     }
     
-    // End function
     this->emitFunctionEnd();
     
     DxbcCompilerHsControlPointPhase result;
@@ -7636,19 +6962,14 @@ namespace dxvk {
   
   uint32_t DxbcCompiler::emitSamplePosArray() {
     const std::array<uint32_t, 32> samplePosVectors = {{
-      // Invalid sample count / unbound resource
       m_module.constvec2f32( 0.0f, 0.0f),
-      // VK_SAMPLE_COUNT_1_BIT
       m_module.constvec2f32( 0.0f, 0.0f),
-      // VK_SAMPLE_COUNT_2_BIT
       m_module.constvec2f32( 0.25f, 0.25f),
       m_module.constvec2f32(-0.25f,-0.25f),
-      // VK_SAMPLE_COUNT_4_BIT
       m_module.constvec2f32(-0.125f,-0.375f),
       m_module.constvec2f32( 0.375f,-0.125f),
       m_module.constvec2f32(-0.375f, 0.125f),
       m_module.constvec2f32( 0.125f, 0.375f),
-      // VK_SAMPLE_COUNT_8_BIT
       m_module.constvec2f32( 0.0625f,-0.1875f),
       m_module.constvec2f32(-0.0625f, 0.1875f),
       m_module.constvec2f32( 0.3125f, 0.0625f),
@@ -7657,7 +6978,6 @@ namespace dxvk {
       m_module.constvec2f32(-0.4375f,-0.0625f),
       m_module.constvec2f32( 0.1875f, 0.4375f),
       m_module.constvec2f32( 0.4375f,-0.4375f),
-      // VK_SAMPLE_COUNT_16_BIT
       m_module.constvec2f32( 0.0625f, 0.0625f),
       m_module.constvec2f32(-0.0625f,-0.1875f),
       m_module.constvec2f32(-0.1875f, 0.1250f),
@@ -7920,10 +7240,6 @@ namespace dxvk {
      || m_programInfo.type() != DxbcProgramType::ComputeShader)
       return;
 
-    // If both masks are 0, emit a barrier in case at least one read-write UAV
-    // has a pending unsynchronized access. Only consider read-after-write and
-    // write-after-read hazards, assume that back-to-back stores are safe and
-    // do not overlap in memory. Atomics are also completely ignored here.
     uint64_t rdMask = m_uavRdMask;
     uint64_t wrMask = m_uavWrMask;
 
@@ -7939,8 +7255,6 @@ namespace dxvk {
       insertBarrier |= (m_analysis->uavInfos[uav].accessFlags & rwAccess) == rwAccess;
     }
 
-    // Need to be in uniform top-level control flow, or otherwise
-    // it is not safe to insert control barriers.
     if (insertBarrier && m_controlFlowBlocks.empty() && m_topLevelIsUniform) {
       m_module.opControlBarrier(
         m_module.constu32(spv::ScopeWorkgroup),
@@ -7956,7 +7270,6 @@ namespace dxvk {
       m_uavRdMask = 0u;
     }
 
-    // Mark pending accesses
     m_uavWrMask |= writeMask;
     m_uavRdMask |= readMask;
   }
@@ -8093,9 +7406,6 @@ namespace dxvk {
   DxbcRegisterPointer DxbcCompiler::getIndexableTempPtr(
     const DxbcRegister&           operand,
           DxbcRegisterValue       vectorId) {
-    // x# regs are indexed as follows:
-    //    (0) register index (immediate)
-    //    (1) element index (relative)
     const uint32_t regId = operand.idx[0].offset;
     
     DxbcRegisterInfo info;
@@ -8124,8 +7434,6 @@ namespace dxvk {
 
 
   uint32_t DxbcCompiler::getUavCoherence(uint32_t registerId, DxbcUavFlags flags) {
-    // For any ROV with write access, we must ensure that
-    // availability operations happen within the locked scope.
     if (flags.test(DxbcUavFlag::RasterizerOrdered)
      && (m_analysis->uavInfos[registerId].accessFlags & VK_ACCESS_SHADER_WRITE_BIT)) {
       m_hasGloballyCoherentUav = true;
@@ -8133,22 +7441,14 @@ namespace dxvk {
       return spv::ScopeQueueFamily;
     }
 
-    // Ignore any resources that can't both be read and written in
-    // the current shader, explicit availability/visibility operands
-    // are not useful in that case.
     if (m_analysis->uavInfos[registerId].accessFlags != (VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT))
       return 0;
 
-    // If the globally coherent flag is set, the resource must be
-    // coherent across multiple workgroups of the same dispatch
     if (flags.test(DxbcUavFlag::GloballyCoherent)) {
       m_hasGloballyCoherentUav = true;
       return spv::ScopeQueueFamily;
     }
 
-    // In compute shaders, UAVs are implicitly workgroup coherent,
-    // but we can rely on memory barrier instructions to make any
-    // access available and visible to the entire workgroup.
     if (m_programInfo.type() == DxbcProgramType::ComputeShader)
       return spv::ScopeInvocation;
 

@@ -13,18 +13,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-/**
- * Amazon's `manifest.proto`: a big-endian header length, a ManifestHeader protobuf naming the
- * compression, then an LZMA (or XZ) body holding the Manifest protobuf - packages of files, each
- * with a Windows path, a size and a SHA-256. Read with a tiny protobuf walker; the XZ library the
- * app already carries does the decompression.
- */
 public final class AmazonManifest {
 
     public static final class ManifestFile {
         public final String path;
         public final long size;
-        /** 0 = SHA-256. */
         public final int hashAlgorithm;
         public final byte[] hashBytes;
 

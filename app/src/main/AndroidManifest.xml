@@ -4,34 +4,19 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <!-- Session logs go to Downloads so a failed run can be handed over as one folder. -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <!-- Store download progress and "installed" / "failed" notices (Android 13+). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- The session keeps running while the app is not on screen: a foreground service holds the
-         process at perceptible priority, and a high-performance WiFi lock keeps a backgrounded
-         download from being throttled to nothing by the radio's power-save. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-    <!-- Optional Wi-Fi discovery: requested only from Steam settings after an explanation. -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <uses-permission android:name="android.permission.VIBRATE" />
-    <!-- Ends background processes of another app that holds the Steam login. GameHub starts
-         itself with the phone via boot receivers and signs this client out seconds after every
-         login; a normal permission, and it cannot touch anything in the foreground. -->
     <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
-    <!-- The microphone for the Linux session, only when the user turns it on: the DirectAudio
-         relay helper opens the input stream under this uid, and PulseAudio exposes it to the
-         Steam client as DirectAudioMic. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <!-- Installs DroidDeck's own updates (Updates page) over itself, after the user allows it. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-    <!-- A paired Steam Controller, read over Bluetooth LE out of lizard mode (SteamControllerBle).
-         Granted at install below targetSdk 31; no scan, so no location. -->
     <uses-permission android:name="android.permission.BLUETOOTH" />
 
     <uses-feature android:name="android.hardware.vulkan.version" android:version="0x401000" android:required="true" />
@@ -50,11 +35,6 @@
         android:appCategory="game"
         android:isGame="true">
 
-        <!-- A game, to the OS: Android 12+ routes the category through GameManager and the OEM
-             performance frameworks (Game Booster, Game Turbo, Game Space) key off it. Without it
-             a regular flagship runs the session under its "app" power profile - a conservative
-             governor and GPU DVFS - which is why the same chipset feels slower here than in a
-             gaming phone whose mode is on for everything. The config says what the OS may do. -->
         <meta-data android:name="android.game_mode_config" android:resource="@xml/game_mode_config" />
 
         <activity
@@ -82,10 +62,6 @@
             </intent-filter>
         </activity>
 
-        <!-- Android owns the Home key. This small translucent Home handler routes the resulting
-             Home launch either back into a running Steam session or to the regular front end.
-             Off until the user turns on "Use as a Home screen" (Setup): while it is disabled the
-             app is not a Home app at all - not offered, not in the "choose Home" list. -->
         <activity
             android:name=".HomeActivity"
             android:enabled="false"
@@ -102,16 +78,7 @@
             </intent-filter>
         </activity>
 
-        <!--
-            A session keeps a Surface, a compositor thread and a proot tree alive; a configuration
-            change must not tear that down and rebuild it, so the activity handles them itself.
-            Landscape only: gamescope is told one output size when it starts.
 
-            Resizable, deliberately: a foldable opening or closing changes the window, and the
-            compositor re-fits the picture with bars. Declared non-resizable, the system keeps a
-            fixed-shape window instead and STRETCHES it onto the other panel - the app never sees a
-            size change, so nothing it does can help.
-        -->
         <activity
             android:name=".input.ControllerEditorActivity"
             android:exported="false"
@@ -132,7 +99,6 @@
             android:screenOrientation="sensorLandscape"
             android:theme="@style/AppTheme" />
 
-        <!-- A store's own sign-in page (GOG, Epic Games, Amazon Games) in a WebView. -->
         <activity
             android:name=".stores.StoreLoginActivity"
             android:exported="false"
@@ -158,29 +124,20 @@
             android:resizeableActivity="true"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density" />
 
-        <!--
-            Owns the session - gamescope, the Steam client, audio - so it survives the activity
-            going away. Without it Android demotes the process as soon as the last visible
-            activity goes, and the low-memory killer reaps the guest: leaving Big Picture to
-            answer a message would come back to a dead Steam and a half-finished download.
-        -->
         <service
             android:name=".session.SessionService"
             android:exported="false"
             android:stopWithTask="false" />
-        <!-- Holds the process in the foreground while the Linux runtime downloads and unpacks. -->
         <service
             android:name=".runtime.RuntimeInstallService"
             android:exported="false" />
         <service
             android:name=".core.WirelessAdbPairingService"
             android:exported="false" />
-        <!-- Keeps the process alive while a store (GOG, Epic, Amazon) game downloads. -->
         <service
             android:name=".stores.download.StoreDownloadService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
-        <!-- Hands a zipped session folder to the share sheet; nothing else is exposed. -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.logs"
@@ -190,8 +147,6 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/log_share_paths" />
         </provider>
-        <!-- The app's data folder in Android's file picker ("Open from" > DroidDeck). Only the
-             system's documents UI may bind it; apps get a file only when the user picks it. -->
         <provider
             android:name=".files.AppFilesProvider"
             android:authorities="${applicationId}.documents"

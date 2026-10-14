@@ -1,14 +1,4 @@
 #!/usr/bin/env bash
-# Builds Cardboard mode's SteamVR pieces for the guest (glibc aarch64):
-#   <out>/droiddeck   the SteamVR driver: driver_droiddeck.so, its manifest and default settings
-#   <out>/layer       VK_LAYER_DROIDDECK_vr, the Vulkan layer SteamVR's compositor needs on Turnip/KGSL
-#
-#   tools/vr/build.sh [OUT]            in the local cross image (default OUT: tools/vr/out)
-#   tools/vr/build.sh --native OUT     with aarch64-linux-gnu-gcc/g++ on PATH (CI, or inside the image)
-#
-# Vulkan headers: VK_INCLUDE (a directory holding vulkan/), else the NDK's (ANDROID_NDK_HOME, the
-# runner's latest NDK, or the newest under ANDROID_HOME). Only vulkan/ is copied out of it: the rest of
-# the NDK sysroot is Android's libc, not the guest's.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/../.." && pwd)
@@ -29,8 +19,6 @@ if [ -z "$vkinc" ]; then
 fi
 [ -n "$vkinc" ] && [ -f "$vkinc/vulkan/vulkan_core.h" ] || { echo "tools/vr/build.sh: no Vulkan headers (set VK_INCLUDE)" >&2; exit 1; }
 
-# Everything the compilers read sits under the repo, so the cross image (which mounts only the repo)
-# sees it too.
 work="$repo/build/vr"
 rm -rf "$work" && mkdir -p "$work/include"
 cp -R "$vkinc/vulkan" "$work/include/"
@@ -40,7 +28,6 @@ mkdir -p "$work/out/droiddeck/bin/linuxarm64" "$work/out/layer"
 compile() {
     local cmd=(sh -c '
         set -e
-        # libwayland-client: linked against a stub with its soname (the guest has the real one).
         mkdir -p build/vr/stub
         aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wl,-soname,libwayland-client.so.0 -Itools/vr/third_party/wayland \
             -o build/vr/stub/libwayland-client.so tools/vr/src/wayland_client_stub.c

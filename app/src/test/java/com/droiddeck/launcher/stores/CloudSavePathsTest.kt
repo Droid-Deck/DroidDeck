@@ -6,7 +6,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
-/** A store's save-location template, made concrete inside the game's prefix (Bannerlator's cases). */
 class CloudSavePathsTest {
     private val root = Files.createTempDirectory("cloud").toFile()
     private val prefix = File(root, "compatdata/3785150007/pfx").apply { mkdirs() }
@@ -45,7 +44,6 @@ class CloudSavePathsTest {
             CloudSavePaths.epic("{UserSavedGames}/Studio/{EpicId}/{AppName}", prefix, install, "acc", "app")!!.path)
         assertEquals(File(profile, "Documents/G").path, CloudSavePaths.epic("{UserDir}/G", prefix, install, "acc", "app")!!.path)
         assertNull(CloudSavePaths.epic("{Nope}/G", prefix, install, "acc", "app"))
-        // Epic's folder names are matched by letters and digits alone when that names exactly one.
         File(profile, "AppData/Local/My-Game").mkdirs()
         assertEquals(File(profile, "AppData/Local/My-Game").path, CloudSavePaths.epic("{AppData}/MyGame", prefix, install, "acc", "app")!!.path)
     }

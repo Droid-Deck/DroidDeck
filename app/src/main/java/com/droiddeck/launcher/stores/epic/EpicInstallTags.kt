@@ -2,11 +2,6 @@ package com.droiddeck.launcher.stores.epic
 
 import java.util.Locale
 
-/**
- * Epic tags a manifest's files by language so a client installs the base files plus one language
- * instead of every language. The table (the launcher's tag names per language) is Legendary's;
- * the language is the device's locale, English when it is not one Epic ships.
- */
 object EpicInstallTags {
     private val LANGUAGE_TO_TAGS: Map<String, List<String>> = mapOf(
         "ar" to listOf("Arabic", "ar"), "bg" to listOf("Bulgarian", "bg-BG", "bg"),
@@ -34,11 +29,9 @@ object EpicInstallTags {
         }
     }
 
-    /** The install tags for the device's language; English when Epic has no tags for it. Never empty. */
     @JvmStatic
     fun tagsForDevice(): List<String> = LANGUAGE_TO_TAGS[key(Locale.getDefault()) ?: "en"] ?: LANGUAGE_TO_TAGS.getValue("en")
 
-    /** The two-letter code handed to the game as -epiclocale; "en" when the language is not one Epic knows. */
     @JvmStatic
     fun localeCodeForDevice(): String = key(Locale.getDefault())?.substringBefore('-') ?: "en"
 }

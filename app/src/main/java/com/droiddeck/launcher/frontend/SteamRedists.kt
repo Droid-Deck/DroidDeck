@@ -2,14 +2,7 @@ package com.droiddeck.launcher.frontend
 
 import java.io.File
 
-/**
- * What Steam itself installs alongside a game: the Steamworks Shared redistributables (app 228980)
- * listed under "SharedDepots" in the game's appmanifest. Those live in Steamworks Shared rather than
- * the game's folder, so the folder scan ([DependencyDetector]) cannot see them; this reads Steam's
- * list instead. Depots are matched to Bannerlator's catalog names; unknown ones are left out.
- */
 object SteamRedists {
-    /** Steamworks Shared depot -> (catalog component, what Steam calls it). 2015-2019 runtimes are one family. */
     val DEPOTS = linkedMapOf(
         "228981" to ("vcredist2005_dll" to "VC++ 2005"),
         "228982" to ("vcredist2008_dll" to "VC++ 2008"),
@@ -25,7 +18,6 @@ object SteamRedists {
     private val BLOCK = Regex("\"SharedDepots\"\\s*\\{([^}]*)\\}", RegexOption.IGNORE_CASE)
     private val ENTRY = Regex("\"(\\d+)\"\\s+\"\\d+\"")
 
-    /** The game's appmanifest beside its install folder (steamapps/common/<dir> -> steamapps/). */
     fun manifest(gameDir: File?, appId: Int): File? {
         val steamapps = gameDir?.parentFile?.parentFile ?: return null
         return File(steamapps, "appmanifest_$appId.acf").takeIf { it.isFile }

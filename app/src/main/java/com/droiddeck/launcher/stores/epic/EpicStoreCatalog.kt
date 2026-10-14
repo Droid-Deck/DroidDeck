@@ -14,14 +14,6 @@ import java.util.Locale
 import java.util.TimeZone
 import java.util.concurrent.ConcurrentHashMap
 
-/**
- * The Epic Games Store catalog through the GraphQL endpoint the store website uses
- * (`store.epicgames.com/graphql`, which wants a browser User-Agent): `Catalog.searchStore` with
- * the base-game category, sorted by price / release date / relevance, on sale or free. Elements
- * carry the offer id, the namespace, the catalog item ids (what the library records, so ownership
- * is matched on those), key images and pre-formatted prices. "Free this week" comes from the
- * static `freeGamesPromotions` feed.
- */
 object EpicStoreCatalog {
     private const val TAG = "EpicStore"
     private const val GRAPHQL = "https://store.epicgames.com/graphql"
@@ -82,7 +74,6 @@ object EpicStoreCatalog {
                 val img = imgs.optJSONObject(k) ?: continue
                 val url = img.optString("url", "")
                 if (url.isBlank()) continue
-                // The opaque box images first; the logo variants are transparent and never used.
                 when (img.optString("type", "")) {
                     "DieselGameBox" -> wide = url
                     "OfferImageWide", "DieselStoreFrontWide" -> if (wide == null) wide = url
@@ -105,8 +96,6 @@ object EpicStoreCatalog {
         val tagLine = buildList {
             e.optJSONArray("tags")?.let { tags -> for (t in 0 until tags.length()) { val n = tags.optJSONObject(t)?.optString("name").orEmpty(); if (n.isNotBlank() && n != "Windows" && size < 3) add(n) } }
         }.joinToString(", ")
-        // Epic's public store GraphQL has no age rating on an offer (no ageGatings/ratings field on
-        // CatalogOffer or StoreConfig); only a content tag, if Epic sets one, can mark it.
         val allTags = buildList { e.optJSONArray("tags")?.let { t -> for (k in 0 until t.length()) t.optJSONObject(k)?.optString("name")?.let { add(it) } } }
         val itemIds = buildList {
             e.optJSONArray("items")?.let { items -> for (j in 0 until items.length()) items.optJSONObject(j)?.optString("id")?.takeIf { it.isNotBlank() }?.let { add(it) } }
@@ -124,7 +113,6 @@ object EpicStoreCatalog {
         )
     }
 
-    // An offer's custom attribute (developerName, publisherName), or "".
     private fun attribute(e: JSONObject, key: String): String {
         val attrs = e.optJSONArray("customAttributes") ?: return ""
         return (0 until attrs.length()).mapNotNull { attrs.optJSONObject(it) }.firstOrNull { it.optString("key") == key }
@@ -140,11 +128,9 @@ object EpicStoreCatalog {
         return slug.removeSuffix("/home")
     }
 
-    /** The Store tab's shelves: this week's giveaways as Free, sales as Deals, newest releases, trending = free-to-play picks. Blocking. */
     fun featured(context: Context, force: Boolean = false): StoreShelves? {
         val now = System.currentTimeMillis()
         featuredCache?.let { if (!force && now - it.at < FEATURED_TTL_MS) return it.value }
-        // Shelves saved on an earlier run are as good while they are young: shown, not fetched again.
         if (!force && now - EpicPrefs.get(context).getLong("store_featured_at", 0L) < FEATURED_TTL_MS) cachedFeatured(context)?.let { return it }
         val freeNow = fetchPromos()
         val onSale = searchStore(24, sortBy = "currentPrice", sortDir = "ASC", onSale = true).filter { it.discountPercent > 0 }
@@ -174,7 +160,6 @@ object EpicStoreCatalog {
         return results
     }
 
-    /** This week's giveaway titles (100% off right now). */
     private fun fetchPromos(): List<CatalogItem> {
         val body = StoreNet.get("$PROMOS?locale=en-US&country=${country()}&allowCountries=${country()}") ?: return emptyList()
         return runCatching {

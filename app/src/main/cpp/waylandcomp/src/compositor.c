@@ -1,23 +1,3 @@
-/*
- * droiddeck-wayland - the embedded compositor of the Wayland display path.
- *
- * Clients are the Wine processes of a container (winewayland.drv) and, through them,
- * Mesa's Vulkan WSI. Each process is its own client, so a Windows virtual desktop is
- * described with banner_desktop_v1: the desktop owner marks one surface as the desktop,
- * and every process reports its top-level windows' desktop positions and the Windows
- * stacking order.
- *
- * The scene is the desktop surface at the bottom, then every mapped xdg_toplevel at its
- * reported position in stacking order, each with its subsurface tree (a game's Vulkan
- * swapchain is a subsurface of its window) and wp_viewport crop/scale applied. It is
- * redrawn once per event-loop pass after any commit or layout change, stretched to the
- * Android surface.
- *
- * Input goes to the desktop surface in desktop coordinates: the Wine server routes it to
- * the window under the pointer (or the focus window) in whichever process owns it, the
- * same as winex11's virtual desktop. Without a desktop (a client that doesn't speak
- * banner_desktop_v1) the topmost window under the pointer gets it.
- */
 #define _GNU_SOURCE 1
 #define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
@@ -58,19 +38,11 @@
 #define WLOGI(...) __android_log_print(ANDROID_LOG_INFO, "DroidDeckWayland", __VA_ARGS__)
 #define WLOGE(...) __android_log_print(ANDROID_LOG_ERROR, "DroidDeckWayland", __VA_ARGS__)
 
-/* ------------------------------------------------------------------ session log
- * One readable, time-stamped file per Wayland session in Download/Wayland-logs, also
- * mirrored to logcat: which programs connect, the desktop, windows opening and closing,
- * Vulkan frames arriving, a frame-rate summary every 10 seconds, and errors. */
 
 #define SESSION_LOG_DIR "/storage/emulated/0/Download/Wayland-logs"
 
 static FILE *g_log;
 
-/* Lines logged before the session file exists are kept here and written into it, in order, the
- * moment it opens - the compositor runs on its own thread, so anything the app reports as that
- * thread starts (the display's HDR capability, for one) would otherwise only reach logcat. The
- * lock also serialises the file writes, which now come from the app's threads too. */
 #define PRELOG_MAX 32
 static pthread_mutex_t g_log_lock = PTHREAD_MUTEX_INITIALIZER;
 static char *g_prelog[PRELOG_MAX];
@@ -104,8 +76,6 @@ static void open_session_log(void) {
 
     localtime_r(&now, &tm);
     strftime(stamp, sizeof(stamp), "%Y-%m-%d_%H-%M-%S", &tm);
-    /* The app names the file when it has a session folder to put it in, so one session's logs sit
-     * together; without that we keep our own dated file. The folder is made on the Java side. */
     const char *given = getenv("BL_WAYLAND_LOG");
     if (given && *given) {
         snprintf(path, sizeof(path), "%s", given);
@@ -131,8 +101,6 @@ static void open_session_log(void) {
             "Time          Area      Event\n"
             "------------  --------  -----------------------------------------------------\n",
             stamp, path);
-    /* Publish the file and flush anything logged before it existed, in one critical section, so a
-     * line from another thread can never land ahead of the header or be dropped between the two. */
     pthread_mutex_lock(&g_log_lock);
     for (int i = 0; i < g_prelog_n; i++) { fputs(g_prelog[i], f); free(g_prelog[i]); g_prelog[i] = NULL; }
     g_prelog_n = 0;
@@ -141,7 +109,6 @@ static void open_session_log(void) {
     WLOGI("session log: %s", path);
 }
 
-/* At most ~10 lines a second for chatty events (window moves), so a drag can't flood logcat. */
 static int log_budget(void) {
     static struct timespec window;
     static int used;
@@ -152,13 +119,12 @@ static int log_budget(void) {
 }
 
 #ifndef BTN_LEFT
-#define BTN_LEFT 0x110  /* linux/input-event-codes.h */
+#define BTN_LEFT 0x110
 #endif
 #ifndef BTN_RIGHT
 #define BTN_RIGHT 0x111
 #endif
 
-/* Java sends pointer coordinates in this space, covering the whole output surface. */
 #define INPUT_SPACE_W 1920
 #define INPUT_SPACE_H 1080
 
@@ -180,7 +146,7 @@ static const char *client_name(struct wl_client *client) {
 static void on_client_destroyed(struct wl_listener *l, void *data) {
     struct client_info *ci = wl_container_of(l, ci, destroy), **pp;
     droiddeck_log("program", "disconnected: %s (pid %d)", ci->name, (int)ci->pid);
-    droiddeck_color_client_gone(ci->client); /* HDR summary for a program that presented HDR (gate open only) */
+    droiddeck_color_client_gone(ci->client);
     for (pp = &g_clients; *pp; pp = &(*pp)->next)
         if (*pp == ci) { *pp = ci->next; break; }
     free(ci);
@@ -202,7 +168,7 @@ static void on_client_created(struct wl_listener *l, void *data) {
     if ((fd = open(path, O_RDONLY | O_CLOEXEC)) >= 0) {
         if ((n = read(fd, buf, sizeof(buf) - 1)) > 0) {
             char *base = buf, *p;
-            buf[n] = 0;  /* argv[0] only; Wine puts the Windows program path there */
+            buf[n] = 0;
             for (p = buf; *p; p++) if (*p == '\\' || *p == '/') base = p + 1;
             if (*base) snprintf(ci->name, sizeof(ci->name), "%s", base);
         }
@@ -215,149 +181,121 @@ static void on_client_created(struct wl_listener *l, void *data) {
     droiddeck_log("program", "connected over Wayland: %s (pid %d)", ci->name, (int)ci->pid);
 }
 
-/* ------------------------------------------------------------------ surfaces */
 
 enum surface_role { ROLE_NONE, ROLE_TOPLEVEL, ROLE_SUBSURFACE, ROLE_DESKTOP, ROLE_CURSOR };
 
 struct surface {
     struct wl_resource *resource;
-    struct wl_list link;                    /* g_surfaces */
+    struct wl_list link;
 
-    /* Pending state, applied on commit. */
     struct wl_resource *pending_buffer;
     struct wl_listener pending_buffer_destroy;
     int pending_attach;
     int pending_src_set, pending_dst_set;
-    float pending_src[4];                   /* x, y, w, h; w < 0 = unset */
-    int pending_dst[2];                     /* w, h; w < 0 = unset */
+    float pending_src[4];
+    int pending_dst[2];
     struct wl_list pending_frames;
-    struct wl_list pending_feedback;        /* wp_presentation feedback asked for before commit */
+    struct wl_list pending_feedback;
 
-    /* Current content. */
-    struct vkp_image *shm_img;              /* our copy of the last wl_shm buffer */
-    struct wl_resource *dmabuf;             /* current dmabuf wl_buffer (NULL once the client destroyed it) */
-    struct dmabuf_buffer *dmabuf_buf;       /* its imported image, kept until replaced or the surface goes */
+
+    struct vkp_image *shm_img;
+    struct wl_resource *dmabuf;
+    struct dmabuf_buffer *dmabuf_buf;
     struct wl_listener dmabuf_destroy;
     int buf_w, buf_h, has_content;
     int buf_alpha;
-    int opaque[4], pending_opaque[4], pending_opaque_set; /* x, y, w, h; w = 0: none */
+    int opaque[4], pending_opaque[4], pending_opaque_set;
     int src_set, dst_set;
     float src[4];
     int dst[2];
-    struct wl_list frames;                  /* frame callbacks for the next redraw */
-    struct wl_list feedback;                /* presentation feedback for the current content */
-    int drawn;                              /* part of the last rendered scene */
-    int64_t next_release_ns;                /* FPS limiter: when this surface's last buffer goes back */
-    int releases_pending;                   /* FPS limiter: buffers of this surface still to be released */
+    struct wl_list frames;
+    struct wl_list feedback;
+    int drawn;
+    int64_t next_release_ns;
+    int releases_pending;
 
     enum surface_role role;
-    /* A role-less surface's last buffer, held unreleased: it may become the pointer's image
-     * (wl_pointer.set_cursor after the commit, which is wlroots' order). */
     struct wl_resource *idle_buffer;
     struct wl_listener idle_buffer_destroy;
     struct wl_resource *xdg_surface, *xdg_toplevel;
     struct wl_resource *viewport;
 
-    /* Toplevel placement on the scene. */
-    int mapped;                             /* in g_toplevels */
+
+    int mapped;
     struct wl_list toplevel_link;
-    int keep_on_top; /* Cardboard mode's SteamVR window: above every other toplevel (raise_kept_on_top) */
+    int keep_on_top;
     int x, y, placed;
     uint32_t hwnd;
 
-    /* Subsurface tree. */
     struct surface *parent;
     struct wl_resource *subsurface;
-    struct wl_list children;                /* bottom to top */
+    struct wl_list children;
     struct wl_list child_link;
     int sub_x, sub_y, sub_pending_x, sub_pending_y, sub_pending;
     int below_parent;
-    int fullscreen;                         /* xdg_toplevel.set_fullscreen: no client decorations */
-    int toplevel_committed;                 /* the toplevel's initial commit was answered */
+    int fullscreen;
+    int toplevel_committed;
 
-    char *title;                            /* xdg_toplevel title, for the session log */
-    int announced_vulkan;                   /* logged its first dmabuf frame */
-    uint32_t hdr_fmt_logged;                /* HDR session: the buffer format last named in the log */
+    char *title;
+    int announced_vulkan;
+    uint32_t hdr_fmt_logged;
 };
 
-static struct wl_list g_surfaces;           /* every surface */
-static struct wl_list g_toplevels;          /* mapped toplevels, bottom to top */
+static struct wl_list g_surfaces;
+static struct wl_list g_toplevels;
 static struct surface *g_desktop;
-static uint32_t *g_zorder;                  /* last reported Windows stacking order, top first */
+static uint32_t *g_zorder;
 static size_t g_zorder_count;
 static struct wl_event_source *g_render_idle, *g_frame_timer;
 
-/* Rendering is driven by the screen's vsync (Java's Choreographer ticks, nativeVsync): one scene
- * per refresh showing the newest buffers, so the event loop is never parked in the swapchain and
- * clients get their buffers back as soon as they're replaced. Without ticks (an older app, no
- * window) a fallback timer renders instead. */
-static int g_dirty;                         /* something changed since the last render */
-static int64_t g_last_vsync_ns;             /* last tick, 0 = none yet */
-static int64_t g_tick_vsync_ns;             /* the vsync that tick is for (Choreographer's frame time) */
-static int64_t g_refresh_ns = 16666667;     /* measured tick interval (pacing only, never reported) */
+
+
+
+
+static int g_dirty;
+static int64_t g_last_vsync_ns;
+static int64_t g_tick_vsync_ns;
+static int64_t g_refresh_ns = 16666667;
 static struct wl_event_source *g_fallback_timer;
 static int g_fallback_armed;
 
-/* FPS limiter (the in-game drawer's): frames per second, 0 = unlimited. Set from the app thread,
- * read here. Like the X11 path, which delays the "your buffer is free" notice, the limit paces
- * when a replaced buffer is released to its client, so the game itself slows to the cap. */
 volatile int g_fps_limit;
 
-/* Shortcut launches: explorer's windows (the desktop, taskbar, Start menu) aren't drawn, matching
- * the X11 renderer's unviewable "explorer.exe". They still exist for input routing. */
 volatile int g_hide_shell;
 
-/* Experimental layer mode (DROIDDECK_WAYLAND_ZERO_COPY=1 in the container's environment): a single
- * fullscreen window is shown on its own Android layer (sc_layer.c) instead of being blitted into the
- * screen swapchain. Set from the app before the compositor starts; read per frame. */
 volatile int g_zero_copy;
-static int g_zero_copy_paused;        /* effects hold the layer path off (render_scene) */
+static int g_zero_copy_paused;
 static int g_zero_copy_fx_skip_said;
 
-/* Compressed (UBWC) game buffers: zwp_linux_dmabuf_v1 advertises DRM_FORMAT_MOD_QCOM_COMPRESSED next
- * to LINEAR for every format the renderer's own driver can import that way, so Turnip's Wayland WSI
- * in the game allocates UBWC swapchain images instead of resolving each frame to a linear copy.
- * DROIDDECK_WAYLAND_UBWC=0 in the container's environment turns the advertisement off (A/B switch). Set
- * from the app before the compositor starts; read at every zwp_linux_dmabuf_v1 bind. */
 volatile int g_ubwc = 1;
 
-/* Debug (DROIDDECK_WAYLAND_NO_RENDER_NODE=1): name no DRM device in the dma-buf feedback, as a phone
- * that exposes no /dev/dri node to apps does, to reproduce its OpenGL path here. Set from the app
- * before the compositor starts. */
 volatile int g_no_render_node;
 
-/* The panel's refresh rate in mHz, from the app; wl_output advertises it so Wine's display modes
- * carry the real rate (games pick their saved 144 Hz mode, as on X11). 0 = 60 Hz. */
 volatile int g_output_refresh_mhz;
 
-/* The advertised output size: the container's screen (what the app's X server reports on X11),
- * so Wine's display-mode list stops at the desktop size. 0 = 1920x1080. */
 volatile int g_output_w, g_output_h;
 struct pending_release {
     struct wl_resource *buffer;
     struct wl_listener destroy;
-    struct surface *surface;                /* NULL once the surface is gone */
+    struct surface *surface;
     int64_t at_ns;
-    int64_t since_ns;                       /* when the compositor let go of it (the perf line) */
+    int64_t since_ns;
     struct wl_list link;
 };
 static struct wl_list g_pending_releases;
 static int g_release_timer_fd = -1;
 static struct wl_event_source *g_release_source;
-static int g_scene_w, g_scene_h;            /* size of the last drawn scene */
-static int g_desktop_w, g_desktop_h;        /* last size the desktop had content at */
-static unsigned g_stat_frames, g_stat_dmabuf, g_stat_shm; /* since the last 10 s summary */
+static int g_scene_w, g_scene_h;
+static int g_desktop_w, g_desktop_h;
+static unsigned g_stat_frames, g_stat_dmabuf, g_stat_shm;
 
-/* The 10 s `perf` line (on_stats_timer): where the compositor thread's time goes and how long games
- * wait for their buffers back. The driver-side times (acquire, present, fence waits) are counted in
- * vk_present.c (vkp_perf_take). Compositor thread only. */
 static struct {
-    unsigned ticks;                          /* screen refreshes (Choreographer ticks) */
-    unsigned scenes;                         /* render_scene() calls ... */
-    int64_t scene_ns, scene_max_ns;          /* ... and their wall time */
-    unsigned copy_scenes;                    /* scenes drawn into the screen swapchain (the copy path) */
-    unsigned releases, releases_held;        /* wl_buffer.release after a replacement; held = 1 ms or more */
-    int64_t release_ns, release_max_ns;      /* replaced (or taken off the layer) -> released to the game */
+    unsigned ticks;
+    unsigned scenes;
+    int64_t scene_ns, scene_max_ns;
+    unsigned copy_scenes;
+    unsigned releases, releases_held;
+    int64_t release_ns, release_max_ns;
 } g_perf;
 
 static void schedule_render(void);
@@ -367,7 +305,6 @@ static int64_t now_ns(void) {
     return (int64_t)ts.tv_sec * 1000000000LL + ts.tv_nsec;
 }
 
-/* A game got a replaced buffer back; since_ns = when the compositor let go of it (0 = not counted). */
 static void perf_note_release(int64_t since_ns) {
     if (since_ns <= 0) return;
     int64_t d = now_ns() - since_ns;
@@ -378,7 +315,6 @@ static void perf_note_release(int64_t since_ns) {
     if (d >= 1000000LL) g_perf.releases_held++;
 }
 
-/* ------------------------------------------------------------------ buffer release pacing */
 
 static void pending_release_free(struct pending_release *pr) {
     if (pr->surface && pr->surface->releases_pending > 0) pr->surface->releases_pending--;
@@ -387,7 +323,6 @@ static void pending_release_free(struct pending_release *pr) {
     free(pr);
 }
 
-/* A surface is going away: its queued releases still go out on time, they just stop counting. */
 static void pending_releases_forget_surface(struct surface *s) {
     struct pending_release *pr;
     wl_list_for_each(pr, &g_pending_releases, link)
@@ -413,7 +348,7 @@ static void arm_release_timer(void) {
 static int on_release_timer(int fd, uint32_t mask, void *data) {
     struct pending_release *pr, *tmp;
     uint64_t expirations;
-    int64_t now = now_ns() + 300000; /* anything due within 0.3 ms goes now */
+    int64_t now = now_ns() + 300000;
     if (read(fd, &expirations, sizeof(expirations)) < 0 && errno != EAGAIN) return 0;
     wl_list_for_each_safe(pr, tmp, &g_pending_releases, link) {
         if (pr->at_ns <= now) {
@@ -427,24 +362,8 @@ static int on_release_timer(int fd, uint32_t mask, void *data) {
     return 0;
 }
 
-/* Give a replaced buffer back to its client: now, or on the limiter's cadence.
- *
- * Each release takes the next slot of a per-surface cadence (one slot per interval), so a game
- * gets one buffer back per interval however fast it commits. The schedule is kept honest at both
- * ends: a slot in the past is brought to now (the game was slower than the cap, no catch-up burst
- * is owed), and it never runs further ahead than the releases actually queued - with p releases
- * still pending the new one lands at most (p + 1) intervals out, nothing pending means at most
- * one interval. Without that bound the schedule kept slots that were consumed but never
- * delivered (a swapchain rebuild destroys buffers with queued releases) or that a coarser earlier
- * limit had spaced out, and the game's first frames after that waited on empty slots. */
 static void release_buffer(struct surface *s, struct wl_resource *buffer, int64_t since_ns) {
     const int limit = g_fps_limit;
-    /* Without a limit of its own a game is paced to the screen. A swapchain that does not wait for
-     * frame callbacks (MAILBOX, IMMEDIATE) is held back by nothing else here, so handing a replaced
-     * buffer straight back let it draw as fast as the GPU allowed and everything above the refresh
-     * rate was thrown away - 178 frames a second for 91 on screen, measured (WinNative, maxjivi05).
-     * One release per refresh is the back-pressure X11 gives, and the screen shows the same frames
-     * either way. */
     const int64_t interval = limit > 0 ? 1000000000LL / limit : g_refresh_ns;
     if (interval <= 0 || g_release_timer_fd < 0) { wl_buffer_send_release(buffer); perf_note_release(since_ns); return; }
     int64_t now = now_ns();
@@ -466,9 +385,7 @@ static void release_buffer(struct surface *s, struct wl_resource *buffer, int64_
     arm_release_timer();
 }
 
-/* ------------------------------------------------------------------ seat state */
 
-/* Each Wine process is a separate client with its own wl_pointer / wl_keyboard. */
 struct seat_pointer { struct wl_resource *ptr; struct wl_resource *focus; };
 struct seat_keyboard { struct wl_resource *kb; struct wl_resource *focus; };
 struct seat_touch { struct wl_resource *touch; struct wl_resource *focus; };
@@ -478,39 +395,25 @@ static struct seat_pointer g_ptrs[MAX_PTRS];
 static int g_nptrs;
 static struct seat_keyboard g_kbs[MAX_PTRS];
 static int g_nkbs;
-/* Modifier state in the keymap's real-modifier bits (Shift=0x1, Lock=0x2, Control=0x4, Mod1=0x8,
- * Mod4=0x40). A client of the wayland backend - gamescope, labwc - takes modifiers only from
- * wl_keyboard.modifiers and ignores what a Shift key event does to its xkb state, so without this
- * every capital arrived lowercase. */
 static uint32_t g_mods_depressed, g_mods_locked;
-static uint32_t g_mod_keys_held; /* one bit per modifier key below, so a repeat press is harmless */
+static uint32_t g_mod_keys_held;
 static struct seat_touch g_touches[MAX_PTRS];
 static int g_ntouches;
 
-/* ---- the client's cursor (wl_pointer.set_cursor) -------------------------------------------
- * Not composited: under zero-copy the program's buffer goes straight to an Android layer and there
- * is nothing to composite into. The cursor surface is snapshotted here instead and the app draws it
- * as its overlay, above every present path (Bannerlator's design). What it buys: the real SHAPE -
- * labwc's resize arrows at a window's edges and corners, a text field's I-beam - and an
- * authoritative HIDE (set_cursor with a NULL surface, what a mouse-look game does).
- * wl_shm cursors (Wine, pixman) are copied directly; a GPU cursor (labwc on Vulkan/GLES, which
- * wlroots hands over as a dma-buf, usually UBWC) is read back through vkp_image_readback. */
 #define CURSOR_MAX_PX (256 * 256)
 static pthread_mutex_t g_cursor_lock = PTHREAD_MUTEX_INITIALIZER;
-static struct surface *g_cursor_surface;     /* compositor thread only */
-static struct surface *g_cursor_shown;       /* compositor thread: whose image g_cursor_px holds */
-static int g_cursor_hx, g_cursor_hy;         /* hotspot, surface-local */
-static uint32_t g_cursor_px[CURSOR_MAX_PX];  /* guarded by g_cursor_lock: ARGB8888 snapshot */
-static uint32_t g_cursor_rb[CURSOR_MAX_PX];  /* compositor thread: GPU readback staging */
-static int g_cursor_w, g_cursor_h;           /* 0 = nothing to draw */
-static int g_cursor_hidden = 1;              /* the client asked for no pointer */
-static int g_cursor_serial;                  /* bumped on every change; the app polls it */
+static struct surface *g_cursor_surface;
+static struct surface *g_cursor_shown;
+static int g_cursor_hx, g_cursor_hy;
+static uint32_t g_cursor_px[CURSOR_MAX_PX];
+static uint32_t g_cursor_rb[CURSOR_MAX_PX];
+static int g_cursor_w, g_cursor_h;
+static int g_cursor_hidden = 1;
+static int g_cursor_serial;
 
-/* The last image again, after a hide: the same surface set as the pointer once more with nothing
- * newly committed to it (wlroots re-sets its cursor surface each time the pointer enters). */
 static void cursor_publish_shown(void) {
     pthread_mutex_lock(&g_cursor_lock);
-    if (g_cursor_w > 0) { g_cursor_hidden = 0; g_cursor_serial++; }  /* serial: the hotspot may be new */
+    if (g_cursor_w > 0) { g_cursor_hidden = 0; g_cursor_serial++; }
     pthread_mutex_unlock(&g_cursor_lock);
 }
 
@@ -536,23 +439,16 @@ static void cursor_publish_shm(struct wl_shm_buffer *shm, int hx, int hy) {
     int32_t w = wl_shm_buffer_get_width(shm), h = wl_shm_buffer_get_height(shm);
     int32_t stride = wl_shm_buffer_get_stride(shm);
     if (w <= 0 || h <= 0 || (int64_t)w * h > CURSOR_MAX_PX) return;
-    /* libwayland only promises stride >= width; each row copied here is width * 4 bytes, so a
-     * shorter stride would read past the end of the client's pool. */
     if ((int64_t)stride < (int64_t)w * 4) return;
     wl_shm_buffer_begin_access(shm);
     cursor_publish_pixels((const uint8_t *)wl_shm_buffer_get_data(shm), w, h, (size_t)stride, hx, hy);
     wl_shm_buffer_end_access(shm);
 }
 
-/* The serial alone, without the lock: the app asks on every pointer move, and the snapshot below
- * copies up to 256 KB of pixels across JNI and holds the lock the compositor thread takes to
- * change the cursor. A torn read is only a missed or an extra snapshot. */
 int droiddeck_cursor_serial(void) {
     return __atomic_load_n(&g_cursor_serial, __ATOMIC_RELAXED);
 }
 
-/* Read by the app (UI thread). out = [serial, hidden, w, h, hotspotX, hotspotY, pixels...].
- * Returns the number of ints written, or 0 if out is too small. */
 int droiddeck_cursor_snapshot(int *out, int cap) {
     int n = 0;
     pthread_mutex_lock(&g_cursor_lock);
@@ -571,14 +467,12 @@ int droiddeck_cursor_snapshot(int *out, int cap) {
 struct active_touch { struct surface *surface; int pointer_fallback; };
 static struct active_touch g_touch_points[MAX_TOUCH_POINTS];
 static void touch_cancel_surface(struct surface *surface);
-static struct surface *g_grab;              /* no-desktop fallback: surface holding the button */
-static struct surface *g_key_target;        /* no-desktop fallback: last clicked surface */
-static struct surface *g_ime_click;         /* last clicked program window: where text input goes */
+static struct surface *g_grab;
+static struct surface *g_key_target;
+static struct surface *g_ime_click;
 static int g_input_pipe[2] = {-1, -1};
 struct input_msg { int type; int p1; int p2; int p3; int p4; };
 
-/* Pointer constraints (zwp_pointer_constraints_v1) and relative pointers
- * (zwp_relative_pointer_manager_v1); see the "pointer constraints" section. */
 struct surface;
 static void constraints_surface_gone(struct surface *s);
 static void constraints_surface_commit(struct surface *s);
@@ -586,7 +480,6 @@ static void constraints_pointer_gone(struct wl_resource *pointer);
 static void relative_pointers_pointer_gone(struct wl_resource *pointer);
 static void constraints_focus_entered(struct wl_resource *target, struct wl_client *client);
 
-/* ------------------------------------------------------------------ dmabuf buffers */
 
 void dmabuf_buffer_unref(struct dmabuf_buffer *b) {
     if (!b || --b->refs > 0) return;
@@ -609,7 +502,6 @@ static struct dmabuf_buffer *get_dmabuf(struct wl_resource *buffer) {
     return NULL;
 }
 
-/* ------------------------------------------------------------------ surface state */
 
 static void surface_size(const struct surface *s, int *w, int *h) {
     if (s->dst_set) { *w = s->dst[0]; *h = s->dst[1]; }
@@ -617,7 +509,6 @@ static void surface_size(const struct surface *s, int *w, int *h) {
     else { *w = s->buf_w; *h = s->buf_h; }
 }
 
-/* "Title" (program) for the log; subsurfaces are named after the window they belong to. */
 static void describe(const struct surface *s, char *out, size_t size) {
     const struct surface *w = s;
     while (w->parent) w = w->parent;
@@ -636,8 +527,6 @@ static struct surface *toplevel_by_hwnd(uint32_t hwnd) {
 
 static void raise_kept_on_top(void);
 
-/* Reorder the mapped toplevels to match the last reported Windows z-order. Windows the
- * report doesn't mention keep their relative order below the ones it does. */
 static void apply_zorder(void) {
     for (size_t i = g_zorder_count; i-- > 0;) {
         struct surface *s = toplevel_by_hwnd(g_zorder[i]);
@@ -648,7 +537,6 @@ static void apply_zorder(void) {
     raise_kept_on_top();
 }
 
-/* Windows marked keep_on_top go back to the top of the stack (the end of g_toplevels). */
 static void raise_kept_on_top(void) {
     struct surface *s, *tmp, *kept[4];
     int n = 0;
@@ -669,11 +557,8 @@ static void map_toplevel(struct surface *s) {
         droiddeck_log("window", "opened %s %dx%d at %d,%d%s", name, w, h, s->x, s->y,
                    s->placed ? "" : " (no desktop position yet)");
     }
-    wl_list_insert(g_toplevels.prev, &s->toplevel_link); /* new windows start on top */
+    wl_list_insert(g_toplevels.prev, &s->toplevel_link);
     raise_kept_on_top();
-    /* Without a Wine desktop the clients are whole programs (the Linux desktop, a gamescope a
-     * program on it started over it): a window that opens on top takes the keys too, as it would
-     * on any desktop, rather than the one clicked last that is now underneath it. */
     if (!g_desktop) g_key_target = s;
     apply_zorder();
 }
@@ -692,14 +577,9 @@ static void unmap_toplevel(struct surface *s) {
     droiddeck_text_input_refocus();
 }
 
-/* Let go of the surface's dmabuf content. paced = 1: the buffer was replaced, give it back on the
- * limiter's cadence; paced = 0: the surface is going away, give it back at once (a buffer of a
- * destroyed surface is not shown again and must not sit unreleased with the client). */
 static void drop_dmabuf(struct surface *s, int paced) {
     if (s->dmabuf) {
         wl_list_remove(&s->dmabuf_destroy.link);
-        /* A buffer on the zero-copy layer is the display's until SurfaceFlinger says otherwise:
-         * ahb_swapchain.c releases it then. */
         if (!ahb_swapchain_defer_release(s->dmabuf_buf, s->dmabuf, s, paced)) {
             if (paced) release_buffer(s, s->dmabuf, now_ns());
             else wl_buffer_send_release(s->dmabuf);
@@ -710,8 +590,6 @@ static void drop_dmabuf(struct surface *s, int paced) {
     s->dmabuf_buf = NULL;
 }
 
-/* The client destroyed the wl_buffer we are showing (a swapchain rebuild): keep showing its
- * image (s->dmabuf_buf holds it) until the next commit replaces it; only the resource is gone. */
 static void on_dmabuf_destroyed(struct wl_listener *l, void *data) {
     struct surface *s = wl_container_of(l, s, dmabuf_destroy);
     wl_list_remove(&s->dmabuf_destroy.link);
@@ -737,7 +615,6 @@ static void fire_frames(struct wl_list *frames) {
     }
 }
 
-/* Copy a committed wl_shm buffer into the surface's image and release the buffer. */
 static void take_shm(struct surface *s, struct wl_shm_buffer *shm, struct wl_resource *buffer) {
     int32_t w = wl_shm_buffer_get_width(shm), h = wl_shm_buffer_get_height(shm);
     int32_t stride = wl_shm_buffer_get_stride(shm);
@@ -759,10 +636,9 @@ static void take_shm(struct surface *s, struct wl_shm_buffer *shm, struct wl_res
     s->has_content = s->shm_img != NULL;
     g_stat_shm++;
     struct client_info *ci = client_info_of(wl_resource_get_client(s->resource));
-    if (ci && ci->asked_feedback) ci->shm_frames++;  /* since it asked for GPU buffers */
+    if (ci && ci->asked_feedback) ci->shm_frames++;
 }
 
-/* A single-pixel buffer (wl_single_pixel.c) as a 1x1 image, which the surface's viewport stretches. */
 static void take_pixel(struct surface *s, const uint8_t bgra[4], struct wl_resource *buffer) {
     if (s->shm_img && (vkp_image_width(s->shm_img) != 1 || vkp_image_height(s->shm_img) != 1)) {
         vkp_image_destroy(s->shm_img);
@@ -777,29 +653,14 @@ static void take_pixel(struct surface *s, const uint8_t bgra[4], struct wl_resou
     s->has_content = s->shm_img != NULL;
 }
 
-/* The window the app's performance HUD follows: the latest one at least as big as the last to
- * start presenting GPU frames (take_dmabuf) (X11 binds the HUD to the _MESA_DRV window and counts X presents instead). JNI upcalls. */
 static struct surface *g_hud_surface;
-/* When the HUD's window last presented a new frame (now_ns), and when it last committed at all,
- * a repeat of the frame it shows included. A replacement may take over only once it has gone
- * quiet in the second sense: gamescope repeats a paused game's frame under a busy overlay, and
- * that overlay must not become the game. */
 static int64_t g_hud_last_ns, g_hud_alive_ns;
-/* That window committed a frame the screen has not drawn yet. */
 static int g_hud_fresh;
-extern void droiddeck_on_game_surface(const char *window, const char *gpu); /* window NULL = gone */
+extern void droiddeck_on_game_surface(const char *window, const char *gpu);
 extern void droiddeck_on_game_frame(void);
-/* The program behind that window: its Linux pid (the Wayland client's credentials) and executable name
- * ("" when /proc gave none) - the app arms its CPU affinity on it (X11 does that from window events). */
 extern void droiddeck_on_game_program(int pid, const char *program);
 
 static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_resource *buffer) {
-    /* The buffer this surface already shows, committed again. Gamescope's Wayland backend attaches
-     * every plane on every frame it outputs, so its game plane comes back unchanged whenever only
-     * something above it moved (MangoHud's graph, Steam's overlay). The surface still holds it and
-     * never released it, so the client cannot have drawn into it: it is no new frame. Counted as
-     * one, a game capped at 30 read 50-60 fps in the HUD, and frame generation took those repeats
-     * as source frames ("LSFG 2x 59 -> 54" instead of 30 -> 60). */
     const int repeat = s->dmabuf == buffer && s->dmabuf_buf == b;
     if (!repeat) {
         drop_dmabuf(s, 1);
@@ -820,11 +681,6 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
         }
     }
     if (s->shm_img) { vkp_image_destroy(s->shm_img); s->shm_img = NULL; }
-    /* The size of the frames a window commits, when it changes after the first announcement: the
-     * program rebuilt its swapchain. It earns a line of its own, because a game whose swapchain
-     * came back smaller than it was is exactly what a picture suddenly filling one corner of the
-     * screen looks like from here - and the two sizes are the whole of the evidence. Rare by
-     * nature, so there is nothing to rate-limit. */
     if (s->announced_vulkan && s->buf_w && s->buf_h &&
         (s->buf_w != b->width || s->buf_h != b->height)) {
         char name[160];
@@ -843,8 +699,6 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
         s->announced_vulkan = 1;
         describe(s, name, sizeof(name));
         if (b->img)
-            /* Imported for the copy path. Whether its frames ALSO go on the display layer without a copy
-             * is decided per frame (fullscreen, zero-copy on) and counted in the 10 s lines. */
             droiddeck_log("vulkan", "%s is presenting GPU frames through Wayland: %dx%d, format %c%c%c%c, %s (%s)",
                        name, b->width, b->height, b->format & 0xff, (b->format >> 8) & 0xff,
                        (b->format >> 16) & 0xff, (b->format >> 24) & 0xff,
@@ -859,13 +713,6 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
             droiddeck_log("error", "could not import GPU frames from %s (%dx%d, modifier %#llx)",
                        name, b->width, b->height, (unsigned long long)b->modifier);
     }
-    /* The HUD follows the window whether its frames are copied or go straight to the layer: a
-     * zero-copy frame the compositor never imported is still a presented game frame. A
-     * program's small surfaces - gamescope's 1x1 cursor, Qt's menus and tooltips (melonDS) -
-     * came after the game's and drew too rarely to count, which left the HUD on 0 fps while the
-     * game ran at 60. So a new window takes the HUD only when it is at least as big (a
-     * full-screen gamescope over the desktop still does), and a window gone quiet for a second
-     * gives way to whatever draws next. */
     if (s != g_hud_surface && (b->img || ahb_swapchain_has_ahb(b)) &&
         (!g_hud_surface || now_ns() - g_hud_alive_ns > 1000000000LL ||
          (announced_now && (int64_t)b->width * b->height >= (int64_t)g_hud_surface->buf_w * g_hud_surface->buf_h))) {
@@ -876,8 +723,6 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
         struct client_info *ci = client_info_of(wl_resource_get_client(s->resource));
         if (ci) droiddeck_on_game_program((int)ci->pid, strncmp(ci->name, "pid ", 4) ? ci->name : "");
     }
-    /* HDR session (gate open): a DXVK game switches to HDR by REBUILDING its swapchain on the same
-     * surface, so the one-shot line above never sees the 10-bit buffers - name every format change. */
     if (b->format != s->hdr_fmt_logged && droiddeck_color_hdr_open()) {
         char name[160];
         uint32_t af = ahb_swapchain_ahb_format(b);
@@ -892,17 +737,12 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
                                : "the compositor's driver could NOT import it (nothing can show it)");
         s->hdr_fmt_logged = b->format;
     }
-    /* Every buffer that reaches take_dmabuf is a presented GPU frame, so the HUD counts it.
-     * Asking whether the compositor could import it, as this used to, is a question about the
-     * copy path and not about whether a frame happened: a game whose buffers go straight to
-     * the display layer draws on screen while the counter sat at 0.0 fps and 1000.0 ms. */
     if (s == g_hud_surface) {
         g_hud_alive_ns = now_ns();
         if (!repeat) { g_hud_last_ns = g_hud_alive_ns; g_hud_fresh = 1; droiddeck_on_game_frame(); }
     }
 }
 
-/* ---- hooks for ahb_swapchain.c (zero-copy layers) */
 struct dmabuf_buffer *droiddeck_dmabuf_from_resource(struct wl_resource *buffer) { return get_dmabuf(buffer); }
 int droiddeck_dmabuf_fd(const struct dmabuf_buffer *b) { return b && b->n_planes > 0 ? b->fd[0] : -1; }
 void droiddeck_dmabuf_size(const struct dmabuf_buffer *b, int *w, int *h) { *w = b->width; *h = b->height; }
@@ -918,7 +758,6 @@ const struct droiddeck_color *droiddeck_surface_color(const struct surface *s) {
     return s ? droiddeck_color_of(s->resource) : NULL;
 }
 
-/* ------------------------------------------------------------------ wl_surface */
 
 static void surface_destroy(struct wl_client *c, struct wl_resource *r) {
     wl_resource_destroy(r);
@@ -941,9 +780,6 @@ static void frame_callback_destroy(struct wl_resource *r) {
     wl_list_remove(wl_resource_get_link(r));
 }
 
-/* wp_presentation: tells Mesa's Vulkan driver when a frame reached the screen or was replaced
- * before it did. Without it the driver waits for a frame callback (one per refresh) for every
- * frame, which paced games to the screen rate even in mailbox mode. */
 static void feedback_resource_destroy(struct wl_resource *r) {
     wl_list_remove(wl_resource_get_link(r));
 }
@@ -956,20 +792,12 @@ static void feedback_discard_all(struct wl_list *list) {
     }
 }
 
-/* The current mode's refresh interval in ns, from the rate the app read off the display. */
 static uint32_t nominal_refresh_ns(void) {
     int mhz = g_output_refresh_mhz;
     if (mhz <= 0) mhz = 60000;
     return (uint32_t)(1000000000000LL / (int64_t)mhz);
 }
 
-/* The vblank a scene drawn at render_ns belongs to, for wp_presentation: the vsync of the tick that
- * drew it (Choreographer's frame time). Gamescope's Wayland backend anchors its vblank clock to this
- * and wakes a red zone before the next refresh. Reporting the end of the render instead (a few ms
- * past the tick) put its wakeups on top of the next tick: some frames missed it and showed twice,
- * others were replaced before they were shown (a 60 Hz Thor got ~50 distinct frames a second from
- * gamescope). Not the refresh after it either: gamescope then wakes a whole refresh late and runs
- * at half rate. Without a fresh tick (the fallback timer) it is the render time. */
 static int64_t presented_ns(int64_t render_ns) {
     if (!g_tick_vsync_ns || render_ns - g_last_vsync_ns > (int64_t)nominal_refresh_ns() ||
         render_ns < g_tick_vsync_ns)
@@ -982,12 +810,6 @@ static void feedback_present_all(struct wl_list *list, int64_t t) {
     uint64_t sec = (uint64_t)(t / 1000000000LL);
     uint32_t nsec = (uint32_t)(t % 1000000000LL);
     wl_resource_for_each_safe(fb, tmp, list) {
-        /* The protocol's "refresh" is the NOMINAL interval of the current mode, a constant - not
-         * the interval this frame happened to take. Reporting the measured average instead makes a
-         * variable-refresh panel look like a mode change on every frame: gamescope re-derives its
-         * pacing each time ("Changed refresh to: 119.2 ... 121.4hz", 826 times in a minute on a
-         * Galaxy Z Fold, none on a fixed-refresh device). Report the panel's rate, which the app
-         * gives us and wl_output already advertises. */
         wp_presentation_feedback_send_presented(fb, (uint32_t)(sec >> 32), (uint32_t)sec, nsec,
                                                 nominal_refresh_ns(), 0, 0,
                                                 WP_PRESENTATION_FEEDBACK_KIND_VSYNC);
@@ -1023,12 +845,8 @@ static void surface_frame(struct wl_client *c, struct wl_resource *r, uint32_t c
     wl_resource_set_implementation(callback, NULL, NULL, frame_callback_destroy);
     wl_list_insert(s->pending_frames.prev, wl_resource_get_link(callback));
 }
-/* The bounding box serves pointer confinement. The exact flag also tells opaque-region handling
- * whether the bounding box itself is the whole region. */
 struct region { int set, exact; int x, y, w, h; };
 
-/* A wl_surface's opaque region is pending until its next commit. An exact region that covers
- * the surface lets the blit path keep handling an otherwise alpha-capable buffer. */
 static void surface_set_opaque(struct wl_client *c, struct wl_resource *r,
                                struct wl_resource *region) {
     struct surface *s = wl_resource_get_user_data(r);
@@ -1049,9 +867,6 @@ static void surface_set_input(struct wl_client *c, struct wl_resource *r,
 
 static void send_toplevel_configure(struct surface *s);
 
-/* The pointer image from a cursor surface's buffer: wl_shm is copied, a dma-buf (labwc on a GPU
- * renderer) is read back once the client's render into it is done - its implicit fence, as the
- * zero-copy path waits for it (ahb_swapchain_present). */
 static void cursor_publish_buffer(struct surface *s, struct wl_resource *buffer) {
     struct dmabuf_buffer *db = get_dmabuf(buffer);
     struct wl_shm_buffer *shm = db ? NULL : wl_shm_buffer_get(buffer);
@@ -1084,7 +899,6 @@ static void on_idle_buffer_destroyed(struct wl_listener *l, void *data) {
     s->idle_buffer = NULL;
 }
 
-/* Only what could be a pointer image is held; anything larger goes straight back. */
 static void surface_hold_idle(struct surface *s, struct wl_resource *buffer) {
     struct dmabuf_buffer *db = get_dmabuf(buffer);
     struct wl_shm_buffer *shm = db ? NULL : wl_shm_buffer_get(buffer);
@@ -1096,7 +910,6 @@ static void surface_hold_idle(struct surface *s, struct wl_resource *buffer) {
     wl_resource_add_destroy_listener(buffer, &s->idle_buffer_destroy);
 }
 
-/* Lets go of the held buffer; release = give it back to the client (not while it is going away). */
 static struct wl_resource *surface_take_idle(struct surface *s) {
     struct wl_resource *buffer = s->idle_buffer;
     if (!buffer) return NULL;
@@ -1115,10 +928,6 @@ static void surface_commit(struct wl_client *c, struct wl_resource *r) {
     struct surface *s = wl_resource_get_user_data(r);
     struct surface *child;
 
-    /* xdg-shell: the initial commit of a toplevel is answered with a configure. One is also sent
-     * at get_toplevel, which Wine's driver has always had; a client that waits for the reply to its
-     * commit on a queue of its own (wlroots' Wayland backend - the desktop's labwc) can read that
-     * early one onto the wrong queue and would wait for ever. */
     if (s->xdg_toplevel && !s->toplevel_committed) {
         s->toplevel_committed = 1;
         send_toplevel_configure(s);
@@ -1145,7 +954,6 @@ static void surface_commit(struct wl_client *c, struct wl_resource *r) {
         struct wl_shm_buffer *shm = buffer && !db ? wl_shm_buffer_get(buffer) : NULL;
         uint8_t pixel[4];
 
-        /* The previous content is replaced before reaching the screen. */
         feedback_discard_all(&s->feedback);
 
         if (buffer) {
@@ -1155,18 +963,15 @@ static void surface_commit(struct wl_client *c, struct wl_resource *r) {
         s->pending_buffer = NULL;
         s->pending_attach = 0;
 
-        surface_drop_idle(s);  /* replaced, whatever the surface is now */
+        surface_drop_idle(s);
         if (s->role == ROLE_CURSOR) {
-            /* The client's pointer image, copied out for the app's overlay (see cursor_publish_*)
-             * rather than composited, so it survives the zero-copy and HDR layer paths. */
             if (!buffer) {
-                cursor_publish_hidden();  /* wlroots clears its cursor surface to hide the pointer */
+                cursor_publish_hidden();
             } else {
                 cursor_publish_buffer(s, buffer);
                 wl_buffer_send_release(buffer);
             }
         } else if (s->role == ROLE_NONE) {
-            /* Role-less surface: never drawn, but its buffer is kept for a set_cursor to come. */
             if (buffer) surface_hold_idle(s, buffer);
         } else if (db) {
             take_dmabuf(s, db, buffer);
@@ -1183,7 +988,6 @@ static void surface_commit(struct wl_client *c, struct wl_resource *r) {
         }
     }
 
-    /* Subsurface positions are applied when the parent commits. */
     wl_list_for_each(child, &s->children, child_link) {
         if (child->sub_pending) {
             child->sub_x = child->sub_pending_x;
@@ -1197,7 +1001,7 @@ static void surface_commit(struct wl_client *c, struct wl_resource *r) {
     wl_list_insert_list(s->feedback.prev, &s->pending_feedback);
     wl_list_init(&s->pending_feedback);
     constraints_surface_commit(s);
-    droiddeck_color_commit(s->resource); /* wp_color_management_surface_v1 state (returns at once when HDR is off) */
+    droiddeck_color_commit(s->resource);
 
     if (s->role == ROLE_TOPLEVEL && s->xdg_toplevel) {
         if (s->has_content) map_toplevel(s);
@@ -1278,7 +1082,6 @@ static void surface_resource_destroy(struct wl_resource *r) {
     schedule_render();
 }
 
-/* ------------------------------------------------------------------ wl_region */
 
 static void region_destroy(struct wl_client *c, struct wl_resource *r) { wl_resource_destroy(r); }
 static void region_add(struct wl_client *c, struct wl_resource *r,
@@ -1310,7 +1113,6 @@ static const struct wl_region_interface region_impl = {
     .subtract = region_subtract,
 };
 
-/* ------------------------------------------------------------------ wl_compositor */
 
 static void compositor_create_surface(struct wl_client *c, struct wl_resource *r, uint32_t id) {
     struct surface *s = calloc(1, sizeof(*s));
@@ -1344,8 +1146,6 @@ static void bind_compositor(struct wl_client *c, void *data, uint32_t ver, uint3
     wl_resource_set_implementation(r, &compositor_impl, NULL, NULL);
 }
 
-/* --------------------------------------------------------------- wl_subcompositor
- * winewayland puts a window's Vulkan/GL swapchain in a subsurface over the window. */
 
 static void subsurface_destroy(struct wl_client *c, struct wl_resource *r) { wl_resource_destroy(r); }
 static void subsurface_set_position(struct wl_client *c, struct wl_resource *r, int32_t x, int32_t y) {
@@ -1358,7 +1158,6 @@ static void subsurface_set_position(struct wl_client *c, struct wl_resource *r, 
 static void restack_child(struct surface *s, struct surface *sibling, int above) {
     if (!s || !s->parent || !sibling) return;
     if (sibling == s->parent) {
-        /* Relative to the parent: directly above it or directly below it. */
         s->below_parent = !above;
         wl_list_remove(&s->child_link);
         if (above) wl_list_insert(&s->parent->children, &s->child_link);
@@ -1415,7 +1214,7 @@ static void subcompositor_get_subsurface(struct wl_client *c, struct wl_resource
     s->parent = p;
     s->below_parent = 0;
     s->sub_x = s->sub_y = 0;
-    wl_list_insert(p->children.prev, &s->child_link); /* new subsurfaces go on top */
+    wl_list_insert(p->children.prev, &s->child_link);
 }
 static const struct wl_subcompositor_interface subcompositor_impl = {
     .destroy = subcompositor_destroy,
@@ -1426,9 +1225,6 @@ static void bind_subcompositor(struct wl_client *c, void *data, uint32_t ver, ui
     wl_resource_set_implementation(r, &subcompositor_impl, NULL, NULL);
 }
 
-/* ---------------------------------------------------------------- wp_viewporter
- * winewayland crops window buffers to the window size and scales swapchains to the
- * client area with viewports, so they must be honoured for things to line up. */
 
 static void viewport_destroy(struct wl_client *c, struct wl_resource *r) { wl_resource_destroy(r); }
 static void viewport_set_source(struct wl_client *c, struct wl_resource *r,
@@ -1479,18 +1275,12 @@ static void bind_viewporter(struct wl_client *c, void *data, uint32_t ver, uint3
     wl_resource_set_implementation(r, &viewporter_impl, NULL, NULL);
 }
 
-/* ------------------------------------------------------------------ xdg_shell */
 
 static void xdg_toplevel_destroy_req(struct wl_client *c, struct wl_resource *r) { wl_resource_destroy(r); }
 static void xdg_toplevel_noop_parent(struct wl_client *c, struct wl_resource *r, struct wl_resource *p) {}
 static void xdg_toplevel_set_title(struct wl_client *c, struct wl_resource *r, const char *title) {
     struct surface *s = wl_resource_get_user_data(r);
     if (!s) return;
-    /* A window already on screen being renamed is something else taking it over: gamescope keeps
-     * one toplevel and retitles it as the game takes the screen. Unlogged, that left the log
-     * showing a window "closed" under a name it had never been logged as opening - which reads
-     * like a missing event and is really a rename. A title set before the window is mapped needs
-     * no line: the "opened" line carries it. */
     int announce = s->mapped && title && *title && (!s->title || strcmp(s->title, title) != 0);
     char before[160];
     if (announce) describe(s, before, sizeof(before));
@@ -1504,9 +1294,6 @@ static void xdg_toplevel_set_title(struct wl_client *c, struct wl_resource *r, c
 }
 static void xdg_toplevel_set_app_id(struct wl_client *c, struct wl_resource *r, const char *id) {
     struct surface *s = wl_resource_get_user_data(r);
-    /* Cardboard mode's SteamVR window (tools/vr/src/presenter.cpp) stays above every other window,
-     * gamescope's included: gamescope reopens its window when Steam notices VR, and a reopened window
-     * would otherwise come up over it (new windows start on top). */
     if (s && id && !strcmp(id, "droiddeck-cardboard-vr")) s->keep_on_top = 1;
 }
 static void xdg_toplevel_show_menu(struct wl_client *c, struct wl_resource *r, struct wl_resource *seat,
@@ -1517,10 +1304,6 @@ static void xdg_toplevel_resize(struct wl_client *c, struct wl_resource *r, stru
                                 uint32_t serial, uint32_t edges) {}
 static void xdg_toplevel_set_i32(struct wl_client *c, struct wl_resource *r, int32_t w, int32_t h) {}
 static void xdg_toplevel_noop(struct wl_client *c, struct wl_resource *r) {}
-/* The output's size; active, and fullscreen when asked. gamescope waits for the fullscreen
- * state before it drops its libdecor frame, and never draws until it arrives; it was told the
- * same size on its command line. A nested wlroots compositor (labwc) has no other way to learn
- * it: given 0x0 it opens its default 1280x720 and the whole desktop is upscaled from that. */
 static void send_toplevel_configure(struct surface *s) {
     struct wl_array states;
     wl_array_init(&states);
@@ -1586,7 +1369,6 @@ static void xdg_surface_get_toplevel(struct wl_client *c, struct wl_resource *r,
     s->xdg_toplevel = tl;
     send_toplevel_configure(s);
 }
-/* A popup is dismissed as soon as it is made (see the positioner below). */
 static void popup_destroy(struct wl_client *c, struct wl_resource *r) { wl_resource_destroy(r); }
 static void popup_grab(struct wl_client *c, struct wl_resource *r, struct wl_resource *seat, uint32_t serial) {}
 static void popup_reposition(struct wl_client *c, struct wl_resource *r, struct wl_resource *positioner,
@@ -1620,11 +1402,6 @@ static void xdg_surface_resource_destroy(struct wl_resource *r) {
 
 static void xdg_wm_base_destroy(struct wl_client *c, struct wl_resource *r) { wl_resource_destroy(r); }
 
-/* Popups are not drawn here, but their requests must still land somewhere: a resource without an
- * implementation makes libwayland abort on the first request to it - the whole compositor, and the
- * app with it. A positioner takes every request and keeps nothing; a popup is dismissed at once
- * (popup_done), which is what a client does with a popup it cannot show. Seen with a gamescope
- * started from the Linux desktop beside labwc. */
 static void positioner_destroy(struct wl_client *c, struct wl_resource *r) { wl_resource_destroy(r); }
 static void positioner_set_size(struct wl_client *c, struct wl_resource *r, int32_t w, int32_t h) {}
 static void positioner_set_anchor_rect(struct wl_client *c, struct wl_resource *r, int32_t x, int32_t y,
@@ -1674,7 +1451,6 @@ static void bind_xdg_wm_base(struct wl_client *c, void *data, uint32_t ver, uint
     wl_resource_set_implementation(r, &xdg_wm_base_impl, NULL, NULL);
 }
 
-/* ------------------------------------------------------------------ banner_desktop_v1 */
 
 static void desktop_destroy_req(struct wl_client *c, struct wl_resource *r) { wl_resource_destroy(r); }
 static void desktop_set_desktop(struct wl_client *c, struct wl_resource *r, struct wl_resource *surface) {
@@ -1723,14 +1499,10 @@ static void bind_desktop(struct wl_client *c, void *data, uint32_t ver, uint32_t
     wl_resource_set_implementation(r, &desktop_impl, NULL, NULL);
 }
 
-/* ------------------------------------------------------------------ wl_output */
 
-/* wl_output v3+ has a request (release); without an implementation the first client to send it
- * aborted the compositor. */
 static void output_release(struct wl_client *c, struct wl_resource *r) { wl_resource_destroy(r); }
 static const struct wl_output_interface output_impl = { .release = output_release };
 
-/* Every bound wl_output, so a resized output (a foldable opening) can send its new mode. */
 static struct wl_list g_outputs;
 static void output_resource_destroy(struct wl_resource *r) { wl_list_remove(wl_resource_get_link(r)); }
 
@@ -1758,7 +1530,6 @@ static void bind_output(struct wl_client *c, void *data, uint32_t ver, uint32_t 
     }
 }
 
-/* ------------------------------------------------------------------ rendering */
 
 struct draw_list { struct vkp_draw *d; int n, cap; };
 
@@ -1768,21 +1539,15 @@ static struct vkp_image *surface_image(struct surface *s) {
     return s->dmabuf_buf ? s->dmabuf_buf->img : NULL;
 }
 
-/* HDR (gate open) only: the scene's HDR surface whose current frame is one of the game's gralloc buffers
- * that the compositor's own driver could NOT import (a 10-bit UBWC layout it does not take, say). Such a
- * frame has no draw, so neither layer_candidate() nor ahb_layer_only_candidate() (toplevels only) can
- * find it - and a Vulkan game's swapchain is a SUBSURFACE of its window. Remembered here while the scene
- * is built so it can still go on the display layer, which never needed the import. Reset per scene;
- * never set while the HDR gate is closed. */
 static struct surface *g_hdr_unimported;
-static int g_hdr_unimported_rect[4], g_hdr_unimported_below; /* scene x,y,w,h; draws under it */
+static int g_hdr_unimported_rect[4], g_hdr_unimported_below;
 
 static void note_hdr_unimported(const struct draw_list *dl, struct surface *s, int ox, int oy) {
     if (!s->dmabuf_buf || s->dmabuf_buf->img || !ahb_swapchain_has_ahb(s->dmabuf_buf)) return;
     const struct droiddeck_color *c = droiddeck_color_of(s->resource);
     if (!c || !c->dataspace) return;
     if (s->src_set && (s->src[0] != 0 || s->src[1] != 0 || (int)(s->src[2] + 0.5f) != s->buf_w ||
-                       (int)(s->src[3] + 0.5f) != s->buf_h)) return; /* cropped: the layer shows whole buffers */
+                       (int)(s->src[3] + 0.5f) != s->buf_h)) return;
     int dw, dh;
     surface_size(s, &dw, &dh);
     g_hdr_unimported = s;
@@ -1791,8 +1556,6 @@ static void note_hdr_unimported(const struct draw_list *dl, struct surface *s, i
     g_hdr_unimported_below = dl->n;
 }
 
-/* A client that describes opaque regions can intentionally leave part of an alpha buffer see-through.
- * Gamescope uses this for its full-size Steam notification and overlay planes. */
 static int surface_translucent(const struct surface *s, int w, int h) {
     if (!s->buf_alpha) return 0;
     const struct client_info *ci = client_info_of(wl_resource_get_client(s->resource));
@@ -1836,8 +1599,6 @@ static void add_tree(struct draw_list *dl, struct surface *s, int ox, int oy, in
         if (!c->below_parent) add_tree(dl, c, ox + c->sub_x, oy + c->sub_y, depth + 1);
 }
 
-/* Scene size: the desktop's, or without one the largest window's (a single
- * fullscreen game then fills the screen exactly as before). */
 static void scene_size(int *w, int *h) {
     struct surface *s;
     long long best = 0;
@@ -1863,13 +1624,6 @@ static void fire_all_frames(void) {
     wl_list_for_each(s, &g_surfaces, link) fire_frames(&s->frames);
 }
 
-/* With no output window (the app is in the background, or the SurfaceView is being rebuilt)
- * nothing gets drawn, but the clients must not be left waiting on us. A FIFO swapchain blocks
- * in its present until its wp_presentation feedback and frame callback arrive, and a client
- * blocked there stops pumping messages: winhandler.exe then wedges behind it and the app
- * concludes the program has exited and closes the whole session. (DXVK's mailbox presents
- * never wait, which is why only OpenGL/Zink clients died on a background/resume.) Answer every
- * pending frame and feedback as discarded, and keep doing so until a window is back. */
 static void pace_without_output(void) {
     struct surface *s;
     wl_list_for_each(s, &g_surfaces, link) {
@@ -1881,19 +1635,15 @@ static void pace_without_output(void) {
 
 static int on_frame_timer(void *data) {
     pace_without_output();
-    if (vkp_has_window()) schedule_render(); /* it is back: draw the current scene */
+    if (vkp_has_window()) schedule_render();
     else if (g_frame_timer) wl_event_source_timer_update(g_frame_timer, 16);
     return 0;
 }
 
-/* Layer mode: the index of a draw that shows a whole client GPU frame over the whole scene (one
- * fullscreen game), or -1. Only the top two positions are looked at: the game must be the topmost
- * draw, or have exactly ONE draw above it, which then goes on the overlay layer (sc_layer.h).
- * Anything deeper would need more display layers than HWC will compose. */
 static int layer_candidate(const struct draw_list *dl, int scene_w, int scene_h) {
     for (int i = dl->n - 1; i >= 0 && i >= dl->n - 2; i--) {
         const struct vkp_draw *d = &dl->d[i];
-        if (d->blend) continue; /* the translucent plane must not replace the opaque game layer */
+        if (d->blend) continue;
         if (!vkp_image_is_dmabuf(d->img)) continue;
         if (d->dx != 0 || d->dy != 0 || d->dw != scene_w || d->dh != scene_h) continue;
         if (d->sx != 0 || d->sy != 0 || (int)d->sw != vkp_image_width(d->img) ||
@@ -1903,7 +1653,6 @@ static int layer_candidate(const struct draw_list *dl, int scene_w, int scene_h)
     return -1;
 }
 
-/* Zero-copy: the surface whose current GPU frame `img` is (layer_candidate found the draw). */
 static struct surface *surface_for_image(const struct vkp_image *img) {
     struct surface *s;
     wl_list_for_each(s, &g_surfaces, link)
@@ -1911,9 +1660,6 @@ static struct surface *surface_for_image(const struct vkp_image *img) {
     return NULL;
 }
 
-/* Zero-copy: the topmost window whose frame is one of the game's AHardwareBuffers that this
- * renderer could NOT import (so it has no draw), covering the whole scene at 0,0 with nothing of
- * its own above it: it can only be shown on the layer. NULL otherwise. */
 static struct surface *ahb_layer_only_candidate(int scene_w, int scene_h) {
     struct surface *s;
     int w, h;
@@ -1928,39 +1674,16 @@ static struct surface *ahb_layer_only_candidate(int scene_w, int scene_h) {
     return s;
 }
 
-/* ---- HDR (droiddeck_color.h) in the scene
- * An HDR frame is only right on the game's own display layer: everything the compositor draws itself -
- * the scene blit, the effects chain, frame generation, its swapchain - is 8-bit sRGB, and a PQ-encoded
- * frame pushed through it as it stands comes out washed out. So a scene with HDR in it takes one of
- * three routes (hdr_plan):
- *   0  the HDR game ALONE on its display layer (zero-copy, or one copy) - with at most one SDR window
- *      above it on the overlay layer where this display can compose that. Best: nothing is converted.
- *   1  the HDR PICTURE: everything else without frame generation - screen effects on, a window above
- *      the game on a display that cannot take a second layer, a windowed game, zero-copy off. The whole
- *      scene is composed into ONE 10-bit PQ BT.2020 picture (SDR content placed at the SDR white; the
- *      effects run on it in 10-bit) and put on the game layer tagged BT2020_PQ (hdr_compose.h).
- *   2  frame generation: its extra frames need presents of their own, so the scene is composed into PQ
- *      and presented through an HDR10 swapchain - or, where the screen surface offers none,
- *      tone-mapped to SDR (correct colours instead of washed out).
- *   3  a frame the compositor could not import: only its display layer can show it, so effects and
- *      frame generation are skipped for it (said in the log).
- * The drawer's HDR output switch (droiddeck_color_output) OFF: the same routes, tone-mapped - route 0
- * becomes route 1 (the whole scene composed, tone-mapped to sRGB, onto the game layer UNtagged), route 2
- * tone-maps into an SDR swapchain, route 3 cannot (nothing can read those frames) and stays HDR, said
- * in the log. The game is told nothing; it keeps rendering HDR.
- * Nothing here runs while the HDR gate is closed. */
 
 struct hdr_scene {
     struct vkp_hdr_frame hf;
-    unsigned char *is_hdr;              /* per draw (calloc'd; free after the frame) */
+    unsigned char *is_hdr;
     int n_hdr;
-    const struct droiddeck_color *color;   /* the topmost HDR draw's description: what the picture is tagged */
-    struct surface *who;                /* its surface, for the log */
-    const char *why;                    /* route 1: why the game cannot be alone on its layer */
+    const struct droiddeck_color *color;
+    struct surface *who;
+    const char *why;
 };
 
-/* The HDR surface note_hdr_unimported() saw in THIS scene, when it covers the whole scene at 0,0 and
- * nothing is drawn above it: the display layer is the only place its frame can be shown. */
 static struct surface *hdr_unimported_fullscreen(const struct draw_list *dl, int w, int h) {
     if (!g_hdr_unimported || g_hdr_unimported_below != dl->n) return NULL;
     if (g_hdr_unimported_rect[0] != 0 || g_hdr_unimported_rect[1] != 0 ||
@@ -1973,11 +1696,9 @@ static int is_hdr_surface(struct surface *s) {
     return c && c->dataspace;
 }
 
-/* Which route this scene takes (see above); fills hs. 0 whenever the gate is closed or no HDR is drawn. */
 static int hdr_plan(const struct draw_list *dl, int w, int h, int fx_on, int framegen, struct hdr_scene *hs) {
     memset(hs, 0, sizeof(*hs));
     if (!droiddeck_color_hdr_open()) return 0;
-    /* A fullscreen HDR frame this compositor could not import has no draw: layer only (route 3). */
     struct surface *un = hdr_unimported_fullscreen(dl, w, h);
     if (!un) {
         struct surface *lo = ahb_layer_only_candidate(w, h);
@@ -1991,7 +1712,7 @@ static int hdr_plan(const struct draw_list *dl, int w, int h, int fx_on, int fra
         if (!is_hdr_surface(s)) continue;
         hs->is_hdr[i] = 1;
         hs->n_hdr++;
-        hs->color = droiddeck_color_of(s->resource); /* later draws are above: the topmost wins */
+        hs->color = droiddeck_color_of(s->resource);
         hs->who = s;
     }
     if (!hs->n_hdr) { free(hs->is_hdr); hs->is_hdr = NULL; return 0; }
@@ -2000,9 +1721,6 @@ static int hdr_plan(const struct draw_list *dl, int w, int h, int fx_on, int fra
     hs->hf.peak_nits = hs->color->max_cll > 0.0f ? hs->color->max_cll
                      : hs->color->has_st2086 ? hs->color->max_lum : 1000.0f;
     if (framegen) return 2;
-    /* Route 0 when the game can be alone on its layer: no effects, zero-copy on, the fullscreen draw
-     * is the HDR game, and above it nothing - or one window the overlay layer can carry. Not while the
-     * HDR output switch is off: its frame as it stands is PQ, and only the composition can tone-map it. */
     int li = g_zero_copy ? layer_candidate(dl, w, h) : -1;
     int over = li >= 0 ? dl->n - 1 - li : 0;
     if (!hs->hf.tonemap && !fx_on && li >= 0 && hs->is_hdr[li] &&
@@ -2016,11 +1734,10 @@ static int hdr_plan(const struct draw_list *dl, int w, int h, int fx_on, int fra
     return 1;
 }
 
-/* One line per change of route (and of its reason, and of the HDR output switch). */
 static void hdr_note_route(int route, const struct hdr_scene *hs) {
     static int said = -1, said_tm = -1;
     static const char *said_why;
-    const int tm = route != 0 && !droiddeck_color_output(); /* route 0 never runs with the switch off */
+    const int tm = route != 0 && !droiddeck_color_output();
     if (route == said && tm == said_tm && (route != 1 || hs->why == said_why)) return;
     int was = said;
     said = route; said_why = hs->why; said_tm = tm;
@@ -2049,7 +1766,7 @@ static void hdr_note_route(int route, const struct hdr_scene *hs) {
         if (tm)
             droiddeck_log("color", "HDR output is switched off, but %s's HDR frames cannot be imported by the compositor, "
                        "so nothing can tone-map them: they stay HDR on its own display layer", name);
-        break; /* otherwise hdr_note_precedence says it */
+        break;
     default:
         if (was == 1 || was == 2)
             droiddeck_log("color", "%s is back on its own display layer (no composition needed)", name);
@@ -2057,7 +1774,6 @@ static void hdr_note_route(int route, const struct hdr_scene *hs) {
     }
 }
 
-/* Say when effects / frame generation start or stop being skipped for an HDR game (once per change). */
 static void hdr_note_precedence(struct surface *hs, int fx_on, int framegen) {
     static int fx_said = -1, fg_said = -1;
     int fx_skip = hs && fx_on, fg_skip = hs && framegen;
@@ -2081,7 +1797,6 @@ static void hdr_note_precedence(struct surface *hs, int fx_on, int framegen) {
     }
 }
 
-/* This scene went through the copy path: count every HDR-described surface in it, with the reason. */
 static void hdr_count_copied(const struct draw_list *dl, const char *reason) {
     for (int i = 0; i < dl->n; i++) {
         struct surface *s = surface_for_image(dl->d[i].img);
@@ -2098,11 +1813,11 @@ static void render_scene(void) {
     struct surface *s;
     int w, h;
     const int64_t t_scene = now_ns();
-    int copy = 0; /* this scene went through the screen swapchain (the perf line's "copy") */
+    int copy = 0;
 
     g_dirty = 0;
     g_hud_fresh = 0;
-    g_hdr_unimported = NULL; /* found again while the scene is built (HDR gate open only) */
+    g_hdr_unimported = NULL;
     wl_list_for_each(s, &g_surfaces, link) s->drawn = 0;
     scene_size(&w, &h);
     if (w != g_scene_w || h != g_scene_h) {
@@ -2113,7 +1828,7 @@ static void render_scene(void) {
     }
     if (g_desktop && !g_hide_shell) add_tree(&dl, g_desktop, 0, 0, 0);
     wl_list_for_each(s, &g_toplevels, toplevel_link) {
-        if (g_desktop && !s->placed) continue; /* wait for its position */
+        if (g_desktop && !s->placed) continue;
         if (g_hide_shell && !strcmp(client_name(wl_resource_get_client(s->resource)), "explorer.exe")) continue;
         add_tree(&dl, s, s->placed ? s->x : 0, s->placed ? s->y : 0, 0);
     }
@@ -2121,13 +1836,10 @@ static void render_scene(void) {
     int rendered = 0;
     int fx_on = vkp_effects_active();
     int framegen = vkp_framegen_active();
-    /* Cardboard mode draws the whole panel itself, so the game never gets a display layer of its own. */
     const int cardboard = vkp_cardboard_active();
-    /* HDR (see hdr_plan): route 0 = the old paths below; 1 / 2 = composed; 3 = layer only, effects and
-     * frame generation skipped. Always 0 while the HDR gate is closed: nothing changes for that session. */
     struct hdr_scene hs;
     int hdr_route = hdr_plan(&dl, w, h, fx_on, framegen, &hs);
-    const char *hdr_copy = NULL;           /* why this scene's HDR frames (if any) took the copy path */
+    const char *hdr_copy = NULL;
     if (droiddeck_color_hdr_open()) {
         hdr_note_route(hdr_route, &hs);
         hdr_note_precedence(hdr_route == 3 ? hs.who : NULL, fx_on, framegen);
@@ -2138,10 +1850,10 @@ static void render_scene(void) {
         vkp_apply_window_request();
         sc_layer_hide_overlay();
         if (sc_layer_present_hdr_scene(dl.d, dl.n, &hs.hf, w, h, hs.color) == 0) {
-            rendered = vkp_base_black(w, h) == 0; /* black under the composed picture, presented only when it is not already */
+            rendered = vkp_base_black(w, h) == 0;
             if (fell_back) { fell_back = 0; droiddeck_log("color", "the composed picture is on the game's display layer again"); }
         } else {
-            hdr_route = 2; /* no layer this frame: the picture goes through the swapchain instead */
+            hdr_route = 2;
             if (!fell_back) {
                 fell_back = 1;
                 droiddeck_log("color", "the composed picture could not go on the game's display layer (no layer, or the "
@@ -2159,25 +1871,11 @@ static void render_scene(void) {
         else if (rendered) hdr_copy = "the HDR composition pass is unavailable on this driver";
     }
     if (hdr_route == 0 || hdr_route == 3) {
-    /* What still forces the whole scene back through the compositor pass (and so through the app's
-     * own swapchain), and what no longer does:
-     *   - frame generation ALWAYS does: its extra frames each need a present of their own on
-     *     consecutive vblanks, and a display layer latches one buffer per refresh;
-     *   - screen effects do NOT any more when the game is alone on screen - the chain runs and its
-     *     result is copied into the game layer's own gralloc buffer (sc_layer_present_pass), so the
-     *     game keeps its layer and the display does the scene -> output mapping;
-     *   - screen effects DO when a window is drawn above the game: the chain has to see the whole
-     *     scene to look the way it does on the copy path, and here the game is only part of it. */
     const int pass_on = fx_on || framegen;
     int li = (g_zero_copy && !framegen && !cardboard) ? layer_candidate(&dl, w, h) : -1;
-    int over = li >= 0 ? dl.n - 1 - li : 0; /* draws above the fullscreen game (0 or 1) */
+    int over = li >= 0 ? dl.n - 1 - li : 0;
     const int fx_blocks = (li >= 0 && fx_on && over > 0);
     if (fx_blocks) { li = -1; over = 0; }
-    /* A window above the game needs a SECOND display layer, and on some displays that costs the
-     * hardware composition the first layer was worth having (sc_layer_overlay_affordable). Where it
-     * does, the whole scene goes down the copy path exactly as it did before the layer set existed.
-     * Decided HERE, before the game is committed to a layer: deciding it after the present would
-     * show the game layer and hide it again on every frame. */
     const int ov_blocks = (li >= 0 && over > 0 && !fx_blocks && !sc_layer_overlay_affordable());
     if (ov_blocks) { li = -1; over = 0; }
     const int blocked = framegen ? 1 : (fx_blocks ? 2 : (ov_blocks ? 3 : 0));
@@ -2194,10 +1892,7 @@ static void render_scene(void) {
             droiddeck_log("effects", "zero-copy resumed: the game is back on its own display layer");
     }
     struct surface *ls = li >= 0 ? surface_for_image(dl.d[li].img) : NULL;
-    /* A frame this renderer could not import can only be shown on the layer, effects or not. */
     if (li < 0) ls = ahb_layer_only_candidate(w, h);
-    /* HDR: the same, for a game's SUBSURFACE swapchain whose 10-bit frame the compositor could not
-     * import (NULL whenever the HDR gate is closed - nothing is ever noted then). */
     if (li < 0 && !ls) ls = hdr_unimported_fullscreen(&dl, w, h);
     if (cardboard) ls = NULL;
     if (ls && pass_on && li < 0 && !g_zero_copy_fx_skip_said) {
@@ -2207,24 +1902,8 @@ static void render_scene(void) {
                    framegen ? "frame generation" : "effects");
     }
     if (li >= 0 || ls) {
-        /* Layer mode: the fullscreen window goes on the game layer and (at most) one window above
-         * it on the overlay layer; whatever is under the game is hidden by it, so the screen
-         * surface only needs to be black. The game's frame goes on its layer as is when it is one
-         * of the game's own AHardwareBuffers (zero-copy, ahb_swapchain.c), through the effects
-         * chain's result when a Look is on, else through one blit into the pool. If a layer can't
-         * take its frame, the whole scene is drawn the usual way. */
-        /* The layers go up FIRST and the base surface's black frame is presented after them. The
-         * order matters: a present holds an acquired swapchain image, and the acquire semaphore is
-         * a vblank gate - putting the effects chain or the layer transaction behind it costs a
-         * whole refresh (measured on the Pocket FIT: 72 fps that way, 111 fps this way, with Retro
-         * CRT at 1920x1080). The window request the app may have left is applied here instead,
-         * since vkp_render no longer runs before the layer path. */
         vkp_apply_window_request();
         int r = -1;
-        /* The game's own buffer can only go on the layer AS IS - with a Look on, the frame has to
-         * go through the chain first, so the raw buffer is skipped in favour of the pass (a frame
-         * this renderer could not import has no draw, li < 0, and stays zero-copy with the effects
-         * skipped, said once above). */
         if (!(fx_on && li >= 0) && ls && ls->dmabuf_buf && ahb_swapchain_has_ahb(ls->dmabuf_buf))
             r = ahb_swapchain_present(ls->dmabuf_buf, ls, w, h);
         if (r != 0 && li >= 0)
@@ -2232,24 +1911,16 @@ static void render_scene(void) {
                       : sc_layer_present(dl.d[li].img, w, h, ls ? droiddeck_surface_color(ls) : NULL);
         if (r == 0) {
             if (ls) ls->drawn = 1;
-            /* The one window above the game keeps the game off the copy path entirely: it goes on
-             * its own layer, cropped and placed by the display. */
             int go[8], ov = 0;
             if (over == 1 && li >= 0 && vkp_map_draw(&dl.d[li + 1], go))
                 ov = sc_layer_present_overlay(dl.d[li + 1].img, go, dl.d[li + 1].blend) == 0 ? 1 : -1;
             if (ov <= 0) sc_layer_hide_overlay();
-            if (ov < 0) { /* the overlay layer refused it: draw the whole scene the old way */
+            if (ov < 0) {
                 sc_layer_hide();
                 rendered = vkp_render(w, h, dl.d, dl.n) == 0;
                 copy = 1;
                 hdr_copy = "the overlay layer refused the window above it";
             } else {
-                /* Black under the opaque layers. It is a plain black frame (no effects, no frame
-                 * generation on it: they would only run on black), and it is presented only when the
-                 * base surface does not already show one - entering layer mode, after a copy-path or
-                 * frame-generation frame, after a swapchain rebuild. Every other layer frame draws and
-                 * presents nothing here: the display layers are all that changes on screen. This loop
-                 * is paced by the Choreographer's ticks (on_vsync), not by this present. */
                 rendered = vkp_base_black(w, h) == 0;
             }
         } else {
@@ -2267,24 +1938,18 @@ static void render_scene(void) {
                  : framegen ? "frame generation needs the compositor pass"
                  : "it is not the one fullscreen window (only that one gets its own display layer)";
     }
-    } /* routes 0 and 3 */
+    }
     free(hs.is_hdr);
     if (hdr_copy && rendered && droiddeck_color_hdr_open()) hdr_count_copied(&dl, hdr_copy);
     if (rendered) {
         int64_t t = presented_ns(t_scene);
         g_stat_frames++;
-        /* A surface outside the scene (role-less, not placed yet, a hidden helper window such
-         * as wined3d's device window) was not shown, so its feedback is discarded rather than
-         * left pending: a FIFO present waits on it, and a client blocked there never commits
-         * again. */
         wl_list_for_each(s, &g_surfaces, link) {
             if (s->drawn) feedback_present_all(&s->feedback, t);
             else feedback_discard_all(&s->feedback);
         }
         fire_all_frames();
     } else {
-        /* No output surface yet (or it went away): keep clients paced without it, now and on a
-         * timer that re-arms itself until a window is back (see pace_without_output). */
         pace_without_output();
         if (!g_frame_timer)
             g_frame_timer = wl_event_loop_add_timer(wl_display_get_event_loop(g_display),
@@ -2309,7 +1974,6 @@ static int on_fallback_timer(void *data) {
 static void schedule_render(void) {
     g_dirty = 1;
     if (!g_display) return;
-    /* With vsync ticks flowing the next tick renders; otherwise render on a timer. */
     if (g_last_vsync_ns && now_ns() - g_last_vsync_ns < 100000000LL) return;
     if (g_fallback_armed) return;
     if (!g_fallback_timer)
@@ -2320,14 +1984,10 @@ static void schedule_render(void) {
     wl_event_source_timer_update(g_fallback_timer, 8);
 }
 
-/* With frame generation on, every scene is the engine's next source frame, so one drawn for
- * another window (Steam's overlay) counted as a game frame and took its present slots. Such a
- * change waits for the game's next frame, unless the game has been still for 100 ms. */
 static int scene_waits_for_game(int64_t now) {
     return g_hud_surface && !g_hud_fresh && now - g_hud_last_ns < 100000000LL && vkp_framegen_active();
 }
 
-/* A screen refresh (Choreographer tick): draw the newest state once. */
 static void on_vsync(int64_t frame_time_ns) {
     int64_t now = now_ns();
     g_perf.ticks++;
@@ -2337,25 +1997,18 @@ static void on_vsync(int64_t frame_time_ns) {
     }
     g_last_vsync_ns = now;
     g_tick_vsync_ns = frame_time_ns;
-    /* The app's surface may have been replaced or taken away since the last frame: apply that now
-     * (the app never waits for us), and redraw the scene onto a new one. */
     if (vkp_apply_window_request()) g_dirty = 1;
-    /* A screen-effect setting changed (JNI, any thread): redraw so it shows on a static scene too. */
     if (vkp_effects_sync()) g_dirty = 1;
-    /* Cardboard mode: a new head pose (or setting) moves the virtual screen, static scene or not. */
     if (vkp_cardboard_pose_changed()) g_dirty = 1;
     if (g_dirty && !scene_waits_for_game(now)) render_scene();
 }
 
-/* ------------------------------------------------------------------ wl_seat */
 
 static uint32_t now_ms(void) {
     struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts);
     return (uint32_t)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
 }
 
-/* wl_pointer.set_cursor: the client tells us its pointer image, or asks for none. A NULL surface
- * means "no cursor" and is authoritative. The surface itself is snapshotted on its next commit. */
 static void pointer_set_cursor(struct wl_client *c, struct wl_resource *r, uint32_t serial,
                                struct wl_resource *surface, int32_t hx, int32_t hy) {
     if (!surface) {
@@ -2366,14 +2019,11 @@ static void pointer_set_cursor(struct wl_client *c, struct wl_resource *r, uint3
     }
     struct surface *s = wl_resource_get_user_data(surface);
     if (!s) return;
-    if (s->role != ROLE_NONE && s->role != ROLE_CURSOR) return;  /* already has another role */
+    if (s->role != ROLE_NONE && s->role != ROLE_CURSOR) return;
     s->role = ROLE_CURSOR;
     g_cursor_surface = s;
     g_cursor_hx = hx;
     g_cursor_hy = hy;
-    /* Its content may already be committed: wlroots' Wayland backend attaches and commits the
-     * cursor surface first and sets it as the pointer after, and sets it again with nothing new
-     * committed each time the pointer re-enters. */
     struct wl_resource *buffer = surface_take_idle(s);
     if (buffer) {
         cursor_publish_buffer(s, buffer);
@@ -2417,8 +2067,6 @@ static void seat_get_keyboard(struct wl_client *c, struct wl_resource *r, uint32
     if (!k) { wl_client_post_no_memory(c); return; }
     wl_resource_set_implementation(k, &keyboard_impl, NULL, keyboard_res_destroy);
     if (g_nkbs < MAX_PTRS) { g_kbs[g_nkbs].kb = k; g_kbs[g_nkbs].focus = NULL; g_nkbs++; }
-    /* Send the xkb keymap the app extracted to $XDG_RUNTIME_DIR/keymap.xkb. Without a keymap the
-     * client can't interpret our evdev key codes. */
     const char *rt = getenv("XDG_RUNTIME_DIR");
     char path[512];
     snprintf(path, sizeof(path), "%s/keymap.xkb", rt ? rt : ".");
@@ -2467,9 +2115,6 @@ static struct seat_keyboard *keyboard_for(struct wl_client *client) {
     return NULL;
 }
 
-/* A client may hold more than one wl_pointer/wl_keyboard: gamescope creates a second pair and
- * reads input on its own thread, so an event sent only to the first object is never seen.
- * Every delivery below walks all of the client's objects. */
 #define for_each_pointer_of(client, sp) \
     for (int _i = 0; _i < g_nptrs; _i++) \
         if (((sp) = &g_ptrs[_i]), wl_resource_get_client((sp)->ptr) == (client))
@@ -2480,7 +2125,6 @@ static struct seat_keyboard *keyboard_for(struct wl_client *client) {
     for (int _i = 0; _i < g_ntouches; _i++) \
         if (((st) = &g_touches[_i]), wl_resource_get_client((st)->touch) == (client))
 
-/* Topmost window whose scene rectangle contains the point (no-desktop fallback). */
 static struct surface *toplevel_at(double x, double y) {
     struct surface *s;
     wl_list_for_each_reverse(s, &g_toplevels, toplevel_link) {
@@ -2532,59 +2176,38 @@ static void keyboard_focus(struct wl_resource *target) {
                                    g_mods_depressed, 0, g_mods_locked, 0);
     }
     wl_array_release(&keys);
-    droiddeck_clipboard_keyboard_focus(client); /* wl_data_device selection follows focus */
+    droiddeck_clipboard_keyboard_focus(client);
 }
 
-/* ------------------------------------------------------------------ pointer constraints
- * zwp_pointer_constraints_v1 and zwp_relative_pointer_manager_v1: what winewayland uses for
- * SetCursorPos, ClipCursor and hidden-cursor (mouse-look) games.
- *
- * A lock freezes the pointer where it is: no wl_pointer.motion is sent while it holds, and
- * every input delta (a relative event from the app, or the difference between absolute
- * positions) reaches the locking program as zwp_relative_pointer_v1.relative_motion. A confine
- * clamps the pointer to the surface (and the program's region inside it). Relative motion is
- * also sent while unlocked, to any program holding a relative pointer.
- *
- * Input normally goes to the desktop surface; while a constraint holds, pointer focus moves
- * to the constrained surface, so the constraining program receives the events itself
- * (winewayland only enables relative motion for a window its pointer has entered). One
- * constraint holds at a time; a newer request ends the older one. A lock's cursor position
- * hint is applied on the surface's commit and is where the pointer ends up when the lock
- * ends (winewayland's SetCursorPos: lock, hint, commit, unlock). */
 
 struct constraint {
-    struct wl_list link;                    /* g_constraints */
-    struct wl_resource *resource;           /* zwp_locked_pointer_v1 or zwp_confined_pointer_v1 */
-    struct wl_resource *pointer;            /* the program's wl_pointer; NULL once released */
-    struct surface *surface;                /* NULL once the surface is gone */
+    struct wl_list link;
+    struct wl_resource *resource;
+    struct wl_resource *pointer;
+    struct surface *surface;
     int is_lock;
     uint32_t lifetime;
     int active;
-    int defunct;                            /* a oneshot that ended, or surface/pointer gone */
-    struct region region, pending_region;   /* confine area, surface-local; unset = whole surface */
+    int defunct;
+    struct region region, pending_region;
     int pending_region_set;
-    int hint_set, pending_hint_set;         /* lock: cursor position hint, surface-local */
+    int hint_set, pending_hint_set;
     double hint_x, hint_y, pending_hint_x, pending_hint_y;
 };
 static struct wl_list g_constraints;
 static struct constraint *g_active_constraint;
 
 struct relative_pointer {
-    struct wl_list link;                    /* g_relative_pointers */
+    struct wl_list link;
     struct wl_resource *resource;
-    struct wl_resource *pointer;            /* the program's wl_pointer; NULL once released */
+    struct wl_resource *pointer;
 };
 static struct wl_list g_relative_pointers;
 
-/* Last pointer position in scene coordinates (buttons and scrolls from the app's X-server
- * input path arrive without one). */
 static double g_ptr_x, g_ptr_y;
-/* Last absolute input position: absolute input becomes deltas while the pointer is locked. */
 static double g_raw_x, g_raw_y;
 static int g_raw_valid;
 
-/* JNI: the app switches its touch/mouse path to deltas while a lock holds and re-syncs its
- * pointer to x,y when it ends. */
 extern void droiddeck_on_pointer_lock(int locked, int x, int y);
 
 static void sync_lock_notify(void) {
@@ -2600,13 +2223,11 @@ static void constraint_describe(const struct constraint *k, char *out, size_t si
     else snprintf(out, size, "a closed window");
 }
 
-/* Scene position of the constrained surface. */
 static void constraint_origin(const struct constraint *k, int *x, int *y) {
     *x = *y = 0;
     if (k->surface && k->surface != g_desktop && k->surface->placed) { *x = k->surface->x; *y = k->surface->y; }
 }
 
-/* Keep x,y (scene coordinates) inside the confine area. */
 static void confine_clamp(const struct constraint *k, double *x, double *y) {
     int ox, oy, w, h, rx = 0, ry = 0, rw, rh;
     if (!k->surface) return;
@@ -2637,7 +2258,6 @@ static void constraint_send_state(struct constraint *k, int on) {
     }
 }
 
-/* A constraint stops holding. tell_client = 0 when its resource is being destroyed. */
 static void constraint_end(struct constraint *k, int tell_client, const char *why) {
     char name[160];
     if (!k->active) return;
@@ -2667,7 +2287,6 @@ static void constraint_activate(struct constraint *k) {
     k->active = 1;
     g_active_constraint = k;
     if (!k->is_lock) confine_clamp(k, &g_ptr_x, &g_ptr_y);
-    /* Pointer focus follows the constraint: the program gets the events itself. */
     constraint_origin(k, &ox, &oy);
     pointer_focus(k->surface->resource, wl_fixed_from_double(g_ptr_x - ox), wl_fixed_from_double(g_ptr_y - oy));
     constraint_send_state(k, 1);
@@ -2687,7 +2306,6 @@ static void constraint_activate(struct constraint *k) {
     wl_display_flush_clients(g_display);
 }
 
-/* Pointer focus entered target: a persistent constraint waiting on it takes hold again. */
 static void constraints_focus_entered(struct wl_resource *target, struct wl_client *client) {
     struct constraint *k;
     if (g_active_constraint) return;
@@ -2719,7 +2337,6 @@ static void constraints_pointer_gone(struct wl_resource *pointer) {
     }
 }
 
-/* Double-buffered state (position hint, confine region) applies on the surface's commit. */
 static void constraints_surface_commit(struct surface *s) {
     struct constraint *k;
     wl_list_for_each(k, &g_constraints, link) {
@@ -2764,7 +2381,6 @@ static void locked_pointer_set_cursor_position_hint(struct wl_client *c, struct 
     k->pending_hint_y = wl_fixed_to_double(y);
 }
 static void locked_pointer_set_region(struct wl_client *c, struct wl_resource *r, struct wl_resource *region) {
-    /* A lock's region only says where it may take hold; a lock here takes hold anywhere. */
 }
 static const struct zwp_locked_pointer_v1_interface locked_pointer_impl = {
     .destroy = constraint_destroy_req,
@@ -2842,7 +2458,6 @@ static void bind_pointer_constraints(struct wl_client *c, void *data, uint32_t v
     wl_resource_set_implementation(r, &pointer_constraints_impl, NULL, NULL);
 }
 
-/* --- relative pointers --- */
 
 static void relative_pointer_resource_destroy(struct wl_resource *r) {
     struct relative_pointer *rp = wl_resource_get_user_data(r);
@@ -2884,8 +2499,6 @@ static void relative_pointers_pointer_gone(struct wl_resource *pointer) {
         if (rp->pointer == pointer) rp->pointer = NULL;
 }
 
-/* relative_motion to every relative pointer of the program owning the focus (winewayland wants
- * it whenever it holds one, locked or not). Returns whether any was sent. */
 static int send_relative_motion(struct wl_client *client, double dx, double dy) {
     struct relative_pointer *rp;
     struct timespec ts;
@@ -2904,12 +2517,7 @@ static int send_relative_motion(struct wl_client *client, double dx, double dy) 
     return sent;
 }
 
-/* ------------------------------------------------------------------ pointer events */
 
-/* One pointer event: a motion, then an optional button change (button 0 = none). Absolute
- * x,y are scene coordinates; with `relative` they are a delta. While a lock holds the pointer
- * stays put and the delta (or the change between absolute positions) becomes relative motion
- * for the locking program; a confine keeps the pointer inside its area. */
 static void pointer_input(double x, double y, int relative, uint32_t button, int pressed) {
     struct surface *target;
     struct constraint *k = g_active_constraint;
@@ -2968,8 +2576,6 @@ static void pointer_input(double x, double y, int relative, uint32_t button, int
         if (wl_resource_get_version(sp->ptr) >= WL_POINTER_FRAME_SINCE_VERSION)
             wl_pointer_send_frame(sp->ptr);
     }
-    /* A click lands text input (the soft keyboard's IME text) on the window under the pointer:
-     * that's where Wine's focus goes, and winewayland routes IME updates per process. */
     if (button && pressed && !(k && k->is_lock)) {
         struct surface *clicked = toplevel_at(g_ptr_x, g_ptr_y);
         if (clicked) g_ime_click = clicked;
@@ -2978,24 +2584,18 @@ static void pointer_input(double x, double y, int relative, uint32_t button, int
     wl_display_flush_clients(g_display);
 }
 
-/* Absolute motion to scene x,y, then an optional button change. */
 static void pointer_event(double x, double y, uint32_t button, int pressed) {
     pointer_input(x, y, 0, button, pressed);
 }
 
-/* A delta from the app's relative input path (Relative Mouse, captured mouse, stick-as-mouse). */
 static void pointer_delta(double dx, double dy) {
     pointer_input(dx, dy, 1, 0, 0);
 }
 
-/* A button change at the current pointer position. */
 static void pointer_button(uint32_t button, int pressed) {
     pointer_input(0, 0, 1, button, pressed);
 }
 
-/* Java touch events arrive in INPUT_SPACE over the whole output: action 0=press, 1=move, 2=release.
- * Output pixels go through the inverse of the scale mode's mapping (letterbox bars, FILL crop, a
- * TOP/BOTTOM half), so the touch lands on the scene pixel that is drawn under the finger. */
 static void deliver_pointer(const struct input_msg *m) {
     int w, h, ow, oh;
     double x, y;
@@ -3003,7 +2603,7 @@ static void deliver_pointer(const struct input_msg *m) {
     vkp_output_size(&ow, &oh);
     if (ow <= 0 || oh <= 0 ||
         !vkp_output_to_scene((double)m->p2 * ow / INPUT_SPACE_W, (double)m->p3 * oh / INPUT_SPACE_H, &x, &y)) {
-        x = (double)m->p2 * w / INPUT_SPACE_W; /* nothing drawn yet: plain stretch */
+        x = (double)m->p2 * w / INPUT_SPACE_W;
         y = (double)m->p3 * h / INPUT_SPACE_H;
     }
     if (x < 0) x = 0;
@@ -3095,9 +2695,6 @@ static void touch_down(int id, double x, double y) {
     struct surface *target = touch_target_at(x, y);
     if (!target) return;
     struct wl_client *client = wl_resource_get_client(target->resource);
-    /* A down on an id that is still held means that sequence's up was lost: end it first. The
-     * fingers still down are counted only after that - counted before, a lost up left any_active
-     * set, and on the pointer path every later touch was dropped (a tap or swipe did nothing). */
     if (g_touch_points[id].surface) touch_cancel_client(client);
     int any_active = 0;
     for (int i = 0; i < MAX_TOUCH_POINTS; i++) {
@@ -3113,14 +2710,13 @@ static void touch_down(int id, double x, double y) {
     struct seat_touch *st;
     int has_touch = 0;
     for_each_touch_of(client, st) has_touch = 1;
-    /* One line per gesture (first finger), so a test can see where a touch went. */
     if (!any_active) {
         char name[160];
         describe(target, name, sizeof(name));
         droiddeck_log("touch", "%s gets %s", name, has_touch ? "touch" : "the pointer (it takes no touch)");
     }
     if (!has_touch) {
-        if (any_active) return;  /* one finger drives the pointer; a second one is ignored */
+        if (any_active) return;
         g_touch_points[id].surface = target;
         g_touch_points[id].pointer_fallback = 1;
         pointer_event(x, y, BTN_LEFT, 1);
@@ -3201,7 +2797,6 @@ static void deliver_key(const struct input_msg *m) {
     key_event((uint32_t)m->p1, m->p2);
 }
 
-/* Vertical wheel steps (negative = up) at the current pointer position. */
 static void scroll_event(int steps) {
     struct surface *target = g_active_constraint ? g_active_constraint->surface
                            : g_desktop ? g_desktop : (g_grab ? g_grab : toplevel_at(g_ptr_x, g_ptr_y));
@@ -3214,7 +2809,6 @@ static void scroll_event(int steps) {
     uint32_t t = now_ms();
     pointer_focus(target->resource, wl_fixed_from_double(g_ptr_x - tx), wl_fixed_from_double(g_ptr_y - ty));
     for_each_pointer_of(client, sp) {
-        /* From version 8 the discrete event is replaced by value120 and must not be sent. */
         if (wl_resource_get_version(sp->ptr) >= WL_POINTER_AXIS_VALUE120_SINCE_VERSION)
             wl_pointer_send_axis_value120(sp->ptr, WL_POINTER_AXIS_VERTICAL_SCROLL, steps * 120);
         else if (wl_resource_get_version(sp->ptr) >= WL_POINTER_AXIS_DISCRETE_SINCE_VERSION)
@@ -3226,16 +2820,15 @@ static void scroll_event(int steps) {
     wl_display_flush_clients(g_display);
 }
 
-/* Folds a key into the modifier state; returns whether the state changed. */
 static int update_modifiers(uint32_t evdev, int pressed) {
     static const struct { uint32_t evdev, mask; } mod_keys[] = {
-        { 42, 0x1 }, { 54, 0x1 },     /* Shift L/R */
-        { 29, 0x4 }, { 97, 0x4 },     /* Control L/R */
-        { 56, 0x8 }, { 100, 0x8 },    /* Alt L/R, both Mod1 in this keymap */
-        { 125, 0x40 }, { 126, 0x40 }, /* Super L/R */
+        { 42, 0x1 }, { 54, 0x1 },
+        { 29, 0x4 }, { 97, 0x4 },
+        { 56, 0x8 }, { 100, 0x8 },
+        { 125, 0x40 }, { 126, 0x40 },
     };
     uint32_t depressed = g_mods_depressed, locked = g_mods_locked;
-    if (evdev == 58) { /* Caps Lock toggles on press */
+    if (evdev == 58) {
         if (pressed) locked ^= 0x2;
     } else {
         int i, n = (int)(sizeof(mod_keys) / sizeof(mod_keys[0]));
@@ -3252,13 +2845,7 @@ static int update_modifiers(uint32_t evdev, int pressed) {
 }
 
 static void key_event(uint32_t evdev, int pressed) {
-    /* Tracked even with nothing to deliver to, so a Shift released unseen is not left held. */
     int mods_changed = update_modifiers(evdev, pressed);
-    /* Keys go to the program window the user last clicked (else the topmost non-shell window),
-     * never to Wine's desktop surface: winewayland hands each key to the hwnd of the surface that
-     * holds keyboard focus, and a key handed to explorer's desktop hwnd is queued to explorer's
-     * thread, not to the foreground program (X11 delivers keys to the focused app window, so
-     * this mirrors it). The desktop itself is the last resort. */
     struct surface *target = NULL;
     struct wl_resource *ime = droiddeck_ime_target();
     if (ime) target = wl_resource_get_user_data(ime);
@@ -3283,10 +2870,6 @@ static void key_event(uint32_t evdev, int pressed) {
     wl_display_flush_clients(g_display);
 }
 
-/* The output changed size under a running session (a foldable opened or closed, with the
- * session following the screen). Every client that has had its first configure is told the new
- * size: gamescope's Wayland backend and the desktop's KWin both resize their output to it, and
- * the next buffers they commit fill the new panel instead of being letterboxed onto it. */
 static void output_resized(void) {
     struct surface *s;
     struct wl_resource *r;
@@ -3300,17 +2883,16 @@ static void output_resized(void) {
     wl_display_flush_clients(g_display);
 }
 
-/* wl event-loop callback: drain queued input events written by the Android UI thread. */
 static int on_input_readable(int fd, uint32_t mask, void *data) {
     struct input_msg m;
     while (read(fd, &m, sizeof(m)) == (ssize_t)sizeof(m)) {
         switch (m.type) {
         case 1: deliver_key(&m); break;
-        case 2: pointer_event(m.p1, m.p2, 0, 0); break;          /* scene motion */
-        case 3: pointer_button(m.p1, m.p2); break;               /* button at pointer */
+        case 2: pointer_event(m.p1, m.p2, 0, 0); break;
+        case 3: pointer_button(m.p1, m.p2); break;
         case 4: scroll_event(m.p1); break;
         case 5: on_vsync(((int64_t)m.p1 << 32) | (uint32_t)m.p2); break;
-        case 6: pointer_delta(m.p1 / 256.0, m.p2 / 256.0); break; /* relative motion, 1/256 px */
+        case 6: pointer_delta(m.p1 / 256.0, m.p2 / 256.0); break;
         case 7: deliver_touch(&m); break;
         case 8: output_resized(); break;
         default: deliver_pointer(&m); break;
@@ -3319,8 +2901,6 @@ static int on_input_readable(int fd, uint32_t mask, void *data) {
     return 0;
 }
 
-/* Called from JNI (Android UI thread). Queues a pointer event; the compositor thread
- * dispatches it. x/y are in INPUT_SPACE (0..1919, 0..1079) over the whole output. */
 void droiddeck_wayland_send_pointer(int action, int x, int y) {
     if (g_input_pipe[1] < 0) return;
     struct input_msg m = { 0, action, x, y, 0 };
@@ -3335,7 +2915,6 @@ void droiddeck_wayland_send_touch(int action, int pointer_id, int x, int y) {
     (void)n;
 }
 
-/* Called from JNI. Queues a key event. evdev = Linux input keycode (e.g. KEY_A=30); state 1=down 0=up. */
 void droiddeck_wayland_send_key(int evdev, int state) {
     if (g_input_pipe[1] < 0) return;
     struct input_msg m = { 1, evdev, state, 0, 0 };
@@ -3343,7 +2922,6 @@ void droiddeck_wayland_send_key(int evdev, int state) {
     (void)n;
 }
 
-/* Called from JNI after g_output_w/h changed: the compositor thread re-sends the size. */
 void droiddeck_wayland_output_resized(void) {
     if (g_input_pipe[1] < 0) return;
     struct input_msg m = { 8, 0, 0, 0, 0 };
@@ -3351,7 +2929,6 @@ void droiddeck_wayland_output_resized(void) {
     (void)n;
 }
 
-/* Called from JNI on every screen refresh (Choreographer). */
 void droiddeck_wayland_vsync(int64_t frame_time_ns) {
     if (g_input_pipe[1] < 0) return;
     struct input_msg m = { 5, (int)(frame_time_ns >> 32), (int)(uint32_t)frame_time_ns, 0, 0 };
@@ -3359,9 +2936,6 @@ void droiddeck_wayland_vsync(int64_t frame_time_ns) {
     (void)n;
 }
 
-/* Called from JNI with the app's X-server input (on-screen controls, mouse): type 2 = motion
- * to scene x,y; 3 = evdev button a pressed/released (b); 4 = a wheel steps (negative = up);
- * 6 = relative motion by a,b in 1/256 pixel (the app's Relative Mouse / captured-mouse path). */
 void droiddeck_wayland_send_scene_input(int type, int a, int b) {
     if (g_input_pipe[1] < 0) return;
     struct input_msg m = { type, a, b, 0, 0 };
@@ -3369,15 +2943,11 @@ void droiddeck_wayland_send_scene_input(int type, int a, int b) {
     (void)n;
 }
 
-/* ------------------------------------------------------------------ extension module hooks
- * What wl_clipboard.c / wl_text_input.c need from the scene (see droiddeck_ext.h). */
 
 const char *droiddeck_client_name(struct wl_client *client) { return client_name(client); }
 struct wl_display *droiddeck_get_display(void) { return g_display; }
 void droiddeck_request_redraw(void) { schedule_render(); }
 
-/* The surface text input follows: the last clicked mapped program window, else the topmost
- * mapped window not owned by the desktop's process (explorer). NULL when there is none. */
 struct wl_resource *droiddeck_ime_target(void) {
     struct surface *s;
     if (g_ime_click && g_ime_click->mapped) return g_ime_click->resource;
@@ -3395,10 +2965,8 @@ void droiddeck_surface_scene_origin(struct wl_resource *surface, int *x, int *y)
 
 void droiddeck_inject_key(uint32_t evdev, int pressed) { key_event(evdev, pressed); }
 
-/* ------------------------------------------------------------------ 10 s summary */
 
 static struct wl_event_source *g_stats_timer;
-/* The last window's zero-copy count, kept for the app (WaylandCompositor.nativeZeroCopyFrames). */
 volatile unsigned g_zero_copy_last;
 
 static int on_stats_timer(void *data) {
@@ -3408,24 +2976,16 @@ static int on_stats_timer(void *data) {
     unsigned zero_copy = ahb_swapchain_stats_take();
     unsigned layer_frames = sc_layer_frames_take();
     g_zero_copy_last = zero_copy;
-    /* Interpolated frames the compositor added (framegen_bridge.c). They are on screen, so they
-     * count there; they are NOT GPU frames from games and never inflate that number. */
     unsigned generated = vkp_framegen_stats_take();
     if (g_stat_frames || g_stat_dmabuf || g_stat_shm || generated) {
         char extra[160] = "";
         int off = 0;
         if (g_zero_copy || zero_copy) off += snprintf(extra + off, sizeof(extra) - (size_t)off, " | %u zero-copy frames", zero_copy);
-        /* Frames the compositor put on a display layer through one of its OWN gralloc buffers (the
-         * plain layer blit, or the effects chain's result): still hardware-composed, but not
-         * zero-copy, so they are counted apart from the line above. */
         if (layer_frames) off += snprintf(extra + off, sizeof(extra) - (size_t)off, " | %u layer frames", layer_frames);
         if (generated) snprintf(extra + off, sizeof(extra) - (size_t)off, " | %u generated frames", generated);
         droiddeck_log("stats", "last 10 s: %u frames on screen (%.1f fps) | %u GPU frames from games | %u window redraws | %d windows open%s",
                    g_stat_frames + generated, (g_stat_frames + generated) / 10.0, g_stat_dmabuf, g_stat_shm, windows, extra);
     }
-    /* The perf line, next to the stats line and only when something happened: the compositor thread's
-     * time per scene and inside the driver (avg/max), what the base surface did, and how long games
-     * waited for their buffers back. See the audit memory for how to read it. */
     {
         struct vkp_perf vp;
         vkp_perf_take(&vp);
@@ -3448,10 +3008,10 @@ static int on_stats_timer(void *data) {
         memset(&g_perf, 0, sizeof(g_perf));
     }
     g_stat_frames = g_stat_dmabuf = g_stat_shm = 0;
-    droiddeck_color_stats_tick(); /* HDR evidence for the same window (nothing when the HDR gate is closed) */
-    /* A program that asked for dma-buf feedback (EGL's GPU path does, first thing) but has drawn
-     * only wl_shm frames since is an OpenGL program whose EGL gave up on the GPU. The software
-     * path it fell to has no rasteriser in the Wayland layers, so what it commits is black. */
+    droiddeck_color_stats_tick();
+
+
+
     for (struct client_info *ci = g_clients; ci; ci = ci->next) {
         if (!ci->asked_feedback || ci->dmabuf_buffers || ci->shm_gl_said || ci->shm_frames < 150)
             continue;
@@ -3465,12 +3025,6 @@ static int on_stats_timer(void *data) {
     return 0;
 }
 
-/* ------------------------------------------------------------------ test input
- * $XDG_RUNTIME_DIR/test-input is a FIFO for scripted testing from a root shell, in scene
- * (desktop) coordinates: "move X Y", "click X Y", "rclick X Y", "dclick X Y", "down X Y",
- * "up X Y", "rdown X Y", "rup X Y", "rel DX DY" (relative motion, like the app's Relative
- * Mouse path), "key CODE" (evdev), "keydown CODE", "keyup CODE".
- * It lives in the app's private directory, so only the app and root can reach it. */
 
 static char g_test_buf[512];
 static size_t g_test_len;
@@ -3520,7 +3074,7 @@ static int on_test_input(int fd, uint32_t mask, void *data) {
         }
         g_test_len = strlen(start);
         memmove(g_test_buf, start, g_test_len);
-        if (g_test_len >= sizeof(g_test_buf) - 1) g_test_len = 0; /* overlong line: drop */
+        if (g_test_len >= sizeof(g_test_buf) - 1) g_test_len = 0;
     }
     return 0;
 }
@@ -3534,14 +3088,10 @@ static void start_test_input(struct wl_event_loop *loop) {
     snprintf(path, sizeof(path), "%s/test-input", rt);
     unlink(path);
     if (mkfifo(path, 0600) != 0) return;
-    /* O_RDWR keeps a writer open ourselves, so a closing test shell never leaves us at EOF. */
     if ((fd = open(path, O_RDWR | O_NONBLOCK | O_CLOEXEC)) < 0) return;
     wl_event_loop_add_fd(loop, fd, WL_EVENT_READABLE, on_test_input, NULL);
 }
 
-/* ------------------------------------------------------------------ entry
- * Blocks in the wl event loop, so the JNI wrapper runs it on a dedicated thread.
- * XDG_RUNTIME_DIR must be set by the caller before this runs. */
 
 static struct wl_listener g_client_created = { .notify = on_client_created };
 
@@ -3553,8 +3103,6 @@ int droiddeck_wayland_run(void) {
     wl_list_init(&g_relative_pointers);
     open_session_log();
 
-    /* Bring the GPU up before any client can connect: loading Turnip the first time
-     * can take many seconds, and it must not stall a client mid-handshake. */
     if (vkp_ready() != 0) WLOGE("renderer unavailable; clients will connect but nothing is drawn");
 
     struct wl_display *display = wl_display_create();
@@ -3563,10 +3111,6 @@ int droiddeck_wayland_run(void) {
         return 1;
     }
 
-    /* Use a FIXED socket name so it always matches the guest's WAYLAND_DISPLAY=wayland-0
-     * (wl_display_add_socket_auto would drift to wayland-1/2/… if a stale socket exists,
-     * and the guest only ever looks for wayland-0). Unlink any stale socket+lock first so
-     * a previous run that didn't clean up can't block the bind. */
     const char *rt = getenv("XDG_RUNTIME_DIR");
     if (rt && *rt) {
         char p[512];
@@ -3584,33 +3128,30 @@ int droiddeck_wayland_run(void) {
     wl_global_create(display, &wl_compositor_interface, 6, NULL, bind_compositor);
     wl_global_create(display, &wl_subcompositor_interface, 1, NULL, bind_subcompositor);
     wl_global_create(display, &wp_viewporter_interface, 1, NULL, bind_viewporter);
-    wl_display_init_shm(display); /* wl_shm global + pool/buffer handling */
-    /* libdecor binds wl_output at 4; a lower version is a protocol error for the client. */
+    wl_display_init_shm(display);
+
     wl_global_create(display, &wl_output_interface, 4, NULL, bind_output);
     wl_global_create(display, &xdg_wm_base_interface, 1, NULL, bind_xdg_wm_base);
     wl_global_create(display, &zwp_linux_dmabuf_v1_interface, 4, NULL, bind_dmabuf);
-    /* gamescope's Wayland backend refuses a seat older than 8. */
     wl_global_create(display, &wl_seat_interface, 9, NULL, bind_seat);
     wl_global_create(display, &banner_desktop_v1_interface, 1, NULL, bind_desktop);
     wl_global_create(display, &wp_presentation_interface, 2, NULL, bind_presentation);
     wl_global_create(display, &zwp_pointer_constraints_v1_interface, 1, NULL, bind_pointer_constraints);
     wl_global_create(display, &zwp_relative_pointer_manager_v1_interface, 1, NULL, bind_relative_pointer_manager);
-    droiddeck_ext_init(display); /* clipboard, text input, toplevel icons (own files, see droiddeck_ext.h) */
-    ahb_swapchain_init(display); /* zero-copy layers: banner_ahb_v1, advertised whenever a display
-                                  * layer is possible; the mode event carries the live switch
-                                  * (ahb_swapchain.h) */
-    droiddeck_color_init(display);  /* HDR10 (opt-in): decides the gate from the app's request + the
-                                  * display + the layer path above; creates wp_color_manager_v1
-                                  * only when it is open (droiddeck_color.h). Before any client can
-                                  * bind zwp_linux_dmabuf_v1, whose table it widens. */
+    droiddeck_ext_init(display);
+    ahb_swapchain_init(display);
+
+
+    droiddeck_color_init(display);
+
+
+
     wl_list_init(&g_pending_releases);
     g_release_timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
     if (g_release_timer_fd >= 0)
         g_release_source = wl_event_loop_add_fd(wl_display_get_event_loop(display), g_release_timer_fd,
                                                 WL_EVENT_READABLE, on_release_timer, NULL);
 
-    /* Input injection: the Android UI thread writes events to g_input_pipe[1];
-     * the wl event loop drains them on this thread. */
     g_display = display;
     if (pipe2(g_input_pipe, O_CLOEXEC | O_NONBLOCK) == 0) {
         wl_event_loop_add_fd(wl_display_get_event_loop(display), g_input_pipe[0],
@@ -3622,7 +3163,7 @@ int droiddeck_wayland_run(void) {
     if ((g_stats_timer = wl_event_loop_add_timer(wl_display_get_event_loop(display), on_stats_timer, NULL)))
         wl_event_source_timer_update(g_stats_timer, 10000);
 
-    wl_display_run(display); /* blocks, dispatches the event loop */
+    wl_display_run(display);
 
     wl_display_destroy(display);
     return 0;

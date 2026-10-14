@@ -18,7 +18,7 @@ index d74268b..f49ef59 100644
  
  namespace gamescope
  {
-@@ -2462,11 +2464,18 @@ namespace gamescope
+@@ -2462,11 +2464,16 @@ namespace gamescope
          if ( !m_pPointer )
              return;
  
@@ -31,8 +31,6 @@ index d74268b..f49ef59 100644
 +            cv_wayland_mouse_warp_without_keyboard_focus.Get(), m_bPointerLocked,
 +            m_bKeyboardEntered, m_pDefaultCursorSurface != nullptr );
 +
-+        // Keep the original no-keyboard-focus fallback, but prevent client cursor surfaces from
-+        // being drawn by both the host compositor and Gamescope's manual cursor painter.
 +        if ( !CursorShouldBeForwardedToHost( cv_cursor_composite.Get(), bUseHostCursor ) )
 +        {
 +            wl_pointer_set_cursor( m_pPointer, m_uPointerEnterSerial, nullptr, 0, 0 );
@@ -159,7 +157,7 @@ new file mode 100644
 index 0000000..9c622db
 --- /dev/null
 +++ b/tests/test_cursor_routing.cpp
-@@ -0,0 +1,49 @@
+@@ -0,0 +1,42 @@
 +#include <catch2/catch_test_macros.hpp>
 +
 +#include "Utils/CursorRouting.h"
@@ -168,12 +166,9 @@ index 0000000..9c622db
 +
 +TEST_CASE("nested cursor composition can be forced without changing the default", "[cursor_routing]")
 +{
-+    // A Wayland nested connector does not paint its cursor by default; it forwards the image to
-+    // the host compositor instead. Mode 2 must select Gamescope composition for DroidDeck.
 +    REQUIRE_FALSE( CursorShouldBeComposited( 1, false, true, true, false ) );
 +    REQUIRE( CursorShouldBeComposited( 2, false, true, true, false ) );
 +
-+    // Existing force-relative and non-nested behavior remain intact.
 +    REQUIRE( CursorShouldBeComposited( 1, true, true, true, false ) );
 +    REQUIRE( CursorShouldBeComposited( 1, false, true, false, false ) );
 +    REQUIRE_FALSE( CursorShouldBeComposited( 0, true, true, false, true ) );
@@ -191,8 +186,6 @@ index 0000000..9c622db
 +
 +TEST_CASE("host cursor fallback follows the keyboard-focus and lock defaults", "[cursor_routing]")
 +{
-+    // The default policy only uses the host cursor when relative input is locked and keyboard
-+    // focus is absent. Turning that policy off allows the host default whenever focus is absent.
 +    REQUIRE( CursorShouldUseHostFallback( true, true, false, true ) );
 +    REQUIRE_FALSE( CursorShouldUseHostFallback( true, false, false, true ) );
 +    REQUIRE_FALSE( CursorShouldUseHostFallback( true, true, true, true ) );
@@ -203,8 +196,6 @@ index 0000000..9c622db
 +
 +TEST_CASE("an empty or hidden client cursor stays hidden when composition is forced", "[cursor_routing]")
 +{
-+    // set_cursor(NULL)/a fully transparent image sets imageEmpty; Gamescope hides an idle cursor
-+    // through cursorHidden. Forcing composition changes only the route, not these conditions.
 +    REQUIRE_FALSE( CursorImageShouldBePainted( true, false ) );
 +    REQUIRE_FALSE( CursorImageShouldBePainted( false, true ) );
 +    REQUIRE( CursorImageShouldBePainted( false, false ) );

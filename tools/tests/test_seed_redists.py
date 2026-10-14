@@ -22,8 +22,6 @@ GAME_SCRIPT = r'''"InstallScript"
 }
 '''
 
-# Red Dead Redemption 2's own script: Proton needs Khronos' vulkan-1.dll for it, which only the
-# Vulkan runtime installer puts in the prefix.
 VULKAN_SCRIPT = r'''"InstallScript"
 {
 	"Run Process"
@@ -148,7 +146,6 @@ class SeedRedistsTest(unittest.TestCase):
         self.assertIn('"Other"=dword:00000001', reg)
         self.assertNotIn("Vulkan111080", (self.reg.parent / ".droiddeck-redists").read_text())
         self.assertEqual(int(self.reg.stat().st_mtime), 1_000_000_000)
-        # The client writes the marker itself once the installer has run; that one is left alone.
         with self.reg.open("a") as out:
             out.write('\n[Software\\\\Valve\\\\Steam\\\\Apps\\\\1174180] 1791730000\n"Vulkan111080"=dword:00000001\n')
         self.run_seed()

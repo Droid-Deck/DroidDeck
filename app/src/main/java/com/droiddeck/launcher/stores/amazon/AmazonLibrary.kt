@@ -14,12 +14,6 @@ import java.util.concurrent.Callable
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
-/**
- * The signed-in account's Amazon Games library: the entitlements, DLC folded under their base
- * game, cached so the tab paints at once, re-synced when forced or 15 minutes stale. Amazon
- * publishes a square icon and a wide background only, so a 2:3 poster per title is backfilled
- * from SteamGridDB (a few per pass). Ported from Bannerlator's AmazonLibraryRepo.
- */
 object AmazonLibrary {
     private const val TAG = "AmazonLibrary"
     private const val CACHE_KEY = "library_cache"
@@ -74,7 +68,6 @@ object AmazonLibrary {
             val creds = AmazonCredentialStore.load(app) ?: return SyncResult.NotLoggedIn
             val token = AmazonCredentialStore.getValidAccessToken(app) ?: return SyncResult.Failed(StoresState.notSignedInLine(Store.AMAZON))
             onStatus(app.getString(R.string.stores_sync_game_list))
-            // Refused with the stored token (revoked, or an expiry read wrong): once more on a fresh one.
             val all = AmazonApiClient.getEntitlements(token, creds.deviceSerial)
                 ?: AmazonCredentialStore.refresh(app)?.let { AmazonApiClient.getEntitlements(it, creds.deviceSerial) }
             if (all == null) return if (cachedList.isEmpty()) SyncResult.Failed(app.getString(R.string.stores_sync_amazon_no_answer)) else SyncResult.Ok(cachedList)
@@ -105,7 +98,6 @@ object AmazonLibrary {
         val ed = p.edit()
         for (f in futures) {
             val (pid, url) = runCatching { f.get() }.getOrNull() ?: continue
-            // A miss is recorded as "" so it is not asked again every pass.
             ed.putString("vcover_$pid", url)
         }
         ed.apply()

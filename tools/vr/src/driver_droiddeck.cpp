@@ -1,15 +1,3 @@
-// SteamVR driver for DroidDeck's Cardboard mode: one 3DoF HMD whose pose is the phone's rotation
-// sensor, read from the head pose file the app shares with the guest
-// (app/src/main/cpp/waylandcomp/src/headpose_shm.h, /run/droiddeck/droiddeck-headpose).
-//
-// The HMD renders an undistorted side-by-side pair: the app's Cardboard pass, in its side-by-side
-// mode, does the lens distortion for the viewer the user picked. So the projection here is exactly
-// the frustum that pass samples (tan_half_fov, eye_aspect from the pose file), and the distortion is
-// the identity.
-//
-// How the frames reach the screen is the open question this driver is for: see docs/cardboard-vr.md.
-// It exposes IVRDisplayComponent with the display "on the desktop" (extended mode) at the session's
-// size, and logs what vrserver / vrcompositor ask of it.
 #include "openvr_driver.h"
 
 #include <algorithm>
@@ -50,7 +38,6 @@ void Log(const char *fmt, ...) {
     fprintf(stderr, "[droiddeck] %s\n", buf);
 }
 
-// The shared pose file, mapped read-only; reads follow the seqlock in headpose_shm.h.
 class PoseFile {
 public:
     bool Read(droiddeck_headpose *out) {
@@ -82,7 +69,6 @@ private:
 };
 
 HmdQuaternion_t QuatFromMatrix(const float m[9]) {
-    // Row-major rotation -> quaternion (Shepperd's method).
     HmdQuaternion_t q;
     float tr = m[0] + m[4] + m[8];
     if (tr > 0.0f) {
@@ -101,8 +87,6 @@ HmdQuaternion_t QuatFromMatrix(const float m[9]) {
     return q;
 }
 
-// IVRVirtualDisplay: the compositor renders the final frame into its own backbuffer and hands it
-// here instead of scanning it out. What the handle is on Linux is what this logs (experiment).
 class VirtualDisplay : public IVRVirtualDisplay {
 public:
     void Present(const PresentInfo_t *info, uint32_t size) override {
@@ -115,7 +99,6 @@ public:
     }
     void WaitForPresent() override {}
     bool GetTimeSinceLastVsync(float *seconds, uint64_t *counter) override {
-        // A free-running 60 Hz vsync.
         using namespace std::chrono;
         double t = duration<double>(steady_clock::now().time_since_epoch()).count();
         double period = 1.0 / 60.0;
@@ -129,8 +112,6 @@ private:
     std::chrono::steady_clock::time_point last_;
 };
 
-// The vsync grid SteamVR paces against in driver-direct mode (Prop_DriverDirectModeSendsVsyncEvents):
-// a free-running 60 Hz tick, declared a little ahead of time (ALVR's announcer, alvr/server_openvr/src/vsync.rs).
 class Vsync {
 public:
     static constexpr std::chrono::nanoseconds kInterval{16666667};
@@ -172,10 +153,6 @@ private:
     static inline std::chrono::steady_clock::time_point last_{};
 };
 
-// IVRDriverDirectModeComponent: SteamVR renders each eye into textures this driver allocates
-// (shared Vulkan images from SteamVR's IPC resource manager, dmabufs on Linux) and hands them
-// over per frame. This is how ALVR gets frames on Linux; it avoids the compositor's own direct mode,
-// which needs VK_KHR_display - something Turnip on KGSL refuses outright.
 class DirectMode : public IVRDriverDirectModeComponent {
 public:
     struct Set {
@@ -190,8 +167,8 @@ public:
         Set set;
         set.pid = pid;
         set.desc = *d;
-        const uint32_t usage = 0x1 /* TRANSFER_SRC */ | 0x4 /* SAMPLED */ | 0x80 /* INPUT_ATTACHMENT */;
-        const uint32_t create = 0x8 /* MUTABLE_FORMAT */;
+        const uint32_t usage = 0x1   | 0x4   | 0x80  ;
+        const uint32_t create = 0x8  ;
         for (int i = 0; i < 3; i++) {
             SharedTextureHandle_t h = 0;
             if (!VRIPCResourceManager()->NewSharedVulkanImage(d->nFormat, d->nWidth, d->nHeight, true, false, true, 1, 1,
@@ -245,7 +222,6 @@ public:
 
     void SubmitLayer(const SubmitLayerPerEye_t (&eyes)[2]) override {
         layers_++;
-        // The first layer of a frame is the compositor's own picture; overlays after it are not drawn yet.
         if (layerInFrame_++ == 0) {
             for (int e = 0; e < 2; e++) {
                 frame_.texture[e] = eyes[e].hTexture;
@@ -274,7 +250,6 @@ public:
     }
 
     void PostPresent(const Throttling_t *t) override {
-        // Hold until the tick after the last one declared (ALVR's pacing): a slow frame costs one frame.
         auto last = Vsync::LastTick();
         auto until = last + Vsync::kInterval * (1 + (t ? t->nFramesToThrottle : 0));
         if (until > std::chrono::steady_clock::now()) std::this_thread::sleep_until(until);
@@ -304,12 +279,9 @@ private:
     droiddeck::EyeFrame frame_{};
 };
 
-// The session's game pad, as the app publishes it for the guest: the absolute-state snapshot at the
-// head of fake input ring 0 (app/src/main/cpp/fakeinput_steam.cpp, FakeInputRingHeader), under a
-// seqlock. FAKE_EVDEV_MEMFD_PATHS names the rings in every session process's environment.
 struct PadState {
-    uint32_t buttons = 0;  // bit order of FakeInputWriter.BUTTON_MAP; bit 11 = the QAM button
-    int16_t axes[8] = {};  // X, Y, RX, RY (+-32767), GAS = right trigger, BRAKE = left (0..255), HAT0X, HAT0Y
+    uint32_t buttons = 0;
+    int16_t axes[8] = {};
 };
 enum : uint32_t {
     PAD_A = 1u << 0, PAD_B = 1u << 1, PAD_X = 1u << 2, PAD_Y = 1u << 3, PAD_LB = 1u << 4, PAD_RB = 1u << 5,
@@ -340,7 +312,7 @@ private:
         std::string path;
         if (const char *env = getenv("DROIDDECK_VR_PAD_RING")) path = env;
         if (path.empty()) {
-            const char *paths = getenv("FAKE_EVDEV_MEMFD_PATHS"); // "0=/path;1=/path;..."
+            const char *paths = getenv("FAKE_EVDEV_MEMFD_PATHS");
             if (paths && !strncmp(paths, "0=", 2)) path.assign(paths + 2, strcspn(paths + 2, ";"));
         }
         if (path.empty()) {
@@ -363,10 +335,6 @@ private:
     std::chrono::steady_clock::time_point retry_{};
 };
 
-// One hand: a Vive-profile controller driven by the game pad. 3DoF, so it is a gaze pointer: it sits
-// low in front of its side of the body and points where the head looks, and SteamVR's laser follows the
-// view. Right hand: right stick = trackpad, A = trackpad click, RT = trigger, RB = grip, Start = menu,
-// the Steam/guide button = system. Left: left stick, X, LT, LB, Select.
 class CardboardController : public ITrackedDeviceServerDriver {
 public:
     explicit CardboardController(bool right) : right_(right) {}
@@ -404,14 +372,12 @@ public:
 
     DriverPose_t GetPose() override { return pose_; }
 
-    // From the driver's pose thread: the head's orientation and the pad.
     void Update(const HmdQuaternion_t &head, const PadState *pad) {
         if (id_ == k_unTrackedDeviceIndexInvalid) return;
         DriverPose_t p = {};
         p.qWorldFromDriverRotation.w = 1;
         p.qDriverFromHeadRotation.w = 1;
         p.qRotation = head;
-        // Low and in front of its side, in head space, then into the room with the head's rotation.
         const double off[3] = {right_ ? 0.18 : -0.18, -0.35, -0.30};
         double m[3][3];
         const double w = head.w, x = head.x, y = head.y, z = head.z;
@@ -460,7 +426,6 @@ public:
         if (height_ <= 0) height_ = 1080;
         float hz = VRSettings()->GetFloat(kSettingsSection, "displayFrequency");
         if (hz <= 0.0f) hz = 60.0f;
-        // Until the app has drawn an eye: the Cardboard pass's defaults for a 1920x1080 panel.
         tanHalf_ = 1.0f;
         eyeAspect_ = (width_ * 0.5f) / height_;
         droiddeck_headpose hp;
@@ -476,8 +441,6 @@ public:
         VRProperties()->SetFloatProperty(c, Prop_DisplayFrequency_Float, hz);
         VRProperties()->SetFloatProperty(c, Prop_SecondsFromVsyncToPhotons_Float, 0.011f);
         VRProperties()->SetUint64Property(c, Prop_CurrentUniverseId_Uint64, 2);
-        // Off the desktop: with a direct mode component that sends SteamVR's compositor down the
-        // driver-direct path; on it, the compositor opens its own direct mode window (VK_KHR_display).
         VRProperties()->SetBoolProperty(c, Prop_IsOnDesktop_Bool, false);
         VRProperties()->SetBoolProperty(c, Prop_DisplayDebugMode_Bool, false);
         directMode_ = VRSettings()->GetBool(kSettingsSection, "directMode");
@@ -489,9 +452,6 @@ public:
         VRProperties()->SetBoolProperty(c, Prop_HasDisplayComponent_Bool, true);
         virtualDisplay_ = VRSettings()->GetBool(kSettingsSection, "virtualDisplay");
         VRProperties()->SetBoolProperty(c, Prop_HasVirtualDisplayComponent_Bool, virtualDisplay_);
-        // A proximity sensor that reads "worn" while Cardboard mode is on: otherwise SteamVR sees a headset
-        // lying still (a phone on a table between sessions) and puts the display in standby, after which
-        // the compositor submits no layers at all.
         VRProperties()->SetBoolProperty(c, Prop_ContainsProximitySensor_Bool, true);
         VRDriverInput()->CreateBooleanComponent(c, "/proximity", &proximity_);
         VRDriverInput()->UpdateBooleanComponent(proximity_, true, 0);
@@ -528,7 +488,7 @@ public:
         p.qWorldFromDriverRotation.w = 1;
         p.qDriverFromHeadRotation.w = 1;
         p.qRotation.w = 1;
-        p.vecPosition[1] = 1.6; // standing eye height: 3DoF, the head never moves
+        p.vecPosition[1] = 1.6;
         droiddeck_headpose hp;
         bool ok = pose_.Read(&hp);
         if (ok) {
@@ -543,14 +503,12 @@ public:
         return p;
     }
 
-    // ---- IVRDisplayComponent
     void GetWindowBounds(int32_t *x, int32_t *y, uint32_t *w, uint32_t *h) override {
         *x = 0; *y = 0; *w = (uint32_t)width_; *h = (uint32_t)height_;
     }
     bool IsDisplayOnDesktop() override { return !directMode_; }
     bool IsDisplayRealDisplay() override { return false; }
     void GetRecommendedRenderTargetSize(uint32_t *w, uint32_t *h) override {
-        // Rendered a little larger than the panel: the lens pass magnifies the middle.
         *w = (uint32_t)(width_ / 2 * 1.4f);
         *h = (uint32_t)(height_ * 1.4f);
     }
@@ -559,7 +517,6 @@ public:
         *x = eye == Eye_Left ? 0 : (uint32_t)width_ / 2;
     }
     void GetProjectionRaw(EVREye, float *left, float *right, float *top, float *bottom) override {
-        // Exactly what the Cardboard pass samples from each half of a side-by-side frame.
         *left = -tanHalf_ * eyeAspect_; *right = tanHalf_ * eyeAspect_;
         *top = -tanHalf_; *bottom = tanHalf_;
     }
@@ -582,7 +539,6 @@ private:
             droiddeck_headpose hp;
             bool fresh = pose_.Read(&hp) && hp.seq != lastSeq;
             auto now = std::chrono::steady_clock::now();
-            // A new sample, or a heartbeat so SteamVR never thinks the HMD went away.
             PadState pad;
             const bool havePad = pad_.Read(&pad);
             const bool padChanged = havePad && (pad.buttons != lastPad_.buttons || memcmp(pad.axes, lastPad_.axes, sizeof(pad.axes)));
@@ -657,7 +613,7 @@ private:
 
 Provider g_provider;
 
-} // namespace
+}
 
 DD_EXPORT void *HmdDriverFactory(const char *interfaceName, int *returnCode) {
     if (!strcmp(interfaceName, IServerTrackedDeviceProvider_Version)) return &g_provider;

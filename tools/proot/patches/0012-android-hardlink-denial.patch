@@ -19,7 +19,7 @@ index 8c3eb2e..4c28e10 100644
  	case PR_open:
  		flags = peek_reg(tracee, CURRENT, SYSARG_2);
 +#ifdef __ANDROID__
-+		/* An O_TMPFILE file can only be named by linkat, which Android denies apps. */
++
 +		if ((flags & __O_TMPFILE) != 0) {
 +			status = -EOPNOTSUPP;
 +			break;
@@ -50,8 +50,8 @@ index df41084..5d981db 100644
  		break;
  
 +#ifdef __ANDROID__
-+	/* Android denies apps hard links with EACCES; EPERM is what callers such as
-+	 * libostree take as "no hard links here" and copy instead. */
++
++
 +	case PR_link:
 +	case PR_linkat:
 +		if ((int) syscall_result == -EACCES)

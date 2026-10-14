@@ -8,8 +8,7 @@ import unittest
 SESSION = Path(__file__).resolve().parents[1] / 'linuxfs/overlay/usr/local/bin/droiddeck-session'
 SOURCE = SESSION.read_text()
 MATCH = re.search(
-    r"^  # The nested Wayland backend normally forwards Gamescope's cursor image to the host pointer\.\n"
-    r".*?^  fi\n", SOURCE, re.M | re.S)
+    r'^  if \[ "\$mode" = steam \]; then\n.*?^  fi\n', SOURCE, re.M | re.S)
 assert MATCH is not None
 CURSOR_SETUP = MATCH.group(0)
 

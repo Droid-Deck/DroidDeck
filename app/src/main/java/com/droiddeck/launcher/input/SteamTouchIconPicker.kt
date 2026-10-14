@@ -24,11 +24,6 @@ import android.widget.TextView
 import com.droiddeck.launcher.R
 import java.util.concurrent.Executors
 
-/**
- * Picks a touch control's icon, label and colours the way Steam's configurator does: an icon from
- * the game's own `TouchMenuIcons` and Steam's binding icon library, a foreground and a background
- * from Steam's palette. [onPicked] gets the binding with the new fields (the action untouched).
- */
 class SteamTouchIconPicker(
     private val context: Context,
     private val host: ViewGroup,
@@ -47,7 +42,6 @@ class SteamTouchIconPicker(
     private fun dp(v: Int) = (v * density).toInt()
 
     fun show() {
-        // Side by side, for a landscape screen: what is picked on the left, the icons on the right.
         val root = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(16), dp(8), dp(16), 0) }
         val left = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
         val label = EditText(context).apply {
@@ -132,8 +126,6 @@ class SteamTouchIconPicker(
         }
     }
 
-    /** The icon as Steam draws it: on a disc of the background colour, filled with the foreground
-     *  through its own alpha. */
     private fun render(icon: Bitmap, size: Int): Bitmap {
         val out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(out)
@@ -148,7 +140,6 @@ class SteamTouchIconPicker(
         private val loading = HashSet<String>()
         private var refreshQueued = false
 
-        /** Loads an icon in the background; the grid redraws from the cache once some have come in. */
         private fun load(name: String) {
             if (!loading.add(name)) return
             loader.execute {
@@ -189,7 +180,6 @@ class SteamTouchIconPicker(
             return view
         }
 
-        // One thumbnail per icon and colour, reused when the grid rebinds.
         private val thumbs = android.util.LruCache<String, Bitmap>(64)
 
         private fun tinted(name: String, icon: Bitmap): Bitmap {
@@ -204,10 +194,6 @@ class SteamTouchIconPicker(
     }
 
     companion object {
-        /**
-         * A panel over the session, in the session's own window: a dialog's window of its own left
-         * new bitmaps and layers undrawn in the session window afterwards on the Thor.
-         */
         fun showPanel(host: ViewGroup, title: String, content: View, buttons: List<Pair<String, () -> Unit>>, onClose: () -> Unit = {}): () -> Unit {
             val context = host.context
             val density = context.resources.displayMetrics.density
@@ -217,7 +203,6 @@ class SteamTouchIconPicker(
                 isClickable = true
                 isFocusable = true
             }
-            // DroidDeck's panel: dark surface, rounded, a hairline border.
             val card = LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
                 background = GradientDrawable().apply {
@@ -266,8 +251,6 @@ class SteamTouchIconPicker(
             return { if (scrim.parent != null) close() }
         }
 
-        /** Steam's binding icon look (steamui: the icon multiplied with its foreground colour,
-         *  background-blend-mode: multiply, keeping the icon's own alpha). */
         fun drawSteamIcon(canvas: Canvas, icon: Bitmap, into: android.graphics.RectF, foreground: Int, paint: Paint) {
             val tint = Paint(paint).apply { colorFilter = PorterDuffColorFilter(foreground, PorterDuff.Mode.MULTIPLY) }
             canvas.drawBitmap(icon, null, into, tint)

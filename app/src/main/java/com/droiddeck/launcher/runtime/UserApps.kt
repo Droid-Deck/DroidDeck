@@ -19,20 +19,10 @@ import org.json.JSONObject
 import java.io.File
 import java.io.RandomAccessFile
 
-/**
- * The apps a user adds to the Desktop page: shell scripts, AppImages (from storage or a GitHub
- * release) and Flatpak apps. Each opens full screen under gamescope, like an emulator.
- *
- * A script lives at /opt/droiddeck-apps/<id>: its folder at `files`, the script's name in `entry`.
- * The folder is linked where it lies; shared storage is mounted noexec, so a folder holding Linux
- * programs is copied in instead. A linked folder outside internal storage is bound into the
- * session at its own path ([binds]), so the link resolves inside the guest.
- */
 object UserApps {
     private const val TAG = "UserApps"
     const val GUEST_DIR = "/opt/droiddeck-apps"
     const val SCRIPT_LAUNCHER = "/usr/local/bin/droiddeck-script-run"
-    /** An app the desktop asked for (droiddeck-open): its key, then the path it was started from there. */
     const val DESKTOP_IMPORT = "desktop-import"
     private const val FLATPAK_OVERRIDES = ".flatpak"
     private const val ICON_SIZE = 256
@@ -47,10 +37,6 @@ object UserApps {
 
     enum class Kind { SCRIPT, APPIMAGE, FLATPAK }
 
-    /**
-     * [copied]: a script whose folder was copied in rather than linked. [repo]: the GitHub repository
-     * an AppImage came from, [version] the release it is.
-     */
     class App(
         val key: String, val kind: Kind, val name: String, val icon: Any?, val detail: String?,
         val program: String, val args: List<String>, val copied: Boolean = false,
@@ -74,10 +60,8 @@ object UserApps {
         class FlatpakBundle(val file: File) : Source()
     }
 
-    /** [icon]: a picked file's path or a suggested icon's URL. [meta]: files written into the added app's folder. */
     class Request(val source: Source, val name: String?, val icon: String?, val meta: Map<String, String> = emptyMap())
 
-    /** How a script's folder reaches the session: linked in place, or copied in ([bytes] to copy). */
     class ScriptPlan(val folder: File, val copy: Boolean, val bytes: Long)
 
     private fun root(context: Context) = File(LinuxRuntime.rootDir(context), GUEST_DIR.substring(1))
@@ -117,7 +101,6 @@ object UserApps {
 
     private fun readName(dir: File) = FileUtils.readString(File(dir, "name"))?.trim()?.takeIf { it.isNotEmpty() }
 
-    /** Adds [request]; null on success, else what went wrong. */
     fun add(context: Context, request: Request, onProgress: (String, Int) -> Unit): String? {
         if (!LinuxRuntime.isInstalled(context)) return context.getString(R.string.user_apps_runtime_required)
         val name = request.name?.trim()?.takeIf { it.isNotEmpty() }
@@ -132,7 +115,6 @@ object UserApps {
         }
     }
 
-    /** [icon] as a file for [use]: a path as it is, a URL downloaded for the while. */
     private inline fun <T> withIcon(context: Context, icon: String?, use: (File?) -> T): T {
         if (icon == null || !icon.startsWith("https://")) return use(icon?.let(::File))
         val download = File(context.cacheDir, "icon-${System.nanoTime()}")
@@ -143,10 +125,6 @@ object UserApps {
         }
     }
 
-    /**
-     * Renames [app] and sets its icon: [icon] a path or URL, "" for its default, null to keep it.
-     * The Linux desktop's menu entry follows.
-     */
     fun edit(context: Context, app: App, name: String, icon: String?, fex: String? = null): String? {
         val id = app.key.substringAfter(':')
         if (id.isEmpty() || '/' in id || id.startsWith(".")) return null
@@ -177,7 +155,6 @@ object UserApps {
         return when (app.kind) {
             Kind.SCRIPT -> {
                 val dir = File(root(context), id)
-                // The link goes, never the folder it points to.
                 File(dir, "files").delete()
                 FileUtils.delete(dir)
                 menuEntry(context, id).delete()
@@ -190,7 +167,6 @@ object UserApps {
         }
     }
 
-    /** Folders linked from outside internal storage, bound into a session at their own paths. */
     fun binds(context: Context): List<String> {
         val internal = Environment.getExternalStorageDirectory().canonicalPath
         return root(context).listFiles().orEmpty().mapNotNull { dir ->
@@ -199,7 +175,6 @@ object UserApps {
         }.distinct()
     }
 
-    /** The desktop's import of [key] as the session sees it: an added script's folder, or an AppImage's. */
     fun desktopImport(context: Context, key: String, path: String): String? {
         root(context).listFiles()?.firstOrNull { dir ->
             File(dir, "entry").isFile && FileUtils.readString(File(dir, DESKTOP_IMPORT))?.lineSequence()?.firstOrNull() == key
@@ -263,7 +238,6 @@ object UserApps {
             "Terminal=false\nCategories=Game;\nX-DroidDeck-App=$id\n")
     }
 
-    /** Copies [from] into [to], keeping Linux programs and scripts executable. */
     private fun copyTree(from: File, to: File) {
         from.walkTopDown().forEach { src ->
             val dst = File(to, src.relativeTo(from).path)
@@ -275,7 +249,6 @@ object UserApps {
         }
     }
 
-    /** [source] (PNG, JPEG, WebP or SVG) as the app's icon: a PNG no larger than [ICON_SIZE] on a side. */
     internal fun saveIcon(source: File, target: File): Boolean {
         val bitmap = (if (isSvg(source)) renderSvg(source) else decodeScaled(source)) ?: return false
         return try {
@@ -306,7 +279,6 @@ object UserApps {
         f.inputStream().use { val head = ByteArray(1024); val n = it.read(head); n > 0 && String(head, 0, n).contains("<svg") }
     } catch (e: Exception) { false }
 
-    /** An SVG drawn at [ICON_SIZE], centred in its own proportions. */
     private fun renderSvg(source: File): Bitmap? = try {
         val svg = source.inputStream().use { SVG.getFromInputStream(it) }
         if (svg.documentViewBox == null && svg.documentWidth > 0 && svg.documentHeight > 0) {
@@ -319,7 +291,6 @@ object UserApps {
         Log.w(TAG, "svg ${source.path}", e); null
     }
 
-    /** "owner/repo" from what was typed: any link into the repository, its clone address, or the short form. */
     fun githubRepo(input: String): String? {
         val t = input.trim()
         val m = Regex("^(?:https?://)?(?:www\\.)?github\\.com[/:]([\\w.-]+)/([\\w.-]+)", RegexOption.IGNORE_CASE).find(t)
@@ -329,10 +300,6 @@ object UserApps {
         return if (repo.isEmpty() || repo == "." || repo == "..") null else "${m.groupValues[1]}/$repo"
     }
 
-    /**
-     * The AppImage among a release's files: named for aarch64/arm64, else for no other CPU, else the
-     * x86_64 one, which runs through FEX.
-     */
     internal fun pickAsset(names: List<String>): String? {
         val images = names.filter { it.endsWith(".appimage", ignoreCase = true) }
         return images.firstOrNull { Regex("aarch64|arm64", RegexOption.IGNORE_CASE).containsMatchIn(it) }
@@ -340,7 +307,6 @@ object UserApps {
             ?: images.firstOrNull { Regex("x86_64|x86-64|amd64|x64", RegexOption.IGNORE_CASE).containsMatchIn(it) }
     }
 
-    /** The newest release of [repo] with an AppImage this device runs, preferring full releases; else what went wrong. */
     private fun latestRelease(context: Context, repo: String): Pair<Release?, String?> {
         val body = Downloader.downloadString("https://api.github.com/repos/$repo/releases?per_page=15")
         val releases = body?.let { runCatching { JSONArray(it) }.getOrNull() }
@@ -358,7 +324,6 @@ object UserApps {
         return pick to if (pick == null) context.getString(R.string.user_apps_github_no_appimage, repo) else null
     }
 
-    /** Downloads [release] and hands it to [use]; null on success, else what went wrong. */
     private fun withDownload(context: Context, release: Release, onProgress: (String, Int) -> Unit, use: (File) -> String?): String? {
         val download = File(context.cacheDir, "github-${release.asset}")
         try {
@@ -382,10 +347,6 @@ object UserApps {
         }
     }
 
-    /**
-     * Images in [repo] that look like its icon, best first, then its owner's picture: links to show
-     * as suggestions and to download once one is picked.
-     */
     fun githubIcons(repo: String): List<String> {
         val info = Downloader.downloadString("https://api.github.com/repos/$repo")?.let { runCatching { JSONObject(it) }.getOrNull() } ?: return emptyList()
         val branch = info.optString("default_branch").ifEmpty { return emptyList() }
@@ -410,13 +371,11 @@ object UserApps {
         return urls + listOfNotNull(avatar)
     }
 
-    /** Whether [app], added from GitHub, has a newer release than the one it is. */
     fun checkUpdate(context: Context, app: App): UpdateCheck {
         val repo = app.repo ?: return UpdateCheck.Failed(context.getString(R.string.user_apps_update_failed))
         val (release, problem) = latestRelease(context, repo)
         if (release == null) return UpdateCheck.Failed(problem ?: context.getString(R.string.user_apps_update_failed))
         val published = FileUtils.readString(File(AppImageManager.dir(context, app.key.substringAfter(':')), GITHUB_PUBLISHED))?.trim().orEmpty()
-        // Releases are compared by date, so a newest one without an ARM64 build never reads as a downgrade.
         val newer = if (published.isNotEmpty() && release.published.isNotEmpty()) release.published > published else release.tag != app.version
         return if (newer) UpdateCheck.Available(release) else UpdateCheck.Current(app.version ?: release.tag)
     }
@@ -428,7 +387,6 @@ object UserApps {
         }
     }
 
-    /** A Flathub app ID from what was typed: the ID itself or its Flathub page. */
     fun flatpakId(input: String): String? {
         val t = input.trim().removeSuffix("/").substringAfterLast('/')
         return t.takeIf { Regex("^[A-Za-z][\\w-]*(\\.[A-Za-z0-9_][\\w-]*){2,}$").matches(it) }
@@ -444,7 +402,6 @@ object UserApps {
     private fun addFlatpakBundle(context: Context, file: File, name: String?, icon: File?, onProgress: (String, Int) -> Unit): String? {
         if (!file.isFile) return context.getString(R.string.user_apps_file_gone)
         if (!FlatpakManager.ready(context)) FlatpakManager.setup(context, onProgress)?.let { return it }
-        // Shared storage is bound into the runtime at its own path; a file anywhere else is copied in.
         val shared = Environment.getExternalStorageDirectory().canonicalPath
         val copy = File(LinuxRuntime.rootDir(context), "tmp/droiddeck-bundle.flatpak").takeIf { !file.canonicalPath.startsWith("$shared/") }
         try {

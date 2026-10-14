@@ -1,4 +1,3 @@
-/* See vk_loader.h. */
 #define _GNU_SOURCE
 #include "vk_loader.h"
 #include "../../adrenotools/include/adrenotools/driver.h"
