@@ -144,24 +144,26 @@ unseed() {
 present() { awk -F'\t' '
   NR == FNR {
     path = $1
-    value = tolower($2)
-    if (path == "vcrt") {
-      path = "Software\\\\Microsoft\\\\VisualStudio\\\\14.0\\\\VC\\\\Runtimes\\\\x86"
-      value = "installed"
-    } else {
+    if (path != "vcrt") {
       sub(/^HKEY_LOCAL_MACHINE\\\\/, "", path)
       if (path == $1)
         next
     }
     n++
     line[n] = $0
-    both = substr(path, 1, 10) == "Software\\\\"
-    path = tolower(path)
-    key[n, 1] = "[" path "]" SUBSEP value
-    need[n] = 1
-    if (both) {
-      key[n, 2] = "[software\\\\wow6432node\\\\" substr(path, 11) "]" SUBSEP value
-      need[n] = 2
+    need[n] = 0
+    if (path == "vcrt") {
+      for (a = split("x86 x64 arm64", arch, " "); a > 0; a--) {
+        runtime = "microsoft\\\\visualstudio\\\\14.0\\\\vc\\\\runtimes\\\\" arch[a]
+        key[n, ++need[n]] = "[software\\\\" runtime "]" SUBSEP "installed"
+        key[n, ++need[n]] = "[software\\\\wow6432node\\\\" runtime "]" SUBSEP "installed"
+      }
+    } else {
+      both = substr(path, 1, 10) == "Software\\\\"
+      path = tolower(path)
+      key[n, ++need[n]] = "[" path "]" SUBSEP tolower($2)
+      if (both)
+        key[n, ++need[n]] = "[software\\\\wow6432node\\\\" substr(path, 11) "]" SUBSEP tolower($2)
     }
     for (j = 1; j <= need[n]; j++) wanted[key[n, j]] = 1
     next

@@ -127,6 +127,17 @@ class SeedRedistsTest(unittest.TestCase):
         self.assertEqual(reg.count('"VCRedist2022"'), 3, "the one left plus both views again")
         self.assertTrue(any(b.startswith(wow) and '"VCRedist2022"' in b for b in reg.split("\n\n")))
 
+    def test_a_vc_runtime_another_architecture_lost_is_seeded_again(self):
+        self.run_seed()
+        arm64 = "[Software\\\\Wow6432Node\\\\Microsoft\\\\VisualStudio\\\\14.0\\\\VC\\\\Runtimes\\\\arm64]"
+        blocks = self.reg.read_text().split("\n\n")
+        self.reg.write_text("\n\n".join(b for b in blocks if not b.startswith(arm64)))
+        self.assertNotIn(arm64, self.reg.read_text())
+        self.run_seed()
+        reg = self.reg.read_text()
+        self.assertIn(arm64, reg)
+        self.assertEqual(reg.count("[Software\\\\Microsoft\\\\VisualStudio\\\\14.0\\\\VC\\\\Runtimes\\\\x86]"), 2)
+
     def test_a_marker_written_in_one_view_only_is_kept_as_it_is(self):
         self.game(script=GAME_SCRIPT.replace("Software\\\\Valve\\\\Steam\\\\Apps\\\\CommonRedist\\\\vcredist\\\\2022", "SOFTWARE\\\\AGEIA Technologies").replace("VCRedist2022", "PhysX Version"))
         self.run_seed()
