@@ -397,6 +397,7 @@ static struct seat_keyboard g_kbs[MAX_PTRS];
 static int g_nkbs;
 static uint32_t g_mods_depressed, g_mods_locked;
 static uint32_t g_mod_keys_held;
+static uint8_t g_keys_down[0x300 / 8];
 static struct seat_touch g_touches[MAX_PTRS];
 static int g_ntouches;
 
@@ -2845,6 +2846,11 @@ static int update_modifiers(uint32_t evdev, int pressed) {
 }
 
 static void key_event(uint32_t evdev, int pressed) {
+    if (evdev < 0x300) {
+        uint8_t bit = (uint8_t)(1u << (evdev & 7));
+        if (pressed && (g_keys_down[evdev >> 3] & bit)) return;
+        if (pressed) g_keys_down[evdev >> 3] |= bit; else g_keys_down[evdev >> 3] &= (uint8_t)~bit;
+    }
     int mods_changed = update_modifiers(evdev, pressed);
     struct surface *target = NULL;
     struct wl_resource *ime = droiddeck_ime_target();

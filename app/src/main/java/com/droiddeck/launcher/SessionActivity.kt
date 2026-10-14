@@ -1577,6 +1577,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (event.keyCode != KeyEvent.KEYCODE_BACK && padBridge?.onKeyEvent(event) == true) return true
         if (CompositorHost.isStarted && event.keyCode != KeyEvent.KEYCODE_BACK && !fromController) {
             val down = event.action == KeyEvent.ACTION_DOWN
+            if (down && event.repeatCount > 0) return true
             if (down || event.action == KeyEvent.ACTION_UP) {
                 var evdev = EvdevKeys.fromKeyCode(event.keyCode)
                 val ch = event.unicodeChar
