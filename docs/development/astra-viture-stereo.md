@@ -11,8 +11,13 @@ bootloader and green verified boot. Tests used the ordinary ADB shell, without r
 `0x0008 [32]` with reply `00 32`, but Android then exposes **only 640×480 at
 60 Hz**. An accepted USB command is not proof of a working stereo signal.
 In this state the glasses reject a 2D command (`01 31` or `01 34`) and their
-mode query returns `01 00`. A physical cable reconnect is the next recovery step;
-that recovery has not yet been retested with this update.
+mode query returns `01 00`. A physical cable reconnect restored 1920×1080/120
+with this update; Android then requested USB permission again and control resumed.
+
+On the fresh attempt, `0x030D [03]` arrived 3.1 seconds after the accepted stereo
+command. The vendor SDK maps that report to 2D/120 (`0x34`); the subsequent mode
+query was rejected. The report does not encode a fallback reason or establish a
+fixed timeout. The earlier command acknowledgement cannot prove stereo retention.
 
 ## What was checked
 
@@ -22,8 +27,9 @@ that recovery has not yet been retested with this update.
 | Android preferred mode 3840×1080/60 | Preference saved; physical supported modes remain 640×480 only; preference cleared after test |
 | USB source/host → source/device | Request issued; actual port stayed source/host |
 | USB data disable/enable | Data status changed and was restored; physical display remained 640×480 |
-| `IUsbManager.resetUsbPort` through ADB | HAL callback reported success (`0`); display and pinned mode did not change |
+| `IUsbManager.resetUsbPort` through ADB | HAL callback reported success (`0`); physical display mode did not change |
 | External-display power off/reset | Did not recover the signal; glasses still rejected 2D |
+| Physical cable reconnect | Restored 1920×1080/120 and USB controls after the permission prompt |
 | OEM mirror/3D controls, source review | Change virtual-display routing, not physical stereo timings |
 | OEM resolution selection, source review | Chooses cached resolution candidates and prefers stale 16:9 mode |
 | Pro startup mode / half SBS, SDK review | No supported Pro startup-mode setting or half-SBS input |
@@ -52,17 +58,28 @@ fresh USB-PD connection while the glasses retain their stereo mode:
 
 1. Power the adapter and glasses independently of the tablet connection.
 2. Enable stereo on the glasses.
-3. Disconnect only the tablet's upstream USB-C connection, keeping the glasses powered.
+3. Disconnect only the tablet's upstream USB-C connection promptly after the
+   stereo acknowledgement, keeping the glasses powered. Compare with a delayed
+   disconnect to test whether the observed mode report affects retention.
 4. Reconnect the tablet and check its physical supported modes before starting a game.
 
 This requires an adapter that preserves glasses power and mode during the
 upstream disconnect, passes 3840×1080/60 video, and forwards USB HID for controls
-and head tracking. The [VITURE Adapter Ultra specifications](https://www.viture.com/academy/adapters/usb-c-xr-charging-adapter-ultra)
-describe separate power, DP1.4 and USB2 host support, but do not promise that
-mode-retention behavior. This design remains **unverified**, not a purchasing
-recommendation. An intermediary presenting the stereo EDID before first host
+and head tracking. [VITURE's Adapter Ultra documentation](https://www.viture.com/academy/adapters/usb-c-xr-charging-adapter-ultra)
+explicitly excludes wired glasses data on Android, so it does not satisfy
+DroidDeck's current USB control/tracking path. Its power and video specifications
+also do not promise mode retention across upstream disconnect. This design
+remains **unverified**, not a purchasing recommendation. First verifying stereo
+retention through the adapter on a compatible host would provide a useful control.
+An intermediary presenting the stereo EDID before first host
 connection is another possible design; it must pass the actual stereo timing
 and preserve HID access, not merely advertise a wider desktop.
+
+VITURE advertises full Android functionality for its separate
+[USB-C to Glasses and Charging Adapter](https://www.viture.com/en-MY/product/usb-c-to-glasses-and-charging-adapter).
+That makes it a candidate for the USB-data experiment, not a confirmed fix.
+First check USB enumeration, brightness controls and live IMU data through the
+adapter; then test power/mode retention and the stereo timing.
 
 Success requires Android to expose and select 3840×1080/60, different left/right
 eye images to reach the lenses, live head tracking, and repeatable return to 2D.
@@ -94,6 +111,9 @@ temperatures rather than cached thermal-service samples.
   in two seconds; Steam reached its first frame in 4.9 seconds and exited cleanly.
   Wayland reported the actual 120 Hz tablet mode. Four complete steady-state
   ten-second windows recorded 116.8–119.5 screen frames/s in Steam's UI.
+- After reconnect: a fresh stereo attempt remained pending during the 640×480
+  fallback, failed at the 20-second deadline and issued one 2D request. The MCU
+  refused that request; another 28 seconds of observation showed no retry loop.
 - DroidDeck was force-stopped and relaunched after testing. Debugging tools and
   temporary logging/display overrides were restored. Current HAL temperatures
   after the session were 25°C battery and 28.3°C skin.

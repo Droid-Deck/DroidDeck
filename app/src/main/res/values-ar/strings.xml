@@ -2314,6 +2314,7 @@
     <string name="glasses_3d">3D (جنبًا إلى جنب)</string>
     <string name="glasses_3d_hint">تحصل كل عين على نصفها الخاص من صورة بدقة 3840×1080. إذا انقطعت الصورة، فاضغط مطولًا على زر 2D/3D في النظارة.</string>
     <string name="glasses_3d_unsupported">لا يمكن لهذا الهاتف إرسال إشارة 3840×1080 التي يحتاجها وضع 3D. تعرض ألعاب الواقع الافتراضي منظور عين واحدة، مع تتبّع الرأس.</string>
+    <string name="glasses_3d_failed">لم يتم تأكيد إشارة 3D. حاول مجددًا بعد عودة صورة 2D.</string>
     <string name="glasses_no_signal">لا توجد صورة: النظارة في وضع لا يستطيع هذا الهاتف إرساله. اضغط مطولًا على زر 2D/3D فيها، أو افصلها ثم أعد توصيلها.</string>
     <string name="glasses_3d_refresh">معدل تحديث 3D</string>
     <string name="glasses_auto3d">3D لألعاب الواقع الافتراضي</string>

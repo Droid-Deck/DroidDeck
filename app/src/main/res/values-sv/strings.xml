@@ -2214,6 +2214,7 @@
     <string name="glasses_3d">3D (sida vid sida)</string>
     <string name="glasses_3d_hint">Varje öga får sin egen halva av en bild på 3840×1080. Om bilden försvinner håller du in glasögonens 2D/3D-knapp.</string>
     <string name="glasses_3d_unsupported">Den här telefonen kan inte skicka den 3840×1080-signal som 3D kräver. VR-spel visar ett ögas vy, med huvudspårning.</string>
+    <string name="glasses_3d_failed">3D-signalen kunde inte bekräftas. Försök igen när 2D-bilden är tillbaka.</string>
     <string name="glasses_no_signal">Ingen bild: glasögonen är i ett läge som den här telefonen inte kan skicka. Håll in deras 2D/3D-knapp, eller koppla ur dem och anslut dem igen.</string>
     <string name="glasses_3d_refresh">3D-uppdateringsfrekvens</string>
     <string name="glasses_auto3d">3D för VR-spel</string>

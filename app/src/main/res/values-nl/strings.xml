@@ -2214,6 +2214,7 @@
     <string name="glasses_3d">3D (side-by-side)</string>
     <string name="glasses_3d_hint">Elk oog krijgt een eigen helft van een beeld van 3840×1080. Valt het beeld weg, houd dan de 2D/3D-knop van de bril ingedrukt.</string>
     <string name="glasses_3d_unsupported">Deze telefoon kan het 3840×1080-signaal voor 3D niet versturen. VR-games tonen het beeld van één oog, met hoofdtracking.</string>
+    <string name="glasses_3d_failed">Het 3D-signaal is niet bevestigd. Probeer het opnieuw zodra het 2D-beeld terug is.</string>
     <string name="glasses_no_signal">Geen beeld: de bril staat in een modus die deze telefoon niet kan versturen. Houd de 2D/3D-knop ingedrukt, of koppel de bril los en sluit hem opnieuw aan.</string>
     <string name="glasses_3d_refresh">3D-verversingssnelheid</string>
     <string name="glasses_auto3d">3D voor VR-games</string>

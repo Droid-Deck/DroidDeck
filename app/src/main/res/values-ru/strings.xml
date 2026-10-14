@@ -2272,6 +2272,7 @@
     <string name="glasses_3d">3D (стереопара)</string>
     <string name="glasses_3d_hint">Каждый глаз получает свою половину изображения 3840×1080. Если изображение пропадёт, удерживайте кнопку 2D/3D на очках.</string>
     <string name="glasses_3d_unsupported">Этот телефон не может передать сигнал 3840×1080, нужный для 3D. VR-игры показывают вид одного глаза с отслеживанием головы.</string>
+    <string name="glasses_3d_failed">Сигнал 3D не подтверждён. Повторите попытку, когда вернётся изображение 2D.</string>
     <string name="glasses_no_signal">Нет изображения: очки в режиме, который этот телефон не может передать. Удерживайте их кнопку 2D/3D или отключите и снова подключите очки.</string>
     <string name="glasses_3d_refresh">Частота в 3D</string>
     <string name="glasses_auto3d">3D для VR-игр</string>

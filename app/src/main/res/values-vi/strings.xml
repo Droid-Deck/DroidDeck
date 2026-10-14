@@ -2189,6 +2189,7 @@
     <string name="glasses_3d">3D (cạnh nhau)</string>
     <string name="glasses_3d_hint">Mỗi mắt nhận một nửa riêng của hình 3840×1080. Nếu mất hình, hãy giữ nút 2D/3D của kính.</string>
     <string name="glasses_3d_unsupported">Điện thoại này không thể xuất tín hiệu 3840×1080 mà 3D cần. Game VR hiển thị góc nhìn của một mắt, có theo dõi đầu.</string>
+    <string name="glasses_3d_failed">Chưa xác nhận được tín hiệu 3D. Hãy thử lại khi hình ảnh 2D trở lại.</string>
     <string name="glasses_no_signal">Không có hình: kính đang ở chế độ mà điện thoại này không thể xuất. Hãy giữ nút 2D/3D của kính, hoặc rút ra rồi cắm lại.</string>
     <string name="glasses_3d_refresh">Tốc độ làm mới 3D</string>
     <string name="glasses_auto3d">3D cho game VR</string>

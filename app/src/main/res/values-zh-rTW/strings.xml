@@ -2197,6 +2197,7 @@
     <string name="glasses_3d">3D（左右並排）</string>
     <string name="glasses_3d_hint">每隻眼睛各看 3840×1080 畫面的一半。如果畫面消失，請長按眼鏡上的 2D/3D 按鈕。</string>
     <string name="glasses_3d_unsupported">這支手機無法輸出 3D 所需的 3840×1080 訊號。VR 遊戲會顯示單眼畫面，並搭配頭部追蹤。</string>
+    <string name="glasses_3d_failed">未能確認 3D 訊號。請在 2D 畫面恢復後再試。</string>
     <string name="glasses_no_signal">沒有畫面：眼鏡處於這支手機無法輸出的模式。請長按眼鏡的 2D/3D 按鈕，或拔除後重新連接。</string>
     <string name="glasses_3d_refresh">3D 更新率</string>
     <string name="glasses_auto3d">VR 遊戲使用 3D</string>

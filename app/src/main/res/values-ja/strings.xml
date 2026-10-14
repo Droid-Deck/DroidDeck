@@ -2197,6 +2197,7 @@
     <string name="glasses_3d">3D（サイドバイサイド）</string>
     <string name="glasses_3d_hint">左右の目に 3840×1080 の画像の半分ずつを表示します。映像が消えたら、グラスの 2D/3D ボタンを長押ししてください。</string>
     <string name="glasses_3d_unsupported">このスマートフォンは 3D に必要な 3840×1080 の信号を出力できません。VR ゲームはヘッドトラッキング付きで片目の映像を表示します。</string>
+    <string name="glasses_3d_failed">3D 信号を確認できませんでした。2D 映像が戻ってから再試行してください。</string>
     <string name="glasses_no_signal">映像なし: グラスがこのスマートフォンで出力できないモードになっています。2D/3D ボタンを長押しするか、抜き差ししてください。</string>
     <string name="glasses_3d_refresh">3D のリフレッシュレート</string>
     <string name="glasses_auto3d">VR ゲームで 3D</string>

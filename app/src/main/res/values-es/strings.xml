@@ -2247,6 +2247,7 @@
     <string name="glasses_3d">3D (lado a lado)</string>
     <string name="glasses_3d_hint">Cada ojo recibe su propia mitad de una imagen de 3840×1080. Si la imagen se pierde, mantén pulsado el botón 2D/3D de las gafas.</string>
     <string name="glasses_3d_unsupported">Este teléfono no puede enviar la señal de 3840×1080 que necesita el 3D. Los juegos de RV muestran la vista de un ojo, con seguimiento de cabeza.</string>
+    <string name="glasses_3d_failed">No se ha confirmado la señal 3D. Inténtalo de nuevo cuando vuelva la imagen 2D.</string>
     <string name="glasses_no_signal">Sin imagen: las gafas están en un modo que este teléfono no puede enviar. Mantén pulsado su botón 2D/3D o desconéctalas y vuelve a conectarlas.</string>
     <string name="glasses_3d_refresh">Frecuencia en 3D</string>
     <string name="glasses_auto3d">3D para juegos de RV</string>

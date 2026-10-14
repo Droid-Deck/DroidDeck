@@ -2214,6 +2214,7 @@
     <string name="glasses_3d">3D (side-by-side)</string>
     <string name="glasses_3d_hint">Hvert øje får sin egen halvdel af et billede på 3840×1080. Forsvinder billedet, så hold brillens 2D/3D-knap inde.</string>
     <string name="glasses_3d_unsupported">Denne telefon kan ikke sende det 3840×1080-signal, som 3D kræver. VR-spil viser ét øjes billede med hovedsporing.</string>
+    <string name="glasses_3d_failed">3D-signalet blev ikke bekræftet. Prøv igen, når 2D-billedet er tilbage.</string>
     <string name="glasses_no_signal">Intet billede: brillen er i en tilstand, som telefonen ikke kan sende. Hold dens 2D/3D-knap inde, eller tag stikket ud og sæt det i igen.</string>
     <string name="glasses_3d_refresh">3D-opdateringshastighed</string>
     <string name="glasses_auto3d">3D til VR-spil</string>

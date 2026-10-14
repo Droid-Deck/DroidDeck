@@ -2189,6 +2189,7 @@
     <string name="glasses_3d">3D (berdampingan)</string>
     <string name="glasses_3d_hint">Setiap mata mendapat separuhnya sendiri dari gambar 3840×1080. Jika gambar hilang, tahan tombol 2D/3D kacamata.</string>
     <string name="glasses_3d_unsupported">Ponsel ini tidak bisa mengirim sinyal 3840×1080 yang dibutuhkan 3D. Game VR menampilkan pandangan satu mata, dengan pelacakan kepala.</string>
+    <string name="glasses_3d_failed">Sinyal 3D belum terkonfirmasi. Coba lagi setelah gambar 2D kembali.</string>
     <string name="glasses_no_signal">Tidak ada gambar: kacamata dalam mode yang tidak bisa dikirim ponsel ini. Tahan tombol 2D/3D-nya, atau cabut lalu colokkan lagi.</string>
     <string name="glasses_3d_refresh">Refresh rate 3D</string>
     <string name="glasses_auto3d">3D untuk game VR</string>

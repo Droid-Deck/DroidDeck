@@ -2239,6 +2239,7 @@
     <string name="glasses_3d">3D (lado a lado)</string>
     <string name="glasses_3d_hint">Cada olho recebe a própria metade de uma imagem de 3840×1080. Se a imagem sumir, mantenha pressionado o botão 2D/3D dos óculos.</string>
     <string name="glasses_3d_unsupported">Este celular não consegue enviar o sinal de 3840×1080 de que o 3D precisa. Jogos de RV mostram a visão de um olho só, com rastreamento da cabeça.</string>
+    <string name="glasses_3d_failed">O sinal 3D não foi confirmado. Tente novamente quando a imagem 2D voltar.</string>
     <string name="glasses_no_signal">Sem imagem: os óculos estão em um modo que este celular não consegue enviar. Mantenha pressionado o botão 2D/3D deles ou desconecte e reconecte os óculos.</string>
     <string name="glasses_3d_refresh">Taxa de atualização em 3D</string>
     <string name="glasses_auto3d">3D para jogos de RV</string>
