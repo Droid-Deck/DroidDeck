@@ -99,6 +99,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -136,6 +137,10 @@ import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.download.DownloadStage
 import com.droiddeck.launcher.stores.download.DownloadState
 import com.droiddeck.launcher.stores.formatBytes
+import java.util.concurrent.CompletableFuture
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.suspendCancellableCoroutine
 
 
 private const val DOWNLOADS = "downloads"
@@ -747,21 +752,56 @@ private fun Storefront(
         val lookup: (CatalogItem) -> Long = { i -> byKey[i.key] ?: 0L }
         lookup
     }
-    val resolvedSizes = if (sort == "sizeAsc" || sort == "sizeDesc") com.droiddeck.launcher.stores.StoreSizes.known + com.droiddeck.launcher.stores.StoreSizes.onDisk else emptyMap<String, Long>()
-    val sizeFor = remember(resolvedSizes) {
-        val resolved = resolvedSizes
-        val lookup: (CatalogItem) -> Long = { i -> resolved[i.key] ?: i.sizeBytes }
-        lookup
-    }
-    val visible = remember(library, installedItems, everything, tab, q, s.storesShowMature, sort, lastPlayedFor, installedAtFor, sizeFor) {
-        val base = when (tab) {
+    val isSizeSort = (tab == "library" || tab == "installed") && (sort == "sizeAsc" || sort == "sizeDesc")
+    val candidates = remember(library, installedItems, everything, tab, q, s.storesShowMature) {
+        when (tab) {
             "library" -> library.filter(::matches)
             "installed" -> installedItems.filter(::matches)
             else -> everything.filter { matches(it) && shown(it) }
         }
+    }
+    val candidateKeys = remember(candidates) { candidates.map { it.key } }
+    var resolvedSizeSortKey by remember(store, tab) { mutableStateOf<List<String>?>(null) }
+    val sizeSortPending = isSizeSort && resolvedSizeSortKey != candidateKeys
+    var stableVisible by remember { mutableStateOf(emptyList<CatalogItem>()) }
+    val resolvedSizes = if (isSizeSort) com.droiddeck.launcher.stores.StoreSizes.known + com.droiddeck.launcher.stores.StoreSizes.onDisk else emptyMap<String, Long>()
+    val sizeFor = remember(resolvedSizes) {
+        val resolved = resolvedSizes
+        val lookup: (CatalogItem) -> Long = { item ->
+            resolved[item.key] ?: if (tab == "installed") 0L else item.sizeBytes
+        }
+        lookup
+    }
+    val sortedVisible = remember(candidates, tab, sort, lastPlayedFor, installedAtFor, sizeFor) {
         if (tab == "library" || tab == "installed")
-            sortCatalogItems(base, sort, lastPlayed = lastPlayedFor, installedAt = installedAtFor, size = sizeFor)
-        else base
+            sortCatalogItems(candidates, sort, lastPlayed = lastPlayedFor, installedAt = installedAtFor, size = sizeFor)
+        else candidates
+    }
+    val visible = if (sizeSortPending)
+        stableVisible.takeIf { it.map { item -> item.key } == candidateKeys } ?: candidates
+    else sortedVisible
+    SideEffect {
+        if (!sizeSortPending && stableVisible != sortedVisible) stableVisible = sortedVisible
+    }
+    LaunchedEffect(store, tab, sort, candidates, candidateKeys) {
+        if (!isSizeSort || resolvedSizeSortKey == candidateKeys) return@LaunchedEffect
+        val requests = candidates.map { item ->
+            val future: CompletableFuture<Long?> = if (tab == "installed") {
+                StoresState.installedGame(store, item.id)?.let {
+                    com.droiddeck.launcher.stores.StoreSizes.resolveDisk(ctx, item.key, it)
+                } ?: CompletableFuture.completedFuture<Long?>(null)
+            } else {
+                com.droiddeck.launcher.stores.StoreSizes.resolve(ctx, item)
+            }
+            item to future
+        }
+        CompletableFuture.allOf(*requests.map { it.second }.toTypedArray()).await()
+        requests.forEach { (item, future) ->
+            val bytes = future.getNow(null) ?: return@forEach
+            if (tab == "installed") com.droiddeck.launcher.stores.StoreSizes.onDisk[item.key] = bytes
+            else if (item.owned && item.sizeBytes <= 0) com.droiddeck.launcher.stores.StoreSizes.known[item.key] = bytes
+        }
+        resolvedSizeSortKey = candidateKeys
     }
     val empty = stringResource(when {
         installedOnly -> R.string.stores_installed_empty
@@ -773,7 +813,8 @@ private fun Storefront(
     val density = androidx.compose.ui.platform.LocalDensity.current
     val focus = LocalFrontFocus.current
     val scope = rememberCoroutineScope()
-    val headerItems = 1 + (if (StoresState.status[store] != null) 1 else 0) + (if (StoresState.problems[store] != null) 1 else 0)
+    val headerItems = 1 + (if (sizeSortPending) 1 else 0) +
+        (if (StoresState.status[store] != null) 1 else 0) + (if (StoresState.problems[store] != null) 1 else 0)
     val listMode = s.storesView == "list" && (tab == "library" || tab == "installed")
     val card: @Composable (CatalogItem) -> Unit = { item ->
         val first = if (showGrid) item.key == visible.firstOrNull()?.key else !firstPlaced
@@ -843,6 +884,15 @@ private fun Storefront(
                 }
             }
         }
+        if (sizeSortPending) item(key = "size-sort-progress", span = { GridItemSpan(maxLineSpan) }) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            ) {
+                androidx.compose.material3.LinearProgressIndicator(Modifier.weight(1f).height(3.dp))
+                Text(stringResource(R.string.store_section_loading), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
         StoresState.status[store]?.let { line -> item(key = "sync", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { SyncBar(line) } } }
         StoresState.problems[store]?.let { line -> item(key = "problem", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { Box(Modifier.padding(bottom = 8.dp)) { Note(line) } } } }
         when (tab) {
@@ -867,6 +917,14 @@ private fun Storefront(
         }
     }
 }
+
+private suspend fun <T> CompletableFuture<T>.await(): T =
+    suspendCancellableCoroutine { continuation ->
+        whenComplete { value, error ->
+            if (error == null) continuation.resume(value)
+            else continuation.resumeWithException(error)
+        }
+    }
 
 @Composable
 internal fun ModeHeader(title: String, query: String, onQuery: (String) -> Unit, placeholder: String, trailing: @Composable () -> Unit) {
