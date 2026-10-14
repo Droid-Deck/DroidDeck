@@ -2594,7 +2594,24 @@ static void pointer_delta(double dx, double dy) {
 }
 
 static void pointer_button(uint32_t button, int pressed) {
-    pointer_input(0, 0, 1, button, pressed);
+    if (pressed) {
+        pointer_input(0, 0, 1, button, pressed);
+        return;
+    }
+    // Releases also clean up interrupted gestures. Deliver them to the existing
+    // pointer focus without motion or hit-testing: native touch has independent
+    // coordinates, so replaying g_ptr_x/y here can warp the game cursor.
+    uint32_t t = now_ms();
+    for (int i = 0; i < g_nptrs; i++) {
+        struct seat_pointer *sp = &g_ptrs[i];
+        if (!sp->focus) continue;
+        wl_pointer_send_button(sp->ptr, wl_display_next_serial(g_display), t, button,
+                               WL_POINTER_BUTTON_STATE_RELEASED);
+        if (wl_resource_get_version(sp->ptr) >= WL_POINTER_FRAME_SINCE_VERSION)
+            wl_pointer_send_frame(sp->ptr);
+    }
+    g_grab = NULL;
+    wl_display_flush_clients(g_display);
 }
 
 static void deliver_pointer(const struct input_msg *m) {

@@ -1973,8 +1973,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 WaylandCompositor.nativeSendTouch(3, -1, 0, 0)
-                // Pointer button events also emit motion at the last mouse position.
-                // Touch has its own coordinates; mixing the two warps the game cursor.
+                listOf(PointerGestures.BTN_LEFT, PointerGestures.BTN_RIGHT, PointerGestures.BTN_MIDDLE).forEach {
+                    WaylandCompositor.nativeSendSceneInput(3, it, 0)
+                }
                 sendTouch(0, event.actionIndex)
             }
             MotionEvent.ACTION_POINTER_DOWN -> sendTouch(0, event.actionIndex)
