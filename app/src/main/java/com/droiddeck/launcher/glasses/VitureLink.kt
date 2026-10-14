@@ -17,7 +17,7 @@ internal class VitureLink private constructor(
     private val imu: UsbInterface?,
     private val imuIn: UsbEndpoint?,
     private val listener: Listener,
-) {
+) : GlassesLink {
     interface Listener {
         fun onFrame(frame: VitureProtocol.Frame)
         fun onImu(payload: ByteArray, timeNs: Long)
@@ -29,7 +29,7 @@ internal class VitureLink private constructor(
     private var lastSendAt = 0L
     private val readers = mutableListOf<Thread>()
 
-    val hasImu: Boolean get() = imuIn != null
+    override val hasImu: Boolean get() = imuIn != null
 
     private fun startReaders() {
         mcuIn?.let { ep -> readers += reader("viture-mcu", ep) { buf, n -> VitureProtocol.parse(buf, n)?.let(listener::onFrame) } }
@@ -65,7 +65,7 @@ internal class VitureLink private constructor(
             }
         }, name).apply { isDaemon = true; priority = Thread.MAX_PRIORITY; start() }
 
-    fun send(msgId: Int, payload: ByteArray = ByteArray(0)): Boolean {
+    override fun send(msgId: Int, payload: ByteArray): Boolean {
         val pkt = VitureProtocol.packet(msgId, payload)
         val n = synchronized(writeLock) {
             if (!running) return false
@@ -77,7 +77,7 @@ internal class VitureLink private constructor(
         return n == pkt.size
     }
 
-    fun close() {
+    override fun close() {
         synchronized(writeLock) { running = false }
         val self = Thread.currentThread()
         readers.forEach { if (it !== self) runCatching { it.join(READ_TIMEOUT_MS * 4L) } }
