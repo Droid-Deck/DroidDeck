@@ -686,16 +686,18 @@ BUSCONF
     _bl_ui=(-gamepadui)
     [ "${BL_STEAM_UI:-}" = desktop ] && _bl_ui=()
     _bl_cef=(-cef-force-gpu -cef-use-gl=angle -cef-use-angle=vulkan)
-    [ "$steam_cef_gpu" = 1 ] || _bl_cef=(-cef-disable-gpu)
+    [ "${steam_cef_gpu:-1}" = 1 ] || _bl_cef=(-cef-disable-gpu)
     if [ "${BL_DESKTOP:-}" = 1 ] && [ "${BL_STEAM_UI:-}" = desktop ]; then
       _bl_cef=(-cef-disable-gpu)
       _bl_ui=(-nobigpicture)
     fi
-    if [ "${BL_STEAM_UI:-}" != desktop ] && { [ "$steam_x64" = 0 ] || [ "${BL_X64_DECK:-1}" != 0 ]; }; then
-      _bl_ui+=(-steamdeck -steamos3)
-      export STEAM_GAMESCOPE_NIS_SUPPORTED=1
-      export STEAM_GAMESCOPE_FANCY_SCALING_SUPPORT=1
-      echo "== steam: Deck mode on (-steamdeck -steamos3)"
+    if [ "${BL_STEAM_UI:-}" != desktop ]; then
+      if [ "$steam_x64" = 0 ] || [ "${BL_X64_DECK:-1}" != 0 ]; then
+        _bl_ui+=(-steamdeck -steamos3)
+        export STEAM_GAMESCOPE_NIS_SUPPORTED=1
+        export STEAM_GAMESCOPE_FANCY_SCALING_SUPPORT=1
+        echo "== steam: Deck mode on (-steamdeck -steamos3)"
+      fi
     fi
     export STEAMOS_STEAM_SHUTDOWN_SENTINEL="$HOME/.bl-steam-shutdown"
     export STEAMOS_STEAM_REBOOT_SENTINEL="$HOME/.bl-steam-reboot"
