@@ -54,7 +54,7 @@ import com.droiddeck.launcher.gpu.FrameGen
 import com.droiddeck.launcher.gpu.HeadTracker
 import com.droiddeck.launcher.glasses.Glasses
 import com.droiddeck.launcher.glasses.GlassesScreen
-import com.droiddeck.launcher.glasses.GlassesSettings
+import com.droiddeck.launcher.glasses.GlassesRendering
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import com.droiddeck.launcher.gpu.SteamVr
@@ -532,8 +532,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     }
                 }
                 val glassesVr = glassesOutputActive && glasses.canControl
-                LaunchedEffect(cardboard.enabled, steamVrSwitchedPicture, glassesVr) {
-                    while (cardboard.enabled || steamVrSwitchedPicture || glassesVr) {
+                val steamVrRequested = SessionState.steamVr
+                LaunchedEffect(cardboard.enabled, steamVrSwitchedPicture, glassesVr, steamVrRequested) {
+                    while (cardboard.enabled || steamVrSwitchedPicture || glassesVr || steamVrRequested) {
                         val now = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                             SteamVr.status(this@SessionActivity)
                         }
@@ -1309,6 +1310,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             driverId?.let { turnip.driverPath(it) }, driverId?.let { turnip.libraryName(it) },
             applicationInfo.nativeLibraryDir, size.first, size.second, refreshHz(), SessionState.fpsLimit,
         )
+        onOutputAttached(holder)
         if (SessionState.running && size != previous) {
             Log.i(TAG, "follow screen: ${previous.first}x${previous.second} -> ${size.first}x${size.second} on a new surface")
             WaylandCompositor.nativeResizeOutput(size.first, size.second)
@@ -1375,8 +1377,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
+        // Hiding the phone surface after a handoff delivers a late destruction
+        // callback. It must not reset the new output's size or attachment.
+        if (holder !== outputHolder()) return
         surfaceW = 0
         surfaceH = 0
+        glassesOutputActive = false
         CompositorHost.detach(holder.surface)
     }
 
@@ -2368,7 +2374,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun steamVrAction(action: String) {
-        if (glassesOutputActive) {
+        if (action == "stop") SessionState.steamVr = false
+        if (glasses.present && glassesSettings.gameOnGlasses) {
             if (action == "start" && glassesSettings.auto3d && glasses.can3d && !glasses.sbs) {
                 glasses3dForVr = true
                 Glasses.set3dForVr(true)
@@ -2414,10 +2421,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun onSteamVrStatus(now: SteamVr.Status) {
         val was = steamVrStatus
         steamVrStatus = now
+        autoStartSteamVr(now)
         if (glassesOutputActive) {
             onGlassesSteamVr(now)
             if ((was == SteamVr.Status.RUNNING) != (now == SteamVr.Status.RUNNING)) applyCardboard(cardboard)
-            autoStartSteamVr(now)
             return
         }
         if (now == SteamVr.Status.RUNNING && cardboard.enabled && !steamVrSwitchedPicture &&
@@ -2460,26 +2467,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         panelSizeMm().let { (w, h) -> c.push(w, h, fov, refreshHz()) }
     }
 
-    private fun effectiveCardboard(c: Cardboard): Cardboard {
-        if (glassesScreen == null) return c
-        val s = glassesSettings
-        val source = when (s.picture3d) {
-            GlassesSettings.PICTURE_SBS -> Cardboard.SOURCE_SBS
-            GlassesSettings.PICTURE_SCREEN -> Cardboard.SOURCE_SCREEN
-            else -> when {
-                steamVrStatus == SteamVr.Status.RUNNING -> Cardboard.SOURCE_SBS
-                glasses.sbs -> Cardboard.SOURCE_SCREEN
-                else -> return Cardboard.OFF
-            }
-        }
-        return Cardboard(
-            enabled = true, source = source,
-            viewer = Cardboard.Viewer.VITURE.id, ipdMm = c.ipdMm,
-            screenWidthDm = s.screenWidthDm, screenDistanceDm = s.screenDistanceDm,
-            headTracking = s.headTracking && glasses.canControl,
-            mono = !glasses.sbs,
-        )
-    }
+    private fun effectiveCardboard(c: Cardboard): Cardboard = GlassesRendering.cardboard(
+        base = c,
+        settings = glassesSettings,
+        state = glasses,
+        outputActive = glassesScreen != null,
+        steamVrRunning = steamVrStatus == SteamVr.Status.RUNNING,
+    )
 
     private fun updateHeadTracker() {
         val onGlasses = glassesScreen != null
@@ -2501,6 +2495,27 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun outputHolder(): SurfaceHolder = glassesScreen?.holder ?: surfaceView.holder
+
+    private fun onOutputAttached(holder: SurfaceHolder) {
+        if (holder !== outputHolder()) return
+        glassesOutputActive = glassesScreen?.holder === holder
+        // Keep the phone's layout for touch/controller coordinates, but remove
+        // its SurfaceView so it cannot retain the last game frame under the hint.
+        surfaceView.visibility = if (glassesOutputActive) View.INVISIBLE else View.VISIBLE
+        Log.i(TAG, "compositor output attached: " +
+            if (glassesOutputActive) "glasses display ${glassesScreen?.display?.displayId}" else "phone")
+    }
+
+    private fun restorePhoneOutput(screen: GlassesScreen) {
+        if (glassesScreen !== screen) return
+        glassesScreen = null
+        glassesOutputActive = false
+        surfaceW = 0
+        surfaceH = 0
+        CompositorHost.detach(screen.holder.surface)
+        surfaceView.visibility = View.VISIBLE
+        if (surfaceView.holder.surface?.isValid == true) surfaceCreated(surfaceView.holder)
+    }
 
     private fun glassesOutputSize(): Pair<Int, Int>? {
         if (glassesScreen == null || glasses.width <= 0 || glasses.height <= 0) return null
@@ -2536,21 +2551,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun autoStartSteamVr(now: SteamVr.Status) {
         if (now == SteamVr.Status.RUNNING) steamVrAutoTried = true
-        if (steamVrAutoTried || !SessionState.steamVr || !glasses.canControl || loading.visible ||
-            SessionState.mode != SessionService.MODE_STEAM) return
-        when (now) {
-            SteamVr.Status.READY -> {
-                steamVrAutoTried = true
-                Log.i(TAG, "starting SteamVR for ${glasses.model}")
-                steamVrAction("start")
-            }
-            SteamVr.Status.NOT_INSTALLED -> if (!steamVrInstallTried) {
-                steamVrInstallTried = true
-                Log.i(TAG, "installing SteamVR for ${glasses.model}")
-                steamVrAction("install")
-            }
-            else -> Unit
-        }
+        val action = SteamVr.autoAction(now, SessionState.steamVr, loading.visible,
+            SessionState.mode == SessionService.MODE_STEAM, steamVrAutoTried, steamVrInstallTried) ?: return
+        if (action == "start") steamVrAutoTried = true else steamVrInstallTried = true
+        Log.i(TAG, "requested SteamVR $action (glasses=${glasses.model}, output=$glassesOutputActive, control=${glasses.canControl})")
+        steamVrAction(action)
     }
 
     private fun updateGlassesScreen() {
@@ -2564,27 +2569,32 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             return
         }
         if (current != null) {
-            glassesScreen = null
-            glassesOutputActive = false
-            surfaceW = 0
-            surfaceH = 0
+            restorePhoneOutput(current)
             runCatching { current.dismiss() }
-            CompositorHost.detach(current.holder.surface)
-            if (surfaceView.holder.surface?.isValid == true) surfaceCreated(surfaceView.holder)
         }
         if (target != null) {
             val screen = GlassesScreen(this, target, Glasses.outputHz(), this)
+            // show() can create the surface synchronously. Select its holder
+            // first, otherwise surfaceCreated() rejects the glasses callback.
+            glassesScreen = screen
+            surfaceW = 0
+            surfaceH = 0
+            screen.setOnDismissListener {
+                if (glassesScreen === screen) {
+                    restorePhoneOutput(screen)
+                    refreshSecondScreenDisplays()
+                    applyCardboard(cardboard)
+                }
+            }
             try {
                 screen.show()
             } catch (e: Exception) {
+                restorePhoneOutput(screen)
+                runCatching { screen.dismiss() }
                 Log.w(TAG, "could not show the game on ${target.name}", e)
                 return
             }
-            glassesScreen = screen
-            glassesOutputActive = true
-            surfaceW = 0
-            surfaceH = 0
-            Log.i(TAG, "game output on ${g.model} (display ${target.displayId})")
+            Log.i(TAG, "requested game output on ${g.model} (display ${target.displayId})")
         }
         refreshSecondScreenDisplays()
         applyCardboard(cardboard)

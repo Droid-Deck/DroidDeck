@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.collectAsState
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.glasses.Glasses
+import com.droiddeck.launcher.glasses.GlassesRendering
 import com.droiddeck.launcher.glasses.GlassesSettings
 import com.droiddeck.launcher.glasses.GlassesState
 import java.util.Locale
@@ -87,10 +88,15 @@ internal fun GlassesGroups(
     track: (String) -> Modifier = { Modifier },
     onRecenter: (() -> Unit)? = null,
     inSession: Boolean = true,
+    outputActive: Boolean = inSession,
+    steamVrRunning: Boolean = false,
     tab: String? = null,
     steamVr: @Composable () -> Unit = {},
 ) {
     val display = tab == null || tab == GlassesTab.DISPLAY
+    val picture = GlassesRendering.picture(s, g.sbs, steamVrRunning)
+    val virtualScreen = outputActive && picture == GlassesRendering.Picture.VIRTUAL_SCREEN
+    val directView = outputActive && picture == GlassesRendering.Picture.STEREO
     if (display) SettingsGroup(g.model) {
         val status = if (g.hasDisplay) stringResource(R.string.glasses_status, g.width, g.height, kotlin.math.round(g.hz).toInt(),
             stringResource(if (g.sbs) R.string.glasses_mode_3d else R.string.glasses_mode_2d)) else null
@@ -98,29 +104,34 @@ internal fun GlassesGroups(
             g.noSignal -> SettingsRow(stringResource(R.string.glasses_output), stringResource(R.string.glasses_no_signal)) {}
             !g.controllable -> {
                 if (status != null) SettingsRow(stringResource(R.string.glasses_output), status) {}
-                SettingsRow(stringResource(R.string.glasses_control), stringResource(R.string.glasses_no_control)) {}
+                SettingsRow(stringResource(R.string.glasses_control), g.controlError ?: stringResource(R.string.glasses_no_control)) {}
             }
             g.permission == Glasses.Permission.ASKING ->
                 SettingsRow(stringResource(R.string.glasses_control), stringResource(R.string.glasses_asking)) {}
             !g.connected -> ActionRow(stringResource(R.string.glasses_control),
-                stringResource(if (g.permission == Glasses.Permission.DENIED) R.string.glasses_denied else R.string.glasses_allow_hint),
+                g.controlError ?: stringResource(if (g.permission == Glasses.Permission.DENIED) R.string.glasses_denied else R.string.glasses_allow_hint),
                 stringResource(R.string.glasses_allow), { Glasses.requestControl() })
             status != null -> SettingsRow(stringResource(R.string.glasses_output), status) {}
         }
         ToggleRow(host, "glasses-game", stringResource(R.string.glasses_game_on), stringResource(R.string.glasses_game_on_hint),
             s.gameOnGlasses, chipModifier = track("glasses-game")) { Glasses.setGameOnGlasses(it) }
     }
-    if (display && g.canControl) SettingsGroup(stringResource(R.string.glasses_display)) {
-        ChoiceRow(host, "glasses-hz", stringResource(R.string.glasses_refresh), null,
-            listOf(60, 90, 120).map { it to "$it Hz" }, s.refreshHz, chipModifier = track("glasses-hz")) { Glasses.setRefreshHz(it) }
-        if (g.sbsSupport == GlassesState.SBS_FAILS && !g.sbs) {
-            ActionRow(stringResource(R.string.glasses_3d), stringResource(R.string.glasses_3d_failed),
-                stringResource(R.string.stores_dl_retry), { Glasses.set3d(true) })
-        } else {
-            if (inSession || g.sbs) ToggleRow(host, "glasses-3d", stringResource(R.string.glasses_3d), stringResource(R.string.glasses_3d_hint),
-                g.sbs, chipModifier = track("glasses-3d")) { Glasses.set3d(it) }
-            if (g.sbs90) ChoiceRow(host, "glasses-3d-hz", stringResource(R.string.glasses_3d_refresh), null,
-                listOf(60, 90).map { it to "$it Hz" }, s.sbsHz, chipModifier = track("glasses-3d-hz")) { Glasses.setSbsHz(it) }
+    if (display && (g.canControl || g.hasDisplay)) SettingsGroup(stringResource(R.string.glasses_display)) {
+        if (g.canControl) {
+            if (!g.sbs) ChoiceRow(host, "glasses-hz", stringResource(R.string.glasses_refresh), null,
+                listOf(60, 90, 120).map { it to "$it Hz" }, s.refreshHz, chipModifier = track("glasses-hz")) { Glasses.setRefreshHz(it) }
+            if (g.sbsSupport == GlassesState.SBS_FAILS && !g.sbs) {
+                ActionRow(stringResource(R.string.glasses_3d), stringResource(R.string.glasses_3d_failed),
+                    stringResource(R.string.stores_dl_retry), { Glasses.set3d(true) })
+            } else {
+                if (inSession || g.sbs) ToggleRow(host, "glasses-3d", stringResource(R.string.glasses_3d), stringResource(R.string.glasses_3d_hint),
+                    g.sbs, chipModifier = track("glasses-3d")) { Glasses.set3d(it) }
+                if (g.sbs) {
+                    if (g.sbs90) ChoiceRow(host, "glasses-3d-hz", stringResource(R.string.glasses_3d_refresh), null,
+                        listOf(60, 90).map { it to "$it Hz" }, s.sbsHz, chipModifier = track("glasses-3d-hz")) { Glasses.setSbsHz(it) }
+                    else SettingsRow(stringResource(R.string.glasses_3d_refresh), "60 Hz") {}
+                }
+            }
         }
         ToggleRow(host, "glasses-auto3d", stringResource(R.string.glasses_auto3d), stringResource(R.string.glasses_auto3d_hint),
             s.auto3d, chipModifier = track("glasses-auto3d")) { Glasses.setAuto3d(it) }
@@ -130,14 +141,23 @@ internal fun GlassesGroups(
                 GlassesSettings.PICTURE_SCREEN to stringResource(R.string.glasses_picture_screen),
                 GlassesSettings.PICTURE_SBS to stringResource(R.string.glasses_picture_sbs),
             ), s.picture3d, chipModifier = track("glasses-picture"), hintLines = 2) { Glasses.setPicture3d(it) }
-        if (s.picture3d != GlassesSettings.PICTURE_SBS) {
+        when {
+            !inSession -> SettingsRow(stringResource(R.string.glasses_picture_screen), stringResource(R.string.glasses_screen_next_session)) {}
+            !outputActive -> SettingsRow(stringResource(R.string.glasses_picture_screen), stringResource(R.string.glasses_screen_no_output)) {}
+            picture == GlassesRendering.Picture.FLAT -> ActionRow(
+                stringResource(R.string.glasses_picture_screen), stringResource(R.string.glasses_screen_flat_hint),
+                stringResource(R.string.glasses_screen_use), { Glasses.setPicture3d(GlassesSettings.PICTURE_SCREEN) })
+            directView -> SettingsRow(stringResource(R.string.glasses_picture_screen),
+                stringResource(if (steamVrRunning) R.string.glasses_screen_direct_hint else R.string.glasses_screen_sbs_hint)) {}
+        }
+        if (virtualScreen || (!inSession && s.picture3d != GlassesSettings.PICTURE_SBS)) {
             SliderRow(stringResource(R.string.glasses_screen_size), null, s.screenWidthDm, 5..60, step = 1,
                 format = { String.format(Locale.US, "%.1f m", it / 10f) }, modifier = track("glasses-width")) { Glasses.setScreenWidthDm(it) }
             SliderRow(stringResource(R.string.glasses_screen_distance), null, s.screenDistanceDm, 5..100, step = 1,
                 format = { String.format(Locale.US, "%.1f m", it / 10f) }, modifier = track("glasses-distance")) { Glasses.setScreenDistanceDm(it) }
         }
         steamVr()
-        SliderRow(stringResource(R.string.glasses_vr_fov), stringResource(R.string.glasses_vr_fov_hint), s.vrFovDeg,
+        if ((directView && steamVrRunning) || !inSession) SliderRow(stringResource(R.string.glasses_vr_fov), stringResource(R.string.glasses_vr_fov_hint), s.vrFovDeg,
             GlassesSettings.VR_FOV_MIN..GlassesSettings.VR_FOV_MAX, step = 1,
             format = { "$it°" }, modifier = track("glasses-vr-fov")) { Glasses.setVrFovDeg(it) }
     }
@@ -146,14 +166,24 @@ internal fun GlassesGroups(
             modifier = track("glasses-brightness")) { Glasses.setBrightness(it) }
         SliderRow(stringResource(R.string.glasses_volume), null, g.volume.coerceAtLeast(0), 0..g.volumeMax, step = 1,
             modifier = track("glasses-volume")) { Glasses.setVolume(it) }
-        ToggleRow(host, "glasses-sunblock", stringResource(R.string.glasses_sunblock), stringResource(R.string.glasses_sunblock_hint),
+        if (g.hasSunblock) ToggleRow(host, "glasses-sunblock", stringResource(R.string.glasses_sunblock), stringResource(R.string.glasses_sunblock_hint),
             g.sunblock, chipModifier = track("glasses-sunblock")) { Glasses.setSunblock(it) }
     }
     if ((tab == null || tab == GlassesTab.TRACKING) && g.canControl) SettingsGroup(stringResource(R.string.glasses_tracking)) {
-        ToggleRow(host, "glasses-tracking", stringResource(R.string.glasses_head_tracking), stringResource(R.string.glasses_head_tracking_hint),
+        val trackingHint = when {
+            inSession && !outputActive -> R.string.glasses_screen_no_output
+            inSession && picture == GlassesRendering.Picture.FLAT -> R.string.glasses_tracking_flat_hint
+            inSession && directView && !steamVrRunning -> R.string.glasses_tracking_sbs_hint
+            else -> R.string.glasses_head_tracking_hint
+        }
+        ToggleRow(host, "glasses-tracking", stringResource(R.string.glasses_head_tracking), stringResource(trackingHint),
             s.headTracking, chipModifier = track("glasses-tracking")) { Glasses.setHeadTracking(it) }
-        if (onRecenter != null && s.headTracking) ActionRow(stringResource(R.string.glasses_recenter), null,
+        if (onRecenter != null && s.headTracking && (virtualScreen || (directView && steamVrRunning))) ActionRow(stringResource(R.string.glasses_recenter), null,
             stringResource(R.string.cardboard_recenter_button), onRecenter)
+        val calibration by Glasses.calibration.collectAsState()
+        if (calibration.supported) GlassesCalibrationControls(calibration,
+            onStart = Glasses::startCalibration, onCancel = Glasses::cancelCalibration,
+            onReset = Glasses::resetCalibration, onDone = { onRecenter?.invoke() })
     }
 }
 

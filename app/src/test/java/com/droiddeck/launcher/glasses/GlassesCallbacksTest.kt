@@ -60,7 +60,7 @@ class GlassesCallbacksTest {
 
     @Test fun oldImuPacketsCannotReachTheNewProbe() {
         var samples = 0
-        val probe: (ByteArray) -> Unit = { samples++ }
+        val probe: (ByteArray?, FloatArray?) -> Unit = { _, _ -> samples++ }
         field("probe").set(null, probe)
         generation(2)
         listener(1).onImu(ByteArray(12), 0)
@@ -109,5 +109,64 @@ class GlassesCallbacksTest {
         assertFalse(Glasses.state.value.sbs)
         assertTrue(Glasses.state.value.noSignal)
         assertEquals(640, Glasses.state.value.width)
+    }
+
+    @Test fun cancelledCalibrationCallbacksCannotResurrectOrOverwriteTheProfile() {
+        val rayneo = Glasses::class.java.getDeclaredMethod("rayNeoListener", Long::class.javaPrimitiveType)
+            .apply { isAccessible = true }.invoke(Glasses, 1L) as RayNeoLink.Listener
+        @Suppress("UNCHECKED_CAST")
+        val calibration = field("_calibration").get(null) as MutableStateFlow<GlassesCalibrationState>
+        calibration.value = GlassesCalibrationState(supported = true, saved = true, phase = CalibrationPhase.SETTLING)
+        field("calibrationRevision").setLong(null, 1)
+        rayneo.onCalibrationSaved(1, RayNeoCalibration(Vec3(0f, 0f, 0f), Quaternion.IDENTITY))
+        rayneo.onCalibration(1, CalibrationPhase.SAVED, 100)
+        field("calibrationRevision").setLong(null, 2)
+        calibration.value = calibration.value.copy(phase = CalibrationPhase.IDLE)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(CalibrationPhase.IDLE, calibration.value.phase)
+        assertTrue(calibration.value.saved)
+    }
+
+    @Test fun sdkCallbacksCannotCrossConnectionGenerationsOrFakeStereoConfirmation() {
+        fun sdk(gen: Long) = Glasses::class.java.getDeclaredMethod("sdkListener", Long::class.javaPrimitiveType)
+            .apply { isAccessible = true }.invoke(Glasses, gen) as VitureSdkLink.Listener
+        var samples = 0
+        val probe: (ByteArray?, FloatArray?) -> Unit = { raw, pose ->
+            assertEquals(null, raw)
+            assertEquals(4, pose!!.size)
+            samples++
+        }
+        field("probe").set(null, probe)
+        sdk(0).onPose(floatArrayOf(0f, 0f, 0f, 1f), 100)
+        sdk(1).onPose(floatArrayOf(0f, 0f, 0f, 1f), 101)
+        assertEquals(1, samples)
+        sdk(0).onValue(VitureProtocol.MSG_GET_BRIGHTNESS, 8)
+        sdk(1).onValue(VitureProtocol.MSG_GET_DISPLAY, 0x42)
+        sdk(0).onLost()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(2, Glasses.state.value.brightness)
+        assertFalse(Glasses.state.value.sbs)
+        assertTrue(Glasses.state.value.connected)
+        field("probe").set(null, null)
+    }
+
+    @Test fun rejectedTrackingStartDoesNotAdvertiseTracking() {
+        @Suppress("UNCHECKED_CAST")
+        val state = field("_state").get(null) as MutableStateFlow<GlassesState>
+        state.value = state.value.copy(tracking = false)
+        val rejected = object : GlassesLink {
+            override val hasImu = true
+            override fun send(msgId: Int, payload: ByteArray) = false
+            override fun close() {}
+        }
+        field("link").set(null, rejected)
+        field("sink").set(null, Glasses.PoseSink { _, _, _, _, _ -> })
+        try {
+            Glasses::class.java.getDeclaredMethod("updateImu").apply { isAccessible = true }.invoke(Glasses)
+            assertFalse(Glasses.state.value.tracking)
+        } finally {
+            field("link").set(null, null)
+            field("sink").set(null, null)
+        }
     }
 }

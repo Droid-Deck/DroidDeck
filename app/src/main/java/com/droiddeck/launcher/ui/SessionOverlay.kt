@@ -519,6 +519,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         SessionDrawerPage.GLASSES -> {
                             val (g, s) = rememberGlasses()
                             GlassesGroups(host, g, s, { key -> focus.track(page, key) }, onRecenter = a.onGlassesRecenter,
+                                outputActive = a.glassesOutput, steamVrRunning = a.steamVr == SteamVr.Status.RUNNING,
                                 steamVr = { SteamVrRow(a) })
                         }
                         SessionDrawerPage.GAMES -> {

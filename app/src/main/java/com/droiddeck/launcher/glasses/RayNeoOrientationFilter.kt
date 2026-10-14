@@ -6,7 +6,7 @@ import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
 
-private data class Vec3(val x: Float, val y: Float, val z: Float) {
+internal data class Vec3(val x: Float, val y: Float, val z: Float) {
     fun length(): Float = sqrt(x * x + y * y + z * z)
 
     fun normalized(): Vec3 {
@@ -30,7 +30,7 @@ private data class Vec3(val x: Float, val y: Float, val z: Float) {
     operator fun times(scale: Float): Vec3 = Vec3(x * scale, y * scale, z * scale)
 }
 
-private data class Quaternion(val w: Float, val x: Float, val y: Float, val z: Float) {
+internal data class Quaternion(val w: Float, val x: Float, val y: Float, val z: Float) {
     operator fun times(other: Quaternion): Quaternion {
         return Quaternion(
             w = w * other.w - x * other.x - y * other.y - z * other.z,
@@ -84,7 +84,18 @@ private data class Quaternion(val w: Float, val x: Float, val y: Float, val z: F
     }
 }
 
-class RayNeoOrientationFilter(imuRotationXDeg: Float) {
+internal class RayNeoSensorAxes(imuRotationXDeg: Float, private val gt: Boolean) {
+    private val rotation = Quaternion.fromAxisAngle(Vec3(1f, 0f, 0f),
+        Math.toRadians((if (gt) 35f else imuRotationXDeg).toDouble()).toFloat())
+
+    fun map(v: Vec3): Vec3 = rotation.rotate(if (gt) Vec3(-v.y, v.z, -v.x) else v)
+}
+
+internal class RayNeoOrientationFilter(
+    imuRotationXDeg: Float,
+    gt: Boolean = false,
+    private val calibration: RayNeoCalibration? = null,
+) {
     private val worldUp = Vec3(0f, 1f, 0f)
     private val accelGain = 1.5f
     private val dpsToRad = (Math.PI.toFloat() / 180f)
@@ -92,12 +103,10 @@ class RayNeoOrientationFilter(imuRotationXDeg: Float) {
     private val stationaryAccelTol = 1.25f
     private val stationaryGyroRadPerSec = 0.18f
     private val gyroBiasUpdateHz = 0.5f
-    private val imuRotation = Quaternion.fromAxisAngle(
-        axis = Vec3(1f, 0f, 0f),
-        angleRad = imuRotationXDeg * dpsToRad
-    )
+    private val axes = RayNeoSensorAxes(imuRotationXDeg, gt)
 
     private var q = Quaternion.IDENTITY
+    private var gravityInitialized = false
     private var gyroBias = Vec3(0f, 0f, 0f)
     private var lastTick100us: Long = -1L
     private var lastRealtimeNs: Long = 0L
@@ -113,14 +122,14 @@ class RayNeoOrientationFilter(imuRotationXDeg: Float) {
 
     fun update(sample: RayNeoSensorSample): FloatArray {
         var accel = Vec3(sample.accelMps2[0], sample.accelMps2[1], sample.accelMps2[2])
-        var gyro = Vec3(
-            sample.gyroDps[0] * dpsToRad,
-            sample.gyroDps[1] * dpsToRad,
-            sample.gyroDps[2] * dpsToRad
-        )
-
-        accel = imuRotation.rotate(accel)
-        gyro = imuRotation.rotate(gyro)
+        var gyro = Vec3(sample.gyroDps[0], sample.gyroDps[1], sample.gyroDps[2])
+        calibration?.let { gyro -= it.gyroBiasDps }
+        accel = axes.map(accel)
+        gyro = axes.map(gyro) * dpsToRad
+        calibration?.let {
+            accel = it.level.rotate(accel)
+            gyro = it.level.rotate(gyro)
+        }
 
         val nowNs = System.nanoTime()
         var dtSec = 0.01f
@@ -147,8 +156,20 @@ class RayNeoOrientationFilter(imuRotationXDeg: Float) {
 
         if (accelNorm > 1e-3f) {
             val measuredUp = accel.normalized()
+            if (!gravityInitialized) {
+                // Align gravity before publishing the first pose. Starting at
+                // identity and settling after recenter can rotate the horizon.
+                val axis = measuredUp.cross(worldUp)
+                q = if (measuredUp.y < -0.9999f) {
+                    Quaternion.fromAxisAngle(Vec3(1f, 0f, 0f), Math.PI.toFloat())
+                } else {
+                    Quaternion(1f + measuredUp.y, axis.x, axis.y, axis.z).normalized()
+                }
+                gravityInitialized = true
+            }
             val predictedUp = q.conjugate().rotate(worldUp).normalized()
-            val correction = predictedUp.cross(measuredUp)
+            // q maps body to world: measured x predicted reduces gravity error.
+            val correction = measuredUp.cross(predictedUp)
             gyro += correction * accelGain
         }
 

@@ -155,6 +155,16 @@ class GlassesUsbTest {
         assertEquals(listOf(gt), manager.requests)
     }
 
+    @Test fun gtVendorRequestsPermissionAndRetainsMaxProductName() {
+        val gt = device(0xaf50, 0x3941, "RayNeo GT MAX")
+        manager.devices[gt.deviceName] = gt
+        refresh(ask = true)
+        assertEquals("RayNeo GT MAX", state.value.model)
+        assertTrue(state.value.controllable)
+        assertFalse(state.value.hardwareControls)
+        assertEquals(listOf(gt), manager.requests)
+    }
+
     private fun refresh(ask: Boolean = false) {
         Glasses::class.java.getDeclaredMethod("refresh", Boolean::class.javaPrimitiveType)
             .apply { isAccessible = true }.invoke(Glasses, ask)

@@ -2264,6 +2264,8 @@
     <string name="drawer_page_glasses">Glasses</string>
     <string name="glasses_open">VITURE glasses</string>
     <string name="glasses_control">Glasses control</string>
+    <string name="glasses_driver_missing">This build does not include the driver for these glasses.</string>
+    <string name="glasses_connection_failed">Could not connect to the glasses. Reconnect the cable or tap Allow to retry.</string>
     <string name="glasses_allow">Allow</string>
     <string name="glasses_allow_hint">Let DroidDeck set the glasses\' refresh rate, 3D mode, brightness, volume and sunblock, and read their head tracking.</string>
     <string name="glasses_asking">Waiting for you to allow it in Android\'s prompt…</string>
@@ -2291,6 +2293,14 @@
     <string name="glasses_picture_sbs">Side-by-side game</string>
     <string name="glasses_screen_size">Screen width</string>
     <string name="glasses_screen_distance">Screen distance</string>
+    <string name="glasses_screen_next_session">Width and distance apply when a game runs on the glasses as a virtual screen.</string>
+    <string name="glasses_screen_no_output">These settings apply while Game on glasses is enabled and the game is displayed there.</string>
+    <string name="glasses_screen_flat_hint">Automatic keeps this 2D game full-screen. Use a virtual screen to adjust its width, distance and head tracking.</string>
+    <string name="glasses_screen_use">Use virtual screen</string>
+    <string name="glasses_screen_direct_hint">SteamVR fills the view. Adjust its field of view below; width and distance apply only to a virtual screen.</string>
+    <string name="glasses_screen_sbs_hint">Side-by-side games fill each eye. Width and distance apply only to a virtual screen.</string>
+    <string name="glasses_tracking_flat_hint">Automatic keeps this 2D game fixed in view. Choose Virtual screen in Display to use head tracking.</string>
+    <string name="glasses_tracking_sbs_hint">Head tracking applies to a virtual screen or a running SteamVR game.</string>
     <string name="glasses_hardware">Glasses</string>
     <string name="glasses_brightness">Brightness</string>
     <string name="glasses_volume">Volume</string>
@@ -2304,4 +2314,20 @@
     <string name="glasses_vr_fov">SteamVR field of view</string>
     <string name="glasses_vr_fov_hint">Lower brings SteamVR closer and fills the glasses; higher shows more around you.</string>
     <string name="glasses_playing">Playing on %1$s</string>
+    <string name="glasses_calibration">Tracking calibration</string>
+    <string name="glasses_calibration_hint">Reduce drift and align the level reference.</string>
+    <string name="glasses_calibration_saved_hint">Saved calibration is applied to these glasses.</string>
+    <string name="glasses_calibration_open">Calibrate</string>
+    <string name="glasses_calibration_instructions">Place the connected glasses upside down on a level surface, with the frame resting evenly. Tap Start, then leave them untouched for about 8 seconds. Movement restarts the measurement. This adjusts drift and tilt, not heading.</string>
+    <string name="glasses_calibration_settling">Leave the glasses upside down and untouched. Waiting for them to settle…</string>
+    <string name="glasses_calibration_collecting">Measuring the sensors. Keep the glasses still.</string>
+    <string name="glasses_calibration_moving">Movement detected. Leave the glasses untouched; measurement will restart automatically.</string>
+    <string name="glasses_calibration_turn_over">Rest the glasses upside down on a level surface. Measurement will start when they are positioned correctly.</string>
+    <string name="glasses_calibration_complete">Calibration saved. Put the glasses on and look straight ahead, then tap Done to recenter.</string>
+    <string name="glasses_calibration_failed">Calibration could not finish. Check the connection and keep the glasses still, then try again. Your previous calibration is unchanged.</string>
+    <string name="glasses_calibration_start">Start</string>
+    <string name="glasses_calibration_done">Done</string>
+    <string name="glasses_calibration_reset">Reset tracking calibration</string>
+    <string name="glasses_calibration_reset_hint">Remove the saved calibration and restore the model defaults? Recenter after putting the glasses back on.</string>
+    <string name="glasses_calibration_reset_button">Reset</string>
 </resources>
