@@ -177,6 +177,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             if (pointerLocked == locked) return@post
             pointerLocked = locked
             Log.i(TAG, "pointer lock " + if (locked) "taken by a program" else "released")
+            // Touchpad deltas are measured from the middle while locked (moveLockedPointer).
+            if (locked && ::touchpad.isInitialized) {
+                drawnRect()?.let { touchpad.place(it.centerX(), it.centerY()) }
+                cursorVisible = false
+            }
             updatePointerCapture()
         }
     }
@@ -1705,9 +1710,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private val pointerListener = object : PointerGestures.Listener {
-        override fun onMove(x: Float, y: Float) = movePointer(x, y)
+        override fun onMove(x: Float, y: Float) {
+            if (pointerLocked) moveLockedPointer(x, y) else movePointer(x, y)
+        }
         override fun onButton(button: Int, pressed: Boolean, x: Float, y: Float) {
-            movePointer(x, y)
+            // Under a lock the program's pointer stays where the deltas left it: no absolute move,
+            // which the compositor would turn into a jump by the arrow's distance from it.
+            if (!pointerLocked) movePointer(x, y)
             WaylandCompositor.nativeSendSceneInput(3, button, if (pressed) 1 else 0)
         }
         override fun onWheel(steps: Int) { WaylandCompositor.nativeSendSceneInput(4, steps, 0) }
@@ -1715,6 +1724,20 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             @Suppress("DEPRECATION")
             (getSystemService(VIBRATOR_SERVICE) as? android.os.Vibrator)?.vibrate(15)
         }
+    }
+
+    /**
+     * The touchpad while a program holds a pointer lock: its finger deltas go out as relative motion,
+     * as a captured mouse's do. The program draws its own cursor (or none), so the arrow stays hidden,
+     * and the touchpad's own position goes back to the middle after each move: clamped at an edge,
+     * it would stop the program's pointer there too, wherever that pointer was.
+     */
+    private fun moveLockedPointer(x: Float, y: Float) {
+        val rect = drawnRect() ?: return
+        val scale = SessionState.outputSize.first / rect.width()
+        WaylandCompositor.sendPointerDelta((x - rect.centerX()) * scale, (y - rect.centerY()) * scale)
+        touchpad.place(rect.centerX(), rect.centerY())
+        cursorVisible = false
     }
 
     private fun movePointer(x: Float, y: Float) {
