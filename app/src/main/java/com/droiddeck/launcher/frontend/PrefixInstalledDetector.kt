@@ -3,18 +3,9 @@ package com.droiddeck.launcher.frontend
 import org.json.JSONObject
 import java.io.File
 
-/**
- * Which catalog components a game's prefix already has from elsewhere - a real installer, the game,
- * the user - so the list can say so instead of recommending them again. Bannerlator's detector,
- * on DroidDeck's compatdata/<id>: only markers absent from a fresh Proton prefix count (OpenAL32,
- * Mono, PhysX, Games for Windows Live); msvcp140, d3dx9 and the like ship with Proton and cannot
- * tell. Files DroidDeck put there itself (droiddeck-wincomponents' state) are not counted.
- * Pure filesystem reads; never throws.
- */
 object PrefixInstalledDetector {
     private const val STATE = ".droiddeck-wincomponents.json"
 
-    /** Detector names (oalinst, mono, physx, XLiveRedist) present in [compat]/pfx. */
     fun detect(compat: File?): Set<String> = try {
         val pfx = compat?.let { File(it, "pfx") }
         if (pfx == null || !pfx.isDirectory) emptySet() else {
@@ -38,7 +29,6 @@ object PrefixInstalledDetector {
         emptySet()
     }
 
-    /** Windows names ignore case; the prefix's folder may spell them either way. */
     private fun fileIgnoringCase(pfx: File, rel: String): Boolean {
         val target = File(pfx, rel)
         return target.parentFile?.listFiles()?.any { it.isFile && it.name.equals(target.name, ignoreCase = true) } == true

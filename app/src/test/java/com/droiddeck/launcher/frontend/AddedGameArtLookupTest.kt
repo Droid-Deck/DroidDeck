@@ -20,7 +20,6 @@ import java.io.File
 import java.security.SecureRandom
 import javax.crypto.spec.SecretKeySpec
 
-/** Where an added game's art comes from: its own Steam appid, a matching name, SteamGridDB's key. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class AddedGameArtLookupTest {
@@ -39,7 +38,6 @@ class AddedGameArtLookupTest {
         val match = SteamMatch.resolve(app, dir.path, exe, "Palworld") { fail("searched"); null }
         assertEquals(1623730, match.appId)
         assertEquals(SteamMatch.Certainty.FILES, match.certainty)
-        // The same record for everyone who asks.
         assertEquals(1623730, SteamMatch.get(app, dir.path)!!.appId)
     }
 
@@ -68,7 +66,6 @@ class AddedGameArtLookupTest {
     }
 
     @Test fun aStoreResultIsTakenOnlyWhenItsNameMatches() {
-        // The first result is no longer taken for being first.
         assertNull(AddedGameArt.pickStoreResult("My Obscure Game", listOf("10" to "Totally Different", "11" to "Another One")))
         assertEquals("20", AddedGameArt.pickStoreResult("Hades", listOf("19" to "Hades II Soundtrack Bundle Extra", "20" to "Hades")))
         assertEquals("30", AddedGameArt.pickStoreResult("Skyrim Special Edition Complete Edition", listOf("1" to "Unrelated", "30" to "Skyrim Special Edition")))
@@ -95,7 +92,6 @@ class AddedGameArtLookupTest {
         assertEquals("build", SteamGridDb.pick("", "build"))
         assertEquals("build", SteamGridDb.pick("  ", "build"))
         assertEquals("", SteamGridDb.pick("", ""))
-        // This test build carries no key.
         assertEquals("", SteamGridDb.builtInKey())
         assertEquals("", SteamGridDb.key(app))
     }

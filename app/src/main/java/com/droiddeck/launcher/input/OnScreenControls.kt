@@ -184,7 +184,6 @@ class OnScreenControls(
         relayout()
     }
 
-    /** Hide the full touch pad for an unobstructed screen while keeping its quick toggle available. */
     fun setQuickHidden(hidden: Boolean) {
         if (buttonsOnly || editing || quickHidden == hidden) return
         if (hidden) releaseAll()

@@ -79,14 +79,11 @@ class FlathubFocusTest {
         compose.waitForIdle()
         val field = editText(root)!!
         compose.runOnIdle {
-            // Keep a nonempty query, so clearing focus cannot simply dispose the search field.
-            // Whitespace skips the network search while retaining the field just like typed text.
             field.setText(" ")
             field.requestFocus()
             assertTrue(field.isFocused)
         }
         compose.waitForIdle()
-        // Touching a card does not implicitly focus a Compose control or release an AndroidView.
         compose.onNodeWithText("Datcord").performSemanticsAction(SemanticsActions.OnClick) { it() }
         compose.onNodeWithText(context.getString(R.string.store_install)).assertExists()
         compose.runOnIdle {

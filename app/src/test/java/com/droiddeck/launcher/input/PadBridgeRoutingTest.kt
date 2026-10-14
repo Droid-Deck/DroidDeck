@@ -148,8 +148,6 @@ class PadBridgeRoutingTest {
 
     private companion object { const val COMPOSITE = 0x1002313 }
 
-    // Robolectric's default InputEvent shadow has its own nullable device field. Use Android's
-    // original lookup so key and motion events resolve the registered device by id.
     @Implements(KeyEvent::class)
     class RegisteredKeyEvent : ShadowKeyEvent() {
         @RealObject private lateinit var event: KeyEvent

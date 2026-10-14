@@ -1,0 +1,64 @@
+language: en-US
+early_access: false
+tone_instructions: >-
+  Prioritize actionable correctness, security, and runtime regressions. Keep
+  feedback concise. Do not request explanatory code comments; preserve license
+  headers and compiler-consumed annotations.
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  high_level_summary_in_walkthrough: true
+  poem: false
+  sequence_diagrams: false
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    auto_pause_after_reviewed_commits: 0
+    drafts: false
+  pre_merge_checks:
+    docstrings:
+      mode: "off"
+    title:
+      mode: "off"
+    description:
+      mode: "off"
+  finishing_touches:
+    docstrings:
+      enabled: false
+    unit_tests:
+      enabled: false
+    simplify:
+      enabled: false
+    autofix:
+      enabled: false
+    fix_ci:
+      enabled: false
+    resolve_merge_conflict:
+      enabled: false
+  path_instructions:
+    - path: "**/*"
+      instructions: >-
+        For cleanup changes, compare executable behavior against the PR merge
+        base. Check for removed guards, changed return values, weakened compiler
+        flags, and deleted regression tests. A passing APK build alone does not
+        establish behavior preservation. Avoid style-only or comment-coverage
+        requests.
+    - path: "app/src/main/**"
+      instructions: >-
+        Review Android lifecycle, external-display visibility, input cancellation,
+        permissions, threading, and Compose state. For JNI, native, and Rust
+        changes, check ABI compatibility, resource ownership, synchronization,
+        and error paths. Preserve persisted user settings and existing runtime
+        contracts.
+    - path: "tools/**"
+      instructions: >-
+        Check shell quoting, error handling, path and filesystem semantics, and
+        Python helper behavior. Preserve MSI same-file protection and strict
+        compiler checks. Verify downstream patches apply to their pinned sources
+        and retain intended executable behavior, including embedded scripts.
+    - path: ".github/workflows/**"
+      instructions: >-
+        Check job permissions, triggers, merge validation, build variants,
+        signing, artifact paths, and release conditions. Verify checks apply to
+        the current PR head and keep review configuration advisory.

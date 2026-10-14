@@ -155,7 +155,7 @@ class Runner:
         ):
             try:
                 found[name] = action()
-            except Exception as exc:  # evidence is best effort
+            except Exception as exc:
                 found[name] = {"ok": False, "error": str(exc)}
         write_json(folder / "evidence.json", found)
         return {k: v.get("ok", True) if isinstance(v, dict) else True for k, v in found.items()}

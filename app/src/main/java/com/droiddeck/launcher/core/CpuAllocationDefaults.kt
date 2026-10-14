@@ -3,7 +3,6 @@ package com.droiddeck.launcher.core
 import com.droiddeck.launcher.gpu.GpuInfo
 import com.droiddeck.launcher.gpu.SocNames
 
-/** Device defaults only: affinity does not reserve cores or lock their clocks. */
 object CpuAllocationDefaults {
     data class Allocation(val client: String, val game: String)
 
@@ -12,7 +11,6 @@ object CpuAllocationDefaults {
             CpuCores.all.associateWith(CpuCores::maxGhz))
     }
 
-    /** Select by topology, including faster SM8550 variants; never guess core indices. */
     fun forDevice(model: String, platform: String, frequencies: Map<Int, Double?>): Allocation? {
         val chip = model.trim().uppercase().substringBefore('-')
         val gen2 = chip in setOf("SM8550", "QCS8550") ||

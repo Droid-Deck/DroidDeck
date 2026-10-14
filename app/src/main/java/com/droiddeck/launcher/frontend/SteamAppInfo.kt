@@ -12,25 +12,16 @@ import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-/**
- * Steam's own data for an app, from the client in the runtime: its app-info cache
- * (Steam/appcache/appinfo.vdf, the PICS data the client keeps for every app it has seen). What is
- * read is which Steamworks Shared depots (the VC++, DirectX... redistributables of app 228980) the
- * app's depots point at, and its name. Kept per appid in the app's files, so it works offline; an
- * app the client has not seen is looked for again after a week.
- */
 object SteamAppInfo {
     private const val TAG = "SteamAppInfo"
     private const val CACHE = "steam-appinfo.json"
     private const val RETRY_AFTER_MS = 7L * 24 * 3600 * 1000
-    /** The Steamworks Shared app the redistributable depots belong to. */
     const val SHARED_APP = "228980"
 
     class Info(val name: String, val sharedDepots: List<String>)
 
     fun appinfoFile(context: Context) = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/appcache/appinfo.vdf")
 
-    /** The shared depots for [appId]: from the cache, else the client's app-info file; null when unknown. */
     @Synchronized
     fun info(context: Context, appId: Int, appinfo: File = appinfoFile(context)): Info? {
         val cacheFile = AtomicFile(File(context.filesDir, CACHE))
@@ -40,13 +31,10 @@ object SteamAppInfo {
         val known = cache.optJSONObject(appId.toString())
         known?.let { o ->
             if (!o.optBoolean("miss")) return Info(o.optString("name"), o.optJSONArray("depots").strings())
-            // A miss is read again when the client has written its cache since (the user may have
-            // looked at the app in Steam), else a week later.
             if (now - o.optLong("at") < RETRY_AFTER_MS && o.optLong("mtime") == mtime) return null
         }
         val read = runCatching { read(appinfo, appId) }.onFailure { Log.w(TAG, "appinfo: ${it.javaClass.simpleName}") }.getOrNull()
         val entry = JSONObject().put("at", now).put("mtime", mtime)
-        // When Steam was last asked anonymously ([lookup]), kept across re-reads of the file.
         known?.optLong("picsAt")?.takeIf { it > 0 }?.let { entry.put("picsAt", it) }
         if (read == null) entry.put("miss", true) else entry.put("name", read.name).put("depots", JSONArray(read.sharedDepots))
         cache.put(appId.toString(), entry)
@@ -55,14 +43,9 @@ object SteamAppInfo {
         return read
     }
 
-    /** Steam asked anonymously ([SteamPics]); a test stands in for it. */
     @androidx.annotation.VisibleForTesting
     internal var pics: (List<Int>) -> Map<Int, Info?>? = { SteamPics.lookup(it) }
 
-    /**
-     * Of [appIds], those neither the client's cache (appinfo.vdf, read first: free) nor an earlier
-     * answer has, and that Steam was not asked about anonymously in the past week.
-     */
     fun needLookup(context: Context, appIds: List<Int>): List<Int> {
         val wanted = appIds.distinct().filter { it > 0 && info(context, it) == null }
         if (wanted.isEmpty()) return emptyList()
@@ -71,11 +54,6 @@ object SteamAppInfo {
         return wanted.filter { now - (cache.optJSONObject(it.toString())?.optLong("picsAt") ?: 0L) >= RETRY_AFTER_MS }
     }
 
-    /**
-     * [appIds] the client never saw, asked of Steam anonymously in one connection ([SteamPics], in
-     * batches) and every answer kept like the client's: an app's depots and name, or a miss tried
-     * again in a week. False when nothing needed asking or Steam could not be reached. Blocking.
-     */
     @Synchronized
     fun lookup(context: Context, appIds: List<Int>): Boolean {
         val need = needLookup(context, appIds)
@@ -96,7 +74,6 @@ object SteamAppInfo {
         return true
     }
 
-    /** What is kept for [appId]: "hit", "miss" or "none" (part of a game's list fingerprint). */
     fun state(context: Context, appId: Int): String = cache(context).optJSONObject(appId.toString())?.let { if (it.optBoolean("miss")) "miss" else "hit" } ?: "none"
 
     private fun cache(context: Context): JSONObject =
@@ -104,10 +81,6 @@ object SteamAppInfo {
 
     private fun JSONArray?.strings(): List<String> = if (this == null) emptyList() else (0 until length()).map { optString(it) }
 
-    /**
-     * [appId]'s entry in an appinfo.vdf (versions 27, 28 and 29, the last with its keys in a string
-     * table), or null when the file does not have it.
-     */
     internal fun read(file: File, appId: Int): Info? {
         if (!file.isFile) return null
         RandomAccessFile(file, "r").use { raf ->
@@ -181,7 +154,6 @@ object SteamAppInfo {
         return String(bytes, Charsets.UTF_8)
     }
 
-    /** One binary key-value map, to its end marker; keys by name, or by index into [strings]. */
     private fun readMap(b: ByteBuffer, strings: List<String>?): Map<String, Any> {
         val out = LinkedHashMap<String, Any>()
         while (b.hasRemaining()) {

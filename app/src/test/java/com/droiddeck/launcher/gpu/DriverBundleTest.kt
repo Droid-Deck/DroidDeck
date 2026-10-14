@@ -34,7 +34,6 @@ class DriverBundleTest {
         SessionPrefs.setLinuxDriver(context, "")
     }
 
-    /** Enough of an AArch64 ELF for the importers: the header they read, then the libc they look for. */
     private fun library(libc: String) = ByteArray(64).also {
         byteArrayOf(0x7f, 'E'.code.toByte(), 'L'.code.toByte(), 'F'.code.toByte(), 2, 1).copyInto(it)
         it[18] = 0xB7.toByte()

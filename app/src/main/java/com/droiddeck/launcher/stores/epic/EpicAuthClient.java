@@ -16,14 +16,6 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 
-/**
- * Epic's OAuth2 token endpoint, with the launcher's public client credentials (the ones every
- * third-party Epic client uses):
- *   POST account-public-service-prod03.ol.epicgames.com/account/api/oauth/token
- *     Basic base64(clientId:clientSecret), form grant_type=authorization_code|refresh_token, token_type=eg1
- *   GET  .../account/api/oauth/exchange with a bearer token: a short-lived exchange code for a launch.
- * Error bodies are never logged: they carry correlation ids and account context.
- */
 public final class EpicAuthClient {
 
     private static final String TAG = "EpicAuth";
@@ -91,11 +83,9 @@ public final class EpicAuthClient {
         }
     }
 
-    /** A short-lived exchange code for a game launch (-AUTH_PASSWORD); null on any failure. */
     public static String getExchangeCode(String accessToken) {
         try {
             String resp = getRequest(EXCHANGE_URL, accessToken);
-            // getRequest has logged the HTTP status; the code itself is never logged.
             if (resp == null) { Log.i(TAG, "exchange code: no answer"); return null; }
             return new JSONObject(resp).optString("code", null);
         } catch (Exception e) {
@@ -104,7 +94,6 @@ public final class EpicAuthClient {
         }
     }
 
-    /** Authorized GET; the body or null. */
     public static String getRequest(String urlStr, String accessToken) {
         HttpURLConnection conn = null;
         try {
@@ -127,7 +116,6 @@ public final class EpicAuthClient {
         }
     }
 
-    /** Authorized GET of raw bytes (the manifest binary). */
     public static byte[] getBytes(String urlStr, String accessToken) {
         HttpURLConnection conn = null;
         try {
@@ -166,7 +154,6 @@ public final class EpicAuthClient {
         return sb.toString();
     }
 
-    /** "2026-03-29T12:00:00.000Z" to epoch millis, without java.time. */
     private static long parseIso8601(String s) {
         int year = Integer.parseInt(s.substring(0, 4));
         int month = Integer.parseInt(s.substring(5, 7));

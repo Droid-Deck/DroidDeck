@@ -12,20 +12,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 
-/**
- * How an installed Amazon game is started: its `fuel.json` names the exe, a working subfolder and
- * arguments when the publisher shipped one; otherwise the exe is scored (Unreal shipping binaries
- * first, the title's name, never crash handlers or installers). The FuelPump variables the Amazon
- * Games Services SDK reads go into the game's environment.
- */
 public final class AmazonLaunchHelper {
 
     private static final String TAG = "AmazonLaunch";
 
     public static final class LaunchSpec {
-        /** The exe relative to the install folder, forward slashes. */
         public String exeRelative = "";
-        /** The arguments fuel.json names, in order. */
         public List<String> args = new ArrayList<>();
     }
 
@@ -65,7 +57,6 @@ public final class AmazonLaunchHelper {
         return spec;
     }
 
-    /** The FuelPump variables, as KEY=VALUE, for the game's environment. */
     public static String[] buildFuelEnv(String entitlementId, String productSku, String displayName) {
         return new String[]{
             "FUEL_DIR=C:\\ProgramData\\Amazon Games Services\\Legacy",

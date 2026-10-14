@@ -1,5 +1,3 @@
-/* Zero-copy game frames: banner_ahb_v1 + the game's AHardwareBuffers on the sc_layer SurfaceControl.
- * See ahb_swapchain.h and ZERO_COPY_SPIKE.md. */
 #define _GNU_SOURCE
 #include "ahb_swapchain.h"
 #include "droiddeck_color.h"
@@ -19,9 +17,8 @@
 #include <time.h>
 #include <unistd.h>
 
-#define MOD_QCOM_COMPRESSED 0x0500000000000001ULL /* DRM_FORMAT_MOD_QCOM_COMPRESSED (UBWC) */
+#define MOD_QCOM_COMPRESSED 0x0500000000000001ULL
 
-/* linux/dma-buf.h (not in the NDK sysroot's older headers): sync_file export / import. */
 struct droiddeck_dma_buf_sync_file { uint32_t flags; int32_t fd; };
 #define DROIDDECK_DMA_BUF_SYNC_READ 1u
 #define DROIDDECK_DMA_BUF_IOCTL_EXPORT_SYNC_FILE _IOWR('b', 2, struct droiddeck_dma_buf_sync_file)
@@ -29,47 +26,43 @@ struct droiddeck_dma_buf_sync_file { uint32_t flags; int32_t fd; };
 
 extern volatile int g_zero_copy;
 
-/* One per wl_buffer the game attached an AHardwareBuffer to. Lives while the wl_buffer exists or
- * the buffer is still on the layer / held by SurfaceFlinger, whichever is longer. */
 struct ahb_buf {
-    uint64_t id;                        /* the token sc_layer.c hands back */
-    struct dmabuf_buffer *b;            /* one reference held for the life of this record */
-    AHardwareBuffer *ahb;               /* our reference to the game's buffer */
+    uint64_t id;
+    struct dmabuf_buffer *b;
+    AHardwareBuffer *ahb;
     int w, h;
     uint32_t stride, image_count;
-    uint32_t format;                    /* AHARDWAREBUFFER_FORMAT_* gralloc gave it (10-bit for HDR10) */
+    uint32_t format;
     uint64_t modifier;
     struct wl_client *client;
-    struct wl_resource *resource;       /* the wl_buffer; NULL once the client destroyed it */
+    struct wl_resource *resource;
     struct wl_listener resource_destroy;
-    int on_layer;                       /* set on the SurfaceControl (or not yet released by SurfaceFlinger) */
-    int release_pending;                /* the surface let go of it while on the layer */
-    int64_t deferred_ns;                /* when it did (the perf line: how long the display kept it) */
-    struct surface *surface;            /* for the paced release; NULL = release at once */
-    struct wl_event_source *fence_src;  /* fallback: waiting the release fence in the event loop */
+    int on_layer;
+    int release_pending;
+    int64_t deferred_ns;
+    struct surface *surface;
+    struct wl_event_source *fence_src;
     int fence_fd;
     struct wl_list link;
 };
 
 static struct wl_list g_bufs;
-static struct wl_list g_clients;             /* bound banner_ahb_v1 resources (wl_resource links) */
+static struct wl_list g_clients;
 static uint64_t g_next_id = 1;
 static struct wl_event_loop *g_loop;
 static unsigned g_stat_zero_copy;
 static int g_export_failed_logged, g_import_failed_logged;
-static int g_advertised;                     /* the global exists */
-static int g_mode_sent = -1;                 /* the mode clients were last told (-1 = none yet) */
-static struct surface *g_announced;          /* "presenting X without a copy" said for this surface */
-static volatile int64_t g_last_zero_copy_ns; /* when a frame last went on the layer without a copy */
+static int g_advertised;
+static int g_mode_sent = -1;
+static struct surface *g_announced;
+static volatile int64_t g_last_zero_copy_ns;
 
-/* SurfaceFlinger's callback thread -> compositor thread: released tokens + their fences. */
 struct released { uint64_t id; int fd; };
 static pthread_mutex_t g_rel_lock = PTHREAD_MUTEX_INITIALIZER;
 static struct released *g_rel;
 static int g_rel_n, g_rel_cap;
 static int g_rel_pipe[2] = {-1, -1};
 
-/* Which swapchains were announced (one log line per swapchain, not per image). */
 struct chain_seen { struct wl_client *client; int w, h; uint32_t image_count; uint64_t modifier; uint32_t format; };
 static struct chain_seen g_last_chain;
 
@@ -96,7 +89,6 @@ static void buf_free(struct ahb_buf *ab) {
     free(ab);
 }
 
-/* Free once neither the client (wl_buffer) nor the display (layer) refers to it. */
 static void maybe_free(struct ahb_buf *ab) {
     if (!ab->resource && !ab->on_layer && !ab->fence_src) buf_free(ab);
 }
@@ -105,11 +97,10 @@ static void on_buffer_resource_destroyed(struct wl_listener *l, void *data) {
     struct ahb_buf *ab = wl_container_of(l, ab, resource_destroy);
     wl_list_remove(&ab->resource_destroy.link);
     ab->resource = NULL;
-    ab->release_pending = 0; /* nothing left to release to */
+    ab->release_pending = 0;
     maybe_free(ab);
 }
 
-/* ---- release: SurfaceFlinger is done with the buffer -> the game's next acquire waits, then wl_buffer.release */
 
 static void send_deferred_release(struct ahb_buf *ab) {
     if (ab->release_pending && ab->resource)
@@ -129,10 +120,6 @@ static int on_fence_readable(int fd, uint32_t mask, void *data) {
     return 0;
 }
 
-/* Compositor thread. Puts the display's release fence into the dma-buf so the game's driver waits
- * on it before rendering into the buffer again (Mesa exports every fence of the dma-buf as the
- * acquire semaphore), then gives the buffer back. If the kernel refuses the import, the release
- * itself waits for the fence instead. */
 static void handle_released(uint64_t id, int fd) {
     struct ahb_buf *ab = find_buf(id);
     if (!ab) { if (fd >= 0) close(fd); return; }
@@ -148,7 +135,6 @@ static void handle_released(uint64_t id, int fd) {
                 droiddeck_log("layer", "zero-copy: DMA_BUF_IOCTL_IMPORT_SYNC_FILE failed (%s): releases wait for the display's fence here instead",
                            strerror(errno));
             }
-            /* Wait it out in the event loop (a sync_file is readable once signalled). */
             struct pollfd p = {.fd = fd, .events = POLLIN};
             if (poll(&p, 1, 0) > 0) {
                 close(fd);
@@ -156,7 +142,7 @@ static void handle_released(uint64_t id, int fd) {
                 ab->fence_fd = fd;
                 ab->fence_src = wl_event_loop_add_fd(g_loop, fd, WL_EVENT_READABLE, on_fence_readable, ab);
                 if (!ab->fence_src) { close(fd); ab->fence_fd = -1; }
-                else return; /* released from on_fence_readable */
+                else return;
             }
         }
     }
@@ -179,7 +165,6 @@ static int on_release_pipe(int fd, uint32_t mask, void *data) {
     return 0;
 }
 
-/* SurfaceFlinger's callback thread. */
 void ahb_swapchain_layer_released(void *token, int release_fd) {
     pthread_mutex_lock(&g_rel_lock);
     if (g_rel_n == g_rel_cap) {
@@ -193,7 +178,6 @@ void ahb_swapchain_layer_released(void *token, int release_fd) {
     if (g_rel_pipe[1] >= 0) { char c = 1; if (write(g_rel_pipe[1], &c, 1) < 0) {} }
 }
 
-/* ---- present */
 
 int ahb_swapchain_has_ahb(const struct dmabuf_buffer *b) {
     return b && *droiddeck_dmabuf_ahb_slot((struct dmabuf_buffer *)b) != NULL;
@@ -203,8 +187,6 @@ int ahb_swapchain_present(struct dmabuf_buffer *b, struct surface *s, int scene_
     struct ahb_buf *ab = b ? *droiddeck_dmabuf_ahb_slot(b) : NULL;
     if (!ab) return -1;
     int dmabuf_fd = droiddeck_dmabuf_fd(b);
-    /* Acquire fence: the game's render fence, which its driver put into the dma-buf before the
-     * commit (Mesa's implicit sync). The display waits on it, not the CPU. */
     int acquire = -1;
     struct droiddeck_dma_buf_sync_file exp = {.flags = DROIDDECK_DMA_BUF_SYNC_READ, .fd = -1};
     if (dmabuf_fd >= 0 && ioctl(dmabuf_fd, DROIDDECK_DMA_BUF_IOCTL_EXPORT_SYNC_FILE, &exp) == 0 && exp.fd >= 0) {
@@ -215,14 +197,14 @@ int ahb_swapchain_present(struct dmabuf_buffer *b, struct surface *s, int scene_
             droiddeck_log("layer", "zero-copy: DMA_BUF_IOCTL_EXPORT_SYNC_FILE failed (%s): waiting for each frame on the CPU instead",
                        strerror(errno));
         }
-        struct pollfd p = {.fd = dmabuf_fd, .events = POLLIN}; /* readable = the writers are done */
+        struct pollfd p = {.fd = dmabuf_fd, .events = POLLIN};
         int r;
         do { r = poll(&p, 1, 100); } while (r < 0 && errno == EINTR);
     }
     int r = sc_layer_present_ahb(ab->ahb, ab->w, ab->h, acquire, (void *)(uintptr_t)ab->id, scene_w, scene_h,
                                  s ? droiddeck_surface_color(s) : NULL, ab->format);
     if (r < 0) return -1;
-    if (r == 1) return 0; /* nothing of it on screen: not on the layer, nothing to release later */
+    if (r == 1) return 0;
     if (!ab->on_layer) {
         ab->on_layer = 1;
         g_stat_zero_copy++;
@@ -272,7 +254,6 @@ uint32_t ahb_swapchain_ahb_format(const struct dmabuf_buffer *b) {
     return ab ? ab->format : 0;
 }
 
-/* ---- banner_ahb_v1 */
 
 static void ahb_destroy(struct wl_client *c, struct wl_resource *r) { wl_resource_destroy(r); }
 
@@ -287,10 +268,8 @@ static void ahb_attach(struct wl_client *c, struct wl_resource *r, struct wl_res
         return;
     }
     void **slot = droiddeck_dmabuf_ahb_slot(b);
-    if (*slot) { close(sock); return; } /* once per buffer */
+    if (*slot) { close(sock); return; }
 
-    /* The handle was written into the socket before the request was sent; a short wait is just
-     * insurance against a slow sender. */
     struct pollfd p = {.fd = sock, .events = POLLIN};
     int pr;
     do { pr = poll(&p, 1, 1000); } while (pr < 0 && errno == EINTR);
@@ -357,10 +336,7 @@ static void bind_ahb(struct wl_client *c, void *data, uint32_t ver, uint32_t id)
     if (!r) { wl_client_post_no_memory(c); return; }
     wl_resource_set_implementation(r, &ahb_impl, NULL, on_client_resource_destroyed);
     wl_list_insert(&g_clients, wl_resource_get_link(r));
-    /* The mode travels with the bind, so the client's registry roundtrip already has it when it
-     * decides about its first swapchain. */
     if (ver >= BANNER_AHB_V1_MODE_SINCE_VERSION) banner_ahb_v1_send_mode(r, g_zero_copy ? 1u : 0u);
-    /* One line per program, not per surface-format query (each binds its own). */
     if (last_named != c) {
         last_named = c;
         droiddeck_log("layer", "zero-copy: %s bound banner_ahb_v1 version %u (%s)", droiddeck_client_name(c), ver,
@@ -386,7 +362,6 @@ void ahb_swapchain_set_mode(int on, int live) {
             told++;
         }
     }
-    /* The next chain and the next fullscreen frame get announced again. */
     memset(&g_last_chain, 0, sizeof(g_last_chain));
     g_announced = NULL;
     if (live)

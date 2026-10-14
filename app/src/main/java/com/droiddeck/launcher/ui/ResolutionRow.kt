@@ -10,7 +10,6 @@ import androidx.compose.ui.res.stringResource
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.session.SessionDisplay
 
-/** Pre-session resolution choice, applied when the session starts. */
 @Composable
 fun ResolutionRow(
     host: MenuHost, choice: String, panel: Pair<Int, Int>, onPick: (String) -> Unit,

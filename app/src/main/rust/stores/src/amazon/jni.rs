@@ -1,12 +1,3 @@
-//! JNI facade for the Amazon download adapter.
-//!
-//! Kotlin side: `com.droiddeck.launcher.stores.amazon.AmazonNative` (`nativeStart` /
-//! `nativeCancel` / `nativeRelease`) with an `AmazonNative.Listener`
-//! (`onProgress(JJJJ)V`, `onLog(String)V`, `onComplete(ZString;J)V`). Mirrors the shape of
-//! the GOG and Epic facades: the run happens on a spawned native
-//! thread, callbacks attach the JavaVM as daemon threads and hold a `GlobalRef` to the
-//! listener; cancel flips an `AtomicBool`. This module keeps its own `JavaVM` handle (taken
-//! from the calling `JNIEnv` on first use) so it depends on nothing outside this module.
 
 use crate::amazon::{run_download, MAX_PARALLEL};
 use jni::objects::{GlobalRef, JClass, JObject, JString, JValue};
@@ -16,10 +7,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::thread;
 
-/// Logcat tag (`adb logcat -s AmazonNative`). Every engine line reaches logcat exactly ONCE:
-/// this module only forwards lines to the listener (`onLog`), and the Java manager is the one
-/// place that writes them to `android.util.Log` + its debug file. (Round 1 fix: the native side
-/// used to also call `__android_log_write`, so each line appeared twice.)
 pub const LOG_TAG: &str = "AmazonNative";
 
 static JVM: OnceLock<JavaVM> = OnceLock::new();
@@ -36,7 +23,6 @@ fn jstring_to_string(env: &mut JNIEnv, value: &JString) -> Option<String> {
         .map(|s| s.to_string_lossy().into_owned())
 }
 
-/// One live run; boxed and handed to Kotlin as an opaque `jlong`.
 struct AmazonRun {
     cancel: Arc<AtomicBool>,
 }
@@ -115,7 +101,6 @@ fn call_complete(
     clear_pending_exception(env);
 }
 
-/// Attach the current (native) thread and run `f` with the listener object.
 fn with_attached_env(listener: &GlobalRef, f: impl FnOnce(&mut JNIEnv, &JObject)) {
     let Some(vm) = JVM.get() else {
         return;
@@ -126,9 +111,6 @@ fn with_attached_env(listener: &GlobalRef, f: impl FnOnce(&mut JNIEnv, &JObject)
     f(&mut env, listener.as_obj());
 }
 
-/// `AmazonNative.nativeStart(planJson, installDir, caBundlePath, maxWorkers,
-/// processWorkers, listener) -> handle`. Returns 0 (and fires `onComplete(false, …)`) when the
-/// inputs are unusable. The run itself happens on a spawned thread.
 #[no_mangle]
 pub extern "system" fn Java_com_droiddeck_launcher_stores_amazon_AmazonNative_nativeStart(
     mut env: JNIEnv,
@@ -200,8 +182,6 @@ pub extern "system" fn Java_com_droiddeck_launcher_stores_amazon_AmazonNative_na
     to_handle(run)
 }
 
-/// `AmazonNative.nativeCancel(handle)` — flips the run's cancel flag; the core stops
-/// issuing requests, in-flight bodies are dropped, `onComplete(false, "cancelled", …)` follows.
 #[no_mangle]
 pub extern "system" fn Java_com_droiddeck_launcher_stores_amazon_AmazonNative_nativeCancel(
     _env: JNIEnv,
@@ -213,8 +193,6 @@ pub extern "system" fn Java_com_droiddeck_launcher_stores_amazon_AmazonNative_na
     }
 }
 
-/// `AmazonNative.nativeRelease(handle)` — frees the handle. Safe at any time: the worker
-/// thread owns its own `Arc` of the cancel flag and the listener `GlobalRef`.
 #[no_mangle]
 pub extern "system" fn Java_com_droiddeck_launcher_stores_amazon_AmazonNative_nativeRelease(
     _env: JNIEnv,

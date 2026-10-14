@@ -10,15 +10,6 @@ import android.os.HandlerThread
 import android.util.Log
 import com.droiddeck.launcher.wayland.WaylandCompositor
 
-/**
- * 3DoF head tracking for Cardboard mode: the rotation sensor -> the compositor's head pose
- * ([HeadPose] for the maths). Game rotation vector first (gyro + accelerometer: no compass jumps
- * indoors, and only the heading drifts, which a recentre fixes); the plain rotation vector where a
- * device has no game one. Events arrive on a thread of their own and go straight to native code,
- * so the session's UI thread never sits between the sensor and the screen.
- *
- * [rotation] is the Display rotation (Surface.ROTATION_*) the session is drawn in.
- */
 class HeadTracker(context: Context, private val glasses: Boolean = false, private val rotation: () -> Int) : SensorEventListener {
     private val sensors = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
     private val sensor: Sensor? = sensors.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR)
@@ -41,7 +32,6 @@ class HeadTracker(context: Context, private val glasses: Boolean = false, privat
 
     val usesGlasses: Boolean get() = glasses
 
-    /** Whether this device has a rotation sensor at all (no sensor = a fixed, head-locked screen). */
     val available: Boolean get() = sensor != null
     val sensorName: String get() = sensor?.let { "${it.name} (${if (it.type == Sensor.TYPE_GAME_ROTATION_VECTOR) "game rotation vector" else "rotation vector"})" } ?: "none"
 
@@ -86,7 +76,6 @@ class HeadTracker(context: Context, private val glasses: Boolean = false, privat
         WaylandCompositor.nativeSetCardboardPose(HeadPose.IDENTITY, false)
     }
 
-    /** Make where the viewer looks now straight ahead (see HeadPose.recenter). */
     fun recenter() {
         recenterPending = true
         if (glasses) synchronized(glassesLock) { if (started) latest?.let { apply(it) } }

@@ -1,16 +1,7 @@
 /*
- * Ported from WinNative (maxjivi05, feature/wayland-gamescope, 2026-09-18/19), GPL-3.0, with names
- * changed to this project's. The reasoning below is the original author's.
- *
- * Network interfaces for a sandbox that hides them.
- *
- * Android denies an app the rtnetlink dump behind getifaddrs() and if_nameindex(), the hardware
- * address ioctl, and every table under /proc/net. Wine builds its adapter, address, route and
- * neighbour tables from exactly those, so a game saw a machine with no adapter, no address, no
- * gateway and no MAC, and one that checks its adapters before going online waited for good.
- * The app knows the real link from ConnectivityManager and writes it to /etc/droiddeck-net;
- * whatever the kernel refuses is answered from that file. Anything the kernel does answer wins.
+ * Ported from WinNative (maxjivi05, feature/wayland-gamescope, 2026-09-18/19), GPL-3.0.
  */
+
 #define _GNU_SOURCE 1
 #include <arpa/inet.h>
 #include <dlfcn.h>
@@ -108,9 +99,6 @@ static int fresh(long long *at) {
     return then != 0 && now_ns() - then < FRESH_NS;
 }
 
-/* Wine's network driver reads the link several times for each table it builds, and some games
- * have it build them all hundreds of times a second. The app rewrites the file when the device
- * changes network, so a reading stands for a second. */
 static pthread_mutex_t link_lock = PTHREAD_MUTEX_INITIALIZER;
 static struct link link_read;
 static int link_ok;
@@ -128,7 +116,6 @@ static int load_link(struct link *link) {
     return ok;
 }
 
-/* See drm.c: a fork must not leave the lock held by a thread the child does not have. */
 static void link_lock_before_fork(void) { pthread_mutex_lock(&link_lock); }
 static void link_unlock_after_fork(void) { pthread_mutex_unlock(&link_lock); }
 static void link_reset_after_fork(void) { pthread_mutex_init(&link_lock, NULL); }
@@ -137,8 +124,6 @@ __attribute__((constructor)) static void install_link_fork_handlers(void) {
     pthread_atfork(link_lock_before_fork, link_unlock_after_fork, link_reset_after_fork);
 }
 
-/* When the kernel's own list was of no use, it is not asked again for a second: each asking binds
- * a netlink socket, a stop in the tracer, only to be refused again. */
 static long long ifaddrs_unusable_at, nameindex_unusable_at;
 
 static void prefix_mask(int family, unsigned prefix, unsigned char *out) {
@@ -152,8 +137,6 @@ static int is_link_local(const struct link_addr *addr) {
     return addr->family == AF_INET6 && addr->bytes[0] == 0xfe && (addr->bytes[1] & 0xc0) == 0x80;
 }
 
-/* One allocation per list. ifa_data of the head points at the head itself, which glibc never
- * does, so freeifaddrs() can tell the two kinds of list apart without keeping any state. */
 struct entry {
     struct ifaddrs ifa;
     struct sockaddr_storage addr, mask, extra;
@@ -246,7 +229,6 @@ int getifaddrs(struct ifaddrs **out) {
     if (asked) __atomic_store_n(&ifaddrs_unusable_at, now_ns(), __ATOMIC_RELAXED);
     if (rc == 0 && list) real_freeifaddrs(list);
 
-    /* A leading slot keeps fill_entry()'s back link in bounds; the list starts after it. */
     struct entry *block = calloc((size_t) link.addr_count + 5, sizeof(*block));
     if (block == NULL) {
         errno = ENOMEM;
@@ -277,7 +259,6 @@ void freeifaddrs(struct ifaddrs *list) {
     real_freeifaddrs(list);
 }
 
-/* Names live in the same allocation as the array, right behind it; glibc strdup()s each one. */
 struct name_block {
     struct if_nameindex index[3];
     char names[2][IFNAMSIZ];
@@ -353,7 +334,6 @@ char *if_indextoname(unsigned int index, char name[IF_NAMESIZE]) {
 static int mac_unusable(const struct ifreq *ifr) {
     const unsigned char *a = (const unsigned char *) ifr->ifr_hwaddr.sa_data;
     if (ifr->ifr_hwaddr.sa_family != ARPHRD_ETHER) return 1;
-    /* Android hands out 02:00:00:00:00:00 where it hides the real address. */
     int rest = a[1] | a[2] | a[3] | a[4] | a[5];
     return (a[0] & 0x03) || (rest == 0 && (a[0] == 0 || a[0] == 0x02));
 }
@@ -420,15 +400,13 @@ static int is_link_query(unsigned long request) {
         || request == SIOCGIFBRDADDR;
 }
 
-void bl_kgsl_chip_id_fixup(unsigned long request, void *arg, int rc); /* kgslid.c */
+void bl_kgsl_chip_id_fixup(unsigned long request, void *arg, int rc);
 #include "../../quest/kgsl_compat.h"
 int bl_kgsl_poll(int (*real)(int, unsigned long, void *), int fd, unsigned long request,
                  void *arg, int *rc) __attribute__((visibility("hidden")));
 int bl_ntsync_ioctl(int fd, unsigned long request, void *arg, int *rc) __attribute__((visibility("hidden")));
 int bl_drm_gem_close(int fd, unsigned long request, void *arg, int *rc) __attribute__((visibility("hidden")));
 
-/* Every DRM and evdev call comes through here, so the lookup is done once. Two threads racing
- * to store it store the same pointer. */
 int ioctl(int fd, unsigned long request, ...) {
     typedef int (*ioctl_fn)(int, unsigned long, void *);
     static ioctl_fn real;
@@ -538,7 +516,6 @@ static const char *denied_table(const char *path) {
     return NULL;
 }
 
-/* A memfd rather than fmemopen(): the stream owns its contents, so fclose() frees everything. */
 static FILE *synthesize(const char *table) {
     struct link link;
     if (!load_link(&link)) return NULL;
@@ -558,7 +535,6 @@ static FILE *synthesize(const char *table) {
     return out;
 }
 
-/* tracer.c */
 int bl_status_without_tracer(const char *path, int flags) __attribute__((visibility("hidden")));
 
 static FILE *open_stream(fopen_fn real, const char *path, const char *mode) {

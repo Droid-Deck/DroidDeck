@@ -11,7 +11,6 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.zip.InflaterInputStream
 
-/** gameplay.gog.com, with a token scoped to the game's own client. */
 object GogAchievements : StoreAchievements(Store.GOG.id, Store.GOG.shortLabel) {
     private const val TAG = "GogAchievements"
 
@@ -44,7 +43,6 @@ object GogAchievements : StoreAchievements(Store.GOG.id, Store.GOG.shortLabel) {
         return Result.Found(out)
     }
 
-    /** The game's client id and secret: saved at install, else from the newest build's manifest. */
     private fun client(context: Context, productId: String, token: String): Pair<String, String>? {
         val prefs = GogPrefs.get(context)
         val savedId = prefs.getString("client_id_$productId", null)?.ifEmpty { null }
@@ -76,7 +74,6 @@ object GogAchievements : StoreAchievements(Store.GOG.id, Store.GOG.shortLabel) {
         }
     }
 
-    /** Gen2 manifests are zlib-compressed; plain JSON passes through. */
     private fun inflate(data: ByteArray): String =
         if (data.isNotEmpty() && data[0] == '{'.code.toByte()) String(data, Charsets.UTF_8)
         else InflaterInputStream(data.inputStream()).use { String(it.readBytes(), Charsets.UTF_8) }

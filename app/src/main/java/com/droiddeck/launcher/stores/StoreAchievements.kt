@@ -13,13 +13,8 @@ import java.time.Instant
 import java.time.OffsetDateTime
 import java.util.Locale
 
-/**
- * A source's achievements with the account's progress, the last good answer cached on disk. Blocking.
- * [source] is the library's id for where a game came from ("gog", "epic"; "steam" once it has one).
- */
 abstract class StoreAchievements(val source: String, val label: String) {
 
-    /** [extra]: what the source needs to find the game (Epic: "namespace"). */
     data class Game(val source: String, val id: String, val extra: Map<String, String> = emptyMap()) {
         companion object {
             fun of(item: CatalogItem) = Game(item.store.id, item.id, item.extra)
@@ -33,7 +28,6 @@ abstract class StoreAchievements(val source: String, val label: String) {
         val description: String,
         val hidden: Boolean,
         val unlocked: Boolean,
-        /** Unix seconds; 0 when locked or unknown. */
         val unlockedAt: Long,
         val icon: String?,
         val iconLocked: String?,
@@ -69,7 +63,6 @@ abstract class StoreAchievements(val source: String, val label: String) {
 
     protected fun locale(): String = Locale.getDefault().toLanguageTag()
 
-    /** ISO-8601 (including GOG's "+0000" offsets) to Unix seconds; 0 if unreadable. */
     protected fun epochSeconds(iso: String?): Long {
         if (iso.isNullOrBlank()) return 0
         val normalized = iso.replace(Regex("([+-]\\d{2})(\\d{2})$"), "$1:$2")
@@ -102,7 +95,6 @@ abstract class StoreAchievements(val source: String, val label: String) {
 
         private val all: List<StoreAchievements> by lazy { listOf(GogAchievements, EpicAchievements) }
 
-        /** Null for a source without achievements. */
         fun forSource(source: String?): StoreAchievements? = all.firstOrNull { it.source == source }
     }
 }
