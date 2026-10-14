@@ -100,6 +100,7 @@ public final class PadBridge {
     }
 
     public synchronized void stop() {
+        releaseBackPaddles();
         activeControllerId = NO_CONTROLLER;
         for (int slot = 0; slot < SLOTS; slot++) {
             owners[slot] = NO_CONTROLLER;
@@ -328,8 +329,7 @@ public final class PadBridge {
     }
 
     public synchronized void releaseAll() {
-        DeckControls.INSTANCE.setGrip(DeckControls.L4, false);
-        DeckControls.INSTANCE.setGrip(DeckControls.R4, false);
+        releaseBackPaddles();
         state.clear();
         publish();
         for (int slot = 1; slot < SLOTS; slot++) {
@@ -423,11 +423,17 @@ public final class PadBridge {
         return slot == 0 ? state : playerStates[slot];
     }
 
+    private void releaseBackPaddles() {
+        DeckControls.INSTANCE.setGrip(DeckControls.L4, false);
+        DeckControls.INSTANCE.setGrip(DeckControls.R4, false);
+    }
+
     private void free(int slot) {
         Log.i(TAG, "player " + (slot + 1) + " (id " + owners[slot] + ") left");
         owners[slot] = NO_CONTROLLER;
         slotControllers.set(slot, NO_CONTROLLER);
         if (slot == 0) {
+            releaseBackPaddles();
             state.clear();
             publish();
             return;
