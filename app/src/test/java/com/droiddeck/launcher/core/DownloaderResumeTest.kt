@@ -25,6 +25,7 @@ class DownloaderResumeTest {
     private lateinit var server: ServerSocket
     private lateinit var dir: File
     private lateinit var thread: Thread
+    @Volatile private var misbehave = false
 
     @Before fun setUp() {
         dir = Files.createTempDirectory("downloader-resume").toFile()
@@ -33,7 +34,8 @@ class DownloaderResumeTest {
             try {
                 while (!server.isClosed) {
                     val socket = server.accept()
-                    handle(socket)
+                    // the client may hang up on a body it refuses; that must not stop the server
+                    runCatching { handle(socket) }
                 }
             } catch (_: Exception) {
                 // closed by tearDown
@@ -57,7 +59,14 @@ class DownloaderResumeTest {
         requests.add(range)
         val out = it.getOutputStream()
         val from = range?.removePrefix("bytes=")?.substringBefore('-')?.toIntOrNull()
-        if (from == null) {
+        if (misbehave) {
+            // answers a Range request with a 206 that starts at 0, and serves plain requests whole
+            val start = if (from == null) "200 OK" else "206 Partial Content"
+            val extra = if (from == null) "" else "Content-Range: bytes 0-${data.size - 1}/${data.size}\r\n"
+            out.write("HTTP/1.1 $start\r\n${extra}Content-Length: ${data.size}\r\nConnection: close\r\n\r\n".toByteArray())
+            out.write(data)
+            out.flush()
+        } else if (from == null) {
             out.write("HTTP/1.1 200 OK\r\nContent-Length: ${data.size}\r\nConnection: close\r\n\r\n".toByteArray())
             out.write(data, 0, cutAt)
             out.flush()
@@ -83,5 +92,20 @@ class DownloaderResumeTest {
         assertEquals(data.size.toLong(), target.length())
         assertArrayEquals(data, target.readBytes())
         assertEquals(listOf<String?>(null, "bytes=$kept-"), requests.toList())
+    }
+
+    @Test fun answerFromTheWrongOffsetIsNotAppended() {
+        val url = "http://127.0.0.1:${server.localPort}/runtime.tar.zst"
+        val target = File(dir, "runtime.tar.zst")
+
+        assertFalse(Downloader.downloadFile(url, target, true, null))
+        val kept = target.length()
+        assertTrue(kept in 1 until data.size)
+
+        misbehave = true
+        assertTrue(Downloader.downloadFile(url, target, true, null))
+        assertEquals(data.size.toLong(), target.length())
+        assertArrayEquals("the file must not be the kept bytes plus a misplaced body", data, target.readBytes())
+        assertEquals(listOf<String?>(null, "bytes=$kept-", null), requests.toList())
     }
 }
