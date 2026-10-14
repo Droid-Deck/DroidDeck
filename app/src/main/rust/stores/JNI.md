@@ -118,9 +118,10 @@ On-disk protocol (what a resumed run, by either engine, relies on): a file is as
 Everything Epic runs in the Rust `epic` module: the web-service calls (sign-in, refresh, exchange
 codes, library, catalog, build information, shop shelves, achievements, cloud saves), manifest
 parsing and the install engine. Tokens are passed in per call and never stored or logged by the
-library; the Kotlin facade keeps them in the shared Keystore-sealed account store. All requests send
-one User-Agent, `DroidDeck/<versionName>` (`epic/net.rs::USER_AGENT_PRODUCT`; the version comes from
-`nativeConfigure`).
+library; the Kotlin facade keeps them in the shared Keystore-sealed account store. Requests send
+`DroidDeck/<versionName>` (`epic/net.rs::USER_AGENT_PRODUCT`; the version comes from
+`nativeConfigure`), except achievements, which Epic only answers for its launcher agent
+(`epic/net.rs::EPIC_LAUNCHER_USER_AGENT`).
 
 | Method | JNI signature | Symbol suffix |
 |---|---|---|

@@ -85,6 +85,9 @@ object EpicCredentialStore {
     private fun fresh(c: Credentials): Boolean =
         c.expiresAt - System.currentTimeMillis() > REFRESH_MARGIN_MS || c.refreshToken.isNullOrEmpty()
 
+    private fun unexpired(c: Credentials): String? =
+        c.accessToken.takeIf { c.expiresAt <= 0 || c.expiresAt > System.currentTimeMillis() }
+
     @JvmStatic
     fun getValidAccessToken(context: Context): String? {
         val current = load(context) ?: return null
@@ -96,7 +99,7 @@ object EpicCredentialStore {
             val result = answer?.let(TokenResult::from)
             if (result == null) {
                 Log.w(TAG, "token refresh failed: ${answer?.optString("error").orEmpty().ifEmpty { "no answer" }}")
-                return again.accessToken
+                return unexpired(again)
             }
             save(context, result)
             return result.accessToken
