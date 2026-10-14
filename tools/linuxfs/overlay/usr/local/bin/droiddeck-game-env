@@ -219,6 +219,47 @@ def without_pack(chosen_env, env):
     return result
 
 
+LOCALE_STAMP = Path("/usr/lib/locale/.droiddeck-locale")
+
+
+def ensure_locale(name):
+    """The locale's glibc data, built from the rootfs' own i18n sources the first time it is asked
+    for: the rootfs ships only C.utf8, and Proton's own shell and Python need the locale to exist."""
+    stamp = LOCALE_STAMP / name
+    if stamp.exists():
+        return True
+    language, _, encoding = name.partition(".")
+    try:
+        built = subprocess.run(["localedef", "-i", language, "-f", encoding or "UTF-8", name],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    if built.returncode != 0:
+        return False
+    try:
+        stamp.parent.mkdir(parents=True, exist_ok=True)
+        stamp.touch()
+    except OSError:
+        pass
+    return True
+
+
+def game_locale(env):
+    """DROIDDECK_LOCALE (a game's Locale) or a LANG from the game environment: Wine reads LANG
+    itself and takes the game's codepage and language from it, so one game can run in its own
+    locale while the session and every other game stay on C.UTF-8."""
+    name = env.get("DROIDDECK_LOCALE") or env.get("LANG", "")
+    if name in ("", "C", "POSIX", "C.UTF-8"):
+        return env
+    if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_-]+)?(?:@[A-Za-z0-9_-]+)?", name):
+        print("droiddeck-game-env: locale %s ignored" % name, file=sys.stderr)
+        return env
+    if not ensure_locale(name):
+        print("droiddeck-game-env: %s locale data could not be built; the Linux side keeps C.UTF-8" % name, file=sys.stderr)
+    print("droiddeck-game-env: locale %s" % name, file=sys.stderr)
+    return dict(env, LANG=name)
+
+
 SSBS_LIB = "/usr/local/lib/libssbs.so"
 
 
@@ -331,6 +372,7 @@ def main():
             print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
     if mic_enabled == "0":
         env["BANNER_AUDIO_DIRECT_MIC"] = "0"
+    env = game_locale(env)
     env = force_ssbs(command, env)
     command, env = start_without_steam(command, env, app_id)
     sync = load_sync()
