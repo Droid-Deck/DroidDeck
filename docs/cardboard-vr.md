@@ -143,6 +143,12 @@ With VITURE glasses connected, the Steam page also offers **Play SteamVR**, whic
 SteamVR (installing it first if needed), and stops SteamVR when the glasses are unplugged. **Play
 Steam** never starts it: while SteamVR runs, Steam keeps its own window in front of flat games.
 
+Stereo also requires a physical side-by-side display mode. On the tested Astra 2
+firmware the Pro XR command succeeds but DisplayPort falls back to 640×480;
+direct-connection stereo remains unresolved. See the
+[Astra/VITURE investigation](development/astra-viture-stereo.md) for measured
+results, app recovery behavior, and the unverified powered-adapter design.
+
 ### Not done yet
 
 - **Controllers**: the driver adds two Vive-profile hands driven by the session's game pad. It reads

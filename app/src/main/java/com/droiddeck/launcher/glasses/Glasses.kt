@@ -34,6 +34,7 @@ data class GlassesState(
     val height: Int = 0,
     val hz: Float = 0f,
     val sbs: Boolean = false,
+    val switching3d: Boolean = false,
     val brightness: Int = -1,
     val volume: Int = -1,
     val brightnessMax: Int = 8,
@@ -109,15 +110,15 @@ object Glasses {
     private lateinit var usb: UsbManager
     private lateinit var displays: DisplayManager
     @Volatile private var link: VitureLink? = null
+    @Volatile private var linkGeneration = 0L
     private var linkDevice: UsbDevice? = null
     private var model: VitureProtocol.Model? = null
     private var asked = false
     private var lastModeSentAt = 0L
-    private var sbsAskedAt = 0L
+    private val modeState = GlassesModeState(SBS_CONFIRM_MS)
+    private val confirmMode = Runnable { refresh() }
     private var glassesMode = 0
     private var autoModeSent = false
-    private var vr3d = false
-    private var vr3dRevert = false
 
     @Volatile private var sink: PoseSink? = null
     @Volatile private var probe: ((ByteArray) -> Unit)? = null
@@ -132,7 +133,7 @@ object Glasses {
         usb = app.getSystemService(Context.USB_SERVICE) as UsbManager
         displays = app.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
         _settings.value = load()
-        _state.value = _state.value.copy(sbsSupport = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(KEY_SBS_SUPPORT, GlassesState.SBS_UNKNOWN))
+        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(KEY_SBS_SUPPORT).apply()
         handler = Handler(HandlerThread("droiddeck-glasses").apply { start() }.looper)
         handler.post {
             val filter = IntentFilter(ACTION_PERMISSION).apply {
@@ -176,25 +177,20 @@ object Glasses {
     }
 
     fun set3d(on: Boolean) = post {
-        vr3d = false
-        vr3dRevert = false
+        modeState.manual()
         val s = _state.value
-        if (if (on) s.can3d else s.canControl) sendMode(on)
+        if (!s.canControl || (on && s.noSignal)) return@post
+        if (on) rememberSbs(GlassesState.SBS_UNKNOWN)
+        sendMode(on)
     }
 
     fun set3dForVr(on: Boolean) = post {
         val s = _state.value
         if (on) {
-            vr3dRevert = false
-            if (!s.can3d || s.sbs) return@post
-            vr3d = true
-            sendMode(true)
-        } else if (vr3d) {
-            vr3d = false
-            when {
-                !s.canControl -> vr3dRevert = true
-                s.sbs -> sendMode(false)
-            }
+            if (!s.can3d || s.sbs || modeState.pendingStereo) return@post
+            if (sendMode(true)) modeState.startVr()
+        } else if (modeState.stopVr() && s.canControl) {
+            sendMode(false)
         }
     }
 
@@ -226,7 +222,11 @@ object Glasses {
     fun setScreenDistanceDm(dm: Int) = post { update { it.copy(screenDistanceDm = dm.coerceIn(5, 200)) } }
     fun setVrFovDeg(deg: Int) = post { update { it.copy(vrFovDeg = deg.coerceIn(GlassesSettings.VR_FOV_MIN, GlassesSettings.VR_FOV_MAX)) } }
 
-    fun outputHz(): Int = _settings.value.let { if (_state.value.sbs) it.sbsHz else it.refreshHz }
+    fun outputHz(): Int {
+        val s = _state.value
+        val g = _settings.value
+        return if (s.sbs) if (s.sbs90) g.sbsHz else 60 else g.refreshHz
+    }
 
     fun glassesDisplay(): Display? = _state.value.displayId.takeIf { it != Display.INVALID_DISPLAY }?.let { displays.getDisplay(it) }
 
@@ -274,7 +274,8 @@ object Glasses {
             .put("present", s.present).put("model", s.model).put("controllable", s.controllable)
             .put("permission", s.permission.name).put("connected", s.connected)
             .put("display", if (s.hasDisplay) JSONObject().put("id", s.displayId).put("width", s.width).put("height", s.height).put("hz", s.hz.toDouble()) else JSONObject.NULL)
-            .put("sbs", s.sbs).put("brightness", s.brightness).put("volume", s.volume)
+            .put("sbs", s.sbs).put("deviceMode", glassesMode).put("switching3d", s.switching3d)
+            .put("brightness", s.brightness).put("volume", s.volume)
             .put("brightnessMax", s.brightnessMax).put("volumeMax", s.volumeMax).put("sunblock", s.sunblock)
             .put("tracking", s.tracking).put("simulating", simulating.get() != null).put("imuPackets", imuPackets)
             .put("pose", q?.let { JSONArray().put(it[0].toDouble()).put(it[1].toDouble()).put(it[2].toDouble()).put(it[3].toDouble()) } ?: JSONObject.NULL)
@@ -321,7 +322,6 @@ object Glasses {
                     refresh(ask = true)
                 }
                 UsbManager.ACTION_USB_DEVICE_DETACHED -> if (intent.device()?.vendorId == VitureProtocol.VENDOR_ID) {
-                    closeLink()
                     refresh()
                 }
             }
@@ -338,6 +338,13 @@ object Glasses {
 
     private fun refresh(ask: Boolean = false) {
         val device = usb.deviceList.values.firstOrNull { it.vendorId == VitureProtocol.VENDOR_ID }
+        val permitted = device != null && usb.hasPermission(device)
+        val identity = device?.let {
+            GlassesModeState.Device(it.productId, if (permitted) runCatching { it.serialNumber }.getOrNull() else null)
+        }
+        if (modeState.updateDevice(identity, SystemClock.uptimeMillis())) {
+            rememberSbs(GlassesState.SBS_UNKNOWN)
+        }
         val m = device?.let { VitureProtocol.model(it.productId, runCatching { it.productName }.getOrNull()) }
         if (device == null || (linkDevice != null && linkDevice?.deviceName != device.deviceName)) closeLink()
         model = m
@@ -347,23 +354,14 @@ object Glasses {
         val height = mode?.physicalHeight ?: 0
         val sbsByDisplay = width >= 3000
         val noSignal = display != null && width in 1 until 1280
-        if (sbsAskedAt != 0L) {
-            when {
-                SystemClock.uptimeMillis() - sbsAskedAt > SBS_CONFIRM_MS -> sbsAskedAt = 0L
-                display == null -> Unit
-                sbsByDisplay -> {
-                    sbsAskedAt = 0L
-                    rememberSbs(GlassesState.SBS_WORKS)
-                }
-                noSignal -> {
-                    sbsAskedAt = 0L
-                    Log.w(TAG, "3D came back as ${width}x$height: this phone can't send the side-by-side signal")
-                    rememberSbs(GlassesState.SBS_FAILS)
-                    handler.postDelayed({ sendMode(false) }, 500)
-                }
+        when (modeState.observe(sbsByDisplay, SystemClock.uptimeMillis())) {
+            GlassesModeState.Confirmation.FAILED -> {
+                Log.w(TAG, "3D signal was not confirmed at ${width}x$height; restoring 2D")
+                rememberSbs(GlassesState.SBS_FAILS)
             }
+            else -> Unit
         }
-        val permitted = device != null && usb.hasPermission(device)
+        if (sbsByDisplay) rememberSbs(GlassesState.SBS_WORKS)
         if (device != null && !permitted && (ask || !asked) && _state.value.permission != Permission.ASKING) askPermission(device)
         if (device != null && permitted && link == null && m?.controllable == true) openLink(device)
         publish {
@@ -380,7 +378,8 @@ object Glasses {
                 connected = link != null,
                 displayId = display?.displayId ?: Display.INVALID_DISPLAY,
                 width = width, height = height, hz = mode?.refreshRate ?: 0f,
-                sbs = if (display != null) sbsByDisplay else it.sbs && link != null,
+                sbs = sbsByDisplay,
+                switching3d = modeState.pendingStereo,
                 brightnessMax = m?.brightnessMax ?: 8, volumeMax = m?.volumeMax ?: 8,
                 sunblock = _settings.value.sunblock ?: it.sunblock,
                 diagonalFovDeg = m?.diagonalFovDeg ?: 46f,
@@ -389,7 +388,8 @@ object Glasses {
                 sbs90 = m?.sbs90 == true,
             )
         }
-        if (link != null && display != null && !noSignal) applyMode(force = false)
+        if (link != null) applyMode(force = false)
+        scheduleModeCheck()
     }
 
     private fun findDisplay(usbPresent: Boolean): Display? {
@@ -419,7 +419,9 @@ object Glasses {
     }
 
     private fun openLink(device: UsbDevice) {
-        val l = VitureLink.open(usb, device, linkListener) ?: run {
+        val generation = ++linkGeneration
+        val l = VitureLink.open(usb, device, linkListener(generation)) ?: run {
+            linkGeneration++
             Log.w(TAG, "could not open ${device.deviceName}")
             return
         }
@@ -442,6 +444,7 @@ object Glasses {
 
     private fun closeLink() {
         val l = link ?: return
+        linkGeneration++
         link = null
         linkDevice = null
         glassesMode = 0
@@ -452,22 +455,18 @@ object Glasses {
 
     private fun rememberSbs(support: Int) {
         if (_state.value.sbsSupport == support) return
-        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putInt(KEY_SBS_SUPPORT, support).apply()
         publish { it.copy(sbsSupport = support) }
     }
 
     private fun applyMode(force: Boolean) {
         val s = _state.value
         val m = model ?: return
-        if (!s.canControl || !s.usable) return
-        if (vr3dRevert) {
-            vr3dRevert = false
-            if (s.sbs) {
-                sendMode(false)
-                return
-            }
+        if (!s.canControl) return
+        if (modeState.restorePending) {
+            sendMode(false)
+            return
         }
-        if (s.sbs) return
+        if (!s.usable || s.sbs || modeState.pendingStereo) return
         val hz = _settings.value.refreshHz
         if (glassesMode == m.mode(hz, false)) return
         if (!force) {
@@ -478,14 +477,24 @@ object Glasses {
         sendMode(false)
     }
 
-    private fun sendMode(sbs: Boolean) {
-        val m = model ?: return
-        if (sbs && _state.value.sbsSupport == GlassesState.SBS_FAILS) return
+    private fun sendMode(sbs: Boolean): Boolean {
+        val m = model ?: return false
         val g = _settings.value
         val mode = m.mode(if (sbs) g.sbsHz else g.refreshHz, sbs)
         if (link?.send(VitureProtocol.MSG_DISPLAY, byteArrayOf(mode.toByte())) == true) {
             lastModeSentAt = SystemClock.uptimeMillis()
-            sbsAskedAt = if (sbs) lastModeSentAt else 0L
+            modeState.sent(sbs, lastModeSentAt)
+            publish { it.copy(switching3d = modeState.pendingStereo) }
+            scheduleModeCheck()
+            return true
+        }
+        return false
+    }
+
+    private fun scheduleModeCheck() {
+        handler.removeCallbacks(confirmMode)
+        modeState.nextCheckAt?.let { at ->
+            handler.postDelayed(confirmMode, (at - SystemClock.uptimeMillis()).coerceAtLeast(0))
         }
     }
 
@@ -503,8 +512,9 @@ object Glasses {
         publish { it.copy(tracking = want) }
     }
 
-    private val linkListener = object : VitureLink.Listener {
-        override fun onFrame(frame: VitureProtocol.Frame) {
+    private fun linkListener(generation: Long) = object : VitureLink.Listener {
+        override fun onFrame(frame: VitureProtocol.Frame) = post {
+            if (generation != linkGeneration) return@post
             val line = "%s 0x%04X %s".format(
                 when (frame.magic) { VitureProtocol.MAGIC_REPORT -> "FD"; VitureProtocol.MAGIC_COMMAND -> "FE"; else -> "FC" },
                 frame.msgId, frame.payload.joinToString("") { "%02X".format(it) },
@@ -514,10 +524,11 @@ object Glasses {
                 while (frames.size > 64) frames.removeFirst()
             }
             Log.i(TAG, "frame $line")
-            post { onReport(frame) }
+            onReport(frame)
         }
 
         override fun onImu(payload: ByteArray, timeNs: Long) {
+            if (generation != linkGeneration) return
             imuPackets++
             probe?.invoke(payload)
             if (simulating.get() != null) return
@@ -525,6 +536,7 @@ object Glasses {
         }
 
         override fun onLost() = post {
+            if (generation != linkGeneration) return@post
             closeLink()
             refresh()
         }
@@ -543,7 +555,6 @@ object Glasses {
             VitureProtocol.EVENT_DISPLAY -> {
                 Log.i(TAG, "glasses switched to mode 0x%02X".format(event))
                 glassesMode = event
-                publish { it.copy(sbs = VitureProtocol.modeIsSbs(event)) }
             }
             VitureProtocol.EVENT_DISPLAY_STEP -> model?.modeForStep(event)?.let { mode ->
                 Log.i(TAG, "glasses report mode 0x%02X".format(mode))
@@ -555,11 +566,12 @@ object Glasses {
             VitureProtocol.MSG_GET_VOLUME, VitureProtocol.MSG_VOLUME -> answer?.let { v -> publish { it.copy(volume = v) } }
             VitureProtocol.MSG_DISPLAY -> if (event != 0) {
                 Log.w(TAG, "glasses refused display mode 0x%02X".format(p.getOrNull(1)?.toInt()?.and(0xFF) ?: 0))
-                sbsAskedAt = 0L
+                modeState.cancelPending()
+                publish { it.copy(switching3d = false) }
+                scheduleModeCheck()
             } else answer?.let { glassesMode = it }
             VitureProtocol.MSG_GET_DISPLAY -> answer?.let { v ->
                 glassesMode = v
-                if (VitureProtocol.modeIsSbs(v) != _state.value.sbs && !_state.value.hasDisplay) publish { it.copy(sbs = VitureProtocol.modeIsSbs(v)) }
             }
         }
     }

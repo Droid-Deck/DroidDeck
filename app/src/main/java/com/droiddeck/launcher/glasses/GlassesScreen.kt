@@ -17,10 +17,7 @@ class GlassesScreen(context: Context, display: Display, refreshHz: Int, private 
     val holder: SurfaceHolder get() = surfaceView.holder
     private var wantHz = refreshHz
 
-    val hz: Float get() {
-        val id = window?.attributes?.preferredDisplayModeId ?: 0
-        return display.supportedModes.firstOrNull { id != 0 && it.modeId == id }?.refreshRate ?: display.refreshRate
-    }
+    val hz: Float get() = display.mode.refreshRate
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

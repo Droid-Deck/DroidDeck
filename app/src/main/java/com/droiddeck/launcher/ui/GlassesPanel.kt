@@ -108,7 +108,8 @@ internal fun GlassesGroups(
         ChoiceRow(host, "glasses-hz", stringResource(R.string.glasses_refresh), null,
             listOf(60, 90, 120).map { it to "$it Hz" }, s.refreshHz, chipModifier = track("glasses-hz")) { Glasses.setRefreshHz(it) }
         if (g.sbsSupport == GlassesState.SBS_FAILS && !g.sbs) {
-            SettingsRow(stringResource(R.string.glasses_3d), stringResource(R.string.glasses_3d_unsupported)) {}
+            ActionRow(stringResource(R.string.glasses_3d), stringResource(R.string.glasses_3d_failed),
+                stringResource(R.string.stores_dl_retry), { Glasses.set3d(true) })
         } else {
             if (inSession || g.sbs) ToggleRow(host, "glasses-3d", stringResource(R.string.glasses_3d), stringResource(R.string.glasses_3d_hint),
                 g.sbs, chipModifier = track("glasses-3d")) { Glasses.set3d(it) }

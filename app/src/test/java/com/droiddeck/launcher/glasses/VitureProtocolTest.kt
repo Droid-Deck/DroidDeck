@@ -70,10 +70,15 @@ class VitureProtocolTest {
 
         val luma = VitureProtocol.model(0x1131, null)!!
         assertEquals("VITURE Luma", luma.name)
-        assertTrue(luma.sbs90)
+        assertFalse(luma.sbs90)
         assertEquals(0x44, luma.mode(120, false))
-        assertEquals(0x45, luma.mode(90, true))
+        assertEquals(0x42, luma.mode(90, true))
         assertEquals(0x42, luma.mode(60, true))
+
+        val ultra = VitureProtocol.model(0x1101, null)!!
+        assertTrue(ultra.sbs90)
+        assertEquals(0x45, ultra.mode(90, true))
+        assertEquals(0x42, ultra.mode(60, true))
 
         assertFalse(VitureProtocol.model(0x1201, null)!!.controllable)
         assertNull(VitureProtocol.model(0x9999, "VITURE"))

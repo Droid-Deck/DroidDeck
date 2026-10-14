@@ -315,9 +315,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun followPanelRefresh(displayId: Int) {
         if (!CompositorHost.isStarted) return
-        val display = (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay) ?: return
-        if (display.displayId != displayId) return
-        val hz = display.refreshRate
+        val output = glassesScreen?.display
+            ?: (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay) ?: return
+        if (output.displayId != displayId) return
+        val hz = output.mode.refreshRate
         if (hz > 1f) WaylandCompositor.nativeSetOutputRefreshRate(hz)
     }
     private var isHomeApp by mutableStateOf(false)
@@ -2515,13 +2516,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun onGlassesChanged() {
         val g = glasses
         val s = glassesSettings
-        val key = listOf(g.present, g.usable, g.displayId, g.sbs, g.canControl, g.width, g.height, g.hz, s)
+        val key = listOf(g.present, g.usable, g.displayId, g.sbs, g.switching3d, g.canControl, g.width, g.height, g.hz, s)
         if (key == glassesKey) return
         glassesKey = key
         updateGlassesScreen()
         applyCardboard(cardboard)
-        if (glassesPresent && !g.present) onGlassesUnplugged()
-        glassesPresent = g.present
+        if (!g.switching3d) {
+            if (glassesPresent && !g.present) onGlassesUnplugged()
+            glassesPresent = g.present
+        }
     }
 
     private fun onGlassesUnplugged() {

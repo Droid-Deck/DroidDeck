@@ -36,7 +36,7 @@ object VitureProtocol {
     class Model(val name: String, val family: Family) {
         val controllable: Boolean get() = family != Family.BEAST
         val tall: Boolean get() = family == Family.LUMA || family == Family.ULTRA
-        val sbs90: Boolean get() = tall
+        val sbs90: Boolean get() = family == Family.ULTRA
         val brightnessMax: Int get() = 8
         val volumeMax: Int get() = 8
         val diagonalFovDeg: Float get() = when (family) {
@@ -47,7 +47,7 @@ object VitureProtocol {
         }
 
         fun mode(hz: Int, sbs: Boolean): Int = when {
-            tall && sbs -> if (hz >= 90) 0x45 else 0x42
+            tall && sbs -> if (hz >= 90 && sbs90) 0x45 else 0x42
             tall -> when { hz >= 120 -> 0x44; hz >= 90 -> 0x43; else -> 0x41 }
             sbs -> if (hz >= 90 && sbs90) 0x35 else 0x32
             else -> when { hz >= 120 -> 0x34; hz >= 90 -> 0x33; else -> 0x31 }

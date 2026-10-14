@@ -29,6 +29,7 @@ object CompositorHost {
         fpsLimit: Int,
     ): Boolean {
         pace(refreshHz, fpsLimit)
+        WaylandCompositor.nativeSetOutputRefreshRate(refreshHz)
         if (!SessionState.running) WaylandCompositor.nativeSetOutputSize(outputWidth, outputHeight)
         if (started) {
             attached = surface
@@ -36,7 +37,6 @@ object CompositorHost {
             resumeVsync()
             return false
         }
-        WaylandCompositor.nativeSetOutputRefreshRate(refreshHz)
         WaylandCompositor.nativeStartWithSurface(
             surface, xdgRuntimeDir, driverPath, libraryName, nativeLibDir,
         )

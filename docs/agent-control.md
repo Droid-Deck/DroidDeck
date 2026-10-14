@@ -129,6 +129,10 @@ tools/droiddeckctl glasses mode 0x34
 tools/droiddeckctl glasses raw 0x0007
 ```
 
+Glasses status reports `deviceMode` from the MCU separately from `sbs`, which
+requires a physical stereo display mode. `switching3d` marks the bounded
+confirmation window. A successful mode-command reply alone does not confirm 3D.
+
 A sleeping device suspends the session and hides the app's windows from `ui dump`; `wake` first.
 
 `input` needs a session that has drawn its first frame. Pad input goes through the session screen's
