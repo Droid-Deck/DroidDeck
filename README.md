@@ -19,6 +19,8 @@ Use Android 9 or newer on a supported Adreno device (730 or newer, or 8xx). Adre
 
 Before Steam launches, you must turn off **Restrict child processes** in Developer options. If this option is not available in developer settings (Android 12 and 13 devices), first launch of Steam will present a "Fix it for me" button, which will help automate the setup process.
 
+In **Stores**, the Library and Installed views have a sort menu beside Search: name A–Z or Z–A, or install size smallest or largest first. Size sorting uses known sizes, with unknown sizes last. The order stays stable while more sizes load; choose size sorting again to include them. Search results use the selected order; storefront shelves are unchanged.
+
 ## Community
 
 Join the [DroidDeck Discord](https://discord.gg/JRGAvawjsm) for help, Preview builds, and device reports. Bug reports go in its **#bug-reports** forum; attach the zip from **Share logs** (Setup, or the session drawer) so the logs come with it.

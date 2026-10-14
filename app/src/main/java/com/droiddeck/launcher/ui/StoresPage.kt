@@ -84,6 +84,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.basicMarquee
@@ -129,6 +130,9 @@ import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoresState
+import com.droiddeck.launcher.stores.StoreLibrarySort
+import com.droiddeck.launcher.stores.StoreSizes
+import com.droiddeck.launcher.stores.sortStoreLibrary
 import com.droiddeck.launcher.stores.download.DownloadStage
 import com.droiddeck.launcher.stores.download.DownloadState
 import com.droiddeck.launcher.stores.formatBytes
@@ -732,12 +736,16 @@ private fun Storefront(
     val installedOnly = tab == "installed"
     val loaded = StoresState.library.containsKey(store)
     val showGrid = tab != "store" || q.isNotEmpty()
-    val visible = remember(library, installedItems, everything, tab, q, s.storesShowMature) {
-        when (tab) {
+    var order by rememberSaveable(store, tab) { mutableStateOf(StoreLibrarySort.NAME_ASC) }
+    // Background size lookups must not reorder cards while the user is browsing.
+    var sortSizes by remember(store, tab) { mutableStateOf(StoreSizes.known.toMap()) }
+    val visible = remember(library, installedItems, everything, tab, q, s.storesShowMature, order, sortSizes) {
+        val filtered = when (tab) {
             "library" -> library.filter(::matches)
             "installed" -> installedItems.filter(::matches)
             else -> everything.filter { matches(it) && shown(it) }
         }
+        if (tab == "store") filtered else sortStoreLibrary(filtered, order, sortSizes)
     }
     val empty = stringResource(when {
         installedOnly -> R.string.stores_installed_empty
@@ -793,23 +801,37 @@ private fun Storefront(
     ) {
         item(key = "header", span = { GridItemSpan(maxLineSpan) }) {
             Rise(1) {
-                ModeHeader(
-                    when {
-                        tab == "store" -> stringResource(R.string.stores_tab_store)
-                        !loaded -> stringResource(if (installedOnly) R.string.stores_tab_installed else R.string.stores_tab_library)
-                        installedOnly -> stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_installed), installedItems.size)
-                        else -> stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_library), library.size)
-                    },
-                    query, onQuery,
-                    placeholder = when {
-                        tab == "store" -> stringResource(R.string.stores_search_catalog, store.label)
-                        installedOnly -> stringResource(R.string.stores_search_installed)
-                        else -> stringResource(R.string.stores_search_library)
-                    },
-                ) {
-                    SmallTextButton(stringResource(R.string.stores_refresh)) { StoresState.open(ctx, store, force = true) }
-                    val name = StoresState.accounts[store] ?: ""
-                    SignOutButton(store, name)
+                Column {
+                    ModeHeader(
+                        when {
+                            tab == "store" -> stringResource(R.string.stores_tab_store)
+                            !loaded -> stringResource(if (installedOnly) R.string.stores_tab_installed else R.string.stores_tab_library)
+                            installedOnly -> stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_installed), installedItems.size)
+                            else -> stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_library), library.size)
+                        },
+                        query, onQuery,
+                        placeholder = when {
+                            tab == "store" -> stringResource(R.string.stores_search_catalog, store.label)
+                            installedOnly -> stringResource(R.string.stores_search_installed)
+                            else -> stringResource(R.string.stores_search_library)
+                        },
+                        tools = {
+                            if (tab != "store") StoreSortButton(order) { chosen ->
+                                sortSizes = StoreSizes.known.toMap()
+                                order = chosen
+                                scope.launch { grid.scrollToItem(0) }
+                            }
+                        },
+                    ) {
+                        SmallTextButton(stringResource(R.string.stores_refresh)) { StoresState.open(ctx, store, force = true) }
+                        val name = StoresState.accounts[store] ?: ""
+                        SignOutButton(store, name)
+                    }
+                    if (tab != "store" && order.bySize) Text(
+                        stringResource(R.string.stores_sort_size_note),
+                        fontSize = 12.sp, color = colors.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+                    )
                 }
             }
         }
@@ -839,7 +861,10 @@ private fun Storefront(
 }
 
 @Composable
-internal fun ModeHeader(title: String, query: String, onQuery: (String) -> Unit, placeholder: String, trailing: @Composable () -> Unit) {
+internal fun ModeHeader(
+    title: String, query: String, onQuery: (String) -> Unit, placeholder: String,
+    tools: @Composable () -> Unit = {}, trailing: @Composable () -> Unit,
+) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     var searching by remember { mutableStateOf(query.isNotEmpty()) }
@@ -862,6 +887,7 @@ internal fun ModeHeader(title: String, query: String, onQuery: (String) -> Unit,
                     }
                 } else SearchIcon(stringResource(R.string.stores_search_open)) { searching = true }
             }
+            tools()
             trailing()
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
@@ -903,6 +929,69 @@ internal fun FlathubTheme(content: @Composable () -> Unit) {
     val p = remember(base) { flathubPalette(base) }
     val scheme = MaterialTheme.colorScheme.copy(primary = p.primary, onPrimary = p.onPrimary)
     CompositionLocalProvider(LocalPalette provides p) { MaterialTheme(colorScheme = scheme, typography = MaterialTheme.typography, content = content) }
+}
+
+@Composable
+private fun sortLabel(order: StoreLibrarySort): String = stringResource(when (order) {
+    StoreLibrarySort.NAME_ASC -> R.string.stores_sort_name_asc
+    StoreLibrarySort.NAME_DESC -> R.string.stores_sort_name_desc
+    StoreLibrarySort.SIZE_ASC -> R.string.stores_sort_size_asc
+    StoreLibrarySort.SIZE_DESC -> R.string.stores_sort_size_desc
+})
+
+@Composable
+private fun StoreSortButton(order: StoreLibrarySort, onChoose: (StoreLibrarySort) -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val label = sortLabel(order)
+    val description = stringResource(R.string.stores_sort_description, label)
+    val src = remember { MutableInteractionSource() }
+    val hot = rememberHot(src)
+    val focus = LocalFrontFocus.current
+    val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current
+    val scope = rememberCoroutineScope()
+    var at by remember { mutableStateOf<Rect?>(null) }
+    val show: () -> Unit = {
+        at?.let { anchor ->
+            StoresMotion.ask(StepAsk(
+                anchor = anchor, side = StepSide.Left, accent = pal.signal, pillCorner = 8.dp,
+                items = StoreLibrarySort.entries.size,
+                onDismiss = {
+                    if (inputMode.inputMode == androidx.compose.ui.input.InputMode.Keyboard && focus != null) scope.launch {
+                        focusWithinFrames({ focus.last == "storesort" }) {
+                            focus.items["storesort"] ?: androidx.compose.ui.focus.FocusRequester.Default
+                        }
+                    }
+                },
+                handle = { Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground) },
+            ) {
+                StepList {
+                    StoreLibrarySort.entries.forEachIndexed { index, choice ->
+                        StepChoice(
+                            sortLabel(choice), selected = choice == order, enabled = open,
+                            modifier = Modifier.fillMaxWidth().stepItem(index)
+                                .then(if (choice == order) Modifier.focusRequester(first) else Modifier),
+                        ) {
+                            onChoose(choice)
+                            StoresMotion.fold()
+                        }
+                    }
+                }
+            })
+        }
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.onGloballyPositioned { at = it.boundsInRoot() }.paneItem("storesort")
+            .heightIn(min = 40.dp).widthIn(max = 150.dp).clip(RoundedCornerShape(8.dp))
+            .glideBorder(hot, RoundedCornerShape(8.dp), pal.signal)
+            .semantics { contentDescription = description }
+            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = show)
+            .controllerConfirm(onClick = show).padding(horizontal = 8.dp, vertical = 6.dp),
+    ) {
+        Icon(Icons.AutoMirrored.Filled.Sort, null, tint = colors.onSurfaceVariant, modifier = Modifier.size(18.dp))
+        Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
 }
 
 @Composable
