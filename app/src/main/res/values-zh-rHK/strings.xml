@@ -895,8 +895,8 @@
     <string name="wadb_turn_off">關閉限制</string>
     <string name="wadb_other_ways">其他更改方式</string>
     <string name="wadb_dev_try_first">1 · 開發人員選項（請先嘗試）</string>
-    <string name="wadb_restrict_on">開啟「限制子進程」。</string>
-    <string name="wadb_restrict_off">關閉「限制子進程」。</string>
+    <string name="wadb_restrict_on">關閉「停用對子處理過程的限制」。</string>
+    <string name="wadb_restrict_off">開啟「停用對子處理過程的限制」。</string>
     <string name="wadb_computer_last">3 · 電腦 ADB（最後手段）</string>
     <string name="wadb_only_if">只在無法使用無線偵錯時使用。</string>
     <string name="wadb_computer_group">3 · 電腦 ADB（最後手段）</string>

@@ -895,8 +895,8 @@
     <string name="wadb_turn_off">制限をオフにする</string>
     <string name="wadb_other_ways">その他の変更方法</string>
     <string name="wadb_dev_try_first">1 · 開発者向けオプション（最初に試す）</string>
-    <string name="wadb_restrict_on">「子プロセスを制限」をオンにします。</string>
-    <string name="wadb_restrict_off">「子プロセスを制限」をオフにします。</string>
+    <string name="wadb_restrict_on">「子プロセスの制限を無効化」をオフにします。</string>
+    <string name="wadb_restrict_off">「子プロセスの制限を無効化」をオンにします。</string>
     <string name="wadb_computer_last">3 · PC ADB（最終手段）</string>
     <string name="wadb_only_if">ワイヤレスデバッグが利用できない場合にのみ使用してください。</string>
     <string name="wadb_computer_group">3 · PC ADB（最終手段）</string>

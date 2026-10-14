@@ -895,8 +895,8 @@
     <string name="wadb_turn_off">제한 끄기</string>
     <string name="wadb_other_ways">기타 변경 방법</string>
     <string name="wadb_dev_try_first">1 · 개발자 옵션(먼저 시도)</string>
-    <string name="wadb_restrict_on">\"하위 프로세스 제한\"을 켭니다.</string>
-    <string name="wadb_restrict_off">\"하위 프로세스 제한\"을 끕니다.</string>
+    <string name="wadb_restrict_on">\"하위 프로세스 제한 사용 중지\"를 끕니다.</string>
+    <string name="wadb_restrict_off">\"하위 프로세스 제한 사용 중지\"를 켭니다.</string>
     <string name="wadb_computer_last">3 · PC ADB(최후의 수단)</string>
     <string name="wadb_only_if">무선 디버깅을 사용할 수 없을 때만 사용하세요.</string>
     <string name="wadb_computer_group">3 · PC ADB(최후의 수단)</string>

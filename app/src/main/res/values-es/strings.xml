@@ -907,8 +907,8 @@
     <string name="wadb_turn_off">Desactivar límite</string>
     <string name="wadb_other_ways">Otras formas de cambiarlo</string>
     <string name="wadb_dev_try_first">1 · Opciones de desarrollador (pruébalo primero)</string>
-    <string name="wadb_restrict_on">Activa “Restringir procesos secundarios”.</string>
-    <string name="wadb_restrict_off">Desactiva “Restringir procesos secundarios”.</string>
+    <string name="wadb_restrict_on">Desactiva “Inhabilitar restricciones de procesos secundarios”.</string>
+    <string name="wadb_restrict_off">Activa “Inhabilitar restricciones de procesos secundarios”.</string>
     <string name="wadb_computer_last">3 · ADB desde ordenador (último recurso)</string>
     <string name="wadb_only_if">Solo si la Depuración inalámbrica no está disponible.</string>
     <string name="wadb_computer_group">3 · ADB desde ordenador (último recurso)</string>

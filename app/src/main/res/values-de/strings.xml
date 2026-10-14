@@ -893,8 +893,8 @@
     <string name="wadb_turn_off">Limit deaktivieren</string>
     <string name="wadb_other_ways">Andere Wege, es zu ändern</string>
     <string name="wadb_dev_try_first">1 · Entwickleroptionen (zuerst versuchen)</string>
-    <string name="wadb_restrict_on">Schalte „Untergeordnete Prozesse einschränken“ ein.</string>
-    <string name="wadb_restrict_off">Schalte „Untergeordnete Prozesse einschränken“ aus.</string>
+    <string name="wadb_restrict_on">Schalte „Beschränkungen für Unterprozesse deaktivieren“ aus.</string>
+    <string name="wadb_restrict_off">Schalte „Beschränkungen für Unterprozesse deaktivieren“ ein.</string>
     <string name="wadb_computer_last">3 · ADB am Computer (letzter Ausweg)</string>
     <string name="wadb_only_if">Nur wenn „Debugging über WLAN“ nicht verfügbar ist.</string>
     <string name="wadb_computer_group">3 · ADB am Computer (letzter Ausweg)</string>

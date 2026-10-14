@@ -907,8 +907,8 @@
     <string name="wadb_turn_off">Désactiver la limite</string>
     <string name="wadb_other_ways">Autres méthodes de modification</string>
     <string name="wadb_dev_try_first">1 · Options pour les développeurs (à essayer en premier)</string>
-    <string name="wadb_restrict_on">Activez « Limiter les processus enfants ».</string>
-    <string name="wadb_restrict_off">Désactivez « Limiter les processus enfants ».</string>
+    <string name="wadb_restrict_on">Désactivez «Désactiver les limites pour les processus enfant».</string>
+    <string name="wadb_restrict_off">Activez «Désactiver les limites pour les processus enfant».</string>
     <string name="wadb_computer_last">3 · ADB sur PC (en dernier recours)</string>
     <string name="wadb_only_if">À utiliser uniquement si le débogage sans fil n\'est pas disponible.</string>
     <string name="wadb_computer_group">3 · ADB sur PC (en dernier recours)</string>

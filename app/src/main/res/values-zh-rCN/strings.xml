@@ -895,8 +895,8 @@
     <string name="wadb_turn_off">关闭限制</string>
     <string name="wadb_other_ways">其他修改方式</string>
     <string name="wadb_dev_try_first">1 · 开发者选项（优先尝试）</string>
-    <string name="wadb_restrict_on">把“限制子进程”设为开。</string>
-    <string name="wadb_restrict_off">把“限制子进程”设为关。</string>
+    <string name="wadb_restrict_on">把“停止限制子进程”设为关。</string>
+    <string name="wadb_restrict_off">把“停止限制子进程”设为开。</string>
     <string name="wadb_computer_last">3 · 电脑 ADB（最后手段）</string>
     <string name="wadb_only_if">仅在无线调试不可用时使用。</string>
     <string name="wadb_computer_group">3 · 电脑 ADB（最后手段）</string>

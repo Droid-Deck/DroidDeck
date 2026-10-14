@@ -913,8 +913,8 @@
     <string name="wadb_turn_off">Отключить ограничение</string>
     <string name="wadb_other_ways">Другие способы изменения</string>
     <string name="wadb_dev_try_first">1 · Для разработчиков (сначала попробуйте это)</string>
-    <string name="wadb_restrict_on">Включите «Ограничение дочерних процессов».</string>
-    <string name="wadb_restrict_off">Отключите «Ограничение дочерних процессов».</string>
+    <string name="wadb_restrict_on">Отключите «Отключить ограничения для дочерних процессов».</string>
+    <string name="wadb_restrict_off">Включите «Отключить ограничения для дочерних процессов».</string>
     <string name="wadb_computer_last">3 · ADB на ПК (крайняя мера)</string>
     <string name="wadb_only_if">Используйте только если отладка по Wi-Fi недоступна.</string>
     <string name="wadb_computer_group">3 · ADB на ПК (крайняя мера)</string>

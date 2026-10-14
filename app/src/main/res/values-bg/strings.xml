@@ -893,8 +893,8 @@
     <string name="wadb_turn_off">Изключване на ограничението</string>
     <string name="wadb_other_ways">Други начини за промяна</string>
     <string name="wadb_dev_try_first">1 · Опции за програмисти (пробвайте първо)</string>
-    <string name="wadb_restrict_on">Включете „Restrict child processes“.</string>
-    <string name="wadb_restrict_off">Изключете „Restrict child processes“.</string>
+    <string name="wadb_restrict_on">Изключете „Деактивиране на ограниченията за дъщерните процеси“.</string>
+    <string name="wadb_restrict_off">Включете „Деактивиране на ограниченията за дъщерните процеси“.</string>
     <string name="wadb_computer_last">3 · ADB от компютър (последна възможност)</string>
     <string name="wadb_only_if">Само ако безжичното отстраняване на грешки не е достъпно.</string>
     <string name="wadb_computer_group">3 · ADB от компютър (последна възможност)</string>

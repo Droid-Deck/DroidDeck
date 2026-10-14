@@ -899,8 +899,8 @@
     <string name="wadb_turn_off">Disattiva il limite</string>
     <string name="wadb_other_ways">Altri modi per cambiarlo</string>
     <string name="wadb_dev_try_first">1 · Opzioni sviluppatore (da provare prima)</string>
-    <string name="wadb_restrict_on">Attiva “Limita processi figlio”.</string>
-    <string name="wadb_restrict_off">Disattiva “Limita processi figlio”.</string>
+    <string name="wadb_restrict_on">Disattiva “Disattiva limitazioni per i processi secondari”.</string>
+    <string name="wadb_restrict_off">Attiva “Disattiva limitazioni per i processi secondari”.</string>
     <string name="wadb_computer_last">3 · ADB da computer (ultima risorsa)</string>
     <string name="wadb_only_if">Solo se il Debug wireless non è disponibile.</string>
     <string name="wadb_computer_group">3 · ADB da computer (ultima risorsa)</string>
