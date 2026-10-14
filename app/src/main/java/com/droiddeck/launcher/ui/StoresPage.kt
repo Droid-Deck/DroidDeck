@@ -1186,7 +1186,7 @@ private val CardStrip = 26.dp
 
 /** The wide art with the card's own cover under it, so a card whose art is swapped keeps a picture while the new one decodes. */
 @Composable
-private fun cardArtRequest(url: String?, cover: String?): coil.request.ImageRequest? {
+internal fun cardArtRequest(url: String?, cover: String?): coil.request.ImageRequest? {
     val ctx = LocalContext.current
     val under = cover?.takeIf { it != url }
     return remember(url, under) {

@@ -48,6 +48,14 @@ empty listing is no longer posted either: that dropped the cards already on scre
 - **A page that fails keeps the pages that came** (`GogLibrary`): a listing page that cannot be read ends the
 listing instead of discarding it, so a page lost to a flaky request no longer costs the whole early paint. The
 cache is saved as the round goes, so a sync the user closes the app on still leaves a library to paint next launch.
+- **The hero waits under the card's art** (`StoresDetail`): the library's hero asked for the wide art with no
+  placeholder of its own, so a card that opened showed its own bitmap only for the length of the opening
+  animation and then fell back to the title's colour until 300-540KB had been decoded. It now builds the same
+  request a card does, naming the card's art as the memory-cache placeholder, so the cover stays under the hero
+  until the wide one lands.
+- **The listing says what it gave** (`GogLibrary`, `StoreNet`): one line per sync in the stores' log - how many
+  games the listing carried, or the page that could not be read - and every failed store GET, which used to
+  reach logcat only. A shared log can now show whether the account listing came back at all.
 - **Tests** (`GogListingTest`, `StoreCatalogPatchTest`): the filters - movies, other platforms, Galaxy's own entry, empty titles - the
   fields a card needs, and a response that is not a listing.
 

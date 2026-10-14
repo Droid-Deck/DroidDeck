@@ -6,6 +6,7 @@ import android.util.Log
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreNet
+import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.cleanStoreText
 import org.json.JSONArray
 import org.json.JSONObject
@@ -75,6 +76,8 @@ object GogLibrary {
                 ?: ownedIds(token)?.map { GogGame(it, "", "", "", "", "", 1, null, "", "") }
                 ?: return SyncResult.Failed("Couldn't reach GOG")
             val named = listing != null
+            // In the stores' log, where a shared log can show what the account listing gave.
+            StoresState.logLine(if (named) "GOG: listing ${listed.size} games" else "GOG: listing unreadable, ${listed.size} owned ids")
             val ownedSet = listed.mapTo(HashSet()) { it.gameId }
             val cachedList = cached(app)
             val stale = System.currentTimeMillis() - p.getLong(LAST_SYNC_KEY, 0L) >= THROTTLE_MS
@@ -139,7 +142,11 @@ object GogLibrary {
         var pages = 1
         while (page <= pages && page <= LIST_MAX_PAGES) {
             // A page that cannot be read ends the listing; the pages already read still name most of the library.
-            val listed = StoreNet.get("$LIST_URL&page=$page", bearer = token, userAgent = GogAuth.GALAXY_UA)?.let { parseListing(it) } ?: break
+            val listed = StoreNet.get("$LIST_URL&page=$page", bearer = token, userAgent = GogAuth.GALAXY_UA)?.let { parseListing(it) }
+            if (listed == null) {
+                StoresState.logLine("GOG: listing page $page of $pages unreadable")
+                break
+            }
             all.addAll(listed.games)
             pages = listed.totalPages
             page++
