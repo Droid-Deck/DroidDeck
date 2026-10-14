@@ -1247,8 +1247,8 @@ private fun GameComponentOverrides(
                 }
             }
             SettingsRow(
-                stringResource(R.string.game_locale_title),
-                stringResource(if (locale == null) R.string.game_locale_inherited else R.string.game_locale_override),
+                stringResource(R.string.setup_language),
+                null,
             ) {
                 Box {
                     ValueChip(
@@ -1260,7 +1260,7 @@ private fun GameComponentOverrides(
                     AnchoredMenu(
                         localeMenu,
                         onDismiss = { onLocaleMenu(false) },
-                        title = stringResource(R.string.game_locale_title),
+                        title = stringResource(R.string.setup_language),
                     ) { first ->
                         MenuItem(
                             stringResource(R.string.comp_game_use_general),
