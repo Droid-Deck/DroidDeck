@@ -2187,6 +2187,9 @@
     <string name="glasses_denied">제어가 거부되었습니다. 안경 설정을 바꾸려면 허용하세요.</string>
     <string name="glasses_no_control">이 안경은 게임을 표시하지만 여기에서 설정을 바꿀 수는 없습니다.</string>
     <string name="glasses_output">출력</string>
+    <string name="glasses_status">%1$d×%2$d · %3$d Hz · %4$s</string>
+    <string name="glasses_mode_2d">2D</string>
+    <string name="glasses_mode_3d">3D</string>
     <string name="glasses_game_on">안경에 게임 표시</string>
     <string name="glasses_game_on_hint">게임을 안경에만 표시합니다. 끄면 휴대폰에 표시되고 Android가 휴대폰 화면을 미러링합니다.</string>
     <string name="glasses_display">디스플레이</string>

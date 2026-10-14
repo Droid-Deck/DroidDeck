@@ -117,6 +117,7 @@ object Glasses {
     private var glassesMode = 0
     private var autoModeSent = false
     private var vr3d = false
+    private var vr3dRevert = false
 
     @Volatile private var sink: PoseSink? = null
     @Volatile private var probe: ((ByteArray) -> Unit)? = null
@@ -176,6 +177,7 @@ object Glasses {
 
     fun set3d(on: Boolean) = post {
         vr3d = false
+        vr3dRevert = false
         val s = _state.value
         if (if (on) s.can3d else s.canControl) sendMode(on)
     }
@@ -183,12 +185,16 @@ object Glasses {
     fun set3dForVr(on: Boolean) = post {
         val s = _state.value
         if (on) {
+            vr3dRevert = false
             if (!s.can3d || s.sbs) return@post
             vr3d = true
             sendMode(true)
         } else if (vr3d) {
             vr3d = false
-            if (s.sbs && s.canControl) sendMode(false)
+            when {
+                !s.canControl -> vr3dRevert = true
+                s.sbs -> sendMode(false)
+            }
         }
     }
 
@@ -390,7 +396,13 @@ object Glasses {
         val candidates = displays.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION)
             .filter { it.displayId != Display.DEFAULT_DISPLAY && it.flags and Display.FLAG_PRESENTATION != 0 }
         return candidates.firstOrNull { displayName(it)?.contains("VITURE", ignoreCase = true) == true }
-            ?: candidates.singleOrNull()?.takeIf { usbPresent }
+            ?: candidates.singleOrNull()?.takeIf { usbPresent && unnamedPanel(it) }
+    }
+
+    private fun unnamedPanel(d: Display): Boolean {
+        if (Build.VERSION.SDK_INT < 31) return true
+        val info = d.deviceProductInfo ?: return false
+        return info.name.isNullOrBlank()
     }
 
     private fun displayName(d: Display): String? {
@@ -447,7 +459,15 @@ object Glasses {
     private fun applyMode(force: Boolean) {
         val s = _state.value
         val m = model ?: return
-        if (!s.canControl || !s.usable || s.sbs) return
+        if (!s.canControl || !s.usable) return
+        if (vr3dRevert) {
+            vr3dRevert = false
+            if (s.sbs) {
+                sendMode(false)
+                return
+            }
+        }
+        if (s.sbs) return
         val hz = _settings.value.refreshHz
         if (glassesMode == m.mode(hz, false)) return
         if (!force) {

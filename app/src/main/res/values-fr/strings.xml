@@ -2237,6 +2237,9 @@
     <string name="glasses_denied">Le contrôle a été refusé. Autorisez-le pour modifier les réglages des lunettes.</string>
     <string name="glasses_no_control">Ces lunettes affichent le jeu, mais leurs réglages ne peuvent pas être modifiés d\'ici.</string>
     <string name="glasses_output">Sortie</string>
+    <string name="glasses_status">%1$d×%2$d · %3$d Hz · %4$s</string>
+    <string name="glasses_mode_2d">2D</string>
+    <string name="glasses_mode_3d">3D</string>
     <string name="glasses_game_on">Jeu sur les lunettes</string>
     <string name="glasses_game_on_hint">Affiche le jeu uniquement sur les lunettes. Désactivé : le téléphone l\'affiche et Android duplique l\'écran du téléphone.</string>
     <string name="glasses_display">Affichage</string>

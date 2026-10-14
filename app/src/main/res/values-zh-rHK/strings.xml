@@ -2187,6 +2187,9 @@
     <string name="glasses_denied">控制已被拒絕。允許後才可更改眼鏡設定。</string>
     <string name="glasses_no_control">這副眼鏡可以顯示遊戲，但無法在此更改其設定。</string>
     <string name="glasses_output">輸出</string>
+    <string name="glasses_status">%1$d×%2$d · %3$d Hz · %4$s</string>
+    <string name="glasses_mode_2d">2D</string>
+    <string name="glasses_mode_3d">3D</string>
     <string name="glasses_game_on">在眼鏡上顯示遊戲</string>
     <string name="glasses_game_on_hint">只在眼鏡上顯示遊戲。關閉：由手機顯示，Android 會鏡像手機畫面。</string>
     <string name="glasses_display">顯示</string>

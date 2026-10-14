@@ -2262,6 +2262,9 @@
     <string name="glasses_denied">Управление отклонено. Разрешите его, чтобы менять настройки очков.</string>
     <string name="glasses_no_control">Эти очки показывают игру, но их настройки нельзя изменить отсюда.</string>
     <string name="glasses_output">Вывод</string>
+    <string name="glasses_status">%1$d×%2$d · %3$d Hz · %4$s</string>
+    <string name="glasses_mode_2d">2D</string>
+    <string name="glasses_mode_3d">3D</string>
     <string name="glasses_game_on">Игра на очках</string>
     <string name="glasses_game_on_hint">Показывать игру только на очках. Выкл.: игру показывает телефон, а Android дублирует экран телефона.</string>
     <string name="glasses_display">Экран</string>

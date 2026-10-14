@@ -1175,7 +1175,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 }
                 loading.percent = -1
                 loading.say(getString(R.string.session_starting_session), LoadingState.Topic.SESSION, readable = false)
-                if (surfaceView.holder.surface?.isValid == true) surfaceCreated(surfaceView.holder)
+                outputHolder().let { if (it.surface?.isValid == true) surfaceCreated(it) }
             }
         }, "runtime-install").start()
     }
@@ -1473,6 +1473,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             return
         }
         closeSecondScreen(reset = true)
+        updateGlassesScreen()
+        updateHeadTracker()
         if (status == 0) {
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
@@ -1586,7 +1588,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (drawerOpen) {
             if (fromController && (event.keyCode == KeyEvent.KEYCODE_BUTTON_L1 || event.keyCode == KeyEvent.KEYCODE_BUTTON_R1)) {
                 if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                    drawerPage = sessionDrawerPages(SessionState.mode == SessionService.MODE_STEAM && secondScreenDisplays.isNotEmpty())
+                    drawerPage = sessionDrawerPages(SessionState.mode == SessionService.MODE_STEAM && secondScreenDisplays.isNotEmpty(), glasses.present)
                         .step(drawerPage, if (event.keyCode == KeyEvent.KEYCODE_BUTTON_R1) 1 else -1)
                     releaseDrawerDirection()
                 }
@@ -2481,7 +2483,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun updateHeadTracker() {
         val onGlasses = glassesScreen != null
         val c = activeCardboard
-        val want = (resumed || (onGlasses && started)) && c.enabled && c.headTracking
+        val want = !ended && (resumed || (onGlasses && started)) && c.enabled && c.headTracking
         val current = headTracker
         if (current != null && (!want || current.usesGlasses != onGlasses)) {
             current.stop()

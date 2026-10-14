@@ -265,18 +265,22 @@ private:
 
     void FollowPanel() {
         uint32_t w = 0, h = 0;
-        if (!PanelSize(&w, &h) || (w == width_ && h == height_)) return;
+        if (!PanelSize(&w, &h)) return;
+        const bool resized = w != width_ || h != height_;
+        const auto now = std::chrono::steady_clock::now();
+        if (!resized && (swapchain_ || now < retryAt_)) return;
         vk_.DeviceWaitIdle(dev_);
-        vk_.DestroySwapchainKHR(dev_, swapchain_, nullptr);
+        if (swapchain_) vk_.DestroySwapchainKHR(dev_, swapchain_, nullptr);
         swapchain_ = VK_NULL_HANDLE;
         images_.clear();
-        Log("presenter: panel now %ux%u (was %ux%u)", w, h, width_, height_);
+        if (resized) Log("presenter: panel now %ux%u (was %ux%u)", w, h, width_, height_);
         width_ = w;
         height_ = h;
-        CreateSwapchain();
+        if (!CreateSwapchain()) retryAt_ = now + std::chrono::seconds(1);
     }
 
     std::chrono::microseconds guard_{4000};
+    std::chrono::steady_clock::time_point retryAt_{};
     static constexpr std::chrono::milliseconds kDrawnTimeout{100};
 
     const droiddeck_present_sync *MapSync(std::chrono::steady_clock::time_point now) {
@@ -497,7 +501,11 @@ private:
         sci.presentMode = pm;
         sci.clipped = VK_TRUE;
         VkResult r = vk_.CreateSwapchainKHR(dev_, &sci, nullptr, &swapchain_);
-        if (r != VK_SUCCESS) { Log("presenter: vkCreateSwapchainKHR %d", r); return false; }
+        if (r != VK_SUCCESS) {
+            swapchain_ = VK_NULL_HANDLE;
+            Log("presenter: vkCreateSwapchainKHR %d", r);
+            return false;
+        }
         uint32_t ni = 0;
         vk_.GetSwapchainImagesKHR(dev_, swapchain_, &ni, nullptr);
         images_.resize(ni);

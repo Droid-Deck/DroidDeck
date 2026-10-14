@@ -23,15 +23,15 @@ and reports every run.
 ## Access
 
 Player controls and observations work over authorized ADB on any build: `state`, `start`, `stop`,
-`resume`, `wait`, `launch`, `quit`, `focus`, `input`, `ui`, `logs`, `screenshot`, `record`, `displays`,
-`wake`, and `access`.
+`resume`, `wait`, `launch`, `quit`, `focus`, `input`, `ui`, `logs`, `screenshot`, `record`,
+`displays`, `wake`, `glasses` (except `glasses raw`), and `access`.
 
 **Setup > Diagnostics > Debugging tools** is off by default in every build, including debug builds.
-It enables `run`, `guest`, `cdp`, all `env` operations, `override`, and `prefs`. The toggle switches
-directly without a confirmation dialog. The bridge refuses to change it through `ui` or preference
-writes. The existing preference key, `setting-agent-commands` test tag, JSON command names, and
-`AGENT_COMMANDS_DISABLED` error code are unchanged. Refusals exit 7; `droiddeckctl access` reports
-whether commands are enabled.
+It enables `run`, `guest`, `cdp`, all `env` operations, `override`, `prefs`, and `glasses raw`. The
+toggle switches directly without a confirmation dialog. The bridge refuses to change it through `ui`
+or preference writes. The existing preference key, `setting-agent-commands` test tag, JSON command
+names, and `AGENT_COMMANDS_DISABLED` error code are unchanged. Refusals exit 7; `droiddeckctl access`
+reports whether commands are enabled.
 
 Disabling the toggle clears queued and persistent agent environment settings and installed binary
 overrides. Disabled settings cannot apply at the next session start. Already running commands and
@@ -78,6 +78,7 @@ artifact or file error, 7 debugging tools disabled.
 tools/droiddeckctl state
 tools/droiddeckctl start steam --wait
 tools/droiddeckctl start steam --wait --reuse
+tools/droiddeckctl start steam --steamvr --wait
 tools/droiddeckctl start desktop
 tools/droiddeckctl run /usr/bin/foo -- arg1 arg2
 tools/droiddeckctl wait ready|idle|failed
@@ -118,6 +119,14 @@ tools/droiddeckctl screenshot ./screen.png --display 4
 tools/droiddeckctl record ./clip.mp4 --seconds 8 --display 0
 tools/droiddeckctl displays
 tools/droiddeckctl wake
+
+tools/droiddeckctl glasses status
+tools/droiddeckctl glasses set refreshHz 120
+tools/droiddeckctl glasses set 3d on
+tools/droiddeckctl glasses simulate --seconds 6 --yaw 15
+tools/droiddeckctl glasses stop-simulate
+tools/droiddeckctl glasses mode 0x34
+tools/droiddeckctl glasses raw 0x0007
 ```
 
 A sleeping device suspends the session and hides the app's windows from `ui dump`; `wake` first.

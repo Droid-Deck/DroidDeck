@@ -2187,6 +2187,9 @@
     <string name="glasses_denied">制御が拒否されました。グラスの設定を変更するには許可してください。</string>
     <string name="glasses_no_control">このグラスにはゲームが表示されますが、ここから設定は変更できません。</string>
     <string name="glasses_output">出力</string>
+    <string name="glasses_status">%1$d×%2$d · %3$d Hz · %4$s</string>
+    <string name="glasses_mode_2d">2D</string>
+    <string name="glasses_mode_3d">3D</string>
     <string name="glasses_game_on">グラスにゲームを表示</string>
     <string name="glasses_game_on_hint">ゲームをグラスだけに表示します。オフ: スマートフォンに表示し、Android がスマートフォンの画面をミラーリングします。</string>
     <string name="glasses_display">表示</string>

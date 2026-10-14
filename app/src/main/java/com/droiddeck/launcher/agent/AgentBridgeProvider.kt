@@ -134,12 +134,19 @@ class AgentBridgeProvider : ContentProvider() {
             }
             "stop-simulate" -> g.stopSimulation()
             "query" -> { g.query(); Thread.sleep(600) }
-            "mode" -> { g.sendMode(request.optString("mode").removePrefix("0x").toInt(16)); Thread.sleep(600) }
+            "mode" -> {
+                val mode = hex(request.optString("mode"), 0xFF) ?: return error("INVALID_VALUE", "mode must be one hex byte, e.g. 0x31")
+                g.sendMode(mode)
+                Thread.sleep(600)
+            }
             "imu" -> return g.sampleImu(request.optLong("ms", 2000).coerceIn(200, 20_000)).put("ok", true).put("command", "glasses")
             "raw" -> {
                 AgentAccess.requireCommands(context)
-                val payload = request.optString("payload").chunked(2).filter { it.length == 2 }.map { it.toInt(16).toByte() }.toByteArray()
-                if (!g.sendRaw(request.optString("msgId").removePrefix("0x").toInt(16), payload)) return error("NOT_CONNECTED", "The glasses' control link is not open")
+                val msgId = hex(request.optString("msgId"), 0xFFFF) ?: return error("INVALID_VALUE", "msgId must be a hex number up to 0xFFFF")
+                val digits = request.optString("payload").removePrefix("0x")
+                if (digits.length % 2 != 0 || digits.any { Character.digit(it, 16) < 0 }) return error("INVALID_VALUE", "payload must be whole hex bytes")
+                val payload = digits.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+                if (!g.sendRaw(msgId, payload)) return error("NOT_CONNECTED", "The glasses' control link is not open")
                 Thread.sleep(300)
             }
             else -> return error("INVALID_OP", "Unknown glasses op")
@@ -147,6 +154,9 @@ class AgentBridgeProvider : ContentProvider() {
         if (request.optString("op") in setOf("set", "allow")) Thread.sleep(400)
         return g.status().put("ok", true).put("command", "glasses").put("frames", g.recentFrames())
     }
+
+    private fun hex(text: String, max: Int): Int? =
+        text.removePrefix("0x").removePrefix("0X").takeIf { it.isNotEmpty() }?.toIntOrNull(16)?.takeIf { it in 0..max }
 
     private fun state(context: Context): JSONObject {
         val runtimeVersion = LinuxRuntimeInstaller.installedVersion(context)
