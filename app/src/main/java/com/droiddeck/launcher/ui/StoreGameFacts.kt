@@ -18,6 +18,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -122,6 +124,7 @@ private fun HeroStat(label: String, link: String?, value: @Composable () -> Unit
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun StoreGameFacts(developer: String, publisher: String, releaseDate: String, scores: GameScores, scoresInHero: Boolean, modifier: Modifier = Modifier) {
     val pal = LocalPalette.current
@@ -137,7 +140,7 @@ internal fun StoreGameFacts(developer: String, publisher: String, releaseDate: S
     val scoreHere = !scoresInHero && scores.metacritic != Lookup.None
     if (credits == null && !hltbHere && !scoreHere) return
     val links: @Composable () -> Unit = {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             if (!scoresInHero) Looked(scores.metacritic, exit = fadeOut()) { lookup ->
                 val found = (lookup as? Lookup.Found)?.value
                 if (found != null) LineLink(stringResource(R.string.stores_fact_metacritic), found.url) { MetacriticBadge(found.score, small = true) }

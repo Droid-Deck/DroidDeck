@@ -37,6 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -62,6 +63,7 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val narrow = LocalNarrowPane.current
+    val stacked = narrow || LocalConfiguration.current.screenWidthDp < 700
     val id = key.substringAfter(':')
     val item = (StoresState.library[store].orEmpty() + StoresState.shelves[store]?.all.orEmpty()).firstOrNull { it.id == id }
     val installed = StoresState.installedGame(store, id)
@@ -81,7 +83,7 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
             val art = item?.imageUrl ?: installed?.sidecar?.hero ?: installed?.sidecar?.cover
             if (art != null) AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
             Spacer(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to colors.background.copy(alpha = 0.94f), 0.5f to colors.background.copy(alpha = 0.55f), 1f to Color.Transparent)))
-            if (scores != null && !narrow) {
+            if (scores != null && !stacked) {
                 Spacer(Modifier.matchParentSize().background(Brush.horizontalGradient(0.45f to Color.Transparent, 1f to colors.background.copy(alpha = 0.75f))))
                 HeroScores(scores, Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 18.dp))
             }
@@ -132,7 +134,7 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
         val developer = item?.developer?.ifBlank { null } ?: listed?.developer.orEmpty()
         val publisher = item?.publisher?.ifBlank { null } ?: listed?.publisher.orEmpty()
         val releaseDate = item?.releaseDate?.ifBlank { null } ?: listed?.releaseDate.orEmpty()
-        StoreGameFacts(developer, publisher, releaseDate, scores, scoresInHero = !narrow)
+        StoreGameFacts(developer, publisher, releaseDate, scores, scoresInHero = !stacked)
     }
     val description = item?.let { com.droiddeck.launcher.stores.cleanStoreText(it.description) }.orEmpty()
         .takeUnless { it.trim().equals(title.trim(), ignoreCase = true) }.orEmpty()
@@ -147,7 +149,7 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
     if (description.isNotBlank() || achievements != null) Rise(3) {
         val about: @Composable (Modifier, Dp) -> Unit = { m, h -> if (description.isNotBlank()) StoreAbout(description, h, m) }
         val card: @Composable (Modifier) -> Unit = { m -> if (achievements != null) StoreAchievementsCard(achievements, title, m) }
-        if (narrow) Column(verticalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth().padding(top = 14.dp)) {
+        if (stacked) Column(verticalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth().padding(top = 14.dp)) {
             about(Modifier.fillMaxWidth(), AboutHeight)
             card(Modifier.fillMaxWidth())
         } else Row(horizontalArrangement = Arrangement.spacedBy(24.dp), modifier = Modifier.fillMaxWidth().padding(top = 14.dp)) {
