@@ -244,10 +244,10 @@ public final class PadBridge {
             case KeyEvent.KEYCODE_BUTTON_THUMBR: pad.press(9, pressed); break;
             case KeyEvent.KEYCODE_BUTTON_MODE:
             case KeyEvent.KEYCODE_HOME: pad.press(PadState.GUIDE, pressed); break;
-            case KeyEvent.KEYCODE_BUTTON_C:
+            case KeyEvent.KEYCODE_BUTTON_Z:
                 if (isPrimary(event)) DeckControls.INSTANCE.setGrip(DeckControls.L4, pressed);
                 break;
-            case KeyEvent.KEYCODE_BUTTON_Z:
+            case KeyEvent.KEYCODE_BUTTON_C:
                 if (isPrimary(event)) DeckControls.INSTANCE.setGrip(DeckControls.R4, pressed);
                 break;
             case KeyEvent.KEYCODE_BUTTON_L2: pad.leftTrigger = pressed ? 1f : 0f; break;
