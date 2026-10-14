@@ -15,7 +15,7 @@ RayNeo transports, but does not advertise control for SDK-dependent glasses.
 
 | Device | Transport and tracking | App controls |
 | --- | --- | --- |
-| Pro 2 XR | SDK Gen2 pose callbacks, NWU axes; negotiated pose frequency | 1080p 2D through 120 Hz, SBS 60 Hz, brightness 0–8, volume 0–8 |
+| Pro 2 XR | SDK Gen2 pose callbacks, observed OpenGL axes converted to NWU; negotiated pose frequency | 1080p 2D through 120 Hz, SBS 60 Hz, brightness 0–8, volume 0–8 |
 | Luma Ultra | SDK Carina USB transport; OpenGL poses converted to NWU | 1200p 2D through 120 Hz, SBS 60/90 Hz, brightness, volume, binary dimming |
 | Beast | SDK Gen2; native/bypass display commands selected by capability and current mode | 1200p output, SBS, brightness, volume 0–15, dimming toggle |
 
@@ -71,3 +71,22 @@ Physical acceptance checks remain: connect each model, grant USB permission,
 verify the Play SteamVR control, verify game output moves to the glasses,
 test head rotation/recenter and SBS, then unplug/reconnect. Building and unit
 testing do not establish hardware compatibility for every firmware revision.
+
+### Pro 2 pose-axis correction, 2026-10-14
+
+The connected Pro 2 delivered approximately 200 normalized poses/sec. The wearer
+reported yaw moving the view vertically, pitch rolling it, and roll turning it
+horizontally. Directed captures showed a left turn primarily increasing quaternion
+Y (approximately 0.004 to 0.253), while repeated upward looks varied quaternion X
+(approximately -0.187 to +0.082) with Y/Z remaining near zero. This is the OpenGL
+right/up/back basis, despite the SDK 2.4.0 generic Gen2 callback documentation
+describing NWU.
+
+The adapter therefore selects the existing OpenGL-to-shared-glasses conversion
+for the SDK-identified Pro 2 family as well as Carina. Other Gen2 models retain
+their previous mapping. Tests exercise model selection and yaw/pitch/roll through
+the complete shared `HeadPose` conversion and recenter path. This fixes a model
+coordinate mismatch; it does not claim to run a vendor sensor-calibration command
+or save a RayNeo-style calibration for VITURE. All 188 glasses/shared-pose/
+SteamVR-launch/UI regression checks passed, packaged runtime inputs verified,
+and the corrected build was installed on the phone. Visual verification is pending.

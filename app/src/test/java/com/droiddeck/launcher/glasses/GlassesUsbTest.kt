@@ -170,6 +170,15 @@ class GlassesUsbTest {
             .apply { isAccessible = true }.invoke(Glasses, ask)
     }
 
+    @Test fun xreal1SUsesExactIdentityAndExcludesAirOneProAndRecoveryProducts() {
+        assertEquals(XrealModel, Glasses.deviceModel(device(0x043e, 0x3318, "XREAL 1S")))
+        assertTrue(Glasses.isGlassesDisplayName("XREAL 1S"))
+        for (pid in listOf(0x043d, 0x0435, 0x0436, 0x0424, 0xffff)) {
+            assertEquals(null, Glasses.deviceModel(device(pid, 0x3318, "XREAL 1S")))
+        }
+        assertEquals(null, Glasses.deviceModel(device(0x043e, 0x1234, "XREAL 1S")))
+    }
+
     private fun device(pid: Int, vid: Int = VitureProtocol.VENDOR_ID, name: String = "VITURE device"): UsbDevice = ReflectionHelpers.callConstructor(
         UsbDevice::class.java,
         from(String::class.java, "/dev/bus/usb/$pid"),

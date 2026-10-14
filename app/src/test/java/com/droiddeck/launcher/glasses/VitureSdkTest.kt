@@ -3,6 +3,7 @@ package com.droiddeck.launcher.glasses
 import org.junit.Assert.*
 import org.junit.Test
 import kotlin.math.sqrt
+import com.droiddeck.launcher.gpu.HeadPose
 
 class VitureSdkTest {
     @Test fun pro2UsesItsOwnSdkTransportAndDisplayLimits() {
@@ -36,10 +37,39 @@ class VitureSdkTest {
         assertNull(VitureProtocol.sdkModel("Mobile Dock"))
     }
 
-    @Test fun pro2PosePreservesSdkNwuAxesAndChangesComponentOrder() {
+    @Test fun otherGen2DevicesPreserveSdkNwuAxesAndChangeComponentOrder() {
         val a = sqrt(0.5f)
         assertArrayEquals(floatArrayOf(0f, 0f, a, a),
             VitureSdkPose.toGlasses(floatArrayOf(a, 0f, 0f, a), false), 0.00001f)
+    }
+
+    @Test fun pro2AndCarinaSelectOpenGlButOtherGen2ModelsKeepTheirExistingBasis() {
+        assertTrue(VitureSdkPose.usesOpenGlAxes(false, VitureProtocol.Family.PRO2))
+        assertTrue(VitureSdkPose.usesOpenGlAxes(true, VitureProtocol.Family.ULTRA))
+        assertFalse(VitureSdkPose.usesOpenGlAxes(false, VitureProtocol.Family.BEAST))
+        assertFalse(VitureSdkPose.usesOpenGlAxes(false, VitureProtocol.Family.PRO))
+        assertFalse(VitureSdkPose.usesOpenGlAxes(false, null))
+    }
+
+    @Test fun pro2YawPitchAndRollReachTheCorrectRendererAxes() {
+        val openGl = VitureSdkPose.usesOpenGlAxes(false, VitureProtocol.sdkModel("Pro 2")!!.family)
+        fun screen(wxyz: FloatArray): FloatArray {
+            val q = VitureSdkPose.toGlasses(wxyz, openGl)!!
+            return HeadPose.fromGlasses(q[0], q[1], q[2], q[3])
+        }
+        val ref = HeadPose.recenter(screen(floatArrayOf(1f, 0f, 0f, 0f)))
+        val s = kotlin.math.sin(Math.PI / 12).toFloat()
+        val c = kotlin.math.cos(Math.PI / 12).toFloat()
+        for ((axis, expected) in listOf(
+            2 to floatArrayOf(-0.5f, 0f, -0.8660254f), // Observed left turn: positive Y.
+            1 to floatArrayOf(0f, 0.5f, -0.8660254f),  // Observed upward look: positive X.
+            3 to floatArrayOf(-0.5f, 0.8660254f, 0f),
+        )) {
+            val q = floatArrayOf(c, 0f, 0f, 0f).apply { this[axis] = s }
+            val view = HeadPose.relative(ref, screen(q))
+            val direction = if (axis == 3) floatArrayOf(0f, 1f, 0f) else floatArrayOf(0f, 0f, -1f)
+            assertArrayEquals(expected, HeadPose.apply(view, direction), 0.001f)
+        }
     }
 
     @Test fun ultraOpenGlAxesMatchExistingGlassesHeadTracker() {

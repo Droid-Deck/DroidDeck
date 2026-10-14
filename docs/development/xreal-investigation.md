@@ -2,7 +2,9 @@
 
 The user owns XREAL 1S and also wants One Pro support. Supporting these in DroidDeck
 is feasible based on existing open drivers, but the supplied Monado Air driver is
-not their transport. No XREAL driver or support claim is enabled by this investigation.
+not their transport. The initial investigation below preceded implementation.
+An experimental native 1S driver is now enabled; see the hardware validation
+section at the end for what has actually been verified.
 
 ## Supplied Monado source
 
@@ -64,7 +66,8 @@ ordinary Android apps, or establish the physical tracking axes on this hardware.
 6. Test malformed/fragmented/coalesced records, missing network, timeout/reconnect,
    USB detach, screen handoff, SteamVR launch and each physical movement direction.
 
-No external SDK was installed, firmware was modified, or XREAL commands were sent.
+At this initial investigation stage, no external SDK was installed, firmware was
+modified, or XREAL commands were sent.
 
 ## Further source investigation while the phone charges
 
@@ -172,3 +175,65 @@ compatibility, display-surface ownership and distribution terms. Before choosing
 direct TCP, establish the Android network link and 1S protocol behavior. Compare
 both against DroidDeck's existing compositor instead of replacing its rendering
 architecture merely to fit the SDK's Unity sample.
+
+## Native 1S implementation and hardware validation
+
+The pre-implementation checkpoint is `4b045519`. The new driver uses independently
+written Kotlin TCP framing, control transactions, sensor parsing and gyro/gravity
+fusion. It does not bundle XREAL SDK binaries or copy the unlicensed xr-tools
+source. Protocol observations came from the references above and
+[xr-tools](https://github.com/0xcaff/xr-tools), inspected commit
+`65c11105434a998f09ac4a5f8e4de8736bb4d36c`.
+
+Verified on the connected SM-F976U (Android reports release 17):
+
+* Normal 1S USB identity is `3318:043e`, product name `XREAL 1S`. Only that exact
+  product enables this driver; Air, One Pro and alternate/recovery IDs are excluded.
+* Android exposes NCM/ECM Ethernet networks at `169.254.2.10/24` and
+  `169.254.1.10/24`. Individual sockets bound to the first network reach the
+  glasses at `169.254.2.1`, control port 52999 and report port 52998. The process
+  default network remains unchanged, preserving Steam's Internet connectivity.
+* Requests require the high bit of the transaction ID; responses clear that bit.
+  Replies must match both command and transaction before values are published.
+* GET_DISPLAY returned payload `22 02 10 1d`: mode **29**, with Android reporting
+  **1920 x 1200 at 60 Hz**. This differs from the older One's mode 2 (1080 lines).
+  The 1S default 60 Hz mapping preserves mode 29.
+* A two-second capture delivered **2,000 valid IMU poses (1,000 Hz)**. Reports
+  use the 128-byte body, type 11, little-endian device nanoseconds and float
+  radians/sec / m/s² format. The framing handles partial and coalesced TCP reads.
+
+The driver plugs into the shared glasses display and head-pose paths, including
+SteamVR. The FOV calculation now uses the actual per-eye aspect ratio, including
+the 1S's 16:10 display. Controls use acknowledged commands, bounded queues and
+timeouts; connection failures clear tracking state and retry. Volume is hidden
+because no volume protocol has been established. Missing Ethernet is reported
+without requesting HID permission or claiming USB interfaces from Android.
+
+Directed wearer captures on the same device established the 1S sensor basis:
+level acceleration is approximately `(0, -9.65, -1.07)` m/s²; turning left gives
+negative gyro Y; looking up gives positive gyro X; tilting toward the right
+shoulder gives positive gyro Z with negative acceleration X. Both vectors are
+mapped as `(x, -y, -z)` into the shared right/up/back basis before initial gravity
+alignment and fusion. No RayNeo GT mounting angle is reused. Regression tests
+exercise those measured signs through `HeadPose`, check an upright first pose
+before recenter, and preserve the device's radians/sec and nanosecond units.
+
+Stereo switching was verified at 3840 x 1080 / 60 Hz, returning to native
+1920 x 1200. On 1S, SET_INPUT performs the EDID switch itself; immediately sending
+SET_DISPLAY returns busy status 5001 (`22 03 08 89 27`). The driver now polls
+GET_DISPLAY across the temporary empty reply (`22 00`) and only sends a second
+mode command if the settled mode differs. Hardware retesting kept the connection
+and sensor stream running through the switch. The busy status is never accepted
+as a successful acknowledgement.
+
+After installing the corrected build on 2026-10-14, the wearer confirmed that
+the view and motion feel good in response to the upright-view, yaw, pitch and
+head-tilt check. The SteamVR-requested session was running with a rendered first
+frame, stereo output and active tracking. All 181 glasses, shared-pose, SteamVR
+launch and glasses-UI regression checks passed; packaged runtime inputs verified.
+
+Still experimental: brightness/dimmer, 90/120 Hz compatibility modes and
+extended gameplay stability need hardware validation. One successful view/motion
+check does not establish long-session stability. Users must select Follow mode and disable the glasses' own
+stabilization. Factory calibration and XREAL Eye/6DoF are not implemented.
+One Pro is not enabled or claimed as tested.

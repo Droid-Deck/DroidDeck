@@ -47,6 +47,30 @@ class RayNeoOrientationFilterTest {
     @Test fun gtLookingUpLooksUpWithoutYawOrRoll() = checkGtMotion(1)
     @Test fun gtRollTiltsTheHorizonWithoutTurningTheView() = checkGtMotion(2)
 
+    @Test fun nonMaxMountingKeepsYawAndPitchSeparateThroughTheSharedPosePath() {
+        val profile = RayNeoSensorProfile.forDevice(true, 0x40)
+        assertFalse(profile.gtMaxAxes)
+        val mount = Math.toRadians(25.0)
+        val s = sin(mount).toFloat(); val c = cos(mount).toFloat()
+        for (pitch in listOf(false, true)) {
+            val filter = RayNeoOrientationFilter(profile.rotationXDeg, profile.gtMaxAxes)
+            val level = floatArrayOf(0f, 9.81f * c, 9.81f * s)
+            val ref = HeadPose.recenter(screen(filter.update(sample(0, level))))
+            var q = FloatArray(4)
+            repeat(100) { i ->
+                val angle = Math.toRadians((i + 1) * 0.3)
+                val accel = if (pitch) floatArrayOf(0f, 9.81f * cos(mount - angle).toFloat(), 9.81f * sin(mount - angle).toFloat()) else level
+                val gyro = if (pitch) floatArrayOf(30f, 0f, 0f) else floatArrayOf(0f, 30f * c, 30f * s)
+                q = filter.update(sample((i + 1) * 100L, accel, gyro))
+            }
+            val forward = HeadPose.apply(HeadPose.relative(ref, screen(q)), floatArrayOf(0f, 0f, -1f))
+            assertArrayEquals(if (pitch) floatArrayOf(0f, 0.5f, -0.8660254f) else floatArrayOf(-0.5f, 0f, -0.8660254f), forward, 0.01f)
+        }
+        assertTrue(RayNeoSensorProfile.forDevice(true, 0x7f).gtMaxAxes)
+        assertTrue(RayNeoSensorProfile.forDevice(true, 0x41).gtMaxAxes)
+        assertEquals(-20f, RayNeoSensorProfile.forDevice(false, 0x3a).rotationXDeg, 0f)
+    }
+
     private fun checkGtMotion(axis: Int) {
         val mount = Math.toRadians(35.0)
         val s = sin(mount).toFloat(); val c = cos(mount).toFloat()

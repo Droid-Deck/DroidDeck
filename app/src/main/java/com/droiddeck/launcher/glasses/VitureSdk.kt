@@ -35,12 +35,17 @@ internal object VitureSdk {
 }
 
 internal object VitureSdkPose {
-    /** Both SDK families use wxyz; only Carina uses the OpenGL coordinate basis. */
-    fun toGlasses(wxyz: FloatArray, carina: Boolean): FloatArray? {
+    // Pro 2 hardware captures use OpenGL axes despite the generic Gen2 callback's
+    // NWU documentation. Keep that model-specific exception out of other Gen2 devices.
+    fun usesOpenGlAxes(carina: Boolean, family: VitureProtocol.Family?) =
+        carina || family == VitureProtocol.Family.PRO2
+
+    /** SDK quaternions are wxyz; normalize their coordinate basis at the boundary. */
+    fun toGlasses(wxyz: FloatArray, openGlAxes: Boolean): FloatArray? {
         if (wxyz.size != 4 || wxyz.any { !it.isFinite() }) return null
         val length = sqrt(wxyz.sumOf { it.toDouble() * it }.toFloat())
         if (!length.isFinite() || length < 0.5f || length > 1.5f) return null
-        val q = if (carina) floatArrayOf(-wxyz[3], -wxyz[1], wxyz[2], wxyz[0])
+        val q = if (openGlAxes) floatArrayOf(-wxyz[3], -wxyz[1], wxyz[2], wxyz[0])
             else floatArrayOf(wxyz[1], wxyz[2], wxyz[3], wxyz[0])
         return q.map { it / length }.toFloatArray()
     }

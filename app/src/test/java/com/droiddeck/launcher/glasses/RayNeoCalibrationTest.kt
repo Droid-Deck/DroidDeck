@@ -104,4 +104,34 @@ class RayNeoCalibrationTest {
         assertNull(RayNeoCalibration.decode(RayNeoCalibration(Vec3(10f, 0f, 0f), Quaternion.IDENTITY).encode()))
         assertNull(RayNeoCalibration.decode(RayNeoCalibration(Vec3(0f, 0f, 0f), Quaternion(0f, 1f, 0f, 0f)).encode()))
     }
+
+    @Test fun recordedNonMaxRestingPoseCalibratesWithItsOwnProfile() {
+        val profile = RayNeoSensorProfile.forDevice(true, 0x40)
+        val collector = RayNeoCalibrationCollector(RayNeoSensorAxes(profile.rotationXDeg, profile.gtMaxAxes), 0)
+        val reading = sample(floatArrayOf(0.02f, -8.819f, -4.106f), floatArrayOf(-0.1f, 0.35f, -0.038f))
+        val saved = finish(collector, sample = reading)!!
+        assertEquals(CalibrationPhase.SAVED, collector.phase)
+        assertEquals(-0.1f, saved.gyroBiasDps.x, 0.0001f)
+        val upright = RayNeoOrientationFilter(profile.rotationXDeg, profile.gtMaxAxes, saved)
+            .update(sample(floatArrayOf(-0.02f, 8.819f, 4.106f), reading.gyroDps))
+        assertArrayEquals(floatArrayOf(1f, 0f, 0f, 0f), upright, 0.001f)
+        // This was the reported failure: the same physical pose cannot calibrate
+        // through the Max's permutation and 35-degree mounting correction.
+        assertNull(finish(RayNeoCalibrationCollector(RayNeoSensorAxes(35f, true), 0), sample = reading))
+    }
+
+    @Test fun nonMaxProfileCannotOverwriteLegacyMaxCalibrationWithTheSameUsbIdentity() {
+        val prefs = RuntimeEnvironment.getApplication().getSharedPreferences("cal-profile-test", Context.MODE_PRIVATE)
+        val store = RayNeoCalibrationStore(prefs)
+        val base = store.key(0x3941, 0xaf50, "00000001")
+        val standard = RayNeoCalibrationStore.profileKey(base, true, 0x40)
+        val legacy = RayNeoCalibration(Vec3(1f, 0f, 0f), Quaternion.IDENTITY)
+        val current = RayNeoCalibration(Vec3(0f, 1f, 0f), Quaternion.IDENTITY)
+        store.save(base, legacy); store.save(standard, current)
+        assertEquals(legacy, store.load(base))
+        assertEquals(current, store.load(standard))
+        assertEquals(base, RayNeoCalibrationStore.profileKey(base, false, 0x40))
+        assertEquals(base, RayNeoCalibrationStore.profileKey(base, true, 0x7f))
+        assertEquals(base, RayNeoCalibrationStore.profileKey(base, true, 0x41))
+    }
 }

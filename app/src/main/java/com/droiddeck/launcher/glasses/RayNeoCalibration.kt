@@ -39,6 +39,12 @@ internal data class RayNeoCalibration(val gyroBiasDps: Vec3, val level: Quaterni
 }
 
 internal class RayNeoCalibrationStore(private val prefs: SharedPreferences) {
+    companion object {
+        // GT and GT Max can share USB identity fields. Keep the non-Max mounting
+        // correction separate from existing Max profiles and their legacy keys.
+        fun profileKey(base: String, gtUsb: Boolean, boardId: Int): String =
+            if (gtUsb && boardId == RayNeoProtocol.BOARD_GT) "$base:gt-standard-v1" else base
+    }
     // A serial isolates physical units. Devices without one share their model profile.
     fun key(vid: Int, pid: Int, serial: String?, modelName: String = ""): String =
         "rayneo-cal-v1:$vid:$pid:${serial?.takeIf { it.isNotBlank() } ?: "model:$modelName"}"

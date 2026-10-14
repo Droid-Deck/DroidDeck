@@ -84,6 +84,17 @@ internal data class Quaternion(val w: Float, val x: Float, val y: Float, val z: 
     }
 }
 
+internal data class RayNeoSensorProfile(val rotationXDeg: Float, val gtMaxAxes: Boolean) {
+    companion object {
+        fun forDevice(gtUsb: Boolean, boardId: Int) = when {
+            gtUsb && boardId == RayNeoProtocol.BOARD_GT -> RayNeoSensorProfile(-25f, false)
+            gtUsb -> RayNeoSensorProfile(35f, true)
+            boardId == RayNeoProtocol.BOARD_AIR_4_PRO -> RayNeoSensorProfile(-20f, false)
+            else -> RayNeoSensorProfile(0f, false)
+        }
+    }
+}
+
 internal class RayNeoSensorAxes(imuRotationXDeg: Float, private val gt: Boolean) {
     private val rotation = Quaternion.fromAxisAngle(Vec3(1f, 0f, 0f),
         Math.toRadians((if (gt) 35f else imuRotationXDeg).toDouble()).toFloat())

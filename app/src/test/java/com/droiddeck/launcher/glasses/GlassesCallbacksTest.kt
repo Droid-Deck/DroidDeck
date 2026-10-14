@@ -111,6 +111,26 @@ class GlassesCallbacksTest {
         assertEquals(640, Glasses.state.value.width)
     }
 
+    @Test fun xrealCallbacksUseSharedPoseAndIgnoreDetachedDeviceValues() {
+        fun xreal(gen: Long) = Glasses::class.java.getDeclaredMethod("xrealListener", Long::class.javaPrimitiveType)
+            .apply { isAccessible = true }.invoke(Glasses, gen) as XrealLink.Listener
+        var delivered: FloatArray? = null
+        field("sink").set(null, Glasses.PoseSink { x, y, z, w, _ -> delivered = floatArrayOf(x, y, z, w) })
+        try {
+            val q = floatArrayOf(0f, 0f, 0.6f, 0.8f)
+            xreal(0).onPose(ByteArray(128), q, 1)
+            assertEquals(null, delivered)
+            xreal(1).onPose(ByteArray(128), q, 2)
+            org.junit.Assert.assertArrayEquals(q, delivered, 0f)
+            xreal(1).onValue(VitureProtocol.MSG_BRIGHTNESS, 8)
+            xreal(1).onUnavailable(true)
+            generation(2)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(2, Glasses.state.value.brightness)
+            assertTrue(Glasses.state.value.connected)
+        } finally { field("sink").set(null, null) }
+    }
+
     @Test fun cancelledCalibrationCallbacksCannotResurrectOrOverwriteTheProfile() {
         val rayneo = Glasses::class.java.getDeclaredMethod("rayNeoListener", Long::class.javaPrimitiveType)
             .apply { isAccessible = true }.invoke(Glasses, 1L) as RayNeoLink.Listener
@@ -125,6 +145,19 @@ class GlassesCallbacksTest {
         shadowOf(Looper.getMainLooper()).idle()
         assertEquals(CalibrationPhase.IDLE, calibration.value.phase)
         assertTrue(calibration.value.saved)
+    }
+
+    @Test fun disconnectedRayNeoBoardCannotChangeTheCurrentCalibrationKey() {
+        val rayneo = Glasses::class.java.getDeclaredMethod("rayNeoListener", Long::class.javaPrimitiveType)
+            .apply { isAccessible = true }.invoke(Glasses, 1L) as RayNeoLink.Listener
+        val previous = field("calibrationKey").get(null)
+        try {
+            field("calibrationKey").set(null, "current-profile")
+            rayneo.onDeviceInfo(0x40, true)
+            generation(2)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals("current-profile", field("calibrationKey").get(null))
+        } finally { field("calibrationKey").set(null, previous) }
     }
 
     @Test fun sdkCallbacksCannotCrossConnectionGenerationsOrFakeStereoConfirmation() {

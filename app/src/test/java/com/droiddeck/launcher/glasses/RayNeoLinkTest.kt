@@ -26,8 +26,9 @@ class RayNeoLinkTest {
     @Test fun handshakeWarmupPoseAndShutdownUseOnlyRayNeoWireCommands() = exerciseLink(false)
 
     @Test fun gtControlTrafficDoesNotBreakHandshakeOrTracking() = exerciseLink(true)
+    @Test fun nonMaxBoardSelectsItsProfileBeforeTrackingStarts() = exerciseLink(true, true)
 
-    private fun exerciseLink(gtTraffic: Boolean) {
+    private fun exerciseLink(gtTraffic: Boolean, nonMax: Boolean = false) {
         fun endpoint(address: Int) = ReflectionHelpers.callConstructor(UsbEndpoint::class.java,
             from(Int::class.javaPrimitiveType, address), from(Int::class.javaPrimitiveType, 3),
             from(Int::class.javaPrimitiveType, 64), from(Int::class.javaPrimitiveType, 1))
@@ -35,12 +36,21 @@ class RayNeoLinkTest {
         val conn = Shadow.newInstanceOf(UsbDeviceConnection::class.java)
         val io = Shadow.extract<Connection>(conn)
         io.gtTraffic = gtTraffic
+        io.boardId = if (nonMax) 0x40 else if (gtTraffic) 0x41 else 0
         lateinit var link: RayNeoLink
         var ready = false
         var pose: FloatArray? = null
         var lost = false
+        var loadedBoard = -1
+        var reportedBoard = -1
         val listener = object : RayNeoLink.Listener {
+            override fun onDeviceInfo(boardId: Int, calibrationSaved: Boolean) {
+                reportedBoard = boardId
+                assertFalse(calibrationSaved)
+            }
             override fun onReady() {
+                assertEquals(io.boardId, loadedBoard)
+                assertEquals(io.boardId, reportedBoard)
                 ready = true
                 if (gtTraffic) {
                     assertTrue(link.send(VitureProtocol.MSG_DISPLAY, byteArrayOf(6)))
@@ -54,7 +64,8 @@ class RayNeoLinkTest {
             override fun onLost() { lost = true }
         }
         val ctor = RayNeoLink::class.java.declaredConstructors.first { it.parameterCount == 5 }.apply { isAccessible = true }
-        link = ctor.newInstance(conn, RayNeoEndpointSelection(iface, endpoint(0x81), endpoint(0x01)), listener, gtTraffic, null) as RayNeoLink
+        val loadCalibration: (Int) -> RayNeoCalibration? = { board -> loadedBoard = board; null }
+        link = ctor.newInstance(conn, RayNeoEndpointSelection(iface, endpoint(0x81), endpoint(0x01)), listener, gtTraffic, loadCalibration) as RayNeoLink
         ReflectionHelpers.setField(link, "worker", Thread.currentThread())
         assertFalse(link.send(VitureProtocol.MSG_BRIGHTNESS, byteArrayOf(8)))
         assertFalse(link.send(VitureProtocol.MSG_FILM, byteArrayOf(1)))
@@ -82,6 +93,7 @@ class RayNeoLinkTest {
         var closed = false
         var released = false
         var gtTraffic = false
+        var boardId = 0
         private var streaming = false
 
         @Implementation fun bulkTransfer(ep: UsbEndpoint, bytes: ByteArray, count: Int, timeout: Int): Int {
@@ -101,6 +113,7 @@ class RayNeoLinkTest {
                 responses += ByteArray(64).apply {
                     this[0] = 0x99.toByte(); this[1] = 0xc8.toByte(); this[2] = 64
                     this[8] = cmd.toByte()
+                    if (cmd == 0) this[21] = boardId.toByte()
                 }
                 if (cmd == 1) streaming = true
                 if (cmd == 2) streaming = false
@@ -112,7 +125,12 @@ class RayNeoLinkTest {
                 check(++samples < 500) { "Warmup never delivered a pose" }
                 ByteBuffer.allocate(64).order(ByteOrder.LITTLE_ENDIAN).apply {
                     put(0, 0x99.toByte()); put(1, 0x65); put(2, 64)
-                    if (gtTraffic) {
+                    if (gtTraffic && boardId == 0x40) {
+                        val s = kotlin.math.sin(Math.toRadians(25.0)).toFloat()
+                        val c = kotlin.math.cos(Math.toRadians(25.0)).toFloat()
+                        putFloat(8, 9.81f * c); putFloat(12, 9.81f * s)
+                        putFloat(20, 90f * c); putFloat(24, 90f * s)
+                    } else if (gtTraffic) {
                         val s = kotlin.math.sin(Math.toRadians(35.0)).toFloat()
                         val c = kotlin.math.cos(Math.toRadians(35.0)).toFloat()
                         putFloat(4, 9.81f * s); putFloat(12, 9.81f * c)
