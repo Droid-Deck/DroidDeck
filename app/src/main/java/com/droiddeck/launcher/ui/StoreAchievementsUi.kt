@@ -204,7 +204,6 @@ internal fun AchievementRow(a: Achievement, compact: Boolean, modifier: Modifier
     }
 }
 
-/** The store page's achievements: a card with progress and the first few icons; "Show all" opens the full list in a side panel. */
 @Composable
 internal fun StoreAchievementsCard(game: StoreAchievements.Game, title: String, modifier: Modifier = Modifier) {
     val label = StoreAchievements.forSource(game.source)?.label ?: return
@@ -254,7 +253,6 @@ internal fun StoreAchievementsCardContent(label: String, state: AchievementsStat
             color = pal.signal, trackColor = pal.line,
             modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
         )
-        // Unlocked first (newest first), then the rest; as many as fit, the last slot counting what is left.
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val size = 40.dp
             val gap = 8.dp
@@ -295,7 +293,6 @@ internal fun SessionAchievementsPanel(label: String, state: AchievementsState, t
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     BackHandler(onBack = onClose)
-    // All, then each non-empty group; the tabs only show when there is more than one group to pick from.
     val kinds = remember(state.list) {
         val list = state.list.orEmpty()
         val split = groups(list)
@@ -312,7 +309,6 @@ internal fun SessionAchievementsPanel(label: String, state: AchievementsState, t
         val short = maxHeight < 440.dp
         AnimatedVisibility(slide, enter = slideInHorizontally(Motion.sp(0.8f)) { it } + fadeIn(Motion.tw(160)), label = "achievementsPanel") {
         Column(
-            // Docked to the screen edge over a running game; over the launcher (in a dialog window) a floating sheet.
             (if (floating) Modifier.padding(12.dp).fillMaxHeight().width(minOf(420.dp, maxWidth * 0.92f)).clip(RoundedCornerShape(20.dp))
                 .background(pal.background).border(1.dp, pal.line2, RoundedCornerShape(20.dp))
             else Modifier.fillMaxHeight().width(minOf(420.dp, maxWidth * 0.92f)).background(pal.background.copy(alpha = 0.97f)))

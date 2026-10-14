@@ -68,7 +68,6 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
     val download = StoresState.download("${store.id}:$id")?.takeIf { it.isActive }
     val title = item?.title ?: installed?.sidecar?.title ?: id
     Rise(0) {
-        // The store tab above already names the store, so the link just says Back.
         Box(Modifier.padding(bottom = 12.dp)) { BackLink(stringResource(R.string.common_back), compact = true, onClick = onBack) }
     }
     val scores = if (store == Store.GOG || store == Store.EPIC) rememberGameScores(title.takeIf { it != id }) else null
@@ -83,7 +82,6 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
             if (art != null) AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
             Spacer(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to colors.background.copy(alpha = 0.94f), 0.5f to colors.background.copy(alpha = 0.55f), 1f to Color.Transparent)))
             if (scores != null && !narrow) {
-                // A second scrim from the right keeps the scores readable over bright art.
                 Spacer(Modifier.matchParentSize().background(Brush.horizontalGradient(0.45f to Color.Transparent, 1f to colors.background.copy(alpha = 0.75f))))
                 HeroScores(scores, Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 18.dp))
             }
@@ -146,7 +144,6 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
             else -> null
         }
     }
-    // About on the left, the achievements card beside it; a narrow pane stacks them.
     if (description.isNotBlank() || achievements != null) Rise(3) {
         val about: @Composable (Modifier, Dp) -> Unit = { m, h -> if (description.isNotBlank()) StoreAbout(description, h, m) }
         val card: @Composable (Modifier) -> Unit = { m -> if (achievements != null) StoreAchievementsCard(achievements, title, m) }
@@ -154,7 +151,6 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
             about(Modifier.fillMaxWidth(), AboutHeight)
             card(Modifier.fillMaxWidth())
         } else Row(horizontalArrangement = Arrangement.spacedBy(24.dp), modifier = Modifier.fillMaxWidth().padding(top = 14.dp)) {
-            // The description box matches the card's height, so the two share a top and bottom edge.
             val density = LocalDensity.current
             var cardHeight by remember { mutableStateOf<Dp?>(null) }
             about(Modifier.weight(1f), cardHeight ?: AboutHeight)
@@ -165,10 +161,6 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
 
 private val AboutHeight = 150.dp
 
-/**
- * The store's description in a box [height] tall. Longer text scrolls inside the box: focus it and the D-pad
- * scrolls it, and once it reaches either end the D-pad moves focus on as usual.
- */
 @Composable
 private fun StoreAbout(text: String, height: Dp, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.colorScheme
@@ -195,7 +187,6 @@ private fun StoreAbout(text: String, height: Dp, modifier: Modifier = Modifier) 
             },
     ) {
         Text(text, fontSize = 14.sp, lineHeight = 21.sp, color = colors.onSurfaceVariant, modifier = Modifier.verticalScroll(scroll).padding(horizontal = 10.dp, vertical = 6.dp))
-        // A fade over the last line while there is more below.
         if (scroll.value < scroll.maxValue) Box(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(28.dp)
                 .background(Brush.verticalGradient(listOf(Color.Transparent, colors.background))),

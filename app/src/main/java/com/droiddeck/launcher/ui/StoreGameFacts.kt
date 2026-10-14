@@ -81,7 +81,6 @@ internal fun rememberGameScores(title: String?): GameScores {
     return GameScores(metacritic, hltb)
 }
 
-/** Metacritic and the main-story time as big stats on the right of the game's hero banner. */
 @Composable
 internal fun HeroScores(scores: GameScores, modifier: Modifier = Modifier) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier) {
@@ -123,11 +122,6 @@ private fun HeroStat(label: String, link: String?, value: @Composable () -> Unit
     }
 }
 
-/**
- * One quiet line under the hero: who made it and when on the left, the rest of HowLongToBeat's times
- * (with the link to the game's page) on the right. Without [scoresInHero] (a narrow pane) the score and
- * every time sit in this line instead, under the credits.
- */
 @Composable
 internal fun StoreGameFacts(developer: String, publisher: String, releaseDate: String, scores: GameScores, scoresInHero: Boolean, modifier: Modifier = Modifier) {
     val pal = LocalPalette.current
@@ -180,7 +174,6 @@ internal fun StoreGameFacts(developer: String, publisher: String, releaseDate: S
     }
 }
 
-/** Reads as plain text until focused or hovered, then lights up like the page's other links and opens [link]. */
 @Composable
 private fun LineLink(label: String, link: String, content: @Composable () -> Unit) {
     val pal = LocalPalette.current
@@ -209,7 +202,6 @@ private val StatShape = RoundedCornerShape(12.dp)
 private val LinkShape = RoundedCornerShape(10.dp)
 private val BadgeHeight = 32.dp
 
-/** Without a link, nothing; with one, a focusable, hoverable target that opens it. Over art, [hotFill] darkens instead of tinting. */
 @Composable
 private fun linkSurface(label: String, link: String?, src: MutableInteractionSource, hot: Boolean, shape: RoundedCornerShape, hotFill: Color? = null): Modifier {
     if (link == null) return Modifier
@@ -278,7 +270,6 @@ private fun FactsPreview(theme: String = Themes.GRAPHITE, narrow: Boolean = fals
 @Composable
 private fun PreviewCaption(text: String) = Text(text, fontSize = 11.sp, color = LocalPalette.current.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
 
-/** A cut-down hero like the store page's, with the scores on its right as the page puts them. */
 @Composable
 private fun PreviewHero(title: String, scores: GameScores) {
     Box(Modifier.fillMaxWidth().height(180.dp).clip(Shape16).background(artBrush(hueOf(title)))) {
