@@ -47,13 +47,8 @@ import kotlin.math.atan2
 import kotlin.math.max
 import kotlin.math.sin
 
-// The Stores section's moves, in the launcher's own vocabulary: an install bloops into a dot that
-// flies to the Downloads chip, sign-in floods in the store's colour and comes home to the chip's
-// dot, and the confirms step out of the control that asked (StepOut). Everything here is in root
-// coordinates; the Stores page draws it in its own space.
 
 internal object StoresMotion {
-    /** The Install (or Resume install) button last pressed, its label and when: a download that starts soon after flies from it. */
     var installFrom: Rect? = null
         private set
     var installLabel: String = ""
@@ -66,28 +61,21 @@ internal object StoresMotion {
         installAt = SystemClock.uptimeMillis()
     }
 
-    /** The button just pressed, if it was pressed in the last few seconds; not consumed. */
     fun recentInstall(): Rect? = installFrom.takeIf { SystemClock.uptimeMillis() - installAt < 5_000 }
 
-    /** The button a download that just started came from, once; stale after 20 s (a slow manifest). */
     fun takeInstall(): Rect? = installFrom.takeIf { SystemClock.uptimeMillis() - installAt < 20_000 }.also { installAt = 0L }
 
-    /** Where the Downloads chip sits, for a download's dot to land in. */
     var downloadsChip by mutableStateOf<Rect?>(null)
 
-    /** Bumped each time a dot lands: the chip's count and the rail's badge pop on it. */
     var landed by mutableIntStateOf(0)
 
-    /** Dots in flight to the Downloads chip. */
     val flights = mutableStateListOf<Flight>()
 
     fun fly(from: Rect) {
         if (Motion.scale == 0f || downloadsChip == null) { landed++; return }
-        // The count sits at the chip's right end.
         flights += Flight(from, to = { downloadsChip?.let { Offset(it.right - 22.dp.toPx(), it.center.y) } }, onLand = { landed++ })
     }
 
-    /** The confirm or list stepping out of a control on the Stores page now, and whether it is open. */
     var step by mutableStateOf<StepAsk?>(null)
         private set
     var stepOpen by mutableStateOf(false)
@@ -99,14 +87,12 @@ internal object StoresMotion {
         stepOpen = true
     }
 
-    /** Drops whatever is stepped out or flooding, at once: the page it belonged to has gone. */
     fun drop() {
         step?.let { step = null; it.onDismiss() }
         stepOpen = false
         signIn = null
     }
 
-    /** Folds the current one back into its control. */
     fun fold() { stepOpen = false }
 
     internal fun closed(a: StepAsk) {
@@ -114,24 +100,18 @@ internal object StoresMotion {
         a.onDismiss()
     }
 
-    /** A store's sign-in flooding the page, or draining back out of it. */
     var signIn by mutableStateOf<SignInFlood?>(null)
 
-    /** Per store, bumped to send its chip's dot one pulse ring (signed in, picked). */
     val pulses = androidx.compose.runtime.mutableStateMapOf<Store, Int>()
 
     fun pulse(store: Store) { pulses[store] = (pulses[store] ?: 0) + 1 }
 
-    /** Where each store's dot sits on its chip, for a sign-in to come home to. */
     val dots = HashMap<Store, Rect>()
 
-    /** Where the open game page's hero art sits (root px): what a card's flood lands on, and leaves from. */
     var heroAt by mutableStateOf<Rect?>(null)
 
-    /** The open game page came out of a card: its hero holds still, for the card's flood to land on. */
     var heroLands by mutableStateOf(false)
 
-    /** The card a game page is about to open from. */
     private var card: CardMark? = null
     private var cardAt = 0L
 
@@ -140,17 +120,11 @@ internal object StoresMotion {
         cardAt = SystemClock.uptimeMillis()
     }
 
-    /** The card game [key] was just opened from, once; a page opened another way shows without a flood. */
     fun takeCard(key: String): CardMark? = card?.takeIf { it.key == key && SystemClock.uptimeMillis() - cardAt < 1_000 }.also { card = null }
 }
 
-/** A game card at [bounds] (root px) with corner [corner] (px) and its art, for the page it opens to flood out of. */
 internal class CardMark(val key: String, val bounds: Rect, val corner: Float, val art: String?)
 
-/**
- * A confirm or short list for [StepOut] on the Stores page, asked by a control that sits at [anchor]
- * (root px). [content] gets a close that folds it; [onDismiss] runs once it has folded, however.
- */
 internal class StepAsk(
     val anchor: Rect,
     val side: StepSide,
@@ -164,22 +138,15 @@ internal class StepAsk(
 )
 
 internal class SignInFlood(val store: Store, val from: Rect, val start: Color, val color: Color) {
-    /** Covered and handed to the login page; waiting for the page to come back. */
     var away by mutableStateOf(false)
-    /** Back from the login page: draining into [to]. */
     var drainTo by mutableStateOf<Rect?>(null)
 }
 
-/** The dots flying to the Downloads chip, drawn over the page whose root offset is [origin]. */
 @Composable
 internal fun FlightLayer(origin: Offset) {
     for (f in StoresMotion.flights.toList()) key(f.id) { FlightDot(f, origin) { StoresMotion.flights.remove(f) } }
 }
 
-/**
- * Pops (1.3 to 1, with one ring) each time [trigger] changes: by default each time a download's
- * dot lands, for the count on the chip and the rail; any other landing passes its own count.
- */
 internal fun Modifier.landingPop(trigger: Int = StoresMotion.landed): Modifier = composed {
     val pal = LocalPalette.current
     val scale = remember { Animatable(1f) }
@@ -201,11 +168,6 @@ internal fun Modifier.landingPop(trigger: Int = StoresMotion.landed): Modifier =
     }.graphicsLayer { scaleX = scale.value; scaleY = scale.value }
 }
 
-/**
- * A pressed button in [start] stretching out over this element in [color] (LaunchFlood's move:
- * each edge on its own loose spring, the furthest first, blobby in flight). [from] is in this
- * element's px. Calls [onCovered] once, when nothing but [color] shows; then holds.
- */
 @Composable
 internal fun ColorFlood(from: Rect, start: Color, color: Color, onCovered: () -> Unit) {
     val edges = remember { List(4) { Animatable(0f) } }
@@ -220,7 +182,6 @@ internal fun ColorFlood(from: Rect, start: Color, color: Color, onCovered: () ->
                 val lead = travel[i] / far
                 launch {
                     delay(Motion.ms((120 * (1f - lead)).toInt()).toLong())
-                    // Overshoots past the edge, off the element, so the wobble is felt in the pull.
                     edge.animateTo(1f, if (Motion.scale == 0f) Motion.sp() else spring(dampingRatio = 0.48f, stiffness = lerp(110f, 190f, lead))) {
                         if (value >= 1f) reached[i] = true
                     }
@@ -237,10 +198,6 @@ internal fun ColorFlood(from: Rect, start: Color, color: Color, onCovered: () ->
     }
 }
 
-/**
- * [color] over the whole element drawing down into [to] (px, here), critically damped, the near
- * edges first (PageFlood's way back), then fading out on it; [onDone] after.
- */
 @Composable
 internal fun ColorDrain(color: Color, to: Rect, toCorner: Float, onDone: () -> Unit) {
     val edges = remember { List(4) { Animatable(1f) } }
@@ -270,7 +227,6 @@ internal fun ColorDrain(color: Color, to: Rect, toCorner: Float, onDone: () -> U
 private fun Modifier.onSizeChangedCompat(onSize: (Size) -> Unit) =
     onSizeChanged { onSize(Size(it.width.toFloat(), it.height.toFloat())) }
 
-/** A rect from [r] with its edges [v] of the way to this scope's (left, top, right, bottom): blobby in flight. */
 private fun DrawScope.drawFloodShape(r: Rect, restCorner: Float, v: List<Float>, color: Color) {
     val left = lerp(r.left, 0f, v[0])
     val top = lerp(r.top, 0f, v[1])
@@ -284,7 +240,6 @@ private fun DrawScope.drawFloodShape(r: Rect, restCorner: Float, v: List<Float>,
     drawRoundRect(color, Offset(left, top), Size(w, h), CornerRadius(corner))
 }
 
-/** Sends one pulse ring out of a dot each time [trigger] changes after the first composition. */
 internal fun Modifier.pulseRing(trigger: Int, color: Color): Modifier = composed {
     val ring = remember { Animatable(1f) }
     val seen = remember { intArrayOf(trigger) }
@@ -303,11 +258,6 @@ internal fun Modifier.pulseRing(trigger: Int, color: Color): Modifier = composed
     }
 }
 
-/**
- * [items] in a column where a row that comes enters with [enter] and a row that goes stays on to
- * leave with [exit] (a Column has no item animations of its own). [content] gets the row and
- * whether it came after the list was first shown.
- */
 @Composable
 internal fun <T> AnimatedRows(
     items: List<T>,
@@ -322,7 +272,6 @@ internal fun <T> AnimatedRows(
     val later = remember { mutableMapOf<Any, Boolean>() }
     val mounted = remember { booleanArrayOf(false) }
     val now = items.associateBy(key)
-    // Keep a leaving row where it was among the ones that stay.
     val merged = ArrayList<Any>()
     var j = 0
     for (k in now.keys) {

@@ -1,38 +1,3 @@
-/*
- * proot fast path: path syscalls answered inside the process, without a ptrace round trip.
- *
- * proot traps every path syscall into its tracer: 15-60 us a call on a Snapdragon, most of it
- * the two cross-core wake-ups between tracee and tracer. This library, preloaded into every guest
- * process, answers the common calls itself and issues the translated syscall from a trampoline
- * page at a fixed address, which proot's seccomp filter lets through without a stop
- * (PROOT_FASTPATH, tools/proot/patches/0014).
- *
- * It decides nothing proot would decide differently. A guest path is resolved the way proot's
- * canonicalize() does it, one component at a time from the root or the guest directory a
- * relative path starts in: each component is mapped through the longest binding whose guest path
- * is a prefix of it (else the rootfs) and looked at without following it; a symlink is read and
- * its text resolved in its place, ".." drops the last resolved component, and a directory that
- * only exists as proot's glue above a binding is walked through. The kernel then gets the host
- * path that proot would have given it. In /proc, /proc/self and /proc/thread-self are followed as
- * proot follows them, and a link proot emulates is read the way it answers readlink(); anything
- * proot keeps state about (a renamed directory, sockets bound at a long path, glue itself), the
- * /dev links into /proc, any flag not handled here and any failure to decide go to proot: the real
- * libc call runs, proot traps it and answers as it always has.
- *
- * Only syscalls Android's app seccomp policy allows are used - not openat2 or faccessat2, which
- * it answers with SIGSYS.
- *
- * Directories resolved once are remembered for PROOT_FP_TTL_MS (default 2000; 0 = resolve every
- * call): a directory replaced by a symlink within that window would be missed, the same trade the
- * session's pathcache.c makes for the Steam client. Renames, removals and new symlinks made here
- * forget them at once.
- *
- * Config (the launcher sets it): PROOT_FP_ROOT=<host rootfs>, PROOT_FP_BINDS=<host:guest|...>;
- * PROOT_FP_KEY=<key>, with PROOT_FASTPATH=<key> in proot's own environment: nothing is answered
- * here unless the tracer is that proot (traced_by_match).
- * PROOT_FP_OFF=1 disables it; PROOT_FP_STATS=1 reports hits and misses at exit, and
- * PROOT_FP_LOG=<file> appends every call left to proot to that file.
- */
 #define _GNU_SOURCE
 #include <dirent.h>
 #include <dlfcn.h>
@@ -66,14 +31,10 @@
 #include <unistd.h>
 #include <utime.h>
 
-#define FP_STUB_ADDR 0xffff00000UL /* must match FASTPATH_STUB_ADDR in proot's seccomp.c */
+#define FP_STUB_ADDR 0xffff00000UL
 #define FP_STUB_SIZE 4096UL
-/* A session binds 80-odd paths (devices, the Steam libraries, each Games folder...). More than fit,
- * or one that cannot be held, turns the fast path off: a bind it did not know would map that
- * guest path into the rootfs instead (an empty mount point), which proot never does. */
 #define MAX_BINDS 256
 #define FP_SLOW (-100000L)
-/* proot gives up at MAXSYMLINKS; a chain this long is left to it, whatever it decides. */
 #define MAX_LINKS 16
 
 typedef long (*stub_fn)(long nr, long a, long b, long c, long d, long e, long f);
@@ -91,7 +52,6 @@ static unsigned long hits, misses;
 static long sc(long nr, long a, long b, long c, long d, long e) { return fp_sys(nr, a, b, c, d, e, 0); }
 static void fp_init(void);
 static pthread_once_t init_once = PTHREAD_ONCE_INIT;
-/* Set up on the first call that could use it: a process that only execs on pays nothing. */
 static inline int fp_ready(void) {
   pthread_once(&init_once, fp_init);
   return fp_on;
@@ -102,7 +62,6 @@ static int under(const char *path, const char *dir, size_t dlen) {
   return strncmp(path, dir, dlen) == 0 && (path[dlen] == 0 || path[dlen] == '/');
 }
 
-/* ---------------------------------------------------------------- setup */
 
 static void stats(void) {
   char line[160];
@@ -114,7 +73,6 @@ static void stats(void) {
 static const char *miss_log;
 static long fp_open(int dirfd, const char *path, int flags, mode_t mode);
 
-/* A call left to proot. Opened for each line: a program may close or reuse any descriptor kept. */
 static void missed(const char *call, int dirfd, const char *path) {
   misses++;
   if (!miss_log) return;
@@ -133,8 +91,6 @@ static void missed(const char *call, int dirfd, const char *path) {
   sc(SYS_close, fd, 0, 0, 0, 0);
 }
 
-/* The canonical form of a host path (bindings may name /sdcard, /data/user/0, ...), as realpath()
- * gives it; -errno, leaving the path as it is, when it does not lead to one. */
 static long canonical(char *path, size_t size) {
   long fd = sc(SYS_openat, AT_FDCWD, (long)path, O_PATH | O_CLOEXEC, 0, 0);
   if (fd < 0) return fd;
@@ -155,15 +111,8 @@ static pthread_mutex_t cache_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t bind_lock;
 static void after_fork(void) { pthread_mutex_init(&cache_lock, NULL); pthread_mutex_init(&bind_lock, NULL); }
 
-/*
- * The process is traced by a proot that lets the trampoline through and was given the same
- * rootfs and bindings: its own environment carries PROOT_FASTPATH=<PROOT_FP_KEY> (the launcher
- * derives the key from them) and no PROOT_NO_SECCOMP. A process that inherited the variables but
- * runs under another proot, or none, must not translate paths itself: a proot that traps the
- * trampoline would translate the host path a second time.
- */
 static int traced_by_match(const char *key) {
-  static char buf[32768]; /* under init_once */
+  static char buf[32768];
   char path[48], want[160];
   long fd = sc(SYS_openat, AT_FDCWD, (long)"/proc/self/status", O_RDONLY | O_CLOEXEC, 0, 0);
   if (fd < 0) return 0;
@@ -191,11 +140,6 @@ static int traced_by_match(const char *key) {
   return found;
 }
 
-/*
- * proot canonicalised every binding's host path with realpath() in its own process, so a binding of
- * /proc/self/fd/1 (/dev/stdout) names whatever proot's own descriptor 1 is - /dev/null in a session -
- * and one onto a pipe was dropped. Read through the tracer's /proc; 0 when that cannot be seen.
- */
 static int in_tracer(struct bind *bd) {
   char h[PATH_MAX];
   if (snprintf(h, sizeof h, "/proc/%ld%s", tracer, bd->host + 10) >= (int)sizeof h) return 0;
@@ -216,12 +160,12 @@ static void fp_init(void) {
                  MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
   if (p != (void *)FP_STUB_ADDR) {
     if (p != MAP_FAILED) { munmap(p, FP_STUB_SIZE); return; }
-    if (errno != EEXIST) return; /* mapped already: this library loaded twice */
+    if (errno != EEXIST) return;
   } else {
     static const uint32_t code[] = {
-        0xAA0003E8, /* mov x8, x0 */  0xAA0103E0, /* mov x0, x1 */  0xAA0203E1, /* mov x1, x2 */
-        0xAA0303E2, /* mov x2, x3 */  0xAA0403E3, /* mov x3, x4 */  0xAA0503E4, /* mov x4, x5 */
-        0xAA0603E5, /* mov x5, x6 */  0xD4000001, /* svc #0 */      0xD65F03C0, /* ret */
+        0xAA0003E8,    0xAA0103E0,    0xAA0203E1,
+        0xAA0303E2,    0xAA0403E3,    0xAA0503E4,
+        0xAA0603E5,    0xD4000001,        0xD65F03C0,
     };
     memcpy(p, code, sizeof code);
     __builtin___clear_cache((char *)p, (char *)p + sizeof code);
@@ -246,8 +190,6 @@ static void fp_init(void) {
       char *colon = strchr(spec, ':');
       if (colon) *colon = 0;
       struct bind *bd = &binds[nbinds];
-      /* Canonicalised on first use: some (/sdcard) are FUSE, slow to look up at every exec.
-       * Static storage: malloc here would grow the heap with brk(2), which proot traps. */
       static char hosts[MAX_BINDS][PATH_MAX], guests[MAX_BINDS][512];
       const char *g = colon ? colon + 1 : spec;
       if (strlen(g) >= sizeof guests[0]) { unheld = 1; break; }
@@ -267,15 +209,13 @@ static void fp_init(void) {
   if (unheld || (s && *s)) { fp_sys = NULL; return; }
   for (int i = 0; i < nbinds; i++)
     if (under(binds[i].host, "/proc/self", 10) && !in_tracer(&binds[i])) { fp_sys = NULL; return; }
-  pthread_atfork(NULL, NULL, after_fork); /* registered once per exec */
+  pthread_atfork(NULL, NULL, after_fork);
   fp_on = 1;
   if (getenv("PROOT_FP_STATS")) atexit(stats);
   miss_log = getenv("PROOT_FP_LOG");
   if (miss_log && miss_log[0] != '/') miss_log = NULL;
 }
 
-/* Whether proot holds a binding: one whose host path did not resolve it dropped ("can't sanitize
- * binding"). 1, 0, or -1 when that cannot be told now. */
 static pthread_mutex_t bind_lock = PTHREAD_MUTEX_INITIALIZER;
 static int held(struct bind *bd) {
   if (!__atomic_load_n(&bd->canon, __ATOMIC_ACQUIRE)) {
@@ -290,16 +230,12 @@ static int held(struct bind *bd) {
   return !bd->dropped;
 }
 
-/* ---------------------------------------------------------------- guest <-> host */
 
-/* Guest paths never answered here: bindings onto /proc/self, which proot resolves as its own. */
 static int reserved(const char *g) {
   return under(g, "/dev/fd", 7) || under(g, "/dev/stdin", 10) || under(g, "/dev/stdout", 11)
       || under(g, "/dev/stderr", 11);
 }
 
-/* The binding a canonical guest path is under (the longest guest prefix; of two for the same guest
- * path, proot keeps the last), or NULL for the rootfs. -1 when it cannot be told. */
 static int bind_of(const char *g, struct bind **out) {
   struct bind *bd = NULL;
   for (int i = 0; i < nbinds; i++) {
@@ -312,7 +248,6 @@ static int bind_of(const char *g, struct bind **out) {
   return 0;
 }
 
-/* The host path proot gives the kernel for a canonical guest path; -1 when it cannot be told. */
 static int to_host(const char *g, char *host, struct bind **through) {
   struct bind *bd;
   if (bind_of(g, &bd) < 0) return -1;
@@ -322,8 +257,6 @@ static int to_host(const char *g, char *host, struct bind **through) {
   return n < PATH_MAX ? 0 : -1;
 }
 
-/* A guest directory proot only shows as glue: missing in the rootfs, with a binding below it.
- * -1 when it cannot be told. */
 static int glue_above_binding(const char *g, size_t len) {
   int glue = 0;
   for (int i = 0; i < nbinds && glue == 0; i++)
@@ -331,13 +264,6 @@ static int glue_above_binding(const char *g, size_t len) {
   return glue;
 }
 
-/*
- * The k-th guest path proot could name a canonical host path by (the cwd, a dirfd), as its
- * detranslation does: inside the rootfs, the rootfs's view of it, whatever is bound; elsewhere the
- * binding with the deepest host path - two bindings of the same host path are two names, and which
- * one proot uses depends on its list order. A name must also map back to the path, i.e. no longer
- * binding hides it. 0, or -1 when there is no k-th.
- */
 static int guest_name(const char *h, int k, char *g) {
   char back[PATH_MAX];
   size_t deepest = 0;
@@ -359,7 +285,6 @@ static int guest_name(const char *h, int k, char *g) {
   return -1;
 }
 
-/* The one guest path that names a host path, or -1. */
 static int to_guest(const char *h, char *g, size_t size) {
   char other[PATH_MAX];
   if (size < PATH_MAX || guest_name(h, 0, g) < 0) return -1;
@@ -368,8 +293,6 @@ static int to_guest(const char *h, char *g, size_t size) {
   return 0;
 }
 
-/* A host path or link text proot shows for a host path it read from a /proc link: in guest terms
- * when the rootfs or a binding holds it, else as it is (a pipe, a socket, a path outside the guest). */
 static int guest_text(const char *h, char *g) {
   int in = h[0] == '/' && under(h, root, rootlen);
   for (int i = 0; h[0] == '/' && !in && i < nbinds; i++) {
@@ -382,8 +305,6 @@ static int guest_text(const char *h, char *g) {
   return 0;
 }
 
-/* The binding proot's get_binding(HOST) finds for a host path outside the rootfs: the deepest host
- * prefix. -1 for none, -2 when it cannot be told (two at that depth with different guest paths). */
 static int host_bind(const char *h) {
   int found = -1;
   for (int i = 0; i < nbinds; i++) {
@@ -396,11 +317,6 @@ static int host_bind(const char *h) {
   return found == -3 ? -2 : found;
 }
 
-/*
- * proot's detranslate_path() for the text of a link outside /proc whose own host path is `at`:
- * text into the binding the link itself is in shows under that binding's guest path, other text
- * naming the rootfs loses the rootfs prefix. 1 when rewritten, 0 when not, or FP_SLOW.
- */
 static long detranslated(char *text, const char *at) {
   if (text[0] != '/') return 0;
   if (!under(at, root, rootlen) && !under(text, root, rootlen)) {
@@ -421,10 +337,9 @@ static long detranslated(char *text, const char *at) {
   return 1;
 }
 
-/* ---------------------------------------------------------------- resolved directories */
 
 #define SLOTS 512
-#define SLOT_PATH 256 /* longer directories are resolved every time */
+#define SLOT_PATH 256
 struct slot { long long stamp; unsigned hash; unsigned gen; char literal[SLOT_PATH]; char guest[SLOT_PATH]; };
 static struct slot cache[SLOTS];
 static unsigned generation;
@@ -441,7 +356,6 @@ static unsigned hash_of(const char *s) {
   return h;
 }
 
-/* Something here changed which paths name which directories. */
 static void forget(void) { __atomic_add_fetch(&generation, 1, __ATOMIC_RELEASE); }
 
 static int cached(const char *literal, unsigned h, char *guest) {
@@ -467,12 +381,6 @@ static void remember(const char *literal, unsigned h, const char *guest) {
   pthread_mutex_unlock(&cache_lock);
 }
 
-/*
- * A binding below a symlink: proot canonicalised its guest path when it set it up
- * (initialize_binding), so -b X:/sys/class/thermal/thermal_zone1/type binds the link's target,
- * /sys/devices/virtual/thermal/thermal_zone1/type, and a path through the link meets it there.
- * Known here by its literal text only, it would be missed; such a path is left to proot.
- */
 static int binding_below(const char *g) {
   size_t len = strlen(g);
   for (int i = 0; i < nbinds; i++)
@@ -480,14 +388,7 @@ static int binding_below(const char *g) {
   return 0;
 }
 
-/* ---------------------------------------------------------------- resolution */
 
-/*
- * Where a resolution ended: the canonical guest path, its host path and, when it exists, its lstat.
- * `libc` asks for links to be read as glibc's realpath() reads them, through readlink; `moving` is
- * set once the answer depends on the caller (a /proc link), so it is not remembered. `magic`: it
- * ends on /proc/<pid>/fd/N, which proot leaves for the kernel to follow; st is what it leads to.
- */
 struct res {
   char guest[PATH_MAX];
   char host[PATH_MAX];
@@ -499,12 +400,10 @@ struct res {
   int magic;
 };
 
-/* A directory removed while open: the kernel names it "<path> (deleted)". */
 static int gone(const char *h, size_t n) {
   return n > 10 && strcmp(h + n - 10, " (deleted)") == 0;
 }
 
-/* The guest cwd proot keeps for this process, as the kernel's cwd names it. */
 static long own_cwd(char *g) {
   char h[PATH_MAX];
   long n = sc(SYS_readlinkat, AT_FDCWD, (long)"/proc/self/cwd", (long)h, sizeof h - 1, 0);
@@ -514,7 +413,6 @@ static long own_cwd(char *g) {
   return (long)strlen(g);
 }
 
-/* The program proot started this process with, asked of proot once: it is its own record. */
 static char exe_text[PATH_MAX];
 static int exe_len;
 static long own_exe(char *g) {
@@ -537,12 +435,6 @@ static long own_exe(char *g) {
   return t;
 }
 
-/*
- * What proot's readlink() answers for the link r names under /proc (readlink_proc2, then
- * detranslate_path): exe, cwd and root of a process it traces from its own records, every other
- * link as the kernel has it with a host path put in guest terms. `changed` is set when that differs
- * from the kernel's text, which is cut to `size` (0: no limit) before proot reads it.
- */
 static long proc_readlink(const struct res *r, char *text, size_t size, int *changed) {
   const char *name = strrchr(r->guest, '/') + 1;
   size_t blen = name - 1 - r->guest;
@@ -566,7 +458,6 @@ static long proc_readlink(const struct res *r, char *text, size_t size, int *cha
   return (long)strlen(text);
 }
 
-/* /proc/<pid>/fd/N. */
 static int fd_link(const char *g) {
   const char *p = g + 6;
   if (strncmp(g, "/proc/", 6) != 0 || *p < '1' || *p > '9') return 0;
@@ -575,11 +466,6 @@ static int fd_link(const char *g) {
   return 1;
 }
 
-/*
- * A link met under /proc while resolving, as canonicalize() reads it: /proc/self and
- * /proc/thread-self name the caller for proot as for the kernel, the others are what proot's
- * readlink() gives. 0 for /proc/<pid>/fd/N named last, which proot does not follow itself.
- */
 static long proc_link(struct res *r, char *text, int final) {
   int changed;
   if (!under(r->host, "/proc", 5)) return FP_SLOW;
@@ -603,20 +489,10 @@ static int pop(char *g) {
   return 0;
 }
 
-/* The final component is there for the call to meet but could not be looked at (sysfs and /proc
- * nodes the app may not stat): proot leaves it to the kernel too. Only callers that act on r->host
- * alone ask for it with MAY_BE_UNSEEN; to the others it is FP_SLOW. */
 #define UNSEEN 2
 #define MAY_BE_UNSEEN 2
-/* The final component is proot's glue: a directory, but not one the kernel has. */
 #define GLUE 3
 
-/*
- * Resolves `text` below r->guest (an existing canonical directory; "/" for an absolute text), as
- * canonicalize() does. The final component is followed when `follow` is set; `last`: it is also the
- * last of the whole path. 0 with r->exists set, 1 when only the final component is missing,
- * UNSEEN, GLUE, -errno, or FP_SLOW.
- */
 static long walk(struct res *r, const char *text, int follow, int last) {
   char rest[PATH_MAX];
   size_t len = strlen(text);
@@ -646,9 +522,6 @@ static long walk(struct res *r, const char *text, int follow, int last) {
     if (to_host(r->guest, r->host, &through) < 0) return FP_SLOW;
     long s = sc(SYS_newfstatat, AT_FDCWD, (long)r->host, (long)&r->st, AT_SYMLINK_NOFOLLOW, 0);
     if (s < 0) {
-      /* A directory above a binding that proot could not look at when it set the binding up (one
-       * missing, or debugfs) is its glue; any other component it cannot look at is ENOENT unless it
-       * is the last, which the call itself then meets. */
       int glue = glue_above_binding(r->guest, glen + n);
       if (glue < 0) return FP_SLOW;
       if (glue) {
@@ -656,7 +529,6 @@ static long walk(struct res *r, const char *text, int follow, int last) {
         c = e;
         continue;
       }
-      /* glibc's realpath() meets it as its readlink() fails. */
       if (!final || !last) return r->libc ? s : -ENOENT;
       return s == -ENOENT ? 1 : UNSEEN;
     }
@@ -695,7 +567,6 @@ static long walk(struct res *r, const char *text, int follow, int last) {
     c = e;
   }
   if (!stated) {
-    /* Ended on the root, ".", ".." or glue: the directory itself. */
     if (to_host(r->guest, r->host, NULL) < 0) return FP_SLOW;
     long s = sc(SYS_newfstatat, AT_FDCWD, (long)r->host, (long)&r->st, AT_SYMLINK_NOFOLLOW, 0);
     if (s < 0 && strcmp(r->guest, "/") != 0 && glue_above_binding(r->guest, strlen(r->guest))) return FP_SLOW;
@@ -705,8 +576,6 @@ static long walk(struct res *r, const char *text, int follow, int last) {
   return 0;
 }
 
-/* The host directory a relative path starts in; -ENOTDIR, as proot answers, for a descriptor that
- * is no file-system object (a pipe, a socket), or -1. */
 static int base_of(int dirfd, char *h) {
   char link[40];
   if (dirfd == AT_FDCWD) snprintf(link, sizeof link, "/proc/self/cwd");
@@ -718,19 +587,12 @@ static int base_of(int dirfd, char *h) {
   return gone(h, n) ? -1 : 0;
 }
 
-/*
- * Resolves the guest path `base`/`path` (base NULL for an absolute path). Directories are looked
- * up in the cache by their literal absolute path; only a path with ".." in it is resolved in full.
- * A trailing "/" asks for an existing directory, as the kernel does; what a missing one creates is
- * the caller's to check.
- */
 static long resolve_in(const char *base, const char *path, int follow, struct res *r) {
   char norm[PATH_MAX];
   size_t o = 0;
   int dotdot = 0;
   size_t plen = strlen(path);
   int trailing = plen > 1 && path[plen - 1] == '/';
-  /* "//" and "/./" go; ".." stays, it is not lexical once symlinks are involved. */
   for (int part = base ? 0 : 1; part < 2; part++) {
     for (const char *c = part ? path : base; *c;) {
       while (*c == '/') c++;
@@ -771,12 +633,6 @@ static long resolve_in(const char *base, const char *path, int follow, struct re
   return w;
 }
 
-/*
- * Resolves `path` relative to dirfd, as the guest means it. When the starting directory has two
- * guest names (a library bound twice), proot resolves from the one it was reached by, which is
- * not known here: the answer stands only if every name leads to the same place. r->named is set
- * when the result's guest path is the one proot would report (realpath).
- */
 static __attribute__((noinline)) long same_from_other_names(const char *h, const char *path, int follow,
                                                            long rs, const struct res *r) {
   char base[PATH_MAX];
@@ -811,12 +667,10 @@ static long resolve_as(int dirfd, const char *path, int how, int libc, struct re
   return rs == UNSEEN && !(how & MAY_BE_UNSEEN) ? FP_SLOW : rs;
 }
 
-/* `how`: whether to follow a final link (1), and MAY_BE_UNSEEN. */
 static long resolve(int dirfd, const char *path, int how, struct res *r) {
   return resolve_as(dirfd, path, how, 0, r);
 }
 
-/* "name/" makes the kernel follow a final link; calls that act on the link itself leave it to proot. */
 static int trailing_slash(const char *path) {
   size_t len = path ? strlen(path) : 0;
   return len > 1 && path[len - 1] == '/';
@@ -831,11 +685,9 @@ static int ret(long r) {
   static __typeof__(type) real_##name; \
   if (!real_##name) real_##name = (type)dlsym(RTLD_NEXT, #name)
 
-/* An answer from here (r != FP_SLOW) or the real call. */
 #define ANSWER(r, dirfd, path, real_call) \
   do { long r_ = (r); if (r_ != FP_SLOW) { hits++; return ret(r_); } missed(__func__, dirfd, path); return real_call; } while (0)
 
-/* ---------------------------------------------------------------- open */
 
 static long fp_open(int dirfd, const char *path, int flags, mode_t mode) {
   struct res r;
@@ -846,7 +698,6 @@ static long fp_open(int dirfd, const char *path, int flags, mode_t mode) {
   if (rs < 0) return rs;
   if (rs == 1 && !(flags & O_CREAT)) return -ENOENT;
   if (rs == UNSEEN) return sc(SYS_openat, AT_FDCWD, (long)r.host, flags, (flags & O_CREAT) ? mode : 0, 0);
-  /* Resolved here: the kernel must not follow a link that appeared since in host terms. */
   return sc(SYS_openat, AT_FDCWD, (long)r.host, flags | (follow && !r.magic ? O_NOFOLLOW : 0), (flags & O_CREAT) ? mode : 0, 0);
 }
 
@@ -879,11 +730,9 @@ int __openat64_2(int d, const char *path, int flags) { return openat(d, path, fl
 int creat(const char *path, mode_t mode) { return open(path, O_WRONLY | O_CREAT | O_TRUNC, mode); }
 int creat64(const char *path, mode_t mode) __attribute__((alias("creat")));
 
-/* ---------------------------------------------------------------- stat family */
 
 static long fp_stat(int dirfd, const char *path, int flags, struct stat *st) {
   struct res r;
-  /* fstat() is fstatat(fd, "", AT_EMPTY_PATH): nothing to translate. */
   if ((flags & AT_EMPTY_PATH) && path && !path[0] && fp_ready())
     return sc(SYS_newfstatat, dirfd, (long)"", (long)st, flags, 0);
   if (flags & ~(AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT)) return FP_SLOW;
@@ -916,8 +765,6 @@ int lstat(const char *path, struct stat *st) {
 }
 int lstat64(const char *p, struct stat64 *st) { return lstat(p, (struct stat *)st); }
 
-/* glibc turns fstat() into fstatat(fd, "", AT_EMPTY_PATH), which proot traps as a path call; the
- * plain syscall is not traced at all. */
 int fstat(int fd, struct stat *st) {
   REAL(fstat, int (*)(int, struct stat *));
   if (!fp_ready()) return real_fstat(fd, st);
@@ -926,13 +773,6 @@ int fstat(int fd, struct stat *st) {
 }
 int fstat64(int fd, struct stat64 *st) { return fstat(fd, (struct stat *)st); }
 
-/*
- * The pre-2.33 entry points. Programs linked against an older glibc - the Steam client,
- * steamclient.so and filesystem_stdio.so among them - call these rather than stat(), so without
- * them every stat the client makes goes to proot: a download's preallocation stats each file it
- * creates. On aarch64 the only version is 0 (_STAT_VER), whose struct stat is the one above;
- * glibc refuses any other with EINVAL, and so does this.
- */
 #define FP_STAT_VER 0
 static int xstat_common(int ver, int dirfd, const char *path, struct stat *st, int flags) {
   REAL(fstatat, int (*)(int, const char *, struct stat *, int));
@@ -967,10 +807,7 @@ int statx(int dirfd, const char *path, int flags, unsigned mask, struct statx *o
   ANSWER(rs, dirfd, path, real_statx(dirfd, path, flags, mask, out));
 }
 
-/* ---------------------------------------------------------------- access */
 
-/* AT_EACCESS only differs from a plain check in a set-ID program, where glibc does the work itself;
- * elsewhere glibc's own fallback is the plain faccessat, and so is this. */
 static int effective_is_real(void) {
   return !getauxval(AT_SECURE) && getuid() == geteuid() && getgid() == getegid();
 }
@@ -979,8 +816,6 @@ static int access_common(int dirfd, const char *path, int mode, int flags) {
   REAL(faccessat, int (*)(int, const char *, int, int));
   struct res r;
   if ((flags & AT_EACCESS) && effective_is_real()) flags &= ~AT_EACCESS;
-  /* faccessat(2) has no flags; AT_SYMLINK_NOFOLLOW (the Steam client passes it for every file it
-   * reserves) only differs on a symlink, which goes to proot. */
   long rs = (flags & ~AT_SYMLINK_NOFOLLOW) == 0
             ? resolve(dirfd, path, (flags & AT_SYMLINK_NOFOLLOW ? 0 : 1) | MAY_BE_UNSEEN, &r) : FP_SLOW;
   if (rs == 1) rs = -ENOENT;
@@ -988,7 +823,6 @@ static int access_common(int dirfd, const char *path, int mode, int flags) {
   if (rs == 0 || rs == UNSEEN) rs = sc(SYS_faccessat, AT_FDCWD, (long)r.host, mode, 0, 0);
   if (rs != FP_SLOW) { hits++; return ret(rs); }
   missed(__func__, dirfd, path);
-  /* glibc tries faccessat2 first, which Android answers with SIGSYS: a second round trip. */
   if (flags == 0) return (int)syscall(SYS_faccessat, dirfd, path, mode);
   return real_faccessat(dirfd, path, mode, flags);
 }
@@ -997,13 +831,7 @@ int access(const char *path, int mode) { return access_common(AT_FDCWD, path, mo
 int eaccess(const char *path, int mode) { return access_common(AT_FDCWD, path, mode, AT_EACCESS); }
 int euidaccess(const char *path, int mode) __attribute__((alias("eaccess")));
 
-/* ---------------------------------------------------------------- readlink, realpath, getcwd */
 
-/*
- * The text proot's readlink() gives for the link r names: the stored text as the kernel cuts it to
- * `size` (0: no limit), detranslated. `changed`: proot wrote its own answer rather than leaving the
- * kernel's.
- */
 static long link_text(const struct res *r, char *text, size_t size, int *changed) {
   int in_proc = under(r->guest, "/proc", 5);
   *changed = 0;
@@ -1040,8 +868,6 @@ static ssize_t readlink_common(int dirfd, const char *path, char *buf, size_t si
     memcpy(buf, text, n);
     return n;
   }
-  /* As proot writes its answer: with the terminator when it fits, else cut at the buffer (or
-   * PATH_MAX) and reported as that long. */
   size_t max = size < PATH_MAX ? size : PATH_MAX;
   if (n + 1 < max) {
     memcpy(buf, text, n + 1);
@@ -1053,8 +879,6 @@ static ssize_t readlink_common(int dirfd, const char *path, char *buf, size_t si
 ssize_t readlinkat(int dirfd, const char *path, char *buf, size_t size) { return readlink_common(dirfd, path, buf, size); }
 ssize_t readlink(const char *path, char *buf, size_t size) { return readlink_common(AT_FDCWD, path, buf, size); }
 
-/* _FORTIFY_SOURCE builds call these, which reach libc's own readlink and getcwd directly; an
- * overflow is still the real one's to report. */
 ssize_t __readlink_chk(const char *path, char *buf, size_t size, size_t room) {
   REAL(__readlink_chk, ssize_t (*)(const char *, char *, size_t, size_t));
   if (size > room) return real___readlink_chk(path, buf, size, room);
@@ -1066,9 +890,6 @@ ssize_t __readlinkat_chk(int dirfd, const char *path, char *buf, size_t size, si
   return readlink_common(dirfd, path, buf, size);
 }
 
-/* glibc's realpath() reads every component as a link, each a trapped readlinkat with an exit stop:
- * wineserver and Wine resolve their prefix that way for every file they open, and a file's name
- * through /proc/self/fd. */
 char *realpath(const char *path, char *resolved) {
   REAL(realpath, char *(*)(const char *, char *));
   struct res r;
@@ -1093,8 +914,6 @@ char *__realpath_chk(const char *path, char *resolved, size_t size) {
 }
 char *canonicalize_file_name(const char *path) { return realpath(path, NULL); }
 
-/* proot keeps the guest cwd and answers getcwd on the way out; with the fast path the kernel's cwd
- * is its host directory, which names it whenever only one guest path does. */
 char *getcwd(char *buf, size_t size) {
   REAL(getcwd, char *(*)(char *, size_t));
   char g[PATH_MAX];
@@ -1117,7 +936,6 @@ char *__getcwd_chk(char *buf, size_t size, size_t room) {
   return getcwd(buf, size);
 }
 
-/* ---------------------------------------------------------------- changes */
 
 int mkdirat(int dirfd, const char *path, mode_t mode) {
   REAL(mkdirat, int (*)(int, const char *, mode_t));
@@ -1128,7 +946,6 @@ int mkdirat(int dirfd, const char *path, mode_t mode) {
 }
 int mkdir(const char *path, mode_t mode) { return mkdirat(AT_FDCWD, path, mode); }
 
-/* The last name in a path is "." or "..", which the kernel refuses to remove. */
 static int ends_in_dots(const char *path) {
   size_t n = strlen(path);
   while (n > 1 && path[n - 1] == '/') n--;
@@ -1143,7 +960,6 @@ static long fp_unlink(int dirfd, const char *path, int flags) {
   int slash = trailing_slash(path);
   if ((flags & ~AT_REMOVEDIR) || !path || ends_in_dots(path) || (slash && !(flags & AT_REMOVEDIR))) return FP_SLOW;
   if (slash) {
-    /* rmdir("dir/") removes dir itself, never what a link of that name points to. */
     size_t n = strlen(path);
     if (n >= sizeof bare) return FP_SLOW;
     while (n > 1 && path[n - 1] == '/') n--;
@@ -1172,8 +988,6 @@ int unlinkat(int dirfd, const char *path, int flags) { return unlink_common(dirf
 int unlink(const char *path) { return unlink_common(AT_FDCWD, path, 0); }
 int rmdir(const char *path) { return unlink_common(AT_FDCWD, path, AT_REMOVEDIR); }
 
-/* A renamed directory moves the guest cwd proot keeps for every process under it, so those stay
- * with proot; files are what programs rename all the time (write a copy, rename it over). */
 static int rename_common(int olddirfd, const char *old, int newdirfd, const char *new, unsigned flags) {
   REAL(renameat2, int (*)(int, const char *, int, const char *, unsigned));
   struct res from, to;
@@ -1192,7 +1006,6 @@ static int rename_common(int olddirfd, const char *old, int newdirfd, const char
   }
   if (rs != FP_SLOW) { hits++; return ret(rs); }
   missed(__func__, olddirfd, old);
-  /* renameat, not renameat2: it is the one proot follows to move the cwd it keeps. */
   if (!flags) return (int)syscall(SYS_renameat, olddirfd, old, newdirfd, new);
   return real_renameat2(olddirfd, old, newdirfd, new, flags);
 }
@@ -1202,7 +1015,6 @@ int renameat2(int olddirfd, const char *old, int newdirfd, const char *new, unsi
 int renameat(int olddirfd, const char *old, int newdirfd, const char *new) { return rename_common(olddirfd, old, newdirfd, new, 0); }
 int rename(const char *old, const char *new) { return rename_common(AT_FDCWD, old, AT_FDCWD, new, 0); }
 
-/* The link's text is stored as given, as proot stores it. */
 int symlinkat(const char *target, int dirfd, const char *path) {
   REAL(symlinkat, int (*)(const char *, int, const char *));
   struct res r;
@@ -1230,7 +1042,7 @@ static int utimens_common(int dirfd, const char *path, const struct timespec tim
   struct res r;
   long rs;
   if (!path && fp_ready()) {
-    rs = sc(SYS_utimensat, dirfd, 0, (long)times, flags, 0); /* futimens() */
+    rs = sc(SYS_utimensat, dirfd, 0, (long)times, flags, 0);
   } else {
     rs = flags & ~AT_SYMLINK_NOFOLLOW ? FP_SLOW : resolve(dirfd, path, (flags & AT_SYMLINK_NOFOLLOW ? 0 : 1) | MAY_BE_UNSEEN, &r);
     if (rs == 1) rs = -ENOENT;
@@ -1273,7 +1085,6 @@ int truncate(const char *path, off_t length) {
 }
 int truncate64(const char *path, off_t length) __attribute__((alias("truncate")));
 
-/* proot reports /dev/shm as tmpfs on the way out of statfs; that stays with it. */
 static int statfs_common(const char *path, struct statfs *buf, int (*real)(const char *, struct statfs *)) {
   struct res r;
   long rs = resolve(AT_FDCWD, path, 1, &r);
@@ -1291,9 +1102,9 @@ int statfs64(const char *path, struct statfs64 *buf) {
   return statfs_common(path, (struct statfs *)buf, real_statfs64);
 }
 
-#define FP_ST_VALID 0x0020 /* the kernel's ST_VALID: statfs filled in f_flags */
-/* statvfs() is statfs() converted as glibc converts it; without ST_VALID the mount flags would come
- * from /proc/mounts, which glibc reads itself. */
+#define FP_ST_VALID 0x0020
+
+
 static int statvfs_common(const char *path, struct statvfs *buf, int (*real)(const char *, struct statvfs *)) {
   struct res r;
   struct statfs fs;
@@ -1328,8 +1139,6 @@ int statvfs64(const char *path, struct statvfs64 *buf) {
   return statvfs_common(path, (struct statvfs *)buf, real_statvfs64);
 }
 
-/* Reading attributes only: fake_id0 rewrites the permission side of setting them. Wine reads
- * user.DOSATTRIB for every file it reports on. */
 static ssize_t getxattr_common(const char *path, const char *name, void *value, size_t size, int follow,
                                ssize_t (*real)(const char *, const char *, void *, size_t)) {
   struct res r;
@@ -1377,14 +1186,7 @@ int inotify_add_watch(int fd, const char *path, uint32_t mask) {
   ANSWER(rs, AT_FDCWD, path, real_inotify_add_watch(fd, path, mask));
 }
 
-/* ---------------------------------------------------------------- Unix sockets */
 
-/*
- * proot only translates the path of a named Unix socket; every other address (abstract, unnamed,
- * IP) passes through untouched, so the call itself needs no stop. A named one is resolved as proot
- * would and sent with its host path, as long as that fits sun_path: a longer one proot binds to a
- * short temporary name, so that stays with it.
- */
 static long socket_address(const struct sockaddr *addr, socklen_t len, int follow, struct sockaddr_un *out, socklen_t *out_len) {
   const struct sockaddr_un *un = (const struct sockaddr_un *)addr;
   size_t room = sizeof un->sun_path;
@@ -1410,9 +1212,6 @@ static long socket_address(const struct sockaddr *addr, socklen_t len, int follo
   return 1;
 }
 
-/* accept() and connect() are cancellation points in libc; a raw call is not, so only those that
- * cannot block for long come here: a non-blocking socket, a listener with a connection waiting,
- * or connecting a Unix one. */
 static int nonblocking(int fd) {
   long fl = sc(SYS_fcntl, fd, F_GETFL, 0, 0, 0);
   return fl >= 0 && (fl & O_NONBLOCK);
@@ -1439,8 +1238,6 @@ int bind(int fd, const struct sockaddr *addr, socklen_t len) {
   ANSWER(rs, AT_FDCWD, "(bind)", real_bind(fd, addr, len));
 }
 
-/* An address the kernel reports, as proot reports it: a named Unix socket's host path in guest
- * terms. One no guest path names unambiguously is left as is, which proot cannot do better. */
 static void report_address(const struct sockaddr_storage *got, socklen_t got_len, struct sockaddr *addr, socklen_t *len) {
   struct sockaddr_storage shown = *got;
   socklen_t shown_len = got_len;
@@ -1500,10 +1297,7 @@ int getpeername(int fd, struct sockaddr *addr, socklen_t *len) {
   return name_common(SYS_getpeername, fd, addr, len, real_getpeername);
 }
 
-/* ---------------------------------------------------------------- libc calls that open internally */
 
-/* shm_open() and shm_unlink() open /dev/shm/<name> with libc's internal calls; an overlay asks for
- * FEX's statistics that way every frame. The name is checked and the file opened as glibc does. */
 static int shm_path(const char *name, char *path) {
   while (*name == '/') name++;
   size_t n = strlen(name);
@@ -1561,8 +1355,6 @@ static FILE *fopen_common(const char *path, const char *m, FILE *(*real)(const c
 FILE *fopen(const char *path, const char *m) { REAL(fopen, FILE *(*)(const char *, const char *)); return fopen_common(path, m, real_fopen); }
 FILE *fopen64(const char *path, const char *m) { REAL(fopen64, FILE *(*)(const char *, const char *)); return fopen_common(path, m, real_fopen64); }
 
-/* glibc reads /sys/devices/system/cpu/online with its own open for every get_nprocs(), and
- * sysconf(_SC_NPROCESSORS_ONLN) is that: overlays and thread pools ask it every frame. */
 static int online_cpus(void) {
   long fd = fp_open(AT_FDCWD, "/sys/devices/system/cpu/online", O_RDONLY | O_CLOEXEC, 0);
   if (fd < 0) return -1;
@@ -1595,11 +1387,7 @@ long sysconf(int name) {
   return real_sysconf(name);
 }
 
-/* ---------------------------------------------------------------- uname */
 
-/* proot answers uname() with the utsname it started with (--kernel-release), the same for every
- * call: asked once, it is every later answer. libX11 asks for each display connection, glibc's
- * gethostname() through it. */
 static struct utsname uts;
 static int uts_known;
 static long own_uname(struct utsname *u) {
@@ -1639,8 +1427,6 @@ int gethostname(char *name, size_t len) {
   return 0;
 }
 
-/* glibc's isatty() asks with TCGETS2, which proot rewrites to TCGETS (Android allows no termios2
- * request on a tty): one stop each way for every check. libudev and shells check all the time. */
 int isatty(int fd) {
   REAL(isatty, int (*)(int));
   struct termios k;
@@ -1651,9 +1437,6 @@ int isatty(int fd) {
   return r == 0;
 }
 
-/* proot reads a memfd's name only to refuse the few that are then executed or locked; the rest are
- * made here. The session's /proc/net and status copies, wineserver and Xwayland make them often.
- * Without memfd in the kernel, proot's ashmem stands in. */
 int memfd_create(const char *name, unsigned flags) {
   REAL(memfd_create, int (*)(const char *, unsigned));
   if (!name || !strncmp(name, "JITCode:", 8) || !strcmp(name, "opcache_lock") || !strncmp(name, "lib/apk/exec/", 13)
@@ -1664,16 +1447,7 @@ int memfd_create(const char *name, unsigned flags) {
   return ret(r);
 }
 
-/* ---------------------------------------------------------------- passwd */
 
-/*
- * glibc's NSS stats /etc/nsswitch.conf and reads /etc/passwd with its own calls on every lookup,
- * two stops each: Xwayland looks a user up for every client, every shell for itself. When
- * nsswitch.conf sends passwd to "files" first with no action after it, a lookup that finds its
- * entry there ends there, so that case is answered here from the same file. Anything else - not
- * found, a file nss_files might read differently from this strict reading, a buffer it might call
- * too small - goes to glibc.
- */
 static long read_small(const char *path, char *buf, size_t size) {
   long fd = fp_open(AT_FDCWD, path, O_RDONLY | O_CLOEXEC, 0);
   if (fd < 0) return -1;
@@ -1707,8 +1481,6 @@ static int passwd_is_files(char *conf, size_t size) {
   return found;
 }
 
-/* The line for `name` (or `uid`, name NULL) split in place into its seven fields; -1 for a file
- * read strictly that has none, 0 when this cannot tell. `longest`: the longest line read up to it. */
 static int passwd_line(char *file, const char *name, uid_t uid, char **f, size_t *longest) {
   *longest = 0;
   for (char *line = file; line && *line;) {
@@ -1733,7 +1505,6 @@ static int passwd_line(char *file, const char *name, uid_t uid, char **f, size_t
   return -1;
 }
 
-/* 1 with *pw filled from buf, 0 to leave it to glibc. */
 static int own_passwd(const char *name, uid_t uid, struct passwd *pw, char *buf, size_t buflen) {
   char file[16384], *f[7];
   size_t longest;
@@ -1783,7 +1554,6 @@ int getpwuid_r(uid_t uid, struct passwd *pw, char *buf, size_t buflen, struct pa
   return passwd_r(NULL, uid, pw, buf, buflen, result, NULL, real_getpwuid_r);
 }
 
-/* glibc's own getpwnam/getpwuid keep one static entry, as these do. */
 static struct passwd static_pw;
 static char static_pw_buf[4096];
 static pthread_mutex_t static_pw_lock = PTHREAD_MUTEX_INITIALIZER;

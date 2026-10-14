@@ -1,6 +1,3 @@
-/* Per-syscall latency under whatever runs this program (native, proot, ...).
- * Usage: sysbench <deep-file> [iterations]
- * Prints "name ns/op" lines. */
 #define _GNU_SOURCE
 #include <fcntl.h>
 #include <linux/futex.h>

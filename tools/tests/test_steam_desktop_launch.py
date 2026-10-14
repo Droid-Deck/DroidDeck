@@ -107,7 +107,7 @@ class DesktopSteamLaunchTest(unittest.TestCase):
 
     def test_cef_software_is_scoped_to_the_kde_client(self):
         source = (BIN / 'droiddeck-session').read_text()
-        setup = source[source.index('    _bl_ui=(-gamepadui)'):source.index('    # Deck mode, always')]
+        setup = source[source.index('    _bl_ui=(-gamepadui)'):source.index('    if [ "${BL_STEAM_UI:-}" != desktop ]; then')]
         for desktop, ui, software in [('1', 'desktop', True), ('1', 'bigpicture', False), ('', 'desktop', False)]:
             with self.subTest(desktop=desktop, ui=ui):
                 env = dict(self.env, BL_DESKTOP=desktop, BL_STEAM_UI=ui)

@@ -17,7 +17,7 @@ index 2e78783..5227ced 100644
  #define FAKE_ID0_CONFIG_H
  
  #include <sys/types.h>   /* uid_t, gid_t */
-+#include <stdbool.h>     /* bool, */
++#include <stdbool.h>
  
  typedef struct {
  	uid_t ruid;
@@ -26,8 +26,8 @@ index 2e78783..5227ced 100644
  
  	mode_t umask;
 +
-+	/* The emulated ids are the ones PRoot really has: see
-+	 * identity_sysnums in fake_id0.c.  */
++
++
 +	bool identity;
  } Config;
  
@@ -40,17 +40,17 @@ index 9477f1c..fe08372 100644
  	FILTERED_SYSNUM_END,
  };
  
-+/* When the emulated ids are the ones PRoot really has, and the tracee
-+ * is not root, every handler for the syscalls above but these is a
-+ * no-op: stat and get*id report the real ids already, SCM_CREDENTIALS
-+ * and SO_PEERCRED carry them, chown swaps an id for itself, and the
-+ * permission and chroot fixups only apply to euid 0.  The set*id
-+ * family is still emulated (Android's app seccomp policy traps it) and
-+ * so are the xattr permission fixups, which apply to any euid.  An
-+ * unprivileged set*id can only take an id the tracee already holds,
-+ * and set-user-ID bits are not honoured in this mode (Android mounts
-+ * the app's data nosuid, so the kernel would not honour them either),
-+ * so the ids never change and the list stays sufficient.  */
++
++
++
++
++
++
++
++
++
++
++
 +static FilteredSysnum identity_sysnums[] = {
 +	{ PR_fsetxattr,		FILTER_SYSEXIT },
 +	{ PR_lsetxattr,		FILTER_SYSEXIT },
@@ -81,8 +81,8 @@ index 9477f1c..fe08372 100644
  	if ((int) result < 0 || tracee->status < 0 || sysnum != PR_execve)
  		return 0;
  
-+	/* The auxv already carries the real ids, and set-user-ID bits
-+	 * are not honoured in this mode: see identity_sysnums.  */
++
++
 +	if (config->identity)
 +		return 0;
 +

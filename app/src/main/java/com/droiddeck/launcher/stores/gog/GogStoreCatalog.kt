@@ -14,19 +14,11 @@ import java.util.Currency
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 
-/**
- * GOG's public catalog - the same unauthenticated service the gog.com store page uses:
- * `catalog.gog.com/v1/catalog?order=desc:trending&productType=in:game,pack&...` with `discounted`,
- * `price=between:0,0` and `query=like:` filters. Products carry pre-formatted prices and a
- * discount string; Windows-only titles are kept. Cached in-process (shelves 30 min, searches
- * 5 min) and the last good shelves mirrored to prefs so the tab paints offline too.
- */
 object GogStoreCatalog {
     private const val TAG = "GogStore"
     private const val CATALOG = "https://catalog.gog.com/v1/catalog"
     private const val FEATURED_TTL_MS = 3 * 60 * 60 * 1000L
     private const val SEARCH_TTL_MS = 5 * 60 * 1000L
-    // v2: entries carry the mature mark; an older cache would show everything until it aged out.
     private const val KEY_FEATURED = "store_featured_v2"
 
     private val supportedCurrencies = setOf(
@@ -48,7 +40,6 @@ object GogStoreCatalog {
     private fun baseQuery(limit: Int, order: String, extra: String = ""): String =
         "$CATALOG?limit=$limit&order=$order&productType=in:game,pack&page=1&countryCode=${country()}&locale=en-US&currencyCode=${currency()}$extra"
 
-    /** GET the catalog; on a refusal of the locale's currency, retry as US / USD. */
     private fun fetchProducts(url: String): List<CatalogItem> {
         var body = StoreNet.get(url)
         if (body == null && !url.contains("countryCode=US&locale=en-US&currencyCode=USD")) {
@@ -57,11 +48,9 @@ object GogStoreCatalog {
         return if (body == null) emptyList() else parseProducts(body)
     }
 
-    /** The Store tab's shelves. Null only when every feed failed and nothing is cached. Blocking. */
     fun featured(context: Context, force: Boolean = false): StoreShelves? {
         val now = System.currentTimeMillis()
         featuredCache?.let { if (!force && now - it.at < FEATURED_TTL_MS) return it.value }
-        // Shelves saved on an earlier run are as good while they are young: shown, not fetched again.
         if (!force && now - GogPrefs.get(context).getLong("store_featured_at", 0L) < FEATURED_TTL_MS) cachedFeatured(context)?.let { return it }
         val trending = fetchProducts(baseQuery(24, "desc:trending"))
         val newest = fetchProducts(baseQuery(40, "desc:releaseDate")).filter { !isFuture(it.releaseDate) }.take(24)
@@ -105,7 +94,6 @@ object GogStoreCatalog {
         val id = p.optString("id", "")
         val title = p.optString("title", "")
         if (id.isEmpty() || title.isEmpty()) return null
-        // Windows only: the app cannot run anything else.
         val os = p.optJSONArray("operatingSystems")
         if (os != null && os.length() > 0) {
             var windows = false
@@ -140,11 +128,6 @@ object GogStoreCatalog {
         )
     }
 
-    /**
-     * GOG's own data: `ratings[]` carries each system's age (`esrbRating` 17, `pegiRating` 18,
-     * `uskRating` 18, `gogRating` 18, ...) and `tags[]` its content tags (`mature`, `nsfw`,
-     * `sexual-content`, `nudity`). The catalog has no filter for either, so this is client-side.
-     */
     fun isMature(p: JSONObject): Boolean {
         val ages = ArrayList<Int>()
         p.optJSONArray("ratings")?.let { r -> for (i in 0 until r.length()) r.optJSONObject(i)?.optString("ageRating")?.toIntOrNull()?.let { ages.add(it) } }
@@ -153,14 +136,12 @@ object GogStoreCatalog {
         return com.droiddeck.launcher.stores.matureByAge(ages) || com.droiddeck.launcher.stores.matureByTags(tags)
     }
 
-    /** GOG returns protocol-relative `//images…` URLs in a few places. */
     @JvmStatic
     fun absolutize(url: String?): String {
         if (url.isNullOrBlank()) return ""
         return if (url.startsWith("//")) "https:$url" else url
     }
 
-    /** "YYYY.MM.DD" later than today: a pre-order, kept out of What's new. */
     private fun isFuture(date: String): Boolean {
         if (date.length < 10) return false
         val parts = date.substring(0, 10).split('.', '-')

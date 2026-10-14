@@ -36,7 +36,6 @@ class QuestExperimentalTest {
 
     @Test fun quest2SelectsA6xxInsteadOfQuest3DriverAndPreservesLaterChoices() {
         ShadowBuild.setModel("Quest 2")
-        // A prior Quest 3 flag must not suppress Quest 2's own migration.
         context.getSharedPreferences("session", Context.MODE_PRIVATE).edit()
             .putBoolean("questDefaultsV1", true).commit()
         QuestExperimental.initialize(context)

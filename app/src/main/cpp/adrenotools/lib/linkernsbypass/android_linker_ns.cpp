@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-2-Clause
 // Copyright © 2021 Billy Laws
 
+
 #include <array>
 #include <cstdio>
 #include <cstdlib>
@@ -21,7 +22,6 @@ static loader_android_create_namespace_t loader_android_create_namespace;
 static bool lib_loaded;
 
 
-/* Public API */
 bool linkernsbypass_load_status() {
     return lib_loaded;
 }
@@ -55,8 +55,6 @@ android_link_namespaces_all_libs_t android_link_namespaces_all_libs;
 android_link_namespaces_t android_link_namespaces;
 
 bool linkernsbypass_link_namespace_to_default_all_libs(android_namespace_t *to) {
-    // Creating a shared namespace with the default parent will give a copy of the default namespace that we can actually access
-    // This is needed since there is no way to access a direct handle to the default namespace as it's not exported
     static auto defaultNs{android_create_namespace_escape("default_copy", nullptr, nullptr, ANDROID_NAMESPACE_TYPE_SHARED, nullptr, nullptr)};
     return android_link_namespaces_all_libs(to, defaultNs);
 }
@@ -81,7 +79,6 @@ void *linkernsbypass_namespace_dlopen(const char *filename, int flags, android_n
 void *linkernsbypass_namespace_dlopen_unique(const char *libPath, const char *libTargetDir, int flags, android_namespace_t *ns) {
     static std::array<char, PATH_MAX> PathBuf{};
 
-    // Used as a unique ID for overwriting soname and creating target lib files
     static uint16_t TargetId{};
 
     int libTargetFd{[&] () {
@@ -89,7 +86,6 @@ void *linkernsbypass_namespace_dlopen_unique(const char *libPath, const char *li
             snprintf(PathBuf.data(), PathBuf.size(), "%s/%d_patched.so", libTargetDir, TargetId);
             return open(PathBuf.data(), O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
         } else {
-            // If memfd isn't supported errno will contain ENOSYS after calling
             errno = 0;
             int fd{static_cast<int>(syscall(__NR_memfd_create, libPath, 0))};
             if (errno == ENOSYS || fd < 0)
@@ -101,21 +97,18 @@ void *linkernsbypass_namespace_dlopen_unique(const char *libPath, const char *li
     if (libTargetFd == -1)
         return nullptr;
 
-    // Partially overwrite soname with 3 digits (replacing lib...) with to make sure a cached so isn't loaded
     std::array<char, 3> sonameOverwrite{};
     snprintf(sonameOverwrite.data(), sonameOverwrite.size(), "%03u", TargetId++);
 
     if (!elf_soname_patch(libPath, libTargetFd, sonameOverwrite.data()))
         return nullptr;
 
-    // Load our patched library into the hook namespace
     android_dlextinfo hookExtInfo{
         .flags = ANDROID_DLEXT_USE_NAMESPACE | ANDROID_DLEXT_USE_LIBRARY_FD,
         .library_fd = libTargetFd,
         .library_namespace = ns
     };
 
-    // Make a path that looks about right
     snprintf(PathBuf.data(), PathBuf.size(), "/proc/self/fd/%d", libTargetFd);
 
     return android_dlopen_ext(PathBuf.data(), flags, &hookExtInfo);
@@ -125,21 +118,19 @@ static void *align_ptr(void *ptr) {
     return reinterpret_cast<void *>(reinterpret_cast<uintptr_t>(ptr) & ~(getpagesize() - 1));
 }
 
-/* Private */
 __attribute__((constructor)) static void resolve_linker_symbols() {
     using loader_dlopen_t = void *(*)(const char *, int, const void *);
 
     if (android_get_device_api_level() < 28)
         return;
 
-    // ARM64 specific function walking to locate the internal dlopen handler
     auto loader_dlopen{[]() {
         union BranchLinked {
             uint32_t raw;
 
             struct {
-                int32_t offset : 26; //!< 26-bit branch offset
-                uint8_t sig : 6;  //!< 6-bit signature
+                int32_t offset : 26;
+                uint8_t sig : 6;
             };
 
             bool Verify() {
@@ -148,10 +139,8 @@ __attribute__((constructor)) static void resolve_linker_symbols() {
         };
         static_assert(sizeof(BranchLinked) == 4, "BranchLinked is wrong size");
 
-        // Some devices ship with --X mapping for exexecutables so work around that
         mprotect(align_ptr(reinterpret_cast<void *>(&dlopen)), getpagesize(), PROT_WRITE | PROT_READ | PROT_EXEC);
 
-        // dlopen is just a wrapper for __loader_dlopen that passes the return address as the third arg hence we can just walk it to find __loader_dlopen
         auto blInstr{reinterpret_cast<BranchLinked *>(&dlopen)};
         while (!blInstr->Verify())
             blInstr++;
@@ -159,10 +148,8 @@ __attribute__((constructor)) static void resolve_linker_symbols() {
         return reinterpret_cast<loader_dlopen_t>(blInstr + blInstr->offset);
     }()};
 
-    // Protect the loader_dlopen function to remove the BTI attribute (since this is an internal function that isn't intended to be jumped indirectly to)
     mprotect(align_ptr(reinterpret_cast<void *>(&loader_dlopen)), getpagesize(), PROT_WRITE | PROT_READ | PROT_EXEC);
 
-    // Passing dlopen as a caller address tricks the linker into using the internal unrestricted namespace letting us access libraries that are normally forbidden in the classloader namespace imposed on apps
     auto ldHandle{loader_dlopen("ld-android.so", RTLD_LAZY, reinterpret_cast<void *>(&dlopen))};
     if (!ldHandle)
         return;
@@ -187,6 +174,5 @@ __attribute__((constructor)) static void resolve_linker_symbols() {
     if (!android_get_exported_namespace)
         return;
 
-    // Lib is now safe to use
     lib_loaded = true;
 }

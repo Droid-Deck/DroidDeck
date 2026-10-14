@@ -62,6 +62,12 @@ def source_stamp(game):
         return None
 
 
+def store_game(game):
+    """Games a store client installed belong to that store: the Steam copy of the same title is
+    another license with its own files, and an import would let Steam update over the store's."""
+    return bool(game.get("store"))
+
+
 def manifest_ids(steamapps, name):
     matches = []
     for manifest in Path(steamapps).glob("appmanifest_*.acf"):
@@ -113,7 +119,6 @@ def method(obj, slot, result, *args):
 
 
 def probe(steam_root, ids):
-    # Slots belong to Valve's SteamClient020, SteamUser021 and STEAMAPPS_INTERFACE_VERSION008.
     library = C.CDLL(str(Path(steam_root) / "steamrtarm64/steamclient.so"))
     library.CreateInterface.argtypes = [C.c_char_p, C.c_void_p]
     library.CreateInterface.restype = C.c_void_p
@@ -179,18 +184,12 @@ def unimported(steam_root, snapshot, candidates):
 
 
 def watch(steam_root, listing):
-    games = read_json(listing, [])
+    games = [game for game in read_json(listing, []) if not store_game(game)]
     if os.environ.get("BL_STEAM_OFFLINE") == "1" or not games:
         return
     candidates, sources = {}, {}
     next_lookup = 0
     last_status = None
-    # The probe is a fresh python that loads steamclient.so, seconds of CPU under proot. Ownership
-    # only moves with a purchase or a new match, so it runs when the matches or their sources
-    # change, after a failed probe, and otherwise every five minutes - not on every 30 s beat.
-    # A failed probe is retried on a doubling delay up to those five minutes rather than on every
-    # beat (a client that is not logged on fails it for as long as it stays that way), and none
-    # starts while a game is running: the answer can wait, the game's cores cannot.
     probed, next_probe, failures = None, 0, 0
     pending, requested = [], []
     while True:
@@ -370,6 +369,22 @@ def seed_install(steam_root, game, appid):
     return True
 
 
+def release(steam_root, game):
+    """Undoes an import made before store games were skipped. Only our symlink and manifest go;
+    the store's folder stays where it is."""
+    steamapps = Path(steam_root) / "steamapps"
+    sources = {game.get("folder", ""), legacy_path(game.get("folder", ""))}
+    for target in sorted((steamapps / "common").glob("DroidDeck-*")):
+        appid = target.name.removeprefix("DroidDeck-")
+        if not (appid.isdigit() and target.is_symlink() and os.readlink(target) in sources):
+            continue
+        for manifest in (steamapps / f"appmanifest_{appid}.acf", steamapps / PARKED / f"appmanifest_{appid}.acf"):
+            if manifest.is_file() and ours(manifest, appid):
+                manifest.unlink()
+        target.unlink()
+        print(f"droiddeck-steam-games: {game.get('name', appid)} came from {game['store']}; it is a shortcut again, not Steam app {appid}")
+
+
 def route(steam_root, acct, games):
     snapshot = read_json(Path(acct) / "config" / STATE, {})
     if not isinstance(snapshot, dict):
@@ -386,6 +401,13 @@ def route(steam_root, acct, games):
     except OSError as error:
         print(f"droiddeck-steam-games: set-aside installs not restored ({error})")
     for game in games:
+        if store_game(game):
+            try:
+                release(steam_root, game)
+            except OSError as error:
+                print(f"droiddeck-steam-games: store import not undone ({error})")
+            shortcuts.append(game)
+            continue
         folder = game.get("folder", "")
         appid = candidates.get(folder, candidates.get(legacy_path(folder)))
         stamp = source_stamp(game)

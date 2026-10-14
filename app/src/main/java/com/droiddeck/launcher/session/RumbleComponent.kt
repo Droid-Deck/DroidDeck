@@ -17,26 +17,11 @@ import com.droiddeck.launcher.input.PadBridge
 import java.io.DataInputStream
 import kotlin.math.max
 
-/**
- * Rumble for the pad, on the motors in the player's hands.
- *
- * When a game plays a force-feedback effect on the fake pad (or Steam Input sends the Deck's
- * rumble report), the fake evdev layer inside the guest connects to the abstract socket [NAME]
- * and sends one packet: strong, weak, duration in ms and the pad slot, four little-endian 16-bit
- * values. This listens for those and plays the effect on the physical controller playing in that
- * slot (PadBridge.controllerForSlot) when Android exposes its motors - strong and weak separately
- * where it has two - and otherwise on the device's own vibrator, with the stronger motor's
- * strength: the on-screen pad, or a controller without rumble. Best effort both ways: a missing
- * listener costs the guest nothing, and a bad packet is dropped.
- */
 class RumbleComponent : SessionPart() {
     @Volatile private var server: LocalServerSocket? = null
     private var phone: Motors? = null
-    /** Per slot, where its last effect went, so the next one (or a stop) can end it there. */
     private val playing = HashMap<Int, Motors>()
-    /** Per slot, the last effect handed to the motors and when, to drop the repeats games stream. */
     private val sent = HashMap<Int, Sent>()
-    /** Each controller's motors, looked up once; null when it has none. */
     private val controllers = HashMap<Int, Motors?>()
     private var preferences: SharedPreferences? = null
     private var enabled = false
@@ -44,7 +29,6 @@ class RumbleComponent : SessionPart() {
         if (key == null || key == "rumble") refreshEnabled()
     }
 
-    /** The motors of the controller with this input device id, or null when it has none. Tests swap it. */
     internal var controllerMotors: (Int) -> Motors? = ::lookupController
 
     @Synchronized private fun refreshEnabled() {
@@ -69,9 +53,8 @@ class RumbleComponent : SessionPart() {
                     DataInputStream(client.inputStream).readFully(bytes)
                     buzz(u16(bytes, 0), u16(bytes, 2), u16(bytes, 4), u16(bytes, 6))
                 } catch (e: Exception) {
-                    // A partial packet or a closed peer: nothing to play.
                 } finally {
-                    try { client.close() } catch (e: Exception) { /* already gone */ }
+                    try { client.close() } catch (e: Exception) {   }
                 }
             }
         }, "rumble").apply { isDaemon = true; start() }
@@ -87,7 +70,7 @@ class RumbleComponent : SessionPart() {
         controllers.clear()
         val s = server
         server = null
-        try { s?.close() } catch (e: Exception) { /* the accept loop ends on the next wake */ }
+        try { s?.close() } catch (e: Exception) {   }
     }
 
     private fun u16(b: ByteArray, at: Int): Int = (b[at].toInt() and 0xFF) or ((b[at + 1].toInt() and 0xFF) shl 8)
@@ -104,8 +87,6 @@ class RumbleComponent : SessionPart() {
         }
         if (target == null) return
         if ((strong == 0 && weak == 0) || ms == 0) { target.cancel(); sent.remove(slot); return }
-        // Games re-send their effect every frame; restarting the motor that often floods the haptics
-        // driver. ponytail: a change inside MIN_GAP_MS is dropped, the game's next packet brings it.
         val now = SystemClock.uptimeMillis()
         val last = sent[slot]
         if (last != null && (now - last.at < MIN_GAP_MS || (last.strong == strong && last.weak == weak && now < last.until))) return
@@ -118,7 +99,6 @@ class RumbleComponent : SessionPart() {
         }
     }
 
-    /** The motors of the controller playing in this slot when it has any, else the phone's. */
     private fun target(slot: Int): Motors? {
         val id = PadBridge.controllerForSlot(slot)
         if (id == PadBridge.NO_CONTROLLER) return phone
@@ -134,7 +114,6 @@ class RumbleComponent : SessionPart() {
 
     private data class Sent(val strong: Int, val weak: Int, val at: Long, val until: Long)
 
-    /** One place an effect can play. Strengths are the evdev 0..65535 magnitudes. */
     internal interface Motors {
         val name: String
         fun play(strong: Int, weak: Int, ms: Long)
@@ -147,7 +126,6 @@ class RumbleComponent : SessionPart() {
         override fun cancel() = vibrator.cancel()
     }
 
-    /** Android 12+: each of the pad's motors on its own, the lower id being the strong one. */
     @RequiresApi(31)
     private class PadMotors(override val name: String, private val manager: VibratorManager, private val ids: IntArray) : Motors {
         override fun play(strong: Int, weak: Int, ms: Long) {
@@ -164,7 +142,6 @@ class RumbleComponent : SessionPart() {
         override fun cancel() = manager.cancel()
     }
 
-    /** Before Android 12 a pad has one vibrator. */
     private class LegacyPadMotors(override val name: String, private val vibrator: Vibrator) : Motors {
         override fun play(strong: Int, weak: Int, ms: Long) = vibrator.vibrate(oneShot(vibrator, max(strong, weak), ms))
         override fun cancel() = vibrator.cancel()
@@ -172,9 +149,7 @@ class RumbleComponent : SessionPart() {
 
     companion object {
         private const val TAG = "SessionService"
-        /** Must match the fake evdev layer (fakeinput_steam.cpp). */
         const val NAME = "droiddeck-rumble"
-        /** The shortest time between two effects started on one slot's motors. */
         const val MIN_GAP_MS = 50L
 
         private fun oneShot(vibrator: Vibrator, strength: Int, ms: Long): VibrationEffect {

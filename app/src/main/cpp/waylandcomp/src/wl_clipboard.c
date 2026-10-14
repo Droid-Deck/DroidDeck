@@ -1,24 +1,3 @@
-/*
- * Clipboard: wl_data_device_manager (core, v3) and zwlr_data_control_manager_v1 (v1), selection
- * only - drag and drop is refused. Both protocols share one selection:
- *
- *   owner CLIENT  a program's wl_data_source / zwlr_data_control_source_v1 (its mime list)
- *   owner HOST    text the app pushed from Android's clipboard (offered under the text mimes)
- *   owner NONE    nothing
- *
- * Every selection change is announced to every data-control device (they see the selection
- * regardless of focus, as the protocol says) and to the wl_data_devices of the client holding
- * keyboard focus; a client also gets the current selection when its keyboard focus arrives.
- *
- * winewayland prefers zwlr_data_control (it then runs the clipboard from the desktop process
- * without needing keyboard focus) and tags its own offers with application/x.winewayland.tag
- * so it can ignore them when they come back; we pass mime lists through untouched.
- *
- * Guest → Android: when a program sets a selection with a text mime, the compositor asks for it
- * once over a pipe on the event loop (non-blocking, 1 MiB cap, 3 s timeout) and hands the text
- * to the app (droiddeck_on_clipboard_text → ClipboardManager). Android → guest: the app's text
- * becomes the HOST selection; receive requests are answered with a non-blocking writer.
- */
 #define _GNU_SOURCE 1
 #include <stdlib.h>
 #include <string.h>
@@ -37,17 +16,17 @@ static struct wl_display *g_disp;
 
 enum owner { OWNER_NONE, OWNER_CLIENT, OWNER_HOST };
 static enum owner g_owner;
-static uint32_t g_gen;                          /* bumps on every selection change */
+static uint32_t g_gen;
 
-struct source {                                 /* a client's data source (either protocol) */
+struct source {
     struct wl_resource *res;
     int is_control;
     char *mimes[MAX_MIMES];
     int nmimes;
 };
-static struct source *g_src;                    /* current CLIENT selection */
+static struct source *g_src;
 
-static char *g_host_text;                       /* current HOST selection */
+static char *g_host_text;
 static size_t g_host_len;
 static const char *const k_text_mimes[] = {
     "text/plain;charset=utf-8", "text/plain", "UTF8_STRING", "TEXT", "STRING", NULL
@@ -59,18 +38,17 @@ struct device {
     struct wl_list link;
 };
 static struct wl_list g_devices;
-static struct wl_client *g_kb_client;           /* keyboard focus holder */
+static struct wl_client *g_kb_client;
 
 struct offer {
     struct wl_resource *res;
     int is_control;
-    uint32_t gen;                               /* the selection this offer describes */
+    uint32_t gen;
 };
 
-static char *g_last_guest_text;                 /* echo guard: the last text handed to Android */
+static char *g_last_guest_text;
 static size_t g_last_guest_len;
 
-/* ------------------------------------------------------------------ helpers */
 
 static int is_text_mime(const char *m) {
     for (int i = 0; k_text_mimes[i]; i++) if (!strcmp(m, k_text_mimes[i])) return 1;
@@ -94,7 +72,6 @@ static void source_send_cancelled(struct source *s) {
     else wl_data_source_send_cancelled(s->res);
 }
 
-/* ------------------------------------------------------------------ host → client writer */
 
 struct writer {
     int fd;
@@ -115,9 +92,9 @@ static int writer_pump(struct writer *w) {
     while (w->off < w->len) {
         ssize_t n = write(w->fd, w->data + w->off, w->len - w->off);
         if (n > 0) { w->off += (size_t)n; continue; }
-        if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) return 0;   /* wait */
+        if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) return 0;
         if (n < 0 && errno == EINTR) continue;
-        break;                                                             /* gone */
+        break;
     }
     return 1;
 }
@@ -150,13 +127,12 @@ static void writer_start(int fd, const char *data, size_t len) {
     if (w->timer) wl_event_source_timer_update(w->timer, CLIP_WRITE_TIMEOUT_MS);
 }
 
-/* ------------------------------------------------------------------ client → host reader */
 
 struct reader {
     int fd;
     char *buf;
     size_t len;
-    const char *mime;                           /* points into the source's list */
+    const char *mime;
     struct wl_event_source *src, *timer;
 };
 static struct reader *g_reader;
@@ -202,7 +178,7 @@ static int on_reader_readable(int fd, uint32_t mask, void *data) {
         r->buf = nb;
         ssize_t n = read(fd, r->buf + r->len, chunk);
         if (n > 0) { r->len += (size_t)n; continue; }
-        if (n == 0) { reader_finish(r); return 0; }                          /* EOF */
+        if (n == 0) { reader_finish(r); return 0; }
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
             if (mask & WL_EVENT_HANGUP) { reader_finish(r); return 0; }
             return 0;
@@ -220,14 +196,13 @@ static int on_reader_timeout(void *data) {
     return 0;
 }
 
-/* Ask the current client source for its text, once. */
 static void read_client_text(void) {
     const char *mime;
     int p[2];
     if (g_reader) reader_free(g_reader);
     if (!g_src || !(mime = source_text_mime(g_src))) return;
     if (pipe2(p, O_CLOEXEC) != 0) return;
-    fcntl(p[0], F_SETFL, fcntl(p[0], F_GETFL) | O_NONBLOCK);  /* our end only; the client writes blocking */
+    fcntl(p[0], F_SETFL, fcntl(p[0], F_GETFL) | O_NONBLOCK);
     struct reader *r = calloc(1, sizeof(*r));
     if (!r) { close(p[0]); close(p[1]); return; }
     r->fd = p[0];
@@ -242,13 +217,12 @@ static void read_client_text(void) {
     wl_display_flush_clients(g_disp);
 }
 
-/* ------------------------------------------------------------------ offers */
 
 static void offer_res_destroy(struct wl_resource *r) { free(wl_resource_get_user_data(r)); }
 
 static void offer_receive(struct wl_client *c, struct wl_resource *r, const char *mime, int32_t fd) {
     struct offer *o = wl_resource_get_user_data(r);
-    if (!o || o->gen != g_gen) { close(fd); return; }               /* stale offer */
+    if (!o || o->gen != g_gen) { close(fd); return; }
     if (g_owner == OWNER_HOST) {
         if (is_text_mime(mime)) {
             droiddeck_log("clipboard", "Android clipboard → guest (%zu bytes) for %s", g_host_len, droiddeck_client_name(c));
@@ -257,7 +231,7 @@ static void offer_receive(struct wl_client *c, struct wl_resource *r, const char
             close(fd);
         }
     } else if (g_owner == OWNER_CLIENT && g_src) {
-        source_send_send(g_src, mime, fd);                          /* libwayland dups the fd */
+        source_send_send(g_src, mime, fd);
         close(fd);
         wl_display_flush_clients(g_disp);
     } else {
@@ -277,7 +251,6 @@ static const struct zwlr_data_control_offer_v1_interface control_offer_impl = {
     .receive = offer_receive, .destroy = offer_destroy,
 };
 
-/* Tell one device what the selection is now (a fresh offer, or nothing). */
 static void device_send_selection(struct device *d) {
     struct wl_client *c = wl_resource_get_client(d->res);
     if (g_owner == OWNER_NONE) {
@@ -315,8 +288,6 @@ static void device_send_selection(struct device *d) {
     else wl_data_device_send_selection(d->res, o->res);
 }
 
-/* The selection changed: every data-control device hears it; wl_data_devices only if their
- * client holds keyboard focus. */
 static void broadcast_selection(void) {
     struct device *d;
     g_gen++;
@@ -336,7 +307,6 @@ void droiddeck_clipboard_keyboard_focus(struct wl_client *client) {
         if (!d->is_control && wl_resource_get_client(d->res) == client) device_send_selection(d);
 }
 
-/* ------------------------------------------------------------------ sources */
 
 static void source_res_destroy(struct wl_resource *r) {
     struct source *s = wl_resource_get_user_data(r);
@@ -380,7 +350,6 @@ static void create_source(struct wl_client *c, uint32_t id, int is_control, uint
                                    s, source_res_destroy);
 }
 
-/* A device set (or cleared) the selection. */
 static void set_selection(struct wl_client *c, struct wl_resource *source_res) {
     struct source *s = source_res ? wl_resource_get_user_data(source_res) : NULL;
     if (s && s == g_src) return;
@@ -404,7 +373,6 @@ static void set_selection(struct wl_client *c, struct wl_resource *source_res) {
     read_client_text();
 }
 
-/* ------------------------------------------------------------------ devices */
 
 static void device_res_destroy(struct wl_resource *r) {
     struct device *d = wl_resource_get_user_data(r);
@@ -429,7 +397,6 @@ static void control_device_set_selection(struct wl_client *c, struct wl_resource
     set_selection(c, source);
 }
 static void control_device_set_primary(struct wl_client *c, struct wl_resource *r, struct wl_resource *source) {
-    /* No primary selection on Android; a source given here just gets cancelled. */
     if (source) {
         struct source *s = wl_resource_get_user_data(source);
         if (s && s != g_src) source_send_cancelled(s);
@@ -455,11 +422,9 @@ static void create_device(struct wl_client *c, uint32_t id, int is_control, uint
                                                       : (const void *)&data_device_impl,
                                    d, device_res_destroy);
     wl_list_insert(&g_devices, &d->link);
-    /* Data-control devices see the selection at once; wl_data_devices when focus arrives. */
     if (is_control || (g_kb_client && c == g_kb_client)) device_send_selection(d);
 }
 
-/* ------------------------------------------------------------------ managers */
 
 static void dm_create_source(struct wl_client *c, struct wl_resource *r, uint32_t id) {
     create_source(c, id, 0, wl_resource_get_version(r));
@@ -493,12 +458,10 @@ static void bind_data_control_manager(struct wl_client *c, void *data, uint32_t 
     wl_resource_set_implementation(r, &cm_impl, NULL, NULL);
 }
 
-/* ------------------------------------------------------------------ host side */
 
-/* Android's clipboard text (compositor thread, via the host queue). Takes the buffer. */
 void clipboard_host_text(char *utf8, size_t len) {
     if (len && g_last_guest_text && len == g_last_guest_len && !memcmp(utf8, g_last_guest_text, len)) {
-        free(utf8);                                 /* our own copy coming back: not a change */
+        free(utf8);
         return;
     }
     if (len && g_owner == OWNER_HOST && g_host_len == len && !memcmp(utf8, g_host_text, len)) {

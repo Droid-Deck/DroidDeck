@@ -12,7 +12,6 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
-/** A shared zip is scrubbed on the way in, whatever the files on disk still hold. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class SessionLogShareZipTest {
@@ -21,7 +20,6 @@ class SessionLogShareZipTest {
     @Test fun everyTextFileInTheZipIsScrubbedAndTheStoresAndToolsLogsComeAlong() {
         val logs = LinuxRuntime.logDir(app)
         val session = File(logs, "2026-10-08-01-steam").apply { mkdirs() }
-        // Written raw, as a file from before a rule existed would be.
         File(session, "session.log").writeText(
             "fetch https://gog-cdn-fastly.gog.com/token=nva=1791500000~dirs=/x~token=0a1b2c3d4e5f/content-system/v2/store/1/ab/cd/f\n" +
                 "fetch https://epicgames-download1.akamaized.net/Builds/Org/a/ChunksV4/12/ABCD.chunk?__token__=exp=1~hmac=deadbeefcafe\n" +
@@ -40,7 +38,6 @@ class SessionLogShareZipTest {
         for (secret in listOf("0a1b2c3d4e5f", "deadbeefcafe", "abcdef123456", "someone@example.com", "AUTHCODE123", "abc.def.ghi", "zzzzzzzz12", "eyabc")) {
             assertFalse("$secret survived", all.contains(secret))
         }
-        // What makes a log worth reading stays.
         assertTrue(all.contains("kept: EResult 5, app 1086940, steamapps/common/Game"))
         assertTrue(all.contains("https://gog-cdn-fastly.gog.com/"))
 
@@ -53,9 +50,6 @@ class SessionLogShareZipTest {
         assertEquals(line, com.droiddeck.launcher.core.LogRedactor.redactForShare(line))
     }
 
-    // Folders an earlier build scrubbed and marked under older rules, their copied Steam UI log
-    // still naming the account: one app start (the move out of Download/, then the pass over
-    // older folders) leaves every one scrubbed on disk under the current rules.
     private fun olderFolder(parent: File, name: String, marker: String = ".scrubbed-2"): File {
         val dir = File(parent, name).apply { mkdirs() }
         File(dir, marker).writeText("scrubbed earlier\n")
@@ -91,12 +85,10 @@ class SessionLogShareZipTest {
         val legacy = LinuxRuntime.legacyLogDir().apply { mkdirs() }
         val names = (1..9).map { "2026-10-0${it}-01-steam" }
         names.forEachIndexed { i, name ->
-            // Old markers of every kind an earlier build left, one even claiming the current rules.
             olderFolder(legacy, name, marker = listOf(".scrubbed-2", ".scrubbed-1", ".scrubbed-r${com.droiddeck.launcher.core.LogRedactor.RULES_VERSION}")[i % 3])
         }
         File(legacy, "Saves").apply { mkdirs() }.resolve("keep.txt").writeText("save\n")
 
-        // What MainActivity runs at start.
         LogMigration.run(app)
         SessionArtifacts.scrubOlder(app)
 

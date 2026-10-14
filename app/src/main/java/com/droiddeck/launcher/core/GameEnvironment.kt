@@ -29,25 +29,15 @@ object GameEnvironment {
         "MESA_SHADER_CACHE_DISABLE" to "false",
         "VKD3D_FEATURE_LEVEL" to "12_2",
         "VKD3D_SHADER_MODEL" to "6_9",
-        // .NET 7 and later reserve 256 GB of address space for the GC heap at startup, more than an
-        // Android process has free, and the runtime fails to start. 32 GB is plenty for a game.
-        // Older NativeAOT runtimes require bare hex digits. CoreCLR accepts this form too.
         "DOTNET_GCRegionRange" to "800000000",
-        // .NET's W^X writes JIT code through a second mapping that FEX does not watch, so FEX keeps
-        // running the stale translation and the game hangs at startup.
         "DOTNET_EnableWriteXorExecute" to "0",
     ).apply {
         FexPreset.env(preset).forEach { put(it.substringBefore('='), it.substringAfter('=')) }
-        // Steam settings' Force SSBS: droiddeck-game-env preloads libssbs.so into the game's Wine.
         if (forceSsbs) put(FORCE_SSBS, "1")
     }
 
     const val FORCE_SSBS = "DROIDDECK_FORCE_SSBS"
 
-    /**
-     * A game's Start without Steam: droiddeck-game-env launches it without Proton's steam.exe (umu's
-     * launch where the Proton has it, else runinprefix), for games that close right away.
-     */
     const val NO_STEAM = "DROIDDECK_NO_STEAM"
 
     fun gameNoSteam(config: Config, scope: String): Boolean =

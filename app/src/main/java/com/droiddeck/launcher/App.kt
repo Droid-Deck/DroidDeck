@@ -5,11 +5,6 @@ import com.droiddeck.launcher.runtime.BwrapSpawner
 import com.droiddeck.launcher.session.CrashHandler
 import com.droiddeck.launcher.session.GpuClockPin
 
-/**
- * Process-wide setup: the crash handler, so a session's folder is finished even when we die, and
- * the GPU clock pin cleared in case a killed process left it set, and the socket Flatpak's
- * sandboxes are started through (BwrapSpawner).
- */
 class App : Application() {
     override fun attachBaseContext(base: android.content.Context) =
         super.attachBaseContext(com.droiddeck.launcher.core.AppLanguage.wrap(base))
@@ -28,7 +23,6 @@ class App : Application() {
         GpuClockPin.clearLeftover(this)
         BwrapSpawner.start(this)
         com.droiddeck.launcher.frontend.GameFileSync.start(this)
-        // The game stores the Stores section can talk to; the native engine loads only when one needs it.
         com.droiddeck.launcher.stores.StoresState.init(this)
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.gog.GogBackend)
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.epic.EpicBackend)

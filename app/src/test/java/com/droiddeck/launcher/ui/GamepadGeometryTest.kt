@@ -8,7 +8,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GamepadGeometryTest {
-    /** A foldable's unfolded panel (px) and density, as the gamepad gets it under a 16:9 game. */
     private data class Panel(val name: String, val width: Int, val height: Int, val density: Float) {
         val controlsHeight get() = height - SessionDisplay.unfoldedGameHeight(width, height)
     }
@@ -68,7 +67,6 @@ class GamepadGeometryTest {
             val right = b.getValue(Slot.RIGHT_MAIN)
             assertEquals(panel.name, left.cy, right.cy, 0.5f)
             assertEquals(panel.name, left.cx, panel.width - right.cx, 0.5f)
-            // In the bottom half of their side, nearer the corner than the second controls.
             assertTrue(panel.name, left.cx < b.getValue(Slot.LEFT_SECOND).cx)
             assertTrue(panel.name, left.cy > panel.controlsHeight / 2f)
         }
@@ -77,8 +75,6 @@ class GamepadGeometryTest {
     @Test fun middleButtonsKeepTheDeckOrder() {
         for (panel in panels) {
             val b = boxes(panel)
-            // View before Menu and Steam before QAM: left of it in a row or two by two, above it
-            // in a single column.
             fun before(a: Slot, c: Slot) = b.getValue(a).let { x -> b.getValue(c).let { y ->
                 x.cx < y.cx - 0.5f || (kotlin.math.abs(x.cx - y.cx) <= 0.5f && x.cy < y.cy) } }
             assertTrue(panel.name, before(Slot.VIEW, Slot.MENU))

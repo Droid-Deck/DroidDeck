@@ -59,13 +59,10 @@ import java.io.File
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 
-// Cover art: posters, the art grid and its tiles.
 
-/** Where each art tile sits, root px, by its key: a page opened from one floods out of it. */
 internal object TileBounds {
     val at = HashMap<String, androidx.compose.ui.geometry.Rect>()
 
-    /** The page about to open came from tile [key] (its art or icon for the flood), if it is on screen. */
     fun mark(key: String, art: Any?, corner: Float) {
         at[key]?.let { PageOrigin.mark(Origin(it, corner, art = art)) }
     }
@@ -97,12 +94,8 @@ internal fun Poster(art: File?, name: String, modifier: Modifier) {
 @Composable
 internal fun ArtGrid(tiles: List<Tile>, wide: Boolean = false) {
     val square = tiles.isNotEmpty() && tiles.all { it.art == null && (it.iconRes != null || it.iconBitmap != null) }
-    // Big enough to recognise a game by its art and read its name under it; icon tiles are squares.
     val minSize = if (square) 76.dp else if (wide) 120.dp else 96.dp
     val gap = 12.dp
-    // Laid out whole, not lazily: the pad's focus search only finds tiles that exist, and a lazy
-    // grid composes only the rows on screen, so a press towards the next row bounced back among
-    // the visible tiles. A few hundred tiles lay out fine; the page's scroll follows the focused one.
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val avail = maxWidth - 8.dp
         val cols = ((avail + gap) / (minSize + gap)).toInt().coerceAtLeast(1)
@@ -152,10 +145,6 @@ private fun GameTile(t: Tile, wide: Boolean, square: Boolean, src: MutableIntera
     }
 }
 
-/**
- * Art for a portrait (2:3) tile. Box art fills it; wide art - a PS3 disc's ICON0, a game's header -
- * is shown whole over a blurred, darkened copy of itself instead of losing its sides to the crop.
- */
 @Composable
 private fun CoverImage(art: File, modifier: Modifier) {
     var wideArt by remember(art) { mutableStateOf(false) }

@@ -1,8 +1,4 @@
 #!/bin/sh
-# What the Steam client calls in Deck mode (from /usr/bin/steamos-polkit-helpers/, seen in its
-# console log on device; a copy sits in /usr/bin as well) to look for a SteamOS update. There is no SteamOS
-# here: the answer is "no update", which is exit 7 in SteamOS's convention, and the client moves
-# on. --supports-duplicate-detection is a capability probe and answers yes. Staged from the apk.
 case "${1:-}" in
   --supports-duplicate-detection) exit 0 ;;
 esac

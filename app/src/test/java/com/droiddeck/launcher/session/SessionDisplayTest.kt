@@ -12,16 +12,12 @@ class SessionDisplayTest {
     }
 
     @Test fun heightPresetsKeepThePanelShapeWithASixteenByNineFloor() {
-        // 20:9 phone: edge to edge, no bars for the client's interface.
         assertEquals(1600 to 720, SessionDisplay.resolveChoice(2400 to 1080, SessionDisplay.DEFAULT_RESOLUTION))
         assertEquals(1608 to 720, SessionDisplay.resolveChoice(2412 to 1080, "720p"))
-        // 1440p phone: bounded by the preset height, not the panel.
         assertEquals(1560 to 720, SessionDisplay.resolveChoice(3120 to 1440, "720p"))
         assertEquals(2340 to 1080, SessionDisplay.resolveChoice(3120 to 1440, "1080p"))
-        // Foldable inner panel and 4:3 handhelds: never narrower than 16:9.
         assertEquals(1280 to 720, SessionDisplay.resolveChoice(2208 to 1840, "720p"))
         assertEquals(1280 to 720, SessionDisplay.resolveChoice(1440 to 1080, "720p"))
-        // Never taller than the panel.
         assertEquals(1280 to 720, SessionDisplay.resolveChoice(1280 to 720, "1080p"))
     }
 
@@ -39,10 +35,8 @@ class SessionDisplayTest {
     }
 
     @Test fun unfoldedControlsKeepTheGameSixteenByNineAcrossTheWidth() {
-        // Fold inner screen held as a tablet, and upright: 16:9 either way, the controls the rest.
         assertEquals(1376, SessionDisplay.unfoldedGameHeight(2448, 1848))
         assertEquals(1038, SessionDisplay.unfoldedGameHeight(1848, 2448))
-        // A window near 16:9 itself still leaves the controls a fifth of it.
         assertEquals(864, SessionDisplay.unfoldedGameHeight(1920, 1080))
     }
 

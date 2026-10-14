@@ -9,20 +9,15 @@ namespace dxvk::str {
     uint32_t first = begin[0];
 
     if (likely(first < 0x80)) {
-      // Basic ASCII character
       ch = uint32_t(first);
       return begin + 1;
     } else if (unlikely(first < 0xC0)) {
-      // Character starts with a continuation byte,
-      // just skip until we find the next valid prefix
       while ((begin < end) && (((*begin) & 0xC0) == 0x80))
         begin += 1;
 
       ch = uint32_t('?');
       return begin;
     } else {
-      // The number of leading 1 bits in the first byte
-      // determines the length of this character
       size_t length = bit::lzcnt((~first) << 24);
 
       if (unlikely(begin + length > end)) {
@@ -43,7 +38,6 @@ namespace dxvk::str {
            | ((uint32_t(begin[2]) & 0x3F) << 6)
            | ((uint32_t(begin[3]) & 0x3F));
       } else {
-        // Invalid prefix
         ch = uint32_t('?');
       }
 
@@ -71,7 +65,6 @@ namespace dxvk::str {
          + ((uint32_t(begin[1]) & 0x3FF));
       return begin + 2;
     } else if (unlikely(first < 0xE000)) {
-      // Stray low surrogate
       ch = uint32_t('?');
       return begin + 1;
     } else {
@@ -137,7 +130,6 @@ namespace dxvk::str {
 
       return 4;
     } else {
-      // Invalid code point for UTF-8
       return 0;
     }
   }
@@ -157,8 +149,6 @@ namespace dxvk::str {
 
       return 1;
     } else if (ch < 0xE000) {
-      // Private use code points,
-      // we can't encode these
       return 0;
     } else if (ch < 0x10000) {
       if (begin) {
@@ -181,7 +171,6 @@ namespace dxvk::str {
 
       return 2;
     } else {
-      // Invalid code point
       return 0;
     }
   }

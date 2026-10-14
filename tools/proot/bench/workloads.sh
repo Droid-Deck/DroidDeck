@@ -1,5 +1,4 @@
 #!/system/bin/sh
-# workloads: direct glibc (patched PT_INTERP) vs proot variants
 D=/data/local/tmp/dd; cd $D
 t() { local s=$(date +%s%N); "$@" >/dev/null 2>&1; local e=$(date +%s%N); echo $(( (e - s) / 1000000 )); }
 base() { t ./run.sh $1 /usr/bin/true; }

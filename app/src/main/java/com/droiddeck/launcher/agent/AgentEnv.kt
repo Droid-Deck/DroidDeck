@@ -10,18 +10,6 @@ import java.nio.file.Files
 import java.nio.file.LinkOption.NOFOLLOW_LINKS
 import java.nio.file.StandardOpenOption.READ
 
-/**
- * Experiment switches an agent sets without touching Download/droiddeck-env or rebuilding the apk:
- *
- * - environment lines (KEY=VALUE) for the session, applied after the user's own droiddeck-env, so
- *   they win. "next" lines are taken by the next session that starts and dropped when it ends;
- *   "persistent" ones stay until cleared.
- * - binary overrides: a file pushed to the app's external files (agent-inbox/<name>) is installed
- *   as /opt/droiddeck-agent/bin/<name> in the rootfs and put first on the next session's PATH -
- *   a gamescope build under test, say. Removed when that session ends.
- *
- * Kept in the app's own files (agent-env.json), never in a place the shell can write.
- */
 object AgentEnv {
     private const val TAG = "AgentEnv"
     private const val FILE = "agent-env.json"
@@ -38,7 +26,6 @@ object AgentEnv {
         load(context)
     }
 
-    /** Add [lines] for the next session ([persistent] = every session until cleared). */
     fun set(context: Context, lines: List<String>, persistent: Boolean): JSONObject = synchronized(lock) {
         AgentAccess.requireCommands(context)
         if (lines.any { line -> KEY.matchEntire(line.substringBefore('=', "")) == null || !line.contains('=') || line.any { it == '\n' || it == '\r' || it == '\u0000' } }) {
@@ -52,7 +39,6 @@ object AgentEnv {
         state
     }
 
-    /** Drop lines: [scope] is "next", "persistent" or "all". */
     fun clear(context: Context, scope: String): JSONObject = synchronized(lock) {
         AgentAccess.requireCommands(context)
         val state = load(context)
@@ -66,7 +52,6 @@ object AgentEnv {
         state
     }
 
-    /** Install agent-inbox/[name] as an override for the next session. */
     fun override(context: Context, name: String): JSONObject = synchronized(lock) {
         AgentAccess.requireCommands(context)
         if (NAME.matchEntire(name) == null || name in setOf(".", "..")) throw AgentException("INVALID_NAME", "Override names are letters, digits, '.', '_' and '-'")
@@ -93,10 +78,6 @@ object AgentEnv {
         state.put("installed", "$GUEST_BIN/$name")
     }
 
-    /**
-     * At session start: the lines this session gets, after the user's droiddeck-env. Pending lines
-     * and overrides become this session's own, to be dropped by [endSession].
-     */
     fun beginSession(context: Context): List<String> = synchronized(lock) {
         if (!AgentAccess.commandsAllowed(context)) {
             revoke(context)
@@ -108,7 +89,6 @@ object AgentEnv {
         state.put("active", JSONArray(active)).put("pending", JSONArray())
         state.put("activeOverrides", JSONArray(overrides)).put("pendingOverrides", JSONArray())
         save(context, state)
-        // Anything else there was left by a session that never reached endSession (the app died).
         bin(context).listFiles()
             ?.filter { it.name !in overrides }?.forEach { it.delete() }
         val lines = strings(state.optJSONArray("persistent")) + active
@@ -124,7 +104,6 @@ object AgentEnv {
         bin(context).listFiles()?.forEach { it.delete() }
     }
 
-    /** At session end: this session's lines and override binaries go. */
     fun endSession(context: Context) = synchronized(lock) {
         val state = load(context)
         val overrides = strings(state.optJSONArray("activeOverrides"))
@@ -135,7 +114,6 @@ object AgentEnv {
         save(context, state)
     }
 
-    /** A PATH= line among [lines] (the user's or an agent's) is extended rather than replaced. */
     private fun pathOf(lines: List<String>) =
         lines.lastOrNull { it.startsWith("PATH=") }?.substringAfter('=')?.takeIf { it.isNotBlank() } ?: BASE_PATH
 
@@ -178,7 +156,6 @@ object AgentEnv {
     }
 }
 
-/** Typed writes to the app's SharedPreferences, for driving a settings matrix without the UI. */
 object AgentPrefs {
     fun set(context: Context, file: String, key: String, type: String, value: String?): JSONObject {
         AgentAccess.requireCommands(context)

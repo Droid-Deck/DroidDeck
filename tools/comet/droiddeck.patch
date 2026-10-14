@@ -119,7 +119,7 @@ index 0c539f1..50fdd21 100644
          .unwrap_or_else(|| String::from("en-US"));
  }
 +
-+/// A launcher may restrict Galaxy to explicitly enabled SDK clients in its private policy file.
++
 +pub fn client_allowed(client_id: &str) -> bool {
 +    let Ok(path) = std::env::var("COMET_ALLOWED_CLIENTS") else { return true; };
 +    std::fs::read(path).ok().and_then(|data| serde_json::from_slice::<Vec<String>>(&data).ok())

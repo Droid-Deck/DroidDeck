@@ -9,7 +9,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/** Mature means what the store's own ratings or tags say; a title without them stays visible. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class MatureContentTest {
@@ -20,7 +19,6 @@ class MatureContentTest {
         assertTrue(GogStoreCatalog.isMature(gog("""{"name":"gogRating","ageRating":"18"}""", "")))
         assertTrue(GogStoreCatalog.isMature(gog("""{"name":"pegiRating","ageRating":"12"}""", """{"name":"NSFW","slug":"nsfw"}""")))
         assertFalse(GogStoreCatalog.isMature(gog("""{"name":"esrbRating","ageRating":"13"},{"name":"uskRating","ageRating":"16"}""", """{"name":"Puzzle","slug":"puzzle"}""")))
-        // No rating data at all: visible.
         assertFalse(GogStoreCatalog.isMature(JSONObject("""{"id":"2","title":"U"}""")))
     }
 

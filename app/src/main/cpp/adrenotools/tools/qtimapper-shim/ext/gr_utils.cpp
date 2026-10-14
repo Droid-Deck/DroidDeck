@@ -162,7 +162,6 @@ bool CpuCanRead(uint64_t usage) {
 
 bool CpuCanWrite(uint64_t usage) {
   if (usage & BufferUsage::CPU_WRITE_MASK) {
-    // Application intends to use CPU for rendering
     return true;
   }
 
@@ -177,7 +176,6 @@ uint32_t GetDataAlignment(int format, uint64_t usage) {
 
   if (usage & BufferUsage::PROTECTED) {
     if ((usage & BufferUsage::CAMERA_OUTPUT) || (usage & GRALLOC_USAGE_PRIVATE_SECURE_DISPLAY)) {
-      // The alignment here reflects qsee mmu V7L/V8L requirement
       align = SZ_2M;
     } else {
       align = SECURE_ALIGN;
@@ -202,7 +200,6 @@ bool IsGPUFlagSupported(uint64_t usage) {
   return ret;
 }
 
-// Returns the final buffer size meant to be allocated with ion
 unsigned int GetSize(const BufferInfo& info, unsigned int alignedw, unsigned int alignedh) {
   unsigned int size = 0;
   int format = info.format;
@@ -223,7 +220,6 @@ unsigned int GetSize(const BufferInfo& info, unsigned int alignedw, unsigned int
   } else if (IsCompressedRGBFormat(format)) {
     size = alignedw * alignedh * ASTC_BLOCK_SIZE;
   } else {
-    // Below switch should be for only YUV/custom formats
     switch (format) {
       case HAL_PIXEL_FORMAT_RAW16:
       case HAL_PIXEL_FORMAT_Y16:
@@ -237,15 +233,15 @@ unsigned int GetSize(const BufferInfo& info, unsigned int alignedw, unsigned int
       case HAL_PIXEL_FORMAT_Y8:
         size = alignedw * alignedh * 1;
         break;
-        // adreno formats
-      case HAL_PIXEL_FORMAT_YCrCb_420_SP_ADRENO:  // NV21
+
+      case HAL_PIXEL_FORMAT_YCrCb_420_SP_ADRENO:
         size = ALIGN(alignedw * alignedh, SIZE_4K);
         size += (unsigned int)ALIGN(2 * ALIGN(width / 2, 32) * ALIGN(height / 2, 32), SIZE_4K);
         break;
-      case HAL_PIXEL_FORMAT_YCbCr_420_SP_TILED:  // NV12
-        // The chroma plane is subsampled,
-        // but the pitch in bytes is unchanged
-        // The GPU needs 4K alignment, but the video decoder needs 8K
+      case HAL_PIXEL_FORMAT_YCbCr_420_SP_TILED:
+
+
+
         size = ALIGN(alignedw * alignedh, SIZE_8K);
         size += ALIGN(alignedw * (unsigned int)ALIGN(height / 2, 32), SIZE_8K);
         break;
@@ -296,7 +292,6 @@ unsigned int GetSize(const BufferInfo& info, unsigned int alignedw, unsigned int
   return size;
 }
 
-// Explicitly defined UBWC formats
 bool IsUBwcFormat(int format) {
   switch (format) {
     case HAL_PIXEL_FORMAT_YCbCr_420_SP_VENUS_UBWC:
@@ -309,7 +304,6 @@ bool IsUBwcFormat(int format) {
 }
 
 bool IsUBwcSupported(int format) {
-  // Existing HAL formats with UBWC support
   switch (format) {
     case HAL_PIXEL_FORMAT_BGR_565:
     case HAL_PIXEL_FORMAT_RGBA_8888:
@@ -336,7 +330,6 @@ bool IsUBwcPISupported(int format, uint64_t usage) {
     return false;
   }
 
-  // As of now only two formats
   switch (format) {
     case HAL_PIXEL_FORMAT_YCbCr_420_SP_VENUS_UBWC:
     case HAL_PIXEL_FORMAT_YCbCr_420_TP10_UBWC: {
@@ -354,27 +347,21 @@ bool IsUBwcPISupported(int format, uint64_t usage) {
 }
 
 bool IsUBwcEnabled(int format, uint64_t usage) {
-  // Allow UBWC, if client is using an explicitly defined UBWC pixel format.
   if (IsUBwcFormat(format)) {
     return true;
   }
 
-  // Allow UBWC, if an OpenGL client sets UBWC usage flag and GPU plus MDP
-  // support the format. OR if a non-OpenGL client like Rotator, sets UBWC
-  // usage flag and MDP supports the format.
   if (((usage & GRALLOC_USAGE_PRIVATE_ALLOC_UBWC) ||
        (usage & GRALLOC_USAGE_PRIVATE_ALLOC_UBWC_PI) ||
        (usage & BufferUsage::COMPOSER_CLIENT_TARGET)) &&
       IsUBwcSupported(format)) {
     bool enable = true;
-    // Query GPU for UBWC only if buffer is intended to be used by GPU.
     if ((usage & BufferUsage::GPU_TEXTURE) || (usage & BufferUsage::GPU_RENDER_TARGET)) {
       if (AdrenoMemInfo::GetInstance()) {
         enable = AdrenoMemInfo::GetInstance()->IsUBWCSupportedByGPU(format);
       }
     }
 
-    // Allow UBWC, only if CPU usage flags are not set
     if (enable && !(CpuCanAccess(usage))) {
       return true;
     }
@@ -418,13 +405,10 @@ unsigned int GetRgbUBwcMetaBufferSize(int width, int height, uint32_t bpp) {
     return size;
   }
 
-  // Align meta buffer height to 16 blocks
   meta_height = ALIGN(((height + block_height - 1) / block_height), 16);
 
-  // Align meta buffer width to 64 blocks
   meta_width = ALIGN(((width + block_width - 1) / block_width), 64);
 
-  // Align meta buffer size to 4K
   size = (unsigned int)ALIGN((meta_width * meta_height), 4096);
 
   return size;
@@ -500,12 +484,10 @@ bool UseUncached(int format, uint64_t usage) {
     return true;
   }
 
-  // CPU read rarely
   if ((usage & BufferUsage::CPU_READ_MASK) == static_cast<uint64_t>(BufferUsage::CPU_READ_RARELY)) {
     return true;
   }
 
-  // CPU  write rarely
   if ((usage & BufferUsage::CPU_WRITE_MASK) ==
       static_cast<uint64_t>(BufferUsage::CPU_WRITE_RARELY)) {
     return true;
@@ -576,8 +558,6 @@ uint64_t GetHandleFlags(int format, uint64_t usage) {
 int GetImplDefinedFormat(uint64_t usage, int format) {
   int gr_format = format;
 
-  // If input format is HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED then based on
-  // the usage bits, gralloc assigns a format.
   if (format == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED ||
       format == HAL_PIXEL_FORMAT_YCbCr_420_888) {
     if ((usage & GRALLOC_USAGE_PRIVATE_ALLOC_UBWC || usage & GRALLOC_USAGE_PRIVATE_ALLOC_UBWC_PI) &&
@@ -585,33 +565,30 @@ int GetImplDefinedFormat(uint64_t usage, int format) {
       gr_format = HAL_PIXEL_FORMAT_YCbCr_420_SP_VENUS_UBWC;
     } else if (usage & BufferUsage::VIDEO_ENCODER) {
       if (usage & GRALLOC_USAGE_PRIVATE_VIDEO_NV21_ENCODER) {
-        gr_format = HAL_PIXEL_FORMAT_NV21_ENCODEABLE;  // NV21
+        gr_format = HAL_PIXEL_FORMAT_NV21_ENCODEABLE;
       } else if (usage & GRALLOC_USAGE_PRIVATE_HEIF) {
         gr_format = HAL_PIXEL_FORMAT_NV12_HEIF;
       } else if (format == HAL_PIXEL_FORMAT_YCbCr_420_888) {
         gr_format = HAL_PIXEL_FORMAT_YCbCr_420_SP_VENUS;
       } else {
-        gr_format = HAL_PIXEL_FORMAT_NV12_ENCODEABLE;  // NV12
+        gr_format = HAL_PIXEL_FORMAT_NV12_ENCODEABLE;
       }
     } else if (usage & BufferUsage::CAMERA_INPUT) {
       if (usage & BufferUsage::CAMERA_OUTPUT) {
-        // Assumed ZSL if both producer and consumer camera flags set
-        gr_format = HAL_PIXEL_FORMAT_NV21_ZSL;  // NV21
+
+        gr_format = HAL_PIXEL_FORMAT_NV21_ZSL;
       } else {
-        gr_format = HAL_PIXEL_FORMAT_YCrCb_420_SP;  // NV21
+        gr_format = HAL_PIXEL_FORMAT_YCrCb_420_SP;
       }
     } else if (usage & BufferUsage::CAMERA_OUTPUT) {
       if (format == HAL_PIXEL_FORMAT_YCbCr_420_888) {
-        gr_format = HAL_PIXEL_FORMAT_NV21_ZSL;  // NV21
+        gr_format = HAL_PIXEL_FORMAT_NV21_ZSL;
       } else {
-        gr_format = HAL_PIXEL_FORMAT_YCbCr_420_SP_VENUS;  // NV12 preview
+        gr_format = HAL_PIXEL_FORMAT_YCbCr_420_SP_VENUS;
       }
     } else if (usage & BufferUsage::COMPOSER_OVERLAY) {
-      // XXX: If we still haven't set a format, default to RGBA8888
       gr_format = HAL_PIXEL_FORMAT_RGBA_8888;
     } else if (format == HAL_PIXEL_FORMAT_YCbCr_420_888) {
-      // If no other usage flags are detected, default the
-      // flexible YUV format to NV21_ZSL
       gr_format = HAL_PIXEL_FORMAT_NV21_ZSL;
     }
   }
@@ -637,7 +614,7 @@ bool HasAlphaComponent(int32_t format) {
 }
 
 void GetRGBPlaneInfo(const BufferInfo& info, int32_t format, int32_t width, int32_t height,
-                     int32_t /* flags */, int* plane_count, PlaneLayoutInfo* plane_info) {
+                     int32_t  , int* plane_count, PlaneLayoutInfo* plane_info) {
   uint64_t usage = info.usage;
   *plane_count = 1;
   uint32_t bpp = 0;
@@ -659,4 +636,4 @@ void GetRGBPlaneInfo(const BufferInfo& info, int32_t format, int32_t width, int3
   plane_info->scanlines = height;
 }
 
-}  // namespace gralloc
+}

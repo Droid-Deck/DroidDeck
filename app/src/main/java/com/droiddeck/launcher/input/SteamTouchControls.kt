@@ -22,18 +22,6 @@ import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 
-/**
- * Steam's touch controls, drawn by the app.
- *
- * The layout is Steam's: the game's touch config for the action set the client says is active
- * (SteamTouchDevice.State, SteamTouchConfig), placed where the config's layout puts each control or
- * where Steam Link would by default, and only the controls the config binds. Touches become the
- * touch controller's input report; the client does the rest - bindings, action sets, the virtual
- * pad the game reads. Each control shows its binding's icon, label and colours, as Steam keeps them
- * (SteamTouchBindings). [startEditing] moves, resizes and hides controls, picks their icons and the
- * layout's colour, and saves all of it into the game's touch config, as Steam Link and Steam's
- * configurator do.
- */
 @SuppressLint("ViewConstructor")
 class SteamTouchControls(
     context: Context,
@@ -42,19 +30,14 @@ class SteamTouchControls(
     private val onKeyboard: () -> Unit,
 ) : View(context) {
 
-    /** The game's input and mouse modes changed (from its config or the menu): the session routes
-     *  touches outside the controls by them. */
     var onOptions: (SteamTouchConfig.Options) -> Unit = {}
 
-    /** The Paste control: types the clipboard into the session. */
     var onPaste: () -> Unit = {}
 
-    // Steam Link's own settings, for every game (CVirtualControllerGlobalConfig).
     private val prefs = context.getSharedPreferences("steam_touch", Context.MODE_PRIVATE)
     private var feedback = prefs.getBoolean("feedback", false)
     private var autoFade = prefs.getBoolean("autoFade", true)
     private var gyroOn = prefs.getBoolean("gyro", true).also { device.motionEnabled = it }
-    // Shake the device to hide the controls and again to bring them back (Steam Link's shake_fade).
     private var shakeToHide = prefs.getBoolean("shake", false)
     private var shakenAway = false
     private val sensors by lazy { context.getSystemService(Context.SENSOR_SERVICE) as android.hardware.SensorManager }
@@ -69,7 +52,6 @@ class SteamTouchControls(
             val now = android.os.SystemClock.uptimeMillis()
             jolts = if (now - lastJolt < 400) jolts + 1 else 1
             lastJolt = now
-            // Three jolts in quick succession, at most once a second.
             if (jolts >= 3 && now - lastShake > 1000) {
                 lastShake = now
                 jolts = 0
@@ -113,15 +95,12 @@ class SteamTouchControls(
     private var tint = Color.WHITE
     private var alphaScale = 0.45f
 
-    // What each control is bound to (its icon, label, colours), per element type; the D-pad has four.
     private class Visual(val ref: SteamTouchBindings.Ref?, val binding: SteamTouchBindings.Binding?)
     private var visuals: Map<Int, List<Visual>> = emptyMap()
 
-    // Touch state.
     private class Finger(val element: Element?, var x: Float, var y: Float, val toolbar: Int = -1)
     private val fingers = HashMap<Int, Finger>()
 
-    // Editing.
     private var editing = false
     private var editElements: MutableList<Element> = mutableListOf()
     private var hidden: MutableList<Element> = mutableListOf()
@@ -130,7 +109,6 @@ class SteamTouchControls(
     private var pinchStart = 0f
     private var pinchScale = 1f
     private var saving = false
-    // Icon and colour edits not saved yet.
     private val pendingBindings = HashMap<SteamTouchBindings.Ref, SteamTouchBindings.Binding>()
     private var pendingColor: FloatArray? = null
     private var selectedArm = 0
@@ -162,12 +140,9 @@ class SteamTouchControls(
         super.onDetachedFromWindow()
     }
 
-    /** Follows what the client tells the device: a new app loads its config, a new action set or
-     *  layer redraws. */
     private fun refreshState() {
         val state = device.state()
         val app = if (state.appId == 0) BIG_PICTURE else state.appId
-        // The client reads the config afresh when the controller (re)connects: so do we.
         val reconnected = state.opened > 0 && opened == 0
         opened = state.opened
         if (app != configApp || reconnected) {
@@ -195,7 +170,6 @@ class SteamTouchControls(
         }
     }
 
-    /** Re-reads the config for the current app (after a save). */
     fun reloadConfig() {
         configApp = -1
         refreshState()
@@ -216,12 +190,9 @@ class SteamTouchControls(
 
     private fun applyColor(color: FloatArray?) {
         tint = if (color != null) Color.rgb((color[0] * 255).toInt(), (color[1] * 255).toInt(), (color[2] * 255).toInt()) else Color.WHITE
-        // Steam Link's opacity: its default layout colour (alpha about 0.4) draws solid white
-        // outlines; lower values fade them.
         alphaScale = ((color?.get(3) ?: 0.45f) * 2.2f).coerceIn(0.15f, 1f)
     }
 
-    /** Each control's bindings for the action set and layers in use, with edits not saved yet. */
     private fun rebuildVisuals() {
         val mappings = config.mappings
         val preset = SteamTouchConfig.layoutIdOf(actionSet) - 1
@@ -240,7 +211,6 @@ class SteamTouchControls(
         }
     }
 
-    // ---- Geometry ----
 
     private fun unit() = min(width / 1280f, height / 720f)
 
@@ -248,7 +218,6 @@ class SteamTouchControls(
     private fun radiusY(e: Element): Float = baseRadius(e.type) * e.yScale * unit()
 
     private fun baseRadius(type: Int) = when (type) {
-        // Steam Link's sizes on its 1280x720 reference.
         SteamTouchConfig.DPAD -> 112f
         SteamTouchConfig.JOYSTICK_LEFT, SteamTouchConfig.JOYSTICK_RIGHT -> 90f
         SteamTouchConfig.TRACKPAD_LEFT, SteamTouchConfig.TRACKPAD_RIGHT, SteamTouchConfig.TRACKPAD_CENTER -> 100f
@@ -263,17 +232,14 @@ class SteamTouchControls(
     private fun cx(e: Element) = e.x * width
     private fun cy(e: Element) = e.y * height
 
-    /** How far (x, y) is from [e]'s centre, in its own radii (it may be an oval). */
     private fun reach(e: Element, x: Float, y: Float) = hypot((x - cx(e)) / radius(e), (y - cy(e)) / radiusY(e))
 
     private fun hit(list: List<Element>, x: Float, y: Float): Element? =
         list.filter { reach(it, x, y) <= 1.15f }.minByOrNull { reach(it, x, y) }
 
-    /** What is drawn and touchable: in mouse mode only the menu button, as on Steam Link. */
     private fun live(): List<Element> =
         if (shakenAway) emptyList() else if (options.inputMode == SteamTouchConfig.INPUT_MOUSE) elements.filter { it.type == SteamTouchConfig.THUMB } else elements
 
-    // ---- Drawing ----
 
     override fun onDraw(canvas: Canvas) {
         val shown = if (editing) editElements else live()
@@ -281,7 +247,6 @@ class SteamTouchControls(
             val x = cx(e)
             val y = cy(e)
             canvas.save()
-            // An oval control: drawn as its circle, stretched to its height.
             if (e.yScale != e.xScale && e.xScale > 0f) canvas.scale(1f, e.yScale / e.xScale, x, y)
             draw(canvas, e, editing && editElements.indexOf(e) == selected)
             canvas.restore()
@@ -297,10 +262,6 @@ class SteamTouchControls(
 
     private fun pressedTypes(): Set<Int> = fingers.values.mapNotNull { it.element?.type }.toSet()
 
-    // ---- Steam Link's look (measured from Steam Link 1.3 on the Thor) ----
-    // Outlines only: 3 px white strokes on a 1280x720 reference, no fill; a pressed control fills
-    // white with its content dark. Face letters in Steam's colours; Select and Start are ◀ ▶ pills
-    // beside a solid white Steam disc; bumpers, triggers, the menu and keyboard are rounded squares.
 
     private fun lineWidth() = 3f * unit()
 
@@ -340,7 +301,6 @@ class SteamTouchControls(
                 }
             }
             SteamTouchConfig.STEAM -> {
-                // The guide button: DroidDeck's split D and orb, in a ring.
                 if (pressed) canvas.drawCircle(x, y, r, fill)
                 canvas.drawCircle(x, y, r, stroke)
                 drawMark(canvas, x, y, r * 0.5f, if (pressed) Color.argb(alpha, 23, 26, 33) else ink, alpha)
@@ -364,7 +324,6 @@ class SteamTouchControls(
         }
     }
 
-    /** Controls drawn as rounded squares on Steam Link; the face buttons and the rest are rings. */
     private fun isSquare(type: Int) = type in setOf(SteamTouchConfig.BUMPER_LEFT, SteamTouchConfig.BUMPER_RIGHT,
         SteamTouchConfig.TRIGGER_LEFT, SteamTouchConfig.TRIGGER_RIGHT, SteamTouchConfig.THUMB, SteamTouchConfig.KEYBOARD,
         SteamTouchConfig.PASTE, SteamTouchConfig.MACRO_1_FINGER, SteamTouchConfig.MACRO_2_FINGER) ||
@@ -372,8 +331,6 @@ class SteamTouchControls(
 
     private val markD by lazy { androidx.core.graphics.PathParser.createPathFromPathData(MARK_D) }
 
-    /** DroidDeck's mark (artwork/droiddeck-mark.svg): the split D in [ink] around the blue orb,
-     *  centred at (x, y), [r] its half height. */
     private fun drawMark(canvas: Canvas, x: Float, y: Float, r: Float, ink: Int = onSurface, alpha: Int = 255) {
         val k = r / 111.86f
         canvas.save()
@@ -384,7 +341,6 @@ class SteamTouchControls(
         canvas.restore()
     }
 
-    /** The Steam logo's mark, drawn: a wheel and a piston rod. */
     private fun drawSteamMark(canvas: Canvas, x: Float, y: Float, r: Float, color: Int) {
         val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color; style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
         p.strokeWidth = r * 0.16f
@@ -396,11 +352,6 @@ class SteamTouchControls(
         canvas.drawLine(x - r * 0.45f, y + r * 0.28f, x - r * 0.95f, y + r * 0.1f, p)
     }
 
-    /**
-     * A button as Steam Link draws it: a ring (or rounded square) outline with its name - face
-     * letters in Steam's colours. With a binding icon, the icon on a disc of its background colour,
-     * as Steam draws binding icons; with a binding label, the label.
-     */
     private fun drawFace(canvas: Canvas, type: Int, binding: SteamTouchBindings.Binding?, x: Float, y: Float, r: Float,
                          alpha: Int, pressed: Boolean) {
         val square = isSquare(type)
@@ -412,7 +363,6 @@ class SteamTouchControls(
             val s = r * 0.62f
             val custom = binding.background.isNotEmpty() && !binding.background.equals(SteamTouchBindings.DEFAULT_BACKGROUND, true)
             if (custom) {
-                // Colours chosen for this icon: drawn as Steam draws binding icons.
                 shape(Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color = parseColor(binding.background, SteamTouchBindings.DEFAULT_BACKGROUND)
                     this.alpha = if (pressed) alpha else (alpha * 0.85f).toInt()
@@ -420,7 +370,6 @@ class SteamTouchControls(
                 canvas.drawBitmap(tinted(binding.icon, icon, binding.foreground), null, RectF(x - s, y - s, x + s, y + s),
                     Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply { this.alpha = alpha })
             } else {
-                // Steam's default colours: Steam Link's own look, the icon in the outline's ink.
                 if (pressed) shape(fill)
                 val ink = if (pressed) Color.argb(alpha, 23, 26, 33) else stroke.color
                 canvas.drawBitmap(inked(binding.icon, icon), null, RectF(x - s, y - s, x + s, y + s),
@@ -435,7 +384,6 @@ class SteamTouchControls(
         shape(stroke)
         if (type == SteamTouchConfig.THUMB) { drawDots(canvas, x, y, r, if (pressed) Color.argb(alpha, 23, 26, 33) else text.color); return }
         if (type == SteamTouchConfig.KEYBOARD) { drawKeyboardGlyph(canvas, x, y, r, if (pressed) Color.argb(alpha, 23, 26, 33) else text.color); return }
-        // Steam Link names a control by itself, whatever its binding is labelled ("B", not "Back").
         val own = label(type)
         val shown = own
         text.textSize = when {
@@ -469,14 +417,11 @@ class SteamTouchControls(
 
     private val iconsLoading = HashSet<String>()
 
-    // Icons as a mask (their alpha), tinted when drawn.
     private val inkedIcons = android.util.LruCache<String, android.graphics.Bitmap>(48)
 
     private fun inked(name: String, icon: android.graphics.Bitmap): android.graphics.Bitmap {
         val key = "$name|${icon.width}"
         inkedIcons.get(key)?.let { return it }
-        // Steam's icons are drawn in greys on clear; their dark parts are the glyph's detail, so the
-        // mask keeps what is opaque and not near white.
         val out = icon.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
         val px = IntArray(out.width * out.height)
         out.getPixels(px, 0, out.width, 0, 0, out.width, out.height)
@@ -491,8 +436,6 @@ class SteamTouchControls(
         return out
     }
 
-    // Icons already in their foreground colour. Drawn plain: a colour filter on the icon bitmap
-    // itself stopped drawing on the hardware canvas once a dialog had been over the view.
     private val tintedIcons = android.util.LruCache<String, android.graphics.Bitmap>(48)
 
     private fun tinted(name: String, icon: android.graphics.Bitmap, foreground: String): android.graphics.Bitmap {
@@ -505,7 +448,6 @@ class SteamTouchControls(
         return out
     }
 
-    /** An icon from the cache, or null while it is (re)loaded; the view redraws when it comes in. */
     private fun iconOrLoad(name: String): android.graphics.Bitmap? {
         SteamTouchBindings.cachedIcon(appId, name, ICON_PX)?.let { return it }
         if (iconsLoading.add(name)) {
@@ -521,17 +463,15 @@ class SteamTouchControls(
     private fun parseColor(hex: String, fallback: String) =
         try { Color.parseColor(hex.ifEmpty { fallback }) } catch (_: IllegalArgumentException) { Color.parseColor(fallback) }
 
-    /** Steam Link's d-pad: four shield-shaped arms pointing at the centre, outlined. */
     private fun drawDpad(canvas: Canvas, e: Element, x: Float, y: Float, r: Float) {
         val dirs = if (editing) 0 else dpadBits(e)
         val armVisuals = visuals[SteamTouchConfig.DPAD].orEmpty()
         val isSelected = editing && selected >= 0 && editElements.indexOf(e) == selected
-        val half = r * 0.36f      // half the arm's width
-        val outer = r              // the arm's far end
-        val inner = r * 0.1f       // the point, near the centre
-        val shoulder = r * 0.42f   // where the sides turn into the point
+        val half = r * 0.36f
+        val outer = r
+        val inner = r * 0.1f
+        val shoulder = r * 0.42f
         val corner = r * 0.12f
-        // Arms in report order: up, down, left, right, as (bit, rotation).
         val arms = listOf(DPAD_UP to 0f, DPAD_DOWN to 180f, DPAD_LEFT to 270f, DPAD_RIGHT to 90f)
         val oldStroke = stroke.color
         for ((armIndex, armEntry) in arms.withIndex()) {
@@ -561,7 +501,6 @@ class SteamTouchControls(
             canvas.drawPath(path, stroke)
             canvas.restore()
             if (icon != null) {
-                // Upright, in the middle of the arm.
                 val c = (outer + shoulder) / 2f
                 val (ax, ay) = when (armIndex) { 0 -> x to y - c; 1 -> x to y + c; 2 -> x - c to y; else -> x + c to y }
                 val s = half * 0.8f
@@ -595,7 +534,6 @@ class SteamTouchControls(
         else -> "?"
     }
 
-    // ---- The report ----
 
     private fun dpadBits(e: Element): Long {
         var bits = 0L
@@ -604,7 +542,6 @@ class SteamTouchControls(
             val dy = f.y - cy(e)
             if (hypot(dx, dy) < radius(e) * 0.22f) return@forEach
             val angle = Math.toDegrees(atan2(-dy, dx).toDouble()).let { if (it < 0) it + 360 else it }
-            // Eight sectors: each direction covers 67.5°, diagonals press two.
             if (angle < 67.5 || angle > 292.5) bits = bits or DPAD_RIGHT
             if (angle in 22.5..157.5) bits = bits or DPAD_UP
             if (angle in 112.5..247.5) bits = bits or DPAD_LEFT
@@ -633,7 +570,7 @@ class SteamTouchControls(
                     buttons = buttons or if (right) STICK_RIGHT_TOUCHED else STICK_LEFT_TOUCHED
                 }
                 SteamTouchConfig.TRACKPAD_CENTER, SteamTouchConfig.TRACKPAD_LEFT, SteamTouchConfig.TRACKPAD_RIGHT -> {
-                    val index = e.type - SteamTouchConfig.TRACKPAD_CENTER // centre, left, right
+                    val index = e.type - SteamTouchConfig.TRACKPAD_CENTER
                     val nx = ((f.x - (cx(e) - r)) / (2 * r)).coerceIn(0f, 1f)
                     val ny = ((f.y - (cy(e) - radiusY(e))) / (2 * radiusY(e))).coerceIn(0f, 1f)
                     pads[2 * index] = (((nx * 65535).toInt().coerceIn(0, 65535)) xor 0x8000).toShort()
@@ -653,7 +590,6 @@ class SteamTouchControls(
         invalidate()
     }
 
-    // ---- Touch ----
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -694,7 +630,6 @@ class SteamTouchControls(
                     val f = fingers[event.getPointerId(i)] ?: continue
                     f.x = event.getX(i)
                     f.y = event.getY(i)
-                    // A finger on a button can slide onto another, as on Steam Link.
                     val e = f.element ?: continue
                     if (BUTTON_BITS.containsKey(e.type)) {
                         val over = hit(live(), f.x, f.y)
@@ -726,12 +661,9 @@ class SteamTouchControls(
         return true
     }
 
-    // ---- Editing ----
 
     val isEditing get() = editing
 
-    /** Moves, resizes and hides controls, action set by action set; Save writes them to the
-     *  game's touch config. */
     fun startEditing() {
         releaseAll()
         editing = true
@@ -744,7 +676,6 @@ class SteamTouchControls(
         invalidate()
     }
 
-    // The action set being edited (its layout id), and the edits of every set visited.
     private var editSet = 1
     private class EditState(val elements: MutableList<Element>, val hidden: MutableList<Element>)
     private val editSets = HashMap<Int, EditState>()
@@ -752,7 +683,6 @@ class SteamTouchControls(
     private fun loadEditSet(id: Int) {
         editSet = id
         val state = editSets.getOrPut(id) {
-            // The device's action set numbering is the layout id.
             val available = config.availableFor(id, emptyList())
             val shown = SteamTouchConfig.elementsFor(config, id, emptyList())
             val els = available.mapNotNull { type ->
@@ -816,7 +746,6 @@ class SteamTouchControls(
                 val e = hit(editElements, x, y)
                 selected = if (e != null) editElements.indexOf(e) else -1
                 if (e != null) dragOffset = (x - cx(e)) to (y - cy(e))
-                // The D-pad's icons are per direction: a tap picks the one under the finger.
                 if (e?.type == SteamTouchConfig.DPAD) {
                     val dx = x - cx(e)
                     val dy = y - cy(e)
@@ -832,7 +761,6 @@ class SteamTouchControls(
             MotionEvent.ACTION_MOVE -> if (selected >= 0 && !trayOpen) {
                 val e = editElements[selected]
                 if (event.pointerCount >= 2 && pinchStart > 0f) {
-                    // A pinch along one axis stretches that axis; a diagonal one scales both.
                     val sx = abs(event.getX(0) - event.getX(1))
                     val sy = abs(event.getY(0) - event.getY(1))
                     val min = 40f * unit()
@@ -850,7 +778,6 @@ class SteamTouchControls(
             MotionEvent.ACTION_POINTER_UP -> pinchStart = 0f
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 pinchStart = 0f
-                // Dropped back on the menu button: back into the tray, as on Steam Link.
                 val e = editElements.getOrNull(selected)
                 if (e != null && editMenuButton().contains(cx(e), cy(e)) && e.type != SteamTouchConfig.THUMB) {
                     hidden += editElements.removeAt(selected).copy(visible = false)
@@ -893,7 +820,6 @@ class SteamTouchControls(
         else -> label(type)
     }
 
-    /** Reset, copy and paste a layout, the layout's colour. */
     private fun moreMenu() {
         val host = parent as? android.view.ViewGroup ?: return
         val density = resources.displayMetrics.density
@@ -918,7 +844,6 @@ class SteamTouchControls(
         close = SteamTouchIconPicker.showPanel(host, context.getString(R.string.ctrl_layout), list, listOf(context.getString(R.string.common_close) to {}))
     }
 
-    /** A copied layout onto this action set: each control the set has takes the copied place. */
     private fun pasteLayout(copied: String) {
         val placed = copied.split(';').mapNotNull { row ->
             val f = row.split(',')
@@ -932,30 +857,21 @@ class SteamTouchControls(
         selected = -1
     }
 
-    // ---- Steam Link's menu ----
 
-    /** The menu button: Steam Link's touch menu. */
     private fun openMenu() {
         releaseAll()
         menuOpen = true
         invalidate()
     }
 
-    // ---- Steam Link's panels: the touch menu and the layout tray ----
-    //
-    // Drawn here, on this view, to Steam Link's measurements (a 624x400 panel in its reference
-    // pixels, navy with a blue top rule, blue tiles), so that controls can be dragged out of the tray
-    // onto the screen as on Steam Link.
 
     private var menuOpen = false
     private var trayOpen = false
 
-    /** A hit area on a panel and what it does. */
     private class Hot(val rect: RectF, val onTap: () -> Unit, val onDown: ((Float, Float) -> Unit)? = null)
     private val hots = mutableListOf<Hot>()
     private var trayDrag: Element? = null
 
-    // DroidDeck's own palette (ui/Theme.kt, the default theme).
     private val surface = Color.rgb(18, 20, 23)
     private val surfaceVariant = Color.rgb(26, 29, 34)
     private val line = Color.rgb(38, 42, 49)
@@ -965,7 +881,6 @@ class SteamTouchControls(
     private val accent = Color.rgb(26, 159, 255)
     private val onAccent = Color.rgb(3, 17, 31)
 
-    /** The panel's rectangle and its scale (screen pixels per reference pixel). */
     private fun panelFrame(): Pair<RectF, Float> {
         val s = min(width * 0.8f / 624f, height * 0.78f / 400f)
         val w = 624f * s
@@ -995,8 +910,6 @@ class SteamTouchControls(
         canvas.drawText(str, x, y - (p.descent() + p.ascent()) / 2, p)
     }
 
-    /** A button in DroidDeck's style: the accent filled for the main action, a quiet outlined
-     *  surface otherwise. */
     private fun blueButton(canvas: Canvas, r: RectF, text: String, s: Float, enabled: Boolean = true, primary: Boolean = false, onTap: () -> Unit) {
         val radius = 12f * s
         if (primary && enabled) {
@@ -1010,7 +923,6 @@ class SteamTouchControls(
         if (enabled) hots += Hot(r, onTap)
     }
 
-    /** A toggle: quiet when off, accent-tinted with an accent glyph when on. */
     private fun iconButton(canvas: Canvas, r: RectF, active: Boolean, onTap: () -> Unit, glyph: (Canvas, RectF, Int) -> Unit) {
         val radius = 10f * (r.height() / 40f)
         canvas.drawRoundRect(r, radius, radius, Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -1055,12 +967,10 @@ class SteamTouchControls(
         }
     }
 
-    // -- The touch menu (Steam Link: CVirtualController's choose-mode screen) --
 
     private fun drawMenu(canvas: Canvas) {
         val (f, s) = panelFrame()
         canvas.panel(f, s)
-        // Header: power (DroidDeck's own menu: stop, settings), the Steam mark, what is running, close.
         iconButton(canvas, ref(f, s, 494f, 18f, 531f, 55f), false, { menuOpen = false; onMenu() }) { c, r, col -> drawPower(c, r, col) }
         drawMark(canvas, f.left + 104f * s, f.top + 37f * s, 13f * s)
         text(canvas, context.getString(R.string.touch_title), f.left + 124f * s, f.top + 30f * s, 14f * s, onSurface, align = Paint.Align.LEFT)
@@ -1079,7 +989,6 @@ class SteamTouchControls(
         tile(canvas, ref(f, s, 271f, 81f, 475f, 271f), s, context.getString(R.string.touch_mouse), mouse, { setModes(controller || mouse, !mouse) }) { c, r, col ->
             drawMouse(c, r, col, crossed = false)
         }
-        // Under the controller: gyroscope, fade, vibrate on touch.
         iconButton(canvas, ref(f, s, 45f, 278f, 91f, 318f), gyroOn, {
             gyroOn = !gyroOn; device.motionEnabled = gyroOn; prefs.edit().putBoolean("gyro", gyroOn).apply()
         }) { c, r, col -> drawGyro(c, r, col) }
@@ -1092,7 +1001,6 @@ class SteamTouchControls(
         iconButton(canvas, ref(f, s, 204f, 278f, 249f, 318f), feedback, {
             feedback = !feedback; prefs.edit().putBoolean("feedback", feedback).apply()
         }) { c, r, col -> drawHaptic(c, r, col) }
-        // Under the mouse: direct touch, trackpad, trackpad speed.
         val relative = options.mouseMode == SteamTouchConfig.MOUSE_RELATIVE
         iconButton(canvas, ref(f, s, 271f, 278f, 333f, 318f), mouse && !relative, {
             setOptions(options.copy(mouseMode = SteamTouchConfig.MOUSE_ABSOLUTE))
@@ -1116,8 +1024,6 @@ class SteamTouchControls(
     private val audio by lazy { context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager }
     private var volumeSlider = RectF()
 
-    /** Steam Link's audio column: the speaker (mute), its volume slider - the device's media
-     *  volume here - and the microphone, which DroidDeck does not stream, shown off. */
     private fun drawVolume(canvas: Canvas, f: RectF, s: Float) {
         val stream = android.media.AudioManager.STREAM_MUSIC
         val maxVol = audio.getStreamMaxVolume(stream).coerceAtLeast(1)
@@ -1136,7 +1042,6 @@ class SteamTouchControls(
         canvas.drawRoundRect(RectF(inner.left, knobY, inner.right, inner.bottom), inner.width() / 2, inner.width() / 2,
             Paint(Paint.ANTI_ALIAS_FLAG).apply { color = accent })
         canvas.drawCircle(inner.centerX(), knobY, inner.width() / 2 * 1.05f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = onSurface })
-        // The mic's slider, dimmed.
         val micTrack = ref(f, s, 539f, 133f, 577f, 372f)
         canvas.drawRoundRect(micTrack, micTrack.width() / 2, micTrack.width() / 2, Paint(stroke).apply { color = Color.argb(60, 255, 255, 255) })
         hots += Hot(track, {}) { _, y -> setVolumeAt(y) }
@@ -1171,7 +1076,6 @@ class SteamTouchControls(
         c.drawLine(x - u * 2.4f, y - u * 2.4f, x + u * 2.4f, y + u * 2.4f, glyphPaint(Color.rgb(200, 40, 40), r.height() * 0.07f))
     }
 
-    /** A mode card: tap to turn it on or off; the accent marks it on. */
     private fun tile(canvas: Canvas, r: RectF, s: Float, title: String, on: Boolean, toggle: () -> Unit, art: (Canvas, RectF, Int) -> Unit) {
         val radius = 14f * s
         canvas.drawRoundRect(r, radius, radius, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = surfaceVariant })
@@ -1179,7 +1083,6 @@ class SteamTouchControls(
             color = if (on) accent else line; style = Paint.Style.STROKE; strokeWidth = (if (on) 2f else 1.2f) * s
         })
         text(canvas, title, r.left + 16f * s, r.top + 22f * s, 14f * s, onSurface, align = Paint.Align.LEFT, maxWidth = r.width() - 72f * s)
-        // A switch, top right.
         val sw = RectF(r.right - 50f * s, r.top + 12f * s, r.right - 14f * s, r.top + 32f * s)
         canvas.drawRoundRect(sw, sw.height() / 2, sw.height() / 2, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = if (on) accent else line2 })
         canvas.drawCircle(if (on) sw.right - sw.height() / 2 else sw.left + sw.height() / 2, sw.centerY(), sw.height() * 0.38f,
@@ -1190,7 +1093,6 @@ class SteamTouchControls(
         hots += Hot(r, toggle)
     }
 
-    // -- The layout tray (Steam Link: CVirtualController's tray) --
 
     private fun drawTray(canvas: Canvas) {
         val (f, s) = panelFrame()
@@ -1246,7 +1148,6 @@ class SteamTouchControls(
             item(SteamTouchConfig.MACRO_0 + i, 519f, 228f + 43f * i, 14f)
             item(SteamTouchConfig.MACRO_0 + 4 + i, 562f, 228f + 43f * i, 14f)
         }
-        // The colour wheel: the layout's colour and opacity.
         val wheel = ref(f, s, 511f, 91f, 573f, 153f)
         canvas.drawCircle(wheel.centerX(), wheel.centerY(), wheel.width() / 2f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = android.graphics.SweepGradient(wheel.centerX(), wheel.centerY(),
@@ -1270,7 +1171,6 @@ class SteamTouchControls(
         hots += Hot(RectF(r.left - r.height() * 0.4f, r.top - r.height() * 0.6f, r.right + r.height() * 0.4f, r.bottom + r.height() * 0.6f), onTap)
     }
 
-    /** A control taken out of the tray: on screen under the finger, following it until it lifts. */
     private fun beginTrayDrag(type: Int, x: Float, y: Float) {
         val available = config.availableFor(editSet, emptyList())
         val existing = editElements.indexOfFirst { it.type == type }
@@ -1286,7 +1186,6 @@ class SteamTouchControls(
         invalidate()
     }
 
-    // -- While editing: Steam Link's menu button, and a small bar for the selected control --
 
     private fun editMenuButton(): RectF {
         val r = 37f * unit()
@@ -1340,7 +1239,6 @@ class SteamTouchControls(
         invalidate()
     }
 
-    // -- Glyphs for the menu's buttons --
 
     private fun glyphPaint(col: Int, w: Float) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = col; style = Paint.Style.STROKE; strokeWidth = w; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND
@@ -1430,8 +1328,6 @@ class SteamTouchControls(
             Paint(Paint.ANTI_ALIAS_FLAG).apply { color = col })
     }
 
-    /** New per-game input options: applied now, and saved into the game's touch layout as Steam
-     *  Link saves them, so they follow the game and the account. */
     private fun setOptions(next: SteamTouchConfig.Options) {
         pendingOptions = next
         options = next
@@ -1449,7 +1345,6 @@ class SteamTouchControls(
         }
     }
 
-    /** The selected control's icon, label and colours (a D-pad direction: the one tapped). */
     private fun pickIcon(e: Element) {
         val list = visuals[e.type].orEmpty()
         val visual = list.getOrNull(if (e.type == SteamTouchConfig.DPAD) selectedArm else 0)
@@ -1470,7 +1365,6 @@ class SteamTouchControls(
         }.show()
     }
 
-    /** The layout's colour and opacity, as Steam Link's colour picker sets them. */
     private fun pickColor() {
         val current = pendingColor ?: SteamTouchConfig.layoutColor(config, actionSet) ?: floatArrayOf(1f, 1f, 1f, 0.45f)
         val density = resources.displayMetrics.density
@@ -1521,8 +1415,6 @@ class SteamTouchControls(
         }
         val color = pendingColor
         val colors = if (color != null) sets.keys.associateWith { color } else emptyMap()
-        // A picked icon replaces the label, icon and colours of every binding of that input; what
-        // the binding does stays as it is.
         val bindings = pendingBindings.mapValues { (_, picked) ->
             { old: SteamTouchBindings.Binding ->
                 old.copy(label = picked.label, icon = picked.icon, foreground = picked.foreground, background = picked.background)
@@ -1550,7 +1442,6 @@ class SteamTouchControls(
         }
     }
 
-    /** Called after a save: the client reads the config again when the controller reconnects. */
     var onSaved: () -> Unit = {}
 
     companion object {
@@ -1558,7 +1449,6 @@ class SteamTouchControls(
         private const val POLL_MS = 150L
         const val BIG_PICTURE = 769
         private const val ICON_PX = 128
-        // artwork/droiddeck-mark.svg: the D's two halves, the orb's ring cut out (Wordmark.kt).
         private const val MARK_D = "M-31.98 0H56.055V40.489A71.81 71.81 0 0 0 56.055 183.231V223.72H-31.98Z" +
             "M71.885 0.28A111.86 111.86 0 0 1 71.885 223.44V183.234A71.81 71.81 0 0 0 71.885 40.486Z"
         private const val FADE_AFTER_MS = 5000L
@@ -1573,7 +1463,6 @@ class SteamTouchControls(
         private const val STICK_RIGHT_TOUCHED = 1L shl 47
         private val TRACKPAD_TOUCHED = longArrayOf(1L shl 27, 1L shl 19, 1L shl 20)
 
-        /** Steam Link's button bits (CVirtualController's table, by element type). */
         private val BUTTON_BITS: Map<Int, Long> = buildMap {
             put(SteamTouchConfig.STEAM, 1L shl 13)
             put(SteamTouchConfig.JOYSTICK_LEFT_BUTTON, 1L shl 22)
@@ -1591,7 +1480,6 @@ class SteamTouchControls(
             for (i in 0 until 8) put(SteamTouchConfig.MACRO_0 + i, 1L shl (32 + i))
             put(SteamTouchConfig.MACRO_1_FINGER, 1L shl 48)
             put(SteamTouchConfig.MACRO_2_FINGER, 1L shl 49)
-            // Not bits: the menu and the keyboard are the app's own.
             put(SteamTouchConfig.THUMB, 0L)
             put(SteamTouchConfig.KEYBOARD, 0L)
             put(SteamTouchConfig.PASTE, 0L)

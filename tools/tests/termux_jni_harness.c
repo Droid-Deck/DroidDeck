@@ -1,6 +1,3 @@
-// Drives Java_com_termux_terminal_JNI_createSubprocess against a mock JNIEnv that tracks local
-// references the way ART does, so the JNI hygiene of app/src/main/cpp/termux/termux.c can be
-// checked on the host. Built and run by tools/tests/test_termux_jni.py.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,7 +23,6 @@ static jsize mock_array_length(JNIEnv* TERMUX_UNUSED(env), jarray array)
 static jobject mock_get_element(JNIEnv* TERMUX_UNUSED(env), jobjectArray TERMUX_UNUSED(array), jsize TERMUX_UNUSED(index))
 {
     if (++live_refs > peak_refs) peak_refs = live_refs;
-    // ART aborts the process here: "local reference table overflow (max=512)".
     if (live_refs > LOCAL_REF_LIMIT) overflowed = 1;
     return (jobject) malloc(1);
 }
@@ -53,7 +49,6 @@ static void mock_release_utf(JNIEnv* TERMUX_UNUSED(env), jstring string, const c
 {
     for (size_t i = 0; i < sizeof(pinned) / sizeof(pinned[0]); i++) {
         if (pinned[i].owner != NULL && pinned[i].chars == chars) {
-            // Releasing chars against some other string is a JNI contract violation.
             if (pinned[i].owner != string) mismatched_releases++;
             free(pinned[i].chars);
             pinned[i].owner = NULL;
@@ -83,7 +78,6 @@ int main(int argc, char** argv)
     jsize arg_count = atoi(argv[1]);
     jsize env_count = atoi(argv[2]);
 
-    // The struct is JNINativeInterface in the NDK's header and JNINativeInterface_ in the JDK's.
     __typeof__(**(JNIEnv*) 0) table = {
         .GetArrayLength = mock_array_length,
         .GetObjectArrayElement = mock_get_element,
@@ -97,7 +91,6 @@ int main(int argc, char** argv)
     };
     const __typeof__(table)* env = &table;
 
-    // Arrays are modelled as their length; the caller's own references are not counted.
     jsize args = arg_count, envs = env_count;
     jint pid_slot[1] = {0};
     jstring cmd = (jstring) "cmd", cwd = (jstring) "cwd";

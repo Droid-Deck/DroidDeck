@@ -45,7 +45,7 @@ struct IQtiMapperExtensions : public IBase {
   IQtiMapperExtensions(){};
 };
 
-}  // namespace V1_0
+}
 namespace V1_1 {
 using Error = V1_0::Error;
 using PlaneLayout = V1_0::PlaneLayout;
@@ -64,7 +64,6 @@ struct IQtiMapperExtensions : public IBase {
     std::terminate();
   }
 
-  // Used, passthrough
   using getInterlacedFlag_cb = std::function<void(
       ::vendor::qti::hardware::display::mapperextensions::V1_0::Error error, bool interlaced)>;
   virtual ::android::hardware::Return<void> getInterlacedFlag(void* buffer,
@@ -79,7 +78,6 @@ struct IQtiMapperExtensions : public IBase {
     std::terminate();
   }
 
-  // Used, passthrough
   using getRgbDataAddress_cb = std::function<void(
       ::vendor::qti::hardware::display::mapperextensions::V1_0::Error error, void* rgb_data)>;
   virtual ::android::hardware::Return<void> getRgbDataAddress(void* buffer,
@@ -95,7 +93,6 @@ struct IQtiMapperExtensions : public IBase {
     std::terminate();
   }
 
-  // Used, passhthrough
   using getColorSpace_cb = std::function<void(
       ::vendor::qti::hardware::display::mapperextensions::V1_0::Error error, int32_t color_space)>;
   virtual ::android::hardware::Return<void> getColorSpace(void* buffer, getColorSpace_cb _hidl_cb) {
@@ -103,7 +100,6 @@ struct IQtiMapperExtensions : public IBase {
     std::terminate();
   }
 
-  // Used, passthrough with hidl fixups
   using getYuvPlaneInfo_cb = std::function<void(
       ::vendor::qti::hardware::display::mapperextensions::V1_0::Error error,
       const ::android::hardware::hidl_vec<
@@ -130,27 +126,22 @@ struct IQtiMapperExtensions : public IBase {
     std::terminate();
   }
 
-  // Used, cast private data with no passthrough
   using getFd_cb = std::function<void(
       ::vendor::qti::hardware::display::mapperextensions::V1_0::Error error, int32_t fd)>;
   virtual ::android::hardware::Return<void> getFd(void* buffer, getFd_cb _hidl_cb);
 
-  // Used, cast private data with no passthrough
   using getWidth_cb = std::function<void(
       ::vendor::qti::hardware::display::mapperextensions::V1_0::Error error, int32_t width)>;
   virtual ::android::hardware::Return<void> getWidth(void* buffer, getWidth_cb _hidl_cb);
 
-  // Used, cast private data with no passthrough
   using getHeight_cb = std::function<void(
       ::vendor::qti::hardware::display::mapperextensions::V1_0::Error error, int32_t height)>;
   virtual ::android::hardware::Return<void> getHeight(void* buffer, getHeight_cb _hidl_cb);
 
-  // Used, cast private data with no passthrough
   using getOffset_cb = std::function<void(
       ::vendor::qti::hardware::display::mapperextensions::V1_0::Error error, uint64_t offset)>;
   virtual ::android::hardware::Return<void> getOffset(void* buffer, getOffset_cb _hidl_cb);
 
-  // Used, cast private data with no passthrough
   using getSize_cb = std::function<void(
       ::vendor::qti::hardware::display::mapperextensions::V1_0::Error error, uint64_t size)>;
   virtual ::android::hardware::Return<void> getSize(void* buffer, getSize_cb _hidl_cb);
@@ -179,12 +170,10 @@ struct IQtiMapperExtensions : public IBase {
       ::vendor::qti::hardware::display::mapperextensions::V1_0::Error error, uint64_t usage)>;
   virtual ::android::hardware::Return<void> getUsageFlags(void* buffer, getUsageFlags_cb _hidl_cb);
 
-  // Used, cast private data with no passthrough
   using getFormat_cb = std::function<void(
       ::vendor::qti::hardware::display::mapperextensions::V1_0::Error error, int32_t format)>;
   virtual ::android::hardware::Return<void> getFormat(void* buffer, getFormat_cb _hidl_cb);
 
-  // Used, cast private data with no passthrough
   using getPrivateFlags_cb = std::function<void(
       ::vendor::qti::hardware::display::mapperextensions::V1_0::Error error, int32_t flags)>;
   virtual ::android::hardware::Return<void> getPrivateFlags(void* buffer,
@@ -198,7 +187,6 @@ struct IQtiMapperExtensions : public IBase {
     std::terminate();
   }
 
-  // Used, PAIN
   using getFormatLayout_cb = std::function<void(
       ::vendor::qti::hardware::display::mapperextensions::V1_0::Error error, uint64_t size,
       const ::android::hardware::hidl_vec<
@@ -208,7 +196,6 @@ struct IQtiMapperExtensions : public IBase {
                                                             int32_t height,
                                                             getFormatLayout_cb _hidl_cb);
 
-  // V1.1, Used, passthrough
   virtual ::android::hardware::Return<
       ::vendor::qti::hardware::display::mapperextensions::V1_0::Error>
   getSurfaceMetadata_V1(void* buffer, void* metadata) {
@@ -217,8 +204,8 @@ struct IQtiMapperExtensions : public IBase {
   }
 
   static Return<sp<IQtiMapperExtensions>> castFrom(
-      android::sp<V1_0::IQtiMapperExtensions> const& /* parent */, bool /* emitError */);
+      android::sp<V1_0::IQtiMapperExtensions> const&  , bool  );
 };
 
-}  // namespace V1_1
-}  // namespace vendor::qti::hardware::display::mapperextensions
+}
+}
