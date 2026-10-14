@@ -349,7 +349,7 @@
     <string name="wincomp_installers_note">Son programas de instalación independientes, sin ningún paquete que extraer, y todavía no hay un registro de lo que instalan. La mayoría son runtimes antiguos que el Mono incluido en Proton ya sustituye; los registros se añaden a medida que se crean.</string>
     <string name="wincomp_show">Mostrar</string>
     <string name="wincomp_hide">Ocultar</string>
-    <string name="wincomp_needs_installer">Ejecuta su propio programa de instalación (aún sin grabación)</string>
+    <string name="wincomp_needs_installer">Ejecuta su propio programa de instalación (aún sin registro)</string>
     <string name="wincomp_unsupported">Aún no compatible aquí</string>
     <string name="wincomp_loading">Cargando los componentes…</string>
     <string name="wincomp_failed">No se pudo instalar: %1$s</string>
