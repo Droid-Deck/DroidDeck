@@ -69,7 +69,7 @@ fun sortCatalogItems(
     "titleAsc" -> items.sortedBy { it.title.lowercase() }
     "titleDesc" -> items.sortedByDescending { it.title.lowercase() }
     "sizeDesc" -> items.sortedWith(compareByDescending(size).thenBy { it.title.lowercase() })
-    "sizeAsc" -> items.sortedWith(compareBy(size).thenBy { it.title.lowercase() })
+    "sizeAsc" -> items.sortedWith(compareBy<CatalogItem> { size(it).takeIf { b -> b > 0 } ?: Long.MAX_VALUE }.thenBy { it.title.lowercase() })
     "releaseDateDesc" -> items.sortedWith(compareByDescending(::releaseDateValue).thenBy { it.title.lowercase() })
     else -> items
 }
