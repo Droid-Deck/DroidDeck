@@ -40,6 +40,7 @@ data class GlassesState(
     val brightnessMax: Int = 8,
     val volumeMax: Int = 8,
     val sunblock: Boolean = false,
+    val hardwareControls: Boolean = true,
     val tracking: Boolean = false,
     val diagonalFovDeg: Float = 46f,
     val noSignal: Boolean = false,
@@ -109,10 +110,10 @@ object Glasses {
     private lateinit var handler: Handler
     private lateinit var usb: UsbManager
     private lateinit var displays: DisplayManager
-    @Volatile private var link: VitureLink? = null
+    @Volatile private var link: GlassesLink? = null
     @Volatile private var linkGeneration = 0L
     private var linkDevice: UsbDevice? = null
-    private var model: VitureProtocol.Model? = null
+    private var model: GlassesModel? = null
     private var asked = false
     private var lastModeSentAt = 0L
     private val modeState = GlassesModeState(SBS_CONFIRM_MS)
@@ -198,14 +199,14 @@ object Glasses {
 
     fun setBrightness(level: Int) = post {
         val s = _state.value
-        if (!s.canControl) return@post
+        if (!s.canControl || s.brightnessMax == 0) return@post
         val v = level.coerceIn(0, s.brightnessMax)
         if (link?.send(VitureProtocol.MSG_BRIGHTNESS, byteArrayOf(v.toByte(), 0)) == true) publish { it.copy(brightness = v) }
     }
 
     fun setVolume(level: Int) = post {
         val s = _state.value
-        if (!s.canControl) return@post
+        if (!s.canControl || s.volumeMax == 0) return@post
         val v = level.coerceIn(0, s.volumeMax)
         if (link?.send(VitureProtocol.MSG_VOLUME, byteArrayOf(v.toByte(), 0)) == true) publish { it.copy(volume = v) }
     }
@@ -324,10 +325,10 @@ object Glasses {
                     refresh()
                 }
                 UsbManager.ACTION_USB_DEVICE_ATTACHED -> {
-                    if (intent.device()?.vendorId == VitureProtocol.VENDOR_ID) asked = false
+                    if (intent.device()?.let { isGlassesVendor(it.vendorId) } == true) asked = false
                     refresh(ask = true)
                 }
-                UsbManager.ACTION_USB_DEVICE_DETACHED -> if (intent.device()?.vendorId == VitureProtocol.VENDOR_ID) {
+                UsbManager.ACTION_USB_DEVICE_DETACHED -> if (intent.device()?.let { isGlassesVendor(it.vendorId) } == true) {
                     refresh()
                 }
             }
@@ -343,9 +344,11 @@ object Glasses {
     }
 
     private fun refresh(ask: Boolean = false) {
-        val devices = usb.deviceList.values.filter { it.vendorId == VitureProtocol.VENDOR_ID }
+        val devices = usb.deviceList.values.filter {
+            it.vendorId == VitureProtocol.VENDOR_ID || RayNeoModel.model(it.vendorId, it.productId, runCatching { it.productName }.getOrNull()) != null
+        }
         val known = devices.mapNotNull { device ->
-            VitureProtocol.model(device.productId, runCatching { device.productName }.getOrNull())?.let { device to it }
+            deviceModel(device)?.let { device to it }
         }
         val selected = known.firstOrNull { it.second.controllable } ?: known.firstOrNull()
         val device = selected?.first
@@ -398,6 +401,7 @@ object Glasses {
                 switching3d = modeState.pendingStereo,
                 brightnessMax = m?.brightnessMax ?: 8, volumeMax = m?.volumeMax ?: 8,
                 sunblock = _settings.value.sunblock ?: it.sunblock,
+                hardwareControls = device?.vendorId == VitureProtocol.VENDOR_ID,
                 diagonalFovDeg = m?.diagonalFovDeg ?: 46f,
                 tracking = it.tracking && link != null,
                 noSignal = noSignal,
@@ -408,10 +412,21 @@ object Glasses {
         scheduleModeCheck()
     }
 
+    internal fun isGlassesVendor(vid: Int) = vid == VitureProtocol.VENDOR_ID || RayNeoModel.isVendor(vid)
+
+    internal fun deviceModel(device: UsbDevice): GlassesModel? {
+        val name = runCatching { device.productName }.getOrNull()
+        return if (device.vendorId == VitureProtocol.VENDOR_ID) VitureProtocol.model(device.productId, name)
+        else RayNeoModel.model(device.vendorId, device.productId, name)
+    }
+
+    internal fun isGlassesDisplayName(name: String) =
+        name.contains("VITURE", ignoreCase = true) || RayNeoModel.isDisplay(name)
+
     private fun findDisplay(usbPresent: Boolean): Display? {
         val candidates = displays.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION)
             .filter { it.displayId != Display.DEFAULT_DISPLAY && it.flags and Display.FLAG_PRESENTATION != 0 }
-        return candidates.firstOrNull { displayName(it)?.contains("VITURE", ignoreCase = true) == true }
+        return candidates.firstOrNull { displayName(it)?.let(::isGlassesDisplayName) == true }
             ?: candidates.singleOrNull()?.takeIf { usbPresent && unnamedPanel(it) }
     }
 
@@ -436,26 +451,51 @@ object Glasses {
 
     private fun openLink(device: UsbDevice) {
         val generation = ++linkGeneration
-        val l = VitureLink.open(usb, device, linkListener(generation)) ?: run {
+        val l = if (device.vendorId == VitureProtocol.VENDOR_ID) {
+            VitureLink.open(usb, device, linkListener(generation))
+        } else {
+            RayNeoLink.open(usb, device, rayNeoListener(generation))
+        }
+        val opened = l ?: run {
             linkGeneration++
             Log.w(TAG, "could not open ${device.deviceName}")
             return
         }
-        link = l
+        link = opened
         linkDevice = device
         glassesMode = 0
         autoModeSent = false
-        Log.i(TAG, "opened ${model?.name} pid=0x%04X imu=%s".format(device.productId, l.hasImu))
+        Log.i(TAG, "opened ${model?.name} pid=0x%04X imu=%s".format(device.productId, opened.hasImu))
         publish { it.copy(connected = true) }
         listOf(VitureProtocol.MSG_GET_BRIGHTNESS, VitureProtocol.MSG_GET_VOLUME, VitureProtocol.MSG_GET_DISPLAY).forEachIndexed { i, msg ->
-            handler.postDelayed({ if (link === l) l.send(msg) }, VitureLink.COMMAND_GAP_MS * (i + 1))
+            handler.postDelayed({ if (link === opened) opened.send(msg) }, VitureLink.COMMAND_GAP_MS * (i + 1))
         }
         handler.postDelayed({
-            if (link !== l) return@postDelayed
+            if (link !== opened) return@postDelayed
             _settings.value.sunblock?.let { sendFilm(it) }
             updateImu()
             applyMode(force = false)
         }, 300)
+    }
+
+    private fun rayNeoListener(generation: Long) = object : RayNeoLink.Listener {
+        override fun onReady() = post {
+            if (generation == linkGeneration) {
+                updateImu()
+                applyMode(force = false)
+            }
+        }
+        override fun onPose(raw: ByteArray, xyzw: FloatArray, timeNs: Long) {
+            if (generation != linkGeneration) return
+            imuPackets++
+            probe?.invoke(raw)
+            if (simulating.get() == null) deliver(xyzw, timeNs)
+        }
+        override fun onLost() = post {
+            if (generation != linkGeneration) return@post
+            closeLink()
+            refresh()
+        }
     }
 
     private fun closeLink() {
@@ -509,6 +549,7 @@ object Glasses {
         val g = _settings.value
         val mode = m.mode(if (sbs) g.sbsHz else g.refreshHz, sbs)
         if (link?.send(VitureProtocol.MSG_DISPLAY, byteArrayOf(mode.toByte())) == true) {
+            if (link is RayNeoLink) glassesMode = mode
             lastModeSentAt = SystemClock.uptimeMillis()
             modeState.sent(sbs, lastModeSentAt)
             publish { it.copy(switching3d = modeState.pendingStereo) }
@@ -526,7 +567,7 @@ object Glasses {
     }
 
     private fun sendFilm(on: Boolean) {
-        if (!_state.value.canControl) return
+        if (!_state.value.canControl || !_state.value.hardwareControls) return
         if (link?.send(VitureProtocol.MSG_FILM, byteArrayOf(if (on) 1 else 0)) == true) publish { it.copy(sunblock = on) }
     }
 
@@ -617,10 +658,11 @@ object Glasses {
         val samples = JSONArray()
         synchronized(raw) {
             raw.forEach { b ->
-                val q = VitureProtocol.imuQuaternion(b)
+                val rayneo = RayNeoProtocol.classifyPacket(b) is RayNeoPacket.Sensor
+                val q = if (rayneo) null else VitureProtocol.imuQuaternion(b)
                 samples.put(JSONObject()
                     .put("hex", b.joinToString("") { "%02X".format(it) })
-                    .put("euler", JSONArray().put(VitureProtocol.beFloat(b, 0).toDouble()).put(VitureProtocol.beFloat(b, 4).toDouble()).put(VitureProtocol.beFloat(b, 8).toDouble()))
+                    .put("euler", if (rayneo) JSONObject.NULL else JSONArray().put(VitureProtocol.beFloat(b, 0).toDouble()).put(VitureProtocol.beFloat(b, 4).toDouble()).put(VitureProtocol.beFloat(b, 8).toDouble()))
                     .put("quat", q?.let { JSONArray().put(it[0].toDouble()).put(it[1].toDouble()).put(it[2].toDouble()).put(it[3].toDouble()) } ?: JSONObject.NULL))
             }
         }

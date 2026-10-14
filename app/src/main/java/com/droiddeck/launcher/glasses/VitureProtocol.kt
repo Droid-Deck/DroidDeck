@@ -33,27 +33,27 @@ object VitureProtocol {
 
     enum class Family { ONE, PRO, LUMA, ULTRA, BEAST }
 
-    class Model(val name: String, val family: Family) {
-        val controllable: Boolean get() = family != Family.BEAST
+    class Model(override val name: String, val family: Family) : GlassesModel {
+        override val controllable: Boolean get() = family != Family.BEAST
         val tall: Boolean get() = family == Family.LUMA || family == Family.ULTRA
-        val sbs90: Boolean get() = family == Family.ULTRA
-        val brightnessMax: Int get() = 8
-        val volumeMax: Int get() = 8
-        val diagonalFovDeg: Float get() = when (family) {
+        override val sbs90: Boolean get() = family == Family.ULTRA
+        override val brightnessMax: Int get() = 8
+        override val volumeMax: Int get() = 8
+        override val diagonalFovDeg: Float get() = when (family) {
             Family.ONE -> 43f
             Family.PRO -> 46f
             Family.LUMA, Family.ULTRA -> 50f
             Family.BEAST -> 58f
         }
 
-        fun mode(hz: Int, sbs: Boolean): Int = when {
+        override fun mode(hz: Int, sbs: Boolean): Int = when {
             tall && sbs -> if (hz >= 90 && sbs90) 0x45 else 0x42
             tall -> when { hz >= 120 -> 0x44; hz >= 90 -> 0x43; else -> 0x41 }
             sbs -> if (hz >= 90 && sbs90) 0x35 else 0x32
             else -> when { hz >= 120 -> 0x34; hz >= 90 -> 0x33; else -> 0x31 }
         }
 
-        fun modeForStep(step: Int): Int? = if (tall) null else when (step) {
+        override fun modeForStep(step: Int): Int? = if (tall) null else when (step) {
             1 -> 0x31
             2 -> 0x33
             3 -> 0x34

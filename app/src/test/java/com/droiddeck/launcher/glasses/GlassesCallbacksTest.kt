@@ -71,6 +71,33 @@ class GlassesCallbacksTest {
         assertEquals(1L, field("imuPackets").getLong(null))
     }
 
+    @Test fun rayNeoPoseUsesTheExistingSinkAndRejectsAnOldConnection() {
+        fun rayneo(gen: Long) = Glasses::class.java.getDeclaredMethod("rayNeoListener", Long::class.javaPrimitiveType)
+            .apply { isAccessible = true }.invoke(Glasses, gen) as RayNeoLink.Listener
+        var delivered: FloatArray? = null
+        var timestamp = 0L
+        val sink = Glasses.PoseSink { x, y, z, w, time ->
+            delivered = floatArrayOf(x, y, z, w)
+            timestamp = time
+        }
+        field("sink").set(null, sink)
+        try {
+            val q = floatArrayOf(0f, 0f, 0.6f, 0.8f)
+            rayneo(0).onPose(ByteArray(64), q, 99)
+            assertEquals(null, delivered)
+            rayneo(1).onPose(ByteArray(64), q, 123)
+            org.junit.Assert.assertArrayEquals(q, delivered, 0f)
+            assertEquals(123L, timestamp)
+            assertEquals(1L, field("imuPackets").getLong(null))
+            rayneo(0).onLost()
+            generation(2)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertTrue(Glasses.state.value.connected)
+        } finally {
+            field("sink").set(null, null)
+        }
+    }
+
     @Test fun deviceModeReportsCannotConfirmThePhysicalStereoSignal() {
         listener(1).onFrame(VitureProtocol.Frame(
             VitureProtocol.MAGIC_REPORT, VitureProtocol.EVENT_DISPLAY, byteArrayOf(0x32), true,

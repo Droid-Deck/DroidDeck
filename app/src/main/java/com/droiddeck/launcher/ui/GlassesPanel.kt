@@ -71,9 +71,13 @@ internal object GlassesTab {
 }
 
 @Composable
-internal fun glassesTabs(g: GlassesState): List<Pair<String, String>> =
-    listOf(GlassesTab.DISPLAY to stringResource(R.string.glasses_display)) +
-        (if (g.canControl) listOf(GlassesTab.HARDWARE to stringResource(R.string.glasses_hardware), GlassesTab.TRACKING to stringResource(R.string.glasses_tracking)) else emptyList())
+internal fun glassesTabs(g: GlassesState): List<Pair<String, String>> = buildList {
+    add(GlassesTab.DISPLAY to stringResource(R.string.glasses_display))
+    if (g.canControl) {
+        if (g.hardwareControls) add(GlassesTab.HARDWARE to stringResource(R.string.glasses_hardware))
+        add(GlassesTab.TRACKING to stringResource(R.string.glasses_tracking))
+    }
+}
 
 @Composable
 internal fun GlassesGroups(
@@ -137,7 +141,7 @@ internal fun GlassesGroups(
             GlassesSettings.VR_FOV_MIN..GlassesSettings.VR_FOV_MAX, step = 1,
             format = { "$it°" }, modifier = track("glasses-vr-fov")) { Glasses.setVrFovDeg(it) }
     }
-    if ((tab == null || tab == GlassesTab.HARDWARE) && g.canControl) SettingsGroup(stringResource(R.string.glasses_hardware)) {
+    if ((tab == null || tab == GlassesTab.HARDWARE) && g.canControl && g.hardwareControls) SettingsGroup(stringResource(R.string.glasses_hardware)) {
         SliderRow(stringResource(R.string.glasses_brightness), null, g.brightness.coerceAtLeast(0), 0..g.brightnessMax, step = 1,
             modifier = track("glasses-brightness")) { Glasses.setBrightness(it) }
         SliderRow(stringResource(R.string.glasses_volume), null, g.volume.coerceAtLeast(0), 0..g.volumeMax, step = 1,
