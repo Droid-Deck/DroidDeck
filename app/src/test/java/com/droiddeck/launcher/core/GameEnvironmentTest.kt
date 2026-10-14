@@ -19,6 +19,16 @@ class GameEnvironmentTest {
         assertEquals("1", GameEnvironment.effective(config, "", "43", forceSsbs = true)[GameEnvironment.FORCE_SSBS])
     }
 
+    @Test fun localeOverridesAreLimitedToTheOfferedOnes() {
+        assertEquals(10, GameEnvironment.locales.size)
+        assertEquals("ja_JP.UTF-8", GameEnvironment.locales.first())
+        val config = GameEnvironment.withGameLocale(GameEnvironment.Config(), "42", "ja_JP.UTF-8")
+        assertEquals("ja_JP.UTF-8", GameEnvironment.gameLocale(config, "42"))
+        assertNull(GameEnvironment.gameLocale(config, "43"))
+        assertNull(GameEnvironment.gameLocale(GameEnvironment.withGameLocale(config, "42", null), "42"))
+        assertThrows(IllegalArgumentException::class.java) { GameEnvironment.withGameLocale(config, "42", "xx_XX.UTF-8") }
+    }
+
     @Test fun gameOverridesSharedAndPresetWithoutLeakingToOtherGames() {
         val config = GameEnvironment.Config(
             shared = mapOf("FEX_MULTIBLOCK" to "0", "VKD3D_FEATURE_LEVEL" to "12_2"),
