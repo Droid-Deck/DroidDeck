@@ -9,11 +9,17 @@ done
 work=$(mktemp -d)
 trap 'rm -rf "${work}"' EXIT
 
+cache=${DROIDDECK_BUILD_CACHE:-"${HOME}/.cache/droiddeck-build"}
+mkdir -p "${cache}"
 fetch() {
-  local name=$1 sha=$2
-  curl -fsSL --retry 3 -o "${work}/${name}" \
-    "https://github.com/${DIRECTAUDIO_REPO}/releases/download/${DIRECTAUDIO_TAG}/${name}"
-  echo "${sha}  ${work}/${name}" | sha256sum -c - >/dev/null || { echo "${name}: checksum mismatch" >&2; exit 1; }
+  local name=$1 sha=$2 kept="${cache}/$2-$1"
+  if ! echo "${sha}  ${kept}" | sha256sum -c - >/dev/null 2>&1; then
+    curl -fsSL --retry 3 -o "${kept}.part" \
+      "https://github.com/${DIRECTAUDIO_REPO}/releases/download/${DIRECTAUDIO_TAG}/${name}"
+    echo "${sha}  ${kept}.part" | sha256sum -c - >/dev/null || { echo "${name}: checksum mismatch" >&2; rm -f "${kept}.part"; exit 1; }
+    mv "${kept}.part" "${kept}"
+  fi
+  cp "${kept}" "${work}/${name}"
 }
 fetch directaudio-linux-wine11.zip "${DIRECTAUDIO_WINE11_SHA256}"
 fetch directaudio-linux-wine11-systhread.zip "${DIRECTAUDIO_SYSTHREAD_SHA256}"
