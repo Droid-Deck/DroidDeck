@@ -2215,4 +2215,8 @@
     <string name="drawer_component_downloads">下载组件</string>
     <string name="drawer_component_downloads_hint">下载内容与“组件”页面共享。在上方选择已下载的版本，即可在下次启动游戏时使用。</string>
     <string name="drawer_component_choose_download">选择要下载的版本</string>
+    <string name="display_picture_position">画面位置</string>
+    <string name="display_position_top">置顶</string>
+    <string name="display_position_bottom">置底</string>
+    <string name="display_position_center">居中（默认）</string>
 </resources>

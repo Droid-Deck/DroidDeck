@@ -2260,4 +2260,8 @@
     <string name="stores_sync_gog_unreachable">Couldn\'t reach GOG</string>
     <string name="stores_sync_gog_unreadable">Could not read your GOG library</string>
     <string name="stores_registering">Registering with Steam…</string>
+    <string name="display_picture_position">Picture position</string>
+    <string name="display_position_top">Top</string>
+    <string name="display_position_bottom">Bottom</string>
+    <string name="display_position_center">Center (default)</string>
 </resources>

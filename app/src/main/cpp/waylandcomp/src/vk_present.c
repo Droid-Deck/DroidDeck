@@ -130,6 +130,9 @@ static struct {
     int rx, ry, rw, rh;
     int valid;
 } g_map;
+static pthread_mutex_t g_game_picture_lock = PTHREAD_MUTEX_INITIALIZER;
+static float g_game_picture_rect[4];
+static int g_game_picture_top;
 
 static int64_t g_swap_retry_at_ns;
 static int g_swap_fail_logged;
@@ -244,7 +247,7 @@ int vkp_device_lost(void) { return g_dev_state == -2; }
 
 void vk_present_set_scale_mode(int mode, int alignment) {
     if (mode < VKP_MODE_OFF || mode > VKP_MODE_INTEGER) mode = VKP_MODE_FIT;
-    if (alignment < VKP_ALIGN_CENTER || alignment > VKP_ALIGN_BOTTOM) alignment = VKP_ALIGN_CENTER;
+    if (alignment < VKP_ALIGN_CENTER || alignment > VKP_ALIGN_PICTURE_BOTTOM) alignment = VKP_ALIGN_CENTER;
     g_mode = mode;
     g_align = alignment;
 }
@@ -263,6 +266,8 @@ static const char *align_name(int a) {
     switch (a) {
     case VKP_ALIGN_TOP: return "top";
     case VKP_ALIGN_BOTTOM: return "bottom";
+    case VKP_ALIGN_PICTURE_TOP: return "picture top";
+    case VKP_ALIGN_PICTURE_BOTTOM: return "picture bottom";
     default: return "center";
     }
 }
@@ -298,11 +303,28 @@ static void update_map(int scene_w, int scene_h) {
         g_map.off_x = (float)(g_map.rx + (int)((g_map.rw - scene_w * aspect) * 0.5f));
         g_map.off_y = (float)(g_map.ry + (int)((g_map.rh - scene_h * aspect) * 0.5f));
     }
+    if (align == VKP_ALIGN_PICTURE_TOP) g_map.off_y = 0;
+    else if (align == VKP_ALIGN_PICTURE_BOTTOM) g_map.off_y = H - scene_h * g_map.ky;
     g_map.valid = 1;
+    pthread_mutex_lock(&g_game_picture_lock);
+    g_game_picture_top = align == VKP_ALIGN_PICTURE_TOP || align == VKP_ALIGN_PICTURE_BOTTOM;
+    g_game_picture_rect[0] = g_map.off_x;
+    g_game_picture_rect[1] = g_map.off_y;
+    g_game_picture_rect[2] = g_map.off_x + scene_w * g_map.kx;
+    g_game_picture_rect[3] = g_map.off_y + scene_h * g_map.ky;
+    pthread_mutex_unlock(&g_game_picture_lock);
     droiddeck_log("screen", "%s, %s: %dx%d scene shown %dx%d at %d,%d on the %dx%d output",
                mode_name(mode), align_name(align), scene_w, scene_h,
                (int)(scene_w * g_map.kx + 0.5f), (int)(scene_h * g_map.ky + 0.5f),
                (int)g_map.off_x, (int)g_map.off_y, W, H);
+}
+
+int vkp_game_picture_rect(float rect[4]) {
+    pthread_mutex_lock(&g_game_picture_lock);
+    int active = g_game_picture_top;
+    if (active) memcpy(rect, g_game_picture_rect, sizeof(g_game_picture_rect));
+    pthread_mutex_unlock(&g_game_picture_lock);
+    return active;
 }
 
 int vkp_output_to_scene(double ox, double oy, double *sx, double *sy) {
