@@ -304,12 +304,20 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var secondScreenDisplays by mutableStateOf<List<SecondScreenDisplay>>(emptyList())
     private var selectedSecondScreenDisplay by mutableStateOf(SessionState.secondScreenDisplay)
     private var started = false
+    private var sessionActivityDisplayId = Display.DEFAULT_DISPLAY
     private lateinit var displayManager: DisplayManager
     private var secondScreenPresentation: SecondScreenPresentation? = null
     private val displayListener = object : DisplayManager.DisplayListener {
-        override fun onDisplayAdded(displayId: Int) = refreshSecondScreenDisplays()
-        override fun onDisplayRemoved(displayId: Int) = refreshSecondScreenDisplays()
+        override fun onDisplayAdded(displayId: Int) {
+            notifyActivityDisplayStateChanged(displayId)
+            refreshSecondScreenDisplays()
+        }
+        override fun onDisplayRemoved(displayId: Int) {
+            notifyActivityDisplayStateChanged(displayId)
+            refreshSecondScreenDisplays()
+        }
         override fun onDisplayChanged(displayId: Int) {
+            notifyActivityDisplayStateChanged(displayId)
             followPanelRefresh(displayId)
             refreshSecondScreenDisplays()
         }
@@ -1321,6 +1329,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 intent.getStringExtra(SessionService.EXTRA_STEAM_UI),
                 intent.getStringExtra(SessionService.EXTRA_STEAM_URL),
                 intent.getStringArrayExtra(SessionService.EXTRA_PROGRAM_ARGS),
+                activityDisplayId = sessionActivityDisplayId,
             )
         }
         applyFrameGen()
@@ -1369,6 +1378,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
+        if (refreshActivityDisplayId() && started) {
+            SessionService.activityDisplayChanged(this, sessionActivityDisplayId)
+        }
         applyFollowOrientation(newConfig)
         applyUnfoldedControls()
     }
@@ -1818,7 +1830,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun refreshSecondScreenDisplays() {
         if (!::displayManager.isInitialized) return
-        val primaryId = display?.displayId ?: windowManager.defaultDisplay.displayId
+        val primaryId = windowManager.defaultDisplay.displayId
         val candidates = SecondScreenDisplays.available(displayManager, primaryId)
         val oldIds = secondScreenDisplays.map { it.id }.toSet()
         secondScreenDisplays = candidates
@@ -1830,6 +1842,24 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (selectedSecondScreenDisplay !in newIds) selectedSecondScreenDisplay = candidates.firstOrNull()?.id ?: -1
         if (secondScreenMode != SecondScreenMode.NONE && candidates.isEmpty()) closeSecondScreen(reset = true)
         else if (started && secondScreenMode != SecondScreenMode.NONE && secondScreenPresentation == null) showSecondScreen(secondScreenMode)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun currentActivityDisplayId(): Int = windowManager.defaultDisplay.displayId
+
+    private fun refreshActivityDisplayId(): Boolean {
+        val current = currentActivityDisplayId()
+        val changed = sessionActivityDisplayId != current
+        sessionActivityDisplayId = current
+        SessionState.activityDisplayId = current
+        return changed
+    }
+
+    private fun notifyActivityDisplayStateChanged(changedDisplayId: Int) {
+        val changed = refreshActivityDisplayId()
+        if (started && (changed || changedDisplayId == sessionActivityDisplayId)) {
+            SessionService.activityDisplayChanged(this, sessionActivityDisplayId)
+        }
     }
 
     private fun selectSecondScreenDisplay(displayId: Int) {
@@ -2302,10 +2332,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         super.onStart()
         if (runtimeRemovalBlocked) return
         started = true
+        refreshActivityDisplayId()
         displayManager.registerDisplayListener(displayListener, Handler(Looper.getMainLooper()))
         refreshSecondScreenDisplays()
         if (secondScreenMode != SecondScreenMode.NONE && secondScreenPresentation == null) showSecondScreen(secondScreenMode)
-        SessionService.setActivityVisible(this, true)
+        SessionService.setActivityVisible(this, true, sessionActivityDisplayId)
     }
 
     override fun onStop() {
@@ -2313,7 +2344,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         started = false
         displayManager.unregisterDisplayListener(displayListener)
         closeSecondScreen(reset = false)
-        SessionService.setActivityVisible(this, false)
+        SessionService.setActivityVisible(this, false, sessionActivityDisplayId)
         super.onStop()
     }
 
@@ -2340,6 +2371,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onResume() {
         super.onResume()
+        if (refreshActivityDisplayId() && started) {
+            SessionService.activityDisplayChanged(this, sessionActivityDisplayId)
+        }
         applyFollowOrientation(resources.configuration)
         if (runtimeRemovalBlocked) return
         com.droiddeck.launcher.ui.Motion.refresh(this)
