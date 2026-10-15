@@ -22,6 +22,11 @@ object Library {
     ) {
         val gameIdString: String get() = java.lang.Long.toUnsignedString(gameId)
         val profileKey: String get() = if (library == ADDED) java.lang.Integer.toUnsignedString(appId) else appId.toString()
+
+        fun withDirectLaunch(on: Boolean) = SteamGame(
+            appId, name, art, library, gameId, hero, lastPlayed, gameFiles, protonPrefix,
+            icon, source, storeId, guestExe, launchOptions, on,
+        )
     }
     const val ADDED = "added"
     const val SOURCE_STEAM = "steam"

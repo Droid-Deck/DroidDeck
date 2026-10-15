@@ -623,10 +623,10 @@ class MainActivity : ComponentActivity() {
                         onAddedGameRemoved = { folder, appId, name -> removeAddedGame(folder, appId, name) },
                         onAddedGamesArt = { on -> SessionPrefs.setAddedGamesArt(this, on); addedGamesArt = on; if (on) refreshAddedGames() },
                         onDirectLaunch = { g ->
-                            g.gameFiles?.let { dir ->
-                                SessionPrefs.setAddedGameDirectLaunch(this, dir.path, !g.directLaunch)
-                                updateAddedGames(listOf(dir.path))
-                            }
+                            val on = !g.directLaunch
+                            g.gameFiles?.let { SessionPrefs.setAddedGameDirectLaunch(this, it.path, on) }
+                            steamGames = steamGames.map { if (it === g) it.withDirectLaunch(on) else it }
+                            com.droiddeck.launcher.frontend.LibraryCache.save(this, steamGames)
                         },
                         onSgdbKey = { key ->
                             Thread({
