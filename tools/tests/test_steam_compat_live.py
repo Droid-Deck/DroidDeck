@@ -108,6 +108,15 @@ class FakePage:
 
 @unittest.skipUnless(shutil.which("node"), "node is not installed")
 class PageScriptTest(unittest.TestCase):
+    def test_vr_games_wait_for_steamvr_and_preserve_the_original_launch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            script = Path(tmp) / "vr.js"
+            script.write_text(LIVE["VR_JS"])
+            harness = Path(__file__).with_name("steam_vr_launch_harness.js")
+            result = subprocess.run(["node", str(harness), str(script)],
+                                    capture_output=True, text=True, timeout=20)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_steamvr_library_launch_uses_binding_and_other_games_pass_through(self):
         harness_source = r"""
 const assert = require('assert');
@@ -537,12 +546,30 @@ class SwitchToDesktopTest(unittest.TestCase):
             "name": LIVE["VR_BINDING"], "payload": payload}}
         with mock.patch.dict(self.globals, {"launch_steamvr": mock.Mock()}) as patched:
             launch = patched["launch_steamvr"]
-            helper.page.drain.return_value = [event("611670"), event("250820; touch /tmp/wrong")]
+            helper.page.drain.return_value = [event("0"), event("250820; touch /tmp/wrong"),
+                                            event("-1"), event("01"), event("18446744073709551616"),
+                                            event("\u0661"), event(None), event({})]
             helper.drain()
             launch.assert_not_called()
             helper.page.drain.return_value = [event("250820"), event("250820")]
             helper.drain()
             launch.assert_called_once_with()
+
+    def test_vr_game_requests_share_an_in_progress_helper_and_retry_after_it_exits(self):
+        helper = LIVE["Helper"]("/steam", 1)
+        helper.page = mock.Mock()
+        event = lambda app: {"method": "Runtime.bindingCalled", "params": {
+            "name": LIVE["VR_BINDING"], "payload": app}}
+        child = mock.Mock()
+        child.poll.return_value = None
+        with mock.patch.dict(self.globals, {"launch_steamvr": mock.Mock(return_value=child)}) as patched:
+            helper.page.drain.return_value = [event("611670"), event("620980")]
+            helper.drain()
+            helper.drain()
+            patched["launch_steamvr"].assert_called_once_with()
+            child.poll.return_value = 0
+            helper.drain()
+            self.assertEqual(patched["launch_steamvr"].call_count, 2)
 
     def test_vr_launch_runs_helper_without_shell_in_background(self):
         with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, {"XDG_RUNTIME_DIR": tmp}):

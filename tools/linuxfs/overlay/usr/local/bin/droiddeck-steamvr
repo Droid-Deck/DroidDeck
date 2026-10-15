@@ -77,6 +77,36 @@ start)
     stop
     sleep 1
     mkdir -p "$HOME/.config/openvr" "$HOME/.config/openxr/1" "$logs" "$HOME/.local/share/Steam/config"
+    python3 - "$HOME/.local/share/Steam/config/steamvr.vrsettings" <<'PY'
+import json
+import os
+from pathlib import Path
+import sys
+import tempfile
+
+path = Path(sys.argv[1])
+try:
+    settings = json.loads(path.read_text()) if path.exists() else {}
+    section = settings.setdefault("steamvr", {})
+    defaults = {"supersampleManualOverride": True, "supersampleScale": 1.0}
+    if any(key not in section for key in defaults):
+        for key, value in defaults.items():
+            section.setdefault(key, value)
+        with tempfile.NamedTemporaryFile(mode="w", dir=path.parent, delete=False) as output:
+            temporary = Path(output.name)
+            try:
+                json.dump(settings, output, indent=3)
+                output.write("\n")
+            except BaseException:
+                temporary.unlink(missing_ok=True)
+                raise
+        try:
+            os.replace(temporary, path)
+        finally:
+            temporary.unlink(missing_ok=True)
+except (OSError, ValueError, AttributeError, TypeError) as error:
+    print("Could not set SteamVR resolution defaults: " + str(error), file=sys.stderr)
+PY
     cat > "$HOME/.config/openvr/openvrpaths.vrpath" <<JSON
 {
   "config": ["$HOME/.local/share/Steam/config"],

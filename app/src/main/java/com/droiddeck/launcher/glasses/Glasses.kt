@@ -263,11 +263,7 @@ object Glasses {
     fun setScreenDistanceDm(dm: Int) = post { update { it.copy(screenDistanceDm = dm.coerceIn(5, 200)) } }
     fun setVrFovDeg(deg: Int) = post { update { it.copy(vrFovDeg = deg.coerceIn(GlassesSettings.VR_FOV_MIN, GlassesSettings.VR_FOV_MAX)) } }
 
-    fun outputHz(): Int {
-        val s = _state.value
-        val g = _settings.value
-        return if (s.sbs) if (s.sbs90) g.sbsHz else 60 else g.refreshHz
-    }
+    fun outputHz(): Int = GlassesRendering.outputHz(_settings.value, _state.value)
 
     fun glassesDisplay(): Display? = _state.value.displayId.takeIf { it != Display.INVALID_DISPLAY }?.let { displays.getDisplay(it) }
 

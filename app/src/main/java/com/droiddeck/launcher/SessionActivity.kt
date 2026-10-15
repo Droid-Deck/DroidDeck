@@ -342,8 +342,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val output = glassesScreen?.display
             ?: (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay) ?: return
         if (output.displayId != displayId) return
-        val hz = output.mode.refreshRate
-        if (hz > 1f) WaylandCompositor.nativeSetOutputRefreshRate(hz)
+        applyOutputPacing()
     }
     private var isHomeApp by mutableStateOf(false)
     private var androidApps by mutableStateOf<List<HomeApp.LaunchableApp>>(emptyList())
@@ -399,7 +398,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 this, SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM),
             )
         }
-        Log.i(TAG, "perf: " + PerfMode.apply(this, SessionState.fpsLimit))
+        applyOutputPacing()
         if (!SessionState.running) SessionState.followScreen = followChoice()
         applyFollowOrientation(resources.configuration)
         goFullscreen()
@@ -1365,7 +1364,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         CompositorHost.startOrAttach(
             holder.surface, runtimeDir.path,
             driverId?.let { turnip.driverPath(it) }, driverId?.let { turnip.libraryName(it) },
-            applicationInfo.nativeLibraryDir, size.first, size.second, refreshHz(), SessionState.fpsLimit,
+            applicationInfo.nativeLibraryDir, size.first, size.second, refreshHz(), outputFpsLimit(),
         )
         onOutputAttached(holder)
         if (SessionState.running && size != previous) {
@@ -1470,8 +1469,25 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val wanted = window.attributes.preferredDisplayModeId
         val hz = display?.supportedModes?.firstOrNull { wanted != 0 && it.modeId == wanted }?.refreshRate
             ?: display?.refreshRate ?: 60f
-        val capped = minOf(hz, PerfMode.peakRefreshCap(this))
+        val mirrorCap = mirrorRefreshLimit().takeIf { it > 0 }?.toFloat() ?: Float.POSITIVE_INFINITY
+        val capped = minOf(hz, PerfMode.peakRefreshCap(this), mirrorCap)
         return if (capped > 1f) capped else 60f
+    }
+
+    private fun mirrorRefreshLimit(): Int =
+        GlassesRendering.mirrorRefreshLimit(glassesSettings, glasses, glassesScreen != null)
+
+    private fun outputFpsLimit(): Int = GlassesRendering.fpsLimit(SessionState.fpsLimit, mirrorRefreshLimit())
+
+    private fun applyOutputPacing() {
+        Log.i(TAG, "perf: " + PerfMode.apply(this, outputFpsLimit(), mirrorRefreshLimit()))
+        if (CompositorHost.isStarted) {
+            val hz = refreshHz()
+            val changed = kotlin.math.abs(SessionState.refreshHz - hz) > 0.1f
+            CompositorHost.updatePacing(hz, outputFpsLimit())
+            pushCardboard(activeCardboard)
+            if (changed && ::surfaceView.isInitialized) applyFrameGen()
+        }
     }
 
     private fun applyFrameGen() {
@@ -2615,6 +2631,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         surfaceH = 0
         CompositorHost.detach(screen.holder.surface)
         surfaceView.visibility = View.VISIBLE
+        applyOutputPacing()
         if (surfaceView.holder.surface?.isValid == true) surfaceCreated(surfaceView.holder)
     }
 
@@ -2632,7 +2649,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun onGlassesChanged() {
         val g = glasses
         val s = glassesSettings
-        val key = listOf(g.present, g.usable, g.displayId, g.sbs, g.switching3d, g.canControl, g.width, g.height, g.hz, s)
+        val key = listOf(g.present, g.usable, g.displayId, g.sbs, g.sbs90, g.switching3d, g.canControl, g.width, g.height, g.hz, s)
         if (key == glassesKey) return
         glassesKey = key
         updateGlassesScreen()
@@ -2667,6 +2684,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val current = glassesScreen
         if (current != null && current.display.displayId == target?.displayId) {
             current.prefer(Glasses.outputHz())
+            applyOutputPacing()
             return
         }
         if (current != null) {
@@ -2678,6 +2696,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             // show() can create the surface synchronously. Select its holder
             // first, otherwise surfaceCreated() rejects the glasses callback.
             glassesScreen = screen
+            applyOutputPacing()
             surfaceW = 0
             surfaceH = 0
             screen.setOnDismissListener {
@@ -2697,6 +2716,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             }
             Log.i(TAG, "requested game output on ${g.model} (display ${target.displayId})")
         }
+        applyOutputPacing()
         refreshSecondScreenDisplays()
         applyCardboard(cardboard)
     }

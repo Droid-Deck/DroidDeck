@@ -6,6 +6,18 @@ import com.droiddeck.launcher.gpu.Cardboard
 internal object GlassesRendering {
     enum class Picture { FLAT, VIRTUAL_SCREEN, STEREO }
 
+    fun outputHz(settings: GlassesSettings, state: GlassesState): Int =
+        if (state.sbs) if (state.sbs90) settings.sbsHz else 60 else settings.refreshHz
+
+    fun mirrorRefreshLimit(settings: GlassesSettings, state: GlassesState, outputActive: Boolean): Int =
+        if (state.usable && !outputActive) outputHz(settings, state) else 0
+
+    fun fpsLimit(requested: Int, mirrorRefreshLimit: Int): Int = when {
+        mirrorRefreshLimit <= 0 -> requested
+        requested <= 0 -> mirrorRefreshLimit
+        else -> minOf(requested, mirrorRefreshLimit)
+    }
+
     fun usesGlasses(state: GlassesState, outputActive: Boolean, steamVrRunning: Boolean): Boolean =
         outputActive || (steamVrRunning && state.usable)
 

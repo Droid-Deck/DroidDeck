@@ -92,6 +92,14 @@ void vkp_cardboard_set(const struct cardboard_params *p) {
 
 static struct droiddeck_headpose *g_shm;
 static int g_eye_w, g_eye_h;
+static int g_render_height;
+
+void vkp_cardboard_set_render_height(int height) {
+    pthread_mutex_lock(&g_lock);
+    g_render_height = height > 0 ? height : 0;
+    shm_publish(g_live);
+    pthread_mutex_unlock(&g_lock);
+}
 
 void vkp_cardboard_set_pose_file(const char *path) {
     pthread_mutex_lock(&g_lock);
@@ -105,6 +113,7 @@ void vkp_cardboard_set_pose_file(const char *path) {
                 g_shm->magic = DROIDDECK_HEADPOSE_MAGIC;
                 g_shm->version = DROIDDECK_HEADPOSE_VERSION;
                 memcpy(g_shm->rot, g_pose, sizeof(g_shm->rot));
+                shm_publish(g_live);
             }
         }
         if (fd >= 0) close(fd);
@@ -126,6 +135,7 @@ static void shm_publish(int live) {
     g_shm->flags = (live ? DROIDDECK_HEADPOSE_LIVE : 0u) | (g_set.enabled ? DROIDDECK_HEADPOSE_ENABLED : 0u) |
                    (g_set.mono ? DROIDDECK_HEADPOSE_MONO : 0u);
     g_shm->display_hz = g_set.display_hz;
+    g_shm->render_height = (uint32_t)g_render_height;
     g_shm->time_ns = (int64_t)ts.tv_sec * 1000000000LL + ts.tv_nsec;
     g_shm->tan_half_fov = tanf(g_set.fov_deg * 0.5f * (float)M_PI / 180.0f);
     g_shm->eye_w = (uint32_t)(g_eye_w > 0 ? g_eye_w : 0);

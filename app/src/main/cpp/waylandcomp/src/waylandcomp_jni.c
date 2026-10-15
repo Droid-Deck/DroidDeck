@@ -342,6 +342,7 @@ JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetOutputSize(JNIEnv *env, jclass clazz, jint w, jint h) {
     g_output_w = w > 0 ? w : 0;
     g_output_h = h > 0 ? h : 0;
+    vkp_cardboard_set_render_height(h);
 }
 
 JNIEXPORT void JNICALL
@@ -350,6 +351,7 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeResizeOutput(JNIEnv 
     if (w <= 0 || h <= 0) return;
     g_output_w = w;
     g_output_h = h;
+    vkp_cardboard_set_render_height(h);
     droiddeck_wayland_output_resized();
 }
 
