@@ -413,10 +413,21 @@ object AddedGames {
 
     internal fun launchArguments(options: String): List<String> {
         if (options.isEmpty() || options.contains("%command%")) return emptyList()
-        return Regex("\"([^\"]*)\"|(\\S+)").findAll(options)
-            .map { it.groupValues[1].ifEmpty { it.groupValues[2] } }
-            .filter { it.isNotEmpty() }
-            .toList()
+        val out = mutableListOf<String>()
+        val token = StringBuilder()
+        var quoted = false
+        var started = false
+        for (c in options) {
+            when {
+                c == '"' -> { quoted = !quoted; started = true }
+                c.isWhitespace() && !quoted -> {
+                    if (started) { out.add(token.toString()); token.setLength(0); started = false }
+                }
+                else -> { token.append(c); started = true }
+            }
+        }
+        if (started) out.add(token.toString())
+        return out
     }
 
     private fun quote(s: String): String = JSONObject.quote(s)
