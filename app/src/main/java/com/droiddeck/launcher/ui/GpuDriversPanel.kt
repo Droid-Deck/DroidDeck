@@ -3,6 +3,12 @@ package com.droiddeck.launcher.ui
 import com.droiddeck.launcher.R
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material.icons.outlined.Monitor
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.runtime.LaunchedEffect
@@ -74,6 +80,18 @@ class PairRow(
     val active: Boolean,
 )
 
+const val GPU_MODE_AUTO = "auto"
+const val GPU_MODE_PAIR = "pair"
+const val GPU_MODE_MIX = "mix"
+
+class DriverSlot(
+    val name: String = "",
+    val detail: String = "",
+    val source: String = "",
+    val pending: Boolean = false,
+    val status: String = "",
+)
+
 class GpuDriversState(
     val gpuName: String = "",
     val gpuFamily: String = "",
@@ -96,6 +114,11 @@ class GpuDriversState(
     val androidDownloads: List<DownloadRow> = emptyList(),
     val canRestoreBundled: Boolean = false,
     val activeBundle: String? = null,
+    val mode: String = GPU_MODE_AUTO,
+    val display: DriverSlot = DriverSlot(),
+    val runtime: DriverSlot = DriverSlot(),
+    val canRestart: Boolean = true,
+    val checkedAt: Long = 0L,
 ) {
     val activePair: PairRow? get() = pairs.firstOrNull { it.active }
 }
@@ -113,6 +136,8 @@ class GpuDriversActions(
     val onImportAndroid: () -> Unit = {},
     val onImportZip: () -> Unit = {},
     val onRestoreBundled: () -> Unit = {},
+    val onMode: (String) -> Unit = {},
+    val onRestart: () -> Unit = {},
 )
 
 @Composable
@@ -166,5 +191,239 @@ private fun DeviceInfoSection(section: DeviceInfo.Section) {
                 Text(value, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = colors.onBackground, modifier = Modifier.weight(1f))
             }
         }
+    }
+}
+
+private const val STALE_MS = 6 * 3_600_000L
+
+@Composable
+internal fun GpuDriversBody(
+    gpu: GpuDriversState,
+    actions: GpuDriversActions,
+    single: Boolean,
+    first: FocusRequester,
+    onOpenSlot: (String) -> Unit,
+) {
+    LaunchedEffect(Unit) {
+        if (!gpu.checking && gpu.busy == null && System.currentTimeMillis() - gpu.checkedAt > STALE_MS) actions.onRefresh()
+    }
+    Column(
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 16.dp),
+    ) {
+        InUseCard(gpu, actions)
+        PanelHeading(stringResource(R.string.gpu_mode_title))
+        val modes = listOf(
+            Triple(GPU_MODE_AUTO, R.string.common_auto, R.string.gpu_mode_auto_detail),
+            Triple(GPU_MODE_PAIR, R.string.gpu_mode_pair, R.string.gpu_mode_pair_detail),
+            Triple(GPU_MODE_MIX, R.string.gpu_mode_mix, R.string.gpu_mode_mix_detail),
+        )
+        val choice: @Composable (Int, Modifier) -> Unit = { i, mod ->
+            val (id, title, detail) = modes[i]
+            PanelRow(
+                stringResource(title), stringResource(detail), gpu.mode == id,
+                modifier = mod.then(if (i == 0) Modifier.focusRequester(first) else Modifier),
+                onClick = { if (gpu.mode != id) actions.onMode(id) },
+            )
+        }
+        if (single) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { modes.indices.forEach { choice(it, Modifier) } }
+        else Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+            modes.indices.forEach { choice(it, Modifier.weight(1f).fillMaxHeight()) }
+        }
+        when (gpu.mode) {
+            GPU_MODE_AUTO -> AutoBody(gpu)
+            GPU_MODE_PAIR -> PairBody(gpu, actions)
+            else -> MixBody(single, actions, onOpenSlot)
+        }
+    }
+}
+
+@Composable
+private fun InUseCard(gpu: GpuDriversState, actions: GpuDriversActions) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val shape = RoundedCornerShape(14.dp)
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxWidth().clip(shape).background(colors.surface).border(1.dp, pal.line, shape).padding(16.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.gpu_in_use).uppercase(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, color = colors.onSurfaceVariant, modifier = Modifier.weight(1f))
+            Text(
+                stringResource(when (gpu.mode) { GPU_MODE_AUTO -> R.string.common_auto; GPU_MODE_PAIR -> R.string.gpu_mode_pair; else -> R.string.gpu_mode_mix }),
+                fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant,
+            )
+        }
+        SlotLine(Icons.Outlined.Monitor, stringResource(R.string.comp_display_driver), gpu.display)
+        Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
+        SlotLine(Icons.Outlined.SportsEsports, stringResource(R.string.comp_runtime_driver), gpu.runtime)
+        if (gpu.busy != null) LinearProgressIndicator(
+            progress = { (gpu.percent.coerceAtLeast(0)) / 100f }, modifier = Modifier.fillMaxWidth(),
+        )
+        if (gpu.display.pending) RestartBanner(gpu.display.name, gpu.canRestart, actions.onRestart)
+    }
+}
+
+@Composable
+private fun SlotLine(icon: ImageVector, label: String, slot: DriverSlot) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(colors.surfaceVariant)) {
+            Icon(icon, contentDescription = null, tint = colors.onBackground, modifier = Modifier.size(20.dp))
+        }
+        Column(Modifier.weight(1f)) {
+            Text(label, fontSize = 12.5.sp, color = colors.onSurfaceVariant)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(slot.name, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                if (slot.detail.isNotEmpty()) Text(slot.detail, fontSize = 12.5.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            if (slot.status.isNotEmpty()) Text(
+                slot.status, fontSize = 12.5.sp, color = if (slot.pending) AttentionAmber else colors.onSurfaceVariant,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
+        Pill(slot.source, pal.line2.copy(alpha = 0.6f), colors.onBackground)
+    }
+}
+
+@Composable
+private fun RestartBanner(target: String, canRestart: Boolean, onRestart: () -> Unit) {
+    var later by rememberSaveable(target) { mutableStateOf(false) }
+    if (later) return
+    val shape = RoundedCornerShape(12.dp)
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.fillMaxWidth().clip(shape).background(AttentionAmber.copy(alpha = 0.12f))
+            .border(1.dp, AttentionAmber.copy(alpha = 0.45f), shape).padding(horizontal = 12.dp, vertical = 8.dp),
+    ) {
+        Icon(Icons.Outlined.Refresh, contentDescription = null, tint = AttentionAmber, modifier = Modifier.size(20.dp))
+        Text(
+            stringResource(if (canRestart) R.string.gpu_restart_banner else R.string.gpu_restart_blocked),
+            fontSize = 13.5.sp, color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.weight(1f),
+        )
+        FocusText(stringResource(R.string.gpu_restart_later), MaterialTheme.colorScheme.onBackground) { later = true }
+        if (canRestart) FocusText(stringResource(R.string.gpu_restart_now), AttentionAmber, onClick = onRestart)
+    }
+}
+
+@Composable
+private fun AutoBody(gpu: GpuDriversState) {
+    val colors = MaterialTheme.colorScheme
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        PanelTitle(stringResource(R.string.gpu_auto_title, gpu.gpuName), stringResource(R.string.gpu_auto_reason, gpu.gpuFamily))
+        gpu.activePair?.let { p -> PanelRow(p.name, "${p.version} · ${p.detail}", selected = true, onClick = null) }
+        if (gpu.autoStatus.isNotEmpty()) Text(gpu.autoStatus, fontSize = 13.sp, color = colors.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun PairBody(gpu: GpuDriversState, actions: GpuDriversActions) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    var showAll by rememberSaveable { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        PanelTitle(stringResource(R.string.gpu_pair_title), stringResource(R.string.gpu_pair_hint))
+        val rows = gpu.pairs.filter { (it.installed || it.complete) && (it.suits || showAll) }
+        if (rows.isEmpty()) Text(
+            stringResource(if (gpu.checking) R.string.gpu_checking else R.string.gpu_none_listed),
+            fontSize = 13.sp, color = colors.onSurfaceVariant,
+        )
+        for (p in rows) PanelRow(
+            p.name, "${p.version} · ${p.detail}", selected = p.active,
+            badge = if (p.recommended) stringResource(R.string.gpu_autos_pick) else null,
+            trailing = when {
+                gpu.busy == p.key -> "${gpu.percent.coerceAtLeast(0)}%"
+                p.installed -> stringResource(R.string.gpu_installed)
+                else -> stringResource(R.string.common_download)
+            },
+            enabled = gpu.busy == null,
+            onClick = { if (!p.active) actions.onPair(p.key) },
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (gpu.pairs.any { !it.suits }) FocusText(stringResource(if (showAll) R.string.gpu_hide_other else R.string.gpu_show_other), pal.signal) { showAll = !showAll }
+            FocusText(stringResource(R.string.comp_import_zip), pal.signal, onClick = actions.onImportZip)
+        }
+    }
+}
+
+@Composable
+private fun MixBody(single: Boolean, actions: GpuDriversActions, onOpenSlot: (String) -> Unit) {
+    val pal = LocalPalette.current
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        PanelTitle(stringResource(R.string.gpu_mix_title), stringResource(R.string.gpu_mix_hint))
+        val buttons: @Composable () -> Unit = {
+            SecondaryButton(stringResource(R.string.gpu_change_display)) { onOpenSlot(SLOT_DISPLAY) }
+            SecondaryButton(stringResource(R.string.gpu_change_runtime)) { onOpenSlot(SLOT_RUNTIME) }
+        }
+        if (single) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { buttons() }
+        else Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { buttons() }
+        FocusText(stringResource(R.string.comp_import_zip), pal.signal, onClick = actions.onImportZip)
+    }
+}
+
+internal const val SLOT_DISPLAY = "panel"
+internal const val SLOT_RUNTIME = "rt"
+
+@Composable
+private fun PanelHeading(text: String) {
+    Text(text.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+@Composable
+private fun PanelTitle(title: String, hint: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.padding(top = 4.dp)) {
+        Text(title, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground)
+        Text(hint, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun Pill(text: String, fill: Color, ink: Color) {
+    if (text.isEmpty()) return
+    Text(
+        text, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp, color = ink, maxLines = 1,
+        modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(fill).padding(horizontal = 7.dp, vertical = 3.dp),
+    )
+}
+
+@Composable
+private fun PanelRow(
+    title: String,
+    detail: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    badge: String? = null,
+    trailing: String? = null,
+    enabled: Boolean = true,
+    onClick: (() -> Unit)?,
+) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val src = remember { MutableInteractionSource() }
+    val hot = rememberHot(src)
+    val shape = RoundedCornerShape(12.dp)
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = modifier.fillMaxWidth().heightIn(min = 56.dp).clip(shape)
+            .background(if (hot) pal.signal.copy(alpha = 0.14f) else if (selected) pal.signal.copy(alpha = 0.08f) else colors.surface)
+            .glideBorder(hot, shape, pal.signal, if (selected) pal.signal.copy(alpha = 0.7f) else pal.line)
+            .then(
+                if (onClick != null) Modifier.hoverable(src)
+                    .clickable(interactionSource = src, indication = null, enabled = enabled, role = Role.RadioButton, onClick = onClick)
+                else Modifier,
+            )
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.size(20.dp).border(2.dp, if (selected) pal.signal else colors.onSurfaceVariant, CircleShape),
+        ) { if (selected) Box(Modifier.size(10.dp).background(pal.signal, CircleShape)) }
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = if (selected) pal.signal else colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (detail.isNotEmpty()) Text(detail, fontSize = 12.5.sp, color = colors.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+        if (badge != null) Pill(badge, pal.signal.copy(alpha = 0.16f), pal.signal)
+        if (trailing != null) Text(trailing, fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 1)
     }
 }
