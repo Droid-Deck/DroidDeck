@@ -233,7 +233,7 @@ def prefix_folder(root, appid):
     except OSError:
         names = []
     for name in names:
-        if name.lstrip("-").isdigit() and int(name) % 2 ** 32 == appid % 2 ** 32:
+        if re.fullmatch(r"-?[0-9]+", name) and int(name) % 2 ** 32 == appid % 2 ** 32:
             return os.path.join(folder, name)
     return os.path.join(folder, str(appid))
 
