@@ -285,4 +285,23 @@ class AppUpdatesTest {
         } catch (_: IOException) {
         }
     }
+
+    @Test
+    fun catalogFileNamesMustBePlainApkNames() {
+        assertTrue(AppUpdates.isSafeApkName("DroidDeck-0.4.0.apk"))
+        assertTrue(AppUpdates.isSafeApkName("droiddeck_preview-1a2b3c4.apk"))
+        for (bad in listOf("", ".apk", "../evil.apk", "a/b.apk", "a\\b.apk", "/abs.apk", "app.apk/", "app.zip", "app.apk\n", "a b.apk")) {
+            assertTrue("rejects '$bad'", !AppUpdates.isSafeApkName(bad))
+        }
+        val unsafe = publishedCatalog()
+        unsafe.getJSONObject("preview")
+            .getJSONObject("apks")
+            .getJSONObject("com.droiddeck.launcher")
+            .put("name", "../evil.apk")
+        try {
+            AppUpdates.readPublishedCatalog(unsafe, "com.droiddeck.launcher", 123L)
+            fail("unsafe file name should be rejected")
+        } catch (_: IOException) {
+        }
+    }
 }

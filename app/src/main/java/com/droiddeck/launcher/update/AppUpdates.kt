@@ -316,6 +316,7 @@ object AppUpdates {
         val signer = o.getString("signerSha256").lowercase()
         val sha = o.getString("sha256").lowercase()
         val url = o.getString("url")
+        val name = o.getString("name")
         if (actualPackage != packageName) throw IOException("The update catalog names the wrong Android package")
         if (versionCode <= 0) throw IOException("The update catalog has an invalid APK versionCode")
         if (!Regex("^[0-9a-f]{64}$").matches(sha)) {
@@ -331,8 +332,9 @@ object AppUpdates {
         if (allowed.none { url.startsWith(it) }) {
             throw IOException("The update catalog has an unexpected download URL")
         }
+        if (!isSafeApkName(name)) throw IOException("The update catalog has an unexpected file name")
         return Apk(
-            o.getString("name"),
+            name,
             url,
             o.optLong("size"),
             sha,
@@ -341,6 +343,10 @@ object AppUpdates {
             signer,
         )
     }
+
+    /** The catalog's file name becomes a path under the cache directory, so it must be a plain *.apk name. */
+    internal fun isSafeApkName(name: String): Boolean =
+        Regex("^[A-Za-z0-9._-]{1,128}\\.apk$").matches(name)
 
     fun compareVersions(a: String, b: String): Int {
         val x = a.removePrefix("v").split('.', '-').map { it.toIntOrNull() ?: 0 }
