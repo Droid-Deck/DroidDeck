@@ -1028,7 +1028,7 @@ class MainActivity : ComponentActivity() {
     private fun refreshSecondScreenDisplays() {
         if (!::displayManager.isInitialized) return
         // The launcher can itself be shown on a non-default display (DeX, an external monitor); that one is not a "second screen".
-        val ownDisplayId = display?.displayId ?: android.view.Display.DEFAULT_DISPLAY
+        val ownDisplayId = if (android.os.Build.VERSION.SDK_INT >= 30) display?.displayId ?: android.view.Display.DEFAULT_DISPLAY else @Suppress("DEPRECATION") windowManager.defaultDisplay.displayId
         secondScreenDisplays = SecondScreenDisplays.available(displayManager, ownDisplayId)
     }
 
