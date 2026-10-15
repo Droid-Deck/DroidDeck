@@ -928,6 +928,8 @@
     <string name="ctrl_keyboard_button">Tasto tastiera</string>
     <string name="ctrl_select_steam">Premi Select per aprire il menu Steam</string>
     <string name="ctrl_select_steam_hint">Invece di View/Select.</string>
+    <string name="ctrl_joycon_vr">Joy-Con come controller VR</string>
+    <string name="ctrl_joycon_vr_hint">Mentre SteamVR è in esecuzione, ogni Joy-Con diventa una mano. Puntalo in avanti e tieni premuto Home o Capture per ricentrarlo.</string>
     <string name="setup_animations">Animazioni</string>
     <string name="ctrl_adaptive_hint">Le levette appaiono dove tocchi e si nascondono al rilascio</string>
     <string name="ctrl_layout">Layout</string>

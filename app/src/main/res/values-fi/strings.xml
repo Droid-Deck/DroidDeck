@@ -922,6 +922,8 @@
     <string name="ctrl_keyboard_button">Näppäimistöpainike</string>
     <string name="ctrl_select_steam">Avaa Steam-valikko Select-painikkeella</string>
     <string name="ctrl_select_steam_hint">View/Select-painikkeen sijaan.</string>
+    <string name="ctrl_joycon_vr">Joy-Conit VR-ohjaimina</string>
+    <string name="ctrl_joycon_vr_hint">Kun SteamVR on käynnissä, jokainen Joy-Con toimii kätenä. Osoita sillä eteenpäin ja pidä Home- tai Capture-painiketta pohjassa keskittääksesi sen uudelleen.</string>
     <string name="setup_animations">Animaatiot</string>
     <string name="ctrl_adaptive_hint">Sauvat tulevat näkyviin siihen, mihin kosketat, ja piiloutuvat, kun vapautat</string>
     <string name="ctrl_layout">Asettelu</string>

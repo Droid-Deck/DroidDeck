@@ -968,6 +968,8 @@
     <string name="ctrl_keyboard_button">Keyboard button</string>
     <string name="ctrl_select_steam">Press Select to open the Steam menu</string>
     <string name="ctrl_select_steam_hint">Instead of View/Select.</string>
+    <string name="ctrl_joycon_vr">Joy-Cons as VR controllers</string>
+    <string name="ctrl_joycon_vr_hint">While SteamVR runs, each Joy-Con becomes a hand. Point it ahead and hold Home or Capture to recenter it.</string>
     <string name="setup_animations">Animations</string>
     <string name="ctrl_adaptive_hint">Sticks appear where you touch and hide on release</string>
     <string name="ctrl_layout">Layout</string>

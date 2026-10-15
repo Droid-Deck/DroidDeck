@@ -922,6 +922,8 @@
     <string name="ctrl_keyboard_button">कीबोर्ड बटन</string>
     <string name="ctrl_select_steam">Steam मेनू खोलने के लिए Select दबाएं</string>
     <string name="ctrl_select_steam_hint">View/Select के बदले।</string>
+    <string name="ctrl_joycon_vr">Joy-Con को VR कंट्रोलर की तरह</string>
+    <string name="ctrl_joycon_vr_hint">SteamVR चलते समय हर Joy-Con एक हाथ बन जाता है। उसे सामने की ओर करें और फिर से केंद्रित करने के लिए Home या Capture दबाए रखें।</string>
     <string name="setup_animations">एनिमेशन</string>
     <string name="ctrl_adaptive_hint">आप जहां टच करें वहां स्टिक दिखते हैं और छोड़ने पर छिप जाते हैं</string>
     <string name="ctrl_layout">लेआउट</string>

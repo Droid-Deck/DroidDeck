@@ -922,6 +922,8 @@
     <string name="ctrl_keyboard_button">Toetsenbordknop</string>
     <string name="ctrl_select_steam">Druk op Select om het Steam-menu te openen</string>
     <string name="ctrl_select_steam_hint">In plaats van View/Select.</string>
+    <string name="ctrl_joycon_vr">Joy-Cons als VR-controllers</string>
+    <string name="ctrl_joycon_vr_hint">Zolang SteamVR draait, wordt elke Joy-Con een hand. Richt hem naar voren en houd Home of Capture ingedrukt om hem opnieuw te centreren.</string>
     <string name="setup_animations">Animaties</string>
     <string name="ctrl_adaptive_hint">Sticks verschijnen waar je aanraakt en verdwijnen als je loslaat</string>
     <string name="ctrl_layout">Indeling</string>

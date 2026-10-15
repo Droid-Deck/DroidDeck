@@ -924,6 +924,8 @@
     <string name="ctrl_keyboard_button">鍵盤按鈕</string>
     <string name="ctrl_select_steam">按 Select 開啟 Steam 選單</string>
     <string name="ctrl_select_steam_hint">代替 View/Select。</string>
+    <string name="ctrl_joycon_vr">將 Joy-Con 用作 VR 控制器</string>
+    <string name="ctrl_joycon_vr_hint">SteamVR 執行時，每個 Joy-Con 都會變成一隻手。將它指向前方並按住 HOME 鍵或擷取鍵，即可重新置中。</string>
     <string name="setup_animations">動畫</string>
     <string name="ctrl_adaptive_hint">搖桿會在你觸控的位置出現，放開後隱藏</string>
     <string name="ctrl_layout">佈局</string>

@@ -946,6 +946,8 @@
     <string name="ctrl_keyboard_button">زر لوحة المفاتيح</string>
     <string name="ctrl_select_steam">اضغط على Select لفتح قائمة Steam</string>
     <string name="ctrl_select_steam_hint">بدلًا من View/Select.</string>
+    <string name="ctrl_joycon_vr">أجهزة Joy-Con كوحدات تحكم VR</string>
+    <string name="ctrl_joycon_vr_hint">أثناء تشغيل SteamVR، يصبح كل Joy-Con يدًا. وجّهه إلى الأمام واضغط مطولًا على Home أو Capture لإعادة توسيطه.</string>
     <string name="setup_animations">الرسوم المتحركة</string>
     <string name="ctrl_adaptive_hint">تظهر العصي حيث تلمس وتُخفى عند الرفع</string>
     <string name="ctrl_layout">التخطيط</string>

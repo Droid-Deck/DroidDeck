@@ -922,6 +922,8 @@
     <string name="ctrl_keyboard_button">Tangentbordsknappen</string>
     <string name="ctrl_select_steam">Tryck på Select för att öppna Steam-menyn</string>
     <string name="ctrl_select_steam_hint">I stället för View/Select.</string>
+    <string name="ctrl_joycon_vr">Joy-Con som VR-handkontroller</string>
+    <string name="ctrl_joycon_vr_hint">Medan SteamVR körs blir varje Joy-Con en hand. Rikta den framåt och håll in Home eller Capture för att centrera den igen.</string>
     <string name="setup_animations">Animationer</string>
     <string name="ctrl_adaptive_hint">Spakarna visas där du trycker och döljs när du släpper</string>
     <string name="ctrl_layout">Layout</string>

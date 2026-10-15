@@ -54,6 +54,7 @@
     <string name="wadb_computer_last">3 · ADB desde una computadora (último recurso)</string>
     <string name="wadb_computer_group">3 · ADB desde una computadora (último recurso)</string>
     <string name="ctrl_select_steam">Presiona Select para abrir el menú de Steam</string>
+    <string name="ctrl_joycon_vr">Joy-Con como controles de RV</string>
     <string name="ctrl_reset_all">Restablecer control</string>
     <string name="ctrl_reset_all_hint">Restaura todos los ajustes del control y la disposición</string>
     <string name="content_add_roms">Agrega juegos de %1$s a ROMs/%2$s.</string>

@@ -46,6 +46,8 @@ public final class PadBridge {
     private final FakeInputWriter writer;
     private final PadState state = new PadState();
     private final int[] owners = new int[SLOTS];
+    private final int[] partners = new int[SLOTS];
+    private volatile java.util.function.IntPredicate excluded = id -> false;
     private final FakeInputWriter[] playerWriters = new FakeInputWriter[SLOTS];
     private final PadState[] playerStates = new PadState[SLOTS];
     private final PadState effectiveState = new PadState();
@@ -72,8 +74,10 @@ public final class PadBridge {
     public static final int NO_CONTROLLER = -1;
     private static volatile int activeControllerId = NO_CONTROLLER;
     private static final AtomicIntegerArray slotControllers = new AtomicIntegerArray(SLOTS);
+    private static final AtomicIntegerArray slotJoyCons = new AtomicIntegerArray(SLOTS * 2);
     static {
         for (int slot = 0; slot < SLOTS; slot++) slotControllers.set(slot, NO_CONTROLLER);
+        for (int i = 0; i < SLOTS * 2; i++) slotJoyCons.set(i, NO_CONTROLLER);
     }
 
     public static int activeControllerId() { return activeControllerId; }
@@ -82,15 +86,25 @@ public final class PadBridge {
         return slot >= 0 && slot < SLOTS ? slotControllers.get(slot) : activeControllerId;
     }
 
+    public static int joyConForSlot(int slot, int side) {
+        return slot >= 0 && slot < SLOTS && (side == JoyCon.LEFT || side == JoyCon.RIGHT)
+                ? slotJoyCons.get(slot * 2 + side) : NO_CONTROLLER;
+    }
+
     public PadBridge(File fakeInputDir) {
         this.fakeInputDir = fakeInputDir;
         writer = new FakeInputWriter(fakeInputDir.getAbsolutePath(), 0);
         Arrays.fill(owners, NO_CONTROLLER);
+        Arrays.fill(partners, NO_CONTROLLER);
         for (int slot = 1; slot < SLOTS; slot++) playerStates[slot] = new PadState();
     }
 
     public void setSelectSteam(boolean on) {
         selectSteam = on;
+    }
+
+    public void setExcluded(java.util.function.IntPredicate devices) {
+        excluded = devices;
     }
 
     public synchronized boolean start() {
@@ -106,7 +120,9 @@ public final class PadBridge {
         activeControllerId = NO_CONTROLLER;
         for (int slot = 0; slot < SLOTS; slot++) {
             owners[slot] = NO_CONTROLLER;
+            partners[slot] = NO_CONTROLLER;
             slotControllers.set(slot, NO_CONTROLLER);
+            clearJoyCons(slot);
             if (playerWriters[slot] != null) {
                 playerWriters[slot].destroy();
                 playerWriters[slot] = null;
@@ -206,7 +222,7 @@ public final class PadBridge {
     public synchronized void syncConnectedControllers() {
         for (int deviceId : InputDevice.getDeviceIds()) {
             InputDevice device = InputDevice.getDevice(deviceId);
-            if (isFromController(device)) publish(slotFor(device));
+            if (isFromController(device) && !excluded.test(deviceId)) publish(slotFor(device));
         }
     }
 
@@ -224,8 +240,10 @@ public final class PadBridge {
     }
 
     public synchronized boolean onKeyEvent(KeyEvent event) {
-        if (!isControllerKeyEvent(event)) return false;
+        if (!isControllerKeyEvent(event) || excluded.test(event.getDeviceId())) return false;
         int slot = slotFor(event.getDevice());
+        int side = JoyCon.side(event.getDevice());
+        if (side >= 0 && partners[slot] != NO_CONTROLLER && JoyCon.isRail(side, event.getScanCode())) return true;
         PadState pad = stateFor(slot);
         boolean pressed = event.getAction() == KeyEvent.ACTION_DOWN;
         switch (event.getKeyCode()) {
@@ -269,16 +287,32 @@ public final class PadBridge {
     }
 
     public synchronized boolean onMotionEvent(MotionEvent event) {
-        if (!isControllerMotionEvent(event)) return false;
+        if (!isControllerMotionEvent(event) || excluded.test(event.getDeviceId())) return false;
         if (event.getAction() != MotionEvent.ACTION_MOVE) return false;
         int slot = slotFor(event.getDevice());
         PadState pad = stateFor(slot);
         noteDevice(event.getDevice(), slot);
         statAxes++;
         scheduleStats();
+        InputDevice device = event.getDevice();
+        int side = JoyCon.side(device);
+        if (side >= 0) {
+            int[] stick = JoyCon.stickAxes(side, device, event.getSource());
+            float x = axis(event, stick[0]);
+            float y = axis(event, stick[1]);
+            if (side == JoyCon.LEFT) {
+                pad.leftX = x;
+                pad.leftY = y;
+            } else {
+                pad.rightX = x;
+                pad.rightY = y;
+            }
+            if (Math.max(Math.abs(x), Math.abs(y)) > 0.5f) notePlayerInput();
+            publish(slot);
+            return true;
+        }
         pad.leftX = axis(event, MotionEvent.AXIS_X);
         pad.leftY = axis(event, MotionEvent.AXIS_Y);
-        InputDevice device = event.getDevice();
         boolean wiredXboxLayout = device != null
                 && ((device.getVendorId() == 0x20d6 && device.getProductId() == 0x2063)
                 || (device.getVendorId() == 0x0e6f && device.getProductId() == 0x02f0))
@@ -358,7 +392,7 @@ public final class PadBridge {
 
     public synchronized void onDeviceRemoved(int deviceId) {
         for (int slot = 0; slot < SLOTS; slot++) {
-            if (owners[slot] == deviceId) free(slot);
+            if (owners[slot] == deviceId || partners[slot] == deviceId) leave(slot, deviceId);
         }
     }
 
@@ -425,12 +459,26 @@ public final class PadBridge {
 
     private int slotFor(InputDevice device) {
         int id = device.getId();
-        if (owners[0] == id) return 0;
+        if (owners[0] == id || partners[0] == id) return 0;
         for (int slot = 1; slot < SLOTS; slot++) {
-            if (owners[slot] == id) return slot;
+            if (owners[slot] == id || partners[slot] == id) return slot;
         }
         for (int slot = 0; slot < SLOTS; slot++) {
-            if (owners[slot] != NO_CONTROLLER && InputDevice.getDevice(owners[slot]) == null) free(slot);
+            if (partners[slot] != NO_CONTROLLER && InputDevice.getDevice(partners[slot]) == null) leave(slot, partners[slot]);
+            if (owners[slot] != NO_CONTROLLER && InputDevice.getDevice(owners[slot]) == null) leave(slot, owners[slot]);
+        }
+        int side = JoyCon.side(device);
+        for (int slot = 0; side >= 0 && slot < SLOTS; slot++) {
+            if (owners[slot] == NO_CONTROLLER || partners[slot] != NO_CONTROLLER) continue;
+            InputDevice owner = InputDevice.getDevice(owners[slot]);
+            if (JoyCon.side(owner) != 1 - side) continue;
+            partners[slot] = id;
+            slotJoyCons.set(slot * 2 + side, id);
+            slotJoyCons.set(slot * 2 + 1 - side, owner.getId());
+            if (slot == 0) releaseBackPaddles();
+            stateFor(slot).clear();
+            Log.i(TAG, "\"" + device.getName() + "\" (id " + id + ") joins \"" + owner.getName() + "\" as player " + (slot + 1));
+            return slot;
         }
         for (int slot = 0; slot < SLOTS; slot++) {
             if (owners[slot] != NO_CONTROLLER) continue;
@@ -446,7 +494,8 @@ public final class PadBridge {
     }
 
     private boolean isPrimary(KeyEvent event) {
-        return owners[0] == event.getDevice().getId();
+        int id = event.getDevice().getId();
+        return owners[0] == id || partners[0] == id;
     }
 
     private void releaseBackPaddles() {
@@ -454,9 +503,32 @@ public final class PadBridge {
         DeckControls.INSTANCE.setGrip(DeckControls.R4, false);
     }
 
+    private void leave(int slot, int id) {
+        if (partners[slot] == NO_CONTROLLER) {
+            free(slot);
+            return;
+        }
+        Log.i(TAG, "player " + (slot + 1) + " Joy-Con (id " + id + ") left");
+        if (owners[slot] == id) owners[slot] = partners[slot];
+        partners[slot] = NO_CONTROLLER;
+        clearJoyCons(slot);
+        if (slotControllers.get(slot) == id) slotControllers.set(slot, owners[slot]);
+        if (activeControllerId == id) activeControllerId = owners[slot];
+        if (slot == 0) releaseBackPaddles();
+        stateFor(slot).clear();
+        publish(slot);
+    }
+
+    private static void clearJoyCons(int slot) {
+        slotJoyCons.set(slot * 2, NO_CONTROLLER);
+        slotJoyCons.set(slot * 2 + 1, NO_CONTROLLER);
+    }
+
     private void free(int slot) {
         Log.i(TAG, "player " + (slot + 1) + " (id " + owners[slot] + ") left");
         owners[slot] = NO_CONTROLLER;
+        partners[slot] = NO_CONTROLLER;
+        clearJoyCons(slot);
         slotControllers.set(slot, NO_CONTROLLER);
         if (slot == 0) {
             releaseBackPaddles();

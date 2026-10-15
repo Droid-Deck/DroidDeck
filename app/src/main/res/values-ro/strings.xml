@@ -928,6 +928,8 @@
     <string name="ctrl_keyboard_button">Butonul tastaturii</string>
     <string name="ctrl_select_steam">Apasă Select pentru a deschide meniul Steam</string>
     <string name="ctrl_select_steam_hint">În loc de View/Select.</string>
+    <string name="ctrl_joycon_vr">Joy-Con ca controllere VR</string>
+    <string name="ctrl_joycon_vr_hint">Cât timp rulează SteamVR, fiecare Joy-Con devine o mână. Îndreaptă-l înainte și ține apăsat Home sau Capture pentru a-l recentra.</string>
     <string name="setup_animations">Animații</string>
     <string name="ctrl_adaptive_hint">Manșele apar unde atingi ecranul și se ascund la eliberare</string>
     <string name="ctrl_layout">Aranjament</string>

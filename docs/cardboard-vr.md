@@ -169,6 +169,54 @@ new device-loss errors. This is a recovery workaround, not a confirmed permanent
 graphics state across restarts is a hypothesis. Frame counters alone do not prove recovery:
 the presenter can keep presenting an old SteamVR image while the compositor reports device loss.
 
+### Joy-Con controllers
+
+Nintendo Joy-Cons paired over Bluetooth become SteamVR hands while SteamVR runs, and stay an ordinary
+game pad otherwise. It needs Android 12 or later (motion sensors on an `InputDevice`) and a kernel whose
+`hid-nintendo` driver reports the IMU (Android common kernel `android14-6.1` or newer; older 5.x GKI
+builds expose the buttons only). A Joy-Con without motion sensors stays a game pad.
+**Controller settings > Joy-Cons as VR controllers** (on by default) turns it off.
+
+`input/JoyConVr.kt` takes a Joy-Con once SteamVR reports that it is running. It reads the Joy-Con's
+gyroscope and accelerometer on a thread of its own. A Mahony filter turns them into an orientation,
+and the gyro bias is learned while the Joy-Con rests. Current kernels stamp the samples about twice as
+fast as they arrive, so the time step is scaled by the measured ratio. The pose, buttons, stick and
+battery go to a 176-byte seqlocked file, `joycon_shm.h`, at `/run/droiddeck/droiddeck-joycon`. The
+game pad no longer sees that Joy-Con; it gets it back when SteamVR stops, the Joy-Con disconnects or
+the setting is turned off.
+
+The driver adds a left and a right Index controller (`knuckles`, Valve's Index input profile and
+models) when the first Joy-Con appears. The pad hand on that side switches off. The Joy-Con is
+3DoF: Google VR's arm model places the hand from its orientation and the head, so the hand follows a
+turned wrist or a raised arm but not a sideways move. Its pointing direction is the Index controller's
+aim pose. Its heading is matched to the head when it connects. Holding Home (right) or Capture
+(left) for 0.8 s matches it again, with a short buzz; point the Joy-Con where you look first. A short
+press is the system button. A hand that sends nothing for 500 ms disconnects.
+
+| Index        | Left Joy-Con     | Right Joy-Con  |
+|--------------|------------------|----------------|
+| Trigger      | ZL               | ZR             |
+| Grip         | L, SL, SR        | R, SL, SR      |
+| A            | down, right      | A, B           |
+| B            | up, left, minus  | X, Y, plus     |
+| Thumbstick   | stick, click     | stick, click   |
+| System       | Capture (press)  | Home (press)   |
+
+The fingers follow the buttons on a simulated hand: the index finger curls with the trigger, the
+other three with the grip, the thumb when it is on the stick or a face button. SteamVR's haptic
+events go to that hand's Joy-Con through `@droiddeck-rumble` (slots `0x100` and `0x101`) and respect
+the rumble setting.
+
+Outside SteamVR two Joy-Cons are combined into one player: left stick, D-pad, L, ZL, minus and Capture
+from the left one, the face buttons, right stick, R, ZR, plus and Home from the right. Face buttons
+keep their positions (Nintendo X is the top button, Y on Xbox). SL and SR are shoulder buttons on a lone
+Joy-Con and are ignored while two are combined. A combined pair splits rumble the way a pad does,
+strong to the left and weak to the right. A lone Joy-Con plays the stronger of the two.
+
+Not yet tested on hardware. `tools/vr/build.sh` runs `test_joycon` (arm model, aim pose, hand skeleton
+and the file layout). `JoyConTest`, `JoyConOrientationTest`, `JoyConShmTest`, `JoyConPadTest` and
+`RumbleComponentTest` cover the app side.
+
 ### Device-loss recovery
 
 During a SteamVR session, DroidDeck reads new `vrcompositor.txt` output every two seconds and detects
@@ -223,7 +271,8 @@ results, app recovery behavior, and the unverified powered-adapter design.
   teleport) and back. Mapping, right hand: A/R3 = trackpad click, RT = trigger, RB = grip, Start = menu, guide =
   system. Left hand: X, LT, LB, Select. Both hands activate in SteamVR and their laser shows on the
   dashboard; guide, Start and A presses show up in the ring the driver reads. They are drawn as Index
-  controllers and switch off while another driver's controller is connected.
+  controllers and switch off while another driver's controller is connected. A Joy-Con hand replaces
+  the pad hand on its side (above).
 - **Layers**: only the first layer of each frame is drawn. SteamVR's compositor composites the
   dashboard into it, so this has not mattered yet.
 - **Timing**: no reprojection. The presenter blits the frame submitted last once `vrcompositor`'s GPU

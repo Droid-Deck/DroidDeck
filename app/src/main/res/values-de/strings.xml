@@ -922,6 +922,8 @@
     <string name="ctrl_keyboard_button">Tastatur-Taste</string>
     <string name="ctrl_select_steam">Mit Select das Steam-Menü öffnen</string>
     <string name="ctrl_select_steam_hint">Statt View/Select.</string>
+    <string name="ctrl_joycon_vr">Joy-Cons als VR-Controller</string>
+    <string name="ctrl_joycon_vr_hint">Während SteamVR läuft, wird jeder Joy-Con zu einer Hand. Richte ihn nach vorn und halte HOME oder Capture gedrückt, um ihn neu auszurichten.</string>
     <string name="setup_animations">Animationen</string>
     <string name="ctrl_adaptive_hint">Sticks erscheinen dort, wo du tippst, und verschwinden beim Loslassen</string>
     <string name="ctrl_layout">Layout</string>

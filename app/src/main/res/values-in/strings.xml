@@ -916,6 +916,8 @@
     <string name="ctrl_keyboard_button">Tombol keyboard</string>
     <string name="ctrl_select_steam">Tekan Select untuk membuka menu Steam</string>
     <string name="ctrl_select_steam_hint">Bukan View/Select.</string>
+    <string name="ctrl_joycon_vr">Joy-Con sebagai pengontrol VR</string>
+    <string name="ctrl_joycon_vr_hint">Saat SteamVR berjalan, setiap Joy-Con menjadi tangan. Arahkan ke depan lalu tahan Home atau Capture untuk memusatkannya kembali.</string>
     <string name="setup_animations">Animasi</string>
     <string name="ctrl_adaptive_hint">Stik muncul di tempat Anda menyentuh dan tersembunyi saat dilepas</string>
     <string name="ctrl_layout">Tata letak</string>

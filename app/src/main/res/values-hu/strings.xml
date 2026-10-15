@@ -922,6 +922,8 @@
     <string name="ctrl_keyboard_button">Billentyűzet gomb</string>
     <string name="ctrl_select_steam">Nyomja meg a Select gombot a Steam-menü megnyitásához</string>
     <string name="ctrl_select_steam_hint">A View/Select helyett.</string>
+    <string name="ctrl_joycon_vr">Joy-Conok VR-kontrollerként</string>
+    <string name="ctrl_joycon_vr_hint">Amíg a SteamVR fut, minden Joy-Con egy kéz lesz. Irányítsa előre, és tartsa lenyomva a Home vagy a Capture gombot az újraközpontosításhoz.</string>
     <string name="setup_animations">Animációk</string>
     <string name="ctrl_adaptive_hint">A karok ott jelennek meg, ahol megérinti őket, és elengedéskor elrejtőznek</string>
     <string name="ctrl_layout">Elrendezés</string>

@@ -942,6 +942,8 @@
     <string name="ctrl_keyboard_button">Кнопка клавиатуры</string>
     <string name="ctrl_select_steam">Нажмите Select, чтобы открыть меню Steam</string>
     <string name="ctrl_select_steam_hint">Вместо View/Select.</string>
+    <string name="ctrl_joycon_vr">Joy-Con как VR-контроллеры</string>
+    <string name="ctrl_joycon_vr_hint">Пока работает SteamVR, каждый Joy-Con становится рукой. Направьте его вперёд и удерживайте Home или Capture, чтобы снова его отцентрировать.</string>
     <string name="setup_animations">Анимации</string>
     <string name="ctrl_adaptive_hint">Стики появляются в месте касания и исчезают после отпускания</string>
     <string name="ctrl_layout">Раскладка</string>

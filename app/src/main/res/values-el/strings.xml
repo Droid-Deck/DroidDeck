@@ -922,6 +922,8 @@
     <string name="ctrl_keyboard_button">Κουμπί πληκτρολογίου</string>
     <string name="ctrl_select_steam">Πατήστε Select για να ανοίξετε το μενού Steam</string>
     <string name="ctrl_select_steam_hint">Αντί για View/Select.</string>
+    <string name="ctrl_joycon_vr">Joy-Con ως χειριστήρια VR</string>
+    <string name="ctrl_joycon_vr_hint">Όσο εκτελείται το SteamVR, κάθε Joy-Con γίνεται χέρι. Στρέψτε το μπροστά και κρατήστε πατημένο το Home ή το Capture για να το επανακεντράρετε.</string>
     <string name="setup_animations">Κινήσεις</string>
     <string name="ctrl_adaptive_hint">Οι μοχλοί εμφανίζονται όπου αγγίζετε και εξαφανίζονται όταν αφήνετε</string>
     <string name="ctrl_layout">Διάταξη</string>

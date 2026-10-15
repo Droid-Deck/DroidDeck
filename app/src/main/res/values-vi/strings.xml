@@ -916,6 +916,8 @@
     <string name="ctrl_keyboard_button">Nút bàn phím</string>
     <string name="ctrl_select_steam">Nhấn Select để mở menu Steam</string>
     <string name="ctrl_select_steam_hint">Thay cho View/Select.</string>
+    <string name="ctrl_joycon_vr">Dùng Joy-Con làm tay cầm VR</string>
+    <string name="ctrl_joycon_vr_hint">Khi SteamVR đang chạy, mỗi Joy-Con trở thành một bàn tay. Hướng nó về phía trước rồi giữ Home hoặc Capture để căn giữa lại.</string>
     <string name="setup_animations">Hiệu ứng chuyển động</string>
     <string name="ctrl_adaptive_hint">Cần xuất hiện ở nơi bạn chạm và ẩn khi thả ra</string>
     <string name="ctrl_layout">Bố cục</string>

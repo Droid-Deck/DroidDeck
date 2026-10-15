@@ -924,6 +924,8 @@
     <string name="ctrl_keyboard_button">키보드 버튼</string>
     <string name="ctrl_select_steam">Select를 눌러 Steam 메뉴 열기</string>
     <string name="ctrl_select_steam_hint">View/Select 대신.</string>
+    <string name="ctrl_joycon_vr">Joy-Con을 VR 컨트롤러로 사용</string>
+    <string name="ctrl_joycon_vr_hint">SteamVR이 실행되는 동안 각 Joy-Con이 손이 됩니다. 앞을 향하게 한 채 HOME 또는 캡처 버튼을 길게 누르면 다시 가운데로 맞춥니다.</string>
     <string name="setup_animations">애니메이션</string>
     <string name="ctrl_adaptive_hint">스틱이 터치한 위치에 나타나며 손을 떼면 숨겨집니다</string>
     <string name="ctrl_layout">레이아웃</string>

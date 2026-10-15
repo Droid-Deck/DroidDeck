@@ -916,6 +916,8 @@
     <string name="ctrl_keyboard_button">ปุ่มแป้นพิมพ์</string>
     <string name="ctrl_select_steam">กด Select เพื่อเปิดเมนู Steam</string>
     <string name="ctrl_select_steam_hint">แทน View/Select</string>
+    <string name="ctrl_joycon_vr">ใช้ Joy-Con เป็นคอนโทรลเลอร์ VR</string>
+    <string name="ctrl_joycon_vr_hint">ขณะที่ SteamVR ทำงาน Joy-Con แต่ละตัวจะกลายเป็นมือ ชี้ไปข้างหน้าแล้วกด Home หรือ Capture ค้างไว้เพื่อจัดให้อยู่ตรงกลางอีกครั้ง</string>
     <string name="setup_animations">ภาพเคลื่อนไหว</string>
     <string name="ctrl_adaptive_hint">สติ๊กจะปรากฏที่ตำแหน่งที่คุณแตะและซ่อนเมื่อปล่อย</string>
     <string name="ctrl_layout">การจัดวาง</string>
