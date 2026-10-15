@@ -1874,6 +1874,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 onSteamMenu = ::tapSteamButton,
                 onQam = ::tapQam,
                 onClose = { selectSecondScreenMode(SecondScreenMode.NONE) },
+                pad = padBridge,
             )
             secondScreenPresentation = presentation
         }
