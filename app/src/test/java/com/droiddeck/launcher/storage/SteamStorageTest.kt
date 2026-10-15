@@ -1,0 +1,124 @@
+package com.droiddeck.launcher.storage
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import java.io.File
+
+class SteamStorageTest {
+    @get:Rule val tmp = TemporaryFolder()
+
+    private fun manifest(id: Int, dir: String, flags: Int = 4) = SteamStorage.parseManifest(
+        File("appmanifest_$id.acf"),
+        """
+        "AppState"
+        {
+            "appid"		"$id"
+            "name"		"App $id"
+            "StateFlags"		"$flags"
+            "installdir"		"$dir"
+            "LastPlayed"		"1792072812"
+        }
+        """.trimIndent(),
+    )!!
+
+    @Test fun readsManifestFields() {
+        val m = manifest(1794680, "Vampire Survivors")
+        assertEquals(1794680, m.appId)
+        assertEquals("Vampire Survivors", m.installDir)
+        assertTrue(m.installed)
+        assertEquals(1792072812L, m.lastPlayed)
+        assertFalse(manifest(1, "x", flags = 1026).installed)
+    }
+
+    @Test fun rejectsInstallDirsThatEscapeCommon() {
+        assertNull(manifest(5, "../steamapps").installDir)
+        assertNull(manifest(5, "a/b").installDir)
+    }
+
+    @Test fun classifiesTools() {
+        assertEquals(SteamStorage.Kind.OLD_RUNTIME, SteamStorage.kind(manifest(1070560, "SteamLinuxRuntime")))
+        assertEquals(SteamStorage.Kind.OLD_RUNTIME, SteamStorage.kind(manifest(1391110, "SteamLinuxRuntime_soldier")))
+        assertEquals(SteamStorage.Kind.REQUIRED, SteamStorage.kind(manifest(1628350, "SteamLinuxRuntime_sniper")))
+        assertEquals(SteamStorage.Kind.REQUIRED, SteamStorage.kind(manifest(4185400, "SteamLinuxRuntime_4-arm64")))
+        assertEquals(SteamStorage.Kind.ARM_PROTON, SteamStorage.kind(manifest(4427310, "Proton Experimental (ARM64)")))
+        assertEquals(SteamStorage.Kind.ARM_PROTON, SteamStorage.kind(manifest(4628740, "Proton 11.0 (ARM64)")))
+        assertEquals(SteamStorage.Kind.X86_PROTON, SteamStorage.kind(manifest(1493710, "Proton - Experimental")))
+        assertEquals(SteamStorage.Kind.X86_PROTON, SteamStorage.kind(manifest(2805730, "Proton 9.0")))
+        assertEquals(SteamStorage.Kind.REQUIRED, SteamStorage.kind(manifest(228980, "Steamworks Shared")))
+        assertTrue(SteamStorage.isTool(manifest(2805730, "Proton 9.0")))
+        assertFalse(SteamStorage.isTool(manifest(204360, "CastleCrashers")))
+    }
+
+    @Test fun readsOnlyTheCompatToolMappingBlock() {
+        val vdf = """
+            "InstallConfigStore"
+            {
+                "Software"
+                {
+                    "Valve"
+                    {
+                        "Steam"
+                        {
+                            "CompatToolMapping"
+                            {
+                                "0"
+                                {
+                                    "name"		"droiddeck-proton-arm64"
+                                    "config"		""
+                                }
+                                "207140"
+                                {
+                                    "name"		"droiddeck-proton-11-arm64"
+                                }
+                            }
+                            "Other"
+                            {
+                                "999"
+                                {
+                                    "name"		"not-a-mapping"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        """.trimIndent()
+        assertEquals(mapOf("0" to "droiddeck-proton-arm64", "207140" to "droiddeck-proton-11-arm64"), SteamStorage.compatMappings(vdf))
+        assertEquals(emptyMap<String, String>(), SteamStorage.compatMappings("\"x\" {}"))
+    }
+
+    @Test fun readsCustomToolName() {
+        val vdf = "\"compatibilitytools\"\n{\n  \"compat_tools\"\n  {\n    \"GE-Proton11-9-aarch64\"\n    {\n      \"install_path\" \".\"\n    }\n  }\n}"
+        assertEquals("GE-Proton11-9-aarch64", SteamStorage.compatToolName(vdf))
+    }
+
+    @Test fun leftoverIdsSkipTheSharedPrefixAndShortcuts() {
+        assertNull(SteamStorage.leftoverId("0"))
+        assertNull(SteamStorage.leftoverId("3207321049"))
+        assertNull(SteamStorage.leftoverId("-1768546955"))
+        assertNull(SteamStorage.leftoverId("pfx"))
+        assertEquals(452280, SteamStorage.leftoverId("452280"))
+    }
+
+    @Test fun stubPrefixesAndCloudSaves() {
+        val stub = tmp.newFolder("compatdata", "10")
+        assertTrue(SteamStorage.isStubPrefix(stub))
+        File(stub, "pfx/drive_c/users/steamuser/AppData/LocalLow/Studio/Game").mkdirs()
+        File(stub, "pfx/drive_c/users/steamuser/AppData/LocalLow/Studio/Game/steam_autocloud.vdf").writeText("x")
+        assertTrue(SteamStorage.isStubPrefix(stub))
+        val used = tmp.newFolder("compatdata", "20")
+        File(used, "pfx/drive_c/users/steamuser/Saved Games").mkdirs()
+        File(used, "pfx/drive_c/users/steamuser/Saved Games/slot1.sav").writeText("x")
+        assertFalse(SteamStorage.isStubPrefix(used))
+        val steam = tmp.newFolder("Steam")
+        File(steam, "userdata/123/20").mkdirs()
+        assertFalse(SteamStorage.cloudSaves(steam, 20))
+        File(steam, "userdata/123/20/remotecache.vdf").writeText("x")
+        assertTrue(SteamStorage.cloudSaves(steam, 20))
+    }
+}

@@ -69,7 +69,7 @@ object Library {
     private val LAST_PLAYED = Regex("^\\s*\"LastPlayed\"\\s*\"(\\d+)\"", RegexOption.MULTILINE)
     private val INSTALL_DIR = Regex("^\\s*\"installdir\"\\s*\"([^\"]*)\"", RegexOption.MULTILINE)
 
-    private fun steamLibraries(context: Context): List<Pair<File, String>> {
+    internal fun steamLibraries(context: Context): List<Pair<File, String>> {
         val root = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam")
         return listOfNotNull(
             root to "internal",
