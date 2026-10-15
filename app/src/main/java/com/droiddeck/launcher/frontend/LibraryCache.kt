@@ -25,6 +25,7 @@ object LibraryCache {
                 storeId = o.optString("storeId").ifEmpty { null },
                 guestExe = o.optString("guestExe").ifEmpty { null },
                 launchOptions = o.optString("launchOptions"),
+                directLaunch = o.optBoolean("directLaunch"),
             )
         }
     }.getOrElse { e -> Log.w(TAG, "unreadable, ignored: ${e.message}"); emptyList() }
@@ -38,7 +39,8 @@ object LibraryCache {
                     .putFile("gameFiles", g.gameFiles).putFile("protonPrefix", g.protonPrefix).putFile("icon", g.icon)
                     .put("source", g.source).apply { g.storeId?.let { put("storeId", it) } }
                     .apply { g.guestExe?.let { put("guestExe", it) } }
-                    .apply { if (g.launchOptions.isNotEmpty()) put("launchOptions", g.launchOptions) },
+                    .apply { if (g.launchOptions.isNotEmpty()) put("launchOptions", g.launchOptions) }
+                    .apply { if (g.directLaunch) put("directLaunch", true) },
             )
             val f = file(context)
             val tmp = File(f.path + ".tmp")

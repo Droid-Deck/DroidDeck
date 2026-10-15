@@ -454,11 +454,7 @@ class MainActivity : ComponentActivity() {
             android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
             return false
         }
-        if (game.library == Library.ADDED && game.guestExe != null &&
-            com.droiddeck.launcher.core.GameEnvironment.gameNoSteam(
-                com.droiddeck.launcher.session.GameEnvironmentStore.read(this), game.profileKey,
-            )
-        ) {
+        if (game.library == Library.ADDED && game.guestExe != null && game.directLaunch) {
             return launchWithoutSteam(game, returnHome)
         }
         if (SessionState.running) {
@@ -626,6 +622,12 @@ class MainActivity : ComponentActivity() {
                         },
                         onAddedGameRemoved = { folder, appId, name -> removeAddedGame(folder, appId, name) },
                         onAddedGamesArt = { on -> SessionPrefs.setAddedGamesArt(this, on); addedGamesArt = on; if (on) refreshAddedGames() },
+                        onDirectLaunch = { g ->
+                            g.gameFiles?.let { dir ->
+                                SessionPrefs.setAddedGameDirectLaunch(this, dir.path, !g.directLaunch)
+                                updateAddedGames(listOf(dir.path))
+                            }
+                        },
                         onSgdbKey = { key ->
                             Thread({
                                 com.droiddeck.launcher.frontend.SteamGridDb.setUserKey(this, key)

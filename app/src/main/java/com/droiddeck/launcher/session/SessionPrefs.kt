@@ -514,6 +514,12 @@ object SessionPrefs {
 
     fun addedGameLaunch(context: Context, folderPath: String): String = prefs(context).getString("addedLaunch:$folderPath", "") ?: ""
 
+    fun addedGameDirectLaunch(context: Context, folderPath: String): Boolean = prefs(context).getBoolean("addedDirect:$folderPath", false)
+
+    fun setAddedGameDirectLaunch(context: Context, folderPath: String, on: Boolean) {
+        prefs(context).edit().putBoolean("addedDirect:$folderPath", on).apply()
+    }
+
     fun setAddedGameLaunch(context: Context, folderPath: String, options: String) {
         prefs(context).edit().putString("addedLaunch:$folderPath", options.trim()).apply()
     }

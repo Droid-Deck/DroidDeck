@@ -154,6 +154,9 @@ private fun GameActions(g: Library.SteamGame, s: FrontEndState, a: FrontEndActio
         }
         if (!s.shortcutPicker) GameShortcutMenu(g, a)
         if (!s.shortcutPicker && g.library == Library.ADDED && g.source == Library.ADDED && g.gameFiles != null) EditGameButton { onEdit(g) }
+        if (!s.shortcutPicker && g.library == Library.ADDED && g.source == Library.ADDED && g.guestExe != null) {
+            SecondaryButton(stringResource(R.string.game_direct_launch), compact = true, active = g.directLaunch) { a.onDirectLaunch(g) }
+        }
         BusyChip(s)
     }
 }

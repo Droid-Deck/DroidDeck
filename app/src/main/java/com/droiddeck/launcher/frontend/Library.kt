@@ -18,6 +18,7 @@ object Library {
         val storeId: String? = null,
         val guestExe: String? = null,
         val launchOptions: String = "",
+        val directLaunch: Boolean = false,
     ) {
         val gameIdString: String get() = java.lang.Long.toUnsignedString(gameId)
         val profileKey: String get() = if (library == ADDED) java.lang.Integer.toUnsignedString(appId) else appId.toString()
@@ -143,6 +144,7 @@ object Library {
                 protonPrefix = protonPrefix(context, g.steamAppId?.toLong() ?: g.appId, libraries = roots),
                 icon = art.icon?.takeIf { it.extension.lowercase() != "ico" },
                 source = g.source, storeId = g.storeId, guestExe = g.guestExe, launchOptions = g.launchOptions,
+                directLaunch = g.directLaunch,
             )
         }
 

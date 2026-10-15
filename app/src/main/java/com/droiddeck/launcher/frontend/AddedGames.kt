@@ -28,6 +28,7 @@ object AddedGames {
         val storeId: String? = null,
         val exeUncertain: Boolean = false,
         val launchOptions: String = "",
+        val directLaunch: Boolean = false,
         val single: Boolean = false,
     ) {
         fun folderName(): String = folder.name
@@ -326,6 +327,7 @@ object AddedGames {
                 source = sidecar?.store?.id ?: Library.ADDED, storeId = sidecar?.id,
                 exeUncertain = sidecar == null && chosen == null && adopted == null && ranking.uncertain,
                 launchOptions = if (sidecar == null) SessionPrefs.addedGameLaunch(context, folder.path) else "",
+                directLaunch = sidecar == null && SessionPrefs.addedGameDirectLaunch(context, folder.path),
                 single = single != null))
         }
     }
