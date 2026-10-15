@@ -1924,6 +1924,14 @@
     <string name="epic_eos">Epicログイン（EOS）</string>
     <string name="epic_offline">オフラインで起動</string>
     <string name="epic_resolve">Epicログインの問題を解決</string>
+    <string name="epic_client_version">バージョン %1$s</string>
+    <string name="epic_client_no_runtime">先にLinux実行環境をインストールしてください</string>
+    <string name="epic_client_checking">最新バージョンを確認中…</string>
+    <string name="epic_client_unpacking">展開中…</string>
+    <string name="epic_client_unreachable">ダウンロードサーバーが応答しませんでした</string>
+    <string name="epic_client_download_failed">ダウンロードに失敗しました：%1$s</string>
+    <string name="epic_client_unpack_failed">ランチャーを展開できませんでした：%1$s</string>
+    <string name="epic_client_sign_in_failed">Epic Games Launcherがサインインを受け付けませんでした。ランチャーからもう一度起動してください。</string>
     <string name="store_cloud_saves">クラウドセーブ</string>
     <string name="cloud_upload">クラウドにアップロード</string>
     <string name="cloud_download">クラウドからダウンロード</string>

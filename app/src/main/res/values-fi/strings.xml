@@ -1937,6 +1937,14 @@
     <string name="epic_eos">Epic-kirjautuminen (EOS)</string>
     <string name="epic_offline">Käynnistä offline-tilassa</string>
     <string name="epic_resolve">Ratkaise Epic-kirjautuminen</string>
+    <string name="epic_client_version">Versio %1$s</string>
+    <string name="epic_client_no_runtime">Asenna Linux-ajoympäristö ensin</string>
+    <string name="epic_client_checking">Tarkistetaan uusinta versiota…</string>
+    <string name="epic_client_unpacking">Puretaan…</string>
+    <string name="epic_client_unreachable">Latauspalvelin ei vastannut</string>
+    <string name="epic_client_download_failed">Lataus epäonnistui: %1$s</string>
+    <string name="epic_client_unpack_failed">Launcherin purkaminen epäonnistui: %1$s</string>
+    <string name="epic_client_sign_in_failed">Epic Games Launcher ei hyväksynyt kirjautumista. Käynnistä se uudelleen launcherista.</string>
     <string name="store_cloud_saves">Pilvitallennukset</string>
     <string name="cloud_upload">Lähetä pilveen</string>
     <string name="cloud_download">Lataa pilvestä</string>

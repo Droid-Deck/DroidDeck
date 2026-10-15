@@ -49,6 +49,23 @@ class AddedGamesStoreScanTest {
         assertEquals(Store.EPIC.id, game.source)
     }
 
+    @Test fun anEpicGameAlwaysUsesItsLauncherWrapperEvenAfterAnExeIsPicked() {
+        val folder = install(Store.EPIC, "picked", "Picked Epic", "Binaries/Game.exe", launcher = true)
+        AddedExes.put(app, AddedExes.Entry(folder.path, File(folder, "Binaries/Game.exe").path, picked = true))
+        val game = AddedGames.scan(app).single { it.folder.absolutePath == folder.absolutePath }
+        assertEquals("Binaries/Game.exe", game.exe.relativeTo(folder).path)
+        assertTrue(game.guestExe.endsWith("/" + StoreLaunch.LAUNCHER))
+    }
+
+    @Test fun aDifferentPickedExeOnAnEpicGameIsRunDirectly() {
+        val folder = install(Store.EPIC, "other", "Other Epic", "Binaries/Game.exe", launcher = true)
+        val tool = File(folder, "Tools/Editor.exe").apply { parentFile!!.mkdirs(); writeText("tool") }
+        AddedExes.put(app, AddedExes.Entry(folder.path, tool.path, picked = true))
+        val game = AddedGames.scan(app).single { it.folder.absolutePath == folder.absolutePath }
+        assertEquals("Tools/Editor.exe", game.exe.relativeTo(folder).path)
+        assertTrue(game.guestExe.endsWith("/Tools/Editor.exe"))
+    }
+
     @Test fun anOlderSidecarsSteamSwitchIsIgnoredEveryInstallIsListed() {
         val folder = install(Store.AMAZON, "amzn1.adg.product.x", "Yakuza 0", "Yakuza0.exe")
         val file = StoreGameSidecar.file(folder)

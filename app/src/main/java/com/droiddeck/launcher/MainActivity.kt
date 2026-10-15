@@ -108,6 +108,9 @@ class MainActivity : ComponentActivity() {
     private var frameGenLabel by mutableStateOf("")
     private var lossless by mutableStateOf(Lossless.State.NONE)
     private var showRemove by mutableStateOf(false)
+    private var pendingSwitch by mutableStateOf<Intent?>(null)
+    private var switchingTo: Intent? = null
+    private var switchDeadline = 0L
     private var showResetSettings by mutableStateOf(false)
     private var lowSpace by mutableStateOf<Long?>(null)
     private var showNonAdreno by mutableStateOf<LinuxRuntimeInstaller.Release?>(null)
@@ -453,10 +456,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun launchGame(game: Library.SteamGame, returnHome: Boolean = false): Boolean {
+    private fun launchGame(
+        game: Library.SteamGame, returnHome: Boolean = false,
+        epic: com.droiddeck.launcher.stores.epic.EpicClient.GameRequest? = com.droiddeck.launcher.stores.epic.EpicClient.request(this, game),
+    ): Boolean {
         if (protons.protonBusyId != null || ProtonExtras.installInProgress || pkgStage != null) {
             android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
             return false
+        }
+        if (epic != null) return startEpicLauncher(com.droiddeck.launcher.stores.epic.EpicClient.launchIntent(this, epic, returnHome), returnHome) {
+            com.droiddeck.launcher.stores.epic.EpicClient.handToRunningLauncher(this, epic)
         }
         if (SessionState.running) {
             if (SessionState.mode != SessionService.MODE_STEAM || SessionState.stopRequested) {
@@ -476,6 +485,65 @@ class MainActivity : ComponentActivity() {
                 .putExtra(SessionActivity.EXTRA_RETURN_HOME, returnHome)
                 .putExtra(SessionService.EXTRA_STEAM_URL,
                 com.droiddeck.launcher.frontend.GameLaunchLink.steamUrl(game.gameIdString)), steamSession = true)
+    }
+
+    private fun openEpicLauncher(): Boolean {
+        if (protons.protonBusyId != null || ProtonExtras.installInProgress || pkgStage != null) {
+            android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
+            return false
+        }
+        return startEpicLauncher(com.droiddeck.launcher.stores.epic.EpicClient.openIntent(this), returnHome = false) {
+            com.droiddeck.launcher.stores.epic.EpicClient.launcherRunning()
+        }
+    }
+
+    private fun startEpicLauncher(next: Intent, returnHome: Boolean, handedOver: () -> Boolean): Boolean {
+        if (handedOver()) {
+            startActivity(Intent(this, SessionActivity::class.java).setAction(SessionService.ACTION_RESUME)
+                .putExtra(SessionActivity.EXTRA_RETURN_HOME, returnHome)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+            return true
+        }
+        if (SessionState.running) {
+            if (SessionState.stopRequested || com.droiddeck.launcher.stores.epic.EpicClient.launcherRunning()) {
+                android.widget.Toast.makeText(this, R.string.game_link_session_busy, android.widget.Toast.LENGTH_LONG).show()
+                return true
+            }
+            pendingSwitch = next
+            return true
+        }
+        return startSessionOrWait(next)
+    }
+
+    private fun startSessionOrWait(next: Intent): Boolean {
+        val started = startSession(next)
+        if (!started && (busy || LinuxRuntimeInstaller.isBusy())) android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
+        return started
+    }
+
+    private fun startAfterSession(next: Intent) {
+        SessionService.stop(this)
+        awaitSessionEnd(next, android.os.SystemClock.uptimeMillis() + SESSION_SWITCH_WAIT_MS)
+    }
+
+    private fun awaitSessionEnd(next: Intent, deadline: Long) {
+        switchingTo = next
+        switchDeadline = deadline
+        ui.postDelayed(object : Runnable {
+            override fun run() {
+                if (isDestroyed) return
+                if (SessionState.running || SessionState.phase !in SESSION_ENDED) {
+                    if (android.os.SystemClock.uptimeMillis() < deadline) ui.postDelayed(this, SESSION_SWITCH_POLL_MS)
+                    else {
+                        switchingTo = null
+                        android.widget.Toast.makeText(this@MainActivity, R.string.game_link_session_busy, android.widget.Toast.LENGTH_LONG).show()
+                    }
+                    return
+                }
+                switchingTo = null
+                startSessionOrWait(next)
+            }
+        }, SESSION_SWITCH_POLL_MS)
     }
 
     private fun handleGameLink(games: List<Library.SteamGame>) {
@@ -599,9 +667,12 @@ class MainActivity : ComponentActivity() {
                             if (shortcutPicker) chooseGameShortcut(g)
                             else {
                                 com.droiddeck.launcher.frontend.AutoComponents.beforeLaunch(this, g)
-                                com.droiddeck.launcher.stores.StoreLaunch.prepare(this, g) { launchGame(g) }
+                                val epic = com.droiddeck.launcher.stores.epic.EpicClient.request(this, g)
+                                if (epic != null) launchGame(g, epic = epic)
+                                else com.droiddeck.launcher.stores.StoreLaunch.prepare(this, g) { launchGame(g) }
                             }
                         },
+                        onEpicLauncher = { openEpicLauncher() },
                         onGameShortcut = { g -> com.droiddeck.launcher.frontend.GameShortcuts.pin(this, g) },
                         onExportGameFile = { g -> pickGameExport(g) },
                         onSyncGameFiles = { pickGameExport(null) },
@@ -849,6 +920,15 @@ class MainActivity : ComponentActivity() {
                         onDismiss = { showNonAdreno = null },
                     )
                 }
+                pendingSwitch?.let { next ->
+                    ConfirmDialog(
+                        title = androidx.compose.ui.res.stringResource(R.string.drawer_stop_title),
+                        text = runningLabel ?: "",
+                        confirm = androidx.compose.ui.res.stringResource(R.string.drawer_stop),
+                        onConfirm = { pendingSwitch = null; startAfterSession(next) },
+                        onDismiss = { pendingSwitch = null },
+                    )
+                }
                 if (showRemove) ConfirmDialog(
                     title = androidx.compose.ui.res.stringResource(R.string.main_remove_runtime_title),
                     text = androidx.compose.ui.res.stringResource(R.string.main_remove_runtime_text),
@@ -881,6 +961,10 @@ class MainActivity : ComponentActivity() {
         }
 
         if (savedInstanceState == null) ui.post { startSteamAtStartupIfEnabled() }
+        else {
+            pendingSwitch = savedIntent(savedInstanceState, KEY_PENDING_SWITCH)
+            savedIntent(savedInstanceState, KEY_SWITCHING_TO)?.let { awaitSessionEnd(it, savedInstanceState.getLong(KEY_SWITCH_DEADLINE)) }
+        }
 
         val wanted = ArrayList<String>()
         if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
@@ -1021,6 +1105,19 @@ class MainActivity : ComponentActivity() {
         displayManager.registerDisplayListener(secondScreenDisplayListener, ui)
         refreshSecondScreenDisplays()
     }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        pendingSwitch?.let { outState.putParcelable(KEY_PENDING_SWITCH, it) }
+        switchingTo?.let {
+            outState.putParcelable(KEY_SWITCHING_TO, it)
+            outState.putLong(KEY_SWITCH_DEADLINE, switchDeadline)
+        }
+    }
+
+    private fun savedIntent(state: Bundle, key: String): Intent? =
+        if (Build.VERSION.SDK_INT >= 33) state.getParcelable(key, Intent::class.java)
+        else @Suppress("DEPRECATION") state.getParcelable(key)
 
     override fun onDestroy() {
         updates.unregister()
@@ -1752,6 +1849,12 @@ class MainActivity : ComponentActivity() {
     companion object {
         private const val TAG = "MainActivity"
         private const val MEDIA_SETTLE_MS = 1500L
+        private const val SESSION_SWITCH_WAIT_MS = 30_000L
+        private const val SESSION_SWITCH_POLL_MS = 250L
+        private const val KEY_PENDING_SWITCH = "pending_switch"
+        private const val KEY_SWITCHING_TO = "switching_to"
+        private const val KEY_SWITCH_DEADLINE = "switch_deadline"
+        private val SESSION_ENDED = setOf(SessionPhase.IDLE, SessionPhase.FAILED)
         private val ZIP_EXT = listOf("zip")
         private val WCP_EXT = listOf("wcp")
     }

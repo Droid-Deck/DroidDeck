@@ -1916,6 +1916,14 @@
     <string name="epic_eos">Masuk Epic (EOS)</string>
     <string name="epic_offline">Jalankan secara offline</string>
     <string name="epic_resolve">Selesaikan masuk Epic</string>
+    <string name="epic_client_version">Versi %1$s</string>
+    <string name="epic_client_no_runtime">Instal runtime Linux terlebih dahulu</string>
+    <string name="epic_client_checking">Memeriksa versi terbaru…</string>
+    <string name="epic_client_unpacking">Mengekstrak…</string>
+    <string name="epic_client_unreachable">Server unduhan tidak merespons</string>
+    <string name="epic_client_download_failed">Unduhan gagal: %1$s</string>
+    <string name="epic_client_unpack_failed">Tidak dapat mengekstrak launcher: %1$s</string>
+    <string name="epic_client_sign_in_failed">Epic Games Launcher tidak menerima proses masuk. Mulai lagi dari launcher.</string>
     <string name="store_cloud_saves">Simpanan cloud</string>
     <string name="cloud_upload">Unggah ke cloud</string>
     <string name="cloud_download">Unduh dari cloud</string>

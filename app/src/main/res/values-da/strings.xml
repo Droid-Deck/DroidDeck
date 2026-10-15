@@ -1937,6 +1937,14 @@
     <string name="epic_eos">Epic-login (EOS)</string>
     <string name="epic_offline">Start offline</string>
     <string name="epic_resolve">Løs Epic-login</string>
+    <string name="epic_client_version">Version %1$s</string>
+    <string name="epic_client_no_runtime">Installer Linux-runtimen først</string>
+    <string name="epic_client_checking">Kontrollerer den nyeste version…</string>
+    <string name="epic_client_unpacking">Udpakker…</string>
+    <string name="epic_client_unreachable">Downloadserveren svarede ikke</string>
+    <string name="epic_client_download_failed">Download mislykkedes: %1$s</string>
+    <string name="epic_client_unpack_failed">Kunne ikke udpakke launcheren: %1$s</string>
+    <string name="epic_client_sign_in_failed">Epic Games Launcher accepterede ikke login. Start den igen fra launcheren.</string>
     <string name="store_cloud_saves">Cloud-gemte spil</string>
     <string name="cloud_upload">Upload til cloud</string>
     <string name="cloud_download">Download fra cloud</string>

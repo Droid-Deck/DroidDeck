@@ -1916,6 +1916,14 @@
     <string name="epic_eos">Đăng nhập Epic (EOS)</string>
     <string name="epic_offline">Khởi chạy ngoại tuyến</string>
     <string name="epic_resolve">Giải quyết đăng nhập Epic</string>
+    <string name="epic_client_version">Phiên bản %1$s</string>
+    <string name="epic_client_no_runtime">Cài runtime Linux trước</string>
+    <string name="epic_client_checking">Đang kiểm tra phiên bản mới nhất…</string>
+    <string name="epic_client_unpacking">Đang giải nén…</string>
+    <string name="epic_client_unreachable">Máy chủ tải xuống không phản hồi</string>
+    <string name="epic_client_download_failed">Tải xuống thất bại: %1$s</string>
+    <string name="epic_client_unpack_failed">Không thể giải nén launcher: %1$s</string>
+    <string name="epic_client_sign_in_failed">Epic Games Launcher không nhận đăng nhập. Khởi động lại từ launcher.</string>
     <string name="store_cloud_saves">Tệp lưu trên cloud</string>
     <string name="cloud_upload">Tải lên cloud</string>
     <string name="cloud_download">Tải xuống từ cloud</string>

@@ -1937,6 +1937,14 @@
     <string name="epic_eos">Вход в Epic (EOS)</string>
     <string name="epic_offline">Стартирай офлайн</string>
     <string name="epic_resolve">Разреши входа в Epic</string>
+    <string name="epic_client_version">Версия %1$s</string>
+    <string name="epic_client_no_runtime">Първо инсталирайте средата на Linux</string>
+    <string name="epic_client_checking">Проверка за последната версия…</string>
+    <string name="epic_client_unpacking">Разархивиране…</string>
+    <string name="epic_client_unreachable">Сървърът за изтегляне не отговори</string>
+    <string name="epic_client_download_failed">Изтеглянето се провали: %1$s</string>
+    <string name="epic_client_unpack_failed">Разархивирането на програмата не бе успешно: %1$s</string>
+    <string name="epic_client_sign_in_failed">Epic Games Launcher не прие влизането. Стартирайте го отново от програмата.</string>
     <string name="store_cloud_saves">Облачни запазвания</string>
     <string name="cloud_upload">Качи в облака</string>
     <string name="cloud_download">Изтегли от облака</string>

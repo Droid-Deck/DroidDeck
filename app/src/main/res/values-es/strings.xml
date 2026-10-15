@@ -1966,6 +1966,14 @@
     <string name="epic_eos">Inicio de sesión de Epic (EOS)</string>
     <string name="epic_offline">Iniciar sin conexión</string>
     <string name="epic_resolve">Solucionar el inicio de sesión de Epic</string>
+    <string name="epic_client_version">Versión %1$s</string>
+    <string name="epic_client_no_runtime">Instala primero el runtime de Linux</string>
+    <string name="epic_client_checking">Comprobando la versión más reciente…</string>
+    <string name="epic_client_unpacking">Descomprimiendo…</string>
+    <string name="epic_client_unreachable">El servidor de descargas no respondió</string>
+    <string name="epic_client_download_failed">La descarga falló: %1$s</string>
+    <string name="epic_client_unpack_failed">No se pudo descomprimir el launcher: %1$s</string>
+    <string name="epic_client_sign_in_failed">Epic Games Launcher no aceptó el inicio de sesión. Vuelve a iniciarlo desde el launcher.</string>
     <string name="store_cloud_saves">Partidas en la nube</string>
     <string name="cloud_upload">Subir a la nube</string>
     <string name="cloud_download">Descargar de la nube</string>

@@ -1966,6 +1966,14 @@
     <string name="epic_eos">Connexion Epic (EOS)</string>
     <string name="epic_offline">Lancer hors ligne</string>
     <string name="epic_resolve">Corriger la connexion Epic</string>
+    <string name="epic_client_version">Version %1$s</string>
+    <string name="epic_client_no_runtime">Veuillez d\'abord installer l\'environnement d\'exécution Linux</string>
+    <string name="epic_client_checking">Vérification de la dernière version…</string>
+    <string name="epic_client_unpacking">Décompression…</string>
+    <string name="epic_client_unreachable">Le serveur de téléchargement n\'a pas répondu</string>
+    <string name="epic_client_download_failed">Échec du téléchargement : %1$s</string>
+    <string name="epic_client_unpack_failed">Impossible de décompresser le launcher : %1$s</string>
+    <string name="epic_client_sign_in_failed">Epic Games Launcher n\'a pas accepté la connexion. Relancez-le depuis le launcher.</string>
     <string name="store_cloud_saves">Sauvegardes cloud</string>
     <string name="cloud_upload">Envoyer vers le cloud</string>
     <string name="cloud_download">Télécharger depuis le cloud</string>

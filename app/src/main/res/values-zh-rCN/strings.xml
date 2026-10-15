@@ -1924,6 +1924,14 @@
     <string name="epic_eos">Epic 登录（EOS）</string>
     <string name="epic_offline">离线启动</string>
     <string name="epic_resolve">解决 Epic 登录问题</string>
+    <string name="epic_client_version">版本 %1$s</string>
+    <string name="epic_client_no_runtime">请先安装 Linux 运行时</string>
+    <string name="epic_client_checking">正在检查最新版本…</string>
+    <string name="epic_client_unpacking">正在解包…</string>
+    <string name="epic_client_unreachable">下载服务器未响应</string>
+    <string name="epic_client_download_failed">下载失败：%1$s</string>
+    <string name="epic_client_unpack_failed">无法解包启动器：%1$s</string>
+    <string name="epic_client_sign_in_failed">Epic Games Launcher 未接受登录。请从启动器重新启动它。</string>
     <string name="store_cloud_saves">云存档</string>
     <string name="cloud_upload">上传到云端</string>
     <string name="cloud_download">从云端下载</string>

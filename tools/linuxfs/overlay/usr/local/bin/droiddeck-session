@@ -301,6 +301,24 @@ case $mode in
       taskset -cp "$cores" $$ >/dev/null 2>&1 || true
     fi
     python3 /usr/local/bin/droiddeck-pad-defaults 2>&1 || true
+    run_program() {
+      local rc=0 child sig forwarded=0
+      { trap - INT QUIT; exec "$@"; } <&0 &
+      child=$!
+      for sig in TERM HUP INT; do
+        trap "kill -$sig $child 2>/dev/null; forwarded=1" "$sig"
+      done
+      while :; do
+        forwarded=0
+        rc=0
+        wait "$child" || rc=$?
+        [ "$forwarded" = 1 ] || break
+      done
+      if [ -n "${BL_LAUNCH_DIR:-}" ]; then
+        printf '%s\n' "$rc" > "$BL_LAUNCH_DIR/run-status.tmp" && mv -f "$BL_LAUNCH_DIR/run-status.tmp" "$BL_LAUNCH_DIR/run-status"
+      fi
+      exit "$rc"
+    }
     fex=()
     if [ -x /usr/local/bin/droiddeck-fex ]; then
       case $(od -An -tu2 -j18 -N2 "$target" 2>/dev/null | tr -d ' ') in
@@ -311,17 +329,17 @@ case $mode in
       *.appimage)
         export APPIMAGE_EXTRACT_AND_RUN=1
         chmod +x "$target" 2>/dev/null
-        exec "${fex[@]}" "$target" "$@"
+        run_program "${fex[@]}" "$target" "$@"
         ;;
       *.sh)
         if [ -x /usr/local/bin/droiddeck-fex ]; then
-          exec /usr/local/bin/droiddeck-fex run --for "$target" -- bash "$target" "$@"
+          run_program /usr/local/bin/droiddeck-fex run --for "$target" -- bash "$target" "$@"
         fi
-        exec bash "$target" "$@"
+        run_program bash "$target" "$@"
         ;;
       *)
         chmod +x "$target" 2>/dev/null
-        cd "$(dirname "$target")" && exec "${fex[@]}" "$target" "$@"
+        cd "$(dirname "$target")" && run_program "${fex[@]}" "$target" "$@"
         ;;
     esac
     ;;

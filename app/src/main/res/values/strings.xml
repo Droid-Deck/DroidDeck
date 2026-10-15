@@ -1997,6 +1997,15 @@
     <string name="epic_eos">Epic sign-in (EOS)</string>
     <string name="epic_offline">Launch offline</string>
     <string name="epic_resolve">Resolve Epic sign-in</string>
+    <string name="epic_client_title" translatable="false">Epic Games Launcher</string>
+    <string name="epic_client_version">Version %1$s</string>
+    <string name="epic_client_no_runtime">Install the Linux runtime first</string>
+    <string name="epic_client_checking">Checking for the latest version…</string>
+    <string name="epic_client_unpacking">Unpacking…</string>
+    <string name="epic_client_unreachable">The download server did not answer</string>
+    <string name="epic_client_download_failed">Download failed: %1$s</string>
+    <string name="epic_client_unpack_failed">Could not unpack the launcher: %1$s</string>
+    <string name="epic_client_sign_in_failed">The Epic Games Launcher did not take the sign-in. Start it again from the launcher.</string>
     <string name="store_cloud_saves">Cloud saves</string>
     <string name="cloud_upload">Upload to cloud</string>
     <string name="cloud_download">Download from cloud</string>

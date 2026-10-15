@@ -27,6 +27,7 @@ import androidx.compose.ui.layout.boundsInParent
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.positionInRoot
 import com.droiddeck.launcher.stores.StoreInstallRoot
+import com.droiddeck.launcher.stores.epic.EpicClient
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -176,6 +177,16 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     val grids = remember { HashMap<PaneKey, LazyGridState>() }
     val grid = grids.getOrPut(pane) { LazyGridState() }
     LaunchedEffect(Unit) { StoresState.refresh(ctx) }
+    val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(chip) {
+        if (chip == Store.EPIC.id) {
+            EpicClient.ensure(ctx)
+            while (true) {
+                delay(5_000)
+                if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) EpicClient.refresh(ctx)
+            }
+        }
+    }
     LaunchedEffect(chip, StoresState.accounts[store]) { if (store != null && StoresState.isSignedIn(store)) StoresState.open(ctx, store) }
     val ff = LocalFrontFocus.current
     val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current
@@ -889,6 +900,10 @@ private fun Storefront(
                         SortButton(s, a)
                         ViewButton(s, a)
                     }
+                    if (store == Store.EPIC) SmallTextButton(stringResource(R.string.epic_client_title)) {
+                        if (EpicClient.status.installed) a.onEpicLauncher()
+                        else { EpicClient.install(ctx); StoresState.openDownloads = true }
+                    }
                     SmallTextButton(stringResource(R.string.stores_refresh)) { StoresState.open(ctx, store, force = true) }
                     val name = StoresState.accounts[store] ?: ""
                     SignOutButton(store, name)
@@ -1393,5 +1408,6 @@ internal fun launchStoreGame(ctx: android.content.Context, store: Store, id: Str
         android.widget.Toast.makeText(ctx, R.string.stores_launch_not_registered, android.widget.Toast.LENGTH_LONG).show()
         return
     }
-    com.droiddeck.launcher.stores.StoreLaunch.prepare(ctx, store, id) { a.onSteamGame(game) }
+    if (com.droiddeck.launcher.stores.epic.EpicClient.handlesLaunch(ctx, game)) a.onSteamGame(game)
+    else com.droiddeck.launcher.stores.StoreLaunch.prepare(ctx, store, id) { a.onSteamGame(game) }
 }

@@ -335,6 +335,33 @@ class ExtractTest(FexTestCase):
         self.assertIn("no AppImage runtime for ARM64, no FEX yet and no unsquashfs", said)
         self.assertFalse(os.path.lexists("squashfs-root"))
 
+    def test_unsquashfs_fallback_disables_unwritable_xattrs(self):
+        tool = self.uruntime("exit 1\n")
+        commands = []
+
+        def call(argv, **kwargs):
+            commands.append(argv)
+            if argv[0] == tool:
+                return 1
+            (self.work / "squashfs-root").mkdir()
+            (self.work / "squashfs-root/AppRun").touch()
+            return 0
+
+        with mock.patch.dict(G, {
+            "URUNTIME": tool,
+            "prepare": lambda: None,
+            "fex_install": lambda: None,
+            "steam_running": lambda: False,
+            "want_fex": lambda: None,
+        }), mock.patch("shutil.which", return_value="/usr/bin/unsquashfs"), \
+                mock.patch("subprocess.call", side_effect=call):
+            status, said = self.quiet(FEX["extract"], "image.AppImage")
+        self.assertEqual(status, 0)
+        self.assertIn("uruntime could not extract it (status 1)", said)
+        self.assertEqual(commands[-1][0], "/usr/bin/unsquashfs")
+        self.assertIn("-no-xattrs", commands[-1])
+        self.assertTrue(Path("squashfs-root/AppRun").is_file())
+
 
 class LaunchTest(FexTestCase):
     def test_the_guest_environment(self):

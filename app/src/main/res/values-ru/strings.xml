@@ -1987,6 +1987,14 @@
     <string name="epic_eos">Вход в Epic (EOS)</string>
     <string name="epic_offline">Запускать офлайн</string>
     <string name="epic_resolve">Устранить проблему входа в Epic</string>
+    <string name="epic_client_version">Версия %1$s</string>
+    <string name="epic_client_no_runtime">Сначала установите среду выполнения Linux</string>
+    <string name="epic_client_checking">Проверка последней версии…</string>
+    <string name="epic_client_unpacking">Распаковка…</string>
+    <string name="epic_client_unreachable">Сервер загрузки не ответил</string>
+    <string name="epic_client_download_failed">Ошибка загрузки: %1$s</string>
+    <string name="epic_client_unpack_failed">Не удалось распаковать лаунчер: %1$s</string>
+    <string name="epic_client_sign_in_failed">Epic Games Launcher не принял вход. Запустите его снова из лаунчера.</string>
     <string name="store_cloud_saves">Облачные сохранения</string>
     <string name="cloud_upload">Загрузить в облако</string>
     <string name="cloud_download">Скачать из облака</string>

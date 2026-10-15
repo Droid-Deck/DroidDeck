@@ -2021,6 +2021,14 @@
     <string name="epic_eos">تسجيل الدخول إلى Epic (EOS)</string>
     <string name="epic_offline">التشغيل دون اتصال</string>
     <string name="epic_resolve">إصلاح تسجيل الدخول إلى Epic</string>
+    <string name="epic_client_version">الإصدار %1$s</string>
+    <string name="epic_client_no_runtime">ثبّت بيئة تشغيل Linux أولًا</string>
+    <string name="epic_client_checking">جارٍ التحقق من آخر إصدار…</string>
+    <string name="epic_client_unpacking">جارٍ فك الضغط…</string>
+    <string name="epic_client_unreachable">لم يستجب خادم التنزيل</string>
+    <string name="epic_client_download_failed">فشل التنزيل: %1$s</string>
+    <string name="epic_client_unpack_failed">تعذّر فك ضغط المُشغِّل: %1$s</string>
+    <string name="epic_client_sign_in_failed">لم يقبل Epic Games Launcher تسجيل الدخول. شغّله مرة أخرى من المُشغِّل.</string>
     <string name="store_cloud_saves">ملفات الحفظ السحابية</string>
     <string name="cloud_upload">الرفع إلى السحابة</string>
     <string name="cloud_download">التنزيل من السحابة</string>

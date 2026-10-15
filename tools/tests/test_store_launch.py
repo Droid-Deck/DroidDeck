@@ -241,7 +241,7 @@ class CloudHooks(unittest.TestCase):
             self.assertIn('bl_run ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env', sh)
             self.assertNotIn('exec ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env', sh)
         self.assertIn('[ $? -eq 10 ] && BL_STORE_EXIT=1', compat.BL_STORE_SETUP)
-        self.assertIn('droiddeck-store-launch --exited "${BL_STORE_ARGS[@]}"', compat.BL_STORE_SETUP)
+        self.assertIn('droiddeck-store-launch --exited --code "$rc" "${BL_STORE_ARGS[@]}"', compat.BL_STORE_SETUP)
         self.assertIn('exec "$@"', compat.BL_STORE_SETUP)
 
 
