@@ -31,8 +31,8 @@ import kotlin.math.min
 class DeckControlsPanel(
     context: Context,
     private val onClose: () -> Unit,
-    private val onSteamMenu: () -> Unit,
-    private val onQam: () -> Unit,
+    private val onSteamMenu: (() -> Unit)?,
+    private val onQam: (() -> Unit)?,
     private val pad: PadBridge? = null,
 ) : LinearLayout(context) {
     private enum class Tab(val label: Int) { GAMEPAD(R.string.deck_tab_gamepad), GRIPS(R.string.deck_tab_grips), LEFT(R.string.deck_tab_left), RIGHT(R.string.deck_tab_right), BOTH(R.string.deck_tab_both) }
@@ -89,9 +89,9 @@ class DeckControlsPanel(
             addView(tabs, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, dp(44), Gravity.CENTER))
         }
         addView(centre, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
-        addView(roundButton("STEAM", context.getString(R.string.deck_open_steam_menu), onSteamMenu, wide = true))
+        onSteamMenu?.let { addView(roundButton("STEAM", context.getString(R.string.deck_open_steam_menu), it, wide = true)) }
         addView(space(dp(8)))
-        addView(roundButton("•••", context.getString(R.string.drawer_open_qam), onQam, wide = true))
+        onQam?.let { addView(roundButton("•••", context.getString(R.string.drawer_open_qam), it, wide = true)) }
     }
 
     private fun select(tab: Tab) {
@@ -170,8 +170,8 @@ class DeckControlsPanel(
         place(pill("RB") { st, d -> st.press(PadState.RB, d) }, GamepadGeometry.Slot.RIGHT_INNER_SHOULDER)
         place(pill("RT") { st, d -> st.rightTrigger = if (d) 1f else 0f }, GamepadGeometry.Slot.RIGHT_OUTER_SHOULDER)
         place(pill("VIEW") { st, d -> st.press(PadState.SELECT, d) }, GamepadGeometry.Slot.VIEW)
-        place(centreTap("STEAM", context.getString(R.string.deck_open_steam_menu), onSteamMenu), GamepadGeometry.Slot.STEAM)
-        place(centreTap("\u2022\u2022\u2022", context.getString(R.string.drawer_open_qam), onQam), GamepadGeometry.Slot.QAM)
+        onSteamMenu?.let { place(centreTap("STEAM", context.getString(R.string.deck_open_steam_menu), it), GamepadGeometry.Slot.STEAM) }
+        onQam?.let { place(centreTap("\u2022\u2022\u2022", context.getString(R.string.drawer_open_qam), it), GamepadGeometry.Slot.QAM) }
         place(pill("MENU") { st, d -> st.press(PadState.START, d) }, GamepadGeometry.Slot.MENU)
         place(centreTap("\u25a6 " + context.getString(R.string.deck_panels), context.getString(R.string.deck_more_controls)) { select(Tab.BOTH) },
             GamepadGeometry.Slot.PANELS)

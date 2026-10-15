@@ -1841,8 +1841,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     WaylandCompositor.nativeSendSceneInput(3, button, if (pressed) 1 else 0)
                 },
                 sendWheel = { steps -> WaylandCompositor.nativeSendSceneInput(4, steps, 0) },
-                onSteamMenu = ::tapSteamButton,
-                onQam = ::tapQam,
+                onSteamMenu = if (SessionState.mode == SessionService.MODE_STEAM) ::tapSteamButton else null,
+                onQam = if (SessionState.mode == SessionService.MODE_STEAM) ::tapQam else null,
                 onClose = { selectSecondScreenMode(SecondScreenMode.NONE) },
             )
             secondScreenPresentation = presentation
@@ -1907,7 +1907,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         if (panel == null) {
             panel = com.droiddeck.launcher.ui.DeckControlsPanel(this, onClose = { chooseUnfoldedControls(false) },
-                onSteamMenu = ::tapSteamButton, onQam = ::tapQam, pad = padBridge)
+                onSteamMenu = if (SessionState.mode == SessionService.MODE_STEAM) ::tapSteamButton else null,
+                onQam = if (SessionState.mode == SessionService.MODE_STEAM) ::tapQam else null, pad = padBridge)
             sessionRoot.addView(panel, sessionRoot.indexOfChild(surfaceView) + 1)
             unfoldedPanel = panel
             updateOnScreenControls()

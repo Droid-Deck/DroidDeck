@@ -42,8 +42,8 @@ class SecondScreenPresentation(
     private val sendPointer: (x: Float, y: Float, width: Float, height: Float) -> Unit,
     private val sendButton: (button: Int, pressed: Boolean) -> Unit,
     private val sendWheel: (steps: Int) -> Unit,
-    private val onSteamMenu: () -> Unit,
-    private val onQam: () -> Unit,
+    private val onSteamMenu: (() -> Unit)?,
+    private val onQam: (() -> Unit)?,
     private val onClose: () -> Unit,
 ) : Presentation(sessionActivity, display) {
     private val root = LinearLayout(context).apply {
@@ -153,16 +153,20 @@ class SecondScreenPresentation(
             }
         }
         controls.addView(keyboardButton)
-        controls.addView(Button(context).apply {
-            text = "STEAM"
-            contentDescription = context.getString(R.string.deck_open_steam_menu)
-            setOnClickListener { onSteamMenu() }
-        })
-        controls.addView(Button(context).apply {
-            text = "…"
-            contentDescription = context.getString(R.string.drawer_open_qam)
-            setOnClickListener { onQam() }
-        })
+        onSteamMenu?.let { menu ->
+            controls.addView(Button(context).apply {
+                text = "STEAM"
+                contentDescription = context.getString(R.string.deck_open_steam_menu)
+                setOnClickListener { menu() }
+            })
+        }
+        onQam?.let { qam ->
+            controls.addView(Button(context).apply {
+                text = "…"
+                contentDescription = context.getString(R.string.drawer_open_qam)
+                setOnClickListener { qam() }
+            })
+        }
         panel.addView(controls, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
         root.addView(panel, weightParams())
         val host = KeyboardHost(context) { sessionActivity.dispatchKeyEvent(it) }
