@@ -626,7 +626,7 @@ class MainActivity : ComponentActivity() {
                         onDirectLaunch = { g ->
                             val on = !g.directLaunch
                             g.gameFiles?.let { SessionPrefs.setAddedGameDirectLaunch(this, it.path, on) }
-                            steamGames = steamGames.map { if (it === g) it.withDirectLaunch(on) else it }
+                            steamGames = steamGames.map { if (it.gameId == g.gameId) it.withDirectLaunch(on) else it }
                             com.droiddeck.launcher.frontend.LibraryCache.save(this, steamGames)
                         },
                         onSgdbKey = { key ->
