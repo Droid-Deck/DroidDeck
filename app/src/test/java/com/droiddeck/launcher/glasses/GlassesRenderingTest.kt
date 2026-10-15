@@ -14,6 +14,16 @@ class GlassesRenderingTest {
     private fun render(settings: GlassesSettings, state: GlassesState = ultra, steamVr: Boolean = false) =
         GlassesRendering.cardboard(base, settings, state, outputActive = true, steamVrRunning = steamVr)
 
+    @Test fun steamVrDefaultsToOneTrackedEyeWithoutRequestingStereo() {
+        val settings = GlassesSettings()
+        assertFalse(settings.auto3d)
+        val projection = render(settings, steamVr = true)
+        assertTrue(projection.enabled)
+        assertTrue(projection.mono)
+        assertTrue(projection.headTracking)
+        assertEquals(Cardboard.SOURCE_SBS, projection.source)
+    }
+
     @Test fun automatic2dIsFlatSoVirtualScreenSettingsDoNotApply() {
         val settings = GlassesSettings(screenWidthDm = 40, screenDistanceDm = 80)
         assertEquals(GlassesRendering.Picture.FLAT, GlassesRendering.picture(settings, false, false))

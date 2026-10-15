@@ -53,6 +53,31 @@ class GlassesPanelTest {
         compose.onNodeWithText(text(R.string.glasses_screen_direct_hint)).assertExists()
     }
 
+    @Test fun mirroredSteamVrIn2dKeepsFieldOfViewAndRecenter() {
+        show(steamVrRunning = true, outputActive = false, tab = null)
+        assertMirroredVrControls()
+    }
+
+    @Test fun mirroredSteamVrIn3dKeepsFieldOfViewAndRecenter() {
+        show(stereo = true, steamVrRunning = true, outputActive = false, tab = null)
+        assertMirroredVrControls()
+    }
+
+    @Test fun mirroredSteamVrVirtualScreenKeepsGeometryAndRecenter() {
+        show(settings = GlassesSettings(picture3d = GlassesSettings.PICTURE_SCREEN),
+            steamVrRunning = true, outputActive = false, tab = null)
+        compose.onNodeWithTag("glasses-width").assertIsEnabled()
+        compose.onNodeWithTag("glasses-distance").assertIsEnabled()
+        compose.onNodeWithText(text(R.string.cardboard_recenter_button)).assertExists()
+        compose.onNodeWithText(text(R.string.glasses_screen_no_output)).assertDoesNotExist()
+    }
+
+    private fun assertMirroredVrControls() {
+        compose.onNodeWithTag("glasses-vr-fov").assertIsEnabled()
+        compose.onNodeWithText(text(R.string.cardboard_recenter_button)).assertExists()
+        compose.onNodeWithText(text(R.string.glasses_screen_no_output)).assertDoesNotExist()
+    }
+
     @Test fun automaticStereoOutputWithoutSteamVrUsesVirtualScreenDimensions() {
         show(stereo = true)
         compose.onNodeWithTag("glasses-width").assertIsEnabled()
@@ -124,7 +149,7 @@ class GlassesPanelTest {
         inSession: Boolean = true,
         outputActive: Boolean = inSession,
         controlAvailable: Boolean = true,
-        tab: String = GlassesTab.DISPLAY,
+        tab: String? = GlassesTab.DISPLAY,
     ) {
         val state = GlassesState(present = true, connected = controlAvailable, controllable = true,
             displayId = Display.DEFAULT_DISPLAY + 1, width = if (stereo) 3840 else 1920, height = 1200,
