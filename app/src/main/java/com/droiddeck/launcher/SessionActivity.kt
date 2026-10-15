@@ -2117,10 +2117,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun updateOnScreenControls() {
-        val forced = File(Environment.getExternalStorageDirectory(), "Download/droiddeck-osc")
+        val stored = File(Environment.getExternalStorageDirectory(), "Download/droiddeck-osc")
             .takeIf { it.isFile }
             ?.let { FileUtils.readString(it)?.trim()?.lowercase() }
             ?: SessionPrefs.oscMode(this)
+        val forced = if (stored == SessionPrefs.OSC_STEAM_QAM && SessionState.mode != SessionService.MODE_STEAM) SessionPrefs.OSC_AUTO else stored
         val controls = onScreenControls ?: return
         if (pipUi || unfoldedPanel != null) {
             onScreenButtonsVisible = false
