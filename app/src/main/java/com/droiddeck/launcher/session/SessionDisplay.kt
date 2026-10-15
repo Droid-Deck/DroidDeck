@@ -41,8 +41,19 @@ object SessionDisplay {
 
     const val UNFOLDED_MIN_DP = 600
 
-    fun unfoldedGameHeight(width: Int, height: Int): Int =
-        minOf(width * 9 / 16, (height * UNFOLDED_MAX_GAME_SHARE).toInt()) and 1.inv()
+    /**
+     * Height of the game area in the unfolded layout; the controls take the rest of [height].
+     *
+     * [foldTop] is the y position of a horizontal fold (a half-open "tabletop" posture, the top edge of
+     * the hinge area), or null when the device is flat. With a fold the game stays 16:9 but must end at
+     * the fold, so the controls sit entirely on the lower half. A value that is not inside the window is
+     * ignored, which gives the flat layout.
+     */
+    fun unfoldedGameHeight(width: Int, height: Int, foldTop: Int? = null): Int {
+        val flat = minOf(width * 9 / 16, (height * UNFOLDED_MAX_GAME_SHARE).toInt())
+        val fold = foldTop?.takeIf { it in 1 until height }
+        return (if (fold != null) minOf(width * 9 / 16, fold) else flat) and 1.inv()
+    }
 
     fun unfoldedControlsWanted(
         enabled: Boolean,
