@@ -18,6 +18,7 @@ SOURCE_PATHS = ['app/build.gradle', 'app/src/main/cpp/fakeinput_steam.cpp', 'app
                 'tools/mangoapp', 'tools/msitools', 'tools/comet', 'tools/build_local.sh',
                 'tools/release/runtime_inputs.py', 'app/src/main/assets/desktop-removal',
                 'tools/quest', 'tools/vr/src', 'tools/vr/driver_droiddeck', 'tools/vr/layer', 'tools/vr/build.sh',
+                'app/src/main/cpp/waylandcomp/src/headpose_shm.h',
                 'app/src/main/cpp/adrenotools/src/hook/kgsl.h',
                 'app/src/main/assets/graphics_driver/adrenotools-turnip25.1.0.tzst']
 

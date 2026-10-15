@@ -22,6 +22,7 @@ struct cardboard_params {
 void vkp_cardboard_set(const struct cardboard_params *p);
 void vkp_cardboard_set_pose(const float m[9], int live);
 void vkp_cardboard_set_pose_file(const char *path);
+void vkp_cardboard_set_render_height(int height);
 
 void vkp_cardboard_bind_device(VkDevice dev, const VkPhysicalDeviceMemoryProperties *memprops);
 int vkp_cardboard_active(void);

@@ -197,6 +197,8 @@ public final class WaylandCompositor {
 
     public static native void nativeSetOutputSize(int width, int height);
 
+    public static native boolean nativeGamePictureRect(float[] out);
+
     public static native void nativeResizeOutput(int width, int height);
 
     public static native void nativeResetFirstFrame();

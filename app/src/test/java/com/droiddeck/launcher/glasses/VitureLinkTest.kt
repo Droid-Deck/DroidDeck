@@ -9,9 +9,13 @@ import android.hardware.usb.UsbEndpoint
 import android.hardware.usb.UsbInterface
 import android.hardware.usb.UsbManager
 import android.os.Parcelable
+import android.util.Log
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Before
@@ -22,6 +26,8 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.Implementation
 import org.robolectric.annotation.Implements
+import org.robolectric.shadow.api.Shadow
+import org.robolectric.shadows.ShadowLog
 import org.robolectric.util.ReflectionHelpers
 import org.robolectric.util.ReflectionHelpers.ClassParameter.from
 import java.util.concurrent.ConcurrentHashMap
@@ -41,7 +47,10 @@ class VitureLinkTest {
         override fun onLost() {}
     }
 
-    @Before fun prepare() = incoming.clear()
+    @Before fun prepare() {
+        incoming.clear()
+        ShadowLog.clear()
+    }
 
     @After fun close() { link?.close() }
 
@@ -63,7 +72,49 @@ class VitureLinkTest {
         assertArrayEquals(pose, imu.poll(2, TimeUnit.SECONDS))
         assertNull(frames.poll(200, TimeUnit.MILLISECONDS))
         assertNull(imu.poll(0, TimeUnit.MILLISECONDS))
-        assertEquals(2L, l!!.badFrames)
+        val transport: GlassesLink = l!!
+        assertEquals(2L, transport.badFrames)
+        assertEquals(1, ShadowLog.getLogsForTag("VitureLink").count { it.type == Log.WARN })
+    }
+
+    @Test fun bothReadersDiscardCorruptReportsAndAcceptTheNextValidPacket() {
+        for (imuEndpoint in listOf(false, true)) {
+            checkPackets(VitureProtocol.MAGIC_REPORT, imuEndpoint, expectImu = false)
+        }
+    }
+
+    @Test fun imuReaderDiscardsCorruptPoseAndAcceptsTheNextValidPacket() {
+        checkPackets(VitureProtocol.MAGIC_IMU, imuEndpoint = true, expectImu = true)
+    }
+
+    private fun checkPackets(magic: Int, imuEndpoint: Boolean, expectImu: Boolean) {
+        val frames = mutableListOf<VitureProtocol.Frame>()
+        val poses = mutableListOf<ByteArray>()
+        val listener = object : VitureLink.Listener {
+            override fun onFrame(frame: VitureProtocol.Frame) { frames += frame }
+            override fun onImu(payload: ByteArray, timeNs: Long) { poses += payload }
+            override fun onLost() { fail("A corrupt packet must not disconnect the link") }
+        }
+        val ctor = VitureLink::class.java.getDeclaredConstructor(UsbDeviceConnection::class.java,
+            UsbInterface::class.java, UsbEndpoint::class.java, UsbEndpoint::class.java,
+            UsbInterface::class.java, UsbEndpoint::class.java, VitureLink.Listener::class.java)
+            .apply { isAccessible = true }
+        val link = ctor.newInstance(Shadow.newInstanceOf(UsbDeviceConnection::class.java),
+            Shadow.newInstanceOf(UsbInterface::class.java), Shadow.newInstanceOf(UsbEndpoint::class.java),
+            null, null, null, listener)
+        val receive = VitureLink::class.java.getDeclaredMethod("onPacket", ByteArray::class.java,
+            Int::class.javaPrimitiveType, Boolean::class.javaPrimitiveType).apply { isAccessible = true }
+        val payload = byteArrayOf(0, 0x32)
+        val valid = VitureProtocol.packet(VitureProtocol.MSG_DISPLAY, payload).also { it[1] = magic.toByte() }
+        val corrupt = valid.copyOf().also { it[18] = 1 }
+        assertFalse(VitureProtocol.parse(corrupt, corrupt.size)!!.crcOk)
+        receive.invoke(link, corrupt, corrupt.size, imuEndpoint)
+        assertTrue(frames.isEmpty())
+        assertTrue(poses.isEmpty())
+        receive.invoke(link, valid, valid.size, imuEndpoint)
+        assertEquals(if (expectImu) 0 else 1, frames.size)
+        assertEquals(if (expectImu) 1 else 0, poses.size)
+        assertArrayEquals(payload, if (expectImu) poses.single() else frames.single().payload)
     }
 
     private fun packet(magic: Int, msgId: Int, payload: ByteArray) =

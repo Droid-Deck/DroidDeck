@@ -44,6 +44,20 @@ int main(void) {
     cardboard_push_constants(&q, pose, 0, 0, 0, 0, pc);
     CHECK(isfinite(pc[17]) && isfinite(pc[19]));
 
+    // Narrow optical profiles and the lower SteamVR slider values must reach
+    // the projection unchanged, rather than all becoming a 30-degree view.
+    const float glasses_fovs[] = {22.0f, 23.3f, 24.0f, 25.8f, 29.0f};
+    for (unsigned i = 0; i < sizeof(glasses_fovs) / sizeof(glasses_fovs[0]); i++) {
+        q.fov_deg = glasses_fovs[i];
+        cardboard_clamp(&q);
+        CHECK(near(q.fov_deg, glasses_fovs[i]));
+        cardboard_push_constants(&q, pose, 3840, 1080, 3840, 1080, pc);
+        CHECK(near(pc[14], tanf(glasses_fovs[i] * 0.5f * (float)M_PI / 180.0f)));
+    }
+    q.fov_deg = 0.0f;
+    cardboard_clamp(&q);
+    CHECK(q.fov_deg > 0.0f && q.fov_deg < glasses_fovs[0]);
+
     if (failures) return 1;
     printf("PASS: cardboard params\n");
     return 0;

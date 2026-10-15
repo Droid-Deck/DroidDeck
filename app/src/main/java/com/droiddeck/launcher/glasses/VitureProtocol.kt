@@ -31,35 +31,51 @@ object VitureProtocol {
 
     const val IMU_RATE_240 = 3
 
-    enum class Family { ONE, PRO, LUMA, ULTRA, BEAST }
+    enum class Family { ONE, PRO, LUMA, ULTRA, BEAST, PRO2 }
 
-    class Model(val name: String, val family: Family) {
-        val controllable: Boolean get() = family != Family.BEAST
-        val tall: Boolean get() = family == Family.LUMA || family == Family.ULTRA
-        val sbs90: Boolean get() = family == Family.ULTRA
-        val brightnessMax: Int get() = 8
-        val volumeMax: Int get() = 8
-        val diagonalFovDeg: Float get() = when (family) {
+    class Model(override val name: String, val family: Family) : GlassesModel {
+        override val controllable: Boolean get() = true
+        val needsSdk: Boolean get() = family == Family.ULTRA || family == Family.BEAST || family == Family.PRO2
+        val tall: Boolean get() = family == Family.LUMA || family == Family.ULTRA || family == Family.BEAST
+        override val sbs90: Boolean get() = family == Family.ULTRA
+        override val brightnessMax: Int get() = 8
+        override val volumeMax: Int get() = if (family == Family.BEAST) 15 else 8
+        override val hasSunblock: Boolean get() = family != Family.PRO2
+        override val diagonalFovDeg: Float get() = when (family) {
             Family.ONE -> 43f
             Family.PRO -> 46f
-            Family.LUMA, Family.ULTRA -> 50f
+            Family.PRO2, Family.LUMA, Family.ULTRA -> 50f
             Family.BEAST -> 58f
         }
 
-        fun mode(hz: Int, sbs: Boolean): Int = when {
+        override fun mode(hz: Int, sbs: Boolean): Int = when {
             tall && sbs -> if (hz >= 90 && sbs90) 0x45 else 0x42
             tall -> when { hz >= 120 -> 0x44; hz >= 90 -> 0x43; else -> 0x41 }
             sbs -> if (hz >= 90 && sbs90) 0x35 else 0x32
             else -> when { hz >= 120 -> 0x34; hz >= 90 -> 0x33; else -> 0x31 }
         }
 
-        fun modeForStep(step: Int): Int? = if (tall) null else when (step) {
+        override fun modeForStep(step: Int): Int? = if (tall) null else when (step) {
             1 -> 0x31
             2 -> 0x33
             3 -> 0x34
             4 -> 0x32
             else -> null
         }
+    }
+
+    /** SDK validates the PID before returning this market name. Never guess a new PID. */
+    fun sdkModel(marketName: String): Model? {
+        val family = when (marketName) {
+            "One", "Lite" -> Family.ONE
+            "Pro" -> Family.PRO
+            "Pro 2" -> Family.PRO2
+            "Luma", "Luma Pro", "Luma Cyber" -> Family.LUMA
+            "Luma Ultra" -> Family.ULTRA
+            "Beast" -> Family.BEAST
+            else -> return null
+        }
+        return Model("VITURE $marketName", family)
     }
 
     fun model(productId: Int, productName: String?): Model? {

@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -56,6 +57,7 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.AddedGameArt
 import com.droiddeck.launcher.frontend.AddedGameEdits
 import com.droiddeck.launcher.frontend.AddedGames
+import com.droiddeck.launcher.frontend.SteamGridDb
 import com.droiddeck.launcher.session.SessionPrefs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -356,9 +358,15 @@ private fun ArtChooserDialog(
     val shown = rememberShown(onBack)
     val back = { shown.targetState = false }
     var options by remember { mutableStateOf<List<AddedGameArt.Option>?>(null) }
+    var sgdb by remember { mutableStateOf(SteamGridDb.Status.OK) }
     var picking by remember { mutableStateOf(false) }
+    var searching by remember { mutableStateOf(false) }
     val chosenRef = remember(current) { AddedGameArt.chosenSource(app, game, slot).second }
-    LaunchedEffect(slot) { options = withContext(Dispatchers.IO) { runCatching { AddedGameArt.options(app, game, slot) }.getOrDefault(emptyList()) } }
+    LaunchedEffect(slot) {
+        val found = withContext(Dispatchers.IO) { runCatching { AddedGameArt.choices(app, game, slot) }.getOrNull() }
+        options = found?.options ?: emptyList()
+        sgdb = found?.sgdb ?: SteamGridDb.Status.SERVER
+    }
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) { focusWithinFrames({ false }) { first } }
     val apply: (AddedGameArt.Option) -> Unit = { option ->
@@ -394,7 +402,9 @@ private fun ArtChooserDialog(
                         }
                     }
                 }
+                if (sgdb != SteamGridDb.Status.OK) SgdbNote(sgdb)
             }
+            PickerRow(Icons.Outlined.Search, stringResource(R.string.art_search_sgdb), null) { searching = true }
             PickerRow(Icons.Outlined.Image, stringResource(R.string.art_pick_image), null, focus = if (opts?.isEmpty() != false) first else null) { picking = true }
             PickerRow(null, stringResource(R.string.art_reset), null) {
                 scope.launch {
@@ -408,6 +418,136 @@ private fun ArtChooserDialog(
     if (picking) ExePickerDialog(stringResource(R.string.art_pick_title, slotName), kind = PickKind.IMAGE, onDismiss = { picking = false }, onPick = { file ->
         apply(AddedGameArt.Option(AddedGameArt.FILE, file.path, file.path))
     })
+    if (searching) SgdbSearchDialog(
+        game, slot, current,
+        onBack = { searching = false }, onCloseAll = { searching = false; onCloseAll() }, onPick = apply,
+    )
+}
+
+@Composable
+private fun SgdbNote(status: SteamGridDb.Status) {
+    val colors = MaterialTheme.colorScheme
+    val quiet = status == SteamGridDb.Status.NO_KEY || status == SteamGridDb.Status.NO_GAME
+    Text(
+        stringResource(
+            when (status) {
+                SteamGridDb.Status.NO_KEY -> R.string.art_sgdb_no_key
+                SteamGridDb.Status.BAD_KEY -> R.string.art_sgdb_bad_key
+                SteamGridDb.Status.LIMIT -> R.string.art_sgdb_limit
+                SteamGridDb.Status.OFFLINE -> R.string.art_sgdb_offline
+                SteamGridDb.Status.NO_GAME -> R.string.art_sgdb_no_game
+                else -> R.string.art_sgdb_server
+            },
+        ),
+        fontSize = 12.sp, color = if (quiet) colors.onSurfaceVariant else colors.error, modifier = Modifier.padding(start = 2.dp, top = 4.dp),
+    )
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SgdbSearchDialog(
+    game: AddedGames.Game, slot: AddedGameArt.Slot, current: AddedGameArt.SlotState?,
+    onBack: () -> Unit, onCloseAll: () -> Unit, onPick: (AddedGameArt.Option) -> Unit,
+) {
+    val app = LocalContext.current.applicationContext
+    val colors = MaterialTheme.colorScheme
+    val scope = rememberCoroutineScope()
+    val shown = rememberShown(onBack)
+    val back = { shown.targetState = false }
+    var query by remember { mutableStateOf(game.name) }
+    var matches by remember { mutableStateOf<List<SteamGridDb.Game>?>(null) }
+    var picked by remember { mutableStateOf<SteamGridDb.Game?>(null) }
+    var images by remember { mutableStateOf<List<AddedGameArt.Option>>(emptyList()) }
+    var page by remember { mutableIntStateOf(0) }
+    var more by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(true) }
+    var status by remember { mutableStateOf(SteamGridDb.Status.OK) }
+    val chosenRef = remember(current) { AddedGameArt.chosenSource(app, game, slot).second }
+    val slotName = slot.label()
+    val showImages: (SteamGridDb.Game) -> Unit = { found ->
+        scope.launch {
+            picked = found
+            images = emptyList()
+            page = 0
+            more = false
+            busy = true
+            status = SteamGridDb.Status.OK
+            val result = withContext(Dispatchers.IO) { AddedGameArt.gameImages(app, found.id, slot, 0) }
+            images = result.items
+            status = result.status
+            more = result.items.isNotEmpty()
+            busy = false
+        }
+    }
+    val search: () -> Unit = {
+        scope.launch {
+            busy = true
+            picked = null
+            status = SteamGridDb.Status.OK
+            val result = withContext(Dispatchers.IO) { AddedGameArt.searchGames(app, query) }
+            matches = result.items
+            status = result.status
+            busy = false
+            val sure = result.items.firstOrNull { AddedGameArt.nameMatch(query, it.name) == 3 } ?: result.items.singleOrNull()
+            if (sure != null) showImages(sure)
+        }
+    }
+    val loadMore: () -> Unit = {
+        val found = picked
+        if (found != null && !busy) scope.launch {
+            busy = true
+            val result = withContext(Dispatchers.IO) { AddedGameArt.gameImages(app, found.id, slot, page + 1) }
+            val fresh = result.items.filter { next -> images.none { it.full == next.full } }
+            images = images + fresh
+            page += 1
+            more = fresh.isNotEmpty()
+            if (result.status != SteamGridDb.Status.OK) status = result.status
+            busy = false
+        }
+    }
+    LaunchedEffect(Unit) { search() }
+    AppDialog(shown, back, "sgdbSearch", wide = false, maxWidth = 460.dp) {
+        DialogTitleRow(stringResource(R.string.art_sgdb_title, slotName), onClose = { onCloseAll() }, leading = {
+            SmallIconButton(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.common_back), colors.onBackground, onClick = back)
+        })
+        androidx.compose.material3.OutlinedTextField(
+            query, { query = it }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+            label = { Text(stringResource(R.string.art_sgdb_search_label)) },
+            keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { search() }),
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
+        )
+        val maxHeight = (LocalConfiguration.current.screenHeightDp * 0.6f).dp
+        Column(
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(max = maxHeight).verticalScroll(rememberScrollState()),
+        ) {
+            if (status != SteamGridDb.Status.OK) SgdbNote(status)
+            val chosenGame = picked
+            val list = matches.orEmpty()
+            if (chosenGame == null) {
+                for (match in list) key(match.id) { PickerRow(null, match.name, null) { showImages(match) } }
+                if (matches != null && list.isEmpty() && !busy && status == SteamGridDb.Status.OK) {
+                    Text(stringResource(R.string.art_sgdb_none), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(start = 2.dp, top = 4.dp))
+                }
+            } else {
+                Text(chosenGame.name, fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(start = 2.dp, top = 4.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for (option in images) key(option.full) {
+                        ArtOption(
+                            slot, option, selected = current?.chosen == true && option.full == chosenRef, focus = null,
+                            description = "${artSourceLabel(AddedGameArt.SGDB)} $slotName",
+                        ) { onPick(option) }
+                    }
+                }
+                if (images.isEmpty() && !busy && status == SteamGridDb.Status.OK) {
+                    Text(stringResource(R.string.art_sgdb_none), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(start = 2.dp, top = 4.dp))
+                }
+                if (more && !busy) PickerRow(null, stringResource(R.string.art_sgdb_more), null) { loadMore() }
+                if (list.size > 1) PickerRow(null, stringResource(R.string.art_sgdb_other_games), null) { picked = null }
+            }
+            if (busy) androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 8.dp))
+        }
+    }
 }
 
 @Composable

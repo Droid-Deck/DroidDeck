@@ -185,6 +185,8 @@ static int g_pending_cb;
 static unsigned g_stat_layer_frames;
 static int g_two_logged;
 static AHardwareBuffer *g_blank;
+static ASurfaceControl *g_base_sc;
+static int g_base_w, g_base_h, g_base_shown;
 
 static void layers_init(void) {
     if (g_layers_ready) return;
@@ -262,13 +264,57 @@ static AHardwareBuffer *blank_buffer(void) {
                  AHARDWAREBUFFER_USAGE_CPU_WRITE_RARELY};
     if (AHardwareBuffer_allocate(&d, &g_blank) != 0 || !g_blank) { g_blank = NULL; return NULL; }
     void *p = NULL;
-    if (AHardwareBuffer_lock(g_blank, AHARDWAREBUFFER_USAGE_CPU_WRITE_RARELY, -1, NULL, &p) == 0 && p) {
-        AHardwareBuffer_Desc got; AHardwareBuffer_describe(g_blank, &got);
-        memset(p, 0, (size_t)got.stride * 4 * 16);
-        AHardwareBuffer_unlock(g_blank, NULL);
+    int locked = AHardwareBuffer_lock(g_blank, AHARDWAREBUFFER_USAGE_CPU_WRITE_RARELY, -1, NULL, &p);
+    if (locked != 0 || !p) {
+        if (locked == 0) AHardwareBuffer_unlock(g_blank, NULL);
+        AHardwareBuffer_release(g_blank); g_blank = NULL;
+        return NULL;
+    }
+    AHardwareBuffer_Desc got; AHardwareBuffer_describe(g_blank, &got);
+    memset(p, 0, (size_t)got.stride * 4 * got.height);
+    if (AHardwareBuffer_unlock(g_blank, NULL) != 0) {
+        AHardwareBuffer_release(g_blank); g_blank = NULL;
+        return NULL;
     }
     return g_blank;
 }
+
+int sc_layer_base_black(int width, int height) {
+    if (width <= 0 || height <= 0 || load_api() != 0 || !vkp_window()) return -1;
+    if (g_base_sc && g_base_shown && width == g_base_w && height == g_base_h) return 0;
+    AHardwareBuffer *black = blank_buffer();
+    if (!black) return -1;
+    if (!g_base_sc) g_base_sc = api.createFromWindow(vkp_window(), "droiddeck_wayland_black");
+    if (!g_base_sc) return -1;
+    ASurfaceTransaction *tx = api.txCreate();
+    if (!tx) return -1;
+    ARect src = {0, 0, 16, 16}, dst = {0, 0, width, height};
+    api.setBuffer(tx, g_base_sc, black, -1);
+    api.setBufferTransparency(tx, g_base_sc, ASC_TRANSPARENCY_OPAQUE);
+    api.setZOrder(tx, g_base_sc, 0); /* GAME = 1, OVERLAY = 2 */
+    api.setGeometry(tx, g_base_sc, &src, &dst, 0);
+    api.setVisibility(tx, g_base_sc, ASC_VISIBILITY_SHOW);
+    api.txApply(tx); api.txDelete(tx);
+    g_base_w = width; g_base_h = height; g_base_shown = 1;
+    return 0;
+}
+
+static void base_hide(int retire) {
+    if (!g_base_sc) return;
+    ASurfaceTransaction *tx = api.txCreate();
+    if (tx) {
+        api.setVisibility(tx, g_base_sc, ASC_VISIBILITY_HIDE);
+        if (retire) api.reparent(tx, g_base_sc, NULL);
+        api.txApply(tx); api.txDelete(tx);
+        g_base_shown = 0;
+    }
+    if (retire) {
+        api.release(g_base_sc); g_base_sc = NULL;
+        g_base_w = g_base_h = g_base_shown = 0;
+    }
+}
+
+void sc_layer_hide_base(void) { base_hide(0); }
 
 static void replace_with_blank(ASurfaceTransaction *tx, struct layer *l) {
     AHardwareBuffer *b = blank_buffer();
@@ -927,6 +973,7 @@ void sc_layer_hide_overlay(void) {
 }
 
 void sc_layer_window_gone(void) {
+    base_hide(1); /* the backdrop belongs to the old window, just like GAME and OVERLAY */
     if (api.state != 1) return;
     layers_init();
     for (int i = SC_LAYER_COUNT - 1; i >= 0; i--) retire_sc(&g_layers[i]);

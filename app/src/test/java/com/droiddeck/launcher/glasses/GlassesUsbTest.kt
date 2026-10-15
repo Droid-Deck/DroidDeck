@@ -130,21 +130,65 @@ class GlassesUsbTest {
         assertFalse(state.value.can3d)
     }
 
+    @Test fun rayNeoRequestsPermissionWithoutClaimingUnrelatedTclDevices() {
+        val air = device(0xaf50, 0x1bbb, "RayNeo Air 4 Pro")
+        manager.devices[air.deviceName] = air
+        refresh(ask = true)
+        assertEquals("RayNeo Air 4 Pro", state.value.model)
+        assertTrue(state.value.controllable)
+        assertFalse(state.value.hardwareControls)
+        assertEquals(listOf(air), manager.requests)
+
+        manager.devices.clear()
+        manager.devices["phone"] = device(0x1234, 0x1bbb, "TCL Phone")
+        manager.requests.clear()
+        refresh(ask = true)
+        assertFalse(state.value.present)
+        assertTrue(manager.requests.isEmpty())
+    }
+
+    @Test fun alternateBridgeRequiresRayNeoModelIdentity() {
+        val gt = device(0x1234, 0x22d9, "RayNeo GT")
+        manager.devices[gt.deviceName] = gt
+        refresh(ask = true)
+        assertEquals("RayNeo GT", state.value.model)
+        assertEquals(listOf(gt), manager.requests)
+    }
+
+    @Test fun gtVendorRequestsPermissionAndRetainsMaxProductName() {
+        val gt = device(0xaf50, 0x3941, "RayNeo GT MAX")
+        manager.devices[gt.deviceName] = gt
+        refresh(ask = true)
+        assertEquals("RayNeo GT MAX", state.value.model)
+        assertTrue(state.value.controllable)
+        assertFalse(state.value.hardwareControls)
+        assertEquals(listOf(gt), manager.requests)
+    }
+
     private fun refresh(ask: Boolean = false) {
         Glasses::class.java.getDeclaredMethod("refresh", Boolean::class.javaPrimitiveType)
             .apply { isAccessible = true }.invoke(Glasses, ask)
     }
 
-    private fun device(pid: Int): UsbDevice = ReflectionHelpers.callConstructor(
+    @Test fun xreal1SUsesExactIdentityAndExcludesAirOneProAndRecoveryProducts() {
+        assertEquals(XrealModel, Glasses.deviceModel(device(0x043e, 0x3318, "XREAL 1S")))
+        assertTrue(Glasses.isGlassesDisplayName("XREAL 1S"))
+        for (pid in listOf(0x043d, 0x0435, 0x0436, 0x0424, 0xffff)) {
+            assertEquals(null, Glasses.deviceModel(device(pid, 0x3318, "XREAL 1S")))
+        }
+        assertEquals(null, Glasses.deviceModel(device(0x043e, 0x1234, "XREAL 1S")))
+    }
+
+    private fun device(pid: Int, vid: Int = VitureProtocol.VENDOR_ID, name: String = "VITURE device"): UsbDevice = ReflectionHelpers.callConstructor(
         UsbDevice::class.java,
         from(String::class.java, "/dev/bus/usb/$pid"),
-        from(Int::class.javaPrimitiveType, VitureProtocol.VENDOR_ID),
+        from(Int::class.javaPrimitiveType, vid),
         from(Int::class.javaPrimitiveType, pid),
         from(Int::class.javaPrimitiveType, 0),
         from(Int::class.javaPrimitiveType, 0),
         from(Int::class.javaPrimitiveType, 0),
         from(String::class.java, "VITURE"),
-        from(String::class.java, "VITURE device"),
+        from(String::class.java, name),
         from(String::class.java, "1.0"),
         from(String::class.java, "test-$pid"),
     )

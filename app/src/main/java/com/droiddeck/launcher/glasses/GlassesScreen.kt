@@ -4,6 +4,7 @@ import android.app.Presentation
 import android.content.Context
 import android.graphics.Color
 import android.os.Bundle
+import android.util.Log
 import android.view.Display
 import android.view.SurfaceHolder
 import android.view.SurfaceView
@@ -30,15 +31,21 @@ class GlassesScreen(context: Context, display: Display, refreshHz: Int, private 
     }
 
     fun prefer(hz: Int) {
-        if (hz == wantHz) return
         wantHz = hz
+        // A 2D/SBS transition can replace the active mode without changing Hz.
         applyMode()
     }
 
     private fun applyMode() {
         val w = window ?: return
-        val width = display.mode.physicalWidth
-        val best = display.supportedModes.filter { it.physicalWidth == width }.minByOrNull { abs(it.refreshRate - wantHz) } ?: return
-        if (w.attributes.preferredDisplayModeId != best.modeId) w.attributes = w.attributes.apply { preferredDisplayModeId = best.modeId }
+        val current = display.mode
+        val best = display.supportedModes.filter {
+            it.physicalWidth == current.physicalWidth && it.physicalHeight == current.physicalHeight
+        }.minByOrNull { abs(it.refreshRate - wantHz) } ?: return
+        if (w.attributes.preferredDisplayModeId != best.modeId) {
+            Log.i("GlassesScreen", "display ${display.displayId}: prefer mode ${best.modeId} " +
+                "${best.physicalWidth}x${best.physicalHeight}@${best.refreshRate} (requested $wantHz Hz)")
+            w.attributes = w.attributes.apply { preferredDisplayModeId = best.modeId }
+        }
     }
 }

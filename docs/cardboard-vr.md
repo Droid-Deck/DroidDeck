@@ -145,6 +145,64 @@ Steam** never starts it: while SteamVR runs, Steam keeps its own window in front
 Through a VITURE Mobile Dock the glasses are only a display: the dock does not pass their controls or
 head tracking to the phone, so there is no Play SteamVR, refresh, 3D or tracking setting.
 
+SteamVR defaults to 2D output: a single eye fills the glasses while head tracking remains active.
+Enable **3D (side-by-side)** manually or opt into **3D for VR games** in the glasses controls for stereo. Automatic
+switching waits until SteamVR reports that it is running; starting or installing it does not change
+the display mode. A saved **3D for VR games** preference is retained.
+
+With **Game on glasses** off, SteamVR keeps the glasses' picture settings and IMU while Android
+mirrors the phone output to the glasses. Turning off the dedicated display must not turn off the
+renderer/HMD proximity flag: SteamVR otherwise reports the headset as taken off and enters standby,
+freezing the view on both displays. Without a glasses display or an enabled phone VR viewer, SteamVR
+uses a single-eye phone preview with the phone's tracking preference. These effective rendering
+settings last only while SteamVR runs; the saved Cardboard setting is unchanged.
+Verified on the VITURE Pro 2 with Game on glasses off: live glasses IMU, roughly 60 fps beyond
+the previous standby point, and user-confirmed updating images and correct head tracking on both
+screens. The rendering regression tests cover mirrored/dedicated parity and phone fallback.
+
+A separate freeze occurred after swapping Pro 2 for GT Max and restarting SteamVR in the same
+DroidDeck process (2026-10-14, session 52): GT Max board `0x41` kept streaming poses and the HMD
+stayed active, but `vrcompositor` reported `vkerror=-4` (`VK_ERROR_DEVICE_LOST`) from 17:18:53.
+Restarting the Steam session alone reproduced it (sessions 53/54). Restarting DroidDeck itself
+cleared it; session 55 continued rendering with live GT Max tracking for over a minute without
+new device-loss errors. This is a recovery workaround, not a confirmed permanent fix; retained
+graphics state across restarts is a hypothesis. Frame counters alone do not prove recovery:
+the presenter can keep presenting an old SteamVR image while the compositor reports device loss.
+
+### Device-loss recovery
+
+During a SteamVR session, DroidDeck reads new `vrcompositor.txt` output every two seconds and detects
+`VK_ERROR_DEVICE_LOST` or `vkerror=-4`. Existing errors at session start, ordinary acquire timeouts,
+and unrelated failures do not trigger recovery. Reads are bounded to the newest 128 KiB and handle
+log replacement, truncation, and partial lines.
+
+A detected fault shows an eight-second cancellable countdown while the session is foreground.
+Touches outside the prompt do not dismiss it; the user can explicitly choose Keep open.
+Recovery stops the guest, gives teardown and diagnostic collection up to 15 seconds, then uses a
+private `:vr_recovery` activity to kill only DroidDeck's main process and reopen SteamVR. That process
+does not initialize the glasses SDK or guest runtime. It recreates the native graphics context; an
+Activity recreation or SteamVR-only restart does not. Running games close and unsaved progress cannot
+be restored. A persisted ten-minute cooldown disables another automatic attempt, while still
+offering a manual restart. Session events record detection and recovery requests. This mitigates
+the freeze; it does not fix the underlying Vulkan device loss.
+
+Validated on the phone with a clearly marked `SIMULATED_RECOVERY_TEST: VK_ERROR_DEVICE_LOST`
+log entry in session 58. Detection and the eight-second countdown led to a new main-process PID
+and session 59 automatically reached READY and requested SteamVR. The
+cooldown timestamp survived the process restart. This was a recovery-flow test, not a new GPU
+failure. Subsequent user feedback and `vrserver.txt` showed that SteamVR had blocked `driver_droiddeck`
+after a previous crash: the server ran, but reported `HmdNotFound` and never produced VR output.
+Recovery now clears only `driver_droiddeck.blocked_by_safe_mode`, atomically after stopping the old
+process and before launching the new session. It preserves global safe-mode preferences and other
+drivers' blocks. A running server or resumed sensor stream alone is not proof of successful recovery.
+The follow-up marked test in session 63 exercised the manual retry during the cooldown. Recovery
+logged the driver unblock, restarted into session 64, and SteamVR recognized the DroidDeck HMD.
+Fresh compositor output and a 3840x1080 `DroidDeck Cardboard VR` presenter appeared, with subsequent
+display intervals at 56–59 fps. The user confirmed the GT Max VR view and tracking work after this
+recovery. The 19 SteamVR unit tests and APK runtime-input verification passed.
+The glasses/SteamVR suite includes stale/rotated/split log handling, countdown,
+cancellation, foreground-only behavior, and cooldown checks.
+
 Stereo also requires a physical side-by-side display mode. On the tested Astra 2
 firmware the Pro XR command succeeds but DisplayPort falls back to 640×480;
 direct-connection stereo remains unresolved. DroidDeck remembers such a fallback for that glasses

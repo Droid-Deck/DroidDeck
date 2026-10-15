@@ -150,6 +150,7 @@ class MainActivity : ComponentActivity() {
     private var phantomProcessStatus by mutableStateOf(PhantomProcessStatus.NOT_APPLICABLE)
     private var showPhantomGate by mutableStateOf(false)
     private var directAudio by mutableStateOf(false)
+    private var picturePosition by mutableStateOf("center")
     private var stretch16x9 by mutableStateOf(false)
     private var orientation by mutableStateOf(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
     private var launcherFullscreen by mutableStateOf(true)
@@ -159,6 +160,8 @@ class MainActivity : ComponentActivity() {
     private var storesOpenTab by mutableStateOf(SessionPrefs.STORES_OPEN_LIBRARY)
     private var navRequest by mutableStateOf<String?>(null)
     private var storesShowMature by mutableStateOf(false)
+    private var storesSort by mutableStateOf(SessionPrefs.STORES_SORTS.first())
+    private var storesView by mutableStateOf(SessionPrefs.STORES_VIEWS.first())
     private var mic by mutableStateOf(false)
     private var wifiDiscovery by mutableStateOf(false)
     private var wifiDiscoveryPermission by mutableStateOf(false)
@@ -459,19 +462,27 @@ class MainActivity : ComponentActivity() {
                 android.widget.Toast.makeText(this, R.string.game_link_session_busy, android.widget.Toast.LENGTH_LONG).show()
                 return true
             }
-            if (!SessionService.launchGame(this, game.gameIdString)) {
+            val steamVr = game.gameIdString == com.droiddeck.launcher.gpu.SteamVr.APP_ID
+            if (!steamVr && !SessionService.launchGame(this, game.gameIdString)) {
                 android.widget.Toast.makeText(this, R.string.game_link_failed, android.widget.Toast.LENGTH_LONG).show()
                 return false
             }
             startActivity(Intent(this, SessionActivity::class.java).setAction(SessionService.ACTION_RESUME)
+                .putExtra(SessionActivity.EXTRA_STEAMVR, steamVr)
                 .putExtra(SessionActivity.EXTRA_RETURN_HOME, returnHome)
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
             return true
         }
         return startSession(Intent(this, SessionActivity::class.java)
                 .putExtra(SessionActivity.EXTRA_RETURN_HOME, returnHome)
-                .putExtra(SessionService.EXTRA_STEAM_URL,
-                com.droiddeck.launcher.frontend.GameLaunchLink.steamUrl(game.gameIdString)), steamSession = true)
+                .apply {
+                    if (game.gameIdString == com.droiddeck.launcher.gpu.SteamVr.APP_ID) {
+                        putExtra(SessionActivity.EXTRA_STEAMVR, true)
+                    } else {
+                        putExtra(SessionService.EXTRA_STEAM_URL,
+                            com.droiddeck.launcher.frontend.GameLaunchLink.steamUrl(game.gameIdString))
+                    }
+                }, steamSession = true)
     }
 
     private fun handleGameLink(games: List<Library.SteamGame>) {
@@ -516,6 +527,8 @@ class MainActivity : ComponentActivity() {
         gameStoresSpeedTier = SessionPrefs.gameStoresSpeedTier(this)
         storesOpenTab = SessionPrefs.storesOpenTab(this)
         storesShowMature = SessionPrefs.storesShowMature(this)
+        storesSort = SessionPrefs.storesSort(this)
+        storesView = SessionPrefs.storesView(this)
         applyLauncherFullscreen()
         updates.start()
         setContent {
@@ -573,6 +586,8 @@ class MainActivity : ComponentActivity() {
                         addedGamesArt = addedGamesArt,
                         sgdbUserKey = sgdbUserKey,
                         storesShowMature = storesShowMature,
+                        storesSort = storesSort,
+                        storesView = storesView,
                         storeDownloadsActive = com.droiddeck.launcher.stores.StoresState.activeDownloads,
                     ),
                     FrontEndActions(
@@ -729,6 +744,8 @@ class MainActivity : ComponentActivity() {
                         onStoresOpenTab = { tab -> SessionPrefs.setStoresOpenTab(this, tab); storesOpenTab = tab },
                         onNavigated = { navRequest = null },
                         onStoresShowMature = { show -> SessionPrefs.setStoresShowMature(this, show); storesShowMature = show },
+                        onStoresSort = { sort -> SessionPrefs.setStoresSort(this, sort); storesSort = sort },
+                        onStoresView = { view -> SessionPrefs.setStoresView(this, view); storesView = view },
                         onLibraryChanged = { refreshAddedGames(); refresh() },
                         onAnimationsEnabled = { on ->
                             SessionPrefs.setAnimationsEnabled(this, on)
@@ -1247,6 +1264,7 @@ class MainActivity : ComponentActivity() {
                 oscMode = if (mode == SessionService.MODE_STEAM) oscMode else null,
                 backActionsInverted = backActionsInverted,
                 directAudio = if (mode == SessionService.MODE_STEAM) directAudio else null,
+                picturePosition = if (mode == SessionService.MODE_STEAM) picturePosition else null,
                 stretch16x9 = if (mode == SessionService.MODE_STEAM) stretch16x9 else null,
                 mic = if (mode == SessionService.MODE_STEAM) mic else null,
                 gameStorage = if (mode == SessionService.MODE_STEAM) gameStorage else null,
@@ -1307,6 +1325,7 @@ class MainActivity : ComponentActivity() {
                     backActionsInverted = inverted
                 },
                 onDirectAudio = { on -> SessionPrefs.setDirectAudio(this, on); directAudio = on },
+                onPicturePosition = { value -> SessionPrefs.setPicturePosition(this, value); picturePosition = value },
                 onStretch16x9 = { on -> SessionPrefs.setStretch16x9(this, on); stretch16x9 = on },
                 onMic = { on ->
                     SessionPrefs.setMicEnabled(this, on)
@@ -1466,6 +1485,7 @@ class MainActivity : ComponentActivity() {
         oscMode = SessionPrefs.oscMode(this)
         backActionsInverted = SessionPrefs.backActionsInverted(this)
         directAudio = SessionPrefs.directAudio(this)
+        picturePosition = SessionPrefs.picturePosition(this)
         stretch16x9 = SessionPrefs.stretch16x9(this)
         mic = SessionPrefs.micEnabled(this)
         refreshWifiDiscovery()

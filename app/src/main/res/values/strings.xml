@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="steamvr_recovery_title">SteamVR graphics stopped</string>
+    <string name="steamvr_recovery_countdown">DroidDeck will restart in %1$d seconds to reset graphics and reopen SteamVR. Your running game will close; unsaved progress cannot be restored.</string>
+    <string name="steamvr_recovery_repeated">The graphics fault returned after a recent restart. Automatic recovery is paused to prevent a loop. Restarting will close your game; unsaved progress cannot be restored.</string>
+    <string name="steamvr_recovery_restart">Restart now</string>
+    <string name="steamvr_recovery_cancel">Keep open</string>
+    <string name="steamvr_recovery_restarting">Resetting graphics and reopening SteamVR…</string>
+    <string name="steamvr_recovery_failed">DroidDeck could not restart automatically. Close the app completely, then reopen it.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>First run downloads Steam. This may take a few minutes.</item>
@@ -622,6 +629,11 @@
     <string name="drawer_texture_sharpness_note">A negative mip bias: sharper textures, some shimmer. Auto matches how far the session is enlarged to the screen.</string>
     <string name="drawer_touch_auto">Auto (%1$s)</string>
     <string name="drawer_keyboard">Keyboard</string>
+    <string name="drawer_latency">Latency</string>
+    <string name="drawer_low_latency_controller">Low-latency controller</string>
+    <string name="drawer_low_latency_controller_hint">Pad reports at 1000 Hz instead of 250 Hz. Slightly more CPU.</string>
+    <string name="drawer_low_latency_touch">Low-latency touch</string>
+    <string name="drawer_low_latency_touch_hint">Touches skip frame batching; Steam touch controls at 1000 Hz. Slightly more CPU.</string>
     <string name="drawer_pc_keyboard">PC keyboard</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Second screen</string>
@@ -934,8 +946,8 @@
     <string name="wadb_turn_off">Turn limit off</string>
     <string name="wadb_other_ways">Other ways to change it</string>
     <string name="wadb_dev_try_first">1 · Developer options (try first)</string>
-    <string name="wadb_restrict_on">Set “Restrict child processes” on.</string>
-    <string name="wadb_restrict_off">Set “Restrict child processes” off.</string>
+    <string name="wadb_restrict_on">Turn off “Disable child process restrictions”.</string>
+    <string name="wadb_restrict_off">Turn on “Disable child process restrictions”.</string>
     <string name="wadb_computer_last">3 · Computer ADB (last resort)</string>
     <string name="wadb_only_if">Only if Wireless debugging is unavailable.</string>
     <string name="wadb_computer_group">3 · Computer ADB (last resort)</string>
@@ -1285,6 +1297,8 @@
     <string name="drivers_switched_to_restart">Switched to %1$s %2$s. The display driver applies after DroidDeck restarts.</string>
     <string name="drivers_using">Using %1$s %2$s.</string>
     <string name="drivers_using_restart">Using %1$s %2$s. The display driver applies after DroidDeck restarts.</string>
+    <string name="drivers_using_quest">Using the bundled Quest display driver and runtime default.</string>
+    <string name="drivers_using_quest_restart">Using the bundled Quest display driver and runtime default. The display driver applies after DroidDeck restarts.</string>
     <string name="drivers_not_a_driver">Not a driver zip: neither an AdrenoTools driver, a -Linux Turnip nor an Android + Linux bundle</string>
     <string name="drivers_import_failed">Import failed: %1$s</string>
     <string name="drivers_imported_unnamed">Imported driver</string>
@@ -1973,6 +1987,16 @@
     <string name="stores_free">Free</string>
     <string name="stores_resume">Resume</string>
     <string name="stores_refresh">Refresh</string>
+    <string name="stores_sort">Sort</string>
+    <string name="stores_sort_last_played">Recently played</string>
+    <string name="stores_sort_recently_installed">Recently installed</string>
+    <string name="stores_sort_title_asc">Title A–Z</string>
+    <string name="stores_sort_title_desc">Title Z–A</string>
+    <string name="stores_sort_size_desc">Size: largest</string>
+    <string name="stores_sort_size_asc">Size: smallest</string>
+    <string name="stores_sort_release_date">Release date</string>
+    <string name="stores_view_list">List view</string>
+    <string name="stores_view_cards">Card view</string>
     <string name="stores_show_mature">Show mature content</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>
@@ -2135,6 +2159,18 @@
     <string name="art_pick_image">Pick image…</string>
     <string name="art_pick_title">Pick an image: %1$s</string>
     <string name="art_reset">Reset to automatic</string>
+    <string name="art_search_sgdb">Search SteamGridDB…</string>
+    <string name="art_sgdb_title">SteamGridDB: %1$s</string>
+    <string name="art_sgdb_search_label">Search for a game</string>
+    <string name="art_sgdb_more">Show more</string>
+    <string name="art_sgdb_other_games">Other matches</string>
+    <string name="art_sgdb_none">Nothing found.</string>
+    <string name="art_sgdb_no_key">SteamGridDB needs an API key. Add yours in Setup › Launcher.</string>
+    <string name="art_sgdb_bad_key">SteamGridDB did not accept the API key. Check it in Setup › Launcher.</string>
+    <string name="art_sgdb_limit">SteamGridDB is limiting requests right now. Try again in a minute.</string>
+    <string name="art_sgdb_offline">SteamGridDB could not be reached. Check the connection.</string>
+    <string name="art_sgdb_server">SteamGridDB had a problem. Try again later.</string>
+    <string name="art_sgdb_no_game">SteamGridDB has no match for this game. Try a search.</string>
     <plurals name="games_added_n">
         <item quantity="one">%1$d game added</item>
         <item quantity="other">%1$d games added</item>
@@ -2264,6 +2300,8 @@
     <string name="drawer_page_glasses">Glasses</string>
     <string name="glasses_open">VITURE glasses</string>
     <string name="glasses_control">Glasses control</string>
+    <string name="glasses_driver_missing">This build does not include the driver for these glasses.</string>
+    <string name="glasses_connection_failed">Could not connect to the glasses. Reconnect the cable or tap Allow to retry.</string>
     <string name="glasses_allow">Allow</string>
     <string name="glasses_allow_hint">Let DroidDeck set the glasses\' refresh rate, 3D mode, brightness, volume and sunblock, and read their head tracking.</string>
     <string name="glasses_asking">Waiting for you to allow it in Android\'s prompt…</string>
@@ -2291,6 +2329,14 @@
     <string name="glasses_picture_sbs">Side-by-side game</string>
     <string name="glasses_screen_size">Screen width</string>
     <string name="glasses_screen_distance">Screen distance</string>
+    <string name="glasses_screen_next_session">Width and distance apply when a game runs on the glasses as a virtual screen.</string>
+    <string name="glasses_screen_no_output">These settings apply while Game on glasses is enabled and the game is displayed there.</string>
+    <string name="glasses_screen_flat_hint">Automatic keeps this 2D game full-screen. Use a virtual screen to adjust its width, distance and head tracking.</string>
+    <string name="glasses_screen_use">Use virtual screen</string>
+    <string name="glasses_screen_direct_hint">SteamVR fills the view. Adjust its field of view below; width and distance apply only to a virtual screen.</string>
+    <string name="glasses_screen_sbs_hint">Side-by-side games fill each eye. Width and distance apply only to a virtual screen.</string>
+    <string name="glasses_tracking_flat_hint">Automatic keeps this 2D game fixed in view. Choose Virtual screen in Display to use head tracking.</string>
+    <string name="glasses_tracking_sbs_hint">Head tracking applies to a virtual screen or a running SteamVR game.</string>
     <string name="glasses_hardware">Glasses</string>
     <string name="glasses_brightness">Brightness</string>
     <string name="glasses_volume">Volume</string>
@@ -2304,4 +2350,27 @@
     <string name="glasses_vr_fov">SteamVR field of view</string>
     <string name="glasses_vr_fov_hint">Lower brings SteamVR closer and fills the glasses; higher shows more around you.</string>
     <string name="glasses_playing">Playing on %1$s</string>
+    <string name="glasses_calibration">Tracking calibration</string>
+    <string name="glasses_calibration_hint">Reduce drift and align the level reference.</string>
+    <string name="glasses_calibration_saved_hint">Saved calibration is applied to these glasses.</string>
+    <string name="glasses_calibration_open">Calibrate</string>
+    <string name="glasses_calibration_instructions">Place the connected glasses upside down on a level surface, with the frame resting evenly. Tap Start, then leave them untouched for about 8 seconds. Movement restarts the measurement. This adjusts drift and tilt, not heading.</string>
+    <string name="glasses_calibration_settling">Leave the glasses upside down and untouched. Waiting for them to settle…</string>
+    <string name="glasses_calibration_collecting">Measuring the sensors. Keep the glasses still.</string>
+    <string name="glasses_calibration_moving">Movement detected. Leave the glasses untouched; measurement will restart automatically.</string>
+    <string name="glasses_calibration_turn_over">Rest the glasses upside down on a level surface. Measurement will start when they are positioned correctly.</string>
+    <string name="glasses_calibration_complete">Calibration saved. Put the glasses on and look straight ahead, then tap Done to recenter.</string>
+    <string name="glasses_calibration_failed">Calibration could not finish. Check the connection and keep the glasses still, then try again. Your previous calibration is unchanged.</string>
+    <string name="glasses_calibration_start">Start</string>
+    <string name="glasses_calibration_done">Done</string>
+    <string name="glasses_calibration_reset">Reset tracking calibration</string>
+    <string name="glasses_calibration_reset_hint">Remove the saved calibration and restore the model defaults? Recenter after putting the glasses back on.</string>
+    <string name="glasses_calibration_reset_button">Reset</string>
+    <string name="glasses_xreal_network_missing">Waiting for the glasses’ USB Ethernet connection. This phone may not expose it to apps.</string>
+    <string name="glasses_xreal_connection_failed">The XREAL connection was interrupted or returned an unsupported response. Retrying…</string>
+    <string name="glasses_xreal_experimental">Experimental 1S support. Use Follow mode and disable stabilization in the glasses menu. Tracking directions and display modes still need device testing.</string>
+    <string name="display_picture_position">Picture position</string>
+    <string name="display_position_top">Top</string>
+    <string name="display_position_bottom">Bottom</string>
+    <string name="display_position_center">Center (default)</string>
 </resources>

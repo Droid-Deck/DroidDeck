@@ -16,6 +16,12 @@ object SteamGridDb {
     private const val API = "https://www.steamgriddb.com/api/v2"
     private const val QUERY = "nsfw=false&humor=false"
 
+    enum class Status { OK, NO_KEY, BAD_KEY, LIMIT, OFFLINE, SERVER, NO_GAME }
+
+    class Failed(val status: Status) : Exception(status.name)
+
+    class Game(val id: Int, val name: String, val verified: Boolean)
+
     @VisibleForTesting
     @Volatile
     internal var keys: CredentialCipher.KeyProvider = CredentialCipher.Keystore
@@ -29,6 +35,8 @@ object SteamGridDb {
     fun pick(user: String, builtIn: String): String = user.trim().ifEmpty { builtIn.trim() }
 
     fun key(context: Context): String = pick(userKey(context), builtInKey())
+
+    fun keyChangedAt(context: Context): Long = keyFile(context).lastModified()
 
     @Synchronized
     fun userKey(context: Context): String {
@@ -97,16 +105,36 @@ object SteamGridDb {
         return got
     }
 
-    fun images(key: String, id: Int, slot: AddedGameArt.Slot, limit: Int): List<Pair<String, String>> {
-        val path = when (slot) {
+    fun search(key: String, term: String): List<Game> {
+        val q = term.trim()
+        if (q.isEmpty()) return emptyList()
+        val enc = URLEncoder.encode(q, "UTF-8").replace("+", "%20")
+        val data = json(key, "$API/search/autocomplete/$enc")?.optJSONArray("data") ?: return emptyList()
+        return games(data)
+    }
+
+    internal fun games(data: JSONArray): List<Game> =
+        (0 until data.length()).mapNotNull { data.optJSONObject(it) }
+            .filter { it.optInt("id") > 0 && it.optString("name").isNotEmpty() }
+            .map { Game(it.optInt("id"), it.optString("name"), it.optBoolean("verified")) }
+
+    internal fun path(id: Int, slot: AddedGameArt.Slot, page: Int): String {
+        val base = when (slot) {
             AddedGameArt.Slot.COVER -> "grids/game/$id?dimensions=600x900&$QUERY"
             AddedGameArt.Slot.BACKGROUND -> "heroes/game/$id?$QUERY"
             AddedGameArt.Slot.LOGO -> "logos/game/$id?$QUERY"
             AddedGameArt.Slot.ICON -> "icons/game/$id?$QUERY"
         }
-        val items = json(key, "$API/$path")?.optJSONArray("data") ?: return emptyList()
-        return ranked(items, pngOnly = slot == AddedGameArt.Slot.LOGO || slot == AddedGameArt.Slot.ICON).take(limit)
+        return if (page > 0) "$base&page=$page" else base
     }
+
+    fun page(key: String, id: Int, slot: AddedGameArt.Slot, page: Int): List<Pair<String, String>> {
+        val items = json(key, "$API/${path(id, slot, page)}")?.optJSONArray("data") ?: return emptyList()
+        return ranked(items, pngOnly = slot == AddedGameArt.Slot.LOGO || slot == AddedGameArt.Slot.ICON)
+    }
+
+    fun images(key: String, id: Int, slot: AddedGameArt.Slot, limit: Int): List<Pair<String, String>> =
+        page(key, id, slot, 0).take(limit)
 
     internal fun ranked(items: JSONArray, pngOnly: Boolean): List<Pair<String, String>> =
         (0 until items.length()).map { items.getJSONObject(it) }
@@ -119,6 +147,13 @@ object SteamGridDb {
             .filter { it.optString("url").startsWith("https://") && (!pngOnly || it.optString("mime") == "image/png" || it.optString("url").endsWith(".png", true)) }
             .maxByOrNull { it.optInt("score", 0) }?.optString("url")
 
+    internal fun failure(code: Int): Status? = when {
+        code == 401 || code == 403 -> Status.BAD_KEY
+        code == 429 -> Status.LIMIT
+        code >= 500 -> Status.SERVER
+        else -> null
+    }
+
     private fun json(key: String, url: String): JSONObject? {
         val c = URL(url).openConnection() as HttpURLConnection
         c.connectTimeout = 10_000
@@ -126,8 +161,19 @@ object SteamGridDb {
         c.setRequestProperty("User-Agent", "DroidDeck-launcher")
         c.setRequestProperty("Authorization", "Bearer $key")
         return try {
-            if (c.responseCode != 200) { Log.w(TAG, "${URL(url).path}: HTTP ${c.responseCode}"); null }
-            else JSONObject(c.inputStream.use { it.readBytes() }.toString(Charsets.UTF_8)).takeIf { it.optBoolean("success", true) }
+            val code = c.responseCode
+            if (code == 200) {
+                JSONObject(c.inputStream.use { it.readBytes() }.toString(Charsets.UTF_8)).takeIf { it.optBoolean("success", true) }
+            } else {
+                Log.w(TAG, "${URL(url).path}: HTTP $code")
+                failure(code)?.let { throw Failed(it) }
+                null
+            }
+        } catch (e: Failed) {
+            throw e
+        } catch (e: java.io.IOException) {
+            Log.w(TAG, "${URL(url).path}: ${e.javaClass.simpleName}")
+            throw Failed(Status.OFFLINE)
         } catch (e: Exception) {
             Log.w(TAG, "${URL(url).path}: ${e.javaClass.simpleName}"); null
         } finally {

@@ -66,10 +66,19 @@ value holds on both sides.
 Automatic: the game folder's own images, then Steam (the appid the files name, else a
 store search whose result has the same name), then SteamGridDB, then the exe's icon. The
 art chooser (an Artwork row) shows the game folder's images, Steam's official piece and
-SteamGridDB's best few (fetched when it opens); a tap applies one, "Pick image…" takes a
-file through the same picker (png, jpg, jpeg, webp, ico), "Reset to automatic" drops the
-choice. A choice is a copy in `files/added-art/<appid>/chosen-<slot>.<ext>`, its source in
-the preferences.
+SteamGridDB's best few (fetched when it opens); a tap applies one, "Search SteamGridDB…"
+opens a search (it starts with the game's name and opens the match at once when one is
+exact; "Show more" pages through the images), "Pick image…" takes a file through the same
+picker (png, jpg, jpeg, webp, ico), "Reset to automatic" drops the choice. A choice is a
+copy in `files/added-art/<appid>/chosen-<slot>.<ext>`, its source in the preferences.
+
+SteamGridDB failures are told apart (`SteamGridDb.Status`: no key, key refused, rate limit,
+offline, server, no match for the game) and shown under the SteamGridDB images instead of
+leaving the row out. The SteamGridDB game id is remembered per game in
+`added-art/<appid>/sgdb-id`; "none" (SteamGridDB has no such game) is kept for a week, but
+a failed request is never written as "none", a "none" older than the saved key is asked
+again, and the chooser always asks again when the user opens it. A background pass stops
+asking SteamGridDB after its first failure.
 
 Setup › Launcher › Games holds the Artwork switch (automatic fetching) and the
 SteamGridDB API key: the user's own, sealed with `CredentialCipher`, wins over the build's

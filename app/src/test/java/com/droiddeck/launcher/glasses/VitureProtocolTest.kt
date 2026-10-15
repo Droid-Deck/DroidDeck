@@ -113,7 +113,8 @@ class VitureProtocolTest {
         assertEquals(0x45, ultra.mode(90, true))
         assertEquals(0x42, ultra.mode(60, true))
 
-        assertFalse(VitureProtocol.model(0x1201, null)!!.controllable)
+        assertTrue(VitureProtocol.model(0x1201, null)!!.controllable)
+        assertTrue(VitureProtocol.model(0x1201, null)!!.needsSdk)
         assertNull(VitureProtocol.model(0x9999, "VITURE"))
         assertEquals("VITURE One", VitureProtocol.model(0x1011, "Something else")!!.name)
     }

@@ -237,6 +237,10 @@ class DrawerActions(
     val onSuspendPolicy: (String) -> Unit,
     val onSteamDownloadsInBackground: (Boolean) -> Unit = {},
     val onBackActionsInverted: (Boolean) -> Unit,
+    val lowLatencyController: Boolean = false,
+    val lowLatencyTouch: Boolean = false,
+    val onLowLatencyController: (Boolean) -> Unit = {},
+    val onLowLatencyTouch: (Boolean) -> Unit = {},
     val onTouch: (String) -> Unit,
     val onFexPreset: (String) -> Unit,
     val onUpscaler: (Int) -> Unit = {},
@@ -502,6 +506,14 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     stringResource(R.string.unfolded_controls_hint), a.unfoldedControls,
                                     chipModifier = focus.track(page, "unfolded-controls"), onChange = a.onUnfoldedControls)
                             }
+                            SettingsGroup(stringResource(R.string.drawer_latency)) {
+                                ToggleRow(host, "low-latency-controller", stringResource(R.string.drawer_low_latency_controller),
+                                    stringResource(R.string.drawer_low_latency_controller_hint), a.lowLatencyController,
+                                    chipModifier = focus.track(page, "low-latency-controller"), onChange = a.onLowLatencyController)
+                                ToggleRow(host, "low-latency-touch", stringResource(R.string.drawer_low_latency_touch),
+                                    stringResource(R.string.drawer_low_latency_touch_hint), a.lowLatencyTouch,
+                                    chipModifier = focus.track(page, "low-latency-touch"), onChange = a.onLowLatencyTouch)
+                            }
                             SettingsGroup(stringResource(R.string.drawer_keyboard)) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(8.dp)) {
                                     DrawerOutlineButton(stringResource(R.string.drawer_pc_keyboard), modifier = Modifier.weight(1f).height(48.dp).then(focus.track(page, "hardware"))) {
@@ -519,6 +531,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         SessionDrawerPage.GLASSES -> {
                             val (g, s) = rememberGlasses()
                             GlassesGroups(host, g, s, { key -> focus.track(page, key) }, onRecenter = a.onGlassesRecenter,
+                                outputActive = a.glassesOutput, steamVrRunning = a.steamVr == SteamVr.Status.RUNNING,
                                 steamVr = { SteamVrRow(a) })
                         }
                         SessionDrawerPage.GAMES -> {

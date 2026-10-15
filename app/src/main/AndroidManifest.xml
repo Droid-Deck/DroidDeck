@@ -42,7 +42,7 @@
             android:name=".MainActivity"
             android:exported="true"
             android:screenOrientation="sensorLandscape"
-            android:configChanges="keyboard|keyboardHidden|navigation">
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density|keyboard|keyboardHidden|navigation">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -92,18 +92,21 @@
             android:name=".files.FileManagerActivity"
             android:exported="false"
             android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density"
             android:theme="@style/AppTheme" />
 
         <activity
             android:name=".files.FilePickerActivity"
             android:exported="false"
             android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density"
             android:theme="@style/AppTheme" />
 
         <activity
             android:name=".stores.StoreLoginActivity"
             android:exported="false"
             android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
             android:theme="@style/AppTheme" />
 
         <activity
@@ -124,6 +127,16 @@
             android:screenOrientation="sensorLandscape"
             android:resizeableActivity="true"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density" />
+
+        <activity
+            android:name=".gpu.SteamVrRestartActivity"
+            android:exported="false"
+            android:process=":vr_recovery"
+            android:taskAffinity="${applicationId}.vr_recovery"
+            android:excludeFromRecents="true"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density"
+            android:theme="@style/SessionTheme" />
 
         <service
             android:name=".session.SessionService"

@@ -4,6 +4,25 @@ plugins {
 apply plugin: 'kotlin-android'
 apply plugin: 'org.jetbrains.kotlin.plugin.compose'
 
+// Machine-specific tooling and optional CI-prepared inputs stay out of version control.
+def localBuildOptions = new Properties()
+def localBuildOptionsFile = rootProject.layout.projectDirectory.file('local.properties')
+if (localBuildOptionsFile.asFile.exists()) {
+    localBuildOptions.load(new StringReader(providers.fileContents(localBuildOptionsFile).asText.get()))
+}
+def pythonExecutable = project.findProperty('pythonExecutable')
+    ?: localBuildOptions.getProperty('droiddeck.python', 'python3')
+def vitureSdkDir = project.findProperty('vitureSdkDir') ?: localBuildOptions.getProperty('droiddeck.vitureSdk', '')
+if (vitureSdkDir) {
+    ['android/arm64-v8a/libglasses.so', 'android/arm64-v8a/libcarina_vio.so',
+     'android/arm64-v8a/libcloud_protocol.so', 'include/viture_glasses_provider.h',
+     'android/LICENSE', 'android/NOTICE'].each { required ->
+        if (!new File(vitureSdkDir, required).isFile()) {
+            throw new GradleException("Incomplete VITURE Android SDK: missing ${required}")
+        }
+    }
+}
+
 def gitValue = { List<String> arguments ->
     try {
         def output = providers.exec {
@@ -100,6 +119,7 @@ android {
         externalNativeBuild {
             cmake {
                 arguments '-DANDROID_STL=c++_shared'
+                arguments "-DDROIDDECK_VITURE_SDK_DIR=${vitureSdkDir.toString().replace('\\', '/')}"
             }
         }
     }
@@ -128,6 +148,11 @@ android {
         debug {
             minifyEnabled false
             signingConfig signingConfigs.testkey
+            def localSuffix = localBuildOptions.getProperty('droiddeck.debugApplicationIdSuffix')
+            if (localSuffix) {
+                applicationIdSuffix localSuffix
+                resValue 'string', 'app_name', 'DroidDeck XR Dev'
+            }
         }
         release {
             minifyEnabled false
@@ -172,6 +197,16 @@ android {
     }
 }
 
+// Vendor binaries remain in the user's SDK directory; never vendor them into Git.
+if (vitureSdkDir) {
+    android.sourceSets.main.jniLibs.srcDir(new File(vitureSdkDir, 'android'))
+    def stageVitureNotices = tasks.register('stageVitureNotices', Copy) {
+        from(new File(vitureSdkDir, 'android')) { include 'LICENSE', 'NOTICE' }
+        into(layout.buildDirectory.dir('vitureAssets/licenses/viture'))
+    }
+    tasks.named('preBuild').configure { dependsOn(stageVitureNotices) }
+}
+
 def stageSessionScripts = tasks.register('stageSessionScripts', Copy) {
     from(rootProject.file('tools/linuxfs/overlay')) {
         include 'usr/local/bin/droiddeck-*', 'usr/local/bin/steam-compatibility', 'usr/bin/**'
@@ -188,12 +223,13 @@ def stageRuntimeAssets = tasks.register('stageRuntimeAssets', Sync) {
     into(runtimeAssetsDir)
 }
 android.sourceSets.main.assets.setSrcDirs([runtimeAssetsDir])
+if (vitureSdkDir) android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('vitureAssets'))
 tasks.named('preBuild').configure { dependsOn(stageRuntimeAssets) }
 
 def verifyRuntimeInputs = tasks.register('verifyRuntimeInputs', Exec) {
     mustRunAfter(stageSessionScripts, stageRuntimeAssets)
     workingDir rootProject.projectDir
-    commandLine 'python3', 'tools/release/runtime_inputs.py', 'verify'
+    commandLine pythonExecutable, 'tools/release/runtime_inputs.py', 'verify'
 }
 tasks.configureEach { task ->
     if (task.name in ['packageDebug', 'packageRelease']) task.dependsOn(verifyRuntimeInputs)
@@ -201,7 +237,8 @@ tasks.configureEach { task ->
 
 def rustCrateDir = layout.projectDirectory.dir('src/main/rust/stores')
 def rustJniLibsDir = layout.buildDirectory.dir('rustJniLibs')
-def skipRust = (project.findProperty('skipRust') ?: 'false').toString().toBoolean()
+def skipRust = (project.findProperty('skipRust')
+    ?: localBuildOptions.getProperty('droiddeck.skipRust', 'false')).toString().toBoolean()
 def buildRustStores = tasks.register('buildRustStores', Exec) {
     description = 'Cross-compiles the store download engines (libdroiddeckstores.so) with cargo-ndk.'
     onlyIf { !skipRust }

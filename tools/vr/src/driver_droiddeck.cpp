@@ -17,6 +17,7 @@
 
 #include "../../../app/src/main/cpp/waylandcomp/src/headpose_shm.h"
 #include "presenter.h"
+#include "render_target.h"
 
 #define DD_EXPORT extern "C" __attribute__((visibility("default")))
 
@@ -501,7 +502,8 @@ public:
             tanHalf_ = hp.tan_half_fov;
             if (hp.eye_aspect > 0.0f) eyeAspect_ = hp.eye_aspect;
             sentMono_ = (hp.flags & DROIDDECK_HEADPOSE_MONO) != 0;
-            renderScale_ = sentMono_ ? 1.0f : 1.4f;
+            renderHeight_ = hp.render_height;
+            panelHeight_ = hp.eye_h;
         }
         if (pose_.Read(&hp) && hp.display_hz >= 24.0f) hz = hp.display_hz;
         Vsync::SetRate(hz);
@@ -531,6 +533,9 @@ public:
         VRDriverInput()->CreateBooleanComponent(c, "/proximity", &proximity_);
         VRDriverInput()->UpdateBooleanComponent(proximity_, true, 0);
         Log("HMD activated: %dx%d at %.0f Hz, eye tan(half fov) %.3f, eye aspect %.3f", width_, height_, hz, tanHalf_.load(), eyeAspect_.load());
+        uint32_t renderW, renderH;
+        GetRecommendedRenderTargetSize(&renderW, &renderH);
+        Log("recommended render target: %ux%u per eye (selected height %u)", renderW, renderH, renderHeight_.load());
 
         running_ = true;
         thread_ = std::thread([this] { PoseLoop(); });
@@ -584,9 +589,9 @@ public:
     bool IsDisplayOnDesktop() override { return !directMode_; }
     bool IsDisplayRealDisplay() override { return false; }
     void GetRecommendedRenderTargetSize(uint32_t *w, uint32_t *h) override {
-        const float scale = renderScale_;
-        *w = (uint32_t)(height_ * scale * eyeAspect_);
-        *h = (uint32_t)(height_ * scale);
+        const auto size = droiddeck::RenderTarget(eyeAspect_, renderHeight_, panelHeight_);
+        *w = size.width;
+        *h = size.height;
     }
     void GetEyeOutputViewport(EVREye eye, uint32_t *x, uint32_t *y, uint32_t *w, uint32_t *h) override {
         *y = 0; *w = (uint32_t)width_ / 2; *h = (uint32_t)height_;
@@ -612,7 +617,8 @@ private:
         sentTan_ = tanHalf_ = hp.tan_half_fov;
         sentAspect_ = eyeAspect_ = hp.eye_aspect;
         sentMono_ = (hp.flags & DROIDDECK_HEADPOSE_MONO) != 0;
-        renderScale_ = sentMono_ ? 1.0f : 1.4f;
+        renderHeight_ = hp.render_height;
+        panelHeight_ = hp.eye_h;
         HmdRect2_t r;
         r.vTopLeft.v[0] = -tanHalf_ * eyeAspect_;
         r.vTopLeft.v[1] = -tanHalf_;
@@ -649,7 +655,8 @@ private:
                     lastSeq = hp.seq;
                     if (hp.eye_w > 0 && hp.tan_half_fov > 0.0f && hp.eye_aspect > 0.0f &&
                         (fabsf(hp.tan_half_fov - sentTan_) > 1e-3f || fabsf(hp.eye_aspect - sentAspect_) > 1e-3f ||
-                         ((hp.flags & DROIDDECK_HEADPOSE_MONO) != 0) != sentMono_))
+                         ((hp.flags & DROIDDECK_HEADPOSE_MONO) != 0) != sentMono_ ||
+                         hp.render_height != renderHeight_ || hp.eye_h != panelHeight_))
                         UpdateEye(hp);
                     if (hp.display_hz >= 24.0f && fabsf(hp.display_hz - sentHz_) > 0.5f) UpdateRate(hp.display_hz);
                     const bool worn = (hp.flags & DROIDDECK_HEADPOSE_ENABLED) != 0;
@@ -702,7 +709,8 @@ private:
 
     uint32_t id_ = k_unTrackedDeviceIndexInvalid;
     int32_t width_ = 1920, height_ = 1080;
-    std::atomic<float> tanHalf_{1.0f}, eyeAspect_{0.889f}, renderScale_{1.4f};
+    std::atomic<float> tanHalf_{1.0f}, eyeAspect_{0.889f};
+    std::atomic<uint32_t> renderHeight_{720}, panelHeight_{0};
     float sentTan_ = 0.0f, sentAspect_ = 0.0f, sentHz_ = 0.0f;
     bool sentMono_ = false;
     PropertyContainerHandle_t container_ = k_ulInvalidPropertyContainer;

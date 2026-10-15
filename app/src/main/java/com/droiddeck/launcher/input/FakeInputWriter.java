@@ -79,6 +79,10 @@ public class FakeInputWriter {
     private static final int DECK_CONTROLS_OFFSET = IMU_OFFSET + 40;
     private static final int PAD_TYPE_OFFSET = IMU_OFFSET + 44;
     private static final int PAD_TYPE_SET = 0x80000000;
+    private static final int LATENCY_OFFSET = IMU_OFFSET + 48;
+    public static final int LATENCY_CONTROLLER = 1;
+    public static final int LATENCY_TOUCH = 2;
+    private static volatile int latency = 0;
     public static final int PAD_TYPE_DECK = 0;
     public static final int PAD_TYPE_STEAM = 1;
     public static final int PAD_TYPE_XBOX = 2;
@@ -214,6 +218,7 @@ public class FakeInputWriter {
         data.putInt(DECK_CONTROLS_OFFSET, 0);
         int type = padType;
         data.putInt(PAD_TYPE_OFFSET, type >= 0 ? PAD_TYPE_SET | type : 0);
+        data.putInt(LATENCY_OFFSET, latency);
         data.putInt(TRITON_OFFSET, TRITON_MAGIC);
         data.putInt(TRITON_CONNECTED_OFFSET, tritonConnected ? 1 : 0);
         data.putLong(TRITON_INPUT_SEQ_OFFSET, 0L);
@@ -511,6 +516,22 @@ public class FakeInputWriter {
             if (ring == null) return;
             nativeStoreFence();
             ring.putInt(PAD_TYPE_OFFSET, PAD_TYPE_SET | type);
+        }
+    }
+
+    public static void setLowLatency(boolean controller, boolean touch) {
+        int flags = (controller ? LATENCY_CONTROLLER : 0) | (touch ? LATENCY_TOUCH : 0);
+        latency = flags;
+        RingSlot ringSlot;
+        synchronized (RING_LOCK) {
+            ringSlot = RING_SLOTS[0];
+        }
+        if (ringSlot == null) return;
+        synchronized (ringSlot) {
+            ByteBuffer ring = ringSlot.data;
+            if (ring == null) return;
+            nativeStoreFence();
+            ring.putInt(LATENCY_OFFSET, flags);
         }
     }
 

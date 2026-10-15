@@ -18,7 +18,7 @@ internal class VitureLink private constructor(
     private val imu: UsbInterface?,
     private val imuIn: UsbEndpoint?,
     private val listener: Listener,
-) {
+) : GlassesLink {
     interface Listener {
         fun onFrame(frame: VitureProtocol.Frame)
         fun onImu(payload: ByteArray, timeNs: Long)
@@ -31,25 +31,25 @@ internal class VitureLink private constructor(
     private val readers = mutableListOf<Thread>()
     private val bad = AtomicLong()
 
-    val hasImu: Boolean get() = imuIn != null
-    val badFrames: Long get() = bad.get()
+    override val hasImu: Boolean get() = imuIn != null
+    override val badFrames: Long get() = bad.get()
 
     private fun startReaders() {
-        mcuIn?.let { ep -> readers += reader("viture-mcu", ep) { buf, n -> validFrame(buf, n)?.let(listener::onFrame) } }
+        mcuIn?.let { ep -> readers += reader("viture-mcu", ep) { buf, n -> onPacket(buf, n, false) } }
         imuIn?.let { ep ->
-            readers += reader("viture-imu", ep) { buf, n ->
-                val frame = validFrame(buf, n) ?: return@reader
-                if (frame.magic == VitureProtocol.MAGIC_IMU) listener.onImu(frame.payload, SystemClock.elapsedRealtimeNanos())
-                else listener.onFrame(frame)
-            }
+            readers += reader("viture-imu", ep) { buf, n -> onPacket(buf, n, true) }
         }
     }
 
-    private fun validFrame(buf: ByteArray, n: Int): VitureProtocol.Frame? {
-        val frame = VitureProtocol.parse(buf, n) ?: return null
-        if (frame.crcOk) return frame
-        if (bad.incrementAndGet() == 1L) Log.w(TAG, "dropping frames with a bad checksum")
-        return null
+    private fun onPacket(buf: ByteArray, size: Int, imuEndpoint: Boolean) {
+        val frame = VitureProtocol.parse(buf, size) ?: return
+        if (!frame.crcOk) {
+            if (bad.incrementAndGet() == 1L) Log.w(TAG, "dropping frames with a bad checksum")
+            return
+        }
+        if (imuEndpoint && frame.magic == VitureProtocol.MAGIC_IMU)
+            listener.onImu(frame.payload, SystemClock.elapsedRealtimeNanos())
+        else listener.onFrame(frame)
     }
 
     private fun reader(name: String, ep: UsbEndpoint, onPacket: (ByteArray, Int) -> Unit): Thread =
@@ -75,7 +75,7 @@ internal class VitureLink private constructor(
             }
         }, name).apply { isDaemon = true; priority = Thread.MAX_PRIORITY; start() }
 
-    fun send(msgId: Int, payload: ByteArray = ByteArray(0)): Boolean {
+    override fun send(msgId: Int, payload: ByteArray): Boolean {
         val pkt = VitureProtocol.packet(msgId, payload)
         val n = synchronized(writeLock) {
             if (!running) return false
@@ -87,7 +87,7 @@ internal class VitureLink private constructor(
         return n == pkt.size
     }
 
-    fun close() {
+    override fun close() {
         synchronized(writeLock) { running = false }
         val self = Thread.currentThread()
         readers.forEach { if (it !== self) runCatching { it.join(READ_TIMEOUT_MS * 4L) } }

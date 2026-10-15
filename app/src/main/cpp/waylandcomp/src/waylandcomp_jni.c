@@ -18,6 +18,7 @@
 #include "droiddeck_color.h"
 
 extern int droiddeck_wayland_run(void);
+extern void droiddeck_wayland_set_scale_mode(int mode, int alignment);
 extern void droiddeck_wayland_send_pointer(int action, int x, int y);
 extern void droiddeck_wayland_send_touch(int action, int pointer_id, int x, int y);
 extern int  droiddeck_cursor_snapshot(int *out, int cap);
@@ -341,6 +342,7 @@ JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetOutputSize(JNIEnv *env, jclass clazz, jint w, jint h) {
     g_output_w = w > 0 ? w : 0;
     g_output_h = h > 0 ? h : 0;
+    vkp_cardboard_set_render_height(h);
 }
 
 JNIEXPORT void JNICALL
@@ -349,15 +351,25 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeResizeOutput(JNIEnv 
     if (w <= 0 || h <= 0) return;
     g_output_w = w;
     g_output_h = h;
+    vkp_cardboard_set_render_height(h);
     droiddeck_wayland_output_resized();
 }
 
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetScaleMode(JNIEnv *env, jclass clazz, jint mode, jint alignment) {
-    vk_present_set_scale_mode(mode, alignment);
+    droiddeck_wayland_set_scale_mode(mode, alignment);
     __android_log_print(ANDROID_LOG_INFO, TAG, "scale mode %d alignment %d", mode, alignment);
 }
 
+
+JNIEXPORT jboolean JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeGamePictureRect(JNIEnv *env, jclass clazz, jfloatArray out) {
+    if (!out || (*env)->GetArrayLength(env, out) < 4) return JNI_FALSE;
+    float rect[4];
+    if (!vkp_game_picture_rect(rect)) return JNI_FALSE;
+    (*env)->SetFloatArrayRegion(env, out, 0, 4, rect);
+    return JNI_TRUE;
+}
 
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetUpscaler(JNIEnv *env, jclass clazz, jint mode) {

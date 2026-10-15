@@ -24,7 +24,9 @@ struct droiddeck_headpose {
     float eye_aspect;
     uint32_t eye_w, eye_h;
     float display_hz;
-    uint32_t reserved[11];
+    // Uses a formerly reserved word; older publishers leave this zero.
+    uint32_t render_height;
+    uint32_t reserved[10];
 };
 
 #ifdef __cplusplus

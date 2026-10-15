@@ -139,6 +139,8 @@ class FrontEndState(
     val addedGamesArt: Boolean = true,
     val sgdbUserKey: Boolean = false,
     val storesShowMature: Boolean = false,
+    val storesSort: String = SessionPrefs.STORES_SORTS.first(),
+    val storesView: String = SessionPrefs.STORES_VIEWS.first(),
     val storeDownloadsActive: Int = 0,
     val updates: UpdatesState = UpdatesState(),
 )
@@ -200,6 +202,8 @@ class FrontEndActions(
     val onStoresOpenTab: (String) -> Unit = {},
     val onNavigated: () -> Unit = {},
     val onStoresShowMature: (Boolean) -> Unit = {},
+    val onStoresSort: (String) -> Unit = {},
+    val onStoresView: (String) -> Unit = {},
     val onLibraryChanged: () -> Unit = {},
     val onHomeApp: () -> Unit = {},
     val onHomeScreen: (Boolean) -> Unit = {},

@@ -104,6 +104,23 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("storesShowMature", show).apply()
     }
 
+    fun storesSort(context: Context): String =
+        prefs(context).getString("storesSort", null)?.takeIf { it in STORES_SORTS } ?: STORES_SORTS.first()
+
+    fun setStoresSort(context: Context, sort: String) {
+        prefs(context).edit().putString("storesSort", if (sort in STORES_SORTS) sort else STORES_SORTS.first()).apply()
+    }
+
+    fun storesView(context: Context): String =
+        prefs(context).getString("storesView", null)?.takeIf { it in STORES_VIEWS } ?: STORES_VIEWS.first()
+
+    fun setStoresView(context: Context, view: String) {
+        prefs(context).edit().putString("storesView", if (view in STORES_VIEWS) view else STORES_VIEWS.first()).apply()
+    }
+
+    val STORES_SORTS = listOf("lastPlayed", "recentlyInstalled", "titleAsc", "titleDesc", "sizeDesc", "sizeAsc", "releaseDateDesc")
+    val STORES_VIEWS = listOf("cards", "list")
+
     const val STORES_OPEN_LIBRARY = "library"
     const val STORES_OPEN_STORE = "store"
 
@@ -129,6 +146,18 @@ object SessionPrefs {
 
     private fun mangoappSession(context: Context) =
         SessionState.mode == SessionService.MODE_STEAM && mangoapp(context)
+
+    fun lowLatencyController(context: Context): Boolean = prefs(context).getBoolean("lowLatencyController", false)
+
+    fun setLowLatencyController(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("lowLatencyController", on).apply()
+    }
+
+    fun lowLatencyTouch(context: Context): Boolean = prefs(context).getBoolean("lowLatencyTouch", false)
+
+    fun setLowLatencyTouch(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("lowLatencyTouch", on).apply()
+    }
 
     fun backActionsInverted(context: Context): Boolean = prefs(context).getBoolean("backActionsInverted", false)
 
@@ -194,6 +223,15 @@ object SessionPrefs {
         prefs(context).edit().putStringSet("gpuAutoInstalled", ids.toSet()).apply()
     }
 
+
+    fun picturePosition(context: Context): String =
+        prefs(context).getString("picturePosition", "center")
+            ?.takeIf { it in listOf("top", "bottom", "center") } ?: "center"
+
+    fun setPicturePosition(context: Context, position: String) {
+        prefs(context).edit().putString("picturePosition",
+            position.takeIf { it in listOf("top", "bottom", "center") } ?: "center").apply()
+    }
 
     fun stretch16x9(context: Context): Boolean = prefs(context).getBoolean("stretch16x9", false)
 
