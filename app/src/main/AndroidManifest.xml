@@ -106,7 +106,7 @@
             android:name=".stores.StoreLoginActivity"
             android:exported="false"
             android:screenOrientation="sensorLandscape"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density"
             android:theme="@style/AppTheme" />
 
         <activity
