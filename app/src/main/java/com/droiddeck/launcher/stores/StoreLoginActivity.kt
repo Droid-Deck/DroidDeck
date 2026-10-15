@@ -167,6 +167,8 @@ class StoreLoginActivity : ComponentActivity() {
         if (!::topBar.isInitialized) return
         topBar.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48))
         titleText.setPadding(dp(16), 0, dp(8), 0)
+        titleText.textSize = 16f
+        errorText.textSize = 15f
         reloadButton.layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
         closeButton.layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
         progressBar.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(3))
