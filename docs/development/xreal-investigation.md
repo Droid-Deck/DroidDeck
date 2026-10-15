@@ -232,7 +232,10 @@ head-tilt check. The SteamVR-requested session was running with a rendered first
 frame, stereo output and active tracking. All 181 glasses, shared-pose, SteamVR
 launch and glasses-UI regression checks passed; packaged runtime inputs verified.
 
-Still experimental: brightness/dimmer, 90/120 Hz compatibility modes and
+The wearer also confirmed on 2026-10-14 that XREAL 1S brightness control works.
+Higher refresh rates were not tested.
+
+Still experimental: dimmer, 90/120 Hz compatibility modes and
 extended gameplay stability need hardware validation. One successful view/motion
 check does not establish long-session stability. Users must select Follow mode and disable the glasses' own
 stabilization. Factory calibration and XREAL Eye/6DoF are not implemented.
