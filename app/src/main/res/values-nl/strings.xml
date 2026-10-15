@@ -843,7 +843,7 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android stopt apps die veel achtergrondprocessen starten, en Steam start er tientallen. Totdat dit verandert, sluiten games zonder foutmelding.</string>
     <string name="gate_fix_for_me">Voor mij oplossen</string>
-    <string name="gate_toggle_steps">Zet “Beperkingen voor subprocessen uitschakelen” aan, en kom dan terug. Laat Opties voor ontwikkelaars aan staan, anders schakelt de schakelaar weer uit.</string>
+    <string name="gate_toggle_steps">Zet “Beperkingen voor onderliggende processen uitzetten” aan, en kom dan terug. Laat Opties voor ontwikkelaars aan staan, anders schakelt de schakelaar weer uit.</string>
     <string name="gate_open_dev">Opties voor ontwikkelaars openen</string>
     <string name="gate_no_toggle">Deze Android-versie heeft hiervoor geen schakelaar, dus wijzigt DroidDeck dit via Draadloos debuggen. Duurt ongeveer een minuut, geen computer nodig.</string>
     <string name="gate_needs_wifi">Draadloos debuggen heeft Wi-Fi nodig. Elk netwerk werkt; internet is niet vereist.</string>
@@ -1799,7 +1799,7 @@
     <string name="phantom_instructions_fix">%1$s Als dat niet mogelijk is, sluit dit apparaat aan op een computer met ADB en voer de onderstaande opdracht uit. Kom hierna terug en controleer opnieuw.</string>
     <string name="phantom_instructions_off">Steam-sessies kunnen starten.</string>
     <string name="phantom_instructions_not_applicable">Deze Android-versie gebruikt deze limiet niet.</string>
-    <string name="phantom_fix_toggle">Schakel “Beperkingen voor onderliggende processen uitschakelen” in bij Ontwikkelaarsopties en laat Ontwikkelaarsopties daarna aan staan.</string>
+    <string name="phantom_fix_toggle">Schakel “Beperkingen voor onderliggende processen uitzetten” in bij Ontwikkelaarsopties en laat Ontwikkelaarsopties daarna aan staan.</string>
     <string name="phantom_fix_no_toggle">Deze Android-versie heeft hier geen schakelaar voor. Gebruik draadloze foutopsporing om dit vanaf dit apparaat te wijzigen.</string>
     <string name="upd_block_no_apk">Deze build heeft geen download voor dit exemplaar van DroidDeck.</string>
     <string name="upd_block_version_code">Android installeert dit niet over deze build heen, omdat de versionCode %1$d lager is dan de geïnstalleerde %2$d.</string>
