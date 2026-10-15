@@ -109,6 +109,7 @@ class MainActivity : ComponentActivity() {
     private var lossless by mutableStateOf(Lossless.State.NONE)
     private var showRemove by mutableStateOf(false)
     private var showResetSettings by mutableStateOf(false)
+    private var lowSpace by mutableStateOf<Long?>(null)
     private var showNonAdreno by mutableStateOf<LinuxRuntimeInstaller.Release?>(null)
     private var glThread by mutableStateOf(true)
     private var noGlError by mutableStateOf(true)
@@ -591,8 +592,13 @@ class MainActivity : ComponentActivity() {
                         storeDownloadsActive = com.droiddeck.launcher.stores.StoresState.activeDownloads,
                     ),
                     FrontEndActions(
-                        onPlay = { startSteamSession() },
+                        onPlay = { playSteam() },
                         onPlaySteamVr = { startSteamSession(steamVr = true) },
+                        onSteamUrl = { url ->
+                            if (!SessionState.running) startSession(
+                                Intent(this, SessionActivity::class.java).putExtra(SessionService.EXTRA_STEAM_URL, url), steamSession = true,
+                            )
+                        },
                         onPlayDesktopUi = {
                             startSession(Intent(this, SessionActivity::class.java)
                                 .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_STEAM)
@@ -859,6 +865,14 @@ class MainActivity : ComponentActivity() {
                     onConfirm = { showRemove = false; removeRuntime() },
                     onDismiss = { showRemove = false },
                 )
+                lowSpace?.let { free ->
+                    com.droiddeck.launcher.ui.LowSpaceDialog(
+                        free,
+                        onFreeUp = { lowSpace = null; com.droiddeck.launcher.storage.StorageState.requestOpen() },
+                        onPlay = { lowSpace = null; com.droiddeck.launcher.storage.StorageState.lowSpaceDismissed = true; startSteamSession() },
+                        onDismiss = { lowSpace = null },
+                    )
+                }
                 if (showResetSettings) com.droiddeck.launcher.ui.ResetSettingsDialog(
                     onConfirm = { gameProfiles -> resetSettings(gameProfiles) },
                     onDismiss = { showResetSettings = false },
@@ -909,6 +923,14 @@ class MainActivity : ComponentActivity() {
     private fun startSteamAtStartupIfEnabled() {
         if (intent.action != Intent.ACTION_MAIN) return
         if (SessionPrefs.runSteamAtStartup(this) && !isFinishing && !isDestroyed) startSteamSession()
+    }
+
+    private fun playSteam() {
+        val storage = com.droiddeck.launcher.storage.StorageState
+        if (!SessionState.running && !storage.lowSpaceDismissed && storage.lowOnSpace(this)) {
+            lowSpace = storage.freeBytes(this)
+            storage.refresh(this)
+        } else startSteamSession()
     }
 
     private fun startSteamSession(steamVr: Boolean = false) {
@@ -1622,6 +1644,10 @@ class MainActivity : ComponentActivity() {
 
     private fun startSession(intent: Intent, steamSession: Boolean = false): Boolean {
         if (busy || LinuxRuntimeInstaller.isBusy()) return false
+        if (com.droiddeck.launcher.storage.StorageState.cleaning) {
+            android.widget.Toast.makeText(this, R.string.storage_cleanup_busy, android.widget.Toast.LENGTH_SHORT).show()
+            return false
+        }
         refreshPhantomStatus()
         if (steamSession && PhantomProcessLimit.blocksSteam(phantomProcessStatus)) {
             showPhantomGate = true
