@@ -145,6 +145,11 @@ Steam** never starts it: while SteamVR runs, Steam keeps its own window in front
 Through a VITURE Mobile Dock the glasses are only a display: the dock does not pass their controls or
 head tracking to the phone, so there is no Play SteamVR, refresh, 3D or tracking setting.
 
+SteamVR defaults to 2D output: a single eye fills the glasses while head tracking remains active.
+Enable **3D (side-by-side)** manually or opt into **3D for VR games** in the glasses controls for stereo. Automatic
+switching waits until SteamVR reports that it is running; starting or installing it does not change
+the display mode. A saved **3D for VR games** preference is retained.
+
 With **Game on glasses** off, SteamVR keeps the glasses' picture settings and IMU while Android
 mirrors the phone output to the glasses. Turning off the dedicated display must not turn off the
 renderer/HMD proximity flag: SteamVR otherwise reports the headset as taken off and enters standby,

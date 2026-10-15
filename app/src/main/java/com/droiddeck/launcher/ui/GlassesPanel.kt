@@ -95,8 +95,9 @@ internal fun GlassesGroups(
 ) {
     val display = tab == null || tab == GlassesTab.DISPLAY
     val picture = GlassesRendering.picture(s, g.sbs, steamVrRunning)
-    val virtualScreen = outputActive && picture == GlassesRendering.Picture.VIRTUAL_SCREEN
-    val directView = outputActive && picture == GlassesRendering.Picture.STEREO
+    val usesGlasses = GlassesRendering.usesGlasses(g, outputActive, steamVrRunning)
+    val virtualScreen = usesGlasses && picture == GlassesRendering.Picture.VIRTUAL_SCREEN
+    val directView = usesGlasses && picture == GlassesRendering.Picture.STEREO
     if (display) SettingsGroup(g.model) {
         if (g.experimental) SettingsRow(stringResource(R.string.glasses_control), stringResource(R.string.glasses_xreal_experimental)) {}
         val status = if (g.hasDisplay) stringResource(R.string.glasses_status, g.width, g.height, kotlin.math.round(g.hz).toInt(),
@@ -144,7 +145,7 @@ internal fun GlassesGroups(
             ), s.picture3d, chipModifier = track("glasses-picture"), hintLines = 2) { Glasses.setPicture3d(it) }
         when {
             !inSession -> SettingsRow(stringResource(R.string.glasses_picture_screen), stringResource(R.string.glasses_screen_next_session)) {}
-            !outputActive -> SettingsRow(stringResource(R.string.glasses_picture_screen), stringResource(R.string.glasses_screen_no_output)) {}
+            !usesGlasses -> SettingsRow(stringResource(R.string.glasses_picture_screen), stringResource(R.string.glasses_screen_no_output)) {}
             picture == GlassesRendering.Picture.FLAT -> ActionRow(
                 stringResource(R.string.glasses_picture_screen), stringResource(R.string.glasses_screen_flat_hint),
                 stringResource(R.string.glasses_screen_use), { Glasses.setPicture3d(GlassesSettings.PICTURE_SCREEN) })
@@ -172,7 +173,7 @@ internal fun GlassesGroups(
     }
     if ((tab == null || tab == GlassesTab.TRACKING) && g.canControl) SettingsGroup(stringResource(R.string.glasses_tracking)) {
         val trackingHint = when {
-            inSession && !outputActive -> R.string.glasses_screen_no_output
+            inSession && !usesGlasses -> R.string.glasses_screen_no_output
             inSession && picture == GlassesRendering.Picture.FLAT -> R.string.glasses_tracking_flat_hint
             inSession && directView && !steamVrRunning -> R.string.glasses_tracking_sbs_hint
             else -> R.string.glasses_head_tracking_hint

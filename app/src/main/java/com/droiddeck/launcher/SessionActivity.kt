@@ -514,7 +514,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     cursorImage, cursorHotX, cursorHotY, cursorImageScale)
                 if (hud.text.isNotEmpty()) HudText(hud.text)
                 if (glassesOutputActive && !loading.visible) com.droiddeck.launcher.ui.GlassesPlayingHint(glasses.model)
-                if (glassesOutputActive && headTracking && !drawerOpen && !pcKeyboardOpen && !loading.visible) com.droiddeck.launcher.ui.GlassesRecenterButton(
+                if (GlassesRendering.usesGlasses(glasses, glassesOutputActive, steamVrStatus == SteamVr.Status.RUNNING) &&
+                    headTracking && !drawerOpen && !pcKeyboardOpen && !loading.visible) com.droiddeck.launcher.ui.GlassesRecenterButton(
                     controllerSettings?.tint ?: android.graphics.Color.rgb(90, 160, 255), controllerSettings?.opacity ?: 100) { headTracker?.recenter() }
                 if (glasses.present && !drawerOpen && !pcKeyboardOpen && !loading.visible) com.droiddeck.launcher.ui.GlassesCornerButton(glassesSlot,
                     controllerSettings?.tint ?: android.graphics.Color.rgb(90, 160, 255), controllerSettings?.opacity ?: 100) {
@@ -2392,10 +2393,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun steamVrAction(action: String) {
         if (action == "stop") SessionState.steamVr = false
         if (glasses.present) {
-            if (action == "start" && glassesSettings.auto3d && glasses.can3d && !glasses.sbs) {
-                glasses3dForVr = true
-                Glasses.set3dForVr(true)
-            }
+            // Optional stereo starts only after RUNNING is observed. READY can
+            // arrive repeatedly while the launch worker is still starting VR.
             if (action == "install") steamVrStatus = SteamVr.Status.INSTALLING
             steamVrWorker.execute {
                 val ok = SteamVr.run(this, action)
