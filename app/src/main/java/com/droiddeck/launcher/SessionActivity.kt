@@ -19,6 +19,7 @@ import android.view.MotionEvent
 import android.view.ViewConfiguration
 import android.view.Display
 import android.view.SurfaceHolder
+import android.view.Gravity
 import android.view.SurfaceView
 import android.view.View
 import android.view.WindowManager
@@ -27,10 +28,12 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.graphics.toArgb
@@ -39,7 +42,17 @@ import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.core.TextureFiltering
 import com.droiddeck.launcher.files.InAppFilePicker
 import com.droiddeck.launcher.frontend.Library
+import com.droiddeck.launcher.agent.AgentGuest
+import com.droiddeck.launcher.frontend.LibraryCache
+import com.droiddeck.launcher.stores.Store
+import com.droiddeck.launcher.stores.StoreAchievements
+import com.droiddeck.launcher.stores.StoreGameSidecar
+import com.droiddeck.launcher.stores.StoreLaunchRequests
+import com.droiddeck.launcher.ui.SessionAchievements
+import com.droiddeck.launcher.gpu.Cardboard
 import com.droiddeck.launcher.gpu.FrameGen
+import com.droiddeck.launcher.gpu.HeadTracker
+import com.droiddeck.launcher.gpu.SteamVr
 import com.droiddeck.launcher.gpu.ScreenEffectLooks
 import com.droiddeck.launcher.gpu.ScreenEffects
 import com.droiddeck.launcher.gpu.Lossless
@@ -51,6 +64,7 @@ import com.droiddeck.launcher.input.ControllerPrefs
 import com.droiddeck.launcher.input.SessionClipboard
 import com.droiddeck.launcher.input.OnScreenControls
 import com.droiddeck.launcher.input.PadBridge
+import com.droiddeck.launcher.input.SteamControllerBle
 import com.droiddeck.launcher.input.PointerGestures
 import com.droiddeck.launcher.input.SecondScreenDisplay
 import com.droiddeck.launcher.input.SecondScreenDisplays
@@ -62,6 +76,9 @@ import com.droiddeck.launcher.session.PerfHud
 import com.droiddeck.launcher.session.PerfMode
 import com.droiddeck.launcher.session.SteamRepair
 import com.droiddeck.launcher.session.GameEnvironmentStore
+import com.droiddeck.launcher.session.GameProfileFollowState
+import com.droiddeck.launcher.session.GameProfileInventoryCache
+import com.droiddeck.launcher.session.GameProfileRefreshState
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionEvents
 import com.droiddeck.launcher.session.SessionArtifacts
@@ -71,6 +88,9 @@ import com.droiddeck.launcher.session.SessionPaths
 import com.droiddeck.launcher.wayland.HdrSupport
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
+import com.droiddeck.launcher.session.ProtonDefault
+import com.droiddeck.launcher.session.SelectedGameProfile
+import com.droiddeck.launcher.session.WinComponents
 import com.droiddeck.launcher.ui.CursorOverlay
 import androidx.compose.ui.graphics.asImageBitmap
 import com.droiddeck.launcher.ui.DrawerActions
@@ -84,22 +104,12 @@ import com.droiddeck.launcher.wayland.CompositorHost
 import com.droiddeck.launcher.wayland.WaylandCompositor
 import java.io.File
 import com.droiddeck.launcher.session.ComponentsManager
+import com.droiddeck.launcher.session.LatestRequestCoordinator
 import com.droiddeck.launcher.ui.SessionDrawerPage
 import com.droiddeck.launcher.ui.sessionDrawerPages
 import com.droiddeck.launcher.ui.step
 import kotlin.math.abs
 
-/**
- * The session's screen: our Wayland compositor presenting onto this activity's Surface, and the
- * input that reaches it. The session itself - gamescope, the Steam client, audio - belongs to
- * [SessionService] and keeps running when this activity does not exist, which is what lets the
- * user leave Big Picture for another app and come back to it still signed in and still
- * downloading.
- *
- * Three layers: the SurfaceView the compositor draws into, the on-screen pad (a canvas View,
- * since it is input rather than a menu), and one Compose layer on top for everything else -
- * the HUD line, the loading overlay, the drawer and its dialogs.
- */
 class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     override fun attachBaseContext(newBase: android.content.Context) {
         super.attachBaseContext(newBase)
@@ -109,26 +119,19 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private lateinit var pip: com.droiddeck.launcher.session.SessionPipController
     private var pipUi by mutableStateOf(false)
     private var pipAutoEnter by mutableStateOf(false)
+    private var unfoldedControls by mutableStateOf(false)
+    private var unfoldedPanel: com.droiddeck.launcher.ui.DeckControlsPanel? = null
+    private lateinit var sessionRoot: FrameLayout
     private val guestKeysDown = mutableSetOf<Int>()
     private lateinit var surfaceView: SurfaceView
     private lateinit var sessionOverlay: ComposeView
     private lateinit var loading: LoadingState
     private lateinit var hud: PerfHud
     private var padBridge: PadBridge? = null
-    /** The handheld's gyro and accelerometer, fed to the Deck controller while the session shows. */
     private var padMotion: com.droiddeck.launcher.input.PadMotion? = null
-    /** Between onResume and onPause. */
     private var resumed = false
-    private val deckPadListener: () -> Unit = { uiHandler.post { updatePadMotion(); openDeckRing("deck pad changed") } }
+    private val deckPadListener: () -> Unit = { uiHandler.post { updatePadMotion(); openDeckRing("deck pad changed"); applyUnfoldedControls() } }
 
-    /**
-     * A Deck's controller is there from the moment it boots, and the client looks for it once, as
-     * it starts. The ring behind the Deck (libfakeinput's /dev/hidraw16) opens on the pad's first
-     * input otherwise - on a phone with nothing attached, the first touch of the on-screen
-     * controls, seconds after the client had looked, found no controller and never set the touch
-     * mode, so its interface took a finger as a mouse. Opened as soon as the session settles on a
-     * Deck instead.
-     */
     private fun openDeckRing(why: String) {
         val deck = SessionState.deckPad
         val opened = if (deck) padBridge?.start() else null
@@ -139,20 +142,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         })
     }
 
-    /** Motion is read while the session shows and only if the pad is a Deck controller - which
-     *  the service can decide after this activity has resumed (SessionState.deckPadListener). */
     private fun updatePadMotion() {
-        if (resumed && !pipUi && SessionState.deckPad) padMotion?.start() else padMotion?.stop()
+        if (resumed && !pipUi && SessionState.deckPad && !SteamControllerBle.connected) padMotion?.start()
+        else padMotion?.stop()
     }
+    private var steamController: SteamControllerBle? = null
     private var onScreenControls: OnScreenControls? = null
-    /** Steam's touch controls (SteamTouchControls), made once the session offers the device. */
     private var steamTouchControls: com.droiddeck.launcher.input.SteamTouchControls? = null
     private var steamTouchAvailable by mutableStateOf(false)
     private val steamTouchRetry = Runnable { updateOnScreenControls() }
-    /** While Steam's touch controls are up: how the game's touch config says touches outside them
-     *  act (Steam Link's input and mouse modes), in place of the drawer's touch mode. */
     private var steamTouchOptions: com.droiddeck.launcher.input.SteamTouchConfig.Options? = null
-    /** The touch mode touches are routed by: the drawer's, or the game's while Steam's controls are up. */
     private var routedTouchMode = SessionPrefs.TOUCH_AUTO
     private var keyboard: KeyboardHost? = null
     private var controllerSettings by mutableStateOf<ControllerPrefs.Settings?>(null)
@@ -166,28 +165,23 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var touchMode by mutableStateOf(SessionPrefs.TOUCH_AUTO)
     private var cursorPos by mutableStateOf(androidx.compose.ui.geometry.Offset(-100f, -100f))
     private var cursorVisible by mutableStateOf(false)
-    /** The blue the front end flooded to on the way in; the loading screen opens on it (LaunchFlood). */
     private var floodColor by mutableStateOf<Int?>(null)
     private val cursorHide = Runnable { cursorVisible = false }
-    /** When the pad or the on-screen controls were last used (uptimeMillis); see [showCursor]. */
     private var lastPadInputMs = 0L
-    // The program's own pointer, from wl_pointer.set_cursor (see syncClientCursor): its image in
-    // session pixels, hotspot, and whether it asked for no pointer at all.
     private val cursorBuf = IntArray(WaylandCompositor.CURSOR_BUF_INTS)
     private var cursorSerial = 0
     private var clientHidesCursor = false
-    /**
-     * A program holds a pointer lock (zwp_locked_pointer_v1: a mouse-look game, through gamescope).
-     * While it does, a physical mouse is captured and its raw deltas go to the program as relative
-     * motion. Without capture the deltas are worked out from Android's pointer position, which stops
-     * at the screen edge, and so did the camera (#153).
-     */
     private var pointerLocked = false
     private val pointerLockListener = WaylandCompositor.PointerLockListener { locked, _, _ ->
         uiHandler.post {
             if (pointerLocked == locked) return@post
             pointerLocked = locked
             Log.i(TAG, "pointer lock " + if (locked) "taken by a program" else "released")
+            // Touchpad deltas are measured from the middle while locked (moveLockedPointer).
+            if (locked && ::touchpad.isInitialized) {
+                drawnRect()?.let { touchpad.place(it.centerX(), it.centerY()) }
+                cursorVisible = false
+            }
             updatePointerCapture()
         }
     }
@@ -195,7 +189,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var cursorHotX by mutableStateOf(0)
     private var cursorHotY by mutableStateOf(0)
     private var cursorImageScale by mutableStateOf(1f)
-    /** labwc changes the shape a moment after the move that reached an edge: look again then. */
     private val cursorResync = Runnable { if (syncClientCursor() && clientHidesCursor) cursorVisible = false }
     private val uiHandler = Handler(Looper.getMainLooper())
     private var pendingBackAction: Runnable? = null
@@ -226,29 +219,61 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
     private val resumeKeysDown = mutableSetOf<Pair<Int, Int>>()
 
-    // Compose reads these; the activity writes them.
     private var drawerOpen by mutableStateOf(false)
-    /** A stop growing out of the dialog's Stop (overlay px); the session ends once it covers the screen. */
     private var quitFrom by mutableStateOf<androidx.compose.ui.geometry.Rect?>(null)
-    /** Left behind that flood: the front end opens on its blue, so no sink of our own. */
     private var quitFlooded = false
-    /** Leaving behind a flood spreading out of the throbber (FloodSpread); see finish(). */
     private var leaving by mutableStateOf(false)
-    /** Close without the leaving flood: a retry opens a fresh session at once. */
     private var closeAtOnce = false
-    /** The drawer's Components tab: the Protons as last read (ComponentsManager). */
     private var drawerComponents by mutableStateOf<ComponentsManager.Snapshot?>(null)
+    private val drawerComponentMenu by lazy { ComponentsMenu(this, uiHandler) }
+    private var drawerGameProfileId by mutableStateOf<Long?>(null)
+    private val drawerGameInventory = GameProfileInventoryCache<Library.SteamGame>()
+    private var drawerGameInventoryRevision = 0L
+    private var drawerGameFexPresetSaving by mutableStateOf(false)
+    private var drawerGameNoSteamSaving by mutableStateOf(false)
+    private val drawerGameProfileFollowState = GameProfileFollowState()
+    private data class DrawerGameProfileRefresh(
+        val followsSteam: Boolean,
+        val requestedAppId: Long?,
+        val inventoryRevision: Long,
+    )
+    private data class DrawerGameProfileResult(
+        val profiles: List<Pair<Long, String>>,
+        val selectedAppId: Long?,
+        val profile: SelectedGameProfile?,
+        val error: Exception? = null,
+    )
+    private var drawerGameProfileRefresh by mutableStateOf(GameProfileRefreshState<DrawerGameProfileResult>())
+    private val drawerGameProfileRefreshes = LatestRequestCoordinator<DrawerGameProfileRefresh>()
     private var drawerPage by mutableStateOf(SessionDrawerPage.CONTROLLER)
     private var drawerControllerActive by mutableStateOf(false)
     private var backActionsInverted by mutableStateOf(false)
-    /** The on-screen PC keyboard (ui/PcKeyboard): real key presses, Esc and F1 included. */
+    private var padType by mutableStateOf(SessionPrefs.CONTROLLER_DECK)
     private var pcKeyboardOpen by mutableStateOf(false)
+    private var achievementsInFront by mutableStateOf<AchievementsInFront?>(null)
+    private var achievementsOpen by mutableStateOf(false)
     private var hudOn by mutableStateOf(true)
     private var upscaler by mutableStateOf(0)
     private var upscaleSharpness by mutableStateOf(75)
     private var effects by mutableStateOf(ScreenEffects.OFF)
+    private var cardboard by mutableStateOf(Cardboard.OFF)
+    private var headTracker: HeadTracker? = null
+    private var steamVrStatus by mutableStateOf<SteamVr.Status?>(null)
+    private var steamVrSwitchedPicture by mutableStateOf(false)
+    private var steamVrSeenRunning = false
+    private val hasRotationSensor by lazy {
+        (getSystemService(SENSOR_SERVICE) as android.hardware.SensorManager).let {
+            it.getDefaultSensor(android.hardware.Sensor.TYPE_GAME_ROTATION_VECTOR)
+                ?: it.getDefaultSensor(android.hardware.Sensor.TYPE_ROTATION_VECTOR)
+        } != null
+    }
+    private val cardboardPrefListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == SessionPrefs.CARDBOARD_KEY) uiHandler.post { applyCardboard(SessionPrefs.cardboard(this)) }
+    }
     private var textureAnisotropy by mutableStateOf(0)
     private var textureLodBias by mutableStateOf(TextureFiltering.LOD_BIAS_OFF)
+    private var drawerTextureAnisotropy by mutableStateOf<Int?>(null)
+    private var drawerTextureLodBias by mutableStateOf<String?>(null)
     private var lossless by mutableStateOf(Lossless.State.NONE)
     private val pickLossless = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { importLossless(it) }
@@ -262,7 +287,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var secondScreenMode by mutableStateOf(SessionState.secondScreenMode)
     private var secondScreenDisplays by mutableStateOf<List<SecondScreenDisplay>>(emptyList())
     private var selectedSecondScreenDisplay by mutableStateOf(SessionState.secondScreenDisplay)
-    /** Between onStart and onStop: while stopped the second screen stays closed, its choice kept. */
     private var started = false
     private lateinit var displayManager: DisplayManager
     private var secondScreenPresentation: SecondScreenPresentation? = null
@@ -275,12 +299,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
     }
 
-    /**
-     * The panel's rate, followed for the rest of the session. It is read once at start, and a
-     * panel that drops from 120 to 60 Hz later (battery saver, heat, a vendor overriding the mode
-     * asked for) left the compositor telling gamescope every frame took 8.3 ms, so the client and
-     * its games paced against a vblank that no longer came. (WinNative 53836ca9.)
-     */
     private fun followPanelRefresh(displayId: Int) {
         if (!CompositorHost.isStarted) return
         val display = (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay) ?: return
@@ -291,24 +309,20 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var isHomeApp by mutableStateOf(false)
     private var androidApps by mutableStateOf<List<HomeApp.LaunchableApp>>(emptyList())
 
-    /**
-     * Shows the on-screen pad when nothing is plugged in and takes it away the moment something
-     * is - a user with a controller in their hands should not be looking at buttons they cannot
-     * press, and a user without one must not be left with no way to answer Big Picture.
-     */
     private val deviceListener = object : InputManager.InputDeviceListener {
         override fun onInputDeviceAdded(deviceId: Int) {
             logInputDevice("connected", deviceId)
-            updateOnScreenControls()
+            padBridge?.syncConnectedControllers()
+            refreshControls()
             updatePointerCapture()
         }
         override fun onInputDeviceRemoved(deviceId: Int) {
             Log.i(TAG, "input device $deviceId disconnected")
             padBridge?.onDeviceRemoved(deviceId)
-            updateOnScreenControls()
+            refreshControls()
             updatePointerCapture()
         }
-        override fun onInputDeviceChanged(deviceId: Int) = updateOnScreenControls()
+        override fun onInputDeviceChanged(deviceId: Int) = refreshControls()
     }
 
     private var runtimeRemovalBlocked = false
@@ -324,7 +338,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         if (!SessionState.running && SessionState.phase in setOf(SessionPhase.IDLE, SessionPhase.FAILED)) {
             val mode = intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM
-            // A Flatpak app or AppImage is named by its arguments, which the name lookup reads here.
             SessionState.programArgs = intent.getStringArrayExtra(SessionService.EXTRA_PROGRAM_ARGS)?.toList().orEmpty()
             SessionEvents.begin(this, mode, SessionPaths.label(mode, intent.getStringExtra(SessionService.EXTRA_PROGRAM)))
         }
@@ -338,9 +351,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             SessionEvents.record("agent.start_requested", mapOf("mode" to SessionState.mode))
         }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        // Game-tier power policy for the whole session: the panel's fastest mode (one the frame cap
-        // divides, when there is a cap), and the OS told it is in gameplay. Logged so a slow device
-        // says why. The cap is the session's: an activity re-created mid-session keeps it.
         if (!SessionState.running) {
             SessionState.fpsLimit = SessionPrefs.fpsLimit(
                 this, SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM),
@@ -350,18 +360,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (!SessionState.running) SessionState.followScreen = followChoice()
         applyFollowOrientation(resources.configuration)
         goFullscreen()
-        // The device's volume keys change the stream the session plays on (the relay and
-        // PulseAudio are media playback); they are never forwarded to the guest.
         volumeControlStream = android.media.AudioManager.STREAM_MUSIC
         displayManager = getSystemService(DISPLAY_SERVICE) as DisplayManager
         refreshSecondScreenDisplays()
 
-        // No runtime is not a reason to leave: the loading screen installs it (installThenStart,
-        // below) and the session starts when it is in.
         if (!LinuxRuntime.isInstalled(this)) Log.i(TAG, "the Linux runtime is not installed; the loading screen installs it")
 
-        // Captured mouse events go down the focus chain, and focus sits somewhere in the overlay:
-        // the root sees every one of them whichever view that is.
         val root = object : FrameLayout(this) {
             override fun dispatchCapturedPointerEvent(event: MotionEvent): Boolean =
                 onCapturedPointer(event) || super.dispatchCapturedPointerEvent(event)
@@ -370,21 +374,26 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 Log.i(TAG, "pointer capture " + if (hasCapture) "on" else "off")
             }
         }
+        sessionRoot = root
         surfaceView = SurfaceView(this)
         surfaceView.holder.addCallback(this)
         root.addView(surfaceView)
+        root.addOnLayoutChangeListener { _, l, t, r, b, ol, ot, or, ob ->
+            if (r - l != or - ol || b - t != ob - ot) uiHandler.post { applyUnfoldedControls() }
+        }
 
         val bridge = PadBridge(File(LinuxRuntime.sessionRoot(this), "dev/input"))
+        bridge.setSelectSteam(ControllerPrefs.read(this).selectSteam)
         padBridge = bridge
         SessionState.padBridge = bridge
+        SteamControllerBle.listener = { uiHandler.post { updatePadMotion(); refreshControls() } }
+        steamController = SteamControllerBle(this).also { it.start() }
         padMotion = com.droiddeck.launcher.input.PadMotion(this) {
             @Suppress("DEPRECATION")
             (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay)?.rotation ?: android.view.Surface.ROTATION_0
         }
         SessionState.deckPadListener = deckPadListener
         openDeckRing("activity created")
-        // A player on the pad or the on-screen controls has no use for the mouse arrow; the next
-        // touchpad or mouse move brings it back (showCursor), once the pad has been quiet a moment.
         bridge.setOnPlayerInput {
             lastPadInputMs = android.os.SystemClock.uptimeMillis()
             uiHandler.removeCallbacks(cursorHide)
@@ -393,8 +402,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         onScreenControls = OnScreenControls(this, bridge, onKeyboard = ::togglePcKeyboard).also { root.addView(it) }
         keyboard = KeyboardHost(this).also { root.addView(it) }
         touchpad = TouchpadGestures(PointerGestures.slop(this), pointerListener)
-        // One arrow, ours: Android draws a system pointer for a mouse over any window, and the
-        // session already draws the pointer it is sent.
         val noCursor = android.view.PointerIcon.getSystemIcon(this, android.view.PointerIcon.TYPE_NULL)
         root.pointerIcon = noCursor
         surfaceView.pointerIcon = noCursor
@@ -412,7 +419,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         hud.onPresentingWindowChanged = {
             if (FrameGen.engine(this) != FrameGen.ENGINE_OFF) CompositorHost.rearmFrameGen { applyFrameGen() }
         }
-        // A session that has already drawn is past its milestones; do not cover its picture.
         if (SessionState.running && SessionState.firstFrameSeen) {
             loading.visible = false
             hud.start()
@@ -436,15 +442,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         WaylandCompositor.setPointerLockListener(pointerLockListener)
         SessionEvents.markReadyIfPossible()
         SessionState.endListener = endListener
-        // A single Back opens the session menu; two quick presses/swipes send the Steam QAM chord.
-        // The single action waits out the double-press window so the two actions stay distinct.
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (pipUi) return
-                // The PC keyboard closes first (B on a controller), then Back is the drawer again.
                 when {
                     ::loading.isInitialized && loading.ended -> finish()
                     drawerOpen -> drawerOpen = false
+                    achievementsOpen -> closeAchievements()
                     pcKeyboardOpen -> pcKeyboardOpen = false
                     else -> routeBackAction()
                 }
@@ -453,19 +457,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         watchSession()
     }
 
-    /**
-     * One Compose layer for every menu and overlay. Touches nothing in it consumes fall through to
-     * the pad and the game underneath.
-     */
     private fun createSessionOverlay(): ComposeView = ComposeView(this).apply {
         isFocusable = true
         isFocusableInTouchMode = true
-        // Compose draws each control's focus ring. Android's default highlight would cover
-        // this full-screen host and remain as a white veil after the drawer closes.
         defaultFocusHighlightEnabled = false
         setContent {
-            // The drawer, the PC keyboard and picture in picture take the mouse back.
-            androidx.compose.runtime.LaunchedEffect(drawerOpen, pcKeyboardOpen, pipUi) { updatePointerCapture() }
+            androidx.compose.runtime.LaunchedEffect(drawerOpen, pcKeyboardOpen, achievementsOpen, pipUi) { updatePointerCapture() }
             DroidDeckTheme {
             if (pipUi) {
                 if (SessionState.suspended) androidx.compose.foundation.layout.Box(
@@ -484,7 +481,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     loading.step, loading.percent, loading.elapsed, loading.hint, loading.ended,
                     topic = loading.topic, readable = loading.readable,
                     title = loadingTitle(), steam = loadingMode() == SessionService.MODE_STEAM,
-                    // As the drawer's Stop does: the service stops, and a start still installing is cancelled.
                     onCancel = { SessionService.stop(this@SessionActivity); finish() },
                     endedDetail = loading.endedDetail,
                     onRetry = { retrySession() },
@@ -496,7 +492,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.BLACK))
                     },
                 )
-                // Opening the drawer takes the controller away from the game: release its pad.
                 androidx.compose.runtime.LaunchedEffect(drawerOpen) {
                     if (drawerOpen) {
                         syncLossless()
@@ -508,7 +503,24 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         releaseDrawerDirection()
                     }
                 }
-                // The PC keyboard takes it too, for moving over the keys; the drawer opens over it.
+                LaunchedEffect(cardboard.enabled, steamVrSwitchedPicture) {
+                    while (cardboard.enabled || steamVrSwitchedPicture) {
+                        val now = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            SteamVr.status(this@SessionActivity)
+                        }
+                        onSteamVrStatus(now)
+                        kotlinx.coroutines.delay(3000)
+                    }
+                }
+                LaunchedEffect(drawerOpen, achievementsOpen, AgentGuest.focusRevision, StoreAchievements.revision) {
+                    if (!drawerOpen && !achievementsOpen) return@LaunchedEffect
+                    val found = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        runCatching { resolveAchievementsInFront() }
+                            .onFailure { Log.w(TAG, "achievements in front: ${it.javaClass.simpleName}") }.getOrNull()
+                    }
+                    achievementsInFront = found
+                    if (found == null) achievementsOpen = false
+                }
                 androidx.compose.runtime.LaunchedEffect(pcKeyboardOpen) { if (pcKeyboardOpen) padBridge?.releaseAll() }
                 if (pcKeyboardOpen) com.droiddeck.launcher.ui.PcKeyboard(
                     sendKey = { code, down -> if (CompositorHost.isStarted) sendGuestKey(code, down) },
@@ -523,7 +535,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     androidApps = androidApps,
                     hudOn = hudOn,
                     upscaler = upscaler, upscaleSharpness = upscaleSharpness,
-                    effects = effects, textureAnisotropy = textureAnisotropy, textureLodBias = textureLodBias,
+                    effects = effects,
+                    cardboard = cardboard,
+                    cardboardSensor = hasRotationSensor,
+                    onCardboard = { c -> SessionPrefs.setCardboard(this@SessionActivity, c); applyCardboard(c) },
+                    onCardboardRecenter = { headTracker?.recenter() },
+                    steamVr = steamVrStatus,
+                    onSteamVr = { action -> steamVrAction(action) },
+                    textureAnisotropy = if (drawerGameProfileId == null) textureAnisotropy else drawerTextureAnisotropy,
+                    textureLodBias = if (drawerGameProfileId == null) textureLodBias else drawerTextureLodBias,
                     frameGen = frameGen,
                     lossless = lossless,
                     oscMode = oscMode, onScreenButtonsVisible = onScreenButtonsVisible, suspendPolicy = suspendPolicy,
@@ -537,7 +557,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     onUpscaler = { m ->
                         SessionPrefs.setUpscaler(this@SessionActivity, m); upscaler = m
                         WaylandCompositor.nativeSetUpscaler(m)
-                        // Two Looks carry a scaling mode of their own, so the mode decides which one the log names.
                         WaylandCompositor.nativeSetLookName(ScreenEffectLooks.match(effects, m)?.name)
                     },
                     onUpscaleSharpness = { pct ->
@@ -548,8 +567,24 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         SessionPrefs.setScreenEffects(this@SessionActivity, e); effects = e
                         e.push(upscaler)
                     },
-                    onTextureAnisotropy = { v -> SessionPrefs.setTextureAnisotropy(this@SessionActivity, v); textureAnisotropy = v },
-                    onTextureLodBias = { v -> SessionPrefs.setTextureLodBias(this@SessionActivity, v); textureLodBias = v },
+                    onTextureAnisotropy = { value ->
+                        drawerGameProfileId?.let { appId ->
+                            SessionPrefs.setGameTextureAnisotropy(this@SessionActivity, appId.toString(), value)
+                            drawerTextureAnisotropy = value
+                        } ?: value?.let {
+                            SessionPrefs.setTextureAnisotropy(this@SessionActivity, it)
+                            textureAnisotropy = it
+                        }
+                    },
+                    onTextureLodBias = { value ->
+                        drawerGameProfileId?.let { appId ->
+                            SessionPrefs.setGameTextureLodBias(this@SessionActivity, appId.toString(), value)
+                            drawerTextureLodBias = value
+                        } ?: value?.let {
+                            SessionPrefs.setTextureLodBias(this@SessionActivity, it)
+                            textureLodBias = it
+                        }
+                    },
                     onFrameGenPick = { mode ->
                         FrameGen.set(this@SessionActivity, mode)
                         readPrefs()
@@ -568,6 +603,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     onKeyboardButton = { on -> updateControllerPrefs { ControllerPrefs.setKeyboardButton(this@SessionActivity, on) } },
                     onSteamMenu = if (SessionState.mode == SessionService.MODE_STEAM) ({ sendSteamGuide() }) else null,
                     onQam = if (SessionState.mode == SessionService.MODE_STEAM) ({ triggerSteamQam() }) else null,
+                    onAchievements = achievementsInFront?.let { { drawerOpen = false; achievementsOpen = true } },
+                    achievementsProgress = achievementsInFront?.progress,
+                    padType = if (SessionState.mode == SessionService.MODE_STEAM && SessionState.deckPad) padType else null,
+                    onPadType = { id ->
+                        SessionPrefs.setSteamController(this@SessionActivity, id)
+                        com.droiddeck.launcher.session.SteamDeckPad.showPad(SessionPrefs.padType(id))
+                        com.droiddeck.launcher.input.FakeInputWriter.setPadType(SessionPrefs.padType(id))
+                        padType = id
+                    },
                     backActionsInverted = backActionsInverted,
                     onBackActionsInverted = { inverted ->
                         SessionPrefs.setBackActionsInverted(this@SessionActivity, inverted)
@@ -620,6 +664,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         pipAutoEnter = on
                         pip.refresh(true)
                     },
+                    unfoldedControls = if (com.droiddeck.launcher.session.SessionDisplay.foldable(this@SessionActivity)) unfoldedControls else null,
+                    onUnfoldedControls = ::chooseUnfoldedControls,
                     onBackground = { drawerOpen = false; pip.background(); moveTaskToBack(true) },
                     onShareLogs = { drawerOpen = false; shareCurrentSessionLogs() },
                     onStop = { drawerOpen = false; SessionService.stop(this@SessionActivity); finish() },
@@ -634,9 +680,47 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     },
                     onClose = { drawerOpen = false },
                     components = drawerComponents,
-                    onComponentsRefresh = { refreshDrawerComponents() },
+                    onComponentsRefresh = {
+                        refreshDrawerComponents()
+                        drawerComponentMenu.refreshComponentCatalog(force = false)
+                    },
+                    componentCatalog = drawerComponentMenu.compCatalog,
+                    componentCatalogAt = drawerComponentMenu.compCatalogAt,
+                    componentCatalogChecking = drawerComponentMenu.compChecking,
+                    componentDownloads = drawerComponentMenu.compDownloads,
+                    componentDownloadRevision = drawerComponentMenu.compDownloadRevision,
+                    onComponentCatalogRefresh = { drawerComponentMenu.refreshComponentCatalog() },
+                    onComponentDownload = drawerComponentMenu::downloadComponent,
+                    gameProfiles = drawerGameProfileRefresh.data?.profiles.orEmpty(),
+                    selectedGameProfileId = drawerGameProfileId,
+                    selectedGameProfile = drawerGameProfileRefresh.data
+                        ?.takeIf { it.selectedAppId == drawerGameProfileId }?.profile,
+                    gameProfilesLoaded = drawerGameProfileRefresh.loaded,
+                    gameProfileRefreshFailed = drawerGameProfileRefresh.failed,
+                    onSelectedGameProfile = ::selectDrawerGameProfile,
+                    onGameProfilesPageOpened = {
+                        drawerGameProfileFollowState.resumeFollowingSteam()
+                        drawerGameInventoryRevision++
+                    },
+                    onSelectedGameProfileRefresh = ::refreshDrawerGameProfile,
+                    gameFexPresetSaving = drawerGameFexPresetSaving,
+                    onGameFexPreset = ::setDrawerGameFexPreset,
+                    gameNoSteamSaving = drawerGameNoSteamSaving,
+                    onGameNoSteam = ::setDrawerGameNoSteam,
                     onComponentSwap = { pid, comp, value -> swapDrawerComponent(pid, comp, value) },
+                    onGameComponent = ::setDrawerGameComponent,
                 ))
+                LaunchedEffect(achievementsOpen) {
+                    if (achievementsOpen) {
+                        padBridge?.releaseAll()
+                        withFrameNanos { }
+                        sessionOverlay.requestFocus()
+                    }
+                }
+                achievementsInFront?.takeIf { achievementsOpen }?.let { inFront ->
+                    SessionAchievements(inFront.game, inFront.title, onClose = ::closeAchievements)
+                }
+                com.droiddeck.launcher.ui.AchievementNotificationOverlay()
                 if (SessionState.suspended) SessionPausedOverlay(
                     title = pausedTitle(),
                     onResume = { SessionService.resume(this@SessionActivity) },
@@ -677,6 +761,27 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         padBridge?.triggerQam()
     }
 
+    private fun closeAchievements() { achievementsOpen = false }
+
+    private fun resolveAchievementsInFront(): AchievementsInFront? {
+        if (!SessionState.running || SessionState.mode != SessionService.MODE_STEAM) return null
+        val snapshot = AgentGuest.focus(this) ?: return null
+        val games = LibraryCache.load(this)
+        val byKey = games.mapNotNull { g -> g.profileKey.toLongOrNull()?.let { it to g } }.toMap()
+        val windows = snapshot.optJSONArray("focusableApps")?.let { list -> List(list.length()) { list.optLong(it) } }.orEmpty()
+        val focusedId = snapshot.optLong("focusedApp").takeUnless { snapshot.isNull("focusedApp") }
+        val appId = com.droiddeck.launcher.session.SessionAchievementGame.activeAppId(focusedId, windows, byKey.keys) ?: return null
+        val focused = byKey[appId] ?: return null
+        val store = Store.byId(focused.source) ?: return null
+        val id = focused.storeId ?: return null
+        val source = StoreAchievements.forSource(store.id) ?: return null
+        val sidecar = StoreGameSidecar.find(this, store, id) ?: return null
+        val game = StoreAchievements.Game.of(sidecar)
+        val list = source.cached(this, game) ?: (source.fetch(this, game) as? StoreAchievements.Result.Found)?.list ?: return null
+        if (list.isEmpty()) return null
+        return AchievementsInFront(game, sidecar.title, list.count { it.unlocked } to list.size)
+    }
+
     private fun togglePcKeyboard() {
         drawerOpen = false
         keyboard?.hide()
@@ -702,7 +807,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             performBackAction(double = false)
         }
         pendingBackAction = pending
-        // Wait 500 ms for a second Back press before performing the single-press action.
         uiHandler.postDelayed(pending, 500L)
     }
 
@@ -720,7 +824,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
 
-    /** Re-reads the Protons for the drawer's Components tab, first running swaps a closed game was holding back. */
     private fun refreshDrawerComponents() {
         Thread({
             val applied = runCatching { ComponentsManager.applyQueued(this) }.getOrDefault(emptyList())
@@ -732,6 +835,107 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }, "drawer-components").start()
     }
 
+    private fun selectDrawerGameProfile(appId: Long?) {
+        drawerGameProfileFollowState.selectManually()
+        drawerGameProfileId = appId
+        drawerGameProfileRefresh = drawerGameProfileRefresh.retrying()
+        readDrawerTextureFiltering(appId)
+        refreshDrawerGameProfile()
+    }
+
+    private fun readDrawerTextureFiltering(appId: Long?) {
+        val choice = appId?.let { SessionPrefs.gameTextureFiltering(this, it.toString()) }
+        drawerTextureAnisotropy = choice?.anisotropy
+        drawerTextureLodBias = choice?.lodBias
+    }
+
+    private fun refreshDrawerGameProfile() {
+        val refresh = DrawerGameProfileRefresh(
+            drawerGameProfileFollowState.followsSteam,
+            drawerGameProfileId,
+            drawerGameInventoryRevision,
+        )
+        if (!drawerGameProfileRefreshes.submit(refresh)) return
+        Thread({
+            var request = drawerGameProfileRefreshes.takeLatest()
+            while (request != null) {
+                val current = request
+                val result = resolveDrawerGameProfileRefresh(current.value)
+                uiHandler.post {
+                    if (!drawerGameProfileRefreshes.isLatest(current)) return@post
+                    applyDrawerGameProfileRefresh(current.value, result)
+                }
+                request = drawerGameProfileRefreshes.takeLatest()
+            }
+        }, "drawer-game-profile").start()
+    }
+
+    private fun resolveDrawerGameProfileRefresh(
+        refresh: DrawerGameProfileRefresh,
+    ): DrawerGameProfileResult {
+        return try {
+            val games = drawerGameInventory.get(refresh.inventoryRevision) { Library.launchableGames(this) }
+            val options = games.mapNotNull { game ->
+                game.profileKey.toLongOrNull()?.let { it to game.name }
+            }.sortedBy { it.second.lowercase() }
+            val installedAppIds = options.mapTo(mutableSetOf()) { it.first }
+            val selectedAppId = if (refresh.followsSteam) {
+                val activeAppId = AgentGuest.activeSteamAppId(this, installedAppIds)
+                val selectedSteamAppId = runCatching { AgentGuest.selectedSteamAppId(this) }
+                AgentGuest.selectedOrActiveInstalledSteamAppId(selectedSteamAppId, activeAppId, installedAppIds)
+                    ?: refresh.requestedAppId
+            } else {
+                refresh.requestedAppId
+            }
+            val profile = selectedAppId?.let { resolveDrawerGameProfile(it, games) }
+            DrawerGameProfileResult(options, selectedAppId, profile)
+        } catch (error: Exception) {
+            DrawerGameProfileResult(emptyList(), refresh.requestedAppId, null, error)
+        }
+    }
+
+    private fun applyDrawerGameProfileRefresh(
+        refresh: DrawerGameProfileRefresh,
+        result: DrawerGameProfileResult,
+    ) {
+        if (result.error != null) {
+            if (!drawerGameProfileRefresh.failed) {
+                Log.w(TAG, "Could not refresh the selected game profile", result.error)
+            }
+            drawerGameProfileRefresh = drawerGameProfileRefresh.failed()
+            return
+        }
+        drawerGameProfileRefresh = drawerGameProfileRefresh.succeeded(result)
+        if (refresh.followsSteam) {
+            if (drawerGameProfileFollowState.followsSteam) {
+                drawerGameProfileId = result.selectedAppId
+                readDrawerTextureFiltering(result.selectedAppId)
+            }
+        }
+    }
+
+    private fun resolveDrawerGameProfile(
+        selectedAppId: Long,
+        games: List<Library.SteamGame>,
+    ): SelectedGameProfile? {
+        val game = games.firstOrNull { it.profileKey == selectedAppId.toString() } ?: return null
+        val snapshot = drawerComponents ?: ComponentsManager.snapshot(this)
+        val protons = snapshot.protons.map { it.proton }
+        val gameChoice = ProtonDefault.gameChoice(this, game.profileKey)
+        return SelectedGameProfile.resolve(
+            selectedAppId = selectedAppId,
+            games = games,
+            generalFexPreset = SessionPrefs.fexPreset(this),
+            environment = GameEnvironmentStore.read(this),
+            snapshot = snapshot,
+            generalProtonId = ProtonDefault.selectedId(this, protons),
+            gameProtonChoice = gameChoice,
+            gameProtonId = ProtonDefault.gameSelectedId(this, game.profileKey, protons),
+            gameComponents = ComponentsManager.gameComponents(this, game.profileKey),
+            gameWindowsComponents = WinComponents.picks(this, game.profileKey),
+        )
+    }
+
     private fun swapDrawerComponent(protonId: String, comp: String, value: String) {
         Thread({
             val message = runCatching {
@@ -741,7 +945,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 val build = snap.protons.firstOrNull { it.proton.id == protonId }?.proton?.version?.let(ComponentsManager::safeName)
                 val current = active ?: "orig:$build"
                 if (queued != null && value == current) {
-                    // Picking what is already in place again cancels the swap waiting for the game.
                     ComponentsManager.cancelQueued(this, protonId, comp); getString(R.string.comp_swap_cancelled)
                 } else if (value.startsWith("orig:")) ComponentsManager.restore(this, protonId, comp, value.removePrefix("orig:"))
                 else ComponentsManager.swap(this, protonId, value)
@@ -753,7 +956,63 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }, "drawer-components-swap").start()
     }
 
-    /** The session this screen is bringing up: the live one when re-attached, else the intent's. */
+    private fun setDrawerGameComponent(appId: Long, comp: String, file: String?) {
+        val name = drawerGameProfileRefresh.data?.profiles?.firstOrNull { it.first == appId }?.second ?: appId.toString()
+        Thread({
+            val message = runCatching {
+                ComponentsManager.setGameComponent(this, appId.toString(), comp, file)
+                getString(R.string.comp_game_saved_next, name)
+            }.getOrElse { e ->
+                getString(R.string.session_profile_save_failed, e.message ?: e.javaClass.simpleName)
+            }
+            uiHandler.post {
+                android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_LONG).show()
+                refreshDrawerComponents()
+                refreshDrawerGameProfile()
+            }
+        }, "drawer-game-component").start()
+    }
+
+    private fun setDrawerGameFexPreset(appId: Long, preset: String?) {
+        if (drawerGameFexPresetSaving) return
+        drawerGameFexPresetSaving = true
+        val name = drawerGameProfileRefresh.data?.profiles?.firstOrNull { it.first == appId }?.second ?: appId.toString()
+        Thread({
+            val message = try {
+                GameEnvironmentStore.setGameFexPreset(this, appId.toString(), preset)
+                getString(R.string.comp_game_saved_next, name)
+            } catch (error: Exception) {
+                Log.w(TAG, "Could not save the game FEX preset for $appId", error)
+                getString(R.string.session_profile_save_failed, error.message ?: error.javaClass.simpleName)
+            }
+            uiHandler.post {
+                drawerGameFexPresetSaving = false
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+                refreshDrawerGameProfile()
+            }
+        }, "drawer-game-fex-preset").start()
+    }
+
+    private fun setDrawerGameNoSteam(appId: Long, on: Boolean) {
+        if (drawerGameNoSteamSaving) return
+        drawerGameNoSteamSaving = true
+        val name = drawerGameProfileRefresh.data?.profiles?.firstOrNull { it.first == appId }?.second ?: appId.toString()
+        Thread({
+            val message = try {
+                GameEnvironmentStore.setGameNoSteam(this, appId.toString(), on)
+                getString(R.string.comp_game_saved_next, name)
+            } catch (error: Exception) {
+                Log.w(TAG, "Could not save Start without Steam for $appId", error)
+                getString(R.string.session_profile_save_failed, error.message ?: error.javaClass.simpleName)
+            }
+            uiHandler.post {
+                drawerGameNoSteamSaving = false
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+                refreshDrawerGameProfile()
+            }
+        }, "drawer-game-no-steam").start()
+    }
+
     private fun loadingMode(): String =
         if (SessionState.running) SessionState.mode
         else intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM
@@ -766,8 +1025,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun loadingTitle(): String = when (loadingMode()) {
-        // Also when the desktop was asked for with Steam (Big Picture's Switch to Desktop): the client
-        // does not open on it.
         SessionService.MODE_DESKTOP -> getString(R.string.session_starting_desktop)
         SessionService.MODE_RUN -> {
             val program = if (SessionState.running) SessionState.program else intent.getStringExtra(SessionService.EXTRA_PROGRAM)
@@ -778,8 +1035,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun shareCurrentSessionLogs() {
-        // Once a session has ended its folder has been handed on (SessionPaths.take), and the
-        // ended screen's Share logs is for that one.
         val folder = SessionPaths.current() ?: SessionPaths.lastEnded()
         if (folder == null || !folder.isDirectory) {
             Toast.makeText(this, R.string.session_no_logs, Toast.LENGTH_LONG).show()
@@ -800,10 +1055,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun readPrefs() {
         pipAutoEnter = SessionPrefs.pipAutoEnter(this)
+        unfoldedControls = SessionPrefs.unfoldedControls(this)
         hudOn = SessionPrefs.hudEnabled(this)
         upscaler = SessionPrefs.upscaler(this)
         upscaleSharpness = SessionPrefs.upscaleSharpness(this)
         effects = SessionPrefs.screenEffects(this)
+        applyCardboard(SessionPrefs.cardboard(this))
+        if (SessionPrefs.cardboardSourceBeforeSteamVr(this) >= 0 && !steamVrSwitchedPicture) {
+            steamVrSwitchedPicture = true
+            steamVrSeenRunning = true
+        }
         textureAnisotropy = SessionPrefs.textureAnisotropy(this)
         textureLodBias = SessionPrefs.textureLodBias(this)
         val nextTouchMode = SessionPrefs.touchMode(this)
@@ -815,7 +1076,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     WaylandCompositor.nativeSendSceneInput(3, it, 0)
                 }
             }
-            if (nextTouchMode == SessionPrefs.TOUCH_OFF) cursorVisible = false
+            if (nextTouchMode == SessionPrefs.TOUCH_OFF || !usingTouchpad()) cursorVisible = false
         }
         touchMode = nextTouchMode
         routedTouchMode = effectiveTouchMode()
@@ -825,23 +1086,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         steamDownloadsInBackground = SessionPrefs.steamDownloadsInBackground(this)
         oscMode = SessionPrefs.oscMode(this)
         backActionsInverted = SessionPrefs.backActionsInverted(this)
+        padType = SessionPrefs.steamController(this)
     }
 
-    // ── Compositor ──────────────────────────────────────────────────────────────────────────
 
-    /** True while the loading screen is installing the Linux runtime or the desktop; the session waits for it. */
     @Volatile private var installingRuntime = false
 
-    /**
-     * First Play (or Desktop) on a fresh install: the runtime, and for the desktop its package,
-     * are downloaded and unpacked here, on the loading screen's own line and bar, and the session
-     * starts when they are in. Nothing else changes.
-     *
-     * The first Steam session also gets Valve's ARM64 Proton here, before the client has ever
-     * started, so the compatibility tool is installed and the default at sign-in with no install
-     * dialog, download or client restart. Not being able to fetch it stops nothing: the session
-     * then asks the client for it after sign-in, as it always has.
-     */
     private fun installThenStart(runtime: Boolean, desktop: Boolean, proton: Boolean = false) {
         if (SessionState.stopRequested) return
         installingRuntime = true
@@ -894,7 +1144,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 }
                 loading.percent = -1
                 loading.say(getString(R.string.session_starting_session), LoadingState.Topic.SESSION, readable = false)
-                // The surface may have come and gone while the download ran; start on the live one.
                 if (surfaceView.holder.surface?.isValid == true) surfaceCreated(surfaceView.holder)
             }
         }, "runtime-install").start()
@@ -909,16 +1158,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }, "session-failure-artifacts").start()
     }
 
-    /**
-     * The loading screen's lines for one package: downloading it (with and without its size), checking it,
-     * unpacking it; the checklist [topic] they belong to, and whether the checking line is shown as it is.
-     */
     private class PackageLines(
         val downloading: Int, val downloadingMb: Int, val checking: Int, val unpacking: Int,
         val topic: LoadingState.Topic, val checkingReadable: Boolean,
     )
 
-    /** Reports one package's download on the loading screen: "<what> · 332 of 791 MB", checking, unpacking. */
     private fun progressFor(what: PackageLines, mb: Long) = object : com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.ProgressListener {
         override fun onProgress(stage: String, percent: Int) =
             onProgress(com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.Step.OTHER, stage, percent)
@@ -939,7 +1183,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
     }
 
-    /** Null when the runtime is in, else the loading screen's closing line. */
     private fun installRuntime(): String? {
         val release = com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.fetchRelease()
             ?: return getString(R.string.session_runtime_catalog_unreachable)
@@ -948,7 +1191,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         return if (ok) null else getString(R.string.session_runtime_install_failed)
     }
 
-    /** Null when the desktop package is in, else the loading screen's closing line. */
     private fun installDesktop(): String? {
         uiHandler.post { loading.percent = -1; loading.say(getString(DESKTOP_LINES.downloading), DESKTOP_LINES.topic, readable = true) }
         val entry = com.droiddeck.launcher.runtime.DesktopCatalog.desktopEntry(this)
@@ -957,7 +1199,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         return problem?.let { getString(R.string.session_desktop_install_failed, it) }
     }
 
-    /** Null when the ARM64 Proton is in, else why not; the session goes on either way. */
     private fun installProton(): String? {
         uiHandler.post { loading.percent = -1; loading.say(getString(PROTON_LINES.downloading), PROTON_LINES.topic, readable = true) }
         val catalog = com.droiddeck.launcher.runtime.DesktopCatalog
@@ -972,21 +1213,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             SessionEvents.transition(SessionPhase.STARTING_COMPOSITOR, "compositor.starting")
         }
         val runtimeDir = File(filesDir, ".wayland-rt").apply { mkdirs() }
-        // The compositor hands this keymap to wl_keyboard clients, which is how the guest reads
-        // the evdev codes we inject.
         FileUtils.copyAsset(this, "wayland/keymap.xkb", File(runtimeDir, "keymap.xkb"))
 
-        // Turnip, not the system Adreno driver: importing the dma-bufs gamescope commits needs
-        // VK_EXT_image_drm_format_modifier, which the system driver does not implement.
         val turnip = TurnipDriver(this)
+        com.droiddeck.launcher.gpu.DriverSetupLog.write(this, "surface.driver-setup")
         val driverId = if (CompositorHost.isStarted) null else turnip.install()
 
-        // The output size belongs to the session, not to the Surface: gamescope's display is
-        // sized once when the session starts and cannot change. A foldable recreates the Surface
-        // on the other panel, and recomputing the size there told the compositor a 21:9 buffer
-        // was 16:9 - the picture came back squashed sideways. While a session runs, keep its size.
-        // Follow screen is the exception: there the compositor tells gamescope the new size, so the
-        // session takes the shape of the Surface it now has.
         val previous = SessionState.outputSize
         val live = if (SessionState.followScreen && !isInPictureInPictureMode)
             com.droiddeck.launcher.session.SessionDisplay.followSize(holder.surfaceFrame.width(), holder.surfaceFrame.height())
@@ -994,23 +1226,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val size = live ?: if (SessionState.running) previous else outputSize()
         SessionState.outputSize = size
         if (!SessionState.running) SessionState.refreshHz = refreshHz()
-        // How far the panel enlarges the session, for texture sharpness "Auto" (TextureFiltering):
-        // the game environment is published again so the next launch derives it from this session.
         val panel = panelBounds()
         SessionState.upscaleRatio = maxOf(panel.width(), panel.height()).toFloat() / maxOf(size.first, size.second).coerceAtLeast(1)
         Thread({
             runCatching { GameEnvironmentStore.publish(this) }
                 .onFailure { Log.e(TAG, "Could not update game environment", it) }
         }, "game-env-publish").start()
-        // Letterbox, never stretch or crop: the output can be a different shape from the panel,
-        // and a game's picture must keep its proportions with bars, not lose its edges.
         WaylandCompositor.nativeSetScaleMode(SCALE_FIT, ALIGN_CENTER)
         WaylandCompositor.nativeSetUpscaler(SessionPrefs.upscaler(this))
         WaylandCompositor.nativeSetUpscaleSharpness(SessionPrefs.upscaleSharpness(this))
         SessionPrefs.screenEffects(this).push(SessionPrefs.upscaler(this))
-        // The session's folder, claimed here because the compositor starts before the service and
-        // opens its log once. The compositor reads the path from its environment; setting it after
-        // it has started changes nothing, which is why the service copies the file in at teardown.
+        panelSizeMm().let { (w, h) -> SessionPrefs.cardboard(this).push(w, h) }
+        WaylandCompositor.nativeSetCardboardPoseFile(File(filesDir, ".wayland-rt/droiddeck-headpose").path)
         if (!SessionState.running) {
             val waylandLog = File(SessionPaths.beginOrCurrent(this), "wayland.log")
             WaylandCompositor.setSessionLogFile(waylandLog)
@@ -1020,9 +1247,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 Log.w(TAG, "could not point the compositor's log at $waylandLog", e)
             }
         }
-        // HDR10: the gate is decided once, when the compositor starts (it lives for the whole app
-        // process), from the panel's own word and the mode's setting. Zero-copy presentation is
-        // what puts an HDR frame on a display layer tagged BT2020_PQ, so it is turned on with it.
         if (!CompositorHost.isStarted) {
             val mode = SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM)
             val probe = HdrSupport.probe(this)
@@ -1045,6 +1269,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             )
             Log.i(TAG, "hdr: " + (if (on) "on" else if (wanted) "wanted but ${probe.reason}" else "off") + " · display ${probe.formats.ifEmpty { "SDR" }}")
         }
+        com.droiddeck.launcher.gpu.DriverSetupLog.write(this, "compositor.start driver=$driverId")
         CompositorHost.startOrAttach(
             holder.surface, runtimeDir.path,
             driverId?.let { turnip.driverPath(it) }, driverId?.let { turnip.libraryName(it) },
@@ -1055,10 +1280,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             WaylandCompositor.nativeResizeOutput(size.first, size.second)
         }
         if (!SessionState.running) SessionEvents.record("compositor.started")
-        // The service owns everything below the compositor. It is started whenever no session is
-        // running - NOT only when the compositor was just started: the compositor lives for the
-        // whole process, so the second Play after a session ended used to re-attach the Surface,
-        // start nothing, and leave the loading panel counting up over a dead session.
         if (!SessionState.running) {
             SessionEvents.transition(SessionPhase.STARTING_GUEST, "guest.starting")
             SessionService.start(
@@ -1086,12 +1307,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
     }
 
-    /**
-     * Follow screen: the session's display takes the window's new size (a Fold opening onto its
-     * inner panel, or closing onto the cover), so the picture fills the panel instead of being
-     * letterboxed onto it. Not in picture-in-picture: that window is a preview of the session,
-     * and resizing the guest to it would leave Steam laid out for a thumbnail.
-     */
     private fun followWindow(width: Int, height: Int) {
         if (!SessionState.followScreen || isInPictureInPictureMode || !CompositorHost.isStarted) return
         val size = com.droiddeck.launcher.session.SessionDisplay.followSize(width, height) ?: return
@@ -1103,28 +1318,25 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         WaylandCompositor.nativeResizeOutput(size.first, size.second)
     }
 
-    /** Whether this session's resolution is Follow screen; decided once, when it starts. */
     private fun followChoice(): Boolean {
         val mode = SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM)
         return SessionPrefs.resolutionChoice(this, mode, com.droiddeck.launcher.session.SessionDisplay.panelSize(this)) ==
             com.droiddeck.launcher.session.SessionDisplay.FOLLOW_SCREEN
     }
 
-    /**
-     * Follow screen on a large panel (a Fold's inner screen) may turn with the device: a window
-     * locked to landscape on a squarer panel is letterboxed by the system itself, which no output
-     * size can undo. A phone-sized panel (the cover screen) stays landscape as before.
-     */
     private fun applyFollowOrientation(config: android.content.res.Configuration) {
-        if (!SessionState.followScreen) return
-        val wanted = if (config.smallestScreenWidthDp >= 600) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER
-            else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        val wanted = if (SessionState.followScreen && config.smallestScreenWidthDp >= 600) {
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER
+        } else {
+            SessionPrefs.orientation(this)
+        }
         if (requestedOrientation != wanted) requestedOrientation = wanted
     }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
         applyFollowOrientation(newConfig)
+        applyUnfoldedControls()
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
@@ -1133,11 +1345,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         CompositorHost.detach(holder.surface)
     }
 
-    /**
-     * The size the session renders at. gamescope is told this and scales its output onto whatever
-     * the panel is, so a 1440p phone can run the client at 1080p without the client knowing.
-     */
-    /** The panel, not the window: resources.displayMetrics is what is left after the system bars and the cutout are taken out. */
     private fun panelBounds(): android.graphics.Rect = if (Build.VERSION.SDK_INT >= 30) {
         windowManager.maximumWindowMetrics.bounds
     } else {
@@ -1151,7 +1358,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val mode = SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM)
         val panel = com.droiddeck.launcher.session.SessionDisplay.panelSize(this)
         val program = intent.getStringExtra(SessionService.EXTRA_PROGRAM)
-        // Lightweight emulators keep their panel-sized default until a resolution is chosen.
         val choice = if (intent.getStringExtra(SessionService.EXTRA_MODE) == SessionService.MODE_RUN &&
             Library.drawsAtPanel(program) && !SessionPrefs.resolutionChosen(this, mode))
             com.droiddeck.launcher.session.SessionDisplay.MATCH_SCREEN
@@ -1159,23 +1365,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         return com.droiddeck.launcher.session.SessionDisplay.resolveChoice(panel, choice)
     }
 
-    /**
-     * The rate of the mode PerfMode asked for, not the one the panel is still in: the switch lands
-     * some frames after onCreate, and read too early it gave gamescope `-r 60` on a 120 Hz panel -
-     * the client and every game then paced themselves to 60. (WinNative's requestedPanelRefreshRate.)
-     */
     private fun refreshHz(): Float {
         val display = if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay
         val wanted = window.attributes.preferredDisplayModeId
         val hz = display?.supportedModes?.firstOrNull { wanted != 0 && it.modeId == wanted }?.refreshRate
             ?: display?.refreshRate ?: 60f
-        return if (hz > 1f) hz else 60f
+        val capped = minOf(hz, PerfMode.peakRefreshCap(this))
+        return if (capped > 1f) capped else 60f
     }
 
-    /**
-     * The saved frame-generation setting, pushed to the compositor. Off the main thread: LSFG's
-     * first use translates the shader chain out of Lossless.dll, which takes seconds.
-     */
     private fun applyFrameGen() {
         val hz = refreshHz()
         Thread({
@@ -1188,7 +1386,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }, "frame-gen").start()
     }
 
-    /** A Lossless Scaling installed or updated in Steam during the session is taken when the drawer opens. */
     private fun syncLossless() {
         Thread({
             Lossless.sync(this)
@@ -1209,9 +1406,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }, "lossless-import").start()
     }
 
-    // ── Session state ───────────────────────────────────────────────────────────────────────
 
-    /** Keeps the loading overlay current from the session log, and its clock moving. */
     private fun watchSession() {
         val handler = Handler(Looper.getMainLooper())
         var ticks = 0
@@ -1245,10 +1440,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (status == 0) {
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
-                // A session asked for in this one's place (the desktop's Steam launchers or
-                // Steam's Switch to Desktop) starts here: this activity restarts on its intent, as an agent
-                // start does. startActivity(next) could not do it - the activity is singleTop, so
-                // the request landed in this instance's onNewIntent and went with its finish().
                 SessionState.relaunch?.let { next ->
                     SessionState.relaunch = null
                     next.putExtra(EXTRA_RETURN_HOME, intent.getBooleanExtra(EXTRA_RETURN_HOME, false))
@@ -1260,7 +1451,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             }
             return
         }
-        // What the log says about why, read off the main thread (notifyEnded arrives on it).
         Thread({
             val hint = sessionEndHint(SessionState.logFile)
             runOnUiThread {
@@ -1275,7 +1465,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             finish()
             return
         }
-        // It stays until the user leaves: a failure read against a timer is a failure not read.
         val stopped = when (SessionState.mode) {
             SessionService.MODE_RUN -> com.droiddeck.launcher.frontend.Library.nameForProgram(SessionState.program)
                 ?.let { getString(R.string.session_ended_named, it) } ?: getString(R.string.session_ended_program)
@@ -1289,14 +1478,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         focusEndedScreen()
     }
 
-    /** The ended screen's buttons take the pad: it is no longer driving a game. */
     private fun focusEndedScreen() {
         drawerOpen = false
         padBridge?.releaseAll()
         uiHandler.post { sessionOverlay.requestFocus() }
     }
 
-    /** The same start again, in a fresh activity: the ended one keeps no session to reuse. */
     private fun retrySession() {
         val again = Intent(intent)
         closeAtOnce = true
@@ -1304,13 +1491,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         startActivity(again)
     }
 
-    /**
-     * One line of advice for a failure the log identifies, or null. The one this recognises: the
-     * ENOSYS storm - dozens of `socket(): Function not implemented` / `shared memfd open() failed`
-     * lines - which is proot's seccomp acceleration failing an x86 helper (Steam's xalia under
-     * FEX) on some devices (a Fold 5, twice). The switch that answers it is in Performance, and a
-     * user who never opens the log would not know.
-     */
     private class EndHint(val text: String, val evenOnSuccess: Boolean = false)
 
     private fun sessionEndHint(log: File?): EndHint? {
@@ -1318,7 +1498,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         return try {
             var enosys = 0
             var fexMissing = false
-            // The tail is where a dying session says why; 512 KB covers the storm without reading a 1 GB log.
             val size = log.length()
             java.io.RandomAccessFile(log, "r").use { f ->
                 val start = maxOf(0L, size - 512L * 1024)
@@ -1342,22 +1521,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
     }
 
-    // ── Input ───────────────────────────────────────────────────────────────────────────────
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        // The device's own volume keys belong to Android: forwarded to the guest as keys they
-        // changed nothing anyone could hear (a Pocket FIT report, on the desktop).
         when (event.keyCode) {
             KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE ->
                 return super.dispatchKeyEvent(event)
         }
         if (pipUi) return true
-        val fromController = PadBridge.isControllerKey(event)
+        val fromController = PadBridge.isControllerKeyEvent(event)
         if (fromController && event.action == KeyEvent.ACTION_DOWN) {
             if (drawerOpen && !drawerControllerActive) sessionOverlay.requestFocus()
             drawerControllerActive = true
         }
-        // While the session starts, B is the loading screen's Cancel, as its corner says.
         if (fromController && event.keyCode == KeyEvent.KEYCODE_BUTTON_B && ::loading.isInitialized && loading.visible && !loading.ended && !drawerOpen) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
                 SessionService.stop(this)
@@ -1365,7 +1540,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             }
             return true
         }
-        // The ended screen is a page of buttons: the pad drives them, and B leaves.
         if (::loading.isInitialized && loading.ended) {
             if (event.keyCode == KeyEvent.KEYCODE_BUTTON_B || event.keyCode == KeyEvent.KEYCODE_BACK) {
                 if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) finish()
@@ -1404,30 +1578,19 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             }
             return true
         }
-        if (pcKeyboardOpen && fromController) return super.dispatchKeyEvent(event)
+        if ((pcKeyboardOpen || achievementsOpen) && fromController) return super.dispatchKeyEvent(event)
         if (event.keyCode != KeyEvent.KEYCODE_BACK && padBridge?.onKeyEvent(event) == true) return true
-        // A hardware keyboard, forwarded to the compositor's wl_keyboard. Back is left to the
-        // activity, which opens the drawer.
-        val fromPad = fromController
-        if (CompositorHost.isStarted && event.keyCode != KeyEvent.KEYCODE_BACK && !fromPad) {
+        if (CompositorHost.isStarted && event.keyCode != KeyEvent.KEYCODE_BACK && !fromController) {
             val down = event.action == KeyEvent.ACTION_DOWN
+            if (down && event.repeatCount > 0) return true
             if (down || event.action == KeyEvent.ACTION_UP) {
                 var evdev = EvdevKeys.fromKeyCode(event.keyCode)
-                // What the key stands for, and the key it would sit on without Shift - non-zero
-                // only for a character Shift puts there: every capital and the symbol row.
                 val ch = event.unicodeChar
                 val plain = if (ch > 0) EvdevKeys.unshiftedChar(ch) else 0
-                // A soft keyboard's symbol keys are in neither the table nor a scan code, so they
-                // reached the session as nothing at all - a sign-in took an address without its @.
-                // Work back from the character instead: which key carries it.
                 if (evdev <= 0 && ch > 0) {
                     val code = EvdevKeys.fromKeyCode(EvdevKeys.keycodeForChar(if (plain != 0) plain else ch))
                     if (code > 0) evdev = code
                 }
-                // The modifier has to be made here. A soft keyboard reports Shift in the event's
-                // meta state and sends no Shift key of its own, so a capital arrives as a key this
-                // side already knows and came out lowercase. A hardware keyboard sends its own
-                // Shift, and a second one would release the modifier while the key is still held.
                 val shiftEvdev = if (evdev > 0 && plain != 0 && event.deviceId <= 0) 42 else 0
                 if (evdev <= 0 && event.scanCode > 0) evdev = event.scanCode
                 if (evdev > 0) {
@@ -1447,7 +1610,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
         if (pipUi) return true
-        if (drawerOpen && event.device != null && PadBridge.isFromController(event.device)) {
+        if (drawerOpen && PadBridge.isControllerMotionEvent(event)) {
             if (!drawerControllerActive) sessionOverlay.requestFocus()
             drawerControllerActive = true
             if (event.actionMasked == MotionEvent.ACTION_MOVE &&
@@ -1458,13 +1621,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             return true
         }
         if (drawerDirectionKey != KeyEvent.KEYCODE_UNKNOWN) releaseDrawerDirection()
-        if (pcKeyboardOpen && event.device != null && PadBridge.isFromController(event.device)) return super.dispatchGenericMotionEvent(event)
+        if ((pcKeyboardOpen || achievementsOpen) && PadBridge.isControllerMotionEvent(event)) return super.dispatchGenericMotionEvent(event)
         if (padBridge?.onMotionEvent(event) == true) return true
         if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE) && !drawerOpen && onMouse(event)) return true
         return super.dispatchGenericMotionEvent(event)
     }
 
-    /** With no view focused, captured mouse events skip the root and arrive here as trackball events. */
     override fun dispatchTrackballEvent(event: MotionEvent): Boolean =
         onCapturedPointer(event) || super.dispatchTrackballEvent(event)
 
@@ -1516,7 +1678,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         uiHandler.postDelayed(drawerDirectionRepeat, drawerFirstRepeatDelayMs)
     }
 
-    /** Use Android's per-device flat region, then rescale the remaining stick travel to 0..1. */
     private fun centeredStickAxis(event: MotionEvent, axis: Int): Float {
         val value = event.getAxisValue(axis)
         val flat = (event.device?.getMotionRange(axis, event.source)?.flat ?: 0f)
@@ -1549,9 +1710,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private val pointerListener = object : PointerGestures.Listener {
-        override fun onMove(x: Float, y: Float) = movePointer(x, y)
+        override fun onMove(x: Float, y: Float) {
+            if (pointerLocked) moveLockedPointer(x, y) else movePointer(x, y)
+        }
         override fun onButton(button: Int, pressed: Boolean, x: Float, y: Float) {
-            movePointer(x, y)
+            if (!pointerLocked) movePointer(x, y)
             WaylandCompositor.nativeSendSceneInput(3, button, if (pressed) 1 else 0)
         }
         override fun onWheel(steps: Int) { WaylandCompositor.nativeSendSceneInput(4, steps, 0) }
@@ -1559,6 +1722,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             @Suppress("DEPRECATION")
             (getSystemService(VIBRATOR_SERVICE) as? android.os.Vibrator)?.vibrate(15)
         }
+    }
+
+    private fun moveLockedPointer(x: Float, y: Float) {
+        val rect = drawnRect() ?: return
+        val scale = SessionState.outputSize.first / rect.width()
+        WaylandCompositor.sendPointerDelta((x - rect.centerX()) * scale, (y - rect.centerY()) * scale)
+        touchpad.place(rect.centerX(), rect.centerY())
+        cursorVisible = false
     }
 
     private fun movePointer(x: Float, y: Float) {
@@ -1569,17 +1740,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         showCursor(cx, cy)
     }
 
-    /**
-     * The arrow stays on a desktop; in a Steam session it shows for a moment after each move. While
-     * a controller is driving (input in the last [CURSOR_PAD_HOLD_MS]) it stays hidden, so a touch
-     * during play does not flash it up - Bannerlator's rule for its Wayland pointer.
-     */
     private fun showCursor(x: Float, y: Float) {
         cursorPos = androidx.compose.ui.geometry.Offset(x, y)
         syncClientCursor()
         uiHandler.removeCallbacks(cursorResync)
         uiHandler.postDelayed(cursorResync, 60)
-        // A program that asked for no pointer (a mouse-look game) wins over everything below.
         if (clientHidesCursor) { cursorVisible = false; return }
         if (android.os.SystemClock.uptimeMillis() - lastPadInputMs < CURSOR_PAD_HOLD_MS) return
         cursorVisible = true
@@ -1587,14 +1752,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (SessionState.mode == SessionService.MODE_STEAM && SessionState.steamUi != "desktop") uiHandler.postDelayed(cursorHide, 2500)
     }
 
-    /**
-     * Pulls the program's pointer (wl_pointer.set_cursor) if it changed: labwc's resize arrows at a
-     * window's edges and corners, a text field's I-beam, or a request for no pointer. Serial 0 = no
-     * program has set one yet, and the built-in arrow stays. Returns true when something changed.
-     */
     private fun syncClientCursor(): Boolean {
         if (!CompositorHost.isStarted) return false
-        // Asked on every pointer move; the image is copied only when the client has changed it.
         if (WaylandCompositor.nativeCursorSerial() == cursorSerial) return false
         val n = WaylandCompositor.nativeCursorSnapshot(cursorBuf)
         if (n < 6) return false
@@ -1615,7 +1774,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         cursorImage = bitmap.asImageBitmap()
         cursorHotX = cursorBuf[4]
         cursorHotY = cursorBuf[5]
-        // Session pixels -> screen pixels, as the session's picture is scaled (movePointer).
         val width = surfaceView.width.takeIf { it > 0 }
         val height = surfaceView.height.takeIf { it > 0 }
         val out = SessionState.outputSize
@@ -1637,7 +1795,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         if (selectedSecondScreenDisplay !in newIds) selectedSecondScreenDisplay = candidates.firstOrNull()?.id ?: -1
         if (secondScreenMode != SecondScreenMode.NONE && candidates.isEmpty()) closeSecondScreen(reset = true)
-        // A choice kept while its display was away (asleep, waking): back as soon as it is.
         else if (started && secondScreenMode != SecondScreenMode.NONE && secondScreenPresentation == null) showSecondScreen(secondScreenMode)
     }
 
@@ -1667,8 +1824,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (pipUi || !started) return
         val target = displayManager.getDisplay(selectedSecondScreenDisplay)
         if (target == null || !target.isValid || (target.flags and Display.FLAG_PRESENTATION) == 0) {
-            // Not there right now - a panel still waking, say. The choice is kept; the display
-            // listener shows it again when the display comes back (refreshSecondScreenDisplays).
             closeSecondScreen(reset = false)
             return
         }
@@ -1682,17 +1837,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     WaylandCompositor.nativeSendSceneInput(3, button, if (pressed) 1 else 0)
                 },
                 sendWheel = { steps -> WaylandCompositor.nativeSendSceneInput(4, steps, 0) },
-                onSteamMenu = {
-                    if (SessionState.mode == SessionService.MODE_STEAM) {
-                        padBridge?.applyTouch { st -> st.press(com.droiddeck.launcher.input.PadState.GUIDE, true) }
-                        Handler(Looper.getMainLooper()).postDelayed({
-                            padBridge?.applyTouch { st -> st.press(com.droiddeck.launcher.input.PadState.GUIDE, false) }
-                        }, 90)
-                    }
-                },
-                onQam = {
-                    if (SessionState.mode == SessionService.MODE_STEAM) padBridge?.triggerQam()
-                },
+                onSteamMenu = ::tapSteamButton,
+                onQam = ::tapQam,
                 onClose = { selectSecondScreenMode(SecondScreenMode.NONE) },
             )
             secondScreenPresentation = presentation
@@ -1707,6 +1853,62 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             Log.w(TAG, "could not show second-screen controls on ${target.name}", e)
             closeSecondScreen(reset = true)
         }
+    }
+
+    private fun tapSteamButton() {
+        if (SessionState.mode == SessionService.MODE_STEAM) {
+            padBridge?.applyTouch { st -> st.press(com.droiddeck.launcher.input.PadState.GUIDE, true) }
+            Handler(Looper.getMainLooper()).postDelayed({
+                padBridge?.applyTouch { st -> st.press(com.droiddeck.launcher.input.PadState.GUIDE, false) }
+            }, 90)
+        }
+    }
+
+    private fun tapQam() {
+        if (SessionState.mode == SessionService.MODE_STEAM) padBridge?.triggerQam()
+    }
+
+    private fun chooseUnfoldedControls(on: Boolean) {
+        SessionPrefs.setUnfoldedControls(this, on)
+        unfoldedControls = on
+        applyUnfoldedControls()
+    }
+
+    private fun refreshControls() {
+        applyUnfoldedControls()
+        updateOnScreenControls()
+    }
+
+    private fun applyUnfoldedControls() {
+        if (!::sessionRoot.isInitialized) return
+        val width = sessionRoot.width
+        val height = sessionRoot.height
+        val wanted = unfoldedControls && com.droiddeck.launcher.session.SessionDisplay.foldable(this) &&
+            !PadBridge.anyControllerConnected() && !SteamControllerBle.connected &&
+            SessionState.mode == SessionService.MODE_STEAM && SessionState.deckPad &&
+            !pipUi && !isInPictureInPictureMode && width > 0 && height > 0 &&
+            resources.configuration.smallestScreenWidthDp >= com.droiddeck.launcher.session.SessionDisplay.UNFOLDED_MIN_DP
+        val gameHeight = if (wanted) com.droiddeck.launcher.session.SessionDisplay.unfoldedGameHeight(width, height)
+            else FrameLayout.LayoutParams.MATCH_PARENT
+        val params = surfaceView.layoutParams as FrameLayout.LayoutParams
+        if (params.height != gameHeight) {
+            surfaceView.layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, gameHeight, Gravity.TOP)
+            Log.i(TAG, if (wanted) "unfolded controls: game ${width}x$gameHeight, controls ${width}x${height - gameHeight}"
+                else "unfolded controls: game full screen")
+        }
+        var panel = unfoldedPanel
+        if (!wanted) {
+            if (panel != null) { sessionRoot.removeView(panel); unfoldedPanel = null; updateOnScreenControls() }
+            return
+        }
+        if (panel == null) {
+            panel = com.droiddeck.launcher.ui.DeckControlsPanel(this, onClose = { chooseUnfoldedControls(false) },
+                onSteamMenu = ::tapSteamButton, onQam = ::tapQam, pad = padBridge)
+            sessionRoot.addView(panel, sessionRoot.indexOfChild(surfaceView) + 1)
+            unfoldedPanel = panel
+            updateOnScreenControls()
+        }
+        panel.layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, height - gameHeight, Gravity.BOTTOM)
     }
 
     private fun moveSecondScreenPointer(x: Float, y: Float, width: Float, height: Float) {
@@ -1729,7 +1931,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
     }
 
-    /** The touch mode in force: the game's own while Steam's touch controls are shown. */
     private fun effectiveTouchMode(): String {
         val options = steamTouchOptions
         if (options == null || steamTouchControls?.visibility != View.VISIBLE) return SessionPrefs.touchMode(this)
@@ -1753,14 +1954,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         routedTouchMode = next
     }
 
-    /** Touchpad on the desktop, direct in Steam, unless the drawer says otherwise. */
     private fun usingTouchpad(): Boolean = when (routedTouchMode) {
         SessionPrefs.TOUCH_PAD -> true
         SessionPrefs.TOUCH_DIRECT -> false
         else -> SessionState.mode != SessionService.MODE_STEAM || SessionState.steamUi == "desktop"
     }
 
-    /** The picture's rectangle inside the view: where the pointer may go. */
     private fun drawnRect(): android.graphics.RectF? {
         val width = surfaceView.width.takeIf { it > 0 } ?: return null
         val height = surfaceView.height.takeIf { it > 0 } ?: return null
@@ -1775,7 +1974,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE)) return onMouse(event)
-        // Child views get the event first, so menus, keyboards and the on-screen pad still work.
         if (routedTouchMode == SessionPrefs.TOUCH_OFF) return true
         if (usingTouchpad()) {
             val rect = drawnRect() ?: return false
@@ -1794,8 +1992,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 InputSpace.x(x, surfaceView.width), InputSpace.y(y, surfaceView.height))
         }
         when (event.actionMasked) {
-            // A first finger starts a new gesture, and Android has ended every earlier one: whatever
-            // the compositor still holds (an up lost to the drawer opening mid-touch) goes first.
             MotionEvent.ACTION_DOWN -> {
                 WaylandCompositor.nativeSendTouch(3, -1, 0, 0)
                 listOf(PointerGestures.BTN_LEFT, PointerGestures.BTN_RIGHT, PointerGestures.BTN_MIDDLE).forEach {
@@ -1812,8 +2008,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         return true
     }
 
-    /** A mouse: hover moves, buttons press, the wheel scrolls. Android sends buttons as touch
-     *  actions and hover as generic motion, so both paths land here. */
     private fun onMouse(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_HOVER_MOVE, MotionEvent.ACTION_MOVE, MotionEvent.ACTION_HOVER_ENTER ->
@@ -1831,31 +2025,25 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 val v = event.getAxisValue(MotionEvent.AXIS_VSCROLL)
                 if (v != 0f) WaylandCompositor.nativeSendSceneInput(4, -Math.round(v), 0)
             }
-            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP -> {} // the BUTTON_* events carry these
+            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP -> {}
             else -> return false
         }
         return true
     }
 
-    /** A physical mouse, not a touchscreen, stylus or the system's own virtual devices. */
     private fun mouseAttached(): Boolean = InputDevice.getDeviceIds().any { id ->
         val d = InputDevice.getDevice(id)
         d != null && !d.isVirtual && d.supportsSource(InputDevice.SOURCE_MOUSE)
     }
 
-    /** Capture the mouse exactly while a program holds a lock and the session has the mouse. */
     private fun updatePointerCapture() {
         if (!::surfaceView.isInitialized) return
         val view = window.decorView
-        val want = pointerLocked && resumed && hasWindowFocus() && !drawerOpen && !pcKeyboardOpen && !pipUi && mouseAttached()
+        val want = pointerLocked && resumed && hasWindowFocus() && !drawerOpen && !pcKeyboardOpen && !achievementsOpen && !pipUi && mouseAttached()
         if (want == view.hasPointerCapture()) return
         if (want) view.requestPointerCapture() else view.releasePointerCapture()
     }
 
-    /**
-     * A captured mouse: raw motion as relative pointer deltas, buttons and the wheel as on the
-     * uncaptured path. Anything else (a captured touchpad's absolute fingers) is left alone.
-     */
     private fun onCapturedPointer(event: MotionEvent): Boolean {
         if (!pointerLocked || !event.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE)) return false
         when (event.actionMasked) {
@@ -1880,14 +2068,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 val v = event.getAxisValue(MotionEvent.AXIS_VSCROLL)
                 if (v != 0f) WaylandCompositor.nativeSendSceneInput(4, -Math.round(v), 0)
             }
-            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP -> {} // the BUTTON_* events carry these
+            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP -> {}
             else -> return false
         }
         return true
     }
 
-    /** The mode decides which controls appear; `droiddeck-osc` in Downloads still overrides. */
-    /** Which controller the session has, so a pad report says what was plugged in and when. */
     private fun logInputDevice(what: String, deviceId: Int) {
         val d = InputDevice.getDevice(deviceId) ?: return
         if (!PadBridge.isFromController(d)) return
@@ -1895,12 +2081,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             what, d.name, d.vendorId, d.productId, d.id, d.sources))
     }
 
-    /** Steam's touch controls, once the session has made the device (SessionService). */
     private fun steamTouch(): com.droiddeck.launcher.input.SteamTouchControls? {
         val device = com.droiddeck.launcher.input.SteamTouchDevice.current ?: return null
         steamTouchControls?.let { view ->
             if (view.device === device) return view
-            // A new session made a new device: the view of the old one goes.
             view.releaseAll()
             (view.parent as? android.view.ViewGroup)?.removeView(view)
             steamTouchControls = null
@@ -1913,13 +2097,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             steamTouchOptions = options
             applyTouchRouting()
         }
-        // Paste: the clipboard is shared with the session's X servers; Ctrl+V types it.
         view.onPaste = {
-            sendGuestKey(29, true); sendGuestKey(47, true) // KEY_LEFTCTRL, KEY_V
+            sendGuestKey(29, true); sendGuestKey(47, true)
             sendGuestKey(47, false); sendGuestKey(29, false)
         }
-        // The client reads a controller's config when it connects: after a save, plug the device
-        // out and back in so it takes the new one.
         view.onSaved = {
             device.plugged = false
             uiHandler.postDelayed({ updateOnScreenControls() }, 700)
@@ -1936,7 +2117,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             ?.let { FileUtils.readString(it)?.trim()?.lowercase() }
             ?: SessionPrefs.oscMode(this)
         val controls = onScreenControls ?: return
-        if (pipUi) {
+        if (pipUi || unfoldedPanel != null) {
             onScreenButtonsVisible = false
             controls.releaseAll()
             controls.visibility = View.GONE
@@ -1945,12 +2126,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             return
         }
         val buttonsOnly = forced == SessionPrefs.OSC_STEAM_QAM
-        // Steam's touch controller stands in for the app's pad, and is plugged into the client only
-        // while it is shown - as Steam Link withdraws its controls when a physical pad is in use.
         val wantsSteam = forced == SessionPrefs.OSC_STEAM_TOUCH && SessionState.mode == SessionService.MODE_STEAM
         val steam = if (wantsSteam) steamTouch() else null
-        // The service makes the device while the session starts, after this activity: the app's
-        // own pad until then, and another look in a moment.
         if (wantsSteam && steam == null && !isFinishing && !isDestroyed) {
             uiHandler.removeCallbacks(steamTouchRetry)
             uiHandler.postDelayed(steamTouchRetry, 1000)
@@ -1964,14 +2141,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             SessionPrefs.OSC_ALWAYS -> true
             SessionPrefs.OSC_STEAM_QAM -> true
             SessionPrefs.OSC_NEVER -> false
-            // Shown throughout a Steam session: a handheld's built-in pad would keep Auto off for good.
-            // Outside Steam it is Auto.
             SessionPrefs.OSC_STEAM_TOUCH -> SessionState.mode == SessionService.MODE_STEAM ||
                 (!PadBridge.anyControllerConnected() && SessionState.mode != SessionService.MODE_DESKTOP)
-            // Auto: the touch pad when there is no controller - except on the desktop, where the
-            // screen is a touchpad for the pointer and a pad over it would be in the way. A game
-            // started from the rail, or Steam, gets it; the drawer turns it on anywhere.
-            else -> !PadBridge.anyControllerConnected() && SessionState.mode != SessionService.MODE_DESKTOP
+            else -> !PadBridge.anyControllerConnected() && !SteamControllerBle.connected &&
+                SessionState.mode != SessionService.MODE_DESKTOP
         }
         onScreenButtonsVisible = show
         if (steam != null) {
@@ -2016,6 +2189,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (show) {
             drawerOpen = false
             pcKeyboardOpen = false
+            achievementsOpen = false
             pendingBackAction?.let(uiHandler::removeCallbacks)
             pendingBackAction = null
             releaseDrawerDirection()
@@ -2054,8 +2228,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     override fun onPictureInPictureModeChanged(inPip: Boolean, newConfig: android.content.res.Configuration) {
         super.onPictureInPictureModeChanged(inPip, newConfig)
         if (::pip.isInitialized) pip.changed(inPip)
-        // The panel may have changed while the session was a thumbnail (folded or unfolded in PiP).
         if (!inPip && surfaceW > 0) followWindow(surfaceW, surfaceH)
+        applyUnfoldedControls()
     }
 
     override fun startActivityForResult(intent: Intent, requestCode: Int, options: Bundle?) {
@@ -2065,7 +2239,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         super.startActivityForResult(intent, requestCode, options)
     }
 
-    // ── Lifecycle ───────────────────────────────────────────────────────────────────────────
 
     override fun onStart() {
         super.onStart()
@@ -2081,8 +2254,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (runtimeRemovalBlocked) { super.onStop(); return }
         started = false
         displayManager.unregisterDisplayListener(displayListener)
-        // Closed while the session is out of sight (sleep, a closed lid, another app), and kept:
-        // onStart puts it back.
         closeSecondScreen(reset = false)
         SessionService.setActivityVisible(this, false)
         super.onStop()
@@ -2099,7 +2270,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             recreate()
             return
         }
-        // Home/notification resumes must retain the external frontend's return destination.
         if (this.intent.getBooleanExtra(EXTRA_RETURN_HOME, false)) intent.putExtra(EXTRA_RETURN_HOME, true)
         setIntent(intent)
         if (intent.action == SessionService.ACTION_HOME_GUIDE) {
@@ -2112,6 +2282,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onResume() {
         super.onResume()
+        applyFollowOrientation(resources.configuration)
         if (runtimeRemovalBlocked) return
         com.droiddeck.launcher.ui.Motion.refresh(this)
         refreshHomeApp()
@@ -2121,34 +2292,118 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         (getSystemService(INPUT_SERVICE) as? InputManager)
             ?.registerInputDeviceListener(deviceListener, Handler(Looper.getMainLooper()))
+        if (SessionState.guestPid > 1) padBridge?.syncConnectedControllers()
         onScreenControls?.reload()
         controllerSettings = ControllerPrefs.read(this)
-        updateOnScreenControls()
         resumed = true
         updatePointerCapture()
         if (!pipUi) sessionClipboard.start()
         updatePadMotion()
         readPrefs()
+        refreshControls()
         if (::pip.isInitialized) pip.resumed()
         if (CompositorHost.isStarted) applyFrameGen()
+        SessionPrefs.sessionPrefs(this).registerOnSharedPreferenceChangeListener(cardboardPrefListener)
     }
 
     override fun onPause() {
         if (runtimeRemovalBlocked) { super.onPause(); return }
         sessionClipboard.stop()
-        // Do not carry transient session UI across an app/display transition. In particular, the
-        // drawer's dim layer can otherwise remain over Steam when this activity returns.
         drawerOpen = false
         pcKeyboardOpen = false
+        achievementsOpen = false
         (getSystemService(INPUT_SERVICE) as? InputManager)?.unregisterInputDeviceListener(deviceListener)
         releaseDrawerDirection()
-        // A button held when the app goes away would stay held in the ring for the whole session.
         onScreenControls?.releaseAll()
         resumed = false
         updatePointerCapture()
         updatePadMotion()
         keyboard?.takeIf { it.shown }?.hide()
+        SessionPrefs.sessionPrefs(this).unregisterOnSharedPreferenceChangeListener(cardboardPrefListener)
+        updateHeadTracker()
         super.onPause()
+    }
+
+    private fun steamVrAction(action: String) {
+        if (action == "start") {
+            switchPictureForSteamVr()
+            steamVrSeenRunning = false
+        }
+        if (action == "stop") restoreSteamVrPicture()
+        if (action == "install") steamVrStatus = SteamVr.Status.INSTALLING
+        Thread({
+            val ok = SteamVr.run(this, action)
+            val now = SteamVr.status(this)
+            uiHandler.post {
+                if (!ok && action == "start" && now != SteamVr.Status.RUNNING) restoreSteamVrPicture()
+                onSteamVrStatus(now)
+                if (!ok) Toast.makeText(this, getString(R.string.cardboard_steamvr_failed), Toast.LENGTH_LONG).show()
+            }
+        }, "steamvr-$action").start()
+    }
+
+    private fun switchPictureForSteamVr() {
+        if (cardboard.source != Cardboard.SOURCE_SBS) {
+            SessionPrefs.setCardboardSourceBeforeSteamVr(this, cardboard.source)
+            val c = cardboard.copy(source = Cardboard.SOURCE_SBS)
+            SessionPrefs.setCardboard(this, c)
+            applyCardboard(c)
+        }
+        steamVrSwitchedPicture = SessionPrefs.cardboardSourceBeforeSteamVr(this) >= 0
+    }
+
+    private fun onSteamVrStatus(now: SteamVr.Status) {
+        steamVrStatus = now
+        if (now == SteamVr.Status.RUNNING && cardboard.enabled && !steamVrSwitchedPicture &&
+            cardboard.source != Cardboard.SOURCE_SBS) {
+            switchPictureForSteamVr()
+            steamVrSeenRunning = true
+        }
+        if (!steamVrSwitchedPicture) return
+        if (now == SteamVr.Status.RUNNING) steamVrSeenRunning = true
+        else if (steamVrSeenRunning && now != SteamVr.Status.UNAVAILABLE) restoreSteamVrPicture()
+    }
+
+    private fun restoreSteamVrPicture() {
+        val before = SessionPrefs.cardboardSourceBeforeSteamVr(this)
+        SessionPrefs.setCardboardSourceBeforeSteamVr(this, -1)
+        steamVrSwitchedPicture = false
+        steamVrSeenRunning = false
+        if (before < 0 || cardboard.source == before) return
+        val c = cardboard.copy(source = before)
+        SessionPrefs.setCardboard(this, c)
+        applyCardboard(c)
+    }
+
+    private fun applyCardboard(c: Cardboard) {
+        val was = cardboard
+        cardboard = c
+        if (CompositorHost.isStarted) panelSizeMm().let { (w, h) -> c.push(w, h) }
+        if (c.enabled && !was.enabled) headTracker?.recenter()
+        updateHeadTracker()
+    }
+
+    private fun updateHeadTracker() {
+        val want = resumed && cardboard.enabled && cardboard.headTracking
+        if (want) {
+            val t = headTracker ?: HeadTracker(this) {
+                @Suppress("DEPRECATION")
+                (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay)?.rotation ?: android.view.Surface.ROTATION_0
+            }.also { headTracker = it }
+            t.start()
+        } else {
+            headTracker?.stop()
+        }
+    }
+
+    private fun panelSizeMm(): Pair<Float, Float> {
+        val dm = resources.displayMetrics
+        val landscape = dm.widthPixels >= dm.heightPixels
+        val longPx = maxOf(dm.widthPixels, dm.heightPixels).toFloat()
+        val shortPx = minOf(dm.widthPixels, dm.heightPixels).toFloat()
+        val longDpi = if (landscape) dm.xdpi else dm.ydpi
+        val shortDpi = if (landscape) dm.ydpi else dm.xdpi
+        return (if (longDpi > 0f) longPx / longDpi * 25.4f else 0f) to (if (shortDpi > 0f) shortPx / shortDpi * 25.4f else 0f)
     }
 
     override fun onAttachedToWindow() {
@@ -2166,11 +2421,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             goFullscreen()
             refreshClipboard()
         }
-        // Android drops a capture with the focus; a lock still held takes it again on return.
         updatePointerCapture()
     }
 
-    /** The keyboard/trackpad presentation can own focus instead of the main display. */
     fun refreshClipboard() {
         if (resumed) sessionClipboard.refresh()
     }
@@ -2183,8 +2436,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
                 or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                 or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION)
-        // ALWAYS from Android 11: SHORT_EDGES left a black strip along a camera on the long edge,
-        // which is where a Fold's inner-screen camera sits with the device held in landscape.
         if (Build.VERSION.SDK_INT >= 28) {
             window.attributes = window.attributes.apply {
                 layoutInDisplayCutoutMode = if (Build.VERSION.SDK_INT >= 30)
@@ -2194,7 +2445,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
     }
 
-    /** Ours, so a finishing activity never unhooks the one that replaced it. */
     private val endListener: (Int) -> Unit = { status -> onSessionEnded(status) }
     private val firstFrameListener = Runnable {
         SessionEvents.firstFrame()
@@ -2208,8 +2458,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     override fun onDestroy() {
         uiHandler.removeCallbacks(steamTouchRetry)
         if (runtimeRemovalBlocked) { super.onDestroy(); return }
-        // Deliberately does NOT end the session: this activity can be destroyed while the user is
-        // in another app, and the whole point of the service is that Steam survives that.
         watching = false
         releaseDrawerDirection()
         pendingBackAction?.let(uiHandler::removeCallbacks)
@@ -2218,6 +2466,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         closeSecondScreen(reset = false)
         if (::hud.isInitialized) hud.stop()
         padBridge?.stop()
+        steamController?.stop()
         if (SessionState.padBridge === padBridge) SessionState.padBridge = null
         padMotion?.stop()
         if (SessionState.deckPadListener === deckPadListener) SessionState.deckPadListener = null
@@ -2227,7 +2476,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         super.onDestroy()
     }
 
-    /** The screen is all blue: the session stops and the front end opens on the same blue (FloodReturn). */
     private fun finishFlooded() {
         if (isFinishing) return
         val signal = com.droiddeck.launcher.ui.Themes.byId(SessionPrefs.theme(this)).signal
@@ -2238,20 +2486,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         finish()
     }
 
-    /**
-     * Every way out on screen (backing out of the loading screen, closing the ended screen, the
-     * session ending) leaves as a session arrives, in reverse: the blue spreads out of the
-     * throbber's ball, or the middle of the screen once a game is up, and the front end opens on it
-     * and draws it back into the button the session came from. Off screen, or with animations
-     * off, it just closes.
-     */
     override fun finish() {
         if (isFinishing) return
         if (!quitFlooded && !closeAtOnce && com.droiddeck.launcher.ui.Motion.scale != 0f &&
             lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
             if (!leaving) {
                 leaving = true
-                // Should the flood never get its frames, the session still closes.
                 uiHandler.postDelayed({ completeLeave() }, LEAVE_TIMEOUT_MS)
             }
             return
@@ -2267,7 +2507,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         else overridePendingTransition(R.anim.session_hold, R.anim.session_sink)
     }
 
-    /** The screen is all blue: close onto the front end, which opens on the same blue. */
     private fun completeLeave() {
         if (isFinishing) return
         val signal = com.droiddeck.launcher.ui.Themes.byId(SessionPrefs.theme(this)).signal
@@ -2279,7 +2518,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     companion object {
         const val EXTRA_RETURN_HOME = "returnHome"
-        /** How long the leaving flood may take before the session closes without it. */
         private const val LEAVE_TIMEOUT_MS = 1_500L
         private const val TAG = "SessionActivity"
         private const val FEX_MISSING = "droiddeck-fex: x86 Linux programs need"
@@ -2293,7 +2531,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         private const val DRAWER_SLOW_REPEAT_FLOOR_MS = 240L
         private const val DRAWER_FAST_REPEAT_INTERVAL_MS = 90L
         private const val DRAWER_REPEAT_ACCELERATION_MS = 1_400L
-        /** Compositor scale modes (Container.FULLSCREEN_* values): 1 = fit with bars, centred. */
         private const val SCALE_FIT = 1
         private const val ALIGN_CENTER = 0
         private val RUNTIME_LINES = PackageLines(
@@ -2313,3 +2550,5 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         )
     }
 }
+
+private class AchievementsInFront(val game: StoreAchievements.Game, val title: String, val progress: Pair<Int, Int>?)

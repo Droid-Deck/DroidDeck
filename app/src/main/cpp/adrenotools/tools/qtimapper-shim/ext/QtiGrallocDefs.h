@@ -30,53 +30,31 @@
 #ifndef __QTIGRALLOCDEFS_H__
 #define __QTIGRALLOCDEFS_H__
 
-// From gralloc_priv.h
 
-/* Gralloc usage bits indicating the type of allocation that should be used */
-/* Refer to BufferUsage in hardware/interfaces/graphics/common/<ver>/types.hal */
 
-/* The bits below are in officially defined vendor space
- * i.e bits 28-31 and 48-63*/
-/* Non linear, Universal Bandwidth Compression */
 #define GRALLOC_USAGE_PRIVATE_ALLOC_UBWC (UINT32_C(1) << 28)
 
-/* Set this for allocating uncached memory (using O_DSYNC),
- * cannot be used with noncontiguous heaps */
 #define GRALLOC_USAGE_PRIVATE_UNCACHED (UINT32_C(1) << 29)
 
-/* This flag is used to indicate 10 bit format.
- * When both GRALLOC_USAGE_PRIVATE_ALLOC_UBWC & GRALLOC_USAGE_PRIVATE_10BIT
- * are set then it will indicate UBWC_TP10 format.
- * When only GRALLOC_USAGE_PRIVATE_10BIT is set it will indicate linear P010 format.
- */
 #define GRALLOC_USAGE_PRIVATE_10BIT (UINT32_C(1) << 30)
 
-/* This flag is used for SECURE display usecase */
 #define GRALLOC_USAGE_PRIVATE_SECURE_DISPLAY (UINT32_C(1) << 31)
 
-/* This flag is used to indicate video NV21 format */
 #define GRALLOC_USAGE_PRIVATE_VIDEO_NV21_ENCODER 1ULL << 48
 
-/* unused legacy flags */
 #define GRALLOC_USAGE_PRIVATE_MM_HEAP 0
 #define GRALLOC_USAGE_PRIVATE_IOMMU_HEAP 0
 
-/* This flag is set for WFD usecase */
 #define GRALLOC_USAGE_PRIVATE_WFD 1ULL << 51
 
-/* This flag is set for HEIF usecase */
 #define GRALLOC_USAGE_PRIVATE_HEIF (UINT32_C(1) << 27)
 
-/* TODO(user): Remove when clients stop referencing this flag */
 #define GRALLOC_USAGE_PRIVATE_10BIT_TP 0
 
-/* This flag indicates PI format is being used */
 #define GRALLOC_USAGE_PRIVATE_ALLOC_UBWC_PI 1ULL << 49
 
-/* This flag is set while CDSP accesses the buffer */
 #define GRALLOC_USAGE_PRIVATE_CDSP 1ULL << 50
 
-// OEM specific HAL formats
 #define HAL_PIXEL_FORMAT_RGBA_5551 6
 #define HAL_PIXEL_FORMAT_RGBA_4444 7
 #define HAL_PIXEL_FORMAT_NV12_ENCODEABLE 0x102
@@ -98,7 +76,6 @@
 #define HAL_PIXEL_FORMAT_RAW8 0x123
 #define HAL_PIXEL_FORMAT_NV12_HEIF 0x116
 
-// 10 bit
 #define HAL_PIXEL_FORMAT_ARGB_2101010 0x117
 #define HAL_PIXEL_FORMAT_RGBX_1010102 0x118
 #define HAL_PIXEL_FORMAT_XRGB_2101010 0x119
@@ -106,7 +83,7 @@
 #define HAL_PIXEL_FORMAT_ABGR_2101010 0x11B
 #define HAL_PIXEL_FORMAT_BGRX_1010102 0x11C
 #define HAL_PIXEL_FORMAT_XBGR_2101010 0x11D
-#define HAL_PIXEL_FORMAT_YCbCr_420_P010 0x36  // HAL_PIXEL_FORMAT_YCBCR_P010
+#define HAL_PIXEL_FORMAT_YCbCr_420_P010 0x36
 #define HAL_PIXEL_FORMAT_YCbCr_420_P010_UBWC 0x124
 #define HAL_PIXEL_FORMAT_YCbCr_420_P010_VENUS 0x7FA30C0A
 
@@ -115,7 +92,6 @@
 
 #define HAL_PIXEL_FORMAT_INTERLACE 0x180
 
-// Camera utils format
 #define HAL_PIXEL_FORMAT_NV12_LINEAR_FLEX 0x125
 #define HAL_PIXEL_FORMAT_NV12_UBWC_FLEX 0x126
 #define HAL_PIXEL_FORMAT_MULTIPLANAR_FLEX 0x127
@@ -123,22 +99,16 @@
 #define HAL_PIXEL_FORMAT_NV12_UBWC_FLEX_4_BATCH 0x129
 #define HAL_PIXEL_FORMAT_NV12_UBWC_FLEX_8_BATCH 0x130
 
-// FSC Formats
 #define HAL_PIXEL_FORMAT_RGB888_UBWC_FSC 0x131
 #define HAL_PIXEL_FORMAT_RGB101010_UBWC_FSC 0x132
 
-// v4l2_fourcc('Y', 'U', 'Y', 'L'). 24 bpp YUYV 4:2:2 10 bit per component
 #define HAL_PIXEL_FORMAT_YCbCr_422_I_10BIT 0x4C595559
 
-// v4l2_fourcc('Y', 'B', 'W', 'C'). 10 bit per component. This compressed
-// format reduces the memory access bandwidth
 #define HAL_PIXEL_FORMAT_YCbCr_422_I_10BIT_COMPRESSED 0x43574259
 
-// UBWC aligned Venus format
 #define HAL_PIXEL_FORMAT_YCbCr_420_SP_VENUS_UBWC 0x7FA30C06
 #define HAL_PIXEL_FORMAT_YCbCr_420_TP10_UBWC 0x7FA30C09
 
-// Khronos ASTC formats
 #define HAL_PIXEL_FORMAT_COMPRESSED_RGBA_ASTC_4x4_KHR 0x93B0
 #define HAL_PIXEL_FORMAT_COMPRESSED_RGBA_ASTC_5x4_KHR 0x93B1
 #define HAL_PIXEL_FORMAT_COMPRESSED_RGBA_ASTC_5x5_KHR 0x93B2
@@ -170,4 +140,4 @@
 
 enum { BUFFER_TYPE_UI = 0, BUFFER_TYPE_VIDEO };
 
-#endif  //__QTIGRALLOCDEFS_H__
+#endif

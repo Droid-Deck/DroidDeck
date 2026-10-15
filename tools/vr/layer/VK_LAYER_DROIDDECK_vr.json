@@ -1,0 +1,14 @@
+{
+    "file_format_version": "1.2.0",
+    "layer": {
+        "name": "VK_LAYER_DROIDDECK_vr",
+        "type": "GLOBAL",
+        "library_path": "./libVkLayer_droiddeck_vr.so",
+        "api_version": "1.3.0",
+        "implementation_version": "1",
+        "description": "Lets SteamVR's compositor start on Turnip/KGSL: stands in for the display extensions",
+        "functions": {
+            "vkNegotiateLoaderLayerInterfaceVersion": "DroidDeckVr_NegotiateLoaderLayerInterfaceVersion"
+        }
+    }
+}

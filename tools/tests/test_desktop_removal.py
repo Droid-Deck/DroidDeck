@@ -13,8 +13,6 @@ class DesktopRemovalInventoryTest(unittest.TestCase):
         self.assertIn('usr/bin/lxqt-session', paths)
         self.assertIn('usr/bin/labwc', paths)
         self.assertIn('usr/local/bin/steamdeck-desktop', paths)
-        # The runtime pacman database did not protect libseat on the Thor. Removing it
-        # made gamescope and every Steam/native session exit 127 after desktop cleanup.
         self.assertNotIn('usr/lib/libseat.so.1', paths)
         self.assertNotIn('usr/lib/libseat.so', paths)
         self.assertFalse(any(p.startswith('usr/lib/libSDL2') for p in paths))

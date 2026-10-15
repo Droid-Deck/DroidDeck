@@ -7,6 +7,7 @@ import android.util.Base64
 import androidx.compose.ui.semantics.SemanticsConfiguration
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.text.AnnotatedString
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import org.json.JSONObject
 import org.junit.Assert.*
@@ -66,6 +67,13 @@ class AgentSecurityTest {
         AgentAccess.requireCommands(context)
         AgentAccess.setCommandsEnabled(context, false)
         assertFalse(AgentAccess.commandsAllowed(context))
+    }
+
+    @Test fun theRefusalNamesTheSetupTabThatHoldsTheToggle() {
+        val refusal = refused("AGENT_COMMANDS_DISABLED") { AgentAccess.requireCommands(context) }
+        val tab = context.getString(R.string.setup_tab_diagnostics)
+        val toggle = context.getString(R.string.setup_agent_commands)
+        assertTrue(refusal.message, refusal.message!!.contains("Setup > $tab > $toggle"))
     }
 
     @Test fun runCannotBypassTheToggle() {

@@ -79,13 +79,11 @@ class SteamDownloadMonitorTest {
             var now = 1_000L
 
             assertTrue(monitor.poll(root, now, received))
-            // Five minutes of a download Steam no longer logs, at 4 MB/s.
             while (now < 300_000L) {
                 now += 2_000L
                 received += 8_000_000L
                 assertTrue(monitor.poll(root, now, received))
             }
-            // Traffic stops: the session may suspend once the grace runs out.
             assertTrue(monitor.poll(root, now + 90_000L, received))
             assertFalse(monitor.poll(root, now + 92_001L, received))
 

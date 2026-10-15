@@ -17,10 +17,14 @@ class GameStorageTest {
     private val app get() = RuntimeEnvironment.getApplication()
     @get:Rule val tmp = TemporaryFolder()
 
-    @Test fun gamesFoldersBecomeLibrariesOnAutomatic() {
+    @Test fun onlyAGamesFolderSteamInstalledIntoStaysALibrary() {
         val pc = tmp.newFolder("PC")
+        File(pc, "steamapps").mkdirs()
+        File(pc, "steamapps/appmanifest_220.acf").writeText("\"AppState\" { \"appid\" \"220\" }")
+        val plain = tmp.newFolder("Games")
+        File(plain, "steamapps/common").mkdirs()
         val missing = File(tmp.root, "Unplugged")
-        SessionPrefs.setAddedGamesDirs(app, listOf(pc.path, missing.path))
+        SessionPrefs.setAddedGamesDirs(app, listOf(pc.path, plain.path, missing.path))
         val libraries = GameStorage.gamesFolderLibraries(app)
         assertEquals(listOf(pc), libraries.map { it.host })
         assertEquals(listOf(AddedGames.GUEST_DIR + "/PC"), libraries.map { it.guest })
@@ -28,7 +32,10 @@ class GameStorageTest {
     }
 
     @Test fun aChosenLibraryOrInternalKeepsGamesFoldersPlain() {
-        SessionPrefs.setAddedGamesDirs(app, listOf(tmp.newFolder("PC").path))
+        val pc = tmp.newFolder("PC")
+        File(pc, "steamapps").mkdirs()
+        File(pc, "steamapps/appmanifest_220.acf").writeText("x")
+        SessionPrefs.setAddedGamesDirs(app, listOf(pc.path))
         SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
         assertTrue(GameStorage.gamesFolderLibraries(app).isEmpty())
         SessionPrefs.setGameStorage(app, tmp.newFolder("chosen").path, "Chosen")
@@ -36,7 +43,9 @@ class GameStorageTest {
     }
 
     @Test fun namesTheClientCannotStoreAreLeftOut() {
-        SessionPrefs.setAddedGamesDirs(app, listOf(tmp.newFolder("Quote\"d").path, tmp.newFolder("Back\\slash").path))
+        val odd = listOf(tmp.newFolder("Quote\"d"), tmp.newFolder("Back\\slash"))
+        odd.forEach { File(it, "steamapps").mkdirs(); File(it, "steamapps/appmanifest_220.acf").writeText("x") }
+        SessionPrefs.setAddedGamesDirs(app, odd.map { it.path })
         assertTrue(GameStorage.gamesFolderLibraries(app).isEmpty())
     }
 }

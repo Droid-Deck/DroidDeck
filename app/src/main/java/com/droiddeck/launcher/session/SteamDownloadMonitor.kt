@@ -17,11 +17,6 @@ internal class SteamDownloadMonitor {
     private var lastReceivedBytes = -1L
     private var lastReceivedAt = 0L
 
-    /**
-     * [receivedBytes] is the app uid's received-byte counter (the guest runs as that uid), or a
-     * negative value when Android does not report one. Steam writes its rate line about once a
-     * minute and flushes manifest counters even less often, so live traffic is what bridges them.
-     */
     fun poll(runtimeRoot: File, now: Long = System.currentTimeMillis(), receivedBytes: Long = -1L): Boolean {
         val current = manifests(runtimeRoot).associate { it.path to read(it) }
         val progressed = current.any { (path, state) ->
@@ -128,7 +123,6 @@ internal class SteamDownloadMonitor {
 
     private companion object {
         const val MANIFEST_PROGRESS_GRACE_MS = 8_000L
-        // Longer than Steam's ~60 s between rate lines, for when no traffic counter is available.
         const val CONTENT_ACTIVITY_GRACE_MS = 90_000L
         const val MIN_RECEIVE_BYTES_PER_SEC = 64L * 1024L
         val PATH = Regex("\"path\"\\s+\"([^\"]+)\"")

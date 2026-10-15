@@ -25,8 +25,6 @@ def game_id(env):
     return str(number % 2**32)
 
 
-# A .NET (CoreCLR) runtime under FEX crashes in the runtime itself unless memory ordering is fully
-# emulated and multiblock is off: the Stability preset.
 DOTNET_FEX = {
     "FEX_TSOENABLED": "1",
     "FEX_VECTORTSOENABLED": "1",
@@ -69,8 +67,6 @@ class Game:
         return any(a == name or a.startswith(name + "=") for a in self.args)
 
 
-# Each fix looks at a Game and returns (environment, extra arguments, note) for the games it
-# applies to, or None. Adding one is writing a function and decorating it.
 FIXES = []
 
 
@@ -91,19 +87,36 @@ def dotnet_memory_ordering(game):
 
 @fix
 def godot_vulkan(game):
-    # Godot 4 on Direct3D 12 through VKD3D-Proton fails to create its swap chain and runs behind a
-    # black window; its own Vulkan renderer draws.
     if is_godot(game) and not game.has_arg("--rendering-driver"):
         return {}, ["--rendering-driver", "vulkan"], "Godot: Vulkan renderer"
 
 
 @fix
 def godot_sentry(game):
-    # The Sentry GDExtension's native crash handler takes the .NET runtime down under FEX. Godot
-    # loads it on demand and carries on without it.
     sentry = sorted(n[:-4] for n in game.files if n.startswith("libsentry.windows.") and n.endswith(".dll"))
     if is_godot(game) and sentry:
         return {"WINEDLLOVERRIDES": ";".join(n + "=d" for n in sentry)}, [], "Godot: Sentry crash handler off"
+
+
+@fix
+def arkham_city_x87(game):
+    """Batman: Arkham City (BatmanAC.exe, also started through BmLauncher.exe beside it) leans on x87
+    and stops with Unreal's "Fatal error!" right after start when FEX reduces its precision."""
+    if "batmanac.exe" in game.files:
+        return {"FEX_X87REDUCEDPRECISION": "0"}, [], "Batman: Arkham City: FEX with full x87 precision"
+
+
+def skip_red_launcher(command):
+    """Cyberpunk 2077's prelauncher opens REDlauncher, a Qt WebEngine window that hands over to the
+    game half a minute later and then stays up beside it, well over a core busy for as long as the
+    game runs. The game is started itself instead; the prelauncher's own --launcher-skip started it
+    twice."""
+    if len(command) > 2 and os.path.basename(command[2]).lower() == "redprelauncher.exe":
+        game = os.path.join(os.path.dirname(command[2]), "bin", "x64", "Cyberpunk2077.exe")
+        if os.path.isfile(game):
+            print("droiddeck-game-env: REDlauncher skipped", file=sys.stderr)
+            return command[:2] + [game] + command[3:]
+    return command
 
 
 def engine_fixes(exe, args):
@@ -153,9 +166,10 @@ def apply_config(env, config, app_id, fixes=None):
             result[name] = value
         else:
             raise ValueError("invalid environment value")
-    # The app's texture filtering (Display page), as DXVK options appended after the profiles so
-    # a DXVK_CONFIG entry of the user's keeps its own.
-    dxvk = config.get("dxvkConfig")
+    game_dxvk = config.get("dxvkConfigGames", {})
+    if not isinstance(game_dxvk, dict):
+        raise ValueError("invalid game dxvk configuration")
+    dxvk = game_dxvk.get(app_id, config.get("dxvkConfig"))
     if dxvk is not None:
         if not isinstance(dxvk, str) or "\0" in dxvk or len(dxvk) > 8192:
             raise ValueError("invalid dxvk configuration")
@@ -237,13 +251,44 @@ def force_ssbs(command, env):
     return env
 
 
+def umu_capable(proton):
+    """Whether this Proton's script has umu's launch without Steam: GE-Proton, Proton-CachyOS and
+    DroidDeck-Proton run umu.exe in place of steam.exe when UMU_ID is set; Valve's Proton does not."""
+    try:
+        with open(proton, encoding="utf-8", errors="replace") as source:
+            text = source.read()
+    except OSError:
+        return False
+    return "UMU_ID" in text and "umu.exe" in text
+
+
+def start_without_steam(command, env, app_id):
+    """DROIDDECK_NO_STEAM=1 (a game's Start without Steam): launch the game without Proton's
+    steam.exe, for games that close right away because of what it sets up. A Proton with umu's
+    launch gets UMU_ID - Proton still sets up the prefix, and a Steam game keeps its protonfixes
+    under its own id; any other Proton runs the game straight in the prefix (runinprefix)."""
+    if env.get("DROIDDECK_NO_STEAM", "").lower() not in ("1", "on", "true", "yes"):
+        return command, env
+    if len(command) < 3 or command[1] != "waitforexitandrun":
+        return command, env
+    if umu_capable(command[0]):
+        if not env.get("UMU_ID"):
+            steam_game = app_id is not None and int(app_id) < 2**31
+            env = dict(env, UMU_ID=app_id if steam_game else "0")
+        print("droiddeck-game-env: starting without Steam (umu.exe in place of steam.exe, UMU_ID=%s)" % env["UMU_ID"], file=sys.stderr)
+        return command, env
+    print("droiddeck-game-env: starting without Steam (this Proton has no umu launch: runinprefix)", file=sys.stderr)
+    return [command[0], "runinprefix"] + command[2:], env
+
+
 EVALUATOR_SCRIPT = re.compile(r"(?:^|[\\/])evaluatorscript_[0-9]+\.vdf$", re.IGNORECASE)
 
 
 def mark_install_scripts(command, env):
     """The client is about to run a game's install scripts (iscriptevaluator.exe): mark every process
-    in them as already run first, so no redistributable installer starts - on first launch the
-    shared ones may still be downloading, and on ARM64 Proton the VC++ ones stop with an error."""
+    in them but a Vulkan runtime installer as already run first, so no redistributable installer
+    starts - on first launch the shared ones may still be downloading, and on ARM64 Proton the VC++
+    ones stop with an error."""
     if not any(arg.lower().replace("\\", "/").endswith("iscriptevaluator.exe") for arg in command):
         return
     root = env.get("STEAM_COMPAT_CLIENT_INSTALL_PATH") or str(Path.home() / ".local/share/Steam")
@@ -263,12 +308,14 @@ def main():
     if not command:
         return 2
     env = os.environ.copy()
+    mic_enabled = env.get("BL_MIC_ENABLED")
     mark_install_scripts(command, env)
     app_id = game_id(env)
     if app_id:
         waiting = len(command) > 1 and command[1] == "waitforexitandrun"
         fixes = {}
         if waiting:
+            command = skip_red_launcher(command)
             fixes, extra, notes = engine_fixes(command[2], command[3:]) if len(command) > 2 else ({}, [], [])
             for note in notes:
                 print("droiddeck-game-env: " + note, file=sys.stderr)
@@ -290,7 +337,10 @@ def main():
                 env = apply_config(env, {"version": 1}, app_id, fixes)
         except (OSError, ValueError, TypeError, AttributeError):
             print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
+    if mic_enabled == "0":
+        env["BANNER_AUDIO_DIRECT_MIC"] = "0"
     env = force_ssbs(command, env)
+    command, env = start_without_steam(command, env, app_id)
     sync = load_sync()
     launch, launch_env = select_sync(command, env, sync)
     if launch[0] != command[0]:

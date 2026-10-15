@@ -68,7 +68,6 @@ def main():
     cache, out, legacy_cache = map(pathlib.Path, sys.argv[5:8])
     here = pathlib.Path(__file__).resolve().parent
     seeds = {line.strip() for line in (here / 'seeds.txt').read_text().splitlines() if line.strip() and not line.startswith('#')} - SHARED_SEEDS
-    # Published source package hashes; the caller places this beside the verified cache.
     packages = dict(line.split() for line in (cache / 'desktop-kde.packages.txt').read_text().splitlines())
     selected = set()
     found = set()
@@ -86,8 +85,6 @@ def main():
     selected.update(str(p.relative_to(here / 'overlay')) for p in (here / 'overlay').rglob('*') if p.is_file())
     inventories = [inventory(p, pin[1]) for p, pin in zip(archives, PINS)]
     out.mkdir(parents=True, exist_ok=True)
-    # The old runtime's pacman database omits some gamescope dependencies (e.g. libseat).
-    # Own only the LXQt application packages, never their dependency closure.
     legacy_seeds = {line.strip() for line in (here / 'lxqt-applications.txt').read_text().splitlines()
                     if line.strip() and not line.startswith('#')}
     legacy_selected = set()

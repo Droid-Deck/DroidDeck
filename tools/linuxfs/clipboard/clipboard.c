@@ -1,7 +1,3 @@
-/* Android text -> Gamescope's Xwayland selection. Gamescope's Wayland backend does not
- * relay the outer compositor's clipboard. libX11 is loaded from the guest at runtime;
- * the small stable Xlib ABI below keeps this helper independent of cross X11 headers.
- * The private host file is atomically replaced, never put in session logs. */
 #define _GNU_SOURCE
 #include <sys/inotify.h>
 #include <sys/stat.h>
@@ -45,12 +41,9 @@ API(int, XConnectionNumber, (Display *));
 API(int, XCloseDisplay, (Display *));
 API(void *, XSetErrorHandler, (int (*)(Display *, void *)));
 
-/* Stay below X11's normal maximum property request. Never paste a truncated command. */
 #define MAX_TEXT (64 * 1024)
 static int ignore_x_error(Display *d, void *event) { (void)d; (void)event; return 0; }
 
-/* The host renames complete files into place. The inode distinguishes copying the same
- * text again after a guest program has taken ownership of the clipboard. */
 static int refresh(Display *d, Window w, Atom clipboard, const char *path,
                    char **text, size_t *len, ino_t *inode) {
     int fd = open(path, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
@@ -98,7 +91,7 @@ int main(int argc, char **argv) {
     LOAD(XSetErrorHandler);
     Display *d = XOpenDisplay(NULL);
     if (!d) { fprintf(stderr, "== clipboard: cannot open Xwayland\n"); return 1; }
-    XSetErrorHandler(ignore_x_error); /* A paste requester can close its window at any time. */
+    XSetErrorHandler(ignore_x_error);
     Window w = XCreateSimpleWindow(d, XDefaultRootWindow(d), 0, 0, 1, 1, 0, 0, 0);
     Atom clipboard = XInternAtom(d, "CLIPBOARD", 0);
     Atom targets = XInternAtom(d, "TARGETS", 0), utf8 = XInternAtom(d, "UTF8_STRING", 0);
@@ -117,7 +110,7 @@ int main(int argc, char **argv) {
     for (;;) {
         while (XPending(d)) {
             Event e; XNextEvent(d, &e);
-            if (e.type != 30) continue; /* SelectionRequest */
+            if (e.type != 30) continue;
             SelectionRequest *r = &e.request;
             Atom property = r->property ? r->property : r->target;
             Event reply = {0};
@@ -126,14 +119,13 @@ int main(int argc, char **argv) {
                 size_t ascii; for (ascii = 0; ascii < len && (unsigned char)text[ascii] < 128; ascii++) {}
                 if (r->target == targets) {
                     Atom supported[] = {targets, utf8, plain, text_atom, string};
-                    XChangeProperty(d, r->requestor, property, 4 /* XA_ATOM */, 32, 0,
+                    XChangeProperty(d, r->requestor, property, 4  , 32, 0,
                                     (const unsigned char *)supported, ascii == len ? 5 : 4);
                     reply.selection.property = property;
                 } else if (r->target == utf8 || r->target == plain || r->target == text_atom) {
                     XChangeProperty(d, r->requestor, property, utf8, 8, 0, (const unsigned char *)text, (int)len);
                     reply.selection.property = property;
                 } else if (r->target == string) {
-                    /* STRING is Latin-1. Offer it only for ASCII rather than corrupt UTF-8. */
                     if (ascii == len) {
                         XChangeProperty(d, r->requestor, property, string, 8, 0, (const unsigned char *)text, (int)len);
                         reply.selection.property = property;

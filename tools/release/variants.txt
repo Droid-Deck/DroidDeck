@@ -1,8 +1,3 @@
-# The packages a signed build ships as. The same apk, with only the manifest's package name (and
-# the names derived from it) changed: some phones give their performance modes only to apps with
-# certain names. Each is its own app to Android - installs beside the others, with its own data.
-#
-# name      package                      file suffix
 standard    com.droiddeck.launcher       -
 pubg        com.tencent.ig               -pubg
 antutu      com.antutu.benchmark.full    -antutu

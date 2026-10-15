@@ -130,7 +130,6 @@ namespace dxvk {
       }
     }
     
-    // Commit current word
     this->putWord(word);
   }
   
@@ -138,9 +137,9 @@ namespace dxvk {
   void SpirvCodeBuffer::putHeader(uint32_t version, uint32_t boundIds) {
     this->putWord(spv::MagicNumber);
     this->putWord(version);
-    this->putWord(0); // Generator
+    this->putWord(0);
     this->putWord(boundIds);
-    this->putWord(0); // Schema
+    this->putWord(0);
   }
   
   
@@ -152,7 +151,6 @@ namespace dxvk {
 
 
   uint32_t SpirvCodeBuffer::strLen(const char* str) {
-    // Null-termination plus padding
     return (std::strlen(str) + 4) / 4;
   }
   

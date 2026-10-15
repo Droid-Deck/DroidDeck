@@ -9,20 +9,9 @@ import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.frontend.AddedGames
 import java.io.File
 
-/**
- * Where a second Steam library can live on this device.
- *
- * An SD card is offered through the app's own folder on it ({@code Android/data/<pkg>/files/steam}):
- * the one place on a card a targetSdk-28 app may write without a permission prompt, and a real
- * filesystem path the session can bind. Any other folder comes from the File Manager's pick mode
- * and is checked for writing before it is accepted. Both are FUSE-backed on Android and stream
- * slowly (intro movies, big asset loads); internal stays the default and the dialog says so.
- */
 object GameStorage {
-    /** A library root: [label] as the menu lists it (a volume with its free space), [name] alone. */
     class Option(val label: String, val path: String, val name: String = label)
 
-    /** Every removable volume, as its app folder, with the free space it has. */
     fun options(context: Context): List<Option> {
         val sm = context.getSystemService(StorageManager::class.java)
         return context.getExternalFilesDirs(null).orEmpty().filterNotNull().mapNotNull { dir ->
@@ -40,10 +29,6 @@ object GameStorage {
         "?"
     }
 
-    /**
-     * Makes [path] a library root the session can bind - the folder and its steamapps/ - and proves
-     * it writable. Returns why it cannot be used, or null when it can.
-     */
     fun prepare(context: Context, path: String): String? {
         val root = File(path)
         val steamapps = File(root, "steamapps")
@@ -56,7 +41,6 @@ object GameStorage {
         }
     }
 
-    /** The root the session binds, from the setting: automatic = the first card in the phone. */
     fun effective(context: Context): Option? {
         val pref = SessionPrefs.gameStorage(context)
         return when {
@@ -74,6 +58,7 @@ object GameStorage {
         val sm = context.getSystemService(StorageManager::class.java)
         return AddedGames.roots(context).mapNotNull { root ->
             val host = canonical(root.host)
+            if (!hasInstalledGames(root.host)) return@mapNotNull null
             if ('"' in root.guest || '\\' in root.guest || !root.host.isDirectory || !root.host.canWrite()) return@mapNotNull null
             if (card != null && (host == card || host.startsWith("$card/") || card.startsWith("$host/"))) return@mapNotNull null
             val volume = try { sm?.getStorageVolume(root.host)?.getDescription(context) } catch (e: Exception) { null }
@@ -83,9 +68,11 @@ object GameStorage {
         }
     }
 
+    internal fun hasInstalledGames(root: File): Boolean =
+        File(root, "steamapps").listFiles { f -> f.isFile && f.name.startsWith("appmanifest_") && f.name.endsWith(".acf") }?.isNotEmpty() == true
+
     private fun canonical(file: File): String = runCatching { file.canonicalPath }.getOrDefault(file.absolutePath)
 
-    /** The label the client shows for a chosen folder: its last name, or the volume's. */
     fun labelFor(context: Context, path: String): String =
         options(context).firstOrNull { it.path == path }?.name
             ?: File(path).name.ifEmpty { context.getString(R.string.gstore_folder) }

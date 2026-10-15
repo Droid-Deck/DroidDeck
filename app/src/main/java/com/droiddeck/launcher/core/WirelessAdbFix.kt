@@ -16,7 +16,6 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.ArrayDeque
 
-/** A narrowly scoped Wireless debugging client for the child-process setting repair. */
 object WirelessAdbFix {
     private const val CERT_FILE = "wireless-adb-cert.pem"
     private const val KEY_FILE = "wireless-adb-key.pem"
@@ -66,7 +65,6 @@ object WirelessAdbFix {
         return SavedConnection(host, port)
     }
 
-    /** A saved pairing skips the PIN; an unknown connection port can be filled in from Settings. */
     fun savedConnectionAddress(context: Context): String? = savedConnection(context)?.let { saved ->
         val host = if (':' in saved.host) "[${saved.host}]" else saved.host
         "$host:${saved.port ?: ""}"
@@ -80,7 +78,6 @@ object WirelessAdbFix {
         )
     }
 
-    /** Finds this paired device's separate TLS connection port from Android's ADB mDNS record. */
     fun isLocalAddress(address: InetAddress): Boolean = runCatching {
         if (address.isLoopbackAddress) return true
         NetworkInterface.getNetworkInterfaces()?.toList().orEmpty().any { network ->
@@ -184,7 +181,6 @@ object WirelessAdbFix {
         saveConnection(context, host, port)
     }
 
-    /** Tries the app's saved pairing without asking for a new pairing code. */
     fun setUsingSavedPairing(context: Context, enabled: Boolean) {
         val appContext = context.applicationContext
         val saved = savedConnection(appContext)

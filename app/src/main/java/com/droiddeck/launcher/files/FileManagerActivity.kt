@@ -13,7 +13,6 @@ import androidx.compose.ui.Modifier
 import com.droiddeck.launcher.ui.DroidDeckTheme
 import java.io.File
 
-/** The File Manager as a screen of its own, from the Files tile on the main screen. */
 class FileManagerActivity : ComponentActivity() {
     override fun attachBaseContext(newBase: android.content.Context) {
         super.attachBaseContext(newBase)
@@ -22,6 +21,7 @@ class FileManagerActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        requestedOrientation = com.droiddeck.launcher.session.SessionPrefs.orientation(this)
         if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE), 1)
         }

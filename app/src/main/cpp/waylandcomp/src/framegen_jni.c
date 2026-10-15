@@ -1,8 +1,3 @@
-/* JNI for frame generation on the Wayland backend (WaylandCompositor.nativeFrameGen* /
- * nativeSet*FrameGen* / nativeSetLsfgCachePath / nativeSetWinFgTuning). Every call only stores
- * a value in framegen_bridge.c; the compositor thread picks it up on its next frame, so these
- * are safe from any thread and before the compositor is up (the app arms the engine from its
- * launch code while the SurfaceView is still coming). */
 #include <jni.h>
 #include "framegen_bridge.h"
 

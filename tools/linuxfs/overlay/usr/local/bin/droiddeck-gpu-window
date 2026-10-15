@@ -8,8 +8,6 @@ import sys
 
 
 def advertise_compositing():
-    # This is gamescope's private X server: it composites alpha buffers already, but GTK also
-    # requires the compositing-manager selection and frame-extents hint before enabling CSD.
     x = c.CDLL('libX11.so.6')
     display_type, window_type = c.c_void_p, c.c_ulong
     x.XOpenDisplay.argtypes = [c.c_char_p]
@@ -41,7 +39,6 @@ def advertise_compositing():
     x.XChangeProperty(display, root, atom('_NET_SUPPORTED'), atom('ATOM'), 32, 2, c.byref(extents), 1)
     x.XSync.argtypes = [display_type, c.c_int]
     x.XSync(display, False)
-    # Keep the selection's connection alive until the program exits.
     return x, display
 
 

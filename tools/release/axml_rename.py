@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# axml_rename.py in.apk out.apk old=new ... : rewrite whole strings in AndroidManifest.xml's string
-# pool (binary XML), leaving every other entry of the apk byte-identical. Unsigned output.
 import struct, sys, zipfile
 
 def dec_len8(b, o):

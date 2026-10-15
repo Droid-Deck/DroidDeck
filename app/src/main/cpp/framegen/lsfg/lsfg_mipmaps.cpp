@@ -3,10 +3,6 @@
 
 // SPDX-FileCopyrightText: Copyright 2025 lsfg-vk
 // SPDX-License-Identifier: GPL-3.0-or-later
-//
-// LSFG from the work of Camille LaVey / the Eden Emulator Project, following
-// upstream lsfg-vk. Ported to WinNative and DroidDeck by @maxjivi05; only the
-// Vulkan dispatch differs here (see lsfg_vkd.h).
 
 #include "lsfg_mipmaps.hpp"
 #include "lsfg_dll.h"
