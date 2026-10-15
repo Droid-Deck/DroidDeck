@@ -1,24 +1,4 @@
 #!/usr/bin/python3
-# Installs a third-party Proton build into the client's compatibilitytools.d, so it appears in the
-# Compatibility dropdown beside our own Proton ARM64 and can be picked per game.
-#
-#   droiddeck-proton-extra <steam root> ge [--tag GE-Proton11-7]
-#   droiddeck-proton-extra <steam root> cachyos [--tag cachyos-11.0-20260703-slr]
-#   droiddeck-proton-extra <steam root> droiddeck [--tag DroidDeck-Proton-11-7.5]
-#   droiddeck-proton-extra <steam root> <url of an aarch64 tarball>
-#   droiddeck-proton-extra <steam root> /path/to/an/aarch64/tarball
-#   droiddeck-proton-extra <steam root> --list          what is installed now
-#
-# All three projects publish native ARM64 builds - GloriousEggroll and DroidDeck-Proton as
-# "*-aarch64.tar.gz", CachyOS as "*-arm64.tar.xz" - and all are ordinary Proton trees: a python
-# entry point beside a files/ directory holding Wine, DXVK and VKD3D. That is the same shape as the
-# depot the Steam client downloads, so the runtime can run them the same way.
-#
-# What it cannot use is their toolmanifest. Like Valve's ARM64 depot they declare
-# require_tool_appid, which makes Steam stack pressure-vessel underneath - and pressure-vessel
-# needs unprivileged user namespaces, which an Android app does not get. Patching that out is
-# steam-compatibility's job (adopt_extras); this script only puts the tree in place and then
-# calls it, so an install is usable without restarting the client.
 import hashlib
 import json
 import os
@@ -30,17 +10,12 @@ import urllib.error
 import urllib.request
 
 RELEASES = "https://api.github.com/repos/%s/releases"
-# Each source: the GitHub repo, and how its ARM64 asset is named. Ordered newest-release-first by
-# the API, so "latest usable" is the first full release that actually carries an ARM64 asset - the
-# projects do not build one for every tag.
 SOURCES = {
     "ge": ("GloriousEggroll/proton-ge-custom", re.compile(r"aarch64\.tar\.(gz|xz)$")),
     "cachyos": ("CachyOS/proton-cachyos", re.compile(r"arm64\.tar\.(gz|xz)$")),
-    "droiddeck": ("The412Banner/DroidDeck-Proton", re.compile(r"aarch64\.tar\.(gz|xz)$")),
+    "droiddeck": ("Droid-Deck/DroidDeck-Proton", re.compile(r"aarch64\.tar\.(gz|xz)$")),
 }
 USER_AGENT = "droiddeck-proton-extra"
-# Room for the tarball and the tree it unpacks to. GE-Proton's aarch64 build is ~650 MB packed and
-# unpacks to about three times that; refusing early beats a half-written tool directory.
 NEED_BYTES = 4 * 1024 * 1024 * 1024
 
 
@@ -121,8 +96,6 @@ def extract(tarball, into):
     rc = subprocess.call(["tar", "-xf", tarball, "-C", into])
     if rc != 0:
         raise SystemExit("droiddeck-proton-extra: tar failed (%d)" % rc)
-    # A Proton tarball holds one top-level directory. Take whichever entry has the entry point so a
-    # stray ._ file or a nested layout does not decide it.
     entries = [e for e in sorted(os.listdir(into)) if not e.startswith(".")]
     for entry in entries:
         path = os.path.join(into, entry)
@@ -162,9 +135,6 @@ def main():
         argv.pop(0)
         tag = argv.pop(0) if argv else None
 
-    # A tarball already on the device is used as it is: a session that has to pull 650 MB down
-    # first shows nothing on screen for ten minutes, so the download can be done ahead of time and
-    # handed over by path.
     local = None
     if what in SOURCES:
         tag, url, sums = release_asset(what, tag) if tag else pick_asset(what)
@@ -200,8 +170,6 @@ def main():
     tree = extract(tarball, unpacked)
     name = os.path.basename(tree)
     final = os.path.join(tools, name)
-    # Replaced rather than merged: a half-written tree from an interrupted run would otherwise
-    # leave stale files behind that Proton would load.
     if os.path.exists(final):
         shutil.rmtree(final, ignore_errors=True)
     os.rename(tree, final)
@@ -211,8 +179,6 @@ def main():
         shutil.rmtree(staging, ignore_errors=True)
     log("installed %s" % name)
 
-    # Patches out require_tool_appid and wraps the entry point, which is what makes it launchable
-    # here. Doing it now means the client picks the tool up on its next restart with no extra step.
     subprocess.call(["steam-compatibility", steam_root])
 
 

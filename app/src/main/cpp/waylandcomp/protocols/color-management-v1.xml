@@ -1481,7 +1481,6 @@
 
       <arg name="icc" type="fd" summary="ICC profile file descriptor"/>
       <arg name="icc_size" type="uint" summary="ICC profile size, in bytes"/>
-      <!-- Offset always 0, compositor must not expose unnecessary data. -->
     </event>
 
     <event name="primaries">

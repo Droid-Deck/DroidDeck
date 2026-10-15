@@ -1,8 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Quest experimental build, 2026-10-11.
- * Horizon permits GPUOBJ allocation, but rejects the legacy GPUMEM alloc/free calls.
- * Retry only those two calls after EACCES/EPERM. No change to device permissions.
- */
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "kgsl_compat.h"
 #include <errno.h>
 #include <limits.h>
@@ -22,7 +18,6 @@ _Static_assert(sizeof(struct kgsl_gpuobj_info) == 48, "GPUOBJ info ABI");
 static void report(const char *operation, int error) {
     static unsigned successes, failures;
     unsigned *counter = error ? &failures : &successes;
-    /* Log the first success and at most eight failures per process. */
     if (__atomic_fetch_add(counter, 1, __ATOMIC_RELAXED) >= (error ? 8u : 1u)) return;
     int saved = errno;
 #ifdef __ANDROID__
@@ -52,7 +47,6 @@ int quest_kgsl_ioctl(quest_ioctl_fn real, int fd, unsigned long request, void *a
             error = EOVERFLOW;
         }
         if (rc != 0) {
-            /* The caller never receives this allocation, so clean it up on an INFO failure. */
             struct kgsl_gpuobj_free release = {.id = alloc.id};
             if (real(fd, IOCTL_KGSL_GPUOBJ_FREE, &release) != 0)
                 report("cleanup failed", errno);

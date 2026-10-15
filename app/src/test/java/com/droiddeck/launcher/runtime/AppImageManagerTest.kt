@@ -16,7 +16,6 @@ class AppImageManagerTest {
     @Before fun setUp() { dir = Files.createTempDirectory("appimage").toFile() }
     @After fun tearDown() { dir.deleteRecursively() }
 
-    /** An ELF header with the AppImage magic at byte 8 and [machine] at byte 18. */
     private fun image(machine: Int, type: Int = 2, magic: Boolean = true): File {
         val b = ByteArray(64)
         b[0] = 0x7f; b[1] = 'E'.code.toByte(); b[2] = 'L'.code.toByte(); b[3] = 'F'.code.toByte()

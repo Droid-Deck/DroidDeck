@@ -7,25 +7,9 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.RandomAccessFile
 
-/**
- * Steam's touch configs, read and written where Steam keeps them.
- *
- * A touch config is a Steam Input config (`controller_mobile_touch`) like any other - bindings per
- * action set, synced to the account, shared as community configs - with one extra key,
- * `touch_layout`: where each on-screen control sits, per action set, as a hex-encoded
- * `CVirtualControllerLayouts` protobuf (steammessages_virtualcontroller.proto). Steam Link is
- * handed both by the client it streams from; here the client tells the device only the app and
- * action set it is on (SteamTouchDevice), so the config is found on disk: the file the client's
- * console log says it loaded for the touch controller, else the app's entry in
- * `configset_controller_mobile_touch.vdf`. With no layout in it, controls go where Steam Link puts
- * them by default. Saving a layout writes `touch_layout` into the app's autosave config, as the
- * client does when Steam Link saves one; Steam Cloud picks that file up like any autosave.
- * (docs/development/steam-touch-controller.md.)
- */
 object SteamTouchConfig {
     private const val TAG = "SteamTouch"
 
-    // EControllerElementType.
     const val THUMB = 0
     const val STEAM = 1
     const val JOYSTICK_LEFT = 2
@@ -43,7 +27,7 @@ object SteamTouchConfig {
     const val TRIGGER_RIGHT = 14
     const val BUMPER_LEFT = 15
     const val BUMPER_RIGHT = 16
-    const val MACRO_0 = 17 // 17..24 = macros 0-7
+    const val MACRO_0 = 17
     const val TRACKPAD_CENTER = 25
     const val TRACKPAD_LEFT = 26
     const val TRACKPAD_RIGHT = 27
@@ -53,27 +37,19 @@ object SteamTouchConfig {
     const val MAGNIFYING_GLASS = 29
     const val PASTE = 34
 
-    /** Controls a layout may place though no binding asks for them (Steam Link's tray). */
     val OPTIONAL = setOf(PASTE)
 
-    /** A control's place: centre as a fraction of the screen, and its scale. */
     data class Element(val type: Int, val visible: Boolean, val x: Float, val y: Float, val xScale: Float = 1f, val yScale: Float = 1f)
 
     data class Layout(val actionSet: Int, val elements: List<Element>, val color: FloatArray?, val version: Int?)
 
-    /** A decoded `touch_layout`; [rest] is every other top-level field, written back untouched. */
     class Layouts(val layouts: List<Layout>, val rest: ByteArray) {
         fun forActionSet(id: Int): Layout? = layouts.firstOrNull { it.actionSet == id }
 
-        /** The per-game options Steam Link keeps beside the layouts (CVirtualControllerLayouts
-         *  fields 2-4): input mode, mouse mode, trackpad sensitivity. */
         val options: Options get() = Options.decode(rest)
     }
 
-    /** EInputMode: 1 mouse, 2 controller, 3 both. EMouseMode: 2 absolute cursor (direct touch),
-     *  3 touch, 4 relative (trackpad); 0 = not set. */
     data class Options(val inputMode: Int = INPUT_CONTROLLER, val mouseMode: Int = 0, val trackpadSensitivity: Float = 1f) {
-        /** [rest] with these options in place of its own fields 2-4, the rest kept as it was. */
         fun encodeInto(rest: ByteArray): ByteArray {
             val out = ByteArrayOutputStream()
             val p = Proto(rest)
@@ -116,7 +92,6 @@ object SteamTouchConfig {
     const val MOUSE_TOUCH = 3
     const val MOUSE_RELATIVE = 4
 
-    /** The config's action sets in preset order: id as the device is told (preset id + 1) and title. */
     fun actionSets(config: Config): List<Pair<Int, String>> {
         val mappings = config.mappings ?: return listOf(1 to "Default")
         val titles = mappings.child("actions")?.entries?.mapNotNull { (key, v) ->
@@ -130,40 +105,30 @@ object SteamTouchConfig {
         return sets.ifEmpty { listOf(1 to "Default") }
     }
 
-    /** A config as the overlay needs it. */
     class Config(
         val file: File?,
         val text: String?,
         val layouts: Layouts?,
-        /** Bound controls per preset (action set id - 1). */
         val available: Map<Int, Set<Int>>,
-        /** The parsed config, for its bindings (SteamTouchBindings). */
         val mappings: KeyValues.Node? = null,
     ) {
-        /** The config's own title, as Steam Link's tray shows it ("Default", "Gamepad"…). */
         val title: String? get() = mappings?.string("title")?.let { t ->
             if (t.startsWith("#")) mappings.child("localization")?.child("english")?.string("title") ?: "Default" else t
         }
 
-        /** The controls to show for [actionSet] (as the device is told it) and [layers]. */
         fun availableFor(actionSet: Int, layers: List<Int>): Set<Int> {
             val base = available[presetOf(actionSet)] ?: available.values.firstOrNull() ?: DEFAULT_SET
             return layers.fold(base) { set, layer -> set + (available[presetOf(layer)] ?: emptySet()) } + ALWAYS
         }
     }
 
-    /** Big Picture's own config uses Steam's basic UI bindings: the default set. */
     private val DEFAULT_SET = setOf(DPAD, A, B, X, Y, SELECT, START)
     private val ALWAYS = setOf(STEAM, THUMB, KEYBOARD)
 
-    /** The layout entry for the action set the device was told about (the client counts from 1,
-     *  0 for an app with none). */
     fun layoutIdOf(actionSet: Int) = if (actionSet <= 0) 1 else actionSet
     private fun presetOf(actionSet: Int) = layoutIdOf(actionSet) - 1
 
-    // ---- Where Steam keeps them ----
 
-    /** A game's name from its app manifest, when it is installed. */
     fun gameName(context: Context, appId: Int): String? = try {
         val kv = KeyValues.parse(File(steamRoot(context), "steamapps/appmanifest_$appId.acf").readText())
         (kv.child("AppState") ?: kv).string("name")
@@ -181,7 +146,6 @@ object SteamTouchConfig {
             ?.maxByOrNull { it.lastModified() }?.let { File(it, "config") }
     }
 
-    /** The signed-in account (loginusers.vdf's MostRecent) as a 32-bit account id. */
     private fun accountId(context: Context): Long? = try {
         val users = KeyValues.parse(File(steamRoot(context), "config/loginusers.vdf").readText())
         val node = users.child("users")
@@ -192,12 +156,10 @@ object SteamTouchConfig {
         null
     }
 
-    /** The config the client has for app [appId] on the touch controller. Blocking: reads files. */
     fun load(context: Context, appId: Int): Config {
         val dir = configDir(context)
-        // The app's own saved config is what the client loads when there is one (its configset
-        // entry); otherwise what it logged loading - a template, an official or a workshop config.
-        val file = dir?.let { autosaveConfig(it, appId) }
+        val file = dir?.let { deviceConfig(context, it, appId) }
+            ?: dir?.let { autosaveConfig(it, appId) }
             ?: loggedConfig(context, appId)?.takeIf { isTouchConfig(it) }
             ?: dir?.let { configsetConfig(context, it, appId) }
         if (file == null) {
@@ -220,9 +182,6 @@ object SteamTouchConfig {
     private fun isTouchConfig(file: File) = file.isFile &&
         file.bufferedReader().use { r -> generateSequence { r.readLine() }.take(40).any { it.contains("controller_mobile_touch") } }
 
-    /** From the client's console log: the last config it loaded for [appId] on the touch controller
-     *  (`Loaded Config for ... App ID <n>, Controller <i>: <path>`, where controller i reported
-     *  type 43). Guest paths come back as the app's own. */
     private fun loggedConfig(context: Context, appId: Int): File? = try {
         val log = File(steamRoot(context), "logs/console_log.txt")
         val tail = RandomAccessFile(log, "r").use { raf ->
@@ -249,12 +208,16 @@ object SteamTouchConfig {
         null
     }
 
-    /** The app's entry in configset_controller_mobile_touch.vdf. */
-    private fun configsetConfig(context: Context, dir: File, appId: Int): File? = try {
-        val set = KeyValues.parse(File(dir, CONFIGSET).readText()).child("controller_config")?.child(appId.toString())
+    private fun configsetConfig(context: Context, dir: File, appId: Int): File? = entryConfig(context, dir, CONFIGSET, appId)
+
+    private fun deviceConfig(context: Context, dir: File, appId: Int): File? = entryConfig(context, dir, DEVICE_CONFIGSET, appId)
+
+    private fun entryConfig(context: Context, dir: File, configset: String, appId: Int): File? = try {
+        val set = KeyValues.parse(File(dir, configset).readText()).child("controller_config")?.child(appId.toString())
         when {
             set == null -> null
             set.string("autosave") == "1" -> File(dir, "$appId/controller_mobile_touch.vdf")
+            set.string("workshop") != null -> workshopConfig(context, set.string("workshop")!!)
             set.string("template") != null -> File(steamRoot(context), "controller_base/templates/" + set.string("template"))
             else -> null
         }?.takeIf { it.isFile }
@@ -262,11 +225,18 @@ object SteamTouchConfig {
         null
     }
 
+    internal fun workshopConfig(context: Context, id: String): File? {
+        if (!id.all(Char::isDigit)) return null
+        return File(steamRoot(context), "steamapps/workshop/content/$CONFIGS_APP/$id").listFiles()
+            ?.filter { it.isFile && (it.name.endsWith(".vdf") || it.name.endsWith(".bin")) }
+            ?.maxByOrNull { it.lastModified() }
+    }
+
     private const val CONFIGSET = "configset_controller_mobile_touch.vdf"
+    private const val DEVICE_CONFIGSET = "configset_MT-DROIDDECK0001.vdf"
+    private const val CONFIGS_APP = 241100
 
-    // ---- What a config binds ----
 
-    /** Per preset, the controls its active sources bind - what Steam Link shows (UpdateElementAvailability). */
     private fun availability(mappings: KeyValues.Node): Map<Int, Set<Int>> {
         val groups = mappings.children("group").associateBy({ it.string("id") ?: "" }) { group ->
             group.child("inputs")?.entries?.filter { (_, v) -> (v as? KeyValues.Node)?.let(::hasBinding) == true }
@@ -312,11 +282,7 @@ object SteamTouchConfig {
             (activator as? KeyValues.Node)?.child("bindings")?.entries?.any { (k, v) -> k == "binding" && (v as? String)?.isNotBlank() == true } == true
         } == true
 
-    // ---- Steam Link's defaults ----
 
-    /** Where Steam Link puts a control with no layout (CVirtualController::BInitializeDefaultElement,
-     *  on a 1280x720 screen), and the same scheme for the controls its table leaves out, made room
-     *  for when a config binds sticks. */
     fun defaultElement(type: Int, available: Set<Int>): Element? {
         val leftStick = JOYSTICK_LEFT in available
         val rightStick = JOYSTICK_RIGHT in available
@@ -352,8 +318,6 @@ object SteamTouchConfig {
         return Element(type, true, p.first, p.second)
     }
 
-    /** The controls to draw: the layout's own where it has one, Steam Link's defaults otherwise,
-     *  only those the config binds. */
     fun elementsFor(config: Config, actionSet: Int, layers: List<Int>): List<Element> {
         val available = config.availableFor(actionSet, layers)
         val layout = config.layouts?.forActionSet(layoutIdOf(actionSet))
@@ -371,14 +335,7 @@ object SteamTouchConfig {
 
     fun layoutColor(config: Config, actionSet: Int): FloatArray? = config.layouts?.forActionSet(layoutIdOf(actionSet))?.color
 
-    // ---- Saving ----
 
-    /**
-     * Saves [elements] as the layout of [actionSet] in app [appId]'s touch config: into the app's
-     * autosave config (`<appid>/controller_mobile_touch.vdf`, made from the config in use when the
-     * app has none) and selected for the app in the configset, as the client saves a layout Steam
-     * Link sends it. Returns the file written, or null.
-     */
     fun saveLayout(
         context: Context,
         appId: Int,
@@ -389,10 +346,6 @@ object SteamTouchConfig {
         bindings: Map<SteamTouchBindings.Ref, (SteamTouchBindings.Binding) -> SteamTouchBindings.Binding> = emptyMap(),
     ): File? = saveLayouts(context, appId, config, mapOf(layoutIdOf(actionSet) to elements), color?.let { c -> setOf(layoutIdOf(actionSet)).associateWith { c } } ?: emptyMap(), bindings)
 
-    /**
-     * Saves the layouts of several action sets (by layout id) at once, with their colours, any
-     * binding edits and the per-game [options], into the game's autosave touch config.
-     */
     fun saveLayouts(
         context: Context,
         appId: Int,
@@ -403,8 +356,6 @@ object SteamTouchConfig {
         options: Options? = null,
     ): File? {
         val dir = configDir(context) ?: return null
-        // Icons, labels and colours live in the binding strings (SteamTouchBindings), as the
-        // configurator writes them.
         val source = bindings.entries.fold(config.text ?: return null) { text, (ref, change) ->
             SteamTouchBindings.rewrite(text, ref, change) ?: text
         }
@@ -414,7 +365,7 @@ object SteamTouchConfig {
         val written = sets.map { (id, elements) ->
             Layout(id, elements, colors[id] ?: old?.forActionSet(id)?.color ?: floatArrayOf(1f, 1f, 1f, 0.4f), old?.forActionSet(id)?.version)
         }
-        val rest = old?.rest ?: byteArrayOf(0x10, 0x02) // input_mode = controller
+        val rest = old?.rest ?: byteArrayOf(0x10, 0x02)
         val layouts = Layouts((keep + written).sortedBy { it.actionSet }, options?.encodeInto(rest) ?: rest)
         val hex = bytesToHex(encodeLayouts(layouts))
         val line = "\t\"touch_layout\"\t\t\"$hex\""
@@ -427,11 +378,20 @@ object SteamTouchConfig {
         tmp.writeText(text)
         if (!tmp.renameTo(target)) return null
         selectAutosave(dir, appId)
+        dropDeviceEntry(dir, appId)
         Log.i(TAG, "steam touch: saved layouts ${sets.keys} for app $appId to ${target.path}")
         return target
     }
 
-    /** Points the app's configset entry at its autosave config. */
+    private fun dropDeviceEntry(dir: File, appId: Int) {
+        val file = File(dir, DEVICE_CONFIGSET)
+        if (!file.isFile) return
+        val text = file.readText()
+        val block = Regex("""\n\s*"$appId"\s*\{[^}]*\}""")
+        if (!block.containsMatchIn(text)) return
+        File(file.path + ".tmp").apply { writeText(text.replace(block, "")) }.renameTo(file)
+    }
+
     private fun selectAutosave(dir: File, appId: Int) {
         val file = File(dir, CONFIGSET)
         val text = if (file.isFile) file.readText() else "\"controller_config\"\n{\n}\n"
@@ -442,7 +402,6 @@ object SteamTouchConfig {
         File(file.path + ".tmp").apply { writeText(next) }.renameTo(file)
     }
 
-    // ---- touch_layout: CVirtualControllerLayouts ----
 
     fun decodeLayouts(bytes: ByteArray): Layouts {
         val layouts = mutableListOf<Layout>()
@@ -591,7 +550,6 @@ object SteamTouchConfig {
     fun bytesToHex(b: ByteArray) = b.joinToString("") { "%02x".format(it.toInt() and 0xff) }
 }
 
-/** Valve's KeyValues text format, as far as controller configs use it. */
 class KeyValues private constructor() {
     class Node(val entries: MutableList<Pair<String, Any>> = mutableListOf()) {
         fun child(key: String): Node? = entries.firstOrNull { it.first.equals(key, true) && it.second is Node }?.second as Node?

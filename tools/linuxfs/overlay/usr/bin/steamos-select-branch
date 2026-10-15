@@ -1,8 +1,4 @@
 #!/bin/sh
-# The SteamOS update-branch selector the client calls in Deck mode. The session forces the client
-# branch on the command line and keeps package/beta in step with it, so a selection here would
-# only start the restart loop the session script describes. List and report the stable branch;
-# accept and ignore a choice.
 case "${1:-}" in
   -l) printf 'rel\n' ;;
   -c) printf 'rel\n' ;;

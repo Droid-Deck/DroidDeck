@@ -11,31 +11,14 @@ import android.util.Log
 import android.view.Surface
 import kotlin.math.roundToInt
 
-/**
- * The handheld's own gyro and accelerometer, as the Steam Deck controller's (SteamDeckPad).
- *
- * The phone is the controller's body, so its motion sensors are the ones a Deck's would be. Android
- * reports them in the device's natural orientation; they are turned to the screen as it is shown
- * (x right, y up, z towards the player - SDL's frame for a gamepad), then to the Deck's own axes
- * and units as SDL's Deck driver undoes them (SDL_hidapi_steamdeck.c): X right, Y away from the
- * player, Z up; 1 g = 16384, 2000 °/s = 32768. The Steam client calibrates the gyro itself.
- *
- * Sensors run only while the session is on screen with the pad a Deck controller, and the client
- * wants motion (see [follow]), sampled as often as the Deck reports (4 ms); each reading goes
- * straight into the pad's ring ([FakeInputWriter.writeMotion]), where libfakeinput's 4 ms report
- * picks up the latest.
- */
 class PadMotion(private val context: Context, private val rotation: () -> Int) : SensorEventListener {
     private val sensors = context.getSystemService(SensorManager::class.java)
     private var thread: HandlerThread? = null
-    /** Readings are taken only while this is set; a callback already queued when [stop] ran drops. */
     @Volatile private var active = false
-    // Touched only on the worker thread.
     private val accel = ShortArray(3)
     private val gyro = ShortArray(3)
     private var reading = false
     private var idlePolls = 0
-    // Asking the display costs more than the rest of a reading, which arrives every 2 ms.
     private var turn = Surface.ROTATION_0
     private var turnAt = 0L
 
@@ -65,8 +48,6 @@ class PadMotion(private val context: Context, private val rotation: () -> Int) :
         val worker = thread ?: return
         thread = null
         active = false
-        // On the worker, after any poll or reading already queued there, so nothing registers again
-        // or overwrites the still controller.
         Handler(worker.looper).post {
             sensors?.unregisterListener(this)
             reading = false
@@ -76,12 +57,6 @@ class PadMotion(private val context: Context, private val rotation: () -> Int) :
         worker.quitSafely()
     }
 
-    /**
-     * Reads the sensors while the client wants motion: the Deck's IMU mode (unknown counts as
-     * wanted), or Steam's touch controls asking for gyro. A game whose layout has no gyro turns the
-     * mode off; Steam's own menus keep it on. The client also turns it off and on again for a few
-     * ms whenever it re-applies a layout, so the sensors stop only after two polls without it.
-     */
     private fun follow(handler: Handler, gyroscope: Sensor?, accelerometer: Sensor?) {
         val touch = SteamTouchDevice.current
         val wanted = FakeInputWriter.readImuMode(SLOT) != 0 ||
@@ -101,7 +76,6 @@ class PadMotion(private val context: Context, private val rotation: () -> Int) :
         }
     }
 
-    /** A still controller, not one frozen mid-turn. */
     private fun still() {
         gyro.fill(0)
         FakeInputWriter.writeMotion(SLOT, accel, gyro)
@@ -115,7 +89,6 @@ class PadMotion(private val context: Context, private val rotation: () -> Int) :
             turn = rotation()
             turnAt = event.timestamp
         }
-        // Natural orientation to the screen's: Android's display-rotation transform.
         val x: Float
         val y: Float
         when (turn) {
@@ -132,7 +105,6 @@ class PadMotion(private val context: Context, private val rotation: () -> Int) :
             Sensor.TYPE_ACCELEROMETER -> { target = accel; scale = ACCEL_COUNTS_PER_M_S2 }
             else -> return
         }
-        // Screen frame (right, up, towards the player) to the Deck's (right, away, up).
         target[0] = counts(x * scale)
         target[1] = counts(-z * scale)
         target[2] = counts(y * scale)
@@ -146,11 +118,8 @@ class PadMotion(private val context: Context, private val rotation: () -> Int) :
 
     companion object {
         private const val TAG = "PadMotion"
-        /** The pad the Deck controller is made from (PadBridge's slot). */
         private const val SLOT = 0
-        /** The Deck controller's report interval (libfakeinput: DECK_REPORT_INTERVAL_US). */
         private const val SAMPLING_US = 4000
-        /** How often [follow] checks whether the client wants motion. */
         private const val POLL_MS = 500L
         private const val ROTATION_REFRESH_NS = 250_000_000L
         private const val ACCEL_COUNTS_PER_M_S2 = 16384f / SensorManager.GRAVITY_EARTH

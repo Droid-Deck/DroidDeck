@@ -28,7 +28,6 @@ object FexPreset {
 
     fun byId(id: String): Preset = all.firstOrNull { it.id == id } ?: all[0]
 
-    /** Game-launch variables in KEY=VALUE form. */
     fun env(id: String): List<String> = byId(id).env
 
     val environmentKeys: Set<String> by lazy {

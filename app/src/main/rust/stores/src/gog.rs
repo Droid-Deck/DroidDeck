@@ -1,21 +1,3 @@
-//! GOG gen2 chunk download engine — the Rust replacement for the byte-fetching inner loop of
-//! `GogDownloadManager.java` (`assembleDepotFile` / `fetchChunkVerified` driven from the
-//! per-file thread pool). Everything around that loop — token/builds/manifest head, base-product
-//! + language depot selection, secure-link resolution, disk guard, `_gog_manifest.json` marker,
-//! prefs, exe resolution, DLC markers, redist orchestration — stays in Java and is untouched.
-//!
-//! Parity contract: Bannerlator's `docs/RUST_GOG_PARITY.md`. The adapter is fed the SAME inflated depot-manifest
-//! JSON strings Java already parsed, the SAME resolved CDN base (secure link) and the SAME
-//! install dir, and produces the SAME on-disk layout (`<file>.bhtmp` staging, atomic rename,
-//! size+MD5-verified finals) so a download can be resumed by either engine.
-//!
-//! Layout:
-//! - [`plan`]   — depot-manifest JSON → file/chunk plan (mirrors `parseDepotManifest`), CDN path
-//!                and chunk-URL builders, largest-first ordering.
-//! - [`engine`] — resume/skip pass (mirrors `fileVerified`), `FetchItem` list, the `FetchSink`
-//!                (compressed size/MD5 → inflate → decompressed size/MD5 → positioned write →
-//!                whole-file size/MD5 → rename), summary logging.
-//! - [`jni`]    — `GogNative` JNI exports (`nativeStart` / `nativeCancel` / `nativeRelease`).
 
 pub mod engine;
 pub mod jni;
@@ -25,7 +7,6 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
-/// Lowercase hex of `bytes` (matches `GogDownloadManager.toHex`).
 pub fn to_hex(bytes: &[u8]) -> String {
     const DIGITS: &[u8; 16] = b"0123456789abcdef";
     let mut out = String::with_capacity(bytes.len() * 2);
@@ -36,15 +17,12 @@ pub fn to_hex(bytes: &[u8]) -> String {
     out
 }
 
-/// Lowercase hex MD5 of an in-memory buffer (`GogDownloadManager.md5Hex`).
 pub fn md5_hex(data: &[u8]) -> String {
     let mut hasher = crate::md5_small::Md5::new();
     hasher.update(data);
     to_hex(&hasher.finalize())
 }
 
-/// Streaming lowercase hex MD5 of a file, never buffering the whole file
-/// (`GogDownloadManager.md5HexFile`). `None` when the file cannot be read.
 pub fn md5_hex_file(path: &Path) -> Option<String> {
     let mut file = File::open(path).ok()?;
     let mut hasher = crate::md5_small::Md5::new();
@@ -59,11 +37,6 @@ pub fn md5_hex_file(path: &Path) -> Option<String> {
     Some(to_hex(&hasher.finalize()))
 }
 
-/// zlib-inflate a chunk body (`GogDownloadManager.inflateZlib`): `None` when the body is not a
-/// zlib stream (first byte != 0x78) or fails to inflate — the caller then treats the body as a
-/// stored (non-compressed) chunk, exactly like Java's `if (inflated == null) inflated = raw`.
-/// A truncated stream yields the partial output (Java's loop breaks on `n == 0` the same way);
-/// the decompressed-size check that follows rejects it.
 pub fn inflate_zlib(data: &[u8]) -> Option<Vec<u8>> {
     if data.len() < 2 || data[0] != 0x78 {
         return None;
@@ -96,16 +69,12 @@ mod tests {
         let compressed = enc.finish().unwrap();
         assert_eq!(compressed[0], 0x78);
         assert_eq!(inflate_zlib(&compressed).unwrap(), payload);
-        // Not zlib → None (stored chunk path).
         assert!(inflate_zlib(b"\x1f\x8bnot zlib").is_none());
         assert!(inflate_zlib(b"\x78").is_none());
-        // Truncated zlib → partial output, like Java's `while (!inf.finished()) { if (n == 0) break; }`
-        // loop; the decompressed-size check downstream rejects it either way.
         let mut truncated = compressed.clone();
         let mid = truncated.len() / 2;
         truncated.truncate(mid);
         assert!(inflate_zlib(&truncated).map(|out| out != payload).unwrap_or(true));
-        // Corrupt zlib body → None (Java: DataFormatException → null → raw fallback).
         let mut corrupt = compressed.clone();
         for b in corrupt.iter_mut().skip(2) {
             *b = !*b;

@@ -9,10 +9,6 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 
-/**
- * Flathub's public API (flathub.org/api/v2): the collections its front page shows, search, and an
- * app's AppStream data. Only what this device can install is kept - apps built for aarch64.
- */
 object FlathubApi {
     private const val TAG = "FlathubApi"
     private const val BASE = "https://flathub.org/api/v2"
@@ -33,7 +29,6 @@ object FlathubApi {
         val runtime: String?, val downloadSize: Long, val installedSize: Long, val arches: List<String>,
     )
 
-    /** A category as Flathub's search filters it, with the name shown for it. */
     class Category(val id: String, @StringRes val label: Int)
 
     val categories = listOf(
@@ -43,14 +38,11 @@ object FlathubApi {
         Category("Utility", R.string.store_cat_utilities),
     )
 
-    /** Front-page collections: popular, trending, recently-updated, recently-added. */
     fun collection(name: String, count: Int = 30): List<AppSummary>? {
-        // The collections are not filtered by architecture; ask for more and keep what fits.
         val body = get("$BASE/collection/$name?page=1&per_page=${count * 2}") ?: return null
         return hits(body)?.take(count)
     }
 
-    /** Search, optionally within one category (Flathub's main_categories facet). */
     fun search(query: String, category: String? = null, count: Int = 48): List<AppSummary>? {
         val filters = JSONArray().put(JSONObject().put("filterType", "arches").put("value", ARCH))
         if (category != null) filters.put(JSONObject().put("filterType", "main_categories").put("value", category))
@@ -60,7 +52,6 @@ object FlathubApi {
         return hits(body)
     }
 
-    /** Flathub's own copy of an app's icon: for apps that export only an SVG, which is not drawn here. */
     fun iconUrl(id: String) = "https://dl.flathub.org/media/icons/128x128/$id.png"
 
     fun details(id: String): AppDetails? {
@@ -120,7 +111,6 @@ object FlathubApi {
         Log.w(TAG, "hits: $e"); null
     }
 
-    /** AppStream descriptions are a small HTML subset: paragraphs and lists become lines. */
     internal fun plainText(html: String): String = html
         .replace(Regex("(?i)<li>\\s*"), "• ")
         .replace(Regex("(?i)</(p|li|ul|ol)>"), "\n")

@@ -14,12 +14,6 @@ namespace dxvk {
     None  = 5,
   };
 
-  /**
-   * \brief Logger
-   * 
-   * Logger for one DLL. Creates a text file and
-   * writes all log messages to that file.
-   */
   class Logger {
     
   public:

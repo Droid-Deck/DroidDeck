@@ -1,24 +1,4 @@
 #pragma once
-// ============================================================================
-// lsfg_vkd - the Vulkan entry points the LSFG chain calls, as a single global.
-//
-// Two dispatch styles meet here. DroidDeck's compositor resolves Vulkan
-// through a per-context VkTable (`vk_`), because an adrenotools-loaded driver
-// lives in an isolated linker namespace and shares no global symbols with the
-// system loader. The LSFG chain, ported from Eden by way of WinNative, calls
-// through a file-scope `vkd`. Rather than rewrite ~2,300 lines of proven chain
-// code to thread a table through every call, this shim exposes exactly the 34
-// entry points the chain uses and is filled from the renderer's own table when
-// the chain is created.
-//
-// That keeps the ported files close to their upstream form, which matters:
-// they are the part of this feature that is hardest to review by eye and
-// easiest to break with a well-meaning edit.
-//
-// Single-renderer assumption: there is one Vulkan compositor per process, so
-// one global table is correct. lsfgVkdInit() is idempotent and simply
-// overwrites; lsfgVkdReady() reports whether every pointer resolved.
-// ============================================================================
 
 #include <vulkan/vulkan.h>
 
@@ -63,8 +43,5 @@ struct LsfgVkDispatch {
 
 extern LsfgVkDispatch vkd;
 
-// Fill `vkd` from the renderer's table. Returns false (and leaves the chain
-// unusable) if any entry point failed to resolve - better to report the engine
-// unsupported than to call through a null pointer mid-frame.
 bool lsfgVkdInit(const VkTable& table);
 bool lsfgVkdReady();

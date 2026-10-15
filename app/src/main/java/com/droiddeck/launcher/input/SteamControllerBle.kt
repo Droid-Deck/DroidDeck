@@ -18,20 +18,11 @@ import java.nio.ByteOrder
 import java.util.ArrayDeque
 import java.util.UUID
 
-/**
- * Reads the Steam Controller (2025, Triton) through its Valve BLE service. State reports remain
- * native Triton packets and are published to the session's separate 28DE:1303 HID device. Steam's
- * output reports travel back to their matching BLE characteristics, preserving grip capacitance,
- * trackpads, sensors, and controller haptics without folding the controller into the Deck target.
- *
- * Lizard mode is refreshed while connected; when a session ends, the controller restores it itself.
- */
-@SuppressLint("MissingPermission") // BLUETOOTH is granted at install below targetSdk 31
+@SuppressLint("MissingPermission")
 class SteamControllerBle(private val context: Context) {
     private val thread = HandlerThread("steam-controller-ble").apply { start() }
     private val handler = Handler(thread.looper)
     private val outputReports = mutableMapOf<Int, UUID>()
-    /** GATT allows one operation at a time: writes carry a value, a feature read none. */
     private val queuedWrites = ArrayDeque<Pair<UUID, ByteArray?>>()
     private var gatt: BluetoothGatt? = null
     private var running = false
@@ -42,10 +33,8 @@ class SteamControllerBle(private val context: Context) {
     private var discoveries = 0
     private var outputSequence = 0L
     private var outputWritePending = false
-    /** The Steam client's feature read being answered, so the poll queues each one once. */
     private var featureRead = 0L
 
-    /** Looks for a paired Steam Controller and keeps a connection to it until [stop]. */
     fun start() = handler.post {
         if (running) return@post
         running = true
@@ -53,7 +42,6 @@ class SteamControllerBle(private val context: Context) {
         connect()
     }
 
-    /** Lets the controller go (it returns to lizard mode by itself); this object is done after. */
     fun stop() = handler.post {
         running = false
         handler.removeCallbacksAndMessages(null)
@@ -118,7 +106,6 @@ class SteamControllerBle(private val context: Context) {
                 if (running) handler.postDelayed(::connect, RETRY_MS)
                 return
             }
-            // The Triton needs data length extensions, which Android enables for a large MTU.
             if (!g.requestMtu(517)) subscribe(g)
         }
 
@@ -160,7 +147,6 @@ class SteamControllerBle(private val context: Context) {
             if (g === gatt) onFeatureRead(characteristic.value.takeIf { status == BluetoothGatt.GATT_SUCCESS })
         }
 
-        // Android 13 hands the value over with the call; older ones only through the characteristic.
         override fun onCharacteristicChanged(g: BluetoothGatt, characteristic: BluetoothGattCharacteristic, value: ByteArray) {
             if (g === gatt && characteristic.uuid == input) onState(value)
         }
@@ -177,8 +163,6 @@ class SteamControllerBle(private val context: Context) {
         if (service == null) {
             Log.w(TAG, "no Valve service on \"${g.device.name}\" (attempt ${discoveries + 1}); services: " +
                 g.services.joinToString { it.uuid.toString().take(8) })
-            // Android may answer from the service list its HID host cached, which can lack the
-            // vendor service: ask the controller again before giving up on it.
             if (++discoveries < 3) {
                 refreshCache(g)
                 handler.postDelayed({ if (g === gatt) g.discoverServices() }, 500)
@@ -213,13 +197,11 @@ class SteamControllerBle(private val context: Context) {
         g.writeDescriptor(cccd)
     }
 
-    /** BluetoothGatt.refresh(): hidden, but used to drop stale service caches. */
     private fun refreshCache(g: BluetoothGatt) {
         runCatching { g.javaClass.getMethod("refresh").invoke(g) }
             .onFailure { Log.w(TAG, "could not refresh the service cache", it) }
     }
 
-    /** SDL's DisableSteamTritonLizardMode: ID_SET_SETTINGS_VALUES (0x87), setting 9 = off. */
     private fun refreshLizardMode() {
         if (!connected) return
         val msg = ByteArray(FEATURE_BYTES)
@@ -228,18 +210,15 @@ class SteamControllerBle(private val context: Context) {
         handler.postDelayed(::refreshLizardMode, LIZARD_REFRESH_MS)
     }
 
-    /** Preserve the full 0x45 or 0x47 packet so Triton-only bits reach Steam's native driver. */
     private fun onState(data: ByteArray) {
         if (data.size < STATE_BYTES) return
         FakeInputWriter.writeTritonState(SLOT, reportId, data)
     }
 
-    /** A neutral report prevents a link lost mid-press from leaving controls held. */
     private fun release() {
         FakeInputWriter.writeTritonState(SLOT, if (reportId == 0x47) 0x47 else 0x45, ByteArray(STATE_BYTES))
     }
 
-    /** Drain Steam HID output reports and write each to Triton's matching BLE characteristic. */
     private fun pollOutput() {
         if (!running || !connected || gatt == null) return
         FakeInputWriter.readTritonOutput(SLOT, outputSequence)?.let { output ->
@@ -249,14 +228,12 @@ class SteamControllerBle(private val context: Context) {
         val request = FakeInputWriter.readTritonFeatureRequest(SLOT)
         if (request != 0L && request != featureRead) {
             featureRead = request
-            // Behind any queued write, so a read answers the feature report written before it.
             queuedWrites.addLast(REPORT to null)
             writeNextOutput()
         }
         handler.postDelayed(::pollOutput, OUTPUT_POLL_MS)
     }
 
-    /** The controller's answer to a feature read (its info, for one), or null when the read failed. */
     private fun onFeatureRead(value: ByteArray?) {
         outputWritePending = false
         if (featureRead != 0L) {
@@ -277,7 +254,6 @@ class SteamControllerBle(private val context: Context) {
                 return
             }
         }
-        // SDL's BLE driver removes the HID report ID and trailing padding byte before transmission.
         enqueueOutput(characteristic, report.copyOfRange(1, report.size - 1))
     }
 
@@ -319,13 +295,11 @@ class SteamControllerBle(private val context: Context) {
 
     companion object {
         private const val TAG = "SteamControllerBle"
-        /** The paired controller's native Triton reports live in slot 0's extended ring. */
         private const val SLOT = 0
         private const val RETRY_MS = 5_000L
         private const val LIZARD_REFRESH_MS = 3_000L
         private const val OUTPUT_POLL_MS = 4L
         private const val OUTPUT_RETRY_MS = 10L
-        /** SDL's 64-byte feature report less the report ID and the trailing byte. */
         private const val FEATURE_BYTES = 62
         private const val STATE_BYTES = 45
         private const val OUTPUT_UUID_PREFIX = "100f6c"
@@ -341,7 +315,6 @@ class SteamControllerBle(private val context: Context) {
             device.type and BluetoothDevice.DEVICE_TYPE_LE != 0 &&
                 (device.name ?: "").let { it.startsWith("Steam Ctrl") || it.startsWith("SteamController") }
 
-        /** Whether a session should expose a Triton HID node for a paired controller. */
         @JvmStatic
         fun hasPairedController(context: Context): Boolean {
             val adapter = (context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter ?: return false
@@ -350,12 +323,10 @@ class SteamControllerBle(private val context: Context) {
                 .getOrDefault(false)
         }
 
-        /** A Steam Controller is connected and feeding its native HID reports. */
         @Volatile @JvmStatic
         var connected = false
             private set
 
-        /** Notifies the activity when [connected] changes. */
         @Volatile @JvmStatic
         var listener: (() -> Unit)? = null
     }

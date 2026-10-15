@@ -172,7 +172,6 @@ class ShortcutsTest(unittest.TestCase):
         self.assertEqual('Example: Renamed', entry['AppName'])
         self.assertEqual('"%s/data"' % GUEST, entry['StartDir'])
         self.assertEqual('-dx11', entry['LaunchOptions'])
-        # One shortcut, the same appid.
         self.assertEqual([APPID], list(self.run_writer(game)))
 
     def test_a_target_chosen_in_the_app_updates_the_same_shortcut(self):

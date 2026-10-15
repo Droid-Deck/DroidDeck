@@ -1,4 +1,3 @@
-// See winfg_vkd.h.
 #include "winfg_vkd.h"
 #include "../VulkanRendererContext.h"
 #include <android/log.h>

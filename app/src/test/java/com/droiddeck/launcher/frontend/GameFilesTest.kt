@@ -38,7 +38,6 @@ class GameFilesTest {
         val provider = LaunchFileProvider(file)
         provider.attachInfo(context, android.content.pm.ProviderInfo().apply { authority = "frontend" })
         ShadowContentResolver.registerProviderInternal("frontend", provider)
-        // Providers often give opaque document IDs with no filename extension.
         val uri = Uri.parse("content://frontend/document/opaque%3A42")
         assertEquals("18446744073709551615", GameFiles.readIntent(context, Intent(Intent.ACTION_VIEW, uri)))
     }

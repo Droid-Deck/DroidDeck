@@ -15,11 +15,6 @@ import org.json.JSONObject
 import java.io.File
 import java.util.UUID
 
-/**
- * The app's side of the guest agent (tools/linuxfs/overlay/usr/local/bin/droiddeck-agent): requests
- * go in as files under the session root's agent directory and answers come back the same way, so
- * whatever runs does so inside the live session with its own environment.
- */
 object AgentGuest {
     private val main by lazy { Handler(Looper.getMainLooper()) }
     var focusRevision by mutableIntStateOf(0)
@@ -32,11 +27,6 @@ object AgentGuest {
 
     fun dir(context: Context) = File(LinuxRuntime.sessionRoot(context), "agent")
 
-    /**
-     * Before each session: nothing of the last one's daemon, answers or focus may be read as
-     * current. Then watch for the new daemon's hello and focus snapshots, which go into the
-     * session's events.jsonl.
-     */
     fun reset(context: Context) {
         synchronized(lock) {
             observer?.stopWatching()
@@ -59,7 +49,6 @@ object AgentGuest {
         }
     }
 
-    /** At the end of a session: no more events for a folder that is being closed. */
     fun stop() {
         synchronized(lock) {
             observer?.stopWatching()
@@ -82,7 +71,6 @@ object AgentGuest {
         SessionEvents.record("focus.changed", fields + ("seq" to snapshot.optInt("seq")))
     }
 
-    /** The daemon's hello, when it is running in the current session. */
     fun hello(context: Context): JSONObject? {
         if (!SessionState.running) return null
         val hello = readJson(File(dir(context), "hello.json")) ?: return null
@@ -90,18 +78,15 @@ object AgentGuest {
         return hello.takeIf { pid > 1 && File("/proc/$pid").exists() }
     }
 
-    /** The newest focus snapshot the daemon published, when a session is running. */
     fun focus(context: Context): JSONObject? =
         if (SessionState.running) readJson(File(dir(context), "focus.json")) else null
 
-    /** The Steam library game whose tile currently has controller or keyboard focus. */
     fun selectedSteamAppId(context: Context): Long? {
         val result = call(context, JSONObject().put("kind", "steam-selection"), 6_000)
         if (!result.optBoolean("ok") || result.isNull("appId")) return null
         return result.optLong("appId").takeIf { it in 1..4_294_967_295L }
     }
 
-    /** The installed game Gamescope is presenting, including while Steam's overlay has focus. */
     fun activeSteamAppId(context: Context, installedAppIds: Set<Long>): Long? {
         val snapshot = focus(context) ?: return null
         val focusedAppId = snapshot.optLong("focusedApp").takeIf { snapshot.has("focusedApp") }
@@ -151,7 +136,6 @@ object AgentGuest {
         return null
     }
 
-    /** Send one request and wait for its answer. Throws [AgentException] with a stable code. */
     fun call(context: Context, request: JSONObject, timeoutMs: Long): JSONObject {
         if (request.optString("kind") in setOf("exec", "cdp")) AgentAccess.requireCommands(context)
         if (!SessionState.running) throw AgentException("NO_ACTIVE_SESSION", "There is no running session")

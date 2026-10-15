@@ -7,20 +7,8 @@ import java.nio.ByteOrder
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 
-/**
- * Steam's touch controller, as the app's side of it.
- *
- * libfakeinput offers the Steam client a HID device with the ids of Steam Link's touch controls
- * (0000:11fb), and the client builds its own touch controller for it: Steam Input's Mobile Touch
- * type, with the game's touch config, action sets, community configs and cloud sync all Steam's
- * (docs/development/steam-touch-controller.md). This class is the file the two share
- * (fakeinput_steam.cpp: TouchRingFile): the app writes the device's 40-byte input report and
- * whether it is plugged in; libfakeinput writes back what the client told the device - the app and
- * action set it is on, its layers, rumble.
- */
 class SteamTouchDevice private constructor(private val buffer: ByteBuffer) {
 
-    /** What the client last told the device. */
     data class State(
         val opened: Int,
         val appId: Int,
@@ -29,13 +17,9 @@ class SteamTouchDevice private constructor(private val buffer: ByteBuffer) {
         val actionSeq: Int,
     )
 
-    // The input report (Steam Link's CVirtualController, docs/development/steam-touch-controller.md):
-    // bytes 0-7 buttons, 8-15 sticks, 16-27 trackpads, 28-33 accelerometer, 34-39 gyro.
     private val report = ByteArray(REPORT_BYTES)
     private var reportSeq = 0L
 
-    /** The controls part of the report: button bits, sticks (LX, LY, RX, RY, already in the report's
-     *  units) and trackpads (centre, left, right: x, y each). */
     @Synchronized
     fun setControls(buttons: Long, sticks: ShortArray, pads: ShortArray) {
         val next = report.copyOf()
@@ -45,27 +29,19 @@ class SteamTouchDevice private constructor(private val buffer: ByteBuffer) {
         publish(next)
     }
 
-    /** Motion in the Deck's axes and units (PadMotion), which the touch report shares. */
     @Synchronized
     fun setMotion(accel: ShortArray, gyro: ShortArray) {
-        // Sent only while the client asks for it (setting report 0x30, which Steam Link reads as
-        // "gyro on") and the player has not turned motion off - as Steam Link does.
         if (!plugged || !gyroRequested || !motionEnabled) return
         val next = report.copyOf()
         for (i in 0 until 3) {
-            // Accelerometer: the Deck's 1 g = 16384 is the touch report's ±2 g = ±32767 already.
             putShort(next, 28 + 2 * i, accel[i])
-            // Gyro: the Deck's 2000 °/s = 32768; the touch report's full scale is 1000 °/s
-            // (Steam Link: rad/s × 180/π / 1000 × 32767).
             putShort(next, 34 + 2 * i, (gyro[i] * 2).coerceIn(-32767, 32767).toShort())
         }
         publish(next)
     }
 
-    /** Whether the client has asked the device for motion (setting report 0x30 non-zero). */
     val gyroRequested get() = buffer.getInt(OFF_SETTING30) != 0
 
-    /** The player's motion switch (Steam Link's gyroscope option). */
     @Volatile var motionEnabled = true
         set(value) {
             field = value
@@ -81,7 +57,6 @@ class SteamTouchDevice private constructor(private val buffer: ByteBuffer) {
         into[at + 1] = (value.toInt() shr 8).toByte()
     }
 
-    /** Writes the report under the seqlock libfakeinput reads it with. */
     private fun publish(next: ByteArray) {
         if (next.contentEquals(report)) return
         next.copyInto(report)
@@ -122,7 +97,7 @@ class SteamTouchDevice private constructor(private val buffer: ByteBuffer) {
         private const val TAG = "SteamTouch"
         const val REPORT_BYTES = 40
         private const val SIZE = 256
-        private const val MAGIC = 0x31484354 // TCH1
+        private const val MAGIC = 0x31484354
         private const val OFF_REPORT_SEQ = 8
         private const val OFF_REPORT = 16
         private const val OFF_PLUGGED = 56
@@ -140,10 +115,8 @@ class SteamTouchDevice private constructor(private val buffer: ByteBuffer) {
         var current: SteamTouchDevice? = null
             private set
 
-        /** The shared file in the session's pad directory, made fresh each session. */
         fun ringFile(fakeInputDir: File) = File(fakeInputDir, "touchctl")
 
-        /** Creates the file for a new session (unplugged) and maps it. */
         fun prepare(fakeInputDir: File): File? = try {
             val file = ringFile(fakeInputDir)
             file.delete()

@@ -12,6 +12,8 @@ and reports every run.
   answers each command with JSON. It and the session-start Activity (`AgentStartActivity`) are in
   every build and require `android.permission.DUMP`, held by the ADB shell and privileged or
   explicitly granted callers. The provider checks the calling permission before decoding requests.
+  A build shipped under another package (`tools/release/variants.txt`) answers at
+  `content://<package>.agent`: set `DROIDDECK_PACKAGE` to that package for `droiddeckctl`.
 - **The guest agent** `droiddeck-agent` runs inside every session (started by
   `droiddeck-session`). It runs commands with the session's own environment, publishes gamescope's
   focus, and talks to the Steam client's DevTools, which only accepts guest processes. The app and
@@ -23,10 +25,10 @@ and reports every run.
 ## Access
 
 Player controls and observations work over authorized ADB on any build: `state`, `start`, `stop`,
-`resume`, `wait`, `launch`, `quit`, `focus`, `input`, `ui`, `logs`, `screenshot`, `record`, `displays`,
-`wake`, and `access`.
+`resume`, `wait`, `launch`, `quit`, `focus`, `input`, `ui`, `logs`, `screenshot`, `record`, `pacing`,
+`displays`, `wake`, and `access`.
 
-**Setup > Session > Debugging tools** is off by default in every build, including debug builds.
+**Setup > Diagnostics > Debugging tools** is off by default in every build, including debug builds.
 It enables `run`, `guest`, `cdp`, all `env` operations, `override`, and `prefs`. The toggle switches
 directly without a confirmation dialog. The bridge refuses to change it through `ui` or preference
 writes. The existing preference key, `setting-agent-commands` test tag, JSON command names, and
@@ -75,52 +77,59 @@ artifact or file error, 7 debugging tools disabled.
 ## Commands
 
 ```sh
-tools/droiddeckctl state                         # schema 2, below
-tools/droiddeckctl start steam --wait            # --ui desktop, --url steam://..., --timeout
-tools/droiddeckctl start steam --wait --reuse    # keep a Steam session that is already up
+tools/droiddeckctl state
+tools/droiddeckctl start steam --wait
+tools/droiddeckctl start steam --wait --reuse
 tools/droiddeckctl start desktop
 tools/droiddeckctl run /usr/bin/foo -- arg1 arg2
-tools/droiddeckctl wait ready|idle|failed        # --timeout (default 90 s)
+tools/droiddeckctl wait ready|idle|failed
 tools/droiddeckctl stop
 tools/droiddeckctl resume
 
-tools/droiddeckctl launch 489830 --wait          # Steam game by app id; --wait = until it has focus
-tools/droiddeckctl wait focused 489830           # gamescope focuses it AND Steam lists it focusable
-tools/droiddeckctl wait game                     # any app but the Steam client (769) has focus
-tools/droiddeckctl quit 489830                   # Steam's TerminateApp, then SIGTERM/SIGKILL
-tools/droiddeckctl focus                         # focus properties and every Xwayland server's windows
+tools/droiddeckctl launch 489830 --wait
+tools/droiddeckctl wait focused 489830
+tools/droiddeckctl wait game
+tools/droiddeckctl quit 489830
+tools/droiddeckctl focus
 
-tools/droiddeckctl input key ENTER               # names (ESC, F1, UP, A...) or evdev codes; --mod CTRL
-tools/droiddeckctl input text 'hello world'      # as US-layout keys; --commit for text-input
-tools/droiddeckctl input tap 640 360             # session output pixels; --space fraction for 0..1
+tools/droiddeckctl input key ENTER
+tools/droiddeckctl input text 'hello world'
+tools/droiddeckctl input tap 640 360
 tools/droiddeckctl input swipe 100 600 100 100 --duration 400
-tools/droiddeckctl input pad a                   # a b x y lb rb start select guide qam up down left right
+tools/droiddeckctl input pad a
 tools/droiddeckctl input stick left 0 -1 --hold 500
 tools/droiddeckctl input trigger right 1.0
 
-tools/droiddeckctl ui dump                       # tagged, labelled and clickable nodes; --all for every node
-tools/droiddeckctl ui click rail-steam           # by test tag
-tools/droiddeckctl ui click --match "Play"       # by text or description; --index for the nth match
+tools/droiddeckctl ui dump
+tools/droiddeckctl ui click rail-steam
+tools/droiddeckctl ui click --match "Play"
 tools/droiddeckctl ui set-text some-field --text abc
 
-tools/droiddeckctl guest -- xprop -root GAMESCOPE_FOCUSED_APP     # --timeout --env K=V --cwd --stdin --check
+tools/droiddeckctl guest -- xprop -root GAMESCOPE_FOCUSED_APP
 tools/droiddeckctl cdp targets
-tools/droiddeckctl cdp eval 'SteamClient.Apps.GetMyRunningApps?.()'  # --target, --no-await
-tools/droiddeckctl env set DXVK_HUD=fps          # next session only; --persistent until cleared
+tools/droiddeckctl cdp eval 'SteamClient.Apps.GetMyRunningApps?.()'
+tools/droiddeckctl env set DXVK_HUD=fps
 tools/droiddeckctl env list
 tools/droiddeckctl env clear [next|persistent|all]
-tools/droiddeckctl override gamescope ./gamescope   # first on the next session's PATH, removed after it
+tools/droiddeckctl override gamescope ./gamescope
 tools/droiddeckctl prefs get session
-tools/droiddeckctl prefs set session some_key true --type bool   # returns the previous value
+tools/droiddeckctl prefs set session some_key true --type bool
 
 tools/droiddeckctl logs latest ./session-artifacts
 tools/droiddeckctl screenshot ./screen.png --display 4
 tools/droiddeckctl record ./clip.mp4 --seconds 8 --display 0
-tools/droiddeckctl displays                      # logical ids, names, sizes, capture ids
-tools/droiddeckctl wake                          # wake the screen, dismiss the keyguard
+tools/droiddeckctl pacing --seconds 30
+tools/droiddeckctl displays
+tools/droiddeckctl wake
 ```
 
 A sleeping device suspends the session and hides the app's windows from `ui dump`; `wake` first.
+
+`pacing` reads SurfaceFlinger's timestats for the game's layer (the session's SurfaceView when the
+compositor has no layer of its own) and reports the frames that reached the panel, `fpsOnScreen`,
+the present-to-present histogram and the share of intervals off the usual cadence. A game's own fps
+counter counts frames handed over, not frames shown, so it can read 60 while one frame in four
+stays on screen for two refreshes.
 
 `input` needs a session that has drawn its first frame. Pad input goes through the session screen's
 virtual pad, the same one the on-screen controls drive, so games that ignore touch still respond.

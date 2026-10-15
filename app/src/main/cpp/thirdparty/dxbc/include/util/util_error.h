@@ -4,12 +4,6 @@
 
 namespace dxvk {
   
-  /**
-   * \brief DXVK error
-   * 
-   * A generic exception class that stores a
-   * message. Exceptions should be logged.
-   */
   class DxvkError {
     
   public:

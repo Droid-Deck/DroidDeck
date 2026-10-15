@@ -10,31 +10,23 @@ import androidx.compose.runtime.setValue
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.runtime.UserApps
 
-/**
- * The Desktop page's added apps and the one add or remove in progress. State changes only on the
- * main thread; the work runs on a thread of its own and posts back.
- */
 object UserAppsState {
     private val main = Handler(Looper.getMainLooper())
 
     var items by mutableStateOf<List<UserApps.App>>(emptyList())
         private set
-    /** What is being added or removed; null when idle. */
     var working by mutableStateOf<String?>(null)
         private set
     var stage by mutableStateOf<String?>(null)
         private set
     var percent by mutableStateOf(-1)
         private set
-    /** Why the last add or remove failed, shown on the page until the next one. */
     var lastError by mutableStateOf<String?>(null)
         private set
-    /** The app whose updates are being looked up, and what each lookup found, by app key. */
     var checking by mutableStateOf<String?>(null)
         private set
     var updates by mutableStateOf<Map<String, UserApps.UpdateCheck>>(emptyMap())
         private set
-    /** Bumped per listing; only the newest one is shown. */
     private var listing = 0
 
     fun refresh(context: Context) {

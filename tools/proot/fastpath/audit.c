@@ -1,20 +1,3 @@
-/*
- * libblaudit: an LD_AUDIT module that keeps ld.so from asking proot about libraries that are not
- * there. ld.so finds a library by trying to open it in each directory of its search path in turn,
- * and under proot every one of those opens is a round trip through the tracer. A game's environment
- * puts the game's own directory, Steam's runtime and video directories and Proton's library
- * directories ahead of /usr/lib, so most of the opens of every Wine process fail.
- *
- * la_objsearch() is asked about each candidate before ld.so opens it. One that provably does not
- * exist - its parent directory is reached through no symlink, so proot would walk the same path,
- * and the name itself is missing there - is skipped. Everything else is left to ld.so, which then
- * behaves exactly as it would have.
- *
- * Built without libc: an audit module is loaded into a link namespace of its own, and a libc there
- * would be searched for along that same path. Its calls go through the trampoline page of
- * libblfastpath.so, mapped here first (libblfastpath finds it in place), and only in a process traced
- * by the proot the environment describes (PROOT_FP_KEY, as libblfastpath checks it).
- */
 #define _GNU_SOURCE
 #include <errno.h>
 #include <fcntl.h>
@@ -26,7 +9,7 @@
 #include <sys/syscall.h>
 #include <time.h>
 
-#define FP_STUB_ADDR 0xffff00000UL /* as in fastpath.c */
+#define FP_STUB_ADDR 0xffff00000UL
 #define FP_STUB_SIZE 4096UL
 #define MAX_BINDS 256
 #define PATH 4096
@@ -38,8 +21,6 @@ static stub_fn sys;
 
 static long sc(long nr, long a, long b, long c, long d) { return sys(nr, a, b, c, d, 0, 0); }
 
-/* A syscall of its own, before the trampoline exists: only mmap, mprotect and munmap, which proot
- * does not stop. */
 static long raw(long nr, long a, long b, long c, long d) {
   register long x8 __asm__("x8") = nr;
   register long x0 __asm__("x0") = a;
@@ -52,7 +33,6 @@ static long raw(long nr, long a, long b, long c, long d) {
   return x0;
 }
 
-/* What __builtin___clear_cache does on aarch64, without libgcc. */
 static void sync_code(char *b, char *e) {
   for (char *p = b; p < e; p += 4) __asm__ volatile("dc cvau, %0" : : "r"(p) : "memory");
   __asm__ volatile("dsb ish" : : : "memory");
@@ -80,7 +60,6 @@ static int under(const char *path, const char *dir, size_t dlen) {
   return same(path, dir, dlen) && (path[dlen] == 0 || path[dlen] == '/');
 }
 
-/* ---------------------------------------------------------------- setup */
 
 static char env[65536], tracer_env[32768];
 static size_t env_len;
@@ -109,7 +88,6 @@ static const char *var(const char *buf, size_t len, const char *name) {
   return NULL;
 }
 
-/* The canonical form of a host path, as proot's realpath() made it; 0 when it has none. */
 static int canonical(const char *path, char *out) {
   long fd = sc(SYS_openat, AT_FDCWD, (long)path, O_PATH | O_CLOEXEC, 0);
   if (fd < 0) return 0;
@@ -148,14 +126,13 @@ static int traced_by_match(const char *key) {
 static void setup(void) {
   long p = raw(SYS_mmap, FP_STUB_ADDR, FP_STUB_SIZE, PROT_READ | PROT_WRITE,
                MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE);
-  /* Loaded before anything else maps, so whatever is already there is not the trampoline. */
   if (p != (long)FP_STUB_ADDR) {
     if (p > 0) raw(SYS_munmap, p, FP_STUB_SIZE, 0, 0);
     return;
   }
   static const uint32_t code[] = {
       0xAA0003E8, 0xAA0103E0, 0xAA0203E1, 0xAA0303E2, 0xAA0403E3, 0xAA0503E4, 0xAA0603E5,
-      0xD4000001, 0xD65F03C0, /* mov x8,x0; mov x0..x5,x1..x6; svc #0; ret */
+      0xD4000001, 0xD65F03C0,
   };
   copy((char *)p, (const char *)code, sizeof code);
   sync_code((char *)p, (char *)p + sizeof code);
@@ -174,7 +151,6 @@ static void setup(void) {
   root = root_canon;
   rootlen = len_of(root);
   if (rootlen <= 1) return;
-  /* "host[:guest]|..." taken apart in place; a list this cannot hold leaves everything to ld.so. */
   for (char *s = (char *)b; s && *s;) {
     if (nbinds == MAX_BINDS) return;
     char *end = s;
@@ -196,9 +172,7 @@ static void setup(void) {
   ready = 1;
 }
 
-/* ---------------------------------------------------------------- lookups */
 
-/* The host path proot binds there, as it canonicalised it: NULL for one it dropped (or /proc/self). */
 static const char *bind_host(struct bind *bd) {
   if (!bd->state) {
     bd->state = under(bd->host, "/proc/self", 10) || !canonical(bd->host, bd->canon) ? 2 : 1;
@@ -212,8 +186,6 @@ static long long now(void) {
   return ts.tv_sec * 1000000000LL + ts.tv_nsec;
 }
 
-/* The host path proot gives a canonical guest path: under the longest binding over it (the last of
- * two for the same path), else the rootfs. 0 for a binding proot dropped, or no room. */
 static int to_host(const char *g, char *host, int *bound) {
   size_t n = len_of(g);
   struct bind *bd = NULL;
@@ -235,12 +207,10 @@ static int to_host(const char *g, char *host, int *bound) {
   return 1;
 }
 
-/* Under a directory proot or the kernel answers for in its own way. */
 static int special(const char *g) {
   return under(g, "/proc", 5) || under(g, "/dev", 4) || under(g, "/sys", 4);
 }
 
-/* A guest path proot only shows as glue, or one with a binding below it. */
 static int above_binding(const char *g) {
   size_t n = len_of(g);
   for (int i = 0; i < nbinds; i++)
@@ -248,12 +218,6 @@ static int above_binding(const char *g) {
   return 0;
 }
 
-/*
- * The canonical guest path of the directory `g`, walked as canonicalize() walks it: a symlink in the
- * rootfs is followed in guest terms, its text losing the rootfs prefix as detranslate_path() has it.
- * -1 when a component is missing, so proot fails the path with ENOENT. Anything this cannot follow
- * exactly (a link inside a binding, glue, a component not a directory) gives 0.
- */
 static int canonical_dir(const char *g, char *out) {
   char path[PATH], next[PATH], host[PATH], text[PATH];
   char st_buf[256] __attribute__((aligned(16)));
@@ -312,8 +276,6 @@ static int canonical_dir(const char *g, char *out) {
 static struct { char dir[PATH]; char canon[PATH]; long long at; } known[VERIFIED];
 static int next_slot;
 
-/* canonical_dir(), remembered for a while: ld.so looks in the same few directories for every
- * library. */
 static int known_dir(const char *g, char *out) {
   size_t n = len_of(g);
   long long t = now();
@@ -331,8 +293,6 @@ static int known_dir(const char *g, char *out) {
   return 1;
 }
 
-/* The guest path certainly names nothing: its directory is one proot reaches the same way, and the
- * name is missing there. */
 static int missing(const char *g) {
   char dir[PATH], cand[PATH], host[PATH];
   size_t n = len_of(g);
@@ -363,13 +323,6 @@ unsigned int la_version(unsigned int version) {
   return LAV_CURRENT;
 }
 
-/*
- * A candidate skipped here is one whose open "failed" with ld.so's errno as it stands, and ld.so
- * gives up on the whole search path unless that is ENOENT or EACCES. So each lookup's first
- * candidate is always opened for real: once that has failed, errno says so, and nothing ld.so
- * does between candidates changes it unless the search ends anyway. The default directories are
- * left alone too: what ld.so meets there is what it reports when a library is nowhere.
- */
 static int tried;
 
 char *la_objsearch(const char *name, uintptr_t *cookie, unsigned int flag) {

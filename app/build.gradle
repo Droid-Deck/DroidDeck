@@ -49,19 +49,12 @@ if (!(treeState in ['clean', 'dirty'])) {
 buildLabel = "${buildOrigin} ${treeState} · ${buildLabel}"
 def escapedBuildLabel = buildLabel.replace('\\', '\\\\').replace('"', '\\"')
 
-// What the in-app updater compares against the published builds: the commit this build is of (a PR
-// build's head, not the merge CI makes of it), its PR, and whether CI made it at all.
 def sourceCommit = providers.environmentVariable('DROIDDECK_SOURCE_COMMIT').getOrNull()
     ?: providers.environmentVariable('GITHUB_SHA').getOrNull() ?: gitValue(['rev-parse', 'HEAD']) ?: ''
 def prNumber = (providers.environmentVariable('DROIDDECK_PR_NUMBER').getOrNull() ?: '0').with { it.isInteger() ? it : '0' }
 def ciBuild = providers.environmentVariable('GITHUB_ACTIONS').getOrNull() == 'true'
-// The release key's certificate: a build signed with it, from CI or a computer, updates in place.
 def releaseSigner = rootProject.file('keystore/release-signer.sha256').text.trim()
-// When the source was committed, for "built 3 hours ago": fixed per commit, so it costs no rebuilds.
 def commitTime = (gitValue(['show', '-s', '--format=%ct', 'HEAD']) ?: '0').with { it.isLong() ? it : '0' }
-// The desktop package this apk installs (tools/desktop-kde/release.env): published once per tag in
-// DroidDeck-Components, pinned here with its checksum like gamescope and the esync packs, so the
-// desktop scripts in the apk always get the package they were made for.
 def desktopKde = rootProject.file('tools/desktop-kde/release.env').readLines()
     .findAll { it.contains('=') && !it.startsWith('#') }
     .collectEntries { def kv = it.split('=', 2); [(kv[0].trim()): kv[1].trim()] }
@@ -72,7 +65,6 @@ if (desktopRemovalSources.archives[desktopKde.DESKTOP_KDE_TAG] != desktopKde.DES
 if (!file('src/main/assets/desktop-removal/versions.txt').readLines().contains(desktopKde.DESKTOP_KDE_TAG)) {
     throw new GradleException('Regenerate desktop removal inventories for ' + desktopKde.DESKTOP_KDE_TAG)
 }
-// tools/release/variants.txt as "package=suffix;...", so the updater picks the apk of the package it runs as.
 def variantSuffixes = rootProject.file('tools/release/variants.txt').readLines()
     .findAll { it.trim() && !it.startsWith('#') }
     .collect { def f = it.trim().split(/\s+/); "${f[1]}=${f[2] == '-' ? '' : f[2]}" }
@@ -81,16 +73,11 @@ def variantSuffixes = rootProject.file('tools/release/variants.txt').readLines()
 android {
     namespace 'com.droiddeck.launcher'
     compileSdk 34
-    // The NDK is pinned by property so CI can hand in whatever the runner already has rather than
-    // downloading a second copy; see gradle.properties.
     ndkVersion project.findProperty('ndkVersion') ?: '27.3.13750724'
 
     defaultConfig {
         applicationId "com.droiddeck.launcher"
         minSdkVersion 26
-        // 28 is not a leftover. An app on targetSdk 29+ runs in a domain that may not execute a
-        // file out of its own data directory, and this app's entire job is to exec a rootfs:
-        // proot, gamescope, the Steam client and everything it launches all live under files/.
         targetSdkVersion 28
         versionCode 13
         versionName "0.4.0"
@@ -125,10 +112,6 @@ android {
     }
 
     signingConfigs {
-        // AOSP testkey (android@android.com), the same key Bannerlator ships with. It is publicly
-        // known, so it proves nothing about who built the apk - what it buys is ONE stable
-        // signature: every build installs over the last one instead of asking the user to
-        // uninstall first. v1 (JAR) + v2 + v3 so every installer and Android version accepts it.
         testkey {
             storeFile file("${rootDir}/keystore/testkey.p12")
             storeType "PKCS12"
@@ -153,24 +136,15 @@ android {
     }
 
     lint {
-        // targetSdk 28 is deliberate and structural: an app on 29+ may not execute a file out of
-        // its own data directory, and executing a rootfs is the whole of what this app does. Lint
-        // fails a release build over it because Google Play will not accept an sdk that old -
-        // true, and not something this app can trade away. Every other check stays on.
         disable 'ExpiredTargetSdkVersion'
     }
 
     packagingOptions {
         resources {
-            // Kadb's Bouncy Castle artifacts repeat the same multi-release JAR manifest.
             excludes += ['META-INF/versions/9/OSGI-INF/MANIFEST.MF']
         }
         jniLibs {
-            // The PulseAudio daemon is executed from the native library directory and its
-            // libraries are read out of the apk by the class loader: both want the old,
-            // uncompressed-and-extracted layout.
             useLegacyPackaging = true
-            // Prefer the PTY helper built by this app's NDK target over Termux's prebuilt copy.
             pickFirsts += ['**/libtermux.so']
         }
     }
@@ -181,9 +155,7 @@ android {
     }
 
     testOptions {
-        // Plain JVM tests: a stray android.util.Log call returns a default instead of throwing.
         unitTests.returnDefaultValues = true
-        // Robolectric tests start activities whose text is now all string resources.
         unitTests.includeAndroidResources = true
     }
 
@@ -196,8 +168,6 @@ android {
     }
 }
 
-// Session scripts must follow this checkout even when the native asset bundle is cached.
-// A stale local bundle can omit a newly required helper on a fresh runtime install.
 def stageSessionScripts = tasks.register('stageSessionScripts', Copy) {
     from(rootProject.file('tools/linuxfs/overlay')) {
         include 'usr/local/bin/droiddeck-*', 'usr/local/bin/steam-compatibility', 'usr/bin/**'
@@ -206,8 +176,6 @@ def stageSessionScripts = tasks.register('stageSessionScripts', Copy) {
 }
 tasks.named('preBuild').configure { dependsOn(stageSessionScripts) }
 
-// Prepared audio lives under build/, so native builds never rewrite the tracked base bundle.
-// Copying into one asset root also prevents an old base bundle winning a duplicate asset merge.
 def runtimeAssetsDir = layout.buildDirectory.dir('runtimeAssets')
 def stageRuntimeAssets = tasks.register('stageRuntimeAssets', Sync) {
     dependsOn(stageSessionScripts)
@@ -218,12 +186,7 @@ def stageRuntimeAssets = tasks.register('stageRuntimeAssets', Sync) {
 android.sourceSets.main.assets.setSrcDirs([runtimeAssetsDir])
 tasks.named('preBuild').configure { dependsOn(stageRuntimeAssets) }
 
-// Unit tests and previews remain usable without Docker. Packaging an APK requires the complete
-// runtime payload prepared by the local helper or CI, with matching sources and output hashes.
 def verifyRuntimeInputs = tasks.register('verifyRuntimeInputs', Exec) {
-    // The session scripts are re-copied into the asset tree by stageSessionScripts; with parallel
-    // task execution this check once hashed a file mid-copy and failed a main build. Hash only
-    // once the staging has finished.
     mustRunAfter(stageSessionScripts, stageRuntimeAssets)
     workingDir rootProject.projectDir
     commandLine 'python3', 'tools/release/runtime_inputs.py', 'verify'
@@ -232,14 +195,6 @@ tasks.configureEach { task ->
     if (task.name in ['packageDebug', 'packageRelease']) task.dependsOn(verifyRuntimeInputs)
 }
 
-// The GOG / Epic / Amazon download engines are Rust (app/src/main/rust/stores, ported from
-// Bannerlator's bl-steam-client crate). cargo-ndk cross-compiles them for arm64-v8a into the build
-// directory, which is one more jniLibs source below: nothing compiled is committed, the same rule
-// the preloads, proot and the DirectAudio relay follow. cargo-ndk exports the NDK clang/llvm-ar as
-// the C compiler for the one C-compiling crate (ring, under rustls) - the step Bannerlator's CI
-// does by hand - and reads the NDK from ANDROID_NDK_HOME, which is set to the NDK this build pins.
-// -PskipRust=true builds without the library, for a checkout with no Rust toolchain: the stores
-// then report themselves unavailable instead of the build failing.
 def rustCrateDir = layout.projectDirectory.dir('src/main/rust/stores')
 def rustJniLibsDir = layout.buildDirectory.dir('rustJniLibs')
 def skipRust = (project.findProperty('skipRust') ?: 'false').toString().toBoolean()
@@ -255,9 +210,6 @@ def buildRustStores = tasks.register('buildRustStores', Exec) {
     }.standardOutput.asText)
     outputs.dir(rustJniLibsDir)
     workingDir rustCrateDir
-    // The configuration cache serialises the task, so everything it needs is resolved here, not
-    // in doFirst. ~/.cargo/bin is where rustup puts cargo and cargo-ndk; an IDE-launched Gradle
-    // does not always have it on PATH.
     def cargoBin = "${System.getProperty('user.home')}/.cargo/bin"
     environment 'PATH', "${cargoBin}${File.pathSeparator}${System.getenv('PATH')}"
     environment 'ANDROID_NDK_HOME', android.ndkDirectory.absolutePath
@@ -265,47 +217,32 @@ def buildRustStores = tasks.register('buildRustStores', Exec) {
     if (!skipRust) environment 'RUSTC', providers.exec {
         commandLine 'rustup', 'which', '--toolchain', 'stable', 'rustc'
     }.standardOutput.asText.get().trim()
-    // --platform 26 = minSdkVersion: the engines link against the API 26 libc, like the C++ code.
-    // Homebrew's cargo/rustc can precede rustup on macOS and use a different sysroot, despite
-    // rustup reporting the Android target installed. Run both through the selected toolchain.
     commandLine 'rustup', 'run', 'stable', 'cargo', 'ndk', '--target', 'arm64-v8a', '--platform', '26',
         '--output-dir', rustJniLibsDir.get().asFile.absolutePath,
         'build', '--release', '--locked'
 }
-// Skipping Rust must omit its library even if another build left a cached .so behind.
 if (!skipRust) android.sourceSets.main.jniLibs.srcDir(rustJniLibsDir)
 tasks.named('preBuild').configure { dependsOn(buildRustStores) }
 
 dependencies {
-    // The runtime tarball is a zstd-compressed tar.
     implementation 'com.github.luben:zstd-jni:1.5.2-3@aar'
     implementation 'org.apache.commons:commons-compress:1.27.1'
-    // Bannerlator's Windows components come as .tar.xz (WinComponents).
     implementation 'org.tukaani:xz:1.10'
-    // The UI: every menu, dialog and overlay is Compose. The session's SurfaceView and the
-    // on-screen pad are Views underneath it, which is what they are in every Compose app.
     implementation platform('androidx.compose:compose-bom:2024.02.00')
     implementation 'androidx.compose.ui:ui'
     implementation 'androidx.compose.material3:material3'
-    // @Preview for the composables; the tooling that renders them is a debug-only dependency.
     implementation 'androidx.compose.ui:ui-tooling-preview'
     debugImplementation 'androidx.compose.ui:ui-tooling'
     implementation 'androidx.activity:activity-compose:1.8.2'
-    // The File Manager, Bannerlator's: its icon set, image thumbnails and the coroutines it
-    // copies on. Same versions as Bannerlator so the screen stays a straight copy.
     implementation 'androidx.compose.material:material-icons-extended'
     implementation 'io.coil-kt:coil-compose:2.6.0'
     implementation 'com.caverock:androidsvg-aar:1.4'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
-    // ADB-over-Wi-Fi pairing and authenticated shell client. Users still approve pairing from
-    // Android's Wireless debugging screen; DroidDeck only runs its one fixed setting command.
     implementation 'com.flyfishxu:kadb-android:1.2.1'
-    // Android terminal view/emulator used by the in-session secondary-display Linux shell.
     implementation 'com.termux.termux-app:terminal-view:0.118.0'
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.robolectric:robolectric:4.16.1'
     testImplementation 'androidx.compose.ui:ui-test-junit4'
-    // The Android archive does not include the host natives used by JVM archive tests.
     testRuntimeOnly 'com.github.luben:zstd-jni:1.5.2-3@jar'
 }

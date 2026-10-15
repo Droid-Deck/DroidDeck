@@ -1,11 +1,3 @@
-/*
- * get_robust_list(2) for the session's own threads.
- *
- * Android's app policy refuses the call, and Steam's cross-process mutex insists on seeing the
- * head glibc registered. The kernel's list protocol gives it away: a robust mutex this thread
- * holds is linked directly behind the registered head, so locking a private one and following
- * the link back finds the head without depending on libc's layout.
- */
 #define _GNU_SOURCE
 #include <dlfcn.h>
 #include <errno.h>
@@ -48,8 +40,6 @@ static struct robust_list_head *thread_robust_head(void) {
   if (pthread_mutex_lock(&mutex) != 0) {
     return NULL;
   }
-  /* The mutex holds tids and lock words beside the link, so a word is only followed
-   * through a read that fails instead of faulting on a non-pointer. */
   uintptr_t lo = (uintptr_t)&mutex, hi = lo + sizeof(mutex);
   for (uintptr_t p = lo; p + sizeof(void *) <= hi && !head; p += sizeof(void *)) {
     struct robust_list_head *candidate = *(struct robust_list_head **)p;

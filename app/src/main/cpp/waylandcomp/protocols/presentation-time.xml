@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <protocol name="presentation_time">
-<!-- wrap:70 -->
 
   <copyright>
     Copyright © 2013-2014 Collabora, Ltd.
@@ -28,7 +27,6 @@
   <interface name="wp_presentation" version="2">
     <description summary="timed presentation related wl_surface requests">
 
-<!-- Introduction -->
 
       The main feature of this interface is accurate presentation
       timing feedback to ensure smooth video playback while maintaining
@@ -41,7 +39,6 @@
       the wl_surface.commit and provides feedback on the content
       update, particularly the final realized presentation time.
 
-<!-- Completing presentation -->
 
       When the final realized presentation time is available, e.g.
       after a framebuffer flip completes, the requested

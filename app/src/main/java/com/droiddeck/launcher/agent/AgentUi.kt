@@ -19,16 +19,8 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
-/**
- * The app's own UI as an agent sees it: every Compose node in every window of the process (popups
- * and menus included), read from Compose's semantics rather than through UI Automator, which on a
- * dual-screen device dumps whichever window has focus - often not this app's. Nodes carry their
- * test tag (ui/TestTags.kt), text, content description, role, state and on-screen bounds; click
- * and set-text act on a node by tag or text, so a test needs no coordinates.
- */
 object AgentUi {
     private const val TIMEOUT_MS = 5_000L
-    /** Setup's Debugging tools toggle: the bridge never acts on its own gate (AgentAccess). */
     private const val GATE_TAG = "setting-agent-commands"
 
     fun handle(request: JSONObject): JSONObject = when (val op = request.optString("op", "dump")) {
@@ -106,10 +98,6 @@ object AgentUi {
         return json
     }
 
-    /**
-     * The node a request names by "tag" (exact) or "match" (text or description containing it,
-     * ignoring case); "index" picks among several, in tree order.
-     */
     private fun act(request: JSONObject, action: (SemanticsNode) -> Unit): JSONObject {
         val tag = request.optString("tag").takeIf { it.isNotEmpty() }
         val text = if (tag == null) request.optString("match").takeIf { it.isNotEmpty() } else null

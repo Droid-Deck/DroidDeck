@@ -20,7 +20,6 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
-/** Each source's list of Windows components, how it maps to the catalog, and what turns on by itself. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class WinCompSourcesTest {
@@ -35,7 +34,6 @@ class WinCompSourcesTest {
 
     private fun auto(findings: List<WinCompSources.Finding>) = findings.filter { it.auto }.map { it.component to it.origin }
 
-    // ---- mapping tables ----
 
     @Test fun gogDependencyIdsMapToComponents() {
         assertEquals(listOf("vcredist2015"), WinCompSources.gog("MSVC2017_x64"))
@@ -62,7 +60,6 @@ class WinCompSourcesTest {
         assertEquals(listOf("vcredist2015_dll" to "VC++ 2015", "d3dx9" to "DirectX (June 2010)"), WinCompSources.steamDepots(listOf("228986", "228990", "999")))
     }
 
-    // ---- per source ----
 
     @Test fun steamTakesItsSharedDepotsAndTurnsThemOn() {
         val steamapps = tmp.newFolder("steamapps")
@@ -80,7 +77,6 @@ class WinCompSourcesTest {
         sidecar(folder, Store.GOG, mapOf(WinCompSources.GOG_DEPENDENCIES to "MSVC2017_x64,DirectX,ISI"))
         val findings = WinCompSources.forGame(app, game(folder, "gog"))
         assertEquals(listOf("vcredist2015" to WinCompSources.Origin.GOG, "d3dx9" to WinCompSources.Origin.GOG), auto(findings))
-        // ISI is none of ours: a suggestion under its own name.
         assertEquals(listOf("ISI"), findings.filter { it.component == null }.map { it.original })
     }
 
@@ -105,12 +101,10 @@ class WinCompSourcesTest {
         assertEquals(listOf("Activate.exe"), findings.filter { it.component == null }.map { it.original })
     }
 
-    // ---- Custom: certainty decides ----
 
     private fun appinfo(file: File, appId: Int) = writeAppinfo(file, appId)
 
     companion object {
-    /** A version 29 appinfo.vdf with one app, whose depots point at two Steamworks Shared ones. */
     fun writeAppinfo(file: File, appId: Int) {
         val strings = listOf("appinfo", "common", "name", "depots", "228986", "depotfromapp", "228990", "1001", "maxsize")
         fun key(s: String) = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(strings.indexOf(s)).array()
@@ -173,7 +167,6 @@ class WinCompSourcesTest {
         assertEquals(listOf("vcredist2013" to WinCompSources.Origin.FOLDER), findings.map { it.component to it.origin })
     }
 
-    // ---- what turns on, and the user's switches ----
 
     private fun ready(name: String) = WinComponents.Component(name, "", "", "ready", emptyList(),
         listOf(WinComponents.Step("override_dll", JSONObject().put("dll", "x").put("type", "native"))))
@@ -187,7 +180,6 @@ class WinCompSourcesTest {
             WinCompSources.Finding("d3dx9", "d3dx9_43.dll", WinCompSources.Origin.FOLDER, false),
         )
         val picks = AutoComponents.autoPicks(findings, catalog)
-        // The detector's name installs as its DLL twin; physx cannot install; the folder scan only recommends.
         assertEquals(listOf("vcredist2015_dll"), picks.keys.toList())
         assertEquals("GOG", picks.getValue("vcredist2015_dll").kind)
     }
@@ -199,11 +191,9 @@ class WinCompSourcesTest {
         WinComponents.setUser(app, key, "d3dx9", false)
         WinComponents.setUser(app, key, "oalinst_dll", true)
         assertEquals(listOf("xact", "oalinst_dll"), WinComponents.picks(app, key))
-        // A new automatic list keeps the user's switches.
         WinComponents.setAuto(app, key, mapOf("d3dx9" to WinComponents.AutoReason("GOG", listOf("DirectX"))))
         assertEquals(listOf("oalinst_dll"), WinComponents.picks(app, key))
         assertEquals(mapOf("d3dx9" to false, "oalinst_dll" to true), WinComponents.selection(app, key).user)
-        // What the launch reads stays version 1 with the effective list.
         val text = File(app.filesDir, "wincomponents.json").readText()
         assertEquals(1, JSONObject(text).getInt("version"))
         assertEquals("oalinst_dll", JSONObject(text).getJSONObject("games").getJSONArray(key).getString(0))
@@ -219,10 +209,8 @@ class WinCompSourcesTest {
         val folder = tmp.newFolder("Shared")
         val exe = File(folder, "Shared.exe").apply { writeText("x") }
         val art = AddedGames.Game(folder, "Shared", exe, "/g/Shared.exe", "/g", 0x81234567L, 0L, emptyList())
-        // The art fetch finds it by name ...
         val match = AddedGameArt.steamMatch(app, art) { 4242 }
         assertEquals(4242, match.appId)
-        // ... and the components read the same record.
         assertEquals(4242, SteamMatch.get(app, folder.path)!!.appId)
         assertEquals(SteamMatch.Certainty.NAME, SteamMatch.get(app, folder.path)!!.certainty)
         assertFalse(WinCompSources.forGame(app, game(folder, Library.ADDED)).any { it.auto })
@@ -268,7 +256,6 @@ class WinCompSourcesTest {
     @Test fun aSteamListedComponentNotYetDownloadedTurnsOnWhenItLands() = withFakeWorker {
         installedNow.add("d3dx9")
         val game = payback()
-        // The user had switched one off: it is never downloaded for an automatic pick.
         WinComponents.setUser(app, "1262580", "vcredist2019_dll", false)
         AutoComponents.queueGame(app, game, asked = true)
         assertEquals(listOf("vcredist2013_dll"), downloaded)
@@ -276,7 +263,6 @@ class WinCompSourcesTest {
         assertEquals(setOf("d3dx9", "vcredist2013_dll", "vcredist2019_dll"), sel.auto.keys)
         assertEquals(setOf("d3dx9", "vcredist2013_dll"), WinComponents.picks(app, "1262580").toSet())
         assertEquals("STEAM", sel.auto.getValue("vcredist2013_dll").kind)
-        // The list is kept for the page.
         assertEquals(3, AutoComponents.cachedFindings(app, "1262580")!!.count { it.auto })
     }
 
@@ -297,7 +283,6 @@ class WinCompSourcesTest {
         AutoComponents.unfavourable = { true }
         AutoComponents.queueGame(app, game, asked = false)
         assertTrue(downloaded.isEmpty())
-        // The user opens the page: asked for, it goes.
         AutoComponents.queueGame(app, game, asked = true)
         assertEquals(3, downloaded.size)
     }
@@ -311,7 +296,6 @@ class WinCompSourcesTest {
         assertEquals(listOf("g:1262580"), AutoComponents.queued())
         session = false
         AutoComponents.drain(app)
-        // Each component once, though two games could want it.
         assertEquals(downloaded.distinct(), downloaded)
     }
 
@@ -319,7 +303,6 @@ class WinCompSourcesTest {
         val game = payback()
         AutoComponents.online = { false }
         AutoComponents.queueGame(app, game, asked = true)
-        // The list is worked out offline; the downloads wait.
         assertTrue(downloaded.isEmpty())
         assertTrue(AutoComponents.queued().all { it.startsWith("c:") })
         AutoComponents.online = { true }
@@ -327,7 +310,6 @@ class WinCompSourcesTest {
         assertEquals(3, downloaded.size)
     }
 
-    // ---- older store installs: the list read once from the store ----
 
     @Test fun anOlderGogInstallGetsItsListFromTheStoreOnce() {
         val folder = tmp.newFolder("DOOM I Enhanced")
@@ -338,7 +320,6 @@ class WinCompSourcesTest {
         try {
             assertTrue(StoreListBackfill.fill(app, folder))
             assertEquals("MSVC2019_x64,DirectX", StoreGameSidecar.read(folder)!!.extra[WinCompSources.GOG_DEPENDENCIES])
-            // Kept like a fresh install: not fetched again.
             assertFalse(StoreListBackfill.fill(app, folder))
             assertEquals(1, fetches)
             assertEquals(listOf("vcredist2019" to WinCompSources.Origin.GOG, "d3dx9" to WinCompSources.Origin.GOG), auto(WinCompSources.forGame(app, game(folder, "gog"))))
@@ -377,7 +358,6 @@ class WinCompSourcesTest {
             AutoComponents.online = { true }
             assertFalse(StoreListBackfill.fill(app, folder))
             assertFalse(StoreListBackfill.fill(app, folder))
-            // Signed out or the store refused: once, then a week's rest; the sidecar is untouched.
             assertEquals(1, fetches)
             assertTrue(StoreListBackfill.needs(StoreGameSidecar.read(folder)!!))
         } finally {
@@ -386,16 +366,13 @@ class WinCompSourcesTest {
         }
     }
 
-    // ---- apps the client never saw ----
 
     @Test fun anAppTheClientLearnsLaterIsReadOnceItsCacheIsWritten() {
         val file = SteamAppInfo.appinfoFile(app)
         appinfo(file, 1)
         file.setLastModified(1_000_000_000_000L)
         assertEquals(null, SteamAppInfo.info(app, 1145360))
-        // Unchanged file: the miss stands (no re-read).
         assertEquals(null, SteamAppInfo.info(app, 1145360))
-        // The client wrote its cache with the app in it: read at once, not a week later.
         appinfo(file, 1145360)
         file.setLastModified(1_000_000_100_000L)
         assertEquals(listOf("228986", "228990"), SteamAppInfo.info(app, 1145360)!!.sharedDepots)
@@ -418,7 +395,6 @@ class WinCompSourcesTest {
         assertTrue(StoreListBackfill.needs(StoreGameSidecar.read(older)!!))
     }
 
-    // ---- a game installed during the session ----
 
     private fun manifest(dir: File, appId: Int, state: Int, time: Long) =
         File(dir, "appmanifest_$appId.acf").apply {
@@ -431,7 +407,6 @@ class WinCompSourcesTest {
         manifest(steamapps, 12900, 1026, 1_000_000L)
         manifest(steamapps, 570, 4, 1_000_000L)
         val watch = SessionInstalls.Watch { listOf(steamapps) }
-        // What was there when the session started is not new.
         assertTrue(watch.poll().isEmpty())
         assertTrue(watch.poll().isEmpty())
         manifest(steamapps, 12900, 4, 2_000_000L)
@@ -448,14 +423,12 @@ class WinCompSourcesTest {
         gameUp = true
         AutoComponents.queueInSession(app, installed)
         assertTrue(downloaded.isEmpty())
-        // Other work stays paused in the session.
         val other = game(tmp.newFolder("Other"), Library.ADDED)
         AutoComponents.queueGame(app, other, asked = false)
         gameUp = false
         AutoComponents.drain(app)
         assertEquals(3, downloaded.size)
         assertEquals(setOf("d3dx9", "vcredist2013_dll", "vcredist2019_dll"), WinComponents.picks(app, "1262580").toSet())
-        // Nothing left pending for the launch to wait on; the other game still waits for the session's end.
         assertEquals(0, AutoComponents.Pending.read(app).length())
         assertEquals(listOf("g:${AutoComponents.appKey(other)}"), AutoComponents.queued())
         session = false

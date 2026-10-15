@@ -23,7 +23,6 @@ class WinComponentsSupportTest {
 
     @Test fun windowsInstallerPackagesInstallHere() {
         assertEquals(Support.READY, support(component("xna40", step("install_msi", "url" to "$base/xna40.msi"))))
-        // The catalog names some .msi packages install_exe.
         assertEquals(Support.READY, support(component("XLiveRedist",
             step("install_exe", "url" to "$base/XLiveRedist.msi", "file_name" to "XLiveRedist1.2.0238.msi"))))
         assertEquals(Support.READY, support(component("msxml3", step("delete_dlls", "dest" to "win32"),
@@ -33,12 +32,10 @@ class WinComponentsSupportTest {
     }
 
     @Test fun installerWrappersInstallHere() {
-        // A WiX bundle, a self-extracting cabinet or 7-Zip archive: the packages inside are laid out.
         assertEquals(Support.READY, support(component("vcredist2022",
             step("install_exe", "url" to "$base/vcredist2022__VC_redist.x86.exe", "file_name" to "VC_redist.x86.exe"),
             step("install_exe", "url" to "$base/vcredist2022__VC_redist.x64.exe", "file_name" to "VC_redist.x64.exe"),
             step("override_dll", "dll" to "vcruntime140", "type" to "native,builtin"))))
-        // .NET Framework: "uninstall Wine Mono", the Windows version, the installer, a registry key.
         assertEquals(Support.READY, support(component("dotnet40",
             step("uninstall", "file_name" to "Wine Mono"), step("set_windows", "version" to "win7"),
             step("install_exe", "url" to "https://download.microsoft.com/x/dotNetFx40_Full_x86_x64.exe", "file_name" to "dotNetFx40_Full_x86_x64.exe"),
@@ -48,7 +45,6 @@ class WinComponentsSupportTest {
     }
 
     @Test fun nestedCatalogKeysAreRead() {
-        // A few .NET entries keep url and file_name under "environment".
         val nested = WinComponents.Step("install_exe", JSONObject().put("environment", JSONObject()
             .put("WINEDLLOVERRIDES", "fusion=b").put("file_name", "ndp48-x86-x64-allos-enu.exe")
             .put("url", "https://download.visualstudio.microsoft.com/x/ndp48-x86-x64-allos-enu.exe")))
@@ -67,14 +63,11 @@ class WinComponentsSupportTest {
 
     @Test fun recordedInstallersInstallHere() {
         val snapshot = "https://github.com/Droid-Deck/DroidDeck-Components/releases/download/component-snapshots-v1/K-Lite.snapshot.json"
-        // A setup program with a recording of its result installs from the recording.
         val klite = WinComponents.Component("K-Lite", "", "", "ready", emptyList(),
             listOf(step("install_exe", "url" to "$base/K-Lite.exe", "file_name" to "K-Lite_1960.exe")), snapshot)
         assertEquals(Support.READY, WinComponents.support(klite, mapOf(klite.name to klite)))
-        // Only a recording on the release counts.
         val elsewhere = WinComponents.Component("K-Lite", "", "", "ready", emptyList(), klite.steps, "http://example.com/K-Lite.snapshot.json")
         assertEquals(Support.NEEDS_INSTALLER, WinComponents.support(elsewhere, mapOf(elsewhere.name to elsewhere)))
-        // Its prerequisites still have to be installable.
         val sp1 = WinComponents.Component("dotnet20sp1", "", "", "ready", listOf("dotnet20"), emptyList(), snapshot.replace("K-Lite", "dotnet20sp1"))
         val base20 = WinComponents.Component("dotnet20", "", "", "ready", emptyList(),
             listOf(step("install_exe", "url" to "$base/dotnet20__dotnetfx.exe", "file_name" to "dotnetfx.exe")))
@@ -82,7 +75,6 @@ class WinComponentsSupportTest {
     }
 
     @Test fun setupProgramsStillWait() {
-        // NSIS / InnoSetup installers hold no package to lay out.
         assertEquals(Support.NEEDS_INSTALLER, support(component("K-Lite",
             step("install_exe", "url" to "$base/K-Lite.exe", "file_name" to "K-Lite_1960.exe"))))
         assertEquals(Support.NEEDS_INSTALLER, support(component("plain", step("install_msi", "url" to "http://example.com/a.msi"))))

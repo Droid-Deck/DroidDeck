@@ -15,11 +15,12 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from adb_device import DeviceResolutionError, resolve_serial  # noqa: E402
+from adb_device import DeviceResolutionError, resolve_serial
 
 
-AUTHORITY = "content://com.droiddeck.launcher.agent"
-PACKAGE = "com.droiddeck.launcher"
+# tools/release/variants.txt: the same app also ships as other packages (e.g. com.antutu.benchmark.full).
+PACKAGE = os.environ.get("DROIDDECK_PACKAGE", "com.droiddeck.launcher")
+AUTHORITY = f"content://{PACKAGE}.agent"
 STEAM_CLIENT_APP = 769
 REQUEST_CAP = 256 * 1024
 
@@ -117,7 +118,7 @@ def start_agent_activity(adb: str, serial: str, request: dict) -> None:
         "start",
         "-W",
         "-n",
-        f"{PACKAGE}/.agent.AgentStartActivity",
+        f"{PACKAGE}/com.droiddeck.launcher.agent.AgentStartActivity",
         "--es",
         "request",
         encoded,
@@ -215,7 +216,6 @@ def add_serial(response: dict, serial: str) -> dict:
     return response
 
 
-# --- displays ------------------------------------------------------------------------------------
 
 def displays(adb: str, serial: str) -> list[dict]:
     """Logical displays with the SurfaceFlinger (physical) id screencap and screenrecord want."""
@@ -285,7 +285,64 @@ def record(adb: str, serial: str, path: str, seconds: float, display: int | None
     return {"ok": True, "command": "record", "path": str(destination), "seconds": seconds, "display": display}
 
 
-# --- commands ------------------------------------------------------------------------------------
+def pacing_summary(text: str, package: str = PACKAGE) -> dict:
+    """What reached the panel, from a `dumpsys SurfaceFlinger --timestats -dump`.
+
+    The game is on the compositor's own layer (droiddeck_wayland_game) when it has one, otherwise on
+    the session's SurfaceView. SurfaceFlinger keeps one record per layer AND refresh rate, so a panel
+    that switches between 60 and 120 Hz mid-capture splits the same layer into several records: they
+    are summed. A game's own fps counter does not show any of this - it counts frames handed over, not
+    frames shown, and 60 handed over can be 48 on screen with one in four held for two refreshes.
+    """
+    records = {"game": [], "surface": []}
+    for part in re.split(r"^layerName = ", text, flags=re.M)[1:]:
+        name, _, body = part.partition("\n")
+        kind = ("game" if "droiddeck_wayland_game" in name
+                else "surface" if f"SurfaceView[{package}/" in name else None)
+        frames = re.search(r"^totalFrames = (\d+)", body, re.M)
+        hist = re.search(r"^present2present histogram is as below:\n(.*)", body, re.M)
+        if kind and frames and hist:
+            records[kind].append((re.sub(r"#\d+$", "", name.strip()), int(frames.group(1)), hist.group(1)))
+    chosen = records["game"] or records["surface"]
+    histogram: dict[int, int] = {}
+    for _, _, hist in chosen:
+        for ms, count in re.findall(r"(\d+)ms=(\d+)", hist):
+            if int(count):
+                histogram[int(ms)] = histogram.get(int(ms), 0) + int(count)
+    intervals = sum(histogram.values())
+    cadence = max(histogram, key=histogram.get) if histogram else None
+    off = intervals - histogram.get(cadence, 0) if histogram else 0
+    return {
+        "layers": sorted({name for name, _, _ in chosen}),
+        "frames": sum(frames for _, frames, _ in chosen),
+        "refreshRates": sorted({int(r) for r in re.findall(r"^displayRefreshRate = (\d+)", text, re.M)}),
+        "presentToPresentMs": {str(ms): histogram[ms] for ms in sorted(histogram)},
+        "cadenceMs": cadence,
+        "offCadence": off,
+        "offCadencePercent": round(100.0 * off / intervals, 1) if intervals else None,
+    }
+
+
+def pacing(adb: str, serial: str, seconds: float) -> dict:
+    """Frames on screen and their intervals over `seconds`, from SurfaceFlinger's timestats."""
+    seconds = max(1.0, min(600.0, seconds))
+    timestats = ("shell", "dumpsys", "SurfaceFlinger", "--timestats")
+    if run_adb(adb, serial, *timestats, "-clear", "-enable").returncode != 0:
+        raise ControlError("could not enable SurfaceFlinger timestats", "PACING_FAILED")
+    started = time.monotonic()
+    time.sleep(seconds)
+    dump = run_adb(adb, serial, *timestats, "-dump", timeout=60)
+    elapsed = time.monotonic() - started
+    run_adb(adb, serial, *timestats, "-disable")
+    if dump.returncode != 0:
+        raise ControlError(dump.stderr.decode(errors="replace").strip() or "timestats dump failed", "PACING_FAILED")
+    summary = pacing_summary(dump.stdout.decode(errors="replace"))
+    if not summary["layers"]:
+        raise ControlError("No DroidDeck layer drew during the capture: is a session on screen?", "NO_FRAMES")
+    summary["fpsOnScreen"] = round(summary["frames"] / elapsed, 1)
+    return {"ok": True, "command": "pacing", "seconds": round(elapsed, 1), **summary}
+
+
 
 def start_session(adb: str, serial: str, request: dict) -> dict:
     if request.get("mode") == "run":
@@ -300,7 +357,7 @@ def start_session(adb: str, serial: str, request: dict) -> dict:
 def require_commands(adb: str, serial: str) -> dict:
     access = checked(provider_call(adb, serial, "access"), "ACCESS_FAILED")
     if access.get("commands") is not True:
-        raise ControlError("Debugging tools are off: turn on Setup > Session > Debugging tools on the device",
+        raise ControlError("Debugging tools are off: turn on Setup > Diagnostics > Debugging tools on the device",
                            "AGENT_COMMANDS_DISABLED")
     return access
 
@@ -341,8 +398,6 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
                     raise ControlError("Steam URL must start with steam://", "INVALID_STEAM_URL")
                 request["steamUrl"] = args.url
         if args.reuse:
-            # A scenario's per-run "before": keep a session of this mode that is already up, so only
-            # a run after one that ended (a crash, the low-memory killer) starts a new one.
             current = get_state(adb, serial)["session"]
             wanted = {"steam": "steam", "desktop": "lxqt"}[args.mode]
             if current.get("running") and current.get("mode") == wanted and current.get("phase") not in {"STOPPING", "FAILED"}:
@@ -507,8 +562,10 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
     if command == "record":
         return add_serial(record(adb, serial, args.path, args.seconds, args.display), serial)
 
+    if command == "pacing":
+        return add_serial(pacing(adb, serial, args.seconds), serial)
+
     if command == "wake":
-        # A sleeping device stops the session and hides the app's windows from ui dump.
         run_adb(adb, serial, "shell", "input", "keyevent", "KEYCODE_WAKEUP")
         run_adb(adb, serial, "shell", "wm", "dismiss-keyguard")
         power = run_adb(adb, serial, "shell", "dumpsys", "power").stdout.decode(errors="replace")
@@ -549,7 +606,6 @@ def build_parser() -> argparse.ArgumentParser:
 
     stop = commands.add_parser("stop", help="stop the session and wait for IDLE")
     stop.add_argument("--timeout", type=float, default=90)
-    # Collecting the client's logs and redacting them took about two minutes after a Skyrim session.
     stop.add_argument("--artifact-timeout", type=float, default=300)
     commands.add_parser("resume", help="resume a suspended session")
 
@@ -666,6 +722,9 @@ def build_parser() -> argparse.ArgumentParser:
     rec.add_argument("--seconds", type=float, default=10)
     rec.add_argument("--display", type=int)
 
+    pace = commands.add_parser("pacing", help="frames that reached the screen and their intervals (SurfaceFlinger)")
+    pace.add_argument("--seconds", type=float, default=30)
+
     commands.add_parser("displays", help="the device's displays and their capture ids")
     commands.add_parser("wake", help="wake the device and dismiss the keyguard")
     return parser
@@ -675,10 +734,11 @@ EXIT_ADB = {"ADB_NOT_FOUND", "ADB_FAILED", "INVALID_PROVIDER_RESPONSE"}
 EXIT_SESSION = {
     "SESSION_ACTIVE", "NO_ACTIVE_SESSION", "SESSION_NOT_SUSPENDED", "SESSION_FAILED", "GUEST_EXIT",
     "GUEST_START_FAILED", "RUNTIME_INSTALL_FAILED", "DESKTOP_INSTALL_FAILED", "ACTIVITY_START_FAILED",
-    "NO_STEAM_SESSION", "SESSION_NOT_READY", "AGENT_UNAVAILABLE", "LAUNCH_REJECTED", "NO_PAD",
+    "NO_STEAM_SESSION", "SESSION_NOT_READY", "AGENT_UNAVAILABLE", "LAUNCH_REJECTED", "NO_PAD", "NO_FRAMES",
 }
 EXIT_TIMEOUT = {"TIMEOUT", "ARTIFACT_TIMEOUT"}
-EXIT_FILE = {"NO_SESSION_LOGS", "LOG_PULL_FAILED", "SCREENSHOT_FAILED", "FILE_IO", "RECORD_FAILED", "PUSH_FAILED"}
+EXIT_FILE = {"NO_SESSION_LOGS", "LOG_PULL_FAILED", "SCREENSHOT_FAILED", "FILE_IO", "RECORD_FAILED", "PUSH_FAILED",
+             "PACING_FAILED"}
 EXIT_DENIED = {"AGENT_COMMANDS_DISABLED", "PROTECTED_PREFS", "PROTECTED_CONTROL"}
 
 
@@ -711,7 +771,7 @@ def main(argv: list[str] | None = None) -> int:
     except (ControlError, DeviceResolutionError) as exc:
         error = {"code": getattr(exc, "code", "DEVICE_RESOLUTION_FAILED"), "message": str(exc)}
         code = exit_code(exc)
-    except Exception as exc:  # the contract is JSON on stdout, even for a bug in this tool
+    except Exception as exc:
         error = {"code": "INTERNAL_ERROR", "message": f"{type(exc).__name__}: {exc}"}
         code = 2
     response = {"ok": False, "error": error}

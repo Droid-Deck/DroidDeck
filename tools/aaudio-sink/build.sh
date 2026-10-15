@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Compiles module-aaudio-sink.so against the upstream PulseAudio 13.0 headers and the daemon's own
-# libraries the app ships (app/src/main/jniLibs/arm64-v8a), with the Android NDK.
-#   NDK=<ndk root> tools/aaudio-sink/build.sh <pulseaudio-13.0 source dir> <output dir>
-# Produces module-aaudio-sink.so in the output dir (the fallback sink; the DirectAudio sinks come
-# from the pinned DirectAudio release, see tools/directaudio/fetch.sh).
 set -euo pipefail
 PA_SRC=$1
 OUTDIR=$2
@@ -40,14 +35,11 @@ sed -e 's/@PA_MAJOR@/13/g' -e 's/@PA_MINOR@/0/g' -e 's/@PA_API_VERSION@/12/g' -e
 cp "$HERE/config.h" "$HERE/ltdl.h" "$INC/"
 build_one() {
   local src=$1 OUT=$2 extra=$3
-  # PulseAudio 13's own headers (pulsecore/atomic.h) predate clang's int-conversion error; that
-  # one is downgraded for them, the modules themselves compile clean.
   "$CC" -O2 -shared -fPIC -Wall -Wno-unused-parameter -Wno-error=int-conversion -Wno-visibility -DHAVE_CONFIG_H \
       -I"$INC" -I"$PA_SRC/src" -I"$HERE" \
       -o "$OUT" "$HERE/$src" \
       -L"$LIBS" -l:libpulsecore-13.0.so -l:libpulsecommon-13.0.so -l:libpulse.so $extra
   "$TOOLCHAIN/llvm-strip" --strip-unneeded "$OUT"
-  # What the daemon looks for, and nothing linked that a device would not have.
   for sym in pa__init pa__done pa__get_author pa__get_description pa__get_usage pa__get_version pa__load_once; do
     "$TOOLCHAIN/llvm-nm" -D --defined-only "$OUT" | grep -q " $sym$" || { echo "ERROR: $OUT does not export $sym"; exit 1; }
   done
