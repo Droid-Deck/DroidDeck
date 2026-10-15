@@ -359,7 +359,7 @@ fun MenuItem(
             .clip(RoundedCornerShape(8.dp))
             .background(if (hot && enabled) Color.White.copy(alpha = 0.07f) else Color.Transparent)
             .alpha(if (enabled) 1f else 0.4f)
-            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, enabled = enabled, onClick = onClick)
+            .hoverable(src).clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = src, indication = LocalIndication.current, enabled = enabled, onClick = onClick)
             .controllerConfirm(enabled = enabled, onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 9.dp),
     ) {
@@ -392,7 +392,7 @@ fun ValueChip(text: String, open: Boolean, enabled: Boolean = true, modifier: Mo
             .background(colors.surfaceVariant)
             .glideBorder(hot, RoundedCornerShape(10.dp), pal.signal, if (open) pal.signal else pal.line2)
             .alpha(if (enabled) 1f else 0.5f)
-            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, enabled = enabled, onClick = onClick)
+            .hoverable(src).clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = src, indication = LocalIndication.current, enabled = enabled, onClick = onClick)
             .controllerConfirm(enabled = enabled, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
@@ -804,7 +804,7 @@ fun <T> SegmentedTabs(options: List<Pair<T, String>>, selected: T?, modifier: Mo
                             .glideBorder(hot, pillShape, if (chosen) pal.onSignal else pal.signal)
                             .semantics { role = Role.Tab; this.selected = chosen }
                             .hoverable(src)
-                            .clickable(interactionSource = src, indication = LocalIndication.current, onClick = pick)
+                            .clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = src, indication = LocalIndication.current, onClick = pick)
                             .controllerConfirm(onClick = pick),
                     ) {
                         Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = ink, maxLines = 1, softWrap = false)

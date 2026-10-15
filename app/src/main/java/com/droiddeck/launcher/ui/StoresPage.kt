@@ -1144,7 +1144,7 @@ private fun GameListRow(
         modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp).then(navigation).paneItem("card:${item.key}")
             .then(if (first) Modifier.firstTile() else Modifier)
             .clip(RoundedCornerShape(10.dp)).glideBorder(hot, RoundedCornerShape(10.dp), pal.signal, pal.line)
-            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, onClick = open).controllerConfirm(onClick = open)
+            .hoverable(src).clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = src, indication = LocalIndication.current, onClick = open).controllerConfirm(onClick = open)
             .padding(horizontal = 10.dp, vertical = 8.dp),
     ) {
         CardArt(item, Modifier.width(96.dp).height(54.dp).clip(RoundedCornerShape(8.dp)))
@@ -1257,7 +1257,7 @@ private fun GameCard(item: CatalogItem, store: Store, s: FrontEndState, a: Front
             }
             .then(navigation).paneItem("card:${item.key}").then(if (first) Modifier.firstTile() else Modifier).graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(RoundedCornerShape(10.dp)).glideBorder(hot, RoundedCornerShape(10.dp), pal.signal, pal.line)
-            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, onClick = open).controllerConfirm(onClick = open),
+            .hoverable(src).clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = src, indication = LocalIndication.current, onClick = open).controllerConfirm(onClick = open),
     ) {
         CardFace(item, download, hot) { CardMarker(item, installed, download) }
     }
