@@ -1247,7 +1247,7 @@ private fun GameComponentOverrides(
                 }
             }
             SettingsRow(
-                stringResource(R.string.setup_language),
+                stringResource(R.string.game_locale_title),
                 null,
             ) {
                 Box {
@@ -1260,7 +1260,7 @@ private fun GameComponentOverrides(
                     AnchoredMenu(
                         localeMenu,
                         onDismiss = { onLocaleMenu(false) },
-                        title = stringResource(R.string.setup_language),
+                        title = stringResource(R.string.game_locale_title),
                     ) { first ->
                         MenuItem(
                             stringResource(R.string.comp_game_use_general),

@@ -1007,7 +1007,7 @@ private fun DrawerLocaleRow(host: MenuHost, a: DrawerActions, modifier: Modifier
         GameEnvironment.locales.map { it to localeLabel(it) } +
         listOfNotNull(profile.locale?.takeIf { it !in GameEnvironment.locales }?.let { it to it })
     ChoiceRow(
-        host, "locale", stringResource(R.string.setup_language), null, options, profile.locale,
+        host, "locale", stringResource(R.string.game_locale_title), null, options, profile.locale,
         enabled = !a.gameLocaleSaving, chipModifier = modifier,
     ) { locale -> a.onGameLocale(appId, locale) }
 }
@@ -1102,7 +1102,7 @@ private fun SelectedGameProfileGroup(host: MenuHost, a: DrawerActions, track: (S
             if (profile.startWithoutSteam) {
                 ProfileSummaryRow(stringResource(R.string.game_no_steam_title), stringResource(R.string.game_no_steam_on))
             }
-            profile.locale?.let { ProfileSummaryRow(stringResource(R.string.setup_language), localeLabel(it)) }
+            profile.locale?.let { ProfileSummaryRow(stringResource(R.string.game_locale_title), localeLabel(it)) }
             if (profile.environmentOverrides > 0) {
                 ProfileSummaryRow(
                     stringResource(R.string.game_env_title),

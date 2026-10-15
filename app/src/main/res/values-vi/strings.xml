@@ -439,6 +439,7 @@
     <string name="game_no_steam_title">Khởi động không cần Steam</string>
     <string name="game_no_steam_detail">Dành cho game đóng ngay lập tức: khởi động game mà không cần thiết lập Steam của Proton. Các tính năng Steam như overlay sẽ tắt đối với game này.</string>
     <string name="game_no_steam_on">Bật</string>
+    <string name="game_locale_title">Ngôn ngữ khu vực</string>
     <string name="comp_game_proton_live">Lựa chọn Proton của %1$s đã được lưu và khả dụng ngay trong Steam.</string>
     <string name="comp_game_proton_next">Lựa chọn Proton của %1$s đã được lưu. Khởi động lại Steam trước khi chạy game.</string>
     <string name="comp_game_proton_not_runnable">%1$s không thể dùng Proton đã chọn trên thiết bị này.</string>

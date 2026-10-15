@@ -439,6 +439,7 @@
     <string name="game_no_steam_title">Mulakan tanpa Steam</string>
     <string name="game_no_steam_detail">Untuk permainan yang terus tertutup: memulakannya tanpa persediaan Steam oleh Proton. Ciri Steam seperti overlay dimatikan untuknya.</string>
     <string name="game_no_steam_on">Hidup</string>
+    <string name="game_locale_title">Lokal</string>
     <string name="comp_game_proton_live">Pilihan Proton %1$s disimpan dan tersedia dalam Steam sekarang.</string>
     <string name="comp_game_proton_next">Pilihan Proton %1$s disimpan. Mulakan semula Steam sebelum melancarkan permainan.</string>
     <string name="comp_game_proton_not_runnable">%1$s tidak boleh menggunakan Proton yang dipilih pada peranti ini.</string>

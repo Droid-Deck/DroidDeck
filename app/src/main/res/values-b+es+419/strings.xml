@@ -90,4 +90,5 @@
         <item quantity="many">%1$d juegos agregados</item>
         <item quantity="other">%1$d juegos agregados</item>
     </plurals>
+    <string name="game_locale_title">Configuración regional</string>
 </resources>

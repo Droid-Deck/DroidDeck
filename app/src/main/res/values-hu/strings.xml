@@ -441,6 +441,7 @@
     <string name="game_no_steam_title">Indítás Steam nélkül</string>
     <string name="game_no_steam_detail">Olyan játékhoz, amely azonnal bezáródik: elindítja a Proton Steam-beállítása nélkül. A Steam funkciói, mint az overlay, ki vannak kapcsolva hozzá.</string>
     <string name="game_no_steam_on">Be</string>
+    <string name="game_locale_title">Területi beállítások</string>
     <string name="comp_game_proton_live">A %1$s Proton-választása mentve, és már elérhető a Steamben.</string>
     <string name="comp_game_proton_next">A %1$s Proton-választása mentve. Indítsa újra a Steamet a játék elindítása előtt.</string>
     <string name="comp_game_proton_not_runnable">A %1$s nem tudja használni a kiválasztott Protont ezen az eszközön.</string>

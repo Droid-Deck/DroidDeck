@@ -441,6 +441,7 @@
     <string name="game_no_steam_title">Start uten Steam</string>
     <string name="game_no_steam_detail">For et spill som lukkes med én gang: starter det uten Protons Steam-oppsett. Steam-funksjoner som overlay er slått av for det.</string>
     <string name="game_no_steam_on">På</string>
+    <string name="game_locale_title">Lokale</string>
     <string name="comp_game_proton_live">Proton-valget til %1$s er lagret og tilgjengelig i Steam nå.</string>
     <string name="comp_game_proton_next">Proton-valget til %1$s er lagret. Start Steam på nytt før du starter spillet.</string>
     <string name="comp_game_proton_not_runnable">%1$s kan ikke bruke den valgte Protonen på denne enheten.</string>

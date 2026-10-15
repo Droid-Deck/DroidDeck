@@ -445,6 +445,7 @@
     <string name="game_no_steam_title">Запустити без Steam</string>
     <string name="game_no_steam_detail">Для гри, яка відразу закривається: запускає її без налаштування Steam від Proton. Функції Steam, як-от оверлей, для неї вимкнені.</string>
     <string name="game_no_steam_on">Увімкнено</string>
+    <string name="game_locale_title">Локаль</string>
     <string name="comp_game_proton_live">Вибір Proton для %1$s збережено, і він уже доступний у Steam.</string>
     <string name="comp_game_proton_next">Вибір Proton для %1$s збережено. Перезапустіть Steam перед запуском гри.</string>
     <string name="comp_game_proton_not_runnable">%1$s не може використовувати вибраний Proton на цьому пристрої.</string>
