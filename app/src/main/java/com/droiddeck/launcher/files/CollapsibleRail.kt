@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -337,7 +338,7 @@ fun RailTopTabs(
                         .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)),
                 )
                 links.forEach { link ->
-                    TopTabCell(link.icon, link.label, selected = false, onClick = link.onClick, modifier = Modifier.weight(1f))
+                    TopTabCell(link.icon, link.label, selected = false, onClick = link.onClick, isTab = false, modifier = Modifier.weight(1f))
                 }
             }
         }
@@ -352,6 +353,7 @@ private fun TopTabCell(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    isTab: Boolean = true,
 ) {
     val tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
     Column(
@@ -359,7 +361,13 @@ private fun TopTabCell(
         modifier = modifier
             .clip(RoundedCornerShape(9.dp))
             .background(if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.14f) else Color.Transparent)
-            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
+            .then(
+                if (isTab) {
+                    Modifier.selectable(selected = selected, role = androidx.compose.ui.semantics.Role.Tab, onClick = onClick)
+                } else {
+                    Modifier.clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
+                },
+            )
             .padding(vertical = 6.dp, horizontal = 1.dp),
     ) {
         Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(20.dp))
