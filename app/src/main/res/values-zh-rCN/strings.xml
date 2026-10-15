@@ -439,6 +439,7 @@
     <string name="game_no_steam_title">不启动 Steam 直接开始</string>
     <string name="game_no_steam_detail">适用于一开就立即关闭的游戏:不经过 Proton 的 Steam 设置来启动。叠加层等 Steam 功能对该游戏会关闭。</string>
     <string name="game_no_steam_on">开</string>
+    <string name="game_direct_launch">无 Steam</string>
     <string name="comp_game_proton_live">%1$s 的 Proton 选择已保存，现已在 Steam 中可用。</string>
     <string name="comp_game_proton_next">%1$s 的 Proton 选择已保存。启动游戏前请重启 Steam。</string>
     <string name="comp_game_proton_not_runnable">%1$s 无法在此设备上使用所选的 Proton。</string>
