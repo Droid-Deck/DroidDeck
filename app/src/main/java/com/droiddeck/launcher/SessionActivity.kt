@@ -550,8 +550,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 }
                 val glassesVr = glasses.usable && glasses.canControl
                 val steamVrRequested = SessionState.steamVr
-                LaunchedEffect(cardboard.enabled, steamVrSwitchedPicture, glassesVr, steamVrRequested) {
-                    while (cardboard.enabled || steamVrSwitchedPicture || glassesVr || steamVrRequested) {
+                val pollSteamVr = SteamVr.shouldPoll(steamVrStatus, cardboard.enabled,
+                    steamVrSwitchedPicture, glassesVr, steamVrRequested)
+                LaunchedEffect(pollSteamVr) {
+                    while (pollSteamVr) {
                         val now = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                             SteamVr.status(this@SessionActivity)
                         }
@@ -2391,6 +2393,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun steamVrAction(action: String) {
+        if (action == "start") {
+            SessionState.steamVr = true
+            steamVrAutoTried = true
+        }
         if (action == "stop") SessionState.steamVr = false
         if (glasses.present) {
             // Optional stereo starts only after RUNNING is observed. READY can

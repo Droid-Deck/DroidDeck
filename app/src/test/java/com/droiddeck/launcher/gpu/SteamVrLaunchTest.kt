@@ -4,6 +4,19 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SteamVrLaunchTest {
+    @Test fun manualRequestKeepsPollingWithoutGlassesControlOrCardboard() {
+        for (status in listOf(null, SteamVr.Status.READY, SteamVr.Status.UNAVAILABLE, SteamVr.Status.RUNNING)) {
+            assertTrue(SteamVr.shouldPoll(status, false, false, false, true))
+        }
+    }
+
+    @Test fun observedActivityIsPolledUntilItStopsEvenWithoutARequest() {
+        assertTrue(SteamVr.shouldPoll(SteamVr.Status.RUNNING, false, false, false, false))
+        assertTrue(SteamVr.shouldPoll(SteamVr.Status.INSTALLING, false, false, false, false))
+        assertFalse(SteamVr.shouldPoll(SteamVr.Status.READY, false, false, false, false))
+        assertFalse(SteamVr.shouldPoll(null, false, false, false, false))
+    }
+
     @Test fun explicitPlayRequestStartsWhenRuntimeIsReadyWithoutWaitingForGlassesControlOrOutput() {
         assertEquals("start", action(SteamVr.Status.READY))
     }

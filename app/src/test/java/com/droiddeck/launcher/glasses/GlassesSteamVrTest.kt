@@ -93,6 +93,29 @@ class GlassesSteamVrTest {
         assertFalse(load().auto3d)
     }
 
+    @Test fun manualStartOnDisplayOnlyGlassesRequestsPollingWithoutDuplicatingLaunch() {
+        @Suppress("UNCHECKED_CAST")
+        val state = field("_state").get(null) as MutableStateFlow<GlassesState>
+        state.value = GlassesState(present = true, displayId = 2, width = 1920, height = 1080)
+        withLaunch(auto3d = false) { activity ->
+            SessionState.steamVr = false
+            fun action(name: String) = SessionActivity::class.java.getDeclaredMethod("steamVrAction", String::class.java)
+                .apply { isAccessible = true }.invoke(activity, name)
+            action("start")
+            assertTrue("A manual start must keep status polling alive", SessionState.steamVr)
+            val worker = SessionActivity::class.java.getDeclaredField("steamVrWorker")
+                .apply { isAccessible = true }.get(null) as ThreadPoolExecutor
+            assertEquals(1, worker.queue.size)
+            status(activity, SteamVr.Status.READY)
+            assertEquals("Polling must not launch a duplicate instance", 1, worker.queue.size)
+            status(activity, SteamVr.Status.RUNNING)
+            status(activity, SteamVr.Status.UNAVAILABLE)
+            assertTrue(SessionState.steamVr)
+            action("stop")
+            assertFalse(SessionState.steamVr)
+        }
+    }
+
     private fun status(activity: SessionActivity, status: SteamVr.Status) {
         SessionActivity::class.java.getDeclaredMethod("onSteamVrStatus", SteamVr.Status::class.java)
             .apply { isAccessible = true }.invoke(activity, status)
