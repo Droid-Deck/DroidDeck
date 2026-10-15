@@ -171,6 +171,9 @@ class StoreLoginActivity : ComponentActivity() {
         setBackgroundColor(0xFF0A0B0D.toInt())
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
+        // Store sign-in pages are web pages; they never need to read local files or content:// URIs.
+        settings.allowFileAccess = false
+        settings.allowContentAccess = false
         settings.userAgentString = userAgent
         settings.setSupportMultipleWindows(true)
         settings.javaScriptCanOpenWindowsAutomatically = true
