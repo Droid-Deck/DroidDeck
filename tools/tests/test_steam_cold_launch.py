@@ -32,12 +32,19 @@ class SteamColdLaunchTest(unittest.TestCase):
         self.bin.mkdir()
         self.agent_args = self.root / "agent-args"
         self.sleep_args = self.root / "sleep-args"
+        self.agent_count = self.root / "agent-count"
 
         xprop = self.bin / "xprop"
         xprop.write_text("#!/bin/sh\necho 'GAMESCOPE_FOCUSED_APP(CARDINAL) = 769'\n")
         xprop.chmod(0o755)
         agent = self.bin / "droiddeck-agent"
-        agent.write_text("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$AGENT_ARGS\"\nexit \"$AGENT_STATUS\"\n")
+        agent.write_text(
+            "#!/bin/sh\n"
+            "printf '%s\\n' \"$@\" > \"$AGENT_ARGS\"\n"
+            "n=$(cat \"$AGENT_COUNT\" 2>/dev/null || echo 0); n=$((n + 1)); echo $n > \"$AGENT_COUNT\"\n"
+            "i=0; last=1\n"
+            "for s in $AGENT_STATUS; do i=$((i + 1)); last=$s; [ \"$i\" -eq \"$n\" ] && exit \"$s\"; done\n"
+            "exit \"$last\"\n")
         agent.chmod(0o755)
         sleep = self.bin / "sleep"
         sleep.write_text("#!/bin/sh\nprintf '%s\\n' \"$@\" >> \"$SLEEP_ARGS\"\n")
@@ -48,7 +55,7 @@ class SteamColdLaunchTest(unittest.TestCase):
         env = dict(os.environ, HOME=str(self.root), BL_LAUNCH_DIR=str(self.launch_dir),
                    PATH=str(self.bin) + os.pathsep + os.environ["PATH"],
                    AGENT_ARGS=str(self.agent_args), SLEEP_ARGS=str(self.sleep_args),
-                   AGENT_STATUS=str(helper_status))
+                   AGENT_COUNT=str(self.agent_count), AGENT_STATUS=str(helper_status))
         script = self.block + "\nprintf 'ARG:%s\\n' \"$@\"\nwait\n"
         url = target if target.startswith("steam://") else "steam://rungameid/" + target
         result = subprocess.run(["bash", "-c", script, "cold-launch", url],
@@ -76,7 +83,16 @@ class SteamColdLaunchTest(unittest.TestCase):
         result = self.run_launch(game_id, 1)
         self.assertFalse((self.launch_dir / "steam-game").exists(), result.stdout)
         self.assertEqual(["--wait-steam-shortcut-overview", game_id, "45"], self.agent_args.read_text().splitlines())
-        self.assertFalse(self.sleep_args.exists())
+        self.assertEqual("40", self.agent_count.read_text().strip())
+        self.assertEqual(["2"] * 40, self.sleep_args.read_text().split())
+
+    def test_a_slow_steam_library_still_gets_its_game_launched(self):
+        game_id = str((3551182975 << 32) | 0x02000000)
+        result = self.run_launch(game_id, "1 1 1 0")
+        self.assertEqual(game_id, (self.launch_dir / "steam-game").read_text().strip(), result.stdout)
+        self.assertEqual("4", self.agent_count.read_text().strip())
+        self.assertEqual(["2", "2", "2"], self.sleep_args.read_text().split())
+        self.assertIn("attempt 3 of 40", result.stdout)
 
     def test_non_game_steam_urls_remain_on_the_original_startup_arguments(self):
         url = "steam://open/library"
