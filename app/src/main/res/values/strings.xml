@@ -1949,6 +1949,12 @@
     <string name="stores_search_installed">Search installed games…</string>
     <string name="stores_search_library">Search your library…</string>
     <string name="stores_search_open">Search</string>
+    <string name="stores_sort_description">Sort: %1$s</string>
+    <string name="stores_sort_name_asc">Name A–Z</string>
+    <string name="stores_sort_name_desc">Name Z–A</string>
+    <string name="stores_sort_size_asc">Size: smallest first</string>
+    <string name="stores_sort_size_desc">Size: largest first</string>
+    <string name="stores_sort_size_note">Known install sizes only; unknown sizes appear last. Choose size sorting again to include newly loaded sizes.</string>
     <string name="stores_installed_empty">Nothing installed</string>
     <string name="stores_library_loading">Loading</string>
     <string name="stores_nothing_matches">No games</string>
