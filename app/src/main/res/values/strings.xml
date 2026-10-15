@@ -1284,6 +1284,8 @@
     <string name="drivers_switched_to_restart">Switched to %1$s %2$s. The display driver applies after DroidDeck restarts.</string>
     <string name="drivers_using">Using %1$s %2$s.</string>
     <string name="drivers_using_restart">Using %1$s %2$s. The display driver applies after DroidDeck restarts.</string>
+    <string name="drivers_using_quest">Using the bundled Quest display driver and runtime default.</string>
+    <string name="drivers_using_quest_restart">Using the bundled Quest display driver and runtime default. The display driver applies after DroidDeck restarts.</string>
     <string name="drivers_not_a_driver">Not a driver zip: neither an AdrenoTools driver, a -Linux Turnip nor an Android + Linux bundle</string>
     <string name="drivers_import_failed">Import failed: %1$s</string>
     <string name="drivers_imported_unnamed">Imported driver</string>

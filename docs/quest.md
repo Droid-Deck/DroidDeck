@@ -27,6 +27,13 @@ first launch selects manual drivers, the bundled
 These defaults apply once; subsequent user changes are retained. Colour
 accuracy and headset performance still need testing.
 
+Selecting driver Auto also uses the bundled Quest display driver and runtime
+default, without downloading a generic Adreno driver pair. Manual selections
+remain available and are not replaced on startup. Android's Auto-by-GPU fallback
+uses the Quest bundle too; the external `Download/droiddeck-driver` override
+still takes precedence. Fully close and restart DroidDeck after changing the
+display driver, since the compositor loads it once per app process.
+
 Both the Android driver wrapper and the Linux session preload use
 `tools/quest/kgsl_compat.c`. Successful legacy allocation/free calls are
 unchanged. Only `EACCES`/`EPERM` failures retry through `GPUOBJ_ALLOC`,
