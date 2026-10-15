@@ -657,6 +657,7 @@ static void take_pixel(struct surface *s, const uint8_t bgra[4], struct wl_resou
 static struct surface *g_hud_surface;
 static int64_t g_hud_last_ns, g_hud_alive_ns;
 static int g_hud_fresh;
+static uint64_t g_game_frames;
 extern void droiddeck_on_game_surface(const char *window, const char *gpu);
 extern void droiddeck_on_game_frame(void);
 extern void droiddeck_on_game_program(int pid, const char *program);
@@ -740,9 +741,11 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
     }
     if (s == g_hud_surface) {
         g_hud_alive_ns = now_ns();
-        if (!repeat) { g_hud_last_ns = g_hud_alive_ns; g_hud_fresh = 1; droiddeck_on_game_frame(); }
+        if (!repeat) { g_hud_last_ns = g_hud_alive_ns; g_hud_fresh = 1; g_game_frames++; droiddeck_on_game_frame(); }
     }
 }
+
+uint64_t droiddeck_game_frames(void) { return g_game_frames; }
 
 struct dmabuf_buffer *droiddeck_dmabuf_from_resource(struct wl_resource *buffer) { return get_dmabuf(buffer); }
 int droiddeck_dmabuf_fd(const struct dmabuf_buffer *b) { return b && b->n_planes > 0 ? b->fd[0] : -1; }
