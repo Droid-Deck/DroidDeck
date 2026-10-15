@@ -1011,7 +1011,6 @@
     <string name="gpu_set_with_runtime">ランタイムドライバーと一緒に設定：%1$s は両方を含みます。</string>
     <string name="gpu_runtime_hint">ゲームとデスクトップで使用されます。</string>
     <string name="gpu_runtime_default">ランタイムデフォルト</string>
-    <string name="gpu_display_hint">画面への出力を担当します。DroidDeckの再起動後に有効になります。</string>
     <string name="gpu_auto_by_gpu">自動 - GPUごとに選択</string>
     <string name="gpu_manage">ダウンロード、インポート、削除…</string>
     <string name="gpu_in_use_caps">使用中</string>

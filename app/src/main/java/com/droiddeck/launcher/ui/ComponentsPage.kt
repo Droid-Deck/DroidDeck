@@ -56,6 +56,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
@@ -127,6 +128,7 @@ private val QUEUED = Color(0xFFFFB86B)
 private val ROW_SHAPE = RoundedCornerShape(10.dp)
 private val LAYER_SHAPE = RoundedCornerShape(12.dp)
 
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun ComponentsPage(
     snapshot: Snapshot?,
@@ -417,12 +419,14 @@ fun ComponentsPage(
     var driverShown by remember { mutableStateOf<String?>(null) }
     var driverLeaving by remember { mutableStateOf(false) }
     var driverFrom by remember { mutableStateOf<Origin?>(null) }
+    val slotFocus = remember { mapOf(SLOT_DISPLAY to FocusRequester(), SLOT_RUNTIME to FocusRequester()) }
     LaunchedEffect(driverPage) {
         val d = driverPage
         if (d != null) { driverLeaving = false; driverShown = d }
-        else if (driverShown != null) {
+        else driverShown?.let { closed ->
             if (driverFrom != null) { driverLeaving = true; delay(Motion.ms(PAGE_RETURN_MS).toLong()) }
             driverShown = null; driverLeaving = false; driverFrom = null
+            if (inputMode.inputMode == InputMode.Keyboard) focusSoon { slotFocus.getValue(closed) }
         }
     }
     var narrowOpen by rememberSaveable { mutableStateOf<String?>(null) }
@@ -626,7 +630,9 @@ fun ComponentsPage(
     val detail: @Composable (String, Boolean) -> Unit = { l, narrowPage ->
         androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
         val single = narrowPage || maxWidth < 600.dp
-        if (l == GPU_TAB) GpuDriversBody(gpu, gpuActions, single, firstRow, onOpenSlot = { driverPage = it })
+        if (l == GPU_TAB) GpuDriversBody(gpu, gpuActions, single, firstRow, slotFocus) { slot, at ->
+            driverFrom = Origin(at.translate(-pageAt), 10f * density.density); driverPage = slot
+        }
         else Column(Modifier.fillMaxSize()) {
             AnimatedContent(l, transitionSpec = { fadeIn(Motion.tw(240)) togetherWith fadeOut(Motion.tw(160)) }, label = "inUse") { k -> bar(k) }
             val detailScroll = androidx.compose.runtime.key(l) { rememberScrollState() }
@@ -784,7 +790,8 @@ fun ComponentsPage(
                 Row(Modifier.weight(1f).fillMaxWidth()) {
                     Box(
                         (if (narrow) Modifier.fillMaxWidth() else Modifier.width(250.dp)).fillMaxHeight()
-                            .onGloballyPositioned { stackAt = it.positionInRoot() },
+                            .onGloballyPositioned { stackAt = it.positionInRoot() }
+                            .focusProperties { enter = { layerFocus.getValue(layer) } }.focusGroup(),
                     ) {
                         val tint = rememberUpdatedState(pal.signal)
                         val local = cardsAt[layer]?.translate(-stackAt)
@@ -1522,8 +1529,8 @@ class ProtonRow(
 private fun gpuCardValue(gpu: GpuDriversState, auto: String): String {
     val value = when (gpu.mode) {
         GPU_MODE_AUTO -> gpu.activePair?.name?.let { stringResource(R.string.drivers_summary, auto, it) } ?: auto
-        GPU_MODE_PAIR -> gpu.activePair?.name ?: gpu.display.name
-        else -> stringResource(R.string.gpu_summary_mix, gpu.display.name, gpu.runtime.name)
+        else -> gpu.activePair?.name?.takeIf { gpu.mode == GPU_MODE_PAIR }
+            ?: if (gpu.display.name == gpu.runtime.name) gpu.display.name else stringResource(R.string.gpu_summary_mix, gpu.display.name, gpu.runtime.name)
     }
     return if (gpu.display.pending) stringResource(R.string.gpu_summary_restart, value) else value
 }

@@ -1011,7 +1011,6 @@
     <string name="gpu_set_with_runtime">与运行时驱动一起设置：%1$s 同时携带两者。</string>
     <string name="gpu_runtime_hint">由游戏和桌面使用。</string>
     <string name="gpu_runtime_default">运行时默认</string>
-    <string name="gpu_display_hint">把帧绘制到屏幕。重启 DroidDeck 后生效。</string>
     <string name="gpu_auto_by_gpu">自动 — 按 GPU 选择</string>
     <string name="gpu_manage">下载、导入或删除…</string>
     <string name="gpu_in_use_caps">使用中</string>

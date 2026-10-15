@@ -51,6 +51,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
     var restartPending by mutableStateOf(false)
         private set
     private var runtimePending by mutableStateOf(false)
+    private var sessionRunning by mutableStateOf(false)
 
     val uiMode: String get() = when (mode) {
         SessionPrefs.GPU_DRIVERS_AUTO -> GPU_MODE_AUTO
@@ -67,7 +68,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         linuxDownloads = linuxDownloads, androidDownloads = androidDownloads, canRestoreBundled = canRestoreBundled,
         activeBundle = activeBundle,
         mode = uiMode, display = displaySlot(), runtime = runtimeSlot(),
-        canRestart = !SessionState.running,
+        canRestart = !sessionRunning,
         checkedAt = TurnipReleases.cached(activity)?.checkedAt ?: 0L,
     )
 
@@ -83,13 +84,13 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         val row = androidRows.firstOrNull { it.id == androidSelected }
         val live = androidRows.firstOrNull { it.id == CompositorHost.displayChoice }?.name
         return DriverSlot(
-            name = row?.name ?: activity.getString(R.string.gpu_auto_by_gpu), detail = row?.detail.orEmpty(),
+            name = row?.name ?: activity.getString(R.string.gpu_auto_by_gpu),
             source = slotSource(androidSelected == TurnipDriver.AUTO, R.string.gpu_src_by_gpu),
             pending = restartPending,
             status = when {
                 restartPending -> activity.getString(R.string.gpu_display_pending, live ?: activity.getString(R.string.gpu_previous_driver))
                 CompositorHost.isStarted -> activity.getString(R.string.gpu_display_live)
-                else -> activity.getString(R.string.gpu_display_hint)
+                else -> activity.getString(R.string.gpu_display_next)
             },
         )
     }
@@ -98,12 +99,12 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         val row = linuxRows.firstOrNull { it.id == linuxSelected }
         val live = SessionState.runtimeDriver?.let { id -> linuxRows.firstOrNull { it.id == id }?.name }
         return DriverSlot(
-            name = row?.name ?: activity.getString(R.string.gpu_runtime_default), detail = row?.detail.orEmpty(),
+            name = row?.name ?: activity.getString(R.string.gpu_runtime_default),
             source = slotSource(linuxSelected.isEmpty(), R.string.gpu_src_default),
             pending = runtimePending,
             status = when {
                 runtimePending -> activity.getString(R.string.gpu_runtime_pending, live ?: activity.getString(R.string.gpu_previous_driver))
-                SessionState.running -> activity.getString(R.string.gpu_runtime_live)
+                sessionRunning -> activity.getString(R.string.gpu_runtime_live)
                 else -> activity.getString(R.string.gpu_runtime_hint)
             },
         )
@@ -112,7 +113,8 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
     fun restartApp() {
         if (SessionState.running) return
         val launch = activity.packageManager.getLaunchIntentForPackage(activity.packageName) ?: return
-        activity.startActivity(android.content.Intent.makeRestartActivityTask(launch.component))
+        activity.startActivity(android.content.Intent.makeRestartActivityTask(launch.component)
+            .putExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV, "components"))
         Runtime.getRuntime().exit(0)
     }
     var androidRows by mutableStateOf<List<DriverRow>>(emptyList())
@@ -153,7 +155,8 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         androidSelected = SessionPrefs.androidDriver(activity)
         activeBundle = DriverBundle.active(activity)?.label
         restartPending = CompositorHost.isStarted && CompositorHost.displayChoice.let { it != null && it != androidSelected }
-        runtimePending = SessionState.running && SessionState.runtimeDriver.let { it != null && it != linuxSelected }
+        sessionRunning = SessionState.running
+        runtimePending = sessionRunning && SessionState.runtimeDriver.let { it != null && it != linuxSelected }
         refreshReleaseRows()
         refreshPairs()
     }
@@ -161,11 +164,11 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
     fun summary(): String {
         val active = pairRows.firstOrNull { it.active }?.name ?: activeBundle
         val display = displaySlot().name
-        val base = when (uiMode) {
-            GPU_MODE_AUTO -> activity.getString(R.string.drivers_summary, activity.getString(R.string.common_auto), active ?: display)
-            GPU_MODE_PAIR -> activity.getString(R.string.drivers_summary, activity.getString(R.string.gpu_mode_pair_short), active ?: display)
+        val base = when {
+            uiMode == GPU_MODE_AUTO -> activity.getString(R.string.drivers_summary, activity.getString(R.string.common_auto), active ?: display)
+            uiMode == GPU_MODE_PAIR && active != null -> activity.getString(R.string.drivers_summary, activity.getString(R.string.gpu_mode_pair_short), active)
             else -> activity.getString(R.string.drivers_summary, activity.getString(R.string.gpu_mode_mix_short),
-                activity.getString(R.string.gpu_summary_mix, display, runtimeSlot().name))
+                runtimeSlot().name.let { if (it == display) it else activity.getString(R.string.gpu_summary_mix, display, it) })
         }
         return if (restartPending) activity.getString(R.string.gpu_summary_restart, base) else base
     }

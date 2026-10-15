@@ -1023,7 +1023,6 @@
     <string name="gpu_set_with_runtime">Configuré avec le pilote d\'exécution : %1$s inclut les deux.</string>
     <string name="gpu_runtime_hint">Utilisé par les jeux et le bureau.</string>
     <string name="gpu_runtime_default">Par défaut de l\'environnement d\'exécution</string>
-    <string name="gpu_display_hint">Responsable de la sortie vidéo vers l\'écran. Prendra effet après le redémarrage de DroidDeck.</string>
     <string name="gpu_auto_by_gpu">Auto - Sélection par GPU</string>
     <string name="gpu_manage">Télécharger, importer ou supprimer…</string>
     <string name="gpu_in_use_caps">Utilisé</string>

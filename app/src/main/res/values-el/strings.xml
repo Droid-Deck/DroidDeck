@@ -1009,7 +1009,6 @@
     <string name="gpu_set_with_runtime">Ορίζεται μαζί με το πρόγραμμα οδήγησης runtime: το %1$s φέρει και τα δύο.</string>
     <string name="gpu_runtime_hint">Χρησιμοποιείται από παιχνίδια και την επιφάνεια εργασίας.</string>
     <string name="gpu_runtime_default">Προεπιλογή runtime</string>
-    <string name="gpu_display_hint">Σχεδιάζει καρέ στην οθόνη. Εφαρμόζεται μετά την επανεκκίνηση του DroidDeck.</string>
     <string name="gpu_auto_by_gpu">Αυτόματο - επιλέγεται από τη GPU</string>
     <string name="gpu_manage">Λήψη, εισαγωγή ή διαγραφή…</string>
     <string name="gpu_in_use_caps">ΣΕ ΧΡΗΣΗ</string>

@@ -2,7 +2,14 @@ package com.droiddeck.launcher.ui
 
 import com.droiddeck.launcher.R
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.foundation.focusable
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -64,6 +71,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.focus.onFocusChanged
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -86,7 +96,6 @@ const val GPU_MODE_MIX = "mix"
 
 class DriverSlot(
     val name: String = "",
-    val detail: String = "",
     val source: String = "",
     val pending: Boolean = false,
     val status: String = "",
@@ -196,22 +205,36 @@ private fun DeviceInfoSection(section: DeviceInfo.Section) {
 
 private const val STALE_MS = 6 * 3_600_000L
 
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 internal fun GpuDriversBody(
     gpu: GpuDriversState,
     actions: GpuDriversActions,
     single: Boolean,
     first: FocusRequester,
-    onOpenSlot: (String) -> Unit,
+    slotFocus: Map<String, FocusRequester>,
+    onOpenSlot: (String, Rect) -> Unit,
 ) {
     LaunchedEffect(Unit) {
         if (!gpu.checking && gpu.busy == null && System.currentTimeMillis() - gpu.checkedAt > STALE_MS) actions.onRefresh()
     }
+    val scroll = rememberScrollState()
+    val scope = rememberCoroutineScope()
+    val placed = remember { arrayOfNulls<LayoutCoordinates>(2) }
+    // Focusing the top mode shows as much of the in-use card above it as fits, without hiding the mode itself.
+    val revealCard = {
+        val (viewport, top) = placed
+        if (viewport != null && top != null && viewport.isAttached && top.isAttached) scope.launch {
+            val bottom = viewport.localPositionOf(top, Offset(0f, top.size.height.toFloat())).y + scroll.value
+            scroll.animateScrollTo((bottom - viewport.size.height).toInt().coerceAtLeast(0))
+        }
+    }
     Column(
         verticalArrangement = Arrangement.spacedBy(14.dp),
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 16.dp),
+        modifier = Modifier.fillMaxSize().onGloballyPositioned { placed[0] = it }.verticalScroll(scroll).padding(bottom = 16.dp)
+            .focusProperties { enter = { first } }.focusGroup(),
     ) {
-        InUseCard(gpu, actions)
+        InUseCard(gpu, actions, first)
         PanelHeading(stringResource(R.string.gpu_mode_title))
         val modes = listOf(
             Triple(GPU_MODE_AUTO, R.string.common_auto, R.string.gpu_mode_auto_detail),
@@ -222,7 +245,8 @@ internal fun GpuDriversBody(
             val (id, title, detail) = modes[i]
             PanelRow(
                 stringResource(title), stringResource(detail), gpu.mode == id,
-                modifier = mod.then(if (i == 0) Modifier.focusRequester(first) else Modifier),
+                modifier = mod.then(if (gpu.mode == id) Modifier.focusRequester(first) else Modifier)
+                    .then(if (i == 0) Modifier.onGloballyPositioned { placed[1] = it }.onFocusChanged { if (it.isFocused) revealCard() } else Modifier),
                 onClick = { if (gpu.mode != id) actions.onMode(id) },
             )
         }
@@ -233,34 +257,27 @@ internal fun GpuDriversBody(
         when (gpu.mode) {
             GPU_MODE_AUTO -> AutoBody(gpu)
             GPU_MODE_PAIR -> PairBody(gpu, actions)
-            else -> MixBody(single, actions, onOpenSlot)
+            else -> MixBody(single, actions, slotFocus, onOpenSlot)
         }
     }
 }
 
 @Composable
-private fun InUseCard(gpu: GpuDriversState, actions: GpuDriversActions) {
+private fun InUseCard(gpu: GpuDriversState, actions: GpuDriversActions, first: FocusRequester) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val shape = RoundedCornerShape(14.dp)
     Column(
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier.fillMaxWidth().clip(shape).background(colors.surface).border(1.dp, pal.line, shape).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.fillMaxWidth().clip(shape).background(colors.surface).border(1.dp, pal.line, shape).padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.gpu_in_use).uppercase(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, color = colors.onSurfaceVariant, modifier = Modifier.weight(1f))
-            Text(
-                stringResource(when (gpu.mode) { GPU_MODE_AUTO -> R.string.common_auto; GPU_MODE_PAIR -> R.string.gpu_mode_pair; else -> R.string.gpu_mode_mix }),
-                fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant,
-            )
-        }
         SlotLine(Icons.Outlined.Monitor, stringResource(R.string.comp_display_driver), gpu.display)
         Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
         SlotLine(Icons.Outlined.SportsEsports, stringResource(R.string.comp_runtime_driver), gpu.runtime)
         if (gpu.busy != null) LinearProgressIndicator(
             progress = { (gpu.percent.coerceAtLeast(0)) / 100f }, modifier = Modifier.fillMaxWidth(),
         )
-        if (gpu.display.pending) RestartBanner(gpu.display.name, gpu.canRestart, actions.onRestart)
+        if (gpu.display.pending) RestartBanner(gpu.display.name, gpu.canRestart, first, actions.onRestart)
     }
 }
 
@@ -273,22 +290,21 @@ private fun SlotLine(icon: ImageVector, label: String, slot: DriverSlot) {
             Icon(icon, contentDescription = null, tint = colors.onBackground, modifier = Modifier.size(20.dp))
         }
         Column(Modifier.weight(1f)) {
-            Text(label, fontSize = 12.5.sp, color = colors.onSurfaceVariant)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(slot.name, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                if (slot.detail.isNotEmpty()) Text(slot.detail, fontSize = 12.5.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(label, fontSize = 12.5.sp, color = colors.onSurfaceVariant)
+                Pill(slot.source, pal.line2.copy(alpha = 0.6f), colors.onBackground)
             }
+            Text(slot.name, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (slot.status.isNotEmpty()) Text(
                 slot.status, fontSize = 12.5.sp, color = if (slot.pending) AttentionAmber else colors.onSurfaceVariant,
                 modifier = Modifier.padding(top = 2.dp),
             )
         }
-        Pill(slot.source, pal.line2.copy(alpha = 0.6f), colors.onBackground)
     }
 }
 
 @Composable
-private fun RestartBanner(target: String, canRestart: Boolean, onRestart: () -> Unit) {
+private fun RestartBanner(target: String, canRestart: Boolean, afterLater: FocusRequester, onRestart: () -> Unit) {
     var later by rememberSaveable(target) { mutableStateOf(false) }
     if (later) return
     val shape = RoundedCornerShape(12.dp)
@@ -302,7 +318,10 @@ private fun RestartBanner(target: String, canRestart: Boolean, onRestart: () -> 
             stringResource(if (canRestart) R.string.gpu_restart_banner else R.string.gpu_restart_blocked),
             fontSize = 13.5.sp, color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.weight(1f),
         )
-        FocusText(stringResource(R.string.gpu_restart_later), MaterialTheme.colorScheme.onBackground) { later = true }
+        FocusText(stringResource(R.string.gpu_restart_later), MaterialTheme.colorScheme.onBackground) {
+            runCatching { afterLater.requestFocus() }
+            later = true
+        }
         if (canRestart) FocusText(stringResource(R.string.gpu_restart_now), AttentionAmber, onClick = onRestart)
     }
 }
@@ -311,7 +330,10 @@ private fun RestartBanner(target: String, canRestart: Boolean, onRestart: () -> 
 private fun AutoBody(gpu: GpuDriversState) {
     val colors = MaterialTheme.colorScheme
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        PanelTitle(stringResource(R.string.gpu_auto_title, gpu.gpuName), stringResource(R.string.gpu_auto_reason, gpu.gpuFamily))
+        PanelTitle(
+            stringResource(if (gpu.activePair != null) R.string.gpu_auto_title else R.string.gpu_auto_builtin_title, gpu.gpuName),
+            stringResource(R.string.gpu_auto_reason, gpu.gpuFamily),
+        )
         gpu.activePair?.let { p -> PanelRow(p.name, "${p.version} · ${p.detail}", selected = true, onClick = null) }
         if (gpu.autoStatus.isNotEmpty()) Text(gpu.autoStatus, fontSize = 13.sp, color = colors.onSurfaceVariant)
     }
@@ -348,16 +370,23 @@ private fun PairBody(gpu: GpuDriversState, actions: GpuDriversActions) {
 }
 
 @Composable
-private fun MixBody(single: Boolean, actions: GpuDriversActions, onOpenSlot: (String) -> Unit) {
+private fun MixBody(single: Boolean, actions: GpuDriversActions, slotFocus: Map<String, FocusRequester>, onOpenSlot: (String, Rect) -> Unit) {
     val pal = LocalPalette.current
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         PanelTitle(stringResource(R.string.gpu_mix_title), stringResource(R.string.gpu_mix_hint))
-        val buttons: @Composable () -> Unit = {
-            SecondaryButton(stringResource(R.string.gpu_change_display)) { onOpenSlot(SLOT_DISPLAY) }
-            SecondaryButton(stringResource(R.string.gpu_change_runtime)) { onOpenSlot(SLOT_RUNTIME) }
+        val at = remember { mutableMapOf<String, Rect>() }
+        val slotButton: @Composable (String, Int, Modifier) -> Unit = { slot, label, mod ->
+            SecondaryButton(
+                stringResource(label),
+                modifier = mod.focusRequester(slotFocus.getValue(slot)).onGloballyPositioned { at[slot] = it.boundsInRoot() },
+            ) { onOpenSlot(slot, at[slot] ?: Rect.Zero) }
         }
-        if (single) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { buttons() }
-        else Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { buttons() }
+        val buttons: @Composable (Modifier) -> Unit = { mod ->
+            slotButton(SLOT_DISPLAY, R.string.gpu_change_display, mod)
+            slotButton(SLOT_RUNTIME, R.string.gpu_change_runtime, mod)
+        }
+        if (single) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { buttons(Modifier.fillMaxWidth()) }
+        else Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { buttons(Modifier.weight(1f)) }
         FocusText(stringResource(R.string.comp_import_zip), pal.signal, onClick = actions.onImportZip)
     }
 }

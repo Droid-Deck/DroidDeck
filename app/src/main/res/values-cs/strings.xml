@@ -1021,7 +1021,6 @@
     <string name="gpu_set_with_runtime">Nastaveno společně s ovladačem runtime: %1$s obsahuje oba.</string>
     <string name="gpu_runtime_hint">Používají hry a desktop.</string>
     <string name="gpu_runtime_default">Výchozí runtime</string>
-    <string name="gpu_display_hint">Vykresluje snímky na obrazovku. Použije se po restartu DroidDecku.</string>
     <string name="gpu_auto_by_gpu">Automaticky - podle GPU</string>
     <string name="gpu_manage">Stáhnout, importovat nebo smazat…</string>
     <string name="gpu_in_use_caps">POUŽÍVÁ SE</string>

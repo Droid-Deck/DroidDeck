@@ -1003,7 +1003,6 @@
     <string name="gpu_set_with_runtime">Ditetapkan bersama pemacu masa jalan: %1$s membawa kedua-duanya.</string>
     <string name="gpu_runtime_hint">Digunakan oleh permainan dan desktop.</string>
     <string name="gpu_runtime_default">Lalai masa jalan</string>
-    <string name="gpu_display_hint">Melukis bingkai ke skrin. Berkuat kuasa selepas DroidDeck dimulakan semula.</string>
     <string name="gpu_auto_by_gpu">Auto - dipilih mengikut GPU</string>
     <string name="gpu_manage">Muat turun, import atau padam…</string>
     <string name="gpu_in_use_caps">SEDANG DIGUNAKAN</string>

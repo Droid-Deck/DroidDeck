@@ -1003,7 +1003,6 @@
     <string name="gpu_set_with_runtime">Được đặt cùng với driver runtime: %1$s mang cả hai.</string>
     <string name="gpu_runtime_hint">Dùng bởi game và desktop.</string>
     <string name="gpu_runtime_default">Mặc định runtime</string>
-    <string name="gpu_display_hint">Vẽ khung hình lên màn hình. Áp dụng sau khi DroidDeck khởi động lại.</string>
     <string name="gpu_auto_by_gpu">Tự động - chọn theo GPU</string>
     <string name="gpu_manage">Tải, nhập hoặc xóa…</string>
     <string name="gpu_in_use_caps">ĐANG DÙNG</string>

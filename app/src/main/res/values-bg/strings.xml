@@ -1009,7 +1009,6 @@
     <string name="gpu_set_with_runtime">Задава се заедно с драйвера за изпълнение: %1$s включва и двете.</string>
     <string name="gpu_runtime_hint">Използва се от игрите и работния плот.</string>
     <string name="gpu_runtime_default">Стандартен за изпълнение</string>
-    <string name="gpu_display_hint">Изобразява кадрите на екрана. Прилага се след рестартиране на DroidDeck.</string>
     <string name="gpu_auto_by_gpu">Автоматично – избрано според GPU</string>
     <string name="gpu_manage">Изтегляне, импортиране или изтриване…</string>
     <string name="gpu_in_use_caps">В УПОТРЕБА</string>

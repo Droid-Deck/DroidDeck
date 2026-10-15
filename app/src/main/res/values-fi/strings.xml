@@ -1009,7 +1009,6 @@
     <string name="gpu_set_with_runtime">Asetetaan yhdessä ajoympäristöajurin kanssa: %1$s kattaa molemmat.</string>
     <string name="gpu_runtime_hint">Käytetään peleissä ja työpöydällä.</string>
     <string name="gpu_runtime_default">Ajoympäristön oletus</string>
-    <string name="gpu_display_hint">Piirtää kuvat näytölle. Käytössä DroidDeckin uudelleenkäynnistyksen jälkeen.</string>
     <string name="gpu_auto_by_gpu">Automaattinen - valittu GPU:n mukaan</string>
     <string name="gpu_manage">Lataa, tuo tai poista…</string>
     <string name="gpu_in_use_caps">KÄYTÖSSÄ</string>

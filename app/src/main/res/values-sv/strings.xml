@@ -1009,7 +1009,6 @@
     <string name="gpu_set_with_runtime">Ställs in tillsammans med körmiljödrivrutinen: %1$s innehåller båda.</string>
     <string name="gpu_runtime_hint">Används av spel och skrivbordet.</string>
     <string name="gpu_runtime_default">Standard för körmiljön</string>
-    <string name="gpu_display_hint">Ritar bildrutor på skärmen. Gäller efter att DroidDeck har startats om.</string>
     <string name="gpu_auto_by_gpu">Auto – valt efter GPU</string>
     <string name="gpu_manage">Ladda ned, importera eller ta bort…</string>
     <string name="gpu_in_use_caps">I BRUK</string>

@@ -1021,7 +1021,6 @@
     <string name="gpu_set_with_runtime">Ustawiany wraz ze sterownikiem środowiska: %1$s obejmuje oba.</string>
     <string name="gpu_runtime_hint">Używany przez gry i pulpit.</string>
     <string name="gpu_runtime_default">Domyślny dla środowiska</string>
-    <string name="gpu_display_hint">Rysuje obraz na ekranie. Działa po ponownym uruchomieniu DroidDeck.</string>
     <string name="gpu_auto_by_gpu">Auto – wybrany według GPU</string>
     <string name="gpu_manage">Pobierz, zaimportuj lub usuń…</string>
     <string name="gpu_in_use_caps">W UŻYCIU</string>

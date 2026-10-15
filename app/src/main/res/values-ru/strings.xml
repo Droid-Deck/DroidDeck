@@ -1029,7 +1029,6 @@
     <string name="gpu_set_with_runtime">Настраивается вместе с драйвером среды выполнения: %1$s включает оба.</string>
     <string name="gpu_runtime_hint">Используется играми и рабочим столом.</string>
     <string name="gpu_runtime_default">Стандартный драйвер среды выполнения</string>
-    <string name="gpu_display_hint">Отвечает за вывод изображения на экран. Вступит в силу после перезапуска DroidDeck.</string>
     <string name="gpu_auto_by_gpu">Авто — по GPU</string>
     <string name="gpu_manage">Скачать, импортировать или удалить…</string>
     <string name="gpu_in_use_caps">ИСПОЛЬЗУЕТСЯ</string>

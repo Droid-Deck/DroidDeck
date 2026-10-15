@@ -1009,7 +1009,6 @@
     <string name="gpu_set_with_runtime">Çalışma ortamı sürücüsüyle birlikte ayarlanır: %1$s ikisini de taşır.</string>
     <string name="gpu_runtime_hint">Oyunlar ve masaüstü tarafından kullanılır.</string>
     <string name="gpu_runtime_default">Çalışma ortamı varsayılanı</string>
-    <string name="gpu_display_hint">Kareleri ekrana çizer. DroidDeck yeniden başlatıldıktan sonra uygulanır.</string>
     <string name="gpu_auto_by_gpu">Otomatik - GPU\'ya göre seçilir</string>
     <string name="gpu_manage">İndir, içe aktar veya sil…</string>
     <string name="gpu_in_use_caps">KULLANIMDA</string>

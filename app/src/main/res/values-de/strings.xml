@@ -1009,7 +1009,6 @@
     <string name="gpu_set_with_runtime">Zusammen mit dem Laufzeittreiber festgelegt: %1$s enthält beide.</string>
     <string name="gpu_runtime_hint">Wird von Spielen und dem Desktop genutzt.</string>
     <string name="gpu_runtime_default">Laufzeit-Standard</string>
-    <string name="gpu_display_hint">Bringt die Frames auf den Bildschirm. Gilt nach einem Neustart von DroidDeck.</string>
     <string name="gpu_auto_by_gpu">Auto - nach GPU gewählt</string>
     <string name="gpu_manage">Herunterladen, importieren oder löschen…</string>
     <string name="gpu_in_use_caps">IN VERWENDUNG</string>

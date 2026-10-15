@@ -1009,7 +1009,6 @@
     <string name="gpu_set_with_runtime">A futtatókörnyezet-illesztőprogrammal együtt beállítva: a %1$s mindkettőt tartalmazza.</string>
     <string name="gpu_runtime_hint">A játékok és az asztal használja.</string>
     <string name="gpu_runtime_default">Futtatókörnyezet alapértelmezése</string>
-    <string name="gpu_display_hint">A képkockákat rajzolja a képernyőre. A DroidDeck újraindítása után lép érvénybe.</string>
     <string name="gpu_auto_by_gpu">Automatikus – GPU szerint kiválasztva</string>
     <string name="gpu_manage">Letöltés, importálás vagy törlés…</string>
     <string name="gpu_in_use_caps">HASZNÁLATBAN</string>

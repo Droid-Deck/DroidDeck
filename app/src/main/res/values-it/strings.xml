@@ -1015,7 +1015,6 @@
     <string name="gpu_set_with_runtime">Impostato insieme al driver del runtime: %1$s include entrambi.</string>
     <string name="gpu_runtime_hint">Usato dai giochi e dal desktop.</string>
     <string name="gpu_runtime_default">Runtime predefinito</string>
-    <string name="gpu_display_hint">Disegna i fotogrammi sullo schermo. Si applica dopo il riavvio di DroidDeck.</string>
     <string name="gpu_auto_by_gpu">Auto - scelto in base alla GPU</string>
     <string name="gpu_manage">Scarica, importa o elimina…</string>
     <string name="gpu_in_use_caps">IN USO</string>

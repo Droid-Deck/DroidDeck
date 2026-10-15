@@ -1009,7 +1009,6 @@
     <string name="gpu_set_with_runtime">रनटाइम ड्राइवर के साथ सेट: %1$s दोनों साथ लाता है।</string>
     <string name="gpu_runtime_hint">गेम और डेस्कटॉप में उपयोग होता है।</string>
     <string name="gpu_runtime_default">रनटाइम डिफ़ॉल्ट</string>
-    <string name="gpu_display_hint">स्क्रीन पर फ़्रेम बनाता है। DroidDeck रीस्टार्ट होने के बाद लागू होता है।</string>
     <string name="gpu_auto_by_gpu">ऑटो - GPU के हिसाब से चुना गया</string>
     <string name="gpu_manage">डाउनलोड, इंपोर्ट या डिलीट करें…</string>
     <string name="gpu_in_use_caps">उपयोग में</string>

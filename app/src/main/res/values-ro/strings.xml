@@ -1015,7 +1015,6 @@
     <string name="gpu_set_with_runtime">Setat împreună cu driverul mediului de execuție: %1$s include ambele.</string>
     <string name="gpu_runtime_hint">Folosit de jocuri și de desktop.</string>
     <string name="gpu_runtime_default">Implicit pentru mediul de execuție</string>
-    <string name="gpu_display_hint">Desenează cadrele pe ecran. Se aplică după repornirea DroidDeck.</string>
     <string name="gpu_auto_by_gpu">Automat - ales în funcție de GPU</string>
     <string name="gpu_manage">Descarcă, importă sau șterge…</string>
     <string name="gpu_in_use_caps">ÎN UZ</string>

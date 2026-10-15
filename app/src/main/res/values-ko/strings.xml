@@ -1011,7 +1011,6 @@
     <string name="gpu_set_with_runtime">런타임 드라이버와 함께 설정: %1$s에 둘 다 포함됩니다.</string>
     <string name="gpu_runtime_hint">게임 및 데스크톱에서 사용됩니다.</string>
     <string name="gpu_runtime_default">런타임 기본값</string>
-    <string name="gpu_display_hint">화면 출력을 담당합니다. DroidDeck을 다시 시작한 후 적용됩니다.</string>
     <string name="gpu_auto_by_gpu">자동 - GPU별 선택</string>
     <string name="gpu_manage">다운로드, 가져오기 또는 삭제…</string>
     <string name="gpu_in_use_caps">사용 중</string>

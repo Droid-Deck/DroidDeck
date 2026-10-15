@@ -1009,7 +1009,6 @@
     <string name="gpu_set_with_runtime">Wordt samen met de runtimedriver ingesteld: %1$s bevat beide.</string>
     <string name="gpu_runtime_hint">Gebruikt door games en de desktop.</string>
     <string name="gpu_runtime_default">Runtimestandaard</string>
-    <string name="gpu_display_hint">Tekent frames naar het scherm. Geldt nadat DroidDeck opnieuw is gestart.</string>
     <string name="gpu_auto_by_gpu">Automatisch - gekozen op basis van de GPU</string>
     <string name="gpu_manage">Downloaden, importeren of verwijderen…</string>
     <string name="gpu_in_use_caps">IN GEBRUIK</string>

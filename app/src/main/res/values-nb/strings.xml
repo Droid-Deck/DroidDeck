@@ -1009,7 +1009,6 @@
     <string name="gpu_set_with_runtime">Angis sammen med kjøretidsdriveren: %1$s bærer begge.</string>
     <string name="gpu_runtime_hint">Brukes av spill og skrivebordet.</string>
     <string name="gpu_runtime_default">Kjøretidsstandard</string>
-    <string name="gpu_display_hint">Tegner bilder til skjermen. Gjelder etter at DroidDeck starter på nytt.</string>
     <string name="gpu_auto_by_gpu">Auto – valgt etter GPU</string>
     <string name="gpu_manage">Last ned, importer eller slett…</string>
     <string name="gpu_in_use_caps">I BRUK</string>

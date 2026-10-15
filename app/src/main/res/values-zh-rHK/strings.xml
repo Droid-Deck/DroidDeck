@@ -1011,7 +1011,6 @@
     <string name="gpu_set_with_runtime">與運行環境驅動程式一併設定：%1$s 同時包含兩者。</string>
     <string name="gpu_runtime_hint">供遊戲和桌面使用。</string>
     <string name="gpu_runtime_default">運行環境預設</string>
-    <string name="gpu_display_hint">負責將畫面繪製到螢幕。DroidDeck 重新啟動後生效。</string>
     <string name="gpu_auto_by_gpu">自動 - 按 GPU 選擇</string>
     <string name="gpu_manage">下載、匯入或刪除…</string>
     <string name="gpu_in_use_caps">正在使用</string>

@@ -1033,7 +1033,6 @@
     <string name="gpu_set_with_runtime">يُضبَط مع برنامج تشغيل بيئة التشغيل معًا: يحمل %1$s كلاهما.</string>
     <string name="gpu_runtime_hint">يُستخدَم في الألعاب وسطح المكتب.</string>
     <string name="gpu_runtime_default">الافتراضي لبيئة التشغيل</string>
-    <string name="gpu_display_hint">يرسم الإطارات على الشاشة. يُطبَّق بعد إعادة تشغيل DroidDeck.</string>
     <string name="gpu_auto_by_gpu">تلقائي - يُحدَّد بحسب GPU</string>
     <string name="gpu_manage">تنزيل أو استيراد أو حذف…</string>
     <string name="gpu_in_use_caps">قيد الاستخدام</string>

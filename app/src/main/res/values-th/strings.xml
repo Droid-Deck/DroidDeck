@@ -1003,7 +1003,6 @@
     <string name="gpu_set_with_runtime">ตั้งค่าร่วมกับไดรเวอร์รันไทม์: %1$s รวมทั้งสองอย่าง</string>
     <string name="gpu_runtime_hint">ใช้โดยเกมและเดสก์ท็อป</string>
     <string name="gpu_runtime_default">ค่าเริ่มต้นของรันไทม์</string>
-    <string name="gpu_display_hint">วาดเฟรมบนหน้าจอ จะมีผลหลัง DroidDeck รีสตาร์ท</string>
     <string name="gpu_auto_by_gpu">อัตโนมัติ - เลือกตาม GPU</string>
     <string name="gpu_manage">ดาวน์โหลด นำเข้า หรือลบ…</string>
     <string name="gpu_in_use_caps">กำลังใช้งาน</string>

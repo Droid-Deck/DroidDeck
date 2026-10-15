@@ -1009,7 +1009,6 @@
     <string name="gpu_set_with_runtime">Angives sammen med runtimedriveren: %1$s dækker begge.</string>
     <string name="gpu_runtime_hint">Bruges af spil og skrivebordet.</string>
     <string name="gpu_runtime_default">Runtime-standard</string>
-    <string name="gpu_display_hint">Tegner billeder til skærmen. Gælder, når DroidDeck genstarter.</string>
     <string name="gpu_auto_by_gpu">Auto – valgt efter GPU</string>
     <string name="gpu_manage">Download, importer eller slet…</string>
     <string name="gpu_in_use_caps">I BRUG</string>

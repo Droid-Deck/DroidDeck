@@ -1003,7 +1003,6 @@
     <string name="gpu_set_with_runtime">Diatur bersama driver runtime: %1$s membawa keduanya.</string>
     <string name="gpu_runtime_hint">Digunakan oleh gim dan desktop.</string>
     <string name="gpu_runtime_default">Default runtime</string>
-    <string name="gpu_display_hint">Menggambar frame ke layar. Berlaku setelah DroidDeck dimulai ulang.</string>
     <string name="gpu_auto_by_gpu">Otomatis - dipilih berdasarkan GPU</string>
     <string name="gpu_manage">Unduh, impor, atau hapus…</string>
     <string name="gpu_in_use_caps">DIGUNAKAN</string>
