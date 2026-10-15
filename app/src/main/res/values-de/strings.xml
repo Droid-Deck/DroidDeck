@@ -893,8 +893,8 @@
     <string name="wadb_turn_off">Limit deaktivieren</string>
     <string name="wadb_other_ways">Andere Wege, es zu ändern</string>
     <string name="wadb_dev_try_first">1 · Entwickleroptionen (zuerst versuchen)</string>
-    <string name="wadb_restrict_on">Schalte „Untergeordnete Prozesse einschränken“ ein.</string>
-    <string name="wadb_restrict_off">Schalte „Untergeordnete Prozesse einschränken“ aus.</string>
+    <string name="wadb_restrict_on">Schalte „Beschränkungen für Unterprozesse deaktivieren“ aus.</string>
+    <string name="wadb_restrict_off">Schalte „Beschränkungen für Unterprozesse deaktivieren“ ein.</string>
     <string name="wadb_computer_last">3 · ADB am Computer (letzter Ausweg)</string>
     <string name="wadb_only_if">Nur wenn „Debugging über WLAN“ nicht verfügbar ist.</string>
     <string name="wadb_computer_group">3 · ADB am Computer (letzter Ausweg)</string>
@@ -2232,4 +2232,18 @@
     <string name="stores_hltb_completionist">Komplettierer</string>
     <string name="stores_hltb_hours">%1$s Std.</string>
     <string name="stores_hltb_minutes">%1$d Min.</string>
+    <string name="mode_zram">zRAM-Komprimierung</string>
+    <string name="mode_zram_hint">Während ein Spiel läuft, wird der Arbeitsspeicher des Steam-Clients in das zram des Geräts komprimiert, sodass mehr RAM für das Spiel bleibt. Wird beim nächsten Start von Steam angewendet.</string>
+    <string name="mode_zram_unsupported">Nicht verfügbar: Dieses Gerät hat kein zram oder keinen Swap, oder sein Kernel ist älter als 5.4.</string>
+    <string name="setup_reset_settings">Alle Einstellungen zurücksetzen</string>
+    <string name="setup_reset_settings_title">Alle Einstellungen zurücksetzen?</string>
+    <string name="setup_reset_settings_body">Anzeige-, Leistungs-, Controller-, Design-, Sprach- und Launcher-Einstellungen werden auf ihre Standardwerte zurückgesetzt. Deine Spiele, die Steam-Anmeldung, Shop-Konten, heruntergeladene Treiber und Speicherordner bleiben erhalten.</string>
+    <string name="setup_reset_settings_button">Zurücksetzen</string>
+    <string name="setup_reset_settings_hint">Setzt jede Einstellung auf den Standardwert zurück</string>
+    <string name="setup_reset_settings_partial">Die Einstellungen wurden zurückgesetzt, aber einige Teile konnten nicht zurückgesetzt werden. Details stehen in den Protokollen.</string>
+    <string name="setup_reset_settings_profiles">Auch Spielprofile zurücksetzen (Proton, FEX, Komponenten und Umgebung jedes Spiels sowie die Umgebung des Standardprofils)</string>
+    <string name="setup_reset_settings_session_running">Beende die Sitzung, bevor du die Einstellungen zurücksetzt.</string>
+    <string name="stores_storage_insufficient">Nicht genug freier Speicher: %1$s benötigt, nur %2$s frei</string>
+    <string name="stores_storage_low">Zu wenig Speicher (%1$s frei, %2$s benötigt)</string>
+    <string name="stores_target_free_unknown">Freier Speicher unbekannt</string>
 </resources>

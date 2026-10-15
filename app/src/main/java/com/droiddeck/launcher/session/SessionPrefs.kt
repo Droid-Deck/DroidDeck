@@ -195,6 +195,15 @@ object SessionPrefs {
     }
 
 
+    fun picturePosition(context: Context): String =
+        prefs(context).getString("picturePosition", "center")
+            ?.takeIf { it in listOf("top", "bottom", "center") } ?: "center"
+
+    fun setPicturePosition(context: Context, position: String) {
+        prefs(context).edit().putString("picturePosition",
+            position.takeIf { it in listOf("top", "bottom", "center") } ?: "center").apply()
+    }
+
     fun stretch16x9(context: Context): Boolean = prefs(context).getBoolean("stretch16x9", false)
 
     fun setStretch16x9(context: Context, on: Boolean) {

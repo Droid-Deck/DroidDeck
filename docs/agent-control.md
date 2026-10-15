@@ -12,6 +12,8 @@ and reports every run.
   answers each command with JSON. It and the session-start Activity (`AgentStartActivity`) are in
   every build and require `android.permission.DUMP`, held by the ADB shell and privileged or
   explicitly granted callers. The provider checks the calling permission before decoding requests.
+  A build shipped under another package (`tools/release/variants.txt`) answers at
+  `content://<package>.agent`: set `DROIDDECK_PACKAGE` to that package for `droiddeckctl`.
 - **The guest agent** `droiddeck-agent` runs inside every session (started by
   `droiddeck-session`). It runs commands with the session's own environment, publishes gamescope's
   focus, and talks to the Steam client's DevTools, which only accepts guest processes. The app and
@@ -23,8 +25,8 @@ and reports every run.
 ## Access
 
 Player controls and observations work over authorized ADB on any build: `state`, `start`, `stop`,
-`resume`, `wait`, `launch`, `quit`, `focus`, `input`, `ui`, `logs`, `screenshot`, `record`, `displays`,
-`wake`, and `access`.
+`resume`, `wait`, `launch`, `quit`, `focus`, `input`, `ui`, `logs`, `screenshot`, `record`, `pacing`,
+`displays`, `wake`, and `access`.
 
 **Setup > Diagnostics > Debugging tools** is off by default in every build, including debug builds.
 It enables `run`, `guest`, `cdp`, all `env` operations, `override`, and `prefs`. The toggle switches
@@ -116,11 +118,18 @@ tools/droiddeckctl prefs set session some_key true --type bool
 tools/droiddeckctl logs latest ./session-artifacts
 tools/droiddeckctl screenshot ./screen.png --display 4
 tools/droiddeckctl record ./clip.mp4 --seconds 8 --display 0
+tools/droiddeckctl pacing --seconds 30
 tools/droiddeckctl displays
 tools/droiddeckctl wake
 ```
 
 A sleeping device suspends the session and hides the app's windows from `ui dump`; `wake` first.
+
+`pacing` reads SurfaceFlinger's timestats for the game's layer (the session's SurfaceView when the
+compositor has no layer of its own) and reports the frames that reached the panel, `fpsOnScreen`,
+the present-to-present histogram and the share of intervals off the usual cadence. A game's own fps
+counter counts frames handed over, not frames shown, so it can read 60 while one frame in four
+stays on screen for two refreshes.
 
 `input` needs a session that has drawn its first frame. Pad input goes through the session screen's
 virtual pad, the same one the on-screen controls drive, so games that ignore touch still respond.

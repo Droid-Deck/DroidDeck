@@ -205,7 +205,7 @@
     <string name="add_app_folder_copied">このフォルダにはLinuxプログラムが含まれており、共有ストレージでは実行できないため、DroidDeckにコピーされます（%1$s）。</string>
     <string name="add_app_confirm">追加</string>
     <string name="add_app_cancel">キャンセル</string>
-    <string name="add_app_runtime_required">先に「設定」からLinux実行環境をインストールしてください。</string>
+    <string name="add_app_runtime_required">先に「セットアップ」からLinux実行環境をインストールしてください。</string>
     <string name="add_app_busy">%1$sが完了するまでお待ちください。</string>
     <string name="steam_compat_label">互換</string>
     <string name="proton_compatible_note">Steamの互換性メニューで「%1$s」と表示されたビルドには、DroidDeckのプレフィックス修正が含まれており、ここでゲームを起動できます。デフォルトはProton Experimental ARM64（%1$s）で、より新しいProton 11.0 ARM64（%1$s）がインストールされている場合はそちらになります。この表示のないValve純正のProtonでは、このデバイスでゲームを起動できません。</string>
@@ -219,7 +219,7 @@
     <string name="common_update">更新</string>
     <string name="common_checking">確認中…</string>
     <string name="common_working">処理中…</string>
-    <string name="common_forget">忘れる</string>
+    <string name="common_forget">解除</string>
     <string name="common_add_ellipsis">追加…</string>
     <string name="common_use">使用</string>
     <string name="common_applies_next_session">次回のセッションで有効になります。</string>
@@ -289,12 +289,12 @@
     <string name="mode_decky_installed">インストール済み · %1$s</string>
     <string name="mode_decky_update">アップデートあり · %1$s</string>
     <string name="mode_decky_current">最新です · %1$s</string>
-    <string name="mode_decky_loader">Loader</string>
+    <string name="mode_decky_loader">ローダー</string>
     <string name="mode_decky_install_latest">最新バージョンをインストール</string>
     <string name="mode_decky_on">Steamと共に起動します。有効にすると、このデバイス上の他のアプリがSteamを制御できる場合があります。</string>
     <string name="mode_decky_off">オフ。Steamのリモートデバッグポートは閉じたままになります。</string>
     <string name="mode_decky_remove_title">Decky Loaderをアンインストールしますか？</string>
-    <string name="mode_decky_remove_text">Loaderを削除します。プラグインと設定は保持されます。</string>
+    <string name="mode_decky_remove_text">ローダーを削除します。プラグインと設定は保持されます。</string>
     <string name="mode_client">クライアント</string>
     <string name="mode_mangoapp">パフォーマンスオーバーレイ</string>
     <string name="mode_mangoapp_hint">Deckモードでゲームがクラッシュしたり画面が真っ暗になる場合は、これをオフにしてください。次回のセッションで有効になります。</string>
@@ -306,8 +306,8 @@
     <string name="mode_sgdb_key">SteamGridDB API キー</string>
     <string name="mode_sgdb_key_yours">自分のキー</string>
     <string name="mode_sgdb_edit">編集…</string>
-    <string name="mode_added_art_hint">フォルダ名に基づいて不足している画像を補完します。ゲームフォルダ内のcover.jpg、hero.jpg、logo.png、またはicon.pngが優先的に使用されます。</string>
-    <string name="summary_remove_game">Remove %1$s</string>
+    <string name="mode_added_art_hint">不足しているアートワークをSteamから、次にSteamGridDBから補完します。ゲームフォルダ内のcover.jpg、hero.jpg、logo.png、icon.pngが優先されます。</string>
+    <string name="summary_remove_game">%1$sを削除</string>
     <string name="mode_added_remove_confirm">削除？</string>
     <string name="games_add">ゲームを追加</string>
     <string name="games_add_title">ゲームを追加:</string>
@@ -340,14 +340,14 @@
     <string name="wincomp_found_bundled">ゲームに%1$sが同梱されています</string>
     <string name="wincomp_found_shipped">ゲームに%1$sがあります（そのままで動くことが多いです）</string>
     <string name="wincomp_already_here">このゲームに導入済み</string>
-    <string name="wincomp_no_recommendation">ゲームのフォルダーには、必要なコンポーネントを示すものがありません。</string>
+    <string name="wincomp_no_recommendation">ゲームのフォルダには、必要なコンポーネントを示すものがありません。</string>
     <string name="wincomp_active">このゲームにインストール済み（%1$d）</string>
     <string name="wincomp_all">すべてのコンポーネント（%1$d）</string>
     <string name="wincomp_installers">Windowsインストーラーが必要（%1$d）</string>
-    <string name="wincomp_installers_note">これらはプレフィックス内で実際のインストーラーを実行します（.NET、PhysX、XNA、Visual C++のフルインストーラーなど）。DroidDeckはまだ対応していませんが、次に対応予定です。</string>
+    <string name="wincomp_installers_note">これらはそれぞれ独自のセットアッププログラムで、中に取り出せるパッケージはなく、何をインストールするかの記録もまだありません。多くはProton内蔵のMonoで代用できる古いランタイムで、記録は作成次第追加されます。</string>
     <string name="wincomp_show">表示</string>
     <string name="wincomp_hide">非表示</string>
-    <string name="wincomp_needs_installer">Windowsインストーラーが必要（対応予定）</string>
+    <string name="wincomp_needs_installer">独自のセットアッププログラムを実行します（記録はまだありません）</string>
     <string name="wincomp_unsupported">ここではまだ未対応</string>
     <string name="wincomp_loading">コンポーネントを読み込み中…</string>
     <string name="wincomp_failed">インストールできませんでした: %1$s</string>
@@ -467,7 +467,7 @@
     <string name="comp_applies_next_game">次回のゲーム起動時に有効になります</string>
     <string name="comp_import_zip">.zipをインポート</string>
     <string name="comp_reading">Protonを読み込み中…</string>
-    <string name="comp_no_proton">Protonがインストールされていません。一度Steamを起動してARM64 Protonをダウンロードするか、「設定」からGE-ProtonまたはCachyOSを追加してください。</string>
+    <string name="comp_no_proton">Protonがインストールされていません。一度Steamを起動してARM64 Protonをダウンロードするか、「セットアップ」からGE-ProtonまたはCachyOSを追加してください。</string>
     <string name="comp_original">元 · %1$s</string>
     <string name="comp_this_build">%1$s · 現在のビルド</string>
     <string name="comp_earlier_build">%1$s · 以前のビルド</string>
@@ -533,7 +533,7 @@
     <string name="perf_fastpath">prootファストパス</string>
     <string name="perf_fastpath_needs_seccomp">prootのseccompフィルターが必要です。</string>
     <string name="perf_fastpath_hint">ファイル検索が速くなり、スタッターが減ります。プログラムがファイルを見つけられない場合は、これをオフにしてください。</string>
-    <string name="perf_identity">セッションID</string>
+    <string name="perf_identity">セッションの識別情報</string>
     <string name="perf_hostname">ホスト名</string>
     <string name="perf_hostname_hint">Steamがこのデバイスを認識する名前。空にすると%1$sに戻ります。</string>
     <string name="perf_hostname_invalid">英数字と中間のハイフンのみ使用でき、最大63文字です。</string>
@@ -639,7 +639,7 @@
     <string name="setup_tab_controller">コントローラー</string>
     <string name="setup_tab_session">セッション</string>
     <string name="setup_tab_launcher">ランチャー</string>
-    <string name="setup_title">設定</string>
+    <string name="setup_title">セットアップ</string>
     <string name="setup_all_set">● すべて準備完了</string>
     <string name="setup_n_ready">%1$d/%2$d 準備完了</string>
     <string name="setup_system_check">システムチェック</string>
@@ -733,7 +733,7 @@
     <string name="store_title">ストア</string>
     <string name="store_chip_flathub">Flathub · ARM64</string>
     <string name="store_chip_ready">● Flatpakの準備完了</string>
-    <string name="store_needs_runtime">先に「設定」からLinux実行環境をインストールしてください。</string>
+    <string name="store_needs_runtime">先に「セットアップ」からLinux実行環境をインストールしてください。</string>
     <string name="store_setup_title">Flatpakをセットアップ</string>
     <string name="store_setup_text">Flatpakを追加し、Flathubに接続します（約20MB）。最初のアプリは実行環境もダウンロードします。</string>
     <string name="store_setting_up">セットアップ中…</string>
@@ -895,8 +895,8 @@
     <string name="wadb_turn_off">制限をオフにする</string>
     <string name="wadb_other_ways">その他の変更方法</string>
     <string name="wadb_dev_try_first">1 · 開発者向けオプション（最初に試す）</string>
-    <string name="wadb_restrict_on">「子プロセスを制限」をオンにします。</string>
-    <string name="wadb_restrict_off">「子プロセスを制限」をオフにします。</string>
+    <string name="wadb_restrict_on">「子プロセスの制限を無効化」をオフにします。</string>
+    <string name="wadb_restrict_off">「子プロセスの制限を無効化」をオンにします。</string>
     <string name="wadb_computer_last">3 · PC ADB（最終手段）</string>
     <string name="wadb_only_if">ワイヤレスデバッグが利用できない場合にのみ使用してください。</string>
     <string name="wadb_computer_group">3 · PC ADB（最終手段）</string>
@@ -952,7 +952,7 @@
     <string name="content_runtime_required">実行環境が必要です</string>
     <string name="content_loading_details">インストール詳細を読み込み中…</string>
     <string name="content_details_unavailable">インストール詳細は利用できません。後でもう一度お試しください。</string>
-    <string name="content_needs_runtime">先に「設定」からLinux実行環境をインストールしてください。</string>
+    <string name="content_needs_runtime">先に「セットアップ」からLinux実行環境をインストールしてください。</string>
     <string name="content_stop_first">実行中のセッションを停止してからデスクトップアプリをインストールしてください。</string>
     <string name="content_install_into">%1$sをLinuxデスクトップにインストールします。</string>
     <string name="store_busy_percent_short">%1$s · %2$d%%</string>
@@ -990,8 +990,8 @@
     <string name="games_export_winlator">Winlatorアーカイブとしてエクスポート…</string>
     <string name="games_open_save_folder">セーブフォルダを開く</string>
     <string name="games_never_played">未プレイ</string>
-    <string name="games_runtime_busy_percent">実行環境がビジー · %1$d%%</string>
-    <string name="games_runtime_busy">実行環境がビジー</string>
+    <string name="games_runtime_busy_percent">実行環境は使用中 · %1$d%%</string>
+    <string name="games_runtime_busy">実行環境は使用中</string>
     <string name="games_runtime_first_play">初回実行時に実行環境を導入</string>
     <string name="games_runtime_update">実行環境にアップデートがあります</string>
     <string name="games_runtime_ready">● 実行環境の準備完了</string>
@@ -1067,7 +1067,7 @@
     <string name="rail_store">ストア</string>
     <string name="rail_components">コンポーネント</string>
     <string name="rail_apps">アプリ</string>
-    <string name="rail_setup">設定</string>
+    <string name="rail_setup">セットアップ</string>
     <string name="rail_updates">アップデート</string>
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">%1$sを再開</string>
@@ -1196,7 +1196,7 @@
     <string name="drivers_pick_any">ドライバーzipまたはAndroid + Linuxバンドルを選択</string>
     <string name="main_pkg_problem">%1$s：%2$s</string>
     <string name="main_removing_named">%1$sを削除中…</string>
-    <string name="main_forgetting_named">%1$sを登録解除中…</string>
+    <string name="main_forgetting_named">%1$sを解除中…</string>
     <string name="main_pick_game_storage">ゲームの保存先フォルダを選択</string>
     <string name="main_pick_decky_zip">Deckyプラグインのzipを選択</string>
     <string name="main_storage_not_usable">使用できません：%1$s</string>
@@ -1554,7 +1554,7 @@
     <string name="flatpakmgr_ref_graphics_drivers">グラフィックドライバー</string>
     <string name="flatpakmgr_ref_media_codecs">メディアコーデック</string>
     <string name="flatpakmgr_ref_runtime">%1$sランタイム</string>
-    <string name="flatpakmgr_ref_runtime_branch">%1$sランタイム %2$s</string>
+    <string name="flatpakmgr_ref_runtime_branch">%1$s実行環境 %2$s</string>
 
     <string name="appimg_too_small">ファイルが小さすぎるため、AppImageではありません</string>
     <string name="appimg_unreadable">ファイルを読み取れません：%1$s</string>
@@ -1855,7 +1855,7 @@
     <string name="source_steam">Steam</string>
     <string name="source_added">カスタム</string>
     <string name="setup_stores">ストア</string>
-    <string name="setup_stores_open_on">ストアの初期表示</string>
+    <string name="setup_stores_open_on">ストアページを開くときの初期タブ</string>
     <string name="setup_stores_speed">ダウンロード速度レベル</string>
     <string name="setup_stores_engine">ストアエンジン</string>
     <string name="setup_stores_engine_chip_ready">● エンジン準備完了</string>
@@ -2033,11 +2033,11 @@
     <string name="common_close">閉じる</string>
     <string name="common_back">戻る</string>
     <string name="common_edit">編集</string>
-    <string name="games_add_all">このフォルダーのゲームをすべて追加</string>
-    <string name="games_added_none">このフォルダーに新しいゲームはありません</string>
+    <string name="games_add_all">このフォルダのゲームをすべて追加</string>
+    <string name="games_added_none">このフォルダに新しいゲームはありません</string>
     <string name="edit_name">名前</string>
     <string name="edit_target">ターゲット</string>
-    <string name="edit_start_in">開始フォルダー</string>
+    <string name="edit_start_in">開始フォルダ</string>
     <string name="edit_launch_options">起動オプション</string>
     <string name="edit_artwork">アートワーク</string>
     <string name="edit_other_exe">別の exe…</string>
@@ -2046,7 +2046,7 @@
     <string name="art_background">背景</string>
     <string name="art_logo">ロゴ</string>
     <string name="art_icon">アイコン</string>
-    <string name="art_src_folder">ゲームフォルダー</string>
+    <string name="art_src_folder">ゲームフォルダ</string>
     <string name="art_src_steam">Steam</string>
     <string name="art_src_sgdb">SteamGridDB</string>
     <string name="art_src_file">自分のファイル</string>

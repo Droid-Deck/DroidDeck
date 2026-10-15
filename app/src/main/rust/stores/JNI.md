@@ -155,7 +155,7 @@ synchronous on the calling thread (network calls block: call them off the main t
 | `build.info` | `accessToken`, `namespace`, `catalogItemId`, `appName` | `info`: the opaque build description (`manifest`, `buildVersion`, `deploymentId`, `cdns[]` of `base`/`dir`/`auth`) |
 | `build.cdns` | `info` | `cdns[]` |
 | `build.prereq` | `info` | `name`, `path`, `read` (downloads and parses the manifest) |
-| `shop.shelves` | `country` | `new`, `deals`, `free`, `trending`: arrays in the `store_featured` item shape plus `allTags` |
+| `shop.shelves` | `country` | `new`, `deals`, `free`, `trending`: arrays in the `store_featured` item shape plus `allTags`; `art`: cover URLs from every promotion, for the signed-out wall |
 | `achievements` | `accessToken`, `namespace`, `accountId`, `locale` | `list[]` of `id`, `name`, `description`, `hidden`, `unlocked`, `unlockedAt` (s), `icon`, `iconLocked` |
 | `cloud.list` | `accessToken`, `accountId`, `appName` | `files[]` of `name`, `modified` (ms, -1 unknown), `hash`, `readLink` |
 | `cloud.writeLinks` | `accessToken`, `accountId`, `appName`, `names[]` | `links`: name → write link |

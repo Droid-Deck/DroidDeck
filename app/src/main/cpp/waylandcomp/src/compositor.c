@@ -2609,7 +2609,24 @@ static void pointer_delta(double dx, double dy) {
 }
 
 static void pointer_button(uint32_t button, int pressed) {
-    pointer_input(0, 0, 1, button, pressed);
+    if (pressed) {
+        pointer_input(0, 0, 1, button, pressed);
+        return;
+    }
+    // Releases also clean up interrupted gestures. Deliver them to the existing
+    // pointer focus without motion or hit-testing: native touch has independent
+    // coordinates, so replaying g_ptr_x/y here can warp the game cursor.
+    uint32_t t = now_ms();
+    for (int i = 0; i < g_nptrs; i++) {
+        struct seat_pointer *sp = &g_ptrs[i];
+        if (!sp->focus) continue;
+        wl_pointer_send_button(sp->ptr, wl_display_next_serial(g_display), t, button,
+                               WL_POINTER_BUTTON_STATE_RELEASED);
+        if (wl_resource_get_version(sp->ptr) >= WL_POINTER_FRAME_SINCE_VERSION)
+            wl_pointer_send_frame(sp->ptr);
+    }
+    g_grab = NULL;
+    wl_display_flush_clients(g_display);
 }
 
 static void deliver_pointer(const struct input_msg *m) {
@@ -2916,10 +2933,24 @@ static int on_input_readable(int fd, uint32_t mask, void *data) {
         case 6: pointer_delta(m.p1 / 256.0, m.p2 / 256.0); break;
         case 7: deliver_touch(&m); break;
         case 8: output_resized(); break;
+        case 9:
+            vk_present_set_scale_mode(m.p1, m.p2);
+            schedule_render();
+            break;
         default: deliver_pointer(&m); break;
         }
     }
     return 0;
+}
+
+void droiddeck_wayland_set_scale_mode(int mode, int alignment) {
+    if (g_input_pipe[1] < 0) {
+        vk_present_set_scale_mode(mode, alignment);
+        return;
+    }
+    struct input_msg m = { 9, mode, alignment, 0, 0 };
+    ssize_t n = write(g_input_pipe[1], &m, sizeof(m));
+    (void)n;
 }
 
 void droiddeck_wayland_send_pointer(int action, int x, int y) {

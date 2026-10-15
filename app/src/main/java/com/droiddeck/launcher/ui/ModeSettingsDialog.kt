@@ -77,6 +77,7 @@ class ModeSettings(
     val fexPreset: String? = null,
     val forceSsbs: Boolean = false,
     val syncBackend: String? = null,
+    val picturePosition: String? = null,
     val stretch16x9: Boolean? = null,
     val steamRepairQueued: Boolean = false,
     val mangoapp: Boolean = true,
@@ -120,6 +121,7 @@ class ModeSettingsActions(
     val onFexPreset: (String) -> Unit = {},
     val onForceSsbs: (Boolean) -> Unit = {},
     val onSyncBackend: (String) -> Unit = {},
+    val onPicturePosition: (String) -> Unit = {},
     val onStretch16x9: (Boolean) -> Unit = {},
     val onSteamRepair: () -> Unit = {},
     val onMangoapp: (Boolean) -> Unit = {},
@@ -167,6 +169,13 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
         val displaySize = com.droiddeck.launcher.session.SessionDisplay.resolveChoice(s.panelSize, s.resolution)
         SettingsGroup(stringResource(R.string.display_session)) {
             ResolutionRow(host, s.resolution, s.panelSize, a.onResolution)
+            s.picturePosition?.let { position ->
+                ChoiceRow(host, "picture-position", stringResource(R.string.display_picture_position), null,
+                    listOf("top" to stringResource(R.string.display_position_top),
+                        "bottom" to stringResource(R.string.display_position_bottom),
+                        "center" to stringResource(R.string.display_position_center)),
+                    position, onPick = a.onPicturePosition)
+            }
             if (s.stretch16x9 != null && (com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(s.panelSize) ||
                     com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(displaySize))) {
                 val canStretch = com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(displaySize)

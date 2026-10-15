@@ -887,8 +887,8 @@
     <string name="wadb_turn_off">Nonaktifkan batas</string>
     <string name="wadb_other_ways">Cara lain untuk mengubahnya</string>
     <string name="wadb_dev_try_first">1 · Opsi pengembang (coba dahulu)</string>
-    <string name="wadb_restrict_on">Aktifkan “Restrict child processes”.</string>
-    <string name="wadb_restrict_off">Nonaktifkan “Restrict child processes”.</string>
+    <string name="wadb_restrict_on">Nonaktifkan “Nonaktifkan batasan proses turunan”.</string>
+    <string name="wadb_restrict_off">Aktifkan “Nonaktifkan batasan proses turunan”.</string>
     <string name="wadb_computer_last">3 · ADB komputer (upaya terakhir)</string>
     <string name="wadb_only_if">Hanya jika Debugging nirkabel tidak tersedia.</string>
     <string name="wadb_computer_group">3 · ADB komputer (upaya terakhir)</string>

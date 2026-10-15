@@ -68,11 +68,15 @@ import coil.transform.RoundedCornersTransformation
 import kotlin.math.roundToInt
 
 private const val WALL_MIN_GAMES = 4
+private const val WALL_DISTINCT = 40
 
 private const val DRIFT_STEP_NS = 15_000_000L
 
 @Composable
 internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(Unit) { com.droiddeck.launcher.frontend.SteamFeatured.load(ctx) }
+    val featured = com.droiddeck.launcher.frontend.SteamFeatured.games
     val games = remember(s.steamGames) { s.steamGames.sortedWith(compareByDescending<Library.SteamGame> { it.lastPlayed }.thenBy { it.gameId }) }
     val narrow = LocalNarrowPane.current
     var words by remember { mutableStateOf<Rect?>(null) }
@@ -100,9 +104,12 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
         start = if (narrow) 20.dp else 44.dp, bottom = if (narrow) 20.dp else 44.dp,
         background = {
             when {
-                games.isEmpty() -> EmptyLibrary(avoid = words) { Box(Modifier.fillMaxSize().graphicsLayer { scaleX = 1.06f; scaleY = 1.06f }) { WallFade() } }
+                games.isEmpty() -> EmptyLibrary(
+                    avoid = words,
+                    wall = if (featured.isEmpty()) null else { { CapsuleWall(emptyList(), featured = featured) } },
+                ) { Box(Modifier.fillMaxSize().graphicsLayer { scaleX = 1.06f; scaleY = 1.06f }) { WallFade() } }
                 games.size < WALL_MIN_GAMES -> CapsuleFan(games)
-                else -> CapsuleWall(games)
+                else -> CapsuleWall(games, featured = featured)
             }
         },
         scrim = { if (games.size >= WALL_MIN_GAMES) WallFade() },
@@ -143,10 +150,21 @@ internal fun CapsuleWall(
     games: List<Library.SteamGame>,
     driftMs: Int = if (games.isEmpty()) 75_000 else 40_000,
     modifier: Modifier = Modifier,
+    featured: List<com.droiddeck.launcher.frontend.SteamFeatured.Game> = emptyList(),
 ) {
     val pal = LocalPalette.current
     val blank = remember(pal) { WallCapsule(Brush.linearGradient(listOf(pal.surface, pal.background)), edge = pal.line) }
-    TiltedWall(games.size, driftMs, modifier) { i -> if (games.isEmpty()) blank else WallCapsule(artBrush(hueOf(games[i].name)), games[i].art) }
+    val padding = remember(games, featured) {
+        val owned = games.map { it.appId }.toSet()
+        featured.filter { it.appId !in owned }.take((WALL_DISTINCT - games.size).coerceAtLeast(0))
+    }
+    TiltedWall(games.size + padding.size, driftMs, modifier) { i ->
+        when {
+            i < games.size -> WallCapsule(artBrush(hueOf(games[i].name)), games[i].art)
+            i - games.size < padding.size -> padding[i - games.size].let { WallCapsule(artBrush(hueOf(it.name)), it.art) }
+            else -> blank
+        }
+    }
 }
 
 internal class WallCapsule(val ground: Brush, val art: Any? = null, val edge: Color? = null, val icon: Any? = null, val bar: Color? = null)
