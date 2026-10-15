@@ -529,6 +529,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 )
                 SessionDrawer(drawerOpen, drawerPage, drawerControllerActive, onPageChange = { drawerPage = it }, a = DrawerActions(
                     steam = SessionState.mode == SessionService.MODE_STEAM,
+                    direct = isDirectSession(),
                     title = if (SessionState.mode == SessionService.MODE_RUN)
                         com.droiddeck.launcher.frontend.Library.nameForProgram(SessionState.program) ?: getString(R.string.session_title_game) else null,
                     isHomeApp = isHomeApp,
@@ -883,6 +884,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 val activeAppId = AgentGuest.activeSteamAppId(this, installedAppIds)
                 val selectedSteamAppId = runCatching { AgentGuest.selectedSteamAppId(this) }
                 AgentGuest.selectedOrActiveInstalledSteamAppId(selectedSteamAppId, activeAppId, installedAppIds)
+                    ?: SessionState.gameId?.toLongOrNull()
                     ?: refresh.requestedAppId
             } else {
                 refresh.requestedAppId
@@ -1023,6 +1025,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             ?.let { getString(R.string.session_named_paused, it) } ?: getString(R.string.session_program_paused)
         else -> getString(R.string.load_steam_paused)
     }
+
+    private fun isDirectSession(): Boolean = SessionState.mode == SessionService.MODE_RUN && SessionState.program == SessionService.DIRECT_LAUNCHER
 
     private fun loadingTitle(): String = when (loadingMode()) {
         SessionService.MODE_DESKTOP -> getString(R.string.session_starting_desktop)
@@ -1550,7 +1554,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (drawerOpen) {
             if (fromController && (event.keyCode == KeyEvent.KEYCODE_BUTTON_L1 || event.keyCode == KeyEvent.KEYCODE_BUTTON_R1)) {
                 if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                    drawerPage = sessionDrawerPages(SessionState.mode == SessionService.MODE_STEAM && secondScreenDisplays.isNotEmpty())
+                    drawerPage = sessionDrawerPages((SessionState.mode == SessionService.MODE_STEAM || isDirectSession()) && secondScreenDisplays.isNotEmpty())
                         .step(drawerPage, if (event.keyCode == KeyEvent.KEYCODE_BUTTON_R1) 1 else -1)
                     releaseDrawerDirection()
                 }

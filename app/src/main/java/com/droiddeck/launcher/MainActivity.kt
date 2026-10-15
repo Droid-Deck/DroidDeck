@@ -485,6 +485,7 @@ class MainActivity : ComponentActivity() {
             .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_RUN)
             .putExtra(SessionService.EXTRA_PROGRAM, SessionService.DIRECT_LAUNCHER)
             .putExtra(SessionService.EXTRA_PROGRAM_ARGS, args.toTypedArray())
+            .putExtra(SessionService.EXTRA_GAME_ID, game.profileKey)
         if (SessionState.running) {
             if (SessionState.mode != SessionService.MODE_STEAM || SessionState.stopRequested) {
                 android.widget.Toast.makeText(this, R.string.game_link_session_busy, android.widget.Toast.LENGTH_LONG).show()
