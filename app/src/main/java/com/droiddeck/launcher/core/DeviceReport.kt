@@ -32,6 +32,34 @@ object DeviceReport {
         }
     }
 
+    /** Name of an ApplicationExitInfo reason code, so a report says "LOW_MEMORY" instead of "3". */
+    internal fun exitReasonName(reason: Int): String = when (reason) {
+        0 -> "UNKNOWN"
+        1 -> "EXIT_SELF"
+        2 -> "SIGNALED"
+        3 -> "LOW_MEMORY"
+        4 -> "CRASH"
+        5 -> "CRASH_NATIVE"
+        6 -> "ANR"
+        7 -> "INITIALIZATION_FAILURE"
+        8 -> "PERMISSION_CHANGE"
+        9 -> "EXCESSIVE_RESOURCE_USAGE"
+        10 -> "USER_REQUESTED"
+        11 -> "USER_STOPPED"
+        12 -> "DEPENDENCY_DIED"
+        13 -> "OTHER"
+        14 -> "FREEZER"
+        15 -> "PACKAGE_STATE_CHANGE"
+        16 -> "PACKAGE_UPDATED"
+        else -> "REASON_$reason"
+    }
+
+    internal fun exitSummary(processName: String?, reason: Int, status: Int, description: String?): String =
+        buildString {
+            append(processName ?: "?").append("  ").append(exitReasonName(reason)).append("  status=").append(status)
+            if (!description.isNullOrBlank()) append("  ").append(description.trim())
+        }
+
     fun build(context: Context, mode: String): String {
         val b = StringBuilder()
         fun h(title: String) {
@@ -68,6 +96,20 @@ object DeviceReport {
         k("Fingerprint", Build.FINGERPRINT)
         k("Kernel", System.getProperty("os.version"))
         k("ABIs", Build.SUPPORTED_ABIS.joinToString(", "))
+        k("Memory page size", runCatching { android.system.Os.sysconf(android.system.OsConstants._SC_PAGESIZE) }.getOrNull()?.let { "$it bytes" })
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            h("Recent process exits")
+            val exits = runCatching {
+                context.getSystemService(android.app.ActivityManager::class.java).getHistoricalProcessExitReasons(context.packageName, 0, 5)
+            }.getOrNull().orEmpty()
+            if (exits.isEmpty()) k("Exits", "none recorded") else {
+                val stamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
+                for (e in exits) {
+                    k(stamp.format(Date(e.timestamp)), exitSummary(e.processName, e.reason, e.status, e.description))
+                }
+            }
+        }
 
         h("CPU and memory")
         k("Cores", CpuCores.all.size)
