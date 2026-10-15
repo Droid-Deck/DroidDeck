@@ -2142,6 +2142,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             steamTouchControls?.let { it.releaseAll(); it.visibility = View.GONE }
             com.droiddeck.launcher.input.SteamTouchDevice.current?.plugged = false
         }
+        controls.setSteamKeys(SessionState.mode == SessionService.MODE_STEAM)
         controls.setButtonsOnly(buttonsOnly)
         val show = when (forced) {
             SessionPrefs.OSC_ALWAYS -> true

@@ -92,6 +92,7 @@ class OnScreenControls(
     private val groups = controls.map { it.group }.distinct()
 
     private var buttonsOnly = false
+    private var steamKeys = true
     private var quickHidden = false
     private var quickPressedBy = -1
     private var keyboardPressedBy = -1
@@ -180,6 +181,13 @@ class OnScreenControls(
         releaseAll()
         buttonsOnly = enabled
         quickHidden = false
+        relayout()
+    }
+
+    fun setSteamKeys(on: Boolean) {
+        if (steamKeys == on) return
+        releaseAll()
+        steamKeys = on
         relayout()
     }
 
@@ -663,6 +671,7 @@ class OnScreenControls(
     }
 
     private fun isVisible(control: Control): Boolean = when {
+        !steamKeys && !editing && (control.id == "guide" || control.id == "qam") -> false
         !editing && control.id == "guide" && !settings.steamButton -> false
         !editing && control.id == "qam" && !settings.qamButton -> false
         buttonsOnly && !editing -> control.id == "guide" || control.id == "qam"
