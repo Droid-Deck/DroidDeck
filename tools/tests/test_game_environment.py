@@ -173,6 +173,25 @@ class GameEnvironmentTest(unittest.TestCase):
             (other / "Other.exe").touch()
             self.assertEqual(MODULE["engine_fixes"](str(other / "Other.exe"), []), ({}, [], []))
 
+    def test_arkham_city_gets_full_x87_precision_over_the_preset(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            city = Path(tmp) / "Batman Arkham City GOTY/Binaries/Win32"
+            city.mkdir(parents=True)
+            for name in ("BatmanAC.exe", "BmLauncher.exe"):
+                (city / name).touch()
+            for exe in ("BatmanAC.exe", "BmLauncher.exe"):
+                env, extra, notes = MODULE["engine_fixes"](str(city / exe), [])
+                self.assertEqual((env, extra), ({"FEX_X87REDUCEDPRECISION": "0"}, []))
+            config = {"version": 1, "shared": {"FEX_X87REDUCEDPRECISION": "1"}}
+            self.assertEqual(MODULE["apply_config"]({}, config, "200260", env)["FEX_X87REDUCEDPRECISION"], "0")
+            config["games"] = {"200260": {"FEX_X87REDUCEDPRECISION": "1"}}
+            self.assertEqual(MODULE["apply_config"]({}, config, "200260", env)["FEX_X87REDUCEDPRECISION"], "1")
+            asylum = Path(tmp) / "Batman Arkham Asylum GOTY/Binaries"
+            asylum.mkdir(parents=True)
+            for name in ("ShippingPC-BmGame.exe", "BmLauncher.exe"):
+                (asylum / name).touch()
+            self.assertEqual(MODULE["engine_fixes"](str(asylum / "BmLauncher.exe"), []), ({}, [], []))
+
     def test_a_new_fix_only_needs_registering(self):
         with tempfile.TemporaryDirectory() as tmp:
             (Path(tmp) / "Game.exe").touch()

@@ -887,8 +887,8 @@
     <string name="wadb_turn_off">ปิดขีดจำกัด</string>
     <string name="wadb_other_ways">วิธีอื่นในการเปลี่ยนค่านี้</string>
     <string name="wadb_dev_try_first">1 · ตัวเลือกสำหรับนักพัฒนา (ลองก่อน)</string>
-    <string name="wadb_restrict_on">เปิด “Restrict child processes”</string>
-    <string name="wadb_restrict_off">ปิด “Restrict child processes”</string>
+    <string name="wadb_restrict_on">ปิด “ปิดการจำกัดการประมวลผลข้อมูลย่อย”</string>
+    <string name="wadb_restrict_off">เปิด “ปิดการจำกัดการประมวลผลข้อมูลย่อย”</string>
     <string name="wadb_computer_last">3 · ADB จากคอมพิวเตอร์ (ทางเลือกสุดท้าย)</string>
     <string name="wadb_only_if">ใช้เฉพาะเมื่อ Wireless debugging ใช้งานไม่ได้</string>
     <string name="wadb_computer_group">3 · ADB จากคอมพิวเตอร์ (ทางเลือกสุดท้าย)</string>

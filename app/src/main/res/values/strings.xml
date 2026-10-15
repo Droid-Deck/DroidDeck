@@ -934,8 +934,8 @@
     <string name="wadb_turn_off">Turn limit off</string>
     <string name="wadb_other_ways">Other ways to change it</string>
     <string name="wadb_dev_try_first">1 · Developer options (try first)</string>
-    <string name="wadb_restrict_on">Set “Restrict child processes” on.</string>
-    <string name="wadb_restrict_off">Set “Restrict child processes” off.</string>
+    <string name="wadb_restrict_on">Turn off “Disable child process restrictions”.</string>
+    <string name="wadb_restrict_off">Turn on “Disable child process restrictions”.</string>
     <string name="wadb_computer_last">3 · Computer ADB (last resort)</string>
     <string name="wadb_only_if">Only if Wireless debugging is unavailable.</string>
     <string name="wadb_computer_group">3 · Computer ADB (last resort)</string>

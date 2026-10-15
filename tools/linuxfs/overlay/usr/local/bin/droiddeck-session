@@ -202,6 +202,9 @@ if [ -z "${BL_INSIDE:-}" ]; then
       echo "== gamescope: games at ${nested}x${height} stretched to the ${width}x${height} output"
     fi
   fi
+  if [ "$mode" = steam ]; then
+    export gamescope_cursor_composite=2
+  fi
   args=(--backend wayland --expose-wayland -f -W "$width" -H "$height" -w "$nested" -h "$height")
   [ "$nested" != "$width" ] && args+=(-S stretch) && export BL_STRETCHED=1
   if [ "${BL_FPS:-0}" -gt 0 ]; then
