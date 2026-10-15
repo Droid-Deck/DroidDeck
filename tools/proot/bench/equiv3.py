@@ -298,6 +298,18 @@ def deep_section():
     t("unlink missing", lambda: os.unlink(DEEP + "/new"))
     t("unlink", lambda: os.unlink(DEEP + "/renamed"))
     t("realpath", lambda: realpath(DEEP + "/sub/../sub/link"))
+    srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    t("bind socket", lambda: srv.bind(DEEP + "/s.sock"))
+    t("listen", lambda: srv.listen(1))
+    cli = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    t("connect socket", lambda: cli.connect(DEEP + "/s.sock"))
+    t("stat socket", lambda: mode_of(os.stat(DEEP + "/s.sock")))
+    t("sockname", srv.getsockname)
+    t("peername", cli.getpeername)
+    t("accepted sockname", lambda: srv.accept()[0].getsockname())
+    cli.close()
+    srv.close()
+    t("unlink socket", lambda: os.unlink(DEEP + "/s.sock"))
     t("listing", lambda: sorted(os.listdir(DEEP)))
 
 

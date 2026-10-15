@@ -1187,8 +1187,53 @@ int inotify_add_watch(int fd, const char *path, uint32_t mask) {
 }
 
 
-static long socket_address(const struct sockaddr *addr, socklen_t len, int follow, struct sockaddr_un *out, socklen_t *out_len) {
+/* A socket too long for sun_path is named /proc/self/fd/N/<name>, and the kernel reports that name back.
+ * Each process remembers the guest path behind the names it bound or connected to, so getsockname,
+ * getpeername and accept show the guest path as proot does. */
+static struct { char name[sizeof ((struct sockaddr_un *)0)->sun_path]; char guest[sizeof ((struct sockaddr_un *)0)->sun_path]; } long_names[16];
+static unsigned long_next;
+static pthread_mutex_t long_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static const char *fd_name(const char *path) {
+  if (strncmp(path, "/proc/self/fd/", 14) != 0) return NULL;
+  const char *p = path + 14;
+  if (*p < '0' || *p > '9') return NULL;
+  while (*p >= '0' && *p <= '9') p++;
+  return *p == '/' && p[1] ? p + 1 : NULL;
+}
+
+static void remember_long(const struct sockaddr *addr, socklen_t len, const struct sockaddr_un *used) {
   const struct sockaddr_un *un = (const struct sockaddr_un *)addr;
+  const char *name = fd_name(used->sun_path);
+  size_t glen = strnlen(un->sun_path, len - offsetof(struct sockaddr_un, sun_path));
+  if (!name || glen >= sizeof long_names[0].guest) return;
+  pthread_mutex_lock(&long_lock);
+  unsigned i = long_next++ % (sizeof long_names / sizeof long_names[0]);
+  snprintf(long_names[i].name, sizeof long_names[i].name, "%s", name);
+  memcpy(long_names[i].guest, un->sun_path, glen);
+  long_names[i].guest[glen] = 0;
+  pthread_mutex_unlock(&long_lock);
+}
+
+static int long_guest(const char *host, char *guest, size_t size) {
+  const char *name = fd_name(host);
+  int found = -1;
+  if (!name) return -1;
+  pthread_mutex_lock(&long_lock);
+  for (unsigned n = 0; n < sizeof long_names / sizeof long_names[0] && found < 0; n++) {
+    unsigned i = (long_next - 1 - n) % (sizeof long_names / sizeof long_names[0]);
+    if (long_names[i].guest[0] && strcmp(long_names[i].name, name) == 0 && strlen(long_names[i].guest) < size) {
+      strcpy(guest, long_names[i].guest);
+      found = 0;
+    }
+  }
+  pthread_mutex_unlock(&long_lock);
+  return found;
+}
+
+static long socket_address(const struct sockaddr *addr, socklen_t len, int follow, struct sockaddr_un *out, socklen_t *out_len, long *dir) {
+  const struct sockaddr_un *un = (const struct sockaddr_un *)addr;
+  *dir = -1;
   size_t room = sizeof un->sun_path;
   if (!addr || len <= offsetof(struct sockaddr_un, sun_path) || addr->sa_family != AF_UNIX || un->sun_path[0] == 0)
     return 0;
@@ -1204,10 +1249,22 @@ static long socket_address(const struct sockaddr *addr, socklen_t len, int follo
   if (rs == 1 && follow) return -ENOENT;
   if (r.magic) return FP_SLOW;
   size_t hlen = strlen(r.host);
-  if (hlen >= room) return FP_SLOW;
   memset(out, 0, sizeof *out);
   out->sun_family = AF_UNIX;
-  memcpy(out->sun_path, r.host, hlen + 1);
+  if (hlen >= room) {
+    /* Too long for sun_path: name it through its directory, so the socket still lives at its own
+     * host path where every process (and stat, unlink) finds it. proot would bind it to a
+     * temporary name the fast path cannot see. */
+    char *slash = strrchr(r.host, '/');
+    if (!slash || slash == r.host) return FP_SLOW;
+    *slash = 0;
+    *dir = sc(SYS_openat, AT_FDCWD, (long)r.host, O_PATH | O_DIRECTORY | O_CLOEXEC, 0, 0);
+    if (*dir < 0) return FP_SLOW;
+    hlen = snprintf(out->sun_path, room, "/proc/self/fd/%ld/%s", *dir, slash + 1);
+    if (hlen >= room) { sc(SYS_close, *dir, 0, 0, 0, 0); *dir = -1; return FP_SLOW; }
+  } else {
+    memcpy(out->sun_path, r.host, hlen + 1);
+  }
   *out_len = offsetof(struct sockaddr_un, sun_path) + hlen + 1;
   return 1;
 }
@@ -1221,10 +1278,15 @@ int connect(int fd, const struct sockaddr *addr, socklen_t len) {
   REAL(connect, int (*)(int, const struct sockaddr *, socklen_t));
   struct sockaddr_un un;
   socklen_t un_len;
-  long rs = fp_ready() ? socket_address(addr, len, 1, &un, &un_len) : FP_SLOW;
+  long dir = -1;
+  long rs = fp_ready() ? socket_address(addr, len, 1, &un, &un_len, &dir) : FP_SLOW;
   if (rs == 0 && !(addr && addr->sa_family == AF_UNIX) && !nonblocking(fd)) rs = FP_SLOW;
   if (rs == 0) rs = sc(SYS_connect, fd, (long)addr, len, 0, 0);
   else if (rs == 1) rs = sc(SYS_connect, fd, (long)&un, un_len, 0, 0);
+  if (dir >= 0) {
+    sc(SYS_close, dir, 0, 0, 0, 0);
+    if (rs == 0 || rs == -EINPROGRESS) remember_long(addr, len, &un);
+  }
   ANSWER(rs, AT_FDCWD, "(connect)", real_connect(fd, addr, len));
 }
 
@@ -1232,9 +1294,14 @@ int bind(int fd, const struct sockaddr *addr, socklen_t len) {
   REAL(bind, int (*)(int, const struct sockaddr *, socklen_t));
   struct sockaddr_un un;
   socklen_t un_len;
-  long rs = fp_ready() ? socket_address(addr, len, 0, &un, &un_len) : FP_SLOW;
+  long dir = -1;
+  long rs = fp_ready() ? socket_address(addr, len, 0, &un, &un_len, &dir) : FP_SLOW;
   if (rs == 0) rs = sc(SYS_bind, fd, (long)addr, len, 0, 0);
   else if (rs == 1) rs = sc(SYS_bind, fd, (long)&un, un_len, 0, 0);
+  if (dir >= 0) {
+    sc(SYS_close, dir, 0, 0, 0, 0);
+    if (rs == 0) remember_long(addr, len, &un);
+  }
   ANSWER(rs, AT_FDCWD, "(bind)", real_bind(fd, addr, len));
 }
 
@@ -1248,7 +1315,7 @@ static void report_address(const struct sockaddr_storage *got, socklen_t got_len
     memcpy(h, un->sun_path, hl);
     h[hl] = 0;
     struct sockaddr_un *out = (struct sockaddr_un *)&shown;
-    if (to_guest(h, g, sizeof g) == 0 && strlen(g) < sizeof out->sun_path) {
+    if ((long_guest(h, g, sizeof g) == 0 || to_guest(h, g, sizeof g) == 0) && strlen(g) < sizeof out->sun_path) {
       memset(out->sun_path, 0, sizeof out->sun_path);
       strcpy(out->sun_path, g);
       shown_len = offsetof(struct sockaddr_un, sun_path) + strlen(g) + 1;
