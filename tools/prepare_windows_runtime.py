@@ -3,7 +3,8 @@
 The donor was built from a CI merge, not just the PR head. Only unchanged
 components are reused. Session helpers come from this checkout, libblsession
 must be rebuilt for all three architectures, Gamescope comes from the current
-checksum-pinned release, and store engines are omitted (build with skipRust).
+checksum-pinned release, and the VR components are rebuilt in Docker (or reused
+from a verified build manifest). Store engines are omitted (build with skipRust).
 """
 import argparse
 import hashlib
@@ -23,6 +24,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools/release'))
 import runtime_inputs as runtime
 from check_session_assets import source_assets
+sys.path.insert(0, str(ROOT / 'tools/vr'))
+import build_windows as vr_build
 
 
 DONOR_SHA256 = 'b7efef6442f384446bdd1750cec21f0eda61b370bc21d9f55187448e5c256760'
@@ -44,6 +47,7 @@ LOCAL_ANDROID_SOURCES = {'app/src/main/cpp/CMakeLists.txt',
 # Permit them only while source_assets() still guarantees that staging path.
 LOCAL_SESSION_HELPERS = {'tools/linuxfs/overlay/usr/local/bin/droiddeck-steam-compat',
                          'tools/linuxfs/overlay/usr/local/bin/droiddeck-steamvr'}
+VR_PREFIX = 'assets/linuxfs/usr/local/lib/droiddeck-vr/'
 CHECK_PATHS = list(dict.fromkeys(runtime.SOURCE_PATHS + [
     'app/src/main/cpp', 'app/src/main/jniLibs', 'app/src/main/rust/stores', 'tools/vr']))
 REBUILT = {'libblsession.so': 183, 'x86_64/libblsession.so': 62, 'i386/libblsession.so': 3}
@@ -76,18 +80,21 @@ def check_sources():
         raise ValueError('The donor CI merge does not match the audited source tree')
     helper_sources = {path.relative_to(ROOT).as_posix() for path in source_assets()}
     reviewed = LOCAL_BUILD_PLUMBING | LOCAL_ANDROID_SOURCES | (LOCAL_SESSION_HELPERS & helper_sources)
-    unexpected = changed(AUDITED_SOURCE, 'HEAD') - reviewed
+    unexpected = {p for p in changed(AUDITED_SOURCE, 'HEAD') - reviewed if not vr_build.is_source(p)}
     if unexpected:
         raise ValueError('Sources changed since the component audit:\n' + '\n'.join(sorted(unexpected)))
-    local = changed('HEAD') - reviewed
+    local = changed('HEAD')
     untracked = set(filter(None, git('ls-files', '--others', '--exclude-standard', '-z',
                                     '--', *CHECK_PATHS).decode().split('\0')))
-    unexpected = local | (untracked - LOCAL_ANDROID_SOURCES)
+    unexpected = {p for p in (local - reviewed) | (untracked - LOCAL_ANDROID_SOURCES)
+                  if not vr_build.is_source(p)}
     if unexpected:
         raise ValueError('Unreviewed runtime/native/Rust changes:\n' + '\n'.join(sorted(unexpected)))
     classifications = {}
-    for path in sorted(changed(DONOR_TREE, 'HEAD')):
-        if path in LOCAL_ANDROID_SOURCES:
+    for path in sorted(changed(DONOR_TREE, 'HEAD') | local | untracked):
+        if vr_build.is_source(path):
+            action = 'VR component rebuilt from current source and verified; never imported from donor'
+        elif path in LOCAL_ANDROID_SOURCES:
             action = 'Android native source compiled by Gradle; not imported from donor'
         elif path.startswith('app/src/main/rust/stores/'):
             action = 'store engines omitted; Gradle must use skipRust=true'
@@ -187,7 +194,7 @@ def validate_tracked_assets(package, llvm_strip):
     return checked
 
 
-def prepare(apk, rebuilt_dir, gamescope, llvm_strip=None):
+def prepare(apk, rebuilt_dir, gamescope, llvm_strip=None, rebuilt_vr=None, vk_include=None, vr_image=vr_build.IMAGE):
     classifications = check_sources()
     if runtime.digest(apk) != DONOR_SHA256:
         raise ValueError('Donor APK checksum mismatch')
@@ -196,6 +203,14 @@ def prepare(apk, rebuilt_dir, gamescope, llvm_strip=None):
     for name, data in replacements.items():
         if hashlib.sha256(data).hexdigest() != REBUILT_SHA256[name]:
             raise ValueError('Replacement does not match the audited local rebuild: ' + name)
+    if vk_include is None:
+        if llvm_strip is None:
+            raise ValueError('Set --vk-include or --llvm-strip to locate the NDK Vulkan headers')
+        vk_include = llvm_strip.parent.parent / 'sysroot/usr/include'
+    if rebuilt_vr is None:
+        vr_files, vr_manifest = vr_build.build(ROOT / 'build/windows-setup/vr', vk_include, root=ROOT, image=vr_image)
+    else:
+        vr_files, vr_manifest = vr_build.validate(rebuilt_vr, vk_include, root=ROOT)
     helpers = source_assets()
     helper_assets = set(helpers.values())
     plan = {}
@@ -209,7 +224,7 @@ def prepare(apk, rebuilt_dir, gamescope, llvm_strip=None):
         excluded.update('assets/linuxfs/' + name for name in gamescope_files)
         excluded.update(helper_assets)
         for name in names:
-            if name.endswith('/') or name in excluded:
+            if name.endswith('/') or name in excluded or name.startswith(VR_PREFIX):
                 continue
             if name.startswith(('assets/linuxfs/', 'assets/directaudio/', 'assets/droiddeck-esync/')):
                 target = 'app/src/main/' + name
@@ -236,6 +251,11 @@ def prepare(apk, rebuilt_dir, gamescope, llvm_strip=None):
         checked_output(target)
         plan[target] = data
         origins[target] = 'checksum-pinned Gamescope release'
+    for name, data in vr_files.items():
+        target = 'app/src/main/' + VR_PREFIX + name
+        checked_output(target)
+        plan[target] = data
+        origins[target] = 'VR rebuilt from current source; source and output checksums verified'
     # Do not silently retain unrelated files from a prior preparation.
     expected = set(plan) | {'app/src/main/' + name for name in helper_assets}
     for tree in ('linuxfs', 'directaudio', 'droiddeck-esync'):
@@ -272,6 +292,7 @@ def prepare(apk, rebuilt_dir, gamescope, llvm_strip=None):
         'gamescope': {'repo': pins['GAMESCOPE_REPO'], 'tag': pins['GAMESCOPE_TAG'],
                       'archive_sha256': pins['GAMESCOPE_SHA256']},
         'tracked_files_verified': tracked,
+        'vr_build': vr_manifest,
         'outputs': {name: {'origin': origins[name], 'sha256': hashlib.sha256(data).hexdigest()}
                     for name, data in sorted(plan.items())},
         'preload_sources': {path.relative_to(ROOT).as_posix(): runtime.digest(path)
@@ -283,7 +304,7 @@ def prepare(apk, rebuilt_dir, gamescope, llvm_strip=None):
     }
     output = ROOT / 'app/build/windows-runtime-provenance.json'
     output.write_text(json.dumps(provenance, indent=2, sort_keys=True) + '\n', encoding='utf-8')
-    print('Runtime inputs verified; donor components, rebuilt preloads and pinned Gamescope recorded.')
+    print('Runtime inputs verified; donor components, rebuilt preloads, rebuilt VR and pinned Gamescope recorded.')
     print('Store engines omitted: build with -PskipRust=true.')
     print(output)
 
@@ -295,6 +316,9 @@ def main():
     parser.add_argument('--gamescope', type=Path, default=ROOT / 'build/windows-setup/gamescope.tzst')
     parser.add_argument('--llvm-strip', type=Path, default=Path.home() /
                         'AppData/Local/Android/Sdk/ndk/27.3.13750724/toolchains/llvm/prebuilt/windows-x86_64/bin/llvm-strip.exe')
+    parser.add_argument('--rebuilt-vr', type=Path, help='Reuse a VR build with vr-build.json; default rebuilds in Docker')
+    parser.add_argument('--vk-include', type=Path, help='NDK Vulkan headers; defaults to the sysroot beside --llvm-strip')
+    parser.add_argument('--vr-image', default=vr_build.IMAGE, help='Docker compiler image for a fresh VR build')
     parser.add_argument('--check-sources', action='store_true', help='Audit source differences without extracting files')
     args = parser.parse_args()
     zstd = ROOT / 'build/windows-setup/tools/zstd/zstd.exe'
@@ -305,7 +329,9 @@ def main():
         if args.check_sources:
             print(json.dumps(check_sources(), indent=2, sort_keys=True))
         else:
-            prepare(args.apk.resolve(), args.rebuilt_linuxfs.resolve(), args.gamescope.resolve(), args.llvm_strip.resolve())
+            prepare(args.apk.resolve(), args.rebuilt_linuxfs.resolve(), args.gamescope.resolve(), args.llvm_strip.resolve(),
+                    args.rebuilt_vr.resolve() if args.rebuilt_vr else None,
+                    args.vk_include.resolve() if args.vk_include else None, args.vr_image)
     except (ValueError, OSError, subprocess.CalledProcessError, KeyError) as error:
         parser.exit(1, str(error) + '\n')
 
