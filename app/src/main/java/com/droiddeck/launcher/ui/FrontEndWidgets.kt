@@ -216,13 +216,13 @@ internal fun SecondaryButton(text: String, enabled: Boolean = true, compact: Boo
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src) && enabled
     val pressed by src.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) 0.955f else if (hot) 1.02f else 1f, Motion.sp(0.5f, Spring.StiffnessMedium), label = "secScale")
+    val scale by animateFloatAsState(if (pressed) 0.955f else if (hot && !active) 1.02f else 1f, Motion.sp(0.5f, Spring.StiffnessMedium), label = "secScale")
     val pal = LocalPalette.current
     val hoverFill by animateColorAsState(if (hot) pal.signal.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.03f), Motion.tw(250), label = "secFill")
     val fill = if (active) pal.signal.copy(alpha = 0.14f) else hoverFill
     Box(
         contentAlignment = Alignment.Center,
-        modifier = modifier.paneItem("btn:$text").downToFirstTile().heightIn(min = if (compact) 44.dp else 48.dp).graphicsLayer { scaleX = scale; scaleY = scale }.clip(Shape12).background(fill).glideBorder(hot || active, Shape12, pal.signal, pal.line2)
+        modifier = modifier.paneItem("btn:$text").downToFirstTile().heightIn(min = if (compact) 44.dp else 48.dp).graphicsLayer { scaleX = scale; scaleY = scale }.clip(Shape12).background(fill).glideBorder(hot, Shape12, pal.signal, pal.line2).then(if (active) Modifier.border(2.dp, pal.signal, Shape12) else Modifier)
             .alpha(if (enabled) 1f else 0.5f)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, enabled = enabled, onClick = onClick)
             .controllerConfirm(enabled = enabled, onClick = onClick)
