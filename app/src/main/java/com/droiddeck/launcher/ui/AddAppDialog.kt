@@ -509,7 +509,7 @@ private fun SuggestedIcon(url: String, selected: Boolean, onClick: () -> Unit) {
         contentAlignment = Alignment.Center,
         modifier = Modifier.size(44.dp).graphicsLayer { scaleX = scale; scaleY = scale }.clip(Shape12).background(colors.surface)
             .glideBorder(hot, Shape12, pal.signal, pal.line2)
-            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, onClick = onClick)
+            .hoverable(src).clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = src, indication = LocalIndication.current, onClick = onClick)
             .controllerConfirm(onClick = onClick),
     ) {
         AsyncImage(model = ImageRequest.Builder(LocalContext.current).data(url).crossfade(true).build(), contentDescription = stringResource(R.string.add_app_icon), contentScale = ContentScale.Fit, modifier = Modifier.size(34.dp))

@@ -680,7 +680,7 @@ private fun DrawerActionButton(text: String, icon: androidx.compose.ui.graphics.
         modifier = modifier.fillMaxWidth().heightIn(min = 52.dp).clip(shape)
             .background(if (hot) pal.signal.copy(alpha = 0.16f) else colors.surfaceVariant)
             .glideBorder(hot, shape, pal.signal)
-            .hoverable(source).clickable(interactionSource = source, indication = LocalIndication.current, onClick = onClick)
+            .hoverable(source).clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = source, indication = LocalIndication.current, onClick = onClick)
             .controllerConfirm(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp),
     ) {
         Icon(icon, contentDescription = null, tint = colors.onBackground, modifier = Modifier.size(22.dp))
@@ -717,7 +717,7 @@ private fun StopSessionButton(modifier: Modifier = Modifier, onClick: () -> Unit
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
         modifier = modifier.heightIn(min = 44.dp).semantics { contentDescription = stopDescription }.testTag("drawer-stop")
             .clip(shape).background(fill).glideBorder(hot, shape, colors.error.copy(alpha = 0.9f), colors.error.copy(alpha = 0.55f))
-            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, onClick = onClick)
+            .hoverable(src).clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = src, indication = LocalIndication.current, onClick = onClick)
             .controllerConfirm(onClick = onClick)
             .padding(start = 12.dp, end = 14.dp),
     ) {
@@ -743,7 +743,7 @@ private fun SteamActionPill(
             .clip(shape).background(if (hot) pal.signal.copy(alpha = 0.14f) else Color.Transparent)
             .glideBorder(hot, shape, pal.signal, pal.line)
             .hoverable(interactionSource)
-            .clickable(interactionSource = interactionSource, indication = LocalIndication.current, onClick = onClick)
+            .clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = interactionSource, indication = LocalIndication.current, onClick = onClick)
             .controllerConfirm(onClick = onConfirm ?: onClick),
     ) {
         Icon(icon, contentDescription = null, tint = if (hot) pal.signal else colors.onBackground, modifier = Modifier.size(20.dp))
@@ -762,7 +762,7 @@ private fun DrawerBumper(label: String, description: String, modifier: Modifier 
         contentAlignment = Alignment.Center,
         modifier = modifier.size(44.dp).clip(ring)
             .glideBorder(hot, ring, pal.signal)
-            .hoverable(src).clickable(interactionSource = src, indication = null, onClick = onClick)
+            .hoverable(src).clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = src, indication = null, onClick = onClick)
             .controllerConfirm(onClick = onClick)
             .semantics { contentDescription = description },
     ) {
@@ -816,7 +816,7 @@ private fun DrawerPageTabs(page: SessionDrawerPage, pages: List<SessionDrawerPag
                         .semantics { contentDescription = pageDescription }
                         .testTag("drawer-tab-${item.name.lowercase()}")
                         .hoverable(source)
-                        .clickable(interactionSource = source, indication = LocalIndication.current, onClick = select)
+                        .clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = source, indication = LocalIndication.current, onClick = select)
                         .controllerConfirm(onClick = select),
                 ) {
                     Icon(item.icon, contentDescription = null, tint = tint, modifier = Modifier.size(if (compact) 22.dp else 30.dp))
@@ -1588,7 +1588,7 @@ private fun ConfirmChoice(label: String, danger: Boolean, enabled: Boolean, modi
             .background(if (hot) accent.copy(alpha = if (danger) 0.18f else 0.14f) else Color.Transparent)
             .glideBorder(hot, shape, accent)
             .hoverable(src)
-            .clickable(interactionSource = src, indication = LocalIndication.current, enabled = enabled, onClick = onClick)
+            .clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = src, indication = LocalIndication.current, enabled = enabled, onClick = onClick)
             .controllerConfirm(enabled = enabled, onClick = onClick)
             .padding(horizontal = 16.dp),
     ) {

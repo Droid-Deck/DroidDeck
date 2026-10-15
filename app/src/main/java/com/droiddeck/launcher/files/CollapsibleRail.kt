@@ -249,11 +249,11 @@ fun CollapsibleRail(
                             if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
                             shape,
                         )
-                        .clickable(onClick = item.onClick)
+                        .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = item.onClick)
                         .padding(horizontal = if (collapsed) 2.dp else 11.dp, vertical = if (collapsed) 6.dp else 9.dp)
                 } else {
                     base
-                        .clickable(onClick = item.onClick)
+                        .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = item.onClick)
                         .background(if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.14f) else Color.Transparent)
                         .padding(horizontal = if (collapsed) 2.dp else 13.dp, vertical = if (collapsed) 7.dp else 11.dp)
                 }
@@ -359,7 +359,7 @@ private fun TopTabCell(
         modifier = modifier
             .clip(RoundedCornerShape(9.dp))
             .background(if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.14f) else Color.Transparent)
-            .clickable(onClick = onClick)
+            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
             .padding(vertical = 6.dp, horizontal = 1.dp),
     ) {
         Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(20.dp))
