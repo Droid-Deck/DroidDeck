@@ -90,7 +90,7 @@ internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, o
             if (onAdd != null) Rise(0) { GamesHeader(1, onAdd, Modifier.padding(bottom = 10.dp)) }
             Rise(0) {
                 Row(verticalAlignment = Alignment.Bottom) {
-                    GameHero(current, Modifier.weight(1f).heightIn(min = if (narrow) 190.dp else 250.dp)) {
+                    GameHero(current, Modifier.weight(1f).heightIn(min = if (narrow) 190.dp else 250.dp), trailing = { DirectLaunchButton(current, s, a) }) {
                         GameHeroCopy(current, if (narrow) 28.sp else 38.sp)
                         GameActions(current, s, a, onEdit)
                     }
@@ -112,7 +112,7 @@ internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, o
             modifier = Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())
                 .padding(horizontal = if (narrow) 14.dp else 20.dp, vertical = 16.dp),
         ) {
-            GameHero(current, Modifier.fillMaxWidth().heightIn(min = if (narrow) 170.dp else 200.dp)) {
+            GameHero(current, Modifier.fillMaxWidth().heightIn(min = if (narrow) 170.dp else 200.dp), trailing = { DirectLaunchButton(current, s, a) }) {
                 GameHeroCopy(current, if (narrow) 24.sp else 32.sp)
                 GameActions(current, s, a, onEdit)
             }
@@ -154,11 +154,14 @@ private fun GameActions(g: Library.SteamGame, s: FrontEndState, a: FrontEndActio
         }
         if (!s.shortcutPicker) GameShortcutMenu(g, a)
         if (!s.shortcutPicker && g.library == Library.ADDED && g.source == Library.ADDED && g.gameFiles != null) EditGameButton { onEdit(g) }
-        if (!s.shortcutPicker && g.library == Library.ADDED && g.source == Library.ADDED && g.guestExe != null) {
-            SecondaryButton(stringResource(R.string.game_direct_launch), compact = true, active = g.directLaunch) { a.onDirectLaunch(g) }
-        }
         BusyChip(s)
     }
+}
+
+@Composable
+private fun DirectLaunchButton(g: Library.SteamGame, s: FrontEndState, a: FrontEndActions) {
+    if (s.shortcutPicker || g.library != Library.ADDED || g.source != Library.ADDED || g.guestExe == null) return
+    SecondaryButton(stringResource(R.string.game_direct_launch), compact = true, active = g.directLaunch) { a.onDirectLaunch(g) }
 }
 
 @Composable
@@ -509,7 +512,7 @@ private fun libraryLabel(g: Library.SteamGame): String = when {
 }
 
 @Composable
-private fun GameHero(g: Library.SteamGame, modifier: Modifier, content: @Composable ColumnScope.() -> Unit) {
+private fun GameHero(g: Library.SteamGame, modifier: Modifier, trailing: (@Composable () -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
     val colors = MaterialTheme.colorScheme
     Box(modifier = modifier.clip(Shape16).background(artBrush(hueOf(g.name)))) {
         val image = g.hero ?: g.art
@@ -527,6 +530,7 @@ private fun GameHero(g: Library.SteamGame, modifier: Modifier, content: @Composa
                 ),
             ),
         )
+        if (trailing != null) Box(Modifier.align(Alignment.TopEnd).padding(horizontal = 14.dp, vertical = 12.dp)) { trailing() }
         Column(
             verticalArrangement = Arrangement.spacedBy(4.dp),
             modifier = Modifier.align(Alignment.BottomStart).padding(horizontal = 22.dp, vertical = 18.dp),
