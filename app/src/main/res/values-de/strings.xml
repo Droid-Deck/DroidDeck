@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="steamvr_recovery_title">SteamVR-Grafik ausgefallen</string>
+    <string name="steamvr_recovery_countdown">DroidDeck startet in %1$d Sekunden neu, um die Grafik zurückzusetzen und SteamVR wieder zu öffnen. Dein laufendes Spiel wird geschlossen; nicht gespeicherter Fortschritt lässt sich nicht wiederherstellen.</string>
+    <string name="steamvr_recovery_repeated">Der Grafikfehler ist nach einem kürzlichen Neustart erneut aufgetreten. Die automatische Wiederherstellung ist pausiert, um eine Endlosschleife zu vermeiden. Ein Neustart schließt dein Spiel; nicht gespeicherter Fortschritt lässt sich nicht wiederherstellen.</string>
+    <string name="steamvr_recovery_restart">Jetzt neu starten</string>
+    <string name="steamvr_recovery_cancel">Geöffnet lassen</string>
+    <string name="steamvr_recovery_restarting">Grafik wird zurückgesetzt und SteamVR neu geöffnet …</string>
+    <string name="steamvr_recovery_failed">DroidDeck konnte nicht automatisch neu starten. Schließe die App vollständig und öffne sie dann erneut.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>Beim ersten Start wird Steam heruntergeladen. Das kann ein paar Minuten dauern.</item>
@@ -2208,6 +2215,8 @@
     <string name="drawer_page_glasses">Brille</string>
     <string name="glasses_open">VITURE-Brille</string>
     <string name="glasses_control">Brillensteuerung</string>
+    <string name="glasses_driver_missing">Dieser Build enthält keinen Treiber für diese Brille.</string>
+    <string name="glasses_connection_failed">Keine Verbindung zur Brille. Steck das Kabel neu ein oder tippe auf „Erlauben“, um es erneut zu versuchen.</string>
     <string name="glasses_allow">Erlauben</string>
     <string name="glasses_allow_hint">Erlaube DroidDeck, Bildwiederholrate, 3D-Modus, Helligkeit, Lautstärke und Sonnenschutz der Brille einzustellen und ihr Kopf-Tracking auszulesen.</string>
     <string name="glasses_asking">Warte, bis du es in der Android-Abfrage erlaubst …</string>
@@ -2235,6 +2244,14 @@
     <string name="glasses_picture_sbs">Side-by-Side-Spiel</string>
     <string name="glasses_screen_size">Bildschirmbreite</string>
     <string name="glasses_screen_distance">Bildschirmabstand</string>
+    <string name="glasses_screen_next_session">Breite und Abstand gelten, wenn ein Spiel als virtueller Bildschirm auf der Brille läuft.</string>
+    <string name="glasses_screen_no_output">Diese Einstellungen gelten, solange „Spiel auf der Brille“ aktiviert ist und das Spiel dort angezeigt wird.</string>
+    <string name="glasses_screen_flat_hint">„Automatisch“ zeigt dieses 2D-Spiel im Vollbild. Nutze einen virtuellen Bildschirm, um Breite, Abstand und Kopf-Tracking anzupassen.</string>
+    <string name="glasses_screen_use">Virtuellen Bildschirm nutzen</string>
+    <string name="glasses_screen_direct_hint">SteamVR füllt die Sicht. Passe unten das Sichtfeld an; Breite und Abstand gelten nur für einen virtuellen Bildschirm.</string>
+    <string name="glasses_screen_sbs_hint">Side-by-Side-Spiele füllen jedes Auge. Breite und Abstand gelten nur für einen virtuellen Bildschirm.</string>
+    <string name="glasses_tracking_flat_hint">„Automatisch“ hält dieses 2D-Spiel fest im Blickfeld. Wähle unter „Anzeige“ die Option „Virtueller Bildschirm“, um Kopf-Tracking zu nutzen.</string>
+    <string name="glasses_tracking_sbs_hint">Kopf-Tracking gilt für einen virtuellen Bildschirm oder ein laufendes SteamVR-Spiel.</string>
     <string name="glasses_hardware">Brille</string>
     <string name="glasses_brightness">Helligkeit</string>
     <string name="glasses_volume">Lautstärke</string>
@@ -2248,6 +2265,25 @@
     <string name="glasses_vr_fov">SteamVR-Sichtfeld</string>
     <string name="glasses_vr_fov_hint">Niedriger holt SteamVR näher heran und füllt die Brille; höher zeigt mehr von deiner Umgebung.</string>
     <string name="glasses_playing">Spiel läuft auf %1$s</string>
+    <string name="glasses_calibration">Tracking-Kalibrierung</string>
+    <string name="glasses_calibration_hint">Verringert Drift und richtet die waagerechte Referenz aus.</string>
+    <string name="glasses_calibration_saved_hint">Für diese Brille wird eine gespeicherte Kalibrierung verwendet.</string>
+    <string name="glasses_calibration_open">Kalibrieren</string>
+    <string name="glasses_calibration_instructions">Leg die verbundene Brille verkehrt herum auf eine ebene Fläche, sodass der Rahmen gleichmäßig aufliegt. Tippe auf „Starten“ und lass sie dann etwa 8 Sekunden lang unberührt liegen. Bei Bewegung beginnt die Messung neu. Dies korrigiert Drift und Neigung, nicht die Blickrichtung.</string>
+    <string name="glasses_calibration_settling">Lass die Brille verkehrt herum und unberührt liegen. Warten, bis sie zur Ruhe kommt …</string>
+    <string name="glasses_calibration_collecting">Sensoren werden gemessen. Halte die Brille ruhig.</string>
+    <string name="glasses_calibration_moving">Bewegung erkannt. Lass die Brille unberührt liegen; die Messung beginnt automatisch neu.</string>
+    <string name="glasses_calibration_turn_over">Leg die Brille verkehrt herum auf eine ebene Fläche. Die Messung beginnt, sobald sie richtig liegt.</string>
+    <string name="glasses_calibration_complete">Kalibrierung gespeichert. Setz die Brille auf, schau geradeaus und tippe dann auf „Fertig“, um die Ansicht zu zentrieren.</string>
+    <string name="glasses_calibration_failed">Die Kalibrierung konnte nicht abgeschlossen werden. Prüfe die Verbindung, halte die Brille ruhig und versuche es erneut. Deine bisherige Kalibrierung bleibt unverändert.</string>
+    <string name="glasses_calibration_start">Starten</string>
+    <string name="glasses_calibration_done">Fertig</string>
+    <string name="glasses_calibration_reset">Tracking-Kalibrierung zurücksetzen</string>
+    <string name="glasses_calibration_reset_hint">Gespeicherte Kalibrierung entfernen und die Standardwerte des Modells wiederherstellen? Zentriere die Ansicht, nachdem du die Brille wieder aufgesetzt hast.</string>
+    <string name="glasses_calibration_reset_button">Zurücksetzen</string>
+    <string name="glasses_xreal_network_missing">Warte auf die USB-Ethernet-Verbindung der Brille. Dieses Smartphone stellt sie Apps möglicherweise nicht bereit.</string>
+    <string name="glasses_xreal_connection_failed">Die XREAL-Verbindung wurde unterbrochen oder hat eine nicht unterstützte Antwort geliefert. Neuer Versuch …</string>
+    <string name="glasses_xreal_experimental">Experimentelle Unterstützung für die 1S. Nutze den Follow-Modus und deaktiviere die Stabilisierung im Menü der Brille. Tracking-Richtungen und Anzeigemodi müssen noch auf Geräten getestet werden.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Cardboard-Modus</string>
     <string name="cardboard_mode_hint">Bilder für linkes und rechtes Auge für eine Smartphone-VR-Brille.</string>

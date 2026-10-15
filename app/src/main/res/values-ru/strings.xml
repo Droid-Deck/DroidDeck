@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="steamvr_recovery_title">Графика SteamVR перестала работать</string>
+    <string name="steamvr_recovery_countdown">DroidDeck перезапустится через %1$d сек., чтобы сбросить графику и снова открыть SteamVR. Запущенная игра закроется; несохранённый прогресс восстановить не удастся.</string>
+    <string name="steamvr_recovery_repeated">Сбой графики повторился вскоре после перезапуска. Автоматическое восстановление приостановлено, чтобы избежать зацикливания. Перезапуск закроет игру; несохранённый прогресс восстановить не удастся.</string>
+    <string name="steamvr_recovery_restart">Перезапустить</string>
+    <string name="steamvr_recovery_cancel">Не закрывать</string>
+    <string name="steamvr_recovery_restarting">Сброс графики и повторный запуск SteamVR…</string>
+    <string name="steamvr_recovery_failed">Не удалось автоматически перезапустить DroidDeck. Полностью закройте приложение и откройте его снова.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>При первом запуске будет загружен Steam. Это может занять несколько минут.</item>
@@ -2266,6 +2273,8 @@
     <string name="drawer_page_glasses">Очки</string>
     <string name="glasses_open">Очки VITURE</string>
     <string name="glasses_control">Управление очками</string>
+    <string name="glasses_driver_missing">В этой сборке нет драйвера для этих очков.</string>
+    <string name="glasses_connection_failed">Не удалось подключиться к очкам. Переподключите кабель или нажмите «Разрешить», чтобы повторить попытку.</string>
     <string name="glasses_allow">Разрешить</string>
     <string name="glasses_allow_hint">Разрешите DroidDeck менять частоту обновления, режим 3D, яркость, громкость и затемнение очков и считывать отслеживание головы.</string>
     <string name="glasses_asking">Ожидание разрешения в окне Android…</string>
@@ -2293,6 +2302,14 @@
     <string name="glasses_picture_sbs">Игра в стереопаре</string>
     <string name="glasses_screen_size">Ширина экрана</string>
     <string name="glasses_screen_distance">Расстояние до экрана</string>
+    <string name="glasses_screen_next_session">Ширина и расстояние применяются, когда игра выводится на очки как виртуальный экран.</string>
+    <string name="glasses_screen_no_output">Эти настройки действуют, когда включена «Игра на очках» и игра показывается на них.</string>
+    <string name="glasses_screen_flat_hint">В режиме «Автоматически» эта 2D-игра занимает весь экран. Чтобы настроить ширину, расстояние и отслеживание головы, используйте виртуальный экран.</string>
+    <string name="glasses_screen_use">Использовать виртуальный экран</string>
+    <string name="glasses_screen_direct_hint">SteamVR заполняет весь обзор. Настройте поле зрения ниже; ширина и расстояние применяются только к виртуальному экрану.</string>
+    <string name="glasses_screen_sbs_hint">Игры в стереопаре заполняют обзор каждого глаза. Ширина и расстояние применяются только к виртуальному экрану.</string>
+    <string name="glasses_tracking_flat_hint">В режиме «Автоматически» эта 2D-игра неподвижна в поле зрения. Чтобы использовать отслеживание головы, выберите «Виртуальный экран» в разделе «Экран».</string>
+    <string name="glasses_tracking_sbs_hint">Отслеживание головы работает с виртуальным экраном или запущенной игрой SteamVR.</string>
     <string name="glasses_hardware">Очки</string>
     <string name="glasses_brightness">Яркость</string>
     <string name="glasses_volume">Громкость</string>
@@ -2306,6 +2323,25 @@
     <string name="glasses_vr_fov">Поле зрения SteamVR</string>
     <string name="glasses_vr_fov_hint">Меньше — SteamVR ближе и заполняет очки; больше — шире обзор вокруг.</string>
     <string name="glasses_playing">Игра на %1$s</string>
+    <string name="glasses_calibration">Калибровка отслеживания</string>
+    <string name="glasses_calibration_hint">Уменьшает дрейф и выравнивает опорный горизонт.</string>
+    <string name="glasses_calibration_saved_hint">Для этих очков применяется сохранённая калибровка.</string>
+    <string name="glasses_calibration_open">Калибровать</string>
+    <string name="glasses_calibration_instructions">Положите подключённые очки перевёрнутыми на горизонтальную поверхность так, чтобы оправа опиралась равномерно. Нажмите «Начать» и не трогайте их около 8 секунд. При движении измерение начнётся заново. Калибровка корректирует дрейф и наклон, но не направление.</string>
+    <string name="glasses_calibration_settling">Оставьте очки перевёрнутыми и не трогайте их. Ожидание стабилизации…</string>
+    <string name="glasses_calibration_collecting">Измерение показаний датчиков. Не двигайте очки.</string>
+    <string name="glasses_calibration_moving">Обнаружено движение. Не трогайте очки; измерение начнётся заново автоматически.</string>
+    <string name="glasses_calibration_turn_over">Положите очки перевёрнутыми на горизонтальную поверхность. Измерение начнётся, когда они будут расположены правильно.</string>
+    <string name="glasses_calibration_complete">Калибровка сохранена. Наденьте очки, смотрите прямо перед собой и нажмите «Готово», чтобы отцентрировать вид.</string>
+    <string name="glasses_calibration_failed">Не удалось завершить калибровку. Проверьте подключение, держите очки неподвижно и повторите попытку. Предыдущая калибровка не изменена.</string>
+    <string name="glasses_calibration_start">Начать</string>
+    <string name="glasses_calibration_done">Готово</string>
+    <string name="glasses_calibration_reset">Сбросить калибровку отслеживания</string>
+    <string name="glasses_calibration_reset_hint">Удалить сохранённую калибровку и вернуть настройки модели по умолчанию? Снова надев очки, отцентрируйте вид.</string>
+    <string name="glasses_calibration_reset_button">Сбросить</string>
+    <string name="glasses_xreal_network_missing">Ожидание подключения очков по USB Ethernet. Этот телефон может не предоставлять его приложениям.</string>
+    <string name="glasses_xreal_connection_failed">Подключение к XREAL прервано или получен неподдерживаемый ответ. Повторная попытка…</string>
+    <string name="glasses_xreal_experimental">Экспериментальная поддержка 1S. Включите режим Follow и отключите стабилизацию в меню очков. Направления отслеживания и режимы отображения ещё нужно проверить на устройстве.</string>
     <string name="stores_fact_developer">Разработчик</string>
     <string name="stores_fact_publisher">Издатель</string>
     <string name="stores_fact_released">Дата выхода</string>

@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="steamvr_recovery_title">Графіка SteamVR зупинилася</string>
+    <string name="steamvr_recovery_countdown">DroidDeck перезапуститься через %1$d с, щоб скинути графіку й знову відкрити SteamVR. Запущену гру буде закрито; незбережений прогрес не вдасться відновити.</string>
+    <string name="steamvr_recovery_repeated">Збій графіки повторився після нещодавнього перезапуску. Автоматичне відновлення призупинено, щоб уникнути циклу. Перезапуск закриє гру; незбережений прогрес не вдасться відновити.</string>
+    <string name="steamvr_recovery_restart">Перезапустити зараз</string>
+    <string name="steamvr_recovery_cancel">Не закривати</string>
+    <string name="steamvr_recovery_restarting">Скидання графіки й повторне відкриття SteamVR…</string>
+    <string name="steamvr_recovery_failed">DroidDeck не вдалося перезапуститися автоматично. Повністю закрийте додаток, а потім відкрийте його знову.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>Під час першого запуску завантажується Steam. Це може зайняти кілька хвилин.</item>
@@ -2258,6 +2265,8 @@
     <string name="drawer_page_glasses">Окуляри</string>
     <string name="glasses_open">Окуляри VITURE</string>
     <string name="glasses_control">Керування окулярами</string>
+    <string name="glasses_driver_missing">Ця збірка не містить драйвера для цих окулярів.</string>
+    <string name="glasses_connection_failed">Не вдалося під’єднатися до окулярів. Під’єднайте кабель повторно або торкніться «Дозволити», щоб спробувати ще раз.</string>
     <string name="glasses_allow">Дозволити</string>
     <string name="glasses_allow_hint">Дозвольте DroidDeck змінювати частоту оновлення, режим 3D, яскравість, гучність і затемнення окулярів, а також зчитувати дані відстеження голови.</string>
     <string name="glasses_asking">Очікування вашого дозволу у вікні Android…</string>
@@ -2285,6 +2294,14 @@
     <string name="glasses_picture_sbs">Стереопара з гри</string>
     <string name="glasses_screen_size">Ширина екрана</string>
     <string name="glasses_screen_distance">Відстань до екрана</string>
+    <string name="glasses_screen_next_session">Ширина й відстань застосовуються, коли гра працює на окулярах як віртуальний екран.</string>
+    <string name="glasses_screen_no_output">Ці налаштування діють, коли ввімкнено «Гра на окулярах» і гра показується на них.</string>
+    <string name="glasses_screen_flat_hint">«Автоматично» показує цю 2D-гру на весь екран. Щоб налаштувати її ширину, відстань і відстеження голови, використайте віртуальний екран.</string>
+    <string name="glasses_screen_use">Використати віртуальний екран</string>
+    <string name="glasses_screen_direct_hint">SteamVR заповнює все зображення. Налаштуйте поле зору нижче; ширина й відстань стосуються лише віртуального екрана.</string>
+    <string name="glasses_screen_sbs_hint">Ігри зі стереопарою займають усе поле зору кожного ока. Ширина й відстань стосуються лише віртуального екрана.</string>
+    <string name="glasses_tracking_flat_hint">«Автоматично» тримає цю 2D-гру нерухомою в полі зору. Щоб використовувати відстеження голови, виберіть «Віртуальний екран» у розділі «Екран».</string>
+    <string name="glasses_tracking_sbs_hint">Відстеження голови діє для віртуального екрана або запущеної гри SteamVR.</string>
     <string name="glasses_hardware">Окуляри</string>
     <string name="glasses_brightness">Яскравість</string>
     <string name="glasses_volume">Гучність</string>
@@ -2298,6 +2315,25 @@
     <string name="glasses_vr_fov">Поле зору SteamVR</string>
     <string name="glasses_vr_fov_hint">Нижче значення наближає SteamVR і заповнює окуляри; вище — показує більше навколо вас.</string>
     <string name="glasses_playing">Гра на %1$s</string>
+    <string name="glasses_calibration">Калібрування відстеження</string>
+    <string name="glasses_calibration_hint">Зменшує дрейф і вирівнює опорний горизонт.</string>
+    <string name="glasses_calibration_saved_hint">До цих окулярів застосовано збережене калібрування.</string>
+    <string name="glasses_calibration_open">Калібрувати</string>
+    <string name="glasses_calibration_instructions">Покладіть під’єднані окуляри догори дном на рівну горизонтальну поверхню, щоб оправа лежала рівно. Торкніться «Почати» й не чіпайте їх приблизно 8 секунд. Рух перезапускає вимірювання. Це виправляє дрейф і нахил, але не напрямок погляду.</string>
+    <string name="glasses_calibration_settling">Залиште окуляри догори дном і не чіпайте їх. Очікування, поки вони стабілізуються…</string>
+    <string name="glasses_calibration_collecting">Вимірювання показань датчиків. Не рухайте окуляри.</string>
+    <string name="glasses_calibration_moving">Виявлено рух. Не чіпайте окуляри; вимірювання перезапуститься автоматично.</string>
+    <string name="glasses_calibration_turn_over">Покладіть окуляри догори дном на рівну горизонтальну поверхню. Вимірювання почнеться, коли їх буде розміщено правильно.</string>
+    <string name="glasses_calibration_complete">Калібрування збережено. Надіньте окуляри, подивіться прямо перед собою, а потім торкніться «Готово», щоб відцентрувати.</string>
+    <string name="glasses_calibration_failed">Не вдалося завершити калібрування. Перевірте з’єднання, тримайте окуляри нерухомо й спробуйте ще раз. Попереднє калібрування не змінено.</string>
+    <string name="glasses_calibration_start">Почати</string>
+    <string name="glasses_calibration_done">Готово</string>
+    <string name="glasses_calibration_reset">Скинути калібрування відстеження</string>
+    <string name="glasses_calibration_reset_hint">Видалити збережене калібрування й відновити стандартні значення моделі? Відцентруйте вигляд, коли знову надінете окуляри.</string>
+    <string name="glasses_calibration_reset_button">Скинути</string>
+    <string name="glasses_xreal_network_missing">Очікування з’єднання USB Ethernet від окулярів. Цей телефон може не надавати його додаткам.</string>
+    <string name="glasses_xreal_connection_failed">З’єднання з XREAL перервалося або повернуло непідтримувану відповідь. Повторна спроба…</string>
+    <string name="glasses_xreal_experimental">Експериментальна підтримка 1S. Увімкніть режим Follow і вимкніть стабілізацію в меню окулярів. Напрямки відстеження й режими відображення ще потрібно перевірити на пристрої.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Режим Cardboard</string>
     <string name="cardboard_mode_hint">Зображення для лівого й правого ока для VR-окулярів під телефон.</string>

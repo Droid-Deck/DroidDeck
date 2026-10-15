@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="steamvr_recovery_title">SteamVR 图形已停止工作</string>
+    <string name="steamvr_recovery_countdown">DroidDeck 将在 %1$d 秒后重启，以重置图形并重新打开 SteamVR。正在运行的游戏将被关闭，未保存的进度无法恢复。</string>
+    <string name="steamvr_recovery_repeated">最近一次重启后，图形故障再次出现。为避免循环，自动恢复已暂停。重启会关闭你的游戏，未保存的进度无法恢复。</string>
+    <string name="steamvr_recovery_restart">立即重启</string>
+    <string name="steamvr_recovery_cancel">保持打开</string>
+    <string name="steamvr_recovery_restarting">正在重置图形并重新打开 SteamVR…</string>
+    <string name="steamvr_recovery_failed">DroidDeck 无法自动重启。请完全关闭应用，然后重新打开。</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>首次运行会下载 Steam，这可能需要几分钟。</item>
@@ -2191,6 +2198,8 @@
     <string name="drawer_page_glasses">眼镜</string>
     <string name="glasses_open">VITURE 眼镜</string>
     <string name="glasses_control">眼镜控制</string>
+    <string name="glasses_driver_missing">此版本未包含这副眼镜的驱动。</string>
+    <string name="glasses_connection_failed">无法连接眼镜。请重新插好线缆，或点按“允许”重试。</string>
     <string name="glasses_allow">允许</string>
     <string name="glasses_allow_hint">允许 DroidDeck 设置眼镜的刷新率、3D 模式、亮度、音量和遮光，并读取其头部追踪。</string>
     <string name="glasses_asking">正在等待你在 Android 提示中允许…</string>
@@ -2218,6 +2227,14 @@
     <string name="glasses_picture_sbs">左右分屏游戏</string>
     <string name="glasses_screen_size">屏幕宽度</string>
     <string name="glasses_screen_distance">屏幕距离</string>
+    <string name="glasses_screen_next_session">当游戏以虚拟屏幕形式在眼镜上运行时，宽度和距离才会生效。</string>
+    <string name="glasses_screen_no_output">这些设置在开启“在眼镜上显示游戏”且游戏显示在眼镜上时生效。</string>
+    <string name="glasses_screen_flat_hint">“自动”会让这款 2D 游戏全屏显示。使用虚拟屏幕可调整其宽度、距离和头部追踪。</string>
+    <string name="glasses_screen_use">使用虚拟屏幕</string>
+    <string name="glasses_screen_direct_hint">SteamVR 会填满视野。可在下方调整其视场角；宽度和距离仅适用于虚拟屏幕。</string>
+    <string name="glasses_screen_sbs_hint">左右分屏游戏会填满每只眼睛的视野。宽度和距离仅适用于虚拟屏幕。</string>
+    <string name="glasses_tracking_flat_hint">“自动”会让这款 2D 游戏固定在视野中。要使用头部追踪，请在“显示”中选择“虚拟屏幕”。</string>
+    <string name="glasses_tracking_sbs_hint">头部追踪适用于虚拟屏幕或正在运行的 SteamVR 游戏。</string>
     <string name="glasses_hardware">眼镜</string>
     <string name="glasses_brightness">亮度</string>
     <string name="glasses_volume">音量</string>
@@ -2231,6 +2248,25 @@
     <string name="glasses_vr_fov">SteamVR 视场角</string>
     <string name="glasses_vr_fov_hint">调低让 SteamVR 更近并填满眼镜；调高可看到更多周围内容。</string>
     <string name="glasses_playing">正在 %1$s 上游玩</string>
+    <string name="glasses_calibration">追踪校准</string>
+    <string name="glasses_calibration_hint">减少漂移并对齐水平基准。</string>
+    <string name="glasses_calibration_saved_hint">这副眼镜已应用保存的校准。</string>
+    <string name="glasses_calibration_open">校准</string>
+    <string name="glasses_calibration_instructions">将已连接的眼镜倒置放在水平面上，让镜框平稳贴合。点按“开始”，然后约 8 秒内不要触碰。一旦移动，测量会重新开始。此操作校正漂移和倾斜，不校正朝向。</string>
+    <string name="glasses_calibration_settling">保持眼镜倒置，不要触碰。正在等待其静止…</string>
+    <string name="glasses_calibration_collecting">正在测量传感器。请保持眼镜静止。</string>
+    <string name="glasses_calibration_moving">检测到移动。请勿触碰眼镜；测量将自动重新开始。</string>
+    <string name="glasses_calibration_turn_over">请将眼镜倒置放在水平面上。放置正确后将开始测量。</string>
+    <string name="glasses_calibration_complete">校准已保存。戴上眼镜并直视前方，然后点按“完成”以重新居中。</string>
+    <string name="glasses_calibration_failed">校准未能完成。请检查连接并保持眼镜静止，然后重试。之前的校准保持不变。</string>
+    <string name="glasses_calibration_start">开始</string>
+    <string name="glasses_calibration_done">完成</string>
+    <string name="glasses_calibration_reset">重置追踪校准</string>
+    <string name="glasses_calibration_reset_hint">删除已保存的校准并恢复该型号的默认值？重新戴上眼镜后请重新居中。</string>
+    <string name="glasses_calibration_reset_button">重置</string>
+    <string name="glasses_xreal_network_missing">正在等待眼镜的 USB Ethernet 连接。这部手机可能不向应用开放此连接。</string>
+    <string name="glasses_xreal_connection_failed">XREAL 连接中断或返回了不受支持的响应。正在重试…</string>
+    <string name="glasses_xreal_experimental">实验性 1S 支持。请在眼镜菜单中使用跟随模式并关闭防抖。追踪方向和显示模式仍需在设备上测试。</string>
     <string name="stores_fact_developer">开发商</string>
     <string name="stores_fact_publisher">发行商</string>
     <string name="stores_fact_released">发行日期</string>

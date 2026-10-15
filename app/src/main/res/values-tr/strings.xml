@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="steamvr_recovery_title">SteamVR grafikleri durdu</string>
+    <string name="steamvr_recovery_countdown">DroidDeck, grafikleri sıfırlamak ve SteamVR\'ı yeniden açmak için %1$d saniye içinde yeniden başlayacak. Çalışan oyununuz kapanacak; kaydedilmemiş ilerleme geri yüklenemez.</string>
+    <string name="steamvr_recovery_repeated">Grafik hatası, kısa süre önceki yeniden başlatmanın ardından yine oluştu. Döngüye girmemek için otomatik kurtarma duraklatıldı. Yeniden başlatma oyununuzu kapatır; kaydedilmemiş ilerleme geri yüklenemez.</string>
+    <string name="steamvr_recovery_restart">Şimdi yeniden başlat</string>
+    <string name="steamvr_recovery_cancel">Açık kalsın</string>
+    <string name="steamvr_recovery_restarting">Grafikler sıfırlanıyor ve SteamVR yeniden açılıyor…</string>
+    <string name="steamvr_recovery_failed">DroidDeck otomatik olarak yeniden başlatılamadı. Uygulamayı tamamen kapatıp yeniden açın.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>İlk çalıştırmada Steam indirilir. Bu işlem birkaç dakika sürebilir.</item>
@@ -2208,6 +2215,8 @@
     <string name="drawer_page_glasses">Gözlük</string>
     <string name="glasses_open">VITURE gözlüğü</string>
     <string name="glasses_control">Gözlük kontrolü</string>
+    <string name="glasses_driver_missing">Bu derleme, bu gözlüğün sürücüsünü içermiyor.</string>
+    <string name="glasses_connection_failed">Gözlüğe bağlanılamadı. Kabloyu yeniden takın veya yeniden denemek için İzin ver\'e dokunun.</string>
     <string name="glasses_allow">İzin ver</string>
     <string name="glasses_allow_hint">DroidDeck\'in gözlüğün yenileme hızını, 3D modunu, parlaklığını, ses düzeyini ve güneş korumasını ayarlamasına ve kafa takibini okumasına izin verir.</string>
     <string name="glasses_asking">Android penceresinde izin vermeniz bekleniyor…</string>
@@ -2235,6 +2244,14 @@
     <string name="glasses_picture_sbs">Yan yana oyun</string>
     <string name="glasses_screen_size">Ekran genişliği</string>
     <string name="glasses_screen_distance">Ekran uzaklığı</string>
+    <string name="glasses_screen_next_session">Genişlik ve uzaklık, oyun gözlükte sanal ekran olarak çalıştığında uygulanır.</string>
+    <string name="glasses_screen_no_output">Bu ayarlar, “Oyun gözlükte” açıkken ve oyun orada gösterilirken geçerlidir.</string>
+    <string name="glasses_screen_flat_hint">Otomatik, bu 2D oyunu tam ekran tutar. Genişliğini, uzaklığını ve kafa takibini ayarlamak için sanal ekran kullanın.</string>
+    <string name="glasses_screen_use">Sanal ekranı kullan</string>
+    <string name="glasses_screen_direct_hint">SteamVR görüşü doldurur. Görüş alanını aşağıdan ayarlayın; genişlik ve uzaklık yalnızca sanal ekranda geçerlidir.</string>
+    <string name="glasses_screen_sbs_hint">Yan yana oyunlar her gözü doldurur. Genişlik ve uzaklık yalnızca sanal ekranda geçerlidir.</string>
+    <string name="glasses_tracking_flat_hint">Otomatik, bu 2D oyunu görüşte sabit tutar. Kafa takibini kullanmak için “Ekran” bölümünde “Sanal ekran” seçeneğine geçin.</string>
+    <string name="glasses_tracking_sbs_hint">Kafa takibi, sanal ekranda veya çalışan bir SteamVR oyununda geçerlidir.</string>
     <string name="glasses_hardware">Gözlük</string>
     <string name="glasses_brightness">Parlaklık</string>
     <string name="glasses_volume">Ses düzeyi</string>
@@ -2248,6 +2265,25 @@
     <string name="glasses_vr_fov">SteamVR görüş alanı</string>
     <string name="glasses_vr_fov_hint">Düşük değer SteamVR\'ı yaklaştırır ve gözlüğü doldurur; yüksek değer çevrenizi daha çok gösterir.</string>
     <string name="glasses_playing">%1$s ile oynanıyor</string>
+    <string name="glasses_calibration">Takip kalibrasyonu</string>
+    <string name="glasses_calibration_hint">Kaymayı azaltır ve yatay düzlem referansını hizalar.</string>
+    <string name="glasses_calibration_saved_hint">Kayıtlı kalibrasyon bu gözlüğe uygulanır.</string>
+    <string name="glasses_calibration_open">Kalibre et</string>
+    <string name="glasses_calibration_instructions">Bağlı gözlüğü, çerçevesi düzgünce oturacak şekilde düz bir yüzeye ters çevirerek koyun. Başlat\'a dokunun, sonra gözlüğe yaklaşık 8 saniye dokunmayın. Hareket ölçümü yeniden başlatır. Bu işlem kaymayı ve eğimi düzeltir, bakış yönünü değil.</string>
+    <string name="glasses_calibration_settling">Gözlüğü ters çevrili bırakın ve dokunmayın. Hareketsiz kalması bekleniyor…</string>
+    <string name="glasses_calibration_collecting">Sensörler ölçülüyor. Gözlüğü sabit tutun.</string>
+    <string name="glasses_calibration_moving">Hareket algılandı. Gözlüğe dokunmayın; ölçüm otomatik olarak yeniden başlayacak.</string>
+    <string name="glasses_calibration_turn_over">Gözlüğü düz bir yüzeye ters çevirerek koyun. Doğru konumlandığında ölçüm başlayacak.</string>
+    <string name="glasses_calibration_complete">Kalibrasyon kaydedildi. Gözlüğü takıp tam karşıya bakın, ardından ortalamak için Bitti\'ye dokunun.</string>
+    <string name="glasses_calibration_failed">Kalibrasyon tamamlanamadı. Bağlantıyı kontrol edin, gözlüğü sabit tutup tekrar deneyin. Önceki kalibrasyonunuz değişmedi.</string>
+    <string name="glasses_calibration_start">Başlat</string>
+    <string name="glasses_calibration_done">Bitti</string>
+    <string name="glasses_calibration_reset">Takip kalibrasyonunu sıfırla</string>
+    <string name="glasses_calibration_reset_hint">Kayıtlı kalibrasyon kaldırılsın ve model varsayılanları geri yüklensin mi? Gözlüğü yeniden taktıktan sonra ortalayın.</string>
+    <string name="glasses_calibration_reset_button">Sıfırla</string>
+    <string name="glasses_xreal_network_missing">Gözlüğün USB Ethernet bağlantısı bekleniyor. Bu telefon bu bağlantıyı uygulamalara açmıyor olabilir.</string>
+    <string name="glasses_xreal_connection_failed">XREAL bağlantısı kesildi veya desteklenmeyen bir yanıt döndü. Yeniden deneniyor…</string>
+    <string name="glasses_xreal_experimental">Deneysel 1S desteği. Gözlük menüsünde Follow modunu kullanın ve görüntü sabitlemeyi kapatın. Takip yönlerinin ve ekran modlarının hâlâ cihazda test edilmesi gerekiyor.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Cardboard modu</string>
     <string name="cardboard_mode_hint">Telefon VR gözlüğü için sol ve sağ göz görüntüleri.</string>

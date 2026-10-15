@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="steamvr_recovery_title">SteamVR 그래픽 중지됨</string>
+    <string name="steamvr_recovery_countdown">그래픽을 초기화하고 SteamVR을 다시 열기 위해 %1$d초 후 DroidDeck이 다시 시작됩니다. 실행 중인 게임은 종료되며, 저장하지 않은 진행 상황은 복구할 수 없습니다.</string>
+    <string name="steamvr_recovery_repeated">최근 다시 시작한 후 그래픽 오류가 다시 발생했습니다. 반복을 막기 위해 자동 복구를 일시 중지했습니다. 다시 시작하면 게임이 종료되며, 저장하지 않은 진행 상황은 복구할 수 없습니다.</string>
+    <string name="steamvr_recovery_restart">지금 다시 시작</string>
+    <string name="steamvr_recovery_cancel">열어 두기</string>
+    <string name="steamvr_recovery_restarting">그래픽을 초기화하고 SteamVR을 다시 여는 중…</string>
+    <string name="steamvr_recovery_failed">DroidDeck을 자동으로 다시 시작하지 못했습니다. 앱을 완전히 종료한 후 다시 여세요.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>첫 실행 시 Steam을 다운로드합니다. 몇 분 정도 걸릴 수 있습니다.</item>
@@ -2191,6 +2198,8 @@
     <string name="drawer_page_glasses">안경</string>
     <string name="glasses_open">VITURE 안경</string>
     <string name="glasses_control">안경 제어</string>
+    <string name="glasses_driver_missing">이 빌드에는 이 안경용 드라이버가 포함되어 있지 않습니다.</string>
+    <string name="glasses_connection_failed">안경에 연결하지 못했습니다. 케이블을 다시 연결하거나 “허용”을 탭하여 다시 시도하세요.</string>
     <string name="glasses_allow">허용</string>
     <string name="glasses_allow_hint">DroidDeck이 안경의 주사율, 3D 모드, 밝기, 볼륨, 선블록을 설정하고 헤드 트래킹을 읽도록 허용합니다.</string>
     <string name="glasses_asking">Android 안내 창에서 허용하기를 기다리는 중…</string>
@@ -2218,6 +2227,14 @@
     <string name="glasses_picture_sbs">사이드 바이 사이드 게임</string>
     <string name="glasses_screen_size">화면 너비</string>
     <string name="glasses_screen_distance">화면 거리</string>
+    <string name="glasses_screen_next_session">너비와 거리는 게임이 안경에서 가상 화면으로 실행될 때 적용됩니다.</string>
+    <string name="glasses_screen_no_output">이 설정은 “안경에 게임 표시”가 켜져 있고 게임이 안경에 표시될 때 적용됩니다.</string>
+    <string name="glasses_screen_flat_hint">“자동”에서는 이 2D 게임이 전체 화면으로 유지됩니다. 너비, 거리, 헤드 트래킹을 조정하려면 가상 화면을 사용하세요.</string>
+    <string name="glasses_screen_use">가상 화면 사용</string>
+    <string name="glasses_screen_direct_hint">SteamVR이 시야를 가득 채웁니다. 아래에서 시야각을 조정하세요. 너비와 거리는 가상 화면에만 적용됩니다.</string>
+    <string name="glasses_screen_sbs_hint">사이드 바이 사이드 게임은 양쪽 눈의 시야를 각각 가득 채웁니다. 너비와 거리는 가상 화면에만 적용됩니다.</string>
+    <string name="glasses_tracking_flat_hint">“자동”에서는 이 2D 게임이 시야에 고정됩니다. 헤드 트래킹을 사용하려면 “디스플레이”에서 “가상 화면”을 선택하세요.</string>
+    <string name="glasses_tracking_sbs_hint">헤드 트래킹은 가상 화면이나 실행 중인 SteamVR 게임에 적용됩니다.</string>
     <string name="glasses_hardware">안경</string>
     <string name="glasses_brightness">밝기</string>
     <string name="glasses_volume">볼륨</string>
@@ -2231,6 +2248,25 @@
     <string name="glasses_vr_fov">SteamVR 시야각</string>
     <string name="glasses_vr_fov_hint">낮추면 SteamVR이 가까워져 안경을 가득 채우고, 높이면 주변이 더 넓게 보입니다.</string>
     <string name="glasses_playing">%1$s에서 플레이 중</string>
+    <string name="glasses_calibration">트래킹 보정</string>
+    <string name="glasses_calibration_hint">드리프트를 줄이고 수평 기준을 맞춥니다.</string>
+    <string name="glasses_calibration_saved_hint">저장된 보정이 이 안경에 적용되어 있습니다.</string>
+    <string name="glasses_calibration_open">보정</string>
+    <string name="glasses_calibration_instructions">연결된 안경을 수평한 곳에 뒤집어 놓고 프레임이 고르게 닿도록 하세요. “시작”을 탭한 다음 약 8초 동안 건드리지 마세요. 움직이면 측정이 다시 시작됩니다. 드리프트와 기울기는 보정되지만 좌우 방향은 보정되지 않습니다.</string>
+    <string name="glasses_calibration_settling">안경을 뒤집어 둔 채 건드리지 마세요. 안정될 때까지 기다리는 중…</string>
+    <string name="glasses_calibration_collecting">센서를 측정하는 중입니다. 안경을 움직이지 마세요.</string>
+    <string name="glasses_calibration_moving">움직임이 감지되었습니다. 안경을 건드리지 마세요. 측정이 자동으로 다시 시작됩니다.</string>
+    <string name="glasses_calibration_turn_over">안경을 수평한 곳에 뒤집어 놓으세요. 올바른 위치에 놓이면 측정이 시작됩니다.</string>
+    <string name="glasses_calibration_complete">보정이 저장되었습니다. 안경을 쓰고 정면을 바라본 다음 “완료”를 탭하여 중앙을 맞추세요.</string>
+    <string name="glasses_calibration_failed">보정을 완료하지 못했습니다. 연결을 확인하고 안경을 움직이지 않게 둔 다음 다시 시도하세요. 이전 보정은 그대로 유지됩니다.</string>
+    <string name="glasses_calibration_start">시작</string>
+    <string name="glasses_calibration_done">완료</string>
+    <string name="glasses_calibration_reset">트래킹 보정 초기화</string>
+    <string name="glasses_calibration_reset_hint">저장된 보정을 삭제하고 모델 기본값으로 되돌릴까요? 안경을 다시 쓴 후 중앙을 맞추세요.</string>
+    <string name="glasses_calibration_reset_button">초기화</string>
+    <string name="glasses_xreal_network_missing">안경의 USB Ethernet 연결을 기다리는 중입니다. 이 휴대폰은 앱에 이 연결을 제공하지 않을 수 있습니다.</string>
+    <string name="glasses_xreal_connection_failed">XREAL 연결이 중단되었거나 지원되지 않는 응답을 받았습니다. 다시 시도하는 중…</string>
+    <string name="glasses_xreal_experimental">1S 지원은 실험 단계입니다. 안경 메뉴에서 Follow 모드를 사용하고 안정화를 끄세요. 트래킹 방향과 디스플레이 모드는 아직 기기에서 테스트가 필요합니다.</string>
     <string name="stores_fact_developer">개발사</string>
     <string name="stores_fact_publisher">배급사</string>
     <string name="stores_fact_released">출시일</string>

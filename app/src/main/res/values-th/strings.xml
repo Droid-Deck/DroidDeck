@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="steamvr_recovery_title">กราฟิกของ SteamVR หยุดทำงาน</string>
+    <string name="steamvr_recovery_countdown">DroidDeck จะรีสตาร์ทใน %1$d วินาทีเพื่อรีเซ็ตกราฟิกและเปิด SteamVR อีกครั้ง เกมที่กำลังเล่นอยู่จะถูกปิด และความคืบหน้าที่ยังไม่ได้บันทึกจะกู้คืนไม่ได้</string>
+    <string name="steamvr_recovery_repeated">ปัญหากราฟิกกลับมาอีกหลังรีสตาร์ทไปไม่นาน จึงหยุดการกู้คืนอัตโนมัติไว้ชั่วคราวเพื่อไม่ให้วนซ้ำ การรีสตาร์ทจะปิดเกมของคุณ และความคืบหน้าที่ยังไม่ได้บันทึกจะกู้คืนไม่ได้</string>
+    <string name="steamvr_recovery_restart">รีสตาร์ทเลย</string>
+    <string name="steamvr_recovery_cancel">เปิดไว้ต่อ</string>
+    <string name="steamvr_recovery_restarting">กำลังรีเซ็ตกราฟิกและเปิด SteamVR อีกครั้ง…</string>
+    <string name="steamvr_recovery_failed">DroidDeck รีสตาร์ทโดยอัตโนมัติไม่ได้ ปิดแอปให้สนิทแล้วเปิดใหม่อีกครั้ง</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>การเริ่มใช้งานครั้งแรกจะดาวน์โหลด Steam ซึ่งอาจใช้เวลาสักครู่</item>
@@ -2183,6 +2190,8 @@
     <string name="drawer_page_glasses">แว่นตา</string>
     <string name="glasses_open">แว่นตา VITURE</string>
     <string name="glasses_control">การควบคุมแว่นตา</string>
+    <string name="glasses_driver_missing">บิลด์นี้ไม่มีไดรเวอร์สำหรับแว่นตานี้</string>
+    <string name="glasses_connection_failed">เชื่อมต่อกับแว่นตาไม่ได้ เสียบสายใหม่ หรือแตะ “อนุญาต” เพื่อลองอีกครั้ง</string>
     <string name="glasses_allow">อนุญาต</string>
     <string name="glasses_allow_hint">ให้ DroidDeck ตั้งค่าอัตรารีเฟรช โหมด 3D ความสว่าง ระดับเสียง และการกันแดดของแว่นตา รวมถึงอ่านข้อมูลการติดตามศีรษะ</string>
     <string name="glasses_asking">กำลังรอให้คุณอนุญาตในกล่องโต้ตอบของ Android…</string>
@@ -2210,6 +2219,14 @@
     <string name="glasses_picture_sbs">เกมแบบเคียงข้าง</string>
     <string name="glasses_screen_size">ความกว้างหน้าจอ</string>
     <string name="glasses_screen_distance">ระยะห่างหน้าจอ</string>
+    <string name="glasses_screen_next_session">ความกว้างและระยะห่างจะมีผลเมื่อเกมแสดงบนแว่นตาเป็นหน้าจอเสมือน</string>
+    <string name="glasses_screen_no_output">การตั้งค่าเหล่านี้จะมีผลเมื่อเปิด “แสดงเกมบนแว่นตา” และเกมกำลังแสดงอยู่บนแว่นตา</string>
+    <string name="glasses_screen_flat_hint">โหมดอัตโนมัติจะแสดงเกม 2D นี้แบบเต็มจอ ใช้หน้าจอเสมือนเพื่อปรับความกว้าง ระยะห่าง และการติดตามศีรษะ</string>
+    <string name="glasses_screen_use">ใช้หน้าจอเสมือน</string>
+    <string name="glasses_screen_direct_hint">SteamVR แสดงเต็มมุมมอง ปรับขอบเขตการมองเห็นได้ด้านล่าง ส่วนความกว้างและระยะห่างใช้กับหน้าจอเสมือนเท่านั้น</string>
+    <string name="glasses_screen_sbs_hint">เกมแบบเคียงข้างจะแสดงเต็มภาพในตาแต่ละข้าง ความกว้างและระยะห่างใช้กับหน้าจอเสมือนเท่านั้น</string>
+    <string name="glasses_tracking_flat_hint">โหมดอัตโนมัติจะตรึงเกม 2D นี้ไว้ในมุมมอง เลือก “หน้าจอเสมือน” ในส่วน “หน้าจอ” เพื่อใช้การติดตามศีรษะ</string>
+    <string name="glasses_tracking_sbs_hint">การติดตามศีรษะใช้กับหน้าจอเสมือนหรือเกม SteamVR ที่กำลังทำงาน</string>
     <string name="glasses_hardware">แว่นตา</string>
     <string name="glasses_brightness">ความสว่าง</string>
     <string name="glasses_volume">ระดับเสียง</string>
@@ -2223,6 +2240,25 @@
     <string name="glasses_vr_fov">ขอบเขตการมองเห็นของ SteamVR</string>
     <string name="glasses_vr_fov_hint">ค่าต่ำจะดึง SteamVR เข้ามาใกล้และเต็มแว่นตา ค่าสูงจะแสดงสิ่งรอบตัวคุณได้มากขึ้น</string>
     <string name="glasses_playing">กำลังเล่นบน %1$s</string>
+    <string name="glasses_calibration">การปรับเทียบการติดตาม</string>
+    <string name="glasses_calibration_hint">ลดการดริฟต์และปรับแนวระดับอ้างอิงให้ตรง</string>
+    <string name="glasses_calibration_saved_hint">ใช้การปรับเทียบที่บันทึกไว้กับแว่นตานี้แล้ว</string>
+    <string name="glasses_calibration_open">ปรับเทียบ</string>
+    <string name="glasses_calibration_instructions">วางแว่นตาที่เชื่อมต่ออยู่แบบกลับหัวบนพื้นผิวที่ได้ระดับ โดยให้กรอบแว่นวางราบเสมอกัน แตะ “เริ่ม” แล้วอย่าแตะต้องแว่นประมาณ 8 วินาที หากมีการขยับ การวัดจะเริ่มใหม่ การปรับเทียบนี้แก้การดริฟต์และการเอียง แต่ไม่แก้ทิศทางที่หัน</string>
+    <string name="glasses_calibration_settling">วางแว่นตากลับหัวไว้และอย่าแตะต้อง กำลังรอให้แว่นนิ่ง…</string>
+    <string name="glasses_calibration_collecting">กำลังวัดค่าเซ็นเซอร์ อย่าขยับแว่นตา</string>
+    <string name="glasses_calibration_moving">ตรวจพบการเคลื่อนไหว อย่าแตะต้องแว่นตา การวัดจะเริ่มใหม่โดยอัตโนมัติ</string>
+    <string name="glasses_calibration_turn_over">วางแว่นตากลับหัวบนพื้นผิวที่ได้ระดับ การวัดจะเริ่มเมื่อวางแว่นในตำแหน่งที่ถูกต้อง</string>
+    <string name="glasses_calibration_complete">บันทึกการปรับเทียบแล้ว สวมแว่นตาและมองตรงไปข้างหน้า แล้วแตะ “เสร็จสิ้น” เพื่อจัดกึ่งกลาง</string>
+    <string name="glasses_calibration_failed">ปรับเทียบไม่สำเร็จ ตรวจสอบการเชื่อมต่อและอย่าขยับแว่นตา แล้วลองอีกครั้ง การปรับเทียบก่อนหน้ายังคงเดิม</string>
+    <string name="glasses_calibration_start">เริ่ม</string>
+    <string name="glasses_calibration_done">เสร็จสิ้น</string>
+    <string name="glasses_calibration_reset">รีเซ็ตการปรับเทียบการติดตาม</string>
+    <string name="glasses_calibration_reset_hint">ลบการปรับเทียบที่บันทึกไว้และคืนค่าเริ่มต้นของรุ่น? สวมแว่นตาอีกครั้งแล้วจัดกึ่งกลางใหม่</string>
+    <string name="glasses_calibration_reset_button">รีเซ็ต</string>
+    <string name="glasses_xreal_network_missing">กำลังรอการเชื่อมต่อ USB Ethernet ของแว่นตา โทรศัพท์นี้อาจไม่เปิดให้แอปเข้าถึงการเชื่อมต่อนี้</string>
+    <string name="glasses_xreal_connection_failed">การเชื่อมต่อ XREAL ขาดหายหรือได้รับการตอบกลับที่ไม่รองรับ กำลังลองใหม่…</string>
+    <string name="glasses_xreal_experimental">รองรับ 1S แบบทดลอง ใช้โหมด Follow และปิดการกันสั่นในเมนูของแว่นตา ทิศทางการติดตามและโหมดการแสดงผลยังต้องทดสอบกับอุปกรณ์จริง</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">โหมด Cardboard</string>
     <string name="cardboard_mode_hint">ภาพสำหรับตาซ้ายและตาขวาสำหรับแว่น VR ของโทรศัพท์</string>

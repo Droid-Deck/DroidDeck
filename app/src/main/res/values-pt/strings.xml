@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="steamvr_recovery_title">Os gráficos do SteamVR pararam</string>
+    <string name="steamvr_recovery_countdown">O DroidDeck vai reiniciar em %1$d segundos para redefinir os gráficos e reabrir o SteamVR. O jogo em execução será fechado; o progresso não salvo não poderá ser recuperado.</string>
+    <string name="steamvr_recovery_repeated">A falha gráfica voltou logo após uma reinicialização recente. A recuperação automática foi pausada para evitar um loop. Reiniciar vai fechar o jogo; o progresso não salvo não poderá ser recuperado.</string>
+    <string name="steamvr_recovery_restart">Reiniciar agora</string>
+    <string name="steamvr_recovery_cancel">Manter aberto</string>
+    <string name="steamvr_recovery_restarting">Redefinindo os gráficos e reabrindo o SteamVR…</string>
+    <string name="steamvr_recovery_failed">O DroidDeck não conseguiu reiniciar automaticamente. Feche o app completamente e abra-o de novo.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>Na primeira execução, a Steam é baixada. Isso pode levar alguns minutos.</item>
@@ -2233,6 +2240,8 @@
     <string name="drawer_page_glasses">Óculos</string>
     <string name="glasses_open">Óculos VITURE</string>
     <string name="glasses_control">Controle dos óculos</string>
+    <string name="glasses_driver_missing">Esta versão não inclui o driver para estes óculos.</string>
+    <string name="glasses_connection_failed">Não foi possível conectar aos óculos. Reconecte o cabo ou toque em Permitir para tentar de novo.</string>
     <string name="glasses_allow">Permitir</string>
     <string name="glasses_allow_hint">Permite que o DroidDeck ajuste a taxa de atualização, o modo 3D, o brilho, o volume e o escurecimento dos óculos, e leia o rastreamento da cabeça deles.</string>
     <string name="glasses_asking">Aguardando você permitir na solicitação do Android…</string>
@@ -2260,6 +2269,14 @@
     <string name="glasses_picture_sbs">Jogo lado a lado</string>
     <string name="glasses_screen_size">Largura da tela</string>
     <string name="glasses_screen_distance">Distância da tela</string>
+    <string name="glasses_screen_next_session">A largura e a distância valem quando um jogo roda nos óculos como tela virtual.</string>
+    <string name="glasses_screen_no_output">Estas configurações valem enquanto Jogo nos óculos estiver ativado e o jogo for exibido neles.</string>
+    <string name="glasses_screen_flat_hint">O modo Automático mantém este jogo 2D em tela cheia. Use uma tela virtual para ajustar a largura, a distância e o rastreamento da cabeça.</string>
+    <string name="glasses_screen_use">Usar tela virtual</string>
+    <string name="glasses_screen_direct_hint">O SteamVR preenche a visão. Ajuste o campo de visão abaixo; a largura e a distância valem só para uma tela virtual.</string>
+    <string name="glasses_screen_sbs_hint">Jogos lado a lado preenchem a visão de cada olho. A largura e a distância valem só para uma tela virtual.</string>
+    <string name="glasses_tracking_flat_hint">O modo Automático mantém este jogo 2D fixo na visão. Escolha Tela virtual na seção Tela para usar o rastreamento da cabeça.</string>
+    <string name="glasses_tracking_sbs_hint">O rastreamento da cabeça vale para uma tela virtual ou um jogo do SteamVR em execução.</string>
     <string name="glasses_hardware">Óculos</string>
     <string name="glasses_brightness">Brilho</string>
     <string name="glasses_volume">Volume</string>
@@ -2273,6 +2290,25 @@
     <string name="glasses_vr_fov">Campo de visão do SteamVR</string>
     <string name="glasses_vr_fov_hint">Menor aproxima o SteamVR e preenche os óculos; maior mostra mais ao seu redor.</string>
     <string name="glasses_playing">Jogando em %1$s</string>
+    <string name="glasses_calibration">Calibração do rastreamento</string>
+    <string name="glasses_calibration_hint">Reduz a deriva e alinha a referência de nível.</string>
+    <string name="glasses_calibration_saved_hint">A calibração salva é aplicada a estes óculos.</string>
+    <string name="glasses_calibration_open">Calibrar</string>
+    <string name="glasses_calibration_instructions">Coloque os óculos conectados de cabeça para baixo em uma superfície nivelada, com a armação apoiada por igual. Toque em Iniciar e não mexa neles por cerca de 8 segundos. Qualquer movimento reinicia a medição. Isso ajusta a deriva e a inclinação, não a direção.</string>
+    <string name="glasses_calibration_settling">Deixe os óculos de cabeça para baixo, sem tocar neles. Aguardando que fiquem estáveis…</string>
+    <string name="glasses_calibration_collecting">Medindo os sensores. Mantenha os óculos parados.</string>
+    <string name="glasses_calibration_moving">Movimento detectado. Não toque nos óculos; a medição vai reiniciar automaticamente.</string>
+    <string name="glasses_calibration_turn_over">Apoie os óculos de cabeça para baixo em uma superfície nivelada. A medição começa quando eles estiverem na posição correta.</string>
+    <string name="glasses_calibration_complete">Calibração salva. Coloque os óculos e olhe para a frente; depois toque em Concluído para recentralizar.</string>
+    <string name="glasses_calibration_failed">Não foi possível concluir a calibração. Verifique a conexão, mantenha os óculos parados e tente novamente. Sua calibração anterior não foi alterada.</string>
+    <string name="glasses_calibration_start">Iniciar</string>
+    <string name="glasses_calibration_done">Concluído</string>
+    <string name="glasses_calibration_reset">Redefinir calibração do rastreamento</string>
+    <string name="glasses_calibration_reset_hint">Remover a calibração salva e restaurar o padrão do modelo? Recentralize depois de colocar os óculos de novo.</string>
+    <string name="glasses_calibration_reset_button">Redefinir</string>
+    <string name="glasses_xreal_network_missing">Aguardando a conexão Ethernet por USB dos óculos. Este celular pode não disponibilizá-la para os apps.</string>
+    <string name="glasses_xreal_connection_failed">A conexão com os óculos XREAL foi interrompida ou retornou uma resposta incompatível. Tentando novamente…</string>
+    <string name="glasses_xreal_experimental">Suporte experimental ao 1S. Use o modo Follow e desative a estabilização no menu dos óculos. As direções do rastreamento e os modos de exibição ainda precisam de testes no dispositivo.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Modo Cardboard</string>
     <string name="cardboard_mode_hint">Imagens para o olho esquerdo e o direito, para um óculos de RV de celular.</string>

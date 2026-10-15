@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="steamvr_recovery_title">Τα γραφικά του SteamVR σταμάτησαν</string>
+    <string name="steamvr_recovery_countdown">Το DroidDeck θα κάνει επανεκκίνηση σε %1$d δευτερόλεπτα για να επαναφέρει τα γραφικά και να ανοίξει ξανά το SteamVR. Το παιχνίδι που εκτελείται θα κλείσει· η μη αποθηκευμένη πρόοδος δεν μπορεί να ανακτηθεί.</string>
+    <string name="steamvr_recovery_repeated">Το σφάλμα γραφικών επανεμφανίστηκε μετά από πρόσφατη επανεκκίνηση. Η αυτόματη ανάκτηση τέθηκε σε παύση για να αποφευχθεί ατέρμονος βρόχος. Η επανεκκίνηση θα κλείσει το παιχνίδι σας· η μη αποθηκευμένη πρόοδος δεν μπορεί να ανακτηθεί.</string>
+    <string name="steamvr_recovery_restart">Επανεκκίνηση τώρα</string>
+    <string name="steamvr_recovery_cancel">Να μείνει ανοιχτό</string>
+    <string name="steamvr_recovery_restarting">Επαναφορά γραφικών και εκ νέου άνοιγμα του SteamVR…</string>
+    <string name="steamvr_recovery_failed">Το DroidDeck δεν μπόρεσε να κάνει αυτόματη επανεκκίνηση. Κλείστε εντελώς την εφαρμογή και ανοίξτε την ξανά.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>Η πρώτη εκτέλεση κάνει λήψη του Steam. Αυτό μπορεί να διαρκέσει μερικά λεπτά.</item>
@@ -2208,6 +2215,8 @@
     <string name="drawer_page_glasses">Γυαλιά</string>
     <string name="glasses_open">Γυαλιά VITURE</string>
     <string name="glasses_control">Έλεγχος γυαλιών</string>
+    <string name="glasses_driver_missing">Αυτό το build δεν περιλαμβάνει το πρόγραμμα οδήγησης για αυτά τα γυαλιά.</string>
+    <string name="glasses_connection_failed">Δεν ήταν δυνατή η σύνδεση με τα γυαλιά. Συνδέστε ξανά το καλώδιο ή πατήστε «Να επιτρέπεται» για νέα προσπάθεια.</string>
     <string name="glasses_allow">Να επιτρέπεται</string>
     <string name="glasses_allow_hint">Επιτρέπει στο DroidDeck να ρυθμίζει τον ρυθμό ανανέωσης, τη λειτουργία 3D, τη φωτεινότητα, την ένταση ήχου και τη σκίαση των γυαλιών, και να διαβάζει την παρακολούθηση κεφαλιού τους.</string>
     <string name="glasses_asking">Αναμονή για την έγκρισή σας στο παράθυρο του Android…</string>
@@ -2235,6 +2244,14 @@
     <string name="glasses_picture_sbs">Παιχνίδι δίπλα-δίπλα</string>
     <string name="glasses_screen_size">Πλάτος οθόνης</string>
     <string name="glasses_screen_distance">Απόσταση οθόνης</string>
+    <string name="glasses_screen_next_session">Το πλάτος και η απόσταση ισχύουν όταν ένα παιχνίδι εκτελείται στα γυαλιά ως εικονική οθόνη.</string>
+    <string name="glasses_screen_no_output">Αυτές οι ρυθμίσεις ισχύουν όσο είναι ενεργό το «Παιχνίδι στα γυαλιά» και το παιχνίδι εμφανίζεται εκεί.</string>
+    <string name="glasses_screen_flat_hint">Το «Αυτόματο» κρατά αυτό το παιχνίδι 2D σε πλήρη οθόνη. Χρησιμοποιήστε εικονική οθόνη για να ρυθμίσετε το πλάτος, την απόσταση και την παρακολούθηση κεφαλιού.</string>
+    <string name="glasses_screen_use">Χρήση εικονικής οθόνης</string>
+    <string name="glasses_screen_direct_hint">Το SteamVR γεμίζει όλη την εικόνα. Ρυθμίστε το οπτικό του πεδίο παρακάτω· το πλάτος και η απόσταση ισχύουν μόνο για εικονική οθόνη.</string>
+    <string name="glasses_screen_sbs_hint">Τα παιχνίδια δίπλα-δίπλα γεμίζουν το πεδίο κάθε ματιού. Το πλάτος και η απόσταση ισχύουν μόνο για εικονική οθόνη.</string>
+    <string name="glasses_tracking_flat_hint">Το «Αυτόματο» κρατά αυτό το παιχνίδι 2D σταθερό στο οπτικό πεδίο. Επιλέξτε «Εικονική οθόνη» στην ενότητα «Οθόνη» για να χρησιμοποιήσετε παρακολούθηση κεφαλιού.</string>
+    <string name="glasses_tracking_sbs_hint">Η παρακολούθηση κεφαλιού ισχύει για εικονική οθόνη ή για παιχνίδι SteamVR που εκτελείται.</string>
     <string name="glasses_hardware">Γυαλιά</string>
     <string name="glasses_brightness">Φωτεινότητα</string>
     <string name="glasses_volume">Ένταση ήχου</string>
@@ -2248,6 +2265,25 @@
     <string name="glasses_vr_fov">Οπτικό πεδίο SteamVR</string>
     <string name="glasses_vr_fov_hint">Χαμηλότερο: το SteamVR έρχεται πιο κοντά και γεμίζει τα γυαλιά· υψηλότερο: βλέπετε περισσότερα γύρω σας.</string>
     <string name="glasses_playing">Παίζετε στα %1$s</string>
+    <string name="glasses_calibration">Βαθμονόμηση παρακολούθησης</string>
+    <string name="glasses_calibration_hint">Μειώνει την ολίσθηση και ευθυγραμμίζει την οριζόντια αναφορά.</string>
+    <string name="glasses_calibration_saved_hint">Σε αυτά τα γυαλιά εφαρμόζεται αποθηκευμένη βαθμονόμηση.</string>
+    <string name="glasses_calibration_open">Βαθμονόμηση</string>
+    <string name="glasses_calibration_instructions">Τοποθετήστε τα συνδεδεμένα γυαλιά ανάποδα σε οριζόντια επιφάνεια, με τον σκελετό να ακουμπά ομοιόμορφα. Πατήστε «Έναρξη» και μην τα αγγίξετε για περίπου 8 δευτερόλεπτα. Αν κινηθούν, η μέτρηση ξεκινά από την αρχή. Αυτό διορθώνει την ολίσθηση και την κλίση, όχι την κατεύθυνση.</string>
+    <string name="glasses_calibration_settling">Αφήστε τα γυαλιά ανάποδα χωρίς να τα αγγίζετε. Αναμονή για να σταθεροποιηθούν…</string>
+    <string name="glasses_calibration_collecting">Γίνεται μέτρηση των αισθητήρων. Κρατήστε τα γυαλιά ακίνητα.</string>
+    <string name="glasses_calibration_moving">Εντοπίστηκε κίνηση. Μην αγγίζετε τα γυαλιά· η μέτρηση θα ξεκινήσει ξανά αυτόματα.</string>
+    <string name="glasses_calibration_turn_over">Τοποθετήστε τα γυαλιά ανάποδα σε οριζόντια επιφάνεια. Η μέτρηση θα ξεκινήσει μόλις τοποθετηθούν σωστά.</string>
+    <string name="glasses_calibration_complete">Η βαθμονόμηση αποθηκεύτηκε. Φορέστε τα γυαλιά, κοιτάξτε ευθεία μπροστά και πατήστε «Τέλος» για επανακεντράρισμα.</string>
+    <string name="glasses_calibration_failed">Η βαθμονόμηση δεν ολοκληρώθηκε. Ελέγξτε τη σύνδεση, κρατήστε τα γυαλιά ακίνητα και δοκιμάστε ξανά. Η προηγούμενη βαθμονόμησή σας δεν άλλαξε.</string>
+    <string name="glasses_calibration_start">Έναρξη</string>
+    <string name="glasses_calibration_done">Τέλος</string>
+    <string name="glasses_calibration_reset">Επαναφορά βαθμονόμησης παρακολούθησης</string>
+    <string name="glasses_calibration_reset_hint">Να καταργηθεί η αποθηκευμένη βαθμονόμηση και να επανέλθουν οι προεπιλογές του μοντέλου; Κάντε επανακεντράρισμα αφού φορέσετε ξανά τα γυαλιά.</string>
+    <string name="glasses_calibration_reset_button">Επαναφορά</string>
+    <string name="glasses_xreal_network_missing">Αναμονή για τη σύνδεση USB Ethernet των γυαλιών. Αυτό το τηλέφωνο ίσως δεν τη διαθέτει στις εφαρμογές.</string>
+    <string name="glasses_xreal_connection_failed">Η σύνδεση XREAL διακόπηκε ή επέστρεψε μη υποστηριζόμενη απόκριση. Νέα προσπάθεια…</string>
+    <string name="glasses_xreal_experimental">Πειραματική υποστήριξη για 1S. Χρησιμοποιήστε τη λειτουργία Follow και απενεργοποιήστε τη σταθεροποίηση στο μενού των γυαλιών. Οι κατευθύνσεις παρακολούθησης και οι λειτουργίες οθόνης χρειάζονται ακόμα δοκιμή σε συσκευή.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Λειτουργία Cardboard</string>
     <string name="cardboard_mode_hint">Εικόνες για το αριστερό και το δεξί μάτι, για γυαλιά VR κινητού.</string>

@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="steamvr_recovery_title">توقفت رسومات SteamVR</string>
+    <string name="steamvr_recovery_countdown">سيُعاد تشغيل DroidDeck خلال %1$d ثانية لإعادة ضبط الرسومات وإعادة فتح SteamVR. ستُغلق لعبتك الجارية، ولا يمكن استعادة التقدم غير المحفوظ.</string>
+    <string name="steamvr_recovery_repeated">عاد خلل الرسومات بعد إعادة تشغيل حديثة. تم إيقاف الاسترداد التلقائي مؤقتًا لتجنّب تكراره بلا نهاية. ستؤدي إعادة التشغيل إلى إغلاق لعبتك، ولا يمكن استعادة التقدم غير المحفوظ.</string>
+    <string name="steamvr_recovery_restart">إعادة التشغيل الآن</string>
+    <string name="steamvr_recovery_cancel">إبقاؤه مفتوحًا</string>
+    <string name="steamvr_recovery_restarting">جارٍ إعادة ضبط الرسومات وإعادة فتح SteamVR…</string>
+    <string name="steamvr_recovery_failed">تعذّر على DroidDeck إعادة التشغيل تلقائيًا. أغلق التطبيق تمامًا، ثم أعد فتحه.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>يُنزَّل Steam عند التشغيل الأول. قد يستغرق ذلك بضع دقائق.</item>
@@ -2308,6 +2315,8 @@
     <string name="drawer_page_glasses">النظارة</string>
     <string name="glasses_open">نظارة VITURE</string>
     <string name="glasses_control">التحكم في النظارة</string>
+    <string name="glasses_driver_missing">لا يتضمن هذا الإصدار برنامج التشغيل الخاص بهذه النظارة.</string>
+    <string name="glasses_connection_failed">تعذّر الاتصال بالنظارة. أعد توصيل الكابل أو اضغط على «السماح» لإعادة المحاولة.</string>
     <string name="glasses_allow">السماح</string>
     <string name="glasses_allow_hint">يسمح لتطبيق DroidDeck بضبط معدل تحديث النظارة ووضع 3D والسطوع ومستوى الصوت وحجب الشمس، وبقراءة تتبّع الرأس منها.</string>
     <string name="glasses_asking">في انتظار سماحك بذلك في نافذة Android…</string>
@@ -2335,6 +2344,14 @@
     <string name="glasses_picture_sbs">لعبة جنبًا إلى جنب</string>
     <string name="glasses_screen_size">عرض الشاشة</string>
     <string name="glasses_screen_distance">بُعد الشاشة</string>
+    <string name="glasses_screen_next_session">يُطبَّق عرض الشاشة وبُعدها عندما تعمل لعبة على النظارة كشاشة افتراضية.</string>
+    <string name="glasses_screen_no_output">تُطبَّق هذه الإعدادات عند تفعيل «اللعبة على النظارة» وعرض اللعبة عليها.</string>
+    <string name="glasses_screen_flat_hint">يُبقي الوضع «تلقائي» لعبة 2D هذه بملء الشاشة. استخدم شاشة افتراضية لضبط عرضها وبُعدها وتتبّع الرأس.</string>
+    <string name="glasses_screen_use">استخدام شاشة افتراضية</string>
+    <string name="glasses_screen_direct_hint">يملأ SteamVR مجال الرؤية بالكامل. اضبط مجال رؤيته أدناه؛ ولا يُطبَّق عرض الشاشة وبُعدها إلا على الشاشة الافتراضية.</string>
+    <string name="glasses_screen_sbs_hint">تملأ ألعاب جنبًا إلى جنب رؤية كل عين. ولا يُطبَّق عرض الشاشة وبُعدها إلا على الشاشة الافتراضية.</string>
+    <string name="glasses_tracking_flat_hint">يُبقي الوضع «تلقائي» لعبة 2D هذه ثابتة أمامك. اختر «شاشة افتراضية» في «العرض» لاستخدام تتبّع الرأس.</string>
+    <string name="glasses_tracking_sbs_hint">يُطبَّق تتبّع الرأس على الشاشة الافتراضية أو على لعبة SteamVR قيد التشغيل.</string>
     <string name="glasses_hardware">النظارة</string>
     <string name="glasses_brightness">السطوع</string>
     <string name="glasses_volume">مستوى الصوت</string>
@@ -2348,6 +2365,25 @@
     <string name="glasses_vr_fov">مجال رؤية SteamVR</string>
     <string name="glasses_vr_fov_hint">القيمة الأقل تقرّب SteamVR وتملأ النظارة؛ والأعلى تُظهر المزيد مما حولك.</string>
     <string name="glasses_playing">جارٍ اللعب على %1$s</string>
+    <string name="glasses_calibration">معايرة التتبّع</string>
+    <string name="glasses_calibration_hint">يقلّل الانجراف ويضبط المرجع الأفقي.</string>
+    <string name="glasses_calibration_saved_hint">تُطبَّق المعايرة المحفوظة على هذه النظارة.</string>
+    <string name="glasses_calibration_open">معايرة</string>
+    <string name="glasses_calibration_instructions">ضع النظارة المتصلة مقلوبة على سطح مستوٍ، بحيث يستقر إطارها بالتساوي. اضغط على «بدء»، ثم اتركها دون لمس لمدة 8 ثوانٍ تقريبًا. أي حركة تعيد بدء القياس. يصحّح هذا الانجراف والميل، وليس الاتجاه الأفقي.</string>
+    <string name="glasses_calibration_settling">اترك النظارة مقلوبة ودون لمس. في انتظار استقرارها…</string>
+    <string name="glasses_calibration_collecting">جارٍ قياس المستشعرات. أبقِ النظارة ثابتة.</string>
+    <string name="glasses_calibration_moving">تم رصد حركة. اترك النظارة دون لمس؛ سيُعاد بدء القياس تلقائيًا.</string>
+    <string name="glasses_calibration_turn_over">ضع النظارة مقلوبة على سطح مستوٍ. سيبدأ القياس عندما تكون في الوضع الصحيح.</string>
+    <string name="glasses_calibration_complete">تم حفظ المعايرة. ارتدِ النظارة وانظر إلى الأمام مباشرة، ثم اضغط على «تم» لإعادة التوسيط.</string>
+    <string name="glasses_calibration_failed">تعذّر إكمال المعايرة. تحقّق من الاتصال وأبقِ النظارة ثابتة، ثم حاول مجددًا. لم تتغير معايرتك السابقة.</string>
+    <string name="glasses_calibration_start">بدء</string>
+    <string name="glasses_calibration_done">تم</string>
+    <string name="glasses_calibration_reset">إعادة ضبط معايرة التتبّع</string>
+    <string name="glasses_calibration_reset_hint">هل تريد إزالة المعايرة المحفوظة واستعادة الإعدادات الافتراضية للطراز؟ أعد توسيط العرض بعد ارتداء النظارة مجددًا.</string>
+    <string name="glasses_calibration_reset_button">إعادة ضبط</string>
+    <string name="glasses_xreal_network_missing">في انتظار اتصال USB Ethernet الخاص بالنظارة. قد لا يتيحه هذا الهاتف للتطبيقات.</string>
+    <string name="glasses_xreal_connection_failed">انقطع اتصال XREAL أو أعاد استجابة غير مدعومة. جارٍ إعادة المحاولة…</string>
+    <string name="glasses_xreal_experimental">دعم تجريبي لـ 1S. استخدم وضع Follow وعطّل تثبيت الصورة من قائمة النظارة. لا تزال اتجاهات التتبّع وأوضاع العرض بحاجة إلى اختبار على الجهاز.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">وضع Cardboard</string>
     <string name="cardboard_mode_hint">عرض للعين اليسرى وآخر لليمنى لنظارة واقع افتراضي للهاتف.</string>

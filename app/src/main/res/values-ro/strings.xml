@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="steamvr_recovery_title">Grafica SteamVR s-a oprit</string>
+    <string name="steamvr_recovery_countdown">DroidDeck va reporni în %1$d s pentru a reseta grafica și a redeschide SteamVR. Jocul care rulează se va închide; progresul nesalvat nu poate fi recuperat.</string>
+    <string name="steamvr_recovery_repeated">Eroarea grafică a revenit după o repornire recentă. Recuperarea automată este pusă pe pauză pentru a evita o buclă. Repornirea va închide jocul; progresul nesalvat nu poate fi recuperat.</string>
+    <string name="steamvr_recovery_restart">Repornește acum</string>
+    <string name="steamvr_recovery_cancel">Lasă deschis</string>
+    <string name="steamvr_recovery_restarting">Se resetează grafica și se redeschide SteamVR…</string>
+    <string name="steamvr_recovery_failed">DroidDeck nu a putut reporni automat. Închide complet aplicația, apoi redeschide-o.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>Prima rulare descarcă Steam. Poate dura câteva minute.</item>
@@ -2233,6 +2240,8 @@
     <string name="drawer_page_glasses">Ochelari</string>
     <string name="glasses_open">Ochelari VITURE</string>
     <string name="glasses_control">Controlul ochelarilor</string>
+    <string name="glasses_driver_missing">Această versiune nu include driverul pentru acești ochelari.</string>
+    <string name="glasses_connection_failed">Nu s-a putut realiza conexiunea cu ochelarii. Reconectează cablul sau apasă Permite pentru a reîncerca.</string>
     <string name="glasses_allow">Permite</string>
     <string name="glasses_allow_hint">Permite-i lui DroidDeck să seteze rata de reîmprospătare, modul 3D, luminozitatea, volumul și întunecarea ochelarilor și să le citească urmărirea capului.</string>
     <string name="glasses_asking">Se așteaptă permisiunea ta în solicitarea Android…</string>
@@ -2260,6 +2269,14 @@
     <string name="glasses_picture_sbs">Joc alăturat</string>
     <string name="glasses_screen_size">Lățimea ecranului</string>
     <string name="glasses_screen_distance">Distanța ecranului</string>
+    <string name="glasses_screen_next_session">Lățimea și distanța se aplică atunci când un joc rulează pe ochelari ca ecran virtual.</string>
+    <string name="glasses_screen_no_output">Aceste setări se aplică cât timp Joc pe ochelari este activat și jocul este afișat acolo.</string>
+    <string name="glasses_screen_flat_hint">Modul Automat păstrează acest joc 2D pe tot ecranul. Folosește un ecran virtual pentru a-i ajusta lățimea, distanța și urmărirea capului.</string>
+    <string name="glasses_screen_use">Folosește ecranul virtual</string>
+    <string name="glasses_screen_direct_hint">SteamVR umple vederea. Ajustează-i câmpul vizual mai jos; lățimea și distanța se aplică doar unui ecran virtual.</string>
+    <string name="glasses_screen_sbs_hint">Jocurile alăturate umplu vederea fiecărui ochi. Lățimea și distanța se aplică doar unui ecran virtual.</string>
+    <string name="glasses_tracking_flat_hint">Modul Automat menține acest joc 2D fix în câmpul vizual. Alege Ecran virtual în Afișaj pentru a folosi urmărirea capului.</string>
+    <string name="glasses_tracking_sbs_hint">Urmărirea capului se aplică unui ecran virtual sau unui joc SteamVR care rulează.</string>
     <string name="glasses_hardware">Ochelari</string>
     <string name="glasses_brightness">Luminozitate</string>
     <string name="glasses_volume">Volum</string>
@@ -2273,6 +2290,25 @@
     <string name="glasses_vr_fov">Câmp vizual SteamVR</string>
     <string name="glasses_vr_fov_hint">Mai mic aduce SteamVR mai aproape și umple ochelarii; mai mare arată mai mult din jurul tău.</string>
     <string name="glasses_playing">Se joacă pe %1$s</string>
+    <string name="glasses_calibration">Calibrarea urmăririi</string>
+    <string name="glasses_calibration_hint">Reduce deriva și aliniază referința de nivel.</string>
+    <string name="glasses_calibration_saved_hint">Calibrarea salvată se aplică acestor ochelari.</string>
+    <string name="glasses_calibration_open">Calibrează</string>
+    <string name="glasses_calibration_instructions">Așază ochelarii conectați cu susul în jos pe o suprafață orizontală, cu rama sprijinită uniform. Apasă Pornește, apoi lasă-i neatinși circa 8 secunde. Orice mișcare repornește măsurarea. Calibrarea corectează deriva și înclinarea, nu direcția.</string>
+    <string name="glasses_calibration_settling">Lasă ochelarii cu susul în jos, neatinși. Se așteaptă stabilizarea lor…</string>
+    <string name="glasses_calibration_collecting">Se măsoară senzorii. Ține ochelarii nemișcați.</string>
+    <string name="glasses_calibration_moving">Mișcare detectată. Nu atinge ochelarii; măsurarea va reporni automat.</string>
+    <string name="glasses_calibration_turn_over">Așază ochelarii cu susul în jos pe o suprafață orizontală. Măsurarea va începe când sunt poziționați corect.</string>
+    <string name="glasses_calibration_complete">Calibrare salvată. Pune-ți ochelarii și privește drept înainte, apoi apasă Gata pentru a recentra.</string>
+    <string name="glasses_calibration_failed">Calibrarea nu a putut fi finalizată. Verifică conexiunea și ține ochelarii nemișcați, apoi încearcă din nou. Calibrarea anterioară a rămas neschimbată.</string>
+    <string name="glasses_calibration_start">Pornește</string>
+    <string name="glasses_calibration_done">Gata</string>
+    <string name="glasses_calibration_reset">Resetează calibrarea urmăririi</string>
+    <string name="glasses_calibration_reset_hint">Elimini calibrarea salvată și restaurezi valorile implicite ale modelului? Recentrează după ce îți pui ochelarii la loc.</string>
+    <string name="glasses_calibration_reset_button">Resetează</string>
+    <string name="glasses_xreal_network_missing">Se așteaptă conexiunea USB Ethernet a ochelarilor. Este posibil ca acest telefon să nu o expună aplicațiilor.</string>
+    <string name="glasses_xreal_connection_failed">Conexiunea XREAL a fost întreruptă sau a returnat un răspuns neacceptat. Se reîncearcă…</string>
+    <string name="glasses_xreal_experimental">Suport experimental pentru 1S. Folosește modul Follow și dezactivează stabilizarea din meniul ochelarilor. Direcțiile de urmărire și modurile de afișare trebuie încă testate pe dispozitiv.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Mod Cardboard</string>
     <string name="cardboard_mode_hint">Imagini pentru ochiul stâng și cel drept, pentru un vizor VR pentru telefon.</string>

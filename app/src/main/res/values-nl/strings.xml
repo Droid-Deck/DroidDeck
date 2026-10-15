@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="steamvr_recovery_title">Grafische weergave van SteamVR gestopt</string>
+    <string name="steamvr_recovery_countdown">DroidDeck start over %1$d seconden opnieuw om de grafische weergave te resetten en SteamVR weer te openen. Je game wordt gesloten; niet-opgeslagen voortgang kan niet worden hersteld.</string>
+    <string name="steamvr_recovery_repeated">De grafische fout kwam terug na een recente herstart. Automatisch herstel is gepauzeerd om een lus te voorkomen. Opnieuw starten sluit je game; niet-opgeslagen voortgang kan niet worden hersteld.</string>
+    <string name="steamvr_recovery_restart">Nu opnieuw starten</string>
+    <string name="steamvr_recovery_cancel">Open laten</string>
+    <string name="steamvr_recovery_restarting">Grafische weergave resetten en SteamVR opnieuw openen…</string>
+    <string name="steamvr_recovery_failed">DroidDeck kon niet automatisch opnieuw starten. Sluit de app volledig af en open hem daarna opnieuw.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>Bij de eerste start wordt Steam gedownload. Dit kan een paar minuten duren.</item>
@@ -2208,6 +2215,8 @@
     <string name="drawer_page_glasses">Bril</string>
     <string name="glasses_open">VITURE-bril</string>
     <string name="glasses_control">Brilbediening</string>
+    <string name="glasses_driver_missing">Deze build bevat geen driver voor deze bril.</string>
+    <string name="glasses_connection_failed">Kan geen verbinding maken met de bril. Sluit de kabel opnieuw aan of tik op Toestaan om het opnieuw te proberen.</string>
     <string name="glasses_allow">Toestaan</string>
     <string name="glasses_allow_hint">Laat DroidDeck de verversingssnelheid, 3D-modus, helderheid, het volume en de zonwering van de bril instellen en de hoofdtracking uitlezen.</string>
     <string name="glasses_asking">Wachten tot je het toestaat in het Android-venster…</string>
@@ -2235,6 +2244,14 @@
     <string name="glasses_picture_sbs">Side-by-side game</string>
     <string name="glasses_screen_size">Schermbreedte</string>
     <string name="glasses_screen_distance">Schermafstand</string>
+    <string name="glasses_screen_next_session">Breedte en afstand gelden wanneer een game als virtueel scherm op de bril draait.</string>
+    <string name="glasses_screen_no_output">Deze instellingen gelden zolang Game op bril aanstaat en de game daar wordt getoond.</string>
+    <string name="glasses_screen_flat_hint">Automatisch houdt deze 2D-game schermvullend. Gebruik een virtueel scherm om breedte, afstand en hoofdtracking aan te passen.</string>
+    <string name="glasses_screen_use">Virtueel scherm gebruiken</string>
+    <string name="glasses_screen_direct_hint">SteamVR vult het beeld. Pas hieronder het gezichtsveld aan; breedte en afstand gelden alleen voor een virtueel scherm.</string>
+    <string name="glasses_screen_sbs_hint">Side-by-side games vullen elk oog. Breedte en afstand gelden alleen voor een virtueel scherm.</string>
+    <string name="glasses_tracking_flat_hint">Automatisch houdt deze 2D-game vast in beeld. Kies Virtueel scherm bij Scherm om hoofdtracking te gebruiken.</string>
+    <string name="glasses_tracking_sbs_hint">Hoofdtracking geldt voor een virtueel scherm of een actieve SteamVR-game.</string>
     <string name="glasses_hardware">Bril</string>
     <string name="glasses_brightness">Helderheid</string>
     <string name="glasses_volume">Volume</string>
@@ -2248,6 +2265,25 @@
     <string name="glasses_vr_fov">SteamVR-gezichtsveld</string>
     <string name="glasses_vr_fov_hint">Lager brengt SteamVR dichterbij en vult de bril; hoger toont meer om je heen.</string>
     <string name="glasses_playing">Je speelt op %1$s</string>
+    <string name="glasses_calibration">Trackingkalibratie</string>
+    <string name="glasses_calibration_hint">Vermindert drift en lijnt de horizontale referentie uit.</string>
+    <string name="glasses_calibration_saved_hint">De opgeslagen kalibratie wordt op deze bril toegepast.</string>
+    <string name="glasses_calibration_open">Kalibreren</string>
+    <string name="glasses_calibration_instructions">Leg de aangesloten bril ondersteboven op een vlak oppervlak, zodat het montuur gelijkmatig rust. Tik op Starten en laat de bril ongeveer 8 seconden onaangeroerd liggen. Bij beweging begint de meting opnieuw. Dit corrigeert drift en kanteling, niet de kijkrichting.</string>
+    <string name="glasses_calibration_settling">Laat de bril ondersteboven en onaangeroerd liggen. Wachten tot hij stilligt…</string>
+    <string name="glasses_calibration_collecting">De sensoren worden gemeten. Houd de bril stil.</string>
+    <string name="glasses_calibration_moving">Beweging gedetecteerd. Raak de bril niet aan; de meting begint automatisch opnieuw.</string>
+    <string name="glasses_calibration_turn_over">Leg de bril ondersteboven op een vlak oppervlak. De meting begint zodra hij goed ligt.</string>
+    <string name="glasses_calibration_complete">Kalibratie opgeslagen. Zet de bril op, kijk recht vooruit en tik dan op Klaar om te centreren.</string>
+    <string name="glasses_calibration_failed">De kalibratie kon niet worden voltooid. Controleer de verbinding, houd de bril stil en probeer het opnieuw. Je vorige kalibratie is ongewijzigd.</string>
+    <string name="glasses_calibration_start">Starten</string>
+    <string name="glasses_calibration_done">Klaar</string>
+    <string name="glasses_calibration_reset">Trackingkalibratie resetten</string>
+    <string name="glasses_calibration_reset_hint">De opgeslagen kalibratie verwijderen en de standaardwaarden van het model herstellen? Centreer opnieuw nadat je de bril weer hebt opgezet.</string>
+    <string name="glasses_calibration_reset_button">Resetten</string>
+    <string name="glasses_xreal_network_missing">Wachten op de USB Ethernet-verbinding van de bril. Deze telefoon maakt die mogelijk niet beschikbaar voor apps.</string>
+    <string name="glasses_xreal_connection_failed">De XREAL-verbinding is onderbroken of gaf een niet-ondersteund antwoord. Opnieuw proberen…</string>
+    <string name="glasses_xreal_experimental">Experimentele ondersteuning voor 1S. Gebruik de Follow-modus en schakel stabilisatie uit in het menu van de bril. Trackingrichtingen en weergavemodi moeten nog op een apparaat worden getest.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Cardboard-modus</string>
     <string name="cardboard_mode_hint">Beelden voor linker- en rechteroog voor een VR-bril voor je telefoon.</string>

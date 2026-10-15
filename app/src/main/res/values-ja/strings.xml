@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="steamvr_recovery_title">SteamVR のグラフィックが停止しました</string>
+    <string name="steamvr_recovery_countdown">グラフィックをリセットして SteamVR を開き直すため、DroidDeck は%1$d秒後に再起動します。実行中のゲームは終了し、保存されていない進行状況は復元できません。</string>
+    <string name="steamvr_recovery_repeated">最近の再起動の後、グラフィックの障害が再発しました。ループを防ぐため、自動復旧を一時停止しています。再起動するとゲームは終了し、保存されていない進行状況は復元できません。</string>
+    <string name="steamvr_recovery_restart">今すぐ再起動</string>
+    <string name="steamvr_recovery_cancel">開いたままにする</string>
+    <string name="steamvr_recovery_restarting">グラフィックをリセットして SteamVR を開き直しています…</string>
+    <string name="steamvr_recovery_failed">DroidDeck を自動的に再起動できませんでした。アプリを完全に終了してから、もう一度開いてください。</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>初回起動時はSteamをダウンロードします。数分かかる場合があります。</item>
@@ -2191,6 +2198,8 @@
     <string name="drawer_page_glasses">グラス</string>
     <string name="glasses_open">VITURE グラス</string>
     <string name="glasses_control">グラスの制御</string>
+    <string name="glasses_driver_missing">このビルドには、このグラス用のドライバーが含まれていません。</string>
+    <string name="glasses_connection_failed">グラスに接続できませんでした。ケーブルを接続し直すか、「許可」をタップして再試行してください。</string>
     <string name="glasses_allow">許可</string>
     <string name="glasses_allow_hint">DroidDeck がグラスのリフレッシュレート、3D モード、明るさ、音量、サンブロックを設定し、ヘッドトラッキングを読み取れるようにします。</string>
     <string name="glasses_asking">Android のダイアログで許可されるのを待っています…</string>
@@ -2218,6 +2227,14 @@
     <string name="glasses_picture_sbs">サイドバイサイドのゲーム</string>
     <string name="glasses_screen_size">スクリーンの幅</string>
     <string name="glasses_screen_distance">スクリーンまでの距離</string>
+    <string name="glasses_screen_next_session">幅と距離は、ゲームを仮想スクリーンとしてグラスに表示しているときに適用されます。</string>
+    <string name="glasses_screen_no_output">これらの設定は、「グラスにゲームを表示」がオンで、ゲームがグラスに表示されているときに適用されます。</string>
+    <string name="glasses_screen_flat_hint">「自動」では、この 2D ゲームは全画面のままです。幅、距離、ヘッドトラッキングを調整するには、仮想スクリーンを使用してください。</string>
+    <string name="glasses_screen_use">仮想スクリーンを使用</string>
+    <string name="glasses_screen_direct_hint">SteamVR は視界全体に表示されます。視野角は下で調整できます。幅と距離は仮想スクリーンにのみ適用されます。</string>
+    <string name="glasses_screen_sbs_hint">サイドバイサイドのゲームは、左右の目の視界いっぱいに表示されます。幅と距離は仮想スクリーンにのみ適用されます。</string>
+    <string name="glasses_tracking_flat_hint">「自動」では、この 2D ゲームは視界の中で固定されます。ヘッドトラッキングを使うには、「表示」で「仮想スクリーン」を選んでください。</string>
+    <string name="glasses_tracking_sbs_hint">ヘッドトラッキングは、仮想スクリーンまたは実行中の SteamVR ゲームに適用されます。</string>
     <string name="glasses_hardware">グラス</string>
     <string name="glasses_brightness">明るさ</string>
     <string name="glasses_volume">音量</string>
@@ -2231,6 +2248,25 @@
     <string name="glasses_vr_fov">SteamVR の視野角</string>
     <string name="glasses_vr_fov_hint">小さくすると SteamVR が近くなりグラスいっぱいに広がり、大きくすると周囲が広く見えます。</string>
     <string name="glasses_playing">%1$s でプレイ中</string>
+    <string name="glasses_calibration">トラッキングのキャリブレーション</string>
+    <string name="glasses_calibration_hint">ドリフトを減らし、水平の基準を合わせます。</string>
+    <string name="glasses_calibration_saved_hint">保存したキャリブレーションをこのグラスに適用しています。</string>
+    <string name="glasses_calibration_open">キャリブレーション</string>
+    <string name="glasses_calibration_instructions">接続したグラスを、フレームが均等に接するように水平な面に逆さまに置いてください。「開始」をタップしたら、約8秒間そのまま触れないでください。動かすと測定がやり直しになります。ドリフトと傾きは補正されますが、左右の向きは補正されません。</string>
+    <string name="glasses_calibration_settling">グラスを逆さまにしたまま、触れずに置いておいてください。安定するのを待っています…</string>
+    <string name="glasses_calibration_collecting">センサーを測定しています。グラスを動かさないでください。</string>
+    <string name="glasses_calibration_moving">動きを検出しました。グラスに触れないでください。測定は自動的にやり直されます。</string>
+    <string name="glasses_calibration_turn_over">グラスを水平な面に逆さまに置いてください。正しい位置に置かれると測定が始まります。</string>
+    <string name="glasses_calibration_complete">キャリブレーションを保存しました。グラスを装着して正面を見てから、「完了」をタップして中央に戻してください。</string>
+    <string name="glasses_calibration_failed">キャリブレーションを完了できませんでした。接続を確認し、グラスを動かさずにもう一度お試しください。以前のキャリブレーションは変更されていません。</string>
+    <string name="glasses_calibration_start">開始</string>
+    <string name="glasses_calibration_done">完了</string>
+    <string name="glasses_calibration_reset">トラッキングのキャリブレーションをリセット</string>
+    <string name="glasses_calibration_reset_hint">保存したキャリブレーションを削除して、モデルの初期設定に戻しますか？グラスを装着し直したら、中央に戻してください。</string>
+    <string name="glasses_calibration_reset_button">リセット</string>
+    <string name="glasses_xreal_network_missing">グラスの USB Ethernet 接続を待っています。このスマートフォンでは、アプリがこの接続を利用できない場合があります。</string>
+    <string name="glasses_xreal_connection_failed">XREAL との接続が中断されたか、サポートされていない応答が返されました。再試行しています…</string>
+    <string name="glasses_xreal_experimental">1S のサポートは試験運用中です。グラスのメニューで Follow モードを使い、安定化をオフにしてください。トラッキングの方向と表示モードは、まだ実機でのテストが必要です。</string>
     <string name="stores_fact_developer">開発元</string>
     <string name="stores_fact_publisher">パブリッシャー</string>
     <string name="stores_fact_released">発売日</string>

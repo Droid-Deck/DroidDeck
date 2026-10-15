@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="steamvr_recovery_title">Grafika SteamVR przestała działać</string>
+    <string name="steamvr_recovery_countdown">DroidDeck uruchomi się ponownie za %1$d s, aby zresetować grafikę i ponownie otworzyć SteamVR. Uruchomiona gra zostanie zamknięta; niezapisanego postępu nie da się przywrócić.</string>
+    <string name="steamvr_recovery_repeated">Błąd grafiki powrócił wkrótce po ponownym uruchomieniu. Automatyczne odzyskiwanie wstrzymano, aby uniknąć pętli. Ponowne uruchomienie zamknie grę; niezapisanego postępu nie da się przywrócić.</string>
+    <string name="steamvr_recovery_restart">Uruchom ponownie</string>
+    <string name="steamvr_recovery_cancel">Nie zamykaj</string>
+    <string name="steamvr_recovery_restarting">Resetowanie grafiki i ponowne otwieranie SteamVR…</string>
+    <string name="steamvr_recovery_failed">Nie udało się automatycznie uruchomić ponownie DroidDeck. Całkowicie zamknij aplikację, a potem otwórz ją ponownie.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>Przy pierwszym uruchomieniu pobierany jest Steam. Może to potrwać kilka minut.</item>
@@ -2258,6 +2265,8 @@
     <string name="drawer_page_glasses">Okulary</string>
     <string name="glasses_open">Okulary VITURE</string>
     <string name="glasses_control">Sterowanie okularami</string>
+    <string name="glasses_driver_missing">Ta kompilacja nie zawiera sterownika dla tych okularów.</string>
+    <string name="glasses_connection_failed">Nie udało się połączyć z okularami. Podłącz ponownie kabel lub dotknij „Zezwól”, aby spróbować ponownie.</string>
     <string name="glasses_allow">Zezwól</string>
     <string name="glasses_allow_hint">Pozwól DroidDeck ustawiać częstotliwość odświeżania, tryb 3D, jasność, głośność i przyciemnianie okularów oraz odczytywać dane śledzenia głowy.</string>
     <string name="glasses_asking">Oczekiwanie na zgodę w oknie systemu Android…</string>
@@ -2285,6 +2294,14 @@
     <string name="glasses_picture_sbs">Gra 3D obok siebie</string>
     <string name="glasses_screen_size">Szerokość ekranu</string>
     <string name="glasses_screen_distance">Odległość ekranu</string>
+    <string name="glasses_screen_next_session">Szerokość i odległość działają, gdy gra jest wyświetlana w okularach jako wirtualny ekran.</string>
+    <string name="glasses_screen_no_output">Te ustawienia działają, gdy opcja „Gra w okularach” jest włączona, a gra jest tam wyświetlana.</string>
+    <string name="glasses_screen_flat_hint">Tryb „Automatycznie” pokazuje tę grę 2D na pełnym ekranie. Użyj wirtualnego ekranu, aby dostosować jej szerokość, odległość i śledzenie głowy.</string>
+    <string name="glasses_screen_use">Użyj wirtualnego ekranu</string>
+    <string name="glasses_screen_direct_hint">SteamVR wypełnia widok. Dostosuj poniżej jego pole widzenia; szerokość i odległość dotyczą tylko wirtualnego ekranu.</string>
+    <string name="glasses_screen_sbs_hint">Gry 3D obok siebie wypełniają obraz każdego oka. Szerokość i odległość dotyczą tylko wirtualnego ekranu.</string>
+    <string name="glasses_tracking_flat_hint">Tryb „Automatycznie” utrzymuje tę grę 2D nieruchomo w polu widzenia. Aby używać śledzenia głowy, wybierz „Wirtualny ekran” w sekcji „Wyświetlacz”.</string>
+    <string name="glasses_tracking_sbs_hint">Śledzenie głowy działa z wirtualnym ekranem lub uruchomioną grą SteamVR.</string>
     <string name="glasses_hardware">Okulary</string>
     <string name="glasses_brightness">Jasność</string>
     <string name="glasses_volume">Głośność</string>
@@ -2298,6 +2315,25 @@
     <string name="glasses_vr_fov">Pole widzenia SteamVR</string>
     <string name="glasses_vr_fov_hint">Mniejsze przybliża SteamVR i wypełnia okulary; większe pokazuje więcej dookoła.</string>
     <string name="glasses_playing">Grasz na: %1$s</string>
+    <string name="glasses_calibration">Kalibracja śledzenia</string>
+    <string name="glasses_calibration_hint">Ogranicza dryf i wyrównuje poziom odniesienia.</string>
+    <string name="glasses_calibration_saved_hint">Dla tych okularów używana jest zapisana kalibracja.</string>
+    <string name="glasses_calibration_open">Kalibruj</string>
+    <string name="glasses_calibration_instructions">Połóż podłączone okulary do góry nogami na poziomej powierzchni, tak aby oprawka leżała równo. Dotknij „Rozpocznij” i nie ruszaj ich przez około 8 sekund. Ruch rozpoczyna pomiar od nowa. Kalibracja koryguje dryf i pochylenie, ale nie kierunek.</string>
+    <string name="glasses_calibration_settling">Zostaw okulary do góry nogami i ich nie dotykaj. Oczekiwanie, aż się ustabilizują…</string>
+    <string name="glasses_calibration_collecting">Pomiar czujników. Nie ruszaj okularów.</string>
+    <string name="glasses_calibration_moving">Wykryto ruch. Nie dotykaj okularów; pomiar rozpocznie się ponownie automatycznie.</string>
+    <string name="glasses_calibration_turn_over">Połóż okulary do góry nogami na poziomej powierzchni. Pomiar rozpocznie się, gdy będą prawidłowo ułożone.</string>
+    <string name="glasses_calibration_complete">Kalibracja zapisana. Załóż okulary i patrz prosto przed siebie, a potem dotknij „Gotowe”, aby wyśrodkować widok.</string>
+    <string name="glasses_calibration_failed">Nie udało się ukończyć kalibracji. Sprawdź połączenie i nie ruszaj okularów, a potem spróbuj ponownie. Poprzednia kalibracja pozostała bez zmian.</string>
+    <string name="glasses_calibration_start">Rozpocznij</string>
+    <string name="glasses_calibration_done">Gotowe</string>
+    <string name="glasses_calibration_reset">Resetuj kalibrację śledzenia</string>
+    <string name="glasses_calibration_reset_hint">Usunąć zapisaną kalibrację i przywrócić domyślne ustawienia modelu? Po ponownym założeniu okularów wyśrodkuj widok.</string>
+    <string name="glasses_calibration_reset_button">Resetuj</string>
+    <string name="glasses_xreal_network_missing">Oczekiwanie na połączenie USB Ethernet okularów. Ten telefon może nie udostępniać go aplikacjom.</string>
+    <string name="glasses_xreal_connection_failed">Połączenie z XREAL zostało przerwane lub zwróciło nieobsługiwaną odpowiedź. Ponawianie…</string>
+    <string name="glasses_xreal_experimental">Eksperymentalna obsługa 1S. Użyj trybu Follow i wyłącz stabilizację w menu okularów. Kierunki śledzenia i tryby wyświetlania wymagają jeszcze testów na urządzeniu.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Tryb Cardboard</string>
     <string name="cardboard_mode_hint">Obraz dla lewego i prawego oka do gogli VR na telefon.</string>

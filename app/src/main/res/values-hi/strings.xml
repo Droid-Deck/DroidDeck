@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="steamvr_recovery_title">SteamVR ग्राफ़िक्स रुक गए</string>
+    <string name="steamvr_recovery_countdown">ग्राफ़िक्स रीसेट करने और SteamVR फिर से खोलने के लिए DroidDeck %1$d सेकंड में रीस्टार्ट होगा। आपका चल रहा गेम बंद हो जाएगा; बिना सेव की गई प्रोग्रेस वापस नहीं लाई जा सकती।</string>
+    <string name="steamvr_recovery_repeated">हाल ही में रीस्टार्ट के बाद ग्राफ़िक्स की गड़बड़ी फिर से आ गई। लूप से बचने के लिए ऑटोमैटिक रिकवरी रोक दी गई है। रीस्टार्ट करने पर आपका गेम बंद हो जाएगा; बिना सेव की गई प्रोग्रेस वापस नहीं लाई जा सकती।</string>
+    <string name="steamvr_recovery_restart">अभी रीस्टार्ट करें</string>
+    <string name="steamvr_recovery_cancel">खुला रखें</string>
+    <string name="steamvr_recovery_restarting">ग्राफ़िक्स रीसेट हो रहे हैं और SteamVR फिर से खुल रहा है…</string>
+    <string name="steamvr_recovery_failed">DroidDeck अपने-आप रीस्टार्ट नहीं हो सका। ऐप को पूरी तरह बंद करें, फिर उसे दोबारा खोलें।</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>पहली बार चलाने पर Steam डाउनलोड होता है। इसमें कुछ मिनट लग सकते हैं।</item>
@@ -2208,6 +2215,8 @@
     <string name="drawer_page_glasses">चश्मा</string>
     <string name="glasses_open">VITURE चश्मा</string>
     <string name="glasses_control">चश्मे का कंट्रोल</string>
+    <string name="glasses_driver_missing">इस बिल्ड में इस चश्मे का ड्राइवर शामिल नहीं है।</string>
+    <string name="glasses_connection_failed">चश्मे से कनेक्ट नहीं हो सका। केबल फिर से लगाएं या दोबारा कोशिश करने के लिए अनुमति दें पर टैप करें।</string>
     <string name="glasses_allow">अनुमति दें</string>
     <string name="glasses_allow_hint">DroidDeck को चश्मे का रिफ्रेश रेट, 3D मोड, ब्राइटनेस, वॉल्यूम और सनब्लॉक सेट करने और उसकी हेड ट्रैकिंग पढ़ने दें।</string>
     <string name="glasses_asking">Android के प्रॉम्प्ट में आपकी अनुमति का इंतज़ार है…</string>
@@ -2235,6 +2244,14 @@
     <string name="glasses_picture_sbs">साइड-बाय-साइड गेम</string>
     <string name="glasses_screen_size">स्क्रीन की चौड़ाई</string>
     <string name="glasses_screen_distance">स्क्रीन की दूरी</string>
+    <string name="glasses_screen_next_session">जब कोई गेम चश्मे पर वर्चुअल स्क्रीन के रूप में चलता है, तब चौड़ाई और दूरी लागू होती हैं।</string>
+    <string name="glasses_screen_no_output">ये सेटिंग तब लागू होती हैं जब चश्मे पर गेम चालू हो और गेम वहीं दिख रहा हो।</string>
+    <string name="glasses_screen_flat_hint">ऑटोमैटिक इस 2D गेम को फ़ुल-स्क्रीन रखता है। इसकी चौड़ाई, दूरी और हेड ट्रैकिंग बदलने के लिए वर्चुअल स्क्रीन इस्तेमाल करें।</string>
+    <string name="glasses_screen_use">वर्चुअल स्क्रीन इस्तेमाल करें</string>
+    <string name="glasses_screen_direct_hint">SteamVR पूरा व्यू भर देता है। नीचे इसका फ़ील्ड ऑफ़ व्यू बदलें; चौड़ाई और दूरी सिर्फ़ वर्चुअल स्क्रीन पर लागू होती हैं।</string>
+    <string name="glasses_screen_sbs_hint">साइड-बाय-साइड गेम हर आंख का व्यू भर देते हैं। चौड़ाई और दूरी सिर्फ़ वर्चुअल स्क्रीन पर लागू होती हैं।</string>
+    <string name="glasses_tracking_flat_hint">ऑटोमैटिक इस 2D गेम को व्यू में एक जगह टिकाए रखता है। हेड ट्रैकिंग इस्तेमाल करने के लिए डिस्प्ले में वर्चुअल स्क्रीन चुनें।</string>
+    <string name="glasses_tracking_sbs_hint">हेड ट्रैकिंग वर्चुअल स्क्रीन या चल रहे SteamVR गेम पर लागू होती है।</string>
     <string name="glasses_hardware">चश्मा</string>
     <string name="glasses_brightness">ब्राइटनेस</string>
     <string name="glasses_volume">वॉल्यूम</string>
@@ -2248,6 +2265,25 @@
     <string name="glasses_vr_fov">SteamVR फ़ील्ड ऑफ़ व्यू</string>
     <string name="glasses_vr_fov_hint">कम करने पर SteamVR पास आता है और चश्मा भर देता है; ज़्यादा करने पर आपके आस-पास ज़्यादा दिखता है।</string>
     <string name="glasses_playing">%1$s पर खेल रहे हैं</string>
+    <string name="glasses_calibration">ट्रैकिंग कैलिब्रेशन</string>
+    <string name="glasses_calibration_hint">ड्रिफ़्ट कम करता है और क्षैतिज संदर्भ को सीध में लाता है।</string>
+    <string name="glasses_calibration_saved_hint">इस चश्मे पर सेव किया गया कैलिब्रेशन लागू है।</string>
+    <string name="glasses_calibration_open">कैलिब्रेट करें</string>
+    <string name="glasses_calibration_instructions">जुड़े हुए चश्मे को किसी समतल सतह पर उल्टा रखें, ताकि फ़्रेम बराबर टिका रहे। शुरू करें पर टैप करें, फिर लगभग 8 सेकंड तक उसे न छुएं। हिलने पर माप फिर से शुरू हो जाता है। इससे ड्रिफ़्ट और झुकाव ठीक होते हैं, सामने की दिशा नहीं।</string>
+    <string name="glasses_calibration_settling">चश्मे को उल्टा रहने दें और उसे न छुएं। उसके स्थिर होने का इंतज़ार है…</string>
+    <string name="glasses_calibration_collecting">सेंसर का माप लिया जा रहा है। चश्मे को स्थिर रखें।</string>
+    <string name="glasses_calibration_moving">हलचल मिली। चश्मे को न छुएं; माप अपने-आप फिर से शुरू होगा।</string>
+    <string name="glasses_calibration_turn_over">चश्मे को किसी समतल सतह पर उल्टा रखें। सही तरह रखते ही माप शुरू हो जाएगा।</string>
+    <string name="glasses_calibration_complete">कैलिब्रेशन सेव हो गया। चश्मा पहनें और सीधे सामने देखें, फिर व्यू बीच में लाने के लिए हो गया पर टैप करें।</string>
+    <string name="glasses_calibration_failed">कैलिब्रेशन पूरा नहीं हो सका। कनेक्शन जांचें और चश्मे को स्थिर रखें, फिर दोबारा कोशिश करें। आपका पिछला कैलिब्रेशन नहीं बदला है।</string>
+    <string name="glasses_calibration_start">शुरू करें</string>
+    <string name="glasses_calibration_done">हो गया</string>
+    <string name="glasses_calibration_reset">ट्रैकिंग कैलिब्रेशन रीसेट करें</string>
+    <string name="glasses_calibration_reset_hint">सेव किया गया कैलिब्रेशन हटाकर मॉडल का डिफ़ॉल्ट वापस लाएं? चश्मा दोबारा पहनने के बाद व्यू बीच में लाएं।</string>
+    <string name="glasses_calibration_reset_button">रीसेट करें</string>
+    <string name="glasses_xreal_network_missing">चश्मे के USB Ethernet कनेक्शन का इंतज़ार है। हो सकता है यह फ़ोन इसे ऐप्स को उपलब्ध न कराए।</string>
+    <string name="glasses_xreal_connection_failed">XREAL कनेक्शन टूट गया या उसने ऐसा जवाब दिया जो समर्थित नहीं है। फिर से कोशिश हो रही है…</string>
+    <string name="glasses_xreal_experimental">1S के लिए प्रायोगिक सपोर्ट। चश्मे के मेनू में Follow मोड चुनें और स्टेबिलाइज़ेशन बंद करें। ट्रैकिंग की दिशाएं और डिस्प्ले मोड अभी डिवाइस पर टेस्ट होने बाकी हैं।</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Cardboard मोड</string>
     <string name="cardboard_mode_hint">फ़ोन VR व्यूअर के लिए बाईं और दाईं आंख के व्यू।</string>

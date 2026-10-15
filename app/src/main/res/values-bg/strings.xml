@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="steamvr_recovery_title">Графиката на SteamVR спря</string>
+    <string name="steamvr_recovery_countdown">DroidDeck ще се рестартира след %1$d секунди, за да нулира графиката и да отвори отново SteamVR. Текущата ви игра ще бъде затворена; незапазеният напредък не може да бъде възстановен.</string>
+    <string name="steamvr_recovery_repeated">Графичната грешка се появи отново след скорошно рестартиране. Автоматичното възстановяване е на пауза, за да се избегне зацикляне. Рестартирането ще затвори играта ви; незапазеният напредък не може да бъде възстановен.</string>
+    <string name="steamvr_recovery_restart">Рестартиране сега</string>
+    <string name="steamvr_recovery_cancel">Остави отворено</string>
+    <string name="steamvr_recovery_restarting">Нулиране на графиката и повторно отваряне на SteamVR…</string>
+    <string name="steamvr_recovery_failed">DroidDeck не успя да се рестартира автоматично. Затворете приложението напълно и след това го отворете отново.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>Първото стартиране изтегля Steam. Това може да отнеме няколко минути.</item>
@@ -2208,6 +2215,8 @@
     <string name="drawer_page_glasses">Очила</string>
     <string name="glasses_open">Очила VITURE</string>
     <string name="glasses_control">Управление на очилата</string>
+    <string name="glasses_driver_missing">Тази версия не включва драйвера за тези очила.</string>
+    <string name="glasses_connection_failed">Неуспешно свързване с очилата. Свържете кабела отново или докоснете „Разрешаване“, за да опитате пак.</string>
     <string name="glasses_allow">Разрешаване</string>
     <string name="glasses_allow_hint">Позволява на DroidDeck да задава честотата на опресняване, режима 3D, яркостта, силата на звука и затъмняването на очилата и да чете данните от проследяването на главата.</string>
     <string name="glasses_asking">Изчаква се разрешението ви в прозореца на Android…</string>
@@ -2235,6 +2244,14 @@
     <string name="glasses_picture_sbs">Игра 3D един до друг</string>
     <string name="glasses_screen_size">Ширина на екрана</string>
     <string name="glasses_screen_distance">Разстояние до екрана</string>
+    <string name="glasses_screen_next_session">Ширината и разстоянието се прилагат, когато игра работи на очилата като виртуален екран.</string>
+    <string name="glasses_screen_no_output">Тези настройки се прилагат, докато опцията „Играта на очилата“ е включена и играта се показва там.</string>
+    <string name="glasses_screen_flat_hint">„Автоматично“ запазва тази 2D игра на цял екран. Използвайте виртуален екран, за да настроите ширината, разстоянието и проследяването на главата.</string>
+    <string name="glasses_screen_use">Използване на виртуален екран</string>
+    <string name="glasses_screen_direct_hint">SteamVR запълва изгледа. Настройте зрителното му поле по-долу; ширината и разстоянието се отнасят само за виртуален екран.</string>
+    <string name="glasses_screen_sbs_hint">Игрите 3D един до друг запълват всяко око. Ширината и разстоянието се отнасят само за виртуален екран.</string>
+    <string name="glasses_tracking_flat_hint">„Автоматично“ държи тази 2D игра неподвижна в изгледа. Изберете „Виртуален екран“ в „Екран“, за да използвате проследяване на главата.</string>
+    <string name="glasses_tracking_sbs_hint">Проследяването на главата се отнася за виртуален екран или за работеща игра в SteamVR.</string>
     <string name="glasses_hardware">Очила</string>
     <string name="glasses_brightness">Яркост</string>
     <string name="glasses_volume">Сила на звука</string>
@@ -2248,6 +2265,25 @@
     <string name="glasses_vr_fov">Зрително поле на SteamVR</string>
     <string name="glasses_vr_fov_hint">По-ниско приближава SteamVR и запълва очилата; по-високо показва повече около вас.</string>
     <string name="glasses_playing">Играете на %1$s</string>
+    <string name="glasses_calibration">Калибриране на проследяването</string>
+    <string name="glasses_calibration_hint">Намалява дрейфа и подравнява хоризонта.</string>
+    <string name="glasses_calibration_saved_hint">За тези очила се прилага запазено калибриране.</string>
+    <string name="glasses_calibration_open">Калибриране</string>
+    <string name="glasses_calibration_instructions">Поставете свързаните очила обърнати наопаки на равна повърхност, така че рамката да лежи равномерно. Докоснете „Стартиране“ и не ги докосвайте около 8 секунди. При движение измерването започва отначало. Това коригира дрейфа и наклона, но не и посоката.</string>
+    <string name="glasses_calibration_settling">Оставете очилата обърнати наопаки и не ги докосвайте. Изчаква се да се стабилизират…</string>
+    <string name="glasses_calibration_collecting">Измерване на сензорите. Дръжте очилата неподвижни.</string>
+    <string name="glasses_calibration_moving">Открито е движение. Не докосвайте очилата; измерването ще започне отначало автоматично.</string>
+    <string name="glasses_calibration_turn_over">Поставете очилата обърнати наопаки на равна повърхност. Измерването ще започне, когато са поставени правилно.</string>
+    <string name="glasses_calibration_complete">Калибрирането е запазено. Сложете очилата, погледнете право напред и докоснете „Готово“, за да центрирате изгледа.</string>
+    <string name="glasses_calibration_failed">Калибрирането не можа да завърши. Проверете връзката и дръжте очилата неподвижни, след което опитайте отново. Предишното ви калибриране не е променено.</string>
+    <string name="glasses_calibration_start">Стартиране</string>
+    <string name="glasses_calibration_done">Готово</string>
+    <string name="glasses_calibration_reset">Нулиране на калибрирането</string>
+    <string name="glasses_calibration_reset_hint">Да се премахне ли запазеното калибриране и да се възстановят стойностите по подразбиране за модела? Центрирайте изгледа, след като сложите очилата отново.</string>
+    <string name="glasses_calibration_reset_button">Нулиране</string>
+    <string name="glasses_xreal_network_missing">Изчаква се USB Ethernet връзката на очилата. Този телефон може да не я предоставя на приложенията.</string>
+    <string name="glasses_xreal_connection_failed">Връзката с XREAL беше прекъсната или върна неподдържан отговор. Нов опит…</string>
+    <string name="glasses_xreal_experimental">Експериментална поддръжка на 1S. Използвайте режим Follow и изключете стабилизацията в менюто на очилата. Посоките на проследяване и режимите на показване все още трябва да се тестват на устройство.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Режим Cardboard</string>
     <string name="cardboard_mode_hint">Изображения за лявото и дясното око за VR очила за телефон.</string>

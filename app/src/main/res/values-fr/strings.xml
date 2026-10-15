@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="steamvr_recovery_title">Le rendu graphique de SteamVR s\'est arrêté</string>
+    <string name="steamvr_recovery_countdown">DroidDeck va redémarrer dans %1$d secondes pour réinitialiser le rendu graphique et rouvrir SteamVR. Votre jeu en cours sera fermé ; la progression non sauvegardée ne pourra pas être récupérée.</string>
+    <string name="steamvr_recovery_repeated">Le problème graphique est réapparu après un redémarrage récent. La récupération automatique est suspendue pour éviter une boucle. Redémarrer fermera votre jeu ; la progression non sauvegardée ne pourra pas être récupérée.</string>
+    <string name="steamvr_recovery_restart">Redémarrer maintenant</string>
+    <string name="steamvr_recovery_cancel">Garder ouvert</string>
+    <string name="steamvr_recovery_restarting">Réinitialisation du rendu graphique et réouverture de SteamVR…</string>
+    <string name="steamvr_recovery_failed">DroidDeck n\'a pas pu redémarrer automatiquement. Fermez complètement l\'application, puis rouvrez-la.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>Le premier lancement télécharge Steam. Cela peut prendre quelques minutes.</item>
@@ -2241,6 +2248,8 @@
     <string name="drawer_page_glasses">Lunettes</string>
     <string name="glasses_open">Lunettes VITURE</string>
     <string name="glasses_control">Contrôle des lunettes</string>
+    <string name="glasses_driver_missing">Cette version n\'inclut pas le pilote de ces lunettes.</string>
+    <string name="glasses_connection_failed">Impossible de se connecter aux lunettes. Rebranchez le câble ou appuyez sur Autoriser pour réessayer.</string>
     <string name="glasses_allow">Autoriser</string>
     <string name="glasses_allow_hint">Permet à DroidDeck de régler la fréquence d\'affichage, le mode 3D, la luminosité, le volume et le pare-soleil des lunettes, et de lire leur suivi de la tête.</string>
     <string name="glasses_asking">En attente de votre autorisation dans la fenêtre d\'Android…</string>
@@ -2268,6 +2277,14 @@
     <string name="glasses_picture_sbs">Jeu côte à côte</string>
     <string name="glasses_screen_size">Largeur de l\'écran</string>
     <string name="glasses_screen_distance">Distance de l\'écran</string>
+    <string name="glasses_screen_next_session">La largeur et la distance s\'appliquent lorsqu\'un jeu s\'affiche sur les lunettes comme écran virtuel.</string>
+    <string name="glasses_screen_no_output">Ces réglages s\'appliquent lorsque Jeu sur les lunettes est activé et que le jeu y est affiché.</string>
+    <string name="glasses_screen_flat_hint">Automatique garde ce jeu 2D en plein écran. Utilisez un écran virtuel pour régler sa largeur, sa distance et le suivi de la tête.</string>
+    <string name="glasses_screen_use">Utiliser l\'écran virtuel</string>
+    <string name="glasses_screen_direct_hint">SteamVR remplit la vue. Réglez son champ de vision ci-dessous ; la largeur et la distance ne s\'appliquent qu\'à un écran virtuel.</string>
+    <string name="glasses_screen_sbs_hint">Les jeux côte à côte remplissent chaque œil. La largeur et la distance ne s\'appliquent qu\'à un écran virtuel.</string>
+    <string name="glasses_tracking_flat_hint">Automatique garde ce jeu 2D fixe dans la vue. Choisissez Écran virtuel dans Affichage pour utiliser le suivi de la tête.</string>
+    <string name="glasses_tracking_sbs_hint">Le suivi de la tête s\'applique à un écran virtuel ou à un jeu SteamVR en cours.</string>
     <string name="glasses_hardware">Lunettes</string>
     <string name="glasses_brightness">Luminosité</string>
     <string name="glasses_volume">Volume</string>
@@ -2281,6 +2298,25 @@
     <string name="glasses_vr_fov">Champ de vision SteamVR</string>
     <string name="glasses_vr_fov_hint">Plus bas rapproche SteamVR et remplit les lunettes ; plus haut montre davantage autour de vous.</string>
     <string name="glasses_playing">En jeu sur %1$s</string>
+    <string name="glasses_calibration">Calibrage du suivi</string>
+    <string name="glasses_calibration_hint">Réduit la dérive et aligne la référence horizontale.</string>
+    <string name="glasses_calibration_saved_hint">Le calibrage enregistré est appliqué à ces lunettes.</string>
+    <string name="glasses_calibration_open">Calibrer</string>
+    <string name="glasses_calibration_instructions">Posez les lunettes connectées à l\'envers sur une surface plane, la monture bien à plat. Appuyez sur Démarrer, puis n\'y touchez plus pendant environ 8 secondes. Tout mouvement relance la mesure. Cela corrige la dérive et l\'inclinaison, pas le cap.</string>
+    <string name="glasses_calibration_settling">Laissez les lunettes à l\'envers sans y toucher. En attente de leur stabilisation…</string>
+    <string name="glasses_calibration_collecting">Mesure des capteurs. Gardez les lunettes immobiles.</string>
+    <string name="glasses_calibration_moving">Mouvement détecté. Ne touchez pas les lunettes ; la mesure redémarrera automatiquement.</string>
+    <string name="glasses_calibration_turn_over">Posez les lunettes à l\'envers sur une surface plane. La mesure démarrera dès qu\'elles seront bien placées.</string>
+    <string name="glasses_calibration_complete">Calibrage enregistré. Mettez les lunettes, regardez droit devant, puis appuyez sur Terminé pour recentrer.</string>
+    <string name="glasses_calibration_failed">Le calibrage n\'a pas pu aboutir. Vérifiez la connexion et gardez les lunettes immobiles, puis réessayez. Votre calibrage précédent est inchangé.</string>
+    <string name="glasses_calibration_start">Démarrer</string>
+    <string name="glasses_calibration_done">Terminé</string>
+    <string name="glasses_calibration_reset">Réinitialiser le calibrage du suivi</string>
+    <string name="glasses_calibration_reset_hint">Supprimer le calibrage enregistré et rétablir les valeurs par défaut du modèle ? Recentrez après avoir remis les lunettes.</string>
+    <string name="glasses_calibration_reset_button">Réinitialiser</string>
+    <string name="glasses_xreal_network_missing">En attente de la connexion Ethernet USB des lunettes. Ce téléphone ne la rend peut-être pas accessible aux applications.</string>
+    <string name="glasses_xreal_connection_failed">La connexion XREAL a été interrompue ou a renvoyé une réponse non prise en charge. Nouvelle tentative…</string>
+    <string name="glasses_xreal_experimental">Prise en charge expérimentale des 1S. Utilisez le mode Follow et désactivez la stabilisation dans le menu des lunettes. Le sens du suivi et les modes d\'affichage restent à tester sur l\'appareil.</string>
     <string name="stores_fact_developer">Développeur</string>
     <string name="stores_fact_publisher">Éditeur</string>
     <string name="stores_fact_released">Sortie</string>

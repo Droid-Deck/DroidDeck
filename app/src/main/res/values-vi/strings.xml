@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="steamvr_recovery_title">Đồ họa SteamVR đã dừng</string>
+    <string name="steamvr_recovery_countdown">DroidDeck sẽ khởi động lại sau %1$d giây để đặt lại đồ họa và mở lại SteamVR. Game đang chạy sẽ bị đóng; tiến trình chưa lưu sẽ không thể khôi phục.</string>
+    <string name="steamvr_recovery_repeated">Lỗi đồ họa lại xuất hiện sau lần khởi động lại gần đây. Tự động khôi phục đã tạm dừng để tránh lặp vô hạn. Khởi động lại sẽ đóng game của bạn; tiến trình chưa lưu sẽ không thể khôi phục.</string>
+    <string name="steamvr_recovery_restart">Khởi động lại ngay</string>
+    <string name="steamvr_recovery_cancel">Giữ mở</string>
+    <string name="steamvr_recovery_restarting">Đang đặt lại đồ họa và mở lại SteamVR…</string>
+    <string name="steamvr_recovery_failed">DroidDeck không thể tự khởi động lại. Hãy đóng hẳn ứng dụng rồi mở lại.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>Lần chạy đầu tải Steam. Quá trình này có thể mất vài phút.</item>
@@ -2183,6 +2190,8 @@
     <string name="drawer_page_glasses">Kính</string>
     <string name="glasses_open">Kính VITURE</string>
     <string name="glasses_control">Điều khiển kính</string>
+    <string name="glasses_driver_missing">Bản build này không có driver cho kính này.</string>
+    <string name="glasses_connection_failed">Không thể kết nối với kính. Hãy cắm lại cáp hoặc nhấn “Cho phép” để thử lại.</string>
     <string name="glasses_allow">Cho phép</string>
     <string name="glasses_allow_hint">Để DroidDeck đặt tốc độ làm mới, chế độ 3D, độ sáng, âm lượng và chống nắng của kính, đồng thời đọc dữ liệu theo dõi đầu của kính.</string>
     <string name="glasses_asking">Đang chờ bạn cho phép trong hộp thoại của Android…</string>
@@ -2210,6 +2219,14 @@
     <string name="glasses_picture_sbs">Game 3D cạnh nhau</string>
     <string name="glasses_screen_size">Chiều rộng màn hình</string>
     <string name="glasses_screen_distance">Khoảng cách màn hình</string>
+    <string name="glasses_screen_next_session">Chiều rộng và khoảng cách được áp dụng khi game chạy trên kính dưới dạng màn hình ảo.</string>
+    <string name="glasses_screen_no_output">Các thiết lập này áp dụng khi “Game trên kính” đang bật và game đang hiển thị trên kính.</string>
+    <string name="glasses_screen_flat_hint">Tự động giữ game 2D này ở chế độ toàn màn hình. Dùng màn hình ảo để chỉnh chiều rộng, khoảng cách và theo dõi đầu.</string>
+    <string name="glasses_screen_use">Dùng màn hình ảo</string>
+    <string name="glasses_screen_direct_hint">SteamVR lấp đầy tầm nhìn. Chỉnh trường nhìn ở bên dưới; chiều rộng và khoảng cách chỉ áp dụng cho màn hình ảo.</string>
+    <string name="glasses_screen_sbs_hint">Game 3D cạnh nhau lấp đầy từng mắt. Chiều rộng và khoảng cách chỉ áp dụng cho màn hình ảo.</string>
+    <string name="glasses_tracking_flat_hint">Tự động giữ game 2D này cố định trong tầm nhìn. Chọn “Màn hình ảo” trong “Hiển thị” để dùng theo dõi đầu.</string>
+    <string name="glasses_tracking_sbs_hint">Theo dõi đầu áp dụng cho màn hình ảo hoặc game SteamVR đang chạy.</string>
     <string name="glasses_hardware">Kính</string>
     <string name="glasses_brightness">Độ sáng</string>
     <string name="glasses_volume">Âm lượng</string>
@@ -2223,6 +2240,25 @@
     <string name="glasses_vr_fov">Trường nhìn của SteamVR</string>
     <string name="glasses_vr_fov_hint">Thấp hơn sẽ đưa SteamVR lại gần và lấp đầy kính; cao hơn cho thấy nhiều hơn xung quanh bạn.</string>
     <string name="glasses_playing">Đang chơi trên %1$s</string>
+    <string name="glasses_calibration">Hiệu chỉnh theo dõi</string>
+    <string name="glasses_calibration_hint">Giảm hiện tượng trôi và căn lại mốc thăng bằng.</string>
+    <string name="glasses_calibration_saved_hint">Hiệu chỉnh đã lưu đang được áp dụng cho kính này.</string>
+    <string name="glasses_calibration_open">Hiệu chỉnh</string>
+    <string name="glasses_calibration_instructions">Đặt kính đang kết nối lật úp trên mặt phẳng nằm ngang, sao cho gọng kính tựa đều. Nhấn “Bắt đầu”, rồi để yên kính khoảng 8 giây. Chuyển động sẽ khiến phép đo bắt đầu lại. Thao tác này chỉnh độ trôi và độ nghiêng, không chỉnh hướng nhìn.</string>
+    <string name="glasses_calibration_settling">Để kính lật úp và không chạm vào. Đang chờ kính ổn định…</string>
+    <string name="glasses_calibration_collecting">Đang đo cảm biến. Hãy giữ yên kính.</string>
+    <string name="glasses_calibration_moving">Phát hiện chuyển động. Đừng chạm vào kính; phép đo sẽ tự động bắt đầu lại.</string>
+    <string name="glasses_calibration_turn_over">Đặt kính lật úp trên mặt phẳng nằm ngang. Phép đo sẽ bắt đầu khi kính được đặt đúng vị trí.</string>
+    <string name="glasses_calibration_complete">Đã lưu hiệu chỉnh. Đeo kính vào và nhìn thẳng về phía trước, rồi nhấn “Xong” để căn giữa lại.</string>
+    <string name="glasses_calibration_failed">Không thể hoàn tất hiệu chỉnh. Hãy kiểm tra kết nối và giữ yên kính, rồi thử lại. Hiệu chỉnh trước đó vẫn được giữ nguyên.</string>
+    <string name="glasses_calibration_start">Bắt đầu</string>
+    <string name="glasses_calibration_done">Xong</string>
+    <string name="glasses_calibration_reset">Đặt lại hiệu chỉnh theo dõi</string>
+    <string name="glasses_calibration_reset_hint">Xóa hiệu chỉnh đã lưu và khôi phục mặc định của mẫu kính? Hãy căn giữa lại sau khi đeo kính vào.</string>
+    <string name="glasses_calibration_reset_button">Đặt lại</string>
+    <string name="glasses_xreal_network_missing">Đang chờ kết nối USB Ethernet của kính. Điện thoại này có thể không cho ứng dụng truy cập kết nối đó.</string>
+    <string name="glasses_xreal_connection_failed">Kết nối XREAL bị gián đoạn hoặc trả về phản hồi không được hỗ trợ. Đang thử lại…</string>
+    <string name="glasses_xreal_experimental">Hỗ trợ 1S thử nghiệm. Dùng chế độ Follow và tắt ổn định hình ảnh trong menu của kính. Hướng theo dõi và các chế độ hiển thị vẫn cần thử nghiệm trên thiết bị.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Chế độ Cardboard</string>
     <string name="cardboard_mode_hint">Hình cho mắt trái và mắt phải dành cho kính VR điện thoại.</string>

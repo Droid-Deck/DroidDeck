@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="steamvr_recovery_title">SteamVR 圖形已停止運作</string>
+    <string name="steamvr_recovery_countdown">DroidDeck 將在 %1$d 秒後重新啟動，以重設圖形並重新開啟 SteamVR。執行中的遊戲會被關閉，未儲存的進度將無法復原。</string>
+    <string name="steamvr_recovery_repeated">最近一次重新啟動後，圖形故障再次發生。為避免無限循環，已暫停自動復原。重新啟動會關閉你的遊戲，未儲存的進度將無法復原。</string>
+    <string name="steamvr_recovery_restart">立即重新啟動</string>
+    <string name="steamvr_recovery_cancel">保持開啟</string>
+    <string name="steamvr_recovery_restarting">正在重設圖形並重新開啟 SteamVR…</string>
+    <string name="steamvr_recovery_failed">DroidDeck 無法自動重新啟動。請完全關閉應用程式，然後重新開啟。</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>首次執行會下載 Steam。這可能需要幾分鐘。</item>
@@ -2191,6 +2198,8 @@
     <string name="drawer_page_glasses">眼鏡</string>
     <string name="glasses_open">VITURE 眼鏡</string>
     <string name="glasses_control">眼鏡控制</string>
+    <string name="glasses_driver_missing">這個版本未包含這副眼鏡的驅動程式。</string>
+    <string name="glasses_connection_failed">無法連線到眼鏡。請重新插上傳輸線，或點擊「允許」重試。</string>
     <string name="glasses_allow">允許</string>
     <string name="glasses_allow_hint">允許 DroidDeck 設定眼鏡的更新率、3D 模式、亮度、音量和遮光，並讀取其頭部追蹤。</string>
     <string name="glasses_asking">正在等待你在 Android 提示中允許…</string>
@@ -2218,6 +2227,14 @@
     <string name="glasses_picture_sbs">左右並排遊戲</string>
     <string name="glasses_screen_size">螢幕寬度</string>
     <string name="glasses_screen_distance">螢幕距離</string>
+    <string name="glasses_screen_next_session">當遊戲以虛擬螢幕形式在眼鏡上執行時，寬度和距離才會生效。</string>
+    <string name="glasses_screen_no_output">這些設定會在開啟「在眼鏡上顯示遊戲」且遊戲顯示於眼鏡上時生效。</string>
+    <string name="glasses_screen_flat_hint">「自動」會讓這款 2D 遊戲全螢幕顯示。使用虛擬螢幕即可調整其寬度、距離和頭部追蹤。</string>
+    <string name="glasses_screen_use">使用虛擬螢幕</string>
+    <string name="glasses_screen_direct_hint">SteamVR 會填滿視野。可在下方調整其視野角度；寬度和距離只適用於虛擬螢幕。</string>
+    <string name="glasses_screen_sbs_hint">左右並排遊戲會填滿每隻眼睛的視野。寬度和距離只適用於虛擬螢幕。</string>
+    <string name="glasses_tracking_flat_hint">「自動」會讓這款 2D 遊戲固定在視野中。如要使用頭部追蹤，請在「顯示」中選擇「虛擬螢幕」。</string>
+    <string name="glasses_tracking_sbs_hint">頭部追蹤適用於虛擬螢幕或執行中的 SteamVR 遊戲。</string>
     <string name="glasses_hardware">眼鏡</string>
     <string name="glasses_brightness">亮度</string>
     <string name="glasses_volume">音量</string>
@@ -2231,6 +2248,25 @@
     <string name="glasses_vr_fov">SteamVR 視野角度</string>
     <string name="glasses_vr_fov_hint">調低讓 SteamVR 更近並填滿眼鏡；調高可看到更多周圍內容。</string>
     <string name="glasses_playing">正在 %1$s 上遊玩</string>
+    <string name="glasses_calibration">追蹤校正</string>
+    <string name="glasses_calibration_hint">減少漂移並對齊水平基準。</string>
+    <string name="glasses_calibration_saved_hint">這副眼鏡已套用儲存的校正資料。</string>
+    <string name="glasses_calibration_open">校正</string>
+    <string name="glasses_calibration_instructions">將已連接的眼鏡上下顛倒放在水平面上，讓鏡框平穩貼合。點擊「開始」，然後約 8 秒內不要碰觸。只要移動，測量就會重新開始。這項操作會校正漂移和傾斜，但不校正朝向。</string>
+    <string name="glasses_calibration_settling">請保持眼鏡上下顛倒且不要碰觸。正在等待眼鏡靜止…</string>
+    <string name="glasses_calibration_collecting">正在測量感測器。請保持眼鏡靜止。</string>
+    <string name="glasses_calibration_moving">偵測到移動。請勿碰觸眼鏡；測量會自動重新開始。</string>
+    <string name="glasses_calibration_turn_over">請將眼鏡上下顛倒放在水平面上。放置正確後就會開始測量。</string>
+    <string name="glasses_calibration_complete">校正已儲存。戴上眼鏡並直視前方，然後點擊「完成」以重新置中。</string>
+    <string name="glasses_calibration_failed">無法完成校正。請檢查連線並保持眼鏡靜止，然後再試一次。先前的校正不受影響。</string>
+    <string name="glasses_calibration_start">開始</string>
+    <string name="glasses_calibration_done">完成</string>
+    <string name="glasses_calibration_reset">重設追蹤校正</string>
+    <string name="glasses_calibration_reset_hint">要移除已儲存的校正並還原此型號的預設值嗎？重新戴上眼鏡後請重新置中。</string>
+    <string name="glasses_calibration_reset_button">重設</string>
+    <string name="glasses_xreal_network_missing">正在等待眼鏡的 USB Ethernet 連線。這支手機可能不會向應用程式開放此連線。</string>
+    <string name="glasses_xreal_connection_failed">XREAL 連線中斷或傳回不支援的回應。正在重試…</string>
+    <string name="glasses_xreal_experimental">實驗性 1S 支援。請在眼鏡選單中使用跟隨模式並關閉畫面穩定。追蹤方向和顯示模式仍需在實機上測試。</string>
     <string name="stores_fact_developer">開發商</string>
     <string name="stores_fact_publisher">發行商</string>
     <string name="stores_fact_released">發行日期</string>

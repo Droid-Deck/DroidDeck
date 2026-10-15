@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="steamvr_recovery_title">Grafika SteamVR přestala fungovat</string>
+    <string name="steamvr_recovery_countdown">DroidDeck se za %1$d s restartuje, aby resetoval grafiku a znovu otevřel SteamVR. Spuštěná hra se zavře; neuložený postup nelze obnovit.</string>
+    <string name="steamvr_recovery_repeated">Chyba grafiky se po nedávném restartu vrátila. Automatická obnova je pozastavena, aby nevznikla smyčka. Restart zavře vaši hru; neuložený postup nelze obnovit.</string>
+    <string name="steamvr_recovery_restart">Restartovat nyní</string>
+    <string name="steamvr_recovery_cancel">Nechat otevřené</string>
+    <string name="steamvr_recovery_restarting">Resetování grafiky a opětovné otevírání SteamVR…</string>
+    <string name="steamvr_recovery_failed">DroidDeck se nepodařilo automaticky restartovat. Aplikaci úplně zavřete a pak ji znovu otevřete.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>První spuštění stáhne Steam. Může to trvat několik minut.</item>
@@ -2258,6 +2265,8 @@
     <string name="drawer_page_glasses">Brýle</string>
     <string name="glasses_open">Brýle VITURE</string>
     <string name="glasses_control">Ovládání brýlí</string>
+    <string name="glasses_driver_missing">Toto sestavení neobsahuje ovladač pro tyto brýle.</string>
+    <string name="glasses_connection_failed">K brýlím se nepodařilo připojit. Připojte znovu kabel, nebo to zkuste znovu klepnutím na Povolit.</string>
     <string name="glasses_allow">Povolit</string>
     <string name="glasses_allow_hint">Umožní aplikaci DroidDeck nastavovat obnovovací frekvenci, režim 3D, jas, hlasitost a zatmavení brýlí a číst data ze sledování hlavy.</string>
     <string name="glasses_asking">Čeká se na vaše povolení v dialogu Androidu…</string>
@@ -2285,6 +2294,14 @@
     <string name="glasses_picture_sbs">Hra 3D vedle sebe</string>
     <string name="glasses_screen_size">Šířka obrazovky</string>
     <string name="glasses_screen_distance">Vzdálenost obrazovky</string>
+    <string name="glasses_screen_next_session">Šířka a vzdálenost se použijí, když hra běží v brýlích jako virtuální obrazovka.</string>
+    <string name="glasses_screen_no_output">Tato nastavení platí, když je zapnutá možnost „Hra v brýlích“ a hra se v nich zobrazuje.</string>
+    <string name="glasses_screen_flat_hint">Režim Automaticky drží tuto 2D hru na celou obrazovku. Chcete-li upravit její šířku, vzdálenost a sledování hlavy, použijte virtuální obrazovku.</string>
+    <string name="glasses_screen_use">Použít virtuální obrazovku</string>
+    <string name="glasses_screen_direct_hint">SteamVR vyplní celý pohled. Jeho zorné pole upravte níže; šířka a vzdálenost platí jen pro virtuální obrazovku.</string>
+    <string name="glasses_screen_sbs_hint">Hry 3D vedle sebe vyplní zorné pole každého oka. Šířka a vzdálenost platí jen pro virtuální obrazovku.</string>
+    <string name="glasses_tracking_flat_hint">Režim Automaticky drží tuto 2D hru pevně v zorném poli. Chcete-li použít sledování hlavy, zvolte v části Displej možnost „Virtuální obrazovka“.</string>
+    <string name="glasses_tracking_sbs_hint">Sledování hlavy platí pro virtuální obrazovku nebo spuštěnou hru SteamVR.</string>
     <string name="glasses_hardware">Brýle</string>
     <string name="glasses_brightness">Jas</string>
     <string name="glasses_volume">Hlasitost</string>
@@ -2298,6 +2315,25 @@
     <string name="glasses_vr_fov">Zorné pole SteamVR</string>
     <string name="glasses_vr_fov_hint">Nižší hodnota přiblíží SteamVR a vyplní brýle; vyšší ukáže víc z okolí.</string>
     <string name="glasses_playing">Hraje se na %1$s</string>
+    <string name="glasses_calibration">Kalibrace sledování</string>
+    <string name="glasses_calibration_hint">Sníží drift a vyrovná vodorovnou referenci.</string>
+    <string name="glasses_calibration_saved_hint">Pro tyto brýle se používá uložená kalibrace.</string>
+    <string name="glasses_calibration_open">Kalibrovat</string>
+    <string name="glasses_calibration_instructions">Položte připojené brýle vzhůru nohama na vodorovnou plochu tak, aby rám ležel rovnoměrně. Klepněte na Spustit a nechte je asi 8 sekund bez dotyku. Pohyb měření restartuje. Tím se upraví drift a náklon, ne směr natočení.</string>
+    <string name="glasses_calibration_settling">Nechte brýle vzhůru nohama bez dotyku. Čeká se, až se ustálí…</string>
+    <string name="glasses_calibration_collecting">Probíhá měření senzorů. Nechte brýle v klidu.</string>
+    <string name="glasses_calibration_moving">Zjištěn pohyb. Nechte brýle bez dotyku; měření se automaticky spustí znovu.</string>
+    <string name="glasses_calibration_turn_over">Položte brýle vzhůru nohama na vodorovnou plochu. Měření začne, jakmile budou správně umístěny.</string>
+    <string name="glasses_calibration_complete">Kalibrace uložena. Nasaďte si brýle, dívejte se přímo vpřed a klepnutím na Hotovo pohled vycentrujte.</string>
+    <string name="glasses_calibration_failed">Kalibraci se nepodařilo dokončit. Zkontrolujte připojení, nechte brýle v klidu a zkuste to znovu. Předchozí kalibrace zůstává beze změny.</string>
+    <string name="glasses_calibration_start">Spustit</string>
+    <string name="glasses_calibration_done">Hotovo</string>
+    <string name="glasses_calibration_reset">Resetovat kalibraci sledování</string>
+    <string name="glasses_calibration_reset_hint">Odebrat uloženou kalibraci a obnovit výchozí hodnoty modelu? Po opětovném nasazení brýlí pohled vycentrujte.</string>
+    <string name="glasses_calibration_reset_button">Resetovat</string>
+    <string name="glasses_xreal_network_missing">Čeká se na připojení USB Ethernet brýlí. Tento telefon ho možná aplikacím nezpřístupňuje.</string>
+    <string name="glasses_xreal_connection_failed">Připojení XREAL bylo přerušeno nebo vrátilo nepodporovanou odpověď. Zkouší se to znovu…</string>
+    <string name="glasses_xreal_experimental">Experimentální podpora 1S. V nabídce brýlí použijte režim Follow a vypněte stabilizaci. Směry sledování a režimy zobrazení je ještě třeba otestovat na zařízení.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Režim Cardboard</string>
     <string name="cardboard_mode_hint">Obraz pro levé a pravé oko pro VR brýle pro telefon.</string>

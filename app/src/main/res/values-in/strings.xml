@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="steamvr_recovery_title">Grafis SteamVR berhenti</string>
+    <string name="steamvr_recovery_countdown">DroidDeck akan dimulai ulang dalam %1$d detik untuk mereset grafis dan membuka kembali SteamVR. Game Anda yang sedang berjalan akan ditutup; progres yang belum disimpan tidak dapat dipulihkan.</string>
+    <string name="steamvr_recovery_repeated">Gangguan grafis muncul lagi setelah mulai ulang baru-baru ini. Pemulihan otomatis dijeda agar tidak terjadi pengulangan terus-menerus. Memulai ulang akan menutup game Anda; progres yang belum disimpan tidak dapat dipulihkan.</string>
+    <string name="steamvr_recovery_restart">Mulai ulang sekarang</string>
+    <string name="steamvr_recovery_cancel">Biarkan terbuka</string>
+    <string name="steamvr_recovery_restarting">Mereset grafis dan membuka kembali SteamVR…</string>
+    <string name="steamvr_recovery_failed">DroidDeck tidak bisa dimulai ulang secara otomatis. Tutup aplikasi sepenuhnya, lalu buka lagi.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>Proses pertama mengunduh Steam. Ini mungkin memerlukan beberapa menit.</item>
@@ -2183,6 +2190,8 @@
     <string name="drawer_page_glasses">Kacamata</string>
     <string name="glasses_open">Kacamata VITURE</string>
     <string name="glasses_control">Kontrol kacamata</string>
+    <string name="glasses_driver_missing">Versi ini tidak menyertakan driver untuk kacamata ini.</string>
+    <string name="glasses_connection_failed">Tidak bisa terhubung ke kacamata. Sambungkan ulang kabel atau ketuk Izinkan untuk mencoba lagi.</string>
     <string name="glasses_allow">Izinkan</string>
     <string name="glasses_allow_hint">Izinkan DroidDeck mengatur refresh rate, mode 3D, kecerahan, volume, dan peredup lensa kacamata, serta membaca pelacakan kepalanya.</string>
     <string name="glasses_asking">Menunggu Anda mengizinkannya di dialog Android…</string>
@@ -2210,6 +2219,14 @@
     <string name="glasses_picture_sbs">Game 3D berdampingan</string>
     <string name="glasses_screen_size">Lebar layar</string>
     <string name="glasses_screen_distance">Jarak layar</string>
+    <string name="glasses_screen_next_session">Lebar dan jarak berlaku saat game berjalan di kacamata sebagai layar virtual.</string>
+    <string name="glasses_screen_no_output">Setelan ini berlaku saat Game di kacamata aktif dan game ditampilkan di sana.</string>
+    <string name="glasses_screen_flat_hint">Otomatis menjaga game 2D ini tetap layar penuh. Gunakan layar virtual untuk mengatur lebar, jarak, dan pelacakan kepalanya.</string>
+    <string name="glasses_screen_use">Gunakan layar virtual</string>
+    <string name="glasses_screen_direct_hint">SteamVR memenuhi pandangan. Atur bidang pandangnya di bawah; lebar dan jarak hanya berlaku untuk layar virtual.</string>
+    <string name="glasses_screen_sbs_hint">Game berdampingan memenuhi pandangan setiap mata. Lebar dan jarak hanya berlaku untuk layar virtual.</string>
+    <string name="glasses_tracking_flat_hint">Otomatis menjaga game 2D ini tetap diam dalam pandangan. Pilih Layar virtual di Tampilan untuk menggunakan pelacakan kepala.</string>
+    <string name="glasses_tracking_sbs_hint">Pelacakan kepala berlaku untuk layar virtual atau game SteamVR yang sedang berjalan.</string>
     <string name="glasses_hardware">Kacamata</string>
     <string name="glasses_brightness">Kecerahan</string>
     <string name="glasses_volume">Volume</string>
@@ -2223,6 +2240,25 @@
     <string name="glasses_vr_fov">Bidang pandang SteamVR</string>
     <string name="glasses_vr_fov_hint">Lebih rendah membawa SteamVR lebih dekat dan memenuhi kacamata; lebih tinggi menampilkan lebih banyak di sekitar Anda.</string>
     <string name="glasses_playing">Bermain di %1$s</string>
+    <string name="glasses_calibration">Kalibrasi pelacakan</string>
+    <string name="glasses_calibration_hint">Mengurangi drift dan menyelaraskan acuan horizontal.</string>
+    <string name="glasses_calibration_saved_hint">Kalibrasi tersimpan diterapkan ke kacamata ini.</string>
+    <string name="glasses_calibration_open">Kalibrasi</string>
+    <string name="glasses_calibration_instructions">Letakkan kacamata yang terhubung secara terbalik di permukaan datar, dengan bingkai bertumpu rata. Ketuk Mulai, lalu jangan sentuh kacamata selama sekitar 8 detik. Gerakan akan mengulang pengukuran. Ini mengoreksi drift dan kemiringan, bukan arah hadap.</string>
+    <string name="glasses_calibration_settling">Biarkan kacamata terbalik dan jangan disentuh. Menunggu kacamata stabil…</string>
+    <string name="glasses_calibration_collecting">Mengukur sensor. Jaga kacamata tetap diam.</string>
+    <string name="glasses_calibration_moving">Gerakan terdeteksi. Jangan sentuh kacamata; pengukuran akan diulang otomatis.</string>
+    <string name="glasses_calibration_turn_over">Letakkan kacamata terbalik di permukaan datar. Pengukuran dimulai saat posisinya sudah benar.</string>
+    <string name="glasses_calibration_complete">Kalibrasi tersimpan. Pakai kacamata dan lihat lurus ke depan, lalu ketuk Selesai untuk memosisikan ulang tampilan.</string>
+    <string name="glasses_calibration_failed">Kalibrasi tidak dapat diselesaikan. Periksa koneksi dan jaga kacamata tetap diam, lalu coba lagi. Kalibrasi Anda sebelumnya tidak berubah.</string>
+    <string name="glasses_calibration_start">Mulai</string>
+    <string name="glasses_calibration_done">Selesai</string>
+    <string name="glasses_calibration_reset">Reset kalibrasi pelacakan</string>
+    <string name="glasses_calibration_reset_hint">Hapus kalibrasi tersimpan dan pulihkan default model? Posisikan ulang tampilan setelah memakai kacamata kembali.</string>
+    <string name="glasses_calibration_reset_button">Reset</string>
+    <string name="glasses_xreal_network_missing">Menunggu koneksi Ethernet USB dari kacamata. Ponsel ini mungkin tidak menyediakannya untuk aplikasi.</string>
+    <string name="glasses_xreal_connection_failed">Koneksi XREAL terputus atau memberikan respons yang tidak didukung. Mencoba lagi…</string>
+    <string name="glasses_xreal_experimental">Dukungan 1S eksperimental. Gunakan mode Follow dan nonaktifkan stabilisasi di menu kacamata. Arah pelacakan dan mode tampilan masih perlu diuji di perangkat.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Mode Cardboard</string>
     <string name="cardboard_mode_hint">Tampilan mata kiri dan kanan untuk kacamata VR ponsel.</string>

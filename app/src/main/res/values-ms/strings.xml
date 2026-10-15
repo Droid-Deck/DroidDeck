@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="steamvr_recovery_title">Grafik SteamVR terhenti</string>
+    <string name="steamvr_recovery_countdown">DroidDeck akan dimulakan semula dalam %1$d saat untuk menetapkan semula grafik dan membuka SteamVR sekali lagi. Permainan yang sedang berjalan akan ditutup; kemajuan yang belum disimpan tidak dapat dipulihkan.</string>
+    <string name="steamvr_recovery_repeated">Ralat grafik berlaku lagi selepas dimulakan semula baru-baru ini. Pemulihan automatik dijeda untuk mengelakkan gelung. Memulakan semula akan menutup permainan anda; kemajuan yang belum disimpan tidak dapat dipulihkan.</string>
+    <string name="steamvr_recovery_restart">Mulakan semula sekarang</string>
+    <string name="steamvr_recovery_cancel">Biarkan terbuka</string>
+    <string name="steamvr_recovery_restarting">Menetapkan semula grafik dan membuka SteamVR sekali lagi…</string>
+    <string name="steamvr_recovery_failed">DroidDeck tidak dapat dimulakan semula secara automatik. Tutup apl sepenuhnya, kemudian buka semula.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>Larian pertama memuat turun Steam. Ini mungkin mengambil beberapa minit.</item>
@@ -2183,6 +2190,8 @@
     <string name="drawer_page_glasses">Cermin mata</string>
     <string name="glasses_open">Cermin mata VITURE</string>
     <string name="glasses_control">Kawalan cermin mata</string>
+    <string name="glasses_driver_missing">Binaan ini tidak menyertakan pemacu untuk cermin mata ini.</string>
+    <string name="glasses_connection_failed">Tidak dapat menyambung ke cermin mata. Sambungkan semula kabel atau ketik Benarkan untuk mencuba lagi.</string>
     <string name="glasses_allow">Benarkan</string>
     <string name="glasses_allow_hint">Benarkan DroidDeck menetapkan kadar penyegaran, mod 3D, kecerahan, kelantangan dan peredup kanta cermin mata, serta membaca penjejakan kepalanya.</string>
     <string name="glasses_asking">Menunggu anda membenarkannya dalam dialog Android…</string>
@@ -2210,6 +2219,14 @@
     <string name="glasses_picture_sbs">Permainan 3D sebelah-menyebelah</string>
     <string name="glasses_screen_size">Lebar skrin</string>
     <string name="glasses_screen_distance">Jarak skrin</string>
+    <string name="glasses_screen_next_session">Lebar dan jarak digunakan apabila permainan berjalan pada cermin mata sebagai skrin maya.</string>
+    <string name="glasses_screen_no_output">Tetapan ini digunakan semasa Permainan pada cermin mata didayakan dan permainan dipaparkan di sana.</string>
+    <string name="glasses_screen_flat_hint">Automatik mengekalkan permainan 2D ini dalam skrin penuh. Gunakan skrin maya untuk melaraskan lebar, jarak dan penjejakan kepalanya.</string>
+    <string name="glasses_screen_use">Gunakan skrin maya</string>
+    <string name="glasses_screen_direct_hint">SteamVR memenuhi pandangan. Laraskan medan pandangannya di bawah; lebar dan jarak hanya digunakan untuk skrin maya.</string>
+    <string name="glasses_screen_sbs_hint">Permainan sebelah-menyebelah memenuhi setiap mata. Lebar dan jarak hanya digunakan untuk skrin maya.</string>
+    <string name="glasses_tracking_flat_hint">Automatik mengekalkan permainan 2D ini tetap dalam pandangan. Pilih Skrin maya dalam Paparan untuk menggunakan penjejakan kepala.</string>
+    <string name="glasses_tracking_sbs_hint">Penjejakan kepala digunakan untuk skrin maya atau permainan SteamVR yang sedang berjalan.</string>
     <string name="glasses_hardware">Cermin mata</string>
     <string name="glasses_brightness">Kecerahan</string>
     <string name="glasses_volume">Kelantangan</string>
@@ -2223,6 +2240,25 @@
     <string name="glasses_vr_fov">Medan pandangan SteamVR</string>
     <string name="glasses_vr_fov_hint">Lebih rendah mendekatkan SteamVR dan memenuhi cermin mata; lebih tinggi menunjukkan lebih banyak di sekeliling anda.</string>
     <string name="glasses_playing">Bermain pada %1$s</string>
+    <string name="glasses_calibration">Penentukuran penjejakan</string>
+    <string name="glasses_calibration_hint">Mengurangkan hanyutan dan menjajarkan rujukan mendatar.</string>
+    <string name="glasses_calibration_saved_hint">Penentukuran yang disimpan digunakan pada cermin mata ini.</string>
+    <string name="glasses_calibration_open">Tentukur</string>
+    <string name="glasses_calibration_instructions">Letakkan cermin mata yang disambungkan secara terbalik di atas permukaan rata, dengan bingkainya terletak sekata. Ketik Mula, kemudian jangan sentuh selama kira-kira 8 saat. Pergerakan akan memulakan semula pengukuran. Ini melaraskan hanyutan dan kecondongan, bukan arah haluan.</string>
+    <string name="glasses_calibration_settling">Biarkan cermin mata terbalik dan jangan sentuh. Menunggu ia stabil…</string>
+    <string name="glasses_calibration_collecting">Mengukur penderia. Pastikan cermin mata tidak bergerak.</string>
+    <string name="glasses_calibration_moving">Pergerakan dikesan. Jangan sentuh cermin mata; pengukuran akan bermula semula secara automatik.</string>
+    <string name="glasses_calibration_turn_over">Letakkan cermin mata secara terbalik di atas permukaan rata. Pengukuran akan bermula apabila ia diletakkan dengan betul.</string>
+    <string name="glasses_calibration_complete">Penentukuran disimpan. Pakai cermin mata dan pandang lurus ke hadapan, kemudian ketik Selesai untuk memusatkan semula.</string>
+    <string name="glasses_calibration_failed">Penentukuran tidak dapat diselesaikan. Semak sambungan dan pastikan cermin mata tidak bergerak, kemudian cuba lagi. Penentukuran anda sebelum ini tidak berubah.</string>
+    <string name="glasses_calibration_start">Mula</string>
+    <string name="glasses_calibration_done">Selesai</string>
+    <string name="glasses_calibration_reset">Tetapkan semula penentukuran penjejakan</string>
+    <string name="glasses_calibration_reset_hint">Alih keluar penentukuran yang disimpan dan pulihkan tetapan lalai model? Pusatkan semula selepas memakai cermin mata semula.</string>
+    <string name="glasses_calibration_reset_button">Tetapkan semula</string>
+    <string name="glasses_xreal_network_missing">Menunggu sambungan USB Ethernet cermin mata. Telefon ini mungkin tidak mendedahkannya kepada apl.</string>
+    <string name="glasses_xreal_connection_failed">Sambungan XREAL terganggu atau memberikan respons yang tidak disokong. Mencuba semula…</string>
+    <string name="glasses_xreal_experimental">Sokongan eksperimen untuk 1S. Gunakan mod Follow dan matikan penstabilan dalam menu cermin mata. Arah penjejakan dan mod paparan masih perlu diuji pada peranti.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Mod Cardboard</string>
     <string name="cardboard_mode_hint">Paparan mata kiri dan kanan untuk kaca mata VR telefon.</string>

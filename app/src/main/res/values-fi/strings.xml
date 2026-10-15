@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="steamvr_recovery_title">SteamVR:n grafiikka pysähtyi</string>
+    <string name="steamvr_recovery_countdown">DroidDeck käynnistyy uudelleen %1$d sekunnin kuluttua nollatakseen grafiikan ja avatakseen SteamVR:n uudelleen. Käynnissä oleva pelisi suljetaan; tallentamatonta edistymistä ei voi palauttaa.</string>
+    <string name="steamvr_recovery_repeated">Grafiikkavirhe palasi äskeisen uudelleenkäynnistyksen jälkeen. Automaattinen palautus on keskeytetty silmukan estämiseksi. Uudelleenkäynnistys sulkee pelisi; tallentamatonta edistymistä ei voi palauttaa.</string>
+    <string name="steamvr_recovery_restart">Käynnistä uudelleen</string>
+    <string name="steamvr_recovery_cancel">Pidä auki</string>
+    <string name="steamvr_recovery_restarting">Nollataan grafiikkaa ja avataan SteamVR uudelleen…</string>
+    <string name="steamvr_recovery_failed">DroidDeck ei pystynyt käynnistymään uudelleen automaattisesti. Sulje sovellus kokonaan ja avaa se sitten uudelleen.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>Ensimmäinen käynnistys lataa Steamin. Tämä voi kestää muutaman minuutin.</item>
@@ -2208,6 +2215,8 @@
     <string name="drawer_page_glasses">Lasit</string>
     <string name="glasses_open">VITURE-lasit</string>
     <string name="glasses_control">Lasien hallinta</string>
+    <string name="glasses_driver_missing">Tämä versio ei sisällä näiden lasien ajuria.</string>
+    <string name="glasses_connection_failed">Laseihin ei saatu yhteyttä. Kytke kaapeli uudelleen tai yritä uudestaan napauttamalla Salli.</string>
     <string name="glasses_allow">Salli</string>
     <string name="glasses_allow_hint">Anna DroidDeckin säätää lasien virkistystaajuutta, 3D-tilaa, kirkkautta, äänenvoimakkuutta ja tummennusta sekä lukea niiden pään seurantaa.</string>
     <string name="glasses_asking">Odotetaan, että sallit sen Androidin kehotteessa…</string>
@@ -2235,6 +2244,14 @@
     <string name="glasses_picture_sbs">Pelin rinnakkais-3D</string>
     <string name="glasses_screen_size">Näytön leveys</string>
     <string name="glasses_screen_distance">Näytön etäisyys</string>
+    <string name="glasses_screen_next_session">Leveys ja etäisyys otetaan käyttöön, kun peli näkyy laseissa virtuaalisena näyttönä.</string>
+    <string name="glasses_screen_no_output">Nämä asetukset ovat käytössä, kun Peli laseissa on päällä ja peli näkyy niissä.</string>
+    <string name="glasses_screen_flat_hint">Automaattinen pitää tämän 2D-pelin koko näytön tilassa. Käytä virtuaalista näyttöä, jos haluat säätää sen leveyttä, etäisyyttä ja pään seurantaa.</string>
+    <string name="glasses_screen_use">Käytä virtuaalista näyttöä</string>
+    <string name="glasses_screen_direct_hint">SteamVR täyttää näkymän. Säädä sen näkökenttää alla; leveys ja etäisyys koskevat vain virtuaalista näyttöä.</string>
+    <string name="glasses_screen_sbs_hint">Rinnakkais-3D-pelit täyttävät kummankin silmän näkymän. Leveys ja etäisyys koskevat vain virtuaalista näyttöä.</string>
+    <string name="glasses_tracking_flat_hint">Automaattinen pitää tämän 2D-pelin paikallaan näkymässä. Valitse Näyttö-kohdasta Virtuaalinen näyttö, jos haluat käyttää pään seurantaa.</string>
+    <string name="glasses_tracking_sbs_hint">Pään seuranta koskee virtuaalista näyttöä tai käynnissä olevaa SteamVR-peliä.</string>
     <string name="glasses_hardware">Lasit</string>
     <string name="glasses_brightness">Kirkkaus</string>
     <string name="glasses_volume">Äänenvoimakkuus</string>
@@ -2248,6 +2265,25 @@
     <string name="glasses_vr_fov">SteamVR:n näkökenttä</string>
     <string name="glasses_vr_fov_hint">Pienempi tuo SteamVR:n lähemmäs ja täyttää lasit; suurempi näyttää enemmän ympäriltäsi.</string>
     <string name="glasses_playing">Pelataan laitteella %1$s</string>
+    <string name="glasses_calibration">Seurannan kalibrointi</string>
+    <string name="glasses_calibration_hint">Vähentää ryömintää ja kohdistaa vaakatason.</string>
+    <string name="glasses_calibration_saved_hint">Tallennettu kalibrointi on käytössä näissä laseissa.</string>
+    <string name="glasses_calibration_open">Kalibroi</string>
+    <string name="glasses_calibration_instructions">Aseta kytketyt lasit ylösalaisin vaakasuoralle alustalle niin, että kehys lepää tasaisesti. Napauta Aloita äläkä sitten koske niihin noin 8 sekuntiin. Liike aloittaa mittauksen alusta. Tämä korjaa ryömintää ja kallistusta, ei suuntaa.</string>
+    <string name="glasses_calibration_settling">Jätä lasit ylösalaisin äläkä koske niihin. Odotetaan, että ne asettuvat…</string>
+    <string name="glasses_calibration_collecting">Mitataan antureita. Pidä lasit paikallaan.</string>
+    <string name="glasses_calibration_moving">Liikettä havaittu. Älä koske laseihin; mittaus alkaa automaattisesti alusta.</string>
+    <string name="glasses_calibration_turn_over">Aseta lasit ylösalaisin vaakasuoralle alustalle. Mittaus alkaa, kun ne ovat oikeassa asennossa.</string>
+    <string name="glasses_calibration_complete">Kalibrointi tallennettu. Laita lasit päähän ja katso suoraan eteenpäin, napauta sitten Valmis keskittääksesi näkymän.</string>
+    <string name="glasses_calibration_failed">Kalibrointia ei voitu viedä loppuun. Tarkista yhteys ja pidä lasit paikallaan, yritä sitten uudelleen. Aiempi kalibrointisi on ennallaan.</string>
+    <string name="glasses_calibration_start">Aloita</string>
+    <string name="glasses_calibration_done">Valmis</string>
+    <string name="glasses_calibration_reset">Nollaa seurannan kalibrointi</string>
+    <string name="glasses_calibration_reset_hint">Poistetaanko tallennettu kalibrointi ja palautetaanko mallin oletukset? Keskitä näkymä, kun olet laittanut lasit takaisin päähän.</string>
+    <string name="glasses_calibration_reset_button">Nollaa</string>
+    <string name="glasses_xreal_network_missing">Odotetaan lasien USB-Ethernet-yhteyttä. Tämä puhelin ei ehkä tarjoa sitä sovelluksille.</string>
+    <string name="glasses_xreal_connection_failed">XREAL-yhteys katkesi tai palautti vastauksen, jota ei tueta. Yritetään uudelleen…</string>
+    <string name="glasses_xreal_experimental">Kokeellinen 1S-tuki. Käytä Follow-tilaa ja poista vakautus käytöstä lasien valikosta. Seurannan suunnat ja näyttötilat vaativat vielä testausta laitteella.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Cardboard-tila</string>
     <string name="cardboard_mode_hint">Vasemman ja oikean silmän kuvat puhelimen VR-laseille.</string>

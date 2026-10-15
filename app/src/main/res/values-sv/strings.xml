@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="steamvr_recovery_title">SteamVR-grafiken slutade fungera</string>
+    <string name="steamvr_recovery_countdown">DroidDeck startar om om %1$d sekunder för att återställa grafiken och öppna SteamVR igen. Spelet som körs stängs; osparade framsteg kan inte återställas.</string>
+    <string name="steamvr_recovery_repeated">Grafikfelet kom tillbaka strax efter en omstart. Automatisk återställning är pausad för att undvika en loop. En omstart stänger spelet; osparade framsteg kan inte återställas.</string>
+    <string name="steamvr_recovery_restart">Starta om nu</string>
+    <string name="steamvr_recovery_cancel">Stäng inte</string>
+    <string name="steamvr_recovery_restarting">Återställer grafiken och öppnar SteamVR igen…</string>
+    <string name="steamvr_recovery_failed">DroidDeck kunde inte starta om automatiskt. Stäng appen helt och öppna den sedan igen.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>Första starten laddar ned Steam. Det kan ta några minuter.</item>
@@ -2208,6 +2215,8 @@
     <string name="drawer_page_glasses">Glasögon</string>
     <string name="glasses_open">VITURE-glasögon</string>
     <string name="glasses_control">Glasögonstyrning</string>
+    <string name="glasses_driver_missing">Det här bygget saknar drivrutinen för de här glasögonen.</string>
+    <string name="glasses_connection_failed">Kunde inte ansluta till glasögonen. Anslut kabeln igen eller tryck på Tillåt för att försöka igen.</string>
     <string name="glasses_allow">Tillåt</string>
     <string name="glasses_allow_hint">Låt DroidDeck ställa in glasögonens uppdateringsfrekvens, 3D-läge, ljusstyrka, volym och solskydd och läsa av deras huvudspårning.</string>
     <string name="glasses_asking">Väntar på att du tillåter det i Androids dialogruta…</string>
@@ -2235,6 +2244,14 @@
     <string name="glasses_picture_sbs">Sida vid sida-spel</string>
     <string name="glasses_screen_size">Skärmbredd</string>
     <string name="glasses_screen_distance">Skärmavstånd</string>
+    <string name="glasses_screen_next_session">Bredd och avstånd gäller när ett spel körs i glasögonen som en virtuell skärm.</string>
+    <string name="glasses_screen_no_output">De här inställningarna gäller när Spel i glasögonen är på och spelet visas där.</string>
+    <string name="glasses_screen_flat_hint">Automatiskt visar det här 2D-spelet i helskärm. Använd en virtuell skärm för att justera bredd, avstånd och huvudspårning.</string>
+    <string name="glasses_screen_use">Använd virtuell skärm</string>
+    <string name="glasses_screen_direct_hint">SteamVR fyller hela vyn. Justera synfältet nedan; bredd och avstånd gäller bara en virtuell skärm.</string>
+    <string name="glasses_screen_sbs_hint">Sida vid sida-spel fyller varje ögas bild. Bredd och avstånd gäller bara en virtuell skärm.</string>
+    <string name="glasses_tracking_flat_hint">Automatiskt håller det här 2D-spelet fast i synfältet. Välj Virtuell skärm under Skärm för att använda huvudspårning.</string>
+    <string name="glasses_tracking_sbs_hint">Huvudspårning gäller en virtuell skärm eller ett SteamVR-spel som körs.</string>
     <string name="glasses_hardware">Glasögon</string>
     <string name="glasses_brightness">Ljusstyrka</string>
     <string name="glasses_volume">Volym</string>
@@ -2248,6 +2265,25 @@
     <string name="glasses_vr_fov">SteamVR-synfält</string>
     <string name="glasses_vr_fov_hint">Lägre för SteamVR närmare och fyller glasögonen; högre visar mer runt dig.</string>
     <string name="glasses_playing">Spelar på %1$s</string>
+    <string name="glasses_calibration">Spårningskalibrering</string>
+    <string name="glasses_calibration_hint">Minskar drift och justerar horisontreferensen.</string>
+    <string name="glasses_calibration_saved_hint">Sparad kalibrering används för de här glasögonen.</string>
+    <string name="glasses_calibration_open">Kalibrera</string>
+    <string name="glasses_calibration_instructions">Lägg de anslutna glasögonen upp och ned på en vågrät yta så att bågen vilar jämnt. Tryck på Starta och rör dem sedan inte på cirka 8 sekunder. Rörelse startar om mätningen. Detta justerar drift och lutning, inte riktning.</string>
+    <string name="glasses_calibration_settling">Låt glasögonen ligga upp och ned utan att röra dem. Väntar på att de ska bli stilla…</string>
+    <string name="glasses_calibration_collecting">Mäter sensorerna. Håll glasögonen stilla.</string>
+    <string name="glasses_calibration_moving">Rörelse upptäcktes. Rör inte glasögonen; mätningen startar om automatiskt.</string>
+    <string name="glasses_calibration_turn_over">Lägg glasögonen upp och ned på en vågrät yta. Mätningen startar när de ligger rätt.</string>
+    <string name="glasses_calibration_complete">Kalibreringen har sparats. Ta på glasögonen och titta rakt fram, tryck sedan på Klar för att centrera.</string>
+    <string name="glasses_calibration_failed">Kalibreringen kunde inte slutföras. Kontrollera anslutningen och håll glasögonen stilla, försök sedan igen. Din tidigare kalibrering är oförändrad.</string>
+    <string name="glasses_calibration_start">Starta</string>
+    <string name="glasses_calibration_done">Klar</string>
+    <string name="glasses_calibration_reset">Återställ spårningskalibrering</string>
+    <string name="glasses_calibration_reset_hint">Ta bort den sparade kalibreringen och återställ modellens standardvärden? Centrera vyn när du har tagit på dig glasögonen igen.</string>
+    <string name="glasses_calibration_reset_button">Återställ</string>
+    <string name="glasses_xreal_network_missing">Väntar på glasögonens USB Ethernet-anslutning. Telefonen kanske inte gör den tillgänglig för appar.</string>
+    <string name="glasses_xreal_connection_failed">XREAL-anslutningen avbröts eller gav ett svar som inte stöds. Försöker igen…</string>
+    <string name="glasses_xreal_experimental">Experimentellt stöd för 1S. Använd Follow-läget och stäng av stabiliseringen i glasögonens meny. Spårningsriktningar och visningslägen behöver fortfarande testas på enheten.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Cardboard-läge</string>
     <string name="cardboard_mode_hint">Bilder för vänster och höger öga till ett VR-headset för mobilen.</string>
