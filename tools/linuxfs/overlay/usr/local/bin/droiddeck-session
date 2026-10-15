@@ -278,7 +278,10 @@ case $mode in
     target=${1:?program path}
     shift
     if [ "${target##*/}" = droiddeck-proton-run ]; then
-      /usr/local/bin/steam-compatibility "$XDG_DATA_HOME/Steam" || true
+      compat_tool="$XDG_DATA_HOME/Steam/compatibilitytools.d/droiddeck-proton-arm64"
+      if [ ! -f "$compat_tool/toolmanifest.vdf" ] || [ ! -x "$compat_tool/droiddeck-proton" ]; then
+        /usr/local/bin/steam-compatibility "$XDG_DATA_HOME/Steam" || true
+      fi
     fi
     cores=$(program_cores)
     if [ -n "$cores" ]; then
