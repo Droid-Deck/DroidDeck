@@ -408,8 +408,7 @@ class NetworkManager:
             self.bus.emit_signal(None, path, OBJECT_MANAGER, signal, body)
 
 
-def main():
-    loop = GLib.MainLoop()
+def own(loop):
     state = {}
 
     def acquired(bus, name):
@@ -419,7 +418,12 @@ def main():
         print("== netmanager: the system bus is gone", file=sys.stderr)
         loop.quit()
 
-    Gio.bus_own_name(Gio.BusType.SYSTEM, NAME, Gio.BusNameOwnerFlags.NONE, acquired, None, lost)
+    return Gio.bus_own_name(Gio.BusType.SYSTEM, NAME, Gio.BusNameOwnerFlags.NONE, acquired, None, lost)
+
+
+def main():
+    loop = GLib.MainLoop()
+    own(loop)
     loop.run()
 
 

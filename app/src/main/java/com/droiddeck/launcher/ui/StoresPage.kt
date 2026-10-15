@@ -85,6 +85,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.automirrored.filled.Login
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material.icons.filled.ViewList
+import com.droiddeck.launcher.stores.sortCatalogItems
+import com.droiddeck.launcher.stores.retainCatalogOrder
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.material.icons.filled.PlayArrow
@@ -95,6 +100,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -132,6 +138,10 @@ import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.download.DownloadStage
 import com.droiddeck.launcher.stores.download.DownloadState
 import com.droiddeck.launcher.stores.formatBytes
+import java.util.concurrent.CompletableFuture
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.suspendCancellableCoroutine
 
 
 private const val DOWNLOADS = "downloads"
@@ -171,6 +181,8 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current
     var focusMove by remember { mutableStateOf<Pair<String, Int>?>(null) }
     var lastOpened by remember { mutableStateOf<String?>(null) }
+    val heroFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+    var detailFocused by remember { mutableStateOf(false) }
     fun move(kind: String) { focusMove = kind to (focusMove?.second ?: 0) + 1 }
     fun open(key: String) { lastOpened = key; openGame = key; move("detail") }
     fun closeGame() { openGame = null; move("card") }
@@ -238,8 +250,6 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
         fun target(): Pair<androidx.compose.ui.focus.FocusRequester, String?>? {
             val kind = focusMove?.first
             return when {
-                openGame != null -> if (ff.primaryAttached > 0) ff.primary to FrontFocus.PRIMARY
-                    else "back:${store?.label}".let { id -> ff.items[id]?.takeIf { attached(id) }?.let { it to id } }
                 kind == "card" -> lastOpened?.let { "card:$it" }?.let { id -> ff.items[id]?.takeIf { attached(id) }?.let { it to id } }
                     ?: ff.firstTile.takeIf { ff.firstTileAttached > 0 }?.let { it to null }
                 kind == "first" -> ff.firstTile.takeIf { ff.firstTileAttached > 0 }?.let { it to null }
@@ -250,6 +260,16 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
             }
         }
         repeat(60) { if (!HeldKeys.confirm) return@repeat; androidx.compose.runtime.withFrameNanos { } }
+        if (openGame != null) {
+            val back = "back:${ctx.getString(R.string.common_back)}"
+            repeat(45) { n ->
+                androidx.compose.runtime.withFrameNanos { }
+                if (detailFocused) return@LaunchedEffect
+                val req = if (n < 20) heroFocus else ff.items[back]?.takeIf { attached(back) } ?: heroFocus
+                runCatching { req.requestFocus() }
+            }
+            return@LaunchedEffect
+        }
         repeat(45) {
             androidx.compose.runtime.withFrameNanos { }
             val (req, id) = target() ?: return@repeat
@@ -374,7 +394,12 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                             Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { } }
                                 .verticalScroll(detailScroll).padding(top = 4.dp, bottom = 16.dp),
                         ) {
-                            if (detailStore != null) Column(Modifier.fillMaxWidth().focusGroup()) { StoreGameDetail(detailStore, key, s, a, onBack = { closeGame() }) }
+                            if (detailStore != null) Column(
+                                Modifier.fillMaxWidth()
+                                    .onFocusChanged { detailFocused = it.hasFocus }
+                                    .focusProperties { exit = { if (coveringNow.value) androidx.compose.ui.focus.FocusRequester.Cancel else androidx.compose.ui.focus.FocusRequester.Default } }
+                                    .focusGroup(),
+                            ) { StoreGameDetail(detailStore, key, s, a, heroFocus, onBack = { closeGame() }) }
                         }
                     }
                     val from = detailFrom
@@ -634,8 +659,14 @@ private fun SignInCard(store: Store, height: Dp) {
     val c = sourceColours(store.id)
     LaunchedEffect(store) { StoresState.preview(ctx, store) }
     val art = remember(StoresState.shelves[store]) {
-        StoresState.shelves[store]?.all.orEmpty().filter { !it.mature }.mapNotNull { it.tallImageUrl ?: it.imageUrl }.distinct().take(48)
-            .takeIf { it.size >= 8 }.orEmpty()
+        val shelves = StoresState.shelves[store]
+        val urls = (shelves?.art?.takeIf { it.isNotEmpty() }
+            ?: shelves?.all.orEmpty().filter { !it.mature && !it.owned }.mapNotNull { it.tallImageUrl ?: it.imageUrl }).distinct().take(48)
+        when {
+            urls.size >= 8 -> urls
+            urls.size >= 4 -> urls + urls.drop(urls.size / 2) + urls.take(urls.size / 2)
+            else -> emptyList()
+        }
     }
     val shape = RoundedCornerShape(20.dp)
     val blank = WallCapsule(Brush.linearGradient(listOf(c.fill, colors.background)), edge = c.dot.copy(alpha = 0.22f))
@@ -717,12 +748,71 @@ private fun Storefront(
     val installedOnly = tab == "installed"
     val loaded = StoresState.library.containsKey(store)
     val showGrid = tab != "store" || q.isNotEmpty()
-    val visible = remember(library, installedItems, everything, tab, q, s.storesShowMature) {
+    val sort = s.storesSort
+    val lastPlayedFor = remember(s.steamGames) {
+        val byKey = s.steamGames.associate { "${it.source}:${it.storeId}" to it.lastPlayed }
+        val lookup: (CatalogItem) -> Long = { i -> byKey[i.key] ?: 0L }
+        lookup
+    }
+    val installedAtFor = remember(StoresState.installed) {
+        val byKey = StoresState.installed.associate { "${it.sidecar.store.id}:${it.sidecar.id}" to it.sidecar.installedAt }
+        val lookup: (CatalogItem) -> Long = { i -> byKey[i.key] ?: 0L }
+        lookup
+    }
+    val isSizeSort = (tab == "library" || tab == "installed") && (sort == "sizeAsc" || sort == "sizeDesc")
+    val candidates = remember(library, installedItems, everything, tab, q, s.storesShowMature) {
         when (tab) {
             "library" -> library.filter(::matches)
             "installed" -> installedItems.filter(::matches)
             else -> everything.filter { matches(it) && shown(it) }
         }
+    }
+    val candidateKeys = remember(candidates) { candidates.map { it.key } }
+    var resolvedSizeSortKey by remember(store, tab) { mutableStateOf<List<String>?>(null) }
+    val sizeSortPending = isSizeSort && resolvedSizeSortKey != candidateKeys
+    var stableVisible by remember(store, tab) { mutableStateOf(emptyList<CatalogItem>()) }
+    val resolvedSizes = when {
+        !isSizeSort -> emptyMap<String, Long>()
+        installedOnly -> com.droiddeck.launcher.stores.StoreSizes.onDisk.toMap()
+        else -> com.droiddeck.launcher.stores.StoreSizes.known.toMap()
+    }
+    val sizeFor = remember(resolvedSizes, installedOnly) {
+        val resolved = resolvedSizes
+        val lookup: (CatalogItem) -> Long = { item ->
+            resolved[item.key] ?: if (installedOnly) 0L else item.sizeBytes
+        }
+        lookup
+    }
+    val sortedVisible = remember(candidates, tab, sort, lastPlayedFor, installedAtFor, sizeFor) {
+        if (tab == "library" || tab == "installed")
+            sortCatalogItems(candidates, sort, lastPlayed = lastPlayedFor, installedAt = installedAtFor, size = sizeFor)
+        else candidates
+    }
+    val visible = remember(sizeSortPending, candidates, stableVisible, sortedVisible) {
+        if (sizeSortPending) retainCatalogOrder(candidates, stableVisible) else sortedVisible
+    }
+    SideEffect {
+        if (!sizeSortPending && stableVisible != sortedVisible) stableVisible = sortedVisible
+    }
+    LaunchedEffect(store, tab, sort, candidates, candidateKeys) {
+        if (!isSizeSort || resolvedSizeSortKey == candidateKeys) return@LaunchedEffect
+        val requests = candidates.map { item ->
+            val future: CompletableFuture<Long?> = if (tab == "installed") {
+                StoresState.installedGame(store, item.id)?.let {
+                    com.droiddeck.launcher.stores.StoreSizes.resolveDisk(ctx, item.key, it)
+                } ?: CompletableFuture.completedFuture<Long?>(null)
+            } else {
+                com.droiddeck.launcher.stores.StoreSizes.resolve(ctx, item)
+            }
+            item to future
+        }
+        CompletableFuture.allOf(*requests.map { it.second }.toTypedArray()).await()
+        requests.forEach { (item, future) ->
+            val bytes = future.getNow(null) ?: return@forEach
+            if (tab == "installed") com.droiddeck.launcher.stores.StoreSizes.onDisk[item.key] = bytes
+            else if (item.owned && item.sizeBytes <= 0) com.droiddeck.launcher.stores.StoreSizes.known[item.key] = bytes
+        }
+        resolvedSizeSortKey = candidateKeys
     }
     val empty = stringResource(when {
         installedOnly -> R.string.stores_installed_empty
@@ -734,7 +824,9 @@ private fun Storefront(
     val density = androidx.compose.ui.platform.LocalDensity.current
     val focus = LocalFrontFocus.current
     val scope = rememberCoroutineScope()
-    val headerItems = 1 + (if (StoresState.status[store] != null) 1 else 0) + (if (StoresState.problems[store] != null) 1 else 0)
+    val headerItems = 1 + (if (sizeSortPending) 1 else 0) +
+        (if (StoresState.status[store] != null) 1 else 0) + (if (StoresState.problems[store] != null) 1 else 0)
+    val listMode = s.storesView == "list" && (tab == "library" || tab == "installed")
     val card: @Composable (CatalogItem) -> Unit = { item ->
         val first = if (showGrid) item.key == visible.firstOrNull()?.key else !firstPlaced
         firstPlaced = true
@@ -746,7 +838,7 @@ private fun Storefront(
                 else -> 0
             }
             val index = visible.indexOfFirst { it.key == item.key }
-            val next = storeGridNeighbor(index, visible.size, columns, direction)
+            val next = storeGridNeighbor(index, visible.size, if (listMode) 1 else columns, direction)
             when {
                 direction == 0 || index < 0 -> false
                 next == null -> direction > 0
@@ -765,12 +857,13 @@ private fun Storefront(
                 }
             }
         }
-        GameCard(item, store, s, a, installedKeys, onOpen, first, navigation)
+        if (listMode) GameListRow(item, store, installedKeys, onOpen, first, navigation)
+        else GameCard(item, store, s, a, installedKeys, onOpen, first, navigation)
     }
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(CardWidth), state = grid, modifier = Modifier.fillMaxSize().focusGroup().onSizeChanged {
+        columns = if (listMode) GridCells.Fixed(1) else GridCells.Adaptive(CardWidth), state = grid, modifier = Modifier.fillMaxSize().focusGroup().onSizeChanged {
             val gap = with(density) { 10.dp.roundToPx() }
-            val minimum = with(density) { CardWidth.roundToPx() }
+            val minimum = with(density) { (if (listMode) CardWidth * 2 else CardWidth).roundToPx() }
             columns = ((it.width + gap) / (minimum + gap)).toInt().coerceAtLeast(1)
         },
         horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -792,10 +885,23 @@ private fun Storefront(
                         else -> stringResource(R.string.stores_search_library)
                     },
                 ) {
+                    if (tab == "library" || tab == "installed") {
+                        SortButton(s, a)
+                        ViewButton(s, a)
+                    }
                     SmallTextButton(stringResource(R.string.stores_refresh)) { StoresState.open(ctx, store, force = true) }
                     val name = StoresState.accounts[store] ?: ""
                     SignOutButton(store, name)
                 }
+            }
+        }
+        if (sizeSortPending) item(key = "size-sort-progress", span = { GridItemSpan(maxLineSpan) }) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            ) {
+                androidx.compose.material3.LinearProgressIndicator(Modifier.weight(1f).height(3.dp))
+                Text(stringResource(R.string.store_section_loading), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         StoresState.status[store]?.let { line -> item(key = "sync", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { SyncBar(line) } } }
@@ -822,6 +928,14 @@ private fun Storefront(
         }
     }
 }
+
+private suspend fun <T> CompletableFuture<T>.await(): T =
+    suspendCancellableCoroutine { continuation ->
+        whenComplete { value, error ->
+            if (error == null) continuation.resume(value)
+            else continuation.resumeWithException(error)
+        }
+    }
 
 @Composable
 internal fun ModeHeader(title: String, query: String, onQuery: (String) -> Unit, placeholder: String, trailing: @Composable () -> Unit) {
@@ -910,6 +1024,126 @@ private fun SmallTextButton(text: String, key: String = text, onClick: () -> Uni
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onClick)
             .controllerConfirm(onClick = onClick).padding(horizontal = 8.dp, vertical = 6.dp),
     )
+}
+
+@Composable
+private fun HeaderIconButton(description: String, icon: androidx.compose.ui.graphics.vector.ImageVector, key: String, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val src = remember { MutableInteractionSource() }
+    val hot = rememberHot(src)
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.paneItem("btn:$key").size(32.dp).clip(CircleShape).background(if (hot) pal.signal.copy(alpha = 0.14f) else Color.Transparent)
+            .glideBorder(hot, CircleShape, pal.signal)
+            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onClick)
+            .controllerConfirm(onClick = onClick),
+    ) { Icon(icon, description, tint = if (hot) pal.signal else colors.onSurfaceVariant, modifier = Modifier.size(18.dp)) }
+}
+
+@Composable
+private fun SortButton(s: FrontEndState, a: FrontEndActions) {
+    val pal = LocalPalette.current
+    val title = stringResource(R.string.stores_sort)
+    var at by remember { mutableStateOf<Rect?>(null) }
+    Box(Modifier.onGloballyPositioned { at = it.boundsInRoot() }) {
+        HeaderIconButton(title, Icons.Filled.Sort, "sort") {
+            val from = at ?: return@HeaderIconButton
+            StoresMotion.ask(StepAsk(
+                anchor = from, side = StepSide.Left, accent = pal.signal, pillCorner = 8.dp, items = SessionPrefs.STORES_SORTS.size,
+                onDismiss = {},
+                handle = { Text(title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = pal.signal, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            ) {
+                StepTitle(title)
+                StepList {
+                    SessionPrefs.STORES_SORTS.forEachIndexed { i, sort ->
+                        val label = when (sort) {
+                            "lastPlayed" -> stringResource(R.string.stores_sort_last_played)
+                            "recentlyInstalled" -> stringResource(R.string.stores_sort_recently_installed)
+                            "titleAsc" -> stringResource(R.string.stores_sort_title_asc)
+                            "titleDesc" -> stringResource(R.string.stores_sort_title_desc)
+                            "sizeDesc" -> stringResource(R.string.stores_sort_size_desc)
+                            "sizeAsc" -> stringResource(R.string.stores_sort_size_asc)
+                            else -> stringResource(R.string.stores_sort_release_date)
+                        }
+                        StepChoice(
+                            label, selected = sort == s.storesSort, enabled = open,
+                            modifier = Modifier.fillMaxWidth().stepItem(i)
+                                .then(if (sort == s.storesSort) Modifier.focusRequester(first) else Modifier),
+                        ) {
+                            a.onStoresSort(sort)
+                            StoresMotion.fold()
+                        }
+                    }
+                }
+            })
+        }
+    }
+}
+
+@Composable
+private fun ViewButton(s: FrontEndState, a: FrontEndActions) {
+    val list = s.storesView == "list"
+    HeaderIconButton(
+        if (list) stringResource(R.string.stores_view_cards) else stringResource(R.string.stores_view_list),
+        if (list) Icons.Filled.GridView else Icons.Filled.ViewList,
+        "view",
+    ) { a.onStoresView(if (list) "cards" else "list") }
+}
+
+@Composable
+private fun GameListRow(
+    item: CatalogItem, store: Store, installedKeys: Set<String>, onOpen: (String) -> Unit,
+    first: Boolean = false, navigation: Modifier = Modifier,
+) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val src = remember { MutableInteractionSource() }
+    val hot = rememberHot(src)
+    val installed = item.id in installedKeys
+    val download = StoresState.download("${store.id}:${item.id}")?.takeIf { it.isActive }
+    if (installed) {
+        val ctx = LocalContext.current
+        val game = StoresState.installedGame(store, item.id)
+        if (game != null) androidx.compose.runtime.LaunchedEffect(item.key) { com.droiddeck.launcher.stores.StoreSizes.requestDisk(ctx, item.key, game) }
+    }
+    val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
+    val corner = with(androidx.compose.ui.platform.LocalDensity.current) { 10.dp.toPx() }
+    val open = {
+        placed[0]?.takeIf { it.isAttached }?.let { StoresMotion.markCard(CardMark(item.key, it.boundsInRoot(), corner, item.imageUrl ?: item.tallImageUrl)) }
+        onOpen(item.key)
+    }
+    val meta = listOfNotNull(
+        item.developer.takeIf { it.isNotBlank() },
+        item.releaseDate.take(4).takeIf { it.length == 4 },
+        when {
+            installed -> {
+                val bytes = com.droiddeck.launcher.stores.StoreSizes.onDisk[item.key]
+                    ?: com.droiddeck.launcher.stores.StoreSizes.size(item).takeIf { it > 0 } ?: 0L
+                formatBytes(bytes).takeIf { it.isNotEmpty() }
+            }
+            item.isFree -> stringResource(R.string.stores_free)
+            item.isDiscounted -> "-${item.discountPercent}%"
+            item.hasPrice -> item.finalPrice.takeIf { it.isNotBlank() }
+            else -> null
+        },
+    )
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp).then(navigation).paneItem("card:${item.key}")
+            .then(if (first) Modifier.firstTile() else Modifier)
+            .clip(RoundedCornerShape(10.dp)).glideBorder(hot, RoundedCornerShape(10.dp), pal.signal, pal.line)
+            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, onClick = open).controllerConfirm(onClick = open)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+    ) {
+        CardArt(item, Modifier.width(96.dp).height(54.dp).clip(RoundedCornerShape(8.dp)))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(item.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(meta.joinToString("  ·  "), fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        if (installed) Icon(Icons.Filled.Check, stringResource(R.string.stores_installed_chip), tint = pal.good, modifier = Modifier.size(16.dp))
+        else if (download != null) Text("${download.percent}%", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = pal.signal, maxLines = 1)
+    }
 }
 
 @Composable

@@ -128,6 +128,14 @@ object Library {
         return out.values.toList()
     }
 
+    fun steamLibraryArt(context: Context): List<Pair<Int, File>> {
+        val cache = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/appcache/librarycache")
+        return cache.listFiles().orEmpty().mapNotNull { dir ->
+            val appId = dir.name.toIntOrNull()?.takeIf { it !in NOT_GAMES } ?: return@mapNotNull null
+            steamCacheImage(cache, appId, STEAM_CAPSULES)?.let { appId to it }
+        }
+    }
+
     fun launchableGames(context: Context, strictRead: Boolean = false, added: List<AddedGames.Game>? = null): List<SteamGame> {
         val roots = steamLibraries(context).map { it.first }
         return (steamGames(context, strictRead) + (added ?: AddedGames.scan(context)).map { g -> addedGame(context, g, roots) }).distinctBy { it.gameId }

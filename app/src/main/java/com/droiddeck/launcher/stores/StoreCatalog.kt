@@ -31,6 +31,7 @@ class StoreShelves(
     val deals: List<CatalogItem> = emptyList(),
     val free: List<CatalogItem> = emptyList(),
     val trending: List<CatalogItem> = emptyList(),
+    val art: List<String> = emptyList(),
 ) {
     val isEmpty: Boolean get() = whatsNew.isEmpty() && deals.isEmpty() && free.isEmpty() && trending.isEmpty()
     val all: List<CatalogItem> get() = (whatsNew + deals + free + trending).distinctBy { it.id }
@@ -50,6 +51,35 @@ fun installedCards(store: Store, installed: List<InstalledStoreGame>, library: L
         byId[s.id] ?: byTitle[s.title.lowercase()]
             ?: CatalogItem(store, s.id, s.title, imageUrl = s.hero ?: s.cover, tallImageUrl = s.cover ?: s.hero, owned = true)
     }.distinctBy { it.id }.sortedBy { it.title.lowercase() }
+}
+
+private fun releaseDateValue(item: CatalogItem): Long =
+    item.releaseDate.take(10).takeIf { it.length == 10 }?.let { raw ->
+        runCatching { java.time.LocalDate.parse(raw).toEpochDay() }.getOrDefault(0L)
+    } ?: 0L
+
+fun sortCatalogItems(
+    items: List<CatalogItem>,
+    sort: String,
+    lastPlayed: (CatalogItem) -> Long = { 0L },
+    installedAt: (CatalogItem) -> Long = { 0L },
+    size: (CatalogItem) -> Long = { it.sizeBytes },
+): List<CatalogItem> = when (sort) {
+    "lastPlayed" -> items.sortedWith(compareByDescending(lastPlayed).thenBy { it.title.lowercase() })
+    "recentlyInstalled" -> items.sortedWith(compareByDescending(installedAt).thenBy { it.title.lowercase() })
+    "titleAsc" -> items.sortedBy { it.title.lowercase() }
+    "titleDesc" -> items.sortedByDescending { it.title.lowercase() }
+    "sizeDesc" -> items.sortedWith(compareByDescending(size).thenBy { it.title.lowercase() })
+    "sizeAsc" -> items.sortedWith(compareBy<CatalogItem> { size(it).takeIf { b -> b > 0 } ?: Long.MAX_VALUE }.thenBy { it.title.lowercase() })
+    "releaseDateDesc" -> items.sortedWith(compareByDescending(::releaseDateValue).thenBy { it.title.lowercase() })
+    else -> items
+}
+
+internal fun retainCatalogOrder(items: List<CatalogItem>, previous: List<CatalogItem>): List<CatalogItem> {
+    if (items.size != previous.size) return items
+    val byKey = items.associateBy { it.key }
+    if (previous.any { it.key !in byKey }) return items
+    return previous.map { byKey.getValue(it.key) }
 }
 
 fun mergeItems(old: List<CatalogItem>?, new: List<CatalogItem>): List<CatalogItem> {

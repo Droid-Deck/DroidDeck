@@ -787,17 +787,16 @@ def native_targets(steam_root, apps):
         return {}
     targets = {}
     for app, (oslist, osarch, kind) in appinfo_platforms(os.path.join(steam_root, "appcache", "appinfo.vdf"), wanted).items():
-        if kind not in PLAYABLE_TYPES or "windows" in oslist or "linux" not in oslist:
+        if kind not in PLAYABLE_TYPES or "linux" not in oslist:
             continue
         if "arm64" in osarch or "aarch64" in osarch:
+            targets[app] = None
+            continue
+        if "windows" in oslist:
+            targets[app] = NATIVE_CHOICE
             continue
         targets[app] = FEX_TOOL
     return targets
-
-
-def linux_runtime_tool(name):
-    low = name.lower()
-    return low == "fex" or low.startswith("steamlinuxruntime")
 
 
 def fex_missing(steam_root):
@@ -877,18 +876,22 @@ def app_order(app):
 
 
 DEFERRED_GAME_TOOL = object()
+NATIVE_CHOICE = object()
 
 
-def plan_mapping(current, installed, runnable, default, auto, native=None, picks=(), overrides=None):
+def plan_mapping(current, installed, runnable, default, auto, native=None, picks=(), overrides=None, managed=None,
+                 native_choices=()):
     runnable = {n.lower() for n in runnable}
     installed = set(installed)
     picks = set(picks)
     native = native or {}
     overrides = overrides or {}
+    managed = set(auto) if managed is None else set(managed)
+    native_choices = set(native_choices)
     changes, kept = {}, {}
     if current.get("0", "") != default:
         changes["0"] = default
-    for app in sorted((set(current) | installed | picks | set(auto) | set(overrides)) - {"0"}, key=app_order):
+    for app in sorted((set(current) | installed | picks | set(auto) | set(overrides) | native_choices) - {"0"}, key=app_order):
         name = current.get(app, "")
         if app in overrides:
             target = overrides[app]
@@ -902,9 +905,26 @@ def plan_mapping(current, installed, runnable, default, auto, native=None, picks
             continue
         mine = auto.get(app)
         target = native.get(app, default)
-        stale = unrunnable(name, runnable) or (app in native and linux_runtime_tool(name))
+        if not name and app in native_choices:
+            target = NATIVE_CHOICE
+        stale = unrunnable(name, runnable)
         if name and not stale and (mine is None or name != mine):
             continue
+        if target is NATIVE_CHOICE:
+            if not name and (app in native_choices or app in current or app in managed):
+                kept[app] = NATIVE_CHOICE
+                continue
+            target = default
+        if target is None:
+            if stale:
+                target = default
+                if name != target:
+                    changes[app] = target
+                continue
+            else:
+                if name and app in managed and name == mine:
+                    changes[app] = None
+                continue
         if not name and app not in installed and app not in picks:
             continue
         if name != target:
@@ -1043,8 +1063,37 @@ def read_mapping(tokens, mapping):
     return current
 
 
+def read_config_mapping(config_path):
+    """Read per-app choices without creating or rewriting the client's mapping block."""
+    try:
+        with open(config_path, encoding="utf-8", errors="replace") as f:
+            tokens = tokenize(f.read())
+    except OSError:
+        return None
+    depth = 0
+    for token in tokens:
+        if token == "{":
+            depth += 1
+        elif token == "}":
+            depth -= 1
+            if depth < 0:
+                return None
+    if depth != 0:
+        return None
+    steam = find_block(tokens, ["InstallConfigStore", "Software", "Valve", "Steam"])
+    if steam is None:
+        return None
+    mapping = find_block(tokens[steam + 1:], ["CompatToolMapping"])
+    return read_mapping(tokens, mapping + steam + 1) if mapping is not None else {}
+
+
 def set_mapping(tokens, mapping, app, tool):
     block = find_block(tokens[mapping + 1:], [app])
+    if tool is None:
+        if block is not None:
+            block += mapping + 1
+            del tokens[block - 1:block_end(tokens, block) + 1]
+        return
     if block is None:
         tokens[mapping + 1:mapping + 1] = [
             '"%s"' % app, "{", '"name"', '"%s"' % tool, '"config"', '""', '"priority"', '"75"' if app == "0" else '"250"', "}"]
@@ -1109,13 +1158,17 @@ def register_default(config_path, apps=(), protect=(), default=None, catalog=Non
         steam_root = os.path.dirname(os.path.dirname(os.path.abspath(config_path)))
         overrides = requested_games(game_requests(directory), catalog)
         changes, auto = plan_mapping(
-            current, apps, names, default, followers(state, current), native_targets(steam_root, apps), picks, overrides)
+            current, apps, names, default, followers(state, current),
+            native_targets(steam_root, set(apps) | set(picks)), picks,
+            overrides, state.get("auto", {}).keys() if isinstance(state.get("auto"), dict) else (),
+            state.get("native", ()))
         for app, tool in changes.items():
             set_mapping(tokens, mapping, app, tool)
         text = serialize(tokens)
         if text != serialize(tokenize(original)):
             write_changed(config_path, text)
-        state["auto"] = auto
+        state["auto"] = {app: tool for app, tool in auto.items() if tool is not NATIVE_CHOICE}
+        state["native"] = sorted(app for app, tool in auto.items() if tool is NATIVE_CHOICE)
         state["tools"] = catalog
         state.setdefault("default", default)
         write_json(state_path("state.json", directory), state)

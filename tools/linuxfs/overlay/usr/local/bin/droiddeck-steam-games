@@ -62,6 +62,12 @@ def source_stamp(game):
         return None
 
 
+def store_game(game):
+    """Games a store client installed belong to that store: the Steam copy of the same title is
+    another license with its own files, and an import would let Steam update over the store's."""
+    return bool(game.get("store"))
+
+
 def manifest_ids(steamapps, name):
     matches = []
     for manifest in Path(steamapps).glob("appmanifest_*.acf"):
@@ -178,7 +184,7 @@ def unimported(steam_root, snapshot, candidates):
 
 
 def watch(steam_root, listing):
-    games = read_json(listing, [])
+    games = [game for game in read_json(listing, []) if not store_game(game)]
     if os.environ.get("BL_STEAM_OFFLINE") == "1" or not games:
         return
     candidates, sources = {}, {}
@@ -363,6 +369,22 @@ def seed_install(steam_root, game, appid):
     return True
 
 
+def release(steam_root, game):
+    """Undoes an import made before store games were skipped. Only our symlink and manifest go;
+    the store's folder stays where it is."""
+    steamapps = Path(steam_root) / "steamapps"
+    sources = {game.get("folder", ""), legacy_path(game.get("folder", ""))}
+    for target in sorted((steamapps / "common").glob("DroidDeck-*")):
+        appid = target.name.removeprefix("DroidDeck-")
+        if not (appid.isdigit() and target.is_symlink() and os.readlink(target) in sources):
+            continue
+        for manifest in (steamapps / f"appmanifest_{appid}.acf", steamapps / PARKED / f"appmanifest_{appid}.acf"):
+            if manifest.is_file() and ours(manifest, appid):
+                manifest.unlink()
+        target.unlink()
+        print(f"droiddeck-steam-games: {game.get('name', appid)} came from {game['store']}; it is a shortcut again, not Steam app {appid}")
+
+
 def route(steam_root, acct, games):
     snapshot = read_json(Path(acct) / "config" / STATE, {})
     if not isinstance(snapshot, dict):
@@ -379,6 +401,13 @@ def route(steam_root, acct, games):
     except OSError as error:
         print(f"droiddeck-steam-games: set-aside installs not restored ({error})")
     for game in games:
+        if store_game(game):
+            try:
+                release(steam_root, game)
+            except OSError as error:
+                print(f"droiddeck-steam-games: store import not undone ({error})")
+            shortcuts.append(game)
+            continue
         folder = game.get("folder", "")
         appid = candidates.get(folder, candidates.get(legacy_path(folder)))
         stamp = source_stamp(game)

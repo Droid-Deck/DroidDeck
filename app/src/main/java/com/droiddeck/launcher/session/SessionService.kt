@@ -560,6 +560,8 @@ class SessionService : Service() {
             SessionPrefs.directAudio(this)
         val wantsMic = SessionPrefs.micEnabled(this) &&
             checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        guest.add("BL_MIC_ENABLED=" + if (wantsMic) "1" else "0")
+        guest.add("BANNER_AUDIO_DIRECT_MIC=" + if (wantsMic) "1" else "0")
         val audioDir = File(filesDir, "directaudio").apply { mkdirs() }
         val relaySocket = File(audioDir, "relay.sock")
         val micFifo = if (wantsMic) File(audioDir, "mic.fifo") else null
@@ -608,6 +610,7 @@ class SessionService : Service() {
         SessionState.deckPad = deckBinds.isNotEmpty()
         if (wantsDeck && !SessionState.deckPad) Log.w(TAG, "deck pad: not available this session; the pad stays an Xbox 360 controller")
         logControllersAtStart()
+        com.droiddeck.launcher.input.FakeInputWriter.setLowLatency(SessionPrefs.lowLatencyController(this), SessionPrefs.lowLatencyTouch(this))
         if (uinput) {
             guest.add("FAKE_EVDEV_UINPUT=1")
             if (SessionState.deckPad) {
@@ -685,9 +688,12 @@ class SessionService : Service() {
                 File(LinuxRuntime.rootDir(this), "mnt/droiddeck-sd").mkdirs()
                 File(LinuxRuntime.rootDir(this), "mnt/bannerlator-sd").mkdirs()
                 try {
-                    binds.addAll(SecondaryLibrary.binds(filesDir, File(library.path)))
-                    storageDiagnosticLibrary = File(library.path)
-                    Log.i(TAG, "game storage: ${library.path} -> /mnt/droiddeck-sd (\"${library.label}\"); prefixes and native tools private")
+                    val configured = File(library.path)
+                    val content = SecondaryLibrary.contentPath(configured)
+                    binds.addAll(SecondaryLibrary.binds(filesDir, configured, content = content))
+                    storageDiagnosticLibrary = content
+                    val route = if (content === configured) "configured" else "verified-native"
+                    Log.i(TAG, "game storage: ${content.path} ($route) -> /mnt/droiddeck-sd (\"${library.label}\"); prefixes and native tools private")
                 } catch (e: Exception) {
                     Log.w(TAG, "game storage: private directories could not be prepared; internal only this session", e)
                 }
@@ -702,9 +708,9 @@ class SessionService : Service() {
             val device = StorageDiagnostics.writeSnapshot(
                 sessionDir, target,
                 selectedLibrary = if (storageDiagnosticLibrary != null) "secondary" else "internal",
-                removable = storageDiagnosticLibrary?.let {
-                    runCatching { Environment.isExternalStorageRemovable(it) }.getOrDefault(false)
-                } ?: false,
+                removable = storageDiagnosticLibrary != null && library?.let {
+                    runCatching { Environment.isExternalStorageRemovable(File(it.path)) }.getOrDefault(false)
+                } == true,
             )
             if (device != null) {
                 val envAt = guest.indexOf(LinuxRuntime.SESSION_SCRIPT).takeIf { it >= 0 } ?: guest.size

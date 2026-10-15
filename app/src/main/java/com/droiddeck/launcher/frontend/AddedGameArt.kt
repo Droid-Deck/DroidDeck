@@ -36,6 +36,10 @@ object AddedGameArt {
 
     class Option(val group: String, val thumb: String, val full: String)
 
+    class Choices(val options: List<Option>, val sgdb: SteamGridDb.Status)
+
+    class Found<T>(val items: List<T>, val status: SteamGridDb.Status)
+
     private val CHOSEN = Regex("""chosen-(\w+)\.(\w+)""")
 
     private fun chosen(cache: File, slot: Slot): File? =
@@ -108,7 +112,7 @@ object AddedGameArt {
             dir.listFiles { f -> f.isFile && f.extension.lowercase() in CHOOSABLE }?.sortedBy { it.name.lowercase() }.orEmpty()
         }.take(12)
 
-    fun options(context: Context, game: AddedGames.Game, slot: Slot): List<Option> {
+    fun choices(context: Context, game: AddedGames.Game, slot: Slot): Choices {
         val out = ArrayList<Option>()
         folderImages(game.folder).forEach { out.add(Option(FOLDER, it.path, it.path)) }
         val cache = cacheDir(context, game)
@@ -118,16 +122,42 @@ object AddedGameArt {
             val url = "$CDN$steamId/$remote".takeIf { exists(it) } ?: steamAssetUrl(steamId, remote)
             if (url != null) out.add(Option(STEAM, url, url))
         }
+        var status = SteamGridDb.Status.OK
         val key = SteamGridDb.key(context)
-        if (key.isNotEmpty()) {
+        if (key.isEmpty()) {
+            status = SteamGridDb.Status.NO_KEY
+        } else {
             cache.mkdirs()
-            val gridId = remembered(File(cache, "sgdb-id")) {
-                runCatching { SteamGridDb.gameId(key, steamId?.toIntOrNull(), game.name) }.getOrNull()?.toString()
-            }?.toIntOrNull()
-            if (gridId != null) runCatching { SteamGridDb.images(key, gridId, slot, if (slot == Slot.ICON) 3 else 5) }.getOrNull()
-                ?.forEach { (thumb, full) -> out.add(Option(SGDB, thumb, full)) }
+            try {
+                val gridId = remembered(File(cache, "sgdb-id"), SteamGridDb.keyChangedAt(context), retryMiss = true) {
+                    SteamGridDb.gameId(key, steamId?.toIntOrNull(), game.name)?.toString()
+                }?.toIntOrNull()
+                if (gridId == null) status = SteamGridDb.Status.NO_GAME
+                else SteamGridDb.images(key, gridId, slot, if (slot == Slot.ICON) 3 else 5)
+                    .forEach { (thumb, full) -> out.add(Option(SGDB, thumb, full)) }
+            } catch (e: Exception) {
+                Log.w(TAG, "${game.name}: SteamGridDB failed (${e.javaClass.simpleName})")
+                status = (e as? SteamGridDb.Failed)?.status ?: SteamGridDb.Status.SERVER
+            }
         }
-        return out
+        return Choices(out, status)
+    }
+
+    fun searchGames(context: Context, term: String): Found<SteamGridDb.Game> = sgdb(context) { SteamGridDb.search(it, term) }
+
+    fun gameImages(context: Context, id: Int, slot: Slot, page: Int): Found<Option> = sgdb(context) { key ->
+        SteamGridDb.page(key, id, slot, page).map { (thumb, full) -> Option(SGDB, thumb, full) }
+    }
+
+    private fun <T> sgdb(context: Context, call: (String) -> List<T>): Found<T> {
+        val key = SteamGridDb.key(context)
+        if (key.isEmpty()) return Found(emptyList(), SteamGridDb.Status.NO_KEY)
+        return try {
+            Found(call(key), SteamGridDb.Status.OK)
+        } catch (e: Exception) {
+            Log.w(TAG, "SteamGridDB: ${e.javaClass.simpleName}")
+            Found(emptyList(), (e as? SteamGridDb.Failed)?.status ?: SteamGridDb.Status.SERVER)
+        }
     }
 
     fun choose(context: Context, game: AddedGames.Game, slot: Slot, option: Option): Boolean {
@@ -180,6 +210,8 @@ object AddedGameArt {
     fun fetchMissing(context: Context, games: List<AddedGames.Game>): Boolean {
         if (!SessionPrefs.addedGamesArt(context)) return false
         val sgdbKey = SteamGridDb.key(context)
+        val keyChangedAt = SteamGridDb.keyChangedAt(context)
+        var sgdbDown = false
         var changed = false
         for (game in games) {
             if (local(game).portrait != null) continue
@@ -192,11 +224,24 @@ object AddedGameArt {
             val appId = match.appId?.takeIf { match.certainty == SteamMatch.Certainty.FILES }
             val id = match.appId?.toString()
             if (id != null && download(id, cache)) changed = true
-            if (File(cache, "p.jpg").isFile || sgdbKey.isEmpty()) continue
-            val gridId = remembered(File(cache, "sgdb-id")) {
-                runCatching { SteamGridDb.gameId(sgdbKey, appId ?: id?.toIntOrNull(), game.name) }.getOrNull()?.toString()
-            }?.toIntOrNull() ?: continue
-            if (runCatching { SteamGridDb.download(sgdbKey, gridId, cache) }.getOrDefault(false)) changed = true
+            if (File(cache, "p.jpg").isFile || sgdbKey.isEmpty() || sgdbDown) continue
+            val stored: String? = try {
+                remembered(File(cache, "sgdb-id"), keyChangedAt) {
+                    SteamGridDb.gameId(sgdbKey, appId ?: id?.toIntOrNull(), game.name)?.toString()
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "${game.name}: SteamGridDB lookup failed (${e.javaClass.simpleName}); not asking again this pass")
+                sgdbDown = true
+                null
+            }
+            val gridId = stored?.toIntOrNull() ?: continue
+            val grabbed = try {
+                SteamGridDb.download(sgdbKey, gridId, cache)
+            } catch (e: Exception) {
+                sgdbDown = true
+                false
+            }
+            if (grabbed) changed = true
         }
         return changed
     }
@@ -207,11 +252,12 @@ object AddedGameArt {
         return match
     }
 
-    private fun remembered(marker: File, find: () -> String?): String? {
+    internal fun remembered(marker: File, notBefore: Long = 0L, retryMiss: Boolean = false, find: () -> String?): String? {
         if (marker.isFile) {
             val value = marker.readText().trim()
             if (value != "none") return value
-            if (System.currentTimeMillis() - marker.lastModified() < RETRY_AFTER_MS) return null
+            val at = marker.lastModified()
+            if (!retryMiss && at >= notBefore && System.currentTimeMillis() - at < RETRY_AFTER_MS) return null
         }
         val found = find()
         marker.writeText(found ?: "none")

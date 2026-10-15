@@ -20,6 +20,7 @@ import com.droiddeck.launcher.gpu.TurnipDriver
 import com.droiddeck.launcher.gpu.TurnipReleases
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.QuestExperimental
 import com.droiddeck.launcher.ui.DriverRow
 import com.droiddeck.launcher.ui.GpuDriversState
 import com.droiddeck.launcher.ui.PairRow
@@ -103,7 +104,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         val lm = LinuxVulkanDriverManager(activity)
         val td = TurnipDriver(activity)
         val pairs = DriverPairs.from(TurnipReleases.cached(activity))
-        val recommended = DriverPairs.recommendedKey(gpu, pairs)
+        val recommended = if (QuestExperimental.isSupported()) null else DriverPairs.recommendedKey(gpu, pairs)
         pairRows = pairs.map { p ->
             val bundle = p.bundle?.let { installedBundle(it) }
             val displayId = if (p.bundle != null) bundle?.androidId else p.display?.let { TurnipReleases.installedId(activity, it, td::isInstalled) }
@@ -132,6 +133,14 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         if (mode != SessionPrefs.GPU_DRIVERS_AUTO || pairBusy != null || releaseChecking) return
         if (!force && autoCheckedThisProcess) return
         autoCheckedThisProcess = true
+        val displayChanged = SessionPrefs.androidDriver(activity) != QuestExperimental.defaultAndroidDriver()
+        if (QuestExperimental.applyAutoDrivers(activity)) {
+            autoStatus = activity.getString(
+                if (displayChanged && CompositorHost.isStarted) R.string.drivers_using_quest_restart else R.string.drivers_using_quest,
+            )
+            refreshDrivers()
+            return
+        }
         if (DriverPairs.recommendedKey(gpu, emptyList()) == null) {
             autoStatus = activity.getString(R.string.drivers_none_to_set, gpu.supportText(activity).lowercase())
             return

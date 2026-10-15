@@ -11,6 +11,9 @@ reviews:
   high_level_summary_in_walkthrough: true
   poem: false
   sequence_diagrams: false
+  tools:
+    github-checks:
+      enabled: false
   auto_review:
     enabled: true
     auto_incremental_review: true

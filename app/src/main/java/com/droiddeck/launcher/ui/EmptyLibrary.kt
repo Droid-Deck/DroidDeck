@@ -46,10 +46,10 @@ import kotlin.math.min
 import kotlin.math.sin
 
 @Composable
-internal fun EmptyLibrary(avoid: Rect?, fade: @Composable () -> Unit) {
+internal fun EmptyLibrary(avoid: Rect?, wall: (@Composable () -> Unit)? = null, fade: @Composable () -> Unit) {
     val clock = rememberMarkClock(avoid)
     Box(Modifier.fillMaxSize().onSizeChanged { clock.page = Size(it.width.toFloat(), it.height.toFloat()) }) {
-        EmptyWall(clock)
+        if (wall != null) wall() else EmptyWall(clock)
         fade()
         Mark(clock)
     }

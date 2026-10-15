@@ -18,6 +18,7 @@ interface GlassesModel {
  */
 internal interface GlassesLink {
     val hasImu: Boolean
+    val badFrames: Long get() = 0L
     val ready: Boolean get() = true
     fun send(msgId: Int, payload: ByteArray = ByteArray(0)): Boolean
     fun close()

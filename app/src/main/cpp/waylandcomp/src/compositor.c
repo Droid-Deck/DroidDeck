@@ -1874,7 +1874,12 @@ static void render_scene(void) {
         else if (rendered && how == 2) droiddeck_color_frame_shown(hs.color, DROIDDECK_HDR_TONEMAPPED, 0);
         else if (rendered) hdr_copy = "the HDR composition pass is unavailable on this driver";
     }
-    if (hdr_route == 0 || hdr_route == 3) {
+    if (hdr_route == 0 && vkp_quest_layer_presentation() && !framegen && !cardboard &&
+        !ahb_layer_only_candidate(w, h)) {
+        /* The complete SDR scene stays on one display layer. Do not hide/re-show GAME
+         * on each desktop frame just because it is not a single fullscreen window. */
+        rendered = vkp_render(w, h, dl.d, dl.n) == 0;
+    } else if (hdr_route == 0 || hdr_route == 3) {
     const int pass_on = fx_on || framegen;
     int li = (g_zero_copy && !framegen && !cardboard) ? layer_candidate(&dl, w, h) : -1;
     int over = li >= 0 ? dl.n - 1 - li : 0;
@@ -2197,6 +2202,7 @@ struct constraint {
     int pending_region_set;
     int hint_set, pending_hint_set;
     double hint_x, hint_y, pending_hint_x, pending_hint_y;
+    int gave_keys;
 };
 static struct wl_list g_constraints;
 static struct constraint *g_active_constraint;
@@ -2275,6 +2281,14 @@ static void constraint_end(struct constraint *k, int tell_client, const char *wh
         g_ptr_y = oy + k->hint_y;
     }
     g_raw_valid = 0;
+    if (k->gave_keys) {
+        k->gave_keys = 0;
+        for (int i = 0; i < g_nkbs; i++) {
+            if (!k->surface || g_kbs[i].focus != k->surface->resource) continue;
+            wl_keyboard_send_leave(g_kbs[i].kb, wl_display_next_serial(g_display), g_kbs[i].focus);
+            g_kbs[i].focus = NULL;
+        }
+    }
     if (tell_client) constraint_send_state(k, 0);
     constraint_describe(k, name, sizeof(name));
     droiddeck_log("pointer", "%s: %s (%s), pointer at %d,%d", k->is_lock ? "unlocked" : "unconfined",
@@ -2293,6 +2307,12 @@ static void constraint_activate(struct constraint *k) {
     if (!k->is_lock) confine_clamp(k, &g_ptr_x, &g_ptr_y);
     constraint_origin(k, &ox, &oy);
     pointer_focus(k->surface->resource, wl_fixed_from_double(g_ptr_x - ox), wl_fixed_from_double(g_ptr_y - oy));
+    int focused = 0;
+    for (int i = 0; i < g_nkbs; i++) if (g_kbs[i].focus) focused = 1;
+    if (k->is_lock && !focused && keyboard_for(wl_resource_get_client(k->surface->resource))) {
+        keyboard_focus(k->surface->resource);
+        k->gave_keys = 1;
+    }
     constraint_send_state(k, 1);
     constraint_describe(k, name, sizeof(name));
     if (k->is_lock)
@@ -2597,7 +2617,24 @@ static void pointer_delta(double dx, double dy) {
 }
 
 static void pointer_button(uint32_t button, int pressed) {
-    pointer_input(0, 0, 1, button, pressed);
+    if (pressed) {
+        pointer_input(0, 0, 1, button, pressed);
+        return;
+    }
+    // Releases also clean up interrupted gestures. Deliver them to the existing
+    // pointer focus without motion or hit-testing: native touch has independent
+    // coordinates, so replaying g_ptr_x/y here can warp the game cursor.
+    uint32_t t = now_ms();
+    for (int i = 0; i < g_nptrs; i++) {
+        struct seat_pointer *sp = &g_ptrs[i];
+        if (!sp->focus) continue;
+        wl_pointer_send_button(sp->ptr, wl_display_next_serial(g_display), t, button,
+                               WL_POINTER_BUTTON_STATE_RELEASED);
+        if (wl_resource_get_version(sp->ptr) >= WL_POINTER_FRAME_SINCE_VERSION)
+            wl_pointer_send_frame(sp->ptr);
+    }
+    g_grab = NULL;
+    wl_display_flush_clients(g_display);
 }
 
 static void deliver_pointer(const struct input_msg *m) {
@@ -2912,7 +2949,11 @@ static int on_input_readable(int fd, uint32_t mask, void *data) {
         case 6: pointer_delta(m.p1 / 256.0, m.p2 / 256.0); break;
         case 7: deliver_touch(&m); break;
         case 8: output_resized(); break;
-        case 9: break;
+        case 9:
+            vk_present_set_scale_mode(m.p1, m.p2);
+            schedule_render();
+            break;
+        case 10: break;
         default: deliver_pointer(&m); break;
         }
     }
@@ -2923,6 +2964,16 @@ static int on_input_readable(int fd, uint32_t mask, void *data) {
     }
     if (vsync) on_vsync(vsync_ns);
     return 0;
+}
+
+void droiddeck_wayland_set_scale_mode(int mode, int alignment) {
+    if (g_input_pipe[1] < 0) {
+        vk_present_set_scale_mode(mode, alignment);
+        return;
+    }
+    struct input_msg m = { 9, mode, alignment, 0, 0 };
+    ssize_t n = write(g_input_pipe[1], &m, sizeof(m));
+    (void)n;
 }
 
 void droiddeck_wayland_send_pointer(int action, int x, int y) {
@@ -2957,7 +3008,7 @@ void droiddeck_wayland_set_output_refresh_rate(int mhz) {
     if (mhz <= 0) mhz = 60000;
     if (atomic_exchange(&g_output_refresh_mhz, mhz) == mhz || g_input_pipe[1] < 0) return;
     atomic_store(&g_output_refresh_pending, 1);
-    struct input_msg m = { 9, 0, 0, 0, 0 };
+    struct input_msg m = { 10, 0, 0, 0, 0 };
     ssize_t n;
     do { n = write(g_input_pipe[1], &m, sizeof(m)); } while (n < 0 && errno == EINTR);
     (void)n;
@@ -3138,6 +3189,9 @@ int droiddeck_wayland_run(void) {
     open_session_log();
 
     if (vkp_ready() != 0) WLOGE("renderer unavailable; clients will connect but nothing is drawn");
+    /* Presentation compatibility is not HDR capability. Set the initial layer mode before
+     * clients bind, including when Desktop is the first session in this app process. */
+    if (vkp_quest_layer_presentation() && sc_layer_available()) g_zero_copy = 1;
 
     struct wl_display *display = wl_display_create();
     if (!display) {
