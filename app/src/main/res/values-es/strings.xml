@@ -2267,7 +2267,7 @@
     <string name="drawer_component_choose_download">Elige una versión para descargar</string>
     <string name="mode_zram">Compresión zRAM</string>
     <string name="mode_zram_hint">Mientras se ejecuta un juego, la memoria del cliente de Steam se comprime en la zram del dispositivo, lo que deja más RAM para el juego. Se aplica la próxima vez que se inicie Steam.</string>
-    <string name="mode_zram_unsupported">No disponible: este dispositivo no tiene zram ni swap, o su kernel es anterior a la 5.4.</string>
+    <string name="mode_zram_unsupported">No disponible: este dispositivo no tiene swap activo, o su kernel es anterior a la 5.4.</string>
     <string name="stores_storage_insufficient">No hay suficiente espacio libre: se necesitan %1$s y solo hay %2$s libres</string>
     <string name="stores_storage_low">Espacio insuficiente (%1$s libres, se necesitan %2$s)</string>
     <string name="stores_target_free_unknown">Espacio libre desconocido</string>
