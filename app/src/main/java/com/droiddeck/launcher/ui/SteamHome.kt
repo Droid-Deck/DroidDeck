@@ -115,7 +115,7 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
             if (glasses.present) DropSheet(
                 drop, glasses.model, GlassesIcon, glassesTabs(glasses), covered = lifted,
                 beside = { enabled ->
-                    if (glasses.canControl) PrimaryButton(stringResource(R.string.games_play_steamvr), enabled = !s.busy, large = true, icon = Icons.Filled.PlayArrow, fill = true,
+                    if (glasses.canControl && glasses.usable) PrimaryButton(stringResource(R.string.games_play_steamvr), enabled = !s.busy, large = true, icon = Icons.Filled.PlayArrow, fill = true,
                         modifier = Modifier.fillMaxWidth().testTag("play-steamvr")) { if (enabled) a.onPlaySteamVr() }
                 },
             ) { tab ->

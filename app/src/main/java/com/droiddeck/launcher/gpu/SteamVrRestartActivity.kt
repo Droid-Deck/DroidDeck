@@ -49,8 +49,9 @@ class SteamVrRestartActivity : Activity() {
             check(!java.io.File("/proc/${main.pid}").exists()) { "DroidDeck process did not exit" }
             val settings = java.io.File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(this),
                 "root/.local/share/Steam/config/steamvr.vrsettings")
-            if (SteamVrRecoverySettings.unblockHeadset(settings))
-                android.util.Log.i("SteamVrRecovery", "Cleared the DroidDeck HMD crash block before restarting SteamVR")
+            runCatching { SteamVrRecoverySettings.unblockHeadset(settings) }
+                .onSuccess { if (it) android.util.Log.i("SteamVrRecovery", "Cleared the DroidDeck HMD crash block before restarting SteamVR") }
+                .onFailure { android.util.Log.w("SteamVrRecovery", "Could not read the SteamVR settings; restarting with them unchanged", it) }
             runOnUiThread {
                 startActivity(Intent(this, SessionActivity::class.java)
                     .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_STEAM)

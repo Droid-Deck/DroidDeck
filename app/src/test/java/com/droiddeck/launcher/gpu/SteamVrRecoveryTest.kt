@@ -64,13 +64,21 @@ class SteamVrRecoveryTest {
         recovery.close()
     }
 
-    @Test fun backgroundingCancelsTheCountdown() {
+    @Test fun backgroundingCancelsTheCountdownUntilTheSessionReturns() {
         var foreground = true
         val recovery = SteamVrRecovery(activity) { foreground }
         recovery.detected()
         foreground = false
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(20))
         assertNull(shadowOf(activity).nextStartedActivity)
+        assertFalse(ShadowAlertDialog.getLatestAlertDialog().isShowing)
+        recovery.detected()
+        assertFalse(ShadowAlertDialog.getLatestAlertDialog().isShowing)
+        foreground = true
+        recovery.detected()
+        assertTrue(ShadowAlertDialog.getLatestAlertDialog().isShowing)
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(8))
+        assertEquals(SteamVrRestartActivity::class.java.name, shadowOf(activity).nextStartedActivity.component?.className)
         recovery.close()
     }
 }

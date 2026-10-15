@@ -210,9 +210,9 @@ object Glasses {
     }
 
     fun set3d(on: Boolean) = post {
-        modeState.manual()
         val s = _state.value
         if (!s.canControl || (on && s.noSignal)) return@post
+        modeState.manual()
         if (on) {
             markSbsFailed(linkDevice?.productId, false)
             rememberSbs(GlassesState.SBS_UNKNOWN)

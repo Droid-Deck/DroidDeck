@@ -31,9 +31,20 @@ import java.util.concurrent.TimeUnit
 class GlassesSteamVrTest {
     private val commands = mutableListOf<Int>()
     private val handler = Handler(Looper.getMainLooper())
+    private lateinit var restore: () -> Unit
     private fun field(name: String) = Glasses::class.java.getDeclaredField(name).apply { isAccessible = true }
 
     @Before fun prepare() {
+        val fields = listOf("handler", "app", "model").associateWith { field(it).get(null) }
+        @Suppress("UNCHECKED_CAST")
+        val flows = listOf("_state", "_settings").map { field(it).get(null) as MutableStateFlow<Any> }
+        val values = flows.map { it.value }
+        val mode = SessionState.mode
+        restore = {
+            fields.forEach { (name, value) -> field(name).set(null, value) }
+            flows.zip(values).forEach { (flow, value) -> flow.value = value }
+            SessionState.mode = mode
+        }
         field("handler").set(null, handler)
         field("app").set(null, RuntimeEnvironment.getApplication())
         field("model").set(null, VitureProtocol.model(0x1019, null))
@@ -56,6 +67,7 @@ class GlassesSteamVrTest {
         field("link").set(null, null)
         (field("modeState").get(null) as GlassesModeState).apply { manual(); sent(false, 0) }
         SessionState.steamVr = false
+        restore()
     }
 
     @Test fun defaultLaunchAndRunningStatusKeepTheDisplayIn2d() = withLaunch(auto3d = false) { activity ->
@@ -79,6 +91,24 @@ class GlassesSteamVrTest {
         status(activity, SteamVr.Status.READY)
         assertEquals(listOf(0x32, 0x34), commands)
         assertFalse(Glasses.state.value.switching3d)
+    }
+
+    @Test fun ignoredManualSwitchKeepsThePending2dRestore() {
+        val mode = field("modeState").get(null) as GlassesModeState
+        mode.startVr()
+        mode.stopVr()
+        @Suppress("UNCHECKED_CAST")
+        val state = field("_state").get(null) as MutableStateFlow<GlassesState>
+        state.value = state.value.copy(width = 640, height = 480, noSignal = true)
+        Glasses.set3d(true)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(emptyList<Int>(), commands)
+        assertTrue(mode.restorePending)
+        state.value = state.value.copy(width = 1920, height = 1080, noSignal = false)
+        Glasses.set3d(false)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(listOf(0x34), commands)
+        assertFalse(mode.restorePending)
     }
 
     @Test fun absentPreferenceDefaultsTo2dAndAnExplicitOptInSurvivesReload() {

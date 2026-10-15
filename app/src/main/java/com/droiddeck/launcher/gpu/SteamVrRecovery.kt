@@ -55,7 +55,7 @@ internal class SteamVrRecovery(private val activity: Activity, private val foreg
         if (automatic) {
             countdown = object : Runnable {
                 override fun run() {
-                    if (!foreground() || activity.isFinishing || activity.isDestroyed) { prompt.dismiss(); return }
+                    if (!foreground() || activity.isFinishing || activity.isDestroyed) { handled = false; prompt.dismiss(); return }
                     if (--seconds <= 0) { prompt.dismiss(); restart(); return }
                     prompt.setMessage(message())
                     handler.postDelayed(this, 1000)

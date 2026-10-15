@@ -199,17 +199,18 @@ class GlassesCallbacksTest {
             samples++
         }
         field("probe").set(null, probe)
-        sdk(0).onPose(floatArrayOf(0f, 0f, 0f, 1f), 100)
-        sdk(1).onPose(floatArrayOf(0f, 0f, 0f, 1f), 101)
-        assertEquals(1, samples)
-        sdk(0).onValue(VitureProtocol.MSG_GET_BRIGHTNESS, 8)
-        sdk(1).onValue(VitureProtocol.MSG_GET_DISPLAY, 0x42)
-        sdk(0).onLost()
-        shadowOf(Looper.getMainLooper()).idle()
-        assertEquals(2, Glasses.state.value.brightness)
-        assertFalse(Glasses.state.value.sbs)
-        assertTrue(Glasses.state.value.connected)
-        field("probe").set(null, null)
+        try {
+            sdk(0).onPose(floatArrayOf(0f, 0f, 0f, 1f), 100)
+            sdk(1).onPose(floatArrayOf(0f, 0f, 0f, 1f), 101)
+            assertEquals(1, samples)
+            sdk(0).onValue(VitureProtocol.MSG_GET_BRIGHTNESS, 8)
+            sdk(1).onValue(VitureProtocol.MSG_GET_DISPLAY, 0x42)
+            sdk(0).onLost()
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(2, Glasses.state.value.brightness)
+            assertFalse(Glasses.state.value.sbs)
+            assertTrue(Glasses.state.value.connected)
+        } finally { field("probe").set(null, null) }
     }
 
     @Test fun rejectedTrackingStartDoesNotAdvertiseTracking() {

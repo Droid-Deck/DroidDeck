@@ -139,7 +139,7 @@ Verified on the AYN Thor (SD 8 Gen 2, Turnip): SteamVR 2.17.10 starts with the D
 the compositor runs driver-direct at about 60 fps, the dashboard (Steam's library in VR, with the
 controller's laser) shows cleanly in both eyes at the panel's resolution while Steam keeps running, and
 a pose written to the shared file turns SteamVR's view. Started from the drawer button through the agent.
-With VITURE glasses connected and under DroidDeck's control, the Steam page also offers **Play SteamVR**, which starts Steam and then
+With VITURE glasses connected, showing a picture and under DroidDeck's control, the Steam page also offers **Play SteamVR**, which starts Steam and then
 SteamVR (installing it first if needed), and stops SteamVR when the glasses are unplugged. **Play
 Steam** never starts it: while SteamVR runs, Steam keeps its own window in front of flat games.
 Through a VITURE Mobile Dock the glasses are only a display: the dock does not pass their controls or
