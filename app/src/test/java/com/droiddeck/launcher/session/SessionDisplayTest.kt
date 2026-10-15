@@ -40,6 +40,25 @@ class SessionDisplayTest {
         assertEquals(864, SessionDisplay.unfoldedGameHeight(1920, 1080))
     }
 
+    @Test fun aFoldLineEndsTheGameSoTheControlsStayOnTheLowerHalf() {
+        // flat 2448x1848 gives 1376; a horizontal fold at half height pulls the game up to the fold
+        assertEquals(924, SessionDisplay.unfoldedGameHeight(2448, 1848, foldTop = 924))
+        // a fold lower than the 16:9 height does not make the game taller than 16:9
+        assertEquals(1376, SessionDisplay.unfoldedGameHeight(2448, 1848, foldTop = 1500))
+        // a narrow window: 16:9 of the width is already above the fold
+        assertEquals(1038, SessionDisplay.unfoldedGameHeight(1848, 2448, foldTop = 1224))
+        assertEquals(1038, SessionDisplay.unfoldedGameHeight(1848, 2448, foldTop = 1300))
+        // the result is always even
+        assertEquals(0, SessionDisplay.unfoldedGameHeight(2448, 1848, foldTop = 925) % 2)
+    }
+
+    @Test fun aFoldLineOutsideTheWindowIsIgnored() {
+        val flat = SessionDisplay.unfoldedGameHeight(2448, 1848)
+        for (bad in listOf(null, 0, -10, 1848, 3000)) {
+            assertEquals("foldTop=$bad", flat, SessionDisplay.unfoldedGameHeight(2448, 1848, foldTop = bad))
+        }
+    }
+
 
     @Test fun followScreenKeepsTheWindowShapeAndSkipsTinyWindows() {
         assertEquals(2520 to 1080, SessionDisplay.resolveChoice(1080 to 2520, SessionDisplay.FOLLOW_SCREEN))
