@@ -1924,6 +1924,14 @@
     <string name="epic_eos">Epic 로그인(EOS)</string>
     <string name="epic_offline">오프라인으로 실행</string>
     <string name="epic_resolve">Epic 로그인 문제 해결</string>
+    <string name="epic_client_version">버전 %1$s</string>
+    <string name="epic_client_no_runtime">먼저 Linux 런타임을 설치하세요</string>
+    <string name="epic_client_checking">최신 버전 확인 중…</string>
+    <string name="epic_client_unpacking">압축 해제 중…</string>
+    <string name="epic_client_unreachable">다운로드 서버가 응답하지 않았습니다</string>
+    <string name="epic_client_download_failed">다운로드 실패: %1$s</string>
+    <string name="epic_client_unpack_failed">런처 압축을 해제할 수 없습니다: %1$s</string>
+    <string name="epic_client_sign_in_failed">Epic Games Launcher가 로그인을 받아들이지 않았습니다. 런처에서 다시 시작하세요.</string>
     <string name="store_cloud_saves">클라우드 저장</string>
     <string name="cloud_upload">클라우드에 업로드</string>
     <string name="cloud_download">클라우드에서 다운로드</string>

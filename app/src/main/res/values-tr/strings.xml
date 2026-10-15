@@ -1937,6 +1937,14 @@
     <string name="epic_eos">Epic oturum açma (EOS)</string>
     <string name="epic_offline">Çevrimdışı başlat</string>
     <string name="epic_resolve">Epic oturum açmayı düzelt</string>
+    <string name="epic_client_version">Sürüm %1$s</string>
+    <string name="epic_client_no_runtime">Önce Linux çalışma zamanını yükleyin</string>
+    <string name="epic_client_checking">En son sürüm kontrol ediliyor…</string>
+    <string name="epic_client_unpacking">Ayıklanıyor…</string>
+    <string name="epic_client_unreachable">İndirme sunucusu yanıt vermedi</string>
+    <string name="epic_client_download_failed">İndirme başarısız oldu: %1$s</string>
+    <string name="epic_client_unpack_failed">Başlatıcı ayıklanamadı: %1$s</string>
+    <string name="epic_client_sign_in_failed">Epic Games Launcher oturum açmayı kabul etmedi. Başlatıcıdan yeniden başlatın.</string>
     <string name="store_cloud_saves">Bulut kayıtları</string>
     <string name="cloud_upload">Buluta yükle</string>
     <string name="cloud_download">Buluttan indir</string>

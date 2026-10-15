@@ -1916,6 +1916,14 @@
     <string name="epic_eos">ลงชื่อเข้าใช้ Epic (EOS)</string>
     <string name="epic_offline">เปิดแบบออฟไลน์</string>
     <string name="epic_resolve">แก้ไขการลงชื่อเข้าใช้ Epic</string>
+    <string name="epic_client_version">เวอร์ชัน %1$s</string>
+    <string name="epic_client_no_runtime">ติดตั้งรันไทม์ Linux ก่อน</string>
+    <string name="epic_client_checking">กำลังตรวจสอบเวอร์ชันล่าสุด…</string>
+    <string name="epic_client_unpacking">กำลังแตกไฟล์…</string>
+    <string name="epic_client_unreachable">เซิร์ฟเวอร์ดาวน์โหลดไม่ตอบสนอง</string>
+    <string name="epic_client_download_failed">ดาวน์โหลดล้มเหลว: %1$s</string>
+    <string name="epic_client_unpack_failed">แตกไฟล์ตัวเรียกใช้งานไม่ได้: %1$s</string>
+    <string name="epic_client_sign_in_failed">Epic Games Launcher ไม่ยอมรับการลงชื่อเข้าใช้ เริ่มใหม่อีกครั้งจากตัวเรียกใช้งาน</string>
     <string name="store_cloud_saves">เซฟบนคลาวด์</string>
     <string name="cloud_upload">อัปโหลดขึ้นคลาวด์</string>
     <string name="cloud_download">ดาวน์โหลดจากคลาวด์</string>

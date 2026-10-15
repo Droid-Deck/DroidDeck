@@ -52,6 +52,8 @@ public final class PadBridge {
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private boolean open;
     private volatile boolean selectSteam;
+    private TouchRoute touchRoute;
+    private final PadState routedTouch = new PadState();
     private boolean systemGuidePressed;
     private boolean systemQamPressed;
     private boolean qamChordActive;
@@ -278,27 +280,11 @@ public final class PadBridge {
         scheduleStats();
         pad.leftX = axis(event, MotionEvent.AXIS_X);
         pad.leftY = axis(event, MotionEvent.AXIS_Y);
-        InputDevice device = event.getDevice();
-        boolean wiredXboxLayout = device != null
-                && ((device.getVendorId() == 0x20d6 && device.getProductId() == 0x2063)
-                || (device.getVendorId() == 0x0e6f && device.getProductId() == 0x02f0))
-                && device.getMotionRange(MotionEvent.AXIS_RX, event.getSource()) != null
-                && device.getMotionRange(MotionEvent.AXIS_RY, event.getSource()) != null
-                && device.getMotionRange(MotionEvent.AXIS_Z, event.getSource()) != null
-                && device.getMotionRange(MotionEvent.AXIS_RZ, event.getSource()) != null;
-        pad.rightX = axis(event, wiredXboxLayout ? MotionEvent.AXIS_RX : MotionEvent.AXIS_Z);
-        pad.rightY = axis(event, wiredXboxLayout ? MotionEvent.AXIS_RY : MotionEvent.AXIS_RZ);
-        float lt;
-        float rt;
-        if (wiredXboxLayout) {
-            lt = Math.max(0f, Math.min(1f, (event.getAxisValue(MotionEvent.AXIS_Z) + 1f) / 2f));
-            rt = Math.max(0f, Math.min(1f, (event.getAxisValue(MotionEvent.AXIS_RZ) + 1f) / 2f));
-        } else {
-            lt = event.getAxisValue(MotionEvent.AXIS_LTRIGGER);
-            rt = event.getAxisValue(MotionEvent.AXIS_RTRIGGER);
-            if (lt == 0f) lt = event.getAxisValue(MotionEvent.AXIS_BRAKE);
-            if (rt == 0f) rt = event.getAxisValue(MotionEvent.AXIS_GAS);
-        }
+        boolean wired = wiredXboxLayout(event);
+        pad.rightX = rightX(event, wired);
+        pad.rightY = rightY(event, wired);
+        float lt = leftTrigger(event, wired);
+        float rt = rightTrigger(event, wired);
         pad.leftTrigger = lt;
         pad.rightTrigger = rt;
         float hatX = event.getAxisValue(MotionEvent.AXIS_HAT_X);
@@ -315,7 +301,24 @@ public final class PadBridge {
         return true;
     }
 
+    public interface TouchRoute {
+        boolean active();
+
+        void accept(PadState state);
+    }
+
+    public synchronized void setTouchRoute(TouchRoute route) {
+        touchRoute = route;
+        routedTouch.clear();
+    }
+
     public synchronized void applyTouch(java.util.function.Consumer<PadState> mutation) {
+        if (touchRoute != null && touchRoute.active()) {
+            mutation.accept(routedTouch);
+            touchRoute.accept(routedTouch);
+            return;
+        }
+        routedTouch.clear();
         mutation.accept(state);
         activeControllerId = NO_CONTROLLER;
         slotControllers.set(0, NO_CONTROLLER);
@@ -346,6 +349,7 @@ public final class PadBridge {
     }
 
     public synchronized void releaseAll() {
+        routedTouch.clear();
         releaseBackPaddles();
         state.clear();
         publish();
@@ -533,6 +537,37 @@ public final class PadBridge {
         if (qam) effectiveState.press(PadState.QAM, true);
         if (chordButtonPressed) effectiveState.press(chordButton, true);
         writer.writePad(effectiveState);
+    }
+
+    public static boolean wiredXboxLayout(MotionEvent event) {
+        InputDevice device = event.getDevice();
+        return device != null
+                && ((device.getVendorId() == 0x20d6 && device.getProductId() == 0x2063)
+                || (device.getVendorId() == 0x0e6f && device.getProductId() == 0x02f0))
+                && device.getMotionRange(MotionEvent.AXIS_RX, event.getSource()) != null
+                && device.getMotionRange(MotionEvent.AXIS_RY, event.getSource()) != null
+                && device.getMotionRange(MotionEvent.AXIS_Z, event.getSource()) != null
+                && device.getMotionRange(MotionEvent.AXIS_RZ, event.getSource()) != null;
+    }
+
+    public static float rightX(MotionEvent event, boolean wired) {
+        return axis(event, wired ? MotionEvent.AXIS_RX : MotionEvent.AXIS_Z);
+    }
+
+    public static float rightY(MotionEvent event, boolean wired) {
+        return axis(event, wired ? MotionEvent.AXIS_RY : MotionEvent.AXIS_RZ);
+    }
+
+    public static float leftTrigger(MotionEvent event, boolean wired) {
+        if (wired) return Math.max(0f, Math.min(1f, (event.getAxisValue(MotionEvent.AXIS_Z) + 1f) / 2f));
+        float value = event.getAxisValue(MotionEvent.AXIS_LTRIGGER);
+        return value != 0f ? value : event.getAxisValue(MotionEvent.AXIS_BRAKE);
+    }
+
+    public static float rightTrigger(MotionEvent event, boolean wired) {
+        if (wired) return Math.max(0f, Math.min(1f, (event.getAxisValue(MotionEvent.AXIS_RZ) + 1f) / 2f));
+        float value = event.getAxisValue(MotionEvent.AXIS_RTRIGGER);
+        return value != 0f ? value : event.getAxisValue(MotionEvent.AXIS_GAS);
     }
 
     private static float axis(MotionEvent event, int axis) {

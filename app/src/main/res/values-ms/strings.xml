@@ -1916,6 +1916,14 @@
     <string name="epic_eos">Log masuk Epic (EOS)</string>
     <string name="epic_offline">Lancarkan secara luar talian</string>
     <string name="epic_resolve">Selesaikan log masuk Epic</string>
+    <string name="epic_client_version">Versi %1$s</string>
+    <string name="epic_client_no_runtime">Pasang runtime Linux dahulu</string>
+    <string name="epic_client_checking">Menyemak versi terkini…</string>
+    <string name="epic_client_unpacking">Menyahpak…</string>
+    <string name="epic_client_unreachable">Pelayan muat turun tidak memberi respons</string>
+    <string name="epic_client_download_failed">Muat turun gagal: %1$s</string>
+    <string name="epic_client_unpack_failed">Tidak dapat menyahpak pelancar: %1$s</string>
+    <string name="epic_client_sign_in_failed">Epic Games Launcher tidak menerima log masuk itu. Mulakan semula daripada pelancar.</string>
     <string name="store_cloud_saves">Simpanan awan</string>
     <string name="cloud_upload">Muat naik ke awan</string>
     <string name="cloud_download">Muat turun daripada awan</string>

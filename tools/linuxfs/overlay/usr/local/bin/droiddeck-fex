@@ -586,7 +586,7 @@ def extract(image):
     unsquashfs = shutil.which("unsquashfs")
     if unsquashfs:
         clear_extracted()
-        status = subprocess.call([unsquashfs, "-q", "-n", "-o", str(appimage_offset(image)), "-d", "squashfs-root", image],
+        status = subprocess.call([unsquashfs, "-q", "-n", "-no-xattrs", "-o", str(appimage_offset(image)), "-d", "squashfs-root", image],
                                  stdout=subprocess.DEVNULL)
         if status == 0:
             if x86:

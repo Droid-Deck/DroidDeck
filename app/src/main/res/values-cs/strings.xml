@@ -1979,6 +1979,14 @@
     <string name="epic_eos">Přihlášení do Epic (EOS)</string>
     <string name="epic_offline">Spustit offline</string>
     <string name="epic_resolve">Vyřešit přihlášení do Epic</string>
+    <string name="epic_client_version">Verze %1$s</string>
+    <string name="epic_client_no_runtime">Nejprve nainstalujte běhové prostředí Linuxu</string>
+    <string name="epic_client_checking">Kontrola nejnovější verze…</string>
+    <string name="epic_client_unpacking">Rozbaluje se…</string>
+    <string name="epic_client_unreachable">Stahovací server neodpověděl</string>
+    <string name="epic_client_download_failed">Stažení se nezdařilo: %1$s</string>
+    <string name="epic_client_unpack_failed">Spouštěč se nepodařilo rozbalit: %1$s</string>
+    <string name="epic_client_sign_in_failed">Epic Games Launcher přihlášení nepřijal. Spusťte ho znovu ze spouštěče.</string>
     <string name="store_cloud_saves">Cloudové uložené pozice</string>
     <string name="cloud_upload">Odeslat do cloudu</string>
     <string name="cloud_download">Stáhnout z cloudu</string>

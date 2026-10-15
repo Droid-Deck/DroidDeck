@@ -1958,6 +1958,14 @@
     <string name="epic_eos">Início de sessão Epic (EOS)</string>
     <string name="epic_offline">Iniciar offline</string>
     <string name="epic_resolve">Resolver início de sessão Epic</string>
+    <string name="epic_client_version">Versão %1$s</string>
+    <string name="epic_client_no_runtime">Instale primeiro o ambiente de execução Linux</string>
+    <string name="epic_client_checking">A verificar a versão mais recente…</string>
+    <string name="epic_client_unpacking">A descompactar…</string>
+    <string name="epic_client_unreachable">O servidor de transferência não respondeu</string>
+    <string name="epic_client_download_failed">Falha na transferência: %1$s</string>
+    <string name="epic_client_unpack_failed">Não foi possível descompactar o launcher: %1$s</string>
+    <string name="epic_client_sign_in_failed">O Epic Games Launcher não aceitou o início de sessão. Inicia-o novamente a partir do launcher.</string>
     <string name="store_cloud_saves">Dados guardados na nuvem</string>
     <string name="cloud_upload">Carregar para a nuvem</string>
     <string name="cloud_download">Transferir da nuvem</string>

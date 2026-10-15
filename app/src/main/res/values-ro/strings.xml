@@ -1958,6 +1958,14 @@
     <string name="epic_eos">Autentificare Epic (EOS)</string>
     <string name="epic_offline">Lansează offline</string>
     <string name="epic_resolve">Rezolvă autentificarea Epic</string>
+    <string name="epic_client_version">Versiunea %1$s</string>
+    <string name="epic_client_no_runtime">Instalează mai întâi mediul de execuție Linux</string>
+    <string name="epic_client_checking">Se verifică cea mai recentă versiune…</string>
+    <string name="epic_client_unpacking">Se dezarhivează…</string>
+    <string name="epic_client_unreachable">Serverul de descărcare nu a răspuns</string>
+    <string name="epic_client_download_failed">Descărcarea a eșuat: %1$s</string>
+    <string name="epic_client_unpack_failed">Launcherul nu a putut fi dezarhivat: %1$s</string>
+    <string name="epic_client_sign_in_failed">Epic Games Launcher nu a acceptat autentificarea. Pornește-l din nou din launcher.</string>
     <string name="store_cloud_saves">Salvări în cloud</string>
     <string name="cloud_upload">Încarcă în cloud</string>
     <string name="cloud_download">Descarcă din cloud</string>

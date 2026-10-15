@@ -73,7 +73,7 @@ bl_run() {
   if [ -n "${BL_STORE_EXIT:-}" ]; then
     "$@"
     rc=$?
-    /usr/local/bin/droiddeck-store-launch --exited "${BL_STORE_ARGS[@]}" || true
+    /usr/local/bin/droiddeck-store-launch --exited --code "$rc" "${BL_STORE_ARGS[@]}" || true
     exit $rc
   fi
   exec "$@"

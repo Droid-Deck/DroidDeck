@@ -1937,6 +1937,14 @@
     <string name="epic_eos">Σύνδεση Epic (EOS)</string>
     <string name="epic_offline">Εκκίνηση εκτός σύνδεσης</string>
     <string name="epic_resolve">Επίλυση σύνδεσης Epic</string>
+    <string name="epic_client_version">Έκδοση %1$s</string>
+    <string name="epic_client_no_runtime">Εγκαταστήστε πρώτα το runtime Linux</string>
+    <string name="epic_client_checking">Έλεγχος για την πιο πρόσφατη έκδοση…</string>
+    <string name="epic_client_unpacking">Αποσυμπίεση…</string>
+    <string name="epic_client_unreachable">Ο διακομιστής λήψης δεν αποκρίθηκε</string>
+    <string name="epic_client_download_failed">Η λήψη απέτυχε: %1$s</string>
+    <string name="epic_client_unpack_failed">Δεν ήταν δυνατή η αποσυμπίεση του launcher: %1$s</string>
+    <string name="epic_client_sign_in_failed">Το Epic Games Launcher δεν δέχτηκε τη σύνδεση. Εκκινήστε το ξανά από το launcher.</string>
     <string name="store_cloud_saves">Αποθηκεύσεις στο cloud</string>
     <string name="cloud_upload">Μεταφόρτωση στο cloud</string>
     <string name="cloud_download">Λήψη από το cloud</string>

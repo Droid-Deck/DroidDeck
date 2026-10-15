@@ -88,6 +88,19 @@ object StoreLaunchRequests {
                     JSONObject().put("ok", false).put("reason", e.javaClass.simpleName)
                 }
             }
+            "epic-sign-in" -> {
+                val url = request.optString("url")
+                try {
+                    if (com.droiddeck.launcher.stores.epic.EpicClient.signIn(app, url, request.optBoolean("auto"))) JSONObject().put("ok", true)
+                    else JSONObject().put("ok", false).put("reason", "not-sign-in")
+                } catch (e: Exception) {
+                    JSONObject().put("ok", false).put("reason", e.javaClass.simpleName)
+                }
+            }
+            "epic-client-handoff" -> {
+                if (com.droiddeck.launcher.stores.epic.EpicClient.canHandOff(app)) JSONObject().put("ok", true)
+                else JSONObject().put("ok", false).put("reason", "no-account")
+            }
             else -> JSONObject().put("ok", false).put("reason", "unknown-op")
         }
         try {

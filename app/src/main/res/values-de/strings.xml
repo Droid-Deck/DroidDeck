@@ -1937,6 +1937,14 @@
     <string name="epic_eos">Epic-Anmeldung (EOS)</string>
     <string name="epic_offline">Offline starten</string>
     <string name="epic_resolve">Epic-Anmeldung klären</string>
+    <string name="epic_client_version">Version %1$s</string>
+    <string name="epic_client_no_runtime">Installiere zuerst die Linux-Laufzeit</string>
+    <string name="epic_client_checking">Neueste Version wird geprüft…</string>
+    <string name="epic_client_unpacking">Wird entpackt…</string>
+    <string name="epic_client_unreachable">Der Download-Server hat nicht geantwortet</string>
+    <string name="epic_client_download_failed">Download fehlgeschlagen: %1$s</string>
+    <string name="epic_client_unpack_failed">Der Launcher konnte nicht entpackt werden: %1$s</string>
+    <string name="epic_client_sign_in_failed">Der Epic Games Launcher hat die Anmeldung nicht akzeptiert. Starte ihn über den Launcher erneut.</string>
     <string name="store_cloud_saves">Cloud-Spielstände</string>
     <string name="cloud_upload">In die Cloud hochladen</string>
     <string name="cloud_download">Aus der Cloud herunterladen</string>

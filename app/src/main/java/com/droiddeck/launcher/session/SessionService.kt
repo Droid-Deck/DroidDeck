@@ -72,7 +72,8 @@ class SessionService : Service() {
     private var steamDownloadsInBackground = false
     private var activityVisible = true
     private var xrActivityVisible = false
-    private val hasVisibleSurface get() = sessionHasVisibleSurface(activityVisible, screenOn, xrActivityVisible)
+    private var signInHold = false
+    private val hasVisibleSurface get() = sessionHasVisibleSurface(activityVisible || signInHold, screenOn, xrActivityVisible)
     private var screenOn = true
     private var manualPauseRequested = false
     private var steamSleepToken: String? = null
@@ -183,6 +184,15 @@ class SessionService : Service() {
                 updateSuspendPolicy()
                 return START_NOT_STICKY
             }
+            ACTION_SIGN_IN_HOLD -> {
+                val hold = intent?.getBooleanExtra(EXTRA_HOLD, false) == true
+                if (hold == signInHold) return START_NOT_STICKY
+                signInHold = hold
+                if (hold) manualPauseRequested = false
+                suspendAttemptFailed = false
+                updateSuspendPolicy()
+                return START_NOT_STICKY
+            }
             ACTION_SUSPEND_POLICY_CHANGED -> {
                 if (!SessionState.running) return START_NOT_STICKY
                 suspendPolicy = SessionPrefs.suspendPolicy(this, SessionState.mode)
@@ -219,6 +229,7 @@ class SessionService : Service() {
         steamDownloadsInBackground = SessionPrefs.steamDownloadsInBackground(this)
         activityVisible = true
         xrActivityVisible = false
+        signInHold = false
         screenOn = (getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isInteractive ?: true
         manualPauseRequested = false
         suspendDownloadNow = false
@@ -357,6 +368,9 @@ class SessionService : Service() {
             if (com.droiddeck.launcher.gpu.Lossless.owned(this)) guest.add("BL_LOSSLESS_OWNED=1")
             if (added.isNotEmpty()) Log.i(TAG, "added games: " + added.joinToString { "${it.name} (${it.exe.name})" })
         }
+        if ((steamHere || SessionState.program == com.droiddeck.launcher.stores.epic.EpicClient.PROGRAM) &&
+            com.droiddeck.launcher.stores.epic.EpicClient.read(this).installed
+        ) com.droiddeck.launcher.stores.epic.EpicClientLibrary.sync(this)
         guest.add("BL_LAUNCH_DIR=" + sessionRoot.path)
         GameStorage.effective(this)?.let { guest.add("BL_LIBRARY_LABEL=" + it.label.replace('"', ' ')) }
         if (SessionState.mode == MODE_STEAM && SessionState.steamUi == "desktop") guest.add("BL_STEAM_UI=desktop")
@@ -456,8 +470,9 @@ class SessionService : Service() {
                 Log.i(TAG, "an earlier session's process ended ($status); the current one carries on")
                 return@start
             }
-            Log.i(TAG, "session ended: $status")
-            stopSession(status ?: -1)
+            val program = programStatus(sessionRoot)
+            Log.i(TAG, "session ended: $status" + if (program != null) " (program $program)" else "")
+            stopSession(program ?: status ?: -1)
         }, null)
         Log.i(TAG, "session pid $pid, log ${sessionLog.path}")
         if (gen != sessionGen || !SessionState.running) {
@@ -996,10 +1011,14 @@ class SessionService : Service() {
 
     private var launchWatcher: android.os.FileObserver? = null
 
+    private fun programStatus(dir: File): Int? =
+        runCatching { File(dir, RUN_STATUS).readText().trim().toInt() }.getOrNull()
+
     private fun watchLaunchRequests(dir: File) {
         launchWatcher?.stopWatching()
         listOf("steam-sleep", "steam-sleep-state", "steam-sleep-ready", "steam-wake", "steam-wake.tmp",
-            "steam-native-sleep", "steam-native-sleep.tmp", "steam-native-ready", "steam-native-ready.tmp"
+            "steam-native-sleep", "steam-native-sleep.tmp", "steam-native-ready", "steam-native-ready.tmp",
+            RUN_STATUS, "$RUN_STATUS.tmp", "epic-game", "epic-game.tmp", com.droiddeck.launcher.stores.epic.EpicClient.PLAYING
         ).forEach { File(dir, it).delete() }
         val gen = sessionGen
         @Suppress("DEPRECATION")
@@ -1580,6 +1599,8 @@ class SessionService : Service() {
         private const val ACTION_ACTIVITY_HIDDEN = "com.droiddeck.launcher.ACTIVITY_HIDDEN"
         private const val ACTION_XR_ACTIVITY_VISIBLE = "com.droiddeck.launcher.XR_ACTIVITY_VISIBLE"
         private const val ACTION_XR_ACTIVITY_HIDDEN = "com.droiddeck.launcher.XR_ACTIVITY_HIDDEN"
+        private const val ACTION_SIGN_IN_HOLD = "com.droiddeck.launcher.SIGN_IN_HOLD"
+        private const val EXTRA_HOLD = "hold"
         private const val ACTION_TRACK_AUXILIARY = "com.droiddeck.launcher.TRACK_AUXILIARY"
         private const val ACTION_STOP_AUXILIARY = "com.droiddeck.launcher.STOP_AUXILIARY"
         private const val ACTION_AUXILIARY_EXITED = "com.droiddeck.launcher.AUXILIARY_EXITED"
@@ -1603,6 +1624,7 @@ class SessionService : Service() {
         const val MODE_DESKTOP = "lxqt"
         const val MODE_RUN = "run"
         const val EXTRA_PROGRAM = "program"
+        private const val RUN_STATUS = "run-status"
         const val EXTRA_PROGRAM_ARGS = "programArgs"
         const val EXTRA_STEAM_UI = "steamUi"
         const val EXTRA_STEAM_URL = "steamUrl"
@@ -1643,6 +1665,11 @@ class SessionService : Service() {
             if (!SessionState.running) return
             val action = if (visible) ACTION_XR_ACTIVITY_VISIBLE else ACTION_XR_ACTIVITY_HIDDEN
             context.startService(Intent(context, SessionService::class.java).setAction(action))
+        }
+
+        fun holdForSignIn(context: Context, hold: Boolean) {
+            if (!SessionState.running) return
+            context.startService(Intent(context, SessionService::class.java).setAction(ACTION_SIGN_IN_HOLD).putExtra(EXTRA_HOLD, hold))
         }
 
         fun resume(context: Context) {
