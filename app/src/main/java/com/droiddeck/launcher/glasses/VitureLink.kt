@@ -32,14 +32,21 @@ internal class VitureLink private constructor(
     override val hasImu: Boolean get() = imuIn != null
 
     private fun startReaders() {
-        mcuIn?.let { ep -> readers += reader("viture-mcu", ep) { buf, n -> VitureProtocol.parse(buf, n)?.let(listener::onFrame) } }
+        mcuIn?.let { ep -> readers += reader("viture-mcu", ep) { buf, n -> onPacket(buf, n, false) } }
         imuIn?.let { ep ->
-            readers += reader("viture-imu", ep) { buf, n ->
-                val frame = VitureProtocol.parse(buf, n) ?: return@reader
-                if (frame.magic == VitureProtocol.MAGIC_IMU) listener.onImu(frame.payload, SystemClock.elapsedRealtimeNanos())
-                else listener.onFrame(frame)
-            }
+            readers += reader("viture-imu", ep) { buf, n -> onPacket(buf, n, true) }
         }
+    }
+
+    private fun onPacket(buf: ByteArray, size: Int, imuEndpoint: Boolean) {
+        val frame = VitureProtocol.parse(buf, size) ?: return
+        if (!frame.crcOk) {
+            Log.w(TAG, "Dropping packet with invalid checksum")
+            return
+        }
+        if (imuEndpoint && frame.magic == VitureProtocol.MAGIC_IMU)
+            listener.onImu(frame.payload, SystemClock.elapsedRealtimeNanos())
+        else listener.onFrame(frame)
     }
 
     private fun reader(name: String, ep: UsbEndpoint, onPacket: (ByteArray, Int) -> Unit): Thread =

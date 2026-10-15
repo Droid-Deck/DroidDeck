@@ -15,6 +15,11 @@ object SteamVr {
         RUNNING,
     }
 
+    internal fun shouldPoll(status: Status?, cardboardEnabled: Boolean, pictureSwitched: Boolean,
+                            glassesControl: Boolean, requested: Boolean): Boolean =
+        requested || cardboardEnabled || pictureSwitched || glassesControl ||
+            status == Status.RUNNING || status == Status.INSTALLING
+
     internal fun autoAction(
         status: Status, requested: Boolean, loading: Boolean, steamSession: Boolean,
         startTried: Boolean, installTried: Boolean,

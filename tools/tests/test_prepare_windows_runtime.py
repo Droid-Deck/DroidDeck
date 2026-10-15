@@ -44,6 +44,40 @@ class WindowsRuntimePreparationTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'Sources changed since'):
                 prepare.check_sources()
 
+    def test_current_helpers_are_allowed_only_when_restaged_from_source(self):
+        helpers = prepare.LOCAL_SESSION_HELPERS
+        sources = {prepare.ROOT / path: 'assets/linuxfs/' + path.split('/overlay/')[1]
+                   for path in helpers}
+        for local_changes in (set(), helpers):
+            with self.subTest(local_changes=local_changes), \
+                    mock.patch.object(prepare, 'source_assets', return_value=sources), \
+                    mock.patch.object(prepare, 'changed', side_effect=[helpers, local_changes, helpers]), \
+                    mock.patch.object(prepare, 'git', side_effect=[prepare.DONOR_TREE.encode(), b'']):
+                classifications = prepare.check_sources()
+                self.assertEqual(set(classifications), helpers)
+                self.assertTrue(all('restaged from current source' in action
+                                    for action in classifications.values()))
+        with mock.patch.object(prepare, 'source_assets', return_value={}), \
+                mock.patch.object(prepare, 'changed', return_value=helpers), \
+                mock.patch.object(prepare, 'git', return_value=prepare.DONOR_TREE.encode()):
+            with self.assertRaisesRegex(ValueError, 'Sources changed since'):
+                prepare.check_sources()
+
+    def test_cardboard_changes_are_compiled_by_gradle_not_reused_from_donor(self):
+        changed = {'app/src/main/cpp/waylandcomp/src/cardboard.c'}
+        with mock.patch.object(prepare, 'changed', side_effect=[changed, changed, changed]), \
+                mock.patch.object(prepare, 'git', side_effect=[prepare.DONOR_TREE.encode(), b'']):
+            classifications = prepare.check_sources()
+            self.assertEqual(set(classifications), changed)
+            self.assertIn('compiled by Gradle; not imported', next(iter(classifications.values())))
+
+    def test_other_helper_changes_still_need_an_audit(self):
+        with mock.patch.object(prepare, 'git', return_value=prepare.DONOR_TREE.encode()), \
+                mock.patch.object(prepare, 'changed', return_value={
+                    'tools/linuxfs/overlay/usr/local/bin/droiddeck-session'}):
+            with self.assertRaisesRegex(ValueError, 'Sources changed since'):
+                prepare.check_sources()
+
     def test_uncommitted_native_changes_reject_donor_reuse(self):
         with mock.patch.object(prepare, 'git', side_effect=[prepare.DONOR_TREE.encode(), b'']), \
                 mock.patch.object(prepare, 'changed', side_effect=[set(), {'tools/linuxfs/preload/net.c'}]):

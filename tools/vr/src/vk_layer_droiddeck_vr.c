@@ -841,22 +841,12 @@ static void trace_sem(const char *what, VkSemaphore sem, uint64_t value) {
 #include <linux/futex.h>
 #include <sys/syscall.h>
 #include "present_sync.h"
+#include "fence_tracker.h"
+#include <time.h>
 
-#define TRACK_SLOTS 64
-
-struct tracked {
-    VkDevice dev;
-    VkFence fence;
-    PFN_vkWaitForFences wait;
-    PFN_vkResetFences reset;
-    PFN_vkDestroyFence destroy;
-    int busy;
-};
 static pthread_mutex_t g_trk_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t g_trk_cond = PTHREAD_COND_INITIALIZER;
-static struct tracked g_trk[TRACK_SLOTS];
-static int g_trk_queue[TRACK_SLOTS];
-static unsigned g_trk_head, g_trk_tail;
+static struct tracked *g_trk;
 static struct droiddeck_present_sync *g_sync;
 static pthread_once_t g_sync_once = PTHREAD_ONCE_INIT;
 
@@ -866,22 +856,24 @@ static void sync_wake(struct droiddeck_present_sync *s) {
 
 static void *completer(void *arg) {
     struct droiddeck_present_sync *s = arg;
+    pthread_mutex_lock(&g_trk_lock);
     for (;;) {
-        pthread_mutex_lock(&g_trk_lock);
-        while (g_trk_head == g_trk_tail) pthread_cond_wait(&g_trk_cond, &g_trk_lock);
-        const int slot = g_trk_queue[g_trk_tail % TRACK_SLOTS];
-        struct tracked t = g_trk[slot];
-        pthread_mutex_unlock(&g_trk_lock);
-        VkResult r;
-        do r = t.wait(t.dev, 1, &t.fence, VK_TRUE, 100000000ull); while (r == VK_TIMEOUT);
-        t.reset(t.dev, 1, &t.fence);
-        pthread_mutex_lock(&g_trk_lock);
-        g_trk[slot].busy = 0;
-        g_trk_tail++;
+        uint32_t done;
+        int pending = track_pool_reap(g_trk, __atomic_load_n(&s->issued, __ATOMIC_ACQUIRE), &done);
+        if (done != __atomic_load_n(&s->done, __ATOMIC_RELAXED)) {
+            __atomic_store_n(&s->done, done, __ATOMIC_RELEASE);
+            sync_wake(s);
+        }
         pthread_cond_broadcast(&g_trk_cond);
-        pthread_mutex_unlock(&g_trk_lock);
-        __atomic_fetch_add(&s->done, 1, __ATOMIC_RELEASE);
-        sync_wake(s);
+        if (pending) {
+            struct timespec until;
+            clock_gettime(CLOCK_REALTIME, &until);
+            until.tv_nsec += 1000000; /* Poll pending GPU work at most every 1 ms. */
+            if (until.tv_nsec >= 1000000000) { until.tv_sec++; until.tv_nsec -= 1000000000; }
+            pthread_cond_timedwait(&g_trk_cond, &g_trk_lock, &until);
+        } else {
+            pthread_cond_wait(&g_trk_cond, &g_trk_lock);
+        }
     }
     return NULL;
 }
@@ -907,92 +899,46 @@ static void sync_init(void) {
     say("%s", "frames go to the presenter once their GPU work is done");
 }
 
-static int track_take(VkQueue q) {
+static struct tracked *track_take(VkQueue q) {
     pthread_once(&g_sync_once, sync_init);
-    if (!g_sync) return -1;
+    if (!g_sync) return NULL;
     struct dev *d = dev_for(q);
-    if (!d) return -1;
-    VkDevice dev = d->handle;
+    if (!d) return NULL;
     pthread_mutex_lock(&g_trk_lock);
-    for (;;) {
-        int own = -1, empty = -1, idle = -1;
-        for (int i = 0; i < TRACK_SLOTS && own < 0; i++) {
-            if (g_trk[i].busy) continue;
-            if (g_trk[i].dev == dev) own = i;
-            else if (!g_trk[i].dev) { if (empty < 0) empty = i; }
-            else if (idle < 0) idle = i;
-        }
-        if (own < 0 && empty < 0 && idle >= 0) {
-            g_trk[idle].destroy(g_trk[idle].dev, g_trk[idle].fence, NULL);
-            memset(&g_trk[idle], 0, sizeof(g_trk[idle]));
-            empty = idle;
-        }
-        if (own < 0 && empty >= 0) {
-            struct tracked t = {.dev = dev};
-            t.wait = (PFN_vkWaitForFences)d->gdpa(dev, "vkWaitForFences");
-            t.reset = (PFN_vkResetFences)d->gdpa(dev, "vkResetFences");
-            t.destroy = (PFN_vkDestroyFence)d->gdpa(dev, "vkDestroyFence");
-            PFN_vkCreateFence create = (PFN_vkCreateFence)d->gdpa(dev, "vkCreateFence");
-            VkFenceCreateInfo fci = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, NULL, 0};
-            if (!t.wait || !t.reset || !t.destroy || !create || create(dev, &fci, NULL, &t.fence) != VK_SUCCESS) {
-                pthread_mutex_unlock(&g_trk_lock);
-                return -1;
-            }
-            g_trk[empty] = t;
-            own = empty;
-        }
-        if (own >= 0) {
-            g_trk[own].busy = 1;
-            pthread_mutex_unlock(&g_trk_lock);
-            return own;
-        }
-        pthread_cond_wait(&g_trk_cond, &g_trk_lock);
-    }
+    struct tracked *t = track_pool_take(&g_trk, d->handle, d->gdpa);
+    pthread_mutex_unlock(&g_trk_lock);
+    return t;
 }
 
-static void track_submitted(int slot, VkResult r) {
+static void track_submitted(struct tracked *t, VkResult r) {
     pthread_mutex_lock(&g_trk_lock);
-    if (r == VK_SUCCESS) {
-        g_trk_queue[g_trk_head % TRACK_SLOTS] = slot;
-        g_trk_head++;
-        __atomic_fetch_add(&g_sync->issued, 1, __ATOMIC_RELEASE);
-    } else {
-        g_trk[slot].reset(g_trk[slot].dev, 1, &g_trk[slot].fence);
-        g_trk[slot].busy = 0;
-    }
+    uint32_t issued = track_pool_submitted(t, r, __atomic_load_n(&g_sync->issued, __ATOMIC_RELAXED));
+    __atomic_store_n(&g_sync->issued, issued, __ATOMIC_RELEASE);
     pthread_cond_broadcast(&g_trk_cond);
     pthread_mutex_unlock(&g_trk_lock);
 }
 
 static void track_forget_device(VkDevice dev) {
     pthread_mutex_lock(&g_trk_lock);
-    for (;;) {
-        int busy = 0;
-        for (int i = 0; i < TRACK_SLOTS; i++) busy |= g_trk[i].dev == dev && g_trk[i].busy;
-        if (!busy) break;
+    while (track_pool_device_busy(g_trk, dev))
         pthread_cond_wait(&g_trk_cond, &g_trk_lock);
-    }
-    for (int i = 0; i < TRACK_SLOTS; i++) {
-        if (g_trk[i].dev != dev) continue;
-        g_trk[i].destroy(dev, g_trk[i].fence, NULL);
-        memset(&g_trk[i], 0, sizeof(g_trk[i]));
-    }
+    track_pool_forget(&g_trk, dev);
     pthread_mutex_unlock(&g_trk_lock);
 }
 
 static VkResult submit_tracked(PFN_vkQueueSubmit next, VkQueue q, uint32_t count, const VkSubmitInfo *submits, VkFence fence) {
-    const int slot = track_take(q);
-    if (slot < 0) return next(q, count, submits, fence);
-    const VkFence mine = g_trk[slot].fence;
+    struct tracked *slot = track_take(q);
+    if (!slot) return next(q, count, submits, fence);
+    const VkFence mine = slot->fence;
     VkResult r = next(q, count, submits, fence ? fence : mine);
     track_submitted(slot, r == VK_SUCCESS && fence ? next(q, 0, NULL, mine) : r);
     return r;
 }
 
 static VkResult submit2_tracked(PFN_vkQueueSubmit2 next, VkQueue q, uint32_t count, const VkSubmitInfo2 *submits, VkFence fence) {
-    const int slot = track_take(q);
-    if (slot < 0) return next(q, count, submits, fence);
-    const VkFence mine = g_trk[slot].fence;
+    struct tracked *slot = track_take(q);
+    if (!slot) return next(q, count, submits, fence);
+    const VkFence mine = slot->fence;
     VkResult r = next(q, count, submits, fence ? fence : mine);
     track_submitted(slot, r == VK_SUCCESS && fence ? next(q, 0, NULL, mine) : r);
     return r;

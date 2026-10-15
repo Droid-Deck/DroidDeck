@@ -38,7 +38,12 @@ LOCAL_BUILD_PLUMBING = {'app/build.gradle', 'tools/release/runtime_inputs.py'}
 # Keep this list explicit so unrelated native or Linux runtime edits still fail.
 LOCAL_ANDROID_SOURCES = {'app/src/main/cpp/CMakeLists.txt',
                          'app/src/main/cpp/viture/sdk_bridge.cpp',
-                         'app/src/main/cpp/viture/display_modes.h'}
+                         'app/src/main/cpp/viture/display_modes.h',
+                         'app/src/main/cpp/waylandcomp/src/cardboard.c'}
+# These audited helper updates are copied from this checkout by runtime.record().
+# Permit them only while source_assets() still guarantees that staging path.
+LOCAL_SESSION_HELPERS = {'tools/linuxfs/overlay/usr/local/bin/droiddeck-steam-compat',
+                         'tools/linuxfs/overlay/usr/local/bin/droiddeck-steamvr'}
 CHECK_PATHS = list(dict.fromkeys(runtime.SOURCE_PATHS + [
     'app/src/main/cpp', 'app/src/main/jniLibs', 'app/src/main/rust/stores', 'tools/vr']))
 REBUILT = {'libblsession.so': 183, 'x86_64/libblsession.so': 62, 'i386/libblsession.so': 3}
@@ -69,7 +74,8 @@ def check_sources():
     # A branch label alone is insufficient: CI merged this main commit into it.
     if git('merge-tree', '--write-tree', DONOR_PR_SOURCE, DONOR_MAIN_SOURCE).decode().splitlines()[0] != DONOR_TREE:
         raise ValueError('The donor CI merge does not match the audited source tree')
-    reviewed = LOCAL_BUILD_PLUMBING | LOCAL_ANDROID_SOURCES
+    helper_sources = {path.relative_to(ROOT).as_posix() for path in source_assets()}
+    reviewed = LOCAL_BUILD_PLUMBING | LOCAL_ANDROID_SOURCES | (LOCAL_SESSION_HELPERS & helper_sources)
     unexpected = changed(AUDITED_SOURCE, 'HEAD') - reviewed
     if unexpected:
         raise ValueError('Sources changed since the component audit:\n' + '\n'.join(sorted(unexpected)))
@@ -79,7 +85,6 @@ def check_sources():
     unexpected = local | (untracked - LOCAL_ANDROID_SOURCES)
     if unexpected:
         raise ValueError('Unreviewed runtime/native/Rust changes:\n' + '\n'.join(sorted(unexpected)))
-    helper_sources = {path.relative_to(ROOT).as_posix() for path in source_assets()}
     classifications = {}
     for path in sorted(changed(DONOR_TREE, 'HEAD')):
         if path in LOCAL_ANDROID_SOURCES:
