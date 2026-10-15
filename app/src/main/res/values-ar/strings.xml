@@ -449,6 +449,7 @@
     <string name="game_no_steam_title">بدء اللعبة بدون Steam</string>
     <string name="game_no_steam_detail">لعبة تُغلق فورًا: شغّلها بدون إعداد Steam الخاص بـ Proton. تكون ميزات Steam، مثل الطبقة العلوية، معطّلة لها.</string>
     <string name="game_no_steam_on">تشغيل</string>
+    <string name="game_locale_title">الإعدادات الإقليمية</string>
     <string name="comp_game_proton_live">تم حفظ اختيار Proton لـ %1$s وهو متاح في Steam الآن.</string>
     <string name="comp_game_proton_next">تم حفظ اختيار Proton لـ %1$s. أعد تشغيل Steam قبل تشغيل اللعبة.</string>
     <string name="comp_game_proton_not_runnable">لا يمكن لـ %1$s استخدام Proton المحدد على هذا الجهاز.</string>

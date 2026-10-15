@@ -439,6 +439,7 @@
     <string name="game_no_steam_title">Steamなしで起動</string>
     <string name="game_no_steam_detail">すぐに終了してしまうゲーム用:ProtonのSteamセットアップなしで起動します。オーバーレイなどのSteam機能はこのゲームでは無効になります。</string>
     <string name="game_no_steam_on">オン</string>
+    <string name="game_locale_title">ロケール</string>
     <string name="comp_game_proton_live">%1$sのProtonの選択を保存しました。Steamですぐに使用できます。</string>
     <string name="comp_game_proton_next">%1$sのProtonの選択を保存しました。ゲームを起動する前にSteamを再起動してください。</string>
     <string name="comp_game_proton_not_runnable">%1$sは、選択したProtonをこのデバイスで使用できません。</string>

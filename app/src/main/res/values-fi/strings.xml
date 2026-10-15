@@ -441,6 +441,7 @@
     <string name="game_no_steam_title">Käynnistä ilman Steamia</string>
     <string name="game_no_steam_detail">Pelille, joka sulkeutuu heti: käynnistää sen ilman Protonin Steam-asetuksia. Steamin ominaisuudet, kuten overlay, on pois käytöstä sille.</string>
     <string name="game_no_steam_on">Päällä</string>
+    <string name="game_locale_title">Kielialue</string>
     <string name="comp_game_proton_live">%1$s:n Proton-valinta on tallennettu ja käytettävissä Steamissa nyt.</string>
     <string name="comp_game_proton_next">%1$s:n Proton-valinta on tallennettu. Käynnistä Steam uudelleen ennen pelin käynnistämistä.</string>
     <string name="comp_game_proton_not_runnable">%1$s ei voi käyttää valittua Protonia tällä laitteella.</string>
