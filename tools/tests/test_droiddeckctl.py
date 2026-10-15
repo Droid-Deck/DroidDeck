@@ -12,6 +12,7 @@ import sys
 import tempfile
 import textwrap
 import unittest
+import unittest.mock
 
 TOOLS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TOOLS))
@@ -56,6 +57,8 @@ FAKE_ADB = textwrap.dedent('''\
         print(config.get("dumpsys_display", ""))
     elif args[:3] == ["shell", "dumpsys", "power"]:
         print("  mWakefulness=Awake")
+    elif args[:3] == ["shell", "dumpsys", "SurfaceFlinger"] and "-dump" in args:
+        print(config.get("timestats", ""))
     elif args[:2] == ["exec-out", "screencap"]:
         sys.stdout.buffer.write(b"\\x89PNG fake")
     with open(config["log"], "a") as log:
@@ -76,6 +79,32 @@ DUMPSYS_DISPLAY = textwrap.dedent('''\
         mPrimaryDisplayDevice=Screen-2
         mBaseDisplayInfo=DisplayInfo{"Screen-2", displayId 4", real 1080 x 1240, x}
 ''')
+
+
+def timestats_record(name, frames, histogram, hz):
+    bins = " ".join(f"{ms}ms={histogram.get(ms, 0)}" for ms in (8, 16, 17, 25, 33, 50))
+    return (f"displayRefreshRate = {hz} fps\nrenderRate = {hz} fps\nuid = 10479\nlayerName = {name}\n"
+            f"packageName = \ntotalFrames = {frames}\ndroppedFrames = 0\n"
+            f"present2present histogram is as below:\n{bins}\nlatch2present histogram is as below:\n8ms={frames}\n")
+
+
+# A capture where the panel went from 60 to 120 Hz: the game layer is split in two records. The
+# activity's own window and an unrelated app draw too, and must not count.
+TIMESTATS_SPLIT = "SurfaceFlinger TimeStats:\ntotalFrames = 2000\n" + "".join([
+    timestats_record("droiddeck_wayland_game#6110", 900, {16: 700, 33: 199}, 60),
+    timestats_record("droiddeck_wayland_game#6110", 900, {16: 850, 25: 49}, 120),
+    timestats_record("com.droiddeck.launcher/com.droiddeck.launcher.SessionActivity#6097", 8, {16: 7}, 60),
+    timestats_record("f291fb6 SurfaceView[com.droiddeck.launcher/com.droiddeck.launcher.SessionActivity]#6101",
+                     30, {33: 29}, 60),
+    timestats_record("StatusBar#106", 1, {}, 60),
+])
+
+# A build that presents the game on the session's SurfaceView instead of a layer of its own.
+TIMESTATS_SURFACEVIEW = "SurfaceFlinger TimeStats:\n" + "".join([
+    timestats_record("a1b2c3 SurfaceView[com.droiddeck.launcher/com.droiddeck.launcher.SessionActivity]#77",
+                     1800, {16: 1796, 33: 3}, 120),
+    timestats_record("a1b2c3 SurfaceView[com.other.app/com.other.app.Main]#12", 500, {8: 499}, 120),
+])
 
 
 def state(phase="READY", focused=None, focusable=()):
@@ -121,6 +150,15 @@ class DroiddeckctlTest(FakeAdbTest):
             ctl.provider_call(str(self.adb), "fake-1", "guest", request={"stdin": "x" * ctl.REQUEST_CAP})
         self.assertEqual("INVALID_REQUEST", caught.exception.code)
         self.assertFalse(self.calls())
+
+    def test_a_variant_package_is_reached_through_its_own_provider_and_activity(self):
+        with unittest.mock.patch.dict(os.environ, {"DROIDDECK_PACKAGE": "com.antutu.benchmark.full"}):
+            variant = load("droiddeckctl")
+        self.assertEqual("content://com.antutu.benchmark.full.agent", variant.AUTHORITY)
+        with self.assertRaises(variant.ControlError):  # the fake adb does not answer `am start`
+            variant.start_agent_activity(str(self.adb), "fake-1", {"mode": "steam"})
+        started = [e["args"] for e in self.calls() if e["args"][:3] == ["shell", "am", "start"]]
+        self.assertIn("com.antutu.benchmark.full/com.droiddeck.launcher.agent.AgentStartActivity", started[0])
 
     def test_state_passes_through_with_the_serial(self):
         self.configure({"state": state()})
@@ -232,6 +270,40 @@ class DroiddeckctlTest(FakeAdbTest):
         code, out = self.run_ctl("screenshot", str(self.dir / "x.png"), "--display", "9")
         self.assertEqual(2, code)
         self.assertEqual("NO_SUCH_DISPLAY", out["error"]["code"])
+
+    def test_pacing_sums_split_records_of_the_game_layer_only(self):
+        summary = ctl.pacing_summary(TIMESTATS_SPLIT, "com.droiddeck.launcher")
+        self.assertEqual(["droiddeck_wayland_game"], summary["layers"])
+        self.assertEqual(1800, summary["frames"])
+        self.assertEqual([60, 120], summary["refreshRates"])
+        self.assertEqual({"16": 1550, "25": 49, "33": 199}, summary["presentToPresentMs"])
+        self.assertEqual(16, summary["cadenceMs"])
+        self.assertEqual(248, summary["offCadence"])
+        self.assertEqual(13.8, summary["offCadencePercent"])
+
+    def test_pacing_falls_back_to_the_sessions_surfaceview(self):
+        summary = ctl.pacing_summary(TIMESTATS_SURFACEVIEW, "com.droiddeck.launcher")
+        self.assertEqual(1, len(summary["layers"]))
+        self.assertIn("SurfaceView[com.droiddeck.launcher/", summary["layers"][0])
+        self.assertEqual(1800, summary["frames"])
+        self.assertEqual(3, summary["offCadence"])
+
+    def test_pacing_captures_then_turns_timestats_off(self):
+        self.configure({}, timestats=TIMESTATS_SURFACEVIEW)
+        with unittest.mock.patch.object(ctl.time, "sleep"):
+            code, out = self.run_ctl("pacing", "--seconds", "1")
+        self.assertEqual(0, code)
+        self.assertEqual("pacing", out["command"])
+        self.assertIn("fpsOnScreen", out)
+        sf = [c["args"][3:] for c in self.calls() if c["args"][:3] == ["shell", "dumpsys", "SurfaceFlinger"]]
+        self.assertEqual([["--timestats", "-clear", "-enable"], ["--timestats", "-dump"], ["--timestats", "-disable"]], sf)
+
+    def test_pacing_without_a_session_on_screen_exits_4(self):
+        self.configure({}, timestats="SurfaceFlinger TimeStats:\n" + timestats_record("StatusBar#1", 3, {16: 2}, 60))
+        with unittest.mock.patch.object(ctl.time, "sleep"):
+            code, out = self.run_ctl("pacing", "--seconds", "1")
+        self.assertEqual(4, code)
+        self.assertEqual("NO_FRAMES", out["error"]["code"])
 
     def test_input_requests(self):
         self.configure({"input": {"ok": True, "command": "input"}})

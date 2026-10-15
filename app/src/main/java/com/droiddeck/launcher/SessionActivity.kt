@@ -125,6 +125,19 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var pipUi by mutableStateOf(false)
     private var pipAutoEnter by mutableStateOf(false)
     private var unfoldedControls by mutableStateOf(false)
+    private var picturePosition by mutableStateOf("center")
+
+    private fun applyGameAlignment() {
+        if (!CompositorHost.isStarted) return
+        val active = SessionState.mode == SessionService.MODE_STEAM &&
+            !pipUi && !isInPictureInPictureMode && !cardboard.enabled
+        val alignment = if (!active) ALIGN_CENTER else when (picturePosition) {
+            "top" -> ALIGN_PICTURE_TOP
+            "bottom" -> ALIGN_PICTURE_BOTTOM
+            else -> ALIGN_CENTER
+        }
+        WaylandCompositor.nativeSetScaleMode(SCALE_FIT, alignment)
+    }
     private var unfoldedPanel: com.droiddeck.launcher.ui.DeckControlsPanel? = null
     private lateinit var sessionRoot: FrameLayout
     private val guestKeysDown = mutableSetOf<Int>()
@@ -167,6 +180,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
     private var watching = true
     private lateinit var touchpad: TouchpadGestures
+    private lateinit var threeFingerTap: com.droiddeck.launcher.input.ThreeFingerTap
     private var touchMode by mutableStateOf(SessionPrefs.TOUCH_AUTO)
     private var cursorPos by mutableStateOf(androidx.compose.ui.geometry.Offset(-100f, -100f))
     private var cursorVisible by mutableStateOf(false)
@@ -253,6 +267,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var drawerPage by mutableStateOf(SessionDrawerPage.CONTROLLER)
     private var drawerControllerActive by mutableStateOf(false)
     private var backActionsInverted by mutableStateOf(false)
+    private var lowLatencyController by mutableStateOf(false)
+    private var lowLatencyTouch by mutableStateOf(false)
     private var padType by mutableStateOf(SessionPrefs.CONTROLLER_DECK)
     private var pcKeyboardOpen by mutableStateOf(false)
     private var achievementsInFront by mutableStateOf<AchievementsInFront?>(null)
@@ -429,6 +445,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         onScreenControls = OnScreenControls(this, bridge, onKeyboard = ::togglePcKeyboard).also { root.addView(it) }
         keyboard = KeyboardHost(this).also { root.addView(it) }
         touchpad = TouchpadGestures(PointerGestures.slop(this), pointerListener)
+        threeFingerTap = com.droiddeck.launcher.input.ThreeFingerTap(PointerGestures.slop(this) * 2)
         val noCursor = android.view.PointerIcon.getSystemIcon(this, android.view.PointerIcon.TYPE_NULL)
         root.pointerIcon = noCursor
         surfaceView.pointerIcon = noCursor
@@ -504,6 +521,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         defaultFocusHighlightEnabled = false
         setContent {
             androidx.compose.runtime.LaunchedEffect(drawerOpen, pcKeyboardOpen, achievementsOpen, pipUi) { updatePointerCapture() }
+            androidx.compose.runtime.LaunchedEffect(picturePosition, SessionState.running, pipUi, cardboard.enabled) { applyGameAlignment() }
             DroidDeckTheme {
             if (pipUi) {
                 if (SessionState.suspended) androidx.compose.foundation.layout.Box(
@@ -673,6 +691,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     onBackActionsInverted = { inverted ->
                         SessionPrefs.setBackActionsInverted(this@SessionActivity, inverted)
                         backActionsInverted = inverted
+                    },
+                    lowLatencyController = lowLatencyController,
+                    lowLatencyTouch = lowLatencyTouch,
+                    onLowLatencyController = { on ->
+                        SessionPrefs.setLowLatencyController(this@SessionActivity, on)
+                        lowLatencyController = on
+                        applyLowLatency()
+                    },
+                    onLowLatencyTouch = { on ->
+                        SessionPrefs.setLowLatencyTouch(this@SessionActivity, on)
+                        lowLatencyTouch = on
+                        applyLowLatency()
                     },
                     onOsc = { v ->
                         SessionPrefs.setOscMode(this@SessionActivity, v)
@@ -1113,6 +1143,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun readPrefs() {
         pipAutoEnter = SessionPrefs.pipAutoEnter(this)
         unfoldedControls = SessionPrefs.unfoldedControls(this)
+        picturePosition = SessionPrefs.picturePosition(this)
         hudOn = SessionPrefs.hudEnabled(this)
         upscaler = SessionPrefs.upscaler(this)
         upscaleSharpness = SessionPrefs.upscaleSharpness(this)
@@ -1143,6 +1174,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         steamDownloadsInBackground = SessionPrefs.steamDownloadsInBackground(this)
         oscMode = SessionPrefs.oscMode(this)
         backActionsInverted = SessionPrefs.backActionsInverted(this)
+        lowLatencyController = SessionPrefs.lowLatencyController(this)
+        lowLatencyTouch = SessionPrefs.lowLatencyTouch(this)
         padType = SessionPrefs.steamController(this)
     }
 
@@ -1351,6 +1384,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             )
         }
         applyFrameGen()
+        applyGameAlignment()
     }
 
     private var surfaceW = 0
@@ -2030,9 +2064,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         else -> SessionState.mode != SessionService.MODE_STEAM || SessionState.steamUi == "desktop"
     }
 
+    private val gamePictureBounds = FloatArray(4)
+    private var topPictureMapped = false
+
     private fun drawnRect(): android.graphics.RectF? {
         val width = surfaceView.width.takeIf { it > 0 } ?: return null
         val height = surfaceView.height.takeIf { it > 0 } ?: return null
+        topPictureMapped = CompositorHost.isStarted && WaylandCompositor.nativeGamePictureRect(gamePictureBounds)
+        if (topPictureMapped) return android.graphics.RectF(
+            gamePictureBounds[0], gamePictureBounds[1], gamePictureBounds[2], gamePictureBounds[3])
         val out = SessionState.outputSize
         val scale = minOf(width / out.first.toFloat(), height / out.second.toFloat())
         val drawnW = out.first * scale
@@ -2042,9 +2082,19 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         return android.graphics.RectF(left, top, left + drawnW, top + drawnH)
     }
 
+    private var ignoreGameTouch = false
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE)) return onMouse(event)
         if (routedTouchMode == SessionPrefs.TOUCH_OFF) return true
+        if (SessionState.mode == SessionService.MODE_STEAM && SessionState.steamUi != "desktop") {
+            val wasActive = threeFingerTap.active
+            if (threeFingerTap.onTouch(event)) padBridge?.triggerSteamKeyboard()
+            if (threeFingerTap.active && !wasActive) {
+                if (usingTouchpad()) touchpad.cancel() else WaylandCompositor.nativeSendTouch(3, -1, 0, 0)
+            }
+            if (threeFingerTap.active || wasActive) return true
+        }
         if (usingTouchpad()) {
             val rect = drawnRect() ?: return false
             if (touchpad.bounds != rect) {
@@ -2055,6 +2105,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             return touchpad.onTouch(event)
         }
         val rect = drawnRect() ?: return false
+        if (event.actionMasked == MotionEvent.ACTION_DOWN)
+            ignoreGameTouch = topPictureMapped && !rect.contains(event.x, event.y)
+        if (ignoreGameTouch) {
+            if (event.actionMasked == MotionEvent.ACTION_DOWN)
+                WaylandCompositor.nativeSendTouch(3, -1, 0, 0)
+            if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) ignoreGameTouch = false
+            return true
+        }
         fun sendTouch(action: Int, index: Int) {
             val x = event.getX(index).coerceIn(rect.left, rect.right)
             val y = event.getY(index).coerceIn(rect.top, rect.bottom)
@@ -2670,8 +2728,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         super.onAttachedToWindow()
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
         val decor = window.decorView
-        decor.requestUnbufferedDispatch(UNBUFFERED_SOURCES)
-        decor.viewTreeObserver.addOnGlobalFocusChangeListener { _, _ -> decor.post { decor.requestUnbufferedDispatch(UNBUFFERED_SOURCES) } }
+        decor.requestUnbufferedDispatch(unbufferedSources())
+        decor.viewTreeObserver.addOnGlobalFocusChangeListener { _, _ -> decor.post { decor.requestUnbufferedDispatch(unbufferedSources()) } }
+    }
+
+    private fun unbufferedSources() =
+        if (lowLatencyTouch) UNBUFFERED_SOURCES or InputDevice.SOURCE_CLASS_POINTER else UNBUFFERED_SOURCES
+
+    private fun applyLowLatency() {
+        com.droiddeck.launcher.input.FakeInputWriter.setLowLatency(lowLatencyController, lowLatencyTouch)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) window.decorView.requestUnbufferedDispatch(unbufferedSources())
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -2800,6 +2866,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             java.util.concurrent.LinkedBlockingQueue()) { Thread(it, "steamvr") }
         private const val SCALE_FIT = 1
         private const val ALIGN_CENTER = 0
+        private const val ALIGN_PICTURE_TOP = 3
+        private const val ALIGN_PICTURE_BOTTOM = 4
         private val RUNTIME_LINES = PackageLines(
             R.string.session_runtime_downloading, R.string.session_runtime_downloading_mb,
             R.string.session_runtime_checking, R.string.session_runtime_unpacking,

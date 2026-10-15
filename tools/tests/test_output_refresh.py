@@ -47,6 +47,7 @@ static atomic_int g_output_refresh_pending;
 static int g_output_announced_refresh_mhz = 60000;
 static int g_output_w = 1920, g_output_h = 1080;
 static int flushes, resizes, pointers, ticks;
+static int scale_changes, scale_mode, scale_alignment, renders;
 static void *g_display;
 #define WL_OUTPUT_MODE_CURRENT 1
 #define WL_OUTPUT_MODE_PREFERRED 2
@@ -68,6 +69,10 @@ static void send_toplevel_configure(struct surface *s) { (void)s; resizes++; }
 #define deliver_touch(m) ((void)0)
 #define deliver_pointer(m) (pointers++)
 static void on_vsync(int64_t ns) { assert(ns > 0); ticks++; }
+static void vk_present_set_scale_mode(int mode, int alignment) {
+    scale_changes++; scale_mode = mode; scale_alignment = alignment;
+}
+static void schedule_render(void) { renders++; }
 '''
 
 CHECKS = r'''
@@ -88,6 +93,11 @@ int main(void) {
     assert(first.modes == 0 && second.modes == 0);
     assert(pipe2(g_input_pipe, O_CLOEXEC | O_NONBLOCK) == 0);
     g_output_announced_refresh_mhz = atomic_load(&g_output_refresh_mhz);
+    droiddeck_wayland_set_scale_mode(1, 4);
+    assert(queued() == sizeof(struct input_msg));
+    drain();
+    assert(scale_changes == 1 && scale_mode == 1 && scale_alignment == 4 && renders == 1);
+    assert(first.modes == 0 && second.modes == 0);
     droiddeck_wayland_set_output_refresh_rate(120000);
     assert(queued() == 0);
     droiddeck_wayland_set_output_refresh_rate(60000);
@@ -104,7 +114,7 @@ int main(void) {
     droiddeck_wayland_set_output_refresh_rate(60000);
     droiddeck_wayland_output_resized();
     drain(); expect(3, 60000, 1); assert(flushes == 3);
-    struct input_msg wake = {9, 0, 0, 0, 0};
+    struct input_msg wake = {10, 0, 0, 0, 0};
     int n = 0;
     while (write(g_input_pipe[1], &wake, sizeof(wake)) == sizeof(wake)) n++;
     assert(n > 0 && errno == EAGAIN);
@@ -119,6 +129,11 @@ int main(void) {
     drain(); expect(5, 60000, 1); assert(ticks == 1);
     assert(nominal_refresh_ns() == 16666666);
     assert(flushes == 5);
+    assert(scale_changes == 1 && scale_mode == 1 && scale_alignment == 4 && renders == 1);
+    droiddeck_wayland_set_scale_mode(1, 3);
+    droiddeck_wayland_set_output_refresh_rate(90000);
+    drain(); expect(6, 90000, 1);
+    assert(scale_changes == 2 && scale_mode == 1 && scale_alignment == 3 && renders == 2);
     close(g_input_pipe[0]); close(g_input_pipe[1]);
     puts("PASS");
 }
@@ -134,6 +149,7 @@ class OutputRefreshTest(unittest.TestCase):
         source = SOURCE.read_text()
         functions = ('nominal_refresh_ns', 'output_send_mode', 'output_notify_mode',
                      'output_resized', 'on_input_readable', 'droiddeck_wayland_output_resized',
+                     'droiddeck_wayland_set_scale_mode',
                      'droiddeck_wayland_set_output_refresh_rate')
         harness = PREAMBLE + '\n'.join(extract_function(source, name) for name in functions) + CHECKS
         with tempfile.TemporaryDirectory(prefix='droiddeck-output-refresh-') as folder:

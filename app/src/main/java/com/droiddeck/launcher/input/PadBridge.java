@@ -55,7 +55,8 @@ public final class PadBridge {
     private boolean systemGuidePressed;
     private boolean systemQamPressed;
     private boolean qamChordActive;
-    private boolean qamSyntheticAPressed;
+    private int chordButton = -1;
+    private boolean chordButtonPressed;
     private boolean qamTapPressed;
     private int qamChordGeneration;
     private volatile Runnable onPlayerInput;
@@ -115,7 +116,7 @@ public final class PadBridge {
         systemGuidePressed = false;
         systemQamPressed = false;
         qamChordActive = false;
-        qamSyntheticAPressed = false;
+        chordButtonPressed = false;
         qamTapPressed = false;
         qamChordGeneration++;
         if (open) {
@@ -340,7 +341,7 @@ public final class PadBridge {
         boolean qamStarted = qamPressed && !systemQamPressed;
         systemGuidePressed = guidePressed;
         systemQamPressed = qamPressed;
-        if (qamStarted && !nativeQam()) startQamChord();
+        if (qamStarted && !nativeQam()) startChord(PadState.A);
         else publish();
     }
 
@@ -367,7 +368,7 @@ public final class PadBridge {
 
     public synchronized void triggerQam() {
         if (!nativeQam()) {
-            startQamChord();
+            startChord(PadState.A);
             return;
         }
         if (qamTapPressed) return;
@@ -383,12 +384,17 @@ public final class PadBridge {
         publish();
     }
 
-    private void startQamChord() {
+    public synchronized void triggerSteamKeyboard() {
+        startChord(PadState.X);
+    }
+
+    private void startChord(int button) {
         if (qamChordActive) return;
         qamChordActive = true;
+        chordButton = button;
         int generation = ++qamChordGeneration;
         publish();
-        chordHandler.postDelayed(() -> pressQamA(generation), qamGuideLeadMs());
+        chordHandler.postDelayed(() -> pressChordButton(generation), qamGuideLeadMs());
     }
 
     static long qamGuideLeadMs() {
@@ -397,16 +403,16 @@ public final class PadBridge {
         return Math.max(QAM_GUIDE_LEAD_MIN_MS, Math.min(QAM_GUIDE_LEAD_MAX_MS, frame * QAM_GUIDE_LEAD_FRAMES));
     }
 
-    private synchronized void pressQamA(int generation) {
+    private synchronized void pressChordButton(int generation) {
         if (generation != qamChordGeneration || !qamChordActive) return;
-        qamSyntheticAPressed = true;
+        chordButtonPressed = true;
         publish();
-        chordHandler.postDelayed(() -> releaseQamA(generation), QAM_A_HOLD_MS);
+        chordHandler.postDelayed(() -> releaseChordButton(generation), QAM_A_HOLD_MS);
     }
 
-    private synchronized void releaseQamA(int generation) {
+    private synchronized void releaseChordButton(int generation) {
         if (generation != qamChordGeneration || !qamChordActive) return;
-        qamSyntheticAPressed = false;
+        chordButtonPressed = false;
         publish();
         chordHandler.postDelayed(() -> releaseQamGuide(generation), QAM_GUIDE_TAIL_MS);
     }
@@ -525,7 +531,7 @@ public final class PadBridge {
         effectiveState.copyFrom(state);
         if (guide) effectiveState.press(PadState.GUIDE, true);
         if (qam) effectiveState.press(PadState.QAM, true);
-        if (qamSyntheticAPressed) effectiveState.press(PadState.A, true);
+        if (chordButtonPressed) effectiveState.press(chordButton, true);
         writer.writePad(effectiveState);
     }
 

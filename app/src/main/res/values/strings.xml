@@ -629,6 +629,11 @@
     <string name="drawer_texture_sharpness_note">A negative mip bias: sharper textures, some shimmer. Auto matches how far the session is enlarged to the screen.</string>
     <string name="drawer_touch_auto">Auto (%1$s)</string>
     <string name="drawer_keyboard">Keyboard</string>
+    <string name="drawer_latency">Latency</string>
+    <string name="drawer_low_latency_controller">Low-latency controller</string>
+    <string name="drawer_low_latency_controller_hint">Pad reports at 1000 Hz instead of 250 Hz. Slightly more CPU.</string>
+    <string name="drawer_low_latency_touch">Low-latency touch</string>
+    <string name="drawer_low_latency_touch_hint">Touches skip frame batching; Steam touch controls at 1000 Hz. Slightly more CPU.</string>
     <string name="drawer_pc_keyboard">PC keyboard</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Second screen</string>
@@ -941,8 +946,8 @@
     <string name="wadb_turn_off">Turn limit off</string>
     <string name="wadb_other_ways">Other ways to change it</string>
     <string name="wadb_dev_try_first">1 · Developer options (try first)</string>
-    <string name="wadb_restrict_on">Set “Restrict child processes” on.</string>
-    <string name="wadb_restrict_off">Set “Restrict child processes” off.</string>
+    <string name="wadb_restrict_on">Turn off “Disable child process restrictions”.</string>
+    <string name="wadb_restrict_off">Turn on “Disable child process restrictions”.</string>
     <string name="wadb_computer_last">3 · Computer ADB (last resort)</string>
     <string name="wadb_only_if">Only if Wireless debugging is unavailable.</string>
     <string name="wadb_computer_group">3 · Computer ADB (last resort)</string>
@@ -1292,6 +1297,8 @@
     <string name="drivers_switched_to_restart">Switched to %1$s %2$s. The display driver applies after DroidDeck restarts.</string>
     <string name="drivers_using">Using %1$s %2$s.</string>
     <string name="drivers_using_restart">Using %1$s %2$s. The display driver applies after DroidDeck restarts.</string>
+    <string name="drivers_using_quest">Using the bundled Quest display driver and runtime default.</string>
+    <string name="drivers_using_quest_restart">Using the bundled Quest display driver and runtime default. The display driver applies after DroidDeck restarts.</string>
     <string name="drivers_not_a_driver">Not a driver zip: neither an AdrenoTools driver, a -Linux Turnip nor an Android + Linux bundle</string>
     <string name="drivers_import_failed">Import failed: %1$s</string>
     <string name="drivers_imported_unnamed">Imported driver</string>
@@ -1980,6 +1987,16 @@
     <string name="stores_free">Free</string>
     <string name="stores_resume">Resume</string>
     <string name="stores_refresh">Refresh</string>
+    <string name="stores_sort">Sort</string>
+    <string name="stores_sort_last_played">Recently played</string>
+    <string name="stores_sort_recently_installed">Recently installed</string>
+    <string name="stores_sort_title_asc">Title A–Z</string>
+    <string name="stores_sort_title_desc">Title Z–A</string>
+    <string name="stores_sort_size_desc">Size: largest</string>
+    <string name="stores_sort_size_asc">Size: smallest</string>
+    <string name="stores_sort_release_date">Release date</string>
+    <string name="stores_view_list">List view</string>
+    <string name="stores_view_cards">Card view</string>
     <string name="stores_show_mature">Show mature content</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>
@@ -2142,6 +2159,18 @@
     <string name="art_pick_image">Pick image…</string>
     <string name="art_pick_title">Pick an image: %1$s</string>
     <string name="art_reset">Reset to automatic</string>
+    <string name="art_search_sgdb">Search SteamGridDB…</string>
+    <string name="art_sgdb_title">SteamGridDB: %1$s</string>
+    <string name="art_sgdb_search_label">Search for a game</string>
+    <string name="art_sgdb_more">Show more</string>
+    <string name="art_sgdb_other_games">Other matches</string>
+    <string name="art_sgdb_none">Nothing found.</string>
+    <string name="art_sgdb_no_key">SteamGridDB needs an API key. Add yours in Setup › Launcher.</string>
+    <string name="art_sgdb_bad_key">SteamGridDB did not accept the API key. Check it in Setup › Launcher.</string>
+    <string name="art_sgdb_limit">SteamGridDB is limiting requests right now. Try again in a minute.</string>
+    <string name="art_sgdb_offline">SteamGridDB could not be reached. Check the connection.</string>
+    <string name="art_sgdb_server">SteamGridDB had a problem. Try again later.</string>
+    <string name="art_sgdb_no_game">SteamGridDB has no match for this game. Try a search.</string>
     <plurals name="games_added_n">
         <item quantity="one">%1$d game added</item>
         <item quantity="other">%1$d games added</item>
@@ -2340,4 +2369,8 @@
     <string name="glasses_xreal_network_missing">Waiting for the glasses’ USB Ethernet connection. This phone may not expose it to apps.</string>
     <string name="glasses_xreal_connection_failed">The XREAL connection was interrupted or returned an unsupported response. Retrying…</string>
     <string name="glasses_xreal_experimental">Experimental 1S support. Use Follow mode and disable stabilization in the glasses menu. Tracking directions and display modes still need device testing.</string>
+    <string name="display_picture_position">Picture position</string>
+    <string name="display_position_top">Top</string>
+    <string name="display_position_bottom">Bottom</string>
+    <string name="display_position_center">Center (default)</string>
 </resources>
