@@ -843,7 +843,7 @@ private fun DrawerPageTabs(page: SessionDrawerPage, pages: List<SessionDrawerPag
                         .semantics { contentDescription = pageDescription }
                         .testTag("drawer-tab-${item.name.lowercase()}")
                         .hoverable(source)
-                        .clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = source, indication = LocalIndication.current, onClick = select)
+                        .selectable(selected = selected, role = androidx.compose.ui.semantics.Role.Tab, interactionSource = source, indication = LocalIndication.current, onClick = select)
                         .controllerConfirm(onClick = select),
                 ) {
                     Icon(item.icon, contentDescription = null, tint = tint, modifier = Modifier.size(if (compact) 22.dp else 30.dp))

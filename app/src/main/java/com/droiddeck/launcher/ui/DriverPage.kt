@@ -15,6 +15,7 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -185,7 +186,7 @@ private fun InstalledRow(row: DriverRow, selected: Boolean, onSelect: () -> Unit
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.weight(1f).then(modifier).focusRequester(mainFocus)
                 .then(if (row.removable) Modifier.focusProperties { right = delFocus } else Modifier)
-                .hoverable(src).clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = src, indication = null, onClick = onSelect)
+                .hoverable(src).selectable(selected = selected, role = androidx.compose.ui.semantics.Role.RadioButton, interactionSource = src, indication = null, onClick = onSelect)
                 .padding(horizontal = 11.dp, vertical = 8.dp),
         ) {
             Box(
