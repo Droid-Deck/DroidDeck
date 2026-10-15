@@ -893,8 +893,8 @@
     <string name="wadb_turn_off">Απενεργοποίηση ορίου</string>
     <string name="wadb_other_ways">Άλλοι τρόποι αλλαγής</string>
     <string name="wadb_dev_try_first">1 · Επιλογές προγραμματιστή (δοκιμάστε πρώτα)</string>
-    <string name="wadb_restrict_on">Ενεργοποιήστε «Περιορισμός θυγατρικών διαδικασιών».</string>
-    <string name="wadb_restrict_off">Απενεργοποιήστε «Περιορισμός θυγατρικών διαδικασιών».</string>
+    <string name="wadb_restrict_on">Απενεργοποιήστε «Απενεργοπ. περιορισμών σε θυγατρικές διεργασίες».</string>
+    <string name="wadb_restrict_off">Ενεργοποιήστε «Απενεργοπ. περιορισμών σε θυγατρικές διεργασίες».</string>
     <string name="wadb_computer_last">3 · ADB υπολογιστή (τελευταία λύση)</string>
     <string name="wadb_only_if">Μόνο αν ο Ασύρματος εντοπισμός σφαλμάτων δεν είναι διαθέσιμος.</string>
     <string name="wadb_computer_group">3 · ADB υπολογιστή (τελευταία λύση)</string>

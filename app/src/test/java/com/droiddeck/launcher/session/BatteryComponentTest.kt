@@ -41,6 +41,14 @@ class BatteryComponentTest {
         assertTelemetry(supplies, vpower)
     }
 
+    @Test fun vendorsReportingMilliampsGetTheSameEstimatesAsMicroamps() {
+        val supplies = tmp.newFolder("power_supply")
+        val vpower = tmp.newFolder("vpower")
+        start(supplies, vpower, -2_000L)
+        assertTelemetry(supplies, vpower)
+        assertEquals("-2000000", File(supplies, "BAT1/current_now").readText().trim())
+    }
+
     private fun start(supplies: File, vpower: File, currentUa: Long) {
         val context = RuntimeEnvironment.getApplication()
         context.sendStickyBroadcast(Intent(Intent.ACTION_BATTERY_CHANGED).apply {

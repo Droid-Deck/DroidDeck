@@ -887,8 +887,8 @@
     <string name="wadb_turn_off">Matikan had</string>
     <string name="wadb_other_ways">Cara lain untuk menukarnya</string>
     <string name="wadb_dev_try_first">1 · Pilihan pembangun (cuba dahulu)</string>
-    <string name="wadb_restrict_on">Tetapkan “Sekat proses anak” hidup.</string>
-    <string name="wadb_restrict_off">Tetapkan “Sekat proses anak” mati.</string>
+    <string name="wadb_restrict_on">Tetapkan “Lumpuhkan sekatan proses anak” mati.</string>
+    <string name="wadb_restrict_off">Tetapkan “Lumpuhkan sekatan proses anak” hidup.</string>
     <string name="wadb_computer_last">3 · ADB komputer (pilihan akhir)</string>
     <string name="wadb_only_if">Hanya jika Debugging Wayarles tidak tersedia.</string>
     <string name="wadb_computer_group">3 · ADB komputer (pilihan akhir)</string>

@@ -232,6 +232,28 @@ fn unique(items: impl IntoIterator<Item = Value>) -> Vec<Value> {
     items.into_iter().filter(|i| seen.insert(net::str_of(i, "id").to_string())).collect()
 }
 
+const MATURE_TAGS: [&str; 8] = ["mature", "nsfw", "adult", "adult only", "adults only", "nudity", "sexual content", "sexual-content"];
+
+fn mature_tags(item: &Value) -> bool {
+    item["allTags"].as_array().is_some_and(|tags| {
+        tags.iter().filter_map(|t| t.as_str()).any(|t| MATURE_TAGS.contains(&t.trim().to_lowercase().as_str()))
+    })
+}
+
+pub fn wall_art(promotion_list: &[Value]) -> Vec<String> {
+    let mut seen = HashSet::new();
+    promotion_list
+        .iter()
+        .filter_map(item_of)
+        .filter(|i| !mature_tags(i))
+        .map(|i| {
+            let tall = net::str_of(&i, "tall");
+            if tall.is_empty() { net::str_of(&i, "image").to_string() } else { tall.to_string() }
+        })
+        .filter(|u| !u.is_empty() && seen.insert(u.clone()))
+        .collect()
+}
+
 pub fn shelves(country: &str) -> Value {
     let country = country_code(country);
     let now = now_stamp();
@@ -240,10 +262,12 @@ pub fn shelves(country: &str) -> Value {
     };
     let new = unique(shelf(Shelf::New));
     let deals = unique(shelf(Shelf::Deals).into_iter().filter(|i| i["disc"].as_i64().unwrap_or(0) > 0));
-    let promos: Vec<Value> = promotions(&country).iter().filter_map(free_now).collect();
+    let promotion_list = promotions(&country);
+    let art = wall_art(&promotion_list);
+    let promos: Vec<Value> = promotion_list.iter().filter_map(free_now).collect();
     let free = unique(promos.into_iter().chain(shelf(Shelf::Free)));
     let trending = unique(shelf(Shelf::Trending));
-    json!({ "new": new, "deals": deals, "free": free, "trending": trending })
+    json!({ "new": new, "deals": deals, "free": free, "trending": trending, "art": art })
 }
 
 #[cfg(test)]
@@ -302,6 +326,19 @@ mod tests {
         assert_eq!(p["disc"], 100);
         el["promotions"]["promotionalOffers"][0]["promotionalOffers"][0]["discountSetting"]["discountPercentage"] = json!(50);
         assert!(free_now(&el).is_none());
+    }
+
+    #[test]
+    fn wall_art_takes_every_promotion_once_and_skips_mature() {
+        let mut clean = element();
+        clean["tags"] = json!([{"name": "Action"}]);
+        let mut wide_only = clean.clone();
+        wide_only["id"] = json!("offer2");
+        wide_only["keyImages"] = json!([{"type": "OfferImageWide", "url": "w2"}]);
+        let mut mature = element();
+        mature["id"] = json!("offer3");
+        mature["keyImages"] = json!([{"type": "DieselStoreFrontTall", "url": "m"}]);
+        assert_eq!(wall_art(&[clean.clone(), clean, wide_only, mature]), vec!["tl", "w2"]);
     }
 
     #[test]

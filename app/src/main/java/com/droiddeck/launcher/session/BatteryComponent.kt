@@ -45,8 +45,9 @@ class BatteryComponent(val dir: File, private val vpowerDir: File) : SessionPart
             val tempDeci = sticky?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0) ?: 0
             val tech = sticky?.getStringExtra(BatteryManager.EXTRA_TECHNOLOGY)?.takeIf { it.isNotBlank() } ?: "Li-ion"
             val chargeNowUah = bm?.getLongProperty(BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER)?.takeIf { it > 0 && it != Long.MIN_VALUE } ?: 0L
-            val currentNowUa = bm?.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)?.takeIf { it != Long.MIN_VALUE } ?: 0L
-            val currentAvgUa = bm?.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_AVERAGE)?.takeIf { it != Long.MIN_VALUE && it != 0L } ?: currentNowUa
+            val currentNowUa = toMicroamps(bm?.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)?.takeIf { it != Long.MIN_VALUE } ?: 0L)
+            val currentAvgUa = toMicroamps(bm?.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_AVERAGE)?.takeIf { it != Long.MIN_VALUE && it != 0L } ?: 0L)
+                .takeIf { it != 0L } ?: currentNowUa
             val discharging = status == BatteryManager.BATTERY_STATUS_DISCHARGING || status == BatteryManager.BATTERY_STATUS_NOT_CHARGING
             val chargeFullUah = if (chargeNowUah > 0 && pct > 0) chargeNowUah * 100 / pct else 0L
             val energyNowUwh = chargeNowUah * voltageUv / 1_000_000L
@@ -125,6 +126,12 @@ class BatteryComponent(val dir: File, private val vpowerDir: File) : SessionPart
 
     companion object {
         private const val TAG = "SessionService"
+        // CURRENT_NOW/CURRENT_AVERAGE are documented as µA, but Samsung and other vendors report mA,
+        // which made every lifetime estimate 1000x too long. No real µA reading under load is below 10 mA,
+        // and no mA reading is above 10 A, so anything smaller than 10_000 is taken as mA.
+        private const val MILLIAMP_CEILING = 10_000L
+
+        internal fun toMicroamps(raw: Long): Long = if (abs(raw) < MILLIAMP_CEILING) raw * 1000L else raw
         private const val PERIOD_MS = 5_000L
         private val VPOWER_FILES = listOf(
             "ac_status", "battery_percent", "battery_status",

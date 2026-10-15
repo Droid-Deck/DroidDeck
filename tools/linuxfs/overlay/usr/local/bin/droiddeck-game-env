@@ -98,6 +98,14 @@ def godot_sentry(game):
         return {"WINEDLLOVERRIDES": ";".join(n + "=d" for n in sentry)}, [], "Godot: Sentry crash handler off"
 
 
+@fix
+def arkham_city_x87(game):
+    """Batman: Arkham City (BatmanAC.exe, also started through BmLauncher.exe beside it) leans on x87
+    and stops with Unreal's "Fatal error!" right after start when FEX reduces its precision."""
+    if "batmanac.exe" in game.files:
+        return {"FEX_X87REDUCEDPRECISION": "0"}, [], "Batman: Arkham City: FEX with full x87 precision"
+
+
 def skip_red_launcher(command):
     """Cyberpunk 2077's prelauncher opens REDlauncher, a Qt WebEngine window that hands over to the
     game half a minute later and then stays up beside it, well over a core busy for as long as the

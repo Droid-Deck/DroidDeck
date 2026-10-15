@@ -899,8 +899,8 @@
     <string name="wadb_turn_off">Desativar limite</string>
     <string name="wadb_other_ways">Outras formas de o alterar</string>
     <string name="wadb_dev_try_first">1 · Opções de programador (tente primeiro)</string>
-    <string name="wadb_restrict_on">Ative “Restringir processos secundários”.</string>
-    <string name="wadb_restrict_off">Desative “Restringir processos secundários”.</string>
+    <string name="wadb_restrict_on">Desative “Desativar restrições de processos secundários”.</string>
+    <string name="wadb_restrict_off">Ative “Desativar restrições de processos secundários”.</string>
     <string name="wadb_computer_last">3 · ADB num computador (último recurso)</string>
     <string name="wadb_only_if">Apenas se a Depuração sem fios não estiver disponível.</string>
     <string name="wadb_computer_group">3 · ADB num computador (último recurso)</string>

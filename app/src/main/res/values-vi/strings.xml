@@ -887,8 +887,8 @@
     <string name="wadb_turn_off">Tắt giới hạn</string>
     <string name="wadb_other_ways">Cách khác để đổi nó</string>
     <string name="wadb_dev_try_first">1 · Tùy chọn cho nhà phát triển (thử trước)</string>
-    <string name="wadb_restrict_on">Đặt “Restrict child processes” thành bật.</string>
-    <string name="wadb_restrict_off">Đặt “Restrict child processes” thành tắt.</string>
+    <string name="wadb_restrict_on">Đặt “Tắt các mục hạn chế đối với tiến trình con” thành tắt.</string>
+    <string name="wadb_restrict_off">Đặt “Tắt các mục hạn chế đối với tiến trình con” thành bật.</string>
     <string name="wadb_computer_last">3 · ADB từ máy tính (phương án cuối)</string>
     <string name="wadb_only_if">Chỉ khi Gỡ lỗi qua mạng không dây không khả dụng.</string>
     <string name="wadb_computer_group">3 · ADB từ máy tính (phương án cuối)</string>

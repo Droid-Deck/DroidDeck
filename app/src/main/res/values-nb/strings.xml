@@ -893,8 +893,8 @@
     <string name="wadb_turn_off">Slå av grensen</string>
     <string name="wadb_other_ways">Andre måter å endre det</string>
     <string name="wadb_dev_try_first">1 · Utvikleralternativer (prøv først)</string>
-    <string name="wadb_restrict_on">Slå på «Restrict child processes».</string>
-    <string name="wadb_restrict_off">Slå av «Restrict child processes».</string>
+    <string name="wadb_restrict_on">Slå av «Slå av begrensninger for underordnede prosesser».</string>
+    <string name="wadb_restrict_off">Slå på «Slå av begrensninger for underordnede prosesser».</string>
     <string name="wadb_computer_last">3 · ADB fra datamaskin (siste utvei)</string>
     <string name="wadb_only_if">Bare hvis trådløs feilsøking ikke er tilgjengelig.</string>
     <string name="wadb_computer_group">3 · ADB fra datamaskin (siste utvei)</string>
