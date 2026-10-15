@@ -139,11 +139,14 @@ Verified on the AYN Thor (SD 8 Gen 2, Turnip): SteamVR 2.17.10 starts with the D
 the compositor runs driver-direct at about 60 fps, the dashboard (Steam's library in VR, with the
 controller's laser) shows cleanly in both eyes at the panel's resolution while Steam keeps running, and
 a pose written to the shared file turns SteamVR's view. Started from the drawer button through the agent.
-With VITURE glasses connected, showing a picture and under DroidDeck's control, the Steam page also offers **Play SteamVR**, which starts Steam and then
-SteamVR (installing it first if needed), and stops SteamVR when the glasses are unplugged. **Play
-Steam** never starts it: while SteamVR runs, Steam keeps its own window in front of flat games.
-Through a VITURE Mobile Dock the glasses are only a display: the dock does not pass their controls or
-head tracking to the phone, so there is no Play SteamVR, refresh, 3D or tracking setting.
+Once a headset (VITURE, RayNeo or XREAL glasses) is connected and under DroidDeck's control, the
+Steam page shows **Play SteamVR** at the top left, with a **Settings** badge that drops that headset's
+settings from the top; before that neither appears. Play SteamVR starts Steam and then SteamVR
+(installing it first if needed) once the glasses show a picture, and SteamVR stops when the glasses
+are unplugged. **Play Steam** never starts it: while SteamVR runs, Steam keeps its own window in front
+of flat games. Through a VITURE Mobile Dock the glasses are only a display: the dock does not pass
+their controls or head tracking to the phone, so the Steam page shows neither, and only the session
+drawer's glasses page (output and **Game on glasses**) applies.
 
 SteamVR defaults to 2D output: a single eye fills the glasses while head tracking remains active.
 Enable **3D (side-by-side)** manually or opt into **3D for VR games** in the glasses controls for stereo. Automatic

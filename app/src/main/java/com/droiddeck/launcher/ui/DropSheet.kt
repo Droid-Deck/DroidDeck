@@ -62,7 +62,6 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -190,11 +189,9 @@ internal fun rememberDropSheetState(): DropSheetState {
 @Composable
 internal fun BoxWithConstraintsScope.DropSheet(
     state: DropSheetState,
-    label: String,
-    icon: ImageVector,
     tabs: List<Pair<String, String>>,
     covered: () -> Float = { 0f },
-    beside: @Composable (enabled: Boolean) -> Unit = {},
+    button: @Composable (enabled: Boolean) -> Unit,
     rows: @Composable (tab: String) -> Unit,
 ) {
     val density = LocalDensity.current
@@ -204,7 +201,7 @@ internal fun BoxWithConstraintsScope.DropSheet(
     val narrow = LocalNarrowPane.current
     val chipFocus = remember(tabs.size) { List(tabs.size) { FocusRequester() } }
     val buttonFocus = remember { FocusRequester() }
-    val rightForButton = remember { booleanArrayOf(false) }
+    val leftForButton = remember { booleanArrayOf(false) }
     var rest by remember { mutableStateOf<Rect?>(null) }
     val openState = rememberUpdatedState(state.open)
     if (state.tab > tabs.lastIndex) state.tab = 0
@@ -355,9 +352,10 @@ internal fun BoxWithConstraintsScope.DropSheet(
             if (narrow && pill != null) pill.top - 10.dp.toPx() else openBottom - 14.dp.toPx()
         }
         val chipsTop = chipsBottom - chipsH
-        val chipsRight = with(density) {
-            if (narrow || pill == null) sheetW - 16.dp.toPx() else pill.left - sheetLeft - 20.dp.toPx()
+        val chipsLeft = with(density) {
+            if (narrow || pill == null) 16.dp.toPx() else pill.right - sheetLeft + 20.dp.toPx()
         }
+        val chipsRight = sheetW - closeW
         val rowsBottom = chipsTop - with(density) { 8.dp.toPx() }
         Box(
             Modifier
@@ -372,7 +370,7 @@ internal fun BoxWithConstraintsScope.DropSheet(
                 .focusProperties {
                     exit = { dir ->
                         if (!openState.value) FocusRequester.Default
-                        else if (dir == FocusDirection.Right) { rightForButton[0] = true; buttonFocus }
+                        else if (dir == FocusDirection.Left) { leftForButton[0] = true; buttonFocus }
                         else FocusRequester.Cancel
                     }
                 }
@@ -409,23 +407,23 @@ internal fun BoxWithConstraintsScope.DropSheet(
             }
             Box(
                 Modifier
-                    .offset { IntOffset(closeW.roundToInt(), chipsTop.roundToInt()) }
+                    .offset { IntOffset(chipsLeft.roundToInt(), chipsTop.roundToInt()) }
                     .zIndex(1f)
-                    .width(with(density) { (chipsRight - closeW).coerceAtLeast(0f).toDp() })
+                    .width(with(density) { (chipsRight - chipsLeft).coerceAtLeast(0f).toDp() })
                     .graphicsLayer { val v = state.pieces[0].value; alpha = v; translationY = (1f - v) * -6.dp.toPx() }
                     .onPreviewKeyEvent { e ->
                         val k = e.nativeKeyEvent
                         if (k.keyCode == KeyEvent.KEYCODE_DPAD_DOWN) { if (k.action == KeyEvent.ACTION_DOWN) close(); true } else false
                     },
             ) {
-                SheetChips(tabs.map { it.second }, state.tab, chipFocus, width = LocalSheetChipWidth.current, end = true) { i -> state.travel = if (i > state.tab) 1 else -1; state.tab = i }
+                SheetChips(tabs.map { it.second }, state.tab, chipFocus, width = LocalSheetChipWidth.current) { i -> state.travel = if (i > state.tab) 1 else -1; state.tab = i }
             }
             val closeSource = remember { MutableInteractionSource() }
             val closeHot = rememberHot(closeSource)
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .offset { IntOffset(8.dp.roundToPx(), chipsTop.roundToInt()) }
+                    .offset { IntOffset((sheetW - 52.dp.toPx()).roundToInt(), chipsTop.roundToInt()) }
                     .zIndex(1f).size(44.dp).testTag("drop-close")
                     .clip(CircleShape).glideBorder(closeHot, CircleShape, pal.signal)
                     .hoverable(closeSource)
@@ -436,38 +434,23 @@ internal fun BoxWithConstraintsScope.DropSheet(
     }
 
     val enabled = covered() < 0.5f
-    val toggle = { if (state.open) close() else state.open = true }
     val sideInset = if (narrow) 20.dp else 44.dp
-    val besideShown = enabled && !state.open && !state.shown
-    val r1 = rest
     val play = LocalPlayRect.current
-    if (r1 != null && play != null && (besideShown || state.sink.value < 0.99f)) Box(
-        Modifier
-            .offset {
-                val gap = 12.dp.roundToPx()
-                val below = play.right + gap > r1.left
-                IntOffset(play.left.roundToInt(), if (below) r1.bottom.roundToInt() + gap else sideInset.roundToPx())
-            }
-            .width(with(density) { play.width.toDp() })
-            .graphicsLayer { alpha = (1f - state.sink.value) * (1f - covered()) }
-            .zIndex(2f)
-            .focusProperties { canFocus = besideShown },
-    ) { beside(besideShown) }
     Box(
         Modifier
-            .align(Alignment.TopEnd)
-            .padding(top = sideInset, end = sideInset)
+            .offset { IntOffset(play?.left?.roundToInt() ?: sideInset.roundToPx(), sideInset.roundToPx()) }
+            .then(if (play != null) Modifier.width(with(density) { play.width.toDp() }) else Modifier)
             .onGloballyPositioned { rest = it.boundsInParent() }
             .graphicsLayer { translationY = lower * state.ride.value; alpha = 1f - covered() }
             .zIndex(2f)
             .focusRequester(buttonFocus)
             .focusProperties { canFocus = enabled }
             .onFocusChanged {
-                if (it.hasFocus && rightForButton[0]) { rightForButton[0] = false; if (openState.value) close() }
+                if (it.hasFocus && leftForButton[0]) { leftForButton[0] = false; if (openState.value) close() }
             }
             .onPreviewKeyEvent { e ->
                 val k = e.nativeKeyEvent
-                if (k.keyCode != KeyEvent.KEYCODE_DPAD_DOWN && !(state.open && k.keyCode == KeyEvent.KEYCODE_DPAD_LEFT)) false
+                if (k.keyCode != KeyEvent.KEYCODE_DPAD_UP && !(state.open && k.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT)) false
                 else {
                     if (k.action == KeyEvent.ACTION_DOWN && k.repeatCount == 0) {
                         if (state.open) runCatching { chipFocus[state.tab].requestFocus() } else if (enabled) state.open = true
@@ -475,9 +458,7 @@ internal fun BoxWithConstraintsScope.DropSheet(
                     true
                 }
             },
-    ) {
-        PrimaryButton(label, large = true, icon = icon, modifier = Modifier.testTag("glasses-open")) { if (enabled) toggle() }
-    }
+    ) { button(enabled) }
 
     val r0 = rest
     if (r0 != null && (state.lipShow.value > 0.01f || state.pull.value > 0.5f)) {
@@ -492,7 +473,7 @@ internal fun BoxWithConstraintsScope.DropSheet(
                 .onSizeChanged { handleSize = it }
                 .graphicsLayer { alpha = state.lipShow.value * (1f - state.lipGone.value) * (1f - covered()) }
                 .zIndex(2f)
-                .heightIn(min = 44.dp).testTag("glasses-sheet-open")
+                .heightIn(min = 44.dp).testTag("drop-open")
                 .semantics { contentDescription = settingsLabel }
                 .focusProperties { canFocus = false }
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, role = Role.Button, onClick = drop),
