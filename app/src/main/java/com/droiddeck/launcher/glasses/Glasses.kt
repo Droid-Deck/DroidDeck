@@ -324,6 +324,7 @@ object Glasses {
             .put("calibration", JSONObject().put("supported", _calibration.value.supported)
                 .put("saved", _calibration.value.saved).put("phase", _calibration.value.phase.name)
                 .put("progress", _calibration.value.progress))
+            .put("badFrames", link?.badFrames ?: 0L)
             .put("pose", q?.let { JSONArray().put(it[0].toDouble()).put(it[1].toDouble()).put(it[2].toDouble()).put(it[3].toDouble()) } ?: JSONObject.NULL)
             .put("fovDeg", s.diagonalFovDeg.toDouble()).put("noSignal", s.noSignal).put("sbsSupport", s.sbsSupport)
             .put("settings", JSONObject().put("refreshHz", g.refreshHz).put("sbsHz", g.sbsHz).put("sunblock", g.sunblock ?: JSONObject.NULL)
@@ -742,9 +743,9 @@ object Glasses {
     private fun linkListener(generation: Long) = object : VitureLink.Listener {
         override fun onFrame(frame: VitureProtocol.Frame) = post {
             if (generation != linkGeneration) return@post
-            val line = "%s 0x%04X %s%s".format(
+            val line = "%s 0x%04X %s".format(
                 when (frame.magic) { VitureProtocol.MAGIC_REPORT -> "FD"; VitureProtocol.MAGIC_COMMAND -> "FE"; else -> "FC" },
-                frame.msgId, frame.payload.joinToString("") { "%02X".format(it) }, if (frame.crcOk) "" else " crc!",
+                frame.msgId, frame.payload.joinToString("") { "%02X".format(it) },
             )
             synchronized(frames) {
                 frames.addLast(line)

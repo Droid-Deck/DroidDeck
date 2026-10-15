@@ -19,6 +19,7 @@ public final class PadBridge {
     private static final float DEAD_ZONE = 0.12f;
     private static final int[] JOYSTICK_AXES = {
             MotionEvent.AXIS_X, MotionEvent.AXIS_Y, MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ,
+            MotionEvent.AXIS_RX, MotionEvent.AXIS_RY,
             MotionEvent.AXIS_HAT_X, MotionEvent.AXIS_HAT_Y, MotionEvent.AXIS_LTRIGGER,
             MotionEvent.AXIS_RTRIGGER, MotionEvent.AXIS_BRAKE, MotionEvent.AXIS_GAS
     };
@@ -100,6 +101,7 @@ public final class PadBridge {
     }
 
     public synchronized void stop() {
+        releaseBackPaddles();
         activeControllerId = NO_CONTROLLER;
         for (int slot = 0; slot < SLOTS; slot++) {
             owners[slot] = NO_CONTROLLER;
@@ -243,6 +245,12 @@ public final class PadBridge {
             case KeyEvent.KEYCODE_BUTTON_THUMBR: pad.press(9, pressed); break;
             case KeyEvent.KEYCODE_BUTTON_MODE:
             case KeyEvent.KEYCODE_HOME: pad.press(PadState.GUIDE, pressed); break;
+            case KeyEvent.KEYCODE_BUTTON_Z:
+                if (isPrimary(event)) DeckControls.INSTANCE.setGrip(DeckControls.L4, pressed);
+                break;
+            case KeyEvent.KEYCODE_BUTTON_C:
+                if (isPrimary(event)) DeckControls.INSTANCE.setGrip(DeckControls.R4, pressed);
+                break;
             case KeyEvent.KEYCODE_BUTTON_L2: pad.leftTrigger = pressed ? 1f : 0f; break;
             case KeyEvent.KEYCODE_BUTTON_R2: pad.rightTrigger = pressed ? 1f : 0f; break;
             case KeyEvent.KEYCODE_DPAD_UP: pad.up = pressed; break;
@@ -269,12 +277,27 @@ public final class PadBridge {
         scheduleStats();
         pad.leftX = axis(event, MotionEvent.AXIS_X);
         pad.leftY = axis(event, MotionEvent.AXIS_Y);
-        pad.rightX = axis(event, MotionEvent.AXIS_Z);
-        pad.rightY = axis(event, MotionEvent.AXIS_RZ);
-        float lt = event.getAxisValue(MotionEvent.AXIS_LTRIGGER);
-        float rt = event.getAxisValue(MotionEvent.AXIS_RTRIGGER);
-        if (lt == 0f) lt = event.getAxisValue(MotionEvent.AXIS_BRAKE);
-        if (rt == 0f) rt = event.getAxisValue(MotionEvent.AXIS_GAS);
+        InputDevice device = event.getDevice();
+        boolean wiredXboxLayout = device != null
+                && ((device.getVendorId() == 0x20d6 && device.getProductId() == 0x2063)
+                || (device.getVendorId() == 0x0e6f && device.getProductId() == 0x02f0))
+                && device.getMotionRange(MotionEvent.AXIS_RX, event.getSource()) != null
+                && device.getMotionRange(MotionEvent.AXIS_RY, event.getSource()) != null
+                && device.getMotionRange(MotionEvent.AXIS_Z, event.getSource()) != null
+                && device.getMotionRange(MotionEvent.AXIS_RZ, event.getSource()) != null;
+        pad.rightX = axis(event, wiredXboxLayout ? MotionEvent.AXIS_RX : MotionEvent.AXIS_Z);
+        pad.rightY = axis(event, wiredXboxLayout ? MotionEvent.AXIS_RY : MotionEvent.AXIS_RZ);
+        float lt;
+        float rt;
+        if (wiredXboxLayout) {
+            lt = Math.max(0f, Math.min(1f, (event.getAxisValue(MotionEvent.AXIS_Z) + 1f) / 2f));
+            rt = Math.max(0f, Math.min(1f, (event.getAxisValue(MotionEvent.AXIS_RZ) + 1f) / 2f));
+        } else {
+            lt = event.getAxisValue(MotionEvent.AXIS_LTRIGGER);
+            rt = event.getAxisValue(MotionEvent.AXIS_RTRIGGER);
+            if (lt == 0f) lt = event.getAxisValue(MotionEvent.AXIS_BRAKE);
+            if (rt == 0f) rt = event.getAxisValue(MotionEvent.AXIS_GAS);
+        }
         pad.leftTrigger = lt;
         pad.rightTrigger = rt;
         float hatX = event.getAxisValue(MotionEvent.AXIS_HAT_X);
@@ -322,6 +345,7 @@ public final class PadBridge {
     }
 
     public synchronized void releaseAll() {
+        releaseBackPaddles();
         state.clear();
         publish();
         for (int slot = 1; slot < SLOTS; slot++) {
@@ -415,11 +439,21 @@ public final class PadBridge {
         return slot == 0 ? state : playerStates[slot];
     }
 
+    private boolean isPrimary(KeyEvent event) {
+        return owners[0] == event.getDevice().getId();
+    }
+
+    private void releaseBackPaddles() {
+        DeckControls.INSTANCE.setGrip(DeckControls.L4, false);
+        DeckControls.INSTANCE.setGrip(DeckControls.R4, false);
+    }
+
     private void free(int slot) {
         Log.i(TAG, "player " + (slot + 1) + " (id " + owners[slot] + ") left");
         owners[slot] = NO_CONTROLLER;
         slotControllers.set(slot, NO_CONTROLLER);
         if (slot == 0) {
+            releaseBackPaddles();
             state.clear();
             publish();
             return;

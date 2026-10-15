@@ -5,6 +5,8 @@ Android owns device power. Suspend here pauses the guest through SessionService;
 the app's Resume action thaws it and completes PrepareForSleep(false). Steam
 must see this service before startup or it can stay black after its idle timer.
 """
+import importlib.machinery
+import importlib.util
 import os
 from pathlib import Path
 import re
@@ -193,6 +195,15 @@ class LoginManager:
             self.notify(False)
 
 
+def load_netmanager():
+    path = Path(__file__).resolve().with_name("droiddeck-netmanager")
+    loader = importlib.machinery.SourceFileLoader("droiddeck_netmanager", str(path))
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
+
+
 def main():
     directory = os.environ.get("BL_LAUNCH_DIR")
     if not directory or not Path(directory).is_dir():
@@ -218,6 +229,8 @@ def main():
 
     owners = [Gio.bus_own_name(Gio.BusType.SYSTEM, name, Gio.BusNameOwnerFlags.NONE, connected, acquired, lost)
               for name in (NAME, UPOWER)]
+    if "--with-netmanager" in sys.argv[1:]:
+        owners.append(load_netmanager().own(loop))
     try:
         loop.run()
     finally:

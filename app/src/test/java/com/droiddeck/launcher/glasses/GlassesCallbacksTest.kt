@@ -38,6 +38,35 @@ class GlassesCallbacksTest {
         VitureProtocol.MAGIC_REPORT, VitureProtocol.EVENT_BRIGHTNESS, byteArrayOf(value.toByte()), true,
     )
 
+    @Test fun statusIncludesCalibrationAndTransportChecksumDiagnostics() {
+        val previousLink = field("link").get(null)
+        @Suppress("UNCHECKED_CAST")
+        val calibration = field("_calibration").get(null) as MutableStateFlow<GlassesCalibrationState>
+        val previousCalibration = calibration.value
+        try {
+            field("link").set(null, object : GlassesLink {
+                override val hasImu = true
+                override val badFrames = 7L
+                override fun send(msgId: Int, payload: ByteArray) = false
+                override fun close() {}
+            })
+            calibration.value = GlassesCalibrationState(supported = true, saved = true,
+                phase = CalibrationPhase.SAVED, progress = 100)
+            val status = Glasses.status()
+            assertEquals(7L, status.getLong("badFrames"))
+            val reportedCalibration = status.getJSONObject("calibration")
+            assertTrue(reportedCalibration.getBoolean("supported"))
+            assertTrue(reportedCalibration.getBoolean("saved"))
+            assertEquals("SAVED", reportedCalibration.getString("phase"))
+            assertEquals(100, reportedCalibration.getInt("progress"))
+            field("link").set(null, null)
+            assertEquals(0L, Glasses.status().getLong("badFrames"))
+        } finally {
+            field("link").set(null, previousLink)
+            calibration.value = previousCalibration
+        }
+    }
+
     @Test fun queuedDisconnectCannotCloseAReplacementLink() {
         val old = listener(1)
         old.onLost()

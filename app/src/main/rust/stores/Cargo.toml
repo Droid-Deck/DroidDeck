@@ -12,6 +12,7 @@ crate-type = ["cdylib"]
 [dependencies]
 jni = "0.21"
 libc = "0.2"
+lzma-rs = { version = "0.3", default-features = false }
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "gzip"] }
 tokio = { version = "1", default-features = false, features = ["rt", "net", "time", "sync"] }

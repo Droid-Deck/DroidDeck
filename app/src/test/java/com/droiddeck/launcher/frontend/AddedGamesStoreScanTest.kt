@@ -62,5 +62,6 @@ class AddedGamesStoreScanTest {
         val listing = AddedGames.writeListing(app, games).readText()
         assertTrue(listing.contains("\"name\":\"Celeste\""))
         assertTrue(listing.contains(StoreLaunch.LAUNCHER))
+        assertTrue(listing.contains("\"store\":\"${Store.EPIC.id}\""))
     }
 }

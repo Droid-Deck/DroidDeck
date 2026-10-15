@@ -98,6 +98,14 @@ def godot_sentry(game):
         return {"WINEDLLOVERRIDES": ";".join(n + "=d" for n in sentry)}, [], "Godot: Sentry crash handler off"
 
 
+@fix
+def arkham_city_x87(game):
+    """Batman: Arkham City (BatmanAC.exe, also started through BmLauncher.exe beside it) leans on x87
+    and stops with Unreal's "Fatal error!" right after start when FEX reduces its precision."""
+    if "batmanac.exe" in game.files:
+        return {"FEX_X87REDUCEDPRECISION": "0"}, [], "Batman: Arkham City: FEX with full x87 precision"
+
+
 def skip_red_launcher(command):
     """Cyberpunk 2077's prelauncher opens REDlauncher, a Qt WebEngine window that hands over to the
     game half a minute later and then stays up beside it, well over a core busy for as long as the
@@ -300,6 +308,7 @@ def main():
     if not command:
         return 2
     env = os.environ.copy()
+    mic_enabled = env.get("BL_MIC_ENABLED")
     mark_install_scripts(command, env)
     app_id = game_id(env)
     if app_id:
@@ -328,6 +337,8 @@ def main():
                 env = apply_config(env, {"version": 1}, app_id, fixes)
         except (OSError, ValueError, TypeError, AttributeError):
             print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
+    if mic_enabled == "0":
+        env["BANNER_AUDIO_DIRECT_MIC"] = "0"
     env = force_ssbs(command, env)
     command, env = start_without_steam(command, env, app_id)
     sync = load_sync()

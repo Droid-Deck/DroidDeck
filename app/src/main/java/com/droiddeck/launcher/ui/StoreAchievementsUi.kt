@@ -1,6 +1,18 @@
 package com.droiddeck.launcher.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.foundation.border
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -140,6 +152,17 @@ private fun groups(list: List<Achievement>): List<Pair<Int, List<Achievement>>> 
 ).filter { it.second.isNotEmpty() }
 
 @Composable
+private fun AchievementIcon(a: Achievement, size: Dp) {
+    Box(Modifier.size(size).clip(RoundedCornerShape(8.dp)).background(LocalPalette.current.surfaceVariant)) {
+        val url = if (a.unlocked) a.icon else a.iconLocked ?: a.icon
+        if (url != null) AsyncImage(
+            model = url, contentDescription = null, contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize().alpha(if (a.unlocked) 1f else 0.55f),
+        )
+    }
+}
+
+@Composable
 internal fun AchievementRow(a: Achievement, compact: Boolean, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -156,13 +179,7 @@ internal fun AchievementRow(a: Achievement, compact: Boolean, modifier: Modifier
             .focusable(interactionSource = interaction)
             .padding(if (compact) 8.dp else 10.dp),
     ) {
-        Box(Modifier.size(icon).clip(RoundedCornerShape(8.dp)).background(pal.surfaceVariant)) {
-            val url = if (a.unlocked) a.icon else a.iconLocked ?: a.icon
-            if (url != null) AsyncImage(
-                model = url, contentDescription = null, contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize().alpha(if (a.unlocked) 1f else 0.55f),
-            )
-        }
+        AchievementIcon(a, icon)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
@@ -188,34 +205,75 @@ internal fun AchievementRow(a: Achievement, compact: Boolean, modifier: Modifier
 }
 
 @Composable
-internal fun StoreAchievementsSection(game: StoreAchievements.Game) {
+internal fun StoreAchievementsCard(game: StoreAchievements.Game, title: String, modifier: Modifier = Modifier) {
     val label = StoreAchievements.forSource(game.source)?.label ?: return
-    StoreAchievementsSectionContent(label, rememberAchievements(game) ?: return)
-}
-
-@Composable
-internal fun StoreAchievementsSectionContent(label: String, state: AchievementsState) {
-    val colors = MaterialTheme.colorScheme
-    val list = state.list
-    if (list.isNullOrEmpty() && !state.reading && state.reason != Reason.SIGNED_OUT && state.reason != Reason.UNREACHABLE) return
-    val narrow = LocalNarrowPane.current
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = 18.dp)) {
-        Text(stringResource(R.string.achievements_title), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
-        achievementsNote(state, label)?.let { Text(it, fontSize = 13.sp, color = colors.onSurfaceVariant) }
-        if (!list.isNullOrEmpty()) {
-            AchievementsProgress(state)
-            for ((label, group) in groups(list)) {
-                AchievementGroupLabel(stringResource(label, group.size))
-                for (a in group) AchievementRow(a, compact = narrow)
+    val state = rememberAchievements(game) ?: return
+    var open by remember { mutableStateOf(false) }
+    StoreAchievementsCardContent(label, state, modifier) { open = true }
+    if (open) {
+        VeilRing()
+        Dialog(onDismissRequest = { open = false }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+            CompositionLocalProvider(LocalFrontFocus provides null) {
+                SessionAchievementsPanel(label, state, title, veil = Color.Transparent, floating = true, onClose = { open = false })
             }
         }
     }
 }
 
-private fun LazyListScope.achievementItems(list: List<Achievement>, compact: Boolean, first: FocusRequester) {
+@Composable
+internal fun StoreAchievementsCardContent(label: String, state: AchievementsState, modifier: Modifier = Modifier, onOpen: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val list = state.list
+    if (list.isNullOrEmpty() && !state.reading && state.reason != Reason.SIGNED_OUT && state.reason != Reason.UNREACHABLE) return
+    val shape = RoundedCornerShape(16.dp)
+    Column(
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = modifier.clip(shape).background(colors.surface).border(1.dp, pal.line, shape).padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(R.string.achievements_title).uppercase(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp, color = colors.onSurfaceVariant, modifier = Modifier.weight(1f))
+            if (!list.isNullOrEmpty()) {
+                if (state.all) Trophy(16.dp, Modifier.padding(end = 6.dp))
+                Text(
+                    buildAnnotatedString {
+                        withStyle(SpanStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)) { append("${state.done}") }
+                        append(" / ${list.size}")
+                    },
+                    fontSize = 13.sp, color = colors.onSurfaceVariant,
+                )
+            }
+        }
+        if (list.isNullOrEmpty()) {
+            Text(achievementsNote(state, label).orEmpty(), fontSize = 13.sp, color = colors.onSurfaceVariant)
+            return@Column
+        }
+        LinearProgressIndicator(
+            progress = { state.done / list.size.toFloat() },
+            color = pal.signal, trackColor = pal.line,
+            modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
+        )
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val size = 40.dp
+            val gap = 8.dp
+            val fit = ((maxWidth + gap) / (size + gap)).toInt().coerceAtLeast(1)
+            val ordered = groups(list).flatMap { it.second }
+            val shown = if (ordered.size <= fit) ordered else ordered.take(fit - 1)
+            Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                for (a in shown) AchievementIcon(a, size)
+                if (shown.size < ordered.size) Box(contentAlignment = Alignment.Center, modifier = Modifier.size(size).clip(RoundedCornerShape(8.dp)).background(pal.surfaceVariant)) {
+                    Text("+${ordered.size - shown.size}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.onSurfaceVariant, maxLines = 1)
+                }
+            }
+        }
+        SecondaryButton(stringResource(R.string.achievements_show_all, list.size), compact = true, onClick = onOpen)
+    }
+}
+
+private fun LazyListScope.achievementItems(list: List<Achievement>, compact: Boolean, first: FocusRequester, labels: Boolean = true) {
     var index = 0
     for ((label, group) in groups(list)) {
-        item(key = "group-$label") { AchievementGroupLabel(stringResource(label, group.size)) }
+        if (labels) item(key = "group-$label") { AchievementGroupLabel(stringResource(label, group.size)) }
         val offset = index
         itemsIndexed(group, key = { _, a -> "a-" + a.id }) { i, a ->
             AchievementRow(a, compact, if (offset + i == 0) Modifier.focusRequester(first) else Modifier)
@@ -227,25 +285,36 @@ private fun LazyListScope.achievementItems(list: List<Achievement>, compact: Boo
 @Composable
 internal fun SessionAchievements(game: StoreAchievements.Game, title: String?, onClose: () -> Unit) {
     val label = StoreAchievements.forSource(game.source)?.label.orEmpty()
-    SessionAchievementsPanel(label, rememberAchievements(game) ?: AchievementsState.READING, title, onClose)
+    SessionAchievementsPanel(label, rememberAchievements(game) ?: AchievementsState.READING, title, onClose = onClose)
 }
 
 @Composable
-internal fun SessionAchievementsPanel(label: String, state: AchievementsState, title: String?, onClose: () -> Unit) {
+internal fun SessionAchievementsPanel(label: String, state: AchievementsState, title: String?, veil: Color = Color.Black.copy(alpha = 0.45f), floating: Boolean = false, onClose: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     BackHandler(onBack = onClose)
+    val kinds = remember(state.list) {
+        val list = state.list.orEmpty()
+        val split = groups(list)
+        if (split.size < 2) emptyList() else listOf(R.string.stores_tab_all to list) + split
+    }
+    var pick by remember { mutableIntStateOf(0) }
+    if (pick >= kinds.size) pick = 0
+    val slide = remember { MutableTransitionState(false).apply { targetState = true } }
     BoxWithConstraints(
-        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f))
+        Modifier.fillMaxSize().background(veil)
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClose),
         contentAlignment = Alignment.CenterEnd,
     ) {
         val short = maxHeight < 440.dp
+        AnimatedVisibility(slide, enter = slideInHorizontally(Motion.sp(0.8f)) { it } + fadeIn(Motion.tw(160)), label = "achievementsPanel") {
         Column(
-            Modifier.fillMaxHeight().width(minOf(420.dp, maxWidth * 0.92f))
-                .background(pal.background.copy(alpha = 0.97f))
+            (if (floating) Modifier.padding(12.dp).fillMaxHeight().width(minOf(420.dp, maxWidth * 0.92f)).clip(RoundedCornerShape(20.dp))
+                .background(pal.background).border(1.dp, pal.line2, RoundedCornerShape(20.dp))
+            else Modifier.fillMaxHeight().width(minOf(420.dp, maxWidth * 0.92f)).background(pal.background.copy(alpha = 0.97f)))
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
                 .controllerBack(onClose)
+                .then(if (kinds.isEmpty()) Modifier else Modifier.bumpers({ pick = (pick + kinds.size - 1) % kinds.size }, { pick = (pick + 1) % kinds.size }))
                 .padding(if (short) 12.dp else 16.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
@@ -267,17 +336,23 @@ internal fun SessionAchievementsPanel(label: String, state: AchievementsState, t
                     color = pal.signal, trackColor = pal.line,
                     modifier = Modifier.padding(top = if (short) 6.dp else 10.dp).fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
                 )
+                if (kinds.isNotEmpty()) TabStrip(
+                    kinds.map { (name, group) -> if (name == R.string.stores_tab_all) stringResource(name) + " · " + group.size else stringResource(name, group.size) },
+                    pick, { pick = it }, Modifier.padding(top = if (short) 8.dp else 12.dp),
+                )
                 val first = remember { FocusRequester() }
+                val shown = kinds.getOrNull(pick)?.second ?: list
                 LazyColumn(
                     Modifier.weight(1f).padding(top = 6.dp),
                     contentPadding = PaddingValues(vertical = 6.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) { achievementItems(list, short, first) }
-                LaunchedEffect(list.isNotEmpty()) {
+                ) { achievementItems(shown, short, first, labels = pick == 0) }
+                LaunchedEffect(list.isNotEmpty(), pick) {
                     withFrameNanos {}
                     runCatching { first.requestFocus() }
                 }
             }
+        }
         }
     }
 }
@@ -326,13 +401,13 @@ private fun PreviewSurface(content: @Composable () -> Unit) {
 @Preview(name = "Store page section", widthDp = 800, heightDp = 600)
 @Composable
 private fun StoreAchievementsSectionPreview() = PreviewSurface {
-    Column(Modifier.width(560.dp)) { StoreAchievementsSectionContent("GOG", AchievementsState(previewList, null, false)) }
+    Column(Modifier.width(340.dp)) { StoreAchievementsCardContent("GOG", AchievementsState(previewList, null, false)) {} }
 }
 
 @Preview(name = "Store page section, signed out", widthDp = 800, heightDp = 200)
 @Composable
 private fun StoreAchievementsSectionSignedOutPreview() = PreviewSurface {
-    Column(Modifier.width(560.dp)) { StoreAchievementsSectionContent("Epic", AchievementsState(null, Reason.SIGNED_OUT, false)) }
+    Column(Modifier.width(340.dp)) { StoreAchievementsCardContent("Epic", AchievementsState(null, Reason.SIGNED_OUT, false)) {} }
 }
 
 @Preview(name = "Session panel", widthDp = 800, heightDp = 500)

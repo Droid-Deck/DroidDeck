@@ -62,7 +62,7 @@ object GogBackend : StoreBackend {
     private fun markOwned(s: com.droiddeck.launcher.stores.StoreShelves): com.droiddeck.launcher.stores.StoreShelves {
         val owned = StoresState.library[store]?.associateBy { it.id } ?: return s
         fun mark(l: List<CatalogItem>) = l.map { i -> owned[i.id]?.let { o -> i.copy(owned = true, sizeBytes = o.sizeBytes) } ?: i }
-        return com.droiddeck.launcher.stores.StoreShelves(mark(s.whatsNew), mark(s.deals), mark(s.free), mark(s.trending))
+        return com.droiddeck.launcher.stores.StoreShelves(mark(s.whatsNew), mark(s.deals), mark(s.free), mark(s.trending), s.art)
     }
 
     override fun install(context: Context, item: CatalogItem, root: File) {

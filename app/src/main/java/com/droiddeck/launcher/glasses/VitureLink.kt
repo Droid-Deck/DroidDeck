@@ -8,6 +8,7 @@ import android.hardware.usb.UsbInterface
 import android.hardware.usb.UsbManager
 import android.os.SystemClock
 import android.util.Log
+import java.util.concurrent.atomic.AtomicLong
 
 internal class VitureLink private constructor(
     private val connection: UsbDeviceConnection,
@@ -28,8 +29,10 @@ internal class VitureLink private constructor(
     private val writeLock = Any()
     private var lastSendAt = 0L
     private val readers = mutableListOf<Thread>()
+    private val bad = AtomicLong()
 
     override val hasImu: Boolean get() = imuIn != null
+    override val badFrames: Long get() = bad.get()
 
     private fun startReaders() {
         mcuIn?.let { ep -> readers += reader("viture-mcu", ep) { buf, n -> onPacket(buf, n, false) } }
@@ -41,7 +44,7 @@ internal class VitureLink private constructor(
     private fun onPacket(buf: ByteArray, size: Int, imuEndpoint: Boolean) {
         val frame = VitureProtocol.parse(buf, size) ?: return
         if (!frame.crcOk) {
-            Log.w(TAG, "Dropping packet with invalid checksum")
+            if (bad.incrementAndGet() == 1L) Log.w(TAG, "dropping frames with a bad checksum")
             return
         }
         if (imuEndpoint && frame.magic == VitureProtocol.MAGIC_IMU)

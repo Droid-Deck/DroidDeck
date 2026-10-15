@@ -132,7 +132,7 @@ tools/droiddeckctl glasses raw 0x0007
 Glasses status reports `deviceMode` from the MCU separately from `sbs`, which
 requires a physical stereo display mode. `switching3d` marks the bounded
 confirmation window. A successful mode-command reply alone does not confirm 3D.
-In `frames`, a report whose checksum does not match ends in `crc!`.
+`badFrames` counts reports and IMU packets dropped for a bad checksum.
 
 A sleeping device suspends the session and hides the app's windows from `ui dump`; `wake` first.
 
