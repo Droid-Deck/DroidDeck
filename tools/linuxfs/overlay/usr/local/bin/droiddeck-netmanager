@@ -25,6 +25,9 @@ PROFILE = SETTINGS + "/1"
 UUID = "b1d0c8e4-57f0-4c0e-9d60-77696e6e6174"
 SNAPSHOT = Path("/etc/droiddeck-network.json")
 SCAN_REQUEST = Path("/etc/droiddeck-wifi-scan-request")
+WIFI_REQUEST = Path("/etc/droiddeck-wifi-request")
+RADIO_HOLD = Path("/run/droiddeck-radio-hold")
+WRITABLE = {(NAME, "WirelessEnabled")}
 OBJECT_MANAGER = "org.freedesktop.DBus.ObjectManager"
 PROPERTIES = "org.freedesktop.DBus.Properties"
 
@@ -53,6 +56,15 @@ METHODS = {
 
 def v(signature, value):
     return GLib.Variant(signature, value)
+
+
+def radios_held():
+    # Steam re-applies its saved airplane mode when it starts, which would turn Wi-Fi off; its radio
+    # writes are held until droiddeck-steam-compat has first matched Steam to the phone.
+    try:
+        return time.time() < float(RADIO_HOLD.read_text())
+    except (OSError, ValueError):
+        return True
 
 
 def read_snapshot():
@@ -205,7 +217,7 @@ def objects(state):
     kind = connection_type(state)
     ip4 = up and bool(family_addresses(state, 4))
     ip6 = up and bool(family_addresses(state, 6))
-    device_state = 100 if up else 30
+    device_state = 100 if up else 20 if wifi and state.get("wifiEnabled") is False else 30
     found = {
         ROOT: {NAME: {
             "Devices": v("ao", [device]), "AllDevices": v("ao", [device]),
@@ -214,7 +226,7 @@ def objects(state):
             "PrimaryConnectionType": v("s", kind if up else ""), "ActivatingConnection": v("o", "/"),
             "NetworkingEnabled": v("b", True),
             "WirelessEnabled": v("b", bool(state.get("wifiEnabled", wifi))),
-            "WirelessHardwareEnabled": v("b", bool(state.get("wifiEnabled", wifi))),
+            "WirelessHardwareEnabled": v("b", True),
             "WwanEnabled": v("b", cellular), "WwanHardwareEnabled": v("b", cellular),
             "Startup": v("b", False), "Version": v("s", "1.46.0"),
             "State": v("u", (70 if state.get("validated") else 60) if up else 20),
@@ -272,8 +284,8 @@ def objects(state):
         for version, present, path in ((4, ip4, IP4), (6, ip6, IP6)):
             if present:
                 found[path] = {NAME + f".IP{version}Config": ip_config(state, version)}
-    if up and not wifi and state.get("wifiEnabled"):
-        wireless = objects(dict(state, connected=False, transport="none",
+    if not wifi:
+        wireless = objects(dict(state, connected=False, transport="wifi",
                                 interface=state.get("wifiInterface", "wlan0"), metered=None))
         wifi_device = ROOT + "/Devices/Wifi"
         found[wifi_device] = wireless[wifi_device]
@@ -301,7 +313,8 @@ def settings(state):
 
 
 def interface_info(interface, values):
-    props = "".join(f'<property name="{escape(key)}" type="{value.get_type_string()}" access="read"/>'
+    props = "".join(f'<property name="{escape(key)}" type="{value.get_type_string()}" '
+                    f'access="{"readwrite" if (interface, key) in WRITABLE else "read"}"/>'
                     for key, value in values.items())
     node = Gio.DBusNodeInfo.new_for_xml(f'<node><interface name="{interface}">{METHODS.get(interface, "")}{props}</interface></node>')
     return node.interfaces[0]
@@ -324,10 +337,17 @@ class NetworkManager:
             self.bus.unregister_object(self.registrations.pop(key))
         for path, interface in wanted - self.registrations.keys():
             self.registrations[(path, interface)] = self.bus.register_object(
-                path, interface_info(interface, found[path][interface]), self.call, self.get_property, None)
+                path, interface_info(interface, found[path][interface]), self.call, self.get_property, self.set_property)
 
     def get_property(self, bus, sender, path, interface, name):
         return self.objects.get(path, {}).get(interface, {}).get(name)
+
+    def set_property(self, bus, sender, path, interface, name, value):
+        if (interface, name) not in WRITABLE:
+            return False
+        if not radios_held():
+            WIFI_REQUEST.write_text("on" if value.unpack() else "off")
+        return True
 
     def call(self, bus, sender, path, interface, method, args, invocation):
         if method == "GetManagedObjects":

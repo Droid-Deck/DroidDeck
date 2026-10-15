@@ -5,6 +5,7 @@ import runpy
 import shutil
 import subprocess
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -508,6 +509,48 @@ class SwitchToDesktopTest(unittest.TestCase):
         with mock.patch.object(self.globals["subprocess"], "call") as call:
             helper.drain()
         call.assert_not_called()
+
+
+class FollowBluetoothTest(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.radios = Path(tmp.name) / "radios.json"
+        self.hold = Path(tmp.name) / "hold"
+        patcher = mock.patch.dict(LIVE["Helper"].follow_bluetooth.__globals__,
+                                  {"RADIOS": str(self.radios), "RADIO_HOLD": str(self.hold)})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.helper = LIVE["Helper"]("/steam", 1)
+        self.helper.page = AttachPage(1, "/")
+
+    def write(self, bluetooth):
+        self.radios.write_text(json.dumps({"bluetooth": {"present": bluetooth is not None, "enabled": bool(bluetooth)}}))
+
+    def test_steam_follows_android_changes_only(self):
+        on, off = ('SteamClient.Settings.SetSetting("%s"); true' % LIVE["bool_setting"](LIVE["BLUETOOTH_SETTING"], value)
+                   for value in (True, False))
+        self.assertIn("gNwLAQ==", on)
+        self.write(True)
+        before = time.time()
+        self.helper.follow_bluetooth()
+        self.assertEqual(self.helper.page.scripts, [on])
+        held = self.hold.read_text()
+        self.assertGreater(float(held), before + 2)
+        self.helper.follow_bluetooth()
+        self.assertEqual(len(self.helper.page.scripts), 1)
+        self.write(False)
+        self.helper.follow_bluetooth()
+        self.assertEqual(self.helper.page.scripts[-1], off)
+        self.assertEqual(self.hold.read_text(), held)
+        self.write(None)
+        self.helper.follow_bluetooth()
+        self.assertEqual(len(self.helper.page.scripts), 2)
+
+    def test_the_hold_ends_without_android_state(self):
+        self.helper.follow_bluetooth()
+        self.assertEqual(self.helper.page.scripts, [])
+        self.assertLessEqual(float(self.hold.read_text()), time.time() + LIVE["RADIO_QUIET_SECONDS"] + 0.001)
 
 
 if __name__ == "__main__":
