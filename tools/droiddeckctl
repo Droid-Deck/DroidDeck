@@ -350,11 +350,13 @@ def pacing(adb: str, serial: str, seconds: float) -> dict:
     finally:
         elapsed = time.monotonic() - started
         try:
-            run_adb(adb, serial, *timestats, "-disable")
+            disabled = run_adb(adb, serial, *timestats, "-disable").returncode == 0
         except ControlError:
-            pass
+            disabled = False
     if dump.returncode != 0:
         raise ControlError(dump.stderr.decode(errors="replace").strip() or "timestats dump failed", "PACING_FAILED")
+    if not disabled:
+        raise ControlError("could not turn SurfaceFlinger timestats off", "PACING_FAILED")
     summary = pacing_summary(dump.stdout.decode(errors="replace"))
     if not summary["layers"] or not summary["frames"]:
         raise ControlError("No DroidDeck layer drew during the capture: is a session on screen?", "NO_FRAMES")

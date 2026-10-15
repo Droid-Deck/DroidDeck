@@ -345,6 +345,16 @@ class DroiddeckctlTest(FakeAdbTest):
         self.assertEqual("PACING_FAILED", caught.exception.code)
         self.assertEqual(("--timestats", "-disable"), calls[-1])
 
+    def test_pacing_fails_when_timestats_cannot_be_turned_off(self):
+        def adb(_adb, _serial, *args, timeout=30):
+            return ctl.subprocess.CompletedProcess(args, 1 if "-disable" in args else 0, b"", b"")
+
+        with unittest.mock.patch.object(ctl, "run_adb", adb), unittest.mock.patch.object(ctl.time, "sleep"):
+            with self.assertRaises(ctl.ControlError) as caught:
+                ctl.pacing("adb", "fake-1", 1)
+        self.assertEqual("PACING_FAILED", caught.exception.code)
+        self.assertIn("timestats off", str(caught.exception))
+
     def test_pacing_maps_an_adb_failure_while_enabling_to_pacing_failed(self):
         def adb(*_args, **_kwargs):
             raise ctl.ControlError("adb vanished", "ADB_FAILED")
