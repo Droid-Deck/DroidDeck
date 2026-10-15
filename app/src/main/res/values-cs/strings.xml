@@ -905,8 +905,8 @@
     <string name="wadb_turn_off">Vypnout omezení</string>
     <string name="wadb_other_ways">Jiné způsoby změny</string>
     <string name="wadb_dev_try_first">1 · Možnosti pro vývojáře (zkusit nejdřív)</string>
-    <string name="wadb_restrict_on">Zapněte „Restrict child processes“.</string>
-    <string name="wadb_restrict_off">Vypněte „Restrict child processes“.</string>
+    <string name="wadb_restrict_on">Vypněte „Deaktivace omezení podřízených procesů“.</string>
+    <string name="wadb_restrict_off">Zapněte „Deaktivace omezení podřízených procesů“.</string>
     <string name="wadb_computer_last">3 · ADB z počítače (poslední možnost)</string>
     <string name="wadb_only_if">Jen pokud Bezdrátové ladění není k dispozici.</string>
     <string name="wadb_computer_group">3 · ADB z počítače (poslední možnost)</string>

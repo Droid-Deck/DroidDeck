@@ -893,8 +893,8 @@
     <string name="wadb_turn_off">Korlát kikapcsolása</string>
     <string name="wadb_other_ways">Egyéb módok a módosítására</string>
     <string name="wadb_dev_try_first">1 · Fejlesztői beállítások (próbálja ezt először)</string>
-    <string name="wadb_restrict_on">Kapcsolja be a „Gyermekfolyamatok korlátozása” lehetőséget.</string>
-    <string name="wadb_restrict_off">Kapcsolja ki a „Gyermekfolyamatok korlátozása” lehetőséget.</string>
+    <string name="wadb_restrict_on">Kapcsolja ki az „Alárendelt folyamatok korlátozásának kikapcsolása” lehetőséget.</string>
+    <string name="wadb_restrict_off">Kapcsolja be az „Alárendelt folyamatok korlátozásának kikapcsolása” lehetőséget.</string>
     <string name="wadb_computer_last">3 · Számítógépes ADB (végső megoldás)</string>
     <string name="wadb_only_if">Csak ha a vezeték nélküli hibakeresés nem elérhető.</string>
     <string name="wadb_computer_group">3 · Számítógépes ADB (végső megoldás)</string>

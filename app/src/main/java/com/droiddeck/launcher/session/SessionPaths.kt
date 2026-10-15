@@ -10,7 +10,7 @@ import java.util.Locale
 object SessionPaths {
     private const val TAG = "SessionPaths"
 
-    const val KEEP_SESSIONS = 30
+    const val KEEP_SESSIONS = 3
 
     const val TOOLS_DIR = "tools"
 

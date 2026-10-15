@@ -306,8 +306,8 @@
     <string name="mode_sgdb_key">Clé API SteamGridDB</string>
     <string name="mode_sgdb_key_yours">Votre clé</string>
     <string name="mode_sgdb_edit">Modifier…</string>
-    <string name="mode_added_art_hint">Complète les images manquantes selon le nom du dossier. Les fichiers cover.jpg, hero.jpg, logo.png ou icon.png dans le dossier du jeu sont prioritaires.</string>
-    <string name="summary_remove_game">Remove %1$s</string>
+    <string name="mode_added_art_hint">Complète les images manquantes depuis Steam, puis SteamGridDB. Les fichiers cover.jpg, hero.jpg, logo.png ou icon.png que vous placez dans le dossier du jeu sont prioritaires.</string>
+    <string name="summary_remove_game">Retirer %1$s</string>
     <string name="mode_added_remove_confirm">Retirer ?</string>
     <string name="games_add">Ajouter un jeu</string>
     <string name="games_add_title">Ajouter un jeu :</string>
@@ -907,8 +907,8 @@
     <string name="wadb_turn_off">Désactiver la limite</string>
     <string name="wadb_other_ways">Autres méthodes de modification</string>
     <string name="wadb_dev_try_first">1 · Options pour les développeurs (à essayer en premier)</string>
-    <string name="wadb_restrict_on">Activez « Limiter les processus enfants ».</string>
-    <string name="wadb_restrict_off">Désactivez « Limiter les processus enfants ».</string>
+    <string name="wadb_restrict_on">Désactivez «Désactiver les limites pour les processus enfant».</string>
+    <string name="wadb_restrict_off">Activez «Désactiver les limites pour les processus enfant».</string>
     <string name="wadb_computer_last">3 · ADB sur PC (en dernier recours)</string>
     <string name="wadb_only_if">À utiliser uniquement si le débogage sans fil n\'est pas disponible.</string>
     <string name="wadb_computer_group">3 · ADB sur PC (en dernier recours)</string>
@@ -2265,4 +2265,10 @@
     <string name="drawer_component_downloads">Télécharger des composants</string>
     <string name="drawer_component_downloads_hint">Les téléchargements sont partagés avec la page « Composants ». Choisissez une version téléchargée ci-dessus pour l\'utiliser au prochain lancement du jeu.</string>
     <string name="drawer_component_choose_download">Choisissez une version à télécharger</string>
+    <string name="mode_zram">Compression zRAM</string>
+    <string name="mode_zram_hint">Pendant qu\'un jeu tourne, la mémoire du client Steam est compressée dans la zram de l\'appareil, ce qui laisse plus de RAM au jeu. S\'applique au prochain démarrage de Steam.</string>
+    <string name="mode_zram_unsupported">Indisponible : cet appareil n\'a pas de swap actif, ou son noyau est antérieur à la version 5.4.</string>
+    <string name="stores_storage_insufficient">Espace libre insuffisant : %1$s nécessaires, seulement %2$s libres</string>
+    <string name="stores_storage_low">Espace insuffisant (%1$s libres, %2$s nécessaires)</string>
+    <string name="stores_target_free_unknown">Espace libre inconnu</string>
 </resources>

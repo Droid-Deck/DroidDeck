@@ -306,8 +306,8 @@
     <string name="mode_sgdb_key">SteamGridDB API 키</string>
     <string name="mode_sgdb_key_yours">내 키</string>
     <string name="mode_sgdb_edit">편집…</string>
-    <string name="mode_added_art_hint">폴더 이름을 기준으로 누락된 이미지를 채웁니다. 게임 폴더의 cover.jpg, hero.jpg, logo.png 또는 icon.png가 우선적으로 사용됩니다.</string>
-    <string name="summary_remove_game">Remove %1$s</string>
+    <string name="mode_added_art_hint">누락된 이미지를 Steam, 그다음 SteamGridDB에서 채웁니다. 게임 폴더의 cover.jpg, hero.jpg, logo.png 또는 icon.png가 우선적으로 사용됩니다.</string>
+    <string name="summary_remove_game">%1$s 제거</string>
     <string name="mode_added_remove_confirm">제거?</string>
     <string name="games_add">게임 추가</string>
     <string name="games_add_title">게임 추가:</string>
@@ -344,10 +344,10 @@
     <string name="wincomp_active">이 게임에 설치됨 (%1$d)</string>
     <string name="wincomp_all">모든 구성 요소 (%1$d)</string>
     <string name="wincomp_installers">Windows 설치 프로그램 필요 (%1$d)</string>
-    <string name="wincomp_installers_note">이 항목들은 프리픽스 안에서 실제 설치 프로그램을 실행합니다(.NET, PhysX, XNA, 전체 Visual C++ 설치 프로그램 등). DroidDeck은 아직 지원하지 않으며 다음에 지원할 예정입니다.</string>
+    <string name="wincomp_installers_note">이 항목들은 내부에 풀어낼 패키지가 없는 자체 설치 프로그램이며, 설치하는 내용은 아직 기록되지 않았습니다. 대부분 Proton에 포함된 Mono가 이미 대신하는 오래된 런타임이며, 기록은 만들어지는 대로 추가됩니다.</string>
     <string name="wincomp_show">표시</string>
     <string name="wincomp_hide">숨기기</string>
-    <string name="wincomp_needs_installer">Windows 설치 프로그램 필요 (예정)</string>
+    <string name="wincomp_needs_installer">자체 설치 프로그램을 실행합니다 (아직 기록 없음)</string>
     <string name="wincomp_unsupported">아직 여기서 지원되지 않음</string>
     <string name="wincomp_loading">구성 요소를 불러오는 중…</string>
     <string name="wincomp_failed">설치할 수 없습니다: %1$s</string>
@@ -895,8 +895,8 @@
     <string name="wadb_turn_off">제한 끄기</string>
     <string name="wadb_other_ways">기타 변경 방법</string>
     <string name="wadb_dev_try_first">1 · 개발자 옵션(먼저 시도)</string>
-    <string name="wadb_restrict_on">\"하위 프로세스 제한\"을 켭니다.</string>
-    <string name="wadb_restrict_off">\"하위 프로세스 제한\"을 끕니다.</string>
+    <string name="wadb_restrict_on">\"하위 프로세스 제한 사용 중지\"를 끕니다.</string>
+    <string name="wadb_restrict_off">\"하위 프로세스 제한 사용 중지\"를 켭니다.</string>
     <string name="wadb_computer_last">3 · PC ADB(최후의 수단)</string>
     <string name="wadb_only_if">무선 디버깅을 사용할 수 없을 때만 사용하세요.</string>
     <string name="wadb_computer_group">3 · PC ADB(최후의 수단)</string>

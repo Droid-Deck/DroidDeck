@@ -306,8 +306,8 @@
     <string name="mode_sgdb_key">API-ключ SteamGridDB</string>
     <string name="mode_sgdb_key_yours">Ваш ключ</string>
     <string name="mode_sgdb_edit">Изменить…</string>
-    <string name="mode_added_art_hint">Дополняет отсутствующие изображения по имени папки. Файлы cover.jpg, hero.jpg, logo.png или icon.png в папке с игрой имеют приоритет.</string>
-    <string name="summary_remove_game">Remove %1$s</string>
+    <string name="mode_added_art_hint">Дополняет отсутствующие изображения из Steam, затем из SteamGridDB. Файлы cover.jpg, hero.jpg, logo.png или icon.png в папке с игрой имеют приоритет.</string>
+    <string name="summary_remove_game">Убрать %1$s</string>
     <string name="mode_added_remove_confirm">Убрать?</string>
     <string name="games_add">Добавить игру</string>
     <string name="games_add_title">Добавить игру:</string>
@@ -913,8 +913,8 @@
     <string name="wadb_turn_off">Отключить ограничение</string>
     <string name="wadb_other_ways">Другие способы изменения</string>
     <string name="wadb_dev_try_first">1 · Для разработчиков (сначала попробуйте это)</string>
-    <string name="wadb_restrict_on">Включите «Ограничение дочерних процессов».</string>
-    <string name="wadb_restrict_off">Отключите «Ограничение дочерних процессов».</string>
+    <string name="wadb_restrict_on">Отключите «Отключить ограничения для дочерних процессов».</string>
+    <string name="wadb_restrict_off">Включите «Отключить ограничения для дочерних процессов».</string>
     <string name="wadb_computer_last">3 · ADB на ПК (крайняя мера)</string>
     <string name="wadb_only_if">Используйте только если отладка по Wi-Fi недоступна.</string>
     <string name="wadb_computer_group">3 · ADB на ПК (крайняя мера)</string>
@@ -2290,4 +2290,10 @@
     <string name="drawer_component_downloads">Скачать компоненты</string>
     <string name="drawer_component_downloads_hint">Загрузки общие со страницей «Компоненты». Выберите выше скачанную версию, чтобы использовать её при следующем запуске игры.</string>
     <string name="drawer_component_choose_download">Выберите версию для скачивания</string>
+    <string name="mode_zram">Сжатие zRAM</string>
+    <string name="mode_zram_hint">Пока идёт игра, память клиента Steam сжимается в zram устройства, и игре остаётся больше ОЗУ. Применяется при следующем запуске Steam.</string>
+    <string name="mode_zram_unsupported">Недоступно: на устройстве нет zram или swap, либо его ядро старше 5.4.</string>
+    <string name="stores_storage_insufficient">Недостаточно свободного места: нужно %1$s, свободно только %2$s</string>
+    <string name="stores_storage_low">Недостаточно места (свободно %1$s, нужно %2$s)</string>
+    <string name="stores_target_free_unknown">Свободное место неизвестно</string>
 </resources>

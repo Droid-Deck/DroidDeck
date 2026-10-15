@@ -893,8 +893,8 @@
     <string name="wadb_turn_off">सीमा बंद करें</string>
     <string name="wadb_other_ways">इसे बदलने के अन्य तरीके</string>
     <string name="wadb_dev_try_first">1 · डेवलपर विकल्प (पहले आज़माएं)</string>
-    <string name="wadb_restrict_on">“Restrict child processes” चालू करें।</string>
-    <string name="wadb_restrict_off">“Restrict child processes” बंद करें।</string>
+    <string name="wadb_restrict_on">“चाइल्ड प्रोसेस से जुड़ी पाबंदियां हटाएं” बंद करें।</string>
+    <string name="wadb_restrict_off">“चाइल्ड प्रोसेस से जुड़ी पाबंदियां हटाएं” चालू करें।</string>
     <string name="wadb_computer_last">3 · कंप्यूटर ADB (आख़िरी विकल्प)</string>
     <string name="wadb_only_if">सिर्फ़ तब जब वायरलेस डीबगिंग उपलब्ध न हो।</string>
     <string name="wadb_computer_group">3 · कंप्यूटर ADB (आख़िरी विकल्प)</string>

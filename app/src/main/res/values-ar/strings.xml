@@ -917,8 +917,8 @@
     <string name="wadb_turn_off">إيقاف الحد</string>
     <string name="wadb_other_ways">طرق أخرى لتغييره</string>
     <string name="wadb_dev_try_first">1 · خيارات المطوّرين (جرّب هذا أولًا)</string>
-    <string name="wadb_restrict_on">فعِّل «تقييد العمليات الفرعية».</string>
-    <string name="wadb_restrict_off">عطِّل «تقييد العمليات الفرعية».</string>
+    <string name="wadb_restrict_on">عطِّل «إيقاف القيود المفروضة على العمليات الثانوية».</string>
+    <string name="wadb_restrict_off">فعِّل «إيقاف القيود المفروضة على العمليات الثانوية».</string>
     <string name="wadb_computer_last">3 · ADB من كمبيوتر (كخيار أخير)</string>
     <string name="wadb_only_if">فقط إذا كان تصحيح الأخطاء اللاسلكي غير متاح.</string>
     <string name="wadb_computer_group">3 · ADB من كمبيوتر (كخيار أخير)</string>
