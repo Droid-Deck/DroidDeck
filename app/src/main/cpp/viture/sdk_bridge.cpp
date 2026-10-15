@@ -2,6 +2,10 @@
 #include <android/log.h>
 #include <algorithm>
 #include <array>
+#include <vector>
+#include <deque>
+#include <cmath>
+#include <cstring>
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -59,6 +63,48 @@ void clear_pose(bool accept) {
     latest_time = 0;
 }
 
+int64_t monotonic_ns() {
+    timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts);
+    return int64_t(ts.tv_sec) * 1000000000LL + ts.tv_nsec;
+}
+struct CameraPose { double time; std::array<float, 7> pose; };
+std::mutex camera_mutex;
+std::deque<CameraPose> camera_poses;
+std::vector<uint8_t> camera_left, camera_right;
+bool camera_accepting = false, camera_wanted = false;
+int camera_width = 0, camera_height = 0;
+uint64_t camera_sequence = 0, camera_consumed = 0;
+int64_t camera_receipt = 0;
+int64_t camera_pose_receipt = 0;
+double camera_source = 0;
+void on_carina_pose(float *pose, double stamp) {
+    if (!pose || !std::isfinite(stamp)) return;
+    std::lock_guard<std::mutex> lock(camera_mutex);
+    if (!camera_accepting) return;
+    camera_pose_receipt = monotonic_ns();
+    CameraPose p{stamp, {}}; std::copy_n(pose, 7, p.pose.begin());
+    camera_poses.push_back(p);
+    while (camera_poses.size() > 64) camera_poses.pop_front();
+}
+void on_camera(char *left, char *right, char *, char *, double stamp, int width, int height) {
+    if (!left || !right || width <= 0 || height <= 0 || width > 2048 || height > 2048 || !std::isfinite(stamp)) return;
+    const auto received = monotonic_ns();
+    std::lock_guard<std::mutex> lock(camera_mutex);
+    if (!camera_accepting || !camera_wanted) return;
+    const size_t size = size_t(width) * height;
+    camera_left.resize(size); camera_right.resize(size);
+    memcpy(camera_left.data(), left, size); memcpy(camera_right.data(), right, size);
+    camera_width = width; camera_height = height; camera_source = stamp; camera_receipt = received;
+    ++camera_sequence;
+}
+void clear_camera(bool enabled) {
+    std::lock_guard<std::mutex> lock(camera_mutex);
+    camera_accepting = enabled; camera_wanted = false;
+    camera_poses.clear(); camera_left.clear(); camera_right.clear();
+    camera_sequence = camera_consumed = 0;
+    camera_pose_receipt = 0;
+}
+
 struct Session {
     XRDeviceProviderHandle device = nullptr;
     int pid = 0;
@@ -72,6 +118,7 @@ struct Session {
     int saved_dof = -1;
     int64_t consumed_time = 0;
     jlong token = 0;
+    int spatial_status = 1;
 };
 std::unique_ptr<Session> session;
 jlong next_token = 0;
@@ -127,6 +174,7 @@ int tracking(Session& s, bool enabled) {
 }
 
 void destroy(Session& s) {
+    clear_camera(false);
     clear_pose(false);
     clear_state(false);
     if (s.device) {
@@ -205,7 +253,7 @@ extern "C" JNIEXPORT jstring JNICALL JNI_METHOD(nativeMarketName)(JNIEnv* env, j
     return env->NewStringUTF(name);
 }
 
-extern "C" JNIEXPORT jlong JNICALL JNI_METHOD(nativeOpen)(JNIEnv* env, jobject, jint pid, jint fd, jstring cache) {
+extern "C" JNIEXPORT jlong JNICALL JNI_METHOD(nativeOpen)(JNIEnv* env, jobject, jint pid, jint fd, jstring cache, jboolean spatial) {
     std::lock_guard<std::mutex> lock(api_mutex);
     if (session || fd < 0 || !cache || !xr_device_provider_is_product_id_valid(pid)) return 0;
     auto s = std::make_unique<Session>();
@@ -221,7 +269,7 @@ extern "C" JNIEXPORT jlong JNICALL JNI_METHOD(nativeOpen)(JNIEnv* env, jobject, 
     }
     if (rc == 0) {
         rc = s->type == XR_DEVICE_TYPE_VITURE_CARINA ?
-            xr_device_provider_set_dof_type_carina(s->device, 0) :
+            xr_device_provider_set_dof_type_carina(s->device, spatial ? 1 : 0) :
             xr_device_provider_register_imu_pose_callback(s->device, on_pose);
     }
     if (rc == 0) {
@@ -230,6 +278,10 @@ extern "C" JNIEXPORT jlong JNICALL JNI_METHOD(nativeOpen)(JNIEnv* env, jobject, 
         rc = xr_device_provider_initialize(s->device, nullptr, directory);
         env->ReleaseStringUTFChars(cache, directory);
         s->initialized = rc == 0;
+    }
+    if (rc == 0 && s->type == XR_DEVICE_TYPE_VITURE_CARINA && spatial) {
+        clear_camera(true);
+        rc = xr_device_provider_register_callbacks_carina(s->device, on_carina_pose, nullptr, nullptr, on_camera);
     }
     if (rc == 0) {
         rc = xr_device_provider_start(s->device);
@@ -305,4 +357,71 @@ extern "C" JNIEXPORT jint JNICALL JNI_METHOD(nativeNextState)(JNIEnv* env, jobje
 extern "C" JNIEXPORT void JNICALL JNI_METHOD(nativeClose)(JNIEnv*, jobject, jlong token) {
     std::lock_guard<std::mutex> lock(api_mutex);
     if (session && session->token == token) { destroy(*session); session.reset(); }
+}
+
+extern "C" JNIEXPORT jlong JNICALL JNI_METHOD(nativeSpatialPose)(JNIEnv* env, jobject, jlong token,
+        jfloatArray output, jintArray state) {
+    std::lock_guard<std::mutex> lock(api_mutex);
+    if (!session || session->token != token || !session->tracking || session->type != XR_DEVICE_TYPE_VITURE_CARINA ||
+        !output || !state || env->GetArrayLength(output) != 7 || env->GetArrayLength(state) != 1) return 0;
+    float pose[7]{}; int status = 1;
+    int rc = xr_device_provider_get_gl_pose_carina(session->device, pose, 0.0, &status);
+    session->spatial_status = rc == 0 ? status : rc;
+    jint valid = rc == 0 ? status : rc;
+    if (valid == 0) {
+        std::lock_guard<std::mutex> lock(camera_mutex);
+        if (monotonic_ns()-camera_pose_receipt > 100000000LL) valid = 1;
+    }
+    env->SetIntArrayRegion(state, 0, 1, &valid);
+    env->SetFloatArrayRegion(output, 0, 7, pose);
+    return monotonic_ns();
+}
+extern "C" JNIEXPORT void JNICALL JNI_METHOD(nativeCapture)(JNIEnv*, jobject, jlong token, jboolean wanted) {
+    std::lock_guard<std::mutex> api(api_mutex);
+    if (!session || session->token != token) return;
+    std::lock_guard<std::mutex> lock(camera_mutex);
+    camera_wanted = wanted;
+    if (!wanted) camera_consumed = camera_sequence;
+}
+extern "C" JNIEXPORT jstring JNICALL JNI_METHOD(nativeFirmware)(JNIEnv* env, jobject, jlong token) {
+    std::lock_guard<std::mutex> api(api_mutex);
+    if (!session || session->token != token) return nullptr;
+    char value[256]{}; int length = 255;
+    if (xr_device_provider_get_glasses_version(session->device, value, &length) != 0) return nullptr;
+    value[255] = 0;
+    return env->NewStringUTF(value);
+}
+extern "C" JNIEXPORT jdoubleArray JNICALL JNI_METHOD(nativeSpatialDiagnostics)(JNIEnv* env, jobject, jlong token) {
+    std::lock_guard<std::mutex> api(api_mutex);
+    if (!session || session->token != token) return nullptr;
+    std::lock_guard<std::mutex> lock(camera_mutex);
+    double values[3] = {double(session->spatial_status), camera_pose_receipt ? (monotonic_ns()-camera_pose_receipt)/1e6 : -1.0,
+        camera_poses.empty() ? -1.0 : (camera_poses.back().time-camera_source)*1000.0};
+    auto result=env->NewDoubleArray(3);
+    if(result)env->SetDoubleArrayRegion(result,0,3,values);
+    return result;
+}
+extern "C" JNIEXPORT jlong JNICALL JNI_METHOD(nativeStereo)(JNIEnv* env, jobject, jlong token,
+        jobject left, jobject right, jdoubleArray metadata, jfloatArray head) {
+    std::lock_guard<std::mutex> api(api_mutex);
+    if (!session || session->token != token || !left || !right || !metadata || !head ||
+        env->GetArrayLength(metadata) != 7 || env->GetArrayLength(head) != 7) return 0;
+    std::lock_guard<std::mutex> lock(camera_mutex);
+    if (!camera_wanted || camera_sequence == camera_consumed || camera_left.empty()) return 0;
+    const auto size = camera_left.size();
+    if (env->GetDirectBufferCapacity(left) < jlong(size) || env->GetDirectBufferCapacity(right) < jlong(size)) return -1;
+    auto l = env->GetDirectBufferAddress(left), r = env->GetDirectBufferAddress(right);
+    if (!l || !r) return -1;
+    const CameraPose *best = nullptr; double distance = 0.005;
+    for (const auto &p : camera_poses) if (std::abs(p.time-camera_source) < distance) {
+        best = &p; distance = std::abs(p.time-camera_source);
+    }
+    if (!best && monotonic_ns()-camera_receipt < 35000000LL) return 0;
+    memcpy(l, camera_left.data(), size); memcpy(r, camera_right.data(), size);
+    double meta[7] = {double(camera_width), double(camera_height), camera_source, double(camera_receipt),
+                       double(token), double(camera_sequence), best ? 1.0 : 0.0};
+    env->SetDoubleArrayRegion(metadata, 0, 7, meta);
+    if (best) env->SetFloatArrayRegion(head, 0, 7, best->pose.data());
+    camera_consumed = camera_sequence;
+    return jlong(camera_sequence);
 }

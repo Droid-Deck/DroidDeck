@@ -15,8 +15,13 @@ internal object VitureSdk {
     fun marketName(pid: Int): String? = if (available) nativeMarketName(pid) else null
     external fun nativeAvailable(): Boolean
     external fun nativeMarketName(pid: Int): String?
-    external fun nativeOpen(pid: Int, fd: Int, cacheDirectory: String): Long
+    external fun nativeOpen(pid: Int, fd: Int, cacheDirectory: String, spatial: Boolean = false): Long
+    external fun nativeSpatialPose(token: Long, pose: FloatArray, state: IntArray): Long
+    external fun nativeCapture(token: Long, enabled: Boolean)
+    external fun nativeStereo(token: Long, left: java.nio.ByteBuffer, right: java.nio.ByteBuffer, metadata: DoubleArray, head: FloatArray): Long
     external fun nativeType(token: Long): Int
+    external fun nativeFirmware(token: Long): String?
+    external fun nativeSpatialDiagnostics(token: Long): DoubleArray?
     external fun nativeTracking(token: Long, enabled: Boolean): Int
     external fun nativeCommand(token: Long, command: Int, value: Int): Int
     /** Returns CLOCK_BOOTTIME receipt time, zero for no new pose, or a negative SDK error. */

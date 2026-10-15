@@ -12,7 +12,7 @@ if (localBuildOptionsFile.asFile.exists()) {
 }
 def pythonExecutable = project.findProperty('pythonExecutable')
     ?: localBuildOptions.getProperty('droiddeck.python', 'python3')
-def vitureSdkDir = project.findProperty('vitureSdkDir') ?: localBuildOptions.getProperty('droiddeck.vitureSdk', '')
+def vitureSdkDir = project.hasProperty('vitureSdkDir') ? project.property('vitureSdkDir') : localBuildOptions.getProperty('droiddeck.vitureSdk', '')
 if (vitureSdkDir) {
     ['android/arm64-v8a/libglasses.so', 'android/arm64-v8a/libcarina_vio.so',
      'android/arm64-v8a/libcloud_protocol.so', 'include/viture_glasses_provider.h',
@@ -265,7 +265,20 @@ def buildRustStores = tasks.register('buildRustStores', Exec) {
 if (!skipRust) android.sourceSets.main.jniLibs.srcDir(rustJniLibsDir)
 tasks.named('preBuild').configure { dependsOn(buildRustStores) }
 
+def verifyHandModel = tasks.register('verifyHandModel') {
+    def model = file('src/main/assets/models/hand_landmarker.task')
+    inputs.file(model)
+    doLast {
+        def actual = java.security.MessageDigest.getInstance('SHA-256').digest(model.bytes).encodeHex().toString()
+        if (actual != 'fbc2a30080c3c557093b5ddfc334698132eb341044ccee322ccf8bcf3607cde1')
+            throw new GradleException('Hand Landmarker model checksum mismatch')
+    }
+}
+tasks.named('preBuild').configure { dependsOn(verifyHandModel) }
+
 dependencies {
+    implementation 'com.google.mediapipe:tasks-vision:1.0.0'
+    implementation 'org.opencv:opencv:4.13.0'
     implementation 'com.github.luben:zstd-jni:1.5.2-3@aar'
     implementation 'org.apache.commons:commons-compress:1.27.1'
     implementation 'org.tukaani:xz:1.10'

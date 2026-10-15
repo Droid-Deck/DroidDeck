@@ -177,5 +177,6 @@
             android:exported="true"
             android:permission="android.permission.DUMP"
             android:grantUriPermissions="false" />
+        <activity android:name=".ui.SpatialTrackingActivity" android:exported="false" />
     </application>
 </manifest>

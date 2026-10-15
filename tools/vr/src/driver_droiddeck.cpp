@@ -17,6 +17,7 @@
 
 #include "../../../app/src/main/cpp/waylandcomp/src/headpose_shm.h"
 #include "presenter.h"
+#include "spatial_tracking.h"
 #include "render_target.h"
 
 #define DD_EXPORT extern "C" __attribute__((visibility("default")))
@@ -358,7 +359,9 @@ private:
 
 class CardboardController : public ITrackedDeviceServerDriver {
 public:
-    explicit CardboardController(bool right) : right_(right) {}
+    explicit CardboardController(bool right) : right_(right) {
+        pose_.qWorldFromDriverRotation.w = pose_.qDriverFromHeadRotation.w = pose_.qRotation.w = 1;
+    }
 
     EVRInitError Activate(uint32_t id) override {
         id_ = id;
@@ -394,7 +397,16 @@ public:
 
     DriverPose_t GetPose() override { return pose_; }
 
+    void ClearInputs() {
+        opticalInputs_.Reset();
+        if (id_ == k_unTrackedDeviceIndexInvalid) return;
+        auto in = VRDriverInput();
+        for (VRInputComponentHandle_t h : {system_, menu_, grip_, triggerClick_, padClick_, padTouch_}) in->UpdateBooleanComponent(h, false, 0);
+        for (VRInputComponentHandle_t h : {trigger_, padX_, padY_}) in->UpdateScalarComponent(h, 0.0f, 0);
+    }
+
     void Disconnect() {
+        ClearInputs();
         if (id_ == k_unTrackedDeviceIndexInvalid) return;
         DriverPose_t p = {};
         p.qWorldFromDriverRotation.w = 1;
@@ -403,9 +415,40 @@ public:
         p.result = TrackingResult_Uninitialized;
         pose_ = p;
         VRServerDriverHost()->TrackedDevicePoseUpdated(id_, p, sizeof(p));
+    }
+
+    void UpdateOptical(const dd_spatial_hand &hand, bool headValid, const PadState *pad, int64_t now,
+                       uint64_t connection, uint64_t origin) {
+        if (id_ == k_unTrackedDeviceIndexInvalid) return;
+        const bool valid = opticalInputs_.Update(hand, headValid, now, connection, origin);
+        if (!valid) {
+            ClearInputs();
+            pose_.poseIsValid = false;
+            pose_.deviceIsConnected = true;
+            pose_.result = TrackingResult_Running_OutOfRange;
+            VRServerDriverHost()->TrackedDevicePoseUpdated(id_, pose_, sizeof(pose_));
+            return;
+        }
+        DriverPose_t p{};
+        p.qWorldFromDriverRotation.w = p.qDriverFromHeadRotation.w = 1;
+        p.qRotation = {hand.pose.rotation[3], hand.pose.rotation[0], hand.pose.rotation[1], hand.pose.rotation[2]};
+        for (int i=0; i<3; ++i) p.vecPosition[i] = hand.pose.position[i];
+        p.poseIsValid = p.deviceIsConnected = true; p.result = TrackingResult_Running_OK;
+        p.poseTimeOffset = double(hand.pose.time_ns-now)/1e9;
+        pose_ = p;
+        VRServerDriverHost()->TrackedDevicePoseUpdated(id_, p, sizeof(p));
         auto in = VRDriverInput();
-        for (VRInputComponentHandle_t h : {system_, menu_, grip_, triggerClick_, padClick_, padTouch_}) in->UpdateBooleanComponent(h, false, 0);
-        for (VRInputComponentHandle_t h : {trigger_, padX_, padY_}) in->UpdateScalarComponent(h, 0.0f, 0);
+        const uint32_t b = pad ? pad->buttons : 0;
+        in->UpdateBooleanComponent(system_, right_ && (b & PAD_GUIDE), 0);
+        in->UpdateBooleanComponent(menu_, (b & (right_ ? PAD_START : PAD_SELECT)) != 0, 0);
+        in->UpdateBooleanComponent(grip_, opticalInputs_.grip, 0);
+        in->UpdateBooleanComponent(triggerClick_, opticalInputs_.click, 0);
+        in->UpdateScalarComponent(trigger_, opticalInputs_.trigger, 0);
+        const float x = pad ? pad->axes[right_ ? 2 : 0]/32767.0f : 0;
+        const float y = pad ? -pad->axes[right_ ? 3 : 1]/32767.0f : 0;
+        in->UpdateScalarComponent(padX_, x, 0); in->UpdateScalarComponent(padY_, y, 0);
+        in->UpdateBooleanComponent(padTouch_, x*x+y*y > 0.01f || (b & (right_ ? PAD_A : PAD_X)), 0);
+        in->UpdateBooleanComponent(padClick_, (b & (right_ ? (PAD_A|PAD_R3) : PAD_X)) != 0, 0);
     }
 
     static constexpr float kReachSpeed = 0.6f, kReachMin = -0.2f, kReachMax = 1.0f;
@@ -414,7 +457,8 @@ public:
         return pad.axes[right ? 4 : 5] > kGrabTrigger || (pad.buttons & (right ? PAD_RB : PAD_LB));
     }
 
-    void Update(const HmdQuaternion_t &head, const PadState *pad, bool sticksMoveHands, float reach) {
+    void Update(const DriverPose_t &headPose, const PadState *pad, bool sticksMoveHands, float reach) {
+        const auto &head = headPose.qRotation;
         if (id_ == k_unTrackedDeviceIndexInvalid) return;
         const auto now = std::chrono::steady_clock::now();
         const float dt = std::min(std::chrono::duration<float>(now - lastUpdate_).count(), 0.1f);
@@ -449,7 +493,7 @@ public:
         m[0][0] = 1 - 2 * (y * y + z * z); m[0][1] = 2 * (x * y - z * w); m[0][2] = 2 * (x * z + y * w);
         m[1][0] = 2 * (x * y + z * w); m[1][1] = 1 - 2 * (x * x + z * z); m[1][2] = 2 * (y * z - x * w);
         m[2][0] = 2 * (x * z - y * w); m[2][1] = 2 * (y * z + x * w); m[2][2] = 1 - 2 * (x * x + y * y);
-        for (int i = 0; i < 3; i++) p.vecPosition[i] = (i == 1 ? 1.6 : 0.0) + m[i][0] * off[0] + m[i][1] * off[1] + m[i][2] * off[2];
+        for (int i = 0; i < 3; i++) p.vecPosition[i] = headPose.vecPosition[i] + m[i][0] * off[0] + m[i][1] * off[1] + m[i][2] * off[2];
         p.poseIsValid = true;
         p.result = TrackingResult_Running_OK;
         p.deviceIsConnected = true;
@@ -472,6 +516,7 @@ public:
     }
 
 private:
+    OpticalInputs opticalInputs_;
     static constexpr int16_t kGrabTrigger = 153;
     static constexpr float kStickDeadzone = 0.12f, kHandRangeX = 0.40f, kHandRangeUp = 0.50f, kHandRangeDown = 0.30f, kHandSmoothing = 0.05f, kHandPivot = 0.45f;
     bool right_;
@@ -563,7 +608,10 @@ public:
 
     void DebugRequest(const char *, char *resp, uint32_t size) override { if (size) resp[0] = 0; }
 
-    DriverPose_t GetPose() override {
+    DriverPose_t GetPose() override { return GetPose(nullptr); }
+
+    DriverPose_t GetPose(droiddeck_spatialpose *snapshot) {
+        std::lock_guard<std::mutex> lock(spatialMutex_);
         DriverPose_t p = {};
         p.qWorldFromDriverRotation.w = 1;
         p.qDriverFromHeadRotation.w = 1;
@@ -580,6 +628,26 @@ public:
         p.poseIsValid = true;
         p.result = TrackingResult_Running_OK;
         p.deviceIsConnected = true;
+        droiddeck_spatialpose spatial{};
+        const bool spatialRead = spatial_.Read(&spatial);
+        if (spatialRead) lastSpatialSnapshot_ = spatial;
+        else {
+            spatial = lastSpatialSnapshot_;
+            spatial.head.flags = 0;
+            for (auto &hand : spatial.hands) hand.pose.flags = 0;
+        }
+        if (snapshot) *snapshot = spatial;
+        if (spatial.flags & DD_SPATIAL_ACTIVE) {
+            if (SpatialFresh(spatial.head, SpatialNow())) {
+                for (int i=0; i<3; ++i) p.vecPosition[i] = spatial.head.position[i];
+                p.qRotation = {spatial.head.rotation[3], spatial.head.rotation[0], spatial.head.rotation[1], spatial.head.rotation[2]};
+                lastSpatial_ = p;
+            } else {
+                if (lastSpatial_.deviceIsConnected) p = lastSpatial_;
+                p.poseIsValid = false;
+                p.result = TrackingResult_Running_OutOfRange;
+            }
+        }
         return p;
     }
 
@@ -650,7 +718,7 @@ private:
             PadState pad;
             const bool havePad = pad_.Read(&pad);
             const bool padChanged = havePad && (pad.buttons != lastPad_.buttons || memcmp(pad.axes, lastPad_.axes, sizeof(pad.axes)));
-            if ((fresh || padChanged || now - lastSent > std::chrono::milliseconds(100)) && id_ != k_unTrackedDeviceIndexInvalid) {
+            if ((fresh || padChanged || now - lastSent > std::chrono::milliseconds(10)) && id_ != k_unTrackedDeviceIndexInvalid) {
                 if (fresh) {
                     lastSeq = hp.seq;
                     if (hp.eye_w > 0 && hp.tan_half_fov > 0.0f && hp.eye_aspect > 0.0f &&
@@ -666,9 +734,11 @@ private:
                         Log("headset %s (Cardboard mode %s)", worn ? "worn" : "taken off", worn ? "on" : "off");
                     }
                 }
-                DriverPose_t head = GetPose();
+                droiddeck_spatialpose spatial{};
+                DriverPose_t head = GetPose(&spatial);
                 VRServerDriverHost()->TrackedDevicePoseUpdated(id_, head, sizeof(DriverPose_t));
-                if (havePad && (pad.buttons & PAD_L3) && !(lastPad_.buttons & PAD_L3)) {
+                const bool optical = (spatial.flags & DD_SPATIAL_ACTIVE) && (spatial.flags & DD_SPATIAL_HANDS);
+                if (!optical && havePad && (pad.buttons & PAD_L3) && !(lastPad_.buttons & PAD_L3)) {
                     sticksMoveHands_ = !sticksMoveHands_;
                     Log("sticks now move %s", sticksMoveHands_ ? "the hands" : "in the game");
                 }
@@ -686,8 +756,13 @@ private:
                         if (other) for (CardboardController *hand : hands_) if (hand) hand->Disconnect();
                     }
                 }
-                if (!otherControllers_)
-                    for (CardboardController *hand : hands_) if (hand) hand->Update(head.qRotation, havePad ? &pad : nullptr, sticksMoveHands_, reach_);
+                if (!otherControllers_) {
+                    for (int i=0; i<2; ++i) if (hands_[i]) {
+                        if (optical) hands_[i]->UpdateOptical(spatial.hands[i], SpatialFresh(spatial.head, SpatialNow()),
+                            havePad ? &pad : nullptr, SpatialNow(), spatial.connection, spatial.origin);
+                        else hands_[i]->Update(head, havePad ? &pad : nullptr, sticksMoveHands_, reach_);
+                    }
+                }
                 if (havePad) lastPad_ = pad;
                 lastSent = now;
             }
@@ -719,6 +794,10 @@ public:
 
 private:
     PoseFile pose_;
+    SpatialFile spatial_;
+    std::mutex spatialMutex_;
+    DriverPose_t lastSpatial_{};
+    droiddeck_spatialpose lastSpatialSnapshot_{};
     PadRing pad_;
     PadState lastPad_;
     VRInputComponentHandle_t proximity_ = 0;

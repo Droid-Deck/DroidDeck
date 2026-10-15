@@ -371,7 +371,7 @@ class SessionService : Service() {
             Log.i(TAG, "run: $program (${SessionState.programArgs.size} arguments) under gamescope")
         }
 
-        FileUtils.clear(File(cacheDir, "shm"))
+        FileUtils.clear(File(LinuxRuntime.liveDir(this), "shm"))
 
         val binds = sessionBinds(controllersOn, fakeInputDir, sessionDir, guest, sessionRoot, runtimeDir)
         val fastPathKey = if (ProotFastPath.enabled(this)) {
@@ -396,7 +396,7 @@ class SessionService : Service() {
 
         val hostEnv = HostEnvironment()
         hostEnv["PROOT_LOADER"] = LinuxRuntime.prootLoader(this).path
-        hostEnv["PROOT_TMP_DIR"] = cacheDir.path
+        hostEnv["PROOT_TMP_DIR"] = LinuxRuntime.prootTempDir(this).path
         if (SessionPrefs.prootNoSeccomp(this)) {
             hostEnv["PROOT_NO_SECCOMP"] = "1"
             Log.i(TAG, "proot: seccomp acceleration off by request")

@@ -1329,6 +1329,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         activeCardboard = effectiveCardboard(SessionPrefs.cardboard(this))
         pushCardboard(activeCardboard)
         WaylandCompositor.nativeSetCardboardPoseFile(File(filesDir, ".wayland-rt/droiddeck-headpose").path)
+        com.droiddeck.launcher.glasses.SpatialTracking.attachPublisher(File(filesDir, ".wayland-rt/droiddeck-spatialpose").path)
         if (!SessionState.running) {
             val waylandLog = File(SessionPaths.beginOrCurrent(this), "wayland.log")
             WaylandCompositor.setSessionLogFile(waylandLog)
@@ -2595,14 +2596,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val onGlasses = GlassesRendering.usesGlasses(glasses, glassesScreen != null,
             steamVrStatus == SteamVr.Status.RUNNING)
         val c = activeCardboard
+        val centerView = onGlasses && c.source == Cardboard.SOURCE_SCREEN
         val want = !ended && (resumed || (glassesScreen != null && started)) && c.enabled && c.headTracking
         val current = headTracker
-        if (current != null && (!want || current.usesGlasses != onGlasses)) {
+        if (current != null && (!want || current.usesGlasses != onGlasses || current.centerView != centerView)) {
             current.stop()
             headTracker = null
         }
         if (want) {
-            val t = headTracker ?: HeadTracker(this, glasses = onGlasses) {
+            val t = headTracker ?: HeadTracker(this, glasses = onGlasses, centerView = centerView) {
                 @Suppress("DEPRECATION")
                 (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay)?.rotation ?: android.view.Surface.ROTATION_0
             }.also { headTracker = it }
@@ -2649,7 +2651,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun onGlassesChanged() {
         val g = glasses
         val s = glassesSettings
-        val key = listOf(g.present, g.usable, g.displayId, g.sbs, g.sbs90, g.switching3d, g.canControl, g.width, g.height, g.hz, s)
+        val key = listOf(g.present, g.usable, g.displayId, g.sbs, g.sbs90, g.supports30Hz, g.switching3d, g.canControl, g.width, g.height, g.hz, s)
         if (key == glassesKey) return
         glassesKey = key
         updateGlassesScreen()

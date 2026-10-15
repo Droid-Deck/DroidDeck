@@ -108,7 +108,7 @@ class AgentBridgeProvider : ContentProvider() {
                 val value = request.optString("value")
                 fun on() = value == "1" || value.equals("true", true) || value.equals("on", true)
                 val number = value.toIntOrNull()
-                val numeric = setOf("refreshHz", "sbsHz", "brightness", "volume", "picture3d", "screenWidthDm", "screenDistanceDm", "vrFovDeg", "sbsSupport")
+                val numeric = setOf("refreshHz", "sbsHz", "brightness", "volume", "picture3d", "screenWidthDm", "screenDistanceDm", "vrFovDeg", "sbsSupport", "eyeHeightCm")
                 if (key in numeric && number == null) return error("INVALID_VALUE", "'$key' takes a number")
                 when (key) {
                     "refreshHz" -> g.setRefreshHz(number!!)
@@ -117,6 +117,7 @@ class AgentBridgeProvider : ContentProvider() {
                     "volume" -> g.setVolume(number!!)
                     "sunblock" -> g.setSunblock(on())
                     "3d" -> g.set3d(on())
+                    "3dof" -> g.set3dof(on())
                     "gameOnGlasses" -> g.setGameOnGlasses(on())
                     "headTracking" -> g.setHeadTracking(on())
                     "auto3d" -> g.setAuto3d(on())
@@ -125,6 +126,9 @@ class AgentBridgeProvider : ContentProvider() {
                     "screenDistanceDm" -> g.setScreenDistanceDm(number!!)
                     "vrFovDeg" -> g.setVrFovDeg(number!!)
                     "sbsSupport" -> g.setSbsSupport(number!!)
+                    "positionalTracking" -> g.setPositionalTracking(on())
+                    "handControllers" -> g.setHandControllers(on())
+                    "eyeHeightCm" -> g.setEyeHeight(number!!)
                     else -> return error("INVALID_KEY", "Unknown glasses setting '$key'")
                 }
             }
@@ -136,6 +140,10 @@ class AgentBridgeProvider : ContentProvider() {
             "calibrate" -> g.startCalibration()
             "cancel-calibration" -> g.cancelCalibration()
             "reset-calibration" -> g.resetCalibration()
+            "spatial-diagnostics" -> com.droiddeck.launcher.glasses.SpatialTracking.diagnostics(request.optBoolean("enabled",true))
+            "spatial-recenter" -> com.droiddeck.launcher.glasses.SpatialTracking.recenter(request.optBoolean("screen",false))
+            "spatial-floor" -> g.setSpatialFloor()
+            "spatial-restart" -> g.restartSpatialTracking()
             "query" -> { g.query(); Thread.sleep(600) }
             "mode" -> {
                 val mode = hex(request.optString("mode"), 0xFF) ?: return error("INVALID_VALUE", "mode must be one hex byte, e.g. 0x31")

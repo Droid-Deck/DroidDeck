@@ -15,6 +15,24 @@ PKG_SHA256=90a600775eb3e8856dc475f83166a93a290a0b1f3b4e82a69c8e2a8f06b9ddc9
 running() { pgrep -x vrserver >/dev/null 2>&1; }
 installed() { [ -x "$steamvr/bin/linuxarm64/vrstartup" ]; }
 
+configure_graphics() {
+    case "$(cat /sys/class/kgsl/kgsl-3d0/gpu_model 2>/dev/null)" in
+        Adreno840*)
+            # The session's forced sysmem mode loses the Vulkan device in SteamVR.
+            export TU_DEBUG="$(
+                IFS=', '
+                set -f
+                separator=
+                for flag in ${TU_DEBUG:-}; do
+                    case "$flag" in ''|sysmem) continue ;; esac
+                    printf '%s%s' "$separator" "$flag"
+                    separator=,
+                done
+            )"
+            ;;
+    esac
+}
+
 stop() {
     rm -f "$state/active"
     for n in vrcompositor vrserver vrmonitor vrdashboard vrstartup vrwebhelper; do
@@ -143,6 +161,8 @@ JSON
     export VK_LAYER_PATH="$layer${VK_LAYER_PATH:+:$VK_LAYER_PATH}"
     export VK_INSTANCE_LAYERS="VK_LAYER_DROIDDECK_vr${VK_INSTANCE_LAYERS:+:$VK_INSTANCE_LAYERS}"
     export VK_LOADER_LAYERS_DISABLE="${VK_LOADER_LAYERS_DISABLE:-~implicit~}"
+    configure_graphics
+    export LD_PRELOAD="$layer/libdroiddeck_vr_scheduling.so${LD_PRELOAD:+:$LD_PRELOAD}"
 
     shims=$state/shims
     mkdir -p "$shims"

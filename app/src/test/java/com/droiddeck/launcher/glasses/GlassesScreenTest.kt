@@ -4,6 +4,8 @@ import android.hardware.display.DisplayManager
 import android.view.Display
 import android.view.SurfaceHolder
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -21,6 +23,27 @@ import org.robolectric.shadows.ShadowDisplayManager
 @Config(sdk = [31, 34], manifest = Config.NONE, shadows = [GlassesScreenTest.ModeDisplay::class])
 @LooperMode(LooperMode.Mode.PAUSED)
 class GlassesScreenTest {
+    @Test fun nativeThirtyHzMustMatchBothDimensionsOfTheCurrentEyeLayout() {
+        val flat60 = mode(1, 1920, 1200, 60f)
+        val flat30 = mode(2, 1920, 1200, 29.97f)
+        val stereo60 = mode(3, 3840, 1200, 60f)
+        val stereo30 = mode(4, 3840, 1200, 30f)
+        val short30 = mode(5, 3840, 1080, 30f)
+        val (screen, panel) = screen(flat60, arrayOf(flat60, flat30, stereo60, short30), 30)
+        assertTrue(Glasses.supports30Hz(screen.display))
+        assertEquals(flat30.modeId, screen.window!!.attributes.preferredDisplayModeId)
+
+        panel.current = stereo60
+        screen.prefer(30)
+        assertFalse(Glasses.supports30Hz(screen.display))
+        assertEquals(stereo60.modeId, screen.window!!.attributes.preferredDisplayModeId)
+
+        panel.supported += stereo30
+        screen.prefer(30)
+        assertTrue(Glasses.supports30Hz(screen.display))
+        assertEquals(stereo30.modeId, screen.window!!.attributes.preferredDisplayModeId)
+    }
+
     @Test fun switchingBetween2dAndStereoRefreshesTheModePreferenceEvenAtTheSameHz() {
         val flat = mode(1, 1920, 1200, 60f)
         val stereo = mode(2, 3840, 1200, 60f)

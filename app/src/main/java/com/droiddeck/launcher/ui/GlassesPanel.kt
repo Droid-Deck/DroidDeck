@@ -44,7 +44,10 @@ import com.droiddeck.launcher.glasses.Glasses
 import com.droiddeck.launcher.glasses.GlassesRendering
 import com.droiddeck.launcher.glasses.GlassesSettings
 import com.droiddeck.launcher.glasses.GlassesState
-import java.util.Locale
+import android.content.Intent
+import androidx.compose.ui.platform.LocalContext
+import com.droiddeck.launcher.glasses.SpatialTracking
+import com.droiddeck.launcher.glasses.SpatialMeasurements
 
 internal val GlassesIcon: ImageVector by lazy {
     ImageVector.Builder("Glasses", 24.dp, 24.dp, 24f, 24f).apply {
@@ -96,8 +99,11 @@ internal fun GlassesGroups(
     val display = tab == null || tab == GlassesTab.DISPLAY
     val picture = GlassesRendering.picture(s, g.sbs, steamVrRunning)
     val usesGlasses = GlassesRendering.usesGlasses(g, outputActive, steamVrRunning)
+    val flatPicture = picture == GlassesRendering.Picture.FLAT || picture == GlassesRendering.Picture.DUPLICATED
     val virtualScreen = usesGlasses && picture == GlassesRendering.Picture.VIRTUAL_SCREEN
     val directView = usesGlasses && picture == GlassesRendering.Picture.STEREO
+    val refreshRates = GlassesRendering.refreshRates(s, g).map { it to "$it Hz" }
+    val refreshHint = if (g.supports30Hz && !s.gameOnGlasses) stringResource(R.string.glasses_refresh_30_hint) else null
     if (display) SettingsGroup(g.model) {
         if (g.experimental) SettingsRow(stringResource(R.string.glasses_control), stringResource(R.string.glasses_xreal_experimental)) {}
         val status = if (g.hasDisplay) stringResource(R.string.glasses_status, g.width, g.height, kotlin.math.round(g.hz).toInt(),
@@ -120,8 +126,10 @@ internal fun GlassesGroups(
     }
     if (display && (g.canControl || g.hasDisplay)) SettingsGroup(stringResource(R.string.glasses_display)) {
         if (g.canControl) {
-            if (!g.sbs) ChoiceRow(host, "glasses-hz", stringResource(R.string.glasses_refresh), null,
-                listOf(60, 90, 120).map { it to "$it Hz" }, s.refreshHz, chipModifier = track("glasses-hz")) { Glasses.setRefreshHz(it) }
+            if (g.supportsScreen3dof) ToggleRow(host, "glasses-3dof", stringResource(if (g.supportsSpatial && s.positionalTracking) R.string.glasses_6dof else R.string.glasses_3dof),
+                stringResource(R.string.glasses_3dof_hint), s.screen3dof, chipModifier = track("glasses-3dof")) { Glasses.set3dof(it) }
+            if (!g.sbs) ChoiceRow(host, "glasses-hz", stringResource(R.string.glasses_refresh), refreshHint,
+                refreshRates, GlassesRendering.outputHz(s, g), chipModifier = track("glasses-hz")) { Glasses.setRefreshHz(it) }
             if (g.sbsSupport == GlassesState.SBS_FAILS && !g.sbs) {
                 ActionRow(stringResource(R.string.glasses_3d), stringResource(R.string.glasses_3d_failed),
                     stringResource(R.string.stores_dl_retry), { Glasses.set3d(true) })
@@ -129,9 +137,9 @@ internal fun GlassesGroups(
                 if (inSession || g.sbs) ToggleRow(host, "glasses-3d", stringResource(R.string.glasses_3d), stringResource(R.string.glasses_3d_hint),
                     g.sbs, chipModifier = track("glasses-3d")) { Glasses.set3d(it) }
                 if (g.sbs) {
-                    if (g.sbs90) ChoiceRow(host, "glasses-3d-hz", stringResource(R.string.glasses_3d_refresh), null,
-                        listOf(60, 90).map { it to "$it Hz" }, s.sbsHz, chipModifier = track("glasses-3d-hz")) { Glasses.setSbsHz(it) }
-                    else SettingsRow(stringResource(R.string.glasses_3d_refresh), "60 Hz") {}
+                    if (refreshRates.size > 1) ChoiceRow(host, "glasses-3d-hz", stringResource(R.string.glasses_3d_refresh), refreshHint,
+                        refreshRates, GlassesRendering.outputHz(s, g), chipModifier = track("glasses-3d-hz")) { Glasses.setSbsHz(it) }
+                    else SettingsRow(stringResource(R.string.glasses_3d_refresh), refreshHint ?: "60 Hz") {}
                 }
             }
         }
@@ -146,7 +154,7 @@ internal fun GlassesGroups(
         when {
             !inSession -> SettingsRow(stringResource(R.string.glasses_picture_screen), stringResource(R.string.glasses_screen_next_session)) {}
             !usesGlasses -> SettingsRow(stringResource(R.string.glasses_picture_screen), stringResource(R.string.glasses_screen_no_output)) {}
-            picture == GlassesRendering.Picture.FLAT -> ActionRow(
+            flatPicture -> ActionRow(
                 stringResource(R.string.glasses_picture_screen), stringResource(R.string.glasses_screen_flat_hint),
                 stringResource(R.string.glasses_screen_use), { Glasses.setPicture3d(GlassesSettings.PICTURE_SCREEN) })
             directView -> SettingsRow(stringResource(R.string.glasses_picture_screen),
@@ -154,9 +162,9 @@ internal fun GlassesGroups(
         }
         if (virtualScreen || (!inSession && s.picture3d != GlassesSettings.PICTURE_SBS)) {
             SliderRow(stringResource(R.string.glasses_screen_size), null, s.screenWidthDm, 5..60, step = 1,
-                format = { String.format(Locale.US, "%.1f m", it / 10f) }, modifier = track("glasses-width")) { Glasses.setScreenWidthDm(it) }
+                format = { SpatialMeasurements.distance(it / 10f) }, modifier = track("glasses-width")) { Glasses.setScreenWidthDm(it) }
             SliderRow(stringResource(R.string.glasses_screen_distance), null, s.screenDistanceDm, 5..100, step = 1,
-                format = { String.format(Locale.US, "%.1f m", it / 10f) }, modifier = track("glasses-distance")) { Glasses.setScreenDistanceDm(it) }
+                format = { SpatialMeasurements.distance(it / 10f) }, modifier = track("glasses-distance")) { Glasses.setScreenDistanceDm(it) }
         }
         steamVr()
         if ((directView && steamVrRunning) || !inSession) SliderRow(stringResource(R.string.glasses_vr_fov), stringResource(R.string.glasses_vr_fov_hint), s.vrFovDeg,
@@ -174,14 +182,31 @@ internal fun GlassesGroups(
     if ((tab == null || tab == GlassesTab.TRACKING) && g.canControl) SettingsGroup(stringResource(R.string.glasses_tracking)) {
         val trackingHint = when {
             inSession && !usesGlasses -> R.string.glasses_screen_no_output
-            inSession && picture == GlassesRendering.Picture.FLAT -> R.string.glasses_tracking_flat_hint
+            inSession && flatPicture -> R.string.glasses_tracking_flat_hint
             inSession && directView && !steamVrRunning -> R.string.glasses_tracking_sbs_hint
             else -> R.string.glasses_head_tracking_hint
         }
         ToggleRow(host, "glasses-tracking", stringResource(R.string.glasses_head_tracking), stringResource(trackingHint),
             s.headTracking, chipModifier = track("glasses-tracking")) { Glasses.setHeadTracking(it) }
-        if (onRecenter != null && s.headTracking && (virtualScreen || (directView && steamVrRunning))) ActionRow(stringResource(R.string.glasses_recenter), null,
+        if (onRecenter != null && s.headTracking && (virtualScreen || (directView && steamVrRunning))) ActionRow(stringResource(R.string.glasses_recenter),
+            if (virtualScreen) stringResource(R.string.glasses_recenter_screen_hint) else null,
             stringResource(R.string.cardboard_recenter_button), onRecenter)
+        if (g.supportsSpatial) {
+            val spatial by SpatialTracking.status.collectAsState()
+            val context = LocalContext.current
+            ToggleRow(host, "glasses-position", stringResource(R.string.glasses_position), stringResource(R.string.glasses_position_hint),
+                s.positionalTracking, chipModifier = track("glasses-position")) { Glasses.setPositionalTracking(it) }
+            if (s.positionalTracking) {
+                SettingsRow(stringResource(R.string.glasses_tracking), spatial.message) {}
+                SliderRow(stringResource(R.string.glasses_eye_height), null, s.eyeHeightCm, 50..250, step = 1,
+                    format = SpatialMeasurements::height, modifier = track("glasses-eye-height")) { Glasses.setEyeHeight(it) }
+                ActionRow(stringResource(R.string.glasses_floor), null, stringResource(R.string.glasses_floor_set), Glasses::setSpatialFloor)
+                ActionRow(stringResource(R.string.glasses_spatial_setup), stringResource(R.string.glasses_spatial_setup_hint),
+                    stringResource(R.string.glasses_spatial_open), { context.startActivity(Intent(context, SpatialTrackingActivity::class.java)) })
+                ToggleRow(host, "glasses-hands", stringResource(R.string.glasses_hands), stringResource(R.string.glasses_hands_hint),
+                    s.handControllers, chipModifier = track("glasses-hands")) { Glasses.setHandControllers(it) }
+            }
+        }
         val calibration by Glasses.calibration.collectAsState()
         if (calibration.supported) GlassesCalibrationControls(calibration,
             onStart = Glasses::startCalibration, onCancel = Glasses::cancelCalibration,

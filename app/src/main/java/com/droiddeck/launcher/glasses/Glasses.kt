@@ -51,6 +51,9 @@ data class GlassesState(
     val sbsSupport: Int = SBS_UNKNOWN,
     val sbs90: Boolean = false,
     val experimental: Boolean = false,
+    val supportsScreen3dof: Boolean = false,
+    val supports30Hz: Boolean = false,
+    val supportsSpatial: Boolean = false,
 ) {
     val hasDisplay: Boolean get() = displayId != Display.INVALID_DISPLAY
     val usable: Boolean get() = hasDisplay && !noSignal
@@ -82,7 +85,12 @@ data class GlassesSettings(
     val screenWidthDm: Int = 20,
     val screenDistanceDm: Int = 30,
     val vrFovDeg: Int = VR_FOV_DEFAULT,
+    val positionalTracking: Boolean = false,
+    val handControllers: Boolean = false,
+    val eyeHeightCm: Int = 160,
 ) {
+    val screen3dof: Boolean get() = picture3d == PICTURE_SCREEN && headTracking
+
     companion object {
         const val VR_FOV_MIN = 24
         const val VR_FOV_MAX = 90
@@ -142,6 +150,7 @@ object Glasses {
     fun init(context: Context) {
         if (::handler.isInitialized) return
         app = context.applicationContext
+        SpatialTracking.initialize(app)
         usb = app.getSystemService(Context.USB_SERVICE) as UsbManager
         displays = app.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
         _settings.value = load()
@@ -200,13 +209,15 @@ object Glasses {
     }
 
     fun setRefreshHz(hz: Int) = post {
-        update { it.copy(refreshHz = hz.coerceIn(60, 120)) }
+        if (hz == 30 && (_state.value.sbs || !GlassesRendering.native30HzAvailable(_settings.value, _state.value))) return@post
+        update { it.copy(refreshHz = if (hz == 30) 30 else hz.coerceIn(60, 120)) }
         if (!_state.value.sbs) applyMode(force = true)
     }
 
     fun setSbsHz(hz: Int) = post {
-        update { it.copy(sbsHz = if (hz >= 90) 90 else 60) }
-        if (_state.value.sbs && _state.value.can3d) sendMode(true)
+        if (hz == 30 && (!_state.value.sbs || !GlassesRendering.native30HzAvailable(_settings.value, _state.value))) return@post
+        update { it.copy(sbsHz = when { hz == 30 -> 30; hz >= 90 -> 90; else -> 60 }) }
+        if (hz != 30 && _state.value.sbs && _state.value.can3d) sendMode(true)
     }
 
     fun set3d(on: Boolean) = post {
@@ -255,7 +266,48 @@ object Glasses {
         markSbsFailed(linkDevice?.productId, s == GlassesState.SBS_FAILS)
         rememberSbs(s)
     }
-    fun setGameOnGlasses(on: Boolean) = post { update { it.copy(gameOnGlasses = on) } }
+    fun setGameOnGlasses(on: Boolean) = post {
+        val s = _state.value
+        if (!on && s.canControl && (s.sbs || modeState.pendingStereo)) {
+            modeState.manual()
+            sendMode(false)
+        }
+        update {
+            it.copy(
+                gameOnGlasses = on,
+                picture3d = if (!on && it.picture3d == GlassesSettings.PICTURE_SCREEN)
+                    GlassesSettings.PICTURE_AUTO else it.picture3d,
+            )
+        }
+    }
+    fun set3dof(on: Boolean) = post {
+        if (!_state.value.supportsScreen3dof) return@post
+        update {
+            it.copy(
+                gameOnGlasses = on || it.gameOnGlasses,
+                headTracking = on || it.headTracking,
+                picture3d = if (on) GlassesSettings.PICTURE_SCREEN
+                    else if (it.picture3d == GlassesSettings.PICTURE_SCREEN) GlassesSettings.PICTURE_AUTO else it.picture3d,
+            )
+        }
+    }
+    fun setPositionalTracking(on: Boolean) = post {
+        if (_settings.value.positionalTracking == on) return@post
+        update { it.copy(positionalTracking = on, handControllers = it.handControllers && on) }
+        closeLink()
+        refresh()
+    }
+    fun setHandControllers(on: Boolean) = post {
+        val wanted = on && _settings.value.positionalTracking && _state.value.supportsSpatial
+        update { it.copy(handControllers = wanted) }
+        SpatialTracking.setHands(wanted)
+    }
+    fun setEyeHeight(cm: Int) = post { update { it.copy(eyeHeightCm = cm.coerceIn(50, 250)) } }
+    fun setSpatialFloor() = SpatialTracking.setFloor(_settings.value.eyeHeightCm / 100f)
+    fun restartSpatialTracking() = post {
+        if (_settings.value.positionalTracking) { closeLink(); refresh() }
+    }
+
     fun setHeadTracking(on: Boolean) = post { update { it.copy(headTracking = on) } }
     fun setAuto3d(on: Boolean) = post { update { it.copy(auto3d = on) } }
     fun setPicture3d(picture: Int) = post { update { it.copy(picture3d = picture.coerceIn(0, 2)) } }
@@ -312,6 +364,14 @@ object Glasses {
             .put("permission", s.permission.name).put("connected", s.connected)
             .put("controlError", s.controlError ?: JSONObject.NULL)
             .put("experimental", s.experimental)
+            .put("supportsScreen3dof", s.supportsScreen3dof)
+            .put("supportsSpatial", s.supportsSpatial)
+            .put("firmware", (link as? VitureSdkLink)?.firmware ?: JSONObject.NULL)
+            .put("spatialSdk", (link as? VitureSdkLink)?.spatialDiagnostics()?.let {
+                JSONObject().put("status",it[0]).put("callbackAgeMs",it[1]).put("cameraPoseDeltaMs",it[2])
+            } ?: JSONObject.NULL)
+            .put("spatial", SpatialTracking.diagnosticStatus())
+            .put("supports30Hz", s.supports30Hz)
             .put("display", if (s.hasDisplay) JSONObject().put("id", s.displayId).put("width", s.width).put("height", s.height).put("hz", s.hz.toDouble()) else JSONObject.NULL)
             .put("sbs", s.sbs).put("deviceMode", glassesMode).put("switching3d", s.switching3d)
             .put("brightness", s.brightness).put("volume", s.volume)
@@ -325,6 +385,8 @@ object Glasses {
             .put("fovDeg", s.diagonalFovDeg.toDouble()).put("noSignal", s.noSignal).put("sbsSupport", s.sbsSupport)
             .put("settings", JSONObject().put("refreshHz", g.refreshHz).put("sbsHz", g.sbsHz).put("sunblock", g.sunblock ?: JSONObject.NULL)
                 .put("gameOnGlasses", g.gameOnGlasses).put("headTracking", g.headTracking).put("auto3d", g.auto3d)
+                .put("screen3dof", g.screen3dof)
+                .put("positionalTracking", g.positionalTracking).put("handControllers", g.handControllers).put("eyeHeightCm", g.eyeHeightCm)
                 .put("picture3d", g.picture3d).put("screenWidthDm", g.screenWidthDm).put("screenDistanceDm", g.screenDistanceDm)
                 .put("vrFovDeg", g.vrFovDeg))
     }
@@ -450,6 +512,9 @@ object Glasses {
                 noSignal = noSignal,
                 sbs90 = m?.sbs90 == true,
                 experimental = m === XrealModel,
+                supportsScreen3dof = link?.hasImu == true,
+                supports30Hz = display?.let(::supports30Hz) == true,
+                supportsSpatial = (link as? VitureSdkLink)?.isCarina == true,
             )
         }
         if (link != null) applyMode(force = false)
@@ -457,6 +522,14 @@ object Glasses {
     }
 
     internal fun isGlassesVendor(vid: Int) = vid == VitureProtocol.VENDOR_ID || RayNeoModel.isVendor(vid) || vid == XrealModel.VENDOR_ID
+
+    internal fun supports30Hz(display: Display): Boolean {
+        val current = display.mode
+        return display.supportedModes.any {
+            it.physicalWidth == current.physicalWidth && it.physicalHeight == current.physicalHeight &&
+                abs(it.refreshRate - 30f) < 0.5f
+        }
+    }
 
     private fun canOpenModel(m: GlassesModel): Boolean = m.controllable &&
         (m !is VitureProtocol.Model || !m.needsSdk || VitureSdk.available)
@@ -517,8 +590,9 @@ object Glasses {
             runCatching { device.serialNumber }.getOrNull(), model?.name.orEmpty())
         val l = if (device.vendorId == VitureProtocol.VENDOR_ID) {
             if ((model as? VitureProtocol.Model)?.needsSdk == true) {
-                VitureSdkLink.open(usb, device, File(app.cacheDir, "viture"), sdkListener(generation),
-                    (model as? VitureProtocol.Model)?.family)
+                // Android can evict cacheDir while the SDK is running.
+                VitureSdkLink.open(usb, device, File(app.noBackupFilesDir, "viture"), sdkListener(generation),
+                    (model as? VitureProtocol.Model)?.family, _settings.value.positionalTracking)
             } else VitureLink.open(usb, device, linkListener(generation))
         } else if (model === XrealModel) {
             XrealLink.open(app, xrealListener(generation))
@@ -536,6 +610,9 @@ object Glasses {
             return
         }
         link = opened
+        if (opened is VitureSdkLink && opened.isCarina) SpatialTracking.connect(opened.sdkToken, generation,
+            runCatching { device.serialNumber }.getOrNull()?.let { "${device.vendorId}:${device.productId}:$it" },
+            _settings.value.positionalTracking, _settings.value.eyeHeightCm / 100f, _settings.value.handControllers)
         _calibration.value = GlassesCalibrationState(supported = opened is RayNeoLink,
             saved = opened is RayNeoLink && calibrationKey?.let(calibrationStore::load) != null)
         linkDevice = device
@@ -584,6 +661,9 @@ object Glasses {
     }
 
     private fun sdkListener(generation: Long) = object : VitureSdkLink.Listener {
+        override fun onSpatial(pose: FloatArray, timeNs: Long, valid: Boolean) {
+            if (generation == linkGeneration) SpatialTracking.accept(pose, timeNs, generation, valid)
+        }
         override fun onValue(msgId: Int, value: Int) = post {
             if (generation != linkGeneration) return@post
             when (msgId) {
@@ -652,13 +732,14 @@ object Glasses {
     private fun closeLink() {
         val l = link ?: return
         linkGeneration++
+        SpatialTracking.disconnect()
         link = null
         linkDevice = null
         calibrationKey = null
         _calibration.value = GlassesCalibrationState(phase = if (_calibration.value.running) CalibrationPhase.FAILED else CalibrationPhase.IDLE)
         glassesMode = 0
         l.close()
-        publish { it.copy(connected = false, tracking = false) }
+        publish { it.copy(connected = false, tracking = false, supportsScreen3dof = false, supportsSpatial = false) }
         Log.i(TAG, "link closed")
     }
 
@@ -688,6 +769,8 @@ object Glasses {
         }
         if (!s.usable || s.sbs || modeState.pendingStereo) return
         val hz = _settings.value.refreshHz
+        // Native 30 Hz is selected by the Android presentation, without a vendor mode command.
+        if (hz == 30 && GlassesRendering.native30HzAvailable(_settings.value, s)) return
         if (glassesMode == m.mode(hz, false)) return
         if (!force) {
             if (autoModeSent || SystemClock.uptimeMillis() - lastModeSentAt < 8_000) return
@@ -699,6 +782,7 @@ object Glasses {
 
     private fun sendMode(sbs: Boolean): Boolean {
         val m = model ?: return false
+        if (sbs && !_settings.value.gameOnGlasses) update { it.copy(gameOnGlasses = true) }
         val g = _settings.value
         val mode = m.mode(if (sbs) g.sbsHz else g.refreshHz, sbs)
         if (link?.send(VitureProtocol.MSG_DISPLAY, byteArrayOf(mode.toByte())) == true) {
@@ -728,7 +812,7 @@ object Glasses {
     private fun updateImu() {
         val l = link ?: return
         if (!l.ready) return
-        val want = (sink != null || probe != null || _calibration.value.running) && l.hasImu
+        val want = (sink != null || probe != null || _calibration.value.running || SpatialTracking.enabled) && l.hasImu
         if (want == _state.value.tracking) return
         val accepted = l.send(VitureProtocol.MSG_IMU, byteArrayOf(if (want) 1 else 0))
         if (want && !accepted) return
@@ -832,6 +916,9 @@ object Glasses {
     private fun load(): GlassesSettings {
         val p = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         return GlassesSettings(
+            positionalTracking = p.getBoolean("positionalTracking", false),
+            handControllers = p.getBoolean("handControllers", false),
+            eyeHeightCm = p.getInt("eyeHeightCm", 160).coerceIn(50, 250),
             refreshHz = p.getInt("refreshHz", 120),
             sbsHz = p.getInt("sbsHz", 60),
             sunblock = if (p.contains("sunblock")) p.getBoolean("sunblock", false) else null,
@@ -847,6 +934,9 @@ object Glasses {
 
     private fun save(s: GlassesSettings) {
         app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().apply {
+            putBoolean("positionalTracking", s.positionalTracking)
+            putBoolean("handControllers", s.handControllers)
+            putInt("eyeHeightCm", s.eyeHeightCm)
             putInt("refreshHz", s.refreshHz)
             putInt("sbsHz", s.sbsHz)
             s.sunblock?.let { putBoolean("sunblock", it) } ?: remove("sunblock")

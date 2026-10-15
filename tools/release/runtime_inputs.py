@@ -19,6 +19,7 @@ SOURCE_PATHS = ['app/build.gradle', 'app/src/main/cpp/fakeinput_steam.cpp', 'app
                 'tools/release/runtime_inputs.py', 'app/src/main/assets/desktop-removal',
                 'tools/quest', 'tools/vr/src', 'tools/vr/driver_droiddeck', 'tools/vr/layer', 'tools/vr/build.sh',
                 'app/src/main/cpp/waylandcomp/src/headpose_shm.h',
+                'app/src/main/cpp/waylandcomp/src/spatialpose_shm.h',
                 'app/src/main/cpp/adrenotools/src/hook/kgsl.h',
                 'app/src/main/assets/graphics_driver/adrenotools-turnip25.1.0.tzst']
 
@@ -77,7 +78,8 @@ def required():
     paths += ['assets/linuxfs/usr/local/lib/droiddeck-vr/' + name for name in
               ['droiddeck/bin/linuxarm64/driver_droiddeck.so', 'droiddeck/driver.vrdrivermanifest',
                'droiddeck/resources/settings/default.vrsettings', 'layer/libVkLayer_droiddeck_vr.so',
-               'layer/VK_LAYER_DROIDDECK_vr.json', 'layer/VK_LAYER_DROIDDECK_vr_implicit.json']]
+               'layer/VK_LAYER_DROIDDECK_vr.json', 'layer/VK_LAYER_DROIDDECK_vr_implicit.json',
+               'layer/libdroiddeck_vr_scheduling.so']]
     paths += ['assets/linuxfs/usr/local/lib/mangoapp/' + name for name in
               ['mangoapp', 'libfmt.so.10', 'libspdlog.so.1.13', 'libglfw.so.3', 'libtraceevent.so.1', 'libtracefs.so.1']]
     paths += ['assets/linuxfs/usr/local/lib/droiddeck-comet/' + name for name in

@@ -2315,15 +2315,18 @@
     <string name="glasses_game_on_hint">Show the game only on the glasses. Off: the phone shows it and Android mirrors the phone.</string>
     <string name="glasses_display">Display</string>
     <string name="glasses_refresh">Refresh rate</string>
+    <string name="glasses_refresh_30_hint">Enable Game on glasses to select the display’s native 30 Hz mode.</string>
     <string name="glasses_3d">3D (side-by-side)</string>
-    <string name="glasses_3d_hint">Each eye gets its own half of a 3840×1080 picture. If the picture drops out, hold the glasses\' 2D/3D button.</string>
+    <string name="glasses_3d_hint">Switch the glasses to side-by-side 3D. Head tracking is controlled separately.</string>
+    <string name="glasses_3dof">3DoF On Flat Screens</string>
+    <string name="glasses_3dof_hint">Anchor flat games in front of you so you can look around. Enables Game on glasses without switching to 3D.</string>
     <string name="glasses_3d_failed">The 3D signal was not confirmed. Try again once the 2D picture returns.</string>
     <string name="glasses_no_signal">No picture: the glasses are in a mode this phone can\'t send. Hold their 2D/3D button, or unplug and replug them.</string>
     <string name="glasses_3d_refresh">3D refresh rate</string>
     <string name="glasses_auto3d">3D for VR games</string>
     <string name="glasses_auto3d_hint">Switches to 3D while SteamVR runs, and back after.</string>
-    <string name="glasses_picture">3D picture</string>
-    <string name="glasses_picture_hint">Automatic: SteamVR fills the view; other games hang as a screen in 3D and stay flat in 2D.</string>
+    <string name="glasses_picture">Picture</string>
+    <string name="glasses_picture_hint">Automatic shows flat content in both eyes and detects SteamVR. Choose Side-by-side game for SBS content.</string>
     <string name="glasses_picture_auto">Automatic</string>
     <string name="glasses_picture_screen">Virtual screen</string>
     <string name="glasses_picture_sbs">Side-by-side game</string>
@@ -2346,6 +2349,7 @@
     <string name="glasses_head_tracking">Head tracking</string>
     <string name="glasses_head_tracking_hint">The glasses\' own sensors turn the virtual screen and SteamVR with your head.</string>
     <string name="glasses_recenter">Recenter view</string>
+    <string name="glasses_recenter_screen_hint">Look where you want the screen, then recenter to set its height and direction.</string>
     <string name="glasses_recenter_button">Recenter</string>
     <string name="glasses_vr_fov">SteamVR field of view</string>
     <string name="glasses_vr_fov_hint">Lower brings SteamVR closer and fills the glasses; higher shows more around you.</string>
@@ -2373,4 +2377,15 @@
     <string name="display_position_top">Top</string>
     <string name="display_position_bottom">Bottom</string>
     <string name="display_position_center">Center (default)</string>
+    <string name="glasses_6dof">6DoF virtual screen</string>
+    <string name="glasses_position">Positional tracking — experimental</string>
+    <string name="glasses_position_hint">Physical movement in VR and around virtual screens. Restarting tracking takes a moment.</string>
+    <string name="glasses_eye_height">Current eye height above floor</string>
+    <string name="glasses_floor">Set floor from current height</string>
+    <string name="glasses_floor_set">Set floor</string>
+    <string name="glasses_spatial_setup">Stereo camera setup and diagnostics</string>
+    <string name="glasses_spatial_setup_hint">Calibrate cameras before enabling hand controllers.</string>
+    <string name="glasses_spatial_open">Open setup</string>
+    <string name="glasses_hands">Hand controllers — experimental</string>
+    <string name="glasses_hands_hint">Requires verified calibration. Hands aim, pinch and grip; gamepad sticks move and turn. Combined hardware acceptance is pending.</string>
 </resources>

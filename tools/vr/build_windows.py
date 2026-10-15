@@ -16,9 +16,11 @@ SOURCE_TREES = ('tools/vr/src', 'tools/vr/tests', 'tools/vr/third_party',
                 'tools/vr/driver_droiddeck', 'tools/vr/layer')
 SOURCE_FILES = ('tools/vr/build.sh', 'tools/vr/build_windows.py', 'tools/local-cross.Dockerfile',
                 'app/src/main/cpp/waylandcomp/src/headpose_shm.h',
+                'app/src/main/cpp/waylandcomp/src/spatialpose_shm.h',
                 'app/src/main/cpp/waylandcomp/generated/xdg-shell-protocol.c',
                 'app/src/main/cpp/waylandcomp/generated/xdg-shell-client-protocol.h')
-LIBRARIES = {'droiddeck/bin/linuxarm64/driver_droiddeck.so', 'layer/libVkLayer_droiddeck_vr.so'}
+LIBRARIES = {'droiddeck/bin/linuxarm64/driver_droiddeck.so', 'layer/libVkLayer_droiddeck_vr.so',
+             'layer/libdroiddeck_vr_scheduling.so'}
 CONFIGS = {
     'droiddeck/driver.vrdrivermanifest': 'tools/vr/driver_droiddeck/driver.vrdrivermanifest',
     'droiddeck/resources/settings/default.vrsettings': 'tools/vr/driver_droiddeck/resources/settings/default.vrsettings',

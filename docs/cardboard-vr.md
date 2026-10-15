@@ -150,6 +150,11 @@ Enable **3D (side-by-side)** manually or opt into **3D for VR games** in the gla
 switching waits until SteamVR reports that it is running; starting or installing it does not change
 the display mode. A saved **3D for VR games** preference is retained.
 
+While SteamVR runs, its side-by-side source takes priority over the glasses' saved picture mode,
+including **3DoF virtual screen**. SteamVR already applies head tracking; projecting its combined
+eye pair onto a virtual screen would show both images in each eye and apply head rotation again.
+The glasses still supply poses to SteamVR. The saved picture mode resumes when SteamVR stops.
+
 With **Game on glasses** off, SteamVR keeps the glasses' picture settings and IMU while Android
 mirrors the phone output to the glasses. Turning off the dedicated display must not turn off the
 renderer/HMD proximity flag: SteamVR otherwise reports the headset as taken off and enters standby,

@@ -4,13 +4,32 @@ import com.droiddeck.launcher.gpu.Cardboard
 
 /** Share the actual picture mode with settings so controls match the rendered view. */
 internal object GlassesRendering {
-    enum class Picture { FLAT, VIRTUAL_SCREEN, STEREO }
+    enum class Picture { FLAT, DUPLICATED, VIRTUAL_SCREEN, STEREO }
 
-    fun outputHz(settings: GlassesSettings, state: GlassesState): Int =
-        if (state.sbs) if (state.sbs90) settings.sbsHz else 60 else settings.refreshHz
+    fun native30HzAvailable(settings: GlassesSettings, state: GlassesState): Boolean =
+        state.usable && state.supports30Hz && settings.gameOnGlasses
 
-    fun mirrorRefreshLimit(settings: GlassesSettings, state: GlassesState, outputActive: Boolean): Int =
-        if (state.usable && !outputActive) outputHz(settings, state) else 0
+    fun refreshRates(settings: GlassesSettings, state: GlassesState): List<Int> = buildList {
+        if (native30HzAvailable(settings, state)) add(30)
+        add(60)
+        if (!state.sbs || state.sbs90) add(90)
+        if (!state.sbs) add(120)
+    }
+
+    fun outputHz(settings: GlassesSettings, state: GlassesState): Int {
+        val requested = if (state.sbs) settings.sbsHz else settings.refreshHz
+        return when {
+            requested == 30 -> if (native30HzAvailable(settings, state)) 30 else 60
+            state.sbs && !state.sbs90 -> 60
+            else -> requested
+        }
+    }
+
+    fun mirrorRefreshLimit(settings: GlassesSettings, state: GlassesState, outputActive: Boolean): Int {
+        if (!state.usable || outputActive) return 0
+        val hz = outputHz(settings, state)
+        return if (hz == 30 && kotlin.math.abs(state.hz - 30f) >= 0.5f) 60 else hz
+    }
 
     fun fpsLimit(requested: Int, mirrorRefreshLimit: Int): Int = when {
         mirrorRefreshLimit <= 0 -> requested
@@ -22,14 +41,12 @@ internal object GlassesRendering {
         outputActive || (steamVrRunning && state.usable)
 
     fun picture(settings: GlassesSettings, stereoDisplay: Boolean, steamVrRunning: Boolean): Picture =
-        when (settings.picture3d) {
-            GlassesSettings.PICTURE_SCREEN -> Picture.VIRTUAL_SCREEN
-            GlassesSettings.PICTURE_SBS -> Picture.STEREO
-            else -> when {
-                steamVrRunning -> Picture.STEREO
-                stereoDisplay -> Picture.VIRTUAL_SCREEN
-                else -> Picture.FLAT
-            }
+        when {
+            steamVrRunning -> Picture.STEREO
+            settings.picture3d == GlassesSettings.PICTURE_SCREEN -> Picture.VIRTUAL_SCREEN
+            settings.picture3d == GlassesSettings.PICTURE_SBS -> Picture.STEREO
+            stereoDisplay -> Picture.DUPLICATED
+            else -> Picture.FLAT
         }
 
     fun cardboard(
@@ -55,12 +72,17 @@ internal object GlassesRendering {
         if (picture == Picture.FLAT) return Cardboard.OFF
         return Cardboard(
             enabled = true,
-            source = if (picture == Picture.STEREO) Cardboard.SOURCE_SBS else Cardboard.SOURCE_SCREEN,
+            source = when (picture) {
+                Picture.STEREO -> Cardboard.SOURCE_SBS
+                Picture.DUPLICATED -> Cardboard.SOURCE_FLAT
+                else -> Cardboard.SOURCE_SCREEN
+            },
             viewer = Cardboard.Viewer.VITURE.id,
             ipdMm = base.ipdMm,
             screenWidthDm = settings.screenWidthDm,
             screenDistanceDm = settings.screenDistanceDm,
-            headTracking = settings.headTracking && state.canControl,
+            headTracking = settings.headTracking && state.canControl &&
+                (picture == Picture.VIRTUAL_SCREEN || steamVrRunning),
             mono = !state.sbs,
         )
     }

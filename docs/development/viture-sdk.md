@@ -40,19 +40,41 @@ mode can fall back to the native table, with rollback on failure.
 
 `Game on glasses` uses Android's existing Presentation output. USB control alone
 does not create a video display: the phone, cable and adapter must expose a usable
-external display. Discovery checks both display name and product metadata, with
+external display. Enabling 3D also enables and saves `Game on glasses` before
+requesting the stereo mode, so the picture uses the glasses' presentation instead
+of the mirrored phone output. Returning to 2D keeps the game on the glasses.
+Discovery checks both display name and product metadata, with
 a single unnamed-display fallback when recognized glasses USB is present.
 
 Screen width and distance apply to **Virtual screen** rendering. In **Automatic**,
-ordinary 2D games stay flat, ordinary games with a confirmed SBS display use a
-virtual screen, and a running SteamVR session uses the direct stereo view.
+ordinary 2D games stay flat. On an SBS display, the complete flat frame is fitted
+into each eye without cropping or head tracking. A running SteamVR session uses
+the direct stereo view. Games or videos that already contain separate eye images
+use the explicit **Side-by-side game** picture setting. Switching SBS on does not
+activate a virtual screen or head tracking for ordinary games.
 The direct view uses SteamVR field of view instead of virtual-screen dimensions
 while SteamVR is running. A plain side-by-side game fills each eye and does not
 use the SteamVR field-of-view or recenter controls.
+
+All supported glasses with an available head-tracking connection have a separate
+**3DoF virtual screen** toggle, including VITURE, RayNeo and XREAL 1S. Availability
+comes from the connected transport's IMU capability rather than a model whitelist.
+The app renders this screen without enabling a built-in 3DoF mode or changing
+brightness. Enabling it selects Virtual screen, head tracking and Game on glasses,
+and saves those preferences without changing the glasses' 2D/SBS mode. It works
+with flat games in either display mode. Disabling it returns the picture to Automatic; switching
+SBS on or off preserves the 3DoF selection. Virtual screens center on the current
+viewing direction when tracking starts or the user recenters, including the
+up/down angle. Direct SteamVR views retain their gravity-aligned recentering.
+
 The settings UI and session renderer share this mode selection through
 `GlassesRendering`; home-screen changes configure sessions rather than resizing
 Android's mirrored launcher. Regular refresh rate applies to 2D output; SBS uses
 the model's separate 3D refresh rate.
+Both lists offer 30 Hz only when Android advertises a matching native display mode at the current
+resolution and **Game on glasses** is enabled. Android's presentation selects that mode without a
+vendor command. A saved 30 Hz choice falls back to 60 Hz if the display or eye layout lacks it;
+mirrored output never substitutes a 30 fps rendering limit.
 Software picture controls remain available while a display is connected even if
 USB control is lost; hardware controls and head tracking still require USB.
 Presentation refresh preferences are revalidated on display changes even when

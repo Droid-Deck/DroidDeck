@@ -31,9 +31,22 @@ compile() {
         cc -std=c11 -O2 -Wall -Wextra -Werror -Ibuild/vr/include -Itools/vr/src \
             -o build/vr/test_fence_tracker tools/vr/tests/test_fence_tracker.c
         build/vr/test_fence_tracker
+        cc -std=c11 -O2 -Wall -Wextra -Wno-unused-parameter -pthread -Ibuild/vr/include \
+            -o build/vr/test_timeline_bridge tools/vr/tests/test_timeline_bridge.c -ldl
+        build/vr/test_timeline_bridge
         c++ -std=c++17 -O2 -Wall -Wextra -Werror -Itools/vr/src \
             -o build/vr/test_render_target tools/vr/tests/test_render_target.cpp
         build/vr/test_render_target
+        c++ -std=c++17 -O2 -Wall -Wextra -Werror -Itools/vr/src \
+            -o build/vr/test_spatial_tracking tools/vr/tests/test_spatial_tracking.cpp
+        build/vr/test_spatial_tracking
+        c++ -std=c++17 -O2 -Wall -Wextra -Wno-unused-parameter -pthread -Itools/vr/src \
+            -o build/vr/test_optical_controller tools/vr/tests/test_optical_controller.cpp
+        build/vr/test_optical_controller
+        cc -shared -fPIC -O2 -Wall -Wextra -Werror \
+            -o build/vr/libdroiddeck_vr_scheduling.so tools/vr/src/scheduling.c -ldl
+        cc -O2 -Wall -Wextra -Werror -o build/vr/test_scheduling tools/vr/tests/test_scheduling.c
+        LD_PRELOAD="$PWD/build/vr/libdroiddeck_vr_scheduling.so" build/vr/test_scheduling
         mkdir -p build/vr/stub
         aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wl,-soname,libwayland-client.so.0 -Itools/vr/third_party/wayland \
             -o build/vr/stub/libwayland-client.so tools/vr/src/wayland_client_stub.c
@@ -46,8 +59,10 @@ compile() {
             build/vr/xdg-shell-protocol.o -Lbuild/vr/stub -lwayland-client -ldl
         aarch64-linux-gnu-gcc -std=c11 -shared -fPIC -O2 -Wall -Wextra -Wno-unused-parameter -fvisibility=hidden -pthread \
             -Wl,-z,defs -Ibuild/vr/include -o build/vr/out/layer/libVkLayer_droiddeck_vr.so tools/vr/src/vk_layer_droiddeck_vr.c -ldl
+        aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wextra -Werror -Wl,-z,defs \
+            -o build/vr/out/layer/libdroiddeck_vr_scheduling.so tools/vr/src/scheduling.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded build/vr/out/droiddeck/bin/linuxarm64/driver_droiddeck.so \
-            build/vr/out/layer/libVkLayer_droiddeck_vr.so')
+            build/vr/out/layer/libVkLayer_droiddeck_vr.so build/vr/out/layer/libdroiddeck_vr_scheduling.so')
     if [ "$native" = 1 ]; then
         (cd "$repo" && "${cmd[@]}")
     else

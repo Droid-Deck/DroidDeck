@@ -165,6 +165,36 @@ class GlassesUsbTest {
         assertEquals(listOf(gt), manager.requests)
     }
 
+    @Test fun screen3dofAvailabilityFollowsTheTrackingTransportAcrossBrands() {
+        val devices = listOf(device(0x1011), device(0x1019), device(0x1131),
+            device(0xaf50, 0x1bbb, "RayNeo Air 4 Pro"),
+            device(0xaf50, 0x3941, "RayNeo GT MAX"),
+            device(0x043e, 0x3318, "XREAL 1S"))
+        try {
+            for (device in devices) for (imu in listOf(false, true)) {
+                manager.devices.clear()
+                manager.devices[device.deviceName] = device
+                manager.granted.add(device.deviceName)
+                field("linkDevice").set(null, device)
+                field("link").set(null, object : GlassesLink {
+                    override val hasImu = imu
+                    override fun send(msgId: Int, payload: ByteArray) = true
+                    override fun close() {}
+                })
+                refresh()
+                assertTrue(state.value.canControl)
+                assertEquals(imu, state.value.supportsScreen3dof)
+            }
+            manager.devices.clear()
+            refresh()
+            assertFalse(state.value.supportsScreen3dof)
+        } finally {
+            field("link").set(null, null)
+            field("linkDevice").set(null, null)
+            (field("handler").get(null) as Handler).removeCallbacksAndMessages(null)
+        }
+    }
+
     private fun refresh(ask: Boolean = false) {
         Glasses::class.java.getDeclaredMethod("refresh", Boolean::class.javaPrimitiveType)
             .apply { isAccessible = true }.invoke(Glasses, ask)

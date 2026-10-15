@@ -758,26 +758,20 @@ static int submit_drop_wait(VkSemaphore s, uint64_t value) {
     const uint64_t queued = b->submitted;
     const uint64_t seen_us = b->seen_us;
     VkDevice dev = b->dev;
-    _Atomic uint64_t *counter = b->counter;
     pthread_mutex_unlock(&g_br_lock);
     if (!imported || !value || value <= queued) return 0;
     struct dev *d = dev_for(dev);
     if (!d) return 0;
     PFN_vkGetSemaphoreCounterValue get = (PFN_vkGetSemaphoreCounterValue)d->gdpa(dev, "vkGetSemaphoreCounterValue");
     if (!get) get = (PFN_vkGetSemaphoreCounterValue)d->gdpa(dev, "vkGetSemaphoreCounterValueKHR");
-    PFN_vkSignalSemaphore sig = (PFN_vkSignalSemaphore)d->gdpa(dev, "vkSignalSemaphore");
-    if (!sig) sig = (PFN_vkSignalSemaphore)d->gdpa(dev, "vkSignalSemaphoreKHR");
     if (!get) return 0;
     const uint64_t start = now_us();
     const uint64_t until = start + (start - seen_us > SHARED_IDLE_US ? 0 : SUBMIT_GRACE_US);
     for (;;) {
         uint64_t local = 0;
         if (get(dev, s, &local) == VK_SUCCESS && local >= value) return 0;
-        uint64_t shared = atomic_load(counter);
-        if (shared >= value && sig) {
-            VkSemaphoreSignalInfo si = {VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO, NULL, s, shared};
-            if (sig(dev, &si) == VK_SUCCESS) return 0;
-        }
+        /* Only the poller mirrors shared values. A second host signal here can
+         * race its signal and submit the same timeline value twice. */
         if (now_us() >= until) break;
         usleep(100);
     }
