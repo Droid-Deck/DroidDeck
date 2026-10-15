@@ -104,8 +104,11 @@ class BluezBusTest(unittest.TestCase):
         self.hold.write_text("0")
         self.call(bz.ADAPTER, bz.PROPERTIES, "Set", self.powered(False))
         self.assertEqual(self.request.read_text(), "off")
+        first = self.request.stat().st_ino
         self.call(bz.ADAPTER, bz.PROPERTIES, "Set", self.powered(True))
         self.assertEqual(self.request.read_text(), "on")
+        self.assertNotEqual(self.request.stat().st_ino, first)
+        self.assertFalse(self.request.with_name(self.request.name + ".staged").exists())
         with self.assertRaises(GLib.Error):
             self.call(bz.ADAPTER, bz.PROPERTIES, "Set",
                       GLib.Variant("(ssv)", (bz.ADAPTER_INTERFACE, "Discoverable", GLib.Variant("b", True))))

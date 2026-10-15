@@ -117,7 +117,9 @@ class Bluetooth:
         if (interface, name) not in WRITABLE:
             return False
         if not radios_held():
-            REQUEST.write_text("on" if value.unpack() else "off")
+            staged = REQUEST.with_name(REQUEST.name + ".staged")
+            staged.write_text("on" if value.unpack() else "off")
+            staged.replace(REQUEST)
         return True
 
     def call(self, bus, sender, path, interface, method, args, invocation):

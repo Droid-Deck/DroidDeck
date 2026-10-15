@@ -265,8 +265,11 @@ class NetworkBusTest(unittest.TestCase):
         hold.write_text("0")
         self.call(nm.ROOT, nm.PROPERTIES, "Set", enabled(False))
         self.assertEqual(request.read_text(), "off")
+        first = request.stat().st_ino
         self.call(nm.ROOT, nm.PROPERTIES, "Set", enabled(True))
         self.assertEqual(request.read_text(), "on")
+        self.assertNotEqual(request.stat().st_ino, first)
+        self.assertFalse(request.with_name(request.name + ".staged").exists())
         self.assertTrue(self.prop(nm.ROOT, nm.NAME, "WirelessEnabled"))
         with self.assertRaises(GLib.Error):
             self.call(nm.ROOT, nm.PROPERTIES, "Set", GLib.Variant("(ssv)", (nm.NAME, "WwanEnabled", GLib.Variant("b", True))))

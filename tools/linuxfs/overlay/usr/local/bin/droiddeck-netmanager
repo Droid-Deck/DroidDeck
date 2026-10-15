@@ -346,7 +346,9 @@ class NetworkManager:
         if (interface, name) not in WRITABLE:
             return False
         if not radios_held():
-            WIFI_REQUEST.write_text("on" if value.unpack() else "off")
+            staged = WIFI_REQUEST.with_name(WIFI_REQUEST.name + ".staged")
+            staged.write_text("on" if value.unpack() else "off")
+            staged.replace(WIFI_REQUEST)
         return True
 
     def call(self, bus, sender, path, interface, method, args, invocation):

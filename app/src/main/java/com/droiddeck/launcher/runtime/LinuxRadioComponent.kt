@@ -33,8 +33,10 @@ class LinuxRadioComponent(
     }
 
     override fun start() {
-        File(rootDir, WIFI_REQUEST).delete()
-        File(rootDir, BLUETOOTH_REQUEST).delete()
+        for (request in listOf(WIFI_REQUEST, BLUETOOTH_REQUEST)) {
+            File(rootDir, request).delete()
+            File(rootDir, "$request.claimed").delete()
+        }
         val registered = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) = publish()
         }
@@ -74,10 +76,10 @@ class LinuxRadioComponent(
     }
 
     private fun take(path: String): Boolean? {
-        val file = File(rootDir, path)
-        if (!file.isFile) return null
-        val wanted = try { file.readText().trim() } catch (e: IOException) { return null }
-        file.delete()
+        val claimed = File(rootDir, "$path.claimed")
+        if (!File(rootDir, path).renameTo(claimed)) return null
+        val wanted = try { claimed.readText().trim() } catch (e: IOException) { null }
+        claimed.delete()
         return when (wanted) {
             "on" -> true
             "off" -> false
