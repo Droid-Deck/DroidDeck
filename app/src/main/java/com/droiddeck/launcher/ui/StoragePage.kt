@@ -562,6 +562,7 @@ private fun toolDetail(t: ToolUsage): String = when (t.reason) {
     ToolReason.STEAM_TOOL -> stringResource(R.string.storage_tool_steam)
     ToolReason.OLD_RUNTIME -> stringResource(R.string.storage_tool_old_runtime)
     ToolReason.X86_PROTON -> stringResource(R.string.storage_tool_x86_proton)
+    ToolReason.CUSTOM_UNKNOWN -> stringResource(R.string.storage_tool_custom_unknown)
     ToolReason.CUSTOM -> when {
         t.isDefault -> stringResource(R.string.storage_tool_custom_default)
         t.games > 0 -> pluralStringResource(R.plurals.storage_tool_custom_games, t.games, t.games)

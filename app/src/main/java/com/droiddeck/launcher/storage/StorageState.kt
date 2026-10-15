@@ -74,44 +74,47 @@ object StorageState {
     fun safeBytes(report: StorageReport): Long = SAFE.sumOf { bytes(report, it) }
 
     fun clean(context: Context, items: Set<CleanItem>, onDone: (Long?) -> Unit) {
-        val current = report
-        if (current == null || cleaning || SessionState.running) { onDone(null); return }
-        val app = context.applicationContext
-        cleaning = true
-        Thread({
-            val before = freeBytes(app)
-            for (item in items) runCatching { cleanItem(current, item) }.onFailure { Log.w(TAG, "could not clean $item", it) }
-            val freed = (freeBytes(app) - before).coerceAtLeast(0)
-            Log.i(TAG, "cleaned ${items.joinToString()} and freed $freed bytes")
-            val rescanned = runCatching { StorageScan.scan(app) }.getOrNull()
-            main.post {
-                if (rescanned != null) report = rescanned
-                cleaning = false
-                lastFreed = freed
-                onDone(freed)
-            }
-        }, "storage-clean").start()
-    }
-
-    fun removeTool(context: Context, tool: ToolUsage, onDone: (Long?) -> Unit) {
-        if (tool.state != ToolState.UNUSED) { onDone(null); return }
-        val current = report ?: run { onDone(null); return }
         if (cleaning || SessionState.running) { onDone(null); return }
         val app = context.applicationContext
         cleaning = true
         Thread({
             val before = freeBytes(app)
-            runCatching { deleteTool(tool) }.onFailure { Log.w(TAG, "could not remove ${tool.key}", it) }
-            val freed = (freeBytes(app) - before).coerceAtLeast(0)
-            Log.i(TAG, "removed ${tool.key} and freed $freed bytes")
-            val rescanned = runCatching { StorageScan.scan(app) }.getOrNull()
-            main.post {
-                report = rescanned ?: current
-                cleaning = false
-                lastFreed = freed
-                onDone(freed)
+            val fresh = runCatching { StorageScan.scan(app) }.onFailure { Log.w(TAG, "storage scan before cleanup failed", it) }.getOrNull()
+            if (fresh != null && !SessionState.running) {
+                for (item in items) runCatching { cleanItem(fresh, item) }.onFailure { Log.w(TAG, "could not clean $item", it) }
             }
+            val freed = if (fresh == null) null else (freeBytes(app) - before).coerceAtLeast(0)
+            Log.i(TAG, "cleaned ${items.joinToString()} and freed $freed bytes")
+            finish(app, freed, onDone)
+        }, "storage-clean").start()
+    }
+
+    fun removeTool(context: Context, tool: ToolUsage, onDone: (Long?) -> Unit) {
+        if (tool.state != ToolState.UNUSED || cleaning || SessionState.running) { onDone(null); return }
+        val app = context.applicationContext
+        cleaning = true
+        Thread({
+            val before = freeBytes(app)
+            val current = runCatching { StorageScan.scan(app) }.getOrNull()?.tools?.firstOrNull { it.key == tool.key }
+            val freed = if (current?.state == ToolState.UNUSED && !SessionState.running) {
+                runCatching { deleteTool(current) }.onFailure { Log.w(TAG, "could not remove ${tool.key}", it) }
+                (freeBytes(app) - before).coerceAtLeast(0)
+            } else {
+                Log.w(TAG, "kept ${tool.key}: it is in use now or could not be checked")
+                null
+            }
+            finish(app, freed, onDone)
         }, "storage-remove-tool").start()
+    }
+
+    private fun finish(app: Context, freed: Long?, onDone: (Long?) -> Unit) {
+        val rescanned = runCatching { StorageScan.scan(app) }.getOrNull()
+        main.post {
+            if (rescanned != null) report = rescanned
+            cleaning = false
+            lastFreed = freed
+            onDone(freed)
+        }
     }
 
     private fun cleanItem(report: StorageReport, item: CleanItem) {

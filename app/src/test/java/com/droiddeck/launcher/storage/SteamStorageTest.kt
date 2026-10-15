@@ -97,6 +97,26 @@ class SteamStorageTest {
         assertEquals("GE-Proton11-9-aarch64", SteamStorage.compatToolName(vdf))
     }
 
+    @Test fun listingCountsPendingDownloadsAndUnreadableManifests() {
+        val library = tmp.newFolder("lib")
+        val apps = File(library, "steamapps").apply { mkdirs() }
+        File(apps, "appmanifest_10.acf").writeText("\"appid\" \"10\"\n\"StateFlags\" \"4\"")
+        File(apps, "appmanifest_379720.acf.1131809557.tmp").writeText("")
+        File(apps, "downloading/3061810").mkdirs()
+        File(apps, "appmanifest_20.acf").mkdirs()
+        val listing = SteamStorage.manifests(library)!!
+        assertTrue(listing.complete)
+        assertEquals(setOf(10, 379720, 3061810), listing.ids)
+        val named = File(apps, "appmanifest_30.acf").apply { writeText("x"); setReadable(false) }
+        val unnamed = File(apps, "appmanifest_.acf").apply { writeText("x"); setReadable(false) }
+        if (!named.canRead() && !unnamed.canRead()) {
+            val after = SteamStorage.manifests(library)!!
+            assertTrue(30 in after.ids)
+            assertFalse(after.complete)
+        }
+        assertNull(SteamStorage.manifests(File(library, "missing")))
+    }
+
     @Test fun leftoverIdsSkipTheSharedPrefixAndShortcuts() {
         assertNull(SteamStorage.leftoverId("0"))
         assertNull(SteamStorage.leftoverId("3207321049"))
@@ -105,7 +125,7 @@ class SteamStorageTest {
         assertEquals(452280, SteamStorage.leftoverId("452280"))
     }
 
-    @Test fun stubPrefixesAndCloudSaves() {
+    @Test fun stubPrefixes() {
         val stub = tmp.newFolder("compatdata", "10")
         assertTrue(SteamStorage.isStubPrefix(stub))
         File(stub, "pfx/drive_c/users/steamuser/AppData/LocalLow/Studio/Game").mkdirs()
@@ -115,10 +135,5 @@ class SteamStorageTest {
         File(used, "pfx/drive_c/users/steamuser/Saved Games").mkdirs()
         File(used, "pfx/drive_c/users/steamuser/Saved Games/slot1.sav").writeText("x")
         assertFalse(SteamStorage.isStubPrefix(used))
-        val steam = tmp.newFolder("Steam")
-        File(steam, "userdata/123/20").mkdirs()
-        assertFalse(SteamStorage.cloudSaves(steam, 20))
-        File(steam, "userdata/123/20/remotecache.vdf").writeText("x")
-        assertTrue(SteamStorage.cloudSaves(steam, 20))
     }
 }

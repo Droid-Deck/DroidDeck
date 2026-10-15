@@ -2328,7 +2328,7 @@
     <string name="storage_legend_system">Linux system</string>
     <string name="storage_legend_app">DroidDeck</string>
     <string name="storage_clean_up_title">Clean up</string>
-    <string name="storage_clean_up_lede">Nothing here touches your installed games or Steam Cloud saves.</string>
+    <string name="storage_clean_up_lede">Nothing here touches your installed games or downloads in progress.</string>
     <string name="storage_nothing_to_clean">Nothing to clean up right now.</string>
     <string name="storage_selected">Selected: %1$s · %2$s → %3$s free</string>
     <string name="storage_cleaning">Cleaning up…</string>
@@ -2379,6 +2379,8 @@
     <string name="storage_tool_x86_proton">x86 Proton, which DroidDeck cannot run</string>
     <string name="storage_tool_custom_default">Default for every game</string>
     <string name="storage_tool_custom_unused">No game is set to it</string>
+    <string name="storage_tool_custom_unknown">Steam’s settings could not be read, so it is kept</string>
+    <string name="storage_cleanup_busy">Wait for the storage clean-up to finish</string>
     <string name="storage_low_title">Only %1$s free</string>
     <string name="storage_low_body">Steam needs room for updates and shader caches. Below 10 GB, game updates can fail partway.</string>
     <string name="storage_low_safe">%1$s can be freed safely.</string>
@@ -2397,12 +2399,12 @@
         <item quantity="other">%d tools</item>
     </plurals>
     <plurals name="storage_item_leftovers_detail">
-        <item quantity="one">%d game’s prefix or shader cache, with no saves outside Steam Cloud</item>
-        <item quantity="other">%d games’ prefixes and shader caches, with no saves outside Steam Cloud</item>
+        <item quantity="one">%d game’s empty prefix folders and shader cache</item>
+        <item quantity="other">%d games’ empty prefix folders and shader caches</item>
     </plurals>
     <plurals name="storage_item_leftovers_unsure_detail">
-        <item quantity="one">%d game’s prefix with no Steam Cloud saves. Back up its saves first if you want them.</item>
-        <item quantity="other">%d games’ prefixes with no Steam Cloud saves. Back up their saves first if you want them.</item>
+        <item quantity="one">%d game’s prefix still holds files, which can include local saves. Back them up first if you want them.</item>
+        <item quantity="other">%d games’ prefixes still hold files, which can include local saves. Back them up first if you want them.</item>
     </plurals>
     <plurals name="storage_tag_games">
         <item quantity="one">%d game</item>

@@ -21,7 +21,7 @@ class GameUsage(
 }
 
 enum class ToolState { IN_USE, REQUIRED, UNUSED }
-enum class ToolReason { DEFAULT_PROTON, PROTON, FEX_RUNTIME, ARM_RUNTIME, REDISTRIBUTABLES, FEX, STEAM_TOOL, OLD_RUNTIME, X86_PROTON, CUSTOM }
+enum class ToolReason { DEFAULT_PROTON, PROTON, FEX_RUNTIME, ARM_RUNTIME, REDISTRIBUTABLES, FEX, STEAM_TOOL, OLD_RUNTIME, X86_PROTON, CUSTOM, CUSTOM_UNKNOWN }
 
 class ToolUsage(
     val key: String, val name: String, val bytes: Long, val state: ToolState, val reason: ToolReason,
@@ -81,17 +81,20 @@ object StorageScan {
         val primary = runCatching { steamRoot.canonicalPath }.getOrDefault(steamRoot.path)
         val art = runCatching { Library.steamGames(context) }.getOrDefault(emptyList()).associateBy { it.appId }
 
-        class Lib(val root: File, val label: String, val internal: Boolean, val data: File, val manifests: List<SteamStorage.Manifest>?)
+        class Lib(val root: File, val label: String, val internal: Boolean, val data: File, val listing: SteamStorage.Listing?) {
+            val manifests: List<SteamStorage.Manifest>? get() = listing?.manifests
+        }
         val libs = libraries.map { (root, label) ->
             val internal = runCatching { root.canonicalPath }.getOrDefault(root.path) == primary
             val data = if (internal) root else SecondaryLibrary.privateRoot(files, root)
             Lib(root, label, internal, data, SteamStorage.manifests(root))
         }
-        val everyId = libs.flatMap { it.manifests.orEmpty() }.map { it.appId }.toSet()
-        val mappings = runCatching { SteamStorage.compatMappings(File(steamRoot, "config/config.vdf").readText()) }.getOrDefault(emptyMap())
+        val everyLibraryRead = libs.all { it.listing?.complete == true }
+        val everyId = libs.flatMap { it.listing?.ids.orEmpty() }.toSet()
+        val mappings = runCatching { SteamStorage.compatMappings(File(steamRoot, "config/config.vdf").readText()) }.getOrNull()
         val installedGames = libs.flatMap { it.manifests.orEmpty() }.filter { !SteamStorage.isTool(it) && it.installed }.map { it.appId.toString() }.toSet()
-        fun gamesOn(tool: String) = mappings.count { (app, name) -> name == tool && app in installedGames }
-        val defaultTool = mappings["0"]
+        fun gamesOn(tool: String) = mappings.orEmpty().count { (app, name) -> name == tool && app in installedGames }
+        val defaultTool = mappings?.get("0")
 
         val tools = LinkedHashMap<String, ToolUsage>()
         val games = ArrayList<GameUsage>()
@@ -153,14 +156,19 @@ object StorageScan {
             val count = gamesOn(name)
             val isDefault = defaultTool == name
             tools["dir:${dir.name}"] = ToolUsage(
-                "dir:${dir.name}", dir.name, bytes, if (count > 0 || isDefault) ToolState.IN_USE else ToolState.UNUSED,
-                ToolReason.CUSTOM, count, isDefault, emptyList(), listOf(dir),
+                "dir:${dir.name}", dir.name, bytes,
+                when {
+                    mappings == null -> ToolState.REQUIRED
+                    count > 0 || isDefault -> ToolState.IN_USE
+                    else -> ToolState.UNUSED
+                },
+                if (mappings == null) ToolReason.CUSTOM_UNKNOWN else ToolReason.CUSTOM, count, isDefault, emptyList(), listOf(dir),
             )
         }
 
         val leftovers = ArrayList<Leftover>()
         for (lib in libs) {
-            if (lib.manifests == null) continue
+            if (!everyLibraryRead) break
             val prefixes = File(lib.data, "steamapps/compatdata").listFiles().orEmpty()
                 .mapNotNull { f -> SteamStorage.leftoverId(f.name)?.takeIf { it !in everyId && f.isDirectory }?.let { it to f } }.toMap()
             val caches = File(lib.data, "steamapps/shadercache").listFiles().orEmpty()
@@ -169,7 +177,7 @@ object StorageScan {
                 val prefix = prefixes[id]
                 val cache = caches[id]
                 val bytes = (prefix?.let { walker.measure(it) } ?: 0) + (cache?.let { walker.measure(it) } ?: 0)
-                val safe = prefix == null || SteamStorage.isStubPrefix(prefix) || SteamStorage.cloudSaves(steamRoot, id)
+                val safe = prefix == null || SteamStorage.isStubPrefix(prefix)
                 leftovers.add(Leftover(id, prefix, cache, bytes, safe))
             }
         }

@@ -46,11 +46,38 @@ object SteamStorage {
         )
     }
 
-    fun manifests(library: File): List<Manifest>? {
-        val files = File(library, "steamapps").listFiles { f ->
-            f.isFile && f.name.startsWith("appmanifest_") && f.name.endsWith(".acf")
-        } ?: return null
-        return files.sortedBy { it.name }.mapNotNull { f -> runCatching { parseManifest(f, f.readText()) }.getOrNull() }
+    class Listing(val manifests: List<Manifest>, val otherIds: Set<Int>, val complete: Boolean) {
+        val ids: Set<Int> get() = manifests.map { it.appId }.toSet() + otherIds
+    }
+
+    private val PENDING_MANIFEST = Regex("appmanifest_(\\d+)\\.acf\\..+")
+
+    // A partial download has no manifest yet, only a temporary one and its staging folder.
+    fun manifests(library: File): Listing? {
+        val apps = File(library, "steamapps")
+        val names = apps.list() ?: return null
+        var complete = true
+        val other = HashSet<Int>()
+        val read = ArrayList<Manifest>()
+        for (name in names.sorted()) {
+            val pending = PENDING_MANIFEST.matchEntire(name)
+            if (pending != null) {
+                pending.groupValues[1].toIntOrNull()?.let(other::add)
+                continue
+            }
+            if (!name.startsWith("appmanifest_") || !name.endsWith(".acf")) continue
+            val f = File(apps, name)
+            if (!f.isFile) continue
+            val named = name.removePrefix("appmanifest_").removeSuffix(".acf").toIntOrNull()
+            val text = runCatching { f.readText() }.getOrNull()
+            if (text == null) {
+                if (named != null) other.add(named) else complete = false
+                continue
+            }
+            parseManifest(f, text)?.let(read::add)
+        }
+        File(apps, "downloading").list()?.forEach { it.toIntOrNull()?.let(other::add) }
+        return Listing(read, other, complete)
     }
 
     fun isTool(m: Manifest): Boolean = m.appId in VALVE_TOOLS ||
@@ -93,7 +120,4 @@ object SteamStorage {
 
     fun isStubPrefix(prefix: File): Boolean = prefix.walkTopDown().onEnter { !java.nio.file.Files.isSymbolicLink(it.toPath()) }
         .none { it.isFile && it.name != "steam_autocloud.vdf" && !java.nio.file.Files.isSymbolicLink(it.toPath()) }
-
-    fun cloudSaves(steamRoot: File, appId: Int): Boolean =
-        File(steamRoot, "userdata").listFiles()?.any { File(it, "$appId/remotecache.vdf").isFile } == true
 }
