@@ -10,9 +10,11 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.droiddeck.launcher.files.FileOps
+import com.droiddeck.launcher.runtime.FlatpakManager
+import com.droiddeck.launcher.session.ComponentsManager
 import com.droiddeck.launcher.session.SessionState
 
-enum class CleanItem { OLD_TOOLS, LEFTOVERS, LEFTOVERS_UNSURE, LOGS, UNUSED_CUSTOM, SHADERS }
+enum class CleanItem { OLD_TOOLS, LEFTOVERS, LEFTOVERS_UNSURE, LOGS, UNUSED_CUSTOM, UNUSED_COMPONENTS, SHADERS }
 
 object StorageState {
     private const val TAG = "StorageState"
@@ -26,6 +28,9 @@ object StorageState {
     var cleaning by mutableStateOf(false)
         private set
     var lastFreed by mutableStateOf<Long?>(null)
+    var progress by mutableStateOf<String?>(null)
+        private set
+    var lastError by mutableStateOf<String?>(null)
 
     var openRequests by mutableIntStateOf(0)
         private set
@@ -34,6 +39,7 @@ object StorageState {
     @Volatile var lowSpaceDismissed = false
 
     private val main = Handler(Looper.getMainLooper())
+    @Volatile private var appContext: Context? = null
 
     fun requestOpen() {
         openPending = true
@@ -66,6 +72,7 @@ object StorageState {
         CleanItem.LEFTOVERS_UNSURE -> report.leftovers.filter { !it.safe }.sumOf { it.bytes }
         CleanItem.LOGS -> report.logBytes
         CleanItem.UNUSED_CUSTOM -> report.unusedTools.filter { it.reason == ToolReason.CUSTOM }.sumOf { it.bytes }
+        CleanItem.UNUSED_COMPONENTS -> report.unusedComponents.sumOf { it.bytes }
         CleanItem.SHADERS -> report.installedShaders
     }
 
@@ -76,6 +83,7 @@ object StorageState {
     fun clean(context: Context, items: Set<CleanItem>, onDone: (Long?) -> Unit) {
         if (cleaning || SessionState.running) { onDone(null); return }
         val app = context.applicationContext
+        appContext = app
         cleaning = true
         Thread({
             val before = freeBytes(app)
@@ -107,6 +115,64 @@ object StorageState {
         }, "storage-remove-tool").start()
     }
 
+    // Every action works from a fresh scan so nothing is deleted on the strength of an older one.
+    private fun act(context: Context, name: String, action: (Context, StorageReport) -> Boolean, onDone: (Long?) -> Unit = {}) {
+        if (cleaning || SessionState.running) { onDone(null); return }
+        val app = context.applicationContext
+        appContext = app
+        cleaning = true
+        lastError = null
+        Thread({
+            val before = freeBytes(app)
+            val fresh = runCatching { StorageScan.scan(app) }.getOrNull()
+            val done = fresh != null && !SessionState.running &&
+                runCatching { action(app, fresh) }.onFailure { Log.w(TAG, "$name failed", it); main.post { lastError = it.message } }.getOrDefault(false)
+            val freed = if (done) (freeBytes(app) - before).coerceAtLeast(0) else null
+            Log.i(TAG, "$name: freed $freed bytes")
+            main.post { progress = null }
+            finish(app, freed, onDone)
+        }, "storage-$name").start()
+    }
+
+    fun clearShaders(context: Context, appId: Int) = act(context, "shaders-$appId", { _, fresh ->
+        val dir = fresh.games.firstOrNull { it.appId == appId }?.shaderDir ?: return@act false
+        FileOps.delete(dir)
+    })
+
+    fun removeLeftover(context: Context, appId: Int) = act(context, "leftover-$appId", { _, fresh ->
+        val leftover = fresh.leftovers.firstOrNull { it.appId == appId } ?: return@act false
+        deleteLeftover(leftover)
+        true
+    })
+
+    fun removeComponent(context: Context, usage: ComponentUsage) = act(context, "component", { app, fresh ->
+        val current = fresh.components.firstOrNull { it.packageFile == usage.packageFile && it.protonId == usage.protonId &&
+            it.comp == usage.comp && it.version == usage.version } ?: return@act false
+        !current.inUse && deleteComponent(app, current)
+    })
+
+    fun uninstallFlatpak(context: Context, id: String) = act(context, "flatpak-$id", { app, fresh ->
+        if (fresh.flatpakApps.none { it.id == id }) return@act false
+        val error = FlatpakManager.uninstall(app, id) { step, _ -> main.post { progress = step } }
+        if (error != null) main.post { lastError = error }
+        error == null
+    })
+
+    fun pruneFlatpak(context: Context) = act(context, "flatpak-prune", { app, _ ->
+        val error = FlatpakManager.prune(app) { step, _ -> main.post { progress = step } }
+        if (error != null) main.post { lastError = error }
+        error == null
+    })
+
+    private fun deleteComponent(app: Context, usage: ComponentUsage): Boolean {
+        if (usage.inUse) return false
+        usage.packageFile?.let { file ->
+            return runCatching { ComponentsManager.deletePackage(app, file) }.onFailure { Log.w(TAG, "kept $file", it) }.isSuccess
+        }
+        val proton = usage.protonId ?: return false
+        return ComponentsManager.deleteUnusedOriginal(app, proton, usage.comp, usage.version)
+    }
+
     private fun finish(app: Context, freed: Long?, onDone: (Long?) -> Unit) {
         val rescanned = runCatching { StorageScan.scan(app) }.getOrNull()
         main.post {
@@ -121,6 +187,7 @@ object StorageState {
         when (item) {
             CleanItem.OLD_TOOLS -> report.unusedTools.filter { it.reason != ToolReason.CUSTOM }.forEach(::deleteTool)
             CleanItem.UNUSED_CUSTOM -> report.unusedTools.filter { it.reason == ToolReason.CUSTOM }.forEach(::deleteTool)
+            CleanItem.UNUSED_COMPONENTS -> report.unusedComponents.forEach { deleteComponent(appContext!!, it) }
             CleanItem.LEFTOVERS -> report.leftovers.filter { it.safe }.forEach(::deleteLeftover)
             CleanItem.LEFTOVERS_UNSURE -> report.leftovers.filter { !it.safe }.forEach(::deleteLeftover)
             CleanItem.LOGS -> report.logs.forEach { FileOps.delete(it) }

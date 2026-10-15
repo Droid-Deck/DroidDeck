@@ -6,11 +6,14 @@ import android.system.Os
 import android.system.OsConstants
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.runtime.LinuxRuntime
+import android.util.Log
+import com.droiddeck.launcher.runtime.FlatpakManager
+import com.droiddeck.launcher.session.ComponentsManager
 import com.droiddeck.launcher.session.SecondaryLibrary
 import com.droiddeck.launcher.session.SessionPaths
 import java.io.File
 
-enum class Bucket { GAMES, GAME_DATA, TOOLS, STORES, DESKTOP, SYSTEM, DROIDDECK }
+enum class Bucket { GAMES, GAME_DATA, TOOLS, COMPONENTS, STORES, DESKTOP, SYSTEM, DROIDDECK }
 
 class GameUsage(
     val appId: Int, val name: String, val art: File?, val library: String, val internal: Boolean, val lastPlayed: Long,
@@ -30,6 +33,13 @@ class ToolUsage(
 
 class Leftover(val appId: Int, val prefix: File?, val shaders: File?, val bytes: Long, val safe: Boolean)
 
+class ComponentUsage(
+    val comp: String, val version: String, val bytes: Long, val inUse: Boolean,
+    val packageFile: String? = null, val protonId: String? = null, val protonName: String? = null,
+)
+
+class FlatpakUsage(val id: String, val name: String, val bytes: Long)
+
 class StorageReport(
     val at: Long,
     val total: Long,
@@ -44,11 +54,18 @@ class StorageReport(
     val leftovers: List<Leftover>,
     val logs: List<File>,
     val logBytes: Long,
+    val components: List<ComponentUsage>,
+    val flatpakApps: List<FlatpakUsage>,
+    val flatpakRuntimes: Long,
+    val otherPrefixes: Long,
+    val leftoversChecked: Boolean,
 ) {
     val droiddeck: Long get() = buckets.values.sum()
     val installedShaders: Long get() = games.sumOf { it.shaders }
     val unusedTools: List<ToolUsage> get() = tools.filter { it.state == ToolState.UNUSED }
     val gamesOnSd: Int get() = games.count { !it.internal }
+    val unusedComponents: List<ComponentUsage> get() = components.filter { !it.inUse }
+    val flatpakCache: Long get() = (flatpak - flatpakApps.sumOf { it.bytes } - flatpakRuntimes).coerceAtLeast(0)
 }
 
 object StorageScan {
@@ -186,6 +203,24 @@ object StorageScan {
             listOf(File(LinuxRuntime.logDir(context), SessionPaths.TOOLS_DIR)).filter { it.exists() }
         val logBytes = logs.sumOf { walker.measure(it) }
 
+        val flatpakDir = File(rootfs, "root/.local/share/flatpak")
+        val flatpakNames = runCatching { FlatpakManager.installedApps(context) }.getOrDefault(emptyList()).associate { it.id to it.name }
+        val flatpakApps = File(flatpakDir, "app").listFiles().orEmpty().filter { it.isDirectory }.map { dir ->
+            FlatpakUsage(dir.name, flatpakNames[dir.name] ?: dir.name.substringAfterLast('.'), walker.measure(dir))
+        }.sortedByDescending { it.bytes }
+        val flatpakRuntimes = File(flatpakDir, "runtime").takeIf { it.isDirectory }?.let { walker.measure(it) } ?: 0
+
+        val componentsDir = File(files, "components")
+        val stored = runCatching { ComponentsManager.stored(context) }.onFailure { Log.w("StorageScan", "components", it) }.getOrNull()
+        val components = stored?.let { st ->
+            st.packages.map { ComponentUsage(it.pkg.comp, it.pkg.version, it.pkg.size, it.inUse, packageFile = it.pkg.file) } +
+                st.originals.map { ComponentUsage(it.comp, it.protonVersion, it.size, it.kept, protonId = it.protonId, protonName = it.protonName) }
+        }.orEmpty()
+
+        val otherPrefixes = libs.flatMap { lib ->
+            File(lib.data, "steamapps/compatdata").listFiles().orEmpty().filter { it.isDirectory && SteamStorage.leftoverId(it.name) == null }
+        }.sumOf { walker.measure(it) }
+
         val apps = File(steamRoot, "steamapps")
         val privateRoots = File(files, "steam-libraries").listFiles().orEmpty().filter { it.isDirectory }
         fun m(file: File): Long = if (file.exists()) walker.measure(file) else 0
@@ -205,7 +240,8 @@ object StorageScan {
         val privateBytes = privateRoots.sumOf { m(it) }
         val system = rootfsBytes - installs - m(File(apps, "compatdata")) - m(File(apps, "shadercache")) - workshop -
             compatTools - stores - flatpak
-        val droiddeck = m(files) + m(context.cacheDir) - rootfsBytes - privateBytes +
+        val componentBytes = m(componentsDir)
+        val droiddeck = m(files) + m(context.cacheDir) - rootfsBytes - privateBytes - componentBytes +
             (privateBytes - toolsPrivate - privatePrefixes - privateShaders)
         val stat = StatFs(files.path)
         return StorageReport(
@@ -214,6 +250,7 @@ object StorageScan {
                 Bucket.GAMES to (installs - toolsInApps).coerceAtLeast(0),
                 Bucket.GAME_DATA to (prefixes + shaders + workshop),
                 Bucket.TOOLS to toolsInApps + toolsPrivate + compatTools,
+                Bucket.COMPONENTS to componentBytes,
                 Bucket.STORES to stores,
                 Bucket.DESKTOP to flatpak,
                 Bucket.SYSTEM to system.coerceAtLeast(0),
@@ -221,6 +258,7 @@ object StorageScan {
             ),
             prefixes, shaders, workshop, flatpak,
             games.sortedByDescending { it.total }, tools.values.toList(), leftovers, logs, logBytes,
+            components, flatpakApps, flatpakRuntimes, otherPrefixes, everyLibraryRead,
         )
     }
 }

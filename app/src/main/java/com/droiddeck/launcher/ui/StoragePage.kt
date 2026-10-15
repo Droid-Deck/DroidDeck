@@ -34,6 +34,7 @@ import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.Lock
@@ -75,6 +76,7 @@ import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.storage.Bucket
 import com.droiddeck.launcher.storage.CleanItem
+import com.droiddeck.launcher.storage.ComponentUsage
 import com.droiddeck.launcher.storage.GameUsage
 import com.droiddeck.launcher.storage.StorageReport
 import com.droiddeck.launcher.storage.StorageState
@@ -88,6 +90,7 @@ private val BucketColors = mapOf(
     Bucket.GAMES to Color(0xFF4B9CF5),
     Bucket.GAME_DATA to Color(0xFF8F7CF6),
     Bucket.TOOLS to Color(0xFF3FC1C9),
+    Bucket.COMPONENTS to Color(0xFF9BD65B),
     Bucket.STORES to Color(0xFFF0B44C),
     Bucket.DESKTOP to Color(0xFFE57FB1),
     Bucket.SYSTEM to Color(0xFF7D8796),
@@ -97,6 +100,7 @@ private val OtherApps = Color(0xFF3A3F48)
 private val Shape22 = RoundedCornerShape(18.dp)
 
 private fun gb(bytes: Long) = StorageState.format(bytes)
+private const val ONE_MB = 1024L * 1024
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -123,10 +127,17 @@ internal fun StoragePanel(s: FrontEndState, a: FrontEndActions) {
     }
     if (cleanup) CleanUpDialog(report, s.sessionRunning) { cleanup = false }
     val top = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
-    LaunchedEffect(view) { runCatching { top.bringIntoView() } }
+    LaunchedEffect(view) {
+        StorageState.lastFreed = null
+        StorageState.lastError = null
+        runCatching { top.bringIntoView() }
+    }
     Box(Modifier.fillMaxWidth().height(1.dp).bringIntoViewRequester(top))
     when (view) {
         "games" -> GamesView(report, s.sessionRunning, a) { view = "overview" }
+        "data" -> GameDataView(report, s.sessionRunning) { view = "overview" }
+        "components" -> ComponentsView(report, s.sessionRunning) { view = "overview" }
+        "desktop" -> DesktopView(report, s.sessionRunning) { view = "overview" }
         "tools" -> ToolsView(report, s.sessionRunning) { view = "overview" }
         else -> Overview(report, s.sessionRunning, onCleanUp = { cleanup = true }, onOpen = { view = it })
     }
@@ -141,10 +152,7 @@ private fun Overview(report: StorageReport, sessionRunning: Boolean, onCleanUp: 
     val used = report.total - report.free
     val safe = StorageState.safeBytes(report)
     val low = report.free < StorageState.LOW_SPACE_BYTES
-    StorageState.lastFreed?.let { freed ->
-        Note(stringResource(R.string.storage_freed, gb(freed)))
-        Spacer(Modifier.height(8.dp))
-    }
+    ActionStatus()
     Row(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp),
         modifier = Modifier.fillMaxWidth().padding(top = 8.dp).clip(Shape14).background(colors.surface).border(1.dp, pal.line, Shape14)
@@ -192,7 +200,7 @@ private fun Overview(report: StorageReport, sessionRunning: Boolean, onCleanUp: 
         { m ->
             BucketCard(Bucket.GAME_DATA, Icons.Outlined.SaveAlt, stringResource(R.string.storage_game_data),
                 stringResource(R.string.storage_game_data_hint, gb(report.prefixes), gb(report.workshop), gb(report.shaders)),
-                report.buckets.getValue(Bucket.GAME_DATA), m) { onOpen("games") }
+                report.buckets.getValue(Bucket.GAME_DATA), m) { onOpen("data") }
         },
         { m ->
             BucketCard(Bucket.TOOLS, Icons.Outlined.Layers, stringResource(R.string.storage_tools),
@@ -200,12 +208,21 @@ private fun Overview(report: StorageReport, sessionRunning: Boolean, onCleanUp: 
                 report.buckets.getValue(Bucket.TOOLS), m, attention = unused > 0) { onOpen("tools") }
         },
         { m ->
+            val unusedComponents = report.unusedComponents.sumOf { it.bytes }
+            BucketCard(Bucket.COMPONENTS, Icons.Outlined.Extension, stringResource(R.string.storage_components),
+                if (unusedComponents > 0) stringResource(R.string.storage_tools_unused, gb(unusedComponents))
+                else pluralStringResource(R.plurals.storage_components_count, report.components.size, report.components.size),
+                report.buckets.getValue(Bucket.COMPONENTS), m, attention = unusedComponents > 0) { onOpen("components") }
+        },
+        { m ->
             BucketCard(Bucket.STORES, Icons.Outlined.ShoppingBag, stringResource(R.string.storage_stores),
                 stringResource(R.string.storage_stores_hint), report.buckets.getValue(Bucket.STORES), m)
         },
         { m ->
             BucketCard(Bucket.DESKTOP, Icons.Outlined.Monitor, stringResource(R.string.storage_desktop),
-                stringResource(R.string.storage_desktop_hint), report.buckets.getValue(Bucket.DESKTOP), m)
+                pluralStringResource(R.plurals.storage_desktop_apps, report.flatpakApps.size, report.flatpakApps.size) +
+                    " · " + stringResource(R.string.storage_desktop_shared, gb(report.flatpakRuntimes + report.flatpakCache)),
+                report.buckets.getValue(Bucket.DESKTOP), m) { onOpen("desktop") }
         },
         { m ->
             BucketCard(Bucket.SYSTEM, Icons.Outlined.Storage, stringResource(R.string.storage_system),
@@ -232,6 +249,7 @@ private fun bucketLabel(bucket: Bucket) = stringResource(when (bucket) {
     Bucket.GAMES -> R.string.storage_legend_games
     Bucket.GAME_DATA -> R.string.storage_legend_data
     Bucket.TOOLS -> R.string.storage_legend_tools
+    Bucket.COMPONENTS -> R.string.storage_legend_components
     Bucket.STORES -> R.string.storage_legend_stores
     Bucket.DESKTOP -> R.string.storage_legend_desktop
     Bucket.SYSTEM -> R.string.storage_legend_system
@@ -367,12 +385,14 @@ private fun CleanRow(item: CleanItem, report: StorageReport, on: Boolean, modifi
     val safeCount = report.leftovers.count { it.safe }
     val oldTools = report.unusedTools.filter { it.reason != ToolReason.CUSTOM }
     val custom = report.unusedTools.filter { it.reason == ToolReason.CUSTOM }
+    val unusedLabels = report.unusedComponents.map { componentLabel(it) }
     val (title, detail, tag) = when (item) {
         CleanItem.OLD_TOOLS -> Triple(stringResource(R.string.storage_item_runtimes), oldTools.joinToString(", ") { it.name }, 0)
         CleanItem.LEFTOVERS -> Triple(stringResource(R.string.storage_item_leftovers), pluralStringResource(R.plurals.storage_item_leftovers_detail, safeCount, safeCount), 0)
         CleanItem.LEFTOVERS_UNSURE -> Triple(stringResource(R.string.storage_item_leftovers_unsure), pluralStringResource(R.plurals.storage_item_leftovers_unsure_detail, unsureCount, unsureCount), 2)
         CleanItem.LOGS -> Triple(stringResource(R.string.storage_item_logs), stringResource(R.string.storage_item_logs_detail), 0)
         CleanItem.UNUSED_CUSTOM -> Triple(custom.joinToString(", ") { it.name }, stringResource(R.string.storage_item_custom_detail), 1)
+        CleanItem.UNUSED_COMPONENTS -> Triple(stringResource(R.string.storage_item_components), unusedLabels.joinToString(", "), 1)
         CleanItem.SHADERS -> Triple(stringResource(R.string.storage_item_shaders), stringResource(R.string.storage_item_shaders_detail), 2)
     }
     val shape = RoundedCornerShape(12.dp)
@@ -619,4 +639,205 @@ internal fun LowSpaceDialog(free: Long, onFreeUp: () -> Unit, onPlay: () -> Unit
         confirmButton = { FocusText(stringResource(R.string.storage_free_up), pal.signal, modifier = Modifier.focusRequester(focus), onClick = onFreeUp) },
         dismissButton = { FocusText(stringResource(R.string.storage_play_anyway), colors.onBackground, onClick = onPlay) },
     )
+}
+
+@Composable
+private fun ActionStatus() {
+    val pal = LocalPalette.current
+    val colors = MaterialTheme.colorScheme
+    when {
+        StorageState.cleaning -> Row(
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(Shape14).background(colors.surface).border(1.dp, pal.line, Shape14).padding(12.dp),
+        ) {
+            CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(16.dp), color = pal.signal)
+            Text(StorageState.progress ?: stringResource(R.string.storage_cleaning), fontSize = 13.sp, color = colors.onBackground)
+        }
+        StorageState.lastError != null -> { Note(stringResource(R.string.storage_failed, StorageState.lastError ?: "")); Spacer(Modifier.height(8.dp)) }
+        StorageState.lastFreed != null -> { Note(stringResource(R.string.storage_freed, gb(StorageState.lastFreed ?: 0))); Spacer(Modifier.height(8.dp)) }
+    }
+}
+
+@Composable
+private fun componentLabel(c: ComponentUsage): String {
+    val name = com.droiddeck.launcher.session.ComponentsManager.LABEL[c.comp] ?: c.comp
+    return if (c.packageFile != null) "$name ${c.version}"
+    else stringResource(R.string.storage_component_original, name, c.protonName ?: c.protonId.orEmpty())
+}
+
+@Composable
+private fun ListCard(content: @Composable () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    Column(Modifier.fillMaxWidth().clip(Shape14).background(colors.surface).border(1.dp, pal.line, Shape14)) { content() }
+}
+
+@Composable
+private fun ItemRow(title: String, detail: String?, bytes: Long, last: Boolean, pill: (@Composable () -> Unit)? = null, action: (@Composable () -> Unit)? = null) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 14.dp, vertical = 8.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (detail != null) Text(detail, fontSize = 12.5.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        pill?.invoke()
+        Text(gb(bytes), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, modifier = Modifier.widthIn(min = 70.dp))
+        action?.invoke()
+    }
+    if (!last) Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
+}
+
+@Composable
+private fun ConfirmDialog(title: String, body: String, confirm: String, danger: Boolean = true, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { Text(body, fontSize = 14.sp) },
+        confirmButton = { FocusText(confirm, if (danger) colors.error else pal.signal) { onDismiss(); onConfirm() } },
+        dismissButton = {
+            val cancel = remember { FocusRequester() }
+            LaunchedEffect(Unit) { runCatching { cancel.requestFocus() } }
+            FocusText(stringResource(R.string.common_cancel), colors.onBackground, modifier = Modifier.focusRequester(cancel), onClick = onDismiss)
+        },
+    )
+}
+
+@Composable
+private fun GameDataView(report: StorageReport, sessionRunning: Boolean, onBack: () -> Unit) {
+    val ctx = LocalContext.current
+    val busy = sessionRunning || StorageState.cleaning
+    var confirm by remember { mutableStateOf<com.droiddeck.launcher.storage.Leftover?>(null) }
+    SubHeader(stringResource(R.string.storage_game_data), stringResource(R.string.storage_game_data_hint, gb(report.prefixes), gb(report.workshop), gb(report.shaders)), onBack)
+    ActionStatus()
+    if (sessionRunning) { Note(stringResource(R.string.storage_session_running)); Spacer(Modifier.height(4.dp)) }
+    val games = report.games.filter { it.data >= ONE_MB }.sortedByDescending { it.data }
+    SectionTitle(stringResource(R.string.storage_data_installed), gb(games.sumOf { it.data }))
+    ListCard {
+        if (games.isEmpty()) Text(stringResource(R.string.storage_no_games), fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp))
+        games.forEachIndexed { i, g ->
+            ItemRow(
+                g.name, stringResource(R.string.storage_data_parts, gb(g.prefix), gb(g.shaders), gb(g.workshop)), g.data, i == games.lastIndex,
+                action = { SecondaryButton(stringResource(R.string.storage_clear_shaders), compact = true, enabled = !busy && g.shaders >= ONE_MB) { StorageState.clearShaders(ctx, g.appId) } },
+            )
+        }
+    }
+    val leftovers = report.leftovers.sortedByDescending { it.bytes }
+    if (!report.leftoversChecked) {
+        SectionTitle(stringResource(R.string.storage_data_leftovers), null)
+        Note(stringResource(R.string.storage_leftovers_unchecked))
+    }
+    if (leftovers.isNotEmpty()) {
+        SectionTitle(stringResource(R.string.storage_data_leftovers), gb(leftovers.sumOf { it.bytes }))
+        val safe = leftovers.filter { it.safe }
+        ListCard {
+            if (safe.isNotEmpty()) ItemRow(
+                pluralStringResource(R.plurals.storage_item_leftovers_detail, safe.size, safe.size), null, safe.sumOf { it.bytes }, leftovers.none { !it.safe },
+                pill = { Pill(stringResource(R.string.storage_tag_safe), LocalPalette.current.good) },
+                action = { SecondaryButton(stringResource(R.string.storage_remove), compact = true, enabled = !busy) { StorageState.clean(ctx, setOf(CleanItem.LEFTOVERS)) { } } },
+            )
+            val unsure = leftovers.filter { !it.safe }
+            unsure.forEachIndexed { i, l ->
+                ItemRow(
+                    stringResource(R.string.storage_steam_app, l.appId), stringResource(R.string.storage_leftover_unsure_detail), l.bytes, i == unsure.lastIndex,
+                    pill = { Pill(stringResource(R.string.storage_tag_saves), AttentionAmber) },
+                    action = { SecondaryButton(stringResource(R.string.storage_remove), compact = true, enabled = !busy) { confirm = l } },
+                )
+            }
+        }
+    }
+    if (report.otherPrefixes > 0) {
+        SectionTitle(stringResource(R.string.storage_data_other), null)
+        ListCard { ItemRow(stringResource(R.string.storage_data_other_title), stringResource(R.string.storage_data_other_detail), report.otherPrefixes, true) }
+    }
+    confirm?.let { l ->
+        ConfirmDialog(
+            stringResource(R.string.storage_remove_title, stringResource(R.string.storage_steam_app, l.appId)),
+            stringResource(R.string.storage_leftover_confirm, gb(l.bytes)), stringResource(R.string.storage_remove),
+            onConfirm = { StorageState.removeLeftover(ctx, l.appId) }, onDismiss = { confirm = null },
+        )
+    }
+}
+
+@Composable
+private fun ComponentsView(report: StorageReport, sessionRunning: Boolean, onBack: () -> Unit) {
+    val ctx = LocalContext.current
+    val pal = LocalPalette.current
+    val colors = MaterialTheme.colorScheme
+    val busy = sessionRunning || StorageState.cleaning
+    var confirm by remember { mutableStateOf<ComponentUsage?>(null) }
+    val unused = report.unusedComponents
+    SubHeader(stringResource(R.string.storage_components),
+        stringResource(R.string.storage_tools_detail, gb(report.components.sumOf { it.bytes }), gb(unused.sumOf { it.bytes })), onBack) {
+        if (unused.isNotEmpty()) PrimaryButton(stringResource(R.string.storage_remove_unused, gb(unused.sumOf { it.bytes })), compact = true, enabled = !busy) {
+            StorageState.clean(ctx, setOf(CleanItem.UNUSED_COMPONENTS)) { }
+        }
+    }
+    ActionStatus()
+    if (sessionRunning) { Note(stringResource(R.string.storage_session_running)); Spacer(Modifier.height(4.dp)) }
+    val packages = report.components.filter { it.packageFile != null }
+    val originals = report.components.filter { it.packageFile == null }
+    SectionTitle(stringResource(R.string.storage_components_packages), null)
+    ListCard {
+        if (packages.isEmpty()) Text(stringResource(R.string.storage_components_none), fontSize = 14.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(16.dp))
+        packages.forEachIndexed { i, c ->
+            ItemRow(componentLabel(c), stringResource(if (c.inUse) R.string.storage_component_in_use else R.string.storage_component_unused), c.bytes, i == packages.lastIndex,
+                pill = { Pill(stringResource(if (c.inUse) R.string.storage_tag_in_use else R.string.storage_tag_not_used), if (c.inUse) pal.signal else AttentionAmber) },
+                action = { if (!c.inUse) SecondaryButton(stringResource(R.string.storage_remove), compact = true, enabled = !busy) { confirm = c } })
+        }
+    }
+    if (originals.isNotEmpty()) {
+        SectionTitle(stringResource(R.string.storage_components_originals), null)
+        ListCard {
+            originals.forEachIndexed { i, c ->
+                ItemRow(componentLabel(c), c.version + " · " + stringResource(if (c.inUse) R.string.storage_original_kept else R.string.storage_original_old), c.bytes, i == originals.lastIndex,
+                    pill = { Pill(stringResource(if (c.inUse) R.string.storage_tag_required else R.string.storage_tag_not_used), if (c.inUse) colors.onSurfaceVariant else AttentionAmber) },
+                    action = { if (!c.inUse) SecondaryButton(stringResource(R.string.storage_remove), compact = true, enabled = !busy) { confirm = c } })
+            }
+        }
+    }
+    Spacer(Modifier.height(8.dp))
+    Note(stringResource(R.string.storage_components_note))
+    confirm?.let { c ->
+        ConfirmDialog(stringResource(R.string.storage_remove_title, componentLabel(c)),
+            stringResource(if (c.packageFile != null) R.string.storage_component_confirm else R.string.storage_original_confirm, gb(c.bytes)),
+            stringResource(R.string.storage_remove), onConfirm = { StorageState.removeComponent(ctx, c) }, onDismiss = { confirm = null })
+    }
+}
+
+@Composable
+private fun DesktopView(report: StorageReport, sessionRunning: Boolean, onBack: () -> Unit) {
+    val ctx = LocalContext.current
+    val busy = sessionRunning || StorageState.cleaning
+    var confirm by remember { mutableStateOf<com.droiddeck.launcher.storage.FlatpakUsage?>(null) }
+    var confirmPrune by remember { mutableStateOf(false) }
+    SubHeader(stringResource(R.string.storage_desktop), stringResource(R.string.storage_desktop_detail, gb(report.flatpak)), onBack) {
+        PrimaryButton(stringResource(R.string.storage_desktop_prune), compact = true, enabled = !busy && report.flatpakRuntimes + report.flatpakCache >= ONE_MB) { confirmPrune = true }
+    }
+    ActionStatus()
+    if (sessionRunning) { Note(stringResource(R.string.storage_session_running)); Spacer(Modifier.height(4.dp)) }
+    SectionTitle(stringResource(R.string.storage_desktop_apps_title), null)
+    ListCard {
+        if (report.flatpakApps.isEmpty()) Text(stringResource(R.string.storage_desktop_none), fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp))
+        report.flatpakApps.forEachIndexed { i, app ->
+            ItemRow(app.name, app.id, app.bytes, i == report.flatpakApps.lastIndex,
+                action = { SecondaryButton(stringResource(R.string.storage_uninstall), compact = true, enabled = !busy) { confirm = app } })
+        }
+    }
+    SectionTitle(stringResource(R.string.storage_desktop_shared_title), null)
+    ListCard {
+        ItemRow(stringResource(R.string.storage_desktop_runtimes), stringResource(R.string.storage_desktop_runtimes_detail), report.flatpakRuntimes, false)
+        ItemRow(stringResource(R.string.storage_desktop_cache), stringResource(R.string.storage_desktop_cache_detail), report.flatpakCache, true)
+    }
+    confirm?.let { app ->
+        ConfirmDialog(stringResource(R.string.storage_uninstall_title, app.name), stringResource(R.string.storage_flatpak_uninstall_body, gb(app.bytes)),
+            stringResource(R.string.storage_uninstall), onConfirm = { StorageState.uninstallFlatpak(ctx, app.id) }, onDismiss = { confirm = null })
+    }
+    if (confirmPrune) ConfirmDialog(stringResource(R.string.storage_desktop_prune), stringResource(R.string.storage_desktop_prune_body),
+        stringResource(R.string.storage_desktop_prune), danger = false, onConfirm = { StorageState.pruneFlatpak(ctx) }, onDismiss = { confirmPrune = false })
 }
