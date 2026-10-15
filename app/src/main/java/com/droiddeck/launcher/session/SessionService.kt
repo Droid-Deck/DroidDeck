@@ -614,6 +614,7 @@ class SessionService : Service() {
         SessionState.deckPad = deckBinds.isNotEmpty()
         if (wantsDeck && !SessionState.deckPad) Log.w(TAG, "deck pad: not available this session; the pad stays an Xbox 360 controller")
         logControllersAtStart()
+        com.droiddeck.launcher.input.FakeInputWriter.setLowLatency(SessionPrefs.lowLatencyController(this), SessionPrefs.lowLatencyTouch(this))
         if (uinput) {
             guest.add("FAKE_EVDEV_UINPUT=1")
             if (SessionState.deckPad) {

@@ -623,6 +623,11 @@
     <string name="drawer_texture_sharpness_note">A negative mip bias: sharper textures, some shimmer. Auto matches how far the session is enlarged to the screen.</string>
     <string name="drawer_touch_auto">Auto (%1$s)</string>
     <string name="drawer_keyboard">Keyboard</string>
+    <string name="drawer_latency">Latency</string>
+    <string name="drawer_low_latency_controller">Low-latency controller</string>
+    <string name="drawer_low_latency_controller_hint">Pad reports at 1000 Hz instead of 250 Hz. Slightly more CPU.</string>
+    <string name="drawer_low_latency_touch">Low-latency touch</string>
+    <string name="drawer_low_latency_touch_hint">Touches skip frame batching; Steam touch controls at 1000 Hz. Slightly more CPU.</string>
     <string name="drawer_pc_keyboard">PC keyboard</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Second screen</string>
@@ -2261,4 +2266,8 @@
     <string name="stores_sync_gog_unreachable">Couldn\'t reach GOG</string>
     <string name="stores_sync_gog_unreadable">Could not read your GOG library</string>
     <string name="stores_registering">Registering with Steam…</string>
+    <string name="display_picture_position">Picture position</string>
+    <string name="display_position_top">Top</string>
+    <string name="display_position_bottom">Bottom</string>
+    <string name="display_position_center">Center (default)</string>
 </resources>
