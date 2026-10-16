@@ -7,6 +7,10 @@ import com.droiddeck.launcher.session.SessionState
 object CompositorHost {
     @Volatile
     private var started = false
+
+    @Volatile
+    var displayChoice: String? = null
+
     @Volatile
     private var vsyncRunning = false
 
@@ -38,6 +42,7 @@ object CompositorHost {
             return false
         }
         WaylandCompositor.nativeSetOutputRefreshRate(refreshHz)
+        com.droiddeck.launcher.gpu.TpUbwcHint.applyToProcess()
         WaylandCompositor.nativeStartWithSurface(
             surface, xdgRuntimeDir, driverPath, libraryName, nativeLibDir,
         )

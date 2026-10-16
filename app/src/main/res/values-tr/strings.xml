@@ -1009,7 +1009,6 @@
     <string name="gpu_set_with_runtime">Çalışma ortamı sürücüsüyle birlikte ayarlanır: %1$s ikisini de taşır.</string>
     <string name="gpu_runtime_hint">Oyunlar ve masaüstü tarafından kullanılır.</string>
     <string name="gpu_runtime_default">Çalışma ortamı varsayılanı</string>
-    <string name="gpu_display_hint">Kareleri ekrana çizer. DroidDeck yeniden başlatıldıktan sonra uygulanır.</string>
     <string name="gpu_auto_by_gpu">Otomatik - GPU\'ya göre seçilir</string>
     <string name="gpu_manage">İndir, içe aktar veya sil…</string>
     <string name="gpu_in_use_caps">KULLANIMDA</string>
@@ -1664,7 +1663,6 @@
     <string name="adbpair_done_text">DroidDeck\'e geri dönmek için dokunun. Kablosuz hata ayıklamayı şimdi kapatabilirsiniz.</string>
     <string name="adbpair_title_failed">Kablosuz hata ayıklama kurulumu durdu</string>
 
-    <string name="selfinst_http">İndirme HTTP %1$d yanıtı verdi</string>
     <string name="selfinst_size_mismatch">İndirme boyutu yayınlanan APK ile eşleşmedi ve atıldı - yeniden deneyin</string>
     <string name="selfinst_checksum_mismatch">İndirme, sağlama toplamıyla eşleşmedi ve atıldı - yeniden deneyin</string>
     <string name="selfinst_wrong_package">Güncelleme, %2$s değil %1$s Android paketi içindir</string>
@@ -1762,7 +1760,6 @@
 
     <string name="turnip_rate_limited">GitHub\'ın hız sınırına ulaşıldı - daha sonra yeniden deneyin</string>
     <string name="turnip_github_http">GitHub HTTP %1$d yanıtı verdi</string>
-    <string name="turnip_download_http">indirme HTTP %1$d yanıtı verdi</string>
     <string name="turnip_list_predates_checksums">Bu sürücü listesi sağlama toplamlarından önceki bir tarihe ait - yenileyip yeniden deneyin</string>
     <string name="turnip_checksum_mismatch">Sağlama toplamı uyuşmuyor - indirme atıldı</string>
     <string name="turnip_not_adrenotools">Bir AdrenoTools sürücüsü değil: %1$s</string>
@@ -2232,12 +2229,9 @@
     <string name="cardboard_recenter_button">Ortala</string>
     <string name="cardboard_steamvr">SteamVR (deneysel)</string>
     <string name="cardboard_steamvr_install">Yükle</string>
-    <string name="cardboard_steamvr_install_hint">Valve\'ın ARM64 SteamVR\'ını indirir (571 MB).</string>
     <string name="cardboard_steamvr_installing">SteamVR indiriliyor ve açılıyor…</string>
     <string name="cardboard_steamvr_start">Başlat</string>
-    <string name="cardboard_steamvr_ready_hint">SteamVR\'ı başınızı başlık olarak kullanarak çalıştırır; görüntü yan yana 3D\'ye geçer.</string>
     <string name="cardboard_steamvr_stop">Durdur</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR çalışıyor.</string>
     <string name="cardboard_steamvr_unavailable">Bu oturumda kullanılamaz.</string>
     <string name="cardboard_steamvr_failed">SteamVR yanıt vermedi; oturum günlüğünü kontrol et.</string>
     <string name="drawer_component_downloads">Bileşenleri indir</string>
@@ -2265,4 +2259,21 @@
     <string name="stores_storage_insufficient">Yeterli boş alan yok: %1$s gerekli, yalnızca %2$s boş</string>
     <string name="stores_storage_low">Yetersiz alan (%1$s boş, %2$s gerekli)</string>
     <string name="stores_target_free_unknown">Boş alan bilinmiyor</string>
+    <string name="boot_movie">Açılış videosu</string>
+    <string name="boot_movie_video">Video</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
+    <string name="boot_movie_note">60 fps daha akıcı görünür ama Steam açılırken işlemciyi daha çok kullanır. Steam\'in kendi ayarlarında seçilen açılış videosu önceliklidir.</string>
+    <string name="boot_movie_sound">Ses</string>
+    <string name="boot_movie_custom">Kendi videon</string>
+    <string name="boot_movie_custom_hint">MP4, MOV, MKV veya WebM. Diğer biçimler ve %1$d MB üzeri dosyalar cihazda 720p WebM\'e dönüştürülür, en fazla %2$d saniye.</string>
+    <string name="boot_movie_import">İçe aktar</string>
+    <string name="boot_movie_remove">Kaldır</string>
+    <string name="boot_movie_pick">Bir açılış videosu seç</string>
+    <string name="boot_movie_imported">%1$s artık açılış videosu</string>
+    <string name="boot_movie_imported_silent">%1$s artık açılış videosu, sessiz</string>
+    <string name="boot_movie_too_long">Dönüştürülecek videolar en fazla %1$d saniye olabilir</string>
+    <string name="boot_movie_converting">Dönüştürülüyor %%%1$d</string>
+    <string name="boot_movie_converting_started">%1$s Steam için dönüştürülüyor. DroidDeck\'i açık tut.</string>
+    <string name="boot_movie_unsupported">Bu cihaz o videonun kodunu çözemiyor.</string>
+    <string name="boot_movie_import_failed">Video içe aktarılamadı</string>
 </resources>

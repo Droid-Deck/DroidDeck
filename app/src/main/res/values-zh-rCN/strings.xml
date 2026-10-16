@@ -714,6 +714,14 @@
     <string name="setup_choose_home">选择主屏幕应用</string>
     <string name="setup_choose">选择</string>
     <string name="setup_linux_apps">Linux 应用（测试版）</string>
+    <string name="setup_group_download">下载</string>
+    <string name="setup_download_source">下载源</string>
+    <string name="setup_download_source_auto">自动</string>
+    <string name="setup_download_source_direct">直连</string>
+    <string name="setup_download_source_mirror">镜像</string>
+    <string name="setup_download_source_custom">自定义前缀</string>
+    <string name="setup_download_mirror">镜像站点</string>
+    <string name="setup_download_prefix">前缀</string>
     <string name="setup_tool_files">文件</string>
     <string name="setup_tool_files_hint">浏览和管理文件</string>
     <string name="setup_tool_protons">Proton 版本</string>
@@ -1011,7 +1019,6 @@
     <string name="gpu_set_with_runtime">与运行时驱动一起设置：%1$s 同时携带两者。</string>
     <string name="gpu_runtime_hint">由游戏和桌面使用。</string>
     <string name="gpu_runtime_default">运行时默认</string>
-    <string name="gpu_display_hint">把帧绘制到屏幕。重启 DroidDeck 后生效。</string>
     <string name="gpu_auto_by_gpu">自动 — 按 GPU 选择</string>
     <string name="gpu_manage">下载、导入或删除…</string>
     <string name="gpu_in_use_caps">使用中</string>
@@ -1651,7 +1658,7 @@
     <string name="adbpair_done_text">点按即可返回 DroidDeck。现在可以关闭无线调试了。</string>
     <string name="adbpair_title_failed">无线调试配置已中止</string>
 
-    <string name="selfinst_http">下载服务器返回 HTTP %1$d</string>
+    <string name="selfinst_download_failed">下载失败</string>
     <string name="selfinst_size_mismatch">下载的文件大小与发布的 APK 不符，已丢弃 — 请重试</string>
     <string name="selfinst_checksum_mismatch">下载的文件与校验和不符，已丢弃 — 请重试</string>
     <string name="selfinst_wrong_package">此更新适用于 Android 软件包 %1$s，而不是 %2$s</string>
@@ -1749,7 +1756,7 @@
 
     <string name="turnip_rate_limited">已达到 GitHub 的请求频率限制 — 请稍后重试</string>
     <string name="turnip_github_http">GitHub 返回 HTTP %1$d</string>
-    <string name="turnip_download_http">下载返回 HTTP %1$d</string>
+    <string name="turnip_download_failed">下载失败</string>
     <string name="turnip_list_predates_checksums">此驱动列表早于校验和功能 — 请刷新后重试</string>
     <string name="turnip_checksum_mismatch">校验和不匹配 — 已丢弃下载的文件</string>
     <string name="turnip_not_adrenotools">不是 AdrenoTools 驱动：%1$s</string>
@@ -2223,12 +2230,9 @@
     <string name="cardboard_recenter_button">重置</string>
     <string name="cardboard_steamvr">SteamVR（实验性）</string>
     <string name="cardboard_steamvr_install">安装</string>
-    <string name="cardboard_steamvr_install_hint">下载 Valve 的 ARM64 版 SteamVR（571 MB）。</string>
     <string name="cardboard_steamvr_installing">正在下载并解压 SteamVR…</string>
     <string name="cardboard_steamvr_start">启动</string>
-    <string name="cardboard_steamvr_ready_hint">以你的头部作为头显运行 SteamVR；画面会切换为左右并排 3D。</string>
     <string name="cardboard_steamvr_stop">停止</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR 正在运行。</string>
     <string name="cardboard_steamvr_unavailable">此会话中不可用。</string>
     <string name="cardboard_steamvr_failed">SteamVR 未响应；请查看会话日志。</string>
     <string name="drawer_component_downloads">下载组件</string>
@@ -2238,4 +2242,21 @@
     <string name="display_position_top">置顶</string>
     <string name="display_position_bottom">置底</string>
     <string name="display_position_center">居中（默认）</string>
+    <string name="boot_movie">开机动画</string>
+    <string name="boot_movie_video">视频</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
+    <string name="boot_movie_note">60 fps 更流畅，但 Steam 启动时会占用更多 CPU。在 Steam 自身设置中选择的启动动画优先。</string>
+    <string name="boot_movie_sound">声音</string>
+    <string name="boot_movie_custom">自定义视频</string>
+    <string name="boot_movie_custom_hint">MP4、MOV、MKV 或 WebM。其他格式及超过 %1$d MB 的文件会在设备上转换为 720p WebM，最长 %2$d 秒。</string>
+    <string name="boot_movie_import">导入</string>
+    <string name="boot_movie_remove">移除</string>
+    <string name="boot_movie_pick">选择开机动画</string>
+    <string name="boot_movie_imported">%1$s 现在是开机动画</string>
+    <string name="boot_movie_imported_silent">%1$s 现在是开机动画（无声）</string>
+    <string name="boot_movie_too_long">需要转换的视频不能超过 %1$d 秒</string>
+    <string name="boot_movie_converting">正在转换 %1$d%%</string>
+    <string name="boot_movie_converting_started">正在为 Steam 转换 %1$s。请保持 DroidDeck 打开。</string>
+    <string name="boot_movie_unsupported">此设备无法解码该视频。</string>
+    <string name="boot_movie_import_failed">无法导入该视频</string>
 </resources>

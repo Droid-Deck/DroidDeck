@@ -1009,7 +1009,6 @@
     <string name="gpu_set_with_runtime">Wordt samen met de runtimedriver ingesteld: %1$s bevat beide.</string>
     <string name="gpu_runtime_hint">Gebruikt door games en de desktop.</string>
     <string name="gpu_runtime_default">Runtimestandaard</string>
-    <string name="gpu_display_hint">Tekent frames naar het scherm. Geldt nadat DroidDeck opnieuw is gestart.</string>
     <string name="gpu_auto_by_gpu">Automatisch - gekozen op basis van de GPU</string>
     <string name="gpu_manage">Downloaden, importeren of verwijderen…</string>
     <string name="gpu_in_use_caps">IN GEBRUIK</string>
@@ -1664,7 +1663,6 @@
     <string name="adbpair_done_text">Tik om terug te gaan naar DroidDeck. Je kunt draadloze foutopsporing nu uitschakelen.</string>
     <string name="adbpair_title_failed">Instellen van draadloze foutopsporing gestopt</string>
 
-    <string name="selfinst_http">De download antwoordde met HTTP %1$d</string>
     <string name="selfinst_size_mismatch">De downloadgrootte kwam niet overeen met de gepubliceerde APK en is verwijderd - probeer het opnieuw</string>
     <string name="selfinst_checksum_mismatch">De download kwam niet overeen met de checksum en is verwijderd - probeer het opnieuw</string>
     <string name="selfinst_wrong_package">De update is voor Android-package %1$s, niet voor %2$s</string>
@@ -1762,7 +1760,6 @@
 
     <string name="turnip_rate_limited">De ratelimiet van GitHub is bereikt - probeer het later opnieuw</string>
     <string name="turnip_github_http">GitHub antwoordde met HTTP %1$d</string>
-    <string name="turnip_download_http">download antwoordde met HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Deze driverlijst is ouder dan de checksums - vernieuw de lijst en probeer het opnieuw</string>
     <string name="turnip_checksum_mismatch">Checksum komt niet overeen - de download is verwijderd</string>
     <string name="turnip_not_adrenotools">Geen AdrenoTools-driver: %1$s</string>
@@ -2232,12 +2229,9 @@
     <string name="cardboard_recenter_button">Centreren</string>
     <string name="cardboard_steamvr">SteamVR (experimenteel)</string>
     <string name="cardboard_steamvr_install">Installeren</string>
-    <string name="cardboard_steamvr_install_hint">Downloadt Valves SteamVR voor ARM64 (571 MB).</string>
     <string name="cardboard_steamvr_installing">SteamVR downloaden en uitpakken…</string>
     <string name="cardboard_steamvr_start">Starten</string>
-    <string name="cardboard_steamvr_ready_hint">Draait SteamVR met je hoofd als headset; het beeld schakelt naar side-by-side 3D.</string>
     <string name="cardboard_steamvr_stop">Stoppen</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR draait.</string>
     <string name="cardboard_steamvr_unavailable">Niet beschikbaar in deze sessie.</string>
     <string name="cardboard_steamvr_failed">SteamVR reageerde niet; controleer het sessielog.</string>
     <string name="drawer_component_downloads">Componenten downloaden</string>
@@ -2251,4 +2245,21 @@
     <string name="stores_hltb_completionist">Completionist</string>
     <string name="stores_hltb_hours">%1$s u</string>
     <string name="stores_hltb_minutes">%1$d min</string>
+    <string name="boot_movie">Opstartvideo</string>
+    <string name="boot_movie_video">Video</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
+    <string name="boot_movie_note">60 fps oogt vloeiender maar gebruikt meer CPU terwijl Steam opstart. Een opstartvideo die in Steam zelf is gekozen heeft voorrang.</string>
+    <string name="boot_movie_sound">Geluid</string>
+    <string name="boot_movie_custom">Eigen video</string>
+    <string name="boot_movie_custom_hint">MP4, MOV, MKV of WebM. Andere formaten en bestanden boven %1$d MB worden op het apparaat omgezet naar 720p-WebM, tot %2$d seconden.</string>
+    <string name="boot_movie_import">Importeren</string>
+    <string name="boot_movie_remove">Verwijderen</string>
+    <string name="boot_movie_pick">Kies een opstartvideo</string>
+    <string name="boot_movie_imported">%1$s is nu de opstartvideo</string>
+    <string name="boot_movie_imported_silent">%1$s is nu de opstartvideo, zonder geluid</string>
+    <string name="boot_movie_too_long">Video\'s die omgezet moeten worden mogen maximaal %1$d seconden duren</string>
+    <string name="boot_movie_converting">Omzetten %1$d%%</string>
+    <string name="boot_movie_converting_started">%1$s wordt omgezet voor Steam. Houd DroidDeck open.</string>
+    <string name="boot_movie_unsupported">Dit apparaat kan deze video niet decoderen.</string>
+    <string name="boot_movie_import_failed">Kan deze video niet importeren</string>
 </resources>

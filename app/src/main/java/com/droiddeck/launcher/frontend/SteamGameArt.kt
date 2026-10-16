@@ -10,6 +10,11 @@ object SteamGameArt {
 
     private fun sourceFile(context: Context, appId: Int, slot: AddedGameArt.Slot) = File(dir(context, appId), "source-${slot.key}")
 
+    internal fun setSource(context: Context, appId: Int, slot: AddedGameArt.Slot, value: String) {
+        val file = sourceFile(context, appId, slot)
+        if (value.isEmpty()) file.delete() else file.apply { parentFile?.mkdirs() }.writeText(value)
+    }
+
     fun chosenFile(context: Context, appId: Int, slot: AddedGameArt.Slot): File? = AddedGameArt.chosen(dir(context, appId), slot)
 
     fun withOverrides(context: Context, game: Library.SteamGame): Library.SteamGame {
@@ -55,22 +60,31 @@ object SteamGameArt {
     }
 
     fun choose(context: Context, game: Library.SteamGame, slot: AddedGameArt.Slot, option: AddedGameArt.Option): Boolean {
-        val folder = dir(context, game.appId)
-        if (!AddedGameArt.store(folder, slot, option)) return false
-        sourceFile(context, game.appId, slot).writeText(option.group + "|" + option.full)
-        push(context, game, slot)
-        return true
+        return synchronized(SteamGrid.lock) {
+            val folder = dir(context, game.appId)
+            val fresh = AddedGameArt.storeNew(folder, slot, option) ?: return@synchronized false
+            if (!push(context, game, slot, fresh)) {
+                fresh.delete()
+                return@synchronized false
+            }
+            AddedGameArt.dropOlder(folder, slot, fresh)
+            setSource(context, game.appId, slot, option.group + "|" + option.full)
+            true
+        }
     }
 
     fun reset(context: Context, game: Library.SteamGame, slot: AddedGameArt.Slot) {
-        AddedGameArt.chosen(dir(context, game.appId), slot)?.delete()
-        sourceFile(context, game.appId, slot).delete()
-        push(context, game, slot)
+        synchronized(SteamGrid.lock) {
+            if (!push(context, game, slot, null)) return@synchronized
+            AddedGameArt.chosen(dir(context, game.appId), slot)?.delete()
+            setSource(context, game.appId, slot, "")
+        }
     }
 
-    private fun push(context: Context, game: Library.SteamGame, slot: AddedGameArt.Slot) {
-        val type = slot.assetType ?: return
-        val file = chosenFile(context, game.appId, slot)
+    private fun push(context: Context, game: Library.SteamGame, slot: AddedGameArt.Slot, file: File?): Boolean {
+        val type = slot.assetType ?: return true
+        if (!SteamGrid.write(context, SteamGrid.target(game, context), slot, file)) return false
         AddedGamesPublisher.later(context) { SteamLiveShortcuts.setArt(context, game.appId.toLong(), type, file) }
+        return true
     }
 }

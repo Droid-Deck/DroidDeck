@@ -1033,7 +1033,6 @@
     <string name="gpu_set_with_runtime">يُضبَط مع برنامج تشغيل بيئة التشغيل معًا: يحمل %1$s كلاهما.</string>
     <string name="gpu_runtime_hint">يُستخدَم في الألعاب وسطح المكتب.</string>
     <string name="gpu_runtime_default">الافتراضي لبيئة التشغيل</string>
-    <string name="gpu_display_hint">يرسم الإطارات على الشاشة. يُطبَّق بعد إعادة تشغيل DroidDeck.</string>
     <string name="gpu_auto_by_gpu">تلقائي - يُحدَّد بحسب GPU</string>
     <string name="gpu_manage">تنزيل أو استيراد أو حذف…</string>
     <string name="gpu_in_use_caps">قيد الاستخدام</string>
@@ -1748,7 +1747,6 @@
     <string name="adbpair_done_text">اضغط للعودة إلى DroidDeck. يمكنك إيقاف تصحيح الأخطاء اللاسلكي الآن.</string>
     <string name="adbpair_title_failed">توقَّف إعداد تصحيح الأخطاء اللاسلكي</string>
 
-    <string name="selfinst_http">استجاب التنزيل بـ HTTP %1$d</string>
     <string name="selfinst_size_mismatch">حجم التنزيل غير مطابق لملف APK المنشور، وتم تجاهله - حاوِل مرة أخرى</string>
     <string name="selfinst_checksum_mismatch">التنزيل غير مطابق لمجموعه الاختباري، وتم تجاهله - حاوِل مرة أخرى</string>
     <string name="selfinst_wrong_package">التحديث مخصَّص لحزمة Android %1$s، لا %2$s</string>
@@ -1846,7 +1844,6 @@
 
     <string name="turnip_rate_limited">تم الوصول إلى حدّ الطلبات في GitHub - حاوِل مرة أخرى لاحقًا</string>
     <string name="turnip_github_http">استجاب GitHub بـ HTTP %1$d</string>
-    <string name="turnip_download_http">استجاب التنزيل بـ HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">قائمة برامج التشغيل هذه أقدم من إضافة المجاميع الاختبارية - حدِّثها وحاوِل مرة أخرى</string>
     <string name="turnip_checksum_mismatch">عدم تطابق المجموع الاختباري - تم تجاهل التنزيل</string>
     <string name="turnip_not_adrenotools">ليس برنامج تشغيل AdrenoTools: %1$s</string>
@@ -2332,12 +2329,9 @@
     <string name="cardboard_recenter_button">إعادة التوسيط</string>
     <string name="cardboard_steamvr">SteamVR (تجريبي)</string>
     <string name="cardboard_steamvr_install">تثبيت</string>
-    <string name="cardboard_steamvr_install_hint">ينزّل SteamVR لمعمارية ARM64 من Valve ‏(571 ميغابايت).</string>
     <string name="cardboard_steamvr_installing">جارٍ تنزيل SteamVR وفك ضغطه…</string>
     <string name="cardboard_steamvr_start">بدء</string>
-    <string name="cardboard_steamvr_ready_hint">يشغّل SteamVR مع استخدام رأسك كنظارة؛ وتتحول الصورة إلى ثلاثي الأبعاد جنبًا إلى جنب.</string>
     <string name="cardboard_steamvr_stop">إيقاف</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR قيد التشغيل.</string>
     <string name="cardboard_steamvr_unavailable">غير متوفر في هذه الجلسة.</string>
     <string name="cardboard_steamvr_failed">لم يستجب SteamVR؛ تحقّق من سجل الجلسة.</string>
     <string name="drawer_component_downloads">تنزيل المكوّنات</string>
@@ -2351,4 +2345,21 @@
     <string name="stores_hltb_completionist">الإكمال التام</string>
     <string name="stores_hltb_hours">%1$s س</string>
     <string name="stores_hltb_minutes">%1$d د</string>
+    <string name="boot_movie">فيديو الإقلاع</string>
+    <string name="boot_movie_video">الفيديو</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d إطار/ث</string>
+    <string name="boot_movie_note">معدل 60 إطارًا/ث أكثر سلاسة لكنه يستهلك المعالج أكثر أثناء بدء Steam. فيديو البدء المختار في إعدادات Steam نفسها له الأولوية.</string>
+    <string name="boot_movie_sound">الصوت</string>
+    <string name="boot_movie_custom">فيديو خاص بك</string>
+    <string name="boot_movie_custom_hint">MP4 أو MOV أو MKV أو WebM. تُحوَّل الصيغ الأخرى والملفات الأكبر من %1$d ميغابايت إلى WebM بدقة 720p على الجهاز، حتى %2$d ثانية.</string>
+    <string name="boot_movie_import">استيراد</string>
+    <string name="boot_movie_remove">إزالة</string>
+    <string name="boot_movie_pick">اختر فيديو الإقلاع</string>
+    <string name="boot_movie_imported">أصبح %1$s فيديو الإقلاع</string>
+    <string name="boot_movie_imported_silent">أصبح %1$s فيديو الإقلاع، بلا صوت</string>
+    <string name="boot_movie_too_long">يجب ألا تتجاوز مدة الفيديو المطلوب تحويله %1$d ثانية</string>
+    <string name="boot_movie_converting">جارٍ التحويل %1$d%%</string>
+    <string name="boot_movie_converting_started">جارٍ تحويل %1$s لـ Steam. أبقِ DroidDeck مفتوحًا.</string>
+    <string name="boot_movie_unsupported">لا يستطيع هذا الجهاز فك ترميز هذا الفيديو.</string>
+    <string name="boot_movie_import_failed">تعذّر استيراد الفيديو</string>
 </resources>

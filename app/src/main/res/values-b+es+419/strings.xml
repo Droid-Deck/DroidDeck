@@ -90,4 +90,21 @@
         <item quantity="many">%1$d juegos agregados</item>
         <item quantity="other">%1$d juegos agregados</item>
     </plurals>
+    <string name="boot_movie">Video de arranque</string>
+    <string name="boot_movie_video">Video</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
+    <string name="boot_movie_note">60 fps se ve más fluido pero usa más CPU mientras Steam se inicia. Un video de inicio elegido en la configuración de Steam tiene prioridad.</string>
+    <string name="boot_movie_sound">Sonido</string>
+    <string name="boot_movie_custom">Tu propio video</string>
+    <string name="boot_movie_custom_hint">MP4, MOV, MKV o WebM. Otros formatos y archivos de más de %1$d MB se convierten a WebM 720p en el dispositivo, hasta %2$d segundos.</string>
+    <string name="boot_movie_import">Importar</string>
+    <string name="boot_movie_remove">Quitar</string>
+    <string name="boot_movie_pick">Elige un video de arranque</string>
+    <string name="boot_movie_imported">%1$s es ahora el video de arranque</string>
+    <string name="boot_movie_imported_silent">%1$s es ahora el video de arranque, sin sonido</string>
+    <string name="boot_movie_too_long">Los videos que hay que convertir deben durar %1$d segundos o menos</string>
+    <string name="boot_movie_converting">Convirtiendo %1$d %%</string>
+    <string name="boot_movie_converting_started">Convirtiendo %1$s para Steam. Mantén DroidDeck abierto.</string>
+    <string name="boot_movie_unsupported">Este dispositivo no puede decodificar ese video.</string>
+    <string name="boot_movie_import_failed">No se pudo importar ese video</string>
 </resources>

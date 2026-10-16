@@ -1009,7 +1009,6 @@
     <string name="gpu_set_with_runtime">रनटाइम ड्राइवर के साथ सेट: %1$s दोनों साथ लाता है।</string>
     <string name="gpu_runtime_hint">गेम और डेस्कटॉप में उपयोग होता है।</string>
     <string name="gpu_runtime_default">रनटाइम डिफ़ॉल्ट</string>
-    <string name="gpu_display_hint">स्क्रीन पर फ़्रेम बनाता है। DroidDeck रीस्टार्ट होने के बाद लागू होता है।</string>
     <string name="gpu_auto_by_gpu">ऑटो - GPU के हिसाब से चुना गया</string>
     <string name="gpu_manage">डाउनलोड, इंपोर्ट या डिलीट करें…</string>
     <string name="gpu_in_use_caps">उपयोग में</string>
@@ -1664,7 +1663,6 @@
     <string name="adbpair_done_text">DroidDeck पर वापस जाने के लिए टैप करें। अब आप वायरलेस डीबगिंग बंद कर सकते हैं।</string>
     <string name="adbpair_title_failed">वायरलेस डीबगिंग सेटअप रुक गया</string>
 
-    <string name="selfinst_http">डाउनलोड ने HTTP %1$d जवाब दिया</string>
     <string name="selfinst_size_mismatch">डाउनलोड का आकार पब्लिश किए APK से मेल नहीं खाया और इसे हटा दिया गया - फिर कोशिश करें</string>
     <string name="selfinst_checksum_mismatch">डाउनलोड अपने चेकसम से मेल नहीं खाया और इसे हटा दिया गया - फिर कोशिश करें</string>
     <string name="selfinst_wrong_package">यह अपडेट Android पैकेज %1$s के लिए है, %2$s के लिए नहीं</string>
@@ -1762,7 +1760,6 @@
 
     <string name="turnip_rate_limited">GitHub की रेट लिमिट पार हो गई - बाद में फिर कोशिश करें</string>
     <string name="turnip_github_http">GitHub ने HTTP %1$d जवाब दिया</string>
-    <string name="turnip_download_http">डाउनलोड ने HTTP %1$d जवाब दिया</string>
     <string name="turnip_list_predates_checksums">यह ड्राइवर लिस्ट चेकसम से पुरानी है - इसे रीफ़्रेश करें और फिर कोशिश करें</string>
     <string name="turnip_checksum_mismatch">चेकसम मेल नहीं खाया - डाउनलोड हटा दिया गया</string>
     <string name="turnip_not_adrenotools">यह AdrenoTools ड्राइवर नहीं है: %1$s</string>
@@ -2232,12 +2229,9 @@
     <string name="cardboard_recenter_button">बीच में लाएं</string>
     <string name="cardboard_steamvr">SteamVR (प्रायोगिक)</string>
     <string name="cardboard_steamvr_install">इंस्टॉल करें</string>
-    <string name="cardboard_steamvr_install_hint">Valve का ARM64 SteamVR डाउनलोड करता है (571 MB)।</string>
     <string name="cardboard_steamvr_installing">SteamVR डाउनलोड और अनपैक हो रहा है…</string>
     <string name="cardboard_steamvr_start">शुरू करें</string>
-    <string name="cardboard_steamvr_ready_hint">आपके सिर को हेडसेट मानकर SteamVR चलाता है; तस्वीर साइड-बाय-साइड 3D में बदल जाती है।</string>
     <string name="cardboard_steamvr_stop">रोकें</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR चल रहा है।</string>
     <string name="cardboard_steamvr_unavailable">इस सेशन में उपलब्ध नहीं है।</string>
     <string name="cardboard_steamvr_failed">SteamVR ने जवाब नहीं दिया; सेशन लॉग देखें।</string>
     <string name="drawer_component_downloads">कंपोनेंट डाउनलोड करें</string>
@@ -2251,4 +2245,21 @@
     <string name="stores_hltb_completionist">पूरा</string>
     <string name="stores_hltb_hours">%1$s घं</string>
     <string name="stores_hltb_minutes">%1$d मि</string>
+    <string name="boot_movie">बूट वीडियो</string>
+    <string name="boot_movie_video">वीडियो</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
+    <string name="boot_movie_note">60 fps ज़्यादा स्मूथ दिखता है, लेकिन Steam शुरू होते समय CPU ज़्यादा इस्तेमाल करता है। Steam की अपनी सेटिंग्स में चुना गया स्टार्टअप वीडियो प्राथमिकता लेता है।</string>
+    <string name="boot_movie_sound">आवाज़</string>
+    <string name="boot_movie_custom">अपना वीडियो</string>
+    <string name="boot_movie_custom_hint">MP4, MOV, MKV या WebM. दूसरे फ़ॉर्मैट और %1$d MB से बड़ी फ़ाइलें डिवाइस पर 720p WebM में बदली जाती हैं, %2$d सेकंड तक।</string>
+    <string name="boot_movie_import">इंपोर्ट करें</string>
+    <string name="boot_movie_remove">हटाएं</string>
+    <string name="boot_movie_pick">बूट वीडियो चुनें</string>
+    <string name="boot_movie_imported">%1$s अब बूट वीडियो है</string>
+    <string name="boot_movie_imported_silent">%1$s अब बूट वीडियो है, बिना आवाज़ के</string>
+    <string name="boot_movie_too_long">बदले जाने वाले वीडियो %1$d सेकंड या उससे छोटे होने चाहिए</string>
+    <string name="boot_movie_converting">बदला जा रहा है %1$d%%</string>
+    <string name="boot_movie_converting_started">%1$s को Steam के लिए बदला जा रहा है। DroidDeck खुला रखें।</string>
+    <string name="boot_movie_unsupported">यह डिवाइस उस वीडियो को डिकोड नहीं कर सकता।</string>
+    <string name="boot_movie_import_failed">वीडियो इंपोर्ट नहीं हो सका</string>
 </resources>

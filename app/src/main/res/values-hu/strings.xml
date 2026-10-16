@@ -1009,7 +1009,6 @@
     <string name="gpu_set_with_runtime">A futtatókörnyezet-illesztőprogrammal együtt beállítva: a %1$s mindkettőt tartalmazza.</string>
     <string name="gpu_runtime_hint">A játékok és az asztal használja.</string>
     <string name="gpu_runtime_default">Futtatókörnyezet alapértelmezése</string>
-    <string name="gpu_display_hint">A képkockákat rajzolja a képernyőre. A DroidDeck újraindítása után lép érvénybe.</string>
     <string name="gpu_auto_by_gpu">Automatikus – GPU szerint kiválasztva</string>
     <string name="gpu_manage">Letöltés, importálás vagy törlés…</string>
     <string name="gpu_in_use_caps">HASZNÁLATBAN</string>
@@ -1664,7 +1663,6 @@
     <string name="adbpair_done_text">Koppintson a DroidDeckhez való visszatéréshez. A vezeték nélküli hibakeresést most kikapcsolhatja.</string>
     <string name="adbpair_title_failed">A vezeték nélküli hibakeresés beállítása megállt</string>
 
-    <string name="selfinst_http">A letöltés HTTP %1$d választ adott</string>
     <string name="selfinst_size_mismatch">A letöltés mérete nem egyezett a közzétett APK-val, és elvetésre került – próbálja újra</string>
     <string name="selfinst_checksum_mismatch">A letöltés nem egyezett az ellenőrzőösszegével, és elvetésre került – próbálja újra</string>
     <string name="selfinst_wrong_package">A frissítés a %1$s Android-csomaghoz tartozik, nem a %2$s-hez</string>
@@ -1762,7 +1760,6 @@
 
     <string name="turnip_rate_limited">A GitHub korlátja elérve – próbálja újra később</string>
     <string name="turnip_github_http">A GitHub HTTP %1$d választ adott</string>
-    <string name="turnip_download_http">a letöltés HTTP %1$d választ adott</string>
     <string name="turnip_list_predates_checksums">Ez az illesztőprogram-lista régebbi, mint az ellenőrzőösszegek – frissítse, és próbálja újra</string>
     <string name="turnip_checksum_mismatch">Az ellenőrzőösszeg nem egyezik – a letöltés elvetve</string>
     <string name="turnip_not_adrenotools">Nem egy AdrenoTools illesztőprogram: %1$s</string>
@@ -2232,12 +2229,9 @@
     <string name="cardboard_recenter_button">Középre</string>
     <string name="cardboard_steamvr">SteamVR (kísérleti)</string>
     <string name="cardboard_steamvr_install">Telepítés</string>
-    <string name="cardboard_steamvr_install_hint">Letölti a Valve ARM64-es SteamVR-jét (571 MB).</string>
     <string name="cardboard_steamvr_installing">SteamVR letöltése és kicsomagolása…</string>
     <string name="cardboard_steamvr_start">Indítás</string>
-    <string name="cardboard_steamvr_ready_hint">A SteamVR-t a fejeddel mint headsettel futtatja; a kép egymás melletti 3D-re vált.</string>
     <string name="cardboard_steamvr_stop">Leállítás</string>
-    <string name="cardboard_steamvr_running_hint">A SteamVR fut.</string>
     <string name="cardboard_steamvr_unavailable">Ebben a munkamenetben nem érhető el.</string>
     <string name="cardboard_steamvr_failed">A SteamVR nem válaszolt; nézd meg a munkamenet naplóját.</string>
     <string name="drawer_component_downloads">Összetevők letöltése</string>
@@ -2251,4 +2245,21 @@
     <string name="stores_hltb_completionist">Teljes</string>
     <string name="stores_hltb_hours">%1$s óra</string>
     <string name="stores_hltb_minutes">%1$d perc</string>
+    <string name="boot_movie">Indítóvideó</string>
+    <string name="boot_movie_video">Videó</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
+    <string name="boot_movie_note">A 60 fps simább, de jobban terheli a processzort a Steam indulása közben. A Steam saját beállításaiban választott indítóvideó elsőbbséget élvez.</string>
+    <string name="boot_movie_sound">Hang</string>
+    <string name="boot_movie_custom">Saját videó</string>
+    <string name="boot_movie_custom_hint">MP4, MOV, MKV vagy WebM. Más formátumokat és a %1$d MB-nál nagyobb fájlokat az eszköz 720p WebM-re alakítja, legfeljebb %2$d másodpercig.</string>
+    <string name="boot_movie_import">Importálás</string>
+    <string name="boot_movie_remove">Eltávolítás</string>
+    <string name="boot_movie_pick">Válassz indítóvideót</string>
+    <string name="boot_movie_imported">Mostantól %1$s az indítóvideó</string>
+    <string name="boot_movie_imported_silent">Mostantól %1$s az indítóvideó, hang nélkül</string>
+    <string name="boot_movie_too_long">Az átalakítandó videó legfeljebb %1$d másodperces lehet</string>
+    <string name="boot_movie_converting">Átalakítás %1$d%%</string>
+    <string name="boot_movie_converting_started">%1$s átalakítása a Steamhez. Hagyd nyitva a DroidDecket.</string>
+    <string name="boot_movie_unsupported">Ez az eszköz nem tudja dekódolni a videót.</string>
+    <string name="boot_movie_import_failed">Nem sikerült importálni a videót</string>
 </resources>

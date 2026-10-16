@@ -1009,7 +1009,6 @@
     <string name="gpu_set_with_runtime">Ställs in tillsammans med körmiljödrivrutinen: %1$s innehåller båda.</string>
     <string name="gpu_runtime_hint">Används av spel och skrivbordet.</string>
     <string name="gpu_runtime_default">Standard för körmiljön</string>
-    <string name="gpu_display_hint">Ritar bildrutor på skärmen. Gäller efter att DroidDeck har startats om.</string>
     <string name="gpu_auto_by_gpu">Auto – valt efter GPU</string>
     <string name="gpu_manage">Ladda ned, importera eller ta bort…</string>
     <string name="gpu_in_use_caps">I BRUK</string>
@@ -1664,7 +1663,6 @@
     <string name="adbpair_done_text">Tryck för att gå tillbaka till DroidDeck. Du kan stänga av trådlös felsökning nu.</string>
     <string name="adbpair_title_failed">Konfigurationen av trådlös felsökning avbröts</string>
 
-    <string name="selfinst_http">Nedladdningen svarade HTTP %1$d</string>
     <string name="selfinst_size_mismatch">Nedladdningens storlek matchade inte den publicerade APK-filen och förkastades - försök igen</string>
     <string name="selfinst_checksum_mismatch">Nedladdningen matchade inte sin kontrollsumma och förkastades - försök igen</string>
     <string name="selfinst_wrong_package">Uppdateringen är för Android-paketet %1$s, inte %2$s</string>
@@ -1762,7 +1760,6 @@
 
     <string name="turnip_rate_limited">GitHubs hastighetsgräns nåddes - försök igen senare</string>
     <string name="turnip_github_http">GitHub svarade HTTP %1$d</string>
-    <string name="turnip_download_http">nedladdningen svarade HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Den här drivrutinslistan är från innan kontrollsummor fanns - uppdatera den och försök igen</string>
     <string name="turnip_checksum_mismatch">Kontrollsumman stämmer inte - nedladdningen förkastades</string>
     <string name="turnip_not_adrenotools">Inte en AdrenoTools-drivrutin: %1$s</string>
@@ -2232,12 +2229,9 @@
     <string name="cardboard_recenter_button">Centrera</string>
     <string name="cardboard_steamvr">SteamVR (experimentellt)</string>
     <string name="cardboard_steamvr_install">Installera</string>
-    <string name="cardboard_steamvr_install_hint">Laddar ned Valves SteamVR för ARM64 (571 MB).</string>
     <string name="cardboard_steamvr_installing">Laddar ned och packar upp SteamVR…</string>
     <string name="cardboard_steamvr_start">Starta</string>
-    <string name="cardboard_steamvr_ready_hint">Kör SteamVR med ditt huvud som headset; bilden växlar till sida vid sida-3D.</string>
     <string name="cardboard_steamvr_stop">Stoppa</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR körs.</string>
     <string name="cardboard_steamvr_unavailable">Inte tillgängligt i den här sessionen.</string>
     <string name="cardboard_steamvr_failed">SteamVR svarade inte; kontrollera sessionsloggen.</string>
     <string name="drawer_component_downloads">Ladda ned komponenter</string>
@@ -2251,4 +2245,21 @@
     <string name="stores_hltb_completionist">Komplettering</string>
     <string name="stores_hltb_hours">%1$s h</string>
     <string name="stores_hltb_minutes">%1$d min</string>
+    <string name="boot_movie">Startvideo</string>
+    <string name="boot_movie_video">Video</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
+    <string name="boot_movie_note">60 fps ser jämnare ut men använder mer CPU medan Steam startar. En startvideo vald i Steams egna inställningar har företräde.</string>
+    <string name="boot_movie_sound">Ljud</string>
+    <string name="boot_movie_custom">Egen video</string>
+    <string name="boot_movie_custom_hint">MP4, MOV, MKV eller WebM. Andra format och filer över %1$d MB konverteras till 720p-WebM på enheten, upp till %2$d sekunder.</string>
+    <string name="boot_movie_import">Importera</string>
+    <string name="boot_movie_remove">Ta bort</string>
+    <string name="boot_movie_pick">Välj en startvideo</string>
+    <string name="boot_movie_imported">%1$s är nu startvideon</string>
+    <string name="boot_movie_imported_silent">%1$s är nu startvideon, utan ljud</string>
+    <string name="boot_movie_too_long">Videor som ska konverteras får vara högst %1$d sekunder</string>
+    <string name="boot_movie_converting">Konverterar %1$d %%</string>
+    <string name="boot_movie_converting_started">Konverterar %1$s för Steam. Håll DroidDeck öppet.</string>
+    <string name="boot_movie_unsupported">Enheten kan inte avkoda videon.</string>
+    <string name="boot_movie_import_failed">Kunde inte importera videon</string>
 </resources>

@@ -1021,7 +1021,6 @@
     <string name="gpu_set_with_runtime">Nastaveno společně s ovladačem runtime: %1$s obsahuje oba.</string>
     <string name="gpu_runtime_hint">Používají hry a desktop.</string>
     <string name="gpu_runtime_default">Výchozí runtime</string>
-    <string name="gpu_display_hint">Vykresluje snímky na obrazovku. Použije se po restartu DroidDecku.</string>
     <string name="gpu_auto_by_gpu">Automaticky - podle GPU</string>
     <string name="gpu_manage">Stáhnout, importovat nebo smazat…</string>
     <string name="gpu_in_use_caps">POUŽÍVÁ SE</string>
@@ -1706,7 +1705,6 @@
     <string name="adbpair_done_text">Klepnutím se vrátíte do DroidDecku. Bezdrátové ladění teď můžete vypnout.</string>
     <string name="adbpair_title_failed">Nastavení bezdrátového ladění bylo zastaveno</string>
 
-    <string name="selfinst_http">Stahování odpovědělo HTTP %1$d</string>
     <string name="selfinst_size_mismatch">Velikost stahování neodpovídala zveřejněnému APK a bylo zahozeno - zkuste to znovu</string>
     <string name="selfinst_checksum_mismatch">Stahování neodpovídalo svému kontrolnímu součtu a bylo zahozeno - zkuste to znovu</string>
     <string name="selfinst_wrong_package">Aktualizace je pro balíček Androidu %1$s, ne %2$s</string>
@@ -1804,7 +1802,6 @@
 
     <string name="turnip_rate_limited">Byl dosažen limit požadavků GitHubu - zkuste to později</string>
     <string name="turnip_github_http">GitHub odpověděl HTTP %1$d</string>
-    <string name="turnip_download_http">stahování odpovědělo HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Tento seznam ovladačů předchází kontrolním součtům - obnovte ho a zkuste to znovu</string>
     <string name="turnip_checksum_mismatch">Neshoda kontrolního součtu - stahování bylo zahozeno</string>
     <string name="turnip_not_adrenotools">Není ovladač AdrenoTools: %1$s</string>
@@ -2282,12 +2279,9 @@
     <string name="cardboard_recenter_button">Vycentrovat</string>
     <string name="cardboard_steamvr">SteamVR (experimentální)</string>
     <string name="cardboard_steamvr_install">Instalovat</string>
-    <string name="cardboard_steamvr_install_hint">Stáhne SteamVR pro ARM64 od Valve (571 MB).</string>
     <string name="cardboard_steamvr_installing">Stahování a rozbalování SteamVR…</string>
     <string name="cardboard_steamvr_start">Spustit</string>
-    <string name="cardboard_steamvr_ready_hint">Spustí SteamVR s vaší hlavou jako headsetem; obraz se přepne na 3D vedle sebe.</string>
     <string name="cardboard_steamvr_stop">Zastavit</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR běží.</string>
     <string name="cardboard_steamvr_unavailable">V této relaci není k dispozici.</string>
     <string name="cardboard_steamvr_failed">SteamVR neodpovídá; zkontrolujte protokol relace.</string>
     <string name="drawer_component_downloads">Stáhnout komponenty</string>
@@ -2301,4 +2295,21 @@
     <string name="stores_hltb_completionist">Kompletní</string>
     <string name="stores_hltb_hours">%1$s h</string>
     <string name="stores_hltb_minutes">%1$d min</string>
+    <string name="boot_movie">Úvodní video</string>
+    <string name="boot_movie_video">Video</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
+    <string name="boot_movie_note">60 fps vypadá plynuleji, ale při spouštění Steamu víc zatěžuje procesor. Úvodní video vybrané přímo v nastavení Steamu má přednost.</string>
+    <string name="boot_movie_sound">Zvuk</string>
+    <string name="boot_movie_custom">Vlastní video</string>
+    <string name="boot_movie_custom_hint">MP4, MOV, MKV nebo WebM. Jiné formáty a soubory nad %1$d MB se v zařízení převedou na WebM 720p, nejvýše %2$d sekund.</string>
+    <string name="boot_movie_import">Importovat</string>
+    <string name="boot_movie_remove">Odebrat</string>
+    <string name="boot_movie_pick">Vyberte úvodní video</string>
+    <string name="boot_movie_imported">%1$s je nyní úvodní video</string>
+    <string name="boot_movie_imported_silent">%1$s je nyní úvodní video, bez zvuku</string>
+    <string name="boot_movie_too_long">Videa k převodu mohou mít nejvýše %1$d sekund</string>
+    <string name="boot_movie_converting">Převádění %1$d %%</string>
+    <string name="boot_movie_converting_started">Převádí se %1$s pro Steam. Nechte DroidDeck otevřený.</string>
+    <string name="boot_movie_unsupported">Toto zařízení video nedokáže dekódovat.</string>
+    <string name="boot_movie_import_failed">Video se nepodařilo importovat</string>
 </resources>
