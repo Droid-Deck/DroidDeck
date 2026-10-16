@@ -126,6 +126,7 @@ class MemoryHud(context: Context) {
     private val context = context.applicationContext
     private val handler = Handler(Looper.getMainLooper())
     @Volatile private var running = false
+    @Volatile private var generation = 0
     private var thread: Thread? = null
 
     fun refresh() {
@@ -135,10 +136,11 @@ class MemoryHud(context: Context) {
     fun start() {
         if (running || SessionPrefs.memoryHud(context) == SessionPrefs.MEMORY_HUD_OFF) return
         running = true
+        val token = ++generation
         thread = Thread({
-            while (running) {
+            while (running && generation == token) {
                 val line = runCatching { sample() }.getOrDefault("")
-                handler.post { if (running) text = line }
+                handler.post { if (running && generation == token) text = line }
                 try { Thread.sleep(PERIOD_MS) } catch (e: InterruptedException) { break }
             }
         }, "memory-hud").apply { isDaemon = true; start() }
@@ -146,6 +148,7 @@ class MemoryHud(context: Context) {
 
     fun stop() {
         running = false
+        generation++
         thread?.interrupt()
         thread = null
         text = ""

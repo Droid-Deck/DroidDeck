@@ -766,7 +766,10 @@ class MainActivity : ComponentActivity() {
                         },
                         onClearCachedApps = { on -> SessionPrefs.setClearCachedApps(this, on); clearCachedApps = on },
                         onMemoryHud = { value -> SessionPrefs.setMemoryHud(this, value); memoryHud = value },
-                        onBackgroundAppLimit = { limit -> SessionPrefs.setBackgroundAppLimit(this, limit); backgroundAppLimit = limit },
+                        onBackgroundAppLimit = { limit ->
+                            SessionPrefs.setBackgroundAppLimit(this, limit); backgroundAppLimit = limit
+                            if (limit == com.droiddeck.launcher.core.BackgroundAppLimit.OFF) com.droiddeck.launcher.core.BackgroundAppLimit.restoreAsync(this)
+                        },
                         onShareLogs = {
                             SessionLogShare.prepare(this, { SessionLogShare.latest(this) }) { zip ->
                                 if (zip == null) android.widget.Toast.makeText(this, R.string.main_no_logs_yet, android.widget.Toast.LENGTH_LONG).show()

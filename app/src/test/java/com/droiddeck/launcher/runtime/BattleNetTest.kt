@@ -145,6 +145,12 @@ class BattleNetTest {
         assertTrue(BattleNet.installed(context))
     }
 
+    @Test fun theEnvironmentEditorNamesBattleNetsProfileOnceItIsInstalled() {
+        assertNull(BattleNet.profile(context))
+        launcher().apply { parentFile!!.mkdirs(); writeText("MZ") }
+        assertEquals(BattleNet.APP_ID.toString() to "Battle.net", BattleNet.profile(context))
+    }
+
     @Test fun removeTakesThePrefixItsMenuEntryAndCacheButNothingItLinksTo() {
         catalog("FEXCore-2610-d2rfix28-linux.wcp")
         store("FEXCore-2610-d2rfix28-linux.wcp")

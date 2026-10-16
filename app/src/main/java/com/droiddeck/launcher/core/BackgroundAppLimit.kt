@@ -40,7 +40,7 @@ object BackgroundAppLimit {
             runCatching {
                 if (!applied(app)) {
                     val previous = parse(WirelessAdbFix.shell(app, readCommand()))
-                    state(app).edit().putBoolean(APPLIED, true).putString(PREVIOUS, previous).commit()
+                    check(state(app).edit().putBoolean(APPLIED, true).putString(PREVIOUS, previous).commit()) { "previous value not saved" }
                 }
                 WirelessAdbFix.shell(app, setCommand(limit))
             }.onSuccess { Log.i(TAG, "at most $limit cached app(s) while the session runs") }

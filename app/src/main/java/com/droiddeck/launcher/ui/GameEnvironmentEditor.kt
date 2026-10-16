@@ -101,10 +101,8 @@ internal fun GameEnvironmentEditor(byPad: Boolean, initialScope: String = "", on
     LaunchedEffect(Unit) {
         runCatching {
             withContext(Dispatchers.IO) {
-                // Battle.net's games share Battle.net's profile.
-                GameEnvironmentStore.read(context) to Library.steamGames(context).map { game ->
-                    game.profileKey to if (game.source == com.droiddeck.launcher.runtime.BattleNet.SOURCE) context.getString(R.string.bnet_name) else game.name
-                }.distinctBy { it.first }
+                GameEnvironmentStore.read(context) to Library.steamGames(context).map { it.appId.toString() to it.name } +
+                    listOfNotNull(com.droiddeck.launcher.runtime.BattleNet.profile(context))
             }
         }.onSuccess { (settings, installed) -> config = settings; games = installed }
             .onFailure { error = true }
