@@ -35,11 +35,17 @@ class PhantomProcessLimitTest {
             listOf(
                 "device_config set_sync_disabled_for_tests persistent",
                 "device_config put activity_manager max_phantom_processes 2147483647",
+                "settings put global settings_enable_monitor_phantom_procs false",
             ),
             PhantomProcessLimit.shellCommands(enabled = false, sdk = 31),
         )
         assertTrue(PhantomProcessLimit.verified("2147483647\n", enabled = false, sdk = 31))
         assertFalse(PhantomProcessLimit.verified("null", enabled = false, sdk = 31))
+        assertEquals(PhantomProcessStatus.DISABLED, PhantomProcessLimit.android12Status(true, null, null))
+        assertEquals(PhantomProcessStatus.DISABLED, PhantomProcessLimit.android12Status(false, "false", null))
+        assertEquals(PhantomProcessStatus.DISABLED, PhantomProcessLimit.android12Status(false, null, "0"))
+        assertEquals(PhantomProcessStatus.UNREADABLE, PhantomProcessLimit.android12Status(false, null, null))
+        assertEquals(PhantomProcessStatus.UNREADABLE, PhantomProcessLimit.android12Status(false, "true", null))
     }
 
     @Test

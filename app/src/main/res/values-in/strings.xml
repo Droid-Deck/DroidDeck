@@ -837,7 +837,7 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android menghentikan aplikasi yang memulai banyak proses latar belakang, dan Steam memulai puluhan. Sampai ini berubah, gim akan tertutup tanpa pesan kesalahan.</string>
     <string name="gate_fix_for_me">Perbaiki untuk saya</string>
-    <string name="gate_toggle_steps">Aktifkan “Disable child process restrictions”, lalu kembali. Biarkan Opsi pengembang tetap aktif, atau sakelarnya akan nonaktif lagi.</string>
+    <string name="gate_toggle_steps">Aktifkan “Nonaktifkan batasan proses turunan”, lalu kembali. Biarkan Opsi pengembang tetap aktif, atau sakelarnya akan nonaktif lagi.</string>
     <string name="gate_open_dev">Buka Opsi pengembang</string>
     <string name="gate_no_toggle">Versi Android ini tidak memiliki sakelar untuk itu, sehingga DroidDeck mengubahnya melalui Debugging nirkabel. Membutuhkan waktu sekitar satu menit, tanpa komputer.</string>
     <string name="gate_needs_wifi">Debugging nirkabel memerlukan Wi-Fi. Jaringan apa pun berfungsi; tidak perlu internet.</string>
@@ -1778,7 +1778,7 @@
     <string name="phantom_instructions_fix">%1$s Jika itu tidak memungkinkan, sambungkan perangkat ini ke komputer dengan ADB dan jalankan perintah di bawah. Kembali ke sini dan periksa lagi.</string>
     <string name="phantom_instructions_off">Sesi Steam dapat dimulai.</string>
     <string name="phantom_instructions_not_applicable">Versi Android ini tidak menggunakan batas ini.</string>
-    <string name="phantom_fix_toggle">Aktifkan “Disable child process restrictions” di Opsi developer, dan biarkan Opsi developer tetap aktif setelahnya.</string>
+    <string name="phantom_fix_toggle">Aktifkan “Nonaktifkan batasan proses turunan” di Opsi developer, dan biarkan Opsi developer tetap aktif setelahnya.</string>
     <string name="phantom_fix_no_toggle">Versi Android ini tidak memiliki sakelar untuk itu. Gunakan Debugging nirkabel untuk mengubahnya dari perangkat ini.</string>
     <string name="upd_block_no_apk">Build ini tidak memiliki unduhan untuk salinan DroidDeck ini.</string>
     <string name="upd_block_version_code">Android tidak akan menginstalnya di atas build ini karena versionCode %1$d lebih rendah dari %2$d yang terinstal.</string>
