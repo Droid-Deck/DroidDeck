@@ -1,119 +1,180 @@
 package com.droiddeck.launcher.stores.epic
 
 import android.content.Context
-import android.content.SharedPreferences
-import android.util.Log
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.Store
+import com.droiddeck.launcher.stores.cleanStoreText
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.URLEncoder
 import java.util.concurrent.atomic.AtomicBoolean
 
-/**
- * The signed-in account's Epic library: the library service's records, each enriched from the
- * catalog (title, art, DLC flag), cached so the tab paints at once and re-synced when forced or
- * 15 minutes stale. DLC entries are folded away under their base game. Ported from Bannerlator's
- * EpicLibraryRepo.
- */
+data class EpicGame(
+    val appName: String,
+    val namespace: String,
+    val catalogItemId: String,
+    val title: String,
+    val artCover: String = "",
+    val artSquare: String = "",
+    val developer: String = "",
+    val description: String = "",
+    val version: String = "",
+    val installSize: Long = 0L,
+    val canRunOffline: Boolean = true,
+    val releaseDate: String = "",
+    val publisher: String = "",
+    val isDlc: Boolean = false,
+)
+
 object EpicLibrary {
-    private const val TAG = "EpicLibrary"
-    private const val CACHE_KEY = "library_cache"
-    private const val LAST_SYNC_KEY = "library_synced_at"
-    private const val THROTTLE_MS = 6L * 60L * 60L * 1000L
+    const val KEY_CACHE = "library_cache"
+    const val KEY_SYNCED_AT = "library_synced_at"
+    private const val THROTTLE_MS = 6 * 60 * 60 * 1000L
+    private const val MAX_SIZE = 1L shl 40
 
-    private val syncing = AtomicBoolean(false)
-
-    sealed interface SyncResult {
-        class Ok(val games: List<EpicGame>) : SyncResult
-        class Failed(val message: String) : SyncResult
-        object NotLoggedIn : SyncResult
-        object Busy : SyncResult
-        object Throttled : SyncResult
+    sealed class SyncResult {
+        class Ok(val games: List<EpicGame>) : SyncResult()
+        class Failed(val message: String) : SyncResult()
+        object NotLoggedIn : SyncResult()
+        object Throttled : SyncResult()
+        object Busy : SyncResult()
     }
 
-    fun cached(context: Context): List<EpicGame> {
-        val json = EpicPrefs.get(context).getString(CACHE_KEY, null) ?: return emptyList()
-        return runCatching {
-            val arr = JSONArray(json)
-            val list = ArrayList<EpicGame>(arr.length())
-            for (i in 0 until arr.length()) {
-                val j = arr.optJSONObject(i) ?: continue
-                val g = EpicGame()
-                g.appName = j.optString("appName", ""); g.namespace = j.optString("namespace", ""); g.catalogItemId = j.optString("catalogItemId", "")
-                g.title = j.optString("title", ""); g.artCover = j.optString("artCover", ""); g.artSquare = j.optString("artSquare", "")
-                g.developer = j.optString("developer", ""); g.description = j.optString("description", ""); g.version = j.optString("version", "")
-                g.installSize = j.optLong("installSize", 0L).let { if (it > 1_099_511_627_776L) 0L else it }
-                g.canRunOffline = j.optBoolean("canRunOffline", true)
-                if (g.appName.isNotEmpty()) list.add(g)
-            }
-            list.distinctBy { it.appName }.sortedBy { it.title.lowercase() }
-        }.getOrDefault(emptyList())
+    private val running = AtomicBoolean(false)
+
+    fun toCacheJson(games: List<EpicGame>): String = JSONArray().apply {
+        for (g in games) put(
+            JSONObject()
+                .put("appName", g.appName).put("namespace", g.namespace).put("catalogItemId", g.catalogItemId)
+                .put("title", g.title).put("artCover", g.artCover).put("artSquare", g.artSquare)
+                .put("developer", g.developer).put("description", g.description).put("version", g.version)
+                .put("installSize", g.installSize).put("canRunOffline", g.canRunOffline)
+                .put("releaseDate", g.releaseDate).put("publisher", g.publisher),
+        )
+    }.toString()
+
+    fun fromCacheJson(text: String?): List<EpicGame> {
+        if (text.isNullOrBlank()) return emptyList()
+        val array = runCatching { JSONArray(text) }.getOrNull() ?: return emptyList()
+        val games = (0 until array.length()).mapNotNull { array.optJSONObject(it) }.mapNotNull { o ->
+            val appName = o.optString("appName", "").ifEmpty { return@mapNotNull null }
+            EpicGame(
+                appName = appName,
+                namespace = o.optString("namespace", ""),
+                catalogItemId = o.optString("catalogItemId", ""),
+                title = o.optString("title", "").ifEmpty { appName },
+                artCover = o.optString("artCover", ""),
+                artSquare = o.optString("artSquare", ""),
+                developer = o.optString("developer", ""),
+                description = o.optString("description", ""),
+                version = o.optString("version", ""),
+                installSize = o.optLong("installSize", 0L).takeIf { it in 0..MAX_SIZE } ?: 0L,
+                canRunOffline = o.optBoolean("canRunOffline", true),
+                releaseDate = o.optString("releaseDate", ""),
+                publisher = o.optString("publisher", ""),
+            )
+        }
+        return tidy(games)
     }
 
-    /** Remembers a game's install size once the manifest said it, for the Install button. */
-    fun rememberSize(context: Context, appName: String, bytes: Long) {
-        if (bytes <= 0) return
-        val p = EpicPrefs.get(context)
-        p.edit().putLong("size_$appName", bytes).apply()
+    private fun tidy(games: List<EpicGame>): List<EpicGame> =
+        games.distinctBy { it.appName }.sortedBy { it.title.lowercase() }
+
+    fun cached(context: Context): List<EpicGame> = fromCacheJson(EpicPrefs.get(context).getString(KEY_CACHE, null))
+
+    fun forget(context: Context) {
+        EpicPrefs.get(context).edit().remove(KEY_CACHE).remove(KEY_SYNCED_AT).apply()
     }
 
-    fun sync(context: Context, force: Boolean = false, onStatus: (String) -> Unit = {}): SyncResult {
-        if (!syncing.compareAndSet(false, true)) return SyncResult.Busy
+    fun toCatalogItem(context: Context, game: EpicGame): CatalogItem {
+        val prefs = EpicPrefs.get(context)
+        val wide = game.artSquare.ifEmpty { null }
+        val tall = game.artCover.ifEmpty { null }
+        val title = game.title.ifEmpty { game.appName }
+        return CatalogItem(
+            store = Store.EPIC,
+            id = game.appName,
+            title = title,
+            imageUrl = wide ?: tall,
+            tallImageUrl = tall ?: wide,
+            developer = game.developer,
+            publisher = game.publisher,
+            releaseDate = game.releaseDate.ifEmpty { prefs.getString("release_${game.appName}", "").orEmpty() },
+            description = cleanStoreText(game.description),
+            owned = true,
+            sizeBytes = prefs.getLong("size_${game.appName}", 0L).takeIf { it > 0 } ?: game.installSize,
+            storeUrl = "https://store.epicgames.com/en-US/browse?q=" + URLEncoder.encode(title, "UTF-8"),
+            extra = mapOf("namespace" to game.namespace, "catalogItemId" to game.catalogItemId, "version" to game.version),
+        )
+    }
+
+    internal fun gameFrom(record: JSONObject, details: JSONObject?, before: EpicGame?): EpicGame {
+        val appName = record.optString("appName")
+        val d = details ?: JSONObject()
+        fun pick(key: String, fallback: String) = d.optString(key, "").ifEmpty { fallback }
+        return EpicGame(
+            appName = appName,
+            namespace = record.optString("namespace"),
+            catalogItemId = record.optString("catalogItemId"),
+            title = pick("title", before?.title?.takeIf { it != appName } ?: appName),
+            artCover = pick("tall", before?.artCover.orEmpty()),
+            artSquare = pick("wide", before?.artSquare.orEmpty()),
+            developer = pick("developer", before?.developer.orEmpty()),
+            description = pick("description", before?.description.orEmpty()),
+            version = before?.version.orEmpty(),
+            installSize = before?.installSize ?: 0L,
+            canRunOffline = if (details != null) d.optBoolean("canRunOffline", true) else before?.canRunOffline ?: true,
+            releaseDate = pick("releaseDate", before?.releaseDate.orEmpty()),
+            publisher = pick("publisher", before?.publisher.orEmpty()),
+            isDlc = d.optBoolean("dlc", false),
+        )
+    }
+
+    internal fun visible(games: List<EpicGame>): List<EpicGame> {
+        val base = games.filterNot { it.isDlc }
+        return tidy(if (base.isEmpty()) games else base)
+    }
+
+    fun sync(context: Context, force: Boolean, status: (String) -> Unit): SyncResult {
+        if (!running.compareAndSet(false, true)) return SyncResult.Busy
         try {
             val app = context.applicationContext
-            val p = EpicPrefs.get(app)
-            val cachedList = cached(app)
-            val lastSync = p.getLong(LAST_SYNC_KEY, 0L)
-            if (!force && cachedList.isNotEmpty() && System.currentTimeMillis() - lastSync < THROTTLE_MS) return SyncResult.Throttled
-            onStatus("Checking sign-in…")
+            val prefs = EpicPrefs.get(app)
+            val cache = cached(app)
+            status(app.getString(R.string.stores_sync_sign_in))
+            if (!EpicCredentialStore.isLoggedIn(app)) return SyncResult.NotLoggedIn
+            val syncedAt = prefs.getLong(KEY_SYNCED_AT, 0L)
+            if (!force && cache.isNotEmpty() && System.currentTimeMillis() - syncedAt in 0 until THROTTLE_MS) return SyncResult.Throttled
             val token = EpicCredentialStore.getValidAccessToken(app) ?: return SyncResult.NotLoggedIn
-            onStatus("Fetching game list…")
-            val raw = EpicApiClient.getLibraryItems(token)
-            if (raw.isNullOrEmpty()) return if (cachedList.isEmpty()) SyncResult.Failed("No games found in your Epic library") else SyncResult.Ok(cachedList)
-            val total = raw.size
-            var done = 0
-            for (game in raw) {
-                EpicApiClient.enrichFromCatalog(token, game)
-                if (game.releaseDate.isNotEmpty()) p.edit().putString("release_${game.appName}", game.releaseDate).apply()
-                done++
-                if (done % 5 == 0) onStatus("Loading game details… ($done/$total)")
+
+            status(app.getString(R.string.stores_sync_game_list))
+            val answer = EpicNative.call("library.owned", JSONObject().put("accessToken", token))
+                ?: return SyncResult.Failed(app.getString(R.string.stores_sync_failed))
+            if (answer.optBoolean("signIn", false)) return SyncResult.NotLoggedIn
+            if (answer.has("error")) return SyncResult.Failed(answer.optString("error").ifEmpty { app.getString(R.string.stores_sync_failed) })
+            val records = answer.optJSONArray("records") ?: JSONArray()
+            if (records.length() == 0) {
+                return if (cache.isNotEmpty()) SyncResult.Ok(cache)
+                else SyncResult.Failed(app.getString(R.string.stores_sync_no_games, Store.EPIC.label))
             }
-            val main = raw.filter { !it.isDLC }
-            val display = (if (main.isEmpty()) raw else main).distinctBy { it.appName }.sortedWith { a, b -> a.title.compareTo(b.title, ignoreCase = true) }
-            for (fresh in display) {
-                val old = cachedList.firstOrNull { it.appName == fresh.appName } ?: continue
-                fresh.version = old.version
-                fresh.installSize = old.installSize
+
+            val before = cache.associateBy { it.appName }
+            val total = records.length()
+            val games = ArrayList<EpicGame>(total)
+            for (i in 0 until total) {
+                val record = records.optJSONObject(i) ?: continue
+                if (i % 5 == 0) status(app.getString(R.string.stores_sync_details, i, total))
+                val details = EpicApiClient.catalogDetails(token, record.optString("namespace"), record.optString("catalogItemId"))
+                games += gameFrom(record, details, before[record.optString("appName")])
             }
-            saveCache(p, display)
-            p.edit().putLong(LAST_SYNC_KEY, System.currentTimeMillis()).apply()
-            Log.i(TAG, "sync: raw=${raw.size} shown=${display.size}")
-            return SyncResult.Ok(display)
+            val shown = visible(games)
+            prefs.edit().putString(KEY_CACHE, toCacheJson(shown)).putLong(KEY_SYNCED_AT, System.currentTimeMillis()).apply()
+            return SyncResult.Ok(shown)
         } catch (e: Exception) {
-            Log.w(TAG, "sync failed: ${e.message}")
-            return SyncResult.Failed(e.message ?: "Sync failed")
+            return SyncResult.Failed(e.message ?: context.getString(R.string.stores_sync_failed))
         } finally {
-            syncing.set(false)
+            running.set(false)
         }
     }
-
-    private fun saveCache(prefs: SharedPreferences, games: List<EpicGame>) {
-        runCatching {
-            val arr = JSONArray()
-            for (g in games) arr.put(JSONObject().put("appName", g.appName).put("namespace", g.namespace).put("catalogItemId", g.catalogItemId)
-                .put("title", g.title).put("artCover", g.artCover).put("artSquare", g.artSquare).put("developer", g.developer)
-                .put("description", g.description).put("version", g.version).put("installSize", g.installSize).put("canRunOffline", g.canRunOffline))
-            prefs.edit().putString(CACHE_KEY, arr.toString()).apply()
-        }
-    }
-
-    fun toCatalogItem(context: Context, g: EpicGame): CatalogItem = CatalogItem(
-        store = Store.EPIC, id = g.appName, title = g.title.ifBlank { g.appName },
-        imageUrl = g.artSquare.ifBlank { null } ?: g.artCover.ifBlank { null },
-        tallImageUrl = g.artCover.ifBlank { null } ?: g.artSquare.ifBlank { null },
-        developer = g.developer, description = com.droiddeck.launcher.stores.cleanStoreText(g.description), owned = true,
-        sizeBytes = EpicPrefs.get(context).getLong("size_${g.appName}", g.installSize),
-        storeUrl = "https://store.epicgames.com/en-US/browse?q=${java.net.URLEncoder.encode(g.title, "UTF-8")}",
-        extra = mapOf("namespace" to g.namespace, "catalogItemId" to g.catalogItemId, "version" to (g.version ?: "")),
-    )
 }

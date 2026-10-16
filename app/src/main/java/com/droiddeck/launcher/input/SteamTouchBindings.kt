@@ -6,21 +6,8 @@ import android.graphics.BitmapFactory
 import android.util.LruCache
 import java.io.File
 
-/**
- * What each touch control is bound to, and the icon it shows - Steam's, as its configurator keeps
- * them.
- *
- * A Steam Input binding is one string: `<action>, <label>, <icon>, <#foreground #background>`, e.g.
- * `xinput_button A, Jump, ghost_045_move_0400.png, #232323 #E4E4E4`. The icon is a file name looked
- * up as Steam does (steamui.so): the game's own `TouchMenuIcons` folder, then the binding icon
- * library `tenfoot/resource/images/library/controller/binding_icons`. Steam draws it filled with
- * the foreground colour through its own alpha (mask-image) on a button of the background colour.
- * Steam Link is sent these per control by the client it streams from; here they are read from the
- * game's touch config, and editing one writes the binding string back, as the configurator does.
- */
 object SteamTouchBindings {
 
-    /** Steam's binding icon colours (the configurator's palette, steamui sp.js), and its defaults. */
     val PALETTE = listOf(
         "#FFFFFF", "#E4E4E4", "#AAAAAA", "#787878", "#434343", "#222222", "#0000AD", "#0045AD", "#0074AD",
         "#00ADAD", "#33AD69", "#00AD3D", "#00AD00", "#48B119", "#74AD00", "#96AD00", "#ADA200", "#AD5D00",
@@ -29,7 +16,6 @@ object SteamTouchBindings {
     const val DEFAULT_FOREGROUND = "#232323"
     const val DEFAULT_BACKGROUND = "#E4E4E4"
 
-    /** A parsed binding string. Empty strings for absent fields. */
     data class Binding(val action: String, val label: String, val icon: String, val foreground: String, val background: String) {
         fun compose(): String =
             if (icon.isEmpty() && foreground.isEmpty() && background.isEmpty()) "$action, $label, "
@@ -45,10 +31,8 @@ object SteamTouchBindings {
             colors.getOrNull(0).orEmpty(), colors.getOrNull(1).orEmpty())
     }
 
-    /** Where a control's binding lives: its input in the group the preset puts on its source. */
     data class Ref(val groupId: String, val input: String)
 
-    /** The source and input names a control reads (D-pad: its four directions). */
     private fun inputsOf(type: Int): List<Pair<String, String>> = when (type) {
         SteamTouchConfig.A -> listOf("button_diamond" to "button_a")
         SteamTouchConfig.B -> listOf("button_diamond" to "button_b")
@@ -69,13 +53,8 @@ object SteamTouchBindings {
         else -> emptyList()
     }
 
-    /** D-pad directions, in the order [refsFor] returns them: up, down, left, right. */
     val DPAD_INPUTS = listOf("dpad_north", "dpad_south", "dpad_west", "dpad_east")
 
-    /**
-     * Where control [type]'s bindings are for preset [preset] (the action set less one) and its
-     * active [layers]: a layer's group wins over the base's for the same source.
-     */
     fun refsFor(mappings: KeyValues.Node, type: Int, preset: Int, layers: List<Int> = emptyList()): List<Ref?> {
         val presets = mappings.children("preset").associateBy { it.string("id")?.toIntOrNull() ?: -1 }
         val stack = layers.reversed().mapNotNull { presets[it - 1] } + listOfNotNull(presets[preset] ?: presets.values.firstOrNull())
@@ -90,7 +69,6 @@ object SteamTouchBindings {
             parts.getOrNull(0) == source && parts.getOrNull(1) == "active" && !parts.contains("modeshift")
         }?.first
 
-    /** The binding at [ref]: its first activator's first binding (Full_Press when there is one). */
     fun bindingAt(mappings: KeyValues.Node, ref: Ref): Binding? {
         val group = mappings.children("group").firstOrNull { it.string("id") == ref.groupId } ?: return null
         val activators = group.child("inputs")?.child(ref.input)?.child("activators") ?: return null
@@ -98,7 +76,6 @@ object SteamTouchBindings {
         return activator?.child("bindings")?.string("binding")?.let(::parse)
     }
 
-    /** A short glyph for a binding with no icon or label: what it presses. */
     fun glyph(binding: Binding?): String? {
         val words = binding?.action?.split(' ') ?: return null
         val arg = words.getOrNull(1)?.uppercase() ?: return null
@@ -123,12 +100,7 @@ object SteamTouchBindings {
         "LEFT_ARROW" to "←", "RIGHT_ARROW" to "→",
     )
 
-    // ---- Writing a binding back ----
 
-    /**
-     * Rewrites every binding of [ref]'s input in config [text] (VDF) with [change], keeping the rest
-     * of the file byte for byte. Returns the new text, or null when the input is not there.
-     */
     fun rewrite(text: String, ref: Ref, change: (Binding) -> Binding): String? {
         val tokens = Vdf.tokens(text)
         val group = Vdf.blocks(tokens, 0, tokens.size, "group").firstOrNull { (s, e) ->
@@ -145,7 +117,6 @@ object SteamTouchBindings {
         return out.toString()
     }
 
-    /** A VDF tokenizer that keeps where each token sits, for edits that leave the rest untouched. */
     private object Vdf {
         class Token(val text: String, val quoted: Boolean, val start: Int, val end: Int)
 
@@ -175,8 +146,6 @@ object SteamTouchBindings {
             return out
         }
 
-        /** The bodies (token index ranges inside the braces) of direct children named [key] of the
-         *  block spanning [from, to). */
         fun blocks(tokens: List<Token>, from: Int, to: Int, key: String): List<Pair<Int, Int>> {
             val found = mutableListOf<Pair<Int, Int>>()
             var i = from
@@ -200,7 +169,6 @@ object SteamTouchBindings {
                 }
                 i++
             }
-            // The whole file is one top-level block ("controller_mappings"): look inside it too.
             if (found.isEmpty() && from == 0) {
                 val top = tokens.indexOfFirst { it.text == "{" && !it.quoted }
                 if (top > 0) {
@@ -217,7 +185,6 @@ object SteamTouchBindings {
             return found
         }
 
-        /** A direct key-value of the block spanning [from, to). */
         fun value(tokens: List<Token>, from: Int, to: Int, key: String): String? {
             var depth = 0
             var i = from
@@ -232,7 +199,6 @@ object SteamTouchBindings {
         }
     }
 
-    // ---- Icons ----
 
     private val cache = object : LruCache<String, Bitmap>(24 * 1024 * 1024) {
         override fun sizeOf(key: String, value: Bitmap) = value.byteCount
@@ -241,7 +207,6 @@ object SteamTouchBindings {
 
     fun libraryDir(context: Context) = File(SteamTouchConfig.steamRoot(context), "tenfoot/resource/images/library/controller/binding_icons")
 
-    /** The game's own icons folder (`TouchMenuIcons` in its install directory), when it has one. */
     fun gameIconsDir(context: Context, appId: Int): File? = try {
         val manifest = File(SteamTouchConfig.steamRoot(context), "steamapps/appmanifest_$appId.acf")
         val installDir = KeyValues.parse(manifest.readText()).let { it.child("AppState") ?: it }.string("installdir")
@@ -257,7 +222,6 @@ object SteamTouchBindings {
         return File(SteamTouchConfig.steamRoot(context), "steamui/images/controller/$name").takeIf { it.isFile }
     }
 
-    /** An icon, decoded at about [size] px. Blocking (reads a file); cached. */
     fun icon(context: Context, appId: Int, name: String, size: Int = 128): Bitmap? {
         val key = "$appId/$name/$size"
         cache.get(key)?.let { return it }
@@ -276,7 +240,6 @@ object SteamTouchBindings {
 
     fun cachedIcon(appId: Int, name: String, size: Int = 128): Bitmap? = cache.get("$appId/$name/$size")
 
-    /** Icon names for the picker: the game's own first, then Steam's library by category. */
     fun iconNames(context: Context, appId: Int): List<String> {
         val own = gameIconsDir(context, appId)?.list()?.filter { it.endsWith(".png", true) }?.sorted().orEmpty()
         val library = libraryDir(context).list()?.filter { it.endsWith(".png", true) && it != "special_blank.png" }?.sorted().orEmpty()

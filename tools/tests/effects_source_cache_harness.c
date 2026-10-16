@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <string.h>
 
-/* Exercise the real cache with Vulkan lifetime callbacks, without an Android surface or GPU. */
 #define VK_PRESENT_H
 const char *vkp_gpu_name(void) { return "cache test"; }
 void droiddeck_log(const char *tag, const char *fmt, ...) { (void)tag; (void)fmt; }
@@ -61,7 +60,6 @@ int main(int argc, char **argv) {
     assert(scene_ensure(source, 1280, 720) == 0);
     VkImageView original = bound_view;
     if (!strcmp(argv[1], "recycled")) {
-        /* The owner destroys the image, then Vulkan reuses its handle at the same size. */
         vkp_effects_forget_image(source);
         assert(freed_sets == 1 && freed_views == 1);
         assert(scene_ensure(source, 1280, 720) == 0);

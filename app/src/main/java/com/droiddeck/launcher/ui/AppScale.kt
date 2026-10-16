@@ -10,7 +10,6 @@ internal fun scaledAppDensity(base: Density, percent: Int): Density {
     return if (scale == 1f) base else Density(base.density * scale, base.fontScale)
 }
 
-/** Responsive layouts and popup height limits must see the same dp space as the scaled UI. */
 internal fun scaledAppConfiguration(base: Configuration, percent: Int): Configuration {
     val scale = AppUiPrefs.normalizeScale(percent) / 100f
     if (scale == 1f) return base

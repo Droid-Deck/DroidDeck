@@ -57,29 +57,27 @@ struct private_handle_t {
     PRIV_FLAGS_CAMERA_READ = 0x00040000,
     PRIV_FLAGS_HW_COMPOSER = 0x00080000,
     PRIV_FLAGS_HW_TEXTURE = 0x00100000,
-    PRIV_FLAGS_ITU_R_601 = 0x00200000,     // Unused from display
-    PRIV_FLAGS_ITU_R_601_FR = 0x00400000,  // Unused from display
-    PRIV_FLAGS_ITU_R_709 = 0x00800000,     // Unused from display
+    PRIV_FLAGS_ITU_R_601 = 0x00200000,
+    PRIV_FLAGS_ITU_R_601_FR = 0x00400000,
+    PRIV_FLAGS_ITU_R_709 = 0x00800000,
     PRIV_FLAGS_SECURE_DISPLAY = 0x01000000,
     PRIV_FLAGS_TILE_RENDERED = 0x02000000,
     PRIV_FLAGS_CPU_RENDERED = 0x04000000,
     PRIV_FLAGS_UBWC_ALIGNED = 0x08000000,
     PRIV_FLAGS_DISP_CONSUMER = 0x10000000,
-    PRIV_FLAGS_CLIENT_ALLOCATED = 0x20000000,  // Ion buffer allocated outside of gralloc
-    PRIV_FLAGS_UBWC_ALIGNED_PI = 0x40000000,   // PI format
+    PRIV_FLAGS_CLIENT_ALLOCATED = 0x20000000,
+    PRIV_FLAGS_UBWC_ALIGNED_PI = 0x40000000,
   };
 
-  // file-descriptors dup'd over IPC
   int fd;
   int fd_metadata;
 
-  // values sent over IPC
   int magic;
   int flags;
-  int width;             // holds width of the actual buffer allocated
-  int height;            // holds height of the  actual buffer allocated
-  int unaligned_width;   // holds width client asked to allocate
-  int unaligned_height;  // holds height client asked to allocate
+  int width;
+  int height;
+  int unaligned_width;
+  int unaligned_height;
   int format;
   int buffer_type;
   unsigned int layer_count;
@@ -126,7 +124,6 @@ struct private_handle_t {
     numFds = kNumFds;
   }
 
-  // Legacy constructor used by some clients
   private_handle_t(int fd, unsigned int size, int usage, int buf_type, int format, int w, int h)
       : private_handle_t(fd, -1, PRIV_FLAGS_CLIENT_ALLOCATED, w, h, 0, 0, format, buf_type, size,
                          static_cast<uint64_t>(usage)) {}
@@ -176,7 +173,6 @@ struct private_handle_t {
   unsigned int GetLayerCount() const { return layer_count; }
 
   int GetStride() const {
-    // In handle we currently store aligned width after allocation.
     return width;
   }
 
@@ -187,4 +183,4 @@ struct private_handle_t {
 };
 #pragma pack(pop)
 
-#endif  // __GR_PRIV_HANDLE_H__
+#endif

@@ -16,12 +16,6 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 
-/**
- * One line of text in a slot of fixed width - a rail label, a key cap - set as large as
- * [maxSize] when it fits and smaller, down to [minSize], when it does not. Labels are as long as
- * their language makes them ("Components" is "コンポーネント", "Componentes", "구성 요소"), so a
- * fixed size cuts some of them off; below [minSize] the end is ellipsized rather than clipped.
- */
 @Composable
 fun FitText(
     text: String,

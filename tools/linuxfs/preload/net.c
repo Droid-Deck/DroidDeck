@@ -1,11 +1,3 @@
-/*
- * Loopback socket ownership for Steam's IPC peer check.
- *
- * Steam validates a websocket peer by running lsof to find which process owns a 127.0.0.1 port.
- * The Android sandbox denies both /proc/net/tcp and sock_diag, so no tool can answer. Every Steam
- * process is preloaded with this library, so each records the ports it binds and connects, and the
- * lsof Steam spawns is answered from that shared registry instead of being run.
- */
 #define _GNU_SOURCE
 #include <arpa/inet.h>
 #include <spawn.h>
@@ -54,8 +46,6 @@ static int loopback_family(const struct sockaddr *address, socklen_t length) {
   return 0;
 }
 
-/* Record that this process owns a loopback socket on its local port; peer is the far end's port,
- * 0 for a listening socket. */
 static void record_port(int fd, unsigned peer) {
   struct sockaddr_storage ss;
   socklen_t len = sizeof(ss);
@@ -119,7 +109,6 @@ typedef int (*connect_fn)(int, const struct sockaddr *, socklen_t);
 typedef int (*accept4_fn)(int, struct sockaddr *, socklen_t *, int);
 static unsigned guarded_port(void);
 
-/* udevmon.c: a stand-in for the netlink socket the sandbox refuses, bound here without the kernel. */
 __attribute__((visibility("hidden"))) int bl_udevmon_stand_in(int fd);
 
 int bind(int fd, const struct sockaddr *addr, socklen_t len) {
@@ -239,7 +228,6 @@ int connect(int fd, const struct sockaddr *addr, socklen_t len) {
   if (peer) record_port(fd, peer);
   int ret = real(fd, addr, len);
   if (ret == 0 || errno == EINPROGRESS) {
-    /* The caller goes on to test for EINPROGRESS, which the bookkeeping must not disturb. */
     int saved = errno;
     record_port(fd, peer);
     errno = saved;
@@ -267,7 +255,6 @@ int accept(int fd, struct sockaddr *addr, socklen_t *len) {
   return accept4(fd, addr, len, 0);
 }
 
-/* binfmt.c: an exec of a program the kernel cannot run, handed to droiddeck-open in the desktop. */
 extern char **environ;
 typedef int (*spawn_fn)(pid_t *, const char *, const posix_spawn_file_actions_t *, const posix_spawnattr_t *,
                         char *const[], char *const[]);
@@ -275,12 +262,11 @@ __attribute__((visibility("hidden"))) void bl_binfmt_before(const char *path, ch
 __attribute__((visibility("hidden"))) int bl_binfmt_retry(const char *path, char *const argv[], char *const envp[], int error);
 __attribute__((visibility("hidden"))) void bl_binfmt_before_search(const char *file, char *const argv[], char *const envp[]);
 __attribute__((visibility("hidden"))) int bl_binfmt_after_search(const char *file, char *const argv[], char *const envp[], int error);
+__attribute__((visibility("hidden"))) char *const *bl_webhelper_argv(const char *path, char *const argv[]);
 __attribute__((visibility("hidden"))) int bl_binfmt_spawn(pid_t *pid, const char *path, const posix_spawn_file_actions_t *fa,
                                                           const posix_spawnattr_t *attr, char *const argv[], char *const envp[],
                                                           spawn_fn real);
 
-/* lsof would read the denied /proc/net/tcp; answer its -i TCP@host:port query from the registry
- * instead of executing it. Recognised only when invoked as lsof with that query. */
 static int maybe_answer_lsof(const char *path, char *const argv[]) {
   const char *base = strrchr(path, '/');
   base = base ? base + 1 : path;
@@ -302,7 +288,7 @@ static int maybe_answer_lsof(const char *path, char *const argv[]) {
   snprintf(path_buf, sizeof(path_buf), "%s/p%u", net_dir(), (unsigned)atoi(port_str));
   int in = open(path_buf, O_RDONLY);
   if (in < 0) {
-    _exit(1); /* lsof exit code for "nothing found" */
+    _exit(1);
   }
   char buf[64];
   int n = read(in, buf, sizeof(buf) - 1);
@@ -314,18 +300,17 @@ static int maybe_answer_lsof(const char *path, char *const argv[]) {
   int pid = 0, ppid = 0, uid = 0;
   unsigned peer = 0;
   sscanf(buf, "%d %d %d %u", &pid, &ppid, &uid, &peer);
-  /* Steam splits the address on "->" and wants exactly two halves, taking the port it asked
-   * about from the left one; only a listening socket has no far end. */
   char out[160];
   int m = peer ? snprintf(out, sizeof(out), "p%d\nR%d\nu%d\nn127.0.0.1:%u->127.0.0.1:%u\n",
                           pid, ppid, uid, (unsigned)atoi(port_str), peer)
                 : snprintf(out, sizeof(out), "p%d\nR%d\nu%d\nn127.0.0.1:%u\n",
                           pid, ppid, uid, (unsigned)atoi(port_str));
-  if (write(1, out, m) != m) { /* best effort */ }
+  if (write(1, out, m) != m) {   }
   _exit(0);
 }
 
-int execve(const char *path, char *const argv[], char *const envp[]) {
+int execve(const char *path, char *const argv_in[], char *const envp[]) {
+  char *const *argv = bl_webhelper_argv(path, argv_in);
   static int (*real)(const char *, char *const[], char *const[]);
   if (!real) real = (int (*)(const char *, char *const[], char *const[]))dlsym(RTLD_NEXT, "execve");
   maybe_answer_lsof(path, argv);
@@ -334,8 +319,6 @@ int execve(const char *path, char *const argv[], char *const envp[]) {
   return bl_binfmt_retry(path, argv, envp, errno);
 }
 
-/* popen(3) and posix_spawn(3) reach lsof without going through the execve symbol above. The
- * check is cheap, so a spawned lsof is answered here too by handling it in a short-lived child. */
 static int answer_lsof_via_spawn(const char *path, char *const argv[], pid_t *pid) {
   pid_t child = fork();
   if (child < 0) {
@@ -351,7 +334,8 @@ static int answer_lsof_via_spawn(const char *path, char *const argv[], pid_t *pi
   return 0;
 }
 
-int execvp(const char *file, char *const argv[]) {
+int execvp(const char *file, char *const argv_in[]) {
+  char *const *argv = bl_webhelper_argv(file, argv_in);
   static int (*real)(const char *, char *const[]);
   if (!real) real = (int (*)(const char *, char *const[]))dlsym(RTLD_NEXT, "execvp");
   maybe_answer_lsof(file, argv);
@@ -360,7 +344,8 @@ int execvp(const char *file, char *const argv[]) {
   return bl_binfmt_after_search(file, argv, environ, errno);
 }
 
-int execv(const char *path, char *const argv[]) {
+int execv(const char *path, char *const argv_in[]) {
+  char *const *argv = bl_webhelper_argv(path, argv_in);
   static int (*real)(const char *, char *const[]);
   if (!real) real = (int (*)(const char *, char *const[]))dlsym(RTLD_NEXT, "execv");
   maybe_answer_lsof(path, argv);

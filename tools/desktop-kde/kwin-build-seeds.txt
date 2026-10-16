@@ -1,4 +1,3 @@
-# Native build tools and KWin's Arch makedepends; dependencies are resolved and signature-checked.
 kwin
 base-devel
 cmake

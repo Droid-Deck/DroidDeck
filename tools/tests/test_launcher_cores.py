@@ -48,7 +48,7 @@ class LauncherCoresTest(unittest.TestCase):
         self.proc = self.root / 'proc'
         self.proc.mkdir()
         cpufreq = self.root / 'cpu'
-        for cpu in ALL:  # 0-5 one cluster, 6-7 the fast one
+        for cpu in ALL:
             (cpufreq / f'cpu{cpu}/cpufreq').mkdir(parents=True)
             (cpufreq / f'cpu{cpu}/cpufreq/cpuinfo_max_freq').write_text('3532800\n' if cpu < 6 else '4320000\n')
         self.cores = FakeCores()
@@ -118,7 +118,7 @@ class LauncherCoresTest(unittest.TestCase):
         self.process(100, LAUNCHER)
         self.process(200, HELPER)
         self.process(9, '/root/.local/share/Steam/steamrtarm64/steam')
-        self.governor.tick()  # no focus file yet
+        self.governor.tick()
         self.focus_on(9, app=769)
         self.governor.tick()
         self.focus_on(100)
@@ -141,7 +141,6 @@ class LauncherCoresTest(unittest.TestCase):
         self.process(400, GAME)
         self.focus_on(400)
         self.governor.tick()
-        # A new thread, and a new helper process the held one started: both born held.
         self.thread(200, 203, {5}, NICE)
         self.process(500, HELPER, (501,), cpus={5}, nice=NICE)
         self.now += 10
@@ -156,16 +155,16 @@ class LauncherCoresTest(unittest.TestCase):
         self.process(400, GAME)
         self.focus_on(400)
         self.governor.tick()
-        self.cores.state[201] = (ALL, -5)  # the program raised a thread's priority itself
+        self.cores.state[201] = (ALL, -5)
         self.now += 5
         self.governor.tick()
-        self.assertFalse(self.held(201))  # not looked at again before the rescan
+        self.assertFalse(self.held(201))
         self.now += 5
         self.governor.tick()
         self.assertTrue(self.held(201))
         self.focus_on(200)
         self.governor.tick()
-        self.assertEqual((ALL, 0), self.cores.state[201])  # its first state, not the program's
+        self.assertEqual((ALL, 0), self.cores.state[201])
 
     def test_a_steady_hold_is_not_rewritten(self):
         self.process(200, HELPER, (201,))
@@ -182,7 +181,7 @@ class LauncherCoresTest(unittest.TestCase):
         self.process(200, HELPER, (201,))
         self.process(300, HELPER)
         self.process(400, GAME)
-        del self.cores.state[201]  # ended between the listing and the call
+        del self.cores.state[201]
         self.focus_on(400)
         self.governor.tick()
         self.assertNotIn(201, self.holder.held[200])

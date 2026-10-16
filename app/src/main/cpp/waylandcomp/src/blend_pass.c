@@ -1,19 +1,16 @@
-/* Alpha composition: one surface drawn source-over onto the scene - see blend_pass.h. Compositor thread. */
 #define _POSIX_C_SOURCE 200809L
 #include "blend_pass.h"
 #include "vk_loader.h"
-#include "vk_present.h" /* droiddeck_log, vkp_gpu_name */
+#include "vk_present.h"
 #include <string.h>
 
-/* SPIR-V, pre-compiled (glslangValidator -V blend.vert --vn blend_vert_code, the same for blend.frag)
- * and committed next to the GLSL: the NDK build compiles no shaders. */
 #include "blend_vert.h"
 #include "blend_frag.h"
 
 struct pc_blend { float dst[4]; float src[4]; };
 
 static VkDevice g_dev;
-static int g_ready;                 /* 0 = not built, 1 = ok, -1 = unavailable (said once) */
+static int g_ready;
 static VkSampler g_sampler;
 static VkDescriptorSetLayout g_dsl;
 static VkPipelineLayout g_pl;
@@ -21,8 +18,6 @@ static VkDescriptorPool g_dpool;
 static VkShaderModule g_vert, g_frag;
 static unsigned g_frame = 1;
 
-/* One render pass + pipeline per target format: the screen swapchain's, the scene image's, the HDR
- * composition's. */
 #define NFMT 4
 static struct { VkFormat fmt; VkRenderPass rp; VkPipeline pipe; } g_out[NFMT];
 
@@ -60,8 +55,6 @@ static VkShaderModule shader(const uint32_t *code, size_t size) {
     return m;
 }
 
-/* The target keeps what the blits put there (LOAD) and stays in TRANSFER_DST_OPTIMAL for the blits
- * that follow. The dependencies order the pass between them. */
 static VkRenderPass make_rp(VkFormat fmt) {
     VkAttachmentDescription att = {.format = fmt, .samples = VK_SAMPLE_COUNT_1_BIT,
                                    .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD, .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -111,7 +104,6 @@ static VkPipeline make_pipe(VkRenderPass rp) {
                                                  .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE, .lineWidth = 1.0f};
     VkPipelineMultisampleStateCreateInfo ms = {.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
                                                .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT};
-    /* The target's alpha is left alone: the screen is opaque whatever is drawn onto it. */
     VkPipelineColorBlendAttachmentState ba = {
         .blendEnable = VK_TRUE, .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
         .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, .colorBlendOp = VK_BLEND_OP_ADD,
@@ -201,8 +193,6 @@ static VkImageView make_view(VkImage img, VkFormat fmt) {
     return v;
 }
 
-/* The slot to recycle: a free one, else the one unused for longest - never one this command buffer
- * already refers to. -1 = every slot is in this frame. */
 #define OLDEST(arr, n, out) do { \
         unsigned age_ = 0; \
         (out) = -1; \

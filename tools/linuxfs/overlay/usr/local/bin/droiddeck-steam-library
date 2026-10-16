@@ -1,23 +1,10 @@
 #!/usr/bin/python3
-# Registers the card the app installs to (bound at /mnt/droiddeck-sd) as a library folder of the
-# native Steam client, so they show as installed there instead of being downloaded a second time.
-#
-#   droiddeck-steam-library <steam root>
-#
-# Ported from WinNative's gamescope runtime (GPL-3.0).
 import json
 import os
 import re
 import sys
 
-# The client's own library is internal storage (its steamapps/common is bound to the app's root);
-# the card is the one extra library folder.
-# The app binds the storage the user chose (Steam cog -> Game storage) at this path and names it
-# in BL_LIBRARY_LABEL; nothing bound = internal only, and the entry is removed so the client does
-# not keep offering a place that is not there.
 LIBRARIES = (("/mnt/droiddeck-sd", os.environ.get("BL_LIBRARY_LABEL", "SD Card")),)
-# The client calls its own library "Local Drive (/)", which says nothing about where that is.
-# It is the phone's internal storage, so say so.
 MAIN_LABEL = "Internal Storage"
 
 
@@ -153,10 +140,6 @@ def relabel(steam_root, target, label):
         with open(path, "w", encoding="utf-8") as f:
             f.write("\n".join(out))
         print("droiddeck-steam-library: labelled %s %r" % (target, label))
-    # A library also carries its own libraryfolder.vdf, and the client takes the label from there
-    # back into the list above - so editing the list alone is undone on the next start. The
-    # client's own library has no such file, which is why that one kept the new name and the card
-    # went back to the name it was first registered with.
     marker = os.path.join(target, "libraryfolder.vdf")
     if not os.path.isfile(marker):
         return

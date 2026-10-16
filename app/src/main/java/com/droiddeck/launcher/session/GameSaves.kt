@@ -17,30 +17,18 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
-/**
- * Game saves in and out of a game's Proton prefix, as zips other apps read: GameHub keeps a prefix's
- * drive_c rooted at "/drive_c/users/steamuser/…", Winlator / WinNative / Bannerlator at
- * "drive_c/users/xuser/…". Proton here runs as steamuser too, so on the way in any user folder but
- * Public becomes steamuser, and on the way out the chosen layout decides the user segment.
- *
- * Saves belong to the game's prefix (compatdata/<appid>/pfx), whichever Proton it runs with.
- * Ported from Bannerlator's GameSaveBackup and SaveLocator.
- */
 object GameSaves {
     enum class Layout(val app: String, val rootPrefix: String, val user: String) {
         GAMEHUB("GameHub", "/drive_c/", "steamuser"),
         WINLATOR("Winlator", "drive_c/", "xuser");
 
-        /** "GameHub zip", in the app's language. */
         fun label(context: Context): String = context.getString(R.string.saves_layout_zip, app)
     }
 
-    /** A game, its prefix, and the save folders found in it. */
     data class Game(val game: Library.SteamGame, val prefix: File?, val saves: List<SaveDir>) {
         val launched get() = prefix?.let { File(it, "drive_c").isDirectory } == true
     }
 
-    /** A folder of saves, relative to the steamuser profile. */
     data class SaveDir(val relPath: String, val files: Int, val bytes: Long)
 
     private const val USER = "steamuser"
@@ -48,21 +36,14 @@ object GameSaves {
     fun savesDir(): File = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "DroidDeck/Saves")
     private fun backupsDir(): File = File(savesDir(), "backups")
 
-    /** [game] with its prefix and the saves found there; reads files, so not on the main thread. */
     fun game(game: Library.SteamGame): Game = Game(game, game.protonPrefix, game.protonPrefix?.let { locate(it, game) } ?: emptyList())
 
-    // ------------------------------------------------------------------ finding saves
 
-    /** Roots of the steamuser profile that hold most PC game saves, in the order they are trusted. */
     private val SAVE_ROOTS = listOf("Documents/My Games", "Saved Games", "AppData/Roaming", "Documents", "AppData/Local", "AppData/LocalLow")
     private const val KEEP_THRESHOLD = 50
 
     private fun profile(prefix: File) = File(prefix, "drive_c/users/$USER")
 
-    /**
-     * Folders under the save roots, one and two deep, whose names match the game's name or its folder's.
-     * Nested matches keep the outer folder only.
-     */
     fun locate(prefix: File, game: Library.SteamGame): List<SaveDir> {
         val profile = profile(prefix)
         if (!profile.isDirectory) return emptyList()
@@ -102,7 +83,6 @@ object GameSaves {
         return Ident(cleaned.filter { it.isLetterOrDigit() }, cleaned.split(Regex("[^a-z0-9]+")).filter { it.isNotEmpty() }.toSet())
     }
 
-    /** exact 100, one contains the other 70, half the words shared 50, close spelling 40. */
     private fun score(a: Ident, b: Ident): Int {
         if (a.norm.isEmpty() || b.norm.isEmpty()) return 0
         if (a.norm == b.norm) return 100
@@ -123,15 +103,10 @@ object GameSaves {
         return prev[b.length]
     }
 
-    // ------------------------------------------------------------------ export
 
     private fun stamp() = SimpleDateFormat("yyyy-MM-dd_HHmm", Locale.US).format(Date())
     private fun safe(name: String) = name.replace(Regex("[/\\\\:*?\"<>|]"), "_").trim().ifEmpty { "game" }
 
-    /**
-     * Zips the game's saves into [dir] as "<Game>_<date>.zip" in [layout]. The found save folders when
-     * there are any, else the whole steamuser profile minus Temp and crash dumps. Returns the zip.
-     */
     fun export(context: Context, game: Game, layout: Layout, dir: File): Pair<File, Int> {
         val prefix = game.prefix ?: error(context.getString(R.string.saves_not_launched, game.game.name))
         dir.mkdirs()
@@ -160,13 +135,7 @@ object GameSaves {
         return count
     }
 
-    // ------------------------------------------------------------------ import
 
-    /**
-     * Unzips a GameHub or Winlator save zip into the game's drive_c, after zipping what its steamuser
-     * profile holds now into Download/DroidDeck/Saves/backups. Entries outside drive_c, launcher
-     * shortcuts and anything escaping drive_c are skipped. Returns (files written, backup or null).
-     */
     fun import(context: Context, game: Game, zip: File): Pair<Int, File?> {
         val prefix = game.prefix ?: error(context.getString(R.string.saves_not_launched, game.game.name))
         val driveC = File(prefix, "drive_c")
@@ -201,7 +170,6 @@ object GameSaves {
         return written to backup.takeIf { it.exists() }
     }
 
-    /** Which layout a zip was written in, from its first user folder; null when it has none. */
     fun layoutOf(zip: File): Layout? = runCatching {
         ZipInputStream(BufferedInputStream(zip.inputStream())).use { zis ->
             var e = zis.nextEntry
@@ -223,11 +191,9 @@ object GameSaves {
         }
     }.getOrDefault(false)
 
-    /** An entry's path below drive_c, with any user folder but Public renamed to steamuser. */
     private fun remap(raw: String): String? {
         val segs = driveCSegments(raw)?.takeIf { it.isNotEmpty() } ?: return null
         if (segs.any { it == ".." }) return null
-        // GameHub also packs its own launcher shortcuts; they are never saves.
         if (segs[0].equals("proton_shortcuts", true)) return null
         val last = segs.last().lowercase()
         if ((last.endsWith(".lnk") || last.endsWith(".desktop") || last.endsWith(".url")) && segs.any { it.equals("Desktop", true) }) return null

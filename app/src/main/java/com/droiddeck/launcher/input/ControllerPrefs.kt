@@ -123,7 +123,6 @@ object ControllerPrefs {
         prefs(context).edit().putBoolean("keyboardButton", on).apply()
     }
 
-    /** The physical Select button opens the Steam menu instead of View/Select. */
     fun setSelectSteam(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("selectSteam", on).apply()
     }
@@ -151,7 +150,6 @@ object ControllerPrefs {
     }
 
     fun resetAll(context: Context) {
-        // On older Android versions clear() does not notify listeners; restore rumble explicitly.
         prefs(context).edit().clear().putBoolean("rumble", true).apply()
     }
 

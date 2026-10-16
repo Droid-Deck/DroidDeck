@@ -29,7 +29,7 @@ class ProtonExtraTest(unittest.TestCase):
     def test_sources_and_their_arm64_assets(self):
         self.assertEqual(list(EXTRA["SOURCES"]), ["ge", "cachyos", "droiddeck"])
         repo, pattern = EXTRA["SOURCES"]["droiddeck"]
-        self.assertEqual(repo, "The412Banner/DroidDeck-Proton")
+        self.assertEqual(repo, "Droid-Deck/DroidDeck-Proton")
         self.assertTrue(pattern.search("DroidDeck-Proton-11-7.5-aarch64.tar.gz"))
         self.assertTrue(pattern.search("DroidDeck-Proton-11-8-aarch64.tar.xz"))
         self.assertFalse(pattern.search("DroidDeck-Proton-11-7.5-aarch64.sha512sum"))
@@ -49,7 +49,7 @@ class ProtonExtraTest(unittest.TestCase):
         asked = []
         with mock.patch.dict(GLOBALS, {"fetch_json": lambda url: asked.append(url) or droiddeck_release("11-7.5")}):
             tag, url, sums = EXTRA["release_asset"]("droiddeck", "DroidDeck-Proton-11-7.5")
-        self.assertEqual(asked, ["https://api.github.com/repos/The412Banner/DroidDeck-Proton/releases/tags/DroidDeck-Proton-11-7.5"])
+        self.assertEqual(asked, ["https://api.github.com/repos/Droid-Deck/DroidDeck-Proton/releases/tags/DroidDeck-Proton-11-7.5"])
         self.assertTrue(url.endswith(".tar.gz") and sums.endswith(".sha512sum"))
 
     def test_a_ge_style_sha512_file_verifies_the_download(self):
@@ -89,7 +89,6 @@ class ProtonExtraTest(unittest.TestCase):
             steam = Path(tmp) / "Steam"
             adopted = []
             real = subprocess.call
-            # tar runs for real; steam-compatibility (the adoption step) is only recorded.
             fake = lambda args, **kw: adopted.append(args) or 0 if args[0] == "steam-compatibility" else real(args, **kw)
             with mock.patch.object(GLOBALS["subprocess"], "call", fake), contextlib.redirect_stdout(io.StringIO()) as said:
                 with mock.patch.object(GLOBALS["sys"], "argv", ["droiddeck-proton-extra", str(steam), str(tarball)]):
@@ -98,7 +97,6 @@ class ProtonExtraTest(unittest.TestCase):
             self.assertEqual(sorted(os.listdir(tools)), [".droiddeck-download", "DroidDeck-Proton 11-7.5"])
             self.assertTrue((tools / "DroidDeck-Proton 11-7.5" / "toolmanifest.vdf").is_file())
             self.assertEqual(adopted, [["steam-compatibility", str(steam)]])
-            # The app reads the folder from this line, space and all.
             self.assertIn("droiddeck-proton-extra: installed DroidDeck-Proton 11-7.5\n", said.getvalue())
             self.assertEqual(EXTRA["installed"](str(tools)), ["DroidDeck-Proton 11-7.5"])
 

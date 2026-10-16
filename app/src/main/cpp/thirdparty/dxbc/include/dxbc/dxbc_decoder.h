@@ -14,12 +14,6 @@ namespace dxvk {
   
   struct DxbcRegister;
   
-  /**
-   * \brief Source operand modifiers
-   * 
-   * These are applied after loading
-   * an operand register.
-   */
   enum class DxbcRegModifier : uint32_t {
     Neg = 0,
     Abs = 1,
@@ -28,32 +22,17 @@ namespace dxvk {
   using DxbcRegModifiers = Flags<DxbcRegModifier>;
   
   
-  /**
-   * \brief Constant buffer binding
-   * 
-   * Stores information required to
-   * access a constant buffer.
-   */
   struct DxbcConstantBuffer {
     uint32_t varId  = 0;
     uint32_t size   = 0;
   };
   
-  /**
-   * \brief Sampler binding
-   * 
-   * Stores a sampler variable that can be
-   * used together with a texture resource.
-   */
   struct DxbcSampler {
     uint32_t varId  = 0;
     uint32_t typeId = 0;
   };
   
   
-  /**
-   * \brief Image type information
-   */
   struct DxbcImageInfo {
     spv::Dim        dim     = spv::Dim1D;
     uint32_t        array   = 0;
@@ -63,12 +42,6 @@ namespace dxvk {
   };
   
   
-  /**
-   * \brief Shader resource binding
-   * 
-   * Stores a resource variable
-   * and associated type IDs.
-   */
   struct DxbcShaderResource {
     DxbcResourceType  type          = DxbcResourceType::Typed;
     DxbcImageInfo     imageInfo;
@@ -84,12 +57,6 @@ namespace dxvk {
   };
   
   
-  /**
-   * \brief Unordered access binding
-   * 
-   * Stores a resource variable that is provided
-   * by a UAV, as well as associated type IDs.
-   */
   struct DxbcUav {
     DxbcResourceType  type          = DxbcResourceType::Typed;
     DxbcImageInfo     imageInfo;
@@ -105,12 +72,6 @@ namespace dxvk {
   };
   
   
-  /**
-   * \brief Component swizzle
-   * 
-   * Maps vector components to
-   * other vector components.
-   */
   class DxbcRegSwizzle {
     
   public:
@@ -133,12 +94,6 @@ namespace dxvk {
   };
   
   
-  /**
-   * \brief Component mask
-   * 
-   * Enables access to certain
-   * subset of vector components.
-   */
   class DxbcRegMask {
     
   public:
@@ -211,12 +166,6 @@ namespace dxvk {
   };
   
   
-  /**
-   * \brief System value mapping
-   * 
-   * Maps a system value to a given set of
-   * components of an input or output register.
-   */
   struct DxbcSvMapping {
     uint32_t        regId;
     DxbcRegMask     regMask;
@@ -230,9 +179,6 @@ namespace dxvk {
   };
   
   
-  /**
-   * \brief Instruction operand
-   */
   struct DxbcRegister {
     DxbcOperandType       type;
     DxbcScalarType        dataType;
@@ -252,24 +198,12 @@ namespace dxvk {
   };
   
   
-  /**
-   * \brief Instruction result modifiers
-   * 
-   * Modifiers that are applied
-   * to all destination operands.
-   */
   struct DxbcOpModifiers {
     bool saturate;
     bool precise;
   };
   
   
-  /**
-   * \brief Opcode controls
-   * 
-   * Instruction-specific controls. Usually,
-   * only one of the members will be valid.
-   */
   class DxbcShaderOpcodeControls {
     
   public:
@@ -355,24 +289,11 @@ namespace dxvk {
   };
   
   
-  /**
-   * \brief Sample controls
-   * 
-   * Constant texel offset with
-   * values raning from -8 to 7.
-   */
   struct DxbcShaderSampleControls {
     int u, v, w;
   };
   
   
-  /**
-   * \brief Immediate value
-   * 
-   * Immediate argument represented either
-   * as a 32-bit or 64-bit unsigned integer,
-   * or a 32-bit or 32-bit floating point number.
-   */
   union DxbcImmediate {
     float    f32;
     double   f64;
@@ -381,17 +302,6 @@ namespace dxvk {
   };
   
   
-  /**
-   * \brief Shader instruction
-   * 
-   * Note that this structure may store pointer to
-   * external structures, such as the original code
-   * buffer. This is safe to use if and only if:
-   * - The \ref DxbcDecodeContext that created it
-   *   still exists and was not moved
-   * - The code buffer that was being decoded
-   *   still exists and was not moved.
-   */
   struct DxbcShaderInstruction {
     DxbcOpcode                op;
     DxbcInstClass             opClass;
@@ -413,12 +323,6 @@ namespace dxvk {
   };
   
   
-  /**
-   * \brief DXBC code slice
-   * 
-   * Convenient pointer pair that allows
-   * reading the code word stream safely.
-   */
   class DxbcCodeSlice {
     
   public:
@@ -448,34 +352,14 @@ namespace dxvk {
   };
   
   
-  /**
-   * \brief Decode context
-   * 
-   * Stores data that is required to decode a single
-   * instruction. This data is not persistent, so it
-   * should be forwarded to the compiler right away.
-   */
   class DxbcDecodeContext {
     
   public:
     
-    /**
-     * \brief Retrieves current instruction
-     * 
-     * This is only valid after a call to \ref decode.
-     * \returns Reference to last decoded instruction
-     */
     const DxbcShaderInstruction& getInstruction() const {
       return m_instruction;
     }
     
-    /**
-     * \brief Decodes an instruction
-     * 
-     * This also advances the given code slice by the
-     * number of dwords consumed by the instruction.
-     * \param [in] code Code slice
-     */
     void decodeInstruction(DxbcCodeSlice& code);
     
   private:
@@ -487,8 +371,6 @@ namespace dxvk {
     std::array<DxbcImmediate, 4> m_immOperands;
     std::array<DxbcRegister, 12> m_indices;
     
-    // Index into the indices array. Used when decoding
-    // instruction operands with relative indexing.
     uint32_t m_indexId = 0;
     
     void decodeCustomData(DxbcCodeSlice code);

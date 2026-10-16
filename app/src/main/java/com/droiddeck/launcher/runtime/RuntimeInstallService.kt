@@ -12,15 +12,6 @@ import android.os.IBinder
 import com.droiddeck.launcher.MainActivity
 import com.droiddeck.launcher.R
 
-/**
- * Keeps the process in the foreground while the Linux runtime downloads and unpacks. The runtime
- * is several hundred megabytes; without a foreground service Android may kill the app the moment
- * the user switches away, and the install starts over from the resumable part file.
- *
- * The install itself is [LinuxRuntimeInstaller.install], which runs one job per process: the
- * screen that asked for it joins the same job to show progress, so it does not matter which of the
- * two gets there first.
- */
 class RuntimeInstallService : Service() {
     override fun attachBaseContext(newBase: android.content.Context) =
         super.attachBaseContext(com.droiddeck.launcher.core.AppLanguage.wrap(newBase))
@@ -39,7 +30,6 @@ class RuntimeInstallService : Service() {
             val manager = getSystemService(NotificationManager::class.java)
             var shown = ""
             val progress = LinuxRuntimeInstaller.ProgressListener { stage, percent ->
-                // Install percentages and throttled removal counts, including stage transitions.
                 if ("$stage:$percent" != shown) {
                     shown = "$stage:$percent"
                     manager?.notify(NOTIFICATION_ID, notification(stage, percent))
@@ -87,7 +77,6 @@ class RuntimeInstallService : Service() {
         private const val EXTRA_SHA256 = "sha256"
         private const val EXTRA_SIZE = "size"
 
-        /** Starts the install of [release] in the foreground; a running install is joined instead. */
         fun start(context: Context, release: LinuxRuntimeInstaller.Release) {
             val intent = Intent(context, RuntimeInstallService::class.java)
                 .putExtra(EXTRA_VERSION, release.version)

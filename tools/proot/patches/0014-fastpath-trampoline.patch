@@ -22,7 +22,7 @@ resolve where proot resolves them. Without PROOT_FASTPATH nothing changes.
  
 -#include <errno.h>       /* errno(3), E* */
 +#include <errno.h>
-+#include <stdlib.h>       /* errno(3), E* */
++#include <stdlib.h>
  #include <talloc.h>      /* talloc_*, */
  #include <sys/un.h>      /* struct sockaddr_un, */
  #include <linux/net.h>   /* SYS_*, */
@@ -30,15 +30,15 @@ resolve where proot resolves them. Without PROOT_FASTPATH nothing changes.
  		if ((statl.st_mode & S_IXUSR) == 0)
  			return -EACCES;
  
-+		/* With the fast path, the kernel's cwd follows the guest's
-+		 * (at its host path), so relative lookups made inside the
-+		 * tracee resolve where proot would resolve them.  */
++
++
++
 +		if (getenv("PROOT_FASTPATH") != NULL) {
 +			int fd = open(path, O_PATH | O_DIRECTORY | O_CLOEXEC);
 +
-+			/* Where the kernel could not follow, it goes to the
-+			 * host's "/", which no binding names: the fast path
-+			 * then sends every relative lookup to proot.  */
++
++
++
 +			strcpy(oldpath, fd >= 0 ? path : "/");
 +			if (fd >= 0)
 +				close(fd);
@@ -52,7 +52,7 @@ resolve where proot resolves them. Without PROOT_FASTPATH nothing changes.
  		talloc_set_name_const(tracee->fs->cwd, "$cwd");
  
 +		if (getenv("PROOT_FASTPATH") != NULL) {
-+			/* fchdir(2) runs as it is; chdir(2) on the host path.  */
++
 +			status = syscall_number == PR_chdir
 +				? set_sysarg_path(tracee, oldpath, SYSARG_1)
 +				: 0;
@@ -68,7 +68,7 @@ resolve where proot resolves them. Without PROOT_FASTPATH nothing changes.
  #include <talloc.h>        /* talloc_*, */
  #include <errno.h>         /* E*, */
  #include <string.h>        /* memcpy(3), */
-+#include <stdlib.h>        /* getenv(3), */
++#include <stdlib.h>
  #include <stddef.h>        /* offsetof(3), */
  #include <stdint.h>        /* uint*_t, UINT*_MAX, */
  #include <stdbool.h>
@@ -76,11 +76,11 @@ resolve where proot resolves them. Without PROOT_FASTPATH nothing changes.
   * items).  This function returns -errno if an error occurred,
   * otherwise 0.
   */
-+/* The fast path's trampoline page (tools/proot/fastpath): a traced syscall made from it was
-+ * already translated inside the tracee and is let through without a stop.  With PROOT_FASTPATH
-+ * set, every SECCOMP_RET_TRACE is preceded by a check of the caller's address.  The check sits
-+ * after the syscall-number dispatch, so syscalls proot never traces stay constant-ALLOW and keep
-+ * the kernel's seccomp action cache.  FASTPATH_STUB_ADDR must match FP_STUB_ADDR in fastpath.c. */
++
++
++
++
++
 +#define FASTPATH_STUB_ADDR 0xffff00000ULL
 +#define FASTPATH_STUB_SIZE 0x1000ULL
 +#define LENGTH_FASTPATH_TAIL 7
@@ -102,8 +102,8 @@ resolve where proot resolves them. Without PROOT_FASTPATH nothing changes.
 +static int add_statements_raw(struct sock_fprog *program, size_t nb_statements,
 +			struct sock_filter *statements);
 +
-+/* Append @statements, each RET_TRACE expanded into the trampoline check when the fast path is
-+ * on, every jump within (or out of) the block adjusted for the expansion.  */
++
++
  static int add_statements(struct sock_fprog *program, size_t nb_statements,
  			struct sock_filter *statements)
  {
@@ -176,7 +176,7 @@ resolve where proot resolves them. Without PROOT_FASTPATH nothing changes.
 +
  static size_t trace_length(Sysnum sysnum)
  {
-+	/* Each trace block has exactly one RET_TRACE (see add_statements).  */
++
 +	return trace_length_raw(sysnum) + (fastpath_enabled() ? LENGTH_FASTPATH_TAIL - 1 : 0);
 +}
 +
@@ -191,9 +191,9 @@ resolve where proot resolves them. Without PROOT_FASTPATH nothing changes.
  		if (getenv("PROOT_NO_SECCOMP") == NULL)
  			(void) enable_syscall_filtering(tracee);
  
-+		/* The fast path resolves relative paths against the
-+		 * kernel's cwd: start it at the guest's (see chdir in
-+		 * syscall/enter.c).  */
++
++
++
 +		if (getenv("PROOT_FASTPATH") != NULL) {
 +			char host_cwd[PATH_MAX];
 +			if (translate_path(tracee, host_cwd, AT_FDCWD, tracee->fs->cwd, true) >= 0)

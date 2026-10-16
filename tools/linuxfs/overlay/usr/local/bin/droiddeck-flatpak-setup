@@ -1,26 +1,10 @@
 #!/bin/bash
-# Puts Flatpak into the runtime, with Flathub as a per-user remote. Run by the app under proot's
-# fake root (pacman and pacman-key refuse any other uid), outside a session.
-#
-# The runtime's pacman database lists only the base image: the desktop and emulator packages were
-# unpacked over it without registering. Asked for flatpak the usual way, pacman "reinstalls" about
-# a hundred of those - Mesa among them, over the runtime's own Turnip build with its KGSL backend -
-# and then runs every hook in the image, mkinitcpio included. So pacman only fetches and checks the
-# few packages Flatpak needs on top of this image, verifying each against the Arch Linux ARM
-# keyring, and they are unpacked here without hooks or scripts, like the desktop package itself.
-#
-#   droiddeck-flatpak-setup        install or repair; prints "== STEP ..." milestones
 set -u
 export LANG=C.UTF-8
 step() { echo "== STEP $*"; }
 fail() { echo "== FAIL $*"; exit 1; }
 
-# Flatpak, the libraries it and appstream add to this image, and the D-Bus proxy flatpak run puts
-# between an app and the session bus. bubblewrap is not among them: Android gives an app no user
-# namespaces, and droiddeck-bwrap stands in for it (FLATPAK_BWRAP).
 PACKAGES="flatpak ostree appstream libxmlb libmalcontent libfyaml accountsservice composefs xdg-dbus-proxy"
-# Libraries Flatpak and the store's helper also need, which the Desktop package brings but a
-# runtime without it may lack: each is fetched only when its file is not already there.
 while read -r pkg probe; do
   [ -n "$pkg" ] || continue
   compgen -G "$probe" >/dev/null || PACKAGES="$PACKAGES $pkg"
@@ -41,10 +25,15 @@ WORK=/var/cache/droiddeck-flatpak
 CONF=$WORK/pacman.conf
 mkdir -p "$WORK/pkg" "$WORK/db" || fail "cannot create $WORK"
 
-# The image's pacman.conf names a download user this rootfs does not have (only root exists) and a
-# sandbox proot cannot set up. Its one mirror is plain HTTP; these serve the same repos over TLS.
-{ for m in https://ca.us.mirror.archlinuxarm.org https://fl.us.mirror.archlinuxarm.org \
-           https://de3.mirror.archlinuxarm.org https://nl.mirror.archlinuxarm.org; do
+OVERSEAS="https://ca.us.mirror.archlinuxarm.org https://fl.us.mirror.archlinuxarm.org https://de3.mirror.archlinuxarm.org https://nl.mirror.archlinuxarm.org"
+MAINLAND=""
+for m in https://mirrors.tuna.tsinghua.edu.cn/archlinuxarm https://mirrors.ustc.edu.cn/archlinuxarm \
+         https://mirrors.bfsu.edu.cn/archlinuxarm https://mirrors.sjtug.sjtu.edu.cn/archlinuxarm; do
+  if curl -fsS -r 0-0 --connect-timeout 4 --max-time 8 -o /dev/null "$m/aarch64/core/core.db" 2>/dev/null; then
+    MAINLAND="$MAINLAND $m"
+  fi
+done
+{ for m in $MAINLAND $OVERSEAS; do
     echo "Server = $m/\$arch/\$repo"; done
   grep '^Server' /etc/pacman.d/mirrorlist 2>/dev/null; } > "$WORK/mirrorlist"
 sed -e 's/^DownloadUser/#DownloadUser/' \
@@ -58,8 +47,6 @@ if [ ! -f /etc/pacman.d/gnupg/pubring.gpg ] && [ ! -f /etc/pacman.d/gnupg/pubrin
   pacman-key --populate archlinuxarm >/dev/null 2>&1 || fail "pacman-key --populate failed"
 fi
 
-# A database of our own, so the image's stays exactly as it was built: -Sy on it would leave the
-# rest of the image a partial upgrade behind the repos.
 step "Reading the package lists"
 pacman --config "$CONF" --dbpath "$WORK/db" --noconfirm -Sy >/dev/null 2>&1 \
   || pacman --config "$CONF" --dbpath "$WORK/db" --noconfirm -Sy 2>&1 | tail -3 \
@@ -67,8 +54,6 @@ pacman --config "$CONF" --dbpath "$WORK/db" --noconfirm -Sy >/dev/null 2>&1 \
 [ -f "$WORK/db/sync/extra.db" ] || fail "could not reach the Arch Linux ARM mirrors"
 
 step "Downloading Flatpak"
-# -w only downloads; pacman still checks each package's signature against the keyring. -dd: the
-# dependencies are already in the image (and checked below by what the binaries actually link).
 out=$(pacman --config "$CONF" --dbpath "$WORK/db" --cachedir "$WORK/pkg" --noconfirm -Sw -dd $PACKAGES 2>&1)
 rc=$?
 echo "$out" | grep -vE '^\s*$' | tail -4
@@ -84,10 +69,8 @@ for name in $PACKAGES; do
   echo "$name $ver" >> "$WORK/installed.new"
 done
 mv -f "$WORK/installed.new" "$WORK/installed"
-# Only the newest file of each package is worth keeping for a repair.
 find "$WORK/pkg" -type f -mtime +1 -delete 2>/dev/null
 
-# What the binaries link is the real dependency list: anything this image lacks shows here.
 missing=$(for f in /usr/bin/flatpak /usr/lib/libflatpak.so.0 /usr/lib/libostree-1.so.1 /usr/bin/xdg-dbus-proxy; do
   ldd "$f" 2>&1 | grep -E 'not found|version .* not found'
 done | sort -u)
@@ -98,9 +81,6 @@ python3 -c 'import gi; gi.require_version("Flatpak", "1.0"); from gi.repository 
 
 step "Adding Flathub"
 export FLATPAK_BWRAP=/usr/local/bin/droiddeck-bwrap
-# Flathub's descriptor - its URL and the key its commits are signed with - is carried here rather
-# than fetched: adding the remote then needs no network, and a descriptor that did not arrive
-# whole cannot be what failed. Flathub's own copy: https://dl.flathub.org/repo/flathub.flatpakrepo
 cat > "$WORK/flathub.flatpakrepo" <<'REPO'
 [Flatpak Repo]
 Title=Flathub
@@ -115,7 +95,6 @@ if ! flatpak remote-list --user --columns=name 2>/dev/null | grep -qx flathub; t
   out=$(flatpak remote-add --user --if-not-exists flathub "$WORK/flathub.flatpakrepo" 2>&1)
   rc=$?
   echo "$out"
-  # What Flatpak said goes up with the failure, so the app can show it rather than a guess.
   [ $rc -eq 0 ] || fail "could not add the Flathub remote: $(echo "$out" | grep -v '^[[:space:]]*$' | tail -1)"
 fi
 echo "== DONE $(flatpak --version)"
