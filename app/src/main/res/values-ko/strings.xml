@@ -2214,12 +2214,9 @@
     <string name="cardboard_recenter_button">재설정</string>
     <string name="cardboard_steamvr">SteamVR (실험적)</string>
     <string name="cardboard_steamvr_install">설치</string>
-    <string name="cardboard_steamvr_install_hint">Valve의 ARM64용 SteamVR을 다운로드합니다(571MB).</string>
     <string name="cardboard_steamvr_installing">SteamVR 다운로드 및 압축 해제 중…</string>
     <string name="cardboard_steamvr_start">시작</string>
-    <string name="cardboard_steamvr_ready_hint">머리를 헤드셋으로 삼아 SteamVR을 실행하며, 화면이 사이드 바이 사이드 3D로 전환됩니다.</string>
     <string name="cardboard_steamvr_stop">중지</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR이 실행 중입니다.</string>
     <string name="cardboard_steamvr_unavailable">이 세션에서는 사용할 수 없습니다.</string>
     <string name="cardboard_steamvr_failed">SteamVR이 응답하지 않았습니다. 세션 로그를 확인하세요.</string>
     <string name="drawer_component_downloads">구성 요소 다운로드</string>

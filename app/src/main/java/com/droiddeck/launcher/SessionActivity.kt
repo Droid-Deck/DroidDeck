@@ -522,7 +522,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     }
                 }
                 LaunchedEffect(cardboard.enabled, steamVrSwitchedPicture, drawerOpen, drawerPage) {
-                    while (cardboard.enabled || steamVrSwitchedPicture || (drawerOpen && drawerPage == SessionDrawerPage.STEAMVR)) {
+                    while (cardboard.enabled || steamVrSwitchedPicture || (drawerOpen && drawerPage == SessionDrawerPage.VR)) {
                         val now = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                             SteamVr.status(this@SessionActivity)
                         }

@@ -2223,12 +2223,9 @@
     <string name="cardboard_recenter_button">Ortala</string>
     <string name="cardboard_steamvr">SteamVR (deneysel)</string>
     <string name="cardboard_steamvr_install">Yükle</string>
-    <string name="cardboard_steamvr_install_hint">Valve\'ın ARM64 SteamVR\'ını indirir (571 MB).</string>
     <string name="cardboard_steamvr_installing">SteamVR indiriliyor ve açılıyor…</string>
     <string name="cardboard_steamvr_start">Başlat</string>
-    <string name="cardboard_steamvr_ready_hint">SteamVR\'ı başınızı başlık olarak kullanarak çalıştırır; görüntü yan yana 3D\'ye geçer.</string>
     <string name="cardboard_steamvr_stop">Durdur</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR çalışıyor.</string>
     <string name="cardboard_steamvr_unavailable">Bu oturumda kullanılamaz.</string>
     <string name="cardboard_steamvr_failed">SteamVR yanıt vermedi; oturum günlüğünü kontrol et.</string>
     <string name="drawer_component_downloads">Bileşenleri indir</string>

@@ -2198,12 +2198,9 @@
     <string name="cardboard_recenter_button">Căn giữa lại</string>
     <string name="cardboard_steamvr">SteamVR (thử nghiệm)</string>
     <string name="cardboard_steamvr_install">Cài đặt</string>
-    <string name="cardboard_steamvr_install_hint">Tải SteamVR ARM64 của Valve (571 MB).</string>
     <string name="cardboard_steamvr_installing">Đang tải và giải nén SteamVR…</string>
     <string name="cardboard_steamvr_start">Bắt đầu</string>
-    <string name="cardboard_steamvr_ready_hint">Chạy SteamVR với đầu bạn làm kính; hình ảnh chuyển sang 3D cạnh nhau.</string>
     <string name="cardboard_steamvr_stop">Dừng</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR đang chạy.</string>
     <string name="cardboard_steamvr_unavailable">Không khả dụng trong phiên này.</string>
     <string name="cardboard_steamvr_failed">SteamVR không phản hồi; hãy xem nhật ký phiên.</string>
     <string name="drawer_component_downloads">Tải thành phần</string>

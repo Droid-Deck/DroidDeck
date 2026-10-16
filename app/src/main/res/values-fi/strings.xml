@@ -2223,12 +2223,9 @@
     <string name="cardboard_recenter_button">Keskitä</string>
     <string name="cardboard_steamvr">SteamVR (kokeellinen)</string>
     <string name="cardboard_steamvr_install">Asenna</string>
-    <string name="cardboard_steamvr_install_hint">Lataa Valven ARM64-version SteamVR:stä (571 Mt).</string>
     <string name="cardboard_steamvr_installing">Ladataan ja puretaan SteamVR:ää…</string>
     <string name="cardboard_steamvr_start">Käynnistä</string>
-    <string name="cardboard_steamvr_ready_hint">Ajaa SteamVR:ää niin, että pääsi toimii lasina; kuva vaihtuu rinnakkais-3D:ksi.</string>
     <string name="cardboard_steamvr_stop">Pysäytä</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR on käynnissä.</string>
     <string name="cardboard_steamvr_unavailable">Ei käytettävissä tässä istunnossa.</string>
     <string name="cardboard_steamvr_failed">SteamVR ei vastannut; tarkista istunnon loki.</string>
     <string name="drawer_component_downloads">Lataa komponentteja</string>

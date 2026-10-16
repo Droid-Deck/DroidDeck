@@ -2323,12 +2323,9 @@
     <string name="cardboard_recenter_button">إعادة التوسيط</string>
     <string name="cardboard_steamvr">SteamVR (تجريبي)</string>
     <string name="cardboard_steamvr_install">تثبيت</string>
-    <string name="cardboard_steamvr_install_hint">ينزّل SteamVR لمعمارية ARM64 من Valve ‏(571 ميغابايت).</string>
     <string name="cardboard_steamvr_installing">جارٍ تنزيل SteamVR وفك ضغطه…</string>
     <string name="cardboard_steamvr_start">بدء</string>
-    <string name="cardboard_steamvr_ready_hint">يشغّل SteamVR مع استخدام رأسك كنظارة؛ وتتحول الصورة إلى ثلاثي الأبعاد جنبًا إلى جنب.</string>
     <string name="cardboard_steamvr_stop">إيقاف</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR قيد التشغيل.</string>
     <string name="cardboard_steamvr_unavailable">غير متوفر في هذه الجلسة.</string>
     <string name="cardboard_steamvr_failed">لم يستجب SteamVR؛ تحقّق من سجل الجلسة.</string>
     <string name="drawer_component_downloads">تنزيل المكوّنات</string>

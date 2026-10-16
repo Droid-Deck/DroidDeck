@@ -2273,12 +2273,9 @@
     <string name="cardboard_recenter_button">Відцентрувати</string>
     <string name="cardboard_steamvr">SteamVR (експериментально)</string>
     <string name="cardboard_steamvr_install">Установити</string>
-    <string name="cardboard_steamvr_install_hint">Завантажує SteamVR від Valve для ARM64 (571 МБ).</string>
     <string name="cardboard_steamvr_installing">Завантаження й розпакування SteamVR…</string>
     <string name="cardboard_steamvr_start">Запустити</string>
-    <string name="cardboard_steamvr_ready_hint">Запускає SteamVR, де гарнітурою слугує ваша голова; зображення перемикається на стереопару 3D.</string>
     <string name="cardboard_steamvr_stop">Зупинити</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR працює.</string>
     <string name="cardboard_steamvr_unavailable">Недоступно в цій сесії.</string>
     <string name="cardboard_steamvr_failed">SteamVR не відповідає; перевірте журнал сесії.</string>
     <string name="drawer_component_downloads">Завантажити компоненти</string>
