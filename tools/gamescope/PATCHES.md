@@ -19,6 +19,11 @@ library list, before anything is published.
   moves (it sat frozen). The X pointer is asked for only while a cursor image is drawn - every
   vblank while shown, every 50 ms while hidden for inactivity - since each ask is a blocking round
   trip to Xwayland on the paint thread; with no image, wlserver's position is used as upstream does.
+- `0101-nested-wayland-cursor-routing.patch` - this app: `gamescope_cursor_composite=2` lets the
+  nested Wayland session paint its cursor in the output using the real X pointer position; client
+  cursor surfaces are cleared to prevent a duplicate at the host pointer, while Gamescope's original
+  default host-cursor fallback is preserved when its no-keyboard-focus policy selects it. Empty
+  client cursor images and Gamescope's hidden flag still suppress the painted cursor.
 - `0110-wayland-backend-touch.patch` - this app: the nested Wayland backend bound only the host's
   pointer and keyboard, so a finger on the phone's screen never reached Steam. It now binds
   `wl_touch` too and hands each finger to wlserver's touch path (`wlserver_touchdown` / `motion` /

@@ -899,8 +899,8 @@
     <string name="wadb_turn_off">Desativar o limite</string>
     <string name="wadb_other_ways">Outras formas de alterar</string>
     <string name="wadb_dev_try_first">1 · Opções do desenvolvedor (tente primeiro)</string>
-    <string name="wadb_restrict_on">Ative “Restringir processos filhos”.</string>
-    <string name="wadb_restrict_off">Desative “Restringir processos filhos”.</string>
+    <string name="wadb_restrict_on">Desative “Desativar restrições de processos filhos”.</string>
+    <string name="wadb_restrict_off">Ative “Desativar restrições de processos filhos”.</string>
     <string name="wadb_computer_last">3 · ADB pelo computador (último recurso)</string>
     <string name="wadb_only_if">Só se a Depuração por Wi-Fi não estiver disponível.</string>
     <string name="wadb_computer_group">3 · ADB pelo computador (último recurso)</string>
@@ -1940,6 +1940,16 @@
     <string name="stores_free">Grátis</string>
     <string name="stores_resume">Retomar</string>
     <string name="stores_refresh">Atualizar</string>
+    <string name="stores_sort">Ordenar</string>
+    <string name="stores_sort_last_played">Jogados recentemente</string>
+    <string name="stores_sort_recently_installed">Instalados recentemente</string>
+    <string name="stores_sort_title_asc">Título A–Z</string>
+    <string name="stores_sort_title_desc">Título Z–A</string>
+    <string name="stores_sort_size_desc">Tamanho: maior</string>
+    <string name="stores_sort_size_asc">Tamanho: menor</string>
+    <string name="stores_sort_release_date">Data de lançamento</string>
+    <string name="stores_view_list">Vista de lista</string>
+    <string name="stores_view_cards">Vista de cartões</string>
     <string name="stores_show_mature">Mostrar conteúdo adulto</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>
@@ -2257,4 +2267,18 @@
     <string name="stores_hltb_completionist">Completista</string>
     <string name="stores_hltb_hours">%1$s h</string>
     <string name="stores_hltb_minutes">%1$d min</string>
+    <string name="mode_zram">Compressão zRAM</string>
+    <string name="mode_zram_hint">Enquanto um jogo roda, a memória do cliente Steam é comprimida na zram do dispositivo, deixando mais RAM para o jogo. Vale a partir da próxima vez que a Steam iniciar.</string>
+    <string name="mode_zram_unsupported">Indisponível: este dispositivo não tem swap ativo, ou o kernel é anterior à versão 5.4.</string>
+    <string name="setup_reset_settings">Redefinir todas as configurações</string>
+    <string name="setup_reset_settings_title">Redefinir todas as configurações?</string>
+    <string name="setup_reset_settings_body">As configurações de tela, desempenho, controle, tema, idioma e inicializador voltam ao padrão. Seus jogos, o login da Steam, as contas das lojas, os drivers baixados e as pastas de armazenamento são mantidos.</string>
+    <string name="setup_reset_settings_button">Redefinir</string>
+    <string name="setup_reset_settings_hint">Volta todas as configurações ao padrão</string>
+    <string name="setup_reset_settings_partial">As configurações foram redefinidas, mas algumas partes não puderam ser. Os detalhes estão nos registros.</string>
+    <string name="setup_reset_settings_profiles">Redefinir também os perfis de jogo (Proton, FEX, componentes e ambiente de cada jogo e o ambiente do perfil Padrão)</string>
+    <string name="setup_reset_settings_session_running">Encerre a sessão antes de redefinir as configurações.</string>
+    <string name="stores_storage_insufficient">Espaço livre insuficiente: são necessários %1$s, só há %2$s livres</string>
+    <string name="stores_storage_low">Espaço insuficiente (%1$s livres, são necessários %2$s)</string>
+    <string name="stores_target_free_unknown">Espaço livre desconhecido</string>
 </resources>

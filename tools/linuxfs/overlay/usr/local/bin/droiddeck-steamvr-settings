@@ -1,0 +1,80 @@
+#!/usr/bin/python3
+"""Preserve SteamVR preferences across Quest's required compositor overrides."""
+import json
+import os
+from pathlib import Path
+import sys
+
+OVERRIDES = {'enableLinuxVulkanAsync': True, 'motionSmoothing': False}
+
+
+def read(path):
+    try:
+        with path.open() as source:
+            settings = json.load(source)
+    except FileNotFoundError:
+        return {}
+    if not isinstance(settings, dict) or not isinstance(settings.get('steamvr', {}), dict):
+        raise ValueError('Invalid SteamVR settings object')
+    return settings
+
+
+def write(path, value):
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    temporary = path.with_name(path.name + '.tmp')
+    with os.fdopen(os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600), 'w') as destination:
+        json.dump(value, destination, indent=3)
+        destination.write('\n')
+    os.replace(temporary, path)
+
+
+def saved_preferences(path):
+    try:
+        backup = read(path)
+        if not isinstance(backup.get('section'), bool) or not isinstance(backup.get('values'), dict):
+            raise ValueError('invalid backup object')
+        for key in OVERRIDES:
+            entry = backup['values'].get(key)
+            if not isinstance(entry, list) or len(entry) != 2 or not isinstance(entry[0], bool):
+                raise ValueError('invalid saved preference: ' + key)
+        return backup
+    except ValueError as error:
+        raise ValueError(f'Invalid preference backup {path}; repair the saved section/values and retry restore. '
+                         'The backup and current preferences have been preserved.') from error
+
+
+def update(operation, settings_path, backup_path):
+    settings = read(settings_path)
+    if operation == 'apply':
+        if backup_path.exists():
+            saved_preferences(backup_path)
+        else:
+            section = settings.get('steamvr', {})
+            write(backup_path, {'section': 'steamvr' in settings,
+                               'values': {key: [key in section, section.get(key)] for key in OVERRIDES}})
+        settings.setdefault('steamvr', {}).update(OVERRIDES)
+        write(settings_path, settings)
+    elif operation == 'restore':
+        if not backup_path.exists():
+            return
+        backup = saved_preferences(backup_path)
+        section = settings.setdefault('steamvr', {})
+        for key in OVERRIDES:
+            present, value = backup['values'][key]
+            if present:
+                section[key] = value
+            else:
+                section.pop(key, None)
+        if not section and not backup['section']:
+            settings.pop('steamvr')
+        write(settings_path, settings)
+        backup_path.unlink()
+    else:
+        raise ValueError('Expected apply or restore')
+
+
+if __name__ == '__main__':
+    try:
+        update(sys.argv[1], Path(sys.argv[2]), Path(sys.argv[3]))
+    except (OSError, ValueError, KeyError, IndexError, TypeError) as error:
+        sys.exit('Could not update SteamVR settings: ' + str(error))

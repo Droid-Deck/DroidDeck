@@ -256,9 +256,10 @@ static void install(struct listing *l) {
   int slot = find(l->dev, l->ino);
   if (slot >= 0) {
     struct listing *old = table[slot];
+    int old_wd = old->wd;
     table[slot] = l;
     detach(old);
-    if (old->wd != l->wd) release(old->wd);
+    if (old_wd != l->wd) release(old_wd);
     return;
   }
   int victim = -1;

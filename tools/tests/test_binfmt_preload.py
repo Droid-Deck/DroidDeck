@@ -60,7 +60,7 @@ class BinfmtPreloadTest(unittest.TestCase):
         cls.library = cls.tmp / "libbinfmt.so"
         subprocess.run(["gcc", "-shared", "-fPIC", "-O2", "-Wall", "-Wextra", "-Werror", "-DBINFMT_TEST",
                         '-DBINFMT_HANDLER="%s"' % cls.handler, "-o", str(cls.library),
-                        "-pthread"] + [str(PRELOAD / name) for name in ("binfmt.c", "net.c", "udevmon.c", "pathcache.c")] + ["-ldl"],
+                        "-pthread"] + [str(PRELOAD / name) for name in ("binfmt.c", "net.c", "udevmon.c", "pathcache.c", "webhelper.c")] + ["-ldl"],
                        check=True)
         source = cls.tmp / "program.c"
         source.write_text(PROGRAM)

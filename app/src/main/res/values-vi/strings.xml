@@ -887,8 +887,8 @@
     <string name="wadb_turn_off">Tắt giới hạn</string>
     <string name="wadb_other_ways">Cách khác để đổi nó</string>
     <string name="wadb_dev_try_first">1 · Tùy chọn cho nhà phát triển (thử trước)</string>
-    <string name="wadb_restrict_on">Đặt “Restrict child processes” thành bật.</string>
-    <string name="wadb_restrict_off">Đặt “Restrict child processes” thành tắt.</string>
+    <string name="wadb_restrict_on">Đặt “Tắt các mục hạn chế đối với tiến trình con” thành tắt.</string>
+    <string name="wadb_restrict_off">Đặt “Tắt các mục hạn chế đối với tiến trình con” thành bật.</string>
     <string name="wadb_computer_last">3 · ADB từ máy tính (phương án cuối)</string>
     <string name="wadb_only_if">Chỉ khi Gỡ lỗi qua mạng không dây không khả dụng.</string>
     <string name="wadb_computer_group">3 · ADB từ máy tính (phương án cuối)</string>
@@ -1898,6 +1898,16 @@
     <string name="stores_free">Miễn phí</string>
     <string name="stores_resume">Tiếp tục</string>
     <string name="stores_refresh">Làm mới</string>
+    <string name="stores_sort">Sắp xếp</string>
+    <string name="stores_sort_last_played">Chơi gần đây</string>
+    <string name="stores_sort_recently_installed">Cài gần đây</string>
+    <string name="stores_sort_title_asc">Tên A–Z</string>
+    <string name="stores_sort_title_desc">Tên Z–A</string>
+    <string name="stores_sort_size_desc">Kích thước: lớn nhất</string>
+    <string name="stores_sort_size_asc">Kích thước: nhỏ nhất</string>
+    <string name="stores_sort_release_date">Ngày phát hành</string>
+    <string name="stores_view_list">Chế độ danh sách</string>
+    <string name="stores_view_cards">Chế độ thẻ</string>
     <string name="stores_show_mature">Hiện nội dung người lớn</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

@@ -68,6 +68,7 @@ class StoreGameSidecar(
         const val VERSION = 1
         const val STATE_INSTALLED = "installed"
         const val STATE_INSTALLING = "installing"
+        const val STATE_UPDATING = "updating"
 
         fun file(folder: File): File = File(folder, FILE_NAME)
 

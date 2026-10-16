@@ -48,6 +48,12 @@ public final class Downloader {
             if (have > 0) connection.setRequestProperty("Range", "bytes=" + have + "-");
             int code = connection.getResponseCode();
             boolean appending = code == HttpURLConnection.HTTP_PARTIAL;
+            if (appending && !rangeStartsAt(connection.getHeaderField("Content-Range"), have)) {
+                // A 206 that does not begin where the kept bytes end would corrupt the file if appended.
+                connection.disconnect();
+                destination.delete();
+                return downloadFile(url, destination, false, progress);
+            }
             if (code / 100 != 2) {
                 if (have > 0) {
                     connection.disconnect();
@@ -85,6 +91,13 @@ public final class Downloader {
         } finally {
             if (connection != null) connection.disconnect();
         }
+    }
+
+    /** True when a `Content-Range: bytes START-END/TOTAL` header starts exactly at {@code start}. */
+    static boolean rangeStartsAt(String contentRange, long start) {
+        if (contentRange == null) return false;
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("^\\s*bytes\\s+(\\d+)-\\d+/(?:\\d+|\\*)\\s*$").matcher(contentRange);
+        return m.matches() && Long.parseLong(m.group(1)) == start;
     }
 
     private static HttpURLConnection open(String url) throws java.io.IOException {

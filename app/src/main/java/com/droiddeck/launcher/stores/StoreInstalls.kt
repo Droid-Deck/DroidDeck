@@ -7,13 +7,33 @@ import com.droiddeck.launcher.frontend.AddedGames
 import com.droiddeck.launcher.frontend.LibraryCache
 import com.droiddeck.launcher.frontend.Library
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 
 object StoreInstalls {
     private const val TAG = "StoreInstalls"
 
     fun begin(folder: File, store: Store, id: String, title: String, cover: String?, hero: String?) {
-        if (StoreGameSidecar.read(folder)?.isInstalled == true) return
+        val before = StoreGameSidecar.read(folder)
+        if (before?.isInstalled == true || before?.state == StoreGameSidecar.STATE_UPDATING) return
         StoreGameSidecar(store, id, title, exe = "", cover = cover, hero = hero, state = StoreGameSidecar.STATE_INSTALLING).write(folder)
+    }
+
+    /** Epic commits verified files individually, not a whole-game transaction. Keep updates resumable. */
+    @JvmStatic
+    fun markUpdating(folder: File) {
+        val before = StoreGameSidecar.read(folder) ?: return
+        if (!before.isInstalled) return
+        val stage = File.createTempFile(".droiddeck-update-", ".stage", folder)
+        try {
+            java.io.FileOutputStream(stage).use {
+                it.write(before.copy(state = StoreGameSidecar.STATE_UPDATING, installVersion = "").toJson().toString(2).toByteArray(Charsets.UTF_8))
+                it.fd.sync()
+            }
+            Files.move(stage.toPath(), StoreGameSidecar.file(folder).toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+        } finally {
+            stage.delete()
+        }
     }
 
     fun complete(context: Context, folder: File, sidecar: StoreGameSidecar, onStep: ((Int, Int) -> Unit)? = null) {
@@ -66,10 +86,11 @@ object StoreInstalls {
     fun discard(context: Context, folder: File, caches: List<File>) {
         val app = context.applicationContext
         Thread({
-            val keep = StoreGameSidecar.read(folder)?.isInstalled == true
+            val sidecar = StoreGameSidecar.read(folder)
+            val keep = sidecar?.isInstalled == true || sidecar?.state == StoreGameSidecar.STATE_UPDATING
             caches.forEach { deleteTree(it) }
             if (!keep) deleteTree(folder)
-            StoresState.logLine(if (keep) "removed the partial update of ${folder.name}" else "removed ${folder.name}")
+            StoresState.logLine(if (keep) "removed update caches for ${folder.name}; verified file swaps are retained" else "removed ${folder.name}")
             StoresState.notifyLibraryChanged(app)
         }, "store-cancel-clean").start()
     }

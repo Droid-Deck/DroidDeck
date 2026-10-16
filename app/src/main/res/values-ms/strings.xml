@@ -887,8 +887,8 @@
     <string name="wadb_turn_off">Matikan had</string>
     <string name="wadb_other_ways">Cara lain untuk menukarnya</string>
     <string name="wadb_dev_try_first">1 · Pilihan pembangun (cuba dahulu)</string>
-    <string name="wadb_restrict_on">Tetapkan “Sekat proses anak” hidup.</string>
-    <string name="wadb_restrict_off">Tetapkan “Sekat proses anak” mati.</string>
+    <string name="wadb_restrict_on">Tetapkan “Lumpuhkan sekatan proses anak” mati.</string>
+    <string name="wadb_restrict_off">Tetapkan “Lumpuhkan sekatan proses anak” hidup.</string>
     <string name="wadb_computer_last">3 · ADB komputer (pilihan akhir)</string>
     <string name="wadb_only_if">Hanya jika Debugging Wayarles tidak tersedia.</string>
     <string name="wadb_computer_group">3 · ADB komputer (pilihan akhir)</string>
@@ -1898,6 +1898,16 @@
     <string name="stores_free">Percuma</string>
     <string name="stores_resume">Sambung</string>
     <string name="stores_refresh">Segar semula</string>
+    <string name="stores_sort">Isih</string>
+    <string name="stores_sort_last_played">Baru dimainkan</string>
+    <string name="stores_sort_recently_installed">Baru dipasang</string>
+    <string name="stores_sort_title_asc">Tajuk A–Z</string>
+    <string name="stores_sort_title_desc">Tajuk Z–A</string>
+    <string name="stores_sort_size_desc">Saiz: terbesar</string>
+    <string name="stores_sort_size_asc">Saiz: terkecil</string>
+    <string name="stores_sort_release_date">Tarikh keluaran</string>
+    <string name="stores_view_list">Paparan senarai</string>
+    <string name="stores_view_cards">Paparan kad</string>
     <string name="stores_show_mature">Papar kandungan matang</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

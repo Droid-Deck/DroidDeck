@@ -158,7 +158,8 @@ object SteamTouchConfig {
 
     fun load(context: Context, appId: Int): Config {
         val dir = configDir(context)
-        val file = dir?.let { autosaveConfig(it, appId) }
+        val file = dir?.let { deviceConfig(context, it, appId) }
+            ?: dir?.let { autosaveConfig(it, appId) }
             ?: loggedConfig(context, appId)?.takeIf { isTouchConfig(it) }
             ?: dir?.let { configsetConfig(context, it, appId) }
         if (file == null) {
@@ -207,11 +208,16 @@ object SteamTouchConfig {
         null
     }
 
-    private fun configsetConfig(context: Context, dir: File, appId: Int): File? = try {
-        val set = KeyValues.parse(File(dir, CONFIGSET).readText()).child("controller_config")?.child(appId.toString())
+    private fun configsetConfig(context: Context, dir: File, appId: Int): File? = entryConfig(context, dir, CONFIGSET, appId)
+
+    private fun deviceConfig(context: Context, dir: File, appId: Int): File? = entryConfig(context, dir, DEVICE_CONFIGSET, appId)
+
+    private fun entryConfig(context: Context, dir: File, configset: String, appId: Int): File? = try {
+        val set = KeyValues.parse(File(dir, configset).readText()).child("controller_config")?.child(appId.toString())
         when {
             set == null -> null
             set.string("autosave") == "1" -> File(dir, "$appId/controller_mobile_touch.vdf")
+            set.string("workshop") != null -> workshopConfig(context, set.string("workshop")!!)
             set.string("template") != null -> File(steamRoot(context), "controller_base/templates/" + set.string("template"))
             else -> null
         }?.takeIf { it.isFile }
@@ -219,7 +225,16 @@ object SteamTouchConfig {
         null
     }
 
+    internal fun workshopConfig(context: Context, id: String): File? {
+        if (!id.all(Char::isDigit)) return null
+        return File(steamRoot(context), "steamapps/workshop/content/$CONFIGS_APP/$id").listFiles()
+            ?.filter { it.isFile && (it.name.endsWith(".vdf") || it.name.endsWith(".bin")) }
+            ?.maxByOrNull { it.lastModified() }
+    }
+
     private const val CONFIGSET = "configset_controller_mobile_touch.vdf"
+    private const val DEVICE_CONFIGSET = "configset_MT-DROIDDECK0001.vdf"
+    private const val CONFIGS_APP = 241100
 
 
     private fun availability(mappings: KeyValues.Node): Map<Int, Set<Int>> {
@@ -363,8 +378,18 @@ object SteamTouchConfig {
         tmp.writeText(text)
         if (!tmp.renameTo(target)) return null
         selectAutosave(dir, appId)
+        dropDeviceEntry(dir, appId)
         Log.i(TAG, "steam touch: saved layouts ${sets.keys} for app $appId to ${target.path}")
         return target
+    }
+
+    private fun dropDeviceEntry(dir: File, appId: Int) {
+        val file = File(dir, DEVICE_CONFIGSET)
+        if (!file.isFile) return
+        val text = file.readText()
+        val block = Regex("""\n\s*"$appId"\s*\{[^}]*\}""")
+        if (!block.containsMatchIn(text)) return
+        File(file.path + ".tmp").apply { writeText(text.replace(block, "")) }.renameTo(file)
     }
 
     private fun selectAutosave(dir: File, appId: Int) {

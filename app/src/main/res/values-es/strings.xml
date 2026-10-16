@@ -306,8 +306,8 @@
     <string name="mode_sgdb_key">Clave API de SteamGridDB</string>
     <string name="mode_sgdb_key_yours">Tu clave</string>
     <string name="mode_sgdb_edit">Editar…</string>
-    <string name="mode_added_art_hint">Completa las imágenes que faltan según el nombre de la carpeta. Tus propios cover.jpg, hero.jpg, logo.png o icon.png en la carpeta del juego tienen prioridad.</string>
-    <string name="summary_remove_game">Remove %1$s</string>
+    <string name="mode_added_art_hint">Completa las imágenes que faltan desde Steam y, después, desde SteamGridDB. Tus propios cover.jpg, hero.jpg, logo.png o icon.png en la carpeta del juego tienen prioridad.</string>
+    <string name="summary_remove_game">Quitar %1$s</string>
     <string name="mode_added_remove_confirm">¿Quitar?</string>
     <string name="games_add">Añadir juego</string>
     <string name="games_add_title">Añadir un juego:</string>
@@ -346,10 +346,10 @@
     <string name="wincomp_active">Instalados para este juego (%1$d)</string>
     <string name="wincomp_all">Todos los componentes (%1$d)</string>
     <string name="wincomp_installers">Necesitan un instalador de Windows (%1$d)</string>
-    <string name="wincomp_installers_note">Estos ejecutan un instalador real dentro del prefijo (.NET, PhysX, XNA, los instaladores completos de Visual C++…). DroidDeck aún no puede hacerlo; es lo siguiente.</string>
+    <string name="wincomp_installers_note">Son programas de instalación independientes, sin ningún paquete que extraer, y todavía no hay un registro de lo que instalan. La mayoría son runtimes antiguos que el Mono incluido en Proton ya sustituye; los registros se añaden a medida que se crean.</string>
     <string name="wincomp_show">Mostrar</string>
     <string name="wincomp_hide">Ocultar</string>
-    <string name="wincomp_needs_installer">Necesita un instalador de Windows (próximamente)</string>
+    <string name="wincomp_needs_installer">Ejecuta su propio programa de instalación (aún sin registro)</string>
     <string name="wincomp_unsupported">Aún no compatible aquí</string>
     <string name="wincomp_loading">Cargando los componentes…</string>
     <string name="wincomp_failed">No se pudo instalar: %1$s</string>
@@ -907,8 +907,8 @@
     <string name="wadb_turn_off">Desactivar límite</string>
     <string name="wadb_other_ways">Otras formas de cambiarlo</string>
     <string name="wadb_dev_try_first">1 · Opciones de desarrollador (pruébalo primero)</string>
-    <string name="wadb_restrict_on">Activa “Restringir procesos secundarios”.</string>
-    <string name="wadb_restrict_off">Desactiva “Restringir procesos secundarios”.</string>
+    <string name="wadb_restrict_on">Desactiva “Inhabilitar restricciones de procesos secundarios”.</string>
+    <string name="wadb_restrict_off">Activa “Inhabilitar restricciones de procesos secundarios”.</string>
     <string name="wadb_computer_last">3 · ADB desde ordenador (último recurso)</string>
     <string name="wadb_only_if">Solo si la Depuración inalámbrica no está disponible.</string>
     <string name="wadb_computer_group">3 · ADB desde ordenador (último recurso)</string>
@@ -1948,6 +1948,16 @@
     <string name="stores_free">Gratis</string>
     <string name="stores_resume">Reanudar</string>
     <string name="stores_refresh">Actualizar</string>
+    <string name="stores_sort">Ordenar</string>
+    <string name="stores_sort_last_played">Jugados recientemente</string>
+    <string name="stores_sort_recently_installed">Instalados recientemente</string>
+    <string name="stores_sort_title_asc">Título A–Z</string>
+    <string name="stores_sort_title_desc">Título Z–A</string>
+    <string name="stores_sort_size_desc">Tamaño: mayor</string>
+    <string name="stores_sort_size_asc">Tamaño: menor</string>
+    <string name="stores_sort_release_date">Fecha de lanzamiento</string>
+    <string name="stores_view_list">Vista de lista</string>
+    <string name="stores_view_cards">Vista de tarjetas</string>
     <string name="stores_show_mature">Mostrar contenido para adultos</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>
@@ -2265,4 +2275,10 @@
     <string name="drawer_component_downloads">Descargar componentes</string>
     <string name="drawer_component_downloads_hint">Las descargas se comparten con la página Componentes. Elige arriba una versión descargada para usarla al iniciar el próximo juego.</string>
     <string name="drawer_component_choose_download">Elige una versión para descargar</string>
+    <string name="mode_zram">Compresión zRAM</string>
+    <string name="mode_zram_hint">Mientras se ejecuta un juego, la memoria del cliente de Steam se comprime en la zram del dispositivo, lo que deja más RAM para el juego. Se aplica la próxima vez que se inicie Steam.</string>
+    <string name="mode_zram_unsupported">No disponible: este dispositivo no tiene swap activo, o su kernel es anterior a la 5.4.</string>
+    <string name="stores_storage_insufficient">No hay suficiente espacio libre: se necesitan %1$s y solo hay %2$s libres</string>
+    <string name="stores_storage_low">Espacio insuficiente (%1$s libres, se necesitan %2$s)</string>
+    <string name="stores_target_free_unknown">Espacio libre desconocido</string>
 </resources>

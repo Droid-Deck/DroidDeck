@@ -1140,8 +1140,12 @@ struct DeckImu {
   uint16_t pressure[2];
   uint32_t controls;
   uint32_t pad_type;
+  uint32_t latency;
 };
 static_assert(offsetof(DeckImu, pad_type) == 44, "DeckImu::pad_type matches FakeInputWriter");
+static_assert(offsetof(DeckImu, latency) == 48, "DeckImu::latency matches FakeInputWriter");
+static constexpr uint32_t LATENCY_CONTROLLER = 1, LATENCY_TOUCH = 2;
+static constexpr int LOW_LATENCY_REPORT_INTERVAL_US = 1000;
 static constexpr uint32_t DECK_EXTRA_L4 = 1, DECK_EXTRA_R4 = 2, DECK_EXTRA_L5 = 4,
                           DECK_EXTRA_R5 = 8, DECK_EXTRA_LPAD_TOUCH = 16,
                           DECK_EXTRA_RPAD_TOUCH = 32, DECK_EXTRA_LPAD_CLICK = 64,
@@ -1303,6 +1307,27 @@ __attribute__((visibility("hidden"))) static uint32_t live_pad_type() {
   return value & PAD_TYPE_SET ? value & 0xff : session_pad_type();
 }
 
+__attribute__((visibility("hidden"))) static bool low_latency(uint32_t which) {
+  const uint8_t *blocks = ring_blocks();
+  const DeckImu *imu = blocks ? reinterpret_cast<const DeckImu *>(blocks + FAKE_INPUT_RING_SIZE) : nullptr;
+  return imu && (__atomic_load_n(&imu->latency, __ATOMIC_ACQUIRE) & which);
+}
+
+__attribute__((visibility("hidden"))) static int controller_report_interval_us(int normal_us) {
+  return low_latency(LATENCY_CONTROLLER) ? LOW_LATENCY_REPORT_INTERVAL_US : normal_us;
+}
+
+__attribute__((visibility("hidden"))) static void sleep_us(int us) {
+  struct timespec interval = {0, us * 1000L};
+  nanosleep(&interval, nullptr);
+}
+
+__attribute__((visibility("hidden"))) static uint64_t monotonic_us() {
+  struct timespec now;
+  clock_gettime(CLOCK_MONOTONIC, &now);
+  return static_cast<uint64_t>(now.tv_sec) * 1000000ULL + static_cast<uint64_t>(now.tv_nsec) / 1000ULL;
+}
+
 static bool fake_triton_enabled() {
   static int enabled = -1;
   if (enabled < 0)
@@ -1453,8 +1478,7 @@ __attribute__((visibility("hidden"))) static void *deck_report_thread(void *arg)
     if (send(self->peer, report, sizeof(report), MSG_DONTWAIT | MSG_NOSIGNAL) < 0 &&
         errno != EAGAIN && errno != EWOULDBLOCK)
       break;
-    struct timespec interval = {0, DECK_REPORT_INTERVAL_US * 1000L};
-    nanosleep(&interval, nullptr);
+    sleep_us(controller_report_interval_us(DECK_REPORT_INTERVAL_US));
   }
   syscall(SYS_close, self->peer);
   munmap(self->ring, self->mapping_size);
@@ -1486,7 +1510,7 @@ __attribute__((visibility("hidden"))) static void put_sony_touch(uint8_t *at, So
 }
 
 __attribute__((visibility("hidden"))) static void
-build_sony_report(uint8_t *report, uint8_t model, uint32_t packet, uint32_t buttons, const int32_t *axes,
+build_sony_report(uint8_t *report, uint8_t model, uint32_t packet, uint64_t elapsed_us, uint32_t buttons, const int32_t *axes,
                   const DeckExtras &extras, SonyTouch &touch) {
   memset(report, 0, SONY_REPORT_BYTES);
   report[0] = 0x01;
@@ -1517,7 +1541,7 @@ build_sony_report(uint8_t *report, uint8_t model, uint32_t packet, uint32_t butt
     p[6] = static_cast<uint8_t>(system | ((packet & 0x3f) << 2));
     p[7] = left_trigger;
     p[8] = right_trigger;
-    put16(p + 9, static_cast<int>(packet * 750));
+    put16(p + 9, static_cast<int>(elapsed_us * 3 / 16));
     for (int i = 0; i < 3; i++) {
       put16(p + 12 + i * 2, gyro[i]);
       put16(p + 18 + i * 2, accel[i]);
@@ -1539,7 +1563,7 @@ build_sony_report(uint8_t *report, uint8_t model, uint32_t packet, uint32_t butt
       put16(p + 15 + i * 2, gyro[i]);
       put16(p + 21 + i * 2, accel[i]);
     }
-    put32(p + 27, packet * 12000);
+    put32(p + 27, static_cast<uint32_t>(elapsed_us * 3));
     put_sony_touch(p + 32, touch, 0, left, extras.pads[0], extras.pads[1], SONY_TOUCH_HEIGHT_DUALSENSE);
     put_sony_touch(p + 36, touch, 1, right, extras.pads[2], extras.pads[3], SONY_TOUCH_HEIGHT_DUALSENSE);
     p[52] = 0x2a;
@@ -1558,6 +1582,7 @@ __attribute__((visibility("hidden"))) static void *sony_report_thread(void *arg)
   int32_t axes[8] = {};
   DeckExtras extras;
   SonyTouch touch;
+  const uint64_t start_us = monotonic_us();
   while (live_pad_type() == type) {
     if (read_snapshot(self->ring, snap) && snap.generation == ring_generation(self->ring)) {
       buttons = snap.buttons;
@@ -1565,12 +1590,11 @@ __attribute__((visibility("hidden"))) static void *sony_report_thread(void *arg)
     }
     read_deck_extras(*self, extras);
     uint8_t report[SONY_REPORT_BYTES];
-    build_sony_report(report, self->sony, ++packet, buttons, axes, extras, touch);
+    build_sony_report(report, self->sony, ++packet, monotonic_us() - start_us, buttons, axes, extras, touch);
     if (send(self->peer, report, sizeof(report), MSG_DONTWAIT | MSG_NOSIGNAL) < 0 &&
         errno != EAGAIN && errno != EWOULDBLOCK)
       break;
-    struct timespec interval = {0, DECK_REPORT_INTERVAL_US * 1000L};
-    nanosleep(&interval, nullptr);
+    sleep_us(controller_report_interval_us(DECK_REPORT_INTERVAL_US));
   }
   syscall(SYS_close, self->peer);
   munmap(self->ring, self->mapping_size);
@@ -1684,8 +1708,7 @@ __attribute__((visibility("hidden"))) static void *triton_report_thread(void *ar
           errno != EAGAIN && errno != EWOULDBLOCK)
         break;
     }
-    struct timespec interval = {0, TRITON_REPORT_INTERVAL_US * 1000L};
-    nanosleep(&interval, nullptr);
+    sleep_us(controller_report_interval_us(TRITON_REPORT_INTERVAL_US));
   }
   syscall(SYS_close, self->peer);
   munmap(self->ring, self->mapping_size);
@@ -1709,7 +1732,7 @@ static constexpr int16_t TRITON_WIRED_PRODUCT = 0x1302;
 static constexpr int32_t TRITON_STICK_TOUCH = 2000;
 
 __attribute__((visibility("hidden"))) static void
-build_triton_report(uint8_t *report, uint32_t packet, uint32_t buttons, const int32_t *axes,
+build_triton_report(uint8_t *report, uint32_t packet, uint64_t elapsed_us, uint32_t buttons, const int32_t *axes,
                     const DeckExtras &extras) {
   memset(report, 0, TRITON_STATE_BYTES);
   report[0] = static_cast<uint8_t>(packet);
@@ -1752,7 +1775,7 @@ build_triton_report(uint8_t *report, uint32_t packet, uint32_t buttons, const in
   put16(report + 23, extras.pads[2]);
   put16(report + 25, extras.pads[3]);
   put16(report + 27, extras.pressure[1]);
-  put32(report + 29, packet * TRITON_REPORT_INTERVAL_US);
+  put32(report + 29, static_cast<uint32_t>(elapsed_us));
   for (int i = 0; i < 3; i++) {
     put16(report + 33 + i * 2, extras.accel[i]);
     put16(report + 39 + i * 2, extras.gyro[i]);
@@ -1768,6 +1791,7 @@ __attribute__((visibility("hidden"))) static void *triton_pad_thread(void *arg) 
   uint32_t buttons = 0;
   int32_t axes[8] = {};
   DeckExtras extras;
+  const uint64_t start_us = monotonic_us();
   while (live_pad_type() == PAD_TYPE_STEAM) {
     if (read_snapshot(self->ring, snap) && snap.generation == ring_generation(self->ring)) {
       buttons = snap.buttons;
@@ -1776,12 +1800,11 @@ __attribute__((visibility("hidden"))) static void *triton_pad_thread(void *arg) 
     read_deck_extras(*self, extras);
     uint8_t report[TRITON_REPORT_ID_BYTES + TRITON_STATE_BYTES];
     report[0] = TRITON_STATE_WIRED;
-    build_triton_report(report + 1, ++packet, buttons, axes, extras);
+    build_triton_report(report + 1, ++packet, monotonic_us() - start_us, buttons, axes, extras);
     if (send(self->peer, report, sizeof(report), MSG_DONTWAIT | MSG_NOSIGNAL) < 0 &&
         errno != EAGAIN && errno != EWOULDBLOCK)
       break;
-    struct timespec interval = {0, TRITON_REPORT_INTERVAL_US * 1000L};
-    nanosleep(&interval, nullptr);
+    sleep_us(controller_report_interval_us(TRITON_REPORT_INTERVAL_US));
   }
   syscall(SYS_close, self->peer);
   munmap(self->ring, self->mapping_size);
@@ -2019,8 +2042,7 @@ __attribute__((visibility("hidden"))) static void *touch_report_thread(void *arg
     if (send(self->peer, report, sizeof(report), MSG_DONTWAIT | MSG_NOSIGNAL) < 0 &&
         errno != EAGAIN && errno != EWOULDBLOCK)
       break;
-    struct timespec interval = {0, TOUCH_REPORT_INTERVAL_US * 1000L};
-    nanosleep(&interval, nullptr);
+    sleep_us(low_latency(LATENCY_TOUCH) ? LOW_LATENCY_REPORT_INTERVAL_US : TOUCH_REPORT_INTERVAL_US);
   }
   syscall(SYS_close, self->peer);
   touch_state([](TouchRingFile &r) { if (r.opened) r.opened--; });
@@ -3545,6 +3567,7 @@ EXPORT int close(int fd) {
 }
 
 static constexpr int kMaxRingWaitMs = 2;
+static constexpr int kLowLatencyRingWaitUs = 250;
 
 EXPORT ssize_t read(int fd, void *buf, size_t count) {
   if (!watched(fd)) return syscall(SYS_read, fd, buf, count);
@@ -3633,7 +3656,8 @@ EXPORT ssize_t read(int fd, void *buf, size_t count) {
     int result = nanosleep(&sleep_time, nullptr);
     guard.lock();
     if (result < 0) return -1;
-    if (backoff_ns < kMaxRingWaitMs * 1000 * 1000) backoff_ns *= 2;
+    if (low_latency(LATENCY_CONTROLLER)) backoff_ns = kLowLatencyRingWaitUs * 1000;
+    else if (backoff_ns < kMaxRingWaitMs * 1000 * 1000) backoff_ns *= 2;
   }
 }
 
@@ -3815,7 +3839,7 @@ static int poll_fake(struct pollfd *fds, nfds_t nfds, int timeout,
     if (deadline_ms >= 0 && monotonic_ms() >= deadline_ms)
       return 0;
 
-    if (backoff_ms < kMaxRingWaitMs)
+    if (backoff_ms < kMaxRingWaitMs && !low_latency(LATENCY_CONTROLLER))
       backoff_ms *= 2;
   }
 }
@@ -3988,7 +4012,7 @@ EXPORT int select(int nfds, fd_set *readfds, fd_set *writefds,
     if (deadline_ms >= 0 && monotonic_ms() >= deadline_ms)
       return 0;
 
-    if (backoff_ms < kMaxRingWaitMs)
+    if (backoff_ms < kMaxRingWaitMs && !low_latency(LATENCY_CONTROLLER))
       backoff_ms *= 2;
   }
 }

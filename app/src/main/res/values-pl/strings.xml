@@ -905,8 +905,8 @@
     <string name="wadb_turn_off">Wyłącz limit</string>
     <string name="wadb_other_ways">Inne sposoby na zmianę tego</string>
     <string name="wadb_dev_try_first">1 · Opcje programisty (spróbuj najpierw)</string>
-    <string name="wadb_restrict_on">Ustaw „Ogranicz procesy podrzędne” na włączone.</string>
-    <string name="wadb_restrict_off">Ustaw „Ogranicz procesy podrzędne” na wyłączone.</string>
+    <string name="wadb_restrict_on">Ustaw „Wyłącz ograniczenia procesów podrzędnych aplikacji” na wyłączone.</string>
+    <string name="wadb_restrict_off">Ustaw „Wyłącz ograniczenia procesów podrzędnych aplikacji” na włączone.</string>
     <string name="wadb_computer_last">3 · Komputer z ADB (ostatnia opcja)</string>
     <string name="wadb_only_if">Tylko jeśli debugowanie bezprzewodowe jest niedostępne.</string>
     <string name="wadb_computer_group">3 · Komputer z ADB (ostatnia opcja)</string>
@@ -1961,6 +1961,16 @@
     <string name="stores_free">Bezpłatna</string>
     <string name="stores_resume">Wznów</string>
     <string name="stores_refresh">Odśwież</string>
+    <string name="stores_sort">Sortuj</string>
+    <string name="stores_sort_last_played">Ostatnio grane</string>
+    <string name="stores_sort_recently_installed">Ostatnio zainstalowane</string>
+    <string name="stores_sort_title_asc">Tytuł A–Z</string>
+    <string name="stores_sort_title_desc">Tytuł Z–A</string>
+    <string name="stores_sort_size_desc">Rozmiar: największy</string>
+    <string name="stores_sort_size_asc">Rozmiar: najmniejszy</string>
+    <string name="stores_sort_release_date">Data wydania</string>
+    <string name="stores_view_list">Widok listy</string>
+    <string name="stores_view_cards">Widok kart</string>
     <string name="stores_show_mature">Pokaż treści dla dorosłych</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

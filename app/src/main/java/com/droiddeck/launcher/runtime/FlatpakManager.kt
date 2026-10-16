@@ -176,6 +176,7 @@ object FlatpakManager {
         return id to problem
     }
     fun update(context: Context, id: String?, onProgress: (String, Int) -> Unit) = transaction(context, "update", id, onProgress)
+    fun prune(context: Context, onProgress: (String, Int) -> Unit) = transaction(context, "prune", null, onProgress)
 
     fun updates(context: Context): Set<String>? {
         if (!ready(context)) return emptySet()

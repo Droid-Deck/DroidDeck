@@ -899,8 +899,8 @@
     <string name="wadb_turn_off">Dezactivează limita</string>
     <string name="wadb_other_ways">Alte moduri de a o schimba</string>
     <string name="wadb_dev_try_first">1 · Opțiuni pentru dezvoltatori (încearcă mai întâi)</string>
-    <string name="wadb_restrict_on">Activează „Restricționează procesele-copil”.</string>
-    <string name="wadb_restrict_off">Dezactivează „Restricționează procesele-copil”.</string>
+    <string name="wadb_restrict_on">Dezactivează „Dezactivează restricțiile pentru procese secundare”.</string>
+    <string name="wadb_restrict_off">Activează „Dezactivează restricțiile pentru procese secundare”.</string>
     <string name="wadb_computer_last">3 · ADB pe computer (ultima soluție)</string>
     <string name="wadb_only_if">Doar dacă Depanarea wireless nu este disponibilă.</string>
     <string name="wadb_computer_group">3 · ADB pe computer (ultima soluție)</string>
@@ -1940,6 +1940,16 @@
     <string name="stores_free">Gratuit</string>
     <string name="stores_resume">Reluare</string>
     <string name="stores_refresh">Reîmprospătează</string>
+    <string name="stores_sort">Sortează</string>
+    <string name="stores_sort_last_played">Jucate recent</string>
+    <string name="stores_sort_recently_installed">Instalate recent</string>
+    <string name="stores_sort_title_asc">Titlu A–Z</string>
+    <string name="stores_sort_title_desc">Titlu Z–A</string>
+    <string name="stores_sort_size_desc">Dimensiune: cea mai mare</string>
+    <string name="stores_sort_size_asc">Dimensiune: cea mai mică</string>
+    <string name="stores_sort_release_date">Data lansării</string>
+    <string name="stores_view_list">Vizualizare listă</string>
+    <string name="stores_view_cards">Vizualizare carduri</string>
     <string name="stores_show_mature">Arată conținutul pentru adulți</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

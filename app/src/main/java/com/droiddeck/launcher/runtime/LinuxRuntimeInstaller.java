@@ -230,9 +230,31 @@ public final class LinuxRuntimeInstaller {
         }
     }
 
+    /**
+     * The download is named after the release, so a partial file is only ever resumed for the same
+     * version and checksum, never for a different runtime that happens to share a fixed name.
+     */
+    static String archiveName(Release release) {
+        String version = release.version.replaceAll("[^A-Za-z0-9._-]", "_");
+        String sum = release.sha256.replaceAll("[^A-Za-z0-9]", "");
+        if (sum.length() > 12) sum = sum.substring(0, 12);
+        return "linuxfs-" + version + "-" + sum + ".tar.zst";
+    }
+
+    /** Removes archives left by other releases and by builds that used the fixed name. */
+    private static void deleteOtherArchives(File dir, String keep) {
+        File[] files = dir.listFiles((d, name) -> name.startsWith("linuxfs") && name.endsWith(".tar.zst") && !name.equals(keep));
+        if (files == null) return;
+        for (File file : files) file.delete();
+    }
+
     private static boolean installOnce(Context context, Release release, ProgressListener listener) {
-        File archive = new File(context.getCacheDir(), "linuxfs.tar.zst");
+        File archive = new File(context.getCacheDir(), archiveName(release));
+        // A failed download keeps what it fetched so the next attempt resumes it; anything that
+        // reached verification and failed is not trusted and is removed.
+        boolean keepPartial = false;
         try {
+            deleteOtherArchives(context.getCacheDir(), archive.getName());
             File pendingRemoval = removalDirectory(LinuxRuntime.rootDir(context));
             if (pendingRemoval.exists() && listener != null) listener.onProgress(context.getString(R.string.rtinst_removing_leftovers), -1);
             if (!discard(pendingRemoval, null)) throw new IOException("Cannot clear the previous runtime: " + pendingRemoval);
@@ -247,6 +269,7 @@ public final class LinuxRuntimeInstaller {
             });
             if (!ok) {
                 Log.w(TAG, "download failed");
+                keepPartial = true;
                 return false;
             }
 
@@ -300,7 +323,7 @@ public final class LinuxRuntimeInstaller {
             Log.e(TAG, "install", e);
             return false;
         } finally {
-            archive.delete();
+            if (!keepPartial) archive.delete();
         }
     }
 

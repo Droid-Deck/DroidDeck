@@ -893,8 +893,8 @@
     <string name="wadb_turn_off">Kytke raja pois päältä</string>
     <string name="wadb_other_ways">Muita tapoja muuttaa sitä</string>
     <string name="wadb_dev_try_first">1 · Kehittäjäasetukset (kokeile ensin)</string>
-    <string name="wadb_restrict_on">Aseta ”Restrict child processes” päälle.</string>
-    <string name="wadb_restrict_off">Aseta ”Restrict child processes” pois päältä.</string>
+    <string name="wadb_restrict_on">Aseta ”Poista käytöstä alatason prosessirajoitukset” pois päältä.</string>
+    <string name="wadb_restrict_off">Aseta ”Poista käytöstä alatason prosessirajoitukset” päälle.</string>
     <string name="wadb_computer_last">3 · Tietokoneen ADB (viimeinen keino)</string>
     <string name="wadb_only_if">Vain jos Langaton virheenkorjaus ei ole käytettävissä.</string>
     <string name="wadb_computer_group">3 · Tietokoneen ADB (viimeinen keino)</string>
@@ -1919,6 +1919,16 @@
     <string name="stores_free">Ilmainen</string>
     <string name="stores_resume">Jatka</string>
     <string name="stores_refresh">Päivitä</string>
+    <string name="stores_sort">Järjestä</string>
+    <string name="stores_sort_last_played">Viimeksi pelatut</string>
+    <string name="stores_sort_recently_installed">Viimeksi asennetut</string>
+    <string name="stores_sort_title_asc">Nimi A–Ö</string>
+    <string name="stores_sort_title_desc">Nimi Ö–A</string>
+    <string name="stores_sort_size_desc">Koko: suurin</string>
+    <string name="stores_sort_size_asc">Koko: pienin</string>
+    <string name="stores_sort_release_date">Julkaisupäivä</string>
+    <string name="stores_view_list">Luettelonäkymä</string>
+    <string name="stores_view_cards">Korttinäkymä</string>
     <string name="stores_show_mature">Näytä aikuisille tarkoitettu sisältö</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>
