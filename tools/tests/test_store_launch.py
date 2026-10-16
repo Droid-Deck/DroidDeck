@@ -252,7 +252,6 @@ class BattleNet(unittest.TestCase):
     def test_a_games_shortcut_is_handed_to_droiddeck_battlenet(self):
         self.assertEqual([store.BATTLENET, 'launch', 'Fen'], store.battlenet(['waitforexitandrun', BNET_EXE, '--exec=launch Fen'], env={}))
         self.assertEqual([store.BATTLENET, 'launch', 'OSI'], store.battlenet(['"%s"' % BNET_EXE, '--exec="launch OSI"'], env={}))
-        # Battle.net's own shortcut opens it.
         self.assertEqual([store.BATTLENET, 'open'], store.battlenet([BNET_EXE], env={}))
 
     def test_anything_else_and_its_own_starts_are_left_alone(self):
@@ -260,7 +259,6 @@ class BattleNet(unittest.TestCase):
         self.assertIsNone(store.battlenet([other, '--exec=launch Fen'], env={}))
         self.assertIsNone(store.battlenet(['/x/Diablo IV/Diablo IV.exe'], env={}))
         self.assertIsNone(store.battlenet([BNET_EXE, '--exec=launch Fen'], env={'BL_BATTLENET': '1'}))
-        # A code that is not one is no launch of it.
         self.assertEqual([store.BATTLENET, 'open'], store.battlenet([BNET_EXE, '--exec=launch Fen;rm'], env={}))
 
     def test_the_launch_runs_there_and_the_wrapper_ends_with_it(self):

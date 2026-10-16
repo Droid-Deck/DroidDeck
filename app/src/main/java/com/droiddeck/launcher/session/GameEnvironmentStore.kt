@@ -71,11 +71,6 @@ object GameEnvironmentStore {
         return config
     }
 
-    /**
-     * [value] for [name] in [scope]'s profile unless the profile has its own entry for it already -
-     * a value of the user's, or one switched off - so it shows, and is edited, where the rest is.
-     * Whether it was set.
-     */
     @Synchronized
     fun setDefault(context: Context, scope: String, name: String, value: String): Boolean {
         val config = read(context)

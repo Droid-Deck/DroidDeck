@@ -21,7 +21,6 @@ class BackgroundAppLimitTest {
     }
 
     @Test fun whatWasThereIsWhatGoesBack() {
-        // Nothing set (Android's own cap): deleted again; a value of the user's: put back.
         assertNull(BackgroundAppLimit.parse("null\n"))
         assertNull(BackgroundAppLimit.parse(""))
         assertEquals("16", BackgroundAppLimit.parse("16\n"))

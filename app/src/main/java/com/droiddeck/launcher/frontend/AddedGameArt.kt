@@ -306,7 +306,6 @@ object AddedGameArt {
             .filter { it.second > 0 && it.first.isNotEmpty() }
             .maxByOrNull { it.second }?.first
 
-    /** The Steam appid whose store name matches [name], or null for no match. */
     internal fun search(name: String): String? {
         val term = name.replace(EDITION, " ").trim().ifEmpty { name }
         val json = get(STORE_SEARCH + URLEncoder.encode(term, "UTF-8"))?.toString(Charsets.UTF_8) ?: return null

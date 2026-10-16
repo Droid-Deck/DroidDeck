@@ -14,7 +14,6 @@ import zlib
 REPO = Path(__file__).resolve().parents[2]
 BIN = REPO / "tools/linuxfs/overlay/usr/local/bin"
 BNET = runpy.run_path(str(BIN / "droiddeck-battlenet"))["main"].__globals__
-# Lines the tests make go to a scratch log, never the developer's own cache.
 BNET["CACHE"] = tempfile.mkdtemp(prefix="bnet-test-cache-")
 BNET["LOG"] = os.path.join(BNET["CACHE"], "battlenet.log")
 RUN = runpy.run_path(str(BIN / "droiddeck-proton-run"))["main"].__globals__
@@ -127,7 +126,6 @@ class ConfigAndMenuTest(Temp):
         self.assertEqual(config["Client"]["Streaming"]["StreamingEnabled"], "false")
         self.assertEqual(config["Client"]["GameLaunchWindowBehavior"], "2")
         self.assertIsNone(BNET["write_config"](root))
-        # One Battle.net has written since: its choices stay, closing itself as it launches a game too.
         path.write_text('{"Client": {"HardwareAcceleration": "false", "GameLaunchWindowBehavior": "0"}, "Games": {"osi": {}}}')
         self.assertEqual(BNET["write_config"](root), "launch")
         config = json.loads(path.read_text())
@@ -149,7 +147,7 @@ class ConfigAndMenuTest(Temp):
         self.assertIn("Exec=/usr/local/bin/droiddeck-battlenet\n", text)
         self.assertIn("Name=Battle.net\n", text)
         self.assertNotIn("Game", re.search(r"^Categories=(.*)$", text, re.M).group(1))
-        # Proton names every such window steam_app_0: no class beats one that matches the wrong windows.
+        # Proton names every window steam_app_0, so a StartupWMClass would match the wrong windows.
         self.assertNotIn("StartupWMClass", text)
         mtime = path.stat().st_mtime_ns
         time.sleep(0.01)
@@ -189,7 +187,6 @@ class ProcessTest(Temp):
                      ["C:\\Program Files (x86)\\Battle.net\\Battle.net Launcher.exe"]):
             with self.subTest(argv):
                 self.assertTrue(BNET["is_battlenet"](argv))
-        # Its installer lies in the app's cache, and is not stopped as Battle.net's own.
         for argv in (["Z:\\root\\.cache\\droiddeck\\battlenet\\Battle.net-Setup.exe"],
                      ["C:\\Program Files (x86)\\Diablo IV\\Diablo IV.exe"], ["C:\\windows\\system32\\services.exe"], []):
             with self.subTest(argv):
@@ -225,11 +222,7 @@ class ProcessTest(Temp):
 
 
 class ProtonWaitTest(Temp):
-    """proton(): Proton returns once the prefix is empty; what a closed Battle.net leaves is stopped."""
-
     class Process:
-        """Proton: returns once what runs in the prefix was stopped, or after [waits] polls by itself."""
-
         def __init__(self, test, waits):
             self.test, self.waits = test, waits
 
@@ -266,7 +259,6 @@ class ProtonWaitTest(Temp):
     def test_nothing_is_stopped_while_a_game_still_runs(self):
         client = (1, ["Battle.net.exe"])
         game = (4, ["C:\\Games\\Diablo IV\\Diablo IV.exe"])
-        # Battle.net closes, the game plays on, and Proton returns when the game exits by itself.
         self.assertEqual(self.run_proton([[client, game]] + [[game]] * 5, waits=6), (0, True))
         self.assertEqual(self.stopped, [])
 
@@ -284,15 +276,12 @@ class ProtonWaitTest(Temp):
         wine = (3, ["C:\\windows\\system32\\services.exe"])
         game = (4, ["C:\\Program Files (x86)\\Diablo IV\\Diablo IV.exe", "-launch", "-uid", "fenris"])
         tidy = BNET["Tidy"](settle=0, gone=60)
-        # Up with its Agent; the game starts; Battle.net closed for it (the prefix read again); the
-        # game plays; it exits, and Wine's own is stopped.
         states = [[client, agent, wine], [client, agent, wine, game], [wine, game], [wine, game], [wine], [wine]]
         with mock.patch.dict(BNET, {"notify": lambda *a, **k: self.fail("notified")}):
             self.assertEqual(self.run_proton_tidy(states, tidy), (0, True))
         self.assertEqual(self.stopped, [1, 2, 3])
 
     def run_proton_tidy(self, states, tidy):
-        """proton() with [tidy]: Proton returns once Wine's own (pid 3) has been stopped."""
         states = iter(states)
         last = []
         test = self
@@ -320,8 +309,6 @@ class ProtonWaitTest(Temp):
 
 
 class TidyTest(unittest.TestCase):
-    """Tidy: Battle.net closed once a game it launched is up, or once it has outlived its Agent."""
-
     CLIENT = (1, ["C:\\Program Files (x86)\\Battle.net\\Battle.net.exe"])
     PAGE = (2, ["C:\\Program Files (x86)\\Battle.net\\Battle.net.exe", "--type=renderer"])
     AGENT = (3, ["C:\\ProgramData\\Battle.net\\Agent\\Agent.9824\\Agent.exe"])
@@ -340,7 +327,6 @@ class TidyTest(unittest.TestCase):
         self.addCleanup(patcher.stop)
 
     def run_tidy(self, tidy, timeline):
-        """[(seconds, processes)] in turn: whether each closed anything."""
         return [tidy(processes, now) for now, processes in timeline]
 
     def test_battle_net_and_its_agent_close_once_the_game_has_run_a_while(self):
@@ -349,7 +335,6 @@ class TidyTest(unittest.TestCase):
         closed = self.run_tidy(tidy, [(0, up), (5, up + [self.GAME]), (24, up + [self.GAME]), (25, up + [self.GAME]),
                                       (40, up + [self.GAME])])
         self.assertEqual(closed, [False, False, False, True, False])
-        # Battle.net's own only, once: never the game, never Wine's.
         self.assertEqual(self.stopped, [[1, 2, 3]])
         self.assertEqual(self.notified, [])
 
@@ -357,7 +342,6 @@ class TidyTest(unittest.TestCase):
         d4 = (6, ["C:\\Program Files (x86)\\Diablo IV\\Diablo IV.exe", "-nostreamline", "-sso", "-launch", "-uid", "fenris"])
         up = [self.CLIENT, self.PAGE, self.AGENT]
         tidy = BNET["Tidy"](settle=20, gone=30)
-        # Nor is it taken for one that lost its Agent while the game plays.
         closed = self.run_tidy(tidy, [(0, up + [d4]), (25, up + [d4]), (30, [self.CLIENT, self.PAGE, d4]),
                                       (100, [self.CLIENT, self.PAGE, d4])])
         self.assertEqual(closed, [False, False, False, False])
@@ -401,8 +385,6 @@ class TidyTest(unittest.TestCase):
         self.assertEqual(self.stopped, [])
 
     def test_a_battle_net_still_starting_its_agent_is_left_alone(self):
-        # Never seen with its Agent: starting under FEX, or the Agent will not start - Blizzard's own
-        # message about that stays on screen.
         tidy = BNET["Tidy"](settle=20, gone=30)
         self.run_tidy(tidy, [(0, [self.CLIENT]), (100, [self.CLIENT]), (1000, [self.CLIENT, self.WINE])])
         self.assertEqual(self.stopped, [])
@@ -444,8 +426,6 @@ class FexRequestTest(Temp):
 
 
 class OpenTest(Temp):
-    """open_client's decisions, with Proton, the prefix's processes and the app stood in for."""
-
     def setUp(self):
         super().setUp()
         self.root = str(self.tmp / "Steam")
@@ -468,7 +448,6 @@ class OpenTest(Temp):
                           % BNET["APP_ID"], b"MZ")
 
     def proton(self, effects):
-        """Each call to proton() takes the next effect: (status, seen, a callable run before it returns)."""
         effects = iter(effects)
 
         def fake(program, args=(), verb=None, watch=None, poll=0):
@@ -518,7 +497,6 @@ class OpenTest(Temp):
         with mock.patch.dict(BNET, {"download": lambda: None, "proton": self.proton([])}):
             self.assertEqual(BNET["open_client"](self.root), 1)
         self.assertIn(("notify", "Battle.net could not be downloaded"), self.calls)
-        # The menu entry is there anyway: it is how the next try starts.
         self.assertEqual(self.calls[0], ("menu",))
 
     def test_a_client_that_never_starts_is_reported(self):
@@ -539,13 +517,11 @@ class OpenTest(Temp):
         cmd, kw = started[0]
         self.assertEqual(cmd, [BNET["PROTON_RUN"], "--window", "--prefix", BNET["APP_ID"], "--verb", "run", str(client)])
         self.assertTrue(kw["start_new_session"])
-        # Nothing of the caller's is held open by what keeps running.
         self.assertEqual(kw["stdin"], BNET["subprocess"].DEVNULL)
         self.assertEqual(kw["stdout"].name, str(self.tmp / "cache/spawned.log"))
         self.assertIs(kw["stderr"], kw["stdout"])
 
     def test_a_battle_net_without_its_agent_is_not_handed_the_start(self):
-        # Lost its Agent: the first start closes it, and the lock comes free for a fresh one.
         self.write("Steam/steamapps/compatdata/%s/pfx/drive_c/Program Files (x86)/Battle.net/Battle.net.exe"
                    % BNET["APP_ID"], b"MZ")
         self.alive.append((50, ["C:\\Program Files (x86)\\Battle.net\\Battle.net.exe"]))
@@ -554,7 +530,6 @@ class OpenTest(Temp):
             self.assertEqual(BNET["show"](self.root, wait=60, poll=0), "the lock")
 
     def test_a_second_start_while_the_first_ends_opens_battle_net_itself(self):
-        # Battle.net closed, the first start still stopping what it left: the lock comes free.
         tries = iter([None, None, "the lock"])
         with mock.patch.dict(BNET, {"acquire": lambda: next(tries)}):
             self.assertEqual(BNET["show"](self.root, wait=60, poll=0), "the lock")
@@ -589,8 +564,6 @@ class OpenTest(Temp):
 
 
 class Harness(Temp):
-    """Proton, the prefix's processes and the lock stood in for."""
-
     CLIENT = ["C:\\Program Files (x86)\\Battle.net\\Battle.net.exe"]
     GAME = ["C:\\Program Files (x86)\\Diablo IV\\Diablo IV.exe"]
     AGENT = ["C:\\ProgramData\\Battle.net\\Agent\\Agent.9824\\Agent.exe"]
@@ -645,12 +618,9 @@ class Harness(Temp):
         return [(first + i, self.CLIENT + (["--type=renderer"] if i else [])) for i in range(n)]
 
 class LaunchTest(Harness):
-    """launch(): a game's Steam shortcut."""
-
     def test_battle_net_is_opened_for_the_game_and_closed_after_it(self):
         self.install()
         up = self.clients() + [(30, self.AGENT)]
-        # Not running; nothing left over; up; the game plays; the game has exited; what is left.
         self.states = [[], [], up, up + [(40, self.GAME)], up, up]
         self.assertEqual(BNET["launch"](self.root, "Fen"), 0)
         self.assertEqual(self.calls, [
@@ -665,8 +635,6 @@ class LaunchTest(Harness):
         up = self.clients() + [(30, self.AGENT)]
         game = (40, self.GAME + ["-launch", "-uid", "fenris"])
         wine = (50, ["C:\\windows\\system32\\services.exe"])
-        # Not running; nothing left over; up; the game up and Battle.net closed for it (the prefix read
-        # again); the game plays on alone; it has exited, and what is left is stopped.
         self.states = [[], [], up, up + [game, wine], [game, wine], [game, wine], [wine], [wine]]
         with mock.patch.dict(BNET, {"GAME_SETTLE": 0}):
             self.assertEqual(BNET["launch"](self.root, "Fen"), 0)
@@ -764,8 +732,6 @@ class LaunchTest(Harness):
 
 
 class InstallGameTest(Harness):
-    """install_game(): Battle.net on a game's install, with Proton and the lock stood in for."""
-
     def setUp(self):
         super().setUp()
         BNET_PATCH = mock.patch.dict(BNET, {

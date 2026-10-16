@@ -8,42 +8,26 @@ import com.droiddeck.launcher.session.GameEnvironmentStore
 import java.io.File
 
 /**
- * Blizzard's Battle.net on the desktop (the guest side is droiddeck-battlenet). Its installer, the
- * client and the games it installs share one Proton prefix, compatdata/[APP_ID], so one FEX choice
- * covers all of them: the newest d2rfix FEXCore build from the Nightlies, set as that id's FEX in
- * Components. The Proton wrapper applies it before every start in that prefix, from the desktop or
- * from Steam, and puts the Proton's own FEX back for every other game. Its environment profile (the
- * same id) gets a video memory cap for the games ([ensureVideoMemory]).
- *
- * The games it installs ([games]: its uninstall entries and product.db) become shortcuts in Steam
- * like the added games ([shortcut]): Battle.net.exe in its prefix with --exec="launch CODE", which
- * the Proton wrapper hands to droiddeck-battlenet (droiddeck-store-launch) to open Battle.net, have it
- * launch the game, and last until the game exits.
+ * Battle.net's installer, client and games share one Proton prefix, compatdata/[APP_ID], and therefore
+ * one environment profile and one FEX choice.
  */
 object BattleNet {
     private const val TAG = "BattleNet"
 
-    /** The prefix's id, as droiddeck-battlenet names it: crc32("\"droiddeck-battlenet\"Battle.net") | 0x80000000. */
+    // Must match droiddeck-battlenet: crc32("\"droiddeck-battlenet\"Battle.net") | 0x80000000.
     const val APP_ID = 2596113170L
 
-    /** What droiddeck-battlenet leaves in the session root before a start, and the answer it waits for. */
     const val FEX_REQUEST = "battlenet-fex.request"
     const val FEX_RESULT = "battlenet-fex.result"
 
-    /** Opens Battle.net, installing it first when it is not there; the desktop runs it (DesktopRequests). */
     const val PROGRAM = "/usr/local/bin/droiddeck-battlenet"
 
-    /** The [com.droiddeck.launcher.frontend.Library.SteamGame.source] of Battle.net's games and of itself. */
     const val SOURCE = "battlenet"
 
-    /** A Blizzard title: Battle.net's id for it (an uninstall entry's --uid), its name, and its code for --exec="launch CODE". */
     class Title(val uid: String, val name: String, val code: String)
 
-    /**
-     * The titles Battle.net installs, from Playnite's BattleNetLibrary and GOG Galaxy's Blizzard plugin.
-     * An installed id not here is not listed (its launch code is not known): World of Warcraft Classic,
-     * for one, which starts through its own launcher.
-     */
+    // From Playnite's BattleNetLibrary and GOG Galaxy's Blizzard plugin. An installed id not here has no
+    // known launch code and is not listed (World of Warcraft Classic starts through its own launcher).
     internal val TITLES = listOf(
         Title("wow", "World of Warcraft", "WoW"),
         Title("diablo3", "Diablo III", "D3"),
@@ -80,27 +64,17 @@ object BattleNet {
         Title("aqua", "Avowed", "AQUA"),
     )
 
-    /** What the store list offers: one entry a title, the China-only Diablo III left out. */
     val STORE: List<Title> get() = TITLES.distinctBy { it.code }.filter { it.uid != "d3cn" }
 
-    /** Whether the store list offers [title] still: no installed game has its code. */
     fun notInstalled(title: Title, installedIds: Collection<String?>) =
         installedIds.mapNotNull { id -> id?.let(::title)?.code }.none { it == title.code }
 
-    /** How long a title found with no cover is left before it is looked for again. */
     private const val COVER_RETRY_MS = 24 * 3600_000L
 
-    /** Where a title's cover for the store list is kept: Steam's art for it, else SteamGridDB's. */
     private fun coverDir(context: Context, title: Title) = File(context.filesDir, "battlenet-art/${title.uid}")
 
-    /** [title]'s cover, when one has been fetched. */
     fun cover(context: Context, title: Title): File? = File(coverDir(context, title), "p.jpg").takeIf { it.isFile }
 
-    /**
-     * Fetches the covers [titles] lack, as an added game's art is found: the Steam store's for a game
-     * sold there too, else SteamGridDB's by name. A title found with none is tried again a day later.
-     * Blocking; off the main thread. Whether any arrived.
-     */
     fun fetchCovers(context: Context, titles: List<Title> = STORE): Boolean {
         if (!com.droiddeck.launcher.session.SessionPrefs.addedGamesArt(context)) return false
         val art = com.droiddeck.launcher.frontend.AddedGameArt
@@ -122,46 +96,32 @@ object BattleNet {
         return got
     }
 
-    /** The locale an id can end in (diablo3_enus). */
     private val LOCALES = setOf(
         "enus", "engb", "dede", "eses", "esmx", "frfr", "itit", "kokr", "plpl", "ptbr", "ptpt", "ruru", "zhcn", "zhtw", "jajp", "thth", "trtr", "arsa",
     )
 
-    /** Battle.net's own entries in product.db and the registry, which are not games. */
     private val NOT_GAMES = setOf("agent", "bna", "battle.net")
 
-    /** One of Battle.net's games installed in its prefix: its id, name, launch code and folder. */
     class Game(val uid: String, val name: String, val code: String, val folder: File)
 
-    /** The prefix, in the internal Steam library as droiddeck-battlenet keeps it. */
     fun prefix(context: Context) = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/steamapps/compatdata/$APP_ID")
 
-    /** Battle.net itself, which every game's shortcut runs with the game's launch code. */
     fun client(context: Context) = File(prefix(context), "pfx/drive_c/Program Files (x86)/Battle.net/Battle.net.exe")
 
-    /** Whether the client is installed: what droiddeck-battlenet opens is there. */
     fun installed(context: Context) = File(prefix(context), "pfx/drive_c/Program Files (x86)/Battle.net/Battle.net Launcher.exe").isFile
 
-    /** The FEX package Components has set for the prefix; null until the first start sets one. */
     fun fexInUse(context: Context): String? = ComponentsManager.gameComponents(context, APP_ID.toString())["fex"]
 
-    /**
-     * What a session of its own runs for [game], one of Battle.net's: [PROGRAM] with these arguments,
-     * which open Battle.net, have it launch the game and end with it - no Steam client, whose UI
-     * would take a gigabyte the game needs. Null for any other game, or a title without a code.
-     */
     fun launchArgs(game: com.droiddeck.launcher.frontend.Library.SteamGame): List<String>? {
         if (game.source != SOURCE) return null
         val code = game.storeId?.let(::title)?.code ?: return null
         return listOf("launch", code)
     }
 
-    /** A Battle.net session's name, from its [PROGRAM] arguments: the game it launches, else Battle.net itself. */
     fun sessionName(args: List<String>): String? =
         if (args.getOrNull(0) == "launch") args.getOrNull(1)?.let { code -> TITLES.firstOrNull { it.code.equals(code, ignoreCase = true) }?.name }
         else null
 
-    /** The title an installed id names: the id itself, or the id with its locale (diablo3_enus); null when not known. */
     internal fun title(uid: String): Title? {
         val id = uid.lowercase()
         TITLES.firstOrNull { it.uid == id }?.let { return it }
@@ -169,11 +129,7 @@ object BattleNet {
         return if (base.isNotEmpty() && id.substringAfterLast('_') in LOCALES) TITLES.firstOrNull { it.uid == base } else null
     }
 
-    /**
-     * The games Battle.net has installed in its prefix, one a title: what its uninstall entries
-     * (Playnite reads these) and its Agent's product.db (where a game has none) say, as long as the
-     * folder is there. Reads two files; off the main thread.
-     */
+    // A game without an uninstall entry is listed only in the Agent's product.db.
     fun games(context: Context): List<Game> {
         val pfx = File(prefix(context), "pfx")
         val entries = runCatching { File(pfx, "system.reg").useLines { uninstallEntries(it) } }.getOrDefault(emptyList()) +
@@ -192,7 +148,6 @@ object BattleNet {
         return found.values.toList()
     }
 
-    /** Where a C: path in the prefix is; null for another drive or a path out of drive_c. */
     internal fun hostFolder(context: Context, path: String): File? {
         val relative = Regex("""^[Cc]:[\\/](.*)$""").matchEntire(path.trim())?.groupValues?.get(1)?.replace('\\', '/')?.trim('/') ?: return null
         if (relative.isEmpty() || relative.split('/').any { it == ".." }) return null
@@ -204,7 +159,6 @@ object BattleNet {
     private val VALUE = Regex("""^"((?:[^"\\]|\\.)*)"=(?:str\(\d+\):)?"((?:[^"\\]|\\.)*)"\s*$""")
     private val UID = Regex("""--uid=([A-Za-z0-9_.-]+)""")
 
-    /** (id, install folder) of every Battle.net uninstall entry in a Wine registry file's [lines]. */
     internal fun uninstallEntries(lines: Sequence<String>): List<Pair<String, String>> {
         val out = ArrayList<Pair<String, String>>()
         var inside = false
@@ -235,7 +189,6 @@ object BattleNet {
         return out
     }
 
-    /** A Wine registry string as written: backslash escapes, \xHHHH for what is not plain text. */
     private fun unescape(s: String): String {
         val out = StringBuilder(s.length)
         var i = 0
@@ -258,11 +211,8 @@ object BattleNet {
         return out.toString()
     }
 
-    /**
-     * (id, install folder) of every install in product.db, the Agent's protobuf database: its field 1
-     * holds the installs, each with the id in field 1 and its settings in field 3, the folder in that
-     * one's field 1. Nothing when it cannot be read.
-     */
+    // product.db is protobuf: field 1 holds the installs, each with the id in field 1 and its settings
+    // in field 3, whose field 1 is the install folder.
     internal fun productDbEntries(bytes: ByteArray): List<Pair<String, String>> {
         val installs = runCatching { fields(bytes, 0, bytes.size) }.getOrDefault(emptyList()).filter { it.first == 1 }
         return installs.mapNotNull { (_, start, end) ->
@@ -276,7 +226,6 @@ object BattleNet {
         }
     }
 
-    /** The length-delimited fields of a protobuf message, (number, start, end); the others are skipped. */
     private fun fields(bytes: ByteArray, from: Int, to: Int): List<Triple<Int, Int, Int>> {
         val out = ArrayList<Triple<Int, Int, Int>>()
         var i = from
@@ -309,12 +258,6 @@ object BattleNet {
         return out
     }
 
-    /**
-     * [game]'s Steam shortcut, as an added game: Battle.net.exe in its prefix with the game's launch
-     * code. Its launch options also point Steam at that prefix, for a launch that reaches Proton without
-     * droiddeck-battlenet. The appid is kept for the folder, as an added game's is. Null when the
-     * session cannot see the client.
-     */
     fun shortcut(context: Context, game: Game): com.droiddeck.launcher.frontend.AddedGames.Game? {
         val added = com.droiddeck.launcher.frontend.AddedGames
         val client = client(context)
@@ -323,7 +266,6 @@ object BattleNet {
         val guestPrefix = added.guestPath(context, prefix(context)) ?: return null
         val crc = java.util.zip.CRC32().apply { update("\"$guestExe\"${game.name}".toByteArray()) }.value
         val appId = com.droiddeck.launcher.session.SessionPrefs.addedGameAppId(context, game.folder.path, crc or 0x80000000L)
-        // Its own exe gives the shortcut its icon; Battle.net's when none is found.
         val exe = added.candidates(game.folder).firstOrNull() ?: client
         return com.droiddeck.launcher.frontend.AddedGames.Game(
             game.folder, game.name, exe, guestExe, guestDir, appId, (appId shl 32) or 0x02000000L, listOf(exe),
@@ -332,11 +274,7 @@ object BattleNet {
         )
     }
 
-    /**
-     * Battle.net gone: its prefix (the client, its settings and every game installed in it), the
-     * desktop's menu entry, the installer and logs droiddeck-battlenet keeps, and the prefix's FEX
-     * choice. Blocking; only with no session running, which could have the prefix open.
-     */
+    // Only with no session running: one could have the prefix open.
     fun remove(context: Context) {
         val root = LinuxRuntime.rootDir(context)
         com.droiddeck.launcher.core.FileUtils.delete(prefix(context))
@@ -346,10 +284,8 @@ object BattleNet {
         Log.i(TAG, "removed")
     }
 
-    /** FEXCore-2610-d2rfix28-linux.wcp: the FEX version, then the fix. */
     private val D2RFIX = Regex("""(?i)FEXCore-(\d+(?:\.\d+)*)-d2rfix(\d+)-linux\.wcp""")
 
-    /** How old the Nightlies listing may be before a start fetches it again, in seconds. */
     private const val LISTING_MAX_AGE = 6 * 3600L
 
     private val NEWEST = Comparator<Pair<List<Long>, Long>> { a, b ->
@@ -357,26 +293,18 @@ object BattleNet {
         if (a.first.size != b.first.size) a.first.size.compareTo(b.first.size) else a.second.compareTo(b.second)
     }
 
-    /** (FEX version, fix) of a d2rfix package's name; null for any other package. */
     internal fun d2rfix(file: String): Pair<List<Long>, Long>? {
         val m = D2RFIX.matchEntire(file) ?: return null
         val version = m.groupValues[1].split('.').map { it.toLongOrNull() ?: return null }
         return version to (m.groupValues[2].toLongOrNull() ?: return null)
     }
 
-    /** The newest d2rfix FEX in [items]: the highest FEX version, then the highest fix. */
     internal fun newestD2rFix(items: List<ComponentsManager.CatalogItem>): ComponentsManager.CatalogItem? =
         items.filter { it.comp == "fex" }.mapNotNull { item -> d2rfix(item.file)?.let { item to it } }
             .maxWithOrNull { a, b -> NEWEST.compare(a.second, b.second) }?.first
 
-    /**
-     * The newest d2rfix FEX stored and set for the Battle.net prefix; its package name. The listing
-     * is fetched again when it is older than [LISTING_MAX_AGE] or has no d2rfix build; a fetch that
-     * fails falls back on what is cached. Blocking; throws when there is no d2rfix build to set.
-     */
     fun ensureFex(context: Context): String = ensureFex(context) { ComponentsManager.catalog(it, true).items }
 
-    /** [ensureFex], with [refresh] fetching the listing again. */
     @Synchronized
     internal fun ensureFex(context: Context, refresh: (Context) -> List<ComponentsManager.CatalogItem>): String {
         val item = newestD2rFix(listing(context, refresh)) ?: error("no d2rfix FEXCore build in the Nightlies listing")
@@ -402,21 +330,16 @@ object BattleNet {
         return if (newestD2rFix(fetched) != null) fetched else cached.items
     }
 
-    /** The video memory, in MB, the games are told of: a fifth of the phone's, in 512 MB steps, 1.5 to 3.5 GB (an exact 4 GB reads as none to a game counting in 32 bits). */
+    // Never exactly 4 GB: a game counting video memory in 32 bits reads that as none.
     internal fun videoMemory(totalMb: Long): Int = (totalMb / 5 / 512 * 512).coerceIn(1536, 3584).toInt()
 
-    /** DXVK's options for [megabytes]: DXGI's dedicated and shared memory (Turnip's one heap is reported as both), D3D9's available memory. */
+    // Turnip's single heap is reported as both dedicated and shared memory.
     internal fun videoMemoryOptions(megabytes: Int): String =
         "dxgi.maxDeviceMemory = $megabytes; dxgi.maxSharedMemory = $megabytes; d3d9.maxAvailableMemory = $megabytes"
 
-    /**
-     * The Battle.net profile's DXVK_CONFIG, unless it has its own: a video memory cap for every game
-     * in the prefix. Turnip offers three quarters of the phone's memory as video memory and Blizzard's
-     * games size their caches from what DXGI reports - Diablo IV kept 5.5 GB of textures on an 11 GB
-     * phone, in memory it shares with everything else - so they are told of [videoMemory] instead, and
-     * pick textures and caches to fit. D3D12's games too: vkd3d-proton's device comes from DXVK's DXGI.
-     * It is the profile's own entry, so it shows and is changed in the game's environment. Whether it was set.
-     */
+    // Turnip reports three quarters of the phone's memory as video memory, and Blizzard's games size their
+    // caches from it (Diablo IV kept 5.5 GB of textures on an 11 GB phone). vkd3d-proton's device memory
+    // comes from DXVK's DXGI, so DXVK_CONFIG caps D3D12 games too.
     fun ensureVideoMemory(context: Context): Boolean {
         val memory = ActivityManager.MemoryInfo()
         context.getSystemService(ActivityManager::class.java)?.getMemoryInfo(memory) ?: return false
@@ -429,11 +352,6 @@ object BattleNet {
 
     private const val DXVK_CONFIG = "DXVK_CONFIG"
 
-    /**
-     * A start's request from droiddeck-battlenet in the session root [dir]: the FEX set on a thread
-     * of its own, the profile's video memory cap ([ensureVideoMemory]), then the answer beside the
-     * request, "ok <package>" or "error <why>".
-     */
     fun answerFexRequest(context: Context, dir: File) {
         val app = context.applicationContext
         Thread({

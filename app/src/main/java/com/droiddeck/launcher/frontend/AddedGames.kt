@@ -162,7 +162,6 @@ object AddedGames {
             scanGame(context, folder, out, single = entry)
         }
         for (folder in StoreInstallRoot.gameFolders(context)) if (StoreInstallRoot.isFinished(folder)) scanGame(context, folder, out)
-        // The games Battle.net installed in its prefix: each a shortcut that has Battle.net launch it.
         for (game in com.droiddeck.launcher.runtime.BattleNet.games(context)) {
             if (game.folder.path !in removed) com.droiddeck.launcher.runtime.BattleNet.shortcut(context, game)?.let(out::add)
         }

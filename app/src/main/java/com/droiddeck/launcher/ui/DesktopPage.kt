@@ -213,7 +213,6 @@ private fun DesktopDock(
                 }
             }
             if (keys.isNotEmpty()) Box(Modifier.padding(horizontal = 4.dp).width(1.dp).height(120.dp).background(pal.line2))
-            // Battle.net leads what can be added. Get opens its page: installing it starts the desktop.
             if (!s.battleNetInstalled) BattleNetCard(first = keys.isEmpty(), get = true) { at -> openFrom(at, null, BATTLENET_PAGE) }
             available.forEach { e ->
                 key(e.id) {
