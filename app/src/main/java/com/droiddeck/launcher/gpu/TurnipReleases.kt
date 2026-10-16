@@ -180,7 +180,7 @@ object TurnipReleases {
     fun download(context: Context, asset: Asset, progress: (Int) -> Unit): File {
         if (asset.sha256.isEmpty()) throw IOException(context.getString(R.string.turnip_list_predates_checksums))
         val target = File(context.cacheDir, asset.name)
-        val ok = Downloader.downloadFile(asset.url, target, true) { f -> progress(if (f < 0) -1 else (f * 100).toInt()) }
+        val ok = Downloader.downloadFile(asset.url, target, true, asset.sha256) { f -> progress(if (f < 0) -1 else (f * 100).toInt()) }
         if (!ok) throw IOException(context.getString(R.string.turnip_download_failed))
         if (!asset.sha256.equals(Hashes.sha256(target), ignoreCase = true)) {
             FileUtils.delete(target)

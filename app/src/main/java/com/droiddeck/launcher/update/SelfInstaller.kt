@@ -31,7 +31,7 @@ object SelfInstaller {
         dir.listFiles()?.forEach { if (it.name != apk.name) FileUtils.delete(it) }
         dir.mkdirs()
         val target = File(dir, apk.name)
-        val ok = Downloader.downloadFile(apk.url, target, true) { f -> progress(if (f < 0) -1 else (f * 100).toInt()) }
+        val ok = Downloader.downloadFile(apk.url, target, true, apk.sha256) { f -> progress(if (f < 0) -1 else (f * 100).toInt()) }
         if (!ok) throw IOException(context.getString(R.string.selfinst_download_failed))
         try {
             if (apk.size > 0 && target.length() != apk.size) {

@@ -126,7 +126,8 @@ object DownloadSource {
     fun isCatalog(url: String): Boolean = CATALOGS.any { url.startsWith(it) }
 
     fun candidates(target: String): List<String> {
-        if (isCatalog(target)) return listOf(target)
+        // GitHub API metadata carries executable URLs and digests; never proxy it.
+        if (isCatalog(target) || target.startsWith("https://api.github.com/")) return listOf(target)
         val prefs = prefs() ?: return listOf(target)
         if (!isGithub(target)) return listOf(target)
         val api = target.startsWith("https://api.github.com/")

@@ -167,7 +167,7 @@ object ProtonExtras {
         onProgress(downloading, 0)
         var downloaded = false
         for (attempt in 0 until 5) {
-            downloaded = Downloader.downloadFile(asset.url, archive, true) { fraction ->
+            downloaded = Downloader.downloadFile(asset.url, archive, true, asset.sha256) { fraction ->
                 onProgress(downloading, if (fraction < 0) -1 else (fraction * 100f).toInt().coerceIn(0, 100))
             }
             if (downloaded) break
