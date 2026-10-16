@@ -1009,7 +1009,6 @@
     <string name="gpu_set_with_runtime">Angis sammen med kjøretidsdriveren: %1$s bærer begge.</string>
     <string name="gpu_runtime_hint">Brukes av spill og skrivebordet.</string>
     <string name="gpu_runtime_default">Kjøretidsstandard</string>
-    <string name="gpu_display_hint">Tegner bilder til skjermen. Gjelder etter at DroidDeck starter på nytt.</string>
     <string name="gpu_auto_by_gpu">Auto – valgt etter GPU</string>
     <string name="gpu_manage">Last ned, importer eller slett…</string>
     <string name="gpu_in_use_caps">I BRUK</string>
@@ -1664,7 +1663,6 @@
     <string name="adbpair_done_text">Trykk for å gå tilbake til DroidDeck. Du kan slå av trådløs feilsøking nå.</string>
     <string name="adbpair_title_failed">Oppsettet for trådløs feilsøking stoppet</string>
 
-    <string name="selfinst_http">Nedlastingen svarte HTTP %1$d</string>
     <string name="selfinst_size_mismatch">Nedlastingens størrelse stemte ikke med den publiserte APK-en og ble forkastet – prøv igjen</string>
     <string name="selfinst_checksum_mismatch">Nedlastingen stemte ikke med sjekksummen og ble forkastet – prøv igjen</string>
     <string name="selfinst_wrong_package">Oppdateringen er for Android-pakken %1$s, ikke %2$s</string>
@@ -1762,7 +1760,6 @@
 
     <string name="turnip_rate_limited">GitHubs hastighetsgrense ble nådd – prøv igjen senere</string>
     <string name="turnip_github_http">GitHub svarte HTTP %1$d</string>
-    <string name="turnip_download_http">nedlastingen svarte HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Denne driverlisten er eldre enn sjekksummene – oppdater den og prøv igjen</string>
     <string name="turnip_checksum_mismatch">Sjekksummen stemmer ikke – nedlastingen ble forkastet</string>
     <string name="turnip_not_adrenotools">Ikke en AdrenoTools-driver: %1$s</string>
@@ -2223,12 +2220,9 @@
     <string name="cardboard_recenter_button">Sentrer</string>
     <string name="cardboard_steamvr">SteamVR (eksperimentell)</string>
     <string name="cardboard_steamvr_install">Installer</string>
-    <string name="cardboard_steamvr_install_hint">Laster ned Valves SteamVR for ARM64 (571 MB).</string>
     <string name="cardboard_steamvr_installing">Laster ned og pakker ut SteamVR …</string>
     <string name="cardboard_steamvr_start">Start</string>
-    <string name="cardboard_steamvr_ready_hint">Kjører SteamVR med hodet ditt som headset; bildet bytter til side-ved-side-3D.</string>
     <string name="cardboard_steamvr_stop">Stopp</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR kjører.</string>
     <string name="cardboard_steamvr_unavailable">Ikke tilgjengelig i denne økten.</string>
     <string name="cardboard_steamvr_failed">SteamVR svarte ikke; sjekk sesjonsloggen.</string>
     <string name="drawer_component_downloads">Last ned komponenter</string>
@@ -2242,4 +2236,21 @@
     <string name="stores_hltb_completionist">Komplettering</string>
     <string name="stores_hltb_hours">%1$s t</string>
     <string name="stores_hltb_minutes">%1$d min</string>
+    <string name="boot_movie">Oppstartsvideo</string>
+    <string name="boot_movie_video">Video</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
+    <string name="boot_movie_note">60 fps ser jevnere ut, men bruker mer CPU mens Steam starter. En oppstartsvideo valgt i Steams egne innstillinger har forrang.</string>
+    <string name="boot_movie_sound">Lyd</string>
+    <string name="boot_movie_custom">Din egen video</string>
+    <string name="boot_movie_custom_hint">MP4, MOV, MKV eller WebM. Andre formater og filer over %1$d MB konverteres til 720p-WebM på enheten, opptil %2$d sekunder.</string>
+    <string name="boot_movie_import">Importer</string>
+    <string name="boot_movie_remove">Fjern</string>
+    <string name="boot_movie_pick">Velg en oppstartsvideo</string>
+    <string name="boot_movie_imported">%1$s er nå oppstartsvideoen</string>
+    <string name="boot_movie_imported_silent">%1$s er nå oppstartsvideoen, uten lyd</string>
+    <string name="boot_movie_too_long">Videoer som må konverteres kan vare maks %1$d sekunder</string>
+    <string name="boot_movie_converting">Konverterer %1$d %%</string>
+    <string name="boot_movie_converting_started">Konverterer %1$s for Steam. Hold DroidDeck åpen.</string>
+    <string name="boot_movie_unsupported">Enheten kan ikke dekode videoen.</string>
+    <string name="boot_movie_import_failed">Kunne ikke importere videoen</string>
 </resources>

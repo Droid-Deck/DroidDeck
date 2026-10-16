@@ -47,6 +47,7 @@ import com.droiddeck.launcher.session.SessionLogShare
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SteamRepair
 import com.droiddeck.launcher.core.CpuCores
+import com.droiddeck.launcher.core.DownloadSource
 import com.droiddeck.launcher.core.PhantomProcessLimit
 import com.droiddeck.launcher.core.PhantomProcessStatus
 import com.droiddeck.launcher.core.WirelessAdbFix
@@ -155,6 +156,9 @@ class MainActivity : ComponentActivity() {
     private var stretch16x9 by mutableStateOf(false)
     private var orientation by mutableStateOf(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
     private var launcherFullscreen by mutableStateOf(true)
+    private var downloadSource by mutableStateOf(DownloadSource.MODE_AUTO)
+    private var downloadMirror by mutableStateOf("")
+    private var downloadPrefix by mutableStateOf("")
     private var animationsEnabled by mutableStateOf(true)
     private var gameStoresEnabled by mutableStateOf(true)
     private var gameStoresSpeedTier by mutableStateOf("fast")
@@ -205,6 +209,9 @@ class MainActivity : ComponentActivity() {
     private val pickDeckyPluginZip = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { decky.importPluginZip(it) }
     }
+    private val pickBootMovie = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { importBootMovie(it) }
+    }
     private val pickAnyDriver = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedUri(r.data)?.let { drivers.importDriver(it, linux = null) }
     }
@@ -247,6 +254,38 @@ class MainActivity : ComponentActivity() {
             val state = Lossless.state(this)
             ui.post { lossless = state }
         }, "lossless-sync").start()
+    }
+
+    private fun importBootMovie(file: File) {
+        bootMovieImporting = true
+        bootMovieProgress = -1
+        Thread({
+            val result = com.droiddeck.launcher.session.BootMovie.import(
+                this, file,
+                onStart = { ui.post { android.widget.Toast.makeText(this, getString(R.string.boot_movie_converting_started, file.name), android.widget.Toast.LENGTH_LONG).show() } },
+                onProgress = { percent -> ui.post { bootMovieProgress = percent } },
+            )
+            val message = when (result) {
+                is com.droiddeck.launcher.session.BootMovie.Import.Done -> getString(
+                    if (result.audioDropped) R.string.boot_movie_imported_silent else R.string.boot_movie_imported, result.name)
+                com.droiddeck.launcher.session.BootMovie.Import.TooLong ->
+                    getString(R.string.boot_movie_too_long, com.droiddeck.launcher.session.BootMovie.MAX_CONVERT_SECONDS)
+                is com.droiddeck.launcher.session.BootMovie.Import.Unsupported -> getString(R.string.boot_movie_unsupported)
+                com.droiddeck.launcher.session.BootMovie.Import.Failed -> getString(R.string.boot_movie_import_failed)
+            }
+            ui.post {
+                bootMovieImporting = false
+                bootMovieProgress = -1
+                loadBootMovie()
+                android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_LONG).show()
+            }
+        }, "boot-movie-import").start()
+    }
+
+    private fun loadBootMovie() {
+        bootMovie = com.droiddeck.launcher.session.BootMovie.choice(this)
+        bootMovieSound = SessionPrefs.bootMovieSound(this)
+        bootMovieCustomName = com.droiddeck.launcher.session.BootMovie.customName(this)
     }
 
     private fun importLossless(dll: File) {
@@ -325,6 +364,11 @@ class MainActivity : ComponentActivity() {
     private var fexPreset by mutableStateOf("")
     private var forceSsbs by mutableStateOf(false)
     private var runSteamAtStartup by mutableStateOf(false)
+    private var bootMovie by mutableStateOf(com.droiddeck.launcher.session.BootMovie.DROIDDECK_30)
+    private var bootMovieSound by mutableStateOf(true)
+    private var bootMovieCustomName by mutableStateOf<String?>(null)
+    private var bootMovieImporting by mutableStateOf(false)
+    private var bootMovieProgress by mutableStateOf(-1)
     private var theme by mutableStateOf("graphite")
     private var appScale by mutableStateOf(com.droiddeck.launcher.core.AppUiPrefs.DEFAULT_SCALE)
     private var hdrOn by mutableStateOf(false)
@@ -515,6 +559,10 @@ class MainActivity : ComponentActivity() {
         orientation = SessionPrefs.orientation(this)
         requestedOrientation = orientation
         launcherFullscreen = SessionPrefs.launcherFullscreen(this)
+        downloadSource = DownloadSource.mode(this)
+        downloadMirror = DownloadSource.mirror(this)
+        downloadPrefix = DownloadSource.custom(this)
+        DownloadSource.probe()
         animationsEnabled = SessionPrefs.animationsEnabled(this)
         gameStoresEnabled = SessionPrefs.gameStoresEnabled(this)
         gameStoresSpeedTier = SessionPrefs.gameStoresSpeedTier(this)
@@ -571,6 +619,9 @@ class MainActivity : ComponentActivity() {
                         showPhantomGate = showPhantomGate,
                         orientation = orientation,
                         launcherFullscreen = launcherFullscreen,
+                        downloadSource = downloadSource,
+                        downloadMirror = downloadMirror,
+                        downloadPrefix = downloadPrefix,
                         animationsEnabled = animationsEnabled,
                         gameStoresEnabled = gameStoresEnabled,
                         gameStoresSpeedTier = gameStoresSpeedTier,
@@ -749,6 +800,18 @@ class MainActivity : ComponentActivity() {
                             SessionPrefs.setAnimationsEnabled(this, on)
                             animationsEnabled = on
                             com.droiddeck.launcher.ui.Motion.refresh(this)
+                        },
+                        onDownloadSource = { mode ->
+                            DownloadSource.setMode(this, mode)
+                            downloadSource = mode
+                        },
+                        onDownloadMirror = { host ->
+                            DownloadSource.setMirror(this, host)
+                            downloadMirror = host
+                        },
+                        onDownloadPrefix = { prefix ->
+                            DownloadSource.setCustom(this, prefix)
+                            downloadPrefix = DownloadSource.custom(this)
                         },
                         onHomeApp = { manageHomeApp() },
                         onHomeScreen = { on ->
@@ -1186,6 +1249,8 @@ class MainActivity : ComponentActivity() {
                 onImportAndroid = { pickAndroidDriver.launch(InAppFilePicker.buildIntent(this, ZIP_EXT, getString(R.string.drivers_pick_android))) },
                 onImportZip = { pickAnyDriver.launch(InAppFilePicker.buildIntent(this, ZIP_EXT, getString(R.string.drivers_pick_any))) },
                 onRestoreBundled = { TurnipDriver(this).restoreBundled(); drivers.refreshDrivers() },
+                onMode = { m -> drivers.chooseMode(m) },
+                onRestart = { drivers.restartApp() },
             ),
             protons = com.droiddeck.launcher.ui.ProtonsState(
                 rows = protons.protonRows, busyId = protons.protonBusyId, stage = protons.protonStage, percent = protons.protonPercent,
@@ -1293,6 +1358,11 @@ class MainActivity : ComponentActivity() {
                 mangoapp = mangoapp,
                 steamController = if (mode == SessionService.MODE_STEAM) steamController else null,
                 runSteamAtStartup = mode == SessionService.MODE_STEAM && runSteamAtStartup,
+                bootMovie = if (mode == SessionService.MODE_STEAM) bootMovie else null,
+                bootMovieSound = bootMovieSound,
+                bootMovieCustomName = bootMovieCustomName,
+                bootMovieImporting = bootMovieImporting,
+                bootMovieProgress = bootMovieProgress,
                 wifiDiscovery = if (mode == SessionService.MODE_STEAM) wifiDiscovery else null,
                 wifiDiscoveryPermission = wifiDiscoveryPermission,
                 wifiDiscoveryLocation = wifiDiscoveryLocation,
@@ -1373,6 +1443,12 @@ class MainActivity : ComponentActivity() {
                     SessionPrefs.setRunSteamAtStartup(this, on)
                     runSteamAtStartup = on
                 },
+                onBootMovie = { id -> SessionPrefs.setBootMovie(this, id); loadBootMovie() },
+                onBootMovieSound = { on -> SessionPrefs.setBootMovieSound(this, on); bootMovieSound = on },
+                onImportBootMovie = {
+                    pickBootMovie.launch(InAppFilePicker.buildIntent(this, com.droiddeck.launcher.session.BootMovie.PICKER_EXTENSIONS, getString(R.string.boot_movie_pick)))
+                },
+                onRemoveBootMovie = { com.droiddeck.launcher.session.BootMovie.removeCustom(this); loadBootMovie() },
                 onDeckyInstall = { release -> decky.installDecky(release) },
                 onDeckyCheck = { decky.refreshDecky() },
                 onDeckyEnabled = { enabled -> DeckyManager.setSupervisorEnabled(this, enabled); decky.deckySupervisor = enabled },
@@ -1504,6 +1580,7 @@ class MainActivity : ComponentActivity() {
         mangoapp = SessionPrefs.mangoapp(this)
         steamController = SessionPrefs.steamController(this)
         runSteamAtStartup = SessionPrefs.runSteamAtStartup(this)
+        loadBootMovie()
         hdrOn = SessionPrefs.hdr(this, mode)
         fpsLimit = SessionPrefs.fpsLimit(this, mode)
         upscaler = SessionPrefs.upscaler(this)
@@ -1576,6 +1653,7 @@ class MainActivity : ComponentActivity() {
 
     private fun refresh() {
         if (!busy && LinuxRuntimeInstaller.isBusy()) followRuntimeOperation { LinuxRuntimeInstaller.attach(it) }
+        if (showComponents) drivers.refreshDrivers()
         addedGamesArt = SessionPrefs.addedGamesArt(this)
         desktopInstalled = DesktopCatalog.desktopInstalled(this)
         desktopPresent = DesktopCatalog.desktopPresent(this)

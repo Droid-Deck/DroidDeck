@@ -1003,7 +1003,6 @@
     <string name="gpu_set_with_runtime">Diatur bersama driver runtime: %1$s membawa keduanya.</string>
     <string name="gpu_runtime_hint">Digunakan oleh gim dan desktop.</string>
     <string name="gpu_runtime_default">Default runtime</string>
-    <string name="gpu_display_hint">Menggambar frame ke layar. Berlaku setelah DroidDeck dimulai ulang.</string>
     <string name="gpu_auto_by_gpu">Otomatis - dipilih berdasarkan GPU</string>
     <string name="gpu_manage">Unduh, impor, atau hapus…</string>
     <string name="gpu_in_use_caps">DIGUNAKAN</string>
@@ -1643,7 +1642,6 @@
     <string name="adbpair_done_text">Ketuk untuk kembali ke DroidDeck. Anda bisa menonaktifkan Debugging nirkabel sekarang.</string>
     <string name="adbpair_title_failed">Penyiapan Debugging nirkabel dihentikan</string>
 
-    <string name="selfinst_http">Unduhan merespons HTTP %1$d</string>
     <string name="selfinst_size_mismatch">Ukuran unduhan tidak sesuai dengan APK yang dipublikasikan dan dibuang - coba lagi</string>
     <string name="selfinst_checksum_mismatch">Unduhan tidak sesuai dengan checksum-nya dan dibuang - coba lagi</string>
     <string name="selfinst_wrong_package">Pembaruan ini untuk paket Android %1$s, bukan %2$s</string>
@@ -1741,7 +1739,6 @@
 
     <string name="turnip_rate_limited">Batas kecepatan GitHub tercapai - coba lagi nanti</string>
     <string name="turnip_github_http">GitHub merespons HTTP %1$d</string>
-    <string name="turnip_download_http">unduhan merespons HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Daftar driver ini dibuat sebelum adanya checksum - segarkan dan coba lagi</string>
     <string name="turnip_checksum_mismatch">Checksum tidak cocok - unduhan dibuang</string>
     <string name="turnip_not_adrenotools">Bukan driver AdrenoTools: %1$s</string>
@@ -2198,12 +2195,9 @@
     <string name="cardboard_recenter_button">Posisikan ulang</string>
     <string name="cardboard_steamvr">SteamVR (eksperimental)</string>
     <string name="cardboard_steamvr_install">Pasang</string>
-    <string name="cardboard_steamvr_install_hint">Mengunduh SteamVR ARM64 dari Valve (571 MB).</string>
     <string name="cardboard_steamvr_installing">Mengunduh dan mengekstrak SteamVR…</string>
     <string name="cardboard_steamvr_start">Mulai</string>
-    <string name="cardboard_steamvr_ready_hint">Menjalankan SteamVR dengan kepala Anda sebagai headset; gambar beralih ke 3D berdampingan.</string>
     <string name="cardboard_steamvr_stop">Hentikan</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR sedang berjalan.</string>
     <string name="cardboard_steamvr_unavailable">Tidak tersedia di sesi ini.</string>
     <string name="cardboard_steamvr_failed">SteamVR tidak merespons; periksa log sesi.</string>
     <string name="drawer_component_downloads">Unduh komponen</string>
@@ -2217,4 +2211,21 @@
     <string name="stores_hltb_completionist">Tuntas</string>
     <string name="stores_hltb_hours">%1$s j</string>
     <string name="stores_hltb_minutes">%1$d mnt</string>
+    <string name="boot_movie">Video boot</string>
+    <string name="boot_movie_video">Video</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
+    <string name="boot_movie_note">60 fps terlihat lebih mulus tetapi memakai lebih banyak CPU saat Steam dimulai. Video startup yang dipilih di pengaturan Steam sendiri lebih diutamakan.</string>
+    <string name="boot_movie_sound">Suara</string>
+    <string name="boot_movie_custom">Video sendiri</string>
+    <string name="boot_movie_custom_hint">MP4, MOV, MKV, atau WebM. Format lain dan file di atas %1$d MB dikonversi ke WebM 720p di perangkat, hingga %2$d detik.</string>
+    <string name="boot_movie_import">Impor</string>
+    <string name="boot_movie_remove">Hapus</string>
+    <string name="boot_movie_pick">Pilih video boot</string>
+    <string name="boot_movie_imported">%1$s sekarang menjadi video boot</string>
+    <string name="boot_movie_imported_silent">%1$s sekarang menjadi video boot, tanpa suara</string>
+    <string name="boot_movie_too_long">Video yang perlu dikonversi maksimal %1$d detik</string>
+    <string name="boot_movie_converting">Mengonversi %1$d%%</string>
+    <string name="boot_movie_converting_started">Mengonversi %1$s untuk Steam. Biarkan DroidDeck tetap terbuka.</string>
+    <string name="boot_movie_unsupported">Perangkat ini tidak dapat mendekode video itu.</string>
+    <string name="boot_movie_import_failed">Tidak dapat mengimpor video itu</string>
 </resources>

@@ -160,6 +160,16 @@ class DroiddeckctlTest(FakeAdbTest):
         started = [e["args"] for e in self.calls() if e["args"][:3] == ["shell", "am", "start"]]
         self.assertIn("com.antutu.benchmark.full/com.droiddeck.launcher.agent.AgentStartActivity", started[0])
 
+    def test_a_malformed_package_is_refused_before_adb(self):
+        with unittest.mock.patch.dict(os.environ, {"DROIDDECK_PACKAGE": "com.example;reboot"}):
+            variant = load("droiddeckctl")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+            code = variant.main(["--adb", str(self.adb), "--serial", "fake-1", "state"])
+        self.assertEqual(2, code)
+        self.assertEqual("INVALID_REQUEST", json.loads(out.getvalue())["error"]["code"])
+        self.assertFalse(self.calls())
+
     def test_state_passes_through_with_the_serial(self):
         self.configure({"state": state()})
         code, out = self.run_ctl("state")

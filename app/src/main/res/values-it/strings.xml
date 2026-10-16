@@ -1015,7 +1015,6 @@
     <string name="gpu_set_with_runtime">Impostato insieme al driver del runtime: %1$s include entrambi.</string>
     <string name="gpu_runtime_hint">Usato dai giochi e dal desktop.</string>
     <string name="gpu_runtime_default">Runtime predefinito</string>
-    <string name="gpu_display_hint">Disegna i fotogrammi sullo schermo. Si applica dopo il riavvio di DroidDeck.</string>
     <string name="gpu_auto_by_gpu">Auto - scelto in base alla GPU</string>
     <string name="gpu_manage">Scarica, importa o elimina…</string>
     <string name="gpu_in_use_caps">IN USO</string>
@@ -1685,7 +1684,6 @@
     <string name="adbpair_done_text">Tocca per tornare a DroidDeck. Ora puoi disattivare il debug wireless.</string>
     <string name="adbpair_title_failed">Configurazione del debug wireless interrotta</string>
 
-    <string name="selfinst_http">Il download ha risposto HTTP %1$d</string>
     <string name="selfinst_size_mismatch">La dimensione del download non corrispondeva all\'APK pubblicato ed è stato scartato - riprova</string>
     <string name="selfinst_checksum_mismatch">Il download non corrispondeva al suo checksum ed è stato scartato - riprova</string>
     <string name="selfinst_wrong_package">L\'aggiornamento è per il pacchetto Android %1$s, non %2$s</string>
@@ -1783,7 +1781,6 @@
 
     <string name="turnip_rate_limited">Raggiunto il limite di richieste di GitHub - riprova più tardi</string>
     <string name="turnip_github_http">GitHub ha risposto HTTP %1$d</string>
-    <string name="turnip_download_http">il download ha risposto HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Questo elenco di driver è anteriore ai checksum - aggiornalo e riprova</string>
     <string name="turnip_checksum_mismatch">Checksum non corrispondente - il download è stato scartato</string>
     <string name="turnip_not_adrenotools">Non è un driver AdrenoTools: %1$s</string>
@@ -2248,12 +2245,9 @@
     <string name="cardboard_recenter_button">Ricentra</string>
     <string name="cardboard_steamvr">SteamVR (sperimentale)</string>
     <string name="cardboard_steamvr_install">Installa</string>
-    <string name="cardboard_steamvr_install_hint">Scarica SteamVR ARM64 di Valve (571 MB).</string>
     <string name="cardboard_steamvr_installing">Download ed estrazione di SteamVR…</string>
     <string name="cardboard_steamvr_start">Avvia</string>
-    <string name="cardboard_steamvr_ready_hint">Avvia SteamVR usando la tua testa come visore; l\'immagine passa al 3D affiancato.</string>
     <string name="cardboard_steamvr_stop">Arresta</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR è in esecuzione.</string>
     <string name="cardboard_steamvr_unavailable">Non disponibile in questa sessione.</string>
     <string name="cardboard_steamvr_failed">SteamVR non ha risposto; controlla il log della sessione.</string>
     <string name="drawer_component_downloads">Scarica componenti</string>
@@ -2281,4 +2275,21 @@
     <string name="stores_storage_insufficient">Spazio libero insufficiente: servono %1$s, ne sono liberi solo %2$s</string>
     <string name="stores_storage_low">Spazio insufficiente (%1$s liberi, ne servono %2$s)</string>
     <string name="stores_target_free_unknown">Spazio libero sconosciuto</string>
+    <string name="boot_movie">Video di avvio</string>
+    <string name="boot_movie_video">Video</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
+    <string name="boot_movie_note">60 fps è più fluido ma usa più CPU durante l\'avvio di Steam. Un video di avvio scelto nelle impostazioni di Steam ha la precedenza.</string>
+    <string name="boot_movie_sound">Audio</string>
+    <string name="boot_movie_custom">Il tuo video</string>
+    <string name="boot_movie_custom_hint">MP4, MOV, MKV o WebM. Altri formati e file oltre %1$d MB vengono convertiti in WebM 720p sul dispositivo, fino a %2$d secondi.</string>
+    <string name="boot_movie_import">Importa</string>
+    <string name="boot_movie_remove">Rimuovi</string>
+    <string name="boot_movie_pick">Scegli un video di avvio</string>
+    <string name="boot_movie_imported">%1$s è ora il video di avvio</string>
+    <string name="boot_movie_imported_silent">%1$s è ora il video di avvio, senza audio</string>
+    <string name="boot_movie_too_long">I video da convertire devono durare al massimo %1$d secondi</string>
+    <string name="boot_movie_converting">Conversione %1$d%%</string>
+    <string name="boot_movie_converting_started">Conversione di %1$s per Steam. Tieni aperto DroidDeck.</string>
+    <string name="boot_movie_unsupported">Questo dispositivo non può decodificare il video.</string>
+    <string name="boot_movie_import_failed">Impossibile importare il video</string>
 </resources>

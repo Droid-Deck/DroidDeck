@@ -1021,7 +1021,6 @@
     <string name="gpu_set_with_runtime">Задається разом із драйвером середовища: %1$s містить обидва.</string>
     <string name="gpu_runtime_hint">Використовується іграми та робочим столом.</string>
     <string name="gpu_runtime_default">Стандартний для середовища</string>
-    <string name="gpu_display_hint">Виводить кадри на екран. Застосовується після перезапуску DroidDeck.</string>
     <string name="gpu_auto_by_gpu">Авто — вибирається за GPU</string>
     <string name="gpu_manage">Завантажити, імпортувати або видалити…</string>
     <string name="gpu_in_use_caps">ВИКОРИСТОВУЄТЬСЯ</string>
@@ -1706,7 +1705,6 @@
     <string name="adbpair_done_text">Торкніться, щоб повернутися до DroidDeck. Тепер можна вимкнути бездротове налагодження.</string>
     <string name="adbpair_title_failed">Налаштування бездротового налагодження зупинено</string>
 
-    <string name="selfinst_http">Завантаження відповіло HTTP %1$d</string>
     <string name="selfinst_size_mismatch">Розмір завантаження не збігся з опублікованим APK, тож його відхилено - спробуйте ще раз</string>
     <string name="selfinst_checksum_mismatch">Завантаження не збіглося з контрольною сумою, тож його відхилено - спробуйте ще раз</string>
     <string name="selfinst_wrong_package">Оновлення призначене для пакета Android %1$s, а не %2$s</string>
@@ -1804,7 +1802,6 @@
 
     <string name="turnip_rate_limited">Перевищено ліміт запитів GitHub - спробуйте пізніше</string>
     <string name="turnip_github_http">GitHub відповів HTTP %1$d</string>
-    <string name="turnip_download_http">завантаження відповіло HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Цей список драйверів створено до появи контрольних сум - оновіть його і спробуйте ще раз</string>
     <string name="turnip_checksum_mismatch">Контрольна сума не збіглася - завантаження відхилено</string>
     <string name="turnip_not_adrenotools">Не драйвер AdrenoTools: %1$s</string>
@@ -2273,12 +2270,9 @@
     <string name="cardboard_recenter_button">Відцентрувати</string>
     <string name="cardboard_steamvr">SteamVR (експериментально)</string>
     <string name="cardboard_steamvr_install">Установити</string>
-    <string name="cardboard_steamvr_install_hint">Завантажує SteamVR від Valve для ARM64 (571 МБ).</string>
     <string name="cardboard_steamvr_installing">Завантаження й розпакування SteamVR…</string>
     <string name="cardboard_steamvr_start">Запустити</string>
-    <string name="cardboard_steamvr_ready_hint">Запускає SteamVR, де гарнітурою слугує ваша голова; зображення перемикається на стереопару 3D.</string>
     <string name="cardboard_steamvr_stop">Зупинити</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR працює.</string>
     <string name="cardboard_steamvr_unavailable">Недоступно в цій сесії.</string>
     <string name="cardboard_steamvr_failed">SteamVR не відповідає; перевірте журнал сесії.</string>
     <string name="drawer_component_downloads">Завантажити компоненти</string>
@@ -2292,4 +2286,21 @@
     <string name="stores_hltb_completionist">100%</string>
     <string name="stores_hltb_hours">%1$s год</string>
     <string name="stores_hltb_minutes">%1$d хв</string>
+    <string name="boot_movie">Завантажувальне відео</string>
+    <string name="boot_movie_video">Відео</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d кадр/с</string>
+    <string name="boot_movie_note">60 кадр/с виглядає плавніше, але більше навантажує процесор під час запуску Steam. Відео запуску, вибране в налаштуваннях самого Steam, має пріоритет.</string>
+    <string name="boot_movie_sound">Звук</string>
+    <string name="boot_movie_custom">Власне відео</string>
+    <string name="boot_movie_custom_hint">MP4, MOV, MKV або WebM. Інші формати й файли понад %1$d МБ перетворюються на пристрої на WebM 720p, до %2$d секунд.</string>
+    <string name="boot_movie_import">Імпорт</string>
+    <string name="boot_movie_remove">Видалити</string>
+    <string name="boot_movie_pick">Виберіть завантажувальне відео</string>
+    <string name="boot_movie_imported">%1$s тепер завантажувальне відео</string>
+    <string name="boot_movie_imported_silent">%1$s тепер завантажувальне відео, без звуку</string>
+    <string name="boot_movie_too_long">Відео для перетворення має бути не довше %1$d секунд</string>
+    <string name="boot_movie_converting">Перетворення %1$d%%</string>
+    <string name="boot_movie_converting_started">%1$s перетворюється для Steam. Не закривайте DroidDeck.</string>
+    <string name="boot_movie_unsupported">Пристрій не може декодувати це відео.</string>
+    <string name="boot_movie_import_failed">Не вдалося імпортувати відео</string>
 </resources>

@@ -1011,7 +1011,6 @@
     <string name="gpu_set_with_runtime">與運行環境驅動程式一併設定：%1$s 同時包含兩者。</string>
     <string name="gpu_runtime_hint">供遊戲和桌面使用。</string>
     <string name="gpu_runtime_default">運行環境預設</string>
-    <string name="gpu_display_hint">負責將畫面繪製到螢幕。DroidDeck 重新啟動後生效。</string>
     <string name="gpu_auto_by_gpu">自動 - 按 GPU 選擇</string>
     <string name="gpu_manage">下載、匯入或刪除…</string>
     <string name="gpu_in_use_caps">正在使用</string>
@@ -1651,7 +1650,6 @@
     <string name="adbpair_done_text">輕按即可返回 DroidDeck。你現在可以關閉無線偵錯。</string>
     <string name="adbpair_title_failed">無線偵錯設定已停止</string>
 
-    <string name="selfinst_http">下載回應 HTTP %1$d</string>
     <string name="selfinst_size_mismatch">下載的大小與已發佈的 APK 不符，已被捨棄 - 請再試一次</string>
     <string name="selfinst_checksum_mismatch">下載的檔案與其校驗和不符，已被捨棄 - 請再試一次</string>
     <string name="selfinst_wrong_package">此更新屬於 Android 套件 %1$s，而非 %2$s</string>
@@ -1749,7 +1747,6 @@
 
     <string name="turnip_rate_limited">已達 GitHub 的速率限制 - 請稍後再試</string>
     <string name="turnip_github_http">GitHub 回應 HTTP %1$d</string>
-    <string name="turnip_download_http">下載回應 HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">此驅動程式清單早於校驗和推出 - 請重新整理後再試一次</string>
     <string name="turnip_checksum_mismatch">校驗和不符 - 已捨棄下載的檔案</string>
     <string name="turnip_not_adrenotools">不是 AdrenoTools 驅動程式：%1$s</string>
@@ -2214,12 +2211,9 @@
     <string name="cardboard_recenter_button">重設</string>
     <string name="cardboard_steamvr">SteamVR（實驗性）</string>
     <string name="cardboard_steamvr_install">安裝</string>
-    <string name="cardboard_steamvr_install_hint">下載 Valve 的 ARM64 版 SteamVR（571 MB）。</string>
     <string name="cardboard_steamvr_installing">正在下載並解壓 SteamVR…</string>
     <string name="cardboard_steamvr_start">啟動</string>
-    <string name="cardboard_steamvr_ready_hint">以你的頭部作為頭戴裝置執行 SteamVR；畫面會切換為左右並排 3D。</string>
     <string name="cardboard_steamvr_stop">停止</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR 正在執行。</string>
     <string name="cardboard_steamvr_unavailable">此工作階段中無法使用。</string>
     <string name="cardboard_steamvr_failed">SteamVR 沒有回應；請查看工作階段日誌。</string>
     <string name="drawer_component_downloads">下載元件</string>
@@ -2229,4 +2223,21 @@
     <string name="display_position_top">置頂</string>
     <string name="display_position_bottom">置底</string>
     <string name="display_position_center">置中（預設）</string>
+    <string name="boot_movie">開機動畫</string>
+    <string name="boot_movie_video">影片</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
+    <string name="boot_movie_note">60 fps 較流暢，但 Steam 啟動時會使用較多 CPU。在 Steam 本身設定中選擇的啟動動畫優先。</string>
+    <string name="boot_movie_sound">聲音</string>
+    <string name="boot_movie_custom">自訂影片</string>
+    <string name="boot_movie_custom_hint">MP4、MOV、MKV 或 WebM。其他格式及超過 %1$d MB 的檔案會在裝置上轉換為 720p WebM，最長 %2$d 秒。</string>
+    <string name="boot_movie_import">匯入</string>
+    <string name="boot_movie_remove">移除</string>
+    <string name="boot_movie_pick">選擇開機動畫</string>
+    <string name="boot_movie_imported">%1$s 現在是開機動畫</string>
+    <string name="boot_movie_imported_silent">%1$s 現在是開機動畫（無聲）</string>
+    <string name="boot_movie_too_long">需要轉換的影片不能超過 %1$d 秒</string>
+    <string name="boot_movie_converting">正在轉換 %1$d%%</string>
+    <string name="boot_movie_converting_started">正在為 Steam 轉換 %1$s。請保持 DroidDeck 開啟。</string>
+    <string name="boot_movie_unsupported">此裝置無法解碼該影片。</string>
+    <string name="boot_movie_import_failed">無法匯入此影片</string>
 </resources>
