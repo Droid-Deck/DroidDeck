@@ -305,6 +305,11 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
                 pairBusy = null
                 pairPercent = -1
                 result.onSuccess { (displayId, linuxId) ->
+                    if (auto && SessionState.running) {
+                        lastAutoCheck = 0L
+                        autoStatus = activity.getString(R.string.drivers_auto_waits_for_session)
+                        return@onSuccess
+                    }
                     val previousDisplay = SessionPrefs.androidDriver(activity)
                     val previousLinux = SessionPrefs.linuxDriver(activity)
                     val displayChanged = previousDisplay != displayId

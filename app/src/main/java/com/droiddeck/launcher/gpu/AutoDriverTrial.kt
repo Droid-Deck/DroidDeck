@@ -75,7 +75,7 @@ object AutoDriverTrial {
         if (SessionPrefs.linuxDriver(context) == trial.linux) SessionPrefs.setLinuxDriver(context, trial.previousLinux)
         val bad = bad(context) + trial.release
         prefs(context).edit().clear().putStringSet("bad", bad).commit()
-        prune(context, setOf(trial.previousDisplay, trial.previousLinux))
+        prune(context, setOf(trial.previousDisplay, trial.previousLinux, SessionPrefs.androidDriver(context), SessionPrefs.linuxDriver(context)))
     }
 
     fun prune(context: Context, keep: Set<String>) {

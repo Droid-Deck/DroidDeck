@@ -47,6 +47,14 @@ class AutoDriverTrialTest {
         assertNull(AutoDriverTrial.current(context))
     }
 
+    @Test fun rollingBackKeepsADriverTheUserSelectedSince() {
+        SessionPrefs.setGpuAutoInstalled(context, setOf("old-display", "old-linux", "new-display", "new-linux", "chosen-linux"))
+        SessionPrefs.setLinuxDriver(context, "chosen-linux")
+        AutoDriverTrial.rollBack(context, AutoDriverTrial.current(context)!!)
+        assertEquals("chosen-linux", SessionPrefs.linuxDriver(context))
+        assertTrue("chosen-linux" in SessionPrefs.gpuAutoInstalled(context))
+    }
+
     @Test fun sessionsOnOtherDriversDoNotCountTowardsTheTrial() {
         AutoDriverTrial.sessionStarting(context, "old-display", "new-linux")
         AutoDriverTrial.sessionStarting(context, "old-display", "new-linux")
