@@ -79,4 +79,36 @@ class SteamGridTest {
     @Test fun withoutASteamAccountNothingHappens() {
         assertFalse(SteamGrid.sync(app, listOf(target())))
     }
+
+    @Test fun aSteamImageAlreadyThereIsKeptOverAnOlderChoiceOnTheFirstLook() {
+        File(LinuxRuntime.rootDir(app), "root/.local/share/Steam/userdata/123/config").mkdirs()
+        val old = image("old.png", 5)
+        val dir = SteamGameArt.dir(app, 620)
+        assertTrue(AddedGameArt.store(dir, AddedGameArt.Slot.COVER, AddedGameArt.Option(AddedGameArt.FILE, old.path, old.path)))
+        grid.mkdirs()
+        File(grid, "620p.png").writeBytes(ByteArray(30) { 3 })
+        assertTrue(SteamGrid.sync(app, listOf(target())))
+        assertEquals(30L, SteamGameArt.chosenFile(app, 620, AddedGameArt.Slot.COVER)?.length())
+        assertEquals(30L, File(grid, "620p.png").length())
+    }
+
+    @Test fun aChoiceSurvivesWhenOnlyDroidDecksOwnWriterFileIsInTheFolder() {
+        File(LinuxRuntime.rootDir(app), "root/.local/share/Steam/userdata/123/config").mkdirs()
+        val picked = image("mine.png", 12)
+        SteamGameArt.choose(app, game(), AddedGameArt.Slot.COVER, AddedGameArt.Option(AddedGameArt.FILE, picked.path, picked.path))
+        File(grid, "620p.png").writeBytes(ByteArray(12) { 9 })
+        File(grid, ".droiddeck-art.json").writeText("""{"620p.png": 12}""")
+        assertFalse(SteamGrid.sync(app, listOf(target())))
+        assertEquals(12L, SteamGameArt.chosenFile(app, 620, AddedGameArt.Slot.COVER)?.length())
+    }
+
+    @Test fun anImageSteamCannotReadIsNotWrittenAndTheCurrentOneStays() {
+        File(LinuxRuntime.rootDir(app), "root/.local/share/Steam/userdata/123/config").mkdirs()
+        val png = image("mine.png", 12)
+        SteamGameArt.choose(app, game(), AddedGameArt.Slot.COVER, AddedGameArt.Option(AddedGameArt.FILE, png.path, png.path))
+        val ico = image("mine.ico", 6)
+        SteamGrid.write(app, target(), AddedGameArt.Slot.COVER, ico)
+        assertEquals(12L, File(grid, "620p.png").length())
+        assertFalse(File(grid, "620p.ico").exists())
+    }
 }

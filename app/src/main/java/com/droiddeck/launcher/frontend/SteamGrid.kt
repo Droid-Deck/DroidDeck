@@ -52,15 +52,22 @@ object SteamGrid {
     fun write(context: Context, target: Target, slot: AddedGameArt.Slot, file: File?) {
         val suffix = SUFFIX[slot] ?: return
         val grid = dir(context) ?: return
-        files(grid, target.id, slot).forEach { it.delete() }
-        var placed: File? = null
-        if (file != null) {
-            grid.mkdirs()
-            val ext = file.extension.lowercase().let { if (it == "jpeg") "jpg" else it }
-            val dst = File(grid, "${target.id}$suffix.$ext")
-            val tmp = File(grid, dst.name + ".tmp")
-            placed = runCatching { file.copyTo(tmp, overwrite = true); if (tmp.renameTo(dst)) dst else null }.getOrNull()
+        if (file == null) {
+            files(grid, target.id, slot).forEach { it.delete() }
+            record(target, slot, "")
+            return
         }
+        val ext = file.extension.lowercase().let { if (it == "jpeg") "jpg" else it }
+        if (ext !in EXTS) return
+        grid.mkdirs()
+        val dst = File(grid, "${target.id}$suffix.$ext")
+        val tmp = File(grid, dst.name + ".tmp")
+        val placed = runCatching { file.copyTo(tmp, overwrite = true); if (tmp.renameTo(dst)) dst else null }.getOrNull()
+        if (placed == null) {
+            tmp.delete()
+            return
+        }
+        files(grid, target.id, slot).filter { it != dst }.forEach { it.delete() }
         record(target, slot, signature(placed))
     }
 
@@ -77,7 +84,7 @@ object SteamGrid {
                 val now = signature(theirs)
                 val before = recorded(target, slot)
                 when {
-                    before == null && own != null -> write(context, target, slot, own)
+                    before == null && own != null && theirs == null -> write(context, target, slot, own)
                     before == null || now != before -> {
                         if (theirs != null) {
                             if (own != null && own.length() == theirs.length() && own.readBytes().contentEquals(theirs.readBytes())) record(target, slot, now)
@@ -87,7 +94,7 @@ object SteamGrid {
                                 changed = true
                             }
                         } else {
-                            if (own != null) { own.delete(); target.setSource(slot, ""); changed = true }
+                            if (own != null && present.isEmpty()) { own.delete(); target.setSource(slot, ""); changed = true }
                             record(target, slot, "")
                         }
                     }
