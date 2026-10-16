@@ -2248,12 +2248,9 @@
     <string name="cardboard_recenter_button">Recentrează</string>
     <string name="cardboard_steamvr">SteamVR (experimental)</string>
     <string name="cardboard_steamvr_install">Instalează</string>
-    <string name="cardboard_steamvr_install_hint">Descarcă SteamVR ARM64 de la Valve (571 MB).</string>
     <string name="cardboard_steamvr_installing">Se descarcă și se dezarhivează SteamVR…</string>
     <string name="cardboard_steamvr_start">Pornește</string>
-    <string name="cardboard_steamvr_ready_hint">Rulează SteamVR cu capul tău drept cască; imaginea trece la 3D alăturat.</string>
     <string name="cardboard_steamvr_stop">Oprește</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR rulează.</string>
     <string name="cardboard_steamvr_unavailable">Indisponibil în această sesiune.</string>
     <string name="cardboard_steamvr_failed">SteamVR nu a răspuns; verifică jurnalul sesiunii.</string>
     <string name="drawer_component_downloads">Descarcă componente</string>

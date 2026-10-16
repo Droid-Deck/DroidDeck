@@ -2223,12 +2223,9 @@
     <string name="cardboard_recenter_button">Sentrer</string>
     <string name="cardboard_steamvr">SteamVR (eksperimentell)</string>
     <string name="cardboard_steamvr_install">Installer</string>
-    <string name="cardboard_steamvr_install_hint">Laster ned Valves SteamVR for ARM64 (571 MB).</string>
     <string name="cardboard_steamvr_installing">Laster ned og pakker ut SteamVR …</string>
     <string name="cardboard_steamvr_start">Start</string>
-    <string name="cardboard_steamvr_ready_hint">Kjører SteamVR med hodet ditt som headset; bildet bytter til side-ved-side-3D.</string>
     <string name="cardboard_steamvr_stop">Stopp</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR kjører.</string>
     <string name="cardboard_steamvr_unavailable">Ikke tilgjengelig i denne økten.</string>
     <string name="cardboard_steamvr_failed">SteamVR svarte ikke; sjekk sesjonsloggen.</string>
     <string name="drawer_component_downloads">Last ned komponenter</string>

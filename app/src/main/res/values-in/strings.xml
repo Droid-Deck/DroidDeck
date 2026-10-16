@@ -2198,12 +2198,9 @@
     <string name="cardboard_recenter_button">Posisikan ulang</string>
     <string name="cardboard_steamvr">SteamVR (eksperimental)</string>
     <string name="cardboard_steamvr_install">Pasang</string>
-    <string name="cardboard_steamvr_install_hint">Mengunduh SteamVR ARM64 dari Valve (571 MB).</string>
     <string name="cardboard_steamvr_installing">Mengunduh dan mengekstrak SteamVR…</string>
     <string name="cardboard_steamvr_start">Mulai</string>
-    <string name="cardboard_steamvr_ready_hint">Menjalankan SteamVR dengan kepala Anda sebagai headset; gambar beralih ke 3D berdampingan.</string>
     <string name="cardboard_steamvr_stop">Hentikan</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR sedang berjalan.</string>
     <string name="cardboard_steamvr_unavailable">Tidak tersedia di sesi ini.</string>
     <string name="cardboard_steamvr_failed">SteamVR tidak merespons; periksa log sesi.</string>
     <string name="drawer_component_downloads">Unduh komponen</string>

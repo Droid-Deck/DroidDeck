@@ -2223,12 +2223,9 @@
     <string name="cardboard_recenter_button">Középre</string>
     <string name="cardboard_steamvr">SteamVR (kísérleti)</string>
     <string name="cardboard_steamvr_install">Telepítés</string>
-    <string name="cardboard_steamvr_install_hint">Letölti a Valve ARM64-es SteamVR-jét (571 MB).</string>
     <string name="cardboard_steamvr_installing">SteamVR letöltése és kicsomagolása…</string>
     <string name="cardboard_steamvr_start">Indítás</string>
-    <string name="cardboard_steamvr_ready_hint">A SteamVR-t a fejeddel mint headsettel futtatja; a kép egymás melletti 3D-re vált.</string>
     <string name="cardboard_steamvr_stop">Leállítás</string>
-    <string name="cardboard_steamvr_running_hint">A SteamVR fut.</string>
     <string name="cardboard_steamvr_unavailable">Ebben a munkamenetben nem érhető el.</string>
     <string name="cardboard_steamvr_failed">A SteamVR nem válaszolt; nézd meg a munkamenet naplóját.</string>
     <string name="drawer_component_downloads">Összetevők letöltése</string>

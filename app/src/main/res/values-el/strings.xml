@@ -2223,12 +2223,9 @@
     <string name="cardboard_recenter_button">Επανακεντράρισμα</string>
     <string name="cardboard_steamvr">SteamVR (πειραματικό)</string>
     <string name="cardboard_steamvr_install">Εγκατάσταση</string>
-    <string name="cardboard_steamvr_install_hint">Κατεβάζει το SteamVR ARM64 της Valve (571 MB).</string>
     <string name="cardboard_steamvr_installing">Λήψη και αποσυμπίεση του SteamVR…</string>
     <string name="cardboard_steamvr_start">Έναρξη</string>
-    <string name="cardboard_steamvr_ready_hint">Εκτελεί το SteamVR με το κεφάλι σας ως headset· η εικόνα αλλάζει σε 3D δίπλα-δίπλα.</string>
     <string name="cardboard_steamvr_stop">Διακοπή</string>
-    <string name="cardboard_steamvr_running_hint">Το SteamVR εκτελείται.</string>
     <string name="cardboard_steamvr_unavailable">Δεν είναι διαθέσιμο σε αυτή τη συνεδρία.</string>
     <string name="cardboard_steamvr_failed">Το SteamVR δεν αποκρίθηκε· ελέγξτε το αρχείο καταγραφής της συνεδρίας.</string>
     <string name="drawer_component_downloads">Λήψη στοιχείων</string>

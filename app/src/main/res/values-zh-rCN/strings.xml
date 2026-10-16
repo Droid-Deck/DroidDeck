@@ -2214,12 +2214,9 @@
     <string name="cardboard_recenter_button">重置</string>
     <string name="cardboard_steamvr">SteamVR（实验性）</string>
     <string name="cardboard_steamvr_install">安装</string>
-    <string name="cardboard_steamvr_install_hint">下载 Valve 的 ARM64 版 SteamVR（571 MB）。</string>
     <string name="cardboard_steamvr_installing">正在下载并解压 SteamVR…</string>
     <string name="cardboard_steamvr_start">启动</string>
-    <string name="cardboard_steamvr_ready_hint">以你的头部作为头显运行 SteamVR；画面会切换为左右并排 3D。</string>
     <string name="cardboard_steamvr_stop">停止</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR 正在运行。</string>
     <string name="cardboard_steamvr_unavailable">此会话中不可用。</string>
     <string name="cardboard_steamvr_failed">SteamVR 未响应；请查看会话日志。</string>
     <string name="drawer_component_downloads">下载组件</string>

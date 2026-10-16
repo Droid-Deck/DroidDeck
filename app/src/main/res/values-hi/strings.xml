@@ -2223,12 +2223,9 @@
     <string name="cardboard_recenter_button">बीच में लाएं</string>
     <string name="cardboard_steamvr">SteamVR (प्रायोगिक)</string>
     <string name="cardboard_steamvr_install">इंस्टॉल करें</string>
-    <string name="cardboard_steamvr_install_hint">Valve का ARM64 SteamVR डाउनलोड करता है (571 MB)।</string>
     <string name="cardboard_steamvr_installing">SteamVR डाउनलोड और अनपैक हो रहा है…</string>
     <string name="cardboard_steamvr_start">शुरू करें</string>
-    <string name="cardboard_steamvr_ready_hint">आपके सिर को हेडसेट मानकर SteamVR चलाता है; तस्वीर साइड-बाय-साइड 3D में बदल जाती है।</string>
     <string name="cardboard_steamvr_stop">रोकें</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR चल रहा है।</string>
     <string name="cardboard_steamvr_unavailable">इस सेशन में उपलब्ध नहीं है।</string>
     <string name="cardboard_steamvr_failed">SteamVR ने जवाब नहीं दिया; सेशन लॉग देखें।</string>
     <string name="drawer_component_downloads">कंपोनेंट डाउनलोड करें</string>

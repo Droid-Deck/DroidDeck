@@ -2214,12 +2214,9 @@
     <string name="cardboard_recenter_button">リセット</string>
     <string name="cardboard_steamvr">SteamVR（試験運用）</string>
     <string name="cardboard_steamvr_install">インストール</string>
-    <string name="cardboard_steamvr_install_hint">ValveのARM64版SteamVRをダウンロードします（571 MB）。</string>
     <string name="cardboard_steamvr_installing">SteamVRをダウンロードして展開しています…</string>
     <string name="cardboard_steamvr_start">開始</string>
-    <string name="cardboard_steamvr_ready_hint">頭の動きをヘッドセットとしてSteamVRを実行します。映像はサイドバイサイド3Dに切り替わります。</string>
     <string name="cardboard_steamvr_stop">停止</string>
-    <string name="cardboard_steamvr_running_hint">SteamVRは実行中です。</string>
     <string name="cardboard_steamvr_unavailable">このセッションでは利用できません。</string>
     <string name="cardboard_steamvr_failed">SteamVRが応答しませんでした。セッションログを確認してください。</string>
     <string name="drawer_component_downloads">コンポーネントをダウンロード</string>

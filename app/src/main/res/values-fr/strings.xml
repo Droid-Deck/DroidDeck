@@ -2264,12 +2264,9 @@
     <string name="cardboard_recenter_button">Recentrer</string>
     <string name="cardboard_steamvr">SteamVR (expérimental)</string>
     <string name="cardboard_steamvr_install">Installer</string>
-    <string name="cardboard_steamvr_install_hint">Télécharge SteamVR ARM64 de Valve (571 Mo).</string>
     <string name="cardboard_steamvr_installing">Téléchargement et décompression de SteamVR…</string>
     <string name="cardboard_steamvr_start">Démarrer</string>
-    <string name="cardboard_steamvr_ready_hint">Lance SteamVR avec votre tête comme casque ; l\'image passe en 3D côte à côte.</string>
     <string name="cardboard_steamvr_stop">Arrêter</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR est en cours d\'exécution.</string>
     <string name="cardboard_steamvr_unavailable">Indisponible dans cette session.</string>
     <string name="cardboard_steamvr_failed">SteamVR ne répond pas ; consultez le journal de session.</string>
     <string name="drawer_component_downloads">Télécharger des composants</string>

@@ -2223,12 +2223,9 @@
     <string name="cardboard_recenter_button">Центриране</string>
     <string name="cardboard_steamvr">SteamVR (експериментално)</string>
     <string name="cardboard_steamvr_install">Инсталиране</string>
-    <string name="cardboard_steamvr_install_hint">Изтегля SteamVR за ARM64 на Valve (571 MB).</string>
     <string name="cardboard_steamvr_installing">Изтегляне и разархивиране на SteamVR…</string>
     <string name="cardboard_steamvr_start">Стартиране</string>
-    <string name="cardboard_steamvr_ready_hint">Стартира SteamVR с главата ви като шлем; картината превключва на 3D един до друг.</string>
     <string name="cardboard_steamvr_stop">Спиране</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR работи.</string>
     <string name="cardboard_steamvr_unavailable">Не е налично в тази сесия.</string>
     <string name="cardboard_steamvr_failed">SteamVR не отговори; проверете лога на сесията.</string>
     <string name="drawer_component_downloads">Изтегляне на компоненти</string>

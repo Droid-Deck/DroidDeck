@@ -2198,12 +2198,9 @@
     <string name="cardboard_recenter_button">จัดกึ่งกลาง</string>
     <string name="cardboard_steamvr">SteamVR (ทดลอง)</string>
     <string name="cardboard_steamvr_install">ติดตั้ง</string>
-    <string name="cardboard_steamvr_install_hint">ดาวน์โหลด SteamVR สำหรับ ARM64 ของ Valve (571 MB)</string>
     <string name="cardboard_steamvr_installing">กำลังดาวน์โหลดและแตกไฟล์ SteamVR…</string>
     <string name="cardboard_steamvr_start">เริ่ม</string>
-    <string name="cardboard_steamvr_ready_hint">เรียกใช้ SteamVR โดยใช้ศีรษะของคุณเป็นชุดหูฟัง ภาพจะเปลี่ยนเป็น 3D แบบเคียงข้าง</string>
     <string name="cardboard_steamvr_stop">หยุด</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR กำลังทำงาน</string>
     <string name="cardboard_steamvr_unavailable">ใช้ไม่ได้ในเซสชันนี้</string>
     <string name="cardboard_steamvr_failed">SteamVR ไม่ตอบสนอง ตรวจสอบบันทึกเซสชัน</string>
     <string name="drawer_component_downloads">ดาวน์โหลดคอมโพเนนต์</string>
