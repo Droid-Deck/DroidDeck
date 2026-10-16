@@ -361,8 +361,10 @@ class SessionService : Service() {
             SessionState.padBridge?.syncConnectedControllers()
         }
         if (steamHere && com.droiddeck.launcher.stores.epic.EpicClient.read(this).installed) {
-            com.droiddeck.launcher.stores.epic.EpicClientLibrary.sync(this)
-            com.droiddeck.launcher.stores.epic.EpicClient.prepareInstallDir(this)
+            runCatching { com.droiddeck.launcher.stores.epic.EpicClientLibrary.sync(this) }
+                .onFailure { Log.w(TAG, "Epic library sync failed", it) }
+            runCatching { com.droiddeck.launcher.stores.epic.EpicClient.prepareInstallDir(this) }
+                .onFailure { Log.w(TAG, "Epic install directory setup failed", it) }
         }
         if (steamHere) {
             val added = com.droiddeck.launcher.frontend.AddedGames.scan(this)

@@ -110,6 +110,7 @@ class MainActivity : ComponentActivity() {
     private var showRemove by mutableStateOf(false)
     private var pendingSwitch by mutableStateOf<Intent?>(null)
     private var switchingTo: Intent? = null
+    private var switchPoll: Runnable? = null
     private var switchDeadline = 0L
     private var showResetSettings by mutableStateOf(false)
     private var lowSpace by mutableStateOf<Long?>(null)
@@ -538,21 +539,26 @@ class MainActivity : ComponentActivity() {
     private fun awaitSessionEnd(next: Intent, deadline: Long) {
         switchingTo = next
         switchDeadline = deadline
-        ui.postDelayed(object : Runnable {
+        switchPoll?.let { ui.removeCallbacks(it) }
+        val poll = object : Runnable {
             override fun run() {
                 if (isDestroyed) return
                 if (SessionState.running || SessionState.phase !in SESSION_ENDED) {
                     if (android.os.SystemClock.uptimeMillis() < deadline) ui.postDelayed(this, SESSION_SWITCH_POLL_MS)
                     else {
+                        switchPoll = null
                         switchingTo = null
                         android.widget.Toast.makeText(this@MainActivity, R.string.game_link_session_busy, android.widget.Toast.LENGTH_LONG).show()
                     }
                     return
                 }
+                switchPoll = null
                 switchingTo = null
                 startSessionOrWait(next)
             }
-        }, SESSION_SWITCH_POLL_MS)
+        }
+        switchPoll = poll
+        ui.postDelayed(poll, SESSION_SWITCH_POLL_MS)
     }
 
     private fun handleGameLink(games: List<Library.SteamGame>) {
