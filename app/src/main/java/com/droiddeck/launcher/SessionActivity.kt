@@ -146,6 +146,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private lateinit var loading: LoadingState
     private lateinit var hud: PerfHud
     private var padBridge: PadBridge? = null
+    private var joyConVr: com.droiddeck.launcher.input.JoyConVr? = null
+    private var handCamera: com.droiddeck.launcher.handtracking.HandCamera? = null
     private var padMotion: com.droiddeck.launcher.input.PadMotion? = null
     private var resumed = false
     private val deckPadListener: () -> Unit = { uiHandler.post { updatePadMotion(); openDeckRing("deck pad changed"); applyUnfoldedControls() } }
@@ -350,17 +352,24 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private val deviceListener = object : InputManager.InputDeviceListener {
         override fun onInputDeviceAdded(deviceId: Int) {
             logInputDevice("connected", deviceId)
+            joyConVr?.refresh()
             padBridge?.syncConnectedControllers()
             refreshControls()
             updatePointerCapture()
+            updateHandCamera()
         }
         override fun onInputDeviceRemoved(deviceId: Int) {
             Log.i(TAG, "input device $deviceId disconnected")
+            joyConVr?.refresh()
             padBridge?.onDeviceRemoved(deviceId)
             refreshControls()
             updatePointerCapture()
+            updateHandCamera()
         }
-        override fun onInputDeviceChanged(deviceId: Int) = refreshControls()
+        override fun onInputDeviceChanged(deviceId: Int) {
+            joyConVr?.refresh()
+            refreshControls()
+        }
     }
 
     private var runtimeRemovalBlocked = false
@@ -428,6 +437,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         bridge.setSelectSteam(ControllerPrefs.read(this).selectSteam)
         padBridge = bridge
         SessionState.padBridge = bridge
+        if (Build.VERSION.SDK_INT >= 31) {
+            val vr = com.droiddeck.launcher.input.JoyConVr(this, File(filesDir, ".wayland-rt/${com.droiddeck.launcher.input.JoyConVr.FILE}")) { taken, released ->
+                if (joyConVr == null) return@JoyConVr
+                taken.forEach(bridge::onDeviceRemoved)
+                if (released.isNotEmpty()) bridge.syncConnectedControllers()
+                updateHandCamera()
+            }
+            bridge.setExcluded(vr::owns)
+            joyConVr = vr
+        }
         SteamControllerBle.listener = { uiHandler.post { updatePadMotion(); refreshControls() } }
         steamController = SteamControllerBle(this).also { it.start() }
         padMotion = com.droiddeck.launcher.input.PadMotion(this) {
@@ -477,6 +496,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         setContentView(root)
         glassesScope.launch { Glasses.state.collect { glasses = it; onGlassesChanged() } }
         glassesScope.launch { Glasses.settings.collect { glassesSettings = it; onGlassesChanged() } }
+        glassesScope.launch { com.droiddeck.launcher.handtracking.HandTracking.settings.collect { updateHandCamera() } }
         glassesScope.launch {
             while (true) {
                 if (SessionState.running && SessionState.mode == SessionService.MODE_STEAM &&
@@ -562,7 +582,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 androidx.compose.runtime.LaunchedEffect(drawerOpen) {
                     if (drawerOpen) {
                         syncLossless()
-                        padBridge?.releaseAll()
+                        releasePads()
                         androidx.compose.runtime.withFrameNanos { }
                         val requested = sessionOverlay.requestFocus()
                         Log.i(TAG, "drawer root focus requested=$requested focused=${sessionOverlay.hasFocus()}")
@@ -573,7 +593,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 val glassesVr = glasses.usable && glasses.canControl
                 val steamVrRequested = SessionState.steamVr
                 val pollSteamVr = SteamVr.shouldPoll(steamVrStatus, cardboard.enabled,
-                    steamVrSwitchedPicture, glassesVr, steamVrRequested)
+                    steamVrSwitchedPicture, glassesVr, steamVrRequested) || (drawerOpen && drawerPage == SessionDrawerPage.STEAMVR)
                 LaunchedEffect(pollSteamVr) {
                     while (pollSteamVr) {
                         val now = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -592,7 +612,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     achievementsInFront = found
                     if (found == null) achievementsOpen = false
                 }
-                androidx.compose.runtime.LaunchedEffect(pcKeyboardOpen) { if (pcKeyboardOpen) padBridge?.releaseAll() }
+                androidx.compose.runtime.LaunchedEffect(pcKeyboardOpen) { if (pcKeyboardOpen) releasePads() }
                 if (pcKeyboardOpen) com.droiddeck.launcher.ui.PcKeyboard(
                     sendKey = { code, down -> if (CompositorHost.isStarted) sendGuestKey(code, down) },
                     onAndroidKeyboard = { pcKeyboardOpen = false; keyboard?.toggle() },
@@ -615,6 +635,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     glassesOutput = glassesOutputActive,
                     onGlassesRecenter = { headTracker?.recenter() },
                     steamVr = steamVrStatus,
+                    immersiveSteamVr = com.droiddeck.launcher.session.QuestExperimental.isSupported(),
                     onSteamVr = { action -> steamVrAction(action) },
                     textureAnisotropy = if (drawerGameProfileId == null) textureAnisotropy else drawerTextureAnisotropy,
                     textureLodBias = if (drawerGameProfileId == null) textureLodBias else drawerTextureLodBias,
@@ -798,7 +819,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 ))
                 LaunchedEffect(achievementsOpen) {
                     if (achievementsOpen) {
-                        padBridge?.releaseAll()
+                        releasePads()
                         withFrameNanos { }
                         sessionOverlay.requestFocus()
                     }
@@ -1598,9 +1619,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         focusEndedScreen()
     }
 
+    private fun releasePads() {
+        padBridge?.releaseAll()
+        joyConVr?.releaseButtons()
+    }
+
     private fun focusEndedScreen() {
         drawerOpen = false
-        padBridge?.releaseAll()
+        releasePads()
         uiHandler.post { sessionOverlay.requestFocus() }
     }
 
@@ -1648,6 +1674,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 return super.dispatchKeyEvent(event)
         }
         if (pipUi) return true
+        val pad = com.droiddeck.launcher.input.JoyCon.normalize(event)
+        if (pad !== event) return dispatchKeyEvent(pad)
         val fromController = PadBridge.isControllerKeyEvent(event)
         if (fromController && event.action == KeyEvent.ACTION_DOWN) {
             if (drawerOpen && !drawerControllerActive) sessionOverlay.requestFocus()
@@ -1670,7 +1698,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (drawerOpen) {
             if (fromController && (event.keyCode == KeyEvent.KEYCODE_BUTTON_L1 || event.keyCode == KeyEvent.KEYCODE_BUTTON_R1)) {
                 if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                    drawerPage = sessionDrawerPages(SessionState.mode == SessionService.MODE_STEAM && secondScreenDisplays.isNotEmpty(), glasses.present)
+                    drawerPage = sessionDrawerPages(SessionState.mode == SessionService.MODE_STEAM && secondScreenDisplays.isNotEmpty(), glasses.present,
+                        !glassesOutputActive)
                         .step(drawerPage, if (event.keyCode == KeyEvent.KEYCODE_BUTTON_R1) 1 else -1)
                     releaseDrawerDirection()
                 }
@@ -1699,6 +1728,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             return true
         }
         if ((pcKeyboardOpen || achievementsOpen) && fromController) return super.dispatchKeyEvent(event)
+        if (joyConVr?.onKeyEvent(event) == true) return true
         if (event.keyCode != KeyEvent.KEYCODE_BACK && padBridge?.onKeyEvent(event) == true) return true
         if (CompositorHost.isStarted && event.keyCode != KeyEvent.KEYCODE_BACK && !fromController) {
             val down = event.action == KeyEvent.ACTION_DOWN
@@ -1742,6 +1772,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         if (drawerDirectionKey != KeyEvent.KEYCODE_UNKNOWN) releaseDrawerDirection()
         if ((pcKeyboardOpen || achievementsOpen) && PadBridge.isControllerMotionEvent(event)) return super.dispatchGenericMotionEvent(event)
+        if (joyConVr?.onMotionEvent(event) == true) return true
         if (padBridge?.onMotionEvent(event) == true) return true
         if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE) && !drawerOpen && onMouse(event)) return true
         return super.dispatchGenericMotionEvent(event)
@@ -1961,6 +1992,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 onSteamMenu = ::tapSteamButton,
                 onQam = ::tapQam,
                 onClose = { selectSecondScreenMode(SecondScreenMode.NONE) },
+                pad = padBridge,
             )
             secondScreenPresentation = presentation
         }
@@ -2350,7 +2382,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             pendingBackAction = null
             releaseDrawerDirection()
             onScreenControls?.releaseAll()
-            padBridge?.releaseAll()
+            releasePads()
             touchpad.cancel()
             guestKeysDown.toList().forEach { sendGuestKey(it, false) }
             keyboard?.hide()
@@ -2407,11 +2439,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         SessionService.setActivityVisible(this, true)
         Glasses.rescan()
         updateGlassesScreen()
+        updateHandCamera()
     }
 
     override fun onStop() {
         if (runtimeRemovalBlocked) { super.onStop(); return }
         started = false
+        updateHandCamera()
         displayManager.unregisterDisplayListener(displayListener)
         closeSecondScreen(reset = false)
         updateGlassesScreen()
@@ -2457,6 +2491,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         (getSystemService(INPUT_SERVICE) as? InputManager)
             ?.registerInputDeviceListener(deviceListener, Handler(Looper.getMainLooper()))
         if (SessionState.guestPid > 1) padBridge?.syncConnectedControllers()
+        joyConVr?.refresh()
         onScreenControls?.reload()
         controllerSettings = ControllerPrefs.read(this)
         resumed = true
@@ -2489,6 +2524,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun steamVrAction(action: String) {
+        if (action == "start" && com.droiddeck.launcher.session.QuestExperimental.isSupported()) {
+            startActivity(android.content.Intent(this, QuestXrActivity::class.java))
+            return
+        }
         if (action == "start") {
             SessionState.steamVr = true
             steamVrAutoTried = true
@@ -2535,9 +2574,35 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         steamVrSwitchedPicture = SessionPrefs.cardboardSourceBeforeSteamVr(this) >= 0
     }
 
+    private fun updateHandCamera() {
+        val joyCons = joyConVr?.holding == true
+        val bare = !joyCons && !controllerConnected()
+        val want = started && steamVrStatus == SteamVr.Status.RUNNING && (joyCons || bare) &&
+            com.droiddeck.launcher.handtracking.HandTracking.wanted(this)
+        handCamera?.bareHands = bare
+        if (want == (handCamera != null)) return
+        if (want) {
+            handCamera = com.droiddeck.launcher.handtracking.HandCamera(this,
+                File(filesDir, ".wayland-rt/${com.droiddeck.launcher.handtracking.HandCameraShm.FILE}"), preview = false)
+                .also {
+                    it.bareHands = bare
+                    it.start(com.droiddeck.launcher.handtracking.HandTracking.settings.value.side)
+                }
+        } else {
+            handCamera?.stop()
+            handCamera = null
+        }
+    }
+
+    private fun controllerConnected(): Boolean = InputDevice.getDeviceIds().any { id ->
+        joyConVr?.owns(id) != true && com.droiddeck.launcher.input.PadBridge.isFromController(InputDevice.getDevice(id))
+    }
+
     private fun onSteamVrStatus(now: SteamVr.Status) {
         val was = steamVrStatus
         steamVrStatus = now
+        joyConVr?.setActive(now == SteamVr.Status.RUNNING && ControllerPrefs.joyConVr(this))
+        updateHandCamera()
         autoStartSteamVr(now)
         if ((was == SteamVr.Status.RUNNING) != (now == SteamVr.Status.RUNNING)) applyCardboard(cardboard)
         if (glasses.present) onGlassesSteamVr(now)
@@ -2817,6 +2882,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         glassesScreen?.let { screen -> glassesScreen = null; runCatching { screen.dismiss() } }
         headTracker?.stop()
         if (::hud.isInitialized) hud.stop()
+        joyConVr?.close()
+        joyConVr = null
+        handCamera?.stop()
+        handCamera = null
         padBridge?.stop()
         steamController?.stop()
         if (SessionState.padBridge === padBridge) SessionState.padBridge = null

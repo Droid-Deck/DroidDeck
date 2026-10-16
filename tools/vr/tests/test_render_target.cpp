@@ -1,13 +1,17 @@
 #include "render_target.h"
 #include "../../../app/src/main/cpp/waylandcomp/src/headpose_shm.h"
-#include <cassert>
 #include <cstddef>
 #include <cstdio>
+#include <cstdlib>
 #include <limits>
 
 static void check(float aspect, uint32_t selected, uint32_t panel, uint32_t w, uint32_t h) {
     const auto result = droiddeck::RenderTarget(aspect, selected, panel);
-    assert(result.width == w && result.height == h);
+    if (result.width != w || result.height != h) {
+        std::fprintf(stderr, "FAIL: aspect %g, height %u, panel %u gave %ux%u, expected %ux%u\n",
+                     aspect, selected, panel, result.width, result.height, w, h);
+        std::abort();
+    }
 }
 
 int main() {

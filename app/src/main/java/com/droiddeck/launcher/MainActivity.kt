@@ -109,6 +109,7 @@ class MainActivity : ComponentActivity() {
     private var lossless by mutableStateOf(Lossless.State.NONE)
     private var showRemove by mutableStateOf(false)
     private var showResetSettings by mutableStateOf(false)
+    private var lowSpace by mutableStateOf<Long?>(null)
     private var showNonAdreno by mutableStateOf<LinuxRuntimeInstaller.Release?>(null)
     private var glThread by mutableStateOf(true)
     private var noGlError by mutableStateOf(true)
@@ -187,6 +188,10 @@ class MainActivity : ComponentActivity() {
         SessionPrefs.setWifiDiscoveryEnabled(this, WifiDiscovery.permissionGranted(this))
         refreshWifiDiscovery()
     }
+    private val cameraPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+        com.droiddeck.launcher.handtracking.HandTracking.refreshPermission(this)
+    }
+    private var placementCheck by mutableStateOf<Boolean?>(null)
     private val wifiPermissionSettings = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         SessionPrefs.setWifiDiscoveryEnabled(this, WifiDiscovery.permissionGranted(this))
         refreshWifiDiscovery()
@@ -591,8 +596,13 @@ class MainActivity : ComponentActivity() {
                         storeDownloadsActive = com.droiddeck.launcher.stores.StoresState.activeDownloads,
                     ),
                     FrontEndActions(
-                        onPlay = { startSteamSession() },
-                        onPlaySteamVr = { startSteamSession(steamVr = true) },
+                        onPlay = { playSteam() },
+                        onPlaySteamVr = { playSteamVr() },
+                        onSteamUrl = { url ->
+                            if (!SessionState.running) startSession(
+                                Intent(this, SessionActivity::class.java).putExtra(SessionService.EXTRA_STEAM_URL, url), steamSession = true,
+                            )
+                        },
                         onPlayDesktopUi = {
                             startSession(Intent(this, SessionActivity::class.java)
                                 .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_STEAM)
@@ -613,6 +623,7 @@ class MainActivity : ComponentActivity() {
                             val known = steamGames.mapNotNull { it.gameFiles?.path }.toSet()
                             updateAddedGames(folders, then = { if (folders.any { it !in known }) fetchAddedGameArt() })
                         },
+                        onSteamGameArtChanged = { appId -> refreshSteamGameArt(appId) },
                         onAddedGameRemoved = { folder, appId, name -> removeAddedGame(folder, appId, name) },
                         onAddedGamesArt = { on -> SessionPrefs.setAddedGamesArt(this, on); addedGamesArt = on; if (on) refreshAddedGames() },
                         onSgdbKey = { key ->
@@ -825,6 +836,7 @@ class MainActivity : ComponentActivity() {
                             onQamButton = { on -> ControllerPrefs.setQamButton(this, on); refreshController() },
                             onKeyboardButton = { on -> ControllerPrefs.setKeyboardButton(this, on); refreshController() },
                             onSelectSteam = { on -> ControllerPrefs.setSelectSteam(this, on); refreshController() },
+                            onJoyConVr = { on -> ControllerPrefs.setJoyConVr(this, on); refreshController() },
                             onEditLayout = { startActivity(Intent(this, ControllerEditorActivity::class.java)) },
                             onResetLayout = { ControllerPrefs.resetAllLayouts(this); refreshController() },
                             onMapping = { showPerformance = false; showComponents = false; showMapping = true },
@@ -858,6 +870,20 @@ class MainActivity : ComponentActivity() {
                     confirm = androidx.compose.ui.res.stringResource(R.string.store_remove),
                     onConfirm = { showRemove = false; removeRuntime() },
                     onDismiss = { showRemove = false },
+                )
+                lowSpace?.let { free ->
+                    com.droiddeck.launcher.ui.LowSpaceDialog(
+                        free,
+                        onFreeUp = { lowSpace = null; com.droiddeck.launcher.storage.StorageState.requestOpen() },
+                        onPlay = { lowSpace = null; com.droiddeck.launcher.storage.StorageState.lowSpaceDismissed = true; startSteamSession() },
+                        onDismiss = { lowSpace = null },
+                    )
+                }
+                com.droiddeck.launcher.ui.HandCameraHost(
+                    check = placementCheck,
+                    onAskPermission = { cameraPermission.launch(Manifest.permission.CAMERA) },
+                    onPlay = { placementCheck = null; startSteamSession(steamVr = true) },
+                    onClose = { placementCheck = null },
                 )
                 if (showResetSettings) com.droiddeck.launcher.ui.ResetSettingsDialog(
                     onConfirm = { gameProfiles -> resetSettings(gameProfiles) },
@@ -909,6 +935,19 @@ class MainActivity : ComponentActivity() {
     private fun startSteamAtStartupIfEnabled() {
         if (intent.action != Intent.ACTION_MAIN) return
         if (SessionPrefs.runSteamAtStartup(this) && !isFinishing && !isDestroyed) startSteamSession()
+    }
+
+    private fun playSteam() {
+        val storage = com.droiddeck.launcher.storage.StorageState
+        if (!SessionState.running && !storage.lowSpaceDismissed && storage.lowOnSpace(this)) {
+            lowSpace = storage.freeBytes(this)
+            storage.refresh(this)
+        } else startSteamSession()
+    }
+
+    private fun playSteamVr() {
+        if (com.droiddeck.launcher.handtracking.HandTracking.wanted(this)) placementCheck = true
+        else startSteamSession(steamVr = true)
     }
 
     private fun startSteamSession(steamVr: Boolean = false) {
@@ -1427,6 +1466,13 @@ class MainActivity : ComponentActivity() {
         }, "added-games-update").start()
     }
 
+    private fun refreshSteamGameArt(appId: Int) {
+        Thread({
+            val fresh = com.droiddeck.launcher.frontend.Library.steamGames(this).firstOrNull { it.appId == appId } ?: return@Thread
+            ui.post { steamGames = steamGames.map { if (it.appId == appId && it.library != Library.ADDED) fresh else it } }
+        }, "steam-art-update").start()
+    }
+
     private fun removeAddedGame(folder: String, appId: Long?, name: String) {
         steamGames = steamGames.filterNot { it.library == Library.ADDED && it.gameFiles?.path == folder }
         Thread({ com.droiddeck.launcher.frontend.AddedGames.remove(this, java.io.File(folder), appId, name) }, "added-game-remove").start()
@@ -1622,6 +1668,10 @@ class MainActivity : ComponentActivity() {
 
     private fun startSession(intent: Intent, steamSession: Boolean = false): Boolean {
         if (busy || LinuxRuntimeInstaller.isBusy()) return false
+        if (com.droiddeck.launcher.storage.StorageState.cleaning) {
+            android.widget.Toast.makeText(this, R.string.storage_cleanup_busy, android.widget.Toast.LENGTH_SHORT).show()
+            return false
+        }
         refreshPhantomStatus()
         if (steamSession && PhantomProcessLimit.blocksSteam(phantomProcessStatus)) {
             showPhantomGate = true

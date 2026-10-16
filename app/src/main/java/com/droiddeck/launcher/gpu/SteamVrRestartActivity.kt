@@ -34,14 +34,13 @@ class SteamVrRestartActivity : Activity() {
             } ?: error("DroidDeck process is unavailable")
             val uri = Uri.parse("content://$packageName.agent")
             contentResolver.call(uri, "stop", null, null)
-            val deadline = SystemClock.elapsedRealtime() + 15_000
-            while (SystemClock.elapsedRealtime() < deadline) {
-                val answer = contentResolver.call(uri, "state", null, null)?.getString("json")
-                val session = answer?.let(::JSONObject)?.optJSONObject("session")
-                if (session?.optString("phase") in listOf("IDLE", "FAILED") &&
-                    session?.optBoolean("artifactsComplete") == true) break
-                SystemClock.sleep(250)
-            }
+            val shutdown = SteamVrRecoveryPolicy.awaitShutdown({
+                runCatching {
+                    contentResolver.call(uri, "state", null, null)?.getString("json")?.let(::JSONObject)?.optJSONObject("session")
+                }.getOrNull()
+            }, SystemClock::elapsedRealtime, SystemClock::sleep)
+            if (shutdown != SteamVrRecoveryPolicy.Shutdown.COMPLETE)
+                android.util.Log.w("SteamVrRecovery", "Restarting before the session finished stopping: $shutdown")
             // Only the verified main process, never a caller-supplied PID or an external app.
             Process.killProcess(main.pid)
             val exited = SystemClock.elapsedRealtime() + 5000

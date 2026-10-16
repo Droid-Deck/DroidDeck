@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.gpu
 
+import org.json.JSONObject
 import java.io.File
 import java.io.RandomAccessFile
 import java.nio.file.Files
@@ -60,6 +61,26 @@ internal class SteamVrDeviceLossLog(private val file: File) {
 
 internal object SteamVrRecoveryPolicy {
     const val COOLDOWN_MS = 10 * 60 * 1000L
+    const val STOP_MS = 15_000L
+    const val LOGS_MS = 30_000L
+    private const val POLL_MS = 250L
+
+    enum class Shutdown { COMPLETE, LOGS_PENDING, STUCK }
+
     fun canRestartAutomatically(lastAttempt: Long, now: Long): Boolean =
         lastAttempt == 0L || (now >= lastAttempt && now - lastAttempt >= COOLDOWN_MS)
+
+    fun awaitShutdown(session: () -> JSONObject?, now: () -> Long, sleep: (Long) -> Unit): Shutdown {
+        fun await(ms: Long, done: (JSONObject) -> Boolean): Boolean {
+            val deadline = now() + ms
+            while (true) {
+                if (session()?.let(done) == true) return true
+                if (now() >= deadline) return false
+                sleep(POLL_MS)
+            }
+        }
+        if (!await(STOP_MS) { it.optString("phase") in setOf("IDLE", "FAILED") }) return Shutdown.STUCK
+        return if (await(LOGS_MS) { !it.optBoolean("artifactsAvailable") || it.optBoolean("artifactsComplete") }) Shutdown.COMPLETE
+            else Shutdown.LOGS_PENDING
+    }
 }

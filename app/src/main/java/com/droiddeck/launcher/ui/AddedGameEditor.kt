@@ -41,6 +41,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import android.content.Context
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -57,6 +58,7 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.AddedGameArt
 import com.droiddeck.launcher.frontend.AddedGameEdits
 import com.droiddeck.launcher.frontend.AddedGames
+import com.droiddeck.launcher.frontend.SteamGameArt
 import com.droiddeck.launcher.frontend.SteamGridDb
 import com.droiddeck.launcher.session.SessionPrefs
 import kotlinx.coroutines.Dispatchers
@@ -139,6 +141,71 @@ internal class EditPreview(
         fun of(game: AddedGames.Game, cover: File?) = EditPreview(
             game.name, game.exe.name, game.guestDir.substringAfterLast('/'), game.launchOptions, mapOf(AddedGameArt.Slot.COVER to cover),
         )
+    }
+}
+
+internal class ArtTarget(
+    val name: String,
+    val chosenRef: (Context, AddedGameArt.Slot) -> String,
+    val choices: (Context, AddedGameArt.Slot) -> AddedGameArt.Choices,
+    val set: (Context, AddedGameArt.Slot, AddedGameArt.Option) -> Unit,
+    val reset: (Context, AddedGameArt.Slot) -> Unit,
+) {
+    companion object {
+        fun of(game: AddedGames.Game) = ArtTarget(
+            game.name,
+            { c, slot -> AddedGameArt.chosenSource(c, game, slot).second },
+            { c, slot -> AddedGameArt.choices(c, game, slot) },
+            { c, slot, option -> AddedGameEdits.setArt(c, game.folder.path, slot, option) },
+            { c, slot -> AddedGameEdits.resetArt(c, game.folder.path, slot) },
+        )
+
+        fun of(game: com.droiddeck.launcher.frontend.Library.SteamGame) = ArtTarget(
+            game.name,
+            { c, slot -> SteamGameArt.chosenSource(c, game.appId, slot).second },
+            { c, slot -> SteamGameArt.choices(c, game, slot) },
+            { c, slot, option -> SteamGameArt.choose(c, game, slot, option) },
+            { c, slot -> SteamGameArt.reset(c, game, slot) },
+        )
+    }
+}
+
+@Composable
+internal fun SteamGameArtEditor(
+    game: com.droiddeck.launcher.frontend.Library.SteamGame, onClose: () -> Unit, onChanged: () -> Unit,
+) {
+    val app = LocalContext.current.applicationContext
+    val colors = MaterialTheme.colorScheme
+    val shown = rememberShown(onClose)
+    val close = { shown.targetState = false }
+    var version by remember { mutableIntStateOf(0) }
+    var arts by remember { mutableStateOf<List<AddedGameArt.SlotState>>(emptyList()) }
+    var artSlot by remember { mutableStateOf<AddedGameArt.Slot?>(null) }
+    val target = remember(game.appId) { ArtTarget.of(game) }
+    LaunchedEffect(version) { arts = withContext(Dispatchers.IO) { SteamGameArt.describe(app, game) } }
+    val first = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusWithinFrames({ false }) { first } }
+    AppDialog(shown, close, "steamArtEditor", wide = false, maxWidth = 460.dp) {
+        DialogTitleRow(game.name, onClose = close)
+        val maxHeight = (LocalConfiguration.current.screenHeightDp * 0.72f).dp
+        Column(
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(max = maxHeight).verticalScroll(rememberScrollState()),
+        ) {
+            Text(stringResource(R.string.edit_artwork), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp, top = 2.dp))
+            for (slot in AddedGameArt.Slot.values()) key(slot) {
+                val state = arts.firstOrNull { it.slot == slot }
+                FieldRow(slot.label(), focus = if (slot == AddedGameArt.Slot.COVER) first else null, onClick = { artSlot = slot }) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        SlotThumb(slot, state?.file)
+                        if (state != null) ValueText(artSourceLabel(state.source), muted = true) else Loading()
+                    }
+                }
+            }
+        }
+    }
+    artSlot?.let { slot ->
+        ArtChooserDialog(target, slot, arts.firstOrNull { it.slot == slot }, onBack = { artSlot = null }, onCloseAll = { artSlot = null; close() }) { version++; onChanged() }
     }
 }
 
@@ -283,7 +350,7 @@ internal fun AddedGameEditor(
     })
     artSlot?.let { slot ->
         val current = arts.firstOrNull { it.slot == slot }
-        ArtChooserDialog(g, slot, current, onBack = { artSlot = null }, onCloseAll = { artSlot = null; close() }) { version++; onChanged() }
+        ArtChooserDialog(ArtTarget.of(g), slot, current, onBack = { artSlot = null }, onCloseAll = { artSlot = null; close() }) { version++; onChanged() }
     }
 }
 
@@ -348,7 +415,7 @@ internal fun TextEntryDialog(title: String, initial: String, onDismiss: () -> Un
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ArtChooserDialog(
-    game: AddedGames.Game, slot: AddedGameArt.Slot, current: AddedGameArt.SlotState?,
+    target: ArtTarget, slot: AddedGameArt.Slot, current: AddedGameArt.SlotState?,
     onBack: () -> Unit, onCloseAll: () -> Unit, onChanged: () -> Unit,
 ) {
     val ctx = LocalContext.current
@@ -361,9 +428,9 @@ private fun ArtChooserDialog(
     var sgdb by remember { mutableStateOf(SteamGridDb.Status.OK) }
     var picking by remember { mutableStateOf(false) }
     var searching by remember { mutableStateOf(false) }
-    val chosenRef = remember(current) { AddedGameArt.chosenSource(app, game, slot).second }
+    val chosenRef = remember(current) { target.chosenRef(app, slot) }
     LaunchedEffect(slot) {
-        val found = withContext(Dispatchers.IO) { runCatching { AddedGameArt.choices(app, game, slot) }.getOrNull() }
+        val found = withContext(Dispatchers.IO) { runCatching { target.choices(app, slot) }.getOrNull() }
         options = found?.options ?: emptyList()
         sgdb = found?.sgdb ?: SteamGridDb.Status.SERVER
     }
@@ -371,7 +438,7 @@ private fun ArtChooserDialog(
     LaunchedEffect(Unit) { focusWithinFrames({ false }) { first } }
     val apply: (AddedGameArt.Option) -> Unit = { option ->
         scope.launch {
-            withContext(Dispatchers.IO) { AddedGameEdits.setArt(app, game.folder.path, slot, option) }
+            withContext(Dispatchers.IO) { target.set(app, slot, option) }
             onChanged()
             back()
         }
@@ -408,7 +475,7 @@ private fun ArtChooserDialog(
             PickerRow(Icons.Outlined.Image, stringResource(R.string.art_pick_image), null, focus = if (opts?.isEmpty() != false) first else null) { picking = true }
             PickerRow(null, stringResource(R.string.art_reset), null) {
                 scope.launch {
-                    withContext(Dispatchers.IO) { AddedGameEdits.resetArt(app, game.folder.path, slot) }
+                    withContext(Dispatchers.IO) { target.reset(app, slot) }
                     onChanged()
                     back()
                 }
@@ -419,7 +486,7 @@ private fun ArtChooserDialog(
         apply(AddedGameArt.Option(AddedGameArt.FILE, file.path, file.path))
     })
     if (searching) SgdbSearchDialog(
-        game, slot, current,
+        target, slot, current,
         onBack = { searching = false }, onCloseAll = { searching = false; onCloseAll() }, onPick = apply,
     )
 }
@@ -446,7 +513,7 @@ private fun SgdbNote(status: SteamGridDb.Status) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SgdbSearchDialog(
-    game: AddedGames.Game, slot: AddedGameArt.Slot, current: AddedGameArt.SlotState?,
+    target: ArtTarget, slot: AddedGameArt.Slot, current: AddedGameArt.SlotState?,
     onBack: () -> Unit, onCloseAll: () -> Unit, onPick: (AddedGameArt.Option) -> Unit,
 ) {
     val app = LocalContext.current.applicationContext
@@ -454,28 +521,23 @@ private fun SgdbSearchDialog(
     val scope = rememberCoroutineScope()
     val shown = rememberShown(onBack)
     val back = { shown.targetState = false }
-    var query by remember { mutableStateOf(game.name) }
+    var query by remember { mutableStateOf(target.name) }
     var matches by remember { mutableStateOf<List<SteamGridDb.Game>?>(null) }
     var picked by remember { mutableStateOf<SteamGridDb.Game?>(null) }
     var images by remember { mutableStateOf<List<AddedGameArt.Option>>(emptyList()) }
-    var page by remember { mutableIntStateOf(0) }
-    var more by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(true) }
     var status by remember { mutableStateOf(SteamGridDb.Status.OK) }
-    val chosenRef = remember(current) { AddedGameArt.chosenSource(app, game, slot).second }
+    val chosenRef = remember(current) { target.chosenRef(app, slot) }
     val slotName = slot.label()
     val showImages: (SteamGridDb.Game) -> Unit = { found ->
         scope.launch {
             picked = found
             images = emptyList()
-            page = 0
-            more = false
             busy = true
             status = SteamGridDb.Status.OK
-            val result = withContext(Dispatchers.IO) { AddedGameArt.gameImages(app, found.id, slot, 0) }
+            val result = withContext(Dispatchers.IO) { AddedGameArt.gameImages(app, found.id, slot) }
             images = result.items
             status = result.status
-            more = result.items.isNotEmpty()
             busy = false
         }
     }
@@ -490,19 +552,6 @@ private fun SgdbSearchDialog(
             busy = false
             val sure = result.items.firstOrNull { AddedGameArt.nameMatch(query, it.name) == 3 } ?: result.items.singleOrNull()
             if (sure != null) showImages(sure)
-        }
-    }
-    val loadMore: () -> Unit = {
-        val found = picked
-        if (found != null && !busy) scope.launch {
-            busy = true
-            val result = withContext(Dispatchers.IO) { AddedGameArt.gameImages(app, found.id, slot, page + 1) }
-            val fresh = result.items.filter { next -> images.none { it.full == next.full } }
-            images = images + fresh
-            page += 1
-            more = fresh.isNotEmpty()
-            if (result.status != SteamGridDb.Status.OK) status = result.status
-            busy = false
         }
     }
     LaunchedEffect(Unit) { search() }
@@ -542,7 +591,6 @@ private fun SgdbSearchDialog(
                 if (images.isEmpty() && !busy && status == SteamGridDb.Status.OK) {
                     Text(stringResource(R.string.art_sgdb_none), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(start = 2.dp, top = 4.dp))
                 }
-                if (more && !busy) PickerRow(null, stringResource(R.string.art_sgdb_more), null) { loadMore() }
                 if (list.size > 1) PickerRow(null, stringResource(R.string.art_sgdb_other_games), null) { picked = null }
             }
             if (busy) androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 8.dp))

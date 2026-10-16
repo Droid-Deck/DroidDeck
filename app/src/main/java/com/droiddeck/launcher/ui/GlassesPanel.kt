@@ -48,6 +48,8 @@ import android.content.Intent
 import androidx.compose.ui.platform.LocalContext
 import com.droiddeck.launcher.glasses.SpatialTracking
 import com.droiddeck.launcher.glasses.SpatialMeasurements
+import com.droiddeck.launcher.handtracking.HandTracking
+import java.util.Locale
 
 internal val GlassesIcon: ImageVector by lazy {
     ImageVector.Builder("Glasses", 24.dp, 24.dp, 24f, 24f).apply {
@@ -211,6 +213,12 @@ internal fun GlassesGroups(
         if (calibration.supported) GlassesCalibrationControls(calibration,
             onStart = Glasses::startCalibration, onCancel = Glasses::cancelCalibration,
             onReset = Glasses::resetCalibration, onDone = { onRecenter?.invoke() })
+    }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val hands by HandTracking.settings.collectAsState()
+    androidx.compose.runtime.LaunchedEffect(Unit) { HandTracking.load(context) }
+    if ((tab == null || tab == GlassesTab.TRACKING) && g.canControl && hands.usable) SettingsGroup(stringResource(R.string.hand_camera_group)) {
+        HandCameraRows(host, track, inSession)
     }
 }
 

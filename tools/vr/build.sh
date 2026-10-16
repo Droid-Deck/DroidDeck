@@ -47,7 +47,16 @@ compile() {
             -o build/vr/libdroiddeck_vr_scheduling.so tools/vr/src/scheduling.c -ldl
         cc -O2 -Wall -Wextra -Werror -o build/vr/test_scheduling tools/vr/tests/test_scheduling.c
         LD_PRELOAD="$PWD/build/vr/libdroiddeck_vr_scheduling.so" build/vr/test_scheduling
+        c++ -std=c++17 -O2 -Wall -Wextra -Werror -Wno-unused-parameter -Itools/vr/src \
+            -o build/vr/test_joycon tools/vr/tests/test_joycon.cpp
+        build/vr/test_joycon
+        c++ -std=c++17 -O2 -Wall -Wextra -Werror -Wno-unused-parameter -Itools/vr/src \
+            -o build/vr/make_hand_models tools/vr/make_hand_models.cpp
+        mkdir -p build/vr/out/droiddeck/resources
+        build/vr/make_hand_models build/vr/out/droiddeck/resources/rendermodels
         mkdir -p build/vr/stub
+        aarch64-linux-gnu-g++ -std=c++17 -O2 -Wall -Wextra -Werror -static-libstdc++ -static-libgcc -pthread \
+            -o build/vr/out/droiddeck/bin/linuxarm64/xr-display-mode tools/vr/src/xr_display_mode.cpp
         aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wl,-soname,libwayland-client.so.0 -Itools/vr/third_party/wayland \
             -o build/vr/stub/libwayland-client.so tools/vr/src/wayland_client_stub.c
         aarch64-linux-gnu-gcc -c -fPIC -O2 -Itools/vr/third_party/wayland -o build/vr/xdg-shell-protocol.o \
@@ -57,8 +66,11 @@ compile() {
             -Itools/vr/third_party/wayland -Iapp/src/main/cpp/waylandcomp/generated \
             -o build/vr/out/droiddeck/bin/linuxarm64/driver_droiddeck.so tools/vr/src/driver_droiddeck.cpp tools/vr/src/presenter.cpp \
             build/vr/xdg-shell-protocol.o -Lbuild/vr/stub -lwayland-client -ldl
-        aarch64-linux-gnu-gcc -std=c11 -shared -fPIC -O2 -Wall -Wextra -Wno-unused-parameter -fvisibility=hidden -pthread \
-            -Wl,-z,defs -Ibuild/vr/include -o build/vr/out/layer/libVkLayer_droiddeck_vr.so tools/vr/src/vk_layer_droiddeck_vr.c -ldl
+        aarch64-linux-gnu-gcc -std=c11 -c -fPIC -O2 -Wall -Wextra -Wno-unused-parameter -fvisibility=hidden -pthread \
+            -DDROIDDECK_WSI_CAPTURE -Ibuild/vr/include -o build/vr/vk_layer.o tools/vr/src/vk_layer_droiddeck_vr.c
+        aarch64-linux-gnu-g++ -std=c++17 -shared -fPIC -O2 -Wall -Wextra -Wno-missing-field-initializers -fvisibility=hidden -pthread \
+            -static-libstdc++ -static-libgcc -Wl,-z,defs -Wl,-z,nodelete -Ibuild/vr/include \
+            -o build/vr/out/layer/libVkLayer_droiddeck_vr.so build/vr/vk_layer.o tools/vr/src/wsi_capture.cpp -ldl
         aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wextra -Werror -Wl,-z,defs \
             -o build/vr/out/layer/libdroiddeck_vr_scheduling.so tools/vr/src/scheduling.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded build/vr/out/droiddeck/bin/linuxarm64/driver_droiddeck.so \

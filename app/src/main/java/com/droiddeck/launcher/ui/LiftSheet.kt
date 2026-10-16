@@ -695,7 +695,6 @@ internal fun SheetChips(
     selected: Int,
     focus: List<FocusRequester>? = null,
     width: Dp = Dp.Unspecified,
-    end: Boolean = false,
     onPick: (Int) -> Unit,
 ) {
     val pal = LocalPalette.current
@@ -706,7 +705,7 @@ internal fun SheetChips(
     LaunchedEffect(selected) { if (within) runCatching { chips[selected].requestFocus() } }
     BoxWithConstraints(
         Modifier.fillMaxWidth().onFocusChanged { within = it.hasFocus },
-        contentAlignment = if (end) Alignment.CenterEnd else Alignment.CenterStart,
+        contentAlignment = Alignment.CenterStart,
     ) {
         val equal = !width.isSpecified && maxWidth / labels.size.coerceAtLeast(1) >= 96.dp
         val least = if (width.isSpecified) maxOf(width, 64.dp) else 64.dp
