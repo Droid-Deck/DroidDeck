@@ -1029,7 +1029,6 @@
     <string name="gpu_set_with_runtime">Настраивается вместе с драйвером среды выполнения: %1$s включает оба.</string>
     <string name="gpu_runtime_hint">Используется играми и рабочим столом.</string>
     <string name="gpu_runtime_default">Стандартный драйвер среды выполнения</string>
-    <string name="gpu_display_hint">Отвечает за вывод изображения на экран. Вступит в силу после перезапуска DroidDeck.</string>
     <string name="gpu_auto_by_gpu">Авто — по GPU</string>
     <string name="gpu_manage">Скачать, импортировать или удалить…</string>
     <string name="gpu_in_use_caps">ИСПОЛЬЗУЕТСЯ</string>
@@ -1714,7 +1713,6 @@
     <string name="adbpair_done_text">Нажмите, чтобы вернуться в DroidDeck. Теперь отладку по Wi-Fi можно отключить.</string>
     <string name="adbpair_title_failed">Настройка отладки по Wi-Fi остановлена</string>
 
-    <string name="selfinst_http">Сервер загрузки ответил HTTP %1$d</string>
     <string name="selfinst_size_mismatch">Размер загруженного файла не совпал с опубликованным APK, файл удален — повторите попытку</string>
     <string name="selfinst_checksum_mismatch">Загруженный файл не совпал с контрольной суммой и был удален — повторите попытку</string>
     <string name="selfinst_wrong_package">Обновление предназначено для пакета Android %1$s, а не %2$s</string>
@@ -1812,7 +1810,6 @@
 
     <string name="turnip_rate_limited">Превышен лимит запросов GitHub — повторите попытку позже</string>
     <string name="turnip_github_http">GitHub ответил HTTP %1$d</string>
-    <string name="turnip_download_http">сервер загрузки ответил HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Этот список драйверов создан до появления контрольных сумм — обновите его и повторите попытку</string>
     <string name="turnip_checksum_mismatch">Контрольная сумма не совпадает — загруженный файл удален</string>
     <string name="turnip_not_adrenotools">Не драйвер AdrenoTools: %1$s</string>
@@ -2298,12 +2295,9 @@
     <string name="cardboard_recenter_button">Отцентрировать</string>
     <string name="cardboard_steamvr">SteamVR (экспериментально)</string>
     <string name="cardboard_steamvr_install">Установить</string>
-    <string name="cardboard_steamvr_install_hint">Скачивает SteamVR от Valve для ARM64 (571 МБ).</string>
     <string name="cardboard_steamvr_installing">Скачивание и распаковка SteamVR…</string>
     <string name="cardboard_steamvr_start">Запустить</string>
-    <string name="cardboard_steamvr_ready_hint">Запускает SteamVR, где гарнитурой служит ваша голова; изображение переключается на стереопару 3D.</string>
     <string name="cardboard_steamvr_stop">Остановить</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR запущен.</string>
     <string name="cardboard_steamvr_unavailable">Недоступно в этой сессии.</string>
     <string name="cardboard_steamvr_failed">SteamVR не отвечает; проверьте журнал сессии.</string>
     <string name="drawer_component_downloads">Скачать компоненты</string>
@@ -2315,4 +2309,21 @@
     <string name="stores_storage_insufficient">Недостаточно свободного места: нужно %1$s, свободно только %2$s</string>
     <string name="stores_storage_low">Недостаточно места (свободно %1$s, нужно %2$s)</string>
     <string name="stores_target_free_unknown">Свободное место неизвестно</string>
+    <string name="boot_movie">Загрузочное видео</string>
+    <string name="boot_movie_video">Видео</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d кадр/с</string>
+    <string name="boot_movie_note">60 кадр/с выглядит плавнее, но сильнее нагружает процессор при запуске Steam. Видео при запуске, выбранное в настройках самого Steam, имеет приоритет.</string>
+    <string name="boot_movie_sound">Звук</string>
+    <string name="boot_movie_custom">Своё видео</string>
+    <string name="boot_movie_custom_hint">MP4, MOV, MKV или WebM. Другие форматы и файлы больше %1$d МБ преобразуются на устройстве в WebM 720p, до %2$d секунд.</string>
+    <string name="boot_movie_import">Импорт</string>
+    <string name="boot_movie_remove">Удалить</string>
+    <string name="boot_movie_pick">Выберите загрузочное видео</string>
+    <string name="boot_movie_imported">%1$s теперь загрузочное видео</string>
+    <string name="boot_movie_imported_silent">%1$s теперь загрузочное видео, без звука</string>
+    <string name="boot_movie_too_long">Видео для преобразования должно быть не длиннее %1$d секунд</string>
+    <string name="boot_movie_converting">Преобразование %1$d%%</string>
+    <string name="boot_movie_converting_started">%1$s преобразуется для Steam. Не закрывайте DroidDeck.</string>
+    <string name="boot_movie_unsupported">Устройство не может декодировать это видео.</string>
+    <string name="boot_movie_import_failed">Не удалось импортировать видео</string>
 </resources>

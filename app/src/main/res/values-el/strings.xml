@@ -1009,7 +1009,6 @@
     <string name="gpu_set_with_runtime">Ορίζεται μαζί με το πρόγραμμα οδήγησης runtime: το %1$s φέρει και τα δύο.</string>
     <string name="gpu_runtime_hint">Χρησιμοποιείται από παιχνίδια και την επιφάνεια εργασίας.</string>
     <string name="gpu_runtime_default">Προεπιλογή runtime</string>
-    <string name="gpu_display_hint">Σχεδιάζει καρέ στην οθόνη. Εφαρμόζεται μετά την επανεκκίνηση του DroidDeck.</string>
     <string name="gpu_auto_by_gpu">Αυτόματο - επιλέγεται από τη GPU</string>
     <string name="gpu_manage">Λήψη, εισαγωγή ή διαγραφή…</string>
     <string name="gpu_in_use_caps">ΣΕ ΧΡΗΣΗ</string>
@@ -1664,7 +1663,6 @@
     <string name="adbpair_done_text">Πατήστε για να επιστρέψετε στο DroidDeck. Μπορείτε να απενεργοποιήσετε τον ασύρματο εντοπισμό σφαλμάτων τώρα.</string>
     <string name="adbpair_title_failed">Η ρύθμιση ασύρματου εντοπισμού σφαλμάτων διακόπηκε</string>
 
-    <string name="selfinst_http">Η λήψη απάντησε με HTTP %1$d</string>
     <string name="selfinst_size_mismatch">Το μέγεθος της λήψης δεν ταίριαζε με το δημοσιευμένο APK και απορρίφθηκε - δοκιμάστε ξανά</string>
     <string name="selfinst_checksum_mismatch">Η λήψη δεν ταίριαζε με το άθροισμα ελέγχου της και απορρίφθηκε - δοκιμάστε ξανά</string>
     <string name="selfinst_wrong_package">Η ενημέρωση είναι για το πακέτο Android %1$s, όχι για το %2$s</string>
@@ -1762,7 +1760,6 @@
 
     <string name="turnip_rate_limited">Το όριο ρυθμού του GitHub ξεπεράστηκε - δοκιμάστε ξανά αργότερα</string>
     <string name="turnip_github_http">Το GitHub απάντησε με HTTP %1$d</string>
-    <string name="turnip_download_http">η λήψη απάντησε με HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Αυτή η λίστα προγραμμάτων οδήγησης προηγείται των αθροισμάτων ελέγχου - ανανεώστε την και δοκιμάστε ξανά</string>
     <string name="turnip_checksum_mismatch">Αναντιστοιχία αθροίσματος ελέγχου - η λήψη απορρίφθηκε</string>
     <string name="turnip_not_adrenotools">Δεν είναι πρόγραμμα οδήγησης AdrenoTools: %1$s</string>
@@ -2232,12 +2229,9 @@
     <string name="cardboard_recenter_button">Επανακεντράρισμα</string>
     <string name="cardboard_steamvr">SteamVR (πειραματικό)</string>
     <string name="cardboard_steamvr_install">Εγκατάσταση</string>
-    <string name="cardboard_steamvr_install_hint">Κατεβάζει το SteamVR ARM64 της Valve (571 MB).</string>
     <string name="cardboard_steamvr_installing">Λήψη και αποσυμπίεση του SteamVR…</string>
     <string name="cardboard_steamvr_start">Έναρξη</string>
-    <string name="cardboard_steamvr_ready_hint">Εκτελεί το SteamVR με το κεφάλι σας ως headset· η εικόνα αλλάζει σε 3D δίπλα-δίπλα.</string>
     <string name="cardboard_steamvr_stop">Διακοπή</string>
-    <string name="cardboard_steamvr_running_hint">Το SteamVR εκτελείται.</string>
     <string name="cardboard_steamvr_unavailable">Δεν είναι διαθέσιμο σε αυτή τη συνεδρία.</string>
     <string name="cardboard_steamvr_failed">Το SteamVR δεν αποκρίθηκε· ελέγξτε το αρχείο καταγραφής της συνεδρίας.</string>
     <string name="drawer_component_downloads">Λήψη στοιχείων</string>
@@ -2251,4 +2245,21 @@
     <string name="stores_hltb_completionist">Ολοκλήρωση</string>
     <string name="stores_hltb_hours">%1$s ώ.</string>
     <string name="stores_hltb_minutes">%1$d λεπ.</string>
+    <string name="boot_movie">Βίντεο εκκίνησης</string>
+    <string name="boot_movie_video">Βίντεο</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
+    <string name="boot_movie_note">Τα 60 fps φαίνονται πιο ομαλά, αλλά επιβαρύνουν περισσότερο τον επεξεργαστή όσο ξεκινά το Steam. Ένα βίντεο εκκίνησης που επιλέχθηκε στις ρυθμίσεις του Steam έχει προτεραιότητα.</string>
+    <string name="boot_movie_sound">Ήχος</string>
+    <string name="boot_movie_custom">Δικό σας βίντεο</string>
+    <string name="boot_movie_custom_hint">MP4, MOV, MKV ή WebM. Άλλες μορφές και αρχεία πάνω από %1$d MB μετατρέπονται στη συσκευή σε WebM 720p, έως %2$d δευτερόλεπτα.</string>
+    <string name="boot_movie_import">Εισαγωγή</string>
+    <string name="boot_movie_remove">Αφαίρεση</string>
+    <string name="boot_movie_pick">Επιλέξτε βίντεο εκκίνησης</string>
+    <string name="boot_movie_imported">Το %1$s είναι πλέον το βίντεο εκκίνησης</string>
+    <string name="boot_movie_imported_silent">Το %1$s είναι πλέον το βίντεο εκκίνησης, χωρίς ήχο</string>
+    <string name="boot_movie_too_long">Τα βίντεο προς μετατροπή πρέπει να διαρκούν έως %1$d δευτερόλεπτα</string>
+    <string name="boot_movie_converting">Μετατροπή %1$d%%</string>
+    <string name="boot_movie_converting_started">Μετατροπή του %1$s για το Steam. Αφήστε το DroidDeck ανοιχτό.</string>
+    <string name="boot_movie_unsupported">Η συσκευή δεν μπορεί να αποκωδικοποιήσει αυτό το βίντεο.</string>
+    <string name="boot_movie_import_failed">Δεν ήταν δυνατή η εισαγωγή του βίντεο</string>
 </resources>

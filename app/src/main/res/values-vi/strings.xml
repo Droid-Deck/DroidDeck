@@ -1003,7 +1003,6 @@
     <string name="gpu_set_with_runtime">Được đặt cùng với driver runtime: %1$s mang cả hai.</string>
     <string name="gpu_runtime_hint">Dùng bởi game và desktop.</string>
     <string name="gpu_runtime_default">Mặc định runtime</string>
-    <string name="gpu_display_hint">Vẽ khung hình lên màn hình. Áp dụng sau khi DroidDeck khởi động lại.</string>
     <string name="gpu_auto_by_gpu">Tự động - chọn theo GPU</string>
     <string name="gpu_manage">Tải, nhập hoặc xóa…</string>
     <string name="gpu_in_use_caps">ĐANG DÙNG</string>
@@ -1643,7 +1642,6 @@
     <string name="adbpair_done_text">Nhấn để quay lại DroidDeck. Bạn có thể tắt Gỡ lỗi qua mạng không dây ngay bây giờ.</string>
     <string name="adbpair_title_failed">Thiết lập Gỡ lỗi qua mạng không dây đã dừng</string>
 
-    <string name="selfinst_http">Lượt tải trả về HTTP %1$d</string>
     <string name="selfinst_size_mismatch">Kích thước tải xuống không khớp với APK đã phát hành và đã bị loại bỏ - hãy thử lại</string>
     <string name="selfinst_checksum_mismatch">Tệp tải xuống không khớp checksum và đã bị loại bỏ - hãy thử lại</string>
     <string name="selfinst_wrong_package">Bản cập nhật này dành cho package Android %1$s, không phải %2$s</string>
@@ -1741,7 +1739,6 @@
 
     <string name="turnip_rate_limited">Đã đạt giới hạn tốc độ của GitHub - hãy thử lại sau</string>
     <string name="turnip_github_http">GitHub trả về HTTP %1$d</string>
-    <string name="turnip_download_http">tải xuống trả về HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Danh sách driver này có trước checksum - hãy làm mới và thử lại</string>
     <string name="turnip_checksum_mismatch">Checksum không khớp - tệp tải xuống đã bị loại bỏ</string>
     <string name="turnip_not_adrenotools">Không phải driver AdrenoTools: %1$s</string>
@@ -2207,12 +2204,9 @@
     <string name="cardboard_recenter_button">Căn giữa lại</string>
     <string name="cardboard_steamvr">SteamVR (thử nghiệm)</string>
     <string name="cardboard_steamvr_install">Cài đặt</string>
-    <string name="cardboard_steamvr_install_hint">Tải SteamVR ARM64 của Valve (571 MB).</string>
     <string name="cardboard_steamvr_installing">Đang tải và giải nén SteamVR…</string>
     <string name="cardboard_steamvr_start">Bắt đầu</string>
-    <string name="cardboard_steamvr_ready_hint">Chạy SteamVR với đầu bạn làm kính; hình ảnh chuyển sang 3D cạnh nhau.</string>
     <string name="cardboard_steamvr_stop">Dừng</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR đang chạy.</string>
     <string name="cardboard_steamvr_unavailable">Không khả dụng trong phiên này.</string>
     <string name="cardboard_steamvr_failed">SteamVR không phản hồi; hãy xem nhật ký phiên.</string>
     <string name="drawer_component_downloads">Tải thành phần</string>
@@ -2226,4 +2220,21 @@
     <string name="stores_hltb_completionist">Hoàn thành 100%</string>
     <string name="stores_hltb_hours">%1$s giờ</string>
     <string name="stores_hltb_minutes">%1$d phút</string>
+    <string name="boot_movie">Video khởi động</string>
+    <string name="boot_movie_video">Video</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
+    <string name="boot_movie_note">60 fps mượt hơn nhưng tốn CPU hơn khi Steam đang khởi động. Video khởi động chọn trong cài đặt của chính Steam sẽ được ưu tiên.</string>
+    <string name="boot_movie_sound">Âm thanh</string>
+    <string name="boot_movie_custom">Video của bạn</string>
+    <string name="boot_movie_custom_hint">MP4, MOV, MKV hoặc WebM. Định dạng khác và tệp trên %1$d MB được chuyển sang WebM 720p ngay trên thiết bị, tối đa %2$d giây.</string>
+    <string name="boot_movie_import">Nhập</string>
+    <string name="boot_movie_remove">Xóa</string>
+    <string name="boot_movie_pick">Chọn video khởi động</string>
+    <string name="boot_movie_imported">%1$s giờ là video khởi động</string>
+    <string name="boot_movie_imported_silent">%1$s giờ là video khởi động, không có tiếng</string>
+    <string name="boot_movie_too_long">Video cần chuyển đổi phải dài tối đa %1$d giây</string>
+    <string name="boot_movie_converting">Đang chuyển đổi %1$d%%</string>
+    <string name="boot_movie_converting_started">Đang chuyển đổi %1$s cho Steam. Hãy để DroidDeck mở.</string>
+    <string name="boot_movie_unsupported">Thiết bị này không giải mã được video đó.</string>
+    <string name="boot_movie_import_failed">Không thể nhập video này</string>
 </resources>

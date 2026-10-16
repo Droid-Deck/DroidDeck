@@ -90,7 +90,7 @@ object DesktopCatalog {
         try {
             val downloading = context.getString(R.string.user_apps_downloading, entry.name)
             listener?.onProgress(LinuxRuntimeInstaller.Step.DOWNLOADING, downloading, 0)
-            val ok = Downloader.downloadFile(entry.url, download, true) { f ->
+            val ok = Downloader.downloadFile(entry.url, download, true, entry.sha256) { f ->
                 listener?.onProgress(LinuxRuntimeInstaller.Step.DOWNLOADING, downloading, if (f < 0) -1 else Math.round(f * 100f))
             }
             if (!ok) return context.getString(R.string.user_apps_download_failed)

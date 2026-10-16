@@ -40,10 +40,10 @@ object AddedGameArt {
 
     class Found<T>(val items: List<T>, val status: SteamGridDb.Status)
 
-    private val CHOSEN = Regex("""chosen-(\w+)\.(\w+)""")
+    private val CHOSEN = Regex("""chosen-(p|hero|logo|icon)(?:-\d+)?\.(\w+)""")
 
     internal fun chosen(cache: File, slot: Slot): File? =
-        cache.listFiles { f -> CHOSEN.matchEntire(f.name)?.groupValues?.get(1) == slot.key }?.firstOrNull()
+        cache.listFiles { f -> CHOSEN.matchEntire(f.name)?.groupValues?.get(1) == slot.key }?.maxWithOrNull(compareBy({ it.lastModified() }, { it.name }))
 
     private val IMAGE = listOf("png", "jpg", "jpeg")
     private val PORTRAIT = listOf("cover", "poster", "grid", "boxart", "capsule", "folder", "library_600x900", "portrait")
@@ -147,7 +147,7 @@ object AddedGameArt {
     fun searchGames(context: Context, term: String): Found<SteamGridDb.Game> = sgdb(context) { SteamGridDb.search(it, term) }
 
     fun gameImages(context: Context, id: Int, slot: Slot): Found<Option> = sgdb(context) { key ->
-        SteamGridDb.page(key, id, slot).map { (thumb, full) -> Option(SGDB, thumb, full) }
+        SteamGridDb.all(key, id, slot).map { (thumb, full) -> Option(SGDB, thumb, full) }
     }
 
     private fun <T> sgdb(context: Context, call: (String) -> List<T>): Found<T> {
@@ -168,15 +168,30 @@ object AddedGameArt {
     }
 
     internal fun store(cache: File, slot: Slot, option: Option): Boolean {
+        val fresh = storeNew(cache, slot, option) ?: return false
+        dropOlder(cache, slot, fresh)
+        return true
+    }
+
+    internal fun dropOlder(cache: File, slot: Slot, keep: File) {
+        cache.listFiles { f -> f != keep && CHOSEN.matchEntire(f.name)?.groupValues?.get(1) == slot.key }?.forEach { it.delete() }
+    }
+
+    private val lastStamp = java.util.concurrent.atomic.AtomicLong(0)
+
+    private fun nextStamp(): Long = lastStamp.updateAndGet { maxOf(it + 1, System.currentTimeMillis()) }
+
+    internal fun storeNew(cache: File, slot: Slot, option: Option): File? {
         val bytes = if (option.full.startsWith("https://")) get(option.full) else runCatching { File(option.full).readBytes() }.getOrNull()
-        bytes ?: return false
+        bytes ?: return null
         val ext = option.full.substringAfterLast('.', "png").substringBefore('?').lowercase().takeIf { it in CHOOSABLE + "ico" } ?: "png"
         cache.mkdirs()
-        chosen(cache, slot)?.delete()
-        val dst = File(cache, "chosen-${slot.key}.${if (ext == "jpeg") "jpg" else ext}")
+        val suffix = if (ext == "jpeg") "jpg" else ext
+        var dst = File(cache, "chosen-${slot.key}-" + "%013d".format(nextStamp()) + "." + suffix)
+        while (dst.exists()) dst = File(cache, "chosen-${slot.key}-" + "%013d".format(nextStamp()) + "." + suffix)
         val tmp = File(cache, dst.name + ".tmp")
         tmp.writeBytes(bytes)
-        return tmp.renameTo(dst)
+        return if (tmp.renameTo(dst)) dst else null
     }
 
     fun chosenSource(context: Context, game: AddedGames.Game, slot: Slot): Pair<String, String> {

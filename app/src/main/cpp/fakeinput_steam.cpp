@@ -371,6 +371,17 @@ send_vibration(int strong, int weak, uint16_t duration_ms, uint16_t slot) {
   syscall(SYS_close, sock);
 }
 
+// Must match RumbleComponent.HOLD_MS: play until the slot's next effect or stop.
+static constexpr uint16_t RUMBLE_HOLD_MS = 0xffff;
+
+__attribute__((visibility("hidden"))) static void send_ff_effect(const struct ff_effect &effect, uint16_t slot) {
+  uint16_t duration = effect.replay.length ? effect.replay.length : RUMBLE_HOLD_MS;
+  if (effect.type == FF_RUMBLE)
+    send_vibration(effect.u.rumble.strong_magnitude, effect.u.rumble.weak_magnitude, duration, slot);
+  else if (effect.type == FF_PERIODIC)
+    send_vibration(effect.u.periodic.magnitude, effect.u.periodic.magnitude, duration, slot);
+}
+
 __attribute__((visibility("hidden"))) static void
 check_ff_event(const struct input_event *ev, uint16_t slot) {
   if (ev->type != EV_FF)
@@ -381,15 +392,7 @@ check_ff_event(const struct input_event *ev, uint16_t slot) {
     auto it = ff_effects().find(id);
     if (it == ff_effects().end())
       return;
-
-    uint16_t duration = it->second.replay.length;
-    if (it->second.type == FF_RUMBLE) {
-      send_vibration(it->second.u.rumble.strong_magnitude,
-                     it->second.u.rumble.weak_magnitude, duration, slot);
-    } else if (it->second.type == FF_PERIODIC) {
-      send_vibration(it->second.u.periodic.magnitude,
-                     it->second.u.periodic.magnitude, duration, slot);
-    }
+    send_ff_effect(it->second, slot);
   } else {
     send_vibration(0, 0, 0, slot);
   }
@@ -3469,16 +3472,7 @@ EXPORT int ioctl(int fd, ioctl_request_t op, ...) {
     if (effect->id == -1)
       effect->id = next_ff_id++;
     ff_effects()[effect->id] = *effect;
-
-    uint16_t duration = effect->replay.length;
-    uint16_t slot = static_cast<uint16_t>(event_number);
-    if (effect->type == FF_RUMBLE) {
-      send_vibration(effect->u.rumble.strong_magnitude,
-                     effect->u.rumble.weak_magnitude, duration, slot);
-    } else if (effect->type == FF_PERIODIC) {
-      send_vibration(effect->u.periodic.magnitude, effect->u.periodic.magnitude,
-                     duration, slot);
-    }
+    send_ff_effect(*effect, static_cast<uint16_t>(event_number));
     return 0;
   } else if (type == 0x45 && number == 0x81) {
     int id = (intptr_t)argp;
