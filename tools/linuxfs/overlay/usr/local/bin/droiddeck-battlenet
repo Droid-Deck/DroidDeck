@@ -26,9 +26,25 @@ the tray too) and returns at once; or for the lock, when the first start is just
 A game's Steam shortcut runs Battle.net.exe --exec="launch CODE" in this prefix, which the Proton
 wrapper hands here (droiddeck-store-launch): Battle.net opens first when it is not open, the game is
 handed to it, and the launch lasts as long as the game - a process in the prefix that is neither
-Wine's nor Battle.net's own. A Battle.net opened for the game is closed after it, so Steam sees the
-game end. On the desktop it runs in the desktop's own window; under gamescope its windows carry the
-launch's game id, which is what gamescope shows.
+Wine's nor Battle.net's own. What is left in the prefix once the game has exited is stopped, so Steam
+sees the game end. On the desktop it runs in the desktop's own window; under gamescope its windows
+carry the launch's game id, which is what gamescope shows.
+
+Battle.net takes about 3 GB under FEX - its pages are Chromium's, six processes each with its own
+translated code - and a phone with a game loading beside it runs out of memory, which Android answers
+by killing the whole session. So every start sets Battle.net's own "exit completely when I launch a
+game" in its config: it closes itself, cleanly, as it launches one, and its Agent follows. Whatever
+watches the prefix (a start, a launch) stops what is left of them once a game Battle.net launched (the
+-uid it starts its games with) has run GAME_SETTLE seconds - the games need neither once they are up -
+but never a Battle.net still open beside a game that signs in with its token (-sso): killed there, it
+lost the renewed token and the sign-in with it. It also closes a Battle.net that has outlived its
+Agent by AGENT_GONE seconds while none of its games runs: one that was closed but lingers (closing
+tells the Agent to quit), or one cut off from the Agent, which cannot download or launch anything and
+would not reconnect. A start after that opens a fresh one.
+
+The games' video memory is capped in the prefix's environment profile (the app's BattleNet
+.ensureVideoMemory, answering the FEX request): the wrapper applies it to Battle.net's start, and
+Battle.net passes its environment on to the games it launches.
 
 install-game asks Battle.net to install a game (Battle.net.exe --install --game=ID, as GOG Galaxy's
 Blizzard plugin does): the open Battle.net shows the game's install, or Battle.net is opened (and
@@ -57,6 +73,10 @@ LAUNCHER = "Battle.net Launcher.exe"
 CLIENT = "Battle.net.exe"
 CONFIG = ("users", "steamuser", "AppData", "Roaming", "Battle.net", "Battle.net.config")
 DEFAULT_CONFIG = {"Client": {"HardwareAcceleration": "true", "Streaming": {"StreamingEnabled": "false"}}}
+# Battle.net's "When I launch a game: exit Battle.net completely", set before every start (Lutris's
+# installer sets it too): it closes itself as it launches a game, cleanly - a game that signs in with
+# Battle.net's token (-sso) leaves the token to it, and one killed instead lost the sign-in.
+LAUNCH_BEHAVIOR = ("GameLaunchWindowBehavior", "2")
 CACHE = os.path.join(HOME, ".cache", "droiddeck", "battlenet")
 MENU = "/usr/local/share/applications/droiddeck-battlenet.desktop"
 FEX_REQUEST = "battlenet-fex.request"
@@ -71,8 +91,15 @@ STOP_WAIT = 5
 CLOSE_GRACE = 15
 # How long a second start waits for the first one to open Battle.net or to end.
 HANDOFF_WAIT = 120
-# What may be left in the prefix once Battle.net has closed: Wine's own processes, Proton's
-# steam.exe and Blizzard's Agent, which never exits by itself.
+# Battle.net and its Agent are closed once a game Battle.net launched has run this long (D2R ran on
+# with both killed at 20 seconds; it had used up the phone's memory by 50).
+GAME_SETTLE = 20
+# A Battle.net whose Agent has been gone this long is closed. The Agent quits 10 seconds after
+# Battle.net tells it to (as it closes) or after it stops answering; restarting to update, it is back
+# within seconds.
+AGENT_GONE = 30
+# Blizzard's Agent, the update service Battle.net and its installer drive.
+AGENT = "agent.exe"
 # What launch takes as a game's code (Playnite's ProductId): Pro, Fen, OSI, WTCG.
 CODE = re.compile(r"[A-Za-z0-9_]{1,16}")
 # What install-game takes: Battle.net's id for the game (its Agent's uid): fenris, osi, hs_beta.
@@ -89,6 +116,8 @@ CLIENT_WAIT = 300
 GAME_GRACE = 15
 # Battle.net's own processes live under its folders: Program Files (x86)\Battle.net, ProgramData\Battle.net.
 CLIENT_PATH = "\\battle.net\\"
+# What may be left in the prefix once Battle.net has closed: Wine's own processes, Proton's
+# steam.exe and Blizzard's Agent, which lingers for minutes after a Battle.net that was killed.
 IDLE = {"agent.exe", "conhost.exe", "explorer.exe", "plugplay.exe", "rpcss.exe", "services.exe",
         "start.exe", "steam.exe", "svchost.exe", "tabtip.exe", "winedevice.exe", "wineserver"}
 # Wine's own work, never a game's.
@@ -148,15 +177,46 @@ def installed(root):
 
 
 def write_config(root):
-    """Battle.net's first config, unless it has one: its pages drawn through WineD3D, no streaming."""
+    """Battle.net's config before it starts: its first one when it has none (its pages drawn through
+    WineD3D, no streaming), and in every one LAUNCH_BEHAVIOR; the rest of a config it has written is
+    left alone, and one that is not JSON altogether. "first" when it wrote a first config, "launch"
+    when it set LAUNCH_BEHAVIOR in one there was, None when nothing changed."""
     path = os.path.join(drive_c(root), *CONFIG)
-    if os.path.exists(path):
-        return False
+    key, value = LAUNCH_BEHAVIOR
+    try:
+        with open(path, encoding="utf-8-sig") as f:
+            config = json.load(f)
+    except FileNotFoundError:
+        config = None
+    except (OSError, ValueError):
+        return None
+    if config is None:
+        config, change = json.loads(json.dumps(DEFAULT_CONFIG)), "first"
+    elif isinstance(config, dict) and isinstance(config.setdefault("Client", {}), dict):
+        if config["Client"].get(key) == value:
+            return None
+        change = "launch"
+    else:
+        return None
+    config["Client"][key] = value
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path + ".tmp", "w", encoding="utf-8") as f:
-        json.dump(DEFAULT_CONFIG, f, indent=4)
+        json.dump(config, f, indent=4)
     os.replace(path + ".tmp", path)
-    return True
+    return change
+
+
+def configure(root):
+    """write_config, said in the log."""
+    try:
+        change = write_config(root)
+    except OSError as error:
+        say("Battle.net's config not written: %s" % error)
+        return
+    if change == "first":
+        say("wrote Battle.net's first config: hardware acceleration on, streaming off, closing itself as it launches a game")
+    elif change == "launch":
+        say("Battle.net's config: closing itself as it launches a game")
 
 
 def write_menu(path=MENU):
@@ -250,11 +310,81 @@ def running(pfx):
     return any(is_client(argv) for _, argv in wine_processes(pfx))
 
 
+def is_battlenet(argv):
+    """Whether a process is Battle.net's own: anything under its folders, its pages and its Agent too."""
+    return bool(argv) and CLIENT_PATH in argv[0].replace("/", "\\").lower()
+
+
 def is_game(argv):
     """Whether a process belongs to a game: a Windows program that is neither Wine's nor Battle.net's own."""
     if not argv or program(argv) in NOT_GAME or not re.match(r"[A-Za-z]:[\\/]", argv[0]):
         return False
-    return CLIENT_PATH not in argv[0].replace("/", "\\").lower()
+    return not is_battlenet(argv)
+
+
+def launched(argv):
+    """Whether a process is a game Battle.net launched, which it starts with -uid and the game's id
+    (D2R.exe -uid osi) - not an installer or a redistributable run while one installs or updates."""
+    return is_game(argv) and "-uid" in (arg.lower() for arg in argv[1:])
+
+
+def shares_sign_in(argv):
+    """Whether a game signs in with Battle.net's own token (-sso: Diablo IV), which Battle.net keeps
+    saved: killed under such a game, it lost the token the game had renewed, and with it the sign-in."""
+    return "-sso" in (arg.lower() for arg in argv[1:])
+
+
+def agent_up(processes):
+    """Whether Battle.net runs among [processes] with its Agent, so it can take a launch or an install."""
+    return any(is_client(argv) for _, argv in processes) and any(program(argv) == AGENT for _, argv in processes)
+
+
+class Tidy:
+    """What a start or a launch watching the prefix closes, so that Battle.net holds no memory it need
+    not: what is left of it once a game it launched has run GAME_SETTLE seconds (once a game, for as
+    long as it plays) - Battle.net closes itself as it launches one (LAUNCH_BEHAVIOR), its Agent goes
+    10 seconds later, and the rest is for when either does not; a Battle.net that has outlived its
+    Agent by AGENT_GONE seconds, while no game of its runs. A Battle.net that stayed open beside a game
+    signing in with its token is left alone: killing it would lose the sign-in."""
+
+    def __init__(self, settle=None, gone=None):
+        self.settle = GAME_SETTLE if settle is None else settle
+        self.gone = AGENT_GONE if gone is None else gone
+        self.game_since = None
+        self.closed_for_game = False
+        self.agent_seen = False
+        self.agent_lost = None
+
+    def __call__(self, processes, now):
+        """Closes what is due among [processes], the prefix's now. Whether it closed anything."""
+        own = [(pid, argv) for pid, argv in processes if is_battlenet(argv)]
+        games = [argv for _, argv in processes if launched(argv)]
+        if games:
+            self.game_since = self.game_since if self.game_since is not None else now
+            if own and not self.closed_for_game and now - self.game_since >= self.settle:
+                self.closed_for_game, self.agent_seen, self.agent_lost = True, False, None
+                if any(is_client(argv) for _, argv in own) and any(shares_sign_in(argv) for argv in games):
+                    say("Battle.net stayed open beside a game signing in with its token: left open")
+                    return False
+                say("the game is up: closing what is left of Battle.net (%d process(es)) to leave it their memory" % len(own))
+                stop(own)
+                return True
+            return False
+        self.game_since, self.closed_for_game = None, False
+        if not any(is_client(argv) for _, argv in processes):
+            self.agent_seen, self.agent_lost = False, None
+        elif agent_up(processes):
+            self.agent_seen, self.agent_lost = True, None
+        elif self.agent_seen:
+            self.agent_lost = self.agent_lost if self.agent_lost is not None else now
+            if now - self.agent_lost >= self.gone:
+                say("Battle.net has outlived its Agent: closing it (%d process(es))" % len(own))
+                stop(own)
+                notify("Battle.net was closed", "It had lost Blizzard's update service. Open it again to reconnect.",
+                       "dialog-warning")
+                self.agent_seen, self.agent_lost = False, None
+                return True
+        return False
 
 
 def proton_options():
@@ -295,9 +425,10 @@ def wait_while_open(pfx, grace, poll=None):
         time.sleep(POLL if poll is None else poll)
 
 
-def proton(exe, args=(), verb=None, watch=None, poll=None, close_grace=None):
+def proton(exe, args=(), verb=None, watch=None, poll=None, close_grace=None, tidy=None):
     """Runs [exe] in the prefix: (its status, whether Battle.net ran in [watch] meanwhile). Proton
-    returns once nothing runs in the prefix: what a closed Battle.net leaves is stopped then."""
+    returns once nothing runs in the prefix: what a closed Battle.net leaves is stopped then, and
+    Battle.net itself once a game is up or it has lost its Agent (Tidy)."""
     cmd = [PROTON_RUN] + proton_options() + ["--prefix", APP_ID] + (["--verb", verb] if verb else []) + [exe] + list(args)
     say(" ".join(cmd))
     try:
@@ -308,6 +439,7 @@ def proton(exe, args=(), verb=None, watch=None, poll=None, close_grace=None):
     seen = False
     closed_at = None
     grace = CLOSE_GRACE if close_grace is None else close_grace
+    tidy = Tidy() if tidy is None else tidy
     while True:
         try:
             status = process.wait(timeout=POLL if poll is None else poll)
@@ -317,11 +449,15 @@ def proton(exe, args=(), verb=None, watch=None, poll=None, close_grace=None):
         if watch is None:
             continue
         processes = wine_processes(watch)
+        now = time.monotonic()
+        if tidy(processes, now):
+            seen = True
+            processes = wine_processes(watch)
         if any(is_client(argv) for _, argv in processes):
             seen, closed_at = True, None
         elif seen and idle(processes):
-            closed_at = closed_at or time.monotonic()
-            if time.monotonic() - closed_at >= grace:
+            closed_at = closed_at if closed_at is not None else now
+            if now - closed_at >= grace:
                 say("Battle.net closed; stopping %d process(es) it left in its prefix" % len(processes))
                 stop(processes)
                 closed_at = None
@@ -366,8 +502,7 @@ def install(root, pfx, verb=None):
     if setup is None:
         notify("Battle.net could not be downloaded", "Check the connection and try again.", "dialog-error")
         return False, False
-    if write_config(root):
-        say("wrote Battle.net's first config: hardware acceleration on, streaming off")
+    configure(root)
     notify("Installing Battle.net", "Blizzard's installer opens in a window. It can take a few minutes.")
     _, seen = proton(setup, verb=verb, watch=pfx)
     return installed(root), seen
@@ -409,12 +544,16 @@ def spawn(program, verb, args=()):
 def show(root, wait=None, poll=None, args=()):
     """Another start while one holds the lock: Battle.net.exe beside an open Battle.net, which hands
     over to it (its window comes up, from the tray too, and [args] are done there) and exits; or, when
-    the first start is ending (Battle.net just closed), the lock once it is free. The lock then, or None."""
+    the first start is ending (Battle.net just closed), the lock once it is free. The lock then, or None.
+    A Battle.net without its Agent is handed nothing until the Agent is up: it is starting, or it has
+    lost the Agent, and then the start holding the lock closes it and the lock comes free."""
     pfx = os.path.join(prefix(root), "pfx")
     client = os.path.join(client_dir(root), CLIENT)
     deadline = time.monotonic() + (HANDOFF_WAIT if wait is None else wait)
     while True:
-        if running(pfx) and os.path.isfile(client):
+        processes = wine_processes(pfx)
+        if any(is_client(argv) for _, argv in processes) and os.path.isfile(client) \
+                and (agent_up(processes) or time.monotonic() >= deadline):
             spawn(client, "run", args)
             return None
         lock = acquire()
@@ -464,6 +603,7 @@ def open_client(root, reinstall=False):
         if wait_while_open(pfx, grace=0 if seen else START_GRACE) or seen:
             return 0
         verb = None if stop_leftovers(pfx) else "run"
+    configure(root)
     status_code, seen = proton(launcher(root), verb=verb, watch=pfx)
     say("Proton returned %d; Battle.net %s" % (status_code, "ran" if seen else "has not been seen yet"))
     # The launcher starts Battle.net.exe and exits; the lock is held until Battle.net closes.
@@ -500,34 +640,40 @@ def wait_ready(pfx, wait=None, poll=None, settle=None):
         time.sleep(POLL if poll is None else poll)
 
 
-def follow(pfx, poll=None, grace=None):
+def follow(pfx, poll=None, grace=None, tidy=None):
     """Waits for a game to start in the prefix and then to exit. Whether one ran: False when Battle.net
     closes before one starts. No time limit before it starts - Battle.net may update it first, or wait
-    for a sign-in - for as long as Battle.net stays open."""
+    for a sign-in - for as long as Battle.net stays open. Battle.net itself is closed once the game is
+    up (Tidy): the game plays on without it."""
     seen, gone_at = False, None
     grace = GAME_GRACE if grace is None else grace
+    tidy = Tidy() if tidy is None else tidy
     while True:
         processes = wine_processes(pfx)
-        games = sorted({program(argv) for _, argv in processes if is_game(argv)})
         now = time.monotonic()
+        if tidy(processes, now):
+            processes = wine_processes(pfx)
+        games = sorted({program(argv) for _, argv in processes if is_game(argv)})
         if games:
             if not seen:
                 say("game running: %s" % ", ".join(games))
             seen, gone_at = True, None
-        elif seen:
-            gone_at = gone_at or now
+        elif seen or not any(is_client(argv) for _, argv in processes):
+            # Neither the game nor, before it, Battle.net: over once that lasts (a launcher handing
+            # over to the game, Battle.net closing itself as it launches one, is not an end).
+            gone_at = gone_at if gone_at is not None else now
             if now - gone_at >= grace:
-                say("the game has exited")
-                return True
-        elif not any(is_client(argv) for _, argv in processes):
-            say("Battle.net closed before a game started")
-            return False
+                say("the game has exited" if seen else "Battle.net closed before a game started")
+                return seen
+        else:
+            gone_at = None
         time.sleep(POLL if poll is None else poll)
 
 
 def launch(root, code):
     """[code] as its Steam shortcut launches it: handed to the Battle.net that is open, or to one opened
-    for it and closed again once the game has exited. Lasts as long as the game."""
+    for it. Either is closed once the game is up (follow); what one opened for it left is stopped once
+    the game has exited. Lasts as long as the game."""
     pfx = os.path.join(prefix(root), "pfx")
     client = os.path.join(client_dir(root), CLIENT)
     if not installed(root) or not os.path.isfile(client):
@@ -541,6 +687,7 @@ def launch(root, code):
             answer = ask_fex(os.environ.get("BL_LAUNCH_DIR"))
             say("FEX: %s" % (answer or "no answer from the app; Components' choice stays"))
             verb = None if stop_leftovers(pfx) else "run"
+            configure(root)
             own = start(launcher(root), verb)
             if own is None:
                 return 127
@@ -553,7 +700,7 @@ def launch(root, code):
         played = follow(pfx)
         if own is not None:
             leftovers = wine_processes(pfx)
-            say("closing the Battle.net opened for %s: %d process(es)" % (code, len(leftovers)))
+            say("stopping what the Battle.net opened for %s left: %d process(es)" % (code, len(leftovers)))
             stop(leftovers)
             try:
                 own.wait(timeout=STOP_WAIT * 4)
@@ -577,7 +724,7 @@ def hand_over(root, args, wait=None):
 def install_game(root, uid):
     """Battle.net on [uid]'s install: the open one, or one opened (installed first if need be) for it."""
     args = ["--install", "--game=%s" % uid]
-    if installed(root) and running(os.path.join(prefix(root), "pfx")):
+    if installed(root) and agent_up(wine_processes(os.path.join(prefix(root), "pfx"))):
         say("asking the open Battle.net to install %s" % uid)
         spawn(os.path.join(client_dir(root), CLIENT), "run", args)
         return 0
