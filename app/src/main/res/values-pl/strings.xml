@@ -855,7 +855,7 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android zatrzymuje aplikacje, które uruchamiają wiele procesów w tle, a Steam uruchamia ich kilkadziesiąt. Dopóki to się nie zmieni, gry zamykają się bez błędu.</string>
     <string name="gate_fix_for_me">Napraw to za mnie</string>
-    <string name="gate_toggle_steps">Włącz „Wyłącz ograniczenia procesów podrzędnych” i wróć tutaj. Zostaw włączone Opcje programisty, bo inaczej przełącznik znowu się wyłączy.</string>
+    <string name="gate_toggle_steps">Włącz „Wyłącz ograniczenia procesów podrzędnych aplikacji” i wróć tutaj. Zostaw włączone Opcje programisty, bo inaczej przełącznik znowu się wyłączy.</string>
     <string name="gate_open_dev">Otwórz Opcje programisty</string>
     <string name="gate_no_toggle">Ta wersja Androida nie ma dla tego przełącznika, więc DroidDeck zmienia go przez debugowanie bezprzewodowe. Zajmuje to około minuty, bez potrzeby komputera.</string>
     <string name="gate_needs_wifi">Debugowanie bezprzewodowe wymaga Wi-Fi. Działa każda sieć; nie musi mieć internetu.</string>
@@ -1841,7 +1841,7 @@
     <string name="phantom_instructions_fix">%1$s Jeśli to niemożliwe, podłącz to urządzenie do komputera z ADB i uruchom poniższe polecenie. Wróć tutaj i sprawdź ponownie.</string>
     <string name="phantom_instructions_off">Sesje Steam mogą się uruchamiać.</string>
     <string name="phantom_instructions_not_applicable">Ta wersja systemu Android nie używa tego limitu.</string>
-    <string name="phantom_fix_toggle">Włącz „Wyłącz ograniczenia procesów podrzędnych” w Opcjach programisty i nie wyłączaj potem Opcji programisty.</string>
+    <string name="phantom_fix_toggle">Włącz „Wyłącz ograniczenia procesów podrzędnych aplikacji” w Opcjach programisty i nie wyłączaj potem Opcji programisty.</string>
     <string name="phantom_fix_no_toggle">Ta wersja systemu Android nie ma dla niego przełącznika. Użyj debugowania bezprzewodowego, aby zmienić go z tego urządzenia.</string>
     <string name="upd_block_no_apk">Ta wersja nie ma pliku do pobrania dla tej kopii DroidDeck.</string>
     <string name="upd_block_version_code">Android nie zainstaluje jej na tej wersji, bo jej versionCode %1$d jest niższy niż zainstalowany %2$d.</string>

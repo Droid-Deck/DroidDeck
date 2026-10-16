@@ -58,7 +58,7 @@
     <string name="game_env_save">Сохранить</string>
     <string name="game_env_remove">Удалить</string>
     <string name="game_env_restore">Восстановить наследование</string>
-    <string name="game_env_reset">Сбросить профиль</string>
+    <string name="game_env_reset">Очистить переопределения среды</string>
     <string name="game_env_unset">Не задавать в этом профиле</string>
     <string name="game_env_empty">Переменные не заданы.</string>
     <string name="game_env_inherited">Унаследовано</string>
@@ -266,7 +266,7 @@
     <string name="mode_controller_ds4">DualShock 4</string>
     <string name="mode_controller_dualsense">DualSense</string>
     <string name="mode_controller_x360">Контроллер Xbox 360</string>
-    <string name="mode_controller_note">Deck: кнопка быстрого доступа и гироскоп. Xbox 360: используйте Guide+A для быстрого доступа.</string>
+    <string name="mode_controller_note">Deck: кнопка быстрого доступа и гироскоп. Steam Controller: то же самое, с датчиком хвата на задних кнопках. DualShock 4 и DualSense: гироскоп, а трекпады работают как их тачпад. Xbox 360: используйте Guide+A для быстрого доступа.</string>
     <string name="mode_back">Назад</string>
     <string name="back_menu_then_qam">Меню → QAM</string>
     <string name="back_qam_then_menu">QAM → Меню</string>
@@ -473,7 +473,7 @@
     <string name="comp_applies_next_game">Вступит в силу при следующем запуске игры</string>
     <string name="comp_import_zip">Импорт .zip</string>
     <string name="comp_reading">Чтение Proton…</string>
-    <string name="comp_no_proton">Proton еще не установлен. Запустите Steam один раз, чтобы скачать ARM64 Proton, или добавьте GE-Proton или CachyOS на странице «Настройка».</string>
+    <string name="comp_no_proton">Proton еще не установлен. Запустите Steam один раз, чтобы скачать ARM64 Proton, или добавьте GE-Proton, CachyOS или DroidDeck-Proton на странице «Настройка».</string>
     <string name="comp_original">Оригинал · %1$s</string>
     <string name="comp_this_build">%1$s · текущая сборка</string>
     <string name="comp_earlier_build">%1$s · более ранняя сборка</string>
@@ -863,7 +863,7 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android останавливает приложения, запускающие множество фоновых процессов, а Steam запускает десятки. До изменения этой настройки игры могут закрываться без сообщения об ошибке.</string>
     <string name="gate_fix_for_me">Исправить автоматически</string>
-    <string name="gate_toggle_steps">Включите «Отключить ограничение дочерних процессов» и вернитесь. Оставьте раздел «Для разработчиков» включенным, иначе переключатель снова отключится.</string>
+    <string name="gate_toggle_steps">Включите «Отключить ограничения для дочерних процессов» и вернитесь. Оставьте раздел «Для разработчиков» включенным, иначе переключатель снова отключится.</string>
     <string name="gate_open_dev">Открыть «Для разработчиков»</string>
     <string name="gate_no_toggle">В этой версии Android нет такого переключателя, поэтому DroidDeck внесет изменения через отладку по Wi-Fi. Это займет около минуты, компьютер не нужен.</string>
     <string name="gate_needs_wifi">Для отладки по Wi-Fi требуется Wi-Fi. Подойдет любая сеть, интернет не нужен.</string>
@@ -1849,7 +1849,7 @@
     <string name="phantom_instructions_fix">%1$s Если это невозможно, подключите устройство к компьютеру с ADB и выполните команду ниже. Затем вернитесь сюда и проверьте снова.</string>
     <string name="phantom_instructions_off">Сессии Steam могут запускаться.</string>
     <string name="phantom_instructions_not_applicable">Эта версия Android не использует это ограничение.</string>
-    <string name="phantom_fix_toggle">Включите «Отключить ограничение дочерних процессов» в разделе «Для разработчиков» и оставьте этот раздел включенным.</string>
+    <string name="phantom_fix_toggle">Включите «Отключить ограничения для дочерних процессов» в разделе «Для разработчиков» и оставьте этот раздел включенным.</string>
     <string name="phantom_fix_no_toggle">В этой версии Android нет такого переключателя. Измените настройку с этого устройства через отладку по Wi-Fi.</string>
     <string name="upd_block_no_apk">В этой сборке нет загрузки для этой копии DroidDeck.</string>
     <string name="upd_block_version_code">Android не установит ее поверх этой сборки, так как ее versionCode %1$d ниже установленного %2$d.</string>

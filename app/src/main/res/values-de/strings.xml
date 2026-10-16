@@ -843,7 +843,7 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android stoppt Apps, die viele Hintergrundprozesse starten, und Steam startet Dutzende. Solange das so bleibt, werden Spiele ohne Fehlermeldung geschlossen.</string>
     <string name="gate_fix_for_me">Für mich beheben</string>
-    <string name="gate_toggle_steps">Aktiviere „Einschränkungen für untergeordnete Prozesse deaktivieren“ und kehre dann zurück. Lass die Entwickleroptionen aktiviert, sonst geht der Schalter wieder aus.</string>
+    <string name="gate_toggle_steps">Aktiviere „Beschränkungen für Unterprozesse deaktivieren“ und kehre dann zurück. Lass die Entwickleroptionen aktiviert, sonst geht der Schalter wieder aus.</string>
     <string name="gate_open_dev">Entwickleroptionen öffnen</string>
     <string name="gate_no_toggle">Diese Android-Version hat dafür keinen Schalter, deshalb ändert DroidDeck es über „Debugging über WLAN“. Dauert etwa eine Minute, kein Computer nötig.</string>
     <string name="gate_needs_wifi">„Debugging über WLAN“ braucht eine Wi-Fi-Verbindung. Jedes Netzwerk geht; Internet ist nicht nötig.</string>
@@ -1799,7 +1799,7 @@
     <string name="phantom_instructions_fix">%1$s Falls das nicht möglich ist, verbinde dieses Gerät per ADB mit einem Computer und führe den Befehl unten aus. Kehre dann hierher zurück und prüfe erneut.</string>
     <string name="phantom_instructions_off">Steam-Sitzungen können starten.</string>
     <string name="phantom_instructions_not_applicable">Diese Android-Version nutzt dieses Limit nicht.</string>
-    <string name="phantom_fix_toggle">Aktiviere „Einschränkungen für untergeordnete Prozesse deaktivieren“ in den Entwickleroptionen und lass die Entwickleroptionen danach aktiviert.</string>
+    <string name="phantom_fix_toggle">Aktiviere „Beschränkungen für Unterprozesse deaktivieren“ in den Entwickleroptionen und lass die Entwickleroptionen danach aktiviert.</string>
     <string name="phantom_fix_no_toggle">Diese Android-Version hat dafür keinen Schalter. Nutze Debugging über WLAN, um es auf diesem Gerät zu ändern.</string>
     <string name="upd_block_no_apk">Dieser Build hat keinen Download für diese DroidDeck-Installation.</string>
     <string name="upd_block_version_code">Android installiert ihn nicht über diesen Build, weil sein versionCode %1$d unter dem installierten %2$d liegt.</string>

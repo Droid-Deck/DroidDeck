@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.stores
 
 import android.annotation.SuppressLint
+import android.content.res.Configuration
 import android.graphics.Color
 import android.net.Uri
 import android.net.http.SslError
@@ -64,6 +65,10 @@ class StoreLoginActivity : ComponentActivity() {
     private lateinit var errorPanel: LinearLayout
     private lateinit var errorText: TextView
     private lateinit var titleText: TextView
+    private lateinit var topBar: LinearLayout
+    private lateinit var reloadButton: ImageButton
+    private lateinit var closeButton: ImageButton
+    private lateinit var retryButton: Button
     private var oauthState: String? = null
     private val captured = AtomicBoolean(false)
     private var flooded = false
@@ -130,6 +135,7 @@ class StoreLoginActivity : ComponentActivity() {
             contentDescription = getString(R.string.stores_login_close); layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
             setOnClickListener { finish() }
         }
+        topBar = bar; reloadButton = reload; closeButton = close
         bar.addView(titleText); bar.addView(reload); bar.addView(close)
         progressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 100; isIndeterminate = false
@@ -144,11 +150,30 @@ class StoreLoginActivity : ComponentActivity() {
         }
         errorText = TextView(this).apply { setTextColor(0xFFF2F4F7.toInt()); textSize = 15f; gravity = Gravity.CENTER }
         val retry = Button(this).apply { text = getString(R.string.stores_login_retry); setOnClickListener { reloadLogin() } }
+        retryButton = retry
         errorPanel.addView(errorText)
         errorPanel.addView(retry, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(16) })
         contentHost.addView(errorPanel, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         root.addView(bar); root.addView(progressBar); root.addView(contentHost)
         return root
+    }
+
+    /**
+     * The activity handles density changes itself so that folding between two displays of different
+     * density keeps the page and the sign-in in progress; the dp-based chrome sizes are applied again.
+     */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (!::topBar.isInitialized) return
+        topBar.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48))
+        titleText.setPadding(dp(16), 0, dp(8), 0)
+        titleText.textSize = 16f
+        errorText.textSize = 15f
+        reloadButton.layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
+        closeButton.layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
+        progressBar.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(3))
+        errorPanel.setPadding(dp(24), dp(24), dp(24), dp(24))
+        retryButton.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(16) }
     }
 
     private fun showError(message: String) {
@@ -171,6 +196,9 @@ class StoreLoginActivity : ComponentActivity() {
         setBackgroundColor(0xFF0A0B0D.toInt())
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
+        // Store sign-in pages are web pages; they never need to read local files or content:// URIs.
+        settings.allowFileAccess = false
+        settings.allowContentAccess = false
         settings.userAgentString = userAgent
         settings.setSupportMultipleWindows(true)
         settings.javaScriptCanOpenWindowsAutomatically = true
