@@ -2336,4 +2336,19 @@
     <string name="stores_hltb_completionist">الإكمال التام</string>
     <string name="stores_hltb_hours">%1$s س</string>
     <string name="stores_hltb_minutes">%1$d د</string>
+    <string name="boot_movie">فيديو الإقلاع</string>
+    <string name="boot_movie_video">الفيديو</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d إطار/ث</string>
+    <string name="boot_movie_note">معدل 60 إطارًا/ث أكثر سلاسة لكنه يستهلك المعالج أكثر أثناء بدء Steam. فيديو البدء المختار في إعدادات Steam نفسها له الأولوية.</string>
+    <string name="boot_movie_sound">الصوت</string>
+    <string name="boot_movie_custom">فيديو خاص بك</string>
+    <string name="boot_movie_custom_hint">WebM أو MKV أو MP4 بفيديو VP8 أو VP9 أو AV1، حتى %1$d ميغابايت. دقة 1280×720 بمعدل 30 أو 60 إطارًا/ث هي الأكثر سلاسة.</string>
+    <string name="boot_movie_import">استيراد</string>
+    <string name="boot_movie_remove">إزالة</string>
+    <string name="boot_movie_pick">اختر فيديو الإقلاع</string>
+    <string name="boot_movie_imported">أصبح %1$s فيديو الإقلاع</string>
+    <string name="boot_movie_imported_silent">أصبح %1$s فيديو الإقلاع، بلا صوت</string>
+    <string name="boot_movie_too_large">يجب ألا يتجاوز فيديو الإقلاع %1$d ميغابايت</string>
+    <string name="boot_movie_unsupported">يعرض Steam فيديو VP8 أو VP9 أو AV1 فقط. حوّله إلى WebM أولًا.</string>
+    <string name="boot_movie_import_failed">تعذّر استيراد الفيديو</string>
 </resources>

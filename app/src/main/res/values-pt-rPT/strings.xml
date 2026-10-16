@@ -2275,4 +2275,19 @@
     <string name="stores_storage_low">Espaço insuficiente (%1$s livres, são necessários %2$s)</string>
     <string name="stores_storage_insufficient">Espaço livre insuficiente: são necessários %1$s, só há %2$s livres</string>
     <string name="stores_target_free_unknown">Espaço livre desconhecido</string>
+    <string name="boot_movie">Vídeo de arranque</string>
+    <string name="boot_movie_video">Vídeo</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
+    <string name="boot_movie_note">60 fps é mais fluido, mas usa mais CPU enquanto o Steam arranca. Um vídeo de arranque escolhido nas definições do Steam tem prioridade.</string>
+    <string name="boot_movie_sound">Som</string>
+    <string name="boot_movie_custom">O seu próprio vídeo</string>
+    <string name="boot_movie_custom_hint">WebM, MKV ou MP4 com vídeo VP8, VP9 ou AV1, até %1$d MB. 1280×720 a 30 ou 60 fps é o mais fluido.</string>
+    <string name="boot_movie_import">Importar</string>
+    <string name="boot_movie_remove">Remover</string>
+    <string name="boot_movie_pick">Escolha um vídeo de arranque</string>
+    <string name="boot_movie_imported">%1$s é agora o vídeo de arranque</string>
+    <string name="boot_movie_imported_silent">%1$s é agora o vídeo de arranque, sem som</string>
+    <string name="boot_movie_too_large">Os vídeos de arranque têm de ter %1$d MB ou menos</string>
+    <string name="boot_movie_unsupported">O Steam só reproduz vídeo VP8, VP9 ou AV1. Converta primeiro para WebM.</string>
+    <string name="boot_movie_import_failed">Não foi possível importar esse vídeo</string>
 </resources>

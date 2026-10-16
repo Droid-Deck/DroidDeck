@@ -2236,4 +2236,19 @@
     <string name="stores_hltb_completionist">Teljes</string>
     <string name="stores_hltb_hours">%1$s óra</string>
     <string name="stores_hltb_minutes">%1$d perc</string>
+    <string name="boot_movie">Indítóvideó</string>
+    <string name="boot_movie_video">Videó</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
+    <string name="boot_movie_note">A 60 fps simább, de jobban terheli a processzort a Steam indulása közben. A Steam saját beállításaiban választott indítóvideó elsőbbséget élvez.</string>
+    <string name="boot_movie_sound">Hang</string>
+    <string name="boot_movie_custom">Saját videó</string>
+    <string name="boot_movie_custom_hint">WebM, MKV vagy MP4 VP8, VP9 vagy AV1 videóval, legfeljebb %1$d MB. 1280×720 30 vagy 60 fps-sel fut a legsimábban.</string>
+    <string name="boot_movie_import">Importálás</string>
+    <string name="boot_movie_remove">Eltávolítás</string>
+    <string name="boot_movie_pick">Válassz indítóvideót</string>
+    <string name="boot_movie_imported">Mostantól %1$s az indítóvideó</string>
+    <string name="boot_movie_imported_silent">Mostantól %1$s az indítóvideó, hang nélkül</string>
+    <string name="boot_movie_too_large">Az indítóvideó legfeljebb %1$d MB lehet</string>
+    <string name="boot_movie_unsupported">A Steam csak VP8, VP9 vagy AV1 videót játszik le. Előbb alakítsd WebM-re.</string>
+    <string name="boot_movie_import_failed">Nem sikerült importálni a videót</string>
 </resources>

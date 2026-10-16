@@ -2219,4 +2219,19 @@
     <string name="drawer_component_downloads">구성 요소 다운로드</string>
     <string name="drawer_component_downloads_hint">다운로드는 구성 요소 페이지와 공유됩니다. 위에서 다운로드한 버전을 선택하면 다음 게임 실행 시 사용됩니다.</string>
     <string name="drawer_component_choose_download">다운로드할 버전 선택</string>
+    <string name="boot_movie">부팅 동영상</string>
+    <string name="boot_movie_video">동영상</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
+    <string name="boot_movie_note">60 fps는 더 부드럽지만 Steam이 시작되는 동안 CPU를 더 사용합니다. Steam 자체 설정에서 고른 시작 동영상이 우선합니다.</string>
+    <string name="boot_movie_sound">소리</string>
+    <string name="boot_movie_custom">내 동영상</string>
+    <string name="boot_movie_custom_hint">VP8, VP9 또는 AV1 영상의 WebM, MKV, MP4 파일, 최대 %1$d MB. 1280×720, 30 또는 60 fps가 가장 부드럽습니다.</string>
+    <string name="boot_movie_import">가져오기</string>
+    <string name="boot_movie_remove">삭제</string>
+    <string name="boot_movie_pick">부팅 동영상 선택</string>
+    <string name="boot_movie_imported">%1$s이(가) 이제 부팅 동영상입니다</string>
+    <string name="boot_movie_imported_silent">%1$s이(가) 이제 부팅 동영상입니다(소리 없음)</string>
+    <string name="boot_movie_too_large">부팅 동영상은 %1$d MB 이하여야 합니다</string>
+    <string name="boot_movie_unsupported">Steam은 VP8, VP9, AV1 영상만 재생합니다. 먼저 WebM으로 변환하세요.</string>
+    <string name="boot_movie_import_failed">동영상을 가져오지 못했습니다</string>
 </resources>

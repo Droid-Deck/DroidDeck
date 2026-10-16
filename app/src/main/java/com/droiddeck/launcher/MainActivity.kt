@@ -209,6 +209,9 @@ class MainActivity : ComponentActivity() {
     private val pickDeckyPluginZip = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { decky.importPluginZip(it) }
     }
+    private val pickBootMovie = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { importBootMovie(it) }
+    }
     private val pickAnyDriver = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedUri(r.data)?.let { drivers.importDriver(it, linux = null) }
     }
@@ -251,6 +254,32 @@ class MainActivity : ComponentActivity() {
             val state = Lossless.state(this)
             ui.post { lossless = state }
         }, "lossless-sync").start()
+    }
+
+    private fun importBootMovie(file: File) {
+        bootMovieImporting = true
+        Thread({
+            val result = com.droiddeck.launcher.session.BootMovie.import(this, file)
+            val message = when (result) {
+                is com.droiddeck.launcher.session.BootMovie.Import.Done -> getString(
+                    if (result.audioDropped) R.string.boot_movie_imported_silent else R.string.boot_movie_imported, result.name)
+                com.droiddeck.launcher.session.BootMovie.Import.TooLarge ->
+                    getString(R.string.boot_movie_too_large, (com.droiddeck.launcher.session.BootMovie.MAX_BYTES shr 20).toInt())
+                is com.droiddeck.launcher.session.BootMovie.Import.Unsupported -> getString(R.string.boot_movie_unsupported)
+                com.droiddeck.launcher.session.BootMovie.Import.Failed -> getString(R.string.boot_movie_import_failed)
+            }
+            ui.post {
+                bootMovieImporting = false
+                loadBootMovie()
+                android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_LONG).show()
+            }
+        }, "boot-movie-import").start()
+    }
+
+    private fun loadBootMovie() {
+        bootMovie = com.droiddeck.launcher.session.BootMovie.choice(this)
+        bootMovieSound = SessionPrefs.bootMovieSound(this)
+        bootMovieCustomName = com.droiddeck.launcher.session.BootMovie.customName(this)
     }
 
     private fun importLossless(dll: File) {
@@ -329,6 +358,10 @@ class MainActivity : ComponentActivity() {
     private var fexPreset by mutableStateOf("")
     private var forceSsbs by mutableStateOf(false)
     private var runSteamAtStartup by mutableStateOf(false)
+    private var bootMovie by mutableStateOf(com.droiddeck.launcher.session.BootMovie.DROIDDECK_30)
+    private var bootMovieSound by mutableStateOf(true)
+    private var bootMovieCustomName by mutableStateOf<String?>(null)
+    private var bootMovieImporting by mutableStateOf(false)
     private var theme by mutableStateOf("graphite")
     private var appScale by mutableStateOf(com.droiddeck.launcher.core.AppUiPrefs.DEFAULT_SCALE)
     private var hdrOn by mutableStateOf(false)
@@ -1318,6 +1351,10 @@ class MainActivity : ComponentActivity() {
                 mangoapp = mangoapp,
                 steamController = if (mode == SessionService.MODE_STEAM) steamController else null,
                 runSteamAtStartup = mode == SessionService.MODE_STEAM && runSteamAtStartup,
+                bootMovie = if (mode == SessionService.MODE_STEAM) bootMovie else null,
+                bootMovieSound = bootMovieSound,
+                bootMovieCustomName = bootMovieCustomName,
+                bootMovieImporting = bootMovieImporting,
                 wifiDiscovery = if (mode == SessionService.MODE_STEAM) wifiDiscovery else null,
                 wifiDiscoveryPermission = wifiDiscoveryPermission,
                 wifiDiscoveryLocation = wifiDiscoveryLocation,
@@ -1398,6 +1435,12 @@ class MainActivity : ComponentActivity() {
                     SessionPrefs.setRunSteamAtStartup(this, on)
                     runSteamAtStartup = on
                 },
+                onBootMovie = { id -> SessionPrefs.setBootMovie(this, id); loadBootMovie() },
+                onBootMovieSound = { on -> SessionPrefs.setBootMovieSound(this, on); bootMovieSound = on },
+                onImportBootMovie = {
+                    pickBootMovie.launch(InAppFilePicker.buildIntent(this, com.droiddeck.launcher.session.BootMovie.PICKER_EXTENSIONS, getString(R.string.boot_movie_pick)))
+                },
+                onRemoveBootMovie = { com.droiddeck.launcher.session.BootMovie.removeCustom(this); loadBootMovie() },
                 onDeckyInstall = { release -> decky.installDecky(release) },
                 onDeckyCheck = { decky.refreshDecky() },
                 onDeckyEnabled = { enabled -> DeckyManager.setSupervisorEnabled(this, enabled); decky.deckySupervisor = enabled },
@@ -1522,6 +1565,7 @@ class MainActivity : ComponentActivity() {
         mangoapp = SessionPrefs.mangoapp(this)
         steamController = SessionPrefs.steamController(this)
         runSteamAtStartup = SessionPrefs.runSteamAtStartup(this)
+        loadBootMovie()
         hdrOn = SessionPrefs.hdr(this, mode)
         fpsLimit = SessionPrefs.fpsLimit(this, mode)
         upscaler = SessionPrefs.upscaler(this)

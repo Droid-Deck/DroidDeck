@@ -499,6 +499,16 @@ object SessionPrefs {
             .onFailure { android.util.Log.e("GameEnvironment", "Could not update game environment", it) }
     }
 
+    fun bootMovie(context: Context): String =
+        prefs(context).getString("bootMovie", BootMovie.DROIDDECK_30) ?: BootMovie.DROIDDECK_30
+    fun setBootMovie(context: Context, id: String) { prefs(context).edit().putString("bootMovie", id).apply() }
+    fun bootMovieSound(context: Context): Boolean = prefs(context).getBoolean("bootMovieSound", true)
+    fun setBootMovieSound(context: Context, on: Boolean) { prefs(context).edit().putBoolean("bootMovieSound", on).apply() }
+    fun bootMovieCustomName(context: Context): String? = prefs(context).getString("bootMovieCustomName", null)
+    fun setBootMovieCustomName(context: Context, name: String?) {
+        prefs(context).edit().apply { if (name == null) remove("bootMovieCustomName") else putString("bootMovieCustomName", name) }.apply()
+    }
+
     fun runSteamAtStartup(context: Context): Boolean = prefs(context).getBoolean("runSteamAtStartup", false)
 
     fun setRunSteamAtStartup(context: Context, on: Boolean) {

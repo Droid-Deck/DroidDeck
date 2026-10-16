@@ -2233,4 +2233,19 @@
     <string name="display_position_top">置顶</string>
     <string name="display_position_bottom">置底</string>
     <string name="display_position_center">居中（默认）</string>
+    <string name="boot_movie">开机动画</string>
+    <string name="boot_movie_video">视频</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
+    <string name="boot_movie_note">60 fps 更流畅，但 Steam 启动时会占用更多 CPU。在 Steam 自身设置中选择的启动动画优先。</string>
+    <string name="boot_movie_sound">声音</string>
+    <string name="boot_movie_custom">自定义视频</string>
+    <string name="boot_movie_custom_hint">VP8、VP9 或 AV1 视频的 WebM、MKV 或 MP4，最大 %1$d MB。1280×720、30 或 60 fps 播放最流畅。</string>
+    <string name="boot_movie_import">导入</string>
+    <string name="boot_movie_remove">移除</string>
+    <string name="boot_movie_pick">选择开机动画</string>
+    <string name="boot_movie_imported">%1$s 现在是开机动画</string>
+    <string name="boot_movie_imported_silent">%1$s 现在是开机动画（无声）</string>
+    <string name="boot_movie_too_large">开机动画不能超过 %1$d MB</string>
+    <string name="boot_movie_unsupported">Steam 只能播放 VP8、VP9 或 AV1 视频。请先转换为 WebM。</string>
+    <string name="boot_movie_import_failed">无法导入该视频</string>
 </resources>

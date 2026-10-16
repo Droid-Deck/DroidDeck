@@ -90,4 +90,19 @@
         <item quantity="many">%1$d juegos agregados</item>
         <item quantity="other">%1$d juegos agregados</item>
     </plurals>
+    <string name="boot_movie">Video de arranque</string>
+    <string name="boot_movie_video">Video</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
+    <string name="boot_movie_note">60 fps se ve más fluido pero usa más CPU mientras Steam se inicia. Un video de inicio elegido en la configuración de Steam tiene prioridad.</string>
+    <string name="boot_movie_sound">Sonido</string>
+    <string name="boot_movie_custom">Tu propio video</string>
+    <string name="boot_movie_custom_hint">WebM, MKV o MP4 con video VP8, VP9 o AV1, hasta %1$d MB. 1280×720 a 30 o 60 fps es lo más fluido.</string>
+    <string name="boot_movie_import">Importar</string>
+    <string name="boot_movie_remove">Quitar</string>
+    <string name="boot_movie_pick">Elige un video de arranque</string>
+    <string name="boot_movie_imported">%1$s es ahora el video de arranque</string>
+    <string name="boot_movie_imported_silent">%1$s es ahora el video de arranque, sin sonido</string>
+    <string name="boot_movie_too_large">Los videos de arranque deben pesar %1$d MB o menos</string>
+    <string name="boot_movie_unsupported">Steam solo reproduce video VP8, VP9 o AV1. Conviértelo antes a WebM.</string>
+    <string name="boot_movie_import_failed">No se pudo importar ese video</string>
 </resources>

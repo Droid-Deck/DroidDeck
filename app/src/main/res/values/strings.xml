@@ -2509,4 +2509,19 @@
         <item quantity="one">%d app</item>
         <item quantity="other">%d apps</item>
     </plurals>
+    <string name="boot_movie">Boot movie</string>
+    <string name="boot_movie_video">Movie</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
+    <string name="boot_movie_note">60 fps looks smoother but uses more CPU while Steam starts. A startup movie picked in Steam\'s own settings takes priority.</string>
+    <string name="boot_movie_sound">Sound</string>
+    <string name="boot_movie_custom">Your own movie</string>
+    <string name="boot_movie_custom_hint">WebM, MKV or MP4 with VP8, VP9 or AV1 video, up to %1$d MB. 1280×720 at 30 or 60 fps plays smoothest.</string>
+    <string name="boot_movie_import">Import</string>
+    <string name="boot_movie_remove">Remove</string>
+    <string name="boot_movie_pick">Choose a boot movie</string>
+    <string name="boot_movie_imported">%1$s is now the boot movie</string>
+    <string name="boot_movie_imported_silent">%1$s is now the boot movie, without sound</string>
+    <string name="boot_movie_too_large">Boot movies must be %1$d MB or smaller</string>
+    <string name="boot_movie_unsupported">Steam only plays VP8, VP9 or AV1 video. Convert it to WebM first.</string>
+    <string name="boot_movie_import_failed">Could not import that movie</string>
 </resources>

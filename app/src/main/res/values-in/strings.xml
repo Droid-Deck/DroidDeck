@@ -2211,4 +2211,19 @@
     <string name="stores_hltb_completionist">Tuntas</string>
     <string name="stores_hltb_hours">%1$s j</string>
     <string name="stores_hltb_minutes">%1$d mnt</string>
+    <string name="boot_movie">Video boot</string>
+    <string name="boot_movie_video">Video</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
+    <string name="boot_movie_note">60 fps terlihat lebih mulus tetapi memakai lebih banyak CPU saat Steam dimulai. Video startup yang dipilih di pengaturan Steam sendiri lebih diutamakan.</string>
+    <string name="boot_movie_sound">Suara</string>
+    <string name="boot_movie_custom">Video sendiri</string>
+    <string name="boot_movie_custom_hint">WebM, MKV, atau MP4 dengan video VP8, VP9, atau AV1, hingga %1$d MB. 1280×720 pada 30 atau 60 fps berjalan paling mulus.</string>
+    <string name="boot_movie_import">Impor</string>
+    <string name="boot_movie_remove">Hapus</string>
+    <string name="boot_movie_pick">Pilih video boot</string>
+    <string name="boot_movie_imported">%1$s sekarang menjadi video boot</string>
+    <string name="boot_movie_imported_silent">%1$s sekarang menjadi video boot, tanpa suara</string>
+    <string name="boot_movie_too_large">Video boot maksimal %1$d MB</string>
+    <string name="boot_movie_unsupported">Steam hanya memutar video VP8, VP9, atau AV1. Konversi ke WebM dulu.</string>
+    <string name="boot_movie_import_failed">Tidak dapat mengimpor video itu</string>
 </resources>

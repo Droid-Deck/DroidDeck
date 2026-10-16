@@ -2236,4 +2236,19 @@
     <string name="stores_hltb_completionist">Completionist</string>
     <string name="stores_hltb_hours">%1$s u</string>
     <string name="stores_hltb_minutes">%1$d min</string>
+    <string name="boot_movie">Opstartvideo</string>
+    <string name="boot_movie_video">Video</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
+    <string name="boot_movie_note">60 fps oogt vloeiender maar gebruikt meer CPU terwijl Steam opstart. Een opstartvideo die in Steam zelf is gekozen heeft voorrang.</string>
+    <string name="boot_movie_sound">Geluid</string>
+    <string name="boot_movie_custom">Eigen video</string>
+    <string name="boot_movie_custom_hint">WebM, MKV of MP4 met VP8-, VP9- of AV1-video, tot %1$d MB. 1280×720 op 30 of 60 fps speelt het vloeiendst.</string>
+    <string name="boot_movie_import">Importeren</string>
+    <string name="boot_movie_remove">Verwijderen</string>
+    <string name="boot_movie_pick">Kies een opstartvideo</string>
+    <string name="boot_movie_imported">%1$s is nu de opstartvideo</string>
+    <string name="boot_movie_imported_silent">%1$s is nu de opstartvideo, zonder geluid</string>
+    <string name="boot_movie_too_large">Opstartvideo\'s mogen maximaal %1$d MB zijn</string>
+    <string name="boot_movie_unsupported">Steam speelt alleen VP8-, VP9- of AV1-video af. Zet hem eerst om naar WebM.</string>
+    <string name="boot_movie_import_failed">Kan deze video niet importeren</string>
 </resources>

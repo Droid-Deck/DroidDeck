@@ -2211,4 +2211,19 @@
     <string name="stores_hltb_completionist">Lengkap</string>
     <string name="stores_hltb_hours">%1$s j</string>
     <string name="stores_hltb_minutes">%1$d min</string>
+    <string name="boot_movie">Video but</string>
+    <string name="boot_movie_video">Video</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
+    <string name="boot_movie_note">60 fps kelihatan lebih lancar tetapi menggunakan lebih banyak CPU semasa Steam bermula. Video permulaan yang dipilih dalam tetapan Steam sendiri diutamakan.</string>
+    <string name="boot_movie_sound">Bunyi</string>
+    <string name="boot_movie_custom">Video anda sendiri</string>
+    <string name="boot_movie_custom_hint">WebM, MKV atau MP4 dengan video VP8, VP9 atau AV1, sehingga %1$d MB. 1280×720 pada 30 atau 60 fps dimainkan paling lancar.</string>
+    <string name="boot_movie_import">Import</string>
+    <string name="boot_movie_remove">Alih keluar</string>
+    <string name="boot_movie_pick">Pilih video but</string>
+    <string name="boot_movie_imported">%1$s kini video but</string>
+    <string name="boot_movie_imported_silent">%1$s kini video but, tanpa bunyi</string>
+    <string name="boot_movie_too_large">Video but mestilah %1$d MB atau kurang</string>
+    <string name="boot_movie_unsupported">Steam hanya memainkan video VP8, VP9 atau AV1. Tukar kepada WebM dahulu.</string>
+    <string name="boot_movie_import_failed">Tidak dapat mengimport video itu</string>
 </resources>

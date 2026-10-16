@@ -2250,4 +2250,19 @@
     <string name="stores_storage_insufficient">Nicht genug freier Speicher: %1$s benötigt, nur %2$s frei</string>
     <string name="stores_storage_low">Zu wenig Speicher (%1$s frei, %2$s benötigt)</string>
     <string name="stores_target_free_unknown">Freier Speicher unbekannt</string>
+    <string name="boot_movie">Bootvideo</string>
+    <string name="boot_movie_video">Video</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
+    <string name="boot_movie_note">60 fps wirkt flüssiger, braucht aber mehr CPU, während Steam startet. Ein in Steam selbst gewähltes Startvideo hat Vorrang.</string>
+    <string name="boot_movie_sound">Ton</string>
+    <string name="boot_movie_custom">Eigenes Video</string>
+    <string name="boot_movie_custom_hint">WebM, MKV oder MP4 mit VP8-, VP9- oder AV1-Video, bis %1$d MB. 1280×720 mit 30 oder 60 fps läuft am flüssigsten.</string>
+    <string name="boot_movie_import">Importieren</string>
+    <string name="boot_movie_remove">Entfernen</string>
+    <string name="boot_movie_pick">Bootvideo auswählen</string>
+    <string name="boot_movie_imported">%1$s ist jetzt das Bootvideo</string>
+    <string name="boot_movie_imported_silent">%1$s ist jetzt das Bootvideo, ohne Ton</string>
+    <string name="boot_movie_too_large">Bootvideos dürfen höchstens %1$d MB groß sein</string>
+    <string name="boot_movie_unsupported">Steam spielt nur VP8-, VP9- oder AV1-Video ab. Erst in WebM umwandeln.</string>
+    <string name="boot_movie_import_failed">Das Video konnte nicht importiert werden</string>
 </resources>

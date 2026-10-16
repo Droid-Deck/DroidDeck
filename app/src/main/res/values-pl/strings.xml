@@ -2286,4 +2286,19 @@
     <string name="stores_hltb_completionist">100%</string>
     <string name="stores_hltb_hours">%1$s godz.</string>
     <string name="stores_hltb_minutes">%1$d min</string>
+    <string name="boot_movie">Film startowy</string>
+    <string name="boot_movie_video">Film</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d kl./s</string>
+    <string name="boot_movie_note">60 kl./s wygląda płynniej, ale bardziej obciąża procesor podczas uruchamiania Steam. Film startowy wybrany w ustawieniach Steam ma pierwszeństwo.</string>
+    <string name="boot_movie_sound">Dźwięk</string>
+    <string name="boot_movie_custom">Własny film</string>
+    <string name="boot_movie_custom_hint">WebM, MKV lub MP4 z obrazem VP8, VP9 lub AV1, do %1$d MB. 1280×720 przy 30 lub 60 kl./s działa najpłynniej.</string>
+    <string name="boot_movie_import">Importuj</string>
+    <string name="boot_movie_remove">Usuń</string>
+    <string name="boot_movie_pick">Wybierz film startowy</string>
+    <string name="boot_movie_imported">%1$s jest teraz filmem startowym</string>
+    <string name="boot_movie_imported_silent">%1$s jest teraz filmem startowym, bez dźwięku</string>
+    <string name="boot_movie_too_large">Filmy startowe mogą mieć najwyżej %1$d MB</string>
+    <string name="boot_movie_unsupported">Steam odtwarza tylko obraz VP8, VP9 lub AV1. Najpierw przekonwertuj do WebM.</string>
+    <string name="boot_movie_import_failed">Nie udało się zaimportować filmu</string>
 </resources>

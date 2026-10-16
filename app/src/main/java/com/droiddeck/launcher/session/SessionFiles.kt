@@ -188,24 +188,23 @@ object SessionFiles {
         }
 
         val startupMovieDir = File(root, "root/.local/share/Steam/config/uioverrides/movies")
-        val bigPictureMovieInstalled = stageStartupMovie(
-            context,
-            startupMovieDir,
-            "bigpicture_startup.webm",
-        )
-        stageStartupMovie(context, startupMovieDir, "steam_os_startup.webm")
+        val startupMovie = BootMovie.prepare(context)
+        val bigPictureMovieInstalled = startupMovie != null &&
+            stageStartupMovie(startupMovie, startupMovieDir, "bigpicture_startup.webm")
+        if (startupMovie != null) stageStartupMovie(startupMovie, startupMovieDir, "steam_os_startup.webm")
         if (bigPictureMovieInstalled) {
             ensureStartupMovieDefault(File(root, "root/.local/share/Steam/config/config.vdf"))
         }
     }
 
-    private fun stageStartupMovie(context: Context, directory: File, name: String): Boolean {
+    private fun stageStartupMovie(source: File, directory: File, name: String): Boolean {
         val movie = File(directory, name)
+        if (movie.length() == source.length() && movie.lastModified() >= source.lastModified()) return true
         val staged = File(directory, "$name.staged")
         var installed = false
         try {
             directory.mkdirs()
-            context.assets.open("steam-startup/droiddeck-startup.webm").use { input ->
+            source.inputStream().use { input ->
                 staged.outputStream().use { output -> FileUtils.copy(input, output) }
             }
             installed = staged.setReadable(true, false) && staged.renameTo(movie)
