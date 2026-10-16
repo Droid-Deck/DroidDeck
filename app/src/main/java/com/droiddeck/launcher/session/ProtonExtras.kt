@@ -29,7 +29,7 @@ object ProtonExtras {
     val tools = listOf(
         Tool("ge", "GE-Proton", "GE-Proton", "GloriousEggroll/proton-ge-custom", Regex("aarch64\\.tar\\.(gz|xz)$")),
         Tool("cachyos", "proton-cachyos", "proton-cachyos", "CachyOS/proton-cachyos", Regex("arm64\\.tar\\.(gz|xz)$")),
-        Tool("droiddeck", "DroidDeck-Proton", "DroidDeck-Proton", "The412Banner/DroidDeck-Proton", Regex("aarch64\\.tar\\.(gz|xz)$")),
+        Tool("droiddeck", "DroidDeck-Proton", "DroidDeck-Proton", "Droid-Deck/DroidDeck-Proton", Regex("aarch64\\.tar\\.(gz|xz)$")),
     )
 
     private fun home(context: Context) = File(LinuxRuntime.rootDir(context), "root")

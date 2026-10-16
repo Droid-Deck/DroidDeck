@@ -905,8 +905,8 @@
     <string name="wadb_turn_off">Вимкнути обмеження</string>
     <string name="wadb_other_ways">Інші способи змінити це</string>
     <string name="wadb_dev_try_first">1 · Параметри розробника (спробуйте спершу)</string>
-    <string name="wadb_restrict_on">Увімкніть «Обмежити дочірні процеси».</string>
-    <string name="wadb_restrict_off">Вимкніть «Обмежити дочірні процеси».</string>
+    <string name="wadb_restrict_on">Вимкніть «Вимкнути обмеження для дочірніх процесів».</string>
+    <string name="wadb_restrict_off">Увімкніть «Вимкнути обмеження для дочірніх процесів».</string>
     <string name="wadb_computer_last">3 · ADB з комп’ютера (останній варіант)</string>
     <string name="wadb_only_if">Лише якщо бездротове налагодження недоступне.</string>
     <string name="wadb_computer_group">3 · ADB з комп’ютера (останній варіант)</string>
@@ -1961,6 +1961,16 @@
     <string name="stores_free">Безкоштовно</string>
     <string name="stores_resume">Продовжити</string>
     <string name="stores_refresh">Оновити</string>
+    <string name="stores_sort">Сортувати</string>
+    <string name="stores_sort_last_played">Нещодавно запущені</string>
+    <string name="stores_sort_recently_installed">Нещодавно встановлені</string>
+    <string name="stores_sort_title_asc">Назва А–Я</string>
+    <string name="stores_sort_title_desc">Назва Я–А</string>
+    <string name="stores_sort_size_desc">Розмір: найбільший</string>
+    <string name="stores_sort_size_asc">Розмір: найменший</string>
+    <string name="stores_sort_release_date">Дата виходу</string>
+    <string name="stores_view_list">Вигляд списком</string>
+    <string name="stores_view_cards">Вигляд картками</string>
     <string name="stores_show_mature">Показувати контент для дорослих</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

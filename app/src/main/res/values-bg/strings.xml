@@ -893,8 +893,8 @@
     <string name="wadb_turn_off">Изключване на ограничението</string>
     <string name="wadb_other_ways">Други начини за промяна</string>
     <string name="wadb_dev_try_first">1 · Опции за програмисти (пробвайте първо)</string>
-    <string name="wadb_restrict_on">Включете „Restrict child processes“.</string>
-    <string name="wadb_restrict_off">Изключете „Restrict child processes“.</string>
+    <string name="wadb_restrict_on">Изключете „Деактивиране на ограниченията за дъщерните процеси“.</string>
+    <string name="wadb_restrict_off">Включете „Деактивиране на ограниченията за дъщерните процеси“.</string>
     <string name="wadb_computer_last">3 · ADB от компютър (последна възможност)</string>
     <string name="wadb_only_if">Само ако безжичното отстраняване на грешки не е достъпно.</string>
     <string name="wadb_computer_group">3 · ADB от компютър (последна възможност)</string>
@@ -1919,6 +1919,16 @@
     <string name="stores_free">Безплатна</string>
     <string name="stores_resume">Продължи</string>
     <string name="stores_refresh">Обнови</string>
+    <string name="stores_sort">Сортиране</string>
+    <string name="stores_sort_last_played">Играни наскоро</string>
+    <string name="stores_sort_recently_installed">Инсталирани наскоро</string>
+    <string name="stores_sort_title_asc">Заглавие А–Я</string>
+    <string name="stores_sort_title_desc">Заглавие Я–А</string>
+    <string name="stores_sort_size_desc">Размер: най-голям</string>
+    <string name="stores_sort_size_asc">Размер: най-малък</string>
+    <string name="stores_sort_release_date">Дата на издаване</string>
+    <string name="stores_view_list">Изглед на списък</string>
+    <string name="stores_view_cards">Изглед с карти</string>
     <string name="stores_show_mature">Показвай съдържание за възрастни</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

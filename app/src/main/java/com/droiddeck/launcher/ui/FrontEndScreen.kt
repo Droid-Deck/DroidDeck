@@ -139,6 +139,8 @@ class FrontEndState(
     val addedGamesArt: Boolean = true,
     val sgdbUserKey: Boolean = false,
     val storesShowMature: Boolean = false,
+    val storesSort: String = SessionPrefs.STORES_SORTS.first(),
+    val storesView: String = SessionPrefs.STORES_VIEWS.first(),
     val storeDownloadsActive: Int = 0,
     val updates: UpdatesState = UpdatesState(),
 )
@@ -146,12 +148,14 @@ class FrontEndState(
 class FrontEndActions(
     val onPlay: () -> Unit,
     val onPlayDesktopUi: () -> Unit,
+    val onSteamUrl: (String) -> Unit = {},
     val onSteamGame: (Library.SteamGame) -> Unit,
     val onGameShortcut: (Library.SteamGame) -> Unit = {},
     val onExportGameFile: (Library.SteamGame) -> Unit = {},
     val onSyncGameFiles: () -> Unit = {},
     val onAddGameExe: (path: String) -> Unit = {},
     val onAddedGamesChanged: (folders: List<String>) -> Unit = {},
+    val onSteamGameArtChanged: (appId: Int) -> Unit = {},
     val onAddedGameRemoved: (folder: String, appId: Long?, name: String) -> Unit = { _, _, _ -> },
     val onAddedGamesArt: (Boolean) -> Unit = {},
     val onSgdbKey: (String) -> Unit = {},
@@ -199,6 +203,8 @@ class FrontEndActions(
     val onStoresOpenTab: (String) -> Unit = {},
     val onNavigated: () -> Unit = {},
     val onStoresShowMature: (Boolean) -> Unit = {},
+    val onStoresSort: (String) -> Unit = {},
+    val onStoresView: (String) -> Unit = {},
     val onLibraryChanged: () -> Unit = {},
     val onHomeApp: () -> Unit = {},
     val onHomeScreen: (Boolean) -> Unit = {},
@@ -431,6 +437,9 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             Hops.sinking = null
             selected = key
         }
+    }
+    LaunchedEffect(com.droiddeck.launcher.storage.StorageState.openRequests) {
+        if (com.droiddeck.launcher.storage.StorageState.openPending) showRailPage("setup", true)
     }
     val onRailFocus: (String) -> Unit = { key ->
         if (key != railSelection) showRailPage(key, false)

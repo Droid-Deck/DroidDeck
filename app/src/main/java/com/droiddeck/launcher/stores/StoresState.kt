@@ -233,7 +233,10 @@ object StoresState {
         val overlay = java.io.File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context), "root/.local/share/droiddeck/epic-overlay")
         if (overlay.exists()) Thread({ overlay.deleteRecursively(); Log.i(TAG, "removed the old EOS overlay download") }, "epic-overlay-cleanup").start()
         val app = context.applicationContext
-        Thread({ CloudSaves.uploadAllDirty(app, "recovery") }, "cloud-recovery").start()
+        Thread({
+            runCatching { CloudSaves.uploadAllDirty(app, "recovery") }
+                .onFailure { Log.w(TAG, "cloud save recovery failed", it) }
+        }, "cloud-recovery").start()
     }
 
     internal fun post(block: () -> Unit) = main.post(block)

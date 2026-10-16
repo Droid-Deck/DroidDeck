@@ -64,14 +64,16 @@ object EpicShelves {
             val a = o.optJSONArray(key) ?: return emptyList()
             return (0 until a.length()).mapNotNull { a.optJSONObject(it) }.mapNotNull(::itemFrom).distinctBy { it.id }
         }
-        val s = StoreShelves(shelf("new"), shelf("deals"), shelf("free"), shelf("trending"))
-        return if (s.isEmpty) null else s
+        val art = o.optJSONArray("art")?.let { a -> List(a.length()) { a.optString(it) }.filter { it.isNotEmpty() } }.orEmpty()
+        val s = StoreShelves(shelf("new"), shelf("deals"), shelf("free"), shelf("trending"), art)
+        return if (s.isEmpty && art.isEmpty()) null else s
     }
 
     fun toJson(s: StoreShelves): String = JSONObject().apply {
         listOf(s.whatsNew, s.deals, s.free, s.trending).zip(SHELF_KEYS).forEach { (items, key) ->
             put(key, JSONArray().apply { items.forEach { put(itemJson(it)) } })
         }
+        put("art", JSONArray(s.art))
     }.toString()
 
     fun cached(context: Context): StoreShelves? =
@@ -111,6 +113,6 @@ object EpicShelves {
                 releaseDate = owned.releaseDate.ifBlank { shelf.releaseDate },
             )
         }
-        return StoreShelves(mark(s.whatsNew), mark(s.deals), mark(s.free), mark(s.trending))
+        return StoreShelves(mark(s.whatsNew), mark(s.deals), mark(s.free), mark(s.trending), s.art)
     }
 }

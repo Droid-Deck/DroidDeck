@@ -100,3 +100,14 @@ Prototype (inert unless `PROOT_FASTPATH` is set; see `docs/development/proot-per
   first tracee starts at `-w`'s, so relative lookups inside the tracee resolve where proot would.
   SM8850 (adb shell): `stat` 25.3 -> 0.6 us, `open+close` 25.3 -> 0.9 us, ENOENT 22.9 -> 1.6 us,
   8 threads `stat`ing 89k -> 3.6M/s; equivalence suite (`bench/equiv.py`) byte-identical to proot.
+
+Old kernel fixes:
+
+- `0015-lost-fork-events.patch` - works around a problem reported on Xiaomi's msm 4.14 kernel:
+  the kernel sometimes reports a new process or thread but gives its ID as zero. Without that ID,
+  PRoot cannot finish setting it up, which can leave the session stuck. The patch searches `/proc`
+  for the child. If exactly one matches, PRoot uses its existing setup code. If several threads
+  match, it waits for the creating thread's `clone` call to return and uses the child ID returned
+  by the kernel instead. The original clone flags are preserved. When the kernel supplies a valid
+  ID in the notification, normal setup is unchanged. No timers or background polling are added.
+  Completely missing notifications and ambiguous matches for separate processes are not recovered.

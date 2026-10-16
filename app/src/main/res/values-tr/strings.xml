@@ -893,8 +893,8 @@
     <string name="wadb_turn_off">Sınırı kapat</string>
     <string name="wadb_other_ways">Değiştirmenin diğer yolları</string>
     <string name="wadb_dev_try_first">1 · Geliştirici seçenekleri (önce bunu deneyin)</string>
-    <string name="wadb_restrict_on">“Alt süreçleri kısıtla” seçeneğini açık olarak ayarlayın.</string>
-    <string name="wadb_restrict_off">“Alt süreçleri kısıtla” seçeneğini kapalı olarak ayarlayın.</string>
+    <string name="wadb_restrict_on">“Alt işlem kısıtlamalarını devre dışı bırak” seçeneğini kapalı olarak ayarlayın.</string>
+    <string name="wadb_restrict_off">“Alt işlem kısıtlamalarını devre dışı bırak” seçeneğini açık olarak ayarlayın.</string>
     <string name="wadb_computer_last">3 · Bilgisayardan ADB (son yöntem)</string>
     <string name="wadb_only_if">Yalnızca Kablosuz hata ayıklama kullanılamıyorsa.</string>
     <string name="wadb_computer_group">3 · Bilgisayardan ADB (son yöntem)</string>
@@ -1919,6 +1919,16 @@
     <string name="stores_free">Ücretsiz</string>
     <string name="stores_resume">Sürdür</string>
     <string name="stores_refresh">Yenile</string>
+    <string name="stores_sort">Sırala</string>
+    <string name="stores_sort_last_played">Son oynanan</string>
+    <string name="stores_sort_recently_installed">Son yüklenen</string>
+    <string name="stores_sort_title_asc">Başlık A–Z</string>
+    <string name="stores_sort_title_desc">Başlık Z–A</string>
+    <string name="stores_sort_size_desc">Boyut: en büyük</string>
+    <string name="stores_sort_size_asc">Boyut: en küçük</string>
+    <string name="stores_sort_release_date">Çıkış tarihi</string>
+    <string name="stores_view_list">Liste görünümü</string>
+    <string name="stores_view_cards">Kart görünümü</string>
     <string name="stores_show_mature">Yetişkin içeriği göster</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>
@@ -2232,4 +2242,18 @@
     <string name="stores_hltb_completionist">Tamamlayıcı</string>
     <string name="stores_hltb_hours">%1$s sa</string>
     <string name="stores_hltb_minutes">%1$d dk</string>
+    <string name="mode_zram">zRAM sıkıştırma</string>
+    <string name="mode_zram_hint">Bir oyun çalışırken Steam istemcisinin belleği cihazın zram\'ına sıkıştırılır ve oyuna daha fazla RAM kalır. Steam\'in bir sonraki başlatılışında uygulanır.</string>
+    <string name="mode_zram_unsupported">Kullanılamıyor: bu cihazda zram veya swap yok ya da çekirdeği 5.4\'ten eski.</string>
+    <string name="setup_reset_settings">Tüm ayarları sıfırla</string>
+    <string name="setup_reset_settings_title">Tüm ayarlar sıfırlansın mı?</string>
+    <string name="setup_reset_settings_body">Ekran, performans, denetleyici, tema, dil ve başlatıcı ayarları varsayılanlarına döner. Oyunlarınız, Steam oturum bilgileriniz, mağaza hesaplarınız, indirilen sürücüler ve depolama klasörleriniz korunur.</string>
+    <string name="setup_reset_settings_button">Sıfırla</string>
+    <string name="setup_reset_settings_hint">Her ayarı varsayılanına döndürür</string>
+    <string name="setup_reset_settings_partial">Ayarlar sıfırlandı, ancak bazı bölümler sıfırlanamadı. Ayrıntılar günlüklerde.</string>
+    <string name="setup_reset_settings_profiles">Oyun profillerini de sıfırla (her oyunun Proton, FEX, bileşenleri ve ortamı ile Varsayılan profilin ortamı)</string>
+    <string name="setup_reset_settings_session_running">Ayarları sıfırlamadan önce oturumu durdurun.</string>
+    <string name="stores_storage_insufficient">Yeterli boş alan yok: %1$s gerekli, yalnızca %2$s boş</string>
+    <string name="stores_storage_low">Yetersiz alan (%1$s boş, %2$s gerekli)</string>
+    <string name="stores_target_free_unknown">Boş alan bilinmiyor</string>
 </resources>

@@ -6,6 +6,7 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -21,6 +22,7 @@
 
     <uses-feature android:name="android.hardware.vulkan.version" android:version="0x401000" android:required="true" />
     <uses-feature android:name="android.hardware.gamepad" android:required="false" />
+    <uses-feature android:name="android.hardware.vr.headtracking" android:version="1" android:required="false" />
 
     <application
         android:name=".App"
@@ -36,12 +38,25 @@
         android:isGame="true">
 
         <meta-data android:name="android.game_mode_config" android:resource="@xml/game_mode_config" />
+        <meta-data android:name="com.oculus.supportedDevices" android:value="quest2|quest3|quest3s" />
+        <activity android:name=".QuestXrActivity" android:exported="true" android:launchMode="singleTask"
+            android:permission="android.permission.DUMP"
+            android:resizeableActivity="false" android:screenOrientation="landscape"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|navigation|uiMode"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen">
+            <meta-data android:name="android.app.lib_name" android:value="droiddeckxr" />
+            <intent-filter>
+                <action android:name="com.droiddeck.launcher.XR" />
+                <category android:name="com.oculus.intent.category.VR" />
+                <category android:name="org.khronos.openxr.intent.category.IMMERSIVE_HMD" />
+            </intent-filter>
+        </activity>
 
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:screenOrientation="sensorLandscape"
-            android:configChanges="keyboard|keyboardHidden|navigation">
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density|keyboard|keyboardHidden|navigation">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -91,18 +106,21 @@
             android:name=".files.FileManagerActivity"
             android:exported="false"
             android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density"
             android:theme="@style/AppTheme" />
 
         <activity
             android:name=".files.FilePickerActivity"
             android:exported="false"
             android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density"
             android:theme="@style/AppTheme" />
 
         <activity
             android:name=".stores.StoreLoginActivity"
             android:exported="false"
             android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
             android:theme="@style/AppTheme" />
 
         <activity

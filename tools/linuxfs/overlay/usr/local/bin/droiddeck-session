@@ -56,6 +56,26 @@ clear_stale_tmp() {
 }
 [ -z "${BL_INSIDE:-}" ] && clear_stale_tmp
 
+steam_update_stuck() {
+  [ "$1" -lt 60 ] || steam_updates=0
+  steam_updates=$((steam_updates + 1))
+  [ "$steam_updates" -ge 3 ]
+}
+
+run_gamescope() (
+  local status_file child_status compositor_status
+  status_file=$(mktemp "${XDG_RUNTIME_DIR:-/tmp}/droiddeck-steam-exit.XXXXXX") || exit 73
+  trap 'rm -f "$status_file"' EXIT
+  # Gamescope can return success when its primary child crashed.
+  BL_STEAM_EXIT_FILE="$status_file" gamescope "$@"
+  compositor_status=$?
+  if read -r child_status < "$status_file" && [[ $child_status =~ ^[0-9]{1,3}$ ]] \
+     && [ "$child_status" -gt 0 ] && [ "$child_status" -le 255 ]; then
+    exit "$child_status"
+  fi
+  exit "$compositor_status"
+)
+
 collect_steam_logs() {
   [ -n "${BL_DEBUG_DIR:-}" ] || return 0
   local steam_root=${XDG_DATA_HOME:-$HOME/.local/share}/Steam
@@ -223,6 +243,10 @@ if [ -z "${BL_INSIDE:-}" ]; then
     echo "== gamescope: mangoapp on ($(command -v mangoapp), config $MANGOHUD_CONFIGFILE)"
   fi
   export BL_INSIDE=1
+  if [ "$mode" = steam ]; then
+    run_gamescope "${args[@]}" -- "$0" "$mode" "$@"
+    exit $?
+  fi
   exec gamescope "${args[@]}" -- "$0" "$mode" "$@"
 fi
 
@@ -492,13 +516,27 @@ case $mode in
     ) &
     if [ -n "${BL_LAUNCH_DIR:-}" ] && [ -z "${BL_DESKTOP:-}" ]; then
       _bl_held=
+      _bl_uninstall=
       _bl_rest=()
       for _bl_arg in "$@"; do
         case $_bl_arg in
           steam://rungameid/*) _bl_held=${_bl_arg#steam://rungameid/} ;;
+          steam://uninstall/*) _bl_uninstall=${_bl_arg#steam://uninstall/} ;;
           *) _bl_rest+=("$_bl_arg") ;;
         esac
       done
+      if [ -n "$_bl_uninstall" ]; then
+        set -- "${_bl_rest[@]}"
+        (
+          _bl_end=$((SECONDS + 120))
+          until [ "$(xprop -root GAMESCOPE_FOCUSED_APP 2>/dev/null | sed -n 's/.*= *//p')" = 769 ] || [ "$SECONDS" -ge "$_bl_end" ]; do
+            sleep 1
+          done
+          sleep 4
+          echo "== steam: interface up; asking to uninstall $_bl_uninstall"
+          printf '%s\n' "$_bl_uninstall" > "$BL_LAUNCH_DIR/steam-uninstall.tmp" && mv -f "$BL_LAUNCH_DIR/steam-uninstall.tmp" "$BL_LAUNCH_DIR/steam-uninstall"
+        ) &
+      fi
       if [ -n "$_bl_held" ]; then
         set -- "${_bl_rest[@]}"
         (
@@ -749,6 +787,17 @@ BUSCONF
             "$steam_root/steamrtarm64/steam" -shutdown >/dev/null 2>&1 || true
             exit 0
           fi
+          if [ -f "$BL_LAUNCH_DIR/steam-uninstall" ]; then
+            uninstall_id=$(cat "$BL_LAUNCH_DIR/steam-uninstall" 2>/dev/null)
+            rm -f "$BL_LAUNCH_DIR/steam-uninstall"
+            case $uninstall_id in
+              ''|0*|*[!0-9]*|???????????*) echo "== steam: ignored invalid uninstall request" ;;
+              *)
+                echo "== steam: opening the uninstall dialog for $uninstall_id"
+                "$steam_root/steamrtarm64/steam" "steam://uninstall/$uninstall_id" >/dev/null 2>&1 &
+                ;;
+            esac
+          fi
           if [ -f "$BL_LAUNCH_DIR/steam-game" ]; then
             game_id=$(cat "$BL_LAUNCH_DIR/steam-game" 2>/dev/null)
             rm -f "$BL_LAUNCH_DIR/steam-game"
@@ -839,9 +888,11 @@ BUSCONF
         /usr/local/bin/droiddeck-steam-desktop-ui &
         desktop_ui_pid=$!
       fi
+      steam_started=$SECONDS
       "$steam_root/steamrtarm64/steam" "${_bl_ui[@]}" "${_bl_cdp[@]}" "${_bl_lang[@]}" -clientbeta "$steam_channel" \
         -no-cef-sandbox -cef-ozone-platform=x11 "${_bl_cef[@]}" "$@"
       rc=$?
+      steam_ran=$((SECONDS - steam_started))
       if [ -n "$desktop_ui_pid" ]; then
         kill "$desktop_ui_pid" 2>/dev/null || true
         wait "$desktop_ui_pid" 2>/dev/null || true
@@ -876,8 +927,7 @@ BUSCONF
         continue
       fi
       [ "$rc" -eq 42 ] || break
-      steam_updates=$((steam_updates + 1))
-      if [ "$steam_updates" -ge 3 ]; then
+      if steam_update_stuck "$steam_ran"; then
         echo "== steam: asked to restart for an update $steam_updates times and it is not installing; the session stops here rather than loop"
         break
       fi
@@ -909,6 +959,9 @@ BUSCONF
       _bl_jobs=$(jobs -p)
       [ -n "$_bl_jobs" ] && kill $_bl_jobs 2>/dev/null
       reap_orphans
+    fi
+    if [ -n "${BL_STEAM_EXIT_FILE:-}" ]; then
+      printf '%s\n' "$rc" > "$BL_STEAM_EXIT_FILE"
     fi
     exit "$rc"
     ;;

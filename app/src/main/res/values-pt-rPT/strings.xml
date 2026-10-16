@@ -899,8 +899,8 @@
     <string name="wadb_turn_off">Desativar limite</string>
     <string name="wadb_other_ways">Outras formas de o alterar</string>
     <string name="wadb_dev_try_first">1 · Opções de programador (tente primeiro)</string>
-    <string name="wadb_restrict_on">Ative “Restringir processos secundários”.</string>
-    <string name="wadb_restrict_off">Desative “Restringir processos secundários”.</string>
+    <string name="wadb_restrict_on">Desative “Desativar restrições de processos secundários”.</string>
+    <string name="wadb_restrict_off">Ative “Desativar restrições de processos secundários”.</string>
     <string name="wadb_computer_last">3 · ADB num computador (último recurso)</string>
     <string name="wadb_only_if">Apenas se a Depuração sem fios não estiver disponível.</string>
     <string name="wadb_computer_group">3 · ADB num computador (último recurso)</string>
@@ -1940,6 +1940,16 @@
     <string name="stores_free">Grátis</string>
     <string name="stores_resume">Retomar</string>
     <string name="stores_refresh">Atualizar</string>
+    <string name="stores_sort">Ordenar</string>
+    <string name="stores_sort_last_played">Jogados recentemente</string>
+    <string name="stores_sort_recently_installed">Instalados recentemente</string>
+    <string name="stores_sort_title_asc">Título A–Z</string>
+    <string name="stores_sort_title_desc">Título Z–A</string>
+    <string name="stores_sort_size_desc">Tamanho: maior</string>
+    <string name="stores_sort_size_asc">Tamanho: menor</string>
+    <string name="stores_sort_release_date">Data de lançamento</string>
+    <string name="stores_view_list">Vista de lista</string>
+    <string name="stores_view_cards">Vista de cartões</string>
     <string name="stores_show_mature">Mostrar conteúdo para adultos</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

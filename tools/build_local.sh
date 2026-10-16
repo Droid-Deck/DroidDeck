@@ -72,7 +72,33 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+cache_dir=${DROIDDECK_BUILD_CACHE:-"${HOME}/.cache/droiddeck-build"}
+mkdir -p "${cache_dir}"
+# Steps whose output depends only on tracked sources are kept per input hash in the
+# shared cache, so a rerun or a fresh worktree copies them instead of rebuilding.
+inputs_hash() {
+    (cd "${repo_root}" && { printf '%s\n' "$1"; shift; find "$@" -type f ! -name '*.pyc' | LC_ALL=C sort | xargs shasum -a 256; }) \
+        | shasum -a 256 | cut -d' ' -f1
+}
+restore_step() {
+    local stored="${cache_dir}/steps/$1/$2"
+    [[ -f "${stored}/.complete" ]] || return 1
+    mkdir -p "$3"
+    (cd "${stored}" && tar -cf - --exclude .complete .) | tar -xf - -C "$3" || return 1
+    echo "$1: inputs unchanged, reused ${stored}"
+}
+save_step() {
+    local stored="${cache_dir}/steps/$1/$2" part
+    mkdir -p "${cache_dir}/steps/$1"
+    part=$(mktemp -d "${stored}.part.XXXXXX")
+    (cd "$3" && tar -cf - .) | tar -xf - -C "${part}"
+    touch "${part}/.complete"
+    # Another checkout may have published the same key meanwhile; its copy is equivalent.
+    if [[ -e "${stored}" ]]; then rm -rf "${part}"; else mv "${part}" "${stored}" || rm -rf "${part}"; fi
+}
+
 python3 "${repo_root}/tools/docker_preflight.py" "${image_name}"
+image_id=$(docker image inspect --format '{{.Id}}' "${image_name}")
 rm -rf -- "${linuxfs_dir}"
 mkdir -p "${linuxfs_dir}"
 
@@ -118,17 +144,30 @@ docker run --rm --platform linux/amd64 \
         READELF=aarch64-linux-gnu-readelf bash tools/linuxfs/check-preloads.sh "$d"
     '
 
-docker run --rm --platform linux/amd64 \
-    -v "${repo_root}:/src" -w /src public.ecr.aws/docker/library/debian:bullseye bash -c '
-        set -euo pipefail
-        printf "deb http://archive.debian.org/debian bullseye main\ndeb http://archive.debian.org/debian-security bullseye-security main\n" > /etc/apt/sources.list
-        apt-get -o Acquire::Check-Valid-Until=false update -qq
-        DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends gcc g++ gcc-multilib g++-multilib binutils >/dev/null
-        tools/linuxfs/build-x86-preloads.sh app/src/main/assets/linuxfs
-        chown -R '"$(id -u):$(id -g)"' app/src/main/assets/linuxfs
-    '
+x86_key=$(inputs_hash bullseye tools/linuxfs/build-x86-preloads.sh tools/linuxfs/preload tools/linuxfs/fex \
+    app/src/main/cpp/fakeinput_steam.cpp)
+x86_stage="${staging_dir}/x86-preloads"
+if restore_step x86-preloads "${x86_key}" "${linuxfs_dir}"; then :; else
+    docker run --rm --platform linux/amd64 \
+        -v "${repo_root}:/src" -w /src public.ecr.aws/docker/library/debian:bullseye bash -c '
+            set -euo pipefail
+            printf "deb http://archive.debian.org/debian bullseye main\ndeb http://archive.debian.org/debian-security bullseye-security main\n" > /etc/apt/sources.list
+            apt-get -o Acquire::Check-Valid-Until=false update -qq
+            DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends gcc g++ gcc-multilib g++-multilib binutils >/dev/null
+            tools/linuxfs/build-x86-preloads.sh app/src/main/assets/linuxfs
+            chown -R '"$(id -u):$(id -g)"' app/src/main/assets/linuxfs
+        '
+    mkdir -p "${x86_stage}"
+    cp -R "${linuxfs_dir}/x86_64" "${linuxfs_dir}/i386" "${x86_stage}/"
+    save_step x86-preloads "${x86_key}" "${x86_stage}"
+fi
 
-DROIDDECK_BUILD_IMAGE="${image_name}" "${repo_root}/tools/vr/build.sh" "${linuxfs_dir}/usr/local/lib/droiddeck-vr"
+vr_out="${linuxfs_dir}/usr/local/lib/droiddeck-vr"
+vr_key=$(inputs_hash "${image_id} ${ndk_version} ${VK_INCLUDE:-}" tools/vr app/src/main/cpp/waylandcomp/generated/xdg-shell-protocol.c)
+if ! restore_step vr "${vr_key}" "${vr_out}"; then
+    DROIDDECK_BUILD_IMAGE="${image_name}" "${repo_root}/tools/vr/build.sh" "${vr_out}"
+    save_step vr "${vr_key}" "${vr_out}"
+fi
 
 github_repo=${DROIDDECK_GITHUB_REPOSITORY:-}
 if [[ -z "${github_repo}" ]]; then
@@ -146,8 +185,6 @@ if [[ -z "${github_repo}" ]]; then
     github_repo=${github_repo%.git}
 fi
 
-cache_dir=${DROIDDECK_BUILD_CACHE:-"${HOME}/.cache/droiddeck-build"}
-mkdir -p "${cache_dir}"
 cached() {
     local sha=$1 name=$2 out
     shift 2
@@ -268,7 +305,12 @@ if [[ -f "${proot_out}/libproot.so" && -f "${proot_out}/libproot-loader.so" \
         && (cd "${proot_out}" && shasum -a 256 -c .proot-outputs >/dev/null 2>&1); then
     echo "proot: sources unchanged, keeping ${proot_out}/libproot.so"
 else
-    "${repo_root}/tools/proot/build.sh" "${proot_out}"
+    proot_stage="${staging_dir}/proot"
+    if ! restore_step proot "${proot_inputs}" "${proot_stage}"; then
+        "${repo_root}/tools/proot/build.sh" "${proot_stage}"
+        save_step proot "${proot_inputs}" "${proot_stage}"
+    fi
+    install -m755 "${proot_stage}/libproot.so" "${proot_stage}/libproot-loader.so" "${proot_out}/"
     echo "${proot_inputs}" > "${proot_out}/.proot-inputs"
     (cd "${proot_out}" && shasum -a 256 libproot.so libproot-loader.so > .proot-outputs)
 fi
@@ -301,6 +343,7 @@ else
         fi
     done
     rustup target add --toolchain stable aarch64-linux-android
+    export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-${cache_dir}/stores-target}"
     if ! command -v cargo-ndk >/dev/null 2>&1; then
         cargo install cargo-ndk --locked
     fi
@@ -308,7 +351,12 @@ fi
 
 cd "${repo_root}"
 python3 tools/quest/build-driver.py "${NDK}"
-bash tools/comet/build-local.sh
+comet_out="${linuxfs_dir}/usr/local/lib/droiddeck-comet"
+comet_key=$(inputs_hash "${image_id}" tools/comet)
+if ! restore_step comet "${comet_key}" "${comet_out}"; then
+    DROIDDECK_BUILD_IMAGE="${image_name}" bash tools/comet/build-local.sh
+    save_step comet "${comet_key}" "${comet_out}"
+fi
 python3 tools/release/runtime_inputs.py record
 ./gradlew "${gradle_task}" --console=plain -PndkVersion="${ndk_version}" ${gradle_rust_arg}
 python3 tools/release/check_session_assets.py "app/build/outputs/apk/${build_variant}/app-${build_variant}.apk"
