@@ -151,6 +151,7 @@ private val SessionDrawerPage.title: Int get() = when (this) {
     SessionDrawerPage.CONTROLLER -> R.string.drawer_page_controller
     SessionDrawerPage.SECOND_SCREEN -> R.string.drawer_second_screen
     SessionDrawerPage.DISPLAY -> R.string.drawer_page_display
+    SessionDrawerPage.VR -> R.string.vr_title
     SessionDrawerPage.EFFECTS -> R.string.drawer_page_effects
     SessionDrawerPage.GAMES -> R.string.game_settings_title
     SessionDrawerPage.SESSION -> R.string.mode_session
@@ -160,6 +161,7 @@ private val SessionDrawerPage.icon get() = when (this) {
     SessionDrawerPage.CONTROLLER -> Icons.Outlined.SportsEsports
     SessionDrawerPage.SECOND_SCREEN -> Icons.Outlined.ScreenShare
     SessionDrawerPage.DISPLAY -> Icons.Outlined.DesktopWindows
+    SessionDrawerPage.VR -> VrHeadsetIcon
     SessionDrawerPage.EFFECTS -> Icons.Outlined.AutoFixHigh
     SessionDrawerPage.GAMES -> Icons.Outlined.Layers
     SessionDrawerPage.SESSION -> Icons.Outlined.Settings
@@ -209,6 +211,7 @@ class DrawerActions(
     val cardboard: Cardboard = Cardboard.OFF,
     val cardboardSensor: Boolean = false,
     val steamVr: SteamVr.Status? = null,
+    val immersiveSteamVr: Boolean = false,
     val textureAnisotropy: Int? = 0,
     val textureLodBias: String? = TextureFiltering.LOD_BIAS_OFF,
     val secondScreenMode: SecondScreenMode,
@@ -233,6 +236,10 @@ class DrawerActions(
     val onSuspendPolicy: (String) -> Unit,
     val onSteamDownloadsInBackground: (Boolean) -> Unit = {},
     val onBackActionsInverted: (Boolean) -> Unit,
+    val lowLatencyController: Boolean = false,
+    val lowLatencyTouch: Boolean = false,
+    val onLowLatencyController: (Boolean) -> Unit = {},
+    val onLowLatencyTouch: (Boolean) -> Unit = {},
     val onTouch: (String) -> Unit,
     val onFexPreset: (String) -> Unit,
     val onUpscaler: (Int) -> Unit = {},
@@ -448,11 +455,14 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     stringResource(R.string.display_sharpness), null, a.upscaleSharpness, 0..100, step = 5,
                                     format = { "$it%" }, modifier = focus.track(page, "upscale-sharpness"), onChange = a.onUpscaleSharpness)
                             }
-                            CardboardGroup(host, a) { key -> focus.track(page, key) }
                         }
                         SessionDrawerPage.EFFECTS -> {
                             ScreenEffectsGroup(host, a, advancedEffectsExpanded,
                                 onAdvancedToggle = { advancedEffectsExpanded = !advancedEffectsExpanded }) { key -> focus.track(page, key) }
+                        }
+                        SessionDrawerPage.VR -> {
+                            SteamVrGroup(a) { key -> focus.track(page, key) }
+                            CardboardGroup(host, a) { key -> focus.track(page, key) }
                         }
                         SessionDrawerPage.CONTROLLER -> {
                             SettingsGroup(stringResource(R.string.drawer_page_controller)) {
@@ -496,6 +506,14 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 if (a.steam && a.unfoldedControls != null) ToggleRow(host, "unfolded-controls", stringResource(R.string.unfolded_controls),
                                     stringResource(R.string.unfolded_controls_hint), a.unfoldedControls,
                                     chipModifier = focus.track(page, "unfolded-controls"), onChange = a.onUnfoldedControls)
+                            }
+                            SettingsGroup(stringResource(R.string.drawer_latency)) {
+                                ToggleRow(host, "low-latency-controller", stringResource(R.string.drawer_low_latency_controller),
+                                    stringResource(R.string.drawer_low_latency_controller_hint), a.lowLatencyController,
+                                    chipModifier = focus.track(page, "low-latency-controller"), onChange = a.onLowLatencyController)
+                                ToggleRow(host, "low-latency-touch", stringResource(R.string.drawer_low_latency_touch),
+                                    stringResource(R.string.drawer_low_latency_touch_hint), a.lowLatencyTouch,
+                                    chipModifier = focus.track(page, "low-latency-touch"), onChange = a.onLowLatencyTouch)
                             }
                             SettingsGroup(stringResource(R.string.drawer_keyboard)) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(8.dp)) {
@@ -903,17 +921,32 @@ private fun CardboardGroup(host: MenuHost, a: DrawerActions, track: (String) -> 
         }
         if (c.headTracking && a.cardboardSensor)
             ActionRow(stringResource(R.string.cardboard_recenter), null, stringResource(R.string.cardboard_recenter_button), a.onCardboardRecenter)
+    }
+}
+
+@Composable
+private fun SteamVrGroup(a: DrawerActions, track: (String) -> Modifier) {
+    SettingsGroup(stringResource(R.string.steamvr_title)) {
         val vrLabel = stringResource(R.string.cardboard_steamvr)
+        val enterLabel = stringResource(if (a.immersiveSteamVr) R.string.steamvr_enter else R.string.cardboard_steamvr_start)
+        @Composable fun button(label: String, text: String, action: String) {
+            SettingsRow(label, null) {
+                SecondaryButton(text, modifier = track("steamvr"), onClick = { a.onSteamVr(action) })
+            }
+        }
         when (a.steamVr) {
-            SteamVr.Status.NOT_INSTALLED -> ActionRow(vrLabel, stringResource(R.string.cardboard_steamvr_install_hint),
-                stringResource(R.string.cardboard_steamvr_install), { a.onSteamVr("install") })
+            SteamVr.Status.NOT_INSTALLED -> button(vrLabel, stringResource(R.string.cardboard_steamvr_install), "install")
             SteamVr.Status.INSTALLING -> SettingsRow(vrLabel, stringResource(R.string.cardboard_steamvr_installing)) {}
-            SteamVr.Status.READY -> ActionRow(vrLabel, stringResource(R.string.cardboard_steamvr_ready_hint),
-                stringResource(R.string.cardboard_steamvr_start), { a.onSteamVr("start") })
-            SteamVr.Status.RUNNING -> ActionRow(vrLabel, stringResource(R.string.cardboard_steamvr_running_hint),
-                stringResource(R.string.cardboard_steamvr_stop), { a.onSteamVr("stop") })
+            SteamVr.Status.READY -> button(vrLabel, enterLabel, "start")
+            SteamVr.Status.RUNNING -> {
+                if (a.immersiveSteamVr) button(vrLabel, enterLabel, "start")
+                SettingsRow(vrLabel, null) {
+                    SecondaryButton(stringResource(R.string.cardboard_steamvr_stop),
+                        modifier = track(if (a.immersiveSteamVr) "steamvr-stop" else "steamvr"), onClick = { a.onSteamVr("stop") })
+                }
+            }
             SteamVr.Status.UNAVAILABLE -> SettingsRow(vrLabel, stringResource(R.string.cardboard_steamvr_unavailable)) {}
-            null -> {}
+            null -> SettingsRow(vrLabel, stringResource(R.string.steamvr_checking)) {}
         }
     }
 }

@@ -843,7 +843,7 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android stopper apper som starter mange bakgrunnsprosesser, og Steam starter dusinvis. Til dette endres, avsluttes spill uten en feilmelding.</string>
     <string name="gate_fix_for_me">Fiks det for meg</string>
-    <string name="gate_toggle_steps">Slå på «Disable child process restrictions», og kom så tilbake. La Utvikleralternativer stå på, ellers slår bryteren seg av igjen.</string>
+    <string name="gate_toggle_steps">Slå på «Slå av begrensninger for underordnede prosesser», og kom så tilbake. La Utvikleralternativer stå på, ellers slår bryteren seg av igjen.</string>
     <string name="gate_open_dev">Åpne Utvikleralternativer</string>
     <string name="gate_no_toggle">Denne Android-versjonen har ingen bryter for det, så DroidDeck endrer det via trådløs feilsøking. Tar omtrent ett minutt, ingen datamaskin nødvendig.</string>
     <string name="gate_needs_wifi">Trådløs feilsøking krever Wi-Fi. Hvilket nettverk som helst fungerer; det krever ikke internett.</string>
@@ -1798,7 +1798,7 @@
     <string name="phantom_instructions_fix">%1$s Hvis det ikke er mulig, koble denne enheten til en datamaskin med ADB og kjør kommandoen under. Kom tilbake hit og kontroller igjen.</string>
     <string name="phantom_instructions_off">Steam-sesjoner kan starte.</string>
     <string name="phantom_instructions_not_applicable">Denne Android-versjonen bruker ikke denne grensen.</string>
-    <string name="phantom_fix_toggle">Slå på «Disable child process restrictions» i Utvikleralternativer, og la Utvikleralternativer stå på etterpå.</string>
+    <string name="phantom_fix_toggle">Slå på «Slå av begrensninger for underordnede prosesser» i Utvikleralternativer, og la Utvikleralternativer stå på etterpå.</string>
     <string name="phantom_fix_no_toggle">Denne Android-versjonen har ingen bryter for det. Bruk trådløs feilsøking for å endre det fra denne enheten.</string>
     <string name="upd_block_no_apk">Denne builden har ingen nedlasting for denne kopien av DroidDeck.</string>
     <string name="upd_block_version_code">Android vil ikke installere den over denne builden fordi dens versionCode %1$d er under den installerte %2$d.</string>
@@ -1918,6 +1918,16 @@
     <string name="stores_free">Gratis</string>
     <string name="stores_resume">Gjenoppta</string>
     <string name="stores_refresh">Oppdater</string>
+    <string name="stores_sort">Sorter</string>
+    <string name="stores_sort_last_played">Nylig spilt</string>
+    <string name="stores_sort_recently_installed">Nylig installert</string>
+    <string name="stores_sort_title_asc">Tittel A–Å</string>
+    <string name="stores_sort_title_desc">Tittel Å–A</string>
+    <string name="stores_sort_size_desc">Størrelse: størst</string>
+    <string name="stores_sort_size_asc">Størrelse: minst</string>
+    <string name="stores_sort_release_date">Utgivelsesdato</string>
+    <string name="stores_view_list">Listevisning</string>
+    <string name="stores_view_cards">Kortvisning</string>
     <string name="stores_show_mature">Vis innhold for voksne</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>
@@ -2212,12 +2222,9 @@
     <string name="cardboard_recenter_button">Sentrer</string>
     <string name="cardboard_steamvr">SteamVR (eksperimentell)</string>
     <string name="cardboard_steamvr_install">Installer</string>
-    <string name="cardboard_steamvr_install_hint">Laster ned Valves SteamVR for ARM64 (571 MB).</string>
     <string name="cardboard_steamvr_installing">Laster ned og pakker ut SteamVR …</string>
     <string name="cardboard_steamvr_start">Start</string>
-    <string name="cardboard_steamvr_ready_hint">Kjører SteamVR med hodet ditt som headset; bildet bytter til side-ved-side-3D.</string>
     <string name="cardboard_steamvr_stop">Stopp</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR kjører.</string>
     <string name="cardboard_steamvr_unavailable">Ikke tilgjengelig i denne økten.</string>
     <string name="cardboard_steamvr_failed">SteamVR svarte ikke; sjekk sesjonsloggen.</string>
     <string name="drawer_component_downloads">Last ned komponenter</string>

@@ -843,7 +843,7 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android, çok sayıda arka plan süreci başlatan uygulamaları durdurur; Steam da onlarca süreç başlatır. Bu değişmeden oyunlar hata vermeden kapanır.</string>
     <string name="gate_fix_for_me">Benim için düzelt</string>
-    <string name="gate_toggle_steps">“Alt süreç kısıtlamalarını devre dışı bırak” seçeneğini açın, sonra buraya dönün. Geliştirici seçeneklerini açık bırakın, yoksa anahtar yeniden kapanır.</string>
+    <string name="gate_toggle_steps">“Alt işlem kısıtlamalarını devre dışı bırak” seçeneğini açın, sonra buraya dönün. Geliştirici seçeneklerini açık bırakın, yoksa anahtar yeniden kapanır.</string>
     <string name="gate_open_dev">Geliştirici seçeneklerini aç</string>
     <string name="gate_no_toggle">Bu Android sürümünde bunun için bir anahtar yok, bu yüzden DroidDeck bunu Kablosuz hata ayıklama üzerinden değiştirir. Yaklaşık bir dakika sürer, bilgisayar gerekmez.</string>
     <string name="gate_needs_wifi">Kablosuz hata ayıklama Wi-Fi gerektirir. Herhangi bir ağ işe yarar; internet gerekmez.</string>
@@ -1798,7 +1798,7 @@
     <string name="phantom_instructions_fix">%1$s Bu mümkün değilse bu cihazı ADB\'li bir bilgisayara bağlayıp aşağıdaki komutu çalıştırın. Buraya dönüp yeniden kontrol edin.</string>
     <string name="phantom_instructions_off">Steam oturumları başlayabilir.</string>
     <string name="phantom_instructions_not_applicable">Bu Android sürümü bu sınırı kullanmaz.</string>
-    <string name="phantom_fix_toggle">Geliştirici seçenekleri\'nde “Alt süreç kısıtlamalarını devre dışı bırak” seçeneğini açın ve sonrasında Geliştirici seçeneklerini açık tutun.</string>
+    <string name="phantom_fix_toggle">Geliştirici seçenekleri\'nde “Alt işlem kısıtlamalarını devre dışı bırak” seçeneğini açın ve sonrasında Geliştirici seçeneklerini açık tutun.</string>
     <string name="phantom_fix_no_toggle">Bu Android sürümünde bunun için bir anahtar yok. Bu cihazdan değiştirmek için Kablosuz hata ayıklamayı kullanın.</string>
     <string name="upd_block_no_apk">Bu derlemede bu DroidDeck kopyası için bir indirme yok.</string>
     <string name="upd_block_version_code">Android, versionCode %1$d yüklü %2$d\'nin altında olduğu için bunu bu derlemenin üzerine yüklemez.</string>
@@ -1918,6 +1918,16 @@
     <string name="stores_free">Ücretsiz</string>
     <string name="stores_resume">Sürdür</string>
     <string name="stores_refresh">Yenile</string>
+    <string name="stores_sort">Sırala</string>
+    <string name="stores_sort_last_played">Son oynanan</string>
+    <string name="stores_sort_recently_installed">Son yüklenen</string>
+    <string name="stores_sort_title_asc">Başlık A–Z</string>
+    <string name="stores_sort_title_desc">Başlık Z–A</string>
+    <string name="stores_sort_size_desc">Boyut: en büyük</string>
+    <string name="stores_sort_size_asc">Boyut: en küçük</string>
+    <string name="stores_sort_release_date">Çıkış tarihi</string>
+    <string name="stores_view_list">Liste görünümü</string>
+    <string name="stores_view_cards">Kart görünümü</string>
     <string name="stores_show_mature">Yetişkin içeriği göster</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>
@@ -2212,12 +2222,9 @@
     <string name="cardboard_recenter_button">Ortala</string>
     <string name="cardboard_steamvr">SteamVR (deneysel)</string>
     <string name="cardboard_steamvr_install">Yükle</string>
-    <string name="cardboard_steamvr_install_hint">Valve\'ın ARM64 SteamVR\'ını indirir (571 MB).</string>
     <string name="cardboard_steamvr_installing">SteamVR indiriliyor ve açılıyor…</string>
     <string name="cardboard_steamvr_start">Başlat</string>
-    <string name="cardboard_steamvr_ready_hint">SteamVR\'ı başınızı başlık olarak kullanarak çalıştırır; görüntü yan yana 3D\'ye geçer.</string>
     <string name="cardboard_steamvr_stop">Durdur</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR çalışıyor.</string>
     <string name="cardboard_steamvr_unavailable">Bu oturumda kullanılamaz.</string>
     <string name="cardboard_steamvr_failed">SteamVR yanıt vermedi; oturum günlüğünü kontrol et.</string>
     <string name="drawer_component_downloads">Bileşenleri indir</string>

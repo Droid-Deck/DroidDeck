@@ -58,7 +58,7 @@
     <string name="game_env_save">Enregistrer</string>
     <string name="game_env_remove">Supprimer</string>
     <string name="game_env_restore">Rétablir l\'héritage</string>
-    <string name="game_env_reset">Réinitialiser ce profil</string>
+    <string name="game_env_reset">Effacer les remplacements d\'environnement</string>
     <string name="game_env_unset">Annuler la définition pour ce profil</string>
     <string name="game_env_empty">Aucune variable définie.</string>
     <string name="game_env_inherited">Hérité</string>
@@ -140,7 +140,7 @@
     <string name="user_apps_failed">Échec de l\'ajout de l\'application</string>
     <string name="user_apps_github_checking">Recherche des versions de %1$s</string>
     <string name="user_apps_github_unreachable">Impossible de lire les versions de %1$s</string>
-    <string name="user_apps_github_no_appimage">%1$s ne fournit pas de version ARM64 AppImage</string>
+    <string name="user_apps_github_no_appimage">Aucune version de %1$s ne contient d\'AppImage ARM64 ou x86_64</string>
     <string name="user_apps_downloading">Téléchargement de %1$s en cours</string>
     <string name="user_apps_download_failed">Échec du téléchargement</string>
     <string name="user_apps_update_failed">Échec de la mise à jour de l\'application</string>
@@ -159,8 +159,8 @@
     <string name="add_app_tab_github">GitHub</string>
     <string name="add_app_tab_flatpak">Flatpak</string>
     <string name="add_app_script_hint">Un fichier .sh. Il s\'exécutera depuis son propre dossier et s\'affichera en plein écran via gamescope.</string>
-    <string name="add_app_appimage_hint">Un AppImage ARM64 (aarch64). Il sera décompressé dans l\'environnement d\'exécution Linux lors de la première utilisation.</string>
-    <string name="add_app_github_hint">Installer l\'AppImage ARM64 depuis la dernière version du dépôt.</string>
+    <string name="add_app_appimage_hint">Un AppImage ARM64 (aarch64), ou un AppImage x86_64 exécuté via FEX. Il sera décompressé dans l\'environnement d\'exécution Linux lors de la première utilisation.</string>
+    <string name="add_app_github_hint">Installer l\'AppImage ARM64 de la dernière version du dépôt, ou son AppImage x86_64 via FEX.</string>
     <string name="app_fex_title">Utiliser FEX</string>
     <string name="app_fex_auto">Auto</string>
     <string name="app_fex_on">Activé</string>
@@ -266,7 +266,7 @@
     <string name="mode_controller_ds4">DualShock 4</string>
     <string name="mode_controller_dualsense">DualSense</string>
     <string name="mode_controller_x360">Manette Xbox 360</string>
-    <string name="mode_controller_note">Deck : fournit un bouton d\'accès rapide et un gyroscope. Xbox 360 : utilisez Guide+A pour ouvrir l\'accès rapide.</string>
+    <string name="mode_controller_note">Deck : bouton d\'accès rapide et gyroscope. Steam Controller : idem, avec détection de la prise en main sur les boutons arrière. DualShock 4 et DualSense : gyroscope, et les trackpads servent de pavé tactile. Xbox 360 : utilisez Guide+A pour ouvrir l\'accès rapide.</string>
     <string name="mode_back">Retour</string>
     <string name="back_menu_then_qam">Menu → QAM</string>
     <string name="back_qam_then_menu">QAM → Menu</string>
@@ -471,7 +471,7 @@
     <string name="comp_applies_next_game">Prendra effet au prochain lancement du jeu</string>
     <string name="comp_import_zip">Importer .zip</string>
     <string name="comp_reading">Lecture de Proton…</string>
-    <string name="comp_no_proton">Proton n\'est pas encore installé. Lancez Steam une fois pour télécharger son Proton ARM64, ou ajoutez GE-Proton ou CachyOS depuis les « Paramètres ».</string>
+    <string name="comp_no_proton">Proton n\'est pas encore installé. Lancez Steam une fois pour télécharger son Proton ARM64, ou ajoutez GE-Proton, CachyOS ou DroidDeck-Proton depuis les « Paramètres ».</string>
     <string name="comp_original">Original · %1$s</string>
     <string name="comp_this_build">%1$s · Version actuelle</string>
     <string name="comp_earlier_build">%1$s · Version antérieure</string>
@@ -857,7 +857,7 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android arrête les applications qui lancent de nombreux processus en arrière-plan, et Steam en lance des dizaines. Tant que ce paramètre n\'est pas modifié, les jeux peuvent se fermer sans message d\'erreur.</string>
     <string name="gate_fix_for_me">Corriger pour moi</string>
-    <string name="gate_toggle_steps">Activez « Désactiver la limite de processus enfants », puis revenez. Gardez les options pour les développeurs activées, sinon l\'interrupteur se désactivera à nouveau.</string>
+    <string name="gate_toggle_steps">Activez « Désactiver les limites pour les processus enfant », puis revenez. Gardez les options pour les développeurs activées, sinon l\'interrupteur se désactivera à nouveau.</string>
     <string name="gate_open_dev">Ouvrir les options pour les développeurs</string>
     <string name="gate_no_toggle">Cette version d\'Android ne dispose pas de cet interrupteur, DroidDeck effectuera donc la modification via le débogage sans fil. Cela prend environ une minute, sans ordinateur.</string>
     <string name="gate_needs_wifi">Le débogage sans fil nécessite un Wi-Fi. N\'importe quel réseau convient, Internet n\'est pas nécessaire.</string>
@@ -907,8 +907,8 @@
     <string name="wadb_turn_off">Désactiver la limite</string>
     <string name="wadb_other_ways">Autres méthodes de modification</string>
     <string name="wadb_dev_try_first">1 · Options pour les développeurs (à essayer en premier)</string>
-    <string name="wadb_restrict_on">Désactivez «Désactiver les limites pour les processus enfant».</string>
-    <string name="wadb_restrict_off">Activez «Désactiver les limites pour les processus enfant».</string>
+    <string name="wadb_restrict_on">Désactivez « Désactiver les limites pour les processus enfant ».</string>
+    <string name="wadb_restrict_off">Activez « Désactiver les limites pour les processus enfant ».</string>
     <string name="wadb_computer_last">3 · ADB sur PC (en dernier recours)</string>
     <string name="wadb_only_if">À utiliser uniquement si le débogage sans fil n\'est pas disponible.</string>
     <string name="wadb_computer_group">3 · ADB sur PC (en dernier recours)</string>
@@ -1827,7 +1827,7 @@
     <string name="phantom_instructions_fix">%1$s Si ce n\'est pas possible, connectez cet appareil à un ordinateur avec ADB et exécutez la commande ci-dessous. Revenez ensuite ici et vérifiez à nouveau.</string>
     <string name="phantom_instructions_off">Les sessions Steam peuvent démarrer.</string>
     <string name="phantom_instructions_not_applicable">Cette version d\'Android n\'utilise pas cette limite.</string>
-    <string name="phantom_fix_toggle">Activez « Désactiver les restrictions des processus enfants » dans les options pour les développeurs, puis laissez les options pour les développeurs activées.</string>
+    <string name="phantom_fix_toggle">Activez « Désactiver les limites pour les processus enfant » dans les options pour les développeurs, puis laissez les options pour les développeurs activées.</string>
     <string name="phantom_fix_no_toggle">Cette version d\'Android ne dispose pas de cet interrupteur. Utilisez le débogage sans fil pour le modifier depuis cet appareil.</string>
     <string name="upd_block_no_apk">Cette version ne propose aucun téléchargement pour cette copie de DroidDeck.</string>
     <string name="upd_block_version_code">Android ne l\'installera pas par-dessus cette version, car son versionCode %1$d est inférieur à celui installé (%2$d).</string>
@@ -1947,6 +1947,16 @@
     <string name="stores_free">Gratuit</string>
     <string name="stores_resume">Reprendre</string>
     <string name="stores_refresh">Actualiser</string>
+    <string name="stores_sort">Trier</string>
+    <string name="stores_sort_last_played">Joués récemment</string>
+    <string name="stores_sort_recently_installed">Installés récemment</string>
+    <string name="stores_sort_title_asc">Titre A–Z</string>
+    <string name="stores_sort_title_desc">Titre Z–A</string>
+    <string name="stores_sort_size_desc">Taille : plus grand</string>
+    <string name="stores_sort_size_asc">Taille : plus petit</string>
+    <string name="stores_sort_release_date">Date de sortie</string>
+    <string name="stores_view_list">Vue liste</string>
+    <string name="stores_view_cards">Vue cartes</string>
     <string name="stores_show_mature">Afficher le contenu pour adultes</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>
@@ -2253,12 +2263,9 @@
     <string name="cardboard_recenter_button">Recentrer</string>
     <string name="cardboard_steamvr">SteamVR (expérimental)</string>
     <string name="cardboard_steamvr_install">Installer</string>
-    <string name="cardboard_steamvr_install_hint">Télécharge SteamVR ARM64 de Valve (571 Mo).</string>
     <string name="cardboard_steamvr_installing">Téléchargement et décompression de SteamVR…</string>
     <string name="cardboard_steamvr_start">Démarrer</string>
-    <string name="cardboard_steamvr_ready_hint">Lance SteamVR avec votre tête comme casque ; l\'image passe en 3D côte à côte.</string>
     <string name="cardboard_steamvr_stop">Arrêter</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR est en cours d\'exécution.</string>
     <string name="cardboard_steamvr_unavailable">Indisponible dans cette session.</string>
     <string name="cardboard_steamvr_failed">SteamVR ne répond pas ; consultez le journal de session.</string>
     <string name="drawer_component_downloads">Télécharger des composants</string>

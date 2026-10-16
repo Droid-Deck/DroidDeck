@@ -843,7 +843,7 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android उन ऐप को रोकता है जो कई बैकग्राउंड प्रोसेस शुरू करते हैं, और Steam दर्जनों शुरू करता है। जब तक यह नहीं बदलता, गेम बिना किसी एरर के बंद हो जाते हैं।</string>
     <string name="gate_fix_for_me">मेरे लिए ठीक करें</string>
-    <string name="gate_toggle_steps">“Disable child process restrictions” चालू करें, फिर वापस आएं। डेवलपर विकल्प चालू रहने दें, नहीं तो यह स्विच फिर से बंद हो जाएगा।</string>
+    <string name="gate_toggle_steps">“चाइल्ड प्रोसेस से जुड़ी पाबंदियां हटाएं” चालू करें, फिर वापस आएं। डेवलपर विकल्प चालू रहने दें, नहीं तो यह स्विच फिर से बंद हो जाएगा।</string>
     <string name="gate_open_dev">डेवलपर विकल्प खोलें</string>
     <string name="gate_no_toggle">इस Android वर्शन में इसके लिए कोई स्विच नहीं है, इसलिए DroidDeck इसे वायरलेस डीबगिंग के ज़रिए बदलता है। इसमें लगभग एक मिनट लगता है, किसी कंप्यूटर की ज़रूरत नहीं।</string>
     <string name="gate_needs_wifi">वायरलेस डीबगिंग के लिए Wi-Fi चाहिए। कोई भी नेटवर्क काम करेगा; इंटरनेट की ज़रूरत नहीं है।</string>
@@ -1798,7 +1798,7 @@
     <string name="phantom_instructions_fix">%1$s अगर यह संभव नहीं है, तो इस डिवाइस को ADB वाले कंप्यूटर से कनेक्ट करें और नीचे दिया कमांड चलाएं। यहां वापस आएं और फिर से जांचें।</string>
     <string name="phantom_instructions_off">Steam सेशन शुरू हो सकते हैं।</string>
     <string name="phantom_instructions_not_applicable">यह Android वर्शन इस सीमा का उपयोग नहीं करता।</string>
-    <string name="phantom_fix_toggle">डेवलपर विकल्प में “Disable child process restrictions” चालू करें, और बाद में डेवलपर विकल्प चालू रहने दें।</string>
+    <string name="phantom_fix_toggle">डेवलपर विकल्प में “चाइल्ड प्रोसेस से जुड़ी पाबंदियां हटाएं” चालू करें, और बाद में डेवलपर विकल्प चालू रहने दें।</string>
     <string name="phantom_fix_no_toggle">इस Android वर्शन में इसके लिए कोई स्विच नहीं है। इसे इस डिवाइस से बदलने के लिए वायरलेस डीबगिंग इस्तेमाल करें।</string>
     <string name="upd_block_no_apk">इस बिल्ड में DroidDeck की इस कॉपी के लिए कोई डाउनलोड नहीं है।</string>
     <string name="upd_block_version_code">Android इसे इस बिल्ड के ऊपर इंस्टॉल नहीं करेगा क्योंकि इसका versionCode %1$d इंस्टॉल किए %2$d से कम है।</string>
@@ -1918,6 +1918,16 @@
     <string name="stores_free">फ़्री</string>
     <string name="stores_resume">फिर से शुरू करें</string>
     <string name="stores_refresh">रीफ़्रेश करें</string>
+    <string name="stores_sort">क्रमबद्ध करें</string>
+    <string name="stores_sort_last_played">हाल में खेले गए</string>
+    <string name="stores_sort_recently_installed">हाल में इंस्टॉल किए गए</string>
+    <string name="stores_sort_title_asc">शीर्षक A–Z</string>
+    <string name="stores_sort_title_desc">शीर्षक Z–A</string>
+    <string name="stores_sort_size_desc">आकार: सबसे बड़ा</string>
+    <string name="stores_sort_size_asc">आकार: सबसे छोटा</string>
+    <string name="stores_sort_release_date">रिलीज़ तिथि</string>
+    <string name="stores_view_list">सूची दृश्य</string>
+    <string name="stores_view_cards">कार्ड दृश्य</string>
     <string name="stores_show_mature">वयस्क कंटेंट दिखाएं</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>
@@ -2212,12 +2222,9 @@
     <string name="cardboard_recenter_button">बीच में लाएं</string>
     <string name="cardboard_steamvr">SteamVR (प्रायोगिक)</string>
     <string name="cardboard_steamvr_install">इंस्टॉल करें</string>
-    <string name="cardboard_steamvr_install_hint">Valve का ARM64 SteamVR डाउनलोड करता है (571 MB)।</string>
     <string name="cardboard_steamvr_installing">SteamVR डाउनलोड और अनपैक हो रहा है…</string>
     <string name="cardboard_steamvr_start">शुरू करें</string>
-    <string name="cardboard_steamvr_ready_hint">आपके सिर को हेडसेट मानकर SteamVR चलाता है; तस्वीर साइड-बाय-साइड 3D में बदल जाती है।</string>
     <string name="cardboard_steamvr_stop">रोकें</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR चल रहा है।</string>
     <string name="cardboard_steamvr_unavailable">इस सेशन में उपलब्ध नहीं है।</string>
     <string name="cardboard_steamvr_failed">SteamVR ने जवाब नहीं दिया; सेशन लॉग देखें।</string>
     <string name="drawer_component_downloads">कंपोनेंट डाउनलोड करें</string>

@@ -843,7 +843,7 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Το Android διακόπτει εφαρμογές που ξεκινούν πολλές διαδικασίες παρασκηνίου, και το Steam ξεκινά δεκάδες. Μέχρι να αλλάξει αυτό, τα παιχνίδια κλείνουν χωρίς σφάλμα.</string>
     <string name="gate_fix_for_me">Διόρθωσέ το για εμένα</string>
-    <string name="gate_toggle_steps">Ενεργοποιήστε «Απενεργοποίηση περιορισμών θυγατρικών διαδικασιών» και επιστρέψτε εδώ. Αφήστε τις Επιλογές προγραμματιστή ενεργές, διαφορετικά ο διακόπτης απενεργοποιείται ξανά.</string>
+    <string name="gate_toggle_steps">Ενεργοποιήστε «Απενεργοπ. περιορισμών σε θυγατρικές διεργασίες» και επιστρέψτε εδώ. Αφήστε τις Επιλογές προγραμματιστή ενεργές, διαφορετικά ο διακόπτης απενεργοποιείται ξανά.</string>
     <string name="gate_open_dev">Άνοιγμα Επιλογών προγραμματιστή</string>
     <string name="gate_no_toggle">Αυτή η έκδοση Android δεν έχει διακόπτη για αυτό, οπότε το DroidDeck το αλλάζει μέσω Ασύρματου εντοπισμού σφαλμάτων. Διαρκεί περίπου ένα λεπτό, χωρίς υπολογιστή.</string>
     <string name="gate_needs_wifi">Ο Ασύρματος εντοπισμός σφαλμάτων απαιτεί Wi-Fi. Οποιοδήποτε δίκτυο λειτουργεί· δεν απαιτείται σύνδεση στο διαδίκτυο.</string>
@@ -1798,7 +1798,7 @@
     <string name="phantom_instructions_fix">%1$s Αν αυτό δεν είναι δυνατό, συνδέστε αυτή τη συσκευή σε έναν υπολογιστή με ADB και εκτελέστε την παρακάτω εντολή. Επιστρέψτε εδώ και ελέγξτε ξανά.</string>
     <string name="phantom_instructions_off">Οι συνεδρίες Steam μπορούν να ξεκινήσουν.</string>
     <string name="phantom_instructions_not_applicable">Αυτή η έκδοση Android δεν χρησιμοποιεί αυτό το όριο.</string>
-    <string name="phantom_fix_toggle">Ενεργοποιήστε την «Απενεργοποίηση περιορισμών θυγατρικών διαδικασιών» στις Επιλογές προγραμματιστή και αφήστε τις Επιλογές προγραμματιστή ενεργές μετά.</string>
+    <string name="phantom_fix_toggle">Ενεργοποιήστε την «Απενεργοπ. περιορισμών σε θυγατρικές διεργασίες» στις Επιλογές προγραμματιστή και αφήστε τις Επιλογές προγραμματιστή ενεργές μετά.</string>
     <string name="phantom_fix_no_toggle">Αυτή η έκδοση Android δεν έχει διακόπτη για αυτό. Χρησιμοποιήστε τον ασύρματο εντοπισμό σφαλμάτων για να το αλλάξετε από αυτή τη συσκευή.</string>
     <string name="upd_block_no_apk">Αυτή η έκδοση δεν έχει λήψη για αυτό το αντίγραφο του DroidDeck.</string>
     <string name="upd_block_version_code">Το Android δεν θα το εγκαταστήσει πάνω από αυτήν την έκδοση επειδή το versionCode %1$d είναι μικρότερο από το εγκατεστημένο %2$d.</string>
@@ -1918,6 +1918,16 @@
     <string name="stores_free">Δωρεάν</string>
     <string name="stores_resume">Συνέχιση</string>
     <string name="stores_refresh">Ανανέωση</string>
+    <string name="stores_sort">Ταξινόμηση</string>
+    <string name="stores_sort_last_played">Παίχτηκαν πρόσφατα</string>
+    <string name="stores_sort_recently_installed">Εγκαταστήθηκαν πρόσφατα</string>
+    <string name="stores_sort_title_asc">Τίτλος Α–Ω</string>
+    <string name="stores_sort_title_desc">Τίτλος Ω–Α</string>
+    <string name="stores_sort_size_desc">Μέγεθος: μεγαλύτερο</string>
+    <string name="stores_sort_size_asc">Μέγεθος: μικρότερο</string>
+    <string name="stores_sort_release_date">Ημερομηνία κυκλοφορίας</string>
+    <string name="stores_view_list">Προβολή λίστας</string>
+    <string name="stores_view_cards">Προβολή καρτών</string>
     <string name="stores_show_mature">Εμφάνιση περιεχομένου για ενήλικες</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>
@@ -2212,12 +2222,9 @@
     <string name="cardboard_recenter_button">Επανακεντράρισμα</string>
     <string name="cardboard_steamvr">SteamVR (πειραματικό)</string>
     <string name="cardboard_steamvr_install">Εγκατάσταση</string>
-    <string name="cardboard_steamvr_install_hint">Κατεβάζει το SteamVR ARM64 της Valve (571 MB).</string>
     <string name="cardboard_steamvr_installing">Λήψη και αποσυμπίεση του SteamVR…</string>
     <string name="cardboard_steamvr_start">Έναρξη</string>
-    <string name="cardboard_steamvr_ready_hint">Εκτελεί το SteamVR με το κεφάλι σας ως headset· η εικόνα αλλάζει σε 3D δίπλα-δίπλα.</string>
     <string name="cardboard_steamvr_stop">Διακοπή</string>
-    <string name="cardboard_steamvr_running_hint">Το SteamVR εκτελείται.</string>
     <string name="cardboard_steamvr_unavailable">Δεν είναι διαθέσιμο σε αυτή τη συνεδρία.</string>
     <string name="cardboard_steamvr_failed">Το SteamVR δεν αποκρίθηκε· ελέγξτε το αρχείο καταγραφής της συνεδρίας.</string>
     <string name="drawer_component_downloads">Λήψη στοιχείων</string>

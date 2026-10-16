@@ -10,6 +10,8 @@ object CompositorHost {
 
     @Volatile
     var displayChoice: String? = null
+
+    @Volatile
     private var vsyncRunning = false
 
     private val vsync = object : Choreographer.FrameCallback {
@@ -73,6 +75,14 @@ object CompositorHost {
     }
 
     private var attached: Surface? = null
+
+    @Synchronized
+    fun attachXr() {
+        check(started) { "DroidDeck compositor is not running" }
+        pauseVsync()
+        attached = null
+        WaylandCompositor.nativeSetSurface(null)
+    }
 
     @Synchronized
     fun detach(surface: Surface?) {

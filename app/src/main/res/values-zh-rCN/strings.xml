@@ -845,7 +845,7 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android 会终止启动了大量后台进程的应用，而 Steam 会启动数十个。在更改此设置之前，游戏会在没有报错的情况下关闭。</string>
     <string name="gate_fix_for_me">帮我修复</string>
-    <string name="gate_toggle_steps">打开“禁用子进程限制”，然后返回。保持开发者选项开启，否则开关会再次关闭。</string>
+    <string name="gate_toggle_steps">打开“停止限制子进程”，然后返回。保持开发者选项开启，否则开关会再次关闭。</string>
     <string name="gate_open_dev">打开开发者选项</string>
     <string name="gate_no_toggle">此 Android 版本没有该开关，因此 DroidDeck 通过无线调试来修改。大约需要一分钟，无需电脑。</string>
     <string name="gate_needs_wifi">无线调试需要 Wi-Fi。任何网络都可以，不需要互联网。</string>
@@ -1785,7 +1785,7 @@
     <string name="phantom_instructions_fix">%1$s 如果无法做到，请将此设备连接到装有 ADB 的电脑并运行下方命令，然后返回此处重新检查。</string>
     <string name="phantom_instructions_off">可以启动 Steam 会话了。</string>
     <string name="phantom_instructions_not_applicable">此 Android 版本不使用该限制。</string>
-    <string name="phantom_fix_toggle">在开发者选项中打开“禁用子进程限制”，之后请保持开发者选项开启。</string>
+    <string name="phantom_fix_toggle">在开发者选项中打开“停止限制子进程”，之后请保持开发者选项开启。</string>
     <string name="phantom_fix_no_toggle">此 Android 版本没有该开关。请使用无线调试在此设备上更改。</string>
     <string name="upd_block_no_apk">此构建没有适用于此 DroidDeck 副本的下载。</string>
     <string name="upd_block_version_code">Android 不会用它覆盖此构建，因为它的 versionCode %1$d 低于已安装的 %2$d。</string>
@@ -1905,6 +1905,16 @@
     <string name="stores_free">免费</string>
     <string name="stores_resume">继续</string>
     <string name="stores_refresh">刷新</string>
+    <string name="stores_sort">排序</string>
+    <string name="stores_sort_last_played">最近游玩</string>
+    <string name="stores_sort_recently_installed">最近安装</string>
+    <string name="stores_sort_title_asc">标题 A–Z</string>
+    <string name="stores_sort_title_desc">标题 Z–A</string>
+    <string name="stores_sort_size_desc">大小: 从大到小</string>
+    <string name="stores_sort_size_asc">大小: 从小到大</string>
+    <string name="stores_sort_release_date">发行日期</string>
+    <string name="stores_view_list">列表视图</string>
+    <string name="stores_view_cards">卡片视图</string>
     <string name="stores_show_mature">显示成人内容</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>
@@ -2203,15 +2213,16 @@
     <string name="cardboard_recenter_button">重置</string>
     <string name="cardboard_steamvr">SteamVR（实验性）</string>
     <string name="cardboard_steamvr_install">安装</string>
-    <string name="cardboard_steamvr_install_hint">下载 Valve 的 ARM64 版 SteamVR（571 MB）。</string>
     <string name="cardboard_steamvr_installing">正在下载并解压 SteamVR…</string>
     <string name="cardboard_steamvr_start">启动</string>
-    <string name="cardboard_steamvr_ready_hint">以你的头部作为头显运行 SteamVR；画面会切换为左右并排 3D。</string>
     <string name="cardboard_steamvr_stop">停止</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR 正在运行。</string>
     <string name="cardboard_steamvr_unavailable">此会话中不可用。</string>
     <string name="cardboard_steamvr_failed">SteamVR 未响应；请查看会话日志。</string>
     <string name="drawer_component_downloads">下载组件</string>
     <string name="drawer_component_downloads_hint">下载内容与“组件”页面共享。在上方选择已下载的版本，即可在下次启动游戏时使用。</string>
     <string name="drawer_component_choose_download">选择要下载的版本</string>
+    <string name="display_picture_position">画面位置</string>
+    <string name="display_position_top">置顶</string>
+    <string name="display_position_bottom">置底</string>
+    <string name="display_position_center">居中（默认）</string>
 </resources>

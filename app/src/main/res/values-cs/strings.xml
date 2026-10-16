@@ -855,7 +855,7 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android zastavuje aplikace, které spouštějí mnoho procesů na pozadí, a Steam jich spouští desítky. Dokud se to nezmění, hry se zavírají bez chybové zprávy.</string>
     <string name="gate_fix_for_me">Oprav to za mě</string>
-    <string name="gate_toggle_steps">Zapněte „Disable child process restrictions“ a vraťte se zpět. Nechte Možnosti pro vývojáře zapnuté, jinak se přepínač znovu vypne.</string>
+    <string name="gate_toggle_steps">Zapněte „Deaktivace omezení podřízených procesů“ a vraťte se zpět. Nechte Možnosti pro vývojáře zapnuté, jinak se přepínač znovu vypne.</string>
     <string name="gate_open_dev">Otevřít Možnosti pro vývojáře</string>
     <string name="gate_no_toggle">Tato verze Androidu pro to nemá přepínač, proto to DroidDeck změní přes Bezdrátové ladění. Zabere to asi minutu, počítač není potřeba.</string>
     <string name="gate_needs_wifi">Bezdrátové ladění potřebuje Wi-Fi. Funguje jakákoli síť, internet není nutný.</string>
@@ -1840,7 +1840,7 @@
     <string name="phantom_instructions_fix">%1$s Pokud to není možné, připojte toto zařízení k počítači s ADB a spusťte příkaz níže. Vraťte se sem a zkontrolujte to znovu.</string>
     <string name="phantom_instructions_off">Relace Steamu se mohou spouštět.</string>
     <string name="phantom_instructions_not_applicable">Tato verze Androidu tento limit nepoužívá.</string>
-    <string name="phantom_fix_toggle">Zapněte „Zakázat omezení procesů potomků“ v Možnostech pro vývojáře a pak je nechte zapnuté.</string>
+    <string name="phantom_fix_toggle">Zapněte „Deaktivace omezení podřízených procesů“ v Možnostech pro vývojáře a pak je nechte zapnuté.</string>
     <string name="phantom_fix_no_toggle">Tato verze Androidu pro to nemá přepínač. Použijte bezdrátové ladění a změňte to z tohoto zařízení.</string>
     <string name="upd_block_no_apk">Toto sestavení nemá stažení pro tuto kopii DroidDecku.</string>
     <string name="upd_block_version_code">Android to nenainstaluje přes toto sestavení, protože jeho versionCode %1$d je nižší než nainstalovaný %2$d.</string>
@@ -1960,6 +1960,16 @@
     <string name="stores_free">Zdarma</string>
     <string name="stores_resume">Pokračovat</string>
     <string name="stores_refresh">Obnovit</string>
+    <string name="stores_sort">Řazení</string>
+    <string name="stores_sort_last_played">Nedávno hrané</string>
+    <string name="stores_sort_recently_installed">Nedávno nainstalované</string>
+    <string name="stores_sort_title_asc">Název A–Z</string>
+    <string name="stores_sort_title_desc">Název Z–A</string>
+    <string name="stores_sort_size_desc">Velikost: největší</string>
+    <string name="stores_sort_size_asc">Velikost: nejmenší</string>
+    <string name="stores_sort_release_date">Datum vydání</string>
+    <string name="stores_view_list">Zobrazení seznamu</string>
+    <string name="stores_view_cards">Zobrazení karet</string>
     <string name="stores_show_mature">Zobrazovat obsah pro dospělé</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>
@@ -2262,12 +2272,9 @@
     <string name="cardboard_recenter_button">Vycentrovat</string>
     <string name="cardboard_steamvr">SteamVR (experimentální)</string>
     <string name="cardboard_steamvr_install">Instalovat</string>
-    <string name="cardboard_steamvr_install_hint">Stáhne SteamVR pro ARM64 od Valve (571 MB).</string>
     <string name="cardboard_steamvr_installing">Stahování a rozbalování SteamVR…</string>
     <string name="cardboard_steamvr_start">Spustit</string>
-    <string name="cardboard_steamvr_ready_hint">Spustí SteamVR s vaší hlavou jako headsetem; obraz se přepne na 3D vedle sebe.</string>
     <string name="cardboard_steamvr_stop">Zastavit</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR běží.</string>
     <string name="cardboard_steamvr_unavailable">V této relaci není k dispozici.</string>
     <string name="cardboard_steamvr_failed">SteamVR neodpovídá; zkontrolujte protokol relace.</string>
     <string name="drawer_component_downloads">Stáhnout komponenty</string>

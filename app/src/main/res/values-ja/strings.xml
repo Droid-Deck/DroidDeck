@@ -845,7 +845,7 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Androidは多数のバックグラウンドプロセスを起動するアプリを停止しますが、Steamは数十のプロセスを起動します。この設定を変更するまで、ゲームがエラー表示なしで閉じる可能性があります。</string>
     <string name="gate_fix_for_me">自動で修正</string>
-    <string name="gate_toggle_steps">「子プロセス制限を無効にする」をオンにして戻ってください。開発者向けオプションをオンのままにしないと、スイッチが再びオフになります。</string>
+    <string name="gate_toggle_steps">「子プロセスの制限を無効化」をオンにして戻ってください。開発者向けオプションをオンのままにしないと、スイッチが再びオフになります。</string>
     <string name="gate_open_dev">開発者向けオプションを開く</string>
     <string name="gate_no_toggle">このAndroidバージョンにはこのスイッチがないため、DroidDeckはワイヤレスデバッグを介して変更します。約1分かかり、PCは不要です。</string>
     <string name="gate_needs_wifi">ワイヤレスデバッグにはWi-Fiが必要です。ネットワークは何でもよく、インターネットは不要です。</string>
@@ -1785,7 +1785,7 @@
     <string name="phantom_instructions_fix">%1$s それができない場合は、このデバイスをADBが使えるPCに接続し、以下のコマンドを実行してください。その後ここに戻って再確認してください。</string>
     <string name="phantom_instructions_off">Steamセッションを開始できます。</string>
     <string name="phantom_instructions_not_applicable">このAndroidバージョンではこの制限は使用されません。</string>
-    <string name="phantom_fix_toggle">開発者向けオプションで「子プロセス制限を無効にする」をオンにし、その後も開発者向けオプションをオンのままにしてください。</string>
+    <string name="phantom_fix_toggle">開発者向けオプションで「子プロセスの制限を無効化」をオンにし、その後も開発者向けオプションをオンのままにしてください。</string>
     <string name="phantom_fix_no_toggle">このAndroidバージョンにはこのスイッチがありません。ワイヤレスデバッグを使って、このデバイスから変更してください。</string>
     <string name="upd_block_no_apk">このビルドには、このDroidDeckコピー用のダウンロードがありません。</string>
     <string name="upd_block_version_code">このビルドのversionCode %1$dはインストール済みの%2$dより小さいため、Androidは上書きインストールしません。</string>
@@ -1905,6 +1905,16 @@
     <string name="stores_free">無料</string>
     <string name="stores_resume">再開</string>
     <string name="stores_refresh">更新</string>
+    <string name="stores_sort">並べ替え</string>
+    <string name="stores_sort_last_played">最近プレイ</string>
+    <string name="stores_sort_recently_installed">最近インストール</string>
+    <string name="stores_sort_title_asc">タイトル A–Z</string>
+    <string name="stores_sort_title_desc">タイトル Z–A</string>
+    <string name="stores_sort_size_desc">サイズ: 大きい順</string>
+    <string name="stores_sort_size_asc">サイズ: 小さい順</string>
+    <string name="stores_sort_release_date">リリース日</string>
+    <string name="stores_view_list">リスト表示</string>
+    <string name="stores_view_cards">カード表示</string>
     <string name="stores_show_mature">成人向けコンテンツを表示</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>
@@ -2203,12 +2213,9 @@
     <string name="cardboard_recenter_button">リセット</string>
     <string name="cardboard_steamvr">SteamVR（試験運用）</string>
     <string name="cardboard_steamvr_install">インストール</string>
-    <string name="cardboard_steamvr_install_hint">ValveのARM64版SteamVRをダウンロードします（571 MB）。</string>
     <string name="cardboard_steamvr_installing">SteamVRをダウンロードして展開しています…</string>
     <string name="cardboard_steamvr_start">開始</string>
-    <string name="cardboard_steamvr_ready_hint">頭の動きをヘッドセットとしてSteamVRを実行します。映像はサイドバイサイド3Dに切り替わります。</string>
     <string name="cardboard_steamvr_stop">停止</string>
-    <string name="cardboard_steamvr_running_hint">SteamVRは実行中です。</string>
     <string name="cardboard_steamvr_unavailable">このセッションでは利用できません。</string>
     <string name="cardboard_steamvr_failed">SteamVRが応答しませんでした。セッションログを確認してください。</string>
     <string name="drawer_component_downloads">コンポーネントをダウンロード</string>

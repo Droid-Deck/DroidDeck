@@ -849,7 +849,7 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android arresta le app che avviano molti processi in background, e Steam ne avvia decine. Finché questo non cambia, i giochi si chiudono senza un errore.</string>
     <string name="gate_fix_for_me">Risolvilo per me</string>
-    <string name="gate_toggle_steps">Attiva “Disattiva limitazioni dei processi figlio”, poi torna qui. Lascia attive le Opzioni sviluppatore, altrimenti l\'interruttore si disattiva di nuovo.</string>
+    <string name="gate_toggle_steps">Attiva “Disattiva limitazioni per i processi secondari”, poi torna qui. Lascia attive le Opzioni sviluppatore, altrimenti l\'interruttore si disattiva di nuovo.</string>
     <string name="gate_open_dev">Apri Opzioni sviluppatore</string>
     <string name="gate_no_toggle">Questa versione di Android non ha un interruttore per questo, quindi DroidDeck lo cambia tramite il Debug wireless. Richiede circa un minuto, senza bisogno di un computer.</string>
     <string name="gate_needs_wifi">Il Debug wireless richiede il Wi-Fi. Va bene qualsiasi rete; non serve l\'accesso a internet.</string>
@@ -1819,7 +1819,7 @@
     <string name="phantom_instructions_fix">%1$s Se non è possibile, collega questo dispositivo a un computer con ADB ed esegui il comando qui sotto. Poi torna qui e ricontrolla.</string>
     <string name="phantom_instructions_off">Le sessioni Steam possono avviarsi.</string>
     <string name="phantom_instructions_not_applicable">Questa versione di Android non usa questo limite.</string>
-    <string name="phantom_fix_toggle">Attiva “Disattiva limitazioni processi secondari” in Opzioni sviluppatore e poi lascia attive le Opzioni sviluppatore.</string>
+    <string name="phantom_fix_toggle">Attiva “Disattiva limitazioni per i processi secondari” in Opzioni sviluppatore e poi lascia attive le Opzioni sviluppatore.</string>
     <string name="phantom_fix_no_toggle">Questa versione di Android non ha un interruttore per farlo. Usa il debug wireless per cambiarlo da questo dispositivo.</string>
     <string name="upd_block_no_apk">Questa build non ha un download per questa copia di DroidDeck.</string>
     <string name="upd_block_version_code">Android non la installerà sopra questa build perché il suo versionCode %1$d è inferiore al %2$d installato.</string>
@@ -1939,6 +1939,16 @@
     <string name="stores_free">Gratis</string>
     <string name="stores_resume">Riprendi</string>
     <string name="stores_refresh">Aggiorna</string>
+    <string name="stores_sort">Ordina</string>
+    <string name="stores_sort_last_played">Giocate di recente</string>
+    <string name="stores_sort_recently_installed">Installate di recente</string>
+    <string name="stores_sort_title_asc">Titolo A–Z</string>
+    <string name="stores_sort_title_desc">Titolo Z–A</string>
+    <string name="stores_sort_size_desc">Dimensione: maggiore</string>
+    <string name="stores_sort_size_asc">Dimensione: minore</string>
+    <string name="stores_sort_release_date">Data di uscita</string>
+    <string name="stores_view_list">Visualizzazione elenco</string>
+    <string name="stores_view_cards">Visualizzazione schede</string>
     <string name="stores_show_mature">Mostra contenuti per adulti</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>
@@ -2237,12 +2247,9 @@
     <string name="cardboard_recenter_button">Ricentra</string>
     <string name="cardboard_steamvr">SteamVR (sperimentale)</string>
     <string name="cardboard_steamvr_install">Installa</string>
-    <string name="cardboard_steamvr_install_hint">Scarica SteamVR ARM64 di Valve (571 MB).</string>
     <string name="cardboard_steamvr_installing">Download ed estrazione di SteamVR…</string>
     <string name="cardboard_steamvr_start">Avvia</string>
-    <string name="cardboard_steamvr_ready_hint">Avvia SteamVR usando la tua testa come visore; l\'immagine passa al 3D affiancato.</string>
     <string name="cardboard_steamvr_stop">Arresta</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR è in esecuzione.</string>
     <string name="cardboard_steamvr_unavailable">Non disponibile in questa sessione.</string>
     <string name="cardboard_steamvr_failed">SteamVR non ha risposto; controlla il log della sessione.</string>
     <string name="drawer_component_downloads">Scarica componenti</string>

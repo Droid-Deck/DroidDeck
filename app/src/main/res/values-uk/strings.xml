@@ -855,7 +855,7 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android зупиняє додатки, які запускають багато фонових процесів, а Steam запускає їх десятки. Доки це не змінити, ігри закриватимуться без помилки.</string>
     <string name="gate_fix_for_me">Виправити за мене</string>
-    <string name="gate_toggle_steps">Увімкніть «Вимкнути обмеження дочірніх процесів», а потім поверніться. Залиште «Параметри розробника» увімкненими, інакше перемикач вимкнеться знову.</string>
+    <string name="gate_toggle_steps">Увімкніть «Вимкнути обмеження для дочірніх процесів», а потім поверніться. Залиште «Параметри розробника» увімкненими, інакше перемикач вимкнеться знову.</string>
     <string name="gate_open_dev">Відкрити «Параметри розробника»</string>
     <string name="gate_no_toggle">У цій версії Android немає перемикача для цього, тож DroidDeck змінює налаштування через бездротове налагодження. Займає приблизно хвилину, комп’ютер не потрібен.</string>
     <string name="gate_needs_wifi">Бездротове налагодження потребує Wi-Fi. Підійде будь-яка мережа; інтернет не потрібен.</string>
@@ -1840,7 +1840,7 @@
     <string name="phantom_instructions_fix">%1$s Якщо це неможливо, підключіть цей пристрій до комп’ютера з ADB і виконайте команду нижче. Потім поверніться сюди і перевірте ще раз.</string>
     <string name="phantom_instructions_off">Сеанси Steam можуть запускатися.</string>
     <string name="phantom_instructions_not_applicable">Ця версія Android не використовує це обмеження.</string>
-    <string name="phantom_fix_toggle">Увімкніть «Вимкнути обмеження дочірніх процесів» у розділі «Параметри розробника» і залишіть «Параметри розробника» увімкненими після цього.</string>
+    <string name="phantom_fix_toggle">Увімкніть «Вимкнути обмеження для дочірніх процесів» у розділі «Параметри розробника» і залишіть «Параметри розробника» увімкненими після цього.</string>
     <string name="phantom_fix_no_toggle">У цій версії Android немає перемикача для цього. Змініть це з цього пристрою за допомогою бездротового налагодження.</string>
     <string name="upd_block_no_apk">У цій збірці немає завантаження для цієї копії DroidDeck.</string>
     <string name="upd_block_version_code">Android не встановить це над цією збіркою, бо її versionCode %1$d нижчий за встановлений %2$d.</string>
@@ -1960,6 +1960,16 @@
     <string name="stores_free">Безкоштовно</string>
     <string name="stores_resume">Продовжити</string>
     <string name="stores_refresh">Оновити</string>
+    <string name="stores_sort">Сортувати</string>
+    <string name="stores_sort_last_played">Нещодавно запущені</string>
+    <string name="stores_sort_recently_installed">Нещодавно встановлені</string>
+    <string name="stores_sort_title_asc">Назва А–Я</string>
+    <string name="stores_sort_title_desc">Назва Я–А</string>
+    <string name="stores_sort_size_desc">Розмір: найбільший</string>
+    <string name="stores_sort_size_asc">Розмір: найменший</string>
+    <string name="stores_sort_release_date">Дата виходу</string>
+    <string name="stores_view_list">Вигляд списком</string>
+    <string name="stores_view_cards">Вигляд картками</string>
     <string name="stores_show_mature">Показувати контент для дорослих</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>
@@ -2262,12 +2272,9 @@
     <string name="cardboard_recenter_button">Відцентрувати</string>
     <string name="cardboard_steamvr">SteamVR (експериментально)</string>
     <string name="cardboard_steamvr_install">Установити</string>
-    <string name="cardboard_steamvr_install_hint">Завантажує SteamVR від Valve для ARM64 (571 МБ).</string>
     <string name="cardboard_steamvr_installing">Завантаження й розпакування SteamVR…</string>
     <string name="cardboard_steamvr_start">Запустити</string>
-    <string name="cardboard_steamvr_ready_hint">Запускає SteamVR, де гарнітурою слугує ваша голова; зображення перемикається на стереопару 3D.</string>
     <string name="cardboard_steamvr_stop">Зупинити</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR працює.</string>
     <string name="cardboard_steamvr_unavailable">Недоступно в цій сесії.</string>
     <string name="cardboard_steamvr_failed">SteamVR не відповідає; перевірте журнал сесії.</string>
     <string name="drawer_component_downloads">Завантажити компоненти</string>

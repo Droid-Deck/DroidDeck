@@ -58,7 +58,7 @@
     <string name="game_env_save">Guardar</string>
     <string name="game_env_remove">Quitar</string>
     <string name="game_env_restore">Heredar de nuevo</string>
-    <string name="game_env_reset">Restablecer este perfil</string>
+    <string name="game_env_reset">Borrar los ajustes propios del entorno</string>
     <string name="game_env_unset">Quitar valor en este perfil</string>
     <string name="game_env_empty">Sin variables definidas.</string>
     <string name="game_env_inherited">Heredada</string>
@@ -266,7 +266,7 @@
     <string name="mode_controller_ds4">DualShock 4</string>
     <string name="mode_controller_dualsense">DualSense</string>
     <string name="mode_controller_x360">Mando Xbox 360</string>
-    <string name="mode_controller_note">Deck: botón de Quick Access y giroscopio. Xbox 360: abre Quick Access con Guide+A.</string>
+    <string name="mode_controller_note">Deck: botón de Quick Access y giroscopio. Steam Controller: lo mismo, con detección de agarre en los botones traseros. DualShock 4 y DualSense: giroscopio, y los trackpads como su panel táctil. Xbox 360: abre Quick Access con Guide+A.</string>
     <string name="mode_back">Atrás</string>
     <string name="back_menu_then_qam">Menú → QAM</string>
     <string name="back_qam_then_menu">QAM → Menú</string>
@@ -471,7 +471,7 @@
     <string name="comp_applies_next_game">Se aplica la próxima vez que se inicie un juego</string>
     <string name="comp_import_zip">Importar .zip</string>
     <string name="comp_reading">Leyendo Protons…</string>
-    <string name="comp_no_proton">Aún no hay ningún Proton instalado. Inicia Steam una vez para descargar su Proton ARM64, o añade GE-Proton o CachyOS desde Configuración.</string>
+    <string name="comp_no_proton">Aún no hay ningún Proton instalado. Inicia Steam una vez para descargar su Proton ARM64, o añade GE-Proton, CachyOS o DroidDeck-Proton desde Configuración.</string>
     <string name="comp_original">Original · %1$s</string>
     <string name="comp_this_build">%1$s · esta versión</string>
     <string name="comp_earlier_build">%1$s · versión anterior</string>
@@ -857,7 +857,7 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android detiene las apps que inician muchos procesos en segundo plano, y Steam inicia decenas. Hasta que esto cambie, los juegos se cierran sin mostrar ningún error.</string>
     <string name="gate_fix_for_me">Solucionarlo por mí</string>
-    <string name="gate_toggle_steps">Activa “Desactivar restricciones de procesos secundarios” y vuelve. Deja activadas las Opciones de desarrollador o el interruptor se desactivará de nuevo.</string>
+    <string name="gate_toggle_steps">Activa “Inhabilitar restricciones de procesos secundarios” y vuelve. Deja activadas las Opciones de desarrollador o el interruptor se desactivará de nuevo.</string>
     <string name="gate_open_dev">Abrir Opciones de desarrollador</string>
     <string name="gate_no_toggle">Esta versión de Android no tiene un interruptor para ello, así que DroidDeck lo cambia mediante la Depuración inalámbrica. Tarda un minuto y no necesitas ordenador.</string>
     <string name="gate_needs_wifi">La Depuración inalámbrica necesita Wi-Fi. Sirve cualquier red; no necesita internet.</string>
@@ -1827,7 +1827,7 @@
     <string name="phantom_instructions_fix">%1$s Si no es posible, conecta este dispositivo a un ordenador con ADB y ejecuta el comando de abajo. Después vuelve aquí y comprueba de nuevo.</string>
     <string name="phantom_instructions_off">Ya se pueden iniciar sesiones de Steam.</string>
     <string name="phantom_instructions_not_applicable">Esta versión de Android no usa este límite.</string>
-    <string name="phantom_fix_toggle">Activa “Desactivar restricciones de procesos secundarios” en Opciones de desarrollador y deja activadas las Opciones de desarrollador después.</string>
+    <string name="phantom_fix_toggle">Activa “Inhabilitar restricciones de procesos secundarios” en Opciones de desarrollador y deja activadas las Opciones de desarrollador después.</string>
     <string name="phantom_fix_no_toggle">Esta versión de Android no tiene un interruptor para ello. Usa la Depuración inalámbrica para cambiarlo desde este dispositivo.</string>
     <string name="upd_block_no_apk">Esta versión no tiene descarga para esta copia de DroidDeck.</string>
     <string name="upd_block_version_code">Android no la instalará sobre esta versión porque su versionCode %1$d es inferior al %2$d instalado.</string>
@@ -1947,6 +1947,16 @@
     <string name="stores_free">Gratis</string>
     <string name="stores_resume">Reanudar</string>
     <string name="stores_refresh">Actualizar</string>
+    <string name="stores_sort">Ordenar</string>
+    <string name="stores_sort_last_played">Jugados recientemente</string>
+    <string name="stores_sort_recently_installed">Instalados recientemente</string>
+    <string name="stores_sort_title_asc">Título A–Z</string>
+    <string name="stores_sort_title_desc">Título Z–A</string>
+    <string name="stores_sort_size_desc">Tamaño: mayor</string>
+    <string name="stores_sort_size_asc">Tamaño: menor</string>
+    <string name="stores_sort_release_date">Fecha de lanzamiento</string>
+    <string name="stores_view_list">Vista de lista</string>
+    <string name="stores_view_cards">Vista de tarjetas</string>
     <string name="stores_show_mature">Mostrar contenido para adultos</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>
@@ -2253,12 +2263,9 @@
     <string name="cardboard_recenter_button">Recentrar</string>
     <string name="cardboard_steamvr">SteamVR (experimental)</string>
     <string name="cardboard_steamvr_install">Instalar</string>
-    <string name="cardboard_steamvr_install_hint">Descarga SteamVR para ARM64 de Valve (571 MB).</string>
     <string name="cardboard_steamvr_installing">Descargando y descomprimiendo SteamVR…</string>
     <string name="cardboard_steamvr_start">Iniciar</string>
-    <string name="cardboard_steamvr_ready_hint">Ejecuta SteamVR usando tu cabeza como visor; la imagen cambia a 3D lado a lado.</string>
     <string name="cardboard_steamvr_stop">Detener</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR está en ejecución.</string>
     <string name="cardboard_steamvr_unavailable">No disponible en esta sesión.</string>
     <string name="cardboard_steamvr_failed">SteamVR no respondió; revisa el registro de la sesión.</string>
     <string name="drawer_component_downloads">Descargar componentes</string>

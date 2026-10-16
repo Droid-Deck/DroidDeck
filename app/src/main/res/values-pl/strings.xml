@@ -855,7 +855,7 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android zatrzymuje aplikacje, które uruchamiają wiele procesów w tle, a Steam uruchamia ich kilkadziesiąt. Dopóki to się nie zmieni, gry zamykają się bez błędu.</string>
     <string name="gate_fix_for_me">Napraw to za mnie</string>
-    <string name="gate_toggle_steps">Włącz „Wyłącz ograniczenia procesów podrzędnych” i wróć tutaj. Zostaw włączone Opcje programisty, bo inaczej przełącznik znowu się wyłączy.</string>
+    <string name="gate_toggle_steps">Włącz „Wyłącz ograniczenia procesów podrzędnych aplikacji” i wróć tutaj. Zostaw włączone Opcje programisty, bo inaczej przełącznik znowu się wyłączy.</string>
     <string name="gate_open_dev">Otwórz Opcje programisty</string>
     <string name="gate_no_toggle">Ta wersja Androida nie ma dla tego przełącznika, więc DroidDeck zmienia go przez debugowanie bezprzewodowe. Zajmuje to około minuty, bez potrzeby komputera.</string>
     <string name="gate_needs_wifi">Debugowanie bezprzewodowe wymaga Wi-Fi. Działa każda sieć; nie musi mieć internetu.</string>
@@ -1840,7 +1840,7 @@
     <string name="phantom_instructions_fix">%1$s Jeśli to niemożliwe, podłącz to urządzenie do komputera z ADB i uruchom poniższe polecenie. Wróć tutaj i sprawdź ponownie.</string>
     <string name="phantom_instructions_off">Sesje Steam mogą się uruchamiać.</string>
     <string name="phantom_instructions_not_applicable">Ta wersja systemu Android nie używa tego limitu.</string>
-    <string name="phantom_fix_toggle">Włącz „Wyłącz ograniczenia procesów podrzędnych” w Opcjach programisty i nie wyłączaj potem Opcji programisty.</string>
+    <string name="phantom_fix_toggle">Włącz „Wyłącz ograniczenia procesów podrzędnych aplikacji” w Opcjach programisty i nie wyłączaj potem Opcji programisty.</string>
     <string name="phantom_fix_no_toggle">Ta wersja systemu Android nie ma dla niego przełącznika. Użyj debugowania bezprzewodowego, aby zmienić go z tego urządzenia.</string>
     <string name="upd_block_no_apk">Ta wersja nie ma pliku do pobrania dla tej kopii DroidDeck.</string>
     <string name="upd_block_version_code">Android nie zainstaluje jej na tej wersji, bo jej versionCode %1$d jest niższy niż zainstalowany %2$d.</string>
@@ -1960,6 +1960,16 @@
     <string name="stores_free">Bezpłatna</string>
     <string name="stores_resume">Wznów</string>
     <string name="stores_refresh">Odśwież</string>
+    <string name="stores_sort">Sortuj</string>
+    <string name="stores_sort_last_played">Ostatnio grane</string>
+    <string name="stores_sort_recently_installed">Ostatnio zainstalowane</string>
+    <string name="stores_sort_title_asc">Tytuł A–Z</string>
+    <string name="stores_sort_title_desc">Tytuł Z–A</string>
+    <string name="stores_sort_size_desc">Rozmiar: największy</string>
+    <string name="stores_sort_size_asc">Rozmiar: najmniejszy</string>
+    <string name="stores_sort_release_date">Data wydania</string>
+    <string name="stores_view_list">Widok listy</string>
+    <string name="stores_view_cards">Widok kart</string>
     <string name="stores_show_mature">Pokaż treści dla dorosłych</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>
@@ -2262,12 +2272,9 @@
     <string name="cardboard_recenter_button">Wyśrodkuj</string>
     <string name="cardboard_steamvr">SteamVR (eksperymentalne)</string>
     <string name="cardboard_steamvr_install">Zainstaluj</string>
-    <string name="cardboard_steamvr_install_hint">Pobiera SteamVR dla ARM64 od Valve (571 MB).</string>
     <string name="cardboard_steamvr_installing">Pobieranie i rozpakowywanie SteamVR…</string>
     <string name="cardboard_steamvr_start">Uruchom</string>
-    <string name="cardboard_steamvr_ready_hint">Uruchamia SteamVR, a twoja głowa działa jak gogle; obraz przełącza się na 3D obok siebie.</string>
     <string name="cardboard_steamvr_stop">Zatrzymaj</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR działa.</string>
     <string name="cardboard_steamvr_unavailable">Niedostępne w tej sesji.</string>
     <string name="cardboard_steamvr_failed">SteamVR nie odpowiada; sprawdź dziennik sesji.</string>
     <string name="drawer_component_downloads">Pobierz komponenty</string>

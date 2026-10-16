@@ -52,7 +52,7 @@ class ProtonExtrasTest {
         val droiddeck = tool("droiddeck")
         assertEquals("DroidDeck-Proton", droiddeck.name)
         assertEquals("DroidDeck-Proton", droiddeck.prefix)
-        assertEquals("The412Banner/DroidDeck-Proton", droiddeck.repo)
+        assertEquals("Droid-Deck/DroidDeck-Proton", droiddeck.repo)
         assertTrue(droiddeck.assetPattern.containsMatchIn("DroidDeck-Proton-11-7.5-aarch64.tar.gz"))
         assertTrue(droiddeck.assetPattern.containsMatchIn("DroidDeck-Proton-11-8-aarch64.tar.xz"))
         assertFalse(droiddeck.assetPattern.containsMatchIn("DroidDeck-Proton-11-7.5-aarch64.sha512sum"))

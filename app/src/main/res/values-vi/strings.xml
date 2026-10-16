@@ -837,7 +837,7 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android dừng các ứng dụng khởi chạy nhiều tiến trình nền, và Steam khởi chạy hàng chục tiến trình. Cho đến khi thay đổi điều này, game sẽ đóng mà không có lỗi.</string>
     <string name="gate_fix_for_me">Khắc phục giúp tôi</string>
-    <string name="gate_toggle_steps">Bật “Disable child process restrictions”, rồi quay lại. Giữ Tùy chọn cho nhà phát triển luôn mở, nếu không công tắc sẽ tắt lại.</string>
+    <string name="gate_toggle_steps">Bật “Tắt các mục hạn chế đối với tiến trình con”, rồi quay lại. Giữ Tùy chọn cho nhà phát triển luôn mở, nếu không công tắc sẽ tắt lại.</string>
     <string name="gate_open_dev">Mở Tùy chọn cho nhà phát triển</string>
     <string name="gate_no_toggle">Phiên bản Android này không có công tắc cho việc đó, nên DroidDeck thay đổi nó qua Gỡ lỗi qua mạng không dây. Mất khoảng một phút, không cần máy tính.</string>
     <string name="gate_needs_wifi">Gỡ lỗi qua mạng không dây cần Wi-Fi. Mạng nào cũng được; không cần Internet.</string>
@@ -1777,7 +1777,7 @@
     <string name="phantom_instructions_fix">%1$s Nếu không thể, hãy kết nối thiết bị này với một máy tính có ADB và chạy lệnh dưới đây. Quay lại đây và kiểm tra lại.</string>
     <string name="phantom_instructions_off">Phiên Steam có thể khởi động.</string>
     <string name="phantom_instructions_not_applicable">Phiên bản Android này không dùng giới hạn này.</string>
-    <string name="phantom_fix_toggle">Bật “Disable child process restrictions” trong Developer options, và giữ Developer options luôn mở sau đó.</string>
+    <string name="phantom_fix_toggle">Bật “Tắt các mục hạn chế đối với tiến trình con” trong Developer options, và giữ Developer options luôn mở sau đó.</string>
     <string name="phantom_fix_no_toggle">Phiên bản Android này không có công tắc cho việc đó. Dùng Gỡ lỗi qua mạng không dây để đổi nó từ thiết bị này.</string>
     <string name="upd_block_no_apk">Bản build này không có tệp tải cho bản DroidDeck này.</string>
     <string name="upd_block_version_code">Android sẽ không cài nó chồng lên bản này vì versionCode %1$d của nó thấp hơn %2$d đã cài.</string>
@@ -1897,6 +1897,16 @@
     <string name="stores_free">Miễn phí</string>
     <string name="stores_resume">Tiếp tục</string>
     <string name="stores_refresh">Làm mới</string>
+    <string name="stores_sort">Sắp xếp</string>
+    <string name="stores_sort_last_played">Chơi gần đây</string>
+    <string name="stores_sort_recently_installed">Cài gần đây</string>
+    <string name="stores_sort_title_asc">Tên A–Z</string>
+    <string name="stores_sort_title_desc">Tên Z–A</string>
+    <string name="stores_sort_size_desc">Kích thước: lớn nhất</string>
+    <string name="stores_sort_size_asc">Kích thước: nhỏ nhất</string>
+    <string name="stores_sort_release_date">Ngày phát hành</string>
+    <string name="stores_view_list">Chế độ danh sách</string>
+    <string name="stores_view_cards">Chế độ thẻ</string>
     <string name="stores_show_mature">Hiện nội dung người lớn</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>
@@ -2187,12 +2197,9 @@
     <string name="cardboard_recenter_button">Căn giữa lại</string>
     <string name="cardboard_steamvr">SteamVR (thử nghiệm)</string>
     <string name="cardboard_steamvr_install">Cài đặt</string>
-    <string name="cardboard_steamvr_install_hint">Tải SteamVR ARM64 của Valve (571 MB).</string>
     <string name="cardboard_steamvr_installing">Đang tải và giải nén SteamVR…</string>
     <string name="cardboard_steamvr_start">Bắt đầu</string>
-    <string name="cardboard_steamvr_ready_hint">Chạy SteamVR với đầu bạn làm kính; hình ảnh chuyển sang 3D cạnh nhau.</string>
     <string name="cardboard_steamvr_stop">Dừng</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR đang chạy.</string>
     <string name="cardboard_steamvr_unavailable">Không khả dụng trong phiên này.</string>
     <string name="cardboard_steamvr_failed">SteamVR không phản hồi; hãy xem nhật ký phiên.</string>
     <string name="drawer_component_downloads">Tải thành phần</string>

@@ -849,7 +849,7 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android oprește aplicațiile care pornesc multe procese în fundal, iar Steam pornește zeci. Până se schimbă asta, jocurile se închid fără o eroare.</string>
     <string name="gate_fix_for_me">Repară pentru mine</string>
-    <string name="gate_toggle_steps">Activează „Dezactivează restricțiile pentru procesele-copil”, apoi revino. Lasă Opțiunile pentru dezvoltatori activate, altfel comutatorul se dezactivează din nou.</string>
+    <string name="gate_toggle_steps">Activează „Dezactivează restricțiile pentru procese secundare”, apoi revino. Lasă Opțiunile pentru dezvoltatori activate, altfel comutatorul se dezactivează din nou.</string>
     <string name="gate_open_dev">Deschide Opțiunile pentru dezvoltatori</string>
     <string name="gate_no_toggle">Această versiune de Android nu are un comutator pentru asta, așa că DroidDeck o schimbă prin Depanarea wireless. Durează circa un minut, fără a avea nevoie de un computer.</string>
     <string name="gate_needs_wifi">Depanarea wireless are nevoie de Wi-Fi. Orice rețea funcționează; nu are nevoie de internet.</string>
@@ -1819,7 +1819,7 @@
     <string name="phantom_instructions_fix">%1$s Dacă nu este posibil, conectează acest dispozitiv la un computer cu ADB și rulează comanda de mai jos. Revino aici și verifică din nou.</string>
     <string name="phantom_instructions_off">Sesiunile Steam pot porni.</string>
     <string name="phantom_instructions_not_applicable">Această versiune de Android nu folosește această limită.</string>
-    <string name="phantom_fix_toggle">Activează „Dezactivează restricțiile pentru procesele-copil” în Opțiunile pentru dezvoltatori, și lasă Opțiunile pentru dezvoltatori activate după aceea.</string>
+    <string name="phantom_fix_toggle">Activează „Dezactivează restricțiile pentru procese secundare” în Opțiunile pentru dezvoltatori, și lasă Opțiunile pentru dezvoltatori activate după aceea.</string>
     <string name="phantom_fix_no_toggle">Această versiune de Android nu are un comutator pentru asta. Folosește Depanarea wireless pentru a o schimba de pe acest dispozitiv.</string>
     <string name="upd_block_no_apk">Această versiune nu are o descărcare pentru această copie de DroidDeck.</string>
     <string name="upd_block_version_code">Android nu o va instala peste această versiune pentru că versionCode %1$d este sub cel instalat %2$d.</string>
@@ -1939,6 +1939,16 @@
     <string name="stores_free">Gratuit</string>
     <string name="stores_resume">Reluare</string>
     <string name="stores_refresh">Reîmprospătează</string>
+    <string name="stores_sort">Sortează</string>
+    <string name="stores_sort_last_played">Jucate recent</string>
+    <string name="stores_sort_recently_installed">Instalate recent</string>
+    <string name="stores_sort_title_asc">Titlu A–Z</string>
+    <string name="stores_sort_title_desc">Titlu Z–A</string>
+    <string name="stores_sort_size_desc">Dimensiune: cea mai mare</string>
+    <string name="stores_sort_size_asc">Dimensiune: cea mai mică</string>
+    <string name="stores_sort_release_date">Data lansării</string>
+    <string name="stores_view_list">Vizualizare listă</string>
+    <string name="stores_view_cards">Vizualizare carduri</string>
     <string name="stores_show_mature">Arată conținutul pentru adulți</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>
@@ -2237,12 +2247,9 @@
     <string name="cardboard_recenter_button">Recentrează</string>
     <string name="cardboard_steamvr">SteamVR (experimental)</string>
     <string name="cardboard_steamvr_install">Instalează</string>
-    <string name="cardboard_steamvr_install_hint">Descarcă SteamVR ARM64 de la Valve (571 MB).</string>
     <string name="cardboard_steamvr_installing">Se descarcă și se dezarhivează SteamVR…</string>
     <string name="cardboard_steamvr_start">Pornește</string>
-    <string name="cardboard_steamvr_ready_hint">Rulează SteamVR cu capul tău drept cască; imaginea trece la 3D alăturat.</string>
     <string name="cardboard_steamvr_stop">Oprește</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR rulează.</string>
     <string name="cardboard_steamvr_unavailable">Indisponibil în această sesiune.</string>
     <string name="cardboard_steamvr_failed">SteamVR nu a răspuns; verifică jurnalul sesiunii.</string>
     <string name="drawer_component_downloads">Descarcă componente</string>

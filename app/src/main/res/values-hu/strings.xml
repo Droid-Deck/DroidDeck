@@ -843,7 +843,7 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Az Android leállítja azokat az alkalmazásokat, amelyek sok háttérfolyamatot indítanak, a Steam pedig tucatnyit indít. Amíg ez nem változik, a játékok hibaüzenet nélkül bezáródnak.</string>
     <string name="gate_fix_for_me">Javítsa ezt helyettem</string>
-    <string name="gate_toggle_steps">Kapcsolja be a „Gyermekfolyamat-korlátozások letiltása” kapcsolót, majd térjen vissza. Hagyja bekapcsolva a Fejlesztői beállításokat, különben a kapcsoló visszakapcsol.</string>
+    <string name="gate_toggle_steps">Kapcsolja be az „Alárendelt folyamatok korlátozásának kikapcsolása” kapcsolót, majd térjen vissza. Hagyja bekapcsolva a Fejlesztői beállításokat, különben a kapcsoló visszakapcsol.</string>
     <string name="gate_open_dev">Fejlesztői beállítások megnyitása</string>
     <string name="gate_no_toggle">Ehhez az Android-verzióhoz nincs kapcsoló, ezért a DroidDeck a vezeték nélküli hibakeresésen keresztül módosítja. Körülbelül egy percet vesz igénybe, számítógép nélkül.</string>
     <string name="gate_needs_wifi">A vezeték nélküli hibakereséshez Wi-Fi szükséges. Bármelyik hálózat megfelel; internetkapcsolat nem szükséges.</string>
@@ -905,7 +905,7 @@
     <string name="ctrl_opacity">Átlátszatlanság</string>
     <string name="ctrl_percent">%1$d%%</string>
     <string name="ctrl_size">Gombméret</string>
-    <string name="ctrl_size_hint" formatted="false">A 100%% az alapértelmezett méret</string>
+    <string name="ctrl_size_hint" formatted="false">A 100% az alapértelmezett méret</string>
     <string name="ctrl_stick_click">Kar kattintása</string>
     <string name="ctrl_stick_click_hint">Koppintson duplán, és tartsa lenyomva a kart az L3 vagy R3 érdekében</string>
     <string name="ctrl_adaptive">Adaptív karok</string>
@@ -1798,7 +1798,7 @@
     <string name="phantom_instructions_fix">%1$s Ha ez nem lehetséges, csatlakoztassa ezt az eszközt egy ADB-vel rendelkező számítógéphez, és futtassa az alábbi parancsot. Térjen vissza ide, és ellenőrizze újra.</string>
     <string name="phantom_instructions_off">A Steam-munkamenetek elindulhatnak.</string>
     <string name="phantom_instructions_not_applicable">Ez az Android-verzió nem használja ezt a korlátot.</string>
-    <string name="phantom_fix_toggle">Kapcsolja be a „Gyermekfolyamat-korlátozások letiltása” lehetőséget a Fejlesztői beállításokban, és utána hagyja bekapcsolva a Fejlesztői beállításokat.</string>
+    <string name="phantom_fix_toggle">Kapcsolja be az „Alárendelt folyamatok korlátozásának kikapcsolása” lehetőséget a Fejlesztői beállításokban, és utána hagyja bekapcsolva a Fejlesztői beállításokat.</string>
     <string name="phantom_fix_no_toggle">Ehhez az Android-verzióhoz nincs kapcsoló. Használja a vezeték nélküli hibakeresést a módosításához erről az eszközről.</string>
     <string name="upd_block_no_apk">Ehhez a buildhez nincs letöltés a DroidDeck ezen másolatához.</string>
     <string name="upd_block_version_code">Az Android nem telepíti ezt a buildet fölé, mert a %1$d versionCode-ja a telepített %2$d alatt van.</string>
@@ -1918,6 +1918,16 @@
     <string name="stores_free">Ingyenes</string>
     <string name="stores_resume">Folytatás</string>
     <string name="stores_refresh">Frissítés</string>
+    <string name="stores_sort">Rendezés</string>
+    <string name="stores_sort_last_played">Nemrég játszott</string>
+    <string name="stores_sort_recently_installed">Nemrég telepített</string>
+    <string name="stores_sort_title_asc">Cím A–Z</string>
+    <string name="stores_sort_title_desc">Cím Z–A</string>
+    <string name="stores_sort_size_desc">Méret: legnagyobb</string>
+    <string name="stores_sort_size_asc">Méret: legkisebb</string>
+    <string name="stores_sort_release_date">Megjelenés dátuma</string>
+    <string name="stores_view_list">Listanézet</string>
+    <string name="stores_view_cards">Kártyanézet</string>
     <string name="stores_show_mature">Felnőtt tartalom megjelenítése</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>
@@ -2212,12 +2222,9 @@
     <string name="cardboard_recenter_button">Középre</string>
     <string name="cardboard_steamvr">SteamVR (kísérleti)</string>
     <string name="cardboard_steamvr_install">Telepítés</string>
-    <string name="cardboard_steamvr_install_hint">Letölti a Valve ARM64-es SteamVR-jét (571 MB).</string>
     <string name="cardboard_steamvr_installing">SteamVR letöltése és kicsomagolása…</string>
     <string name="cardboard_steamvr_start">Indítás</string>
-    <string name="cardboard_steamvr_ready_hint">A SteamVR-t a fejeddel mint headsettel futtatja; a kép egymás melletti 3D-re vált.</string>
     <string name="cardboard_steamvr_stop">Leállítás</string>
-    <string name="cardboard_steamvr_running_hint">A SteamVR fut.</string>
     <string name="cardboard_steamvr_unavailable">Ebben a munkamenetben nem érhető el.</string>
     <string name="cardboard_steamvr_failed">A SteamVR nem válaszolt; nézd meg a munkamenet naplóját.</string>
     <string name="drawer_component_downloads">Összetevők letöltése</string>

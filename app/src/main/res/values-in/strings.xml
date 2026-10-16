@@ -837,7 +837,7 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android menghentikan aplikasi yang memulai banyak proses latar belakang, dan Steam memulai puluhan. Sampai ini berubah, gim akan tertutup tanpa pesan kesalahan.</string>
     <string name="gate_fix_for_me">Perbaiki untuk saya</string>
-    <string name="gate_toggle_steps">Aktifkan “Disable child process restrictions”, lalu kembali. Biarkan Opsi pengembang tetap aktif, atau sakelarnya akan nonaktif lagi.</string>
+    <string name="gate_toggle_steps">Aktifkan “Nonaktifkan batasan proses turunan”, lalu kembali. Biarkan Opsi pengembang tetap aktif, atau sakelarnya akan nonaktif lagi.</string>
     <string name="gate_open_dev">Buka Opsi pengembang</string>
     <string name="gate_no_toggle">Versi Android ini tidak memiliki sakelar untuk itu, sehingga DroidDeck mengubahnya melalui Debugging nirkabel. Membutuhkan waktu sekitar satu menit, tanpa komputer.</string>
     <string name="gate_needs_wifi">Debugging nirkabel memerlukan Wi-Fi. Jaringan apa pun berfungsi; tidak perlu internet.</string>
@@ -1777,7 +1777,7 @@
     <string name="phantom_instructions_fix">%1$s Jika itu tidak memungkinkan, sambungkan perangkat ini ke komputer dengan ADB dan jalankan perintah di bawah. Kembali ke sini dan periksa lagi.</string>
     <string name="phantom_instructions_off">Sesi Steam dapat dimulai.</string>
     <string name="phantom_instructions_not_applicable">Versi Android ini tidak menggunakan batas ini.</string>
-    <string name="phantom_fix_toggle">Aktifkan “Disable child process restrictions” di Opsi developer, dan biarkan Opsi developer tetap aktif setelahnya.</string>
+    <string name="phantom_fix_toggle">Aktifkan “Nonaktifkan batasan proses turunan” di Opsi developer, dan biarkan Opsi developer tetap aktif setelahnya.</string>
     <string name="phantom_fix_no_toggle">Versi Android ini tidak memiliki sakelar untuk itu. Gunakan Debugging nirkabel untuk mengubahnya dari perangkat ini.</string>
     <string name="upd_block_no_apk">Build ini tidak memiliki unduhan untuk salinan DroidDeck ini.</string>
     <string name="upd_block_version_code">Android tidak akan menginstalnya di atas build ini karena versionCode %1$d lebih rendah dari %2$d yang terinstal.</string>
@@ -1897,6 +1897,16 @@
     <string name="stores_free">Gratis</string>
     <string name="stores_resume">Lanjutkan</string>
     <string name="stores_refresh">Segarkan</string>
+    <string name="stores_sort">Urutkan</string>
+    <string name="stores_sort_last_played">Baru dimainkan</string>
+    <string name="stores_sort_recently_installed">Baru dipasang</string>
+    <string name="stores_sort_title_asc">Judul A–Z</string>
+    <string name="stores_sort_title_desc">Judul Z–A</string>
+    <string name="stores_sort_size_desc">Ukuran: terbesar</string>
+    <string name="stores_sort_size_asc">Ukuran: terkecil</string>
+    <string name="stores_sort_release_date">Tanggal rilis</string>
+    <string name="stores_view_list">Tampilan daftar</string>
+    <string name="stores_view_cards">Tampilan kartu</string>
     <string name="stores_show_mature">Tampilkan konten dewasa</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>
@@ -2187,12 +2197,9 @@
     <string name="cardboard_recenter_button">Posisikan ulang</string>
     <string name="cardboard_steamvr">SteamVR (eksperimental)</string>
     <string name="cardboard_steamvr_install">Pasang</string>
-    <string name="cardboard_steamvr_install_hint">Mengunduh SteamVR ARM64 dari Valve (571 MB).</string>
     <string name="cardboard_steamvr_installing">Mengunduh dan mengekstrak SteamVR…</string>
     <string name="cardboard_steamvr_start">Mulai</string>
-    <string name="cardboard_steamvr_ready_hint">Menjalankan SteamVR dengan kepala Anda sebagai headset; gambar beralih ke 3D berdampingan.</string>
     <string name="cardboard_steamvr_stop">Hentikan</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR sedang berjalan.</string>
     <string name="cardboard_steamvr_unavailable">Tidak tersedia di sesi ini.</string>
     <string name="cardboard_steamvr_failed">SteamVR tidak merespons; periksa log sesi.</string>
     <string name="drawer_component_downloads">Unduh komponen</string>

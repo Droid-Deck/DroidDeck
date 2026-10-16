@@ -843,7 +843,7 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android stopt apps die veel achtergrondprocessen starten, en Steam start er tientallen. Totdat dit verandert, sluiten games zonder foutmelding.</string>
     <string name="gate_fix_for_me">Voor mij oplossen</string>
-    <string name="gate_toggle_steps">Zet “Beperkingen voor subprocessen uitschakelen” aan, en kom dan terug. Laat Opties voor ontwikkelaars aan staan, anders schakelt de schakelaar weer uit.</string>
+    <string name="gate_toggle_steps">Zet “Beperkingen voor onderliggende processen uitzetten” aan, en kom dan terug. Laat Opties voor ontwikkelaars aan staan, anders schakelt de schakelaar weer uit.</string>
     <string name="gate_open_dev">Opties voor ontwikkelaars openen</string>
     <string name="gate_no_toggle">Deze Android-versie heeft hiervoor geen schakelaar, dus wijzigt DroidDeck dit via Draadloos debuggen. Duurt ongeveer een minuut, geen computer nodig.</string>
     <string name="gate_needs_wifi">Draadloos debuggen heeft Wi-Fi nodig. Elk netwerk werkt; internet is niet vereist.</string>
@@ -1798,7 +1798,7 @@
     <string name="phantom_instructions_fix">%1$s Als dat niet mogelijk is, sluit dit apparaat aan op een computer met ADB en voer de onderstaande opdracht uit. Kom hierna terug en controleer opnieuw.</string>
     <string name="phantom_instructions_off">Steam-sessies kunnen starten.</string>
     <string name="phantom_instructions_not_applicable">Deze Android-versie gebruikt deze limiet niet.</string>
-    <string name="phantom_fix_toggle">Schakel “Beperkingen voor onderliggende processen uitschakelen” in bij Ontwikkelaarsopties en laat Ontwikkelaarsopties daarna aan staan.</string>
+    <string name="phantom_fix_toggle">Schakel “Beperkingen voor onderliggende processen uitzetten” in bij Ontwikkelaarsopties en laat Ontwikkelaarsopties daarna aan staan.</string>
     <string name="phantom_fix_no_toggle">Deze Android-versie heeft hier geen schakelaar voor. Gebruik draadloze foutopsporing om dit vanaf dit apparaat te wijzigen.</string>
     <string name="upd_block_no_apk">Deze build heeft geen download voor dit exemplaar van DroidDeck.</string>
     <string name="upd_block_version_code">Android installeert dit niet over deze build heen, omdat de versionCode %1$d lager is dan de geïnstalleerde %2$d.</string>
@@ -1918,6 +1918,16 @@
     <string name="stores_free">Gratis</string>
     <string name="stores_resume">Hervatten</string>
     <string name="stores_refresh">Vernieuwen</string>
+    <string name="stores_sort">Sorteren</string>
+    <string name="stores_sort_last_played">Onlangs gespeeld</string>
+    <string name="stores_sort_recently_installed">Onlangs geïnstalleerd</string>
+    <string name="stores_sort_title_asc">Titel A–Z</string>
+    <string name="stores_sort_title_desc">Titel Z–A</string>
+    <string name="stores_sort_size_desc">Grootte: grootste</string>
+    <string name="stores_sort_size_asc">Grootte: kleinste</string>
+    <string name="stores_sort_release_date">Releasedatum</string>
+    <string name="stores_view_list">Lijstweergave</string>
+    <string name="stores_view_cards">Kaartweergave</string>
     <string name="stores_show_mature">Inhoud voor volwassenen tonen</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>
@@ -2212,12 +2222,9 @@
     <string name="cardboard_recenter_button">Centreren</string>
     <string name="cardboard_steamvr">SteamVR (experimenteel)</string>
     <string name="cardboard_steamvr_install">Installeren</string>
-    <string name="cardboard_steamvr_install_hint">Downloadt Valves SteamVR voor ARM64 (571 MB).</string>
     <string name="cardboard_steamvr_installing">SteamVR downloaden en uitpakken…</string>
     <string name="cardboard_steamvr_start">Starten</string>
-    <string name="cardboard_steamvr_ready_hint">Draait SteamVR met je hoofd als headset; het beeld schakelt naar side-by-side 3D.</string>
     <string name="cardboard_steamvr_stop">Stoppen</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR draait.</string>
     <string name="cardboard_steamvr_unavailable">Niet beschikbaar in deze sessie.</string>
     <string name="cardboard_steamvr_failed">SteamVR reageerde niet; controleer het sessielog.</string>
     <string name="drawer_component_downloads">Componenten downloaden</string>
