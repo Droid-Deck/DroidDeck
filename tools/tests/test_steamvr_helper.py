@@ -3,6 +3,7 @@ import json
 import shutil
 import socket
 import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -140,7 +141,7 @@ class SteamVrHelperTest(unittest.TestCase):
         helper = SOURCE.with_name('droiddeck-steamvr-settings')
         original = {'steamvr': {'motionSmoothing': True}, 'dashboard': {'unchanged': 42}}
         settings.write_text(json.dumps(original))
-        subprocess.run([str(helper), 'apply', str(settings), str(backup)], check=True)
+        subprocess.run([sys.executable, str(helper), 'apply', str(settings), str(backup)], check=True)
         valid_backup = backup.read_bytes()
         applied = settings.read_bytes()
         invalid = ['truncated {', '{}', '{"section": true, "values": []}',
@@ -149,14 +150,14 @@ class SteamVrHelperTest(unittest.TestCase):
             for operation in ('apply', 'restore'):
                 with self.subTest(content=content, operation=operation):
                     backup.write_text(content)
-                    result = subprocess.run([str(helper), operation, str(settings), str(backup)],
+                    result = subprocess.run([sys.executable, str(helper), operation, str(settings), str(backup)],
                                             capture_output=True, text=True)
                     self.assertNotEqual(result.returncode, 0)
                     self.assertIn('repair the saved section/values and retry restore', result.stderr)
                     self.assertEqual(backup.read_text(), content)
                     self.assertEqual(settings.read_bytes(), applied)
         backup.write_bytes(valid_backup)
-        subprocess.run([str(helper), 'restore', str(settings), str(backup)], check=True)
+        subprocess.run([sys.executable, str(helper), 'restore', str(settings), str(backup)], check=True)
         self.assertEqual(json.loads(settings.read_text()), original)
         self.assertFalse(backup.exists())
 
