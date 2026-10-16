@@ -887,8 +887,8 @@
     <string name="wadb_turn_off">ปิดขีดจำกัด</string>
     <string name="wadb_other_ways">วิธีอื่นในการเปลี่ยนค่านี้</string>
     <string name="wadb_dev_try_first">1 · ตัวเลือกสำหรับนักพัฒนา (ลองก่อน)</string>
-    <string name="wadb_restrict_on">เปิด “Restrict child processes”</string>
-    <string name="wadb_restrict_off">ปิด “Restrict child processes”</string>
+    <string name="wadb_restrict_on">ปิด “ปิดการจำกัดการประมวลผลข้อมูลย่อย”</string>
+    <string name="wadb_restrict_off">เปิด “ปิดการจำกัดการประมวลผลข้อมูลย่อย”</string>
     <string name="wadb_computer_last">3 · ADB จากคอมพิวเตอร์ (ทางเลือกสุดท้าย)</string>
     <string name="wadb_only_if">ใช้เฉพาะเมื่อ Wireless debugging ใช้งานไม่ได้</string>
     <string name="wadb_computer_group">3 · ADB จากคอมพิวเตอร์ (ทางเลือกสุดท้าย)</string>
@@ -1898,6 +1898,16 @@
     <string name="stores_free">ฟรี</string>
     <string name="stores_resume">ดำเนินการต่อ</string>
     <string name="stores_refresh">รีเฟรช</string>
+    <string name="stores_sort">จัดเรียง</string>
+    <string name="stores_sort_last_played">เล่นล่าสุด</string>
+    <string name="stores_sort_recently_installed">เพิ่งติดตั้ง</string>
+    <string name="stores_sort_title_asc">ชื่อ A–Z</string>
+    <string name="stores_sort_title_desc">ชื่อ Z–A</string>
+    <string name="stores_sort_size_desc">ขนาด: ใหญ่สุด</string>
+    <string name="stores_sort_size_asc">ขนาด: เล็กสุด</string>
+    <string name="stores_sort_release_date">วันวางจำหน่าย</string>
+    <string name="stores_view_list">มุมมองรายการ</string>
+    <string name="stores_view_cards">มุมมองการ์ด</string>
     <string name="stores_show_mature">แสดงเนื้อหาสำหรับผู้ใหญ่</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

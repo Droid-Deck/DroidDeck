@@ -893,8 +893,8 @@
     <string name="wadb_turn_off">Slå grænsen fra</string>
     <string name="wadb_other_ways">Andre måder at ændre det</string>
     <string name="wadb_dev_try_first">1 · Udviklerindstillinger (prøv først)</string>
-    <string name="wadb_restrict_on">Slå “Begræns underprocesser” til.</string>
-    <string name="wadb_restrict_off">Slå “Begræns underprocesser” fra.</string>
+    <string name="wadb_restrict_on">Slå “Deaktiver begrænsningerne for underprocesser” fra.</string>
+    <string name="wadb_restrict_off">Slå “Deaktiver begrænsningerne for underprocesser” til.</string>
     <string name="wadb_computer_last">3 · Computer-ADB (sidste udvej)</string>
     <string name="wadb_only_if">Kun hvis Trådløs fejlretning ikke er tilgængelig.</string>
     <string name="wadb_computer_group">3 · Computer-ADB (sidste udvej)</string>
@@ -1919,6 +1919,16 @@
     <string name="stores_free">Gratis</string>
     <string name="stores_resume">Genoptag</string>
     <string name="stores_refresh">Opdater</string>
+    <string name="stores_sort">Sortér</string>
+    <string name="stores_sort_last_played">Senest spillet</string>
+    <string name="stores_sort_recently_installed">Senest installeret</string>
+    <string name="stores_sort_title_asc">Titel A–Å</string>
+    <string name="stores_sort_title_desc">Titel Å–A</string>
+    <string name="stores_sort_size_desc">Størrelse: størst</string>
+    <string name="stores_sort_size_asc">Størrelse: mindst</string>
+    <string name="stores_sort_release_date">Udgivelsesdato</string>
+    <string name="stores_view_list">Listevisning</string>
+    <string name="stores_view_cards">Kortvisning</string>
     <string name="stores_show_mature">Vis indhold for voksne</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

@@ -8,10 +8,13 @@ void vk_present_set_driver(const char *driver_path, const char *library_name,
 void vk_present_set_window(ANativeWindow *window);
 int vkp_apply_window_request(void);
 
+int vkp_quest_layer_presentation(void);
+
 enum vkp_scale_mode { VKP_MODE_OFF = 0, VKP_MODE_FIT = 1, VKP_MODE_STRETCH = 2, VKP_MODE_FILL = 3,
                       VKP_MODE_INTEGER = 4 };
-enum vkp_align { VKP_ALIGN_CENTER = 0, VKP_ALIGN_TOP = 1, VKP_ALIGN_BOTTOM = 2 };
+enum vkp_align { VKP_ALIGN_CENTER = 0, VKP_ALIGN_TOP = 1, VKP_ALIGN_BOTTOM = 2, VKP_ALIGN_PICTURE_TOP = 3, VKP_ALIGN_PICTURE_BOTTOM = 4 };
 void vk_present_set_scale_mode(int mode, int alignment);
+int vkp_game_picture_rect(float rect[4]);
 int vkp_output_to_scene(double ox, double oy, double *sx, double *sy);
 void vkp_output_size(int *w, int *h);
 
@@ -48,6 +51,7 @@ const char *vkp_gpu_name(void);
 
 int vkp_ready(void);
 int vkp_has_window(void);
+int vkp_wait_window_request(int timeout_ms);
 int vkp_device_lost(void);
 
 int vkp_render(int scene_w, int scene_h, const struct vkp_draw *draws, int n);

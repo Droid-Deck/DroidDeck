@@ -13,7 +13,7 @@ object SettingsReset {
         "orientation", "launcherFullscreen", "animations", "theme", "runSteamAtStartup", "addedGamesArt",
         "gameStoresEnabled", "gameStoresSpeedTier", "gameStoresParallel", "storesOpenTab", "storesShowMature",
         "hud", "hudDeck", "backActionsInverted", "touch", "osc", "shape", "steamController",
-        "gamepadLeft", "gamepadRight", "pipAutoEnter", "unfoldedControls", "stretch16x9",
+        "gamepadLeft", "gamepadRight", "pipAutoEnter", "unfoldedControls", "stretch16x9", "picturePosition",
         "gpuDriverMode", "androidDriver", "linuxDriver", "linuxDriver.steam", "linuxDriver.desktop",
         "tuSysmem", "glThread", "noGlError", "zinkLazy", "mangoapp", "gpuClockPin", "gamescopeRealtime",
         "directAudio", "mic", "wifiDiscovery", "clientCpusOverride", "clientCpus", "gameCpus",

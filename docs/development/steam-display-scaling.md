@@ -228,3 +228,11 @@ flag for an experiment.
 Device check (Thor): Alan Wake's American Nightmare with its 1280x720 Game Resolution runs on `:1`
 at 1280x720 with no `--force-windows-fullscreen` in the session, 2 frame-size changes, no crash
 in logcat. The Games tab and the drawer render without the switch.
+
+## Steam picture position
+
+The launcher's Execute Steam settings, under Display, offer Picture position: Top, Bottom, Center (default). The selection applies to the entire Steam session, including menus and games, and is loaded again on resume. No focus-based switching or in-game toggle is used. PiP and VR retain their own presentation.
+
+Positioning keeps the selected resolution, fit scale, aspect ratio and full surface intact. It distributes outer letterboxing above or below the picture; it does not crop game-authored black bars inside the surface. A surface that already fills the panel has no vertical space to move. Use a 16:9 resolution for fixed-16:9 games when a separate controls area is desired.
+
+The compositor publishes actual bounds for touch mapping and ignores touches starting outside the picture. The mapping harness covers top, bottom and center across tall, 16:9 and wide surfaces, including inverse input mapping and legacy half-screen mode compatibility.

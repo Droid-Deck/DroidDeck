@@ -7,6 +7,7 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 #include <sys/syscall.h>
 #include <sys/uio.h>
 #include <unistd.h>
@@ -25,7 +26,21 @@ struct bl_open_how {
 };
 
 static long (*real_syscall)(long, ...);
+static void *(*real_dlopen)(const char *, int);
 static int openat2_missing;
+
+void *dlopen(const char *filename, int flags) {
+  if (!real_dlopen) {
+    real_dlopen = (void *(*)(const char *, int))dlsym(RTLD_NEXT, "dlopen");
+  }
+  const char *basename = filename ? strrchr(filename, '/') : NULL;
+  basename = basename ? basename + 1 : filename;
+  // Steam's deep binding bypasses the robust-list shim under PRoot.
+  if (basename && strcmp(basename, "vrclient.so") == 0) {
+    flags &= ~RTLD_DEEPBIND;
+  }
+  return real_dlopen(filename, flags);
+}
 
 int bl_fsync_syscall(long number, const long *args, long *ret) __attribute__((visibility("hidden")));
 

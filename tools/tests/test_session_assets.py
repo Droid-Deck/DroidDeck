@@ -37,3 +37,9 @@ class SessionAssetsTest(unittest.TestCase):
         with ZipFile(self.apk, 'w') as package:
             package.writestr(self.name, self.helper.read_bytes())
         self.assertEqual([], assets.check(self.apk, self.overlay))
+
+    def test_bundled_helper_must_also_be_extracted(self):
+        self.assertEqual(['not extracted at session start: usr/local/bin/droiddeck-login1'],
+                         assets.check_extraction(self.overlay, ''))
+        mapping = '"usr/local/bin/droiddeck-login1" to "usr/local/bin/droiddeck-login1"'
+        self.assertEqual([], assets.check_extraction(self.overlay, mapping))

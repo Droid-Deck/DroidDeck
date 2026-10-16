@@ -152,11 +152,12 @@ public final class GogDownloadManager {
             installPath.mkdirs();
             long plannedBytes = 0;
             for (DepotFile df : files) plannedBytes += df.totalSize;
-            if (plannedBytes > 0) {
-                long usable = installPath.getUsableSpace();
-                if (usable > 0 && plannedBytes > usable) {
+            long remainingBytes = remainingInstallBytes(files, installPath);
+            if (remainingBytes > 0) {
+                long usable = com.droiddeck.launcher.stores.StoreInstallRoot.availableBytes(installPath);
+                if (com.droiddeck.launcher.stores.StoreInstallRoot.insufficientSpace(remainingBytes, usable)) {
                     out.hardStop = true;
-                    out.error = "Not enough free space: need " + formatBytes(plannedBytes) + ", only " + formatBytes(usable) + " free";
+                    out.error = "Not enough free space: need " + formatBytes(remainingBytes) + ", only " + formatBytes(usable) + " free";
                     return out;
                 }
             }
@@ -946,7 +947,16 @@ public final class GogDownloadManager {
         for (File f : files) if (f.isDirectory()) collectExeRecursive(f, out);
     }
 
-    private static final class DepotFile {
+    static long remainingInstallBytes(List<DepotFile> files, File installPath) {
+        long remaining = 0;
+        for (DepotFile file : files) {
+            File output = new File(installPath, file.relativePath);
+            if (!fileVerified(output, file.totalSize, file.md5)) remaining += file.totalSize;
+        }
+        return remaining;
+    }
+
+    static final class DepotFile {
         final String relativePath;
         final List<ChunkRef> chunks = new ArrayList<>();
         String md5;

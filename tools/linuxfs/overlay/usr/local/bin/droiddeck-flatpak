@@ -181,6 +181,27 @@ def uninstall(app_id):
     return rc
 
 
+def prune():
+    inst = installation()
+    try:
+        unused = inst.list_unused_refs(None, None)
+    except GLib.Error as err:
+        emit(e="error", message=err.message)
+        return 1
+    if unused:
+        t, state = transaction(inst)
+        for r in unused:
+            t.add_uninstall(r.format_ref())
+        if run(t, state, report_done=False):
+            return 1
+    try:
+        inst.prune_local_repo(None)
+    except GLib.Error as err:
+        emit(e="warning", message=err.message)
+    emit(e="done", removed=len(unused))
+    return 0
+
+
 def updatable(inst):
     try:
         return inst.list_installed_refs_for_update(None)
@@ -216,7 +237,7 @@ def updates():
 
 def main():
     if len(sys.argv) < 2:
-        sys.stderr.write(__doc__ or "usage: droiddeck-flatpak install|install-bundle|uninstall|update|updates [app-id|file]\n")
+        sys.stderr.write(__doc__ or "usage: droiddeck-flatpak install|install-bundle|uninstall|update|updates|prune [app-id|file]\n")
         return 2
     cmd, args = sys.argv[1], sys.argv[2:]
     if cmd in ("install", "install-bundle", "update"):
@@ -231,7 +252,9 @@ def main():
         return update(args[0] if args else None)
     if cmd == "updates":
         return updates()
-    sys.stderr.write("usage: droiddeck-flatpak install|install-bundle|uninstall|update|updates [app-id|file]\n")
+    if cmd == "prune":
+        return prune()
+    sys.stderr.write("usage: droiddeck-flatpak install|install-bundle|uninstall|update|updates|prune [app-id|file]\n")
     return 2
 
 

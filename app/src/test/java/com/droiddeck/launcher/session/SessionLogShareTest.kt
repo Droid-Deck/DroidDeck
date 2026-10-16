@@ -105,6 +105,7 @@ class SessionLogShareTest {
     @Test fun aFileThatCouldNotBeScrubbedLeavesTheFolderUnrecorded() {
         val folder = tmp.newFolder("2026-10-06-06-steam")
         File(folder, "session.log").writeText("$secret\n")
+        org.junit.Assume.assumeFalse(System.getProperty("os.name").startsWith("Windows"))
         folder.setWritable(false)
         try {
             SessionArtifacts.scrubAndMark(folder)
