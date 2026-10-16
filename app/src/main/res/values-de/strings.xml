@@ -1919,6 +1919,16 @@
     <string name="stores_free">Kostenlos</string>
     <string name="stores_resume">Fortsetzen</string>
     <string name="stores_refresh">Aktualisieren</string>
+    <string name="stores_sort">Sortieren</string>
+    <string name="stores_sort_last_played">Zuletzt gespielt</string>
+    <string name="stores_sort_recently_installed">Zuletzt installiert</string>
+    <string name="stores_sort_title_asc">Titel A–Z</string>
+    <string name="stores_sort_title_desc">Titel Z–A</string>
+    <string name="stores_sort_size_desc">Größe: größte</string>
+    <string name="stores_sort_size_asc">Größe: kleinste</string>
+    <string name="stores_sort_release_date">Erscheinungsdatum</string>
+    <string name="stores_view_list">Listenansicht</string>
+    <string name="stores_view_cards">Kartenansicht</string>
     <string name="stores_show_mature">Inhalte für Erwachsene anzeigen</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

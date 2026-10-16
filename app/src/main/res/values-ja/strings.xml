@@ -1906,6 +1906,16 @@
     <string name="stores_free">無料</string>
     <string name="stores_resume">再開</string>
     <string name="stores_refresh">更新</string>
+    <string name="stores_sort">並べ替え</string>
+    <string name="stores_sort_last_played">最近プレイ</string>
+    <string name="stores_sort_recently_installed">最近インストール</string>
+    <string name="stores_sort_title_asc">タイトル A–Z</string>
+    <string name="stores_sort_title_desc">タイトル Z–A</string>
+    <string name="stores_sort_size_desc">サイズ: 大きい順</string>
+    <string name="stores_sort_size_asc">サイズ: 小さい順</string>
+    <string name="stores_sort_release_date">リリース日</string>
+    <string name="stores_view_list">リスト表示</string>
+    <string name="stores_view_cards">カード表示</string>
     <string name="stores_show_mature">成人向けコンテンツを表示</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

@@ -1919,6 +1919,16 @@
     <string name="stores_free">Gratis</string>
     <string name="stores_resume">Hervatten</string>
     <string name="stores_refresh">Vernieuwen</string>
+    <string name="stores_sort">Sorteren</string>
+    <string name="stores_sort_last_played">Onlangs gespeeld</string>
+    <string name="stores_sort_recently_installed">Onlangs geïnstalleerd</string>
+    <string name="stores_sort_title_asc">Titel A–Z</string>
+    <string name="stores_sort_title_desc">Titel Z–A</string>
+    <string name="stores_sort_size_desc">Grootte: grootste</string>
+    <string name="stores_sort_size_asc">Grootte: kleinste</string>
+    <string name="stores_sort_release_date">Releasedatum</string>
+    <string name="stores_view_list">Lijstweergave</string>
+    <string name="stores_view_cards">Kaartweergave</string>
     <string name="stores_show_mature">Inhoud voor volwassenen tonen</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

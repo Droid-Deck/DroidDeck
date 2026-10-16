@@ -1906,6 +1906,16 @@
     <string name="stores_free">무료</string>
     <string name="stores_resume">재개</string>
     <string name="stores_refresh">새로 고침</string>
+    <string name="stores_sort">정렬</string>
+    <string name="stores_sort_last_played">최근 플레이</string>
+    <string name="stores_sort_recently_installed">최근 설치</string>
+    <string name="stores_sort_title_asc">제목 A–Z</string>
+    <string name="stores_sort_title_desc">제목 Z–A</string>
+    <string name="stores_sort_size_desc">크기: 큰순</string>
+    <string name="stores_sort_size_asc">크기: 작은순</string>
+    <string name="stores_sort_release_date">출시일</string>
+    <string name="stores_view_list">목록 보기</string>
+    <string name="stores_view_cards">카드 보기</string>
     <string name="stores_show_mature">성인용 콘텐츠 표시</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

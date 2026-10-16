@@ -175,6 +175,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
     private var watching = true
     private lateinit var touchpad: TouchpadGestures
+    private lateinit var threeFingerTap: com.droiddeck.launcher.input.ThreeFingerTap
     private var touchMode by mutableStateOf(SessionPrefs.TOUCH_AUTO)
     private var cursorPos by mutableStateOf(androidx.compose.ui.geometry.Offset(-100f, -100f))
     private var cursorVisible by mutableStateOf(false)
@@ -417,6 +418,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         onScreenControls = OnScreenControls(this, bridge, onKeyboard = ::togglePcKeyboard).also { root.addView(it) }
         keyboard = KeyboardHost(this).also { root.addView(it) }
         touchpad = TouchpadGestures(PointerGestures.slop(this), pointerListener)
+        threeFingerTap = com.droiddeck.launcher.input.ThreeFingerTap(PointerGestures.slop(this) * 2)
         val noCursor = android.view.PointerIcon.getSystemIcon(this, android.view.PointerIcon.TYPE_NULL)
         root.pointerIcon = noCursor
         surfaceView.pointerIcon = noCursor
@@ -519,8 +521,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         releaseDrawerDirection()
                     }
                 }
-                LaunchedEffect(cardboard.enabled, steamVrSwitchedPicture) {
-                    while (cardboard.enabled || steamVrSwitchedPicture) {
+                LaunchedEffect(cardboard.enabled, steamVrSwitchedPicture, drawerOpen, drawerPage) {
+                    while (cardboard.enabled || steamVrSwitchedPicture || (drawerOpen && drawerPage == SessionDrawerPage.STEAMVR)) {
                         val now = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                             SteamVr.status(this@SessionActivity)
                         }
@@ -558,6 +560,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     onCardboard = { c -> SessionPrefs.setCardboard(this@SessionActivity, c); applyCardboard(c) },
                     onCardboardRecenter = { headTracker?.recenter() },
                     steamVr = steamVrStatus,
+                    immersiveSteamVr = com.droiddeck.launcher.session.QuestExperimental.isSupported(),
                     onSteamVr = { action -> steamVrAction(action) },
                     textureAnisotropy = if (drawerGameProfileId == null) textureAnisotropy else drawerTextureAnisotropy,
                     textureLodBias = if (drawerGameProfileId == null) textureLodBias else drawerTextureLodBias,
@@ -1876,6 +1879,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 onSteamMenu = if (SessionState.mode == SessionService.MODE_STEAM) ::tapSteamButton else null,
                 onQam = if (SessionState.mode == SessionService.MODE_STEAM) ::tapQam else null,
                 onClose = { selectSecondScreenMode(SecondScreenMode.NONE) },
+                pad = padBridge,
             )
             secondScreenPresentation = presentation
         }
@@ -2020,6 +2024,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE)) return onMouse(event)
         if (routedTouchMode == SessionPrefs.TOUCH_OFF) return true
+        if (SessionState.mode == SessionService.MODE_STEAM && SessionState.steamUi != "desktop") {
+            val wasActive = threeFingerTap.active
+            if (threeFingerTap.onTouch(event)) padBridge?.triggerSteamKeyboard()
+            if (threeFingerTap.active && !wasActive) {
+                if (usingTouchpad()) touchpad.cancel() else WaylandCompositor.nativeSendTouch(3, -1, 0, 0)
+            }
+            if (threeFingerTap.active || wasActive) return true
+        }
         if (usingTouchpad()) {
             val rect = drawnRect() ?: return false
             if (touchpad.bounds != rect) {
@@ -2380,6 +2392,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun steamVrAction(action: String) {
+        if (action == "start" && com.droiddeck.launcher.session.QuestExperimental.isSupported()) {
+            startActivity(android.content.Intent(this, QuestXrActivity::class.java))
+            return
+        }
         if (action == "start") {
             switchPictureForSteamVr()
             steamVrSeenRunning = false

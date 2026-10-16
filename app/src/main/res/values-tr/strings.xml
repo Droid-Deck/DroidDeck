@@ -1919,6 +1919,16 @@
     <string name="stores_free">Ücretsiz</string>
     <string name="stores_resume">Sürdür</string>
     <string name="stores_refresh">Yenile</string>
+    <string name="stores_sort">Sırala</string>
+    <string name="stores_sort_last_played">Son oynanan</string>
+    <string name="stores_sort_recently_installed">Son yüklenen</string>
+    <string name="stores_sort_title_asc">Başlık A–Z</string>
+    <string name="stores_sort_title_desc">Başlık Z–A</string>
+    <string name="stores_sort_size_desc">Boyut: en büyük</string>
+    <string name="stores_sort_size_asc">Boyut: en küçük</string>
+    <string name="stores_sort_release_date">Çıkış tarihi</string>
+    <string name="stores_view_list">Liste görünümü</string>
+    <string name="stores_view_cards">Kart görünümü</string>
     <string name="stores_show_mature">Yetişkin içeriği göster</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

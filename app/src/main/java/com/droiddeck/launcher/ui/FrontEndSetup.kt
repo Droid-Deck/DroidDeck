@@ -84,6 +84,8 @@ import com.droiddeck.launcher.R
 
 private enum class CheckState { OK, WARN, BUSY }
 
+private const val STORAGE_TAB = 3
+
 @Composable
 private fun CheckRow(state: CheckState, title: String, detail: String?, divider: Boolean = true, action: (@Composable () -> Unit)? = null) {
     val colors = MaterialTheme.colorScheme
@@ -165,12 +167,18 @@ internal fun SetupPanel(
     var showLimitDetails by rememberSaveable { mutableStateOf(false) }
     var editSgdbKey by remember { mutableStateOf(false) }
     if (editSgdbKey) SgdbKeyDialog(s.sgdbUserKey, onSave = { a.onSgdbKey(it); editSgdbKey = false }, onDismiss = { editSgdbKey = false })
-    val tabs = listOf(stringResource(R.string.setup_tab_overview), stringResource(R.string.setup_tab_controller), stringResource(R.string.setup_tab_launcher), stringResource(R.string.setup_tab_diagnostics))
+    val tabs = listOf(stringResource(R.string.setup_tab_overview), stringResource(R.string.setup_tab_controller), stringResource(R.string.setup_tab_launcher), stringResource(R.string.setup_tab_storage), stringResource(R.string.setup_tab_diagnostics))
     var tab by rememberSaveable { mutableStateOf(0) }
-    val chipFocus = remember { List(4) { FocusRequester() } }
+    val chipFocus = remember { List(tabs.size) { FocusRequester() } }
     var tabTurned by remember { mutableStateOf(false) }
     val pick: (Int) -> Unit = { i -> tab = i; tabTurned = true }
     val inputModeManager = LocalInputModeManager.current
+    LaunchedEffect(com.droiddeck.launcher.storage.StorageState.openRequests) {
+        if (com.droiddeck.launcher.storage.StorageState.openPending) {
+            com.droiddeck.launcher.storage.StorageState.openPending = false
+            tab = STORAGE_TAB
+        }
+    }
     LaunchedEffect(tab) {
         if (tabTurned && inputModeManager.inputMode == InputMode.Keyboard) {
             androidx.compose.runtime.withFrameNanos { }
@@ -387,7 +395,8 @@ internal fun SetupPanel(
                             Column(Modifier.weight(1f)) { device(); art() }
                         } else { look(); device(); art() }
                     }
-                    3 -> {
+                    STORAGE_TAB -> StoragePanel(s, a)
+                    4 -> {
                         SettingsGroup(stringResource(R.string.setup_tab_diagnostics)) {
                             ToggleRow(host, "logs", stringResource(R.string.setup_logs), stringResource(R.string.setup_logs_hint), s.logsEnabled) { a.onLogs() }
                             ToggleRow(host, "agent-commands", stringResource(R.string.setup_agent_commands), null, s.agentCommands) { a.onAgentCommands() }

@@ -77,7 +77,7 @@ object Library {
     private val LAST_PLAYED = Regex("^\\s*\"LastPlayed\"\\s*\"(\\d+)\"", RegexOption.MULTILINE)
     private val INSTALL_DIR = Regex("^\\s*\"installdir\"\\s*\"([^\"]*)\"", RegexOption.MULTILINE)
 
-    private fun steamLibraries(context: Context): List<Pair<File, String>> {
+    internal fun steamLibraries(context: Context): List<Pair<File, String>> {
         val root = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam")
         return listOfNotNull(
             root to "internal",
@@ -124,16 +124,24 @@ object Library {
                     val installDir = INSTALL_DIR.find(text)?.groupValues?.get(1)?.trim()
                         ?.takeIf { it.isNotEmpty() && it != "." && it != ".." && '/' !in it && '\\' !in it }
                     val gameFiles = installDir?.let { File(steamapps, "common/$it").takeIf(File::isDirectory) }
-                    out[appId] = SteamGame(
+                    out[appId] = SteamGameArt.withOverrides(context, SteamGame(
                         appId, name, art, label, hero = hero, lastPlayed = lastPlayed,
                         gameFiles = gameFiles,
                         protonPrefix = protonPrefix(context, appId.toLong(), library, roots),
                         icon = steamCacheImage(cache, appId, listOf("icon.jpg", "icon.png"))
                             ?: File(cache, appId.toString()).listFiles()?.firstOrNull { it.isFile && STEAM_ICON.matches(it.name) },
-                    )
+                    ))
                 }
         }
         return out.values.toList()
+    }
+
+    fun steamLibraryArt(context: Context): List<Pair<Int, File>> {
+        val cache = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/appcache/librarycache")
+        return cache.listFiles().orEmpty().mapNotNull { dir ->
+            val appId = dir.name.toIntOrNull()?.takeIf { it !in NOT_GAMES } ?: return@mapNotNull null
+            steamCacheImage(cache, appId, STEAM_CAPSULES)?.let { appId to it }
+        }
     }
 
     fun launchableGames(context: Context, strictRead: Boolean = false, added: List<AddedGames.Game>? = null): List<SteamGame> {
@@ -153,7 +161,7 @@ object Library {
             )
         }
 
-    private fun steamCacheImage(cache: File, appId: Int, names: List<String>): File? {
+    internal fun steamCacheImage(cache: File, appId: Int, names: List<String>): File? {
         val appDir = File(cache, appId.toString())
         val dirs = listOf(appDir) + appDir.listFiles()
             .orEmpty().filter { it.isDirectory }.sortedBy { it.name }

@@ -104,6 +104,23 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("storesShowMature", show).apply()
     }
 
+    fun storesSort(context: Context): String =
+        prefs(context).getString("storesSort", null)?.takeIf { it in STORES_SORTS } ?: STORES_SORTS.first()
+
+    fun setStoresSort(context: Context, sort: String) {
+        prefs(context).edit().putString("storesSort", if (sort in STORES_SORTS) sort else STORES_SORTS.first()).apply()
+    }
+
+    fun storesView(context: Context): String =
+        prefs(context).getString("storesView", null)?.takeIf { it in STORES_VIEWS } ?: STORES_VIEWS.first()
+
+    fun setStoresView(context: Context, view: String) {
+        prefs(context).edit().putString("storesView", if (view in STORES_VIEWS) view else STORES_VIEWS.first()).apply()
+    }
+
+    val STORES_SORTS = listOf("lastPlayed", "recentlyInstalled", "titleAsc", "titleDesc", "sizeDesc", "sizeAsc", "releaseDateDesc")
+    val STORES_VIEWS = listOf("cards", "list")
+
     const val STORES_OPEN_LIBRARY = "library"
     const val STORES_OPEN_STORE = "store"
 
@@ -340,6 +357,9 @@ object SessionPrefs {
     fun setGpuClockPin(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("gpuClockPin", on).apply()
     }
+
+    /** Whether the game's busiest threads are named to the power HAL for a boost (GameThreadHints). */
+    fun gameThreadHints(context: Context): Boolean = prefs(context).getBoolean("gameThreadHints", true)
 
     fun prootNoSeccomp(context: Context): Boolean = prefs(context).getBoolean("prootNoSeccomp", false)
 

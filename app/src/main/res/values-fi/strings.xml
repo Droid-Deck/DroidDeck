@@ -1919,6 +1919,16 @@
     <string name="stores_free">Ilmainen</string>
     <string name="stores_resume">Jatka</string>
     <string name="stores_refresh">Päivitä</string>
+    <string name="stores_sort">Järjestä</string>
+    <string name="stores_sort_last_played">Viimeksi pelatut</string>
+    <string name="stores_sort_recently_installed">Viimeksi asennetut</string>
+    <string name="stores_sort_title_asc">Nimi A–Ö</string>
+    <string name="stores_sort_title_desc">Nimi Ö–A</string>
+    <string name="stores_sort_size_desc">Koko: suurin</string>
+    <string name="stores_sort_size_asc">Koko: pienin</string>
+    <string name="stores_sort_release_date">Julkaisupäivä</string>
+    <string name="stores_view_list">Luettelonäkymä</string>
+    <string name="stores_view_cards">Korttinäkymä</string>
     <string name="stores_show_mature">Näytä aikuisille tarkoitettu sisältö</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

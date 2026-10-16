@@ -1919,6 +1919,16 @@
     <string name="stores_free">Δωρεάν</string>
     <string name="stores_resume">Συνέχιση</string>
     <string name="stores_refresh">Ανανέωση</string>
+    <string name="stores_sort">Ταξινόμηση</string>
+    <string name="stores_sort_last_played">Παίχτηκαν πρόσφατα</string>
+    <string name="stores_sort_recently_installed">Εγκαταστήθηκαν πρόσφατα</string>
+    <string name="stores_sort_title_asc">Τίτλος Α–Ω</string>
+    <string name="stores_sort_title_desc">Τίτλος Ω–Α</string>
+    <string name="stores_sort_size_desc">Μέγεθος: μεγαλύτερο</string>
+    <string name="stores_sort_size_asc">Μέγεθος: μικρότερο</string>
+    <string name="stores_sort_release_date">Ημερομηνία κυκλοφορίας</string>
+    <string name="stores_view_list">Προβολή λίστας</string>
+    <string name="stores_view_cards">Προβολή καρτών</string>
     <string name="stores_show_mature">Εμφάνιση περιεχομένου για ενήλικες</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

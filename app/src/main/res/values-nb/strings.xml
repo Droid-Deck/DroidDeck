@@ -1919,6 +1919,16 @@
     <string name="stores_free">Gratis</string>
     <string name="stores_resume">Gjenoppta</string>
     <string name="stores_refresh">Oppdater</string>
+    <string name="stores_sort">Sorter</string>
+    <string name="stores_sort_last_played">Nylig spilt</string>
+    <string name="stores_sort_recently_installed">Nylig installert</string>
+    <string name="stores_sort_title_asc">Tittel A–Å</string>
+    <string name="stores_sort_title_desc">Tittel Å–A</string>
+    <string name="stores_sort_size_desc">Størrelse: størst</string>
+    <string name="stores_sort_size_asc">Størrelse: minst</string>
+    <string name="stores_sort_release_date">Utgivelsesdato</string>
+    <string name="stores_view_list">Listevisning</string>
+    <string name="stores_view_cards">Kortvisning</string>
     <string name="stores_show_mature">Vis innhold for voksne</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

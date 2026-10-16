@@ -1940,6 +1940,16 @@
     <string name="stores_free">Gratuit</string>
     <string name="stores_resume">Reluare</string>
     <string name="stores_refresh">Reîmprospătează</string>
+    <string name="stores_sort">Sortează</string>
+    <string name="stores_sort_last_played">Jucate recent</string>
+    <string name="stores_sort_recently_installed">Instalate recent</string>
+    <string name="stores_sort_title_asc">Titlu A–Z</string>
+    <string name="stores_sort_title_desc">Titlu Z–A</string>
+    <string name="stores_sort_size_desc">Dimensiune: cea mai mare</string>
+    <string name="stores_sort_size_asc">Dimensiune: cea mai mică</string>
+    <string name="stores_sort_release_date">Data lansării</string>
+    <string name="stores_view_list">Vizualizare listă</string>
+    <string name="stores_view_cards">Vizualizare carduri</string>
     <string name="stores_show_mature">Arată conținutul pentru adulți</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

@@ -1907,6 +1907,16 @@
     <string name="stores_free">免費</string>
     <string name="stores_resume">繼續</string>
     <string name="stores_refresh">重新整理</string>
+    <string name="stores_sort">排序</string>
+    <string name="stores_sort_last_played">最近遊玩</string>
+    <string name="stores_sort_recently_installed">最近安裝</string>
+    <string name="stores_sort_title_asc">標題 A–Z</string>
+    <string name="stores_sort_title_desc">標題 Z–A</string>
+    <string name="stores_sort_size_desc">大小: 由大到小</string>
+    <string name="stores_sort_size_asc">大小: 由小到大</string>
+    <string name="stores_sort_release_date">發行日期</string>
+    <string name="stores_view_list">列表檢視</string>
+    <string name="stores_view_cards">卡片檢視</string>
     <string name="stores_show_mature">顯示成人內容</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

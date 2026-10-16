@@ -1969,6 +1969,16 @@
     <string name="stores_free">Бесплатно</string>
     <string name="stores_resume">Продолжить</string>
     <string name="stores_refresh">Обновить</string>
+    <string name="stores_sort">Сортировка</string>
+    <string name="stores_sort_last_played">Недавно запущенные</string>
+    <string name="stores_sort_recently_installed">Недавно установленные</string>
+    <string name="stores_sort_title_asc">Название А–Я</string>
+    <string name="stores_sort_title_desc">Название Я–А</string>
+    <string name="stores_sort_size_desc">Размер: по убыванию</string>
+    <string name="stores_sort_size_asc">Размер: по возрастанию</string>
+    <string name="stores_sort_release_date">Дата выхода</string>
+    <string name="stores_view_list">Вид списком</string>
+    <string name="stores_view_cards">Вид карточками</string>
     <string name="stores_show_mature">Показывать контент для взрослых</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

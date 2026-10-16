@@ -1919,6 +1919,16 @@
     <string name="stores_free">Gratis</string>
     <string name="stores_resume">Genoptag</string>
     <string name="stores_refresh">Opdater</string>
+    <string name="stores_sort">Sortér</string>
+    <string name="stores_sort_last_played">Senest spillet</string>
+    <string name="stores_sort_recently_installed">Senest installeret</string>
+    <string name="stores_sort_title_asc">Titel A–Å</string>
+    <string name="stores_sort_title_desc">Titel Å–A</string>
+    <string name="stores_sort_size_desc">Størrelse: størst</string>
+    <string name="stores_sort_size_asc">Størrelse: mindst</string>
+    <string name="stores_sort_release_date">Udgivelsesdato</string>
+    <string name="stores_view_list">Listevisning</string>
+    <string name="stores_view_cards">Kortvisning</string>
     <string name="stores_show_mature">Vis indhold for voksne</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

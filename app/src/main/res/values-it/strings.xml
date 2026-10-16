@@ -1940,6 +1940,16 @@
     <string name="stores_free">Gratis</string>
     <string name="stores_resume">Riprendi</string>
     <string name="stores_refresh">Aggiorna</string>
+    <string name="stores_sort">Ordina</string>
+    <string name="stores_sort_last_played">Giocate di recente</string>
+    <string name="stores_sort_recently_installed">Installate di recente</string>
+    <string name="stores_sort_title_asc">Titolo A–Z</string>
+    <string name="stores_sort_title_desc">Titolo Z–A</string>
+    <string name="stores_sort_size_desc">Dimensione: maggiore</string>
+    <string name="stores_sort_size_asc">Dimensione: minore</string>
+    <string name="stores_sort_release_date">Data di uscita</string>
+    <string name="stores_view_list">Visualizzazione elenco</string>
+    <string name="stores_view_cards">Visualizzazione schede</string>
     <string name="stores_show_mature">Mostra contenuti per adulti</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

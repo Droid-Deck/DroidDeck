@@ -1919,6 +1919,16 @@
     <string name="stores_free">Ingyenes</string>
     <string name="stores_resume">Folytatás</string>
     <string name="stores_refresh">Frissítés</string>
+    <string name="stores_sort">Rendezés</string>
+    <string name="stores_sort_last_played">Nemrég játszott</string>
+    <string name="stores_sort_recently_installed">Nemrég telepített</string>
+    <string name="stores_sort_title_asc">Cím A–Z</string>
+    <string name="stores_sort_title_desc">Cím Z–A</string>
+    <string name="stores_sort_size_desc">Méret: legnagyobb</string>
+    <string name="stores_sort_size_asc">Méret: legkisebb</string>
+    <string name="stores_sort_release_date">Megjelenés dátuma</string>
+    <string name="stores_view_list">Listanézet</string>
+    <string name="stores_view_cards">Kártyanézet</string>
     <string name="stores_show_mature">Felnőtt tartalom megjelenítése</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

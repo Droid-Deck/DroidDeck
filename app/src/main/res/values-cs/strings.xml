@@ -1961,6 +1961,16 @@
     <string name="stores_free">Zdarma</string>
     <string name="stores_resume">Pokračovat</string>
     <string name="stores_refresh">Obnovit</string>
+    <string name="stores_sort">Řazení</string>
+    <string name="stores_sort_last_played">Nedávno hrané</string>
+    <string name="stores_sort_recently_installed">Nedávno nainstalované</string>
+    <string name="stores_sort_title_asc">Název A–Z</string>
+    <string name="stores_sort_title_desc">Název Z–A</string>
+    <string name="stores_sort_size_desc">Velikost: největší</string>
+    <string name="stores_sort_size_asc">Velikost: nejmenší</string>
+    <string name="stores_sort_release_date">Datum vydání</string>
+    <string name="stores_view_list">Zobrazení seznamu</string>
+    <string name="stores_view_cards">Zobrazení karet</string>
     <string name="stores_show_mature">Zobrazovat obsah pro dospělé</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

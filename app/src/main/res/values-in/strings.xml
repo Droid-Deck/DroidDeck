@@ -1898,6 +1898,16 @@
     <string name="stores_free">Gratis</string>
     <string name="stores_resume">Lanjutkan</string>
     <string name="stores_refresh">Segarkan</string>
+    <string name="stores_sort">Urutkan</string>
+    <string name="stores_sort_last_played">Baru dimainkan</string>
+    <string name="stores_sort_recently_installed">Baru dipasang</string>
+    <string name="stores_sort_title_asc">Judul A–Z</string>
+    <string name="stores_sort_title_desc">Judul Z–A</string>
+    <string name="stores_sort_size_desc">Ukuran: terbesar</string>
+    <string name="stores_sort_size_asc">Ukuran: terkecil</string>
+    <string name="stores_sort_release_date">Tanggal rilis</string>
+    <string name="stores_view_list">Tampilan daftar</string>
+    <string name="stores_view_cards">Tampilan kartu</string>
     <string name="stores_show_mature">Tampilkan konten dewasa</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

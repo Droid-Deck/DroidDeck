@@ -2003,6 +2003,16 @@
     <string name="stores_free">مجاني</string>
     <string name="stores_resume">استئناف</string>
     <string name="stores_refresh">تحديث</string>
+    <string name="stores_sort">ترتيب</string>
+    <string name="stores_sort_last_played">لُعب مؤخرًا</string>
+    <string name="stores_sort_recently_installed">ثُبت مؤخرًا</string>
+    <string name="stores_sort_title_asc">العنوان أ–ي</string>
+    <string name="stores_sort_title_desc">العنوان ي–أ</string>
+    <string name="stores_sort_size_desc">الحجم: الأكبر</string>
+    <string name="stores_sort_size_asc">الحجم: الأصغر</string>
+    <string name="stores_sort_release_date">تاريخ الإصدار</string>
+    <string name="stores_view_list">عرض القائمة</string>
+    <string name="stores_view_cards">عرض البطاقات</string>
     <string name="stores_show_mature">إظهار المحتوى للبالغين</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

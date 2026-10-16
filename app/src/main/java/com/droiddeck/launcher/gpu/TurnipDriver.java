@@ -8,6 +8,7 @@ import android.util.Log;
 import com.droiddeck.launcher.R;
 import com.droiddeck.launcher.core.FileUtils;
 import com.droiddeck.launcher.core.TarZst;
+import com.droiddeck.launcher.session.QuestExperimental;
 import com.droiddeck.launcher.session.SessionPrefs;
 
 import org.json.JSONObject;
@@ -281,6 +282,8 @@ public final class TurnipDriver {
             if (forced.startsWith("a7")) return DRIVER_A7XX;
             if (forced.startsWith("a6")) return DRIVER_A6XX;
         }
+        String quest = QuestExperimental.INSTANCE.defaultAndroidDriver();
+        if (quest != null) return quest;
         String model = gpuModel();
         Log.i(TAG, "gpu model: " + (model == null ? "unknown" : model));
         if (model != null) {
