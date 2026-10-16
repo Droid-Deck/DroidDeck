@@ -10,7 +10,6 @@ import com.droiddeck.launcher.session.SessionService
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** Shell-launched trampoline: Android permits the shell to start this protected debug Activity. */
 class AgentStartActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

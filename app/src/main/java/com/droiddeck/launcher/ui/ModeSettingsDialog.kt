@@ -27,21 +27,19 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import com.droiddeck.launcher.core.FexPreset
 import com.droiddeck.launcher.runtime.DeckyManager
+import com.droiddeck.launcher.session.BootMovie
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionService
 
-/** [tag] is shown beside the name: [BUNDLED], [DOWNLOADED], [IMPORTED], or "" for Auto / Runtime default. */
 class DriverRow(val id: String, val name: String, val detail: String, val removable: Boolean, val tag: String = "") {
     companion object {
         const val BUNDLED = "BUNDLED"
         const val DOWNLOADED = "DOWNLOADED"
         const val IMPORTED = "IMPORTED"
-        /** One half of an Android + Linux bundle: picked and deleted together with the other. */
         const val BUNDLE = "ANDROID + LINUX"
     }
 }
 
-/** A [DriverRow.tag] as shown, in the app's language. */
 @Composable
 internal fun driverTagLabel(tag: String): String = when (tag) {
     DriverRow.BUNDLED -> stringResource(R.string.driver_tag_bundled)
@@ -51,7 +49,6 @@ internal fun driverTagLabel(tag: String): String = when (tag) {
     else -> tag
 }
 
-/** A release driver (Banners-Turnip, WinNative) that is not installed yet; [key] is its asset name. */
 class DownloadRow(val key: String, val label: String, val detail: String, val progress: Int? = null)
 
 class ModeSettings(
@@ -60,57 +57,49 @@ class ModeSettings(
     val panelSize: Pair<Int, Int> = 1280 to 720,
     val hdr: Boolean,
     val hdrReason: String?,
-    /** The GPU drivers in use, as the row that opens them on the Components page says it. */
-    /** The drivers line; null shows Auto. */
     val gpuDrivers: String? = null,
-    /** Frames per second the session is capped at; 0 = none. */
     val fpsLimit: Int = 0,
     val upscaler: Int = 0,
     val upscaleSharpness: Int = 75,
     val touchMode: String,
     val suspendPolicy: String,
     val steamDownloadsInBackground: Boolean = false,
+    val zramCompression: Boolean? = null,
+    val zramSupported: Boolean? = null,
     val pipSupported: Boolean = false,
     val pipAutoEnter: Boolean = false,
-    /** Steam only. */
     val oscMode: String?,
-    /** Steam only: whether single and double Back actions are swapped. */
     val backActionsInverted: Boolean = false,
     val directAudio: Boolean?,
     val mic: Boolean?,
     val gameStorage: String? = null,
     val storageOptions: List<com.droiddeck.launcher.session.GameStorage.Option> = emptyList(),
-    /** Steam only: record allocation and sampled storage timings in the next session's Share logs. */
     val storageDiagnostics: Boolean = false,
     val fexPreset: String? = null,
-    /** Steam only: Force SSBS for Proton games (SessionPrefs.forceSsbs). */
     val forceSsbs: Boolean = false,
-    /** Steam only: SessionPrefs.SYNC_* chosen for Proton games; null outside Steam. */
     val syncBackend: String? = null,
+    val picturePosition: String? = null,
     val stretch16x9: Boolean? = null,
     val steamRepairQueued: Boolean = false,
-    /** Steam: the QAM's performance overlay (mangoapp) is started. */
     val mangoapp: Boolean = true,
-    /** Steam only: what the pad is to the client (SessionPrefs.CONTROLLER_*); null outside Steam. */
     val steamController: String? = null,
-    /** Unfolded controls (Steam only; null hides the row). */
     val unfoldedControls: Boolean? = null,
-    /** Steam only: start a Steam session when DroidDeck opens. */
     val runSteamAtStartup: Boolean = false,
-    /** Null outside Steam; the saved choice is separate from Android's access and device switch. */
+    val bootMovie: String? = null,
+    val bootMovieSound: Boolean = true,
+    val bootMovieCustomName: String? = null,
+    val bootMovieImporting: Boolean = false,
+    val bootMovieProgress: Int = -1,
     val wifiDiscovery: Boolean? = null,
     val wifiDiscoveryPermission: Boolean = false,
     val wifiDiscoveryLocation: Boolean = false,
     val wifiDiscoveryAsked: Boolean = false,
     val wifiDiscoveryBlocked: Boolean = false,
-    /** Latest Banners-Turnip release: what each driver menu offers to download, and the refresh line. */
-    /** Steam only: Decky Loader is managed from the Steam session settings. */
     val deckyInstalled: String? = null,
     val deckyLatestRelease: DeckyManager.Release? = null,
     val deckyChecking: Boolean = false,
     val deckyStage: String? = null,
     val deckyPercent: Int = -1,
-    /** The stage is the Decky plugin's binary download. */
     val deckyDownloadingBinary: Boolean = false,
     val deckyEnabled: Boolean = false,
     val deckySessionRunning: Boolean = false,
@@ -119,7 +108,6 @@ class ModeSettings(
 class ModeSettingsActions(
     val onResolution: (String) -> Unit,
     val onHdr: (Boolean) -> Unit,
-    /** Opens the GPU drivers on the Components page: they are shared by every session. */
     val onGpuDrivers: () -> Unit = {},
     val onFpsLimit: (Int) -> Unit = {},
     val onUpscaler: (Int) -> Unit = {},
@@ -127,6 +115,7 @@ class ModeSettingsActions(
     val onTouch: (String) -> Unit,
     val onSuspendPolicy: (String) -> Unit,
     val onSteamDownloadsInBackground: (Boolean) -> Unit = {},
+    val onZramCompression: (Boolean) -> Unit = {},
     val onPipAutoEnter: (Boolean) -> Unit = {},
     val onOsc: (String) -> Unit,
     val onBackActionsInverted: (Boolean) -> Unit = {},
@@ -138,12 +127,17 @@ class ModeSettingsActions(
     val onFexPreset: (String) -> Unit = {},
     val onForceSsbs: (Boolean) -> Unit = {},
     val onSyncBackend: (String) -> Unit = {},
+    val onPicturePosition: (String) -> Unit = {},
     val onStretch16x9: (Boolean) -> Unit = {},
     val onSteamRepair: () -> Unit = {},
     val onMangoapp: (Boolean) -> Unit = {},
     val onSteamController: (String) -> Unit = {},
     val onUnfoldedControls: (Boolean) -> Unit = {},
     val onRunSteamAtStartup: (Boolean) -> Unit = {},
+    val onBootMovie: (String) -> Unit = {},
+    val onBootMovieSound: (Boolean) -> Unit = {},
+    val onImportBootMovie: () -> Unit = {},
+    val onRemoveBootMovie: () -> Unit = {},
     val onWifiDiscovery: (Boolean) -> Unit = {},
     val onWifiDiscoverySettings: () -> Unit = {},
     val onDeckyInstall: (DeckyManager.Release) -> Unit = {},
@@ -154,15 +148,10 @@ class ModeSettingsActions(
     val onDismiss: () -> Unit,
 )
 
-/**
- * The chips of a mode's lifted sheet, in order: Steam's six; the desktop's Display, Controls and
- * Session (its Files chip is the Desktop page's own).
- */
 internal fun modeSheetTabs(steam: Boolean): List<String> =
     if (steam) listOf(SheetTab.STEAM, SheetTab.DISPLAY, SheetTab.CONTROLS, SheetTab.AUDIO, SheetTab.SESSION, SheetTab.LIBRARY)
     else listOf(SheetTab.DISPLAY, SheetTab.CONTROLS, SheetTab.SESSION)
 
-/** A sheet tab's chip label. */
 @Composable
 internal fun sheetTabLabel(tab: String): String = when (tab) {
     SheetTab.DISPLAY -> stringResource(R.string.drawer_page_display)
@@ -174,19 +163,13 @@ internal fun sheetTabLabel(tab: String): String = when (tab) {
     else -> stringResource(R.string.setup_tool_files)
 }
 
-/**
- * Rows the front end adds to a sheet's tabs: frame generation (Display), Performance (Session) and
- * the Graphics drivers link to Components (Display, given the drivers' summary).
- */
 class SheetExtras(
     val frameGen: @Composable () -> Unit = {},
     val performance: @Composable () -> Unit = {},
     val drivers: @Composable (summary: String?) -> Unit = {},
-    /** The Steam tab's account rows (offline mode), from the front end's own state. */
     val account: @Composable (host: MenuHost) -> Unit = {},
 )
 
-/** One tab of a mode's lifted sheet: the rows the settings page had, grouped by what they are for. */
 @Composable
 fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: SheetExtras = SheetExtras()) {
     val steam = s.mode == SessionService.MODE_STEAM
@@ -196,6 +179,13 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
         val displaySize = com.droiddeck.launcher.session.SessionDisplay.resolveChoice(s.panelSize, s.resolution)
         SettingsGroup(stringResource(R.string.display_session)) {
             ResolutionRow(host, s.resolution, s.panelSize, a.onResolution)
+            s.picturePosition?.let { position ->
+                ChoiceRow(host, "picture-position", stringResource(R.string.display_picture_position), null,
+                    listOf("top" to stringResource(R.string.display_position_top),
+                        "bottom" to stringResource(R.string.display_position_bottom),
+                        "center" to stringResource(R.string.display_position_center)),
+                    position, onPick = a.onPicturePosition)
+            }
             if (s.stretch16x9 != null && (com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(s.panelSize) ||
                     com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(displaySize))) {
                 val canStretch = com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(displaySize)
@@ -303,6 +293,12 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 stringResource(R.string.mode_background_downloads_hint),
                 s.steamDownloadsInBackground, onChange = a.onSteamDownloadsInBackground,
             )
+            if (s.zramCompression != null) ToggleRow(
+                host, "zram", stringResource(R.string.mode_zram),
+                stringResource(if (s.zramSupported == false) R.string.mode_zram_unsupported else R.string.mode_zram_hint),
+                s.zramCompression && s.zramSupported != false, enabled = s.zramSupported == true,
+                onChange = a.onZramCompression,
+            )
         }
         if (s.pipSupported) SettingsGroup(stringResource(R.string.pip_title)) {
             ToggleRow(host, "pip-auto", stringResource(R.string.pip_auto), null,
@@ -320,7 +316,6 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
     if (tab == SheetTab.LIBRARY && steam) {
         if (s.gameStorage != null) SettingsGroup(stringResource(R.string.mode_storage)) {
             val custom = s.gameStorage.isNotEmpty() && s.gameStorage != "off" && s.storageOptions.none { it.path == s.gameStorage }
-            // Each choice: its path, its menu line, the chip's shorter line, and the label it is saved with.
             class StorageChoice(val path: String, val label: String, val chip: String, val saved: String)
             val internal = stringResource(R.string.mode_storage_internal)
             val options = buildList {
@@ -432,6 +427,41 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 SecondaryButton(stringResource(R.string.mode_steam_repair_button), enabled = !s.steamRepairQueued, onClick = a.onSteamRepair)
             }
         }
+        if (s.bootMovie != null) SettingsGroup(stringResource(R.string.boot_movie)) {
+            ChoiceRow(
+                host, "boot-movie", stringResource(R.string.boot_movie_video), stringResource(R.string.common_applies_next_session),
+                buildList {
+                    add(BootMovie.DROIDDECK_30 to stringResource(R.string.boot_movie_droiddeck, 30))
+                    add(BootMovie.DROIDDECK_60 to stringResource(R.string.boot_movie_droiddeck, 60))
+                    s.bootMovieCustomName?.let { add(BootMovie.CUSTOM to it) }
+                }, s.bootMovie,
+                note = stringResource(R.string.boot_movie_note), onPick = a.onBootMovie,
+            )
+            ToggleRow(
+                host, "boot-movie-sound", stringResource(R.string.boot_movie_sound),
+                stringResource(R.string.common_applies_next_session), s.bootMovieSound, onChange = a.onBootMovieSound,
+            )
+            SettingsRow(
+                stringResource(R.string.boot_movie_custom),
+                stringResource(R.string.boot_movie_custom_hint, (BootMovie.MAX_BYTES shr 20).toInt(), BootMovie.MAX_CONVERT_SECONDS),
+            ) {
+                Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
+                    SecondaryButton(
+                        when {
+                            s.bootMovieProgress >= 0 -> stringResource(R.string.boot_movie_converting, s.bootMovieProgress)
+                            s.bootMovieImporting -> stringResource(R.string.common_working)
+                            else -> stringResource(R.string.boot_movie_import)
+                        },
+                        enabled = !s.bootMovieImporting,
+                        progress = s.bootMovieProgress.takeIf { it >= 0 }?.let { it / 100f },
+                        onClick = a.onImportBootMovie,
+                    )
+                    if (s.bootMovieCustomName != null) SecondaryButton(
+                        stringResource(R.string.boot_movie_remove), enabled = !s.bootMovieImporting, onClick = a.onRemoveBootMovie,
+                    )
+                }
+            }
+        }
         if (s.wifiDiscovery != null) SettingsGroup(stringResource(R.string.mode_network)) {
             val hint = when {
                 s.wifiDiscovery && !s.wifiDiscoveryLocation -> stringResource(R.string.mode_wifi_location_off)
@@ -467,10 +497,6 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
     )
 }
 
-/**
- * The options that apply to every Proton - how Wine syncs, FEX's preset, Force SSBS and the games'
- * environment - for the Components page's Proton layer.
- */
 @Composable
 internal fun ProtonOptions(
     syncBackend: String, fexPreset: String, forceSsbs: Boolean,
@@ -497,10 +523,6 @@ internal fun ProtonOptions(
     GameEnvironmentRow()
 }
 
-/**
- * Uninstall for Decky Loader: are you sure steps out of it in red, Cancel first, so a stray A
- * costs nothing.
- */
 @Composable
 private fun DeckyUninstall(enabled: Boolean, onUninstall: () -> Unit) {
     val colors = MaterialTheme.colorScheme
@@ -527,8 +549,6 @@ private fun DeckyUninstall(enabled: Boolean, onUninstall: () -> Unit) {
     }
 }
 
-/** Width × height for the session, with the common handheld shapes one tap away. */
-/** Entry for the user's SteamGridDB API key; the saved key is never shown back. */
 @Composable
 internal fun SgdbKeyDialog(hasKey: Boolean, onSave: (String) -> Unit, onDismiss: () -> Unit) {
     var key by remember { mutableStateOf("") }

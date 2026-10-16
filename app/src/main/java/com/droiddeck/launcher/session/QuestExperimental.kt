@@ -6,33 +6,51 @@ import android.util.Log
 import com.droiddeck.launcher.BuildConfig
 import java.io.File
 
-/** Device-detected defaults and launch evidence for experimental Quest compatibility. */
 object QuestExperimental {
     private const val TAG = "QuestExperimental"
     const val DRIVER = "turnip25.1.0-quest1"
+    const val DRIVER_A6XX = "turnip26.3.0-quest2"
 
-    // Quest 2 has an A6xx GPU and cannot use this bundled A7xx driver.
+    internal fun quest2(model: String, device: String, manufacturer: String): Boolean =
+        model.equals("Quest 2", ignoreCase = true) ||
+            ((manufacturer.equals("Oculus", ignoreCase = true) || manufacturer.equals("Meta", ignoreCase = true)) &&
+                device == "hollywood")
+
     internal fun supported(model: String, device: String, manufacturer: String): Boolean =
-        model.equals("Quest 3", ignoreCase = true) || model.equals("Quest 3S", ignoreCase = true) ||
+        quest2(model, device, manufacturer) || model.equals("Quest 3", ignoreCase = true) || model.equals("Quest 3S", ignoreCase = true) ||
             ((manufacturer.equals("Oculus", ignoreCase = true) || manufacturer.equals("Meta", ignoreCase = true)) &&
                 (device == "eureka" || device == "panther"))
 
     fun isSupported(): Boolean = supported(Build.MODEL, Build.DEVICE, Build.MANUFACTURER)
+    fun isQuest2(): Boolean = quest2(Build.MODEL, Build.DEVICE, Build.MANUFACTURER)
+
+    fun defaultAndroidDriver(): String? = when {
+        !isSupported() -> null
+        isQuest2() -> DRIVER_A6XX
+        else -> DRIVER
+    }
+
+    fun applyAutoDrivers(context: Context): Boolean {
+        if (SessionPrefs.gpuDriverMode(context) != SessionPrefs.GPU_DRIVERS_AUTO) return false
+        val driver = defaultAndroidDriver() ?: return false
+        context.getSharedPreferences("session", Context.MODE_PRIVATE).edit()
+            .putString("androidDriver", driver)
+            .putString("linuxDriver", "")
+            .apply()
+        return true
+    }
 
     fun initialize(context: Context) {
         if (!isSupported()) return
         val prefs = context.getSharedPreferences("session", Context.MODE_PRIVATE)
-        if (!prefs.getBoolean("questDefaultsV1", false)) {
-            // Auto would download an unwrapped display driver and lose the compatibility path.
-            // Apply once so deliberate changes made during headset testing remain possible.
+        val defaultsKey = if (isQuest2()) "quest2DefaultsV1" else "questDefaultsV1"
+        if (!prefs.getBoolean(defaultsKey, false)) {
             prefs.edit()
                 .putString("gpuDriverMode", SessionPrefs.GPU_DRIVERS_MANUAL)
-                .putString("androidDriver", DRIVER)
+                .putString("androidDriver", if (isQuest2()) DRIVER_A6XX else DRIVER)
                 .putString("linuxDriver", "")
-                // The existing HDR option uses SurfaceControl presentation. This is a
-                // corruption workaround from upstream issue #245, not a claim of HDR accuracy.
                 .putBoolean("hdr.steam", true)
-                .putBoolean("questDefaultsV1", true)
+                .putBoolean(defaultsKey, true)
                 .apply()
         }
         val report = buildString {
@@ -51,7 +69,7 @@ object QuestExperimental {
             appendLine("androidDriver=${SessionPrefs.androidDriver(context)}")
             appendLine("steamSurfaceControlWorkaround=${SessionPrefs.hdr(context, "steam")}")
             appendLine("GPUOBJ fallback installed in Android driver and ARM64 libblsession")
-            appendLine("Experimental Quest 3/3S compatibility; 2D panel application")
+            appendLine("Experimental Quest 2/3/3S compatibility; 2D panel application")
         }
         Log.i(TAG, report)
         runCatching { File(context.filesDir, "quest-startup.txt").writeText(report) }

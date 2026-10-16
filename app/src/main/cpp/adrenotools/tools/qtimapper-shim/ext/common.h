@@ -26,7 +26,6 @@
 using namespace android::hardware;
 using namespace android;
 
-/* Simplified version of hidl::base::V1_0::IBase */
 struct IBase : virtual public RefBase {
   virtual bool isRemote() const;
 

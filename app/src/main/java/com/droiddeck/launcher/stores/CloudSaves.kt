@@ -17,34 +17,16 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import org.json.JSONObject
 
-/**
- * GOG and Epic cloud saves for an installed store game: before a launch the cloud copy is brought
- * down where it is newer, after the game exits what changed goes up - newest wins, file by file.
- * Before a download overwrites anything, the folder is copied to the app's storage (the last
- * [BACKUPS] per game). Both launch paths reach it: the compat tool's request from
- * droiddeck-store-launch ([StoreLaunchRequests]) for every launch, and the Games tab's Manage saves.
- *
- * The save folder: GOG's remote-config location template (by the game's Galaxy client id) or
- * Epic's CloudSaveFolder catalog attribute, cached per game, made concrete by [CloudSavePaths]
- * inside the game's Proton prefix. A game whose store gives none has no cloud saves.
- */
 object CloudSaves {
     private const val TAG = "CloudSaves"
     private const val BACKUPS = 3
     private const val PARALLEL = 6
 
-    /** What a sync did, for the log and the Manage saves row. */
-    /**
-     * What a sync did, for the log and the Manage saves row. [result]: ok, skipped (nothing to do or
-     * not possible: [reason] says why), deferred (no prefix yet; it runs once Proton makes one),
-     * failed. [conflicts]: files changed on both sides, left alone.
-     */
     class Result(val result: String, val files: Int, val bytes: Long, val reason: String, val conflicts: Int = 0) {
         val ok: Boolean get() = result != "failed"
         val line: String get() = "result=$result files=$files bytes=$bytes reason=$reason" + if (conflicts > 0) " conflicts=$conflicts" else ""
     }
 
-    /** A game's cloud state for the Manage saves row. */
     class Status(val supported: Boolean, val folder: File?, val lastSync: Long, val reason: String, val conflicts: List<String> = emptyList())
 
     private fun game(context: Context, store: Store, id: String): Pair<File, StoreGameSidecar>? =
@@ -52,7 +34,6 @@ object CloudSaves {
             StoreGameSidecar.read(f)?.takeIf { it.store == store && it.id == id && it.isInstalled }?.let { f to it }
         }
 
-    /** The game's prefix: compatdata/<its shortcut appid>/pfx, wherever that library is. */
     fun prefix(context: Context, folder: File): File? {
         val appId = AddedGames.scan(context).firstOrNull { it.folder.absolutePath == folder.absolutePath }?.appId ?: return null
         return Library.protonPrefix(context, appId and 0xFFFFFFFFL)
@@ -64,9 +45,7 @@ object CloudSaves {
 
     private fun markSynced(context: Context, store: Store, id: String) = prefs(context, store).edit().putLong("cloud_sync_$id", System.currentTimeMillis()).apply()
 
-    // ---- the save folder ------------------------------------------------------------------------
 
-    /** The store's template for this game: cached, else fetched; "" when the store gives none, null when it could not be asked. */
     fun template(context: Context, store: Store, id: String, folder: File, sidecar: StoreGameSidecar): String? {
         val p = prefs(context, store)
         if (p.contains("cloud_template_$id")) return p.getString("cloud_template_$id", "")
@@ -89,7 +68,6 @@ object CloudSaves {
         GogPrefs.get(context).getString("client_id_$id", null)?.ifEmpty { null }
             ?: runCatching { JSONObject(File(folder, "goggame-$id.info").readText()).optString("clientId").ifEmpty { null } }.getOrNull()
 
-    /** GOG's public remote-config: `content.Windows.cloudStorage.locations`, the one named "saves" first. */
     private fun gogTemplate(context: Context, id: String, folder: File): String? {
         val clientId = gogClientId(context, id, folder) ?: return ""
         return try {
@@ -109,7 +87,6 @@ object CloudSaves {
         }
     }
 
-    /** The concrete save folder in the prefix, or null with why. */
     private fun saveFolder(context: Context, store: Store, id: String): Pair<File?, String> {
         val (folder, sidecar) = game(context, store, id) ?: return null to "not-installed"
         val template = template(context, store, id, folder, sidecar) ?: return null to "store-unreachable"
@@ -128,7 +105,6 @@ object CloudSaves {
         return Status(reason != "no-cloud-saves" && reason != "not-installed", dir, lastSync(context, store, id), reason, conflicts(context, store, id))
     }
 
-    // ---- transport ------------------------------------------------------------------------------
 
     private fun transport(context: Context, store: Store, id: String, folder: File): CloudTransport? = when (store) {
         Store.GOG -> {
@@ -147,13 +123,11 @@ object CloudSaves {
         Store.AMAZON -> null
     }
 
-    /** GOG cloud storage wants a token issued to the game's own client: the Galaxy refresh token, exchanged with the game's id and secret. */
     private fun gogScopedToken(context: Context, id: String, clientId: String): String? {
         val secret = GogPrefs.get(context).getString("client_secret_$id", null)?.ifEmpty { null } ?: return null
         return GogAuth.gameToken(context, clientId, secret)?.accessToken
     }
 
-    // ---- sync -----------------------------------------------------------------------------------
 
     private fun baseline(context: Context, store: Store, id: String): Map<String, CloudPlan.Entry>? =
         CloudPlan.fromJson(prefs(context, store).getString("cloud_baseline_$id", null))
@@ -161,29 +135,21 @@ object CloudSaves {
     private fun saveBaseline(context: Context, store: Store, id: String, b: Map<String, CloudPlan.Entry>) =
         prefs(context, store).edit().putString("cloud_baseline_$id", CloudPlan.toJson(b)).apply()
 
-    /** Files changed on both sides since the last sync, waiting for Keep cloud / Keep local. */
     fun conflicts(context: Context, store: Store, id: String): List<String> =
         prefs(context, store).getString("cloud_conflicts_$id", "").orEmpty().split('\n').filter { it.isNotEmpty() }
 
     private fun saveConflicts(context: Context, store: Store, id: String, names: Collection<String>) =
         prefs(context, store).edit().putString("cloud_conflicts_$id", names.joinToString("\n")).apply()
 
-    /** Cloud → device where the cloud copy changed (the first time: wherever it differs). [force]: conflicts too (Keep cloud). Blocking. */
     fun download(context: Context, store: Store, id: String, force: Boolean = false): Result =
         sync(context, store, id, "down") { dir, cloud -> downWith(context, store, id, dir, cloud, force) }
 
-    /** Device → cloud where the local copy changed, once a download has set the baseline. [force]: conflicts too (Keep local). Blocking. */
     fun upload(context: Context, store: Store, id: String, force: Boolean = false): Result =
         sync(context, store, id, "up") { dir, cloud -> upWith(context, store, id, dir, cloud, force) }
 
     fun keepCloud(context: Context, store: Store, id: String): Result = download(context, store, id, force = true)
     fun keepLocal(context: Context, store: Store, id: String): Result = upload(context, store, id, force = true)
 
-    /**
-     * The pre-launch download, or - when Proton has not made the game's prefix yet (a first launch)
-     * - a deferred one: answered at once, then run in the background as soon as the prefix's user
-     * folder appears (within [PREFIX_WAIT_MS]), so the launch is not held up for it.
-     */
     fun downloadOrDefer(context: Context, store: Store, id: String): Result {
         val app = context.applicationContext
         val g = game(app, store, id) ?: return done(store, id, "down", Result("skipped", 0, 0, "not-installed"))
@@ -241,7 +207,6 @@ object CloudSaves {
 
     internal fun md5(data: ByteArray): String = MessageDigest.getInstance("MD5").digest(data).joinToString("") { "%02x".format(it) }
 
-    /** The cloud listing, with MD5 and time filled in (one HEAD each where the listing lacks them, in parallel). */
     private fun remote(cloud: CloudTransport, wanted: (String) -> Boolean): Map<String, CloudFile> {
         val files = cloud.list()
         val pool = Executors.newFixedThreadPool(PARALLEL, com.droiddeck.launcher.stores.download.DownloadQueue.workerFactory("cloud"))
@@ -272,7 +237,6 @@ object CloudSaves {
             next[name] = CloudPlan.Entry(md5(data), f.md5, if (modified > 0) modified else f.modifiedMs)
         }
         for (name in plan.same) remote[name]?.let { r -> next[name] = CloudPlan.Entry(local.getValue(name).md5, r.md5, r.modifiedMs) }
-        // A download that completed sets the baseline even when the cloud was empty: uploads may follow.
         saveBaseline(context, store, id, next)
         val left = if (force) emptyList() else plan.conflicts
         saveConflicts(context, store, id, left)
@@ -290,7 +254,6 @@ object CloudSaves {
         val next = HashMap(base)
         for (name in plan.same) remote[name]?.let { r -> next[name] = CloudPlan.Entry(local.getValue(name).md5, r.md5, r.modifiedMs) }
         if (send.isNotEmpty()) {
-            // The cloud copies about to be replaced are kept first, as a download keeps the local ones.
             backupCloud(context, store, id, cloud, send.mapNotNull { remote[it] })
             val data = send.associateWith { files.getValue(it).readBytes() }
             val stamped = cloud.put(data)
@@ -307,15 +270,7 @@ object CloudSaves {
         return Result("ok", send.size, send.sumOf { files.getValue(it).length() }, if (send.isEmpty()) "up-to-date" else "uploaded", left.size)
     }
 
-    // ---- uploads that do not depend on one hook ---------------------------------------------------
 
-    /**
-     * A game launched with cloud saves is marked dirty in the app's storage when its pre-launch step
-     * runs. The upload happens on the first of: the compat tool's exit request (`exit`), the end of
-     * the session (`session-end`), or the app's next start for a mark a killed app left (`recovery`)
-     * - so a session closed from the drawer, a game Steam killed, or a crash still uploads. The mark
-     * goes only after an upload that went through, or one skipped on purpose with its reason logged.
-     */
     private fun marks(context: Context) = context.applicationContext.getSharedPreferences("stores.cloud", Context.MODE_PRIVATE)
 
     fun markDirty(context: Context, store: Store, id: String) {
@@ -329,10 +284,8 @@ object CloudSaves {
 
     private val markLock = Any()
 
-    /** Why a skip is final: retrying cannot change it, so the mark goes. */
     private val FINAL_SKIPS = setOf("off", "no-cloud-saves", "no-baseline", "not-installed", "nothing-local")
 
-    /** Uploads [id] if it is marked dirty; null when it is not (another trigger got there first). */
     fun uploadDirty(context: Context, store: Store, id: String, trigger: String): Result? = synchronized(markLock) {
         val key = "dirty:${store.id}:$id"
         if (!marks(context).contains(key)) return null
@@ -341,10 +294,6 @@ object CloudSaves {
         r
     }
 
-    /**
-     * Every dirty game, uploaded; [running] says a game session is up, in which case `recovery` waits
-     * - a marked game may be the one running.
-     */
     fun uploadAllDirty(context: Context, trigger: String, running: Boolean = com.droiddeck.launcher.session.SessionState.running) {
         if (trigger == "recovery" && running) return
         for ((store, id) in dirty(context)) uploadDirty(context, store, id, trigger)
@@ -353,7 +302,6 @@ object CloudSaves {
     private fun backupRoot(context: Context, store: Store, id: String) =
         File(context.filesDir, "stores/cloud-backups/${store.id}-${id.replace(Regex("[^A-Za-z0-9._-]"), "_")}")
 
-    /** The local folder as it is, before a download changes it; the last [BACKUPS] of each kind are kept. */
     private fun backup(context: Context, store: Store, id: String, dir: File, kind: String) {
         val root = backupRoot(context, store, id)
         runCatching { dir.copyRecursively(File(root, "$kind-${System.currentTimeMillis()}"), overwrite = true) }

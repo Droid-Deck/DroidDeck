@@ -247,10 +247,10 @@ class BattleNetTest {
         assertEquals((shortcut.appId shl 32) or 0x02000000L, shortcut.gameId)
         assertEquals(BattleNet.SOURCE, shortcut.source)
         assertEquals("Diablo IV Launcher.exe", shortcut.exe.name)
-        // Steam is handed it as a shortcut that never becomes a Steam install of the same title.
+        // A store's game: a shortcut, never a Steam install of the same title.
         val listing = com.droiddeck.launcher.frontend.AddedGames.writeListing(context, listOf(shortcut)).readText()
         val entry = JSONArray(listing).getJSONObject(0)
-        assertEquals(false, entry.getBoolean("route"))
+        assertEquals(BattleNet.SOURCE, entry.getString("store"))
         assertEquals(shortcut.launchOptions, entry.getString("launch"))
         assertEquals(exe, entry.getString("exe"))
     }

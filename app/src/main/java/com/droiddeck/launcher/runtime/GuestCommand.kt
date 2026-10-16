@@ -9,18 +9,7 @@ import com.droiddeck.launcher.session.SessionPaths
 import com.droiddeck.launcher.session.SessionPrefs
 import java.io.File
 
-/**
- * One command in the Linux runtime outside any session - the store's Flatpak work, an AppImage
- * import - in a proot of its own. A session starting meanwhile leaves it running (OrphanReaper).
- */
 object GuestCommand {
-    /**
-     * Runs [argv] and hands each output line to [onLine]; returns the exit status. [fakeRoot] is
-     * for the package tools, which refuse any uid but 0. With [logName], everything the command
-     * says also goes to files/logs/tools/<logName>.log beside the session logs, so a problem can
-     * be handed over like a session's. With [linkDir], hard links (which Android denies apps)
-     * become symlinks to files proot keeps there (its link2symlink).
-     */
     fun run(context: Context, argv: List<String>, fakeRoot: Boolean = false, logName: String? = null,
             linkDir: File? = null, onLine: (String) -> Unit): Int {
         val log = logName?.let {
@@ -40,7 +29,6 @@ object GuestCommand {
         val root = LinuxRuntime.rootDir(context)
         LinuxRuntime.writeAccounts(context)
         SessionFiles.stage(context, root)
-        // The resolver otherwise names the DNS of whatever network the last session was on.
         LinuxNetworkLinkComponent(context, root).publish()
         val runtimeDir = File(context.filesDir, ".flatpak-rt").apply { mkdirs() }
         val cmd = LinuxRuntime.prootPrefix(context, root, "/root", fakeRoot)

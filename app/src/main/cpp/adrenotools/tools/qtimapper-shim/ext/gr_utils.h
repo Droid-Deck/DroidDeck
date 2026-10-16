@@ -42,7 +42,7 @@
 
 #ifdef SLAVE_SIDE_CP
 #define SECURE_ALIGN SZ_1M
-#else  // MASTER_SIDE_CP
+#else
 #define SECURE_ALIGN SZ_4K
 #endif
 
@@ -68,59 +68,38 @@ inline Type1 ALIGN(Type1 x, Type2 align) {
 }
 
 enum PlaneComponent {
-  /* luma */
   PLANE_COMPONENT_Y = 1 << 0,
-  /* chroma blue */
   PLANE_COMPONENT_Cb = 1 << 1,
-  /* chroma red */
   PLANE_COMPONENT_Cr = 1 << 2,
 
-  /* red */
   PLANE_COMPONENT_R = 1 << 10,
-  /* green */
   PLANE_COMPONENT_G = 1 << 11,
-  /* blue */
   PLANE_COMPONENT_B = 1 << 12,
 
-  /* alpha */
   PLANE_COMPONENT_A = 1 << 20,
 
-  /* raw data plane */
   PLANE_COMPONENT_RAW = 1 << 30,
 
-  /* meta information plane */
   PLANE_COMPONENT_META = 1 << 31,
 };
 
 struct PlaneLayoutInfo {
-  /** Components represented the type of plane. */
   PlaneComponent component;
 
-  /** horizontal subsampling. Must be a positive power of 2. */
   uint32_t h_subsampling;
 
-  /** vertical subsampling. Must be a positive power of 2. */
   uint32_t v_subsampling;
 
-  /** offset to the first byte of the top-left pixel of the plane
-   *  and it is calculated from the start of the buffer.
-   *  Add base of the handle with offset to get the first byte of the plane.
-   */
   uint32_t offset;
 
-  /** step is the distance in bytes from one pixel value to the next. */
   int32_t step;
 
-  /** stride of the plane in pixels */
   int32_t stride;
 
-  /** stride of the plane in in bytes */
   int32_t stride_bytes;
 
-  /** plane height or vertical stride */
   int32_t scanlines;
 
-  /** size of the plane in bytes */
   uint32_t size;
 };
 
@@ -151,6 +130,6 @@ int GetImplDefinedFormat(uint64_t usage, int format);
 int GetCustomFormatFlags(int format, uint64_t usage, int* custom_format, uint64_t* priv_flags);
 bool IsGPUFlagSupported(uint64_t usage);
 bool HasAlphaComponent(int32_t format);
-}  // namespace gralloc
+}
 
-#endif  // __GR_UTILS_H__
+#endif

@@ -1,15 +1,3 @@
-//! JNI facade for the GOG Rust download engine — the native half of
-//! `com.droiddeck.launcher.stores.gog.GogNative` (Kotlin). Symbol names are bound to that
-//! package/class; the `@JvmStatic external` declarations there are the other side of this file.
-//!
-//! Shape mirrors the Steam download JNI (`jni.rs` `nativeDownloadApp`): `nativeStart` validates
-//! its inputs, takes a `GlobalRef` on the listener, spawns the worker thread and returns a handle
-//! immediately; callbacks are delivered from the worker / process-pool threads through a
-//! `JavaVM` attach; `nativeCancel` flips an `AtomicBool`; `nativeRelease` drops the Java side's
-//! reference to the handle (the worker keeps its own until it exits).
-//!
-//! Log tag `GogNative`: every engine log line goes to logcat here AND to the listener's `onLog`
-//! (which the Kotlin manager folds into its own debug log).
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -29,7 +17,6 @@ unsafe extern "C" {
     fn __android_log_write(prio: i32, tag: *const i8, text: *const i8) -> i32;
 }
 
-/// `android.util.Log.i(LOG_TAG, message)`; a no-op on non-Android hosts (cargo test).
 pub fn android_log(message: &str) {
     #[cfg(target_os = "android")]
     {
@@ -51,8 +38,6 @@ pub fn android_log(message: &str) {
     }
 }
 
-/// One in-flight run. The Java side owns a `Box<Arc<..>>` (the `jlong`); the worker thread owns a
-/// second `Arc` so `nativeRelease` is safe at any time after `nativeStart` returned.
 pub struct GogRunHandle {
     pub cancel: AtomicBool,
 }
@@ -137,8 +122,6 @@ impl GogEvents for JniEvents {
     }
 
     fn on_bytes(&self, bytes_done: u64, bytes_total: u64) {
-        // A listener without `onBytes` (an app built against the older contract) makes this a
-        // NoSuchMethodError, which clear_exception drops: the run is unaffected.
         self.with_env(|env| {
             let _ = env.call_method(
                 self.listener.as_obj(),
@@ -209,7 +192,6 @@ unsafe fn handle_ref(handle: jlong) -> Option<&'static Arc<GogRunHandle>> {
     }
 }
 
-/// Symbol-binding probe (see `GogNative.isAvailable`). Returns 1.
 #[no_mangle]
 pub extern "system" fn Java_com_droiddeck_launcher_stores_gog_GogNative_nativeProbe(
     _env: JNIEnv,
@@ -218,9 +200,6 @@ pub extern "system" fn Java_com_droiddeck_launcher_stores_gog_GogNative_nativePr
     1
 }
 
-/// Starts one download loop on a worker thread and returns a handle (0 = could not start; the
-/// listener then receives NO callbacks). Inputs are exactly what `GogDownloadManager` holds after
-/// manifest + secure-link resolution — see `GogRequest`.
 #[no_mangle]
 #[allow(clippy::too_many_arguments)]
 pub extern "system" fn Java_com_droiddeck_launcher_stores_gog_GogNative_nativeStart(
@@ -290,8 +269,6 @@ pub extern "system" fn Java_com_droiddeck_launcher_stores_gog_GogNative_nativeSt
     Box::into_raw(Box::new(handle)) as jlong
 }
 
-/// Requests cancellation; the run stops at its next scheduling point and `onComplete` fires with
-/// `cancelled = true`. Idempotent.
 #[no_mangle]
 pub extern "system" fn Java_com_droiddeck_launcher_stores_gog_GogNative_nativeCancel(
     _env: JNIEnv,
@@ -303,8 +280,6 @@ pub extern "system" fn Java_com_droiddeck_launcher_stores_gog_GogNative_nativeCa
     }
 }
 
-/// Drops the Java side's reference. Call once, after `onComplete` (or after cancelling — the worker
-/// keeps the run alive until it exits either way).
 #[no_mangle]
 pub extern "system" fn Java_com_droiddeck_launcher_stores_gog_GogNative_nativeRelease(
     _env: JNIEnv,

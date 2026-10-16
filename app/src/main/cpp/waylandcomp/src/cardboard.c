@@ -1,8 +1,3 @@
-/* Cardboard pass - see cardboard.h. Compositor thread unless noted.
- *
- * The shader is cardboard.frag, pre-compiled like the rest of the compositor's SPIR-V:
- *     glslangValidator -V --vn cardboard_frag_code -o cardboard_frag.h cardboard.frag
- */
 #define _POSIX_C_SOURCE 200809L
 #include "cardboard.h"
 #include <math.h>
@@ -20,15 +15,14 @@
 
 #ifndef CARDBOARD_HOST_TEST
 #include "vk_loader.h"
-#include "vk_present.h" /* droiddeck_log */
-/* upscale_vert.h defines its array non-static, and effects_chain.c includes it too: a private name here. */
+#include "vk_present.h"
+
 #define upscale_vert_code cardboard_upscale_vert_code
 #include "upscale_vert.h"
 #undef upscale_vert_code
 #include "cardboard_frag.h"
 #endif
 
-/* ------------------------------------------------------------------ pure helpers */
 
 static float clampf(float v, float lo, float hi) { return v < lo ? lo : v > hi ? hi : v; }
 
@@ -47,29 +41,25 @@ void cardboard_clamp(struct cardboard_params *p) {
 
 void cardboard_push_constants(const struct cardboard_params *p, const float pose[9],
                               int src_w, int src_h, int out_w, int out_h, float out[24]) {
-    /* rot0..rot2: the pose's rows, each with one scalar riding in w. */
     for (int r = 0; r < 3; r++)
         for (int c = 0; c < 3; c++) out[r * 4 + c] = pose[r * 3 + c];
     out[3] = p->ipd_m * 0.5f;
     out[7] = p->screen_dist_m;
     out[11] = p->screen_width_m * 0.5f;
-    /* lens */
     out[12] = p->k1;
     out[13] = p->k2;
     out[14] = tanf(p->fov_deg * 0.5f * (float)M_PI / 180.0f);
     out[15] = p->chroma;
-    /* view */
     out[16] = p->lens_inset;
     out[17] = (src_w > 0 && src_h > 0) ? (float)src_w / (float)src_h : 16.0f / 9.0f;
-    if (p->source == CARDBOARD_SOURCE_SBS) out[17] *= 0.5f; /* one eye's half */
+    if (p->source == CARDBOARD_SOURCE_SBS) out[17] *= 0.5f;
     out[18] = (float)p->source;
     out[19] = (out_w > 0 && out_h > 0) ? ((float)out_w * 0.5f) / (float)out_h : 1.0f;
-    out[20] = out[21] = out[22] = out[23] = 0.0f; /* reserved */
+    out[20] = out[21] = out[22] = out[23] = 0.0f;
 }
 
 #ifndef CARDBOARD_HOST_TEST
 
-/* ------------------------------------------------------------------ settings + pose */
 
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
 static struct cardboard_params g_set = {
@@ -78,8 +68,8 @@ static struct cardboard_params g_set = {
 static float g_pose[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
 static volatile int g_changed = 1;
 
-static int g_live;                   /* the last pose came from a sensor */
-static void shm_publish(int live);   /* below: the guest's copy of the pose */
+static int g_live;
+static void shm_publish(int live);
 
 void vkp_cardboard_set(const struct cardboard_params *p) {
     struct cardboard_params c = *p;
@@ -96,9 +86,8 @@ void vkp_cardboard_set(const struct cardboard_params *p) {
                       c.ipd_m * 1000.0f, c.screen_width_m, c.screen_dist_m, c.k1, c.k2, c.fov_deg, c.lens_inset, c.chroma);
 }
 
-/* The guest's copy of the pose (headpose_shm.h), mapped once a path is known. */
 static struct droiddeck_headpose *g_shm;
-static int g_eye_w, g_eye_h; /* the last eye viewport drawn, for the guest */
+static int g_eye_w, g_eye_h;
 
 void vkp_cardboard_set_pose_file(const char *path) {
     pthread_mutex_lock(&g_lock);
@@ -120,7 +109,6 @@ void vkp_cardboard_set_pose_file(const char *path) {
     pthread_mutex_unlock(&g_lock);
 }
 
-/* Under g_lock. */
 static void shm_publish(int live) {
     if (!g_shm) return;
     struct timespec ts;
@@ -174,15 +162,14 @@ int vkp_cardboard_pose_changed(void) {
     return 1;
 }
 
-/* ------------------------------------------------------------------ Vulkan objects */
 
 #define CB_FORMAT VK_FORMAT_R8G8B8A8_UNORM
-#define CB_PC_SIZE (4 * 4 + 24 * 4) /* ndc + the 24 floats: 112 bytes, under the 128 guaranteed */
-#define CB_MAX_SOURCES 8           /* source views per frame: the real frame + generated ones */
+#define CB_PC_SIZE (4 * 4 + 24 * 4)
+#define CB_MAX_SOURCES 8
 
 static VkDevice g_dev;
 static VkPhysicalDeviceMemoryProperties g_mp;
-static int g_ready; /* 0 = not built, 1 = ok, -1 = failed (said once) */
+static int g_ready;
 static VkRenderPass g_rp;
 static VkDescriptorSetLayout g_dsl;
 static VkPipelineLayout g_pl;
@@ -234,9 +221,6 @@ static VkImageView make_view(VkImage img) {
     return v;
 }
 
-/* The panel-sized output: rendered into, then blitted 1:1 to the swapchain. Kept uncompressed
- * (mutable format) like the effect chain's targets: UBWC render-then-blit targets corrupt on
- * Adreno 740. */
 static int target_ensure(int w, int h) {
     if (g_t.img && g_t.w == w && g_t.h == h) return 0;
     target_destroy();
@@ -295,7 +279,6 @@ static int objects_ensure(void) {
     if (g_ready) return g_ready == 1 ? 0 : -1;
     if (!g_dev || !g_vk.CreateGraphicsPipelines) goto fail;
     {
-        /* One colour target, overwritten whole, left GENERAL for the 1:1 blit that follows. */
         VkAttachmentDescription att = {.format = CB_FORMAT, .samples = VK_SAMPLE_COUNT_1_BIT,
                                        .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE, .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
                                        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
@@ -444,4 +427,4 @@ VkImage vkp_cardboard_run(VkCommandBuffer cmd, VkImage src, int src_w, int src_h
     return g_t.img;
 }
 
-#endif /* CARDBOARD_HOST_TEST */
+#endif

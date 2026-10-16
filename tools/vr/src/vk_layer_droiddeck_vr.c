@@ -1,33 +1,4 @@
 #define _GNU_SOURCE
-/*
- * VK_LAYER_DROIDDECK_vr: lets SteamVR's vrcompositor create its Vulkan instance on Turnip/KGSL.
- *
- * vrcompositor always asks for VK_KHR_display and the direct-mode extensions around it (it opens a
- * direct mode window even when a driver-direct-mode driver - tools/vr/src/driver_droiddeck.cpp -
- * will receive the frames). Turnip's KGSL backend has no displays and refuses to enumerate any GPU
- * on an instance with VK_KHR_display enabled. This layer takes those extensions out of the instance
- * it creates below itself and answers the display queries on its own: there are no displays.
- *
- * Shared semaphores: SteamVR shares a timeline semaphore with every image it shares between its
- * processes, exported as an opaque fd. Turnip/KGSL cannot export one. Such a semaphore is created
- * unshared here instead, its "fd" is a placeholder (a memfd named droiddeck-detached-sem), and a
- * process importing a placeholder keeps a detached semaphore whose GPU waits are dropped and whose
- * host waits return at once. Each process still orders its own work; what is lost is only the GPU
- * ordering between processes, which SteamVR's own IPC (one frame at a time) mostly covers.
- *
- * Where it runs: droiddeck-steamvr enables it explicitly in SteamVR's own processes (VK_INSTANCE_LAYERS
- * + VK_LAYER_PATH). It is also an implicit layer for the whole session, because processes SteamVR did
- * not start share textures with it too: Steam's web helper draws its in-VR overlay through SteamVR,
- * needs the exportable semaphores, and without them crashes until Steam quits. As an implicit layer
- * it stays out of the way:
- *   - the display stand-in (taking display extensions off, the fake display) happens only while
- *     SteamVR runs (droiddeck-steamvr's marker file) or where the layer was enabled by name, never in
- *     an ordinary session: gamescope and games see the driver's extensions unchanged;
- *   - the semaphore bridge is active in those same processes, and in Steam's web helper once SteamVR
- *     is installed (its GPU process outlives SteamVR runs);
- *   - everything else - every process of a session without SteamVR installed - gets the next layer's
- *     functions untouched.
- */
 #include <vulkan/vulkan.h>
 #include <vulkan/vk_layer.h>
 
@@ -40,6 +11,11 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <errno.h>
+#define DROIDDECK_PRODUCER_SERVER
+#include "producer_lease.h"
+#ifdef DROIDDECK_WSI_CAPTURE
+#include "wsi_capture.h"
+#endif
 
 #define LAYER_NAME "VK_LAYER_DROIDDECK_vr"
 #define EXPORT __attribute__((visibility("default")))
@@ -51,10 +27,7 @@ static void say(const char *fmt, const char *arg) {
     fputc('\n', stderr);
 }
 
-/* ------------------------------------------------------------------ crash trace (debug) */
 
-/* DROIDDECK_VR_CRASHTRACE=1: print a backtrace on a fatal signal. vrcompositor's launcher drops
- * LD_PRELOAD, but this layer is loaded into it, so this is the way to see where it dies. */
 #include <dlfcn.h>
 #include <execinfo.h>
 #include <signal.h>
@@ -62,13 +35,20 @@ static void say(const char *fmt, const char *arg) {
 
 static void crash_handler(int sig, siginfo_t *si, void *uc_) {
     ucontext_t *uc = uc_;
+#if defined(__aarch64__)
+    void *program_counter = (void *)uc->uc_mcontext.pc;
+#elif defined(__x86_64__)
+    void *program_counter = (void *)uc->uc_mcontext.gregs[REG_RIP];
+#else
+    void *program_counter = NULL;
+#endif
     char buf[512];
     int n = snprintf(buf, sizeof(buf), "\n[crashtrace] %s: signal %d addr %p pc %p\n", program_invocation_short_name, sig,
-                     si->si_addr, (void *)uc->uc_mcontext.pc);
+                     si->si_addr, program_counter);
     if (write(2, buf, n)) {}
     void *frames[48];
     int count = backtrace(frames, 48);
-    if (count > 1) frames[1] = (void *)uc->uc_mcontext.pc;
+    if (count > 1) frames[1] = program_counter;
     for (int i = 1; i < count; i++) {
         Dl_info info;
         if (dladdr(frames[i], &info) && info.dli_fname)
@@ -86,7 +66,6 @@ static void crash_trace_install(void) {
     static int done;
     if (done++) return;
     if (!getenv("DROIDDECK_VR_CRASHTRACE")) {
-        /* Or a marker beside droiddeck-steamvr's, for processes whose environment is not ours (Steam). */
         const char *rt = getenv("XDG_RUNTIME_DIR");
         char path[512];
         snprintf(path, sizeof(path), "%s/droiddeck-steamvr/crashtrace", rt && *rt ? rt : "/run/droiddeck");
@@ -100,33 +79,31 @@ static void crash_trace_install(void) {
     sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
     int sigs[] = {SIGSEGV, SIGABRT, SIGBUS, SIGILL, SIGFPE};
     for (unsigned i = 0; i < sizeof(sigs) / sizeof(*sigs); i++) {
-        /* Only where nothing handles the signal yet: Wine and FEX (Proton games) take SIGSEGV as part
-         * of their normal work, and replacing their handler crashes the game. */
         struct sigaction old;
         if (sigaction(sigs[i], NULL, &old) == 0 && !(old.sa_flags & SA_SIGINFO) && old.sa_handler == SIG_DFL)
             sigaction(sigs[i], &sa, NULL);
     }
 }
 
-/* ------------------------------------------------------------------ dispatch */
 
 struct inst {
     VkInstance handle;
     PFN_vkGetInstanceProcAddr gipa;
     PFN_vkDestroyInstance destroy;
-    int stripped; /* the app asked for display extensions we took out */
-    int active;   /* see the top of the file */
+    int stripped;
+    int active;
+    int producer;
 };
 struct dev {
     VkDevice handle;
     PFN_vkGetDeviceProcAddr gdpa;
     PFN_vkDestroyDevice destroy;
     int active;
-    int display; /* its instance has the pretend display */
+    int display;
+    int producer;
+    int quest_images;
 };
 
-/* SteamVR is running (droiddeck-steamvr start/stop keeps this file), or the layer was asked for by
- * name. Only then does the layer stand in for a display. */
 static int steamvr_running(void) {
     const char *layers = getenv("VK_INSTANCE_LAYERS");
     if (layers && strstr(layers, "VK_LAYER_DROIDDECK_vr")) return 1;
@@ -137,10 +114,6 @@ static int steamvr_running(void) {
     return access(path, F_OK) == 0;
 }
 
-/* Whether an instance gets the semaphore bridge. Steam's web helper shares its in-VR overlays with
- * SteamVR, and its GPU process lives across SteamVR runs: one created before SteamVR started crashes
- * once SteamVR shows the overlay, and after a few of those Steam quits. So it is bridged whenever
- * SteamVR is installed, not only while it runs. */
 static int bridge_wanted(void) {
     if (steamvr_running()) return 1;
     if (strcmp(program_invocation_short_name, "steamwebhelper")) return 0;
@@ -155,7 +128,6 @@ static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
 static struct inst g_inst[MAX_OBJS];
 static struct dev g_dev[MAX_OBJS];
 
-/* The dispatch key: the loader's dispatch table pointer at the start of every dispatchable object. */
 static void *key(const void *obj) { return *(void **)obj; }
 
 static struct inst *inst_for(const void *obj) {
@@ -178,7 +150,6 @@ static struct dev *dev_for(const void *obj) {
 #define NEXT(dev, fn) ((PFN_vk##fn)dev_for(dev)->gdpa(dev, "vk" #fn))
 #define HOOK_AS(str, fn) if (!strcmp(name, str)) return (PFN_vkVoidFunction)fn;
 
-/* Extensions this layer takes off the instance and stands in for. */
 static const char *const DISPLAY_EXTS[] = {
     "VK_KHR_display", "VK_EXT_direct_mode_display", "VK_EXT_display_surface_counter",
     "VK_KHR_get_display_properties2", "VK_EXT_acquire_xlib_display", "VK_EXT_acquire_drm_display",
@@ -189,7 +160,6 @@ static int is_display_ext(const char *name) {
     return 0;
 }
 
-/* ------------------------------------------------------------------ instance */
 
 static VkResult VKAPI_CALL CreateInstance(const VkInstanceCreateInfo *ci, const VkAllocationCallbacks *alloc,
                                           VkInstance *out) {
@@ -203,7 +173,6 @@ static VkResult VKAPI_CALL CreateInstance(const VkInstanceCreateInfo *ci, const 
     PFN_vkCreateInstance next_create = (PFN_vkCreateInstance)next_gipa(VK_NULL_HANDLE, "vkCreateInstance");
     if (!next_create) return VK_ERROR_INITIALIZATION_FAILED;
 
-    /* Outside SteamVR the instance is created exactly as asked: display extensions stay on. */
     const int vr = steamvr_running();
     VkInstanceCreateInfo mine = *ci;
     const char **names = calloc(ci->enabledExtensionCount + 1, sizeof(*names));
@@ -216,7 +185,6 @@ static VkResult VKAPI_CALL CreateInstance(const VkInstanceCreateInfo *ci, const 
     if (stripped) {
         int have = 0;
         for (uint32_t i = 0; i < n; i++) have |= !strcmp(names[i], "VK_EXT_headless_surface");
-        /* The pretend display's surface is a headless one; it needs VK_KHR_surface too. */
         const char *more[] = {"VK_EXT_headless_surface", "VK_KHR_surface"};
         names = realloc(names, (n + 3) * sizeof(*names));
         if (!have) names[n++] = more[0];
@@ -234,8 +202,12 @@ static VkResult VKAPI_CALL CreateInstance(const VkInstanceCreateInfo *ci, const 
     pthread_mutex_lock(&g_lock);
     for (int i = 0; i < MAX_OBJS; i++) {
         if (!g_inst[i].handle) {
+            const char *lease_mode = getenv("DROIDDECK_VR_PRODUCER_LEASE");
+            int producer = lease_mode && !strcmp(lease_mode, "1") && !strcmp(program_invocation_short_name, "vrcompositor") &&
+                           (!ci->pApplicationInfo || !ci->pApplicationInfo->pApplicationName ||
+                            strcmp(ci->pApplicationInfo->pApplicationName, "droiddeck-vr-presenter"));
             g_inst[i] = (struct inst){*out, next_gipa,
-                                      (PFN_vkDestroyInstance)next_gipa(*out, "vkDestroyInstance"), stripped, active};
+                                      (PFN_vkDestroyInstance)next_gipa(*out, "vkDestroyInstance"), stripped, active, producer};
             break;
         }
     }
@@ -253,7 +225,6 @@ static void VKAPI_CALL DestroyInstance(VkInstance instance, const VkAllocationCa
     if (d) d(instance, alloc);
 }
 
-/* ------------------------------------------------------------------ device */
 
 static VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice pd, const VkDeviceCreateInfo *ci,
                                         const VkAllocationCallbacks *alloc, VkDevice *out) {
@@ -270,35 +241,65 @@ static VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice pd, const VkDeviceCreat
     const int active = in && in->active;
     const int display = in && in->stripped;
 
-    /* VK_EXT_display_control (vblank events on a display) goes too: there is no display. */
     VkDeviceCreateInfo mine = *ci;
-    const char **names = calloc(ci->enabledExtensionCount + 1, sizeof(*names));
+    const char **names = calloc(ci->enabledExtensionCount + 4, sizeof(*names));
+    if (!names) return VK_ERROR_OUT_OF_HOST_MEMORY;
     uint32_t n = 0;
     for (uint32_t i = 0; i < ci->enabledExtensionCount; i++) {
         if (display && !strcmp(ci->ppEnabledExtensionNames[i], "VK_EXT_display_control")) { say("taking %s off the device", ci->ppEnabledExtensionNames[i]); continue; }
         names[n++] = ci->ppEnabledExtensionNames[i];
     }
+#ifdef DROIDDECK_WSI_CAPTURE
+    const char *present_mode = getenv("DROIDDECK_VR_PRESENT");
+    if (present_mode && !strcmp(present_mode, "questwsi") && !strcmp(program_invocation_short_name, "vrcompositor")) {
+        PFN_vkEnumerateDeviceExtensionProperties enumerate = (PFN_vkEnumerateDeviceExtensionProperties)
+            next_gipa(in ? in->handle : VK_NULL_HANDLE, "vkEnumerateDeviceExtensionProperties");
+        uint32_t count = 0;
+        if (enumerate && enumerate(pd, NULL, &count, NULL) == VK_SUCCESS && count) {
+            VkExtensionProperties *supported = calloc(count, sizeof(*supported));
+            if (supported && enumerate(pd, NULL, &count, supported) == VK_SUCCESS) {
+                const char *required[] = {"VK_KHR_external_memory_fd", "VK_EXT_external_memory_dma_buf", "VK_EXT_queue_family_foreign"};
+                for (unsigned j = 0; j < 3; j++) {
+                    int enabled = 0, available = 0;
+                    for (uint32_t k = 0; k < n; k++) if (!strcmp(names[k], required[j])) enabled = 1;
+                    for (uint32_t k = 0; k < count; k++) if (!strcmp(supported[k].extensionName, required[j])) available = 1;
+                    if (!enabled && available) names[n++] = required[j];
+                }
+            }
+            free(supported);
+        }
+    }
+#endif
     mine.enabledExtensionCount = n;
     mine.ppEnabledExtensionNames = names;
     VkResult r = next_create(pd, &mine, alloc, out);
-    free(names);
-    if (r != VK_SUCCESS) return r;
+    if (r != VK_SUCCESS) { free(names); return r; }
     pthread_mutex_lock(&g_lock);
     for (int i = 0; i < MAX_OBJS; i++) {
         if (!g_dev[i].handle) {
-            g_dev[i] = (struct dev){*out, next_gdpa, (PFN_vkDestroyDevice)next_gdpa(*out, "vkDestroyDevice"), active, display};
+            g_dev[i] = (struct dev){*out, next_gdpa, (PFN_vkDestroyDevice)next_gdpa(*out, "vkDestroyDevice"), active, display,
+                                   in && in->producer, active && access("/run/droiddeck/droiddeck-xr-frames", F_OK) == 0};
             break;
         }
     }
     pthread_mutex_unlock(&g_lock);
+#ifdef DROIDDECK_WSI_CAPTURE
+    if (in) droiddeck_wsi_device(*out, pd, in->handle, in->gipa, next_gdpa, &mine);
+#endif
+    free(names);
     return VK_SUCCESS;
 }
 
 static void forget_device_semaphores(VkDevice dev);
+static void producer_destroy_device(struct dev *device, const VkAllocationCallbacks *allocator);
 
 static void VKAPI_CALL DestroyDevice(VkDevice device, const VkAllocationCallbacks *alloc) {
     struct dev *d = dev_for(device);
     if (!d) return;
+#ifdef DROIDDECK_WSI_CAPTURE
+    droiddeck_wsi_destroy(device);
+#endif
+    if (d->producer) producer_destroy_device(d, alloc);
     forget_device_semaphores(device);
     PFN_vkDestroyDevice f = d->destroy;
     pthread_mutex_lock(&g_lock);
@@ -307,18 +308,12 @@ static void VKAPI_CALL DestroyDevice(VkDevice device, const VkAllocationCallback
     if (f) f(device, alloc);
 }
 
-/* ------------------------------------------------------------------ the display stand-in
- *
- * One pretend display with one mode and one plane. vrcompositor keeps a direct mode window on it even
- * when a driver-direct driver takes the frames, and waits on that window's presents, so the display
- * needs a working swapchain: its surface is a headless one (VK_EXT_headless_surface, Mesa's WSI).
- * The vblank side of VK_EXT_display_control is a 60 Hz clock. Size and rate:
- * DROIDDECK_VR_DISPLAY_MODE=WIDTHxHEIGHT@HZ (default 1920x1080@60). */
 
 #include <time.h>
 
 #define FAKE_DISPLAY ((VkDisplayKHR)(uintptr_t)0xdd0001)
 #define FAKE_MODE ((VkDisplayModeKHR)(uintptr_t)0xdd0002)
+static VkSurfaceKHR g_hmd_surface;
 static uint32_t g_mode_w = 1920, g_mode_h = 1080, g_mode_mhz = 60000;
 
 static void mode_init(void) {
@@ -421,6 +416,7 @@ static VkResult VKAPI_CALL CreateDisplayPlaneSurfaceKHR(VkInstance i, const VkDi
     if (!headless) { say("%s: no headless surface to stand in", "vkCreateDisplayPlaneSurfaceKHR"); return VK_ERROR_INITIALIZATION_FAILED; }
     VkHeadlessSurfaceCreateInfoEXT hci = {VK_STRUCTURE_TYPE_HEADLESS_SURFACE_CREATE_INFO_EXT, NULL, 0};
     VkResult r = headless(i, &hci, a, s);
+    if (r == VK_SUCCESS) g_hmd_surface = *s;
     say("the display's surface is a headless one (%s)", r == VK_SUCCESS ? "ok" : "failed");
     return r;
 }
@@ -452,8 +448,6 @@ static VkResult VKAPI_CALL GetRandROutputDisplayEXT(VkPhysicalDevice pd, void *d
     *d = FAKE_DISPLAY; return VK_SUCCESS;
 }
 
-/* VK_EXT_display_control on the device: a 60 Hz clock. A vblank event's fence comes back signalled
- * once the next tick has passed (the caller's vblank thread waits right after registering). */
 static VkResult VKAPI_CALL DisplayPowerControlEXT(VkDevice d, VkDisplayKHR disp, const VkDisplayPowerInfoEXT *info) { return VK_SUCCESS; }
 static VkResult signalled_fence(VkDevice d, const VkAllocationCallbacks *a, VkFence *fence) {
     VkFenceCreateInfo fci = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, NULL, VK_FENCE_CREATE_SIGNALED_BIT};
@@ -477,20 +471,28 @@ static VkResult VKAPI_CALL GetSwapchainCounterEXT(VkDevice d, VkSwapchainKHR sc,
     return VK_SUCCESS;
 }
 
-/* The pretend display's swapchain, on the headless surface: no swapchain counter (that belongs to
- * VK_EXT_display_control, which the device does not have), and a request the headless WSI accepts. */
 static VkResult VKAPI_CALL CreateSwapchainKHR(VkDevice d, const VkSwapchainCreateInfoKHR *ci, const VkAllocationCallbacks *a,
                                               VkSwapchainKHR *out) {
     PFN_vkCreateSwapchainKHR next = NEXT(d, CreateSwapchainKHR);
     VkSwapchainCreateInfoKHR sized = *ci;
-    /* A headless surface has no size of its own (UINT32_MAX), and SteamVR passes that through: the
-     * pretend display's mode is the size. */
+#ifdef DROIDDECK_WSI_CAPTURE
+    const char *capture_mode = getenv("DROIDDECK_VR_PRESENT");
+    const int capture = capture_mode && !strcmp(capture_mode, "questwsi")
+        && !strcmp(program_invocation_short_name, "vrcompositor") && ci->surface == g_hmd_surface;
+    if (capture)
+        sized.imageUsage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+#endif
     mode_init();
     if (sized.imageExtent.width == UINT32_MAX || sized.imageExtent.height == UINT32_MAX)
         sized.imageExtent = (VkExtent2D){g_mode_w, g_mode_h};
     ci = &sized;
     VkResult r = next(d, ci, a, out);
-    if (r == VK_SUCCESS) return r;
+    if (r == VK_SUCCESS) {
+#ifdef DROIDDECK_WSI_CAPTURE
+        if (capture) droiddeck_wsi_swapchain(d, *out, ci);
+#endif
+        return r;
+    }
     char line[256];
     int n = snprintf(line, sizeof(line), "format %d space %d mode %d images %u %ux%u usage 0x%x chain:", ci->imageFormat,
                      ci->imageColorSpace, ci->presentMode, ci->minImageCount, ci->imageExtent.width, ci->imageExtent.height,
@@ -498,25 +500,38 @@ static VkResult VKAPI_CALL CreateSwapchainKHR(VkDevice d, const VkSwapchainCreat
     for (const VkBaseInStructure *p = ci->pNext; p && n < (int)sizeof(line) - 16; p = p->pNext) n += snprintf(line + n, sizeof(line) - n, " %d", p->sType);
     say("vkCreateSwapchainKHR refused (%s); retrying for the headless surface", line);
     VkSwapchainCreateInfoKHR mine = *ci;
-    mine.pNext = NULL; /* drops VkSwapchainCounterCreateInfoEXT and friends */
+    mine.pNext = NULL;
     mine.presentMode = VK_PRESENT_MODE_FIFO_KHR;
     mine.imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
     if (mine.minImageCount < 2) mine.minImageCount = 2;
     r = next(d, &mine, a, out);
     if (r != VK_SUCCESS) {
-        /* Last resort: the plainest swapchain the surface can take. */
         mine.imageFormat = VK_FORMAT_B8G8R8A8_UNORM;
         mine.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+#ifdef DROIDDECK_WSI_CAPTURE
+        if (capture) mine.imageUsage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+#endif
         mine.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
         mine.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
         r = next(d, &mine, a, out);
     }
     say("headless swapchain: %s", r == VK_SUCCESS ? "ok" : "still refused");
+#ifdef DROIDDECK_WSI_CAPTURE
+    if (r == VK_SUCCESS && capture) droiddeck_wsi_swapchain(d, *out, &mine);
+#endif
     return r;
+}
+
+static void VKAPI_CALL DestroySwapchainKHR(VkDevice device, VkSwapchainKHR swapchain, const VkAllocationCallbacks *allocator) {
+#ifdef DROIDDECK_WSI_CAPTURE
+    droiddeck_wsi_forget(device, swapchain);
+#endif
+    NEXT(device, DestroySwapchainKHR)(device, swapchain, allocator);
 }
 
 static PFN_vkVoidFunction display_device_hook(const char *name) {
     HOOK_AS("vkCreateSwapchainKHR", CreateSwapchainKHR)
+    HOOK_AS("vkDestroySwapchainKHR", DestroySwapchainKHR)
     HOOK_AS("vkDisplayPowerControlEXT", DisplayPowerControlEXT)
     HOOK_AS("vkRegisterDeviceEventEXT", RegisterDeviceEventEXT)
     HOOK_AS("vkRegisterDisplayEventEXT", RegisterDisplayEventEXT)
@@ -524,16 +539,6 @@ static PFN_vkVoidFunction display_device_hook(const char *name) {
     return NULL;
 }
 
-/* ------------------------------------------------------------------ bridged shared semaphores
- *
- * SteamVR shares a timeline semaphore with every image it shares between processes, exported as an
- * opaque fd; Turnip/KGSL cannot export one. Here such a semaphore is created unshared, and its "fd" is
- * a memfd (named droiddeck-shared-sem) holding a 64-bit counter. Every process that has the semaphore -
- * the creator and each importer - keeps its own real timeline semaphore, and a poller thread in each
- * process carries values both ways: a value reached locally goes up into the counter, a value the
- * counter shows (another process got there) is signalled locally from the host. GPU waits then work
- * as written, about a poll period late. A binary semaphore cannot be bridged that way; GPU waits on an
- * imported binary one are dropped (each process still orders its own work). */
 
 #include <sched.h>
 #include <stdatomic.h>
@@ -543,18 +548,123 @@ static PFN_vkVoidFunction display_device_hook(const char *name) {
 #define SHARED_NAME "droiddeck-shared-sem"
 #define POLL_US 300
 
+static pthread_mutex_t g_submission_lock = PTHREAD_MUTEX_INITIALIZER;
+static unsigned g_producer_idle_calls;
+struct producer_queue {
+    VkQueue queue;
+    VkDevice device;
+    VkFence fence;
+};
+static struct producer_queue g_producer_queues[MAX_OBJS];
+static int g_producer_overflow;
+static int g_producer_started;
+static int64_t g_producer_retry_at;
+static struct droiddeck_producer_server g_producer_server;
+
+__attribute__((destructor)) static void producer_process_exit(void) {
+    if (g_producer_started && g_producer_server.path[0]) unlink(g_producer_server.path);
+}
+
+static int producer_acquire(int64_t deadline) {
+    while (pthread_mutex_trylock(&g_submission_lock) != 0) {
+        if (droiddeck_producer_now() >= deadline) return 0;
+        usleep(100);
+    }
+    int queues = 0;
+    if (g_producer_overflow || g_producer_idle_calls) goto fail;
+    for (unsigned index = 0; index < MAX_OBJS; index++) {
+        struct producer_queue *entry = &g_producer_queues[index];
+        if (!entry->queue) continue;
+        queues++;
+        struct dev *device = dev_for(entry->device);
+        if (!device) goto fail;
+        PFN_vkGetFenceStatus status = (PFN_vkGetFenceStatus)device->gdpa(device->handle, "vkGetFenceStatus");
+        PFN_vkDestroyFence destroy = (PFN_vkDestroyFence)device->gdpa(device->handle, "vkDestroyFence");
+        if (entry->fence) {
+            if (status(device->handle, entry->fence) != VK_SUCCESS) goto fail;
+            destroy(device->handle, entry->fence, NULL);
+            entry->fence = VK_NULL_HANDLE;
+        }
+        VkFenceCreateInfo create = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, NULL, 0};
+        PFN_vkCreateFence create_fence = (PFN_vkCreateFence)device->gdpa(device->handle, "vkCreateFence");
+        if (create_fence(device->handle, &create, NULL, &entry->fence) != VK_SUCCESS) goto fail;
+        PFN_vkQueueSubmit submit = (PFN_vkQueueSubmit)device->gdpa(device->handle, "vkQueueSubmit");
+        if (submit(entry->queue, 0, NULL, entry->fence) != VK_SUCCESS) {
+            destroy(device->handle, entry->fence, NULL);
+            entry->fence = VK_NULL_HANDLE;
+            goto fail;
+        }
+    }
+    if (!queues) goto fail;
+    for (unsigned index = 0; index < MAX_OBJS; index++) {
+        struct producer_queue *entry = &g_producer_queues[index];
+        if (!entry->queue) continue;
+        int64_t remaining = deadline - droiddeck_producer_now();
+        if (remaining <= 0) goto fail;
+        struct dev *device = dev_for(entry->device);
+        PFN_vkWaitForFences wait = (PFN_vkWaitForFences)device->gdpa(device->handle, "vkWaitForFences");
+        if (wait(device->handle, 1, &entry->fence, VK_TRUE, (uint64_t)remaining) != VK_SUCCESS) goto fail;
+    }
+    return 1;
+fail:
+    pthread_mutex_unlock(&g_submission_lock);
+    return 0;
+}
+
+static void producer_release(void) {
+    pthread_mutex_unlock(&g_submission_lock);
+}
+
+static void producer_quarantine(void) {
+    say("%s", "producer lease lost before capture completion: submissions quarantined; restart SteamVR");
+}
+
+static void producer_record(struct dev *device, VkQueue queue) {
+    if (!g_producer_started && droiddeck_producer_now() >= g_producer_retry_at) {
+        g_producer_retry_at = droiddeck_producer_now() + 1000000000LL;
+        g_producer_server.acquire = producer_acquire;
+        g_producer_server.release = producer_release;
+        g_producer_server.quarantine = producer_quarantine;
+        if (droiddeck_producer_start(&g_producer_server)) {
+            pthread_detach(g_producer_server.thread);
+            g_producer_started = 1;
+        }
+    }
+    for (unsigned index = 0; index < MAX_OBJS; index++) {
+        struct producer_queue *entry = &g_producer_queues[index];
+        if (entry->queue == queue) return;
+        if (!entry->queue) {
+            *entry = (struct producer_queue){queue, device->handle, VK_NULL_HANDLE};
+            return;
+        }
+    }
+    g_producer_overflow = 1;
+}
+
+static void producer_destroy_device(struct dev *device, const VkAllocationCallbacks *allocator) {
+    (void)allocator;
+    pthread_mutex_lock(&g_submission_lock);
+    PFN_vkDestroyFence destroy = (PFN_vkDestroyFence)device->gdpa(device->handle, "vkDestroyFence");
+    for (unsigned index = 0; index < MAX_OBJS; index++) {
+        struct producer_queue *entry = &g_producer_queues[index];
+        if (entry->device != device->handle) continue;
+        if (entry->fence) destroy(device->handle, entry->fence, NULL);
+        memset(entry, 0, sizeof(*entry));
+    }
+    pthread_mutex_unlock(&g_submission_lock);
+}
+
 struct bridged {
     VkSemaphore sem;
     VkDevice dev;
     _Atomic uint64_t *counter;
-    int fd;       /* the memfd, kept by the creator so every export can dup it; -1 for an importer */
-    int timeline; /* 0: binary, bridged only by dropping its waits */
-    unsigned long ino; /* the memfd's inode, which names the semaphore across processes in traces */
-    uint64_t submitted; /* the highest value this process has queued a signal of */
+    int fd;
+    int timeline;
+    unsigned long ino;
 };
 static pthread_mutex_t g_br_lock = PTHREAD_MUTEX_INITIALIZER;
 static struct bridged g_br[MAX_SEMS];
-static VkSemaphore g_timeline_sems[MAX_TYPED]; /* every timeline semaphore this process made */
+static VkSemaphore g_timeline_sems[MAX_TYPED];
 static pthread_t g_poller;
 static int g_poller_started;
 
@@ -573,7 +683,6 @@ static void timeline_note(VkSemaphore s, int add) {
     pthread_mutex_unlock(&g_br_lock);
 }
 
-/* Under g_br_lock. */
 static struct bridged *bridged_find(VkSemaphore s) {
     for (int i = 0; i < MAX_SEMS; i++) if (g_br[i].sem == s) return &g_br[i];
     return NULL;
@@ -585,7 +694,6 @@ static void bridged_drop(struct bridged *b) {
     b->fd = -1;
 }
 
-/* A `semtrace` file beside droiddeck-steamvr's marker: log every bridged semaphore every 2 s. */
 static int sem_trace_on(void) {
     static int checked, on;
     if (!checked++) {
@@ -672,8 +780,10 @@ static VkResult VKAPI_CALL CreateSemaphore(VkDevice d, const VkSemaphoreCreateIn
         if (timeline) timeline_note(*out, 1);
         return r;
     }
-    if (!export_info) return r;
-    /* Rebuild the chain without the export request. */
+    if (!export_info || !timeline ||
+        ((const VkExportSemaphoreCreateInfo *)export_info)->handleTypes != VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT) return r;
+    for (const VkBaseInStructure *item = ci->pNext; item; item = item->pNext)
+        if (item != export_info && item != (const void *)type_info) return r;
     VkSemaphoreTypeCreateInfo type = {0};
     VkSemaphoreCreateInfo mine = *ci;
     mine.pNext = NULL;
@@ -688,13 +798,26 @@ static VkResult VKAPI_CALL CreateSemaphore(VkDevice d, const VkSemaphoreCreateIn
     int fd = memfd_create(SHARED_NAME, MFD_CLOEXEC);
     _Atomic uint64_t *counter = NULL;
     if (fd >= 0 && ftruncate(fd, 4096) == 0) counter = map_counter(fd);
-    if (!counter) { if (fd >= 0) close(fd); return r; } /* unshared, unbridged */
+    if (!counter) {
+        if (fd >= 0) close(fd);
+        NEXT(d, DestroySemaphore)(d, *out, a);
+        timeline_note(*out, 0);
+        *out = VK_NULL_HANDLE;
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
     atomic_store(counter, timeline ? type_info->initialValue : 0);
     pthread_mutex_lock(&g_br_lock);
     struct bridged *slot = bridged_find(VK_NULL_HANDLE);
-    if (slot) *slot = (struct bridged){*out, d, counter, fd, timeline, fd_ino(fd), 0};
+    if (slot) *slot = (struct bridged){*out, d, counter, fd, timeline, fd_ino(fd)};
     pthread_mutex_unlock(&g_br_lock);
-    if (!slot) { munmap((void *)counter, 4096); close(fd); return r; }
+    if (!slot) {
+        munmap((void *)counter, 4096);
+        close(fd);
+        NEXT(d, DestroySemaphore)(d, *out, a);
+        timeline_note(*out, 0);
+        *out = VK_NULL_HANDLE;
+        return VK_ERROR_TOO_MANY_OBJECTS;
+    }
     if (timeline) poller_start();
     return r;
 }
@@ -722,6 +845,11 @@ static VkResult VKAPI_CALL GetSemaphoreFdKHR(VkDevice d, const VkSemaphoreGetFdI
     pthread_mutex_lock(&g_br_lock);
     struct bridged *b = bridged_find(info->semaphore);
     int mine = b && b->fd >= 0 ? dup(b->fd) : -2;
+    if (b && info->handleType != VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT) {
+        if (mine >= 0) close(mine);
+        pthread_mutex_unlock(&g_br_lock);
+        return VK_ERROR_INVALID_EXTERNAL_HANDLE;
+    }
     pthread_mutex_unlock(&g_br_lock);
     if (mine == -2) return NEXT(d, GetSemaphoreFdKHR)(d, info, fd);
     *fd = mine;
@@ -730,127 +858,29 @@ static VkResult VKAPI_CALL GetSemaphoreFdKHR(VkDevice d, const VkSemaphoreGetFdI
 
 static VkResult VKAPI_CALL ImportSemaphoreFdKHR(VkDevice d, const VkImportSemaphoreFdInfoKHR *info) {
     if (info->fd < 0 || !is_shared_counter(info->fd)) return NEXT(d, ImportSemaphoreFdKHR)(d, info);
-    _Atomic uint64_t *counter = map_counter(info->fd);
-    const unsigned long ino = fd_ino(info->fd);
-    close(info->fd); /* a successful import owns the fd */
     const int timeline = timeline_known(info->semaphore);
+    struct stat metadata;
+    if (!timeline || info->flags || info->handleType != VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT ||
+        fstat(info->fd, &metadata) != 0 || metadata.st_size != 4096) return VK_ERROR_INVALID_EXTERNAL_HANDLE;
+    _Atomic uint64_t *counter = map_counter(info->fd);
+    if (!counter) return VK_ERROR_OUT_OF_HOST_MEMORY;
+    const unsigned long ino = fd_ino(info->fd);
     pthread_mutex_lock(&g_br_lock);
     struct bridged *b = bridged_find(info->semaphore);
     if (b) bridged_drop(b);
     b = bridged_find(VK_NULL_HANDLE);
-    if (b && counter) *b = (struct bridged){info->semaphore, d, counter, -1, timeline, ino, 0};
-    else if (counter) munmap((void *)counter, 4096);
+    if (b) *b = (struct bridged){info->semaphore, d, counter, info->fd, timeline, ino};
     pthread_mutex_unlock(&g_br_lock);
+    if (!b) {
+        munmap((void *)counter, 4096);
+        return VK_ERROR_TOO_MANY_OBJECTS;
+    }
     if (timeline) poller_start();
     static int said;
-    if (said++ < 4) say(timeline ? "imported a shared timeline semaphore (%s): bridged" : "imported a shared binary semaphore (%s): its waits are dropped",
-                        program_invocation_short_name);
+    if (said++ < 4) say("imported a shared timeline semaphore (%s): waits retained", program_invocation_short_name);
     return VK_SUCCESS;
 }
 
-/* An imported binary one: nothing here will ever signal it. */
-static int drop_wait(VkSemaphore s) {
-    pthread_mutex_lock(&g_br_lock);
-    struct bridged *b = bridged_find(s);
-    int r = b && !b->timeline && b->fd < 0;
-    pthread_mutex_unlock(&g_br_lock);
-    return r;
-}
-
-static uint64_t now_us(void) {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (uint64_t)ts.tv_sec * 1000000u + (uint64_t)ts.tv_nsec / 1000u;
-}
-
-/* How long a submit may wait for another process to reach a shared value before the wait is dropped. */
-#define SUBMIT_GRACE_US 3000
-
-/* Whether a submit should drop its GPU wait on s for value.
- *
- * Turnip on KGSL does not defer a submit that waits on a timeline value nobody has signalled yet ("wait
- * before signal"): vkQueueSubmit blocks the calling thread until the value is signalled. SteamVR's
- * client waits on a value of the compositor's that the compositor signals only after the client has
- * submitted and told it so, which on Turnip deadlocks the client before its first frame (helloxr's
- * acquire, DXVK's submit thread in Proton games). For an imported timeline semaphore whose value is
- * neither reached nor queued here, the counter gets a short grace period, then the wait goes. */
-static int submit_drop_wait(VkSemaphore s, uint64_t value) {
-    pthread_mutex_lock(&g_br_lock);
-    struct bridged *b = bridged_find(s);
-    if (!b) { pthread_mutex_unlock(&g_br_lock); return 0; }
-    if (!b->timeline) { int r = b->fd < 0; pthread_mutex_unlock(&g_br_lock); return r; }
-    const int imported = b->fd < 0;
-    const uint64_t queued = b->submitted;
-    VkDevice dev = b->dev;
-    _Atomic uint64_t *counter = b->counter;
-    pthread_mutex_unlock(&g_br_lock);
-    if (!imported || !value || value <= queued) return 0;
-    struct dev *d = dev_for(dev);
-    if (!d) return 0;
-    /* A Vulkan 1.0 device (SteamVR's client interop) has only the KHR names. */
-    PFN_vkGetSemaphoreCounterValue get = (PFN_vkGetSemaphoreCounterValue)d->gdpa(dev, "vkGetSemaphoreCounterValue");
-    if (!get) get = (PFN_vkGetSemaphoreCounterValue)d->gdpa(dev, "vkGetSemaphoreCounterValueKHR");
-    PFN_vkSignalSemaphore sig = (PFN_vkSignalSemaphore)d->gdpa(dev, "vkSignalSemaphore");
-    if (!sig) sig = (PFN_vkSignalSemaphore)d->gdpa(dev, "vkSignalSemaphoreKHR");
-    if (!get) return 0;
-    const uint64_t until = now_us() + SUBMIT_GRACE_US;
-    for (;;) {
-        uint64_t local = 0;
-        if (get(dev, s, &local) == VK_SUCCESS && local >= value) return 0;
-        uint64_t shared = atomic_load(counter);
-        if (shared >= value && sig) {
-            VkSemaphoreSignalInfo si = {VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO, NULL, s, shared};
-            if (sig(dev, &si) == VK_SUCCESS) return 0;
-        }
-        if (now_us() >= until) break;
-        usleep(100);
-    }
-    static _Atomic int dropped;
-    if (atomic_fetch_add(&dropped, 1) == 0)
-        say("%s: dropping a submit's wait on a shared value nobody has signalled yet (Turnip would block the submit)",
-            program_invocation_short_name);
-    return 1;
-}
-
-/* Notes the values this process queues signals of, so its own later waits on them are kept. */
-static void note_signal(VkSemaphore s, uint64_t value) {
-    pthread_mutex_lock(&g_br_lock);
-    struct bridged *b = bridged_find(s);
-    if (b && b->timeline && value > b->submitted) b->submitted = value;
-    pthread_mutex_unlock(&g_br_lock);
-}
-
-static void note_submit_signals(uint32_t count, const VkSubmitInfo *submits) {
-    for (uint32_t i = 0; i < count; i++) {
-        const VkTimelineSemaphoreSubmitInfo *t = NULL;
-        for (const VkBaseInStructure *p = submits[i].pNext; p; p = p->pNext)
-            if (p->sType == VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO) t = (const void *)p;
-        for (uint32_t j = 0; t && j < submits[i].signalSemaphoreCount && j < t->signalSemaphoreValueCount; j++)
-            note_signal(submits[i].pSignalSemaphores[j], t->pSignalSemaphoreValues[j]);
-    }
-}
-
-static void note_submit2_signals(uint32_t count, const VkSubmitInfo2 *submits) {
-    for (uint32_t i = 0; i < count; i++)
-        for (uint32_t j = 0; j < submits[i].signalSemaphoreInfoCount; j++)
-            note_signal(submits[i].pSignalSemaphoreInfos[j].semaphore, submits[i].pSignalSemaphoreInfos[j].value);
-}
-
-/* Drops waits on detached semaphores from a list; returns the new count. */
-static uint32_t keep_waits(const VkSemaphore *in, const VkPipelineStageFlags *stages, const uint64_t *values, uint32_t n,
-                           VkSemaphore *out, VkPipelineStageFlags *out_stages, uint64_t *out_values) {
-    uint32_t k = 0;
-    for (uint32_t i = 0; i < n; i++) {
-        if (submit_drop_wait(in[i], values ? values[i] : 0)) continue;
-        out[k] = in[i];
-        if (stages) out_stages[k] = stages[i];
-        if (values) out_values[k] = values[i];
-        k++;
-    }
-    return k;
-}
-
-/* semtrace: the first wait and the first signal of each shared semaphore, and its first few values. */
 static void trace_sem(const char *what, VkSemaphore sem, uint64_t value) {
     if (!sem_trace_on() || value > 3) return;
     pthread_mutex_lock(&g_br_lock);
@@ -876,58 +906,11 @@ static VkResult VKAPI_CALL QueueSubmit(VkQueue q, uint32_t count, const VkSubmit
             for (uint32_t j = 0; j < submits[i].signalSemaphoreCount; j++)
                 trace_sem("signals", submits[i].pSignalSemaphores[j], t && j < t->signalSemaphoreValueCount ? t->pSignalSemaphoreValues[j] : 0);
         }
-    /* Waits are judged before this submit's own signals count as queued: an acquire may wait on one
-     * value and signal the next on the same semaphore. */
-    int any = 0;
-    for (uint32_t i = 0; i < count && !any; i++) {
-        const VkTimelineSemaphoreSubmitInfo *t = NULL;
-        for (const VkBaseInStructure *p = submits[i].pNext; p; p = p->pNext)
-            if (p->sType == VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO) t = (const void *)p;
-        for (uint32_t j = 0; j < submits[i].waitSemaphoreCount && !any; j++)
-            any = submit_drop_wait(submits[i].pWaitSemaphores[j], t && j < t->waitSemaphoreValueCount ? t->pWaitSemaphoreValues[j] : 0);
-    }
-    if (!any) {
-        VkResult r = next(q, count, submits, fence);
-        note_submit_signals(count, submits);
-        return r;
-    }
-    VkSubmitInfo *copy = calloc(count, sizeof(*copy));
-    VkTimelineSemaphoreSubmitInfo *tl = calloc(count, sizeof(*tl));
-    void **bufs = calloc(count * 3, sizeof(void *));
-    for (uint32_t i = 0; i < count; i++) {
-        copy[i] = submits[i];
-        uint32_t n = submits[i].waitSemaphoreCount;
-        if (!n) continue;
-        VkSemaphore *sems = calloc(n, sizeof(*sems));
-        VkPipelineStageFlags *stages = calloc(n, sizeof(*stages));
-        uint64_t *vals = calloc(n, sizeof(*vals));
-        bufs[i * 3] = sems; bufs[i * 3 + 1] = stages; bufs[i * 3 + 2] = vals;
-        const VkTimelineSemaphoreSubmitInfo *t = NULL;
-        for (const VkBaseInStructure *p = submits[i].pNext; p; p = p->pNext)
-            if (p->sType == VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO) t = (const void *)p;
-        uint32_t k = keep_waits(submits[i].pWaitSemaphores, submits[i].pWaitDstStageMask,
-                                t && t->waitSemaphoreValueCount ? t->pWaitSemaphoreValues : NULL, n, sems, stages, vals);
-        copy[i].waitSemaphoreCount = k;
-        copy[i].pWaitSemaphores = sems;
-        copy[i].pWaitDstStageMask = stages;
-        if (t) {
-            /* Only this struct is replaced; the rest of the chain is kept behind it. */
-            tl[i] = *t;
-            tl[i].waitSemaphoreValueCount = t->waitSemaphoreValueCount ? k : 0;
-            tl[i].pWaitSemaphoreValues = vals;
-            const void *rest = NULL;
-            const VkBaseInStructure *prev = NULL;
-            for (const VkBaseInStructure *p = submits[i].pNext; p; prev = p, p = p->pNext) if (p == (const void *)t) { rest = p->pNext; break; }
-            (void)prev;
-            tl[i].pNext = rest;
-            copy[i].pNext = &tl[i]; /* other structs before it are dropped: SteamVR chains only this one */
-        }
-    }
-    VkResult r = next(q, count, copy, fence);
-    note_submit_signals(count, submits);
-    for (uint32_t i = 0; i < count * 3; i++) free(bufs[i]);
-    free(bufs); free(tl); free(copy);
-    return r;
+    struct dev *device = dev_for(q);
+    if (device->producer) { pthread_mutex_lock(&g_submission_lock); producer_record(device, q); }
+    VkResult result = next(q, count, submits, fence);
+    if (device->producer) pthread_mutex_unlock(&g_submission_lock);
+    return result;
 }
 
 static VkResult VKAPI_CALL QueueSubmit2(VkQueue q, uint32_t count, const VkSubmitInfo2 *submits, VkFence fence) {
@@ -940,47 +923,73 @@ static VkResult VKAPI_CALL QueueSubmit2(VkQueue q, uint32_t count, const VkSubmi
             for (uint32_t j = 0; j < submits[i].signalSemaphoreInfoCount; j++)
                 trace_sem("signals", submits[i].pSignalSemaphoreInfos[j].semaphore, submits[i].pSignalSemaphoreInfos[j].value);
         }
-    int any = 0;
-    for (uint32_t i = 0; i < count && !any; i++)
-        for (uint32_t j = 0; j < submits[i].waitSemaphoreInfoCount && !any; j++)
-            any = submit_drop_wait(submits[i].pWaitSemaphoreInfos[j].semaphore, submits[i].pWaitSemaphoreInfos[j].value);
-    if (!any) {
-        VkResult r = next(q, count, submits, fence);
-        note_submit2_signals(count, submits);
-        return r;
+    struct dev *device = dev_for(q);
+    if (device->producer) { pthread_mutex_lock(&g_submission_lock); producer_record(device, q); }
+    VkResult result = next(q, count, submits, fence);
+    if (device->producer) pthread_mutex_unlock(&g_submission_lock);
+    return result;
+}
+
+static VkResult VKAPI_CALL QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR *info) {
+    struct dev *device = dev_for(queue);
+    PFN_vkQueuePresentKHR next = (PFN_vkQueuePresentKHR)device->gdpa(device->handle, "vkQueuePresentKHR");
+    if (device->producer) { pthread_mutex_lock(&g_submission_lock); producer_record(device, queue); }
+#ifdef DROIDDECK_WSI_CAPTURE
+    VkResult result = droiddeck_wsi_present(device->handle, queue, info, next);
+#else
+    VkResult result = next(queue, info);
+#endif
+    if (device->producer) pthread_mutex_unlock(&g_submission_lock);
+    return result;
+}
+
+static VkResult VKAPI_CALL QueueBindSparse(VkQueue queue, uint32_t count, const VkBindSparseInfo *binds, VkFence fence) {
+    struct dev *device = dev_for(queue);
+    PFN_vkQueueBindSparse next = (PFN_vkQueueBindSparse)device->gdpa(device->handle, "vkQueueBindSparse");
+    if (device->producer) { pthread_mutex_lock(&g_submission_lock); producer_record(device, queue); }
+    VkResult result = next(queue, count, binds, fence);
+    if (device->producer) pthread_mutex_unlock(&g_submission_lock);
+    return result;
+}
+
+static VkResult VKAPI_CALL QueueWaitIdle(VkQueue queue) {
+    struct dev *device = dev_for(queue);
+    PFN_vkQueueWaitIdle next = (PFN_vkQueueWaitIdle)device->gdpa(device->handle, "vkQueueWaitIdle");
+    if (device->producer) {
+        pthread_mutex_lock(&g_submission_lock);
+        g_producer_idle_calls++;
+        pthread_mutex_unlock(&g_submission_lock);
     }
-    VkSubmitInfo2 *copy = calloc(count, sizeof(*copy));
-    VkSemaphoreSubmitInfo **waits = calloc(count, sizeof(*waits));
-    for (uint32_t i = 0; i < count; i++) {
-        copy[i] = submits[i];
-        uint32_t n = submits[i].waitSemaphoreInfoCount, k = 0;
-        waits[i] = calloc(n + 1, sizeof(VkSemaphoreSubmitInfo));
-        for (uint32_t j = 0; j < n; j++)
-            if (!submit_drop_wait(submits[i].pWaitSemaphoreInfos[j].semaphore, submits[i].pWaitSemaphoreInfos[j].value))
-                waits[i][k++] = submits[i].pWaitSemaphoreInfos[j];
-        copy[i].waitSemaphoreInfoCount = k;
-        copy[i].pWaitSemaphoreInfos = waits[i];
+    VkResult result = next(queue);
+    if (device->producer) {
+        pthread_mutex_lock(&g_submission_lock);
+        g_producer_idle_calls--;
+        pthread_mutex_unlock(&g_submission_lock);
     }
-    VkResult r = next(q, count, copy, fence);
-    note_submit2_signals(count, submits);
-    for (uint32_t i = 0; i < count; i++) free(waits[i]);
-    free(waits); free(copy);
-    return r;
+    return result;
+}
+
+static VkResult VKAPI_CALL DeviceWaitIdle(VkDevice handle) {
+    struct dev *device = dev_for(handle);
+    PFN_vkDeviceWaitIdle next = (PFN_vkDeviceWaitIdle)device->gdpa(handle, "vkDeviceWaitIdle");
+    if (device->producer) {
+        pthread_mutex_lock(&g_submission_lock);
+        g_producer_idle_calls++;
+        pthread_mutex_unlock(&g_submission_lock);
+    }
+    VkResult result = next(handle);
+    if (device->producer) {
+        pthread_mutex_lock(&g_submission_lock);
+        g_producer_idle_calls--;
+        pthread_mutex_unlock(&g_submission_lock);
+    }
+    return result;
 }
 
 static VkResult VKAPI_CALL WaitSemaphores(VkDevice d, const VkSemaphoreWaitInfo *info, uint64_t timeout) {
     PFN_vkWaitSemaphores next = (PFN_vkWaitSemaphores)dev_for(d)->gdpa(d, "vkWaitSemaphores");
     if (!next) next = (PFN_vkWaitSemaphores)dev_for(d)->gdpa(d, "vkWaitSemaphoresKHR");
-    VkSemaphore sems[64]; uint64_t vals[64]; uint32_t k = 0;
-    for (uint32_t i = 0; i < info->semaphoreCount && k < 64; i++)
-        if (!drop_wait(info->pSemaphores[i])) { sems[k] = info->pSemaphores[i]; vals[k] = info->pValues[i]; k++; }
-    if (k == info->semaphoreCount) {
-        return next(d, info, timeout);
-    }
-    if (!k) return VK_SUCCESS;
-    VkSemaphoreWaitInfo mine = *info;
-    mine.semaphoreCount = k; mine.pSemaphores = sems; mine.pValues = vals;
-    return next(d, &mine, timeout);
+    return next(d, info, timeout);
 }
 
 static VkResult VKAPI_CALL GetSemaphoreCounterValue(VkDevice d, VkSemaphore s, uint64_t *value) {
@@ -989,8 +998,31 @@ static VkResult VKAPI_CALL GetSemaphoreCounterValue(VkDevice d, VkSemaphore s, u
     return next(d, s, value);
 }
 
-/* semtrace also logs how shared (external memory) images are created, to compare both sides. */
 static VkResult VKAPI_CALL CreateImage(VkDevice d, const VkImageCreateInfo *ci, const VkAllocationCallbacks *a, VkImage *out) {
+    VkImageCreateInfo compatible = *ci;
+    VkExternalMemoryImageCreateInfo shared;
+    const VkBaseInStructure *first = ci->pNext;
+    // SteamVR's OpenXR stereo arrays omit a format list, while DXVK adds one on import.
+    // Leave single-layer OpenVR images alone: the application owns their export layout.
+    if (dev_for(d)->quest_images && ci->arrayLayers > 1 && (ci->flags & VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT) && ci->tiling == VK_IMAGE_TILING_OPTIMAL
+        && first && first->sType == VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO) {
+        const VkBaseInStructure *second = first->pNext;
+        if (second && second->sType == VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO
+            && ((const VkExternalMemoryImageCreateInfo *)second)->handleTypes == VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT) {
+            compatible.pNext = second; ci = &compatible;
+            say("%s", "matching opaque shared image layout to SteamVR's unrestricted format list");
+        }
+    }
+    if (dev_for(d)->quest_images && ci->arrayLayers > 1 && (ci->flags & VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT) && ci->tiling == VK_IMAGE_TILING_OPTIMAL
+        && first && first->sType == VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO) {
+        const VkExternalMemoryImageCreateInfo *external = (const void *)first;
+        const VkBaseInStructure *second = external->pNext;
+        if (external->handleTypes == VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT && second
+            && second->sType == VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO) {
+            shared = *external; shared.pNext = second->pNext; compatible.pNext = &shared; ci = &compatible;
+            say("%s", "matching opaque shared image layout to SteamVR's unrestricted format list");
+        }
+    }
     VkResult r = NEXT(d, CreateImage)(d, ci, a, out);
     if (!sem_trace_on()) return r;
     const VkExternalMemoryImageCreateInfo *ext = NULL;
@@ -1001,11 +1033,13 @@ static VkResult VKAPI_CALL CreateImage(VkDevice d, const VkImageCreateInfo *ci, 
     }
     if (!ext) return r;
     char line[256];
-    int n = snprintf(line, sizeof(line), "%s image %ux%u format %d flags 0x%x usage 0x%x tiling %d handles 0x%x list",
+    int n = snprintf(line, sizeof(line), "%s image %ux%u format %d flags 0x%x usage 0x%x tiling %d layers %u mips %u samples %u handles 0x%x list",
                      program_invocation_short_name, ci->extent.width, ci->extent.height, ci->format, ci->flags, ci->usage,
-                     ci->tiling, ext->handleTypes);
+                     ci->tiling, ci->arrayLayers, ci->mipLevels, ci->samples, ext->handleTypes);
     for (uint32_t i = 0; list && i < list->viewFormatCount && n < (int)sizeof(line) - 8; i++)
         n += snprintf(line + n, sizeof(line) - n, " %d", list->pViewFormats[i]);
+    for (const VkBaseInStructure *p = ci->pNext; p && n < (int)sizeof(line) - 16; p = p->pNext)
+        n += snprintf(line + n, sizeof(line) - n, " chain:%d", p->sType);
     say("%s", line);
     return r;
 }
@@ -1019,6 +1053,10 @@ static PFN_vkVoidFunction semaphore_hook(const char *name) {
     HOOK_AS("vkQueueSubmit", QueueSubmit)
     HOOK_AS("vkQueueSubmit2", QueueSubmit2)
     HOOK_AS("vkQueueSubmit2KHR", QueueSubmit2)
+    HOOK_AS("vkQueuePresentKHR", QueuePresentKHR)
+    HOOK_AS("vkQueueBindSparse", QueueBindSparse)
+    HOOK_AS("vkQueueWaitIdle", QueueWaitIdle)
+    HOOK_AS("vkDeviceWaitIdle", DeviceWaitIdle)
     HOOK_AS("vkWaitSemaphores", WaitSemaphores)
     HOOK_AS("vkWaitSemaphoresKHR", WaitSemaphores)
     HOOK_AS("vkGetSemaphoreCounterValue", GetSemaphoreCounterValue)
@@ -1026,7 +1064,6 @@ static PFN_vkVoidFunction semaphore_hook(const char *name) {
     return NULL;
 }
 
-/* ------------------------------------------------------------------ proc addr */
 
 #define HOOK(fn) if (!strcmp(name, "vk" #fn)) return (PFN_vkVoidFunction)fn;
 
@@ -1085,7 +1122,6 @@ EXPORT VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL DroidDeckVr_GetDeviceProcAddr(Vk
         if (f) return f;
     }
     if (d) {
-        /* Only where the driver has the function: the hooks call through to it. */
         PFN_vkVoidFunction mine = semaphore_hook(name);
         if (mine && d->gdpa(device, name)) return mine;
     }

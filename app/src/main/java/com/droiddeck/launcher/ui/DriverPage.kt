@@ -55,13 +55,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/**
- * One driver list as a full page - the Runtime driver or the Display driver - opened from the
- * session's settings page. Installed drivers are picked by tapping the row and each carries a trash
- * can (the "Auto"/"Runtime default" row is a setting, not a driver, so it has none); what the last
- * check of the release repos found is offered below; the refresh button beside the title is the
- * only thing that goes online.
- */
 @Composable
 fun DriverPage(
     title: String,
@@ -72,6 +65,7 @@ fun DriverPage(
     status: String,
     checking: Boolean,
     importLabel: String,
+    checkedAt: Long = Long.MAX_VALUE,
     canRestore: Boolean,
     onSelect: (String) -> Unit,
     onDelete: (String) -> Unit,
@@ -85,16 +79,16 @@ fun DriverPage(
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     var confirm by remember { mutableStateOf<DriverRow?>(null) }
-    // Back (the controller's B too) closes this page only, back to the session's settings.
     BackHandler(onBack = onBack)
-    // D-pad: up from the first driver lands on refresh; the page opens with the driver in use focused.
+    LaunchedEffect(Unit) {
+        if (!checking && System.currentTimeMillis() - checkedAt > 6 * 3_600_000L) onRefresh()
+    }
     val refreshFocus = remember { FocusRequester() }
     val selectedFocus = remember { FocusRequester() }
     val inputMode = LocalInputModeManager.current
     var pageFocused by remember { mutableStateOf(false) }
     LaunchedEffect(inputMode.inputMode) {
         if (inputMode.inputMode != InputMode.Keyboard) return@LaunchedEffect
-        // The chooser holds controller focus until its closing animation finishes.
         snapshotFlow { Steps.step }.first { it == null }
         focusWithinFrames({ pageFocused }) { selectedFocus }
     }
@@ -162,7 +156,6 @@ fun DriverPage(
                     fontSize = 13.sp,
                 )
             },
-            // Opens on Cancel, so a stray A press on a controller never deletes anything.
             confirmButton = { FocusText(stringResource(R.string.common_delete), colors.error) { confirm = null; onDelete(row.id) } },
             dismissButton = {
                 val cancelFocus = remember { FocusRequester() }
@@ -180,10 +173,6 @@ private fun InstalledRow(row: DriverRow, selected: Boolean, onSelect: () -> Unit
     val src = remember { MutableInteractionSource() }
     val hot = src.collectIsFocusedAsState().value || src.collectIsHoveredAsState().value
     val shape = RoundedCornerShape(10.dp)
-    // Two focus targets side by side - the driver itself, and its trash can - so a controller's
-    // d-pad right reaches the trash can and left comes back. (Inside one clickable row the trash
-    // can was a child of the focused area and "right" had nowhere to go.) The row's outline still
-    // follows the driver part, so it looks the same.
     val mainFocus = remember { FocusRequester() }
     val delFocus = remember { FocusRequester() }
     Row(
@@ -236,7 +225,6 @@ private fun InstalledRow(row: DriverRow, selected: Boolean, onSelect: () -> Unit
     Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
 }
 
-/** A text button that shows where controller focus is: an outline in its own colour. */
 @Composable
 internal fun FocusText(text: String, color: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val src = remember { MutableInteractionSource() }

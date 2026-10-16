@@ -1,9 +1,3 @@
-// C++ side of the Wayland frame-generation bridge - see framegen_engine.h.
-//
-// Hosts the SAME engine objects the X11 renderer drives (lsfg::Engine, winfg::Engine), fed from
-// the compositor's own Turnip entry points. Nothing in framegen/lsfg or framegen/winfg is
-// modified: the engines take a VkTable (VulkanRendererContext.h) for their dispatch, and one is
-// filled here by name from the compositor's vkGetInstanceProcAddr / vkGetDeviceProcAddr.
 #include "framegen_engine.h"
 
 #include <cstdio>
@@ -14,7 +8,7 @@
 
 #include <android/log.h>
 
-#include "VulkanRendererContext.h"   // VkTable
+#include "VulkanRendererContext.h"
 #include "lsfg/lsfg_engine.h"
 #include "lsfg/lsfg_probe.h"
 #include "lsfg/lsfg_vkd.h"
@@ -40,13 +34,10 @@ std::unique_ptr<winfg::Engine> g_winfg;
 int g_kind = -1;
 char g_build[96] = "";
 
-// Instance-level entry points the engines and the probe use.
 #define FGE_INSTANCE_FUNCS(X)                                                              \
     X(GetPhysicalDeviceProperties) X(GetPhysicalDeviceMemoryProperties)                    \
     X(GetPhysicalDeviceFeatures2) X(GetPhysicalDeviceFormatProperties)                     \
     X(GetPhysicalDeviceQueueFamilyProperties) X(GetDeviceProcAddr)
-// Device-level: the LSFG chain's 34 (lsfg_vkd.h), win-fg's extras (winfg_vkd.cpp) and the
-// generic set either may reach for. Anything left null in VkTable is never called.
 #define FGE_DEVICE_FUNCS(X)                                                                \
     X(AllocateDescriptorSets) X(AllocateMemory) X(BindBufferMemory) X(BindImageMemory)     \
     X(CmdBindDescriptorSets) X(CmdBindPipeline) X(CmdCopyImage) X(CmdDispatch)             \
@@ -78,7 +69,7 @@ void fill_device(VkDevice dev) {
 #undef X
 }
 
-} // namespace
+}
 
 extern "C" {
 
@@ -96,9 +87,9 @@ const void *fge_probe(PFN_vkGetInstanceProcAddr gipa, VkInstance inst, VkPhysica
         if (n) enumExts(pd, nullptr, &n, exts.data());
     }
     g_caps = lsfg::Caps{};
-    // No Vulkan 1.1 compat here: the Wayland compositor only ever runs on Turnip (adrenotools),
-    // which reports 1.3+; the stock-driver case the compat flag exists for cannot reach it.
-    g_caps.features = lsfg::queryFeatures(g_table, pd, exts, /*allowVk11=*/false);
+
+
+    g_caps.features = lsfg::queryFeatures(g_table, pd, exts,  false);
     g_caps.probedFormat = ring_fmt;
     g_caps.storageOnSwapchainFormat = g_table.GetPhysicalDeviceFormatProperties
         ? lsfg::probeStorageFormat(g_table, pd, ring_fmt) : false;
@@ -110,7 +101,6 @@ const void *fge_probe(PFN_vkGetInstanceProcAddr gipa, VkInstance inst, VkPhysica
         ELOG("device gates for the LSFG chain fail: %s", g_caps.reason);
         return nullptr;
     }
-    // Same chain VulkanRendererContext::createLogicalDevice hangs on its device.
     g_v12 = VkPhysicalDeviceVulkan12Features{};
     g_v12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
     g_v12.vulkanMemoryModel = VK_TRUE;
@@ -207,8 +197,6 @@ void fge_configure(uint32_t multiplier, uint32_t target_fps, float flow_scale, f
 int fge_prepare(uint32_t w, uint32_t h, VkFormat fmt) {
     if (g_kind == 1) return g_winfg && g_winfg->prepare(w, h, fmt) ? 1 : 0;
     if (!g_lsfg) return 0;
-    // The Wayland scene is the game's own size when it runs fullscreen, so the flow pyramid is
-    // scaled against that (X11 passes the X screen size here for the same reason).
     g_lsfg->setGuestExtent(w, h);
     return g_lsfg->prepare(w, h, fmt) ? 1 : 0;
 }
@@ -247,4 +235,4 @@ void fge_telemetry(float *accepted, float *source_rate, float *thermal) {
 const char *fge_engine_name(int kind) { return kind == 1 ? "Win-FG Native" : "LSFG Native"; }
 const char *fge_build_info(void) { return g_build; }
 
-} // extern "C"
+}

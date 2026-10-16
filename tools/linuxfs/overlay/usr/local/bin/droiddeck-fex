@@ -252,9 +252,6 @@ def install_preloads(root):
         if os.path.isfile(source):
             copy_if_changed(source, os.path.join(root, "lib/x86_64-linux-gnu/droiddeck", name))
     wanted = [name for name in host_preloads() if name in shipped]
-    # The fault report is preloaded from the runtime's own list, which only x86 loaders read: through
-    # LD_PRELOAD it reached FEX's own loader too, and every FEX after it, which could not open it and
-    # said so at each start. Listed only with both builds, or i386 programs would say so instead.
     if len(shipped.get(FAULT_REPORT, ())) == len(GUEST_LIBDIRS):
         wanted.append(FAULT_REPORT)
     write_if_changed(os.path.join(root, "etc", "ld.so.preload"), "".join("/usr/$LIB/droiddeck/%s\n" % name for name in wanted))
@@ -411,8 +408,6 @@ def split_paths(value):
 
 
 def data_dir(env):
-    # FEXServer's socket lives here. Under ~/.local its host path passes sun_path's 108 bytes, and
-    # proot then binds it to a temporary name only the server sees: no client ever reaches it.
     runtime = env.get("XDG_RUNTIME_DIR")
     if runtime and os.path.isdir(runtime) and os.access(runtime, os.W_OK):
         return os.path.join(runtime, "fex")

@@ -11,8 +11,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowStatFs
 
-/** Where a store game goes: internal storage unless the user picks a card, and back to its own folder on a rerun. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class StoreInstallRootTest {
@@ -22,7 +22,6 @@ class StoreInstallRootTest {
         val card = File(app.filesDir, "fake-card/steam").apply { mkdirs() }
         SessionPrefs.setGameStorage(app, card.path, "Card")
         assertEquals(File(LinuxRuntime.rootDir(app), "root/Games/Stores").absolutePath, StoreInstallRoot.installRoot(app).absolutePath)
-        // The library's Games folder is still scanned, for installs an earlier build put there.
         assertTrue(StoreInstallRoot.roots(app).any { it.absolutePath == File(card, "Games").absolutePath })
         assertFalse(StoreInstallRoot.targets(app).first().removable)
     }
@@ -44,9 +43,7 @@ class StoreInstallRootTest {
         File(half, "Metalstorm.exe").writeText("MZ")
         assertFalse(StoreInstallRoot.isFinished(half))
         assertTrue(StoreInstallRoot.unfinished(app).any { it.store == Store.EPIC && it.id == null && it.folder.absolutePath == half.absolutePath })
-        // Install again, even with another root picked: the same folder, no duplicate.
         assertEquals(half.absolutePath, StoreInstallRoot.folderFor(app, Store.EPIC, "abc", "Metalstorm", File(app.filesDir, "card/Games")).absolutePath)
-        // Begun and finished: the folder becomes a game.
         StoreInstalls.begin(half, Store.EPIC, "abc", "Metalstorm", null, null)
         assertTrue(StoreInstallRoot.unfinished(app).any { it.id == "abc" })
         StoreGameSidecar(Store.EPIC, "abc", "Metalstorm", "Metalstorm.exe").write(half)
@@ -58,5 +55,88 @@ class StoreInstallRootTest {
         val dir = StoreInstallRoot.scratchDir(app, Store.EPIC, "a/b:c")
         assertTrue(dir.absolutePath.startsWith(app.cacheDir.absolutePath))
         assertEquals("a_b_c", dir.name)
+    }
+
+    @Test fun estimatedBytesNeededUsesKnownInstallSizeForAllStores() {
+        val item = CatalogItem(Store.EPIC, "game1", "Game 1", imageUrl = null, owned = true, sizeBytes = 10_000_000L)
+        assertEquals(10_000_000L, StoreInstallRoot.estimatedBytesNeeded(item))
+
+        val gogItem = CatalogItem(Store.GOG, "game2", "Game 2", imageUrl = null, owned = true, sizeBytes = 10_000_000L)
+        assertEquals(10_000_000L, StoreInstallRoot.estimatedBytesNeeded(gogItem))
+    }
+
+    @Test fun checkStorageReportsEnoughWhenSpaceIsUnknownOrAvailable() {
+        val zeroItem = CatalogItem(Store.EPIC, "game1", "Game 1", imageUrl = null, owned = true, sizeBytes = 0L)
+        val check = StoreInstallRoot.checkStorage(app, zeroItem, StoreInstallRoot.internalRoot(app))
+        assertTrue(check.enough)
+    }
+
+    @Test fun availableBytesUsesNearestExistingAncestorWithoutCreatingDirectories() {
+        val existing = File(app.filesDir, "storage-probe").apply { mkdirs() }
+        val missing = File(existing, "not-created/another-level/game")
+        ShadowStatFs.registerStats(existing.path, 1024, 100, 100)
+
+        assertTrue(StoreInstallRoot.availableBytes(missing) > 0L)
+        assertFalse(File(existing, "not-created").exists())
+    }
+
+    @Test fun epicDefersFullSizeChecksToItsManifestDeltaForResume() {
+        val item = CatalogItem(Store.EPIC, "large", "Large", imageUrl = null, owned = true, sizeBytes = Long.MAX_VALUE)
+        val check = StoreInstallRoot.checkStorage(app, item, StoreInstallRoot.internalRoot(app))
+        assertTrue(check.enough)
+        assertEquals(Long.MAX_VALUE, check.requiredBytes)
+    }
+
+    @Test fun gogAndAmazonResumeChecksUseTheExistingVolumeAndDeferRemainingWork() {
+        val card = File(app.filesDir, "resume-card").apply { mkdirs() }
+        SessionPrefs.setGameStorage(app, card.path, "Card")
+        for (store in listOf(Store.GOG, Store.AMAZON)) {
+            val item = CatalogItem(store, "resume-${store.id}", "Partial ${store.id}", imageUrl = null, sizeBytes = Long.MAX_VALUE)
+            val folder = File(StoreInstallRoot.storeDir(File(card, "Games"), store), StoreInstallRoot.folderName(item.title, item.id)).apply { mkdirs() }
+            StoreInstalls.begin(folder, store, item.id, item.title, null, null)
+            val check = StoreInstallRoot.checkStorage(app, item, StoreInstallRoot.internalRoot(app))
+            assertTrue(check.enough)
+            assertEquals(StoreInstallRoot.availableBytes(folder), check.availableBytes)
+            assertEquals(folder, StoreInstallRoot.folderFor(app, store, item.id, item.title))
+        }
+    }
+
+    @Test fun freshGogAndAmazonStillRejectInsufficientCatalogSpace() {
+        StoreInstallRoot.internalRoot(app).mkdirs()
+        ShadowStatFs.registerStats(StoreInstallRoot.internalRoot(app).path, 1024, 100, 100)
+        for (store in listOf(Store.GOG, Store.AMAZON)) {
+            val item = CatalogItem(store, "too-large-${store.id}", "Too large ${store.id}", imageUrl = null, sizeBytes = Long.MAX_VALUE)
+            assertFalse(StoreInstallRoot.checkStorage(app, item, StoreInstallRoot.internalRoot(app)).enough)
+        }
+    }
+
+    @Test fun measuredZeroRejectsFreshGogAndAmazonRatherThanBeingUnknown() {
+        val root = File(app.filesDir, "zero-space").apply { mkdirs() }
+        ShadowStatFs.registerStats(root.path, 1024, 0, 0)
+        val missing = File(root, "not-created/game")
+        assertEquals(0L, StoreInstallRoot.availableBytes(missing))
+        assertFalse(File(root, "not-created").exists())
+        for (store in listOf(Store.GOG, Store.AMAZON)) {
+            val item = CatalogItem(store, "zero-${store.id}", "Zero ${store.id}", imageUrl = null, sizeBytes = 1L)
+            val check = StoreInstallRoot.checkStorage(app, item, missing)
+            assertFalse(check.enough)
+            assertEquals(0L, check.availableBytes)
+        }
+    }
+
+    @Test fun failedProbesAreUnknownAndDoNotCreateOrWriteToTargets() {
+        val root = File(app.filesDir, "read-only-probe").apply { mkdirs() }
+        val missing = File(root, "not-created/game")
+        val fail: (File) -> Long = { throw java.io.IOException("unavailable") }
+        assertEquals(-1L, StoreInstallRoot.probeAvailableBytes(missing, fail, fail))
+        assertEquals(-1L, StoreInstallRoot.probeAvailableBytes(missing, fail, { 0L }))
+        assertEquals(42L, StoreInstallRoot.probeAvailableBytes(missing, fail, { 42L }))
+        assertEquals(0L, StoreInstallRoot.probeAvailableBytes(missing, { 0L }, fail))
+        assertFalse(File(root, "not-created").exists())
+        assertTrue(root.listFiles().orEmpty().isEmpty())
+        assertFalse(StoreInstallRoot.insufficientSpace(1L, -1L))
+        assertTrue(StoreInstallRoot.insufficientSpace(1L, 0L))
+        assertFalse(StoreInstallRoot.insufficientSpace(1L, 1L))
+        assertFalse(StoreInstallRoot.insufficientSpace(0L, 0L))
     }
 }

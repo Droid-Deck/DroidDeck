@@ -1,6 +1,2 @@
 #!/bin/sh
-# steamos-priv-write <path> <value>: how the client in Deck mode sets brightness, TDP and fan
-# controls through sysfs. None of those paths is writable from an app on Android, and the app
-# already sets the panel's mode and the game-tier power policy from the Android side. Accept
-# and do nothing, so the client never logs a failed helper.
 exit 0

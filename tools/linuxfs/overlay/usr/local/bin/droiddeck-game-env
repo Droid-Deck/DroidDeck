@@ -25,8 +25,6 @@ def game_id(env):
     return str(number % 2**32)
 
 
-# A .NET (CoreCLR) runtime under FEX crashes in the runtime itself unless memory ordering is fully
-# emulated and multiblock is off: the Stability preset.
 DOTNET_FEX = {
     "FEX_TSOENABLED": "1",
     "FEX_VECTORTSOENABLED": "1",
@@ -69,8 +67,6 @@ class Game:
         return any(a == name or a.startswith(name + "=") for a in self.args)
 
 
-# Each fix looks at a Game and returns (environment, extra arguments, note) for the games it
-# applies to, or None. Adding one is writing a function and decorating it.
 FIXES = []
 
 
@@ -91,19 +87,23 @@ def dotnet_memory_ordering(game):
 
 @fix
 def godot_vulkan(game):
-    # Godot 4 on Direct3D 12 through VKD3D-Proton fails to create its swap chain and runs behind a
-    # black window; its own Vulkan renderer draws.
     if is_godot(game) and not game.has_arg("--rendering-driver"):
         return {}, ["--rendering-driver", "vulkan"], "Godot: Vulkan renderer"
 
 
 @fix
 def godot_sentry(game):
-    # The Sentry GDExtension's native crash handler takes the .NET runtime down under FEX. Godot
-    # loads it on demand and carries on without it.
     sentry = sorted(n[:-4] for n in game.files if n.startswith("libsentry.windows.") and n.endswith(".dll"))
     if is_godot(game) and sentry:
         return {"WINEDLLOVERRIDES": ";".join(n + "=d" for n in sentry)}, [], "Godot: Sentry crash handler off"
+
+
+@fix
+def arkham_city_x87(game):
+    """Batman: Arkham City (BatmanAC.exe, also started through BmLauncher.exe beside it) leans on x87
+    and stops with Unreal's "Fatal error!" right after start when FEX reduces its precision."""
+    if "batmanac.exe" in game.files:
+        return {"FEX_X87REDUCEDPRECISION": "0"}, [], "Batman: Arkham City: FEX with full x87 precision"
 
 
 def skip_red_launcher(command):
@@ -166,8 +166,6 @@ def apply_config(env, config, app_id, fixes=None):
             result[name] = value
         else:
             raise ValueError("invalid environment value")
-    # The app's texture filtering (Display page), as DXVK options appended after the profiles so
-    # a DXVK_CONFIG entry of the user's keeps its own.
     game_dxvk = config.get("dxvkConfigGames", {})
     if not isinstance(game_dxvk, dict):
         raise ValueError("invalid game dxvk configuration")
@@ -310,6 +308,7 @@ def main():
     if not command:
         return 2
     env = os.environ.copy()
+    mic_enabled = env.get("BL_MIC_ENABLED")
     mark_install_scripts(command, env)
     app_id = game_id(env)
     if app_id:
@@ -338,6 +337,8 @@ def main():
                 env = apply_config(env, {"version": 1}, app_id, fixes)
         except (OSError, ValueError, TypeError, AttributeError):
             print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
+    if mic_enabled == "0":
+        env["BANNER_AUDIO_DIRECT_MIC"] = "0"
     env = force_ssbs(command, env)
     command, env = start_without_steam(command, env, app_id)
     sync = load_sync()

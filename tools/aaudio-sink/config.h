@@ -1,6 +1,3 @@
-/* The handful of build-time facts PulseAudio 13's headers read, for compiling one module against
- * the upstream source tree without running its configure. The daemon and libraries the app ships
- * were built for the same target (Android arm64, bionic), so these match them. */
 #ifndef DROIDDECK_PA_CONFIG_H
 #define DROIDDECK_PA_CONFIG_H
 #define PACKAGE "pulseaudio"

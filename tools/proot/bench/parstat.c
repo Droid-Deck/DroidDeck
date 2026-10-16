@@ -1,4 +1,3 @@
-/* T threads each stat()ing a path for D seconds: aggregate trapped-syscall throughput. */
 #define _GNU_SOURCE
 #include <pthread.h>
 #include <stdio.h>

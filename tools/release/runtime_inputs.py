@@ -37,7 +37,7 @@ def sources(root):
     for name in SOURCE_PATHS:
         path = root / name
         files.extend(path.rglob('*') if path.is_dir() else [path])
-    return {str(path.relative_to(root)): digest(path) for path in sorted(set(files))
+    return {path.relative_to(root).as_posix(): digest(path) for path in sorted(set(files))
             if path.is_file() and '__pycache__' not in path.parts and path.suffix != '.pyc'}
 
 
@@ -47,17 +47,22 @@ def outputs(root):
         base = root / 'app/src/main/assets' / tree
         for path in base.rglob('*'):
             if path.is_file() and not any(part.startswith('.') for part in path.relative_to(base).parts):
-                result['assets/' + tree + '/' + str(path.relative_to(base))] = str(path.relative_to(root))
+                result['assets/' + tree + '/' + path.relative_to(base).as_posix()] = path.relative_to(root).as_posix()
     for library in ['libproot.so', 'libproot-loader.so', 'libdirectaudiorelay.so']:
         result['lib/arm64-v8a/' + library] = 'app/src/main/jniLibs/arm64-v8a/' + library
     result['assets/pulseaudio.tzst'] = 'app/build/prepared-assets/pulseaudio.tzst'
     result['assets/graphics_driver/adrenotools-turnip25.1.0-quest1.tzst'] = \
         'app/build/prepared-assets/graphics_driver/adrenotools-turnip25.1.0-quest1.tzst'
+    for name in ['turnip26.3.0-a6xx', 'turnip26.3.0-quest2']:
+        result[f'assets/graphics_driver/adrenotools-{name}.tzst'] = \
+            f'app/build/prepared-assets/graphics_driver/adrenotools-{name}.tzst'
     return result
 
 
 def required():
     paths = ['assets/graphics_driver/adrenotools-turnip25.1.0-quest1.tzst']
+    paths += [f'assets/graphics_driver/adrenotools-{name}.tzst'
+              for name in ['turnip26.3.0-a6xx', 'turnip26.3.0-quest2']]
     paths += ['assets/linuxfs/' + name for name in ['libfakeinput.so', 'libblsession.so',
              'libblfastpath.so', 'libssbs.so', 'usr/local/bin/droiddeck-clipboard',
              'usr/local/bin/gamescope', 'usr/local/lib/droiddeck/uruntime']]
@@ -90,7 +95,6 @@ def required():
 
 
 def record(root=ROOT):
-    # Refresh scripts even on a CI native-cache hit; these are source, not cached binaries.
     if root == ROOT:
         from check_session_assets import source_assets
         for source, asset in source_assets().items():
@@ -107,7 +111,6 @@ def record(root=ROOT):
                 gzip.decompress((root / path).read_bytes())
             except (OSError, EOFError) as error:
                 raise ValueError('Invalid desktop removal inventory: ' + name) from error
-    # Check inside the compressed payload, where a plain Gradle build used to ship no sinks.
     process = subprocess.Popen(['zstd', '-dc', str(root / paths['assets/pulseaudio.tzst'])], stdout=subprocess.PIPE)
     try:
         with tarfile.open(fileobj=process.stdout, mode='r|') as archive:

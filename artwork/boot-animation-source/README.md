@@ -1,21 +1,29 @@
 # DroidDeck boot animation
 
-This source accompanies the single Steam startup movie bundled by the app:
-`app/src/main/assets/steam-startup/droiddeck-startup.webm` (1280×720 at 30 fps, pitch black background, VP8 video
-with Opus audio). `droiddeck-boot.html` is the editable animation; the scripts and WAV below
-render the animation at the bundled playback profile. No alternate MP4 or WebM exports are kept in the repository.
+This source accompanies the Steam startup movies bundled by the app:
+`app/src/main/assets/steam-startup/droiddeck-startup.webm` (1280×720 at 30 fps) and
+`droiddeck-startup-60.webm` (1280×720 at 60 fps), both with a pitch black background, VP8 video
+and Opus audio. `droiddeck-boot.html` is the editable animation; the scripts and WAV below
+render the animation at the bundled playback profiles. No alternate MP4 exports are kept in the repository.
 
-From the repository root, render the movie with:
+From the repository root, render the movies with:
 
     python3 artwork/boot-animation-source/render.py 1280 720 30 app/src/main/assets/steam-startup/droiddeck-startup.webm dark
+    python3 artwork/boot-animation-source/render.py 1280 720 60 app/src/main/assets/steam-startup/droiddeck-startup-60.webm dark
 
-The bundled profile reduces decoded pixels per second by 78% compared with 1080p/60.
-VP8 also lowers software decode cost while Steam is starting. Keep the bundled movie at
-720p/30; higher-resolution exports are intended for sharing.
+The 30 fps profile reduces decoded pixels per second by 78% compared with 1080p/60, and VP8
+lowers software decode cost while Steam is starting, so 30 fps stays the default. Keep the bundled
+movies at 720p; higher-resolution exports are intended for sharing.
 
-The app stages that file into Steam's `config/uioverrides/movies` folder before each session. If
-Steam still has its built-in startup movie selected, DroidDeck sets this movie as the device's
-startup default before Steam starts. A custom startup movie the user selected later is preserved.
+Steam settings > Boot movie picks which movie DroidDeck stages into Steam's
+`config/uioverrides/movies` folder before each session: DroidDeck at 30 or 60 fps, or a movie the
+user imported. A WebM, MKV or MP4 of up to 50 MB with VP8 or VP9 video (or a WebM with AV1) is used
+as is, remuxed to WebM if needed. Anything else Android can decode, up to 60 seconds, is converted on
+the device to 720p VP8 with Opus audio, capped at 60 fps; portrait clips are pillarboxed into 16:9
+because Steam fills the screen with the movie. Turning Sound off strips the audio track on the device.
+If Steam still has its built-in startup movie selected, DroidDeck sets the staged movie as the
+device's startup default before Steam starts. A startup movie the user selected later in Steam is
+preserved.
 
 To regenerate the soundtrack, run these commands from this directory:
 

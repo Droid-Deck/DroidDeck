@@ -88,7 +88,6 @@ class LogRedactorTest {
         }
     }
 
-    // The Steam UI's own login line (webhelper_js.txt), as the privacy scan found it.
     @Test fun loginStateLineLosesAnEmailAccount() {
         val line = "[2026-10-07 21:14:03] SteamUI: INFO: Login: OnLoginStateChange someone.masked@example.com 2 1 0 0"
         val out = LogRedactor.redact(line)

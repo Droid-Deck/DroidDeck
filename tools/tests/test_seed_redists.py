@@ -22,8 +22,6 @@ GAME_SCRIPT = r'''"InstallScript"
 }
 '''
 
-# Red Dead Redemption 2's own script: Proton needs Khronos' vulkan-1.dll for it, which only the
-# Vulkan runtime installer puts in the prefix.
 VULKAN_SCRIPT = r'''"InstallScript"
 {
 	"Run Process"
@@ -102,6 +100,53 @@ class SeedRedistsTest(unittest.TestCase):
         self.run_seed()
         self.assertIn('"VCRedist2022"=dword:00000001', self.reg.read_text())
 
+    def test_markers_a_replaced_registry_lost_are_seeded_again(self):
+        self.game()
+        stock = self.reg.read_text()
+        self.run_seed()
+        ledger = (self.reg.parent / ".droiddeck-redists").read_text()
+        self.assertIn("VCRedist2022", ledger)
+        self.reg.write_text(stock)
+        self.run_seed()
+        reg = self.reg.read_text()
+        self.assertEqual(reg.count('"VCRedist2022"=dword:00000001'), 2, "both views again")
+        self.assertIn("[Software\\\\Microsoft\\\\VisualStudio\\\\14.0\\\\VC\\\\Runtimes\\\\x86]", reg)
+        self.assertEqual(sorted((self.reg.parent / ".droiddeck-redists").read_text().splitlines()), sorted(ledger.splitlines()))
+        self.run_seed()
+        self.assertEqual(reg, self.reg.read_text())
+
+    def test_a_marker_kept_in_only_one_view_is_seeded_again(self):
+        self.game()
+        self.run_seed()
+        wow = "[Software\\\\Wow6432Node\\\\Valve\\\\Steam\\\\Apps\\\\CommonRedist\\\\vcredist\\\\2022]"
+        blocks = self.reg.read_text().split("\n\n")
+        self.reg.write_text("\n\n".join(b for b in blocks if not (b.startswith(wow) and '"VCRedist2022"' in b)))
+        self.assertEqual(self.reg.read_text().count('"VCRedist2022"'), 1)
+        self.run_seed()
+        reg = self.reg.read_text()
+        self.assertEqual(reg.count('"VCRedist2022"'), 3, "the one left plus both views again")
+        self.assertTrue(any(b.startswith(wow) and '"VCRedist2022"' in b for b in reg.split("\n\n")))
+
+    def test_a_vc_runtime_another_architecture_lost_is_seeded_again(self):
+        self.run_seed()
+        arm64 = "[Software\\\\Wow6432Node\\\\Microsoft\\\\VisualStudio\\\\14.0\\\\VC\\\\Runtimes\\\\arm64]"
+        blocks = self.reg.read_text().split("\n\n")
+        self.reg.write_text("\n\n".join(b for b in blocks if not b.startswith(arm64)))
+        self.assertNotIn(arm64, self.reg.read_text())
+        self.run_seed()
+        reg = self.reg.read_text()
+        self.assertIn(arm64, reg)
+        self.assertEqual(reg.count("[Software\\\\Microsoft\\\\VisualStudio\\\\14.0\\\\VC\\\\Runtimes\\\\x86]"), 2)
+
+    def test_a_marker_written_in_one_view_only_is_kept_as_it_is(self):
+        self.game(script=GAME_SCRIPT.replace("Software\\\\Valve\\\\Steam\\\\Apps\\\\CommonRedist\\\\vcredist\\\\2022", "SOFTWARE\\\\AGEIA Technologies").replace("VCRedist2022", "PhysX Version"))
+        self.run_seed()
+        once = self.reg.read_text()
+        self.assertEqual(once.count('"PhysX Version"=dword:00000001'), 1)
+        result = self.run_seed()
+        self.assertEqual(once, self.reg.read_text())
+        self.assertNotIn("gone", result.stdout)
+
     def test_an_evaluator_script_nested_deeper_is_read(self):
         script = self.tmp / "legacycompat/evaluatorscript_409710.vdf"
         script.parent.mkdir(parents=True)
@@ -148,7 +193,6 @@ class SeedRedistsTest(unittest.TestCase):
         self.assertIn('"Other"=dword:00000001', reg)
         self.assertNotIn("Vulkan111080", (self.reg.parent / ".droiddeck-redists").read_text())
         self.assertEqual(int(self.reg.stat().st_mtime), 1_000_000_000)
-        # The client writes the marker itself once the installer has run; that one is left alone.
         with self.reg.open("a") as out:
             out.write('\n[Software\\\\Valve\\\\Steam\\\\Apps\\\\1174180] 1791730000\n"Vulkan111080"=dword:00000001\n')
         self.run_seed()
