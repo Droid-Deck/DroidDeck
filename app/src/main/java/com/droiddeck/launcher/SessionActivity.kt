@@ -678,7 +678,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     achievementsInFront = found
                     if (found == null) achievementsOpen = false
                 }
-                androidx.compose.runtime.LaunchedEffect(pcKeyboardOpen) { if (pcKeyboardOpen) releasePads() }
+                androidx.compose.runtime.LaunchedEffect(pcKeyboardOpen) { if (pcKeyboardOpen) releasePads(); updateOnScreenControls() }
                 LaunchedEffect(pcKeyboardOpen, drawerOpen, achievementsOpen) {
                     if (pcKeyboardOpen || drawerOpen || achievementsOpen) padMouse.reset()
                 }
@@ -2496,7 +2496,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             ?.let { FileUtils.readString(it)?.trim()?.lowercase() }
             ?: SessionPrefs.oscMode(this)
         val controls = onScreenControls ?: return
-        if (pipUi || unfoldedPanel != null) {
+        if (pipUi || unfoldedPanel != null || pcKeyboardOpen) {
             onScreenButtonsVisible = false
             controls.releaseAll()
             controls.visibility = View.GONE
