@@ -2,6 +2,7 @@ package com.droiddeck.launcher.ui
 
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathMeasure
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -9,6 +10,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], manifest = Config.NONE)
@@ -42,6 +44,15 @@ class StepOutTest {
         assertEquals(pill.left, b.left, 0.5f)
         assertEquals(pill.right, b.right, 0.5f)
         assertEquals(pill.bottom, b.bottom, 0.5f)
+    }
+
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Test fun aNearlyClosedOutlineDoesNotDoubleBackPastThePillCorner() {
+        val path = Path()
+        stepPath(path, pill, left = pill.left - 1f, bottom = pill.bottom + 2f, pullTop = pill.bottom + 6f, box = 16f, fillet = 10f, pillCorner = 12f)
+        val length = PathMeasure().apply { setPath(path, false) }.length
+        val arcs = (Math.PI / 2).toFloat() * (12f + 16f + 15f + 0.5f + 12f)
+        assertEquals(175f + arcs, length, 2f)
     }
 
     @Test fun aCardMarkIsTakenOnceAndOnlyForItsGame() {

@@ -287,6 +287,9 @@ class DrawerActions(
     val onGameNoSteam: (Long, Boolean) -> Unit = { _, _ -> },
     val onComponentSwap: (protonId: String, comp: String, value: String) -> Unit = { _, _, _ -> },
     val onGameComponent: (appId: Long, comp: String, file: String?) -> Unit = { _, _, _ -> },
+    val defaultProtonId: String? = null,
+    val onDefaultProton: (protonId: String) -> Unit = {},
+    val onGameProton: (appId: Long, protonId: String?) -> Unit = { _, _ -> },
 )
 
 @OptIn(ExperimentalComposeUiApi::class)
@@ -1205,9 +1208,21 @@ private fun ComponentsDrawerPage(host: MenuHost, a: DrawerActions, track: (Strin
             return
         }
         SettingsGroup(stringResource(R.string.drawer_page_components)) {
-            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp)) {
-                ProfileSummaryRow(stringResource(R.string.comp_proton), gameProfile.proton.value)
-            }
+            DrawerStackedChoice(
+                host = host,
+                key = "game-cmp-proton",
+                label = stringResource(R.string.comp_proton),
+                hint = if (gameProfile.proton.inherited && gameProfile.proton.value.isNotEmpty()) {
+                    stringResource(R.string.drawer_component_inherited, gameProfile.proton.value)
+                } else {
+                    null
+                },
+                options = listOf<Pair<String?, String>>(null to stringResource(R.string.comp_game_use_general)) +
+                    snap.protons.map { it.proton.id to it.proton.name },
+                selected = if (gameProfile.proton.inherited) null else gameProfile.protonId,
+                chipModifier = track("cmp-proton"),
+                onPick = { id -> a.onGameProton(gameProfile.appId, id) },
+            )
             for (comp in ComponentsManager.COMPONENTS) {
                 val value = gameProfile.components.getValue(comp)
                 val options: List<Pair<String?, String>> =
@@ -1238,8 +1253,7 @@ private fun ComponentsDrawerPage(host: MenuHost, a: DrawerActions, track: (Strin
         return
     }
     val running = snap.protons.filter { it.inUseByGame }
-    var pick by rememberSaveable { mutableStateOf<String?>(null) }
-    val view = snap.protons.firstOrNull { it.proton.id == pick } ?: running.firstOrNull() ?: snap.protons.firstOrNull()
+    val view = snap.protons.firstOrNull { it.proton.id == a.defaultProtonId } ?: running.firstOrNull() ?: snap.protons.firstOrNull()
     SettingsGroup(stringResource(R.string.drawer_running_now)) {
         val src = remember { MutableInteractionSource() }
         val hot = src.collectIsFocusedAsState().value
@@ -1280,7 +1294,7 @@ private fun ComponentsDrawerPage(host: MenuHost, a: DrawerActions, track: (Strin
                 view.reappliedAt.takeIf { it > 0 }?.let { stringResource(R.string.drawer_reapplied, java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(it * 1000))) },
             ).joinToString(" · "),
             snap.protons.map { it.proton.id to it.proton.name }, p.id,
-            chipModifier = track("cmp-proton"), onPick = { pick = it },
+            chipModifier = track("cmp-proton"), onPick = { if (it != p.id) a.onDefaultProton(it) },
         )
         val originalLabel = stringResource(R.string.drawer_original)
         val build = ComponentsManager.safeName(p.version)
