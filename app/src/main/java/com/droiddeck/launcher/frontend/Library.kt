@@ -21,7 +21,11 @@ object Library {
             SteamGame(appId, name, art, library, gameId, hero, lastPlayed, gameFiles, protonPrefix, icon, source, storeId)
 
         val gameIdString: String get() = java.lang.Long.toUnsignedString(gameId)
-        val profileKey: String get() = if (library == ADDED) java.lang.Integer.toUnsignedString(appId) else appId.toString()
+        val profileKey: String get() = when {
+            source == com.droiddeck.launcher.runtime.BattleNet.SOURCE -> com.droiddeck.launcher.runtime.BattleNet.APP_ID.toString()
+            library == ADDED -> java.lang.Integer.toUnsignedString(appId)
+            else -> appId.toString()
+        }
     }
     const val ADDED = "added"
     const val SOURCE_STEAM = "steam"
@@ -153,7 +157,8 @@ object Library {
             SteamGame(
                 g.steamAppId ?: g.appId.toInt(), g.name, art.portrait ?: art.header, ADDED, g.gameId,
                 hero = art.hero ?: art.header, gameFiles = g.folder,
-                protonPrefix = protonPrefix(context, g.steamAppId?.toLong() ?: g.appId, libraries = roots),
+                protonPrefix = if (g.source == com.droiddeck.launcher.runtime.BattleNet.SOURCE) File(com.droiddeck.launcher.runtime.BattleNet.prefix(context), "pfx").takeIf { it.isDirectory }
+                    else protonPrefix(context, g.steamAppId?.toLong() ?: g.appId, libraries = roots),
                 icon = art.icon?.takeIf { it.extension.lowercase() != "ico" },
                 source = g.source, storeId = g.storeId,
             )
@@ -192,6 +197,8 @@ object Library {
         if (program == com.droiddeck.launcher.runtime.FlatpakManager.LAUNCHER || program == com.droiddeck.launcher.runtime.AppImageManager.LAUNCHER ||
             program == com.droiddeck.launcher.runtime.UserApps.SCRIPT_LAUNCHER) {
             com.droiddeck.launcher.session.SessionState.programArgs.firstOrNull()?.let { flatpakNames[it] ?: it.substringAfterLast('.') }
+        } else if (program == com.droiddeck.launcher.runtime.BattleNet.PROGRAM) {
+            com.droiddeck.launcher.runtime.BattleNet.sessionName(com.droiddeck.launcher.session.SessionState.programArgs) ?: "Battle.net"
         } else specs.firstOrNull { it.program == program }?.name
 
     val flatpakNames = java.util.concurrent.ConcurrentHashMap<String, String>()

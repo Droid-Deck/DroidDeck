@@ -283,6 +283,7 @@ private fun Content(
                 val app = UserAppsState.items.firstOrNull { "user:${it.key}" == selected }
                 if (app == null) Note(stringResource(R.string.user_apps_gone)) else UserAppPage(app, s, a, onSelect)
             }
+            selected == BATTLENET_PAGE -> BattleNetPage(s, a, onSelect)
             selected.startsWith("emu:") -> {
                 val e = s.emulators.firstOrNull { "emu:${it.id}" == selected }
                 if (e == null) Note(stringResource(R.string.content_not_installed)) else {

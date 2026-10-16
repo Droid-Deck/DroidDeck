@@ -65,7 +65,9 @@ bl_store_launch() {
   fi
   [ -x /usr/local/bin/droiddeck-store-launch ] || return 0
   /usr/local/bin/droiddeck-store-launch "$@"
-  [ $? -eq 10 ] && BL_STORE_EXIT=1
+  rc=$?
+  [ $rc -eq 10 ] && BL_STORE_EXIT=1
+  [ $rc -eq 11 ] && exit 0
   return 0
 }
 

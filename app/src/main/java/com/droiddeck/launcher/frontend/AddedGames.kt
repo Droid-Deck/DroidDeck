@@ -162,6 +162,9 @@ object AddedGames {
             scanGame(context, folder, out, single = entry)
         }
         for (folder in StoreInstallRoot.gameFolders(context)) if (StoreInstallRoot.isFinished(folder)) scanGame(context, folder, out)
+        for (game in com.droiddeck.launcher.runtime.BattleNet.games(context)) {
+            if (game.folder.path !in removed) com.droiddeck.launcher.runtime.BattleNet.shortcut(context, game)?.let(out::add)
+        }
         return out.distinctBy { it.folder.canonicalPath }
     }
 

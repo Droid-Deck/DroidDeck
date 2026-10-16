@@ -306,14 +306,14 @@ object AddedGameArt {
             .filter { it.second > 0 && it.first.isNotEmpty() }
             .maxByOrNull { it.second }?.first
 
-    private fun search(name: String): String? {
+    internal fun search(name: String): String? {
         val term = name.replace(EDITION, " ").trim().ifEmpty { name }
         val json = get(STORE_SEARCH + URLEncoder.encode(term, "UTF-8"))?.toString(Charsets.UTF_8) ?: return null
         val items = JSONObject(json).optJSONArray("items") ?: return null
         return pickStoreResult(name, (0 until items.length()).map { items.getJSONObject(it) }.map { it.optString("id") to it.optString("name") })
     }
 
-    private fun download(id: String, cache: File): Boolean {
+    internal fun download(id: String, cache: File): Boolean {
         var got = false
         for ((remote, localName) in listOf(
             "library_600x900.jpg" to "p.jpg", "header.jpg" to "header.jpg", "library_hero.jpg" to "hero.jpg", "logo.png" to "logo.png",
