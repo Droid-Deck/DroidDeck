@@ -1942,6 +1942,7 @@
     <string name="epic_client_checking">Nieuwste versie controleren…</string>
     <string name="epic_client_unpacking">Uitpakken…</string>
     <string name="epic_client_unreachable">De downloadserver reageerde niet</string>
+    <string name="epic_client_needs_fex">De Epic Games Launcher heeft FEX nodig, dat Steam downloadt. Open de launcher opnieuw zodra Steam is gestart.</string>
     <string name="epic_client_download_failed">Downloaden mislukt: %1$s</string>
     <string name="epic_client_unpack_failed">Kan de launcher niet uitpakken: %1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcher accepteerde de aanmelding niet. Start het opnieuw vanuit de launcher.</string>

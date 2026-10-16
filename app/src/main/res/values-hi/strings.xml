@@ -1942,6 +1942,7 @@
     <string name="epic_client_checking">नवीनतम वर्शन जांचा जा रहा है…</string>
     <string name="epic_client_unpacking">अनपैक हो रहा है…</string>
     <string name="epic_client_unreachable">डाउनलोड सर्वर ने जवाब नहीं दिया</string>
+    <string name="epic_client_needs_fex">Epic Games Launcher को FEX चाहिए, जिसे Steam डाउनलोड करता है। Steam शुरू होने के बाद launcher फिर से खोलें।</string>
     <string name="epic_client_download_failed">डाउनलोड विफल: %1$s</string>
     <string name="epic_client_unpack_failed">लॉन्चर को अनपैक नहीं किया जा सका: %1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcher ने साइन-इन स्वीकार नहीं किया। इसे लॉन्चर से फिर से शुरू करें।</string>

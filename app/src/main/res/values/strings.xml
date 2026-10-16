@@ -2007,6 +2007,7 @@
     <string name="epic_client_checking">Checking for the latest version…</string>
     <string name="epic_client_unpacking">Unpacking…</string>
     <string name="epic_client_unreachable">The download server did not answer</string>
+    <string name="epic_client_needs_fex">The Epic Games Launcher needs FEX, which Steam downloads. Open the launcher again after Steam has started.</string>
     <string name="epic_client_download_failed">Download failed: %1$s</string>
     <string name="epic_client_unpack_failed">Could not unpack the launcher: %1$s</string>
     <string name="epic_client_sign_in_failed">The Epic Games Launcher did not take the sign-in. Start it again from the launcher.</string>

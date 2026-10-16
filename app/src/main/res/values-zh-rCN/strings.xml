@@ -1929,6 +1929,7 @@
     <string name="epic_client_checking">正在检查最新版本…</string>
     <string name="epic_client_unpacking">正在解包…</string>
     <string name="epic_client_unreachable">下载服务器未响应</string>
+    <string name="epic_client_needs_fex">Epic Games Launcher 需要 FEX，FEX 由 Steam 下载。请在 Steam 启动后再次打开启动器。</string>
     <string name="epic_client_download_failed">下载失败：%1$s</string>
     <string name="epic_client_unpack_failed">无法解包启动器：%1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcher 未接受登录。请从启动器重新启动它。</string>

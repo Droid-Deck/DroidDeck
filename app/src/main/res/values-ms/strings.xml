@@ -1921,6 +1921,7 @@
     <string name="epic_client_checking">Menyemak versi terkini…</string>
     <string name="epic_client_unpacking">Menyahpak…</string>
     <string name="epic_client_unreachable">Pelayan muat turun tidak memberi respons</string>
+    <string name="epic_client_needs_fex">Epic Games Launcher memerlukan FEX, yang dimuat turun oleh Steam. Buka semula pelancar selepas Steam bermula.</string>
     <string name="epic_client_download_failed">Muat turun gagal: %1$s</string>
     <string name="epic_client_unpack_failed">Tidak dapat menyahpak pelancar: %1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcher tidak menerima log masuk itu. Mulakan semula daripada pelancar.</string>

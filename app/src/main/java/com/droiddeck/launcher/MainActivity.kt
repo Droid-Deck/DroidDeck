@@ -497,6 +497,14 @@ class MainActivity : ComponentActivity() {
             android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
             return false
         }
+        if (!com.droiddeck.launcher.stores.epic.EpicClient.launcherRunning() && !com.droiddeck.launcher.stores.epic.EpicClient.fexReady(this)) {
+            com.droiddeck.launcher.stores.epic.EpicClient.requestFex(this)
+            android.widget.Toast.makeText(this, R.string.epic_client_needs_fex, android.widget.Toast.LENGTH_LONG).show()
+            if (!SessionState.running) startSteamSession()
+            else if (SessionState.mode == SessionService.MODE_STEAM) startActivity(Intent(this, SessionActivity::class.java)
+                .setAction(SessionService.ACTION_RESUME).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+            return true
+        }
         return startEpicLauncher(com.droiddeck.launcher.stores.epic.EpicClient.openIntent(this), returnHome = false) {
             com.droiddeck.launcher.stores.epic.EpicClient.launcherRunning()
         }

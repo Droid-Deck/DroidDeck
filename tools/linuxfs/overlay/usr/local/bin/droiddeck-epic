@@ -36,6 +36,7 @@ DATA = os.path.join(HOME, ".local", "share", "com.epicgames.eglv2")
 SETTINGS = os.path.join(DATA, "settings", "app-settings.json")
 API_FILE = os.path.join(DATA, "api.json")
 INSTALLATIONS = os.path.join(DATA, "installations.jsonl")
+STEAM_RUN = re.compile(r"^steam://(?:rungameid|run)/([1-9][0-9]{0,19})(?:[/?].*)?$")
 V1_MANIFESTS = os.path.join(HOME, ".local", "share", "Epic", "EpicGamesLauncher", "Data", "Manifests")
 AUTH_FILE = os.path.join(DATA, "auth", "auth.json")
 AUTH_ENV = "prod"
@@ -989,11 +990,34 @@ def is_game(request, app=None):
     return any(arg.startswith("-epicapp=") for arg in args)
 
 
+def client_artifact(exe):
+    latest = {}
+    for entry in read_installations()[1]:
+        key = entry.get("installationId") or entry.get("artifactId")
+        if key:
+            latest[key] = entry
+    target = os.path.abspath(exe)
+    for entry in latest.values():
+        folder = entry.get("dir")
+        if entry.get("deleted") or not isinstance(folder, str) or not folder:
+            continue
+        folder = os.path.abspath(folder)
+        if (target == folder or target.startswith(folder + os.sep)) and entry.get("artifactId"):
+            return str(entry["artifactId"])
+    return None
+
+
 def play_in_steam(request):
-    found = find_store_game(native_path(request.get("exe") or ""))
-    if not found or found[1].get("store") != "epic" or not found[1].get("id"):
+    exe = native_path(request.get("exe") or "")
+    found = find_store_game(exe)
+    if found and found[1].get("store") == "epic" and found[1].get("id"):
+        game = str(found[1]["id"])
+    elif not found:
+        game = client_artifact(exe)
+        if not game:
+            return False
+    else:
         return False
-    game = str(found[1]["id"])
     reply = ask_app({"op": "epic-play-in-steam", "id": game}, STEAM_WAIT)
     if not isinstance(reply, dict):
         reply = {}
@@ -1606,6 +1630,11 @@ def auto_sign_in():
 def shim_open(argv):
     url = argv[0] if argv else ""
     channel = launch_dir()
+    steam = STEAM_RUN.match(url)
+    if steam and channel:
+        post(channel, {"op": "steam-run", "id": steam.group(1)})
+        say("xdg-open: handed Steam game %s to the app" % steam.group(1))
+        return 0
     if not url.startswith(("https://", "http://")) or not channel:
         say("xdg-open: nothing to hand over")
         return 1

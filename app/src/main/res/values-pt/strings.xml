@@ -1963,6 +1963,7 @@
     <string name="epic_client_checking">Verificando a versão mais recente…</string>
     <string name="epic_client_unpacking">Descompactando…</string>
     <string name="epic_client_unreachable">O servidor de download não respondeu</string>
+    <string name="epic_client_needs_fex">O Epic Games Launcher precisa do FEX, que o Steam baixa. Abra o launcher novamente depois que o Steam iniciar.</string>
     <string name="epic_client_download_failed">Falha no download: %1$s</string>
     <string name="epic_client_unpack_failed">Não foi possível descompactar o launcher: %1$s</string>
     <string name="epic_client_sign_in_failed">O Epic Games Launcher não aceitou o login. Inicie-o novamente a partir do launcher.</string>

@@ -2026,6 +2026,7 @@
     <string name="epic_client_checking">جارٍ التحقق من آخر إصدار…</string>
     <string name="epic_client_unpacking">جارٍ فك الضغط…</string>
     <string name="epic_client_unreachable">لم يستجب خادم التنزيل</string>
+    <string name="epic_client_needs_fex">يحتاج مشغّل Epic Games إلى FEX الذي يقوم Steam بتنزيله. افتح المشغّل مرة أخرى بعد بدء Steam.</string>
     <string name="epic_client_download_failed">فشل التنزيل: %1$s</string>
     <string name="epic_client_unpack_failed">تعذّر فك ضغط المُشغِّل: %1$s</string>
     <string name="epic_client_sign_in_failed">لم يقبل Epic Games Launcher تسجيل الدخول. شغّله مرة أخرى من المُشغِّل.</string>

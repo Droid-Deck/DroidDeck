@@ -1942,6 +1942,7 @@
     <string name="epic_client_checking">Έλεγχος για την πιο πρόσφατη έκδοση…</string>
     <string name="epic_client_unpacking">Αποσυμπίεση…</string>
     <string name="epic_client_unreachable">Ο διακομιστής λήψης δεν αποκρίθηκε</string>
+    <string name="epic_client_needs_fex">Το Epic Games Launcher χρειάζεται το FEX, το οποίο κατεβάζει το Steam. Ανοίξτε ξανά το launcher αφού ξεκινήσει το Steam.</string>
     <string name="epic_client_download_failed">Η λήψη απέτυχε: %1$s</string>
     <string name="epic_client_unpack_failed">Δεν ήταν δυνατή η αποσυμπίεση του launcher: %1$s</string>
     <string name="epic_client_sign_in_failed">Το Epic Games Launcher δεν δέχτηκε τη σύνδεση. Εκκινήστε το ξανά από το launcher.</string>

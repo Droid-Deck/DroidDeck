@@ -1942,6 +1942,7 @@
     <string name="epic_client_checking">Kontrollerar senaste versionen…</string>
     <string name="epic_client_unpacking">Packar upp…</string>
     <string name="epic_client_unreachable">Nedladdningsservern svarade inte</string>
+    <string name="epic_client_needs_fex">Epic Games Launcher behöver FEX, som Steam laddar ner. Öppna launchern igen när Steam har startat.</string>
     <string name="epic_client_download_failed">Nedladdningen misslyckades: %1$s</string>
     <string name="epic_client_unpack_failed">Det gick inte att packa upp launchern: %1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcher accepterade inte inloggningen. Starta den igen från launchern.</string>

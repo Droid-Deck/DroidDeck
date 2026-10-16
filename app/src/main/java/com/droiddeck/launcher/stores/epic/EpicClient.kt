@@ -15,6 +15,7 @@ import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
+import com.droiddeck.launcher.storage.SteamStorage
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreGameSidecar
 import com.droiddeck.launcher.stores.StoreInstallRoot
@@ -38,6 +39,8 @@ object EpicClient {
     const val ACTION_PLAY_IN_STEAM = "com.droiddeck.launcher.EPIC_PLAY_IN_STEAM"
     private const val SETTINGS = "settings/app-settings.json"
     private const val STOCK_INSTALL_DIR = "/root/Games"
+    private const val FEX_DIR = "FEX-Emu"
+    private const val FEX_WANTED = "root/.config/droiddeck/fex-wanted"
     private const val ICON = "epic-games-launcher.png"
     const val LAUNCHER_APP_ID = 0
     private const val PREF_CHECKED = "client_checked_at"
@@ -180,6 +183,22 @@ object EpicClient {
 
     fun playing(context: Context): Boolean = File(LinuxRuntime.sessionRoot(context), PLAYING).exists()
 
+    fun fexReady(context: Context): Boolean {
+        val usr = File(LinuxRuntime.rootDir(context), "usr/bin")
+        if (File(usr, "FEXServer").isFile && (File(usr, "FEX").isFile || File(usr, "FEXInterpreter").isFile)) return true
+        return Library.steamLibraries(context).any { (library, _) ->
+            val manifest = File(library, "steamapps/appmanifest_${SteamStorage.FEX}.acf")
+            val dir = runCatching { SteamStorage.parseManifest(manifest, manifest.readText())?.installDir }.getOrNull()
+            listOfNotNull(dir, FEX_DIR).any { File(library, "steamapps/common/$it").isDirectory }
+        }
+    }
+
+    fun requestFex(context: Context) {
+        runCatching {
+            File(LinuxRuntime.rootDir(context), FEX_WANTED).apply { parentFile?.mkdirs() }.writeText("1\n")
+        }.onFailure { Log.w(TAG, "could not ask Steam for FEX: ${it.javaClass.simpleName}") }
+    }
+
     fun prepareInstallDir(context: Context): String? {
         val app = context.applicationContext
         val dirs = StoreInstallRoot.targets(app).mapNotNull { t ->
@@ -209,12 +228,24 @@ object EpicClient {
         runCatching { EpicClientLibrary.importClientGames(context) }.onFailure { Log.w(TAG, "client library scan failed: ${it.javaClass.simpleName}") }
         val game = steamShortcut(Library.launchableGames(context), id)
             ?: return JSONObject().put("ok", false).put("reason", "not-registered")
-        context.startActivity(Intent(context, com.droiddeck.launcher.MainActivity::class.java)
-            .setAction(ACTION_PLAY_IN_STEAM)
-            .putExtra(com.droiddeck.launcher.frontend.GameLaunchIntent.EXTRA_APP_ID, game.gameIdString)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+        handToSteam(context, game.gameIdString)
         Log.i(TAG, "the Epic Games Launcher hands $id to Steam as ${game.gameIdString}")
         return JSONObject().put("ok", true)
+    }
+
+    fun runSteamGame(context: Context, id: String): JSONObject {
+        if (!launcherRunning()) return JSONObject().put("ok", false).put("reason", "no-launcher")
+        if (!com.droiddeck.launcher.frontend.GameLaunchLink.validId(id)) return JSONObject().put("ok", false).put("reason", "bad-id")
+        handToSteam(context, id)
+        Log.i(TAG, "the Epic Games Launcher hands Steam game $id to Steam")
+        return JSONObject().put("ok", true)
+    }
+
+    private fun handToSteam(context: Context, gameId: String) {
+        context.startActivity(Intent(context, com.droiddeck.launcher.MainActivity::class.java)
+            .setAction(ACTION_PLAY_IN_STEAM)
+            .putExtra(com.droiddeck.launcher.frontend.GameLaunchIntent.EXTRA_APP_ID, gameId)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP))
     }
 
     internal fun steamShortcut(games: List<Library.SteamGame>, id: String): Library.SteamGame? =

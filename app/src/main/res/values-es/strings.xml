@@ -1971,6 +1971,7 @@
     <string name="epic_client_checking">Comprobando la versión más reciente…</string>
     <string name="epic_client_unpacking">Descomprimiendo…</string>
     <string name="epic_client_unreachable">El servidor de descargas no respondió</string>
+    <string name="epic_client_needs_fex">Epic Games Launcher necesita FEX, que descarga Steam. Vuelve a abrir el launcher cuando Steam se haya iniciado.</string>
     <string name="epic_client_download_failed">La descarga falló: %1$s</string>
     <string name="epic_client_unpack_failed">No se pudo descomprimir el launcher: %1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcher no aceptó el inicio de sesión. Vuelve a iniciarlo desde el launcher.</string>

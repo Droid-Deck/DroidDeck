@@ -258,8 +258,11 @@ class SignInTest(EpicTestCase):
             self.assertEqual(0, G["shim_open"]([self.AUTH]))
             self.assertEqual(0, G["shim_open"](["https://store.epicgames.com/p/fig"]))
             self.assertEqual(1, G["shim_open"](["mailto:x@example.com"]))
-        ops = sorted(json.loads(p.read_text())["op"] for p in (launch / "stores/req").glob("*.json"))
-        self.assertEqual(["epic-sign-in", "open-url"], ops)
+            self.assertEqual(0, G["shim_open"](["steam://rungameid/2379304779"]))
+            self.assertEqual(1, G["shim_open"](["steam://rungameid/0"]))
+        requests = [json.loads(p.read_text()) for p in (launch / "stores/req").glob("*.json")]
+        self.assertEqual(["epic-sign-in", "open-url", "steam-run"], sorted(r["op"] for r in requests))
+        self.assertEqual(["2379304779"], [r["id"] for r in requests if r["op"] == "steam-run"])
 
 
 class SignInHandoffTest(EpicTestCase):
@@ -691,6 +694,22 @@ class BrokerTest(EpicTestCase):
             with mock.patch.dict(G, {"find_store_game": lambda exe: ("/games/Fig", {"store": "gog", "id": "1"})}):
                 self.assertFalse(G["play_in_steam"]({"exe": "/games/Fig/Fig.exe"}))
         self.assertEqual([], asked)
+
+    def test_a_game_the_launcher_just_installed_is_offered_to_steam_by_its_install_record(self):
+        records = Path(G["INSTALLATIONS"])
+        records.parent.mkdir(parents=True, exist_ok=True)
+        lines = [{"version": 1, "entries": 3},
+                 {"installationId": "A", "dir": "/games/Fig", "artifactId": "Fig"},
+                 {"installationId": "B", "dir": "/games/Old", "artifactId": "Old"},
+                 {"installationId": "B", "deleted": True}]
+        records.write_text("\n".join(json.dumps(line) for line in lines) + "\n")
+        asked = []
+        with mock.patch.dict(G, {"find_store_game": lambda exe: None,
+                                 "ask_app": lambda request, timeout: asked.append(request) or {"ok": True}}):
+            self.assertTrue(G["play_in_steam"]({"exe": "/games/Fig/bin/Fig.exe"}))
+            self.assertFalse(G["play_in_steam"]({"exe": "/games/Old/Old.exe"}))
+            self.assertFalse(G["play_in_steam"]({"exe": "/games/Figment/Fig.exe"}))
+        self.assertEqual([{"op": "epic-play-in-steam", "id": "Fig"}], asked)
 
     def test_the_playing_mark_goes_away_when_the_game_fails(self):
         launch = self.tmp / "launch"

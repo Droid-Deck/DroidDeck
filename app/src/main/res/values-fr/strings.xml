@@ -1971,6 +1971,7 @@
     <string name="epic_client_checking">Vérification de la dernière version…</string>
     <string name="epic_client_unpacking">Décompression…</string>
     <string name="epic_client_unreachable">Le serveur de téléchargement n\'a pas répondu</string>
+    <string name="epic_client_needs_fex">L\'Epic Games Launcher a besoin de FEX, que Steam télécharge. Rouvrez le launcher une fois Steam démarré.</string>
     <string name="epic_client_download_failed">Échec du téléchargement : %1$s</string>
     <string name="epic_client_unpack_failed">Impossible de décompresser le launcher : %1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcher n\'a pas accepté la connexion. Relancez-le depuis le launcher.</string>

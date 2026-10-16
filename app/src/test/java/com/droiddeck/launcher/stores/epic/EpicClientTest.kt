@@ -40,6 +40,26 @@ class EpicClientTest {
 
     @Test fun onlyAnOpenLauncherHandsGamesToSteam() {
         assertEquals("no-launcher", EpicClient.playInSteam(org.robolectric.RuntimeEnvironment.getApplication(), "Fig").getString("reason"))
+        assertEquals("no-launcher", EpicClient.runSteamGame(org.robolectric.RuntimeEnvironment.getApplication(), "1091500").getString("reason"))
+    }
+
+    @Test fun aSteamGameTheLauncherListsIsHandedToSteam() {
+        val app = org.robolectric.RuntimeEnvironment.getApplication()
+        val state = com.droiddeck.launcher.session.SessionState
+        state.running = true
+        state.stopRequested = false
+        state.mode = com.droiddeck.launcher.session.SessionService.MODE_RUN
+        state.program = EpicClient.PROGRAM
+        try {
+            assertEquals("bad-id", EpicClient.runSteamGame(app, "0").getString("reason"))
+            assertTrue(EpicClient.runSteamGame(app, "1091500").getBoolean("ok"))
+            val started = org.robolectric.Shadows.shadowOf(app).nextStartedActivity
+            assertEquals(EpicClient.ACTION_PLAY_IN_STEAM, started.action)
+            assertEquals("1091500", started.getStringExtra(com.droiddeck.launcher.frontend.GameLaunchIntent.EXTRA_APP_ID))
+        } finally {
+            state.running = false
+            state.program = null
+        }
     }
 
     @Test fun theLauncherEntryNeedsAnInstalledLauncherAndUsesItsIcon() {
@@ -233,6 +253,19 @@ class EpicClientTest {
         assertTrue(EpicClientLibrary.manifestOf(records.single(), null).getBoolean("bIsIncompleteInstall"))
         assertEquals("X", EpicClientLibrary.manifestOf(records.single(), " ").getString("DisplayName"))
         assertEquals(emptyList<org.json.JSONObject>() to true, EpicClientLibrary.clientInstallations(File(tmp.root, "missing")))
+    }
+
+    @Test fun theLauncherWaitsForTheFexToolSteamInstalls() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        com.droiddeck.launcher.session.SessionPrefs.setGameStorage(context, com.droiddeck.launcher.session.SessionPrefs.GAME_STORAGE_OFF, "")
+        val steamapps = File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context), "root/.local/share/Steam/steamapps").apply { mkdirs() }
+        assertFalse(EpicClient.fexReady(context))
+        EpicClient.requestFex(context)
+        assertTrue(File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context), "root/.config/droiddeck/fex-wanted").isFile)
+        File(steamapps, "appmanifest_3127680.acf").writeText("\"AppState\"\n{\n\t\"appid\"\t\t\"3127680\"\n\t\"installdir\"\t\t\"FEX-Emu\"\n}\n")
+        assertFalse(EpicClient.fexReady(context))
+        File(steamapps, "common/FEX-Emu").mkdirs()
+        assertTrue(EpicClient.fexReady(context))
     }
 
     @Test fun theLauncherInstallsWhereDroidDeckInstallsEpicGames() {

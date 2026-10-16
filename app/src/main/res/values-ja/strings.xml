@@ -1929,6 +1929,7 @@
     <string name="epic_client_checking">最新バージョンを確認中…</string>
     <string name="epic_client_unpacking">展開中…</string>
     <string name="epic_client_unreachable">ダウンロードサーバーが応答しませんでした</string>
+    <string name="epic_client_needs_fex">Epic Games Launcher には FEX が必要です。FEX は Steam がダウンロードします。Steam の起動後にもう一度ランチャーを開いてください。</string>
     <string name="epic_client_download_failed">ダウンロードに失敗しました：%1$s</string>
     <string name="epic_client_unpack_failed">ランチャーを展開できませんでした：%1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcherがサインインを受け付けませんでした。ランチャーからもう一度起動してください。</string>

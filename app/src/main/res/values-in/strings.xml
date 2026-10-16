@@ -1921,6 +1921,7 @@
     <string name="epic_client_checking">Memeriksa versi terbaru…</string>
     <string name="epic_client_unpacking">Mengekstrak…</string>
     <string name="epic_client_unreachable">Server unduhan tidak merespons</string>
+    <string name="epic_client_needs_fex">Epic Games Launcher memerlukan FEX, yang diunduh oleh Steam. Buka launcher lagi setelah Steam dimulai.</string>
     <string name="epic_client_download_failed">Unduhan gagal: %1$s</string>
     <string name="epic_client_unpack_failed">Tidak dapat mengekstrak launcher: %1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcher tidak menerima proses masuk. Mulai lagi dari launcher.</string>

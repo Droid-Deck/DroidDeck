@@ -1942,6 +1942,7 @@
     <string name="epic_client_checking">A legújabb verzió ellenőrzése…</string>
     <string name="epic_client_unpacking">Kicsomagolás…</string>
     <string name="epic_client_unreachable">A letöltési szerver nem válaszolt</string>
+    <string name="epic_client_needs_fex">Az Epic Games Launchernek szüksége van a FEX-re, amelyet a Steam tölt le. Nyisd meg újra a launchert, miután a Steam elindult.</string>
     <string name="epic_client_download_failed">Letöltés sikertelen: %1$s</string>
     <string name="epic_client_unpack_failed">Nem sikerült kicsomagolni a launchert: %1$s</string>
     <string name="epic_client_sign_in_failed">Az Epic Games Launcher nem fogadta el a bejelentkezést. Indítsa el újra a launcherből.</string>

@@ -1942,6 +1942,7 @@
     <string name="epic_client_checking">Kontrollerer den nyeste version…</string>
     <string name="epic_client_unpacking">Udpakker…</string>
     <string name="epic_client_unreachable">Downloadserveren svarede ikke</string>
+    <string name="epic_client_needs_fex">Epic Games Launcher skal bruge FEX, som Steam henter. Åbn launcheren igen, når Steam er startet.</string>
     <string name="epic_client_download_failed">Download mislykkedes: %1$s</string>
     <string name="epic_client_unpack_failed">Kunne ikke udpakke launcheren: %1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcher accepterede ikke login. Start den igen fra launcheren.</string>

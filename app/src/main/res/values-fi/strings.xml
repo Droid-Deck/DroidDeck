@@ -1942,6 +1942,7 @@
     <string name="epic_client_checking">Tarkistetaan uusinta versiota…</string>
     <string name="epic_client_unpacking">Puretaan…</string>
     <string name="epic_client_unreachable">Latauspalvelin ei vastannut</string>
+    <string name="epic_client_needs_fex">Epic Games Launcher tarvitsee FEXin, jonka Steam lataa. Avaa launcher uudelleen, kun Steam on käynnistynyt.</string>
     <string name="epic_client_download_failed">Lataus epäonnistui: %1$s</string>
     <string name="epic_client_unpack_failed">Launcherin purkaminen epäonnistui: %1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcher ei hyväksynyt kirjautumista. Käynnistä se uudelleen launcherista.</string>

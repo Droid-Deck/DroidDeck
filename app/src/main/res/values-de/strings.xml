@@ -1942,6 +1942,7 @@
     <string name="epic_client_checking">Neueste Version wird geprüft…</string>
     <string name="epic_client_unpacking">Wird entpackt…</string>
     <string name="epic_client_unreachable">Der Download-Server hat nicht geantwortet</string>
+    <string name="epic_client_needs_fex">Der Epic Games Launcher braucht FEX, das Steam herunterlädt. Öffne den Launcher erneut, sobald Steam gestartet ist.</string>
     <string name="epic_client_download_failed">Download fehlgeschlagen: %1$s</string>
     <string name="epic_client_unpack_failed">Der Launcher konnte nicht entpackt werden: %1$s</string>
     <string name="epic_client_sign_in_failed">Der Epic Games Launcher hat die Anmeldung nicht akzeptiert. Starte ihn über den Launcher erneut.</string>

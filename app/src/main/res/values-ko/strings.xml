@@ -1929,6 +1929,7 @@
     <string name="epic_client_checking">최신 버전 확인 중…</string>
     <string name="epic_client_unpacking">압축 해제 중…</string>
     <string name="epic_client_unreachable">다운로드 서버가 응답하지 않았습니다</string>
+    <string name="epic_client_needs_fex">Epic Games Launcher에는 Steam이 다운로드하는 FEX가 필요합니다. Steam이 시작된 후 런처를 다시 여세요.</string>
     <string name="epic_client_download_failed">다운로드 실패: %1$s</string>
     <string name="epic_client_unpack_failed">런처 압축을 해제할 수 없습니다: %1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcher가 로그인을 받아들이지 않았습니다. 런처에서 다시 시작하세요.</string>

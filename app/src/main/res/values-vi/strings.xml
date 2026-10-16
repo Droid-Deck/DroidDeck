@@ -1921,6 +1921,7 @@
     <string name="epic_client_checking">Đang kiểm tra phiên bản mới nhất…</string>
     <string name="epic_client_unpacking">Đang giải nén…</string>
     <string name="epic_client_unreachable">Máy chủ tải xuống không phản hồi</string>
+    <string name="epic_client_needs_fex">Epic Games Launcher cần FEX, do Steam tải xuống. Hãy mở lại launcher sau khi Steam đã khởi động.</string>
     <string name="epic_client_download_failed">Tải xuống thất bại: %1$s</string>
     <string name="epic_client_unpack_failed">Không thể giải nén launcher: %1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcher không nhận đăng nhập. Khởi động lại từ launcher.</string>

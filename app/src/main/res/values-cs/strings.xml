@@ -1984,6 +1984,7 @@
     <string name="epic_client_checking">Kontrola nejnovější verze…</string>
     <string name="epic_client_unpacking">Rozbaluje se…</string>
     <string name="epic_client_unreachable">Stahovací server neodpověděl</string>
+    <string name="epic_client_needs_fex">Epic Games Launcher potřebuje FEX, který stáhne Steam. Po spuštění Steamu otevřete launcher znovu.</string>
     <string name="epic_client_download_failed">Stažení se nezdařilo: %1$s</string>
     <string name="epic_client_unpack_failed">Spouštěč se nepodařilo rozbalit: %1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcher přihlášení nepřijal. Spusťte ho znovu ze spouštěče.</string>

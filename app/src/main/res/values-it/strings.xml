@@ -1963,6 +1963,7 @@
     <string name="epic_client_checking">Controllo della versione più recente…</string>
     <string name="epic_client_unpacking">Estrazione…</string>
     <string name="epic_client_unreachable">Il server di download non ha risposto</string>
+    <string name="epic_client_needs_fex">Epic Games Launcher ha bisogno di FEX, che viene scaricato da Steam. Riapri il launcher dopo l\'avvio di Steam.</string>
     <string name="epic_client_download_failed">Download non riuscito: %1$s</string>
     <string name="epic_client_unpack_failed">Impossibile estrarre il launcher: %1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcher non ha accettato l\'accesso. Avvialo di nuovo dal launcher.</string>
