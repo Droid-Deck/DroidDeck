@@ -145,6 +145,22 @@ object BattleNet {
     /** The FEX package Components has set for the prefix; null until the first start sets one. */
     fun fexInUse(context: Context): String? = ComponentsManager.gameComponents(context, APP_ID.toString())["fex"]
 
+    /**
+     * What a session of its own runs for [game], one of Battle.net's: [PROGRAM] with these arguments,
+     * which open Battle.net, have it launch the game and end with it - no Steam client, whose UI
+     * would take a gigabyte the game needs. Null for any other game, or a title without a code.
+     */
+    fun launchArgs(game: com.droiddeck.launcher.frontend.Library.SteamGame): List<String>? {
+        if (game.source != SOURCE) return null
+        val code = game.storeId?.let(::title)?.code ?: return null
+        return listOf("launch", code)
+    }
+
+    /** A Battle.net session's name, from its [PROGRAM] arguments: the game it launches, else Battle.net itself. */
+    fun sessionName(args: List<String>): String? =
+        if (args.getOrNull(0) == "launch") args.getOrNull(1)?.let { code -> TITLES.firstOrNull { it.code.equals(code, ignoreCase = true) }?.name }
+        else null
+
     /** The title an installed id names: the id itself, or the id with its locale (diablo3_enus); null when not known. */
     internal fun title(uid: String): Title? {
         val id = uid.lowercase()
