@@ -11,6 +11,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableIntStateOf
+import com.droiddeck.launcher.gpu.AutoDriverTrial
 import com.droiddeck.launcher.gpu.DriverBundle
 import com.droiddeck.launcher.gpu.DriverPairs
 import com.droiddeck.launcher.gpu.GpuInfo
@@ -47,7 +48,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
     var pairPercent by mutableIntStateOf(-1)
     var autoStatus by mutableStateOf("")
     var activeBundle by mutableStateOf<String?>(null)
-    private var autoCheckedThisProcess = false
+    private var lastAutoCheck = 0L
     private var pairModeOpen by mutableStateOf(false)
     var restartPending by mutableStateOf(false)
         private set
@@ -211,11 +212,32 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         if (auto) ensureAuto(force = false)
     }
 
+    fun checkOnOpen() {
+        if (SessionPrefs.gpuDriverMode(activity) == SessionPrefs.GPU_DRIVERS_AUTO) ensureAuto(force = false)
+        else if (!releaseChecking && releasesStale() && com.droiddeck.launcher.frontend.AutoComponents.isOnline(activity)) checkLatestTurnip()
+    }
+
+    private fun releasesStale(): Boolean {
+        val cached = TurnipReleases.cached(activity)
+        return cached == null || System.currentTimeMillis() - cached.checkedAt > RELEASE_CHECK_INTERVAL_MS ||
+            cached.assets.none { it.pair.isNotEmpty() }
+    }
+
     fun ensureAuto(force: Boolean) {
         mode = SessionPrefs.gpuDriverMode(activity)
         if (mode != SessionPrefs.GPU_DRIVERS_AUTO || pairBusy != null || releaseChecking) return
-        if (!force && autoCheckedThisProcess) return
-        autoCheckedThisProcess = true
+        if (SessionState.running) {
+            if (force) autoStatus = activity.getString(R.string.drivers_auto_waits_for_session)
+            return
+        }
+        AutoDriverTrial.rollbackDue(activity)?.let { trial ->
+            AutoDriverTrial.rollBack(activity, trial)
+            autoStatus = activity.getString(R.string.drivers_rolled_back, trial.name)
+            refreshDrivers()
+            return
+        }
+        if (!force && System.currentTimeMillis() - lastAutoCheck < RELEASE_CHECK_INTERVAL_MS) return
+        lastAutoCheck = System.currentTimeMillis()
         val displayChanged = SessionPrefs.androidDriver(activity) != QuestExperimental.defaultAndroidDriver()
         if (QuestExperimental.applyAutoDrivers(activity)) {
             autoStatus = activity.getString(
@@ -231,10 +253,8 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         releaseChecking = true
         autoStatus = activity.getString(R.string.drivers_checking_latest)
         Thread({
-            val cached = TurnipReleases.cached(activity)
-            val stale = cached == null || System.currentTimeMillis() - cached.checkedAt > 24 * 3_600_000L ||
-                cached.assets.none { it.pair.isNotEmpty() }
-            val problem = if (force || stale) runCatching { TurnipReleases.refresh(activity) }.exceptionOrNull()?.message else null
+            val problem = if (force || releasesStale()) runCatching { TurnipReleases.refresh(activity) }.exceptionOrNull()?.message else null
+            val holdBack = !force && com.droiddeck.launcher.frontend.AutoComponents.constrained(activity)
             ui.post {
                 releaseChecking = false
                 refreshReleaseRows()
@@ -248,6 +268,10 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
                         ?: activity.getString(R.string.upd_current_status)
                     pair == null || !pair.complete ->
                         autoStatus = problem?.let { activity.getString(R.string.upd_couldnt_check, it) } ?: activity.getString(R.string.drivers_recommended_unpublished)
+                    AutoDriverTrial.release(pair) in AutoDriverTrial.bad(activity) ->
+                        autoStatus = activity.getString(R.string.drivers_skipping_bad, pair.name, pair.version)
+                    SessionState.running -> autoStatus = activity.getString(R.string.drivers_auto_waits_for_session)
+                    holdBack && row?.installed != true -> autoStatus = activity.getString(R.string.drivers_auto_waits_for_network, pair.name, pair.version)
                     else -> installPair(pair, auto = true)
                 }
             }
@@ -268,8 +292,6 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         pairPercent = 0
         if (auto) autoStatus = activity.getString(R.string.drivers_downloading_pair, pair.name, pair.version)
         Thread({
-            val lm = LinuxVulkanDriverManager(activity)
-            val td = TurnipDriver(activity)
             var downloaded = false
             val result = runCatching {
                 val zips = pair.assets
@@ -283,22 +305,27 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
                 pairBusy = null
                 pairPercent = -1
                 result.onSuccess { (displayId, linuxId) ->
-                    val displayChanged = SessionPrefs.androidDriver(activity) != displayId
+                    if (auto && SessionState.running) {
+                        lastAutoCheck = 0L
+                        autoStatus = activity.getString(R.string.drivers_auto_waits_for_session)
+                        return@onSuccess
+                    }
+                    val previousDisplay = SessionPrefs.androidDriver(activity)
+                    val previousLinux = SessionPrefs.linuxDriver(activity)
+                    val displayChanged = previousDisplay != displayId
                     SessionPrefs.setAndroidDriver(activity, displayId)
                     SessionPrefs.setLinuxDriver(activity, linuxId)
                     val restart = displayChanged && CompositorHost.isStarted
                     if (auto) {
-                        val previous = SessionPrefs.gpuAutoInstalled(activity)
-                        for (id in previous - setOf(displayId, linuxId)) {
-                            val bundle = DriverBundle.containing(activity, id, lm.isInstalled(id))
-                            when {
-                                bundle != null -> { DriverBundle.remove(activity, bundle); TurnipReleases.forget(activity, bundle.id) }
-                                lm.isInstalled(id) -> lm.removeDriver(id)
-                                else -> td.remove(id)
-                            }
-                            TurnipReleases.forget(activity, id)
-                        }
-                        SessionPrefs.setGpuAutoInstalled(activity, setOf(displayId, linuxId))
+                        val trial = AutoDriverTrial.current(activity)
+                        val lastGood = trial?.let { setOf(it.previousDisplay, it.previousLinux) } ?: setOf(previousDisplay, previousLinux)
+                        val changed = previousDisplay != displayId || previousLinux != linuxId
+                        SessionPrefs.setGpuAutoInstalled(activity, SessionPrefs.gpuAutoInstalled(activity) + setOf(displayId, linuxId))
+                        if (changed) AutoDriverTrial.begin(
+                            activity, AutoDriverTrial.release(pair), "${pair.name} ${pair.version}", displayId, linuxId,
+                            trial?.previousDisplay ?: previousDisplay, trial?.previousLinux ?: previousLinux,
+                        )
+                        if (!SessionState.running) AutoDriverTrial.prune(activity, lastGood + setOf(displayId, linuxId))
                         autoStatus = activity.getString(
                             if (downloaded) { if (restart) R.string.drivers_updated_to_restart else R.string.drivers_updated_to }
                             else { if (restart) R.string.drivers_switched_to_restart else R.string.drivers_switched_to },
@@ -506,6 +533,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
 
     private companion object {
         const val TAG = "MainActivity"
+        const val RELEASE_CHECK_INTERVAL_MS = 3_600_000L
     }
 }
 

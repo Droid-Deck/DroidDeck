@@ -1285,6 +1285,10 @@
     <string name="drivers_downloading_pair">Downloading %1$s %2$s…</string>
     <string name="drivers_updated_to">Updated to %1$s %2$s.</string>
     <string name="drivers_updated_to_restart">Updated to %1$s %2$s. The display driver applies after DroidDeck restarts.</string>
+    <string name="drivers_auto_waits_for_session">Driver updates wait until the session ends.</string>
+    <string name="drivers_auto_waits_for_network">%1$s %2$s will download once you\'re off mobile data and battery saver.</string>
+    <string name="drivers_skipping_bad">%1$s %2$s didn\'t start a session here, so Auto is staying on the drivers that did.</string>
+    <string name="drivers_rolled_back">%1$s didn\'t start a session twice, so Auto went back to the drivers that worked.</string>
     <string name="drivers_switched_to">Switched to %1$s %2$s.</string>
     <string name="drivers_switched_to_restart">Switched to %1$s %2$s. The display driver applies after DroidDeck restarts.</string>
     <string name="drivers_using">Using %1$s %2$s.</string>
