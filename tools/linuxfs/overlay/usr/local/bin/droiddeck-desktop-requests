@@ -1,14 +1,10 @@
 #!/usr/bin/python3
-"""Programs the app asks the desktop to open: Battle.net from its tile on the Desktop tab.
+"""Opens what the app asks the desktop for in $BL_LAUNCH_DIR/desktop-open: a program, then one argument a line.
 
     droiddeck-desktop-requests            runs each request until the desktop ends
     droiddeck-desktop-requests --install  writes the autostart entry Plasma starts this from
 
-The app leaves a request in the session root ($BL_LAUNCH_DIR/desktop-open, tmp + rename): the
-program's path on the first line, then one argument a line. It writes one as the desktop starts and
-into a desktop that is already running. Plasma starts this once its shell is up, from the autostart
-entry, so a program opened here has the session's environment, as one opened from the menu has.
-It then looks for a request every POLL seconds. Only the app's own programs (in /usr/local/bin) run.
+Started from Plasma's autostart so a program opened here has the session's environment.
 """
 import fcntl
 import os
@@ -42,7 +38,6 @@ def install(path=AUTOSTART):
 
 
 def take(folder):
-    """The request waiting in [folder], read and removed, as [program, args...]; None when there is none."""
     path = os.path.join(folder, REQUEST)
     taken = path + ".taken"
     try:
@@ -83,7 +78,6 @@ def run(request, folder=BIN):
 
 
 def single(folder):
-    """This desktop's only copy: the lock, or None when another copy holds it."""
     handle = open(os.path.join(folder, "droiddeck-desktop-requests.lock"), "w")
     try:
         fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)

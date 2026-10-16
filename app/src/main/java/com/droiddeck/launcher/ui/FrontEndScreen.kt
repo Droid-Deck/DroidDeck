@@ -99,13 +99,9 @@ class FrontEndState(
     val romsDir: String?,
     val logsEnabled: Boolean,
     val agentCommands: Boolean = false,
-    /** Setup > Diagnostics: cached apps closed before a session (SessionPrefs.clearCachedApps). */
     val clearCachedApps: Boolean = false,
-    /** Whether the app has a Wireless debugging pairing to close them with. */
     val adbPaired: Boolean = false,
-    /** Setup > Diagnostics: at most this many apps cached during a session (BackgroundAppLimit). */
     val backgroundAppLimit: Int = -1,
-    /** Setup > Diagnostics: the session screen's memory readout (SessionPrefs.MEMORY_HUD_*). */
     val memoryHud: String = "off",
     val steamGames: List<Library.SteamGame>,
     val emulators: List<Library.Emulator>,
@@ -130,9 +126,7 @@ class FrontEndState(
     val packageStage: String? = null,
     val packagePercent: Int = -1,
     val sessionRunning: Boolean = false,
-    /** The session running is the desktop: Battle.net opens in it instead of starting one. */
     val desktopRunning: Boolean = false,
-    /** Battle.net's client is installed in its prefix; it is being removed. */
     val battleNetInstalled: Boolean = false,
     val battleNetRemoving: Boolean = false,
     val removalPending: Boolean = false,
@@ -182,10 +176,8 @@ class FrontEndActions(
     val onEmulator: (Library.Emulator) -> Unit,
     val onFlatpakApp: (String, String) -> Unit = { _, _ -> },
     val onUserApp: (com.droiddeck.launcher.runtime.UserApps.App) -> Unit = {},
-    /** Battle.net in a desktop window, installed first when it is not there; and removed. */
     val onBattleNet: () -> Unit = {},
     val onRemoveBattleNet: () -> Unit = {},
-    /** Battle.net opened on the desktop with a game's install (its id: fenris, osi...), installed first if need be. */
     val onBattleNetInstall: (String) -> Unit = {},
     val onRom: (Library.Rom) -> Unit,
     val onResume: () -> Unit,
@@ -252,7 +244,6 @@ class FrontEndActions(
     val updates: UpdatesActions = UpdatesActions(),
 )
 
-/** A page of Desktop's own, out of a card in its dock: an emulator, a ROM, an added app, Battle.net or Flathub. */
 internal fun desktopSubpage(selected: String) =
     selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:") ||
         selected == "store" || selected == BATTLENET_PAGE

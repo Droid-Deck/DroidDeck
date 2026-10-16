@@ -10,21 +10,12 @@ import com.droiddeck.launcher.R
 import java.io.File
 import java.util.Locale
 
-/**
- * What the memory readout reads, from /proc: the device's memory and swap (meminfo) and, for the
- * advanced view, the session's processes split in two - the game, every process in a Wine prefix
- * (the game, its Wine and whatever else runs there), and DroidDeck, the app and the rest of the
- * session (Steam, gamescope, proot) - with the GPU's memory (KGSL) beside them and Android, the
- * rest of what is in use. Each process counts its resident anonymous and shared memory (status's
- * RssAnon + RssShmem): counters the kernel keeps, so a sample walks no page tables.
- */
 internal object MemoryReadout {
     data class Device(val totalKb: Long, val availableKb: Long, val swapTotalKb: Long, val swapFreeKb: Long) {
         val usedKb get() = (totalKb - availableKb).coerceAtLeast(0)
         val swapUsedKb get() = (swapTotalKb - swapFreeKb).coerceAtLeast(0)
     }
 
-    /** The game's and DroidDeck's memory, and the GPU's (null when KGSL does not say), in kB. */
     data class Split(val gameKb: Long, val droiddeckKb: Long, val gpuKb: Long?)
 
     fun parseMeminfo(text: String): Device? {
@@ -34,13 +25,12 @@ internal object MemoryReadout {
         return Device(total, available, field("SwapTotal") ?: 0, field("SwapFree") ?: 0)
     }
 
-    /** A process's resident anonymous and shared memory from its /proc status, in kB. */
+    // status's RssAnon and RssShmem are counters the kernel keeps, so a sample walks no page tables.
     fun residentKb(status: String): Long {
         fun field(name: String) = Regex("""(?m)^$name:\s+(\d+) kB""").find(status)?.groupValues?.get(1)?.toLongOrNull() ?: 0
         return field("RssAnon") + field("RssShmem")
     }
 
-    /** Whether a process runs in a Wine prefix, from its NUL-separated /proc environ. */
     fun inWinePrefix(environ: ByteArray): Boolean {
         var start = 0
         val key = "WINEPREFIX=".toByteArray()
@@ -53,7 +43,6 @@ internal object MemoryReadout {
         return false
     }
 
-    /** What is left of the memory in use once the session's and the GPU's are taken out: Android and its apps. */
     fun androidKb(device: Device, split: Split): Long =
         (device.usedKb - split.gameKb - split.droiddeckKb - (split.gpuKb ?: 0)).coerceAtLeast(0)
 
@@ -63,7 +52,6 @@ internal object MemoryReadout {
 
     fun device(): Device? = runCatching { parseMeminfo(File("/proc/meminfo").readText()) }.getOrNull()
 
-    /** The app's process and every process under it, split into the game's and DroidDeck's. */
     fun split(root: Int = android.os.Process.myPid()): Split {
         val parents = HashMap<Int, Int>()
         File("/proc").listFiles()?.forEach { entry ->
@@ -96,23 +84,17 @@ internal object MemoryReadout {
         return stat.substring(close + 2).split(' ').getOrNull(1)?.toIntOrNull()
     }
 
-    /** Every GPU page on the device, where KGSL lets the app read it. */
+    // KGSL's page_alloc counts every GPU page on the device, not only the session's.
     private fun gpuKb(): Long? = runCatching {
         File("/sys/class/kgsl/kgsl/page_alloc").readText().trim().split(Regex("\\s+"))[0].toLong() / 1024
     }.getOrNull()
 }
 
-/**
- * The memory readout in the session's log (app.log), every [PERIOD_MS] for as long as the session
- * runs, whether or not it shows on screen: when Android's low-memory killer ends a session, what
- * grew before it - the game, the GPU, DroidDeck or Android - is in the log it leaves.
- */
 object MemoryLog {
     private const val TAG = "Memory"
     private const val PERIOD_MS = 10_000L
     @Volatile private var thread: Thread? = null
 
-    /** One line: in use and available, swap, then the game, DroidDeck, Android and the GPU, in MB. */
     internal fun line(device: MemoryReadout.Device, split: MemoryReadout.Split): String =
         "used ${device.usedKb / 1024}/${device.totalKb / 1024} MB, available ${device.availableKb / 1024} MB, " +
             "swap ${device.swapUsedKb / 1024}/${device.swapTotalKb / 1024} MB | game ${split.gameKb / 1024}, " +
@@ -137,13 +119,7 @@ object MemoryLog {
     }
 }
 
-/**
- * The memory readout under the frame rate on the session screen (Setup > Diagnostics): memory and
- * swap in use, simple; and in the advanced view, the game, DroidDeck, Android and the GPU. Sampled
- * every [PERIOD_MS] off the main thread while it shows.
- */
 class MemoryHud(context: Context) {
-    /** Empty when the readout is off or not yet started; one line per row. */
     var text by mutableStateOf("")
         private set
 
@@ -152,7 +128,6 @@ class MemoryHud(context: Context) {
     @Volatile private var running = false
     private var thread: Thread? = null
 
-    /** Re-reads the setting: starts or stops to match it. */
     fun refresh() {
         if (SessionPrefs.memoryHud(context) == SessionPrefs.MEMORY_HUD_OFF) stop() else start()
     }

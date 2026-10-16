@@ -5,19 +5,15 @@
 
 The program belongs to an installed Steam game when it sits in one's folder, to a prefix when it
 sits in one's drive_c, or to a non-Steam shortcut that names it; any other program gets a prefix of
-its own, under the id the client gives a new shortcut. --prefix ID puts it in compatdata/ID whatever
-it is (an installer whose program and games must share one prefix: droiddeck-battlenet). That
-title's CompatToolMapping entry in
+its own, under the id the client gives a new shortcut. That title's CompatToolMapping entry in
 config.vdf picks the tool, else the client's default for all other titles ("0"). The tool is
 started as the client starts it - its toolmanifest's command line, the waitforexitandrun verb and
 the STEAM_COMPAT_* environment - so its wrapper applies the game's settings, components and audio.
 --window keeps the program in the desktop's own window, drawn with WineD3D on the desktop's software
-GL (llvmpipe): KWin there composites in software, and the session's zink, which a start from outside
-the desktop carries, finds no device. --verb run starts it in
-a prefix that is already running, beside what runs there, where waitforexitandrun would wait for all
-of that to exit first; the wrapper's launch-time steps (components, store requests) are skipped then.
---game-id ID keeps the game id of the launch it runs for (a Battle.net game's Steam shortcut, whose
-Battle.net runs in Battle.net's prefix): gamescope shows the windows that carry the id Steam launched.
+GL (llvmpipe): KWin there composites in software, and the session's zink finds no device.
+--prefix ID puts the program in compatdata/ID whatever it is. --verb run starts it beside what already
+runs in the prefix, which waitforexitandrun would wait for; the wrapper's launch-time steps are skipped.
+--game-id ID keeps the id of the launch it runs for: gamescope shows the windows that carry the id Steam launched.
 """
 import json
 import os
@@ -33,7 +29,6 @@ BIN_DIR = os.path.dirname(os.path.abspath(__file__))
 STATE = os.path.join(HOME, ".local", "share", "droiddeck-compat", "state.json")
 EXTRA_LIBRARIES = ("/mnt/droiddeck", "/mnt/droiddeck-sd")
 SYSTEM_TOOLS = ("/usr/share/steam/compatibilitytools.d", "/usr/local/share/steam/compatibilitytools.d")
-# GL in a desktop window, as droiddeck-desktop sets it for KDE itself.
 DESKTOP_GL = {"LIBGL_ALWAYS_SOFTWARE": "1", "GALLIUM_DRIVER": "llvmpipe"}
 NOT_DESKTOP_GL = ("MESA_LOADER_DRIVER_OVERRIDE", "LIBGL_KOPPER_DRI2")
 VERB = "waitforexitandrun"
@@ -262,13 +257,12 @@ def locate(program, root):
 
 
 def fixed(program, root, appid):
-    """[program] in compatdata/[appid], whatever it belongs to."""
     return Target(appid, os.path.join(root, "steamapps", "compatdata", str(appid)),
                   os.path.dirname(program), root, "fixed")
 
 
 def prefix_id(value):
-    """A --prefix value: a shortcut's or a game's 32-bit id, never 0 (the client's own prefix)."""
+    """Never 0: compatdata/0 is the client's own prefix."""
     return value if value.isdigit() and not value.startswith("0") and int(value) <= 0xFFFFFFFF else None
 
 

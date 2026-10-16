@@ -140,7 +140,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private lateinit var sessionOverlay: ComposeView
     private lateinit var loading: LoadingState
     private lateinit var hud: PerfHud
-    /** Setup > Diagnostics' memory readout, under the frame rate. */
     private lateinit var memoryHud: com.droiddeck.launcher.session.MemoryHud
     private var padBridge: PadBridge? = null
     private var padMotion: com.droiddeck.launcher.input.PadMotion? = null
@@ -431,7 +430,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             val needRuntime = com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.installedVersion(this) == null
             val needDesktop = intent.getStringExtra(SessionService.EXTRA_MODE) == SessionService.MODE_DESKTOP &&
                 !com.droiddeck.launcher.runtime.DesktopCatalog.desktopInstalled(this)
-            // Battle.net runs on the same Proton as Steam's games, so a desktop opening it seeds it too.
+            // Battle.net runs on the same Proton as Steam's games.
             val protonUser = (intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM) == SessionService.MODE_STEAM ||
                 intent.getStringExtra(SessionService.EXTRA_PROGRAM) == com.droiddeck.launcher.runtime.BattleNet.PROGRAM
             val needProton = protonUser && com.droiddeck.launcher.runtime.DesktopCatalog.protonSeedNeeded(this)
@@ -2400,7 +2399,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (runtimeRemovalBlocked) return
         com.droiddeck.launcher.ui.Motion.refresh(this)
         refreshHomeApp()
-        // Setup may have changed the memory readout while the session was behind it.
         if (::memoryHud.isInitialized && SessionState.running && SessionState.firstFrameSeen) memoryHud.refresh()
         if (intent?.action == SessionService.ACTION_RESUME) {
             intent.action = null

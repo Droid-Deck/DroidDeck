@@ -39,34 +39,23 @@ import com.droiddeck.launcher.runtime.BattleNet
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** Battle.net's page, and its card's key in Desktop's dock. */
 internal const val BATTLENET_PAGE = "bnet"
 
-/** Battle.net's blue, on its card and page. */
 internal val BattleNetBlue = Color(0xFF148EFF)
 
-/**
- * Battle.net's page, out of its card on Desktop: Install or Open (the desktop runs Blizzard's
- * installer, or the client, in a window of its own), the FEX build its prefix runs on, Remove, which
- * asks first, the games it has installed - in Steam too, each a tile to its page on Games - and the
- * titles it offers, each opening Battle.net on the desktop with that game's install.
- */
 @Composable
 internal fun BattleNetPage(s: FrontEndState, a: FrontEndActions, onSelect: (String) -> Unit) {
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val narrow = LocalNarrowPane.current
     val installed = s.battleNetInstalled
-    // Set by a start, from the Nightlies: read again as a session ends.
     val fex by produceState<String?>(null, s.sessionRunning, installed) {
         value = withContext(Dispatchers.IO) { runCatching { BattleNet.fexInUse(ctx) }.getOrNull() }
     }
-    // A desktop running opens it there; any other session would have to end first.
     val elsewhere = s.sessionRunning && !s.desktopRunning
     val games = s.steamGames.filter { it.source == BattleNet.SOURCE }
     val density = androidx.compose.ui.platform.LocalDensity.current.density
     val store = remember(games) { BattleNet.STORE.filter { BattleNet.notInstalled(it, games.map { g -> g.storeId }) } }
-    // The store's covers, fetched once in the background (Steam's store, else SteamGridDB).
     var coversFetched by remember { mutableStateOf(0) }
     val covers by produceState(emptyMap<String, java.io.File>(), coversFetched) {
         value = withContext(Dispatchers.IO) { BattleNet.STORE.mapNotNull { t -> BattleNet.cover(ctx, t)?.let { t.uid to it } }.toMap() }
@@ -101,7 +90,6 @@ internal fun BattleNetPage(s: FrontEndState, a: FrontEndActions, onSelect: (Stri
                 enabled = !s.busy && !elsewhere && !s.battleNetRemoving, main = true, onClick = a.onBattleNet,
             )
             BusyChip(s)
-            // The games it installed, read again (the Games tab and Steam's list follow).
             if (installed) SecondaryButton(stringResource(R.string.bnet_refresh), enabled = !s.battleNetRemoving, onClick = a.onLibraryChanged)
             if (installed) RemoveBattleNetButton(enabled = !s.busy && !s.sessionRunning && !s.battleNetRemoving, onRemove = a.onRemoveBattleNet)
             when {
@@ -130,7 +118,6 @@ internal fun BattleNetPage(s: FrontEndState, a: FrontEndActions, onSelect: (Stri
             })
         }
     }
-    // What Battle.net offers that is not installed: a tile opens Battle.net with the game's install.
     if (store.isEmpty()) return
     Rise(7) { SectionTitle(stringResource(R.string.bnet_store), store.size.toString()) }
     Rise(8) { Box(Modifier.fillMaxWidth().padding(bottom = 4.dp)) { Note(stringResource(R.string.bnet_store_note)) } }
@@ -142,7 +129,6 @@ internal fun BattleNetPage(s: FrontEndState, a: FrontEndActions, onSelect: (Stri
     }
 }
 
-/** Battle.net's mark here: a controller in its blue. */
 @Composable
 internal fun BattleNetIcon(size: Int) {
     Box(
@@ -151,7 +137,6 @@ internal fun BattleNetIcon(size: Int) {
     ) { Icon(Icons.Outlined.SportsEsports, null, tint = BattleNetBlue, modifier = Modifier.size((size / 2).dp)) }
 }
 
-/** Remove, which asks first: are you sure steps out of it in red, Keep first and focused. */
 @Composable
 private fun RemoveBattleNetButton(enabled: Boolean, onRemove: () -> Unit) {
     val colors = MaterialTheme.colorScheme

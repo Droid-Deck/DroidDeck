@@ -23,7 +23,6 @@ import java.io.File
 import java.nio.file.Files
 import java.util.zip.CRC32
 
-/** A Wine system.reg as Battle.net's Agent leaves it: its own entry, two games, one in a 64-bit key, and another program. */
 private val REGISTRY = """
 WINE REGISTRY Version 2
 ;; All keys relative to \\Machine
@@ -101,7 +100,6 @@ class BattleNetTest {
         assertEquals("FEXCore-2610-d2rfix28-linux.wcp", BattleNet.ensureFex(context, ::noRefresh))
 
         assertEquals(mapOf("fex" to "FEXCore-2610-d2rfix28-linux.wcp"), ComponentsManager.gameComponents(context, BattleNet.APP_ID.toString()))
-        // Asked again with nothing new: the same answer, nothing changed.
         assertEquals("FEXCore-2610-d2rfix28-linux.wcp", BattleNet.ensureFex(context, ::noRefresh))
     }
 
@@ -136,7 +134,6 @@ class BattleNetTest {
     @Test fun aListingWithoutD2rfixIsAnError() {
         catalog("FEXCore-2610-linux.wcp")
         var refreshed = 0
-        // The refresh finds nothing either (offline): the cached listing stands, and has none.
         assertThrows(IllegalStateException::class.java) { BattleNet.ensureFex(context) { refreshed++; emptyList() } }
         assertEquals(1, refreshed)
         assertEquals(emptyMap<String, String>(), ComponentsManager.gameComponents(context, BattleNet.APP_ID.toString()))
@@ -184,7 +181,6 @@ class BattleNetTest {
         assertEquals("Fen", BattleNet.title("Fenris")?.code)
         assertEquals("WTCG", BattleNet.title("hs_beta")?.code)
         assertEquals("Diablo II: Resurrected", BattleNet.title("osi_dede")?.name)
-        // Classic starts through its own launcher, and the Agent is not a game.
         assertNull(BattleNet.title("wow_classic"))
         assertNull(BattleNet.title("wow_classic_enus"))
         assertNull(BattleNet.title("agent"))
@@ -208,7 +204,6 @@ class BattleNetTest {
             field(1, message(field(1, "s2"))),
         )
         assertEquals(listOf("agent" to "C:/ProgramData/Battle.net/Agent", "hs_beta" to "C:/Program Files (x86)/Hearthstone"), BattleNet.productDbEntries(db))
-        // Cut off (being written): nothing from it, rather than a guess.
         assertEquals(emptyList<Pair<String, String>>(), BattleNet.productDbEntries(db.copyOf(db.size - 3)))
         assertEquals(emptyList<Pair<String, String>>(), BattleNet.productDbEntries(byteArrayOf(0x0a, 0x7f, 0x01)))
     }
@@ -225,7 +220,6 @@ class BattleNetTest {
         for (folder in listOf("Program Files (x86)/Diablo IV", "Games/Diablo II Resurrected", "Program Files (x86)/Hearthstone", "Program Files (x86)/World of Warcraft")) {
             File(pfx, "drive_c/$folder").mkdirs()
         }
-        // Overwatch's entry is there, its folder is not.
         val games = BattleNet.games(context)
         assertEquals(listOf("Fen", "OSI", "WTCG"), games.map { it.code })
         assertEquals(listOf("Diablo IV", "Diablo II: Resurrected", "Hearthstone"), games.map { it.name })
@@ -247,7 +241,6 @@ class BattleNetTest {
         assertEquals((shortcut.appId shl 32) or 0x02000000L, shortcut.gameId)
         assertEquals(BattleNet.SOURCE, shortcut.source)
         assertEquals("Diablo IV Launcher.exe", shortcut.exe.name)
-        // A store's game: a shortcut, never a Steam install of the same title.
         val listing = com.droiddeck.launcher.frontend.AddedGames.writeListing(context, listOf(shortcut)).readText()
         val entry = JSONArray(listing).getJSONObject(0)
         assertEquals(BattleNet.SOURCE, entry.getString("store"))
@@ -260,7 +253,6 @@ class BattleNetTest {
         assertEquals(codes.distinct(), codes)
         assertTrue("Fen" in codes && "OSI" in codes && "WTCG" in codes)
         assertFalse(BattleNet.STORE.any { it.uid == "d3cn" || it.uid == "fen" })
-        // Each is asked for by the id the Agent installs it under.
         assertEquals("fenris", BattleNet.STORE.first { it.code == "Fen" }.uid)
         assertTrue(BattleNet.STORE.all { it.uid.matches(Regex("[a-z0-9_]{1,32}")) })
         val installed = listOf("fenris", "diablo3_enus", null)
@@ -274,12 +266,10 @@ class BattleNetTest {
             -123, "x", null, com.droiddeck.launcher.frontend.Library.ADDED, source = source, storeId = storeId)
         assertEquals(listOf("launch", "Fen"), BattleNet.launchArgs(game(BattleNet.SOURCE, "fenris")))
         assertEquals(listOf("launch", "OSI"), BattleNet.launchArgs(game(BattleNet.SOURCE, "osi")))
-        // A localized install's id names its title too.
         assertEquals(listOf("launch", "D3"), BattleNet.launchArgs(game(BattleNet.SOURCE, "diablo3_enus")))
         assertNull(BattleNet.launchArgs(game(BattleNet.SOURCE, "unknown_title")))
         assertNull(BattleNet.launchArgs(game(BattleNet.SOURCE, null)))
         assertNull(BattleNet.launchArgs(game("gog", "fenris")))
-        // The session is named for the game it launches.
         assertEquals("Diablo IV", BattleNet.sessionName(listOf("launch", "Fen")))
         assertNull(BattleNet.sessionName(listOf("open")))
         assertNull(BattleNet.sessionName(emptyList()))
@@ -290,7 +280,6 @@ class BattleNetTest {
         assertEquals(1536, BattleNet.videoMemory(7468))
         assertEquals(2560, BattleNet.videoMemory(15200))
         assertEquals(3584, BattleNet.videoMemory(60000))
-        // Never an exact 4 GB, which reads as none to a game counting in 32 bits.
         assertTrue(BattleNet.videoMemory(Long.MAX_VALUE / 2) < 4096)
         assertEquals(
             "dxgi.maxDeviceMemory = 2048; dxgi.maxSharedMemory = 2048; d3d9.maxAvailableMemory = 2048",
@@ -305,17 +294,14 @@ class BattleNetTest {
         val scope = BattleNet.APP_ID.toString()
         assertTrue(BattleNet.ensureVideoMemory(context))
         assertEquals(BattleNet.videoMemoryOptions(2048), GameEnvironmentStore.read(context).games[scope]?.get("DXVK_CONFIG"))
-        // The guest sees it with the rest of the profile.
         val published = File(LinuxRuntime.rootDir(context), "root/.config/droiddeck/game-environment.json").readText()
         assertTrue("dxgi.maxDeviceMemory = 2048" in JSONObject(published).getJSONObject("games").getJSONObject(scope).getString("DXVK_CONFIG"))
         assertFalse(BattleNet.ensureVideoMemory(context))
-        // A value the user put there, or switched off there, stays theirs.
         for (own in listOf("dxvk.maxFrameRate = 30", null)) {
             GameEnvironmentStore.save(context, GameEnvironmentStore.read(context).let { it.withEntries(scope, it.entries(scope) + ("DXVK_CONFIG" to own)) })
             assertFalse(BattleNet.ensureVideoMemory(context))
             assertEquals(own, GameEnvironmentStore.read(context).games[scope]?.get("DXVK_CONFIG"))
         }
-        // Back to inheriting, it is the profile's own default again.
         GameEnvironmentStore.save(context, GameEnvironmentStore.read(context).let { it.withEntries(scope, it.entries(scope) - "DXVK_CONFIG") })
         assertTrue(BattleNet.ensureVideoMemory(context))
     }
@@ -341,7 +327,6 @@ class BattleNetTest {
         file, comp, "FexCore-Linux", "https://github.com/The412Banner/Nightlies/releases/download/FexCore-Linux/$file", 4, "sha256:" + "ab".repeat(32),
     )
 
-    /** The Nightlies listing as fetched at [fetchedAt] (just now), with [files] on the FexCore-Linux release. */
     private fun catalog(vararg files: String, fetchedAt: Long = System.currentTimeMillis() / 1000) {
         val cache = File(context.filesDir, "components/catalog.json")
         cache.parentFile!!.mkdirs()
@@ -351,7 +336,6 @@ class BattleNetTest {
         cache.writeText(JSONObject().put("items", items).put("fetchedAt", fetchedAt).toString())
     }
 
-    /** A stored FEX package: a profile and the two Windows-side FEX DLLs. */
     private fun store(file: String) {
         val wcp = File(context.filesDir, "components/packages/$file")
         wcp.parentFile!!.mkdirs()

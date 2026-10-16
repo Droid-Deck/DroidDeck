@@ -22,7 +22,6 @@ class MemoryReadoutTest {
         assertEquals(16777212L - 10358080L, device.swapUsedKb)
         assertEquals("7.8", MemoryReadout.gb(device.usedKb))
         assertEquals("10.9", MemoryReadout.gb(device.totalKb))
-        // No swap is no swap, not an error; no MemAvailable is no reading.
         assertEquals(0L, MemoryReadout.parseMeminfo("MemTotal: 100 kB\nMemAvailable: 40 kB\n")!!.swapUsedKb)
         assertNull(MemoryReadout.parseMeminfo("MemTotal: 100 kB\n"))
     }
@@ -52,7 +51,6 @@ class MemoryReadoutTest {
         val device = MemoryReadout.Device(totalKb = 10_000, availableKb = 3_000, swapTotalKb = 0, swapFreeKb = 0)
         assertEquals(3_000L, MemoryReadout.androidKb(device, MemoryReadout.Split(gameKb = 2_000, droiddeckKb = 1_000, gpuKb = 1_000)))
         assertEquals(4_000L, MemoryReadout.androidKb(device, MemoryReadout.Split(gameKb = 2_000, droiddeckKb = 1_000, gpuKb = null)))
-        // Counted apart, the parts can add up past what is in use: never below nothing.
         assertEquals(0L, MemoryReadout.androidKb(device, MemoryReadout.Split(gameKb = 6_000, droiddeckKb = 2_000, gpuKb = 1_000)))
     }
 

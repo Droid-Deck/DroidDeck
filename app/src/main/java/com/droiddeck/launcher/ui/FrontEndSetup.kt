@@ -444,7 +444,6 @@ internal fun SetupPanel(
                                 stringResource(R.string.setup_reset_settings_button), a.onResetSettings)
                         }
                         SettingsGroup(stringResource(R.string.setup_group_memory)) {
-                            // Closed over the Wireless debugging pairing the child-process repair saves.
                             ToggleRow(
                                 host, "clear-cached-apps", stringResource(R.string.setup_clear_cached),
                                 stringResource(if (s.adbPaired) R.string.setup_clear_cached_hint else R.string.setup_clear_cached_unpaired),
@@ -471,8 +470,7 @@ internal fun SetupPanel(
                                 ),
                                 s.memoryHud, onPick = a.onMemoryHud,
                             )
-                            // The pairing the two options above use, without turning the child-process
-                            // limit on: the page pairs and then sets the limit off, as DroidDeck wants it.
+                            // The repair page pairs, then sets the child-process limit off, as DroidDeck wants it anyway.
                             if (!s.adbPaired) ActionRow(
                                 stringResource(R.string.setup_adb_pair), stringResource(R.string.setup_adb_pair_hint),
                                 stringResource(R.string.setup_adb_pair_button), { onRequestWirelessAdb(false) },

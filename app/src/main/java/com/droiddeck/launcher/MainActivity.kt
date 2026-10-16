@@ -522,9 +522,7 @@ class MainActivity : ComponentActivity() {
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
             return true
         }
-        // A Battle.net game needs no Steam client: a session of its own opens Battle.net, has it
-        // launch the game and ends with it (droiddeck-battlenet launch), the pad an Xbox controller
-        // the game reads itself. Through the child-process gate as a Steam session: Wine's many.
+        // steamSession: Wine's many processes need the same child-process gate as Steam.
         com.droiddeck.launcher.runtime.BattleNet.launchArgs(game)?.let { args ->
             return startSession(Intent(this, SessionActivity::class.java)
                 .putExtra(SessionActivity.EXTRA_RETURN_HOME, returnHome)
@@ -567,7 +565,7 @@ class MainActivity : ComponentActivity() {
         gameSyncFolder = GameFileSync.folder(this)
         displayManager = getSystemService(DISPLAY_SERVICE) as DisplayManager
         refreshPhantomStatus()
-        // A session Android killed never put its background-app limit back: with none running, now.
+        // A session Android killed never restored its background-app limit.
         if (!SessionState.running) com.droiddeck.launcher.core.BackgroundAppLimit.restoreAsync(this)
         theme = SessionPrefs.theme(this)
         frameGenLabel = getString(R.string.frame_gen_off)
@@ -1313,12 +1311,6 @@ class MainActivity : ComponentActivity() {
         desktopPresent = DesktopCatalog.desktopPresent(this)
     }
 
-    /**
-     * Battle.net in a window on the desktop, doing [args] (droiddeck-battlenet's: install-game ID);
-     * it installs Battle.net first when it is not there. A desktop running is asked to open it (the
-     * activity then shows it); otherwise the desktop starts with it. Another kind of session has to
-     * end first, which its page says.
-     */
     private fun openBattleNet(args: List<String> = emptyList()) {
         val program = com.droiddeck.launcher.runtime.BattleNet.PROGRAM
         if (!SessionState.running) {
@@ -1333,7 +1325,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** Battle.net's prefix and everything in it, gone, off the main thread; only with no session running. */
     private fun removeBattleNet() {
         if (battleNetRemoving || SessionState.running) return
         battleNetRemoving = true
@@ -1815,7 +1806,6 @@ class MainActivity : ComponentActivity() {
 
     private fun refreshPhantomStatus() {
         phantomProcessStatus = PhantomProcessLimit.read(this)
-        // Pairing happens on the same page that fixes the limit; the Memory options follow it.
         adbPaired = WirelessAdbFix.hasSavedPairing(this)
         phantomWarning = if (PhantomProcessLimit.blocksSteam(phantomProcessStatus)) {
             getString(

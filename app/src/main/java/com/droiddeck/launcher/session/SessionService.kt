@@ -247,9 +247,7 @@ class SessionService : Service() {
         SessionEvents.transition(SessionPhase.STARTING_GUEST, "service.started", mapOf("mode" to SessionState.mode))
         com.droiddeck.launcher.wayland.CompositorHost.newSession()
         val gen = ++sessionGen
-        // A desktop asked to open a program (Battle.net's tile) opens it once Plasma is up; no
-        // session inherits a request an earlier desktop never got to. Here, on the main thread, so
-        // a request the launcher leaves for this desktop once it is running comes after it.
+        // On the main thread, so a request the launcher leaves once this desktop runs comes after the reset.
         runCatching {
             com.droiddeck.launcher.runtime.DesktopRequests.reset(
                 LinuxRuntime.sessionRoot(this), SessionState.program.takeIf { SessionState.mode == MODE_DESKTOP },
@@ -523,7 +521,6 @@ class SessionService : Service() {
         DeviceReport.write(this, File(sessionDir, "device.txt"), SessionState.mode)
         NetworkReport.write(this, File(sessionDir, "network.txt"))
         SessionLogCapture.start(File(sessionDir, "app.log"))
-        // The memory readout every 10 s: what grew before Android's low-memory killer, if it comes.
         MemoryLog.start()
         return sessionDir
     }
@@ -848,11 +845,6 @@ class SessionService : Service() {
         if (killed > 0) Log.i(TAG, "swept $killed process(es) proot left behind")
     }
 
-    /**
-     * Setup > Diagnostics' Clear cached apps: the apps Android keeps cached are closed over the
-     * Wireless debugging pairing as the session starts, on a thread of its own - the session does
-     * not wait for it, and starts all the same when the pairing or Wireless debugging is not there.
-     */
     private fun clearCachedApps() {
         val app = applicationContext
         Thread({
@@ -864,12 +856,8 @@ class SessionService : Service() {
         }, "clear-cached-apps").start()
     }
 
-    /**
-     * SIGTERM to each wineserver among [tree], and a moment for them to exit. A wineserver writes its
-     * prefix's registry to disk only as it exits - Proton's Wine dropped the periodic save - so the
-     * sweep after proot would lose every change made since the prefix started: a Battle.net sign-in,
-     * a game's settings. On SIGTERM it saves first.
-     */
+    // Proton's Wine dropped the periodic registry save: a wineserver writes its prefix's registry only
+    // when it exits or gets SIGTERM, so the sweep after proot would lose every change since the start.
     private fun saveWineRegistries(tree: List<Pair<Int, Long>>) {
         val servers = tree.filter { (pid, started) ->
             readStat(pid)?.second == started && WineProcesses.isWineserver(
@@ -1348,7 +1336,6 @@ class SessionService : Service() {
                 .onFailure { Log.w(TAG, "clearing the agent's session environment", it) }
             releaseLocks()
             MemoryLog.stop()
-            // Setup > Diagnostics' background-app limit, if this session set one: Android's own again.
             com.droiddeck.launcher.core.BackgroundAppLimit.restoreAsync(applicationContext)
             if (status == 0) {
                 SessionEvents.transition(SessionPhase.IDLE, "session.stopped", mapOf("status" to status))
@@ -1655,7 +1642,7 @@ class SessionService : Service() {
         private val STRAGGLERS = listOf("droiddeck-session", "gamescope", "Xwayland", "steamrtarm64",
             "steamwebhelper", "linuxfs/opt/android-host/proot", "/libproot.so", "pulseaudio/libpulseaudio.so")
         private const val GRACE_MS = 1200L
-        /** How long the wineservers get to write their registries before the sweep (system.reg runs to a few MB). */
+        // system.reg runs to a few MB.
         private const val WINE_SAVE_MS = 3000L
         private const val STEAM_PICKUP_MS = 1500L
         private const val STEAM_EXIT_MS = 10_000L

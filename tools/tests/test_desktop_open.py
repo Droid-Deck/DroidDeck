@@ -463,7 +463,6 @@ class ProtonRunTest(Temp):
         self.assertEqual((env["LIBGL_ALWAYS_SOFTWARE"], env["GALLIUM_DRIVER"]), ("1", "llvmpipe"))
         self.assertNotIn("MESA_LOADER_DRIVER_OVERRIDE", env)
         self.assertNotIn("LIBGL_KOPPER_DRI2", env)
-        # Full screen on the GPU keeps the session's choice.
         self.assertEqual(RUN["environment"](session, target, "/tool", str(self.root))["GALLIUM_DRIVER"], "zink")
 
     def test_a_steam_game_keeps_its_own_id(self):

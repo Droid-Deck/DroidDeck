@@ -185,22 +185,13 @@ object WirelessAdbFix {
         withSavedPairing(context) { appContext, host, port -> setChildProcessLimit(appContext, host, port, enabled) }
     }
 
-    /** Whether the app has a pairing to use without asking for a code (the child-process repair saved it). */
     fun hasSavedPairing(context: Context): Boolean = savedConnection(context.applicationContext) != null
 
-    /**
-     * Closes the apps Android keeps cached in the background (`am kill-all`, which leaves anything
-     * visible, perceptible or a service alone) over the saved pairing: their memory goes to the
-     * session about to start. Blocking; throws when there is no pairing or Wireless debugging is off.
-     */
+    // am kill-all leaves anything visible, perceptible or a service alone.
     fun clearCachedApps(context: Context) {
         shell(context, "am kill-all")
     }
 
-    /**
-     * [command] in the shell over the saved pairing: its output. Blocking; throws when there is no
-     * pairing, Wireless debugging is off, or the command fails.
-     */
     fun shell(context: Context, command: String): String {
         var output = ""
         withSavedPairing(context) { appContext, host, port ->
@@ -215,10 +206,7 @@ object WirelessAdbFix {
         return output
     }
 
-    /**
-     * [action] with the saved pairing's host and port: the port that worked last, else the one
-     * Wireless debugging advertises now (it changes each time Wireless debugging is turned on).
-     */
+    // Wireless debugging's port changes each time it is turned on.
     private fun withSavedPairing(context: Context, action: (Context, String, Int) -> Unit) {
         val appContext = context.applicationContext
         val saved = savedConnection(appContext)

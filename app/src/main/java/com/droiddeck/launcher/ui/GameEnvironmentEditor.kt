@@ -101,7 +101,7 @@ internal fun GameEnvironmentEditor(byPad: Boolean, initialScope: String = "", on
     LaunchedEffect(Unit) {
         runCatching {
             withContext(Dispatchers.IO) {
-                // By the key their profile is kept under: Battle.net's games share Battle.net's.
+                // Battle.net's games share Battle.net's profile.
                 GameEnvironmentStore.read(context) to Library.steamGames(context).map { game ->
                     game.profileKey to if (game.source == com.droiddeck.launcher.runtime.BattleNet.SOURCE) context.getString(R.string.bnet_name) else game.name
                 }.distinctBy { it.first }
