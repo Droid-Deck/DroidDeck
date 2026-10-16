@@ -1011,7 +1011,7 @@ class MainActivity : ComponentActivity() {
         refreshPhantomStatus()
         syncLossless()
         updates.onResume()
-        drivers.ensureAuto(force = false)
+        drivers.checkOnOpen()
         protons.checkUpdates()
         if (!SessionState.running) Thread({
             val applied = runCatching { ComponentsManager.applyQueued(this) }.getOrDefault(emptyList())

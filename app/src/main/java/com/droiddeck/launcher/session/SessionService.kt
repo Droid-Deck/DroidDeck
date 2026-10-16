@@ -539,6 +539,12 @@ class SessionService : Service() {
         LinuxRuntime.vulkanIcd(this)?.let { guest.add("VK_ICD_FILENAMES=" + it.path) }
         val linuxDriverId = SessionPrefs.linuxDriver(this)
         SessionState.runtimeDriver = linuxDriverId
+        com.droiddeck.launcher.gpu.AutoDriverTrial.sessionStarting(
+            this,
+            com.droiddeck.launcher.wayland.CompositorHost.displayChoice.takeIf { com.droiddeck.launcher.wayland.CompositorHost.isStarted }
+                ?: SessionPrefs.androidDriver(this),
+            linuxDriverId,
+        )
         LinuxVulkanDriver.resolveIcdPath(this, linuxDriverId)
             ?.let { guest.add(LinuxVulkanDriver.ENV + "=" + it) }
         tuDebug(linuxDriverId)?.let { guest.add("TU_DEBUG=$it") }
