@@ -51,12 +51,10 @@ PROTON_ROOT = os.path.join(DATA, "compat", "runtime")
 PROTON_PIN = "GE-Proton10-34"
 PROTON_RUN = os.path.join(BIN_DIR, "droiddeck-proton-run")
 LAUNCH_DIR_FILE = "/tmp/droiddeck-browser/launch-dir"
-GAME_REQUEST = "epic-game"
 WEBKIT_INPUT = "libwebkitinput.so"
 WEBKIT_INPUT_SOURCE = "/usr/local/lib/droiddeck-fex/x86_64/" + WEBKIT_INPUT
 WEBKIT_INPUT_GUEST = "/usr/lib/x86_64-linux-gnu/droiddeck/" + WEBKIT_INPUT
 PLAYING = "epic-playing"
-GAME_KEYS = ("app", "namespace", "item")
 READY = ".droiddeck-ready"
 SIDECAR = ".droiddeck-store.json"
 LAUNCHER = ".droiddeck-launch.bat"
@@ -102,6 +100,7 @@ CMD_SPECIAL = "&|<>^"
 WIDTH, HEIGHT = 1280, 720
 LAUNCH_TIMEOUT = 150.0
 HANDOFF_WAIT = 30.0
+STEAM_WAIT = 20.0
 SIGN_IN_WAIT = 90.0
 REGISTER_WAIT = 30.0
 AUTO_SIGN_IN_FRESH = 120.0
@@ -562,24 +561,6 @@ def sync_installations():
     return True
 
 
-def game_request():
-    folder = launch_dir()
-    path = os.path.join(folder, GAME_REQUEST) if folder else ""
-    if not path or not os.path.isfile(path):
-        return None
-    taken = "%s.%d" % (path, os.getpid())
-    try:
-        os.rename(path, taken)
-    except OSError:
-        return None
-    request = read_json(taken)
-    remove(taken)
-    if isinstance(request, dict) and all(isinstance(request.get(key), str) and request.get(key) for key in GAME_KEYS):
-        return {key: request[key] for key in GAME_KEYS}
-    say("ignored an unreadable game request")
-    return None
-
-
 @contextlib.contextmanager
 def playing():
     folder = launch_dir()
@@ -946,6 +927,9 @@ class Broker:
             send(conn, {"code": 0})
             return
         if self.mode == "visible":
+            if play_in_steam(request):
+                send(conn, {"code": 0})
+                return
             with playing():
                 code = run_game(request, self.session_env, self.running)
             send(conn, {"code": code})
@@ -1003,6 +987,21 @@ def is_game(request, app=None):
     if app:
         return "-epicapp=" + app.lower() in args
     return any(arg.startswith("-epicapp=") for arg in args)
+
+
+def play_in_steam(request):
+    found = find_store_game(native_path(request.get("exe") or ""))
+    if not found or found[1].get("store") != "epic" or not found[1].get("id"):
+        return False
+    game = str(found[1]["id"])
+    reply = ask_app({"op": "epic-play-in-steam", "id": game}, STEAM_WAIT)
+    if not isinstance(reply, dict):
+        reply = {}
+    if reply.get("ok"):
+        say("handed %s to Steam" % game)
+        return True
+    say("Steam could not take %s (%s); running it here" % (game, reply.get("reason") or "no answer"))
+    return False
 
 
 def run_game(request, session_env, running=None):
@@ -1064,11 +1063,8 @@ def capped_log(path):
 
 
 class Session:
-    def __init__(self, mode, startup_launch=None):
+    def __init__(self, mode):
         self.mode = mode
-        self.startup_launch = startup_launch
-        self.startup_attempt_at = 0.0
-        self.startup_logged = False
         self.carried = False
         self.a11y = None
         self.press_at = 0.0
@@ -1177,38 +1173,6 @@ class Session:
             if a11y_press(self.a11y, buttons[FIRST_RUN_LABEL]):
                 say("moved past the launcher's welcome screen")
 
-    def take_game_request(self):
-        request = game_request()
-        if request is None:
-            return
-        say("the app asked for %s" % request["app"])
-        self.startup_launch = request
-        self.startup_attempt_at = 0.0
-        self.startup_logged = False
-
-    def launch_startup_game(self):
-        request = self.startup_launch
-        if self.mode != "visible" or not request or not signed_in():
-            return
-        now = time.monotonic()
-        if now < self.startup_attempt_at:
-            return
-        self.startup_attempt_at = now + 2.0
-        info = api()
-        if info is None:
-            return
-        app = request.get("app") or ""
-        if installed(info, app) is not True:
-            if not self.startup_logged:
-                say("waiting for the launcher to register the selected game")
-                self.startup_logged = True
-            return
-        if forward(self.bus, deep_link(request["namespace"], request["item"], app)):
-            say("asked the Epic Games Launcher to start %s" % app)
-            self.startup_launch = None
-        else:
-            say("the Epic Games Launcher did not accept the game request yet")
-
     def watch(self):
         started = time.monotonic()
         broker = self.broker
@@ -1221,9 +1185,6 @@ class Session:
                 return 0
             if self.carried:
                 self.carry_on(now)
-            if self.mode == "visible":
-                self.take_game_request()
-            self.launch_startup_game()
             if self.mode == "hidden":
                 owner = broker.owner
                 if broker.game is not None and owner and not pid_alive(owner):
@@ -1279,12 +1240,12 @@ def terminate(*_):
     raise SystemExit(0)
 
 
-def serve(mode, startup_launch=None):
+def serve(mode):
     with instance_guard() as free:
         if not free:
             say("the Epic Games Launcher is already running")
             return 3
-        session = Session(mode, startup_launch)
+        session = Session(mode)
         signal.signal(signal.SIGTERM, terminate)
         signal.signal(signal.SIGHUP, terminate)
         try:
@@ -1698,11 +1659,7 @@ def main(argv):
             except (ValueError, tarfile.TarError, OSError) as error:
                 raise Failure("unpack-" + type(error).__name__)
         if action == "run":
-            options, _ = parse_options(args)
-            game = {key: options.get(key) for key in ("app", "namespace", "item")}
-            if any(game.values()) and not all(game.values()):
-                raise Failure("incomplete-launch")
-            return serve("visible", game if all(game.values()) else None)
+            return serve("visible")
         if action == "serve":
             options, _ = parse_options(args)
             return serve(options.get("mode") or "hidden")

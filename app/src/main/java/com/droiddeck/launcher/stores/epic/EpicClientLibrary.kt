@@ -42,6 +42,8 @@ internal object EpicClientLibrary {
 
     fun aggregateFile(context: Context): File = File(LinuxRuntime.rootDir(context), "$V1/UnrealEngineLauncher/LauncherInstalled.dat")
 
+    fun installationsFile(context: Context): File = File(EpicClient.dataDir(context), "installations.jsonl")
+
     fun importMarker(context: Context): File = File(EpicClient.dataDir(context), "import-scan/imported.json")
 
     private fun ledgerFile(context: Context): File = File(EpicClient.stateDir(context), "registered.json")
@@ -197,73 +199,85 @@ internal object EpicClientLibrary {
         val addedExes = AddedExes.list(app)
         var changed = false
         var scanComplete = true
+        val items = LinkedHashMap<String, JSONObject>()
         manifests.listFiles { file -> file.isFile && file.extension == "item" }
             .orEmpty().sortedBy { it.name }.forEach { file ->
                 val item = runCatching { JSONObject(file.readText()) }.getOrNull()
-                if (item == null) { scanComplete = false; return@forEach }
-                val appName = item.optString("AppName").trim()
-                if (item.optBoolean("bIsIncompleteInstall", true)) {
-                    before.optJSONObject(appName)?.let { after.put(appName, it) }
-                    return@forEach
-                }
-                val namespace = item.optString("CatalogNamespace").trim()
-                val catalogItem = item.optString("CatalogItemId").trim()
-                val location = item.optString("InstallLocation").trimEnd('/')
-                val exe = executableRelative(location, item.optString("LaunchExecutable"))
-                if (appName.isEmpty() || namespace.isEmpty() || catalogItem.isEmpty() || exe == null) {
-                    before.optJSONObject(appName)?.let { after.put(appName, it) }
-                    return@forEach
-                }
-                val folder = hostFolder(app, location)?.takeIf { it.isDirectory }
-                if (folder == null) { before.optJSONObject(appName)?.let { after.put(appName, it) }; return@forEach }
-                val executable = File(folder, exe)
-                if (!executable.isFile || !runCatching { executable.canonicalPath.startsWith(folder.canonicalPath + File.separator) }.getOrDefault(false)) {
-                    before.optJSONObject(appName)?.let { after.put(appName, it) }
-                    return@forEach
-                }
-                val existing = StoreGameSidecar.read(folder)
-                if (existing != null && (existing.store != Store.EPIC || existing.id != appName || existing.extra["clientManaged"] != "true")) {
-                    before.optJSONObject(appName)?.let { after.put(appName, it) }
-                    return@forEach
-                }
-                val previous = before.optJSONObject(appName)
-                if (previous != null && previous.optString("folder") != folder.path) {
-                    val oldFolder = File(previous.optString("folder"))
-                    StoreGameSidecar.read(oldFolder)?.takeIf { it.store == Store.EPIC && it.extra["clientManaged"] == "true" }?.let {
-                        StoreGameSidecar.file(oldFolder).delete()
-                        File(oldFolder, StoreLaunch.LAUNCHER).delete()
-                    }
-                    AddedExes.drop(app, oldFolder.path)
-                    SessionPrefs.addedGameStoredAppId(app, oldFolder.path)?.let { SteamLiveShortcuts.remove(app, it) }
-                    changed = true
-                }
-                val next = StoreGameSidecar(
-                    Store.EPIC, appName, item.optString("DisplayName").ifEmpty { appName }, exe,
-                    installVersion = item.optString("AppVersionString"), installedAt = existing?.installedAt?.takeIf { it > 0 } ?: folder.lastModified(),
-                    cover = existing?.cover, hero = existing?.hero,
-                    extra = mapOf("namespace" to namespace, "catalogItemId" to catalogItem,
-                        "deploymentId" to item.optString("SidecarDeploymentId"), "clientManaged" to "true"),
-                    epic = existing?.epic ?: com.droiddeck.launcher.stores.EpicOptions(),
-                    cloud = existing?.cloud ?: true,
-                    launcher = StoreLaunch.LAUNCHER,
-                )
-                val sidecarChanged = existing?.toJson()?.toString(2) != next.toJson().toString(2)
-                val launcher = File(folder, StoreLaunch.LAUNCHER)
-                if (sidecarChanged || runCatching { launcher.readText() }.getOrNull() != StoreLaunch.launcherText(next)) {
-                    StoreLaunch.writeLauncher(folder, next)
-                    next.write(folder)
-                }
-                if (addedExes.none { it.folder == folder.path && it.exe == executable.path && !it.picked }) {
-                    AddedExes.put(app, AddedExes.Entry(folder.path, executable.path, picked = false))
-                    changed = true
-                }
-                val game = AddedGames.single(app, folder.path)
-                if (game != null) imported += game
-                after.put(appName, JSONObject().put("folder", folder.path).put("exe", executable.path))
-                if (sidecarChanged || before.optJSONObject(appName)?.optString("folder") != folder.path ||
-                    before.optJSONObject(appName)?.optString("exe") != executable.path ||
-                    existing?.installVersion != next.installVersion) changed = true
+                if (item == null) scanComplete = false else items[item.optString("AppName").trim()] = item
             }
+        val (records, readable) = clientInstallations(installationsFile(app))
+        if (!readable) scanComplete = false
+        if (records.isNotEmpty()) {
+            val titles = runCatching { EpicLibrary.cached(app).associate { it.appName to it.title } }.getOrDefault(emptyMap())
+            for (record in records) {
+                val appName = record.optString("artifactId").trim()
+                if (appName.isNotEmpty()) items[appName] = manifestOf(record, titles[appName])
+            }
+        }
+        items.values.forEach { item ->
+            val appName = item.optString("AppName").trim()
+            if (item.optBoolean("bIsIncompleteInstall", true)) {
+                before.optJSONObject(appName)?.let { after.put(appName, it) }
+                return@forEach
+            }
+            val namespace = item.optString("CatalogNamespace").trim()
+            val catalogItem = item.optString("CatalogItemId").trim()
+            val location = item.optString("InstallLocation").trimEnd('/')
+            val exe = executableRelative(location, item.optString("LaunchExecutable"))
+            if (appName.isEmpty() || namespace.isEmpty() || catalogItem.isEmpty() || exe == null) {
+                before.optJSONObject(appName)?.let { after.put(appName, it) }
+                return@forEach
+            }
+            val folder = hostFolder(app, location)?.takeIf { it.isDirectory }
+            if (folder == null) { before.optJSONObject(appName)?.let { after.put(appName, it) }; return@forEach }
+            val executable = File(folder, exe)
+            if (!executable.isFile || !runCatching { executable.canonicalPath.startsWith(folder.canonicalPath + File.separator) }.getOrDefault(false)) {
+                before.optJSONObject(appName)?.let { after.put(appName, it) }
+                return@forEach
+            }
+            val existing = StoreGameSidecar.read(folder)
+            if (existing != null && (existing.store != Store.EPIC || existing.id != appName || existing.extra["clientManaged"] != "true")) {
+                before.optJSONObject(appName)?.let { after.put(appName, it) }
+                return@forEach
+            }
+            val previous = before.optJSONObject(appName)
+            if (previous != null && previous.optString("folder") != folder.path) {
+                val oldFolder = File(previous.optString("folder"))
+                StoreGameSidecar.read(oldFolder)?.takeIf { it.store == Store.EPIC && it.extra["clientManaged"] == "true" }?.let {
+                    StoreGameSidecar.file(oldFolder).delete()
+                    File(oldFolder, StoreLaunch.LAUNCHER).delete()
+                }
+                AddedExes.drop(app, oldFolder.path)
+                SessionPrefs.addedGameStoredAppId(app, oldFolder.path)?.let { SteamLiveShortcuts.remove(app, it) }
+                changed = true
+            }
+            val next = StoreGameSidecar(
+                Store.EPIC, appName, item.optString("DisplayName").ifEmpty { appName }, exe,
+                installVersion = item.optString("AppVersionString"), installedAt = existing?.installedAt?.takeIf { it > 0 } ?: folder.lastModified(),
+                cover = existing?.cover, hero = existing?.hero,
+                extra = mapOf("namespace" to namespace, "catalogItemId" to catalogItem,
+                    "deploymentId" to item.optString("SidecarDeploymentId"), "clientManaged" to "true"),
+                epic = existing?.epic ?: com.droiddeck.launcher.stores.EpicOptions(),
+                cloud = existing?.cloud ?: true,
+                launcher = StoreLaunch.LAUNCHER,
+            )
+            val sidecarChanged = existing?.toJson()?.toString(2) != next.toJson().toString(2)
+            val launcher = File(folder, StoreLaunch.LAUNCHER)
+            if (sidecarChanged || runCatching { launcher.readText() }.getOrNull() != StoreLaunch.launcherText(next)) {
+                StoreLaunch.writeLauncher(folder, next)
+                next.write(folder)
+            }
+            if (addedExes.none { it.folder == folder.path && it.exe == executable.path && !it.picked }) {
+                AddedExes.put(app, AddedExes.Entry(folder.path, executable.path, picked = false))
+                changed = true
+            }
+            val game = AddedGames.single(app, folder.path)
+            if (game != null) imported += game
+            after.put(appName, JSONObject().put("folder", folder.path).put("exe", executable.path))
+            if (sidecarChanged || before.optJSONObject(appName)?.optString("folder") != folder.path ||
+                before.optJSONObject(appName)?.optString("exe") != executable.path ||
+                existing?.installVersion != next.installVersion) changed = true
+        }
         for (name in before.keys().asSequence().toList()) {
             if (after.has(name)) continue
             if (!scanComplete) { before.optJSONObject(name)?.let { after.put(name, it) }; continue }
@@ -282,9 +296,42 @@ internal object EpicClientLibrary {
             write(importsFile(app), after.toString(2))
             AddedGamesPublisher.later(app) {
                 SteamLiveShortcuts.sync(app, (imported + AddedGames.scan(app).filter { it.source == Store.EPIC.id }).distinctBy { it.guestExe }) { it.source == Store.EPIC.id }
+                com.droiddeck.launcher.stores.StoresState.notifyLibraryChanged(app)
             }
         }
         return changed
+    }
+
+    internal fun clientInstallations(file: File): Pair<List<JSONObject>, Boolean> {
+        if (!file.isFile) return emptyList<JSONObject>() to true
+        val lines = runCatching { file.readLines() }.getOrNull() ?: return emptyList<JSONObject>() to false
+        val latest = LinkedHashMap<String, JSONObject>()
+        var readable = true
+        for (line in lines) {
+            if (line.isBlank()) continue
+            val value = runCatching { JSONObject(line) }.getOrNull()
+            if (value == null) { readable = false; continue }
+            val key = value.optString("installationId").ifEmpty { value.optString("artifactId") }
+            if (key.isEmpty()) continue
+            latest.remove(key)
+            if (!value.optBoolean("deleted")) latest[key] = value
+        }
+        return latest.values.toList() to readable
+    }
+
+    internal fun manifestOf(record: JSONObject, title: String?): JSONObject {
+        val dir = record.optString("dir").trimEnd('/')
+        val complete = record.optBoolean("complete", false) && record.optString("platform") == "Windows"
+        return JSONObject()
+            .put("AppName", record.optString("artifactId").trim())
+            .put("CatalogNamespace", record.optString("namespace"))
+            .put("CatalogItemId", record.optString("itemId"))
+            .put("InstallLocation", dir)
+            .put("LaunchExecutable", record.optString("launchExecutable"))
+            .put("AppVersionString", record.optString("version"))
+            .put("SidecarDeploymentId", record.optJSONObject("sidecar")?.optString("deploymentId").orEmpty())
+            .put("DisplayName", title?.takeIf(String::isNotBlank) ?: dir.substringAfterLast('/'))
+            .put("bIsIncompleteInstall", !complete)
     }
 
     @Synchronized

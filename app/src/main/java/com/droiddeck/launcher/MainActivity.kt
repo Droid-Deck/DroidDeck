@@ -414,6 +414,7 @@ class MainActivity : ComponentActivity() {
     private var shortcutLibraryScanning by mutableStateOf(false)
     @Volatile private var libraryScanGeneration = 0
     private var pendingGameLink: String? = null
+    private var pendingFromLauncher = false
     private var gameSyncFolder by mutableStateOf<String?>(null)
     private fun pickGameExport(game: Library.SteamGame?) {
         onSavePicked = { folder ->
@@ -440,7 +441,13 @@ class MainActivity : ComponentActivity() {
             shortcutLibraryScanning = true
         } else shortcutLibraryScanning = false
         pendingGameLink = null
-        if (GameLaunchIntent.accepts(request.action)) {
+        pendingFromLauncher = false
+        if (request.action == com.droiddeck.launcher.stores.epic.EpicClient.ACTION_PLAY_IN_STEAM) {
+            pendingGameLink = request.getStringExtra(GameLaunchIntent.EXTRA_APP_ID)?.takeIf(com.droiddeck.launcher.frontend.GameLaunchLink::validId)
+            pendingFromLauncher = pendingGameLink != null
+            request.action = Intent.ACTION_MAIN
+            request.removeExtra(GameLaunchIntent.EXTRA_APP_ID)
+        } else if (GameLaunchIntent.accepts(request.action)) {
             val copy = Intent(request)
             Thread({
                 val id = GameLaunchIntent.read(this, copy)
@@ -456,16 +463,17 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun launchGame(
-        game: Library.SteamGame, returnHome: Boolean = false,
-        epic: com.droiddeck.launcher.stores.epic.EpicClient.GameRequest? = com.droiddeck.launcher.stores.epic.EpicClient.request(this, game),
-    ): Boolean {
+    private fun launchGame(game: Library.SteamGame, returnHome: Boolean = false, fromLauncher: Boolean = false): Boolean {
         if (protons.protonBusyId != null || ProtonExtras.installInProgress || pkgStage != null) {
             android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
             return false
         }
-        if (epic != null) return startEpicLauncher(com.droiddeck.launcher.stores.epic.EpicClient.launchIntent(this, epic, returnHome), returnHome) {
-            com.droiddeck.launcher.stores.epic.EpicClient.handToRunningLauncher(this, epic)
+        val steam = Intent(this, SessionActivity::class.java)
+            .putExtra(SessionActivity.EXTRA_RETURN_HOME, returnHome)
+            .putExtra(SessionService.EXTRA_STEAM_URL, com.droiddeck.launcher.frontend.GameLaunchLink.steamUrl(game.gameIdString))
+        if (com.droiddeck.launcher.stores.epic.EpicClient.launcherRunning()) {
+            if (fromLauncher) startAfterSession(steam) else pendingSwitch = steam
+            return true
         }
         if (SessionState.running) {
             if (SessionState.mode != SessionService.MODE_STEAM || SessionState.stopRequested) {
@@ -481,10 +489,7 @@ class MainActivity : ComponentActivity() {
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
             return true
         }
-        return startSession(Intent(this, SessionActivity::class.java)
-                .putExtra(SessionActivity.EXTRA_RETURN_HOME, returnHome)
-                .putExtra(SessionService.EXTRA_STEAM_URL,
-                com.droiddeck.launcher.frontend.GameLaunchLink.steamUrl(game.gameIdString)), steamSession = true)
+        return startSession(steam, steamSession = true)
     }
 
     private fun openEpicLauncher(): Boolean {
@@ -516,7 +521,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startSessionOrWait(next: Intent): Boolean {
-        val started = startSession(next)
+        val started = startSession(next, steamSession = next.hasExtra(SessionService.EXTRA_STEAM_URL))
         if (!started && (busy || LinuxRuntimeInstaller.isBusy())) android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
         return started
     }
@@ -556,8 +561,9 @@ class MainActivity : ComponentActivity() {
             intent.action = Intent.ACTION_MAIN
             intent.removeExtra(GameLaunchIntent.EXTRA_APP_ID)
             android.widget.Toast.makeText(this, R.string.game_link_missing, android.widget.Toast.LENGTH_LONG).show()
-        } else if (launchGame(game, returnHome = true)) {
+        } else if (launchGame(game, returnHome = !pendingFromLauncher, fromLauncher = pendingFromLauncher)) {
             pendingGameLink = null
+            pendingFromLauncher = false
             intent.data = null
             intent.action = Intent.ACTION_MAIN
             intent.removeExtra(GameLaunchIntent.EXTRA_APP_ID)
@@ -667,9 +673,7 @@ class MainActivity : ComponentActivity() {
                             if (shortcutPicker) chooseGameShortcut(g)
                             else {
                                 com.droiddeck.launcher.frontend.AutoComponents.beforeLaunch(this, g)
-                                val epic = com.droiddeck.launcher.stores.epic.EpicClient.request(this, g)
-                                if (epic != null) launchGame(g, epic = epic)
-                                else com.droiddeck.launcher.stores.StoreLaunch.prepare(this, g) { launchGame(g) }
+                                com.droiddeck.launcher.stores.StoreLaunch.prepare(this, g) { launchGame(g) }
                             }
                         },
                         onEpicLauncher = { openEpicLauncher() },

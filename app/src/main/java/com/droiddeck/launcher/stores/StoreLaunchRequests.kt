@@ -97,6 +97,15 @@ object StoreLaunchRequests {
                     JSONObject().put("ok", false).put("reason", e.javaClass.simpleName)
                 }
             }
+            "epic-play-in-steam" -> {
+                val id = request.optString("id")
+                if (id.isEmpty()) JSONObject().put("ok", false).put("reason", "no-id")
+                else try {
+                    com.droiddeck.launcher.stores.epic.EpicClient.playInSteam(app, id)
+                } catch (e: Exception) {
+                    JSONObject().put("ok", false).put("reason", e.javaClass.simpleName)
+                }
+            }
             "epic-client-handoff" -> {
                 if (com.droiddeck.launcher.stores.epic.EpicClient.canHandOff(app)) JSONObject().put("ok", true)
                 else JSONObject().put("ok", false).put("reason", "no-account")

@@ -360,6 +360,12 @@ class SessionService : Service() {
             addControllerEnvironment(guest, fakeInputDir, sessionDir)
             SessionState.padBridge?.syncConnectedControllers()
         }
+        if ((steamHere || SessionState.program == com.droiddeck.launcher.stores.epic.EpicClient.PROGRAM) &&
+            com.droiddeck.launcher.stores.epic.EpicClient.read(this).installed
+        ) {
+            com.droiddeck.launcher.stores.epic.EpicClientLibrary.sync(this)
+            if (SessionState.program == com.droiddeck.launcher.stores.epic.EpicClient.PROGRAM) com.droiddeck.launcher.stores.epic.EpicClient.prepareInstallDir(this)
+        }
         if (steamHere) {
             val added = com.droiddeck.launcher.frontend.AddedGames.scan(this)
             val listing = com.droiddeck.launcher.frontend.AddedGames.writeListing(this, added)
@@ -368,9 +374,6 @@ class SessionService : Service() {
             if (com.droiddeck.launcher.gpu.Lossless.owned(this)) guest.add("BL_LOSSLESS_OWNED=1")
             if (added.isNotEmpty()) Log.i(TAG, "added games: " + added.joinToString { "${it.name} (${it.exe.name})" })
         }
-        if ((steamHere || SessionState.program == com.droiddeck.launcher.stores.epic.EpicClient.PROGRAM) &&
-            com.droiddeck.launcher.stores.epic.EpicClient.read(this).installed
-        ) com.droiddeck.launcher.stores.epic.EpicClientLibrary.sync(this)
         guest.add("BL_LAUNCH_DIR=" + sessionRoot.path)
         GameStorage.effective(this)?.let { guest.add("BL_LIBRARY_LABEL=" + it.label.replace('"', ' ')) }
         if (SessionState.mode == MODE_STEAM && SessionState.steamUi == "desktop") guest.add("BL_STEAM_UI=desktop")
@@ -1344,6 +1347,7 @@ class SessionService : Service() {
         updateDownloadMonitoring()
         val stoppedGen = sessionGen
         val stoppedSession = SessionState.sessionId
+        val launcherEnded = SessionState.program == com.droiddeck.launcher.stores.epic.EpicClient.PROGRAM
         SessionState.stopRequested = false
         SessionEvents.record("guest.exited", mapOf("status" to status))
         GpuClockPin.stop(this)
@@ -1384,13 +1388,23 @@ class SessionService : Service() {
                     if (prootPid > 1) teardown(prootPid)
                     killGuestLeftovers()
                     finishSessionStop(status, stoppedGen)
+                    if (launcherEnded) importLauncherGames()
                 }, "session-teardown").start()
             } else {
-                Thread({ com.droiddeck.launcher.stores.gog.GogComet.end(stoppedSession); finishSessionStop(status, stoppedGen) }, "gog-session-stop").start()
+                Thread({
+                    com.droiddeck.launcher.stores.gog.GogComet.end(stoppedSession)
+                    finishSessionStop(status, stoppedGen)
+                    if (launcherEnded) importLauncherGames()
+                }, "gog-session-stop").start()
             }
         }
         if (prootPid > 1) acquireLocks()
         if (controller != null) controller.closeAndResume(finishAfterTeardown) else finishAfterTeardown()
+    }
+
+    private fun importLauncherGames() {
+        runCatching { com.droiddeck.launcher.stores.epic.EpicClientLibrary.importClientGames(this) }
+            .onFailure { Log.w(TAG, "client library scan failed: ${it.javaClass.simpleName}") }
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {

@@ -205,7 +205,7 @@ internal class EpicClientInstaller(private val app: Context) : DownloadQueue.Dow
         if (needApp) argv += listOf("--app", guest(parts[0].file))
         if (needRuntime) argv += listOf("--runtime", guest(parts[parts.size - 2].file), "--gles", guest(parts[parts.size - 1].file))
         var answer: JSONObject? = null
-        val code = GuestCommand.run(app, argv, logName = "epic-client") { line ->
+        val code = GuestCommand.run(app, argv, fakeRoot = true, logName = "epic-client") { line ->
             if (line.startsWith("{")) runCatching { JSONObject(line) }.getOrNull()?.let { answer = it }
         }
         val result = answer

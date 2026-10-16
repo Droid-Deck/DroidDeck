@@ -27,6 +27,21 @@ class EpicClientTest {
         assertEquals(listOf(1, 2), EpicClient.withLauncher(games.take(2), null).map { it.appId })
     }
 
+    @Test fun aGameFromTheLauncherIsFoundAsItsSteamShortcut() {
+        val shortcut = com.droiddeck.launcher.frontend.Library.SteamGame(9, "Fig", null, "added", 3_000_000_000L, source = "epic", storeId = "Fig")
+        val games = listOf(
+            com.droiddeck.launcher.frontend.Library.SteamGame(EpicClient.LAUNCHER_APP_ID, "Launcher", null, "epic", source = "epic", storeId = "Fig"),
+            com.droiddeck.launcher.frontend.Library.SteamGame(8, "Fig", null, "added", source = "gog", storeId = "Fig"),
+            shortcut,
+        )
+        assertEquals(shortcut, EpicClient.steamShortcut(games, "Fig"))
+        assertNull(EpicClient.steamShortcut(games, "Other"))
+    }
+
+    @Test fun onlyAnOpenLauncherHandsGamesToSteam() {
+        assertEquals("no-launcher", EpicClient.playInSteam(org.robolectric.RuntimeEnvironment.getApplication(), "Fig").getString("reason"))
+    }
+
     @Test fun theLauncherEntryNeedsAnInstalledLauncherAndUsesItsIcon() {
         val app = org.robolectric.RuntimeEnvironment.getApplication()
         assertNull(EpicClient.launcherEntry(app, "Epic Games Launcher", EpicClient.Status(installed = false, version = "1.0")))
@@ -57,15 +72,6 @@ class EpicClientTest {
 
     @Test fun noDroidDeckAccountMeansNoHandOff() {
         assertFalse(EpicClient.canHandOff(org.robolectric.RuntimeEnvironment.getApplication()))
-    }
-
-    @Test fun aGameRequestIsPublishedWhole() {
-        val dir = tmp.newFolder()
-        assertTrue(EpicClient.publishRequest(dir, EpicClient.GameRequest("Fig", "ns", "it")))
-        val request = org.json.JSONObject(File(dir, "epic-game").readText())
-        assertEquals(listOf("Fig", "ns", "it"), listOf(request.getString("app"), request.getString("namespace"), request.getString("item")))
-        assertFalse(File(dir, "epic-game.tmp").exists())
-        assertFalse(EpicClient.publishRequest(File(dir, "missing"), EpicClient.GameRequest("Fig", "ns", "it")))
     }
 
     @Test fun launcherVersionComesFromTheRedirect() {
@@ -192,5 +198,56 @@ class EpicClientTest {
         assertTrue(File(game, sidecar.launcher!!).isFile)
         assertEquals(File(game, "Binaries/ClientGame.exe").path,
             com.droiddeck.launcher.frontend.AddedExes.list(context).first { it.folder == game.path }.exe)
+    }
+
+    @Test fun gamesTheLauncherInstallsItselfAreImportedFromItsInstallationList() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        val game = File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context), "root/Games/Stores/Epic/Luftrausers51924")
+        File(game, "bin").mkdirs()
+        File(game, "bin/Luftrausers.exe").writeBytes(byteArrayOf(1))
+        val list = EpicClientLibrary.installationsFile(context).apply { parentFile!!.mkdirs() }
+        list.writeText(listOf(
+            """{"version":1,"entries":2}""",
+            """{"installationId":"F00B","complete":false,"dir":"/root/Games/Stores/Epic/Luftrausers51924","platform":"Windows","namespace":"ns","itemId":"it","artifactId":"luft","launchExecutable":"bin/Luftrausers.exe"}""",
+            """{"installationId":"F00B","complete":true,"dir":"/root/Games/Stores/Epic/Luftrausers51924","platform":"Windows","namespace":"ns","itemId":"it","artifactId":"luft","version":"1.0","sidecar":{"deploymentId":"dep"},"launchExecutable":"bin/Luftrausers.exe"}""",
+        ).joinToString("\n"))
+
+        assertTrue(EpicClientLibrary.importClientGames(context))
+        val sidecar = com.droiddeck.launcher.stores.StoreGameSidecar.read(game)!!
+        assertEquals(listOf("luft", "Luftrausers51924", "bin/Luftrausers.exe", "1.0", "dep", "true"),
+            listOf(sidecar.id, sidecar.title, sidecar.exe, sidecar.installVersion, sidecar.extra["deploymentId"], sidecar.extra["clientManaged"]))
+        assertTrue(com.droiddeck.launcher.frontend.AddedGames.scan(context).any { it.folder.path == game.path && it.source == "epic" })
+        assertFalse(EpicClientLibrary.importClientGames(context))
+
+        list.appendText("\n" + """{"installationId":"F00B","deleted":true}""")
+        assertTrue(EpicClientLibrary.importClientGames(context))
+        assertNull(com.droiddeck.launcher.stores.StoreGameSidecar.read(game))
+        assertTrue(com.droiddeck.launcher.frontend.AddedExes.list(context).none { it.folder == game.path })
+    }
+
+    @Test fun anUnfinishedOrLinuxInstallIsNotImported() {
+        val (records, readable) = EpicClientLibrary.clientInstallations(tmp.newFile().apply {
+            writeText("""{"installationId":"a","complete":true,"platform":"Linux","artifactId":"x","dir":"/root/Games/X"}""" + "\nnot json\n")
+        })
+        assertFalse(readable)
+        assertTrue(EpicClientLibrary.manifestOf(records.single(), null).getBoolean("bIsIncompleteInstall"))
+        assertEquals("X", EpicClientLibrary.manifestOf(records.single(), " ").getString("DisplayName"))
+        assertEquals(emptyList<org.json.JSONObject>() to true, EpicClientLibrary.clientInstallations(File(tmp.root, "missing")))
+    }
+
+    @Test fun theLauncherInstallsWhereDroidDeckInstallsEpicGames() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        val settings = File(EpicClient.dataDir(context), "settings/app-settings.json").apply { parentFile!!.mkdirs() }
+        settings.writeText("""{"defaultInstallDir":"/root/Games","verboseLogs":false}""")
+        assertEquals("/root/Games/Stores/Epic", EpicClient.prepareInstallDir(context))
+        val written = org.json.JSONObject(settings.readText())
+        assertEquals("/root/Games/Stores/Epic", written.getString("defaultInstallDir"))
+        assertFalse(written.getBoolean("verboseLogs"))
+        assertTrue(File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context), "root/Games/Stores/Epic").isDirectory)
+        settings.writeText("""{"defaultInstallDir":"/root/MyGames"}""")
+        assertEquals("/root/MyGames", EpicClient.prepareInstallDir(context))
+        assertEquals("/root/MyGames", org.json.JSONObject(settings.readText()).getString("defaultInstallDir"))
+        settings.writeText("""{"defaultInstallDir":"/mnt/droiddeck-sd/Stores/Epic"}""")
+        assertEquals("/root/Games/Stores/Epic", EpicClient.prepareInstallDir(context))
     }
 }

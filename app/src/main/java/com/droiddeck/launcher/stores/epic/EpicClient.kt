@@ -12,6 +12,7 @@ import com.droiddeck.launcher.SessionActivity
 import com.droiddeck.launcher.frontend.AddedGames
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.stores.Store
@@ -33,8 +34,10 @@ object EpicClient {
     const val DOWNLOAD_ID = "epic-games-launcher"
     const val DOWNLOAD_KEY = "epic:$DOWNLOAD_ID"
     const val PROGRAM = "/usr/local/bin/droiddeck-epic"
-    private const val GAME_REQUEST = "epic-game"
     const val PLAYING = "epic-playing"
+    const val ACTION_PLAY_IN_STEAM = "com.droiddeck.launcher.EPIC_PLAY_IN_STEAM"
+    private const val SETTINGS = "settings/app-settings.json"
+    private const val STOCK_INSTALL_DIR = "/root/Games"
     private const val ICON = "epic-games-launcher.png"
     const val LAUNCHER_APP_ID = 0
     private const val PREF_CHECKED = "client_checked_at"
@@ -172,57 +175,50 @@ object EpicClient {
         return games.subList(0, at) + launcher + games.subList(at, games.size)
     }
 
-    fun handlesLaunch(context: Context, game: Library.SteamGame): Boolean = request(context, game) != null
-
-    internal fun request(context: Context, game: Library.SteamGame): GameRequest? {
-        if (game.source != Store.EPIC.id || !runCatching { read(context).installed }.getOrDefault(false)) return null
-        return gameRequest(context, game)
-    }
-
-    internal fun launchIntent(context: Context, request: GameRequest, returnHome: Boolean): Intent =
-        Intent(context, SessionActivity::class.java)
-            .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_RUN)
-            .putExtra(SessionService.EXTRA_PROGRAM, PROGRAM)
-            .putExtra(SessionActivity.EXTRA_RETURN_HOME, returnHome)
-            .putExtra(SessionService.EXTRA_PROGRAM_ARGS, runArguments(request.app, request.namespace, request.item).toTypedArray())
-
-    internal class GameRequest(val app: String, val namespace: String, val item: String)
-
-    private fun gameRequest(context: Context, game: Library.SteamGame): GameRequest? {
-        if (game.source != Store.EPIC.id) return null
-        val folder = game.gameFiles?.takeIf(File::isDirectory) ?: return null
-        val sidecar = StoreGameSidecar.read(folder)?.takeIf {
-            it.store == Store.EPIC && it.isInstalled && it.id == game.storeId
-        } ?: return null
-        val appName = appName(sidecar) ?: return null
-        val namespace = sidecar.extra["namespace"]?.takeIf(String::isNotBlank) ?: return null
-        val item = sidecar.extra["catalogItemId"]?.takeIf(String::isNotBlank) ?: return null
-        if (AddedGames.guestPath(context, folder) == null) return null
-        return GameRequest(appName, namespace, item)
-    }
-
     fun launcherRunning(): Boolean =
         SessionState.running && !SessionState.stopRequested && SessionState.mode == SessionService.MODE_RUN && SessionState.program == PROGRAM
 
     fun playing(context: Context): Boolean = File(LinuxRuntime.sessionRoot(context), PLAYING).exists()
 
-    internal fun handToRunningLauncher(context: Context, request: GameRequest): Boolean {
-        if (!launcherRunning()) return false
-        return publishRequest(LinuxRuntime.sessionRoot(context), request)
+    fun prepareInstallDir(context: Context): String? {
+        val app = context.applicationContext
+        val dirs = StoreInstallRoot.targets(app).mapNotNull { t ->
+            val folder = StoreInstallRoot.storeDir(t.root, Store.EPIC)
+            AddedGames.guestPath(app, folder)?.let { t.root.absolutePath to (folder to it) }
+        }.toMap()
+        if (dirs.isEmpty()) return null
+        val chosen = dirs[SessionPrefs.storesInstallTarget(app)] ?: dirs[StoreInstallRoot.internalRoot(app).absolutePath] ?: dirs.values.first()
+        val file = File(dataDir(app), SETTINGS)
+        val settings = runCatching { JSONObject(file.readText()) }.getOrNull() ?: JSONObject()
+        val current = settings.optString("defaultInstallDir").trimEnd('/')
+        if (current.isNotEmpty() && current != STOCK_INSTALL_DIR && dirs.values.none { it.second == current } && !(current.endsWith("/${Store.EPIC.shortLabel}") && (current.startsWith("/mnt/droiddeck-") || current.startsWith("/root/Storage/")))) return current
+        if (!chosen.first.isDirectory && !chosen.first.mkdirs()) return null
+        if (current == chosen.second) return current
+        return runCatching {
+            file.parentFile?.mkdirs()
+            val staged = File(file.path + ".tmp")
+            staged.writeText(settings.put("defaultInstallDir", chosen.second).toString(2))
+            check(staged.renameTo(file))
+            Log.i(TAG, "the Epic Games Launcher installs games to ${chosen.second}")
+            chosen.second
+        }.onFailure { Log.w(TAG, "could not set the launcher's install folder: ${it.javaClass.simpleName}") }.getOrNull()
     }
 
-    internal fun publishRequest(directory: File, request: GameRequest): Boolean = runCatching {
-        val staged = File(directory, "$GAME_REQUEST.tmp")
-        staged.writeText(JSONObject().put("app", request.app).put("namespace", request.namespace).put("item", request.item).toString())
-        check(staged.renameTo(File(directory, GAME_REQUEST)))
-    }.onFailure { Log.w(TAG, "could not hand ${request.app} to the running launcher", it) }.isSuccess
+    fun playInSteam(context: Context, id: String): JSONObject {
+        if (!launcherRunning()) return JSONObject().put("ok", false).put("reason", "no-launcher")
+        runCatching { EpicClientLibrary.importClientGames(context) }.onFailure { Log.w(TAG, "client library scan failed: ${it.javaClass.simpleName}") }
+        val game = steamShortcut(Library.launchableGames(context), id)
+            ?: return JSONObject().put("ok", false).put("reason", "not-registered")
+        context.startActivity(Intent(context, com.droiddeck.launcher.MainActivity::class.java)
+            .setAction(ACTION_PLAY_IN_STEAM)
+            .putExtra(com.droiddeck.launcher.frontend.GameLaunchIntent.EXTRA_APP_ID, game.gameIdString)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+        Log.i(TAG, "the Epic Games Launcher hands $id to Steam as ${game.gameIdString}")
+        return JSONObject().put("ok", true)
+    }
 
-    internal fun runArguments(appName: String, namespace: String, item: String): List<String> = listOf(
-        "run", "--app", appName, "--namespace", namespace, "--item", item,
-    )
-
-    internal fun appName(sidecar: StoreGameSidecar): String? =
-        sidecar.extra["appName"]?.takeIf(String::isNotBlank) ?: sidecar.id.takeIf(String::isNotBlank)
+    internal fun steamShortcut(games: List<Library.SteamGame>, id: String): Library.SteamGame? =
+        games.firstOrNull { it.source == Store.EPIC.id && it.storeId == id && it.gameId != LAUNCHER_APP_ID.toLong() }
 
     fun redirectOf(url: String): String? {
         val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return null

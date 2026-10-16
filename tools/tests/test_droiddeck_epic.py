@@ -653,6 +653,45 @@ class BrokerTest(EpicTestCase):
         self.assertEqual([5], result)
         self.assertFalse(marker.exists())
 
+    def test_a_game_started_in_the_open_launcher_goes_through_steam(self):
+        broker, path = self.broker("visible")
+        asked, ran, result = [], [], []
+
+        def ask_app(request, timeout):
+            asked.append(request)
+            return {"ok": True}
+
+        with mock.patch.dict(G, {
+            "find_store_game": lambda exe: (str(self.tmp), {"store": "epic", "id": "Fig"}),
+            "ask_app": ask_app,
+            "run_game": lambda *a, **k: ran.append(a) or 3,
+        }):
+            self.shim(path, ["-epicapp=Fig"], result).join(10)
+        self.assertEqual([{"op": "epic-play-in-steam", "id": "Fig"}], asked)
+        self.assertEqual([], ran)
+        self.assertEqual([0], result)
+
+    def test_a_game_steam_cannot_take_runs_in_the_open_launcher(self):
+        broker, path = self.broker("visible")
+        result = []
+        for reply in ({"ok": False, "reason": "not-registered"}, None, [1]):
+            with mock.patch.dict(G, {
+                "find_store_game": lambda exe: (str(self.tmp), {"store": "epic", "id": "Fig"}),
+                "ask_app": lambda request, timeout: reply,
+                "run_game": lambda *a, **k: 4,
+            }):
+                self.shim(path, ["-epicapp=Fig"], result).join(10)
+        self.assertEqual([4, 4, 4], result)
+
+    def test_only_registered_epic_games_are_offered_to_steam(self):
+        asked = []
+        with mock.patch.dict(G, {"ask_app": lambda request, timeout: asked.append(request) or {"ok": True}}):
+            with mock.patch.dict(G, {"find_store_game": lambda exe: None}):
+                self.assertFalse(G["play_in_steam"]({"exe": "/games/Fig/Fig.exe"}))
+            with mock.patch.dict(G, {"find_store_game": lambda exe: ("/games/Fig", {"store": "gog", "id": "1"})}):
+                self.assertFalse(G["play_in_steam"]({"exe": "/games/Fig/Fig.exe"}))
+        self.assertEqual([], asked)
+
     def test_the_playing_mark_goes_away_when_the_game_fails(self):
         launch = self.tmp / "launch"
         with mock.patch.dict(os.environ, {"BL_LAUNCH_DIR": str(launch)}):
@@ -792,55 +831,9 @@ class LaunchTest(EpicTestCase):
         self.assertTrue(G["holds"](listing, "Fig"))
         self.assertFalse(G["holds"](listing, "Other"))
 
-    def test_visible_session_launches_selected_game_through_epic_client(self):
-        session = G["Session"]("visible", {"app": "Fig", "namespace": "ns", "item": "it"})
-        session.bus = "unix:path=/run/bus"
-        with mock.patch.dict(G, {
-            "signed_in": lambda: True,
-            "api": lambda: {"port": 1234},
-            "installed": lambda info, app: app == "Fig",
-            "forward": lambda bus, url: self.assertEqual(
-                ("unix:path=/run/bus", "com.epicgames.launcher://apps/ns%3Ait%3AFig?action=launch&silent=true"),
-                (bus, url),
-            ) or True,
-        }):
-            session.launch_startup_game()
-        self.assertIsNone(session.startup_launch)
-
-    def test_visible_session_waits_for_epic_sign_in(self):
-        session = G["Session"]("visible", {"app": "Fig", "namespace": "ns", "item": "it"})
-        with mock.patch.dict(G, {"signed_in": lambda: False}):
-            session.launch_startup_game()
-        self.assertIsNotNone(session.startup_launch)
-
-    def test_an_open_launcher_takes_a_game_the_app_asks_for(self):
-        launch = self.tmp / "launch"
-        launch.mkdir()
-        (launch / "epic-game").write_text(json.dumps({"app": "Fig", "namespace": "ns", "item": "it", "extra": 1}))
-        session = G["Session"]("visible")
-        session.startup_logged = True
-        session.startup_attempt_at = 99.0
-        with mock.patch.dict(os.environ, {"BL_LAUNCH_DIR": str(launch)}):
-            session.take_game_request()
-            self.assertEqual({"app": "Fig", "namespace": "ns", "item": "it"}, session.startup_launch)
-            self.assertEqual((0.0, False), (session.startup_attempt_at, session.startup_logged))
-            self.assertFalse((launch / "epic-game").exists())
-            session.take_game_request()
-        self.assertEqual("Fig", session.startup_launch["app"])
-
-    def test_an_unreadable_game_request_is_dropped(self):
-        launch = self.tmp / "launch"
-        launch.mkdir()
-        (launch / "epic-game").write_text(json.dumps({"app": "Fig", "namespace": ""}))
-        with mock.patch.dict(os.environ, {"BL_LAUNCH_DIR": str(launch)}):
-            self.assertIsNone(G["game_request"]())
-        self.assertFalse((launch / "epic-game").exists())
-
-    def test_run_command_accepts_a_startup_game_without_steam(self):
-        with mock.patch.dict(G, {"serve": lambda mode, launch: (mode, launch)}):
-            self.assertEqual(("visible", {"app": "Fig", "namespace": "ns", "item": "it"}), G["main"]([
-                "run", "--app", "Fig", "--namespace", "ns", "--item", "it",
-            ]))
+    def test_run_command_opens_the_launcher(self):
+        with mock.patch.dict(G, {"serve": lambda mode: mode}):
+            self.assertEqual("visible", G["main"](["run"]))
 
     def test_launch_command_reaches_the_store_launch(self):
         with mock.patch.dict(G, {"launch": lambda options: options.get("app")}):

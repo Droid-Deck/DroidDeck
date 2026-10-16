@@ -317,6 +317,24 @@ class ExtractTest(FexTestCase):
         self.assertTrue((self.home / ".config/droiddeck/fex-wanted").is_file())
         self.assertFalse(json.loads((self.home / ".local/share/droiddeck-fex/status.json").read_text())["ready"])
 
+    def test_uruntime_that_only_drops_extended_attributes_still_unpacks(self):
+        tool = self.uruntime(
+            "mkdir -p AppDir && touch AppDir/AppRun\n"
+            "echo 'Failed to exec memfd: EACCES: Permission denied. Trying tmpfile in /tmp...' >&2\n"
+            "echo 'write_xattr: could not write xattr security.selinux for file ./AppDir/.DirIcon because you are not superuser!' >&2\n"
+            "echo 'Further error messages of this type are suppressed!' >&2\n"
+            "exit 2\n")
+        with mock.patch.dict(G, {"URUNTIME": tool, "fex_install": lambda: None, "steam_running": lambda: False}):
+            status, said = self.quiet(FEX["extract"], "image.AppImage")
+        self.assertEqual(status, 0)
+        self.assertIn("could not keep the image's extended attributes", said)
+        self.assertTrue(Path("squashfs-root/AppRun").is_file())
+
+    def test_other_uruntime_errors_are_not_taken_as_unpacked(self):
+        self.assertFalse(FEX["only_xattrs_failed"]("write_xattr: could not write xattr\nwrite_file: failed to create file x\n"))
+        self.assertFalse(FEX["only_xattrs_failed"](""))
+        self.assertTrue(FEX["only_xattrs_failed"]("proot error: execveat() failed\nwrite_xattr: could not write xattr\n"))
+
     def test_an_arm64_image_does_not_ask_for_fex(self):
         self.write(self.image, elf(183) + b"payload", 0o755)
         tool = self.uruntime("mkdir -p squashfs-root\n")
