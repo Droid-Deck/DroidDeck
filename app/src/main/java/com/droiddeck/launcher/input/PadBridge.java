@@ -127,9 +127,15 @@ public final class PadBridge {
         }
     }
 
+    static boolean isSystemVirtualInputName(String name) {
+        if (name == null) return false;
+        String lower = name.trim().toLowerCase(java.util.Locale.ROOT);
+        return lower.startsWith("uinput-") || lower.startsWith("uinput_");
+    }
+
     public static boolean isFromController(InputDevice device) {
         if (device == null) return false;
-        if (device.isVirtual()) return false;
+        if (device.isVirtual() || isSystemVirtualInputName(device.getName())) return false;
         int sources = device.getSources();
         if ((sources & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD) return true;
         if ((sources & InputDevice.SOURCE_JOYSTICK) != InputDevice.SOURCE_JOYSTICK) return false;
@@ -146,7 +152,7 @@ public final class PadBridge {
 
     public static boolean isControllerKeyEvent(KeyEvent event) {
         InputDevice device = event.getDevice();
-        if (device == null || device.isVirtual()) return false;
+        if (device == null || device.isVirtual() || isSystemVirtualInputName(device.getName())) return false;
         if (KeyEvent.isGamepadButton(event.getKeyCode())) {
             return device.supportsSource(InputDevice.SOURCE_GAMEPAD)
                     || device.supportsSource(InputDevice.SOURCE_JOYSTICK);
@@ -171,6 +177,7 @@ public final class PadBridge {
     public static boolean isControllerMotionEvent(MotionEvent event) {
         InputDevice device = event.getDevice();
         return event.isFromSource(InputDevice.SOURCE_JOYSTICK) && device != null && !device.isVirtual()
+                && !isSystemVirtualInputName(device.getName())
                 && (device.supportsSource(InputDevice.SOURCE_GAMEPAD)
                 || device.supportsSource(InputDevice.SOURCE_JOYSTICK));
     }
