@@ -110,6 +110,9 @@ object BattleNet {
 
     fun installed(context: Context) = File(prefix(context), "pfx/drive_c/Program Files (x86)/Battle.net/Battle.net Launcher.exe").isFile
 
+    fun profile(context: Context): Pair<String, String>? =
+        (APP_ID.toString() to context.getString(com.droiddeck.launcher.R.string.bnet_name)).takeIf { installed(context) }
+
     fun fexInUse(context: Context): String? = ComponentsManager.gameComponents(context, APP_ID.toString())["fex"]
 
     fun launchArgs(game: com.droiddeck.launcher.frontend.Library.SteamGame): List<String>? {
