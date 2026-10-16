@@ -58,7 +58,7 @@ object SteamGrid {
         val suffix = SUFFIX[slot] ?: return true
         val grid = dir(context) ?: return true
         if (file == null) {
-            files(grid, target.id, slot).forEach { it.delete() }
+            if (files(grid, target.id, slot).map { it.delete() }.any { !it }) return false
             record(target, slot, "")
             return true
         }
@@ -72,7 +72,7 @@ object SteamGrid {
             tmp.delete()
             return false
         }
-        files(grid, target.id, slot).filter { it != dst }.forEach { it.delete() }
+        if (files(grid, target.id, slot).filter { it != dst }.map { it.delete() }.any { !it }) return false
         record(target, slot, signature(placed))
         return true
     }

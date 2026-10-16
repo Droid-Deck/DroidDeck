@@ -138,4 +138,16 @@ class SteamGridTest {
         assertEquals(kept, SteamGameArt.chosenFile(app, 620, AddedGameArt.Slot.COVER))
         assertEquals(12L, File(grid, "620p.png").length())
     }
+
+    @Test fun choicesMadeInTheSameMillisecondGetDifferentNamesAndTheLastOneWins() {
+        File(LinuxRuntime.rootDir(app), "root/.local/share/Steam/userdata/123/config").mkdirs()
+        val dir = SteamGameArt.dir(app, 620)
+        val names = (1..5).map { n ->
+            val image = image("pick$n.png", n)
+            AddedGameArt.storeNew(dir, AddedGameArt.Slot.COVER, AddedGameArt.Option(AddedGameArt.FILE, image.path, image.path))!!.name
+        }
+        assertEquals(5, names.toSet().size)
+        assertEquals(names.sorted(), names)
+        assertEquals(5L, AddedGameArt.chosen(dir, AddedGameArt.Slot.COVER)?.length())
+    }
 }

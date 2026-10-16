@@ -75,9 +75,9 @@ object SteamGameArt {
 
     fun reset(context: Context, game: Library.SteamGame, slot: AddedGameArt.Slot) {
         synchronized(SteamGrid.lock) {
+            if (!push(context, game, slot, null)) return@synchronized
             AddedGameArt.chosen(dir(context, game.appId), slot)?.delete()
             setSource(context, game.appId, slot, "")
-            push(context, game, slot, null)
         }
     }
 

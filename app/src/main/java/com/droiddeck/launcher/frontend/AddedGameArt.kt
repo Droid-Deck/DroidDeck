@@ -177,12 +177,18 @@ object AddedGameArt {
         cache.listFiles { f -> f != keep && CHOSEN.matchEntire(f.name)?.groupValues?.get(1) == slot.key }?.forEach { it.delete() }
     }
 
+    private val lastStamp = java.util.concurrent.atomic.AtomicLong(0)
+
+    private fun nextStamp(): Long = lastStamp.updateAndGet { maxOf(it + 1, System.currentTimeMillis()) }
+
     internal fun storeNew(cache: File, slot: Slot, option: Option): File? {
         val bytes = if (option.full.startsWith("https://")) get(option.full) else runCatching { File(option.full).readBytes() }.getOrNull()
         bytes ?: return null
         val ext = option.full.substringAfterLast('.', "png").substringBefore('?').lowercase().takeIf { it in CHOOSABLE + "ico" } ?: "png"
         cache.mkdirs()
-        val dst = File(cache, "chosen-${slot.key}-${System.currentTimeMillis()}.${if (ext == "jpeg") "jpg" else ext}")
+        val suffix = if (ext == "jpeg") "jpg" else ext
+        var dst = File(cache, "chosen-${slot.key}-" + "%013d".format(nextStamp()) + "." + suffix)
+        while (dst.exists()) dst = File(cache, "chosen-${slot.key}-" + "%013d".format(nextStamp()) + "." + suffix)
         val tmp = File(cache, dst.name + ".tmp")
         tmp.writeBytes(bytes)
         return if (tmp.renameTo(dst)) dst else null
