@@ -38,6 +38,7 @@ object CompositorHost {
             return false
         }
         WaylandCompositor.nativeSetOutputRefreshRate(refreshHz)
+        com.droiddeck.launcher.gpu.TpUbwcHint.applyToProcess()
         WaylandCompositor.nativeStartWithSurface(
             surface, xdgRuntimeDir, driverPath, libraryName, nativeLibDir,
         )

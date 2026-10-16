@@ -292,6 +292,7 @@ class SessionService : Service() {
 
     private fun runSession(gen: Int) {
         SessionTerminal.clear()
+        com.droiddeck.launcher.gpu.TpUbwcHint.forThisDevice()
         try {
             LinuxRuntime.writeAccounts(this)
         } catch (e: Exception) {
@@ -540,6 +541,7 @@ class SessionService : Service() {
         LinuxVulkanDriver.resolveIcdPath(this, linuxDriverId)
             ?.let { guest.add(LinuxVulkanDriver.ENV + "=" + it) }
         tuDebug(linuxDriverId)?.let { guest.add("TU_DEBUG=$it") }
+        com.droiddeck.launcher.gpu.TpUbwcHint.forThisDevice()?.let { guest.add("${com.droiddeck.launcher.gpu.TpUbwcHint.ENV}=$it") }
         if (SessionPrefs.zinkLazy(this)) {
             guest.add("ZINK_DESCRIPTORS=lazy")
             guest.add("ZINK_DEBUG=compact")
