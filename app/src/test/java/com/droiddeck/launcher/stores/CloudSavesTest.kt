@@ -76,7 +76,7 @@ class CloudSavesTest {
         assertTrue(CloudSaves.dirty(app).contains(Store.GOG to gameId))
         CloudSaves.uploadAllDirty(app, "recovery", running = true)
         assertTrue(CloudSaves.dirty(app).contains(Store.GOG to gameId))
-        com.droiddeck.launcher.stores.gog.GogPrefs.get(app).edit().putString("cloud_template_$gameId", "").apply()
+        com.droiddeck.launcher.stores.gog.GogPrefs.get(app).edit().putString("cloud_template_$gameId", "none").apply()
         assertEquals("no-cloud-saves", CloudSaves.uploadDirty(app, Store.GOG, gameId, "exit")!!.reason)
         assertTrue(CloudSaves.dirty(app).none { it.second == gameId })
         assertEquals(null, CloudSaves.uploadDirty(app, Store.GOG, gameId, "session-end"))

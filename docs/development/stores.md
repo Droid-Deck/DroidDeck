@@ -245,11 +245,15 @@ the prefix's user folder appears, within a minute. Every path logs
 `cloud <store> <id> down|up result=ok|skipped|deferred|failed files= bytes= reason=`.
 
 - **The folder:** GOG's public remote-config gives a location template per game (by its Galaxy client
-  id), e.g. `<?APPLICATION_DATA_LOCAL_LOW?>/Hyperstrange/ELDERBORN`; Epic's catalog gives
-  `CloudSaveFolder`, e.g. `{AppData}/Game/Saved/SaveGames`. `CloudSavePaths` expands it inside the
-  game's prefix (`compatdata/<shortcut appid>/pfx/drive_c/users/steamuser`) or its install folder,
-  case-insensitively, and refuses a path that leaves its boundary. A game whose store gives none
-  has no cloud saves.
+  id), e.g. `<?APPLICATION_DATA_LOCAL_LOW?>/Hyperstrange/ELDERBORN`. When `cloudStorage` is enabled
+  but `locations` is empty, the game uses Galaxy SDK IStorage under `__default`:
+  `%LocalAppData%/GOG.com/Galaxy/Applications/<clientId>/Storage/Shared/Files`, with cloud object
+  names under `__default/` (stripped on list, prefixed on get/put) and gzip bodies inflated on
+  download. Epic's catalog gives `CloudSaveFolder`, e.g. `{AppData}/Game/Saved/SaveGames`.
+  `CloudSavePaths` expands the template inside the game's prefix
+  (`compatdata/<shortcut appid>/pfx/drive_c/users/steamuser`) or its install folder,
+  case-insensitively, and refuses a path that leaves its boundary. A game whose store has cloud
+  disabled, or no client id to fall back on, has no cloud saves.
 - **The services:** GOG `cloudstorage.gog.com/v1/<user>/<client>` with a token issued to the game's
   own client (the client secret is kept at install; the Galaxy token is the fallback); Epic's
   savesync data storage with signed read and write links (`EpicCloud` → `EpicSaveSync` → the Rust

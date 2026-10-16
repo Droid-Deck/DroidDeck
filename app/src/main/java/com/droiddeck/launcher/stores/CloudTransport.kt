@@ -38,6 +38,11 @@ private fun httpDate(s: String?): Long = try {
     SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz", Locale.US).apply { timeZone = TimeZone.getTimeZone("GMT") }.parse(s!!.trim())?.time ?: -1L
 } catch (e: Exception) { -1L }
 
+internal fun gunzipIfNeeded(data: ByteArray): ByteArray {
+    if (data.size < 2 || data[0] != 0x1f.toByte() || data[1] != 0x8b.toByte()) return data
+    return java.util.zip.GZIPInputStream(data.inputStream()).readBytes()
+}
+
 internal fun isoDate(s: String?): Long {
     if (s == null || s.length < 19) return -1L
     return try {
@@ -51,11 +56,25 @@ internal fun isoDate(s: String?): Long {
 
 class NoCloudSaves : Exception("no cloud saves")
 
-class GogCloud(private val userId: String, private val clientId: String, private val token: String) : CloudTransport {
+internal fun gogCloudKey(localName: String, namespace: String): String =
+    if (namespace.isEmpty()) localName else "$namespace/$localName"
+
+internal fun gogLocalKey(cloudName: String, namespace: String): String? {
+    if (namespace.isEmpty()) return cloudName
+    val prefix = "$namespace/"
+    return if (cloudName.startsWith(prefix)) cloudName.removePrefix(prefix) else null
+}
+
+class GogCloud(
+    private val userId: String,
+    private val clientId: String,
+    private val token: String,
+    private val namespace: String = "",
+) : CloudTransport {
     private val base = "https://cloudstorage.gog.com/v1/$userId/$clientId"
     private val ua = "GOG Galaxy"
 
-    private fun key(name: String) = URLEncoder.encode(name, "UTF-8").replace("+", "%20")
+    private fun key(name: String) = URLEncoder.encode(gogCloudKey(name, namespace), "UTF-8").replace("+", "%20")
 
     override fun list(): List<CloudFile> {
         val c = open(base, "GET", token, ua)
@@ -73,12 +92,21 @@ class GogCloud(private val userId: String, private val clientId: String, private
         if (text.startsWith("[")) {
             val a = JSONArray(text)
             return (0 until a.length()).mapNotNull { a.optJSONObject(it) }.mapNotNull { o ->
-                val n = o.optString("name").ifEmpty { return@mapNotNull null }
+                val n = gogLocalKey(o.optString("name"), namespace) ?: return@mapNotNull null
+                if (n.isEmpty()) return@mapNotNull null
                 val lm = o.optLong("last_modified", 0L)
-                CloudFile(n, if (lm > 1_000_000_000_000L) lm else if (lm > 0) lm * 1000 else -1L)
+                val iso = isoDate(o.optString("last_modified").takeIf { it.isNotEmpty() })
+                CloudFile(n, when {
+                    lm > 1_000_000_000_000L -> lm
+                    lm > 0 -> lm * 1000
+                    iso > 0 -> iso
+                    else -> -1L
+                })
             }
         }
-        return text.lines().map { it.trim() }.filter { it.isNotEmpty() }.map { CloudFile(it, -1L) }
+        return text.lines().map { it.trim() }.filter { it.isNotEmpty() }.mapNotNull { n ->
+            gogLocalKey(n, namespace)?.takeIf { it.isNotEmpty() }?.let { CloudFile(it, -1L) }
+        }
     }
 
     override fun details(file: CloudFile) {
@@ -95,7 +123,7 @@ class GogCloud(private val userId: String, private val clientId: String, private
         val c = open("$base/${key(file.name)}", "GET", token, ua)
         if (c.responseCode !in 200..299) { val code = c.responseCode; c.disconnect(); throw java.io.IOException("GOG cloud get HTTP $code") }
         val modified = httpDate(c.getHeaderField("Last-Modified"))
-        return c.body().also { c.disconnect() } to modified
+        return gunzipIfNeeded(c.body().also { c.disconnect() }) to modified
     }
 
     override fun put(files: Map<String, ByteArray>): Map<String, Long> = files.mapValues { (name, data) ->
