@@ -54,10 +54,15 @@ data class GlassesState(
     val supportsScreen3dof: Boolean = false,
     val supports30Hz: Boolean = false,
     val supportsSpatial: Boolean = false,
+    val resolutions: List<GlassesResolution> = emptyList(),
+    val vrActive: Boolean = false,
 ) {
     val hasDisplay: Boolean get() = displayId != Display.INVALID_DISPLAY
     val usable: Boolean get() = hasDisplay && !noSignal
     val canControl: Boolean get() = connected && controllable
+    val spatialConnected: Boolean get() = canControl && supportsSpatial
+    fun usesSpatialControllers(settings: GlassesSettings) = spatialConnected && settings.positionalTracking &&
+        (settings.handControllers || settings.joyConTracking)
     val can3d: Boolean get() = canControl && !noSignal && sbsSupport != SBS_FAILS
     val verticalFovDeg: Float get() {
         val half = Math.toRadians(diagonalFovDeg / 2.0)
@@ -77,6 +82,9 @@ data class GlassesState(
 data class GlassesSettings(
     val refreshHz: Int = 120,
     val sbsHz: Int = 60,
+    val resolution2d: String = "",
+    val resolution3d: String = "",
+    val resolutionVr: String = "",
     val sunblock: Boolean? = null,
     val gameOnGlasses: Boolean = true,
     val headTracking: Boolean = true,
@@ -87,6 +95,7 @@ data class GlassesSettings(
     val vrFovDeg: Int = VR_FOV_DEFAULT,
     val positionalTracking: Boolean = false,
     val handControllers: Boolean = false,
+    val joyConTracking: Boolean = false,
     val eyeHeightCm: Int = 160,
 ) {
     val screen3dof: Boolean get() = picture3d == PICTURE_SCREEN && headTracking
@@ -220,6 +229,36 @@ object Glasses {
         if (hz != 30 && _state.value.sbs && _state.value.can3d) sendMode(true)
     }
 
+    fun setResolution(profile: GlassesDisplayProfile, value: String) = post {
+        val s = _state.value
+        val choice = if (value == "auto") "" else value
+        if (choice.isNotEmpty() && s.resolutions.none { it.key == choice }) return@post
+        if (GlassesDisplayModes.choice(_settings.value, profile) == choice) return@post
+        update { when (profile) {
+            GlassesDisplayProfile.TWO_D -> it.copy(resolution2d = choice)
+            GlassesDisplayProfile.THREE_D -> it.copy(resolution3d = choice)
+            GlassesDisplayProfile.VR -> it.copy(resolutionVr = choice)
+        } }
+        val active = GlassesDisplayModes.profile(s.sbs, s.vrActive)
+        val inheritedByVr = s.vrActive && _settings.value.resolutionVr.isEmpty() &&
+            profile == GlassesDisplayModes.profile(s.sbs, false)
+        if ((profile == active || inheritedByVr) && s.canControl && !s.switching3d &&
+            model?.resolutions?.isNotEmpty() == true) sendMode(s.sbs)
+    }
+
+    fun setVrActive(on: Boolean) = post {
+        val s = _state.value
+        if (s.vrActive == on) return@post
+        val previous = GlassesDisplayModes.selected(_settings.value, s)
+        publish { it.copy(vrActive = on) }
+        val restore2d = !on && modeState.stopVr()
+        val stereo = (s.sbs || modeState.pendingStereo) && !restore2d
+        val selected = GlassesDisplayModes.selected(_settings.value, _state.value, stereo)
+        if (s.canControl && s.usable && (restore2d ||
+            (previous != selected && model?.resolutions?.isNotEmpty() == true)) &&
+            !(on && _settings.value.auto3d && !s.sbs)) sendMode(stereo)
+    }
+
     fun set3d(on: Boolean) = post {
         val s = _state.value
         if (!s.canControl || (on && s.noSignal)) return@post
@@ -292,20 +331,27 @@ object Glasses {
         }
     }
     fun setPositionalTracking(on: Boolean) = post {
-        if (_settings.value.positionalTracking == on) return@post
-        update { it.copy(positionalTracking = on, handControllers = it.handControllers && on) }
+        if (!_state.value.spatialConnected || _settings.value.positionalTracking == on) return@post
+        update { it.copy(positionalTracking = on, handControllers = it.handControllers && on,
+            joyConTracking = it.joyConTracking && on) }
+        if (!on) SpatialTracking.setControllers(false, false)
         closeLink()
         refresh()
     }
     fun setHandControllers(on: Boolean) = post {
-        val wanted = on && _settings.value.positionalTracking && _state.value.supportsSpatial
-        update { it.copy(handControllers = wanted) }
-        SpatialTracking.setHands(wanted)
+        val wanted = on && _settings.value.positionalTracking && _state.value.spatialConnected
+        update { it.copy(handControllers = wanted, joyConTracking = it.joyConTracking && !wanted) }
+        SpatialTracking.setControllers(wanted, _settings.value.joyConTracking)
+    }
+    fun setJoyConTracking(on: Boolean) = post {
+        val wanted = on && _settings.value.positionalTracking && _state.value.spatialConnected
+        update { it.copy(joyConTracking = wanted, handControllers = it.handControllers && !wanted) }
+        SpatialTracking.setControllers(_settings.value.handControllers, wanted)
     }
     fun setEyeHeight(cm: Int) = post { update { it.copy(eyeHeightCm = cm.coerceIn(50, 250)) } }
     fun setSpatialFloor() = SpatialTracking.setFloor(_settings.value.eyeHeightCm / 100f)
     fun restartSpatialTracking() = post {
-        if (_settings.value.positionalTracking) { closeLink(); refresh() }
+        if (_state.value.spatialConnected && _settings.value.positionalTracking) { closeLink(); refresh() }
     }
 
     fun setHeadTracking(on: Boolean) = post { update { it.copy(headTracking = on) } }
@@ -316,6 +362,7 @@ object Glasses {
     fun setVrFovDeg(deg: Int) = post { update { it.copy(vrFovDeg = deg.coerceIn(GlassesSettings.VR_FOV_MIN, GlassesSettings.VR_FOV_MAX)) } }
 
     fun outputHz(): Int = GlassesRendering.outputHz(_settings.value, _state.value)
+    fun outputResolution(): GlassesResolution? = GlassesDisplayModes.selected(_settings.value, _state.value)
 
     fun glassesDisplay(): Display? = _state.value.displayId.takeIf { it != Display.INVALID_DISPLAY }?.let { displays.getDisplay(it) }
 
@@ -371,7 +418,8 @@ object Glasses {
                 JSONObject().put("status",it[0]).put("callbackAgeMs",it[1]).put("cameraPoseDeltaMs",it[2])
             } ?: JSONObject.NULL)
             .put("spatial", SpatialTracking.diagnosticStatus())
-            .put("supports30Hz", s.supports30Hz)
+            .put("supports30Hz", s.supports30Hz).put("vrActive", s.vrActive)
+            .put("resolutions", JSONArray(s.resolutions.map { it.key }))
             .put("display", if (s.hasDisplay) JSONObject().put("id", s.displayId).put("width", s.width).put("height", s.height).put("hz", s.hz.toDouble()) else JSONObject.NULL)
             .put("sbs", s.sbs).put("deviceMode", glassesMode).put("switching3d", s.switching3d)
             .put("brightness", s.brightness).put("volume", s.volume)
@@ -386,7 +434,9 @@ object Glasses {
             .put("settings", JSONObject().put("refreshHz", g.refreshHz).put("sbsHz", g.sbsHz).put("sunblock", g.sunblock ?: JSONObject.NULL)
                 .put("gameOnGlasses", g.gameOnGlasses).put("headTracking", g.headTracking).put("auto3d", g.auto3d)
                 .put("screen3dof", g.screen3dof)
-                .put("positionalTracking", g.positionalTracking).put("handControllers", g.handControllers).put("eyeHeightCm", g.eyeHeightCm)
+                .put("resolution2d", g.resolution2d).put("resolution3d", g.resolution3d).put("resolutionVr", g.resolutionVr)
+                .put("positionalTracking", g.positionalTracking).put("handControllers", g.handControllers)
+                .put("joyConTracking", g.joyConTracking).put("eyeHeightCm", g.eyeHeightCm)
                 .put("picture3d", g.picture3d).put("screenWidthDm", g.screenWidthDm).put("screenDistanceDm", g.screenDistanceDm)
                 .put("vrFovDeg", g.vrFovDeg))
     }
@@ -515,6 +565,11 @@ object Glasses {
                 supportsScreen3dof = link?.hasImu == true,
                 supports30Hz = display?.let(::supports30Hz) == true,
                 supportsSpatial = (link as? VitureSdkLink)?.isCarina == true,
+                resolutions = m?.resolutions?.takeIf { modes -> modes.isNotEmpty() }
+                    ?: display?.supportedModes.orEmpty().filter { mode ->
+                        mode.physicalWidth >= 1280 && (mode.physicalWidth >= 3000) == sbsByDisplay
+                    }.map { mode -> GlassesResolution(mode.physicalWidth / (if (sbsByDisplay) 2 else 1), mode.physicalHeight) }
+                        .distinct().sortedWith(compareBy({ size -> size.height }, { size -> size.width })),
             )
         }
         if (link != null) applyMode(force = false)
@@ -611,8 +666,11 @@ object Glasses {
         }
         link = opened
         if (opened is VitureSdkLink && opened.isCarina) SpatialTracking.connect(opened.sdkToken, generation,
-            runCatching { device.serialNumber }.getOrNull()?.let { "${device.vendorId}:${device.productId}:$it" },
-            _settings.value.positionalTracking, _settings.value.eyeHeightCm / 100f, _settings.value.handControllers)
+            opened.spatialIdentity ?: runCatching { device.serialNumber }.getOrNull()?.takeIf { it.isNotBlank() }
+                ?.let { "${device.vendorId}:${device.productId}:$it" },
+            _settings.value.positionalTracking, _settings.value.eyeHeightCm / 100f, _settings.value.handControllers,
+            _settings.value.joyConTracking)
+        else SpatialTracking.useLegacyTracking()
         _calibration.value = GlassesCalibrationState(supported = opened is RayNeoLink,
             saved = opened is RayNeoLink && calibrationKey?.let(calibrationStore::load) != null)
         linkDevice = device
@@ -771,10 +829,12 @@ object Glasses {
         val hz = _settings.value.refreshHz
         // Native 30 Hz is selected by the Android presentation, without a vendor mode command.
         if (hz == 30 && GlassesRendering.native30HzAvailable(_settings.value, s)) return
-        if (glassesMode == m.mode(hz, false)) return
+        if (glassesMode == m.mode(hz, false, outputResolution())) return
         if (!force) {
             if (autoModeSent || SystemClock.uptimeMillis() - lastModeSentAt < 8_000) return
-            if (glassesMode == 0 && abs(s.hz - hz) < 1.5f) return
+            val resolution = outputResolution()
+            if (glassesMode == 0 && abs(s.hz - hz) < 1.5f &&
+                (resolution == null || (s.width == resolution.width && s.height == resolution.height))) return
             autoModeSent = true
         }
         sendMode(false)
@@ -784,7 +844,8 @@ object Glasses {
         val m = model ?: return false
         if (sbs && !_settings.value.gameOnGlasses) update { it.copy(gameOnGlasses = true) }
         val g = _settings.value
-        val mode = m.mode(if (sbs) g.sbsHz else g.refreshHz, sbs)
+        val resolution = GlassesDisplayModes.selected(g, _state.value, sbs)
+        val mode = m.mode(if (sbs) g.sbsHz else g.refreshHz, sbs, resolution)
         if (link?.send(VitureProtocol.MSG_DISPLAY, byteArrayOf(mode.toByte())) == true) {
             if (link is RayNeoLink) glassesMode = mode
             lastModeSentAt = SystemClock.uptimeMillis()
@@ -918,9 +979,13 @@ object Glasses {
         return GlassesSettings(
             positionalTracking = p.getBoolean("positionalTracking", false),
             handControllers = p.getBoolean("handControllers", false),
+            joyConTracking = p.getBoolean("joyConTracking", false),
             eyeHeightCm = p.getInt("eyeHeightCm", 160).coerceIn(50, 250),
             refreshHz = p.getInt("refreshHz", 120),
             sbsHz = p.getInt("sbsHz", 60),
+            resolution2d = p.getString("resolution2d", "").orEmpty(),
+            resolution3d = p.getString("resolution3d", "").orEmpty(),
+            resolutionVr = p.getString("resolutionVr", "").orEmpty(),
             sunblock = if (p.contains("sunblock")) p.getBoolean("sunblock", false) else null,
             gameOnGlasses = p.getBoolean("gameOnGlasses", true),
             headTracking = p.getBoolean("headTracking", true),
@@ -936,9 +1001,13 @@ object Glasses {
         app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().apply {
             putBoolean("positionalTracking", s.positionalTracking)
             putBoolean("handControllers", s.handControllers)
+            putBoolean("joyConTracking", s.joyConTracking)
             putInt("eyeHeightCm", s.eyeHeightCm)
             putInt("refreshHz", s.refreshHz)
             putInt("sbsHz", s.sbsHz)
+            putString("resolution2d", s.resolution2d)
+            putString("resolution3d", s.resolution3d)
+            putString("resolutionVr", s.resolutionVr)
             s.sunblock?.let { putBoolean("sunblock", it) } ?: remove("sunblock")
             putBoolean("gameOnGlasses", s.gameOnGlasses)
             putBoolean("headTracking", s.headTracking)

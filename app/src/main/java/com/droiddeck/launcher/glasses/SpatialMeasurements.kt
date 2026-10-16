@@ -17,6 +17,8 @@ internal object SpatialMeasurements {
 }
 
 internal enum class CalibrationDistance(val meters: Float, val label: String) {
+    INCHES_12(0.3048f, "12 in (30.48 cm)"),
+    CENTIMETERS_30(0.3f, "30 cm (11.81 in)"),
     INCHES_20(0.508f, "20 in (50.8 cm)"),
     CENTIMETERS_50(0.5f, "50 cm (19.69 in)"),
 }
@@ -26,4 +28,8 @@ internal data class SpatialCalibrationProgress(
     val views: Int = 0,
     val fitted: Boolean = false,
     val solving: Boolean = false,
+    val capturing: Boolean = false,
+    val captureMessage: String? = null,
+    val validating: Boolean = false,
+    val validationMessage: String? = null,
 )

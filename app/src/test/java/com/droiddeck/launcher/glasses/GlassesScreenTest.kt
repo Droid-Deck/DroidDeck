@@ -23,6 +23,19 @@ import org.robolectric.shadows.ShadowDisplayManager
 @Config(sdk = [31, 34], manifest = Config.NONE, shadows = [GlassesScreenTest.ModeDisplay::class])
 @LooperMode(LooperMode.Mode.PAUSED)
 class GlassesScreenTest {
+    @Test fun recoveryCoversTheExistingRenderSurfaceWithoutReplacingIt() {
+        val flat=mode(1,1920,1200,60f)
+        val (screen,_)=screen(flat,arrayOf(flat),60)
+        val holder=screen.holder
+        val root=screen.surfaceView.parent as android.view.ViewGroup
+        assertTrue(root.indexOfChild(screen.trackingRecovery)>root.indexOfChild(screen.surfaceView))
+        screen.trackingRecovery.update(TrackingRecovery.LOST,false)
+        assertEquals(android.view.View.VISIBLE,screen.trackingRecovery.visibility)
+        screen.trackingRecovery.update(null,false)
+        assertEquals(android.view.View.GONE,screen.trackingRecovery.visibility)
+        assertTrue(holder===screen.holder)
+    }
+
     @Test fun nativeThirtyHzMustMatchBothDimensionsOfTheCurrentEyeLayout() {
         val flat60 = mode(1, 1920, 1200, 60f)
         val flat30 = mode(2, 1920, 1200, 29.97f)
@@ -74,6 +87,30 @@ class GlassesScreenTest {
         val (screen, _) = screen(stereo60, arrayOf(stereo60, stereo90, flat120), 60)
 
         screen.prefer(120)
+        assertEquals(stereo90.modeId, screen.window!!.attributes.preferredDisplayModeId)
+    }
+
+    @Test fun explicitResolutionChangesBothDimensionsWithoutSwitchingEyeLayout() {
+        val flat1080 = mode(1, 1920, 1080, 90f)
+        val flat1200 = mode(2, 1920, 1200, 90f)
+        val stereo1080 = mode(3, 3840, 1080, 90f)
+        val stereo1200 = mode(4, 3840, 1200, 90f)
+        val (screen, panel) = screen(flat1200, arrayOf(flat1080, flat1200, stereo1080, stereo1200), 90)
+        screen.prefer(90, GlassesResolution(1920, 1080))
+        assertEquals(flat1080.modeId, screen.window!!.attributes.preferredDisplayModeId)
+        panel.current = stereo1200
+        screen.prefer(90, GlassesResolution(1920, 1080))
+        assertEquals(stereo1080.modeId, screen.window!!.attributes.preferredDisplayModeId)
+        screen.prefer(90, GlassesResolution(1920, 1200))
+        assertEquals(stereo1200.modeId, screen.window!!.attributes.preferredDisplayModeId)
+    }
+
+    @Test fun unavailableResolutionKeepsTheCurrentModeUntilHardwareConfirmsTheChange() {
+        val stereo60 = mode(1, 3840, 1200, 60f)
+        val stereo90 = mode(2, 3840, 1200, 90f)
+        val flat1080 = mode(3, 1920, 1080, 90f)
+        val (screen, _) = screen(stereo60, arrayOf(stereo60, stereo90, flat1080), 60)
+        screen.prefer(90, GlassesResolution(1920, 1080))
         assertEquals(stereo90.modeId, screen.window!!.attributes.preferredDisplayModeId)
     }
 

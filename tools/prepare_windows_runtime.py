@@ -42,6 +42,8 @@ LOCAL_BUILD_PLUMBING = {'app/build.gradle', 'tools/release/runtime_inputs.py'}
 LOCAL_ANDROID_SOURCES = {'app/src/main/cpp/CMakeLists.txt',
                          'app/src/main/cpp/viture/sdk_bridge.cpp',
                          'app/src/main/cpp/viture/display_modes.h',
+                         'app/src/main/cpp/viture/stereo_frame_gate.h',
+                         'app/src/main/cpp/viture/uvc_bridge.cpp',
                          'app/src/main/cpp/waylandcomp/src/cardboard.c',
                          'app/src/main/cpp/waylandcomp/src/cardboard.h',
                          'app/src/main/cpp/waylandcomp/src/cardboard.frag',

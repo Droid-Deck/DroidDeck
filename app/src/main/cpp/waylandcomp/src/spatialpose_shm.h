@@ -2,9 +2,10 @@
 #define DROIDDECK_SPATIALPOSE_SHM_H
 #include <stdint.h>
 #define DROIDDECK_SPATIALPOSE_MAGIC 0x53504444u
-#define DROIDDECK_SPATIALPOSE_VERSION 1u
+#define DROIDDECK_SPATIALPOSE_VERSION 4u
 #define DROIDDECK_SPATIALPOSE_FILE "droiddeck-spatialpose"
-enum { DD_SPATIAL_ACTIVE = 1u, DD_SPATIAL_HANDS = 2u, DD_SPATIAL_VALID = 1u };
+enum { DD_SPATIAL_ACTIVE = 1u, DD_SPATIAL_HANDS = 2u, DD_SPATIAL_JOYCONS = 4u, DD_SPATIAL_VALID = 1u };
+enum { DD_SPATIAL_TRIGGER_VALID = 2u, DD_SPATIAL_GRIP_VALID = 4u };
 struct dd_spatial_pose {
     int64_t time_ns;
     float position[3];
@@ -19,7 +20,7 @@ struct dd_spatial_hand {
 struct droiddeck_spatialpose {
     uint32_t magic, version, size, seq;
     uint64_t connection, origin;
-    uint32_t flags, reserved;
+    uint32_t flags, input_epochs;
     struct dd_spatial_pose head;
     struct dd_spatial_hand hands[2];
 };

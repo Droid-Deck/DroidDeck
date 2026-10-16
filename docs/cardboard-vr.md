@@ -188,6 +188,32 @@ the presenter can keep presenting an old SteamVR image while the compositor repo
 
 ### Joy-Con controllers
 
+**Glasses → Tracking → Experimental → Luma Joy-Con tracking** is off by default. Enable
+positional tracking first, then this toggle. It uses the Luma Ultra primary stereo camera pair
+to locate each hand holding a Joy-Con, with the existing calibrated, capture-time head transform.
+Joy-Con IMU orientation, buttons, sticks, battery reporting and haptics remain in use. This mode
+also enables Joy-Con takeover for SteamVR even if the ordinary controller preference is off.
+Android 12+ and controller IMU support are still required.
+
+Stereo positions and the 6DoF head share the same recentered floor origin. If a hand is hidden,
+invalid, or its observation is older than 200 ms, that side blends to the arm model anchored to
+the current head position. Reacquisition also blends (180 ms time constant). No usable calibration
+or visible palm means arm-model-only positioning. Loss of head tracking beyond 100 ms invalidates
+the controllers and releases their inputs. Reconnects, origin changes and Joy-Con recentering discard
+old positional corrections. Point the Joy-Cons forward when connecting or recentering; camera
+positions do not correct IMU yaw drift. Position extrapolation is disabled in this mode.
+
+The camera observes the gripping **hand**, not the Joy-Con shell. Occluded palm landmarks, crossed
+hands, and handedness ambiguity can reduce tracking availability. This is an experimental hand
+position proxy with estimated fallback, not marker-based controller tracking. Controller grip offset,
+aiming, motion latency, and sustained performance still need physical validation with held Joy-Cons.
+
+Luma Joy-Con tracking and stereo bare-hand controllers are mutually exclusive. Either selected
+Luma controller mode pauses phone-camera inference. External VR controllers retain priority.
+Disable both Luma controller toggles to return to the upstream Joy-Con/device-camera modes,
+which retain their existing fixed head-position anchor. Positional tracking, stereo controllers,
+and phone-camera controls are grouped at the bottom of the glasses settings under **Experimental**.
+
 Nintendo Joy-Cons paired over Bluetooth become SteamVR hands while SteamVR runs, and stay an ordinary
 game pad otherwise. It needs Android 12 or later (motion sensors on an `InputDevice`) and a kernel whose
 `hid-nintendo` driver reports the IMU (Android common kernel `android14-6.1` or newer; older 5.x GKI

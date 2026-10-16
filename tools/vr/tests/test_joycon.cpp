@@ -6,6 +6,7 @@
 #include "index_pose.h"
 #include "handcam_shm.h"
 #include "joycon_shm.h"
+#include "luma_joycon.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -516,7 +517,85 @@ static void handCameraLayoutMatchesTheAppWriter() {
           "camera flags match HandCameraShm.kt");
 }
 
+static void lumaStereoFallsBackInTheHeadTrackingOrigin() {
+    int64_t now = 1000000000;
+    droiddeck_spatialpose s{};
+    s.flags = DD_SPATIAL_ACTIVE | DD_SPATIAL_JOYCONS;
+    s.connection = s.origin = 1;
+    s.head = {now, {2, 1.7f, 3}, {0, 0, 0, 1}, DD_SPATIAL_VALID};
+    s.hands[0].pose = {now, {1.7f, 1.3f, 2.6f}, {0, 0, 0, 1}, DD_SPATIAL_VALID};
+    s.hands[1].pose = {now, {2.3f, 1.3f, 2.6f}, {0, 0, 0, 1}, DD_SPATIAL_VALID};
+    LumaJoyConPosition left(false), right(true);
+    auto l = left.Update(s, {}, 0, now, .01);
+    auto r = right.Update(s, {}, 0, now, .01);
+    check(l.valid && l.camera && r.camera && near(l.position.x, 1.7) && near(r.position.x, 2.3),
+          "stereo positions retain their world coordinates and handedness");
+    s.head.position[0] += .1f;
+    l = left.Update(s, {}, 0, now, .01);
+    check(near(l.position.x, 1.7), "moving the head does not move a world-space stereo observation");
+    now += 200000001;
+    s.head.time_ns = now;
+    l = left.Update(s, {}, 0, now, .01);
+    check(l.valid && !l.camera && Length(l.position - Vec3{1.7, 1.3, 2.6}) < .04,
+          "stale stereo falls back with a continuous transition");
+    for (int i=0; i<100; ++i) l = left.Update(s, {}, 0, now, .01);
+    ArmModel expected(false);
+    const auto anchor = expected.Update({2.1, 1.7, 3}, {}, {}, 0, .01);
+    check(Length(l.position - anchor) < .003, "fallback settles to the translated 6DoF head anchor");
+    s.hands[0].pose.time_ns = now;
+    auto reacquired = left.Update(s, {}, 0, now, .01);
+    check(reacquired.camera && Length(reacquired.position - l.position) < .04, "reacquisition blends without a snap");
+    s.origin++;
+    s.head.position[0] = 0;
+    s.hands[0].pose = {};
+    l = left.Update(s, {}, 0, now, .01);
+    check(l.valid && !l.camera && near(l.position.x, -.195), "origin changes discard the old world position and blend");
+    s.head.time_ns = now - 100000001;
+    check(!left.Update(s, {}, 0, now, .01).valid, "head loss invalidates instead of guessing a world origin");
+    s.head.time_ns = now;
+    s.hands[0].pose = {now + 1, {0, 1.3f, 3}, {0,0,0,1}, DD_SPATIAL_VALID};
+    check(!left.Update(s, {}, 0, now, .01).camera, "future camera observations are rejected");
+    s.hands[0].pose.time_ns = now;
+    s.hands[0].pose.position[0] = 99;
+    check(!left.Update(s, {}, 0, now, .01).camera, "implausible hand positions use the arm model");
+    s.flags = DD_SPATIAL_ACTIVE;
+    check(!left.Update(s, {}, 0, now, .01).valid, "the experimental flag is required");
+}
+
+static void lumaReachSurvivesBriefDetectionMissesWithoutRefreshingOldDepth() {
+    int64_t now = 1000000000;
+    droiddeck_spatialpose s{};
+    s.flags = DD_SPATIAL_ACTIVE | DD_SPATIAL_JOYCONS;
+    s.connection = s.origin = 1;
+    s.head = {now, {0, 1.7f, 0}, {0,0,0,1}, DD_SPATIAL_VALID};
+    s.hands[0].pose = {now, {-.2f, 1.3f, -.3f}, {0,0,0,1}, DD_SPATIAL_VALID};
+    LumaJoyConPosition tracker(false);
+    auto pose = tracker.Update(s, {}, 0, now, .01);
+    s.hands[0] = {};
+    for (int i=0; i<19; ++i) {
+        now += 10000000; s.head.time_ns = now;
+        pose = tracker.Update(s, {}, 0, now, .01);
+        check(pose.camera && near(pose.position.z, -.3), "brief misses retain the last measured reach");
+    }
+    now += 20000000; s.head.time_ns = now;
+    check(!tracker.Update(s, {}, 0, now, .02).camera, "held depth expires at its original capture timestamp");
+    for (int i=0; i<100; ++i) {
+        now += 10000000; s.head.time_ns = now;
+        if (i % 16 == 0)
+            s.hands[0].pose = {now - 60000000, {-.2f, 1.3f, -.7f}, {0,0,0,1}, DD_SPATIAL_VALID};
+        if (i % 16 == 8) s.hands[0] = {};
+        pose = tracker.Update(s, {}, 0, now, .01);
+    }
+    check(pose.position.z < -.65, "intermittent stereo observations extend reach instead of repeatedly resetting to the arm model");
+    s.connection++;
+    s.hands[0] = {};
+    pose = tracker.Update(s, {}, 0, now, .01);
+    check(!pose.camera && near(pose.position.z, -.305), "reconnection cannot reuse cached camera depth");
+}
+
 int main() {
+    lumaReachSurvivesBriefDetectionMissesWithoutRefreshingOldDepth();
+    lumaStereoFallsBackInTheHeadTrackingOrigin();
     restingHandsHangInFrontAtElbowHeight();
     raisingTheControllerExtendsTheArm();
     theTorsoOnlyFollowsTheHeadWhileTheControllerMoves();

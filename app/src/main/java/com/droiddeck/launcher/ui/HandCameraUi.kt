@@ -79,11 +79,12 @@ import java.util.Locale
 internal fun HandCameraHost(check: Boolean?, onAskPermission: () -> Unit, onPlay: () -> Unit, onClose: () -> Unit) {
     if (!HandTracking.supported) return
     val context = LocalContext.current
-    val (glasses, _) = rememberGlasses()
+    val (glasses, tracking) = rememberGlasses()
     val settings by HandTracking.settings.collectAsState()
     LaunchedEffect(Unit) { HandTracking.load(context) }
     var prompted by rememberSaveable { mutableStateOf(false) }
-    if (!prompted && HandTracking.shouldAsk(settings, glasses.present && glasses.canControl)) {
+    if (!prompted && !glasses.usesSpatialControllers(tracking) &&
+        HandTracking.shouldAsk(settings, glasses.present && glasses.canControl)) {
         HandCameraPrompt(settings.sides,
             onAllow = { side ->
                 prompted = true

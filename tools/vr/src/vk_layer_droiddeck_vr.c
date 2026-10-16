@@ -1131,22 +1131,35 @@ static void track_forget_device(VkDevice dev) {
     pthread_mutex_unlock(&g_trk_lock);
 }
 
+static VkResult finish_compositor_submit(struct tracked *slot, VkResult submitted) {
+    // Keep the fence reserved until the wait finishes so the completer cannot reset it.
+    VkResult completed = submitted == VK_SUCCESS
+        ? slot->wait(slot->dev, 1, &slot->fence, VK_TRUE, 1000000000ull) : submitted;
+    track_submitted(slot, submitted);
+    if (submitted != VK_SUCCESS) return submitted;
+    if (completed == VK_TIMEOUT) {
+        say("%s", "compositor GPU submission did not complete within 1000 ms; aborting this session");
+        return VK_ERROR_DEVICE_LOST;
+    }
+    return completed;
+}
+
 static VkResult submit_tracked(PFN_vkQueueSubmit next, VkQueue q, uint32_t count, const VkSubmitInfo *submits, VkFence fence) {
+    if (strcmp(program_invocation_short_name, "vrcompositor")) return next(q, count, submits, fence);
     struct tracked *slot = track_take(q);
-    if (!slot) return next(q, count, submits, fence);
+    if (!slot) return VK_ERROR_OUT_OF_HOST_MEMORY;
     const VkFence mine = slot->fence;
     VkResult r = next(q, count, submits, fence ? fence : mine);
-    track_submitted(slot, r == VK_SUCCESS && fence ? next(q, 0, NULL, mine) : r);
-    return r;
+    return finish_compositor_submit(slot, r == VK_SUCCESS && fence ? next(q, 0, NULL, mine) : r);
 }
 
 static VkResult submit2_tracked(PFN_vkQueueSubmit2 next, VkQueue q, uint32_t count, const VkSubmitInfo2 *submits, VkFence fence) {
+    if (strcmp(program_invocation_short_name, "vrcompositor")) return next(q, count, submits, fence);
     struct tracked *slot = track_take(q);
-    if (!slot) return next(q, count, submits, fence);
+    if (!slot) return VK_ERROR_OUT_OF_HOST_MEMORY;
     const VkFence mine = slot->fence;
     VkResult r = next(q, count, submits, fence ? fence : mine);
-    track_submitted(slot, r == VK_SUCCESS && fence ? next(q, 0, NULL, mine) : r);
-    return r;
+    return finish_compositor_submit(slot, r == VK_SUCCESS && fence ? next(q, 0, NULL, mine) : r);
 }
 
 static VkResult VKAPI_CALL QueueSubmit(VkQueue q, uint32_t count, const VkSubmitInfo *submits, VkFence fence) {

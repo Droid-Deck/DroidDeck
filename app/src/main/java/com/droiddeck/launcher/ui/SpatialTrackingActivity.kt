@@ -19,7 +19,11 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.AppUiPrefs
 import com.droiddeck.launcher.glasses.CalibrationDistance
 import com.droiddeck.launcher.glasses.Glasses
@@ -41,13 +45,22 @@ class SpatialTrackingActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (!Glasses.state.value.spatialConnected) { finish(); return }
         requestedOrientation = com.droiddeck.launcher.session.SessionPrefs.orientation(this)
         setContent {
             DroidDeckTheme(appScale = AppUiPrefs.scale(this)) {
+                val glasses by Glasses.state.collectAsState()
+                if (!glasses.spatialConnected) {
+                    LaunchedEffect(Unit) { SpatialTracking.diagnostics(false); finish() }
+                    return@DroidDeckTheme
+                }
                 var preview by remember { mutableStateOf<Bitmap?>(null) }
                 var message by remember { mutableStateOf("") }
                 var progress by remember { mutableStateOf(SpatialCalibrationProgress()) }
-                var gpu by remember { mutableStateOf(false) }
+                var gpu by remember { mutableStateOf(SpatialTracking.gpuEnabled()) }
+                var lite by remember { mutableStateOf(SpatialTracking.handLiteEnabled()) }
+                var halfRate by remember { mutableStateOf(SpatialTracking.handHalfRateEnabled()) }
+                var adaptive by remember { mutableStateOf(SpatialTracking.handAdaptiveInputEnabled()) }
                 val status by SpatialTracking.status.collectAsState()
                 LaunchedEffect(Unit) {
                     while(true) {
@@ -56,6 +69,9 @@ class SpatialTrackingActivity : ComponentActivity() {
                         message = SpatialTracking.diagnosticMessage()
                         progress = SpatialTracking.calibrationProgress()
                         gpu = SpatialTracking.gpuEnabled()
+                        lite = SpatialTracking.handLiteEnabled()
+                        halfRate = SpatialTracking.handHalfRateEnabled()
+                        adaptive = SpatialTracking.handAdaptiveInputEnabled()
                         delay(200)
                     }
                 }
@@ -64,11 +80,16 @@ class SpatialTrackingActivity : ComponentActivity() {
                     print = ::printBoard, start = SpatialTracking::calibrationStart,
                     capture = SpatialTracking::calibrationCapture, solve = SpatialTracking::calibrationSolve,
                     validate = SpatialTracking::calibrationValidate, gpu = SpatialTracking::setGpu,
-                    saveFrame = SpatialTracking::captureDiagnostic, done = { finish() }), gpu)
+                    lite = SpatialTracking::setHandModel, halfRate = SpatialTracking::setHandHalfRate,
+                    adaptive = SpatialTracking::setHandAdaptiveInput,
+                    saveFrame = SpatialTracking::captureDiagnostic, done = { finish() }), gpu, lite, halfRate, adaptive)
             }
         }
     }
-    override fun onResume() { super.onResume();SpatialTracking.diagnostics(true) }
+    override fun onResume() {
+        super.onResume()
+        if (Glasses.state.value.spatialConnected) SpatialTracking.diagnostics(true) else finish()
+    }
     override fun onPause() { SpatialTracking.diagnostics(false);super.onPause() }
     private fun printBoard() {
         if(!OpenCVLoader.initLocal()) return
@@ -114,24 +135,30 @@ internal data class SpatialSetupActions(
     val recenter: () -> Unit = {}, val restart: () -> Unit = {}, val print: () -> Unit = {},
     val start: () -> Unit = {}, val capture: () -> Unit = {}, val solve: () -> Unit = {},
     val validate: (Float) -> Unit = {}, val gpu: (Boolean) -> Unit = {},
+    val lite: (Boolean) -> Unit = {}, val halfRate: (Boolean) -> Unit = {},
+    val adaptive: (Boolean) -> Unit = {},
     val saveFrame: () -> Unit = {}, val done: () -> Unit = {},
 )
 
 @Composable
 internal fun SpatialSetupScreen(
     status: SpatialTrackingStatus, progress: SpatialCalibrationProgress, preview: Bitmap?, message: String,
-    actions: SpatialSetupActions, gpu: Boolean = false,
+    actions: SpatialSetupActions, gpu: Boolean = false, lite: Boolean = false, halfRate: Boolean = true,
+    adaptive: Boolean = true,
 ) {
     val host = rememberMenuHost()
-    var distance by rememberSaveable { mutableStateOf(CalibrationDistance.INCHES_20) }
+    var distance by rememberSaveable { mutableStateOf(CalibrationDistance.INCHES_12) }
     var diagnostics by rememberSaveable { mutableStateOf(false) }
     var confirmRestart by remember { mutableStateOf(false) }
-    val ready = status.trackingValid && status.synchronized && !progress.solving
+    val ready = status.trackingValid && status.synchronized && !progress.solving && !progress.validating
     Surface(Modifier.fillMaxSize().systemBarsPadding(), color = MaterialTheme.colorScheme.background) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             CompositionLocalProvider(LocalNarrowPane provides (maxWidth < NarrowPaneWidth)) {
-                SettingsPage(host, "Spatial setup", actions.done, eyebrow = "LUMA ULTRA",
-                    lede = "Calibrate the cameras for experimental hand controllers.") {
+                SettingsPage(host, null, actions.done, compactLayout = true,
+                    modifier = Modifier.testTag("spatial-setup-page"), header = {
+                        Text("Spatial setup", style = MaterialTheme.typography.titleLarge,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }) {
                     SettingsGroup("Tracking") {
                         SettingsRow("Head tracking", status.message, stacked = true) {
                             SecondaryButton(if (status.recenterPending) "Waiting for tracking…" else "Recenter",
@@ -149,38 +176,47 @@ internal fun SpatialSetupScreen(
                             "Print board", actions.print)
                     }
                     SettingsGroup("2. Capture different views") {
-                        SettingsRow("Keep the board stationary", "Move closer, farther and sideways. Turn left/right, look up/down and tilt your head. Hold still briefly for each capture.", stacked = true) {
+                        SettingsRow("Keep the board stationary", "Move the glasses closer, farther and sideways. Turn them left/right, angle them up/down, and tilt them sideways. Keep the board in both cameras and pause briefly before each capture.", stacked = true) {
                             SecondaryButton("Start new calibration", enabled = ready, onClick = actions.start)
                         }
                         SettingsRow("${progress.views} / 24 views captured", when {
-                            !status.trackingValid -> "Restore head tracking above before capturing."
+                            !status.trackingValid -> "Capture paused: ${status.message}"
                             !status.synchronized -> "Waiting for camera synchronization."
-                            !progress.collecting -> "Start a new calibration to collect views."
-                            else -> "Keep the board visible in both previews. Capture at least 24 sharp views from different angles."
+                            !progress.collecting -> progress.captureMessage ?: "Start a new calibration to collect views."
+                            else -> progress.captureMessage ?: "Keep the board visible in both previews. Capture at least 24 sharp views from different angles."
                         }, stacked = true) {
-                            SecondaryButton("Capture board view", enabled = ready && progress.collecting, onClick = actions.capture)
+                            SecondaryButton(if (progress.capturing) "Capturing…" else "Capture board view",
+                                enabled = ready && progress.collecting && !progress.capturing, onClick = actions.capture)
                         }
                         SettingsRow("Calculate camera alignment", message, stacked = true) {
                             SecondaryButton(if (progress.solving) "Calculating…" else "Calculate calibration",
-                                enabled = !progress.solving && progress.views >= 24, onClick = actions.solve)
+                                enabled = !progress.solving && !progress.validating && progress.views >= 24, onClick = actions.solve)
                         }
                     }
                     SettingsGroup("3. Check the distance") {
-                        ChoiceRow(host, "calibration-distance", "Measured distance", "Choose the measurement that matches your ruler or tape.",
+                        ChoiceRow(host, "calibration-distance", "Measured distance", "Start with 12 in or 30 cm so the printed markers are easier to detect. Choose the exact measurement you will use.",
                             CalibrationDistance.entries.map { it to it.label }, distance, onPick = { distance = it })
-                        SettingsRow("Left camera to board center", "Measure ${distance.label}. Show the complete board in both previews, then hold still.", stacked = true) {
-                            SecondaryButton("Validate distance", enabled = ready && progress.fitted, onClick = { actions.validate(distance.meters) })
+                        SettingsRow("Left camera to board center", progress.validationMessage ?:
+                            "Measure ${distance.label}. Show the complete board in both previews, then hold still.", stacked = true) {
+                            SecondaryButton(if(progress.validating) "Checking distance…" else "Validate distance",
+                                enabled = ready && progress.fitted, onClick = { actions.validate(distance.meters) })
                         }
-                        SettingsRow(if (status.calibration) "Calibration verified" else "Validation required",
-                            if (status.calibration) "Return to Head tracking and enable Hand controllers — experimental. Show open hands first."
-                            else "Hand controllers become available after the measured distance check passes.") {}
+                        HandCalibrationStatus(status)
+                        SettingsRow(stringResource(R.string.glasses_hands_group), status.handStatus) {}
                     }
                     SettingsGroup("Diagnostics") {
                         ToggleRow(host, "spatial-diagnostics", "Show diagnostics", "Camera timing and tracking recovery tools.", diagnostics) { diagnostics = it }
                         if (diagnostics) {
                             SettingsRow("Camera timing", "%.1f Hz • frame age %.1f ms • processing %.1f ms".format(status.cameraHz, status.frameAgeMs, status.processingMs)) {}
-                            SettingsRow("Frames", "${status.frames} processed • ${status.dropped} dropped") {}
-                            ToggleRow(host, "spatial-gpu", "GPU inference benchmark", "Leave off for the first hand-tracking check.", gpu, onChange = actions.gpu)
+                            SettingsRow("Hand input", if (status.cameraHz > 0)
+                                "Input limit %.1f Hz • %.0f%% of camera frames. Head tracking stays at full rate."
+                                    .format(status.cameraHz*status.cameraCopyPermille/1000f,status.cameraCopyPermille/10f)
+                                else "Waiting for camera timing.") {}
+                            SettingsRow("Frames", "${status.frames} processed • ${status.dropped} dropped • ${status.rateLimitedFrames} skipped by input limit") {}
+                            ToggleRow(host, "spatial-gpu", "GPU hand inference", "CPU is the default. GPU is experimental and can cause SteamVR to restart. This choice resets when tracking restarts.", gpu, onChange = actions.gpu)
+                            ToggleRow(host, "spatial-lite", "Lighter finger model", "Keep the full palm detector and test faster finger tracking. Check aiming and pinch accuracy. Resets when tracking restarts.", lite, onChange = actions.lite)
+                            ToggleRow(host, "spatial-adaptive-rate", "Automatic hand input rate", "Adjust input to processing speed. Resets when tracking restarts.", adaptive, onChange = actions.adaptive)
+                            if (!adaptive) ToggleRow(host, "spatial-half-rate", "Limit hand input rate", "Use half the camera frames. Turn off to compare the full rate. Resets when tracking restarts.", halfRate, onChange = actions.halfRate)
                             ActionRow("Diagnostic capture", "Save one stereo frame locally. Images are saved only when requested.", "Save frame", actions.saveFrame)
                             ActionRow("Restart tracking", "Use if tracking does not recover in a well-lit area. A restart requires a new tracking origin.", "Restart", { confirmRestart = true })
                         }
@@ -197,4 +233,14 @@ internal fun SpatialSetupScreen(
         confirmButton = { TextButton(onClick = { confirmRestart = false; actions.restart() }) { Text("Restart") } },
         dismissButton = { TextButton(onClick = { confirmRestart = false }) { Text("Cancel") } },
     )
+}
+
+@Composable
+internal fun HandCalibrationStatus(status: SpatialTrackingStatus) {
+    val (label, hint) = when {
+        status.calibrationSource == "luma-ultra-base" -> R.string.glasses_hands_base to R.string.glasses_hands_base_hint
+        status.calibrationVerified -> R.string.glasses_hands_calibration_verified to R.string.glasses_hands_ready_hint
+        else -> R.string.glasses_hands_calibration_required to R.string.glasses_hands_calibration_required_hint
+    }
+    SettingsRow(stringResource(label), stringResource(hint)) {}
 }

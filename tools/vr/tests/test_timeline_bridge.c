@@ -3,11 +3,7 @@
 #include <assert.h>
 #include <stdint.h>
 
-/* The layer's ARM64 crash tracer is not exercised by this host-side test. */
-typedef struct { struct { uintptr_t pc; } uc_mcontext; } test_ucontext;
-#define ucontext_t test_ucontext
 #include "../src/vk_layer_droiddeck_vr.c"
-#undef ucontext_t
 
 static _Atomic uint64_t local_value;
 static _Atomic unsigned duplicate_signals;
@@ -53,7 +49,7 @@ int main(void) {
     _Atomic uint64_t shared = 1;
     g_dev[0] = (struct dev){.handle = device, .gdpa = get_proc};
     g_br[0] = (struct bridged){.sem = semaphore, .dev = device, .counter = &shared,
-        .fd = -1, .timeline = 1, .seen = 1, .seen_us = now_us()};
+        .fd = -1, .timeline = 1, .seen = 1, .seen_us = now_us(), .imported = 1};
     submit_thread = pthread_self();
 
     submit_drop_wait(semaphore, 1);

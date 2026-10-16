@@ -76,7 +76,8 @@ def required():
     paths += ['assets/linuxfs/usr/local/lib/droiddeck-msitools/' + name for name in
               ['msiinfo', 'cabextract', '7z', '7z.so', 'libmsi-1.0.so.0', 'libgsf-1.so.114', 'libgcab-1.0.so.0']]
     paths += ['assets/linuxfs/usr/local/lib/droiddeck-vr/' + name for name in
-              ['droiddeck/bin/linuxarm64/driver_droiddeck.so', 'droiddeck/driver.vrdrivermanifest',
+              ['droiddeck/bin/linuxarm64/driver_droiddeck.so', 'droiddeck/bin/linuxarm64/xr-display-mode',
+               'droiddeck/driver.vrdrivermanifest',
                'droiddeck/resources/settings/default.vrsettings', 'layer/libVkLayer_droiddeck_vr.so',
                'layer/VK_LAYER_DROIDDECK_vr.json', 'layer/VK_LAYER_DROIDDECK_vr_implicit.json',
                'layer/libdroiddeck_vr_scheduling.so']]

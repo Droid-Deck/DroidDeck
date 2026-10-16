@@ -26,6 +26,7 @@ internal class VitureSdkLink private constructor(
     internal val firmware = VitureSdk.nativeFirmware(token)
     internal fun spatialDiagnostics() = if (running && spatial) VitureSdk.nativeSpatialDiagnostics(token) else null
     internal val isCarina = VitureSdk.nativeType(token) == VitureSdk.CARINA
+    internal val spatialIdentity = if (isCarina) VitureSpatialIdentity.fromSerialHash(VitureSdk.nativeSerialHash(token)) else null
     private val lock = Any()
     @Volatile private var running = true
     @Volatile private var tracking = false

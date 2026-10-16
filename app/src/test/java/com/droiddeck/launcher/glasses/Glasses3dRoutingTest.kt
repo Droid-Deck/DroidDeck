@@ -73,6 +73,43 @@ class Glasses3dRoutingTest {
         settings.value = settingsBefore
     }
 
+    @Test fun lumaJoyConsDefaultOffPersistAndExcludeBareHands() {
+        assertFalse(GlassesSettings().joyConTracking)
+        @Suppress("UNCHECKED_CAST")
+        val state = field("_state").get(null) as MutableStateFlow<GlassesState>
+        state.value = state.value.copy(supportsSpatial = true)
+        @Suppress("UNCHECKED_CAST")
+        val settings = field("_settings").get(null) as MutableStateFlow<GlassesSettings>
+        Glasses.setJoyConTracking(true)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertFalse(Glasses.settings.value.joyConTracking)
+        settings.value = settings.value.copy(positionalTracking = true, handControllers = true)
+        Glasses.setJoyConTracking(true)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(Glasses.settings.value.joyConTracking)
+        assertFalse(Glasses.settings.value.handControllers)
+        val prefs = RuntimeEnvironment.getApplication().getSharedPreferences("glasses", Context.MODE_PRIVATE)
+        assertTrue(prefs.getBoolean("joyConTracking", false))
+        val loaded = Glasses::class.java.getDeclaredMethod("load").apply { isAccessible = true }.invoke(Glasses) as GlassesSettings
+        assertTrue(loaded.joyConTracking)
+        Glasses.setHandControllers(true)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertFalse(Glasses.settings.value.joyConTracking)
+        assertTrue(Glasses.settings.value.handControllers)
+        SpatialTracking.setControllers(false, false)
+    }
+
+    @Test fun otherGlassesRejectSpatialEnableAndRestartWithoutClosingTheirLink() {
+        val before = Glasses.settings.value
+        val link = field("link").get(null)
+        Glasses.setPositionalTracking(true)
+        Glasses.restartSpatialTracking()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(before, Glasses.settings.value)
+        assertSame(link, field("link").get(null))
+        assertTrue(hardwareMessages.isEmpty())
+    }
+
     @Test fun manual3dSelectsAndSavesGlassesOutputBeforeSwitchingTheDisplay() {
         Glasses.set3d(true)
         shadowOf(Looper.getMainLooper()).idle()
@@ -295,11 +332,116 @@ class Glasses3dRoutingTest {
         assertTrue(hardwareMessages.isEmpty())
     }
 
+    @Test fun resolutionsPersistIndependentlyAndOnlyTheActiveProfileChangesHardware() {
+        selectModel(VitureProtocol.sdkModel("Luma Ultra")!!)
+        Glasses.setResolution(GlassesDisplayProfile.THREE_D, "1920x1080")
+        Glasses.setResolution(GlassesDisplayProfile.VR, "1920x1200")
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(hardwareMessages.isEmpty())
+
+        Glasses.setResolution(GlassesDisplayProfile.TWO_D, "1920x1080")
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(listOf(0x34 to false), commands)
+        assertEquals(120, Glasses.settings.value.refreshHz)
+        assertEquals(60, Glasses.settings.value.sbsHz)
+        val saved = Glasses::class.java.getDeclaredMethod("load").apply { isAccessible = true }
+            .invoke(Glasses) as GlassesSettings
+        assertEquals("1920x1080", saved.resolution2d)
+        assertEquals("1920x1080", saved.resolution3d)
+        assertEquals("1920x1200", saved.resolutionVr)
+        assertEquals(listOf(VitureProtocol.MSG_DISPLAY), hardwareMessages)
+    }
+
+    @Test fun vrResolutionIsAppliedAndTheOrdinaryResolutionIsRestoredAfterStopping() {
+        selectModel(VitureProtocol.sdkModel("Luma Ultra")!!)
+        Glasses.setResolution(GlassesDisplayProfile.TWO_D, "1920x1080")
+        Glasses.setResolution(GlassesDisplayProfile.VR, "1920x1200")
+        shadowOf(Looper.getMainLooper()).idle()
+        commands.clear()
+        Glasses.setVrActive(true)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(Glasses.state.value.vrActive)
+        assertEquals(listOf(0x44 to false), commands)
+        Glasses.setVrActive(false)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertFalse(Glasses.state.value.vrActive)
+        assertEquals(listOf(0x44 to false, 0x34 to false), commands)
+    }
+
+    @Test fun vrResolutionUsesStereoCommandsAndRestoresThePreVrLayoutOnce() {
+        selectModel(VitureProtocol.sdkModel("Luma Ultra")!!)
+        Glasses.setGameOnGlasses(true)
+        Glasses.setAuto3d(true)
+        Glasses.setResolution(GlassesDisplayProfile.VR, "1920x1080")
+        shadowOf(Looper.getMainLooper()).idle()
+        Glasses.setVrActive(true)
+        Glasses.set3dForVr(true)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(listOf(0x32 to true), commands)
+        @Suppress("UNCHECKED_CAST")
+        val state = field("_state").get(null) as MutableStateFlow<GlassesState>
+        state.value = state.value.copy(sbs = true, width = 3840, switching3d = false)
+        (field("modeState").get(null) as GlassesModeState).observe(true, 0)
+
+        Glasses.setSbsHz(90)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(0x35 to true, commands.last())
+        Glasses.setVrActive(false)
+        Glasses.set3dForVr(false)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(listOf(0x32 to true, 0x35 to true, 0x44 to true), commands)
+    }
+
+    @Test fun invalidResolutionCannotChangePreferencesOrSendDeviceCommands() {
+        selectModel(VitureProtocol.sdkModel("Pro")!!)
+        val before = Glasses.settings.value
+        for (value in listOf("1920x1200", "3840x1080", "-1x1080", "unknown"))
+            Glasses.setResolution(GlassesDisplayProfile.TWO_D, value)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(before, Glasses.settings.value)
+        assertTrue(hardwareMessages.isEmpty())
+    }
+
+    @Test fun startingVrDuringAStereoSwitchDoesNotSendAFlatMode() {
+        selectModel(VitureProtocol.sdkModel("Luma Ultra")!!)
+        Glasses.setResolution(GlassesDisplayProfile.VR, "1920x1080")
+        Glasses.set3d(true)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(Glasses.state.value.switching3d)
+        Glasses.setVrActive(true)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(listOf(0x42 to true, 0x32 to true), commands)
+    }
+
+    @Test fun reconnectRestoresASavedResolutionEvenWhenRefreshAlreadyMatches() {
+        selectModel(VitureProtocol.sdkModel("Luma Ultra")!!)
+        Glasses.setResolution(GlassesDisplayProfile.TWO_D, "1920x1080")
+        shadowOf(Looper.getMainLooper()).idle()
+        @Suppress("UNCHECKED_CAST")
+        val state = field("_state").get(null) as MutableStateFlow<GlassesState>
+        state.value = state.value.copy(width = 1920, height = 1200, hz = 120f)
+        field("glassesMode").setInt(null, 0)
+        field("autoModeSent").setBoolean(null, false)
+        field("lastModeSentAt").setLong(null, -10_000L)
+        commands.clear()
+        Glasses::class.java.getDeclaredMethod("applyMode", Boolean::class.javaPrimitiveType)
+            .apply { isAccessible = true }.invoke(Glasses, false)
+        assertEquals(listOf(0x34 to false), commands)
+    }
+
+    @Test fun defaultVrProfileDoesNotSendExtraDisplayCommands() {
+        selectModel(VitureProtocol.sdkModel("Luma Ultra")!!)
+        Glasses.setVrActive(true)
+        Glasses.setVrActive(false)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(hardwareMessages.isEmpty())
+    }
+
     private fun selectModel(model: GlassesModel) {
         field("model").set(null, model)
         @Suppress("UNCHECKED_CAST")
         val state = field("_state").get(null) as MutableStateFlow<GlassesState>
-        state.value = state.value.copy(model = model.name, supportsScreen3dof = true)
+        state.value = state.value.copy(model = model.name, supportsScreen3dof = true, resolutions = model.resolutions)
         @Suppress("UNCHECKED_CAST")
         val settings = field("_settings").get(null) as MutableStateFlow<GlassesSettings>
         settings.value = GlassesSettings(gameOnGlasses = false, headTracking = false)

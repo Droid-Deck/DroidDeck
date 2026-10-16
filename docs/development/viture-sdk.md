@@ -71,6 +71,27 @@ The settings UI and session renderer share this mode selection through
 `GlassesRendering`; home-screen changes configure sessions rather than resizing
 Android's mirrored launcher. Regular refresh rate applies to 2D output; SBS uses
 the model's separate 3D refresh rate.
+Both the home menu and session drawer use **Display**, **VR**, **Tracking**, and
+**Device** tabs. Display groups connection and output controls, 2D/3D resolution
+and active refresh rate, then picture and virtual-screen geometry. VR contains
+SteamVR controls, automatic 3D, VR resolution, and field of view. Tracking groups
+head orientation, position and floor, and hands with camera setup. Device contains
+brightness, volume, and sunblock. Unsupported hardware tabs are hidden. Recenter
+is the first action on every session tab while head tracking is enabled for a
+3DoF/6DoF virtual screen or SteamVR.
+
+Display saves **2D resolution** and **3D resolution**; VR saves **VR resolution**. Values are per eye: 1920 x 1080 or, on tall VITURE
+models, 1920 x 1200. Automatic keeps the existing model default; VR defaults to
+following the active 2D/3D preference. Home settings expose all three profiles,
+while a running session shows the active profile next to its refresh control.
+Switching resolution retains the refresh preference and does not change brightness,
+color processing, or the session's game-rendering resolution. Android selects an
+advertised mode with matching dimensions and the closest available refresh rate,
+without crossing the 2D/SBS layout. VITURE's USB command selects the matching
+resolution family first. A saved resolution unsupported by another attached model
+falls back to its automatic behavior. Resolution controls wait for a pending SBS
+transition to finish before accepting another change.
+
 Both lists offer 30 Hz only when Android advertises a matching native display mode at the current
 resolution and **Game on glasses** is enabled. Android's presentation selects that mode without a
 vendor command. A saved 30 Hz choice falls back to 60 Hz if the display or eye layout lacks it;

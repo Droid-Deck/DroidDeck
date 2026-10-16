@@ -10,6 +10,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -28,6 +29,34 @@ import org.robolectric.annotation.Config
 @Config(sdk = [28])
 class GlassesPanelTest {
     @get:Rule val compose = createRobolectricComposeRule()
+
+    @Test fun flatResolutionMenuShowsPerEyeResolutionsBesideRefresh() {
+        show()
+        compose.onNodeWithTag("setting-glasses-hz").assertExists()
+        compose.onNodeWithTag("setting-glasses-resolution-two_d").performScrollTo().performClick()
+        compose.onNodeWithText("1920 × 1080").assertExists()
+        compose.onNodeWithText("1920 × 1200").assertExists()
+    }
+
+    @Test fun stereoResolutionHasItsOwnPreference() {
+        show(stereo = true)
+        compose.onNodeWithTag("setting-glasses-resolution-three_d").assertExists()
+        compose.onNodeWithTag("setting-glasses-resolution-two_d").assertDoesNotExist()
+        compose.onNodeWithTag("setting-glasses-3d-hz").assertExists()
+    }
+
+    @Test fun vrResolutionDoesNotEditTheOrdinaryStereoPreference() {
+        show(stereo = true, steamVrRunning = true, tab = GlassesTab.VR)
+        compose.onNodeWithTag("setting-glasses-resolution-vr").performScrollTo().performClick()
+        compose.onNodeWithText("1920 × 1080").assertExists()
+        compose.onNodeWithTag("setting-glasses-resolution-three_d").assertDoesNotExist()
+    }
+
+    @Test fun homeDisplayCanConfigureBothOrdinaryResolutionProfiles() {
+        show(inSession = false)
+        for (profile in listOf("two_d", "three_d"))
+            compose.onNodeWithTag("setting-glasses-resolution-$profile").assertExists()
+    }
 
     @Test fun nativeThirtyHzAppearsInTheFlatRefreshMenu() {
         show(supports30Hz = true)
@@ -75,13 +104,13 @@ class GlassesPanelTest {
     }
 
     @Test fun automaticSteamVrShowsFieldOfViewAndStereoRefresh() {
-        show(stereo = true, steamVrRunning = true)
+        show(stereo = true, steamVrRunning = true, tab = GlassesTab.VR)
         compose.onNodeWithTag("glasses-width").assertDoesNotExist()
         compose.onNodeWithTag("glasses-distance").assertDoesNotExist()
         compose.onNodeWithTag("glasses-vr-fov").assertIsEnabled()
         compose.onNodeWithTag("setting-glasses-hz").assertDoesNotExist()
         compose.onNodeWithTag("setting-glasses-3d-hz").assertExists()
-        compose.onNodeWithText(text(R.string.glasses_screen_direct_hint)).assertExists()
+        compose.onNodeWithTag("setting-glasses-auto3d").assertExists()
     }
 
     @Test fun mirroredSteamVrIn2dKeepsFieldOfViewAndRecenter() {
@@ -170,7 +199,7 @@ class GlassesPanelTest {
         show(inSession = false, outputActive = false)
         compose.onNodeWithTag("glasses-width").assertIsEnabled()
         compose.onNodeWithTag("glasses-distance").assertIsEnabled()
-        compose.onNodeWithTag("glasses-vr-fov").assertIsEnabled()
+        compose.onNodeWithTag("glasses-vr-fov").assertDoesNotExist()
         compose.onNodeWithText(text(R.string.glasses_screen_next_session)).assertExists()
     }
 
@@ -191,9 +220,9 @@ class GlassesPanelTest {
     }
 
     @Test fun runningSteamVrFieldOfViewRemainsAvailableWhenUsbControlDisconnects() {
-        show(stereo = true, steamVrRunning = true, controlAvailable = false)
+        show(stereo = true, steamVrRunning = true, controlAvailable = false, tab = GlassesTab.VR)
         compose.onNodeWithTag("glasses-vr-fov").assertIsEnabled()
-        compose.onNodeWithTag("setting-glasses-picture").assertIsEnabled()
+        compose.onNodeWithTag("setting-glasses-picture").assertDoesNotExist()
         compose.onNodeWithTag("setting-glasses-3d-hz").assertDoesNotExist()
         compose.onNodeWithTag("setting-glasses-3d").assertDoesNotExist()
     }
@@ -214,6 +243,69 @@ class GlassesPanelTest {
         compose.onNodeWithText(text(R.string.cardboard_recenter_button)).assertDoesNotExist()
     }
 
+    @Test fun homeVrCanConfigureResolutionAndFieldOfViewBeforeLaunching() {
+        show(inSession = false, tab = GlassesTab.VR)
+        compose.onNodeWithTag("setting-glasses-resolution-vr").assertExists()
+        compose.onNodeWithTag("glasses-vr-fov").assertIsEnabled()
+        compose.onNodeWithTag("setting-glasses-auto3d").assertExists()
+        compose.onNodeWithTag("setting-glasses-picture").assertDoesNotExist()
+        compose.onNodeWithTag("setting-glasses-resolution-two_d").assertDoesNotExist()
+    }
+
+    @Test fun displayKeepsVrAndHardwareControlsInTheirOwnTabs() {
+        show(inSession = false)
+        compose.onNodeWithTag("setting-glasses-auto3d").assertDoesNotExist()
+        compose.onNodeWithTag("setting-glasses-resolution-vr").assertDoesNotExist()
+        compose.onNodeWithTag("setting-glasses-sunblock").assertDoesNotExist()
+        compose.onNodeWithTag("setting-glasses-tracking").assertDoesNotExist()
+    }
+
+    @Test fun recenterIsHiddenWhenHeadTrackingIsOff() {
+        show(settings = GlassesSettings(headTracking = false, picture3d = GlassesSettings.PICTURE_SCREEN))
+        compose.onNodeWithText(text(R.string.cardboard_recenter_button)).assertDoesNotExist()
+    }
+
+    @Test fun experimentalJoyConsAreOffAndRequirePositionalTracking() {
+        show(supportsSpatial = true, tab = GlassesTab.TRACKING)
+        compose.onNodeWithText(text(R.string.glasses_experimental).uppercase()).assertExists()
+        compose.onNodeWithTag("setting-glasses-joycons").assertIsNotEnabled().assert(
+            SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, text(R.string.widgets_off)))
+    }
+
+    @Test fun experimentalGroupFollowsOrdinaryTrackingAndEnablesJoyCons() {
+        show(supportsSpatial = true, settings = GlassesSettings(positionalTracking = true), tab = GlassesTab.TRACKING)
+        compose.onNodeWithTag("setting-glasses-joycons").performScrollTo().assertIsEnabled()
+        val ordinary = compose.onNodeWithTag("setting-glasses-tracking").fetchSemanticsNode().positionInRoot.y
+        val experimental = compose.onNodeWithText(text(R.string.glasses_experimental).uppercase()).fetchSemanticsNode().positionInRoot.y
+        org.junit.Assert.assertTrue(experimental > ordinary)
+        compose.onNodeWithTag("setting-glasses-hands").assertExists()
+    }
+
+    @Test fun ultraControlsDisappearOnDisconnectAndForOtherGlassesWithSavedPreferences() {
+        val state = androidx.compose.runtime.mutableStateOf(GlassesState(present = true, connected = true,
+            controllable = true, supportsSpatial = true, model = "VITURE Luma Ultra"))
+        show(settings = GlassesSettings(positionalTracking = true, handControllers = true, joyConTracking = true),
+            tab = GlassesTab.TRACKING, observedState = state)
+        compose.onNodeWithTag("setting-glasses-position").assertExists()
+        compose.onNodeWithTag("setting-glasses-hands").assertExists()
+        compose.onNodeWithTag("setting-glasses-joycons").assertExists()
+        val otherStates = listOf(state.value.copy(connected = false)) +
+            listOf("VITURE Luma Ultra", "VITURE Luma Pro", "VITURE Pro", "XREAL", "RayNeo").map {
+                state.value.copy(model = it, supportsSpatial = false)
+            }
+        for (other in otherStates) {
+            compose.runOnIdle { state.value = other }
+            compose.onNodeWithTag("setting-glasses-position").assertDoesNotExist()
+            compose.onNodeWithTag("setting-glasses-hands").assertDoesNotExist()
+            compose.onNodeWithTag("setting-glasses-joycons").assertDoesNotExist()
+            compose.onNodeWithText(text(R.string.glasses_spatial_setup)).assertDoesNotExist()
+            compose.onNodeWithText(text(R.string.glasses_eye_height)).assertDoesNotExist()
+            compose.onNodeWithText(text(R.string.glasses_floor)).assertDoesNotExist()
+        }
+        compose.runOnIdle { state.value = state.value.copy(supportsSpatial = true) }
+        compose.onNodeWithTag("setting-glasses-position").assertExists()
+    }
+
     private fun show(
         settings: GlassesSettings = GlassesSettings(),
         stereo: Boolean = false,
@@ -222,18 +314,22 @@ class GlassesPanelTest {
         outputActive: Boolean = inSession,
         controlAvailable: Boolean = true,
         supportsScreen3dof: Boolean = true,
+        supportsSpatial: Boolean = false,
         supports30Hz: Boolean = false,
         sbs90: Boolean = true,
         tab: String? = GlassesTab.DISPLAY,
+        observedState: androidx.compose.runtime.State<GlassesState>? = null,
     ) {
         val state = GlassesState(present = true, connected = controlAvailable, controllable = true,
             displayId = Display.DEFAULT_DISPLAY + 1, width = if (stereo) 3840 else 1920, height = 1200,
             model = "VITURE Luma Ultra", sbs = stereo, sbs90 = sbs90, supportsScreen3dof = supportsScreen3dof,
-            supports30Hz = supports30Hz)
+            supports30Hz = supports30Hz, supportsSpatial = supportsSpatial, resolutions = listOf(
+                com.droiddeck.launcher.glasses.GlassesResolution(1920, 1080),
+                com.droiddeck.launcher.glasses.GlassesResolution(1920, 1200)))
         compose.setContent {
             DroidDeckTheme {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
-                    GlassesGroups(rememberMenuHost(), state, settings,
+                    GlassesGroups(rememberMenuHost(), observedState?.value ?: state, settings,
                         track = { key ->
                             when (key) {
                                 "glasses-width", "glasses-distance", "glasses-vr-fov" -> Modifier.testTag(key)

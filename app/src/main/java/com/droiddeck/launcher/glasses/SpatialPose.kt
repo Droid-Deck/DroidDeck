@@ -77,7 +77,10 @@ data class SpatialPose(val position: SpatialVector = SpatialVector(), val rotati
 
 data class SpatialSample(val pose: SpatialPose, val timeNs: Long, val generation: Long, val valid: Boolean)
 data class SpatialHand(val pose: SpatialPose = SpatialPose(), val timeNs: Long = 0, val valid: Boolean = false,
-                       val trigger: Float = 0f, val grip: Boolean = false)
+                       val trigger: Float = 0f, val grip: Boolean = false,
+                       val triggerValid: Boolean = valid, val gripValid: Boolean = valid) {
+    fun flags() = if (!valid) 0 else 1 or (if (triggerValid) 2 else 0) or (if (gripValid) 4 else 0)
+}
 
 class SpatialSession {
     var generation: Long = 0; private set
@@ -92,6 +95,9 @@ class SpatialSession {
     private var vrOrigin: SpatialPose? = null
     private var screenOrigin: SpatialPose? = null
     private var hands = arrayOf(SpatialHand(), SpatialHand())
+    private val gestureEpochs = IntArray(4)
+    private val gestureEligible = BooleanArray(4)
+    private var inputsAfterNs = 0L
     private var height = 1.6f
     private val history = ArrayDeque<SpatialSample>()
 
@@ -101,15 +107,20 @@ class SpatialSession {
         history.clear()
         pendingRecenter = null; recoveryAnchor = null
         hands = arrayOf(SpatialHand(), SpatialHand()); needsRecenter = requireSetup
+        gestureEpochs.fill(0); gestureEligible.fill(false)
+        inputsAfterNs = 0L
     }
     @Synchronized fun accept(sample: SpatialSample): Boolean {
         if (sample.generation != generation || sample.timeNs <= (head?.timeNs ?: 0)) return false
         val previous = head
+        if (previous != null && sample.timeNs-previous.timeNs > 100_000_000L) invalidateHeadInputs(sample.timeNs)
         val rotation = sample.pose.rotation.normalized()
         val current = sample.copy(pose = sample.pose.copy(rotation = rotation ?: SpatialRotation()),
             valid = sample.valid && sample.pose.position.finite() && rotation != null)
         head = current
-        if (!current.valid) { recoveryAnchor = null; hands = arrayOf(SpatialHand(), SpatialHand()); return false }
+        if (!current.valid) {
+            recoveryAnchor = null; invalidateHeadInputs(current.timeNs); return false
+        }
         lastStable?.let {
             val d = (current.pose.position - it.pose.position).length()
             val a = current.pose.rotation; val b = it.pose.rotation
@@ -128,7 +139,7 @@ class SpatialSession {
                 applyRecenter(screen, current)
             }
         }
-        if (needsRecenter || recenterPending) return false
+        if (needsRecenter || recenterPending) { invalidateHeadInputs(current.timeNs); return false }
         lastStable = current
         history.addLast(current)
         while (history.size > 512) history.removeFirst()
@@ -143,13 +154,14 @@ class SpatialSession {
         vrOrigin = SpatialPose(p.position - SpatialVector(y = height), p.rotation.yaw())
         if (needsRecenter) { history.clear(); screenOrigin = p }
         lastStable = head; needsRecenter = false; pendingRecenter = null; recoveryAnchor = null
-        originGeneration++; hands = arrayOf(SpatialHand(), SpatialHand())
+        originGeneration++; invalidateHeadInputs(now)
     }
     @Synchronized fun recenter(screen: Boolean, now: Long = System.nanoTime()) {
         val current = head?.takeIf { it.valid && now-it.timeNs in 0..100_000_000L }
         if (current == null || needsRecenter || recenterPending) {
             if (pendingRecenter == null) recoveryAnchor = null
             pendingRecenter = screen
+            invalidateHeadInputs(now)
             return
         }
         applyRecenter(screen, current)
@@ -168,7 +180,7 @@ class SpatialSession {
             originGeneration++
         }
         lastStable = current; needsRecenter = false; pendingRecenter = null; recoveryAnchor = null
-        hands = arrayOf(SpatialHand(), SpatialHand())
+        invalidateHeadInputs(current.timeNs)
     }
     @Synchronized fun view(screen: Boolean): SpatialPose? = lastStable?.pose?.let {
         (if (screen) screenOrigin else vrOrigin)?.inverse()?.times(it)
@@ -179,24 +191,84 @@ class SpatialSession {
         return history.minByOrNull { abs(it.timeNs-time) }?.takeIf { abs(it.timeNs-time) <= 12_000_000L }?.pose
     }
     @Synchronized fun valid(now: Long) = !needsRecenter && !recenterPending && head?.let { it.valid && now-it.timeNs in 0..100_000_000L } == true
+    @Synchronized internal fun isCurrentTrackingFrame(connection: Long, frame: Long, clock: () -> Long = System::nanoTime): Boolean =
+        connection == generation && frame == trackingFrameGeneration && valid(clock())
     @Synchronized fun setHands(connection: Long, left: SpatialHand, right: SpatialHand) {
-        if (connection == generation && !needsRecenter && !recenterPending) hands = arrayOf(left, right)
+        if (connection != generation || needsRecenter || recenterPending) return
+        val next = arrayOf(left, right)
+        for (index in 0..1) {
+            val oldTime = hands[index].timeNs
+            val hand = next[index]
+            if (oldTime > 0 && (hand.timeNs < oldTime || hand.timeNs-oldTime > HandObservation.MAX_AGE_NS))
+                invalidateInputs(index)
+            updateInputs(index, hand, head?.valid == true && usableHand(hand) && hand.timeNs > inputsAfterNs)
+        }
+        hands = next
     }
     @Synchronized fun hand(index: Int, now: Long): SpatialHand {
         val h = hands[index]
-        val origin = vrOrigin ?: return SpatialHand()
-        return h.copy(pose = origin.inverse() * h.pose, valid = h.valid && valid(now) && now-h.timeNs in 0..100_000_000L)
+        val origin = vrOrigin
+        val current = origin != null && usableHand(h) && valid(now) && now-h.timeNs in 0..HandObservation.MAX_AGE_NS
+        updateInputs(index, h, current && h.timeNs > inputsAfterNs)
+        return if (origin == null) SpatialHand() else h.copy(pose = origin.inverse() * h.pose, valid = current,
+            triggerValid = h.triggerValid && gestureEligible[index*2], gripValid = h.gripValid && gestureEligible[index*2+1])
+    }
+    @Synchronized fun inputEpochs(): Int {
+        var packed = 0
+        for (index in gestureEpochs.indices) packed = packed or (gestureEpochs[index] shl (index*8))
+        return packed
+    }
+    private fun usableHand(hand: SpatialHand): Boolean {
+        val q = hand.pose.rotation
+        val norm = q.x*q.x+q.y*q.y+q.z*q.z+q.w*q.w
+        return hand.valid && hand.timeNs > 0 && hand.pose.position.finite() && norm > 0.99f && norm < 1.01f
+    }
+    private fun updateInputs(index: Int, hand: SpatialHand, valid: Boolean) {
+        updateInput(index*2, valid && hand.triggerValid && hand.trigger.isFinite() && hand.trigger in 0f..1f)
+        updateInput(index*2+1, valid && hand.gripValid)
+    }
+    private fun updateInput(index: Int, eligible: Boolean) {
+        if (gestureEligible[index] && !eligible) gestureEpochs[index] = (gestureEpochs[index]+1) and 0xff
+        gestureEligible[index] = eligible
+    }
+    private fun invalidateInputs(index: Int? = null) {
+        if (index == null) for (gesture in gestureEligible.indices) updateInput(gesture, false)
+        else { updateInput(index*2, false); updateInput(index*2+1, false) }
+    }
+    private fun invalidateHeadInputs(time: Long) {
+        inputsAfterNs = maxOf(inputsAfterNs, time)
+        hands = arrayOf(SpatialHand(), SpatialHand())
+        invalidateInputs()
+    }
+}
+
+internal data class HandObservation(val timeNs: Long, val connection: Long, val trackingFrame: Long) {
+    fun headPose(session: SpatialSession, cameraSynchronized: Boolean, now: Long? = null): SpatialPose? = synchronized(session) {
+        val checkedAt=now ?: System.nanoTime()
+        if (!cameraSynchronized || timeNs <= 0 || checkedAt-timeNs !in 0..MAX_AGE_NS ||
+            !session.isCurrentTrackingFrame(connection, trackingFrame) { checkedAt }) null
+        else session.poseAt(timeNs, connection)
+    }
+    companion object {
+        const val MAX_AGE_NS = 200_000_000L
     }
 }
 
 internal class CameraClock {
     private val offsets = ArrayDeque<Long>()
     private var lastSource = 0L
+    private var lastReceipt = 0L
     fun map(source: Long, receipt: Long): Long? {
-        if (source <= 0 || receipt <= 0) return null
-        if (source <= lastSource || (lastSource > 0 && source-lastSource > 200_000_000L)) offsets.clear()
-        lastSource = source
-        offsets.addLast(receipt-source)
+        if (source <= 0 || receipt <= 0) {
+            offsets.clear();lastSource=0;lastReceipt=0
+            return null
+        }
+        val offset = receipt-source
+        val skipped = lastSource > 0 && source-lastSource > 200_000_000L
+        val inconsistent = skipped && offsets.minOrNull()?.let { abs(offset-it) > 20_000_000L } == true
+        if (source <= lastSource || receipt <= lastReceipt || inconsistent) offsets.clear()
+        lastSource = source;lastReceipt = receipt
+        offsets.addLast(offset)
         while (offsets.size > 64) offsets.removeFirst()
         if (offsets.size < 16) return null
         val sorted = offsets.sorted()

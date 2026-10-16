@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="glasses_experimental">Experimental</string>
+    <string name="glasses_joycons">Luma Joy-Con tracking</string>
+    <string name="glasses_joycons_hint">Use Luma Ultra stereo cameras to locate the hands holding your Joy-Cons. Joy-Con sensors control rotation; an estimated arm pose follows your head when hands are hidden. Replaces bare hand controllers and pauses the phone camera. Point controllers forward when connecting or recentering.</string>
+    <string name="glasses_joycons_requires_position">Enable positional tracking first. Requires motion-capable Joy-Cons on Android 12 or later. Off by default.</string>
     <string name="steamvr_recovery_title">SteamVR graphics stopped</string>
     <string name="steamvr_recovery_countdown">DroidDeck will restart in %1$d seconds to reset graphics and reopen SteamVR. Your running game will close; unsaved progress cannot be restored.</string>
     <string name="steamvr_recovery_repeated">The graphics fault returned after a recent restart. Automatic recovery is paused to prevent a loop. Restarting will close your game; unsaved progress cannot be restored.</string>
@@ -2319,11 +2323,25 @@
     <string name="glasses_game_on">Game on glasses</string>
     <string name="glasses_game_on_hint">Show the game only on the glasses. Off: the phone shows it and Android mirrors the phone.</string>
     <string name="glasses_display">Display</string>
+    <string name="glasses_vr">VR</string>
+    <string name="glasses_display_mode">Display mode</string>
+    <string name="glasses_output_2d">2D output</string>
+    <string name="glasses_output_3d">3D output</string>
+    <string name="glasses_picture_group">Picture and virtual screen</string>
+    <string name="glasses_position_group">Position and floor</string>
+    <string name="glasses_hands_group">Hand tracking — Experimental</string>
+    <string name="glasses_tracking_status">Tracking status</string>
+    <string name="glasses_resolution_2d">2D resolution</string>
+    <string name="glasses_resolution_3d">3D resolution</string>
+    <string name="glasses_resolution_vr">VR resolution</string>
+    <string name="glasses_resolution_auto">Automatic</string>
+    <string name="glasses_resolution_inherit">Same as 2D / 3D</string>
+    <string name="glasses_resolution_hint">Output resolution per eye.</string>
     <string name="glasses_refresh">Refresh rate</string>
     <string name="glasses_refresh_30_hint">Enable Game on glasses to select the display’s native 30 Hz mode.</string>
     <string name="glasses_3d">3D (side-by-side)</string>
     <string name="glasses_3d_hint">Switch the glasses to side-by-side 3D. Head tracking is controlled separately.</string>
-    <string name="glasses_3dof">3DoF On Flat Screens</string>
+    <string name="glasses_3dof">3DoF virtual screen</string>
     <string name="glasses_3dof_hint">Anchor flat games in front of you so you can look around. Enables Game on glasses without switching to 3D.</string>
     <string name="glasses_3d_failed">The 3D signal was not confirmed. Try again once the 2D picture returns.</string>
     <string name="glasses_no_signal">No picture: the glasses are in a mode this phone can\'t send. Hold their 2D/3D button, or unplug and replug them.</string>
@@ -2341,18 +2359,19 @@
     <string name="glasses_screen_no_output">These settings apply while Game on glasses is enabled and the game is displayed there.</string>
     <string name="glasses_screen_flat_hint">Automatic keeps this 2D game full-screen. Use a virtual screen to adjust its width, distance and head tracking.</string>
     <string name="glasses_screen_use">Use virtual screen</string>
-    <string name="glasses_screen_direct_hint">SteamVR fills the view. Adjust its field of view below; width and distance apply only to a virtual screen.</string>
+    <string name="glasses_screen_direct_hint">SteamVR fills the view. Adjust its field of view in VR; width and distance apply only to a virtual screen.</string>
     <string name="glasses_screen_sbs_hint">Side-by-side games fill each eye. Width and distance apply only to a virtual screen.</string>
     <string name="glasses_tracking_flat_hint">Automatic keeps this 2D game fixed in view. Choose Virtual screen in Display to use head tracking.</string>
     <string name="glasses_tracking_sbs_hint">Head tracking applies to a virtual screen or a running SteamVR game.</string>
-    <string name="glasses_hardware">Glasses</string>
+    <string name="glasses_hardware">Device</string>
     <string name="glasses_brightness">Brightness</string>
     <string name="glasses_volume">Volume</string>
     <string name="glasses_sunblock">Sunblock</string>
     <string name="glasses_sunblock_hint">Darkens the front lenses.</string>
-    <string name="glasses_tracking">Head tracking</string>
+    <string name="glasses_tracking">Tracking</string>
     <string name="glasses_head_tracking">Head tracking</string>
     <string name="glasses_head_tracking_hint">The glasses\' own sensors turn the virtual screen and SteamVR with your head.</string>
+    <string name="glasses_quick_actions">Quick actions</string>
     <string name="glasses_recenter">Recenter view</string>
     <string name="glasses_recenter_screen_hint">Look where you want the screen, then recenter to set its height and direction.</string>
     <string name="glasses_recenter_button">Recenter</string>
@@ -2424,10 +2443,8 @@
     <string name="glasses_floor">Set floor from current height</string>
     <string name="glasses_floor_set">Set floor</string>
     <string name="glasses_spatial_setup">Stereo camera setup and diagnostics</string>
-    <string name="glasses_spatial_setup_hint">Calibrate cameras before enabling hand controllers.</string>
+    <string name="glasses_spatial_setup_hint">Check camera calibration and hand tracking before playing.</string>
     <string name="glasses_spatial_open">Open setup</string>
-    <string name="glasses_hands">Hand controllers — experimental</string>
-    <string name="glasses_hands_hint">Requires verified calibration. Hands aim, pinch and grip; gamepad sticks move and turn. Combined hardware acceptance is pending.</string>
     <string name="setup_tab_storage">Storage</string>
     <string name="storage_measuring">Measuring storage…</string>
     <string name="storage_measuring_hint">This takes a few seconds the first time.</string>
@@ -2598,4 +2615,24 @@
         <item quantity="one">%d app</item>
         <item quantity="other">%d apps</item>
     </plurals>
+    <string name="glasses_hands">Hand controllers — Experimental</string>
+    <string name="glasses_hands_hint">May lag or lose tracking during games. Hands aim, pinch and grip; gamepad sticks move and turn.</string>
+    <string name="glasses_hands_ready_hint">Enable Hand controllers — Experimental in Tracking. Show open hands first.</string>
+    <string name="glasses_hands_base">Shared Luma Ultra calibration</string>
+    <string name="glasses_hands_base_hint">Using the shared Luma Ultra base. Calibrate your own glasses to verify their accuracy.</string>
+    <string name="glasses_hands_calibration_verified">Measured calibration verified</string>
+    <string name="glasses_hands_calibration_required">Validation required</string>
+    <string name="glasses_hands_calibration_required_hint">Hand controllers become available after the measured distance check passes.</string>
+    <string name="tracking_recovery_lost">Tracking lost</string>
+    <string name="tracking_recovery_look">Look around slowly in a well-lit room.\nKeep the tracking cameras clear and face furniture or other visible detail.</string>
+    <string name="tracking_recovery_restart_help">Still stuck? On your phone: Glasses → Tracking → Open setup → Show diagnostics → Restart tracking.</string>
+    <string name="tracking_recovery_disconnected">Glasses disconnected</string>
+    <string name="tracking_recovery_connect">Check the USB connection and reconnect the glasses.\nAccept the USB-access prompt on your phone if it appears.</string>
+    <string name="tracking_recovery_usb_help">Once connected, look around slowly in a well-lit room to restore tracking.</string>
+    <string name="tracking_recovery_recenter">Recenter needed</string>
+    <string name="tracking_recovery_recenter_steps">Tracking has returned in a new position.\nLook forward, then tap Recenter on your phone.</string>
+    <string name="tracking_recovery_recenter_help">You can also find Recenter in Glasses → Tracking → Open setup. Your saved camera calibration is kept.</string>
+    <string name="tracking_recovery_stabilizing">Hold still for a moment</string>
+    <string name="tracking_recovery_hold">Recenter is in progress.\nKeep the glasses steady while tracking settles.</string>
+    <string name="tracking_recovery_automatic">This screen closes automatically when head tracking is ready.</string>
 </resources>

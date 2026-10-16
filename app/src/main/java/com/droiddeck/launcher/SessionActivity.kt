@@ -55,6 +55,8 @@ import com.droiddeck.launcher.gpu.HeadTracker
 import com.droiddeck.launcher.glasses.Glasses
 import com.droiddeck.launcher.glasses.GlassesScreen
 import com.droiddeck.launcher.glasses.GlassesRendering
+import com.droiddeck.launcher.glasses.SpatialTracking
+import com.droiddeck.launcher.glasses.TrackingRecovery
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import com.droiddeck.launcher.gpu.SteamVr
@@ -292,6 +294,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var glassesSettings by mutableStateOf(Glasses.settings.value)
     private var glassesScreen: GlassesScreen? = null
     private var glassesOutputActive by mutableStateOf(false)
+    private var trackingRecovery by mutableStateOf<TrackingRecovery?>(null)
     private var glasses3dForVr = false
     private var ended = false
     private var glassesPresent = false
@@ -494,9 +497,31 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         sessionOverlay = createSessionOverlay()
         root.addView(sessionOverlay)
         setContentView(root)
-        glassesScope.launch { Glasses.state.collect { glasses = it; onGlassesChanged() } }
-        glassesScope.launch { Glasses.settings.collect { glassesSettings = it; onGlassesChanged() } }
+        glassesScope.launch { Glasses.state.collect {
+            glasses = it
+            updateJoyConTracking()
+            updateHandCamera()
+            onGlassesChanged()
+        } }
+        glassesScope.launch { Glasses.settings.collect {
+            glassesSettings = it
+            updateJoyConTracking()
+            updateHandCamera()
+            onGlassesChanged()
+        } }
         glassesScope.launch { com.droiddeck.launcher.handtracking.HandTracking.settings.collect { updateHandCamera() } }
+        glassesScope.launch {
+            while (true) {
+                val spatialView = glasses.spatialConnected && glassesSettings.positionalTracking &&
+                    (SessionState.steamVr || steamVrStatus == SteamVr.Status.RUNNING ||
+                        (glassesOutputActive && glassesSettings.headTracking && glassesSettings.picture3d == com.droiddeck.launcher.glasses.GlassesSettings.PICTURE_SCREEN))
+                val active = started && !ended && SessionState.running && !loading.visible && !pipUi && spatialView
+                if (active) SpatialTracking.refreshStatus()
+                trackingRecovery = TrackingRecovery.forSession(active, glasses.canControl, SpatialTracking.status.value)
+                glassesScreen?.trackingRecovery?.update(trackingRecovery, glasses.sbs)
+                kotlinx.coroutines.delay(100)
+            }
+        }
         glassesScope.launch {
             while (true) {
                 if (SessionState.running && SessionState.mode == SessionService.MODE_STEAM &&
@@ -556,6 +581,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     cursorImage, cursorHotX, cursorHotY, cursorImageScale)
                 if (hud.text.isNotEmpty()) HudText(hud.text)
                 if (glassesOutputActive && !loading.visible) com.droiddeck.launcher.ui.GlassesPlayingHint(glasses.model)
+                if (trackingRecovery != null && !drawerOpen && !pcKeyboardOpen && !loading.visible) {
+                    androidx.compose.ui.viewinterop.AndroidView(
+                        factory = { com.droiddeck.launcher.ui.TrackingRecoveryView(it) },
+                        modifier = Modifier.fillMaxSize(),
+                        update = { it.update(trackingRecovery, !glassesOutputActive && glasses.usable && glasses.sbs) },
+                    )
+                }
                 if (GlassesRendering.usesGlasses(glasses, glassesOutputActive, steamVrStatus == SteamVr.Status.RUNNING) &&
                     headTracking && !drawerOpen && !pcKeyboardOpen && !loading.visible) com.droiddeck.launcher.ui.GlassesRecenterButton(
                     controllerSettings?.tint ?: android.graphics.Color.rgb(90, 160, 255), controllerSettings?.opacity ?: 100) { headTracker?.recenter() }
@@ -2574,10 +2606,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         steamVrSwitchedPicture = SessionPrefs.cardboardSourceBeforeSteamVr(this) >= 0
     }
 
+    private fun updateJoyConTracking() {
+        joyConVr?.setActive(steamVrStatus == SteamVr.Status.RUNNING &&
+            (ControllerPrefs.joyConVr(this) ||
+                (glasses.usesSpatialControllers(glassesSettings) && glassesSettings.joyConTracking)))
+    }
+
     private fun updateHandCamera() {
         val joyCons = joyConVr?.holding == true
         val bare = !joyCons && !controllerConnected()
         val want = started && steamVrStatus == SteamVr.Status.RUNNING && (joyCons || bare) &&
+            !glasses.usesSpatialControllers(glassesSettings) &&
             com.droiddeck.launcher.handtracking.HandTracking.wanted(this)
         handCamera?.bareHands = bare
         if (want == (handCamera != null)) return
@@ -2601,10 +2640,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun onSteamVrStatus(now: SteamVr.Status) {
         val was = steamVrStatus
         steamVrStatus = now
-        joyConVr?.setActive(now == SteamVr.Status.RUNNING && ControllerPrefs.joyConVr(this))
+        updateJoyConTracking()
         updateHandCamera()
         autoStartSteamVr(now)
         if ((was == SteamVr.Status.RUNNING) != (now == SteamVr.Status.RUNNING)) applyCardboard(cardboard)
+        if (now != SteamVr.Status.UNAVAILABLE) Glasses.setVrActive(now == SteamVr.Status.RUNNING)
         if (glasses.present) onGlassesSteamVr(now)
         if (GlassesRendering.usesGlasses(glasses, glassesScreen != null, now == SteamVr.Status.RUNNING)) {
             return
@@ -2716,7 +2756,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun onGlassesChanged() {
         val g = glasses
         val s = glassesSettings
-        val key = listOf(g.present, g.usable, g.displayId, g.sbs, g.sbs90, g.supports30Hz, g.switching3d, g.canControl, g.width, g.height, g.hz, s)
+        val key = listOf(g.present, g.usable, g.displayId, g.sbs, g.sbs90, g.supports30Hz, g.switching3d, g.canControl, g.width, g.height, g.hz, g.resolutions, g.vrActive, s)
         if (key == glassesKey) return
         glassesKey = key
         updateGlassesScreen()
@@ -2750,7 +2790,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val target = if (want) Glasses.glassesDisplay()?.takeIf { it.isValid } else null
         val current = glassesScreen
         if (current != null && current.display.displayId == target?.displayId) {
-            current.prefer(Glasses.outputHz())
+            current.prefer(Glasses.outputHz(), Glasses.outputResolution())
             applyOutputPacing()
             return
         }
@@ -2759,7 +2799,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             runCatching { current.dismiss() }
         }
         if (target != null) {
-            val screen = GlassesScreen(this, target, Glasses.outputHz(), this)
+            val screen = GlassesScreen(this, target, Glasses.outputHz(), this, Glasses.outputResolution())
             // show() can create the surface synchronously. Select its holder
             // first, otherwise surfaceCreated() rejects the glasses callback.
             glassesScreen = screen

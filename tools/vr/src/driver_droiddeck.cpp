@@ -33,6 +33,7 @@
 #include "joycon_shm.h"
 #include "presenter.h"
 #include "spatial_tracking.h"
+#include "luma_joycon.h"
 #include "render_target.h"
 #include "xr_tracking_file.h"
 #include "xr_frame_math.h"
@@ -279,7 +280,8 @@ public:
         const uint32_t create = 0x8  ;
         for (int i = 0; i < 3; i++) {
             SharedTextureHandle_t h = 0;
-            if (!VRIPCResourceManager()->NewSharedVulkanImage(d->nFormat, d->nWidth, d->nHeight, true, false, true, 1, 1,
+            // Compute access makes SteamVR substitute UNORM for sRGB, darkening direct compositor output.
+            if (!VRIPCResourceManager()->NewSharedVulkanImage(d->nFormat, d->nWidth, d->nHeight, true, false, false, 1, 1,
                                                                create, usage, &h)) {
                 Log("NewSharedVulkanImage failed");
                 return;
@@ -530,7 +532,7 @@ bool JoyConLive(const droiddeck_joycon_hand &hand, int64_t nowNs) {
 
 class HandController : public ITrackedDeviceServerDriver {
 public:
-    explicit HandController(bool right) : right_(right), arm_(right), camera_(right) {}
+    explicit HandController(bool right) : right_(right), arm_(right), camera_(right), luma_(right) {}
 
     EVRInitError Activate(uint32_t id) override {
         auto props = VRProperties();
@@ -618,12 +620,41 @@ public:
         }
     }
 
-    bool Update(const droiddeck_joycon_hand *hand, bool bare, const HmdQuaternion_t &headPose, int64_t nowNs) {
+    bool Update(const droiddeck_joycon_hand *hand, bool bare, const HmdQuaternion_t &headPose, int64_t nowNs,
+                const droiddeck_spatialpose *spatial = nullptr) {
         const uint32_t id = id_.load(std::memory_order_acquire);
         if (id == k_unTrackedDeviceIndexInvalid) return false;
         const auto now = std::chrono::steady_clock::now();
         const double dt = std::min(std::chrono::duration<double>(now - lastUpdate_).count(), 0.1);
         lastUpdate_ = now;
+        if (lumaMode_ != (spatial != nullptr) || (spatial &&
+            (lumaConnection_ != spatial->connection || lumaOrigin_ != spatial->origin))) {
+            Disconnect(id);
+            luma_.Reset();
+            lumaMode_ = spatial != nullptr;
+            if (spatial) { lumaConnection_ = spatial->connection; lumaOrigin_ = spatial->origin; }
+        }
+        if (spatial && !SpatialFresh(spatial->head, nowNs)) {
+            if (connected_ && hand) {
+                luma_.Reset();
+                lumaSeen_ = false;
+                DriverPose_t p = GetPose();
+                p.poseIsValid = false;
+                p.result = TrackingResult_Running_OutOfRange;
+                p.poseTimeOffset = 0;
+                std::fill_n(p.vecVelocity, 3, 0.0);
+                std::fill_n(p.vecAngularVelocity, 3, 0.0);
+                droiddeck_joycon_hand idle{};
+                SendInputs(idle, 1.0);
+                {
+                    std::lock_guard<std::mutex> lock(poseMutex_);
+                    pose_ = p;
+                }
+                VRServerDriverHost()->TrackedDevicePoseUpdated(id, p, sizeof(p));
+            } else Disconnect(id);
+            LeaveBare(id);
+            return true;
+        }
         if (!hand) {
             Disconnect(id);
             if (bare) {
@@ -635,6 +666,16 @@ public:
         }
         LeaveBare(id);
         const Quat head{headPose.w, headPose.x, headPose.y, headPose.z};
+        if (spatial) {
+            double norm = 0;
+            for (float v : hand->rotation) norm += v * v;
+            if (!std::isfinite(norm) || norm < 0.5 || norm > 1.5 ||
+                !std::all_of(std::begin(hand->angular_velocity), std::end(hand->angular_velocity),
+                             [](float v) { return std::isfinite(v); })) {
+                Disconnect(id);
+                return true;
+            }
+        }
         const Quat q = Normalize({hand->rotation[0], hand->rotation[1], hand->rotation[2], hand->rotation[3]});
         if (!connected_ || hand->recenter != recenter_) {
             recenter_ = hand->recenter;
@@ -648,41 +689,57 @@ public:
             arm_.Reset();
             follower_.Reset();
             kalman_.Reset();
+            luma_.Reset();
             shown_ = false;
             Log("%s Joy-Con facing forward", right_ ? "right" : "left");
         }
         const Quat turn = AboutY(yaw_);
         const Quat aligned = turn * q;
         const Vec3 rate{hand->angular_velocity[0], hand->angular_velocity[1], hand->angular_velocity[2]};
-        const Vec3 palm = arm_.Update(kHeadPosition, head, aligned, Length(rate), dt);
-        const Vec3 moved = Rotate(turn, {hand->displacement[0], hand->displacement[1], hand->displacement[2]});
-        const Vec3 inertial = Rotate(turn, {hand->inertial_velocity[0], hand->inertial_velocity[1], hand->inertial_velocity[2]});
-        const bool holding = (hand->buttons & (DROIDDECK_JOYCON_TRIGGER | DROIDDECK_JOYCON_GRIP)) != 0;
-        kalman_.Input(hand->time_ns - kJoyConDelayNs, inertial, Length(rate));
-        const bool camera = kalman_.Ready() && kalman_.TimeNs() - kalman_.SeenNs() <= kCameraHoldNs;
-        bool switched = false;
-        if (camera != cameraPlaced_) {
-            cameraPlaced_ = camera;
-            switched = true;
-            Log("%s Joy-Con hand placed by %s", right_ ? "right" : "left", camera ? "the camera" : "the arm model");
-            if (!camera && shown_) follower_.Place(shownAt_, moved);
-        }
-        const double settle = holding ? kHoldingSettleSeconds : kSettleSeconds;
-        const Vec3 source = camera ? kalman_.Position() : follower_.Update(palm, moved, dt, settle, kMaxOffset);
-        const Vec3 velocity = camera ? kalman_.Velocity() : Rotate(turn, {hand->velocity[0], hand->velocity[1], hand->velocity[2]});
-        if (shown_ && (switched || Length(source - source_) > kJump)) blend_ = shownAt_ - source;
-        else if (!shown_) blend_ = Vec3{};
-        blend_ = blend_ * std::exp(-dt / kBlendSeconds);
-        const Vec3 grip = source + blend_;
-        source_ = source;
-        shownAt_ = grip;
-        shown_ = true;
-        if (FILE *trace = gHandTrace.File()) {
-            const Vec3 k = kalman_.Ready() ? kalman_.Position() : Vec3{};
-            fprintf(trace, "J,%lld,%d,%lld,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%d,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.3f,%.4f,%.4f,%.4f,%u,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%d\n",
-                    (long long)nowNs, right_ ? 1 : 0, (long long)hand->time_ns, moved.x, moved.y, moved.z, palm.x, palm.y, palm.z,
-                    camera ? 1 : 0, k.x, k.y, k.z, grip.x, grip.y, grip.z, Length(rate), velocity.x, velocity.y, velocity.z,
-                    hand->buttons, aligned.w, aligned.x, aligned.y, aligned.z, inertial.x, inertial.y, inertial.z, kalman_.Ready() ? 1 : 0);
+        Vec3 grip, velocity;
+        if (spatial) {
+            const auto tracked = luma_.Update(*spatial, aligned, Length(rate), nowNs, dt);
+            if (!tracked.valid || aligning_) {
+                Disconnect(id);
+                return true;
+            }
+            grip = tracked.position;
+            if (!lumaSeen_ || lumaCamera_ != tracked.camera) {
+                Log("%s Luma Joy-Con position: %s", right_ ? "right" : "left",
+                    tracked.camera ? "stereo hand" : "6DoF arm estimate");
+                lumaSeen_ = true; lumaCamera_ = tracked.camera;
+            }
+        } else {
+            const Vec3 palm = arm_.Update(kHeadPosition, head, aligned, Length(rate), dt);
+            const Vec3 moved = Rotate(turn, {hand->displacement[0], hand->displacement[1], hand->displacement[2]});
+            const Vec3 inertial = Rotate(turn, {hand->inertial_velocity[0], hand->inertial_velocity[1], hand->inertial_velocity[2]});
+            const bool holding = (hand->buttons & (DROIDDECK_JOYCON_TRIGGER | DROIDDECK_JOYCON_GRIP)) != 0;
+            kalman_.Input(hand->time_ns - kJoyConDelayNs, inertial, Length(rate));
+            const bool camera = kalman_.Ready() && kalman_.TimeNs() - kalman_.SeenNs() <= kCameraHoldNs;
+            bool switched = false;
+            if (camera != cameraPlaced_) {
+                cameraPlaced_ = camera;
+                switched = true;
+                Log("%s Joy-Con hand placed by %s", right_ ? "right" : "left", camera ? "the camera" : "the arm model");
+                if (!camera && shown_) follower_.Place(shownAt_, moved);
+            }
+            const double settle = holding ? kHoldingSettleSeconds : kSettleSeconds;
+            const Vec3 source = camera ? kalman_.Position() : follower_.Update(palm, moved, dt, settle, kMaxOffset);
+            velocity = camera ? kalman_.Velocity() : Rotate(turn, {hand->velocity[0], hand->velocity[1], hand->velocity[2]});
+            if (shown_ && (switched || Length(source - source_) > kJump)) blend_ = shownAt_ - source;
+            else if (!shown_) blend_ = Vec3{};
+            blend_ = blend_ * std::exp(-dt / kBlendSeconds);
+            grip = source + blend_;
+            source_ = source;
+            shownAt_ = grip;
+            shown_ = true;
+            if (FILE *trace = gHandTrace.File()) {
+                const Vec3 k = kalman_.Ready() ? kalman_.Position() : Vec3{};
+                fprintf(trace, "J,%lld,%d,%lld,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%d,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.3f,%.4f,%.4f,%.4f,%u,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%d\n",
+                        (long long)nowNs, right_ ? 1 : 0, (long long)hand->time_ns, moved.x, moved.y, moved.z, palm.x, palm.y, palm.z,
+                        camera ? 1 : 0, k.x, k.y, k.z, grip.x, grip.y, grip.z, Length(rate), velocity.x, velocity.y, velocity.z,
+                        hand->buttons, aligned.w, aligned.x, aligned.y, aligned.z, inertial.x, inertial.y, inertial.z, kalman_.Ready() ? 1 : 0);
+            }
         }
         Quat raw;
         Vec3 position;
@@ -701,7 +758,7 @@ public:
         p.vecAngularVelocity[0] = spin.x;
         p.vecAngularVelocity[1] = spin.y;
         p.vecAngularVelocity[2] = spin.z;
-        p.poseTimeOffset = -std::max(0.0, (nowNs - hand->time_ns) * 1e-9);
+        p.poseTimeOffset = spatial ? 0.0 : -std::max(0.0, (nowNs - hand->time_ns) * 1e-9);
         p.willDriftInYaw = true;
         p.poseIsValid = true;
         p.result = TrackingResult_Running_OK;
@@ -834,8 +891,10 @@ private:
     void Disconnect(uint32_t id) {
         if (!connected_) return;
         connected_ = false;
+        lumaSeen_ = false;
         follower_.Reset();
         kalman_.Reset();
+        luma_.Reset();
         shown_ = false;
         DriverPose_t p = {};
         p.qWorldFromDriverRotation.w = 1;
@@ -846,9 +905,9 @@ private:
             std::lock_guard<std::mutex> lock(poseMutex_);
             pose_ = p;
         }
-        VRServerDriverHost()->TrackedDevicePoseUpdated(id, p, sizeof(p));
         droiddeck_joycon_hand idle = {};
         SendInputs(idle, 1.0);
+        VRServerDriverHost()->TrackedDevicePoseUpdated(id, p, sizeof(p));
         Log("%s Joy-Con hand disconnected", right_ ? "right" : "left");
     }
 
@@ -936,6 +995,9 @@ private:
     HandFollower follower_;
     HandKalman kalman_;
     CameraHand camera_;
+    LumaJoyConPosition luma_;
+    bool lumaMode_ = false, lumaSeen_ = false, lumaCamera_ = false;
+    uint64_t lumaConnection_ = 0, lumaOrigin_ = 0;
     std::atomic<bool> bare_{false}, expectBare_{false};
     bool bareSeen_ = false;
     Vec3 source_, shownAt_, blend_;
@@ -1006,7 +1068,7 @@ public:
         Log("%s hand activated (%s)", right_ ? "right" : "left", xrMode_ ? "Quest Touch" : "game pad");
         return VRInitError_None;
     }
-    void Deactivate() override { id_ = k_unTrackedDeviceIndexInvalid; }
+    void Deactivate() override { ClearInputs(); id_ = k_unTrackedDeviceIndexInvalid; }
     void EnterStandby() override {}
     void *GetComponent(const char *) override { return nullptr; }
     void DebugRequest(const char *, char *resp, uint32_t size) override { if (size) resp[0] = 0; }
@@ -1014,11 +1076,24 @@ public:
     DriverPose_t GetPose() override { return pose_; }
 
     void ClearInputs() {
+        const bool optical = opticalActive_;
         opticalInputs_.Reset();
+        opticalPose_.Reset();
+        opticalActive_ = false;
+        lastOpticalState_ = ~0u;
         if (id_ == k_unTrackedDeviceIndexInvalid) return;
         auto in = VRDriverInput();
-        for (VRInputComponentHandle_t h : {system_, menu_, grip_, triggerClick_, padClick_, padTouch_}) in->UpdateBooleanComponent(h, false, 0);
-        for (VRInputComponentHandle_t h : {trigger_, padX_, padY_}) in->UpdateScalarComponent(h, 0.0f, 0);
+        EVRInputError error = VRInputError_None;
+        for (VRInputComponentHandle_t h : {system_, menu_, grip_, triggerClick_, padClick_, padTouch_}) {
+            const auto result = in->UpdateBooleanComponent(h, false, 0);
+            if (result != VRInputError_None) error = result;
+        }
+        for (VRInputComponentHandle_t h : {trigger_, padX_, padY_}) {
+            const auto result = in->UpdateScalarComponent(h, 0.0f, 0);
+            if (result != VRInputError_None) error = result;
+        }
+        if (optical || error != VRInputError_None)
+            Log("%s controller inputs cleared: error=%d", right_ ? "right" : "left", int(error));
     }
 
     void UpdateXr(const DroidDeckXrHand &hand, int64_t predicted) {
@@ -1074,37 +1149,36 @@ public:
     }
 
     void UpdateOptical(const dd_spatial_hand &hand, bool headValid, const PadState *pad, int64_t now,
-                       uint64_t connection, uint64_t origin) {
+                       uint64_t connection, uint64_t origin, uint16_t inputEpochs = 0) {
         if (id_ == k_unTrackedDeviceIndexInvalid) return;
-        const bool valid = opticalInputs_.Update(hand, headValid, now, connection, origin);
-        if (!valid) {
-            ClearInputs();
-            pose_.poseIsValid = false;
-            pose_.deviceIsConnected = true;
-            pose_.result = TrackingResult_Running_OutOfRange;
-            VRServerDriverHost()->TrackedDevicePoseUpdated(id_, pose_, sizeof(pose_));
-            return;
-        }
+        opticalActive_ = true;
+        const bool inputValid = opticalInputs_.Update(hand, headValid, now, connection, origin, inputEpochs);
+        const bool valid = opticalPose_.Update(hand, headValid, now, connection, origin);
         DriverPose_t p{};
-        p.qWorldFromDriverRotation.w = p.qDriverFromHeadRotation.w = 1;
-        p.qRotation = {hand.pose.rotation[3], hand.pose.rotation[0], hand.pose.rotation[1], hand.pose.rotation[2]};
-        for (int i=0; i<3; ++i) p.vecPosition[i] = hand.pose.position[i];
-        p.poseIsValid = p.deviceIsConnected = true; p.result = TrackingResult_Running_OK;
-        p.poseTimeOffset = double(hand.pose.time_ns-now)/1e9;
-        pose_ = p;
-        VRServerDriverHost()->TrackedDevicePoseUpdated(id_, p, sizeof(p));
+        p.qWorldFromDriverRotation.w = p.qDriverFromHeadRotation.w = p.qRotation.w = 1;
+        if (valid) {
+            const auto &observed = opticalPose_.rendered;
+            p.qRotation = {observed.rotation[3], observed.rotation[0], observed.rotation[1], observed.rotation[2]};
+            for (int i=0; i<3; ++i) p.vecPosition[i] = observed.position[i];
+            p.poseTimeOffset = double(observed.time_ns-now)/1e9;
+        }
+        p.deviceIsConnected = true; p.poseIsValid = valid;
+        p.result = valid ? TrackingResult_Running_OK : TrackingResult_Running_OutOfRange;
         auto in = VRDriverInput();
         const uint32_t b = pad ? pad->buttons : 0;
         in->UpdateBooleanComponent(system_, right_ && (b & PAD_GUIDE), 0);
         in->UpdateBooleanComponent(menu_, (b & (right_ ? PAD_START : PAD_SELECT)) != 0, 0);
-        in->UpdateBooleanComponent(grip_, opticalInputs_.grip, 0);
-        in->UpdateBooleanComponent(triggerClick_, opticalInputs_.click, 0);
-        in->UpdateScalarComponent(trigger_, opticalInputs_.trigger, 0);
+        const auto gripError = in->UpdateBooleanComponent(grip_, opticalInputs_.grip, 0);
+        const auto clickError = in->UpdateBooleanComponent(triggerClick_, opticalInputs_.click, 0);
+        const auto triggerError = in->UpdateScalarComponent(trigger_, opticalInputs_.trigger, 0);
         const float x = pad ? pad->axes[right_ ? 2 : 0]/32767.0f : 0;
         const float y = pad ? -pad->axes[right_ ? 3 : 1]/32767.0f : 0;
         in->UpdateScalarComponent(padX_, x, 0); in->UpdateScalarComponent(padY_, y, 0);
         in->UpdateBooleanComponent(padTouch_, x*x+y*y > 0.01f || (b & (right_ ? PAD_A : PAD_X)), 0);
         in->UpdateBooleanComponent(padClick_, (b & (right_ ? (PAD_A|PAD_R3) : PAD_X)) != 0, 0);
+        LogOpticalInputs(hand, inputValid, valid, now, connection, origin, inputEpochs, gripError, clickError, triggerError);
+        pose_ = p;
+        VRServerDriverHost()->TrackedDevicePoseUpdated(id_, p, sizeof(p));
     }
 
     static constexpr float kReachSpeed = 0.6f, kReachMin = -0.2f, kReachMax = 1.0f;
@@ -1116,6 +1190,7 @@ public:
     void Update(const DriverPose_t &headPose, const PadState *pad, bool sticksMoveHands, float reach) {
         const auto &head = headPose.qRotation;
         if (id_ == k_unTrackedDeviceIndexInvalid) return;
+        if (opticalActive_) ClearInputs();
         const auto now = std::chrono::steady_clock::now();
         const float dt = std::min(std::chrono::duration<float>(now - lastUpdate_).count(), 0.1f);
         lastUpdate_ = now;
@@ -1172,7 +1247,35 @@ public:
     }
 
 private:
+    void LogOpticalInputs(const dd_spatial_hand &hand, bool inputValid, bool poseValid, int64_t now,
+                          uint64_t connection, uint64_t origin, uint16_t inputEpochs, EVRInputError gripError,
+                          EVRInputError clickError, EVRInputError triggerError) {
+        const uint32_t triggerBand = !std::isfinite(hand.trigger) ? 3 : hand.trigger < .25f ? 0 : hand.trigger > .65f ? 2 : 1;
+        const uint32_t state = uint32_t(poseValid) | uint32_t(inputValid)<<1 | uint32_t(opticalInputs_.click)<<2 |
+            uint32_t(opticalInputs_.grip)<<3 | uint32_t(opticalInputs_.armed)<<4 | uint32_t(opticalInputs_.gripArmed)<<5 |
+            (hand.pose.flags & 7u)<<6 | triggerBand<<9 | uint32_t(hand.grip != 0)<<11;
+        const int errors[] = {int(gripError),int(clickError),int(triggerError)};
+        if (state == lastOpticalState_ && connection == lastOpticalConnection_ && origin == lastOpticalOrigin_ &&
+            inputEpochs == lastOpticalEpochs_ &&
+            std::equal(errors,errors+3,lastOpticalErrors_)) return;
+        lastOpticalState_ = state; lastOpticalConnection_ = connection; lastOpticalOrigin_ = origin;
+        lastOpticalEpochs_ = inputEpochs;
+        std::copy_n(errors,3,lastOpticalErrors_);
+        Log("%s optical input pose=%d input=%d flags=%u raw=%.3f/%u out=%.3f/%d/%d armed=%d/%d error=%d/%d/%d ageMs=%.1f connection=%llu origin=%llu epochs=%u/%u",
+            right_ ? "right" : "left", int(poseValid), int(inputValid), hand.pose.flags, double(hand.trigger), hand.grip,
+            double(opticalInputs_.trigger), int(opticalInputs_.click), int(opticalInputs_.grip),
+            int(opticalInputs_.armed), int(opticalInputs_.gripArmed), errors[0], errors[1], errors[2],
+            hand.pose.time_ns > 0 ? double(now-hand.pose.time_ns)/1e6 : -1.,
+            static_cast<unsigned long long>(connection), static_cast<unsigned long long>(origin),
+            unsigned(inputEpochs & 255), unsigned(inputEpochs >> 8));
+    }
     OpticalInputs opticalInputs_;
+    OpticalPose opticalPose_;
+    bool opticalActive_ = false;
+    uint32_t lastOpticalState_ = ~0u;
+    uint64_t lastOpticalConnection_ = 0, lastOpticalOrigin_ = 0;
+    uint16_t lastOpticalEpochs_ = 0;
+    int lastOpticalErrors_[3]{};
     static constexpr int16_t kGrabTrigger = 153;
     static constexpr float kStickDeadzone = 0.12f, kHandRangeX = 0.40f, kHandRangeUp = 0.50f, kHandRangeDown = 0.30f, kHandSmoothing = 0.05f, kHandPivot = 0.45f;
     bool right_;
@@ -1471,7 +1574,8 @@ private:
                 droiddeck_spatialpose spatial{};
                 DriverPose_t head = GetPose(&spatial);
                 VRServerDriverHost()->TrackedDevicePoseUpdated(id_, head, sizeof(DriverPose_t));
-                const bool optical = (spatial.flags & DD_SPATIAL_ACTIVE) && (spatial.flags & DD_SPATIAL_HANDS);
+                const bool lumaJoyCons = (spatial.flags & DD_SPATIAL_ACTIVE) && (spatial.flags & DD_SPATIAL_JOYCONS);
+                const bool optical = !lumaJoyCons && (spatial.flags & DD_SPATIAL_ACTIVE) && (spatial.flags & DD_SPATIAL_HANDS);
                 if (!optical && havePad && (pad.buttons & PAD_L3) && !(lastPad_.buttons & PAD_L3)) {
                     sticksMoveHands_ = !sticksMoveHands_;
                     Log("sticks now move %s", sticksMoveHands_ ? "the hands" : "in the game");
@@ -1499,12 +1603,12 @@ private:
                     const bool running = (cam.flags & DROIDDECK_HANDCAM_RUNNING) != 0;
                     if (cam.frame != lastCamFrame_) {
                         lastCamFrame_ = cam.frame;
-                        if (running && std::llabs(nowNs - cam.time_ns) < kHandCamStaleNs) SeeCamera(cam, nowNs);
+                        if (!lumaJoyCons && !optical && running && std::llabs(nowNs - cam.time_ns) < kHandCamStaleNs) SeeCamera(cam, nowNs);
                     }
                     bareFlag_ = running && (cam.flags & DROIDDECK_HANDCAM_BARE_HANDS);
                     bareTimeNs_ = cam.time_ns;
                 }
-                const bool bare = !otherControllers_ && !optical && bareFlag_ && std::llabs(nowNs - bareTimeNs_) < kBareHandsStaleNs;
+                const bool bare = !otherControllers_ && !optical && !lumaJoyCons && bareFlag_ && std::llabs(nowNs - bareTimeNs_) < kBareHandsStaleNs;
                 if (bare != bareHands_) {
                     bareHands_ = bare;
                     Log("%s", bare ? "no controllers: the camera tracks bare hands" : "camera bare hands off");
@@ -1514,17 +1618,19 @@ private:
                         !otherControllers_ && !optical && haveJoyCons && JoyConLive(joyCons.hands[side], nowNs) ? &joyCons.hands[side] : nullptr;
                     if (handControllers_[side]) handControllers_[side]->ExpectBare(!joyCon && bare);
                     if (joyCon || bare) wantHand_[side] = true;
-                    const bool covered = handControllers_[side] && handControllers_[side]->Update(joyCon, bare, head.qRotation, nowNs);
+                    const bool covered = handControllers_[side] && handControllers_[side]->Update(joyCon, bare, head.qRotation, nowNs,
+                        lumaJoyCons ? &spatial : nullptr);
                     CardboardController *hand = hands_[side];
                     if (!hand) continue;
-                    if (otherControllers_ || covered || bare) {
+                    if (otherControllers_ || covered || bare || lumaJoyCons) {
                         if (!padHandOff_[side]) hand->Disconnect();
                         padHandOff_[side] = true;
                         continue;
                     }
                     padHandOff_[side] = false;
                     if (optical) hand->UpdateOptical(spatial.hands[side], SpatialFresh(spatial.head, SpatialNow()),
-                        havePad ? &pad : nullptr, SpatialNow(), spatial.connection, spatial.origin);
+                        havePad ? &pad : nullptr, SpatialNow(), spatial.connection, spatial.origin,
+                        uint16_t(spatial.input_epochs >> (side*16)));
                     else hand->Update(head, havePad ? &pad : nullptr, sticksMoveHands_, reach_);
                 }
                 if (havePad) lastPad_ = pad;

@@ -13,6 +13,13 @@ if (localBuildOptionsFile.asFile.exists()) {
 def pythonExecutable = project.findProperty('pythonExecutable')
     ?: localBuildOptions.getProperty('droiddeck.python', 'python3')
 def vitureSdkDir = project.hasProperty('vitureSdkDir') ? project.property('vitureSdkDir') : localBuildOptions.getProperty('droiddeck.vitureSdk', '')
+def uvcDir = project.hasProperty('uvcDir') ? project.property('uvcDir') : localBuildOptions.getProperty('droiddeck.uvcDir', '')
+if (uvcDir) {
+    ['arm64-v8a/libusb.so', 'arm64-v8a/libuvc.a', 'include/libusb.h', 'include/libuvc/libuvc.h',
+     'licenses/libusb-COPYING', 'licenses/libuvc-LICENSE.txt'].each { required ->
+        if (!new File(uvcDir, required).isFile()) throw new GradleException("Incomplete UVC build: missing ${required}")
+    }
+}
 if (vitureSdkDir) {
     ['android/arm64-v8a/libglasses.so', 'android/arm64-v8a/libcarina_vio.so',
      'android/arm64-v8a/libcloud_protocol.so', 'include/viture_glasses_provider.h',
@@ -120,6 +127,7 @@ android {
             cmake {
                 arguments '-DANDROID_STL=c++_shared'
                 arguments "-DDROIDDECK_VITURE_SDK_DIR=${vitureSdkDir.toString().replace('\\', '/')}"
+                arguments "-DDROIDDECK_UVC_DIR=${uvcDir.toString().replace('\\', '/')}"
             }
         }
     }
@@ -225,6 +233,14 @@ def stageRuntimeAssets = tasks.register('stageRuntimeAssets', Sync) {
 }
 android.sourceSets.main.assets.setSrcDirs([runtimeAssetsDir])
 if (vitureSdkDir) android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('vitureAssets'))
+if (uvcDir) {
+    def stageUvcNotices = tasks.register('stageUvcNotices', Copy) {
+        from(new File(uvcDir, 'licenses'))
+        into(layout.buildDirectory.dir('uvcAssets/licenses/uvc'))
+    }
+    tasks.named('preBuild').configure { dependsOn(stageUvcNotices) }
+    android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('uvcAssets'))
+}
 tasks.named('preBuild').configure { dependsOn(stageRuntimeAssets) }
 
 def verifyRuntimeInputs = tasks.register('verifyRuntimeInputs', Exec) {
@@ -267,12 +283,15 @@ if (!skipRust) android.sourceSets.main.jniLibs.srcDir(rustJniLibsDir)
 tasks.named('preBuild').configure { dependsOn(buildRustStores) }
 
 def verifyHandModel = tasks.register('verifyHandModel') {
-    def model = file('src/main/assets/models/hand_landmarker.task')
-    inputs.file(model)
+    def models = ['hand_landmarker.task': 'fbc2a30080c3c557093b5ddfc334698132eb341044ccee322ccf8bcf3607cde1',
+                  'hand_landmarker_lite.task': '087f47d858105f9f25d7e88c4e318b988fb851f1aaa76069bb9a6b7ade5d0007']
+        .collectEntries { name, hash -> [(file("src/main/assets/models/$name")): hash] }
+    inputs.files(models.keySet())
     doLast {
-        def actual = java.security.MessageDigest.getInstance('SHA-256').digest(model.bytes).encodeHex().toString()
-        if (actual != 'fbc2a30080c3c557093b5ddfc334698132eb341044ccee322ccf8bcf3607cde1')
-            throw new GradleException('Hand Landmarker model checksum mismatch')
+        models.each { model, expected ->
+            def actual = java.security.MessageDigest.getInstance('SHA-256').digest(model.bytes).encodeHex().toString()
+            if (actual != expected) throw new GradleException("Hand Landmarker model checksum mismatch: ${model.name}")
+        }
     }
 }
 tasks.named('preBuild').configure { dependsOn(verifyHandModel) }

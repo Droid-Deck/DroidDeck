@@ -2,8 +2,8 @@
 
 ## Included
 
-[MediaPipe](https://github.com/google-ai-edge/mediapipe) Tasks Vision 0.10.21
-(`com.google.mediapipe:tasks-vision`, tag `v0.10.21` at cad7f3ab99ebf175947e40c5252c642612aae927;
+[MediaPipe](https://github.com/google-ai-edge/mediapipe) Tasks Vision 1.0.0
+(`com.google.mediapipe:tasks-vision`, shared with the Luma stereo tracking pipeline;
 copyright Google LLC and the MediaPipe authors, Apache License 2.0, `LICENSE_MEDIAPIPE` here) finds
 the player's body in each camera frame. It comes from Maven Central with its dependencies
 (Guava, Flogger, protobuf-javalite and Google's `datatransport`), all Apache-2.0.

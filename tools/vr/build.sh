@@ -34,9 +34,15 @@ compile() {
         cc -std=c11 -O2 -Wall -Wextra -Wno-unused-parameter -pthread -Ibuild/vr/include \
             -o build/vr/test_timeline_bridge tools/vr/tests/test_timeline_bridge.c -ldl
         build/vr/test_timeline_bridge
+        cc -std=c11 -O2 -Wall -Wextra -Wno-unused-parameter -pthread -Ibuild/vr/include \
+            -o build/vr/test_compositor_submit tools/vr/tests/test_compositor_submit.c -ldl
+        build/vr/test_compositor_submit
         c++ -std=c++17 -O2 -Wall -Wextra -Werror -Itools/vr/src \
             -o build/vr/test_render_target tools/vr/tests/test_render_target.cpp
         build/vr/test_render_target
+        c++ -std=c++17 -O2 -Wall -Wextra -Werror -Ibuild/vr/include -Itools/vr/src \
+            -o build/vr/test_presenter_image tools/vr/tests/test_presenter_image.cpp
+        build/vr/test_presenter_image
         c++ -std=c++17 -O2 -Wall -Wextra -Werror -Itools/vr/src \
             -o build/vr/test_spatial_tracking tools/vr/tests/test_spatial_tracking.cpp
         build/vr/test_spatial_tracking

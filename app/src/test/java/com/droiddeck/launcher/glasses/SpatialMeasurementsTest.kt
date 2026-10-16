@@ -5,7 +5,9 @@ import org.junit.Test
 import java.util.Locale
 
 class SpatialMeasurementsTest {
-    @Test fun imperialValidationUsesTwentyInchesRatherThanRoundingFiftyCentimeters() {
+    @Test fun validationKeepsExactImperialAndMetricMeasurements() {
+        assertEquals(0.3048f, CalibrationDistance.INCHES_12.meters, 0.000001f)
+        assertEquals(0.3f, CalibrationDistance.CENTIMETERS_30.meters, 0.000001f)
         assertEquals(0.508f, CalibrationDistance.INCHES_20.meters, 0.000001f)
         assertEquals(0.5f, CalibrationDistance.CENTIMETERS_50.meters, 0.000001f)
     }
