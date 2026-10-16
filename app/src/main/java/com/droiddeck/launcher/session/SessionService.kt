@@ -994,6 +994,7 @@ class SessionService : Service() {
         if (!stillSameProcess()) return
         val tree = descendants(prootPid)
         if (!stillSameProcess()) return
+        saveWineRegistries(tree)
         android.os.Process.sendSignal(prootPid, 15) // SIGTERM
         if (!waitForExit(prootPid, GRACE_MS)) {
             if (!stillSameProcess()) return
@@ -1008,6 +1009,26 @@ class SessionService : Service() {
             killed++
         }
         if (killed > 0) Log.i(TAG, "swept $killed process(es) proot left behind")
+    }
+
+    /**
+     * SIGTERM to each wineserver among [tree], and a moment for them to exit. A wineserver writes its
+     * prefix's registry to disk only as it exits - Proton's Wine dropped the periodic save - so the
+     * sweep after proot would lose every change made since the prefix started: a Battle.net sign-in,
+     * a game's settings. On SIGTERM it saves first.
+     */
+    private fun saveWineRegistries(tree: List<Pair<Int, Long>>) {
+        val servers = tree.filter { (pid, started) ->
+            readStat(pid)?.second == started && WineProcesses.isWineserver(
+                runCatching { File("/proc/$pid/cmdline").readBytes() }.getOrNull(),
+                runCatching { File("/proc/$pid/comm").readText() }.getOrNull(),
+            )
+        }
+        if (servers.isEmpty()) return
+        servers.forEach { (pid, _) -> android.os.Process.sendSignal(pid, 15) }
+        val deadline = System.currentTimeMillis() + WINE_SAVE_MS
+        val saved = servers.count { (pid, _) -> waitForExit(pid, (deadline - System.currentTimeMillis()).coerceAtLeast(0)) }
+        Log.i(TAG, "wineserver registry save: $saved of ${servers.size} exited after SIGTERM")
     }
 
     /** Every process under [root], as (pid, start time), from a single walk of /proc. */
@@ -1854,6 +1875,8 @@ class SessionService : Service() {
             "steamwebhelper", "linuxfs/opt/android-host/proot", "/libproot.so", "pulseaudio/libpulseaudio.so")
         /** How long proot gets to run its own cleanup before it is killed outright. */
         private const val GRACE_MS = 1200L
+        /** How long the wineservers get to write their registries before the sweep (system.reg runs to a few MB). */
+        private const val WINE_SAVE_MS = 3000L
         private const val STEAM_PICKUP_MS = 1500L
         private const val STEAM_EXIT_MS = 10_000L
         private const val GAME_LAUNCH_RETRY_MS = 250L
