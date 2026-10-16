@@ -32,9 +32,9 @@ adb_bin=${ADB:-adb}
 
 while [ $# -gt 0 ]; do
   case $1 in
-    --serial) serial=$2; shift ;;
-    --apk) apk=$2; shift ;;
-    --pkg) pkg=$2; shift ;;
+    --serial) [ $# -ge 2 ] || { echo "--serial needs a value" >&2; exit 2; }; serial=$2; shift ;;
+    --apk) [ $# -ge 2 ] || { echo "--apk needs a value" >&2; exit 2; }; apk=$2; shift ;;
+    --pkg) [ $# -ge 2 ] || { echo "--pkg needs a value" >&2; exit 2; }; pkg=$2; shift ;;
     --no-density) do_density=0 ;;
     --no-size) do_size=0 ;;
     --no-fold) do_fold=0 ;;
@@ -47,7 +47,12 @@ done
 
 adb_cmd=("$adb_bin")
 [ -n "$serial" ] && adb_cmd+=(-s "$serial")
-A() { "${adb_cmd[@]}" "$@" 2>&1 | tr -d '\r'; }
+A() {
+  local out rc
+  out=$("${adb_cmd[@]}" "$@" 2>&1); rc=$?
+  [ -z "$out" ] || printf '%s\n' "$out" | tr -d '\r'
+  return $rc
+}
 sh_() { A shell "$@"; }
 
 pass=0 fail=0 skip=0
@@ -65,12 +70,21 @@ fi
 orig_density=$(sh_ wm density | sed -n 's/.*Physical density: \([0-9]*\).*/\1/p' | head -1)
 override_density=$(sh_ wm density | sed -n 's/.*Override density: \([0-9]*\).*/\1/p' | head -1)
 override_size=$(sh_ wm size | sed -n 's/.*Override size: \([0-9]*x[0-9]*\).*/\1/p' | head -1)
-orig_state=$(sh_ cmd device_state state 2>/dev/null | sed -n "s/.*Committed state: DeviceState{identifier=\([0-9]*\),.*/\1/p" | head -1)
+ds=$(sh_ cmd device_state state 2>/dev/null)
+orig_state=$(echo "$ds" | sed -n "s/.*Committed state: DeviceState{identifier=\([0-9]*\),.*/\1/p" | head -1)
+pre_override=$(echo "$ds" | sed -n "s/.*Override state: DeviceState{identifier=\([0-9]*\),.*/\1/p" | head -1)
+
+density_changed=0 size_changed=0 fold_changed=0
+restore_density() { if [ -n "$override_density" ]; then sh_ wm density "$override_density" >/dev/null; else sh_ wm density reset >/dev/null; fi; }
+restore_size() { if [ -n "$override_size" ]; then sh_ wm size "$override_size" >/dev/null; else sh_ wm size reset >/dev/null; fi; }
+# An override that was already in place (a test lab pins one) is put back; otherwise the request is cancelled.
+restore_fold() { if [ -n "$pre_override" ]; then sh_ cmd device_state state "$pre_override" >/dev/null; else sh_ cmd device_state state reset >/dev/null; fi; }
 
 restore() {
-  [ -n "$override_density" ] && sh_ wm density "$override_density" >/dev/null || sh_ wm density reset >/dev/null
-  [ -n "$override_size" ] && sh_ wm size "$override_size" >/dev/null || sh_ wm size reset >/dev/null
-  if [ -n "$orig_state" ] && [ "$do_fold" = 1 ]; then sh_ cmd device_state state "$orig_state" >/dev/null; fi
+  [ "$density_changed" = 1 ] && restore_density
+  [ "$size_changed" = 1 ] && restore_size
+  [ "$fold_changed" = 1 ] && restore_fold
+  return 0
 }
 trap restore EXIT
 trap 'exit 130' INT
@@ -80,7 +94,12 @@ top_activity() {
   sh_ dumpsys activity activities 2>/dev/null | sed -n 's/.*topResumedActivity=ActivityRecord{[^ ]* u[0-9]* \([^ ]*\) .*/\1/p' | head -1
 }
 app_pid() { sh_ pidof "$pkg" | awk '{print $1}'; }
-app_crashes() { sh_ logcat -b crash -d 2>/dev/null | grep -c -E "$pkg|FATAL EXCEPTION" ; }
+app_crashes() {
+  local out pat
+  out=$(sh_ logcat -b crash -d) || return 1
+  pat=$(printf '%s' "$pkg" | sed 's/[.[\*^$]/\\&/g')
+  printf '%s\n' "$out" | grep -c -E "(Process: |Cmdline: |>>> )$pat([ ,<:]|$)" || true
+}
 relaunches_of() {  # $1 = activity class fragment
   sh_ logcat -b events -d 2>/dev/null | grep -E 'wm_(relaunch|destroy|create)_activity' | grep -c "$1"
 }
@@ -113,22 +132,27 @@ case $t in
   "$pkg"/*|*permissioncontroller*|*GrantPermissions*) ok "top activity: $t" ;;
   *) bad "top activity is '$t'" ;;
 esac
-c=$(app_crashes)
-[ "${c:-0}" = 0 ] && ok "nothing in the crash buffer" || bad "$c crash entries mention the app"
+if c=$(app_crashes); then
+  [ "${c:-0}" = 0 ] && ok "nothing in the crash buffer belongs to the app" || bad "$c crash entries mention the app"
+else
+  bad "could not read the crash buffer"
+fi
 
 if [ "$do_density" = 1 ] && [ -n "$orig_density" ]; then
   head_ "Density change"
   target=$((orig_density * 5 / 4))
   before=$(top_activity); pid0=$(app_pid)
   sh_ logcat -b events -c >/dev/null
+  density_changed=1
   sh_ wm density "$target" >/dev/null; sleep 6
   after=$(top_activity); pid1=$(app_pid)
   [ -n "$pid1" ] && [ "$pid0" = "$pid1" ] && ok "same process after $orig_density -> $target dpi" || bad "process changed ($pid0 -> $pid1)"
   case $before in "$pkg"/*)
     n=$(relaunches_of "${before#*/}")
     [ "${n:-0}" = 0 ] && ok "$before was not recreated" || bad "$before was recreated ${n}x"
+    [ "$after" = "$before" ] && ok "same top activity after the change" || bad "top activity changed ($before -> $after)"
   ;; *) note "top activity was not the app ($before)" ;; esac
-  sh_ wm density reset >/dev/null; [ -n "$override_density" ] && sh_ wm density "$override_density" >/dev/null
+  restore_density; density_changed=0
   sleep 3
 fi
 
@@ -139,10 +163,11 @@ if [ "$do_size" = 1 ]; then
   if [ -n "${1:-}" ]; then
     w=$(( ($2 * 2 / 3) / 2 * 2 )); h=$1   # a narrower, taller window, like a cover screen
     pid0=$(app_pid)
+    size_changed=1
     sh_ wm size "${w}x${h}" >/dev/null; sleep 6
     pid1=$(app_pid)
     [ -n "$pid1" ] && [ "$pid0" = "$pid1" ] && ok "same process at ${w}x${h}" || bad "process changed ($pid0 -> $pid1)"
-    [ -n "$override_size" ] && sh_ wm size "$override_size" >/dev/null || sh_ wm size reset >/dev/null
+    restore_size; size_changed=0
     sleep 3
   else
     note "could not read the physical size"
@@ -161,12 +186,13 @@ if [ "$do_fold" = 1 ]; then
     half=$(id_of HALF_OPENED); closed=$(id_of CLOSED)
     cycle() {  # $1 name  $2 id
       pid0=$(app_pid)
+      fold_changed=1
       sh_ cmd device_state state "$2" >/dev/null; sleep 8
       got=$(sh_ cmd device_state state | sed -n "s/.*Committed state: DeviceState{identifier=[0-9]*, name='\([A-Z_]*\)'.*/\1/p" | head -1)
       pid1=$(app_pid)
       [ "$got" = "$1" ] && ok "device state is $1" || note "asked for $1, committed '$got'"
       [ -n "$pid1" ] && [ "$pid0" = "$pid1" ] && ok "same process in $1" || bad "process changed in $1 ($pid0 -> $pid1)"
-      sh_ cmd device_state state "$orig_state" >/dev/null; sleep 6
+      restore_fold; sleep 6
     }
     if [ -n "$half" ]; then cycle HALF_OPENED "$half"; else note "no HALF_OPENED state"; fi
     if [ "$do_closed" = 1 ] && [ -n "$closed" ]; then
