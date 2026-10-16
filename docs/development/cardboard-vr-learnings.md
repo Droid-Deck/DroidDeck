@@ -45,8 +45,9 @@ OpenVR to SteamVR's ARM64 `vrclient.so`, so no x86 SteamVR is involved.
    - DXVK's `dxvk-queue` thread blocked in Proton games.
 
    The layer now gives a submit's wait on an imported shared value 3 ms, then drops it, at once when
-   the shared counter has not moved for 100 ms. It is kept when the value is already reached, or when
-   this process has queued the signal itself. Three details mattered:
+   the shared counter has not moved for 100 ms. It is kept when the value is already reached, when
+   this process has queued the signal itself, or while a Quest session's frame socket exists (checked
+   at most once a second). Three details mattered:
    - the waits are judged before the submit's own signals count, because an acquire waits on one
      value and signals the next on the same semaphore;
    - SteamVR's client interop device is Vulkan 1.0, so only the `KHR` entry points resolve there;

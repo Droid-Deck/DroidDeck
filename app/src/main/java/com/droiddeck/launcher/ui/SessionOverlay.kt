@@ -42,6 +42,8 @@ import androidx.compose.material.icons.outlined.PictureInPictureAlt
 import androidx.compose.material.icons.automirrored.outlined.ExitToApp
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.SportsEsports
+import androidx.compose.material.icons.outlined.ViewInAr
+import androidx.compose.material.icons.outlined.Vrpano
 import androidx.compose.material3.Icon
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
@@ -152,6 +154,8 @@ private val SessionDrawerPage.title: Int get() = when (this) {
     SessionDrawerPage.GLASSES -> R.string.drawer_page_glasses
     SessionDrawerPage.SECOND_SCREEN -> R.string.drawer_second_screen
     SessionDrawerPage.DISPLAY -> R.string.drawer_page_display
+    SessionDrawerPage.STEAMVR -> R.string.steamvr_title
+    SessionDrawerPage.CARDBOARD -> R.string.cardboard_title
     SessionDrawerPage.EFFECTS -> R.string.drawer_page_effects
     SessionDrawerPage.GAMES -> R.string.game_settings_title
     SessionDrawerPage.SESSION -> R.string.mode_session
@@ -162,6 +166,8 @@ private val SessionDrawerPage.icon get() = when (this) {
     SessionDrawerPage.GLASSES -> GlassesIcon
     SessionDrawerPage.SECOND_SCREEN -> Icons.Outlined.ScreenShare
     SessionDrawerPage.DISPLAY -> Icons.Outlined.DesktopWindows
+    SessionDrawerPage.STEAMVR -> Icons.Outlined.ViewInAr
+    SessionDrawerPage.CARDBOARD -> Icons.Outlined.Vrpano
     SessionDrawerPage.EFFECTS -> Icons.Outlined.AutoFixHigh
     SessionDrawerPage.GAMES -> Icons.Outlined.Layers
     SessionDrawerPage.SESSION -> Icons.Outlined.Settings
@@ -213,6 +219,7 @@ class DrawerActions(
     val steamVr: SteamVr.Status? = null,
     val glassesPresent: Boolean = false,
     val glassesOutput: Boolean = false,
+    val immersiveSteamVr: Boolean = false,
     val textureAnisotropy: Int? = 0,
     val textureLodBias: String? = TextureFiltering.LOD_BIAS_OFF,
     val secondScreenMode: SecondScreenMode,
@@ -294,7 +301,7 @@ class DrawerActions(
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, controllerActive: Boolean, onPageChange: (SessionDrawerPage) -> Unit, a: DrawerActions) {
-    val pages = sessionDrawerPages(a.steam && a.secondScreenDisplays.isNotEmpty(), a.glassesPresent)
+    val pages = sessionDrawerPages(a.steam && a.secondScreenDisplays.isNotEmpty(), a.glassesPresent, !a.glassesOutput)
     val page = requestedPage.takeIf { it in pages } ?: SessionDrawerPage.CONTROLLER
     LaunchedEffect(requestedPage, pages) { if (page != requestedPage) onPageChange(page) }
     val colors = MaterialTheme.colorScheme
@@ -457,12 +464,13 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     stringResource(R.string.display_sharpness), null, a.upscaleSharpness, 0..100, step = 5,
                                     format = { "$it%" }, modifier = focus.track(page, "upscale-sharpness"), onChange = a.onUpscaleSharpness)
                             }
-                            if (!a.glassesOutput) CardboardGroup(host, a) { key -> focus.track(page, key) }
                         }
                         SessionDrawerPage.EFFECTS -> {
                             ScreenEffectsGroup(host, a, advancedEffectsExpanded,
                                 onAdvancedToggle = { advancedEffectsExpanded = !advancedEffectsExpanded }) { key -> focus.track(page, key) }
                         }
+                        SessionDrawerPage.STEAMVR -> SteamVrGroup(a) { key -> focus.track(page, key) }
+                        SessionDrawerPage.CARDBOARD -> CardboardGroup(host, a) { key -> focus.track(page, key) }
                         SessionDrawerPage.CONTROLLER -> {
                             SettingsGroup(stringResource(R.string.drawer_page_controller)) {
                                 a.padType?.let { type ->
@@ -926,7 +934,35 @@ private fun CardboardGroup(host: MenuHost, a: DrawerActions, track: (String) -> 
         }
         if (c.headTracking && a.cardboardSensor)
             ActionRow(stringResource(R.string.cardboard_recenter), null, stringResource(R.string.cardboard_recenter_button), a.onCardboardRecenter)
-        SteamVrRow(a)
+    }
+}
+
+@Composable
+private fun SteamVrGroup(a: DrawerActions, track: (String) -> Modifier) {
+    SettingsGroup(stringResource(R.string.steamvr_title)) {
+        val vrLabel = stringResource(R.string.cardboard_steamvr)
+        val enterLabel = stringResource(if (a.immersiveSteamVr) R.string.steamvr_enter else R.string.cardboard_steamvr_start)
+        val enterHint = stringResource(if (a.immersiveSteamVr) R.string.steamvr_quest_ready_hint else R.string.cardboard_steamvr_ready_hint)
+        @Composable fun button(label: String, hint: String?, text: String, action: String) {
+            SettingsRow(label, hint) {
+                SecondaryButton(text, modifier = track("steamvr"), onClick = { a.onSteamVr(action) })
+            }
+        }
+        when (a.steamVr) {
+            SteamVr.Status.NOT_INSTALLED -> button(vrLabel, stringResource(R.string.cardboard_steamvr_install_hint),
+                stringResource(R.string.cardboard_steamvr_install), "install")
+            SteamVr.Status.INSTALLING -> SettingsRow(vrLabel, stringResource(R.string.cardboard_steamvr_installing)) {}
+            SteamVr.Status.READY -> button(vrLabel, enterHint, enterLabel, "start")
+            SteamVr.Status.RUNNING -> {
+                if (a.immersiveSteamVr) button(vrLabel, enterHint, enterLabel, "start")
+                SettingsRow(vrLabel, stringResource(R.string.cardboard_steamvr_running_hint)) {
+                    SecondaryButton(stringResource(R.string.cardboard_steamvr_stop),
+                        modifier = track(if (a.immersiveSteamVr) "steamvr-stop" else "steamvr"), onClick = { a.onSteamVr("stop") })
+                }
+            }
+            SteamVr.Status.UNAVAILABLE -> SettingsRow(vrLabel, stringResource(R.string.cardboard_steamvr_unavailable)) {}
+            null -> SettingsRow(vrLabel, stringResource(R.string.steamvr_checking)) {}
+        }
     }
 }
 

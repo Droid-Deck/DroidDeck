@@ -593,7 +593,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 val glassesVr = glasses.usable && glasses.canControl
                 val steamVrRequested = SessionState.steamVr
                 val pollSteamVr = SteamVr.shouldPoll(steamVrStatus, cardboard.enabled,
-                    steamVrSwitchedPicture, glassesVr, steamVrRequested)
+                    steamVrSwitchedPicture, glassesVr, steamVrRequested) || (drawerOpen && drawerPage == SessionDrawerPage.STEAMVR)
                 LaunchedEffect(pollSteamVr) {
                     while (pollSteamVr) {
                         val now = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -635,6 +635,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     glassesOutput = glassesOutputActive,
                     onGlassesRecenter = { headTracker?.recenter() },
                     steamVr = steamVrStatus,
+                    immersiveSteamVr = com.droiddeck.launcher.session.QuestExperimental.isSupported(),
                     onSteamVr = { action -> steamVrAction(action) },
                     textureAnisotropy = if (drawerGameProfileId == null) textureAnisotropy else drawerTextureAnisotropy,
                     textureLodBias = if (drawerGameProfileId == null) textureLodBias else drawerTextureLodBias,
@@ -1696,7 +1697,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (drawerOpen) {
             if (fromController && (event.keyCode == KeyEvent.KEYCODE_BUTTON_L1 || event.keyCode == KeyEvent.KEYCODE_BUTTON_R1)) {
                 if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                    drawerPage = sessionDrawerPages(SessionState.mode == SessionService.MODE_STEAM && secondScreenDisplays.isNotEmpty(), glasses.present)
+                    drawerPage = sessionDrawerPages(SessionState.mode == SessionService.MODE_STEAM && secondScreenDisplays.isNotEmpty(), glasses.present,
+                        !glassesOutputActive)
                         .step(drawerPage, if (event.keyCode == KeyEvent.KEYCODE_BUTTON_R1) 1 else -1)
                     releaseDrawerDirection()
                 }
@@ -2521,6 +2523,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun steamVrAction(action: String) {
+        if (action == "start" && com.droiddeck.launcher.session.QuestExperimental.isSupported()) {
+            startActivity(android.content.Intent(this, QuestXrActivity::class.java))
+            return
+        }
         if (action == "start") {
             SessionState.steamVr = true
             steamVrAutoTried = true

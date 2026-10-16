@@ -97,8 +97,8 @@ switches the picture to side-by-side and runs SteamVR with three DroidDeck piece
      Turnip/KGSL cannot export. The layer creates it unshared and hands out a memfd holding a 64-bit
      counter instead. Every process with the semaphore keeps a real local one, and a poller thread
      carries values both ways (reached locally: up into the counter; seen in the counter: signalled
-     locally from the host), so GPU waits work as written, a poll period late. Waits on an imported
-     binary semaphore, which cannot be bridged that way, are dropped. With the semaphores dropped
+     locally from the host), so GPU waits work as written, a poll period late. An imported binary
+     semaphore cannot be bridged that way, and its import is refused. With the semaphores dropped
      outright (the first version) the dashboard showed torn, half-drawn tiles;
    - Turnip on KGSL does not defer a submit that waits on a timeline value nobody has signalled yet:
      `vkQueueSubmit` blocks until it is. SteamVR's client waits on a compositor value that the
@@ -107,7 +107,10 @@ switches the picture to side-by-side and runs SteamVR with three DroidDeck piece
      A submit's wait on an imported shared value that is neither reached nor queued in that process
      gets 3 ms for the other process to reach it, then is dropped. On a counter that has not moved for
      100 ms it is dropped at once: Angry Birds VR waits on two such values a frame, and the grace cost
-     its submit thread 6 ms a frame and held it at 60 fps;
+     its submit thread 6 ms a frame and held it at 60 fps. Keeping these waits stops a Proton game
+     before its first frame (Angry Birds VR stayed on SteamVR's loading card). While a Quest
+     session's frame socket (`/run/droiddeck/droiddeck-xr-frames`) exists, every wait is kept, as the
+     Quest path was built and tested with them;
    - Steam's web helper has the semaphore bridge whenever SteamVR is installed: its GPU process
      outlives SteamVR runs, and one started without the layer crashed when SteamVR showed Steam's
      overlays, until Steam quit;
