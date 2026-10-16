@@ -148,6 +148,7 @@ class FrontEndState(
 class FrontEndActions(
     val onPlay: () -> Unit,
     val onPlayDesktopUi: () -> Unit,
+    val onSteamUrl: (String) -> Unit = {},
     val onSteamGame: (Library.SteamGame) -> Unit,
     val onGameShortcut: (Library.SteamGame) -> Unit = {},
     val onExportGameFile: (Library.SteamGame) -> Unit = {},
@@ -435,6 +436,9 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             Hops.sinking = null
             selected = key
         }
+    }
+    LaunchedEffect(com.droiddeck.launcher.storage.StorageState.openRequests) {
+        if (com.droiddeck.launcher.storage.StorageState.openPending) showRailPage("setup", true)
     }
     val onRailFocus: (String) -> Unit = { key ->
         if (key != railSelection) showRailPage(key, false)

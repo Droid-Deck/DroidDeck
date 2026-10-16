@@ -516,13 +516,27 @@ case $mode in
     ) &
     if [ -n "${BL_LAUNCH_DIR:-}" ] && [ -z "${BL_DESKTOP:-}" ]; then
       _bl_held=
+      _bl_uninstall=
       _bl_rest=()
       for _bl_arg in "$@"; do
         case $_bl_arg in
           steam://rungameid/*) _bl_held=${_bl_arg#steam://rungameid/} ;;
+          steam://uninstall/*) _bl_uninstall=${_bl_arg#steam://uninstall/} ;;
           *) _bl_rest+=("$_bl_arg") ;;
         esac
       done
+      if [ -n "$_bl_uninstall" ]; then
+        set -- "${_bl_rest[@]}"
+        (
+          _bl_end=$((SECONDS + 120))
+          until [ "$(xprop -root GAMESCOPE_FOCUSED_APP 2>/dev/null | sed -n 's/.*= *//p')" = 769 ] || [ "$SECONDS" -ge "$_bl_end" ]; do
+            sleep 1
+          done
+          sleep 4
+          echo "== steam: interface up; asking to uninstall $_bl_uninstall"
+          printf '%s\n' "$_bl_uninstall" > "$BL_LAUNCH_DIR/steam-uninstall.tmp" && mv -f "$BL_LAUNCH_DIR/steam-uninstall.tmp" "$BL_LAUNCH_DIR/steam-uninstall"
+        ) &
+      fi
       if [ -n "$_bl_held" ]; then
         set -- "${_bl_rest[@]}"
         (
@@ -772,6 +786,17 @@ BUSCONF
             echo "== steam: the app asked for a clean exit"
             "$steam_root/steamrtarm64/steam" -shutdown >/dev/null 2>&1 || true
             exit 0
+          fi
+          if [ -f "$BL_LAUNCH_DIR/steam-uninstall" ]; then
+            uninstall_id=$(cat "$BL_LAUNCH_DIR/steam-uninstall" 2>/dev/null)
+            rm -f "$BL_LAUNCH_DIR/steam-uninstall"
+            case $uninstall_id in
+              ''|0*|*[!0-9]*|???????????*) echo "== steam: ignored invalid uninstall request" ;;
+              *)
+                echo "== steam: opening the uninstall dialog for $uninstall_id"
+                "$steam_root/steamrtarm64/steam" "steam://uninstall/$uninstall_id" >/dev/null 2>&1 &
+                ;;
+            esac
           fi
           if [ -f "$BL_LAUNCH_DIR/steam-game" ]; then
             game_id=$(cat "$BL_LAUNCH_DIR/steam-game" 2>/dev/null)
