@@ -2590,7 +2590,11 @@ static void pointer_input(double x, double y, int relative, uint32_t button, int
     uint32_t t = now_ms();
 
     pointer_focus(target->resource, fx, fy);
-    if (!(k && k->is_lock))
+    // A button-only input must not replay a cached absolute position. A game
+    // may have warped its cursor since the last motion (before taking lock,
+    // or while releasing it), so that replay can become an unintended pan.
+    // Absolute touch events still carry their position, including on clicks.
+    if (!(k && k->is_lock) && (!relative || dx != 0 || dy != 0))
         for_each_pointer_of(client, sp) wl_pointer_send_motion(sp->ptr, t, fx, fy);
     send_relative_motion(client, dx, dy);
     for_each_pointer_of(client, sp) {
