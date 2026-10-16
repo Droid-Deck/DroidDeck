@@ -180,12 +180,14 @@ def merge(fresh, current, state, seen):
 def reconcile(existing, wanted, seen, record):
     games, away = record["games"], dict(record["away"])
     kept, ours, placed = [], [], {}
+    claimed = {(unquoted(fresh["Exe"]), fresh["AppName"]) for fresh in wanted.values()}
     for value in existing.values():
         if not isinstance(value, dict):
             continue
         tags = value.get("tags")
         if not isinstance(tags, dict) or TAG not in tags.values():
-            kept.append(value)
+            if (unquoted(value.get("Exe")), value.get("AppName")) not in claimed:
+                kept.append(value)
             continue
         appid = value.get("appid")
         if not isinstance(appid, int) or appid in placed:
@@ -342,7 +344,7 @@ def main():
         spec.loader.exec_module(compat)
         cfg = os.path.join(steam_root, "config", "config.vdf")
         if os.path.isfile(cfg) and (ours or routes):
-            compat.register_default(cfg, apps=[str(int(g["appid"]) & 0xFFFFFFFF) for g in games if g.get("exe")] + [str(appid) for appid in set(routes.values())],
+            compat.register_default(cfg, apps=[str(int(g["appid"]) & 0xFFFFFFFF) for g in games if g.get("exe") and not g.get("native")] + [str(appid) for appid in set(routes.values())],
                                     protect=compat.adopt_extras(os.path.join(steam_root, "compatibilitytools.d")))
             print("droiddeck-steam-shortcuts: mapped them to %s" % compat.TOOL)
     except Exception as e:

@@ -76,6 +76,8 @@ class EpicTestCase(unittest.TestCase):
             "INSTALLATIONS": str(data / "installations.jsonl"),
             "V1_MANIFESTS": str(self.home / ".local/share/Epic/EpicGamesLauncher/Data/Manifests"),
             "AUTO_SIGN_IN": str(state / "auto-sign-in"),
+            "SIGNED_OUT": str(state / "signed-out"),
+            "WEB_COOKIES": str(data / "cookies"),
         }
         for name, value in patches.items():
             patcher = mock.patch.dict(G, {name: value})
@@ -390,6 +392,92 @@ class AuthTest(EpicTestCase):
         self.assertTrue(G["signed_in"]())
 
 
+class SignOutTest(EpicTestCase):
+    def requests(self, launch):
+        return [json.loads(p.read_text()) for p in sorted((launch / "stores/req").glob("*.json"))]
+
+    def follow(self, states, times):
+        launch = self.tmp / "launch"
+        session = G["Session"]("visible")
+        states = iter(states)
+        with mock.patch.dict(os.environ, {"BL_LAUNCH_DIR": str(launch)}), \
+             mock.patch.dict(G, {"signed_in": lambda: next(states)}):
+            for now in times:
+                session.follow_sign_out(now)
+        return self.requests(launch) if (launch / "stores/req").is_dir() else []
+
+    def test_signing_the_launcher_out_signs_droiddeck_out_after_the_grace(self):
+        grace = G["SIGN_OUT_GRACE"]
+        posted = self.follow([True, False, False, False, False], [0.0, 1.0, 1.0 + grace / 2, 1.0 + grace, 9.0 + grace])
+        self.assertEqual([{"op": "epic-signed-out"}], posted)
+
+    def test_a_short_token_gap_is_not_a_sign_out(self):
+        grace = G["SIGN_OUT_GRACE"]
+        self.assertEqual([], self.follow([True, False, True, False], [0.0, 1.0, 1.0 + grace / 2, 1.0 + grace]))
+
+    def test_a_launcher_that_was_never_signed_in_posts_nothing(self):
+        self.assertEqual([], self.follow([False] * 3, [0.0, 10.0, 20.0]))
+
+    def write_signed_in(self):
+        auth = Path(G["AUTH_FILE"])
+        auth.parent.mkdir(parents=True, exist_ok=True)
+        auth.write_text(json.dumps({"prod": {"refresh_token": "t"}}))
+        Path(G["WEB_COOKIES"]).write_text("c")
+        marker = Path(G["SIGNED_OUT"])
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text("1\n")
+        return auth, marker
+
+    def test_droiddecks_sign_out_drops_the_launchers_sign_in_once(self):
+        auth, marker = self.write_signed_in()
+        self.assertTrue(G["forget_sign_in"]())
+        self.assertFalse(auth.exists() or marker.exists() or Path(G["WEB_COOKIES"]).exists())
+        auth.write_text(json.dumps({"prod": {"refresh_token": "t"}}))
+        self.assertFalse(G["forget_sign_in"]())
+        self.assertTrue(auth.exists())
+
+    def test_the_open_launcher_restarts_signed_out(self):
+        auth, marker = self.write_signed_in()
+        session = G["Session"]("visible")
+        session.broker = mock.Mock(closing=False, game=None, owner=None)
+        session.client = mock.Mock(poll=mock.Mock(return_value=None))
+        session.was_signed_in = True
+        ended = []
+        restarted = mock.Mock(poll=mock.Mock(return_value=0), returncode=0)
+        with mock.patch.object(session, "end_client", side_effect=lambda: ended.append(auth.exists())), \
+             mock.patch.object(session, "start_client", side_effect=lambda: setattr(session, "client", restarted)), \
+             mock.patch.dict(G, {"signed_in": lambda: False}):
+            self.assertEqual(0, session.watch())
+        self.assertEqual([True], ended)
+        self.assertFalse(auth.exists() or marker.exists())
+        self.assertIs(restarted, session.client)
+        self.assertFalse(session.was_signed_in)
+
+    def test_the_open_launcher_waits_for_its_game_before_restarting(self):
+        self.write_signed_in()
+        session = G["Session"]("visible")
+        session.broker = mock.Mock(closing=False, game=object(), owner=None)
+        session.client = mock.Mock(poll=mock.Mock(side_effect=[None, None, 0]), returncode=0)
+        with mock.patch.object(session, "end_client") as end, mock.patch.object(session, "start_client") as start, \
+             mock.patch.dict(G, {"signed_in": lambda: True}):
+            self.assertEqual(0, session.watch())
+        end.assert_not_called()
+        start.assert_not_called()
+        self.assertTrue(Path(G["SIGNED_OUT"]).exists())
+
+    def test_the_hidden_launcher_closes_and_forgets_the_sign_in(self):
+        auth, marker = self.write_signed_in()
+        session = G["Session"]("hidden")
+        session.broker = mock.Mock(closing=False, game=None, owner=None, running=[])
+        session.client = mock.Mock(poll=mock.Mock(return_value=None))
+        with mock.patch.object(session, "end_client") as end:
+            self.assertEqual(0, session.watch())
+            self.assertTrue(auth.exists())
+            session.stop()
+        end.assert_called_once()
+        self.assertFalse(auth.exists() or marker.exists())
+
+
 class DisplayTest(EpicTestCase):
     def test_hidden_display_comes_from_a_headless_gamescope(self):
         session = G["Session"]("hidden")
@@ -670,12 +758,22 @@ class BrokerTest(EpicTestCase):
         self.assertEqual([5], result)
         self.assertFalse(marker.exists())
 
+    def steam_takes(self, path, app, replies):
+        def take():
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
+                conn.connect(path)
+                G["send"](conn, {"op": "await", "app": app, "timeout": 10})
+                replies.append(G["receive"](conn, 10))
+            G["ask_broker"]({"op": "exited", "code": 6}, path=path)
+        threading.Thread(target=take, daemon=True).start()
+
     def test_a_game_started_in_the_open_launcher_goes_through_steam(self):
         broker, path = self.broker("visible")
-        asked, ran, result = [], [], []
+        asked, ran, result, taken = [], [], [], []
 
         def ask_app(request, timeout):
             asked.append(request)
+            self.steam_takes(path, "Fig", taken)
             return {"ok": True}
 
         with mock.patch.dict(G, {
@@ -683,10 +781,147 @@ class BrokerTest(EpicTestCase):
             "ask_app": ask_app,
             "run_game": lambda *a, **k: ran.append(a) or 3,
         }):
-            self.shim(path, ["-epicapp=Fig"], result).join(10)
+            self.shim(path, ["-epicapp=Fig", "-AUTH_PASSWORD=x"], result).join(10)
         self.assertEqual([{"op": "epic-play-in-steam", "id": "Fig"}], asked)
         self.assertEqual([], ran)
+        self.assertEqual([6], result)
+        self.assertEqual(["-epicapp=Fig", "-AUTH_PASSWORD=x"], taken[0]["args"])
+        self.assertEqual([], broker.launches)
+
+    def test_a_game_steam_never_takes_is_dropped_after_the_wait(self):
+        broker, path = self.broker("visible")
+        result = []
+        with mock.patch.dict(G, {
+            "find_store_game": lambda exe: (str(self.tmp), {"store": "epic", "id": "Fig"}),
+            "ask_app": lambda request, timeout: {"ok": True},
+            "run_game": lambda *a, **k: 3,
+            "STEAM_CLAIM_WAIT": 0.3,
+        }):
+            self.shim(path, ["-epicapp=Fig"], result).join(10)
         self.assertEqual([0], result)
+        self.assertEqual([], broker.launches)
+
+    def test_a_launch_steam_already_waits_for_is_handed_straight_to_it(self):
+        broker, path = self.broker("visible")
+        taken, result, asked = [], [], []
+        self.steam_takes(path, "Fig", taken)
+        self.assertTrue(G["wait_for"](lambda: broker.awaiting.get("fig"), 5, 0.05))
+        with mock.patch.dict(G, {"ask_app": lambda request, timeout: asked.append(request) or {"ok": True},
+                                 "run_game": lambda *a, **k: 3}):
+            self.shim(path, ["-epicapp=Fig"], result).join(10)
+        self.assertEqual([], asked)
+        self.assertEqual([6], result)
+        self.assertEqual(["-epicapp=Fig"], taken[0]["args"])
+        self.assertEqual({}, dict(broker.awaiting))
+
+    def test_steam_takes_the_launch_the_open_launcher_already_started(self):
+        broker, path = self.broker("visible")
+        item = G["Launch"]({"exe": "/games/Fig/Fig.exe", "args": ["-epicapp=Fig", "-x"]})
+        broker.launches.append(item)
+        info = {"pid": os.getpid(), "broker": path, "mode": "visible", "bus": "unix:path=/nonexistent"}
+        with mock.patch.dict(G, {"forward": mock.Mock(side_effect=AssertionError("no deep link"))}):
+            reply = G["hand_off"](info, None, "Fig", "ns", "it", "1", time.monotonic() + 10)
+        self.assertTrue(reply["ok"])
+        self.assertEqual(["-epicapp=Fig", "-x"], reply["args"])
+        self.assertTrue(item.claimed)
+        self.assertIs(item, broker.game)
+
+    def test_a_visible_launcher_that_started_nothing_gets_the_deep_link(self):
+        broker, path = self.broker("visible")
+        info = {"pid": os.getpid(), "broker": path, "mode": "visible", "bus": "unix:path=/x"}
+        sent, result = [], []
+
+        def forward(bus, url):
+            sent.append(url)
+            self.shim(path, ["-epicapp=Fig"], result)
+            return True
+
+        with mock.patch.dict(G, {"api": lambda: {"port": 1}, "installed": lambda current, app: True,
+                                 "signed_in": lambda: True, "forward": forward,
+                                 "ask_app": mock.Mock(side_effect=AssertionError("offered to Steam"))}):
+            reply = G["hand_off"](info, None, "Fig", "ns", "it", "1", time.monotonic() + 10)
+        self.assertTrue(reply["ok"])
+        self.assertEqual(["-epicapp=Fig"], reply["args"])
+        self.assertEqual(1, len(sent))
+        G["ask_broker"]({"op": "exited", "code": 2}, path=path)
+        self.assertTrue(G["wait_for"](lambda: result, 5, 0.05))
+        self.assertEqual([2], result)
+
+    def test_the_hidden_launcher_is_closed_before_the_visible_one_opens(self):
+        broker, path = self.broker()
+        proc = subprocess.Popen(["sleep", "30"])
+        self.addCleanup(proc.kill)
+        info = {"pid": proc.pid, "mode": "hidden", "broker": path}
+        stops = []
+
+        def ask(message, timeout=3.0, path=None):
+            stops.append((message, path))
+            proc.kill()
+            proc.wait()
+            return {"ok": True}
+
+        with mock.patch.dict(G, {"read_json": lambda p: info, "ask_broker": ask}):
+            G["retire_hidden"]()
+        self.assertEqual([({"op": "stop"}, path)], stops)
+        stops.clear()
+        with mock.patch.dict(G, {"read_json": lambda p: dict(info, mode="visible", pid=os.getpid()), "ask_broker": ask}):
+            G["retire_hidden"]()
+        self.assertEqual([], stops)
+
+    def test_the_open_mark_carries_the_steam_app_id(self):
+        launch = self.tmp / "launch"
+        with mock.patch.dict(os.environ, {"BL_LAUNCH_DIR": str(launch)}):
+            with G["marked"](G["OPEN"], "3000000001"):
+                self.assertEqual("3000000001\n", (launch / G["OPEN"]).read_text())
+        self.assertFalse((launch / G["OPEN"]).exists())
+
+    def test_the_steam_app_id_comes_from_the_reaper_above_the_launcher(self):
+        reaper = subprocess.Popen(["sh", "-c", "sleep 30; :", "SteamLaunch", "AppId=3000000001", "--"])
+        self.addCleanup(reaper.kill)
+        children = Path("/proc/%d/task/%d/children" % (reaper.pid, reaper.pid))
+        self.assertTrue(G["wait_for"](lambda: children.is_file() and children.read_text().split(), 5, 0.05))
+        child = int(children.read_text().split()[0])
+        self.assertEqual(reaper.pid, G["parent_pid"](child))
+        self.assertEqual("3000000001", G["steam_app_id"](child))
+        self.assertEqual("3000000001", G["steam_app_id"](reaper.pid))
+        self.assertEqual("", G["steam_app_id"](os.getpid()))
+        self.assertEqual(0, G["parent_pid"](self.dead_pid()))
+        bad = subprocess.Popen(["sh", "-c", "sleep 30; :", "SteamLaunch", "AppId=x"])
+        self.addCleanup(bad.kill)
+        self.assertEqual("", G["steam_app_id"](bad.pid))
+
+    def test_a_game_run_in_the_launcher_gets_steams_overlay_preload_back(self):
+        folder = self.tmp / "Fig"
+        folder.mkdir()
+        envs = []
+
+        def popen(command, env=None, cwd=None, start_new_session=False):
+            envs.append(env)
+            return mock.Mock(wait=mock.Mock(return_value=0))
+
+        with mock.patch.object(subprocess, "Popen", popen):
+            G["run_game"]({"exe": str(folder / "Fig.exe"), "args": []}, {"PATH": "/usr/bin", G["STEAM_PRELOAD"]: "/s/overlay.so"})
+            G["run_game"]({"exe": str(folder / "Fig.exe"), "args": []}, {"PATH": "/usr/bin"})
+        self.assertEqual("/s/overlay.so", envs[0]["LD_PRELOAD"])
+        self.assertNotIn(G["STEAM_PRELOAD"], envs[0])
+        self.assertNotIn("LD_PRELOAD", envs[1])
+
+    def test_an_owner_gone_ends_a_game_the_open_launcher_handed_to_steam(self):
+        broker, _ = self.broker("visible")
+        session = G["Session"]("visible")
+        session.broker = broker
+        polls = iter([None, None, None, 0])
+        session.client = mock.Mock(poll=mock.Mock(side_effect=lambda: next(polls, 0)), returncode=0)
+        game = G["Launch"]({"args": ["-epicapp=Fig"]})
+        broker.game = game
+        broker.owner = self.dead_pid()
+        result = []
+        thread = threading.Thread(target=lambda: result.append(session.watch()), daemon=True)
+        thread.start()
+        thread.join(10)
+        self.assertEqual([0], result)
+        self.assertTrue(game.done.is_set())
+        self.assertIsNone(broker.game)
 
     def test_a_game_steam_cannot_take_runs_in_the_open_launcher(self):
         broker, path = self.broker("visible")

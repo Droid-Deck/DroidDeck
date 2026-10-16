@@ -8,7 +8,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.droiddeck.launcher.R
-import com.droiddeck.launcher.SessionActivity
 import com.droiddeck.launcher.frontend.AddedGames
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.runtime.LinuxRuntime
@@ -24,11 +23,13 @@ import com.droiddeck.launcher.stores.StoreLoginActivity
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.download.DownloadEntry
 import com.droiddeck.launcher.stores.download.DownloadQueue
+import com.droiddeck.launcher.stores.SteamLiveShortcuts
 import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
+import java.util.zip.CRC32
 
 object EpicClient {
     private const val TAG = "EpicClient"
@@ -36,7 +37,10 @@ object EpicClient {
     const val DOWNLOAD_KEY = "epic:$DOWNLOAD_ID"
     const val PROGRAM = "/usr/local/bin/droiddeck-epic"
     const val PLAYING = "epic-playing"
-    const val ACTION_PLAY_IN_STEAM = "com.droiddeck.launcher.EPIC_PLAY_IN_STEAM"
+    const val STEAM_LAUNCHER = "/usr/local/bin/droiddeck-epic-steam"
+    const val OPEN = "epic-open"
+    const val FOCUSED_APP = "steam-focused-app"
+    private const val STEAM_DIR = "/usr/local/bin"
     private const val SETTINGS = "settings/app-settings.json"
     private const val STOCK_INSTALL_DIR = "/root/Games"
     private const val FEX_DIR = "FEX-Emu"
@@ -49,6 +53,15 @@ object EpicClient {
     private const val IMPORT_EVERY_MS = 15_000L
     private const val STATE = "root/.local/share/droiddeck-epic"
     private const val DATA = "root/.local/share/com.epicgames.eglv2"
+    private const val AUTH = "auth/auth.json"
+    private const val SIGNED_OUT = "signed-out"
+    private const val AUTO_SIGN_IN = "auto-sign-in"
+    private const val COOKIE_DOMAIN = ".epicgames.com"
+    private val COOKIE_PATHS = listOf("/", "/id")
+    private val COOKIE_URLS = listOf(
+        "https://www.epicgames.com/id/login", "https://www.epicgames.com/", "https://epicgames.com/",
+        "https://store.epicgames.com/", "https://accounts.epicgames.com/", "https://launcher.store.epicgames.com/",
+    )
     private val work = Executors.newSingleThreadExecutor { r -> Thread(r, "epic-client") }
     @Volatile private var importedAt = 0L
 
@@ -76,6 +89,46 @@ object EpicClient {
     private fun ready(dir: File): Boolean = File(dir, ".droiddeck-ready").isFile
 
     internal fun canHandOff(context: Context): Boolean = EpicCredentialStore.isLoggedIn(context.applicationContext)
+
+    fun signOut(context: Context): Boolean {
+        val app = context.applicationContext
+        val auth = File(dataDir(app), AUTH)
+        val signedIn = launcherSignedIn(auth)
+        if (signedIn) runCatching { File(stateDir(app), SIGNED_OUT).writeText("${System.currentTimeMillis() / 1000}\n") }
+        auth.delete()
+        File(stateDir(app), AUTO_SIGN_IN).delete()
+        Log.i(TAG, if (signedIn) "signed the Epic Games Launcher out too" else "the Epic Games Launcher was already signed out")
+        return signedIn
+    }
+
+    internal fun launcherSignedIn(auth: File): Boolean =
+        runCatching { JSONObject(auth.readText()).optJSONObject("prod")?.optString("refresh_token").orEmpty().isNotEmpty() }.getOrDefault(false)
+
+    fun forgetWebSignIn() {
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            runCatching {
+                val cookies = android.webkit.CookieManager.getInstance()
+                var cleared = 0
+                for (url in COOKIE_URLS) {
+                    val lines = expiredCookies(cookies.getCookie(url), Uri.parse(url).host)
+                    for (line in lines) cookies.setCookie(url, line)
+                    cleared += lines.size
+                }
+                cookies.flush()
+                Log.i(TAG, "cleared the Epic web sign-in ($cleared cookie lines)")
+            }.onFailure { Log.w(TAG, "could not clear the Epic web sign-in: ${it.javaClass.simpleName}") }
+        }
+    }
+
+    internal fun expiredCookies(header: String?, host: String? = null): List<String> {
+        val domains = listOfNotNull(COOKIE_DOMAIN, host?.takeIf { it.endsWith(COOKIE_DOMAIN) })
+        return header.orEmpty().split(';').map { it.substringBefore('=').trim() }.filter { it.isNotEmpty() }.distinct()
+            .flatMap { name ->
+                COOKIE_PATHS.flatMap { path ->
+                    listOf("$name=; Max-Age=0; Path=$path; Secure") + domains.map { "$name=; Max-Age=0; Path=$path; Secure; Domain=$it" }
+                }
+            }
+    }
 
     fun read(context: Context): Status {
         val app = context.applicationContext
@@ -131,7 +184,7 @@ object EpicClient {
     }
 
     private fun syncLibrary(app: Context) {
-        if (launcherRunning()) return
+        if (launcherRunning(app)) return
         EpicClientLibrary.sync(app)
     }
 
@@ -156,11 +209,21 @@ object EpicClient {
         work.execute { if (read(app).installed) syncLibrary(app) }
     }
 
-    fun openIntent(context: Context): Intent =
-        Intent(context, SessionActivity::class.java)
-            .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_RUN)
-            .putExtra(SessionService.EXTRA_PROGRAM, PROGRAM)
-            .putExtra(SessionService.EXTRA_PROGRAM_ARGS, arrayOf("run"))
+    val shortcutAppId: Long = CRC32().apply { update("\"$STEAM_LAUNCHER\"${Library.EPIC_LAUNCHER_NAME}".toByteArray()) }.value or 0x80000000L
+
+    fun gameId(appId: Long): String = java.lang.Long.toUnsignedString((appId shl 32) or 0x02000000L)
+
+    fun steamListing(context: Context): JSONObject? {
+        val current = read(context)
+        if (!current.installed) return null
+        val entry = JSONObject().put("name", Library.EPIC_LAUNCHER_NAME).put("exe", STEAM_LAUNCHER).put("folder", STEAM_DIR)
+            .put("dir", STEAM_DIR).put("appid", shortcutAppId).put("seen", 0).put("native", true)
+        icon(context, current.version)?.let { guestPath(context, it) }?.let { entry.put("art", JSONObject().put("icon", it)) }
+        return entry
+    }
+
+    fun steamLauncherId(context: Context): Long? =
+        SteamLiveShortcuts.ensure(context, Library.EPIC_LAUNCHER_NAME, STEAM_LAUNCHER, STEAM_DIR, compat = false, appId = shortcutAppId)
 
     fun icon(context: Context, version: String?): File? =
         version?.let { File(stateDir(context), "app/$it/$ICON") }?.takeIf(File::isFile)
@@ -179,8 +242,18 @@ object EpicClient {
         return games.subList(0, at) + launcher + games.subList(at, games.size)
     }
 
-    fun launcherRunning(): Boolean =
-        SessionState.running && !SessionState.stopRequested && SessionState.mode == SessionService.MODE_RUN && SessionState.program == PROGRAM
+    private fun steamSession(): Boolean =
+        SessionState.running && !SessionState.stopRequested && SessionState.mode == SessionService.MODE_STEAM
+
+    fun launcherRunning(context: Context): Boolean = steamSession() && File(LinuxRuntime.sessionRoot(context), OPEN).exists()
+
+    fun launcherFocused(context: Context): Boolean {
+        if (!steamSession()) return false
+        val root = LinuxRuntime.sessionRoot(context)
+        val open = runCatching { File(root, OPEN).readText().trim() }.getOrNull() ?: return false
+        val focused = runCatching { File(root, FOCUSED_APP).readText().trim() }.getOrNull() ?: return false
+        return focused == (open.takeIf { it.length > 1 && it.all(Char::isDigit) } ?: shortcutAppId.toString())
+    }
 
     fun playing(context: Context): Boolean = File(LinuxRuntime.sessionRoot(context), PLAYING).exists()
 
@@ -230,32 +303,27 @@ object EpicClient {
     }
 
     fun playInSteam(context: Context, id: String): JSONObject {
-        if (!launcherRunning()) return JSONObject().put("ok", false).put("reason", "no-launcher")
+        if (!steamSession()) return failed("no-steam")
         runCatching { EpicClientLibrary.importClientGames(context) }.onFailure { Log.w(TAG, "client library scan failed: ${it.javaClass.simpleName}") }
-        val game = steamShortcut(Library.launchableGames(context), id)
-            ?: return JSONObject().put("ok", false).put("reason", "not-registered")
-        handToSteam(context, game.gameIdString)
-        Log.i(TAG, "the Epic Games Launcher hands $id to Steam as ${game.gameIdString}")
+        val game = steamShortcut(AddedGames.scan(context), id) ?: return failed("not-registered")
+        if (!AddedGames.inSteam(context, game.appId) || SteamLiveShortcuts.known(context, game.appId) == false) return failed("not-in-steam")
+        if (!SessionService.launchGame(context, gameId(game.appId))) return failed("busy")
+        Log.i(TAG, "the Epic Games Launcher hands $id to Steam as ${gameId(game.appId)}")
         return JSONObject().put("ok", true)
     }
 
     fun runSteamGame(context: Context, id: String): JSONObject {
-        if (!launcherRunning()) return JSONObject().put("ok", false).put("reason", "no-launcher")
-        if (!com.droiddeck.launcher.frontend.GameLaunchLink.validId(id)) return JSONObject().put("ok", false).put("reason", "bad-id")
-        handToSteam(context, id)
+        if (!com.droiddeck.launcher.frontend.GameLaunchLink.validId(id)) return failed("bad-id")
+        if (!steamSession()) return failed("no-steam")
+        if (!SessionService.launchGame(context, id)) return failed("busy")
         Log.i(TAG, "the Epic Games Launcher hands Steam game $id to Steam")
         return JSONObject().put("ok", true)
     }
 
-    private fun handToSteam(context: Context, gameId: String) {
-        context.startActivity(Intent(context, com.droiddeck.launcher.MainActivity::class.java)
-            .setAction(ACTION_PLAY_IN_STEAM)
-            .putExtra(com.droiddeck.launcher.frontend.GameLaunchIntent.EXTRA_APP_ID, gameId)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP))
-    }
+    private fun failed(reason: String): JSONObject = JSONObject().put("ok", false).put("reason", reason)
 
-    internal fun steamShortcut(games: List<Library.SteamGame>, id: String): Library.SteamGame? =
-        games.firstOrNull { it.source == Store.EPIC.id && it.storeId == id && it.gameId != LAUNCHER_APP_ID.toLong() }
+    internal fun steamShortcut(games: List<AddedGames.Game>, id: String): AddedGames.Game? =
+        games.firstOrNull { it.source == Store.EPIC.id && it.storeId == id }
 
     fun redirectOf(url: String): String? {
         val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return null

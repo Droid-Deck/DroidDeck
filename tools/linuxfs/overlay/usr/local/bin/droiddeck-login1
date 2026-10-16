@@ -10,7 +10,9 @@ import importlib.util
 import os
 from pathlib import Path
 import re
+import subprocess
 import sys
+import threading
 import uuid
 
 import gi
@@ -24,6 +26,8 @@ INTERFACE = NAME + ".Manager"
 UPOWER = "org.freedesktop.UPower"
 UPOWER_ROOT = "/org/freedesktop/UPower"
 NATIVE_PREPARE_MS = 1500
+AGENT = Path(__file__).resolve().with_name("droiddeck-agent")
+ASLEEP_WAIT = 6
 INTROSPECTION = """
 <node>
   <interface name="org.freedesktop.login1.Manager">
@@ -80,6 +84,7 @@ class LoginManager:
         if name == "CanSuspend":
             reply.return_value(GLib.Variant("(s)", ("yes",)))
         elif name in ("Suspend", "SuspendWithFlags"):
+            print("== login1: %s.%s asked by %s" % (interface.rsplit(".", 1)[-1], name, sender), flush=True)
             if self.pending:
                 reply.return_dbus_error(NAME + ".OperationInProgress", "The session is already pausing")
                 return
@@ -149,7 +154,7 @@ class LoginManager:
         if file.get_basename() == self.wake.name or (other and other.get_basename() == self.wake.name):
             if self.wake.exists():
                 self.wake.unlink(missing_ok=True)
-                self.resume(force=True)
+                self.woken()
         if file.get_basename() == self.state.name or (other and other.get_basename() == self.state.name):
             self.check_state()
 
@@ -169,6 +174,19 @@ class LoginManager:
             self.request.unlink(missing_ok=True)
             self.native_ready.unlink(missing_ok=True)
             self.resume()
+        return False
+
+    def woken(self):
+        if self.pending is not None:
+            self.resume(force=True)
+            return
+        threading.Thread(target=lambda: GLib.idle_add(self.replay_unless_awake, steam_asleep()), daemon=True).start()
+
+    def replay_unless_awake(self, asleep):
+        if asleep is False and self.pending is None:
+            print("== login1: Steam is awake; no sleep/wake replay", flush=True)
+            return False
+        self.resume(force=True)
         return False
 
     def resume(self, force=False):
@@ -193,6 +211,15 @@ class LoginManager:
             print("== login1: cannot flush wake recovery: " + str(error), file=sys.stderr)
         if self.pending is None:
             self.notify(False)
+
+
+def steam_asleep():
+    try:
+        code = subprocess.run([str(AGENT), "--steam-asleep"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL, timeout=ASLEEP_WAIT).returncode
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return {0: True, 5: False}.get(code)
 
 
 def load_netmanager():

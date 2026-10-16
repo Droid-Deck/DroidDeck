@@ -360,11 +360,9 @@ class SessionService : Service() {
             addControllerEnvironment(guest, fakeInputDir, sessionDir)
             SessionState.padBridge?.syncConnectedControllers()
         }
-        if ((steamHere || SessionState.program == com.droiddeck.launcher.stores.epic.EpicClient.PROGRAM) &&
-            com.droiddeck.launcher.stores.epic.EpicClient.read(this).installed
-        ) {
+        if (steamHere && com.droiddeck.launcher.stores.epic.EpicClient.read(this).installed) {
             com.droiddeck.launcher.stores.epic.EpicClientLibrary.sync(this)
-            if (SessionState.program == com.droiddeck.launcher.stores.epic.EpicClient.PROGRAM) com.droiddeck.launcher.stores.epic.EpicClient.prepareInstallDir(this)
+            com.droiddeck.launcher.stores.epic.EpicClient.prepareInstallDir(this)
         }
         if (steamHere) {
             val added = com.droiddeck.launcher.frontend.AddedGames.scan(this)
@@ -1021,7 +1019,8 @@ class SessionService : Service() {
         launchWatcher?.stopWatching()
         listOf("steam-sleep", "steam-sleep-state", "steam-sleep-ready", "steam-wake", "steam-wake.tmp",
             "steam-native-sleep", "steam-native-sleep.tmp", "steam-native-ready", "steam-native-ready.tmp",
-            RUN_STATUS, "$RUN_STATUS.tmp", "epic-game", "epic-game.tmp", com.droiddeck.launcher.stores.epic.EpicClient.PLAYING
+            RUN_STATUS, "$RUN_STATUS.tmp", "epic-game", "epic-game.tmp", com.droiddeck.launcher.stores.epic.EpicClient.PLAYING,
+            com.droiddeck.launcher.stores.epic.EpicClient.OPEN, com.droiddeck.launcher.stores.epic.EpicClient.FOCUSED_APP
         ).forEach { File(dir, it).delete() }
         val gen = sessionGen
         @Suppress("DEPRECATION")
@@ -1347,7 +1346,7 @@ class SessionService : Service() {
         updateDownloadMonitoring()
         val stoppedGen = sessionGen
         val stoppedSession = SessionState.sessionId
-        val launcherEnded = SessionState.program == com.droiddeck.launcher.stores.epic.EpicClient.PROGRAM
+        val launcherEnded = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP
         SessionState.stopRequested = false
         SessionEvents.record("guest.exited", mapOf("status" to status))
         GpuClockPin.stop(this)

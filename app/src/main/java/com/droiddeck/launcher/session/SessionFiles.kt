@@ -68,6 +68,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-steam-shortcuts" to "usr/local/bin/droiddeck-steam-shortcuts",
             "usr/local/bin/droiddeck-store-launch" to "usr/local/bin/droiddeck-store-launch",
             "usr/local/bin/droiddeck-epic" to "usr/local/bin/droiddeck-epic",
+            "usr/local/bin/droiddeck-epic-steam" to "usr/local/bin/droiddeck-epic-steam",
             "usr/local/bin/droiddeck-open-url" to "usr/local/bin/droiddeck-open-url",
             "usr/local/bin/droiddeck-steam-games" to "usr/local/bin/droiddeck-steam-games",
             "usr/local/bin/droiddeck-pad-defaults" to "usr/local/bin/droiddeck-pad-defaults",

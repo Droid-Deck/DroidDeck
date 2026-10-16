@@ -1840,8 +1840,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val now = android.os.SystemClock.uptimeMillis()
         if (now - padMouseCheckedAt < PAD_MOUSE_CHECK_MS) return padMouseOn
         padMouseCheckedAt = now
-        val on = SessionState.mode == SessionService.MODE_RUN && SessionState.program == EpicClient.PROGRAM &&
-            !pointerLocked && !EpicClient.playing(this)
+        val on = !pointerLocked && EpicClient.launcherFocused(this) && !EpicClient.playing(this)
         if (padMouseOn && !on) padMouse.reset()
         if (!padMouseOn && on) padBridge?.releaseAll()
         padMouseOn = on

@@ -187,8 +187,7 @@ object Library {
         if (program == com.droiddeck.launcher.runtime.FlatpakManager.LAUNCHER || program == com.droiddeck.launcher.runtime.AppImageManager.LAUNCHER ||
             program == com.droiddeck.launcher.runtime.UserApps.SCRIPT_LAUNCHER) {
             com.droiddeck.launcher.session.SessionState.programArgs.firstOrNull()?.let { flatpakNames[it] ?: it.substringAfterLast('.') }
-        } else if (program == com.droiddeck.launcher.stores.epic.EpicClient.PROGRAM) EPIC_LAUNCHER_NAME
-        else specs.firstOrNull { it.program == program }?.name
+        } else specs.firstOrNull { it.program == program }?.name
 
     val flatpakNames = java.util.concurrent.ConcurrentHashMap<String, String>()
 

@@ -9,6 +9,7 @@ import json
 import os
 import re
 import runpy
+import select
 import shutil
 import signal
 import socket
@@ -41,6 +42,8 @@ V1_MANIFESTS = os.path.join(HOME, ".local", "share", "Epic", "EpicGamesLauncher"
 AUTH_FILE = os.path.join(DATA, "auth", "auth.json")
 AUTH_ENV = "prod"
 AUTO_SIGN_IN = os.path.join(STATE, "auto-sign-in")
+SIGNED_OUT = os.path.join(STATE, "signed-out")
+WEB_COOKIES = os.path.join(DATA, "cookies")
 A11Y_OFF = ("NO_AT_BRIDGE", "GTK_A11Y")
 A11Y_WEB_ROOT = "/org/a11y/webkit/accessible"
 A11Y_LIMIT = 4000
@@ -56,6 +59,9 @@ WEBKIT_INPUT = "libwebkitinput.so"
 WEBKIT_INPUT_SOURCE = "/usr/local/lib/droiddeck-fex/x86_64/" + WEBKIT_INPUT
 WEBKIT_INPUT_GUEST = "/usr/lib/x86_64-linux-gnu/droiddeck/" + WEBKIT_INPUT
 PLAYING = "epic-playing"
+OPEN = "epic-open"
+STEAM_PRELOAD = "DROIDDECK_STEAM_PRELOAD"
+STEAM_ANCESTORS = 32
 READY = ".droiddeck-ready"
 SIDECAR = ".droiddeck-store.json"
 LAUNCHER = ".droiddeck-launch.bat"
@@ -102,6 +108,8 @@ WIDTH, HEIGHT = 1280, 720
 LAUNCH_TIMEOUT = 150.0
 HANDOFF_WAIT = 30.0
 STEAM_WAIT = 20.0
+STEAM_CLAIM_WAIT = 90.0
+CLAIM_PEEK = 0.5
 SIGN_IN_WAIT = 90.0
 REGISTER_WAIT = 30.0
 AUTO_SIGN_IN_FRESH = 120.0
@@ -109,6 +117,7 @@ FIRST_RUN_PRESSES = 3
 BROKER_WAIT = 60.0
 HIDDEN_IDLE = 240.0
 EXIT_GRACE = 6.0
+SIGN_OUT_GRACE = 4.0
 STOP_WAIT = 8.0
 LOG_CAP = 8 << 20
 DISPLAY_PROBE = ("import os, sys, time\nparent = os.getppid()\n"
@@ -440,6 +449,16 @@ def signed_in():
     return isinstance(entry, dict) and isinstance(entry.get("refresh_token"), str) and bool(entry["refresh_token"])
 
 
+def forget_sign_in():
+    if not os.path.exists(SIGNED_OUT):
+        return False
+    remove(AUTH_FILE)
+    remove(WEB_COOKIES)
+    remove(SIGNED_OUT)
+    say("DroidDeck's Epic store was signed out; the launcher starts signed out")
+    return True
+
+
 def utc_now():
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
@@ -562,17 +581,46 @@ def sync_installations():
     return True
 
 
+def parent_pid(pid):
+    try:
+        with open("/proc/%d/stat" % pid, encoding="utf-8", errors="replace") as f:
+            return int(f.read().rsplit(")", 1)[1].split()[1])
+    except (OSError, IndexError, ValueError):
+        return 0
+
+
+def steam_app_id(pid=None):
+    pid = os.getppid() if pid is None else pid
+    for _ in range(STEAM_ANCESTORS):
+        if pid <= 1:
+            break
+        try:
+            with open("/proc/%d/cmdline" % pid, "rb") as f:
+                args = f.read().split(b"\0")
+        except OSError:
+            break
+        if b"SteamLaunch" in args:
+            ids = [a[6:].decode("ascii", "replace") for a in args if a.startswith(b"AppId=")]
+            return ids[0] if ids and ids[0].isdigit() else ""
+        pid = parent_pid(pid)
+    return ""
+
+
 @contextlib.contextmanager
-def playing():
+def marked(name, value="1"):
     folder = launch_dir()
-    path = os.path.join(folder, PLAYING) if folder else ""
+    path = os.path.join(folder, name) if folder else ""
     if path:
-        write_text(path, "1\n")
+        write_text(path, value + "\n")
     try:
         yield
     finally:
         if path:
             remove(path)
+
+
+def playing():
+    return marked(PLAYING)
 
 
 def clear_playing():
@@ -848,6 +896,7 @@ class Broker:
         self.launches = []
         self.running = []
         self.waiters = 0
+        self.awaiting = collections.Counter()
         self.game = None
         self.owner = None
         self.closing = False
@@ -896,6 +945,7 @@ class Broker:
         deadline = time.monotonic() + float(request.get("timeout") or LAUNCH_TIMEOUT)
         with self.cond:
             self.waiters += 1
+            self.awaiting[app.lower()] += 1
             self.last_contact = time.monotonic()
             try:
                 while True:
@@ -915,6 +965,9 @@ class Broker:
                     self.cond.wait(min(left, 1.0))
             finally:
                 self.waiters -= 1
+                self.awaiting[app.lower()] -= 1
+                if self.awaiting[app.lower()] <= 0:
+                    del self.awaiting[app.lower()]
                 self.last_contact = time.monotonic()
         try:
             send(conn, {"ok": True, "exe": found.request.get("exe"), "args": found.request.get("args") or []})
@@ -927,19 +980,35 @@ class Broker:
         if not is_game(request):
             send(conn, {"code": 0})
             return
-        if self.mode == "visible":
-            if play_in_steam(request):
-                send(conn, {"code": 0})
-                return
-            with playing():
-                code = run_game(request, self.session_env, self.running)
-            send(conn, {"code": code})
-            return
         item = Launch(request)
-        deadline = time.monotonic() + 20.0
+        if self.mode == "visible" and not self.awaited(request):
+            with self.cond:
+                self.launches.append(item)
+                self.cond.notify_all()
+            if not play_in_steam(request):
+                with self.cond:
+                    unclaimed = not item.claimed
+                    if unclaimed and item in self.launches:
+                        self.launches.remove(item)
+                if unclaimed:
+                    with playing():
+                        code = run_game(request, self.session_env, self.running)
+                    send(conn, {"code": code})
+                    return
+            send(conn, {"code": self.hand_over(item, STEAM_CLAIM_WAIT)})
+            return
+        send(conn, {"code": self.hand_over(item, 20.0)})
+
+    def awaited(self, request):
         with self.cond:
-            self.launches.append(item)
-            self.cond.notify_all()
+            return any(is_game(request, app) for app in self.awaiting if app)
+
+    def hand_over(self, item, wait):
+        deadline = time.monotonic() + wait
+        with self.cond:
+            if item not in self.launches and not item.claimed:
+                self.launches.append(item)
+                self.cond.notify_all()
             while not item.claimed and not self.closing:
                 left = deadline - time.monotonic()
                 if left <= 0:
@@ -948,12 +1017,11 @@ class Broker:
             if not item.claimed and item in self.launches:
                 self.launches.remove(item)
         if not item.claimed:
-            send(conn, {"code": 0})
-            return
+            return 0
         while not item.done.wait(1.0):
             if self.closing:
                 break
-        send(conn, {"code": item.code})
+        return item.code
 
     def exited(self, code):
         with self.cond:
@@ -1032,6 +1100,9 @@ def run_game(request, session_env, running=None):
     exe = native_path(request.get("exe") or "")
     args = request.get("args") or []
     env = {k: v for k, v in session_env.items() if not k.startswith(("FEX_", "DROIDDECK_EPIC", "EGL_", "WEBKIT_"))}
+    preload = env.pop(STEAM_PRELOAD, "")
+    if preload:
+        env["LD_PRELOAD"] = preload
     found = find_store_game(exe)
     if found and found[1].get("store") == "epic" and launcher_takes_args(found[0]):
         folder, sidecar = found
@@ -1094,8 +1165,12 @@ class Session:
         self.press_at = 0.0
         self.first_run_presses = 0
         self.sign_in_pressed = False
+        self.was_signed_in = False
+        self.signed_out_at = None
         self.procs = []
         self.client = None
+        self.command = None
+        self.env = None
         self.broker = None
         self.bus = None
         self.rundir = run_dir()
@@ -1159,6 +1234,7 @@ class Session:
         install_preload(files)
         clear_playing()
         sync_installations()
+        forget_sign_in()
         self.carried = carry_sign_in()
         bus = self.start_bus(base)
         self.bus = bus
@@ -1172,14 +1248,28 @@ class Session:
         self.broker = Broker(path, self.mode, base)
         write_json(instance_file(), {"pid": os.getpid(), "mode": self.mode, "bus": bus, "broker": path})
         env = client_environment(base, fex, files, display, bus, path, self.a11y)
-        command = [fex["bin"], os.path.join(app_dir, "AppRun")]
+        self.command = [fex["bin"], os.path.join(app_dir, "AppRun")]
+        self.env = env
         say("starting the Epic Games Launcher %s (%s, display %s)" % (current.get("app"), self.mode, display))
-        self.client = self.spawn(command, env, os.path.join(LOGS, "client-%s.log" % self.mode), group=True)
+        self.start_client()
         return self.watch()
+
+    def start_client(self):
+        self.client = self.spawn(self.command, self.env, os.path.join(LOGS, "client-%s.log" % self.mode), group=True)
+
+    def restart_signed_out(self):
+        say("DroidDeck's Epic store was signed out; restarting the launcher signed out")
+        self.end_client()
+        forget_sign_in()
+        self.carried = False
+        self.was_signed_in = False
+        self.signed_out_at = None
+        self.start_client()
 
     def carry_on(self, now):
         if signed_in():
             self.carried = False
+            self.was_signed_in = True
             remove(AUTO_SIGN_IN)
             say("the launcher is signed in")
             return
@@ -1197,6 +1287,25 @@ class Session:
             if a11y_press(self.a11y, buttons[FIRST_RUN_LABEL]):
                 say("moved past the launcher's welcome screen")
 
+    def follow_sign_out(self, now):
+        if signed_in():
+            self.was_signed_in = True
+            self.signed_out_at = None
+            return
+        if not self.was_signed_in:
+            return
+        if self.signed_out_at is None:
+            self.signed_out_at = now
+            return
+        if now - self.signed_out_at < SIGN_OUT_GRACE:
+            return
+        self.was_signed_in = False
+        self.signed_out_at = None
+        channel = launch_dir()
+        if channel:
+            post(channel, {"op": "epic-signed-out"})
+            say("the launcher was signed out; signing DroidDeck's Epic store out too")
+
     def watch(self):
         started = time.monotonic()
         broker = self.broker
@@ -1207,13 +1316,21 @@ class Session:
             now = time.monotonic()
             if broker.closing:
                 return 0
+            if broker.game is None and os.path.exists(SIGNED_OUT):
+                if self.mode != "visible":
+                    say("DroidDeck's Epic store was signed out; closing")
+                    return 0
+                self.restart_signed_out()
+                continue
             if self.carried:
                 self.carry_on(now)
+            elif self.mode == "visible":
+                self.follow_sign_out(now)
+            owner = broker.owner
+            if broker.game is not None and owner and not pid_alive(owner):
+                say("the game's launcher process is gone")
+                broker.exited(0)
             if self.mode == "hidden":
-                owner = broker.owner
-                if broker.game is not None and owner and not pid_alive(owner):
-                    say("the game's launcher process is gone")
-                    broker.exited(0)
                 idle = broker.game is None and broker.waiters == 0
                 if idle and broker.exited_at is not None:
                     if now - broker.exited_at >= EXIT_GRACE:
@@ -1226,16 +1343,10 @@ class Session:
                     return 0
             time.sleep(0.5)
 
-    def stop(self):
-        if self.broker is not None:
-            self.broker.shutdown()
-            for game in list(self.broker.running):
-                stop_group(game)
-        clear_playing()
-        info = read_json(instance_file())
-        if isinstance(info, dict) and info.get("pid") == os.getpid():
-            remove(instance_file())
-        if self.client is not None and self.client.poll() is None:
+    def end_client(self):
+        if self.client is None:
+            return
+        if self.client.poll() is None:
             with contextlib.suppress(OSError):
                 os.killpg(self.client.pid, signal.SIGTERM)
             try:
@@ -1245,9 +1356,20 @@ class Session:
                     os.killpg(self.client.pid, signal.SIGKILL)
                 with contextlib.suppress(subprocess.TimeoutExpired):
                     self.client.wait(5)
-        if self.client is not None:
-            with contextlib.suppress(OSError):
-                os.killpg(self.client.pid, signal.SIGKILL)
+        with contextlib.suppress(OSError):
+            os.killpg(self.client.pid, signal.SIGKILL)
+
+    def stop(self):
+        if self.broker is not None:
+            self.broker.shutdown()
+            for game in list(self.broker.running):
+                stop_group(game)
+        clear_playing()
+        info = read_json(instance_file())
+        if isinstance(info, dict) and info.get("pid") == os.getpid():
+            remove(instance_file())
+        self.end_client()
+        forget_sign_in()
         for proc in reversed(self.procs):
             if proc is self.client or proc.poll() is not None:
                 continue
@@ -1264,7 +1386,19 @@ def terminate(*_):
     raise SystemExit(0)
 
 
+def retire_hidden():
+    info = read_json(instance_file())
+    if not isinstance(info, dict) or info.get("mode") != "hidden" or not pid_alive(info.get("pid")):
+        return
+    say("closing the hidden launcher first")
+    with contextlib.suppress(OSError, ValueError):
+        ask_broker({"op": "stop"}, timeout=3.0, path=info.get("broker"))
+    wait_for(lambda: not pid_alive(info.get("pid")), STOP_WAIT + 10, 0.25)
+
+
 def serve(mode):
+    if mode == "visible":
+        retire_hidden()
     with instance_guard() as free:
         if not free:
             say("the Epic Games Launcher is already running")
@@ -1273,7 +1407,8 @@ def serve(mode):
         signal.signal(signal.SIGTERM, terminate)
         signal.signal(signal.SIGHUP, terminate)
         try:
-            return session.run()
+            with marked(OPEN, steam_app_id() or "1") if mode == "visible" else contextlib.nullcontext():
+                return session.run()
         except (Failure, OSError) as failure:
             say("could not start: %s" % failure)
             return 2
@@ -1376,8 +1511,6 @@ def launch(options):
     remove(os.path.join(folder, ARGS_FILE))
     info = live_instance()
     spawned = None
-    if info is not None and info.get("mode") != "hidden":
-        return answer(False, reason="client-open")
     if info is None:
         log = os.path.join(LOGS, "hidden.log")
         os.makedirs(LOGS, exist_ok=True)
@@ -1415,6 +1548,14 @@ def hand_off(info, spawned, app, namespace, item, owner, deadline):
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
         conn.connect(info["broker"])
         send(conn, {"op": "await", "app": app, "owner": owner, "timeout": max(1.0, left())})
+        if info.get("mode") == "visible" and select.select([conn], [], [], CLAIM_PEEK)[0]:
+            try:
+                reply = receive(conn, max(1.0, left()))
+            except (OSError, ValueError):
+                return {"ok": False, "reason": "client-exited" if gone() else "timeout"}
+            if isinstance(reply, dict) and reply.get("ok"):
+                say("took the launch the client already started for %s" % app)
+            return reply if isinstance(reply, dict) else {"ok": False, "reason": "bad-reply"}
         state = {}
 
         def ready():
@@ -1471,7 +1612,7 @@ def stop_spawned(proc, info=None):
 
 def exited(options):
     info = read_json(instance_file())
-    if not isinstance(info, dict) or info.get("mode") != "hidden" or not pid_alive(info.get("pid")):
+    if not isinstance(info, dict) or info.get("mode") not in ("hidden", "visible") or not pid_alive(info.get("pid")):
         return 0
     with contextlib.suppress(OSError, ValueError):
         ask_broker({"op": "exited", "code": int(options.get("code") or 0)}, timeout=3.0, path=info.get("broker"))

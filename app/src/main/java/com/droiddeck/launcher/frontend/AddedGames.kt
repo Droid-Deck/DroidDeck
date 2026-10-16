@@ -347,6 +347,9 @@ object AddedGames {
         JSONObject(File(config, ".droiddeck-routes.json").readText()).optInt(appId.toString()).takeIf { it > 0 }
     }.getOrNull()
 
+    fun inSteam(context: Context, appId: Long): Boolean =
+        accountConfig(File(LinuxRuntime.rootDir(context), "root/.local/share/Steam"))?.let { shortcutRecord(it, appId) } != null
+
     private fun shortcutRecord(config: File, appId: Long): JSONObject? = runCatching {
         JSONObject(File(config, ".droiddeck-shortcuts.json").readText()).optJSONObject("games")?.optJSONObject(appId.toString())
     }.getOrNull()
@@ -386,7 +389,8 @@ object AddedGames {
         }
     }
 
-    fun writeListing(context: Context, games: List<Game>): File {
+    fun writeListing(context: Context, games: List<Game>,
+        extra: List<JSONObject> = listOfNotNull(com.droiddeck.launcher.stores.epic.EpicClient.steamListing(context))): File {
         val file = File(context.filesDir, "session/added-games.json").apply { parentFile?.mkdirs() }
         val json = StringBuilder("[")
         games.forEachIndexed { i, g ->
@@ -402,6 +406,10 @@ object AddedGames {
                 .mapNotNull { (k, f) -> f?.let { file -> artGuestPath(context, file)?.let { k to it } } }
             if (pieces.isNotEmpty()) json.append(",\"art\":{").append(pieces.joinToString(",") { (k, v) -> quote(k) + ":" + quote(v) }).append('}')
             json.append('}')
+        }
+        extra.forEachIndexed { i, entry ->
+            if (games.isNotEmpty() || i > 0) json.append(',')
+            json.append(entry.toString())
         }
         file.writeText(json.append(']').toString())
         return file

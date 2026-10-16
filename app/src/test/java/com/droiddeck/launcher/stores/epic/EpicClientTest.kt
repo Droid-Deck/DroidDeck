@@ -27,38 +27,112 @@ class EpicClientTest {
         assertEquals(listOf(1, 2), EpicClient.withLauncher(games.take(2), null).map { it.appId })
     }
 
-    @Test fun aGameFromTheLauncherIsFoundAsItsSteamShortcut() {
-        val shortcut = com.droiddeck.launcher.frontend.Library.SteamGame(9, "Fig", null, "added", 3_000_000_000L, source = "epic", storeId = "Fig")
-        val games = listOf(
-            com.droiddeck.launcher.frontend.Library.SteamGame(EpicClient.LAUNCHER_APP_ID, "Launcher", null, "epic", source = "epic", storeId = "Fig"),
-            com.droiddeck.launcher.frontend.Library.SteamGame(8, "Fig", null, "added", source = "gog", storeId = "Fig"),
-            shortcut,
-        )
-        assertEquals(shortcut, EpicClient.steamShortcut(games, "Fig"))
-        assertNull(EpicClient.steamShortcut(games, "Other"))
-    }
+    private fun added(name: String, source: String, storeId: String?) =
+        com.droiddeck.launcher.frontend.AddedGames.Game(File(tmp.root, name), name, File(tmp.root, "$name/$name.exe"),
+            "/root/Games/$name/$name.exe", "/root/Games/$name", 3_000_000_000L, 0L, emptyList(), source = source, storeId = storeId)
 
-    @Test fun onlyAnOpenLauncherHandsGamesToSteam() {
-        assertEquals("no-launcher", EpicClient.playInSteam(org.robolectric.RuntimeEnvironment.getApplication(), "Fig").getString("reason"))
-        assertEquals("no-launcher", EpicClient.runSteamGame(org.robolectric.RuntimeEnvironment.getApplication(), "1091500").getString("reason"))
-    }
-
-    @Test fun aSteamGameTheLauncherListsIsHandedToSteam() {
+    private fun inSteamSession(block: (android.app.Application) -> Unit) {
         val app = org.robolectric.RuntimeEnvironment.getApplication()
         val state = com.droiddeck.launcher.session.SessionState
         state.running = true
         state.stopRequested = false
-        state.mode = com.droiddeck.launcher.session.SessionService.MODE_RUN
-        state.program = EpicClient.PROGRAM
+        val mode = state.mode
+        state.mode = com.droiddeck.launcher.session.SessionService.MODE_STEAM
         try {
-            assertEquals("bad-id", EpicClient.runSteamGame(app, "0").getString("reason"))
-            assertTrue(EpicClient.runSteamGame(app, "1091500").getBoolean("ok"))
-            val started = org.robolectric.Shadows.shadowOf(app).nextStartedActivity
-            assertEquals(EpicClient.ACTION_PLAY_IN_STEAM, started.action)
-            assertEquals("1091500", started.getStringExtra(com.droiddeck.launcher.frontend.GameLaunchIntent.EXTRA_APP_ID))
+            block(app)
         } finally {
             state.running = false
-            state.program = null
+            state.mode = mode
+        }
+    }
+
+    @Test fun aGameFromTheLauncherIsFoundAsItsSteamShortcut() {
+        val shortcut = added("Fig", "epic", "Fig")
+        val games = listOf(added("Gog", "gog", "Fig"), added("Plain", "added", null), shortcut)
+        assertEquals(shortcut, EpicClient.steamShortcut(games, "Fig"))
+        assertNull(EpicClient.steamShortcut(games, "Other"))
+    }
+
+    @Test fun onlyARunningSteamSessionTakesGamesFromTheLauncher() {
+        val app = org.robolectric.RuntimeEnvironment.getApplication()
+        assertEquals("no-steam", EpicClient.playInSteam(app, "Fig").getString("reason"))
+        assertEquals("no-steam", EpicClient.runSteamGame(app, "1091500").getString("reason"))
+        val state = com.droiddeck.launcher.session.SessionState
+        val mode = state.mode
+        state.running = true
+        state.mode = com.droiddeck.launcher.session.SessionService.MODE_RUN
+        try {
+            assertEquals("no-steam", EpicClient.runSteamGame(app, "1091500").getString("reason"))
+        } finally {
+            state.running = false
+            state.mode = mode
+        }
+        inSteamSession {
+            com.droiddeck.launcher.session.SessionState.stopRequested = true
+            try {
+                assertEquals("no-steam", EpicClient.runSteamGame(it, "1091500").getString("reason"))
+            } finally {
+                com.droiddeck.launcher.session.SessionState.stopRequested = false
+            }
+        }
+    }
+
+    @Test fun aSteamGameTheLauncherListsIsStartedInTheRunningClient() = inSteamSession { app ->
+        assertEquals("bad-id", EpicClient.runSteamGame(app, "0").getString("reason"))
+        assertTrue(EpicClient.runSteamGame(app, "1091500").getBoolean("ok"))
+        val started = org.robolectric.Shadows.shadowOf(app).nextStartedService
+        assertEquals(com.droiddeck.launcher.session.SessionService.ACTION_LAUNCH_GAME, started.action)
+        assertEquals("1091500", started.getStringExtra(com.droiddeck.launcher.session.SessionService.EXTRA_GAME_ID))
+    }
+
+    @Test fun anEpicGameWithoutAShortcutIsNotHandedToSteam() = inSteamSession { app ->
+        assertEquals("not-registered", EpicClient.playInSteam(app, "Missing").getString("reason"))
+    }
+
+    @Test fun theLauncherShortcutHasTheIdSteamGivesIt() {
+        val crc = java.util.zip.CRC32().apply { update("\"/usr/local/bin/droiddeck-epic-steam\"Epic Games Launcher".toByteArray()) }.value
+        assertEquals(crc or 0x80000000L, EpicClient.shortcutAppId)
+        assertTrue(EpicClient.shortcutAppId in 0x80000000L..0xFFFFFFFFL)
+        assertEquals("12918456320", EpicClient.gameId(3L))
+        assertEquals(java.lang.Long.toUnsignedString((EpicClient.shortcutAppId shl 32) or 0x02000000L), EpicClient.gameId(EpicClient.shortcutAppId))
+        assertTrue(EpicClient.gameId(EpicClient.shortcutAppId).toBigInteger() > Long.MAX_VALUE.toBigInteger())
+    }
+
+    @Test fun theSteamListingCarriesTheLauncherOnlyOnceInstalled() {
+        val app = org.robolectric.RuntimeEnvironment.getApplication()
+        assertNull(EpicClient.steamListing(app))
+        val listing = com.droiddeck.launcher.frontend.AddedGames.writeListing(app, emptyList(),
+            listOf(org.json.JSONObject().put("name", "A").put("native", true), org.json.JSONObject().put("name", "B")))
+        val parsed = org.json.JSONArray(listing.readText())
+        assertEquals(2, parsed.length())
+        assertTrue(parsed.getJSONObject(0).getBoolean("native"))
+        assertEquals("B", parsed.getJSONObject(1).getString("name"))
+        assertEquals(0, org.json.JSONArray(com.droiddeck.launcher.frontend.AddedGames.writeListing(app, emptyList()).readText()).length())
+    }
+
+    @Test fun thePadDrivesTheLauncherOnlyWhileSteamShowsIt() = inSteamSession { app ->
+        val root = com.droiddeck.launcher.runtime.LinuxRuntime.sessionRoot(app).apply { mkdirs() }
+        val open = File(root, EpicClient.OPEN)
+        val focused = File(root, EpicClient.FOCUSED_APP)
+        try {
+            assertFalse(EpicClient.launcherRunning(app))
+            assertFalse(EpicClient.launcherFocused(app))
+            open.writeText("1\n")
+            assertTrue(EpicClient.launcherRunning(app))
+            focused.writeText("769\n")
+            assertFalse(EpicClient.launcherFocused(app))
+            focused.writeText("${EpicClient.shortcutAppId}\n")
+            assertTrue(EpicClient.launcherFocused(app))
+            open.writeText("3000000001\n")
+            assertFalse(EpicClient.launcherFocused(app))
+            focused.writeText("3000000001\n")
+            assertTrue(EpicClient.launcherFocused(app))
+            com.droiddeck.launcher.session.SessionState.mode = com.droiddeck.launcher.session.SessionService.MODE_RUN
+            assertFalse(EpicClient.launcherFocused(app))
+            assertFalse(EpicClient.launcherRunning(app))
+        } finally {
+            open.delete()
+            focused.delete()
         }
     }
 
@@ -92,6 +166,43 @@ class EpicClientTest {
 
     @Test fun noDroidDeckAccountMeansNoHandOff() {
         assertFalse(EpicClient.canHandOff(org.robolectric.RuntimeEnvironment.getApplication()))
+    }
+
+    @Test fun signingOutDropsTheLaunchersSignInAndTellsARunningLauncher() {
+        val app = org.robolectric.RuntimeEnvironment.getApplication()
+        val auth = File(EpicClient.dataDir(app), "auth/auth.json").apply { parentFile?.mkdirs() }
+        val marker = File(EpicClient.stateDir(app), "signed-out")
+        val auto = File(EpicClient.stateDir(app), "auto-sign-in").apply { parentFile?.mkdirs(); writeText("1\n") }
+        try {
+            auth.writeText("""{"prod":{"refresh_token":"t"}}""")
+            assertTrue(EpicClient.signOut(app))
+            assertFalse(auth.exists())
+            assertFalse(auto.exists())
+            assertTrue(marker.isFile)
+            marker.delete()
+            auth.writeText("""{"prod":{"refresh_token":""}}""")
+            assertFalse(EpicClient.signOut(app))
+            assertFalse(auth.exists())
+            assertFalse(marker.exists())
+            assertFalse(EpicClient.signOut(app))
+        } finally {
+            auth.delete(); marker.delete(); auto.delete()
+        }
+    }
+
+    @Test fun theWebSignInIsExpiredForEveryCookieOnBothPathsAndTheDomain() {
+        assertEquals(emptyList<String>(), EpicClient.expiredCookies(null))
+        assertEquals(emptyList<String>(), EpicClient.expiredCookies(" ; "))
+        val lines = EpicClient.expiredCookies("EPIC_SSO=abc; EPIC_SSO_RM=1; EPIC_SSO=again;__Host-x=y")
+        assertEquals(12, lines.size)
+        assertTrue(lines.contains("EPIC_SSO=; Max-Age=0; Path=/; Secure"))
+        assertTrue(lines.contains("EPIC_SSO_RM=; Max-Age=0; Path=/id; Secure; Domain=.epicgames.com"))
+        assertTrue(lines.contains("__Host-x=; Max-Age=0; Path=/; Secure"))
+        assertTrue(lines.none { "abc" in it })
+        val www = EpicClient.expiredCookies("__cf_bm=1", "www.epicgames.com")
+        assertEquals(6, www.size)
+        assertTrue(www.contains("__cf_bm=; Max-Age=0; Path=/; Secure; Domain=www.epicgames.com"))
+        assertEquals(4, EpicClient.expiredCookies("a=1", "example.com").size)
     }
 
     @Test fun launcherVersionComesFromTheRedirect() {

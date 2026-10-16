@@ -30,6 +30,7 @@ public final class PadBridge {
             KeyEvent.KEYCODE_BUTTON_THUMBL, KeyEvent.KEYCODE_BUTTON_THUMBR,
             KeyEvent.KEYCODE_BUTTON_MODE, KeyEvent.KEYCODE_BUTTON_L2, KeyEvent.KEYCODE_BUTTON_R2
     };
+    private static final int[] ROUTED_PASS_THROUGH = {PadState.GUIDE, PadState.QAM, PadState.SELECT};
     private static final long QAM_GUIDE_LEAD_MIN_MS = 80;
     private static final long QAM_GUIDE_LEAD_MAX_MS = 1500;
     private static final int QAM_GUIDE_LEAD_FRAMES = 8;
@@ -316,6 +317,18 @@ public final class PadBridge {
         if (touchRoute != null && touchRoute.active()) {
             mutation.accept(routedTouch);
             touchRoute.accept(routedTouch);
+            boolean changed = false;
+            for (int button : ROUTED_PASS_THROUGH) {
+                boolean down = routedTouch.isDown(button);
+                if (state.isDown(button) == down) continue;
+                state.press(button, down);
+                changed = true;
+            }
+            if (changed) {
+                activeControllerId = NO_CONTROLLER;
+                slotControllers.set(0, NO_CONTROLLER);
+                publish();
+            }
             return;
         }
         routedTouch.clear();

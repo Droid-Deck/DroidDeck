@@ -111,6 +111,14 @@ object StoreLaunchRequests {
             } catch (e: Exception) {
                 JSONObject().put("ok", false).put("reason", e.javaClass.simpleName)
             }
+            "epic-signed-out" -> {
+                val signedIn = com.droiddeck.launcher.stores.epic.EpicCredentialStore.isLoggedIn(app)
+                if (signedIn) {
+                    Log.i(TAG, "the Epic Games Launcher was signed out; signing the Epic store out too")
+                    StoresState.signOut(app, Store.EPIC)
+                }
+                JSONObject().put("ok", true).put("signedOut", signedIn)
+            }
             "epic-client-handoff" -> {
                 if (com.droiddeck.launcher.stores.epic.EpicClient.canHandOff(app)) JSONObject().put("ok", true)
                 else JSONObject().put("ok", false).put("reason", "no-account")
