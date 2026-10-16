@@ -2121,4 +2121,23 @@
     <string name="achievements_none">%1$s 未列出此游戏的成就。</string>
     <string name="achievements_show_all">显示全部 %1$d 项</string>
     <string name="achievements_dialog_title">成就 · %1$s</string>
+    <string name="setup_group_memory">内存</string>
+    <string name="setup_clear_cached">会话前关闭缓存的应用</string>
+    <string name="setup_clear_cached_hint">会话开始时关闭 Android 留在后台的应用，让游戏有更多内存可用。需要开启无线调试。</string>
+    <string name="setup_clear_cached_unpaired">需要先将 DroidDeck 与无线调试配对（见下方“配对”）。</string>
+    <string name="setup_memory_hud">内存读数</string>
+    <string name="setup_memory_hud_hint">在会话画面上显示已用内存和交换空间。高级模式会分别显示游戏、DroidDeck、Android 和 GPU。</string>
+    <string name="setup_memory_hud_simple">简单</string>
+    <string name="setup_memory_hud_advanced">高级</string>
+    <string name="memory_hud_simple">内存 %1$s/%2$s GB · 交换 %3$s/%4$s GB</string>
+    <string name="memory_hud_split">游戏 %1$s · DroidDeck %2$s · Android %3$s GB</string>
+    <string name="memory_hud_gpu">GPU %1$s GB</string>
+    <string name="setup_bg_limit">会话期间的后台应用</string>
+    <string name="setup_bg_limit_hint">会话运行期间，Android 最多缓存这么多个应用并关闭其余应用，让游戏使用它们的内存。会话结束后恢复原状。需要开启无线调试。</string>
+    <string name="setup_bg_limit_4">最多 4 个</string>
+    <string name="setup_bg_limit_1">最多 1 个</string>
+    <string name="setup_bg_limit_0">无</string>
+    <string name="setup_adb_pair">无线调试</string>
+    <string name="setup_adb_pair_hint">为上面的选项将 DroidDeck 与 Android 无线调试配对。子进程限制保持关闭。</string>
+    <string name="setup_adb_pair_button">配对</string>
 </resources>

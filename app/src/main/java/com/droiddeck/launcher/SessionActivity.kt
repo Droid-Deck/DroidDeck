@@ -139,6 +139,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private lateinit var sessionOverlay: ComposeView
     private lateinit var loading: LoadingState
     private lateinit var hud: PerfHud
+    /** Setup > Diagnostics' memory readout, under the frame rate. */
+    private lateinit var memoryHud: com.droiddeck.launcher.session.MemoryHud
     private var padBridge: PadBridge? = null
     /** The handheld's gyro and accelerometer, fed to the Deck controller while the session shows. */
     private var padMotion: com.droiddeck.launcher.input.PadMotion? = null
@@ -495,6 +497,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             if (needRuntime || needDesktop || needProton) installThenStart(needRuntime, needDesktop, needProton)
         }
         hud = PerfHud(this)
+        memoryHud = com.droiddeck.launcher.session.MemoryHud(this)
         hud.onPresentingWindowChanged = {
             if (FrameGen.engine(this) != FrameGen.ENGINE_OFF) CompositorHost.rearmFrameGen { applyFrameGen() }
         }
@@ -502,6 +505,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (SessionState.running && SessionState.firstFrameSeen) {
             loading.visible = false
             hud.start()
+            memoryHud.start()
         }
         readPrefs()
 
@@ -566,7 +570,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             com.droiddeck.launcher.ui.FocusGlideHost(androidx.compose.ui.Modifier.fillMaxSize()) {
                 CursorOverlay(cursorPos, cursorVisible, resources.displayMetrics.density,
                     cursorImage, cursorHotX, cursorHotY, cursorImageScale)
-                if (hud.text.isNotEmpty()) HudText(hud.text)
+                val hudLines = listOf(hud.text, memoryHud.text).filter { it.isNotEmpty() }
+                if (hudLines.isNotEmpty()) HudText(hudLines.joinToString("\n"))
                 if (loading.visible) LoadingOverlay(
                     loading.step, loading.percent, loading.elapsed, loading.hint, loading.ended,
                     topic = loading.topic, readable = loading.readable,
@@ -2549,6 +2554,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (runtimeRemovalBlocked) return
         com.droiddeck.launcher.ui.Motion.refresh(this)
         refreshHomeApp()
+        // Setup may have changed the memory readout while the session was behind it.
+        if (::memoryHud.isInitialized && SessionState.running && SessionState.firstFrameSeen) memoryHud.refresh()
         if (intent?.action == SessionService.ACTION_RESUME) {
             intent.action = null
             SessionService.resume(this)
@@ -2733,6 +2740,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         runOnUiThread {
             loading.visible = false
             hud.start()
+            memoryHud.start()
         }
     }
 
@@ -2748,6 +2756,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (::pip.isInitialized) pip.destroyed()
         closeSecondScreen(reset = false)
         if (::hud.isInitialized) hud.stop()
+        if (::memoryHud.isInitialized) memoryHud.stop()
         padBridge?.stop()
         steamController?.stop()
         if (SessionState.padBridge === padBridge) SessionState.padBridge = null

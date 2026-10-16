@@ -186,25 +186,61 @@ object WirelessAdbFix {
 
     /** Tries the app's saved pairing without asking for a new pairing code. */
     fun setUsingSavedPairing(context: Context, enabled: Boolean) {
+        withSavedPairing(context) { appContext, host, port -> setChildProcessLimit(appContext, host, port, enabled) }
+    }
+
+    /** Whether the app has a pairing to use without asking for a code (the child-process repair saved it). */
+    fun hasSavedPairing(context: Context): Boolean = savedConnection(context.applicationContext) != null
+
+    /**
+     * Closes the apps Android keeps cached in the background (`am kill-all`, which leaves anything
+     * visible, perceptible or a service alone) over the saved pairing: their memory goes to the
+     * session about to start. Blocking; throws when there is no pairing or Wireless debugging is off.
+     */
+    fun clearCachedApps(context: Context) {
+        shell(context, "am kill-all")
+    }
+
+    /**
+     * [command] in the shell over the saved pairing: its output. Blocking; throws when there is no
+     * pairing, Wireless debugging is off, or the command fails.
+     */
+    fun shell(context: Context, command: String): String {
+        var output = ""
+        withSavedPairing(context) { appContext, host, port ->
+            loadOrCreateIdentity(appContext)
+            Kadb.create(host, port).use { adb ->
+                val result = adb.shell(command)
+                check(result.exitCode == 0) { result.allOutput.ifBlank { appContext.getString(R.string.adbfix_command_failed, result.exitCode) } }
+                output = result.output
+            }
+            saveConnection(appContext, host, port)
+        }
+        return output
+    }
+
+    /**
+     * [action] with the saved pairing's host and port: the port that worked last, else the one
+     * Wireless debugging advertises now (it changes each time Wireless debugging is turned on).
+     */
+    private fun withSavedPairing(context: Context, action: (Context, String, Int) -> Unit) {
         val appContext = context.applicationContext
         val saved = savedConnection(appContext)
             ?: error(appContext.getString(R.string.adbfix_no_pairing))
         val cachedPort = saved.port
         if (cachedPort != null) {
-            val cachedResult = runCatching {
-                setChildProcessLimit(appContext, saved.host, cachedPort, enabled)
-            }
+            val cachedResult = runCatching { action(appContext, saved.host, cachedPort) }
             if (cachedResult.isSuccess) return
             val discoveredPort = findConnectPort(appContext, saved.host)
             if (discoveredPort != null && discoveredPort != cachedPort) {
-                setChildProcessLimit(appContext, saved.host, discoveredPort, enabled)
+                action(appContext, saved.host, discoveredPort)
             } else {
                 cachedResult.getOrThrow()
             }
         } else {
             val discoveredPort = findConnectPort(appContext, saved.host)
                 ?: error(appContext.getString(R.string.adbfix_enter_address))
-            setChildProcessLimit(appContext, saved.host, discoveredPort, enabled)
+            action(appContext, saved.host, discoveredPort)
         }
     }
 }

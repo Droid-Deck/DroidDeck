@@ -2365,4 +2365,23 @@
     <string name="gog_achievements_enable_store">Enable GOG achievements in Stores settings</string>
     <string name="gog_achievements_unavailable">Achievements unavailable; check session logs</string>
     <string name="achievement_unlocked">Achievement unlocked</string>
+    <string name="setup_group_memory">Memory</string>
+    <string name="setup_clear_cached">Clear cached apps before a session</string>
+    <string name="setup_clear_cached_hint">As a session starts, closes the apps Android keeps parked in the background, so the game has more memory. Wireless debugging must be on.</string>
+    <string name="setup_clear_cached_unpaired">Needs DroidDeck paired with Wireless debugging (Pair, below).</string>
+    <string name="setup_memory_hud">Memory readout</string>
+    <string name="setup_memory_hud_hint">Memory and swap in use, on the session screen. Advanced splits it into the game, DroidDeck, Android and the GPU.</string>
+    <string name="setup_memory_hud_simple">Simple</string>
+    <string name="setup_memory_hud_advanced">Advanced</string>
+    <string name="memory_hud_simple">RAM %1$s/%2$s GB · swap %3$s/%4$s GB</string>
+    <string name="memory_hud_split">game %1$s · DroidDeck %2$s · Android %3$s GB</string>
+    <string name="memory_hud_gpu">GPU %1$s GB</string>
+    <string name="setup_bg_limit">Background apps during a session</string>
+    <string name="setup_bg_limit_hint">While a session runs, Android keeps at most this many apps cached and closes the rest, so the game has their memory. Put back as it was when the session ends. Wireless debugging must be on.</string>
+    <string name="setup_bg_limit_4">At most 4</string>
+    <string name="setup_bg_limit_1">At most 1</string>
+    <string name="setup_bg_limit_0">None</string>
+    <string name="setup_adb_pair">Wireless debugging</string>
+    <string name="setup_adb_pair_hint">Pairs DroidDeck with Android\'s Wireless debugging for the options above. The child-process limit stays off.</string>
+    <string name="setup_adb_pair_button">Pair</string>
 </resources>

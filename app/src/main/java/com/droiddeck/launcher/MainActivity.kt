@@ -368,6 +368,10 @@ class MainActivity : ComponentActivity() {
     private var runningLabel by mutableStateOf<String?>(null)
     private var logsEnabled by mutableStateOf(true)
     private var agentCommands by mutableStateOf(false)
+    private var clearCachedApps by mutableStateOf(false)
+    private var adbPaired by mutableStateOf(false)
+    private var memoryHud by mutableStateOf(SessionPrefs.MEMORY_HUD_OFF)
+    private var backgroundAppLimit by mutableStateOf(com.droiddeck.launcher.core.BackgroundAppLimit.OFF)
     private var showRoms by mutableStateOf(false)
     private var homeAppSelected by mutableStateOf(false)
     private var homeScreenEnabled by mutableStateOf(false)
@@ -537,6 +541,8 @@ class MainActivity : ComponentActivity() {
         gameSyncFolder = GameFileSync.folder(this)
         displayManager = getSystemService(DISPLAY_SERVICE) as DisplayManager
         refreshPhantomStatus()
+        // A session Android killed never put its background-app limit back: with none running, now.
+        if (!SessionState.running) com.droiddeck.launcher.core.BackgroundAppLimit.restoreAsync(this)
         theme = SessionPrefs.theme(this)
         frameGenLabel = getString(R.string.frame_gen_off)
         appScale = com.droiddeck.launcher.core.AppUiPrefs.scale(this)
@@ -573,6 +579,7 @@ class MainActivity : ComponentActivity() {
                         desktopInstalled = desktopInstalled, desktopPresent = desktopPresent,
                         offlineAccount = offlineAccount, offline = offline,
                         frameGenLabel = frameGenLabel, romsDir = romsDir, logsEnabled = logsEnabled, agentCommands = agentCommands,
+                        clearCachedApps = clearCachedApps, adbPaired = adbPaired, memoryHud = memoryHud, backgroundAppLimit = backgroundAppLimit,
                         steamGames = steamGames, emulators = emulatorList, running = runningLabel,
                         frameGen = FrameGen.mode(this),
                         lossless = lossless,
@@ -726,6 +733,9 @@ class MainActivity : ComponentActivity() {
                             com.droiddeck.launcher.agent.AgentAccess.setCommandsEnabled(this, !com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(this))
                             agentCommands = com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(this)
                         },
+                        onClearCachedApps = { on -> SessionPrefs.setClearCachedApps(this, on); clearCachedApps = on },
+                        onMemoryHud = { value -> SessionPrefs.setMemoryHud(this, value); memoryHud = value },
+                        onBackgroundAppLimit = { limit -> SessionPrefs.setBackgroundAppLimit(this, limit); backgroundAppLimit = limit },
                         onShareLogs = {
                             SessionLogShare.prepare(this, { SessionLogShare.latest(this) }) { zip ->
                                 if (zip == null) android.widget.Toast.makeText(this, R.string.main_no_logs_yet, android.widget.Toast.LENGTH_LONG).show()
@@ -1652,6 +1662,10 @@ class MainActivity : ComponentActivity() {
         romsDir = SessionPrefs.romsDir(this).takeIf { it.isNotEmpty() }
         logsEnabled = SessionPrefs.logsEnabled(this)
         agentCommands = com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(this)
+        clearCachedApps = SessionPrefs.clearCachedApps(this)
+        adbPaired = WirelessAdbFix.hasSavedPairing(this)
+        memoryHud = SessionPrefs.memoryHud(this)
+        backgroundAppLimit = SessionPrefs.backgroundAppLimit(this)
         runningLabel = if (SessionState.running) when (SessionState.mode) {
             SessionService.MODE_DESKTOP -> getString(R.string.rail_desktop)
             SessionService.MODE_RUN -> Library.nameForProgram(SessionState.program)
@@ -1748,6 +1762,8 @@ class MainActivity : ComponentActivity() {
 
     private fun refreshPhantomStatus() {
         phantomProcessStatus = PhantomProcessLimit.read(this)
+        // Pairing happens on the same page that fixes the limit; the Memory options follow it.
+        adbPaired = WirelessAdbFix.hasSavedPairing(this)
         phantomWarning = if (PhantomProcessLimit.blocksSteam(phantomProcessStatus)) {
             getString(
                 R.string.phantom_warning, PhantomProcessLimit.title(this, phantomProcessStatus),

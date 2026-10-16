@@ -2121,4 +2121,23 @@
     <string name="achievements_none">%1$s にはこのゲームの実績がありません。</string>
     <string name="achievements_show_all">すべて表示（%1$d）</string>
     <string name="achievements_dialog_title">実績 · %1$s</string>
+    <string name="setup_group_memory">メモリ</string>
+    <string name="setup_clear_cached">セッション前にキャッシュ済みアプリを閉じる</string>
+    <string name="setup_clear_cached_hint">セッションの開始時に、Android がバックグラウンドに保持しているアプリを閉じ、ゲームに使えるメモリを増やします。ワイヤレスデバッグをオンにする必要があります。</string>
+    <string name="setup_clear_cached_unpaired">DroidDeck をワイヤレスデバッグとペア設定する必要があります（下の「ペア設定」）。</string>
+    <string name="setup_memory_hud">メモリ表示</string>
+    <string name="setup_memory_hud_hint">使用中のメモリとスワップをセッション画面に表示します。詳細設定では、ゲーム、DroidDeck、Android、GPU に分けて表示します。</string>
+    <string name="setup_memory_hud_simple">シンプル</string>
+    <string name="setup_memory_hud_advanced">詳細設定</string>
+    <string name="memory_hud_simple">RAM %1$s/%2$s GB · スワップ %3$s/%4$s GB</string>
+    <string name="memory_hud_split">ゲーム %1$s · DroidDeck %2$s · Android %3$s GB</string>
+    <string name="memory_hud_gpu">GPU %1$s GB</string>
+    <string name="setup_bg_limit">セッション中のバックグラウンドアプリ</string>
+    <string name="setup_bg_limit_hint">セッション中、Android がキャッシュに保持するアプリをこの数までに抑え、残りを閉じてゲームにメモリを回します。セッション終了時に元に戻します。ワイヤレスデバッグをオンにする必要があります。</string>
+    <string name="setup_bg_limit_4">最大 4 個</string>
+    <string name="setup_bg_limit_1">最大 1 個</string>
+    <string name="setup_bg_limit_0">なし</string>
+    <string name="setup_adb_pair">ワイヤレスデバッグ</string>
+    <string name="setup_adb_pair_hint">上のオプションのために DroidDeck を Android のワイヤレスデバッグとペア設定します。子プロセス制限はオフのままです。</string>
+    <string name="setup_adb_pair_button">ペア設定</string>
 </resources>

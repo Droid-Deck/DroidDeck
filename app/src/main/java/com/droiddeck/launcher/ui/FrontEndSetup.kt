@@ -406,6 +406,41 @@ internal fun SetupPanel(
                                 progress = com.droiddeck.launcher.session.SessionLogShare.progress)
                             ActionRow(stringResource(R.string.setup_saved_logs), stringResource(R.string.setup_saved_logs_hint, com.droiddeck.launcher.session.SessionPaths.KEEP_SESSIONS), stringResource(R.string.setup_clear_logs), a.onClearLogs)
                         }
+                        SettingsGroup(stringResource(R.string.setup_group_memory)) {
+                            // Closed over the Wireless debugging pairing the child-process repair saves.
+                            ToggleRow(
+                                host, "clear-cached-apps", stringResource(R.string.setup_clear_cached),
+                                stringResource(if (s.adbPaired) R.string.setup_clear_cached_hint else R.string.setup_clear_cached_unpaired),
+                                s.clearCachedApps, enabled = s.adbPaired || s.clearCachedApps,
+                            ) { a.onClearCachedApps(it) }
+                            ChoiceRow(
+                                host, "background-app-limit", stringResource(R.string.setup_bg_limit),
+                                stringResource(if (s.adbPaired) R.string.setup_bg_limit_hint else R.string.setup_clear_cached_unpaired),
+                                listOf(
+                                    com.droiddeck.launcher.core.BackgroundAppLimit.OFF to stringResource(R.string.game_env_off),
+                                    4 to stringResource(R.string.setup_bg_limit_4),
+                                    1 to stringResource(R.string.setup_bg_limit_1),
+                                    0 to stringResource(R.string.setup_bg_limit_0),
+                                ),
+                                s.backgroundAppLimit, enabled = s.adbPaired || s.backgroundAppLimit != com.droiddeck.launcher.core.BackgroundAppLimit.OFF,
+                                onPick = a.onBackgroundAppLimit,
+                            )
+                            ChoiceRow(
+                                host, "memory-hud", stringResource(R.string.setup_memory_hud), stringResource(R.string.setup_memory_hud_hint),
+                                listOf(
+                                    com.droiddeck.launcher.session.SessionPrefs.MEMORY_HUD_OFF to stringResource(R.string.game_env_off),
+                                    com.droiddeck.launcher.session.SessionPrefs.MEMORY_HUD_SIMPLE to stringResource(R.string.setup_memory_hud_simple),
+                                    com.droiddeck.launcher.session.SessionPrefs.MEMORY_HUD_ADVANCED to stringResource(R.string.setup_memory_hud_advanced),
+                                ),
+                                s.memoryHud, onPick = a.onMemoryHud,
+                            )
+                            // The pairing the two options above use, without turning the child-process
+                            // limit on: the page pairs and then sets the limit off, as DroidDeck wants it.
+                            if (!s.adbPaired) ActionRow(
+                                stringResource(R.string.setup_adb_pair), stringResource(R.string.setup_adb_pair_hint),
+                                stringResource(R.string.setup_adb_pair_button), { onRequestWirelessAdb(false) },
+                            )
+                        }
                     }
                 }
             }
