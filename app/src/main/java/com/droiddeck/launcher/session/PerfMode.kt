@@ -25,10 +25,13 @@ object PerfMode {
                     .ifEmpty { display.supportedModes.filter { it.modeId == cur.modeId } }
                 val best = sameSize.filter { cadenceFits(it.refreshRate, fpsLimit) }.maxByOrNull { it.refreshRate }
                     ?: sameSize.maxByOrNull { it.refreshRate }
-                if (best != null && best.modeId != cur.modeId &&
-                    (best.refreshRate > cur.refreshRate + 0.5f || !cadenceFits(cur.refreshRate, fpsLimit))) {
-                    a.window.attributes = a.window.attributes.apply { preferredDisplayModeId = best.modeId }
-                    "display ${cur.refreshRate.toInt()} → ${best.refreshRate.toInt()} Hz (mode ${best.modeId})"
+                if (best != null) {
+                    if (a.window.attributes.preferredDisplayModeId != best.modeId) {
+                        a.window.attributes = a.window.attributes.apply { preferredDisplayModeId = best.modeId }
+                    }
+                    if (best.modeId != cur.modeId) {
+                        "display ${cur.refreshRate.toInt()} → ${best.refreshRate.toInt()} Hz (mode ${best.modeId})"
+                    } else "display ${best.refreshRate.toInt()} Hz (mode ${best.modeId})"
                 } else "display ${cur.refreshRate.toInt()} Hz"
             }
         } catch (t: Throwable) { Log.w(TAG, "display mode", t); "display mode failed" }

@@ -153,18 +153,23 @@ program_cores() {
   [ "${BL_PIN_CORES:-1}" = 0 ] && return 0
   command -v taskset >/dev/null 2>&1 || return 0
   if [ -n "${BL_GAME_CPUS:-}" ]; then echo "$BL_GAME_CPUS"; return 0; fi
-  local f n max min= list=
-  for f in /sys/devices/system/cpu/cpu[0-9]*/cpufreq/cpuinfo_max_freq; do
+  local root=${BL_CPU_SYSFS:-/sys/devices/system/cpu}
+  local f n max min= list= all= fast=0
+  for f in "$root"/cpu[0-9]*/cpufreq/cpuinfo_max_freq; do
     max=$(cat "$f" 2>/dev/null) || continue
     [ -z "$min" ] || [ "$max" -lt "$min" ] && min=$max
   done
   [ -n "$min" ] || return 0
-  for f in /sys/devices/system/cpu/cpu[0-9]*/cpufreq/cpuinfo_max_freq; do
+  for f in "$root"/cpu[0-9]*/cpufreq/cpuinfo_max_freq; do
     max=$(cat "$f" 2>/dev/null) || continue
-    n=${f#/sys/devices/system/cpu/cpu}; n=${n%%/*}
-    [ "$max" -gt "$min" ] && list="$list${list:+,}$n"
+    n=${f#"$root"/cpu}; n=${n%%/*}
+    all="$all${all:+,}$n"
+    if [ "$max" -gt "$min" ]; then
+      list="$list${list:+,}$n"
+      fast=$((fast + 1))
+    fi
   done
-  echo "$list"
+  if [ "$fast" -ge 4 ]; then echo "$list"; else echo "$all"; fi
 }
 
 if [ -z "${BL_INSIDE:-}" ]; then

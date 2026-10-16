@@ -1259,7 +1259,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         else null
         val size = live ?: if (SessionState.running) previous else outputSize()
         SessionState.outputSize = size
-        if (!SessionState.running) SessionState.refreshHz = refreshHz()
+        SessionState.refreshHz = refreshHz()
         val panel = panelBounds()
         SessionState.upscaleRatio = maxOf(panel.width(), panel.height()).toFloat() / maxOf(size.first, size.second).coerceAtLeast(1)
         Thread({
@@ -1370,8 +1370,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
+        PerfMode.apply(this, SessionState.fpsLimit)
+        SessionState.refreshHz = refreshHz()
         applyFollowOrientation(newConfig)
         applyUnfoldedControls()
+        refreshSecondScreenDisplays()
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {

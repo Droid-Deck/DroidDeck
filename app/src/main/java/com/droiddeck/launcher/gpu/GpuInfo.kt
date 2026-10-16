@@ -81,11 +81,13 @@ data class GpuInfo(
             )
         }
 
-        internal fun threeDigits(text: String): Int = Regex("""(\d{3})""").find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+        internal fun threeDigits(text: String): Int =
+            if (text.trim().startsWith("0x", ignoreCase = true)) 0
+            else Regex("""(\d{3})""").find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
 
         private val PLATFORMS = mapOf(
             "msmnile" to 640, "kona" to 650, "lahaina" to 660, "taro" to 730, "cape" to 730,
-            "kalama" to 740, "pineapple" to 750, "sun" to 830,
+            "kalama" to 740, "pineapple" to 750, "sun" to 830, "canoe" to 840,
         )
 
         internal fun platformModel(platform: String = systemProperty("ro.board.platform")): Int =

@@ -19,6 +19,8 @@ class GpuDetectionTest {
         assertEquals(0, GpuInfo.threeDigits("   "))
         assertEquals(0, GpuInfo.threeDigits("Adreno"))
         assertEquals(0, GpuInfo.threeDigits("Adreno 65"))
+        assertEquals(0, GpuInfo.threeDigits("0x44050a00"))
+        assertEquals(0, GpuInfo.threeDigits("  0x07030001\n"))
     }
 
     @Test fun nonAdrenoRenderersAreNeverAdrenoWhateverNumberTheyCarry() {
@@ -53,6 +55,7 @@ class GpuDetectionTest {
         assertEquals(Support.TESTED, info(true, 740).support)
         assertEquals(Support.TESTED, info(true, 750).support)
         assertEquals(Support.TESTED, info(true, 830).support)
+        assertEquals(Support.TESTED, info(true, 840).support)
         assertEquals(Support.UNSUPPORTED, info(false, 0).support)
         assertEquals(Support.UNSUPPORTED, info(false, 830).support)
     }
@@ -73,6 +76,7 @@ class GpuDetectionTest {
         assertEquals(730, GpuInfo.platformModel("taro"))
         assertEquals(730, GpuInfo.platformModel("cape"))
         assertEquals(830, GpuInfo.platformModel("Sun"))
+        assertEquals(840, GpuInfo.platformModel("canoe"))
         assertEquals(0, GpuInfo.platformModel(""))
         assertEquals(0, GpuInfo.platformModel("exynos2400"))
         assertEquals(0, GpuInfo.platformModel(" kona "))
