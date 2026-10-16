@@ -2217,13 +2217,15 @@
     <string name="boot_movie_note">60 fps mượt hơn nhưng tốn CPU hơn khi Steam đang khởi động. Video khởi động chọn trong cài đặt của chính Steam sẽ được ưu tiên.</string>
     <string name="boot_movie_sound">Âm thanh</string>
     <string name="boot_movie_custom">Video của bạn</string>
-    <string name="boot_movie_custom_hint">WebM, MKV hoặc MP4 với video VP8, VP9 hoặc AV1, tối đa %1$d MB. 1280×720 ở 30 hoặc 60 fps chạy mượt nhất.</string>
+    <string name="boot_movie_custom_hint">MP4, MOV, MKV hoặc WebM. Định dạng khác và tệp trên %1$d MB được chuyển sang WebM 720p ngay trên thiết bị, tối đa %2$d giây.</string>
     <string name="boot_movie_import">Nhập</string>
     <string name="boot_movie_remove">Xóa</string>
     <string name="boot_movie_pick">Chọn video khởi động</string>
     <string name="boot_movie_imported">%1$s giờ là video khởi động</string>
     <string name="boot_movie_imported_silent">%1$s giờ là video khởi động, không có tiếng</string>
-    <string name="boot_movie_too_large">Video khởi động phải từ %1$d MB trở xuống</string>
-    <string name="boot_movie_unsupported">Steam chỉ phát video VP8, VP9 hoặc AV1. Hãy chuyển sang WebM trước.</string>
+    <string name="boot_movie_too_long">Video cần chuyển đổi phải dài tối đa %1$d giây</string>
+    <string name="boot_movie_converting">Đang chuyển đổi %1$d%%</string>
+    <string name="boot_movie_converting_started">Đang chuyển đổi %1$s cho Steam. Hãy để DroidDeck mở.</string>
+    <string name="boot_movie_unsupported">Thiết bị này không giải mã được video đó.</string>
     <string name="boot_movie_import_failed">Không thể nhập video này</string>
 </resources>

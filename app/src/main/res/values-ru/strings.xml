@@ -2306,13 +2306,15 @@
     <string name="boot_movie_note">60 кадр/с выглядит плавнее, но сильнее нагружает процессор при запуске Steam. Видео при запуске, выбранное в настройках самого Steam, имеет приоритет.</string>
     <string name="boot_movie_sound">Звук</string>
     <string name="boot_movie_custom">Своё видео</string>
-    <string name="boot_movie_custom_hint">WebM, MKV или MP4 с видео VP8, VP9 или AV1, до %1$d МБ. Плавнее всего идёт 1280×720 при 30 или 60 кадр/с.</string>
+    <string name="boot_movie_custom_hint">MP4, MOV, MKV или WebM. Другие форматы и файлы больше %1$d МБ преобразуются на устройстве в WebM 720p, до %2$d секунд.</string>
     <string name="boot_movie_import">Импорт</string>
     <string name="boot_movie_remove">Удалить</string>
     <string name="boot_movie_pick">Выберите загрузочное видео</string>
     <string name="boot_movie_imported">%1$s теперь загрузочное видео</string>
     <string name="boot_movie_imported_silent">%1$s теперь загрузочное видео, без звука</string>
-    <string name="boot_movie_too_large">Загрузочное видео должно быть не больше %1$d МБ</string>
-    <string name="boot_movie_unsupported">Steam воспроизводит только видео VP8, VP9 или AV1. Сначала преобразуйте в WebM.</string>
+    <string name="boot_movie_too_long">Видео для преобразования должно быть не длиннее %1$d секунд</string>
+    <string name="boot_movie_converting">Преобразование %1$d%%</string>
+    <string name="boot_movie_converting_started">%1$s преобразуется для Steam. Не закрывайте DroidDeck.</string>
+    <string name="boot_movie_unsupported">Устройство не может декодировать это видео.</string>
     <string name="boot_movie_import_failed">Не удалось импортировать видео</string>
 </resources>

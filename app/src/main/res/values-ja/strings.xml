@@ -2225,13 +2225,15 @@
     <string name="boot_movie_note">60 fps はなめらかですが、Steam の起動中に CPU をより多く使います。Steam 本体の設定で選んだ起動ムービーが優先されます。</string>
     <string name="boot_movie_sound">サウンド</string>
     <string name="boot_movie_custom">自分のムービー</string>
-    <string name="boot_movie_custom_hint">VP8、VP9、AV1 映像の WebM、MKV、MP4（%1$d MB まで）。1280×720・30 または 60 fps が最もなめらかです。</string>
+    <string name="boot_movie_custom_hint">MP4、MOV、MKV、WebM。その他の形式や %1$d MB を超えるファイルは、端末上で 720p の WebM に変換されます（%2$d 秒まで）。</string>
     <string name="boot_movie_import">インポート</string>
     <string name="boot_movie_remove">削除</string>
     <string name="boot_movie_pick">起動ムービーを選択</string>
     <string name="boot_movie_imported">%1$s を起動ムービーに設定しました</string>
     <string name="boot_movie_imported_silent">%1$s を起動ムービーに設定しました（無音）</string>
-    <string name="boot_movie_too_large">起動ムービーは %1$d MB 以下にしてください</string>
-    <string name="boot_movie_unsupported">Steam は VP8、VP9、AV1 映像のみ再生できます。先に WebM に変換してください。</string>
+    <string name="boot_movie_too_long">変換が必要なムービーは %1$d 秒以内にしてください</string>
+    <string name="boot_movie_converting">変換中 %1$d%%</string>
+    <string name="boot_movie_converting_started">%1$s を Steam 用に変換しています。DroidDeck を開いたままにしてください。</string>
+    <string name="boot_movie_unsupported">この端末ではその動画をデコードできません。</string>
     <string name="boot_movie_import_failed">ムービーをインポートできませんでした</string>
 </resources>

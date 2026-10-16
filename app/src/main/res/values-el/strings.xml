@@ -2242,13 +2242,15 @@
     <string name="boot_movie_note">Τα 60 fps φαίνονται πιο ομαλά, αλλά επιβαρύνουν περισσότερο τον επεξεργαστή όσο ξεκινά το Steam. Ένα βίντεο εκκίνησης που επιλέχθηκε στις ρυθμίσεις του Steam έχει προτεραιότητα.</string>
     <string name="boot_movie_sound">Ήχος</string>
     <string name="boot_movie_custom">Δικό σας βίντεο</string>
-    <string name="boot_movie_custom_hint">WebM, MKV ή MP4 με βίντεο VP8, VP9 ή AV1, έως %1$d MB. Τα 1280×720 στα 30 ή 60 fps παίζουν πιο ομαλά.</string>
+    <string name="boot_movie_custom_hint">MP4, MOV, MKV ή WebM. Άλλες μορφές και αρχεία πάνω από %1$d MB μετατρέπονται στη συσκευή σε WebM 720p, έως %2$d δευτερόλεπτα.</string>
     <string name="boot_movie_import">Εισαγωγή</string>
     <string name="boot_movie_remove">Αφαίρεση</string>
     <string name="boot_movie_pick">Επιλέξτε βίντεο εκκίνησης</string>
     <string name="boot_movie_imported">Το %1$s είναι πλέον το βίντεο εκκίνησης</string>
     <string name="boot_movie_imported_silent">Το %1$s είναι πλέον το βίντεο εκκίνησης, χωρίς ήχο</string>
-    <string name="boot_movie_too_large">Τα βίντεο εκκίνησης πρέπει να είναι έως %1$d MB</string>
-    <string name="boot_movie_unsupported">Το Steam παίζει μόνο βίντεο VP8, VP9 ή AV1. Μετατρέψτε το πρώτα σε WebM.</string>
+    <string name="boot_movie_too_long">Τα βίντεο προς μετατροπή πρέπει να διαρκούν έως %1$d δευτερόλεπτα</string>
+    <string name="boot_movie_converting">Μετατροπή %1$d%%</string>
+    <string name="boot_movie_converting_started">Μετατροπή του %1$s για το Steam. Αφήστε το DroidDeck ανοιχτό.</string>
+    <string name="boot_movie_unsupported">Η συσκευή δεν μπορεί να αποκωδικοποιήσει αυτό το βίντεο.</string>
     <string name="boot_movie_import_failed">Δεν ήταν δυνατή η εισαγωγή του βίντεο</string>
 </resources>

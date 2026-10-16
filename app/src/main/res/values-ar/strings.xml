@@ -2342,13 +2342,15 @@
     <string name="boot_movie_note">معدل 60 إطارًا/ث أكثر سلاسة لكنه يستهلك المعالج أكثر أثناء بدء Steam. فيديو البدء المختار في إعدادات Steam نفسها له الأولوية.</string>
     <string name="boot_movie_sound">الصوت</string>
     <string name="boot_movie_custom">فيديو خاص بك</string>
-    <string name="boot_movie_custom_hint">WebM أو MKV أو MP4 بفيديو VP8 أو VP9 أو AV1، حتى %1$d ميغابايت. دقة 1280×720 بمعدل 30 أو 60 إطارًا/ث هي الأكثر سلاسة.</string>
+    <string name="boot_movie_custom_hint">MP4 أو MOV أو MKV أو WebM. تُحوَّل الصيغ الأخرى والملفات الأكبر من %1$d ميغابايت إلى WebM بدقة 720p على الجهاز، حتى %2$d ثانية.</string>
     <string name="boot_movie_import">استيراد</string>
     <string name="boot_movie_remove">إزالة</string>
     <string name="boot_movie_pick">اختر فيديو الإقلاع</string>
     <string name="boot_movie_imported">أصبح %1$s فيديو الإقلاع</string>
     <string name="boot_movie_imported_silent">أصبح %1$s فيديو الإقلاع، بلا صوت</string>
-    <string name="boot_movie_too_large">يجب ألا يتجاوز فيديو الإقلاع %1$d ميغابايت</string>
-    <string name="boot_movie_unsupported">يعرض Steam فيديو VP8 أو VP9 أو AV1 فقط. حوّله إلى WebM أولًا.</string>
+    <string name="boot_movie_too_long">يجب ألا تتجاوز مدة الفيديو المطلوب تحويله %1$d ثانية</string>
+    <string name="boot_movie_converting">جارٍ التحويل %1$d%%</string>
+    <string name="boot_movie_converting_started">جارٍ تحويل %1$s لـ Steam. أبقِ DroidDeck مفتوحًا.</string>
+    <string name="boot_movie_unsupported">لا يستطيع هذا الجهاز فك ترميز هذا الفيديو.</string>
     <string name="boot_movie_import_failed">تعذّر استيراد الفيديو</string>
 </resources>

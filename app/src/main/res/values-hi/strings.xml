@@ -2242,13 +2242,15 @@
     <string name="boot_movie_note">60 fps ज़्यादा स्मूथ दिखता है, लेकिन Steam शुरू होते समय CPU ज़्यादा इस्तेमाल करता है। Steam की अपनी सेटिंग्स में चुना गया स्टार्टअप वीडियो प्राथमिकता लेता है।</string>
     <string name="boot_movie_sound">आवाज़</string>
     <string name="boot_movie_custom">अपना वीडियो</string>
-    <string name="boot_movie_custom_hint">VP8, VP9 या AV1 वीडियो वाली WebM, MKV या MP4 फ़ाइल, %1$d MB तक। 1280×720 पर 30 या 60 fps सबसे स्मूथ चलता है।</string>
+    <string name="boot_movie_custom_hint">MP4, MOV, MKV या WebM. दूसरे फ़ॉर्मैट और %1$d MB से बड़ी फ़ाइलें डिवाइस पर 720p WebM में बदली जाती हैं, %2$d सेकंड तक।</string>
     <string name="boot_movie_import">इंपोर्ट करें</string>
     <string name="boot_movie_remove">हटाएं</string>
     <string name="boot_movie_pick">बूट वीडियो चुनें</string>
     <string name="boot_movie_imported">%1$s अब बूट वीडियो है</string>
     <string name="boot_movie_imported_silent">%1$s अब बूट वीडियो है, बिना आवाज़ के</string>
-    <string name="boot_movie_too_large">बूट वीडियो %1$d MB या उससे छोटा होना चाहिए</string>
-    <string name="boot_movie_unsupported">Steam केवल VP8, VP9 या AV1 वीडियो चलाता है। पहले इसे WebM में बदलें।</string>
+    <string name="boot_movie_too_long">बदले जाने वाले वीडियो %1$d सेकंड या उससे छोटे होने चाहिए</string>
+    <string name="boot_movie_converting">बदला जा रहा है %1$d%%</string>
+    <string name="boot_movie_converting_started">%1$s को Steam के लिए बदला जा रहा है। DroidDeck खुला रखें।</string>
+    <string name="boot_movie_unsupported">यह डिवाइस उस वीडियो को डिकोड नहीं कर सकता।</string>
     <string name="boot_movie_import_failed">वीडियो इंपोर्ट नहीं हो सका</string>
 </resources>

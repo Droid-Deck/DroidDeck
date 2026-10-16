@@ -2256,13 +2256,15 @@
     <string name="boot_movie_note">60 fps daha akıcı görünür ama Steam açılırken işlemciyi daha çok kullanır. Steam\'in kendi ayarlarında seçilen açılış videosu önceliklidir.</string>
     <string name="boot_movie_sound">Ses</string>
     <string name="boot_movie_custom">Kendi videon</string>
-    <string name="boot_movie_custom_hint">VP8, VP9 veya AV1 videolu WebM, MKV veya MP4, en fazla %1$d MB. En akıcı 1280×720, 30 veya 60 fps oynar.</string>
+    <string name="boot_movie_custom_hint">MP4, MOV, MKV veya WebM. Diğer biçimler ve %1$d MB üzeri dosyalar cihazda 720p WebM\'e dönüştürülür, en fazla %2$d saniye.</string>
     <string name="boot_movie_import">İçe aktar</string>
     <string name="boot_movie_remove">Kaldır</string>
     <string name="boot_movie_pick">Bir açılış videosu seç</string>
     <string name="boot_movie_imported">%1$s artık açılış videosu</string>
     <string name="boot_movie_imported_silent">%1$s artık açılış videosu, sessiz</string>
-    <string name="boot_movie_too_large">Açılış videoları en fazla %1$d MB olabilir</string>
-    <string name="boot_movie_unsupported">Steam yalnızca VP8, VP9 veya AV1 video oynatır. Önce WebM\'e dönüştür.</string>
+    <string name="boot_movie_too_long">Dönüştürülecek videolar en fazla %1$d saniye olabilir</string>
+    <string name="boot_movie_converting">Dönüştürülüyor %%%1$d</string>
+    <string name="boot_movie_converting_started">%1$s Steam için dönüştürülüyor. DroidDeck\'i açık tut.</string>
+    <string name="boot_movie_unsupported">Bu cihaz o videonun kodunu çözemiyor.</string>
     <string name="boot_movie_import_failed">Video içe aktarılamadı</string>
 </resources>

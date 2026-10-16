@@ -60,11 +60,35 @@ class BootMovieTest {
         assertEquals(BootMovie.DROIDDECK_30, SessionPrefs.bootMovie(app))
     }
 
-    @Test fun oversizedImportsAreRefusedBeforeReading() {
-        val big = File(app.cacheDir, "big.webm")
-        java.io.RandomAccessFile(big, "rw").use { it.setLength(BootMovie.MAX_BYTES + 1) }
-        assertEquals(BootMovie.Import.TooLarge, BootMovie.import(app, big))
+    @Test fun unreadableImportsAreRefused() {
+        val junk = File(app.cacheDir, "junk.webm")
+        junk.writeBytes(ByteArray(1024))
+        assertEquals(BootMovie.Import.Unsupported(null), BootMovie.import(app, junk))
         assertFalse(custom.exists())
+    }
+
+    @Test fun convertedMoviesFitA720pBoxAndKeepTheirShape() {
+        fun size(w: Int, h: Int, r: Int) = BootMovieTranscoder.layout(w, h, r).let { it.width to it.height }
+        assertEquals(1280 to 720, size(3840, 2160, 0))
+        assertEquals(640 to 480, size(640, 480, 180))
+        assertEquals(960 to 720, size(1440, 1080, 0))
+    }
+
+    @Test fun portraitMoviesArePillarboxedInto16x9() {
+        for (layout in listOf(BootMovieTranscoder.layout(1920, 1080, 90), BootMovieTranscoder.layout(1080, 1920, 0))) {
+            assertEquals(1280, layout.width)
+            assertEquals(720, layout.height)
+            assertEquals(404 to 720, layout.contentWidth to layout.contentHeight)
+            assertEquals(438, layout.x)
+        }
+    }
+
+    @Test fun audioIsResampledTo48kHz() {
+        val stereo = ShortArray(44_100 * 2) { if (it % 2 == 0) 1000 else -1000 }
+        val out = BootMovieTranscoder.resample(stereo, 2, 44_100)
+        assertEquals(48_000 * 2, out.size)
+        assertTrue(out.withIndex().all { (i, v) -> v == (if (i % 2 == 0) 1000 else -1000).toShort() })
+        assertSame(stereo, BootMovieTranscoder.resample(stereo, 2, 48_000))
     }
 
     @Test fun resetCoversTheChoiceButNotTheImportedName() {

@@ -2239,13 +2239,15 @@
     <string name="boot_movie_note">60 fps 更流畅，但 Steam 启动时会占用更多 CPU。在 Steam 自身设置中选择的启动动画优先。</string>
     <string name="boot_movie_sound">声音</string>
     <string name="boot_movie_custom">自定义视频</string>
-    <string name="boot_movie_custom_hint">VP8、VP9 或 AV1 视频的 WebM、MKV 或 MP4，最大 %1$d MB。1280×720、30 或 60 fps 播放最流畅。</string>
+    <string name="boot_movie_custom_hint">MP4、MOV、MKV 或 WebM。其他格式及超过 %1$d MB 的文件会在设备上转换为 720p WebM，最长 %2$d 秒。</string>
     <string name="boot_movie_import">导入</string>
     <string name="boot_movie_remove">移除</string>
     <string name="boot_movie_pick">选择开机动画</string>
     <string name="boot_movie_imported">%1$s 现在是开机动画</string>
     <string name="boot_movie_imported_silent">%1$s 现在是开机动画（无声）</string>
-    <string name="boot_movie_too_large">开机动画不能超过 %1$d MB</string>
-    <string name="boot_movie_unsupported">Steam 只能播放 VP8、VP9 或 AV1 视频。请先转换为 WebM。</string>
+    <string name="boot_movie_too_long">需要转换的视频不能超过 %1$d 秒</string>
+    <string name="boot_movie_converting">正在转换 %1$d%%</string>
+    <string name="boot_movie_converting_started">正在为 Steam 转换 %1$s。请保持 DroidDeck 打开。</string>
+    <string name="boot_movie_unsupported">此设备无法解码该视频。</string>
     <string name="boot_movie_import_failed">无法导入该视频</string>
 </resources>

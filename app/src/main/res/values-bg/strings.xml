@@ -2242,13 +2242,15 @@
     <string name="boot_movie_note">60 кадъра/с изглежда по-гладко, но натоварва повече процесора, докато Steam се стартира. Начално видео, избрано в настройките на Steam, има предимство.</string>
     <string name="boot_movie_sound">Звук</string>
     <string name="boot_movie_custom">Собствено видео</string>
-    <string name="boot_movie_custom_hint">WebM, MKV или MP4 с видео VP8, VP9 или AV1, до %1$d MB. 1280×720 при 30 или 60 кадъра/с върви най-гладко.</string>
+    <string name="boot_movie_custom_hint">MP4, MOV, MKV или WebM. Други формати и файлове над %1$d MB се конвертират на устройството до WebM 720p, до %2$d секунди.</string>
     <string name="boot_movie_import">Импортиране</string>
     <string name="boot_movie_remove">Премахване</string>
     <string name="boot_movie_pick">Изберете начално видео</string>
     <string name="boot_movie_imported">%1$s вече е началното видео</string>
     <string name="boot_movie_imported_silent">%1$s вече е началното видео, без звук</string>
-    <string name="boot_movie_too_large">Началното видео трябва да е до %1$d MB</string>
-    <string name="boot_movie_unsupported">Steam възпроизвежда само видео VP8, VP9 или AV1. Първо го конвертирайте в WebM.</string>
+    <string name="boot_movie_too_long">Видеата за конвертиране трябва да са до %1$d секунди</string>
+    <string name="boot_movie_converting">Конвертиране %1$d%%</string>
+    <string name="boot_movie_converting_started">%1$s се конвертира за Steam. Не затваряйте DroidDeck.</string>
+    <string name="boot_movie_unsupported">Устройството не може да декодира това видео.</string>
     <string name="boot_movie_import_failed">Видеото не можа да бъде импортирано</string>
 </resources>

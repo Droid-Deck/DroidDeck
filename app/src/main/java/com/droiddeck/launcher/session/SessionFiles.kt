@@ -199,7 +199,9 @@ object SessionFiles {
 
     private fun stageStartupMovie(source: File, directory: File, name: String): Boolean {
         val movie = File(directory, name)
-        if (movie.length() == source.length() && movie.lastModified() >= source.lastModified()) return true
+        val stamp = File(directory, ".$name.source")
+        val identity = "${source.absolutePath}\n${source.length()}\n${source.lastModified()}"
+        if (movie.length() == source.length() && runCatching { stamp.readText() }.getOrNull() == identity) return true
         val staged = File(directory, "$name.staged")
         var installed = false
         try {
@@ -208,6 +210,7 @@ object SessionFiles {
                 staged.outputStream().use { output -> FileUtils.copy(input, output) }
             }
             installed = staged.setReadable(true, false) && staged.renameTo(movie)
+            if (installed) FileUtils.writeString(stamp, identity)
         } catch (e: Exception) {
             Log.w(TAG, "could not stage Steam startup movie $name", e)
         } finally {

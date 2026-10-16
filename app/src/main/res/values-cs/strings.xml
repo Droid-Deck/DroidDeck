@@ -2292,13 +2292,15 @@
     <string name="boot_movie_note">60 fps vypadá plynuleji, ale při spouštění Steamu víc zatěžuje procesor. Úvodní video vybrané přímo v nastavení Steamu má přednost.</string>
     <string name="boot_movie_sound">Zvuk</string>
     <string name="boot_movie_custom">Vlastní video</string>
-    <string name="boot_movie_custom_hint">WebM, MKV nebo MP4 s videem VP8, VP9 nebo AV1, nejvýše %1$d MB. Nejplynuleji běží 1280×720 při 30 nebo 60 fps.</string>
+    <string name="boot_movie_custom_hint">MP4, MOV, MKV nebo WebM. Jiné formáty a soubory nad %1$d MB se v zařízení převedou na WebM 720p, nejvýše %2$d sekund.</string>
     <string name="boot_movie_import">Importovat</string>
     <string name="boot_movie_remove">Odebrat</string>
     <string name="boot_movie_pick">Vyberte úvodní video</string>
     <string name="boot_movie_imported">%1$s je nyní úvodní video</string>
     <string name="boot_movie_imported_silent">%1$s je nyní úvodní video, bez zvuku</string>
-    <string name="boot_movie_too_large">Úvodní video může mít nejvýše %1$d MB</string>
-    <string name="boot_movie_unsupported">Steam přehrává jen video VP8, VP9 nebo AV1. Nejprve ho převeďte do WebM.</string>
+    <string name="boot_movie_too_long">Videa k převodu mohou mít nejvýše %1$d sekund</string>
+    <string name="boot_movie_converting">Převádění %1$d %%</string>
+    <string name="boot_movie_converting_started">Převádí se %1$s pro Steam. Nechte DroidDeck otevřený.</string>
+    <string name="boot_movie_unsupported">Toto zařízení video nedokáže dekódovat.</string>
     <string name="boot_movie_import_failed">Video se nepodařilo importovat</string>
 </resources>

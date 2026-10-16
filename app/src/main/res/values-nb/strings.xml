@@ -2242,13 +2242,15 @@
     <string name="boot_movie_note">60 fps ser jevnere ut, men bruker mer CPU mens Steam starter. En oppstartsvideo valgt i Steams egne innstillinger har forrang.</string>
     <string name="boot_movie_sound">Lyd</string>
     <string name="boot_movie_custom">Din egen video</string>
-    <string name="boot_movie_custom_hint">WebM, MKV eller MP4 med VP8-, VP9- eller AV1-video, opptil %1$d MB. 1280×720 i 30 eller 60 fps spilles jevnest.</string>
+    <string name="boot_movie_custom_hint">MP4, MOV, MKV eller WebM. Andre formater og filer over %1$d MB konverteres til 720p-WebM på enheten, opptil %2$d sekunder.</string>
     <string name="boot_movie_import">Importer</string>
     <string name="boot_movie_remove">Fjern</string>
     <string name="boot_movie_pick">Velg en oppstartsvideo</string>
     <string name="boot_movie_imported">%1$s er nå oppstartsvideoen</string>
     <string name="boot_movie_imported_silent">%1$s er nå oppstartsvideoen, uten lyd</string>
-    <string name="boot_movie_too_large">Oppstartsvideoer kan være maks %1$d MB</string>
-    <string name="boot_movie_unsupported">Steam spiller bare VP8-, VP9- eller AV1-video. Konverter til WebM først.</string>
+    <string name="boot_movie_too_long">Videoer som må konverteres kan vare maks %1$d sekunder</string>
+    <string name="boot_movie_converting">Konverterer %1$d %%</string>
+    <string name="boot_movie_converting_started">Konverterer %1$s for Steam. Hold DroidDeck åpen.</string>
+    <string name="boot_movie_unsupported">Enheten kan ikke dekode videoen.</string>
     <string name="boot_movie_import_failed">Kunne ikke importere videoen</string>
 </resources>

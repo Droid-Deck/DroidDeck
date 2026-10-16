@@ -2281,13 +2281,15 @@
     <string name="boot_movie_note">60 fps é mais fluido, mas usa mais CPU enquanto o Steam arranca. Um vídeo de arranque escolhido nas definições do Steam tem prioridade.</string>
     <string name="boot_movie_sound">Som</string>
     <string name="boot_movie_custom">O seu próprio vídeo</string>
-    <string name="boot_movie_custom_hint">WebM, MKV ou MP4 com vídeo VP8, VP9 ou AV1, até %1$d MB. 1280×720 a 30 ou 60 fps é o mais fluido.</string>
+    <string name="boot_movie_custom_hint">MP4, MOV, MKV ou WebM. Outros formatos e ficheiros acima de %1$d MB são convertidos para WebM 720p no dispositivo, até %2$d segundos.</string>
     <string name="boot_movie_import">Importar</string>
     <string name="boot_movie_remove">Remover</string>
     <string name="boot_movie_pick">Escolha um vídeo de arranque</string>
     <string name="boot_movie_imported">%1$s é agora o vídeo de arranque</string>
     <string name="boot_movie_imported_silent">%1$s é agora o vídeo de arranque, sem som</string>
-    <string name="boot_movie_too_large">Os vídeos de arranque têm de ter %1$d MB ou menos</string>
-    <string name="boot_movie_unsupported">O Steam só reproduz vídeo VP8, VP9 ou AV1. Converta primeiro para WebM.</string>
+    <string name="boot_movie_too_long">Os vídeos a converter têm de ter %1$d segundos ou menos</string>
+    <string name="boot_movie_converting">A converter %1$d%%</string>
+    <string name="boot_movie_converting_started">A converter %1$s para o Steam. Mantenha o DroidDeck aberto.</string>
+    <string name="boot_movie_unsupported">Este dispositivo não consegue descodificar esse vídeo.</string>
     <string name="boot_movie_import_failed">Não foi possível importar esse vídeo</string>
 </resources>

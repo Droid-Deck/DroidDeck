@@ -2267,13 +2267,15 @@
     <string name="boot_movie_note">60 fps arată mai fluid, dar folosește mai mult procesorul cât pornește Steam. Un videoclip de pornire ales în setările Steam are prioritate.</string>
     <string name="boot_movie_sound">Sunet</string>
     <string name="boot_movie_custom">Videoclipul tău</string>
-    <string name="boot_movie_custom_hint">WebM, MKV sau MP4 cu video VP8, VP9 sau AV1, până la %1$d MB. 1280×720 la 30 sau 60 fps rulează cel mai fluid.</string>
+    <string name="boot_movie_custom_hint">MP4, MOV, MKV sau WebM. Alte formate și fișierele de peste %1$d MB sunt convertite pe dispozitiv în WebM 720p, până la %2$d secunde.</string>
     <string name="boot_movie_import">Importă</string>
     <string name="boot_movie_remove">Elimină</string>
     <string name="boot_movie_pick">Alege un videoclip de pornire</string>
     <string name="boot_movie_imported">%1$s este acum videoclipul de pornire</string>
     <string name="boot_movie_imported_silent">%1$s este acum videoclipul de pornire, fără sunet</string>
-    <string name="boot_movie_too_large">Videoclipurile de pornire trebuie să aibă cel mult %1$d MB</string>
-    <string name="boot_movie_unsupported">Steam redă doar video VP8, VP9 sau AV1. Convertește-l întâi în WebM.</string>
+    <string name="boot_movie_too_long">Videoclipurile care trebuie convertite pot avea cel mult %1$d secunde</string>
+    <string name="boot_movie_converting">Se convertește %1$d%%</string>
+    <string name="boot_movie_converting_started">Se convertește %1$s pentru Steam. Lasă DroidDeck deschis.</string>
+    <string name="boot_movie_unsupported">Acest dispozitiv nu poate decoda videoclipul.</string>
     <string name="boot_movie_import_failed">Videoclipul nu a putut fi importat</string>
 </resources>

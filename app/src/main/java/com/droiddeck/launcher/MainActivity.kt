@@ -258,18 +258,24 @@ class MainActivity : ComponentActivity() {
 
     private fun importBootMovie(file: File) {
         bootMovieImporting = true
+        bootMovieProgress = -1
         Thread({
-            val result = com.droiddeck.launcher.session.BootMovie.import(this, file)
+            val result = com.droiddeck.launcher.session.BootMovie.import(
+                this, file,
+                onStart = { ui.post { android.widget.Toast.makeText(this, getString(R.string.boot_movie_converting_started, file.name), android.widget.Toast.LENGTH_LONG).show() } },
+                onProgress = { percent -> ui.post { bootMovieProgress = percent } },
+            )
             val message = when (result) {
                 is com.droiddeck.launcher.session.BootMovie.Import.Done -> getString(
                     if (result.audioDropped) R.string.boot_movie_imported_silent else R.string.boot_movie_imported, result.name)
-                com.droiddeck.launcher.session.BootMovie.Import.TooLarge ->
-                    getString(R.string.boot_movie_too_large, (com.droiddeck.launcher.session.BootMovie.MAX_BYTES shr 20).toInt())
+                com.droiddeck.launcher.session.BootMovie.Import.TooLong ->
+                    getString(R.string.boot_movie_too_long, com.droiddeck.launcher.session.BootMovie.MAX_CONVERT_SECONDS)
                 is com.droiddeck.launcher.session.BootMovie.Import.Unsupported -> getString(R.string.boot_movie_unsupported)
                 com.droiddeck.launcher.session.BootMovie.Import.Failed -> getString(R.string.boot_movie_import_failed)
             }
             ui.post {
                 bootMovieImporting = false
+                bootMovieProgress = -1
                 loadBootMovie()
                 android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_LONG).show()
             }
@@ -362,6 +368,7 @@ class MainActivity : ComponentActivity() {
     private var bootMovieSound by mutableStateOf(true)
     private var bootMovieCustomName by mutableStateOf<String?>(null)
     private var bootMovieImporting by mutableStateOf(false)
+    private var bootMovieProgress by mutableStateOf(-1)
     private var theme by mutableStateOf("graphite")
     private var appScale by mutableStateOf(com.droiddeck.launcher.core.AppUiPrefs.DEFAULT_SCALE)
     private var hdrOn by mutableStateOf(false)
@@ -1355,6 +1362,7 @@ class MainActivity : ComponentActivity() {
                 bootMovieSound = bootMovieSound,
                 bootMovieCustomName = bootMovieCustomName,
                 bootMovieImporting = bootMovieImporting,
+                bootMovieProgress = bootMovieProgress,
                 wifiDiscovery = if (mode == SessionService.MODE_STEAM) wifiDiscovery else null,
                 wifiDiscoveryPermission = wifiDiscoveryPermission,
                 wifiDiscoveryLocation = wifiDiscoveryLocation,

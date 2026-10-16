@@ -16,20 +16,22 @@ object BootMovie {
     const val DROIDDECK_60 = "dd60"
     const val CUSTOM = "custom"
     const val MAX_BYTES = 50L shl 20
-    val PICKER_EXTENSIONS = listOf("webm", "mkv", "mp4", "mov", "m4v")
+    const val MAX_CONVERT_SECONDS = 60
+    val PICKER_EXTENSIONS = listOf("webm", "mkv", "mp4", "mov", "m4v", "3gp")
 
     private val ASSETS = mapOf(
         DROIDDECK_30 to "droiddeck-startup.webm",
         DROIDDECK_60 to "droiddeck-startup-60.webm",
     )
 
-    // Steam's CEF player only takes WebM codecs, and MediaMuxer's WebM writer only accepts these.
+    // Steam's CEF player only takes WebM codecs; MediaMuxer's WebM writer cannot take AV1.
     internal val VIDEO_CODECS = setOf(MediaFormat.MIMETYPE_VIDEO_VP8, MediaFormat.MIMETYPE_VIDEO_VP9, MediaFormat.MIMETYPE_VIDEO_AV1)
+    private val REMUX_CODECS = setOf(MediaFormat.MIMETYPE_VIDEO_VP8, MediaFormat.MIMETYPE_VIDEO_VP9)
     internal val AUDIO_CODECS = setOf(MediaFormat.MIMETYPE_AUDIO_OPUS, MediaFormat.MIMETYPE_AUDIO_VORBIS)
 
     sealed class Import {
         data class Done(val name: String, val audioDropped: Boolean) : Import()
-        object TooLarge : Import()
+        object TooLong : Import()
         data class Unsupported(val codec: String?) : Import()
         object Failed : Import()
     }
@@ -56,8 +58,9 @@ object BootMovie {
         val muted = File(source.parentFile, source.nameWithoutExtension + "-muted.webm")
         if (muted.isFile && muted.lastModified() >= source.lastModified()) return muted
         if (remux(source, muted, audio = false)) return muted
-        Log.w(TAG, "could not strip audio from ${source.name}; staging it with sound")
-        return source
+        if (BootMovieTranscoder.transcode(source, muted, keepAudio = false) {} != null) return muted
+        Log.e(TAG, "could not strip audio from ${source.name}; not staging it")
+        return null
     }
 
     private fun extractAsset(context: Context, name: String): File? {
@@ -79,20 +82,31 @@ object BootMovie {
         }
     }
 
-    fun import(context: Context, file: File): Import {
-        if (file.length() > MAX_BYTES) return Import.TooLarge
-        val (video, audio) = codecs(file) ?: return Import.Unsupported(null)
-        if (video !in VIDEO_CODECS) return Import.Unsupported(video)
+    fun import(context: Context, file: File, onStart: () -> Unit = {}, onProgress: (Int) -> Unit = {}): Import {
+        val (format, audio) = probe(file) ?: return Import.Unsupported(null)
+        val video = format.getString(MediaFormat.KEY_MIME)
+        val audioPlayable = audio == null || audio in AUDIO_CODECS
+        val playable = video in VIDEO_CODECS && file.length() <= MAX_BYTES
+        val copy = playable && audioPlayable && isWebm(file)
+        val remux = !copy && playable && video in REMUX_CODECS
+        if (!copy && !remux) {
+            if (!BootMovieTranscoder.canDecode(format)) return Import.Unsupported(video)
+            val durationUs = if (format.containsKey(MediaFormat.KEY_DURATION)) format.getLong(MediaFormat.KEY_DURATION) else 0L
+            if (durationUs > MAX_CONVERT_SECONDS * 1_000_000L) return Import.TooLong
+            onStart()
+        }
         val target = customFile(context)
         val staged = File(dir(context), "custom.webm.staged")
-        val audioDropped = audio != null && audio !in AUDIO_CODECS
+        var audioDropped = remux && !audioPlayable
         return try {
             target.parentFile?.mkdirs()
-            val ok = if (isWebm(file) && !audioDropped) {
-                file.inputStream().use { input -> staged.outputStream().use { output -> FileUtils.copy(input, output) } }
-                true
-            } else {
-                remux(file, staged, audio = true)
+            val ok = when {
+                copy -> {
+                    file.inputStream().use { input -> staged.outputStream().use { output -> FileUtils.copy(input, output) } }
+                    true
+                }
+                remux -> remux(file, staged, audio = true)
+                else -> BootMovieTranscoder.transcode(file, staged, onProgress = onProgress)?.also { audioDropped = it.audioDropped } != null
             }
             if (!ok || !staged.renameTo(target)) return Import.Failed
             File(target.parentFile, "custom-muted.webm").delete()
@@ -121,18 +135,19 @@ object BootMovie {
         return read == 4 && magic.contentEquals(byteArrayOf(0x1A, 0x45, 0xDF.toByte(), 0xA3.toByte()))
     }
 
-    private fun codecs(file: File): Pair<String?, String?>? {
+    private fun probe(file: File): Pair<MediaFormat, String?>? {
         val extractor = MediaExtractor()
         return try {
             extractor.setDataSource(file.path)
-            var video: String? = null
+            var video: MediaFormat? = null
             var audio: String? = null
             for (i in 0 until extractor.trackCount) {
-                val mime = extractor.getTrackFormat(i).getString(MediaFormat.KEY_MIME) ?: continue
-                if (video == null && mime.startsWith("video/")) video = mime
+                val format = extractor.getTrackFormat(i)
+                val mime = format.getString(MediaFormat.KEY_MIME) ?: continue
+                if (video == null && mime.startsWith("video/")) video = format
                 if (audio == null && mime.startsWith("audio/")) audio = mime
             }
-            video to audio
+            video?.let { it to audio }
         } catch (e: Exception) {
             Log.w(TAG, "could not read ${file.name}", e)
             null

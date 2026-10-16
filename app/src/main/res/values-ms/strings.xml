@@ -2217,13 +2217,15 @@
     <string name="boot_movie_note">60 fps kelihatan lebih lancar tetapi menggunakan lebih banyak CPU semasa Steam bermula. Video permulaan yang dipilih dalam tetapan Steam sendiri diutamakan.</string>
     <string name="boot_movie_sound">Bunyi</string>
     <string name="boot_movie_custom">Video anda sendiri</string>
-    <string name="boot_movie_custom_hint">WebM, MKV atau MP4 dengan video VP8, VP9 atau AV1, sehingga %1$d MB. 1280×720 pada 30 atau 60 fps dimainkan paling lancar.</string>
+    <string name="boot_movie_custom_hint">MP4, MOV, MKV atau WebM. Format lain dan fail melebihi %1$d MB ditukar kepada WebM 720p pada peranti, sehingga %2$d saat.</string>
     <string name="boot_movie_import">Import</string>
     <string name="boot_movie_remove">Alih keluar</string>
     <string name="boot_movie_pick">Pilih video but</string>
     <string name="boot_movie_imported">%1$s kini video but</string>
     <string name="boot_movie_imported_silent">%1$s kini video but, tanpa bunyi</string>
-    <string name="boot_movie_too_large">Video but mestilah %1$d MB atau kurang</string>
-    <string name="boot_movie_unsupported">Steam hanya memainkan video VP8, VP9 atau AV1. Tukar kepada WebM dahulu.</string>
+    <string name="boot_movie_too_long">Video yang perlu ditukar mestilah %1$d saat atau kurang</string>
+    <string name="boot_movie_converting">Menukar %1$d%%</string>
+    <string name="boot_movie_converting_started">Menukar %1$s untuk Steam. Biarkan DroidDeck terbuka.</string>
+    <string name="boot_movie_unsupported">Peranti ini tidak dapat menyahkod video itu.</string>
     <string name="boot_movie_import_failed">Tidak dapat mengimport video itu</string>
 </resources>

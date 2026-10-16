@@ -89,6 +89,7 @@ class ModeSettings(
     val bootMovieSound: Boolean = true,
     val bootMovieCustomName: String? = null,
     val bootMovieImporting: Boolean = false,
+    val bootMovieProgress: Int = -1,
     val wifiDiscovery: Boolean? = null,
     val wifiDiscoveryPermission: Boolean = false,
     val wifiDiscoveryLocation: Boolean = false,
@@ -442,12 +443,18 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
             )
             SettingsRow(
                 stringResource(R.string.boot_movie_custom),
-                stringResource(R.string.boot_movie_custom_hint, (BootMovie.MAX_BYTES shr 20).toInt()),
+                stringResource(R.string.boot_movie_custom_hint, (BootMovie.MAX_BYTES shr 20).toInt(), BootMovie.MAX_CONVERT_SECONDS),
             ) {
                 Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
                     SecondaryButton(
-                        stringResource(if (s.bootMovieImporting) R.string.common_working else R.string.boot_movie_import),
-                        enabled = !s.bootMovieImporting, onClick = a.onImportBootMovie,
+                        when {
+                            s.bootMovieProgress >= 0 -> stringResource(R.string.boot_movie_converting, s.bootMovieProgress)
+                            s.bootMovieImporting -> stringResource(R.string.common_working)
+                            else -> stringResource(R.string.boot_movie_import)
+                        },
+                        enabled = !s.bootMovieImporting,
+                        progress = s.bootMovieProgress.takeIf { it >= 0 }?.let { it / 100f },
+                        onClick = a.onImportBootMovie,
                     )
                     if (s.bootMovieCustomName != null) SecondaryButton(
                         stringResource(R.string.boot_movie_remove), enabled = !s.bootMovieImporting, onClick = a.onRemoveBootMovie,
