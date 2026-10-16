@@ -2,6 +2,7 @@ package com.droiddeck.launcher.runtime
 
 import android.content.Context
 import com.droiddeck.launcher.session.ComponentsManager
+import com.droiddeck.launcher.session.GameEnvironmentStore
 import com.github.luben.zstd.ZstdOutputStream
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
@@ -266,6 +267,41 @@ class BattleNetTest {
         val offered = BattleNet.STORE.filter { BattleNet.notInstalled(it, installed) }.map { it.code }
         assertFalse("Fen" in offered || "D3" in offered)
         assertTrue("OSI" in offered)
+    }
+
+    @Test fun theGamesAreToldOfAFifthOfThePhonesMemory() {
+        assertEquals(2048, BattleNet.videoMemory(11113))
+        assertEquals(1536, BattleNet.videoMemory(7468))
+        assertEquals(2560, BattleNet.videoMemory(15200))
+        assertEquals(3584, BattleNet.videoMemory(60000))
+        // Never an exact 4 GB, which reads as none to a game counting in 32 bits.
+        assertTrue(BattleNet.videoMemory(Long.MAX_VALUE / 2) < 4096)
+        assertEquals(
+            "dxgi.maxDeviceMemory = 2048; dxgi.maxSharedMemory = 2048; d3d9.maxAvailableMemory = 2048",
+            BattleNet.videoMemoryOptions(2048),
+        )
+    }
+
+    @Test fun theCapIsTheBattleNetProfilesOwnDxvkConfigUnlessItHasOne() {
+        File(context.filesDir, "game-environment.json").delete()
+        val manager = context.getSystemService(android.app.ActivityManager::class.java)
+        org.robolectric.Shadows.shadowOf(manager).setMemoryInfo(android.app.ActivityManager.MemoryInfo().apply { totalMem = 11113L shl 20 })
+        val scope = BattleNet.APP_ID.toString()
+        assertTrue(BattleNet.ensureVideoMemory(context))
+        assertEquals(BattleNet.videoMemoryOptions(2048), GameEnvironmentStore.read(context).games[scope]?.get("DXVK_CONFIG"))
+        // The guest sees it with the rest of the profile.
+        val published = File(LinuxRuntime.rootDir(context), "root/.config/droiddeck/game-environment.json").readText()
+        assertTrue("dxgi.maxDeviceMemory = 2048" in JSONObject(published).getJSONObject("games").getJSONObject(scope).getString("DXVK_CONFIG"))
+        assertFalse(BattleNet.ensureVideoMemory(context))
+        // A value the user put there, or switched off there, stays theirs.
+        for (own in listOf("dxvk.maxFrameRate = 30", null)) {
+            GameEnvironmentStore.save(context, GameEnvironmentStore.read(context).let { it.withEntries(scope, it.entries(scope) + ("DXVK_CONFIG" to own)) })
+            assertFalse(BattleNet.ensureVideoMemory(context))
+            assertEquals(own, GameEnvironmentStore.read(context).games[scope]?.get("DXVK_CONFIG"))
+        }
+        // Back to inheriting, it is the profile's own default again.
+        GameEnvironmentStore.save(context, GameEnvironmentStore.read(context).let { it.withEntries(scope, it.entries(scope) - "DXVK_CONFIG") })
+        assertTrue(BattleNet.ensureVideoMemory(context))
     }
 
     private fun launcher() = File(BattleNet.prefix(context), "pfx/drive_c/Program Files (x86)/Battle.net/Battle.net Launcher.exe")
