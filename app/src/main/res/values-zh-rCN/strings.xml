@@ -845,7 +845,7 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android 会终止启动了大量后台进程的应用，而 Steam 会启动数十个。在更改此设置之前，游戏会在没有报错的情况下关闭。</string>
     <string name="gate_fix_for_me">帮我修复</string>
-    <string name="gate_toggle_steps">打开“禁用子进程限制”，然后返回。保持开发者选项开启，否则开关会再次关闭。</string>
+    <string name="gate_toggle_steps">打开“停止限制子进程”，然后返回。保持开发者选项开启，否则开关会再次关闭。</string>
     <string name="gate_open_dev">打开开发者选项</string>
     <string name="gate_no_toggle">此 Android 版本没有该开关，因此 DroidDeck 通过无线调试来修改。大约需要一分钟，无需电脑。</string>
     <string name="gate_needs_wifi">无线调试需要 Wi-Fi。任何网络都可以，不需要互联网。</string>
@@ -1786,7 +1786,7 @@
     <string name="phantom_instructions_fix">%1$s 如果无法做到，请将此设备连接到装有 ADB 的电脑并运行下方命令，然后返回此处重新检查。</string>
     <string name="phantom_instructions_off">可以启动 Steam 会话了。</string>
     <string name="phantom_instructions_not_applicable">此 Android 版本不使用该限制。</string>
-    <string name="phantom_fix_toggle">在开发者选项中打开“禁用子进程限制”，之后请保持开发者选项开启。</string>
+    <string name="phantom_fix_toggle">在开发者选项中打开“停止限制子进程”，之后请保持开发者选项开启。</string>
     <string name="phantom_fix_no_toggle">此 Android 版本没有该开关。请使用无线调试在此设备上更改。</string>
     <string name="upd_block_no_apk">此构建没有适用于此 DroidDeck 副本的下载。</string>
     <string name="upd_block_version_code">Android 不会用它覆盖此构建，因为它的 versionCode %1$d 低于已安装的 %2$d。</string>

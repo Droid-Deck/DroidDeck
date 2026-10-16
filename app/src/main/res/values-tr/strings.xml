@@ -843,7 +843,7 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android, çok sayıda arka plan süreci başlatan uygulamaları durdurur; Steam da onlarca süreç başlatır. Bu değişmeden oyunlar hata vermeden kapanır.</string>
     <string name="gate_fix_for_me">Benim için düzelt</string>
-    <string name="gate_toggle_steps">“Alt süreç kısıtlamalarını devre dışı bırak” seçeneğini açın, sonra buraya dönün. Geliştirici seçeneklerini açık bırakın, yoksa anahtar yeniden kapanır.</string>
+    <string name="gate_toggle_steps">“Alt işlem kısıtlamalarını devre dışı bırak” seçeneğini açın, sonra buraya dönün. Geliştirici seçeneklerini açık bırakın, yoksa anahtar yeniden kapanır.</string>
     <string name="gate_open_dev">Geliştirici seçeneklerini aç</string>
     <string name="gate_no_toggle">Bu Android sürümünde bunun için bir anahtar yok, bu yüzden DroidDeck bunu Kablosuz hata ayıklama üzerinden değiştirir. Yaklaşık bir dakika sürer, bilgisayar gerekmez.</string>
     <string name="gate_needs_wifi">Kablosuz hata ayıklama Wi-Fi gerektirir. Herhangi bir ağ işe yarar; internet gerekmez.</string>
@@ -1799,7 +1799,7 @@
     <string name="phantom_instructions_fix">%1$s Bu mümkün değilse bu cihazı ADB\'li bir bilgisayara bağlayıp aşağıdaki komutu çalıştırın. Buraya dönüp yeniden kontrol edin.</string>
     <string name="phantom_instructions_off">Steam oturumları başlayabilir.</string>
     <string name="phantom_instructions_not_applicable">Bu Android sürümü bu sınırı kullanmaz.</string>
-    <string name="phantom_fix_toggle">Geliştirici seçenekleri\'nde “Alt süreç kısıtlamalarını devre dışı bırak” seçeneğini açın ve sonrasında Geliştirici seçeneklerini açık tutun.</string>
+    <string name="phantom_fix_toggle">Geliştirici seçenekleri\'nde “Alt işlem kısıtlamalarını devre dışı bırak” seçeneğini açın ve sonrasında Geliştirici seçeneklerini açık tutun.</string>
     <string name="phantom_fix_no_toggle">Bu Android sürümünde bunun için bir anahtar yok. Bu cihazdan değiştirmek için Kablosuz hata ayıklamayı kullanın.</string>
     <string name="upd_block_no_apk">Bu derlemede bu DroidDeck kopyası için bir indirme yok.</string>
     <string name="upd_block_version_code">Android, versionCode %1$d yüklü %2$d\'nin altında olduğu için bunu bu derlemenin üzerine yüklemez.</string>

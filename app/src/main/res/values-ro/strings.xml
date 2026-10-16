@@ -849,7 +849,7 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android oprește aplicațiile care pornesc multe procese în fundal, iar Steam pornește zeci. Până se schimbă asta, jocurile se închid fără o eroare.</string>
     <string name="gate_fix_for_me">Repară pentru mine</string>
-    <string name="gate_toggle_steps">Activează „Dezactivează restricțiile pentru procesele-copil”, apoi revino. Lasă Opțiunile pentru dezvoltatori activate, altfel comutatorul se dezactivează din nou.</string>
+    <string name="gate_toggle_steps">Activează „Dezactivează restricțiile pentru procese secundare”, apoi revino. Lasă Opțiunile pentru dezvoltatori activate, altfel comutatorul se dezactivează din nou.</string>
     <string name="gate_open_dev">Deschide Opțiunile pentru dezvoltatori</string>
     <string name="gate_no_toggle">Această versiune de Android nu are un comutator pentru asta, așa că DroidDeck o schimbă prin Depanarea wireless. Durează circa un minut, fără a avea nevoie de un computer.</string>
     <string name="gate_needs_wifi">Depanarea wireless are nevoie de Wi-Fi. Orice rețea funcționează; nu are nevoie de internet.</string>
@@ -1820,7 +1820,7 @@
     <string name="phantom_instructions_fix">%1$s Dacă nu este posibil, conectează acest dispozitiv la un computer cu ADB și rulează comanda de mai jos. Revino aici și verifică din nou.</string>
     <string name="phantom_instructions_off">Sesiunile Steam pot porni.</string>
     <string name="phantom_instructions_not_applicable">Această versiune de Android nu folosește această limită.</string>
-    <string name="phantom_fix_toggle">Activează „Dezactivează restricțiile pentru procesele-copil” în Opțiunile pentru dezvoltatori, și lasă Opțiunile pentru dezvoltatori activate după aceea.</string>
+    <string name="phantom_fix_toggle">Activează „Dezactivează restricțiile pentru procese secundare” în Opțiunile pentru dezvoltatori, și lasă Opțiunile pentru dezvoltatori activate după aceea.</string>
     <string name="phantom_fix_no_toggle">Această versiune de Android nu are un comutator pentru asta. Folosește Depanarea wireless pentru a o schimba de pe acest dispozitiv.</string>
     <string name="upd_block_no_apk">Această versiune nu are o descărcare pentru această copie de DroidDeck.</string>
     <string name="upd_block_version_code">Android nu o va instala peste această versiune pentru că versionCode %1$d este sub cel instalat %2$d.</string>

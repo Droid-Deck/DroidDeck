@@ -837,7 +837,7 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android หยุดแอปที่เริ่มโพรเซสพื้นหลังจำนวนมาก และ Steam เริ่มหลายสิบโพรเซส จนกว่าจะเปลี่ยนค่านี้ เกมจะปิดตัวโดยไม่มีข้อผิดพลาด</string>
     <string name="gate_fix_for_me">แก้ให้ฉันเลย</string>
-    <string name="gate_toggle_steps">เปิด “Disable child process restrictions” แล้วกลับมาที่นี่ เปิดตัวเลือกสำหรับนักพัฒนาไว้เสมอ ไม่เช่นนั้นสวิตช์จะปิดลงอีก</string>
+    <string name="gate_toggle_steps">เปิด “ปิดการจำกัดการประมวลผลข้อมูลย่อย” แล้วกลับมาที่นี่ เปิดตัวเลือกสำหรับนักพัฒนาไว้เสมอ ไม่เช่นนั้นสวิตช์จะปิดลงอีก</string>
     <string name="gate_open_dev">เปิดตัวเลือกสำหรับนักพัฒนา</string>
     <string name="gate_no_toggle">Android รุ่นนี้ไม่มีสวิตช์สำหรับสิ่งนี้ ดังนั้น DroidDeck จะเปลี่ยนค่าผ่าน Wireless debugging ใช้เวลาประมาณหนึ่งนาที ไม่ต้องใช้คอมพิวเตอร์</string>
     <string name="gate_needs_wifi">Wireless debugging ต้องใช้ Wi-Fi เครือข่ายใดก็ได้ ไม่จำเป็นต้องมีอินเทอร์เน็ต</string>
@@ -1778,7 +1778,7 @@
     <string name="phantom_instructions_fix">%1$s หากทำไม่ได้ ให้เชื่อมต่ออุปกรณ์นี้กับคอมพิวเตอร์ที่มี ADB แล้วรันคำสั่งด้านล่าง กลับมาที่นี่แล้วตรวจสอบอีกครั้ง</string>
     <string name="phantom_instructions_off">เซสชัน Steam สามารถเริ่มได้</string>
     <string name="phantom_instructions_not_applicable">Android รุ่นนี้ไม่ใช้ขีดจำกัดนี้</string>
-    <string name="phantom_fix_toggle">เปิด “Disable child process restrictions” ในตัวเลือกสำหรับนักพัฒนา และเปิดตัวเลือกสำหรับนักพัฒนาไว้ต่อไปหลังจากนั้น</string>
+    <string name="phantom_fix_toggle">เปิด “ปิดการจำกัดการประมวลผลข้อมูลย่อย” ในตัวเลือกสำหรับนักพัฒนา และเปิดตัวเลือกสำหรับนักพัฒนาไว้ต่อไปหลังจากนั้น</string>
     <string name="phantom_fix_no_toggle">Android รุ่นนี้ไม่มีสวิตช์สำหรับสิ่งนี้ ใช้ Wireless debugging เพื่อเปลี่ยนค่าจากอุปกรณ์นี้</string>
     <string name="upd_block_no_apk">บิลด์นี้ไม่มีให้ดาวน์โหลดสำหรับสำเนานี้ของ DroidDeck</string>
     <string name="upd_block_version_code">Android จะไม่ติดตั้งทับบิลด์นี้ เพราะ versionCode %1$d ต่ำกว่า %2$d ที่ติดตั้งอยู่</string>

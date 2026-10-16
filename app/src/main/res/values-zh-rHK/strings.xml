@@ -845,7 +845,7 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android 會停止啟動大量背景程序的應用程式，而 Steam 會啟動數十個。在變更此設定前，遊戲會在沒有任何錯誤訊息的情況下關閉。</string>
     <string name="gate_fix_for_me">幫我修復</string>
-    <string name="gate_toggle_steps">開啟「停用子進程限制」，然後返回。請保持開發人員選項開啟，否則此開關會再次關閉。</string>
+    <string name="gate_toggle_steps">開啟「停用對子處理過程的限制」，然後返回。請保持開發人員選項開啟，否則此開關會再次關閉。</string>
     <string name="gate_open_dev">開啟開發人員選項</string>
     <string name="gate_no_toggle">此 Android 版本沒有此開關，因此 DroidDeck 會透過無線偵錯更改。約需一分鐘，無需電腦。</string>
     <string name="gate_needs_wifi">無線偵錯需要 Wi-Fi。任何網絡都可以，無需連接互聯網。</string>
@@ -1786,7 +1786,7 @@
     <string name="phantom_instructions_fix">%1$s 如無法這樣做，請將此裝置連接到已安裝 ADB 的電腦，並執行以下指令，然後返回這裡再檢查一次。</string>
     <string name="phantom_instructions_off">可以啟動 Steam 會話。</string>
     <string name="phantom_instructions_not_applicable">此 Android 版本不使用此限制。</string>
-    <string name="phantom_fix_toggle">在開發人員選項中開啟「停用子進程限制」，之後請保持開發人員選項開啟。</string>
+    <string name="phantom_fix_toggle">在開發人員選項中開啟「停用對子處理過程的限制」，之後請保持開發人員選項開啟。</string>
     <string name="phantom_fix_no_toggle">此 Android 版本沒有此開關。請使用無線偵錯，直接在此裝置上更改。</string>
     <string name="upd_block_no_apk">此版本沒有適用於此 DroidDeck 版本的下載。</string>
     <string name="upd_block_version_code">Android 不會以此版本覆蓋安裝，因為其 versionCode %1$d 低於已安裝的 %2$d。</string>

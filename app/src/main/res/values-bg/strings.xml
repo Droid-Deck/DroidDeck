@@ -843,7 +843,7 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android спира приложения, които стартират много фонови процеси, а Steam стартира десетки. Докато това не се промени, игрите се затварят без грешка.</string>
     <string name="gate_fix_for_me">Поправи го вместо мен</string>
-    <string name="gate_toggle_steps">Включете „Disable child process restrictions“, след което се върнете. Оставете Опции за програмисти включени, иначе превключвателят се изключва отново.</string>
+    <string name="gate_toggle_steps">Включете „Деактивиране на ограниченията за дъщерните процеси“, след което се върнете. Оставете Опции за програмисти включени, иначе превключвателят се изключва отново.</string>
     <string name="gate_open_dev">Отваряне на Опции за програмисти</string>
     <string name="gate_no_toggle">Тази версия на Android няма превключвател за това, затова DroidDeck го променя чрез безжично отстраняване на грешки. Отнема около минута, не е нужен компютър.</string>
     <string name="gate_needs_wifi">Безжичното отстраняване на грешки изисква Wi-Fi. Работи с всяка мрежа; не е необходим интернет.</string>
@@ -1799,7 +1799,7 @@
     <string name="phantom_instructions_fix">%1$s Ако това не е възможно, свържи устройството с компютър с ADB и изпълни командата отдолу. Върни се тук и провери отново.</string>
     <string name="phantom_instructions_off">Сесиите на Steam могат да стартират.</string>
     <string name="phantom_instructions_not_applicable">Тази версия на Android не използва това ограничение.</string>
-    <string name="phantom_fix_toggle">Включи „Disable child process restrictions“ в Опции за програмисти и остави Опции за програмисти включени след това.</string>
+    <string name="phantom_fix_toggle">Включи „Деактивиране на ограниченията за дъщерните процеси“ в Опции за програмисти и остави Опции за програмисти включени след това.</string>
     <string name="phantom_fix_no_toggle">Тази версия на Android няма превключвател за това. Използвай безжично отстраняване на грешки, за да го промениш от това устройство.</string>
     <string name="upd_block_no_apk">Тази версия няма изтегляне за това копие на DroidDeck.</string>
     <string name="upd_block_version_code">Android няма да я инсталира върху тази версия, защото нейният versionCode %1$d е по-нисък от инсталираното %2$d.</string>

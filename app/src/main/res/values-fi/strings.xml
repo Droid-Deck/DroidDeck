@@ -843,7 +843,7 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android pysäyttää sovelluksia, jotka käynnistävät paljon taustaprosesseja, ja Steam käynnistää niitä kymmeniä. Kunnes tämä muuttuu, pelit sulkeutuvat ilman virheilmoitusta.</string>
     <string name="gate_fix_for_me">Korjaa se puolestani</string>
-    <string name="gate_toggle_steps">Ota käyttöön ”Disable child process restrictions” ja palaa takaisin. Jätä Kehittäjäasetukset päälle, tai kytkin kytkeytyy taas pois päältä.</string>
+    <string name="gate_toggle_steps">Ota käyttöön ”Poista käytöstä alatason prosessirajoitukset” ja palaa takaisin. Jätä Kehittäjäasetukset päälle, tai kytkin kytkeytyy taas pois päältä.</string>
     <string name="gate_open_dev">Avaa Kehittäjäasetukset</string>
     <string name="gate_no_toggle">Tässä Android-versiossa ei ole kytkintä tälle, niin DroidDeck muuttaa sen Langattoman virheenkorjauksen kautta. Kestää noin minuutin, ei tarvita tietokonetta.</string>
     <string name="gate_needs_wifi">Langaton virheenkorjaus vaatii Wi-Fi-yhteyden. Mikä tahansa verkko käy; internet-yhteyttä ei tarvita.</string>
@@ -1799,7 +1799,7 @@
     <string name="phantom_instructions_fix">%1$s Jos se ei ole mahdollista, yhdistä tämä laite tietokoneeseen ADB:llä ja suorita alla oleva komento. Palaa tähän ja tarkista uudelleen.</string>
     <string name="phantom_instructions_off">Steam-istunnot voivat käynnistyä.</string>
     <string name="phantom_instructions_not_applicable">Tämä Android-versio ei käytä tätä rajaa.</string>
-    <string name="phantom_fix_toggle">Ota käyttöön ”Poista käytöstä lapsiprosessien rajoitukset” Kehittäjäasetuksissa, ja pidä Kehittäjäasetukset päällä sen jälkeen.</string>
+    <string name="phantom_fix_toggle">Ota käyttöön ”Poista käytöstä alatason prosessirajoitukset” Kehittäjäasetuksissa, ja pidä Kehittäjäasetukset päällä sen jälkeen.</string>
     <string name="phantom_fix_no_toggle">Tässä Android-versiossa ei ole kytkintä sille. Käytä langatonta virheenkorjausta muuttaaksesi sitä tältä laitteelta.</string>
     <string name="upd_block_no_apk">Tälle versiolle ei ole latausta tähän DroidDeck-kopioon.</string>
     <string name="upd_block_version_code">Android ei asenna sitä tämän version päälle, koska sen versionCode %1$d on pienempi kuin asennettu %2$d.</string>
