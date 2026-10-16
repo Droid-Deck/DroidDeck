@@ -1940,6 +1940,10 @@
     <string name="epic_client_download_failed">下载失败：%1$s</string>
     <string name="epic_client_unpack_failed">无法解包启动器：%1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcher 未接受登录。请从启动器重新启动它。</string>
+    <string name="epic_client_uninstall_body">移除启动器并释放其空间。你的 Epic 游戏仍保持安装并可正常运行，登录信息也会保留，以便重新安装时使用。</string>
+    <string name="epic_client_uninstall_stops">将先关闭正在运行的会话。</string>
+    <string name="epic_client_uninstalled">已卸载 Epic Games Launcher</string>
+    <string name="epic_client_uninstall_failed">部分启动器文件无法删除。请重试。</string>
     <string name="store_cloud_saves">云存档</string>
     <string name="cloud_upload">上传到云端</string>
     <string name="cloud_download">从云端下载</string>

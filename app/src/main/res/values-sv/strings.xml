@@ -1943,6 +1943,10 @@
     <string name="epic_client_download_failed">Nedladdningen misslyckades: %1$s</string>
     <string name="epic_client_unpack_failed">Det gick inte att packa upp launchern: %1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcher accepterade inte inloggningen. Starta den igen från launchern.</string>
+    <string name="epic_client_uninstall_body">Tar bort startprogrammet och frigör utrymmet. Dina Epic-spel förblir installerade och fungerar, och inloggningen sparas tills du installerar det igen.</string>
+    <string name="epic_client_uninstall_stops">Den pågående sessionen stängs först.</string>
+    <string name="epic_client_uninstalled">Epic Games Launcher har avinstallerats</string>
+    <string name="epic_client_uninstall_failed">Vissa filer för startprogrammet kunde inte tas bort. Försök igen.</string>
     <string name="store_cloud_saves">Molnsparfiler</string>
     <string name="cloud_upload">Ladda upp till molnet</string>
     <string name="cloud_download">Hämta från molnet</string>

@@ -1922,6 +1922,10 @@
     <string name="epic_client_download_failed">ดาวน์โหลดล้มเหลว: %1$s</string>
     <string name="epic_client_unpack_failed">แตกไฟล์ตัวเรียกใช้งานไม่ได้: %1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcher ไม่ยอมรับการลงชื่อเข้าใช้ เริ่มใหม่อีกครั้งจากตัวเรียกใช้งาน</string>
+    <string name="epic_client_uninstall_body">ลบตัวเปิดเกมและคืนพื้นที่ เกม Epic ของคุณยังติดตั้งอยู่และเล่นได้ และการลงชื่อเข้าใช้จะถูกเก็บไว้สำหรับการติดตั้งครั้งถัดไป</string>
+    <string name="epic_client_uninstall_stops">เซสชันที่กำลังทำงานจะถูกปิดก่อน</string>
+    <string name="epic_client_uninstalled">ถอนการติดตั้ง Epic Games Launcher แล้ว</string>
+    <string name="epic_client_uninstall_failed">ไม่สามารถลบไฟล์ของตัวเปิดเกมบางไฟล์ได้ ลองอีกครั้ง</string>
     <string name="store_cloud_saves">เซฟบนคลาวด์</string>
     <string name="cloud_upload">อัปโหลดขึ้นคลาวด์</string>
     <string name="cloud_download">ดาวน์โหลดจากคลาวด์</string>

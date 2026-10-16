@@ -1943,6 +1943,10 @@
     <string name="epic_client_download_failed">Letöltés sikertelen: %1$s</string>
     <string name="epic_client_unpack_failed">Nem sikerült kicsomagolni a launchert: %1$s</string>
     <string name="epic_client_sign_in_failed">Az Epic Games Launcher nem fogadta el a bejelentkezést. Indítsa el újra a launcherből.</string>
+    <string name="epic_client_uninstall_body">Eltávolítja az indítót és felszabadítja a helyét. Az Epic-játékaid telepítve maradnak és működnek, a bejelentkezés pedig megmarad a következő telepítéshez.</string>
+    <string name="epic_client_uninstall_stops">Előbb bezárul a futó munkamenet.</string>
+    <string name="epic_client_uninstalled">Az Epic Games Launcher eltávolítva</string>
+    <string name="epic_client_uninstall_failed">Az indító néhány fájlját nem sikerült eltávolítani. Próbáld újra.</string>
     <string name="store_cloud_saves">Felhőmentések</string>
     <string name="cloud_upload">Feltöltés a felhőbe</string>
     <string name="cloud_download">Letöltés a felhőből</string>

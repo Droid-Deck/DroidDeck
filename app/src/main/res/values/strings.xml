@@ -2011,6 +2011,10 @@
     <string name="epic_client_download_failed">Download failed: %1$s</string>
     <string name="epic_client_unpack_failed">Could not unpack the launcher: %1$s</string>
     <string name="epic_client_sign_in_failed">The Epic Games Launcher did not take the sign-in. Start it again from the launcher.</string>
+    <string name="epic_client_uninstall_body">Removes the launcher and frees its space. Your Epic games stay installed and keep working, and its sign-in is kept for when you install it again.</string>
+    <string name="epic_client_uninstall_stops">The running session closes first.</string>
+    <string name="epic_client_uninstalled">Epic Games Launcher uninstalled</string>
+    <string name="epic_client_uninstall_failed">Some launcher files could not be removed. Try again.</string>
     <string name="store_cloud_saves">Cloud saves</string>
     <string name="cloud_upload">Upload to cloud</string>
     <string name="cloud_download">Download from cloud</string>

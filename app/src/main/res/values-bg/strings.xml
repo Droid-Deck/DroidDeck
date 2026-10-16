@@ -1943,6 +1943,10 @@
     <string name="epic_client_download_failed">Изтеглянето се провали: %1$s</string>
     <string name="epic_client_unpack_failed">Разархивирането на програмата не бе успешно: %1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcher не прие влизането. Стартирайте го отново от програмата.</string>
+    <string name="epic_client_uninstall_body">Премахва лаунчера и освобождава мястото му. Игрите ви от Epic остават инсталирани и работят, а входът се запазва за следващото инсталиране.</string>
+    <string name="epic_client_uninstall_stops">Текущата сесия първо ще се затвори.</string>
+    <string name="epic_client_uninstalled">Epic Games Launcher е деинсталиран</string>
+    <string name="epic_client_uninstall_failed">Някои файлове на лаунчера не можаха да бъдат премахнати. Опитайте отново.</string>
     <string name="store_cloud_saves">Облачни запазвания</string>
     <string name="cloud_upload">Качи в облака</string>
     <string name="cloud_download">Изтегли от облака</string>

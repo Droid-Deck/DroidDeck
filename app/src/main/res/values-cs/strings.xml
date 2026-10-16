@@ -1985,6 +1985,10 @@
     <string name="epic_client_download_failed">Stažení se nezdařilo: %1$s</string>
     <string name="epic_client_unpack_failed">Spouštěč se nepodařilo rozbalit: %1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcher přihlášení nepřijal. Spusťte ho znovu ze spouštěče.</string>
+    <string name="epic_client_uninstall_body">Odebere spouštěč a uvolní jeho místo. Vaše hry z Epic zůstanou nainstalované a funkční a přihlášení zůstane uložené pro příští instalaci.</string>
+    <string name="epic_client_uninstall_stops">Nejprve se ukončí běžící relace.</string>
+    <string name="epic_client_uninstalled">Epic Games Launcher odinstalován</string>
+    <string name="epic_client_uninstall_failed">Některé soubory spouštěče nešlo odebrat. Zkuste to znovu.</string>
     <string name="store_cloud_saves">Cloudové uložené pozice</string>
     <string name="cloud_upload">Odeslat do cloudu</string>
     <string name="cloud_download">Stáhnout z cloudu</string>

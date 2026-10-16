@@ -1985,6 +1985,10 @@
     <string name="epic_client_download_failed">Pobieranie nie powiodło się: %1$s</string>
     <string name="epic_client_unpack_failed">Nie udało się rozpakować launchera: %1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcher nie przyjął logowania. Uruchom go ponownie z launchera.</string>
+    <string name="epic_client_uninstall_body">Usuwa launcher i zwalnia jego miejsce. Twoje gry z Epic pozostają zainstalowane i działają, a logowanie zostaje zachowane na potrzeby ponownej instalacji.</string>
+    <string name="epic_client_uninstall_stops">Najpierw zostanie zamknięta bieżąca sesja.</string>
+    <string name="epic_client_uninstalled">Odinstalowano Epic Games Launcher</string>
+    <string name="epic_client_uninstall_failed">Nie udało się usunąć niektórych plików launchera. Spróbuj ponownie.</string>
     <string name="store_cloud_saves">Zapisy w chmurze</string>
     <string name="cloud_upload">Wyślij do chmury</string>
     <string name="cloud_download">Pobierz z chmury</string>

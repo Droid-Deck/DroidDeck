@@ -190,6 +190,36 @@ class EpicClientTest {
         }
     }
 
+    @Test fun uninstallingRemovesTheProgramButKeepsGamesRecordsAndSignIn() {
+        val app = org.robolectric.RuntimeEnvironment.getApplication()
+        val state = EpicClient.stateDir(app)
+        val runtime = File(state, "runtime/4.0").apply { mkdirs() }
+        File(runtime, "files").mkdirs()
+        val loop = File(runtime, "files/usr")
+        java.nio.file.Files.createSymbolicLink(loop.toPath(), java.nio.file.Paths.get("."))
+        val outside = File(app.filesDir, "outside-keep").apply { mkdirs() }
+        java.nio.file.Files.createSymbolicLink(File(runtime, "files/elsewhere").toPath(), outside.toPath())
+        File(outside, "keep.txt").writeText("x")
+        File(state, "app/0.97.0").mkdirs()
+        File(state, "app/0.97.0/AppRun").writeText("x")
+        File(state, "current.json").writeText("""{"app":"0.97.0","runtime":"4.0"}""")
+        val imports = File(state, "client-imports.json").apply { writeText("{}") }
+        val auth = File(EpicClient.dataDir(app), "auth/auth.json").apply { parentFile?.mkdirs(); writeText("{}") }
+        val records = File(EpicClient.dataDir(app), "installations.jsonl").apply { writeText("{}\n") }
+        try {
+            assertTrue(EpicClient.uninstall(app))
+            assertFalse(File(state, "app").exists())
+            assertFalse(File(state, "runtime").exists())
+            assertFalse(File(state, "current.json").exists())
+            assertTrue(imports.isFile)
+            assertTrue(auth.isFile)
+            assertTrue(records.isFile)
+            assertTrue(File(outside, "keep.txt").isFile)
+        } finally {
+            imports.delete(); auth.delete(); records.delete(); outside.deleteRecursively()
+        }
+    }
+
     @Test fun theWebSignInIsExpiredForEveryCookieOnBothPathsAndTheDomain() {
         assertEquals(emptyList<String>(), EpicClient.expiredCookies(null))
         assertEquals(emptyList<String>(), EpicClient.expiredCookies(" ; "))

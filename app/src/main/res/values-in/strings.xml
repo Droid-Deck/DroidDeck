@@ -1922,6 +1922,10 @@
     <string name="epic_client_download_failed">Unduhan gagal: %1$s</string>
     <string name="epic_client_unpack_failed">Tidak dapat mengekstrak launcher: %1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcher tidak menerima proses masuk. Mulai lagi dari launcher.</string>
+    <string name="epic_client_uninstall_body">Menghapus peluncur dan mengosongkan ruangnya. Game Epic Anda tetap terpasang dan berfungsi, dan proses masuk disimpan untuk saat memasangnya lagi.</string>
+    <string name="epic_client_uninstall_stops">Sesi yang berjalan ditutup terlebih dahulu.</string>
+    <string name="epic_client_uninstalled">Epic Games Launcher dicopot</string>
+    <string name="epic_client_uninstall_failed">Beberapa file peluncur tidak dapat dihapus. Coba lagi.</string>
     <string name="store_cloud_saves">Simpanan cloud</string>
     <string name="cloud_upload">Unggah ke cloud</string>
     <string name="cloud_download">Unduh dari cloud</string>

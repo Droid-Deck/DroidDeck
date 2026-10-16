@@ -1930,6 +1930,10 @@
     <string name="epic_client_download_failed">下載失敗：%1$s</string>
     <string name="epic_client_unpack_failed">無法解壓啟動器：%1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcher 沒有接受登入。請從啟動器重新啟動它。</string>
+    <string name="epic_client_uninstall_body">移除啟動器並釋放其空間。你的 Epic 遊戲會保持安裝並可正常運作，登入資料亦會保留，方便重新安裝時使用。</string>
+    <string name="epic_client_uninstall_stops">會先關閉正在運行的工作階段。</string>
+    <string name="epic_client_uninstalled">已解除安裝 Epic Games Launcher</string>
+    <string name="epic_client_uninstall_failed">部分啟動器檔案無法刪除。請再試一次。</string>
     <string name="store_cloud_saves">雲端存檔</string>
     <string name="cloud_upload">上載至雲端</string>
     <string name="cloud_download">從雲端下載</string>

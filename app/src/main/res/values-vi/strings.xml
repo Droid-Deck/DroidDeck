@@ -1922,6 +1922,10 @@
     <string name="epic_client_download_failed">Tải xuống thất bại: %1$s</string>
     <string name="epic_client_unpack_failed">Không thể giải nén launcher: %1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcher không nhận đăng nhập. Khởi động lại từ launcher.</string>
+    <string name="epic_client_uninstall_body">Gỡ trình khởi chạy và giải phóng dung lượng. Các trò chơi Epic vẫn được cài đặt và hoạt động, còn thông tin đăng nhập được giữ lại cho lần cài đặt sau.</string>
+    <string name="epic_client_uninstall_stops">Phiên đang chạy sẽ được đóng trước.</string>
+    <string name="epic_client_uninstalled">Đã gỡ cài đặt Epic Games Launcher</string>
+    <string name="epic_client_uninstall_failed">Không thể xóa một số tệp của trình khởi chạy. Hãy thử lại.</string>
     <string name="store_cloud_saves">Tệp lưu trên cloud</string>
     <string name="cloud_upload">Tải lên cloud</string>
     <string name="cloud_download">Tải xuống từ cloud</string>

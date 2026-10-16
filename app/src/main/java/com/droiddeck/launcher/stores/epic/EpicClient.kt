@@ -56,6 +56,7 @@ object EpicClient {
     private const val AUTH = "auth/auth.json"
     private const val SIGNED_OUT = "signed-out"
     private const val AUTO_SIGN_IN = "auto-sign-in"
+    private val UNINSTALL_PATHS = listOf("current.json", "app", "runtime", "downloads", "bin", "fex", "run", "logs", "status.json", "instance.json")
     private const val COOKIE_DOMAIN = ".epicgames.com"
     private val COOKIE_PATHS = listOf("/", "/id")
     private val COOKIE_URLS = listOf(
@@ -244,6 +245,19 @@ object EpicClient {
 
     private fun steamSession(): Boolean =
         SessionState.running && !SessionState.stopRequested && SessionState.mode == SessionService.MODE_STEAM
+
+    fun uninstall(context: Context): Boolean {
+        val app = context.applicationContext
+        val state = stateDir(app)
+        com.droiddeck.launcher.stores.download.DownloadQueue.clear(app, DOWNLOAD_KEY)
+        val removed = UNINSTALL_PATHS.map { File(state, it) }
+            .map { com.droiddeck.launcher.runtime.RuntimeFileTree.deleteWhatCan(it, null) }
+            .all { it }
+        val next = read(app)
+        StoresState.post { status = next }
+        Log.i(TAG, if (removed) "uninstalled the Epic Games Launcher" else "could not remove every Epic Games Launcher file")
+        return removed && !next.installed
+    }
 
     fun launcherRunning(context: Context): Boolean = steamSession() && File(LinuxRuntime.sessionRoot(context), OPEN).exists()
 

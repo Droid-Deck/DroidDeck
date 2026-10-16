@@ -1943,6 +1943,10 @@
     <string name="epic_client_download_failed">Download fehlgeschlagen: %1$s</string>
     <string name="epic_client_unpack_failed">Der Launcher konnte nicht entpackt werden: %1$s</string>
     <string name="epic_client_sign_in_failed">Der Epic Games Launcher hat die Anmeldung nicht akzeptiert. Starte ihn über den Launcher erneut.</string>
+    <string name="epic_client_uninstall_body">Entfernt den Launcher und gibt seinen Speicher frei. Deine Epic-Spiele bleiben installiert und funktionieren weiter, und die Anmeldung bleibt für eine erneute Installation erhalten.</string>
+    <string name="epic_client_uninstall_stops">Die laufende Sitzung wird zuerst beendet.</string>
+    <string name="epic_client_uninstalled">Epic Games Launcher deinstalliert</string>
+    <string name="epic_client_uninstall_failed">Einige Launcher-Dateien konnten nicht entfernt werden. Versuche es erneut.</string>
     <string name="store_cloud_saves">Cloud-Spielstände</string>
     <string name="cloud_upload">In die Cloud hochladen</string>
     <string name="cloud_download">Aus der Cloud herunterladen</string>

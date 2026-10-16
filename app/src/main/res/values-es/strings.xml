@@ -1972,6 +1972,10 @@
     <string name="epic_client_download_failed">La descarga falló: %1$s</string>
     <string name="epic_client_unpack_failed">No se pudo descomprimir el launcher: %1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcher no aceptó el inicio de sesión. Vuelve a iniciarlo desde el launcher.</string>
+    <string name="epic_client_uninstall_body">Quita el launcher y libera su espacio. Tus juegos de Epic siguen instalados y funcionando, y el inicio de sesión se guarda para cuando lo vuelvas a instalar.</string>
+    <string name="epic_client_uninstall_stops">Primero se cierra la sesión en curso.</string>
+    <string name="epic_client_uninstalled">Epic Games Launcher desinstalado</string>
+    <string name="epic_client_uninstall_failed">No se pudieron quitar algunos archivos del launcher. Inténtalo de nuevo.</string>
     <string name="store_cloud_saves">Partidas en la nube</string>
     <string name="cloud_upload">Subir a la nube</string>
     <string name="cloud_download">Descargar de la nube</string>

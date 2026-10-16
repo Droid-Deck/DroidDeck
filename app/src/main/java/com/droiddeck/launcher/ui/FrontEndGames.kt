@@ -165,6 +165,7 @@ private fun GameActions(g: Library.SteamGame, s: FrontEndState, a: FrontEndActio
     Actions {
         PrimaryButton(stringResource(if (s.shortcutPicker) R.string.game_shortcut_choose else R.string.games_launch), enabled = !s.busy, main = true, icon = Icons.Filled.PlayArrow) { launch(g) }
         if (g.library == Library.EPIC_LAUNCHER) {
+            if (!s.shortcutPicker) UninstallEpicLauncher(s, a)
             BusyChip(s)
             return@Actions
         }
@@ -179,6 +180,22 @@ private fun GameActions(g: Library.SteamGame, s: FrontEndState, a: FrontEndActio
         if (!s.shortcutPicker && g.library == Library.ADDED && g.source == Library.ADDED && g.gameFiles != null) EditGameButton { onEdit(g) }
         else if (!s.shortcutPicker && g.library != Library.ADDED && g.source == Library.SOURCE_STEAM) EditGameButton { GamesDialogState.steamArt = g }
         BusyChip(s)
+    }
+}
+
+@Composable
+private fun UninstallEpicLauncher(s: FrontEndState, a: FrontEndActions) {
+    var asking by remember { androidx.compose.runtime.mutableStateOf(false) }
+    SecondaryButton(stringResource(R.string.common_uninstall), enabled = !s.busy, compact = true) { asking = true }
+    if (asking) {
+        val body = stringResource(R.string.epic_client_uninstall_body)
+        ConfirmDialog(
+            title = stringResource(R.string.stores_uninstall_title, stringResource(R.string.epic_client_title)),
+            text = if (com.droiddeck.launcher.session.SessionState.running) body + "\n\n" + stringResource(R.string.epic_client_uninstall_stops) else body,
+            confirm = stringResource(R.string.common_uninstall),
+            onConfirm = { a.onUninstallEpicLauncher() },
+            onDismiss = { asking = false },
+        )
     }
 }
 

@@ -1964,6 +1964,10 @@
     <string name="epic_client_download_failed">Download non riuscito: %1$s</string>
     <string name="epic_client_unpack_failed">Impossibile estrarre il launcher: %1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcher non ha accettato l\'accesso. Avvialo di nuovo dal launcher.</string>
+    <string name="epic_client_uninstall_body">Rimuove il launcher e libera il suo spazio. I tuoi giochi Epic restano installati e funzionanti, e l’accesso viene conservato per quando lo reinstalli.</string>
+    <string name="epic_client_uninstall_stops">Prima viene chiusa la sessione in corso.</string>
+    <string name="epic_client_uninstalled">Epic Games Launcher disinstallato</string>
+    <string name="epic_client_uninstall_failed">Non è stato possibile rimuovere alcuni file del launcher. Riprova.</string>
     <string name="store_cloud_saves">Salvataggi nel cloud</string>
     <string name="cloud_upload">Carica nel cloud</string>
     <string name="cloud_download">Scarica dal cloud</string>

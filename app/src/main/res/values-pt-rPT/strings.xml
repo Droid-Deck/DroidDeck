@@ -1964,6 +1964,10 @@
     <string name="epic_client_download_failed">Falha na transferência: %1$s</string>
     <string name="epic_client_unpack_failed">Não foi possível descompactar o launcher: %1$s</string>
     <string name="epic_client_sign_in_failed">O Epic Games Launcher não aceitou o início de sessão. Inicia-o novamente a partir do launcher.</string>
+    <string name="epic_client_uninstall_body">Remove o launcher e liberta o seu espaço. Os teus jogos da Epic continuam instalados e a funcionar, e a sessão iniciada é guardada para quando o voltares a instalar.</string>
+    <string name="epic_client_uninstall_stops">A sessão em curso é fechada primeiro.</string>
+    <string name="epic_client_uninstalled">Epic Games Launcher desinstalado</string>
+    <string name="epic_client_uninstall_failed">Não foi possível remover alguns ficheiros do launcher. Tenta novamente.</string>
     <string name="store_cloud_saves">Dados guardados na nuvem</string>
     <string name="cloud_upload">Carregar para a nuvem</string>
     <string name="cloud_download">Transferir da nuvem</string>

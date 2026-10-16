@@ -1930,6 +1930,10 @@
     <string name="epic_client_download_failed">ダウンロードに失敗しました：%1$s</string>
     <string name="epic_client_unpack_failed">ランチャーを展開できませんでした：%1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcherがサインインを受け付けませんでした。ランチャーからもう一度起動してください。</string>
+    <string name="epic_client_uninstall_body">ランチャーを削除して容量を空けます。Epicのゲームはインストールされたまま動作し、サインインは再インストール時のために保持されます。</string>
+    <string name="epic_client_uninstall_stops">実行中のセッションを先に終了します。</string>
+    <string name="epic_client_uninstalled">Epic Games Launcherをアンインストールしました</string>
+    <string name="epic_client_uninstall_failed">ランチャーの一部のファイルを削除できませんでした。もう一度お試しください。</string>
     <string name="store_cloud_saves">クラウドセーブ</string>
     <string name="cloud_upload">クラウドにアップロード</string>
     <string name="cloud_download">クラウドからダウンロード</string>

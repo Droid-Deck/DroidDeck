@@ -1943,6 +1943,10 @@
     <string name="epic_client_download_failed">Nedlasting mislyktes: %1$s</string>
     <string name="epic_client_unpack_failed">Kunne ikke pakke ut launcheren: %1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcher godtok ikke innloggingen. Start den på nytt fra launcheren.</string>
+    <string name="epic_client_uninstall_body">Fjerner startprogrammet og frigjør plassen. Epic-spillene dine forblir installert og fungerer, og påloggingen beholdes til neste installasjon.</string>
+    <string name="epic_client_uninstall_stops">Den kjørende økten lukkes først.</string>
+    <string name="epic_client_uninstalled">Epic Games Launcher er avinstallert</string>
+    <string name="epic_client_uninstall_failed">Noen filer for startprogrammet kunne ikke fjernes. Prøv igjen.</string>
     <string name="store_cloud_saves">Skylagringer</string>
     <string name="cloud_upload">Last opp til skyen</string>
     <string name="cloud_download">Last ned fra skyen</string>

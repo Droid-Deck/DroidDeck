@@ -1943,6 +1943,10 @@
     <string name="epic_client_download_failed">İndirme başarısız oldu: %1$s</string>
     <string name="epic_client_unpack_failed">Başlatıcı ayıklanamadı: %1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcher oturum açmayı kabul etmedi. Başlatıcıdan yeniden başlatın.</string>
+    <string name="epic_client_uninstall_body">Başlatıcıyı kaldırır ve yerini boşaltır. Epic oyunlarınız yüklü kalır ve çalışmaya devam eder, oturum açma bilgisi yeniden yüklediğinizde kullanılmak üzere saklanır.</string>
+    <string name="epic_client_uninstall_stops">Önce çalışan oturum kapatılır.</string>
+    <string name="epic_client_uninstalled">Epic Games Launcher kaldırıldı</string>
+    <string name="epic_client_uninstall_failed">Başlatıcının bazı dosyaları kaldırılamadı. Tekrar deneyin.</string>
     <string name="store_cloud_saves">Bulut kayıtları</string>
     <string name="cloud_upload">Buluta yükle</string>
     <string name="cloud_download">Buluttan indir</string>

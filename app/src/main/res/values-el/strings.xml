@@ -1943,6 +1943,10 @@
     <string name="epic_client_download_failed">Η λήψη απέτυχε: %1$s</string>
     <string name="epic_client_unpack_failed">Δεν ήταν δυνατή η αποσυμπίεση του launcher: %1$s</string>
     <string name="epic_client_sign_in_failed">Το Epic Games Launcher δεν δέχτηκε τη σύνδεση. Εκκινήστε το ξανά από το launcher.</string>
+    <string name="epic_client_uninstall_body">Αφαιρεί τον εκκινητή και ελευθερώνει τον χώρο του. Τα παιχνίδια Epic παραμένουν εγκατεστημένα και λειτουργούν, και η σύνδεση διατηρείται για την επόμενη εγκατάσταση.</string>
+    <string name="epic_client_uninstall_stops">Η τρέχουσα συνεδρία κλείνει πρώτα.</string>
+    <string name="epic_client_uninstalled">Το Epic Games Launcher απεγκαταστάθηκε</string>
+    <string name="epic_client_uninstall_failed">Δεν ήταν δυνατή η αφαίρεση ορισμένων αρχείων του εκκινητή. Δοκιμάστε ξανά.</string>
     <string name="store_cloud_saves">Αποθηκεύσεις στο cloud</string>
     <string name="cloud_upload">Μεταφόρτωση στο cloud</string>
     <string name="cloud_download">Λήψη από το cloud</string>

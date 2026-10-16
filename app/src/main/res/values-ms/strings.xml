@@ -1922,6 +1922,10 @@
     <string name="epic_client_download_failed">Muat turun gagal: %1$s</string>
     <string name="epic_client_unpack_failed">Tidak dapat menyahpak pelancar: %1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcher tidak menerima log masuk itu. Mulakan semula daripada pelancar.</string>
+    <string name="epic_client_uninstall_body">Membuang pelancar dan mengosongkan ruangnya. Permainan Epic anda kekal dipasang dan berfungsi, dan log masuk disimpan untuk apabila anda memasangnya semula.</string>
+    <string name="epic_client_uninstall_stops">Sesi yang sedang berjalan ditutup dahulu.</string>
+    <string name="epic_client_uninstalled">Epic Games Launcher dinyahpasang</string>
+    <string name="epic_client_uninstall_failed">Sesetengah fail pelancar tidak dapat dibuang. Cuba lagi.</string>
     <string name="store_cloud_saves">Simpanan awan</string>
     <string name="cloud_upload">Muat naik ke awan</string>
     <string name="cloud_download">Muat turun daripada awan</string>

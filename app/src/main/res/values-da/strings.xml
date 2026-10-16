@@ -1943,6 +1943,10 @@
     <string name="epic_client_download_failed">Download mislykkedes: %1$s</string>
     <string name="epic_client_unpack_failed">Kunne ikke udpakke launcheren: %1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcher accepterede ikke login. Start den igen fra launcheren.</string>
+    <string name="epic_client_uninstall_body">Fjerner launcheren og frigør dens plads. Dine Epic-spil forbliver installeret og virker stadig, og login gemmes til næste installation.</string>
+    <string name="epic_client_uninstall_stops">Den kørende session lukkes først.</string>
+    <string name="epic_client_uninstalled">Epic Games Launcher er afinstalleret</string>
+    <string name="epic_client_uninstall_failed">Nogle launcherfiler kunne ikke fjernes. Prøv igen.</string>
     <string name="store_cloud_saves">Cloud-gemte spil</string>
     <string name="cloud_upload">Upload til cloud</string>
     <string name="cloud_download">Download fra cloud</string>

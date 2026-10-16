@@ -1943,6 +1943,10 @@
     <string name="epic_client_download_failed">Downloaden mislukt: %1$s</string>
     <string name="epic_client_unpack_failed">Kan de launcher niet uitpakken: %1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcher accepteerde de aanmelding niet. Start het opnieuw vanuit de launcher.</string>
+    <string name="epic_client_uninstall_body">Verwijdert de launcher en maakt zijn ruimte vrij. Je Epic-games blijven geïnstalleerd en werken, en de aanmelding blijft bewaard voor als je hem opnieuw installeert.</string>
+    <string name="epic_client_uninstall_stops">De lopende sessie wordt eerst gesloten.</string>
+    <string name="epic_client_uninstalled">Epic Games Launcher verwijderd</string>
+    <string name="epic_client_uninstall_failed">Sommige launcherbestanden konden niet worden verwijderd. Probeer het opnieuw.</string>
     <string name="store_cloud_saves">Cloudsaves</string>
     <string name="cloud_upload">Uploaden naar cloud</string>
     <string name="cloud_download">Downloaden vanaf cloud</string>

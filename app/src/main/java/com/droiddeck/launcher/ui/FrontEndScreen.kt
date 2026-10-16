@@ -166,6 +166,7 @@ class FrontEndActions(
     val onStopGameFileSync: () -> Unit = {},
     val onCopyGameLink: (Library.SteamGame) -> Unit = {},
     val onEpicLauncher: () -> Unit = {},
+    val onUninstallEpicLauncher: () -> Unit = {},
     val onDesktop: () -> Unit,
     val onEmulator: (Library.Emulator) -> Unit,
     val onFlatpakApp: (String, String) -> Unit = { _, _ -> },

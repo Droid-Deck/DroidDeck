@@ -1943,6 +1943,10 @@
     <string name="epic_client_download_failed">Lataus epäonnistui: %1$s</string>
     <string name="epic_client_unpack_failed">Launcherin purkaminen epäonnistui: %1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcher ei hyväksynyt kirjautumista. Käynnistä se uudelleen launcherista.</string>
+    <string name="epic_client_uninstall_body">Poistaa käynnistimen ja vapauttaa sen tilan. Epic-pelisi pysyvät asennettuina ja toimivat, ja kirjautuminen säilyy seuraavaa asennusta varten.</string>
+    <string name="epic_client_uninstall_stops">Käynnissä oleva istunto suljetaan ensin.</string>
+    <string name="epic_client_uninstalled">Epic Games Launcher poistettu</string>
+    <string name="epic_client_uninstall_failed">Joitakin käynnistimen tiedostoja ei voitu poistaa. Yritä uudelleen.</string>
     <string name="store_cloud_saves">Pilvitallennukset</string>
     <string name="cloud_upload">Lähetä pilveen</string>
     <string name="cloud_download">Lataa pilvestä</string>

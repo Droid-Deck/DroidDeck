@@ -2027,6 +2027,10 @@
     <string name="epic_client_download_failed">فشل التنزيل: %1$s</string>
     <string name="epic_client_unpack_failed">تعذّر فك ضغط المُشغِّل: %1$s</string>
     <string name="epic_client_sign_in_failed">لم يقبل Epic Games Launcher تسجيل الدخول. شغّله مرة أخرى من المُشغِّل.</string>
+    <string name="epic_client_uninstall_body">يزيل المشغّل ويحرّر مساحته. تبقى ألعاب Epic مثبتة وتعمل، ويُحتفظ بتسجيل الدخول لحين تثبيته مرة أخرى.</string>
+    <string name="epic_client_uninstall_stops">ستُغلق الجلسة الجارية أولاً.</string>
+    <string name="epic_client_uninstalled">تمت إزالة Epic Games Launcher</string>
+    <string name="epic_client_uninstall_failed">تعذّرت إزالة بعض ملفات المشغّل. حاول مرة أخرى.</string>
     <string name="store_cloud_saves">ملفات الحفظ السحابية</string>
     <string name="cloud_upload">الرفع إلى السحابة</string>
     <string name="cloud_download">التنزيل من السحابة</string>

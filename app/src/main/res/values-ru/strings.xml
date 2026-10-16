@@ -1993,6 +1993,10 @@
     <string name="epic_client_download_failed">Ошибка загрузки: %1$s</string>
     <string name="epic_client_unpack_failed">Не удалось распаковать лаунчер: %1$s</string>
     <string name="epic_client_sign_in_failed">Epic Games Launcher не принял вход. Запустите его снова из лаунчера.</string>
+    <string name="epic_client_uninstall_body">Удаляет лаунчер и освобождает место. Ваши игры Epic остаются установленными и работают, а вход сохраняется для повторной установки.</string>
+    <string name="epic_client_uninstall_stops">Сначала будет закрыт текущий сеанс.</string>
+    <string name="epic_client_uninstalled">Epic Games Launcher удалён</string>
+    <string name="epic_client_uninstall_failed">Не удалось удалить некоторые файлы лаунчера. Попробуйте ещё раз.</string>
     <string name="store_cloud_saves">Облачные сохранения</string>
     <string name="cloud_upload">Загрузить в облако</string>
     <string name="cloud_download">Скачать из облака</string>
