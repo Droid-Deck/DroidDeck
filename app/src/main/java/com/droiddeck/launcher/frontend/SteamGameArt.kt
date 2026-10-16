@@ -63,7 +63,11 @@ object SteamGameArt {
         val folder = dir(context, game.appId)
         if (!AddedGameArt.store(folder, slot, option)) return false
         setSource(context, game.appId, slot, option.group + "|" + option.full)
-        push(context, game, slot)
+        if (!push(context, game, slot)) {
+            AddedGameArt.chosen(folder, slot)?.delete()
+            setSource(context, game.appId, slot, "")
+            return false
+        }
         return true
     }
 
@@ -73,10 +77,11 @@ object SteamGameArt {
         push(context, game, slot)
     }
 
-    private fun push(context: Context, game: Library.SteamGame, slot: AddedGameArt.Slot) {
-        val type = slot.assetType ?: return
+    private fun push(context: Context, game: Library.SteamGame, slot: AddedGameArt.Slot): Boolean {
+        val type = slot.assetType ?: return true
         val file = chosenFile(context, game.appId, slot)
-        SteamGrid.write(context, SteamGrid.target(game, context), slot, file)
+        if (!SteamGrid.write(context, SteamGrid.target(game, context), slot, file)) return false
         AddedGamesPublisher.later(context) { SteamLiveShortcuts.setArt(context, game.appId.toLong(), type, file) }
+        return true
     }
 }

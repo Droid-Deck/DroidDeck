@@ -49,26 +49,27 @@ object SteamGrid {
     }.getOrDefault(emptySet())
 
     /** Puts a choice (or, with null, the lack of one) where Steam reads it, whether or not Steam is running. */
-    fun write(context: Context, target: Target, slot: AddedGameArt.Slot, file: File?) {
-        val suffix = SUFFIX[slot] ?: return
-        val grid = dir(context) ?: return
+    fun write(context: Context, target: Target, slot: AddedGameArt.Slot, file: File?): Boolean {
+        val suffix = SUFFIX[slot] ?: return true
+        val grid = dir(context) ?: return true
         if (file == null) {
             files(grid, target.id, slot).forEach { it.delete() }
             record(target, slot, "")
-            return
+            return true
         }
         val ext = file.extension.lowercase().let { if (it == "jpeg") "jpg" else it }
-        if (ext !in EXTS) return
+        if (ext !in EXTS) return false
         grid.mkdirs()
         val dst = File(grid, "${target.id}$suffix.$ext")
         val tmp = File(grid, dst.name + ".tmp")
         val placed = runCatching { file.copyTo(tmp, overwrite = true); if (tmp.renameTo(dst)) dst else null }.getOrNull()
         if (placed == null) {
             tmp.delete()
-            return
+            return false
         }
         files(grid, target.id, slot).filter { it != dst }.forEach { it.delete() }
         record(target, slot, signature(placed))
+        return true
     }
 
     /** Takes over what changed in Steam since the last look; returns true when a choice was added, replaced or dropped. */
@@ -98,6 +99,7 @@ object SteamGrid {
                             record(target, slot, "")
                         }
                     }
+                    own != null && theirs != null && now == before && own.length() != theirs.length() -> write(context, target, slot, own)
                     own != null && present.isEmpty() -> write(context, target, slot, own)
                 }
             } catch (e: Exception) {

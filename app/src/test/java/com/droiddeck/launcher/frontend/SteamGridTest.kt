@@ -111,4 +111,20 @@ class SteamGridTest {
         assertEquals(12L, File(grid, "620p.png").length())
         assertFalse(File(grid, "620p.ico").exists())
     }
+
+    @Test fun aChoiceSteamCannotReadIsRefusedAndNotKept() {
+        File(LinuxRuntime.rootDir(app), "root/.local/share/Steam/userdata/123/config").mkdirs()
+        val ico = image("mine.ico", 6)
+        assertFalse(SteamGameArt.choose(app, game(), AddedGameArt.Slot.COVER, AddedGameArt.Option(AddedGameArt.FILE, ico.path, ico.path)))
+        assertNull(SteamGameArt.chosenFile(app, 620, AddedGameArt.Slot.COVER))
+    }
+
+    @Test fun aStaleFileLeftByAnEarlierFailedWriteIsReplacedByTheLocalChoice() {
+        File(LinuxRuntime.rootDir(app), "root/.local/share/Steam/userdata/123/config").mkdirs()
+        val picked = image("mine.png", 12)
+        SteamGameArt.choose(app, game(), AddedGameArt.Slot.COVER, AddedGameArt.Option(AddedGameArt.FILE, picked.path, picked.path))
+        SteamGameArt.chosenFile(app, 620, AddedGameArt.Slot.COVER)!!.writeBytes(ByteArray(15) { 4 })
+        assertFalse(SteamGrid.sync(app, listOf(target())))
+        assertEquals(15L, File(grid, "620p.png").length())
+    }
 }

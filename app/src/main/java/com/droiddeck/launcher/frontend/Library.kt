@@ -17,6 +17,9 @@ object Library {
         val source: String = SOURCE_STEAM,
         val storeId: String? = null,
     ) {
+        fun withArt(art: File?, hero: File?, icon: File?) =
+            SteamGame(appId, name, art, library, gameId, hero, lastPlayed, gameFiles, protonPrefix, icon, source, storeId)
+
         val gameIdString: String get() = java.lang.Long.toUnsignedString(gameId)
         val profileKey: String get() = if (library == ADDED) java.lang.Integer.toUnsignedString(appId) else appId.toString()
     }

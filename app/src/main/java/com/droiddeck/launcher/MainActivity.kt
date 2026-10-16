@@ -1593,6 +1593,7 @@ class MainActivity : ComponentActivity() {
             else -> "Steam"
         } else null
         val scanGeneration = ++libraryScanGeneration
+        val artRefreshesAtStart = HashMap(steamArtRefreshes)
         if (shortcutPicker) shortcutLibraryScanning = true
         Thread({
             val emus = Library.emulators(this) { id -> DesktopCatalog.installed(this, id) != null }
@@ -1621,7 +1622,11 @@ class MainActivity : ComponentActivity() {
             }
             ui.post {
                 if (scanGeneration == libraryScanGeneration) {
-                    steamGames = all
+                    val current = steamGames.filter { it.library != Library.ADDED }.associateBy { it.appId }
+                    steamGames = all.map { g ->
+                        val newer = current[g.appId]
+                        if (newer != null && g.library != Library.ADDED && steamArtRefreshes[g.appId] != artRefreshesAtStart[g.appId]) g.withArt(newer.art, newer.hero, newer.icon) else g
+                    }
                     shortcutLibraryScanning = false
                     handleGameLink(all)
                 }
