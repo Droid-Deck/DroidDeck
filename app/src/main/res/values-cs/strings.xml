@@ -855,7 +855,7 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android zastavuje aplikace, které spouštějí mnoho procesů na pozadí, a Steam jich spouští desítky. Dokud se to nezmění, hry se zavírají bez chybové zprávy.</string>
     <string name="gate_fix_for_me">Oprav to za mě</string>
-    <string name="gate_toggle_steps">Zapněte „Disable child process restrictions“ a vraťte se zpět. Nechte Možnosti pro vývojáře zapnuté, jinak se přepínač znovu vypne.</string>
+    <string name="gate_toggle_steps">Zapněte „Deaktivace omezení podřízených procesů“ a vraťte se zpět. Nechte Možnosti pro vývojáře zapnuté, jinak se přepínač znovu vypne.</string>
     <string name="gate_open_dev">Otevřít Možnosti pro vývojáře</string>
     <string name="gate_no_toggle">Tato verze Androidu pro to nemá přepínač, proto to DroidDeck změní přes Bezdrátové ladění. Zabere to asi minutu, počítač není potřeba.</string>
     <string name="gate_needs_wifi">Bezdrátové ladění potřebuje Wi-Fi. Funguje jakákoli síť, internet není nutný.</string>
@@ -1841,7 +1841,7 @@
     <string name="phantom_instructions_fix">%1$s Pokud to není možné, připojte toto zařízení k počítači s ADB a spusťte příkaz níže. Vraťte se sem a zkontrolujte to znovu.</string>
     <string name="phantom_instructions_off">Relace Steamu se mohou spouštět.</string>
     <string name="phantom_instructions_not_applicable">Tato verze Androidu tento limit nepoužívá.</string>
-    <string name="phantom_fix_toggle">Zapněte „Zakázat omezení procesů potomků“ v Možnostech pro vývojáře a pak je nechte zapnuté.</string>
+    <string name="phantom_fix_toggle">Zapněte „Deaktivace omezení podřízených procesů“ v Možnostech pro vývojáře a pak je nechte zapnuté.</string>
     <string name="phantom_fix_no_toggle">Tato verze Androidu pro to nemá přepínač. Použijte bezdrátové ladění a změňte to z tohoto zařízení.</string>
     <string name="upd_block_no_apk">Toto sestavení nemá stažení pro tuto kopii DroidDecku.</string>
     <string name="upd_block_version_code">Android to nenainstaluje přes toto sestavení, protože jeho versionCode %1$d je nižší než nainstalovaný %2$d.</string>

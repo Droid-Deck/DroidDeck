@@ -165,8 +165,8 @@ class AddedGameArtLookupTest {
         assertTrue(games[0].verified)
     }
 
-    @Test fun laterPagesAskForThePageAndTheFirstDoesNot() {
-        assertEquals("heroes/game/5?nsfw=false&humor=false", SteamGridDb.path(5, AddedGameArt.Slot.BACKGROUND, 0))
-        assertEquals("grids/game/5?dimensions=600x900&nsfw=false&humor=false&page=2", SteamGridDb.path(5, AddedGameArt.Slot.COVER, 2))
+    @Test fun eachSlotAsksItsOwnEndpoint() {
+        assertEquals("heroes/game/5?nsfw=false&humor=false", SteamGridDb.path(5, AddedGameArt.Slot.BACKGROUND))
+        assertEquals("grids/game/5?dimensions=600x900&nsfw=false&humor=false", SteamGridDb.path(5, AddedGameArt.Slot.COVER))
     }
 }

@@ -867,7 +867,7 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">يوقف Android التطبيقات التي تبدأ عمليات خلفية كثيرة، وSteam يبدأ عشرات منها. وإلى أن يتغيّر هذا، تُغلَق الألعاب دون أي خطأ.</string>
     <string name="gate_fix_for_me">إصلاحه لي</string>
-    <string name="gate_toggle_steps">فعِّل «تعطيل تقييد العمليات الفرعية»، ثم عُد. اترك خيارات المطوّرين مفعّلة، وإلا سيُعاد تعطيل المفتاح.</string>
+    <string name="gate_toggle_steps">فعِّل «إيقاف القيود المفروضة على العمليات الثانوية»، ثم عُد. اترك خيارات المطوّرين مفعّلة، وإلا سيُعاد تعطيل المفتاح.</string>
     <string name="gate_open_dev">فتح خيارات المطوّرين</string>
     <string name="gate_no_toggle">لا يحتوي إصدار Android هذا على مفتاح لذلك، لذا يغيّره DroidDeck عبر تصحيح الأخطاء اللاسلكي. يستغرق نحو دقيقة، ولا يحتاج إلى جهاز كمبيوتر.</string>
     <string name="gate_needs_wifi">يحتاج تصحيح الأخطاء اللاسلكي إلى Wi-Fi. تعمل أي شبكة؛ فهو لا يحتاج إلى اتصال بالإنترنت.</string>
@@ -1883,7 +1883,7 @@
     <string name="phantom_instructions_fix">%1$s إذا لم يكن ذلك ممكنًا، وصِّل هذا الجهاز بكمبيوتر يستخدم ADB ونفِّذ الأمر أدناه. عُد إلى هنا وتحقَّق مرة أخرى.</string>
     <string name="phantom_instructions_off">يمكن بدء جلسات Steam.</string>
     <string name="phantom_instructions_not_applicable">لا يستخدم إصدار Android هذا هذا الحدّ.</string>
-    <string name="phantom_fix_toggle">فعِّل «تعطيل قيود العمليات الفرعية» في خيارات المطوّرين، واترك خيارات المطوّرين مفعَّلة بعد ذلك.</string>
+    <string name="phantom_fix_toggle">فعِّل «إيقاف القيود المفروضة على العمليات الثانوية» في خيارات المطوّرين، واترك خيارات المطوّرين مفعَّلة بعد ذلك.</string>
     <string name="phantom_fix_no_toggle">لا يحتوي إصدار Android هذا على مفتاح لذلك. استخدِم تصحيح الأخطاء اللاسلكي لتغييره من هذا الجهاز.</string>
     <string name="upd_block_no_apk">لا يتوفّر تنزيل لهذا الإصدار الخاص بهذه النسخة من DroidDeck.</string>
     <string name="upd_block_version_code">لن يثبِّته Android فوق هذا الإصدار لأن versionCode %1$d أقل من %2$d المثبَّت.</string>

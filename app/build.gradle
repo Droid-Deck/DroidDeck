@@ -150,6 +150,7 @@ android {
     }
 
     buildFeatures {
+        prefab true
         compose true
         buildConfig true
     }
@@ -225,6 +226,7 @@ if (!skipRust) android.sourceSets.main.jniLibs.srcDir(rustJniLibsDir)
 tasks.named('preBuild').configure { dependsOn(buildRustStores) }
 
 dependencies {
+    implementation 'org.khronos.openxr:openxr_loader_for_android:1.1.49'
     implementation 'com.github.luben:zstd-jni:1.5.7-4@aar'
     implementation 'org.apache.commons:commons-compress:1.27.1'
     implementation 'org.tukaani:xz:1.10'

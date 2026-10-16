@@ -610,6 +610,7 @@ class MainActivity : ComponentActivity() {
                             val known = steamGames.mapNotNull { it.gameFiles?.path }.toSet()
                             updateAddedGames(folders, then = { if (folders.any { it !in known }) fetchAddedGameArt() })
                         },
+                        onSteamGameArtChanged = { appId -> refreshSteamGameArt(appId) },
                         onAddedGameRemoved = { folder, appId, name -> removeAddedGame(folder, appId, name) },
                         onAddedGamesArt = { on -> SessionPrefs.setAddedGamesArt(this, on); addedGamesArt = on; if (on) refreshAddedGames() },
                         onSgdbKey = { key ->
@@ -1049,7 +1050,9 @@ class MainActivity : ComponentActivity() {
 
     private fun refreshSecondScreenDisplays() {
         if (!::displayManager.isInitialized) return
-        secondScreenDisplays = SecondScreenDisplays.available(displayManager)
+        // The launcher can itself be shown on a non-default display (DeX, an external monitor); that one is not a "second screen".
+        val ownDisplayId = if (android.os.Build.VERSION.SDK_INT >= 30) display?.displayId ?: android.view.Display.DEFAULT_DISPLAY else @Suppress("DEPRECATION") windowManager.defaultDisplay.displayId
+        secondScreenDisplays = SecondScreenDisplays.available(displayManager, ownDisplayId)
     }
 
     private fun launchAndroidApp(app: HomeApp.LaunchableApp, displayId: Int?) {
@@ -1438,6 +1441,13 @@ class MainActivity : ComponentActivity() {
                 then()
             }
         }, "added-games-update").start()
+    }
+
+    private fun refreshSteamGameArt(appId: Int) {
+        Thread({
+            val fresh = com.droiddeck.launcher.frontend.Library.steamGames(this).firstOrNull { it.appId == appId } ?: return@Thread
+            ui.post { steamGames = steamGames.map { if (it.appId == appId && it.library != Library.ADDED) fresh else it } }
+        }, "steam-art-update").start()
     }
 
     private fun removeAddedGame(folder: String, appId: Long?, name: String) {

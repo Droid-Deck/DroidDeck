@@ -843,7 +843,7 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android lukker apps, der starter mange baggrundsprocesser, og Steam starter dusinvis. Indtil dette ændres, lukker spil uden en fejlmeddelelse.</string>
     <string name="gate_fix_for_me">Ret det for mig</string>
-    <string name="gate_toggle_steps">Slå “Deaktiver begrænsninger for underprocesser” til, og kom så tilbage. Lad Udviklerindstillinger stå til, ellers slås kontakten fra igen.</string>
+    <string name="gate_toggle_steps">Slå “Deaktiver begrænsningerne for underprocesser” til, og kom så tilbage. Lad Udviklerindstillinger stå til, ellers slås kontakten fra igen.</string>
     <string name="gate_open_dev">Åbn Udviklerindstillinger</string>
     <string name="gate_no_toggle">Denne Android-version har ingen kontakt til det, så DroidDeck ændrer det via Trådløs fejlretning. Tager omkring et minut, ingen computer nødvendig.</string>
     <string name="gate_needs_wifi">Trådløs fejlretning kræver Wi-Fi. Alle netværk fungerer; det kræver ikke internet.</string>
@@ -1799,7 +1799,7 @@
     <string name="phantom_instructions_fix">%1$s Hvis det ikke er muligt, så forbind enheden til en computer med ADB, og køre kommandoen nedenfor. Kom tilbage hertil, og tjek igen.</string>
     <string name="phantom_instructions_off">Steam-sessioner kan starte.</string>
     <string name="phantom_instructions_not_applicable">Denne Android-version bruger ikke denne grænse.</string>
-    <string name="phantom_fix_toggle">Tænd „Disable child process restrictions“ i Udvikleremuligheder, og lad Udvikleremuligheder være tændt bagefter.</string>
+    <string name="phantom_fix_toggle">Tænd „Deaktiver begrænsningerne for underprocesser“ i Udvikleremuligheder, og lad Udvikleremuligheder være tændt bagefter.</string>
     <string name="phantom_fix_no_toggle">Denne Android-version har ingen kontakt til det. Brug Trådløs fejlretning til at ændre det fra denne enhed.</string>
     <string name="upd_block_no_apk">Denne version har ingen download til denne kopi af DroidDeck.</string>
     <string name="upd_block_version_code">Android installerer den ikke over denne version, fordi dens versionCode %1$d er under den installerede %2$d.</string>

@@ -335,5 +335,35 @@ class AgentTest(unittest.TestCase):
         self.assertIn(child.pid, agent.game_pids(424242))
 
 
+class VrFocusTest(unittest.TestCase):
+    def test_scene_dashboard_and_external_focus_changes(self):
+        focus = agent.VrSceneFocus()
+        self.assertEqual(focus.order([9, 7], [7, 42], 42), [42, 9, 7])
+        self.assertIsNone(focus.order([42, 9, 7], [7, 42], 42))
+        self.assertEqual(focus.order([42, 9, 7], [7, 42], None), [9, 7])
+        self.assertIsNone(focus.order([9, 7], [7], 42))
+        self.assertEqual(focus.order([9, 7], [7, 42], 42), [42, 9, 7])
+        # Do not overwrite a different focus order installed after our last write.
+        self.assertIsNone(focus.order([123, 7], [7, 42], None))
+
+    def test_scene_requires_live_server_and_game_environment(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            state = root / 'scene.json'
+            for pid in (100, 200):
+                (root / str(pid)).mkdir()
+            (root / '100/comm').write_text('vrserver\n')
+            (root / '200/environ').write_bytes(b'SteamAppId=42\0Other=value\0')
+            state.write_text(json.dumps(dict(serverPid=100, scenePid=200, dashboard=False)))
+            self.assertEqual(agent.vr_scene_app(state, root), 42)
+            state.write_text(json.dumps(dict(serverPid=100, scenePid=200, dashboard=True)))
+            self.assertIsNone(agent.vr_scene_app(state, root))
+            state.write_text(json.dumps(dict(serverPid=100, scenePid=200, dashboard=False)))
+            (root / '100/comm').write_text('other\n')
+            self.assertIsNone(agent.vr_scene_app(state, root))
+            (root / '100/comm').unlink()
+            self.assertIsNone(agent.vr_scene_app(state, root))
+
+
 if __name__ == "__main__":
     unittest.main()

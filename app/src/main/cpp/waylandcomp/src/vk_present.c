@@ -138,6 +138,9 @@ static pthread_mutex_t g_req_lock = PTHREAD_MUTEX_INITIALIZER;
 static ANativeWindow *g_req_window;
 static int g_req_pending;
 static int g_req_detached;
+static uint64_t g_req_generation, g_req_applied;
+static pthread_cond_t g_req_condition = PTHREAD_COND_INITIALIZER;
+
 
 static volatile int g_mode = VKP_MODE_STRETCH, g_align = VKP_ALIGN_CENTER;
 
@@ -218,9 +221,34 @@ void vk_present_set_window(ANativeWindow *window) {
     if (g_req_pending && g_req_window && g_req_window != window) superseded = g_req_window;
     g_req_window = window;
     g_req_pending = 1;
+    g_req_generation++;
     if (!window) g_req_detached = 1;
     pthread_mutex_unlock(&g_req_lock);
     if (superseded) ANativeWindow_release(superseded);
+}
+
+static void window_request_applied(uint64_t generation) {
+    pthread_mutex_lock(&g_req_lock);
+    g_req_applied = generation;
+    pthread_cond_broadcast(&g_req_condition);
+    pthread_mutex_unlock(&g_req_lock);
+}
+
+int vkp_wait_window_request(int timeout_ms) {
+    if (timeout_ms <= 0 || timeout_ms > 10000) return 0;
+    struct timespec deadline;
+    clock_gettime(CLOCK_REALTIME, &deadline);
+    deadline.tv_sec += timeout_ms / 1000;
+    deadline.tv_nsec += (timeout_ms % 1000) * 1000000L;
+    if (deadline.tv_nsec >= 1000000000L) { deadline.tv_sec++; deadline.tv_nsec -= 1000000000L; }
+    pthread_mutex_lock(&g_req_lock);
+    const uint64_t generation = g_req_generation;
+    int error = 0;
+    while (g_req_applied < generation && error == 0)
+        error = pthread_cond_timedwait(&g_req_condition, &g_req_lock, &deadline);
+    int applied = g_req_applied >= generation;
+    pthread_mutex_unlock(&g_req_lock);
+    return applied;
 }
 
 int vkp_apply_window_request(void) {
@@ -229,15 +257,17 @@ int vkp_apply_window_request(void) {
     if (!g_req_pending) { pthread_mutex_unlock(&g_req_lock); return 0; }
     w = g_req_window;
     const int detached = g_req_detached;
+    const uint64_t generation = g_req_generation;
     g_req_window = NULL;
     g_req_pending = 0;
     g_req_detached = 0;
     pthread_mutex_unlock(&g_req_lock);
     if (w == g_window) {
         if (w) ANativeWindow_release(w);
-        if (!w || !detached) return 0;
+        if (!w || !detached) { window_request_applied(generation); return 0; }
         sc_layer_window_gone();
         destroy_swapchain();
+        window_request_applied(generation);
         droiddeck_log("gpu", "screen surface rebound: rebuilding the swapchain at its new size");
         return 1;
     }
@@ -248,6 +278,7 @@ int vkp_apply_window_request(void) {
     g_window = w;
     g_swap_retry_at_ns = 0;
     g_swap_fail_logged = 0;
+    window_request_applied(generation);
     droiddeck_log("gpu", w ? "screen surface attached" : "screen surface gone: presenting paused");
     return 1;
 }

@@ -51,6 +51,7 @@ const char *vkp_gpu_name(void);
 
 int vkp_ready(void);
 int vkp_has_window(void);
+int vkp_wait_window_request(int timeout_ms);
 int vkp_device_lost(void);
 
 int vkp_render(int scene_w, int scene_h, const struct vkp_draw *draws, int n);

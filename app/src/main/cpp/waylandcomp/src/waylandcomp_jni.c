@@ -592,6 +592,12 @@ static char *dup_bytes(JNIEnv *env, jbyteArray arr, int *len) {
     return buf;
 }
 
+JNIEXPORT jboolean JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeWaitSurface(
+        JNIEnv *env, jclass clazz, jint timeout_ms) {
+    return vkp_wait_window_request(timeout_ms) ? JNI_TRUE : JNI_FALSE;
+}
+
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetClipboardText(JNIEnv *env, jclass clazz, jbyteArray utf8) {
     int len;

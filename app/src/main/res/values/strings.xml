@@ -595,6 +595,10 @@
     <string name="cardboard_no_sensor">This device has no rotation sensor.</string>
     <string name="cardboard_recenter">Recenter view</string>
     <string name="cardboard_recenter_button">Recenter</string>
+    <string name="steamvr_title">SteamVR</string>
+    <string name="steamvr_enter">Enter SteamVR</string>
+    <string name="steamvr_quest_ready_hint">Enter immersive VR with headset tracking and Touch controllers.</string>
+    <string name="steamvr_checking">Checking SteamVR…</string>
     <string name="cardboard_steamvr">SteamVR (experimental)</string>
     <string name="cardboard_steamvr_install">Install</string>
     <string name="cardboard_steamvr_install_hint">Downloads Valve\'s ARM64 SteamVR (571 MB).</string>
@@ -2154,7 +2158,6 @@
     <string name="art_search_sgdb">Search SteamGridDB…</string>
     <string name="art_sgdb_title">SteamGridDB: %1$s</string>
     <string name="art_sgdb_search_label">Search for a game</string>
-    <string name="art_sgdb_more">Show more</string>
     <string name="art_sgdb_other_games">Other matches</string>
     <string name="art_sgdb_none">Nothing found.</string>
     <string name="art_sgdb_no_key">SteamGridDB needs an API key. Add yours in Setup › Launcher.</string>
