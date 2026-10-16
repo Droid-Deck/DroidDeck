@@ -1,8 +1,10 @@
 package com.droiddeck.launcher.runtime
 
+import android.app.ActivityManager
 import android.content.Context
 import android.util.Log
 import com.droiddeck.launcher.session.ComponentsManager
+import com.droiddeck.launcher.session.GameEnvironmentStore
 import java.io.File
 
 /**
@@ -10,7 +12,8 @@ import java.io.File
  * client and the games it installs share one Proton prefix, compatdata/[APP_ID], so one FEX choice
  * covers all of them: the newest d2rfix FEXCore build from the Nightlies, set as that id's FEX in
  * Components. The Proton wrapper applies it before every start in that prefix, from the desktop or
- * from Steam, and puts the Proton's own FEX back for every other game.
+ * from Steam, and puts the Proton's own FEX back for every other game. Its environment profile (the
+ * same id) gets a video memory cap for the games ([ensureVideoMemory]).
  *
  * The games it installs ([games]: its uninstall entries and product.db) become shortcuts in Steam
  * like the added games ([shortcut]): Battle.net.exe in its prefix with --exec="launch CODE", which
@@ -383,13 +386,42 @@ object BattleNet {
         return if (newestD2rFix(fetched) != null) fetched else cached.items
     }
 
+    /** The video memory, in MB, the games are told of: a fifth of the phone's, in 512 MB steps, 1.5 to 3.5 GB (an exact 4 GB reads as none to a game counting in 32 bits). */
+    internal fun videoMemory(totalMb: Long): Int = (totalMb / 5 / 512 * 512).coerceIn(1536, 3584).toInt()
+
+    /** DXVK's options for [megabytes]: DXGI's dedicated and shared memory (Turnip's one heap is reported as both), D3D9's available memory. */
+    internal fun videoMemoryOptions(megabytes: Int): String =
+        "dxgi.maxDeviceMemory = $megabytes; dxgi.maxSharedMemory = $megabytes; d3d9.maxAvailableMemory = $megabytes"
+
+    /**
+     * The Battle.net profile's DXVK_CONFIG, unless it has its own: a video memory cap for every game
+     * in the prefix. Turnip offers three quarters of the phone's memory as video memory and Blizzard's
+     * games size their caches from what DXGI reports - Diablo IV kept 5.5 GB of textures on an 11 GB
+     * phone, in memory it shares with everything else - so they are told of [videoMemory] instead, and
+     * pick textures and caches to fit. D3D12's games too: vkd3d-proton's device comes from DXVK's DXGI.
+     * It is the profile's own entry, so it shows and is changed in the game's environment. Whether it was set.
+     */
+    fun ensureVideoMemory(context: Context): Boolean {
+        val memory = ActivityManager.MemoryInfo()
+        context.getSystemService(ActivityManager::class.java)?.getMemoryInfo(memory) ?: return false
+        if (memory.totalMem <= 0) return false
+        val options = videoMemoryOptions(videoMemory(memory.totalMem / (1024 * 1024)))
+        val set = GameEnvironmentStore.setDefault(context, APP_ID.toString(), DXVK_CONFIG, options)
+        if (set) Log.i(TAG, "DXVK_CONFIG for the Battle.net profile: $options")
+        return set
+    }
+
+    private const val DXVK_CONFIG = "DXVK_CONFIG"
+
     /**
      * A start's request from droiddeck-battlenet in the session root [dir]: the FEX set on a thread
-     * of its own, then the answer beside the request, "ok <package>" or "error <why>".
+     * of its own, the profile's video memory cap ([ensureVideoMemory]), then the answer beside the
+     * request, "ok <package>" or "error <why>".
      */
     fun answerFexRequest(context: Context, dir: File) {
         val app = context.applicationContext
         Thread({
+            runCatching { ensureVideoMemory(app) }.onFailure { Log.w(TAG, "video memory cap for the Battle.net profile", it) }
             val answer = try {
                 "ok " + ensureFex(app)
             } catch (e: Exception) {
