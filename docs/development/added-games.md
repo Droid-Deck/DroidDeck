@@ -68,7 +68,7 @@ store search whose result has the same name), then SteamGridDB, then the exe's i
 art chooser (an Artwork row) shows the game folder's images, Steam's official piece and
 SteamGridDB's best few (fetched when it opens); a tap applies one, "Search SteamGridDB…"
 opens a search (it starts with the game's name and opens the match at once when one is
-exact; "Show more" pages through the images), "Pick image…" takes a file through the same
+exact; it lists every image SteamGridDB returns for the slot), "Pick image…" takes a file through the same
 picker (png, jpg, jpeg, webp, ico), "Reset to automatic" drops the choice. A choice is a
 copy in `files/added-art/<appid>/chosen-<slot>.<ext>`, its source in the preferences.
 
@@ -80,6 +80,15 @@ a failed request is never written as "none", a "none" older than the saved key i
 again, and the chooser always asks again when the user opens it. A background pass stops
 asking SteamGridDB after its first failure.
 
+Steam games (installed through Steam, not Custom) get the same ✎ on their page: an Artwork-only
+editor (`SteamGameArtEditor`) with the same rows and the same chooser (Steam's official piece,
+SteamGridDB's best few, "Search SteamGridDB…", "Pick image…", "Reset to automatic"), shared
+through `ArtTarget`. A choice is a copy in `files/steam-art/<appid>/chosen-<slot>.<ext>`
+(`SteamGameArt`); `Library.steamGames` shows it in place of the librarycache image, and with a
+client running the Cover / Background / Logo is also set in Steam
+(`SetCustomArtworkForApp` / `ClearCustomArtworkForApp`). Choosing while Steam is closed changes
+the launcher only. Icon is launcher-only. Games from GOG, Epic and Amazon are not covered.
+
 Setup › Launcher › Games holds the Artwork switch (automatic fetching) and the
 SteamGridDB API key: the user's own, sealed with `CredentialCipher`, wins over the build's
 (`BuildConfig.SGDB_API_KEY` from the `SGDB_API_KEY` secret); with neither, SteamGridDB is
@@ -89,5 +98,5 @@ skipped.
 
 `AddedExesTest`, `AddedGameEditsTest` (bulk add and skip, edits to the listing on a stable
 appid, Steam-side read-back, art choice and reset), `AddedGamesCandidatesTest`,
-`AddedGameArtLookupTest` (key precedence), `GameIdentifierTest`, `PickListingTest`, and
+`AddedGameArtLookupTest` (key precedence), `SteamGameArtTest` (Steam game art choice and reset), `GameIdentifierTest`, `PickListingTest`, and
 `tools/tests/test_steam_shortcuts.py` for the writer.

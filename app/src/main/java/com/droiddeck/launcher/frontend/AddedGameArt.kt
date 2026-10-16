@@ -42,7 +42,7 @@ object AddedGameArt {
 
     private val CHOSEN = Regex("""chosen-(\w+)\.(\w+)""")
 
-    private fun chosen(cache: File, slot: Slot): File? =
+    internal fun chosen(cache: File, slot: Slot): File? =
         cache.listFiles { f -> CHOSEN.matchEntire(f.name)?.groupValues?.get(1) == slot.key }?.firstOrNull()
 
     private val IMAGE = listOf("png", "jpg", "jpeg")
@@ -117,36 +117,37 @@ object AddedGameArt {
         folderImages(game.folder).forEach { out.add(Option(FOLDER, it.path, it.path)) }
         val cache = cacheDir(context, game)
         val steamId = SteamMatch.resolve(context, game.folder.path, game.exe, game.name, legacy = File(cache, "steam-appid")).appId?.toString()
-        val remote = when (slot) { Slot.COVER -> "library_600x900.jpg"; Slot.BACKGROUND -> "library_hero.jpg"; Slot.LOGO -> "logo.png"; Slot.ICON -> null }
-        if (steamId != null && remote != null) {
-            val url = "$CDN$steamId/$remote".takeIf { exists(it) } ?: steamAssetUrl(steamId, remote)
-            if (url != null) out.add(Option(STEAM, url, url))
-        }
-        var status = SteamGridDb.Status.OK
-        val key = SteamGridDb.key(context)
-        if (key.isEmpty()) {
-            status = SteamGridDb.Status.NO_KEY
-        } else {
-            cache.mkdirs()
-            try {
-                val gridId = remembered(File(cache, "sgdb-id"), SteamGridDb.keyChangedAt(context), retryMiss = true) {
-                    SteamGridDb.gameId(key, steamId?.toIntOrNull(), game.name)?.toString()
-                }?.toIntOrNull()
-                if (gridId == null) status = SteamGridDb.Status.NO_GAME
-                else SteamGridDb.images(key, gridId, slot, if (slot == Slot.ICON) 3 else 5)
-                    .forEach { (thumb, full) -> out.add(Option(SGDB, thumb, full)) }
-            } catch (e: Exception) {
-                Log.w(TAG, "${game.name}: SteamGridDB failed (${e.javaClass.simpleName})")
-                status = (e as? SteamGridDb.Failed)?.status ?: SteamGridDb.Status.SERVER
-            }
-        }
+        if (steamId != null) steamOption(steamId, slot)?.let { out.add(it) }
+        val (found, status) = sgdbChoices(context, File(cache, "sgdb-id"), steamId?.toIntOrNull(), game.name, slot)
+        out.addAll(found)
         return Choices(out, status)
+    }
+
+    internal fun steamOption(steamId: String, slot: Slot): Option? {
+        val remote = when (slot) { Slot.COVER -> "library_600x900.jpg"; Slot.BACKGROUND -> "library_hero.jpg"; Slot.LOGO -> "logo.png"; Slot.ICON -> null } ?: return null
+        val url = "$CDN$steamId/$remote".takeIf { exists(it) } ?: steamAssetUrl(steamId, remote) ?: return null
+        return Option(STEAM, url, url)
+    }
+
+    internal fun sgdbChoices(context: Context, marker: File, steamId: Int?, name: String, slot: Slot): Pair<List<Option>, SteamGridDb.Status> {
+        val key = SteamGridDb.key(context)
+        if (key.isEmpty()) return emptyList<Option>() to SteamGridDb.Status.NO_KEY
+        marker.parentFile?.mkdirs()
+        return try {
+            val gridId = remembered(marker, SteamGridDb.keyChangedAt(context), retryMiss = true) {
+                SteamGridDb.gameId(key, steamId, name)?.toString()
+            }?.toIntOrNull() ?: return emptyList<Option>() to SteamGridDb.Status.NO_GAME
+            SteamGridDb.images(key, gridId, slot, if (slot == Slot.ICON) 3 else 5).map { (thumb, full) -> Option(SGDB, thumb, full) } to SteamGridDb.Status.OK
+        } catch (e: Exception) {
+            Log.w(TAG, "$name: SteamGridDB failed (${e.javaClass.simpleName})")
+            emptyList<Option>() to ((e as? SteamGridDb.Failed)?.status ?: SteamGridDb.Status.SERVER)
+        }
     }
 
     fun searchGames(context: Context, term: String): Found<SteamGridDb.Game> = sgdb(context) { SteamGridDb.search(it, term) }
 
-    fun gameImages(context: Context, id: Int, slot: Slot, page: Int): Found<Option> = sgdb(context) { key ->
-        SteamGridDb.page(key, id, slot, page).map { (thumb, full) -> Option(SGDB, thumb, full) }
+    fun gameImages(context: Context, id: Int, slot: Slot): Found<Option> = sgdb(context) { key ->
+        SteamGridDb.page(key, id, slot).map { (thumb, full) -> Option(SGDB, thumb, full) }
     }
 
     private fun <T> sgdb(context: Context, call: (String) -> List<T>): Found<T> {
@@ -161,17 +162,21 @@ object AddedGameArt {
     }
 
     fun choose(context: Context, game: AddedGames.Game, slot: Slot, option: Option): Boolean {
+        if (!store(cacheDir(context, game), slot, option)) return false
+        SessionPrefs.setAddedGameArtSource(context, game.folder.path, slot.key, option.group + "|" + option.full)
+        return true
+    }
+
+    internal fun store(cache: File, slot: Slot, option: Option): Boolean {
         val bytes = if (option.full.startsWith("https://")) get(option.full) else runCatching { File(option.full).readBytes() }.getOrNull()
         bytes ?: return false
         val ext = option.full.substringAfterLast('.', "png").substringBefore('?').lowercase().takeIf { it in CHOOSABLE + "ico" } ?: "png"
-        val cache = cacheDir(context, game).apply { mkdirs() }
+        cache.mkdirs()
         chosen(cache, slot)?.delete()
         val dst = File(cache, "chosen-${slot.key}.${if (ext == "jpeg") "jpg" else ext}")
         val tmp = File(cache, dst.name + ".tmp")
         tmp.writeBytes(bytes)
-        if (!tmp.renameTo(dst)) return false
-        SessionPrefs.setAddedGameArtSource(context, game.folder.path, slot.key, option.group + "|" + option.full)
-        return true
+        return tmp.renameTo(dst)
     }
 
     fun chosenSource(context: Context, game: AddedGames.Game, slot: Slot): Pair<String, String> {
