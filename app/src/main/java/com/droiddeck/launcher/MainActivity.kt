@@ -492,6 +492,16 @@ class MainActivity : ComponentActivity() {
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
             return true
         }
+        // A Battle.net game needs no Steam client: a session of its own opens Battle.net, has it
+        // launch the game and ends with it (droiddeck-battlenet launch), the pad an Xbox controller
+        // the game reads itself. Through the child-process gate as a Steam session: Wine's many.
+        com.droiddeck.launcher.runtime.BattleNet.launchArgs(game)?.let { args ->
+            return startSession(Intent(this, SessionActivity::class.java)
+                .putExtra(SessionActivity.EXTRA_RETURN_HOME, returnHome)
+                .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_RUN)
+                .putExtra(SessionService.EXTRA_PROGRAM, com.droiddeck.launcher.runtime.BattleNet.PROGRAM)
+                .putExtra(SessionService.EXTRA_PROGRAM_ARGS, args.toTypedArray()), steamSession = true)
+        }
         return startSession(Intent(this, SessionActivity::class.java)
                 .putExtra(SessionActivity.EXTRA_RETURN_HOME, returnHome)
                 .putExtra(SessionService.EXTRA_STEAM_URL,

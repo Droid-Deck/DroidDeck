@@ -269,6 +269,22 @@ class BattleNetTest {
         assertTrue("OSI" in offered)
     }
 
+    @Test fun aBattleNetGameLaunchesInASessionOfItsOwnWithoutSteam() {
+        fun game(source: String, storeId: String?) = com.droiddeck.launcher.frontend.Library.SteamGame(
+            -123, "x", null, com.droiddeck.launcher.frontend.Library.ADDED, source = source, storeId = storeId)
+        assertEquals(listOf("launch", "Fen"), BattleNet.launchArgs(game(BattleNet.SOURCE, "fenris")))
+        assertEquals(listOf("launch", "OSI"), BattleNet.launchArgs(game(BattleNet.SOURCE, "osi")))
+        // A localized install's id names its title too.
+        assertEquals(listOf("launch", "D3"), BattleNet.launchArgs(game(BattleNet.SOURCE, "diablo3_enus")))
+        assertNull(BattleNet.launchArgs(game(BattleNet.SOURCE, "unknown_title")))
+        assertNull(BattleNet.launchArgs(game(BattleNet.SOURCE, null)))
+        assertNull(BattleNet.launchArgs(game("gog", "fenris")))
+        // The session is named for the game it launches.
+        assertEquals("Diablo IV", BattleNet.sessionName(listOf("launch", "Fen")))
+        assertNull(BattleNet.sessionName(listOf("open")))
+        assertNull(BattleNet.sessionName(emptyList()))
+    }
+
     @Test fun theGamesAreToldOfAFifthOfThePhonesMemory() {
         assertEquals(2048, BattleNet.videoMemory(11113))
         assertEquals(1536, BattleNet.videoMemory(7468))
