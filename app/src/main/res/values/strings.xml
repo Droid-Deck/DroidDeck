@@ -2158,7 +2158,6 @@
     <string name="art_search_sgdb">Search SteamGridDB…</string>
     <string name="art_sgdb_title">SteamGridDB: %1$s</string>
     <string name="art_sgdb_search_label">Search for a game</string>
-    <string name="art_sgdb_more">Show more</string>
     <string name="art_sgdb_other_games">Other matches</string>
     <string name="art_sgdb_none">Nothing found.</string>
     <string name="art_sgdb_no_key">SteamGridDB needs an API key. Add yours in Setup › Launcher.</string>
