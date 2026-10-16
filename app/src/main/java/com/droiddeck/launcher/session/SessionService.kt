@@ -269,6 +269,9 @@ class SessionService : Service() {
                 SessionState.programArgs,
             )
         }.onFailure { Log.w(TAG, "desktop request", it) }
+        SessionPrefs.backgroundAppLimit(this).takeIf { it != com.droiddeck.launcher.core.BackgroundAppLimit.OFF }
+            ?.let { com.droiddeck.launcher.core.BackgroundAppLimit.applyAsync(this, it) }
+        if (SessionPrefs.clearCachedApps(this)) clearCachedApps()
         cancelQueuedSteamGame(clearMailbox = false)
         clearSteamGameMailbox()
         acquireLocks()
@@ -587,6 +590,8 @@ class SessionService : Service() {
         // Everything the app decides from here on - the driver it chose, the audio line, a rival
         // client stopped, the exit status - reaches logcat and nowhere a user can get at. Mirror it.
         SessionLogCapture.start(File(sessionDir, "app.log"))
+        // The memory readout every 10 s: what grew before Android's low-memory killer, if it comes.
+        MemoryLog.start()
         return sessionDir
     }
 
@@ -1009,6 +1014,22 @@ class SessionService : Service() {
             killed++
         }
         if (killed > 0) Log.i(TAG, "swept $killed process(es) proot left behind")
+    }
+
+    /**
+     * Setup > Diagnostics' Clear cached apps: the apps Android keeps cached are closed over the
+     * Wireless debugging pairing as the session starts, on a thread of its own - the session does
+     * not wait for it, and starts all the same when the pairing or Wireless debugging is not there.
+     */
+    private fun clearCachedApps() {
+        val app = applicationContext
+        Thread({
+            val before = MemoryReadout.availableMb()
+            val result = runCatching { com.droiddeck.launcher.core.WirelessAdbFix.clearCachedApps(app) }
+            val after = MemoryReadout.availableMb()
+            result.onSuccess { Log.i(TAG, "cached apps closed: available memory $before -> $after MB") }
+                .onFailure { Log.w(TAG, "cached apps not closed: ${it.message}") }
+        }, "clear-cached-apps").start()
     }
 
     /**
@@ -1530,6 +1551,9 @@ class SessionService : Service() {
             runCatching { com.droiddeck.launcher.agent.AgentEnv.endSession(this) }
                 .onFailure { Log.w(TAG, "clearing the agent's session environment", it) }
             releaseLocks()
+            MemoryLog.stop()
+            // Setup > Diagnostics' background-app limit, if this session set one: Android's own again.
+            com.droiddeck.launcher.core.BackgroundAppLimit.restoreAsync(applicationContext)
             if (status == 0) {
                 SessionEvents.transition(SessionPhase.IDLE, "session.stopped", mapOf("status" to status))
             } else {

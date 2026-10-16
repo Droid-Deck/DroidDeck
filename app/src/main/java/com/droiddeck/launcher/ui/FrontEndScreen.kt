@@ -99,6 +99,14 @@ class FrontEndState(
     val logsEnabled: Boolean,
     /** Setup's Debugging tools toggle (AgentAccess): off unless the user turns it on. */
     val agentCommands: Boolean = false,
+    /** Setup > Diagnostics: cached apps closed before a session (SessionPrefs.clearCachedApps). */
+    val clearCachedApps: Boolean = false,
+    /** Whether the app has a Wireless debugging pairing to close them with. */
+    val adbPaired: Boolean = false,
+    /** Setup > Diagnostics: at most this many apps cached during a session (BackgroundAppLimit). */
+    val backgroundAppLimit: Int = -1,
+    /** Setup > Diagnostics: the session screen's memory readout (SessionPrefs.MEMORY_HUD_*). */
+    val memoryHud: String = "off",
     val steamGames: List<Library.SteamGame>,
     val emulators: List<Library.Emulator>,
     val running: String?,
@@ -213,6 +221,9 @@ class FrontEndActions(
     val onBrowseFiles: (File) -> Unit = {},
     val onLogs: () -> Unit,
     val onAgentCommands: () -> Unit = {},
+    val onClearCachedApps: (Boolean) -> Unit = {},
+    val onMemoryHud: (String) -> Unit = {},
+    val onBackgroundAppLimit: (Int) -> Unit = {},
     val onShareLogs: () -> Unit = {},
     val onClearLogs: () -> Unit = {},
     val onOffline: () -> Unit,

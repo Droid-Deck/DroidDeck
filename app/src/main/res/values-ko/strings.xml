@@ -2121,4 +2121,23 @@
     <string name="achievements_none">%1$s에 이 게임의 도전 과제가 없습니다.</string>
     <string name="achievements_show_all">모두 보기(%1$d)</string>
     <string name="achievements_dialog_title">도전 과제 · %1$s</string>
+    <string name="setup_group_memory">메모리</string>
+    <string name="setup_clear_cached">세션 전에 캐시된 앱 닫기</string>
+    <string name="setup_clear_cached_hint">세션이 시작될 때 Android가 백그라운드에 보관 중인 앱을 닫아 게임이 메모리를 더 쓸 수 있게 합니다. 무선 디버깅이 켜져 있어야 합니다.</string>
+    <string name="setup_clear_cached_unpaired">DroidDeck을 무선 디버깅과 페어링해야 합니다(아래 페어링).</string>
+    <string name="setup_memory_hud">메모리 표시</string>
+    <string name="setup_memory_hud_hint">사용 중인 메모리와 스왑을 세션 화면에 표시합니다. 고급에서는 게임, DroidDeck, Android, GPU로 나눠 보여 줍니다.</string>
+    <string name="setup_memory_hud_simple">간단</string>
+    <string name="setup_memory_hud_advanced">고급</string>
+    <string name="memory_hud_simple">RAM %1$s/%2$s GB · 스왑 %3$s/%4$s GB</string>
+    <string name="memory_hud_split">게임 %1$s · DroidDeck %2$s · Android %3$s GB</string>
+    <string name="memory_hud_gpu">GPU %1$s GB</string>
+    <string name="setup_bg_limit">세션 중 백그라운드 앱</string>
+    <string name="setup_bg_limit_hint">세션이 실행되는 동안 Android가 캐시에 두는 앱을 이 개수까지로 제한하고 나머지는 닫아 게임이 그 메모리를 쓰게 합니다. 세션이 끝나면 원래대로 돌아갑니다. 무선 디버깅이 켜져 있어야 합니다.</string>
+    <string name="setup_bg_limit_4">최대 4개</string>
+    <string name="setup_bg_limit_1">최대 1개</string>
+    <string name="setup_bg_limit_0">없음</string>
+    <string name="setup_adb_pair">무선 디버깅</string>
+    <string name="setup_adb_pair_hint">위 옵션을 위해 DroidDeck을 Android 무선 디버깅과 페어링합니다. 하위 프로세스 제한은 꺼진 상태로 유지됩니다.</string>
+    <string name="setup_adb_pair_button">페어링</string>
 </resources>
