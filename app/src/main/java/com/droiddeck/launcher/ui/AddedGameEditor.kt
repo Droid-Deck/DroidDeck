@@ -174,6 +174,25 @@ internal class ArtTarget(
 internal fun SteamGameArtEditor(
     game: com.droiddeck.launcher.frontend.Library.SteamGame, onClose: () -> Unit, onChanged: () -> Unit,
 ) {
+    val target = remember(game.appId) { ArtTarget.of(game) }
+    ArtOnlyEditor(game.name, target, game, { SteamGameArt.describe(it, game) }, onClose, onChanged)
+}
+
+@Composable
+internal fun StoreGameArtEditor(folder: String, name: String, onClose: () -> Unit, onChanged: () -> Unit) {
+    val app = LocalContext.current.applicationContext
+    var game by remember(folder) { mutableStateOf<AddedGames.Game?>(null) }
+    LaunchedEffect(folder) { game = withContext(Dispatchers.IO) { AddedGameEdits.game(app, folder) } }
+    val g = game
+    val target = remember(g?.appId) { g?.let { ArtTarget.of(it) } }
+    ArtOnlyEditor(name, target, g, { c -> g?.let { AddedGameArt.describe(c, it) }.orEmpty() }, onClose, onChanged)
+}
+
+@Composable
+private fun ArtOnlyEditor(
+    name: String, target: ArtTarget?, refresh: Any?, describe: (Context) -> List<AddedGameArt.SlotState>,
+    onClose: () -> Unit, onChanged: () -> Unit,
+) {
     val app = LocalContext.current.applicationContext
     val colors = MaterialTheme.colorScheme
     val shown = rememberShown(onClose)
@@ -181,12 +200,11 @@ internal fun SteamGameArtEditor(
     var version by remember { mutableIntStateOf(0) }
     var arts by remember { mutableStateOf<List<AddedGameArt.SlotState>>(emptyList()) }
     var artSlot by remember { mutableStateOf<AddedGameArt.Slot?>(null) }
-    val target = remember(game.appId) { ArtTarget.of(game) }
-    LaunchedEffect(version, game) { arts = withContext(Dispatchers.IO) { SteamGameArt.describe(app, game) } }
+    LaunchedEffect(version, refresh) { if (target != null) arts = withContext(Dispatchers.IO) { describe(app) } }
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) { focusWithinFrames({ false }) { first } }
-    AppDialog(shown, close, "steamArtEditor", wide = false, maxWidth = 460.dp) {
-        DialogTitleRow(game.name, onClose = close)
+    AppDialog(shown, close, "artEditor", wide = false, maxWidth = 460.dp) {
+        DialogTitleRow(name, onClose = close)
         val maxHeight = (LocalConfiguration.current.screenHeightDp * 0.72f).dp
         Column(
             verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -195,7 +213,7 @@ internal fun SteamGameArtEditor(
             Text(stringResource(R.string.edit_artwork), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp, top = 2.dp))
             for (slot in AddedGameArt.Slot.values()) key(slot) {
                 val state = arts.firstOrNull { it.slot == slot }
-                FieldRow(slot.label(), focus = if (slot == AddedGameArt.Slot.COVER) first else null, onClick = { artSlot = slot }) {
+                FieldRow(slot.label(), focus = if (slot == AddedGameArt.Slot.COVER) first else null, onClick = { if (target != null) artSlot = slot }) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         SlotThumb(slot, state?.file)
                         if (state != null) ValueText(artSourceLabel(state.source), muted = true) else Loading()
@@ -204,8 +222,9 @@ internal fun SteamGameArtEditor(
             }
         }
     }
+    val chosen = target ?: return
     artSlot?.let { slot ->
-        ArtChooserDialog(target, slot, arts.firstOrNull { it.slot == slot }, onBack = { artSlot = null }, onCloseAll = { artSlot = null; close() }) { version++; onChanged() }
+        ArtChooserDialog(chosen, slot, arts.firstOrNull { it.slot == slot }, onBack = { artSlot = null }, onCloseAll = { artSlot = null; close() }) { version++; onChanged() }
     }
 }
 

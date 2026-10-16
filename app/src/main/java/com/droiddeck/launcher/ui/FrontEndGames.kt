@@ -155,6 +155,7 @@ private fun GameActions(g: Library.SteamGame, s: FrontEndState, a: FrontEndActio
         if (!s.shortcutPicker) GameShortcutMenu(g, a)
         if (!s.shortcutPicker && g.library == Library.ADDED && g.source == Library.ADDED && g.gameFiles != null) EditGameButton { onEdit(g) }
         else if (!s.shortcutPicker && g.library != Library.ADDED && g.source == Library.SOURCE_STEAM) EditGameButton { GamesDialogState.steamArt = g }
+        else if (!s.shortcutPicker && g.library == Library.ADDED && g.source != Library.ADDED && g.gameFiles != null) EditGameButton { GamesDialogState.storeArt = g }
         BusyChip(s)
     }
 }
@@ -330,6 +331,7 @@ internal object GamesDialogState {
     var editing by androidx.compose.runtime.mutableStateOf<EditRequest?>(null)
     var checking by androidx.compose.runtime.mutableStateOf<String?>(null)
     var steamArt by androidx.compose.runtime.mutableStateOf<Library.SteamGame?>(null)
+    var storeArt by androidx.compose.runtime.mutableStateOf<Library.SteamGame?>(null)
     var behindEditor: Pair<List<com.droiddeck.launcher.frontend.AddedGames.Game>, Int>? = null
 }
 
@@ -370,6 +372,10 @@ private fun GamesDialogs(a: FrontEndActions, games: List<Library.SteamGame>) {
     }
     st.steamArt?.let { game ->
         SteamGameArtEditor(games.firstOrNull { it.appId == game.appId && it.library != Library.ADDED } ?: game, onClose = { st.steamArt = null }, onChanged = { a.onSteamGameArtChanged(game.appId) })
+    }
+    st.storeArt?.let { game ->
+        val folder = game.gameFiles?.path
+        if (folder != null) StoreGameArtEditor(folder, game.name, onClose = { st.storeArt = null }, onChanged = { a.onAddedGamesChanged(listOf(folder)) })
     }
     st.editing?.let { request ->
         AddedGameEditor(
