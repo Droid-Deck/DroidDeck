@@ -69,6 +69,24 @@ class SteamShortcutRecoveryTest(unittest.TestCase):
         self.assertEqual(GAME, restart)
         self.assertIn("lost shortcut", out)
 
+    def test_steam_is_restarted_only_once_for_the_same_game(self):
+        steam, restart, _ = self.launch_game("4")
+        self.assertEqual(GAME, restart)
+        (self.root / ".bl-restart-game").unlink()
+        self.steam_log.unlink()
+        (self.root / "agent-count").unlink()
+        steam, restart, out = self.launch_game("4")
+        self.assertEqual(["steam://rungameid/" + GAME], steam)
+        self.assertIsNone(restart)
+        self.assertIn("already restarted", out)
+
+    def test_a_ready_shortcut_allows_a_later_restart_again(self):
+        self.launch_game("4")
+        (self.root / ".bl-restart-game").unlink()
+        (self.root / "agent-count").unlink()
+        self.launch_game("0")
+        self.assertFalse((self.root / ".bl-restarted-for").exists())
+
     def test_a_running_game_is_never_cut_off_by_a_restart(self):
         steam, restart, _ = self.launch_game("0 4", focusable="769,3703311242")
         self.assertEqual(["steam://rungameid/" + GAME], steam)

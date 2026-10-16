@@ -71,21 +71,30 @@ class SteamColdLaunchTest(unittest.TestCase):
         self.assertEqual(["--wait-steam-shortcut-overview", game_id, "45"], self.agent_args.read_text().splitlines())
         self.assertEqual("4", self.sleep_args.read_text().strip())
 
-    def test_shortcut_without_the_expected_overview_does_not_forward_cgameid(self):
+    def test_a_shortcut_whose_overview_never_appears_is_launched_after_a_bounded_wait(self):
         game_id = str((3551182975 << 32) | 0x02000000)
         result = self.run_launch(game_id, 1)
-        self.assertFalse((self.launch_dir / "steam-game").exists(), result.stdout)
-        self.assertEqual(["--wait-steam-shortcut-overview", game_id, "45"], self.agent_args.read_text().splitlines())
-        self.assertEqual("40", self.agent_count.read_text().strip())
-        self.assertEqual(["2"] * 40, self.sleep_args.read_text().split())
-
-    def test_a_slow_steam_library_still_gets_its_game_launched(self):
-        game_id = str((3551182975 << 32) | 0x02000000)
-        result = self.run_launch(game_id, "1 1 1 0")
         self.assertEqual(game_id, (self.launch_dir / "steam-game").read_text().strip(), result.stdout)
-        self.assertEqual("4", self.agent_count.read_text().strip())
-        self.assertEqual(["2", "2", "2"], self.sleep_args.read_text().split())
-        self.assertIn("attempt 3 of 40", result.stdout)
+        self.assertEqual(["--wait-steam-shortcut-overview", game_id, "45"], self.agent_args.read_text().splitlines())
+        self.assertEqual("2", self.agent_count.read_text().strip())
+        self.assertEqual(["2", "2"], self.sleep_args.read_text().split())
+        self.assertIn("launching the requested game anyway", result.stdout)
+
+    def test_a_late_overview_is_still_waited_for_once_more(self):
+        game_id = str((3551182975 << 32) | 0x02000000)
+        result = self.run_launch(game_id, "1 0")
+        self.assertEqual(game_id, (self.launch_dir / "steam-game").read_text().strip(), result.stdout)
+        self.assertEqual("2", self.agent_count.read_text().strip())
+        self.assertEqual(["2"], self.sleep_args.read_text().split())
+        self.assertIn("attempt 1 of 2", result.stdout)
+        self.assertNotIn("anyway", result.stdout)
+
+    def test_an_agent_failure_other_than_a_timeout_launches_without_retrying(self):
+        game_id = str((3551182975 << 32) | 0x02000000)
+        result = self.run_launch(game_id, 2)
+        self.assertEqual(game_id, (self.launch_dir / "steam-game").read_text().strip(), result.stdout)
+        self.assertEqual("1", self.agent_count.read_text().strip())
+        self.assertFalse(self.sleep_args.exists())
 
     def test_a_restart_for_a_game_waits_for_its_overview_too(self):
         game_id = str((3551182975 << 32) | 0x02000000)
