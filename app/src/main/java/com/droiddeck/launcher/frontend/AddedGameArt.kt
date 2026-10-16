@@ -43,7 +43,7 @@ object AddedGameArt {
     private val CHOSEN = Regex("""chosen-(p|hero|logo|icon)(?:-\d+)?\.(\w+)""")
 
     internal fun chosen(cache: File, slot: Slot): File? =
-        cache.listFiles { f -> CHOSEN.matchEntire(f.name)?.groupValues?.get(1) == slot.key }?.firstOrNull()
+        cache.listFiles { f -> CHOSEN.matchEntire(f.name)?.groupValues?.get(1) == slot.key }?.maxWithOrNull(compareBy({ it.lastModified() }, { it.name }))
 
     private val IMAGE = listOf("png", "jpg", "jpeg")
     private val PORTRAIT = listOf("cover", "poster", "grid", "boxart", "capsule", "folder", "library_600x900", "portrait")
@@ -168,15 +168,24 @@ object AddedGameArt {
     }
 
     internal fun store(cache: File, slot: Slot, option: Option): Boolean {
+        val fresh = storeNew(cache, slot, option) ?: return false
+        dropOlder(cache, slot, fresh)
+        return true
+    }
+
+    internal fun dropOlder(cache: File, slot: Slot, keep: File) {
+        cache.listFiles { f -> f != keep && CHOSEN.matchEntire(f.name)?.groupValues?.get(1) == slot.key }?.forEach { it.delete() }
+    }
+
+    internal fun storeNew(cache: File, slot: Slot, option: Option): File? {
         val bytes = if (option.full.startsWith("https://")) get(option.full) else runCatching { File(option.full).readBytes() }.getOrNull()
-        bytes ?: return false
+        bytes ?: return null
         val ext = option.full.substringAfterLast('.', "png").substringBefore('?').lowercase().takeIf { it in CHOOSABLE + "ico" } ?: "png"
         cache.mkdirs()
-        cache.listFiles { f -> CHOSEN.matchEntire(f.name)?.groupValues?.get(1) == slot.key }?.forEach { it.delete() }
         val dst = File(cache, "chosen-${slot.key}-${System.currentTimeMillis()}.${if (ext == "jpeg") "jpg" else ext}")
         val tmp = File(cache, dst.name + ".tmp")
         tmp.writeBytes(bytes)
-        return tmp.renameTo(dst)
+        return if (tmp.renameTo(dst)) dst else null
     }
 
     fun chosenSource(context: Context, game: AddedGames.Game, slot: Slot): Pair<String, String> {

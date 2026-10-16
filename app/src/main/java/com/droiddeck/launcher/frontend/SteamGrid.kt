@@ -10,6 +10,9 @@ import java.io.File
 /** Steam keeps a game's custom art in `userdata/<account>/config/grid`; this is where DroidDeck's choices and Steam's meet. */
 object SteamGrid {
     private const val TAG = "SteamGrid"
+
+    /** Every change to a game's art, here or in a scan, takes this first so two of them never interleave. */
+    internal val lock = Any()
     private const val MANIFEST = ".droiddeck-art.json"
     private val SUFFIX = mapOf(AddedGameArt.Slot.COVER to "p", AddedGameArt.Slot.BACKGROUND to "_hero", AddedGameArt.Slot.LOGO to "_logo")
     private val EXTS = listOf("png", "jpg", "jpeg", "webp")
@@ -49,7 +52,9 @@ object SteamGrid {
     }.getOrDefault(emptySet())
 
     /** Puts a choice (or, with null, the lack of one) where Steam reads it, whether or not Steam is running. */
-    fun write(context: Context, target: Target, slot: AddedGameArt.Slot, file: File?): Boolean {
+    fun write(context: Context, target: Target, slot: AddedGameArt.Slot, file: File?): Boolean = synchronized(lock) { place(context, target, slot, file) }
+
+    private fun place(context: Context, target: Target, slot: AddedGameArt.Slot, file: File?): Boolean {
         val suffix = SUFFIX[slot] ?: return true
         val grid = dir(context) ?: return true
         if (file == null) {
@@ -73,7 +78,9 @@ object SteamGrid {
     }
 
     /** Takes over what changed in Steam since the last look; returns true when a choice was added, replaced or dropped. */
-    fun sync(context: Context, targets: List<Target>): Boolean {
+    fun sync(context: Context, targets: List<Target>): Boolean = synchronized(lock) { reconcile(context, targets) }
+
+    private fun reconcile(context: Context, targets: List<Target>): Boolean {
         val grid = dir(context) ?: return false
         val ours = writtenByDroidDeck(grid)
         var changed = false

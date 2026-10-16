@@ -127,4 +127,15 @@ class SteamGridTest {
         assertFalse(SteamGrid.sync(app, listOf(target())))
         assertEquals(15L, File(grid, "620p.png").length())
     }
+
+    @Test fun aRefusedReplacementLeavesTheLastGoodChoiceInPlace() {
+        File(LinuxRuntime.rootDir(app), "root/.local/share/Steam/userdata/123/config").mkdirs()
+        val png = image("mine.png", 12)
+        assertTrue(SteamGameArt.choose(app, game(), AddedGameArt.Slot.COVER, AddedGameArt.Option(AddedGameArt.FILE, png.path, png.path)))
+        val kept = SteamGameArt.chosenFile(app, 620, AddedGameArt.Slot.COVER)
+        val ico = image("mine.ico", 6)
+        assertFalse(SteamGameArt.choose(app, game(), AddedGameArt.Slot.COVER, AddedGameArt.Option(AddedGameArt.FILE, ico.path, ico.path)))
+        assertEquals(kept, SteamGameArt.chosenFile(app, 620, AddedGameArt.Slot.COVER))
+        assertEquals(12L, File(grid, "620p.png").length())
+    }
 }

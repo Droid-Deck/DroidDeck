@@ -60,26 +60,29 @@ object SteamGameArt {
     }
 
     fun choose(context: Context, game: Library.SteamGame, slot: AddedGameArt.Slot, option: AddedGameArt.Option): Boolean {
-        val folder = dir(context, game.appId)
-        if (!AddedGameArt.store(folder, slot, option)) return false
-        setSource(context, game.appId, slot, option.group + "|" + option.full)
-        if (!push(context, game, slot)) {
-            AddedGameArt.chosen(folder, slot)?.delete()
-            setSource(context, game.appId, slot, "")
-            return false
+        return synchronized(SteamGrid.lock) {
+            val folder = dir(context, game.appId)
+            val fresh = AddedGameArt.storeNew(folder, slot, option) ?: return@synchronized false
+            if (!push(context, game, slot, fresh)) {
+                fresh.delete()
+                return@synchronized false
+            }
+            AddedGameArt.dropOlder(folder, slot, fresh)
+            setSource(context, game.appId, slot, option.group + "|" + option.full)
+            true
         }
-        return true
     }
 
     fun reset(context: Context, game: Library.SteamGame, slot: AddedGameArt.Slot) {
-        AddedGameArt.chosen(dir(context, game.appId), slot)?.delete()
-        setSource(context, game.appId, slot, "")
-        push(context, game, slot)
+        synchronized(SteamGrid.lock) {
+            AddedGameArt.chosen(dir(context, game.appId), slot)?.delete()
+            setSource(context, game.appId, slot, "")
+            push(context, game, slot, null)
+        }
     }
 
-    private fun push(context: Context, game: Library.SteamGame, slot: AddedGameArt.Slot): Boolean {
+    private fun push(context: Context, game: Library.SteamGame, slot: AddedGameArt.Slot, file: File?): Boolean {
         val type = slot.assetType ?: return true
-        val file = chosenFile(context, game.appId, slot)
         if (!SteamGrid.write(context, SteamGrid.target(game, context), slot, file)) return false
         AddedGamesPublisher.later(context) { SteamLiveShortcuts.setArt(context, game.appId.toLong(), type, file) }
         return true

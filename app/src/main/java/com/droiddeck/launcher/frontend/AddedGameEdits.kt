@@ -36,15 +36,19 @@ object AddedGameEdits {
 
     fun setArt(context: Context, folder: String, slot: AddedGameArt.Slot, option: AddedGameArt.Option): Boolean {
         val game = game(context, folder) ?: return false
-        if (!AddedGameArt.choose(context, game, slot, option)) return false
-        applyArt(context, game, slot)
-        return true
+        return synchronized(SteamGrid.lock) {
+            if (!AddedGameArt.choose(context, game, slot, option)) return@synchronized false
+            applyArt(context, game, slot)
+            true
+        }
     }
 
     fun resetArt(context: Context, folder: String, slot: AddedGameArt.Slot) {
         val game = game(context, folder) ?: return
-        AddedGameArt.reset(context, game, slot)
-        applyArt(context, game, slot)
+        synchronized(SteamGrid.lock) {
+            AddedGameArt.reset(context, game, slot)
+            applyArt(context, game, slot)
+        }
     }
 
     private fun applyArt(context: Context, game: AddedGames.Game, slot: AddedGameArt.Slot) {
