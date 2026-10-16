@@ -445,8 +445,10 @@ class MainActivity : ComponentActivity() {
         if (request.action == com.droiddeck.launcher.stores.epic.EpicClient.ACTION_PLAY_IN_STEAM) {
             pendingGameLink = request.getStringExtra(GameLaunchIntent.EXTRA_APP_ID)?.takeIf(com.droiddeck.launcher.frontend.GameLaunchLink::validId)
             pendingFromLauncher = pendingGameLink != null
-            request.action = Intent.ACTION_MAIN
-            request.removeExtra(GameLaunchIntent.EXTRA_APP_ID)
+            if (pendingGameLink == null) {
+                request.action = Intent.ACTION_MAIN
+                request.removeExtra(GameLaunchIntent.EXTRA_APP_ID)
+            }
         } else if (GameLaunchIntent.accepts(request.action)) {
             val copy = Intent(request)
             Thread({

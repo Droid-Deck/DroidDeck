@@ -586,7 +586,7 @@ def extract(image):
         errors = run.stderr.decode("utf-8", "replace")
         sys.stderr.write(errors)
         status = run.returncode
-        if status == 2 and only_xattrs_failed(errors):
+        if status == 2 and only_xattrs_failed(errors) and extracted() and os.path.lexists("squashfs-root/AppRun"):
             say("uruntime could not keep the image's extended attributes; the files are unpacked")
             status = 0
         if status == 0 and extracted():

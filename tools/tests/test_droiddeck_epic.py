@@ -7,6 +7,7 @@ import shutil
 import socket
 import signal
 import subprocess
+import sys
 import tarfile
 import tempfile
 import threading
@@ -263,6 +264,19 @@ class SignInTest(EpicTestCase):
         requests = [json.loads(p.read_text()) for p in (launch / "stores/req").glob("*.json")]
         self.assertEqual(["epic-sign-in", "open-url", "steam-run"], sorted(r["op"] for r in requests))
         self.assertEqual(["2379304779"], [r["id"] for r in requests if r["op"] == "steam-run"])
+
+    def test_the_xdg_open_command_forwards_steam_links(self):
+        launch = self.tmp / "cli-launch"
+        env = dict(os.environ, HOME=str(self.home), BL_LAUNCH_DIR=str(launch))
+        def xdg_open(url):
+            return subprocess.run([sys.executable, str(BIN / "droiddeck-epic"), "xdg-open", url], env=env,
+                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30).returncode
+        self.assertEqual(0, xdg_open("steam://rungameid/2379304779"))
+        self.assertEqual(0, xdg_open("steam://run/606150"))
+        self.assertEqual(1, xdg_open("steam://rungameid/0"))
+        requests = [json.loads(p.read_text()) for p in (launch / "stores/req").glob("*.json")]
+        self.assertEqual(["steam-run", "steam-run"], [r["op"] for r in requests])
+        self.assertEqual(["2379304779", "606150"], sorted(r["id"] for r in requests))
 
 
 class SignInHandoffTest(EpicTestCase):

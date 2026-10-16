@@ -330,6 +330,17 @@ class ExtractTest(FexTestCase):
         self.assertIn("could not keep the image's extended attributes", said)
         self.assertTrue(Path("squashfs-root/AppRun").is_file())
 
+    def test_an_attribute_only_failure_without_apprun_is_not_taken_as_unpacked(self):
+        tool = self.uruntime(
+            "mkdir -p AppDir\n"
+            "echo 'write_xattr: could not write xattr security.selinux for file ./AppDir/.DirIcon because you are not superuser!' >&2\n"
+            "exit 2\n")
+        with mock.patch.dict(G, {"URUNTIME": tool, "fex_install": lambda: None, "steam_running": lambda: False, "prepare": lambda: None}):
+            status, said = self.quiet(FEX["extract"], "image.AppImage")
+        self.assertIn("uruntime could not extract it (status 2)", said)
+        self.assertNotIn("could not keep the image's extended attributes", said)
+        self.assertFalse(os.path.lexists("squashfs-root/AppRun"))
+
     def test_other_uruntime_errors_are_not_taken_as_unpacked(self):
         self.assertFalse(FEX["only_xattrs_failed"]("write_xattr: could not write xattr\nwrite_file: failed to create file x\n"))
         self.assertFalse(FEX["only_xattrs_failed"](""))

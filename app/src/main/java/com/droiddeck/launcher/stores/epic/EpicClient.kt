@@ -40,6 +40,7 @@ object EpicClient {
     private const val SETTINGS = "settings/app-settings.json"
     private const val STOCK_INSTALL_DIR = "/root/Games"
     private const val FEX_DIR = "FEX-Emu"
+    private val FEX_PREFIXES = listOf("usr/", "", "files/usr/", "files/")
     private const val FEX_WANTED = "root/.config/droiddeck/fex-wanted"
     private const val ICON = "epic-games-launcher.png"
     const val LAUNCHER_APP_ID = 0
@@ -185,13 +186,18 @@ object EpicClient {
 
     fun fexReady(context: Context): Boolean {
         val usr = File(LinuxRuntime.rootDir(context), "usr/bin")
-        if (File(usr, "FEXServer").isFile && (File(usr, "FEX").isFile || File(usr, "FEXInterpreter").isFile)) return true
+        if (File(usr, "FEXServer").isFile && fexBinary(usr)) return true
         return Library.steamLibraries(context).any { (library, _) ->
             val manifest = File(library, "steamapps/appmanifest_${SteamStorage.FEX}.acf")
             val dir = runCatching { SteamStorage.parseManifest(manifest, manifest.readText())?.installDir }.getOrNull()
-            listOfNotNull(dir, FEX_DIR).any { File(library, "steamapps/common/$it").isDirectory }
+            listOfNotNull(dir, FEX_DIR).distinct().any { name ->
+                val tool = File(library, "steamapps/common/$name")
+                FEX_PREFIXES.any { fexBinary(File(tool, "${it}bin")) }
+            }
         }
     }
+
+    private fun fexBinary(bin: File): Boolean = File(bin, "FEX").isFile || File(bin, "FEXInterpreter").isFile
 
     fun requestFex(context: Context) {
         runCatching {

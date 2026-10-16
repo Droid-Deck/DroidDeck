@@ -264,7 +264,9 @@ class EpicClientTest {
         assertTrue(File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context), "root/.config/droiddeck/fex-wanted").isFile)
         File(steamapps, "appmanifest_3127680.acf").writeText("\"AppState\"\n{\n\t\"appid\"\t\t\"3127680\"\n\t\"installdir\"\t\t\"FEX-Emu\"\n}\n")
         assertFalse(EpicClient.fexReady(context))
-        File(steamapps, "common/FEX-Emu").mkdirs()
+        File(steamapps, "common/FEX-Emu/usr/bin").mkdirs()
+        assertFalse(EpicClient.fexReady(context))
+        File(steamapps, "common/FEX-Emu/usr/bin/FEXInterpreter").writeText("")
         assertTrue(EpicClient.fexReady(context))
     }
 

@@ -182,7 +182,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private lateinit var threeFingerTap: com.droiddeck.launcher.input.ThreeFingerTap
     private lateinit var scrollTouch: ScrollTouchGestures
     private lateinit var padMouse: PadMouse
-    private var padMouseOn = false
+    @Volatile private var padMouseOn = false
     private var padMouseCheckedAt = 0L
     private var scrollTouchGesture = false
     private var scrollRestX = 0f
@@ -435,8 +435,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         threeFingerTap = com.droiddeck.launcher.input.ThreeFingerTap(PointerGestures.slop(this) * 2)
         padMouse = PadMouse(padMouseListener)
         bridge.setTouchRoute(object : PadBridge.TouchRoute {
-            override fun active(): Boolean = padMouseMode()
-            override fun accept(state: PadState) = padMouse.onTouchPad(state)
+            override fun active(): Boolean = if (Looper.myLooper() == Looper.getMainLooper()) padMouseMode() else padMouseOn
+            override fun accept(state: PadState) {
+                if (Looper.myLooper() == Looper.getMainLooper()) padMouse.onTouchPad(state)
+                else PadState().also { it.copyFrom(state) }.let { copy -> uiHandler.post { padMouse.onTouchPad(copy) } }
+            }
         })
         scrollTouch = ScrollTouchGestures(PointerGestures.slop(this),
             android.view.ViewConfiguration.get(this).scaledMinimumFlingVelocity.toFloat(), scrollListener)
@@ -1800,9 +1803,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         override fun onScroll(dx: Float, dy: Float) {
             val rect = drawnRect() ?: return
             val out = SessionState.outputSize
-            val scale = out.first / rect.width()
-            scrollRestX += dx * scale
-            scrollRestY += dy * scale
+            scrollRestX += dx * out.first / rect.width()
+            scrollRestY += dy * out.second / rect.height()
             val h = scrollRestX.toInt()
             val v = scrollRestY.toInt()
             if (h == 0 && v == 0) return
