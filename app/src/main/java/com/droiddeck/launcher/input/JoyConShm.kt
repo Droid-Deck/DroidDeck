@@ -20,6 +20,9 @@ internal class JoyConShm private constructor(
         val buttons: Int = 0,
         val rotation: Quaternion = Quaternion.IDENTITY,
         val rate: Vec3 = Vec3(0f, 0f, 0f),
+        val displacement: Vec3 = Vec3(0f, 0f, 0f),
+        val velocity: Vec3 = Vec3(0f, 0f, 0f),
+        val inertial: Vec3 = Vec3(0f, 0f, 0f),
         val stickX: Float = 0f,
         val stickY: Float = 0f,
         val battery: Float = -1f,
@@ -54,6 +57,16 @@ internal class JoyConShm private constructor(
         map.putFloat(at + 44, hand.battery)
         map.putInt(at + 48, hand.recenter)
         map.putLong(at + 56, hand.timeNs)
+        map.putFloat(at + 64, hand.displacement.x)
+        map.putFloat(at + 68, hand.displacement.y)
+        map.putFloat(at + 72, hand.displacement.z)
+        map.putFloat(at + 76, hand.velocity.x)
+        map.putFloat(at + 80, hand.velocity.y)
+        map.putFloat(at + 84, hand.velocity.z)
+        map.putFloat(at + 88, hand.inertial.x)
+        map.putFloat(at + 92, hand.inertial.y)
+        map.putFloat(at + 96, hand.inertial.z)
+        map.putInt(at + 100, 0)
         end()
     }
 
@@ -75,14 +88,14 @@ internal class JoyConShm private constructor(
 
     companion object {
         const val FILE = "droiddeck-joycon"
-        const val SIZE = 176
+        const val SIZE = 224
         private const val MAGIC = 0x4E434A44
-        private const val VERSION = 1
+        private const val VERSION = 3
         private const val MAGIC_AT = 0
         private const val VERSION_AT = 4
         private const val SEQ = 8
         private const val HANDS = 16
-        private const val HAND_SIZE = 80
+        private const val HAND_SIZE = 104
         private const val CONNECTED = 1
         private const val CHARGING = 2
 

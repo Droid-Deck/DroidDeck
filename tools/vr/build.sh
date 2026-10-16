@@ -37,6 +37,10 @@ compile() {
         c++ -std=c++17 -O2 -Wall -Wextra -Werror -Wno-unused-parameter -Itools/vr/src \
             -o build/vr/test_joycon tools/vr/tests/test_joycon.cpp
         build/vr/test_joycon
+        c++ -std=c++17 -O2 -Wall -Wextra -Werror -Wno-unused-parameter -Itools/vr/src \
+            -o build/vr/make_hand_models tools/vr/make_hand_models.cpp
+        mkdir -p build/vr/out/droiddeck/resources
+        build/vr/make_hand_models build/vr/out/droiddeck/resources/rendermodels
         mkdir -p build/vr/stub
         aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wl,-soname,libwayland-client.so.0 -Itools/vr/third_party/wayland \
             -o build/vr/stub/libwayland-client.so tools/vr/src/wayland_client_stub.c

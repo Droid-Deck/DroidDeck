@@ -55,6 +55,8 @@
     <string name="wadb_computer_group">3 · ADB desde una computadora (último recurso)</string>
     <string name="ctrl_select_steam">Presiona Select para abrir el menú de Steam</string>
     <string name="ctrl_joycon_vr">Joy-Con como controles de RV</string>
+    <string name="hand_camera_prompt_body">La cámara puede ver tus manos. Sin ningún control conectado, tus manos desnudas pasan a ser las manos de RV: junta el pulgar y el índice para hacer clic, cierra la mano para agarrar y, para abrir el menú, gira la palma hacia ti y junta los dedos. Con Joy-Con, los coloca donde están de verdad tus manos. Las imágenes se procesan en este dispositivo y nunca se guardan ni se envían.</string>
+    <string name="hand_camera_setting_hint">Sin ningún control conectado, tus manos pasan a ser las manos de RV: junta los dedos para hacer clic y, con la palma hacia ti, júntalos para abrir el menú. Con Joy-Con, los coloca donde la cámara los ve. Las imágenes se quedan en este dispositivo.</string>
     <string name="ctrl_reset_all">Restablecer control</string>
     <string name="ctrl_reset_all_hint">Restaura todos los ajustes del control y la disposición</string>
     <string name="content_add_roms">Agrega juegos de %1$s a ROMs/%2$s.</string>

@@ -14,9 +14,9 @@ internal class JoyConOrientation {
     private var bias = Vec3(0f, 0f, 0f)
     private var stillFor = 0f
 
-    fun update(accelKernel: FloatArray, gyroKernel: FloatArray, dt: Float) {
-        val accel = axes(accelKernel)
-        val gyro = axes(gyroKernel)
+    fun update(accelKernel: FloatArray, gyroKernel: FloatArray, dt: Float) = update(axes(accelKernel), axes(gyroKernel), dt)
+
+    fun update(accel: Vec3, gyro: Vec3, dt: Float) {
         val norm = accel.length()
         val gravityValid = abs(norm - GRAVITY) < GRAVITY_TOLERANCE
         if (!ready) {
@@ -38,9 +38,9 @@ internal class JoyConOrientation {
         }
         rate = gyro - bias
         var corrected = rate
-        if (gravityValid) {
+        if (gravityValid && rate.length() < MOVING_RATE) {
             val predictedUp = rotation.conjugate().rotate(WORLD_UP)
-            corrected += accel.normalized().cross(predictedUp) * GAIN
+            corrected += accel.normalized().cross(predictedUp) * (GAIN * (1f - abs(norm - GRAVITY) / GRAVITY_TOLERANCE))
         }
         rotation = rotation.integrateBodyRate(corrected, dt).normalized()
     }
@@ -54,41 +54,60 @@ internal class JoyConOrientation {
         private const val STILL_SECONDS = 0.3f
         private const val BIAS_SECONDS = 2f
         private const val GAIN = 1.0f
+        private const val MOVING_RATE = 1.0f
 
         fun axes(v: FloatArray) = Vec3(-v[1], v[2], -v[0])
     }
 }
 
-internal class JoyConSampleClock {
-    private var scale = 0f
-    private var last = 0L
-    private var windowStamp = 0L
-    private var windowArrival = 0L
+internal class JoyConReports {
+    class Sample(val accel: FloatArray, val gyro: FloatArray, val dt: Float)
 
-    fun interval(stampNs: Long, arrivalNs: Long): Float {
-        if (stampNs == last) return 0f
-        if (last == 0L || stampNs < last || stampNs - last > MAX_GAP_NS) {
-            last = stampNs
-            windowStamp = stampNs
-            windowArrival = arrivalNs
-            return 0f
+    private val pending = ArrayList<FloatArray>(4)
+    private var pendingAt = 0L
+    private var previousFirst: FloatArray? = null
+    private var previousLast: FloatArray? = null
+    private var previousSample: FloatArray? = null
+    private var previousAt = 0L
+    private var order = NEWEST_FIRST_START
+
+    val size: Int get() = pending.size
+
+    fun add(accel: FloatArray, gyro: FloatArray, arrivalNs: Long) {
+        if (pending.isEmpty()) pendingAt = arrivalNs
+        pending += floatArrayOf(accel[0], accel[1], accel[2], gyro[0], gyro[1], gyro[2])
+    }
+
+    fun flush(): List<Sample> {
+        if (pending.isEmpty()) return emptyList()
+        val first = pending.first()
+        val last = pending.last()
+        if (pending.size > 1) {
+            if (previousFirst?.contentEquals(last) == true) order = (order + 1).coerceAtMost(ORDER_LIMIT)
+            else if (previousLast?.contentEquals(first) == true) order = (order - 1).coerceAtLeast(-ORDER_LIMIT)
         }
-        val raw = stampNs - last
-        last = stampNs
-        if (arrivalNs - windowArrival >= WINDOW_NS) {
-            val measured = (arrivalNs - windowArrival).toFloat() / (stampNs - windowStamp)
-            scale = if (scale == 0f) measured else scale + (measured - scale) * SMOOTHING
-            windowStamp = stampNs
-            windowArrival = arrivalNs
+        val chronological = if (order >= 0) pending.asReversed() else pending
+        val fresh = ArrayList<FloatArray>(chronological.size)
+        var before = previousSample
+        for (sample in chronological) {
+            if (before?.contentEquals(sample) != true) fresh += sample
+            before = sample
         }
-        if (scale == 0f) return 0f
-        return (raw * scale * 1e-9f).coerceAtMost(MAX_STEP_S)
+        val used = fresh.ifEmpty { listOf(chronological.last()) }
+        val dt = if (previousAt == 0L) 0f else ((pendingAt - previousAt).coerceAtLeast(0L) * 1e-9f / used.size).coerceAtMost(MAX_STEP_S)
+        val out = used.map { Sample(it.copyOfRange(0, 3), it.copyOfRange(3, 6), dt) }
+        previousFirst = first
+        previousLast = last
+        previousSample = chronological.last()
+        previousAt = pendingAt
+        pending.clear()
+        return out
     }
 
     companion object {
-        private const val WINDOW_NS = 500_000_000L
-        private const val MAX_GAP_NS = 1_000_000_000L
-        private const val SMOOTHING = 0.25f
+        const val SAMPLES_PER_REPORT = 3
+        private const val NEWEST_FIRST_START = 2
+        private const val ORDER_LIMIT = 20
         private const val MAX_STEP_S = 0.05f
     }
 }

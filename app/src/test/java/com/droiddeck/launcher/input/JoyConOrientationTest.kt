@@ -70,26 +70,37 @@ class JoyConOrientationTest {
         assertEquals(0.5f, filter.rate.length(), 1e-4f)
     }
 
-    @Test fun theSampleClockCorrectsTimestampsThatRunTwiceAsFast() {
-        val clock = JoyConSampleClock()
-        var stamp = 1_000_000_000L
-        var arrival = 7_000_000_000L
-        assertEquals(0f, clock.interval(stamp, arrival))
-        val steps = (1..200).map {
-            stamp += 10_000_000L
-            arrival += 5_000_000L
-            clock.interval(stamp, arrival)
+    @Test fun reportsArriveNewestFirstAndTheRepeatedSampleIsDropped() {
+        val reports = JoyConReports()
+        fun sample(n: Int) = floatArrayOf(n.toFloat(), 0f, G) to floatArrayOf(n * 0.1f, 0f, 0f)
+        fun send(at: Long, vararg newestFirst: Int): List<JoyConReports.Sample> {
+            for (n in newestFirst) sample(n).let { reports.add(it.first, it.second, at) }
+            return reports.flush()
         }
-        assertEquals("no step before the rate is known", 0f, steps.first())
-        assertEquals(0.005f, steps.last(), 1e-5f)
-        assertEquals("a duplicate sample", 0f, clock.interval(stamp, arrival + 1_000L))
-        assertEquals("a gap is capped", 0.05f, clock.interval(stamp + 200_000_000L, arrival + 100_000_000L))
-        stamp += 200_000_000L
-        arrival += 100_000_000L
-        assertEquals("a restart after a long gap", 0f, clock.interval(stamp + 2_000_000_000L, arrival + 1_000_000_000L))
-        assertEquals("the measured rate survives a restart", 0.005f,
-            clock.interval(stamp + 2_010_000_000L, arrival + 1_005_000_000L), 1e-5f)
-        assertEquals("a clock that went backwards restarts", 0f, clock.interval(stamp, arrival + 1_010_000_000L))
+        assertEquals(listOf(1f, 2f, 3f), send(1_000_000_000L, 3, 2, 1).map { it.accel[0] })
+        val second = send(1_010_000_000L, 5, 4, 3)
+        assertEquals(listOf(4f, 5f), second.map { it.accel[0] })
+        assertEquals("the report interval is shared by its new samples", 0.005f, second[0].dt, 1e-6f)
+        assertEquals(listOf(6f, 7f, 8f), send(1_025_000_000L, 8, 7, 6).map { it.accel[0] })
+        val still = send(1_035_000_000L, 8, 8, 8)
+        assertEquals("a still report still moves time on", 1, still.size)
+        assertEquals(0.01f, still[0].dt, 1e-6f)
+        assertEquals("a long gap is capped", 0.05f, send(2_000_000_000L, 11, 10, 9)[0].dt, 1e-6f)
+    }
+
+    @Test fun reportsInOldestFirstOrderAreRecognised() {
+        val reports = JoyConReports()
+        var at = 1_000_000_000L
+        var next = 1
+        val seen = ArrayList<Float>()
+        repeat(12) {
+            val samples = listOf(next - 1, next, next + 1).filter { it > 0 }
+            for (n in samples) reports.add(floatArrayOf(n.toFloat(), 0f, G), floatArrayOf(0f, 0f, 0f), at)
+            seen += reports.flush().map { it.accel[0] }
+            next += 2
+            at += 10_000_000L
+        }
+        assertEquals((10..24).map { it.toFloat() }, seen.takeLast(15))
     }
 
     private fun forward(filter: JoyConOrientation) = filter.rotation.rotate(Vec3(0f, 0f, -1f))

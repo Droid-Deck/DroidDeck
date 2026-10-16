@@ -28,7 +28,7 @@ class JoyConShmTest {
         val bytes = read()
         assertEquals(JoyConShm.SIZE, bytes.capacity())
         assertEquals(0x4E434A44, bytes.getInt(0))
-        assertEquals(1, bytes.getInt(4))
+        assertEquals(3, bytes.getInt(4))
         assertEquals(2, bytes.getInt(8))
         for (at in 16 until JoyConShm.SIZE step 4) assertEquals("byte $at", 0, bytes.getInt(at))
         assertEquals(2, fences)
@@ -38,16 +38,18 @@ class JoyConShmTest {
         val shm = JoyConShm.open(file) { fences++ }!!
         shm.write(JoyCon.RIGHT, JoyConShm.Hand(connected = true, charging = true,
             buttons = JoyCon.VR_TRIGGER or JoyCon.VR_A, rotation = Quaternion(0.5f, -0.5f, 0.25f, 0.75f),
-            rate = Vec3(1f, -2f, 3f), stickX = 0.25f, stickY = -0.5f, battery = 0.75f, recenter = 3, timeNs = 1_234_567_890_123L))
+            rate = Vec3(1f, -2f, 3f), displacement = Vec3(0.1f, 0.2f, -0.3f), velocity = Vec3(-1.5f, 0.5f, 2f), inertial = Vec3(4f, -5f, 6f), stickX = 0.25f, stickY = -0.5f, battery = 0.75f, recenter = 3, timeNs = 1_234_567_890_123L))
         val bytes = read()
         assertEquals(4, bytes.getInt(8))
-        val at = 16 + 80
+        val at = 16 + 104
         assertEquals(3, bytes.getInt(at))
         assertEquals(JoyCon.VR_TRIGGER or JoyCon.VR_A, bytes.getInt(at + 4))
         assertArrayEquals(floatArrayOf(0.5f, -0.5f, 0.25f, 0.75f, 1f, -2f, 3f, 0.25f, -0.5f, 0.75f),
             FloatArray(10) { bytes.getFloat(at + 8 + it * 4) }, 0f)
         assertEquals(3, bytes.getInt(at + 48))
         assertEquals(1_234_567_890_123L, bytes.getLong(at + 56))
+        assertArrayEquals(floatArrayOf(0.1f, 0.2f, -0.3f, -1.5f, 0.5f, 2f, 4f, -5f, 6f), FloatArray(9) { bytes.getFloat(at + 64 + it * 4) }, 0f)
+        assertEquals(224, JoyConShm.SIZE)
         assertEquals("the left hand was touched", 0, bytes.getInt(16))
         assertEquals(4, fences)
     }
@@ -59,7 +61,7 @@ class JoyConShmTest {
         shm.close()
         val bytes = read()
         assertEquals(0, bytes.getInt(16))
-        assertEquals(0, bytes.getInt(16 + 80))
+        assertEquals(0, bytes.getInt(16 + 104))
         assertEquals(0, bytes.getInt(8) and 1)
     }
 

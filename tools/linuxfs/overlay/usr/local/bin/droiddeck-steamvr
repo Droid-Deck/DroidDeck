@@ -89,9 +89,15 @@ try:
     settings = json.loads(path.read_text()) if path.exists() else {}
     section = settings.setdefault("steamvr", {})
     defaults = {"supersampleManualOverride": True, "supersampleScale": 1.0}
-    if any(key not in section for key in defaults):
-        for key, value in defaults.items():
-            section.setdefault(key, value)
+    changed = any(key not in section for key in defaults)
+    for key, value in defaults.items():
+        section.setdefault(key, value)
+    driver = settings.get("driver_droiddeck")
+    if isinstance(driver, dict) and driver.get("blocked_by_safe_mode") is True:
+        driver["blocked_by_safe_mode"] = False
+        changed = True
+        print("SteamVR had blocked the DroidDeck driver after a crash; unblocked it")
+    if changed:
         with tempfile.NamedTemporaryFile(mode="w", dir=path.parent, delete=False) as output:
             temporary = Path(output.name)
             try:
@@ -106,6 +112,13 @@ try:
             temporary.unlink(missing_ok=True)
 except (OSError, ValueError, AttributeError, TypeError) as error:
     print("Could not set SteamVR resolution defaults: " + str(error), file=sys.stderr)
+try:
+    (path.parent / "vrserver_crash_timestamp.txt").unlink()
+    print("Removed SteamVR's crash marker so it starts without safe mode")
+except FileNotFoundError:
+    pass
+except OSError as error:
+    print("Could not remove SteamVR's crash marker: " + str(error), file=sys.stderr)
 PY
     cat > "$HOME/.config/openvr/openvrpaths.vrpath" <<JSON
 {

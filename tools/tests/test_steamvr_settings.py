@@ -58,6 +58,19 @@ class SteamVrSettingsTest(unittest.TestCase):
         self.assertEqual(json.loads(self.path.read_text())['steamvr'], {
             'supersampleScale': 0.5, 'supersampleManualOverride': True})
 
+    def test_a_crash_block_on_the_droiddeck_driver_is_cleared_and_others_kept(self):
+        settings = {'steamvr': {'supersampleManualOverride': True, 'supersampleScale': 1.0},
+                    'driver_droiddeck': {'blocked_by_safe_mode': True, 'directMode': True},
+                    'driver_lighthouse': {'blocked_by_safe_mode': True}}
+        self.path.write_text(json.dumps(settings))
+        self.assertIn('unblocked it', self.run_defaults().stdout)
+        settings['driver_droiddeck']['blocked_by_safe_mode'] = False
+        self.assertEqual(json.loads(self.path.read_text()), settings)
+
+    def test_the_crash_marker_is_removed_so_steamvr_does_not_start_in_safe_mode(self):
+        (self.path.parent / 'vrserver_crash_timestamp.txt').write_text('1792116926 1789606310 223')
+        self.assertIn('crash marker', self.run_defaults().stdout)
+
     def test_invalid_settings_are_reported_without_losing_the_original(self):
         for content in ('{broken', '[]', '{"steamvr": null}', '{"steamvr": []}'):
             with self.subTest(content=content):

@@ -57,6 +57,8 @@ class JoyConVr(
 
     fun owns(deviceId: Int): Boolean = owned.contains(deviceId)
 
+    val holding: Boolean get() = owned.isNotEmpty()
+
     fun onKeyEvent(event: KeyEvent): Boolean {
         if (!owns(event.deviceId)) return false
         if (event.repeatCount > 0) return true
@@ -172,7 +174,9 @@ class JoyConVr(
         private val out: JoyConShm,
     ) : SensorEventListener {
         private val filter = JoyConOrientation()
-        private val clock = JoyConSampleClock()
+        private val motion = JoyConMotion()
+        private val calibration = JoyConAccelCalibration().apply { restore(JoyConCalibrations.load(context, device.descriptor)) }
+        private val reports = JoyConReports()
         private val accel = FloatArray(3)
         private var accelStamp = 0L
         private var haveAccel = false
@@ -199,6 +203,7 @@ class JoyConVr(
             systemTap = false
             publish()
         }
+        private val flush = Runnable { flushReport() }
 
         override fun onSensorChanged(event: SensorEvent) {
             if (!live) return
@@ -210,15 +215,29 @@ class JoyConVr(
                     haveAccel = true
                 }
                 Sensor.TYPE_GYROSCOPE -> {
-                    val now = System.nanoTime()
-                    val dt = clock.interval(event.timestamp, now)
                     if (!haveAccel) return
-                    filter.update(accel, event.values, dt)
-                    sampleAt = now
-                    if (now - batteryAt > BATTERY_NS) refreshBattery(now)
-                    publish()
+                    reports.add(accel, event.values, System.nanoTime())
+                    worker.removeCallbacks(flush)
+                    if (reports.size >= JoyConReports.SAMPLES_PER_REPORT) flushReport() else worker.postDelayed(flush, FLUSH_MS)
                 }
             }
+        }
+
+        private fun flushReport() {
+            val samples = reports.flush()
+            if (samples.isEmpty() || !live) return
+            for (sample in samples) {
+                val raw = JoyConOrientation.axes(sample.accel)
+                val corrected = calibration.correct(raw)
+                filter.update(corrected, JoyConOrientation.axes(sample.gyro), sample.dt)
+                if (!filter.ready) continue
+                motion.update(filter.rotation, corrected, filter.rate, calibration.ready, sample.dt)
+                if (motion.resting && calibration.addResting(raw)) JoyConCalibrations.save(context, device.descriptor, calibration.saved())
+            }
+            val now = System.nanoTime()
+            sampleAt = now
+            if (now - batteryAt > BATTERY_NS) refreshBattery(now)
+            publish()
         }
 
         override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
@@ -267,6 +286,7 @@ class JoyConVr(
             runCatching { sensors.unregisterListener(this) }
             worker.removeCallbacks(hold)
             worker.removeCallbacks(tapEnd)
+            worker.removeCallbacks(flush)
             out.write(side, JoyConShm.Hand(connected = false))
             Log.i(TAG, "${SIDES[side]} Joy-Con \"${device.name}\" (id ${device.id}) is a game pad again")
         }
@@ -300,6 +320,9 @@ class JoyConVr(
                 buttons = buttons(),
                 rotation = filter.rotation,
                 rate = filter.rate,
+                displacement = motion.displacement,
+                velocity = motion.velocity,
+                inertial = motion.inertial,
                 stickX = stickX,
                 stickY = stickY,
                 battery = battery,
@@ -335,5 +358,6 @@ class JoyConVr(
         private const val CONFIRM_MS = 80L
         private const val BATTERY_NS = 30_000_000_000L
         private const val STICK_DEADZONE = 0.12f
+        private const val FLUSH_MS = 3L
     }
 }

@@ -120,9 +120,11 @@ VkFormat UnormOf(uint32_t f) {
 class Impl {
 public:
     static Impl &Get() {
-        static Impl impl;
-        return impl;
+        static Impl *impl = made_ = new Impl;
+        return *impl;
     }
+
+    static Impl *Made() { return made_; }
 
     void Add(const uint64_t handles[3], const int fds[3], uint32_t format, uint32_t w, uint32_t h) {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -659,6 +661,7 @@ private:
     bool haveFrame_ = false, exit_ = false, started_ = false;
     std::atomic<uint64_t> submitted_{0};
     std::thread thread_;
+    static inline std::atomic<Impl *> made_{nullptr};
 
     X11 x_;
     Display *dpy_ = nullptr;
@@ -687,6 +690,8 @@ private:
 void Presenter::AddTextures(const uint64_t h[3], const int fds[3], uint32_t f, uint32_t w, uint32_t hh) { Impl::Get().Add(h, fds, f, w, hh); }
 void Presenter::RemoveTexture(uint64_t h) { Impl::Get().Remove(h); }
 void Presenter::Submit(const EyeFrame &f) { Impl::Get().Submit(f); }
-void Presenter::Shutdown() { Impl::Get().Shutdown(); }
+void Presenter::Shutdown() {
+    if (Impl *impl = Impl::Made()) impl->Shutdown();
+}
 
 }

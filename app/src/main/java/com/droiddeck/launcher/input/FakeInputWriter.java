@@ -119,7 +119,7 @@ public class FakeInputWriter {
 
     private static native void nativeStoreFence();
 
-    static void storeFence() {
+    public static void storeFence() {
         nativeStoreFence();
     }
 

@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 #define DROIDDECK_JOYCON_MAGIC 0x4E434A44u
-#define DROIDDECK_JOYCON_VERSION 1u
+#define DROIDDECK_JOYCON_VERSION 3u
 #define DROIDDECK_JOYCON_FILE "droiddeck-joycon"
 #define DROIDDECK_JOYCON_RUMBLE_SLOT 0x100u
 
@@ -32,7 +32,10 @@ struct droiddeck_joycon_hand {
     uint32_t recenter;
     uint32_t pad;
     int64_t time_ns;
-    uint32_t reserved[4];
+    float displacement[3];
+    float velocity[3];
+    float inertial_velocity[3];
+    uint32_t reserved;
 };
 
 struct droiddeck_joycon {
@@ -48,9 +51,11 @@ struct droiddeck_joycon {
 #else
 #define DROIDDECK_JOYCON_ASSERT _Static_assert
 #endif
-DROIDDECK_JOYCON_ASSERT(sizeof(struct droiddeck_joycon_hand) == 80, "joycon hand layout");
+DROIDDECK_JOYCON_ASSERT(sizeof(struct droiddeck_joycon_hand) == 104, "joycon hand layout");
 DROIDDECK_JOYCON_ASSERT(offsetof(struct droiddeck_joycon_hand, time_ns) == 56, "joycon hand layout");
-DROIDDECK_JOYCON_ASSERT(sizeof(struct droiddeck_joycon) == 176, "joycon layout");
+DROIDDECK_JOYCON_ASSERT(offsetof(struct droiddeck_joycon_hand, displacement) == 64, "joycon hand layout");
+DROIDDECK_JOYCON_ASSERT(offsetof(struct droiddeck_joycon_hand, inertial_velocity) == 88, "joycon hand layout");
+DROIDDECK_JOYCON_ASSERT(sizeof(struct droiddeck_joycon) == 224, "joycon layout");
 DROIDDECK_JOYCON_ASSERT(offsetof(struct droiddeck_joycon, hands) == 16, "joycon layout");
 
 #endif
