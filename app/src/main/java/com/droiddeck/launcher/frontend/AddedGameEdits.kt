@@ -49,6 +49,7 @@ object AddedGameEdits {
 
     private fun applyArt(context: Context, game: AddedGames.Game, slot: AddedGameArt.Slot) {
         val file = AddedGameArt.describe(context, game).first { it.slot == slot }.file
+        if (slot != AddedGameArt.Slot.ICON) SteamGrid.write(context, SteamGrid.target(game, context), slot, AddedGameArt.chosen(AddedGameArt.cacheDir(context, game), slot))
         publish(context) {
             if (slot == AddedGameArt.Slot.ICON) SteamLiveShortcuts.setArt(context, game.appId, null, null, iconPath = file?.absolutePath.orEmpty())
             else SteamLiveShortcuts.setArt(context, game.appId, slot.assetType, file)

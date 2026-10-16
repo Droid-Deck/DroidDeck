@@ -1441,10 +1441,17 @@ class MainActivity : ComponentActivity() {
         }, "added-games-update").start()
     }
 
+    private val steamArtRefreshes = HashMap<Int, Int>()
+
     private fun refreshSteamGameArt(appId: Int) {
+        val version = (steamArtRefreshes[appId] ?: 0) + 1
+        steamArtRefreshes[appId] = version
         Thread({
             val fresh = com.droiddeck.launcher.frontend.Library.steamGames(this).firstOrNull { it.appId == appId } ?: return@Thread
-            ui.post { steamGames = steamGames.map { if (it.appId == appId && it.library != Library.ADDED) fresh else it } }
+            ui.post {
+                if (steamArtRefreshes[appId] != version) return@post
+                steamGames = steamGames.map { if (it.appId == appId && it.library != Library.ADDED) fresh else it }
+            }
         }, "steam-art-update").start()
     }
 

@@ -40,7 +40,7 @@ object AddedGameArt {
 
     class Found<T>(val items: List<T>, val status: SteamGridDb.Status)
 
-    private val CHOSEN = Regex("""chosen-(\w+)\.(\w+)""")
+    private val CHOSEN = Regex("""chosen-(p|hero|logo|icon)(?:-\d+)?\.(\w+)""")
 
     internal fun chosen(cache: File, slot: Slot): File? =
         cache.listFiles { f -> CHOSEN.matchEntire(f.name)?.groupValues?.get(1) == slot.key }?.firstOrNull()
@@ -147,7 +147,7 @@ object AddedGameArt {
     fun searchGames(context: Context, term: String): Found<SteamGridDb.Game> = sgdb(context) { SteamGridDb.search(it, term) }
 
     fun gameImages(context: Context, id: Int, slot: Slot): Found<Option> = sgdb(context) { key ->
-        SteamGridDb.page(key, id, slot).map { (thumb, full) -> Option(SGDB, thumb, full) }
+        SteamGridDb.all(key, id, slot).map { (thumb, full) -> Option(SGDB, thumb, full) }
     }
 
     private fun <T> sgdb(context: Context, call: (String) -> List<T>): Found<T> {
@@ -172,8 +172,8 @@ object AddedGameArt {
         bytes ?: return false
         val ext = option.full.substringAfterLast('.', "png").substringBefore('?').lowercase().takeIf { it in CHOOSABLE + "ico" } ?: "png"
         cache.mkdirs()
-        chosen(cache, slot)?.delete()
-        val dst = File(cache, "chosen-${slot.key}.${if (ext == "jpeg") "jpg" else ext}")
+        cache.listFiles { f -> CHOSEN.matchEntire(f.name)?.groupValues?.get(1) == slot.key }?.forEach { it.delete() }
+        val dst = File(cache, "chosen-${slot.key}-${System.currentTimeMillis()}.${if (ext == "jpeg") "jpg" else ext}")
         val tmp = File(cache, dst.name + ".tmp")
         tmp.writeBytes(bytes)
         return tmp.renameTo(dst)

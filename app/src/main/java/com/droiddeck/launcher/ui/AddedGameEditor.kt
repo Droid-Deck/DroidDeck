@@ -148,7 +148,7 @@ internal class ArtTarget(
     val name: String,
     val chosenRef: (Context, AddedGameArt.Slot) -> String,
     val choices: (Context, AddedGameArt.Slot) -> AddedGameArt.Choices,
-    val set: (Context, AddedGameArt.Slot, AddedGameArt.Option) -> Unit,
+    val set: (Context, AddedGameArt.Slot, AddedGameArt.Option) -> Boolean,
     val reset: (Context, AddedGameArt.Slot) -> Unit,
 ) {
     companion object {
@@ -182,7 +182,7 @@ internal fun SteamGameArtEditor(
     var arts by remember { mutableStateOf<List<AddedGameArt.SlotState>>(emptyList()) }
     var artSlot by remember { mutableStateOf<AddedGameArt.Slot?>(null) }
     val target = remember(game.appId) { ArtTarget.of(game) }
-    LaunchedEffect(version) { arts = withContext(Dispatchers.IO) { SteamGameArt.describe(app, game) } }
+    LaunchedEffect(version, game) { arts = withContext(Dispatchers.IO) { SteamGameArt.describe(app, game) } }
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) { focusWithinFrames({ false }) { first } }
     AppDialog(shown, close, "steamArtEditor", wide = false, maxWidth = 460.dp) {
@@ -438,9 +438,11 @@ private fun ArtChooserDialog(
     LaunchedEffect(Unit) { focusWithinFrames({ false }) { first } }
     val apply: (AddedGameArt.Option) -> Unit = { option ->
         scope.launch {
-            withContext(Dispatchers.IO) { target.set(app, slot, option) }
-            onChanged()
-            back()
+            val saved = withContext(Dispatchers.IO) { target.set(app, slot, option) }
+            if (saved) {
+                onChanged()
+                back()
+            }
         }
     }
     val slotName = slot.label()

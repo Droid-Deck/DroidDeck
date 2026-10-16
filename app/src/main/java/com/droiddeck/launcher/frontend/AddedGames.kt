@@ -330,7 +330,7 @@ object AddedGames {
         }
     }
 
-    private fun accountConfig(root: File): File? {
+    internal fun accountConfig(root: File): File? {
         val users = runCatching { File(root, "config/loginusers.vdf").readText() }.getOrDefault("")
         val recent = Regex(""""(\d{5,})"\s*\{([^}]*)\}""").findAll(users)
             .lastOrNull { Regex(""""MostRecent"\s*"1"""").containsMatchIn(it.groupValues[2]) }
