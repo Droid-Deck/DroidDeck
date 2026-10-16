@@ -253,17 +253,21 @@ def ensure_locale(name):
 
 
 def game_locale(env):
-    """DROIDDECK_LOCALE (a game's Locale) or a LANG from the game environment: Wine reads LANG
-    itself and takes the game's codepage and language from it, so one game can run in its own
-    locale while the session and every other game stay on C.UTF-8."""
-    name = env.get("DROIDDECK_LOCALE") or env.get("LANG", "")
-    if name in ("", "C", "POSIX", "C.UTF-8"):
+    """A LANG set for the game, or DROIDDECK_LOCALE (a game's Locale): Wine reads LANG itself and
+    takes the game's codepage and language from it, so one game can run in its own locale while the
+    session and every other game stay on C.UTF-8. The session is always on C.UTF-8, so any other
+    LANG was set for this game by hand and wins."""
+    default = ("", "C", "POSIX", "C.UTF-8")
+    name = env.get("LANG", "")
+    if name in default:
+        name = env.get("DROIDDECK_LOCALE") or ""
+    if name in default:
         return env
     if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_-]+)?(?:@[A-Za-z0-9_-]+)?", name):
         print("droiddeck-game-env: locale %s ignored" % name, file=sys.stderr)
         return env
     if not ensure_locale(name):
-        print("droiddeck-game-env: %s locale data could not be built; the Linux side keeps C.UTF-8" % name, file=sys.stderr)
+        print("droiddeck-game-env: locale data for %s could not be built; the Linux side falls back to C" % name, file=sys.stderr)
     print("droiddeck-game-env: locale %s" % name, file=sys.stderr)
     return dict(env, LANG=name)
 

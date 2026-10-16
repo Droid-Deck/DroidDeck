@@ -958,7 +958,9 @@ class GameLocaleTest(unittest.TestCase):
             self.assertEqual(MODULE["game_locale"](dict(session, LANG="ko_KR.UTF-8"))["LANG"], "ko_KR.UTF-8")
             self.assertEqual(MODULE["game_locale"](dict(session, DROIDDECK_LOCALE="../passwd"))["LANG"], "C.UTF-8")
             self.assertEqual(MODULE["game_locale"](dict(session, DROIDDECK_LOCALE="xx_XX.UTF-8"))["LANG"], "xx_XX.UTF-8")
-            self.assertEqual(built, ["ja_JP.UTF-8", "ko_KR.UTF-8", "xx_XX.UTF-8"])
+            both = MODULE["game_locale"](dict(session, LANG="fr_FR.UTF-8", DROIDDECK_LOCALE="ja_JP.UTF-8"))
+            self.assertEqual(both["LANG"], "fr_FR.UTF-8")
+            self.assertEqual(built, ["ja_JP.UTF-8", "ko_KR.UTF-8", "xx_XX.UTF-8", "fr_FR.UTF-8"])
         finally:
             g["ensure_locale"] = old
 
