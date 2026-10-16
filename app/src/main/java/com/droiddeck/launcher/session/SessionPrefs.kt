@@ -447,6 +447,13 @@ object SessionPrefs {
         if (api != hostVulkanApi(context)) prefs(context).edit().putString("hostVulkanApi", api).apply()
     }
 
+    /** A Mali bridge session ran a minute without its first frame; Auto then draws through Venus. */
+    fun bridgeNoFrame(context: Context): Boolean = prefs(context).getBoolean("bridgeNoFrame", false)
+
+    fun setBridgeNoFrame(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("bridgeNoFrame", on).apply()
+    }
+
     /** The last session's Mali bridge self-test failed and it ran on the pair instead (Setup says so). */
     fun bridgeFellBack(context: Context): Boolean = prefs(context).getBoolean("bridgeFellBack", false)
 

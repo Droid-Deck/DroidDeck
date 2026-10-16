@@ -189,8 +189,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         }
         Log.i(TAG, "auto: ${gpu.name} (${gpu.family}) -> " + (DriverPairs.recommendedKey(gpu, emptyList()) ?: "no pair"))
         if (gpu.family.mali && DriverPairs.recommendedKey(gpu, emptyList()) == null) {
-            useMaliBridge()
-            autoStatus = activity.getString(R.string.drivers_mali_bridge_auto)
+            autoStatus = activity.getString(if (useMaliBridge()) R.string.drivers_mali_venus_auto else R.string.drivers_mali_bridge_auto)
             refreshDrivers()
             return
         }
@@ -228,8 +227,8 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
                     }
                     gpu.family.mali && (pair == null || !pair.complete) -> {
                         // No open driver for this Mali published yet: draw through the bridge.
-                        useMaliBridge()
-                        autoStatus = activity.getString(R.string.drivers_mali_bridge_fallback, key?.let { DriverPairs.nonAdrenoName(it) } ?: gpu.name)
+                        autoStatus = if (useMaliBridge()) activity.getString(R.string.drivers_mali_venus_auto)
+                            else activity.getString(R.string.drivers_mali_bridge_fallback, key?.let { DriverPairs.nonAdrenoName(it) } ?: gpu.name)
                         refreshDrivers()
                     }
                     pair == null || !pair.complete ->
@@ -240,12 +239,18 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         }, "gpu-driver-auto").start()
     }
 
-    private fun useMaliBridge() {
+    /** Returns true when Auto chose Venus instead, after a bridge session that never drew. */
+    private fun useMaliBridge(): Boolean {
         if (DeviceSupport.openDriverActive(activity)) {
             SessionPrefs.setAndroidDriver(activity, TurnipDriver.AUTO)
             SessionPrefs.setLinuxDriver(activity, "")
         }
+        if (SessionPrefs.bridgeNoFrame(activity) && com.droiddeck.launcher.session.VenusComponent.available(activity)) {
+            SessionPrefs.setVenus(activity, true)
+            return true
+        }
         SessionPrefs.setVkBridge(activity, true)
+        return false
     }
 
     fun selectPair(key: String) {
