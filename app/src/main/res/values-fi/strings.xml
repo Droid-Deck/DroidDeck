@@ -1009,7 +1009,6 @@
     <string name="gpu_set_with_runtime">Asetetaan yhdessä ajoympäristöajurin kanssa: %1$s kattaa molemmat.</string>
     <string name="gpu_runtime_hint">Käytetään peleissä ja työpöydällä.</string>
     <string name="gpu_runtime_default">Ajoympäristön oletus</string>
-    <string name="gpu_display_hint">Piirtää kuvat näytölle. Käytössä DroidDeckin uudelleenkäynnistyksen jälkeen.</string>
     <string name="gpu_auto_by_gpu">Automaattinen - valittu GPU:n mukaan</string>
     <string name="gpu_manage">Lataa, tuo tai poista…</string>
     <string name="gpu_in_use_caps">KÄYTÖSSÄ</string>
@@ -1664,7 +1663,6 @@
     <string name="adbpair_done_text">Napauta palataksesi DroidDeckiin. Voit sammuttaa langattoman virheenkorjauksen nyt.</string>
     <string name="adbpair_title_failed">Langattoman virheenkorjauksen käyttöönotto pysähtyi</string>
 
-    <string name="selfinst_http">Lataus vastasi HTTP %1$d</string>
     <string name="selfinst_size_mismatch">Latauksen koko ei vastannut julkaistua APK-tiedostoa, ja se hylättiin - yritä uudelleen</string>
     <string name="selfinst_checksum_mismatch">Lataus ei vastannut tarkistussummaansa, ja se hylättiin - yritä uudelleen</string>
     <string name="selfinst_wrong_package">Päivitys on Android-paketille %1$s, ei %2$s</string>
@@ -1762,7 +1760,6 @@
 
     <string name="turnip_rate_limited">GitHubin käyttörajoitus tuli vastaan - yritä myöhemmin uudelleen</string>
     <string name="turnip_github_http">GitHub vastasi HTTP %1$d</string>
-    <string name="turnip_download_http">lataus vastasi HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Tämä ajuriluettelo on tarkistussummia vanhempi - päivitä se ja yritä uudelleen</string>
     <string name="turnip_checksum_mismatch">Tarkistussumma ei täsmää - lataus hylättiin</string>
     <string name="turnip_not_adrenotools">Ei AdrenoTools-ajuri: %1$s</string>
@@ -2223,12 +2220,9 @@
     <string name="cardboard_recenter_button">Keskitä</string>
     <string name="cardboard_steamvr">SteamVR (kokeellinen)</string>
     <string name="cardboard_steamvr_install">Asenna</string>
-    <string name="cardboard_steamvr_install_hint">Lataa Valven ARM64-version SteamVR:stä (571 Mt).</string>
     <string name="cardboard_steamvr_installing">Ladataan ja puretaan SteamVR:ää…</string>
     <string name="cardboard_steamvr_start">Käynnistä</string>
-    <string name="cardboard_steamvr_ready_hint">Ajaa SteamVR:ää niin, että pääsi toimii lasina; kuva vaihtuu rinnakkais-3D:ksi.</string>
     <string name="cardboard_steamvr_stop">Pysäytä</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR on käynnissä.</string>
     <string name="cardboard_steamvr_unavailable">Ei käytettävissä tässä istunnossa.</string>
     <string name="cardboard_steamvr_failed">SteamVR ei vastannut; tarkista istunnon loki.</string>
     <string name="drawer_component_downloads">Lataa komponentteja</string>
@@ -2242,4 +2236,21 @@
     <string name="stores_hltb_completionist">Kaikki</string>
     <string name="stores_hltb_hours">%1$s t</string>
     <string name="stores_hltb_minutes">%1$d min</string>
+    <string name="boot_movie">Käynnistysvideo</string>
+    <string name="boot_movie_video">Video</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
+    <string name="boot_movie_note">60 fps näyttää sulavammalta, mutta kuormittaa suoritinta enemmän Steamin käynnistyessä. Steamin omista asetuksista valittu käynnistysvideo on etusijalla.</string>
+    <string name="boot_movie_sound">Ääni</string>
+    <string name="boot_movie_custom">Oma video</string>
+    <string name="boot_movie_custom_hint">MP4, MOV, MKV tai WebM. Muut muodot ja yli %1$d Mt:n tiedostot muunnetaan laitteella 720p-WebM-muotoon, enintään %2$d sekuntia.</string>
+    <string name="boot_movie_import">Tuo</string>
+    <string name="boot_movie_remove">Poista</string>
+    <string name="boot_movie_pick">Valitse käynnistysvideo</string>
+    <string name="boot_movie_imported">%1$s on nyt käynnistysvideo</string>
+    <string name="boot_movie_imported_silent">%1$s on nyt käynnistysvideo, ilman ääntä</string>
+    <string name="boot_movie_too_long">Muunnettavan videon pituus saa olla enintään %1$d sekuntia</string>
+    <string name="boot_movie_converting">Muunnetaan %1$d %%</string>
+    <string name="boot_movie_converting_started">Muunnetaan %1$s Steamille. Pidä DroidDeck auki.</string>
+    <string name="boot_movie_unsupported">Laite ei pysty purkamaan videota.</string>
+    <string name="boot_movie_import_failed">Videon tuonti epäonnistui</string>
 </resources>

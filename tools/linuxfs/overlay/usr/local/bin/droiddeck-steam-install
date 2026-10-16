@@ -1,6 +1,6 @@
 #!/bin/bash
 set -eu
-cdn=https://client-update.fastly.steamstatic.com
+cdn_list="https://client-update.steamstatic.com https://client-update.akamai.steamstatic.com https://client-update.fastly.steamstatic.com"
 steam_channel=steamdeck_publicbeta
 manifest=steam_client_${steam_channel}_linuxarm64
 steam_root=${XDG_DATA_HOME:-$HOME/.local/share}/Steam
@@ -37,7 +37,19 @@ fi
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-curl -fsSL "$cdn/$manifest" -o "$work/manifest"
+cdn=""
+for candidate in $cdn_list; do
+  if curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-connrefused --retry-delay 3 \
+      "$candidate/$manifest" -o "$work/manifest"; then
+    cdn=$candidate
+    break
+  fi
+done
+[ -n "$cdn" ] || { echo "droiddeck-steam-install: no Steam client CDN answered for $manifest" >&2; exit 1; }
+cdn_order=("$cdn")
+for candidate in $cdn_list; do
+  [ "$candidate" = "$cdn" ] || cdn_order+=("$candidate")
+done
 version=$(awk -F'"' '$2 == "version" { print $4; exit }' "$work/manifest")
 awk -F'"' '
   /^\t"/ && NF >= 3 && $4 == "" { block = $2 }
@@ -52,8 +64,16 @@ mkdir -p "$steam_root/package"
 while read -r block file sum; do
   i=$((${i:-0} + 1))
   echo "== STEP $(date -u +%H:%M:%S) downloading Steam: $block ($i/$total)"
-  curl -fsSL "$cdn/$file" -o "$work/$file"
-  echo "$sum  $work/$file" | sha256sum -c --quiet
+  fetched=""
+  for host in "${cdn_order[@]}"; do
+    if curl -fsSL --connect-timeout 10 --speed-limit 1024 --speed-time 60 --max-time 1800 \
+        "$host/$file" -o "$work/$file" && echo "$sum  $work/$file" | sha256sum -c --quiet; then
+      fetched=$host
+      break
+    fi
+    rm -f "$work/$file"
+  done
+  [ -n "$fetched" ] || { echo "droiddeck-steam-install: $file failed on every CDN" >&2; exit 1; }
   unzip -qo "$work/$file" -d "$steam_root"
   rm -f "$work/$file"
 done < "$work/parts"

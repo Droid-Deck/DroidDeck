@@ -1011,7 +1011,6 @@
     <string name="gpu_set_with_runtime">런타임 드라이버와 함께 설정: %1$s에 둘 다 포함됩니다.</string>
     <string name="gpu_runtime_hint">게임 및 데스크톱에서 사용됩니다.</string>
     <string name="gpu_runtime_default">런타임 기본값</string>
-    <string name="gpu_display_hint">화면 출력을 담당합니다. DroidDeck을 다시 시작한 후 적용됩니다.</string>
     <string name="gpu_auto_by_gpu">자동 - GPU별 선택</string>
     <string name="gpu_manage">다운로드, 가져오기 또는 삭제…</string>
     <string name="gpu_in_use_caps">사용 중</string>
@@ -1651,7 +1650,6 @@
     <string name="adbpair_done_text">탭하여 DroidDeck으로 돌아가세요. 이제 무선 디버깅을 꺼도 됩니다.</string>
     <string name="adbpair_title_failed">무선 디버깅 설정이 중단되었습니다</string>
 
-    <string name="selfinst_http">다운로드 응답: HTTP %1$d</string>
     <string name="selfinst_size_mismatch">다운로드 크기가 배포된 APK와 일치하지 않아 삭제했습니다. 다시 시도하세요</string>
     <string name="selfinst_checksum_mismatch">다운로드한 파일이 체크섬과 일치하지 않아 삭제했습니다. 다시 시도하세요</string>
     <string name="selfinst_wrong_package">이 업데이트는 %2$s이(가) 아닌 Android 패키지 %1$s용입니다</string>
@@ -1749,7 +1747,6 @@
 
     <string name="turnip_rate_limited">GitHub 요청 한도에 도달했습니다. 나중에 다시 시도하세요</string>
     <string name="turnip_github_http">GitHub 응답: HTTP %1$d</string>
-    <string name="turnip_download_http">다운로드 응답: HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">이 드라이버 목록은 체크섬 도입 이전의 것입니다. 새로 고친 후 다시 시도하세요</string>
     <string name="turnip_checksum_mismatch">체크섬이 일치하지 않아 다운로드를 삭제했습니다</string>
     <string name="turnip_not_adrenotools">AdrenoTools 드라이버가 아닙니다: %1$s</string>
@@ -2214,15 +2211,29 @@
     <string name="cardboard_recenter_button">재설정</string>
     <string name="cardboard_steamvr">SteamVR (실험적)</string>
     <string name="cardboard_steamvr_install">설치</string>
-    <string name="cardboard_steamvr_install_hint">Valve의 ARM64용 SteamVR을 다운로드합니다(571MB).</string>
     <string name="cardboard_steamvr_installing">SteamVR 다운로드 및 압축 해제 중…</string>
     <string name="cardboard_steamvr_start">시작</string>
-    <string name="cardboard_steamvr_ready_hint">머리를 헤드셋으로 삼아 SteamVR을 실행하며, 화면이 사이드 바이 사이드 3D로 전환됩니다.</string>
     <string name="cardboard_steamvr_stop">중지</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR이 실행 중입니다.</string>
     <string name="cardboard_steamvr_unavailable">이 세션에서는 사용할 수 없습니다.</string>
     <string name="cardboard_steamvr_failed">SteamVR이 응답하지 않았습니다. 세션 로그를 확인하세요.</string>
     <string name="drawer_component_downloads">구성 요소 다운로드</string>
     <string name="drawer_component_downloads_hint">다운로드는 구성 요소 페이지와 공유됩니다. 위에서 다운로드한 버전을 선택하면 다음 게임 실행 시 사용됩니다.</string>
     <string name="drawer_component_choose_download">다운로드할 버전 선택</string>
+    <string name="boot_movie">부팅 동영상</string>
+    <string name="boot_movie_video">동영상</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
+    <string name="boot_movie_note">60 fps는 더 부드럽지만 Steam이 시작되는 동안 CPU를 더 사용합니다. Steam 자체 설정에서 고른 시작 동영상이 우선합니다.</string>
+    <string name="boot_movie_sound">소리</string>
+    <string name="boot_movie_custom">내 동영상</string>
+    <string name="boot_movie_custom_hint">MP4, MOV, MKV 또는 WebM. 다른 형식과 %1$d MB를 넘는 파일은 기기에서 720p WebM으로 변환됩니다(최대 %2$d초).</string>
+    <string name="boot_movie_import">가져오기</string>
+    <string name="boot_movie_remove">삭제</string>
+    <string name="boot_movie_pick">부팅 동영상 선택</string>
+    <string name="boot_movie_imported">%1$s이(가) 이제 부팅 동영상입니다</string>
+    <string name="boot_movie_imported_silent">%1$s이(가) 이제 부팅 동영상입니다(소리 없음)</string>
+    <string name="boot_movie_too_long">변환이 필요한 동영상은 %1$d초 이하여야 합니다</string>
+    <string name="boot_movie_converting">변환 중 %1$d%%</string>
+    <string name="boot_movie_converting_started">Steam용으로 %1$s 변환 중입니다. DroidDeck을 열어 두세요.</string>
+    <string name="boot_movie_unsupported">이 기기에서 해당 동영상을 디코딩할 수 없습니다.</string>
+    <string name="boot_movie_import_failed">동영상을 가져오지 못했습니다</string>
 </resources>

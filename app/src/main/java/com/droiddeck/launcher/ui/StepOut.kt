@@ -81,8 +81,9 @@ internal fun stepPath(
     val rbr = minOf(box, (pb - tt) / 2f)
     val rbl = minOf(lerpF(minOf(box, (pb - tt) / 2f), minOf(box, h / 2f), (sw / box).coerceIn(0f, 1f)), (r - l) / 2f)
     val rpl = minOf(box, sw / 2f, h / 2f)
-    val f = minOf(fillet, sw / 2f)
     val yl = minOf(pt + rpl, pb - rbl)
+    val sy = yl - rpl
+    val f = minOf(fillet, sw / 2f, (sy - tt - rt).coerceAtLeast(0f))
     fun corner(rect: Rect, start: Float, sweep: Float, endX: Float, endY: Float) {
         if (rect.width < 0.5f) path.lineTo(endX, endY) else path.arcTo(rect, start, sweep, false)
     }
@@ -94,9 +95,9 @@ internal fun stepPath(
     path.lineTo(l + rbl, pb)
     corner(Rect(l, pb - 2 * rbl, l + 2 * rbl, pb), 90f, 90f, l, pb - rbl)
     path.lineTo(l, yl)
-    corner(Rect(l, pt, l + 2 * rpl, pt + 2 * rpl), 180f, 90f, l + rpl, pt)
-    path.lineTo(tl - f, pt)
-    corner(Rect(tl - 2 * f, pt - 2 * f, tl, pt), 90f, -90f, tl, pt - f)
+    corner(Rect(l, sy, l + 2 * rpl, sy + 2 * rpl), 180f, 90f, l + rpl, sy)
+    path.lineTo(tl - f, sy)
+    corner(Rect(tl - 2 * f, sy - 2 * f, tl, sy), 90f, -90f, tl, sy - f)
     path.lineTo(tl, tt + rt)
     corner(Rect(tl, tt, tl + 2 * rt, tt + 2 * rt), 180f, 90f, tl + rt, tt)
     path.close()

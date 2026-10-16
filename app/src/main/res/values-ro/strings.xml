@@ -1015,7 +1015,6 @@
     <string name="gpu_set_with_runtime">Setat împreună cu driverul mediului de execuție: %1$s include ambele.</string>
     <string name="gpu_runtime_hint">Folosit de jocuri și de desktop.</string>
     <string name="gpu_runtime_default">Implicit pentru mediul de execuție</string>
-    <string name="gpu_display_hint">Desenează cadrele pe ecran. Se aplică după repornirea DroidDeck.</string>
     <string name="gpu_auto_by_gpu">Automat - ales în funcție de GPU</string>
     <string name="gpu_manage">Descarcă, importă sau șterge…</string>
     <string name="gpu_in_use_caps">ÎN UZ</string>
@@ -1685,7 +1684,6 @@
     <string name="adbpair_done_text">Apasă pentru a reveni la DroidDeck. Poți dezactiva acum Depanarea wireless.</string>
     <string name="adbpair_title_failed">Configurarea Depanării wireless s-a oprit</string>
 
-    <string name="selfinst_http">Descărcarea a răspuns cu HTTP %1$d</string>
     <string name="selfinst_size_mismatch">Dimensiunea descărcării nu s-a potrivit cu APK-ul publicat și a fost abandonată - încearcă din nou</string>
     <string name="selfinst_checksum_mismatch">Descărcarea nu s-a potrivit cu suma sa de control și a fost abandonată - încearcă din nou</string>
     <string name="selfinst_wrong_package">Actualizarea este pentru pachetul Android %1$s, nu %2$s</string>
@@ -1783,7 +1781,6 @@
 
     <string name="turnip_rate_limited">S-a atins limita de solicitări a GitHub - încearcă din nou mai târziu</string>
     <string name="turnip_github_http">GitHub a răspuns cu HTTP %1$d</string>
-    <string name="turnip_download_http">descărcarea a răspuns cu HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Această listă de drivere e anterioară sumelor de control - reîmprospătează-o și încearcă din nou</string>
     <string name="turnip_checksum_mismatch">Sumă de control incorectă - descărcarea a fost abandonată</string>
     <string name="turnip_not_adrenotools">Nu este un driver AdrenoTools: %1$s</string>
@@ -2248,12 +2245,9 @@
     <string name="cardboard_recenter_button">Recentrează</string>
     <string name="cardboard_steamvr">SteamVR (experimental)</string>
     <string name="cardboard_steamvr_install">Instalează</string>
-    <string name="cardboard_steamvr_install_hint">Descarcă SteamVR ARM64 de la Valve (571 MB).</string>
     <string name="cardboard_steamvr_installing">Se descarcă și se dezarhivează SteamVR…</string>
     <string name="cardboard_steamvr_start">Pornește</string>
-    <string name="cardboard_steamvr_ready_hint">Rulează SteamVR cu capul tău drept cască; imaginea trece la 3D alăturat.</string>
     <string name="cardboard_steamvr_stop">Oprește</string>
-    <string name="cardboard_steamvr_running_hint">SteamVR rulează.</string>
     <string name="cardboard_steamvr_unavailable">Indisponibil în această sesiune.</string>
     <string name="cardboard_steamvr_failed">SteamVR nu a răspuns; verifică jurnalul sesiunii.</string>
     <string name="drawer_component_downloads">Descarcă componente</string>
@@ -2267,4 +2261,21 @@
     <string name="stores_hltb_completionist">Completist</string>
     <string name="stores_hltb_hours">%1$s h</string>
     <string name="stores_hltb_minutes">%1$d min</string>
+    <string name="boot_movie">Videoclip de pornire</string>
+    <string name="boot_movie_video">Videoclip</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
+    <string name="boot_movie_note">60 fps arată mai fluid, dar folosește mai mult procesorul cât pornește Steam. Un videoclip de pornire ales în setările Steam are prioritate.</string>
+    <string name="boot_movie_sound">Sunet</string>
+    <string name="boot_movie_custom">Videoclipul tău</string>
+    <string name="boot_movie_custom_hint">MP4, MOV, MKV sau WebM. Alte formate și fișierele de peste %1$d MB sunt convertite pe dispozitiv în WebM 720p, până la %2$d secunde.</string>
+    <string name="boot_movie_import">Importă</string>
+    <string name="boot_movie_remove">Elimină</string>
+    <string name="boot_movie_pick">Alege un videoclip de pornire</string>
+    <string name="boot_movie_imported">%1$s este acum videoclipul de pornire</string>
+    <string name="boot_movie_imported_silent">%1$s este acum videoclipul de pornire, fără sunet</string>
+    <string name="boot_movie_too_long">Videoclipurile care trebuie convertite pot avea cel mult %1$d secunde</string>
+    <string name="boot_movie_converting">Se convertește %1$d%%</string>
+    <string name="boot_movie_converting_started">Se convertește %1$s pentru Steam. Lasă DroidDeck deschis.</string>
+    <string name="boot_movie_unsupported">Acest dispozitiv nu poate decoda videoclipul.</string>
+    <string name="boot_movie_import_failed">Videoclipul nu a putut fi importat</string>
 </resources>

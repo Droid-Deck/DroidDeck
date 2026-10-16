@@ -167,7 +167,7 @@ object ProtonExtras {
         onProgress(downloading, 0)
         var downloaded = false
         for (attempt in 0 until 5) {
-            downloaded = Downloader.downloadFile(asset.url, archive, true) { fraction ->
+            downloaded = Downloader.downloadFile(asset.url, archive, true, asset.sha256) { fraction ->
                 onProgress(downloading, if (fraction < 0) -1 else (fraction * 100f).toInt().coerceIn(0, 100))
             }
             if (downloaded) break
@@ -192,7 +192,7 @@ object ProtonExtras {
         val verified = when {
             asset.sha256 != null -> asset.sha256.equals(Hashes.sha256(archive), ignoreCase = true)
             asset.sha512 != null -> {
-                val expected = Downloader.downloadString(asset.sha512)?.let { Regex("(?i)\\b[0-9a-f]{128}\\b").find(it)?.value }
+                val expected = Downloader.downloadDirect(asset.sha512)?.let { Regex("(?i)\\b[0-9a-f]{128}\\b").find(it)?.value }
                     ?: return context.getString(R.string.pextra_checksum_unreadable)
                 expected.equals(Hashes.sha512(archive), ignoreCase = true)
             }

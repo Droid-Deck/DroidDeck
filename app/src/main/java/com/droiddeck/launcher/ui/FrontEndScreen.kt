@@ -77,6 +77,7 @@ import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.gpu.FrameGen
 import com.droiddeck.launcher.gpu.Lossless
 import com.droiddeck.launcher.input.SecondScreenDisplay
+import com.droiddeck.launcher.core.DownloadSource
 import com.droiddeck.launcher.core.PhantomProcessLimit
 import com.droiddeck.launcher.core.PhantomProcessStatus
 import com.droiddeck.launcher.session.SessionPrefs
@@ -131,6 +132,9 @@ class FrontEndState(
     val showPhantomGate: Boolean = false,
     val orientation: Int = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE,
     val launcherFullscreen: Boolean = true,
+    val downloadSource: String = DownloadSource.MODE_AUTO,
+    val downloadMirror: String = "",
+    val downloadPrefix: String = "",
     val animationsEnabled: Boolean = true,
     val gameStoresEnabled: Boolean = true,
     val gameStoresSpeedTier: String = "fast",
@@ -198,6 +202,9 @@ class FrontEndActions(
     val onOrientation: (Int) -> Unit = {},
     val onLauncherFullscreen: (Boolean) -> Unit = {},
     val onAnimationsEnabled: (Boolean) -> Unit = {},
+    val onDownloadSource: (String) -> Unit = {},
+    val onDownloadMirror: (String) -> Unit = {},
+    val onDownloadPrefix: (String) -> Unit = {},
     val onGameStoresEnabled: (Boolean) -> Unit = {},
     val onGameStoresSpeedTier: (String) -> Unit = {},
     val onStoresOpenTab: (String) -> Unit = {},
@@ -370,7 +377,11 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     LaunchedEffect(s.shortcutPicker) { if (s.shortcutPicker) selected = "games" }
     LaunchedEffect(s.navigate) {
         val target = s.navigate ?: return@LaunchedEffect
-        if (target == "stores:downloads") { com.droiddeck.launcher.stores.StoresState.openDownloads = true; selected = "stores" } else selected = target
+        when (target) {
+            "stores:downloads" -> { com.droiddeck.launcher.stores.StoresState.openDownloads = true; selected = "stores" }
+            "components" -> a.onComponents(true)
+            else -> selected = target
+        }
         a.onNavigated()
     }
     var showWirelessAdbFix by rememberSaveable { mutableStateOf(false) }
