@@ -43,6 +43,7 @@ object SteamGameArt {
             }
             val auto = when (slot) {
                 AddedGameArt.Slot.COVER -> own.art
+                AddedGameArt.Slot.WIDE -> Library.steamCacheImage(cache, game.appId, listOf("library_header.jpg", "header.jpg"))
                 AddedGameArt.Slot.BACKGROUND -> own.hero
                 AddedGameArt.Slot.ICON -> own.icon
                 AddedGameArt.Slot.LOGO -> Library.steamCacheImage(cache, game.appId, listOf("logo.png"))

@@ -44,6 +44,20 @@ class SteamGridTest {
         assertFalse(File(grid, "620p.png").exists())
     }
 
+    @Test fun aWideCoverGoesToTheUnsuffixedGridFileAndComesBackFromSteam() {
+        File(LinuxRuntime.rootDir(app), "root/.local/share/Steam/userdata/123/config").mkdirs()
+        val picked = image("wide.png", 14)
+        assertTrue(SteamGameArt.choose(app, game(), AddedGameArt.Slot.WIDE, AddedGameArt.Option(AddedGameArt.FILE, picked.path, picked.path)))
+        assertEquals(14L, File(grid, "620.png").length())
+        assertFalse(File(grid, "620p.png").exists())
+        assertTrue(SteamGameArt.chosenFile(app, 620, AddedGameArt.Slot.WIDE)!!.name.matches(Regex("chosen-header-\\d+\\.png")))
+        assertNull(SteamGameArt.chosenFile(app, 620, AddedGameArt.Slot.COVER))
+
+        File(grid, "620.png").delete()
+        assertTrue(SteamGrid.sync(app, listOf(target())))
+        assertNull(SteamGameArt.chosenFile(app, 620, AddedGameArt.Slot.WIDE))
+    }
+
     @Test fun artSetInSteamIsTakenOverAndRemovingItInSteamDropsIt() {
         File(LinuxRuntime.rootDir(app), "root/.local/share/Steam/userdata/123/config").mkdirs()
         grid.mkdirs()

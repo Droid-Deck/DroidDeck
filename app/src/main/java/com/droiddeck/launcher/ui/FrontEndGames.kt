@@ -397,8 +397,8 @@ private fun EditGameButton(onClick: () -> Unit) {
     val label = stringResource(R.string.common_edit)
     Box(
         contentAlignment = Alignment.Center,
-        modifier = Modifier.paneItem("game:edit").size(40.dp).clip(Shape12)
-            .background(if (hot) pal.signal.copy(alpha = 0.18f) else colors.surface.copy(alpha = 0.55f))
+        modifier = Modifier.paneItem("game:edit").downToFirstTile().size(44.dp).clip(Shape12)
+            .background(if (hot) pal.signal.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.03f))
             .glideBorder(hot, Shape12, pal.signal, pal.line2)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
             .controllerConfirm(onClick = onClick)

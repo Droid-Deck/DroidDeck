@@ -68,6 +68,7 @@ import java.io.File
 
 private fun AddedGameArt.Slot.shape(): Triple<Dp, Dp, Dp> = when (this) {
     AddedGameArt.Slot.COVER -> Triple(28.dp, 41.dp, 5.dp)
+    AddedGameArt.Slot.WIDE -> Triple(60.dp, 28.dp, 5.dp)
     AddedGameArt.Slot.BACKGROUND -> Triple(60.dp, 34.dp, 5.dp)
     AddedGameArt.Slot.LOGO -> Triple(60.dp, 26.dp, 5.dp)
     AddedGameArt.Slot.ICON -> Triple(30.dp, 30.dp, 7.dp)
@@ -77,6 +78,7 @@ private fun AddedGameArt.Slot.shape(): Triple<Dp, Dp, Dp> = when (this) {
 private fun AddedGameArt.Slot.label(): String = stringResource(
     when (this) {
         AddedGameArt.Slot.COVER -> R.string.art_cover
+        AddedGameArt.Slot.WIDE -> R.string.art_wide_cover
         AddedGameArt.Slot.BACKGROUND -> R.string.art_background
         AddedGameArt.Slot.LOGO -> R.string.art_logo
         AddedGameArt.Slot.ICON -> R.string.art_icon

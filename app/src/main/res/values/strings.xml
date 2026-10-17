@@ -2143,6 +2143,7 @@
     <string name="edit_other_exe">Other exe…</string>
     <string name="edit_remove">Remove</string>
     <string name="art_cover">Cover</string>
+    <string name="art_wide_cover">Wide cover</string>
     <string name="art_background">Background</string>
     <string name="art_logo">Logo</string>
     <string name="art_icon">Icon</string>

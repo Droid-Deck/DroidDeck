@@ -14,7 +14,7 @@ object SteamGrid {
     /** Every change to a game's art, here or in a scan, takes this first so two of them never interleave. */
     internal val lock = Any()
     private const val MANIFEST = ".droiddeck-art.json"
-    private val SUFFIX = mapOf(AddedGameArt.Slot.COVER to "p", AddedGameArt.Slot.BACKGROUND to "_hero", AddedGameArt.Slot.LOGO to "_logo")
+    private val SUFFIX = mapOf(AddedGameArt.Slot.COVER to "p", AddedGameArt.Slot.WIDE to "", AddedGameArt.Slot.BACKGROUND to "_hero", AddedGameArt.Slot.LOGO to "_logo")
     private val EXTS = listOf("png", "jpg", "jpeg", "webp")
 
     class Target(val artDir: File, val id: Long, val setSource: (AddedGameArt.Slot, String) -> Unit)
