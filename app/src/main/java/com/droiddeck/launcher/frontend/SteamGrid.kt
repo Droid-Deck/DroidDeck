@@ -41,6 +41,7 @@ object SteamGrid {
     private fun sigFile(target: Target, slot: AddedGameArt.Slot) = File(target.artDir, "grid-${slot.key}")
 
     private const val GRID_ID = ".droiddeck-grid"
+    private const val UNKNOWN_GRID = "?"
 
     /**
      * A random id kept in the grid folder, so a record made against another account's folder, or one wiped with the
@@ -52,14 +53,16 @@ object SteamGrid {
             grid.mkdirs()
             val tmp = File(grid, "$GRID_ID.tmp")
             tmp.writeText(id)
+            if (f.isFile) f.delete()
             if (!tmp.renameTo(f)) error("grid id")
         }
-    }.getOrDefault("?")
+    }.getOrDefault(UNKNOWN_GRID)
 
     private fun readRecord(grid: File, file: File): String? {
         val text = file.takeIf { it.isFile }?.readText() ?: return null
         val cut = text.indexOf('\n')
-        return if (cut > 0 && text.substring(0, cut) == gridId(grid)) text.substring(cut + 1) else null
+        val id = gridId(grid)
+        return if (cut > 0 && id != UNKNOWN_GRID && text.substring(0, cut) == id) text.substring(cut + 1) else null
     }
 
     private fun writeRecord(grid: File, target: Target, file: File, value: String) {
