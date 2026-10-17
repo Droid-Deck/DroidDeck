@@ -437,8 +437,15 @@
     <string name="comp_game_environment_other_hint">其他個別遊戲的 Proton、DXVK、VKD3D-Proton 與同步環境選項。</string>
     <string name="comp_game_saved_next">已儲存 %1$s 的設定檔，下次啟動遊戲時生效。</string>
     <string name="game_no_steam_title">不啟動 Steam 直接開始</string>
-    <string name="game_no_steam_detail">適用於一開就立即關閉的遊戲:不經過 Proton 的 Steam 設定來啟動。疊加層等 Steam 功能對這款遊戲會關閉。</string>
+    <string name="game_no_steam_detail">在不啟動 Steam 用戶端的情況下用 Proton/FEX 開啟；Steam 功能關閉。</string>
     <string name="game_no_steam_on">開</string>
+    <string name="game_steam_with">隨 Steam 啟動</string>
+    <string name="game_steam_without">不經 Steam 啟動</string>
+    <string name="game_settings_card">設定</string>
+    <string name="game_settings_menu_title">%1$s 設定</string>
+    <string name="game_settings_default">預設</string>
+    <string name="game_settings_default_detail">將為此遊戲變更的所有內容還原為應用程式的設定。</string>
+    <string name="game_sync_custom">自訂同步變數</string>
     <string name="comp_game_proton_live">已儲存 %1$s 的 Proton 選擇，現在即可在 Steam 中使用。</string>
     <string name="comp_game_proton_next">已儲存 %1$s 的 Proton 選擇。啟動遊戲前請重新啟動 Steam。</string>
     <string name="comp_game_proton_not_runnable">%1$s 無法在這部裝置上使用所選的 Proton。</string>

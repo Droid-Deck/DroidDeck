@@ -441,8 +441,15 @@
     <string name="comp_game_environment_other_hint">Alte opțiuni de mediu Proton, DXVK, VKD3D-Proton și sincronizare, per joc.</string>
     <string name="comp_game_saved_next">Profilul %1$s este salvat pentru următoarea lansare a jocului.</string>
     <string name="game_no_steam_title">Pornește fără Steam</string>
-    <string name="game_no_steam_detail">Pentru un joc care se închide imediat: îl pornește fără configurarea Steam din Proton. Funcțiile Steam, precum overlay-ul, sunt dezactivate pentru el.</string>
+    <string name="game_no_steam_detail">Îl deschide în Proton/FEX fără clientul Steam; funcțiile Steam sunt oprite.</string>
     <string name="game_no_steam_on">Activat</string>
+    <string name="game_steam_with">Pornește cu Steam</string>
+    <string name="game_steam_without">Pornește fără Steam</string>
+    <string name="game_settings_card">Setări</string>
+    <string name="game_settings_menu_title">Setări %1$s</string>
+    <string name="game_settings_default">Implicit</string>
+    <string name="game_settings_default_detail">Readuce tot ce s-a schimbat pentru acest joc la setările aplicației.</string>
+    <string name="game_sync_custom">Variabile de sincronizare personalizate</string>
     <string name="comp_game_proton_live">Alegerea Proton pentru %1$s este salvată și disponibilă în Steam acum.</string>
     <string name="comp_game_proton_next">Alegerea Proton pentru %1$s este salvată. Repornește Steam înainte de a lansa jocul.</string>
     <string name="comp_game_proton_not_runnable">%1$s nu poate folosi Proton-ul selectat pe acest dispozitiv.</string>

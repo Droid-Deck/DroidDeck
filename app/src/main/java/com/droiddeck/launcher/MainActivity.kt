@@ -506,6 +506,7 @@ class MainActivity : ComponentActivity() {
             android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
             return false
         }
+        if (com.droiddeck.launcher.session.NoSteamLaunch.enabled(this, game)) return launchWithoutSteam(game, returnHome)
         if (SessionState.running) {
             if (SessionState.mode != SessionService.MODE_STEAM || SessionState.stopRequested) {
                 android.widget.Toast.makeText(this, R.string.game_link_session_busy, android.widget.Toast.LENGTH_LONG).show()
@@ -524,6 +525,37 @@ class MainActivity : ComponentActivity() {
             .putExtra(SessionActivity.EXTRA_RETURN_HOME, returnHome)
             .putExtra(SessionService.EXTRA_STEAM_URL,
             com.droiddeck.launcher.frontend.GameLaunchLink.steamUrl(game.gameIdString)), steamSession = true)
+    }
+
+    private fun launchWithoutSteam(game: Library.SteamGame, returnHome: Boolean): Boolean {
+        val app = applicationContext
+        Thread({
+            val added = if (game.library == Library.ADDED) runCatching { com.droiddeck.launcher.session.NoSteamLaunch.addedGame(app, game) }.getOrNull() else null
+            val command = com.droiddeck.launcher.session.NoSteamLaunch.command(game, added)
+            ui.post {
+                if (isDestroyed) return@post
+                if (command == null) {
+                    android.widget.Toast.makeText(this, R.string.game_link_failed, android.widget.Toast.LENGTH_LONG).show()
+                    return@post
+                }
+                com.droiddeck.launcher.session.NoSteamLaunch.remember(command)
+                val next = Intent(this, SessionActivity::class.java)
+                    .putExtra(SessionActivity.EXTRA_RETURN_HOME, returnHome)
+                    .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_RUN)
+                    .putExtra(SessionService.EXTRA_PROGRAM, command.program)
+                    .putExtra(SessionService.EXTRA_PROGRAM_ARGS, command.args.toTypedArray())
+                when {
+                    !SessionState.running -> startSessionOrWait(next)
+                    SessionState.stopRequested -> android.widget.Toast.makeText(this, R.string.game_link_session_busy, android.widget.Toast.LENGTH_LONG).show()
+                    SessionState.mode == SessionService.MODE_RUN && SessionState.program == command.program && SessionState.programArgs == command.args ->
+                        startActivity(Intent(this, SessionActivity::class.java).setAction(SessionService.ACTION_RESUME)
+                            .putExtra(SessionActivity.EXTRA_RETURN_HOME, returnHome)
+                            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+                    else -> pendingSwitch = next
+                }
+            }
+        }, "no-steam-launch").start()
+        return true
     }
 
     private fun uninstallEpicLauncher() {
@@ -556,6 +588,9 @@ class MainActivity : ComponentActivity() {
             else if (SessionState.mode == SessionService.MODE_STEAM) startActivity(Intent(this, SessionActivity::class.java)
                 .setAction(SessionService.ACTION_RESUME).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
             return true
+        }
+        if (com.droiddeck.launcher.session.NoSteamLaunch.enabled(this, com.droiddeck.launcher.stores.epic.EpicClient.shortcutAppId)) {
+            com.droiddeck.launcher.stores.epic.EpicClient.launcherEntry(this, Library.EPIC_LAUNCHER_NAME)?.let { return launchWithoutSteam(it, false) }
         }
         val launcher = Intent(this, SessionActivity::class.java)
             .putExtra(SessionActivity.EXTRA_RETURN_HOME, false)

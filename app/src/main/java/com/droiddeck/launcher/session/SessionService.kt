@@ -361,13 +361,15 @@ class SessionService : Service() {
             addControllerEnvironment(guest, fakeInputDir, sessionDir)
             SessionState.padBridge?.syncConnectedControllers()
         }
-        if (steamHere && com.droiddeck.launcher.stores.epic.EpicClient.read(this).installed) {
+        val noSteamGame = noSteamGame()
+        if (noSteamGame) guest.add("BL_PIN_CORES=0")
+        if ((steamHere || SessionState.program == NoSteamLaunch.EPIC) && com.droiddeck.launcher.stores.epic.EpicClient.read(this).installed) {
             runCatching { com.droiddeck.launcher.stores.epic.EpicClientLibrary.sync(this) }
                 .onFailure { Log.w(TAG, "Epic library sync failed", it) }
             runCatching { com.droiddeck.launcher.stores.epic.EpicClient.prepareInstallDir(this) }
                 .onFailure { Log.w(TAG, "Epic install directory setup failed", it) }
         }
-        if (steamHere) {
+        if (steamHere || noSteamGame) {
             val added = com.droiddeck.launcher.frontend.AddedGames.scan(this)
             val listing = com.droiddeck.launcher.frontend.AddedGames.writeListing(this, added)
             guest.add("BL_ADDED_GAMES=" + listing.path)
@@ -597,8 +599,11 @@ class SessionService : Service() {
             .takeIf { it.isNotEmpty() }?.let { guest.add("BL_GAME_CPUS=$it") }
     }
 
+    private fun noSteamGame(): Boolean =
+        SessionState.mode == MODE_RUN && SessionState.program in setOf(NoSteamLaunch.PROTON_RUN, NoSteamLaunch.EPIC)
+
     private fun startAudio(guest: MutableList<String>, sessionDir: File): PulseAudioComponent {
-        val wantsDirectAudio = (SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP) &&
+        val wantsDirectAudio = (SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP || noSteamGame()) &&
             SessionPrefs.directAudio(this)
         val wantsMic = SessionPrefs.micEnabled(this) &&
             checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
@@ -1357,7 +1362,7 @@ class SessionService : Service() {
         updateDownloadMonitoring()
         val stoppedGen = sessionGen
         val stoppedSession = SessionState.sessionId
-        val launcherEnded = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP
+        val launcherEnded = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP || SessionState.program == NoSteamLaunch.EPIC
         SessionState.stopRequested = false
         SessionEvents.record("guest.exited", mapOf("status" to status))
         GpuClockPin.stop(this)

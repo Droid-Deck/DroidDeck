@@ -112,10 +112,8 @@ internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, o
                     if (!narrow) Poster(current.art, current.name, Modifier.width(168.dp))
                 }
             }
-            if (current.library != Library.EPIC_LAUNCHER) {
-                Rise(1) { SectionTitle(stringResource(R.string.games_launch_settings), null) }
-                Rise(2) { LaunchSettings(s, a, host, current) }
-            }
+            Rise(1) { SectionTitle(stringResource(R.string.games_launch_settings), null) }
+            Rise(2) { LaunchSettings(s, a, host, current) }
             Rise(3) { GameFileFolderActions(s, a) }
         }
         return
@@ -133,10 +131,8 @@ internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, o
                 GameHeroCopy(current, if (narrow) 24.sp else 32.sp)
                 GameActions(current, s, a, onEdit, launch)
             }
-            if (current.library != Library.EPIC_LAUNCHER) {
-                SectionTitle(stringResource(R.string.games_launch_settings), null)
-                LaunchSettings(s, a, host, current)
-            }
+            SectionTitle(stringResource(R.string.games_launch_settings), null)
+            LaunchSettings(s, a, host, current)
             GameFileFolderActions(s, a)
         }
     }

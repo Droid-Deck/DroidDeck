@@ -441,8 +441,15 @@
     <string name="comp_game_environment_other_hint">Otras opciones de entorno de Proton, DXVK, VKD3D-Proton y sincronización para cada juego.</string>
     <string name="comp_game_saved_next">El perfil de %1$s se ha guardado para el próximo inicio del juego.</string>
     <string name="game_no_steam_title">Iniciar sin Steam</string>
-    <string name="game_no_steam_detail">Para un juego que se cierra enseguida: lo inicia sin la configuración de Steam de Proton. Las funciones de Steam, como la superposición, están desactivadas para él.</string>
+    <string name="game_no_steam_detail">Lo abre en Proton/FEX sin el cliente de Steam; las funciones de Steam quedan desactivadas.</string>
     <string name="game_no_steam_on">Activado</string>
+    <string name="game_steam_with">Se inicia con Steam</string>
+    <string name="game_steam_without">Se inicia sin Steam</string>
+    <string name="game_settings_card">Ajustes</string>
+    <string name="game_settings_menu_title">Ajustes de %1$s</string>
+    <string name="game_settings_default">Predeterminado</string>
+    <string name="game_settings_default_detail">Devuelve todo lo cambiado para este juego a los ajustes de la aplicación.</string>
+    <string name="game_sync_custom">Variables de sincronización personalizadas</string>
     <string name="comp_game_proton_live">La elección de Proton de %1$s se ha guardado y ya está disponible en Steam.</string>
     <string name="comp_game_proton_next">La elección de Proton de %1$s se ha guardado. Reinicia Steam antes de iniciar el juego.</string>
     <string name="comp_game_proton_not_runnable">%1$s no puede usar el Proton elegido en este dispositivo.</string>

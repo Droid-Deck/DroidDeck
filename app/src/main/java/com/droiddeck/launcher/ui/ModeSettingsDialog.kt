@@ -299,6 +299,15 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 s.zramCompression && s.zramSupported != false, enabled = s.zramSupported == true,
                 onChange = a.onZramCompression,
             )
+            if (s.syncBackend != null) ChoiceRow(
+                host, "sync", stringResource(R.string.sync_backend_title), stringResource(R.string.sync_backend_hint),
+                listOf(
+                    SessionPrefs.SYNC_NTSYNC to stringResource(R.string.sync_backend_ntsync),
+                    SessionPrefs.SYNC_FSYNC to stringResource(R.string.sync_backend_fsync),
+                    SessionPrefs.SYNC_ESYNC to stringResource(R.string.sync_backend_esync),
+                    SessionPrefs.SYNC_WINESERVER to stringResource(R.string.sync_backend_wineserver),
+                ), s.syncBackend, onPick = a.onSyncBackend,
+            )
         }
         if (s.pipSupported) SettingsGroup(stringResource(R.string.pip_title)) {
             ToggleRow(host, "pip-auto", stringResource(R.string.pip_auto), null,

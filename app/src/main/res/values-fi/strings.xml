@@ -439,8 +439,15 @@
     <string name="comp_game_environment_other_hint">Muut pelikohtaiset Proton-, DXVK-, VKD3D-Proton- ja synkronointiympäristön asetukset.</string>
     <string name="comp_game_saved_next">%1$s:n profiili on tallennettu seuraavaa pelin käynnistystä varten.</string>
     <string name="game_no_steam_title">Käynnistä ilman Steamia</string>
-    <string name="game_no_steam_detail">Pelille, joka sulkeutuu heti: käynnistää sen ilman Protonin Steam-asetuksia. Steamin ominaisuudet, kuten overlay, on pois käytöstä sille.</string>
+    <string name="game_no_steam_detail">Avaa sen Protonissa/FEXissä ilman Steam-asiakasta; Steamin ominaisuudet ovat pois päältä.</string>
     <string name="game_no_steam_on">Päällä</string>
+    <string name="game_steam_with">Käynnistyy Steamin kanssa</string>
+    <string name="game_steam_without">Käynnistyy ilman Steamia</string>
+    <string name="game_settings_card">Asetukset</string>
+    <string name="game_settings_menu_title">%1$s – asetukset</string>
+    <string name="game_settings_default">Oletus</string>
+    <string name="game_settings_default_detail">Palauttaa kaiken tälle pelille muutetun sovelluksen asetuksiin.</string>
+    <string name="game_sync_custom">Mukautetut synkronointimuuttujat</string>
     <string name="comp_game_proton_live">%1$s:n Proton-valinta on tallennettu ja käytettävissä Steamissa nyt.</string>
     <string name="comp_game_proton_next">%1$s:n Proton-valinta on tallennettu. Käynnistä Steam uudelleen ennen pelin käynnistämistä.</string>
     <string name="comp_game_proton_not_runnable">%1$s ei voi käyttää valittua Protonia tällä laitteella.</string>

@@ -246,6 +246,10 @@ object EpicClient {
     private fun steamSession(): Boolean =
         SessionState.running && !SessionState.stopRequested && SessionState.mode == SessionService.MODE_STEAM
 
+    fun launcherSession(): Boolean =
+        SessionState.running && !SessionState.stopRequested && SessionState.mode == SessionService.MODE_RUN &&
+            SessionState.program == com.droiddeck.launcher.session.NoSteamLaunch.EPIC
+
     fun uninstall(context: Context): Boolean {
         val app = context.applicationContext
         val state = stateDir(app)
@@ -259,11 +263,13 @@ object EpicClient {
         return removed && !next.installed
     }
 
-    fun launcherRunning(context: Context): Boolean = steamSession() && File(LinuxRuntime.sessionRoot(context), OPEN).exists()
+    fun launcherRunning(context: Context): Boolean =
+        (steamSession() || launcherSession()) && File(LinuxRuntime.sessionRoot(context), OPEN).exists()
 
     fun launcherFocused(context: Context): Boolean {
-        if (!steamSession()) return false
         val root = LinuxRuntime.sessionRoot(context)
+        if (launcherSession()) return File(root, OPEN).exists()
+        if (!steamSession()) return false
         val open = runCatching { File(root, OPEN).readText().trim() }.getOrNull() ?: return false
         val focused = runCatching { File(root, FOCUSED_APP).readText().trim() }.getOrNull() ?: return false
         return focused == (open.takeIf { it.length > 1 && it.all(Char::isDigit) } ?: shortcutAppId.toString())
@@ -323,6 +329,7 @@ object EpicClient {
         if (!steamSession()) return failed("no-steam")
         runCatching { EpicClientLibrary.importClientGames(context) }.onFailure { Log.w(TAG, "client library scan failed: ${it.javaClass.simpleName}") }
         val game = steamShortcut(AddedGames.scan(context), id) ?: return failed("not-registered")
+        if (com.droiddeck.launcher.session.NoSteamLaunch.enabled(context, game.appId)) return failed("no-steam-game")
         if (!AddedGames.inSteam(context, game.appId) || SteamLiveShortcuts.known(context, game.appId) == false) return failed("not-in-steam")
         if (!SessionService.launchGame(context, gameId(game.appId))) return failed("busy")
         Log.i(TAG, "the Epic Games Launcher hands $id to Steam as ${gameId(game.appId)}")

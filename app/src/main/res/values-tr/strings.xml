@@ -439,8 +439,15 @@
     <string name="comp_game_environment_other_hint">Oyuna özel diğer Proton, DXVK, VKD3D-Proton ve senkronizasyon ortam seçenekleri.</string>
     <string name="comp_game_saved_next">%1$s profili kaydedildi; oyun bir sonraki başlatıldığında uygulanır.</string>
     <string name="game_no_steam_title">Steam olmadan başlat</string>
-    <string name="game_no_steam_detail">Hemen kapanan bir oyun için: Proton\'un Steam kurulumu olmadan başlatır. Overlay gibi Steam özellikleri bu oyun için kapalıdır.</string>
+    <string name="game_no_steam_detail">Steam istemcisi olmadan Proton/FEX\'te açar; Steam özellikleri kapalıdır.</string>
     <string name="game_no_steam_on">Açık</string>
+    <string name="game_steam_with">Steam ile başlar</string>
+    <string name="game_steam_without">Steam olmadan başlar</string>
+    <string name="game_settings_card">Ayarlar</string>
+    <string name="game_settings_menu_title">%1$s Ayarları</string>
+    <string name="game_settings_default">Varsayılan</string>
+    <string name="game_settings_default_detail">Bu oyun için değiştirilen her şeyi uygulamanın ayarlarına döndürür.</string>
+    <string name="game_sync_custom">Özel eşitleme değişkenleri</string>
     <string name="comp_game_proton_live">%1$s için Proton seçimi kaydedildi ve şimdi Steam\'de kullanılabilir.</string>
     <string name="comp_game_proton_next">%1$s için Proton seçimi kaydedildi. Oyunu başlatmadan önce Steam\'i yeniden başlatın.</string>
     <string name="comp_game_proton_not_runnable">%1$s bu cihazda seçili Proton\'u kullanamaz.</string>

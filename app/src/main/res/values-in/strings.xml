@@ -437,8 +437,15 @@
     <string name="comp_game_environment_other_hint">Opsi lingkungan Proton, DXVK, VKD3D-Proton, dan sinkronisasi lain per gim.</string>
     <string name="comp_game_saved_next">Profil %1$s tersimpan untuk peluncuran gim berikutnya.</string>
     <string name="game_no_steam_title">Mulai tanpa Steam</string>
-    <string name="game_no_steam_detail">Untuk game yang langsung tertutup: menjalankannya tanpa pengaturan Steam dari Proton. Fitur Steam seperti overlay dimatikan untuknya.</string>
+    <string name="game_no_steam_detail">Membukanya di Proton/FEX tanpa klien Steam; fitur Steam nonaktif.</string>
     <string name="game_no_steam_on">Aktif</string>
+    <string name="game_steam_with">Dimulai dengan Steam</string>
+    <string name="game_steam_without">Dimulai tanpa Steam</string>
+    <string name="game_settings_card">Setelan</string>
+    <string name="game_settings_menu_title">Setelan %1$s</string>
+    <string name="game_settings_default">Default</string>
+    <string name="game_settings_default_detail">Mengembalikan semua yang diubah untuk game ini ke setelan aplikasi.</string>
+    <string name="game_sync_custom">Variabel sinkronisasi kustom</string>
     <string name="comp_game_proton_live">Pilihan Proton %1$s tersimpan dan sudah tersedia di Steam sekarang.</string>
     <string name="comp_game_proton_next">Pilihan Proton %1$s tersimpan. Mulai ulang Steam sebelum meluncurkan gim.</string>
     <string name="comp_game_proton_not_runnable">%1$s tidak dapat menggunakan Proton yang dipilih di perangkat ini.</string>

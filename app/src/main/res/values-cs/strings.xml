@@ -443,8 +443,15 @@
     <string name="comp_game_environment_other_hint">Další možnosti prostředí Proton, DXVK, VKD3D-Proton a synchronizace pro jednotlivé hry.</string>
     <string name="comp_game_saved_next">Profil %1$s je uložen pro další spuštění hry.</string>
     <string name="game_no_steam_title">Spustit bez Steamu</string>
-    <string name="game_no_steam_detail">Pro hru, která se hned zavře: spustí ji bez nastavení Steamu v Protonu. Funkce Steamu, jako je překryvná vrstva, jsou pro ni vypnuté.</string>
+    <string name="game_no_steam_detail">Otevře ji v Protonu/FEX bez klienta Steamu; funkce Steamu jsou vypnuté.</string>
     <string name="game_no_steam_on">Zapnuto</string>
+    <string name="game_steam_with">Spouští se se Steamem</string>
+    <string name="game_steam_without">Spouští se bez Steamu</string>
+    <string name="game_settings_card">Nastavení</string>
+    <string name="game_settings_menu_title">Nastavení %1$s</string>
+    <string name="game_settings_default">Výchozí</string>
+    <string name="game_settings_default_detail">Vrátí vše, co se u této hry změnilo, na nastavení aplikace.</string>
+    <string name="game_sync_custom">Vlastní proměnné synchronizace</string>
     <string name="comp_game_proton_live">Výběr Protonu pro %1$s je uložen a hned dostupný ve Steamu.</string>
     <string name="comp_game_proton_next">Výběr Protonu pro %1$s je uložen. Před spuštěním hry restartujte Steam.</string>
     <string name="comp_game_proton_not_runnable">%1$s nemůže na tomto zařízení použít vybraný Proton.</string>

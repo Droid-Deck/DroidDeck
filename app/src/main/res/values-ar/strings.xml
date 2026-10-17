@@ -447,8 +447,15 @@
     <string name="comp_game_environment_other_hint">خيارات بيئة أخرى لكل لعبة لـ Proton وDXVK وVKD3D-Proton والمزامنة.</string>
     <string name="comp_game_saved_next">تم حفظ ملف تعريف %1$s للتشغيل التالي للعبة.</string>
     <string name="game_no_steam_title">بدء اللعبة بدون Steam</string>
-    <string name="game_no_steam_detail">لعبة تُغلق فورًا: شغّلها بدون إعداد Steam الخاص بـ Proton. تكون ميزات Steam، مثل الطبقة العلوية، معطّلة لها.</string>
+    <string name="game_no_steam_detail">يفتحها في Proton/FEX بدون عميل Steam؛ ميزات Steam معطّلة.</string>
     <string name="game_no_steam_on">تشغيل</string>
+    <string name="game_steam_with">يبدأ مع Steam</string>
+    <string name="game_steam_without">يبدأ بدون Steam</string>
+    <string name="game_settings_card">الإعدادات</string>
+    <string name="game_settings_menu_title">إعدادات %1$s</string>
+    <string name="game_settings_default">الافتراضي</string>
+    <string name="game_settings_default_detail">يعيد كل ما تم تغييره لهذه اللعبة إلى إعدادات التطبيق.</string>
+    <string name="game_sync_custom">متغيرات مزامنة مخصصة</string>
     <string name="comp_game_proton_live">تم حفظ اختيار Proton لـ %1$s وهو متاح في Steam الآن.</string>
     <string name="comp_game_proton_next">تم حفظ اختيار Proton لـ %1$s. أعد تشغيل Steam قبل تشغيل اللعبة.</string>
     <string name="comp_game_proton_not_runnable">لا يمكن لـ %1$s استخدام Proton المحدد على هذا الجهاز.</string>

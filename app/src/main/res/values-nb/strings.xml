@@ -439,8 +439,15 @@
     <string name="comp_game_environment_other_hint">Andre spillspesifikke Proton-, DXVK-, VKD3D-Proton- og synkroniseringsalternativer.</string>
     <string name="comp_game_saved_next">Profilen til %1$s er lagret for neste spilløkt.</string>
     <string name="game_no_steam_title">Start uten Steam</string>
-    <string name="game_no_steam_detail">For et spill som lukkes med én gang: starter det uten Protons Steam-oppsett. Steam-funksjoner som overlay er slått av for det.</string>
+    <string name="game_no_steam_detail">Åpner det i Proton/FEX uten Steam-klienten; Steam-funksjoner er av.</string>
     <string name="game_no_steam_on">På</string>
+    <string name="game_steam_with">Starter med Steam</string>
+    <string name="game_steam_without">Starter uten Steam</string>
+    <string name="game_settings_card">Innstillinger</string>
+    <string name="game_settings_menu_title">Innstillinger for %1$s</string>
+    <string name="game_settings_default">Standard</string>
+    <string name="game_settings_default_detail">Setter alt som er endret for dette spillet, tilbake til appens innstillinger.</string>
+    <string name="game_sync_custom">Egendefinerte synkroniseringsvariabler</string>
     <string name="comp_game_proton_live">Proton-valget til %1$s er lagret og tilgjengelig i Steam nå.</string>
     <string name="comp_game_proton_next">Proton-valget til %1$s er lagret. Start Steam på nytt før du starter spillet.</string>
     <string name="comp_game_proton_not_runnable">%1$s kan ikke bruke den valgte Protonen på denne enheten.</string>

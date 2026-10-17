@@ -437,8 +437,15 @@
     <string name="comp_game_environment_other_hint">ตัวเลือกสภาพแวดล้อมอื่น ๆ ของ Proton, DXVK, VKD3D-Proton และการซิงค์เฉพาะเกม</string>
     <string name="comp_game_saved_next">บันทึกโปรไฟล์ของ %1$s ไว้สำหรับการเปิดเกมครั้งถัดไป</string>
     <string name="game_no_steam_title">เริ่มโดยไม่ใช้ Steam</string>
-    <string name="game_no_steam_detail">สำหรับเกมที่ปิดตัวทันที ใช้เริ่มเกมโดยไม่ตั้งค่า Steam ของ Proton ฟีเจอร์ของ Steam เช่นโอเวอร์เลย์จะถูกปิดสำหรับเกมนี้</string>
+    <string name="game_no_steam_detail">เปิดใน Proton/FEX โดยไม่ใช้ไคลเอนต์ Steam ฟีเจอร์ของ Steam จะปิดอยู่</string>
     <string name="game_no_steam_on">เปิด</string>
+    <string name="game_steam_with">เริ่มพร้อม Steam</string>
+    <string name="game_steam_without">เริ่มโดยไม่ใช้ Steam</string>
+    <string name="game_settings_card">การตั้งค่า</string>
+    <string name="game_settings_menu_title">การตั้งค่า %1$s</string>
+    <string name="game_settings_default">ค่าเริ่มต้น</string>
+    <string name="game_settings_default_detail">คืนทุกอย่างที่เปลี่ยนสำหรับเกมนี้กลับเป็นการตั้งค่าของแอป</string>
+    <string name="game_sync_custom">ตัวแปรซิงก์แบบกำหนดเอง</string>
     <string name="comp_game_proton_live">บันทึกการเลือก Proton ของ %1$s แล้ว และพร้อมใช้งานใน Steam ตอนนี้</string>
     <string name="comp_game_proton_next">บันทึกการเลือก Proton ของ %1$s แล้ว รีสตาร์ท Steam ก่อนเปิดเกม</string>
     <string name="comp_game_proton_not_runnable">%1$s ไม่สามารถใช้ Proton ที่เลือกบนอุปกรณ์นี้ได้</string>

@@ -439,8 +439,15 @@
     <string name="comp_game_environment_other_hint">Egyéb, játékonkénti Proton-, DXVK-, VKD3D-Proton- és szinkronizációs környezeti beállítások.</string>
     <string name="comp_game_saved_next">A %1$s profilja mentve a játék következő indítására.</string>
     <string name="game_no_steam_title">Indítás Steam nélkül</string>
-    <string name="game_no_steam_detail">Olyan játékhoz, amely azonnal bezáródik: elindítja a Proton Steam-beállítása nélkül. A Steam funkciói, mint az overlay, ki vannak kapcsolva hozzá.</string>
+    <string name="game_no_steam_detail">Proton/FEX alatt nyitja meg a Steam kliens nélkül; a Steam funkciói ki vannak kapcsolva.</string>
     <string name="game_no_steam_on">Be</string>
+    <string name="game_steam_with">Steammel indul</string>
+    <string name="game_steam_without">Steam nélkül indul</string>
+    <string name="game_settings_card">Beállítások</string>
+    <string name="game_settings_menu_title">%1$s beállításai</string>
+    <string name="game_settings_default">Alapértelmezett</string>
+    <string name="game_settings_default_detail">Mindent, amit ennél a játéknál módosítottál, visszaállít az alkalmazás beállításaira.</string>
+    <string name="game_sync_custom">Egyéni szinkronizálási változók</string>
     <string name="comp_game_proton_live">A %1$s Proton-választása mentve, és már elérhető a Steamben.</string>
     <string name="comp_game_proton_next">A %1$s Proton-választása mentve. Indítsa újra a Steamet a játék elindítása előtt.</string>
     <string name="comp_game_proton_not_runnable">A %1$s nem tudja használni a kiválasztott Protont ezen az eszközön.</string>
