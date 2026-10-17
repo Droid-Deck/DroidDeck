@@ -9,6 +9,9 @@ import zipfile
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'linuxfs/overlay/usr/local/bin/droiddeck-steam-install'
+CDNS = ['https://client-update.steamstatic.com',
+        'https://client-update.akamai.steamstatic.com',
+        'https://client-update.fastly.steamstatic.com']
 
 
 class SteamInstallTest(unittest.TestCase):
@@ -33,6 +36,8 @@ out=""
 while [ $# -gt 0 ]; do
   case $1 in
     -o) out=$2; shift 2 ;;
+    -w) shift 2 ;;
+    -r) shift 2 ;;
     --connect-timeout|--max-time|--speed-limit|--speed-time|--retry|--retry-delay) shift 2 ;;
     -*) shift ;;
     *) url=$1; shift ;;
@@ -82,21 +87,24 @@ cp "$TEST_CDN/${url##*/}" "$out"
         self.assertEqual(channel, client.read_text())
         self.assertEqual((self.steam / 'linuxarm64').resolve(), (self.home / '.steam/sdkarm64').resolve())
         if expected is None:
-            expected = [
-                'https://client-update.steamstatic.com/steam_client_' + channel + '_linuxarm64',
-                'https://client-update.steamstatic.com/' + channel + '.zip',
-            ]
+            expected = ([CDNS[0] + '/steam_client_' + channel + '_linuxarm64']
+                        + [cdn + '/' + channel + '.zip' for cdn in CDNS]
+                        + [CDNS[0] + '/' + channel + '.zip']
+                        + [CDNS[0] + '/' + channel + '.zip'])
         self.assertEqual(expected, self.requests.read_text().splitlines())
 
     def test_downloads_the_deck_beta_client(self):
         self.assert_installed()
 
     def test_a_cdn_that_does_not_answer_hands_over_to_the_next_one(self):
-        akamai = 'https://client-update.akamai.steamstatic.com'
         self.assert_installed(fail_host='client-update.steamstatic.com', expected=[
-            'https://client-update.steamstatic.com/steam_client_steamdeck_publicbeta_linuxarm64',
-            akamai + '/steam_client_steamdeck_publicbeta_linuxarm64',
-            akamai + '/steamdeck_publicbeta.zip',
+            CDNS[0] + '/steam_client_steamdeck_publicbeta_linuxarm64',
+            CDNS[1] + '/steam_client_steamdeck_publicbeta_linuxarm64',
+            CDNS[0] + '/steamdeck_publicbeta.zip',
+            CDNS[1] + '/steamdeck_publicbeta.zip',
+            CDNS[2] + '/steamdeck_publicbeta.zip',
+            CDNS[1] + '/steamdeck_publicbeta.zip',
+            CDNS[1] + '/steamdeck_publicbeta.zip',
         ])
 
     def test_an_install_from_another_branch_is_left_for_steam_to_move(self):
