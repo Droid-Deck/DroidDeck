@@ -88,13 +88,14 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
         if (SessionState.running) { error = activity.getString(R.string.upd_stop_first); return }
         if (!SelfInstaller.canInstall(activity)) { pending = r; askPermission = true; return }
         error = null
+        session = -1
         stage = activity.getString(R.string.upd_stage_downloading)
         percent = 0
         Thread({
             val result = runCatching {
                 val file = SelfInstaller.download(activity, apk) { pct -> ui.post { percent = pct } }
                 ui.post { stage = activity.getString(R.string.upd_stage_installing); percent = -1 }
-                session = SelfInstaller.install(activity, file)
+                SelfInstaller.install(activity, file) { id -> session = id }
             }
             result.onFailure { e -> ui.post { stage = null; error = e.message ?: activity.getString(R.string.upd_failed) } }
         }, "app-update-install").start()

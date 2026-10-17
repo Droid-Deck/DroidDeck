@@ -91,7 +91,8 @@ object SelfInstaller {
         }
     }
 
-    fun install(context: Context, apk: File): Int {
+    /** Reports the session id before the commit, so a status broadcast that arrives right away is recognised. */
+    fun install(context: Context, apk: File, onSession: (Int) -> Unit = {}) {
         val installer = context.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
             setAppPackageName(context.packageName)
@@ -108,9 +109,9 @@ object SelfInstaller {
             }
             val status = Intent(ACTION_STATUS).setPackage(context.packageName)
             val flags = PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
+            onSession(id)
             session.commit(PendingIntent.getBroadcast(context, id, status, flags).intentSender)
         }
-        return id
     }
 
     /** Only a system installer activity may be launched from the status broadcast, without URI grants. */
