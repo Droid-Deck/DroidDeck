@@ -85,6 +85,7 @@ class ModeSettings(
     val mangoapp: Boolean = true,
     val steamController: String? = null,
     val unfoldedControls: Boolean? = null,
+    val unfoldedControlsWithController: Boolean = false,
     val runSteamAtStartup: Boolean = false,
     val bootMovie: String? = null,
     val bootMovieSound: Boolean = true,
@@ -135,6 +136,7 @@ class ModeSettingsActions(
     val onMangoapp: (Boolean) -> Unit = {},
     val onSteamController: (String) -> Unit = {},
     val onUnfoldedControls: (Boolean) -> Unit = {},
+    val onUnfoldedControlsWithController: (Boolean) -> Unit = {},
     val onRunSteamAtStartup: (Boolean) -> Unit = {},
     val onBootMovie: (String) -> Unit = {},
     val onBootMovieSound: (Boolean) -> Unit = {},
@@ -281,6 +283,11 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 host, "unfolded-controls", stringResource(R.string.unfolded_controls),
                 stringResource(R.string.unfolded_controls_hint),
                 s.unfoldedControls, onChange = a.onUnfoldedControls,
+            )
+            if (steam && s.unfoldedControls == true) ToggleRow(
+                host, "unfolded-controls-with-controller", stringResource(R.string.unfolded_controls_with_controller),
+                stringResource(R.string.unfolded_controls_with_controller_hint),
+                s.unfoldedControlsWithController, onChange = a.onUnfoldedControlsWithController,
             )
             if (steam) ChoiceRow(
                 host, "back-actions", stringResource(R.string.mode_back), stringResource(SessionPrefs.backActionsOrder(s.backActionsInverted)),

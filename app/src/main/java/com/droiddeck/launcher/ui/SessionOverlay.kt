@@ -265,6 +265,8 @@ class DrawerActions(
     val onPipAutoEnter: (Boolean) -> Unit = {},
     val unfoldedControls: Boolean? = null,
     val onUnfoldedControls: (Boolean) -> Unit = {},
+    val unfoldedControlsWithController: Boolean = false,
+    val onUnfoldedControlsWithController: (Boolean) -> Unit = {},
     val onShareLogs: () -> Unit,
     val onStop: () -> Unit,
     val onStopFrom: ((androidx.compose.ui.geometry.Rect?) -> Unit)? = null,
@@ -530,6 +532,11 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 if (a.steam && a.unfoldedControls != null) ToggleRow(host, "unfolded-controls", stringResource(R.string.unfolded_controls),
                                     stringResource(R.string.unfolded_controls_hint), a.unfoldedControls,
                                     chipModifier = focus.track(page, "unfolded-controls"), onChange = a.onUnfoldedControls)
+                                if (a.steam && a.unfoldedControls == true) ToggleRow(host, "unfolded-controls-with-controller",
+                                    stringResource(R.string.unfolded_controls_with_controller),
+                                    stringResource(R.string.unfolded_controls_with_controller_hint), a.unfoldedControlsWithController,
+                                    chipModifier = focus.track(page, "unfolded-controls-with-controller"),
+                                    onChange = a.onUnfoldedControlsWithController)
                             }
                             SettingsGroup(stringResource(R.string.drawer_latency)) {
                                 ToggleRow(host, "low-latency-controller", stringResource(R.string.drawer_low_latency_controller),
