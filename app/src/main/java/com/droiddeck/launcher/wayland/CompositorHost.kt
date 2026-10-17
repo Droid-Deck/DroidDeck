@@ -1,6 +1,5 @@
 package com.droiddeck.launcher.wayland
 
-import android.view.Choreographer
 import android.view.Surface
 import com.droiddeck.launcher.session.SessionState
 
@@ -13,13 +12,6 @@ object CompositorHost {
 
     @Volatile
     private var vsyncRunning = false
-
-    private val vsync = object : Choreographer.FrameCallback {
-        override fun doFrame(frameTimeNanos: Long) {
-            WaylandCompositor.nativeVsync(frameTimeNanos)
-            if (vsyncRunning) Choreographer.getInstance().postFrameCallback(this)
-        }
-    }
 
     @Synchronized
     fun startOrAttach(
@@ -97,11 +89,12 @@ object CompositorHost {
     private fun resumeVsync() {
         if (vsyncRunning) return
         vsyncRunning = true
-        Choreographer.getInstance().postFrameCallback(vsync)
+        WaylandCompositor.nativeSetVsyncRunning(true)
     }
 
     private fun pauseVsync() {
         vsyncRunning = false
+        WaylandCompositor.nativeSetVsyncRunning(false)
     }
 
     fun newSession() {

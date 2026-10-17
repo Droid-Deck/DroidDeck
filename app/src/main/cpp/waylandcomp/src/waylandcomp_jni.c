@@ -9,6 +9,10 @@
 #include <sys/resource.h>
 #include <android/log.h>
 #include <android/native_window_jni.h>
+#include <android/choreographer.h>
+#include <android/looper.h>
+#include <dlfcn.h>
+#include <stdatomic.h>
 #include "vk_present.h"
 #include "droiddeck_ext.h"
 #include "ahb_swapchain.h"
@@ -283,6 +287,61 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSendSceneInput(
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeVsync(JNIEnv *env, jclass clazz, jlong frameTimeNanos) {
     droiddeck_wayland_vsync((int64_t)frameTimeNanos);
+}
+
+/* The main thread's Choreographer runs behind UI work, which delivered ticks up to a frame late
+ * and made a gamescope frame that arrived on time miss its vsync. These ticks come from a
+ * Choreographer on a thread of their own. */
+typedef void (*vsync_cb64_fn)(int64_t, void *);
+typedef void (*post_cb64_fn)(AChoreographer *, vsync_cb64_fn, void *);
+static post_cb64_fn g_post_cb64;
+static ALooper *g_vsync_looper;
+static _Atomic int g_vsync_want, g_vsync_posted;
+static pthread_once_t g_vsync_once = PTHREAD_ONCE_INIT;
+
+static void vsync_tick64(int64_t frame_time_ns, void *data);
+static void vsync_tick(long frame_time_ns, void *data) { vsync_tick64((int64_t)frame_time_ns, data); }
+
+static void vsync_post(AChoreographer *c) {
+    if (g_post_cb64) g_post_cb64(c, vsync_tick64, c);
+    else AChoreographer_postFrameCallback(c, vsync_tick, c);
+}
+
+static void vsync_tick64(int64_t frame_time_ns, void *data) {
+    if (!atomic_load(&g_vsync_want)) { atomic_store(&g_vsync_posted, 0); return; }
+    droiddeck_wayland_vsync(frame_time_ns);
+    vsync_post((AChoreographer *)data);
+}
+
+static void *vsync_thread(void *arg) {
+    (void)arg;
+    if (setpriority(PRIO_PROCESS, 0, -10) != 0) setpriority(PRIO_PROCESS, 0, -8);
+    ALooper *looper = ALooper_prepare(0);
+    ALooper_acquire(looper);
+    AChoreographer *c = AChoreographer_getInstance();
+    g_post_cb64 = (post_cb64_fn)dlsym(RTLD_DEFAULT, "AChoreographer_postFrameCallback64");
+    __atomic_store_n(&g_vsync_looper, looper, __ATOMIC_RELEASE);
+    for (;;) {
+        if (atomic_load(&g_vsync_want) && !atomic_exchange(&g_vsync_posted, 1)) vsync_post(c);
+        ALooper_pollOnce(-1, NULL, NULL, NULL);
+    }
+    return NULL;
+}
+
+static void vsync_thread_start(void) {
+    pthread_t t;
+    if (pthread_create(&t, NULL, vsync_thread, NULL) == 0) {
+        pthread_setname_np(t, "dd-vsync");
+        pthread_detach(t);
+    }
+}
+
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetVsyncRunning(JNIEnv *env, jclass clazz, jboolean on) {
+    pthread_once(&g_vsync_once, vsync_thread_start);
+    atomic_store(&g_vsync_want, on ? 1 : 0);
+    ALooper *looper = __atomic_load_n(&g_vsync_looper, __ATOMIC_ACQUIRE);
+    if (looper) ALooper_wake(looper);
 }
 
 JNIEXPORT void JNICALL

@@ -54,6 +54,8 @@ int vkp_has_window(void);
 int vkp_wait_window_request(int timeout_ms);
 int vkp_device_lost(void);
 
+int vkp_present_pending(void);
+void vkp_present_wait_idle(void);
 int vkp_render(int scene_w, int scene_h, const struct vkp_draw *draws, int n);
 int vkp_render_plain(int scene_w, int scene_h);
 int vkp_base_black(int scene_w, int scene_h);

@@ -1,0 +1,130 @@
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -1209,12 +1209,38 @@
+ std::mutex g_SteamCompMgrXWaylandServerMutex;
+ 
+ gamescope::VBlankTime g_SteamCompMgrVBlankTime = {};
++#include <cstdarg>
++static FILE *dd_trace_file()
++{
++	static FILE *f = []() -> FILE * {
++		const char *path = getenv( "DD_FRAMETRACE" );
++		return path && *path ? fopen( path, "w" ) : nullptr;
++	}();
++	return f;
++}
++static void dd_trace( const char *fmt, ... )
++{
++	FILE *f = dd_trace_file();
++	if ( !f ) return;
++	va_list ap;
++	va_start( ap, fmt );
++	fprintf( f, "%lu ", (unsigned long) get_time_in_nanos() );
++	vfprintf( f, fmt, ap );
++	fputc( '\n', f );
++	va_end( ap );
++	static unsigned n;
++	if ( ( ++n % 64 ) == 0 ) fflush( f );
++}
+ 
++
+ uint64_t g_uCurrentBasePlaneCommitID = 0;
+ uint32_t g_uCurrentBasePlaneAppID = 0;
+ bool g_bCurrentBasePlaneIsFifo = false;
+ 
+ static int g_nSteamCompMgrTargetFPS = 0;
++gamescope::ConVar<int> cv_dd_force_fps_limit{ "dd_force_fps_limit", 0, "Debug: force the frame limiter to this FPS (0 = leave it to Steam)" };
++static int s_nDDForcedFPS = 0;
++
+ static uint64_t g_uDynamicRefreshEqualityTime = 0;
+ static int g_nDynamicRefreshRate[gamescope::GAMESCOPE_SCREEN_TYPE_COUNT] = { 0, 0 };
+ // Delay to stop modes flickering back and forth.
+@@ -1266,6 +1292,8 @@
+ {
+ 	int nPrevFPSLimit = g_nSteamCompMgrTargetFPS;
+ 	_update_app_target_refresh_cycle();
++	if ( cv_dd_force_fps_limit )
++		g_nSteamCompMgrTargetFPS = cv_dd_force_fps_limit;
+ 	if ( !!g_nSteamCompMgrTargetFPS != !!nPrevFPSLimit )
+ 		update_runtime_info();
+ }
+@@ -2825,6 +2853,7 @@
+ 			pFocus->CachedPlanes[ HELD_COMMIT_FADE ] = basePlane;
+ 
+ 		pFocus->ulBasePlaneCommitID = lastCommit->commitID;
++		dd_trace( "P %u %lu", lastCommit->appID, (unsigned long) lastCommit->commitID );
+ 		pFocus->uBasePlaneAppID = lastCommit->appID;
+ 		pFocus->bBasePlaneIsFifo = lastCommit->IsPerfOverlayFIFO();
+ 	}
+@@ -3104,9 +3133,16 @@
+ gamescope::ConVar<bool> cv_paint_cursor_plane{ "paint_cursor_plane", true };
+ gamescope::ConVar<bool> cv_paint_mura_plane{ "paint_mura_plane", true };
+ 
++gamescope::ConVar<int> cv_dd_paint_delay_us{ "dd_paint_delay_us", 0, "Debug: delay each composite by a random 0..N us (emulates a slower device)" };
+ static void
+ paint_all( global_focus_t *pFocus, bool async )
+ {
++	if ( cv_dd_paint_delay_us > 0 )
++	{
++		static uint32_t s_seed = 12345;
++		s_seed = s_seed * 1103515245u + 12345u;
++		usleep( ( s_seed >> 8 ) % (uint32_t) cv_dd_paint_delay_us );
++	}
+ 	if ( !pFocus )
+ 		return;
+ 
+@@ -6813,6 +6849,7 @@
+ 		w->receivedDoneCommit = false;
+ 
+ 		w->last_commit_first_latch_time = timespec_to_nanos(now);
++		dd_trace( "F %u", w->appID );
+ 
+ 		// Acknowledge commit once.
+ 		wlserver_lock();
+@@ -7307,6 +7344,8 @@
+ 	if ( ev->atom == ctx->atoms.gamescopeFPSLimit )
+ 	{
+ 		g_nSteamCompMgrTargetFPS = get_prop( ctx, ctx->root, ctx->atoms.gamescopeFPSLimit, 0 );
++		if ( cv_dd_force_fps_limit )
++			g_nSteamCompMgrTargetFPS = cv_dd_force_fps_limit;
+ 		update_runtime_info();
+ 	}
+ 	for (int i = 0; i < gamescope::GAMESCOPE_SCREEN_TYPE_COUNT; i++)
+@@ -7977,6 +8016,7 @@
+ 		{
+ 			gpuvis_trace_printf( "commit %lu done", w->commit_queue[ j ]->commitID );
+ 			w->commit_queue[ j ]->done = true;
++			dd_trace( "D %u %lu", w->appID, (unsigned long) commitID );
+ 			w->commit_queue[ j ]->earliest_present_time = earliestPresentTime;
+ 			w->commit_queue[ j ]->present_margin = earliestPresentTime - earliestLatchTime;
+ 			bFoundWindow = true;
+@@ -8448,6 +8488,7 @@
+ 		// Import failed to import, early exit.
+ 		return;
+ 	}
++	dd_trace( "C %u %lu %d", w->appID, (unsigned long) newCommit->commitID, (int) reslistentry.fifo );
+ 
+ 	int fence = -1;
+ 	global_focus_t *pCurrentFocus = GetCurrentFocus();
+@@ -10086,6 +10127,7 @@
+ 		{
+ 			g_SteamCompMgrVBlankTime = *pendingVBlank;
+ 			vblank = true;
++			dd_trace( "V %lu %lu", (unsigned long) pendingVBlank->schedule.ulTargetVBlank, (unsigned long) pendingVBlank->schedule.ulScheduledWakeupPoint );
+ 		}
+ 
+ 		if ( g_bRun == false )
+@@ -10391,7 +10433,13 @@
+ 		static uint64_t vblank_idx = 0;
+ 		if ( vblank )
+ 		{
++			if ( cv_dd_force_fps_limit != s_nDDForcedFPS || ( cv_dd_force_fps_limit && g_nSteamCompMgrTargetFPS != cv_dd_force_fps_limit ) )
+ 			{
++				s_nDDForcedFPS = cv_dd_force_fps_limit;
++				g_nSteamCompMgrTargetFPS = s_nDDForcedFPS;
++				update_runtime_info();
++			}
++			{
+ 				uint64_t now = get_time_in_nanos();
+ 
+ 				steamcompmgr_update_vr_session_state();

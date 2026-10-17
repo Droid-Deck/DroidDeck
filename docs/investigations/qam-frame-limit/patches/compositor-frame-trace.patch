@@ -1,0 +1,52 @@
+--- a/app/src/main/cpp/waylandcomp/src/compositor.c
++++ b/app/src/main/cpp/waylandcomp/src/compositor.c
+@@ -299,6 +299,25 @@
+ } g_perf;
+ 
+ 
++static FILE *dd_ctrace_file(void) {
++    static int tried; static FILE *f;
++    if (!tried) {
++        tried = 1;
++        if (access("/data/user/0/com.droiddeck.launcher/files/comptrace.on", F_OK) == 0)
++            f = fopen("/data/user/0/com.droiddeck.launcher/files/comptrace.log", "w");
++    }
++    return f;
++}
++static void dd_ctrace(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
++static void dd_ctrace(const char *fmt, ...) {
++    FILE *f = dd_ctrace_file();
++    if (!f) return;
++    struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts);
++    fprintf(f, "%lld ", (long long)ts.tv_sec * 1000000000LL + ts.tv_nsec);
++    va_list ap; va_start(ap, fmt); vfprintf(f, fmt, ap); va_end(ap);
++    fputc('\n', f);
++    static unsigned n; if ((++n % 64) == 0) fflush(f);
++}
+ static void schedule_render(void);
+ 
+ static int64_t now_ns(void) {
+@@ -701,6 +720,7 @@
+     s->buf_alpha = (b->format & 0xff) == 'A';
+     s->has_content = b->img != NULL;
+     if (!repeat) g_stat_dmabuf++;
++    if (!repeat) dd_ctrace("S %d %dx%d", s == g_hud_surface, b->width, b->height);
+     const int announced_now = !s->announced_vulkan;
+     if (!s->announced_vulkan) {
+         char name[160];
+@@ -1989,6 +2009,7 @@
+     if (rendered && copy) g_perf.copy_scenes++;
+     g_perf.scenes++;
+     const int64_t scene_ns = now_ns() - t_scene;
++    dd_ctrace("R %lld %d", (long long)t_scene, rendered);
+     g_perf.scene_ns += scene_ns;
+     if (scene_ns > g_perf.scene_max_ns) g_perf.scene_max_ns = scene_ns;
+ }
+@@ -2037,6 +2058,7 @@
+ 
+ static void on_vsync(int64_t frame_time_ns) {
+     int64_t now = now_ns();
++    dd_ctrace("T %lld %d", (long long)frame_time_ns, g_dirty);
+     g_perf.ticks++;
+     if (g_last_vsync_ns) {
+         int64_t d = now - g_last_vsync_ns;

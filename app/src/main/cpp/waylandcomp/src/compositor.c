@@ -298,6 +298,7 @@ static struct {
     int64_t release_ns, release_max_ns;
 } g_perf;
 
+
 static void schedule_render(void);
 
 static int64_t now_ns(void) {
@@ -350,6 +351,12 @@ static int on_release_timer(int fd, uint32_t mask, void *data) {
     uint64_t expirations;
     int64_t now = now_ns() + 300000;
     if (read(fd, &expirations, sizeof(expirations)) < 0 && errno != EAGAIN) return 0;
+    if (vkp_present_pending()) {
+        struct itimerspec its = {0};
+        its.it_value.tv_nsec = 1000000;
+        timerfd_settime(fd, 0, &its, NULL);
+        return 0;
+    }
     wl_list_for_each_safe(pr, tmp, &g_pending_releases, link) {
         if (pr->at_ns <= now) {
             wl_buffer_send_release(pr->buffer);
@@ -365,7 +372,7 @@ static int on_release_timer(int fd, uint32_t mask, void *data) {
 static void release_buffer(struct surface *s, struct wl_resource *buffer, int64_t since_ns) {
     const int limit = g_fps_limit;
     const int64_t interval = limit > 0 ? 1000000000LL / limit : g_refresh_ns;
-    if (interval <= 0 || g_release_timer_fd < 0) { wl_buffer_send_release(buffer); perf_note_release(since_ns); return; }
+    if (interval <= 0 || g_release_timer_fd < 0) { vkp_present_wait_idle(); wl_buffer_send_release(buffer); perf_note_release(since_ns); return; }
     int64_t now = now_ns();
     int64_t at = s->next_release_ns + interval;
     int64_t latest = now + interval * (int64_t)(s->releases_pending + 1);
@@ -583,7 +590,7 @@ static void drop_dmabuf(struct surface *s, int paced) {
         wl_list_remove(&s->dmabuf_destroy.link);
         if (!ahb_swapchain_defer_release(s->dmabuf_buf, s->dmabuf, s, paced)) {
             if (paced) release_buffer(s, s->dmabuf, now_ns());
-            else wl_buffer_send_release(s->dmabuf);
+            else { vkp_present_wait_idle(); wl_buffer_send_release(s->dmabuf); }
         }
         s->dmabuf = NULL;
     }
@@ -755,7 +762,7 @@ void droiddeck_dmabuf_ref(struct dmabuf_buffer *b) { b->refs++; }
 void droiddeck_dmabuf_unref(struct dmabuf_buffer *b) { dmabuf_buffer_unref(b); }
 void droiddeck_release_buffer(struct surface *s, struct wl_resource *buffer, int paced, int64_t since_ns) {
     if (paced && s) release_buffer(s, buffer, since_ns);
-    else { wl_buffer_send_release(buffer); perf_note_release(since_ns); }
+    else { vkp_present_wait_idle(); wl_buffer_send_release(buffer); perf_note_release(since_ns); }
 }
 void droiddeck_surface_describe(const struct surface *s, char *out, size_t size) { describe(s, out, size); }
 const struct droiddeck_color *droiddeck_surface_color(const struct surface *s) {
@@ -1812,6 +1819,22 @@ static void hdr_count_copied(const struct draw_list *dl, const char *reason) {
     }
 }
 
+extern void (*vkp_scene_ready_hook)(void);
+static int64_t g_scene_presented_ns;
+static int g_scene_signalled;
+
+static void signal_scene_drawn(void) {
+    struct surface *s;
+    if (g_scene_signalled) return;
+    g_scene_signalled = 1;
+    wl_list_for_each(s, &g_surfaces, link) {
+        if (s->drawn) feedback_present_all(&s->feedback, g_scene_presented_ns);
+        else feedback_discard_all(&s->feedback);
+    }
+    fire_all_frames();
+    wl_display_flush_clients(g_display);
+}
+
 static void render_scene(void) {
     struct draw_list dl = {0};
     struct surface *s;
@@ -1822,6 +1845,9 @@ static void render_scene(void) {
     g_dirty = 0;
     g_hud_fresh = 0;
     g_hdr_unimported = NULL;
+    g_scene_signalled = 0;
+    g_scene_presented_ns = presented_ns(t_scene);
+    vkp_scene_ready_hook = signal_scene_drawn;
     wl_list_for_each(s, &g_surfaces, link) s->drawn = 0;
     scene_size(&w, &h);
     if (w != g_scene_w || h != g_scene_h) {
@@ -1950,14 +1976,10 @@ static void render_scene(void) {
     }
     free(hs.is_hdr);
     if (hdr_copy && rendered && droiddeck_color_hdr_open()) hdr_count_copied(&dl, hdr_copy);
+    vkp_scene_ready_hook = NULL;
     if (rendered) {
-        int64_t t = presented_ns(t_scene);
         g_stat_frames++;
-        wl_list_for_each(s, &g_surfaces, link) {
-            if (s->drawn) feedback_present_all(&s->feedback, t);
-            else feedback_discard_all(&s->feedback);
-        }
-        fire_all_frames();
+        signal_scene_drawn();
     } else {
         pace_without_output();
         if (!g_frame_timer)
@@ -1997,6 +2019,25 @@ static int scene_waits_for_game(int64_t now) {
     return g_hud_surface && !g_hud_fresh && now - g_hud_last_ns < 100000000LL && vkp_framegen_active();
 }
 
+/* gamescope submits a frame meant for a vsync only its 1.65 ms redzone ahead of it, and the
+ * commit then takes up to a few ms more to reach us. Latching right on the tick showed those
+ * frames a refresh late; the scene is composed a little after the vsync instead. */
+static int g_latch_timer_fd = -1;
+static struct wl_event_source *g_latch_source;
+
+static int64_t latch_delay_ns(void) {
+    int64_t d = g_refresh_ns * 35 / 100;
+    if (d > 6000000LL) d = 6000000LL;
+    return d;
+}
+
+static int on_latch_timer(int fd, uint32_t mask, void *data) {
+    uint64_t expirations;
+    if (read(fd, &expirations, sizeof(expirations)) < 0 && errno != EAGAIN) return 0;
+    if (g_dirty && !scene_waits_for_game(now_ns())) render_scene();
+    return 0;
+}
+
 static void on_vsync(int64_t frame_time_ns) {
     int64_t now = now_ns();
     g_perf.ticks++;
@@ -2009,6 +2050,14 @@ static void on_vsync(int64_t frame_time_ns) {
     if (vkp_apply_window_request()) g_dirty = 1;
     if (vkp_effects_sync()) g_dirty = 1;
     if (vkp_cardboard_pose_changed()) g_dirty = 1;
+    const int64_t latch = frame_time_ns + latch_delay_ns();
+    if (g_latch_timer_fd >= 0 && latch > now + 500000LL) {
+        struct itimerspec its = {0};
+        its.it_value.tv_sec = latch / 1000000000LL;
+        its.it_value.tv_nsec = latch % 1000000000LL;
+        timerfd_settime(g_latch_timer_fd, TFD_TIMER_ABSTIME, &its, NULL);
+        return;
+    }
     if (g_dirty && !scene_waits_for_game(now)) render_scene();
 }
 
@@ -3214,6 +3263,10 @@ int droiddeck_wayland_run(void) {
     if (g_release_timer_fd >= 0)
         g_release_source = wl_event_loop_add_fd(wl_display_get_event_loop(display), g_release_timer_fd,
                                                 WL_EVENT_READABLE, on_release_timer, NULL);
+    g_latch_timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
+    if (g_latch_timer_fd >= 0)
+        g_latch_source = wl_event_loop_add_fd(wl_display_get_event_loop(display), g_latch_timer_fd,
+                                              WL_EVENT_READABLE, on_latch_timer, NULL);
 
     g_display = display;
     if (pipe2(g_input_pipe, O_CLOEXEC | O_NONBLOCK) == 0) {

@@ -104,6 +104,9 @@ static void perf_add(int64_t *sum, int64_t *max, unsigned *count, int64_t d) {
     if (d > *max) *max = d;
     (*count)++;
 }
+void (*vkp_scene_ready_hook)(void);
+static void present_drain(void);
+
 static VkResult timed_wait(VkFence fence, uint64_t timeout) {
     int64_t t0 = perf_now();
     VkResult r = g_vk.WaitForFences(g_dev, 1, &fence, VK_TRUE, timeout);
@@ -202,6 +205,7 @@ static void reset_sync(void) {
 static void destroy_swapchain(void) {
     g_base_black = 0;
     if (g_dev_state != 1) return;
+    present_drain();
     g_vk.DeviceWaitIdle(g_dev);
     reset_sync();
     for (uint32_t i = 0; i < g_nimg; i++) blendp_forget_image(g_images[i]);
@@ -758,6 +762,7 @@ static int memory_type(uint32_t bits, VkMemoryPropertyFlags want) {
 }
 
 static void init_black_image(void) {
+    present_drain();
     g_black_state = -1;
     VkImageCreateInfo ici = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO, .imageType = VK_IMAGE_TYPE_2D,
@@ -1041,6 +1046,7 @@ struct vkp_image *vkp_image_create_shm(int w, int h) {
 }
 
 void vkp_image_upload_shm(struct vkp_image *img, const void *data, int stride) {
+    present_drain();
     if (!img || !img->map || !data) return;
     size_t rowbytes = (size_t)img->w * 4;
     if ((size_t)stride < rowbytes) rowbytes = (size_t)stride;
@@ -1337,6 +1343,7 @@ static void record_screen_blit(VkCommandBuffer cmd, VkImage src, int src_w, int 
 }
 
 static int acquire_image(int k, int first, uint32_t *img, VkResult *ar_out) {
+    present_drain();
     for (int attempt = 0; ; attempt++) {
         if (!g_swapchain && (!first || swap_init() != 0)) return -1;
         const int64_t t_acq = perf_now();
@@ -1461,6 +1468,96 @@ static void send_hdr_metadata(const struct droiddeck_color *c) {
                c->identity, c->text);
 }
 
+/* vkQueuePresentKHR on this driver waits on the CPU for the frame's GPU work, which queues behind
+ * the game's. Done on the compositor thread, that wait held back vsync ticks and gamescope's
+ * commits by up to a frame and a half, so a game frame that arrived in time showed a refresh late.
+ * A single-present frame is handed to this thread instead; anything else that touches the queue,
+ * the fence or the swapchain drains it first. */
+static pthread_mutex_t g_pw_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t g_pw_cond = PTHREAD_COND_INITIALIZER;
+static int g_pw_started, g_pw_job, g_pw_done;
+static uint32_t g_pw_img;
+static VkResult g_pw_pr, g_pw_fr;
+static int64_t g_pw_present_ns, g_pw_wait_ns;
+
+static void *present_worker(void *arg) {
+    (void)arg;
+    pthread_mutex_lock(&g_pw_lock);
+    for (;;) {
+        while (!g_pw_job) pthread_cond_wait(&g_pw_cond, &g_pw_lock);
+        pthread_mutex_unlock(&g_pw_lock);
+        VkPresentInfoKHR pi = {.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR, .waitSemaphoreCount = 1,
+                               .pWaitSemaphores = &g_rnds[0], .swapchainCount = 1,
+                               .pSwapchains = &g_swapchain, .pImageIndices = &g_pw_img};
+        const int64_t t0 = perf_now();
+        VkResult pr = g_vk.QueuePresentKHR(g_queue, &pi);
+        const int64_t t1 = perf_now();
+        VkResult fr = g_vk.WaitForFences(g_dev, 1, &g_fence, VK_TRUE, UINT64_MAX);
+        const int64_t t2 = perf_now();
+        pthread_mutex_lock(&g_pw_lock);
+        g_pw_pr = pr;
+        g_pw_fr = fr;
+        g_pw_present_ns = t1 - t0;
+        g_pw_wait_ns = t2 - t1;
+        g_pw_job = 0;
+        g_pw_done = 1;
+        pthread_cond_broadcast(&g_pw_cond);
+    }
+    return NULL;
+}
+
+static int present_async(uint32_t img) {
+    if (!g_pw_started) {
+        pthread_t t;
+        if (pthread_create(&t, NULL, present_worker, NULL) != 0) return -1;
+        pthread_setname_np(t, "dd-present");
+        pthread_detach(t);
+        g_pw_started = 1;
+    }
+    pthread_mutex_lock(&g_pw_lock);
+    g_pw_img = img;
+    g_pw_job = 1;
+    pthread_cond_broadcast(&g_pw_cond);
+    pthread_mutex_unlock(&g_pw_lock);
+    return 0;
+}
+
+int vkp_present_pending(void) {
+    pthread_mutex_lock(&g_pw_lock);
+    const int busy = g_pw_job;
+    pthread_mutex_unlock(&g_pw_lock);
+    return busy;
+}
+
+void vkp_present_wait_idle(void) {
+    if (!g_pw_started) return;
+    pthread_mutex_lock(&g_pw_lock);
+    while (g_pw_job) pthread_cond_wait(&g_pw_cond, &g_pw_lock);
+    pthread_mutex_unlock(&g_pw_lock);
+}
+
+static void present_drain(void) {
+    if (!g_pw_started) return;
+    pthread_mutex_lock(&g_pw_lock);
+    while (g_pw_job) pthread_cond_wait(&g_pw_cond, &g_pw_lock);
+    const int done = g_pw_done;
+    const VkResult pr = g_pw_pr, fr = g_pw_fr;
+    const int64_t present_ns = g_pw_present_ns, wait_ns = g_pw_wait_ns;
+    g_pw_done = 0;
+    pthread_mutex_unlock(&g_pw_lock);
+    if (!done) return;
+    perf_add(&g_perf.present_ns, &g_perf.present_max_ns, &g_perf.presents, present_ns);
+    perf_add(&g_perf.wait_ns, &g_perf.wait_max_ns, &g_perf.waits, wait_ns);
+    if (fr == VK_ERROR_DEVICE_LOST || pr == VK_ERROR_DEVICE_LOST) { device_lost("present"); return; }
+    if (pr == VK_ERROR_OUT_OF_DATE_KHR || pr == VK_ERROR_SURFACE_LOST_KHR) {
+        droiddeck_log("gpu", "screen surface %s on present: rebuilding the swapchain", vk_result_name(pr));
+        destroy_swapchain();
+    } else if (pr != VK_SUCCESS && pr != VK_SUBOPTIMAL_KHR) {
+        droiddeck_log("error", "present: vkQueuePresentKHR failed (%s %d)", vk_result_name(pr), (int)pr);
+        destroy_swapchain();
+    }
+}
+
 static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, int n,
                        const struct vkp_hdr_frame *hf, int *how) {
     if (how) *how = 0;
@@ -1486,6 +1583,7 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
 
     uint32_t img = 0;
     VkResult ar;
+    if (vkp_scene_ready_hook) vkp_scene_ready_hook();
     if (acquire_image(0, 1, &img, &ar) != 0) return -1;
     update_map(scene_w, scene_h);
     if (g_swap_is_hdr && hf && hf->color && hf->color->identity != g_swap_md_identity) {
@@ -1652,7 +1750,7 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
     g_vk.EndCommandBuffer(cmd);
 
     const int presents = 1 + ngen;
-    int fence_submitted = 0, presented_gen = 0;
+    int fence_submitted = 0, presented_gen = 0, async = 0;
     VkResult pr = VK_SUCCESS;
     g_vk.ResetFences(g_dev, 1, &g_fence);
     for (int k = 0; k < presents; k++) {
@@ -1683,6 +1781,7 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
             return -1;
         }
         fence_submitted = last;
+        if (presents == 1 && present_async(img) == 0) { async = 1; break; }
         VkPresentInfoKHR pi = {.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR, .waitSemaphoreCount = 1,
                                .pWaitSemaphores = &g_rnds[k], .swapchainCount = 1,
                                .pSwapchains = &g_swapchain, .pImageIndices = &img};
@@ -1696,7 +1795,7 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
         VkSubmitInfo si = {.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO};
         g_vk.QueueSubmit(g_queue, 1, &si, g_fence);
     }
-    VkResult fr = timed_wait(g_fence, UINT64_MAX);
+    VkResult fr = async ? VK_SUCCESS : timed_wait(g_fence, UINT64_MAX);
     if (fg) vkp_framegen_presented(presented_gen);
     if (fr == VK_ERROR_DEVICE_LOST || pr == VK_ERROR_DEVICE_LOST) { device_lost("present"); return -1; }
     if (pr == VK_ERROR_OUT_OF_DATE_KHR || pr == VK_ERROR_SURFACE_LOST_KHR) {
@@ -1808,6 +1907,7 @@ int vkp_map_draw(const struct vkp_draw *d, int out[8]) {
 }
 
 int vkp_blit_image(struct vkp_image *src, struct vkp_image *dst, int wait_fd) {
+    present_drain();
     if (!src || !dst || !dst->blit_dst || g_dev_state == -2 || dev_init() != 0) {
         if (wait_fd >= 0) close(wait_fd);
         return -1;
@@ -1881,6 +1981,7 @@ int vkp_blit_image(struct vkp_image *src, struct vkp_image *dst, int wait_fd) {
 static struct vkp_image *g_rb;
 
 int vkp_image_readback(struct vkp_image *src, uint32_t *out, int max_px) {
+    present_drain();
     if (!src || !out || src->w <= 0 || src->h <= 0 || src->w * src->h > max_px ||
         g_dev_state == -2 || dev_init() != 0)
         return -1;
@@ -2080,6 +2181,7 @@ static int pass_begin_impl(int scene_w, int scene_h, const struct vkp_draw *draw
 }
 
 int vkp_pass_copy_to(struct vkp_image *dst, int wait_fd) {
+    present_drain();
     if (!g_pass.active) { if (wait_fd >= 0) close(wait_fd); return -1; }
     g_pass.active = 0;
     VkCommandBuffer cmd = g_cmds[0];
