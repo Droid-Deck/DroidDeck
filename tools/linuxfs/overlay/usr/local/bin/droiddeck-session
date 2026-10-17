@@ -353,7 +353,12 @@ case $mode in
       # droiddeck-steam-install removes the repair request: read it first so Repair Steam covers both clients.
       _bl_x64_repair=0
       [ -e "$HOME/.bl-steam-repair" ] && _bl_x64_repair=1
-      droiddeck-steam-install || exit $?
+      droiddeck-steam-install || {
+        rc=$?
+        echo "== steam: the Steam client could not be set up (status $rc)"
+        [ -z "${BL_STEAM_EXIT_FILE:-}" ] || printf '%s\n' "$rc" > "$BL_STEAM_EXIT_FILE"
+        exit "$rc"
+      }
       droiddeck-steam-install --sync steamdeck_publicbeta || step "could not update the arm64 client's parts; the x86-64 client keeps its own web helper"
       step "checking the x86-64 Steam client (FEX, experimental; the first run downloads ~2 GB)"
       BL_X64_REPAIR=$_bl_x64_repair droiddeck-steam-x64 --prepare || exit $?
@@ -366,7 +371,12 @@ case $mode in
       fi
     else
       step "checking the Steam client (first run downloads it, ~1-2 min with nothing on screen)"
-      droiddeck-steam-install || exit $?
+      droiddeck-steam-install || {
+        rc=$?
+        echo "== steam: the Steam client could not be set up (status $rc)"
+        [ -z "${BL_STEAM_EXIT_FILE:-}" ] || printf '%s\n' "$rc" > "$BL_STEAM_EXIT_FILE"
+        exit "$rc"
+      }
       step "Steam client ready"
       steam_root=$XDG_DATA_HOME/Steam
       if [ -f "${BL_X64_HOME:-$HOME/.droiddeck-x64}/.local/share/Steam/local.vdf" ]; then
