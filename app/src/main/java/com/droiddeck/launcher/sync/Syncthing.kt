@@ -14,7 +14,9 @@ import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.droiddeck.launcher.core.HostProcess
 import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.droiddeck.launcher.session.OrphanReaper
 import com.droiddeck.launcher.session.SessionState
 import org.json.JSONArray
 import org.json.JSONObject
@@ -257,6 +259,7 @@ object Syncthing {
                 .also { environment(context, it.environment()) }
                 .start()
             process = child
+            OrphanReaper.keep(HostProcess.pidOf(child))
             pump(gen, child, logFile(context))
             val client = SyncthingApi(picked.gui, key)
             val deadline = System.currentTimeMillis() + 60_000
@@ -285,11 +288,17 @@ object Syncthing {
             .redirectErrorStream(true)
             .also { environment(context, it.environment()) }
             .start()
-        child.outputStream.bufferedWriter().use { it.write(SyncPrefs.guiPassword(context) + "\n") }
-        val output = child.inputStream.bufferedReader().use { it.readText() }
-        if (!child.waitFor(60, TimeUnit.SECONDS) || child.exitValue() != 0 || !config(context).isFile) {
-            child.destroy()
-            throw SyncthingFailure("syncthing generate failed: ${output.lines().lastOrNull { it.isNotBlank() }.orEmpty()}")
+        val pid = HostProcess.pidOf(child)
+        OrphanReaper.keep(pid)
+        try {
+            child.outputStream.bufferedWriter().use { it.write(SyncPrefs.guiPassword(context) + "\n") }
+            val output = child.inputStream.bufferedReader().use { it.readText() }
+            if (!child.waitFor(60, TimeUnit.SECONDS) || child.exitValue() != 0 || !config(context).isFile) {
+                child.destroy()
+                throw SyncthingFailure("syncthing generate failed: ${output.lines().lastOrNull { it.isNotBlank() }.orEmpty()}")
+            }
+        } finally {
+            OrphanReaper.release(pid)
         }
     }
 
@@ -322,6 +331,7 @@ object Syncthing {
                 }
             }
             val code = runCatching { child.waitFor() }.getOrDefault(-1)
+            OrphanReaper.release(HostProcess.pidOf(child))
             main.post {
                 if (gen == generation && process === child && phase == Phase.RUNNING) {
                     process = null; api = null
