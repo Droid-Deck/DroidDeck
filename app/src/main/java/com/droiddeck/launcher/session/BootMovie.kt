@@ -87,7 +87,7 @@ object BootMovie {
         if (volume == 100 && seconds == 0) return source
         val limitUs = if (seconds > 0) seconds * 1_000_000L else Long.MAX_VALUE
         val folder = File(dir(context), "variants").apply { mkdirs() }
-        val out = File(folder, BootMovieLibrary.variantPrefix(source.name) + "v$volume-s$seconds.webm")
+        val out = File(folder, BootMovieLibrary.variantPrefix(source) + "v$volume-s$seconds.webm")
         if (out.isFile && out.length() > 0L && out.lastModified() >= source.lastModified()) return out
         val staged = File(folder, out.name + ".staged")
         val ok = runCatching {
@@ -190,7 +190,7 @@ object BootMovie {
     fun removeCustom(context: Context) {
         customFile(context).delete()
         File(dir(context), "custom-muted.webm").delete()
-        File(dir(context), "variants").listFiles { f -> f.name.startsWith(BootMovieLibrary.variantPrefix(customFile(context).name)) }?.forEach { it.delete() }
+        File(dir(context), "variants").listFiles { f -> f.name.startsWith(BootMovieLibrary.variantPrefix(customFile(context))) }?.forEach { it.delete() }
         SessionPrefs.setBootMovieCustomName(context, null)
         if (SessionPrefs.bootMovie(context) == CUSTOM) select(context, DROIDDECK_30)
     }

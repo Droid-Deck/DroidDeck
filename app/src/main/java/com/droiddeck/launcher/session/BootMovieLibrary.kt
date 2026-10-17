@@ -129,7 +129,7 @@ object BootMovieLibrary {
                     if (meta.remove(name) != null) writeMeta(context, meta)
                     File(thumbsDir(context), coverName(name)).delete()
                     thumbsDir(context).listFiles { f -> f.name.startsWith("frame-" + safe(name) + "-") }?.forEach { it.delete() }
-                    File(context.filesDir, "boot-movie/variants").listFiles { f -> f.name.startsWith(variantPrefix(name)) }?.forEach { it.delete() }
+                    File(context.filesDir, "boot-movie/variants").listFiles { f -> f.name.startsWith(variantPrefix(file)) }?.forEach { it.delete() }
                 }
                 gone
             }
@@ -138,8 +138,8 @@ object BootMovieLibrary {
         return removed
     }
 
-    /** What every processed copy of the movie file [name] starts with; the hash keeps names that clean up the same apart. */
-    internal fun variantPrefix(name: String) = safe(name) + "." + Integer.toHexString(name.hashCode()) + "-"
+    /** What every processed copy of [source] starts with; the hash of its full path keeps same-named files in different places apart. */
+    internal fun variantPrefix(source: File) = safe(source.name) + "." + Integer.toHexString(source.absolutePath.hashCode()) + "-"
 
     private fun safe(name: String) = name.replace(Regex("[^A-Za-z0-9._-]"), "_")
 
