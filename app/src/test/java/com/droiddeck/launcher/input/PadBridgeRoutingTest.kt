@@ -71,6 +71,17 @@ class PadBridgeRoutingTest {
             InputDevice.KEYBOARD_TYPE_NONE, id = -1)
         assertTrue(virtual.isVirtual)
         assertFalse(PadBridge.isFromController(virtual))
+        for (uinputName in listOf("uinput-xiaomi", "uinput-fpc", "uinput_nav")) {
+            val phantom = device(
+                InputDevice.SOURCE_GAMEPAD or InputDevice.SOURCE_JOYSTICK,
+                InputDevice.KEYBOARD_TYPE_NONE,
+                name = uinputName,
+            )
+            assertFalse(phantom.isVirtual)
+            assertFalse(PadBridge.isFromController(phantom))
+            assertFalse(PadBridge.isControllerKeyEvent(key(phantom, KeyEvent.KEYCODE_BUTTON_A, KeyEvent.ACTION_DOWN)))
+        }
+        assertFalse(PadBridge.anyControllerConnected())
     }
 
     @Test fun keyAndMotionOwnershipDoesNotFollowEverySourceOnTheDevice() {
@@ -131,8 +142,8 @@ class PadBridgeRoutingTest {
     private var nextId = 10
 
     private fun device(sources: Int, type: Int, keys: IntArray = intArrayOf(KeyEvent.KEYCODE_A, KeyEvent.KEYCODE_DPAD_UP),
-        rangeSource: Int? = null, axis: Int = MotionEvent.AXIS_X, id: Int = nextId++): InputDevice {
-        val builder = InputDeviceBuilder.newBuilder().setId(id).setName("routing fixture $id")
+        rangeSource: Int? = null, axis: Int = MotionEvent.AXIS_X, id: Int = nextId++, name: String = "routing fixture $id"): InputDevice {
+        val builder = InputDeviceBuilder.newBuilder().setId(id).setName(name)
             .setDescriptor("routing-$id").setExternal(true).setSources(sources).setKeyboardType(type)
             .setKeyCharacterMap(KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD))
         if (rangeSource != null) builder.addMotionRange(axis, rangeSource, -1f, 1f, 0f, 0f, 0f)
