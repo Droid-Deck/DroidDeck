@@ -316,11 +316,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun followPanelRefresh(displayId: Int) {
-        if (!CompositorHost.isStarted) return
         val display = (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay) ?: return
         if (display.displayId != displayId) return
         val hz = display.refreshRate
-        if (hz > 1f) WaylandCompositor.nativeSetOutputRefreshRate(hz)
+        if (hz <= 1f) return
+        SessionState.refreshHz = minOf(hz, PerfMode.peakRefreshCap(this))
+        if (CompositorHost.isStarted) WaylandCompositor.nativeSetOutputRefreshRate(hz)
     }
     private var isHomeApp by mutableStateOf(false)
     private var androidApps by mutableStateOf<List<HomeApp.LaunchableApp>>(emptyList())
