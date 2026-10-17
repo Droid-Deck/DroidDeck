@@ -65,7 +65,7 @@ fastest=""
 fastest_speed=0
 for candidate in $cdn_list; do
   speed=$(curl -fsSL --connect-timeout 8 --max-time 8 -r 0-2097151 -o /dev/null \
-    -w '%{speed_download}' "$candidate/$probe_file" 2>/dev/null) || speed=0
+    -w '%{speed_download}' "$candidate/$probe_file" 2>/dev/null) || true
   speed=${speed%%.*}
   case $speed in ''|*[!0-9]*) speed=0 ;; esac
   if [ "$speed" -gt "$fastest_speed" ]; then
