@@ -46,6 +46,9 @@ compile() {
         c++ -std=c++17 -O2 -Wall -Wextra -Werror -Itools/vr/src \
             -o build/vr/test_spatial_tracking tools/vr/tests/test_spatial_tracking.cpp
         build/vr/test_spatial_tracking
+        c++ -std=c++17 -O2 -Wall -Wextra -Werror -Itools/vr/src \
+            -o build/vr/test_adaptive_pose tools/vr/tests/test_adaptive_pose.cpp
+        build/vr/test_adaptive_pose
         c++ -std=c++17 -O2 -Wall -Wextra -Wno-unused-parameter -pthread -Itools/vr/src \
             -o build/vr/test_optical_controller tools/vr/tests/test_optical_controller.cpp
         build/vr/test_optical_controller

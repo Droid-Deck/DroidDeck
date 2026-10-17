@@ -1,5 +1,8 @@
 # Luma Ultra spatial tracking
 
+For supported glasses across brands, feature levels, and app-wide setup, see the
+[smart-glasses support matrix](../smart-glasses-support.md).
+
 This is an experimental implementation of native Luma Ultra head tracking, positional virtual screens, and optical SteamVR controllers. Positional tracking, bare-hand controllers, and Luma Joy-Con tracking all default to off and are grouped under Experimental. Combined release acceptance remains pending until the calibration, accuracy, latency, gameplay, and sustained performance targets below have been measured on hardware.
 
 ## Build and setup

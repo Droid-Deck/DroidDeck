@@ -238,13 +238,19 @@ This diagnostic does not supply controller positions or replace the stereo track
 inference, scheduled full, scheduled lite, then full-model two-hand inference again, all with
 concurrent cameras. It clears live hand input during the comparison and never captures new images.
 Poll `glasses.spatial.handBenchmark` for completion, timing, and geometric results. Every replay
-row reports `parallel` and `scheduled`; samples include separate `hands`, `joyCons`, and `wrists`
-geometric acceptance results. `wrists` reports landmark 0 after the existing stereo depth
+row reports `parallel` and `scheduled`. `wristOnly` identifies the selected controller mode: bare-hand
+replay estimates `hands`, while Joy-Con replay estimates `joyCons` from wrist 0. Both report
+`wrists` after stereo geometry checks. Image preprocessing is raw grayscale replicated into RGB;
+lens correction applies once to landmark coordinates before triangulation. `wrists` reports landmark 0 after the existing stereo depth
 and reprojection checks, with the same unambiguous handedness pairing. Live Joy-Con tracking
 also uses wrist 0 directly, with motion and freshness checks; its `positionEstimator` is
 `joycon-wrist`. Samples identify the selected bank as `inferenceHandLimit`
 (1 or 2). Timings exclude model construction. Saved-pair results are not live accuracy,
 second-hand discovery delay, game performance, or motion-to-display latency measurements.
+
+The live baseline is Full palm + Full landmarks. `handImagePreprocessing` is `raw-grayscale-rgb`;
+`handLensCorrection` reports `pinhole-points-only`, `fisheye-points-only`, or `none`.
+`steadyHandAim` is true only when bare hands and the optional shoulder-based aim setting are active.
 
 `handTracking` includes `leftRawHands`/`rightRawHands` before handedness-confidence filtering,
 `previousLeftRawHands`/`previousRightRawHands` from the previous inference on those detectors

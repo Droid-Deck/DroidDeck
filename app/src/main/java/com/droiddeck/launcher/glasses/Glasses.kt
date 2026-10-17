@@ -96,6 +96,7 @@ data class GlassesSettings(
     val positionalTracking: Boolean = false,
     val handControllers: Boolean = false,
     val joyConTracking: Boolean = false,
+    val steadyHandAim: Boolean = false,
     val eyeHeightCm: Int = 160,
 ) {
     val screen3dof: Boolean get() = picture3d == PICTURE_SCREEN && headTracking
@@ -385,6 +386,10 @@ object Glasses {
         update { it.copy(handControllers = wanted, joyConTracking = it.joyConTracking && !wanted) }
         SpatialTracking.setControllers(wanted, _settings.value.joyConTracking)
     }
+    fun setSteadyHandAim(on: Boolean) = post {
+        update { it.copy(steadyHandAim = on) }
+        SpatialTracking.setSteadyHandAim(on)
+    }
     fun setJoyConTracking(on: Boolean) = post {
         val wanted = on && _settings.value.positionalTracking && _state.value.spatialConnected
         update { it.copy(joyConTracking = wanted, handControllers = it.handControllers && !wanted) }
@@ -489,6 +494,7 @@ object Glasses {
                 .put("resolution2d", g.resolution2d).put("resolution3d", g.resolution3d).put("resolutionVr", g.resolutionVr)
                 .put("positionalTracking", g.positionalTracking).put("handControllers", g.handControllers)
                 .put("joyConTracking", g.joyConTracking).put("eyeHeightCm", g.eyeHeightCm)
+                .put("steadyHandAim", g.steadyHandAim)
                 .put("picture3d", g.picture3d).put("screenWidthDm", g.screenWidthDm).put("screenDistanceDm", g.screenDistanceDm)
                 .put("vrFovDeg", g.vrFovDeg))
     }
@@ -735,7 +741,7 @@ object Glasses {
             opened.spatialIdentity ?: runCatching { device.serialNumber }.getOrNull()?.takeIf { it.isNotBlank() }
                 ?.let { "${device.vendorId}:${device.productId}:$it" },
             spatial, _settings.value.eyeHeightCm / 100f, _settings.value.handControllers,
-            _settings.value.joyConTracking)
+            _settings.value.joyConTracking, _settings.value.steadyHandAim)
         else SpatialTracking.useLegacyTracking()
         _calibration.value = GlassesCalibrationState(supported = opened is RayNeoLink,
             saved = opened is RayNeoLink && calibrationKey?.let(calibrationStore::load) != null)
@@ -1047,6 +1053,7 @@ object Glasses {
             positionalTracking = p.getBoolean("positionalTracking", false),
             handControllers = p.getBoolean("handControllers", false),
             joyConTracking = p.getBoolean("joyConTracking", false),
+            steadyHandAim = p.getBoolean("steadyHandAim", false),
             eyeHeightCm = p.getInt("eyeHeightCm", 160).coerceIn(50, 250),
             refreshHz = p.getInt("refreshHz", 120),
             sbsHz = p.getInt("sbsHz", 60),
@@ -1069,6 +1076,7 @@ object Glasses {
             putBoolean("positionalTracking", s.positionalTracking)
             putBoolean("handControllers", s.handControllers)
             putBoolean("joyConTracking", s.joyConTracking)
+            putBoolean("steadyHandAim", s.steadyHandAim)
             putInt("eyeHeightCm", s.eyeHeightCm)
             putInt("refreshHz", s.refreshHz)
             putInt("sbsHz", s.sbsHz)

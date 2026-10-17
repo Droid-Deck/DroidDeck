@@ -16,6 +16,7 @@ class SpatialControllerModeTest {
         .apply { isAccessible = true }.get(null) as ByteBuffer).duplicate().order(ByteOrder.LITTLE_ENDIAN)
 
     @After fun cleanUp() {
+        SpatialTracking.setSteadyHandAim(false)
         SpatialTracking.setControllers(false, false)
         SpatialTracking.disconnect()
     }
@@ -31,6 +32,24 @@ class SpatialControllerModeTest {
         assertEquals(0, snapshot().getInt(76))
         SpatialTracking.setControllers(false, false)
         assertEquals(1, snapshot().getInt(32))
+    }
+
+    @Test fun steadyAimIsOptInAndOnlyAppliesToBareHands() {
+        assertFalse(GlassesSettings().steadyHandAim)
+        SpatialTracking.connect(0, 4, null, true, 1.6f, true)
+        assertEquals(3, snapshot().getInt(32))
+        SpatialTracking.setSteadyHandAim(true)
+        assertEquals(11, snapshot().getInt(32))
+        SpatialTracking.setControllers(false, true)
+        assertEquals(5, snapshot().getInt(32))
+        SpatialTracking.setControllers(true, false)
+        assertEquals(11, snapshot().getInt(32))
+        SpatialTracking.setSteadyHandAim(false)
+        assertEquals(3, snapshot().getInt(32))
+        SpatialTracking.connect(0, 5, null, true, 1.6f, true, steadyAim = true)
+        assertEquals(11, snapshot().getInt(32))
+        SpatialTracking.useLegacyTracking()
+        assertEquals(0, snapshot().getInt(32))
     }
 
     @Test fun openingOtherGlassesClearsTheRetainedUltraMode() {

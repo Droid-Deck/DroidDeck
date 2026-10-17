@@ -1,5 +1,6 @@
 #pragma once
 #include "../../../app/src/main/cpp/waylandcomp/src/spatialpose_shm.h"
+#include "adaptive_pose.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -24,105 +25,48 @@ inline bool SpatialHandFresh(const dd_spatial_hand &hand, int64_t now) {
     return SpatialFresh(hand.pose, now, 200000000LL);
 }
 struct OpticalPose {
+    static constexpr int64_t kVisualHoldNs = 350000000LL;
     dd_spatial_hand last{};
     dd_spatial_pose filtered{}, rendered{};
-    dd_spatial_pose stationary{}, quiet{};
     int64_t receivedAt = 0, renderedAt = 0;
-    int64_t positionQuietSince = 0, rotationQuietSince = 0;
     float velocity[3]{};
-    float positionTravel = 0, rotationTravel = 0;
     unsigned observations = 0;
     bool predict = false;
-    bool positionAnchored = true, rotationAnchored = true;
     uint64_t connection = 0, origin = 0;
     void Reset() {
-        last = {}; filtered = rendered = stationary = quiet = {};
-        receivedAt = renderedAt = positionQuietSince = rotationQuietSince = 0;
-        observations = 0; predict = false; positionAnchored = rotationAnchored = true;
-        positionTravel = rotationTravel = 0; std::fill_n(velocity,3,0);
+        last = {}; filtered = rendered = {};
+        receivedAt = renderedAt = 0;
+        observations = 0; predict = false; std::fill_n(velocity,3,0);
     }
-    static float Distance(const float *a, const float *b) {
-        float squared = 0;
-        for (int i=0; i<3; ++i) squared += (a[i]-b[i])*(a[i]-b[i]);
-        return std::sqrt(squared);
-    }
-    static float Angle(const float *a, const float *b) {
-        double dot = 0, normA = 0, normB = 0;
-        for (int i=0; i<4; ++i) {
-            dot += double(a[i])*b[i]; normA += double(a[i])*a[i]; normB += double(b[i])*b[i];
-        }
-        return float(2*std::acos(std::clamp(std::abs(dot)/std::sqrt(normA*normB),0.,1.)));
-    }
-    void Stabilize() {
-        if (!observations) {
-            stationary = quiet = filtered;
-            positionQuietSince = rotationQuietSince = filtered.time_ns;
-            positionTravel = rotationTravel = 0;
-            positionAnchored = rotationAnchored = true;
-        } else {
-            const float positionDistance = Distance(filtered.position,quiet.position);
-            if (positionAnchored) {
-                if (Distance(filtered.position,stationary.position) > .003f) {
-                    positionAnchored = false;
-                    std::copy_n(filtered.position,3,quiet.position);
-                    positionQuietSince = filtered.time_ns; positionTravel = 0;
-                }
-            } else if (positionDistance > .0015f) {
-                std::copy_n(filtered.position,3,quiet.position);
-                positionQuietSince = filtered.time_ns; positionTravel = 0;
-            } else {
-                positionTravel += Distance(filtered.position,last.pose.position);
-                // Directed motion accumulates from a fixed anchor instead of disappearing into the deadband.
-                if (filtered.time_ns-positionQuietSince >= 240000000 &&
-                    (positionTravel < .00001f || positionDistance <= positionTravel*.5f) &&
-                    Distance(filtered.position,rendered.position) <= .003f) {
-                    positionAnchored = true; std::copy_n(rendered.position,3,stationary.position);
-                }
-            }
-            const float rotationDistance = Angle(filtered.rotation,quiet.rotation);
-            if (rotationAnchored) {
-                if (Angle(filtered.rotation,stationary.rotation) > .017453293f) {
-                    rotationAnchored = false;
-                    std::copy_n(filtered.rotation,4,quiet.rotation);
-                    rotationQuietSince = filtered.time_ns; rotationTravel = 0;
-                }
-            } else if (rotationDistance > .008726647f) {
-                std::copy_n(filtered.rotation,4,quiet.rotation);
-                rotationQuietSince = filtered.time_ns; rotationTravel = 0;
-            } else {
-                rotationTravel += Angle(filtered.rotation,last.pose.rotation);
-                if (filtered.time_ns-rotationQuietSince >= 240000000 &&
-                    (rotationTravel < .000001f || rotationDistance <= rotationTravel*.5f) &&
-                    Angle(filtered.rotation,rendered.rotation) <= .017453293f) {
-                    rotationAnchored = true; std::copy_n(rendered.rotation,4,stationary.rotation);
-                }
-            }
-        }
-        if (positionAnchored) { std::copy_n(stationary.position,3,filtered.position); predict = false; }
-        if (rotationAnchored) std::copy_n(stationary.rotation,4,filtered.rotation);
+    bool HoldLastObservation(int64_t now) {
+        observations = 0; predict = false; receivedAt = 0; renderedAt = now;
+        if (SpatialFresh(last.pose,now,kVisualHoldNs)) return true;
+        Reset();
+        return false;
     }
     bool Update(const dd_spatial_hand &hand, bool headValid, int64_t now, uint64_t nextConnection, uint64_t nextOrigin) {
         if (!headValid || connection != nextConnection || origin != nextOrigin) Reset();
         connection = nextConnection; origin = nextOrigin;
         if (!headValid) return false;
-        if (!SpatialHandFresh(hand, now) || hand.pose.time_ns < last.pose.time_ns) {
-            observations = 0; predict = false; receivedAt = 0; renderedAt = now;
-            return SpatialHandFresh(last,now);
-        }
-        if (!observations && hand.pose.time_ns == last.pose.time_ns) return SpatialHandFresh(last,now);
-        const bool interpolate = renderedAt > 0 && now >= renderedAt && SpatialHandFresh(last,now);
+        if (!SpatialHandFresh(hand, now) || hand.pose.time_ns < last.pose.time_ns)
+            return HoldLastObservation(now);
+        if (!observations && hand.pose.time_ns == last.pose.time_ns) return HoldLastObservation(now);
+        const bool interpolate = observations > 0 && renderedAt > 0 && now >= renderedAt && SpatialHandFresh(last,now);
         if (hand.pose.time_ns > last.pose.time_ns) {
             const float dt = float(hand.pose.time_ns-last.pose.time_ns)/1e9f;
             if (observations && dt > 0 && dt <= .2f) {
-                float speed2 = 0, acceleration2 = 0;
+                float speed2 = 0, previousSpeed2 = 0, direction = 0, acceleration2 = 0;
                 for (int i=0; i<3; ++i) {
                     const float v = (hand.pose.position[i]-last.pose.position[i])/dt;
                     speed2 += v*v;
+                    previousSpeed2 += velocity[i]*velocity[i];
+                    direction += v*velocity[i];
                     const float acceleration = (v-velocity[i])/dt;
                     acceleration2 += acceleration*acceleration;
                     velocity[i] = v;
                 }
-                predict = observations >= 2 && speed2 <= 2.25f && acceleration2 <= 36.f;
+                predict = observations >= 2 && speed2 <= 2.25f && acceleration2 <= 36.f &&
+                    direction > 0 && direction*direction >= .64f*speed2*previousSpeed2;
             } else {
                 observations = 0; predict = false; std::fill_n(velocity,3,0);
             }
@@ -130,7 +74,6 @@ struct OpticalPose {
             float norm = 0;
             for (float v : filtered.rotation) norm += v*v;
             for (float &v : filtered.rotation) v /= std::sqrt(norm);
-            Stabilize();
             ++observations; last = hand; receivedAt = now;
         }
         auto target = filtered;

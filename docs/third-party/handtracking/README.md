@@ -24,6 +24,16 @@ bundle, a palm detector and a hand landmark model, unchanged from
 licenses it under the Apache License 2.0; it gives 21 landmarks per hand in the picture and in metres,
 based on the GHUM hand model, and is meant for prominently shown hands.
 
+The Luma stereo pipeline defaults to the Full bundle at
+`app/src/main/assets/models/hand_landmarker.task`, with the same checksum as the Full bundle
+above. The optional `app/src/main/assets/models/hand_landmarker_lite.task` is built from
+the official `palm_detection_lite.tflite` and `hand_landmark_lite.tflite` assets at
+`https://storage.googleapis.com/mediapipe-assets/`. It uses the matching tensor metadata and
+associated labels from the Full task bundle. These models share the MediaPipe hand tracking
+model card and Apache License 2.0. Source checksums and the generated bundle checksum are in
+`app/src/main/assets/models/hand_landmarker_lite.provenance.json`; `tools/build_hand_lite.py`
+reproduces the bundle with MediaPipe 0.10.21 metadata tooling.
+
 [CameraX](https://developer.android.com/jetpack/androidx/releases/camera) 1.4.2
 (`androidx.camera:camera-camera2`, `camera-lifecycle`; copyright The Android Open Source Project,
 Apache License 2.0) delivers the frames.

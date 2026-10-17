@@ -13,7 +13,7 @@ class LumaJoyConPosition {
 public:
     explicit LumaJoyConPosition(bool right) : side_(right ? 1 : 0), arm_(right) {}
 
-    void Reset() { arm_.Reset(); shown_ = false; blend_ = {}; lastCamera_ = {}; }
+    void Reset() { arm_.Reset(); motion_.Reset(); shown_ = false; blend_ = {}; lastCamera_ = {}; }
 
     LumaJoyConPose Update(const droiddeck_spatialpose &spatial, const Quat &rotation,
                          double angularSpeed, int64_t now, double dt) {
@@ -35,13 +35,17 @@ public:
         const auto &p = observation.pose.position;
         const Vec3 measured{p[0], p[1], p[2]};
         if (SpatialHandFresh(observation, now) && Length(measured - head) <= 1.5 &&
-            observation.pose.time_ns > lastCamera_.time_ns) lastCamera_ = observation.pose;
+            observation.pose.time_ns > lastCamera_.time_ns) {
+            motion_.Observe(measured, observation.pose.time_ns);
+            lastCamera_ = observation.pose;
+        }
         const bool camera = SpatialFresh(lastCamera_, now, 200000000LL);
         if (camera) {
             const Vec3 source{lastCamera_.position[0], lastCamera_.position[1], lastCamera_.position[2]};
-            position_ = shown_ ? position_ + (source - position_) * (1.0 - std::exp(-dt / .06)) : source;
+            position_ = shown_ ? position_ + (source - position_) * motion_.PositionAlpha(dt) : source;
             blend_ = {};
         } else {
+            motion_.Reset();
             if (shown_ && camera_) blend_ = position_ - estimate;
             blend_ = blend_ * std::exp(-dt / .18);
             position_ = estimate + blend_;
@@ -53,6 +57,7 @@ public:
 private:
     const int side_;
     ArmModel arm_;
+    AdaptivePositionMotion motion_;
     uint64_t connection_ = 0, origin_ = 0;
     bool shown_ = false, camera_ = false;
     Vec3 position_, blend_;

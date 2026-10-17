@@ -1,5 +1,7 @@
 # VITURE Android SDK integration
 
+For the cross-brand feature matrix and user setup, see [smart-glasses support](../smart-glasses-support.md).
+
 The optional adapter is built against the user-supplied VITURE XR Glasses SDK
 2.4.0. Set `droiddeck.vitureSdk=C:/path/to/VITURE_XR_Glasses_SDK_for_Android`
 in the ignored `local.properties`, or pass `-PvitureSdkDir=/path/to/sdk`.
@@ -26,9 +28,10 @@ Device firmware can reject individual modes; Android's physical display size
 must confirm SBS before the app considers the switch successful.
 
 All three feed the existing `Glasses.PoseSink`, head recentering, compositor and
-SteamVR pipeline. Ultra explicitly selects 3DoF before SDK initialization because
-the current pipeline consumes orientation. Positional 6DoF and camera passthrough
-are outside this integration. The SDK's optional statistics reporter is not enabled.
+SteamVR pipeline. Ultra selects 3DoF or the opt-in positional 6DoF mode before SDK
+initialization. Its positional poses and stereo cameras feed the
+[Luma spatial pipeline](luma-spatial-tracking.md); camera passthrough is not implemented.
+The SDK's optional statistics reporter is not enabled.
 
 The SDK owns USB interface selection and I/O. `UsbDeviceConnection` remains open
 until stop/shutdown/destroy finish. A generation token rejects callbacks from an
@@ -67,10 +70,12 @@ SBS on or off preserves the 3DoF selection. Virtual screens center on the curren
 viewing direction when tracking starts or the user recenters, including the
 up/down angle. Direct SteamVR views retain their gravity-aligned recentering.
 
-The settings UI and session renderer share this mode selection through
-`GlassesRendering`; home-screen changes configure sessions rather than resizing
-Android's mirrored launcher. Regular refresh rate applies to 2D output; SBS uses
-the model's separate 3D refresh rate.
+The settings UI, menu presentation, and session renderer share this mode selection
+through `GlassesRendering`. Setup → Smart glasses configures DroidDeck menus,
+non-Steam launchers, desktop sessions, and games. Tracked menus use the app's own
+glasses presentation while phone controls remain available; see
+[tracked menus](glasses-menu-tracking.md). Regular refresh rate applies to 2D
+output; SBS uses the model's separate 3D refresh rate.
 Both the home menu and session drawer use **Display**, **VR**, **Tracking**, and
 **Device** tabs. Display groups connection and output controls, 2D/3D resolution
 and active refresh rate, then picture and virtual-screen geometry. VR contains

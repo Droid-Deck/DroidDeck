@@ -5,8 +5,10 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.displayCutout
@@ -243,6 +245,9 @@ internal fun GlassesGroups(
                         stringResource(R.string.glasses_spatial_open), { context.startActivity(Intent(context, SpatialTrackingActivity::class.java)) })
                     ToggleRow(host, "glasses-hands", stringResource(R.string.glasses_hands), stringResource(R.string.glasses_hands_hint),
                         s.handControllers, chipModifier = track("glasses-hands")) { Glasses.setHandControllers(it) }
+                    if (s.handControllers) ToggleRow(host, "glasses-steady-hand-aim",
+                        stringResource(R.string.glasses_steady_hand_aim), stringResource(R.string.glasses_steady_hand_aim_hint),
+                        s.steadyHandAim, chipModifier = track("glasses-steady-hand-aim")) { Glasses.setSteadyHandAim(it) }
                 }
                 ToggleRow(host, "glasses-joycons", stringResource(R.string.glasses_joycons),
                     stringResource(if (s.positionalTracking) R.string.glasses_joycons_hint else R.string.glasses_joycons_requires_position),
@@ -323,28 +328,37 @@ internal fun GlassesCornerButton(slot: Int, tint: Int, opacity: Int, onClick: ()
 }
 
 @Composable
-internal fun GlassesRecenterButton(tint: Int, opacity: Int, onClick: () -> Unit) {
+internal fun GlassesRecenterButton(tint: Int, opacity: Int, onRecenterJoyCons: (() -> Unit)? = null, onClick: () -> Unit) {
+    Box(
+        Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.displayCutout).padding(top = 12.dp),
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            GlassesRecenterAction(stringResource(R.string.glasses_recenter_button), "glasses-recenter", tint, opacity, onClick)
+            if (onRecenterJoyCons != null) GlassesRecenterAction(
+                stringResource(R.string.glasses_recenter_joycons_button), "glasses-recenter-joycons", tint, opacity, onRecenterJoyCons)
+        }
+    }
+}
+
+@Composable
+private fun GlassesRecenterAction(label: String, tag: String, tint: Int, opacity: Int, onClick: () -> Unit) {
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
     val (fill, line) = padButtonColors(tint, opacity, pressed)
     val shape = RoundedCornerShape(50)
     Box(
-        Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.displayCutout).padding(top = 12.dp),
-        contentAlignment = Alignment.TopCenter,
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .height(36.dp)
+            .clip(shape)
+            .background(fill)
+            .border(1.5.dp, line, shape)
+            .clickable(interactionSource = source, indication = null, role = Role.Button, onClick = onClick)
+            .padding(horizontal = 18.dp)
+            .testTag(tag),
     ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .height(36.dp)
-                .clip(shape)
-                .background(fill)
-                .border(1.5.dp, line, shape)
-                .clickable(interactionSource = source, indication = null, role = Role.Button, onClick = onClick)
-                .padding(horizontal = 18.dp)
-                .testTag("glasses-recenter"),
-        ) {
-            Text(stringResource(R.string.glasses_recenter_button), color = line, fontSize = 14.sp)
-        }
+        Text(label, color = line, fontSize = 14.sp)
     }
 }
 

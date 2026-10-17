@@ -1079,6 +1079,7 @@ public:
         const bool optical = opticalActive_;
         opticalInputs_.Reset();
         opticalPose_.Reset();
+        steadyHandAim_ = false;
         opticalActive_ = false;
         lastOpticalState_ = ~0u;
         if (id_ == k_unTrackedDeviceIndexInvalid) return;
@@ -1149,11 +1150,27 @@ public:
     }
 
     void UpdateOptical(const dd_spatial_hand &hand, bool headValid, const PadState *pad, int64_t now,
-                       uint64_t connection, uint64_t origin, uint16_t inputEpochs = 0) {
+                       uint64_t connection, uint64_t origin, uint16_t inputEpochs = 0,
+                       const dd_spatial_pose *aimHead = nullptr) {
         if (id_ == k_unTrackedDeviceIndexInvalid) return;
         opticalActive_ = true;
         const bool inputValid = opticalInputs_.Update(hand, headValid, now, connection, origin, inputEpochs);
-        const bool valid = opticalPose_.Update(hand, headValid, now, connection, origin);
+        if (steadyHandAim_ != (aimHead != nullptr)) {
+            opticalPose_.Reset();
+            steadyHandAim_ = aimHead != nullptr;
+        }
+        auto visualHand = hand;
+        if (aimHead && headValid && SpatialFresh(*aimHead, now) && SpatialHandFresh(hand, now)) {
+            const auto &h = *aimHead;
+            const auto &p = hand.pose;
+            const auto q = droiddeck::ShoulderAim({h.position[0], h.position[1], h.position[2]},
+                {h.rotation[3], h.rotation[0], h.rotation[1], h.rotation[2]},
+                {p.position[0], p.position[1], p.position[2]}, right_,
+                {p.rotation[3], p.rotation[0], p.rotation[1], p.rotation[2]});
+            visualHand.pose.rotation[0] = q.x; visualHand.pose.rotation[1] = q.y;
+            visualHand.pose.rotation[2] = q.z; visualHand.pose.rotation[3] = q.w;
+        }
+        const bool valid = opticalPose_.Update(visualHand, headValid, now, connection, origin);
         DriverPose_t p{};
         p.qWorldFromDriverRotation.w = p.qDriverFromHeadRotation.w = p.qRotation.w = 1;
         if (valid) {
@@ -1271,6 +1288,7 @@ private:
     }
     OpticalInputs opticalInputs_;
     OpticalPose opticalPose_;
+    bool steadyHandAim_ = false;
     bool opticalActive_ = false;
     uint32_t lastOpticalState_ = ~0u;
     uint64_t lastOpticalConnection_ = 0, lastOpticalOrigin_ = 0;
@@ -1630,7 +1648,8 @@ private:
                     padHandOff_[side] = false;
                     if (optical) hand->UpdateOptical(spatial.hands[side], SpatialFresh(spatial.head, SpatialNow()),
                         havePad ? &pad : nullptr, SpatialNow(), spatial.connection, spatial.origin,
-                        uint16_t(spatial.input_epochs >> (side*16)));
+                        uint16_t(spatial.input_epochs >> (side*16)),
+                        spatial.flags & DD_SPATIAL_STEADY_AIM ? &spatial.head : nullptr);
                     else hand->Update(head, havePad ? &pad : nullptr, sticksMoveHands_, reach_);
                 }
                 if (havePad) lastPad_ = pad;

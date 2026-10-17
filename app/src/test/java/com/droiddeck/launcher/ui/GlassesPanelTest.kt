@@ -346,6 +346,21 @@ class GlassesPanelTest {
         val experimental = compose.onNodeWithText(text(R.string.glasses_experimental).uppercase()).fetchSemanticsNode().positionInRoot.y
         org.junit.Assert.assertTrue(experimental > ordinary)
         compose.onNodeWithTag("setting-glasses-hands").assertExists()
+        compose.onNodeWithTag("setting-glasses-steady-hand-aim").assertDoesNotExist()
+    }
+
+    @Test fun steadyHandAimIsOptionalAndOffByDefault() {
+        show(supportsSpatial = true, settings = GlassesSettings(positionalTracking = true, handControllers = true),
+            tab = GlassesTab.TRACKING)
+        compose.onNodeWithTag("setting-glasses-steady-hand-aim").performScrollTo().assertIsEnabled().assert(
+            SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, text(R.string.widgets_off)))
+        compose.onNodeWithText(text(R.string.glasses_steady_hand_aim_hint)).assertExists()
+    }
+
+    @Test fun savedSteadyHandAimIsHiddenInJoyConMode() {
+        show(supportsSpatial = true, settings = GlassesSettings(positionalTracking = true, joyConTracking = true, steadyHandAim = true),
+            tab = GlassesTab.TRACKING)
+        compose.onNodeWithTag("setting-glasses-steady-hand-aim").assertDoesNotExist()
     }
 
     @Test fun ultraControlsDisappearOnDisconnectAndForOtherGlassesWithSavedPreferences() {
@@ -364,6 +379,7 @@ class GlassesPanelTest {
             compose.runOnIdle { state.value = other }
             compose.onNodeWithTag("setting-glasses-position").assertDoesNotExist()
             compose.onNodeWithTag("setting-glasses-hands").assertDoesNotExist()
+            compose.onNodeWithTag("setting-glasses-steady-hand-aim").assertDoesNotExist()
             compose.onNodeWithTag("setting-glasses-joycons").assertDoesNotExist()
             compose.onNodeWithText(text(R.string.glasses_spatial_setup)).assertDoesNotExist()
             compose.onNodeWithText(text(R.string.glasses_eye_height)).assertDoesNotExist()

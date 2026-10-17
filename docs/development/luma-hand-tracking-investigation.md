@@ -1,6 +1,46 @@
 # Luma Ultra hand tracking investigation
 
-Date: 2026-10-16. Status: **experimental; gameplay usability has not passed**.
+Date: 2026-10-17. Status: **experimental; gameplay usability has not passed**.
+
+## Current Full/raw baseline and hand rendering
+
+The stereo pipeline defaults to Full palm detection plus Full hand landmarks following the
+[saved-image comparison](hand-model-comparison-2026-10-16.md). The optional Lite bundle contains
+Lite palm and Lite landmarks; earlier historical timings describe a different Full-palm/Lite-landmark
+bundle. `tools/build_hand_lite.py` pins both official Lite source models,
+checks their input/output tensor contracts, and copies Tasks metadata from the Full bundle.
+Both the outer task ZIP and the embedded label ZIPs have deterministic timestamps.
+
+Live inference consumes original grayscale camera bytes, replicated into reusable RGB buffers.
+It skips full-frame lens remapping, contrast normalization, and the grayscale-to-RGBA-to-Bitmap
+round trip. Preview bitmaps are created only at preview cadence; grayscale Mats are populated
+only for calibration, validation, explicit capture, preview, or Joy-Con optical flow.
+
+Detection, preview overlays, and Joy-Con flow share raw image coordinates. Calibration corrects
+the sparse landmark coordinates once before triangulation. The saved `fisheye` flag selects
+fisheye or pinhole correction; the bundled Luma profile uses pinhole coefficients. Calibration
+fitting, validation, and diagnostic captures retain their original raw images. The unsuccessful hybrid matcher and preprocessing-comparison code were removed
+after baseline selection. The existing saved-pair diagnostic uses the same raw RGB
+preprocessing and point correction as live tracking.
+
+Each grayscale byte is copied into R, G, and B without changing exposure or image coordinates.
+[MediaPipe Tasks](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker/android)
+then performs model-specific tensor normalization from metadata; the app does not divide these
+image bytes by 255 a second time.
+
+Joy-Con mode retains only landmark 0 (the wrist), triangulates and follows that position, and
+does not estimate palm orientation, pinch, or grip. Replay follows the selected controller mode.
+The landmark network still predicts all 21 landmarks internally. Physical Joy-Con
+buttons and IMU orientation remain the controller input sources.
+
+The user reported that the hand smoothing and dead zones made tracking feel worse. The
+common bare-hand `OpticalPose` path therefore removes the 3 mm position and 1-degree rotation
+anchors and restores the earlier fixed 15 ms rendering interpolation, replacing the added
+adaptive smoothing. Small accepted movements can change the rendered pose immediately.
+Position prediction still requires consecutive velocities to agree in direction, preventing
+alternating measurement noise from being extrapolated. The normal mode keeps measured palm
+orientation; only the opt-in steady-aim setting uses `ShoulderAim`. Joy-Con filtering, gesture
+release, observation freshness, and calibration gates are unchanged.
 
 SteamVR startup defers Luma Ultra 6DoF until two seconds after the first confirmed RUNNING
 status. The launch gate applies before SDK initialization, with display controls available
@@ -12,6 +52,37 @@ Automatic restoration on the same device, including a cancelled launch or early 
 requests the existing stable-pose recenter. Status polls from superseded requests or ended
 sessions cannot restart the pending tracking transition.
 
+Bare-hand controller rendering holds the last accepted pose for up to 350 ms from its original
+capture timestamp, extending the previous 200 ms visual limit. Missing, invalid, or stale
+observations freeze the rendered pose and stop prediction; repeated packets cannot extend the
+hold. New observations still require the existing 200 ms freshness check, and trigger/grip
+release immediately when their observations become invalid or stale. Head loss, origin or
+connection changes, and controller-mode changes clear the visual cache. This bridges short
+hand-detection gaps without adding a delay to fresh frames; it does not improve detection or
+preserve a gesture through tracking loss. Both Full and Lite predict the 21 landmarks used by
+the grab estimator; wrist-only Joy-Con mode uses physical buttons instead.
+
+Before this rollback, synthetic 12.5 Hz alternating-noise replay reduced position RMS from 4.354 to 1.772 mm and
+rotation RMS from 1.722° to 1.398°. At 25 Hz, the respective changes were 1.242 to 0.988 mm
+and 1.058° to 0.800°. The tradeoff in the 12.5 Hz slow-motion case was slightly more lag:
+maximum position error changed from 0.423 to 0.593 mm and angular error from 0.489° to
+0.632°. These results describe the reverted adaptive filter, not the current behavior or
+measured live tracking improvements; the user's subsequent experience favored removing it.
+The 80 focused JVM tests and native spatial, controller, adaptive-filter, and Joy-Con tests
+passed. Build and installation evidence is recorded under `build/hand-baseline/`.
+
+The visual-hold follow-up passed the full native suite, including capture-age boundaries,
+frozen rendering, stale-packet rejection, immediate gesture release, fresh reacquisition, and
+cache invalidation. Only the VR driver changed among the 150 staged runtime outputs.
+Build and installation evidence is recorded under `build/hand-visibility/`.
+
+The subsequent dead-zone/adaptive-filter rollback passed the full native suite. Regression
+tests exercise 0.2 mm translation and 0.05-degree rotation immediately after settling, sustained
+small motion, reversal, and the retained visibility/input protections. Synthetic 95% step
+response was 44 ms after receipt at both 12.5 and 25 Hz observation rates. This measures the
+render filter, not end-to-end camera latency. Only the VR driver changed among the 150 runtime
+outputs; rollback evidence is recorded under `build/hand-filter-revert/`.
+
 The reviewed startup-delay follow-up passed 129 focused JVM tests, and an isolated snapshot
 containing only the startup changes passed its 128 focused tests. Earlier phone logs recorded the spatial SDK
 open attempt 3.348 seconds after confirmed SteamVR RUNNING: the two-second delay plus SDK
@@ -20,6 +91,38 @@ recenter. The native driver and hand configuration were unchanged. Evidence is r
 `build/luma-vr-start-delay/`. The review fixes were rebuilt and installed, but the phone
 reported no glasses connected during the follow-up, so hardware cancellation recovery
 was not rechecked.
+
+The installed APK SHA-256 is `fac0973a21e41db842d88617bb11f16672987bd0b955736ad510abceca46b00f`.
+Earlier connected-phone diagnostics confirmed `FULL`, `raw-grayscale-rgb`,
+`pinhole-points-only`, concurrent CPU inference, scheduled discovery, adaptive input,
+and `steadyHandAim=false`. Camera/head processing was active with the verified device
+calibration. The launch check reached READY and staged VR driver SHA-256
+`e79525c144e934761f08cdc1d3170d058df89bf55c8458ddc955b58c90c9b128`, matching the rebuilt
+payload. This verifies deployment and live processing, not moving-hand accuracy or comfort.
+
+The optional Lite bundle can be rebuilt with `mediapipe==0.10.21` using:
+
+```sh
+python tools/build_hand_lite.py --palm palm_detection_lite.tflite --lite hand_landmark_lite.tflite
+```
+
+Source URLs and hashes are in `app/src/main/assets/models/hand_landmarker_lite.provenance.json`.
+These changes still need live moving-hand, closed-fist, gesture-continuity, and latency validation.
+Earlier Lite/normalized-input validation passed 52 focused JVM tests, and bundle rebuild and label-archive reproducibility
+checks passed. Desktop MediaPipe 0.10.21 inference succeeded on color hand fixtures. All six
+saved left-camera grayscale grip images still returned zero detections after correction and
+contrast normalization at the existing 0.6 confidence thresholds. This is not a tracking-accuracy
+pass. Synthetic projection/undistortion/triangulation checks stayed below 0.12 mm reconstruction
+error for the bundled pinhole profile and near numerical precision for a synthetic fisheye profile.
+Local reports for that implementation check are in `build/hand-lite-models/`; Android hardware
+inference was not run at that stage.
+
+The subsequent [Full/Lite preprocessing comparison](hand-model-comparison-2026-10-16.md)
+ran all eight model/preprocessing combinations on the phone using nine saved stereo pairs.
+Full recovered one of two central open hands; Lite recovered no usable stereo hand. Neither
+model found the peripheral hand, and contrast/lens correction added no accepted bare hands.
+Full with raw grayscale-to-RGB input and calibrated point correction is now the live baseline;
+the earlier comparison diagnostic itself did not change the defaults.
 
 There is room to improve the current implementation, but the available evidence does not support calling another smoothing adjustment a gameplay fix. The strongest current blockers are rejected palm reconstruction, interrupted gesture continuity, and processing latency under SteamVR load. The next useful milestone is a repeatable open → pinch → release interaction with a stable aiming pose, followed by sustained in-game testing.
 
@@ -62,7 +165,7 @@ This is an inference from a sampled shared-memory trace. Sampling may omit inter
 
 3. **Reduce measured processing cost and discovery spikes.** Run temperature-matched comparisons of full/scheduled CPU, lite/scheduled CPU, and input-rate settings, retaining the same game scene and deliberate motions. Measure completed-observation rate and accepted-observation rate, not camera rate or repeated channel reads. Existing saved-open-palm benchmarks show potential: under SteamVR, scheduled full inference had median/p95 46.92/94.71 ms versus full-search 91.48/99.26 ms; scheduled lite gave 40.26/86.77 ms. Those static-image results cannot establish moving-hand, pinch, or crossed-hand accuracy. The full model should remain the baseline until those comparisons pass. GPU requires a separate stability check because earlier evidence records graphics recovery/device-loss concerns.
 
-4. **Tune pose and aiming with motion evidence.** Record stationary raw and rendered pose distributions and a repeatable slow aiming path. Current driver stabilization already holds position within 3 mm and orientation within 1 degree around a stationary anchor, applies a 15 ms rendering correction, and bounds prediction to 2 cm/80 ms. Increasing smoothing without measuring raw noise and lag risks making aiming less responsive. Test motion-aware filtering or a more stable aim direction only against the same recorded motions and external latency measurement. Aiming direction and a game controller's grip pose may need separate treatment.
+4. **Tune pose and aiming with motion evidence.** Record stationary raw and rendered pose distributions and a repeatable slow aiming path. At the time of this trace, driver stabilization held position within 3 mm and orientation within 1 degree around a stationary anchor, applied a 15 ms rendering correction, and bounded prediction to 2 cm/80 ms. The anchors have since been removed at the user's request. Increasing smoothing without measuring raw noise and lag risks making aiming less responsive. Test motion-aware filtering or a more stable aim direction only against the same recorded motions and external latency measurement. Aiming direction and a game controller's grip pose may need separate treatment.
 
 5. **Validate game compatibility after continuity.** Optical controllers currently expose Vive-compatible trigger/grip/trackpad inputs, with gamepad sticks and buttons supplying locomotion and menus; there is no skeletal hand output. `CardboardController::UpdateOptical` initializes `DriverPose_t` to zero and populates position and rotation, leaving linear and angular velocity zero. This is a source-confirmed omission to investigate for throwing and other velocity-dependent games, not an established cause of the dashboard problem. A velocity implementation needs capture-time derivatives, outlier/loss resets, a defined pose timestamp, and a game-level test before enabling it.
 
@@ -104,12 +207,12 @@ its original capture time. Neither mechanism turns stale coordinates into fresh 
 
 ### Model assessment
 
-- **MediaPipe Full (current baseline):** an existing Android pipeline with separate palm
+- **MediaPipe Full (historical baseline):** an existing Android pipeline with separate palm
   detection and landmark regression. Curling fingers does not intrinsically exclude a hand,
   but occlusion and the egocentric view must be tested with actual grips. Its published
   monocular world landmarks are not used as metric camera distance; calibrated stereo supplies
   distance. [Official task documentation](https://developers.google.com/edge/mediapipe/solutions/vision/hand_landmarker).
-- **Bundled Lite:** the local bundle changes the landmark regressor while retaining the Full
+- **Earlier bundled Lite:** that bundle changed the landmark regressor while retaining the Full
   palm detector (see `tools/build_hand_lite.py`). It can reduce processing cost, but cannot be
   assumed to fix the initial fist-detection problem. Earlier saved open-palm replay under
   SteamVR measured scheduled Full median/p95 46.92/94.71 ms and Lite 40.26/86.77 ms. Those figures
@@ -294,3 +397,70 @@ Raw USB descriptors advertise MJPEG 640×480, 1280×720, and 1920×1080 among ot
 continues. It saves a local JPEG plus transfer diagnostics and stream statistics; it is not yet
 connected to controller tracking. RGB lens/extrinsic calibration and measured reach remain
 separate unfinished requirements.
+
+### Direct UVC follow-up after the firmware update
+
+The glasses now report firmware `12.0.02.002_20260901`, previously
+`12.0.01.100_20260326`. Direct UVC acquired short bursts, but no sustained stream:
+capture `140416689286120` delivered 22 callbacks over 708 ms, followed by 4.3 seconds
+without another callback. The main app stayed alive. These are transport observations,
+not arm-extension measurements.
+
+The rejection logs exposed a separate parsing bug: valid JPEG end markers were followed
+by one to seven zero bytes, with buffers aligned to eight bytes. The diagnostic now trims
+up to seven trailing zeros before checking the end marker and saves the trimmed payload.
+A native test on the phone covers padding, truncation, garbage, null input, and size bounds.
+This fixes rejection of padded frames; it cannot recover missing USB callbacks. JPEG
+boundary validation also does not establish successful decoding.
+
+A 32-transfer queue with eight packets per transfer was compared with the original
+eight transfers of 32 packets. Both fault-injection builds passed 60 simulated starts.
+The smaller transfers started 1080p30 without the earlier submission error, but received
+zero frames (`140593211685272`). At 640p the smaller transfers still stalled after seven
+callbacks (`140493747047289`). Neither configuration established reliable acquisition.
+
+Explicit USB device resets returned success but produced no frames at 640×480/30 or
+320×240/5. GET_INTERFACE retained the selected alternate setting. Android's external
+camera provider reported zero devices. A physical reconnect with positional tracking
+disabled before attachment also yielded zero callbacks (`141363168667894`): capture
+waited five seconds for the first frame and never entered its requested ten-second
+observation window. The original positional and Joy-Con settings were restored afterward;
+bare-hand controllers remained off. This failure occurs without the stereo/VIO stream.
+
+Capture evidence is under `build/joycon-rgb-captures/<id>`, including `usb.log`,
+`frame.json`, descriptors, and per-worker `libuvc-logcat.txt`. Teardown cancellation
+messages are not evidence that transfers were cancelled during acquisition. RGB remains
+diagnostic-only, with no RGB depth calibration or controller-position publication.
+
+Detailed USB logging in capture `141627121555242` recorded 224 successful isochronous
+transfer completions over approximately 223 ms, each totaling 96 bytes, followed by no
+successful completions until capture teardown. These small transfers did not produce a
+decoded image or frame callback. A follow-up (`141844371790836`) read the UVC streaming
+error code before and after the stall: both returned code 0. Android denied reading the
+USB power-management sysfs attributes, so autosuspend was not verified as a cause.
+
+The user confirmed a direct VITURE cable connection. With the same glasses and cable
+connected to Windows, FFmpeg/DirectShow decoded 300 frames in each of three ten-second
+runs: 640×480/30, 1920×1080/30, then 640×480/30 after reopening. Outputs used passthrough
+frame timing and frame hashes, with no frame-rate duplication or saved video. All exited
+successfully without timeout. Evidence is in `build/joycon-rgb-windows`, produced by
+`build/test-luma-rgb-windows.py`, which selects only USB VID:PID `0c45:636b`. This supports
+investigating the Android host/USB path further; it does not prove the camera will be
+reliable on every host or establish the exact Android fault.
+
+A controlled APK replacement of only `libusb.so` with official libusb 1.0.27 also
+returned zero callbacks (`142296418051861`). Its source archive SHA-256 is
+`ffaa41d741a8a3bee244ac8e54a72ea05bf2879663c098c82fc5757853441575`; provenance and the
+one-entry APK comparison are under `build/rgb-libusb-1.0.27`. The production dependency
+pin remains 1.0.30. An isolated YUYV 320×240/5 diagnostic negotiated format 2 but likewise
+received zero raw frame callbacks (`142407601079475`), so JPEG validation was not its
+failure point. Neither comparison changed the production camera format.
+
+Finally, 64 queued transfers of 32 packets increased the high-speed queue coverage from
+approximately 32 ms to 256 ms. Its fault-injection executable passed all 60 starts.
+Capture `142557405834522` recovered 18 valid JPEGs over 577 ms, then stalled for the
+remaining 9.42 seconds of its ten-second observation. All 18 passed the padding fix;
+the saved final JPEG also decoded at 640×480 in OpenCV. This is not sustained tracking
+and neither alternate queue was adopted. Temporary USB reset, queue configuration, and
+verbose logging experiments were removed. The retained UVC recipe uses eight transfers
+of at most 32 packets, and retains the JPEG-padding fix.

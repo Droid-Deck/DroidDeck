@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import com.google.mediapipe.framework.image.MPImage
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.core.Delegate
 import com.google.mediapipe.tasks.vision.core.RunningMode
@@ -78,12 +79,13 @@ internal class StereoHandEngine(private val context: Context, private val token:
     private var calibration: StereoCalibration?=null
     val calibrationSource get() = calibration?.source ?: "none"
     val calibrationVerified get() = calibration?.verified == true
+    val lensCorrection get() = calibration?.let { if(it.fisheye) "fisheye-points-only" else "pinhole-points-only" } ?: "none"
     private var capture=false
     private var record=false
     private var verify: Float?=null
     private var validationRequestedAt=0L
     @Volatile var gpu=false; private set
-    @Volatile var model=HandModel.FULL; private set
+    @Volatile var model=HandModel.DEFAULT; private set
     @Volatile var halfRateInput=true; private set
     @Volatile var adaptiveInput=true; private set
     @Volatile var scheduledTracking=true; private set
@@ -159,6 +161,7 @@ internal class StereoHandEngine(private val context: Context, private val token:
         calibrationProgress = calibrationProgress.copy(solving = true, validationMessage = null)
         try {
             val fitted=c.solve(identity ?: "session:$generation",width,height)
+            clearHands();closeDetectors()
             calibration?.close();calibration=fitted
             calibrationProgress = calibrationProgress.copy(fitted = true)
             if(identity!=null) fitted.save(profile)
@@ -198,8 +201,12 @@ internal class StereoHandEngine(private val context: Context, private val token:
     private fun imagePoints(detection: Detection?) = detection?.points?.map {
         SpatialVector(it.x.toFloat(),it.y.toFloat(),0f)
     }
-    private fun detect(detector: HandLandmarker, bitmap: Bitmap, stamp: Long, buffer: HandImageBuffer=imageBuffer): Detections {
-        val image=buffer.image(bitmap)
+    private fun detect(detector: HandLandmarker, bitmap: Bitmap, stamp: Long, buffer: HandImageBuffer,
+                       wristOnly: Boolean): Detections =
+        detect(detector,stamp,wristOnly) { buffer.image(bitmap) }
+    private fun detect(detector: HandLandmarker, stamp: Long, wristOnly: Boolean,
+                       prepareImage: () -> MPImage): Detections {
+        val image=prepareImage()
         try {
             val start=System.nanoTime()
             val result=detector.detectForVideo(image,stamp)
@@ -207,7 +214,8 @@ internal class StereoHandEngine(private val context: Context, private val token:
             val hands=result.landmarks().mapIndexedNotNull { i, hand ->
                 val category=result.handedness()[i].firstOrNull() ?: return@mapIndexedNotNull null
                 if(category.score()<0.6f) return@mapIndexedNotNull null
-                Detection(if(category.categoryName()=="Left") 0 else 1,hand.map { Point(it.x()*bitmap.width.toDouble(),it.y()*bitmap.height.toDouble()) })
+                val points=if(wristOnly) hand.take(1) else hand
+                Detection(if(category.categoryName()=="Left") 0 else 1,points.map { Point(it.x()*image.width.toDouble(),it.y()*image.height.toDouble()) })
             }
             return Detections(hands,result.landmarks().size,elapsed)
         } finally { image.close() }
@@ -222,13 +230,20 @@ internal class StereoHandEngine(private val context: Context, private val token:
         }
     }
     private fun detectPair(left: HandLandmarker, right: HandLandmarker, leftImage: Bitmap,
-                           rightImage: Bitmap, stamp: Long, worker: StereoInferenceRunner?): Pair<Detections,Detections> {
-        val l={ detect(left,leftImage,stamp) };val r={ detect(right,rightImage,stamp,rightImageBuffer) }
+                           rightImage: Bitmap, stamp: Long, worker: StereoInferenceRunner?, wristOnly: Boolean): Pair<Detections,Detections> {
+        val l={ detect(left,leftImage,stamp,imageBuffer,wristOnly) };val r={ detect(right,rightImage,stamp,rightImageBuffer,wristOnly) }
+        return worker?.pair(l,r) ?: (l() to r())
+    }
+    private fun detectRawPair(left: HandLandmarker, right: HandLandmarker, leftGray: ByteArray,
+                              rightGray: ByteArray, stamp: Long, worker: StereoInferenceRunner?, wristOnly: Boolean): Pair<Detections,Detections> {
+        val l={ detect(left,stamp,wristOnly) { imageBuffer.image(leftGray,width,height) } }
+        val r={ detect(right,stamp,wristOnly) { rightImageBuffer.image(rightGray,width,height) } }
         return worker?.pair(l,r) ?: (l() to r())
     }
     private fun benchmarkCapture(id: String): JSONObject {
         val folder=File(context.filesDir,"spatial/captures/$id")
         val c=calibration ?: error("Load the saved calibration before benchmarking")
+        val wristOnly=SpatialTracking.joyConsEnabled
         val gray=ArrayList<Mat>();val images=ArrayList<Bitmap>();val rows=org.json.JSONArray()
         clearHands();closeDetectors()
         try {
@@ -256,7 +271,7 @@ internal class StereoHandEngine(private val context: Context, private val token:
                         check(running) { "Tracking stopped during benchmark" }
                         val start=System.nanoTime();val stamp=1000L+frame*80L
                         val bank=if(scheduled && schedule.select(stamp)==1) fast!! else search
-                        val (leftResult,rightResult)=detectPair(bank.left,bank.right,images[0],images[1],stamp,worker)
+                        val (leftResult,rightResult)=detectPair(bank.left,bank.right,images[0],images[1],stamp,worker,wristOnly)
                         val l=leftResult.hands;val r=rightResult.hands
                         if(scheduled) schedule.observe(stamp,l.map { it.side },r.map { it.side },leftResult.rawCount,rightResult.rawCount)
                         val ms=(System.nanoTime()-start)/1e6
@@ -269,8 +284,8 @@ internal class StereoHandEngine(private val context: Context, private val token:
                             points?.get(0)?.takeIf { it.finite() }?.let { wrist ->
                                 wrists.put(JSONObject().put("side",side).put("position",org.json.JSONArray(wrist.array().toList())))
                             }
-                            val hand=points?.let { HandGestures(rightHand=side==1).estimate(it,SpatialPose(),stamp*1_000_000,imagePoints(a),imagePoints(b)) }
-                            val joyCon=points?.let { JoyConWristPosition().estimate(it,SpatialPose(),stamp*1_000_000) }
+                            val hand=if(wristOnly) null else points?.let { HandGestures(rightHand=side==1).estimate(it,SpatialPose(),stamp*1_000_000,imagePoints(a),imagePoints(b)) }
+                            val joyCon=if(wristOnly) points?.let { JoyConWristPosition().estimate(it,SpatialPose(),stamp*1_000_000) } else null
                             if(joyCon!=null) joyCons.put(JSONObject().put("side",side)
                                 .put("position",org.json.JSONArray(joyCon.pose.position.array().toList())))
                             if(hand!=null) hands.put(JSONObject().put("side",side).put("flags",hand.flags())
@@ -296,6 +311,8 @@ internal class StereoHandEngine(private val context: Context, private val token:
                     .put("p95Ms",sorted[18]).put("samples",samples))
             }
             return JSONObject().put("state","completed").put("capture",id).put("backend","CPU")
+                .put("wristOnly",wristOnly).put("imagePreprocessing",HandImageBuffer.PREPROCESSING)
+                .put("lensCorrection",lensCorrection)
                 .put("scope","Saved stereo pair replay; not live tracking or external latency").put("results",rows)
         } finally { gray.forEach { it.release() };images.forEach { it.recycle() };clearHands() }
     }
@@ -310,7 +327,7 @@ internal class StereoHandEngine(private val context: Context, private val token:
         try { check(OpenCVLoader.initLocal()) } catch(e: Throwable) { message="OpenCV unavailable: ${e.message}";return }
         var grayL=Mat();var grayR=Mat();val rgba=Mat()
         var bmpL: Bitmap?=null;var bmpR: Bitmap?=null
-        var bytes=ByteArray(0)
+        var leftGray=ByteArray(0);var rightGray=ByteArray(0)
         val left=ByteBuffer.allocateDirect(2048*2048);val right=ByteBuffer.allocateDirect(2048*2048)
         val metadata=DoubleArray(9);val headData=FloatArray(7)
         var lastSeq=0L;var dropped=0L;var frames=0L;var previewTime=0L
@@ -365,9 +382,10 @@ internal class StereoHandEngine(private val context: Context, private val token:
                 var captureHead=observation.headPose(SpatialTracking.session,metadata[6]>0)
                 val w=metadata[0].toInt();val h=metadata[1].toInt()
                 if(w!=width || h!=height) {
-                    width=w;height=h;bytes=ByteArray(w*h)
+                    clearHands();closeDetectors()
+                    width=w;height=h;leftGray=ByteArray(w*h);rightGray=ByteArray(w*h)
                     grayL.release();grayR.release();grayL=Mat(h,w,CvType.CV_8UC1);grayR=Mat(h,w,CvType.CV_8UC1)
-                    bmpL?.recycle();bmpR?.recycle();bmpL=Bitmap.createBitmap(w,h,Bitmap.Config.ARGB_8888);bmpR=Bitmap.createBitmap(w,h,Bitmap.Config.ARGB_8888)
+                    bmpL?.recycle();bmpR?.recycle();bmpL=null;bmpR=null
                     calibration?.close()
                     val selected=StereoCalibrationProfile.select(
                         if(identity!=null) runCatching { profile.readText() }.getOrNull() else null,
@@ -389,8 +407,13 @@ internal class StereoHandEngine(private val context: Context, private val token:
                         message=restored
                     }
                 }
-                left.position(0);left.get(bytes);grayL.put(0,0,bytes)
-                right.position(0);right.get(bytes);grayR.put(0,0,bytes)
+                left.position(0);left.get(leftGray)
+                right.position(0);right.get(rightGray)
+                val joyConMode=SpatialTracking.joyConsEnabled
+                val drawPreview=debug && start-previewTime>150_000_000L
+                if(capture || verify!=null || record || drawPreview || joyConMode) {
+                    grayL.put(0,0,leftGray);grayR.put(0,0,rightGray)
+                }
                 if(capture) {
                     capture=false
                     val observation=captureHead?.let { calibrator?.detect(grayL,grayR,it) }
@@ -437,8 +460,6 @@ internal class StereoHandEngine(private val context: Context, private val token:
                         observed?.let { listOf(it.objects,it.left,it.right).forEach(Mat::release) };temporary?.close()
                     }
                 }
-                Imgproc.cvtColor(grayL,rgba,Imgproc.COLOR_GRAY2RGBA);Utils.matToBitmap(rgba,bmpL)
-                Imgproc.cvtColor(grayR,rgba,Imgproc.COLOR_GRAY2RGBA);Utils.matToBitmap(rgba,bmpR)
                 var dl=emptyList<Detection>();var dr=emptyList<Detection>()
                 var trackingHealthy=false
                 var inferred=false
@@ -465,10 +486,9 @@ internal class StereoHandEngine(private val context: Context, private val token:
                     }
                     val stamp=maxOf(time/1_000_000,lastStamp+1);lastStamp=stamp
                     val inferenceStart=System.nanoTime()
-                    val joyConMode=SpatialTracking.joyConsEnabled
                     val scheduled=scheduledTracking && !gpu
                     val bank=if(scheduled && inferenceSchedule.select(stamp)==1) fastDetectors!! else detectors!!
-                    val pair=detectPair(bank.left,bank.right,bmpL!!,bmpR!!,stamp,rightWorker)
+                    val pair=detectRawPair(bank.left,bank.right,leftGray,rightGray,stamp,rightWorker,joyConMode)
                     inferred=true
                     dl=pair.first.hands;dr=pair.second.hands
                     if(scheduled) inferenceSchedule.observe(stamp,dl.map { it.side },dr.map { it.side },pair.first.rawCount,pair.second.rawCount)
@@ -484,8 +504,7 @@ internal class StereoHandEngine(private val context: Context, private val token:
                         val l=leftCandidates.singleOrNull();val r=rightCandidates.singleOrNull()
                         val detectedPoints=if(l!=null && r!=null) {
                             matched++
-                            c.triangulateLandmarksRaw(if(joyConMode) l.points.take(1) else l.points,
-                                if(joyConMode) r.points.take(1) else r.points)
+                            c.triangulateLandmarksRaw(l.points,r.points)
                         } else null
                         var points=detectedPoints
                         if(points?.any { it != null }==true) reconstructed++
@@ -574,8 +593,12 @@ internal class StereoHandEngine(private val context: Context, private val token:
                 handStatus=nextStatus.copy(observationTimeNs=time,
                     observationAgeMs=if(time>0) (System.nanoTime()-time)/1e6f else -1f,
                     left=sideDiagnostics[0],right=sideDiagnostics[1],observations=handMetrics.snapshot())
-                if(debug && start-previewTime>150_000_000L) {
+                if(drawPreview) {
                     previewTime=start
+                    if(bmpL==null) bmpL=Bitmap.createBitmap(w,h,Bitmap.Config.ARGB_8888)
+                    if(bmpR==null) bmpR=Bitmap.createBitmap(w,h,Bitmap.Config.ARGB_8888)
+                    Imgproc.cvtColor(grayL,rgba,Imgproc.COLOR_GRAY2RGBA);Utils.matToBitmap(rgba,bmpL)
+                    Imgproc.cvtColor(grayR,rgba,Imgproc.COLOR_GRAY2RGBA);Utils.matToBitmap(rgba,bmpR)
                     val combined=Bitmap.createBitmap(w*2,h,Bitmap.Config.ARGB_8888);val canvas=Canvas(combined)
                     canvas.drawBitmap(bmpL!!,0f,0f,null);canvas.drawBitmap(bmpR!!,w.toFloat(),0f,null)
                     val paint=Paint().apply { color=Color.GREEN;strokeWidth=3f }

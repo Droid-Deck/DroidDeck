@@ -1,6 +1,7 @@
 #include <jni.h>
 #include <libusb.h>
 #include <libuvc/libuvc.h>
+#include "mjpeg_payload.h"
 #include <algorithm>
 #include <chrono>
 #include <condition_variable>
@@ -64,8 +65,8 @@ void frame_received(uvc_frame_t* frame, void* user) {
     ++capture.values[5];
     const auto* bytes = frame ? static_cast<const uint8_t*>(frame->data) : nullptr;
     const size_t size = frame ? frame->data_bytes : 0;
-    if (!bytes || frame->frame_format != UVC_FRAME_FORMAT_MJPEG || size < 4 || size > 4*1024*1024 ||
-            bytes[0] != 0xff || bytes[1] != 0xd8 || bytes[size-2] != 0xff || bytes[size-1] != 0xd9) {
+    const size_t jpegSize = frame && frame->frame_format == UVC_FRAME_FORMAT_MJPEG ? mjpeg_payload_size(bytes,size) : 0;
+    if (!jpegSize) {
         ++capture.values[10];
         return;
     }
@@ -75,8 +76,8 @@ void frame_received(uvc_frame_t* frame, void* user) {
     if (capture.values[6]) capture.values[8]=std::max(capture.values[8],time-capture.values[6]);
     capture.values[6]=time;
     ++capture.values[9];
-    capture.values[11]+=size;
-    capture.jpeg.assign(bytes,bytes+size);
+    capture.values[11]+=jpegSize;
+    capture.jpeg.assign(bytes,bytes+jpegSize);
     capture.ready.notify_one();
 }
 }

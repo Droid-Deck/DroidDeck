@@ -618,7 +618,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 }
                 if (GlassesRendering.usesGlasses(glasses, glassesOutputActive, steamVrStatus == SteamVr.Status.RUNNING) &&
                     headTracking && !drawerOpen && !pcKeyboardOpen && !loading.visible) com.droiddeck.launcher.ui.GlassesRecenterButton(
-                    controllerSettings?.tint ?: android.graphics.Color.rgb(90, 160, 255), controllerSettings?.opacity ?: 100) { headTracker?.recenter() }
+                    controllerSettings?.tint ?: android.graphics.Color.rgb(90, 160, 255), controllerSettings?.opacity ?: 100,
+                    onRecenterJoyCons = if (steamVrStatus == SteamVr.Status.RUNNING &&
+                        glasses.usesSpatialControllers(glassesSettings) && glassesSettings.joyConTracking)
+                        joyConVr?.let { { it.recenter() } } else null,
+                ) { headTracker?.recenter() }
                 if (glasses.present && !drawerOpen && !pcKeyboardOpen && !loading.visible) com.droiddeck.launcher.ui.GlassesCornerButton(glassesSlot,
                     controllerSettings?.tint ?: android.graphics.Color.rgb(90, 160, 255), controllerSettings?.opacity ?: 100) {
                     drawerPage = com.droiddeck.launcher.ui.SessionDrawerPage.GLASSES

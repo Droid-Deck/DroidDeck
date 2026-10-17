@@ -31,6 +31,7 @@ object SpatialTracking {
     @Volatile private var spatialSelected = false
     private var outputUsesGlasses = true
     private var handsSelected = false
+    private var steadyAimSelected = false
     @Volatile private var joyConsSelected = false
     internal val joyConsEnabled get() = enabled && joyConsSelected
     private var hadSpatialSession = false
@@ -42,11 +43,12 @@ object SpatialTracking {
     }
 
     internal fun connect(token: Long, generation: Long, identity: String?, spatial: Boolean, eyeHeight: Float, hands: Boolean,
-                         joyCons: Boolean = false) {
+                         joyCons: Boolean = false, steadyAim: Boolean = false) {
         engine?.close(); engine = null
         enabled = spatial; handsEnabled = spatial && (hands || joyCons)
         spatialSelected = spatial; handsSelected = spatial && hands && !joyCons
         joyConsSelected = spatial && joyCons
+        steadyAimSelected = steadyAim
         session.reset(generation, eyeHeight, spatial && hadSpatialSession)
         hadSpatialSession = hadSpatialSession || spatial
         if (spatial) context?.let { engine = StereoHandEngine(it, token, generation, identity) }
@@ -106,6 +108,10 @@ object SpatialTracking {
         engine?.setEnabled(handsEnabled)
         publish(System.nanoTime())
     }
+    @Synchronized fun setSteadyHandAim(on: Boolean) {
+        steadyAimSelected = on
+        publish(System.nanoTime())
+    }
     fun setFloor(height: Float) { session.setFloor(height); refreshStatus(); publish(System.nanoTime()) }
     fun recenter(screen: Boolean) { session.recenter(screen); refreshStatus(); publish(System.nanoTime()) }
     fun diagnostics(on: Boolean) { diagnosticsEnabled = on; engine?.diagnostics(on) }
@@ -120,7 +126,7 @@ object SpatialTracking {
     fun setHandCpuParallel(parallel: Boolean) { engine?.setCpuParallel(parallel) }
     fun setHandAdaptiveInput(adaptive: Boolean) { engine?.setAdaptiveInput(adaptive) }
     fun setHandScheduledTracking(scheduled: Boolean) { engine?.setScheduledTracking(scheduled) }
-    internal fun handLiteEnabled() = engine?.model == HandModel.LITE
+    internal fun handLiteEnabled() = (engine?.model ?: HandModel.DEFAULT) == HandModel.LITE
     internal fun handHalfRateEnabled() = engine?.halfRateInput ?: true
     internal fun handAdaptiveInputEnabled() = engine?.adaptiveInput ?: true
     fun benchmarkSavedCapture(id: String) { checkNotNull(engine) { "Connect glasses and enable positional tracking" }.benchmarkSavedCapture(id) }
@@ -132,11 +138,14 @@ object SpatialTracking {
         val now=System.nanoTime();val sample=session.latest();val state=status.value;val progress=calibrationProgress()
         return org.json.JSONObject().put("enabled",enabled).put("valid",session.valid(now)).put("needsRecenter",session.needsRecenter)
             .put("joyConTracking",joyConsSelected)
+            .put("steadyHandAim",handsSelected && steadyAimSelected)
             .put("positionEstimator",if (joyConsSelected) "joycon-wrist" else "full-palm")
             .put("recenterPending",session.recenterPending)
             .put("handMaxAgeMs",HandObservation.MAX_AGE_NS / 1_000_000)
             .put("handGpuEnabled",gpuEnabled()).put("handInferenceBackend",engine?.inferenceBackend ?: "not initialized")
-            .put("handModel",engine?.model?.name ?: HandModel.FULL.name).put("handHalfRate",handHalfRateEnabled())
+            .put("handModel",(engine?.model ?: HandModel.DEFAULT).name).put("handHalfRate",handHalfRateEnabled())
+            .put("handImagePreprocessing",HandImageBuffer.PREPROCESSING)
+            .put("handLensCorrection",engine?.lensCorrection ?: "none")
             .put("handCpuParallel",engine?.cpuParallel ?: true)
             .put("handAdaptiveInput",handAdaptiveInputEnabled()).put("handScheduledTracking",engine?.scheduledTracking ?: true)
             .put("handInputRatePermille",engine?.inputRatePermille ?: 500)
@@ -170,7 +179,7 @@ object SpatialTracking {
         buffer.putInt(0x53504444).putInt(4).putInt(176).putInt(0)
         buffer.putLong(session.generation).putLong(session.originGeneration)
         val modes = (if (spatialSelected) 1 else 0) or (if (handsSelected) 2 else 0) or
-            (if (joyConsSelected) 4 else 0)
+            (if (joyConsSelected) 4 else 0) or (if (handsSelected && steadyAimSelected) 8 else 0)
         buffer.putInt(if (outputUsesGlasses) modes else 0).putInt(session.inputEpochs())
         putPose(session.view(false) ?: SpatialPose(), session.latest()?.timeNs ?: 0, if(session.valid(now)) 1 else 0)
         for (i in 0..1) {
