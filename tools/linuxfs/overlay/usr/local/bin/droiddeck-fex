@@ -28,7 +28,10 @@ URUNTIME = "/usr/local/lib/droiddeck/uruntime"
 HOST_PRELOAD = "/etc/ld.so.preload"
 FEX_APPID = "3127680"
 SNIPER_APPID = "1628350"
-INSTALL_DIRS = {FEX_APPID: "FEX-Emu", SNIPER_APPID: "SteamLinuxRuntime_sniper"}
+STEAMRT4_APPID = "4183110"
+INSTALL_DIRS = {FEX_APPID: "FEX-Emu", SNIPER_APPID: "SteamLinuxRuntime_sniper", STEAMRT4_APPID: "SteamLinuxRuntime_4"}
+RUNTIMES = {SNIPER_APPID: ("sniper_platform_", "Steam Linux Runtime 3.0 (sniper"),
+            STEAMRT4_APPID: ("steamrt4_platform_", "Steam Linux Runtime 4.0 (steamrt4")}
 MARKER = ".droiddeck-fex"
 LAYOUT = 1
 GUEST_LIBDIRS = (("x86_64", "lib/x86_64-linux-gnu"), ("i386", "lib/i386-linux-gnu"))
@@ -164,15 +167,15 @@ def platform_version(path):
     return tuple(int(part) for part in re.findall(r"\d+", os.path.basename(path)))
 
 
-def runtime_platform():
-    runtime = app_dir(SNIPER_APPID)
+def runtime_platform(app=SNIPER_APPID):
+    runtime = app_dir(app)
     if not runtime:
         return None
     try:
         entries = os.listdir(runtime)
     except OSError:
         return None
-    platforms = [os.path.join(runtime, entry) for entry in entries if entry.startswith("sniper_platform_")]
+    platforms = [os.path.join(runtime, entry) for entry in entries if entry.startswith(RUNTIMES[app][0])]
     platforms = [path for path in platforms if os.path.isdir(os.path.join(path, "files"))
                  and os.path.isfile(os.path.join(path, "usr-mtree.txt.gz"))]
     return max(platforms, key=platform_version, default=None)
@@ -281,6 +284,24 @@ def link_steam_sdk():
                 break
 
 
+def link_guest_sdk(root):
+    # Proton's lsteamclient only looks in $HOME/.steam/sdk64; on ARM Steam that is the arm64 client, so
+    # the x86 runtime gets its own link, which FEX resolves before the host path.
+    for sdk, candidates in (("sdk64", ("linux64", "ubuntu12_64")), ("sdk32", ("linux32", "ubuntu12_32"))):
+        want = "x86_64" if sdk == "sdk64" else "i386"
+        directory = next((os.path.join(STEAM_ROOT, candidate) for candidate in candidates
+                          if elf_arch(os.path.join(STEAM_ROOT, candidate, "steamclient.so")) == want), None)
+        if not directory:
+            continue
+        link = os.path.join(root, HOME.lstrip("/"), ".steam", sdk)
+        if os.path.islink(link) and os.readlink(link) == directory:
+            continue
+        os.makedirs(os.path.dirname(link), exist_ok=True)
+        if os.path.lexists(link):
+            os.unlink(link)
+        os.symlink(directory, link)
+
+
 def steam_running():
     for pid in os.listdir("/proc"):
         if not pid.isdigit():
@@ -295,13 +316,15 @@ def steam_running():
     return False
 
 
-def request_install():
+def request_install(app=SNIPER_APPID):
     os.makedirs(os.path.dirname(WANTED), exist_ok=True)
     write_if_changed(WANTED, "1\n")
     if not steam_running():
         return []
     try:
         compat = runpy.run_path(os.path.join(BIN_DIR, "steam-compatibility"))
+        if app != SNIPER_APPID and app_dir(app) is None:
+            return compat["request_app"](STEAM_ROOT, app)
         return compat["request_fex"](STEAM_ROOT, set())
     except Exception as error:
         say("could not ask the client to install FEX (%s)" % error)
@@ -320,10 +343,10 @@ def describe(fex, platform):
     }
 
 
-def prepare():
+def prepare(app=SNIPER_APPID):
     with locked():
         fex = fex_install()
-        platform = runtime_platform()
+        platform = runtime_platform(app)
         status = describe(fex, platform)
         if not status["ready"]:
             missing = []
@@ -336,8 +359,8 @@ def prepare():
             elif not fex["server"]:
                 missing.append("FEXServer beside %s" % fex["bin"])
             if not platform:
-                missing.append("Steam Linux Runtime 3.0 (sniper, Steam app %s)" % SNIPER_APPID)
-            requested = request_install()
+                missing.append("%s, Steam app %s)" % (RUNTIMES[app][1], app))
+            requested = request_install(app)
             say("x86 Linux programs need %s; %s" % (" and ".join(missing),
                 "the Steam client was asked to install it" if requested else "open Steam once and it is installed for you"))
             write_if_changed(STATUS_FILE, json.dumps(status, indent=2) + "\n")
@@ -346,6 +369,8 @@ def prepare():
         if materialize(platform):
             say("prepared %s as the x86 runtime" % os.path.basename(platform))
         install_preloads(root)
+        with contextlib.suppress(OSError):
+            link_guest_sdk(root)
         write_config(fex, root)
         fex["rootfs"] = root
         try:
@@ -424,6 +449,8 @@ def guest_environment(fex, env):
     result["FEX_APP_CACHE_LOCATION"] = CACHE_DIR + "/"
     result.setdefault("FEX_SILENTLOG", "0")
     result.setdefault("FEX_OUTPUTLOG", "stderr")
+    # The session's tunables are for the host libc; an x86 ld.so copying them under FEX fails in sbrk.
+    result.pop("GLIBC_TUNABLES", None)
     if fex["portable"]:
         result["FEX_PORTABLE"] = "1"
     else:
@@ -485,6 +512,12 @@ def vulkan_thunk_loads(fex, folder):
     return True
 
 
+def required_runtime(program):
+    text = read_text(os.path.join(os.path.dirname(program), "toolmanifest.vdf")) or ""
+    match = re.search(r'"require_tool_appid"\s+"(\d+)"', text)
+    return match.group(1) if match and match.group(1) in RUNTIMES else SNIPER_APPID
+
+
 def resolve(program, env):
     if "/" in program:
         return os.path.abspath(program)
@@ -496,7 +529,7 @@ def launch(command, env, mode, decide=None):
     use = mode == "on" or (mode == "auto" and needs_fex(decide or program))
     if not use:
         return os.execvpe(command[0], command, env)
-    fex = prepare()
+    fex = prepare(required_runtime(program))
     if fex is None:
         return 126
     guest = guest_environment(fex, env)

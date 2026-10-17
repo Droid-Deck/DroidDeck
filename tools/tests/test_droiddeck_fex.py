@@ -69,9 +69,10 @@ class FexTestCase(unittest.TestCase):
         self.write(Path(library or self.steam) / "steamapps/appmanifest_3127680.acf", '"AppState" { "installdir" "FEX-Emu" }')
         return tool
 
-    def runtime(self, version="3.0.20260805.254768", lines=None):
-        runtime = self.steam / "steamapps/common/SteamLinuxRuntime_sniper"
-        platform = runtime / ("sniper_platform_" + version)
+    def runtime(self, version="3.0.20260805.254768", lines=None, app="1628350", folder="SteamLinuxRuntime_sniper",
+                prefix="sniper_platform_"):
+        runtime = self.steam / "steamapps/common" / folder
+        platform = runtime / (prefix + version)
         files = platform / "files"
         self.write(files / "lib/x86_64-linux-gnu/libc.so.6", elf(62))
         self.write(files / "ab/cdef-1.bin", b"blob")
@@ -89,8 +90,16 @@ class FexTestCase(unittest.TestCase):
         ]
         with gzip.open(platform / "usr-mtree.txt.gz", "wt") as out:
             out.write("\n".join(mtree) + "\n")
-        self.write(self.steam / "steamapps/appmanifest_1628350.acf", '"AppState" { "installdir" "SteamLinuxRuntime_sniper" }')
+        self.write(self.steam / ("steamapps/appmanifest_%s.acf" % app), '"AppState" { "installdir" "%s" }' % folder)
         return platform
+
+    def steamrt4(self):
+        return self.runtime("4.0.20260928.262390", app="4183110", folder="SteamLinuxRuntime_4", prefix="steamrt4_platform_")
+
+    def proton(self, require):
+        proton = self.steam / "steamapps/common/Proton - Experimental"
+        self.write(proton / "toolmanifest.vdf", '"manifest"\n{\n  "commandline" "/proton %%verb%%"\n  "require_tool_appid" "%s"\n}\n' % require)
+        return self.write(proton / "proton", "#!/usr/bin/env python3\n", 0o755)
 
     def quiet(self, function, *args):
         with contextlib.redirect_stderr(io.StringIO()) as err:
@@ -240,6 +249,29 @@ class PrepareTest(FexTestCase):
         self.assertTrue((self.home / ".config/droiddeck/fex-wanted").is_file())
         status = json.loads((self.home / ".local/share/droiddeck-fex/status.json").read_text())
         self.assertFalse(status["ready"])
+
+    def test_a_missing_steam_runtime_4_is_named(self):
+        self.fex_tool()
+        self.runtime()
+        with mock.patch.dict(G, {"steam_running": lambda: False}):
+            fex, said = self.quiet(FEX["prepare"], "4183110")
+        self.assertIsNone(fex)
+        self.assertIn("Steam Linux Runtime 4.0 (steamrt4, Steam app 4183110)", said)
+        self.assertNotIn("FEX (Steam app", said)
+
+    def test_the_x86_runtime_gets_its_own_steam_client_link(self):
+        self.fex_tool()
+        platform = self.runtime()
+        self.write(self.steam / "linuxarm64/steamclient.so", elf(183))
+        self.write(self.steam / "linux64/steamclient.so", elf(62))
+        self.write(self.steam / "linux32/steamclient.so", elf(3))
+        (self.home / ".steam").mkdir()
+        os.symlink(self.steam / "linuxarm64", self.home / ".steam/sdk64")
+        self.quiet(FEX["prepare"])
+        guest = platform / "files" / str(self.home).lstrip("/") / ".steam"
+        self.assertEqual(os.readlink(guest / "sdk64"), str(self.steam / "linux64"))
+        self.assertEqual(os.readlink(guest / "sdk32"), str(self.steam / "linux32"))
+        self.assertEqual(os.readlink(self.home / ".steam/sdk64"), str(self.steam / "linuxarm64"))
 
     def test_a_ready_install_is_prepared(self):
         tool = self.fex_tool()
@@ -430,6 +462,20 @@ class LaunchTest(FexTestCase):
         FEX["write_config"](fex, "/rt/files")
         thunks = json.loads((self.home / ".local/share/droiddeck-fex/config/ThunksConfig.json").read_text())
         self.assertEqual(thunks, {"ThunksDB": {"GL": 1, "Vulkan": 1}})
+
+    def test_host_libc_tunables_stay_on_the_host(self):
+        guest = FEX["guest_environment"]({"portable": True}, {"GLIBC_TUNABLES": "glibc.pthread.rseq=0"})
+        self.assertNotIn("GLIBC_TUNABLES", guest)
+
+    def test_proton_runs_in_the_runtime_its_manifest_requires(self):
+        self.fex_tool()
+        self.runtime()
+        platform = self.steamrt4()
+        proton = self.proton("4183110")
+        with mock.patch("os.execve") as emulated:
+            self.quiet(FEX["launch"], [str(proton), "waitforexitandrun", "game.exe"], {}, "on")
+        self.assertEqual(emulated.call_args[0][2]["FEX_ROOTFS"], str(platform / "files"))
+        self.assertEqual(FEX["required_runtime"](str(self.proton("1391110"))), "1628350")
 
     def test_native_programs_run_directly(self):
         program = self.write(self.tmp / "native", elf(183), 0o755)
