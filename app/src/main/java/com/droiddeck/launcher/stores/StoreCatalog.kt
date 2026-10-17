@@ -21,6 +21,7 @@ data class CatalogItem(
     val sizeBytes: Long = 0L,
     val extra: Map<String, String> = emptyMap(),
     val mature: Boolean = false,
+    val logoUrl: String? = null,
 ) {
     val isDiscounted: Boolean get() = discountPercent > 0 && originalPrice.isNotBlank()
     val key: String get() = "${store.id}:$id"

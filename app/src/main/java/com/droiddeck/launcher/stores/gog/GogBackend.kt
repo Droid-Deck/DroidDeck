@@ -10,10 +10,12 @@ import com.droiddeck.launcher.stores.StoreGameSidecar
 import com.droiddeck.launcher.stores.StoreInstallRoot
 import com.droiddeck.launcher.stores.StoreInstalls
 import com.droiddeck.launcher.stores.StoreLoginActivity
+import com.droiddeck.launcher.stores.StoreNet
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.download.DownloadEntry
 import com.droiddeck.launcher.stores.download.DownloadQueue
 import com.droiddeck.launcher.stores.download.DownloadStage
+import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -75,6 +77,13 @@ object GogBackend : StoreBackend {
 
     override fun uninstall(context: Context, game: InstalledStoreGame) {}
 
+    private fun fetchLogo(id: String): String? =
+        runCatching { StoreNet.get("https://api.gog.com/v2/games/$id?locale=en-US")?.let { logoOf(JSONObject(it)) } }.getOrNull()
+
+    /** `images.logo2x` from the products API is an opaque banner, not a logo; the v2 `logo` link is a transparent PNG. */
+    internal fun logoOf(v2: JSONObject): String? =
+        GogStoreCatalog.absolutize(v2.optJSONObject("_links")?.optJSONObject("logo")?.optString("href")).takeIf { it.startsWith("https://") }
+
     private class InstallJob(val app: Context, val game: GogGame, val item: CatalogItem, val folder: File) : DownloadQueue.DownloadJob {
         private val cancelled = AtomicBoolean(false)
 
@@ -106,6 +115,7 @@ object GogBackend : StoreBackend {
                 Store.GOG, game.gameId, game.title, exe = result.exeRelative.ifEmpty { "" },
                 installVersion = result.buildId, installedAt = System.currentTimeMillis(),
                 cover = item.tallImageUrl ?: item.imageUrl, hero = item.imageUrl,
+                logo = item.logoUrl ?: fetchLogo(game.gameId),
                 extra = mapOf(com.droiddeck.launcher.frontend.WinCompSources.GOG_DEPENDENCIES to result.dependencies.joinToString(","))
                     + (if (result.dependenciesRead) mapOf(com.droiddeck.launcher.frontend.WinCompSources.LIST_READ to "1") else emptyMap()),
             )
