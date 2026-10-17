@@ -49,6 +49,8 @@ object BootMovie {
     fun select(context: Context, id: String) {
         SessionPrefs.setBootMovie(context, id)
         SessionPrefs.setBootMovieApplyNext(context, true)
+        // Whatever Steam names right now is about to be replaced, so it is not a pick to adopt later.
+        SessionFiles.startupMoviePath(BootMovieLibrary.steamConfig(context))?.let { SessionPrefs.setBootMovieSteamSeen(context, it) }
     }
 
     fun customName(context: Context): String? =
@@ -85,13 +87,13 @@ object BootMovie {
         if (volume == 100 && seconds == 0) return source
         val limitUs = if (seconds > 0) seconds * 1_000_000L else Long.MAX_VALUE
         val folder = File(dir(context), "variants").apply { mkdirs() }
-        val out = File(folder, source.nameWithoutExtension.replace(Regex("[^A-Za-z0-9._-]"), "_") + "-v$volume-s$seconds.webm")
+        val out = File(folder, BootMovieLibrary.variantPrefix(source.name) + "v$volume-s$seconds.webm")
         if (out.isFile && out.length() > 0L && out.lastModified() >= source.lastModified()) return out
         val staged = File(folder, out.name + ".staged")
         val ok = runCatching {
             when {
                 volume == 0 -> remux(source, staged, audio = false, limitUs) ||
-                    (seconds == 0 && BootMovieTranscoder.transcode(source, staged, keepAudio = false) {} != null)
+                    (BootMovieTranscoder.transcode(source, staged, keepAudio = false) {} != null)
                 volume == 100 -> remux(source, staged, audio = true, limitUs)
                 else -> BootMovieTranscoder.regain(source, staged, volume / 100f, limitUs) || remux(source, staged, audio = true, limitUs)
             }
@@ -188,8 +190,9 @@ object BootMovie {
     fun removeCustom(context: Context) {
         customFile(context).delete()
         File(dir(context), "custom-muted.webm").delete()
+        File(dir(context), "variants").listFiles { f -> f.name.startsWith(BootMovieLibrary.variantPrefix(customFile(context).name)) }?.forEach { it.delete() }
         SessionPrefs.setBootMovieCustomName(context, null)
-        if (SessionPrefs.bootMovie(context) == CUSTOM) SessionPrefs.setBootMovie(context, DROIDDECK_30)
+        if (SessionPrefs.bootMovie(context) == CUSTOM) select(context, DROIDDECK_30)
     }
 
     private fun isWebm(file: File): Boolean {

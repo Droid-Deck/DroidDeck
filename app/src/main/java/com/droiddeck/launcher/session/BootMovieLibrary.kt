@@ -129,14 +129,17 @@ object BootMovieLibrary {
                     if (meta.remove(name) != null) writeMeta(context, meta)
                     File(thumbsDir(context), coverName(name)).delete()
                     thumbsDir(context).listFiles { f -> f.name.startsWith("frame-" + safe(name) + "-") }?.forEach { it.delete() }
-                    File(context.filesDir, "boot-movie/variants").listFiles { f -> f.name.startsWith(safe(name) + "-") }?.forEach { it.delete() }
+                    File(context.filesDir, "boot-movie/variants").listFiles { f -> f.name.startsWith(variantPrefix(name)) }?.forEach { it.delete() }
                 }
                 gone
             }
         }
-        if (removed && SessionPrefs.bootMovie(context) == id) SessionPrefs.setBootMovie(context, BootMovie.DROIDDECK_30)
+        if (removed && SessionPrefs.bootMovie(context) == id) BootMovie.select(context, BootMovie.DROIDDECK_30)
         return removed
     }
+
+    /** What every processed copy of the movie file [name] starts with; the hash keeps names that clean up the same apart. */
+    internal fun variantPrefix(name: String) = safe(name) + "." + Integer.toHexString(name.hashCode()) + "-"
 
     private fun safe(name: String) = name.replace(Regex("[^A-Za-z0-9._-]"), "_")
 

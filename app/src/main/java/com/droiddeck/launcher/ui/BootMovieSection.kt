@@ -69,15 +69,18 @@ private class MovieSnapshot(val entries: List<BootMovieLibrary.Entry>, val selec
 
 /** The movie list, read again every couple of seconds so a movie picked, added or removed inside Steam shows up here too. */
 @Composable
-private fun rememberMovies(refresh: Int): MovieSnapshot? {
+private fun rememberMovies(refresh: Int, onSelectionChanged: () -> Unit): MovieSnapshot? {
     val app = LocalContext.current.applicationContext
     var snapshot by remember { mutableStateOf<MovieSnapshot?>(null) }
+    val changed by androidx.compose.runtime.rememberUpdatedState(onSelectionChanged)
     LaunchedEffect(refresh) {
         while (true) {
+            val before = snapshot?.selected
             snapshot = withContext(Dispatchers.IO) {
                 BootMovie.syncFromSteam(app)
                 MovieSnapshot(BootMovieLibrary.list(app), BootMovie.choice(app))
             }
+            if (before != null && before != snapshot?.selected) changed()
             delay(2_000)
         }
     }
@@ -130,7 +133,7 @@ internal fun BootMovieGroup(s: ModeSettings, a: ModeSettingsActions, host: MenuH
 @Composable
 private fun InstalledTab(a: ModeSettingsActions) {
     var browsing by remember { mutableStateOf(false) }
-    val snapshot = rememberMovies(0)
+    val snapshot = rememberMovies(0, a.onBootMovieChanged)
     val current = snapshot?.let { snap -> snap.entries.firstOrNull { it.id == snap.selected }?.title }
     val hint = current ?: stringResource(R.string.common_working)
     SettingsRow(stringResource(R.string.boot_movie_installed), hint) {
@@ -146,7 +149,7 @@ private fun InstalledTab(a: ModeSettingsActions) {
 @Composable
 private fun MovieCover(entry: BootMovieLibrary.Entry, modifier: Modifier = Modifier) {
     val app = LocalContext.current.applicationContext
-    val cover by androidx.compose.runtime.produceState<File?>(null, entry.id, entry.file?.lastModified()) {
+    val cover by androidx.compose.runtime.produceState<File?>(null, entry.id, entry.title) {
         value = withContext(Dispatchers.IO) { BootMovieLibrary.cover(app, entry) }
     }
     Box(modifier.aspectRatio(16f / 9f).clip(RoundedCornerShape(8.dp)).background(Color(0xFF0E1218))) {
@@ -172,7 +175,7 @@ private fun InstalledMoviesDialog(a: ModeSettingsActions, onDismiss: () -> Unit)
     val shown = rememberShown(onDismiss)
     val close = { shown.targetState = false }
     var refresh by remember { mutableIntStateOf(0) }
-    val snapshot = rememberMovies(refresh)
+    val snapshot = rememberMovies(refresh, a.onBootMovieChanged)
     var picked by remember { mutableStateOf<String?>(null) }
     val selected = picked ?: snapshot?.selected
     LaunchedEffect(snapshot?.selected) { picked = null }

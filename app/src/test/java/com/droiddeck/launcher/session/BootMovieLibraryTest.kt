@@ -86,8 +86,18 @@ class BootMovieLibraryTest {
         assertFalse(BootMovie.syncFromSteam(app))
         assertEquals("file:a.webm", BootMovie.choice(app))
         // A new pick inside Steam is adopted again.
-        steamPicks("a.webm")
+        movie("c.webm")
+        steamPicks("c.webm")
+        assertTrue(BootMovie.syncFromSteam(app))
+        assertEquals("file:c.webm", BootMovie.choice(app))
+    }
+
+    @Test fun aPickMadeHereBeatsAnOlderSteamPickThatWasNeverSeen() {
+        movie("a.webm"); movie("b.webm")
+        steamPicks("b.webm")
+        BootMovie.select(app, "file:a.webm")
         assertFalse(BootMovie.syncFromSteam(app))
+        assertEquals("file:a.webm", BootMovie.choice(app))
     }
 
     @Test fun steamPointingAtAMovieThatIsNotThereChangesNothing() {
