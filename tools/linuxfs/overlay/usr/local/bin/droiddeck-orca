@@ -44,12 +44,17 @@ mkdir -p "$XDG_RUNTIME_DIR" 2>/dev/null && chmod 700 "$XDG_RUNTIME_DIR" 2>/dev/n
 
 # Wait for the display: Steam's gamescope brings Xwayland up as the client starts, and the Plasma
 # desktop's KWin comes up after this script is called from its session. Orca starting before any
-# display exists exits at once, so wait rather than race it.
-for _ in $(seq 1 60); do
-  if [ -n "${WAYLAND_DISPLAY:-}" ] && [ -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]; then break; fi
-  if [ -n "${DISPLAY:-}" ] && [ -S "/tmp/.X11-unix/X${DISPLAY#:}" ]; then break; fi
+# display exists exits at once, so wait rather than race it. A first Steam download can take a
+# couple of minutes, so give the display a generous window before giving up on the session.
+display_ready() {
+  { [ -n "${WAYLAND_DISPLAY:-}" ] && [ -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]; } ||
+  { [ -n "${DISPLAY:-}" ] && [ -S "/tmp/.X11-unix/X${DISPLAY#:}" ]; }
+}
+for _ in $(seq 1 600); do
+  display_ready && break
   sleep 0.5
 done
+display_ready || { echo "== no display after five minutes, Orca not started" >&2; exit 0; }
 
 orca --replace >/dev/null 2>&1 &
 
