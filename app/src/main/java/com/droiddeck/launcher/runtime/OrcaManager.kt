@@ -5,6 +5,7 @@ import android.util.Log
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.session.SessionPrefs
 import java.io.File
+import java.util.Locale
 
 /**
  * Orca (the GNOME screen reader) in the Linux runtime: putting it there (droiddeck-orca-setup,
@@ -72,5 +73,23 @@ object OrcaManager {
             file.parentFile?.mkdirs()
             file.writeText("")
         }
+    }
+
+    /**
+     * The locale droiddeck-orca points Orca and speech-dispatcher at, from the app's interface
+     * language: the preferences dialog is localized and the default voice matches. droiddeck-orca-
+     * setup generated exactly these locales during install. Anything the runtime has no locale
+     * for falls back to English.
+     */
+    fun languageTag(): String = languageTag(Locale.getDefault())
+
+    fun languageTag(locale: Locale): String = when (locale.language) {
+        "zh" -> "zh_CN"
+        "es" -> "es_ES"
+        "fr" -> "fr_FR"
+        "ja" -> "ja_JP"
+        "ko" -> "ko_KR"
+        "ru" -> "ru_RU"
+        else -> "en_US"
     }
 }

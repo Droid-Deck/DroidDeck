@@ -41,6 +41,7 @@ import com.droiddeck.launcher.input.SteamControllerBle
 import com.droiddeck.launcher.runtime.BwrapSpawner
 import com.droiddeck.launcher.runtime.LinuxNetworkLinkComponent
 import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.droiddeck.launcher.runtime.OrcaManager
 import com.droiddeck.launcher.runtime.ProotFastPath
 import com.droiddeck.launcher.runtime.UserApps
 import com.droiddeck.launcher.wayland.WaylandCompositor
@@ -396,8 +397,12 @@ class SessionService : Service() {
         guest.add("BL_LAUNCH_DIR=" + sessionRoot.path)
         // The screen reader: with Orca installed and enabled, every session that enters the
         // runtime starts it (droiddeck-orca reads BL_ORCA in the session script and the desktop).
-        if (com.droiddeck.launcher.runtime.OrcaManager.isInstalled(this) &&
-            com.droiddeck.launcher.runtime.OrcaManager.enabled(this)) guest.add("BL_ORCA=1")
+        if (OrcaManager.isInstalled(this) &&
+            OrcaManager.enabled(this)) {
+            guest.add("BL_ORCA=1")
+            // Orca's preferences dialog and default voice follow the app's interface language.
+            guest.add("BL_ORCA_LANG=" + OrcaManager.languageTag())
+        }
         // The second library's name, for droiddeck-steam-library; the bind itself is made below.
         GameStorage.effective(this)?.let { guest.add("BL_LIBRARY_LABEL=" + it.label.replace('"', ' ')) }
         if (SessionState.mode == MODE_STEAM && SessionState.steamUi == "desktop") guest.add("BL_STEAM_UI=desktop")
