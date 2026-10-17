@@ -158,7 +158,7 @@ private fun MovieCover(entry: BootMovieLibrary.Entry, modifier: Modifier = Modif
 }
 
 @Composable
-private fun sourceLabel(source: String): String = stringResource(
+private fun movieSourceLabel(source: String): String = stringResource(
     when (source) {
         BootMovieLibrary.SOURCE_DROIDDECK -> R.string.boot_movie_source_droiddeck
         BootMovieLibrary.SOURCE_REPO -> R.string.boot_movie_source_repo
@@ -188,7 +188,7 @@ private fun InstalledMoviesDialog(a: ModeSettingsActions, onDismiss: () -> Unit)
                     Column(Modifier.weight(1f)) {
                         Text(entry.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground,
                             maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        Text(sourceLabel(entry.source), fontSize = 12.sp, color = if (entry.id == selected) LocalPalette.current.signal else MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(movieSourceLabel(entry.source), fontSize = 12.sp, color = if (entry.id == selected) LocalPalette.current.signal else MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     if (entry.removable) SmallIconButton(Icons.Filled.Close, stringResource(R.string.boot_movie_remove), MaterialTheme.colorScheme.error) {
                         scope.launch {
