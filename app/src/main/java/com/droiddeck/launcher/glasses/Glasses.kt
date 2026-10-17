@@ -146,6 +146,8 @@ object Glasses {
     private var lastModeSentAt = 0L
     private val modeState = GlassesModeState(SBS_CONFIRM_MS)
     private val confirmMode = Runnable { refresh() }
+    private val steamVrSpatialGate = SteamVrSpatialGate()
+    private val resumeSteamVrSpatial = Runnable { updateSpatialMode() }
     private var glassesMode = 0
     private var autoModeSent = false
 
@@ -246,9 +248,47 @@ object Glasses {
             model?.resolutions?.isNotEmpty() == true) sendMode(s.sbs)
     }
 
+    fun prepareSteamVrStart(onPrepared: () -> Unit = {}) {
+        if (!::handler.isInitialized) {
+            steamVrSpatialGate.prepare()
+            onPrepared()
+            return
+        }
+        post {
+            if (steamVrSpatialGate.prepare()) {
+                handler.removeCallbacks(resumeSteamVrSpatial)
+                updateSpatialMode()
+            }
+            onPrepared()
+        }
+    }
+
+    fun cancelSteamVrStart() {
+        if (!::handler.isInitialized) {
+            steamVrSpatialGate.cancel()
+            return
+        }
+        post {
+            steamVrSpatialGate.cancel()
+            handler.removeCallbacks(resumeSteamVrSpatial)
+            updateSpatialMode()
+        }
+    }
+
     fun setVrActive(on: Boolean) = post {
         val s = _state.value
-        if (s.vrActive == on) return@post
+        val trackingChanged = steamVrSpatialGate.setRunning(on, SystemClock.uptimeMillis())
+        if (trackingChanged) {
+            handler.removeCallbacks(resumeSteamVrSpatial)
+            steamVrSpatialGate.deadline?.let {
+                Log.i(TAG, "SteamVR RUNNING; spatial resume scheduled at uptime ${it}ms")
+                handler.postAtTime(resumeSteamVrSpatial, it)
+            }
+        }
+        if (s.vrActive == on) {
+            if (trackingChanged) updateSpatialMode()
+            return@post
+        }
         val previous = GlassesDisplayModes.selected(_settings.value, s)
         publish { it.copy(vrActive = on) }
         val restore2d = !on && modeState.stopVr()
@@ -257,6 +297,7 @@ object Glasses {
         if (s.canControl && s.usable && (restore2d ||
             (previous != selected && model?.resolutions?.isNotEmpty() == true)) &&
             !(on && _settings.value.auto3d && !s.sbs)) sendMode(stereo)
+        updateSpatialMode()
     }
 
     fun set3d(on: Boolean) = post {
@@ -639,15 +680,29 @@ object Glasses {
         runCatching { usb.requestPermission(device, pi) }.onFailure { Log.w(TAG, "requestPermission", it) }
     }
 
+    private fun updateSpatialMode() {
+        val current = link as? VitureSdkLink ?: return
+        if (!current.ready || !current.isCarina || current.spatialEnabled ==
+            steamVrSpatialGate.spatialEnabled(_settings.value.positionalTracking, SystemClock.uptimeMillis())) return
+        val device = linkDevice
+        closeLink()
+        refresh()
+        val resumed = link as? VitureSdkLink
+        if (!current.spatialEnabled && resumed?.isCarina == true && resumed.spatialEnabled &&
+            device != null && linkDevice?.deviceName == device.deviceName) SpatialTracking.recenter(false)
+    }
+
     private fun openLink(device: UsbDevice) {
         val generation = ++linkGeneration
+        val spatial = steamVrSpatialGate.spatialEnabled(_settings.value.positionalTracking, SystemClock.uptimeMillis())
         calibrationKey = calibrationStore.key(device.vendorId, device.productId,
             runCatching { device.serialNumber }.getOrNull(), model?.name.orEmpty())
         val l = if (device.vendorId == VitureProtocol.VENDOR_ID) {
             if ((model as? VitureProtocol.Model)?.needsSdk == true) {
                 // Android can evict cacheDir while the SDK is running.
+                Log.i(TAG, "opening VITURE SDK pid=0x%04X spatial=%s".format(device.productId, spatial))
                 VitureSdkLink.open(usb, device, File(app.noBackupFilesDir, "viture"), sdkListener(generation),
-                    (model as? VitureProtocol.Model)?.family, _settings.value.positionalTracking)
+                    (model as? VitureProtocol.Model)?.family, spatial)
             } else VitureLink.open(usb, device, linkListener(generation))
         } else if (model === XrealModel) {
             XrealLink.open(app, xrealListener(generation))
@@ -668,7 +723,7 @@ object Glasses {
         if (opened is VitureSdkLink && opened.isCarina) SpatialTracking.connect(opened.sdkToken, generation,
             opened.spatialIdentity ?: runCatching { device.serialNumber }.getOrNull()?.takeIf { it.isNotBlank() }
                 ?.let { "${device.vendorId}:${device.productId}:$it" },
-            _settings.value.positionalTracking, _settings.value.eyeHeightCm / 100f, _settings.value.handControllers,
+            spatial, _settings.value.eyeHeightCm / 100f, _settings.value.handControllers,
             _settings.value.joyConTracking)
         else SpatialTracking.useLegacyTracking()
         _calibration.value = GlassesCalibrationState(supported = opened is RayNeoLink,

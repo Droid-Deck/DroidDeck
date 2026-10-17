@@ -300,6 +300,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var glassesPresent = false
     private var steamVrAutoTried = false
     private var steamVrInstallTried = false
+    @Volatile private var steamVrRequestGeneration = 0L
     private var headTracking by mutableStateOf(false)
     private var glassesSlot by mutableStateOf(0)
     private var glassesKey: List<Any?> = emptyList()
@@ -400,6 +401,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         } else if (intent.getBooleanExtra(EXTRA_STEAMVR, false) && SessionState.mode == SessionService.MODE_STEAM) {
             SessionState.steamVr = true
         }
+        if (SessionState.steamVr) Glasses.prepareSteamVrStart()
         if (intent.action == SessionService.ACTION_AGENT_START) {
             SessionEvents.record("agent.start_requested", mapOf("mode" to SessionState.mode))
         }
@@ -628,10 +630,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     steamVrSwitchedPicture, glassesVr, steamVrRequested) || (drawerOpen && drawerPage == SessionDrawerPage.STEAMVR)
                 LaunchedEffect(pollSteamVr) {
                     while (pollSteamVr) {
+                        val request = steamVrRequestGeneration
+                        val session = SessionState.sessionId
                         val now = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                             SteamVr.status(this@SessionActivity)
                         }
-                        onSteamVrStatus(now)
+                        if (request == steamVrRequestGeneration && session == SessionState.sessionId) onSteamVrStatus(now)
                         kotlinx.coroutines.delay(3000)
                     }
                 }
@@ -1603,6 +1607,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun onSessionEnded(status: Int) {
         ended = true
+        ++steamVrRequestGeneration
         if (isInPictureInPictureMode) {
             runOnUiThread { finish() }
             return
@@ -2560,19 +2565,27 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             startActivity(android.content.Intent(this, QuestXrActivity::class.java))
             return
         }
+        val request = ++steamVrRequestGeneration
+        val session = SessionState.sessionId
+        fun currentRequest() = request == steamVrRequestGeneration && session == SessionState.sessionId && !isDestroyed && !ended
         if (action == "start") {
             SessionState.steamVr = true
             steamVrAutoTried = true
         }
-        if (action == "stop") SessionState.steamVr = false
+        if (action == "stop") {
+            SessionState.steamVr = false
+            Glasses.cancelSteamVrStart()
+        }
         if (glasses.present) {
             // Optional stereo starts only after RUNNING is observed. READY can
             // arrive repeatedly while the launch worker is still starting VR.
             if (action == "install") steamVrStatus = SteamVr.Status.INSTALLING
-            steamVrWorker.execute {
+            runSteamVrAction(action, ::currentRequest) {
                 val ok = SteamVr.run(this, action)
                 val now = SteamVr.status(this)
                 uiHandler.post {
+                    if (!currentRequest()) return@post
+                    if (!ok && now != SteamVr.Status.RUNNING) Glasses.cancelSteamVrStart()
                     onSteamVrStatus(now)
                     if (!ok) Toast.makeText(this, getString(R.string.cardboard_steamvr_failed), Toast.LENGTH_LONG).show()
                 }
@@ -2585,13 +2598,29 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         if (action == "stop") restoreSteamVrPicture()
         if (action == "install") steamVrStatus = SteamVr.Status.INSTALLING
-        steamVrWorker.execute {
+        runSteamVrAction(action, ::currentRequest) {
             val ok = SteamVr.run(this, action)
             val now = SteamVr.status(this)
             uiHandler.post {
+                if (!currentRequest()) return@post
+                if (!ok && now != SteamVr.Status.RUNNING) Glasses.cancelSteamVrStart()
                 if (!ok && action == "start" && now != SteamVr.Status.RUNNING) restoreSteamVrPicture()
                 onSteamVrStatus(now)
                 if (!ok) Toast.makeText(this, getString(R.string.cardboard_steamvr_failed), Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private fun runSteamVrAction(action: String, currentRequest: () -> Boolean, run: () -> Unit) {
+        if (action != "start") {
+            steamVrWorker.execute(run)
+            return
+        }
+        Glasses.prepareSteamVrStart {
+            uiHandler.post {
+                if (SessionState.steamVr && currentRequest()) steamVrWorker.execute {
+                    if (SessionState.steamVr && currentRequest()) run()
+                }
             }
         }
     }
@@ -2638,6 +2667,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun onSteamVrStatus(now: SteamVr.Status) {
+        if (ended || isDestroyed) return
         val was = steamVrStatus
         steamVrStatus = now
         updateJoyConTracking()

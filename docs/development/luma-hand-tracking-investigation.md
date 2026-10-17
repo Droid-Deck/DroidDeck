@@ -2,6 +2,25 @@
 
 Date: 2026-10-16. Status: **experimental; gameplay usability has not passed**.
 
+SteamVR startup defers Luma Ultra 6DoF until two seconds after the first confirmed RUNNING
+status. The launch gate applies before SDK initialization, with display controls available
+through a nonspatial connection during the wait. Repeated RUNNING polls do not extend the
+deadline. Stop, failed launch, and session cleanup cancel the pending start; reopening always
+uses the current device and saved tracking settings. This changes startup sequencing, not the
+tracking preference or hand-model configuration.
+Automatic restoration on the same device, including a cancelled launch or early stop,
+requests the existing stable-pose recenter. Status polls from superseded requests or ended
+sessions cannot restart the pending tracking transition.
+
+The reviewed startup-delay follow-up passed 129 focused JVM tests, and an isolated snapshot
+containing only the startup changes passed its 128 focused tests. Earlier phone logs recorded the spatial SDK
+open attempt 3.348 seconds after confirmed SteamVR RUNNING: the two-second delay plus SDK
+connection teardown. The resumed session reported valid 6DoF with no pending or required
+recenter. The native driver and hand configuration were unchanged. Evidence is recorded under
+`build/luma-vr-start-delay/`. The review fixes were rebuilt and installed, but the phone
+reported no glasses connected during the follow-up, so hardware cancellation recovery
+was not rechecked.
+
 There is room to improve the current implementation, but the available evidence does not support calling another smoothing adjustment a gameplay fix. The strongest current blockers are rejected palm reconstruction, interrupted gesture continuity, and processing latency under SteamVR load. The next useful milestone is a repeatable open → pinch → release interaction with a stable aiming pose, followed by sustained in-game testing.
 
 ## What the existing evidence establishes

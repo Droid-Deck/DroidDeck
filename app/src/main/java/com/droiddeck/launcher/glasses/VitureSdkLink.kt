@@ -23,6 +23,7 @@ internal class VitureSdkLink private constructor(
     }
 
     internal val sdkToken get() = token
+    internal val spatialEnabled get() = spatial
     internal val firmware = VitureSdk.nativeFirmware(token)
     internal fun spatialDiagnostics() = if (running && spatial) VitureSdk.nativeSpatialDiagnostics(token) else null
     internal val isCarina = VitureSdk.nativeType(token) == VitureSdk.CARINA
