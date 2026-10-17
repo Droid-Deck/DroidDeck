@@ -68,7 +68,6 @@ class BwrapSpawnerTest {
     }
 }
 
-/** The sandbox a Flatpak request describes, built on disk under a temporary directory. */
 @RunWith(RobolectricTestRunner::class)
 class BwrapSpawnerPlanTest {
     private lateinit var dir: File
@@ -76,7 +75,6 @@ class BwrapSpawnerPlanTest {
 
     @Before fun setUp() {
         dir = Files.createTempDirectory("bwrap-plan").toFile()
-        // Flatpak names the runtime by its path inside the rootfs.
         runtime = File(LinuxRuntime.rootDir(RuntimeEnvironment.getApplication()), "runtime-files")
         File(runtime, "lib").mkdirs()
     }
@@ -107,18 +105,14 @@ class BwrapSpawnerPlanTest {
             op("t" to "bind", "src" to "/nonexistent-${System.nanoTime()}", "dest" to "/run/x", "try" to true),
         ), dir)
 
-        // The runtime is bound at /usr, not written into.
         assertTrue(plan.binds.any { it.guest == "/usr" && File(it.host).canonicalPath == runtime.canonicalPath })
         assertFalse(File(runtime, "lib/GL").exists())
-        // The tmpfs under /usr is a directory of ours, and the link Flatpak makes inside it lands there.
         val gl = plan.binds.single { it.guest == "/usr/lib/GL" }
         assertTrue(gl.host.startsWith(dir.path))
         assertEquals("default/lib/libEGL.so", Files.readSymbolicLink(File(gl.host, "libEGL.so").toPath()).toString())
-        // Top-level links, directories and files are made in the sandbox root itself.
         assertEquals("usr/lib", Files.readSymbolicLink(File(plan.root, "lib").toPath()).toString())
         assertTrue(File(plan.root, "tmp").isDirectory)
         assertEquals("[Application]\nname=org.example.Game\n", File(plan.root, ".flatpak-info").readText())
-        // A --bind-try whose source is missing is left out.
         assertFalse(plan.binds.any { it.guest == "/run/x" })
         assertEquals(listOf("/app/bin/game"), plan.argv)
         assertEquals("/app", plan.cwd)

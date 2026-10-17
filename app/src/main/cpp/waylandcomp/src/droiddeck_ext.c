@@ -1,11 +1,3 @@
-/*
- * Host → compositor message queue plus the init of the extension modules.
- *
- * The app's threads (UI thread, clipboard listener) hand text to the compositor through
- * droiddeck_host_* ; the messages are queued under a mutex and a pipe byte wakes the wl event
- * loop, which drains them on the compositor thread - the only thread that may touch
- * wl_resources.
- */
 #define _GNU_SOURCE 1
 #include <stdlib.h>
 #include <string.h>
@@ -83,7 +75,7 @@ static int on_wake(int fd, uint32_t mask, void *data) {
         if (!m) break;
         switch (m->kind) {
         case HOST_CLIPBOARD:
-            clipboard_host_text(m->text, m->len);   /* takes the buffer */
+            clipboard_host_text(m->text, m->len);
             m->text = NULL;
             break;
         case HOST_TEXT_COMMIT:
@@ -114,7 +106,7 @@ void droiddeck_ext_init(struct wl_display *display) {
     if (pipe2(g_wake, O_CLOEXEC | O_NONBLOCK) == 0) {
         wl_event_loop_add_fd(loop, g_wake[0], WL_EVENT_READABLE, on_wake, NULL);
         pthread_mutex_lock(&g_mu);
-        int queued = g_head != NULL;            /* posted before the loop existed (clipboard refresh) */
+        int queued = g_head != NULL;
         pthread_mutex_unlock(&g_mu);
         if (queued) { char c = 1; ssize_t n = write(g_wake[1], &c, 1); (void)n; }
     } else

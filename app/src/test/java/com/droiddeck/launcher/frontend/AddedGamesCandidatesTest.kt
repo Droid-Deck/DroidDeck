@@ -13,7 +13,6 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
-/** The .exe picker below a game folder (five levels, past installer folders, ranked) and the names it finds. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class AddedGamesCandidatesTest {
@@ -65,7 +64,6 @@ class AddedGamesCandidatesTest {
         val game = tmp.newFolder("Huge")
         for (i in 0 until GameExePicker.WALK_BUDGET + 50) File(game, "data/d%04d".format(i)).mkdirs()
         exe(game, "zzz/Late.exe")
-        // data/ alone fills the budget before zzz/ is listed.
         assertEquals(emptyList<String>(), names(game))
         val small = tmp.newFolder("Small")
         exe(small, "x/y/Found.exe")
@@ -136,7 +134,6 @@ class AddedGamesCandidatesTest {
         game.setLastModified(game.lastModified() + 10_000)
         val after = AddedGames.scan(app).single()
         assertEquals("The Witcher 3 - Wild Hunt", after.name)
-        // Already added under the folder name: the shortcut keeps its id.
         assertEquals(before.appId, after.appId)
     }
 

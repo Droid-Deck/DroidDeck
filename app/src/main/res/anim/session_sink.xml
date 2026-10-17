@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Leaving a session: the surface sinks back down to reveal the front end. -->
 <set xmlns:android="http://schemas.android.com/apk/res/android" android:interpolator="@android:interpolator/accelerate_cubic">
     <translate android:fromYDelta="0" android:toYDelta="100%p" android:duration="320" />
 </set>

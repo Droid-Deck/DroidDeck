@@ -2,12 +2,6 @@ package com.droiddeck.launcher.stores
 
 import java.io.File
 
-/**
- * Which .exe in an install folder is the game. The store's own hint (a manifest's launch
- * executable) wins when the file exists; else the candidates, helpers and installers left out,
- * the one named most like the title first, then the shallowest. Relative to the folder, forward
- * slashes; "" when the folder has none.
- */
 object StoreExe {
     private val SKIP = listOf("redist", "unins", "setup", "crash", "report", "helper", "dotnet", "vcredist", "directx", "eac", "easyanticheat", "battleye", "launcher", "updater", "config")
 

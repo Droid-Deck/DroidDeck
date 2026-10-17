@@ -5,7 +5,6 @@ import android.os.Build
 import android.provider.Settings
 import com.droiddeck.launcher.R
 
-/** Android's phantom process monitor can kill the many child processes used by a Steam session. */
 enum class PhantomProcessStatus {
     NOT_APPLICABLE,
     DISABLED,
@@ -27,10 +26,12 @@ object PhantomProcessLimit {
         usesDeviceConfig(sdk) && enabled -> listOf(
             "device_config delete activity_manager max_phantom_processes",
             "device_config set_sync_disabled_for_tests none",
+            "settings put global $SETTING true",
         )
         usesDeviceConfig(sdk) -> listOf(
             "device_config set_sync_disabled_for_tests persistent",
             "device_config put activity_manager max_phantom_processes $MAX_PHANTOM",
+            "settings put global $SETTING false",
         )
         else -> listOf("settings put global $SETTING ${if (enabled) "true" else "false"}")
     }
@@ -58,7 +59,12 @@ object PhantomProcessLimit {
         if (sdk < Build.VERSION_CODES.S) return PhantomProcessStatus.NOT_APPLICABLE
         if (usesDeviceConfig(sdk)) {
             val off = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(PREF_ANDROID_12_OFF, false)
-            return if (off) PhantomProcessStatus.DISABLED else PhantomProcessStatus.UNREADABLE
+            val global = try {
+                Settings.Global.getString(context.contentResolver, SETTING)
+            } catch (_: Exception) {
+                null
+            }
+            return android12Status(off, global, systemProperty(OVERRIDE_PROPERTY))
         }
         val global = try {
             Settings.Global.getString(context.contentResolver, SETTING)
@@ -68,12 +74,10 @@ object PhantomProcessLimit {
         return status(global, systemProperty(OVERRIDE_PROPERTY))
     }
 
-    /**
-     * The value Android itself acts on, in FeatureFlagUtils.isEnabled's order: the global setting
-     * when it is set, otherwise the feature-flag override property. Developer options' "Disable
-     * child process restrictions" writes only the property, so a device switched off there has no
-     * global setting at all and must not be reported as unset.
-     */
+    fun android12Status(rememberedOff: Boolean, global: String?, override: String?): PhantomProcessStatus =
+        if (rememberedOff || status(global, override) == PhantomProcessStatus.DISABLED) PhantomProcessStatus.DISABLED
+        else PhantomProcessStatus.UNREADABLE
+
     fun status(global: String?, override: String?): PhantomProcessStatus {
         val value = global?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
             ?: override?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
@@ -122,7 +126,6 @@ object PhantomProcessLimit {
     fun fixSentence(context: Context, sdk: Int = Build.VERSION.SDK_INT): String =
         context.getString(if (hasDeveloperToggle(sdk)) R.string.phantom_fix_toggle else R.string.phantom_fix_no_toggle)
 
-    /** English: for the device report. */
     fun reportValue(status: PhantomProcessStatus): String = when (status) {
         PhantomProcessStatus.DISABLED -> "disabled (good - the OS will not kill the session's children)"
         PhantomProcessStatus.ENABLED -> "ENABLED (the OS may kill the session with no log; turn off Restrict child processes)"

@@ -13,7 +13,6 @@ class SecretScrubTest {
             "0024:warn:seh:dispatch_exception code=c0000005 flags=0 addr=0000000140012345",
             "0030:trace:seh:handle_syscall_fault code=80000003 flags=0",
             "exception code=0xC0000005 at 0x140012345",
-            // An exception code stays one even on a line that also carries OAuth keys.
             "client_id=abc code=c0000005",
         )) assertEquals(line, share(line))
     }

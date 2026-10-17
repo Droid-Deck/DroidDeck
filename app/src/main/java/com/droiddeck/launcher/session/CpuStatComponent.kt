@@ -5,19 +5,6 @@ import android.util.Log
 import com.droiddeck.launcher.core.SessionPart
 import java.io.File
 
-/**
- * A `/proc/stat` that moves.
- *
- * Android has refused apps `/proc/stat` since 8.0, and the session's stand-in for it was one
- * `cpu0` line of zeros - enough for glibc and Steam to start, but every CPU load in the session
- * read 0 % (the performance overlay showed one core, idle). The kernel still lets apps read each
- * core's idle residency (`cpuidle/stateN/time`, µs, the same label as the cpufreq files), which is
- * how overlays on Android work out CPU load: a core's busy time is the time that passed less the
- * time it spent idle. This writes `/proc/stat` from that, one line per core, refreshed twice a
- * second. Counters only grow - a sample's idle is never more than the time that passed - so a
- * reader taking the difference of two reads never sees a negative. Where `/proc/stat` is readable,
- * or the idle times are not, nothing is done.
- */
 class CpuStatComponent(val file: File) : SessionPart() {
     @Volatile private var running = false
     private var thread: Thread? = null
@@ -28,7 +15,6 @@ class CpuStatComponent(val file: File) : SessionPart() {
     private var lastMs = 0L
     private val bootSeconds = (System.currentTimeMillis() - SystemClock.elapsedRealtime()) / 1000
 
-    /** Writes the first sample; true when it should be bound over `/proc/stat`. */
     fun prepare(): Boolean {
         if (File("/proc/stat").canRead() || cores.isEmpty() || idleUs(0) == null) return false
         lastMs = SystemClock.elapsedRealtime()
@@ -62,7 +48,6 @@ class CpuStatComponent(val file: File) : SessionPart() {
         if (elapsed <= 0) return
         lastMs += elapsed * MS_PER_TICK
         for (i in cores) {
-            // An offline core has no idle residency to count and runs nothing: all idle.
             val us = idleUs(i)
             val idleTicks = if (us == null) elapsed else ((us - lastIdleUs[i]) / US_PER_TICK).coerceIn(0, elapsed)
             if (us != null) lastIdleUs[i] = us
@@ -71,7 +56,6 @@ class CpuStatComponent(val file: File) : SessionPart() {
         }
     }
 
-    /** The whole file at once, renamed into place: a reader opens either the last sample or this one. */
     private fun write() {
         val text = StringBuilder()
         text.append("cpu  ${busy.sum()} 0 0 ${idle.sum()} 0 0 0 0 0 0\n")
@@ -88,14 +72,12 @@ class CpuStatComponent(val file: File) : SessionPart() {
     companion object {
         private const val TAG = "SessionService"
         private const val PERIOD_MS = 500L
-        /** /proc/stat counts in USER_HZ, 100 a second on every Linux the guest runs. */
         private const val MS_PER_TICK = 10L
         private const val US_PER_TICK = 10_000L
 
         private fun coreCount(): Int =
             File("/sys/devices/system/cpu").list()?.count { it.matches(Regex("cpu\\d+")) } ?: 0
 
-        /** The core's total idle residency in µs, or null when it has none to read (offline). */
         private fun idleUs(core: Int): Long? {
             val states = File("/sys/devices/system/cpu/cpu$core/cpuidle").listFiles { f -> f.name.startsWith("state") }
                 ?: return null

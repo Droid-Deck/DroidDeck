@@ -31,7 +31,6 @@ class MotionTest {
         Motion.refresh(context)
         assertEquals(0f, Motion.scale, 0f)
         assertEquals(0, Motion.ms(300))
-        // The app's toggle never writes Android's preference.
         assertEquals(1.5f, Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE), 0f)
         SessionPrefs.setAnimationsEnabled(context, true)
         Motion.refresh(context)

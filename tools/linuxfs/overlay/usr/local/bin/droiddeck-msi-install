@@ -43,7 +43,6 @@ CABEXTRACT = os.environ.get("DROIDDECK_CABEXTRACT", str(TOOLS / "cabextract"))
 SEVENZIP = os.environ.get("DROIDDECK_7Z", str(TOOLS / "7z"))
 MSI_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
 BURN_MAGIC = 0x00F14300
-# A bundle's manifest names ARM64 packages too; a game's prefix wants the x86 and x64 ones.
 SKIP_PLATFORMS = ("arm64", "arm")
 
 
@@ -53,9 +52,6 @@ def tool_env():
     env["LD_LIBRARY_PATH"] = ":".join(p for p in (str(TOOLS), env.get("LD_LIBRARY_PATH", "")) if p)
     return env
 
-# The folders Windows Installer knows by name, as a 64-bit Windows 10 prefix lays them out (Proton's
-# user is steamuser). None is a folder whose files a game never needs: installer temp files and
-# shortcuts.
 SKIP = None
 KNOWN_FOLDERS = {
     "TARGETDIR": "C:\\", "ROOTDRIVE": "C:\\", "WindowsVolume": "C:\\",
@@ -78,25 +74,17 @@ for _name in ("TempFolder", "DesktopFolder", "ProgramMenuFolder", "StartMenuFold
               "TemplateFolder", "MyPicturesFolder", "AdminToolsFolder"):
     KNOWN_FOLDERS[_name] = SKIP
 
-# What Wine's msi reports on a 64-bit Windows 10 prefix, for the packages' conditions.
 SYSTEM_PROPERTIES = {
     "VersionNT": "603", "VersionNT64": "603", "WindowsBuild": "9600", "ServicePackLevel": "0",
     "Msix64": "6", "ALLUSERS": "1", "Privileged": "1", "AdminUser": "1", "MsiNTProductType": "1",
     "UILevel": "2", "INSTALLLEVEL": "1", "ProgramFilesFolder": None, "VersionMsi": "5.00",
 }
 
-# Win64 component (msidbComponentAttributes64bit); file attributes.
 COMPONENT_64BIT = 0x100
 FILE_NONCOMPRESSED = 0x2000
-# Custom action types that only set a property or a folder: done here, the rest are named in notes.
 SET_PROPERTY, SET_DIRECTORY, ERROR_ACTION = 51, 35, 19
-# Microsoft's "SFP CA" merge module (MDAC, MSXML): on Windows 2000 and later it parks system DLLs in a
-# cache folder and its own code copies them into the system folder past Windows File Protection.
-# Skipping the folder change puts them where that copy would. Its actions, and the side-by-side
-# merge module's (done here from MsiAssembly), are then left out of the notes.
 SFP_CACHE_ACTION = "CDirSystemSFPCacheDir"
 HANDLED_ACTIONS = ("Wdsfpca_", "SxsInstallCA", "SxsUninstallCA")
-# Tables whose work needs the package's own code or is not done here yet.
 UNSUPPORTED_TABLES = ("SelfReg", "Class", "ProgId", "TypeLib", "Extension", "Verb", "MIME", "AppId",
                       "IniFile", "ServiceInstall", "MoveFile", "IsolatedComponent", "PublishComponent",
                       "ODBCDriver", "ODBCDataSource")
@@ -123,7 +111,6 @@ class Span:
         progress(text, self.lo + (self.hi - self.lo) * max(0.0, min(1.0, fraction)))
 
 
-# ---------------------------------------------------------------- reading the package
 
 IDT_ESCAPES = str.maketrans({"\x19": "\n", "\x11": "\r", "\x15": "\t", "\x1b": ";"})
 
@@ -182,7 +169,6 @@ def to_int(value, default=0):
         return default
 
 
-# ---------------------------------------------------------------- conditions
 
 TOKEN = re.compile(r'\s*(?:(?P<str>"[^"]*")|(?P<num>-?\d+)(?![\w.])|(?P<op>~?(?:<>|<=|>=|><|<<|>>|=|<|>))'
                    r'|(?P<paren>[()])|(?P<word>[%$?&!]?[A-Za-z_][\w.]*))')
@@ -330,7 +316,6 @@ class Conditions:
         return value not in ("", None)
 
 
-# ---------------------------------------------------------------- the install
 
 def win_to_rel(path):
     """C:\\windows\\x\\ -> drive_c/windows/x; None for a path off drive C or a folder left out."""
@@ -375,7 +360,7 @@ class Installer:
         self.span = span or Span()
         self.notes = []
         self.registry = []
-        self.files = {}          # File key -> rel path it was installed to
+        self.files = {}
         self.counts = {"files": 0, "assemblies": 0, "registry": 0}
         template = self.pkg.summary.get("template", "")
         self.platform = template.split(";")[0].strip().lower()
@@ -385,7 +370,6 @@ class Installer:
         for name, path in KNOWN_FOLDERS.items():
             self.props[name] = path if path is not None else "\0skip"
         for row in self.pkg.table("Property"):
-            # The package's own defaults, but never over the folders and the system it runs on.
             if row["Property"] not in self.props or row["Property"] in ("INSTALLLEVEL", "ALLUSERS", "UILevel"):
                 self.props[row["Property"]] = row["Value"]
         self.props["ALLUSERS"] = "1"
@@ -397,7 +381,6 @@ class Installer:
         self._resolving = set()
         self._set_by_action = set()
 
-    # -- states, folders, formatted text
 
     def feature_state(self, name):
         return 3 if name in self.included_features else -1
@@ -411,13 +394,11 @@ class Installer:
             return None
         value = self.props.get(key)
         row = self.directories.get(key)
-        # A folder Windows knows by name, one a custom action set, or a property naming a path.
         if key in KNOWN_FOLDERS or key in self._set_by_action or row is None:
             return None if value in (None, "", "\0skip") else win_to_rel(value)
         parent_key = row.get("Directory_Parent", "")
         default = long_name(row.get("DefaultDir", "").split(":")[0])
         if not parent_key or parent_key == key:
-            # A root: TARGETDIR (SourceDir) is drive C.
             return "drive_c"
         self._resolving.add(key)
         try:
@@ -466,7 +447,6 @@ class Installer:
             text = re.sub(r"\[([^\[\]]*)\]", one, text)
         return text
 
-    # -- what gets installed
 
     def run_set_actions(self):
         """The property/folder-setting custom actions, in sequence order; the rest go to the notes."""
@@ -581,8 +561,6 @@ class Installer:
                 self.pkg.stream(cabinet[1:], cab)
                 own = True
             else:
-                # An external cabinet: a file beside the package, as an installer wrapper lays it out
-                # (vc_red.cab beside vc_red.msi, netfx_Full.mzz beside netfx_Full_x64.msi).
                 cab = sibling(Path(self.pkg.path), cabinet)
                 if cab is None:
                     self.notes.append("external cabinet %s is not part of the package; its files are missing" % cabinet)
@@ -601,15 +579,17 @@ class Installer:
 
     def put(self, source, rel):
         target = self.out / rel
+        if target.exists() and Path(source).samefile(target):
+            return False
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, target)
+        return True
 
     def install_files(self, unpacked):
         assemblies = self.assemblies()
         files = self.pkg.table("File")
         missing = 0
         destinations = {}
-        # Where each file goes: its component's folder, or the assembly store for a global assembly.
         for row in files:
             comp = row["Component_"]
             if comp not in self.included_components:
@@ -664,16 +644,12 @@ class Installer:
             folder = self.directory(row["DestFolder"]) if row.get("DestFolder") else self.files[row["File_"]].rsplit("/", 1)[0]
             name = long_name(row.get("DestName", "")) or self.files[row["File_"]].rsplit("/", 1)[1]
             source = self.out / self.files[row["File_"]]
-            if folder and source.is_file() and "/" not in name:
-                self.put(source, folder + "/" + name)
+            if folder and source.is_file() and "/" not in name and self.put(source, folder + "/" + name):
                 self.counts["files"] += 1
         if missing:
             self.notes.append("%d file(s) were not in the package's cabinets" % missing)
 
     def value(self, hive, key, name, kind, data, wow64):
-        # A 32-bit component writes through the 32-bit view, as Wine's msi does: HKLM\Software is
-        # Software\Wow6432Node, and the prefix's link keys there (Classes, TypeLib, Fonts...) lead
-        # to the keys both views share - droiddeck-wincomponents follows them when it writes.
         lower = key.lower()
         if hive == "HKLM" and wow64 and lower.startswith("software\\") and not lower.startswith("software\\wow6432node\\"):
             key = "Software\\Wow6432Node\\" + key[len("software\\"):]
@@ -782,7 +758,6 @@ class Installer:
         self.check()
         if not self.counts["files"] and not self.registry:
             raise MsiError("the package installs nothing here")
-        # A component made of several packages (32- and 64-bit) gets them all in one registry.json.
         values = []
         try:
             with open(self.out / "registry.json", encoding="utf-8") as source:
@@ -796,7 +771,6 @@ class Installer:
                 "counts": self.counts, "notes": self.notes}
 
 
-# ---------------------------------------------------------------- installer wrappers
 
 def sibling(path, name):
     """A file next to [path] called [name], whatever its case; None when there is none."""
@@ -974,8 +948,6 @@ def install_wrapper(path, out):
             try:
                 result = Installer(str(package), out, span=Span(lo, hi)).install()
             except MsiError as error:
-                # A package with nothing for this prefix (a patch for another Windows) is skipped,
-                # unless it is the only one; anything else is the whole installer's failure.
                 if "installs nothing" in str(error) and len(packages) > 1:
                     total["notes"].append("%s: %s" % (package.name, error))
                     continue

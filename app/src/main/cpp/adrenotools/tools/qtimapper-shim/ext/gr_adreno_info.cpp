@@ -80,8 +80,6 @@ AdrenoMemInfo::AdrenoMemInfo() {
     ALOGE(" Failed to load libadreno_utils.so");
   }
 
-  // Check if the overriding property debug.gralloc.gfx_ubwc_disable
-  // that disables UBWC allocations for the graphics stack is set
   char property[PROPERTY_VALUE_MAX];
   property_get(DISABLE_UBWC_PROP, property, "0");
   if (!(strncmp(property, "1", PROPERTY_VALUE_MAX)) ||
@@ -123,16 +121,13 @@ void AdrenoMemInfo::AlignUnCompressedRGB(int width, int height, int format, int 
       break;
   }
 
-  int raster_mode = 0;          // Adreno unknown raster mode.
-  int padding_threshold = 512;  // Threshold for padding surfaces.
-  // the function below computes aligned width and aligned height
-  // based on linear or macro tile mode selected.
+  int raster_mode = 0;
+  int padding_threshold = 512;
+
+
   if (LINK_adreno_compute_fmt_aligned_width_and_height) {
-    // We call into adreno_utils only for RGB formats. So plane_id is 0 and
-    // num_samples is 1 always. We may  have to add uitility function to
-    // find out these if there is a need to call this API for YUV formats.
     LINK_adreno_compute_fmt_aligned_width_and_height(
-        width, height, 0 /*plane_id*/, GetGpuPixelFormat(format), 1 /*num_samples*/, tile_enabled,
+        width, height, 0  , GetGpuPixelFormat(format), 1  , tile_enabled,
         raster_mode, padding_threshold, reinterpret_cast<int*>(aligned_w),
         reinterpret_cast<int*>(aligned_h));
   } else if (LINK_adreno_compute_aligned_width_and_height) {
@@ -140,7 +135,7 @@ void AdrenoMemInfo::AlignUnCompressedRGB(int width, int height, int format, int 
         width, height, bpp, tile_enabled, raster_mode, padding_threshold,
         reinterpret_cast<int*>(aligned_w), reinterpret_cast<int*>(aligned_h));
   } else if (LINK_adreno_compute_padding) {
-    int surface_tile_height = 1;  // Linear surface
+    int surface_tile_height = 1;
     *aligned_w = UINT(LINK_adreno_compute_padding(width, bpp, surface_tile_height, raster_mode,
                                                   padding_threshold));
     ALOGW("%s: Warning!! Old GFX API is used to calculate stride", __FUNCTION__);
@@ -157,9 +152,9 @@ void AdrenoMemInfo::AlignCompressedRGB(int width, int height, int format, unsign
                                        unsigned int* aligned_h) {
   if (LINK_adreno_compute_compressedfmt_aligned_width_and_height) {
     int bytesPerPixel = 0;
-    int raster_mode = 0;          // Adreno unknown raster mode.
-    int padding_threshold = 512;  // Threshold for padding
-    // surfaces.
+    int raster_mode = 0;
+    int padding_threshold = 512;
+
 
     LINK_adreno_compute_compressedfmt_aligned_width_and_height(
         width, height, format, 0, raster_mode, padding_threshold, reinterpret_cast<int*>(aligned_w),
@@ -341,4 +336,4 @@ bool AdrenoMemInfo::IsPISupportedByGPU(int format, uint64_t usage) {
   return false;
 }
 
-}  // namespace gralloc
+}

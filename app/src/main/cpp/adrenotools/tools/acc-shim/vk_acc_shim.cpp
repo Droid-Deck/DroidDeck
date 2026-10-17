@@ -5,7 +5,6 @@
 
 thread_local int satisfy_driver_emutls;
 
-// Check libllvm-glnext.so in older drivers for a full list of these, newer ones are slightly more awkward due to the split
 enum class OptionType : uint32_t {
     ArgsStringList = 1,
     QcArgsString = 4,
@@ -21,7 +20,6 @@ struct StringListVal {
 struct Option
 {
     OptionType type;
-    // PAD
     union {
         bool boolVal;
         int intVal;
@@ -49,7 +47,6 @@ int CompileHook(void *state, OptionsSet *opts) {
     Option replacementOpts[ReplacementOptsNum];
     uint32_t patchedOptNum{};
 
-    // Insert your desired args here - results will be written to stderr
     const char *argv[] = {"-help", "-help-hidden", "", NULL };
     StringListVal listVal{
         .len = 3,
@@ -83,7 +80,6 @@ int CompileHook(void *state, OptionsSet *opts) {
 
 struct LlvmInterface {
   uint32_t unk0[3];
-  // PAD
   void *makeContext;
   void *delContext;
   decltype(CompileHook) *compile;

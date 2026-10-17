@@ -185,7 +185,6 @@ def sockets(base):
     srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     out.append("  bind " + call(lambda: srv.bind(path)))
     if not os.path.exists(path):
-        # adb's shell may not create sockets under /data/local/tmp; the app can.
         srv.close()
         return out
     out.append("  name " + call(lambda: srv.getsockname()))

@@ -10,24 +10,11 @@ import java.io.File
 import java.net.Inet4Address
 import java.net.Inet6Address
 
-/**
- * `network.txt`: what the session was given to work with, for the reports that say "the client
- * thinks WiFi is off" or "Firefox cannot resolve anything".
- *
- * The runtime's NetworkManager bridge reports Android's active link. Include whether the phone
- * had a validated link and which DNS servers the app wrote into the runtime's `resolv.conf`.
- *
- * **No network names.** The SSID is identifying and is deliberately not collected; the transport
- * type, the addresses' families and the DNS servers are what a diagnosis needs.
- */
 object NetworkReport {
     private const val TAG = "NetworkReport"
 
     fun write(context: Context, target: File) {
         try {
-            // Addresses as their kind ("<public IPv6>"), never the numbers: a public address is the
-            // user's, and this file goes into shared session logs. The session's made-up hardware
-            // address is stable per device (seeded from ANDROID_ID), so it is masked too.
             val text = LogRedactor.describeAddresses(build(context))
                 .replace(Regex("(?m)^(\\s*mac )\\S+"), "$1<masked>")
             target.writeText(text)
@@ -82,8 +69,6 @@ object NetworkReport {
 
         append("\nWhat the runtime was given\n")
         append("--------------------------\n")
-        // The app writes this file from the live link at every change; it is what everything inside
-        // the session resolves with, so a mismatch with the system's list above is the bug itself.
         val resolv = File(LinuxRuntime.rootDir(context), "etc/resolv.conf")
         if (resolv.isFile) {
             append("etc/resolv.conf:\n")

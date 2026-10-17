@@ -55,6 +55,20 @@ class RuntimeInputsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'sources changed'):
             runtime.verify(self.root)
 
+    def test_changed_quest_source_rejects_old_outputs(self):
+        source = self.root / 'tools/quest/kgsl_compat.c'
+        source.parent.mkdir(parents=True)
+        source.write_text('old compatibility code')
+        runtime.record(self.root)
+        source.write_text('new compatibility code')
+        with self.assertRaisesRegex(ValueError, 'sources changed'):
+            runtime.verify(self.root)
+
+    def test_missing_quest_driver_cannot_be_attested(self):
+        (self.root / 'app/build/prepared-assets/graphics_driver/adrenotools-turnip25.1.0-quest1.tzst').unlink()
+        with self.assertRaisesRegex(ValueError, 'quest1.tzst'):
+            runtime.record(self.root)
+
     def test_modified_prebuilt_binary_is_rejected(self):
         runtime.record(self.root)
         (self.root / 'app/src/main/jniLibs/arm64-v8a/libproot.so').write_bytes(b'old APK binary')
