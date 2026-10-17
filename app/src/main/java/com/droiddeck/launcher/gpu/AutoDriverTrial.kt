@@ -28,7 +28,7 @@ object AutoDriverTrial {
             release, p.getString("name", "").orEmpty(),
             p.getString("display", "").orEmpty(), p.getString("linux", "").orEmpty(),
             p.getString("previousDisplay", "").orEmpty(), p.getString("previousLinux", "").orEmpty(),
-            p.getInt("starts", 0),
+            maxOf(p.getInt("starts", 0), p.getInt("displayStarts", 0)),
         )
     }
 
@@ -37,7 +37,7 @@ object AutoDriverTrial {
             .putString("release", release).putString("name", name)
             .putString("display", display).putString("linux", linux)
             .putString("previousDisplay", previousDisplay).putString("previousLinux", previousLinux)
-            .putInt("starts", 0)
+            .putInt("starts", 0).putInt("displayStarts", 0)
             .commit()
     }
 
@@ -48,13 +48,24 @@ object AutoDriverTrial {
 
     fun bad(context: Context): Set<String> = prefs(context).getStringSet("bad", emptySet()).orEmpty()
 
+    /**
+     * Counted before the compositor loads the trial display driver, so a driver that kills the process during
+     * Vulkan init still counts towards a rollback; sessionStarting runs too late for that.
+     */
+    fun displayStarting(context: Context, display: String) {
+        val p = prefs(context)
+        if (p.getString("release", null) == null || p.getString("display", "") != display) return
+        val counted = maxOf(p.getInt("displayStarts", 0), p.getInt("starts", 0))
+        p.edit().putInt("displayStarts", counted + 1).commit()
+    }
+
     fun sessionStarting(context: Context, display: String, linux: String) {
         val trial = current(context)
         watching = null
         if (trial == null || trial.display != display || trial.linux != linux) return
         app = context.applicationContext
         watching = trial
-        prefs(context).edit().putInt("starts", trial.starts + 1).commit()
+        prefs(context).edit().putInt("starts", prefs(context).getInt("starts", 0) + 1).commit()
     }
 
     fun sessionReady() {
