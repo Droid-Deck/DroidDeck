@@ -16,6 +16,7 @@ import android.view.InputDevice
 import androidx.annotation.RequiresApi
 import com.droiddeck.launcher.core.SessionPart
 import com.droiddeck.launcher.input.ControllerPrefs
+import com.droiddeck.launcher.input.JoyCon
 import com.droiddeck.launcher.input.PadBridge
 import java.io.DataInputStream
 import kotlin.math.max
@@ -26,6 +27,7 @@ class RumbleComponent : SessionPart() {
     private val playing = HashMap<Int, Motors>()
     private val effects = HashMap<Int, Effect>()
     private val controllers = HashMap<Int, Motors?>()
+    private val joyConPairs = HashMap<Long, Motors>()
     private var preferences: SharedPreferences? = null
     private var enabled = false
     private var motorThread: HandlerThread? = null
@@ -78,6 +80,7 @@ class RumbleComponent : SessionPart() {
         motorThread = null
         phone = null
         controllers.clear()
+        joyConPairs.clear()
         val s = server
         server = null
         try { s?.close() } catch (e: Exception) {   }
@@ -125,10 +128,24 @@ class RumbleComponent : SessionPart() {
     }
 
     private fun target(slot: Int): Motors? {
+        JoyCon.vrRumbleDevice(slot)?.let { hand -> return if (hand == PadBridge.NO_CONTROLLER) null else motors(hand) }
+        val left = PadBridge.joyConForSlot(slot, JoyCon.LEFT)
+        val right = PadBridge.joyConForSlot(slot, JoyCon.RIGHT)
+        if (left != PadBridge.NO_CONTROLLER && right != PadBridge.NO_CONTROLLER) {
+            val key = (left.toLong() shl 32) or (right.toLong() and 0xFFFFFFFFL)
+            joyConPairs[key]?.let { return it }
+            val l = motors(left)
+            val r = motors(right)
+            if (l != null && r != null) return JoyConPairMotors(l, r).also { joyConPairs[key] = it }
+        }
         val id = PadBridge.controllerForSlot(slot)
         if (id == PadBridge.NO_CONTROLLER) return phone
+        return motors(id) ?: phone
+    }
+
+    private fun motors(id: Int): Motors? {
         if (!controllers.containsKey(id)) controllers[id] = try { controllerMotors(id) } catch (e: Exception) { null }
-        return controllers[id] ?: phone
+        return controllers[id]
     }
 
     private fun cancelAll() {
@@ -201,6 +218,25 @@ class RumbleComponent : SessionPart() {
         }
     }
 
+    @RequiresApi(31)
+    private class JoyConMotors(override val name: String, private val manager: VibratorManager) : Motors {
+        override fun play(strong: Int, weak: Int, ms: Long) =
+            manager.vibrate(CombinedVibration.createParallel(oneShot(manager.defaultVibrator, max(strong, weak), ms)))
+        override fun cancel() = manager.cancel()
+    }
+
+    private class JoyConPairMotors(private val left: Motors, private val right: Motors) : Motors {
+        override val name = "${left.name} and ${right.name}"
+        override fun play(strong: Int, weak: Int, ms: Long) {
+            if (strong == 0) left.cancel() else left.play(strong, 0, ms)
+            if (weak == 0) right.cancel() else right.play(0, weak, ms)
+        }
+        override fun cancel() {
+            left.cancel()
+            right.cancel()
+        }
+    }
+
     private class LegacyPadMotors(override val name: String, private val vibrator: Vibrator) : Motors {
         override fun play(strong: Int, weak: Int, ms: Long) = vibrator.vibrate(oneShot(vibrator, max(strong, weak), ms))
         override fun cancel() {
@@ -230,7 +266,8 @@ class RumbleComponent : SessionPart() {
             if (Build.VERSION.SDK_INT >= 31) {
                 val manager = device.vibratorManager
                 val ids = manager.vibratorIds.sortedArray()
-                return if (ids.isEmpty()) null else PadMotors(name, manager, ids)
+                if (ids.isEmpty()) return null
+                return if (JoyCon.side(device) >= 0) JoyConMotors(name, manager) else PadMotors(name, manager, ids)
             }
             @Suppress("DEPRECATION")
             val vibrator = device.vibrator

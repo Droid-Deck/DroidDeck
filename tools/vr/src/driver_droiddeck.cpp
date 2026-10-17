@@ -7,17 +7,32 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <ctime>
 #include <cstring>
+#include <cstddef>
 #include <fcntl.h>
+#include <map>
+#include <sched.h>
 #include <sys/mman.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/un.h>
 #include <mutex>
 #include <thread>
 #include <vector>
 #include <unistd.h>
 
 #include "../../../app/src/main/cpp/waylandcomp/src/headpose_shm.h"
+#include "arm_model.h"
+#include "hand_motion.h"
+#include "hand_pose.h"
+#include "handcam_shm.h"
+#include "hand_skeleton.h"
+#include "index_pose.h"
+#include "joycon_shm.h"
 #include "presenter.h"
+#include "render_target.h"
 #include "xr_tracking_file.h"
 #include "xr_frame_math.h"
 #include "xr_vsync_timing.h"
@@ -27,11 +42,20 @@
 #define DD_EXPORT extern "C" __attribute__((visibility("default")))
 
 using namespace vr;
+using namespace droiddeck;
 
 namespace {
 
 const char *const kSettingsSection = "driver_droiddeck";
 const char *const kPosePath = "/run/droiddeck/" DROIDDECK_HEADPOSE_FILE;
+const char *const kJoyConPath = "/run/droiddeck/" DROIDDECK_JOYCON_FILE;
+const char *const kHandCamPath = "/run/droiddeck/" DROIDDECK_HANDCAM_FILE;
+const char *const kHandTraceFlag = "/run/droiddeck/droiddeck-handtrace.on";
+const char *const kHandTracePath = "/run/droiddeck/droiddeck-handtrace.csv";
+constexpr float kMinPulseMs = 30.0f;
+constexpr int64_t kJoyConStaleNs = 500000000;
+constexpr int64_t kHandCamStaleNs = 300000000;
+constexpr int64_t kBareHandsStaleNs = 2000000000;
 
 void Log(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 void Log(const char *fmt, ...) {
@@ -43,6 +67,35 @@ void Log(const char *fmt, ...) {
     if (VRDriverLog()) VRDriverLog()->Log(buf);
     fprintf(stderr, "[droiddeck] %s\n", buf);
 }
+
+class HandTrace {
+public:
+    void Poll(int64_t nowNs) {
+        if (checkedNs_ && nowNs - checkedNs_ < 1000000000) return;
+        checkedNs_ = nowNs;
+        const bool want = access(kHandTraceFlag, F_OK) == 0;
+        if (want && !file_) {
+            file_ = fopen(kHandTracePath, "a");
+            if (file_) {
+                fprintf(file_, "S,%lld\n", (long long)nowNs);
+                Log("hand trace started");
+            }
+        } else if (!want && file_) {
+            fclose(file_);
+            file_ = nullptr;
+            Log("hand trace stopped");
+        }
+        if (file_) fflush(file_);
+    }
+
+    FILE *File() const { return file_; }
+
+private:
+    FILE *file_ = nullptr;
+    int64_t checkedNs_ = 0;
+};
+
+HandTrace gHandTrace;
 
 class PoseFile {
 public:
@@ -93,6 +146,8 @@ HmdQuaternion_t QuatFromMatrix(const float m[9]) {
     return q;
 }
 
+double VsyncPeriodSeconds();
+
 HmdMatrix34_t XrPoseMatrix(const DroidDeckXrPose &pose) {
     const float qx = pose.orientation[0], qy = pose.orientation[1], qz = pose.orientation[2], qw = pose.orientation[3];
     HmdMatrix34_t matrix{};
@@ -127,31 +182,45 @@ public:
     void WaitForPresent() override {}
     bool GetTimeSinceLastVsync(float *seconds, uint64_t *counter) override {
         using namespace std::chrono;
-        double t = duration<double>(steady_clock::now().time_since_epoch()).count();
-        double period = 1.0 / 60.0;
-        *seconds = (float)fmod(t, period);
-        *counter = (uint64_t)(t / period);
+        const double period = VsyncPeriodSeconds();
+        std::lock_guard<std::mutex> lock(vsyncMutex_);
+        const double t = duration<double>(steady_clock::now().time_since_epoch()).count();
+        if (period != period_) {
+            vsyncBase_ = period_ > 0.0 ? vsyncBase_ + (uint64_t)((t - vsyncAt_) / period_) : (uint64_t)(t / period);
+            vsyncAt_ = t;
+            period_ = period;
+        }
+        const double since = t - vsyncAt_;
+        *seconds = (float)fmod(since, period);
+        *counter = vsyncBase_ + (uint64_t)(since / period);
         return true;
     }
 
 private:
     uint64_t frames_ = 0;
     std::chrono::steady_clock::time_point last_;
+    std::mutex vsyncMutex_;
+    double period_ = 0.0, vsyncAt_ = 0.0;
+    uint64_t vsyncBase_ = 0;
 };
 
 class Vsync {
 public:
-    static constexpr auto kInterval = XrVsyncTiming::kDefaultPeriod;
     static constexpr std::chrono::microseconds kLead{2000};
+
+    static std::chrono::nanoseconds Interval() { return std::chrono::nanoseconds(intervalNs_.load()); }
+    static void SetRate(float hz) {
+        if (hz >= 24.0f && hz <= 240.0f) intervalNs_ = (int64_t)(1e9 / hz);
+    }
 
     static void Start() {
         if (running_.exchange(true)) return;
         timing_.Reset();
         thread_ = std::thread([] {
             XrTrackingFile xrFile;
-            auto next = std::chrono::steady_clock::now() + kInterval;
+            auto next = std::chrono::steady_clock::now() + Interval();
             while (running_) {
-                auto interval = kInterval;
+                auto interval = Interval();
                 DroidDeckXrTracking xr;
                 if (xrFile.Read(&xr) && XrTrackingFile::Fresh(xr)) {
                     interval = std::chrono::nanoseconds(xr.period_ns);
@@ -180,9 +249,12 @@ public:
 
 private:
     static inline std::atomic<bool> running_{false};
+    static inline std::atomic<int64_t> intervalNs_{16666667};
     static inline std::thread thread_;
     static inline XrVsyncTiming timing_;
 };
+
+double VsyncPeriodSeconds() { return Vsync::Interval().count() / 1e9; }
 
 class DirectMode : public IVRDriverDirectModeComponent {
 public:
@@ -382,6 +454,510 @@ private:
     std::chrono::steady_clock::time_point retry_{};
 };
 
+template <typename T>
+class ShmFile {
+public:
+    ShmFile(const char *path, uint32_t magic, uint32_t version, const char *name)
+        : path_(path), magic_(magic), version_(version), name_(name) {}
+    bool Read(T *out) {
+        if (!map_ && !Open()) return false;
+        for (int tries = 0; tries < 64; tries++) {
+            if (tries) sched_yield();
+            const uint32_t a = __atomic_load_n(&map_->seq, __ATOMIC_ACQUIRE);
+            if (a & 1u) continue;
+            memcpy(out, (const void *)map_, sizeof(*out));
+            __atomic_thread_fence(__ATOMIC_ACQUIRE);
+            if (__atomic_load_n(&map_->seq, __ATOMIC_RELAXED) == a) return out->magic == magic_ && out->version == version_;
+        }
+        return false;
+    }
+    ~ShmFile() { if (map_) munmap((void *)map_, sizeof(*map_)); }
+
+private:
+    bool Open() {
+        const auto now = std::chrono::steady_clock::now();
+        if (now < retry_) return false;
+        retry_ = now + std::chrono::seconds(2);
+        int fd = open(path_, O_RDONLY | O_CLOEXEC);
+        if (fd < 0) return false;
+        struct stat st;
+        if (fstat(fd, &st) != 0 || st.st_size < (off_t)sizeof(T)) {
+            close(fd);
+            return false;
+        }
+        void *p = mmap(nullptr, sizeof(T), PROT_READ, MAP_SHARED, fd, 0);
+        close(fd);
+        if (p == MAP_FAILED) return false;
+        map_ = (volatile T *)p;
+        Log("%s file mapped: %s", name_, path_);
+        return true;
+    }
+    const char *const path_;
+    const uint32_t magic_, version_;
+    const char *const name_;
+    volatile T *map_ = nullptr;
+    std::chrono::steady_clock::time_point retry_{};
+};
+
+void SendRumble(uint16_t slot, const VREvent_HapticVibration_t &h) {
+    if (!(h.fAmplitude > 0.0f) || !(h.fFrequency > 0.0f)) return;
+    const float seconds = std::isfinite(h.fDurationSeconds) ? h.fDurationSeconds : 0.0f;
+    const uint16_t ms = (uint16_t)std::clamp(seconds * 1000.0f, kMinPulseMs, 5000.0f);
+    const uint16_t strength = (uint16_t)std::lround(std::min(h.fAmplitude, 1.0f) * 65535.0f);
+    const int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+    if (fd < 0) return;
+    sockaddr_un addr = {};
+    addr.sun_family = AF_UNIX;
+    const char name[] = "droiddeck-rumble";
+    memcpy(addr.sun_path + 1, name, sizeof(name) - 1);
+    const socklen_t length = (socklen_t)(offsetof(sockaddr_un, sun_path) + sizeof(name));
+    if (connect(fd, (const sockaddr *)&addr, length) == 0) {
+        const uint16_t data[4] = {strength, strength, ms, slot};
+        send(fd, data, sizeof(data), MSG_DONTWAIT | MSG_NOSIGNAL);
+    }
+    close(fd);
+}
+
+int64_t MonotonicNs() {
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
+bool JoyConLive(const droiddeck_joycon_hand &hand, int64_t nowNs) {
+    return (hand.flags & DROIDDECK_JOYCON_CONNECTED) && hand.time_ns > 0 &&
+           nowNs - hand.time_ns < kJoyConStaleNs && hand.time_ns - nowNs < kJoyConStaleNs;
+}
+
+class HandController : public ITrackedDeviceServerDriver {
+public:
+    explicit HandController(bool right) : right_(right), arm_(right), camera_(right) {}
+
+    EVRInitError Activate(uint32_t id) override {
+        auto props = VRProperties();
+        const PropertyContainerHandle_t c = props->TrackedDeviceToPropertyContainer(id);
+        props->SetStringProperty(c, Prop_ModelNumber_String, right_ ? "Knuckles Right" : "Knuckles Left");
+        props->SetStringProperty(c, Prop_ManufacturerName_String, "DroidDeck");
+        props->SetStringProperty(c, Prop_TrackingSystemName_String, "droiddeck");
+        props->SetStringProperty(c, Prop_RenderModelName_String, RenderModel(expectBare_.load()));
+        props->SetStringProperty(c, Prop_ControllerType_String, "knuckles");
+        props->SetStringProperty(c, Prop_InputProfilePath_String, "{indexcontroller}/input/index_controller_profile.json");
+        props->SetStringProperty(c, Prop_RegisteredDeviceType_String, right_ ? "droiddeck/hand_right" : "droiddeck/hand_left");
+        props->SetInt32Property(c, Prop_ControllerRoleHint_Int32,
+                                right_ ? TrackedControllerRole_RightHand : TrackedControllerRole_LeftHand);
+        props->SetInt32Property(c, Prop_DeviceClass_Int32, TrackedDeviceClass_Controller);
+        props->SetInt32Property(c, Prop_ControllerHandSelectionPriority_Int32, 100);
+        props->SetBoolProperty(c, Prop_DeviceProvidesBatteryStatus_Bool, true);
+        props->SetBoolProperty(c, Prop_DeviceCanPowerOff_Bool, false);
+        container_ = c;
+        pose_.qWorldFromDriverRotation.w = 1;
+        pose_.qDriverFromHeadRotation.w = 1;
+        pose_.qRotation.w = 1;
+        pose_.result = TrackingResult_Uninitialized;
+        auto in = VRDriverInput();
+        const auto boolean = [&](const char *path, VRInputComponentHandle_t *h) { in->CreateBooleanComponent(c, path, h); };
+        const auto oneSided = [&](const char *path, VRInputComponentHandle_t *h) {
+            in->CreateScalarComponent(c, path, h, VRScalarType_Absolute, VRScalarUnits_NormalizedOneSided);
+        };
+        const auto twoSided = [&](const char *path, VRInputComponentHandle_t *h) {
+            in->CreateScalarComponent(c, path, h, VRScalarType_Absolute, VRScalarUnits_NormalizedTwoSided);
+        };
+        boolean("/input/system/click", &systemClick_);
+        boolean("/input/system/touch", &systemTouch_);
+        boolean("/input/a/click", &aClick_);
+        boolean("/input/a/touch", &aTouch_);
+        boolean("/input/b/click", &bClick_);
+        boolean("/input/b/touch", &bTouch_);
+        boolean("/input/trigger/click", &triggerClick_);
+        boolean("/input/trigger/touch", &triggerTouch_);
+        oneSided("/input/trigger/value", &trigger_);
+        boolean("/input/grip/touch", &gripTouch_);
+        oneSided("/input/grip/value", &grip_);
+        oneSided("/input/grip/force", &gripForce_);
+        twoSided("/input/thumbstick/x", &stickX_);
+        twoSided("/input/thumbstick/y", &stickY_);
+        boolean("/input/thumbstick/click", &stickClick_);
+        boolean("/input/thumbstick/touch", &stickTouch_);
+        twoSided("/input/trackpad/x", &padX_);
+        twoSided("/input/trackpad/y", &padY_);
+        oneSided("/input/trackpad/force", &padForce_);
+        boolean("/input/trackpad/touch", &padTouch_);
+        oneSided("/input/finger/index", &fingers_[0]);
+        oneSided("/input/finger/middle", &fingers_[1]);
+        oneSided("/input/finger/ring", &fingers_[2]);
+        oneSided("/input/finger/pinky", &fingers_[3]);
+        in->CreateSkeletonComponent(c, right_ ? "/input/skeleton/right" : "/input/skeleton/left",
+                                    right_ ? "/skeleton/hand/right" : "/skeleton/hand/left", "/pose/raw",
+                                    VRSkeletalTracking_Estimated, nullptr, 0, &skeleton_);
+        in->CreateHapticComponent(c, "/output/haptic", &haptic_);
+        SendSkeleton();
+        id_.store(id, std::memory_order_release);
+        Log("%s hand activated", right_ ? "right" : "left");
+        return VRInitError_None;
+    }
+    void Deactivate() override { id_.store(k_unTrackedDeviceIndexInvalid, std::memory_order_release); }
+    void EnterStandby() override {}
+    void *GetComponent(const char *) override { return nullptr; }
+    void DebugRequest(const char *, char *resp, uint32_t size) override { if (size) resp[0] = 0; }
+
+    DriverPose_t GetPose() override {
+        std::lock_guard<std::mutex> lock(poseMutex_);
+        return pose_;
+    }
+
+    void ExpectBare(bool bare) { expectBare_ = bare; }
+
+    VRInputComponentHandle_t Haptic() const {
+        return id_.load(std::memory_order_acquire) == k_unTrackedDeviceIndexInvalid || bare_.load() ? 0 : haptic_;
+    }
+
+    void SeeCamera(const Vec3 &fromHead, const Vec3 *joints, int64_t timeNs, bool estimated, int64_t nowNs) {
+        if (connected_) {
+            if (!aligning_) kalman_.Measure(timeNs, kHeadPosition + fromHead, estimated ? kEstimatedSigma : kCameraSigma);
+        } else if (bare_.load()) {
+            camera_.See(timeNs, kHeadPosition + fromHead, joints, kHeadPosition, nowNs);
+        }
+    }
+
+    bool Update(const droiddeck_joycon_hand *hand, bool bare, const HmdQuaternion_t &headPose, int64_t nowNs) {
+        const uint32_t id = id_.load(std::memory_order_acquire);
+        if (id == k_unTrackedDeviceIndexInvalid) return false;
+        const auto now = std::chrono::steady_clock::now();
+        const double dt = std::min(std::chrono::duration<double>(now - lastUpdate_).count(), 0.1);
+        lastUpdate_ = now;
+        if (!hand) {
+            Disconnect(id);
+            if (bare) {
+                UpdateBare(id, nowNs, dt);
+                return true;
+            }
+            LeaveBare(id);
+            return false;
+        }
+        LeaveBare(id);
+        const Quat head{headPose.w, headPose.x, headPose.y, headPose.z};
+        const Quat q = Normalize({hand->rotation[0], hand->rotation[1], hand->rotation[2], hand->rotation[3]});
+        if (!connected_ || hand->recenter != recenter_) {
+            recenter_ = hand->recenter;
+            aligning_ = true;
+        }
+        connected_ = true;
+        double headYaw = 0.0, handYaw = 0.0;
+        if (aligning_ && Heading(head, &headYaw) && Heading(q, &handYaw)) {
+            yaw_ = headYaw - handYaw;
+            aligning_ = false;
+            arm_.Reset();
+            follower_.Reset();
+            kalman_.Reset();
+            shown_ = false;
+            Log("%s Joy-Con facing forward", right_ ? "right" : "left");
+        }
+        const Quat turn = AboutY(yaw_);
+        const Quat aligned = turn * q;
+        const Vec3 rate{hand->angular_velocity[0], hand->angular_velocity[1], hand->angular_velocity[2]};
+        const Vec3 palm = arm_.Update(kHeadPosition, head, aligned, Length(rate), dt);
+        const Vec3 moved = Rotate(turn, {hand->displacement[0], hand->displacement[1], hand->displacement[2]});
+        const Vec3 inertial = Rotate(turn, {hand->inertial_velocity[0], hand->inertial_velocity[1], hand->inertial_velocity[2]});
+        const bool holding = (hand->buttons & (DROIDDECK_JOYCON_TRIGGER | DROIDDECK_JOYCON_GRIP)) != 0;
+        kalman_.Input(hand->time_ns - kJoyConDelayNs, inertial, Length(rate));
+        const bool camera = kalman_.Ready() && kalman_.TimeNs() - kalman_.SeenNs() <= kCameraHoldNs;
+        bool switched = false;
+        if (camera != cameraPlaced_) {
+            cameraPlaced_ = camera;
+            switched = true;
+            Log("%s Joy-Con hand placed by %s", right_ ? "right" : "left", camera ? "the camera" : "the arm model");
+            if (!camera && shown_) follower_.Place(shownAt_, moved);
+        }
+        const double settle = holding ? kHoldingSettleSeconds : kSettleSeconds;
+        const Vec3 source = camera ? kalman_.Position() : follower_.Update(palm, moved, dt, settle, kMaxOffset);
+        const Vec3 velocity = camera ? kalman_.Velocity() : Rotate(turn, {hand->velocity[0], hand->velocity[1], hand->velocity[2]});
+        if (shown_ && (switched || Length(source - source_) > kJump)) blend_ = shownAt_ - source;
+        else if (!shown_) blend_ = Vec3{};
+        blend_ = blend_ * std::exp(-dt / kBlendSeconds);
+        const Vec3 grip = source + blend_;
+        source_ = source;
+        shownAt_ = grip;
+        shown_ = true;
+        if (FILE *trace = gHandTrace.File()) {
+            const Vec3 k = kalman_.Ready() ? kalman_.Position() : Vec3{};
+            fprintf(trace, "J,%lld,%d,%lld,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%d,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.3f,%.4f,%.4f,%.4f,%u,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%d\n",
+                    (long long)nowNs, right_ ? 1 : 0, (long long)hand->time_ns, moved.x, moved.y, moved.z, palm.x, palm.y, palm.z,
+                    camera ? 1 : 0, k.x, k.y, k.z, grip.x, grip.y, grip.z, Length(rate), velocity.x, velocity.y, velocity.z,
+                    hand->buttons, aligned.w, aligned.x, aligned.y, aligned.z, inertial.x, inertial.y, inertial.z, kalman_.Ready() ? 1 : 0);
+        }
+        Quat raw;
+        Vec3 position;
+        IndexRawPose(right_, aligned, grip, &raw, &position);
+        const Vec3 spin = Rotate(aligned, rate);
+        DriverPose_t p = {};
+        p.qWorldFromDriverRotation.w = 1;
+        p.qDriverFromHeadRotation.w = 1;
+        p.qRotation = {raw.w, raw.x, raw.y, raw.z};
+        p.vecPosition[0] = position.x;
+        p.vecPosition[1] = position.y;
+        p.vecPosition[2] = position.z;
+        p.vecVelocity[0] = velocity.x;
+        p.vecVelocity[1] = velocity.y;
+        p.vecVelocity[2] = velocity.z;
+        p.vecAngularVelocity[0] = spin.x;
+        p.vecAngularVelocity[1] = spin.y;
+        p.vecAngularVelocity[2] = spin.z;
+        p.poseTimeOffset = -std::max(0.0, (nowNs - hand->time_ns) * 1e-9);
+        p.willDriftInYaw = true;
+        p.poseIsValid = true;
+        p.result = TrackingResult_Running_OK;
+        p.deviceIsConnected = true;
+        {
+            std::lock_guard<std::mutex> lock(poseMutex_);
+            pose_ = p;
+        }
+        VRServerDriverHost()->TrackedDevicePoseUpdated(id, p, sizeof(p));
+        SendInputs(*hand, dt);
+        SendBattery(*hand);
+        return true;
+    }
+
+private:
+    void UpdateBare(uint32_t id, int64_t nowNs, double dt) {
+        if (!bare_.load()) {
+            bare_ = true;
+            camera_.Reset();
+            bareSeen_ = false;
+            VRProperties()->SetBoolProperty(container_, Prop_DeviceProvidesBatteryStatus_Bool, false);
+            VRProperties()->SetStringProperty(container_, Prop_RenderModelName_String, RenderModel(true));
+            Log("%s hand follows the camera (no controller connected)", right_ ? "right" : "left");
+        }
+        const CameraHandPose hand = camera_.Update(nowNs, dt);
+        if (hand.visible != bareSeen_) {
+            bareSeen_ = hand.visible;
+            Log("%s camera hand %s", right_ ? "right" : "left", hand.visible ? "seen" : "lost");
+        }
+        DriverPose_t p;
+        {
+            std::lock_guard<std::mutex> lock(poseMutex_);
+            p = pose_;
+        }
+        p.qWorldFromDriverRotation = {1, 0, 0, 0};
+        p.qDriverFromHeadRotation = {1, 0, 0, 0};
+        p.deviceIsConnected = true;
+        p.willDriftInYaw = false;
+        p.poseTimeOffset = 0.0;
+        for (int i = 0; i < 3; i++) p.vecAngularVelocity[i] = 0.0;
+        if (hand.visible) {
+            p.qRotation = {hand.rotation.w, hand.rotation.x, hand.rotation.y, hand.rotation.z};
+            p.vecPosition[0] = hand.position.x;
+            p.vecPosition[1] = hand.position.y;
+            p.vecPosition[2] = hand.position.z;
+            p.vecVelocity[0] = hand.velocity.x;
+            p.vecVelocity[1] = hand.velocity.y;
+            p.vecVelocity[2] = hand.velocity.z;
+            p.poseIsValid = true;
+            p.result = TrackingResult_Running_OK;
+        } else {
+            for (int i = 0; i < 3; i++) p.vecVelocity[i] = 0.0;
+            p.poseIsValid = false;
+            p.result = TrackingResult_Running_OutOfRange;
+        }
+        {
+            std::lock_guard<std::mutex> lock(poseMutex_);
+            pose_ = p;
+        }
+        VRServerDriverHost()->TrackedDevicePoseUpdated(id, p, sizeof(p));
+        if (FILE *trace = gHandTrace.File()) {
+            const HandButtons &b = hand.buttons;
+            fprintf(trace, "B,%lld,%d,%d,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%d%d%d%d%d%d%d,%.4f\n",
+                    (long long)nowNs, right_ ? 1 : 0, hand.visible ? 1 : 0, hand.position.x, hand.position.y, hand.position.z,
+                    hand.rotation.w, hand.rotation.x, hand.rotation.y, hand.rotation.z, hand.curls.thumb, hand.curls.index,
+                    hand.curls.middle, hand.curls.ring, hand.curls.pinky, b.trigger, b.grip, b.triggerClick, b.gripClick, b.a, b.b,
+                    b.system, b.facing, b.triggerTouch, camera_.Rms());
+        }
+        SendBareInputs(hand);
+    }
+
+    void LeaveBare(uint32_t id) {
+        if (!bare_.load()) return;
+        bare_ = false;
+        camera_.Reset();
+        VRProperties()->SetBoolProperty(container_, Prop_DeviceProvidesBatteryStatus_Bool, true);
+        VRProperties()->SetStringProperty(container_, Prop_RenderModelName_String, RenderModel(false));
+        if (!connected_) {
+            DriverPose_t p = {};
+            p.qWorldFromDriverRotation.w = 1;
+            p.qDriverFromHeadRotation.w = 1;
+            p.qRotation.w = 1;
+            p.result = TrackingResult_Uninitialized;
+            {
+                std::lock_guard<std::mutex> lock(poseMutex_);
+                pose_ = p;
+            }
+            VRServerDriverHost()->TrackedDevicePoseUpdated(id, p, sizeof(p));
+            droiddeck_joycon_hand idle = {};
+            SendInputs(idle, 1.0);
+        }
+        Log("%s hand no longer follows the camera", right_ ? "right" : "left");
+    }
+
+    void SendBareInputs(const CameraHandPose &hand) {
+        const HandButtons &b = hand.buttons;
+        SetBool(systemClick_, b.system);
+        SetBool(systemTouch_, b.system);
+        SetBool(aClick_, b.a);
+        SetBool(aTouch_, b.a);
+        SetBool(bClick_, b.b);
+        SetBool(bTouch_, b.b);
+        SetBool(triggerClick_, b.triggerClick);
+        SetBool(triggerTouch_, b.triggerTouch);
+        SetScalar(trigger_, b.trigger);
+        SetBool(gripTouch_, b.grip >= kGripTouch);
+        SetScalar(grip_, b.grip);
+        SetScalar(gripForce_, b.gripClick ? 1.0f : 0.0f);
+        SetScalar(stickX_, 0.0f);
+        SetScalar(stickY_, 0.0f);
+        SetBool(stickClick_, false);
+        SetBool(stickTouch_, false);
+        SetScalar(padX_, 0.0f);
+        SetScalar(padY_, 0.0f);
+        SetScalar(padForce_, 0.0f);
+        SetBool(padTouch_, false);
+        if (hand.visible) curls_ = hand.curls;
+        SetScalar(fingers_[0], (float)curls_.index);
+        SetScalar(fingers_[1], (float)curls_.middle);
+        SetScalar(fingers_[2], (float)curls_.ring);
+        SetScalar(fingers_[3], (float)curls_.pinky);
+        if (std::chrono::steady_clock::now() - lastSkeleton_ >= kSkeletonPeriod) SendSkeleton();
+    }
+
+    const char *RenderModel(bool bare) const {
+        if (bare) return right_ ? "{droiddeck}droiddeck_hand_right" : "{droiddeck}droiddeck_hand_left";
+        return right_ ? "{indexcontroller}valve_controller_knu_1_0_right" : "{indexcontroller}valve_controller_knu_1_0_left";
+    }
+
+    void Disconnect(uint32_t id) {
+        if (!connected_) return;
+        connected_ = false;
+        follower_.Reset();
+        kalman_.Reset();
+        shown_ = false;
+        DriverPose_t p = {};
+        p.qWorldFromDriverRotation.w = 1;
+        p.qDriverFromHeadRotation.w = 1;
+        p.qRotation.w = 1;
+        p.result = TrackingResult_Uninitialized;
+        {
+            std::lock_guard<std::mutex> lock(poseMutex_);
+            pose_ = p;
+        }
+        VRServerDriverHost()->TrackedDevicePoseUpdated(id, p, sizeof(p));
+        droiddeck_joycon_hand idle = {};
+        SendInputs(idle, 1.0);
+        Log("%s Joy-Con hand disconnected", right_ ? "right" : "left");
+    }
+
+    void SendInputs(const droiddeck_joycon_hand &hand, double dt) {
+        const uint32_t b = hand.buttons;
+        const float x = std::clamp(hand.stick[0], -1.0f, 1.0f), y = std::clamp(hand.stick[1], -1.0f, 1.0f);
+        const bool stickTouched = (b & DROIDDECK_JOYCON_STICK) || x * x + y * y > kStickTouch * kStickTouch;
+        const bool trigger = b & DROIDDECK_JOYCON_TRIGGER, grip = b & DROIDDECK_JOYCON_GRIP;
+        const bool thumb = stickTouched || (b & (DROIDDECK_JOYCON_A | DROIDDECK_JOYCON_B | DROIDDECK_JOYCON_SYSTEM)) != 0;
+        const bool system = b & DROIDDECK_JOYCON_SYSTEM, a = b & DROIDDECK_JOYCON_A, bButton = b & DROIDDECK_JOYCON_B;
+        SetBool(systemClick_, system);
+        SetBool(systemTouch_, system);
+        SetBool(aClick_, a);
+        SetBool(aTouch_, a);
+        SetBool(bClick_, bButton);
+        SetBool(bTouch_, bButton);
+        SetBool(triggerClick_, trigger);
+        SetBool(triggerTouch_, trigger);
+        SetScalar(trigger_, trigger ? 1.0f : 0.0f);
+        SetBool(gripTouch_, grip);
+        SetScalar(grip_, grip ? 1.0f : 0.0f);
+        SetScalar(gripForce_, grip ? 1.0f : 0.0f);
+        SetScalar(stickX_, x);
+        SetScalar(stickY_, y);
+        SetBool(stickClick_, (b & DROIDDECK_JOYCON_STICK) != 0);
+        SetBool(stickTouch_, stickTouched);
+        SetScalar(padX_, 0.0f);
+        SetScalar(padY_, 0.0f);
+        SetScalar(padForce_, 0.0f);
+        SetBool(padTouch_, false);
+        const double follow = 1.0 - std::exp(-dt / kCurlSeconds);
+        curls_.thumb += ((thumb ? 1.0 : 0.0) - curls_.thumb) * follow;
+        curls_.index += ((trigger ? 1.0 : 0.0) - curls_.index) * follow;
+        const double rest = grip ? 1.0 : 0.0;
+        curls_.middle += (rest - curls_.middle) * follow;
+        curls_.ring = curls_.pinky = curls_.middle;
+        SetScalar(fingers_[0], (float)curls_.index);
+        for (int f = 1; f < 4; f++) SetScalar(fingers_[f], (float)curls_.middle);
+        const auto now = std::chrono::steady_clock::now();
+        if (now - lastSkeleton_ >= kSkeletonPeriod) SendSkeleton();
+    }
+
+    void SendSkeleton() {
+        lastSkeleton_ = std::chrono::steady_clock::now();
+        VRBoneTransform_t bones[kHandBones];
+        HandSkeleton(right_, curls_, bones);
+        VRDriverInput()->UpdateSkeletonComponent(skeleton_, VRSkeletalMotionRange_WithController, bones, kHandBones);
+        VRDriverInput()->UpdateSkeletonComponent(skeleton_, VRSkeletalMotionRange_WithoutController, bones, kHandBones);
+    }
+
+    void SendBattery(const droiddeck_joycon_hand &hand) {
+        const bool charging = hand.flags & DROIDDECK_JOYCON_CHARGING;
+        if (hand.battery >= 0.0f && std::fabs(hand.battery - battery_) > 0.005f) {
+            battery_ = hand.battery;
+            VRProperties()->SetFloatProperty(container_, Prop_DeviceBatteryPercentage_Float, std::min(battery_, 1.0f));
+        }
+        if (charging != charging_) {
+            charging_ = charging;
+            VRProperties()->SetBoolProperty(container_, Prop_DeviceIsCharging_Bool, charging_);
+        }
+    }
+
+    void SetBool(VRInputComponentHandle_t h, bool on) {
+        auto &last = booleans_[h];
+        if (last == (on ? 2 : 1)) return;
+        last = on ? 2 : 1;
+        VRDriverInput()->UpdateBooleanComponent(h, on, 0);
+    }
+    void SetScalar(VRInputComponentHandle_t h, float value) {
+        auto it = scalars_.find(h);
+        if (it != scalars_.end() && it->second == value) return;
+        scalars_[h] = value;
+        VRDriverInput()->UpdateScalarComponent(h, value, 0);
+    }
+
+    static constexpr float kStickTouch = 0.1f, kGripTouch = 0.5f;
+    static constexpr double kCurlSeconds = 0.05;
+    static constexpr std::chrono::milliseconds kSkeletonPeriod{11};
+    static constexpr Vec3 kHeadPosition{0.0, 1.6, 0.0};
+    static constexpr double kSettleSeconds = 0.6, kHoldingSettleSeconds = 1.5, kMaxOffset = 0.35;
+    static constexpr double kCameraSigma = 0.03, kEstimatedSigma = 0.06, kJump = 0.08, kBlendSeconds = 0.25;
+    static constexpr int64_t kCameraHoldNs = 750000000, kJoyConDelayNs = 45000000;
+    const bool right_;
+    ArmModel arm_;
+    HandFollower follower_;
+    HandKalman kalman_;
+    CameraHand camera_;
+    std::atomic<bool> bare_{false}, expectBare_{false};
+    bool bareSeen_ = false;
+    Vec3 source_, shownAt_, blend_;
+    bool shown_ = false;
+    bool cameraPlaced_ = false;
+    std::atomic<uint32_t> id_{k_unTrackedDeviceIndexInvalid};
+    PropertyContainerHandle_t container_ = k_ulInvalidPropertyContainer;
+    std::mutex poseMutex_;
+    DriverPose_t pose_ = {};
+    bool connected_ = false, aligning_ = true, charging_ = false;
+    uint32_t recenter_ = 0;
+    double yaw_ = 0.0;
+    float battery_ = -1.0f;
+    FingerCurls curls_;
+    std::map<VRInputComponentHandle_t, int> booleans_;
+    std::map<VRInputComponentHandle_t, float> scalars_;
+    std::chrono::steady_clock::time_point lastUpdate_ = std::chrono::steady_clock::now(), lastSkeleton_{};
+    VRInputComponentHandle_t systemClick_ = 0, systemTouch_ = 0, aClick_ = 0, aTouch_ = 0, bClick_ = 0, bTouch_ = 0,
+                             triggerClick_ = 0, triggerTouch_ = 0, trigger_ = 0, gripTouch_ = 0, grip_ = 0, gripForce_ = 0,
+                             stickX_ = 0, stickY_ = 0, stickClick_ = 0, stickTouch_ = 0, padX_ = 0, padY_ = 0, padForce_ = 0,
+                             padTouch_ = 0, fingers_[4] = {}, skeleton_ = 0, haptic_ = 0;
+};
+
 class CardboardController : public ITrackedDeviceServerDriver {
 public:
     explicit CardboardController(bool right) : right_(right) {}
@@ -396,7 +972,8 @@ public:
         VRProperties()->SetStringProperty(c, Prop_ManufacturerName_String, xrMode_ ? "Meta" : "DroidDeck");
         VRProperties()->SetStringProperty(c, Prop_TrackingSystemName_String, "droiddeck");
         VRProperties()->SetStringProperty(c, Prop_RenderModelName_String, xrMode_ ?
-            (right_ ? "oculus_quest_plus_controller_right" : "oculus_quest_plus_controller_left") : "generic_controller");
+            (right_ ? "oculus_quest_plus_controller_right" : "oculus_quest_plus_controller_left") :
+            (right_ ? "{indexcontroller}valve_controller_knu_1_0_right" : "{indexcontroller}valve_controller_knu_1_0_left"));
         VRProperties()->SetStringProperty(c, Prop_ControllerType_String, xrMode_ ? "oculus_touch" : "vive_controller");
         VRProperties()->SetStringProperty(c, Prop_InputProfilePath_String, xrMode_ ?
             "{oculus}/input/touch_profile.json" : "{htc}/input/vive_controller_profile.json");
@@ -432,7 +1009,6 @@ public:
     void DebugRequest(const char *, char *resp, uint32_t size) override { if (size) resp[0] = 0; }
 
     DriverPose_t GetPose() override { return pose_; }
-    VRInputComponentHandle_t HapticHandle() const { return haptic_; }
 
     void UpdateXr(const DroidDeckXrHand &hand, int64_t predicted) {
         if (id_ == k_unTrackedDeviceIndexInvalid) return;
@@ -471,13 +1047,59 @@ public:
         }
     }
 
-    void Update(const HmdQuaternion_t &head, const PadState *pad) {
+    VRInputComponentHandle_t Haptic() const { return id_ == k_unTrackedDeviceIndexInvalid ? 0 : haptic_; }
+    bool XrMode() const { return xrMode_; }
+
+    void Disconnect() {
         if (id_ == k_unTrackedDeviceIndexInvalid) return;
         DriverPose_t p = {};
         p.qWorldFromDriverRotation.w = 1;
         p.qDriverFromHeadRotation.w = 1;
-        p.qRotation = head;
-        const double off[3] = {right_ ? 0.18 : -0.18, -0.35, -0.30};
+        p.qRotation.w = 1;
+        p.result = TrackingResult_Uninitialized;
+        pose_ = p;
+        VRServerDriverHost()->TrackedDevicePoseUpdated(id_, p, sizeof(p));
+        auto in = VRDriverInput();
+        for (VRInputComponentHandle_t h : {system_, menu_, grip_, triggerClick_, padClick_, padTouch_}) in->UpdateBooleanComponent(h, false, 0);
+        for (VRInputComponentHandle_t h : {trigger_, padX_, padY_}) in->UpdateScalarComponent(h, 0.0f, 0);
+    }
+
+    static constexpr float kReachSpeed = 0.6f, kReachMin = -0.2f, kReachMax = 1.0f;
+
+    static bool Grabbing(const PadState &pad, bool right) {
+        return pad.axes[right ? 4 : 5] > kGrabTrigger || (pad.buttons & (right ? PAD_RB : PAD_LB));
+    }
+
+    void Update(const HmdQuaternion_t &head, const PadState *pad, bool sticksMoveHands, float reach) {
+        if (id_ == k_unTrackedDeviceIndexInvalid) return;
+        const auto now = std::chrono::steady_clock::now();
+        const float dt = std::min(std::chrono::duration<float>(now - lastUpdate_).count(), 0.1f);
+        lastUpdate_ = now;
+        const float follow = 1.0f - std::exp(-dt / kHandSmoothing);
+        const bool grab = pad && Grabbing(*pad, right_);
+        if (grab && pad->axes[7]) pull_ = std::clamp(pull_ - (pad->axes[7] > 0 ? 1.0f : -1.0f) * kReachSpeed * dt, kReachMin - reach, kReachMax - reach);
+        else if (!grab) pull_ -= pull_ * follow;
+        const float stickX = pad ? pad->axes[right_ ? 2 : 0] / 32767.0f : 0.0f, stickY = pad ? -pad->axes[right_ ? 3 : 1] / 32767.0f : 0.0f;
+        float aimX = 0.0f, aimY = 0.0f;
+        const float tilt = std::sqrt(stickX * stickX + stickY * stickY);
+        if (sticksMoveHands && tilt > kStickDeadzone) {
+            const float scale = std::min((tilt - kStickDeadzone) / (1.0f - kStickDeadzone), 1.0f) / tilt;
+            aimX = stickX * scale;
+            aimY = stickY * scale;
+        }
+        handX_ += (aimX * kHandRangeX - handX_) * follow;
+        handY_ += (aimY * (aimY > 0.0f ? kHandRangeUp : kHandRangeDown) - handY_) * follow;
+        DriverPose_t p = {};
+        p.qWorldFromDriverRotation.w = 1;
+        p.qDriverFromHeadRotation.w = 1;
+        const double yaw = std::atan2(-handX_, kHandPivot) / 2, pitch = std::atan2(handY_, std::hypot(kHandPivot, handX_)) / 2;
+        const double cy = std::cos(yaw), sy = std::sin(yaw), cp = std::cos(pitch), sp = std::sin(pitch);
+        const double lw = cy * cp, lx = cy * sp, ly = sy * cp, lz = -sy * sp;
+        p.qRotation.w = head.w * lw - head.x * lx - head.y * ly - head.z * lz;
+        p.qRotation.x = head.w * lx + head.x * lw + head.y * lz - head.z * ly;
+        p.qRotation.y = head.w * ly - head.x * lz + head.y * lw + head.z * lx;
+        p.qRotation.z = head.w * lz + head.x * ly - head.y * lx + head.z * lw;
+        const double off[3] = {(right_ ? 0.18 : -0.18) + handX_, -0.25 + handY_, -0.35 - reach - pull_};
         double m[3][3];
         const double w = head.w, x = head.x, y = head.y, z = head.z;
         m[0][0] = 1 - 2 * (y * y + z * z); m[0][1] = 2 * (x * y - z * w); m[0][2] = 2 * (x * z + y * w);
@@ -492,9 +1114,8 @@ public:
         if (!pad) return;
         auto in = VRDriverInput();
         const uint32_t b = pad->buttons;
-        const float stickX = pad->axes[right_ ? 2 : 0] / 32767.0f, stickY = -pad->axes[right_ ? 3 : 1] / 32767.0f;
         const float trig = pad->axes[right_ ? 4 : 5] / 255.0f;
-        const bool touch = stickX * stickX + stickY * stickY > 0.01f;
+        const bool touch = !sticksMoveHands && stickX * stickX + stickY * stickY > 0.01f;
         in->UpdateBooleanComponent(system_, right_ && (b & PAD_GUIDE), 0);
         in->UpdateBooleanComponent(menu_, (b & (right_ ? PAD_START : PAD_SELECT)) != 0, 0);
         in->UpdateBooleanComponent(grip_, (b & (right_ ? PAD_RB : PAD_LB)) != 0, 0);
@@ -503,14 +1124,18 @@ public:
         in->UpdateScalarComponent(padX_, touch ? stickX : 0.0f, 0);
         in->UpdateScalarComponent(padY_, touch ? stickY : 0.0f, 0);
         in->UpdateBooleanComponent(padTouch_, touch || (b & (right_ ? PAD_A : PAD_X)), 0);
-        in->UpdateBooleanComponent(padClick_, (b & (right_ ? (PAD_A | PAD_R3) : (PAD_X | PAD_L3))) != 0, 0);
+        in->UpdateBooleanComponent(padClick_, (b & (right_ ? (PAD_A | PAD_R3) : PAD_X)) != 0, 0);
     }
 
 private:
+    static constexpr int16_t kGrabTrigger = 153;
+    static constexpr float kStickDeadzone = 0.12f, kHandRangeX = 0.40f, kHandRangeUp = 0.50f, kHandRangeDown = 0.30f, kHandSmoothing = 0.05f, kHandPivot = 0.45f;
     bool right_;
     bool xrMode_ = false;
     uint32_t id_ = k_unTrackedDeviceIndexInvalid;
     DriverPose_t pose_ = {};
+    float pull_ = 0.0f, handX_ = 0.0f, handY_ = 0.0f;
+    std::chrono::steady_clock::time_point lastUpdate_ = std::chrono::steady_clock::now();
     VRInputComponentHandle_t system_ = 0, menu_ = 0, grip_ = 0, triggerClick_ = 0, trigger_ = 0, padX_ = 0, padY_ = 0,
                              padClick_ = 0, padTouch_ = 0, haptic_ = 0;
     VRInputComponentHandle_t gripValue_ = 0, triggerTouch_ = 0, primaryClick_ = 0, secondaryClick_ = 0,
@@ -522,6 +1147,7 @@ public:
     EVRInitError Activate(uint32_t unObjectId) override {
         id_ = unObjectId;
         PropertyContainerHandle_t c = VRProperties()->TrackedDeviceToPropertyContainer(id_);
+        container_ = c;
         width_ = VRSettings()->GetInt32(kSettingsSection, "windowWidth");
         height_ = VRSettings()->GetInt32(kSettingsSection, "windowHeight");
         if (width_ <= 0) width_ = 1920;
@@ -540,7 +1166,15 @@ public:
         if (pose_.Read(&hp) && hp.tan_half_fov > 0.0f) {
             tanHalf_ = hp.tan_half_fov;
             if (hp.eye_aspect > 0.0f) eyeAspect_ = hp.eye_aspect;
+            sentMono_ = (hp.flags & DROIDDECK_HEADPOSE_MONO) != 0;
+            renderHeight_ = hp.render_height;
+            panelHeight_ = hp.eye_h;
         }
+        if (!xrMode_ && pose_.Read(&hp) && hp.display_hz >= 24.0f) hz = hp.display_hz;
+        Vsync::SetRate(hz);
+        sentHz_ = hz;
+        sentTan_ = tanHalf_;
+        sentAspect_ = eyeAspect_;
         VRProperties()->SetStringProperty(c, Prop_ModelNumber_String, xrMode_ ? "DroidDeck Quest OpenXR" : "DroidDeck Cardboard");
         VRProperties()->SetStringProperty(c, Prop_ManufacturerName_String, "DroidDeck");
         VRProperties()->SetStringProperty(c, Prop_TrackingSystemName_String, "droiddeck");
@@ -577,13 +1211,18 @@ public:
         VRProperties()->SetBoolProperty(c, Prop_ContainsProximitySensor_Bool, true);
         VRDriverInput()->CreateBooleanComponent(c, "/proximity", &proximity_);
         VRDriverInput()->UpdateBooleanComponent(proximity_, true, 0);
-        Log("HMD activated: %dx%d at %.0f Hz, eye tan(half fov) %.3f, eye aspect %.3f", width_, height_, hz, tanHalf_, eyeAspect_);
+        Log("HMD activated: %dx%d at %.0f Hz, eye tan(half fov) %.3f, eye aspect %.3f", width_, height_, hz, tanHalf_.load(), eyeAspect_.load());
+        uint32_t renderW, renderH;
+        GetRecommendedRenderTargetSize(&renderW, &renderH);
+        Log("recommended render target: %ux%u per eye (selected height %u)", renderW, renderH, renderHeight_.load());
 
         running_ = true;
         thread_ = std::thread([this] { PoseLoop(); });
         if (directMode_) Vsync::Start();
         return VRInitError_None;
     }
+
+    bool Running() const { return running_; }
 
     void Deactivate() override {
         Vsync::Stop();
@@ -645,8 +1284,9 @@ public:
     bool IsDisplayRealDisplay() override { return false; }
     void GetRecommendedRenderTargetSize(uint32_t *w, uint32_t *h) override {
         if (xrMode_) { *w = width_ / 2; *h = height_; return; }
-        *w = (uint32_t)(width_ / 2 * 1.4f);
-        *h = (uint32_t)(height_ * 1.4f);
+        const auto size = droiddeck::RenderTarget(eyeAspect_, renderHeight_, panelHeight_);
+        *w = size.width;
+        *h = size.height;
     }
     void GetEyeOutputViewport(EVREye eye, uint32_t *x, uint32_t *y, uint32_t *w, uint32_t *h) override {
         *y = 0; *w = (uint32_t)width_ / 2; *h = (uint32_t)height_;
@@ -674,6 +1314,33 @@ public:
     }
 
 private:
+    void UpdateEye(const droiddeck_headpose &hp) {
+        sentTan_ = tanHalf_ = hp.tan_half_fov;
+        sentAspect_ = eyeAspect_ = hp.eye_aspect;
+        sentMono_ = (hp.flags & DROIDDECK_HEADPOSE_MONO) != 0;
+        renderHeight_ = hp.render_height;
+        panelHeight_ = hp.eye_h;
+        HmdRect2_t r;
+        r.vTopLeft.v[0] = -tanHalf_ * eyeAspect_;
+        r.vTopLeft.v[1] = -tanHalf_;
+        r.vBottomRight.v[0] = tanHalf_ * eyeAspect_;
+        r.vBottomRight.v[1] = tanHalf_;
+        VRServerDriverHost()->SetDisplayProjectionRaw(id_, r, r);
+        uint32_t w = 0, h = 0;
+        GetRecommendedRenderTargetSize(&w, &h);
+        VRServerDriverHost()->SetRecommendedRenderTargetSize(id_, w, h);
+        VRServerDriverHost()->VendorSpecificEvent(id_, VREvent_LensDistortionChanged, VREvent_Data_t{}, 0.0);
+        Log("eye now tan(half fov) %.3f, aspect %.3f (%ux%u eye%s), render %ux%u", tanHalf_.load(), eyeAspect_.load(), hp.eye_w, hp.eye_h,
+            (hp.flags & DROIDDECK_HEADPOSE_MONO) ? ", one eye shown" : "", w, h);
+    }
+
+    void UpdateRate(float hz) {
+        sentHz_ = hz;
+        Vsync::SetRate(hz);
+        VRProperties()->SetFloatProperty(container_, Prop_DisplayFrequency_Float, hz);
+        Log("panel now %.0f Hz", hz);
+    }
+
     void PublishChaperone(const DroidDeckXrTracking &tracking) {
         chaperone_.Update(tracking, [this](const DroidDeckXrPose &head) {
             char timestamp[32];
@@ -686,6 +1353,8 @@ private:
     }
     void PoseLoop() {
         uint32_t lastSeq = 0;
+        droiddeck_joycon joyCons = {};
+        bool haveJoyCons = false;
         auto lastSent = std::chrono::steady_clock::now();
         while (running_) {
             DroidDeckXrTracking xr;
@@ -708,9 +1377,22 @@ private:
             PadState pad;
             const bool havePad = pad_.Read(&pad);
             const bool padChanged = havePad && (pad.buttons != lastPad_.buttons || memcmp(pad.axes, lastPad_.axes, sizeof(pad.axes)));
-            if ((fresh || padChanged || now - lastSent > std::chrono::milliseconds(100)) && id_ != k_unTrackedDeviceIndexInvalid) {
+            droiddeck_joycon read;
+            if (joyConFile_.Read(&read)) {
+                joyCons = read;
+                haveJoyCons = true;
+            }
+            const bool joyConsChanged = haveJoyCons && joyCons.seq != lastJoyConSeq_;
+            if ((fresh || padChanged || joyConsChanged || now - lastSent > std::chrono::milliseconds(100)) && id_ != k_unTrackedDeviceIndexInvalid) {
+                if (joyConsChanged) lastJoyConSeq_ = joyCons.seq;
                 if (fresh) {
                     lastSeq = hp.seq;
+                    if (hp.eye_w > 0 && hp.tan_half_fov > 0.0f && hp.eye_aspect > 0.0f &&
+                        (fabsf(hp.tan_half_fov - sentTan_) > 1e-3f || fabsf(hp.eye_aspect - sentAspect_) > 1e-3f ||
+                         ((hp.flags & DROIDDECK_HEADPOSE_MONO) != 0) != sentMono_ ||
+                         hp.render_height != renderHeight_ || hp.eye_h != panelHeight_))
+                        UpdateEye(hp);
+                    if (hp.display_hz >= 24.0f && fabsf(hp.display_hz - sentHz_) > 0.5f) UpdateRate(hp.display_hz);
                     const bool worn = (hp.flags & DROIDDECK_HEADPOSE_ENABLED) != 0;
                     if (worn != worn_) {
                         worn_ = worn;
@@ -720,7 +1402,59 @@ private:
                 }
                 DriverPose_t head = GetPose();
                 VRServerDriverHost()->TrackedDevicePoseUpdated(id_, head, sizeof(DriverPose_t));
-                for (CardboardController *hand : hands_) if (hand) hand->Update(head.qRotation, havePad ? &pad : nullptr);
+                if (havePad && (pad.buttons & PAD_L3) && !(lastPad_.buttons & PAD_L3)) {
+                    sticksMoveHands_ = !sticksMoveHands_;
+                    Log("sticks now move %s", sticksMoveHands_ ? "the hands" : "in the game");
+                }
+                const float dt = std::min(std::chrono::duration<float>(now - lastReach_).count(), 0.1f);
+                lastReach_ = now;
+                if (havePad && pad.axes[7] && !CardboardController::Grabbing(pad, false) && !CardboardController::Grabbing(pad, true))
+                    reach_ = std::clamp(reach_ - (pad.axes[7] > 0 ? 1.0f : -1.0f) * CardboardController::kReachSpeed * dt,
+                                        CardboardController::kReachMin, CardboardController::kReachMax);
+                if (now - lastScan_ > std::chrono::seconds(1)) {
+                    lastScan_ = now;
+                    const bool other = OtherControllers();
+                    if (other != otherControllers_) {
+                        otherControllers_ = other;
+                        Log("%s", other ? "other VR controllers connected: pad hands off" : "no other VR controllers: pad hands on");
+                    }
+                }
+                const int64_t nowNs = MonotonicNs();
+                gHandTrace.Poll(nowNs);
+                double headYaw = 0.0;
+                if (Heading({head.qRotation.w, head.qRotation.x, head.qRotation.y, head.qRotation.z}, &headYaw))
+                    headings_.Add(nowNs, {-std::sin(headYaw), 0.0, -std::cos(headYaw)});
+                droiddeck_handcam cam;
+                if (handCamFile_.Read(&cam)) {
+                    const bool running = (cam.flags & DROIDDECK_HANDCAM_RUNNING) != 0;
+                    if (cam.frame != lastCamFrame_) {
+                        lastCamFrame_ = cam.frame;
+                        if (running && std::llabs(nowNs - cam.time_ns) < kHandCamStaleNs) SeeCamera(cam, nowNs);
+                    }
+                    bareFlag_ = running && (cam.flags & DROIDDECK_HANDCAM_BARE_HANDS);
+                    bareTimeNs_ = cam.time_ns;
+                }
+                const bool bare = bareFlag_ && std::llabs(nowNs - bareTimeNs_) < kBareHandsStaleNs;
+                if (bare != bareHands_) {
+                    bareHands_ = bare;
+                    Log("%s", bare ? "no controllers: the camera tracks bare hands" : "camera bare hands off");
+                }
+                for (int side = 0; side < 2; side++) {
+                    const droiddeck_joycon_hand *joyCon =
+                        haveJoyCons && JoyConLive(joyCons.hands[side], nowNs) ? &joyCons.hands[side] : nullptr;
+                    if (handControllers_[side]) handControllers_[side]->ExpectBare(!joyCon && bare);
+                    if (joyCon || bare) wantHand_[side] = true;
+                    const bool covered = handControllers_[side] && handControllers_[side]->Update(joyCon, bare, head.qRotation, nowNs);
+                    CardboardController *hand = hands_[side];
+                    if (!hand) continue;
+                    if (otherControllers_ || covered || bare) {
+                        if (!padHandOff_[side]) hand->Disconnect();
+                        padHandOff_[side] = true;
+                        continue;
+                    }
+                    padHandOff_[side] = false;
+                    hand->Update(head.qRotation, havePad ? &pad : nullptr, sticksMoveHands_, reach_);
+                }
                 if (havePad) lastPad_ = pad;
                 lastSent = now;
             }
@@ -728,11 +1462,62 @@ private:
         }
     }
 
+    void SeeCamera(const droiddeck_handcam &cam, int64_t nowNs) {
+        Vec3 forward;
+        const bool heading = headings_.At(cam.time_ns, &forward) && Length(forward) > 0.5;
+        if ((cam.flags & DROIDDECK_HANDCAM_FACE) && heading) {
+            const double dt = lastFaceNs_ ? std::max(0.0, (cam.time_ns - lastFaceNs_) * 1e-9) : 0.0;
+            lastFaceNs_ = cam.time_ns;
+            cameraYaw_.Add(std::atan2(-forward.x, -forward.z) - cam.face_yaw, dt);
+        }
+        double yaw = 0.0;
+        const bool aligned = cameraYaw_.Get(&yaw);
+        if (aligned != cameraAligned_) {
+            cameraAligned_ = aligned;
+            Log("hand camera %s", aligned ? "lined up with the headset" : "waiting to see your face");
+        }
+        if (FILE *trace = gHandTrace.File())
+            fprintf(trace, "C,%lld,%u,%lld,%u,%.4f,%.4f,%d,%.4f,%u,%.4f,%.4f,%.4f,%u,%.4f,%.4f,%.4f\n", (long long)nowNs, cam.frame,
+                    (long long)cam.time_ns, cam.flags, cam.face_yaw, heading ? std::atan2(-forward.x, -forward.z) : 0.0, aligned ? 1 : 0,
+                    aligned ? yaw : 0.0, cam.hands[0].flags, cam.hands[0].position[0], cam.hands[0].position[1], cam.hands[0].position[2],
+                    cam.hands[1].flags, cam.hands[1].position[0], cam.hands[1].position[1], cam.hands[1].position[2]);
+        if (!aligned) return;
+        const Quat turn = AboutY(yaw);
+        for (int side = 0; side < 2; side++) {
+            const droiddeck_handcam_hand &hand = cam.hands[side];
+            if (!(hand.flags & DROIDDECK_HANDCAM_SEEN) || !handControllers_[side]) continue;
+            Vec3 joints[kHandJoints];
+            const bool haveJoints = (hand.flags & DROIDDECK_HANDCAM_JOINTS) != 0;
+            if (haveJoints)
+                for (int i = 0; i < kHandJoints; i++) joints[i] = Rotate(turn, {hand.joints[i][0], hand.joints[i][1], hand.joints[i][2]});
+            handControllers_[side]->SeeCamera(Rotate(turn, {hand.position[0], hand.position[1], hand.position[2]}), haveJoints ? joints : nullptr,
+                                              cam.time_ns, (hand.flags & DROIDDECK_HANDCAM_ESTIMATED) != 0, nowNs);
+        }
+    }
+
+    static bool OtherControllers() {
+        TrackedDevicePose_t poses[k_unMaxTrackedDeviceCount];
+        VRServerDriverHost()->GetRawTrackedDevicePoses(0.0f, poses, k_unMaxTrackedDeviceCount);
+        for (uint32_t i = 0; i < k_unMaxTrackedDeviceCount; i++) {
+            if (!poses[i].bDeviceIsConnected) continue;
+            PropertyContainerHandle_t c = VRProperties()->TrackedDeviceToPropertyContainer(i);
+            if (VRProperties()->GetInt32Property(c, Prop_DeviceClass_Int32) != TrackedDeviceClass_Controller) continue;
+            if (VRProperties()->GetStringProperty(c, Prop_TrackingSystemName_String) != "droiddeck") return true;
+        }
+        return false;
+    }
+
     uint32_t id_ = k_unTrackedDeviceIndexInvalid;
     int32_t width_ = 1920, height_ = 1080;
-    float tanHalf_ = 1.0f, eyeAspect_ = 0.889f;
+    std::atomic<float> tanHalf_{1.0f}, eyeAspect_{0.889f};
+    std::atomic<uint32_t> renderHeight_{720}, panelHeight_{0};
+    float sentTan_ = 0.0f, sentAspect_ = 0.0f, sentHz_ = 0.0f;
+    bool sentMono_ = false;
+    PropertyContainerHandle_t container_ = k_ulInvalidPropertyContainer;
 public:
     void SetHands(CardboardController *left, CardboardController *right) { hands_[0] = left; hands_[1] = right; }
+    void SetHandControllers(HandController *left, HandController *right) { handControllers_[0] = left; handControllers_[1] = right; }
+    bool WantsHand(int side) const { return wantHand_[side].load(); }
 
 private:
     PoseFile pose_;
@@ -743,7 +1528,25 @@ private:
     PadState lastPad_;
     VRInputComponentHandle_t proximity_ = 0;
     bool worn_ = true;
+    bool sticksMoveHands_ = true;
+    float reach_ = 0.0f;
+    std::chrono::steady_clock::time_point lastReach_ = std::chrono::steady_clock::now();
+    std::chrono::steady_clock::time_point lastScan_{};
+    bool otherControllers_ = false;
     CardboardController *hands_[2] = {nullptr, nullptr};
+    bool padHandOff_[2] = {false, false};
+    ShmFile<droiddeck_joycon> joyConFile_{kJoyConPath, DROIDDECK_JOYCON_MAGIC, DROIDDECK_JOYCON_VERSION, "Joy-Con"};
+    uint32_t lastJoyConSeq_ = 0;
+    ShmFile<droiddeck_handcam> handCamFile_{kHandCamPath, DROIDDECK_HANDCAM_MAGIC, DROIDDECK_HANDCAM_VERSION, "hand camera"};
+    uint32_t lastCamFrame_ = 0;
+    int64_t lastFaceNs_ = 0;
+    TimeHistory headings_;
+    CameraYaw cameraYaw_;
+    bool cameraAligned_ = false;
+    bool bareHands_ = false, bareFlag_ = false;
+    int64_t bareTimeNs_ = 0;
+    HandController *handControllers_[2] = {nullptr, nullptr};
+    std::atomic<bool> wantHand_[2] = {false, false};
     bool virtualDisplay_ = false, directMode_ = false;
     VirtualDisplay vd_;
     DirectMode dm_;
@@ -753,6 +1556,10 @@ private:
 
 class Provider : public IServerTrackedDeviceProvider {
 public:
+    ~Provider() {
+        if (hmd_.Running()) hmd_.Deactivate();
+    }
+
     EVRInitError Init(IVRDriverContext *ctx) override {
         VR_INIT_SERVER_DRIVER_CONTEXT(ctx);
         focusEnabled_ = access("/run/droiddeck/droiddeck-xr-frames", F_OK) == 0;
@@ -764,6 +1571,7 @@ public:
             VRServerDriverHost()->TrackedDeviceAdded("droiddeck-pad-right", TrackedDeviceClass_Controller, &right_);
             hmd_.SetHands(&left_, &right_);
         }
+        hmd_.SetHandControllers(&handLeft_, &handRight_);
         return VRInitError_None;
     }
     void Cleanup() override {
@@ -773,6 +1581,13 @@ public:
     }
     const char *const *GetInterfaceVersions() override { return k_InterfaceVersions; }
     void RunFrame() override {
+        for (int side = 0; side < 2; side++) {
+            if (handAdded_[side] || !hmd_.WantsHand(side)) continue;
+            handAdded_[side] = true;
+            if (!VRServerDriverHost()->TrackedDeviceAdded(side ? "droiddeck-hand-right" : "droiddeck-hand-left",
+                                                          TrackedDeviceClass_Controller, side ? &handRight_ : &handLeft_))
+                Log("%s hand could not be added", side ? "right" : "left");
+        }
         VREvent_t e;
         while (VRServerDriverHost()->PollNextEvent(&e, sizeof(e))) {
             if (focusEnabled_) {
@@ -782,10 +1597,14 @@ public:
                 if (e.eventType == VREvent_DashboardDeactivated) { dashboard_ = false; changed = true; }
                 if (changed) PublishFocus();
             }
-            if (e.eventType == VREvent_Input_HapticVibration) {
-                const auto &pulse = e.data.hapticVibration;
-                int hand = pulse.componentHandle == left_.HapticHandle() ? 0 : pulse.componentHandle == right_.HapticHandle() ? 1 : -1;
-                if (hand >= 0) SendHaptic(hand, pulse);
+            if (e.eventType != VREvent_Input_HapticVibration) continue;
+            const VREvent_HapticVibration_t &h = e.data.hapticVibration;
+            if (!h.componentHandle) continue;
+            if (h.componentHandle == handLeft_.Haptic()) SendRumble(DROIDDECK_JOYCON_RUMBLE_SLOT, h);
+            else if (h.componentHandle == handRight_.Haptic()) SendRumble(DROIDDECK_JOYCON_RUMBLE_SLOT + 1, h);
+            else if (h.componentHandle == left_.Haptic() || h.componentHandle == right_.Haptic()) {
+                if (left_.XrMode()) SendHaptic(h.componentHandle == right_.Haptic() ? 1 : 0, h);
+                else SendRumble(0, h);
             }
         }
     }
@@ -834,6 +1653,8 @@ private:
     }
     CardboardHmd hmd_;
     CardboardController left_{false}, right_{true};
+    HandController handLeft_{false}, handRight_{true};
+    bool handAdded_[2] = {false, false};
 };
 
 Provider g_provider;
