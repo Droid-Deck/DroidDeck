@@ -72,7 +72,7 @@ if (!(treeState in ['clean', 'dirty'])) {
     def status = gitValue(['status', '--porcelain'])
     treeState = status == null ? 'unknown' : (status.isEmpty() ? 'clean' : 'dirty')
 }
-buildLabel = "${buildOrigin} ${treeState} Â· ${buildLabel}"
+buildLabel = "${buildOrigin} ${treeState} · ${buildLabel}"
 def escapedBuildLabel = buildLabel.replace('\\', '\\\\').replace('"', '\\"')
 
 def sourceCommit = providers.environmentVariable('DROIDDECK_SOURCE_COMMIT').getOrNull()

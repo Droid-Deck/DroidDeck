@@ -367,10 +367,15 @@ public final class LinuxRuntimeInstaller {
     }
 
     public static Removal beginUninstall(Context context) {
-        if (com.droiddeck.launcher.session.SessionState.INSTANCE.getRunning()) return null;
-        com.droiddeck.launcher.session.SessionPhase phase = com.droiddeck.launcher.session.SessionState.INSTANCE.getPhase();
-        if (phase != com.droiddeck.launcher.session.SessionPhase.IDLE && phase != com.droiddeck.launcher.session.SessionPhase.FAILED) return null;
+        if (sessionInUse()) return null;
         return beginUninstall(context.getApplicationContext(), LinuxRuntime.rootDir(context));
+    }
+
+    private static boolean sessionInUse() {
+        com.droiddeck.launcher.session.SessionState session = com.droiddeck.launcher.session.SessionState.INSTANCE;
+        com.droiddeck.launcher.session.SessionPhase phase = session.getPhase();
+        return session.getRunning() ||
+                (phase != com.droiddeck.launcher.session.SessionPhase.IDLE && phase != com.droiddeck.launcher.session.SessionPhase.FAILED);
     }
 
     static Removal beginUninstall(Context app, File root) {
@@ -397,6 +402,7 @@ public final class LinuxRuntimeInstaller {
             if (!started.compareAndSet(false, true)) return join(job, listener);
             if (listener != null) job.listeners.add(listener);
             try {
+                requireStopped();
                 report(text(app, R.string.rtinst_removing), -1);
                 final long[] removed = {0};
                 final long[] lastShown = {0};
@@ -423,6 +429,8 @@ public final class LinuxRuntimeInstaller {
                     if (!discard(leftover, progress)) throw new IOException("Cannot remove " + leftover);
                 }
                 emptyTrash(root.getParentFile());
+                requireStopped();
+                if (app != null) RuntimeFileTree.delete(new File(app.getNoBackupFilesDir(), "guest-runtime"), null);
                 job.ok = true;
                 report(text(app, R.string.rtinst_removed), 100);
                 return true;
@@ -435,6 +443,11 @@ public final class LinuxRuntimeInstaller {
                 synchronized (JOB_LOCK) { running = null; }
                 job.done.countDown();
             }
+        }
+
+        private void requireStopped() throws IOException {
+            if (Thread.currentThread().isInterrupted()) throw new IOException("Runtime removal was interrupted");
+            if (app != null && sessionInUse()) throw new IOException("A session is still using the runtime");
         }
         private void report(String stage, int percent) {
             job.stage = stage;

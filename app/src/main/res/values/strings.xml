@@ -2371,6 +2371,8 @@
     <string name="glasses_tracking">Tracking</string>
     <string name="glasses_head_tracking">Head tracking</string>
     <string name="glasses_head_tracking_hint">The glasses\' own sensors turn the virtual screen and SteamVR with your head.</string>
+    <string name="glasses_head_tracking_spatial_vr_hint">Positional tracking includes head rotation in SteamVR. For rotation-only tracking, turn off positional tracking.</string>
+    <string name="glasses_head_tracking_spatial_hint">Controls head movement on the virtual screen. Positional tracking includes head rotation in SteamVR.</string>
     <string name="glasses_quick_actions">Quick actions</string>
     <string name="glasses_recenter">Recenter view</string>
     <string name="glasses_recenter_screen_hint">Look where you want the screen, then recenter to set its height and direction.</string>

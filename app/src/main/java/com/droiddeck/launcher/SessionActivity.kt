@@ -501,26 +501,20 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         setContentView(root)
         glassesScope.launch { Glasses.state.collect {
             glasses = it
+            onGlassesChanged()
             updateJoyConTracking()
             updateHandCamera()
-            onGlassesChanged()
         } }
         glassesScope.launch { Glasses.settings.collect {
             glassesSettings = it
+            onGlassesChanged()
             updateJoyConTracking()
             updateHandCamera()
-            onGlassesChanged()
         } }
         glassesScope.launch { com.droiddeck.launcher.handtracking.HandTracking.settings.collect { updateHandCamera() } }
         glassesScope.launch {
             while (true) {
-                val spatialView = glasses.spatialConnected && glassesSettings.positionalTracking &&
-                    (SessionState.steamVr || steamVrStatus == SteamVr.Status.RUNNING ||
-                        (glassesOutputActive && glassesSettings.headTracking && glassesSettings.picture3d == com.droiddeck.launcher.glasses.GlassesSettings.PICTURE_SCREEN))
-                val active = started && !ended && SessionState.running && !loading.visible && !pipUi && spatialView
-                if (active) SpatialTracking.refreshStatus()
-                trackingRecovery = TrackingRecovery.forSession(active, glasses.canControl, SpatialTracking.status.value)
-                glassesScreen?.trackingRecovery?.update(trackingRecovery, glasses.sbs)
+                updateTrackingRecovery()
                 kotlinx.coroutines.delay(100)
             }
         }
@@ -2635,17 +2629,21 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         steamVrSwitchedPicture = SessionPrefs.cardboardSourceBeforeSteamVr(this) >= 0
     }
 
+    private fun usesSpatialControllers() =
+        GlassesRendering.usesGlasses(glasses, glassesScreen != null, steamVrStatus == SteamVr.Status.RUNNING) &&
+            glasses.usesSpatialControllers(glassesSettings)
+
     private fun updateJoyConTracking() {
         joyConVr?.setActive(steamVrStatus == SteamVr.Status.RUNNING &&
             (ControllerPrefs.joyConVr(this) ||
-                (glasses.usesSpatialControllers(glassesSettings) && glassesSettings.joyConTracking)))
+                (usesSpatialControllers() && glassesSettings.joyConTracking)))
     }
 
     private fun updateHandCamera() {
         val joyCons = joyConVr?.holding == true
         val bare = !joyCons && !controllerConnected()
         val want = started && steamVrStatus == SteamVr.Status.RUNNING && (joyCons || bare) &&
-            !glasses.usesSpatialControllers(glassesSettings) &&
+            !usesSpatialControllers() &&
             com.droiddeck.launcher.handtracking.HandTracking.wanted(this)
         handCamera?.bareHands = bare
         if (want == (handCamera != null)) return
@@ -2730,6 +2728,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun updateHeadTracker() {
         val onGlasses = GlassesRendering.usesGlasses(glasses, glassesScreen != null,
             steamVrStatus == SteamVr.Status.RUNNING)
+        SpatialTracking.setOutputUsesGlasses(onGlasses && !ended)
         val c = activeCardboard
         val centerView = onGlasses && c.source == Cardboard.SOURCE_SCREEN
         val want = !ended && (resumed || (glassesScreen != null && started)) && c.enabled && c.headTracking
@@ -2746,6 +2745,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             t.start()
         }
         headTracking = headTracker != null
+    }
+
+    private fun updateTrackingRecovery() {
+        val onGlasses = GlassesRendering.usesGlasses(glasses, glassesScreen != null,
+            steamVrStatus == SteamVr.Status.RUNNING)
+        val spatialView = onGlasses && SpatialTracking.selected && glassesSettings.positionalTracking &&
+            (SessionState.steamVr || steamVrStatus == SteamVr.Status.RUNNING ||
+                (glassesOutputActive && glassesSettings.headTracking && glassesSettings.picture3d == com.droiddeck.launcher.glasses.GlassesSettings.PICTURE_SCREEN))
+        val active = started && !ended && SessionState.running && !loading.visible && !pipUi && spatialView
+        if (active) SpatialTracking.refreshStatus()
+        trackingRecovery = TrackingRecovery.forSession(active, glasses.canControl, SpatialTracking.status.value)
+        glassesScreen?.trackingRecovery?.update(trackingRecovery, glasses.sbs)
     }
 
     private fun outputHolder(): SurfaceHolder = glassesScreen?.holder ?: surfaceView.holder

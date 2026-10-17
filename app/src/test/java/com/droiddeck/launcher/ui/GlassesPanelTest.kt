@@ -265,6 +265,47 @@ class GlassesPanelTest {
         compose.onNodeWithText(text(R.string.cardboard_recenter_button)).assertDoesNotExist()
     }
 
+    @Test fun spatialSteamVrIncludesHeadTrackingAndRestoresTheSavedVirtualScreenSwitch() {
+        val vrRunning = androidx.compose.runtime.mutableStateOf(true)
+        val saved = GlassesSettings(headTracking = false, positionalTracking = true,
+            picture3d = GlassesSettings.PICTURE_SCREEN)
+        show(settings = saved, supportsSpatial = true, tab = GlassesTab.TRACKING, observedSteamVr = vrRunning)
+
+        compose.onNodeWithTag("setting-glasses-tracking").assertIsNotEnabled().assert(
+            SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, text(R.string.widgets_on)))
+        compose.onNodeWithText(text(R.string.glasses_head_tracking_spatial_vr_hint)).assertExists()
+        compose.onNodeWithText(text(R.string.cardboard_recenter_button)).assertDoesNotExist()
+
+        compose.runOnIdle { vrRunning.value = false }
+
+        compose.onNodeWithTag("setting-glasses-tracking").assertIsEnabled().assert(
+            SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, text(R.string.widgets_off)))
+        compose.onNodeWithText(text(R.string.glasses_head_tracking_spatial_hint)).assertExists()
+        compose.onNodeWithText(text(R.string.cardboard_recenter_button)).assertDoesNotExist()
+    }
+
+    @Test fun rotationOnlySteamVrKeepsTheHeadTrackingSwitchOptional() {
+        show(settings = GlassesSettings(headTracking = false), supportsSpatial = true,
+            steamVrRunning = true, tab = GlassesTab.TRACKING)
+
+        compose.onNodeWithTag("setting-glasses-tracking").assertIsEnabled().assert(
+            SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, text(R.string.widgets_off)))
+        compose.onNodeWithText(text(R.string.glasses_head_tracking_hint)).assertExists()
+        compose.onNodeWithText(text(R.string.cardboard_recenter_button)).assertDoesNotExist()
+    }
+
+    @Test fun spatialPreferencesDoNotClaimHeadTrackingForPhoneOutput() {
+        val noDisplay = androidx.compose.runtime.mutableStateOf(GlassesState(present = true,
+            connected = true, controllable = true, supportsSpatial = true))
+        show(settings = GlassesSettings(headTracking = false, positionalTracking = true),
+            steamVrRunning = true, outputActive = false, tab = GlassesTab.TRACKING, observedState = noDisplay)
+
+        compose.onNodeWithTag("setting-glasses-tracking").assertIsEnabled().assert(
+            SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, text(R.string.widgets_off)))
+        compose.onNodeWithText(text(R.string.glasses_screen_no_output)).assertExists()
+        compose.onNodeWithText(text(R.string.cardboard_recenter_button)).assertDoesNotExist()
+    }
+
     @Test fun experimentalJoyConsAreOffAndRequirePositionalTracking() {
         show(supportsSpatial = true, tab = GlassesTab.TRACKING)
         compose.onNodeWithText(text(R.string.glasses_experimental).uppercase()).assertExists()
@@ -319,6 +360,7 @@ class GlassesPanelTest {
         sbs90: Boolean = true,
         tab: String? = GlassesTab.DISPLAY,
         observedState: androidx.compose.runtime.State<GlassesState>? = null,
+        observedSteamVr: androidx.compose.runtime.State<Boolean>? = null,
     ) {
         val state = GlassesState(present = true, connected = controlAvailable, controllable = true,
             displayId = Display.DEFAULT_DISPLAY + 1, width = if (stereo) 3840 else 1920, height = 1200,
@@ -337,7 +379,7 @@ class GlassesPanelTest {
                             }
                         }, onRecenter = {},
                         inSession = inSession, outputActive = outputActive,
-                        steamVrRunning = steamVrRunning, tab = tab)
+                        steamVrRunning = observedSteamVr?.value ?: steamVrRunning, tab = tab)
                 }
             }
         }

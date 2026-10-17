@@ -106,6 +106,8 @@ internal fun GlassesGroups(
     val vr = tab == null || tab == GlassesTab.VR
     val picture = GlassesRendering.picture(s, g.sbs, steamVrRunning)
     val usesGlasses = GlassesRendering.usesGlasses(g, outputActive, steamVrRunning)
+    val spatialTracking = g.spatialConnected && s.positionalTracking
+    val spatialVr = spatialTracking && usesGlasses && steamVrRunning
     val flatPicture = picture == GlassesRendering.Picture.FLAT || picture == GlassesRendering.Picture.DUPLICATED
     val virtualScreen = usesGlasses && picture == GlassesRendering.Picture.VIRTUAL_SCREEN
     val directView = usesGlasses && picture == GlassesRendering.Picture.STEREO
@@ -196,12 +198,15 @@ internal fun GlassesGroups(
         SettingsGroup(stringResource(R.string.glasses_head_tracking)) {
             val trackingHint = when {
                 inSession && !usesGlasses -> R.string.glasses_screen_no_output
+                spatialVr -> R.string.glasses_head_tracking_spatial_vr_hint
+                spatialTracking -> R.string.glasses_head_tracking_spatial_hint
                 inSession && flatPicture -> R.string.glasses_tracking_flat_hint
                 inSession && directView && !steamVrRunning -> R.string.glasses_tracking_sbs_hint
                 else -> R.string.glasses_head_tracking_hint
             }
             ToggleRow(host, "glasses-tracking", stringResource(R.string.glasses_head_tracking), stringResource(trackingHint),
-                s.headTracking, chipModifier = track("glasses-tracking")) { Glasses.setHeadTracking(it) }
+                s.headTracking || spatialVr, enabled = !spatialVr,
+                chipModifier = track("glasses-tracking")) { Glasses.setHeadTracking(it) }
         }
         val calibration by Glasses.calibration.collectAsState()
         if (calibration.supported) SettingsGroup(stringResource(R.string.glasses_calibration)) {

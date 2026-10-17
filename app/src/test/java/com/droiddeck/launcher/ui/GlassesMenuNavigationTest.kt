@@ -61,7 +61,7 @@ class GlassesMenuNavigationTest {
         compose.onNodeWithTag("glasses-vr-fov").assertExists()
         savePreview("vr")
         compose.onNodeWithTag("glasses-tab-tracking").performClick()
-        compose.onNodeWithText("EXPERIMENTAL").assertExists()
+        compose.onNodeWithText("LUMA ULTRA CAMERAS — EXPERIMENTAL").assertExists()
         compose.onNodeWithTag("setting-glasses-position").assertExists()
         savePreview("tracking")
         compose.onNodeWithTag("setting-glasses-hands").performScrollTo().assertIsDisplayed()

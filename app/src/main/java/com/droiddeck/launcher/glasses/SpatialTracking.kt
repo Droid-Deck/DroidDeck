@@ -28,11 +28,13 @@ object SpatialTracking {
     private val buffer = ByteBuffer.allocateDirect(176).order(ByteOrder.LITTLE_ENDIAN)
     private var lastStatus = 0L
     @Volatile private var publisherAttached = false
-    private var spatialSelected = false
+    @Volatile private var spatialSelected = false
+    private var outputUsesGlasses = true
     private var handsSelected = false
     @Volatile private var joyConsSelected = false
     internal val joyConsEnabled get() = enabled && joyConsSelected
     private var hadSpatialSession = false
+    internal val selected: Boolean get() = spatialSelected
     fun initialize(app: Context) { context = app.applicationContext }
     fun attachPublisher(path: String) {
         publisherAttached = WaylandCompositor.nativeSetSpatialFile(path)
@@ -63,6 +65,11 @@ object SpatialTracking {
     }
     @Synchronized internal fun useLegacyTracking() {
         spatialSelected = false; handsSelected = false; joyConsSelected = false
+        publish(System.nanoTime())
+    }
+    @Synchronized internal fun setOutputUsesGlasses(on: Boolean) {
+        if (outputUsesGlasses == on) return
+        outputUsesGlasses = on
         publish(System.nanoTime())
     }
     @Synchronized internal fun accept(values: FloatArray, time: Long, generation: Long, valid: Boolean) {
@@ -162,8 +169,9 @@ object SpatialTracking {
         buffer.clear()
         buffer.putInt(0x53504444).putInt(4).putInt(176).putInt(0)
         buffer.putLong(session.generation).putLong(session.originGeneration)
-        buffer.putInt((if (spatialSelected) 1 else 0) or (if (handsSelected) 2 else 0) or
-            (if (joyConsSelected) 4 else 0)).putInt(session.inputEpochs())
+        val modes = (if (spatialSelected) 1 else 0) or (if (handsSelected) 2 else 0) or
+            (if (joyConsSelected) 4 else 0)
+        buffer.putInt(if (outputUsesGlasses) modes else 0).putInt(session.inputEpochs())
         putPose(session.view(false) ?: SpatialPose(), session.latest()?.timeNs ?: 0, if(session.valid(now)) 1 else 0)
         for (i in 0..1) {
             val hand = hands[i]

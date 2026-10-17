@@ -22,16 +22,8 @@ static VkResult VKAPI_CALL create(VkDevice d, const VkFenceCreateInfo *ci, const
 }
 static VkResult VKAPI_CALL wait_fence(VkDevice d, uint32_t n, const VkFence *f, VkBool32 all, uint64_t timeout) {
     assert(d == device && n == 1 && all);
-    if (timeout) {
-        assert(timeout == 1000000000ull);
-        assert(pthread_mutex_trylock(&g_trk_lock) == 0);
-        assert(g_trk->state == TRACK_RESERVED);
-        uint32_t done;
-        assert(!track_pool_reap(g_trk, g_sync->issued, &done));
-        assert(g_trk->state == TRACK_RESERVED && fake(*f)->resets == 0);
-        pthread_mutex_unlock(&g_trk_lock);
-        waits_seen++;
-    }
+    assert(timeout == 0);
+    waits_seen++;
     return fake(*f)->result;
 }
 static VkResult VKAPI_CALL reset(VkDevice d, uint32_t n, const VkFence *f) {
@@ -76,9 +68,8 @@ static void scenario(int modern, VkFence fence, VkResult submitStatus, VkResult 
     VkResult r = modern ? submit2_tracked(submit2, (VkQueue)device, 1, &info2, fence)
                         : submit_tracked(submit1, (VkQueue)device, 1, &info, fence);
     VkResult tracking = submitStatus == VK_SUCCESS && fence ? markerStatus : submitStatus;
-    VkResult expected = tracking != VK_SUCCESS ? tracking : completeStatus == VK_TIMEOUT ? VK_ERROR_DEVICE_LOST : completeStatus;
-    assert(r == expected);
-    assert(waits_seen == (tracking == VK_SUCCESS ? 1u : 0u));
+    assert(r == tracking);
+    assert(waits_seen == 0);
     assert(markers_seen == (submitStatus == VK_SUCCESS && fence ? 1u : 0u));
     assert(submits_seen == 1 + markers_seen);
     if (tracking == VK_SUCCESS) {
@@ -93,6 +84,66 @@ static void scenario(int modern, VkFence fence, VkResult submitStatus, VkResult 
         assert(!track_pool_reap(g_trk, g_sync->issued, &done));
     }
     assert(!track_pool_device_busy(g_trk, device));
+    track_pool_forget(&g_trk, device);
+}
+
+static VkFence dependency_fence;
+static VkQueue dependency_queue;
+static VkResult dependency_submit(VkQueue q, VkFence fence, uint64_t wait, uint64_t signal) {
+    assert(g_trk && g_trk->state == TRACK_RESERVED);
+    if (q == dependency_queue) {
+        assert(wait == 1 && signal == 0 && dependency_fence == VK_NULL_HANDLE);
+        dependency_fence = fence;
+        fake(fence)->result = VK_TIMEOUT;
+    } else {
+        assert(wait == 0 && signal == 1 && dependency_fence != VK_NULL_HANDLE);
+        fake(dependency_fence)->result = fake(fence)->result = VK_SUCCESS;
+    }
+    return VK_SUCCESS;
+}
+static VkResult VKAPI_CALL dependent_submit1(VkQueue q, uint32_t n, const VkSubmitInfo *info, VkFence fence) {
+    assert(n == 1);
+    const VkTimelineSemaphoreSubmitInfo *timeline = info->pNext;
+    assert(timeline->sType == VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO);
+    return dependency_submit(q, fence, info->waitSemaphoreCount ? timeline->pWaitSemaphoreValues[0] : 0,
+        info->signalSemaphoreCount ? timeline->pSignalSemaphoreValues[0] : 0);
+}
+static VkResult VKAPI_CALL dependent_submit2(VkQueue q, uint32_t n, const VkSubmitInfo2 *info, VkFence fence) {
+    assert(n == 1);
+    return dependency_submit(q, fence, info->waitSemaphoreInfoCount ? info->pWaitSemaphoreInfos[0].value : 0,
+        info->signalSemaphoreInfoCount ? info->pSignalSemaphoreInfos[0].value : 0);
+}
+static void wait_before_signal(int modern) {
+    uintptr_t dispatch = *(uintptr_t *)device;
+    VkQueue signalling = (VkQueue)&dispatch;
+    dependency_queue = (VkQueue)device;
+    dependency_fence = VK_NULL_HANDLE;
+    VkSemaphore semaphore = (VkSemaphore)(uintptr_t)123;
+    uint64_t value = 1;
+    VkPipelineStageFlags stage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+    VkTimelineSemaphoreSubmitInfo timeline_wait = { .sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO,
+        .waitSemaphoreValueCount = 1, .pWaitSemaphoreValues = &value };
+    VkTimelineSemaphoreSubmitInfo timeline_signal = { .sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO,
+        .signalSemaphoreValueCount = 1, .pSignalSemaphoreValues = &value };
+    VkSubmitInfo wait = { .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO, .pNext = &timeline_wait,
+        .waitSemaphoreCount = 1, .pWaitSemaphores = &semaphore, .pWaitDstStageMask = &stage };
+    VkSubmitInfo signal = { .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO, .pNext = &timeline_signal,
+        .signalSemaphoreCount = 1, .pSignalSemaphores = &semaphore };
+    VkSemaphoreSubmitInfo dependency = { .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+        .semaphore = semaphore, .value = 1, .stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT };
+    VkSubmitInfo2 wait2 = { .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+        .waitSemaphoreInfoCount = 1, .pWaitSemaphoreInfos = &dependency };
+    VkSubmitInfo2 signal2 = { .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+        .signalSemaphoreInfoCount = 1, .pSignalSemaphoreInfos = &dependency };
+    assert((modern ? submit2_tracked(dependent_submit2, dependency_queue, 1, &wait2, VK_NULL_HANDLE)
+                   : submit_tracked(dependent_submit1, dependency_queue, 1, &wait, VK_NULL_HANDLE)) == VK_SUCCESS);
+    uint32_t done;
+    assert(track_pool_reap(g_trk, g_sync->issued, &done));
+    assert(done == g_sync->issued - 1);
+    assert((modern ? submit2_tracked(dependent_submit2, signalling, 1, &signal2, VK_NULL_HANDLE)
+                   : submit_tracked(dependent_submit1, signalling, 1, &signal, VK_NULL_HANDLE)) == VK_SUCCESS);
+    assert(!track_pool_reap(g_trk, g_sync->issued, &done));
+    assert(done == g_sync->issued);
     track_pool_forget(&g_trk, device);
 }
 
@@ -113,6 +164,8 @@ int main(void) {
         scenario(modern, caller_fence, VK_SUCCESS, VK_ERROR_DEVICE_LOST, VK_SUCCESS);
     }
     assert(freed == 12);
+    wait_before_signal(0);
+    wait_before_signal(1);
     create_fails = 1;
     submits_seen = 0;
     VkSubmitInfo info = { .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO };
@@ -122,5 +175,5 @@ int main(void) {
     submit_result = VK_SUCCESS; waits_seen = 0;
     assert(submit_tracked(submit1, (VkQueue)device, 1, &info, caller_fence) == VK_SUCCESS);
     assert(submits_seen == 1 && waits_seen == 0 && !g_trk);
-    puts("PASS: compositor submissions await their own fences, preserve caller fences, bound waits, and retain pending fences on timeout");
+    puts("PASS: compositor submissions stay asynchronous, preserve caller fences, and allow later cross-queue signals");
 }
