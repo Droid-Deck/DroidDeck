@@ -91,7 +91,8 @@ private const val LAUNCHER_TAB = 2
 internal object SetupTabs {
     var openLauncher = false
 }
-private const val GLASSES_TAB = 5
+private const val GLASSES_TAB = 6
+private const val SYNC_TAB = 4
 
 @Composable
 private fun CheckRow(state: CheckState, title: String, detail: String?, divider: Boolean = true, action: (@Composable () -> Unit)? = null) {
@@ -181,7 +182,7 @@ internal fun SetupPanel(
         onDismiss = { editDownloadPrefix = false },
         onSave = { a.onDownloadPrefix(it); editDownloadPrefix = false },
     )
-    val tabs = listOf(stringResource(R.string.setup_tab_overview), stringResource(R.string.setup_tab_controller), stringResource(R.string.setup_tab_launcher), stringResource(R.string.setup_tab_storage), stringResource(R.string.setup_tab_diagnostics), stringResource(R.string.setup_tab_glasses))
+    val tabs = listOf(stringResource(R.string.setup_tab_overview), stringResource(R.string.setup_tab_controller), stringResource(R.string.setup_tab_launcher), stringResource(R.string.setup_tab_storage), stringResource(R.string.setup_tab_sync), stringResource(R.string.setup_tab_diagnostics), stringResource(R.string.setup_tab_glasses))
     var tab by rememberSaveable { mutableStateOf(if (SetupTabs.openLauncher) LAUNCHER_TAB else 0) }
     SetupTabs.openLauncher = false
     val chipFocus = remember { List(tabs.size) { FocusRequester() } }
@@ -193,6 +194,15 @@ internal fun SetupPanel(
             com.droiddeck.launcher.storage.StorageState.openPending = false
             tab = STORAGE_TAB
         }
+    }
+    LaunchedEffect(com.droiddeck.launcher.sync.Syncthing.openRequests) {
+        if (com.droiddeck.launcher.sync.Syncthing.openRequests > 0) tab = SYNC_TAB
+    }
+    var syncAdvanced by rememberSaveable { mutableStateOf(false) }
+    if (syncAdvanced) {
+        androidx.activity.compose.BackHandler { syncAdvanced = false }
+        SyncAdvancedPage(host) { syncAdvanced = false }
+        return
     }
     LaunchedEffect(tab) {
         if (tabTurned && inputModeManager.inputMode == InputMode.Keyboard) {
@@ -447,7 +457,8 @@ internal fun SetupPanel(
                         } else { look(); device(); art(); download() }
                     }
                     STORAGE_TAB -> StoragePanel(s, a)
-                    4 -> {
+                    SYNC_TAB -> SyncPanel(host, runtimeOk) { syncAdvanced = true }
+                    5 -> {
                         SettingsGroup(stringResource(R.string.setup_tab_diagnostics)) {
                             ToggleRow(host, "logs", stringResource(R.string.setup_logs), stringResource(R.string.setup_logs_hint), s.logsEnabled) { a.onLogs() }
                             ToggleRow(host, "vacdiag", stringResource(R.string.setup_vac_diag), stringResource(R.string.setup_vac_diag_hint), s.vacDiagnostics) { a.onVacDiagnostics() }

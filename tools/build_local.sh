@@ -44,7 +44,7 @@ if ! command -v docker >/dev/null 2>&1; then
     echo "Docker is required to cross-compile the glibc ARM64 preload libraries." >&2
     exit 1
 fi
-for tool in curl tar zstd shasum unzip python3; do
+for tool in curl tar zstd shasum unzip python3 go; do
     if ! command -v "${tool}" >/dev/null 2>&1; then
         echo "${tool} is required to build the CI-equivalent APK." >&2
         exit 1
@@ -334,6 +334,26 @@ else
     install -m755 "${proot_stage}/libproot.so" "${proot_stage}/libproot-loader.so" "${proot_out}/"
     echo "${proot_inputs}" > "${proot_out}/.proot-inputs"
     (cd "${proot_out}" && shasum -a 256 libproot.so libproot-loader.so > .proot-outputs)
+fi
+
+syncthing_src="${repo_root}/tools/syncthing/syncthing-android/syncthing/src/github.com/syncthing/syncthing"
+if [[ ! -f "${syncthing_src}/build.go" ]]; then
+    git -C "${repo_root}" submodule update --init --recursive tools/syncthing/syncthing-android
+fi
+syncthing_inputs=$(printf '%s\n' "$(shasum -a 256 "${repo_root}/tools/syncthing/build.sh" \
+    "${repo_root}/tools/syncthing/syncthing-android/gradle/libs.versions.toml")" \
+    "$(git -C "${syncthing_src}" rev-parse HEAD)" "${ndk_version}" | shasum -a 256 | cut -d' ' -f1)
+if [[ -f "${proot_out}/libsyncthingnative.so" \
+        && "$(cat "${proot_out}/.syncthing-inputs" 2>/dev/null)" = "${syncthing_inputs}" ]]; then
+    echo "syncthing: sources unchanged, keeping ${proot_out}/libsyncthingnative.so"
+else
+    syncthing_stage="${staging_dir}/syncthing"
+    if ! restore_step syncthing "${syncthing_inputs}" "${syncthing_stage}"; then
+        "${repo_root}/tools/syncthing/build.sh" "${syncthing_stage}"
+        save_step syncthing "${syncthing_inputs}" "${syncthing_stage}"
+    fi
+    install -m755 "${syncthing_stage}/libsyncthingnative.so" "${proot_out}/"
+    echo "${syncthing_inputs}" > "${proot_out}/.syncthing-inputs"
 fi
 
 bundle_dir="${staging_dir}/pulseaudio-bundle"

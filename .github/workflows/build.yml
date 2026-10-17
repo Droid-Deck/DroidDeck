@@ -284,6 +284,7 @@ jobs:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
+          submodules: recursive
 
       - name: Check human authorship
         env:
@@ -493,6 +494,27 @@ jobs:
           restore-keys: pack-inputs-v1-
       - name: Build the add-on packs
         run: bash tools/packs/build.sh app/build/packs
+
+      - name: Pin the Syncthing source
+        id: syncthing-src
+        run: echo "commit=$(git -C tools/syncthing/syncthing-android/syncthing/src/github.com/syncthing/syncthing rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Cache Syncthing
+        id: syncthing
+        uses: actions/cache@v4
+        with:
+          path: app/src/main/jniLibs/arm64-v8a/libsyncthingnative.so
+          key: syncthing-${{ env.NDK_VERSION }}-${{ hashFiles('tools/syncthing/build.sh', 'tools/syncthing/syncthing-android/gradle/libs.versions.toml') }}-${{ steps.syncthing-src.outputs.commit }}
+      - uses: actions/setup-go@v5
+        if: steps.syncthing.outputs.cache-hit != 'true'
+        with:
+          go-version: stable
+          cache: false
+      - name: Build Syncthing
+        if: steps.syncthing.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          export NDK="$ANDROID_HOME/ndk/$NDK_VERSION"
+          tools/syncthing/build.sh app/src/main/jniLibs/arm64-v8a
 
       - name: Build
         id: build
