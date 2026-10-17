@@ -168,6 +168,7 @@ object SessionPrefs {
     const val TOUCH_AUTO = "auto"
     const val TOUCH_PAD = "touchpad"
     const val TOUCH_DIRECT = "direct"
+    const val TOUCH_GESTURES = "gestures"
     const val TOUCH_OFF = "off"
 
     fun touchMode(context: Context): String = prefs(context).getString("touch", TOUCH_AUTO) ?: TOUCH_AUTO
