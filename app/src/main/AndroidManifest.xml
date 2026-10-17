@@ -152,6 +152,16 @@
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density" />
 
         <activity
+            android:name=".ui.SecondScreenActivity"
+            android:exported="false"
+            android:taskAffinity="${applicationId}.controls"
+            android:excludeFromRecents="true"
+            android:theme="@style/SessionTheme"
+            android:screenOrientation="sensorLandscape"
+            android:resizeableActivity="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density" />
+
+        <activity
             android:name=".gpu.SteamVrRestartActivity"
             android:exported="false"
             android:process=":vr_recovery"
