@@ -221,9 +221,9 @@ internal fun GlassesGroups(
     val context = androidx.compose.ui.platform.LocalContext.current
     val hands by HandTracking.settings.collectAsState()
     androidx.compose.runtime.LaunchedEffect(Unit) { HandTracking.load(context) }
-    if ((tab == null || tab == GlassesTab.TRACKING) && g.canControl && (g.spatialConnected || hands.usable)) {
-        SettingsGroup(stringResource(R.string.glasses_experimental)) {
-            if (g.spatialConnected) {
+    if ((tab == null || tab == GlassesTab.TRACKING) && g.canControl) {
+        if (g.spatialConnected) {
+            SettingsGroup(stringResource(R.string.glasses_experimental)) {
                 val spatial by SpatialTracking.status.collectAsState()
                 ToggleRow(host, "glasses-position", stringResource(R.string.glasses_position), stringResource(R.string.glasses_position_hint),
                     s.positionalTracking, chipModifier = track("glasses-position")) { Glasses.setPositionalTracking(it) }
@@ -242,7 +242,9 @@ internal fun GlassesGroups(
                     stringResource(if (s.positionalTracking) R.string.glasses_joycons_hint else R.string.glasses_joycons_requires_position),
                     s.joyConTracking, enabled = s.positionalTracking, chipModifier = track("glasses-joycons")) { Glasses.setJoyConTracking(it) }
             }
-            if (hands.usable) HandCameraRows(host, track, inSession)
+        }
+        if (hands.usable) SettingsGroup(stringResource(R.string.phone_camera_tracking_group)) {
+            HandCameraRows(host, track, inSession)
         }
     }
 

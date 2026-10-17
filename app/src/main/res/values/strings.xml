@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="glasses_experimental">Experimental</string>
-    <string name="glasses_joycons">Luma Joy-Con tracking</string>
-    <string name="glasses_joycons_hint">Use Luma Ultra stereo cameras to locate the hands holding your Joy-Cons. Joy-Con sensors control rotation; an estimated arm pose follows your head when hands are hidden. Replaces bare hand controllers and pauses the phone camera. Point controllers forward when connecting or recentering.</string>
+    <string name="glasses_experimental">Luma Ultra cameras — Experimental</string>
+    <string name="glasses_joycons">Joy-Con position tracking</string>
+    <string name="glasses_joycons_hint">Use the glasses cameras to position your paired Joy-Cons. Rotation and button inputs come from the Joy-Cons. Position is estimated when your wrists are hidden. Replaces bare-hand controllers and pauses phone-camera tracking. Point the Joy-Cons forward when connecting or recentering.</string>
     <string name="glasses_joycons_requires_position">Enable positional tracking first. Requires motion-capable Joy-Cons on Android 12 or later. Off by default.</string>
     <string name="steamvr_recovery_title">SteamVR graphics stopped</string>
     <string name="steamvr_recovery_countdown">DroidDeck will restart in %1$d seconds to reset graphics and reopen SteamVR. Your running game will close; unsaved progress cannot be restored.</string>
@@ -2395,8 +2395,9 @@
     <string name="glasses_calibration_reset_hint">Remove the saved calibration and restore the model defaults? Recenter after putting the glasses back on.</string>
     <string name="glasses_calibration_reset_button">Reset</string>
     <string name="hand_camera_group">Hand tracking</string>
-    <string name="hand_camera_prompt_title">Track your hands with the camera?</string>
-    <string name="hand_camera_prompt_body">The camera can see your hands. With no controller connected, your bare hands become the VR hands: pinch your thumb and index finger to click, close your hand to grab, and turn your palm toward you and pinch to open the menu. With Joy-Cons, it puts them where your hands really are. Pictures are processed on this device and never saved or sent.</string>
+    <string name="phone_camera_tracking_group">Phone camera — Experimental</string>
+    <string name="hand_camera_prompt_title">Track hands or Joy-Cons with the phone camera?</string>
+    <string name="hand_camera_prompt_body">With no controller connected, the phone camera tracks your bare hands in VR: pinch your thumb and index finger to click, close your hand to grab, and turn your palm toward you and pinch to open the menu. With paired Joy-Cons, the camera tracks their position while the Joy-Cons provide rotation and button inputs. Pictures are processed on this device and never saved or sent.</string>
     <string name="hand_camera_rear">Back camera</string>
     <string name="hand_camera_rear_hint">Recommended. Usually sharper and wider.</string>
     <string name="hand_camera_front">Front camera</string>
@@ -2404,7 +2405,8 @@
     <string name="hand_camera_allow">Use camera</string>
     <string name="hand_camera_not_now">Not now</string>
     <string name="hand_camera_setting">Camera hand tracking</string>
-    <string name="hand_camera_setting_hint">With no controller connected, your hands become the VR hands: pinch to click, palm toward you and pinch for the menu. With Joy-Cons, it places them where the camera sees them. Pictures stay on this device.</string>
+    <string name="phone_camera_tracking_setting">Track hands or Joy-Cons</string>
+    <string name="hand_camera_setting_hint">Use the phone camera for bare-hand gestures or to position paired Joy-Cons in VR. Joy-Cons provide rotation and button inputs. Pauses while the glasses track your hands or Joy-Cons. Pictures stay on this device.</string>
     <string name="hand_camera_choice">Camera</string>
     <string name="hand_camera_access">Camera access</string>
     <string name="hand_camera_access_hint">Allow camera access so hand tracking can start.</string>
@@ -2615,9 +2617,9 @@
         <item quantity="one">%d app</item>
         <item quantity="other">%d apps</item>
     </plurals>
-    <string name="glasses_hands">Hand controllers — Experimental</string>
-    <string name="glasses_hands_hint">May lag or lose tracking during games. Hands aim, pinch and grip; gamepad sticks move and turn.</string>
-    <string name="glasses_hands_ready_hint">Enable Hand controllers — Experimental in Tracking. Show open hands first.</string>
+    <string name="glasses_hands">Bare-hand controllers</string>
+    <string name="glasses_hands_hint">Use the glasses cameras to aim with your hands, pinch to click and close your hand to grab in VR. Gamepad sticks move and turn. Replaces Joy-Con position tracking. May lag or lose tracking during games.</string>
+    <string name="glasses_hands_ready_hint">Enable Bare-hand controllers under Luma Ultra cameras in Tracking. Show open hands first.</string>
     <string name="glasses_hands_base">Shared Luma Ultra calibration</string>
     <string name="glasses_hands_base_hint">Using the shared Luma Ultra base. Calibrate your own glasses to verify their accuracy.</string>
     <string name="glasses_hands_calibration_verified">Measured calibration verified</string>

@@ -169,7 +169,7 @@ internal fun HandCameraRows(host: MenuHost, track: (String) -> Modifier, inSessi
         HandTracking.refreshPermission(context)
         denied = !granted
     }
-    ToggleRow(host, "hand-camera", stringResource(R.string.hand_camera_setting), stringResource(R.string.hand_camera_setting_hint),
+    ToggleRow(host, "hand-camera", stringResource(R.string.phone_camera_tracking_setting), stringResource(R.string.hand_camera_setting_hint),
         s.enabled, chipModifier = track("hand-camera")) { on ->
         HandTracking.setEnabled(context, on)
         if (on && !s.permitted) ask.launch(Manifest.permission.CAMERA)
