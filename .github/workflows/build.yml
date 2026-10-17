@@ -506,7 +506,24 @@ jobs:
         run: python3 -m unittest discover -s tools/tests -p 'test_*.py'
 
       - name: Unit tests
-        run: ./gradlew testReleaseUnitTest --console=plain -PndkVersion="$NDK_VERSION"
+        id: unit-tests
+        run: |
+          set -o pipefail
+          mkdir -p app/build
+          ./gradlew testReleaseUnitTest --console=plain --info --stacktrace -Drobolectric.logging=stderr -PndkVersion="$NDK_VERSION" 2>&1 | tee app/build/unit-tests.log
+
+      - name: Upload unit test diagnostics
+        id: unit-test-diagnostics
+        if: always() && steps.unit-tests.outcome != 'skipped'
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: |
+            app/build/unit-tests.log
+            app/build/test-results/testReleaseUnitTest/
+            app/build/reports/tests/testReleaseUnitTest/
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Sign with the testkey (v1 + v2 + v3)
         run: |
@@ -536,6 +553,15 @@ jobs:
           grep -qi "CN=Android, OU=Android, O=Android" /tmp/sig.txt \
             || { echo "::error::apk is not signed with the AOSP testkey"; exit 1; }
 
+      - uses: actions/upload-artifact@v4
+        id: apk-upload
+        with:
+          name: droiddeck-apk
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
       - name: Report on the pull request
         if: always() && github.event_name == 'pull_request'
         continue-on-error: true
@@ -544,6 +570,9 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           BUILD_OUTCOME: ${{ steps.build.outcome }}
+          UNIT_TEST_OUTCOME: ${{ steps.unit-tests.outcome }}
+          TEST_DIAGNOSTICS_URL: ${{ steps.unit-test-diagnostics.outputs.artifact-url }}
+          APK_OUTCOME: ${{ steps.apk-upload.outcome }}
           SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
         run: |
           set -uo pipefail
@@ -554,8 +583,8 @@ jobs:
             echo
             [ -f /tmp/pr-merge.md ] && cat /tmp/pr-merge.md
             echo
-            case "$BUILD_OUTCOME" in
-              success)
+            case "$BUILD_OUTCOME:$UNIT_TEST_OUTCOME:$APK_OUTCOME" in
+              success:success:success)
                 echo "###  Build passed"
                 echo
                 echo "The \`droiddeck-apk\` artifact is [on this run]($RUN_URL), signed with the public test key."
@@ -568,7 +597,28 @@ jobs:
                 echo
                 echo "Fallback: [open **PR Release Publish**]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/pr-release-publish.yml) on \`main\` and enter PR \`$PR\`."
                 ;;
-              failure)
+              success:success:*)
+                echo "###  APK publication incomplete"
+                echo
+                echo "Compilation and unit tests passed, but APK publication did not complete. See [the run]($RUN_URL)."
+                ;;
+              success:failure:*)
+                echo "### ERROR: Unit tests failed"
+                echo
+                echo "The APK compiled, but unit tests failed. No installable artifact was published."
+                echo
+                if [ -n "$TEST_DIAGNOSTICS_URL" ]; then
+                  echo "The [unit-test-results]($TEST_DIAGNOSTICS_URL) artifact contains the test log and any generated reports."
+                else
+                  echo "The test diagnostics upload did not complete. See [the test log]($RUN_URL)."
+                fi
+                ;;
+              success:*)
+                echo "###  Build incomplete"
+                echo
+                echo "The APK compiled, but unit tests did not complete successfully. See [the run]($RUN_URL)."
+                ;;
+              failure:*)
                 echo "### ERROR: Build failed"
                 echo
                 echo "The compiler's errors ([full log]($RUN_URL)):"
@@ -586,7 +636,7 @@ jobs:
                 echo '```'
                 echo "</details>"
                 ;;
-              skipped|cancelled)
+              skipped:*|cancelled:*)
                 echo "###  Not built"
                 echo
                 echo "The build did not run (see above, or [the run]($RUN_URL))."
@@ -601,14 +651,6 @@ jobs:
           else
             gh api -X POST "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" -F body=@/tmp/pr-report.md >/dev/null
           fi
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: droiddeck-apk
-          path: app/build/outputs/apk/release/*.apk
-          if-no-files-found: error
-          retention-days: 30
-          compression-level: 0
 
   sign:
     needs: build

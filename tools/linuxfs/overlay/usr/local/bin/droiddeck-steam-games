@@ -184,7 +184,7 @@ def unimported(steam_root, snapshot, candidates):
 
 
 def watch(steam_root, listing):
-    games = [game for game in read_json(listing, []) if not store_game(game)]
+    games = [game for game in read_json(listing, []) if not store_game(game) and not game.get("native")]
     if os.environ.get("BL_STEAM_OFFLINE") == "1" or not games:
         return
     candidates, sources = {}, {}
@@ -406,6 +406,9 @@ def route(steam_root, acct, games):
                 release(steam_root, game)
             except OSError as error:
                 print(f"droiddeck-steam-games: store import not undone ({error})")
+            shortcuts.append(game)
+            continue
+        if game.get("native"):
             shortcuts.append(game)
             continue
         folder = game.get("folder", "")

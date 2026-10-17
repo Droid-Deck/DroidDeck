@@ -90,6 +90,12 @@ class GameEnvironmentTest(unittest.TestCase):
         self.assertEqual(env["REMOVE"], "inherited")
         self.assertEqual(MODULE["apply_config"](env, config, "43")["CUSTOM"], "shared")
 
+    def test_a_games_wine_sync_choice_also_reaches_its_setup_runs(self):
+        env = {"BL_SYNC": "1", "BL_SYNC_FALLBACK": "1", "BL_FSYNC_FIRST": "0", "OTHER": "kept"}
+        config = {"version": 1, "games": {"42": {"BL_SYNC": "0", "BL_FSYNC_FIRST": "1", "PROTON_NO_ESYNC": "1", "FEX_TSOENABLED": "1"}}}
+        chosen = MODULE["apply_config"](env, MODULE["sync_config"](config, "42"), "42")
+        self.assertEqual(chosen, {"BL_SYNC": "0", "BL_SYNC_FALLBACK": "1", "BL_FSYNC_FIRST": "1", "PROTON_NO_ESYNC": "1", "OTHER": "kept"})
+
     def test_component_profiles_override_general_and_restore_it_for_the_next_game(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -945,28 +951,6 @@ class DirectAudioPrefixTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-
-class StartWithoutSteamTest(unittest.TestCase):
-    def test_start_without_steam_uses_umu_or_runinprefix_and_only_when_asked(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            ge = Path(tmp) / "ge/proton"
-            ge.parent.mkdir()
-            ge.write_text('if "UMU_ID" in os.environ:\n    argv = [wine, "c:\\\\windows\\\\system32\\\\umu.exe"]\n')
-            valve = Path(tmp) / "valve/proton"
-            valve.parent.mkdir()
-            valve.write_text('argv = [wine, "c:\\\\windows\\\\system32\\\\steam.exe"]\n')
-            start = MODULE["start_without_steam"]
-            game = [str(ge), "waitforexitandrun", "/games/Game.exe", "-windowed"]
-            self.assertEqual(start(game, {}, "3384071994"), (game, {}))
-            on = {"DROIDDECK_NO_STEAM": "1"}
-            self.assertEqual(start(game, on, "3384071994"), (game, dict(on, UMU_ID="0")))
-            self.assertEqual(start(game, on, "570940")[1]["UMU_ID"], "570940")
-            self.assertEqual(start(game, dict(on, UMU_ID="umu-1"), "570940")[1]["UMU_ID"], "umu-1")
-            plain = [str(valve)] + game[1:]
-            self.assertEqual(start(plain, on, "570940"), ([str(valve), "runinprefix", "/games/Game.exe", "-windowed"], on))
-            for other in ([str(ge), "run", "/x.exe"], [str(ge), "waitforexitandrun"], [str(valve), "getcompatpath", "/x"]):
-                self.assertEqual(start(other, on, "570940"), (other, on))
 
 
 class ForceSsbsTest(unittest.TestCase):

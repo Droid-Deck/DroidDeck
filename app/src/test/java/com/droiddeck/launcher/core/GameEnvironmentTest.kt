@@ -122,4 +122,26 @@ class GameEnvironmentTest {
         assertEquals("value", compatibility.games.getValue("42")["CUSTOM"])
         assertEquals("COMPATIBILITY", GameEnvironment.gameFexPreset(compatibility, "42"))
     }
+
+    @Test fun gameSyncChoiceMatchesTheAppWideChoiceAndCanInheritAgain() {
+        val base = GameEnvironment.Config(games = mapOf("42" to mapOf("FEX_TSOENABLED" to "1", "PROTON_NO_ESYNC" to "1")))
+        assertEquals(GameEnvironment.CUSTOM_SYNC, GameEnvironment.gameSync(base, "42"))
+        assertNull(GameEnvironment.gameSync(base, "43"))
+        for (backend in GameEnvironment.syncBackends) {
+            val chosen = GameEnvironment.withGameSync(base, "42", backend)
+            assertEquals(backend, GameEnvironment.gameSync(chosen, "42"))
+            assertEquals("1", chosen.games["42"]!!["FEX_TSOENABLED"])
+        }
+        val ntsync = GameEnvironment.withGameSync(base, "42", "ntsync").games["42"]!!
+        assertEquals(listOf("1", "0", "1"), listOf(ntsync["BL_SYNC"], ntsync["BL_FSYNC_FIRST"], ntsync["BL_SYNC_FALLBACK"]))
+        assertFalse(ntsync.containsKey("PROTON_NO_ESYNC"))
+        val fsync = GameEnvironment.withGameSync(base, "42", "fsync").games["42"]!!
+        assertEquals(listOf("0", "1", "1", "1"), listOf(fsync["BL_SYNC"], fsync["BL_FSYNC_FIRST"], fsync["BL_SYNC_FALLBACK"], fsync["PROTON_NO_ESYNC"]))
+        val wineserver = GameEnvironment.withGameSync(base, "42", "wineserver").games["42"]!!
+        assertEquals(listOf("0", "0", "0"), listOf(wineserver["BL_SYNC"], wineserver["BL_FSYNC_FIRST"], wineserver["BL_SYNC_FALLBACK"]))
+        val inherited = GameEnvironment.withGameSync(base, "42", null)
+        assertNull(GameEnvironment.gameSync(inherited, "42"))
+        assertEquals(mapOf("FEX_TSOENABLED" to "1"), inherited.games["42"])
+        assertTrue(GameEnvironment.withGameSync(GameEnvironment.Config(), "42", null).games.isEmpty())
+    }
 }

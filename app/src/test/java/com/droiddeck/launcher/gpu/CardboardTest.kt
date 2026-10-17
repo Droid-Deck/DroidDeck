@@ -153,4 +153,37 @@ class CardboardTest {
         assertVec(HeadPose.apply(r, floatArrayOf(0f, 1f, 0f)), HeadPose.apply(s270, floatArrayOf(1f, 0f, 0f)))
         assertVec(r, HeadPose.toScreen(HeadPose.toScreen(HeadPose.toScreen(HeadPose.toScreen(r, 1), 1), 1), 1))
     }
+
+    @Test fun glassesLevelAndAheadIsStraightAhead() {
+        val s2w = HeadPose.fromGlasses(0f, 0f, 0f, 1f)
+        assertVec(floatArrayOf(1f, 0f, 0f), HeadPose.apply(s2w, floatArrayOf(0f, 0f, -1f)))
+        assertVec(floatArrayOf(0f, 0f, 1f), HeadPose.apply(s2w, floatArrayOf(0f, 1f, 0f)))
+        assertVec(HeadPose.IDENTITY, HeadPose.relative(HeadPose.recenter(s2w), s2w))
+    }
+
+    @Test fun glassesTurnedLeftLookLeft() {
+        val ref = HeadPose.recenter(HeadPose.fromGlasses(0f, 0f, 0f, 1f))
+        val q = quat(0f, 0f, 1f, 30.0)
+        val view = HeadPose.relative(ref, HeadPose.fromGlasses(q[0], q[1], q[2], q[3]))
+        val s = sin(PI / 6).toFloat(); val c = cos(PI / 6).toFloat()
+        assertVec(floatArrayOf(-s, 0f, -c), HeadPose.apply(view, floatArrayOf(0f, 0f, -1f)))
+        assertVec(floatArrayOf(0f, 1f, 0f), HeadPose.apply(view, floatArrayOf(0f, 1f, 0f)))
+    }
+
+    @Test fun glassesRecenterKeepsTheHorizon() {
+        val q = quat(0f, 0f, 1f, 75.0)
+        val ref = HeadPose.recenter(HeadPose.fromGlasses(q[0], q[1], q[2], q[3]))
+        assertVec(HeadPose.IDENTITY, HeadPose.relative(ref, HeadPose.fromGlasses(q[0], q[1], q[2], q[3])))
+        val tilt = quat(0f, 1f, 0f, 20.0)
+        val both = HeadPose.multiply(HeadPose.fromQuaternion(q[0], q[1], q[2], q[3]), HeadPose.fromQuaternion(tilt[0], tilt[1], tilt[2], tilt[3]))
+        val view = HeadPose.multiply(HeadPose.transpose(ref.basis), HeadPose.multiply(both, floatArrayOf(0f, 0f, -1f, -1f, 0f, 0f, 0f, 1f, 0f)))
+        val ahead = HeadPose.apply(view, floatArrayOf(0f, 0f, -1f))
+        assertEquals(0f, ahead[0], eps)
+        assertEquals(-sin(PI / 9).toFloat(), ahead[1], eps)
+    }
+
+    @Test fun monoIsNotPartOfTheSavedSettings() {
+        val c = Cardboard(enabled = true, mono = true)
+        assertEquals(false, Cardboard.decode(c.encode()).mono)
+    }
 }

@@ -1,0 +1,61 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: DroidDeck <droiddeck@users.noreply.github.com>
+Date: Tue, 13 Oct 2026 00:00:00 +0000
+Subject: [PATCH] seccomp: answer get_robust_list with the head set_robust_list
+ was refused for
+
+diff --git a/src/execve/exit.c b/src/execve/exit.c
+index f32d3ec..b5475b3 100644
+--- a/src/execve/exit.c
++++ b/src/execve/exit.c
+@@ -473,6 +473,8 @@ void translate_execve_exit(Tracee *tracee)
+ 		talloc_set_name_const(tracee->exe, "$exe");
+ 	}
+ 
++	tracee->robust_list = 0;
++
+ 	/* New processes have no heap.  */
+ 	if (talloc_reference_count(tracee->heap) >= 1) {
+ 		talloc_unlink(tracee, tracee->heap);
+diff --git a/src/tracee/seccomp.c b/src/tracee/seccomp.c
+index 77d5b27..0af232b 100644
+--- a/src/tracee/seccomp.c
++++ b/src/tracee/seccomp.c
+@@ -559,6 +559,24 @@ static int handle_seccomp_event_common(Tracee *tracee)
+ 	}
+ 
+ 	case PR_set_robust_list:
++		tracee->robust_list = peek_reg(tracee, CURRENT, SYSARG_1);
++		set_result_after_seccomp(tracee, -ENOSYS);
++		break;
++
++	case PR_get_robust_list:
++	{
++		pid_t pid = (pid_t) peek_reg(tracee, CURRENT, SYSARG_1);
++		if (tracee->robust_list == 0 || (pid != 0 && pid != tracee->pid)) {
++			set_result_after_seccomp(tracee, -ENOSYS);
++			break;
++		}
++		poke_word(tracee, peek_reg(tracee, CURRENT, SYSARG_2), tracee->robust_list);
++		if (errno == 0)
++			poke_word(tracee, peek_reg(tracee, CURRENT, SYSARG_3), 3 * sizeof_word(tracee));
++		set_result_after_seccomp(tracee, errno != 0 ? -EFAULT : 0);
++		break;
++	}
++
+ 	default:
+ 		/* Set errno to -ENOSYS */
+ 		set_result_after_seccomp(tracee, -ENOSYS);
+diff --git a/src/tracee/tracee.h b/src/tracee/tracee.h
+index 1fca85f..496ca75 100644
+--- a/src/tracee/tracee.h
++++ b/src/tracee/tracee.h
+@@ -248,6 +248,8 @@ typedef struct tracee {
+ 	 * has to be ignored as it's same syscall entry */
+ 	bool seccomp_already_handled_enter;
+ 
++	word_t robust_list;
++
+ 	/**********************************************************************
+ 	 * Shared or private resources, depending on the CLONE_FS/VM flags.   *
+ 	 **********************************************************************/

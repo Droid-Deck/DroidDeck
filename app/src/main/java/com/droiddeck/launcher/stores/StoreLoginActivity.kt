@@ -36,9 +36,10 @@ class StoreLoginActivity : ComponentActivity() {
     companion object {
         private const val TAG = "StoreLogin"
         const val EXTRA_STORE = "store"
+        const val EXTRA_CLIENT_URL = "client_url"
         private const val KEY_STATE = "oauth_state"
         @Volatile internal var floodColor: Int? = null
-        private const val CHROME_UA = "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.6533.103 Mobile Safari/537.36"
+        internal const val CHROME_UA = "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.6533.103 Mobile Safari/537.36"
 
         fun generateState(): String {
             val bytes = ByteArray(24)
@@ -56,6 +57,7 @@ class StoreLoginActivity : ComponentActivity() {
     }
 
     private var store: Store? = null
+    private var clientUrl: String? = null
     private var flow: Flow? = null
     private var webViewRef: WebView? = null
     private var popupWebView: WebView? = null
@@ -78,8 +80,9 @@ class StoreLoginActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         store = Store.byId(intent.getStringExtra(EXTRA_STORE))
+        clientUrl = intent.getStringExtra(EXTRA_CLIENT_URL)?.takeIf { store == Store.EPIC }
         oauthState = savedInstanceState?.getString(KEY_STATE) ?: generateState()
-        flow = store?.let { LoginFlows.forStore(it, oauthState!!) }
+        flow = newFlow(oauthState!!)
         floodColor?.let { c ->
             floodColor = null
             flooded = true
@@ -107,6 +110,12 @@ class StoreLoginActivity : ComponentActivity() {
             }
         })
         webView.loadUrl(flow!!.startUrl)
+    }
+
+    private fun newFlow(state: String): Flow? {
+        val url = clientUrl
+        if (url != null) return com.droiddeck.launcher.stores.epic.EpicClient.loginFlow(url)
+        return store?.let { LoginFlows.forStore(it, state) }
     }
 
     override fun finish() {
@@ -187,7 +196,7 @@ class StoreLoginActivity : ComponentActivity() {
         captured.set(false)
         val fresh = generateState()
         oauthState = fresh
-        flow = store?.let { LoginFlows.forStore(it, fresh) } ?: return
+        flow = newFlow(fresh) ?: return
         webViewRef?.let { it.settings.userAgentString = flow!!.userAgent; it.loadUrl(flow!!.startUrl) }
     }
 
@@ -321,6 +330,16 @@ class StoreLoginActivity : ComponentActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         oauthState?.let { outState.putString(KEY_STATE, it) }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (clientUrl != null && !isFinishing) com.droiddeck.launcher.session.SessionService.holdForSignIn(this, true)
+    }
+
+    override fun onStop() {
+        if (clientUrl != null && !isChangingConfigurations) com.droiddeck.launcher.session.SessionService.holdForSignIn(this, false)
+        super.onStop()
     }
 
     override fun onDestroy() {

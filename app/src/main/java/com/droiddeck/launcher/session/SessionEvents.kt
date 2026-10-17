@@ -31,6 +31,7 @@ object SessionEvents {
             SessionState.programArgs = emptyList()
             SessionState.steamUi = null
             SessionState.steamUrl = null
+            SessionState.steamVr = false
             SessionState.firstFrameSeen = false
             SessionState.suspended = false
         }

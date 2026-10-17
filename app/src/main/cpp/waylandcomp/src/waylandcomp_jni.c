@@ -27,13 +27,13 @@ extern void droiddeck_wayland_send_key(int evdev, int state);
 extern void droiddeck_wayland_send_scene_input(int type, int a, int b);
 extern void droiddeck_wayland_vsync(int64_t frame_time_ns);
 extern void droiddeck_wayland_output_resized(void);
+extern void droiddeck_wayland_set_output_refresh_rate(int mhz);
 extern volatile int g_fps_limit;
 extern volatile int g_hide_shell;
 extern volatile int g_zero_copy;
 extern volatile unsigned g_zero_copy_last;
 extern volatile int g_ubwc;
 extern volatile int g_no_render_node;
-extern volatile int g_output_refresh_mhz;
 extern volatile int g_output_w, g_output_h;
 
 #define TAG "DroidDeckWayland"
@@ -328,7 +328,7 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetLayerFrameRate(JN
 
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetOutputRefreshRate(JNIEnv *env, jclass clazz, jfloat hz) {
-    g_output_refresh_mhz = hz > 1.0f ? (int)(hz * 1000.0f + 0.5f) : 0;
+    droiddeck_wayland_set_output_refresh_rate(hz > 1.0f ? (int)(hz * 1000.0f + 0.5f) : 0);
 }
 
 extern void vkp_reset_first_frame(void);
@@ -342,6 +342,7 @@ JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetOutputSize(JNIEnv *env, jclass clazz, jint w, jint h) {
     g_output_w = w > 0 ? w : 0;
     g_output_h = h > 0 ? h : 0;
+    vkp_cardboard_set_render_height(h);
 }
 
 JNIEXPORT void JNICALL
@@ -350,6 +351,7 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeResizeOutput(JNIEnv 
     if (w <= 0 || h <= 0) return;
     g_output_w = w;
     g_output_h = h;
+    vkp_cardboard_set_render_height(h);
     droiddeck_wayland_output_resized();
 }
 
@@ -402,10 +404,11 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetScreenEffects(JNI
 
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetCardboard(JNIEnv *env, jclass clazz, jboolean enabled,
-        jint source, jfloat ipd, jfloat dist, jfloat width, jfloat k1, jfloat k2, jfloat fov, jfloat inset, jfloat chroma) {
+        jint source, jfloat ipd, jfloat dist, jfloat width, jfloat k1, jfloat k2, jfloat fov, jfloat inset, jfloat chroma,
+        jboolean mono, jfloat hz) {
     struct cardboard_params p = {.enabled = enabled ? 1 : 0, .source = source, .ipd_m = ipd, .screen_dist_m = dist,
                                  .screen_width_m = width, .k1 = k1, .k2 = k2, .fov_deg = fov, .lens_inset = inset,
-                                 .chroma = chroma};
+                                 .chroma = chroma, .mono = mono ? 1 : 0, .display_hz = hz};
     vkp_cardboard_set(&p);
 }
 
