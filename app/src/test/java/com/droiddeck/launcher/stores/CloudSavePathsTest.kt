@@ -91,6 +91,13 @@ class CloudSavePathsTest {
         assertEquals("__default", CloudSavePaths.gogNamespaceFromCache("__default", "<?SAVED_GAMES?>/X"))
         assertEquals("", CloudSavePaths.gogNamespaceFromCache("", "<?SAVED_GAMES?>/X"))
         assertEquals(
+            "",
+            CloudSavePaths.gogNamespaceFromCache(
+                "",
+                "%LocalAppData%/GOG.com/Galaxy/Applications/1/Storage/Shared/Files",
+            ),
+        )
+        assertEquals(
             "__default",
             CloudSavePaths.gogNamespaceFromCache(
                 null,

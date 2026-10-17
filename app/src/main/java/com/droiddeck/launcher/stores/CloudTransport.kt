@@ -40,7 +40,7 @@ private fun httpDate(s: String?): Long = try {
 
 internal fun gunzipIfNeeded(data: ByteArray): ByteArray {
     if (data.size < 2 || data[0] != 0x1f.toByte() || data[1] != 0x8b.toByte()) return data
-    return java.util.zip.GZIPInputStream(data.inputStream()).readBytes()
+    return java.util.zip.GZIPInputStream(data.inputStream()).use { it.readBytes() }
 }
 
 internal fun isoDate(s: String?): Long {
