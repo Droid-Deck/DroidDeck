@@ -65,6 +65,7 @@ fun DriverPage(
     status: String,
     checking: Boolean,
     importLabel: String,
+    checkedAt: Long = Long.MAX_VALUE,
     canRestore: Boolean,
     onSelect: (String) -> Unit,
     onDelete: (String) -> Unit,
@@ -79,6 +80,9 @@ fun DriverPage(
     val pal = LocalPalette.current
     var confirm by remember { mutableStateOf<DriverRow?>(null) }
     BackHandler(onBack = onBack)
+    LaunchedEffect(Unit) {
+        if (!checking && System.currentTimeMillis() - checkedAt > 6 * 3_600_000L) onRefresh()
+    }
     val refreshFocus = remember { FocusRequester() }
     val selectedFocus = remember { FocusRequester() }
     val inputMode = LocalInputModeManager.current

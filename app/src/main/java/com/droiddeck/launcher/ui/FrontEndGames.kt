@@ -67,7 +67,7 @@ internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, o
     val games = remember(s.steamGames) { s.steamGames.sortedByDescending { it.lastPlayed } }
     val narrow = LocalNarrowPane.current
     val current = games.firstOrNull { "app:${it.appId}" == selected } ?: games.firstOrNull()
-    GamesDialogs(a)
+    GamesDialogs(a, s.steamGames)
     val onAdd: (() -> Unit)? = if (s.shortcutPicker) null else ({ GamesDialogState.adding = true })
     val pageContext = androidx.compose.ui.platform.LocalContext.current
     val onEdit: (Library.SteamGame) -> Unit = { g ->
@@ -154,6 +154,8 @@ private fun GameActions(g: Library.SteamGame, s: FrontEndState, a: FrontEndActio
         }
         if (!s.shortcutPicker) GameShortcutMenu(g, a)
         if (!s.shortcutPicker && g.library == Library.ADDED && g.source == Library.ADDED && g.gameFiles != null) EditGameButton { onEdit(g) }
+        else if (!s.shortcutPicker && g.library != Library.ADDED && g.source == Library.SOURCE_STEAM) EditGameButton { GamesDialogState.steamArt = g }
+        else if (!s.shortcutPicker && g.library == Library.ADDED && g.source != Library.ADDED && g.gameFiles != null) EditGameButton { GamesDialogState.storeArt = g }
         BusyChip(s)
     }
 }
@@ -328,11 +330,13 @@ internal object GamesDialogState {
     var summary by androidx.compose.runtime.mutableStateOf<Pair<List<com.droiddeck.launcher.frontend.AddedGames.Game>, Int>?>(null)
     var editing by androidx.compose.runtime.mutableStateOf<EditRequest?>(null)
     var checking by androidx.compose.runtime.mutableStateOf<String?>(null)
+    var steamArt by androidx.compose.runtime.mutableStateOf<Library.SteamGame?>(null)
+    var storeArt by androidx.compose.runtime.mutableStateOf<Library.SteamGame?>(null)
     var behindEditor: Pair<List<com.droiddeck.launcher.frontend.AddedGames.Game>, Int>? = null
 }
 
 @Composable
-private fun GamesDialogs(a: FrontEndActions) {
+private fun GamesDialogs(a: FrontEndActions, games: List<Library.SteamGame>) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val st = GamesDialogState
@@ -366,6 +370,13 @@ private fun GamesDialogs(a: FrontEndActions) {
             a.onAddedGameRemoved(folder, appId, name)
         }, onDismiss = { st.summary = null; st.checking = null })
     }
+    st.steamArt?.let { game ->
+        SteamGameArtEditor(games.firstOrNull { it.appId == game.appId && it.library != Library.ADDED } ?: game, onClose = { st.steamArt = null }, onChanged = { a.onSteamGameArtChanged(game.appId) })
+    }
+    st.storeArt?.let { game ->
+        val folder = game.gameFiles?.path
+        if (folder != null) StoreGameArtEditor(folder, game.name, onClose = { st.storeArt = null }, onChanged = { a.onAddedGamesChanged(listOf(folder)) })
+    }
     st.editing?.let { request ->
         AddedGameEditor(
             request,
@@ -386,8 +397,8 @@ private fun EditGameButton(onClick: () -> Unit) {
     val label = stringResource(R.string.common_edit)
     Box(
         contentAlignment = Alignment.Center,
-        modifier = Modifier.paneItem("game:edit").size(40.dp).clip(Shape12)
-            .background(if (hot) pal.signal.copy(alpha = 0.18f) else colors.surface.copy(alpha = 0.55f))
+        modifier = Modifier.paneItem("game:edit").downToFirstTile().size(44.dp).clip(Shape12)
+            .background(if (hot) pal.signal.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.03f))
             .glideBorder(hot, Shape12, pal.signal, pal.line2)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
             .controllerConfirm(onClick = onClick)

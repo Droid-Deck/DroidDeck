@@ -117,11 +117,24 @@ tools/droiddeckctl prefs set session some_key true --type bool
 
 tools/droiddeckctl logs latest ./session-artifacts
 tools/droiddeckctl screenshot ./screen.png --display 4
+tools/droiddeckctl xr-frame ./xr-capture
 tools/droiddeckctl record ./clip.mp4 --seconds 8 --display 0
 tools/droiddeckctl pacing --seconds 30
 tools/droiddeckctl displays
 tools/droiddeckctl wake
 ```
+
+`xr-frame` captures both app eye textures while SteamVR is open, saving `left.png`,
+`right.png` and `capture.json` with the matching source frame, projection poses,
+FOV and dimensions. It works over wired or wireless authorized ADB.
+Newer builds also include `source.png`, the incoming stereo texture before the
+Android eye draw, and sRGB attachment/write state in the metadata for color debugging.
+Source PNGs use the incoming frame's color space and eye PNGs use sRGB. Transfers use Android's
+gzip utility to avoid sending full uncompressed images over wireless ADB.
+A unique request ID prevents stale images from passing as a fresh capture; no valid XR
+layer produces an explicit error. Captures exclude Meta system overlays and
+the headset compositor's final reprojection. GPU readback runs only on request
+and can briefly affect frame timing. Remote files are overwritten each time.
 
 A sleeping device suspends the session and hides the app's windows from `ui dump`; `wake` first.
 
@@ -176,7 +189,7 @@ Automator show them:
 | `play-steam` | Play on the Steam and Games pages |
 | `setting-<key>` | every toggle and choice row, by its key (`setting-logs`, `setting-agent-commands`, ...) |
 | `tab-<n>` | a page's tab strip (Setup's Overview, Controller, Session, Launcher...), by position |
-| `drawer-tab-controller`, `-second_screen`, `-display`, `-effects`, `-games`, `-session` | the session drawer's pages |
+| `drawer-tab-controller`, `-second_screen`, `-display`, `-effects`, `-vr`, `-games`, `-session` | the session drawer's pages |
 | `drawer-stop`, `drawer-stop-confirm`, `drawer-stop-cancel` | stopping a session from the drawer |
 
 ## Scenarios

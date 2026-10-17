@@ -657,6 +657,7 @@ static void take_pixel(struct surface *s, const uint8_t bgra[4], struct wl_resou
 static struct surface *g_hud_surface;
 static int64_t g_hud_last_ns, g_hud_alive_ns;
 static int g_hud_fresh;
+static uint64_t g_game_frames;
 extern void droiddeck_on_game_surface(const char *window, const char *gpu);
 extern void droiddeck_on_game_frame(void);
 extern void droiddeck_on_game_program(int pid, const char *program);
@@ -740,9 +741,11 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
     }
     if (s == g_hud_surface) {
         g_hud_alive_ns = now_ns();
-        if (!repeat) { g_hud_last_ns = g_hud_alive_ns; g_hud_fresh = 1; droiddeck_on_game_frame(); }
+        if (!repeat) { g_hud_last_ns = g_hud_alive_ns; g_hud_fresh = 1; g_game_frames++; droiddeck_on_game_frame(); }
     }
 }
+
+uint64_t droiddeck_game_frames(void) { return g_game_frames; }
 
 struct dmabuf_buffer *droiddeck_dmabuf_from_resource(struct wl_resource *buffer) { return get_dmabuf(buffer); }
 int droiddeck_dmabuf_fd(const struct dmabuf_buffer *b) { return b && b->n_planes > 0 ? b->fd[0] : -1; }
@@ -1871,7 +1874,12 @@ static void render_scene(void) {
         else if (rendered && how == 2) droiddeck_color_frame_shown(hs.color, DROIDDECK_HDR_TONEMAPPED, 0);
         else if (rendered) hdr_copy = "the HDR composition pass is unavailable on this driver";
     }
-    if (hdr_route == 0 || hdr_route == 3) {
+    if (hdr_route == 0 && vkp_quest_layer_presentation() && !framegen && !cardboard &&
+        !ahb_layer_only_candidate(w, h)) {
+        /* The complete SDR scene stays on one display layer. Do not hide/re-show GAME
+         * on each desktop frame just because it is not a single fullscreen window. */
+        rendered = vkp_render(w, h, dl.d, dl.n) == 0;
+    } else if (hdr_route == 0 || hdr_route == 3) {
     const int pass_on = fx_on || framegen;
     int li = (g_zero_copy && !framegen && !cardboard) ? layer_candidate(&dl, w, h) : -1;
     int over = li >= 0 ? dl.n - 1 - li : 0;
@@ -2933,10 +2941,24 @@ static int on_input_readable(int fd, uint32_t mask, void *data) {
         case 6: pointer_delta(m.p1 / 256.0, m.p2 / 256.0); break;
         case 7: deliver_touch(&m); break;
         case 8: output_resized(); break;
+        case 9:
+            vk_present_set_scale_mode(m.p1, m.p2);
+            schedule_render();
+            break;
         default: deliver_pointer(&m); break;
         }
     }
     return 0;
+}
+
+void droiddeck_wayland_set_scale_mode(int mode, int alignment) {
+    if (g_input_pipe[1] < 0) {
+        vk_present_set_scale_mode(mode, alignment);
+        return;
+    }
+    struct input_msg m = { 9, mode, alignment, 0, 0 };
+    ssize_t n = write(g_input_pipe[1], &m, sizeof(m));
+    (void)n;
 }
 
 void droiddeck_wayland_send_pointer(int action, int x, int y) {
@@ -3142,6 +3164,9 @@ int droiddeck_wayland_run(void) {
     open_session_log();
 
     if (vkp_ready() != 0) WLOGE("renderer unavailable; clients will connect but nothing is drawn");
+    /* Presentation compatibility is not HDR capability. Set the initial layer mode before
+     * clients bind, including when Desktop is the first session in this app process. */
+    if (vkp_quest_layer_presentation() && sc_layer_available()) g_zero_copy = 1;
 
     struct wl_display *display = wl_display_create();
     if (!display) {

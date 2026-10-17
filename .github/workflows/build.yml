@@ -193,7 +193,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y -qq gcc-aarch64-linux-gnu g++-aarch64-linux-gnu >/dev/null
+          sudo apt-get install -y -qq gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libvulkan1 mesa-vulkan-drivers >/dev/null
           D=app/src/main/assets/linuxfs
           mkdir -p "$D"
           aarch64-linux-gnu-g++ -shared -fPIC -O2 -Wall -Wno-attributes -Wno-nonnull-compare \
@@ -396,6 +396,30 @@ jobs:
           set -euo pipefail
           bash tools/linuxfs/check-preloads.sh app/src/main/assets/linuxfs
 
+      - name: Check Quest tracking IPC
+        run: |
+          set -euo pipefail
+          NDK="${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-$ANDROID_NDK_ROOT}}"
+          VK_INCLUDE=$(ls -d "$NDK"/toolchains/llvm/prebuilt/*/sysroot/usr/include | head -1)
+          mkdir -p build/vr/include
+          cp -R "$VK_INCLUDE/vulkan" build/vr/include/
+          if [ -d "$VK_INCLUDE/vk_video" ]; then cp -R "$VK_INCLUDE/vk_video" build/vr/include/; fi
+          g++ -std=c++17 -Wall -Wextra -Werror -pthread tools/vr/tests/test_xr_tracking.cpp -o /tmp/test-xr-tracking
+          /tmp/test-xr-tracking
+          g++ -std=c++17 -Wall -Wextra -Werror tools/vr/tests/test_xr_touch.cpp -o /tmp/test-xr-touch
+          /tmp/test-xr-touch
+          g++ -std=c++17 -Wall -Wextra -Werror -pthread tools/vr/tests/test_xr_vsync.cpp -o /tmp/test-xr-vsync
+          /tmp/test-xr-vsync
+          g++ -std=c++17 -Wall -Wextra -Werror -pthread tools/vr/tests/test_xr_frames.cpp -o /tmp/test-xr-frames
+          /tmp/test-xr-frames
+          cc -Itools/vr/third_party/wayland -c tools/vr/src/wayland_client_stub.c -o /tmp/test-wayland-stub.o
+          cc -Itools/vr/third_party/wayland -c app/src/main/cpp/waylandcomp/generated/xdg-shell-protocol.c -o /tmp/test-xdg-shell.o
+          g++ -std=c++17 -Wall -Wextra -Werror -Wno-unused-parameter -Wno-missing-field-initializers -pthread -Ibuild/vr/include \
+            -Itools/vr/third_party/wayland -Iapp/src/main/cpp/waylandcomp/generated \
+            tools/vr/tests/test_presenter_shutdown.cpp tools/vr/src/presenter.cpp /tmp/test-wayland-stub.o /tmp/test-xdg-shell.o \
+            -ldl -o /tmp/test-presenter-shutdown
+          timeout 10 /tmp/test-presenter-shutdown
+
       - name: Rust toolchain for the store engines (aarch64-linux-android)
         id: rust
         run: |
@@ -429,7 +453,7 @@ jobs:
           path: |
             app/.cxx
             app/build/intermediates/cxx
-          key: cxx-${{ env.NDK_VERSION }}-${{ hashFiles('app/src/main/cpp/**') }}
+          key: cxx-${{ env.NDK_VERSION }}-${{ hashFiles('app/src/main/cpp/**', 'tools/vr/src/xr_*.h') }}
           restore-keys: |
             cxx-${{ env.NDK_VERSION }}-
 

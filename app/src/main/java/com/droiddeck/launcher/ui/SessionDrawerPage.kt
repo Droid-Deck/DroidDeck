@@ -5,6 +5,7 @@ internal enum class SessionDrawerPage(val firstControl: String) {
     SECOND_SCREEN("second-screen:none"),
     DISPLAY("hud"),
     EFFECTS("look"),
+    VR("steamvr"),
     GAMES("anisotropy"),
     SESSION("suspend"),
 }

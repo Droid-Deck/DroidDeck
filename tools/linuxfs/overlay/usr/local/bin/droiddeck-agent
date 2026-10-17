@@ -177,6 +177,11 @@ class X:
             return list(struct.unpack("<%dI" % n, data))
         return data
 
+    def cardinals(self, window, name, values):
+        self.s.sendall(struct.pack("<BBHIIIB3xI", 18, 0, 6 + len(values), window,
+                                  self.atom(name), self.atom("CARDINAL"), 32, len(values))
+                       + struct.pack("<%dI" % len(values), *values))
+
 
 def windows(x):
     """Top-level windows that are mapped or carry an app id: what gamescope picks focus from."""
@@ -249,6 +254,42 @@ def focus_snapshot():
     return snap
 
 
+def vr_scene_app(path=Path('/run/droiddeck/droiddeck-steamvr/scene-focus.json'), proc=Path('/proc')):
+    """Only a live SteamVR scene with its dashboard hidden may claim game focus."""
+    try:
+        state = json.loads(path.read_text())
+        server, scene = int(state['serverPid']), int(state['scenePid'])
+        if server <= 0 or scene <= 0 or state['dashboard'] is not False:
+            return None
+        if (proc / str(server) / 'comm').read_text().strip() != 'vrserver':
+            return None
+        for entry in (proc / str(scene) / 'environ').read_bytes().split(b'\0'):
+            if entry.startswith(b'SteamAppId='):
+                app = int(entry.split(b'=', 1)[1])
+                return app if 0 < app < 2**32 else None
+    except (OSError, ValueError, TypeError, KeyError):
+        pass
+    return None
+
+
+class VrSceneFocus:
+    def __init__(self):
+        self.original = None
+        self.written = None
+
+    def order(self, current, focusable, app):
+        if app is None or app not in focusable:
+            restore = self.original if self.written == current else None
+            self.original = self.written = None
+            return restore
+        if current and current[0] == app:
+            return None
+        if self.original is None:
+            self.original = list(current)
+        self.written = [app] + [item for item in current if item != app]
+        return self.written
+
+
 class FocusWatcher(threading.Thread):
     """Rewrites focus.json when gamescope's focus properties change, and every few seconds when
     the windows do (a window can change without any root property moving)."""
@@ -259,15 +300,28 @@ class FocusWatcher(threading.Thread):
         self.changed = threading.Event()
         self.last = None
         self.seq = 0
+        self.vr_focus = VrSceneFocus()
 
     def run(self):
         threading.Thread(target=self.listen, daemon=True, name="focus-events").start()
+        last_app, last_snapshot = None, 0
         while True:
-            self.changed.wait(timeout=5)
+            notified = self.changed.wait(timeout=0.5)
             self.changed.clear()
+            app = vr_scene_app()
+            if not notified and app == last_app and time.monotonic() - last_snapshot < 5:
+                continue
+            last_app, last_snapshot = app, time.monotonic()
             time.sleep(0.2)
             try:
                 snap = focus_snapshot()
+                order = self.vr_focus.order(snap.get('baselayerAppIds', []), snap.get('focusableApps', []), app)
+                if order is not None:
+                    x = X(os.environ['DISPLAY'])
+                    try:
+                        x.cardinals(x.root, 'GAMESCOPECTRL_BASELAYER_APPID', order)
+                    finally:
+                        x.close()
             except (OSError, AgentError) as e:
                 log("focus snapshot failed: %s" % e)
                 time.sleep(2)

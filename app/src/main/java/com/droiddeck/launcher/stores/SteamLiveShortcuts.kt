@@ -5,6 +5,7 @@ import android.util.Base64
 import android.util.Log
 import com.droiddeck.launcher.frontend.AddedGames
 import com.droiddeck.launcher.frontend.Library
+import com.droiddeck.launcher.frontend.LogoPosition
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
@@ -88,6 +89,15 @@ object SteamLiveShortcuts {
             }
         }
         if (evaluate(context, js) != null) Log.i(TAG, "live shortcuts: art $assetType for $id")
+    }
+
+    /** Moves and resizes a game's logo in the running client; with null the client's default position comes back. */
+    fun setLogoPosition(context: Context, appId: Long, position: LogoPosition.Value?) {
+        if (!clientRunning()) return
+        val id = appId and 0xFFFFFFFFL
+        val js = if (position == null) "(async () => { try { await SteamClient.Apps.ClearCustomLogoPositionForApp($id); } catch (e) {} return 1; })()"
+        else "(async () => { try { await SteamClient.Apps.SetCustomLogoPositionForApp($id, ${JSONObject.quote(LogoPosition.toJson(position).toString())}); } catch (e) {} return 1; })()"
+        if (evaluate(context, js) != null) Log.i(TAG, "live shortcuts: logo position for $id")
     }
 
     private fun clientRunning(): Boolean = SessionState.running && SessionState.mode == SessionService.MODE_STEAM && !SessionState.stopRequested

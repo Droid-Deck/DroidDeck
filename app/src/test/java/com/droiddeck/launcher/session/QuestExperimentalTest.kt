@@ -76,6 +76,35 @@ class QuestExperimentalTest {
         assertFalse(QuestExperimental.supported("Pixel 7", "panther", "Google"))
     }
 
+    @Test fun autoUsesTheQuestPairWithoutChangingOtherSettings() {
+        for (model in listOf("Quest 3", "Quest 3S", "Quest 2")) {
+            ShadowBuild.setModel(model)
+            SessionPrefs.setGpuDriverMode(context, SessionPrefs.GPU_DRIVERS_AUTO)
+            SessionPrefs.setAndroidDriver(context, "downloaded-display")
+            SessionPrefs.setLinuxDriver(context, "downloaded-linux")
+            SessionPrefs.setHdr(context, "steam", false)
+            assertTrue(QuestExperimental.applyAutoDrivers(context))
+            assertEquals(if (model == "Quest 2") QuestExperimental.DRIVER_A6XX else QuestExperimental.DRIVER,
+                SessionPrefs.androidDriver(context))
+            assertEquals("", SessionPrefs.linuxDriver(context))
+            assertEquals(SessionPrefs.GPU_DRIVERS_AUTO, SessionPrefs.gpuDriverMode(context))
+            assertFalse(SessionPrefs.hdr(context, "steam"))
+        }
+    }
+
+    @Test fun autoLeavesManualQuestChoicesAndOtherDevicesAlone() {
+        for ((model, mode) in listOf("Quest 3" to SessionPrefs.GPU_DRIVERS_MANUAL,
+            "Phone" to SessionPrefs.GPU_DRIVERS_AUTO)) {
+            ShadowBuild.setModel(model)
+            SessionPrefs.setGpuDriverMode(context, mode)
+            SessionPrefs.setAndroidDriver(context, "chosen-display")
+            SessionPrefs.setLinuxDriver(context, "chosen-linux")
+            assertFalse(QuestExperimental.applyAutoDrivers(context))
+            assertEquals("chosen-display", SessionPrefs.androidDriver(context))
+            assertEquals("chosen-linux", SessionPrefs.linuxDriver(context))
+        }
+    }
+
     @Test fun installedPackagesUseSeparateSandboxSockets() {
         val packages = listOf("com.droiddeck.launcher", "com.tencent.ig",
             "com.antutu.benchmark.full", "com.ludashi.benchmark")

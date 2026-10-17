@@ -27,6 +27,7 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import com.droiddeck.launcher.core.FexPreset
 import com.droiddeck.launcher.runtime.DeckyManager
+import com.droiddeck.launcher.session.BootMovie
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionService
 
@@ -77,12 +78,18 @@ class ModeSettings(
     val fexPreset: String? = null,
     val forceSsbs: Boolean = false,
     val syncBackend: String? = null,
+    val picturePosition: String? = null,
     val stretch16x9: Boolean? = null,
     val steamRepairQueued: Boolean = false,
     val mangoapp: Boolean = true,
     val steamController: String? = null,
     val unfoldedControls: Boolean? = null,
     val runSteamAtStartup: Boolean = false,
+    val bootMovie: String? = null,
+    val bootMovieSound: Boolean = true,
+    val bootMovieCustomName: String? = null,
+    val bootMovieImporting: Boolean = false,
+    val bootMovieProgress: Int = -1,
     val wifiDiscovery: Boolean? = null,
     val wifiDiscoveryPermission: Boolean = false,
     val wifiDiscoveryLocation: Boolean = false,
@@ -120,12 +127,17 @@ class ModeSettingsActions(
     val onFexPreset: (String) -> Unit = {},
     val onForceSsbs: (Boolean) -> Unit = {},
     val onSyncBackend: (String) -> Unit = {},
+    val onPicturePosition: (String) -> Unit = {},
     val onStretch16x9: (Boolean) -> Unit = {},
     val onSteamRepair: () -> Unit = {},
     val onMangoapp: (Boolean) -> Unit = {},
     val onSteamController: (String) -> Unit = {},
     val onUnfoldedControls: (Boolean) -> Unit = {},
     val onRunSteamAtStartup: (Boolean) -> Unit = {},
+    val onBootMovie: (String) -> Unit = {},
+    val onBootMovieSound: (Boolean) -> Unit = {},
+    val onImportBootMovie: () -> Unit = {},
+    val onRemoveBootMovie: () -> Unit = {},
     val onWifiDiscovery: (Boolean) -> Unit = {},
     val onWifiDiscoverySettings: () -> Unit = {},
     val onDeckyInstall: (DeckyManager.Release) -> Unit = {},
@@ -167,6 +179,13 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
         val displaySize = com.droiddeck.launcher.session.SessionDisplay.resolveChoice(s.panelSize, s.resolution)
         SettingsGroup(stringResource(R.string.display_session)) {
             ResolutionRow(host, s.resolution, s.panelSize, a.onResolution)
+            s.picturePosition?.let { position ->
+                ChoiceRow(host, "picture-position", stringResource(R.string.display_picture_position), null,
+                    listOf("top" to stringResource(R.string.display_position_top),
+                        "bottom" to stringResource(R.string.display_position_bottom),
+                        "center" to stringResource(R.string.display_position_center)),
+                    position, onPick = a.onPicturePosition)
+            }
             if (s.stretch16x9 != null && (com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(s.panelSize) ||
                     com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(displaySize))) {
                 val canStretch = com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(displaySize)
@@ -406,6 +425,41 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 stringResource(if (s.steamRepairQueued) R.string.mode_steam_repair_queued else R.string.mode_steam_repair_hint),
             ) {
                 SecondaryButton(stringResource(R.string.mode_steam_repair_button), enabled = !s.steamRepairQueued, onClick = a.onSteamRepair)
+            }
+        }
+        if (s.bootMovie != null) SettingsGroup(stringResource(R.string.boot_movie)) {
+            ChoiceRow(
+                host, "boot-movie", stringResource(R.string.boot_movie_video), stringResource(R.string.common_applies_next_session),
+                buildList {
+                    add(BootMovie.DROIDDECK_30 to stringResource(R.string.boot_movie_droiddeck, 30))
+                    add(BootMovie.DROIDDECK_60 to stringResource(R.string.boot_movie_droiddeck, 60))
+                    s.bootMovieCustomName?.let { add(BootMovie.CUSTOM to it) }
+                }, s.bootMovie,
+                note = stringResource(R.string.boot_movie_note), onPick = a.onBootMovie,
+            )
+            ToggleRow(
+                host, "boot-movie-sound", stringResource(R.string.boot_movie_sound),
+                stringResource(R.string.common_applies_next_session), s.bootMovieSound, onChange = a.onBootMovieSound,
+            )
+            SettingsRow(
+                stringResource(R.string.boot_movie_custom),
+                stringResource(R.string.boot_movie_custom_hint, (BootMovie.MAX_BYTES shr 20).toInt(), BootMovie.MAX_CONVERT_SECONDS),
+            ) {
+                Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
+                    SecondaryButton(
+                        when {
+                            s.bootMovieProgress >= 0 -> stringResource(R.string.boot_movie_converting, s.bootMovieProgress)
+                            s.bootMovieImporting -> stringResource(R.string.common_working)
+                            else -> stringResource(R.string.boot_movie_import)
+                        },
+                        enabled = !s.bootMovieImporting,
+                        progress = s.bootMovieProgress.takeIf { it >= 0 }?.let { it / 100f },
+                        onClick = a.onImportBootMovie,
+                    )
+                    if (s.bootMovieCustomName != null) SecondaryButton(
+                        stringResource(R.string.boot_movie_remove), enabled = !s.bootMovieImporting, onClick = a.onRemoveBootMovie,
+                    )
+                }
             }
         }
         if (s.wifiDiscovery != null) SettingsGroup(stringResource(R.string.mode_network)) {
