@@ -560,6 +560,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         isFocusableInTouchMode = true
         defaultFocusHighlightEnabled = false
         setContent {
+            androidx.compose.runtime.SideEffect {
+                com.droiddeck.launcher.glasses.GlassesMenuMirror.setSessionMenuVisible(this@SessionActivity,
+                    (drawerOpen || achievementsOpen || pcKeyboardOpen) && !pipUi && steamVrStatus != SteamVr.Status.RUNNING)
+            }
+            androidx.compose.runtime.DisposableEffect(Unit) {
+                onDispose { com.droiddeck.launcher.glasses.GlassesMenuMirror.setSessionMenuVisible(this@SessionActivity, false) }
+            }
             androidx.compose.runtime.LaunchedEffect(drawerOpen, pcKeyboardOpen, achievementsOpen, pipUi) { updatePointerCapture() }
             androidx.compose.runtime.LaunchedEffect(picturePosition, SessionState.running, pipUi, cardboard.enabled) { applyGameAlignment() }
             DroidDeckTheme {
@@ -663,7 +670,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     onCardboardRecenter = { headTracker?.recenter() },
                     glassesPresent = glasses.present,
                     glassesOutput = glassesOutputActive,
-                    onGlassesRecenter = { headTracker?.recenter() },
+                    onGlassesRecenter = {
+                        headTracker?.recenter()
+                        com.droiddeck.launcher.glasses.GlassesMenuMirror.recenter()
+                    },
                     steamVr = steamVrStatus,
                     immersiveSteamVr = com.droiddeck.launcher.session.QuestExperimental.isSupported(),
                     onSteamVr = { action -> steamVrAction(action) },

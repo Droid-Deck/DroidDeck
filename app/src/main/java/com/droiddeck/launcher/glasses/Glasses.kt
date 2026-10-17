@@ -152,6 +152,7 @@ object Glasses {
     private var autoModeSent = false
 
     @Volatile private var sink: PoseSink? = null
+    private val poseObservers = java.util.concurrent.CopyOnWriteArraySet<PoseSink>()
     @Volatile private var probe: ((ByteArray?, FloatArray?) -> Unit)? = null
     @Volatile private var latest: FloatArray? = null
     @Volatile private var imuPackets = 0L
@@ -414,6 +415,16 @@ object Glasses {
 
     fun clearPoseSink(s: PoseSink) {
         synchronized(this) { if (sink === s) sink = null }
+        post { updateImu() }
+    }
+
+    internal fun addPoseObserver(observer: PoseSink) {
+        poseObservers.add(observer)
+        post { updateImu() }
+    }
+
+    internal fun removePoseObserver(observer: PoseSink) {
+        poseObservers.remove(observer)
         post { updateImu() }
     }
 
@@ -928,7 +939,7 @@ object Glasses {
     private fun updateImu() {
         val l = link ?: return
         if (!l.ready) return
-        val want = (sink != null || probe != null || _calibration.value.running || SpatialTracking.enabled) && l.hasImu
+        val want = (sink != null || poseObservers.isNotEmpty() || probe != null || _calibration.value.running || SpatialTracking.enabled) && l.hasImu
         if (want == _state.value.tracking) return
         val accepted = l.send(VitureProtocol.MSG_IMU, byteArrayOf(if (want) 1 else 0))
         if (want && !accepted) return
@@ -969,6 +980,7 @@ object Glasses {
     private fun deliver(q: FloatArray, timeNs: Long) {
         latest = q
         sink?.onPose(q[0], q[1], q[2], q[3], timeNs)
+        poseObservers.forEach { it.onPose(q[0], q[1], q[2], q[3], timeNs) }
     }
 
     private fun onReport(frame: VitureProtocol.Frame) {

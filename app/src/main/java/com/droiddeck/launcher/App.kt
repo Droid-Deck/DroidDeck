@@ -27,6 +27,7 @@ class App : Application() {
         com.droiddeck.launcher.update.AppUpdates.init(this)
         GpuClockPin.clearLeftover(this)
         com.droiddeck.launcher.glasses.Glasses.init(this)
+        com.droiddeck.launcher.glasses.GlassesMenuMirror.initialize(this)
         BwrapSpawner.start(this)
         com.droiddeck.launcher.frontend.GameFileSync.start(this)
         com.droiddeck.launcher.stores.StoresState.init(this)

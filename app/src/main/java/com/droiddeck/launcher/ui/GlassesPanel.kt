@@ -111,10 +111,11 @@ internal fun GlassesGroups(
     val flatPicture = picture == GlassesRendering.Picture.FLAT || picture == GlassesRendering.Picture.DUPLICATED
     val virtualScreen = usesGlasses && picture == GlassesRendering.Picture.VIRTUAL_SCREEN
     val directView = usesGlasses && picture == GlassesRendering.Picture.STEREO
-    if (inSession && g.canControl && onRecenter != null && s.headTracking && (virtualScreen || (directView && steamVrRunning))) {
+    val menuScreen = !inSession && g.usable && s.gameOnGlasses && s.screen3dof
+    if (g.canControl && onRecenter != null && s.headTracking && (virtualScreen || menuScreen || (directView && steamVrRunning))) {
         SettingsGroup(stringResource(R.string.glasses_quick_actions), compact = true) {
             ActionRow(stringResource(R.string.glasses_recenter),
-                if (virtualScreen) stringResource(R.string.glasses_recenter_screen_hint) else null,
+                if (virtualScreen || menuScreen) stringResource(R.string.glasses_recenter_screen_hint) else null,
                 stringResource(R.string.cardboard_recenter_button), onRecenter)
         }
     }
@@ -167,7 +168,7 @@ internal fun GlassesGroups(
             stringResource(if (g.spatialConnected && s.positionalTracking) R.string.glasses_6dof else R.string.glasses_3dof),
             stringResource(R.string.glasses_3dof_hint), s.screen3dof, chipModifier = track("glasses-3dof")) { Glasses.set3dof(it) }
         when {
-            !inSession -> SettingsRow(stringResource(R.string.glasses_picture_screen), stringResource(R.string.glasses_screen_next_session)) {}
+            !inSession -> SettingsRow(stringResource(R.string.glasses_picture_screen), stringResource(R.string.glasses_screen_app_wide)) {}
             !usesGlasses -> SettingsRow(stringResource(R.string.glasses_picture_screen), stringResource(R.string.glasses_screen_no_output)) {}
             flatPicture -> ActionRow(
                 stringResource(R.string.glasses_picture_screen), stringResource(R.string.glasses_screen_flat_hint),

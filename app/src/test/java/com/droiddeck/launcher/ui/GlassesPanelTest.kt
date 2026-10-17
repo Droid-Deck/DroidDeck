@@ -200,7 +200,7 @@ class GlassesPanelTest {
         compose.onNodeWithTag("glasses-width").assertIsEnabled()
         compose.onNodeWithTag("glasses-distance").assertIsEnabled()
         compose.onNodeWithTag("glasses-vr-fov").assertDoesNotExist()
-        compose.onNodeWithText(text(R.string.glasses_screen_next_session)).assertExists()
+        compose.onNodeWithText(text(R.string.glasses_screen_app_wide)).assertExists()
     }
 
     @Test fun flatTrackingExplainsTheModeAndHidesInactiveRecenter() {
@@ -262,6 +262,32 @@ class GlassesPanelTest {
 
     @Test fun recenterIsHiddenWhenHeadTrackingIsOff() {
         show(settings = GlassesSettings(headTracking = false, picture3d = GlassesSettings.PICTURE_SCREEN))
+        compose.onNodeWithText(text(R.string.cardboard_recenter_button)).assertDoesNotExist()
+    }
+
+    @Test fun trackedMenusCanRecenterWithoutStartingASession() {
+        var recenters = 0
+        show(settings = GlassesSettings(picture3d = GlassesSettings.PICTURE_SCREEN), inSession = false,
+            onRecenter = { recenters++ })
+
+        compose.onNodeWithText(text(R.string.glasses_recenter_screen_hint)).assertExists()
+        compose.onNodeWithText(text(R.string.cardboard_recenter_button)).performClick()
+        org.junit.Assert.assertEquals(1, recenters)
+    }
+
+    @Test fun positionalMenusUseTheSameRecenterAction() {
+        var recenters = 0
+        show(settings = GlassesSettings(picture3d = GlassesSettings.PICTURE_SCREEN, positionalTracking = true),
+            supportsSpatial = true, inSession = false, onRecenter = { recenters++ })
+
+        compose.onNodeWithText(text(R.string.glasses_recenter_screen_hint)).assertExists()
+        compose.onNodeWithText(text(R.string.cardboard_recenter_button)).performClick()
+        org.junit.Assert.assertEquals(1, recenters)
+    }
+
+    @Test fun menusWithoutDedicatedGlassesOutputDoNotOfferRecenter() {
+        show(settings = GlassesSettings(picture3d = GlassesSettings.PICTURE_SCREEN, gameOnGlasses = false),
+            inSession = false)
         compose.onNodeWithText(text(R.string.cardboard_recenter_button)).assertDoesNotExist()
     }
 
@@ -361,6 +387,7 @@ class GlassesPanelTest {
         tab: String? = GlassesTab.DISPLAY,
         observedState: androidx.compose.runtime.State<GlassesState>? = null,
         observedSteamVr: androidx.compose.runtime.State<Boolean>? = null,
+        onRecenter: (() -> Unit)? = {},
     ) {
         val state = GlassesState(present = true, connected = controlAvailable, controllable = true,
             displayId = Display.DEFAULT_DISPLAY + 1, width = if (stereo) 3840 else 1920, height = 1200,
@@ -377,7 +404,7 @@ class GlassesPanelTest {
                                 "glasses-width", "glasses-distance", "glasses-vr-fov" -> Modifier.testTag(key)
                                 else -> Modifier
                             }
-                        }, onRecenter = {},
+                        }, onRecenter = onRecenter,
                         inSession = inSession, outputActive = outputActive,
                         steamVrRunning = observedSteamVr?.value ?: steamVrRunning, tab = tab)
                 }

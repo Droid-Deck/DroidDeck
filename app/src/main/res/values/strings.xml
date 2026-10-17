@@ -2209,6 +2209,9 @@
     <string name="gpu_use_title">Use %1$s?</string>
     <string name="proton_remove_title">Remove %1$s?</string>
     <string name="setup_tab_diagnostics">Diagnostics</string>
+    <string name="setup_tab_glasses">Smart glasses</string>
+    <string name="setup_glasses_scope">Display and head-tracking settings are shared across DroidDeck menus, games and desktop sessions.</string>
+    <string name="setup_glasses_connect">Connect smart glasses to change their display and tracking settings. Your saved settings are kept when you disconnect.</string>
     <string name="setup_ready">Ready to play</string>
     <string name="setup_not_ready">Not ready to play yet</string>
     <string name="setup_ready_runtime">runtime %1$s</string>
@@ -2356,6 +2359,7 @@
     <string name="glasses_screen_size">Screen width</string>
     <string name="glasses_screen_distance">Screen distance</string>
     <string name="glasses_screen_next_session">Width and distance apply when a game runs on the glasses as a virtual screen.</string>
+    <string name="glasses_screen_app_wide">Width and distance update the tracked virtual screen for DroidDeck menus, games and desktop sessions immediately.</string>
     <string name="glasses_screen_no_output">These settings apply while Game on glasses is enabled and the game is displayed there.</string>
     <string name="glasses_screen_flat_hint">Automatic keeps this 2D game full-screen. Use a virtual screen to adjust its width, distance and head tracking.</string>
     <string name="glasses_screen_use">Use virtual screen</string>

@@ -85,6 +85,7 @@ import com.droiddeck.launcher.R
 private enum class CheckState { OK, WARN, BUSY }
 
 private const val STORAGE_TAB = 3
+private const val GLASSES_TAB = 5
 
 @Composable
 private fun CheckRow(state: CheckState, title: String, detail: String?, divider: Boolean = true, action: (@Composable () -> Unit)? = null) {
@@ -167,7 +168,7 @@ internal fun SetupPanel(
     var showLimitDetails by rememberSaveable { mutableStateOf(false) }
     var editSgdbKey by remember { mutableStateOf(false) }
     if (editSgdbKey) SgdbKeyDialog(s.sgdbUserKey, onSave = { a.onSgdbKey(it); editSgdbKey = false }, onDismiss = { editSgdbKey = false })
-    val tabs = listOf(stringResource(R.string.setup_tab_overview), stringResource(R.string.setup_tab_controller), stringResource(R.string.setup_tab_launcher), stringResource(R.string.setup_tab_storage), stringResource(R.string.setup_tab_diagnostics))
+    val tabs = listOf(stringResource(R.string.setup_tab_overview), stringResource(R.string.setup_tab_controller), stringResource(R.string.setup_tab_launcher), stringResource(R.string.setup_tab_storage), stringResource(R.string.setup_tab_diagnostics), stringResource(R.string.setup_tab_glasses))
     var tab by rememberSaveable { mutableStateOf(0) }
     val chipFocus = remember { List(tabs.size) { FocusRequester() } }
     var tabTurned by remember { mutableStateOf(false) }
@@ -407,6 +408,7 @@ internal fun SetupPanel(
                                 stringResource(R.string.setup_reset_settings_button), a.onResetSettings)
                         }
                     }
+                    GLASSES_TAB -> GlassesSetupPanel()
                 }
             }
         }
