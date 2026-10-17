@@ -191,7 +191,7 @@ private fun UninstallEpicLauncher(s: FrontEndState, a: FrontEndActions) {
         val body = stringResource(R.string.epic_client_uninstall_body)
         ConfirmDialog(
             title = stringResource(R.string.stores_uninstall_title, stringResource(R.string.epic_client_title)),
-            text = if (com.droiddeck.launcher.session.SessionState.running) body + "\n\n" + stringResource(R.string.epic_client_uninstall_stops) else body,
+            text = if (s.sessionRunning) body + "\n\n" + stringResource(R.string.epic_client_uninstall_stops) else body,
             confirm = stringResource(R.string.common_uninstall),
             onConfirm = { a.onUninstallEpicLauncher() },
             onDismiss = { asking = false },

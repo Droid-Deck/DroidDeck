@@ -534,7 +534,8 @@ class MainActivity : ComponentActivity() {
             while ((SessionState.running || SessionState.phase !in SESSION_ENDED) && android.os.SystemClock.uptimeMillis() < deadline) {
                 Thread.sleep(SESSION_SWITCH_POLL_MS)
             }
-            val done = if (SessionState.running) false else com.droiddeck.launcher.stores.epic.EpicClient.uninstall(app)
+            val ended = !SessionState.running && SessionState.phase in SESSION_ENDED
+            val done = ended && com.droiddeck.launcher.stores.epic.EpicClient.uninstall(app)
             ui.post {
                 if (!isDestroyed) refresh()
                 android.widget.Toast.makeText(app, if (done) R.string.epic_client_uninstalled else R.string.epic_client_uninstall_failed,
