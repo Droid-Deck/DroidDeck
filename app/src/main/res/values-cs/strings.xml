@@ -448,6 +448,7 @@
     <string name="game_no_steam_title">Spustit bez Steamu</string>
     <string name="game_no_steam_detail">Pro hru, která se hned zavře: spustí ji bez nastavení Steamu v Protonu. Funkce Steamu, jako je překryvná vrstva, jsou pro ni vypnuté.</string>
     <string name="game_no_steam_on">Zapnuto</string>
+    <string name="game_locale_title">Národní prostředí</string>
     <string name="comp_game_proton_live">Výběr Protonu pro %1$s je uložen a hned dostupný ve Steamu.</string>
     <string name="comp_game_proton_next">Výběr Protonu pro %1$s je uložen. Před spuštěním hry restartujte Steam.</string>
     <string name="comp_game_proton_not_runnable">%1$s nemůže na tomto zařízení použít vybraný Proton.</string>

@@ -443,6 +443,7 @@
     <string name="game_no_steam_title">Iniciar sin Steam</string>
     <string name="game_no_steam_detail">Para un juego que se cierra enseguida: lo inicia sin la configuración de Steam de Proton. Las funciones de Steam, como la superposición, están desactivadas para él.</string>
     <string name="game_no_steam_on">Activado</string>
+    <string name="game_locale_title">Configuración regional</string>
     <string name="comp_game_proton_live">La elección de Proton de %1$s se ha guardado y ya está disponible en Steam.</string>
     <string name="comp_game_proton_next">La elección de Proton de %1$s se ha guardado. Reinicia Steam antes de iniciar el juego.</string>
     <string name="comp_game_proton_not_runnable">%1$s no puede usar el Proton elegido en este dispositivo.</string>

@@ -48,6 +48,30 @@ object GameEnvironment {
         return withScopeValue(config, scope, NO_STEAM, if (on) "1" else null)
     }
 
+    const val LOCALE = "DROIDDECK_LOCALE"
+
+    val locales = listOf(
+        "ja_JP.UTF-8",
+        "ko_KR.UTF-8",
+        "zh_CN.UTF-8",
+        "zh_TW.UTF-8",
+        "en_US.UTF-8",
+        "ru_RU.UTF-8",
+        "de_DE.UTF-8",
+        "fr_FR.UTF-8",
+        "es_ES.UTF-8",
+        "pt_BR.UTF-8",
+    )
+
+    fun gameLocale(config: Config, scope: String): String? =
+        scope.takeIf { it.isNotEmpty() }?.let { config.games[it]?.get(LOCALE) }?.takeIf { it.isNotEmpty() }
+
+    fun withGameLocale(config: Config, scope: String, locale: String?): Config {
+        require(scope.isNotEmpty() && validScope(scope))
+        require(locale == null || locale in locales)
+        return withScopeValue(config, scope, LOCALE, locale)
+    }
+
     fun effective(config: Config, preset: String, scope: String, forceSsbs: Boolean = false): Map<String, String?> =
         defaults(preset, forceSsbs) + config.shared + if (scope.isEmpty()) emptyMap() else config.games[scope].orEmpty()
 

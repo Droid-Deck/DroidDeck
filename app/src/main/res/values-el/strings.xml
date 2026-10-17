@@ -444,6 +444,7 @@
     <string name="game_no_steam_title">Εκκίνηση χωρίς το Steam</string>
     <string name="game_no_steam_detail">Για παιχνίδι που κλείνει αμέσως: το εκκινεί χωρίς τη ρύθμιση του Steam στο Proton. Λειτουργίες του Steam, όπως το overlay, είναι απενεργοποιημένες για αυτό.</string>
     <string name="game_no_steam_on">Ενεργό</string>
+    <string name="game_locale_title">Τοπικές ρυθμίσεις</string>
     <string name="comp_game_proton_live">Η επιλογή Proton του %1$s αποθηκεύτηκε και είναι διαθέσιμη στο Steam τώρα.</string>
     <string name="comp_game_proton_next">Η επιλογή Proton του %1$s αποθηκεύτηκε. Κάντε επανεκκίνηση του Steam πριν εκκινήσετε το παιχνίδι.</string>
     <string name="comp_game_proton_not_runnable">Το %1$s δεν μπορεί να χρησιμοποιήσει το επιλεγμένο Proton σε αυτή τη συσκευή.</string>

@@ -441,6 +441,7 @@
     <string name="game_no_steam_title">Ohne Steam starten</string>
     <string name="game_no_steam_detail">Für ein Spiel, das sich sofort schließt: startet es ohne Protons Steam-Einrichtung. Steam-Funktionen wie das Overlay sind dafür deaktiviert.</string>
     <string name="game_no_steam_on">An</string>
+    <string name="game_locale_title">Regionaleinstellungen</string>
     <string name="comp_game_proton_live">Die Proton-Auswahl für %1$s ist gespeichert und jetzt in Steam verfügbar.</string>
     <string name="comp_game_proton_next">Die Proton-Auswahl für %1$s ist gespeichert. Starte Steam neu, bevor du das Spiel startest.</string>
     <string name="comp_game_proton_not_runnable">%1$s kann das gewählte Proton auf diesem Gerät nicht verwenden.</string>

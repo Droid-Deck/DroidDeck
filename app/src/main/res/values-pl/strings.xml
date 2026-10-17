@@ -448,6 +448,7 @@
     <string name="game_no_steam_title">Uruchom bez Steam</string>
     <string name="game_no_steam_detail">Dla gry, która zamyka się od razu: uruchamia ją bez konfiguracji Steam w Protonie. Funkcje Steam, takie jak nakładka, są dla niej wyłączone.</string>
     <string name="game_no_steam_on">Wł.</string>
+    <string name="game_locale_title">Ustawienia regionalne</string>
     <string name="comp_game_proton_live">Wybór Proton dla %1$s zapisano i jest już dostępny w Steam.</string>
     <string name="comp_game_proton_next">Wybór Proton dla %1$s zapisano. Uruchom ponownie Steam przed uruchomieniem gry.</string>
     <string name="comp_game_proton_not_runnable">%1$s nie może używać wybranego Proton na tym urządzeniu.</string>

@@ -943,6 +943,60 @@ class DirectAudioPrefixTest(unittest.TestCase):
         self.assertIsNone(self.link("system32"))
 
 
+class GameLocaleTest(unittest.TestCase):
+    def test_only_a_chosen_locale_replaces_the_session_one(self):
+        g = MODULE["game_locale"].__globals__
+        built = []
+        old = g["ensure_locale"]
+        g["ensure_locale"] = lambda name: built.append(name) or name != "xx_XX.UTF-8"
+        try:
+            session = {"LANG": "C.UTF-8", "HOME": "/root"}
+            self.assertEqual(MODULE["game_locale"](dict(session)), session)
+            self.assertEqual(MODULE["game_locale"](dict(session, DROIDDECK_LOCALE="C.UTF-8")), dict(session, DROIDDECK_LOCALE="C.UTF-8"))
+            chosen = MODULE["game_locale"](dict(session, DROIDDECK_LOCALE="ja_JP.UTF-8"))
+            self.assertEqual((chosen["LANG"], chosen["HOME"]), ("ja_JP.UTF-8", "/root"))
+            self.assertEqual(MODULE["game_locale"](dict(session, LANG="ko_KR.UTF-8"))["LANG"], "ko_KR.UTF-8")
+            self.assertEqual(MODULE["game_locale"](dict(session, DROIDDECK_LOCALE="../passwd"))["LANG"], "C.UTF-8")
+            self.assertEqual(MODULE["game_locale"](dict(session, DROIDDECK_LOCALE="xx_XX.UTF-8"))["LANG"], "xx_XX.UTF-8")
+            both = MODULE["game_locale"](dict(session, LANG="fr_FR.UTF-8", DROIDDECK_LOCALE="ja_JP.UTF-8"))
+            self.assertEqual(both["LANG"], "fr_FR.UTF-8")
+            self.assertEqual(built, ["ja_JP.UTF-8", "ko_KR.UTF-8", "xx_XX.UTF-8", "fr_FR.UTF-8"])
+        finally:
+            g["ensure_locale"] = old
+
+    def test_locale_data_is_built_once_and_a_failure_is_retried(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            g = MODULE["ensure_locale"].__globals__
+
+            class Fake:
+                DEVNULL = None
+                SubprocessError = subprocess.SubprocessError
+
+                def __init__(self, code):
+                    self.code = code
+                    self.calls = []
+
+                def run(self, command, **kwargs):
+                    self.calls.append(command)
+                    return subprocess.CompletedProcess(command, self.code)
+
+            old_stamp, old_subprocess = g["LOCALE_STAMP"], g["subprocess"]
+            g["LOCALE_STAMP"] = Path(tmp) / "stamp"
+            try:
+                fake = Fake(0)
+                g["subprocess"] = fake
+                self.assertTrue(MODULE["ensure_locale"]("ja_JP.UTF-8"))
+                self.assertTrue(MODULE["ensure_locale"]("ja_JP.UTF-8"))
+                self.assertEqual(fake.calls, [["localedef", "-i", "ja_JP", "-f", "UTF-8", "ja_JP.UTF-8"]])
+                failing = Fake(1)
+                g["subprocess"] = failing
+                self.assertFalse(MODULE["ensure_locale"]("ru_RU.UTF-8"))
+                self.assertFalse(MODULE["ensure_locale"]("ru_RU.UTF-8"))
+                self.assertEqual(len(failing.calls), 2)
+            finally:
+                g["LOCALE_STAMP"], g["subprocess"] = old_stamp, old_subprocess
+
+
 if __name__ == "__main__":
     unittest.main()
 

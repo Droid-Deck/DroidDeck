@@ -84,6 +84,17 @@ class SelectedGameProfileTest {
         assertEquals(emptyMap<String, Map<String, String?>>(), off.games)
     }
 
+    @Test fun localeIsListedByNameAndIsNotCountedAsAnEnvironmentOverride() {
+        val environment = GameEnvironment.withGameLocale(GameEnvironment.Config(), game.profileKey, "ja_JP.UTF-8")
+        val profile = resolve(environment = environment)
+
+        assertEquals("ja_JP.UTF-8", profile!!.locale)
+        assertEquals(0, profile.environmentOverrides)
+        assertTrue(profile.hasOverrides)
+        assertNull(resolve()!!.locale)
+        assertFalse(resolve()!!.hasOverrides)
+    }
+
     @Test fun unknownSelectedAppIsIgnored() {
         assertNull(resolve(selectedAppId = 42))
     }
