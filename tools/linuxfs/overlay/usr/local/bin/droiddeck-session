@@ -545,10 +545,10 @@ case $mode in
           until [ "$(xprop -root GAMESCOPE_FOCUSED_APP 2>/dev/null | sed -n 's/.*= *//p')" = 769 ] || [ "$SECONDS" -ge "$_bl_end" ]; do
             sleep 1
           done
-          # A large library can take longer than one 45 s wait to load.
+          # With a large library the overview can stay missing for 30+ minutes while Steam already takes the launch URL.
           _bl_overview_status=1
           _bl_overview_tries=0
-          while [ "$_bl_overview_tries" -lt 40 ]; do
+          while [ "$_bl_overview_tries" -lt 2 ]; do
             if /usr/local/bin/droiddeck-agent --wait-steam-shortcut-overview "$_bl_held" 45; then
               _bl_overview_status=0
             else
@@ -558,7 +558,7 @@ case $mode in
               break
             fi
             _bl_overview_tries=$((_bl_overview_tries + 1))
-            echo "== steam: shortcut overview not ready yet; Steam may still be loading the library (attempt $_bl_overview_tries of 40)"
+            echo "== steam: shortcut overview not ready yet (attempt $_bl_overview_tries of 2)"
             sleep 2
           done
           if [ "$_bl_overview_status" -eq 0 ]; then
@@ -569,7 +569,8 @@ case $mode in
             sleep 4
             _bl_launch_ready=1
           else
-            echo "== steam: expected shortcut overview did not become ready; holding the launch URL"
+            echo "== steam: shortcut overview not ready after about 90 s; launching the requested game anyway $_bl_held"
+            _bl_launch_ready=1
           fi
           if [ "$_bl_launch_ready" = 1 ]; then
             echo "== steam: interface up; launching the requested game $_bl_held"
