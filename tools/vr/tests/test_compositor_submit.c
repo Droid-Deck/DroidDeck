@@ -60,6 +60,39 @@ static VkResult VKAPI_CALL submit2(VkQueue q, uint32_t n, const VkSubmitInfo2 *i
 }
 static void no_init(void) {}
 
+static VkQueue forwarded_queue;
+static const void *forwarded_info;
+static VkFence forwarded_fence;
+static VkResult VKAPI_CALL forward1(VkQueue q, uint32_t n, const VkSubmitInfo *info, VkFence fence) {
+    assert(q == forwarded_queue && n == 1 && info == forwarded_info && fence == forwarded_fence);
+    submits_seen++;
+    return submit_result;
+}
+static VkResult VKAPI_CALL forward2(VkQueue q, uint32_t n, const VkSubmitInfo2 *info, VkFence fence) {
+    assert(q == forwarded_queue && n == 1 && info == forwarded_info && fence == forwarded_fence);
+    submits_seen++;
+    return submit_result;
+}
+static void unavailable_tracking(int modern, int missing_sync, VkFence fence, VkResult result) {
+    struct droiddeck_present_sync *saved_sync = g_sync;
+    const uint32_t issued = saved_sync->issued, done = saved_sync->done;
+    const unsigned freed_before = freed;
+    uintptr_t unknown_dispatch = 2;
+    forwarded_queue = missing_sync ? (VkQueue)device : (VkQueue)&unknown_dispatch;
+    if (missing_sync) g_sync = NULL;
+    VkSubmitInfo info = { .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO };
+    VkSubmitInfo2 info2 = { .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2 };
+    forwarded_info = modern ? (const void *)&info2 : (const void *)&info;
+    forwarded_fence = fence;
+    submits_seen = waits_seen = markers_seen = 0;
+    submit_result = result;
+    VkResult r = modern ? submit2_tracked(forward2, forwarded_queue, 1, &info2, fence)
+                        : submit_tracked(forward1, forwarded_queue, 1, &info, fence);
+    assert(r == result && submits_seen == 1 && !waits_seen && !markers_seen && !g_trk);
+    assert(freed == freed_before && saved_sync->issued == issued && saved_sync->done == done);
+    g_sync = saved_sync;
+}
+
 static void scenario(int modern, VkFence fence, VkResult submitStatus, VkResult markerStatus, VkResult completeStatus) {
     submit_result = submitStatus; marker_result = markerStatus; completion = completeStatus;
     submits_seen = waits_seen = markers_seen = 0;
@@ -166,10 +199,19 @@ int main(void) {
     assert(freed == 12);
     wait_before_signal(0);
     wait_before_signal(1);
+    for (int modern = 0; modern < 2; modern++) {
+        for (int missing_sync = 0; missing_sync < 2; missing_sync++) {
+            unavailable_tracking(modern, missing_sync, VK_NULL_HANDLE, VK_SUCCESS);
+            unavailable_tracking(modern, missing_sync, caller_fence, VK_SUCCESS);
+            unavailable_tracking(modern, missing_sync, caller_fence, VK_ERROR_DEVICE_LOST);
+        }
+    }
     create_fails = 1;
     submits_seen = 0;
     VkSubmitInfo info = { .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO };
+    VkSubmitInfo2 info2 = { .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2 };
     assert(submit_tracked(submit1, (VkQueue)device, 1, &info, VK_NULL_HANDLE) == VK_ERROR_OUT_OF_HOST_MEMORY);
+    assert(submit2_tracked(submit2, (VkQueue)device, 1, &info2, caller_fence) == VK_ERROR_OUT_OF_HOST_MEMORY);
     assert(!submits_seen && !g_trk);
     program_invocation_short_name = "vrserver";
     submit_result = VK_SUCCESS; waits_seen = 0;

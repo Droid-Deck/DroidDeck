@@ -50,7 +50,8 @@ JNIEXPORT void JNICALL Java_com_droiddeck_launcher_wayland_WaylandCompositor_nat
     pthread_mutex_lock(&spatial_lock);
     if (shared) {
         unsigned seq = __atomic_load_n(&shared->seq, __ATOMIC_RELAXED);
-        __atomic_store_n(&shared->seq, seq | 1u, __ATOMIC_SEQ_CST);
+        __atomic_store_n(&shared->seq, seq | 1u, __ATOMIC_RELAXED);
+        __atomic_thread_fence(__ATOMIC_RELEASE);
         memcpy((char *)shared + 16, (const char *)src + 16, sizeof(*shared) - 16);
         __atomic_store_n(&shared->seq, (seq | 1u) + 1u, __ATOMIC_RELEASE);
     }

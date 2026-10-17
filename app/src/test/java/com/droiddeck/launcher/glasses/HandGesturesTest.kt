@@ -79,6 +79,48 @@ class HandGesturesTest {
         assertTrue(hand.valid);assertTrue(hand.triggerValid);assertTrue(hand.gripValid)
         assertEquals(7,hand.flags())
     }
+    @Test fun repeatedMotionRejectionsPreserveTheLastPoseAndGripHysteresis() {
+        val detector=HandGestures(false)
+        val closed=openHand().apply {
+            for((tip,base) in listOf(12 to 9,16 to 13,20 to 17)) this[tip]=this[base]
+        }
+        assertTrue(detector.estimate(closed,SpatialPose(),1_000_000_000)!!.grip)
+        for(time in listOf(1_040_000_000L,1_080_000_000L,1_120_000_000L)) {
+            assertNull(detector.estimate(openHand(),SpatialPose(SpatialVector(2f,0f,0f)),time))
+            assertEquals(HandObservationOutcome.PALM_MOTION_REJECTED,detector.lastOutcome)
+            detector.resetAfterRejection(detector.lastOutcome)
+        }
+        val partlyClosed=openHand().apply { this[12]=this[9];this[16]=this[13] }
+        val recovered=detector.estimate(partlyClosed,SpatialPose(),1_160_000_000)!!
+        assertTrue(recovered.grip)
+        assertEquals(1_160_000_000L,recovered.timeNs)
+    }
+    @Test fun motionRejectionDoesNotPreventReacquisitionAfterTheMotionWindow() {
+        val detector=HandGestures(false)
+        detector.estimate(openHand(),SpatialPose(),1_000_000_000)
+        val moved=SpatialPose(SpatialVector(2f,0f,0f))
+        for(time in listOf(1_040_000_000L,1_160_000_000L)) {
+            assertNull(detector.estimate(openHand(),moved,time))
+            detector.resetAfterRejection(detector.lastOutcome)
+        }
+        val reacquired=detector.estimate(openHand(),moved,1_200_000_000)!!
+        assertEquals(HandObservationOutcome.ACCEPTED,detector.lastOutcome)
+        assertEquals(1_200_000_000L,reacquired.timeNs)
+    }
+    @Test fun actualDetectionLossClearsMotionHistoryAndGripEvenAfterAMotionRejection() {
+        val detector=HandGestures(false)
+        val closed=openHand().apply {
+            for((tip,base) in listOf(12 to 9,16 to 13,20 to 17)) this[tip]=this[base]
+        }
+        assertTrue(detector.estimate(closed,SpatialPose(),1_000_000_000)!!.grip)
+        val moved=SpatialPose(SpatialVector(2f,0f,0f))
+        assertNull(detector.estimate(closed,moved,1_040_000_000))
+        detector.resetAfterRejection(detector.lastOutcome)
+        detector.resetAfterRejection(HandObservationOutcome.NO_MATCHING_DETECTION)
+        val partlyClosed=openHand().apply { this[12]=this[9];this[16]=this[13] }
+        val reacquired=detector.estimate(partlyClosed,moved,1_080_000_000)!!
+        assertFalse(reacquired.grip)
+    }
     @Test fun occludedPinchKeepsThePalmAndIndependentGrip() {
         val detector=HandGestures(rightHand=false)
         val points=openHand().map { it as SpatialVector? }.toMutableList()

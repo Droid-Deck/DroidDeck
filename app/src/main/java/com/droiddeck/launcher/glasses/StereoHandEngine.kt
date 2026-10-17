@@ -536,7 +536,9 @@ internal class StereoHandEngine(private val context: Context, private val token:
                         sideDiagnostics[side]=HandObservationDiagnostic(outcome,
                             listOf(0,5,9,13,17).filter { points?.getOrNull(it)?.finite()==true },
                             hand?.trigger ?: 0f,hand?.triggerValid ?: false,hand?.grip ?: false,hand?.gripValid ?: false,positionSource)
-                        hand?.let { hands[side]=it } ?: gestures[side].reset()
+                        if (hand!=null) hands[side]=hand
+                        else if (joyConMode) gestures[side].reset()
+                        else gestures[side].resetAfterRejection(outcome)
                     }
                     if (joyConMode) joyConFlow?.end(grayL,grayR,time)
                     val current=SpatialTracking.session.isCurrentTrackingFrame(generation, trackingFrame) &&

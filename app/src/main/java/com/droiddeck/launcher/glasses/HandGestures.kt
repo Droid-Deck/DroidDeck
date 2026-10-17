@@ -7,6 +7,9 @@ internal class HandGestures(private val rightHand: Boolean) {
     private var last: SpatialHand? = null
     var lastOutcome = HandObservationOutcome.LANDMARK_COUNT_INVALID; private set
     fun reset() { grip = false; last = null }
+    fun resetAfterRejection(outcome: HandObservationOutcome) {
+        if (outcome != HandObservationOutcome.PALM_MOTION_REJECTED) reset()
+    }
     private fun reject(outcome: HandObservationOutcome): SpatialHand? { lastOutcome = outcome; return null }
     fun estimate(points: List<SpatialVector?>, worldFromCamera: SpatialPose, time: Long,
                  leftImage: List<SpatialVector>? = null, rightImage: List<SpatialVector>? = null): SpatialHand? {

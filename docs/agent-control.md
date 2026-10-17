@@ -318,10 +318,10 @@ that component has no tracking-invalid cleanup. A stuck dashboard drag therefore
 driver submission and actual dashboard behavior checked separately. Do not synthesize a press
 or a valid pose as a recovery shortcut.
 
-Controller display stabilization is independent of these gesture logs: translation holds within
-3 mm and orientation within 1° of stationary anchors, with re-entry after 240 ms inside
-1.5 mm / 0.5° bounds. Directed slow motion accumulates against a fixed anchor. Moving poses
-retain one 15 ms correction and bounded receipt-relative translation prediction (80 ms / 2 cm).
+Controller display smoothing is independent of these gesture logs: there is no stationary
+dead zone. Poses converge with one 15 ms correction and bounded receipt-relative translation
+prediction (80 ms / 2 cm). A missed observation holds the last pose for up to 350 ms from capture;
+input freshness remains limited to 200 ms, and a detected miss releases inputs immediately.
 Neither stabilization nor prediction refreshes camera timestamps or creates gesture input.
 
 ## Events
