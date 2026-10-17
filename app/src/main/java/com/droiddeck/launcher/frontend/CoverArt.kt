@@ -63,7 +63,8 @@ object CoverArt {
                 missFile(context, rom).delete()
                 found = true
             } else {
-                missFile(context, rom).apply { parentFile?.mkdirs(); writeText(url ?: "") }
+                runCatching { missFile(context, rom).apply { parentFile?.mkdirs(); writeText(url ?: "") } }
+                    .onFailure { Log.w(TAG, "${rom.name}: miss marker not written: $it") }
             }
         }
         return found
