@@ -1,7 +1,6 @@
 package com.droiddeck.launcher.runtime
 
 import android.content.Context
-import android.os.Environment
 import com.droiddeck.launcher.core.HostProcess
 import com.droiddeck.launcher.session.OrphanReaper
 import com.droiddeck.launcher.session.SessionFiles
@@ -34,7 +33,7 @@ object GuestCommand {
         val runtimeDir = File(context.filesDir, ".flatpak-rt").apply { mkdirs() }
         val cmd = LinuxRuntime.prootPrefix(context, root, "/root", fakeRoot)
         if (linkDir != null) cmd.add(1, "--link2symlink")
-        val binds = LinuxRuntime.binds(context, null, runtimeDir, Environment.getExternalStorageDirectory(), extraBinds)
+        val binds = LinuxRuntime.binds(context, null, runtimeDir, LinuxRuntime.sharedStorage(context), extraBinds)
         binds.forEach { cmd.add("-b"); cmd.add(it) }
         // Fake root and link2symlink are emulated by proot, so their syscalls must stay on the traced path.
         val fastPathKey = if (fastPath && !fakeRoot && linkDir == null && ProotFastPath.enabled(context)) ProotFastPath.key(root, binds) else null

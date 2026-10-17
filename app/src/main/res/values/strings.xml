@@ -292,6 +292,8 @@
     <string name="mode_suspend_steam_note">Auto pauses and resumes when shown. Native prepares Steam for sleep first. Manual waits for Resume. Never keeps running.</string>
     <string name="mode_background_downloads">Keep downloads running</string>
     <string name="mode_background_downloads_hint">Delay background suspension while Steam is actively downloading.</string>
+    <string name="mode_shared_storage">Phone storage in Linux</string>
+    <string name="mode_shared_storage_hint">Mounts your phone\'s storage at /root/Storage. When off, Linux only sees folders you\'ve added to DroidDeck. Applies to the next session.</string>
     <string name="mode_suspend_note">Auto pauses in the background and resumes when shown. Manual waits for Resume. Never keeps running.</string>
     <string name="mode_startup">Startup</string>
     <string name="mode_steam_startup">Start Steam with DroidDeck</string>

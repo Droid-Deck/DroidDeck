@@ -90,6 +90,7 @@ class ModeSettings(
     val unfoldedControls: Boolean? = null,
     val unfoldedControlsWithController: Boolean = false,
     val runSteamAtStartup: Boolean = false,
+    val mountSharedStorage: Boolean = true,
     val bootMovie: String? = null,
     val bootMovieSound: Boolean = true,
     val bootMovieCustomName: String? = null,
@@ -143,6 +144,7 @@ class ModeSettingsActions(
     val onUnfoldedControls: (Boolean) -> Unit = {},
     val onUnfoldedControlsWithController: (Boolean) -> Unit = {},
     val onRunSteamAtStartup: (Boolean) -> Unit = {},
+    val onMountSharedStorage: (Boolean) -> Unit = {},
     val onBootMovie: (String) -> Unit = {},
     val onBootMovieSound: (Boolean) -> Unit = {},
     val onImportBootMovie: () -> Unit = {},
@@ -341,6 +343,11 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                     SessionPrefs.SYNC_ESYNC to stringResource(R.string.sync_backend_esync),
                     SessionPrefs.SYNC_WINESERVER to stringResource(R.string.sync_backend_wineserver),
                 ), s.syncBackend, onPick = a.onSyncBackend,
+            )
+            ToggleRow(
+                host, "shared-storage", stringResource(R.string.mode_shared_storage),
+                stringResource(R.string.mode_shared_storage_hint),
+                s.mountSharedStorage, onChange = a.onMountSharedStorage,
             )
         }
         if (s.pipSupported) SettingsGroup(stringResource(R.string.pip_title)) {
