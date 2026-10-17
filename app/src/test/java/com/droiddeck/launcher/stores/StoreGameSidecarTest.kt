@@ -34,6 +34,17 @@ class StoreGameSidecarTest {
         assertEquals("ns", back.extra["namespace"])
     }
 
+    @Test fun theStoreLogoRoundTripsAndOlderFilesHaveNone() {
+        val withLogo = sample.copy(logo = "https://x/logo.png")
+        val back = StoreGameSidecar.parse(withLogo.toJson().toString())!!
+        assertEquals("https://x/logo.png", back.logo)
+        assertEquals("https://x/logo.png", back.copy(state = StoreGameSidecar.STATE_UPDATING).logo)
+        assertFalse(sample.toJson().has("logo"))
+        assertNull(StoreGameSidecar.parse(sample.toJson().toString())!!.logo)
+        assertNull(StoreGameSidecar.parse("""{"store":"gog","id":"1","title":"T","exe":"game.exe","cover":"c","hero":"h"}""")!!.logo)
+        assertNull(StoreGameSidecar.parse("""{"store":"gog","id":"1","title":"T","exe":"game.exe","logo":""}""")!!.logo)
+    }
+
     @Test fun defaultsWhenFieldsAreAbsent() {
         val back = StoreGameSidecar.parse("""{"store":"gog","id":"1","title":"T","exe":"bin\\game.exe","addToSteam":false}""")!!
         assertEquals("bin/game.exe", back.exe)

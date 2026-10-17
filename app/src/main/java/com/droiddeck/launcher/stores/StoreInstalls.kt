@@ -40,7 +40,7 @@ object StoreInstalls {
         val app = context.applicationContext
         onStep?.invoke(0, STEPS)
         val before = StoreGameSidecar.read(folder)
-        val finished = StoreLaunch.writeLauncher(folder, sidecar.copy(state = StoreGameSidecar.STATE_INSTALLED, epic = before?.epic ?: sidecar.epic, cloud = before?.cloud ?: sidecar.cloud, achievements = before?.achievements ?: sidecar.achievements))
+        val finished = StoreLaunch.writeLauncher(folder, sidecar.copy(state = StoreGameSidecar.STATE_INSTALLED, epic = before?.epic ?: sidecar.epic, cloud = before?.cloud ?: sidecar.cloud, achievements = before?.achievements ?: sidecar.achievements, logo = sidecar.logo ?: before?.logo))
         finished.write(folder)
         if (StoreGameSidecar.read(folder)?.isInstalled != true) throw java.io.IOException("the install record could not be written in ${folder.name}")
         onStep?.invoke(1, STEPS)
