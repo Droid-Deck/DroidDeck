@@ -63,6 +63,7 @@ object StoreInstalls {
         } catch (e: Exception) {
             Log.w(TAG, "registration: ${e.message}")
         }
+        com.droiddeck.launcher.stores.epic.EpicClient.libraryChanged(app)
     }
 
     fun uninstall(context: Context, game: InstalledStoreGame, progress: (Float) -> Unit = {}, removed: () -> Unit = {}) {

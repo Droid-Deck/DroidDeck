@@ -6,6 +6,7 @@ import com.droiddeck.launcher.runtime.LinuxRuntime
 import org.json.JSONObject
 import com.droiddeck.launcher.session.GameStorage
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreGameSidecar
 import com.droiddeck.launcher.stores.StoreInstallRoot
 import java.io.File
@@ -296,13 +297,16 @@ object AddedGames {
     private fun scanGame(context: Context, folder: File, out: MutableList<Game>, single: AddedExes.Entry? = null) {
         run {
             val sidecar = StoreGameSidecar.read(folder)
+            sidecar?.takeIf { it.id.isNotEmpty() }?.let { SessionPrefs.followStoreGame(context, "${it.store.id}:${it.id}", folder.path) { old -> !File(old).exists() } }
             val ranking = rank(folder)
             val candidates = ranking.exes
             val picked = SessionPrefs.addedGameExe(context, folder.path)
             val chosen = picked.takeIf { it.isNotEmpty() }?.let { File(it) }?.takeIf { it.isFile }
                 ?: single?.takeIf { it.picked }?.let { File(it.exe) }?.takeIf { it.isFile }
             val found = chosen ?: sidecar?.exeFile(folder)?.takeIf { it.isFile } ?: candidates.firstOrNull() ?: return
-            val launch = if (chosen == null) sidecar?.launcherFile(folder)?.takeIf { it.isFile } ?: found else found
+            val epicLauncher = sidecar?.takeIf { it.store == Store.EPIC && (chosen == null || canonical(chosen) == canonical(it.exeFile(folder))) }
+                ?.launcherFile(folder)?.takeIf { it.isFile }
+            val launch = epicLauncher ?: if (chosen == null) sidecar?.launcherFile(folder)?.takeIf { it.isFile } ?: found else found
             val foundGuest = guestPath(context, launch)
             if (foundGuest == null) { Log.w(TAG, "${folder.name}: the session cannot see ${launch.path}"); return }
             val autoName = sidecar?.title ?: identifiedName(folder, found) ?: folder.name
@@ -343,6 +347,9 @@ object AddedGames {
         JSONObject(File(config, ".droiddeck-routes.json").readText()).optInt(appId.toString()).takeIf { it > 0 }
     }.getOrNull()
 
+    fun inSteam(context: Context, appId: Long): Boolean =
+        accountConfig(File(LinuxRuntime.rootDir(context), "root/.local/share/Steam"))?.let { shortcutRecord(it, appId) } != null
+
     private fun shortcutRecord(config: File, appId: Long): JSONObject? = runCatching {
         JSONObject(File(config, ".droiddeck-shortcuts.json").readText()).optJSONObject("games")?.optJSONObject(appId.toString())
     }.getOrNull()
@@ -382,7 +389,8 @@ object AddedGames {
         }
     }
 
-    fun writeListing(context: Context, games: List<Game>): File {
+    fun writeListing(context: Context, games: List<Game>,
+        extra: List<JSONObject> = listOfNotNull(com.droiddeck.launcher.stores.epic.EpicClient.steamListing(context))): File {
         val file = File(context.filesDir, "session/added-games.json").apply { parentFile?.mkdirs() }
         val json = StringBuilder("[")
         games.forEachIndexed { i, g ->
@@ -398,6 +406,10 @@ object AddedGames {
                 .mapNotNull { (k, f) -> f?.let { file -> artGuestPath(context, file)?.let { k to it } } }
             if (pieces.isNotEmpty()) json.append(",\"art\":{").append(pieces.joinToString(",") { (k, v) -> quote(k) + ":" + quote(v) }).append('}')
             json.append('}')
+        }
+        extra.forEachIndexed { i, entry ->
+            if (games.isNotEmpty() || i > 0) json.append(',')
+            json.append(entry.toString())
         }
         file.writeText(json.append(']').toString())
         return file

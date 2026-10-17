@@ -12,6 +12,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.SdCard
 import androidx.compose.material.icons.outlined.Smartphone
 import androidx.compose.runtime.CompositionLocalProvider
@@ -27,6 +28,7 @@ import androidx.compose.ui.layout.boundsInParent
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.positionInRoot
 import com.droiddeck.launcher.stores.StoreInstallRoot
+import com.droiddeck.launcher.stores.epic.EpicClient
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -176,6 +178,16 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     val grids = remember { HashMap<PaneKey, LazyGridState>() }
     val grid = grids.getOrPut(pane) { LazyGridState() }
     LaunchedEffect(Unit) { StoresState.refresh(ctx) }
+    val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(chip) {
+        if (chip == Store.EPIC.id) {
+            EpicClient.ensure(ctx)
+            while (true) {
+                delay(5_000)
+                if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) EpicClient.refresh(ctx)
+            }
+        }
+    }
     LaunchedEffect(chip, StoresState.accounts[store]) { if (store != null && StoresState.isSignedIn(store)) StoresState.open(ctx, store) }
     val ff = LocalFrontFocus.current
     val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current
@@ -425,7 +437,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
             StepOut(
                 open = StoresMotion.stepOpen, pill = ask.anchor.translate(-hostAt), side = ask.side, accent = ask.accent,
                 onDismiss = { StoresMotion.fold() }, onClosed = { StoresMotion.closed(ask) },
-                pillCorner = ask.pillCorner, items = ask.items, handle = ask.handle, content = ask.content,
+                pillCorner = ask.pillCorner, maxWidth = ask.maxWidth, items = ask.items, handle = ask.handle, content = ask.content,
             )
         }
     }
@@ -457,11 +469,12 @@ private fun InstallWhere(item: CatalogItem) {
         val defaultIndex = targets.indexOfFirst { it.root.absolutePath == remembered }.coerceAtLeast(0)
         StoresMotion.ask(StepAsk(
             anchor = from, side = StepSide.Right, accent = pal.signal, pillCorner = 12.dp, items = 1 + targets.size,
+            maxWidth = (28 + 192 * targets.size - 8).dp,
             onDismiss = { if (StoresState.pendingInstall === item) StoresState.pendingInstall = null },
             handle = { Text(label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = pal.signal, maxLines = 1) },
         ) {
             StepTitle(title)
-            StepList {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 targets.forEachIndexed { i, t ->
                     val needed = com.droiddeck.launcher.stores.StoreInstallRoot.estimatedBytesNeeded(item)
                     val freeBytes = t.freeBytes
@@ -473,12 +486,13 @@ private fun InstallWhere(item: CatalogItem) {
                     } else {
                         stringResource(R.string.stores_target_free, formatBytes(freeBytes))
                     }
-                    StepChoice(
+                    StepTile(
                         label = if (t.removable) t.label else internalLabel,
-                        icon = if (t.removable) androidx.compose.material.icons.Icons.Outlined.SdCard else androidx.compose.material.icons.Icons.Outlined.Smartphone,
-                        trailing = trailingText,
+                        icon = if (t.folder) androidx.compose.material.icons.Icons.Outlined.Folder else if (t.removable) androidx.compose.material.icons.Icons.Outlined.SdCard else androidx.compose.material.icons.Icons.Outlined.Smartphone,
+                        detail = trailingText,
+                        warning = isLow,
                         enabled = open,
-                        modifier = Modifier.fillMaxWidth().stepItem(1 + i).then(if (i == defaultIndex) Modifier.focusRequester(first) else Modifier),
+                        modifier = Modifier.stepItem(1 + i).then(if (i == defaultIndex) Modifier.focusRequester(first) else Modifier),
                     ) {
                         SessionPrefs.setStoresInstallTarget(ctx, t.root.absolutePath)
                         StoresMotion.markInstall(from, label)
@@ -888,6 +902,10 @@ private fun Storefront(
                     if (tab == "library" || tab == "installed") {
                         SortButton(s, a)
                         ViewButton(s, a)
+                    }
+                    if (store == Store.EPIC) SmallTextButton(stringResource(R.string.epic_client_title)) {
+                        if (EpicClient.status.installed) a.onEpicLauncher()
+                        else { EpicClient.install(ctx); StoresState.openDownloads = true }
                     }
                     SmallTextButton(stringResource(R.string.stores_refresh)) { StoresState.open(ctx, store, force = true) }
                     val name = StoresState.accounts[store] ?: ""

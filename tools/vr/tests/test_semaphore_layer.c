@@ -9,6 +9,7 @@ static const VkSemaphoreWaitInfo *expected_wait;
 static unsigned create_calls;
 static unsigned destroyed;
 static VkResult submit_result = VK_SUCCESS;
+static int expect_dropped_wait;
 static const void *expected_image_chain;
 static const void *expected_external_tail;
 static int expect_cloned_external;
@@ -67,6 +68,13 @@ static void check_shared_images(VkDevice device) {
 
 static VkResult VKAPI_CALL mock_submit(VkQueue queue, uint32_t count, const VkSubmitInfo *submits, VkFence fence) {
     assert(queue && count == 1 && fence == VK_NULL_HANDLE);
+    if (expect_dropped_wait) {
+        assert(submits != expected_submit && submits->waitSemaphoreCount == 0);
+        const VkTimelineSemaphoreSubmitInfo *timeline = submits->pNext;
+        assert(timeline->sType == VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO && timeline->waitSemaphoreValueCount == 0);
+        assert(expected_submit->waitSemaphoreCount == 1);
+        return submit_result;
+    }
     assert(submits == expected_submit);
     assert(submits->waitSemaphoreCount == 1);
     return submit_result;
@@ -140,8 +148,22 @@ static VkResult VKAPI_CALL mock_device_idle(VkDevice device) {
     assert(device); check_queue_lock(); return VK_ERROR_DEVICE_LOST;
 }
 
+static VkResult VKAPI_CALL mock_counter(VkDevice device, VkSemaphore semaphore, uint64_t *value) {
+    (void)device; (void)semaphore;
+    *value = 0;
+    return VK_SUCCESS;
+}
+
+static VkResult VKAPI_CALL mock_signal(VkDevice device, const VkSemaphoreSignalInfo *info) {
+    (void)device; (void)info;
+    assert(0);
+    return VK_SUCCESS;
+}
+
 static PFN_vkVoidFunction VKAPI_CALL mock_proc(VkDevice device, const char *name) {
     (void)device;
+    if (!strcmp(name, "vkGetSemaphoreCounterValue")) return (PFN_vkVoidFunction)mock_counter;
+    if (!strcmp(name, "vkSignalSemaphore")) return (PFN_vkVoidFunction)mock_signal;
     if (!strcmp(name, "vkCreateImage")) return (PFN_vkVoidFunction)mock_image;
     if (!strcmp(name, "vkQueueWaitIdle")) return (PFN_vkVoidFunction)mock_queue_idle;
     if (!strcmp(name, "vkDeviceWaitIdle")) return (PFN_vkVoidFunction)mock_device_idle;
@@ -223,6 +245,13 @@ int main(void) {
     assert(ImportSemaphoreFdKHR(device, &import_info) == VK_ERROR_INVALID_EXTERNAL_HANDLE);
     import_info.flags = 0;
     assert(ImportSemaphoreFdKHR(device, &import_info) == VK_SUCCESS);
+    VkSubmitInfo imported_wait = submit;
+    imported_wait.pWaitSemaphores = &binary;
+    expected_submit = &imported_wait;
+    submit_result = VK_SUCCESS;
+    expect_dropped_wait = 1;
+    assert(QueueSubmit(queue, 1, &imported_wait, VK_NULL_HANDLE) == VK_SUCCESS);
+    expect_dropped_wait = 0;
     VkSemaphoreGetFdInfoKHR get_info = {VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR, NULL, binary,
                                        VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT};
     int reexported = -1;
@@ -235,6 +264,6 @@ int main(void) {
     assert(fcntl(descriptor, F_GETFD) == -1 && errno == EBADF);
     DestroySemaphore(device, semaphore, NULL);
     assert(destroyed == 2 && !bridged_find(semaphore));
-    puts("semaphore layer: pending waits retained, errors propagated, unsupported binary imports refused, fd ownership passed");
+    puts("semaphore layer: pending waits retained, unsignalled imported waits dropped, errors propagated, unsupported binary imports refused, fd ownership passed");
     return 0;
 }

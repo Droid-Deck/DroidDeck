@@ -41,6 +41,14 @@ for target in x86_64/faultreport i386/faultreport x86_64/thunkaudit; do
     exit 1
   fi
 done
+lib=$out/x86_64/libwebkitinput.so
+gcc -m64 -shared -fPIC -O2 -Wall -Wextra -nostdlib -fno-stack-protector -fno-builtin -fvisibility=hidden \
+  -o "$lib" tools/linuxfs/fex/webkitinput.c
+strip --strip-unneeded "$lib"
+if objdump -p "$lib" | grep -q NEEDED || [ "$(nm -D --undefined-only "$lib" | awk '{print $1 $2}' | LC_ALL=C sort | tr '\n' ' ')" != "wdlsym wg_object_get_data wg_object_set wg_object_set_data wg_type_check_instance_is_a wgtk_container_forall wgtk_container_get_type wgtk_key_snooper_install wgtk_widget_get_toplevel wwebkit_user_script_new wwebkit_user_script_unref wwebkit_web_view_get_type wwebkit_web_view_get_uri wwebkit_web_view_run_javascript " ]; then
+  echo "$lib must need nothing but weak GLib, GTK and WebKit calls" >&2
+  exit 1
+fi
 stub=$(mktemp -d)
 gcc -m64 -shared -nostdlib -Wl,-soname,/usr/lib/x86_64-linux-gnu/libvulkan.so.1 -o "$stub/libvulkan.so.1" -x c /dev/null
 gcc -m64 -shared -nostdlib -Wl,-z,nodelete -Wl,--no-as-needed \

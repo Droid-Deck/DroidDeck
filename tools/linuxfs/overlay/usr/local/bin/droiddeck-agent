@@ -581,6 +581,31 @@ def wait_for_steam_shortcut_overview(agent_dir, game_id, timeout=45):
     raise AgentError("STEAM_OVERVIEW_TIMEOUT", "Steam did not load shortcut app overview %d" % app_id)
 
 
+def steam_shortcut_state(agent_dir, game_id, timeout=6):
+    if steam_shortcut_app_id(game_id) is None:
+        return "not-shortcut"
+    timeout = request_timeout({"timeout": timeout}, 6)
+    deadline = time.monotonic() + timeout
+    expression = """(() => {
+        const store = globalThis.appStore;
+        if (typeof store?.GetAppOverviewByGameID !== 'function' || !store.m_bIsInitialized) return 'loading';
+        if (store.GetAppOverviewByGameID(%s) != null) return 'ready';
+        return store.allApps.some(app => app.app_type == 1073741824) ? 'missing' : 'loading';
+    })()""" % json.dumps(game_id)
+    state = "loading"
+    while True:
+        try:
+            state = cdp_eval(agent_dir, expression, await_promise=False,
+                             timeout=min(5, max(0.25, deadline - time.monotonic()))).get("value") or "loading"
+        except AgentError as error:
+            if error.code not in ("NO_DEVTOOLS", "DEVTOOLS_UNREACHABLE", "NO_TARGET", "TIMEOUT"):
+                raise
+            state = "loading"
+        if state == "ready" or time.monotonic() >= deadline:
+            return state
+        time.sleep(min(0.5, max(0, deadline - time.monotonic())))
+
+
 def game_pids(app_id):
     """Our processes started for this Steam app (Steam sets SteamAppId / SteamGameId in their
     environment, and Proton's wine processes inherit it)."""
@@ -858,6 +883,28 @@ def main(argv):
             return 3
         print("droiddeck-agent: Steam overview is ready for shortcut app %d" % prepared["appId"])
         return 0
+    if argv and argv[0] == "--steam-asleep":
+        expression = """(() => {
+            const store = globalThis.SuspendResumeStore;
+            return store ? (store.m_bSuspending ? 'yes' : 'no') : 'unknown';
+        })()"""
+        try:
+            state = cdp_eval(Path(base) / "agent", expression, await_promise=False, timeout=3).get("value") or "unknown"
+        except (AgentError, OSError, ValueError):
+            state = "unknown"
+        print(state)
+        return {"yes": 0, "no": 5}.get(state, 1)
+    if argv and argv[0] == "--steam-shortcut-state":
+        if len(argv) not in (2, 3):
+            print("usage: droiddeck-agent --steam-shortcut-state <cgameid> [timeout-seconds]", file=sys.stderr)
+            return 2
+        try:
+            state = steam_shortcut_state(Path(base) / "agent", argv[1], argv[2] if len(argv) == 3 else 6)
+        except (AgentError, OSError, ValueError) as error:
+            print("droiddeck-agent: could not ask the client about the shortcut: %s" % error, file=sys.stderr)
+            return 1
+        print(state)
+        return {"ready": 0, "missing": 4, "not-shortcut": 3}.get(state, 1)
     serve(Path(base) / "agent", focus="--no-focus" not in argv)
     return 0
 

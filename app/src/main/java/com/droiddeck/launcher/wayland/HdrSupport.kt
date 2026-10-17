@@ -20,8 +20,8 @@ class HdrProbe(
 )
 
 object HdrSupport {
-    fun probe(context: Context): HdrProbe {
-        val display: Display? = if (Build.VERSION.SDK_INT >= 30) {
+    fun probe(context: Context, output: Display? = null): HdrProbe {
+        val display: Display? = output ?: if (Build.VERSION.SDK_INT >= 30) {
             try { context.display } catch (e: Exception) { null }
         } else {
             @Suppress("DEPRECATION")

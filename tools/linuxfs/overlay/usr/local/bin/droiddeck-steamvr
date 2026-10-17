@@ -42,6 +42,16 @@ stop() {
 }
 
 case "${1:-status}" in
+launch)
+    # Library/URL entry point: use the same installer and start path as the app.
+    exec 8>"$state/launch.lock"
+    flock -n 8 || exit 0
+    if ! installed; then
+        "$0" install || exit $?
+        while [ -f "$state/installing" ]; do sleep 1; done
+    fi
+    "$0" start
+    ;;
 status)
     i=0; installed && i=1
     r=0; running && r=1
@@ -51,8 +61,9 @@ status)
     echo "installed=$i running=$r installing=$n driver=$d"
     ;;
 install)
+    exec 7>"$state/install.lock"
+    flock -n 7 || { echo "already installing"; exit 0; }
     installed && { echo "SteamVR is already in $steamvr"; exit 0; }
-    [ -f "$state/installing" ] && { echo "already installing"; exit 0; }
     : > "$state/installing"
     trap 'rm -f "$state/installing"' EXIT
     cache=$HOME/.cache/droiddeck-vr
@@ -72,11 +83,63 @@ stop)
     stop || exit 1
     ;;
 start)
+    exec 9>"$state/start.lock"
+    flock -n 9 || { echo "SteamVR start already in progress"; exit 0; }
     installed || { echo "SteamVR is not installed (droiddeck-steamvr install)"; exit 1; }
     [ -f "$driver/bin/linuxarm64/driver_droiddeck.so" ] || { echo "the Cardboard driver is missing from $driver"; exit 1; }
+    if [ -f "$state/active" ] && { running || pgrep -x vrstartup >/dev/null 2>&1; }; then
+        echo "DroidDeck SteamVR is already running"
+        exit 0
+    fi
     stop || exit 1
     sleep 1
     mkdir -p "$HOME/.config/openvr" "$HOME/.config/openxr/1" "$logs" "$HOME/.local/share/Steam/config"
+    if [ -S "/run/droiddeck/droiddeck-xr-frames" ] && [ -z "${DROIDDECK_VR_PRESENT:-}" ]; then
+        export DROIDDECK_VR_PRESENT=questwsi
+    fi
+    python3 - "$HOME/.local/share/Steam/config/steamvr.vrsettings" <<'PY'
+import json
+import os
+from pathlib import Path
+import sys
+import tempfile
+
+path = Path(sys.argv[1])
+try:
+    settings = json.loads(path.read_text()) if path.exists() else {}
+    section = settings.setdefault("steamvr", {})
+    defaults = {} if os.environ.get("DROIDDECK_VR_PRESENT", "").startswith("quest") else {"supersampleManualOverride": True, "supersampleScale": 1.0}
+    changed = any(key not in section for key in defaults)
+    for key, value in defaults.items():
+        section.setdefault(key, value)
+    driver = settings.get("driver_droiddeck")
+    if isinstance(driver, dict) and driver.get("blocked_by_safe_mode") is True:
+        driver["blocked_by_safe_mode"] = False
+        changed = True
+        print("SteamVR had blocked the DroidDeck driver after a crash; unblocked it")
+    if changed:
+        with tempfile.NamedTemporaryFile(mode="w", dir=path.parent, delete=False) as output:
+            temporary = Path(output.name)
+            try:
+                json.dump(settings, output, indent=3)
+                output.write("\n")
+            except BaseException:
+                temporary.unlink(missing_ok=True)
+                raise
+        try:
+            os.replace(temporary, path)
+        finally:
+            temporary.unlink(missing_ok=True)
+except (OSError, ValueError, AttributeError, TypeError) as error:
+    print("Could not set SteamVR resolution defaults: " + str(error), file=sys.stderr)
+try:
+    (path.parent / "vrserver_crash_timestamp.txt").unlink()
+    print("Removed SteamVR's crash marker so it starts without safe mode")
+except FileNotFoundError:
+    pass
+except OSError as error:
+    print("Could not remove SteamVR's crash marker: " + str(error), file=sys.stderr)
+PY
     cat > "$HOME/.config/openvr/openvrpaths.vrpath" <<JSON
 {
   "config": ["$HOME/.local/share/Steam/config"],
@@ -88,13 +151,31 @@ start)
 }
 JSON
     ln -sf "$steamvr/steamxr_linuxarm64.json" "$HOME/.config/openxr/1/active_runtime.json"
+    chaperone=$HOME/.local/share/Steam/config/chaperone_info.vrchap
+    [ -s "$chaperone" ] || cat > "$chaperone" <<'JSON'
+{
+   "jsonid" : "chaperone_info",
+   "universes" : [
+      {
+         "collision_bounds" : [
+            [ [ -1.0, 0.0, -1.0 ], [ -1.0, 2.43, -1.0 ], [ -1.0, 2.43, 1.0 ], [ -1.0, 0.0, 1.0 ] ],
+            [ [ -1.0, 0.0, 1.0 ], [ -1.0, 2.43, 1.0 ], [ 1.0, 2.43, 1.0 ], [ 1.0, 0.0, 1.0 ] ],
+            [ [ 1.0, 0.0, 1.0 ], [ 1.0, 2.43, 1.0 ], [ 1.0, 2.43, -1.0 ], [ 1.0, 0.0, -1.0 ] ],
+            [ [ 1.0, 0.0, -1.0 ], [ 1.0, 2.43, -1.0 ], [ -1.0, 2.43, -1.0 ], [ -1.0, 0.0, -1.0 ] ]
+         ],
+         "play_area" : [ 2.0, 2.0 ],
+         "seated" : { "translation" : [ 0.0, -1.6, 0.0 ], "yaw" : 0.0 },
+         "standing" : { "translation" : [ 0.0, 0.0, 0.0 ], "yaw" : 0.0 },
+         "universeID" : "2"
+      }
+   ],
+   "version" : 5
+}
+JSON
 
     export VK_LAYER_PATH="$layer${VK_LAYER_PATH:+:$VK_LAYER_PATH}"
     export VK_INSTANCE_LAYERS="VK_LAYER_DROIDDECK_vr${VK_INSTANCE_LAYERS:+:$VK_INSTANCE_LAYERS}"
     export VK_LOADER_LAYERS_DISABLE="${VK_LOADER_LAYERS_DISABLE:-~implicit~}"
-    if [ -S "/run/droiddeck/droiddeck-xr-frames" ] && [ -z "${DROIDDECK_VR_PRESENT:-}" ]; then
-        export DROIDDECK_VR_PRESENT=questwsi
-    fi
     if [ "${DROIDDECK_VR_PRESENT:-}" = questwsi ]; then
         quest_settings apply || exit 1
         startup_handed_off=0
@@ -128,12 +209,12 @@ JSON
     cd "$steamvr/bin/linuxarm64" || exit 1
     startup_log=$logs/droiddeck-vrstartup.log
     ln -sf "$startup_log" "$state/vrstartup.log"
-    setsid ./vrstartup > "$startup_log" 2>&1 < /dev/null &
+    setsid ./vrstartup 8>&- 9>&- > "$startup_log" 2>&1 < /dev/null &
     startup_handed_off=1
     echo "SteamVR starting; logs in $logs and $state/vrstartup.log"
     ;;
 *)
-    echo "usage: droiddeck-steamvr status|install|start|stop" >&2
+    echo "usage: droiddeck-steamvr status|install|start|stop|launch" >&2
     exit 2
     ;;
 esac

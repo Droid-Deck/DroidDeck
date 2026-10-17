@@ -38,3 +38,12 @@ add_library(deviceinfo SHARED deviceinfo/vkinfo.c)
 target_link_libraries(deviceinfo dl)
 
 add_library(termux SHARED termux/termux.c)
+
+# The optional proprietary SDK is supplied locally; its headers/libraries are not vendored.
+if(DROIDDECK_VITURE_SDK_DIR)
+    add_library(droiddeck_viture SHARED viture/sdk_bridge.cpp)
+    target_compile_features(droiddeck_viture PRIVATE cxx_std_17)
+    target_include_directories(droiddeck_viture PRIVATE "${DROIDDECK_VITURE_SDK_DIR}/include")
+    target_link_directories(droiddeck_viture PRIVATE "${DROIDDECK_VITURE_SDK_DIR}/android/${ANDROID_ABI}")
+    target_link_libraries(droiddeck_viture PRIVATE glasses log)
+endif()
