@@ -44,6 +44,11 @@ class SteamDeckRepoTest {
         )
     }
 
+    @Test fun readsAreCutOffAtTheLimit() {
+        assertEquals(10, SteamDeckRepo.readLimited(ByteArray(10).inputStream(), 10)!!.size)
+        assertNull(SteamDeckRepo.readLimited(ByteArray(11).inputStream(), 10))
+    }
+
     @Test fun aPageHoldsTwelveMovies() {
         assertEquals(12, SteamDeckRepo.PAGE_SIZE)
     }

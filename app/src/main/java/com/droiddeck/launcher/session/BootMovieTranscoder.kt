@@ -164,6 +164,9 @@ internal object BootMovieTranscoder {
         return out
     }
 
+    /** Most decoded audio held in memory at once: about six minutes of 48 kHz stereo. */
+    private const val MAX_PCM_BYTES = 64 shl 20
+
     private fun encodeAudio(source: File, gain: Float = 1f, limitUs: Long = Long.MAX_VALUE): Audio? {
         val (track, inFormat) = trackFormat(source, "audio/") ?: return null
         val extractor = MediaExtractor()
@@ -209,6 +212,9 @@ internal object BootMovieTranscoder {
                     }
                     dec.releaseOutputBuffer(index, false)
                     if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) break
+                    // Past the length that will be kept there is nothing more to decode; without a length, a track too big to hold is dropped.
+                    if (limitUs != Long.MAX_VALUE && info.presentationTimeUs > limitUs) break
+                    if (pcm.size() > MAX_PCM_BYTES) { if (limitUs == Long.MAX_VALUE) return null else break }
                 }
             }
             if (channels !in 1..2) return null

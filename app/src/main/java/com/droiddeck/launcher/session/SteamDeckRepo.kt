@@ -15,6 +15,7 @@ object SteamDeckRepo {
     /** The site shows twelve movies a page. */
     const val PAGE_SIZE = 12
     const val MAX_DOWNLOAD_BYTES = 120L shl 20
+    private const val MAX_JSON_BYTES = 1 shl 20
     private const val USER_AGENT = "DroidDeck (+https://github.com/Droid-Deck/DroidDeck)"
     private const val CACHE_MS = 10 * 60 * 1000L
 
@@ -79,6 +80,19 @@ object SteamDeckRepo {
         return result
     }
 
+    /** Reads [input] to its end, or null as soon as it holds more than [limit] bytes, so a huge answer is never kept whole. */
+    internal fun readLimited(input: java.io.InputStream, limit: Int): ByteArray? {
+        val out = java.io.ByteArrayOutputStream()
+        val buffer = ByteArray(16 * 1024)
+        while (true) {
+            val n = input.read(buffer)
+            if (n < 0) break
+            if (out.size() + n > limit) return null
+            out.write(buffer, 0, n)
+        }
+        return out.toByteArray()
+    }
+
     private fun get(url: String): String? {
         var connection: HttpURLConnection? = null
         return try {
@@ -88,7 +102,7 @@ object SteamDeckRepo {
                 setRequestProperty("User-Agent", USER_AGENT)
                 setRequestProperty("Accept", "application/json")
             }
-            if (connection.responseCode !in 200..299) null else connection.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }
+            if (connection.responseCode !in 200..299) null else connection.inputStream.use { readLimited(it, MAX_JSON_BYTES)?.toString(Charsets.UTF_8) }
         } catch (e: Exception) {
             Log.w(TAG, "request failed: ${e.javaClass.simpleName}")
             null
@@ -107,11 +121,8 @@ object SteamDeckRepo {
                 readTimeout = 20_000
                 setRequestProperty("User-Agent", USER_AGENT)
             }
-            if (connection.responseCode !in 200..299) null
-            else connection.inputStream.use { input ->
-                val data = input.readBytes()
-                data.takeIf { it.isNotEmpty() && it.size <= limit }
-            }
+            if (connection.responseCode !in 200..299 || connection.contentLengthLong > limit) null
+            else connection.inputStream.use { input -> readLimited(input, limit)?.takeIf { it.isNotEmpty() } }
         } catch (e: Exception) {
             null
         } finally {
