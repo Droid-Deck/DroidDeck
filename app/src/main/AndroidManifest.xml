@@ -154,7 +154,6 @@
         <activity
             android:name=".ui.SecondScreenActivity"
             android:exported="false"
-            android:taskAffinity="${applicationId}.controls"
             android:excludeFromRecents="true"
             android:theme="@style/SessionTheme"
             android:screenOrientation="sensorLandscape"
