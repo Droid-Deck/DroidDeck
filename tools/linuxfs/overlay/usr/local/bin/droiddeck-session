@@ -3,7 +3,7 @@ set -u
 export HOME=${HOME:-/root}
 mode=${1:-desktop}
 shift || true
-step() { echo "== STEP $(date -u +%H:%M:%S) $*"; }
+step() { echo "== STEP $(date -u +%H:%M:%S.%3N) $*"; }
 if [ -n "${BL_LOG:-}" ] && [ -z "${BL_INSIDE:-}" ]; then
   mkdir -p "$(dirname "$BL_LOG")" 2>/dev/null
   if [ "$(stat -c %s "$BL_LOG" 2>/dev/null || echo 0)" -gt 8388608 ]; then
