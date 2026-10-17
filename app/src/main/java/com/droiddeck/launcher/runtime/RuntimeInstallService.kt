@@ -18,6 +18,11 @@ class RuntimeInstallService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        stopForeground(STOP_FOREGROUND_DETACH)
+        stopSelf()
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val removal = intent?.action == ACTION_REMOVE
         val release = intent?.let(::releaseFrom)

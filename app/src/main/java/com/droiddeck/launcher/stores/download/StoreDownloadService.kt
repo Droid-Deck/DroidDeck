@@ -70,6 +70,15 @@ class StoreDownloadService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        Log.w(TAG, "data sync time used up; pausing downloads")
+        StoresState.latestDownloads.filter { it.state == DownloadState.RUNNING }.forEach {
+            DownloadQueue.pause(it.key)
+            pausedNote(this, it.key)
+        }
+        stopNow()
+    }
+
     private fun pending(action: String, key: String, code: Int): PendingIntent {
         val i = Intent(this, StoreDownloadService::class.java).setAction(action).putExtra(EXTRA_KEY, key)
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) PendingIntent.getForegroundService(this, code, i, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)

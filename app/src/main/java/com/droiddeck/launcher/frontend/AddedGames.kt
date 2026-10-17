@@ -382,8 +382,10 @@ object AddedGames {
         }
     }
 
+    fun listingFile(context: Context): File = File(context.filesDir, "session/added-games.json")
+
     fun writeListing(context: Context, games: List<Game>): File {
-        val file = File(context.filesDir, "session/added-games.json").apply { parentFile?.mkdirs() }
+        val file = listingFile(context).apply { parentFile?.mkdirs() }
         val json = StringBuilder("[")
         games.forEachIndexed { i, g ->
             if (i > 0) json.append(',')
@@ -399,7 +401,12 @@ object AddedGames {
             if (pieces.isNotEmpty()) json.append(",\"art\":{").append(pieces.joinToString(",") { (k, v) -> quote(k) + ":" + quote(v) }).append('}')
             json.append('}')
         }
-        file.writeText(json.append(']').toString())
+        val staged = File(file.path + ".tmp")
+        staged.writeText(json.append(']').toString())
+        if (!staged.renameTo(file)) {
+            file.writeText(staged.readText())
+            staged.delete()
+        }
         return file
     }
 

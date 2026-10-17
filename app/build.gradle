@@ -72,13 +72,13 @@ def variantSuffixes = rootProject.file('tools/release/variants.txt').readLines()
 
 android {
     namespace 'com.droiddeck.launcher'
-    compileSdk 34
+    compileSdk 36
     ndkVersion project.findProperty('ndkVersion') ?: '27.3.13750724'
 
     defaultConfig {
         applicationId "com.droiddeck.launcher"
         minSdkVersion 26
-        targetSdkVersion 28
+        targetSdkVersion 36
         versionCode 13
         versionName "0.4.0"
         buildConfigField "String", "BUILD_LABEL", "\"${escapedBuildLabel}\""
@@ -133,10 +133,6 @@ android {
             minifyEnabled false
             signingConfig signingConfigs.testkey
         }
-    }
-
-    lint {
-        disable 'ExpiredTargetSdkVersion'
     }
 
     packagingOptions {

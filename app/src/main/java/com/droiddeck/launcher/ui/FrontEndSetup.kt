@@ -437,6 +437,12 @@ internal fun SetupPanel(
                         SettingsGroup(stringResource(R.string.setup_tab_diagnostics)) {
                             ToggleRow(host, "logs", stringResource(R.string.setup_logs), stringResource(R.string.setup_logs_hint), s.logsEnabled) { a.onLogs() }
                             ToggleRow(host, "agent-commands", stringResource(R.string.setup_agent_commands), null, s.agentCommands) { a.onAgentCommands() }
+                            s.allFilesAllowed?.let { on ->
+                                ToggleRow(host, "all-files", stringResource(R.string.setup_all_files), stringResource(R.string.setup_all_files_hint), on) { a.onAllFilesAllowed() }
+                            }
+                            s.bluetoothAllowed?.let { on ->
+                                ToggleRow(host, "bluetooth", stringResource(R.string.setup_bluetooth), stringResource(R.string.setup_bluetooth_hint), on) { a.onBluetoothAllowed() }
+                            }
                             ActionRow(stringResource(R.string.setup_latest_logs), stringResource(R.string.drawer_logs_hint), stringResource(R.string.drawer_share_logs), a.onShareLogs,
                                 progress = com.droiddeck.launcher.session.SessionLogShare.progress)
                             ActionRow(stringResource(R.string.setup_saved_logs), stringResource(R.string.setup_saved_logs_hint, com.droiddeck.launcher.session.SessionPaths.KEEP_SESSIONS), stringResource(R.string.setup_clear_logs), a.onClearLogs)

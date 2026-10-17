@@ -113,6 +113,7 @@ if [ -n "${BL_VK_DRIVER:-}" ]; then
   unset bl_icd_lib
 fi
 export GAMESCOPE_FORCE_VULKAN_REALTIME=${BL_GAMESCOPE_REALTIME:-0}
+rm -rf /tmp/.droiddeck-rx
 
 start_agent() {
   [ -n "${BL_LAUNCH_DIR:-}" ] && [ -x /usr/local/bin/droiddeck-agent ] || return 0

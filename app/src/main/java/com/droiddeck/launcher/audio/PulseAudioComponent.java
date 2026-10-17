@@ -109,7 +109,7 @@ public class PulseAudioComponent extends SessionPart {
         env.add("HOME=" + workingDir);
         env.add("TMPDIR=" + workingDir);
 
-        String command = workingDir.getAbsolutePath() + "/libpulseaudio.so"
+        String command = HostProcess.LINKER + " " + workingDir.getAbsolutePath() + "/libpulseaudio.so"
                 + " --system=false --disable-shm=true --fail=false"
                 + " -n --file=default.pa --daemonize=false --use-pid-file=false --exit-idle-time=-1"
                 + " --log-level=info";
@@ -158,6 +158,7 @@ public class PulseAudioComponent extends SessionPart {
         try {
             File modules = new File(workingDir, "modules/arm64");
             ArrayList<String> cmd = new ArrayList<>();
+            cmd.add(HostProcess.LINKER);
             cmd.add(pactl.getAbsolutePath());
             java.util.Collections.addAll(cmd, args);
             ProcessBuilder builder = new ProcessBuilder(cmd);
@@ -211,7 +212,7 @@ public class PulseAudioComponent extends SessionPart {
         try {
             File modules = new File(workingDir, "modules/arm64");
             ProcessBuilder builder = new ProcessBuilder(
-                    pactl.getAbsolutePath(), "suspend-sink", "@DEFAULT_SINK@", Boolean.toString(suspended));
+                    HostProcess.LINKER, pactl.getAbsolutePath(), "suspend-sink", "@DEFAULT_SINK@", Boolean.toString(suspended));
             builder.directory(workingDir);
             builder.redirectErrorStream(true);
             builder.redirectOutput(new File("/dev/null"));
