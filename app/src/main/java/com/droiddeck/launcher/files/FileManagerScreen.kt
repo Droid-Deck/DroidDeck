@@ -90,6 +90,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.session.SessionPrefs
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -261,6 +262,7 @@ fun FileManagerScreen(
             operationDeterminate = true
             operationLabel = context.getString(if (cut) R.string.fm_op_moving else R.string.fm_op_copying)
             isOperationRunning = true
+            val job = coroutineContext[kotlinx.coroutines.Job]
 
             var applyToAll: ConflictChoice? = null
             var failed = 0
@@ -296,6 +298,7 @@ fun FileManagerScreen(
                 }
                 var lastPct = -1
                 val onProgress = FileOps.ProgressCallback { copied, total ->
+                    job?.ensureActive()
                     val pct = if (total > 0) ((copied * 100) / total).toInt() else 100
                     if (pct != lastPct) {
                         lastPct = pct

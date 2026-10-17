@@ -97,6 +97,9 @@ object FileOps {
                 }
             }
             return true
+        } catch (e: java.util.concurrent.CancellationException) {
+            dst.delete()
+            throw e
         } catch (e: IOException) {
             Log.e(TAG, "Failed to copy file: $src to $dst", e)
             dst.delete()
