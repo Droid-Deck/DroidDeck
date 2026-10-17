@@ -14,10 +14,14 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 public final class Downloader {
     private static final String TAG = "Downloader";
@@ -27,7 +31,7 @@ public final class Downloader {
     private static final long SLOW_BYTES_PER_SECOND = 256 * 1024;
     private static final long SLOW_AFTER_MS = 10_000;
     private static final int PROBE_BYTES = 2 * 1024 * 1024;
-    private static final int PROBE_TIMEOUT_MS = 5_000;
+    private static final int PROBE_TIMEOUT_MS = 3_000;
 
     private Downloader() {}
 
@@ -250,10 +254,25 @@ public final class Downloader {
 
     /** Orders the sources by what they actually move, so the fastest one wins over the first one. */
     private static List<String> ranked(List<String> sources) {
-        Map<String, Long> rates = new HashMap<>();
-        for (String source : sources) rates.put(source, measure(source));
+        Map<String, Long> rates = new ConcurrentHashMap<>();
+        ExecutorService pool = Executors.newFixedThreadPool(sources.size());
+        try {
+            List<Future<?>> pending = new ArrayList<>();
+            for (String source : sources) {
+                pending.add(pool.submit(() -> rates.put(source, measure(source))));
+            }
+            for (Future<?> probe : pending) {
+                try {
+                    probe.get(PROBE_TIMEOUT_MS + 2_000L, TimeUnit.MILLISECONDS);
+                } catch (Exception e) {
+                    Log.w(TAG, "a source did not finish measuring", e);
+                }
+            }
+        } finally {
+            pool.shutdownNow();
+        }
         List<String> ordered = new ArrayList<>(sources);
-        ordered.sort((a, b) -> Long.compare(rates.get(b), rates.get(a)));
+        ordered.sort((a, b) -> Long.compare(rates.getOrDefault(b, 0L), rates.getOrDefault(a, 0L)));
         return ordered;
     }
 
