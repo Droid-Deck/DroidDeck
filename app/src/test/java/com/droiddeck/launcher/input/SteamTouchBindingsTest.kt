@@ -123,4 +123,10 @@ class SteamTouchBindingsTest {
         val b = SteamTouchBindings.Binding("key_press SPACE", "Ju\"mp", "", "", "")
         assertEquals("Ju mp", SteamTouchBindings.parse(b.compose()).label)
     }
+
+    @Test
+    fun labelsAreCutAtACharacterBoundary() {
+        val label = SteamTouchBindings.cleanLabel("a".repeat(31) + "🎮" + "b")
+        assertEquals("a".repeat(31) + "🎮", label)
+    }
 }

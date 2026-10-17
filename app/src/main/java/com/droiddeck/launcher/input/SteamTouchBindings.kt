@@ -18,7 +18,7 @@ object SteamTouchBindings {
 
     /** Steam VDF strings end at a quote and binding fields split on commas. */
     fun cleanLabel(raw: String): String =
-        raw.replace(Regex("""["\\,\p{Cntrl}]"""), " ").replace(Regex("""\s+"""), " ").trim().take(32)
+        raw.replace(Regex("""["\\,\p{Cntrl}]"""), " ").replace(Regex("""\s+"""), " ").trim().let { it.take(it.offsetByCodePoints(0, minOf(32, it.codePointCount(0, it.length)))) }
 
     data class Binding(val action: String, val label: String, val icon: String, val foreground: String, val background: String) {
         fun compose(): String =
