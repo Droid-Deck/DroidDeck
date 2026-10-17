@@ -7,6 +7,8 @@ import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
+import java.util.zip.CRC32
+import java.util.zip.Deflater
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -38,9 +40,52 @@ private fun httpDate(s: String?): Long = try {
     SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz", Locale.US).apply { timeZone = TimeZone.getTimeZone("GMT") }.parse(s!!.trim())?.time ?: -1L
 } catch (e: Exception) { -1L }
 
-internal fun gunzipIfNeeded(data: ByteArray): ByteArray {
-    if (data.size < 2 || data[0] != 0x1f.toByte() || data[1] != 0x8b.toByte()) return data
-    return java.util.zip.GZIPInputStream(data.inputStream()).use { it.readBytes() }
+internal fun isGzip(data: ByteArray) =
+    data.size >= 10 && data[0] == 0x1f.toByte() && data[1] == 0x8b.toByte() && data[2] == 0x08.toByte()
+
+internal fun gunzip(data: ByteArray): ByteArray? = try {
+    java.util.zip.GZIPInputStream(data.inputStream()).use { it.readBytes() }
+} catch (e: Exception) { null }
+
+/** Same gzip GOG uses on PUT: deflate level 6, mtime 0, OS Unix. */
+internal fun gzipGogPut(data: ByteArray): ByteArray {
+    val deflater = Deflater(6, true)
+    val raw = ByteArrayOutputStream()
+    try {
+        deflater.setInput(data)
+        deflater.finish()
+        val buf = ByteArray(512)
+        while (!deflater.finished()) {
+            val n = deflater.deflate(buf)
+            if (n > 0) raw.write(buf, 0, n)
+        }
+    } finally {
+        deflater.end()
+    }
+    val crc = CRC32().also { it.update(data) }
+    return ByteArrayOutputStream(18 + raw.size()).apply {
+        write(byteArrayOf(0x1f, 0x8b.toByte(), 8, 0, 0, 0, 0, 0, 0, 3))
+        write(raw.toByteArray())
+        writeIntLe(crc.value.toInt())
+        writeIntLe(data.size)
+    }.toByteArray()
+}
+
+private fun ByteArrayOutputStream.writeIntLe(v: Int) {
+    write(v and 0xff)
+    write(v ushr 8 and 0xff)
+    write(v ushr 16 and 0xff)
+    write(v ushr 24 and 0xff)
+}
+
+internal fun gogDecodeCloudBody(data: ByteArray, contentEncoding: String?): ByteArray {
+    val encodings = contentEncoding.orEmpty().split(',').map { it.trim().lowercase() }
+    if ("gzip" in encodings || "x-gzip" in encodings) {
+        return if (isGzip(data)) gunzip(data) ?: data else data
+    }
+    if (!isGzip(data)) return data
+    val inflated = gunzip(data) ?: return data
+    return if (gzipGogPut(inflated).contentEquals(data)) inflated else data
 }
 
 internal fun isoDate(s: String?): Long {
@@ -121,9 +166,13 @@ class GogCloud(
 
     override fun get(file: CloudFile): Pair<ByteArray, Long> {
         val c = open("$base/${key(file.name)}", "GET", token, ua)
+        c.setRequestProperty("Accept-Encoding", "identity")
         if (c.responseCode !in 200..299) { val code = c.responseCode; c.disconnect(); throw java.io.IOException("GOG cloud get HTTP $code") }
         val modified = httpDate(c.getHeaderField("Last-Modified"))
-        return gunzipIfNeeded(c.body().also { c.disconnect() }) to modified
+        val encoding = c.getHeaderField("Content-Encoding")
+        val data = c.body()
+        c.disconnect()
+        return gogDecodeCloudBody(data, encoding) to modified
     }
 
     override fun put(files: Map<String, ByteArray>): Map<String, Long> = files.mapValues { (name, data) ->
