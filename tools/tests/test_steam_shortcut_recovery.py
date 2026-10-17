@@ -36,7 +36,7 @@ class SteamShortcutRecoveryTest(unittest.TestCase):
             "exit \"$last\"\n")
         self.agent.chmod(0o755)
 
-    def launch_game(self, states, focusable="769"):
+    def launch_game(self, states, focusable="769", extra=None):
         xprop = self.bin / "xprop"
         xprop.write_text("#!/bin/sh\necho 'GAMESCOPE_FOCUSABLE_APPS(CARDINAL) = %s'\n" % focusable)
         xprop.chmod(0o755)
@@ -44,7 +44,7 @@ class SteamShortcutRecoveryTest(unittest.TestCase):
             self.root / "steam", FUNCTIONS.replace("/usr/local/bin/droiddeck-agent", str(self.agent)), GAME)
         env = dict(os.environ, HOME=str(self.root), BL_LAUNCH_DIR=str(self.launch),
                    PATH=str(self.bin) + os.pathsep + os.environ["PATH"], STEAM_LOG=str(self.steam_log),
-                   AGENT_COUNT=str(self.root / "agent-count"), AGENT_STATES=states)
+                   AGENT_COUNT=str(self.root / "agent-count"), AGENT_STATES=states, **(extra or {}))
         result = subprocess.run(["bash", "-c", script], env=env, text=True, capture_output=True, timeout=10)
         self.assertEqual(0, result.returncode, result.stderr)
         steam = self.steam_log.read_text().splitlines() if self.steam_log.exists() else []
@@ -101,13 +101,12 @@ class SteamShortcutRecoveryTest(unittest.TestCase):
 
     def test_the_launcher_without_its_steam_id_still_does_not_count_as_a_running_game(self):
         (self.launch / "epic-open").write_text("1\n")
-        os.environ["BL_EPIC_APP_ID"] = "2702387189"
-        self.addCleanup(os.environ.pop, "BL_EPIC_APP_ID", None)
-        steam, restart, _ = self.launch_game("0 4", focusable="769,2702387189")
+        launcher = {"BL_EPIC_APP_ID": "2702387189"}
+        steam, restart, _ = self.launch_game("0 4", focusable="769,2702387189", extra=launcher)
         self.assertEqual(GAME, restart)
         for marker in (".bl-restart-game", ".bl-restarted-for", "agent-count"):
             (self.root / marker).unlink(missing_ok=True)
-        steam, restart, _ = self.launch_game("4", focusable="769,2702387189,3703311242")
+        steam, restart, _ = self.launch_game("4", focusable="769,2702387189,3703311242", extra=launcher)
         self.assertIsNone(restart)
 
     def test_steam_games_are_launched_without_watching(self):

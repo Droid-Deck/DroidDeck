@@ -570,9 +570,20 @@ class MainActivity : ComponentActivity() {
         return true
     }
 
+    private fun opensEpicLauncher(next: Intent): Boolean =
+        next.getStringExtra(SessionService.EXTRA_PROGRAM) == com.droiddeck.launcher.session.NoSteamLaunch.EPIC ||
+            next.getStringExtra(SessionService.EXTRA_STEAM_URL) == com.droiddeck.launcher.frontend.GameLaunchLink.steamUrl(
+                com.droiddeck.launcher.stores.epic.EpicClient.gameId(com.droiddeck.launcher.stores.epic.EpicClient.shortcutAppId))
+
     private fun uninstallEpicLauncher() {
         if (com.droiddeck.launcher.stores.epic.EpicClient.uninstalling) return
         com.droiddeck.launcher.stores.epic.EpicClient.uninstalling = true
+        pendingSwitch?.takeIf(::opensEpicLauncher)?.let { pendingSwitch = null }
+        switchingTo?.takeIf(::opensEpicLauncher)?.let {
+            switchPoll?.let { poll -> ui.removeCallbacks(poll) }
+            switchPoll = null
+            switchingTo = null
+        }
         if (SessionState.running) SessionService.stop(this)
         val app = applicationContext
         val deadline = android.os.SystemClock.uptimeMillis() + SESSION_SWITCH_WAIT_MS
@@ -673,6 +684,7 @@ class MainActivity : ComponentActivity() {
                 }
                 switchPoll = null
                 switchingTo = null
+                if (com.droiddeck.launcher.stores.epic.EpicClient.uninstalling && opensEpicLauncher(next)) return
                 startSessionOrWait(next)
             }
         }
