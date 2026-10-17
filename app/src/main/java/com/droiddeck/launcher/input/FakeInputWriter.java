@@ -590,7 +590,10 @@ public class FakeInputWriter {
             output[8] = (byte) (ring.getInt(TRITON_OUTPUT_FEATURE_OFFSET) != 0 ? 1 : 0);
             for (int i = 0; i < length; i++) output[9 + i] = ring.get(TRITON_OUTPUT_OFFSET + i);
             nativeStoreFence();
-            return seq == ring.getLong(TRITON_OUTPUT_SEQ_OFFSET) ? output : null;
+            if (seq != ring.getLong(TRITON_OUTPUT_SEQ_OFFSET)) return null;
+            // Tells the guest writer the report was taken, so it does not overwrite the next one unread.
+            ring.putInt(TRITON_OUTPUT_LENGTH_OFFSET, 0);
+            return output;
         }
     }
 

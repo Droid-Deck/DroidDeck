@@ -1208,6 +1208,8 @@ static constexpr int TRITON_REPORT_ID_BYTES = 1;
 static constexpr int TRITON_STATE_BYTES = 45;
 static constexpr int TRITON_REPORT_INTERVAL_US = 4000;
 static constexpr int TRITON_FEATURE_TIMEOUT_MS = 500;
+// The app clears output_length once it has taken a report; a writer waits this long for that before overwriting.
+static constexpr int TRITON_OUTPUT_TIMEOUT_MS = 50;
 static constexpr const char *TRITON_NAME = "Steam Controller";
 static constexpr const char *TRITON_SERIAL = "DROIDDECKSC01";
 static const uint8_t kTritonReportDescriptor[] = {
@@ -2563,6 +2565,14 @@ __attribute__((visibility("hidden"))) static void triton_queue_output(DeckHidraw
   if (!data || !size || size > 64 || triton.mapping_size < TRITON_SHARED_OFFSET + TRITON_SHARED_BLOCK_SIZE) return;
   auto *shared = reinterpret_cast<TritonSharedData *>(reinterpret_cast<uint8_t *>(triton.ring) + TRITON_SHARED_OFFSET);
   if (__atomic_load_n(&shared->magic, __ATOMIC_ACQUIRE) != TRITON_SHARED_MAGIC) return;
+  static std::mutex one_at_a_time;
+  std::lock_guard<std::mutex> guard(one_at_a_time);
+  for (int waited = 0; __atomic_load_n(&shared->output_length, __ATOMIC_ACQUIRE) != 0 &&
+                       __atomic_load_n(&shared->connected, __ATOMIC_ACQUIRE) != 0 && waited < TRITON_OUTPUT_TIMEOUT_MS * 4;
+       waited++) {
+    struct timespec interval = {0, 250 * 1000L};
+    nanosleep(&interval, nullptr);
+  }
   uint64_t seq = __atomic_load_n(&shared->output_seq, __ATOMIC_RELAXED);
   if (seq & 1) seq++;
   __atomic_store_n(&shared->output_seq, seq + 1, __ATOMIC_RELEASE);
