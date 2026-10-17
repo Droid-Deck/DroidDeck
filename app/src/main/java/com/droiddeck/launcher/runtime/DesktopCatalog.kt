@@ -96,7 +96,10 @@ object DesktopCatalog {
             if (!ok) return context.getString(R.string.user_apps_download_failed)
             listener?.onProgress(LinuxRuntimeInstaller.Step.VERIFYING, context.getString(R.string.rtinst_verifying), -1)
             val actual = Hashes.sha256(download)
-            if (!entry.sha256.equals(actual, ignoreCase = true)) return context.getString(R.string.deskpkg_checksum_mismatch)
+            if (!entry.sha256.equals(actual, ignoreCase = true)) {
+                download.delete()
+                return context.getString(R.string.deskpkg_checksum_mismatch)
+            }
             listener?.onProgress(context.getString(R.string.deskpkg_installing, entry.name), -1)
             when (entry.kind) {
                 "appimage" -> {
@@ -123,12 +126,11 @@ object DesktopCatalog {
             }
             FileUtils.writeString(marker(context, entry.id), entry.version)
             check(installed(context, entry.id) == entry.version) { "Could not finish package installation" }
+            download.delete()
             return null
         } catch (e: Exception) {
             Log.e(TAG, "install ${entry.id}", e)
             return e.message ?: context.getString(R.string.deskpkg_install_failed)
-        } finally {
-            download.delete()
         }
     }
 
