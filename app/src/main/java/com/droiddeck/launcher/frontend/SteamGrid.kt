@@ -145,12 +145,11 @@ object SteamGrid {
         when {
             before == null && own != null && theirs == null -> placePosition(context, target, own)
             before == null || now != before -> {
+                // Recorded only once the local side agrees, so a failed take-over is tried again on the next scan.
                 if (theirs != null) {
-                    if (own != theirs) storePosition(target, theirs)
-                    recordPosition(target, now)
+                    if (own == theirs || storePosition(target, theirs)) recordPosition(target, now)
                 } else {
-                    if (own != null) storePosition(target, null)
-                    recordPosition(target, "")
+                    if (own == null || storePosition(target, null)) recordPosition(target, "")
                 }
             }
             own != null && own != theirs -> placePosition(context, target, own)
