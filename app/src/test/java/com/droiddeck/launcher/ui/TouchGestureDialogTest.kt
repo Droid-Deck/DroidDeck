@@ -3,6 +3,7 @@ package com.droiddeck.launcher.ui
 import android.app.Application
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.test.*
@@ -76,7 +77,10 @@ class TouchGestureDialogTest {
         val game = mutableStateOf("123")
         compose.setContent { DroidDeckTheme { TouchGestureDialog(game.value, {}, {}) } }
         chooseTap("Escape", "key_ESC")
-        compose.runOnIdle { game.value = "456" }
+        compose.runOnIdle {
+            game.value = "456"
+            Snapshot.sendApplyNotifications()
+        }
         compose.onNodeWithTag("gesture-save").performClick()
         compose.runOnIdle {
             assertEquals("key_ESC", GesturePrefs.read(context, "123").tapAction)

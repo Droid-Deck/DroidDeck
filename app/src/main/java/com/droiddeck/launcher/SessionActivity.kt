@@ -251,6 +251,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var leaving by mutableStateOf(false)
     private var closeAtOnce = false
     private var drawerComponents by mutableStateOf<ComponentsManager.Snapshot?>(null)
+    private var drawerDefaultProton by mutableStateOf<String?>(null)
     private val drawerComponentMenu by lazy { ComponentsMenu(this, uiHandler) }
     private var drawerGameProfileId by mutableStateOf<Long?>(null)
     private val drawerGameInventory = GameProfileInventoryCache<Library.SteamGame>()
@@ -790,6 +791,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     onGameNoSteam = ::setDrawerGameNoSteam,
                     onComponentSwap = { pid, comp, value -> swapDrawerComponent(pid, comp, value) },
                     onGameComponent = ::setDrawerGameComponent,
+                    defaultProtonId = drawerDefaultProton,
+                    onDefaultProton = ::chooseDrawerDefaultProton,
+                    onGameProton = ::setDrawerGameProton,
                 ))
                 LaunchedEffect(achievementsOpen) {
                     if (achievementsOpen) {
@@ -909,8 +913,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         Thread({
             val applied = runCatching { ComponentsManager.applyQueued(this) }.getOrDefault(emptyList())
             val snap = runCatching { ComponentsManager.snapshot(this) }.getOrNull()
+            val chosen = snap?.let { s -> runCatching { ProtonDefault.selectedId(this, s.protons.map { it.proton }) }.getOrNull() }
             uiHandler.post {
                 drawerComponents = snap
+                drawerDefaultProton = chosen
                 if (applied.isNotEmpty()) android.widget.Toast.makeText(this, getString(R.string.main_applied, applied.joinToString(", ")), android.widget.Toast.LENGTH_LONG).show()
             }
         }, "drawer-components").start()
@@ -1052,6 +1058,46 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 refreshDrawerGameProfile()
             }
         }, "drawer-game-component").start()
+    }
+
+    private fun chooseDrawerDefaultProton(protonId: String) {
+        val proton = drawerComponents?.protons?.firstOrNull { it.proton.id == protonId }?.proton ?: return
+        drawerDefaultProton = protonId
+        Thread({
+            val message = runCatching {
+                when (ProtonDefault.request(this, proton)) {
+                    ProtonDefault.Outcome.LIVE -> getString(R.string.comp_default_live, proton.name)
+                    ProtonDefault.Outcome.NEXT_START -> getString(R.string.comp_default_next, proton.name)
+                    ProtonDefault.Outcome.NOT_RUNNABLE -> getString(R.string.comp_default_not_runnable, proton.name)
+                }
+            }.getOrElse { e -> getString(R.string.comp_default_failed, e.message ?: e.javaClass.simpleName) }
+            uiHandler.post {
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+                refreshDrawerComponents()
+                refreshDrawerGameProfile()
+            }
+        }, "drawer-default-proton").start()
+    }
+
+    private fun setDrawerGameProton(appId: Long, protonId: String?) {
+        val name = drawerGameProfileRefresh.data?.profiles?.firstOrNull { it.first == appId }?.second ?: appId.toString()
+        val proton = protonId?.let { id -> drawerComponents?.protons?.firstOrNull { it.proton.id == id }?.proton ?: return }
+        Thread({
+            val message = runCatching {
+                getString(
+                    when (ProtonDefault.requestGame(this, appId.toString(), proton)) {
+                        ProtonDefault.Outcome.LIVE -> R.string.comp_game_proton_live
+                        ProtonDefault.Outcome.NEXT_START -> R.string.comp_game_proton_next
+                        ProtonDefault.Outcome.NOT_RUNNABLE -> R.string.comp_game_proton_not_runnable
+                    },
+                    name,
+                )
+            }.getOrElse { e -> getString(R.string.session_profile_save_failed, e.message ?: e.javaClass.simpleName) }
+            uiHandler.post {
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+                refreshDrawerGameProfile()
+            }
+        }, "drawer-game-proton").start()
     }
 
     private fun setDrawerGameFexPreset(appId: Long, preset: String?) {
@@ -1301,6 +1347,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
         val turnip = TurnipDriver(this)
         com.droiddeck.launcher.gpu.DriverSetupLog.write(this, "surface.driver-setup")
+        if (!CompositorHost.isStarted) CompositorHost.displayChoice = SessionPrefs.androidDriver(this)
         val driverId = if (CompositorHost.isStarted) null else turnip.install()
 
         val previous = SessionState.outputSize

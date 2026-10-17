@@ -20,6 +20,7 @@ class App : Application() {
         com.droiddeck.launcher.session.QuestExperimental.initialize(this)
         com.droiddeck.launcher.session.SessionPrefs.settleGpuDriverMode(this)
         com.droiddeck.launcher.update.AppUpdates.init(this)
+        com.droiddeck.launcher.core.DownloadSource.init(this)
         GpuClockPin.clearLeftover(this)
         BwrapSpawner.start(this)
         com.droiddeck.launcher.frontend.GameFileSync.start(this)

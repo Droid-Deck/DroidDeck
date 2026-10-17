@@ -17,6 +17,9 @@ object Library {
         val source: String = SOURCE_STEAM,
         val storeId: String? = null,
     ) {
+        fun withArt(art: File?, hero: File?, icon: File?) =
+            SteamGame(appId, name, art, library, gameId, hero, lastPlayed, gameFiles, protonPrefix, icon, source, storeId)
+
         val gameIdString: String get() = java.lang.Long.toUnsignedString(gameId)
         val profileKey: String get() = if (library == ADDED) java.lang.Integer.toUnsignedString(appId) else appId.toString()
     }
@@ -138,7 +141,11 @@ object Library {
 
     fun launchableGames(context: Context, strictRead: Boolean = false, added: List<AddedGames.Game>? = null): List<SteamGame> {
         val roots = steamLibraries(context).map { it.first }
-        return (steamGames(context, strictRead) + (added ?: AddedGames.scan(context)).map { g -> addedGame(context, g, roots) }).distinctBy { it.gameId }
+        val list = added ?: AddedGames.scan(context)
+        var steam = steamGames(context, strictRead)
+        val targets = steam.filter { it.library != ADDED && it.source == SOURCE_STEAM }.map { SteamGrid.target(it, context) } + list.map { SteamGrid.target(it, context) }
+        if (runCatching { SteamGrid.sync(context, targets) }.getOrDefault(false)) steam = steamGames(context, strictRead)
+        return (steam + list.map { g -> addedGame(context, g, roots) }).distinctBy { it.gameId }
     }
 
     fun addedGame(context: Context, g: AddedGames.Game, roots: List<File> = steamLibraries(context).map { it.first }): SteamGame =
