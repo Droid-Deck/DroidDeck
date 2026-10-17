@@ -98,8 +98,7 @@ object SteamGrid {
         val file = File(target.artDir, POSITION)
         if (value == null) return !file.exists() || file.delete()
         target.artDir.mkdirs()
-        file.writeText(LogoPosition.toJson(value).toString())
-        return true
+        return runCatching { file.writeText(LogoPosition.toJson(value).toString()) }.isSuccess
     }
 
     /** Sets (or with null, clears) a game's logo position here and in the client's grid folder, whether or not Steam is running. */
