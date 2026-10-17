@@ -91,7 +91,7 @@ fetch_part() {
   rm -f "$target"
   # The floor only has to notice a source that stopped moving; a higher one aborts
   # transfers that are slow but still finishing.
-  curl -fsSL --connect-timeout 10 --speed-limit 65536 --speed-time 30 --max-time 1800 \
+  curl -fsSL --connect-timeout 10 --speed-limit 102400 --speed-time 30 --max-time 1800 \
     --retry 3 --retry-delay 3 --retry-all-errors "$host/$file" -o "$target" || return 1
   echo "$sum  $target" | sha256sum -c --quiet 2>/dev/null || { rm -f "$target"; return 1; }
 }
