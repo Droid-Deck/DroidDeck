@@ -3486,6 +3486,8 @@
     <string name="storage_default_group">Install location</string>
     <string name="storage_default_title">Default storage</string>
     <string name="storage_default_hint">New store installs go to the selected location. Existing games stay where they are. Steam libraries keep their own setting.</string>
+    <string name="storage_shared_mount">Phone storage in Linux</string>
+    <string name="storage_shared_mount_hint">Mounts your phone\'s storage at /root/Storage. When off, Linux only sees folders you\'ve added to DroidDeck. Applies to the next session.</string>
     <string name="storage_default_ask">Ask every time</string>
     <string name="storage_default_ask_detail">Choose a target for each install</string>
     <string name="storage_default_internal">Internal storage</string>

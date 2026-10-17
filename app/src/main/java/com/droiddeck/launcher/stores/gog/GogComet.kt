@@ -1,7 +1,6 @@
 package com.droiddeck.launcher.stores.gog
 
 import android.content.Context
-import android.os.Environment
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -143,9 +142,9 @@ object GogComet {
         val pb = if (com.droiddeck.launcher.runtime.NativeGuest.forSession(context)) {
             val root = LinuxRuntime.rootDir(context)
             com.droiddeck.launcher.runtime.NativeGuest.processBuilder(context, root,
-                LinuxRuntime.binds(context, null, null, Environment.getExternalStorageDirectory(), null), guest).redirectErrorStream(true)
+                LinuxRuntime.binds(context, null, null, LinuxRuntime.sharedStorage(context), null), guest).redirectErrorStream(true)
         } else {
-            ProcessBuilder(LinuxRuntime.command(context, null, null, Environment.getExternalStorageDirectory(), guest)).redirectErrorStream(true).also {
+            ProcessBuilder(LinuxRuntime.command(context, null, null, LinuxRuntime.sharedStorage(context), guest)).redirectErrorStream(true).also {
                 it.environment().apply {
                     remove("LD_PRELOAD"); remove("LD_AUDIT"); remove("LD_LIBRARY_PATH")
                     put("PROOT_LOADER", LinuxRuntime.prootLoader(context).path)

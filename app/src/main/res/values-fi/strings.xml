@@ -3158,6 +3158,8 @@
     <string name="storage_default_group">Asennussijainti</string>
     <string name="storage_default_title">Oletustallennustila</string>
     <string name="storage_default_hint">Uudet kauppa-asennukset menevät valittuun sijaintiin. Nykyiset pelit pysyvät paikoillaan. Steam-kirjastoilla on oma asetuksensa.</string>
+    <string name="storage_shared_mount">Puhelimen tallennustila Linuxissa</string>
+    <string name="storage_shared_mount_hint">Liittää puhelimen tallennustilan polkuun /root/Storage. Kun pois päältä, Linux näkee vain DroidDeckiin lisäämäsi kansiot. Tulee voimaan seuraavassa istunnossa.</string>
     <string name="storage_default_ask">Kysy aina</string>
     <string name="storage_default_ask_detail">Valitse kohde jokaiselle asennukselle</string>
     <string name="storage_default_internal">Sisäinen tallennustila</string>

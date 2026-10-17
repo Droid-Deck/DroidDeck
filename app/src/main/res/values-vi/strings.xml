@@ -3129,6 +3129,8 @@
     <string name="storage_default_group">Vị trí cài đặt</string>
     <string name="storage_default_title">Bộ nhớ mặc định</string>
     <string name="storage_default_hint">Các bản cài mới từ cửa hàng sẽ vào vị trí đã chọn. Game hiện có vẫn ở nguyên chỗ. Thư viện Steam giữ thiết lập riêng.</string>
+    <string name="storage_shared_mount">Bộ nhớ điện thoại trong Linux</string>
+    <string name="storage_shared_mount_hint">Gắn bộ nhớ điện thoại của bạn tại /root/Storage. Khi tắt, Linux chỉ thấy các thư mục bạn đã thêm vào DroidDeck. Áp dụng từ phiên tiếp theo.</string>
     <string name="storage_default_ask">Luôn hỏi</string>
     <string name="storage_default_ask_detail">Chọn nơi lưu cho mỗi lần cài</string>
     <string name="storage_default_internal">Bộ nhớ trong</string>

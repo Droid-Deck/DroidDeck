@@ -3201,6 +3201,8 @@
     <string name="storage_default_group">Local de instalação</string>
     <string name="storage_default_title">Armazenamento predefinido</string>
     <string name="storage_default_hint">As novas instalações das lojas vão para o local selecionado. Os jogos existentes ficam onde estão. As bibliotecas do Steam mantêm a sua própria definição.</string>
+    <string name="storage_shared_mount">Armazenamento do telemóvel no Linux</string>
+    <string name="storage_shared_mount_hint">Monta o armazenamento do telemóvel em /root/Storage. Desativado, o Linux só vê as pastas que adicionou ao DroidDeck. Aplica-se na próxima sessão.</string>
     <string name="storage_default_ask">Perguntar sempre</string>
     <string name="storage_default_ask_detail">Escolha um destino para cada instalação</string>
     <string name="storage_default_internal">Armazenamento interno</string>

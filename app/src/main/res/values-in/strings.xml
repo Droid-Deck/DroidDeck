@@ -3129,6 +3129,8 @@
     <string name="storage_default_group">Lokasi instalasi</string>
     <string name="storage_default_title">Penyimpanan default</string>
     <string name="storage_default_hint">Instalasi toko baru akan disimpan di lokasi yang dipilih. Game yang sudah ada tetap di lokasinya. Library Steam memakai pengaturannya sendiri.</string>
+    <string name="storage_shared_mount">Penyimpanan ponsel di Linux</string>
+    <string name="storage_shared_mount_hint">Memasang penyimpanan ponsel Anda di /root/Storage. Jika nonaktif, Linux hanya melihat folder yang telah Anda tambahkan ke DroidDeck. Berlaku pada sesi berikutnya.</string>
     <string name="storage_default_ask">Tanyakan setiap kali</string>
     <string name="storage_default_ask_detail">Pilih target untuk setiap instalasi</string>
     <string name="storage_default_internal">Penyimpanan internal</string>

@@ -169,6 +169,20 @@ internal fun StoragePanel(s: FrontEndState, a: FrontEndActions) {
 }
 
 @Composable
+private fun SharedStorageGroup() {
+    val ctx = LocalContext.current
+    var on by remember { mutableStateOf(SessionPrefs.mountSharedStorage(ctx)) }
+    SettingsGroup(stringResource(R.string.setup_runtime)) {
+        SettingsRow(stringResource(R.string.storage_shared_mount), stringResource(R.string.storage_shared_mount_hint)) {
+            ToggleSwitch(on, label = stringResource(R.string.storage_shared_mount), modifier = Modifier.testTag("setting-shared-storage")) {
+                SessionPrefs.setMountSharedStorage(ctx, it)
+                on = it
+            }
+        }
+    }
+}
+
+@Composable
 private fun DefaultStorageGroup() {
     val ctx = LocalContext.current
     var value by remember { mutableStateOf(SessionPrefs.defaultStorage(ctx)) }
@@ -347,6 +361,7 @@ private fun OverviewContent(report: StorageSummary, sessionRunning: Boolean, wid
         Note(stringResource(R.string.storage_session_running))
     }
     DefaultStorageGroup()
+    SharedStorageGroup()
     SectionTitle(stringResource(R.string.storage_where), null)
     val unused = report.unusedTools
     val tiles = listOf<@Composable (Modifier) -> Unit>(

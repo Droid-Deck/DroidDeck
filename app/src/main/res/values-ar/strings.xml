@@ -3278,6 +3278,8 @@
     <string name="storage_default_group">موقع التثبيت</string>
     <string name="storage_default_title">التخزين الافتراضي</string>
     <string name="storage_default_hint">تُثبَّت ألعاب المتاجر الجديدة في الموقع المحدد. تبقى الألعاب الحالية في مكانها. تحتفظ مكتبات Steam بإعدادها الخاص.</string>
+    <string name="storage_shared_mount">مساحة تخزين الهاتف في Linux</string>
+    <string name="storage_shared_mount_hint">يربط مساحة تخزين هاتفك في /root/Storage. عند إيقافه، لا يرى Linux إلا المجلدات التي أضفتها إلى DroidDeck. يُطبَّق في الجلسة التالية.</string>
     <string name="storage_default_ask">السؤال في كل مرة</string>
     <string name="storage_default_ask_detail">اختر وجهة لكل تثبيت</string>
     <string name="storage_default_internal">مساحة التخزين الداخلية</string>

@@ -3218,6 +3218,8 @@
     <string name="storage_default_group">Miejsce instalacji</string>
     <string name="storage_default_title">Domyślna pamięć</string>
     <string name="storage_default_hint">Nowe instalacje ze sklepów trafiają do wybranego miejsca. Istniejące gry zostają, gdzie są. Biblioteki Steam mają własne ustawienie.</string>
+    <string name="storage_shared_mount">Pamięć telefonu w Linuksie</string>
+    <string name="storage_shared_mount_hint">Montuje pamięć telefonu w /root/Storage. Po wyłączeniu Linux widzi tylko foldery dodane do DroidDeck. Działa od następnej sesji.</string>
     <string name="storage_default_ask">Pytaj za każdym razem</string>
     <string name="storage_default_ask_detail">Wybieraj miejsce przy każdej instalacji</string>
     <string name="storage_default_internal">Pamięć wewnętrzna</string>

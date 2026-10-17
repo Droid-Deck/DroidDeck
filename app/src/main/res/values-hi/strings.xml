@@ -3158,6 +3158,8 @@
     <string name="storage_default_group">इंस्टॉल की जगह</string>
     <string name="storage_default_title">डिफ़ॉल्ट स्टोरेज</string>
     <string name="storage_default_hint">स्टोर से नए इंस्टॉल चुनी गई जगह पर जाते हैं। मौजूदा गेम जहां हैं वहीं रहते हैं। Steam लाइब्रेरी अपनी सेटिंग रखती हैं।</string>
+    <string name="storage_shared_mount">Linux में फ़ोन स्टोरेज</string>
+    <string name="storage_shared_mount_hint">आपके फ़ोन का स्टोरेज /root/Storage पर माउंट करता है। बंद होने पर Linux को केवल वे फ़ोल्डर दिखते हैं जो आपने DroidDeck में जोड़े हैं। अगले सत्र से लागू होता है।</string>
     <string name="storage_default_ask">हर बार पूछें</string>
     <string name="storage_default_ask_detail">हर इंस्टॉल के लिए जगह चुनें</string>
     <string name="storage_default_internal">इंटरनल स्टोरेज</string>

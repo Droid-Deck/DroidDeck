@@ -3129,6 +3129,8 @@
     <string name="storage_default_group">安装位置</string>
     <string name="storage_default_title">默认存储</string>
     <string name="storage_default_hint">新的商店安装将保存到所选位置。现有游戏保持原位。Steam 库使用各自的设置。</string>
+    <string name="storage_shared_mount">在 Linux 中使用手机存储</string>
+    <string name="storage_shared_mount_hint">将手机存储挂载到 /root/Storage。关闭后，Linux 只能看到你添加到 DroidDeck 的文件夹。下次会话生效。</string>
     <string name="storage_default_ask">每次询问</string>
     <string name="storage_default_ask_detail">每次安装时选择目标位置</string>
     <string name="storage_default_internal">内部存储</string>

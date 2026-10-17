@@ -3218,6 +3218,8 @@
     <string name="storage_default_group">Umístění instalace</string>
     <string name="storage_default_title">Výchozí úložiště</string>
     <string name="storage_default_hint">Nové instalace z obchodů půjdou do vybraného umístění. Stávající hry zůstanou, kde jsou. Knihovny Steamu mají vlastní nastavení.</string>
+    <string name="storage_shared_mount">Úložiště telefonu v Linuxu</string>
+    <string name="storage_shared_mount_hint">Připojí úložiště telefonu do /root/Storage. Když je vypnuto, Linux vidí jen složky, které jste přidali do DroidDecku. Projeví se v příští relaci.</string>
     <string name="storage_default_ask">Vždy se zeptat</string>
     <string name="storage_default_ask_detail">Vybrat cíl u každé instalace</string>
     <string name="storage_default_internal">Interní úložiště</string>

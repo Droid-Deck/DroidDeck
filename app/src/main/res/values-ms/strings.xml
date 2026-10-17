@@ -3129,6 +3129,8 @@
     <string name="storage_default_group">Lokasi pemasangan</string>
     <string name="storage_default_title">Storan lalai</string>
     <string name="storage_default_hint">Pemasangan kedai baharu pergi ke lokasi yang dipilih. Permainan sedia ada kekal di tempatnya. Pustaka Steam mengekalkan tetapan sendiri.</string>
+    <string name="storage_shared_mount">Storan telefon dalam Linux</string>
+    <string name="storage_shared_mount_hint">Melekapkan storan telefon anda di /root/Storage. Apabila dimatikan, Linux hanya melihat folder yang telah anda tambah ke DroidDeck. Berkuat kuasa pada sesi seterusnya.</string>
     <string name="storage_default_ask">Tanya setiap kali</string>
     <string name="storage_default_ask_detail">Pilih destinasi bagi setiap pemasangan</string>
     <string name="storage_default_internal">Storan dalaman</string>

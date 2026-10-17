@@ -3158,6 +3158,8 @@
     <string name="storage_default_group">Yükleme konumu</string>
     <string name="storage_default_title">Varsayılan depolama</string>
     <string name="storage_default_hint">Yeni mağaza yüklemeleri seçilen konuma gider. Mevcut oyunlar yerinde kalır. Steam kütüphaneleri kendi ayarlarını korur.</string>
+    <string name="storage_shared_mount">Linux\'ta telefon depolaması</string>
+    <string name="storage_shared_mount_hint">Telefonunuzun depolamasını /root/Storage konumuna bağlar. Kapalıyken Linux yalnızca DroidDeck\'e eklediğiniz klasörleri görür. Sonraki oturumda uygulanır.</string>
     <string name="storage_default_ask">Her seferinde sor</string>
     <string name="storage_default_ask_detail">Her yükleme için bir hedef seçin</string>
     <string name="storage_default_internal">Dahili depolama</string>

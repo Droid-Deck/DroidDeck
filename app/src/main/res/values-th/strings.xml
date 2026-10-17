@@ -3129,6 +3129,8 @@
     <string name="storage_default_group">ตำแหน่งติดตั้ง</string>
     <string name="storage_default_title">พื้นที่จัดเก็บเริ่มต้น</string>
     <string name="storage_default_hint">การติดตั้งใหม่จากสโตร์จะไปยังตำแหน่งที่เลือก เกมที่มีอยู่จะอยู่ที่เดิม ไลบรารี Steam ใช้การตั้งค่าของตัวเอง</string>
+    <string name="storage_shared_mount">ที่เก็บข้อมูลโทรศัพท์ใน Linux</string>
+    <string name="storage_shared_mount_hint">เมานต์ที่เก็บข้อมูลของโทรศัพท์ไว้ที่ /root/Storage เมื่อปิด Linux จะเห็นเฉพาะโฟลเดอร์ที่คุณเพิ่มใน DroidDeck มีผลในเซสชันถัดไป</string>
     <string name="storage_default_ask">ถามทุกครั้ง</string>
     <string name="storage_default_ask_detail">เลือกปลายทางสำหรับการติดตั้งแต่ละครั้ง</string>
     <string name="storage_default_internal">พื้นที่จัดเก็บภายใน</string>

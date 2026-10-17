@@ -3158,6 +3158,8 @@
     <string name="storage_default_group">Място за инсталиране</string>
     <string name="storage_default_title">Хранилище по подразбиране</string>
     <string name="storage_default_hint">Новите инсталации от магазини отиват в избраното място. Съществуващите игри остават, където са. Библиотеките на Steam запазват собствената си настройка.</string>
+    <string name="storage_shared_mount">Хранилище на телефона в Linux</string>
+    <string name="storage_shared_mount_hint">Монтира хранилището на телефона ви в /root/Storage. Когато е изключено, Linux вижда само папките, които сте добавили в DroidDeck. Прилага се от следващата сесия.</string>
     <string name="storage_default_ask">Питане всеки път</string>
     <string name="storage_default_ask_detail">Избор на място за всяка инсталация</string>
     <string name="storage_default_internal">Вътрешна памет</string>

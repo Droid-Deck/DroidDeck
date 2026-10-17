@@ -3158,6 +3158,8 @@
     <string name="storage_default_group">Telepítési hely</string>
     <string name="storage_default_title">Alapértelmezett tárhely</string>
     <string name="storage_default_hint">Az új áruházi telepítések a kiválasztott helyre kerülnek. A meglévő játékok a helyükön maradnak. A Steam-könyvtárak megtartják saját beállításukat.</string>
+    <string name="storage_shared_mount">Telefontárhely a Linuxban</string>
+    <string name="storage_shared_mount_hint">Csatolja a telefon tárhelyét a /root/Storage helyre. Kikapcsolva a Linux csak a DroidDeckhez hozzáadott mappákat látja. A következő munkamenettől érvényes.</string>
     <string name="storage_default_ask">Kérdezzen rá minden alkalommal</string>
     <string name="storage_default_ask_detail">Célhely választása minden telepítésnél</string>
     <string name="storage_default_internal">Belső tárhely</string>

@@ -22,7 +22,7 @@ object SettingsReset {
         "gpuDriverMode", "androidDriver", "linuxDriver", "linuxDriver.steam", "linuxDriver.desktop",
         "tuSysmem", "glThread", "noGlError", "zinkLazy", "mangoapp", "gpuClockPin", "gamescopeRealtime", "paceCores",
         "directAudio", "mic", "wifiDiscovery", "clientCpusOverride", "clientCpus", "gameCpus",
-        "noXalia", "fastSync", "fsyncFirst", "syncFallback", "prootNoSeccomp", "prootFastPath", "nativeUserland", "cursorComposite",
+        "noXalia", "fastSync", "fsyncFirst", "syncFallback", "prootNoSeccomp", "prootFastPath", "nativeUserland", "cursorComposite", "mountSharedStorage",
         "guestHostname", "fexPreset", "forceSsbs", "logs", "gameDebugLogsEnabled", "enhancedDiagnosticsNext", "storageDiagnostics", "buildWatermark",
         "upscaler", "upscaleSharpness", "screenEffects", "blackFrameInsertion", "textureAnisotropy", "textureLodBias",
         "steamDownloadsInBackground", "steam_offline", "bootMovie", "bootMovieSound", "bootMovieVolume", "bootMovieSeconds", "skipBootMovie",

@@ -1,7 +1,6 @@
 package com.droiddeck.launcher.runtime
 
 import android.content.Context
-import android.os.Environment
 import com.droiddeck.launcher.core.DownloadSource
 import com.droiddeck.launcher.core.HostProcess
 import com.droiddeck.launcher.session.OrphanReaper
@@ -37,7 +36,7 @@ object GuestCommand {
         SessionFiles.stage(context, root)
         LinuxNetworkLinkComponent(context, root).publish()
         val runtimeDir = File(context.filesDir, ".flatpak-rt").apply { mkdirs() }
-        val binds = LinuxRuntime.binds(context, null, runtimeDir, Environment.getExternalStorageDirectory(), extraBinds)
+        val binds = LinuxRuntime.binds(context, null, runtimeDir, LinuxRuntime.sharedStorage(context), extraBinds)
         val native = NativeGuest.forSession(context)
         val fastPathKey = if (!native && fastPath && !fakeRoot && linkDir == null && ProotFastPath.enabled(context)) ProotFastPath.key(root, binds) else null
         val guest = mutableListOf(

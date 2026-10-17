@@ -313,7 +313,7 @@ object BottomDesktop {
             val runtime = runtimeDir(context).apply { mkdirs() }
             val imeDir = File(current.sessionRoot, "bottom-desktop-ime")
             main.post { if (generation == guestGeneration) watchIme(imeDir) }
-            val binds = LinuxRuntime.binds(context, current.sessionRoot, runtime, Environment.getExternalStorageDirectory(), current.binds)
+            val binds = LinuxRuntime.binds(context, current.sessionRoot, runtime, LinuxRuntime.sharedStorage(context), current.binds)
             val guest = ArrayList(current.guest).apply {
                 add("DD_WIDTH=$width")
                 add("DD_HEIGHT=$height")

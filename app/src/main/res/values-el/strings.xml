@@ -3158,6 +3158,8 @@
     <string name="storage_default_group">Τοποθεσία εγκατάστασης</string>
     <string name="storage_default_title">Προεπιλεγμένος αποθηκευτικός χώρος</string>
     <string name="storage_default_hint">Οι νέες εγκαταστάσεις από καταστήματα πηγαίνουν στην επιλεγμένη τοποθεσία. Τα υπάρχοντα παιχνίδια μένουν όπου είναι. Οι βιβλιοθήκες Steam διατηρούν τη δική τους ρύθμιση.</string>
+    <string name="storage_shared_mount">Αποθηκευτικός χώρος τηλεφώνου στο Linux</string>
+    <string name="storage_shared_mount_hint">Προσαρτά τον αποθηκευτικό χώρο του τηλεφώνου σας στο /root/Storage. Όταν είναι απενεργοποιημένο, το Linux βλέπει μόνο τους φακέλους που προσθέσατε στο DroidDeck. Ισχύει από την επόμενη συνεδρία.</string>
     <string name="storage_default_ask">Ερώτηση κάθε φορά</string>
     <string name="storage_default_ask_detail">Επιλογή προορισμού για κάθε εγκατάσταση</string>
     <string name="storage_default_internal">Εσωτερικός αποθηκευτικός χώρος</string>

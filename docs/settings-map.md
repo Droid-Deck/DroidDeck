@@ -64,6 +64,7 @@ Links of the form `droiddeck://settings/<section>` open a Settings section direc
 | Setting | Where | Also matches |
 | --- | --- | --- |
 | Storage | Tabs › Storage | sd card, space, uninstall, disk |
+| Phone storage in Linux | Tabs › Storage | sdcard, mount, privacy, files |
 | Syncthing | Tabs › Syncthing | syncthing, saves |
 | Decky | Tabs › Decky | plugins, plugin store, homebrew, loader |
 | Boot movies | Tabs › Boot movies | startup movie, boot video, animation, steamdeckrepo |

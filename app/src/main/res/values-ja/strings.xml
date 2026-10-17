@@ -3129,6 +3129,8 @@
     <string name="storage_default_group">インストール先</string>
     <string name="storage_default_title">デフォルトのストレージ</string>
     <string name="storage_default_hint">ストアからの新しいインストールは選択した場所に保存されます。既存のゲームはそのままです。Steamライブラリは独自の設定を使用します。</string>
+    <string name="storage_shared_mount">Linux でのスマホのストレージ</string>
+    <string name="storage_shared_mount_hint">スマホのストレージを /root/Storage にマウントします。オフにすると、Linux からは DroidDeck に追加したフォルダーだけが見えます。次のセッションから適用されます。</string>
     <string name="storage_default_ask">毎回確認する</string>
     <string name="storage_default_ask_detail">インストールごとに保存先を選択します</string>
     <string name="storage_default_internal">内部ストレージ</string>

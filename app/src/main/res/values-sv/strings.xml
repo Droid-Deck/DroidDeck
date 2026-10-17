@@ -3158,6 +3158,8 @@
     <string name="storage_default_group">Installationsplats</string>
     <string name="storage_default_title">Standardlagring</string>
     <string name="storage_default_hint">Nya butiksinstallationer hamnar på den valda platsen. Befintliga spel stannar där de är. Steam-bibliotek har sin egen inställning.</string>
+    <string name="storage_shared_mount">Telefonens lagring i Linux</string>
+    <string name="storage_shared_mount_hint">Monterar telefonens lagring på /root/Storage. När det är av ser Linux bara mappar du har lagt till i DroidDeck. Gäller från nästa session.</string>
     <string name="storage_default_ask">Fråga varje gång</string>
     <string name="storage_default_ask_detail">Välj mål för varje installation</string>
     <string name="storage_default_internal">Intern lagring</string>
