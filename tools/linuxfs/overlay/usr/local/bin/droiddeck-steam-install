@@ -46,33 +46,63 @@ for candidate in $cdn_list; do
   fi
 done
 [ -n "$cdn" ] || { echo "droiddeck-steam-install: no Steam client CDN answered for $manifest" >&2; exit 1; }
-cdn_order=("$cdn")
-for candidate in $cdn_list; do
-  [ "$candidate" = "$cdn" ] || cdn_order+=("$candidate")
-done
 version=$(awk -F'"' '$2 == "version" { print $4; exit }' "$work/manifest")
 awk -F'"' '
   /^\t"/ && NF >= 3 && $4 == "" { block = $2 }
   $2 == "file" { file[block] = $4 }
   $2 == "sha2" { sha[block] = $4 }
-  END { for (b in file) if (b ~ /_all$/ || b ~ /_linuxarm64_linuxarm64$/) print b, file[b], sha[b] }
+  $2 == "size" { size[block] = $4 }
+  END { for (b in file) if (b ~ /_all$/ || b ~ /_linuxarm64_linuxarm64$/) print b, file[b], sha[b], size[b] }
 ' "$work/manifest" | sort > "$work/parts"
 [ -s "$work/parts" ] || { echo "droiddeck-steam-install: no client components in $manifest" >&2; exit 1; }
 total=$(grep -c . "$work/parts" 2>/dev/null || echo 0)
 
+# The CDN that answers the manifest first is not the fastest one, so measure the
+# opening of the largest component and take the source that actually moves bytes.
+probe_file=$(sort -k4 -rn "$work/parts" | head -1 | awk '{ print $2 }')
+fastest=""
+fastest_speed=0
+for candidate in $cdn_list; do
+  speed=$(curl -fsSL --connect-timeout 8 --max-time 8 -r 0-2097151 -o /dev/null \
+    -w '%{speed_download}' "$candidate/$probe_file" 2>/dev/null) || speed=0
+  speed=${speed%%.*}
+  case $speed in ''|*[!0-9]*) speed=0 ;; esac
+  if [ "$speed" -gt "$fastest_speed" ]; then
+    fastest_speed=$speed
+    fastest=$candidate
+  fi
+done
+[ -n "$fastest" ] || fastest=$cdn
+echo "steam client source: ${fastest#https://} ($((fastest_speed / 1024)) KB/s)"
+cdn_order=("$fastest")
+for candidate in $cdn_list; do
+  [ "$candidate" = "$fastest" ] || cdn_order+=("$candidate")
+done
+
 mkdir -p "$steam_root/package"
-while read -r block file sum; do
+fetch_part() {
+  local host=$1 file=$2 sum=$3 floor=$4 target
+  target=$work/$file
+  rm -f "$target"
+  if [ "$floor" = 1 ]; then
+    curl -fsSL --connect-timeout 10 --speed-limit 262144 --speed-time 20 --max-time 1800 \
+      "$host/$file" -o "$target" || return 1
+  else
+    curl -fsSL --connect-timeout 10 --max-time 1800 "$host/$file" -o "$target" || return 1
+  fi
+  echo "$sum  $target" | sha256sum -c --quiet 2>/dev/null || { rm -f "$target"; return 1; }
+}
+while read -r block file sum size; do
   i=$((${i:-0} + 1))
   echo "== STEP $(date -u +%H:%M:%S) downloading Steam: $block ($i/$total)"
   fetched=""
   for host in "${cdn_order[@]}"; do
-    if curl -fsSL --connect-timeout 10 --speed-limit 1024 --speed-time 60 --max-time 1800 \
-        "$host/$file" -o "$work/$file" && echo "$sum  $work/$file" | sha256sum -c --quiet; then
-      fetched=$host
-      break
-    fi
-    rm -f "$work/$file"
+    fetch_part "$host" "$file" "$sum" 1 && { fetched=$host; break; }
   done
+  # Every source crawls: take the fastest one without the floor rather than fail.
+  if [ -z "$fetched" ] && fetch_part "${cdn_order[0]}" "$file" "$sum" 0; then
+    fetched=${cdn_order[0]}
+  fi
   [ -n "$fetched" ] || { echo "droiddeck-steam-install: $file failed on every CDN" >&2; exit 1; }
   unzip -qo "$work/$file" -d "$steam_root"
   rm -f "$work/$file"
@@ -88,7 +118,8 @@ find "$steam_root" -depth -name '*\\*' | while read -r odd; do
 done
 echo "$steam_channel" > "$steam_root/package/beta"
 ln -sfn "$steam_root/steamrtarm64" "$steam_root/steamrtarm32"
-chmod +x "$steam_root/steamrtarm64/steam" 2>/dev/null || true
+# The packages carry no exec bits; the client's own updater used to set them.
+chmod -R +x "$steam_root" 2>/dev/null || true
 mkdir -p "$HOME/.steam"
 ln -sfn "$steam_root" "$HOME/.steam/root"
 ln -sfn "$steam_root" "$HOME/.steam/steam"
