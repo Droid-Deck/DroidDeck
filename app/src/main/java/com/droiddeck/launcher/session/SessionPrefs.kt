@@ -837,6 +837,13 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("unfoldedControls", enabled).apply()
     }
 
+    fun unfoldedControlsWithController(context: Context): Boolean =
+        prefs(context).getBoolean("unfoldedControlsWithController", false)
+
+    fun setUnfoldedControlsWithController(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean("unfoldedControlsWithController", enabled).apply()
+    }
+
     const val SURFACE_STICK = "stick"
     const val SURFACE_TRACKPAD = "trackpad"
 

@@ -120,6 +120,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var pipUi by mutableStateOf(false)
     private var pipAutoEnter by mutableStateOf(false)
     private var unfoldedControls by mutableStateOf(false)
+    private var unfoldedControlsWithController by mutableStateOf(false)
     private var picturePosition by mutableStateOf("center")
 
     private fun applyGameAlignment() {
@@ -698,6 +699,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     },
                     unfoldedControls = if (com.droiddeck.launcher.session.SessionDisplay.foldable(this@SessionActivity)) unfoldedControls else null,
                     onUnfoldedControls = ::chooseUnfoldedControls,
+                    unfoldedControlsWithController = unfoldedControlsWithController,
+                    onUnfoldedControlsWithController = ::chooseUnfoldedControlsWithController,
                     onBackground = { drawerOpen = false; pip.background(); moveTaskToBack(true) },
                     onShareLogs = { drawerOpen = false; shareCurrentSessionLogs() },
                     onStop = { drawerOpen = false; SessionService.stop(this@SessionActivity); finish() },
@@ -1133,6 +1136,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun readPrefs() {
         pipAutoEnter = SessionPrefs.pipAutoEnter(this)
         unfoldedControls = SessionPrefs.unfoldedControls(this)
+        unfoldedControlsWithController = SessionPrefs.unfoldedControlsWithController(this)
         picturePosition = SessionPrefs.picturePosition(this)
         hudOn = SessionPrefs.hudEnabled(this)
         upscaler = SessionPrefs.upscaler(this)
@@ -1957,6 +1961,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         applyUnfoldedControls()
     }
 
+    private fun chooseUnfoldedControlsWithController(on: Boolean) {
+        SessionPrefs.setUnfoldedControlsWithController(this, on)
+        unfoldedControlsWithController = on
+        applyUnfoldedControls()
+    }
+
     private fun refreshControls() {
         applyUnfoldedControls()
         updateOnScreenControls()
@@ -1966,11 +1976,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (!::sessionRoot.isInitialized) return
         val width = sessionRoot.width
         val height = sessionRoot.height
-        val wanted = unfoldedControls && com.droiddeck.launcher.session.SessionDisplay.foldable(this) &&
-            !PadBridge.anyControllerConnected() && !SteamControllerBle.connected &&
-            SessionState.mode == SessionService.MODE_STEAM && SessionState.deckPad &&
-            !pipUi && !isInPictureInPictureMode && width > 0 && height > 0 &&
-            resources.configuration.smallestScreenWidthDp >= com.droiddeck.launcher.session.SessionDisplay.UNFOLDED_MIN_DP
+        val wanted = com.droiddeck.launcher.session.SessionDisplay.unfoldedControlsWanted(
+            enabled = unfoldedControls,
+            foldable = com.droiddeck.launcher.session.SessionDisplay.foldable(this),
+            controllerConnected = PadBridge.anyControllerConnected() || SteamControllerBle.connected,
+            keepWithController = unfoldedControlsWithController,
+            steamDeckPad = SessionState.mode == SessionService.MODE_STEAM && SessionState.deckPad,
+            pip = pipUi || isInPictureInPictureMode,
+            width = width,
+            height = height,
+            smallestWidthDp = resources.configuration.smallestScreenWidthDp,
+        )
         val gameHeight = if (wanted) com.droiddeck.launcher.session.SessionDisplay.unfoldedGameHeight(width, height)
             else FrameLayout.LayoutParams.MATCH_PARENT
         val params = surfaceView.layoutParams as FrameLayout.LayoutParams
