@@ -89,10 +89,18 @@ object AgentEnv {
         state.put("active", JSONArray(active)).put("pending", JSONArray())
         state.put("activeOverrides", JSONArray(overrides)).put("pendingOverrides", JSONArray())
         save(context, state)
-        bin(context).listFiles()
-            ?.filter { it.name !in overrides }?.forEach { it.delete() }
-        val lines = strings(state.optJSONArray("persistent")) + active
-        val withPath = if (overrides.isEmpty()) lines else lines + "PATH=$GUEST_BIN:${pathOf(lines)}"
+        val withPath = try {
+            bin(context).listFiles()
+                ?.filter { it.name !in overrides }?.forEach { it.delete() }
+            val lines = strings(state.optJSONArray("persistent")) + active
+            if (overrides.isEmpty()) lines else lines + "PATH=$GUEST_BIN:${pathOf(lines)}"
+        } catch (e: Exception) {
+            // This session will not get them, so they wait for the next one instead of being lost at endSession.
+            state.put("pending", JSONArray(active)).put("active", JSONArray())
+            state.put("pendingOverrides", JSONArray(overrides)).put("activeOverrides", JSONArray())
+            runCatching { save(context, state) }
+            throw e
+        }
         if (withPath.isNotEmpty()) Log.i(TAG, "agent environment keys for this session: ${withPath.map { it.substringBefore('=') }}")
         withPath
     }
