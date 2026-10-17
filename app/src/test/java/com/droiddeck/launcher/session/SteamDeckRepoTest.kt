@@ -1,0 +1,55 @@
+package com.droiddeck.launcher.session
+
+import org.junit.Assert.*
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [33])
+class SteamDeckRepoTest {
+    private val sample = """
+        {"posts":[
+          {"id":"p1","title":"Cool","content":"c","user":{"steam_name":"Ann"},"thumbnail":"https://x/t.png","video":"https://x/v.webm",
+           "video_duration":7,"likes":3,"downloads":9,"devices":["steam_deck"],"url":"https://steamdeckrepo.com/post/p1"},
+          {"id":"p2","title":"","video":"http://insecure/v.webm"},
+          {"id":"","video":"https://x/v.webm"},
+          {"id":"p3","video":"https://x/v3.webm","thumbnail":"ftp://bad"}
+        ],"currentSort":"trending"}
+    """.trimIndent()
+
+    @Test fun parsesPostsAndSkipsBrokenOnes() {
+        val posts = SteamDeckRepo.parse(sample)!!
+        assertEquals(listOf("p1", "p3"), posts.map { it.id })
+        val first = posts[0]
+        assertEquals("Cool", first.title)
+        assertEquals("Ann", first.author)
+        assertEquals(7, first.seconds)
+        assertEquals(listOf("steam_deck"), first.devices)
+        assertEquals("p3", posts[1].title)
+        assertEquals("", posts[1].thumbnail)
+    }
+
+    @Test fun notJsonIsNotAPage() {
+        assertNull(SteamDeckRepo.parse("<html>"))
+        assertNull(SteamDeckRepo.parse("{}"))
+    }
+
+    @Test fun buildsTheSameAddressesAsTheWebsite() {
+        assertEquals("https://steamdeckrepo.com/api/posts?sort=trending", SteamDeckRepo.url(SteamDeckRepo.Sort.TRENDING, null, ""))
+        assertEquals(
+            "https://steamdeckrepo.com/api/posts?sort=downloads-desc&device=steam_machine&search=a%20b%26c&page=3",
+            SteamDeckRepo.url(SteamDeckRepo.Sort.DOWNLOADS, "steam_machine", " a b&c ", 3),
+        )
+    }
+
+    @Test fun readsAreCutOffAtTheLimit() {
+        assertEquals(10, SteamDeckRepo.readLimited(ByteArray(10).inputStream(), 10)!!.size)
+        assertNull(SteamDeckRepo.readLimited(ByteArray(11).inputStream(), 10))
+    }
+
+    @Test fun aPageHoldsTwelveMovies() {
+        assertEquals(12, SteamDeckRepo.PAGE_SIZE)
+    }
+}
