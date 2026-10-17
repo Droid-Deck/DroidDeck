@@ -201,6 +201,27 @@ class GameEnvironmentTest(unittest.TestCase):
             (other / "Other.exe").touch()
             self.assertEqual(MODULE["engine_fixes"](str(other / "Other.exe"), []), ({}, [], []))
 
+    def test_easy_anti_cheat_games_start_offline_only_when_opted_in(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            game = Path(tmp) / "ELDEN RING/Game"
+            (game / "EasyAntiCheat").mkdir(parents=True)
+            for name in ("start_protected_game.exe", "eldenring.exe"):
+                (game / name).touch()
+            (game / "EasyAntiCheat/settings.json").write_text('\ufeff{ "executable" : "eldenring.exe" }', encoding="utf-8")
+            command = ["proton", "waitforexitandrun", str(game / "start_protected_game.exe"), "-arg"]
+            offline = MODULE["offline_without_anticheat"]
+            self.assertEqual(offline(command, {}), command)
+            self.assertEqual(offline(command, {"DROIDDECK_ANTICHEAT_OFFLINE": "0"}), command)
+            self.assertEqual(offline(command, {"DROIDDECK_ANTICHEAT_OFFLINE": "1"}),
+                             ["proton", "waitforexitandrun", str(game / "eldenring.exe"), "-arg"])
+            (game / "EasyAntiCheat/settings.json").write_text('{ "executable" : "../../escape.exe" }')
+            (Path(tmp) / "escape.exe").touch()
+            self.assertEqual(offline(command, {"DROIDDECK_ANTICHEAT_OFFLINE": "1"}), command)
+            (game / "EasyAntiCheat/settings.json").write_text('{ "executable" : "missing.exe" }')
+            self.assertEqual(offline(command, {"DROIDDECK_ANTICHEAT_OFFLINE": "1"}), command)
+            plain = ["proton", "waitforexitandrun", str(Path(tmp) / "Other.exe")]
+            self.assertEqual(offline(plain, {"DROIDDECK_ANTICHEAT_OFFLINE": "1"}), plain)
+
     def test_deep_rock_gdk_avoids_the_raytracing_pipeline_crash(self):
         game = "/game/FSD/Binaries/WinGDK/FSD-WinGDK-Shipping.exe"
         env, extra, notes = MODULE["engine_fixes"](game, [])
