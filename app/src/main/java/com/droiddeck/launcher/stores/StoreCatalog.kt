@@ -89,6 +89,19 @@ fun mergeItems(old: List<CatalogItem>?, new: List<CatalogItem>): List<CatalogIte
     return if (merged.size == old.size && merged.indices.all { merged[it] === old[it] }) old else merged
 }
 
+/**
+ * [patched] over [old] by key, the way a store that fills its cards in one at a time needs it: a card
+ * already on screen keeps its very object and its place, one the grid does not have yet is added where
+ * its title belongs. Unlike [mergeItems] the rest of [old] is never dropped.
+ */
+fun patchItems(old: List<CatalogItem>?, patched: List<CatalogItem>): List<CatalogItem> {
+    if (old.isNullOrEmpty()) return patched
+    val byKey = patched.associateBy { it.key }
+    val kept = old.map { byKey[it.key] ?: it }
+    val added = patched.filter { n -> old.none { it.key == n.key } }
+    return if (added.isEmpty()) kept else (kept + added).sortedBy { it.title.lowercase() }
+}
+
 class InstalledStoreGame(val sidecar: StoreGameSidecar, val folder: java.io.File) {
     val key: String get() = "${sidecar.store.id}:${sidecar.id}"
 }

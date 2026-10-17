@@ -824,8 +824,16 @@ private fun Storefront(
     val density = androidx.compose.ui.platform.LocalDensity.current
     val focus = LocalFrontFocus.current
     val scope = rememberCoroutineScope()
-    val headerItems = 1 + (if (sizeSortPending) 1 else 0) +
-        (if (StoresState.status[store] != null) 1 else 0) + (if (StoresState.problems[store] != null) 1 else 0)
+    // A bar only where the tab has nothing else on it: shelves, the shelf of owned games, or installs on screen
+    // are not a library still loading.
+    val gridEmpty = when {
+        installedOnly -> false
+        showGrid -> visible.isEmpty()
+        else -> (shelves == null || shelves.isEmpty) && library.isEmpty()
+    }
+    val barLine = StoresState.status[store]?.takeIf { gridEmpty && syncCount(it) != null }
+    val headerItems = 1 + (if (sizeSortPending) 1 else 0) + (if (barLine != null) 1 else 0) +
+        (if (StoresState.problems[store] != null) 1 else 0)
     val listMode = s.storesView == "list" && (tab == "library" || tab == "installed")
     val card: @Composable (CatalogItem) -> Unit = { item ->
         val first = if (showGrid) item.key == visible.firstOrNull()?.key else !firstPlaced
@@ -904,7 +912,7 @@ private fun Storefront(
                 Text(stringResource(R.string.store_section_loading), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        StoresState.status[store]?.let { line -> item(key = "sync", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { SyncBar(line) } } }
+        barLine?.let { line -> item(key = "sync", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { SyncBar(line) } } }
         StoresState.problems[store]?.let { line -> item(key = "problem", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { Box(Modifier.padding(bottom = 8.dp)) { Note(line) } } } }
         when (tab) {
             "library", "installed" -> if (!loaded) Unit
@@ -1247,34 +1255,48 @@ private fun GameCard(item: CatalogItem, store: Store, s: FrontEndState, a: Front
     }
 }
 
+private fun syncCount(line: String): Pair<Int, Int>? {
+    val match = Regex("(\\d+)\\s*/\\s*(\\d+)").find(line) ?: return null
+    val done = match.groupValues[1].toIntOrNull() ?: return null
+    val total = match.groupValues[2].toIntOrNull()?.takeIf { it > 0 } ?: return null
+    return done to total
+}
+
 @Composable
 private fun SyncBar(line: String) {
-    val count = Regex("(\\d+)\\s*/\\s*(\\d+)").find(line)
-    val done = count?.groupValues?.get(1)?.toIntOrNull()
-    val total = count?.groupValues?.get(2)?.toIntOrNull()?.takeIf { it > 0 }
+    val count = syncCount(line) ?: return
+    val done = count.first
+    val total = count.second
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
-        Box(Modifier.weight(1f)) {
-            if (done != null && total != null) androidx.compose.material3.LinearProgressIndicator(progress = { (done.toFloat() / total).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(3.dp))
-            else androidx.compose.material3.LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(3.dp))
-        }
-        if (done != null && total != null) Text("$done/$total", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+        Box(Modifier.weight(1f)) { androidx.compose.material3.LinearProgressIndicator(progress = { (done.toFloat() / total).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(3.dp)) }
+        Text("$done/$total", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
     }
 }
 
 private val CardStrip = 26.dp
 
+@Composable
+internal fun cardArtRequest(url: String?, cover: String?): coil.request.ImageRequest? {
+    val ctx = LocalContext.current
+    val under = cover?.takeIf { it != url }
+    return remember(url, under) {
+        url?.let { coil.request.ImageRequest.Builder(ctx).data(it).apply { if (under != null) placeholderMemoryCacheKey(under) }.build() }
+    }
+}
+
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun CardFace(item: CatalogItem, download: com.droiddeck.launcher.stores.download.DownloadEntry?, hot: Boolean, marker: @Composable () -> Unit) {
     val url = item.imageUrl ?: item.tallImageUrl
+    val art = cardArtRequest(url, item.tallImageUrl)
     val blurs = android.os.Build.VERSION.SDK_INT >= 31
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val total = maxWidth * 9f / 16f + CardStrip
         Box(Modifier.fillMaxWidth().height(total).background(Color(0xFF101318)).then(if (url == null) Modifier.background(artBrush(hueOf(item.title))) else Modifier)) {
-            if (url != null) AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+            if (art != null) AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
             Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(CardStrip).clipToBounds()) {
-                if (url != null) AsyncImage(
-                    model = url, contentDescription = null, contentScale = ContentScale.Crop,
+                if (art != null) AsyncImage(
+                    model = art, contentDescription = null, contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxWidth().wrapContentHeight(Alignment.Bottom, unbounded = true).height(total).blur(24.dp),
                 )
                 Spacer(Modifier.matchParentSize().background(Color.Black.copy(alpha = if (blurs) 0.45f else 0.7f)))
@@ -1326,9 +1348,10 @@ private fun CardMarker(item: CatalogItem, installed: Boolean, download: com.droi
 @Composable
 internal fun CardArt(item: CatalogItem, modifier: Modifier) {
     val url = item.imageUrl ?: item.tallImageUrl
+    val art = cardArtRequest(url, item.tallImageUrl)
     val colors = MaterialTheme.colorScheme
     Box(modifier.background(colors.surfaceVariant).then(if (url == null) Modifier.background(artBrush(hueOf(item.title))) else Modifier)) {
-        if (url != null) AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+        if (art != null) AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
         else Text(item.title, fontSize = 10.sp, fontWeight = FontWeight.Black, color = Color.White, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.align(Alignment.BottomStart).padding(6.dp))
         Spacer(Modifier.matchParentSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(0.6f to Color.Transparent, 1f to colors.surface.copy(alpha = 0.85f))))
     }

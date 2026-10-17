@@ -84,7 +84,9 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
                 .clip(Shape16).background(artBrush(hueOf(title))),
         ) {
             val art = item?.imageUrl ?: installed?.sidecar?.hero ?: installed?.sidecar?.cover
-            if (art != null) AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+            // The card it came from keeps its own bitmap under the hero until the wide art is decoded.
+            val heroArt = cardArtRequest(art, item?.tallImageUrl)
+            if (heroArt != null) AsyncImage(model = heroArt, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
             Spacer(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to colors.background.copy(alpha = 0.94f), 0.5f to colors.background.copy(alpha = 0.55f), 1f to Color.Transparent)))
             if (scores != null && !stacked) {
                 Spacer(Modifier.matchParentSize().background(Brush.horizontalGradient(0.45f to Color.Transparent, 1f to colors.background.copy(alpha = 0.75f))))
