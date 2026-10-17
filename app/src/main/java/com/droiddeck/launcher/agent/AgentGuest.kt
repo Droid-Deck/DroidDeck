@@ -136,8 +136,12 @@ object AgentGuest {
         return null
     }
 
-    fun call(context: Context, request: JSONObject, timeoutMs: Long): JSONObject {
-        if (request.optString("kind") in setOf("exec", "cdp")) AgentAccess.requireCommands(context)
+    fun steamEval(context: Context, expression: String, timeoutMs: Long): JSONObject =
+        call(context, JSONObject().put("kind", "cdp").put("expression", expression).put("timeout", timeoutMs / 1000.0),
+            timeoutMs + 2_000, trusted = true)
+
+    fun call(context: Context, request: JSONObject, timeoutMs: Long, trusted: Boolean = false): JSONObject {
+        if (!trusted && request.optString("kind") in setOf("exec", "cdp")) AgentAccess.requireCommands(context)
         if (!SessionState.running) throw AgentException("NO_ACTIVE_SESSION", "There is no running session")
         hello(context) ?: throw AgentException("AGENT_UNAVAILABLE", "The guest agent is not running in this session (yet)")
         val dir = dir(context)

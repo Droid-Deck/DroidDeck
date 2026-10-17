@@ -73,7 +73,7 @@ bl_run() {
   if [ -n "${BL_STORE_EXIT:-}" ]; then
     "$@"
     rc=$?
-    /usr/local/bin/droiddeck-store-launch --exited "${BL_STORE_ARGS[@]}" || true
+    /usr/local/bin/droiddeck-store-launch --exited --code "$rc" "${BL_STORE_ARGS[@]}" || true
     exit $rc
   fi
   exec "$@"
@@ -660,6 +660,26 @@ def launch_programs(config):
     return found
 
 
+def launch_options(config):
+    """An app's launch options as Steam lists them: executable, arguments, working folder, type and oslist."""
+    launch = config.get("launch") if isinstance(config, dict) else None
+    found = []
+    for key, option in launch.items() if isinstance(launch, dict) else ():
+        if not isinstance(option, dict) or not option.get("executable"):
+            continue
+        settings = option.get("config") if isinstance(option.get("config"), dict) else {}
+        found.append({
+            "key": str(key),
+            "executable": str(option["executable"]),
+            "arguments": str(option.get("arguments", "")),
+            "workingdir": str(option.get("workingdir", "")),
+            "type": str(option.get("type", "")).lower(),
+            "oslist": str(settings.get("oslist", "")).lower(),
+            "betakey": str(settings.get("betakey", "")),
+        })
+    return found
+
+
 def appinfo_entries(path):
     import struct
     try:
@@ -751,6 +771,7 @@ def appinfo_entries(path):
             "type": str(common.get("type", "")).lower(),
             "recommended": str(recommended),
             "launch": launch_programs(info.get("config")),
+            "launch_options": launch_options(info.get("config")),
         }
         if app == STEAM_PLAY_MANIFESTS:
             extended = info.get("extended", {})

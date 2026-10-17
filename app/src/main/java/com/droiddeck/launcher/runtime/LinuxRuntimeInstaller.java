@@ -261,7 +261,7 @@ public final class LinuxRuntimeInstaller {
             emptyTrash(LinuxRuntime.rootDir(context).getParentFile());
             String downloading = context.getString(R.string.rtinst_downloading);
             if (listener != null) listener.onProgress(Step.DOWNLOADING, downloading, 0);
-            boolean ok = Downloader.downloadFile(release.url, archive, true, (fraction) -> {
+            boolean ok = Downloader.downloadFile(release.url, archive, true, release.sha256, (fraction) -> {
                 if (listener != null) {
                     listener.onProgress(Step.DOWNLOADING, downloading,
                             fraction < 0 ? -1 : Math.round(fraction * 100f));

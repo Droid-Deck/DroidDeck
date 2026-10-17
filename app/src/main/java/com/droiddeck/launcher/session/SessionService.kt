@@ -72,7 +72,8 @@ class SessionService : Service() {
     private var steamDownloadsInBackground = false
     private var activityVisible = true
     private var xrActivityVisible = false
-    private val hasVisibleSurface get() = sessionHasVisibleSurface(activityVisible, screenOn, xrActivityVisible)
+    private var signInHold = false
+    private val hasVisibleSurface get() = sessionHasVisibleSurface(activityVisible || signInHold, screenOn, xrActivityVisible)
     private var screenOn = true
     private var manualPauseRequested = false
     private var steamSleepToken: String? = null
@@ -183,6 +184,15 @@ class SessionService : Service() {
                 updateSuspendPolicy()
                 return START_NOT_STICKY
             }
+            ACTION_SIGN_IN_HOLD -> {
+                val hold = intent?.getBooleanExtra(EXTRA_HOLD, false) == true
+                if (hold == signInHold) return START_NOT_STICKY
+                signInHold = hold
+                if (hold) manualPauseRequested = false
+                suspendAttemptFailed = false
+                updateSuspendPolicy()
+                return START_NOT_STICKY
+            }
             ACTION_SUSPEND_POLICY_CHANGED -> {
                 if (!SessionState.running) return START_NOT_STICKY
                 suspendPolicy = SessionPrefs.suspendPolicy(this, SessionState.mode)
@@ -219,6 +229,7 @@ class SessionService : Service() {
         steamDownloadsInBackground = SessionPrefs.steamDownloadsInBackground(this)
         activityVisible = true
         xrActivityVisible = false
+        signInHold = false
         screenOn = (getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isInteractive ?: true
         manualPauseRequested = false
         suspendDownloadNow = false
@@ -292,6 +303,7 @@ class SessionService : Service() {
 
     private fun runSession(gen: Int) {
         SessionTerminal.clear()
+        com.droiddeck.launcher.gpu.TpUbwcHint.forThisDevice()
         try {
             LinuxRuntime.writeAccounts(this)
         } catch (e: Exception) {
@@ -324,6 +336,7 @@ class SessionService : Service() {
                 .onFailure { Log.w(TAG, "forced components", it) }
         }
         addClientEnvironment(guest, steamHere)
+        if (steamHere) guest.add("BL_EPIC_APP_ID=" + com.droiddeck.launcher.stores.epic.EpicClient.shortcutAppId)
         val fastPathAt = guest.size
 
         val pulse = startAudio(guest, sessionDir)
@@ -349,7 +362,15 @@ class SessionService : Service() {
             addControllerEnvironment(guest, fakeInputDir, sessionDir)
             SessionState.padBridge?.syncConnectedControllers()
         }
-        if (steamHere) {
+        val noSteamGame = noSteamGame()
+        if (noSteamGame) guest.add("BL_PIN_CORES=0")
+        if ((steamHere || SessionState.program == NoSteamLaunch.EPIC) && com.droiddeck.launcher.stores.epic.EpicClient.read(this).installed) {
+            runCatching { com.droiddeck.launcher.stores.epic.EpicClientLibrary.sync(this) }
+                .onFailure { Log.w(TAG, "Epic library sync failed", it) }
+            runCatching { com.droiddeck.launcher.stores.epic.EpicClient.prepareInstallDir(this) }
+                .onFailure { Log.w(TAG, "Epic install directory setup failed", it) }
+        }
+        if (steamHere || noSteamGame) {
             val added = com.droiddeck.launcher.frontend.AddedGames.scan(this)
             val listing = com.droiddeck.launcher.frontend.AddedGames.writeListing(this, added)
             guest.add("BL_ADDED_GAMES=" + listing.path)
@@ -456,8 +477,9 @@ class SessionService : Service() {
                 Log.i(TAG, "an earlier session's process ended ($status); the current one carries on")
                 return@start
             }
-            Log.i(TAG, "session ended: $status")
-            stopSession(status ?: -1)
+            val program = programStatus(sessionRoot)
+            Log.i(TAG, "session ended: $status" + if (program != null) " (program $program)" else "")
+            stopSession(program ?: status ?: -1)
         }, null)
         Log.i(TAG, "session pid $pid, log ${sessionLog.path}")
         if (gen != sessionGen || !SessionState.running) {
@@ -537,9 +559,17 @@ class SessionService : Service() {
         guest.add("LIBGL_KOPPER_DRI2=true")
         LinuxRuntime.vulkanIcd(this)?.let { guest.add("VK_ICD_FILENAMES=" + it.path) }
         val linuxDriverId = SessionPrefs.linuxDriver(this)
+        SessionState.runtimeDriver = linuxDriverId
+        com.droiddeck.launcher.gpu.AutoDriverTrial.sessionStarting(
+            this,
+            com.droiddeck.launcher.wayland.CompositorHost.displayChoice.takeIf { com.droiddeck.launcher.wayland.CompositorHost.isStarted }
+                ?: SessionPrefs.androidDriver(this),
+            linuxDriverId,
+        )
         LinuxVulkanDriver.resolveIcdPath(this, linuxDriverId)
             ?.let { guest.add(LinuxVulkanDriver.ENV + "=" + it) }
         tuDebug(linuxDriverId)?.let { guest.add("TU_DEBUG=$it") }
+        com.droiddeck.launcher.gpu.TpUbwcHint.forThisDevice()?.let { guest.add("${com.droiddeck.launcher.gpu.TpUbwcHint.ENV}=$it") }
         if (SessionPrefs.zinkLazy(this)) {
             guest.add("ZINK_DESCRIPTORS=lazy")
             guest.add("ZINK_DEBUG=compact")
@@ -570,8 +600,11 @@ class SessionService : Service() {
             .takeIf { it.isNotEmpty() }?.let { guest.add("BL_GAME_CPUS=$it") }
     }
 
+    private fun noSteamGame(): Boolean =
+        SessionState.mode == MODE_RUN && SessionState.program in setOf(NoSteamLaunch.PROTON_RUN, NoSteamLaunch.EPIC)
+
     private fun startAudio(guest: MutableList<String>, sessionDir: File): PulseAudioComponent {
-        val wantsDirectAudio = (SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP) &&
+        val wantsDirectAudio = (SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP || noSteamGame()) &&
             SessionPrefs.directAudio(this)
         val wantsMic = SessionPrefs.micEnabled(this) &&
             checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
@@ -996,10 +1029,15 @@ class SessionService : Service() {
 
     private var launchWatcher: android.os.FileObserver? = null
 
+    private fun programStatus(dir: File): Int? =
+        runCatching { File(dir, RUN_STATUS).readText().trim().toInt() }.getOrNull()
+
     private fun watchLaunchRequests(dir: File) {
         launchWatcher?.stopWatching()
         listOf("steam-sleep", "steam-sleep-state", "steam-sleep-ready", "steam-wake", "steam-wake.tmp",
-            "steam-native-sleep", "steam-native-sleep.tmp", "steam-native-ready", "steam-native-ready.tmp"
+            "steam-native-sleep", "steam-native-sleep.tmp", "steam-native-ready", "steam-native-ready.tmp",
+            RUN_STATUS, "$RUN_STATUS.tmp", "epic-game", "epic-game.tmp", com.droiddeck.launcher.stores.epic.EpicClient.PLAYING,
+            com.droiddeck.launcher.stores.epic.EpicClient.OPEN, com.droiddeck.launcher.stores.epic.EpicClient.FOCUSED_APP
         ).forEach { File(dir, it).delete() }
         val gen = sessionGen
         @Suppress("DEPRECATION")
@@ -1329,6 +1367,7 @@ class SessionService : Service() {
         updateDownloadMonitoring()
         val stoppedGen = sessionGen
         val stoppedSession = SessionState.sessionId
+        val launcherEnded = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP || SessionState.program == NoSteamLaunch.EPIC
         SessionState.stopRequested = false
         SessionEvents.record("guest.exited", mapOf("status" to status))
         GpuClockPin.stop(this)
@@ -1369,13 +1408,23 @@ class SessionService : Service() {
                     if (prootPid > 1) teardown(prootPid)
                     killGuestLeftovers()
                     finishSessionStop(status, stoppedGen)
+                    if (launcherEnded) importLauncherGames()
                 }, "session-teardown").start()
             } else {
-                Thread({ com.droiddeck.launcher.stores.gog.GogComet.end(stoppedSession); finishSessionStop(status, stoppedGen) }, "gog-session-stop").start()
+                Thread({
+                    com.droiddeck.launcher.stores.gog.GogComet.end(stoppedSession)
+                    finishSessionStop(status, stoppedGen)
+                    if (launcherEnded) importLauncherGames()
+                }, "gog-session-stop").start()
             }
         }
         if (prootPid > 1) acquireLocks()
         if (controller != null) controller.closeAndResume(finishAfterTeardown) else finishAfterTeardown()
+    }
+
+    private fun importLauncherGames() {
+        runCatching { com.droiddeck.launcher.stores.epic.EpicClientLibrary.importClientGames(this) }
+            .onFailure { Log.w(TAG, "client library scan failed: ${it.javaClass.simpleName}") }
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
@@ -1584,6 +1633,8 @@ class SessionService : Service() {
         private const val ACTION_ACTIVITY_HIDDEN = "com.droiddeck.launcher.ACTIVITY_HIDDEN"
         private const val ACTION_XR_ACTIVITY_VISIBLE = "com.droiddeck.launcher.XR_ACTIVITY_VISIBLE"
         private const val ACTION_XR_ACTIVITY_HIDDEN = "com.droiddeck.launcher.XR_ACTIVITY_HIDDEN"
+        private const val ACTION_SIGN_IN_HOLD = "com.droiddeck.launcher.SIGN_IN_HOLD"
+        private const val EXTRA_HOLD = "hold"
         private const val ACTION_TRACK_AUXILIARY = "com.droiddeck.launcher.TRACK_AUXILIARY"
         private const val ACTION_STOP_AUXILIARY = "com.droiddeck.launcher.STOP_AUXILIARY"
         private const val ACTION_AUXILIARY_EXITED = "com.droiddeck.launcher.AUXILIARY_EXITED"
@@ -1607,6 +1658,7 @@ class SessionService : Service() {
         const val MODE_DESKTOP = "lxqt"
         const val MODE_RUN = "run"
         const val EXTRA_PROGRAM = "program"
+        private const val RUN_STATUS = "run-status"
         const val EXTRA_PROGRAM_ARGS = "programArgs"
         const val EXTRA_STEAM_UI = "steamUi"
         const val EXTRA_STEAM_URL = "steamUrl"
@@ -1647,6 +1699,11 @@ class SessionService : Service() {
             if (!SessionState.running) return
             val action = if (visible) ACTION_XR_ACTIVITY_VISIBLE else ACTION_XR_ACTIVITY_HIDDEN
             context.startService(Intent(context, SessionService::class.java).setAction(action))
+        }
+
+        fun holdForSignIn(context: Context, hold: Boolean) {
+            if (!SessionState.running) return
+            context.startService(Intent(context, SessionService::class.java).setAction(ACTION_SIGN_IN_HOLD).putExtra(EXTRA_HOLD, hold))
         }
 
         fun resume(context: Context) {

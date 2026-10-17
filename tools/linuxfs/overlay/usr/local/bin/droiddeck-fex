@@ -563,13 +563,32 @@ def want_fex():
             write_if_changed(STATUS_FILE, json.dumps(status, indent=2) + "\n")
 
 
+XATTR_ONLY_NOISE = re.compile(r"^(proot (error|warning)|Failed to exec memfd|Further error messages of this type are suppressed)")
+
+
+def only_xattrs_failed(errors):
+    seen = False
+    for line in errors.splitlines():
+        if "write_xattr" in line:
+            seen = True
+        elif re.search(r"fail|could not|cannot|error", line, re.I) and not XATTR_ONLY_NOISE.match(line):
+            return False
+    return seen
+
+
 def extract(image):
     image = os.path.abspath(image)
     clear_extracted()
     x86 = elf_arch(image) in X86.values()
     if os.access(URUNTIME, os.X_OK):
-        status = subprocess.call([URUNTIME, "--appimage-extract"], stdout=subprocess.DEVNULL,
-                                 env=dict(os.environ, TARGET_APPIMAGE=image))
+        run = subprocess.run([URUNTIME, "--appimage-extract"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                             env=dict(os.environ, TARGET_APPIMAGE=image))
+        errors = run.stderr.decode("utf-8", "replace")
+        sys.stderr.write(errors)
+        status = run.returncode
+        if status == 2 and only_xattrs_failed(errors) and extracted() and os.path.lexists("squashfs-root/AppRun"):
+            say("uruntime could not keep the image's extended attributes; the files are unpacked")
+            status = 0
         if status == 0 and extracted():
             if x86:
                 want_fex()
@@ -586,7 +605,7 @@ def extract(image):
     unsquashfs = shutil.which("unsquashfs")
     if unsquashfs:
         clear_extracted()
-        status = subprocess.call([unsquashfs, "-q", "-n", "-o", str(appimage_offset(image)), "-d", "squashfs-root", image],
+        status = subprocess.call([unsquashfs, "-q", "-n", "-no-xattrs", "-o", str(appimage_offset(image)), "-d", "squashfs-root", image],
                                  stdout=subprocess.DEVNULL)
         if status == 0:
             if x86:

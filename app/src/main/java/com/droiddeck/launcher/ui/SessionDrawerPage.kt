@@ -6,16 +6,14 @@ internal enum class SessionDrawerPage(val firstControl: String) {
     SECOND_SCREEN("second-screen:none"),
     DISPLAY("hud"),
     EFFECTS("look"),
-    STEAMVR("steamvr"),
-    CARDBOARD("cardboard"),
+    VR("steamvr"),
     GAMES("anisotropy"),
     SESSION("suspend"),
 }
 
-internal fun sessionDrawerPages(hasSecondScreen: Boolean, hasGlasses: Boolean = false, hasCardboard: Boolean = true): List<SessionDrawerPage> =
+internal fun sessionDrawerPages(hasSecondScreen: Boolean, hasGlasses: Boolean = false): List<SessionDrawerPage> =
     SessionDrawerPage.entries.filter {
-        (hasSecondScreen || it != SessionDrawerPage.SECOND_SCREEN) && (hasGlasses || it != SessionDrawerPage.GLASSES) &&
-            (hasCardboard || it != SessionDrawerPage.CARDBOARD)
+        (hasSecondScreen || it != SessionDrawerPage.SECOND_SCREEN) && (hasGlasses || it != SessionDrawerPage.GLASSES)
     }
 
 internal fun List<SessionDrawerPage>.step(current: SessionDrawerPage, direction: Int): SessionDrawerPage {

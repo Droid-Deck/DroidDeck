@@ -17,10 +17,15 @@ object Library {
         val source: String = SOURCE_STEAM,
         val storeId: String? = null,
     ) {
+        fun withArt(art: File?, hero: File?, icon: File?) =
+            SteamGame(appId, name, art, library, gameId, hero, lastPlayed, gameFiles, protonPrefix, icon, source, storeId)
+
         val gameIdString: String get() = java.lang.Long.toUnsignedString(gameId)
         val profileKey: String get() = if (library == ADDED) java.lang.Integer.toUnsignedString(appId) else appId.toString()
     }
     const val ADDED = "added"
+    const val EPIC_LAUNCHER = "epic-launcher"
+    const val EPIC_LAUNCHER_NAME = "Epic Games Launcher"
     const val SOURCE_STEAM = "steam"
 
     class Rom(val name: String, val hostPath: File, val guestPath: String, val emulatorId: String, val art: File? = null)
@@ -138,7 +143,11 @@ object Library {
 
     fun launchableGames(context: Context, strictRead: Boolean = false, added: List<AddedGames.Game>? = null): List<SteamGame> {
         val roots = steamLibraries(context).map { it.first }
-        return (steamGames(context, strictRead) + (added ?: AddedGames.scan(context)).map { g -> addedGame(context, g, roots) }).distinctBy { it.gameId }
+        val list = added ?: AddedGames.scan(context)
+        var steam = steamGames(context, strictRead)
+        val targets = steam.filter { it.library != ADDED && it.source == SOURCE_STEAM }.map { SteamGrid.target(it, context) } + list.map { SteamGrid.target(it, context) }
+        if (runCatching { SteamGrid.sync(context, targets) }.getOrDefault(false)) steam = steamGames(context, strictRead)
+        return (steam + list.map { g -> addedGame(context, g, roots) }).distinctBy { it.gameId }
     }
 
     fun addedGame(context: Context, g: AddedGames.Game, roots: List<File> = steamLibraries(context).map { it.first }): SteamGame =
@@ -185,7 +194,8 @@ object Library {
         if (program == com.droiddeck.launcher.runtime.FlatpakManager.LAUNCHER || program == com.droiddeck.launcher.runtime.AppImageManager.LAUNCHER ||
             program == com.droiddeck.launcher.runtime.UserApps.SCRIPT_LAUNCHER) {
             com.droiddeck.launcher.session.SessionState.programArgs.firstOrNull()?.let { flatpakNames[it] ?: it.substringAfterLast('.') }
-        } else specs.firstOrNull { it.program == program }?.name
+        } else com.droiddeck.launcher.session.NoSteamLaunch.nameFor(program, com.droiddeck.launcher.session.SessionState.programArgs)
+            ?: specs.firstOrNull { it.program == program }?.name
 
     val flatpakNames = java.util.concurrent.ConcurrentHashMap<String, String>()
 
