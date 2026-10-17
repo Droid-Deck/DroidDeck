@@ -151,6 +151,7 @@ private val SessionDrawerPage.title: Int get() = when (this) {
     SessionDrawerPage.CONTROLLER -> R.string.drawer_page_controller
     SessionDrawerPage.SECOND_SCREEN -> R.string.drawer_second_screen
     SessionDrawerPage.DISPLAY -> R.string.drawer_page_display
+    SessionDrawerPage.VR -> R.string.vr_title
     SessionDrawerPage.EFFECTS -> R.string.drawer_page_effects
     SessionDrawerPage.GAMES -> R.string.game_settings_title
     SessionDrawerPage.SESSION -> R.string.mode_session
@@ -160,6 +161,7 @@ private val SessionDrawerPage.icon get() = when (this) {
     SessionDrawerPage.CONTROLLER -> Icons.Outlined.SportsEsports
     SessionDrawerPage.SECOND_SCREEN -> Icons.Outlined.ScreenShare
     SessionDrawerPage.DISPLAY -> Icons.Outlined.DesktopWindows
+    SessionDrawerPage.VR -> VrHeadsetIcon
     SessionDrawerPage.EFFECTS -> Icons.Outlined.AutoFixHigh
     SessionDrawerPage.GAMES -> Icons.Outlined.Layers
     SessionDrawerPage.SESSION -> Icons.Outlined.Settings
@@ -209,6 +211,7 @@ class DrawerActions(
     val cardboard: Cardboard = Cardboard.OFF,
     val cardboardSensor: Boolean = false,
     val steamVr: SteamVr.Status? = null,
+    val immersiveSteamVr: Boolean = false,
     val textureAnisotropy: Int? = 0,
     val textureLodBias: String? = TextureFiltering.LOD_BIAS_OFF,
     val secondScreenMode: SecondScreenMode,
@@ -233,6 +236,10 @@ class DrawerActions(
     val onSuspendPolicy: (String) -> Unit,
     val onSteamDownloadsInBackground: (Boolean) -> Unit = {},
     val onBackActionsInverted: (Boolean) -> Unit,
+    val lowLatencyController: Boolean = false,
+    val lowLatencyTouch: Boolean = false,
+    val onLowLatencyController: (Boolean) -> Unit = {},
+    val onLowLatencyTouch: (Boolean) -> Unit = {},
     val onTouch: (String) -> Unit,
     val onFexPreset: (String) -> Unit,
     val onUpscaler: (Int) -> Unit = {},
@@ -282,6 +289,9 @@ class DrawerActions(
     val onGameLocale: (Long, String?) -> Unit = { _, _ -> },
     val onComponentSwap: (protonId: String, comp: String, value: String) -> Unit = { _, _, _ -> },
     val onGameComponent: (appId: Long, comp: String, file: String?) -> Unit = { _, _, _ -> },
+    val defaultProtonId: String? = null,
+    val onDefaultProton: (protonId: String) -> Unit = {},
+    val onGameProton: (appId: Long, protonId: String?) -> Unit = { _, _ -> },
 )
 
 @OptIn(ExperimentalComposeUiApi::class)
@@ -450,11 +460,14 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     stringResource(R.string.display_sharpness), null, a.upscaleSharpness, 0..100, step = 5,
                                     format = { "$it%" }, modifier = focus.track(page, "upscale-sharpness"), onChange = a.onUpscaleSharpness)
                             }
-                            CardboardGroup(host, a) { key -> focus.track(page, key) }
                         }
                         SessionDrawerPage.EFFECTS -> {
                             ScreenEffectsGroup(host, a, advancedEffectsExpanded,
                                 onAdvancedToggle = { advancedEffectsExpanded = !advancedEffectsExpanded }) { key -> focus.track(page, key) }
+                        }
+                        SessionDrawerPage.VR -> {
+                            SteamVrGroup(a) { key -> focus.track(page, key) }
+                            CardboardGroup(host, a) { key -> focus.track(page, key) }
                         }
                         SessionDrawerPage.CONTROLLER -> {
                             SettingsGroup(stringResource(R.string.drawer_page_controller)) {
@@ -498,6 +511,14 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 if (a.steam && a.unfoldedControls != null) ToggleRow(host, "unfolded-controls", stringResource(R.string.unfolded_controls),
                                     stringResource(R.string.unfolded_controls_hint), a.unfoldedControls,
                                     chipModifier = focus.track(page, "unfolded-controls"), onChange = a.onUnfoldedControls)
+                            }
+                            SettingsGroup(stringResource(R.string.drawer_latency)) {
+                                ToggleRow(host, "low-latency-controller", stringResource(R.string.drawer_low_latency_controller),
+                                    stringResource(R.string.drawer_low_latency_controller_hint), a.lowLatencyController,
+                                    chipModifier = focus.track(page, "low-latency-controller"), onChange = a.onLowLatencyController)
+                                ToggleRow(host, "low-latency-touch", stringResource(R.string.drawer_low_latency_touch),
+                                    stringResource(R.string.drawer_low_latency_touch_hint), a.lowLatencyTouch,
+                                    chipModifier = focus.track(page, "low-latency-touch"), onChange = a.onLowLatencyTouch)
                             }
                             SettingsGroup(stringResource(R.string.drawer_keyboard)) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(8.dp)) {
@@ -906,17 +927,32 @@ private fun CardboardGroup(host: MenuHost, a: DrawerActions, track: (String) -> 
         }
         if (c.headTracking && a.cardboardSensor)
             ActionRow(stringResource(R.string.cardboard_recenter), null, stringResource(R.string.cardboard_recenter_button), a.onCardboardRecenter)
+    }
+}
+
+@Composable
+private fun SteamVrGroup(a: DrawerActions, track: (String) -> Modifier) {
+    SettingsGroup(stringResource(R.string.steamvr_title)) {
         val vrLabel = stringResource(R.string.cardboard_steamvr)
+        val enterLabel = stringResource(if (a.immersiveSteamVr) R.string.steamvr_enter else R.string.cardboard_steamvr_start)
+        @Composable fun button(label: String, text: String, action: String) {
+            SettingsRow(label, null) {
+                SecondaryButton(text, modifier = track("steamvr"), onClick = { a.onSteamVr(action) })
+            }
+        }
         when (a.steamVr) {
-            SteamVr.Status.NOT_INSTALLED -> ActionRow(vrLabel, stringResource(R.string.cardboard_steamvr_install_hint),
-                stringResource(R.string.cardboard_steamvr_install), { a.onSteamVr("install") })
+            SteamVr.Status.NOT_INSTALLED -> button(vrLabel, stringResource(R.string.cardboard_steamvr_install), "install")
             SteamVr.Status.INSTALLING -> SettingsRow(vrLabel, stringResource(R.string.cardboard_steamvr_installing)) {}
-            SteamVr.Status.READY -> ActionRow(vrLabel, stringResource(R.string.cardboard_steamvr_ready_hint),
-                stringResource(R.string.cardboard_steamvr_start), { a.onSteamVr("start") })
-            SteamVr.Status.RUNNING -> ActionRow(vrLabel, stringResource(R.string.cardboard_steamvr_running_hint),
-                stringResource(R.string.cardboard_steamvr_stop), { a.onSteamVr("stop") })
+            SteamVr.Status.READY -> button(vrLabel, enterLabel, "start")
+            SteamVr.Status.RUNNING -> {
+                if (a.immersiveSteamVr) button(vrLabel, enterLabel, "start")
+                SettingsRow(vrLabel, null) {
+                    SecondaryButton(stringResource(R.string.cardboard_steamvr_stop),
+                        modifier = track(if (a.immersiveSteamVr) "steamvr-stop" else "steamvr"), onClick = { a.onSteamVr("stop") })
+                }
+            }
             SteamVr.Status.UNAVAILABLE -> SettingsRow(vrLabel, stringResource(R.string.cardboard_steamvr_unavailable)) {}
-            null -> {}
+            null -> SettingsRow(vrLabel, stringResource(R.string.steamvr_checking)) {}
         }
     }
 }
@@ -1189,9 +1225,21 @@ private fun ComponentsDrawerPage(host: MenuHost, a: DrawerActions, track: (Strin
             return
         }
         SettingsGroup(stringResource(R.string.drawer_page_components)) {
-            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp)) {
-                ProfileSummaryRow(stringResource(R.string.comp_proton), gameProfile.proton.value)
-            }
+            DrawerStackedChoice(
+                host = host,
+                key = "game-cmp-proton",
+                label = stringResource(R.string.comp_proton),
+                hint = if (gameProfile.proton.inherited && gameProfile.proton.value.isNotEmpty()) {
+                    stringResource(R.string.drawer_component_inherited, gameProfile.proton.value)
+                } else {
+                    null
+                },
+                options = listOf<Pair<String?, String>>(null to stringResource(R.string.comp_game_use_general)) +
+                    snap.protons.map { it.proton.id to it.proton.name },
+                selected = if (gameProfile.proton.inherited) null else gameProfile.protonId,
+                chipModifier = track("cmp-proton"),
+                onPick = { id -> a.onGameProton(gameProfile.appId, id) },
+            )
             for (comp in ComponentsManager.COMPONENTS) {
                 val value = gameProfile.components.getValue(comp)
                 val options: List<Pair<String?, String>> =
@@ -1222,8 +1270,7 @@ private fun ComponentsDrawerPage(host: MenuHost, a: DrawerActions, track: (Strin
         return
     }
     val running = snap.protons.filter { it.inUseByGame }
-    var pick by rememberSaveable { mutableStateOf<String?>(null) }
-    val view = snap.protons.firstOrNull { it.proton.id == pick } ?: running.firstOrNull() ?: snap.protons.firstOrNull()
+    val view = snap.protons.firstOrNull { it.proton.id == a.defaultProtonId } ?: running.firstOrNull() ?: snap.protons.firstOrNull()
     SettingsGroup(stringResource(R.string.drawer_running_now)) {
         val src = remember { MutableInteractionSource() }
         val hot = src.collectIsFocusedAsState().value
@@ -1264,7 +1311,7 @@ private fun ComponentsDrawerPage(host: MenuHost, a: DrawerActions, track: (Strin
                 view.reappliedAt.takeIf { it > 0 }?.let { stringResource(R.string.drawer_reapplied, java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(it * 1000))) },
             ).joinToString(" · "),
             snap.protons.map { it.proton.id to it.proton.name }, p.id,
-            chipModifier = track("cmp-proton"), onPick = { pick = it },
+            chipModifier = track("cmp-proton"), onPick = { if (it != p.id) a.onDefaultProton(it) },
         )
         val originalLabel = stringResource(R.string.drawer_original)
         val build = ComponentsManager.safeName(p.version)

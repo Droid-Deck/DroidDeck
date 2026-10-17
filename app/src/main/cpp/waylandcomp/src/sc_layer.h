@@ -36,6 +36,8 @@ int sc_layer_overlay_affordable(void);
 int sc_layer_present_overlay(struct vkp_image *src, const int geo[8], int translucent);
 
 void sc_layer_hide(void);
+int sc_layer_base_black(int width, int height);
+void sc_layer_hide_base(void);
 void sc_layer_hide_overlay(void);
 
 void sc_layer_window_gone(void);

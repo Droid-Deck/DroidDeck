@@ -71,6 +71,8 @@ object SessionFiles {
             "usr/local/bin/droiddeck-steam-games" to "usr/local/bin/droiddeck-steam-games",
             "usr/local/bin/droiddeck-pad-defaults" to "usr/local/bin/droiddeck-pad-defaults",
             "usr/local/bin/droiddeck-steamvr" to "usr/local/bin/droiddeck-steamvr",
+            "usr/local/bin/droiddeck-steamvr-settings" to "usr/local/bin/droiddeck-steamvr-settings",
+            "usr/local/bin/droiddeck-steamvr-game" to "usr/local/bin/droiddeck-steamvr-game",
             "usr/local/bin/droiddeck-bwrap" to "usr/local/bin/droiddeck-bwrap",
             "usr/local/bin/droiddeck-flatpak" to "usr/local/bin/droiddeck-flatpak",
             "usr/local/bin/droiddeck-flatpak-setup" to "usr/local/bin/droiddeck-flatpak-setup",
@@ -104,6 +106,7 @@ object SessionFiles {
             listOf("NOTICE", "GPL-2", "GPL-3", "LGPL-2.1", "7zip-License", "7zip-unRarLicense").map { "usr/local/share/licenses/droiddeck-msitools/$it" }
         val vr = listOf(
             "droiddeck/bin/linuxarm64/driver_droiddeck.so",
+            "droiddeck/bin/linuxarm64/xr-display-mode",
             "droiddeck/driver.vrdrivermanifest",
             "droiddeck/resources/settings/default.vrsettings",
             "layer/libVkLayer_droiddeck_vr.so",
@@ -185,27 +188,29 @@ object SessionFiles {
         }
 
         val startupMovieDir = File(root, "root/.local/share/Steam/config/uioverrides/movies")
-        val bigPictureMovieInstalled = stageStartupMovie(
-            context,
-            startupMovieDir,
-            "bigpicture_startup.webm",
-        )
-        stageStartupMovie(context, startupMovieDir, "steam_os_startup.webm")
+        val startupMovie = BootMovie.prepare(context)
+        val bigPictureMovieInstalled = startupMovie != null &&
+            stageStartupMovie(startupMovie, startupMovieDir, "bigpicture_startup.webm")
+        if (startupMovie != null) stageStartupMovie(startupMovie, startupMovieDir, "steam_os_startup.webm")
         if (bigPictureMovieInstalled) {
             ensureStartupMovieDefault(File(root, "root/.local/share/Steam/config/config.vdf"))
         }
     }
 
-    private fun stageStartupMovie(context: Context, directory: File, name: String): Boolean {
+    private fun stageStartupMovie(source: File, directory: File, name: String): Boolean {
         val movie = File(directory, name)
+        val stamp = File(directory, ".$name.source")
+        val identity = "${source.absolutePath}\n${source.length()}\n${source.lastModified()}"
+        if (movie.length() == source.length() && runCatching { stamp.readText() }.getOrNull() == identity) return true
         val staged = File(directory, "$name.staged")
         var installed = false
         try {
             directory.mkdirs()
-            context.assets.open("steam-startup/droiddeck-startup.webm").use { input ->
+            source.inputStream().use { input ->
                 staged.outputStream().use { output -> FileUtils.copy(input, output) }
             }
             installed = staged.setReadable(true, false) && staged.renameTo(movie)
+            if (installed) FileUtils.writeString(stamp, identity)
         } catch (e: Exception) {
             Log.w(TAG, "could not stage Steam startup movie $name", e)
         } finally {

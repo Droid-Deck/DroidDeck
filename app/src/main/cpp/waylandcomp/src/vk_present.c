@@ -8,9 +8,11 @@
 #include "hdr_compose.h"
 #include "blend_pass.h"
 #include "droiddeck_color.h"
+#include "quest_device.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/system_properties.h>
 #include <unistd.h>
 #include <errno.h>
 #include <poll.h>
@@ -64,6 +66,21 @@ static VkExtent2D g_extent;
 static int g_first_frame_done;
 
 static int g_base_black;
+
+int vkp_quest_layer_presentation(void) {
+    /* Compositor thread only; this is a process-wide device property, not a session setting.
+     * Quest 2 still needs its separate A6xx driver: this gate only chooses presentation. */
+    static int enabled = -1;
+    if (enabled < 0) {
+        char model[PROP_VALUE_MAX] = {0}, device[PROP_VALUE_MAX] = {0}, maker[PROP_VALUE_MAX] = {0};
+        __system_property_get("ro.product.model", model);
+        __system_property_get("ro.product.device", device);
+        __system_property_get("ro.product.manufacturer", maker);
+        enabled = quest_device_matches(model, device, maker);
+        if (enabled) droiddeck_log("gpu", "Quest presentation: display layers for Steam and desktop, CPU-initialized black backdrop; independent of HDR");
+    }
+    return enabled;
+}
 static VkExtent2D g_caps_extent;
 static int64_t g_surface_checked_ns;
 
@@ -121,6 +138,9 @@ static pthread_mutex_t g_req_lock = PTHREAD_MUTEX_INITIALIZER;
 static ANativeWindow *g_req_window;
 static int g_req_pending;
 static int g_req_detached;
+static uint64_t g_req_generation, g_req_applied;
+static pthread_cond_t g_req_condition = PTHREAD_COND_INITIALIZER;
+
 
 static volatile int g_mode = VKP_MODE_STRETCH, g_align = VKP_ALIGN_CENTER;
 
@@ -130,6 +150,9 @@ static struct {
     int rx, ry, rw, rh;
     int valid;
 } g_map;
+static pthread_mutex_t g_game_picture_lock = PTHREAD_MUTEX_INITIALIZER;
+static float g_game_picture_rect[4];
+static int g_game_picture_top;
 
 static int64_t g_swap_retry_at_ns;
 static int g_swap_fail_logged;
@@ -198,9 +221,34 @@ void vk_present_set_window(ANativeWindow *window) {
     if (g_req_pending && g_req_window && g_req_window != window) superseded = g_req_window;
     g_req_window = window;
     g_req_pending = 1;
+    g_req_generation++;
     if (!window) g_req_detached = 1;
     pthread_mutex_unlock(&g_req_lock);
     if (superseded) ANativeWindow_release(superseded);
+}
+
+static void window_request_applied(uint64_t generation) {
+    pthread_mutex_lock(&g_req_lock);
+    g_req_applied = generation;
+    pthread_cond_broadcast(&g_req_condition);
+    pthread_mutex_unlock(&g_req_lock);
+}
+
+int vkp_wait_window_request(int timeout_ms) {
+    if (timeout_ms <= 0 || timeout_ms > 10000) return 0;
+    struct timespec deadline;
+    clock_gettime(CLOCK_REALTIME, &deadline);
+    deadline.tv_sec += timeout_ms / 1000;
+    deadline.tv_nsec += (timeout_ms % 1000) * 1000000L;
+    if (deadline.tv_nsec >= 1000000000L) { deadline.tv_sec++; deadline.tv_nsec -= 1000000000L; }
+    pthread_mutex_lock(&g_req_lock);
+    const uint64_t generation = g_req_generation;
+    int error = 0;
+    while (g_req_applied < generation && error == 0)
+        error = pthread_cond_timedwait(&g_req_condition, &g_req_lock, &deadline);
+    int applied = g_req_applied >= generation;
+    pthread_mutex_unlock(&g_req_lock);
+    return applied;
 }
 
 int vkp_apply_window_request(void) {
@@ -209,15 +257,17 @@ int vkp_apply_window_request(void) {
     if (!g_req_pending) { pthread_mutex_unlock(&g_req_lock); return 0; }
     w = g_req_window;
     const int detached = g_req_detached;
+    const uint64_t generation = g_req_generation;
     g_req_window = NULL;
     g_req_pending = 0;
     g_req_detached = 0;
     pthread_mutex_unlock(&g_req_lock);
     if (w == g_window) {
         if (w) ANativeWindow_release(w);
-        if (!w || !detached) return 0;
+        if (!w || !detached) { window_request_applied(generation); return 0; }
         sc_layer_window_gone();
         destroy_swapchain();
+        window_request_applied(generation);
         droiddeck_log("gpu", "screen surface rebound: rebuilding the swapchain at its new size");
         return 1;
     }
@@ -228,6 +278,7 @@ int vkp_apply_window_request(void) {
     g_window = w;
     g_swap_retry_at_ns = 0;
     g_swap_fail_logged = 0;
+    window_request_applied(generation);
     droiddeck_log("gpu", w ? "screen surface attached" : "screen surface gone: presenting paused");
     return 1;
 }
@@ -244,7 +295,7 @@ int vkp_device_lost(void) { return g_dev_state == -2; }
 
 void vk_present_set_scale_mode(int mode, int alignment) {
     if (mode < VKP_MODE_OFF || mode > VKP_MODE_INTEGER) mode = VKP_MODE_FIT;
-    if (alignment < VKP_ALIGN_CENTER || alignment > VKP_ALIGN_BOTTOM) alignment = VKP_ALIGN_CENTER;
+    if (alignment < VKP_ALIGN_CENTER || alignment > VKP_ALIGN_PICTURE_BOTTOM) alignment = VKP_ALIGN_CENTER;
     g_mode = mode;
     g_align = alignment;
 }
@@ -263,6 +314,8 @@ static const char *align_name(int a) {
     switch (a) {
     case VKP_ALIGN_TOP: return "top";
     case VKP_ALIGN_BOTTOM: return "bottom";
+    case VKP_ALIGN_PICTURE_TOP: return "picture top";
+    case VKP_ALIGN_PICTURE_BOTTOM: return "picture bottom";
     default: return "center";
     }
 }
@@ -298,11 +351,28 @@ static void update_map(int scene_w, int scene_h) {
         g_map.off_x = (float)(g_map.rx + (int)((g_map.rw - scene_w * aspect) * 0.5f));
         g_map.off_y = (float)(g_map.ry + (int)((g_map.rh - scene_h * aspect) * 0.5f));
     }
+    if (align == VKP_ALIGN_PICTURE_TOP) g_map.off_y = 0;
+    else if (align == VKP_ALIGN_PICTURE_BOTTOM) g_map.off_y = H - scene_h * g_map.ky;
     g_map.valid = 1;
+    pthread_mutex_lock(&g_game_picture_lock);
+    g_game_picture_top = align == VKP_ALIGN_PICTURE_TOP || align == VKP_ALIGN_PICTURE_BOTTOM;
+    g_game_picture_rect[0] = g_map.off_x;
+    g_game_picture_rect[1] = g_map.off_y;
+    g_game_picture_rect[2] = g_map.off_x + scene_w * g_map.kx;
+    g_game_picture_rect[3] = g_map.off_y + scene_h * g_map.ky;
+    pthread_mutex_unlock(&g_game_picture_lock);
     droiddeck_log("screen", "%s, %s: %dx%d scene shown %dx%d at %d,%d on the %dx%d output",
                mode_name(mode), align_name(align), scene_w, scene_h,
                (int)(scene_w * g_map.kx + 0.5f), (int)(scene_h * g_map.ky + 0.5f),
                (int)g_map.off_x, (int)g_map.off_y, W, H);
+}
+
+int vkp_game_picture_rect(float rect[4]) {
+    pthread_mutex_lock(&g_game_picture_lock);
+    int active = g_game_picture_top;
+    if (active) memcpy(rect, g_game_picture_rect, sizeof(g_game_picture_rect));
+    pthread_mutex_unlock(&g_game_picture_lock);
+    return active;
 }
 
 int vkp_output_to_scene(double ox, double oy, double *sx, double *sy) {
@@ -1313,6 +1383,10 @@ static void check_surface_changed(void) {
 
 int vkp_base_black(int scene_w, int scene_h) {
     vkp_apply_window_request();
+    if (vkp_quest_layer_presentation()) {
+        if (vkp_update_map(scene_w, scene_h) != 0) return -1;
+        return sc_layer_base_black((int)g_extent.width, (int)g_extent.height);
+    }
     check_surface_changed();
     if (g_base_black && g_swapchain && g_window && g_dev_state == 1) {
         g_perf.base_kept++;
@@ -1391,6 +1465,7 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
                        const struct vkp_hdr_frame *hf, int *how) {
     if (how) *how = 0;
     vkp_apply_window_request();
+    sc_layer_hide_base();
     check_surface_changed();
     if (g_dev_state == -2) return -1;
     if (dev_init() != 0 || !g_window || scene_w <= 0 || scene_h <= 0) return -1;
@@ -1648,6 +1723,26 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
 }
 
 int vkp_render(int scene_w, int scene_h, const struct vkp_draw *draws, int n) {
+    if (vkp_quest_layer_presentation() && !vkp_framegen_active() && !vkp_cardboard_active()) {
+        /* The desktop (multiple windows), overlays and an empty scene must also avoid WSI.
+         * Merely enabling zero-copy handles only a single fullscreen window and leaves both
+         * the letterbox and every fallback frame going through the corrupted swapchain. */
+        vkp_apply_window_request();
+        sc_layer_hide_overlay();
+        if (n > 0) {
+            if (sc_layer_present_pass(draws, n, scene_w, scene_h) != 0) {
+                static int said;
+                if (!said) { said = 1; droiddeck_log("error", "Quest scene layer unavailable; retaining the previous frame rather than using the corrupt Android swapchain"); }
+                return -1;
+            }
+        } else {
+            sc_layer_hide();
+        }
+        /* sc_layer_present_pass signals only after submitting client content.
+         * A backdrop alone, or a successful no-op while a layer slot is unavailable,
+         * must not dismiss the app's loading UI or mark Steam's window as shown. */
+        return vkp_base_black(scene_w, scene_h);
+    }
     return render_impl(scene_w, scene_h, draws, n, NULL, NULL);
 }
 
@@ -1681,6 +1776,15 @@ void vkp_signal_first_frame(void) {
 
 int vkp_update_map(int scene_w, int scene_h) {
     if (g_dev_state == -2 || dev_init() != 0 || !g_window || scene_w <= 0 || scene_h <= 0) return -1;
+    if (vkp_quest_layer_presentation()) {
+        /* Layer geometry needs the window size, not a Vulkan swapchain. In particular, do
+         * not create/present a swapchain just to paint black under an otherwise clean layer. */
+        int w = ANativeWindow_getWidth(g_window), h = ANativeWindow_getHeight(g_window);
+        if (w <= 0 || h <= 0) return -1;
+        g_extent = (VkExtent2D){(uint32_t)w, (uint32_t)h};
+        update_map(scene_w, scene_h);
+        return g_map.valid ? 0 : -1;
+    }
     check_surface_changed();
     if (!g_swapchain && swap_init() != 0) return -1;
     update_map(scene_w, scene_h);
@@ -1889,11 +1993,7 @@ int vkp_pass_begin_hdr(int scene_w, int scene_h, const struct vkp_draw *draws, i
 static int pass_begin_impl(int scene_w, int scene_h, const struct vkp_draw *draws, int n,
                            const struct vkp_hdr_frame *hf, int *rw, int *rh) {
     if (g_pass.active) vkp_pass_abort();
-    if (g_dev_state == -2 || dev_init() != 0 || !g_window || scene_w <= 0 || scene_h <= 0) return -1;
-    check_surface_changed();
-    if (!g_swapchain && swap_init() != 0) return -1;
-    update_map(scene_w, scene_h);
-    if (!g_map.valid) return -1;
+    if (vkp_update_map(scene_w, scene_h) != 0) return -1;
     if (hf) {
         if (ensure_img(&g_hdrscene, scene_w, scene_h, HDR_FMT,
                        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |

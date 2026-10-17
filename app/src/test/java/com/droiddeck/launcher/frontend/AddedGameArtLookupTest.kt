@@ -108,4 +108,66 @@ class AddedGameArtLookupTest {
         assertFalse(file.exists())
         assertEquals("", SteamGridDb.key(app))
     }
+
+    @Test fun aFailedLookupIsNotRememberedAsNoMatch() {
+        val marker = File(tmp.newFolder(), "sgdb-id")
+        try {
+            AddedGameArt.remembered(marker) { throw SteamGridDb.Failed(SteamGridDb.Status.BAD_KEY) }
+            fail("the failure was swallowed")
+        } catch (e: SteamGridDb.Failed) {
+            assertEquals(SteamGridDb.Status.BAD_KEY, e.status)
+        }
+        assertFalse(marker.exists())
+    }
+
+    @Test fun aMissIsKeptUntilTheKeyChangesOrTheUserAsksAgain() {
+        val marker = File(tmp.newFolder(), "sgdb-id")
+        var asked = 0
+        assertNull(AddedGameArt.remembered(marker) { asked++; null })
+        assertEquals("none", marker.readText())
+        assertNull(AddedGameArt.remembered(marker) { asked++; "9" })
+        assertEquals(1, asked)
+        assertEquals("9", AddedGameArt.remembered(marker, notBefore = System.currentTimeMillis() + 1000) { asked++; "9" })
+        assertEquals(2, asked)
+        assertEquals("9", AddedGameArt.remembered(marker) { fail("asked again"); null })
+
+        val old = File(marker.parentFile, "old-id").apply { writeText("none") }
+        assertEquals("5", AddedGameArt.remembered(old, retryMiss = true) { "5" })
+        assertEquals("5", old.readText())
+    }
+
+    @Test fun savingAKeyMarksWhenItChanged() {
+        SteamGridDb.keys = CredentialCipher.KeyProvider { SecretKeySpec(ByteArray(32).also { SecureRandom().nextBytes(it) }, "AES") }
+        assertEquals(0L, SteamGridDb.keyChangedAt(app))
+        SteamGridDb.setUserKey(app, "abcdef0123456789")
+        assertTrue(SteamGridDb.keyChangedAt(app) > 0L)
+    }
+
+    @Test fun aBadResponseSaysWhatWentWrong() {
+        assertEquals(SteamGridDb.Status.BAD_KEY, SteamGridDb.failure(401))
+        assertEquals(SteamGridDb.Status.BAD_KEY, SteamGridDb.failure(403))
+        assertEquals(SteamGridDb.Status.LIMIT, SteamGridDb.failure(429))
+        assertEquals(SteamGridDb.Status.SERVER, SteamGridDb.failure(503))
+        assertNull(SteamGridDb.failure(404))
+        assertNull(SteamGridDb.failure(200))
+    }
+
+    @Test fun searchResultsKeepOnlyGamesWithAnIdAndAName() {
+        val data = JSONArray()
+            .put(JSONObject().put("id", 7).put("name", "DONTFORGET").put("verified", true))
+            .put(JSONObject().put("id", 0).put("name", "No id"))
+            .put(JSONObject().put("id", 8).put("name", ""))
+            .put("junk")
+        val games = SteamGridDb.games(data)
+        assertEquals(1, games.size)
+        assertEquals(7, games[0].id)
+        assertEquals("DONTFORGET", games[0].name)
+        assertTrue(games[0].verified)
+    }
+
+    @Test fun eachSlotAsksItsOwnEndpoint() {
+        assertEquals("heroes/game/5?nsfw=false&humor=false", SteamGridDb.path(5, AddedGameArt.Slot.BACKGROUND))
+        assertEquals("grids/game/5?dimensions=600x900&nsfw=false&humor=false", SteamGridDb.path(5, AddedGameArt.Slot.COVER))
+        assertEquals("grids/game/5?dimensions=460x215,920x430&nsfw=false&humor=false", SteamGridDb.path(5, AddedGameArt.Slot.WIDE))
+    }
 }

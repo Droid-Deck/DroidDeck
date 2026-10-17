@@ -13,7 +13,7 @@ RELEASES = "https://api.github.com/repos/%s/releases"
 SOURCES = {
     "ge": ("GloriousEggroll/proton-ge-custom", re.compile(r"aarch64\.tar\.(gz|xz)$")),
     "cachyos": ("CachyOS/proton-cachyos", re.compile(r"arm64\.tar\.(gz|xz)$")),
-    "droiddeck": ("The412Banner/DroidDeck-Proton", re.compile(r"aarch64\.tar\.(gz|xz)$")),
+    "droiddeck": ("Droid-Deck/DroidDeck-Proton", re.compile(r"aarch64\.tar\.(gz|xz)$")),
 }
 USER_AGENT = "droiddeck-proton-extra"
 NEED_BYTES = 4 * 1024 * 1024 * 1024
