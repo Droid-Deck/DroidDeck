@@ -203,7 +203,7 @@ Automator show them:
 | `play-steam` | Play on the Steam and Games pages |
 | `setting-<key>` | every toggle and choice row, by its key (`setting-logs`, `setting-agent-commands`, ...) |
 | `tab-<n>` | a page's tab strip (Setup's Overview, Controller, Session, Launcher...), by position |
-| `drawer-tab-controller`, `-second_screen`, `-display`, `-effects`, `-steamvr`, `-cardboard`, `-games`, `-session` | the session drawer's pages |
+| `drawer-tab-controller`, `-second_screen`, `-display`, `-effects`, `-vr`, `-games`, `-session` | the session drawer's pages |
 | `drawer-stop`, `drawer-stop-confirm`, `drawer-stop-cancel` | stopping a session from the drawer |
 
 ## Scenarios

@@ -24,6 +24,7 @@ class App : Application() {
         com.droiddeck.launcher.session.QuestExperimental.initialize(this)
         com.droiddeck.launcher.session.SessionPrefs.settleGpuDriverMode(this)
         com.droiddeck.launcher.update.AppUpdates.init(this)
+        com.droiddeck.launcher.core.DownloadSource.init(this)
         GpuClockPin.clearLeftover(this)
         com.droiddeck.launcher.glasses.Glasses.init(this)
         BwrapSpawner.start(this)

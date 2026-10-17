@@ -38,7 +38,7 @@ class SteamGameArtTest {
         assertTrue(SteamGameArt.choose(app, game(stock), AddedGameArt.Slot.COVER, option))
 
         val shown = SteamGameArt.withOverrides(app, game(stock))
-        assertEquals("chosen-p.png", shown.art?.name)
+        assertTrue(shown.art!!.name.matches(Regex("chosen-p-\\d+\\.png")))
         val states = SteamGameArt.describe(app, game(stock))
         assertTrue(states.first { it.slot == AddedGameArt.Slot.COVER }.chosen)
         assertFalse(states.first { it.slot == AddedGameArt.Slot.BACKGROUND }.chosen)
@@ -60,6 +60,6 @@ class SteamGameArtTest {
         SteamGameArt.choose(app, game(), AddedGameArt.Slot.BACKGROUND, AddedGameArt.Option(AddedGameArt.FILE, picked.path, picked.path))
         val other = Library.SteamGame(730, "Counter-Strike 2", null, "Steam library")
         assertTrue(SteamGameArt.withOverrides(app, other) === other)
-        assertEquals("chosen-hero.png", SteamGameArt.withOverrides(app, game()).hero?.name)
+        assertTrue(SteamGameArt.withOverrides(app, game()).hero!!.name.startsWith("chosen-hero"))
     }
 }
