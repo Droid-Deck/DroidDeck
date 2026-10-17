@@ -89,6 +89,7 @@ cp "$TEST_CDN/${url##*/}" "$out"
         if expected is None:
             expected = ([CDNS[0] + '/steam_client_' + channel + '_linuxarm64']
                         + [cdn + '/' + channel + '.zip' for cdn in CDNS]
+                        + [CDNS[0] + '/' + channel + '.zip']
                         + [CDNS[0] + '/' + channel + '.zip'])
         self.assertEqual(expected, self.requests.read_text().splitlines())
 
@@ -102,6 +103,7 @@ cp "$TEST_CDN/${url##*/}" "$out"
             CDNS[0] + '/steamdeck_publicbeta.zip',
             CDNS[1] + '/steamdeck_publicbeta.zip',
             CDNS[2] + '/steamdeck_publicbeta.zip',
+            CDNS[1] + '/steamdeck_publicbeta.zip',
             CDNS[1] + '/steamdeck_publicbeta.zip',
         ])
 
