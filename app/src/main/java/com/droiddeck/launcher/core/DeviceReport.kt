@@ -152,13 +152,17 @@ object DeviceReport {
             k("RAM total", FileUtils.sizeToString(mi.totalMem))
             k("RAM available", FileUtils.sizeToString(mi.availMem))
         }
-        runCatching {
-            val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) k("Thermal status", thermalStatusName(pm.currentThermalStatus))
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                k("Thermal headroom (10 s)", pm.getThermalHeadroom(10).let { if (it.isNaN()) "not reported" else String.format(Locale.US, "%.2f", it) })
+        val pm = runCatching { context.getSystemService(Context.POWER_SERVICE) as? PowerManager }.getOrNull()
+        if (pm != null) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                k("Thermal status", runCatching { thermalStatusName(pm.currentThermalStatus) }.getOrNull())
             }
-            k("Power saver", pm.isPowerSaveMode)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                k("Thermal headroom (10 s)", runCatching {
+                    pm.getThermalHeadroom(10).let { if (it.isNaN()) "not reported" else String.format(Locale.US, "%.2f", it) }
+                }.getOrNull())
+            }
+            k("Power saver", runCatching { pm.isPowerSaveMode }.getOrNull())
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val rate = runCatching { context.getSystemService(PerformanceHintManager::class.java)?.preferredUpdateRateNanos }.getOrNull()
