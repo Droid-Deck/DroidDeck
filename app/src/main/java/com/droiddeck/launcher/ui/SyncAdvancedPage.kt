@@ -4,7 +4,6 @@ import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.MaterialTheme
@@ -39,40 +38,37 @@ internal fun SyncAdvancedPage(host: MenuHost, onBack: () -> Unit) {
     if (confirmReset) ResetDialog(onDismiss = { confirmReset = false }) { Syncthing.reset(ctx) }
     val ports = Syncthing.ports
     SettingsPage(host, stringResource(R.string.sync_advanced), onBack, eyebrow = stringResource(R.string.setup_tab_sync)) {
-        val left: @Composable () -> Unit = {
-            SettingsGroup(stringResource(R.string.sync_ports)) {
-                PortRow(stringResource(R.string.sync_port_gui), ports?.let { "127.0.0.1:${it.gui}" })
-                PortRow(stringResource(R.string.sync_port_sync), ports?.sync?.toString())
-                PortRow(stringResource(R.string.sync_port_discovery), ports?.discovery?.toString())
-                ActionRow(stringResource(R.string.sync_repick), stringResource(R.string.sync_repick_hint), stringResource(R.string.sync_repick_button), onClick = { Syncthing.restart() })
-            }
-            SettingsGroup(stringResource(R.string.sync_reset_group)) {
-                SettingsRow(stringResource(R.string.sync_api_key), Syncthing.apiKeyTail?.let { "••••••••••••••••••••$it" }) {
-                    SecondaryButton(stringResource(R.string.sync_regenerate), enabled = Syncthing.phase == Syncthing.Phase.RUNNING, compact = true) { Syncthing.regenerateApiKey() }
+        PairedColumns(
+            { last, fill ->
+                SettingsGroup(stringResource(R.string.sync_ports), modifier = last, fill = fill) {
+                    PortRow(stringResource(R.string.sync_port_gui), ports?.let { "127.0.0.1:${it.gui}" })
+                    PortRow(stringResource(R.string.sync_port_sync), ports?.sync?.toString())
+                    PortRow(stringResource(R.string.sync_port_discovery), ports?.discovery?.toString())
+                    ActionRow(stringResource(R.string.sync_repick), stringResource(R.string.sync_repick_hint), stringResource(R.string.sync_repick_button), onClick = { Syncthing.restart() })
                 }
-                ActionRow(stringResource(R.string.sync_reset), stringResource(R.string.sync_reset_hint), stringResource(R.string.sync_reset_button), onClick = { confirmReset = true })
-            }
-        }
-        val right: @Composable () -> Unit = {
-            SettingsGroup(stringResource(R.string.sync_running_group)) {
-                ChoiceRow(
-                    host, "sync-run", stringResource(R.string.sync_run), null,
-                    listOf(SyncPrefs.RUN_WHILE_OPEN to stringResource(R.string.sync_run_open), SyncPrefs.RUN_BACKGROUND to stringResource(R.string.sync_run_background)),
-                    runMode, stacked = true,
-                ) { SyncPrefs.setRunMode(ctx, it); runMode = it; Syncthing.settingsChanged() }
-                ToggleRow(host, "sync-wifi", stringResource(R.string.sync_wifi_only), null, wifiOnly) {
-                    SyncPrefs.setWifiOnly(ctx, it); wifiOnly = it; Syncthing.settingsChanged()
+            },
+            { last, fill ->
+                SettingsGroup(stringResource(R.string.sync_running_group), modifier = last, fill = fill) {
+                    ChoiceRow(
+                        host, "sync-run", stringResource(R.string.sync_run), null,
+                        listOf(SyncPrefs.RUN_WHILE_OPEN to stringResource(R.string.sync_run_open), SyncPrefs.RUN_BACKGROUND to stringResource(R.string.sync_run_background)),
+                        runMode, stacked = true,
+                    ) { SyncPrefs.setRunMode(ctx, it); runMode = it; Syncthing.settingsChanged() }
+                    ToggleRow(host, "sync-wifi", stringResource(R.string.sync_wifi_only), null, wifiOnly) {
+                        SyncPrefs.setWifiOnly(ctx, it); wifiOnly = it; Syncthing.settingsChanged()
+                    }
+                    ToggleRow(host, "sync-games", stringResource(R.string.sync_pause_games), null, pauseInGames) {
+                        SyncPrefs.setPauseInGames(ctx, it); pauseInGames = it; Syncthing.settingsChanged()
+                    }
+                    ActionRow(stringResource(R.string.sync_logs), stringResource(R.string.sync_logs_hint), stringResource(R.string.sync_logs_share), onClick = { shareLog(ctx) })
                 }
-                ToggleRow(host, "sync-games", stringResource(R.string.sync_pause_games), null, pauseInGames) {
-                    SyncPrefs.setPauseInGames(ctx, it); pauseInGames = it; Syncthing.settingsChanged()
-                }
-                ActionRow(stringResource(R.string.sync_logs), stringResource(R.string.sync_logs_hint), stringResource(R.string.sync_logs_share), onClick = { shareLog(ctx) })
+            },
+        )
+        SettingsGroup(stringResource(R.string.sync_reset_group)) {
+            SettingsRow(stringResource(R.string.sync_api_key), Syncthing.apiKeyTail?.let { "••••••••••••••••••••$it" }) {
+                SecondaryButton(stringResource(R.string.sync_regenerate), enabled = Syncthing.phase == Syncthing.Phase.RUNNING, compact = true) { Syncthing.regenerateApiKey() }
             }
-        }
-        if (LocalNarrowPane.current) { left(); right() }
-        else Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.Top) {
-            Column(Modifier.weight(1f)) { left() }
-            Column(Modifier.weight(1f)) { right() }
+            ActionRow(stringResource(R.string.sync_reset), stringResource(R.string.sync_reset_hint), stringResource(R.string.sync_reset_button), onClick = { confirmReset = true })
         }
     }
 }
