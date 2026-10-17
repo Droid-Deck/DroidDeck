@@ -39,4 +39,15 @@ class FileOpsLinksTest {
         assertTrue(Files.isSymbolicLink(File(src, "l").toPath()))
         assertTrue(Files.isSymbolicLink(File(dst, "l").toPath()))
     }
+
+    @Test fun aLinkThatCannotReplaceTheDestinationLeavesItAlone() {
+        val src = tmp.newFolder("c")
+        assumeTrue("symlinks unavailable here", link(File(src, "l"), "x"))
+        val dst = File(tmp.root, "d")
+        File(dst, "l").mkdirs()
+        File(dst, "l/keep.txt").writeText("kept")
+        assertFalse(FileOps.copyWithProgress(File(src, "l"), File(dst, "l"), null))
+        assertEquals("kept", File(dst, "l/keep.txt").readText())
+        assertFalse(File(dst, ".l.link-tmp").exists())
+    }
 }

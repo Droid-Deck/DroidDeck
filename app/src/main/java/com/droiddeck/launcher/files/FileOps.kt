@@ -111,8 +111,14 @@ object FileOps {
             val target = Files.readSymbolicLink(src.toPath())
             val parent = dst.parentFile
             if (parent != null && !parent.exists() && !parent.mkdirs()) return false
-            Files.deleteIfExists(dst.toPath())
-            Files.createSymbolicLink(dst.toPath(), target)
+            val tmp = File(dst.parentFile, "." + dst.name + ".link-tmp").toPath()
+            try {
+                Files.deleteIfExists(tmp)
+                Files.createSymbolicLink(tmp, target)
+                Files.move(tmp, dst.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+            } finally {
+                Files.deleteIfExists(tmp)
+            }
             true
         } catch (e: Exception) {
             Log.e(TAG, "Failed to copy link: $src to $dst", e)
