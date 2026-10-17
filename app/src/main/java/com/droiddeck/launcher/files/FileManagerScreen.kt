@@ -252,7 +252,7 @@ fun FileManagerScreen(
 
     fun performPaste() {
         val sources = clipboardFiles
-        if (sources.isEmpty()) return
+        if (sources.isEmpty() || isOperationRunning || operationJob?.isActive == true) return
         val dstDir = currentDir
         val cut = isCutOperation
 
@@ -842,7 +842,7 @@ fun FileManagerScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
-                    .clickable { performPaste() }
+                    .clickable(enabled = !isOperationRunning) { performPaste() }
                     .padding(horizontal = 16.dp, vertical = 8.dp),
             ) {
                 Icon(Icons.Filled.ContentPaste, stringResource(R.string.fm_paste), tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
