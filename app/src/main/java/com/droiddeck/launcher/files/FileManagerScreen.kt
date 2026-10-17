@@ -153,6 +153,8 @@ fun FileManagerScreen(
     var operationJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var pendingBulkDelete by remember { mutableStateOf<List<File>>(emptyList()) }
     var searchQuery by remember { mutableStateOf("") }
+    val visibleEntries = if (searchQuery.isBlank()) entries
+    else entries.filter { it.name.contains(searchQuery, ignoreCase = true) }
     var showSearch by remember { mutableStateOf(false) }
     var sortBy by remember { mutableStateOf(browsePrefs.getString("fmSortBy", "name") ?: "name") }
     var sortDesc by remember { mutableStateOf(browsePrefs.getBoolean("fmSortDesc", false)) }
@@ -794,16 +796,16 @@ fun FileManagerScreen(
                 val selBarPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
                 OutlinedButton(
                     onClick = {
-                        selectedPaths = if (selectedPaths.size == entries.size) emptySet()
-                        else entries.map { it.absolutePath }.toSet()
+                        selectedPaths = if (visibleEntries.isNotEmpty() && visibleEntries.all { it.absolutePath in selectedPaths }) emptySet()
+                        else visibleEntries.map { it.absolutePath }.toSet()
                     },
                     contentPadding = selBarPadding,
-                ) { Text(if (selectedPaths.size == entries.size) stringResource(R.string.fm_select_none) else stringResource(R.string.fm_select_all), fontSize = 12.sp) }
+                ) { Text(if (visibleEntries.isNotEmpty() && visibleEntries.all { it.absolutePath in selectedPaths }) stringResource(R.string.fm_select_none) else stringResource(R.string.fm_select_all), fontSize = 12.sp) }
                 Spacer(Modifier.width(4.dp))
                 OutlinedButton(
                     enabled = selectedPaths.isNotEmpty(),
                     onClick = {
-                        clipboardFiles = entries.filter { it.absolutePath in selectedPaths }
+                        clipboardFiles = visibleEntries.filter { it.absolutePath in selectedPaths }
                         isCutOperation = false
                         selectionMode = false
                         selectedPaths = emptySet()
@@ -814,7 +816,7 @@ fun FileManagerScreen(
                 OutlinedButton(
                     enabled = selectedPaths.isNotEmpty(),
                     onClick = {
-                        clipboardFiles = entries.filter { it.absolutePath in selectedPaths }
+                        clipboardFiles = visibleEntries.filter { it.absolutePath in selectedPaths }
                         isCutOperation = true
                         selectionMode = false
                         selectedPaths = emptySet()
@@ -824,7 +826,7 @@ fun FileManagerScreen(
                 Spacer(Modifier.width(4.dp))
                 OutlinedButton(
                     enabled = selectedPaths.isNotEmpty(),
-                    onClick = { pendingBulkDelete = entries.filter { it.absolutePath in selectedPaths } },
+                    onClick = { pendingBulkDelete = visibleEntries.filter { it.absolutePath in selectedPaths } },
                     contentPadding = selBarPadding,
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
                 ) { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
@@ -964,8 +966,7 @@ fun FileManagerScreen(
                 .fillMaxSize()
                 .nestedScroll(pullState.nestedScrollConnection),
         ) {
-            val shownEntries = if (searchQuery.isBlank()) entries
-            else entries.filter { it.name.contains(searchQuery, ignoreCase = true) }
+            val shownEntries = visibleEntries
 
             if (showGrid && entries.isNotEmpty()) {
                 LazyVerticalGrid(
