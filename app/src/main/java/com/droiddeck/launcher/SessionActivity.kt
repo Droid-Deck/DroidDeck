@@ -1297,7 +1297,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
         val turnip = TurnipDriver(this)
         com.droiddeck.launcher.gpu.DriverSetupLog.write(this, "surface.driver-setup")
-        if (!CompositorHost.isStarted) CompositorHost.displayChoice = SessionPrefs.androidDriver(this)
+        if (!CompositorHost.isStarted) {
+            CompositorHost.displayChoice = SessionPrefs.androidDriver(this)
+            com.droiddeck.launcher.gpu.AutoDriverTrial.displayStarting(this, SessionPrefs.androidDriver(this))
+        }
         val driverId = if (CompositorHost.isStarted) null else turnip.install()
 
         val previous = SessionState.outputSize
