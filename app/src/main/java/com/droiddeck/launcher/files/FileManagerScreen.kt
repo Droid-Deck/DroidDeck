@@ -174,16 +174,20 @@ fun FileManagerScreen(
     var showFavorites by remember { mutableStateOf(false) }
     var favTick by remember { mutableIntStateOf(0) }
 
+    var listingJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+
     fun loadDirectory(dir: File, resetScroll: Boolean = true) {
         currentDir = dir
         if (pickMode) pickPrefs.edit().putString("lastFilePickerDir", dir.absolutePath).apply()
-        scope.launch {
+        listingJob?.cancel()
+        listingJob = scope.launch {
             val list = withContext(Dispatchers.IO) {
                 dir.listFiles()?.toList()
                     ?.filter { if (pickDirMode) it.isDirectory else !pickMode || it.isDirectory || matchesPickExt(it) }
                     ?.filter { showHidden || !it.name.startsWith(".") }
                     ?.sortedWith(comparatorFor(sortBy, sortDesc)) ?: emptyList()
             }
+            if (currentDir != dir) return@launch
             entries = list
             if (resetScroll) listState.scrollToItem(0)
         }
