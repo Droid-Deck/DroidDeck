@@ -103,9 +103,7 @@ class SteamColdLaunchTest(unittest.TestCase):
         loop = SOURCE[SOURCE.index('      if [ -s "$HOME/.bl-restart-game" ]; then'):SOURCE.index('      if [ -f "$HOME/.bl-restart-once" ]; then')]
         self.assertIn('steam_hold_launch "$_bl_again" &', loop)
         self.assertNotIn("set -- \"steam://rungameid/", loop)
-        script = self.block + '
-steam_hold_launch "%s"
-' % SHORTCUT
+        script = self.block + '\nsteam_hold_launch "%s"\n' % SHORTCUT
         env = dict(os.environ, HOME=str(self.root), BL_LAUNCH_DIR=str(self.launch_dir),
                    PATH=str(self.bin) + os.pathsep + os.environ["PATH"],
                    AGENT_ARGS=str(self.agent_args), SLEEP_ARGS=str(self.sleep_args),
