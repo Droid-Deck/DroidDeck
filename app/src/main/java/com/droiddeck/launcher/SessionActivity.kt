@@ -358,11 +358,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun followPanelRefresh(displayId: Int) {
-        if (!CompositorHost.isStarted) return
         val output = glassesScreen?.display
             ?: (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay) ?: return
         if (output.displayId != displayId) return
-        applyOutputPacing()
+        if (output.refreshRate <= 1f) return
+        SessionState.refreshHz = refreshHz()
+        if (CompositorHost.isStarted) applyOutputPacing()
     }
     private var isHomeApp by mutableStateOf(false)
     private var androidApps by mutableStateOf<List<HomeApp.LaunchableApp>>(emptyList())
@@ -1456,7 +1457,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         else null
         val size = live ?: if (SessionState.running) previous else glassesOutputSize() ?: outputSize()
         SessionState.outputSize = size
-        if (!SessionState.running) SessionState.refreshHz = refreshHz()
+        SessionState.refreshHz = refreshHz()
         val panel = panelBounds()
         SessionState.upscaleRatio = maxOf(panel.width(), panel.height()).toFloat() / maxOf(size.first, size.second).coerceAtLeast(1)
         Thread({
@@ -1571,8 +1572,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
+        applyOutputPacing()
+        SessionState.refreshHz = refreshHz()
         applyFollowOrientation(newConfig)
         applyUnfoldedControls()
+        refreshSecondScreenDisplays()
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
