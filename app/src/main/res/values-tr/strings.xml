@@ -2278,8 +2278,8 @@
     <string name="drawer_low_latency_touch_hint">Dokunmalar kare gruplamasını atlar; Steam dokunmatik kontrolleri 1000 Hz çalışır. CPU kullanımı biraz artar.</string>
     <string name="drivers_auto_waits_for_session">Sürücü güncellemeleri oturum bitene kadar bekler.</string>
     <string name="drivers_auto_waits_for_network">%1$s %2$s, mobil veriden ve pil tasarrufundan çıkınca indirilecek.</string>
-    <string name="drivers_skipping_bad">%1$s %2$s burada oturum başlatmadı, bu yüzden Otomatik çalışan sürücülerde kalıyor.</string>
-    <string name="drivers_rolled_back">%1$s iki kez oturum başlatmadı, bu yüzden Otomatik çalışan sürücülere döndü.</string>
+    <string name="drivers_skipping_bad">%1$s %2$s burada oturum başlatamadı, bu yüzden Otomatik, oturum başlatabilen sürücülerde kalıyor.</string>
+    <string name="drivers_rolled_back">%1$s iki kez oturum başlatamadı, bu yüzden Otomatik, sorunsuz çalışan önceki sürücülere döndü.</string>
     <string name="drivers_using_quest">Pakete dahil Quest ekran sürücüsü ve çalışma zamanı varsayılanı kullanılıyor.</string>
     <string name="drivers_using_quest_restart">Pakete dahil Quest ekran sürücüsü ve çalışma zamanı varsayılanı kullanılıyor. Ekran sürücüsü DroidDeck yeniden başladıktan sonra uygulanır.</string>
     <string name="selfinst_download_failed">İndirme başarısız</string>
@@ -2446,7 +2446,7 @@
     <string name="storage_item_components">Kullanılmayan bileşenler</string>
     <string name="storage_component_original">Orijinal %1$s · %2$s</string>
     <string name="storage_original_confirm">%1$s boşaltır. Yalnızca artık yüklü olmayan bir Proton sürümünü geri yükler.</string>
-    <string name="storage_leftovers_unchecked">Denetlenmedi: bir Steam uygulama bildirimi okunamadı, bu yüzden kaldırılan oyunların önekleri okunana kadar korunuyor.</string>
+    <string name="storage_leftovers_unchecked">Denetlenmedi: bir Steam uygulama manifesti okunamadı, bu yüzden kaldırılan oyunların önekleri manifest okunabilene kadar korunuyor.</string>
     <string name="storage_failed">Tamamlanamadı: %1$s</string>
     <string name="storage_desktop_shared">paylaşılan %1$s</string>
     <string name="storage_data_installed">Yüklü oyunlar</string>
