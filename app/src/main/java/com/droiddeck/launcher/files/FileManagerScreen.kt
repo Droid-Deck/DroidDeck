@@ -307,7 +307,7 @@ fun FileManagerScreen(
                 }
                 val target = dst
                 val ok = withContext(Dispatchers.IO) {
-                    if (cut) FileOps.moveWithProgress(src, target, onProgress)
+                    if (cut) FileOps.moveWithProgress(src, target, onProgress) { job?.isActive == false }
                     else FileOps.copyWithProgress(src, target, onProgress)
                 }
                 if (ok) done++ else failed++
