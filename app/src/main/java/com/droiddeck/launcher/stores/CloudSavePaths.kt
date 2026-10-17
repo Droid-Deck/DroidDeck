@@ -29,9 +29,10 @@ object CloudSavePaths {
         return GogCloudLocation(gogGalaxySdkTemplate(clientId), GOG_DEFAULT_NAMESPACE)
     }
 
-    fun gogNamespaceFromCache(stored: String?, template: String?): String =
-        stored?.ifEmpty { null }
-            ?: if (template?.contains("GOG.com/Galaxy/Applications/") == true) GOG_DEFAULT_NAMESPACE else ""
+    fun gogNamespaceFromCache(stored: String?, template: String?): String {
+        if (stored != null) return stored
+        return if (template?.contains("GOG.com/Galaxy/Applications/") == true) GOG_DEFAULT_NAMESPACE else ""
+    }
 
     fun gog(template: String, prefix: File, install: File): File? {
         val norm = template.replace('\\', '/').trim().trimStart('/')

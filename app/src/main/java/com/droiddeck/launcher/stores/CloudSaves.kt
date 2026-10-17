@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.stores
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.util.Log
 import com.droiddeck.launcher.frontend.AddedGames
 import com.droiddeck.launcher.frontend.Library
@@ -47,18 +48,34 @@ object CloudSaves {
 
 
     private const val TEMPLATE_NONE = "none"
+    internal const val TEMPLATE_NONE_TTL_MS = 24 * 60 * 60 * 1000L
+
+    internal fun noneTemplateIsCurrent(storedAtMs: Long, nowMs: Long) =
+        storedAtMs > 0L && nowMs - storedAtMs < TEMPLATE_NONE_TTL_MS
+
+    private fun rememberNoCloud(p: SharedPreferences, id: String) {
+        p.edit().putString("cloud_template_$id", TEMPLATE_NONE)
+            .putLong("cloud_template_at_$id", System.currentTimeMillis()).apply()
+    }
 
     fun template(context: Context, store: Store, id: String, folder: File, sidecar: StoreGameSidecar): String? {
         val p = prefs(context, store)
+        var retryNone = false
         if (p.contains("cloud_template_$id")) {
             val cached = p.getString("cloud_template_$id", "") ?: ""
-            if (cached == TEMPLATE_NONE) return ""
-            if (cached.isNotEmpty()) return cached
+            if (cached == TEMPLATE_NONE) {
+                if (noneTemplateIsCurrent(p.getLong("cloud_template_at_$id", 0L), System.currentTimeMillis())) return ""
+                retryNone = true
+            } else if (cached.isNotEmpty()) return cached
         }
         var gogNamespace = CloudSavePaths.GOG_DEFAULT_NAMESPACE
         val fetched = when (store) {
             Store.GOG -> {
-                val loc = gogTemplate(context, id, folder) ?: return null
+                val loc = gogTemplate(context, id, folder)
+                if (loc == null) {
+                    if (retryNone) { rememberNoCloud(p, id); return "" }
+                    return null
+                }
                 gogNamespace = loc.namespace
                 loc.template
             }
@@ -73,6 +90,8 @@ object CloudSaves {
         p.edit()
             .putString("cloud_template_$id", fetched.ifEmpty { TEMPLATE_NONE })
             .apply {
+                if (fetched.isEmpty()) putLong("cloud_template_at_$id", System.currentTimeMillis())
+                else remove("cloud_template_at_$id")
                 if (store == Store.GOG && fetched.isNotEmpty()) putString("cloud_namespace_$id", gogNamespace)
             }
             .apply()
@@ -213,7 +232,7 @@ object CloudSaves {
                 }
             }
         } catch (e: NoCloudSaves) {
-            prefs(context, store).edit().putString("cloud_template_$id", TEMPLATE_NONE).apply()
+            rememberNoCloud(prefs(context, store), id)
             Result("skipped", 0, 0, "no-cloud-saves")
         } catch (e: Exception) {
             Result("failed", 0, 0, e.javaClass.simpleName)

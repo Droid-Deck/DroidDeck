@@ -253,7 +253,8 @@ the prefix's user folder appears, within a minute. Every path logs
   `CloudSavePaths` expands the template inside the game's prefix
   (`compatdata/<shortcut appid>/pfx/drive_c/users/steamuser`) or its install folder,
   case-insensitively, and refuses a path that leaves its boundary. A game whose store has cloud
-  disabled, or no client id to fall back on, has no cloud saves.
+  disabled, or no client id to fall back on, has no cloud saves; a cached none is retried after a
+  day.
 - **The services:** GOG `cloudstorage.gog.com/v1/<user>/<client>` with a token issued to the game's
   own client (the client secret is kept at install; the Galaxy token is the fallback); Epic's
   savesync data storage with signed read and write links (`EpicCloud` → `EpicSaveSync` → the Rust
