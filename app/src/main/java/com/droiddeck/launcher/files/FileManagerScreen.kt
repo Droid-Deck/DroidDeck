@@ -151,6 +151,8 @@ fun FileManagerScreen(
     var conflictChoice by remember { mutableStateOf<ConflictChoice?>(null) }
     var conflictApplyToAll by remember { mutableStateOf(false) }
     var operationJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    // A cancelled paste keeps writing until its blocking copy returns; no new paste starts before that.
+    var cancelledJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var pendingBulkDelete by remember { mutableStateOf<List<File>>(emptyList()) }
     var searchQuery by remember { mutableStateOf("") }
     var showSearch by remember { mutableStateOf(false) }
@@ -252,7 +254,7 @@ fun FileManagerScreen(
 
     fun performPaste() {
         val sources = clipboardFiles
-        if (sources.isEmpty() || isOperationRunning || operationJob?.isActive == true) return
+        if (sources.isEmpty() || isOperationRunning || operationJob?.isActive == true || cancelledJob?.isCompleted == false) return
         val dstDir = currentDir
         val cut = isCutOperation
 
@@ -878,6 +880,7 @@ fun FileManagerScreen(
                     )
                     if (operationJob != null) {
                         TextButton(onClick = {
+                            cancelledJob = operationJob
                             operationJob?.cancel()
                             operationJob = null
                             isOperationRunning = false
