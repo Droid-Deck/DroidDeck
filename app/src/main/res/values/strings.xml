@@ -1829,6 +1829,7 @@
     <string name="gpu_auto_system_hint">Uses the built-in drivers for this GPU</string>
     <string name="drivers_powervr_builtin">The system PowerVR driver is selected for the runtime and display.</string>
     <string name="drivers_mali_bridge_auto">No open driver covers this Mali yet: the Mali bridge is on.</string>
+    <string name="drivers_mali_venus_auto">The Mali bridge showed no picture on this phone: Mali (Venus) is on instead.</string>
     <string name="drivers_mali_bridge_fallback">%1$s isn\'t published yet: the Mali bridge is on until it is.</string>
     <string name="cmgr_powervr_dxvk_queued">Queued: %1$s (waiting for a different runtime driver)</string>
     <string name="cmgr_powervr_dxvk_managed">DXVK is provided by the system PowerVR runtime. Other DXVK packages can be stored but are not applied with this driver.</string>

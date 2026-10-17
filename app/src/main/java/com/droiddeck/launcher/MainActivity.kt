@@ -672,7 +672,11 @@ class MainActivity : ComponentActivity() {
                         onInstallPackage = { id -> installPackage(id) },
                         onRemovePackage = { id -> removePackage(id) },
                         onRuntime = { onRuntimeButton() },
-                        onVkBridge = { on -> SessionPrefs.setVkBridge(this, on); vkBridge = on },
+                        onVkBridge = { on ->
+                            SessionPrefs.setVkBridge(this, on)
+                            if (on) SessionPrefs.setBridgeNoFrame(this, false)
+                            vkBridge = on
+                        },
                         onVenus = { on ->
                             SessionPrefs.setVenus(this, on)
                             venus = on

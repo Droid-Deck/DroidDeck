@@ -23,7 +23,8 @@ class GpuStatsComponent(val dir: File) : SessionPart() {
     }
 
     fun prepare(): Boolean {
-        if (!File(KGSL).exists() || MANGOHUD_FILES.none { File(KGSL, it).let { f -> f.exists() && !f.canRead() } }) return false
+        val mali = File(MALI_CLOCK).canRead()
+        if (!mali && (!File(KGSL).exists() || MANGOHUD_FILES.none { File(KGSL, it).let { f -> f.exists() && !f.canRead() } })) return false
         return try {
             dir.mkdirs()
             dir.listFiles()?.forEach { java.nio.file.Files.deleteIfExists(it.toPath()) }
@@ -103,6 +104,8 @@ class GpuStatsComponent(val dir: File) : SessionPart() {
         private const val PERIOD_MS = 500L
         private val MANGOHUD_FILES = listOf("gpu_busy_percentage", "clock_mhz", "temp")
         private const val QCOM_GPU = "/sys/kernel/gpu"
+        // kHz. On a Pixel the app can read this, but not the Mali's utilization or temperature.
+        private const val MALI_CLOCK = "/sys/class/misc/mali0/device/cur_freq"
         private val LOAD_SOURCES = listOf(
             "$KGSL/gpu_busy_percentage", "$KGSL/devfreq/gpu_load", "$KGSL/gpuload", "$QCOM_GPU/gpu_busy",
         )
@@ -113,6 +116,7 @@ class GpuStatsComponent(val dir: File) : SessionPart() {
         private fun clockSources(): List<String> {
             val sources = mutableListOf(
                 "$KGSL/clock_mhz", "$KGSL/gpu_clock", "$KGSL/gpuclk", "$KGSL/devfreq/cur_freq", "$QCOM_GPU/gpu_clock",
+                MALI_CLOCK,
             )
             DEVFREQ_NODES.forEach { sources.add("/sys/class/devfreq/$it/cur_freq") }
             File("/sys/class/devfreq").list()?.sorted()?.forEach { node ->

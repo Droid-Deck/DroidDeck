@@ -166,7 +166,16 @@ fi
 if [ "${BL_VENUS:-0}" = 1 ] && [ -z "${BL_INSIDE:-}" ] && command -v vulkaninfo >/dev/null 2>&1; then
   if bl_vn_info=$(timeout 30 vulkaninfo 2>/dev/null); then
     case $(printf '%s\n' "$bl_vn_info" | grep -m1 'nullDescriptor') in
-      *true*) echo "== venus: nullDescriptor present (Zink keeps the GPU)" ;;
+      *true*)
+        echo "== venus: nullDescriptor present (Zink keeps the GPU)"
+        # Zink needs the Mali compatibility layer only for nullDescriptor. Where the driver has it
+        # itself, the client, Xwayland and Zink run without the layer; droiddeck-game-env puts it
+        # back for games.
+        if DROIDDECK_MALI_COMPAT_DISABLE=1 timeout 30 vulkaninfo 2>/dev/null | grep -m1 'nullDescriptor' | grep -q true; then
+          export DROIDDECK_MALI_COMPAT_DISABLE=1 BL_MALI_COMPAT_GAMES_ONLY=1
+          echo "== venus: the driver has nullDescriptor itself; the Mali compatibility layer is for games only"
+        fi
+        ;;
       *)
         export GALLIUM_DRIVER=llvmpipe LIBGL_ALWAYS_SOFTWARE=1
         unset MESA_LOADER_DRIVER_OVERRIDE LIBGL_KOPPER_DRI2
@@ -348,11 +357,19 @@ if [ -z "${BL_INSIDE:-}" ]; then
   fi
   args=(--backend "$backend" --expose-wayland -f -W "$width" -H "$height" -w "$nested" -h "$height")
   [ "$nested" != "$width" ] && args+=(-S stretch) && export BL_STRETCHED=1
+  bl_refresh=${BL_REFRESH:-0}
+  # On Venus every frame is read back and copied through shared memory into gamescope; above
+  # 60 Hz that copying costs more than the extra frames are worth.
+  if [ "${BL_VENUS:-0}" = 1 ] && [ "$bl_refresh" -gt 60 ]; then
+    echo "== gamescope: ${bl_refresh} Hz panel, nested refresh held at 60 Hz on Venus"
+    bl_refresh=60
+  fi
   if [ "${BL_FPS:-0}" -gt 0 ]; then
     args+=(-r "$BL_FPS")
-  elif [ "${BL_REFRESH:-0}" -gt 0 ]; then
-    args+=(-r "$BL_REFRESH")
+  elif [ "$bl_refresh" -gt 0 ]; then
+    args+=(-r "$bl_refresh")
   fi
+  unset bl_refresh
   [ "$mode" = steam ] && [ "${BL_STEAM_UI:-}" != desktop ] && args+=(-e)
   if [ "$mode" = steam ] && [ "${BL_XWAYLAND_COUNT:-2}" -gt 1 ]; then
     args+=(--xwayland-count "${BL_XWAYLAND_COUNT:-2}")

@@ -158,7 +158,11 @@ object DriverBundle {
     }
 
     fun select(context: Context, bundle: Bundle) {
-        SessionPrefs.setAndroidDriver(context, bundle.androidId)
+        // The rule DriverMenus.installPair applies to a downloaded pair: on a Mali the compositor
+        // stays on the phone's own driver. A PanVK Android half on the display rebuilds its
+        // swapchain on every frame on a rotated panel (Pixel 10a) and leaks the old images.
+        val display = if (com.droiddeck.launcher.core.DeviceSupport.mali()) TurnipDriver.AUTO else bundle.androidId
+        SessionPrefs.setAndroidDriver(context, display)
         SessionPrefs.setLinuxDriver(context, bundle.linuxId)
     }
 
