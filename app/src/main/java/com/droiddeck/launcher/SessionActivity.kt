@@ -317,11 +317,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun followPanelRefresh(displayId: Int) {
-        if (!CompositorHost.isStarted) return
         val display = (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay) ?: return
         if (display.displayId != displayId) return
         val hz = display.refreshRate
-        if (hz > 1f) WaylandCompositor.nativeSetOutputRefreshRate(hz)
+        if (hz <= 1f) return
+        SessionState.refreshHz = minOf(hz, PerfMode.peakRefreshCap(this))
+        if (CompositorHost.isStarted) WaylandCompositor.nativeSetOutputRefreshRate(hz)
     }
     private var isHomeApp by mutableStateOf(false)
     private var androidApps by mutableStateOf<List<HomeApp.LaunchableApp>>(emptyList())
@@ -1306,7 +1307,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         else null
         val size = live ?: if (SessionState.running) previous else outputSize()
         SessionState.outputSize = size
-        if (!SessionState.running) SessionState.refreshHz = refreshHz()
+        SessionState.refreshHz = refreshHz()
         val panel = panelBounds()
         SessionState.upscaleRatio = maxOf(panel.width(), panel.height()).toFloat() / maxOf(size.first, size.second).coerceAtLeast(1)
         Thread({
@@ -1417,8 +1418,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
+        PerfMode.apply(this, SessionState.fpsLimit)
+        SessionState.refreshHz = refreshHz()
         applyFollowOrientation(newConfig)
         applyUnfoldedControls()
+        refreshSecondScreenDisplays()
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
