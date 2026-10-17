@@ -345,7 +345,12 @@ case $mode in
     ;;
   steam)
     step "checking the Steam client (first run downloads it, ~1-2 min with nothing on screen)"
-    droiddeck-steam-install || exit $?
+    droiddeck-steam-install || {
+      rc=$?
+      echo "== steam: the Steam client could not be set up (status $rc)"
+      [ -z "${BL_STEAM_EXIT_FILE:-}" ] || printf '%s\n' "$rc" > "$BL_STEAM_EXIT_FILE"
+      exit "$rc"
+    }
     step "Steam client ready"
     steam_root=$XDG_DATA_HOME/Steam
     if [ -s "$HOME/.bl-proton-extra" ]; then
