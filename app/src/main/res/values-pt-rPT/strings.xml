@@ -2002,6 +2002,7 @@
     <string name="epic_client_uninstall_stops">A sessão em curso é fechada primeiro.</string>
     <string name="epic_client_uninstalled">Epic Games Launcher desinstalado</string>
     <string name="epic_client_uninstall_failed">Não foi possível remover alguns ficheiros do launcher. Tenta novamente.</string>
+    <string name="epic_client_uninstalling">Aguarde que o Epic Games Launcher termine de ser desinstalado</string>
     <string name="store_cloud_saves">Dados guardados na nuvem</string>
     <string name="cloud_upload">Carregar para a nuvem</string>
     <string name="cloud_download">Transferir da nuvem</string>

@@ -2013,6 +2013,7 @@
     <string name="epic_client_uninstall_stops">Sesiunea în curs se închide mai întâi.</string>
     <string name="epic_client_uninstalled">Epic Games Launcher a fost dezinstalat</string>
     <string name="epic_client_uninstall_failed">Unele fișiere ale lansatorului nu au putut fi eliminate. Încearcă din nou.</string>
+    <string name="epic_client_uninstalling">Așteaptă să se termine dezinstalarea Epic Games Launcher</string>
     <string name="store_cloud_saves">Salvări în cloud</string>
     <string name="cloud_upload">Încarcă în cloud</string>
     <string name="cloud_download">Descarcă din cloud</string>

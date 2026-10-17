@@ -1971,6 +1971,7 @@
     <string name="epic_client_uninstall_stops">Phiên đang chạy sẽ được đóng trước.</string>
     <string name="epic_client_uninstalled">Đã gỡ cài đặt Epic Games Launcher</string>
     <string name="epic_client_uninstall_failed">Không thể xóa một số tệp của trình khởi chạy. Hãy thử lại.</string>
+    <string name="epic_client_uninstalling">Hãy chờ Epic Games Launcher gỡ cài đặt xong</string>
     <string name="store_cloud_saves">Tệp lưu trên cloud</string>
     <string name="cloud_upload">Tải lên cloud</string>
     <string name="cloud_download">Tải xuống từ cloud</string>

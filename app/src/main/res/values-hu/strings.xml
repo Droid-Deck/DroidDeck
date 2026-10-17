@@ -1992,6 +1992,7 @@
     <string name="epic_client_uninstall_stops">Előbb bezárul a futó munkamenet.</string>
     <string name="epic_client_uninstalled">Az Epic Games Launcher eltávolítva</string>
     <string name="epic_client_uninstall_failed">Az indító néhány fájlját nem sikerült eltávolítani. Próbáld újra.</string>
+    <string name="epic_client_uninstalling">Várd meg, amíg az Epic Games Launcher eltávolítása befejeződik</string>
     <string name="store_cloud_saves">Felhőmentések</string>
     <string name="cloud_upload">Feltöltés a felhőbe</string>
     <string name="cloud_download">Letöltés a felhőből</string>

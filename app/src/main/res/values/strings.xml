@@ -2032,6 +2032,7 @@
     <string name="epic_client_uninstall_stops">The running session closes first.</string>
     <string name="epic_client_uninstalled">Epic Games Launcher uninstalled</string>
     <string name="epic_client_uninstall_failed">Some launcher files could not be removed. Try again.</string>
+    <string name="epic_client_uninstalling">Wait for the Epic Games Launcher to finish uninstalling</string>
     <string name="store_cloud_saves">Cloud saves</string>
     <string name="cloud_upload">Upload to cloud</string>
     <string name="cloud_download">Download from cloud</string>

@@ -2034,6 +2034,7 @@
     <string name="epic_client_uninstall_stops">Nejprve se ukončí běžící relace.</string>
     <string name="epic_client_uninstalled">Epic Games Launcher odinstalován</string>
     <string name="epic_client_uninstall_failed">Některé soubory spouštěče nešlo odebrat. Zkuste to znovu.</string>
+    <string name="epic_client_uninstalling">Počkejte, až se Epic Games Launcher dokončí odinstalaci</string>
     <string name="store_cloud_saves">Cloudové uložené pozice</string>
     <string name="cloud_upload">Odeslat do cloudu</string>
     <string name="cloud_download">Stáhnout z cloudu</string>

@@ -1992,6 +1992,7 @@
     <string name="epic_client_uninstall_stops">Käynnissä oleva istunto suljetaan ensin.</string>
     <string name="epic_client_uninstalled">Epic Games Launcher poistettu</string>
     <string name="epic_client_uninstall_failed">Joitakin käynnistimen tiedostoja ei voitu poistaa. Yritä uudelleen.</string>
+    <string name="epic_client_uninstalling">Odota, että Epic Games Launcherin asennuksen poisto valmistuu</string>
     <string name="store_cloud_saves">Pilvitallennukset</string>
     <string name="cloud_upload">Lähetä pilveen</string>
     <string name="cloud_download">Lataa pilvestä</string>

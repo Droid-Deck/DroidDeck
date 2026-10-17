@@ -1981,6 +1981,7 @@
     <string name="epic_client_uninstall_stops">Die laufende Sitzung wird zuerst beendet.</string>
     <string name="epic_client_uninstalled">Epic Games Launcher deinstalliert</string>
     <string name="epic_client_uninstall_failed">Einige Launcher-Dateien konnten nicht entfernt werden. Versuche es erneut.</string>
+    <string name="epic_client_uninstalling">Warte, bis der Epic Games Launcher deinstalliert ist</string>
     <string name="store_cloud_saves">Cloud-Spielstände</string>
     <string name="cloud_upload">In die Cloud hochladen</string>
     <string name="cloud_download">Aus der Cloud herunterladen</string>

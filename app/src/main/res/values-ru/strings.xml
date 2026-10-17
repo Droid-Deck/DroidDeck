@@ -2031,6 +2031,7 @@
     <string name="epic_client_uninstall_stops">Сначала будет закрыт текущий сеанс.</string>
     <string name="epic_client_uninstalled">Epic Games Launcher удалён</string>
     <string name="epic_client_uninstall_failed">Не удалось удалить некоторые файлы лаунчера. Попробуйте ещё раз.</string>
+    <string name="epic_client_uninstalling">Дождитесь завершения удаления Epic Games Launcher</string>
     <string name="store_cloud_saves">Облачные сохранения</string>
     <string name="cloud_upload">Загрузить в облако</string>
     <string name="cloud_download">Скачать из облака</string>

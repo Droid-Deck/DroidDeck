@@ -1971,6 +1971,7 @@
     <string name="epic_client_uninstall_stops">Sesi yang berjalan ditutup terlebih dahulu.</string>
     <string name="epic_client_uninstalled">Epic Games Launcher dicopot</string>
     <string name="epic_client_uninstall_failed">Beberapa file peluncur tidak dapat dihapus. Coba lagi.</string>
+    <string name="epic_client_uninstalling">Tunggu hingga Epic Games Launcher selesai dicopot</string>
     <string name="store_cloud_saves">Simpanan cloud</string>
     <string name="cloud_upload">Unggah ke cloud</string>
     <string name="cloud_download">Unduh dari cloud</string>

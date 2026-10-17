@@ -1971,6 +1971,7 @@
     <string name="epic_client_uninstall_stops">実行中のセッションを先に終了します。</string>
     <string name="epic_client_uninstalled">Epic Games Launcherをアンインストールしました</string>
     <string name="epic_client_uninstall_failed">ランチャーの一部のファイルを削除できませんでした。もう一度お試しください。</string>
+    <string name="epic_client_uninstalling">Epic Games Launcher のアンインストールが終わるまでお待ちください</string>
     <string name="store_cloud_saves">クラウドセーブ</string>
     <string name="cloud_upload">クラウドにアップロード</string>
     <string name="cloud_download">クラウドからダウンロード</string>

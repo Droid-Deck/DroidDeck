@@ -1992,6 +1992,7 @@
     <string name="epic_client_uninstall_stops">Den kørende session lukkes først.</string>
     <string name="epic_client_uninstalled">Epic Games Launcher er afinstalleret</string>
     <string name="epic_client_uninstall_failed">Nogle launcherfiler kunne ikke fjernes. Prøv igen.</string>
+    <string name="epic_client_uninstalling">Vent, til Epic Games Launcher er færdig med at blive afinstalleret</string>
     <string name="store_cloud_saves">Cloud-gemte spil</string>
     <string name="cloud_upload">Upload til cloud</string>
     <string name="cloud_download">Download fra cloud</string>

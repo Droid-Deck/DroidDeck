@@ -29,7 +29,7 @@ object SteamLiveShortcuts {
               const want = ${list};
               let added = 0;
               for (const w of want) {
-                if (${KNOWN}(w.appid, w.name)) continue;
+                if (await ${KNOWN}(w.appid, w.name, w.exe)) continue;
                 if (await ${ADD}(w.name, w.exe, w.dir, true)) added++;
               }
               return added;
@@ -44,7 +44,7 @@ object SteamLiveShortcuts {
         if (!awake(THAW_WAIT_MS)) return null
         val js = """
             (async () => {
-              const known = ${KNOWN}(${appId?.and(0xFFFFFFFFL) ?: 0}, ${JSONObject.quote(name)});
+              const known = await ${KNOWN}(${appId?.and(0xFFFFFFFFL) ?: 0}, ${JSONObject.quote(name)}, ${JSONObject.quote(exe)});
               if (known) return known;
               return await ${ADD}(${JSONObject.quote(name)}, ${JSONObject.quote(exe)}, ${JSONObject.quote(dir)}, $compat);
             })()
@@ -140,12 +140,25 @@ object SteamLiveShortcuts {
         return answer.opt("value")?.takeIf { it != JSONObject.NULL }?.toString()
     }
 
-    private val KNOWN = """((appid, name) => {
+    private val KNOWN = """(async (appid, name, exe) => {
           const store = globalThis.appStore;
+          if (typeof store?.GetAppOverviewByAppID !== 'function' || !store.m_bIsInitialized) throw new Error("appStore is not ready");
           const byId = appid ? store.GetAppOverviewByAppID(appid) : null;
           if (byId) return byId.appid;
-          const byName = store.allApps.find(a => a.app_type == 1073741824 && a.display_name === name);
-          return byName ? byName.appid : 0;
+          const strip = s => (s || "").replace(/^"|"$/g, "");
+          const details = id => new Promise(done => {
+            let handle = null, answer;
+            const finish = d => { clearTimeout(timer); try { handle?.unregister(); } catch (e) {} done(d); };
+            const timer = setTimeout(() => finish(null), 4000);
+            handle = SteamClient.Apps.RegisterForAppDetails(id, d => { answer = d; if (handle) finish(d); });
+            if (answer !== undefined) finish(answer);
+          });
+          for (const a of store.allApps.filter(a => a.app_type == 1073741824 && a.display_name === name)) {
+            const d = await details(a.appid);
+            if (!d) throw new Error("no details for shortcut " + a.appid);
+            if (strip(d.strShortcutExe) === strip(exe)) return a.appid;
+          }
+          return 0;
         })"""
 
     private val ADD = """(async (name, exe, dir, compat) => {
@@ -154,7 +167,10 @@ object SteamLiveShortcuts {
           try { SteamClient.Apps.SetShortcutName(id, name); } catch (e) {}
           try { SteamClient.Apps.AddUserTagToApps([id], ${JSONObject.quote(TAG_NAME)}); } catch (e) {}
           if (compat) { try { SteamClient.Apps.SpecifyCompatTool(id, ${JSONObject.quote(COMPAT_TOOL)}); } catch (e) {} }
-          for (let i = 0; i < 40 && !globalThis.appStore.GetAppOverviewByAppID(id); i++) await new Promise(r => setTimeout(r, 250));
+          for (let i = 0; i < 40; i++) {
+            try { if (globalThis.appStore.GetAppOverviewByAppID(id)) break; } catch (e) {}
+            await new Promise(r => setTimeout(r, 250));
+          }
           return id;
         })"""
 }

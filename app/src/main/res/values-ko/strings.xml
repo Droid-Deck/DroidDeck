@@ -1971,6 +1971,7 @@
     <string name="epic_client_uninstall_stops">실행 중인 세션이 먼저 종료됩니다.</string>
     <string name="epic_client_uninstalled">Epic Games Launcher를 제거했습니다</string>
     <string name="epic_client_uninstall_failed">일부 런처 파일을 삭제하지 못했습니다. 다시 시도하세요.</string>
+    <string name="epic_client_uninstalling">Epic Games Launcher 제거가 끝날 때까지 기다려 주세요</string>
     <string name="store_cloud_saves">클라우드 저장</string>
     <string name="cloud_upload">클라우드에 업로드</string>
     <string name="cloud_download">클라우드에서 다운로드</string>

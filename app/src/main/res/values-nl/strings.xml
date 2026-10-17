@@ -1992,6 +1992,7 @@
     <string name="epic_client_uninstall_stops">De lopende sessie wordt eerst gesloten.</string>
     <string name="epic_client_uninstalled">Epic Games Launcher verwijderd</string>
     <string name="epic_client_uninstall_failed">Sommige launcherbestanden konden niet worden verwijderd. Probeer het opnieuw.</string>
+    <string name="epic_client_uninstalling">Wacht tot Epic Games Launcher klaar is met verwijderen</string>
     <string name="store_cloud_saves">Cloudsaves</string>
     <string name="cloud_upload">Uploaden naar cloud</string>
     <string name="cloud_download">Downloaden vanaf cloud</string>

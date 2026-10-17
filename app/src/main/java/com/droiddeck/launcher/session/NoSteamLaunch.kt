@@ -30,7 +30,7 @@ object NoSteamLaunch {
 
     fun command(game: Library.SteamGame, added: AddedGames.Game?): Command? = when {
         game.library == Library.EPIC_LAUNCHER -> Command(EPIC, listOf("run"), game.name)
-        game.library == Library.ADDED -> added?.let { addedCommand(it) }
+        game.library == Library.ADDED -> added?.let { a -> a.steamAppId?.let { Command(PROTON_RUN, listOf("--app", it.toString()), a.name) } ?: addedCommand(a) }
         game.appId > 0 -> Command(PROTON_RUN, listOf("--app", game.appId.toString()), game.name)
         else -> null
     }
@@ -41,9 +41,11 @@ object NoSteamLaunch {
         game.name,
     )
 
+    fun settingsId(game: AddedGames.Game): Long = (game.steamAppId?.toLong() ?: game.appId) and 0xFFFFFFFFL
+
     fun addedGame(context: Context, game: Library.SteamGame): AddedGames.Game? {
         val id = game.appId.toLong() and 0xFFFFFFFFL
-        return AddedGames.scan(context).firstOrNull { (it.appId and 0xFFFFFFFFL) == id }
+        return AddedGames.scan(context).firstOrNull { settingsId(it) == id }
     }
 
     fun nameFor(program: String?, args: List<String>): String? = when (program) {

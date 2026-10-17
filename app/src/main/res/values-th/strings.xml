@@ -1971,6 +1971,7 @@
     <string name="epic_client_uninstall_stops">เซสชันที่กำลังทำงานจะถูกปิดก่อน</string>
     <string name="epic_client_uninstalled">ถอนการติดตั้ง Epic Games Launcher แล้ว</string>
     <string name="epic_client_uninstall_failed">ไม่สามารถลบไฟล์ของตัวเปิดเกมบางไฟล์ได้ ลองอีกครั้ง</string>
+    <string name="epic_client_uninstalling">รอให้ถอนการติดตั้ง Epic Games Launcher เสร็จก่อน</string>
     <string name="store_cloud_saves">เซฟบนคลาวด์</string>
     <string name="cloud_upload">อัปโหลดขึ้นคลาวด์</string>
     <string name="cloud_download">ดาวน์โหลดจากคลาวด์</string>

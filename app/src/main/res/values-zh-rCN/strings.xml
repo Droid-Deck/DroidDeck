@@ -2047,6 +2047,7 @@
     <string name="epic_client_uninstall_stops">将先关闭正在运行的会话。</string>
     <string name="epic_client_uninstalled">已卸载 Epic Games Launcher</string>
     <string name="epic_client_uninstall_failed">部分启动器文件无法删除。请重试。</string>
+    <string name="epic_client_uninstalling">请等待 Epic Games Launcher 卸载完成</string>
     <string name="store_cloud_saves">云存档</string>
     <string name="cloud_upload">上传到云端</string>
     <string name="cloud_download">从云端下载</string>

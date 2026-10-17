@@ -1992,6 +1992,7 @@
     <string name="epic_client_uninstall_stops">Den pågående sessionen stängs först.</string>
     <string name="epic_client_uninstalled">Epic Games Launcher har avinstallerats</string>
     <string name="epic_client_uninstall_failed">Vissa filer för startprogrammet kunde inte tas bort. Försök igen.</string>
+    <string name="epic_client_uninstalling">Vänta tills Epic Games Launcher har avinstallerats</string>
     <string name="store_cloud_saves">Molnsparfiler</string>
     <string name="cloud_upload">Ladda upp till molnet</string>
     <string name="cloud_download">Hämta från molnet</string>

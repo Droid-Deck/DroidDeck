@@ -2010,6 +2010,7 @@
     <string name="epic_client_uninstall_stops">Primero se cierra la sesión en curso.</string>
     <string name="epic_client_uninstalled">Epic Games Launcher desinstalado</string>
     <string name="epic_client_uninstall_failed">No se pudieron quitar algunos archivos del launcher. Inténtalo de nuevo.</string>
+    <string name="epic_client_uninstalling">Espera a que termine de desinstalarse Epic Games Launcher</string>
     <string name="store_cloud_saves">Partidas en la nube</string>
     <string name="cloud_upload">Subir a la nube</string>
     <string name="cloud_download">Descargar de la nube</string>

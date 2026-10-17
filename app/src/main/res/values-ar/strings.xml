@@ -2076,6 +2076,7 @@
     <string name="epic_client_uninstall_stops">ستُغلق الجلسة الجارية أولاً.</string>
     <string name="epic_client_uninstalled">تمت إزالة Epic Games Launcher</string>
     <string name="epic_client_uninstall_failed">تعذّرت إزالة بعض ملفات المشغّل. حاول مرة أخرى.</string>
+    <string name="epic_client_uninstalling">انتظر حتى ينتهي إلغاء تثبيت Epic Games Launcher</string>
     <string name="store_cloud_saves">ملفات الحفظ السحابية</string>
     <string name="cloud_upload">الرفع إلى السحابة</string>
     <string name="cloud_download">التنزيل من السحابة</string>

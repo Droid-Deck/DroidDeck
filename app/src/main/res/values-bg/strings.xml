@@ -1992,6 +1992,7 @@
     <string name="epic_client_uninstall_stops">Текущата сесия първо ще се затвори.</string>
     <string name="epic_client_uninstalled">Epic Games Launcher е деинсталиран</string>
     <string name="epic_client_uninstall_failed">Някои файлове на лаунчера не можаха да бъдат премахнати. Опитайте отново.</string>
+    <string name="epic_client_uninstalling">Изчакайте Epic Games Launcher да се деинсталира</string>
     <string name="store_cloud_saves">Облачни запазвания</string>
     <string name="cloud_upload">Качи в облака</string>
     <string name="cloud_download">Изтегли от облака</string>

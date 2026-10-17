@@ -1981,6 +1981,7 @@
     <string name="epic_client_uninstall_stops">Önce çalışan oturum kapatılır.</string>
     <string name="epic_client_uninstalled">Epic Games Launcher kaldırıldı</string>
     <string name="epic_client_uninstall_failed">Başlatıcının bazı dosyaları kaldırılamadı. Tekrar deneyin.</string>
+    <string name="epic_client_uninstalling">Epic Games Launcher\'ın kaldırılmasının bitmesini bekleyin</string>
     <string name="store_cloud_saves">Bulut kayıtları</string>
     <string name="cloud_upload">Buluta yükle</string>
     <string name="cloud_download">Buluttan indir</string>

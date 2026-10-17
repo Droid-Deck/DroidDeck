@@ -99,6 +99,17 @@ class SteamShortcutRecoveryTest(unittest.TestCase):
         steam, restart, _ = self.launch_game("0 4", focusable="769,2702387189")
         self.assertEqual(GAME, restart)
 
+    def test_the_launcher_without_its_steam_id_still_does_not_count_as_a_running_game(self):
+        (self.launch / "epic-open").write_text("1\n")
+        os.environ["BL_EPIC_APP_ID"] = "2702387189"
+        self.addCleanup(os.environ.pop, "BL_EPIC_APP_ID", None)
+        steam, restart, _ = self.launch_game("0 4", focusable="769,2702387189")
+        self.assertEqual(GAME, restart)
+        for marker in (".bl-restart-game", ".bl-restarted-for", "agent-count"):
+            (self.root / marker).unlink(missing_ok=True)
+        steam, restart, _ = self.launch_game("4", focusable="769,2702387189,3703311242")
+        self.assertIsNone(restart)
+
     def test_steam_games_are_launched_without_watching(self):
         steam, restart, _ = self.launch_game("3")
         self.assertEqual(["steam://rungameid/" + GAME], steam)

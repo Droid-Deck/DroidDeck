@@ -178,9 +178,11 @@ object EpicClient {
     internal fun updateWanted(current: Status, latest: String?): Boolean =
         current.installed && latest != null && latest != current.version
 
+    @Volatile var uninstalling = false
+
     fun install(context: Context) {
         val app = context.applicationContext
-        if (status.installed) return
+        if (status.installed || uninstalling) return
         enqueue(app)
     }
 
@@ -329,7 +331,7 @@ object EpicClient {
         if (!steamSession()) return failed("no-steam")
         runCatching { EpicClientLibrary.importClientGames(context) }.onFailure { Log.w(TAG, "client library scan failed: ${it.javaClass.simpleName}") }
         val game = steamShortcut(AddedGames.scan(context), id) ?: return failed("not-registered")
-        if (com.droiddeck.launcher.session.NoSteamLaunch.enabled(context, game.appId)) return failed("no-steam-game")
+        if (com.droiddeck.launcher.session.NoSteamLaunch.enabled(context, com.droiddeck.launcher.session.NoSteamLaunch.settingsId(game))) return failed("no-steam-game")
         if (!AddedGames.inSteam(context, game.appId) || SteamLiveShortcuts.known(context, game.appId) == false) return failed("not-in-steam")
         if (!SessionService.launchGame(context, gameId(game.appId))) return failed("busy")
         Log.i(TAG, "the Epic Games Launcher hands $id to Steam as ${gameId(game.appId)}")

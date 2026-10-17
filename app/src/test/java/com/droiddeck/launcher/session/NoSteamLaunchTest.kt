@@ -68,6 +68,21 @@ class NoSteamLaunchTest {
         assertEquals(NoSteamLaunch.EPIC to listOf("run"), epic.program to epic.args)
     }
 
+    @Test fun anAddedGameOwnedOnSteamUsesItsSteamIdForSettingsAndLaunch() {
+        val routed = AddedGames.Game(
+            File("/x/Stardew Valley"), "Stardew Valley", File("/x/Stardew Valley/Stardew Valley.exe"),
+            "/mnt/droiddeck-sd/Games/Stardew Valley/Stardew Valley.exe", "/mnt/droiddeck-sd/Games/Stardew Valley",
+            2733369024L, 413150L, emptyList(), steamAppId = 413150,
+        )
+        assertEquals(413150L, NoSteamLaunch.settingsId(routed))
+        val entry = Library.SteamGame(413150, "Stardew Valley", null, Library.ADDED)
+        assertEquals(NoSteamLaunch.settingsId(routed).toString(), NoSteamLaunch.scope(entry))
+        val command = NoSteamLaunch.command(entry, routed)!!
+        assertEquals(NoSteamLaunch.PROTON_RUN to listOf("--app", "413150"), command.program to command.args)
+        val plain = AddedGames.Game(File("/x/a"), "a", File("/x/a/a.exe"), "/g/a.exe", "/g", 2733369024L, 0L, emptyList())
+        assertEquals(2733369024L, NoSteamLaunch.settingsId(plain))
+    }
+
     @Test fun theRunningSessionIsNamedAfterItsGame() {
         val command = NoSteamLaunch.command(steamGame, null)!!
         assertNull(NoSteamLaunch.nameFor(command.program, command.args))

@@ -1971,6 +1971,7 @@
     <string name="epic_client_uninstall_stops">會先關閉正在執行的工作階段。</string>
     <string name="epic_client_uninstalled">已解除安裝 Epic Games Launcher</string>
     <string name="epic_client_uninstall_failed">部分啟動器檔案無法刪除。請再試一次。</string>
+    <string name="epic_client_uninstalling">請等待 Epic Games Launcher 解除安裝完成</string>
     <string name="store_cloud_saves">雲端存檔</string>
     <string name="cloud_upload">上傳到雲端</string>
     <string name="cloud_download">從雲端下載</string>

@@ -1992,6 +1992,7 @@
     <string name="epic_client_uninstall_stops">Η τρέχουσα συνεδρία κλείνει πρώτα.</string>
     <string name="epic_client_uninstalled">Το Epic Games Launcher απεγκαταστάθηκε</string>
     <string name="epic_client_uninstall_failed">Δεν ήταν δυνατή η αφαίρεση ορισμένων αρχείων του εκκινητή. Δοκιμάστε ξανά.</string>
+    <string name="epic_client_uninstalling">Περιμένετε να ολοκληρωθεί η απεγκατάσταση του Epic Games Launcher</string>
     <string name="store_cloud_saves">Αποθηκεύσεις στο cloud</string>
     <string name="cloud_upload">Μεταφόρτωση στο cloud</string>
     <string name="cloud_download">Λήψη από το cloud</string>

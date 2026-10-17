@@ -571,6 +571,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun uninstallEpicLauncher() {
+        if (com.droiddeck.launcher.stores.epic.EpicClient.uninstalling) return
+        com.droiddeck.launcher.stores.epic.EpicClient.uninstalling = true
         if (SessionState.running) SessionService.stop(this)
         val app = applicationContext
         val deadline = android.os.SystemClock.uptimeMillis() + SESSION_SWITCH_WAIT_MS
@@ -579,7 +581,11 @@ class MainActivity : ComponentActivity() {
                 Thread.sleep(SESSION_SWITCH_POLL_MS)
             }
             val ended = !SessionState.running && SessionState.phase in SESSION_ENDED
-            val done = ended && com.droiddeck.launcher.stores.epic.EpicClient.uninstall(app)
+            val done = try {
+                ended && com.droiddeck.launcher.stores.epic.EpicClient.uninstall(app)
+            } finally {
+                com.droiddeck.launcher.stores.epic.EpicClient.uninstalling = false
+            }
             ui.post {
                 if (!isDestroyed) refresh()
                 android.widget.Toast.makeText(app, if (done) R.string.epic_client_uninstalled else R.string.epic_client_uninstall_failed,
@@ -589,6 +595,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun openEpicLauncher(): Boolean {
+        if (com.droiddeck.launcher.stores.epic.EpicClient.uninstalling) {
+            android.widget.Toast.makeText(this, R.string.epic_client_uninstalling, android.widget.Toast.LENGTH_SHORT).show()
+            return false
+        }
         if (protons.protonBusyId != null || ProtonExtras.installInProgress || pkgStage != null) {
             android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
             return false

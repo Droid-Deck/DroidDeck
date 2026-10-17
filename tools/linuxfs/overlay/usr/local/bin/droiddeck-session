@@ -752,6 +752,7 @@ BUSCONF
     steam_other_game_running() {
       local line value n open
       open=$(cat "$BL_LAUNCH_DIR/epic-open" 2>/dev/null)
+      case $open in ?|*[!0-9]*) open=${BL_EPIC_APP_ID:-$open} ;; esac
       line=$(xprop -root GAMESCOPE_FOCUSABLE_APPS 2>/dev/null) || return 1
       case $line in *=*) value=${line#*= } ;; *) return 1 ;; esac
       for n in ${value//,/ }; do

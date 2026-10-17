@@ -1992,6 +1992,7 @@
     <string name="epic_client_uninstall_stops">पहले चल रहा सेशन बंद होगा।</string>
     <string name="epic_client_uninstalled">Epic Games Launcher अनइंस्टॉल हो गया</string>
     <string name="epic_client_uninstall_failed">लॉन्चर की कुछ फ़ाइलें हटाई नहीं जा सकीं। फिर से कोशिश करें।</string>
+    <string name="epic_client_uninstalling">Epic Games Launcher की अनइंस्टॉल पूरी होने तक प्रतीक्षा करें</string>
     <string name="store_cloud_saves">क्लाउड सेव</string>
     <string name="cloud_upload">क्लाउड पर अपलोड करें</string>
     <string name="cloud_download">क्लाउड से डाउनलोड करें</string>

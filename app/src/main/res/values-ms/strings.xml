@@ -1971,6 +1971,7 @@
     <string name="epic_client_uninstall_stops">Sesi yang sedang berjalan ditutup dahulu.</string>
     <string name="epic_client_uninstalled">Epic Games Launcher dinyahpasang</string>
     <string name="epic_client_uninstall_failed">Sesetengah fail pelancar tidak dapat dibuang. Cuba lagi.</string>
+    <string name="epic_client_uninstalling">Tunggu sehingga Epic Games Launcher selesai dinyahpasang</string>
     <string name="store_cloud_saves">Simpanan awan</string>
     <string name="cloud_upload">Muat naik ke awan</string>
     <string name="cloud_download">Muat turun daripada awan</string>
