@@ -570,7 +570,9 @@ class SessionService : Service() {
             com.droiddeck.launcher.core.ZramSupport.supported()) guest.add("BL_ZRAM=1")
         guest.add("BANNER_AUDIO_DIRECT_DECAY=0")
         extraEnv().forEach { guest.add(it) }
-        com.droiddeck.launcher.agent.AgentEnv.beginSession(this).forEach { guest.add(it) }
+        runCatching { com.droiddeck.launcher.agent.AgentEnv.beginSession(this) }
+            .onFailure { Log.w(TAG, "agent environment skipped", it) }
+            .getOrDefault(emptyList()).forEach { guest.add(it) }
         val clientPinned = steamHere && SessionPrefs.clientCpusOverride(this)
         if (clientPinned) {
             guest.add("BL_CLIENT_CPUS=" + CpuCores.listOrAll(SessionPrefs.clientCpus(this)))
