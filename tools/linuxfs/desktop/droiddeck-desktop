@@ -65,7 +65,9 @@ if [ -f "$HOME/.droiddeck-remote-run" ]; then
   ) &
 fi
 echo "== droiddeck-desktop: Plasma on $WAYLAND_DISPLAY"
-dbus-run-session -- startplasma-wayland
+# The screen reader starts inside the desktop's own session bus (dbus-run-session) when the app
+# has installed and enabled it; droiddeck-orca waits for Plasma's display itself.
+dbus-run-session -- bash -c '/usr/local/bin/droiddeck-orca 2>&1 | sed "s/^/[orca] /" & exec startplasma-wayland'
 rc=$?
 echo "== droiddeck-desktop: Plasma ended ($rc)"
 if [ "$rc" -eq 0 ]; then

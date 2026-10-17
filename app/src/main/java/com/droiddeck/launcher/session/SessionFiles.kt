@@ -77,6 +77,10 @@ object SessionFiles {
             "usr/local/bin/droiddeck-flatpak" to "usr/local/bin/droiddeck-flatpak",
             "usr/local/bin/droiddeck-flatpak-setup" to "usr/local/bin/droiddeck-flatpak-setup",
             "usr/local/bin/droiddeck-flatpak-run" to "usr/local/bin/droiddeck-flatpak-run",
+            // The screen reader: the installer and the per-session starter (Accessibility tab).
+            "usr/local/bin/droiddeck-orca-setup" to "usr/local/bin/droiddeck-orca-setup",
+            "usr/local/bin/droiddeck-orca" to "usr/local/bin/droiddeck-orca",
+            // The user's own AppImages, extracted at import (AppImageManager).
             "usr/local/bin/droiddeck-appimage-run" to "usr/local/bin/droiddeck-appimage-run",
             "usr/local/bin/droiddeck-script-run" to "usr/local/bin/droiddeck-script-run",
             "usr/local/bin/droiddeck-open" to "usr/local/bin/droiddeck-open",
