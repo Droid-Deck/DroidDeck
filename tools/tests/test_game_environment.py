@@ -522,7 +522,7 @@ class ProtonDefaultTest(unittest.TestCase):
             (root / "state.json").write_text(json.dumps({
                 "default": self.TOOL,
                 "auto": {},
-                "native": [app],
+                "native_choices": [app],
             }))
 
             globals_ = COMPAT["register_default"].__globals__
@@ -534,7 +534,7 @@ class ProtonDefaultTest(unittest.TestCase):
                 self.assertEqual(mapping_of(config.read_text()), {"0": self.TOOL})
                 state = json.loads((root / "state.json").read_text())
                 self.assertEqual(state["auto"], {})
-                self.assertEqual(state["native"], [app])
+                self.assertEqual(state["native_choices"], [app])
             finally:
                 globals_["native_targets"] = original_native_targets
 
@@ -551,7 +551,7 @@ class ProtonDefaultTest(unittest.TestCase):
             (root / "state.json").write_text(json.dumps({
                 "default": self.TOOL,
                 "auto": {},
-                "native": [app],
+                "native_choices": [app],
             }))
 
             globals_ = COMPAT["register_default"].__globals__
@@ -562,12 +562,12 @@ class ProtonDefaultTest(unittest.TestCase):
             try:
                 COMPAT["register_default"](
                     str(config), [app], catalog=self.CATALOG, directory=tmp)
-                self.assertEqual(json.loads((root / "state.json").read_text())["native"], [app])
+                self.assertEqual(json.loads((root / "state.json").read_text())["native_choices"], [app])
 
                 COMPAT["register_default"](
                     str(config), [added_shortcut], catalog=self.CATALOG, directory=tmp)
                 state = json.loads((root / "state.json").read_text())
-                self.assertEqual(state["native"], [app])
+                self.assertEqual(state["native_choices"], [app])
                 self.assertEqual(state["auto"], {added_shortcut: self.TOOL})
                 self.assertEqual(mapping_of(config.read_text()), {
                     "0": self.TOOL,
@@ -613,7 +613,7 @@ class ProtonDefaultTest(unittest.TestCase):
                 self.assertEqual(COMPAT["tokenize"](first.decode()),
                                  COMPAT["tokenize"](config_text([("0", self.TOOL)])))
                 self.assertEqual(json.loads((Path(tmp) / "state.json").read_text())["auto"], {})
-                self.assertEqual(json.loads((Path(tmp) / "state.json").read_text())["native"], ["427520"])
+                self.assertEqual(json.loads((Path(tmp) / "state.json").read_text())["native_choices"], ["427520"])
 
                 COMPAT["register_default"](
                     str(config), ["427520"], catalog=self.CATALOG, directory=tmp)
@@ -625,7 +625,7 @@ class ProtonDefaultTest(unittest.TestCase):
                 native_choice = config.read_bytes()
                 self.assertEqual(mapping_of(native_choice.decode()), {"0": self.TOOL, "427520": ""})
                 self.assertEqual(json.loads((Path(tmp) / "state.json").read_text())["auto"], {})
-                self.assertEqual(json.loads((Path(tmp) / "state.json").read_text())["native"], ["427520"])
+                self.assertEqual(json.loads((Path(tmp) / "state.json").read_text())["native_choices"], ["427520"])
                 COMPAT["register_default"](
                     str(config), ["427520"], catalog=self.CATALOG, directory=tmp)
                 self.assertEqual(config.read_bytes(), native_choice)
@@ -635,10 +635,10 @@ class ProtonDefaultTest(unittest.TestCase):
                     COMPAT["register_default"](
                         str(config), ["427520"], catalog=self.CATALOG, directory=tmp)
                     self.assertEqual(mapping_of(config.read_text()), {"0": self.TOOL, "427520": choice})
-                    self.assertEqual(json.loads((Path(tmp) / "state.json").read_text())["native"], [])
+                    self.assertEqual(json.loads((Path(tmp) / "state.json").read_text())["native_choices"], [])
 
                 state = json.loads((Path(tmp) / "state.json").read_text())
-                state["native"] = ["427520"]
+                state["native_choices"] = ["427520"]
                 state["auto"] = {}
                 (Path(tmp) / "state.json").write_text(json.dumps(state))
                 config.write_text(config_text([("0", self.TOOL), ("427520", "proton_experimental")]))
@@ -646,7 +646,7 @@ class ProtonDefaultTest(unittest.TestCase):
                     str(config), ["427520"], catalog=self.CATALOG, directory=tmp)
                 self.assertEqual(mapping_of(config.read_text()), {"0": self.TOOL, "427520": self.TOOL})
                 saved = json.loads((Path(tmp) / "state.json").read_text())
-                self.assertEqual(saved["native"], [])
+                self.assertEqual(saved["native_choices"], [])
                 self.assertEqual(saved["auto"], {"427520": self.TOOL})
             finally:
                 globals_["appinfo_platforms"] = original_platforms

@@ -1182,14 +1182,15 @@ def register_default(config_path, apps=(), protect=(), default=None, catalog=Non
             current, apps, names, default, followers(state, current),
             native_targets(steam_root, set(apps) | set(picks)), picks,
             overrides, state.get("auto", {}).keys() if isinstance(state.get("auto"), dict) else (),
-            state.get("native", ()))
+            state.get("native_choices", ()))
         for app, tool in changes.items():
             set_mapping(tokens, mapping, app, tool)
         text = serialize(tokens)
         if text != serialize(tokenize(original)):
             write_changed(config_path, text)
         state["auto"] = {app: tool for app, tool in auto.items() if tool is not NATIVE_CHOICE}
-        state["native"] = sorted(app for app, tool in auto.items() if tool is NATIVE_CHOICE)
+        state["native_choices"] = sorted(app for app, tool in auto.items() if tool is NATIVE_CHOICE)
+        state.pop("native", None)
         state["tools"] = catalog
         state.setdefault("default", default)
         write_json(state_path("state.json", directory), state)

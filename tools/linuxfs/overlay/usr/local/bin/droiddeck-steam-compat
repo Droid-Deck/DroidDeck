@@ -524,7 +524,8 @@ class Helper:
             prior_auto = state.get("auto", {})
             if not isinstance(prior_auto, dict):
                 prior_auto = {}
-            prior_native = state.get("native", ())
+            # "native" from earlier builds also lists dual-platform games nobody chose to run natively.
+            prior_native = state.get("native_choices", ())
             native_choices = set(prior_native if isinstance(prior_native, (list, tuple, set)) else ())
             apps = sorted(set(installed) | set(picks) | set(prior_auto) | native_choices, key=COMPAT["app_order"])
             overrides = COMPAT["requested_games"](
@@ -544,6 +545,8 @@ class Helper:
                         current[app] = raw_mapping[app]
                     elif app in prior_auto or app in native_choices:
                         current[app] = ""
+                    elif not current.get(app):
+                        current.pop(app, None)
             changes, auto = COMPAT["plan_mapping"](
                 current, installed, [t["name"] for t in live], default,
                 COMPAT["followers"](state, current), native, picks, overrides,
@@ -554,8 +557,9 @@ class Helper:
                                    tool if tool is not None else "Steam native default"))
             state.update(
                 auto={app: tool for app, tool in auto.items() if tool is not COMPAT["NATIVE_CHOICE"]},
-                native=sorted(app for app, tool in auto.items() if tool is COMPAT["NATIVE_CHOICE"]),
+                native_choices=sorted(app for app, tool in auto.items() if tool is COMPAT["NATIVE_CHOICE"]),
                 tools=catalog, live=True)
+            state.pop("native", None)
             if waiting:
                 state["pending"] = wanted
                 say("%s is new to the running client; it applies when Steam next starts" % wanted)

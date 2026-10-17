@@ -334,19 +334,19 @@ class ReconcileTest(unittest.TestCase):
             state = self.reconcile(page)
             self.assertEqual(page.sets, [])
             self.assertEqual(state["auto"], {})
-            self.assertEqual(state["native"], [app])
+            self.assertEqual(state["native_choices"], [app])
             self.assertEqual(COMPAT["read_config_mapping"](str(config)), {"0": TOOL})
 
             page.sets.clear()
             state = self.reconcile(page)
             self.assertEqual(page.sets, [])
-            self.assertEqual(state["native"], [app])
+            self.assertEqual(state["native_choices"], [app])
             restarted = LIVE["Helper"](str(self.steam), 1)
             restarted.page = page
             restarted.reconcile()
             state = json.loads((self.state / "state.json").read_text())
             self.assertEqual(page.sets, [])
-            self.assertEqual(state["native"], [app])
+            self.assertEqual(state["native_choices"], [app])
 
             config.write_text(
                 '"InstallConfigStore" { "Software" { "Valve" { "Steam" { '
@@ -356,13 +356,13 @@ class ReconcileTest(unittest.TestCase):
             state = self.reconcile(page)
             self.assertEqual(page.mapping[app], "GE-Proton11-7")
             self.assertEqual(page.sets, [])
-            self.assertEqual(state["native"], [])
+            self.assertEqual(state["native_choices"], [])
 
             for choice in ("steamlinuxruntime", COMPAT["FEX_TOOL"], TOOL_11):
                 (self.state / "state.json").write_text(json.dumps({
                     "default": TOOL,
                     "auto": {},
-                    "native": [app],
+                    "native_choices": [app],
                 }))
                 config.write_text(
                     '"InstallConfigStore" { "Software" { "Valve" { "Steam" { '
@@ -373,7 +373,7 @@ class ReconcileTest(unittest.TestCase):
                 state = self.reconcile(page)
                 self.assertEqual(page.mapping[app], choice)
                 self.assertEqual(page.sets, [])
-                self.assertEqual(state["native"], [], choice)
+                self.assertEqual(state["native_choices"], [], choice)
         finally:
             COMPAT["native_targets"] = original_native_targets
 
@@ -387,7 +387,7 @@ class ReconcileTest(unittest.TestCase):
         (self.state / "state.json").write_text(json.dumps({
             "default": TOOL,
             "auto": {},
-            "native": [app],
+            "native_choices": [app],
         }))
 
         original_native_targets = COMPAT["native_targets"]
@@ -396,14 +396,14 @@ class ReconcileTest(unittest.TestCase):
             page = FakePage({"0": TOOL, app: "proton"}, [TOOL, TOOL_11])
             state = self.reconcile(page)
             self.assertNotIn(app, self.helper.installed)
-            self.assertEqual(state["native"], [app])
+            self.assertEqual(state["native_choices"], [app])
             self.assertNotIn(app, state["auto"])
             self.assertNotIn((app, TOOL), page.sets)
             self.assertEqual(COMPAT["read_config_mapping"](str(config)), {"0": TOOL})
 
             config.write_text('"InstallConfigStore" { "Software" { "Other" {} } }')
             state = self.reconcile(page)
-            self.assertEqual(state["native"], [app])
+            self.assertEqual(state["native_choices"], [app])
             self.assertNotIn((app, TOOL), page.sets)
 
             config.write_text(
@@ -412,11 +412,47 @@ class ReconcileTest(unittest.TestCase):
                 '"%s" { "name" "GE-Proton11-7" } } } } } }' % (TOOL, app))
             page.mapping[app] = "proton"
             state = self.reconcile(page)
-            self.assertEqual(state["native"], [])
+            self.assertEqual(state["native_choices"], [])
             self.assertNotIn((app, TOOL), page.sets)
             self.assertEqual(COMPAT["read_config_mapping"](str(config))[app], "GE-Proton11-7")
         finally:
             COMPAT["native_targets"] = original_native_targets
+
+    def dual_platform_game(self, state):
+        app = "892970"
+        (self.steam / ("steamapps/appmanifest_%s.acf" % app)).write_text("")
+        config = self.steam / "config/config.vdf"
+        config.parent.mkdir(parents=True)
+        config.write_text(
+            '"InstallConfigStore" { "Software" { "Valve" { "Steam" { '
+            '"CompatToolMapping" { "0" { "name" "%s" } } } } } }' % TOOL)
+        (self.state / "state.json").write_text(json.dumps(state))
+        patcher = mock.patch.dict(COMPAT, {"native_targets": lambda _root, apps: {
+            app: COMPAT["NATIVE_CHOICE"]
+        } if app in apps else {}})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        return app, FakePage({"0": TOOL, "10": TOOL, "11": TOOL}, [TOOL, TOOL_11])
+
+    def test_unmapped_dual_platform_game_gets_the_default_live(self):
+        app, page = self.dual_platform_game({"default": TOOL, "auto": {"10": TOOL, "11": TOOL}})
+        state = self.reconcile(page)
+        self.assertEqual(page.sets, [(app, TOOL)])
+        self.assertEqual(state["auto"][app], TOOL)
+        self.assertEqual(state["native_choices"], [])
+
+        page.mapping[app] = ""
+        page.sets.clear()
+        state = self.reconcile(page)
+        self.assertEqual(page.sets, [])
+        self.assertEqual(state["native_choices"], [app])
+
+    def test_native_list_from_earlier_builds_is_not_trusted(self):
+        app, page = self.dual_platform_game({"default": TOOL, "auto": {"10": TOOL, "11": TOOL}, "native": ["892970"]})
+        state = self.reconcile(page)
+        self.assertEqual(page.sets, [(app, TOOL)])
+        self.assertNotIn("native", state)
+        self.assertEqual(state["native_choices"], [])
 
     def test_factorio_without_prior_auto_state_uses_the_default_proton(self):
         app = "427520"
@@ -436,7 +472,7 @@ class ReconcileTest(unittest.TestCase):
             state = self.reconcile(page)
             self.assertEqual(page.sets, [(app, TOOL)])
             self.assertEqual(state["auto"], {app: TOOL})
-            self.assertEqual(state["native"], [])
+            self.assertEqual(state["native_choices"], [])
             self.assertEqual(COMPAT["read_config_mapping"](str(config)), {"0": TOOL})
         finally:
             COMPAT["native_targets"] = original_native_targets
