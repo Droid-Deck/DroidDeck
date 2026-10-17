@@ -615,7 +615,8 @@ BUSCONF
       if [ -S /run/dbus/system_bus_socket ]; then
         echo "== network: system bus up, NetworkManager stand-in running"
         rm -f "$BL_LAUNCH_DIR/steam-sleep-ready"
-        droiddeck-login1 --with-netmanager &
+        rm -f /run/droiddeck-radio-hold
+        droiddeck-login1 --with-netmanager --with-bluez &
         login_manager=$!
         for ((_i = 0; _i < 50; _i++)); do
           [ -f "$BL_LAUNCH_DIR/steam-sleep-ready" ] && break

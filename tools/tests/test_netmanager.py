@@ -80,6 +80,19 @@ class NetworkObjectsTest(unittest.TestCase):
         self.assertFalse(active["Default"].unpack())
         self.assertNotEqual(nm.device_path(WIFI), nm.device_path(CELLULAR))
 
+    def test_wifi_device_stays_while_the_radio_is_off(self):
+        wifi = nm.ROOT + "/Devices/Wifi"
+        for state in (dict(CELLULAR, wifiEnabled=False), dict(OFFLINE, wifiEnabled=False)):
+            found = nm.objects(state)
+            manager = found[nm.ROOT][nm.NAME]
+            self.assertFalse(manager["WirelessEnabled"].unpack())
+            self.assertTrue(manager["WirelessHardwareEnabled"].unpack())
+            self.assertEqual(manager["Devices"].unpack(), [nm.device_path(state), wifi])
+            self.assertEqual(found[wifi][nm.NAME + ".Device"]["DeviceType"].unpack(), 2)
+            self.assertEqual(found[wifi][nm.NAME + ".Device"]["State"].unpack(), 20)
+            self.assertIn(nm.NAME + ".Device.Wireless", found[wifi])
+        self.assertEqual(nm.objects(CELLULAR)[wifi][nm.NAME + ".Device"]["State"].unpack(), 30)
+
     def test_offline_and_captive_portal(self):
         offline = nm.objects(OFFLINE)
         self.assertEqual(offline[nm.ROOT][nm.NAME]["State"].unpack(), 20)
@@ -130,7 +143,7 @@ class NetworkBusTest(unittest.TestCase):
         self.write(WIFI)
         self.bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
         env = dict(os.environ, DBUS_SYSTEM_BUS_ADDRESS=os.environ["DBUS_SESSION_BUS_ADDRESS"])
-        launch = "import runpy,sys; from pathlib import Path; n=runpy.run_path(sys.argv[1]); g=n['main'].__globals__; g['SNAPSHOT']=Path(sys.argv[2]); g['SCAN_REQUEST']=Path(sys.argv[2]).with_suffix('.request'); n['main']()"
+        launch = "import runpy,sys; from pathlib import Path; n=runpy.run_path(sys.argv[1]); g=n['main'].__globals__; g['SNAPSHOT']=Path(sys.argv[2]); g['SCAN_REQUEST']=Path(sys.argv[2]).with_suffix('.request'); g['WIFI_REQUEST']=Path(sys.argv[2]).with_suffix('.wifi'); g['RADIO_HOLD']=Path(sys.argv[2]).with_suffix('.hold'); n['main']()"
         self.process = subprocess.Popen([sys.executable, "-c", launch, str(SCRIPT), str(self.snapshot)], env=env,
                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.await_type("802-11-wireless")
@@ -240,6 +253,32 @@ class NetworkBusTest(unittest.TestCase):
         time.sleep(1.2)
         with self.assertRaises(GLib.Error):
             self.call(wifi_path, nm.NAME + ".Device.Wireless", "RequestScan", GLib.Variant("(a{sv})", ({},)))
+
+    def test_wireless_switch_waits_for_the_radio_hold(self):
+        request, hold = self.snapshot.with_suffix(".wifi"), self.snapshot.with_suffix(".hold")
+        enabled = lambda value: GLib.Variant("(ssv)", (nm.NAME, "WirelessEnabled", GLib.Variant("b", value)))
+        self.call(nm.ROOT, nm.PROPERTIES, "Set", enabled(False))
+        self.assertFalse(request.exists())
+        hold.write_text(str(time.time() + 60))
+        self.call(nm.ROOT, nm.PROPERTIES, "Set", enabled(False))
+        self.assertFalse(request.exists())
+        hold.write_text("0")
+        self.call(nm.ROOT, nm.PROPERTIES, "Set", enabled(False))
+        self.assertEqual(request.read_text(), "off")
+        first = request.stat().st_ino
+        self.call(nm.ROOT, nm.PROPERTIES, "Set", enabled(True))
+        self.assertEqual(request.read_text(), "on")
+        self.assertNotEqual(request.stat().st_ino, first)
+        self.assertFalse(request.with_name(request.name + ".staged").exists())
+        self.assertTrue(self.prop(nm.ROOT, nm.NAME, "WirelessEnabled"))
+        with self.assertRaises(GLib.Error):
+            self.call(nm.ROOT, nm.PROPERTIES, "Set", GLib.Variant("(ssv)", (nm.NAME, "WwanEnabled", GLib.Variant("b", True))))
+        self.write(dict(WIFI, wifiEnabled=False, connected=False, transport="none"))
+        deadline = time.monotonic() + 4
+        while self.prop(nm.ROOT, nm.NAME, "WirelessEnabled") and time.monotonic() < deadline:
+            time.sleep(0.05)
+        self.assertFalse(self.prop(nm.ROOT, nm.NAME, "WirelessEnabled"))
+        self.assertTrue(self.prop(nm.ROOT, nm.NAME, "WirelessHardwareEnabled"))
 
     def test_libnm_client(self):
         try:

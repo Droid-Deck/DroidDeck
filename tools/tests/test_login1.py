@@ -221,19 +221,20 @@ class SleepHandshakeTest(unittest.TestCase):
 
 
 class WithNetworkManagerTest(SleepHandshakeTest):
-    ARGS = ["--with-netmanager"]
+    ARGS = ["--with-netmanager", "--with-bluez"]
 
     def owner(self, name):
         return self.bus.call_sync("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                   "GetConnectionUnixProcessID", GLib.Variant("(s)", (name,)), None,
                                   Gio.DBusCallFlags.NONE, 2000, None).unpack()[0]
 
-    def test_one_process_owns_login1_and_networkmanager(self):
-        self.wait_for(lambda: self.bus.call_sync(
-            "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus", "NameHasOwner",
-            GLib.Variant("(s)", ("org.freedesktop.NetworkManager",)), None,
-            Gio.DBusCallFlags.NONE, 2000, None).unpack()[0])
-        self.assertEqual(self.owner("org.freedesktop.NetworkManager"), self.process.pid)
+    def test_one_process_owns_login1_networkmanager_and_bluez(self):
+        for service in ("org.freedesktop.NetworkManager", "org.bluez"):
+            self.wait_for(lambda: self.bus.call_sync(
+                "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus", "NameHasOwner",
+                GLib.Variant("(s)", (service,)), None,
+                Gio.DBusCallFlags.NONE, 2000, None).unpack()[0])
+            self.assertEqual(self.owner(service), self.process.pid)
         self.assertEqual(self.owner(NAME), self.process.pid)
 
 

@@ -195,9 +195,9 @@ class LoginManager:
             self.notify(False)
 
 
-def load_netmanager():
-    path = Path(__file__).resolve().with_name("droiddeck-netmanager")
-    loader = importlib.machinery.SourceFileLoader("droiddeck_netmanager", str(path))
+def load_service(name):
+    path = Path(__file__).resolve().with_name(name)
+    loader = importlib.machinery.SourceFileLoader(name.replace("-", "_"), str(path))
     spec = importlib.util.spec_from_loader(loader.name, loader)
     module = importlib.util.module_from_spec(spec)
     loader.exec_module(module)
@@ -230,7 +230,9 @@ def main():
     owners = [Gio.bus_own_name(Gio.BusType.SYSTEM, name, Gio.BusNameOwnerFlags.NONE, connected, acquired, lost)
               for name in (NAME, UPOWER)]
     if "--with-netmanager" in sys.argv[1:]:
-        owners.append(load_netmanager().own(loop))
+        owners.append(load_service("droiddeck-netmanager").own(loop))
+    if "--with-bluez" in sys.argv[1:]:
+        owners.append(load_service("droiddeck-bluez").own(loop))
     try:
         loop.run()
     finally:

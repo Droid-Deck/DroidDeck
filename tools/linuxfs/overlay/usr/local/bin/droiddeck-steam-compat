@@ -153,6 +153,10 @@ SWITCH_JS = r"""
 })()
 """.replace("__BINDING__", SWITCH_BINDING)
 SESSION_SELECT = "/usr/bin/steamos-session-select"
+RADIOS = "/etc/droiddeck-radios.json"
+RADIO_HOLD = "/run/droiddeck-radio-hold"
+RADIO_QUIET_SECONDS = 3
+BLUETOOTH_SETTING = 24000
 
 
 class Closed(Exception):
@@ -173,6 +177,35 @@ def switch_to_desktop():
         subprocess.call([SESSION_SELECT, "plasma"])
     except OSError as e:
         say("Switch to Desktop failed: %s" % e)
+
+
+def read_bluetooth():
+    """Android's Bluetooth state, or None when the phone has no adapter or none is published."""
+    try:
+        with open(RADIOS) as f:
+            bluetooth = json.load(f).get("bluetooth") or {}
+        return bool(bluetooth["enabled"]) if bluetooth.get("present") else None
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return None
+
+
+def hold_radios(seconds):
+    staged = RADIO_HOLD + ".staged"
+    with open(staged, "w") as f:
+        f.write("%.3f\n" % (time.time() + seconds))
+    os.replace(staged, RADIO_HOLD)
+
+
+def bool_setting(field, value):
+    """A CMsgClientSettings with one bool, as SteamClient.Settings.SetSetting takes it."""
+    key, out = field << 3, bytearray()
+    while True:
+        byte, key = key & 0x7f, key >> 7
+        out.append(byte | (0x80 if key else 0))
+        if not key:
+            break
+    out.append(int(value))
+    return base64.b64encode(bytes(out)).decode()
 
 
 def connect(port, timeout=5):
@@ -405,6 +438,7 @@ class Helper:
         self.known = set()
         self.installed = None
         self.fex_asked = set()
+        self.bluetooth = ()
 
     def attach(self):
         path = shared_context(self.port)
@@ -488,6 +522,19 @@ class Helper:
             for app in COMPAT["request_fex"](self.steam_root, self.fex_asked):
                 say("asked the client to install %s for x86 Linux titles and programs" % app)
 
+    def follow_bluetooth(self):
+        """Steam's Bluetooth setting follows Android's. Steam applies its saved setting and airplane
+        mode to the radios as it starts; their writes are held until this first pass has run."""
+        enabled = read_bluetooth()
+        if enabled == self.bluetooth:
+            return
+        if enabled is not None:
+            self.page.evaluate("SteamClient.Settings.SetSetting(%s); true"
+                               % json.dumps(bool_setting(BLUETOOTH_SETTING, enabled)))
+        if self.bluetooth == ():
+            hold_radios(RADIO_QUIET_SECONDS)
+        self.bluetooth = enabled
+
     def request_waiting(self):
         request = COMPAT["read_json"](COMPAT["state_path"]("request.json"))
         state = COMPAT["read_json"](COMPAT["state_path"]("state.json"))
@@ -504,10 +551,12 @@ class Helper:
         with open(COMPAT["state_path"]("live.pid"), "w") as f:
             f.write("%d\n" % os.getpid())
         say("attached to the client on port %d" % self.port)
+        self.follow_bluetooth()
         self.reconcile()
         while True:
             sources = [self.page.ws] + ([watcher] if watcher.fileno() >= 0 else [])
-            ready = [self.page.ws] if self.page.ws.pending() else select.select(sources, [], [], 30 if watcher.fileno() >= 0 else 2)[0]
+            ready = [self.page.ws] if self.page.ws.pending() else select.select(sources, [], [], 1)[0]
+            self.follow_bluetooth()
             due = False
             if self.page.ws in ready:
                 due = any(called(e, BINDING) for e in self.drain())

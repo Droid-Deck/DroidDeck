@@ -1,0 +1,179 @@
+#!/usr/bin/python3
+"""Steam's Bluetooth adapter, backed by Android's.
+
+The adapter is on when Android's Bluetooth is, and Steam turning it on or off turns Android's
+radio on or off. Pairing and discovery stay in Android settings.
+"""
+import json
+from pathlib import Path
+import sys
+import time
+from xml.sax.saxutils import escape
+
+import gi
+
+gi.require_version("Gio", "2.0")
+from gi.repository import Gio, GLib
+
+NAME = "org.bluez"
+ROOT = "/org/bluez"
+ADAPTER = ROOT + "/hci0"
+ADAPTER_INTERFACE = NAME + ".Adapter1"
+AGENTS = NAME + ".AgentManager1"
+STATE = Path("/etc/droiddeck-radios.json")
+REQUEST = Path("/etc/droiddeck-bluetooth-request")
+RADIO_HOLD = Path("/run/droiddeck-radio-hold")
+OBJECT_MANAGER = "org.freedesktop.DBus.ObjectManager"
+PROPERTIES = "org.freedesktop.DBus.Properties"
+WRITABLE = {(ADAPTER_INTERFACE, "Powered")}
+
+METHODS = {
+    OBJECT_MANAGER: '''
+      <method name="GetManagedObjects"><arg type="a{oa{sa{sv}}}" direction="out"/></method>
+      <signal name="InterfacesAdded"><arg type="o"/><arg type="a{sa{sv}}"/></signal>
+      <signal name="InterfacesRemoved"><arg type="o"/><arg type="as"/></signal>''',
+    AGENTS: '''
+      <method name="RegisterAgent"><arg type="o" direction="in"/><arg type="s" direction="in"/></method>
+      <method name="UnregisterAgent"><arg type="o" direction="in"/></method>
+      <method name="RequestDefaultAgent"><arg type="o" direction="in"/></method>''',
+    ADAPTER_INTERFACE: '''
+      <method name="StartDiscovery"/>
+      <method name="StopDiscovery"/>
+      <method name="RemoveDevice"><arg type="o" direction="in"/></method>
+      <method name="SetDiscoveryFilter"><arg type="a{sv}" direction="in"/></method>
+      <method name="GetDiscoveryFilters"><arg type="as" direction="out"/></method>''',
+}
+
+
+def v(signature, value):
+    return GLib.Variant(signature, value)
+
+
+def radios_held():
+    # Steam re-applies its saved airplane mode and Bluetooth setting when it starts; until
+    # droiddeck-steam-compat has matched that setting to Android's, its writes would undo the phone's state.
+    try:
+        return time.time() < float(RADIO_HOLD.read_text())
+    except (OSError, ValueError):
+        return True
+
+
+def read_state():
+    try:
+        state = json.loads(STATE.read_text()).get("bluetooth")
+        if not isinstance(state, dict) or not isinstance(state.get("present"), bool):
+            return None
+        return state
+    except (OSError, ValueError, AttributeError):
+        return None
+
+
+def objects(state):
+    found = {ROOT: {AGENTS: {}}}
+    if state.get("present"):
+        on = bool(state.get("enabled"))
+        name = state.get("name") or "Android"
+        found[ADAPTER] = {ADAPTER_INTERFACE: {
+            "Address": v("s", "02:00:00:00:00:00"), "AddressType": v("s", "public"),
+            "Name": v("s", name), "Alias": v("s", name), "Class": v("u", 0),
+            "Powered": v("b", on), "PowerState": v("s", "on" if on else "off"),
+            "Discoverable": v("b", False), "DiscoverableTimeout": v("u", 0),
+            "Pairable": v("b", False), "PairableTimeout": v("u", 0), "Discovering": v("b", False),
+            "UUIDs": v("as", []), "Modalias": v("s", ""),
+        }}
+    return found
+
+
+def interface_info(interface, values):
+    props = "".join(f'<property name="{escape(key)}" type="{value.get_type_string()}" '
+                    f'access="{"readwrite" if (interface, key) in WRITABLE else "read"}"/>'
+                    for key, value in values.items())
+    node = Gio.DBusNodeInfo.new_for_xml(f'<node><interface name="{interface}">{METHODS.get(interface, "")}{props}</interface></node>')
+    return node.interfaces[0]
+
+
+class Bluetooth:
+    def __init__(self, bus):
+        self.bus = bus
+        self.state = read_state() or {"present": False}
+        self.objects = objects(self.state)
+        self.registrations = {}
+        bus.register_object("/", interface_info(OBJECT_MANAGER, {}), self.call, None, None)
+        self.register(self.objects)
+        GLib.timeout_add_seconds(1, self.check)
+
+    def register(self, found):
+        wanted = {(path, interface) for path, interfaces in found.items() for interface in interfaces}
+        for key in self.registrations.keys() - wanted:
+            self.bus.unregister_object(self.registrations.pop(key))
+        for path, interface in wanted - self.registrations.keys():
+            self.registrations[(path, interface)] = self.bus.register_object(
+                path, interface_info(interface, found[path][interface]), self.call, self.get_property, self.set_property)
+
+    def get_property(self, bus, sender, path, interface, name):
+        return self.objects.get(path, {}).get(interface, {}).get(name)
+
+    def set_property(self, bus, sender, path, interface, name, value):
+        if (interface, name) not in WRITABLE:
+            return False
+        if not radios_held():
+            staged = REQUEST.with_name(REQUEST.name + ".staged")
+            staged.write_text("on" if value.unpack() else "off")
+            staged.replace(REQUEST)
+        return True
+
+    def call(self, bus, sender, path, interface, method, args, invocation):
+        if method == "GetManagedObjects":
+            invocation.return_value(v("(a{oa{sa{sv}}})", (self.objects,)))
+        elif method == "GetDiscoveryFilters":
+            invocation.return_value(v("(as)", ([],)))
+        elif method in ("RegisterAgent", "UnregisterAgent", "RequestDefaultAgent", "StopDiscovery", "SetDiscoveryFilter"):
+            invocation.return_value(None)
+        elif method == "RemoveDevice":
+            invocation.return_dbus_error(NAME + ".Error.DoesNotExist", "No such device")
+        else:
+            invocation.return_dbus_error(NAME + ".Error.NotSupported", "Pair Bluetooth devices in Android settings")
+
+    def check(self):
+        state = read_state()
+        if state is None or state == self.state:
+            return True
+        before, after = self.objects, objects(state)
+        self.state, self.objects = state, after
+        self.register(after)
+        for path in before.keys() | after.keys():
+            removed = before.get(path, {}).keys() - after.get(path, {}).keys()
+            added = after.get(path, {}).keys() - before.get(path, {}).keys()
+            if removed:
+                self.bus.emit_signal(None, "/", OBJECT_MANAGER, "InterfacesRemoved", v("(oas)", (path, list(removed))))
+            if added:
+                self.bus.emit_signal(None, "/", OBJECT_MANAGER, "InterfacesAdded",
+                                     v("(oa{sa{sv}})", (path, {i: after[path][i] for i in added})))
+            for interface in before.get(path, {}).keys() & after.get(path, {}).keys():
+                changed = {k: value for k, value in after[path][interface].items() if value != before[path][interface].get(k)}
+                if changed:
+                    self.bus.emit_signal(None, path, PROPERTIES, "PropertiesChanged", v("(sa{sv}as)", (interface, changed, [])))
+        return True
+
+
+def own(loop):
+    state = {}
+
+    def acquired(bus, name):
+        state["bluetooth"] = Bluetooth(bus)
+
+    def lost(bus, name):
+        print("== bluez: the system bus is gone", file=sys.stderr)
+        loop.quit()
+
+    return Gio.bus_own_name(Gio.BusType.SYSTEM, NAME, Gio.BusNameOwnerFlags.NONE, acquired, None, lost)
+
+
+def main():
+    loop = GLib.MainLoop()
+    own(loop)
+    loop.run()
+
+
+if __name__ == "__main__":
+    main()
