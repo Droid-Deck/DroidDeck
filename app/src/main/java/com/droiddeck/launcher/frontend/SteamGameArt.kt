@@ -43,6 +43,7 @@ object SteamGameArt {
             }
             val auto = when (slot) {
                 AddedGameArt.Slot.COVER -> own.art
+                AddedGameArt.Slot.WIDE -> Library.steamCacheImage(cache, game.appId, listOf("library_header.jpg", "header.jpg"))
                 AddedGameArt.Slot.BACKGROUND -> own.hero
                 AddedGameArt.Slot.ICON -> own.icon
                 AddedGameArt.Slot.LOGO -> Library.steamCacheImage(cache, game.appId, listOf("logo.png"))
@@ -79,6 +80,14 @@ object SteamGameArt {
             AddedGameArt.chosen(dir(context, game.appId), slot)?.delete()
             setSource(context, game.appId, slot, "")
         }
+    }
+
+    fun position(context: Context, game: Library.SteamGame): LogoPosition.Value? = SteamGrid.position(SteamGrid.target(game, context))
+
+    fun setPosition(context: Context, game: Library.SteamGame, value: LogoPosition.Value?): Boolean {
+        if (!SteamGrid.writePosition(context, SteamGrid.target(game, context), value)) return false
+        AddedGamesPublisher.later(context) { SteamLiveShortcuts.setLogoPosition(context, game.appId.toLong(), value) }
+        return true
     }
 
     private fun push(context: Context, game: Library.SteamGame, slot: AddedGameArt.Slot, file: File?): Boolean {
