@@ -13,9 +13,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -35,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,6 +51,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
@@ -130,14 +132,14 @@ private fun SyncFailed(reason: String, onRetry: () -> Unit, onAdvanced: () -> Un
 @Composable
 private fun SyncRunning(snap: SyncSnapshot, onShowId: () -> Unit, onAdvanced: () -> Unit, onOff: () -> Unit) {
     PairedColumns(
-        { last, fill ->
+        { extra ->
             SettingsGroup(stringResource(R.string.sync_group)) {
                 StatusCard(snap)
                 SettingsRow(stringResource(R.string.sync_running), stringResource(R.string.sync_running_hint)) {
                     ToggleSwitch(true, label = stringResource(R.string.sync_running)) { if (!it) onOff() }
                 }
             }
-            SettingsGroup(stringResource(R.string.sync_this_device), modifier = last, fill = fill) {
+            SettingsGroup(stringResource(R.string.sync_this_device), extra = extra) {
                 SettingsRow(stringResource(R.string.sync_device_id), shortId(snap.myId)) {
                     SecondaryButton(stringResource(R.string.sync_show_qr), compact = true, onClick = onShowId)
                 }
@@ -146,14 +148,14 @@ private fun SyncRunning(snap: SyncSnapshot, onShowId: () -> Unit, onAdvanced: ()
                 }
             }
         },
-        { last, fill ->
+        { extra ->
             Waiting(snap)
             SettingsGroup(stringResource(R.string.sync_folders)) {
                 if (snap.folders.isEmpty()) SettingsRow(stringResource(R.string.sync_no_folders), null) {}
                 snap.folders.sortedByDescending { it.blocked }.forEach { FolderRow(it) }
                 AddFolderRow(snap.devices)
             }
-            SettingsGroup(stringResource(R.string.sync_devices), modifier = last, fill = fill) {
+            SettingsGroup(stringResource(R.string.sync_devices), extra = extra) {
                 if (snap.devices.isEmpty()) SettingsRow(stringResource(R.string.sync_no_devices), null) {}
                 snap.devices.forEach { DeviceRow(it) }
             }
@@ -161,19 +163,25 @@ private fun SyncRunning(snap: SyncSnapshot, onShowId: () -> Unit, onAdvanced: ()
     )
 }
 
-/**
- * Two columns of settings groups that end at the same height; stacked on narrow panes.
- * Each column passes [last]/[fill] to its final group so that group's box stretches to the shared bottom edge.
- */
+/** Two columns of settings groups that end at the same height; the shorter column's last group gets [extra] space. */
 @Composable
 internal fun PairedColumns(
-    left: @Composable ColumnScope.(last: Modifier, fill: Boolean) -> Unit,
-    right: @Composable ColumnScope.(last: Modifier, fill: Boolean) -> Unit,
+    left: @Composable ColumnScope.(extra: Dp) -> Unit,
+    right: @Composable ColumnScope.(extra: Dp) -> Unit,
 ) {
-    if (LocalNarrowPane.current) Column { left(Modifier, false); right(Modifier, false) }
-    else Row(horizontalArrangement = Arrangement.spacedBy(20.dp), modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-        Column(Modifier.weight(1f).fillMaxHeight()) { left(Modifier.weight(1f), true) }
-        Column(Modifier.weight(1f).fillMaxHeight()) { right(Modifier.weight(1f), true) }
+    if (LocalNarrowPane.current) {
+        Column { left(0.dp); right(0.dp) }
+        return
+    }
+    val density = LocalDensity.current
+    var leftHeight by remember { mutableIntStateOf(0) }
+    var rightHeight by remember { mutableIntStateOf(0) }
+    val tallest = maxOf(leftHeight, rightHeight)
+    val leftExtra = tallest - leftHeight
+    val rightExtra = tallest - rightHeight
+    Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.weight(1f).onSizeChanged { leftHeight = it.height - leftExtra }) { left(with(density) { leftExtra.toDp() }) }
+        Column(Modifier.weight(1f).onSizeChanged { rightHeight = it.height - rightExtra }) { right(with(density) { rightExtra.toDp() }) }
     }
 }
 

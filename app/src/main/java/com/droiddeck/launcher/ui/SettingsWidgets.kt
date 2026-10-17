@@ -417,10 +417,10 @@ fun ValueChip(text: String, open: Boolean, enabled: Boolean = true, modifier: Mo
 }
 
 @Composable
-fun SettingsGroup(title: String, compact: Boolean = false, modifier: Modifier = Modifier, fill: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
+fun SettingsGroup(title: String, compact: Boolean = false, extra: androidx.compose.ui.unit.Dp = 0.dp, content: @Composable ColumnScope.() -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    Column(modifier.fillMaxWidth().sheetPiece()) {
+    Column(Modifier.fillMaxWidth().sheetPiece()) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 10.dp),
@@ -429,10 +429,10 @@ fun SettingsGroup(title: String, compact: Boolean = false, modifier: Modifier = 
         Text(title.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, color = colors.onSurfaceVariant)
         Box(modifier = Modifier.weight(1f).height(1.dp).background(pal.line))
     }
-    Column(
-        modifier = Modifier.fillMaxWidth().then(if (fill) Modifier.weight(1f) else Modifier)
-            .clip(GroupShape).background(colors.surface).border(1.dp, pal.line, GroupShape),
-    ) { content() }
+    Column(modifier = Modifier.fillMaxWidth().clip(GroupShape).background(colors.surface).border(1.dp, pal.line, GroupShape)) {
+        content()
+        if (extra > 0.dp) Spacer(Modifier.height(extra))
+    }
     }
 }
 
