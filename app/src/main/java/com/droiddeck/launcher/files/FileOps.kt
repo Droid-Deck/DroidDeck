@@ -45,13 +45,16 @@ object FileOps {
         return f.length()
     }
 
-    fun moveWithProgress(src: File, dst: File, progress: ProgressCallback?): Boolean {
+    /** isCancelled is checked before anything is moved and before the source is deleted; empty files report no progress. */
+    fun moveWithProgress(src: File, dst: File, progress: ProgressCallback?, isCancelled: () -> Boolean = { false }): Boolean {
         if (sameFile(src, dst)) return true
+        if (isCancelled()) return false
         if (!dst.exists() && src.renameTo(dst)) {
             progress?.onProgress(1, 1)
             return true
         }
         if (!copyWithProgress(src, dst, progress)) return false
+        if (isCancelled()) return false
         return delete(src)
     }
 
@@ -97,6 +100,9 @@ object FileOps {
                 }
             }
             return true
+        } catch (e: java.util.concurrent.CancellationException) {
+            dst.delete()
+            throw e
         } catch (e: IOException) {
             Log.e(TAG, "Failed to copy file: $src to $dst", e)
             dst.delete()
