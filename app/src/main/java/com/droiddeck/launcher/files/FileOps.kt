@@ -61,7 +61,7 @@ object FileOps {
     }
 
     private fun copyWithProgress(src: File, dst: File, done: LongArray, total: Long, progress: ProgressCallback?): Boolean {
-        if (isSymlink(src)) return true
+        if (isSymlink(src)) return copyLink(src, dst)
         if (sameFile(src, dst)) return true
         if (src.isDirectory && isWithin(dst, src)) {
             Log.e(TAG, "Refusing to copy directory into itself: $src -> $dst")
@@ -101,6 +101,22 @@ object FileOps {
             Log.e(TAG, "Failed to copy file: $src to $dst", e)
             dst.delete()
             return false
+        }
+    }
+
+    /** A link is recreated with the same target rather than followed, so a move does not lose it and a copy does not duplicate what it points at. */
+    private fun copyLink(src: File, dst: File): Boolean {
+        if (src.absoluteFile == dst.absoluteFile) return true
+        return try {
+            val target = Files.readSymbolicLink(src.toPath())
+            val parent = dst.parentFile
+            if (parent != null && !parent.exists() && !parent.mkdirs()) return false
+            Files.deleteIfExists(dst.toPath())
+            Files.createSymbolicLink(dst.toPath(), target)
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to copy link: $src to $dst", e)
+            false
         }
     }
 
