@@ -21,6 +21,7 @@ fi
 if [ -n "$repair" ]; then
   echo "== STEP $(date -u +%H:%M:%S) repairing the Steam client ($repair)"
   rm -f "$stamp" "$legacy_stamp" "$steam_root/.crash" "$steam_root/steam.pid" \
+    "$steam_root/package/droiddeck-cdn" \
     "$steam_root"/package/steam_client_*.manifest "$steam_root"/package/steam_client_*.installed
   for part in "$steam_root"/package/*.zip.*; do
     [ -f "$part" ] || continue
@@ -80,6 +81,8 @@ for candidate in $cdn_list; do
 done
 
 mkdir -p "$steam_root/package"
+# The client fetches its own first-run update; it should use the source measured above.
+echo "${fastest#https://}/" > "$steam_root/package/droiddeck-cdn"
 fetch_part() {
   local host=$1 file=$2 sum=$3 floor=$4 target
   target=$work/$file
