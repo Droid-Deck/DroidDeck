@@ -806,8 +806,10 @@ static uint32_t nominal_refresh_ns(void) {
 }
 
 static int64_t presented_ns(int64_t render_ns) {
-    if (!g_tick_vsync_ns || render_ns - g_last_vsync_ns > (int64_t)nominal_refresh_ns() ||
-        render_ns < g_tick_vsync_ns)
+    int64_t refresh = (int64_t)nominal_refresh_ns();
+    if (!g_tick_vsync_ns || !g_last_vsync_ns || render_ns - g_last_vsync_ns > refresh)
+        return render_ns;
+    if (g_tick_vsync_ns - render_ns > refresh)
         return render_ns;
     return g_tick_vsync_ns;
 }
