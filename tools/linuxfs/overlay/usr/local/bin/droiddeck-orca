@@ -36,6 +36,12 @@ if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] && command -v dbus-daemon >/dev/null 2
   export DBUS_SESSION_BUS_ADDRESS=$(dbus-daemon --session --fork --print-address 2>/dev/null) || true
 fi
 
+# speech-dispatcher and the D-Bus daemon put their sockets under XDG_RUNTIME_DIR; a bare Steam
+# session may not have created it yet, so make sure it exists and is private before anything
+# (Orca, dconf, the speech server) tries to write there.
+if [ -z "${XDG_RUNTIME_DIR:-}" ]; then export XDG_RUNTIME_DIR=/tmp; fi
+mkdir -p "$XDG_RUNTIME_DIR" 2>/dev/null && chmod 700 "$XDG_RUNTIME_DIR" 2>/dev/null || true
+
 # Wait for the display: Steam's gamescope brings Xwayland up as the client starts, and the Plasma
 # desktop's KWin comes up after this script is called from its session. Orca starting before any
 # display exists exits at once, so wait rather than race it.

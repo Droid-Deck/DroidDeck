@@ -23,6 +23,7 @@ while read -r pkg probe; do
   compgen -G "$probe" >/dev/null || PACKAGES="$PACKAGES $pkg"
 done <<'NEEDS'
 at-spi2-core /usr/lib/libatspi.so.0
+at-spi2-atk /usr/lib/libatk-bridge-2.0.so.0
 brltty /usr/bin/brltty
 dconf /usr/lib/libdconf.so.1
 espeak-ng /usr/lib/libespeak-ng.so.*
@@ -40,14 +41,17 @@ hicolor-icon-theme /usr/share/icons/hicolor/index.theme
 liblouis /usr/lib/liblouis.so.*
 libwnck3 /usr/lib/libwnck-3.so.0
 pango /usr/lib/libpango-1.0.so.0
+procps-ng /usr/bin/pgrep
 python /usr/bin/python3
 python-brltty /usr/lib/python3*/site-packages/brlapi
 python-cairo /usr/lib/python3*/site-packages/cairo
 python-dasbus /usr/lib/python3*/site-packages/dasbus
 python-dbus /usr/lib/python3*/site-packages/dbus
 python-gobject /usr/lib/python3*/site-packages/gi/__init__.py
+python-louis /usr/lib/python3*/site-packages/louis
 python-psutil /usr/lib/python3*/site-packages/psutil
 python-setproctitle /usr/lib/python3*/site-packages/setproctitle
+python-speechd /usr/lib/python3*/site-packages/speechd
 speech-dispatcher /usr/bin/spd-say
 xorg-xkbcomp /usr/bin/xkbcomp
 xorg-xmodmap /usr/bin/xmodmap
@@ -108,9 +112,10 @@ command -v orca >/dev/null 2>&1 || fail "orca is not on PATH"
 # The Python side of the accessibility stack must load against the image's Python. When the image
 # is newer than the runtime's own Python the C extensions refuse to import; that needs a runtime
 # update rather than a retry here.
-python3 -c 'import gi, dasbus, dbus, psutil, setproctitle; gi.require_version("Atspi", "2.0"); from gi.repository import Atspi' 2>&1 \
+python3 -c 'import gi, dasbus, dbus, psutil, setproctitle, speechd; gi.require_version("Atspi", "2.0"); from gi.repository import Atspi' 2>&1 \
   || fail "the Python accessibility modules do not load (is the runtime's Python older than the image's?)"
 [ -x /usr/bin/spd-say ] || fail "speech-dispatcher is missing"
+command -v pgrep >/dev/null 2>&1 || fail "pgrep is missing (Orca uses it to replace itself)"
 compgen -G '/usr/lib/libespeak-ng.so.*' >/dev/null || fail "the espeak-ng speech backend is missing"
 orca --help >/dev/null 2>&1 || fail "orca does not start"
 
