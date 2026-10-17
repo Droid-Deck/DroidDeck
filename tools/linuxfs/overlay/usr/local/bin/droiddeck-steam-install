@@ -34,7 +34,13 @@ if [ -n "$repair" ]; then
     [ "$(sha1sum "$part" | cut -d' ' -f1)" = "$sum" ] || rm -f "$part"
   done
 fi
-[ -x "$steam_root/steamrtarm64/steam" ] && [ -f "$stamp" ] && exit 0
+if [ -x "$steam_root/steamrtarm64/steam" ] && [ -f "$stamp" ]; then
+  # The client writes .installed once it has unpacked the archives and never removes them.
+  if compgen -G "$steam_root/package/steam_client_*.installed" > /dev/null; then
+    rm -f "$steam_root"/package/*.zip.*
+  fi
+  exit 0
+fi
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
