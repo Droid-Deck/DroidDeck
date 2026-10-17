@@ -610,6 +610,36 @@ object SessionPrefs {
     fun addedGameStoredAppId(context: Context, folderPath: String): Long? =
         prefs(context).getLong("addedAppId:$folderPath", 0L).takeIf { it != 0L }
 
+    fun followStoreGame(context: Context, key: String, folderPath: String, gone: (String) -> Boolean) = synchronized(addedGameLock) {
+        val p = prefs(context)
+        val previous = p.getString("storeFolder:$key", null)
+        if (previous == folderPath) return@synchronized
+        if (previous != null && !gone(previous)) return@synchronized
+        val edit = p.edit().putString("storeFolder:$key", folderPath)
+        if (previous != null && !p.contains("addedAppId:$folderPath")) {
+            val moved = movedAddedGame(p.all, previous, folderPath)
+            moved.keys.forEach { edit.remove(it) }
+            moved.values.forEach { (name, value) ->
+                when (value) {
+                    is String -> edit.putString(name, value)
+                    is Long -> edit.putLong(name, value)
+                    is Int -> edit.putInt(name, value)
+                    is Boolean -> edit.putBoolean(name, value)
+                    is Float -> edit.putFloat(name, value)
+                }
+            }
+            val removed = removedAddedGames(context)
+            if (previous in removed) edit.putString("removedAddedGames", removed.map { if (it == previous) folderPath else it }.joinToString("\n"))
+        }
+        edit.apply()
+    }
+
+    internal fun movedAddedGame(all: Map<String, *>, from: String, to: String): Map<String, Pair<String, Any?>> =
+        all.filterKeys { it.startsWith("added") && it.endsWith(":$from") }.mapValues { (name, value) ->
+            val moved = if (value is String && (value == from || value.startsWith("$from/"))) to + value.removePrefix(from) else value
+            name.removeSuffix(from) + to to moved
+        }
+
     fun addedGameAppId(context: Context, folderPath: String, first: Long): Long = synchronized(addedGameLock) {
         val p = prefs(context)
         p.getLong("addedAppId:$folderPath", 0L).takeIf { it != 0L }

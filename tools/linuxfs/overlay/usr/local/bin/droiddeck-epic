@@ -1,0 +1,1851 @@
+#!/usr/bin/python3
+import contextlib
+import collections
+import fcntl
+import filecmp
+import http.client
+import io
+import json
+import os
+import re
+import runpy
+import select
+import shutil
+import signal
+import socket
+import subprocess
+import sys
+import tarfile
+import threading
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+
+HOME = os.environ.get("HOME") or "/root"
+SELF = os.path.abspath(__file__)
+BIN_DIR = os.path.dirname(SELF)
+STATE = os.path.join(HOME, ".local", "share", "droiddeck-epic")
+CURRENT = os.path.join(STATE, "current.json")
+APPS = os.path.join(STATE, "app")
+RUNTIMES = os.path.join(STATE, "runtime")
+LOGS = os.path.join(STATE, "logs")
+SHIMS = os.path.join(STATE, "bin")
+FEX_CONFIG = os.path.join(STATE, "fex")
+FEX_CACHE = os.path.join(HOME, ".cache", "droiddeck-epic")
+DATA = os.path.join(HOME, ".local", "share", "com.epicgames.eglv2")
+SETTINGS = os.path.join(DATA, "settings", "app-settings.json")
+API_FILE = os.path.join(DATA, "api.json")
+INSTALLATIONS = os.path.join(DATA, "installations.jsonl")
+STEAM_RUN = re.compile(r"^steam://(?:rungameid|run)/([1-9][0-9]{0,19})(?:[/?].*)?$")
+V1_MANIFESTS = os.path.join(HOME, ".local", "share", "Epic", "EpicGamesLauncher", "Data", "Manifests")
+AUTH_FILE = os.path.join(DATA, "auth", "auth.json")
+AUTH_ENV = "prod"
+AUTO_SIGN_IN = os.path.join(STATE, "auto-sign-in")
+SIGNED_OUT = os.path.join(STATE, "signed-out")
+WEB_COOKIES = os.path.join(DATA, "cookies")
+A11Y_OFF = ("NO_AT_BRIDGE", "GTK_A11Y")
+A11Y_WEB_ROOT = "/org/a11y/webkit/accessible"
+A11Y_LIMIT = 4000
+A11Y_BUDGET = 3.0
+A11Y_ACCESSIBLE = "org.a11y.atspi.Accessible"
+FIRST_RUN_LABEL = "Get started"
+SIGN_IN_LABEL = "Sign in"
+PROTON_ROOT = os.path.join(DATA, "compat", "runtime")
+PROTON_PIN = "GE-Proton10-34"
+PROTON_RUN = os.path.join(BIN_DIR, "droiddeck-proton-run")
+LAUNCH_DIR_FILE = "/tmp/droiddeck-browser/launch-dir"
+WEBKIT_INPUT = "libwebkitinput.so"
+WEBKIT_INPUT_SOURCE = "/usr/local/lib/droiddeck-fex/x86_64/" + WEBKIT_INPUT
+WEBKIT_INPUT_GUEST = "/usr/lib/x86_64-linux-gnu/droiddeck/" + WEBKIT_INPUT
+PLAYING = "epic-playing"
+OPEN = "epic-open"
+STEAM_PRELOAD = "DROIDDECK_STEAM_PRELOAD"
+STEAM_ANCESTORS = 32
+READY = ".droiddeck-ready"
+SIDECAR = ".droiddeck-store.json"
+LAUNCHER = ".droiddeck-launch.bat"
+ARGS_FILE = ".droiddeck-epic-args"
+HANDLED = "DROIDDECK_EPIC_HANDLED"
+BROKER_ENV = "DROIDDECK_EPIC_BROKER"
+APP_ID = "com.epicgames.eglv2"
+DBUS_NAME = APP_ID + ".SingleInstance"
+DBUS_PATH = "/" + APP_ID.replace(".", "/") + "/SingleInstance"
+DBUS_METHOD = "org.SingleInstance.DBus.ExecuteCallback"
+SKIPPED = ("lib/i386-linux-gnu", "lib32", "libx32", "i686-pc-linux-gnu", "share/doc", "include")
+SETTINGS_SEED = {
+    "minimizeToTray": False,
+    "startOnBoot": False,
+    "cloudSavesEnabled": False,
+    "automaticDownloadsEnabled": False,
+    "autoLaunchOnDownloadComplete": False,
+    "showWhatsNewOnStartup": False,
+    "suppressNotificationsWhileGaming": True,
+    "verboseLogs": False,
+    "v1Migrated": True,
+}
+CLIENT_ENV = {
+    "EGL_DISABLE_TELEMETRY": "1",
+    "EGL_DISABLE_SENTRY": "1",
+    "EGL_DISABLE_SELF_UPDATE": "1",
+    "EGL_DISABLE_SOCIAL_PANEL": "1",
+    "EGL_PROTON_PIN": PROTON_PIN,
+    "WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS": "1",
+    "WEBKIT_DISABLE_COMPOSITING_MODE": "1",
+    "WEBKIT_DISABLE_DMABUF_RENDERER": "1",
+    "WEBKIT_SKIA_ENABLE_CPU_RENDERING": "1",
+    "NO_AT_BRIDGE": "1",
+    "GTK_A11Y": "none",
+    "LIBGL_ALWAYS_SOFTWARE": "1",
+    "JSC_useDFGJIT": "0",
+    "JSC_useFTLJIT": "0",
+}
+KEPT_ENV = ("HOME", "USER", "LOGNAME", "LANG", "LANGUAGE", "LC_ALL", "LC_MESSAGES", "TZ", "XDG_RUNTIME_DIR", "BL_LAUNCH_DIR")
+LAUNCH_VERBS = ("waitforexitandrun", "run", "runinprefix")
+EPIC_ARGS = ("-auth_", "-epic")
+CMD_SPECIAL = "&|<>^"
+WIDTH, HEIGHT = 1280, 720
+LAUNCH_TIMEOUT = 150.0
+HANDOFF_WAIT = 30.0
+STEAM_WAIT = 20.0
+STEAM_CLAIM_WAIT = 90.0
+CLAIM_PEEK = 0.5
+SIGN_IN_WAIT = 90.0
+REGISTER_WAIT = 30.0
+AUTO_SIGN_IN_FRESH = 120.0
+FIRST_RUN_PRESSES = 3
+BROKER_WAIT = 60.0
+HIDDEN_IDLE = 240.0
+EXIT_GRACE = 6.0
+SIGN_OUT_GRACE = 4.0
+STOP_WAIT = 8.0
+LOG_CAP = 8 << 20
+DISPLAY_PROBE = ("import os, sys, time\nparent = os.getppid()\n"
+                 "with open(sys.argv[1] + '.tmp', 'w') as f:\n    f.write(os.environ.get('DISPLAY', ''))\n"
+                 "os.replace(sys.argv[1] + '.tmp', sys.argv[1])\n"
+                 "while os.getppid() == parent:\n    time.sleep(1)\n")
+SHIM = "#!/bin/sh\nunset LD_PRELOAD LD_LIBRARY_PATH\nexec /usr/bin/python3 -I %s %s \"$@\"\n"
+
+
+class Failure(Exception):
+    pass
+
+
+def say(message):
+    print("droiddeck-epic: %s" % message, file=sys.stderr, flush=True)
+
+
+def read_json(path, default=None):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return default
+
+
+def write_json(path, data):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = "%s.%d.tmp" % (path, os.getpid())
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+    os.replace(tmp, path)
+
+
+def install_preload(files):
+    target = os.path.join(files, "lib", "x86_64-linux-gnu", "droiddeck", WEBKIT_INPUT)
+    line = ""
+    if os.path.isfile(WEBKIT_INPUT_SOURCE):
+        if not (os.path.isfile(target) and filecmp.cmp(WEBKIT_INPUT_SOURCE, target, shallow=False)):
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            tmp = "%s.%d.tmp" % (target, os.getpid())
+            shutil.copyfile(WEBKIT_INPUT_SOURCE, tmp)
+            os.chmod(tmp, 0o644)
+            os.replace(tmp, target)
+        line = WEBKIT_INPUT_GUEST + "\n"
+    else:
+        remove(target)
+    write_text(os.path.join(files, "etc", "ld.so.preload"), line)
+
+
+def write_text(path, text, mode=0o644):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    try:
+        with open(path, encoding="utf-8") as f:
+            if f.read() == text:
+                os.chmod(path, mode)
+                return False
+    except (OSError, UnicodeDecodeError):
+        pass
+    tmp = "%s.%d.tmp" % (path, os.getpid())
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(text)
+    os.chmod(tmp, mode)
+    os.replace(tmp, path)
+    return True
+
+
+def remove(path):
+    if not os.path.lexists(path):
+        return
+    if os.path.isdir(path) and not os.path.islink(path):
+        shutil.rmtree(path, ignore_errors=True)
+    else:
+        os.unlink(path)
+
+
+def version_name(value):
+    return re.sub(r"[^A-Za-z0-9._+-]", "_", value or "")[:80]
+
+
+@contextlib.contextmanager
+def locked(name, wait=True):
+    os.makedirs(STATE, exist_ok=True)
+    with open(os.path.join(STATE, name), "a") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX if wait else fcntl.LOCK_EX | fcntl.LOCK_NB)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
+
+
+def run_dir(env=None):
+    env = os.environ if env is None else env
+    runtime = env.get("XDG_RUNTIME_DIR")
+    if runtime and os.path.isdir(runtime) and os.access(runtime, os.W_OK):
+        return os.path.join(runtime, "droiddeck-epic")
+    return os.path.join(STATE, "run")
+
+
+def instance_file():
+    return os.path.join(STATE, "instance.json")
+
+
+def broker_path():
+    return os.path.join(run_dir(), "broker.sock")
+
+
+def safe_name(name):
+    parts = [part for part in name.replace("\\", "/").split("/") if part not in ("", ".")]
+    if not parts or ".." in parts:
+        return None
+    return "/".join(parts)
+
+
+def skipped(relative):
+    return any(relative == s or relative.startswith(s + "/") for s in SKIPPED)
+
+
+def rooted_link(files_root, link, target):
+    if not target.startswith("/"):
+        return target
+    relative = target.lstrip("/")
+    if relative == "usr" or relative.startswith("usr/"):
+        relative = relative[4:]
+    return os.path.relpath(os.path.join(files_root, relative), os.path.dirname(link))
+
+
+def inside(root, path):
+    real = os.path.realpath(path)
+    return real == root or real.startswith(root + os.sep)
+
+
+def extract_runtime(tarball, dest):
+    staging = dest + ".staging"
+    remove(staging)
+    os.makedirs(staging)
+    root = os.path.realpath(staging)
+    files_root = os.path.join(staging, "files")
+    count = 0
+    with tarfile.open(tarball, "r:*") as archive:
+        for member in archive:
+            name = safe_name(member.name)
+            if name is None:
+                continue
+            top, _, rest = name.partition("/")
+            if top not in ("files", "metadata"):
+                continue
+            if top == "files" and rest and skipped(rest):
+                continue
+            target = os.path.join(staging, name)
+            if not inside(root, os.path.dirname(target)):
+                continue
+            if member.isdir():
+                os.makedirs(target, exist_ok=True)
+                continue
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            if not inside(root, os.path.dirname(target)):
+                continue
+            if member.issym():
+                remove(target)
+                os.symlink(rooted_link(files_root, target, member.linkname) if top == "files" else member.linkname, target)
+            elif member.islnk():
+                source = safe_name(member.linkname)
+                source = os.path.join(staging, source) if source else None
+                if source and os.path.isfile(source) and inside(root, source):
+                    remove(target)
+                    shutil.copy2(source, target)
+            elif member.isfile():
+                remove(target)
+                with archive.extractfile(member) as src, open(target, "wb") as out:
+                    shutil.copyfileobj(src, out, 1 << 20)
+                os.chmod(target, (member.mode & 0o777) | 0o600)
+            else:
+                continue
+            count += 1
+    if not os.path.isfile(os.path.join(files_root, "lib", "x86_64-linux-gnu", "libc.so.6")) and \
+            not os.path.islink(os.path.join(files_root, "lib", "x86_64-linux-gnu", "libc.so.6")):
+        remove(staging)
+        raise Failure("runtime-incomplete")
+    if not os.path.lexists(os.path.join(files_root, "usr")):
+        os.symlink(".", os.path.join(files_root, "usr"))
+    return staging, count
+
+
+def ar_members(path):
+    with open(path, "rb") as f:
+        if f.read(8) != b"!<arch>\n":
+            raise Failure("gles-format")
+        while True:
+            header = f.read(60)
+            if len(header) < 60:
+                return
+            name = header[:16].decode("ascii", "replace").strip().rstrip("/")
+            size = int(header[48:58].decode("ascii").strip())
+            data = f.read(size)
+            if size % 2:
+                f.read(1)
+            yield name, data
+
+
+def install_gles(deb, files_root):
+    libdir = os.path.join(files_root, "lib", "x86_64-linux-gnu")
+    os.makedirs(libdir, exist_ok=True)
+    for name, data in ar_members(deb):
+        if not name.startswith("data.tar"):
+            continue
+        with tarfile.open(fileobj=io.BytesIO(data), mode="r:*") as archive:
+            for member in archive:
+                base = os.path.basename(member.name)
+                if not base.startswith("libGLESv2.so"):
+                    continue
+                target = os.path.join(libdir, base)
+                remove(target)
+                if member.issym():
+                    os.symlink(os.path.basename(member.linkname), target)
+                elif member.isfile():
+                    with archive.extractfile(member) as src, open(target, "wb") as out:
+                        shutil.copyfileobj(src, out)
+                    os.chmod(target, 0o644)
+        if os.path.exists(os.path.join(libdir, "libGLESv2.so.2")):
+            return
+    raise Failure("gles-missing")
+
+
+def extract_app(image, dest):
+    staging = dest + ".staging"
+    remove(staging)
+    os.makedirs(staging)
+    status = subprocess.call([os.path.join(BIN_DIR, "droiddeck-fex"), "extract", os.path.abspath(image)],
+                             cwd=staging, stdout=subprocess.DEVNULL)
+    root = os.path.realpath(os.path.join(staging, "squashfs-root"))
+    if status != 0 or not app_complete(root):
+        remove(staging)
+        raise Failure("app-extract")
+    remove(dest)
+    os.rename(root, dest)
+    remove(staging)
+
+
+def app_complete(root):
+    return os.path.isfile(os.path.join(root, "AppRun")) and os.path.isfile(os.path.join(root, "usr", "bin", "EpicGamesLauncher"))
+
+
+def ready(path):
+    return os.path.isfile(os.path.join(path, READY))
+
+
+def mark_ready(path):
+    write_text(os.path.join(path, READY), "1\n")
+
+
+def prune(parent, keep):
+    try:
+        names = os.listdir(parent)
+    except OSError:
+        return
+    for name in names:
+        if name != keep:
+            remove(os.path.join(parent, name))
+
+
+def install(options):
+    with locked("install.lock"):
+        current = read_json(CURRENT, {}) or {}
+        app = version_name(options.get("app-version") or current.get("app"))
+        runtime = version_name(options.get("runtime-version") or current.get("runtime"))
+        if not app or not runtime:
+            raise Failure("no-version")
+        app_dir = os.path.join(APPS, app)
+        runtime_dir = os.path.join(RUNTIMES, runtime)
+        if not ready(app_dir):
+            image = options.get("app")
+            if not image or not os.path.isfile(image):
+                raise Failure("no-app-image")
+            say("unpacking the Epic Games Launcher %s" % app)
+            extract_app(image, app_dir)
+            mark_ready(app_dir)
+        if not ready(runtime_dir):
+            tarball, deb = options.get("runtime"), options.get("gles")
+            if not tarball or not os.path.isfile(tarball) or not deb or not os.path.isfile(deb):
+                raise Failure("no-runtime-archive")
+            say("unpacking the x86 runtime %s" % runtime)
+            staging, count = extract_runtime(tarball, runtime_dir)
+            install_gles(deb, os.path.join(staging, "files"))
+            write_text(os.path.join(staging, "files", "etc", "ld.so.preload"), "")
+            remove(runtime_dir)
+            os.rename(staging, runtime_dir)
+            mark_ready(runtime_dir)
+            say("x86 runtime ready (%d entries)" % count)
+        with instance_guard() as free:
+            write_json(CURRENT, {"app": app, "runtime": runtime})
+            if free:
+                prune(APPS, app)
+                prune(RUNTIMES, runtime)
+    report = status()
+    print(json.dumps(report))
+    return 0 if report["installed"] else 1
+
+
+@contextlib.contextmanager
+def instance_guard():
+    os.makedirs(STATE, exist_ok=True)
+    with open(os.path.join(STATE, "instance.lock"), "a") as handle:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            yield False
+            return
+        try:
+            yield True
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
+
+
+def current_dirs():
+    current = read_json(CURRENT, {}) or {}
+    app = version_name(current.get("app"))
+    runtime = version_name(current.get("runtime"))
+    app_dir = os.path.join(APPS, app) if app else None
+    runtime_dir = os.path.join(RUNTIMES, runtime) if runtime else None
+    if app_dir and ready(app_dir) and app_complete(app_dir) and runtime_dir and ready(runtime_dir):
+        return app_dir, os.path.join(runtime_dir, "files"), current
+    return None, None, current
+
+
+def signed_in():
+    auth = read_json(AUTH_FILE)
+    entry = auth.get(AUTH_ENV) if isinstance(auth, dict) else None
+    return isinstance(entry, dict) and isinstance(entry.get("refresh_token"), str) and bool(entry["refresh_token"])
+
+
+def forget_sign_in():
+    if not os.path.exists(SIGNED_OUT):
+        return False
+    remove(AUTH_FILE)
+    remove(WEB_COOKIES)
+    remove(SIGNED_OUT)
+    say("DroidDeck's Epic store was signed out; the launcher starts signed out")
+    return True
+
+
+def utc_now():
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def read_installations():
+    header, entries = None, []
+    try:
+        with open(INSTALLATIONS, encoding="utf-8") as f:
+            lines = [line for line in f.read().splitlines() if line.strip()]
+    except OSError:
+        return None, []
+    for index, line in enumerate(lines):
+        try:
+            value = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(value, dict):
+            continue
+        if index == 0 and "entries" in value and "installationId" not in value:
+            header = value
+        else:
+            entries.append(value)
+    return header, entries
+
+
+def droiddeck_dir(path):
+    sidecar = read_json(os.path.join(path, SIDECAR)) if path else None
+    if not isinstance(sidecar, dict) or sidecar.get("store") != "epic":
+        return False
+    extra = sidecar.get("extra")
+    return not (isinstance(extra, dict) and extra.get("clientManaged") == "true")
+
+
+def droiddeck_installs():
+    found = []
+    try:
+        names = sorted(os.listdir(V1_MANIFESTS))
+    except OSError:
+        return found
+    for name in names:
+        if not name.endswith(".item"):
+            continue
+        item = read_json(os.path.join(V1_MANIFESTS, name))
+        if not isinstance(item, dict) or item.get("bIsIncompleteInstall"):
+            continue
+        if not droiddeck_dir(item.get("InstallLocation")):
+            continue
+        if not all(item.get(key) for key in ("InstallationGuid", "CatalogNamespace", "CatalogItemId", "AppName")):
+            continue
+        found.append(item)
+    return found
+
+
+def installation_record(item):
+    tags = [""] + [tag for tag in item.get("InstallTags") or [] if isinstance(tag, str) and tag]
+    sidecar = {"revision": int(item.get("SidecarConfigRevision") or 0)}
+    if item.get("SidecarDeploymentId"):
+        sidecar["deploymentId"] = item["SidecarDeploymentId"]
+    return {
+        "installationId": item["InstallationGuid"],
+        "complete": True,
+        "dir": item["InstallLocation"],
+        "platform": "Windows",
+        "namespace": item["CatalogNamespace"],
+        "itemId": item["CatalogItemId"],
+        "artifactId": item["AppName"],
+        "version": item.get("AppVersionString") or "",
+        "tags": tags,
+        "sidecar": sidecar,
+        "launchCommand": item.get("LaunchCommand") or "",
+        "launchExecutable": item.get("LaunchExecutable") or "",
+        "writtenAt": utc_now(),
+    }
+
+
+def sync_installations():
+    installs = droiddeck_installs()
+    header, entries = read_installations()
+    latest = {}
+    for entry in entries:
+        key = entry.get("installationId") or entry.get("artifactId")
+        if key:
+            latest[key] = entry
+    changed = 0
+    moved = {}
+    for item in installs:
+        key = item["InstallationGuid"] if item["InstallationGuid"] in latest else \
+            next((k for k, e in latest.items() if e.get("artifactId") == item["AppName"]), None)
+        if key is None:
+            record = installation_record(item)
+            entries.append(record)
+            latest[record["installationId"]] = record
+            changed += 1
+        elif latest[key].get("dir") != item["InstallLocation"] and not os.path.lexists(latest[key].get("dir") or ""):
+            moved[key] = item["InstallLocation"]
+    for key, current in latest.items():
+        fix = {}
+        if key in moved:
+            fix["dir"] = moved[key]
+        if current.get("platform") != "Windows" and droiddeck_dir(moved.get(key, current.get("dir"))):
+            fix["platform"] = "Windows"
+        if not fix:
+            continue
+        for entry in entries:
+            if (entry.get("installationId") or entry.get("artifactId")) == key:
+                entry.update(fix)
+        changed += 1
+    if not changed:
+        return False
+    head = dict(header or {"version": 1})
+    head["writtenAt"] = utc_now()
+    head["entries"] = len(entries)
+    tmp = "%s.%d.tmp" % (INSTALLATIONS, os.getpid())
+    os.makedirs(DATA, exist_ok=True)
+    with open(tmp, "w", encoding="utf-8") as f:
+        for value in [head] + entries:
+            f.write(json.dumps(value, separators=(",", ":")) + "\n")
+    os.replace(tmp, INSTALLATIONS)
+    say("updated %d DroidDeck Epic installs in the launcher" % changed)
+    return True
+
+
+def parent_pid(pid):
+    try:
+        with open("/proc/%d/stat" % pid, encoding="utf-8", errors="replace") as f:
+            return int(f.read().rsplit(")", 1)[1].split()[1])
+    except (OSError, IndexError, ValueError):
+        return 0
+
+
+def steam_app_id(pid=None):
+    pid = os.getppid() if pid is None else pid
+    for _ in range(STEAM_ANCESTORS):
+        if pid <= 1:
+            break
+        try:
+            with open("/proc/%d/cmdline" % pid, "rb") as f:
+                args = f.read().split(b"\0")
+        except OSError:
+            break
+        if b"SteamLaunch" in args:
+            ids = [a[6:].decode("ascii", "replace") for a in args if a.startswith(b"AppId=")]
+            return ids[0] if ids and ids[0].isdigit() else ""
+        pid = parent_pid(pid)
+    return ""
+
+
+@contextlib.contextmanager
+def marked(name, value="1"):
+    folder = launch_dir()
+    path = os.path.join(folder, name) if folder else ""
+    if path:
+        write_text(path, value + "\n")
+    try:
+        yield
+    finally:
+        if path:
+            remove(path)
+
+
+def playing():
+    return marked(PLAYING)
+
+
+def clear_playing():
+    folder = launch_dir()
+    if folder:
+        remove(os.path.join(folder, PLAYING))
+
+
+def launch_dir():
+    found = os.environ.get("BL_LAUNCH_DIR", "")
+    if not found:
+        try:
+            with open(LAUNCH_DIR_FILE, encoding="utf-8") as f:
+                found = f.read().strip()
+        except OSError:
+            found = ""
+    return found
+
+
+_fex = None
+
+
+def fex_module():
+    global _fex
+    if _fex is None:
+        _fex = runpy.run_path(os.path.join(BIN_DIR, "droiddeck-fex"))
+    return _fex
+
+
+def fex_tool(request=False):
+    try:
+        module = fex_module()
+        found = module["fex_install"]()
+        if found and found.get("server"):
+            return found
+        if request:
+            module["request_install"]()
+    except Exception as error:
+        say("FEX lookup failed (%s)" % error)
+    return None
+
+
+def status():
+    app_dir, files, current = current_dirs()
+    fex = fex_tool()
+    report = {
+        "app": current.get("app"),
+        "runtime": current.get("runtime"),
+        "installed": app_dir is not None,
+        "fex": bool(fex),
+        "signedIn": signed_in(),
+    }
+    return report
+
+
+def seed_settings():
+    current = read_json(SETTINGS)
+    settings = current if isinstance(current, dict) else {}
+    changed = False
+    for key, value in SETTINGS_SEED.items():
+        if settings.get(key) != value:
+            settings[key] = value
+            changed = True
+    if changed:
+        write_json(SETTINGS, settings)
+    return changed
+
+
+def install_shims():
+    write_text(os.path.join(SHIMS, "xdg-open"), SHIM % (SELF, "xdg-open"), 0o755)
+    proton = SHIM % (SELF, "proton")
+    os.makedirs(PROTON_ROOT, exist_ok=True)
+    names = {PROTON_PIN}
+    try:
+        names |= {name for name in os.listdir(PROTON_ROOT) if name.startswith("GE-Proton") and not name.startswith(".")}
+    except OSError:
+        pass
+    for name in sorted(names):
+        folder = os.path.join(PROTON_ROOT, name)
+        entry = os.path.join(folder, "proton")
+        if os.path.isdir(entry) and not os.path.islink(entry):
+            shutil.rmtree(entry, ignore_errors=True)
+        write_text(entry, proton, 0o755)
+        write_text(os.path.join(folder, "version"), "%d %s\n" % (0, name))
+
+
+def fex_environment(fex, files, env):
+    fex_data = os.path.join(run_dir(env), "fex")
+    for directory in (FEX_CONFIG, fex_data, FEX_CACHE):
+        os.makedirs(directory, exist_ok=True)
+    write_text(os.path.join(FEX_CONFIG, "Config.json"), json.dumps({"Config": {"RootFS": files}}, indent=2) + "\n")
+    result = {
+        "FEX_APP_CONFIG_LOCATION": FEX_CONFIG + "/",
+        "FEX_APP_DATA_LOCATION": fex_data + "/",
+        "FEX_APP_CACHE_LOCATION": FEX_CACHE + "/",
+        "FEX_ROOTFS": files,
+        "FEX_SILENTLOG": "0",
+        "FEX_OUTPUTLOG": "",
+    }
+    if fex.get("portable"):
+        result["FEX_PORTABLE"] = "1"
+    return result
+
+
+def client_environment(base, fex, files, display, bus, broker, a11y=None):
+    env = {name: base[name] for name in KEPT_ENV if base.get(name)}
+    env.setdefault("HOME", HOME)
+    env.setdefault("LANG", "C.UTF-8")
+    env["PATH"] = SHIMS + ":/usr/bin:/bin"
+    env["DISPLAY"] = display
+    env["DBUS_SESSION_BUS_ADDRESS"] = bus
+    env[BROKER_ENV] = broker
+    env.update(CLIENT_ENV)
+    if a11y:
+        for name in A11Y_OFF:
+            env.pop(name, None)
+        env["AT_SPI_BUS_ADDRESS"] = a11y
+    env.update(fex_environment(fex, files, base))
+    return env
+
+
+def windows_path(path):
+    return "Z:" + path.replace("/", "\\")
+
+
+def native_path(path):
+    if len(path) >= 2 and path[1] == ":" and path[0].upper() == "Z":
+        return path[2:].replace("\\", "/") or "/"
+    return path.replace("\\", "/")
+
+
+ARG_PATH = re.compile(r'^(-[^=\s]+=)"?(/[^"]*)"?$')
+
+
+def path_like(path):
+    return os.path.exists(path) or os.path.isdir(os.path.dirname(path))
+
+
+def convert_arg(arg):
+    if arg.startswith("/") and path_like(arg):
+        return windows_path(arg)
+    match = ARG_PATH.match(arg)
+    if match and path_like(match.group(2)):
+        return '%s"%s"' % (match.group(1), windows_path(match.group(2)))
+    return arg
+
+
+def epic_managed(arg):
+    low = arg.lower()
+    return low.startswith(EPIC_ARGS)
+
+
+def merge_args(client, own):
+    merged = [convert_arg(arg) for arg in client if arg]
+    for arg in own or []:
+        if arg and not epic_managed(arg) and arg not in merged:
+            merged.append(arg)
+    return merged
+
+
+def quote_arg(arg):
+    clean = "".join(ch for ch in arg if ch >= " " and ch != "\x7f")
+    if clean.count('"') % 2:
+        clean = clean.replace('"', "")
+    if (" " in clean or "\t" in clean) and '"' not in clean:
+        return '"%s"' % clean
+    return clean
+
+
+def cmd_escape(line):
+    out, quoted = [], False
+    for ch in line:
+        if ch == '"':
+            quoted = not quoted
+        elif ch in CMD_SPECIAL and not quoted:
+            out.append("^")
+        out.append(ch)
+    return "".join(out)
+
+
+def command_line(args):
+    return cmd_escape(" ".join(quote_arg(arg) for arg in args if arg))
+
+
+def find_store_game(path):
+    folder = os.path.dirname(os.path.abspath(path)) if not os.path.isdir(path) else os.path.abspath(path)
+    for _ in range(8):
+        sidecar = read_json(os.path.join(folder, SIDECAR))
+        if isinstance(sidecar, dict) and sidecar.get("store") and sidecar.get("id"):
+            return folder, sidecar
+        parent = os.path.dirname(folder)
+        if parent == folder:
+            break
+        folder = parent
+    return None
+
+
+def write_args(folder, sidecar, client_args):
+    line = command_line(merge_args(client_args, sidecar.get("args") if isinstance(sidecar.get("args"), list) else []))
+    path = os.path.join(folder, ARGS_FILE)
+    tmp = "%s.%d.tmp" % (path, os.getpid())
+    remove(tmp)
+    with open(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w", encoding="utf-8", newline="") as f:
+        f.write(line + "\r\n")
+    os.replace(tmp, path)
+    return line
+
+
+def launcher_takes_args(folder):
+    try:
+        with open(os.path.join(folder, LAUNCHER), encoding="utf-8", errors="replace") as f:
+            return ARGS_FILE in f.read()
+    except OSError:
+        return False
+
+
+def send(sock, message):
+    sock.sendall((json.dumps(message) + "\n").encode("utf-8"))
+
+
+def receive(sock, timeout=None):
+    sock.settimeout(timeout)
+    data = b""
+    while b"\n" not in data:
+        chunk = sock.recv(65536)
+        if not chunk:
+            raise ConnectionError("closed")
+        data += chunk
+    return json.loads(data.split(b"\n", 1)[0].decode("utf-8"))
+
+
+def ask_broker(message, timeout=5.0, path=None):
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+        sock.settimeout(timeout)
+        sock.connect(path or broker_path())
+        send(sock, message)
+        return receive(sock, timeout)
+
+
+def pid_alive(pid):
+    try:
+        os.kill(int(pid), 0)
+        return True
+    except (OSError, ValueError, TypeError):
+        return False
+
+
+def live_instance():
+    info = read_json(instance_file())
+    if not isinstance(info, dict) or not pid_alive(info.get("pid")):
+        return None
+    try:
+        answer = ask_broker({"op": "status"}, timeout=3.0, path=info.get("broker"))
+    except (OSError, ValueError):
+        return None
+    return dict(info, **answer) if isinstance(answer, dict) else None
+
+
+class Launch:
+    def __init__(self, request):
+        self.request = request
+        self.done = threading.Event()
+        self.code = 0
+        self.claimed = False
+
+
+class Broker:
+    def __init__(self, path, mode, session_env):
+        self.path = path
+        self.mode = mode
+        self.session_env = session_env
+        self.cond = threading.Condition()
+        self.launches = []
+        self.running = []
+        self.waiters = 0
+        self.awaiting = collections.Counter()
+        self.game = None
+        self.owner = None
+        self.closing = False
+        self.exited_at = None
+        self.last_contact = time.monotonic()
+        remove(path)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        self.server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.server.bind(path)
+        os.chmod(path, 0o600)
+        self.server.listen(16)
+        threading.Thread(target=self.accept, name="broker", daemon=True).start()
+
+    def accept(self):
+        while True:
+            try:
+                conn, _ = self.server.accept()
+            except OSError:
+                return
+            threading.Thread(target=self.serve, args=(conn,), daemon=True).start()
+
+    def serve(self, conn):
+        with conn:
+            try:
+                request = receive(conn, 30.0)
+                op = request.get("op") if isinstance(request, dict) else None
+                if op == "status":
+                    send(conn, {"mode": self.mode, "pid": os.getpid(), "game": self.game is not None})
+                elif op == "await":
+                    self.wait_for_launch(conn, request)
+                elif op == "launch":
+                    self.launched(conn, request)
+                elif op == "exited":
+                    self.exited(int(request.get("code") or 0))
+                    send(conn, {"ok": True})
+                elif op == "stop":
+                    self.close()
+                    send(conn, {"ok": True})
+                else:
+                    send(conn, {"ok": False, "reason": "unknown-op"})
+            except (OSError, ValueError, TypeError) as error:
+                say("broker: %s" % type(error).__name__)
+
+    def wait_for_launch(self, conn, request):
+        app = request.get("app") or ""
+        deadline = time.monotonic() + float(request.get("timeout") or LAUNCH_TIMEOUT)
+        with self.cond:
+            self.waiters += 1
+            self.awaiting[app.lower()] += 1
+            self.last_contact = time.monotonic()
+            try:
+                while True:
+                    found = next((item for item in self.launches if not item.claimed and is_game(item.request, app)), None)
+                    if found is not None:
+                        found.claimed = True
+                        self.launches.remove(found)
+                        self.cond.notify_all()
+                        self.game = found
+                        self.owner = request.get("owner")
+                        self.exited_at = None
+                        break
+                    left = deadline - time.monotonic()
+                    if self.closing or left <= 0:
+                        send(conn, {"ok": False, "reason": "closing" if self.closing else "timeout"})
+                        return
+                    self.cond.wait(min(left, 1.0))
+            finally:
+                self.waiters -= 1
+                self.awaiting[app.lower()] -= 1
+                if self.awaiting[app.lower()] <= 0:
+                    del self.awaiting[app.lower()]
+                self.last_contact = time.monotonic()
+        try:
+            send(conn, {"ok": True, "exe": found.request.get("exe"), "args": found.request.get("args") or []})
+        except OSError:
+            self.exited(1)
+
+    def launched(self, conn, request):
+        exe = request.get("exe") or ""
+        say("the client starts %s (%d arguments)" % (os.path.basename(exe), len(request.get("args") or [])))
+        if not is_game(request):
+            send(conn, {"code": 0})
+            return
+        item = Launch(request)
+        if self.mode == "visible" and not self.awaited(request):
+            with self.cond:
+                self.launches.append(item)
+                self.cond.notify_all()
+            if not play_in_steam(request):
+                with self.cond:
+                    unclaimed = not item.claimed
+                    if unclaimed and item in self.launches:
+                        self.launches.remove(item)
+                if unclaimed:
+                    with playing():
+                        code = run_game(request, self.session_env, self.running)
+                    send(conn, {"code": code})
+                    return
+            send(conn, {"code": self.hand_over(item, STEAM_CLAIM_WAIT)})
+            return
+        send(conn, {"code": self.hand_over(item, 20.0)})
+
+    def awaited(self, request):
+        with self.cond:
+            return any(is_game(request, app) for app in self.awaiting if app)
+
+    def hand_over(self, item, wait):
+        deadline = time.monotonic() + wait
+        with self.cond:
+            if item not in self.launches and not item.claimed:
+                self.launches.append(item)
+                self.cond.notify_all()
+            while not item.claimed and not self.closing:
+                left = deadline - time.monotonic()
+                if left <= 0:
+                    break
+                self.cond.wait(left)
+            if not item.claimed and item in self.launches:
+                self.launches.remove(item)
+        if not item.claimed:
+            return 0
+        while not item.done.wait(1.0):
+            if self.closing:
+                break
+        return item.code
+
+    def exited(self, code):
+        with self.cond:
+            game = self.game
+            if game is None:
+                return
+            game.code = code
+            game.done.set()
+            self.game = None
+            self.owner = None
+            self.exited_at = time.monotonic()
+            self.cond.notify_all()
+
+    def close(self):
+        with self.cond:
+            self.closing = True
+            for item in self.launches:
+                item.done.set()
+            if self.game is not None:
+                self.game.done.set()
+            self.cond.notify_all()
+
+    def shutdown(self):
+        self.close()
+        with contextlib.suppress(OSError):
+            self.server.close()
+        remove(self.path)
+
+
+def is_game(request, app=None):
+    args = [str(arg).lower() for arg in request.get("args") or []]
+    if app:
+        return "-epicapp=" + app.lower() in args
+    return any(arg.startswith("-epicapp=") for arg in args)
+
+
+def client_artifact(exe):
+    latest = {}
+    for entry in read_installations()[1]:
+        key = entry.get("installationId") or entry.get("artifactId")
+        if key:
+            latest[key] = entry
+    target = os.path.abspath(exe)
+    for entry in latest.values():
+        folder = entry.get("dir")
+        if entry.get("deleted") or not isinstance(folder, str) or not folder:
+            continue
+        folder = os.path.abspath(folder)
+        if (target == folder or target.startswith(folder + os.sep)) and entry.get("artifactId"):
+            return str(entry["artifactId"])
+    return None
+
+
+def play_in_steam(request):
+    exe = native_path(request.get("exe") or "")
+    found = find_store_game(exe)
+    if found and found[1].get("store") == "epic" and found[1].get("id"):
+        game = str(found[1]["id"])
+    elif not found:
+        game = client_artifact(exe)
+        if not game:
+            return False
+    else:
+        return False
+    reply = ask_app({"op": "epic-play-in-steam", "id": game}, STEAM_WAIT)
+    if not isinstance(reply, dict):
+        reply = {}
+    if reply.get("ok"):
+        say("handed %s to Steam" % game)
+        return True
+    say("Steam could not take %s (%s); running it here" % (game, reply.get("reason") or "no answer"))
+    return False
+
+
+def run_game(request, session_env, running=None):
+    exe = native_path(request.get("exe") or "")
+    args = request.get("args") or []
+    env = {k: v for k, v in session_env.items() if not k.startswith(("FEX_", "DROIDDECK_EPIC", "EGL_", "WEBKIT_"))}
+    preload = env.pop(STEAM_PRELOAD, "")
+    if preload:
+        env["LD_PRELOAD"] = preload
+    found = find_store_game(exe)
+    if found and found[1].get("store") == "epic" and launcher_takes_args(found[0]):
+        folder, sidecar = found
+        write_args(folder, sidecar, args)
+        env[HANDLED] = "1"
+        command = [PROTON_RUN, os.path.join(folder, LAUNCHER)]
+    else:
+        command = [PROTON_RUN, exe] + [convert_arg(arg) for arg in args]
+    say("running %s" % os.path.basename(command[1]))
+    try:
+        proc = subprocess.Popen(command, env=env, cwd=os.path.dirname(command[1]) or "/", start_new_session=True)
+    except OSError as error:
+        say("could not run the game (%s)" % error)
+        return 1
+    if running is not None:
+        running.append(proc)
+    try:
+        return proc.wait()
+    finally:
+        if running is not None and proc in running:
+            running.remove(proc)
+
+
+def wait_for(check, timeout, step=0.1):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if check():
+            return True
+        time.sleep(step)
+    return check()
+
+
+def capped_log(path):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    handle = open(path, "wb")
+    read, write = os.pipe()
+
+    def pump():
+        written = 0
+        with os.fdopen(read, "rb") as source:
+            while True:
+                chunk = source.read1(65536) if hasattr(source, "read1") else source.read(65536)
+                if not chunk:
+                    break
+                if written < LOG_CAP:
+                    handle.write(chunk[:LOG_CAP - written])
+                    handle.flush()
+                    written += len(chunk)
+        handle.close()
+
+    threading.Thread(target=pump, daemon=True).start()
+    return write
+
+
+class Session:
+    def __init__(self, mode):
+        self.mode = mode
+        self.carried = False
+        self.a11y = None
+        self.press_at = 0.0
+        self.first_run_presses = 0
+        self.sign_in_pressed = False
+        self.was_signed_in = False
+        self.signed_out_at = None
+        self.procs = []
+        self.client = None
+        self.command = None
+        self.env = None
+        self.broker = None
+        self.bus = None
+        self.rundir = run_dir()
+
+    def spawn(self, command, env, log=None, group=False):
+        out = capped_log(log) if log else subprocess.DEVNULL
+        try:
+            proc = subprocess.Popen(command, env=env, stdin=subprocess.DEVNULL, stdout=out, stderr=out,
+                                    start_new_session=group, cwd="/")
+        finally:
+            if log:
+                os.close(out)
+        self.procs.append(proc)
+        return proc
+
+    def start_bus(self, env, name="bus"):
+        path = os.path.join(self.rundir, name)
+        remove(path)
+        address = "unix:path=" + path
+        proc = self.spawn(["dbus-daemon", "--session", "--nofork", "--nopidfile", "--address=" + address], env)
+        if not wait_for(lambda: os.path.exists(path) or proc.poll() is not None, 10) or not os.path.exists(path):
+            raise Failure("no-session-bus")
+        return address
+
+    def start_display(self, env, bus):
+        marker = os.path.join(self.rundir, "display")
+        remove(marker)
+        scope_env = dict(env, DBUS_SESSION_BUS_ADDRESS=bus)
+        for name in ("DISPLAY", "WAYLAND_DISPLAY", "GAMESCOPE_WAYLAND_DISPLAY"):
+            scope_env.pop(name, None)
+        size = ["-W", str(WIDTH), "-H", str(HEIGHT), "-w", str(WIDTH), "-h", str(HEIGHT)]
+        self.spawn(["gamescope", "--backend", "headless"] + size + ["--", sys.executable, "-I", "-c", DISPLAY_PROBE, marker],
+                   scope_env, os.path.join(LOGS, "gamescope.log"))
+        display = {}
+
+        def ready():
+            try:
+                with open(marker, encoding="utf-8") as f:
+                    display["name"] = f.read().strip()
+            except OSError:
+                return False
+            return bool(display["name"])
+
+        if not wait_for(ready, 30):
+            raise Failure("no-display")
+        return display["name"]
+
+    def run(self):
+        app_dir, files, current = current_dirs()
+        if app_dir is None:
+            raise Failure("not-installed")
+        fex = fex_tool(request=True)
+        if fex is None:
+            raise Failure("no-fex")
+        os.makedirs(self.rundir, exist_ok=True)
+        os.makedirs(LOGS, exist_ok=True)
+        base = dict(os.environ)
+        base.setdefault("XDG_RUNTIME_DIR", self.rundir)
+        seed_settings()
+        install_shims()
+        install_preload(files)
+        clear_playing()
+        sync_installations()
+        forget_sign_in()
+        self.carried = carry_sign_in()
+        bus = self.start_bus(base)
+        self.bus = bus
+        if self.carried:
+            self.a11y = self.start_bus(base, "a11y")
+        if self.mode == "hidden":
+            display = self.start_display(base, bus)
+        else:
+            display = base.get("DISPLAY") or ":0"
+        path = broker_path()
+        self.broker = Broker(path, self.mode, base)
+        write_json(instance_file(), {"pid": os.getpid(), "mode": self.mode, "bus": bus, "broker": path})
+        env = client_environment(base, fex, files, display, bus, path, self.a11y)
+        self.command = [fex["bin"], os.path.join(app_dir, "AppRun")]
+        self.env = env
+        say("starting the Epic Games Launcher %s (%s, display %s)" % (current.get("app"), self.mode, display))
+        self.start_client()
+        return self.watch()
+
+    def start_client(self):
+        self.client = self.spawn(self.command, self.env, os.path.join(LOGS, "client-%s.log" % self.mode), group=True)
+
+    def restart_signed_out(self):
+        say("DroidDeck's Epic store was signed out; restarting the launcher signed out")
+        self.end_client()
+        forget_sign_in()
+        self.carried = False
+        self.was_signed_in = False
+        self.signed_out_at = None
+        self.start_client()
+
+    def carry_on(self, now):
+        if signed_in():
+            self.carried = False
+            self.was_signed_in = True
+            remove(AUTO_SIGN_IN)
+            say("the launcher is signed in")
+            return
+        if now < self.press_at or self.sign_in_pressed:
+            return
+        self.press_at = now + 2.0
+        buttons = a11y_buttons(self.a11y)
+        if SIGN_IN_LABEL in buttons:
+            write_text(AUTO_SIGN_IN, "%d\n" % time.time())
+            if a11y_press(self.a11y, buttons[SIGN_IN_LABEL]):
+                self.sign_in_pressed = True
+                say("asked the launcher to sign in")
+        elif FIRST_RUN_LABEL in buttons and self.first_run_presses < FIRST_RUN_PRESSES:
+            self.first_run_presses += 1
+            if a11y_press(self.a11y, buttons[FIRST_RUN_LABEL]):
+                say("moved past the launcher's welcome screen")
+
+    def follow_sign_out(self, now):
+        if signed_in():
+            self.was_signed_in = True
+            self.signed_out_at = None
+            return
+        if not self.was_signed_in:
+            return
+        if self.signed_out_at is None:
+            self.signed_out_at = now
+            return
+        if now - self.signed_out_at < SIGN_OUT_GRACE:
+            return
+        self.was_signed_in = False
+        self.signed_out_at = None
+        channel = launch_dir()
+        if channel:
+            post(channel, {"op": "epic-signed-out"})
+            say("the launcher was signed out; signing DroidDeck's Epic store out too")
+
+    def watch(self):
+        started = time.monotonic()
+        broker = self.broker
+        while True:
+            if self.client.poll() is not None:
+                say("the Epic Games Launcher exited (%s)" % self.client.returncode)
+                return 0 if self.mode == "visible" else 1
+            now = time.monotonic()
+            if broker.closing:
+                return 0
+            if broker.game is None and os.path.exists(SIGNED_OUT):
+                if self.mode != "visible":
+                    say("DroidDeck's Epic store was signed out; closing")
+                    return 0
+                self.restart_signed_out()
+                continue
+            if self.carried:
+                self.carry_on(now)
+            elif self.mode == "visible":
+                self.follow_sign_out(now)
+            owner = broker.owner
+            if broker.game is not None and owner and not pid_alive(owner):
+                say("the game's launcher process is gone")
+                broker.exited(0)
+            if self.mode == "hidden":
+                idle = broker.game is None and broker.waiters == 0
+                if idle and broker.exited_at is not None:
+                    if now - broker.exited_at >= EXIT_GRACE:
+                        return 0
+                elif idle and now - max(started, broker.last_contact) > HIDDEN_IDLE:
+                    say("no launch was asked for; closing")
+                    return 0
+                elif idle and broker.last_contact > started and now - broker.last_contact > 5.0:
+                    say("the launch was given up; closing")
+                    return 0
+            time.sleep(0.5)
+
+    def end_client(self):
+        if self.client is None:
+            return
+        if self.client.poll() is None:
+            with contextlib.suppress(OSError):
+                os.killpg(self.client.pid, signal.SIGTERM)
+            try:
+                self.client.wait(STOP_WAIT)
+            except subprocess.TimeoutExpired:
+                with contextlib.suppress(OSError):
+                    os.killpg(self.client.pid, signal.SIGKILL)
+                with contextlib.suppress(subprocess.TimeoutExpired):
+                    self.client.wait(5)
+        with contextlib.suppress(OSError):
+            os.killpg(self.client.pid, signal.SIGKILL)
+
+    def stop(self):
+        if self.broker is not None:
+            self.broker.shutdown()
+            for game in list(self.broker.running):
+                stop_group(game)
+        clear_playing()
+        info = read_json(instance_file())
+        if isinstance(info, dict) and info.get("pid") == os.getpid():
+            remove(instance_file())
+        self.end_client()
+        forget_sign_in()
+        for proc in reversed(self.procs):
+            if proc is self.client or proc.poll() is not None:
+                continue
+            proc.terminate()
+            try:
+                proc.wait(3)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                with contextlib.suppress(subprocess.TimeoutExpired):
+                    proc.wait(2)
+
+
+def terminate(*_):
+    raise SystemExit(0)
+
+
+def retire_hidden():
+    info = read_json(instance_file())
+    if not isinstance(info, dict) or info.get("mode") != "hidden" or not pid_alive(info.get("pid")):
+        return
+    say("closing the hidden launcher first")
+    with contextlib.suppress(OSError, ValueError):
+        ask_broker({"op": "stop"}, timeout=3.0, path=info.get("broker"))
+    wait_for(lambda: not pid_alive(info.get("pid")), STOP_WAIT + 10, 0.25)
+
+
+def serve(mode):
+    if mode == "visible":
+        retire_hidden()
+    with instance_guard() as free:
+        if not free:
+            say("the Epic Games Launcher is already running")
+            return 3
+        session = Session(mode)
+        signal.signal(signal.SIGTERM, terminate)
+        signal.signal(signal.SIGHUP, terminate)
+        try:
+            with marked(OPEN, steam_app_id() or "1") if mode == "visible" else contextlib.nullcontext():
+                return session.run()
+        except (Failure, OSError) as failure:
+            say("could not start: %s" % failure)
+            return 2
+        finally:
+            signal.signal(signal.SIGTERM, signal.SIG_IGN)
+            signal.signal(signal.SIGHUP, signal.SIG_IGN)
+            session.stop()
+
+
+def api():
+    info = read_json(API_FILE)
+    if not isinstance(info, dict) or not info.get("port") or not info.get("machineSecret"):
+        return None
+    return info
+
+
+def api_get(info, path, timeout=5.0):
+    request = urllib.request.Request("http://127.0.0.1:%d%s" % (int(info["port"]), path),
+                                     headers={"x-epic-machine-secret": str(info["machineSecret"])})
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    with opener.open(request, timeout=timeout) as reply:
+        return json.loads(reply.read().decode("utf-8"))
+
+
+def holds(value, wanted):
+    if isinstance(value, dict):
+        return any(holds(v, wanted) for v in value.values())
+    if isinstance(value, list):
+        return any(holds(v, wanted) for v in value)
+    return isinstance(value, str) and value == wanted
+
+
+def installed(info, app):
+    try:
+        listing = api_get(info, "/api/v1/installation/installations")
+    except (OSError, ValueError, urllib.error.URLError, http.client.HTTPException):
+        return None
+    return holds(listing.get("installations") if isinstance(listing, dict) else listing, app)
+
+
+def deep_link(namespace, item, app):
+    target = ":".join((namespace, item, app))
+    return "com.epicgames.launcher://apps/%s?action=launch&silent=true" % urllib.parse.quote(target, safe="")
+
+
+def forward(bus, url):
+    command = ["dbus-send", "--session", "--print-reply", "--type=method_call", "--dest=" + DBUS_NAME, DBUS_PATH,
+               DBUS_METHOD, "array:string:EpicGamesLauncher,%s" % url, "string:/"]
+    env = dict(os.environ, DBUS_SESSION_BUS_ADDRESS=bus)
+    try:
+        return subprocess.call(command, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15) == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def parse_options(args, flags=()):
+    options, rest = {}, []
+    while args:
+        arg = args.pop(0)
+        if arg.startswith("--") and arg[2:] in flags:
+            options[arg[2:]] = True
+        elif arg.startswith("--") and args:
+            options[arg[2:]] = args.pop(0)
+        else:
+            rest.append(arg)
+    return options, rest
+
+
+def answer(ok, **fields):
+    print(json.dumps(dict(fields, ok=ok)), flush=True)
+    return 0 if ok else 1
+
+
+def launch(options):
+    app = options.get("app") or ""
+    namespace = options.get("namespace") or ""
+    item = options.get("item") or ""
+    folder = os.path.abspath(options.get("folder") or "")
+    try:
+        timeout = float(options.get("timeout") or LAUNCH_TIMEOUT)
+    except ValueError:
+        timeout = LAUNCH_TIMEOUT
+    if not 0 < timeout < float("inf"):
+        timeout = LAUNCH_TIMEOUT
+    deadline = time.monotonic() + timeout
+    if not (app and namespace and item and options.get("folder")):
+        return answer(False, reason="missing-game")
+    sidecar = read_json(os.path.join(folder, SIDECAR))
+    if not isinstance(sidecar, dict) or sidecar.get("id") != app:
+        return answer(False, reason="no-sidecar")
+    if not launcher_takes_args(folder):
+        return answer(False, reason="old-launcher")
+    report = status()
+    if not report["installed"]:
+        return answer(False, reason="not-installed")
+    if not report["fex"]:
+        return answer(False, reason="no-fex")
+    if not report["signedIn"] and not handoff_ready():
+        return answer(False, reason="signed-out")
+    remove(os.path.join(folder, ARGS_FILE))
+    info = live_instance()
+    spawned = None
+    if info is None:
+        log = os.path.join(LOGS, "hidden.log")
+        os.makedirs(LOGS, exist_ok=True)
+        with contextlib.suppress(OSError):
+            os.replace(log, log + ".1")
+        with open(log, "wb") as out:
+            spawned = subprocess.Popen([sys.executable, SELF, "serve", "--mode", "hidden"], stdin=subprocess.DEVNULL,
+                                       stdout=out, stderr=out, start_new_session=True)
+        if not wait_for(lambda: live_instance() is not None or spawned.poll() is not None, BROKER_WAIT, 0.25) \
+                or spawned.poll() is not None:
+            stop_spawned(spawned, read_json(instance_file()))
+            return answer(False, reason="client-start")
+        info = live_instance()
+    try:
+        reply = hand_off(info, spawned, app, namespace, item, options.get("owner"), deadline)
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        reply = {"ok": False, "reason": "error-" + type(error).__name__}
+    if not reply.get("ok"):
+        stop_spawned(spawned, info)
+        return answer(False, reason=reply.get("reason") or "no-launch")
+    write_args(folder, sidecar, reply.get("args") or [])
+    say("the client handed over %s with %d arguments" % (os.path.basename(reply.get("exe") or ""), len(reply.get("args") or [])))
+    return answer(True)
+
+
+def hand_off(info, spawned, app, namespace, item, owner, deadline):
+    def left():
+        return max(0.0, deadline - time.monotonic())
+
+    def gone():
+        return (spawned is not None and spawned.poll() is not None) or not pid_alive(info.get("pid"))
+
+    if info is None:
+        return {"ok": False, "reason": "client-start"}
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
+        conn.connect(info["broker"])
+        send(conn, {"op": "await", "app": app, "owner": owner, "timeout": max(1.0, left())})
+        if info.get("mode") == "visible" and select.select([conn], [], [], CLAIM_PEEK)[0]:
+            try:
+                reply = receive(conn, max(1.0, left()))
+            except (OSError, ValueError):
+                return {"ok": False, "reason": "client-exited" if gone() else "timeout"}
+            if isinstance(reply, dict) and reply.get("ok"):
+                say("took the launch the client already started for %s" % app)
+            return reply if isinstance(reply, dict) else {"ok": False, "reason": "bad-reply"}
+        state = {}
+
+        def ready():
+            current = api()
+            if current is not None and installed(current, app) is not None:
+                state["api"] = current
+            return gone() or "api" in state
+
+        if not wait_for(ready, left(), 1.0) or gone():
+            return {"ok": False, "reason": "client-exited" if gone() else "client-not-ready"}
+        if not wait_for(lambda: gone() or installed(state["api"], app) is True, min(REGISTER_WAIT, left()), 1.0) or gone():
+            return {"ok": False, "reason": "client-exited" if gone() else "not-registered"}
+        if not wait_for(lambda: gone() or signed_in(), min(SIGN_IN_WAIT, left()), 1.0) or gone():
+            return {"ok": False, "reason": "client-exited" if gone() else "signed-out"}
+        url = deep_link(namespace, item, app)
+        if not wait_for(lambda: gone() or forward(info["bus"], url), min(20.0, left()), 1.0) or gone():
+            return {"ok": False, "reason": "client-exited" if gone() else "deep-link"}
+        say("asked the client to launch %s" % app)
+        try:
+            reply = receive(conn, max(1.0, left()))
+        except (OSError, ValueError):
+            return {"ok": False, "reason": "client-exited" if gone() else "timeout"}
+        return reply if isinstance(reply, dict) else {"ok": False, "reason": "bad-reply"}
+
+
+def stop_group(proc, wait=STOP_WAIT):
+    if proc.poll() is None:
+        with contextlib.suppress(OSError):
+            os.killpg(proc.pid, signal.SIGTERM)
+        try:
+            proc.wait(wait)
+        except subprocess.TimeoutExpired:
+            pass
+    with contextlib.suppress(OSError):
+        os.killpg(proc.pid, signal.SIGKILL)
+    with contextlib.suppress(subprocess.TimeoutExpired):
+        proc.wait(5)
+
+
+def stop_spawned(proc, info=None):
+    if proc is None:
+        return
+    path = info.get("broker") if isinstance(info, dict) and info.get("pid") == proc.pid else None
+    asked = False
+    if path:
+        with contextlib.suppress(OSError, ValueError):
+            ask_broker({"op": "stop"}, timeout=3.0, path=path)
+            asked = True
+    try:
+        proc.wait(STOP_WAIT + 10 if asked else 0)
+    except subprocess.TimeoutExpired:
+        stop_group(proc)
+
+
+def exited(options):
+    info = read_json(instance_file())
+    if not isinstance(info, dict) or info.get("mode") not in ("hidden", "visible") or not pid_alive(info.get("pid")):
+        return 0
+    with contextlib.suppress(OSError, ValueError):
+        ask_broker({"op": "exited", "code": int(options.get("code") or 0)}, timeout=3.0, path=info.get("broker"))
+    return 0
+
+
+def sign_in_url(url):
+    try:
+        parts = urllib.parse.urlsplit(url)
+        query = urllib.parse.parse_qs(parts.query)
+        redirect = urllib.parse.urlsplit((query.get("redirect_uri") or [""])[0])
+    except ValueError:
+        return False
+    return parts.scheme == "https" and parts.hostname in ("www.epicgames.com", "epicgames.com") \
+        and parts.path.startswith("/id/authorize") and redirect.scheme == "http" \
+        and redirect.hostname in ("127.0.0.1", "localhost") and redirect.port is not None
+
+
+def post(channel, request):
+    req = os.path.join(channel, "stores", "req")
+    os.makedirs(req, exist_ok=True)
+    rid = "epic-%d-%d" % (os.getpid(), time.time_ns())
+    tmp = os.path.join(req, rid + ".json.tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(request, f)
+    os.rename(tmp, os.path.join(req, rid + ".json"))
+    return rid
+
+
+def hand_over(op, url, launch_dir, auto=False):
+    request = {"op": op, "url": url}
+    if auto:
+        request["auto"] = True
+    post(launch_dir, request)
+
+
+def ask_app(request, timeout):
+    channel = launch_dir()
+    if not channel:
+        return None
+    rid = post(channel, request)
+    reply = os.path.join(channel, "stores", "resp", rid + ".json")
+    value = {}
+
+    def answered():
+        found = read_json(reply)
+        if isinstance(found, dict):
+            value.update(found)
+            return True
+        return False
+
+    if not wait_for(answered, timeout, 0.1):
+        remove(os.path.join(channel, "stores", "req", rid + ".json"))
+        return None
+    remove(reply)
+    return value
+
+
+def handoff_ready():
+    reply = ask_app({"op": "epic-client-handoff"}, HANDOFF_WAIT)
+    if isinstance(reply, dict) and reply.get("ok"):
+        return True
+    say("no DroidDeck Epic account to sign the launcher in with (%s)" % ((reply or {}).get("reason") or "no answer"))
+    return False
+
+
+def carry_sign_in():
+    remove(AUTO_SIGN_IN)
+    if signed_in() or not handoff_ready():
+        return False
+    say("signing the launcher in with DroidDeck's Epic account")
+    return True
+
+
+def a11y_connect(address):
+    try:
+        from gi.repository import Gio
+        flags = Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT | Gio.DBusConnectionFlags.MESSAGE_BUS_CONNECTION
+        return Gio.DBusConnection.new_for_address_sync(address, flags, None, None)
+    except Exception:
+        return None
+
+
+def a11y_call(conn, name, path, interface, method, args=None, reply=None):
+    from gi.repository import GLib
+    answer = conn.call_sync(name, path, interface, method, args, GLib.VariantType(reply) if reply else None,
+                            0, 2000, None)
+    return answer.unpack()
+
+
+def a11y_buttons(address):
+    conn = a11y_connect(address) if address else None
+    if conn is None:
+        return {}
+    from gi.repository import GLib
+    found = {}
+    try:
+        names = a11y_call(conn, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                          "ListNames", None, "(as)")[0]
+        queue = collections.deque()
+        for name in names:
+            if not name.startswith(":"):
+                continue
+            try:
+                xml = a11y_call(conn, name, A11Y_WEB_ROOT, "org.freedesktop.DBus.Introspectable", "Introspect", None, "(s)")[0]
+            except Exception:
+                continue
+            queue.extend((name, A11Y_WEB_ROOT + "/" + node) for node in re.findall(r'<node name="([^"]+)"', xml))
+        seen = set()
+        deadline = time.monotonic() + A11Y_BUDGET
+        while queue and len(seen) < A11Y_LIMIT and time.monotonic() < deadline:
+            node = queue.popleft()
+            if node in seen:
+                continue
+            seen.add(node)
+            try:
+                attrs = a11y_call(conn, node[0], node[1], A11Y_ACCESSIBLE, "GetAttributes", None, "(a{ss})")[0]
+                if attrs.get("tag") == "button":
+                    label = a11y_call(conn, node[0], node[1], "org.freedesktop.DBus.Properties", "Get",
+                                      GLib.Variant("(ss)", (A11Y_ACCESSIBLE, "Name")), "(v)")[0]
+                    if isinstance(label, str) and label.strip():
+                        found.setdefault(label.strip(), node)
+                    continue
+                queue.extend(tuple(kid) for kid in
+                             a11y_call(conn, node[0], node[1], A11Y_ACCESSIBLE, "GetChildren", None, "(a(so))")[0])
+            except Exception:
+                continue
+    except Exception:
+        return found
+    finally:
+        conn.close_sync(None)
+    return found
+
+
+def a11y_press(address, target):
+    conn = a11y_connect(address)
+    if conn is None:
+        return False
+    from gi.repository import GLib
+    try:
+        return bool(a11y_call(conn, target[0], target[1], "org.a11y.atspi.Action", "DoAction",
+                              GLib.Variant("(i)", (0,)), "(b)")[0])
+    except Exception:
+        return False
+    finally:
+        conn.close_sync(None)
+
+
+def auto_sign_in():
+    try:
+        return 0 <= time.time() - os.stat(AUTO_SIGN_IN).st_mtime < AUTO_SIGN_IN_FRESH
+    except OSError:
+        return False
+
+
+def shim_open(argv):
+    url = argv[0] if argv else ""
+    channel = launch_dir()
+    steam = STEAM_RUN.match(url)
+    if steam and channel:
+        post(channel, {"op": "steam-run", "id": steam.group(1)})
+        say("xdg-open: handed Steam game %s to the app" % steam.group(1))
+        return 0
+    if not url.startswith(("https://", "http://")) or not channel:
+        say("xdg-open: nothing to hand over")
+        return 1
+    op = "epic-sign-in" if sign_in_url(url) else "open-url"
+    hand_over(op, url, channel, op == "epic-sign-in" and auto_sign_in())
+    say("xdg-open: handed %s to the app" % op)
+    return 0
+
+
+def shim_proton(argv):
+    verb, rest = (argv[0], argv[1:]) if argv else ("", [])
+    if verb == "getcompatpath":
+        print(windows_path(rest[0]) if rest else "")
+        return 0
+    if verb == "getnativepath":
+        print(native_path(rest[0]) if rest else "")
+        return 0
+    if verb not in LAUNCH_VERBS:
+        return 0
+    if not rest:
+        return 1
+    request = {"op": "launch", "verb": verb, "exe": rest[0], "args": rest[1:], }
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+            sock.connect(os.environ.get(BROKER_ENV) or broker_path())
+            send(sock, request)
+            reply = receive(sock, None)
+    except (OSError, ValueError) as error:
+        say("proton: no broker (%s)" % type(error).__name__)
+        return 1
+    try:
+        return int(reply.get("code") or 0) if isinstance(reply, dict) else 1
+    except (TypeError, ValueError):
+        return 1
+
+
+def main(argv):
+    if not argv:
+        say("usage: droiddeck-epic install|run|launch|exited|serve")
+        return 2
+    action, args = argv[0], list(argv[1:])
+    try:
+        if action == "proton":
+            return shim_proton(args)
+        if action == "xdg-open":
+            return shim_open(args)
+        if action == "install":
+            options, _ = parse_options(args)
+            try:
+                return install(options)
+            except (ValueError, tarfile.TarError, OSError) as error:
+                raise Failure("unpack-" + type(error).__name__)
+        if action == "run":
+            return serve("visible")
+        if action == "serve":
+            options, _ = parse_options(args)
+            return serve(options.get("mode") or "hidden")
+        if action == "launch":
+            options, _ = parse_options(args)
+            return launch(options)
+        if action == "exited":
+            options, _ = parse_options(args)
+            return exited(options)
+    except Failure as failure:
+        say("failed: %s" % failure)
+        print(json.dumps({"ok": False, "reason": str(failure)}))
+        return 1
+    say("unknown action %s" % action)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

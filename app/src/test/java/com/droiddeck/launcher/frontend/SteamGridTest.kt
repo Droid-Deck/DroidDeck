@@ -44,6 +44,77 @@ class SteamGridTest {
         assertFalse(File(grid, "620p.png").exists())
     }
 
+    @Test fun aWideCoverGoesToTheUnsuffixedGridFileAndComesBackFromSteam() {
+        File(LinuxRuntime.rootDir(app), "root/.local/share/Steam/userdata/123/config").mkdirs()
+        val picked = image("wide.png", 14)
+        assertTrue(SteamGameArt.choose(app, game(), AddedGameArt.Slot.WIDE, AddedGameArt.Option(AddedGameArt.FILE, picked.path, picked.path)))
+        assertEquals(14L, File(grid, "620.png").length())
+        assertFalse(File(grid, "620p.png").exists())
+        assertTrue(SteamGameArt.chosenFile(app, 620, AddedGameArt.Slot.WIDE)!!.name.matches(Regex("chosen-header-\\d+\\.png")))
+        assertNull(SteamGameArt.chosenFile(app, 620, AddedGameArt.Slot.COVER))
+
+        File(grid, "620.png").delete()
+        assertTrue(SteamGrid.sync(app, listOf(target())))
+        assertNull(SteamGameArt.chosenFile(app, 620, AddedGameArt.Slot.WIDE))
+    }
+
+    private val corner = LogoPosition.Value(LogoPosition.Pin.UPPER_CENTER, 35, 35)
+
+    @Test fun aLogoPositionIsWrittenToSteamsJsonKeepingWhatElseIsInIt() {
+        File(LinuxRuntime.rootDir(app), "root/.local/share/Steam/userdata/123/config").mkdirs()
+        grid.mkdirs()
+        File(grid, "620.json").writeText("""{"nVersion":1,"other":"kept"}""")
+        assertTrue(SteamGameArt.setPosition(app, game(), corner))
+        val written = org.json.JSONObject(File(grid, "620.json").readText())
+        assertEquals("kept", written.getString("other"))
+        assertEquals(corner, LogoPosition.parse(written))
+        assertEquals(corner, SteamGameArt.position(app, game()))
+
+        assertTrue(SteamGameArt.setPosition(app, game(), null))
+        val left = org.json.JSONObject(File(grid, "620.json").readText())
+        assertFalse(left.has("logoPosition"))
+        assertEquals("kept", left.getString("other"))
+        assertNull(SteamGameArt.position(app, game()))
+    }
+
+    @Test fun aLogoPositionAloneLeavesNoFileBehindWhenCleared() {
+        File(LinuxRuntime.rootDir(app), "root/.local/share/Steam/userdata/123/config").mkdirs()
+        assertTrue(SteamGameArt.setPosition(app, game(), corner))
+        assertEquals(corner, LogoPosition.parse(File(grid, "620.json").readText()))
+        assertTrue(SteamGameArt.setPosition(app, game(), null))
+        assertFalse(File(grid, "620.json").exists())
+    }
+
+    @Test fun aLogoPositionSetInSteamIsTakenOverAndRemovingItDropsIt() {
+        File(LinuxRuntime.rootDir(app), "root/.local/share/Steam/userdata/123/config").mkdirs()
+        grid.mkdirs()
+        val theirs = File(grid, "620.json").apply { writeText(LogoPosition.toJson(corner).toString()) }
+        SteamGrid.sync(app, listOf(target()))
+        assertEquals(corner, SteamGameArt.position(app, game()))
+
+        theirs.writeText(LogoPosition.toJson(LogoPosition.Value(LogoPosition.Pin.CENTER, 80, 80)).toString())
+        theirs.setLastModified(theirs.lastModified() + 5000)
+        SteamGrid.sync(app, listOf(target()))
+        assertEquals(LogoPosition.Pin.CENTER, SteamGameArt.position(app, game())?.pin)
+
+        theirs.delete()
+        SteamGrid.sync(app, listOf(target()))
+        assertNull(SteamGameArt.position(app, game()))
+    }
+
+    @Test fun aLogoPositionChosenHereIsNotTakenBackAsASteamChange() {
+        File(LinuxRuntime.rootDir(app), "root/.local/share/Steam/userdata/123/config").mkdirs()
+        assertTrue(SteamGameArt.setPosition(app, game(), corner))
+        SteamGrid.sync(app, listOf(target()))
+        assertEquals(corner, SteamGameArt.position(app, game()))
+        assertEquals(corner, LogoPosition.parse(File(grid, "620.json").readText()))
+    }
+
+    @Test fun aLogoPositionWithoutSteamAccountIsStillKeptHere() {
+        assertTrue(SteamGameArt.setPosition(app, game(), corner))
+        assertEquals(corner, SteamGameArt.position(app, game()))
+    }
+
     @Test fun artSetInSteamIsTakenOverAndRemovingItInSteamDropsIt() {
         File(LinuxRuntime.rootDir(app), "root/.local/share/Steam/userdata/123/config").mkdirs()
         grid.mkdirs()

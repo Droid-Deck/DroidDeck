@@ -51,6 +51,16 @@ object AddedGameEdits {
         }
     }
 
+    fun logoPosition(context: Context, folder: String): LogoPosition.Value? =
+        game(context, folder)?.let { SteamGrid.position(SteamGrid.target(it, context)) }
+
+    fun setLogoPosition(context: Context, folder: String, value: LogoPosition.Value?): Boolean {
+        val game = game(context, folder) ?: return false
+        if (!SteamGrid.writePosition(context, SteamGrid.target(game, context), value)) return false
+        publish(context) { SteamLiveShortcuts.setLogoPosition(context, game.appId, value) }
+        return true
+    }
+
     private fun applyArt(context: Context, game: AddedGames.Game, slot: AddedGameArt.Slot) {
         val file = AddedGameArt.describe(context, game).first { it.slot == slot }.file
         if (slot != AddedGameArt.Slot.ICON) SteamGrid.write(context, SteamGrid.target(game, context), slot, AddedGameArt.chosen(AddedGameArt.cacheDir(context, game), slot))

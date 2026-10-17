@@ -301,6 +301,24 @@ case $mode in
       taskset -cp "$cores" $$ >/dev/null 2>&1 || true
     fi
     python3 /usr/local/bin/droiddeck-pad-defaults 2>&1 || true
+    run_program() {
+      local rc=0 child sig forwarded=0
+      { trap - INT QUIT; exec "$@"; } <&0 &
+      child=$!
+      for sig in TERM HUP INT; do
+        trap "kill -$sig $child 2>/dev/null; forwarded=1" "$sig"
+      done
+      while :; do
+        forwarded=0
+        rc=0
+        wait "$child" || rc=$?
+        [ "$forwarded" = 1 ] || break
+      done
+      if [ -n "${BL_LAUNCH_DIR:-}" ]; then
+        printf '%s\n' "$rc" > "$BL_LAUNCH_DIR/run-status.tmp" && mv -f "$BL_LAUNCH_DIR/run-status.tmp" "$BL_LAUNCH_DIR/run-status"
+      fi
+      exit "$rc"
+    }
     fex=()
     if [ -x /usr/local/bin/droiddeck-fex ]; then
       case $(od -An -tu2 -j18 -N2 "$target" 2>/dev/null | tr -d ' ') in
@@ -311,17 +329,17 @@ case $mode in
       *.appimage)
         export APPIMAGE_EXTRACT_AND_RUN=1
         chmod +x "$target" 2>/dev/null
-        exec "${fex[@]}" "$target" "$@"
+        run_program "${fex[@]}" "$target" "$@"
         ;;
       *.sh)
         if [ -x /usr/local/bin/droiddeck-fex ]; then
-          exec /usr/local/bin/droiddeck-fex run --for "$target" -- bash "$target" "$@"
+          run_program /usr/local/bin/droiddeck-fex run --for "$target" -- bash "$target" "$@"
         fi
-        exec bash "$target" "$@"
+        run_program bash "$target" "$@"
         ;;
       *)
         chmod +x "$target" 2>/dev/null
-        cd "$(dirname "$target")" && exec "${fex[@]}" "$target" "$@"
+        cd "$(dirname "$target")" && run_program "${fex[@]}" "$target" "$@"
         ;;
     esac
     ;;
@@ -495,6 +513,9 @@ case $mode in
             if [ "$pv" != "$app" ]; then
               app=$pv
               echo "== focused app: $app (touch mode ${tmode:-unset}) at $(date +%T)"
+              if [ -n "${BL_LAUNCH_DIR:-}" ]; then
+                printf '%s\n' "$app" > "$BL_LAUNCH_DIR/steam-focused-app.tmp" && mv -f "$BL_LAUNCH_DIR/steam-focused-app.tmp" "$BL_LAUNCH_DIR/steam-focused-app"
+              fi
             fi
             [ "$restore" = 1 ] || continue
             case $pv in ''|*[!0-9]*) prev=; continue ;; esac
@@ -514,6 +535,40 @@ case $mode in
         esac
       done < <(xprop -spy -root "${atoms[@]}" 2>/dev/null)
     ) &
+    steam_hold_launch() {
+      local game=$1 shortcut= waited=0 status=0
+      _bl_focused() { xprop -root GAMESCOPE_FOCUSED_APP 2>/dev/null | sed -n 's/.*= *//p'; }
+      _bl_hand_off() {
+        printf '%s\n' "$game" > "$BL_LAUNCH_DIR/steam-game.tmp" && mv -f "$BL_LAUNCH_DIR/steam-game.tmp" "$BL_LAUNCH_DIR/steam-game"
+      }
+      _bl_end=$((SECONDS + 120))
+      until [ "$(_bl_focused)" = 769 ] || [ "$SECONDS" -ge "$_bl_end" ]; do
+        sleep 1
+      done
+      # Shortcut CGameIDs are 64-bit; Steam app ids fit in 32 bits and keep the old short delay.
+      [ "${#game}" -gt 10 ] && shortcut=1
+      [ -n "$shortcut" ] || sleep 4
+      echo "== steam: interface up; launching the requested game $game"
+      _bl_hand_off
+      [ -n "$shortcut" ] || return 0
+      # Steam can drop a shortcut launch it gets before the shortcut's overview exists (large libraries).
+      # Hand it over again only if the game never took focus, so a launch that worked is not started twice.
+      while [ "$(_bl_focused)" = 769 ] && [ "$waited" -lt 20 ]; do
+        sleep 1
+        waited=$((waited + 1))
+      done
+      [ "$(_bl_focused)" = 769 ] || return 0
+      echo "== steam: the game is not in front after about 20 s; waiting for the shortcut overview"
+      /usr/local/bin/droiddeck-agent --wait-steam-shortcut-overview "$game" 45 || status=$?
+      if [ "$status" -eq 3 ]; then
+        echo "== steam: not a shortcut CGameID; not launching again"
+      elif [ "$(_bl_focused)" = 769 ]; then
+        echo "== steam: launching the requested game again $game (overview status $status)"
+        _bl_hand_off
+      else
+        echo "== steam: the game took focus while waiting; not launching again"
+      fi
+    }
     if [ -n "${BL_LAUNCH_DIR:-}" ] && [ -z "${BL_DESKTOP:-}" ]; then
       _bl_held=
       _bl_uninstall=
@@ -539,47 +594,7 @@ case $mode in
       fi
       if [ -n "$_bl_held" ]; then
         set -- "${_bl_rest[@]}"
-        (
-          _bl_focused() { xprop -root GAMESCOPE_FOCUSED_APP 2>/dev/null | sed -n 's/.*= *//p'; }
-          _bl_hand_off() {
-            printf '%s\n' "$_bl_held" > "$BL_LAUNCH_DIR/steam-game.tmp" && mv -f "$BL_LAUNCH_DIR/steam-game.tmp" "$BL_LAUNCH_DIR/steam-game"
-          }
-          _bl_end=$((SECONDS + 120))
-          until [ "$(_bl_focused)" = 769 ] || [ "$SECONDS" -ge "$_bl_end" ]; do
-            sleep 1
-          done
-          # Shortcut CGameIDs are 64-bit; Steam app ids fit in 32 bits and keep the old short delay.
-          _bl_shortcut=
-          [ "${#_bl_held}" -gt 10 ] && _bl_shortcut=1
-          [ -n "$_bl_shortcut" ] || sleep 4
-          echo "== steam: interface up; launching the requested game $_bl_held"
-          _bl_hand_off
-          if [ -n "$_bl_shortcut" ]; then
-            # Steam can drop a shortcut launch it gets before the shortcut's overview exists (large libraries).
-            # Hand it over again only if the game never took focus, so a launch that worked is not started twice.
-            _bl_waited=0
-            while [ "$(_bl_focused)" = 769 ] && [ "$_bl_waited" -lt 20 ]; do
-              sleep 1
-              _bl_waited=$((_bl_waited + 1))
-            done
-            if [ "$(_bl_focused)" = 769 ]; then
-              echo "== steam: the game is not in front after about 20 s; waiting for the shortcut overview"
-              if /usr/local/bin/droiddeck-agent --wait-steam-shortcut-overview "$_bl_held" 45; then
-                _bl_overview_status=0
-              else
-                _bl_overview_status=$?
-              fi
-              if [ "$_bl_overview_status" -eq 3 ]; then
-                echo "== steam: not a shortcut CGameID; not launching again"
-              elif [ "$(_bl_focused)" = 769 ]; then
-                echo "== steam: launching the requested game again $_bl_held (overview status $_bl_overview_status)"
-                _bl_hand_off
-              else
-                echo "== steam: the game took focus while waiting; not launching again"
-              fi
-            fi
-          fi
-        ) &
+        steam_hold_launch "$_bl_held" &
       fi
     fi
     if [ -s "$HOME/.bl-autolaunch" ]; then
@@ -639,6 +654,10 @@ BUSCONF
       exit 69
     fi
 
+    # The UI bridge launches SteamVR, which needs the guest agent's library environment.
+    _bl_compat_env=(env -u LD_LIBRARY_PATH -u STEAM_RUNTIME)
+    [ "${LD_LIBRARY_PATH+x}" ] && _bl_compat_env+=("LD_LIBRARY_PATH=$LD_LIBRARY_PATH")
+    [ "${STEAM_RUNTIME+x}" ] && _bl_compat_env+=("STEAM_RUNTIME=$STEAM_RUNTIME")
     export STEAM_RUNTIME=1
     export LD_LIBRARY_PATH=$steam_root/steamrtarm64:$steam_root/steamrtarm64/panorama${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
     export SDL_VIDEO_X11_DGAMOUSE=0
@@ -689,7 +708,7 @@ BUSCONF
       echo "== steam: devtools port $BL_CDP_PORT, guest processes only"
     fi
     [ -n "${BL_LAUNCH_DIR:-}" ] && mkdir -p "$BL_LAUNCH_DIR/agent" && echo "$BL_CDP_PORT" > "$BL_LAUNCH_DIR/agent/cdp-port"
-    droiddeck-steam-compat "$steam_root" 2>&1 &
+    "${_bl_compat_env[@]}" droiddeck-steam-compat "$steam_root" 2>&1 &
     _bl_ui=(-gamepadui)
     [ "${BL_STEAM_UI:-}" = desktop ] && _bl_ui=()
     _bl_cef=(-cef-force-gpu -cef-use-gl=angle -cef-use-angle=vulkan)
@@ -726,6 +745,81 @@ BUSCONF
     echo "== steam args: ${_bl_ui[*]} ${_bl_cdp[*]} ${_bl_lang[*]} -clientbeta $steam_channel -no-cef-sandbox -cef-ozone-platform=x11 ${_bl_cef[*]} $*"
     steam_updates=0
     rm -f "$HOME/.bl-stop-requested" "$STEAMOS_STEAM_SHUTDOWN_SENTINEL" "$STEAMOS_STEAM_REBOOT_SENTINEL"
+    steam_other_game_running() {
+      local line value n open
+      open=$(cat "$BL_LAUNCH_DIR/epic-open" 2>/dev/null)
+      case $open in ?|*[!0-9]*) open=${BL_EPIC_APP_ID:-$open} ;; esac
+      line=$(xprop -root GAMESCOPE_FOCUSABLE_APPS 2>/dev/null) || return 1
+      case $line in *=*) value=${line#*= } ;; *) return 1 ;; esac
+      for n in ${value//,/ }; do
+        [ "$n" = 769 ] || [ "$n" = "$open" ] || return 0
+      done
+      return 1
+    }
+    steam_restart_for() {
+      if [ "$(cat "$HOME/.bl-restarted-for" 2>/dev/null)" = "$1" ]; then
+        echo "== steam: $2, but Steam was already restarted for it; launching it anyway"
+        return 1
+      fi
+      printf '%s\n' "$1" > "$HOME/.bl-restarted-for"
+      echo "== steam: $2; restarting Steam to launch it"
+      printf '%s\n' "$1" > "$HOME/.bl-restart-game"
+      "$steam_root/steamrtarm64/steam" -shutdown >/dev/null 2>&1
+    }
+    steam_launch_game() {
+      local state=0 tries
+      /usr/local/bin/droiddeck-agent --steam-shortcut-state "$1" 6 >/dev/null 2>&1 || state=$?
+      [ "$state" -eq 0 ] && rm -f "$HOME/.bl-restarted-for"
+      if [ "$state" -eq 4 ]; then
+        if steam_other_game_running; then
+          echo "== steam: the client lost shortcut $1, but a game is running; launching it anyway"
+        elif steam_restart_for "$1" "the client lost shortcut $1"; then
+          return
+        fi
+      fi
+      "$steam_root/steamrtarm64/steam" "steam://rungameid/$1" >/dev/null 2>&1
+      [ "$state" -eq 3 ] && return
+      for tries in 1 2 3 4 5 6 7 8; do
+        nap 1
+        state=0
+        /usr/local/bin/droiddeck-agent --steam-shortcut-state "$1" 1 >/dev/null 2>&1 || state=$?
+        [ "$state" -eq 4 ] || continue
+        if steam_other_game_running; then
+          echo "== steam: the client dropped shortcut $1 while launching it, but a game is running"
+        else
+          steam_restart_for "$1" "the client dropped shortcut $1 while launching it"
+        fi
+        return 0
+      done
+    }
+    steam_check_exits() {
+      local ran n state lost=
+      ran=$(pgrep -a -f 'SteamLaunch AppId=[0-9]' 2>/dev/null | sed -n 's/.* SteamLaunch AppId=\([0-9]*\).*/\1/p')
+      if [ -n "$ran" ]; then
+        for n in $ran; do
+          [ "$n" -ge 2147483648 ] && _bl_ran[$n]=1
+        done
+        _bl_exited=
+        return
+      fi
+      [ "${#_bl_ran[@]}" -gt 0 ] || return 0
+      if [ -z "$_bl_exited" ]; then
+        _bl_exited=1
+        return
+      fi
+      _bl_exited=
+      for n in "${!_bl_ran[@]}"; do
+        state=0
+        /usr/local/bin/droiddeck-agent --steam-shortcut-state "$(printf '%u' $(((n << 32) | 0x02000000)))" 3 >/dev/null 2>&1 || state=$?
+        [ "$state" -eq 4 ] && lost="$lost $n"
+      done
+      _bl_ran=()
+      [ -n "$lost" ] || return 0
+      pgrep -f 'SteamLaunch AppId=[0-9]' >/dev/null 2>&1 && return 0
+      echo "== steam: the client dropped shortcut(s)$lost when they exited; restarting Steam so it lists them again"
+      : > "$HOME/.bl-restart-lost"
+      "$steam_root/steamrtarm64/steam" -shutdown >/dev/null 2>&1
+    }
     steam_bring_forward() {
       local end=$((SECONDS + 600)) behind=0 line name value focused other n
       while [ "$SECONDS" -lt "$end" ]; do
@@ -765,6 +859,8 @@ BUSCONF
       rm -f "$lossless_asked"
       [ "${BL_LOSSLESS_OWNED:-0}" != 1 ] && lossless_left=60
       declare -A _bl_pinned=()
+      declare -A _bl_ran=()
+      _bl_exited=
       compat_stamp=$HOME/.bl-compat-beat
       seed_stamp=$HOME/.bl-seed-beat
       rm -f "$compat_stamp" "$seed_stamp"
@@ -826,7 +922,7 @@ BUSCONF
                   [ "$game_id_length" -eq 20 ] && [[ "$game_id" < "18446744073709551616" ]];
                 }; then
                   echo "== steam: launching requested game $game_id in the running client"
-                  "$steam_root/steamrtarm64/steam" "steam://rungameid/$game_id" >/dev/null 2>&1 &
+                  steam_launch_game "$game_id" &
                   [ -n "${forward_pid:-}" ] && kill "$forward_pid" 2>/dev/null
                   steam_bring_forward &
                   forward_pid=$!
@@ -841,6 +937,7 @@ BUSCONF
         tick=$((tick + 1))
         [ "$((tick % 10))" -eq 0 ] || continue
         beat=$((beat + 1))
+        steam_check_exits
         if [ "$beat" -le 720 ] && [ -n "${BL_CLIENT_CPUS:-}" ]; then
           for _d in /proc/[0-9]*; do
             IFS= read -r -d '' _c < "$_d/cmdline" 2>/dev/null || continue
@@ -886,8 +983,9 @@ BUSCONF
       done
     ) &
     stop_watcher=$!
+    rm -f "$HOME/.bl-restart-game" "$HOME/.bl-restarted-for"
     while :; do
-      rm -f "$HOME/.bl-restart-once"
+      rm -f "$HOME/.bl-restart-once" "$HOME/.bl-restart-lost"
       if [ -f "$steam_beta" ] && [ "$(cat "$steam_beta" 2>/dev/null)" != "$steam_channel" ]; then
         echo "== steam: client branch on disk was '$(cat "$steam_beta" 2>/dev/null)', set to '$steam_channel' to match -clientbeta"
         echo "$steam_channel" > "$steam_beta"
@@ -935,6 +1033,25 @@ BUSCONF
       if [ -e "$STEAMOS_STEAM_REBOOT_SENTINEL" ]; then
         rm -f "$STEAMOS_STEAM_REBOOT_SENTINEL"
         echo "== steam: Restart from the power menu; starting the client again"
+        set --
+        continue
+      fi
+      if [ -s "$HOME/.bl-restart-game" ]; then
+        _bl_again=$(cat "$HOME/.bl-restart-game" 2>/dev/null)
+        rm -f "$HOME/.bl-restart-game"
+        case $_bl_again in
+          ''|0*|*[!0-9]*) ;;
+          *)
+            echo "== steam: starting the client again to launch $_bl_again"
+            set --
+            steam_hold_launch "$_bl_again" &
+            continue
+            ;;
+        esac
+      fi
+      if [ -f "$HOME/.bl-restart-lost" ]; then
+        rm -f "$HOME/.bl-restart-lost"
+        echo "== steam: starting the client again so it lists every shortcut"
         set --
         continue
       fi

@@ -153,6 +153,82 @@ SWITCH_JS = r"""
 })()
 """.replace("__BINDING__", SWITCH_BINDING)
 SESSION_SELECT = "/usr/bin/steamos-session-select"
+VR_BINDING = "droiddeckLaunchSteamVr"
+VR_HELPER = "/usr/local/bin/droiddeck-steamvr"
+VR_JS = r"""
+(() => {
+  if (window.__droiddeckSteamVr) return "present";
+  const apps = SteamClient.Apps;
+  if (!apps || typeof apps.RunGame !== "function") throw new Error("Steam RunGame is not ready");
+  const run = apps.RunGame;
+  const self = { running: false, pending: new Map(), lastError: null };
+  const flush = () => {
+    if (!self.running) return;
+    const queued = Array.from(self.pending.values());
+    self.pending.clear();
+    for (const item of queued) {
+      clearTimeout(item.timer);
+      run.call(item.receiver, item.id, ...item.args);
+    }
+  };
+  if (typeof SteamClient.OpenVR?.RegisterForVRModeChange === "function") {
+    self.subscription = SteamClient.OpenVR.RegisterForVRModeChange(running => {
+      self.running = !!running;
+      flush();
+    });
+  }
+  const wrapped = function (id, ...args) {
+    const gameid = String(id);
+    if (typeof window.__BINDING__ !== "function") return run.call(this, id, ...args);
+    if (gameid === "250820") {
+      window.__BINDING__(gameid);
+      return;
+    }
+    const overview = window.appStore?.GetAppOverviewByGameID?.(gameid);
+    const vr = overview?.vr_only || overview?.vr_supported || overview?.BSupportsVR?.();
+    if (vr && self.subscription && /^[1-9][0-9]{0,19}$/.test(gameid)) {
+      if (self.pending.has(gameid)) return;
+      self.lastError = null;
+      const item = { receiver: this, id, args, timer: null };
+      item.timer = setTimeout(() => {
+        self.pending.delete(gameid);
+        self.lastError = "SteamVR did not become ready. Start SteamVR from DroidDeck and try the game again.";
+        console.error("DroidDeck: " + self.lastError);
+      }, 600000);
+      self.pending.set(gameid, item);
+      try { window.__BINDING__(gameid); }
+      catch (e) { clearTimeout(item.timer); self.pending.delete(gameid); throw e; }
+      flush();
+      return;
+    }
+    return run.call(this, id, ...args);
+  };
+  apps.RunGame = wrapped;
+  if (apps.RunGame !== wrapped) throw new Error("Steam RunGame could not be redirected");
+  if (typeof SteamClient.OpenVR?.StartVR === "function") {
+    const start = SteamClient.OpenVR.StartVR;
+    SteamClient.OpenVR.StartVR = function (...args) {
+      if (typeof window.__BINDING__ === "function") return window.__BINDING__("250820");
+      return start.apply(this, args);
+    };
+  }
+  window.__droiddeckSteamVr = self;
+  return "installed";
+})()
+""".replace("__BINDING__", VR_BINDING)
+
+
+def launch_steamvr():
+    """Keep downloads/startup off the Steam UI bridge's event loop."""
+    say("SteamVR library launch: using the DroidDeck ARM64 helper")
+    state = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "droiddeck-steamvr")
+    try:
+        os.makedirs(state, exist_ok=True)
+        with open(os.path.join(state, "library-launch.log"), "a") as log:
+            return subprocess.Popen([VR_HELPER, "launch"], stdin=subprocess.DEVNULL,
+                                    stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+    except OSError as e:
+        say("SteamVR library launch failed: %s" % e)
 
 
 class Closed(Exception):
@@ -405,6 +481,7 @@ class Helper:
         self.known = set()
         self.installed = None
         self.fex_asked = set()
+        self.vr_launch = None
 
     def attach(self):
         path = shared_context(self.port)
@@ -415,6 +492,8 @@ class Helper:
             if page.evaluate("typeof SteamClient === 'object' && typeof SteamClient.WebUITransport === 'object'") is not True:
                 raise LookupError("SteamClient is not ready")
             page.call("Runtime.addBinding", {"name": BINDING})
+            page.call("Runtime.addBinding", {"name": VR_BINDING})
+            page.evaluate(VR_JS)
             if not self.steamos:
                 page.call("Runtime.addBinding", {"name": SWITCH_BINDING})
                 page.evaluate(SWITCH_JS)
@@ -498,6 +577,14 @@ class Helper:
         events = self.page.drain()
         if any(called(e, SWITCH_BINDING) for e in events):
             switch_to_desktop()
+        vr_games = {e.get("params", {}).get("payload") for e in events if called(e, VR_BINDING) and
+                    isinstance(e.get("params", {}).get("payload"), str)}
+        vr_games = {game for game in vr_games if isinstance(game, str) and game.isascii() and
+                    game.isdecimal() and not game.startswith("0") and len(game) <= 20 and
+                    int(game) <= 0xffffffffffffffff}
+        if vr_games and (self.vr_launch is None or self.vr_launch.poll() is not None):
+            say("preparing SteamVR for library app(s): " + ", ".join(sorted(vr_games)))
+            self.vr_launch = launch_steamvr()
         return events
 
     def serve(self, watcher):

@@ -168,5 +168,6 @@ class AddedGameArtLookupTest {
     @Test fun eachSlotAsksItsOwnEndpoint() {
         assertEquals("heroes/game/5?nsfw=false&humor=false", SteamGridDb.path(5, AddedGameArt.Slot.BACKGROUND))
         assertEquals("grids/game/5?dimensions=600x900&nsfw=false&humor=false", SteamGridDb.path(5, AddedGameArt.Slot.COVER))
+        assertEquals("grids/game/5?dimensions=460x215,920x430&nsfw=false&humor=false", SteamGridDb.path(5, AddedGameArt.Slot.WIDE))
     }
 }

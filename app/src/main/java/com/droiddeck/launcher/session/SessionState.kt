@@ -53,6 +53,9 @@ object SessionState {
     var steamUi: String? = null
     @Volatile
     var steamUrl: String? = null
+    // A Play SteamVR request can arrive while an existing session is visible.
+    // Wake the status/launch effect even if no glasses surface has attached yet.
+    var steamVr by mutableStateOf(false)
     var relaunch: android.content.Intent? = null
     @JvmStatic var hdr = false
 

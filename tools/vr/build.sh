@@ -28,6 +28,19 @@ mkdir -p "$work/out/droiddeck/bin/linuxarm64" "$work/out/layer"
 compile() {
     local cmd=(sh -c '
         set -e
+        cc -std=c11 -O2 -Wall -Wextra -Werror -Ibuild/vr/include -Itools/vr/src \
+            -o build/vr/test_fence_tracker tools/vr/tests/test_fence_tracker.c
+        build/vr/test_fence_tracker
+        c++ -std=c++17 -O2 -Wall -Wextra -Werror -Itools/vr/src \
+            -o build/vr/test_render_target tools/vr/tests/test_render_target.cpp
+        build/vr/test_render_target
+        c++ -std=c++17 -O2 -Wall -Wextra -Werror -Wno-unused-parameter -Itools/vr/src \
+            -o build/vr/test_joycon tools/vr/tests/test_joycon.cpp
+        build/vr/test_joycon
+        c++ -std=c++17 -O2 -Wall -Wextra -Werror -Wno-unused-parameter -Itools/vr/src \
+            -o build/vr/make_hand_models tools/vr/make_hand_models.cpp
+        mkdir -p build/vr/out/droiddeck/resources
+        build/vr/make_hand_models build/vr/out/droiddeck/resources/rendermodels
         mkdir -p build/vr/stub
         aarch64-linux-gnu-g++ -std=c++17 -O2 -Wall -Wextra -Werror -static-libstdc++ -static-libgcc -pthread \
             -o build/vr/out/droiddeck/bin/linuxarm64/xr-display-mode tools/vr/src/xr_display_mode.cpp

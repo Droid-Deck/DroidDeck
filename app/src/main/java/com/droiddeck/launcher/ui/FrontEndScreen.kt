@@ -151,6 +151,7 @@ class FrontEndState(
 
 class FrontEndActions(
     val onPlay: () -> Unit,
+    val onPlaySteamVr: () -> Unit = {},
     val onPlayDesktopUi: () -> Unit,
     val onSteamUrl: (String) -> Unit = {},
     val onSteamGame: (Library.SteamGame) -> Unit,
@@ -165,6 +166,8 @@ class FrontEndActions(
     val onSgdbKey: (String) -> Unit = {},
     val onStopGameFileSync: () -> Unit = {},
     val onCopyGameLink: (Library.SteamGame) -> Unit = {},
+    val onEpicLauncher: () -> Unit = {},
+    val onUninstallEpicLauncher: () -> Unit = {},
     val onDesktop: () -> Unit,
     val onEmulator: (Library.Emulator) -> Unit,
     val onFlatpakApp: (String, String) -> Unit = { _, _ -> },
