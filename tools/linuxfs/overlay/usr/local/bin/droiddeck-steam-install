@@ -86,15 +86,13 @@ mkdir -p "$steam_root/package"
 # The client fetches its own first-run update; it should use the source measured above.
 echo "${fastest#https://}/" > "$steam_root/package/droiddeck-cdn"
 fetch_part() {
-  local host=$1 file=$2 sum=$3 floor=$4 target
+  local host=$1 file=$2 sum=$3 target
   target=$work/$file
   rm -f "$target"
-  if [ "$floor" = 1 ]; then
-    curl -fsSL --connect-timeout 10 --speed-limit 262144 --speed-time 20 --max-time 1800 \
-      "$host/$file" -o "$target" || return 1
-  else
-    curl -fsSL --connect-timeout 10 --max-time 1800 "$host/$file" -o "$target" || return 1
-  fi
+  # The floor only has to notice a source that stopped moving; a higher one aborts
+  # transfers that are slow but still finishing.
+  curl -fsSL --connect-timeout 10 --speed-limit 65536 --speed-time 30 --max-time 1800 \
+    --retry 3 --retry-delay 3 --retry-all-errors "$host/$file" -o "$target" || return 1
   echo "$sum  $target" | sha256sum -c --quiet 2>/dev/null || { rm -f "$target"; return 1; }
 }
 while read -r block file sum size; do
@@ -102,12 +100,8 @@ while read -r block file sum size; do
   echo "== STEP $(date -u +%H:%M:%S) downloading Steam: $block ($i/$total)"
   fetched=""
   for host in "${cdn_order[@]}"; do
-    fetch_part "$host" "$file" "$sum" 1 && { fetched=$host; break; }
+    fetch_part "$host" "$file" "$sum" && { fetched=$host; break; }
   done
-  # Every source crawls: take the fastest one without the floor rather than fail.
-  if [ -z "$fetched" ] && fetch_part "${cdn_order[0]}" "$file" "$sum" 0; then
-    fetched=${cdn_order[0]}
-  fi
   [ -n "$fetched" ] || { echo "droiddeck-steam-install: $file failed on every CDN" >&2; exit 1; }
   unzip -qo "$work/$file" -d "$steam_root"
   rm -f "$work/$file"
@@ -140,11 +134,8 @@ while read -r block name sum bytes; do
   echo "== STEP $(date -u +%H:%M:%S) downloading Steam: $block ($j/$packages)"
   fetched=""
   for host in "${cdn_order[@]}"; do
-    fetch_part "$host" "$name" "$sum" 1 && { fetched=$host; break; }
+    fetch_part "$host" "$name" "$sum" && { fetched=$host; break; }
   done
-  if [ -z "$fetched" ] && fetch_part "${cdn_order[0]}" "$name" "$sum" 0; then
-    fetched=${cdn_order[0]}
-  fi
   [ -n "$fetched" ] || { echo "droiddeck-steam-install: $name failed on every CDN" >&2; exit 1; }
   mv -f "$work/$name" "$target"
 done < "$work/packages"
