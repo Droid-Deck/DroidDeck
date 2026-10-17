@@ -77,4 +77,10 @@ class AutoDriverTrialTest {
         AutoDriverTrial.displayStarting(context, "other-display")
         assertEquals(1, AutoDriverTrial.current(context)?.starts)
     }
+
+    @Test fun aTrialStartedBeforeDisplayCountingStillRollsBackOnTheNextCrash() {
+        AutoDriverTrial.sessionStarting(context, "new-display", "new-linux")
+        AutoDriverTrial.displayStarting(context, "new-display")
+        assertEquals(2, AutoDriverTrial.rollbackDue(context)?.starts)
+    }
 }

@@ -55,7 +55,8 @@ object AutoDriverTrial {
     fun displayStarting(context: Context, display: String) {
         val p = prefs(context)
         if (p.getString("release", null) == null || p.getString("display", "") != display) return
-        p.edit().putInt("displayStarts", p.getInt("displayStarts", 0) + 1).commit()
+        val counted = maxOf(p.getInt("displayStarts", 0), p.getInt("starts", 0))
+        p.edit().putInt("displayStarts", counted + 1).commit()
     }
 
     fun sessionStarting(context: Context, display: String, linux: String) {
