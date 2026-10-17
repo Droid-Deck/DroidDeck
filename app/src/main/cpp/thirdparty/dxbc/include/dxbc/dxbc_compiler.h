@@ -16,27 +16,12 @@
 
 namespace dxvk {
   
-  /**
-   * \brief Vector type
-   * 
-   * Convenience struct that stores a scalar
-   * type and a component count. The compiler
-   * can use this to generate SPIR-V types.
-   */
   struct DxbcVectorType {
     DxbcScalarType    ctype;
     uint32_t          ccount;
   };
   
   
-  /**
-   * \brief Array type
-   * 
-   * Convenience struct that stores a scalar type, a
-   * component count and an array size. An array of
-   * length 0 will be evaluated to a vector type. The
-   * compiler can use this to generate SPIR-V types.
-   */
   struct DxbcArrayType {
     DxbcScalarType    ctype;
     uint32_t          ccount;
@@ -44,39 +29,18 @@ namespace dxvk {
   };
   
   
-  /**
-   * \brief Register info
-   * 
-   * Stores the array type of a register and
-   * its storage class. The compiler can use
-   * this to generate SPIR-V pointer types.
-   */
   struct DxbcRegisterInfo {
     DxbcArrayType     type;
     spv::StorageClass sclass;
   };
   
   
-  /**
-   * \brief Register value
-   * 
-   * Stores a vector type and a SPIR-V ID that
-   * represents an intermediate value. This is
-   * used to track the type of such values.
-   */
   struct DxbcRegisterValue {
     DxbcVectorType    type;
     uint32_t          id;
   };
   
   
-  /**
-   * \brief Register pointer
-   * 
-   * Stores a vector type and a SPIR-V ID that
-   * represents a pointer to such a vector. This
-   * can be used to load registers conveniently.
-   */
   struct DxbcRegisterPointer {
     DxbcVectorType    type;
     uint32_t          id;
@@ -98,12 +62,6 @@ namespace dxvk {
   };
   
   
-  /**
-   * \brief Specialization constant properties
-   * 
-   * Stores the name, data type and initial
-   * value of a specialization constant.
-   */
   struct DxbcSpecConstant {
     DxbcScalarType  ctype;
     uint32_t        ccount;
@@ -112,13 +70,6 @@ namespace dxvk {
   };
   
   
-  /**
-   * \brief Helper struct for conditional execution
-   * 
-   * Stores a set of labels required to implement either
-   * an if-then block or an if-then-else block. This is
-   * not used to implement control flow instructions.
-   */
   struct DxbcConditional {
     uint32_t labelIf   = 0;
     uint32_t labelElse = 0;
@@ -144,9 +95,6 @@ namespace dxvk {
   };
 
   
-  /**
-   * \brief Vertex shader-specific structure
-   */
   struct DxbcCompilerVsPart {
     uint32_t functionId = 0;
     
@@ -157,9 +105,6 @@ namespace dxvk {
   };
   
   
-  /**
-   * \brief Geometry shader-specific structure
-   */
   struct DxbcCompilerGsPart {
     DxbcPrimitive         inputPrimitive      = DxbcPrimitive::Undefined;
     DxbcPrimitiveTopology outputTopology      = DxbcPrimitiveTopology::Undefined;
@@ -175,9 +120,6 @@ namespace dxvk {
   };
 
 
-  /**
-   * \brief Pixel shader-specific structure
-   */
   struct DxbcCompilerPsPart {
     uint32_t functionId = 0;
     
@@ -196,9 +138,6 @@ namespace dxvk {
   };
   
   
-  /**
-   * \brief Compute shader-specific structure
-   */
   struct DxbcCompilerCsPart {
     uint32_t functionId = 0;
 
@@ -213,12 +152,6 @@ namespace dxvk {
   };
   
   
-  /**
-   * \brief Hull shader fork/join phase
-   * 
-   * Defines a function and built-in variables
-   * for a single fork or join phase sub-program.
-   */
   struct DxbcCompilerHsForkJoinPhase {
     uint32_t functionId         = 0;
     uint32_t instanceCount      = 1;
@@ -228,35 +161,20 @@ namespace dxvk {
   };
   
   
-  /**
-   * \brief Hull shader control point phase
-   * 
-   * Defines the function for the control
-   * point phase program of a hull shader.
-   */
   struct DxbcCompilerHsControlPointPhase {
     uint32_t functionId             = 0;
   };
   
   
-  /**
-   * \brief Hull shader phase
-   * 
-   * Used to identify the current
-   * phase and function ID.
-   */
   enum class DxbcCompilerHsPhase : uint32_t {
-    None,         ///< No active phase
-    Decl,         ///< \c hs_decls
-    ControlPoint, ///< \c hs_control_point_phase
-    Fork,         ///< \c hs_fork_phase
-    Join,         ///< \c hs_join_phase
+    None,
+    Decl,
+    ControlPoint,
+    Fork,
+    Join,
   };
   
   
-  /**
-   * \brief Hull shader-specific structure
-   */
   struct DxbcCompilerHsPart {
     DxbcCompilerHsPhase currPhaseType   = DxbcCompilerHsPhase::None;
     size_t              currPhaseId     = 0;
@@ -284,9 +202,6 @@ namespace dxvk {
   };
   
   
-  /**
-   * \brief Domain shader-specific structure
-   */
   struct DxbcCompilerDsPart {
     uint32_t functionId            = 0;
     
@@ -362,13 +277,6 @@ namespace dxvk {
   };
   
 
-  /**
-   * \brief DXBC to SPIR-V shader compiler
-   * 
-   * Processes instructions from a DXBC shader and creates
-   * a DXVK shader object, which contains the SPIR-V module
-   * and information about the shader resource bindings.
-   */
   class DxbcCompiler {
     
   public:
@@ -383,35 +291,13 @@ namespace dxvk {
       const DxbcAnalysisInfo&   analysis);
     ~DxbcCompiler();
     
-    /**
-     * \brief Processes a single instruction
-     * \param [in] ins The instruction
-     */
     void processInstruction(
       const DxbcShaderInstruction&  ins);
     
-    /**
-     * \brief Emits transform feedback passthrough
-     * 
-     * Writes all captured input variables to the
-     * corresponding xfb outputs, and sets up the
-     * geometry shader for point-to-point mode.
-     */
     void processXfbPassthrough();
     
-    /**
-     * \brief Finalizes the shader
-     * \returns The final shader object
-     */
     SpirvCodeBuffer finalize();
 
-    /**
-     * \brief Extracts immediate constant buffer data
-     *
-     * Only defined if the ICB needs to be backed by a
-     * uniform buffer.
-     * \returns Immediate constant buffer data
-     */
     std::vector<uint32_t> getIcbData() const {
       return std::move(m_icbData);
     }
@@ -428,49 +314,27 @@ namespace dxvk {
     
     const DxbcAnalysisInfo* m_analysis;
     
-    ///////////////////////////////////////////////////////
-    // Resource slot description for the shader. This will
-    // be used to map D3D11 bindings to DXVK bindings.
     std::vector<DxvkBindingInfo> m_bindings;
     
-    ////////////////////////////////////////////////
-    // Temporary r# vector registers with immediate
-    // indexing, and x# vector array registers.
     std::vector<uint32_t> m_rRegs;
     std::vector<DxbcXreg> m_xRegs;
     
-    /////////////////////////////////////////////
-    // Thread group shared memory (g#) registers
     std::vector<DxbcGreg> m_gRegs;
     
-    ///////////////////////////////////////////////////////////
-    // v# registers as defined by the shader. The type of each
-    // of these inputs is either float4 or an array of float4.
     std::array<
       DxbcRegisterPointer,
       DxbcMaxInterfaceRegs>     m_vRegs;
     std::vector<DxbcSvMapping>  m_vMappings;
     
-    //////////////////////////////////////////////////////////
-    // o# registers as defined by the shader. In the fragment
-    // shader stage, these registers are typed by the signature,
-    // in all other stages, they are float4 registers or arrays.
     std::array<
       DxbcRegisterPointer,
       DxbcMaxInterfaceRegs>     m_oRegs;
     std::vector<DxbcSvMapping>  m_oMappings;
 
-    /////////////////////////////////////////////
-    // xfb output registers for geometry shaders
     std::vector<DxbcXfbVar> m_xfbVars;
     
-    /////////////////////////////////////////////
-    // Dynamically indexed input and output regs
     std::vector<DxbcIndexRange> m_indexRanges = { };
 
-    //////////////////////////////////////////////////////
-    // Shader resource variables. These provide access to
-    // constant buffers, samplers, textures, and UAVs.
     std::array<DxbcConstantBuffer,  16> m_constantBuffers;
     std::array<DxbcSampler,         16> m_samplers;
     std::array<DxbcShaderResource, 128> m_textures;
@@ -479,9 +343,6 @@ namespace dxvk {
     bool m_hasGloballyCoherentUav = false;
     bool m_hasRasterizerOrderedUav = false;
 
-    ///////////////////////////////////////////////
-    // Control flow information. Stores labels for
-    // currently active if-else blocks and loops.
     std::vector<DxbcCfgBlock> m_controlFlowBlocks;
 
     bool m_topLevelIsUniform = true;
@@ -489,22 +350,13 @@ namespace dxvk {
     uint64_t m_uavRdMask = 0u;
     uint64_t m_uavWrMask = 0u;
 
-    //////////////////////////////////////////////
-    // Function state tracking. Required in order
-    // to properly end functions in some cases.
     bool m_insideFunction = false;
 
-    ///////////////////////////////////////////////////////////
-    // Array of input values. Since v# registers are indexable
-    // in DXBC, we need to copy them into an array first.
     uint32_t m_vArrayLength   = 0;
     uint32_t m_vArrayLengthId = 0;
 
     uint32_t m_vArray = 0;
 
-    ////////////////////////////////////////////////////
-    // Per-vertex input and output blocks. Depending on
-    // the shader stage, these may be declared as arrays.
     uint32_t m_positionIn     = 0;
     uint32_t m_positionOut    = 0;
 
@@ -514,43 +366,25 @@ namespace dxvk {
     uint32_t m_primitiveIdIn  = 0;
     uint32_t m_primitiveIdOut = 0;
 
-    //////////////////////////////////////////////////
-    // Immediate constant buffer. If defined, this is
-    // an array of four-component uint32 vectors.
     uint32_t          m_icbArray = 0;
     std::vector<uint32_t> m_icbData;
 
     uint32_t          m_icbComponents = 0u;
     uint32_t          m_icbSize = 0u;
     
-    ///////////////////////////////////////////////////
-    // Sample pos array. If defined, this iis an array
-    // of 32 four-component float vectors.
     uint32_t m_samplePositions = 0;
     
-    ////////////////////////////////////////////
-    // Struct type used for UAV counter buffers
     uint32_t m_uavCtrStructType  = 0;
     uint32_t m_uavCtrPointerType = 0;
     
-    ////////////////////////////////
-    // Function IDs for subroutines
     std::unordered_map<uint32_t, uint32_t> m_subroutines;
     
-    ///////////////////////////////////////////////////
-    // Entry point description - we'll need to declare
-    // the function ID and all input/output variables.
     uint32_t              m_entryPointId = 0;
     bool                  m_hasRawAccessChains = false;
     
-    ////////////////////////////////////////////
-    // Inter-stage shader interface slots. Also
-    // covers vertex input and fragment output.
     uint32_t m_inputMask = 0u;
     uint32_t m_outputMask = 0u;
 
-    ///////////////////////////////////
-    // Shader-specific data structures
     DxbcCompilerVsPart m_vs;
     DxbcCompilerHsPart m_hs;
     DxbcCompilerDsPart m_ds;
@@ -558,8 +392,6 @@ namespace dxvk {
     DxbcCompilerPsPart m_ps;
     DxbcCompilerCsPart m_cs;
 
-    //////////////////////
-    // Global state stuff
     bool m_precise = true;
 
     DxbcOpcode m_lastOp = DxbcOpcode::Nop;
@@ -568,8 +400,6 @@ namespace dxvk {
     VkPrimitiveTopology m_inputTopology = VK_PRIMITIVE_TOPOLOGY_MAX_ENUM;
     VkPrimitiveTopology m_outputTopology = VK_PRIMITIVE_TOPOLOGY_MAX_ENUM;
 
-    /////////////////////////////////////////////////////
-    // Shader interface and metadata declaration methods
     void emitDcl(
       const DxbcShaderInstruction&  ins);
     
@@ -662,8 +492,6 @@ namespace dxvk {
     uint32_t emitDclUavCounter(
             uint32_t                regId);
     
-    ////////////////////////
-    // Custom data handlers
     void emitDclImmediateConstantBuffer(
       const DxbcShaderInstruction&  ins);
     
@@ -680,8 +508,6 @@ namespace dxvk {
     void emitCustomData(
       const DxbcShaderInstruction&  ins);
     
-    //////////////////////////////
-    // Instruction class handlers
     void emitVectorAlu(
       const DxbcShaderInstruction&  ins);
     
@@ -787,8 +613,6 @@ namespace dxvk {
     void emitTypedUavStore(
       const DxbcShaderInstruction&  ins);
     
-    /////////////////////////////////////
-    // Control flow instruction handlers
     void emitControlFlowIf(
       const DxbcShaderInstruction&  ins);
     
@@ -843,10 +667,6 @@ namespace dxvk {
     void emitControlFlow(
       const DxbcShaderInstruction&  ins);
     
-    ////////////////////////////////////////////////
-    // Constant building methods. These are used to
-    // generate constant vectors that store the same
-    // value in each component.
     DxbcRegisterValue emitBuildConstVecf32(
             float                   x,
             float                   y,
@@ -880,8 +700,6 @@ namespace dxvk {
     DxbcRegisterValue emitBuildZeroVector(
             DxbcVectorType          type);
 
-    /////////////////////////////////////////
-    // Generic register manipulation methods
     DxbcRegisterValue emitRegisterBitcast(
             DxbcRegisterValue       srcValue,
             DxbcScalarType          dstType);
@@ -930,8 +748,6 @@ namespace dxvk {
             DxbcRegisterValue       value,
             DxbcOpModifiers         modifiers);
     
-    ///////////////////////////
-    // Sparse feedback methods
     uint32_t emitExtractSparseTexel(
             uint32_t          texelTypeId,
             uint32_t          resultId);
@@ -940,22 +756,16 @@ namespace dxvk {
       const DxbcRegister&     feedbackRegister,
             uint32_t          resultId);
 
-    ////////////////////////////////
-    // Pointer manipulation methods
     DxbcRegisterPointer emitArrayAccess(
             DxbcRegisterPointer     pointer,
             spv::StorageClass       sclass,
             uint32_t                index);
 
-    ///////////////////////////////////////
-    // Image register manipulation methods
     uint32_t emitLoadSampledImage(
       const DxbcShaderResource&     textureResource,
       const DxbcSampler&            samplerResource,
             bool                    isDepthCompare);
     
-    ////////////////////////
-    // Address load methods
     DxbcRegisterPointer emitGetTempPtr(
       const DxbcRegister&           operand);
     
@@ -981,8 +791,6 @@ namespace dxvk {
       const DxbcRegister&           operand,
       const DxbcRegister&           address);
     
-    //////////////////////////
-    // Resource query methods
     DxbcRegisterValue emitQueryBufferSize(
       const DxbcRegister&           resource);
     
@@ -999,8 +807,6 @@ namespace dxvk {
       const DxbcRegister&           resource,
             DxbcRegisterValue       lod);
     
-    ////////////////////////////////////
-    // Buffer index calculation methods
     DxbcRegisterValue emitCalcBufferIndexStructured(
             DxbcRegisterValue       structId,
             DxbcRegisterValue       structOffset,
@@ -1017,8 +823,6 @@ namespace dxvk {
       const DxbcRegister&           coordReg,
       const DxbcImageInfo&          imageInfo);
     
-    //////////////////////////////
-    // Operand load/store methods
     DxbcRegisterValue emitIndexLoad(
             DxbcRegIndex            index);
     
@@ -1045,8 +849,6 @@ namespace dxvk {
       const DxbcRegister&           reg,
             DxbcRegisterValue       value);
     
-    ////////////////////////////
-    // Input/output preparation
     void emitInputSetup();
     void emitInputSetup(uint32_t vertexCount);
     
@@ -1055,8 +857,6 @@ namespace dxvk {
     
     void emitInitWorkgroupMemory();
 
-    //////////////////////////////////////////
-    // System value load methods (per shader)
     DxbcRegisterValue emitVsSystemValueLoad(
             DxbcSystemValue         sv,
             DxbcRegMask             mask);
@@ -1070,8 +870,6 @@ namespace dxvk {
             DxbcSystemValue         sv,
             DxbcRegMask             mask);
     
-    ///////////////////////////////////////////
-    // System value store methods (per shader)
     void emitVsSystemValueStore(
             DxbcSystemValue         sv,
             DxbcRegMask             mask,
@@ -1097,8 +895,6 @@ namespace dxvk {
             DxbcRegMask             mask,
       const DxbcRegisterValue&      value);
     
-    ///////////////////////////////
-    // Special system value stores
     void emitClipCullStore(
             DxbcSystemValue         sv,
             uint32_t                dstArray);
@@ -1109,8 +905,6 @@ namespace dxvk {
 
     void emitPointSizeStore();
 
-    //////////////////////////////////////
-    // Common function definition methods
     void emitInit();
     
     void emitFunctionBegin(
@@ -1124,8 +918,6 @@ namespace dxvk {
     
     void emitMainFunctionBegin();
     
-    /////////////////////////////////
-    // Shader initialization methods
     void emitVsInit();
     void emitHsInit();
     void emitDsInit();
@@ -1133,8 +925,6 @@ namespace dxvk {
     void emitPsInit();
     void emitCsInit();
     
-    ///////////////////////////////
-    // Shader finalization methods
     void emitVsFinalize();
     void emitHsFinalize();
     void emitDsFinalize();
@@ -1142,16 +932,12 @@ namespace dxvk {
     void emitPsFinalize();
     void emitCsFinalize();
 
-    ///////////////////////
-    // Xfb related methods
     void emitXfbOutputDeclarations();
 
     void emitXfbOutputSetup(
             uint32_t                          streamId,
             bool                              passthrough);
     
-    ///////////////////////////////
-    // Hull shader phase methods
     void emitHsControlPointPhase(
       const DxbcCompilerHsControlPointPhase&  phase);
     
@@ -1174,8 +960,6 @@ namespace dxvk {
             spv::StorageClass                 storageClass,
             uint32_t                          vertexCount);
     
-    //////////////
-    // Misc stuff
     void emitDclInputArray(
             uint32_t          vertexCount);
     
@@ -1194,8 +978,6 @@ namespace dxvk {
     
     void emitFloatControl();
 
-    ///////////////////////////////
-    // Variable definition methods
     uint32_t emitNewVariable(
       const DxbcRegisterInfo& info);
     
@@ -1212,8 +994,6 @@ namespace dxvk {
 
     uint32_t emitPushConstants();
 
-    ////////////////
-    // Misc methods
     DxbcCfgBlock* cfgFindBlock(
       const std::initializer_list<DxbcCfgBlockType>& types);
     
@@ -1265,8 +1045,6 @@ namespace dxvk {
             uint64_t                readMask,
             uint64_t                writeMask);
 
-    ///////////////////////////
-    // Type definition methods
     uint32_t getScalarTypeId(
             DxbcScalarType type);
     

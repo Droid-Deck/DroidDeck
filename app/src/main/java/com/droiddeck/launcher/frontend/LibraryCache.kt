@@ -6,11 +6,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
-/**
- * The last game list the front end showed, kept in the app's files so the next start draws the
- * Steam wall on its first frame. Building the list reads every manifest and walks the added-games
- * folders, which can take a second or more; the fresh list replaces this one when it is ready.
- */
 object LibraryCache {
     private const val TAG = "LibraryCache"
     private fun file(context: Context) = File(context.filesDir, "library-cache.json")

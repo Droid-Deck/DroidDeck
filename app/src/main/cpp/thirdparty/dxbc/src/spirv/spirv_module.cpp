@@ -29,9 +29,6 @@ namespace dxvk {
     result.append(m_typeConstDefs);
     result.append(m_variables);
 
-    // Perform some crude dead code elimination. In some cases, our compilers
-    // may emit invalid code, such as an unreachable block branching to a loop's
-    // continue block, but those cases cannot be reasonably detected up-front.
     std::unordered_set<uint32_t> reachableBlocks;
     std::unordered_set<uint32_t> mergeBlocks;
 
@@ -78,8 +75,6 @@ namespace dxvk {
 
   void SpirvModule::enableCapability(
           spv::Capability         capability) {
-    // Scan the generated instructions to check
-    // whether we already enabled the capability.
     if (!hasCapability(capability)) {
       m_capabilities.putIns (spv::OpCapability, 2);
       m_capabilities.putWord(capability);
@@ -416,7 +411,6 @@ namespace dxvk {
 
     std::array<uint32_t, 4> args = { value, value, value, value };
 
-    // Can't make a scalar composite.
     if (count == 1)
       return args[0];
     
@@ -434,7 +428,6 @@ namespace dxvk {
 
     std::array<uint32_t, 4> args = { value, value, value, value };
 
-    // Can't make a scalar composite.
     if (count == 1)
       return args[0];
     
@@ -452,7 +445,6 @@ namespace dxvk {
 
     std::array<uint32_t, 4> args = { value, value, value, value };
 
-    // Can't make a scalar composite.
     if (count == 1)
       return args[0];
     
@@ -470,7 +462,6 @@ namespace dxvk {
 
     std::array<uint32_t, 4> args = { value, value, value, value };
 
-    // Can't make a scalar composite.
     if (count == 1)
       return args[0];
     
@@ -3765,7 +3756,6 @@ namespace dxvk {
   uint32_t SpirvModule::opSinCos(
           uint32_t                x,
           bool                    useBuiltIn) {
-    // We only operate on 32-bit floats here
     uint32_t floatType = defFloatType(32);
     uint32_t resultType = defVectorType(floatType, 2u);
 
@@ -3777,7 +3767,6 @@ namespace dxvk {
       uint32_t sintType = defIntType(32, true);
       uint32_t boolType = defBoolType();
 
-      // Normalize input to multiple of pi/4
       uint32_t xNorm = opFMul(floatType, opFAbs(floatType, x), constf32(4.0 / pi));
 
       uint32_t xTrunc = opTrunc(floatType, xNorm);
@@ -3785,11 +3774,9 @@ namespace dxvk {
 
       uint32_t xInt = opConvertFtoU(uintType, xTrunc);
 
-      // Mirror input along x axis as necessary
       uint32_t mirror = opINotEqual(boolType, opBitwiseAnd(uintType, xInt, constu32(1u)), constu32(0u));
       xFract = opSelect(floatType, mirror, opFSub(floatType, constf32(1.0f), xFract), xFract);
 
-      // Compute taylor series for fractional part
       uint32_t xFract_2 = opFMul(floatType, xFract, xFract);
       uint32_t xFract_4 = opFMul(floatType, xFract_2, xFract_2);
       uint32_t xFract_6 = opFMul(floatType, xFract_4, xFract_2);
@@ -3809,23 +3796,18 @@ namespace dxvk {
       taylor = opFMul(floatType, taylor, xFract);
       decorate(taylor, spv::DecorationNoContraction);
 
-      // Compute co-function based on sin^2 + cos^2 = 1
       uint32_t coFunc = opSqrt(floatType, opFSub(floatType, constf32(1.0f), opFMul(floatType, taylor, taylor)));
 
-      // Determine whether the taylor series was used for sine or cosine and assign the correct result
       uint32_t funcIsSin = opIEqual(boolType, opBitwiseAnd(uintType, opIAdd(uintType, xInt, constu32(1u)), constu32(2u)), constu32(0u));
 
       uint32_t sin = opSelect(floatType, funcIsSin, taylor, coFunc);
       uint32_t cos = opSelect(floatType, funcIsSin, coFunc, taylor);
 
-      // Determine whether sine is negative. Interpret the input as a
-      // signed integer in order to propagate signed zeroes properly.
       uint32_t inputNeg = opSLessThan(boolType, opBitcast(sintType, x), consti32(0));
 
       uint32_t sinNeg = opINotEqual(boolType, opBitwiseAnd(uintType, xInt, constu32(4u)), constu32(0u));
                sinNeg = opLogicalNotEqual(boolType, sinNeg, inputNeg);
 
-      // Determine whether cosine is negative
       uint32_t cosNeg = opINotEqual(boolType, opBitwiseAnd(uintType, opIAdd(uintType, xInt, constu32(2u)), constu32(4u)), constu32(0u));
 
       sin = opSelect(floatType, sinNeg, opFNegate(floatType, sin), sin);
@@ -3841,9 +3823,6 @@ namespace dxvk {
           spv::Op                 op, 
           uint32_t                argCount,
     const uint32_t*               argIds) {
-    // Since the type info is stored in the code buffer,
-    // we can use the code buffer to look up type IDs as
-    // well. Result IDs are always stored as argument 1.
     for (auto ins : m_typeConstDefs) {
       bool match = ins.opCode() == op
                 && ins.length() == 2 + argCount;
@@ -3855,7 +3834,6 @@ namespace dxvk {
         return ins.arg(1);
     }
     
-    // Type not yet declared, create a new one.
     uint32_t resultId = this->allocateId();
     m_typeConstDefs.putIns (op, 2 + argCount);
     m_typeConstDefs.putWord(resultId);
@@ -3871,7 +3849,6 @@ namespace dxvk {
           uint32_t                typeId,
           uint32_t                argCount,
     const uint32_t*               argIds) {
-    // Avoid declaring constants multiple times
     for (auto ins : m_typeConstDefs) {
       bool match = ins.opCode() == op
                 && ins.length() == 3 + argCount
@@ -3889,7 +3866,6 @@ namespace dxvk {
         return id;
     }
     
-    // Constant not yet declared, make a new one
     uint32_t resultId = this->allocateId();
     m_typeConstDefs.putIns (op, 3 + argCount);
     m_typeConstDefs.putWord(typeId);
@@ -3940,7 +3916,6 @@ namespace dxvk {
 
 
   uint32_t SpirvModule::getImageOperandWordCount(const SpirvImageOperands& op) const {
-    // Each flag may add one or more operands
     const uint32_t result
       = ((op.flags & spv::ImageOperandsBiasMask)                ? 1 : 0)
       + ((op.flags & spv::ImageOperandsLodMask)                 ? 1 : 0)
@@ -3953,7 +3928,6 @@ namespace dxvk {
       + ((op.flags & spv::ImageOperandsMakeTexelAvailableMask)  ? 1 : 0)
       + ((op.flags & spv::ImageOperandsMakeTexelVisibleMask)    ? 1 : 0);
     
-    // Add a DWORD for the operand mask if it is non-zero
     return op.flags ? result + 1 : 0;
   }
   
@@ -4003,7 +3977,6 @@ namespace dxvk {
       return sclass == spv::StorageClassInput
           || sclass == spv::StorageClassOutput;
     } else {
-      // All global variables need to be declared
       return sclass != spv::StorageClassFunction;
     }
   }
@@ -4055,10 +4028,6 @@ namespace dxvk {
         case spv::OpLoopMerge: {
           mergeBlocks.insert(ins.arg(1));
 
-          // It is possible for the continue block to be unreachable in
-          // practice, but we still need to emit it if we are not going
-          // to eliminate this loop. Since the current block dominates
-          // the loop, use it to keep the continue block intact.
           branches.insert({ blockId, ins.arg(2) });
         } break;
 

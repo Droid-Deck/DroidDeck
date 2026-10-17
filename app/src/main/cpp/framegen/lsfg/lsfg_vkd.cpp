@@ -1,4 +1,3 @@
-// See lsfg_vkd.h. Fills the chain's dispatch from the renderer's own table.
 
 #include "lsfg_vkd.h"
 #include "../VulkanRendererContext.h"

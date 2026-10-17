@@ -1,4 +1,3 @@
-// See winfg_engine.h.
 #include "winfg_engine.h"
 #include "winfg_vkd.h"
 #include "log.hpp"
@@ -8,11 +7,6 @@
 namespace winfg {
 namespace {
 
-// 2x: the guest layer synthesises at 0.35, not 0.5 - biased towards prev to
-// cut the double-exposure ghost on HUD/text ("iterative bring-up knob" in
-// layer.cpp). Kept for parity, since that is the tuning that was proven.
-// 3x/4x: evenly spaced; never exercised by the guest layer, so this is the
-// new ground native opens up and the first thing to judge by eye.
 float alphaFor(uint32_t k, uint32_t n) {
     if (n <= 1) return 0.35f;
     return (float)(k + 1) / (float)(n + 1);
@@ -30,7 +24,7 @@ VkImageMemoryBarrier bar(VkImage img, VkImageLayout from, VkImageLayout to,
     return b;
 }
 
-} // namespace
+}
 
 Engine::Engine() = default;
 Engine::~Engine() { destroyRing(); fg_.destroy(); }
@@ -65,8 +59,8 @@ bool Engine::prepare(uint32_t w, uint32_t h, VkFormat fmt) {
     if (unavailable_ || w == 0 || h == 0 || fmt == VK_FORMAT_UNDEFINED) return false;
     if (builtW_ == w && builtH_ == h && builtFmt_ == fmt && fg_.valid()) return true;
 
-    // onResize rebuilds the pyramids/scratch; our own input ring follows it.
-    if (!fg_.onResize(VkExtent2D{w, h}, fmt, /*force=*/false)) {
+
+    if (!fg_.onResize(VkExtent2D{w, h}, fmt,  false)) {
         WFG_LOGE("native: onResize %ux%u failed; frame generation unavailable", w, h);
         unavailable_ = true;
         return false;
@@ -83,21 +77,17 @@ bool Engine::prepare(uint32_t w, uint32_t h, VkFormat fmt) {
 }
 
 uint32_t Engine::plan(uint32_t capacity) const {
-    if (!valid() || history_ < 2) return 0;           // need prev AND curr
+    if (!valid() || history_ < 2) return 0;
     const uint32_t want = (uint32_t)std::max(cfg_.multiplier - 1, 0);
     return std::min({want, capacity, kMaxGenerations});
 }
 
 void Engine::process(VkCommandBuffer cmd, VkImage source, uint32_t w, uint32_t h,
-                     uint32_t /*generations*/) {
+                     uint32_t  ) {
     if (!valid()) return;
-    // Rotate: the slot we are about to overwrite is the OLD prev; after the
-    // copy it is the new curr and the other slot is prev.
     curr_ = 1 - curr_;
     Slot& dst = ring_[curr_];
 
-    // source is GENERAL (composite render pass leaves it there); the slot may
-    // be in any layout from last use - UNDEFINED is legal as "discard".
     VkImageMemoryBarrier pre[2] = {
         bar(source, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
             VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT),
@@ -115,8 +105,6 @@ void Engine::process(VkCommandBuffer cmd, VkImage source, uint32_t w, uint32_t h
     dd_.CmdCopyImage(cmd, source, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                      dst.img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-    // source back to GENERAL for the real-frame copy that follows; the new
-    // curr becomes SHADER_READ_ONLY, which is what the chain samples it as.
     VkImageMemoryBarrier post[2] = {
         bar(source, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL,
             VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT),
@@ -138,17 +126,11 @@ void Engine::generateInto(VkCommandBuffer cmd, uint32_t generation, uint32_t cou
     const Slot& curr = ring_[curr_];
     if (!prev.valid || !curr.valid) return;
 
-    // The chain writes the output through a STORAGE descriptor in GENERAL.
-    // The composite ring already keeps its targets in GENERAL; make the
-    // prior contents' writes visible and take ownership for the compute write.
     VkImageMemoryBarrier toWrite = bar(targetImage, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL,
         VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT);
     dd_.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &toWrite);
 
-    // gmSlot indexes the C1 global-motion SSBO read back on the CPU next
-    // frame; kGmSlots (3) >= our frames in flight (2), so rotating per source
-    // frame keeps a slot from being read while its reduce is still in flight.
     fg_.record(cmd, prev.view, curr.view, targetView, alphaFor(generation, count), gmSlot_);
     if (generation + 1 == count) gmSlot_ = (gmSlot_ + 1) % (uint32_t)FrameGen::kGmSlots;
 
@@ -157,7 +139,6 @@ void Engine::generateInto(VkCommandBuffer cmd, uint32_t generation, uint32_t cou
 
 void Engine::reset() { history_ = 0; frames_ = 0; }
 
-// ---- input ring --------------------------------------------------------------
 
 uint32_t Engine::memType(uint32_t bits, VkMemoryPropertyFlags props) const {
     for (uint32_t i = 0; i < memProps_.memoryTypeCount; i++)
@@ -201,4 +182,4 @@ void Engine::destroyRing() {
     history_ = 0;
 }
 
-} // namespace winfg
+}

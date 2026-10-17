@@ -1,4 +1,3 @@
-/* Frame generation on the Wayland backend - see framegen_bridge.h. */
 #define _POSIX_C_SOURCE 200809L
 #include "framegen_bridge.h"
 #include "framegen_engine.h"
@@ -12,23 +11,22 @@
 #include <android/log.h>
 
 void droiddeck_log(const char *tag, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
+uint64_t droiddeck_game_frames(void);
 #define FGLOG(...) droiddeck_log("framegen", __VA_ARGS__)
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, "DroidDeckWayland", __VA_ARGS__)
 
-/* ---- app controls (written from any thread, read on the compositor thread) ------------- */
 static _Atomic int   g_kind = VKP_FG_ENGINE_LSFG;
 static _Atomic int   g_armed;
 static _Atomic int   g_mult = 2;
-static _Atomic int   g_target;                      /* LSFG adaptive fps, 0 = fixed multiplier */
+static _Atomic int   g_target;
 static _Atomic int   g_model = 3;
 static _Atomic int   g_preset = 2;
 static _Atomic int   g_cfg_dirty = 1;
-static float g_flow = 0.8f, g_refresh_hz;          /* under g_lock */
-static char *g_cache_path;                          /* under g_lock */
-static _Atomic int   g_cache_gen;                   /* bumps when the path changes */
+static float g_flow = 0.8f, g_refresh_hz;
+static char *g_cache_path;
+static _Atomic int   g_cache_gen;
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
 
-/* ---- device -------------------------------------------------------------------------- */
 static VkDevice g_dev;
 static VkInstance g_inst;
 static PFN_vkGetInstanceProcAddr g_gipa;
@@ -50,12 +48,10 @@ static struct {
     PFN_vkDeviceWaitIdle DeviceWaitIdle;
 } vk;
 
-/* ---- engine + generation ring (compositor thread) ------------------------------------ */
-static int g_engine_kind = -1;      /* kind of the running engine, -1 = none */
-static int g_engine_cache_gen = -1; /* the LSFG cache it loaded */
+
+static int g_engine_kind = -1;
+static int g_engine_cache_gen = -1;
 static int g_engine_ok;
-/* The engine of this kind (with this cache) could not start or build its chain; not retried
- * every frame - a new engine selection or a new cache clears it. */
 static _Atomic int g_failed_kind = -1;
 static _Atomic int g_failed_cache_gen = -1;
 
@@ -65,11 +61,10 @@ static uint32_t g_ring_n, g_ring_w, g_ring_h;
 static VkFormat g_ring_fmt;
 
 static uint64_t g_source_frames;
-static uint32_t g_planned;          /* generations planned for the current source frame */
+static uint32_t g_planned;
 static int g_was_armed, g_generating_logged;
 static uint32_t g_built_w, g_built_h;
 static VkFormat g_built_fmt;
-/* Deeper formats (FP16 for HDR frames) the engine failed to build its chain in this session. */
 static VkFormat g_refused_fmt[4];
 static int g_refused_n;
 static int format_refused(VkFormat f) {
@@ -77,10 +72,10 @@ static int format_refused(VkFormat f) {
     return 0;
 }
 
-/* ---- stats ------------------------------------------------------------------------- */
-static _Atomic unsigned g_stat_generated;           /* since the last stats_take */
+
+static _Atomic unsigned g_stat_generated;
 static uint64_t g_total_generated;
-static float g_presented_rate, g_source_rate;       /* smoothed, 0.5 s windows */
+static float g_presented_rate, g_source_rate;
 static uint32_t g_present_accum, g_source_accum;
 static int64_t g_window_start_ns;
 
@@ -89,7 +84,6 @@ static int64_t now_ns(void) {
     return (int64_t)ts.tv_sec * 1000000000LL + ts.tv_nsec;
 }
 
-/* ====================================================================== app controls */
 
 void vkp_framegen_set_engine(int kind) {
     if (kind != VKP_FG_ENGINE_LSFG && kind != VKP_FG_ENGINE_WINFG) kind = VKP_FG_ENGINE_LSFG;
@@ -100,7 +94,6 @@ void vkp_framegen_set_engine(int kind) {
 
 void vkp_framegen_set_armed(int armed, int multiplier, int target_fps) {
     if (target_fps < 0) target_fps = 0;
-    /* Adaptive sizes the ring and the swapchain for the most it may ever generate. */
     if (target_fps) multiplier = VKP_FG_MAX_GENERATIONS + 1;
     if (multiplier < 2) multiplier = 2;
     if (multiplier > VKP_FG_MAX_GENERATIONS + 1) multiplier = VKP_FG_MAX_GENERATIONS + 1;
@@ -147,8 +140,6 @@ static void mark_failed(int kind) {
     atomic_store(&g_failed_kind, kind);
 }
 
-/* Same codes as VulkanRenderer.getFrameGenProblem(); computed from the live state so an engine
- * switch from the app is answered at once. */
 int vkp_framegen_problem(void) {
     if (!g_dev_ready) return -1;
     int kind = atomic_load(&g_kind);
@@ -162,8 +153,6 @@ const char *vkp_framegen_caps_reason(void) { return fge_caps_reason(); }
 void vkp_framegen_stats(float out[6]) {
     float accepted = 0.0f, src = 0.0f, thermal = -1.0f;
     if (g_engine_ok) fge_telemetry(&accepted, &src, &thermal);
-    /* Planned is what is generated; the governor is off on both paths. Our own measured
-     * source rate serves both engines (Win-FG measures none). */
     out[0] = (float)g_planned;
     out[1] = (float)g_planned;
     out[2] = g_source_rate;
@@ -174,7 +163,6 @@ void vkp_framegen_stats(float out[6]) {
 
 unsigned vkp_framegen_stats_take(void) { return atomic_exchange(&g_stat_generated, 0u); }
 
-/* ====================================================================== device setup */
 
 const void *vkp_framegen_device_features(VkInstance inst, PFN_vkGetInstanceProcAddr gipa,
                                          VkPhysicalDevice pd) {
@@ -199,7 +187,6 @@ void vkp_framegen_device_ready(VkDevice dev, VkQueue queue, uint32_t qfam, int f
 
 void vkp_framegen_device_lost(void) { g_dev_lost = 1; }
 
-/* ====================================================================== ring */
 
 static void destroy_ring(void) {
     if (!g_ring_n) return;
@@ -220,9 +207,6 @@ static int memory_type(uint32_t bits, VkMemoryPropertyFlags want) {
     return -1;
 }
 
-/* The generation targets: written by the chain through a storage view, read by the screen
- * blit. Kept in GENERAL for their whole life (both uses allow it), so there is no layout dance
- * per frame - only access barriers. */
 static int ensure_ring(uint32_t w, uint32_t h, VkFormat fmt, uint32_t n) {
     if (n > VKP_FG_MAX_GENERATIONS) n = VKP_FG_MAX_GENERATIONS;
     if (g_ring_n == n && g_ring_w == w && g_ring_h == h && g_ring_fmt == fmt) return 1;
@@ -257,7 +241,6 @@ static int ensure_ring(uint32_t w, uint32_t h, VkFormat fmt, uint32_t n) {
     return 1;
 }
 
-/* ====================================================================== present path */
 
 static int engine_usable(void) {
     int kind = atomic_load(&g_kind);
@@ -270,8 +253,6 @@ int vkp_framegen_format_ok(VkFormat fmt) {
     return fge_format_ok(fmt);
 }
 
-/* The engine could not build its chain in a deeper format: refuse the format for the session and
- * restart the engine on the next frame (a failed build is sticky inside both engines). */
 static void refuse_format(VkFormat fmt, int kind, int w, int h, const char *what) {
     if (g_refused_n < (int)(sizeof(g_refused_fmt) / sizeof(g_refused_fmt[0]))) g_refused_fmt[g_refused_n++] = fmt;
     FGLOG("%s could not %s in format %d (the HDR picture's FP16) at %dx%d: it restarts, and HDR frames go through "
@@ -321,7 +302,6 @@ static int ensure_engine(int kind) {
     return 1;
 }
 
-/* "x3 (2 interpolated frames per game frame)" or "adaptive to 90 fps (up to 3 ...)". */
 static const char *describe_mode(char *buf, size_t n, int mult, int target) {
     if (target) snprintf(buf, n, "adaptive to %d fps (up to %d interpolated frames per game frame)", target, mult - 1);
     else snprintf(buf, n, "x%d (%d interpolated frame%s per game frame)", mult, mult - 1, mult == 2 ? "" : "s");
@@ -393,13 +373,14 @@ int vkp_framegen_run(VkCommandBuffer cmd, VkImage scene, VkImageView scene_view,
         return 0;
     }
 
-    uint32_t n_gen = fge_plan(g_ring_n, ++g_source_frames, g_presented_rate);
+    /* The pacer's source rate must be the game's, not this loop's: a loop slowed by its own
+     * generations would otherwise read as a slower game and justify even more generations. */
+    ++g_source_frames;
+    const uint64_t game_frames = droiddeck_game_frames();
+    uint32_t n_gen = fge_plan(g_ring_n, game_frames ? game_frames : g_source_frames, g_presented_rate);
     if (n_gen > g_ring_n) n_gen = g_ring_n;
     g_planned = n_gen;
 
-    /* The scene image was just written (blits, and whatever the effects chain did); make that
-     * visible to the engine's copy (TRANSFER) and shaders (COMPUTE). Fresh ring images get their
-     * one UNDEFINED -> GENERAL transition here; the others need TRANSFER-read -> COMPUTE-write. */
     VkImageMemoryBarrier bars[1 + VKP_FG_MAX_GENERATIONS];
     uint32_t nb = 0;
     bars[nb++] = (VkImageMemoryBarrier){
@@ -425,15 +406,12 @@ int vkp_framegen_run(VkCommandBuffer cmd, VkImage scene, VkImageView scene_view,
                           VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                           0, 0, NULL, 0, NULL, nb, bars);
 
-    /* Frame N in; the shared passes (the whole flow pyramid) run only when generating. */
     fge_process(cmd, scene, (uint32_t)w, (uint32_t)h, n_gen);
     for (uint32_t g = 0; g < n_gen; g++) {
         fge_generate(cmd, g, n_gen, g_ring[g].img, g_ring[g].view, (uint32_t)w, (uint32_t)h);
         gens[g] = g_ring[g].img;
     }
     if (n_gen) {
-        /* Compute writes -> the screen blits (this command buffer and the later per-present ones;
-         * a barrier's first scope covers everything submitted earlier on the queue). */
         nb = 0;
         for (uint32_t g = 0; g < n_gen; g++)
             bars[nb++] = (VkImageMemoryBarrier){
@@ -466,7 +444,7 @@ void vkp_framegen_presented(int generated) {
         g_total_generated += (uint64_t)generated;
     }
     float elapsed = (float)(now - g_window_start_ns) / 1e9f;
-    if (elapsed < 0.5f) return;                     /* half-second window, like the X11 renderer */
+    if (elapsed < 0.5f) return;
     float rate = (float)g_present_accum / elapsed, src = (float)g_source_accum / elapsed;
     g_presented_rate = g_presented_rate > 0.0f ? g_presented_rate + (rate - g_presented_rate) * 0.25f : rate;
     g_source_rate = g_source_rate > 0.0f ? g_source_rate + (src - g_source_rate) * 0.25f : src;

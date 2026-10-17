@@ -33,9 +33,7 @@ APPIMAGE_RUN = os.path.join(BIN, "droiddeck-appimage-run")
 SCRIPT_RUN = os.path.join(BIN, "droiddeck-script-run")
 STEAM_LAUNCH = os.path.join(BIN, "droiddeck-steam-launch")
 CACHE = os.path.join(HOME, ".cache", "droiddeck")
-# Where the app adds each kind, and what an added one holds.
 IMPORTS = {"appimage": ("/opt/appimages/user", "app"), "folder": ("/opt/droiddeck-apps", "entry")}
-# Android's own folders on shared storage: never copied in whole.
 SHARED_FOLDERS = ("alarms", "android", "audiobooks", "dcim", "documents", "download", "movies", "music",
                   "notifications", "pictures", "podcasts", "recordings", "ringtones")
 SCAN_LIMIT = 4000

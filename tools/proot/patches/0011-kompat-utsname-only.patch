@@ -16,9 +16,9 @@ index 5c39942..4cb7dec 100644
  	FILTERED_SYSNUM_END,
  };
  
-+/* When the virtual kernel is not older than the actual one and the
-+ * hwcap is left alone, the only thing left to emulate is the utsname
-+ * itself: every other handler above returns without a change.  */
++
++
++
 +static FilteredSysnum utsname_only_sysnums[] = {
 +	{ PR_setdomainname,	FILTER_SYSEXIT },
 +	{ PR_sethostname,	FILTER_SYSEXIT },
@@ -26,12 +26,12 @@ index 5c39942..4cb7dec 100644
 +	FILTERED_SYSNUM_END,
 +};
 +
-+/**
-+ * Return whether @config only renames the kernel identity (nodename,
-+ * domainname, version string) without emulating an older kernel or
-+ * another hwcap, in which case futex, fcntl, epoll_pwait, ... don't
-+ * have to stop in the tracer and the vDSO can be left in place.
-+ */
++
++
++
++
++
++
 +static bool utsname_only(const Config *config)
 +{
 +	return config->actual_release != 0

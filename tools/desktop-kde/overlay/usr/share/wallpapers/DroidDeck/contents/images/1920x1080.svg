@@ -1,5 +1,4 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
-  <!-- DroidDeck's desktop wallpaper: the mark (artwork/droiddeck-mark.svg) on deep navy. -->
   <defs>
     <radialGradient id="bg" cx="960" cy="540" r="1150" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#14213a"/>

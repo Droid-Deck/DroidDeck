@@ -45,14 +45,6 @@ namespace dxvk {
     return (major << 16) | (minor << 8);
   }
   
-  /**
-   * \brief SPIR-V module
-   * 
-   * This class generates a code buffer containing a full
-   * SPIR-V shader module. Ensures that the module layout
-   * is valid, as defined in the SPIR-V 1.0 specification,
-   * section 2.4 "Logical Layout of a Module".
-   */
   class SpirvModule {
     
   public:

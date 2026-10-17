@@ -22,6 +22,8 @@ IFACE = NAME + ".Manager"
 
 @unittest.skipUnless(Gio and os.environ.get("DBUS_SESSION_BUS_ADDRESS"), "requires dbus-run-session and PyGObject")
 class SleepHandshakeTest(unittest.TestCase):
+    ARGS = []
+
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.dir = Path(self.directory.name)
@@ -35,7 +37,7 @@ class SleepHandshakeTest(unittest.TestCase):
             lambda bus, sender, path, interface, name, body: self.signals.append(body.unpack()[0]))
         env = dict(os.environ, BL_LAUNCH_DIR=str(self.dir),
                    DBUS_SYSTEM_BUS_ADDRESS=os.environ["DBUS_SESSION_BUS_ADDRESS"])
-        self.process = subprocess.Popen(["/usr/bin/python3", str(SCRIPT)], env=env,
+        self.process = subprocess.Popen(["/usr/bin/python3", str(SCRIPT), *self.ARGS], env=env,
                                         stdout=subprocess.DEVNULL)
         self.wait_for(lambda: (self.dir / "steam-sleep-ready").exists())
 
@@ -80,7 +82,7 @@ class SleepHandshakeTest(unittest.TestCase):
         token = self.suspend()
         self.assertTrue(self.preparing())
         self.state(token, "paused")
-        self.state("0" * 32, "awake")  # stale session acknowledgments cannot wake this one
+        self.state("0" * 32, "awake")
         time.sleep(0.1)
         self.assertTrue(self.preparing())
         self.state(token, "awake")
@@ -216,6 +218,23 @@ class SleepHandshakeTest(unittest.TestCase):
         self.wait_for(lambda: self.signals == [True, False])
         with self.assertRaises(GLib.Error):
             self.call(IFACE, "PowerOff", GLib.Variant("(b)", (True,)))
+
+
+class WithNetworkManagerTest(SleepHandshakeTest):
+    ARGS = ["--with-netmanager"]
+
+    def owner(self, name):
+        return self.bus.call_sync("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                  "GetConnectionUnixProcessID", GLib.Variant("(s)", (name,)), None,
+                                  Gio.DBusCallFlags.NONE, 2000, None).unpack()[0]
+
+    def test_one_process_owns_login1_and_networkmanager(self):
+        self.wait_for(lambda: self.bus.call_sync(
+            "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus", "NameHasOwner",
+            GLib.Variant("(s)", ("org.freedesktop.NetworkManager",)), None,
+            Gio.DBusCallFlags.NONE, 2000, None).unpack()[0])
+        self.assertEqual(self.owner("org.freedesktop.NetworkManager"), self.process.pid)
+        self.assertEqual(self.owner(NAME), self.process.pid)
 
 
 if __name__ == "__main__":

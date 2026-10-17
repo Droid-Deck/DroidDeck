@@ -42,7 +42,7 @@ object Themes {
             PAPER, R.string.theme_paper, R.string.theme_paper_detail,
             background = Color(0xFF000000), surface = Color(0xFF0F0F10), surfaceVariant = Color(0xFF191A1C), line = Color(0xFF262729), line2 = Color(0xFF343638),
             onBackground = Color(0xFFF9F9F9), onSurfaceVariant = Color(0xFF8E9196),
-            primary = Color(0xFFF9F9F9), primary2 = Color(0xFFD9DADD), onPrimary = Color(0xFF000000), signal = Color(0xFF136CE0),
+            primary = Color(0xFFF9F9F9), primary2 = Color(0xFFD9DADD), onPrimary = Color(0xFF000000), signal = Color(0xFFF9F9F9),
             good = Color(0xFF4CD37F),
         ),
         Palette(
@@ -66,10 +66,6 @@ object Themes {
 
 val LocalPalette = staticCompositionLocalOf { Themes.byId(Themes.GRAPHITE) }
 
-/**
- * Text and icons drawn on a [Palette.signal] fill: near-black where the blue is light enough that
- * white would not read (Graphite's #1A9FFF gives white 2.8:1), white where it is deep.
- */
 val Palette.onSignal: Color get() = if (signal.luminance() > 0.18f) Color(0xFF03111F) else Color.White
 
 @Composable

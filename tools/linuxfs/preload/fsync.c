@@ -1,6 +1,3 @@
-/* droiddeck-fsync: futex_waitv(2) in userspace, so Proton's own fsync runs where the app sandbox refuses the syscall.
- * Credit: fsync, the futex-based synchronization in Proton, by Elizabeth Figura and Paul Gofman;
- * futex_waitv(2) by André Almeida. */
 #define _GNU_SOURCE
 #include <dlfcn.h>
 #include <errno.h>
