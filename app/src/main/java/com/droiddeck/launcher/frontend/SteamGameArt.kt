@@ -82,6 +82,14 @@ object SteamGameArt {
         }
     }
 
+    fun position(context: Context, game: Library.SteamGame): LogoPosition.Value? = SteamGrid.position(SteamGrid.target(game, context))
+
+    fun setPosition(context: Context, game: Library.SteamGame, value: LogoPosition.Value?): Boolean {
+        if (!SteamGrid.writePosition(context, SteamGrid.target(game, context), value)) return false
+        AddedGamesPublisher.later(context) { SteamLiveShortcuts.setLogoPosition(context, game.appId.toLong(), value) }
+        return true
+    }
+
     private fun push(context: Context, game: Library.SteamGame, slot: AddedGameArt.Slot, file: File?): Boolean {
         val type = slot.assetType ?: return true
         if (!SteamGrid.write(context, SteamGrid.target(game, context), slot, file)) return false
