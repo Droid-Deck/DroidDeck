@@ -23,6 +23,7 @@ internal fun AccessibilityPage(s: FrontEndState, a: FrontEndActions) {
         }
     }
     Rise(2) { Note(stringResource(R.string.accessibility_about)) }
+    Rise(2) { Note(stringResource(R.string.accessibility_voice_note)) }
     if (!s.orcaInstalled) {
         Rise(3) {
             Actions {

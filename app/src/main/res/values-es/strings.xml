@@ -978,6 +978,7 @@
     <string name="rail_components">Componentes</string>
     <string name="rail_accessibility">Accessibility</string>
     <string name="drawer_accessibility">Accessibility</string>
+<string name="accessibility_voice_note">The reading voice follows the app\'s language (set it in Orca\'s preferences if you want another).</string>
     <string name="accessibility_about">Orca is the screen reader of the GNOME desktop: it reads the screen aloud, so Steam, the desktop and the programs in them can be used without looking at the display. Installing it puts speech into every session that enters the Linux runtime - Steam, the desktop, a program - and the switch below turns it on and off.</string>
     <string name="accessibility_install">Install Orca</string>
     <string name="accessibility_settings">Open Orca settings</string>

@@ -34,6 +34,7 @@ import com.droiddeck.launcher.gpu.Lossless
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.runtime.DesktopCatalog
 import com.droiddeck.launcher.runtime.LinuxRuntimeInstaller
+import com.droiddeck.launcher.runtime.OrcaManager
 import com.droiddeck.launcher.runtime.DeckyManager
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.ui.PackageRow
@@ -709,13 +710,13 @@ class MainActivity : ComponentActivity() {
                             orcaStage = null
                             orcaError = null
                             Thread({
-                                val message = com.droiddeck.launcher.runtime.OrcaManager.install(this) { stage, _ ->
+                                val message = OrcaManager.install(this) { stage, _ ->
                                     ui.post { orcaStage = stage }
                                 }
                                 ui.post {
                                     orcaBusy = false
-                                    orcaInstalled = com.droiddeck.launcher.runtime.OrcaManager.isInstalled(this)
-                                    orcaEnabled = com.droiddeck.launcher.runtime.OrcaManager.enabled(this)
+                                    orcaInstalled = OrcaManager.isInstalled(this)
+                                    orcaEnabled = OrcaManager.enabled(this)
                                     if (message != null) orcaError = message
                                     else android.widget.Toast.makeText(this, R.string.accessibility_installed_toast, android.widget.Toast.LENGTH_LONG).show()
                                 }
@@ -725,11 +726,11 @@ class MainActivity : ComponentActivity() {
                         // droiddeck-orca answers the request; a request without a session waits for
                         // the next one.
                         onOrcaSettings = {
-                            com.droiddeck.launcher.runtime.OrcaManager.requestSettings(this)
+                            OrcaManager.requestSettings(this)
                             android.widget.Toast.makeText(this, R.string.accessibility_settings_requested, android.widget.Toast.LENGTH_LONG).show()
                         },
                         onOrcaToggle = { on ->
-                            com.droiddeck.launcher.runtime.OrcaManager.setEnabled(this, on)
+                            OrcaManager.setEnabled(this, on)
                             orcaEnabled = on
                         },
                         // A game page's Manage saves: the game's Proton and saves are read when the work runs, off the main thread.
@@ -1054,8 +1055,8 @@ class MainActivity : ComponentActivity() {
         else if (showComponents) components.refreshComponents()
         oscMode = SessionPrefs.oscMode(this)
         // The Accessibility tab's state: whether Orca is in the runtime and turned on.
-        orcaInstalled = com.droiddeck.launcher.runtime.OrcaManager.isInstalled(this)
-        orcaEnabled = com.droiddeck.launcher.runtime.OrcaManager.enabled(this)
+        orcaInstalled = OrcaManager.isInstalled(this)
+        orcaEnabled = OrcaManager.enabled(this)
         refreshController()
         refreshHomeAppState()
         refreshSecondScreenDisplays()

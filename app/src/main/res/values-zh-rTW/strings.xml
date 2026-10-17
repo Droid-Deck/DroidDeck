@@ -970,6 +970,7 @@
     <string name="rail_components">元件</string>
     <string name="rail_accessibility">無障礙</string>
     <string name="drawer_accessibility">無障礙</string>
+    <string name="accessibility_voice_note">朗讀語音跟隨應用語言（如需其他語言，可在 Orca 設定中調整）。</string>
     <string name="accessibility_about">Orca 是 GNOME 桌面的螢幕閱讀器：它朗讀螢幕上的內容，讓 Steam、桌面以及其中的程式無需看螢幕也能使用。安裝後，所有進入 Linux 執行階段的會話（Steam、桌面、程式）都會獲得語音朗讀，下方開關可隨時開啟或關閉。</string>
     <string name="accessibility_install">安裝 Orca</string>
     <string name="accessibility_settings">開啟 Orca 設定</string>

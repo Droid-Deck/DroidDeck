@@ -2,6 +2,8 @@ package com.droiddeck.launcher.runtime
 
 import android.content.Context
 import java.io.File
+import java.util.Locale
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -32,5 +34,19 @@ class OrcaManagerTest {
         assertTrue(OrcaManager.enabled(context))
         OrcaManager.setEnabled(context, false)
         assertFalse(OrcaManager.enabled(context))
+    }
+
+    /** The session language maps to the locale droiddeck-orca-setup generated. */
+    @Test fun languageTagMapsToGeneratedLocales() {
+        assertEquals("zh_CN", OrcaManager.languageTag(Locale("zh", "CN")))
+        assertEquals("zh_CN", OrcaManager.languageTag(Locale("zh", "HK")))
+        assertEquals("es_ES", OrcaManager.languageTag(Locale("es", "ES")))
+        assertEquals("fr_FR", OrcaManager.languageTag(Locale("fr", "FR")))
+        assertEquals("ja_JP", OrcaManager.languageTag(Locale("ja", "JP")))
+        assertEquals("ko_KR", OrcaManager.languageTag(Locale("ko", "KR")))
+        assertEquals("ru_RU", OrcaManager.languageTag(Locale("ru", "RU")))
+        assertEquals("en_US", OrcaManager.languageTag(Locale("en", "US")))
+        // A language without a generated locale falls back to English, not to a missing one.
+        assertEquals("en_US", OrcaManager.languageTag(Locale("de", "DE")))
     }
 }

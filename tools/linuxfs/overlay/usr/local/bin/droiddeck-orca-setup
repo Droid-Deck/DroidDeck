@@ -12,7 +12,10 @@ step() { echo "== STEP $*"; }
 fail() { echo "== FAIL $*"; exit 1; }
 
 # orca plus everything it needs at runtime. gstreamer and gst-plugins are for Orca's "sonar"
-# pointer sounds; speech-dispatcher with the espeak-ng backend is what makes it speak.
+# pointer sounds; speech-dispatcher with the espeak-ng backend is what makes it speak. The
+# synthesizers match what SteamOS ships (espeak-ng, festival, flite) so every language has a
+# voice; brltty is the braille daemon Orca drives for refreshable braille displays. piper has no
+# Arch Linux ARM package, so it is left out here.
 PACKAGES="orca"
 # Packages whose files the image already has are skipped: a probe glob, checked with compgen.
 while read -r pkg probe; do
@@ -20,7 +23,13 @@ while read -r pkg probe; do
   compgen -G "$probe" >/dev/null || PACKAGES="$PACKAGES $pkg"
 done <<'NEEDS'
 at-spi2-core /usr/lib/libatspi.so.0
+brltty /usr/bin/brltty
 dconf /usr/lib/libdconf.so.1
+espeak-ng /usr/lib/libespeak-ng.so.*
+festival /usr/bin/festival
+festival-english /usr/share/festival/voices/english
+festival-us /usr/share/festival/voices/us
+flite /usr/bin/flite
 gobject-introspection-runtime /usr/lib/girepository-1.0/Gio-2.0.typelib
 gsettings-desktop-schemas /usr/share/glib-2.0/schemas/org.gnome.desktop.interface.gschema.xml
 gstreamer /usr/lib/libgstreamer-1.0.so.0
@@ -42,7 +51,6 @@ python-setproctitle /usr/lib/python3*/site-packages/setproctitle
 speech-dispatcher /usr/bin/spd-say
 xorg-xkbcomp /usr/bin/xkbcomp
 xorg-xmodmap /usr/bin/xmodmap
-espeak-ng /usr/lib/libespeak-ng.so.*
 NEEDS
 
 WORK=/var/cache/droiddeck-orca
@@ -105,4 +113,42 @@ python3 -c 'import gi, dasbus, dbus, psutil, setproctitle; gi.require_version("A
 [ -x /usr/bin/spd-say ] || fail "speech-dispatcher is missing"
 compgen -G '/usr/lib/libespeak-ng.so.*' >/dev/null || fail "the espeak-ng speech backend is missing"
 orca --help >/dev/null 2>&1 || fail "orca does not start"
+
+# What the binaries link is the real dependency list, like droiddeck-flatpak-setup checks: a
+# backend that needs a library the image does not have shows up here rather than at first use.
+step "Checking the binaries' libraries"
+missing=$(for f in /usr/bin/spd-say /usr/bin/festival /usr/bin/flite /usr/lib/libespeak-ng.so.*; do
+  [ -e "$f" ] || continue
+  ldd "$f" 2>&1 | grep -E 'not found|version .* not found'
+done | sort -u)
+[ -z "$missing" ] || { echo "$missing"; fail "Orca's speech stack is missing libraries"; }
+
+# Orca's preferences dialog and the speech-dispatcher's default voice follow the session locale
+# (droiddeck-orca sets LANG from the app's language). The runtime image usually ships no generated
+# locales, so generate the ones the app's interface languages need up front; gettext then has a
+# locale it can present and espeak-ng picks the matching voice automatically.
+step "Preparing locales"
+for loc in en_US zh_CN es_ES fr_FR ja_JP ko_KR ru_RU; do
+  if ! locale -a 2>/dev/null | grep -qx "${loc}.UTF-8"; then
+    localedef -i "$loc" -f UTF-8 "${loc}.UTF-8" 2>/dev/null \
+      && echo "  ${loc}.UTF-8" \
+      || echo "== WARN could not generate ${loc}.UTF-8"
+  fi
+done
+
+# A smoke test of the speech stack, so a silent install (e.g. no audio device reachable outside a
+# session, or a broken backend) is caught before the user relies on it. Each installed module gets
+# one spd-say; failures are warnings, not fatal - the real audio device only exists in a session.
+step "Smoke-testing the speech backends"
+if [ -x /usr/bin/speech-dispatcher ] && [ -x /usr/bin/spd-say ]; then
+  XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/tmp} speech-dispatcher --spawn --socket-path /tmp/droiddeck-spd.sock >/dev/null 2>&1
+  sleep 1
+  for module in espeak-ng festival flite; do
+    timeout 20 spd-say --socket-path /tmp/droiddeck-spd.sock -o "$module" "DroidDeck speech test" >/dev/null 2>&1 \
+      && echo "== SPEECH $module OK" \
+      || echo "== WARN speech module $module failed (no audio device outside a session?)"
+  done
+  spd-say --socket-path /tmp/droiddeck-spd.sock --exit >/dev/null 2>&1 || killall speech-dispatcher 2>/dev/null || true
+fi
+
 echo "== DONE $(orca --version 2>/dev/null | head -1)"
