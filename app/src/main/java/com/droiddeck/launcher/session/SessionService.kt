@@ -71,6 +71,9 @@ class SessionService : Service() {
     private var suspendDownloadNow = false
     private var suspendPolicy = SessionPrefs.SUSPEND_MANUAL
     private var steamDownloadsInBackground = false
+    // An Accessibility-settings session: started to show Orca's preferences, so BL_ORCA is forced
+    // on even when the reader itself is not enabled yet.
+    private var orcaSettings = false
     private var activityVisible = true
     private var xrActivityVisible = false
     private val hasVisibleSurface get() = sessionHasVisibleSurface(activityVisible, screenOn, xrActivityVisible)
@@ -237,6 +240,7 @@ class SessionService : Service() {
         SessionState.programArgs = intent?.getStringArrayExtra(EXTRA_PROGRAM_ARGS)?.toList().orEmpty()
         SessionState.steamUi = intent?.getStringExtra(EXTRA_STEAM_UI)
         SessionState.steamUrl = intent?.getStringExtra(EXTRA_STEAM_URL)
+        orcaSettings = intent?.getBooleanExtra(EXTRA_ORCA_SETTINGS, false) ?: false
         SessionState.running = true
         if (SessionState.stopRequested) {
             stopSession(0)
@@ -362,8 +366,10 @@ class SessionService : Service() {
         guest.add("BL_LAUNCH_DIR=" + sessionRoot.path)
         // The screen reader: with Orca installed and enabled, every session that enters the
         // runtime starts it (droiddeck-orca reads BL_ORCA in the session script and the desktop).
+        // An Accessibility-settings session forces it on so the preferences dialog can be shown
+        // even before the reader is enabled.
         if (OrcaManager.isInstalled(this) &&
-            OrcaManager.enabled(this)) {
+            (OrcaManager.enabled(this) || orcaSettings)) {
             guest.add("BL_ORCA=1")
             // Orca's preferences dialog and default voice follow the app's interface language.
             guest.add("BL_ORCA_LANG=" + OrcaManager.languageTag())
@@ -1626,6 +1632,7 @@ class SessionService : Service() {
         const val EXTRA_STEAM_UI = "steamUi"
         const val EXTRA_STEAM_URL = "steamUrl"
         const val EXTRA_GAME_ID = "gameId"
+        const val EXTRA_ORCA_SETTINGS = "orcaSettings"
 
         fun start(
             context: Context, mode: String = MODE_STEAM, program: String? = null,

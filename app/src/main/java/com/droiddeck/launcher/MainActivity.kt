@@ -757,10 +757,17 @@ class MainActivity : ComponentActivity() {
                             }, "orca-install").start()
                         },
                         // Orca's own preferences open on the session's display: the running session's
-                        // droiddeck-orca answers the request; a request without a session waits for
-                        // the next one.
+                        // droiddeck-orca answers the request. With no session running there is no
+                        // display to show the dialog on, so start a desktop session that carries it
+                        // (BL_ORCA is forced on for that session, so the request is answered even
+                        // when the reader is not enabled yet).
                         onOrcaSettings = {
                             OrcaManager.requestSettings(this)
+                            if (!SessionState.running) startSession(
+                                Intent(this, SessionActivity::class.java)
+                                    .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_DESKTOP)
+                                    .putExtra(SessionService.EXTRA_ORCA_SETTINGS, true),
+                            )
                             android.widget.Toast.makeText(this, R.string.accessibility_settings_requested, android.widget.Toast.LENGTH_LONG).show()
                         },
                         onOrcaToggle = { on ->

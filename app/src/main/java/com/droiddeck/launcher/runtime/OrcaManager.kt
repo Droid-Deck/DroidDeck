@@ -64,8 +64,8 @@ object OrcaManager {
 
     /**
      * The Accessibility tab's "Open Orca settings": the running session's droiddeck-orca watcher
-     * answers the request on the session's own display; without a session the request waits for
-     * the next one.
+     * answers the request on the session's own display. With no session running the app starts a
+     * desktop session to carry the dialog (MainActivity), so the request never waits forever.
      */
     fun requestSettings(context: Context) {
         runCatching {
