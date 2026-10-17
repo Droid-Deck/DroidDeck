@@ -411,6 +411,25 @@ class EpicClientTest {
         assertTrue(EpicClient.fexReady(context))
     }
 
+    @Test fun fexOnASecondLibraryIsFoundInItsPrivateToolCopy() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        val library = File(context.cacheDir, "card-library").apply { mkdirs() }
+        com.droiddeck.launcher.session.SessionPrefs.setGameStorage(context, library.path, "SD Card")
+        try {
+            val steamapps = File(library, "steamapps").apply { mkdirs() }
+            File(steamapps, "appmanifest_3127680.acf").writeText("\"AppState\"\n{\n\t\"appid\"\t\t\"3127680\"\n\t\"installdir\"\t\t\"FEX-Emu\"\n}\n")
+            File(steamapps, "common/FEX-Emu").mkdirs()
+            assertFalse(EpicClient.fexReady(context))
+            val private = com.droiddeck.launcher.session.SecondaryLibrary.privateRoot(context.filesDir, library)
+            File(private, "steamapps/common/FEX-Emu/usr/bin").mkdirs()
+            File(private, "steamapps/common/FEX-Emu/usr/bin/FEX").writeText("")
+            assertTrue(EpicClient.fexReady(context))
+        } finally {
+            com.droiddeck.launcher.session.SessionPrefs.setGameStorage(context, com.droiddeck.launcher.session.SessionPrefs.GAME_STORAGE_OFF, "")
+            library.deleteRecursively()
+        }
+    }
+
     @Test fun theLauncherInstallsWhereDroidDeckInstallsEpicGames() {
         val context = org.robolectric.RuntimeEnvironment.getApplication()
         val settings = File(EpicClient.dataDir(context), "settings/app-settings.json").apply { parentFile!!.mkdirs() }

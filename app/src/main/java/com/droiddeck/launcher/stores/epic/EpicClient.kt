@@ -277,9 +277,12 @@ object EpicClient {
         return Library.steamLibraries(context).any { (library, _) ->
             val manifest = File(library, "steamapps/appmanifest_${SteamStorage.FEX}.acf")
             val dir = runCatching { SteamStorage.parseManifest(manifest, manifest.readText())?.installDir }.getOrNull()
+            val roots = listOf(library, com.droiddeck.launcher.session.SecondaryLibrary.privateRoot(context.filesDir, library))
             listOfNotNull(dir, FEX_DIR).distinct().any { name ->
-                val tool = File(library, "steamapps/common/$name")
-                FEX_PREFIXES.any { fexBinary(File(tool, "${it}bin")) }
+                roots.any { root ->
+                    val tool = File(root, "steamapps/common/$name")
+                    FEX_PREFIXES.any { fexBinary(File(tool, "${it}bin")) }
+                }
             }
         }
     }
