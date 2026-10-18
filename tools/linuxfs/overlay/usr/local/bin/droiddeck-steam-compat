@@ -126,6 +126,29 @@ INSTALL_JS = r"""
   return "installed";
 })()
 """.replace("__BINDING__", BINDING)
+TOOLS_JS = r"""
+(() => {
+  if (window.__droiddeckTools) return "present";
+  const installs = SteamClient.Installs, downloads = SteamClient.Downloads;
+  if (typeof installs?.OpenInstallWizard !== "function" || typeof installs?.RegisterForShowInstallWizard !== "function" ||
+      typeof installs?.ContinueInstall !== "function" || typeof downloads?.QueueAppUpdate !== "function")
+    throw new Error("the client's install calls are not ready");
+  const self = { asked: new Map() };
+  installs.RegisterForShowInstallWizard((state) => {
+    const app = Number(state?.currentAppID);
+    if (state?.eInstallState === 7 && Date.now() - (self.asked.get(app) || 0) < 120000) {
+      self.asked.delete(app);
+      installs.ContinueInstall();
+    }
+  });
+  self.install = (app) => { self.asked.set(app, Date.now()); installs.OpenInstallWizard([app], "0"); return true; };
+  self.update = (app) => { downloads.QueueAppUpdate(app, "0"); return true; };
+  window.__droiddeckTools = self;
+  return "installed";
+})()
+"""
+TOOL_CHECK_SECONDS = 60
+TOOL_RETRY_SECONDS = 300
 SWITCH_BINDING = "droiddeckSwitchToDesktop"
 SWITCH_JS = r"""
 (() => {
@@ -185,7 +208,7 @@ VR_JS = r"""
       return;
     }
     const overview = window.appStore?.GetAppOverviewByGameID?.(gameid);
-    const vr = overview?.vr_only || overview?.vr_supported || overview?.BSupportsVR?.();
+    const vr = overview?.vr_only === true;
     if (vr && self.subscription && /^[1-9][0-9]{0,19}$/.test(gameid)) {
       if (self.pending.has(gameid)) return;
       self.lastError = null;
@@ -397,6 +420,9 @@ class Page:
             raise RuntimeError((details.get("exception") or {}).get("description") or details.get("text") or "script failed")
         return result.get("result", {}).get("value")
 
+    def tools(self, call):
+        return self.evaluate("%s;\nwindow.__droiddeckTools.%s" % (TOOLS_JS, call))
+
     def compat(self, call):
         return self.evaluate("%s;\nwindow.__droiddeckCompat.%s" % (INSTALL_JS, call))
 
@@ -481,6 +507,8 @@ class Helper:
         self.known = set()
         self.installed = None
         self.fex_asked = set()
+        self.tools_asked = {}
+        self.tools_checked = None
         self.vr_launch = None
 
     def attach(self):
@@ -524,7 +552,8 @@ class Helper:
             prior_auto = state.get("auto", {})
             if not isinstance(prior_auto, dict):
                 prior_auto = {}
-            prior_native = state.get("native", ())
+            # "native" from earlier builds also lists dual-platform games nobody chose to run natively.
+            prior_native = state.get("native_choices", ())
             native_choices = set(prior_native if isinstance(prior_native, (list, tuple, set)) else ())
             apps = sorted(set(installed) | set(picks) | set(prior_auto) | native_choices, key=COMPAT["app_order"])
             overrides = COMPAT["requested_games"](
@@ -538,12 +567,19 @@ class Helper:
             if raw_mapping is None:
                 for app in native_choices:
                     current[app] = ""
+                for app in set(native) - native_choices:
+                    if not current.get(app):
+                        current.pop(app, None)
             else:
                 for app in set(native) | native_choices:
                     if app in raw_mapping:
-                        current[app] = raw_mapping[app]
+                        # The client shows an explicit native choice as the tool it inherits, and writes config.vdf late.
+                        if raw_mapping[app] == "" or current.get(app) not in self.known:
+                            current[app] = raw_mapping[app]
                     elif app in prior_auto or app in native_choices:
                         current[app] = ""
+                    elif not current.get(app):
+                        current.pop(app, None)
             changes, auto = COMPAT["plan_mapping"](
                 current, installed, [t["name"] for t in live], default,
                 COMPAT["followers"](state, current), native, picks, overrides,
@@ -554,18 +590,36 @@ class Helper:
                                    tool if tool is not None else "Steam native default"))
             state.update(
                 auto={app: tool for app, tool in auto.items() if tool is not COMPAT["NATIVE_CHOICE"]},
-                native=sorted(app for app, tool in auto.items() if tool is COMPAT["NATIVE_CHOICE"]),
+                native_choices=sorted(app for app, tool in auto.items() if tool is COMPAT["NATIVE_CHOICE"]),
                 tools=catalog, live=True)
+            state.pop("native", None)
             if waiting:
                 state["pending"] = wanted
                 say("%s is new to the running client; it applies when Steam next starts" % wanted)
             else:
                 state.pop("pending", None)
             COMPAT["write_json"](state_file, state)
-        if (any(app in installed and tool == COMPAT["FEX_TOOL"] for app, tool in native.items()) or
-                os.path.exists(COMPAT["fex_wanted_marker"]())):
-            for app in COMPAT["request_fex"](self.steam_root, self.fex_asked):
-                say("asked the client to install %s for x86 Linux titles and programs" % app)
+
+    def ensure_tools(self):
+        """Proton, FEX and the runtimes FEX needs are fetched as soon as the client is up, never left pending."""
+        now = time.monotonic()
+        if self.tools_checked is not None and now - self.tools_checked < TOOL_CHECK_SECONDS:
+            return
+        self.tools_checked = now
+        if COMPAT["game_running"]():
+            return
+        for app, action in COMPAT["tool_downloads"](self.steam_root):
+            if now - self.tools_asked.get(app, -TOOL_RETRY_SECONDS) < TOOL_RETRY_SECONDS:
+                continue
+            self.tools_asked[app] = now
+            try:
+                self.page.tools("%s(%d)" % (action, int(app)))
+                say("asked the client to %s %s" % (action, app))
+            except Exception as e:
+                say("the client could not %s %s (%s)" % (action, app, e))
+                if action == "install":
+                    for asked in COMPAT["request_fex"](self.steam_root, self.fex_asked):
+                        say("asked the client to install %s through steam://install" % asked)
 
     def request_waiting(self):
         request = COMPAT["read_json"](COMPAT["state_path"]("request.json"))
@@ -592,6 +646,7 @@ class Helper:
             f.write("%d\n" % os.getpid())
         say("attached to the client on port %d" % self.port)
         self.reconcile()
+        self.ensure_tools()
         while True:
             sources = [self.page.ws] + ([watcher] if watcher.fileno() >= 0 else [])
             ready = [self.page.ws] if self.page.ws.pending() else select.select(sources, [], [], 30 if watcher.fileno() >= 0 else 2)[0]
@@ -606,6 +661,7 @@ class Helper:
                     watcher.changed()
                 self.drain()
                 self.reconcile()
+            self.ensure_tools()
 
 
 def detach():
