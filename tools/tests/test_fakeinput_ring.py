@@ -75,8 +75,8 @@ def can_build(bits):
                               capture_output=True).returncode == 0
 
 
-@unittest.skipUnless(sys.platform == "linux" and os.uname().machine == "x86_64" and shutil.which("g++"),
-                     "needs g++ on an x86-64 Linux host")
+@unittest.skipUnless(sys.platform == "linux" and os.uname().machine == "x86_64" and shutil.which("g++")
+                     and shutil.which("gcc"), "needs gcc and g++ on an x86-64 Linux host")
 class FakeinputRingTest(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())

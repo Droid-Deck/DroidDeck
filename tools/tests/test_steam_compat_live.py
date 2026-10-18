@@ -577,7 +577,6 @@ console.log(JSON.stringify({ sent: sent.length, asked: asked.length }));
 """
 
 
-@unittest.skipUnless(shutil.which("node"), "node is not installed")
 class ToolPage(FakePage):
     def __init__(self, fail=False):
         super().__init__({"0": TOOL}, [TOOL])
@@ -662,6 +661,7 @@ class ToolDownloadTest(unittest.TestCase):
             reconcile.assert_called_once_with()
 
 
+@unittest.skipUnless(shutil.which("node"), "node is not installed")
 class SwitchScriptTest(unittest.TestCase):
     def test_the_request_is_reported_and_still_sent(self):
         with tempfile.TemporaryDirectory() as tmp:
