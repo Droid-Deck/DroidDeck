@@ -372,6 +372,10 @@ private fun RepoTab(a: ModeSettingsActions) {
                                         installScope.launch {
                                             val outcome = try {
                                                 withContext(Dispatchers.IO) { install(app, post) { progress[post.id] = it } }
+                                            } catch (e: kotlinx.coroutines.CancellationException) {
+                                                throw e
+                                            } catch (e: Exception) {
+                                                app.getString(R.string.boot_movie_repo_download_failed)
                                             } finally {
                                                 progress.remove(post.id)
                                             }
