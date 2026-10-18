@@ -37,16 +37,6 @@ configure_graphics() {
                     separator=,
                 done
             )"
-            # Work around observed SteamVR device loss with this imported driver.
-            case "${VK_DRIVER_FILES:-${VK_ICD_FILENAMES:-}}" in
-                *:*) ;;
-                */linux_vulkan_drivers/DD-Turnip_v0.2.0/icd.json)
-                    case ",$TU_DEBUG," in
-                        *,flushall,*) ;;
-                        *) export TU_DEBUG="${TU_DEBUG:+$TU_DEBUG,}flushall" ;;
-                    esac
-                    ;;
-            esac
             ;;
     esac
 }
