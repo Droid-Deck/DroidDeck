@@ -11,6 +11,11 @@ import com.droiddeck.launcher.stores.StoreInstalls
 import com.droiddeck.launcher.stores.StoreNet
 import com.droiddeck.launcher.stores.download.DownloadQueue
 import com.droiddeck.launcher.stores.download.DownloadStage
+import org.apache.commons.compress.archivers.sevenz.SevenZFile
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
+import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
+import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
+import org.apache.commons.compress.compressors.xz.XZCompressorInputStream
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileInputStream
@@ -108,12 +113,13 @@ internal class ItchInstaller(
 
     private fun install(archive: File, filename: String, handle: DownloadQueue.JobHandle): String {
         folder.mkdirs()
-        val extension = filename.substringAfterLast('.', "").lowercase()
-        when {
-            extension == "zip" -> unzip(archive, handle)
-            extension == "exe" -> copy(archive, File(folder, filename.ifBlank { "game.exe" }))
-            extension in ARCHIVES -> throw IllegalStateException(app.getString(R.string.stores_itch_archive, extension))
-            isZip(archive) -> unzip(archive, handle)
+        when (val kind = sniff(archive, filename)) {
+            "zip" -> unzip(archive, handle)
+            "7z" -> sevenZip(archive, handle)
+            "rar" -> throw IllegalStateException(app.getString(R.string.stores_itch_archive, kind))
+            "exe" -> copy(archive, File(folder, filename.ifBlank { "game.exe" }))
+            "tar" -> untar(archive, null, handle)
+            "gz", "bz2", "xz" -> untar(archive, kind, handle) ?: single(archive, kind, handle)
             else -> copy(archive, File(folder, filename.ifBlank { "game" }))
         }
         val hint = filename.substringBeforeLast('.')
@@ -125,12 +131,140 @@ internal class ItchInstaller(
         return exe
     }
 
-    private fun isZip(file: File): Boolean = runCatching {
-        FileInputStream(file).use { input ->
-            val head = ByteArray(4)
-            input.read(head) == 4 && head[0] == 'P'.code.toByte() && head[1] == 'K'.code.toByte()
+    private fun sniff(file: File, filename: String): String {
+        val extension = filename.substringAfterLast('.', "").lowercase()
+        if (extension == "exe") return "exe"
+        val head = runCatching { FileInputStream(file).use { input -> ByteArray(300).also { input.read(it) } } }.getOrNull()
+            ?: return extension
+        fun at(i: Int, vararg bytes: Int) = bytes.indices.all { head.getOrNull(i + it) == bytes[it].toByte() }
+        return when {
+            at(0, 0x50, 0x4B) -> "zip"
+            at(0, 0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C) -> "7z"
+            at(0, 0x52, 0x61, 0x72, 0x21) -> "rar"
+            at(0, 0x1F, 0x8B) -> "gz"
+            at(0, 0x42, 0x5A, 0x68) -> "bz2"
+            at(0, 0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00) -> "xz"
+            at(257, 0x75, 0x73, 0x74, 0x61, 0x72) -> "tar"
+            else -> extension
         }
-    }.getOrDefault(false)
+    }
+
+    private fun target(name: String): File? {
+        val file = File(folder, name.replace('\\', '/'))
+        val root = folder.canonicalPath
+        val path = file.canonicalPath
+        return if (path == root || path.startsWith(root + File.separator)) file else null
+    }
+
+    private fun sevenZip(archive: File, handle: DownloadQueue.JobHandle) {
+        val total = archive.length()
+        var written = 0L
+        val buffer = ByteArray(64 * 1024)
+        SevenZFile.builder().setFile(archive).get().use { seven ->
+            while (true) {
+                if (cancelled.get()) return
+                val entry = seven.nextEntry ?: break
+                val file = target(entry.name)
+                if (file == null) {
+                    handle.log("itch.io: skipped an entry outside the game folder")
+                    continue
+                }
+                if (entry.isDirectory) {
+                    file.mkdirs()
+                    continue
+                }
+                file.parentFile?.mkdirs()
+                FileOutputStream(file).use { out ->
+                    while (true) {
+                        if (cancelled.get()) return
+                        val read = seven.read(buffer, 0, buffer.size)
+                        if (read < 0) break
+                        out.write(buffer, 0, read)
+                        written += read
+                        handle.stageProgress(written, total)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun untar(archive: File, codec: String?, handle: DownloadQueue.JobHandle): Unit? {
+        val total = archive.length()
+        var written = 0L
+        var entries = 0
+        val buffer = ByteArray(64 * 1024)
+        val opened = runCatching {
+            FileInputStream(archive).use { raw ->
+                val stream = when (codec) {
+                    "gz" -> GzipCompressorInputStream(BufferedInputStream(raw))
+                    "bz2" -> BZip2CompressorInputStream(BufferedInputStream(raw))
+                    "xz" -> XZCompressorInputStream(BufferedInputStream(raw))
+                    else -> BufferedInputStream(raw)
+                }
+                stream.use { input ->
+                    TarArchiveInputStream(input).use { tar ->
+                        while (true) {
+                            if (cancelled.get()) return null
+                            val entry = tar.nextEntry ?: break
+                            entries++
+                            val file = target(entry.name)
+                            if (file == null) {
+                                handle.log("itch.io: skipped an entry outside the game folder")
+                                continue
+                            }
+                            if (entry.isDirectory) {
+                                file.mkdirs()
+                                continue
+                            }
+                            file.parentFile?.mkdirs()
+                            FileOutputStream(file).use { out ->
+                                while (true) {
+                                    if (cancelled.get()) return null
+                                    val read = tar.read(buffer, 0, buffer.size)
+                                    if (read < 0) break
+                                    out.write(buffer, 0, read)
+                                    written += read
+                                    handle.stageProgress(written, total)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            true
+        }
+        if (opened.isSuccess && entries > 0) return Unit
+        if (opened.isFailure && codec == null) throw opened.exceptionOrNull() ?: IllegalStateException("tar")
+        return null
+    }
+
+    private fun single(archive: File, codec: String, handle: DownloadQueue.JobHandle) {
+        val name = archive.name.substringBeforeLast('.')
+        val file = target(name.ifBlank { "game" }) ?: throw IllegalStateException("archive")
+        file.parentFile?.mkdirs()
+        val total = archive.length()
+        var written = 0L
+        val buffer = ByteArray(64 * 1024)
+        FileInputStream(archive).use { raw ->
+            val stream = when (codec) {
+                "bz2" -> BZip2CompressorInputStream(BufferedInputStream(raw))
+                "xz" -> XZCompressorInputStream(BufferedInputStream(raw))
+                else -> GzipCompressorInputStream(BufferedInputStream(raw))
+            }
+            stream.use { input ->
+                FileOutputStream(file).use { out ->
+                    while (true) {
+                        if (cancelled.get()) return
+                        val read = input.read(buffer)
+                        if (read < 0) break
+                        out.write(buffer, 0, read)
+                        written += read
+                        handle.stageProgress(written, total)
+                    }
+                }
+            }
+        }
+    }
 
     private fun copy(source: File, target: File) {
         target.parentFile?.mkdirs()
@@ -140,15 +274,13 @@ internal class ItchInstaller(
     private fun unzip(archive: File, handle: DownloadQueue.JobHandle) {
         val total = archive.length()
         var written = 0L
-        val root = folder.canonicalPath
         ZipInputStream(BufferedInputStream(FileInputStream(archive))).use { zip ->
             val buffer = ByteArray(64 * 1024)
             while (true) {
                 if (cancelled.get()) return
                 val entry = zip.nextEntry ?: break
-                val target = File(folder, entry.name.replace('\\', '/'))
-                val path = target.canonicalPath
-                if (path != root && !path.startsWith(root + File.separator)) {
+                val target = target(entry.name)
+                if (target == null) {
                     handle.log("itch.io: skipped an entry outside the game folder")
                     zip.closeEntry()
                     continue
@@ -174,7 +306,5 @@ internal class ItchInstaller(
         }
     }
 
-    private companion object {
-        val ARCHIVES = setOf("7z", "rar", "tar", "gz", "bz2", "xz")
-    }
+    private companion object
 }
