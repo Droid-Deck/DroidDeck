@@ -198,14 +198,42 @@ class BootMovieLibraryTest {
         assertEquals("file:c.webm", BootMovie.choice(app))
     }
 
-    @Test fun aSteamPickOfTheMovieAlreadyChosenIsStillStagedNextSession() {
+    @Test fun aSteamPickIsTakenOverWithoutBeingStagedOverSteamsOwnSetting() {
         movie("a.webm")
         BootMovie.select(app, "file:a.webm")
         SessionPrefs.setBootMovieApplyNext(app, false)
         steamPicks("a.webm")
         assertFalse(BootMovie.syncFromSteam(app))
         assertEquals("file:a.webm", BootMovie.choice(app))
-        assertTrue(SessionPrefs.bootMovieApplyNext(app))
+        assertFalse(SessionPrefs.bootMovieApplyNext(app))
+    }
+
+    @Test fun theStagedCopyNamedInSteamsConfigIsNotAPick() {
+        movie("a.webm")
+        BootMovie.select(app, "file:a.webm")
+        steamPicksAt(SessionFiles.BOOT_MOVIE_PATH)
+        assertFalse(BootMovie.syncFromSteam(app))
+        assertEquals("file:a.webm", BootMovie.choice(app))
+    }
+
+    @Test fun aBoughtMovieIsShownUnderItsPointsShopTitle() {
+        File(BootMovieLibrary.steamRoot(app), "config/communityitemscache/startupmovies/39900045022_ab12.webm")
+            .also { it.parentFile!!.mkdirs(); it.writeText("movie") }
+        File(BootMovieLibrary.steamRoot(app), "userdata/1/config/localconfig.vdf").also { it.parentFile!!.mkdirs() }.writeText(
+            "\"GetStartupMovies\"\t\t\"[{\\\"communityitemid\\\":\\\"39900045022\\\",\\\"image_small\\\":\\\"x.png\\\",\\\"name\\\":\\\"Turret Factory\\\",\\\"item_title\\\":\\\"Turret Factory\\\"}]\"\n",
+        )
+        val entry = BootMovieLibrary.list(app).first { it.source == BootMovieLibrary.SOURCE_POINTSHOP }
+        assertEquals("Turret Factory", entry.title)
+    }
+
+    @Test fun notesKeptInSteamsMoviesFolderByAnEarlierVersionAreTakenOver() {
+        movie("Old.webm")
+        File(movies, ".droiddeck-movies.json").writeText("{\"Old.webm\":{\"title\":\"Old one\",\"source\":\"repo\",\"repo\":\"r1\"}}")
+        val entry = BootMovieLibrary.list(app).first { it.id == "file:Old.webm" }
+        assertEquals("Old one", entry.title)
+        assertEquals(BootMovieLibrary.SOURCE_REPO, entry.source)
+        assertEquals(setOf("r1"), BootMovieLibrary.installedRepoIds(app))
+        assertFalse(File(movies, ".droiddeck-movies.json").exists())
     }
 
     @Test fun aPickMadeHereBeatsAnOlderSteamPickThatWasNeverSeen() {

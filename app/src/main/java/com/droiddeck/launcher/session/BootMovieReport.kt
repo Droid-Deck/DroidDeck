@@ -93,6 +93,8 @@ object BootMovieReport {
             if (text != null) {
                 line("-- StartupMovie block:")
                 (SessionFiles.startupMovieBlock(config) ?: "   (none)").lines().forEach { line("   $it") }
+                line("-- Customization section with the lines before it:")
+                (SessionFiles.customizationBlock(config) ?: "   (none)").lines().forEach { line("   $it") }
                 line("-- every line of config.vdf that mentions a movie:")
                 text.lines().filter { it.contains("movie", ignoreCase = true) }.take(40).forEach { line("   ${it.trim()}") }
                 Regex("\"MovieID\"\\s+\"([^\"]*)\"").find(text)?.groupValues?.get(1)?.takeIf { it.isNotEmpty() && it != "0" }?.let { movieIds.add(it) }

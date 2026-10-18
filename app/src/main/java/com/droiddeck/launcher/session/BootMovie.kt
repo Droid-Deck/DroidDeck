@@ -147,19 +147,20 @@ object BootMovie {
     }
 
     /**
-     * Takes over a startup movie chosen in Steam's own settings: when Steam's config names a movie from its movies
-     * folder that it did not name before, that movie becomes the choice here and is staged at the next session. True when the choice changed.
+     * Takes over a startup movie chosen in Steam's own settings: when Steam's config names a movie it did not name before,
+     * that movie becomes the choice here. Steam already plays it, so nothing is staged over it. True when the choice changed.
      */
     fun syncFromSteam(context: Context): Boolean {
         val path = SessionFiles.startupMoviePath(BootMovieLibrary.steamConfig(context)) ?: return false
         if (path == SessionPrefs.bootMovieSteamSeen(context)) return false
         SessionPrefs.setBootMovieSteamSeen(context, path)
+        if (path == SessionFiles.BOOT_MOVIE_PATH) return false
         val prefix = "/uioverrides/movies/"
         val id = if (path.startsWith(prefix)) BootMovieLibrary.idOf(path.removePrefix(prefix)) else BootMovieLibrary.STEAM_PREFIX + path
         if (BootMovieLibrary.file(context, id) == null) return false
         val changed = SessionPrefs.bootMovie(context) != id
         BootMovieReport.note(context, "Steam names $path, taken over as $id")
-        select(context, id)
+        SessionPrefs.setBootMovie(context, id)
         return changed
     }
 

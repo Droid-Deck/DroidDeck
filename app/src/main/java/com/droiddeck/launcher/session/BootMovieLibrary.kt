@@ -124,18 +124,20 @@ object BootMovieLibrary {
         SessionFiles.startupMoviePath(steamConfig(context))?.takeIf { !it.startsWith(OVERRIDES) }?.let { path ->
             steamFile(context, STEAM_PREFIX + path)?.let { steam[STEAM_PREFIX + path] = it }
         }
+        val bought = HashMap<String, String>()
         for (root in steamRoots(context)) {
             File(root, "steamui/movies").listFiles { f -> isMovie(f) && f.nameWithoutExtension.lowercase() in NATIVE }.orEmpty()
                 .sortedBy { it.name.lowercase() }.forEach { steam.putIfAbsent(STEAM_PREFIX + "/movies/" + it.name, it) }
-            for (found in pointShopMovies(root)) steam.putIfAbsent(STEAM_PREFIX + "/" + found.relativeTo(root).invariantSeparatorsPath, found)
+            val scan = pointShopMovies(root)
+            bought.putAll(scan.titles)
+            for (found in scan.files) steam.putIfAbsent(STEAM_PREFIX + "/" + found.relativeTo(root).invariantSeparatorsPath, found)
         }
         val seen = HashSet<String>()
         for ((id, file) in steam) {
             if (file.name in STAGED || !seen.add(file.canonicalPath)) continue
             val native = file.nameWithoutExtension.lowercase() in NATIVE
-            // Steam names a bought movie by an id and a hash; the id is all that is worth showing.
-            val boughtId = Regex("^(\\d+)_").find(file.nameWithoutExtension)?.groupValues?.get(1)
-            val title = if (!native && boughtId != null) "#$boughtId" else file.nameWithoutExtension
+            // Steam names a bought movie by an item number and a hash; the points shop's own title is shown when Steam has it.
+            val title = if (native) file.nameWithoutExtension else bought[file.path] ?: boughtId(file)?.let { "#$it" } ?: file.nameWithoutExtension
             out.add(Entry(id, title, if (native) SOURCE_STEAM else SOURCE_POINTSHOP, file, removable = false))
         }
         return out
@@ -147,7 +149,9 @@ object BootMovieLibrary {
     private val skippedFolders = setOf("uioverrides", "steamapps", "librarycache", "httpcache", "logs", "compatdata", "shadercache")
 
     private val scanLock = Any()
-    private val scans = HashMap<String, Pair<Long, List<File>>>()
+    private class Scan(val at: Long, val files: List<File>, val titles: Map<String, String>)
+
+    private val scans = HashMap<String, Scan>()
 
     /** Forgets the last search for Steam's own movies. */
     internal fun forgetScan() = synchronized(scanLock) { scans.clear() }
@@ -156,9 +160,9 @@ object BootMovieLibrary {
      * Movies Steam keeps outside its custom movies folder, such as ones bought in its points shop: every `.webm` below the
      * client's config, cache and user folders. The search is repeated at most every 15 seconds for each client folder.
      */
-    private fun pointShopMovies(root: File): List<File> = synchronized(scanLock) {
+    private fun pointShopMovies(root: File): Scan = synchronized(scanLock) {
         val now = System.currentTimeMillis()
-        scans[root.path]?.let { (at, found) -> if (now - at < 15_000L) return found }
+        scans[root.path]?.let { if (now - it.at < 15_000L) return it }
         val found = listOf("config", "userdata", "appcache", "steamui").flatMap { top ->
             val base = File(root, top)
             if (!base.isDirectory) return@flatMap emptyList()
@@ -166,14 +170,34 @@ object BootMovieLibrary {
                 .onEnter { dir -> dir.name !in skippedFolders && !(top == "steamui" && dir.parentFile == base && dir.name == "movies") }
                 .take(20_000).filter { isMovie(it) }.toList()
         }.sortedBy { it.path.lowercase() }
-        scans[root.path] = now to found
-        found
+        val titles = HashMap<String, String>()
+        for (file in found) boughtId(file)?.let { id -> boughtTitle(root, id)?.let { titles[file.path] = it } }
+        val scan = Scan(now, found, titles)
+        scans[root.path] = scan
+        scan
+    }
+
+    /** The item number in the name Steam gives a bought movie, `<item number>_<hash>.webm`; null for any other name. */
+    private fun boughtId(file: File) = Regex("^(\\d+)_").find(file.nameWithoutExtension)?.groupValues?.get(1)
+
+    /** What the points shop calls a bought movie, from the list of startup movies Steam keeps in each user's local config. */
+    private fun boughtTitle(root: File, id: String): String? {
+        val key = "communityitemid\\\":\\\"$id\\\""
+        val title = Regex("item_title\\\\\":\\\\\"([^\\\\\"]*)")
+        for (user in File(root, "userdata").listFiles { f -> f.isDirectory }.orEmpty()) {
+            val text = runCatching { File(user, "config/localconfig.vdf").readText() }.getOrNull() ?: continue
+            val at = text.indexOf(key)
+            if (at < 0) continue
+            title.find(text.substring(at, (at + 3000).coerceAtMost(text.length)))?.groupValues?.get(1)?.takeIf { it.isNotBlank() }?.let { return it }
+        }
+        return null
     }
 
     private const val OVERRIDES = "/uioverrides/movies/"
 
     /** Puts back, in Steam's folder, any movie of DroidDeck's that went missing there, such as after the runtime was reset. */
     internal fun restore(context: Context) = synchronized(lock) {
+        migrateLegacyMeta(context)
         val meta = readMeta(context)
         val library = libraryDir(context)
         meta.keys().asSequence().toList().forEach { name ->
@@ -182,6 +206,22 @@ object BootMovieLibrary {
             val copy = File(moviesDir(context), name)
             if (!copy.isFile || copy.length() != kept.length()) mirror(kept, copy)
         }
+    }
+
+    /** Takes in the movie notes an earlier version kept inside Steam's movies folder, so those movies keep their title and source. */
+    private fun migrateLegacyMeta(context: Context) {
+        val legacy = File(moviesDir(context), ".droiddeck-movies.json")
+        if (!legacy.isFile) return
+        val old = runCatching { JSONObject(legacy.readText()) }.getOrNull() ?: return
+        editMeta(context) { meta ->
+            var changed = false
+            old.keys().asSequence().toList().forEach { name ->
+                val info = old.optJSONObject(name) ?: return@forEach
+                if (meta.optJSONObject(name) == null && File(moviesDir(context), name).isFile) { meta.put(name, info); changed = true }
+            }
+            changed
+        }
+        legacy.delete()
     }
 
     /** Copies [kept] to [copy] through a staging name, so Steam never sees half a movie. */

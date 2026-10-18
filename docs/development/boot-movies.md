@@ -19,7 +19,13 @@ folder (`config/uioverrides/movies`) can be removed after a confirmation, whethe
 hand or by Steam's own picker. Steam's own three startup movies (`deck_startup`, `oled_startup`, `startup_machine` in
 `steamui/movies`) and points shop movies (any other `.webm` below Steam's `config`, `userdata`, `appcache` and `steamui`
 folders, plus whatever path `StartupMovie.LocalPath` names) are listed as Steam movies, adopted when picked in Steam, and
-never deleted. Other videos in `steamui/movies` are not startup movies and are not listed.
+never deleted. Bought movies live in `config/communityitemscache/startupmovies/<item number>_<hash>.webm`; their titles
+come from the `GetStartupMovies` list in `userdata/<id>/config/localconfig.vdf`. Other videos in `steamui/movies` are not startup movies and are not listed.
 Only one processed copy (volume or length change) is kept in `files/boot-movie/variants`; a volume that cannot be applied
-plays without sound rather than louder, and plays nothing if that fails too. Covers are cached in `files/boot-movie/thumbs`. Selecting a movie here sets `bootMovieApplyNext`, so the next session overwrites a movie Steam had
-picked; otherwise a movie picked in Steam is left alone.
+plays without sound rather than louder, and plays nothing if that fails too. Covers are cached in `files/boot-movie/thumbs`. Steam reads its startup movie from the `StartupMovie` section inside the `Customization` section of
+`config/config.vdf` (`MovieID`, and `LocalPath` relative to `config`; a Points Shop movie has its item number as
+`MovieID`). The `StartupMovie` section under `Software/Valve/Steam` is where older clients read it, and DroidDeck writes both.
+Selecting a movie here sets `bootMovieApplyNext`, so the next session stages the movie as `bigpicture_startup.webm` and
+points both sections at it, over a movie Steam had picked; otherwise a movie picked in Steam is left alone and taken over as
+the choice here without being staged over Steam's own setting. Settings > Boot movie > Installed has a report button that
+writes what Steam and DroidDeck know to `Download/DroidDeck/boot-movie-report.txt`.
