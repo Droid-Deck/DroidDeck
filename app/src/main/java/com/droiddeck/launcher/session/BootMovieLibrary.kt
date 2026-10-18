@@ -17,7 +17,12 @@ import java.io.File
 object BootMovieLibrary {
     private const val TAG = "BootMovieLibrary"
     const val PREFIX = "file:"
-    private const val META = ".droiddeck-movies.json"
+
+    /** A movie Steam itself keeps outside its custom movies folder, such as one bought in its points shop: `steam:<path Steam names>`. */
+    const val STEAM_PREFIX = "steam:"
+
+    /** Held while the movie list is read and changed, so two imports at once cannot overwrite each other's entries. */
+    private val lock = Any()
 
     /** Names DroidDeck stages the chosen movie under; they are copies, not movies of their own. */
     internal val STAGED = setOf("bigpicture_startup.webm", "steam_os_startup.webm", "droiddeck-startup.webm")
@@ -31,13 +36,28 @@ object BootMovieLibrary {
 
     internal fun moviesDir(context: Context) = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/config/uioverrides/movies")
 
+    /** Where imported and installed movies are kept for good; Steam's folder holds a copy, which is put back if it goes missing. */
+    internal fun libraryDir(context: Context) = File(context.filesDir, "boot-movie/library")
+
+    private fun metaFile(context: Context) = File(context.filesDir, "boot-movie/movies.json")
+
+    internal fun steamRoot(context: Context) = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam")
+
     internal fun steamConfig(context: Context) = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/config/config.vdf")
 
     private fun thumbsDir(context: Context) = File(context.filesDir, "boot-movie/thumbs")
 
     fun idOf(name: String) = PREFIX + name
 
+    private fun steamFile(context: Context, id: String): File? {
+        val path = id.removePrefix(STEAM_PREFIX)
+        if (!path.startsWith("/") || path.contains("..") || path.contains('\\') || !path.endsWith(".webm", ignoreCase = true)) return null
+        val root = steamRoot(context)
+        return listOf("config", "steamui").map { File(root, it + path) }.firstOrNull { it.isFile && it.length() > 0L }
+    }
+
     fun file(context: Context, id: String): File? {
+        if (id.startsWith(STEAM_PREFIX)) return steamFile(context, id)
         if (!id.startsWith(PREFIX)) return null
         val name = id.removePrefix(PREFIX)
         if (name.isEmpty() || name.contains('/') || name.contains('\\') || name in STAGED) return null
@@ -48,15 +68,20 @@ object BootMovieLibrary {
         file.name !in STAGED && !file.name.startsWith(".")
 
     private fun readMeta(context: Context): JSONObject =
-        runCatching { JSONObject(File(moviesDir(context), META).readText()) }.getOrDefault(JSONObject())
+        runCatching { JSONObject(metaFile(context).readText()) }.getOrDefault(JSONObject())
 
-    private fun writeMeta(context: Context, meta: JSONObject) {
-        val dir = moviesDir(context).apply { mkdirs() }
-        val staged = File(dir, "$META.staged")
-        runCatching {
-            staged.writeText(meta.toString())
-            if (!staged.renameTo(File(dir, META))) staged.delete()
-        }.onFailure { staged.delete(); Log.w(TAG, "could not write the movie list", it) }
+    /** Changes the movie list one writer at a time; [change] gets the list and returns whether to save it. */
+    private fun editMeta(context: Context, change: (JSONObject) -> Boolean) = synchronized(lock) {
+        val meta = readMeta(context)
+        if (change(meta)) {
+            val file = metaFile(context)
+            file.parentFile?.mkdirs()
+            val staged = File(file.parentFile, file.name + ".staged")
+            runCatching {
+                staged.writeText(meta.toString())
+                if (!staged.renameTo(file)) staged.delete()
+            }.onFailure { staged.delete(); Log.w(TAG, "could not write the movie list", it) }
+        }
     }
 
     /** The post a movie was installed from, if it came from SteamDeckRepo. */
@@ -79,14 +104,57 @@ object BootMovieLibrary {
         out.add(Entry(BootMovie.DROIDDECK_30, "DroidDeck · 30 fps", SOURCE_DROIDDECK, null, removable = false))
         out.add(Entry(BootMovie.DROIDDECK_60, "DroidDeck · 60 fps", SOURCE_DROIDDECK, null, removable = false))
         BootMovie.customName(context)?.let { out.add(Entry(BootMovie.CUSTOM, it, SOURCE_IMPORT, BootMovie.legacyCustomFile(context), removable = true)) }
+        restore(context)
         val meta = readMeta(context)
         moviesDir(context).listFiles { f -> isMovie(f) }.orEmpty().sortedBy { it.name.lowercase() }.forEach { f ->
             val info = meta.optJSONObject(f.name)
             val source = info?.optString("source")?.takeIf { it.isNotEmpty() } ?: SOURCE_STEAM
             val title = info?.optString("title")?.takeIf { it.isNotEmpty() } ?: f.nameWithoutExtension
-            out.add(Entry(idOf(f.name), title, source, f, removable = true))
+            // Only what DroidDeck put here can be removed; every other movie in the folder is Steam's own or the person's.
+            out.add(Entry(idOf(f.name), title, source, f, removable = info != null && source != SOURCE_STEAM))
+        }
+        val seen = HashSet<String>()
+        val others = ArrayList<String>()
+        SessionFiles.startupMoviePath(steamConfig(context))?.takeIf { !it.startsWith(OVERRIDES) }?.let { others.add(it) }
+        for ((folder, prefix) in listOf(File(steamRoot(context), "config/movies") to "/movies/", File(steamRoot(context), "steamui/movies") to "/movies/")) {
+            folder.listFiles { f -> isMovie(f) }.orEmpty().sortedBy { it.name.lowercase() }.forEach { others.add(prefix + it.name) }
+        }
+        for (path in others) {
+            val id = STEAM_PREFIX + path
+            val file = steamFile(context, id) ?: continue
+            if (!seen.add(id) || file.name in STAGED) continue
+            out.add(Entry(id, file.nameWithoutExtension, SOURCE_STEAM, file, removable = false))
         }
         return out
+    }
+
+    private const val OVERRIDES = "/uioverrides/movies/"
+
+    /** Puts back, in Steam's folder, any movie of DroidDeck's that went missing there, such as after the runtime was reset. */
+    internal fun restore(context: Context) {
+        val meta = readMeta(context)
+        val library = libraryDir(context)
+        meta.keys().asSequence().toList().forEach { name ->
+            val kept = File(library, name)
+            if (name.contains('/') || !kept.isFile || kept.length() == 0L) return@forEach
+            val copy = File(moviesDir(context), name)
+            if (!copy.isFile || copy.length() != kept.length()) mirror(kept, copy)
+        }
+    }
+
+    /** Copies [kept] to [copy] through a staging name, so Steam never sees half a movie. */
+    private fun mirror(kept: File, copy: File): Boolean {
+        val staged = File(copy.parentFile, copy.name + ".${System.nanoTime()}.staged")
+        return try {
+            copy.parentFile?.mkdirs()
+            kept.inputStream().use { input -> staged.outputStream().use { output -> input.copyTo(output) } }
+            staged.setReadable(true, false) && staged.renameTo(copy)
+        } catch (e: Exception) {
+            Log.w(TAG, "could not copy ${kept.name} into Steam's movies", e)
+            false
+        } finally {
+            staged.delete()
+        }
     }
 
     fun title(context: Context, id: String): String = list(context).firstOrNull { it.id == id }?.title ?: id
@@ -98,19 +166,35 @@ object BootMovieLibrary {
     fun freeName(context: Context, title: String): String {
         val base = title.replace(Regex("[^\\p{L}\\p{N} ._()\\-]"), "").replace(Regex("\\s+"), " ").trim().trim('.').take(60).ifEmpty { "movie" }
         val dir = moviesDir(context)
+        val library = libraryDir(context)
         var name = "$base.webm"
         var n = 2
-        while (File(dir, name).exists() || name in STAGED) name = "$base ($n).webm".also { n++ }
+        while (File(dir, name).exists() || File(library, name).exists() || name in STAGED) name = "$base ($n).webm".also { n++ }
         return name
     }
 
+    /**
+     * Keeps the finished movie [staged] (a file in [libraryDir]) under a free name, copies it into Steam's folder and notes its
+     * title, source and cover. Returns the name, or null when it could not be kept. Runs one movie at a time.
+     */
+    internal fun commit(context: Context, staged: File, title: String, source: String, repoId: String? = null, cover: ByteArray? = null): String? =
+        synchronized(lock) {
+            val name = freeName(context, title)
+            val kept = File(libraryDir(context), name)
+            if (!staged.renameTo(kept)) return null
+            if (!mirror(kept, File(moviesDir(context), name))) { kept.delete(); return null }
+            register(context, name, title, source, repoId, cover)
+            name
+        }
+
     /** Notes a movie that was just put into Steam's folder: what to call it, where it came from and its cover. */
     fun register(context: Context, name: String, title: String, source: String, repoId: String? = null, cover: ByteArray? = null) {
-        val meta = readMeta(context)
-        val info = JSONObject().put("title", title).put("source", source)
-        if (repoId != null) info.put("repo", repoId)
-        meta.put(name, info)
-        writeMeta(context, meta)
+        editMeta(context) { meta ->
+            val info = JSONObject().put("title", title).put("source", source)
+            if (repoId != null) info.put("repo", repoId)
+            meta.put(name, info)
+            true
+        }
         if (cover != null) runCatching {
             thumbsDir(context).mkdirs()
             File(thumbsDir(context), coverName(name)).writeBytes(cover)
@@ -121,15 +205,18 @@ object BootMovieLibrary {
         val removed = when {
             id == BootMovie.CUSTOM -> { BootMovie.removeCustom(context); true }
             else -> {
-                val file = file(context, id) ?: return false
-                val name = file.name
-                val gone = file.delete()
+                // Only a movie DroidDeck itself put here is ever deleted; Steam's own movies are left alone.
+                if (!id.startsWith(PREFIX)) return false
+                val name = id.removePrefix(PREFIX)
+                if (name.isEmpty() || name.contains('/') || name.contains('\\') || name in STAGED || readMeta(context).optJSONObject(name) == null) return false
+                val kept = File(libraryDir(context), name)
+                val copy = File(moviesDir(context), name)
+                val gone = (!copy.exists() || copy.delete()) && (!kept.exists() || kept.delete())
                 if (gone) {
-                    val meta = readMeta(context)
-                    if (meta.remove(name) != null) writeMeta(context, meta)
+                    editMeta(context) { it.remove(name) != null }
                     File(thumbsDir(context), coverName(name)).delete()
                     thumbsDir(context).listFiles { f -> f.name.startsWith("frame-" + safe(name) + "-") }?.forEach { it.delete() }
-                    File(context.filesDir, "boot-movie/variants").listFiles { f -> f.name.startsWith(variantPrefix(file)) }?.forEach { it.delete() }
+                    File(context.filesDir, "boot-movie/variants").listFiles { f -> f.name.startsWith(variantPrefix(copy)) }?.forEach { it.delete() }
                 }
                 gone
             }

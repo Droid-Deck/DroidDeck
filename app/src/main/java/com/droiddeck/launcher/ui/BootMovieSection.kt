@@ -177,8 +177,23 @@ private fun InstalledMoviesDialog(a: ModeSettingsActions, onDismiss: () -> Unit)
     var refresh by remember { mutableIntStateOf(0) }
     val snapshot = rememberMovies(refresh, a.onBootMovieChanged)
     var picked by remember { mutableStateOf<String?>(null) }
+    var removing by remember { mutableStateOf<BootMovieLibrary.Entry?>(null) }
     val selected = picked ?: snapshot?.selected
     LaunchedEffect(snapshot?.selected) { picked = null }
+    removing?.let { entry ->
+        RemoveMovieDialog(
+            entry,
+            onConfirm = {
+                removing = null
+                scope.launch {
+                    withContext(Dispatchers.IO) { BootMovieLibrary.remove(app, entry.id) }
+                    a.onBootMovieChanged()
+                    refresh++
+                }
+            },
+            onDismiss = { removing = null },
+        )
+    }
     AppDialog(shown, close, "boot-movies", wide = false) {
         DialogTitleRow(stringResource(R.string.boot_movie_installed), close)
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().heightIn(max = 460.dp)) {
@@ -191,16 +206,23 @@ private fun InstalledMoviesDialog(a: ModeSettingsActions, onDismiss: () -> Unit)
                         Text(movieSourceLabel(entry.source), fontSize = 12.sp, color = if (entry.id == selected) LocalPalette.current.signal else MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     if (entry.removable) SmallIconButton(Icons.Filled.Close, stringResource(R.string.boot_movie_remove), MaterialTheme.colorScheme.error) {
-                        scope.launch {
-                            withContext(Dispatchers.IO) { BootMovieLibrary.remove(app, entry.id) }
-                            a.onBootMovieChanged()
-                            refresh++
-                        }
+                        removing = entry
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun RemoveMovieDialog(entry: BootMovieLibrary.Entry, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.boot_movie_remove_confirm, entry.title)) },
+        text = { Text(stringResource(R.string.boot_movie_remove_confirm_body)) },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = onConfirm) { Text(stringResource(R.string.boot_movie_remove)) } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+    )
 }
 
 @Composable
@@ -343,7 +365,9 @@ private fun RepoTab(a: ModeSettingsActions) {
 /** Downloads [post] and puts it among the installed movies; returns a message when it failed, null when it worked. */
 private fun install(app: android.content.Context, post: SteamDeckRepo.Post, onProgress: (Int) -> Unit): String? {
     val folder = File(app.cacheDir, "boot-movie-download").apply { mkdirs() }
-    val file = File(folder, "${post.id.filter { it.isLetterOrDigit() }.ifEmpty { "movie" }}.webm")
+    // Leftovers of a download that was cut short are cleared, and every download has a file of its own.
+    folder.listFiles()?.forEach { if (System.currentTimeMillis() - it.lastModified() > 60 * 60 * 1000L) it.delete() }
+    val file = File.createTempFile("movie-", ".webm", folder)
     return try {
         if (!SteamDeckRepo.download(post, file, onProgress)) return app.getString(R.string.boot_movie_repo_download_failed)
         val cover = if (post.thumbnail.isNotEmpty()) SteamDeckRepo.bytes(post.thumbnail) else null

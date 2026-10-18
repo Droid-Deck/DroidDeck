@@ -2676,6 +2676,8 @@
     <string name="boot_movie_custom_hint">MP4, MOV, MKV or WebM. Other formats and files over %1$d MB are converted to 720p WebM on the device, up to %2$d seconds.</string>
     <string name="boot_movie_import">Import</string>
     <string name="boot_movie_remove">Remove</string>
+    <string name="boot_movie_remove_confirm">Remove %1$s?</string>
+    <string name="boot_movie_remove_confirm_body">This deletes the movie from DroidDeck and from Steam\'s movies folder.</string>
     <string name="boot_movie_pick">Choose a boot movie</string>
     <string name="boot_movie_imported">%1$s is now the boot movie</string>
     <string name="boot_movie_imported_silent">%1$s is now the boot movie, without sound</string>

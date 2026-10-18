@@ -12,6 +12,12 @@ Settings → Boot movie has four tabs.
 - **Sound**: sound on/off, volume, and how many seconds of the movie play. Anything other than full volume and the whole
   movie is built into `files/boot-movie/variants` (audio re-encoded as Opus, video copied) and staged instead.
 
-Titles, sources and SteamDeckRepo ids live next to the movies in `.droiddeck-movies.json`; covers are cached in
-`files/boot-movie/thumbs`. Selecting a movie here sets `bootMovieApplyNext`, so the next session overwrites a movie Steam had
+Imported and installed movies are kept in `files/boot-movie/library` (with their list, `files/boot-movie/movies.json`) and
+copied into Steam's movies folder, so resetting the Linux runtime does not lose them; the copy is put back when it is
+missing. The list is changed under one lock, so imports at the same time cannot overwrite each other. Only movies in that
+list can be removed (after a confirmation); every other movie in Steam's folder is Steam's or the person's and is never
+deleted. Movies Steam keeps elsewhere (`config/movies`, `steamui/movies`, or whatever path Steam's `StartupMovie.LocalPath`
+names, such as a points shop movie) are listed as Steam movies and adopted when picked in Steam.
+Only one processed copy (volume or length change) is kept in `files/boot-movie/variants`; a volume that cannot be applied
+plays without sound rather than louder, and plays nothing if that fails too. Covers are cached in `files/boot-movie/thumbs`. Selecting a movie here sets `bootMovieApplyNext`, so the next session overwrites a movie Steam had
 picked; otherwise a movie picked in Steam is left alone.

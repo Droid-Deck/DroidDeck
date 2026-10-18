@@ -60,7 +60,7 @@ object BootMovie {
         val chosen = SessionPrefs.bootMovie(context)
         return when {
             chosen == CUSTOM && customFile(context).isFile -> CUSTOM
-            chosen.startsWith(BootMovieLibrary.PREFIX) && BootMovieLibrary.file(context, chosen) != null -> chosen
+            isLibraryId(chosen) && BootMovieLibrary.file(context, chosen) != null -> chosen
             chosen in ASSETS -> chosen
             else -> DROIDDECK_30
         }
@@ -71,11 +71,14 @@ object BootMovie {
 
     private fun sourceOf(context: Context, choice: String): File? = when {
         choice == CUSTOM -> customFile(context)
-        choice.startsWith(BootMovieLibrary.PREFIX) -> BootMovieLibrary.file(context, choice)
+        isLibraryId(choice) -> BootMovieLibrary.file(context, choice)
         else -> ASSETS[choice]?.let { extractAsset(context, it) }
     }
 
+    private fun isLibraryId(id: String) = id.startsWith(BootMovieLibrary.PREFIX) || id.startsWith(BootMovieLibrary.STEAM_PREFIX)
+
     fun prepare(context: Context): File? {
+        BootMovieLibrary.restore(context)
         val source = sourceOf(context, choice(context)) ?: return null
         return variant(context, source)
     }
@@ -84,25 +87,41 @@ object BootMovie {
     private fun variant(context: Context, source: File): File? {
         val volume = if (SessionPrefs.bootMovieSound(context)) SessionPrefs.bootMovieVolume(context) else 0
         val seconds = SessionPrefs.bootMovieSeconds(context)
-        if (volume == 100 && seconds == 0) return source
+        val folder = File(dir(context), "variants")
+        if (volume == 100 && seconds == 0) {
+            prune(folder, null)
+            return source
+        }
+        folder.mkdirs()
         val limitUs = if (seconds > 0) seconds * 1_000_000L else Long.MAX_VALUE
-        val folder = File(dir(context), "variants").apply { mkdirs() }
         val out = File(folder, BootMovieLibrary.variantPrefix(source) + "v$volume-s$seconds.webm")
-        if (out.isFile && out.length() > 0L && out.lastModified() >= source.lastModified()) return out
+        if (out.isFile && out.length() > 0L && out.lastModified() >= source.lastModified()) {
+            prune(folder, out.name)
+            return out
+        }
         val staged = File(folder, out.name + ".staged")
         val ok = runCatching {
             when {
                 volume == 0 -> remux(source, staged, audio = false, limitUs) ||
                     (BootMovieTranscoder.transcode(source, staged, keepAudio = false) {} != null)
                 volume == 100 -> remux(source, staged, audio = true, limitUs)
-                else -> BootMovieTranscoder.regain(source, staged, volume / 100f, limitUs) || remux(source, staged, audio = true, limitUs)
+                // A volume that cannot be applied is never played louder than asked: the movie goes without sound instead.
+                else -> BootMovieTranscoder.regain(source, staged, volume / 100f, limitUs) || remux(source, staged, audio = false, limitUs)
             }
         }.getOrDefault(false)
-        if (ok && staged.renameTo(out)) return out
+        if (ok && staged.renameTo(out)) {
+            prune(folder, out.name)
+            return out
+        }
         staged.delete()
         Log.e(TAG, "could not prepare ${source.name} (volume $volume, $seconds s)")
-        // Sound that was switched off is never staged; a length or volume that could not be applied just plays as it is.
-        return if (volume == 0) null else source
+        // Only a length that could not be applied plays as it is; a volume that could not be applied plays nothing.
+        return if (volume == 100) source else null
+    }
+
+    /** Keeps at most the one processed copy in use, so trying settings never leaves movies piling up. */
+    private fun prune(folder: File, keep: String?) {
+        folder.listFiles()?.forEach { if (it.name != keep) it.delete() }
     }
 
     /**
@@ -114,10 +133,8 @@ object BootMovie {
         if (path == SessionPrefs.bootMovieSteamSeen(context)) return false
         SessionPrefs.setBootMovieSteamSeen(context, path)
         val prefix = "/uioverrides/movies/"
-        if (!path.startsWith(prefix)) return false
-        val name = path.removePrefix(prefix)
-        if (BootMovieLibrary.file(context, BootMovieLibrary.idOf(name)) == null) return false
-        val id = BootMovieLibrary.idOf(name)
+        val id = if (path.startsWith(prefix)) BootMovieLibrary.idOf(path.removePrefix(prefix)) else BootMovieLibrary.STEAM_PREFIX + path
+        if (BootMovieLibrary.file(context, id) == null) return false
         if (SessionPrefs.bootMovie(context) == id) return false
         select(context, id)
         return true
@@ -160,13 +177,11 @@ object BootMovie {
             onStart()
         }
         val shown = title?.takeIf { it.isNotBlank() } ?: file.nameWithoutExtension
-        val name = BootMovieLibrary.freeName(context, shown)
-        val folder = BootMovieLibrary.moviesDir(context)
-        val target = File(folder, name)
-        val staged = File(folder, "$name.staged")
+        val library = BootMovieLibrary.libraryDir(context)
+        val staged = File(library, ".import-${System.nanoTime()}.staged")
         var audioDropped = remux && !audioPlayable
         return try {
-            folder.mkdirs()
+            library.mkdirs()
             val ok = when {
                 copy -> {
                     file.inputStream().use { input -> staged.outputStream().use { output -> FileUtils.copy(input, output) } }
@@ -175,8 +190,8 @@ object BootMovie {
                 remux -> remux(file, staged, audio = true)
                 else -> BootMovieTranscoder.transcode(file, staged, onProgress = onProgress)?.also { audioDropped = it.audioDropped } != null
             }
-            if (!ok || !staged.setReadable(true, false) || !staged.renameTo(target)) return Import.Failed
-            BootMovieLibrary.register(context, name, shown, source, repoId, cover)
+            if (!ok || !staged.setReadable(true, false)) return Import.Failed
+            val name = BootMovieLibrary.commit(context, staged, shown, source, repoId, cover) ?: return Import.Failed
             if (use) select(context, BootMovieLibrary.idOf(name))
             Import.Done(shown, audioDropped, BootMovieLibrary.idOf(name))
         } catch (e: Exception) {

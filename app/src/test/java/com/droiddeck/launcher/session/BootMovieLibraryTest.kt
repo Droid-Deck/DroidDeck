@@ -20,16 +20,26 @@ class BootMovieLibraryTest {
         app.getSharedPreferences("session", Context.MODE_PRIVATE).edit().clear().commit()
         File(app.filesDir, "boot-movie").deleteRecursively()
         movies.deleteRecursively()
+        BootMovieLibrary.libraryDir(app).deleteRecursively()
+        File(BootMovieLibrary.steamRoot(app), "steamui").deleteRecursively()
         BootMovieLibrary.steamConfig(app).delete()
     }
 
     private fun movie(name: String) = File(movies, name).also { it.parentFile!!.mkdirs(); it.writeText("movie") }
 
-    private fun steamPicks(name: String) {
+    /** A movie DroidDeck itself imported: kept in the library, copied into Steam's folder and noted in the list. */
+    private fun imported(title: String, source: String = BootMovieLibrary.SOURCE_IMPORT, repo: String? = null): String {
+        val staged = File(BootMovieLibrary.libraryDir(app), ".t-${System.nanoTime()}-${Thread.currentThread().id}.staged").also { it.parentFile!!.mkdirs(); it.writeText("movie") }
+        return BootMovieLibrary.commit(app, staged, title, source, repo)!!
+    }
+
+    private fun steamPicksAt(path: String) {
         BootMovieLibrary.steamConfig(app).also { it.parentFile!!.mkdirs() }.writeText(
-            "\"InstallConfigStore\"\n{\n\t\"StartupMovie\"\n\t{\n\t\t\"MovieID\"\t\t\"x\"\n\t\t\"LocalPath\"\t\t\"/uioverrides/movies/$name\"\n\t}\n}\n",
+            "\"InstallConfigStore\"\n{\n\t\"StartupMovie\"\n\t{\n\t\t\"MovieID\"\t\t\"x\"\n\t\t\"LocalPath\"\t\t\"$path\"\n\t}\n}\n",
         )
     }
+
+    private fun steamPicks(name: String) = steamPicksAt("/uioverrides/movies/$name")
 
     @Test fun listsTheDroidDeckMoviesAndEveryWebmButNotTheStagedCopies() {
         movie("Intro.webm")
@@ -42,24 +52,58 @@ class BootMovieLibraryTest {
     }
 
     @Test fun usesTheTitleItWasRegisteredWithAndFallsBackToTheFileName() {
-        movie("a.webm"); movie("b.webm")
-        BootMovieLibrary.register(app, "a.webm", "Fancy", BootMovieLibrary.SOURCE_REPO, "id1")
+        imported("Fancy", BootMovieLibrary.SOURCE_REPO, "id1"); movie("b.webm")
         val list = BootMovieLibrary.list(app).associateBy { it.id }
-        assertEquals("Fancy", list["file:a.webm"]!!.title)
-        assertEquals(BootMovieLibrary.SOURCE_REPO, list["file:a.webm"]!!.source)
+        assertEquals("Fancy", list["file:Fancy.webm"]!!.title)
+        assertEquals(BootMovieLibrary.SOURCE_REPO, list["file:Fancy.webm"]!!.source)
+        assertTrue(list["file:Fancy.webm"]!!.removable)
+        assertFalse(list["file:b.webm"]!!.removable)
         assertEquals("b", list["file:b.webm"]!!.title)
         assertEquals(BootMovieLibrary.SOURCE_STEAM, list["file:b.webm"]!!.source)
         assertEquals(setOf("id1"), BootMovieLibrary.installedRepoIds(app))
-        assertEquals("a.webm", BootMovieLibrary.nameForRepo(app, "id1"))
+        assertEquals("Fancy.webm", BootMovieLibrary.nameForRepo(app, "id1"))
     }
 
     @Test fun aChosenFileMovieIsKeptAndFallsBackOnceItIsGone() {
-        movie("a.webm")
-        BootMovie.select(app, "file:a.webm")
-        assertEquals("file:a.webm", BootMovie.choice(app))
-        assertTrue(BootMovieLibrary.remove(app, "file:a.webm"))
+        val name = imported("Mine")
+        BootMovie.select(app, "file:$name")
+        assertEquals("file:$name", BootMovie.choice(app))
+        assertTrue(BootMovieLibrary.remove(app, "file:$name"))
         assertEquals(BootMovie.DROIDDECK_30, BootMovie.choice(app))
-        assertFalse(File(movies, "a.webm").exists())
+        assertFalse(File(movies, name).exists())
+        assertFalse(File(BootMovieLibrary.libraryDir(app), name).exists())
+    }
+
+    @Test fun moviesThatAreNotDroidDecksAreNeverDeleted() {
+        movie("steam-own.webm")
+        assertFalse(BootMovieLibrary.remove(app, "file:steam-own.webm"))
+        assertTrue(File(movies, "steam-own.webm").exists())
+        assertFalse(BootMovieLibrary.list(app).first { it.id == "file:steam-own.webm" }.removable)
+    }
+
+    @Test fun anImportSurvivesTheRuntimeBeingReset() {
+        val name = imported("Keep")
+        movies.deleteRecursively()
+        assertTrue(BootMovieLibrary.list(app).any { it.id == "file:$name" })
+        assertTrue(File(movies, name).isFile)
+    }
+
+    @Test fun importsAtTheSameTimeAllLandInTheList() {
+        val names = java.util.Collections.synchronizedList(ArrayList<String>())
+        (1..8).map { n -> Thread { names.add(imported("Movie")) } }.onEach { it.start() }.forEach { it.join() }
+        assertEquals(8, names.toSet().size)
+        assertEquals(8, BootMovieLibrary.list(app).count { it.source == BootMovieLibrary.SOURCE_IMPORT })
+    }
+
+    @Test fun aMovieSteamKeepsElsewhereIsListedAndAdopted() {
+        val file = File(BootMovieLibrary.steamRoot(app), "steamui/movies/Bought.webm").also { it.parentFile!!.mkdirs(); it.writeText("movie") }
+        val ids = BootMovieLibrary.list(app).map { it.id }
+        assertTrue("steam:/movies/Bought.webm" in ids)
+        steamPicksAt("/movies/Bought.webm")
+        assertTrue(BootMovie.syncFromSteam(app))
+        assertEquals("steam:/movies/Bought.webm", BootMovie.choice(app))
+        assertEquals(file, BootMovie.currentFile(app))
+        assertNull(BootMovieLibrary.file(app, "steam:/../x.webm"))
     }
 
     @Test fun pathTricksAreNotMovies() {

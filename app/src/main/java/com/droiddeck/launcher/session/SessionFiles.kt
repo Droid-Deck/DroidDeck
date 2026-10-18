@@ -197,6 +197,13 @@ object SessionFiles {
         val startupMovieDir = File(root, "root/.local/share/Steam/config/uioverrides/movies")
         BootMovie.syncFromSteam(context)
         val startupMovie = BootMovie.prepare(context)
+        if (startupMovie == null) {
+            // Nothing to play (a movie whose volume could not be set is never played at another volume), so no earlier copy plays either.
+            for (name in listOf("bigpicture_startup.webm", "steam_os_startup.webm")) {
+                File(startupMovieDir, name).delete()
+                File(startupMovieDir, ".$name.source").delete()
+            }
+        }
         val bigPictureMovieInstalled = startupMovie != null &&
             stageStartupMovie(startupMovie, startupMovieDir, "bigpicture_startup.webm")
         if (startupMovie != null) stageStartupMovie(startupMovie, startupMovieDir, "steam_os_startup.webm")
