@@ -2286,7 +2286,7 @@
     <string name="touch_done">完了</string>
     <string name="touch_save_failed">タッチレイアウトを保存できませんでした</string>
     <string name="touch_saved">タッチレイアウトをSteamに保存しました</string>
-    <string name="touch_app_id">アプリ%1$d</string>
+    <string name="touch_app_id">アプリ%1$s</string>
     <string name="touch_label_hint">ラベル（任意）</string>
     <string name="touch_icons_missing">Steamのアイコンが見つかりませんでした</string>
     <plurals name="touch_icons_found">

@@ -2295,7 +2295,7 @@
     <string name="touch_done">Bitti</string>
     <string name="touch_save_failed">Dokunmatik düzen kaydedilemedi</string>
     <string name="touch_saved">Dokunmatik düzen Steam\'e kaydedildi</string>
-    <string name="touch_app_id">Uygulama %1$d</string>
+    <string name="touch_app_id">Uygulama %1$s</string>
     <string name="touch_label_hint">Etiket (isteğe bağlı)</string>
     <string name="touch_icons_missing">Steam\'in simgeleri bulunamadı</string>
     <plurals name="touch_icons_found">

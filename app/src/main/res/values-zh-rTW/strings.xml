@@ -2286,7 +2286,7 @@
     <string name="touch_done">完成</string>
     <string name="touch_save_failed">無法儲存觸控版面配置</string>
     <string name="touch_saved">觸控版面配置已儲存至 Steam</string>
-    <string name="touch_app_id">應用程式 %1$d</string>
+    <string name="touch_app_id">應用程式 %1$s</string>
     <string name="touch_label_hint">標籤（選用）</string>
     <string name="touch_icons_missing">找不到 Steam 的圖示</string>
     <plurals name="touch_icons_found">

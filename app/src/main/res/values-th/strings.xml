@@ -2286,7 +2286,7 @@
     <string name="touch_done">เสร็จสิ้น</string>
     <string name="touch_save_failed">ไม่สามารถบันทึกเค้าโครงสัมผัสได้</string>
     <string name="touch_saved">บันทึกเค้าโครงสัมผัสลง Steam แล้ว</string>
-    <string name="touch_app_id">แอป %1$d</string>
+    <string name="touch_app_id">แอป %1$s</string>
     <string name="touch_label_hint">ป้ายชื่อ (ไม่บังคับ)</string>
     <string name="touch_icons_missing">ไม่พบไอคอนของ Steam</string>
     <plurals name="touch_icons_found">

@@ -182,7 +182,7 @@ class SteamTouchControls(
         applyColor(pendingColor ?: SteamTouchConfig.layoutColor(config, actionSet))
         rebuildVisuals()
         if (!editing) {
-            Log.i(TAG, "steam touch: app $appId, action set $actionSet, layers $layers: ${elements.size} controls")
+            Log.i(TAG, "steam touch: app ${SteamTouchConfig.appIdText(appId)}, action set $actionSet, layers $layers: ${elements.size} controls")
             releaseAll()
         }
         invalidate()
@@ -958,7 +958,7 @@ class SteamTouchControls(
         BIG_PICTURE -> "Steam"
         else -> gameNames[appId] ?: run {
             val app = appId
-            gameNames[app] = context.getString(R.string.touch_app_id, app)
+            gameNames[app] = context.getString(R.string.touch_app_id, SteamTouchConfig.appIdText(app))
             loader.execute {
                 val name = SteamTouchConfig.gameName(context, app) ?: return@execute
                 handler.post { gameNames[app] = name; invalidate() }
@@ -1339,7 +1339,7 @@ class SteamTouchControls(
         loader.execute {
             val file = try { SteamTouchConfig.saveLayouts(context, app, cfg, emptyMap(), options = next) } catch (e: Exception) { null }
             handler.post {
-                if (file == null) Log.w(TAG, "steam touch: input options for app $app not saved")
+                if (file == null) Log.w(TAG, "steam touch: input options for app ${SteamTouchConfig.appIdText(app)} not saved")
                 else { pendingOptions = null; reloadConfig() }
             }
         }

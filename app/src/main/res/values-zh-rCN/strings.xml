@@ -2286,7 +2286,7 @@
     <string name="touch_done">完成</string>
     <string name="touch_save_failed">无法保存触控布局</string>
     <string name="touch_saved">触控布局已保存到 Steam</string>
-    <string name="touch_app_id">应用 %1$d</string>
+    <string name="touch_app_id">应用 %1$s</string>
     <string name="touch_label_hint">标签（可选）</string>
     <string name="touch_icons_missing">未找到 Steam 的图标</string>
     <plurals name="touch_icons_found">

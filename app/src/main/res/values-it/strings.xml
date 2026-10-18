@@ -2318,7 +2318,7 @@
     <string name="touch_done">Fine</string>
     <string name="touch_save_failed">Impossibile salvare il layout touch</string>
     <string name="touch_saved">Layout touch salvato su Steam</string>
-    <string name="touch_app_id">App %1$d</string>
+    <string name="touch_app_id">App %1$s</string>
     <string name="touch_label_hint">Etichetta (opzionale)</string>
     <string name="touch_icons_missing">Le icone di Steam non sono state trovate</string>
     <plurals name="touch_icons_found">

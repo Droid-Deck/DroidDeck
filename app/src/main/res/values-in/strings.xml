@@ -2286,7 +2286,7 @@
     <string name="touch_done">Selesai</string>
     <string name="touch_save_failed">Tata letak sentuh tidak dapat disimpan</string>
     <string name="touch_saved">Tata letak sentuh disimpan ke Steam</string>
-    <string name="touch_app_id">App %1$d</string>
+    <string name="touch_app_id">App %1$s</string>
     <string name="touch_label_hint">Label (opsional)</string>
     <string name="touch_icons_missing">Ikon Steam tidak ditemukan</string>
     <plurals name="touch_icons_found">

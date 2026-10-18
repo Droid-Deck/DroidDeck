@@ -2295,7 +2295,7 @@
     <string name="touch_done">Fertig</string>
     <string name="touch_save_failed">Das Touch-Layout konnte nicht gespeichert werden</string>
     <string name="touch_saved">Touch-Layout in Steam gespeichert</string>
-    <string name="touch_app_id">App %1$d</string>
+    <string name="touch_app_id">App %1$s</string>
     <string name="touch_label_hint">Bezeichnung (optional)</string>
     <string name="touch_icons_missing">Steams Symbole wurden nicht gefunden</string>
     <plurals name="touch_icons_found">

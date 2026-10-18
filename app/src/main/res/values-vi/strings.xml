@@ -2286,7 +2286,7 @@
     <string name="touch_done">Xong</string>
     <string name="touch_save_failed">Không thể lưu bố cục chạm</string>
     <string name="touch_saved">Đã lưu bố cục chạm vào Steam</string>
-    <string name="touch_app_id">Ứng dụng %1$d</string>
+    <string name="touch_app_id">Ứng dụng %1$s</string>
     <string name="touch_label_hint">Nhãn (không bắt buộc)</string>
     <string name="touch_icons_missing">Không tìm thấy biểu tượng của Steam</string>
     <plurals name="touch_icons_found">
