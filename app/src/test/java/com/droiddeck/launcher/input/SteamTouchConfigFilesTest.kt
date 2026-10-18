@@ -5,6 +5,7 @@ import java.io.File
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -56,5 +57,30 @@ class SteamTouchConfigFilesTest {
         assertFalse(device.contains("\"204360\""))
         assertTrue(device.contains("\"8400\""))
         assertEquals(saved, SteamTouchConfig.load(context, 204360).file)
+    }
+
+    @Test fun aMissingConfigStillLeavesAGamepadToPlace() {
+        val config = SteamTouchConfig.load(context, 424242)
+        assertNull(config.file)
+        val available = config.availableFor(1, emptyList())
+        assertTrue(SteamTouchConfig.JOYSTICK_LEFT in available)
+        assertTrue(SteamTouchConfig.JOYSTICK_RIGHT in available)
+        assertTrue(SteamTouchConfig.TRIGGER_LEFT in available)
+    }
+
+    @Test fun theGamepadTemplateLeavesBothSticksPlaceable() {
+        val app = 2463092560L.toInt()
+        val text = javaClass.classLoader!!.getResource("mobile_touch_gamepad_joystick.vdf")!!.readText()
+        File(dir, "2463092560/controller_mobile_touch.vdf").apply { parentFile!!.mkdirs(); writeText(text) }
+        configset("configset_controller_mobile_touch.vdf", "2463092560" to "\"autosave\"\t\t\"1\"")
+        val config = SteamTouchConfig.load(context, app)
+        val available = config.availableFor(1, emptyList())
+        assertTrue(SteamTouchConfig.JOYSTICK_LEFT in available)
+        assertTrue(SteamTouchConfig.JOYSTICK_LEFT_BUTTON in available)
+        assertTrue(SteamTouchConfig.JOYSTICK_RIGHT in available)
+        assertTrue(SteamTouchConfig.DPAD in available)
+        val types = SteamTouchConfig.elementsFor(config, 1, emptyList()).map { it.type }
+        assertTrue(SteamTouchConfig.JOYSTICK_LEFT in types)
+        assertTrue(SteamTouchConfig.JOYSTICK_RIGHT in types)
     }
 }
