@@ -95,6 +95,12 @@ collect_steam_logs() {
     cp "$fex_state/status.json" "$fex_state/config/Config.json" "$BL_DEBUG_DIR/droiddeck-fex/" 2>/dev/null
   fi
   echo "== steam logs copied to $BL_DEBUG_DIR/steam"
+  local proton_log
+  for proton_log in "$BL_DEBUG_DIR"/steam/steam-*.log; do
+    [ -f "$proton_log" ] || continue
+    [ "$(stat -c %s "$proton_log" 2>/dev/null || echo 0)" -gt 67108864 ] || continue
+    { echo "== the last 64 MiB of a larger Proton log"; tail -c 67108864 "$proton_log"; } > "$proton_log.tmp" && mv -f "$proton_log.tmp" "$proton_log"
+  done
 }
 trap 'collect_steam_logs 2>/dev/null || true' TERM INT HUP
 if [ -n "${BL_VK_DRIVER:-}" ]; then
@@ -114,6 +120,14 @@ if [ -n "${BL_VK_DRIVER:-}" ]; then
   unset bl_icd_lib
 fi
 export GAMESCOPE_FORCE_VULKAN_REALTIME=${BL_GAMESCOPE_REALTIME:-0}
+
+if [ "${BL_LOG_LEVEL:-}" = detailed ]; then
+  export DXVK_LOG_LEVEL=info VKD3D_DEBUG=warn PROTON_LOG=1
+  if [ -n "${BL_DEBUG_DIR:-}" ] && mkdir -p "$BL_DEBUG_DIR/steam" 2>/dev/null; then
+    export PROTON_LOG_DIR="$BL_DEBUG_DIR/steam"
+  fi
+  echo "== logs: detailed (Proton log in ${PROTON_LOG_DIR:-$HOME}, DXVK and vkd3d at info)"
+fi
 
 start_agent() {
   [ -n "${BL_LAUNCH_DIR:-}" ] && [ -x /usr/local/bin/droiddeck-agent ] || return 0

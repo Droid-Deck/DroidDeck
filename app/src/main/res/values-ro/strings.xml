@@ -707,6 +707,9 @@
     <string name="setup_session">Sesiune</string>
     <string name="setup_logs">Jurnalele sesiunii</string>
     <string name="setup_logs_hint">Salvate după fiecare sesiune</string>
+    <string name="setup_log_level">Nivel de jurnal</string>
+    <string name="setup_log_level_standard">Standard</string>
+    <string name="setup_log_level_detailed">Detaliat</string>
     <string name="setup_agent_commands">Instrumente de depanare</string>
     <string name="setup_latest_logs">Cele mai recente jurnale de sesiune</string>
     <string name="setup_saved_logs">Jurnale de sesiune salvate</string>

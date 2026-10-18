@@ -704,6 +704,9 @@
     <string name="setup_session">Session</string>
     <string name="setup_logs">Sessionslogs</string>
     <string name="setup_logs_hint">Gemt efter hver session</string>
+    <string name="setup_log_level">Logniveau</string>
+    <string name="setup_log_level_standard">Standard</string>
+    <string name="setup_log_level_detailed">Detaljeret</string>
     <string name="setup_agent_commands">Fejlfindingsværktøjer</string>
     <string name="setup_latest_logs">Seneste sessionslogs</string>
     <string name="setup_saved_logs">Gemte sessionslogs</string>

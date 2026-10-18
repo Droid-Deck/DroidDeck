@@ -710,6 +710,9 @@
     <string name="setup_session">Relace</string>
     <string name="setup_logs">Protokoly relace</string>
     <string name="setup_logs_hint">Uloženo po každé relaci</string>
+    <string name="setup_log_level">Úroveň protokolu</string>
+    <string name="setup_log_level_standard">Standardní</string>
+    <string name="setup_log_level_detailed">Podrobné</string>
     <string name="setup_agent_commands">Nástroje pro ladění</string>
     <string name="setup_latest_logs">Protokoly poslední relace</string>
     <string name="setup_saved_logs">Uložené protokoly relací</string>

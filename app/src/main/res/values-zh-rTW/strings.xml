@@ -701,6 +701,9 @@
     <string name="setup_session">工作階段</string>
     <string name="setup_logs">工作階段日誌</string>
     <string name="setup_logs_hint">每次工作階段結束後儲存</string>
+    <string name="setup_log_level">日誌等級</string>
+    <string name="setup_log_level_standard">標準</string>
+    <string name="setup_log_level_detailed">詳細</string>
     <string name="setup_agent_commands">偵錯工具</string>
     <string name="setup_latest_logs">最新工作階段日誌</string>
     <string name="setup_saved_logs">已儲存的工作階段日誌</string>

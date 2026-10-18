@@ -704,6 +704,9 @@
     <string name="setup_session">Munkamenet</string>
     <string name="setup_logs">Munkamenet-naplók</string>
     <string name="setup_logs_hint">Minden munkamenet után mentve</string>
+    <string name="setup_log_level">Naplószint</string>
+    <string name="setup_log_level_standard">Normál</string>
+    <string name="setup_log_level_detailed">Részletes</string>
     <string name="setup_agent_commands">Hibakeresési eszközök</string>
     <string name="setup_latest_logs">Legutóbbi munkamenet-naplók</string>
     <string name="setup_saved_logs">Mentett munkamenet-naplók</string>

@@ -707,6 +707,9 @@
     <string name="setup_session">Сессия</string>
     <string name="setup_logs">Журналы сессии</string>
     <string name="setup_logs_hint">Сохраняется после каждой сессии</string>
+    <string name="setup_log_level">Уровень журнала</string>
+    <string name="setup_log_level_standard">Обычный</string>
+    <string name="setup_log_level_detailed">Подробный</string>
     <string name="setup_agent_commands">Инструменты отладки</string>
     <string name="setup_latest_logs">Последние журналы сессии</string>
     <string name="setup_saved_logs">Сохраненные журналы сессии</string>

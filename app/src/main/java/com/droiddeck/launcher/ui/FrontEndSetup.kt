@@ -436,6 +436,14 @@ internal fun SetupPanel(
                     4 -> {
                         SettingsGroup(stringResource(R.string.setup_tab_diagnostics)) {
                             ToggleRow(host, "logs", stringResource(R.string.setup_logs), stringResource(R.string.setup_logs_hint), s.logsEnabled) { a.onLogs() }
+                            if (s.logsEnabled) ChoiceRow(
+                                host, "log-level", stringResource(R.string.setup_log_level), null,
+                                listOf(
+                                    com.droiddeck.launcher.session.SessionPrefs.LOG_LEVEL_STANDARD to stringResource(R.string.setup_log_level_standard),
+                                    com.droiddeck.launcher.session.SessionPrefs.LOG_LEVEL_DETAILED to stringResource(R.string.setup_log_level_detailed),
+                                ),
+                                s.logLevel, onPick = a.onLogLevel,
+                            )
                             ToggleRow(host, "vacdiag", stringResource(R.string.setup_vac_diag), stringResource(R.string.setup_vac_diag_hint), s.vacDiagnostics) { a.onVacDiagnostics() }
                             ToggleRow(host, "agent-commands", stringResource(R.string.setup_agent_commands), null, s.agentCommands) { a.onAgentCommands() }
                             ActionRow(stringResource(R.string.setup_latest_logs), stringResource(R.string.drawer_logs_hint), stringResource(R.string.drawer_share_logs), a.onShareLogs,

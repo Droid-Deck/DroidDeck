@@ -704,6 +704,9 @@
     <string name="setup_session">Sessie</string>
     <string name="setup_logs">Sessielogs</string>
     <string name="setup_logs_hint">Opgeslagen na elke sessie</string>
+    <string name="setup_log_level">Logniveau</string>
+    <string name="setup_log_level_standard">Standaard</string>
+    <string name="setup_log_level_detailed">Gedetailleerd</string>
     <string name="setup_agent_commands">Hulpmiddelen voor debuggen</string>
     <string name="setup_latest_logs">Nieuwste sessielogs</string>
     <string name="setup_saved_logs">Opgeslagen sessielogs</string>

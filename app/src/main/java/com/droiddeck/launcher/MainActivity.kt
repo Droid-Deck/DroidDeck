@@ -406,6 +406,7 @@ class MainActivity : ComponentActivity() {
     private var emulatorList by mutableStateOf<List<Library.Emulator>>(emptyList())
     private var runningLabel by mutableStateOf<String?>(null)
     private var logsEnabled by mutableStateOf(true)
+    private var logLevel by mutableStateOf(0)
     private var vacDiagnostics by mutableStateOf(false)
     private var agentCommands by mutableStateOf(false)
     private var showRoms by mutableStateOf(false)
@@ -766,7 +767,7 @@ class MainActivity : ComponentActivity() {
                         busy = busy, stage = stage, percent = percent,
                         desktopInstalled = desktopInstalled, desktopPresent = desktopPresent,
                         offlineAccount = offlineAccount, offline = offline,
-                        frameGenLabel = frameGenLabel, romsDir = romsDir, logsEnabled = logsEnabled,
+                        frameGenLabel = frameGenLabel, romsDir = romsDir, logsEnabled = logsEnabled, logLevel = logLevel,
                         vacDiagnostics = vacDiagnostics, agentCommands = agentCommands,
                         steamGames = steamGames, steamGamesX64 = steamGamesX64, emulators = emulatorList, running = runningLabel,
                         frameGen = FrameGen.mode(this),
@@ -916,6 +917,10 @@ class MainActivity : ComponentActivity() {
                         onLogs = {
                             SessionPrefs.setLogsEnabled(this, !SessionPrefs.logsEnabled(this))
                             logsEnabled = SessionPrefs.logsEnabled(this)
+                        },
+                        onLogLevel = {
+                            SessionPrefs.setSessionLogLevel(this, it)
+                            logLevel = SessionPrefs.sessionLogLevel(this)
                         },
                         onVacDiagnostics = {
                             SessionPrefs.setVacDiagnostics(this, !SessionPrefs.vacDiagnostics(this))
@@ -1895,6 +1900,7 @@ class MainActivity : ComponentActivity() {
         frameGenLabel = FrameGen.label(this)
         romsDir = SessionPrefs.romsDir(this).takeIf { it.isNotEmpty() }
         logsEnabled = SessionPrefs.logsEnabled(this)
+        logLevel = SessionPrefs.sessionLogLevel(this)
         vacDiagnostics = SessionPrefs.vacDiagnostics(this)
         agentCommands = com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(this)
         runningLabel = if (SessionState.running) when (SessionState.mode) {

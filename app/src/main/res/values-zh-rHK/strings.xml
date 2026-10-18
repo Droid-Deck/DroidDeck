@@ -701,6 +701,9 @@
     <string name="setup_session">會話</string>
     <string name="setup_logs">會話記錄</string>
     <string name="setup_logs_hint">每次會話後儲存</string>
+    <string name="setup_log_level">記錄級別</string>
+    <string name="setup_log_level_standard">標準</string>
+    <string name="setup_log_level_detailed">詳細</string>
     <string name="setup_agent_commands">偵錯工具</string>
     <string name="setup_latest_logs">最新的會話記錄</string>
     <string name="setup_saved_logs">已儲存的會話記錄</string>
