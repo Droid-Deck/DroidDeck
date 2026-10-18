@@ -1907,6 +1907,7 @@ class MainActivity : ComponentActivity() {
         val artRefreshesAtStart = HashMap(steamArtRefreshes)
         if (shortcutPicker) shortcutLibraryScanning = true
         Thread({
+            if (SessionPrefs.steamClientArch(this) == "x86_64") com.droiddeck.launcher.session.FexCatalog.refresh(this)
             val emus = Library.emulators(this) { id -> DesktopCatalog.installed(this, id) != null }
             ui.post { if (scanGeneration == libraryScanGeneration) emulatorList = emus }
             if (ready) {

@@ -201,11 +201,26 @@ alone would then read as an installed client.
 - **Where the app gets it.** The app downloads FEX from Droid-Deck/DroidDeck-Components, where nothing is
   uploaded by hand: a new tag is published by `build-fex.yml`, recorded in that repository's `fex.json`
   (sha256 and size), and brought in by its `mirror-release.yml`, which refuses an archive that does not
-  match. `FEX_TAG` and `FEX_SHA256` in `droiddeck-steam-x64` then move to the new tag. The rootfs is
+  match. The app follows that `fex.json`: while the x86-64 client is selected it reads it from
+  Components' `main` (directly, at most every ten minutes) and keeps the last copy, and a session passes
+  that build to `droiddeck-steam-x64` (`BL_FEX_TAG`, `BL_FEX_SHA256`, `BL_FEX_URLS` with the download
+  source's mirrors). The script installs a build only after its archive matches the sha256 and every
+  program in it loads (`ld-linux --list`); otherwise it keeps the installed one while that still loads,
+  then falls back to `FEX_TAG`/`FEX_SHA256` built in, which stay the first-start default when no copy
+  of `fex.json` has been read. Publishing a FEX build therefore takes a Components change only, and
+  pointing `fex.json` back at an older tag rolls devices back at their next start. The rootfs is
   FEX-Emu's own image, unmodified: `fex-rootfs.json` there names its rootfs.fex-emu.gg link, sha256 and
   size, and `mirror-upstream.yml` fetches it into the catalog's release only when both match. A newer
   image is a new catalog release; `ROOTFS_URL` and `ROOTFS_SHA256` then move to it, and a device that
   already unpacked one keeps it.
+
+- **What a session log shows.** `FEX ready (<tag>, <source>)` names the build and where it came from
+  (`catalog`, `built-in`, or `kept` when a newer one did not install, with the reason a line above);
+  `x86-64 rootfs:` names the image; `x86-64 client:` the client's ubuntu12 and steamrt64 builds at start
+  (it may update itself after). The rootfs download reports every tenth of its size as a step. When the
+  web helper's GPU process keeps exiting until Chromium gives up on the GPU (the menus then never appear),
+  one line says so with the exit codes, followed by x86 `glxinfo -B` and `vulkaninfo --summary` through
+  FEX's thunks.
 
 ## DroidDeck direct for Linux games and runtimes
 
