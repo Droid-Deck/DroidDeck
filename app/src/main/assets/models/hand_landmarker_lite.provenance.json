@@ -1,0 +1,12 @@
+{
+  "sha256": "173c0f47ecee7e935bd4a1e93aa580756b4180c1307c07d709313e82c28672c8",
+  "composition": "Lite palm detector and lite hand landmarks with matching Tasks tensor metadata and associated files from the full bundle",
+  "palm_source": "https://storage.googleapis.com/mediapipe-assets/palm_detection_lite.tflite",
+  "palm_source_sha256": "e9a4aaddf90dda56a87235303cf00e4c2d3fb28725f68fd88772997dac905c18",
+  "landmark_source": "https://storage.googleapis.com/mediapipe-assets/hand_landmark_lite.tflite",
+  "landmark_source_sha256": "d7fde8ac11f8ce03f8663775bfc323f4fc9f2a38062b4f4efa142874ef5b2a48",
+  "metadata_source": "hand_landmarker.task",
+  "metadata_source_sha256": "fbc2a30080c3c557093b5ddfc334698132eb341044ccee322ccf8bcf3607cde1",
+  "builder": "tools/build_hand_lite.py; mediapipe==0.10.21; deterministic ZIP_STORED bundle and embedded associated-file archives",
+  "runtime": "com.google.mediapipe:tasks-vision:1.0.0; CPU by default; experimental stereo hand and wrist tracking"
+}

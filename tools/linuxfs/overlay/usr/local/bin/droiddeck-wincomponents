@@ -32,16 +32,13 @@ from pathlib import Path
 
 STORE = Path("/opt/droiddeck/wincomponents")
 SELECTION = Path.home() / ".config/droiddeck/wincomponents.json"
-# What this prefix holds from us, so a component the user turns off is taken out again.
+PENDING = Path.home() / ".config/droiddeck/wincomponents-pending.json"
+PENDING_WAIT = 10.0
 STATE = ".droiddeck-wincomponents.json"
-# A file ours replaced that was not Proton's (a real installer's, the user's own), put back when the
-# component is turned off. Proton's builtins need no copy: it restores those itself.
 BACKUP = ".droiddeck-wincomponents-backup"
 BUILTIN_MARKS = (b"Wine builtin DLL", b"Wine placeholder DLL")
 ARCH_DIRS = ("system32", "syswow64")
 ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
-# The registry file of each hive in a prefix, and the kinds of value registry.json holds: "key"
-# makes a key, "append"/"prepend" add to a list such as PATH unless it is already there.
 HIVES = {"HKLM": "system.reg", "HKCU": "user.reg"}
 VALUE_TYPES = {"key", "sz", "expand_sz", "multi_sz", "dword", "binary", "append", "prepend"}
 
@@ -76,7 +73,6 @@ def component(store, cid):
     for arch in ARCH_DIRS:
         folder = root / arch
         if folder.is_dir():
-            # A few go one level down (gmdls: system32/drivers/gm.dls).
             for entry in sorted(folder.rglob("*")):
                 if entry.is_file() and not entry.is_symlink():
                     rel = entry.relative_to(folder).as_posix().lower()
@@ -191,12 +187,10 @@ def place(src, target, backup=None):
     final = found or target
     temp = final.with_name(".%s.droiddeck" % final.name)
     shutil.copy2(src, temp)
-    # Over a Proton builtin this swaps its symlink for our file.
     os.replace(temp, final)
     return True
 
 
-# ---------------------------------------------------------------- the prefix's registry files
 
 def reg_escape(text, extra=""):
     """A string as Wine's registry files write it."""
@@ -518,15 +512,46 @@ def save_state(compat, state):
     os.replace(temp, compat / STATE)
 
 
-def apply(compat_path, app_id, selection=SELECTION, store=STORE):
+def pending_for(app_id, pending=PENDING):
+    """The component ids the app is still getting ready for app_id; empty when none (or no file)."""
+    try:
+        with open(pending, encoding="utf-8") as source:
+            ids = json.load(source).get("games", {}).get(str(app_id), [])
+    except (OSError, ValueError, AttributeError):
+        return []
+    return [i for i in ids if valid_id(i)] if isinstance(ids, list) else []
+
+
+def wait_for_pending(app_id, pending=PENDING, store=STORE, timeout=PENDING_WAIT, sleep=time.sleep, clock=time.monotonic):
+    """Waits (at most timeout seconds) for the components still being got ready for app_id to be in
+    the store or dropped from the pending list. No wait at all when nothing is pending. Returns a
+    note for the log, or None."""
+    def missing():
+        return [cid for cid in pending_for(app_id, pending) if component(store, cid) is None]
+    left = missing()
+    if not left:
+        return None
+    asked = list(left)
+    start = clock()
+    while left and clock() - start < timeout:
+        sleep(0.5)
+        left = missing()
+    waited = int((clock() - start) * 1000)
+    if left:
+        return "wincomp: %s launched without %s (not ready)" % (app_id, ",".join(left))
+    return "wincomp: %s waited %dms for %s" % (app_id, waited, ",".join(asked))
+
+
+def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING, wait=wait_for_pending):
     """Brings the prefix in line with the game's picks. Returns (overrides, notes)."""
     compat = Path(compat_path)
     pfx = compat / "pfx"
+    waited = wait(app_id, pending, store) if wait else None
     ids = wanted(app_id, selection)
     state = load_state(compat)
     if not ids and not state["files"] and not state.get("registry"):
         return [], []
-    notes, overrides, keep = [], [], {}
+    notes, overrides, keep = ([waited] if waited else []), [], {}
     copied = 0
     installed = []
     values = []
@@ -540,7 +565,6 @@ def apply(compat_path, app_id, selection=SELECTION, store=STORE):
         overrides += names
         values += [(cid, value) for value in registry]
         for rel, src in files:
-            # A file this prefix already has from us is ours to replace; anything else is kept.
             if place(src, pfx / rel, None if rel in state["files"] else compat / BACKUP / rel):
                 copied += 1
             keep[rel] = cid
@@ -558,8 +582,6 @@ def apply(compat_path, app_id, selection=SELECTION, store=STORE):
             path.unlink()
             removed += 1
     if removed:
-        # Proton refreshes its builtins only when its config changes; forgetting the config puts
-        # its own DLLs back where ours were on the next launch - this one.
         try:
             (compat / "config_info").unlink()
         except FileNotFoundError:
@@ -591,7 +613,6 @@ def overrides_value(names):
 
 
 def main():
-    # droiddeck-wincomponents <compatdata dir> <appid>: what a launch would do, for a shell.
     if len(sys.argv) != 3:
         print("usage: droiddeck-wincomponents <compatdata dir> <appid>", file=sys.stderr)
         return 2

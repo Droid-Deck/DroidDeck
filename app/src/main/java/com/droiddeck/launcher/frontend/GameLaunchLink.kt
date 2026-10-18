@@ -1,6 +1,5 @@
 package com.droiddeck.launcher.frontend
 
-/** External callers can select a game, never a guest path or arbitrary Steam command. */
 object GameLaunchLink {
     private val idPattern = Regex("[1-9][0-9]{0,19}")
     private val linkPattern = Regex("droiddeck://game/([1-9][0-9]{0,19})")

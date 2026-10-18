@@ -11,8 +11,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.SdCard
 import androidx.compose.material.icons.outlined.Smartphone
 import androidx.compose.material3.Icon
@@ -40,11 +45,6 @@ import com.droiddeck.launcher.stores.StoreInstallRoot
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.formatBytes
 
-/**
- * "Install <game>:" over one row per place - internal storage, the card - each the action
- * itself: icon, name, free space. Asked only when a card is there. The row picked last time
- * starts focused, so a pad confirms the usual place with one press; nothing is chosen for the user.
- */
 @Composable
 internal fun InstallWhereDialog(item: CatalogItem, onDismiss: () -> Unit) {
     val ctx = LocalContext.current
@@ -56,7 +56,7 @@ internal fun InstallWhereDialog(item: CatalogItem, onDismiss: () -> Unit) {
     val defaultIndex = targets.indexOfFirst { it.root.absolutePath == remembered }.coerceAtLeast(0)
     val focus = remember { List(targets.size) { FocusRequester() } }
     LaunchedEffect(Unit) { focusWithinFrames({ false }) { focus[defaultIndex] } }
-    AppDialog(shown, close, "installWhere", wide = false, maxWidth = 440.dp) {
+    AppDialog(shown, close, "installWhere", wide = false, maxWidth = if (targets.size > 2) 600.dp else 440.dp) {
         Rise(0) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Text(
@@ -70,12 +70,23 @@ internal fun InstallWhereDialog(item: CatalogItem, onDismiss: () -> Unit) {
             }
         }
         Rise(1) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 targets.forEachIndexed { i, t ->
+                    val needed = com.droiddeck.launcher.stores.StoreInstallRoot.estimatedBytesNeeded(item)
+                    val freeBytes = t.freeBytes
+                    val isLow = com.droiddeck.launcher.stores.StoreInstallRoot.insufficientSpace(needed, freeBytes)
+                    val freeText = if (freeBytes < 0L) {
+                        stringResource(R.string.stores_target_free_unknown)
+                    } else if (isLow) {
+                        stringResource(R.string.stores_storage_low, formatBytes(freeBytes), formatBytes(needed))
+                    } else {
+                        stringResource(R.string.stores_target_free, formatBytes(freeBytes))
+                    }
                     TargetRow(
                         label = if (t.removable) t.label else stringResource(R.string.stores_target_internal),
-                        free = stringResource(R.string.stores_target_free, formatBytes(t.freeBytes)),
-                        removable = t.removable, focus = focus[i],
+                        free = freeText,
+                        removable = t.removable, folder = t.folder, focus = focus[i],
+                        warning = isLow, modifier = Modifier.weight(1f),
                     ) {
                         SessionPrefs.setStoresInstallTarget(ctx, t.root.absolutePath)
                         StoresState.install(ctx, item, t.root)
@@ -88,22 +99,24 @@ internal fun InstallWhereDialog(item: CatalogItem, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun TargetRow(label: String, free: String, removable: Boolean, focus: FocusRequester, onPick: () -> Unit) {
+private fun TargetRow(label: String, free: String, removable: Boolean, folder: Boolean, focus: FocusRequester, modifier: Modifier, warning: Boolean = false, onPick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src)
     Row(
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
-        modifier = Modifier.fillMaxWidth().focusRequester(focus).clip(Shape12)
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = modifier.height(IntrinsicSize.Min).focusRequester(focus).clip(Shape12)
             .background(if (hot) pal.signal.copy(alpha = 0.14f) else colors.surface.copy(alpha = 0.6f))
             .glideBorder(hot, Shape12, pal.signal, pal.line)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onPick)
             .controllerConfirm(onClick = onPick)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
-        Icon(if (removable) Icons.Outlined.SdCard else Icons.Outlined.Smartphone, null, tint = if (hot) pal.signal else colors.onBackground, modifier = Modifier.size(22.dp))
-        Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        Text(free, fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1)
+        Icon(if (folder) Icons.Outlined.Folder else if (removable) Icons.Outlined.SdCard else Icons.Outlined.Smartphone, null, tint = if (hot) pal.signal else colors.onBackground, modifier = Modifier.fillMaxHeight().aspectRatio(1f))
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(free, fontSize = 12.sp, color = if (warning) colors.error else colors.onSurfaceVariant, maxLines = 2)
+        }
     }
 }

@@ -80,4 +80,4 @@
 .L18:
         mov     w0, 0
 .L3:
-        .word   0xffffffff  // Branch fixup
+        .word   0xffffffff

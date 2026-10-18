@@ -19,6 +19,11 @@ library list, before anything is published.
   moves (it sat frozen). The X pointer is asked for only while a cursor image is drawn - every
   vblank while shown, every 50 ms while hidden for inactivity - since each ask is a blocking round
   trip to Xwayland on the paint thread; with no image, wlserver's position is used as upstream does.
+- `0101-nested-wayland-cursor-routing.patch` - this app: `gamescope_cursor_composite=2` lets the
+  nested Wayland session paint its cursor in the output using the real X pointer position; client
+  cursor surfaces are cleared to prevent a duplicate at the host pointer, while Gamescope's original
+  default host-cursor fallback is preserved when its no-keyboard-focus policy selects it. Empty
+  client cursor images and Gamescope's hidden flag still suppress the painted cursor.
 - `0110-wayland-backend-touch.patch` - this app: the nested Wayland backend bound only the host's
   pointer and keyboard, so a finger on the phone's screen never reached Steam. It now binds
   `wl_touch` too and hands each finger to wlserver's touch path (`wlserver_touchdown` / `motion` /
@@ -44,6 +49,13 @@ library list, before anything is published.
   read the window's attributes first, it kept the window as override-redirect and left it out of
   `GAMESCOPE_FOCUSABLE_WINDOWS`, so the client kept its loading screen over the running game
   (Skyrim SE, A Plague Tale: Innocence, on the games' own Xwayland). MapNotify now refreshes the flag.
+- `0115-limiter-paces-per-window.patch` - this app: on a fixed-refresh output the frame limiter
+  (Steam's Frame Limit) let a capped window's frames out only on every Nth refresh of a global grid,
+  so a frame finished just after its slot waited a whole extra slot. At 30 on 60 Hz one picture was
+  held for three or four refreshes - "small stops and ladders" with frame generation - where a game's
+  own limiter slips such a frame by one refresh. The fixed-refresh branch now paces each window by
+  time, as the VRR branch already did: its next frame goes out on the first refresh a capped interval
+  after its last one, with half a refresh of tolerance so an on-time window keeps every Nth refresh.
 
 Sixteen more of Armada's patches are DRM/lease/HDR-on-KMS work for a native display, which this
 app's Wayland-hosted gamescope never reaches, or need a newer gamescope than the runtime has.

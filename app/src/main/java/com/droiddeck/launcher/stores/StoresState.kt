@@ -14,65 +14,39 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/**
- * The Stores section's state for the life of the process (like the Flathub store's StoreState):
- * who is signed in where, each store's library and shelves, what is installed on disk and what is
- * being downloaded, so a download carries on - and its progress shows - while the user moves
- * around the launcher or plays something meanwhile.
- *
- * Everything here is read on the main thread by Compose; the workers post their results back.
- * The stores themselves plug in as [StoreBackend]s; a store with no backend in this build shows
- * its sign-in card and nothing else.
- */
 object StoresState {
     private const val TAG = "Stores"
     private val main = Handler(Looper.getMainLooper())
 
-    /** The signed-in account name per store; absent = signed out. */
     val accounts = mutableStateMapOf<Store, String>()
 
-    /** Each store's owned games, once synced; absent until then. */
     val library = mutableStateMapOf<Store, List<CatalogItem>>()
 
-    /** Each store's storefront shelves, once fetched. */
     val shelves = mutableStateMapOf<Store, StoreShelves>()
 
-    /** What a store is doing for the user right now ("Syncing 12 games…"); absent when idle. */
     val status = mutableStateMapOf<Store, String>()
 
-    /** Why the last sync or shelf fetch failed, per store; cleared by the next success. */
     val problems = mutableStateMapOf<Store, String>()
 
-    /** Games the stores installed, as their sidecars say; rebuilt by [refresh]. */
     var installed by mutableStateOf<List<InstalledStoreGame>>(emptyList())
         private set
 
-    /**
-     * The download queue as the Downloads page lists it, newest first. Replaced only when a row is
-     * added, removed, reordered or changes state - not on progress - so whatever iterates it does
-     * not recompose on every byte. A row's progress is read through [download].
-     */
     var downloads by mutableStateOf<List<DownloadEntry>>(emptyList())
         private set
 
-    /** Downloads queued, running or paused across the stores (the rail badge); changes only when the count does. */
     var activeDownloads by mutableStateOf(0)
         private set
 
     private val rows = HashMap<String, androidx.compose.runtime.MutableState<DownloadEntry?>>()
 
-    /** One row's live entry: a composable reading it recomposes for that row's progress only. Main thread. */
     fun download(key: String): DownloadEntry? = rows.getOrPut(key) { mutableStateOf(null) }.value
 
-    /** Main thread: each row's holder set (equal entries change nothing), the list and the count only when they change. */
-    /** The newest list as published, progress included; for the notification, which is not composed. */
     @Volatile var latestDownloads: List<DownloadEntry> = emptyList()
         private set
     private var notifiedAt = 0L
 
     internal fun publishDownloads(list: List<DownloadEntry>) {
         latestDownloads = list
-        // The notification follows at most once a second.
         val now = android.os.SystemClock.uptimeMillis()
         if (now - notifiedAt >= 1000) { notifiedAt = now; com.droiddeck.launcher.stores.download.StoreDownloadService.tick() }
         val keys = list.mapTo(HashSet()) { it.key }
@@ -84,22 +58,20 @@ object StoresState {
     }
 
 
-    /** The native engine's version once probed, "" when the probe said it is missing, null before. */
     var engine by mutableStateOf<String?>(null)
         private set
 
 
     private val backends = HashMap<Store, StoreBackend>()
 
-    /** A store's implementation, registered once as the app starts; null when this build lacks it. */
     fun backend(store: Store): StoreBackend? = backends[store]
 
     fun register(backend: StoreBackend) { backends[backend.store] = backend }
 
-    /** Reads what is on disk for every store: sign-ins, installed games, the engine probe. Off the main thread. */
     fun refresh(context: Context) {
         val app = context.applicationContext
-        Thread({
+        com.droiddeck.launcher.stores.download.SavedQueue.restore(app)
+        background("stores-refresh") {
             val found = Store.entries.mapNotNull { store -> StoreAccounts.signedInAs(app, store)?.let { store to it } }
             val onDisk = StoreInstallRoot.gameFolders(app).mapNotNull { folder ->
                 StoreGameSidecar.read(folder)?.takeIf { it.isInstalled }?.let { InstalledStoreGame(it, folder) }
@@ -113,22 +85,19 @@ object StoresState {
                 unfinished = partial
                 engine = version
             }
-        }, "stores-refresh").start()
+        }
     }
 
     fun isSignedIn(store: Store): Boolean = accounts.containsKey(store)
 
-    /** A store action's error line when it found no usable sign-in: gone, or on disk but unreadable for now. */
     fun notSignedInLine(store: Store): String =
         if (StoreAccounts.isUnavailable(store)) "${store.shortLabel} sign-in could not be read: try again."
         else "${store.shortLabel} session expired: sign in again."
 
-    /** Stores whose sign-in has run out (a launch could not get a code): their chip dims until the user signs in again. */
     val expired = mutableStateMapOf<Store, Boolean>()
 
     fun markSignInExpired(store: Store) = post { expired[store] = true }
 
-    /** Installs that stopped before they finished; their Install button reads "Resume install". */
     var unfinished by mutableStateOf<List<StoreInstallRoot.Unfinished>>(emptyList())
         internal set
 
@@ -136,7 +105,6 @@ object StoresState {
         it.store == item.store && (it.id == item.id || (it.id == null && it.folder.name == StoreInstallRoot.folderName(item.title, item.id)))
     }
 
-    /** Deletes an unfinished install's folder and caches, as Cancel would; drops its row if there is one. */
     fun clearUnfinished(context: Context, item: CatalogItem) {
         val app = context.applicationContext
         val key = "${item.store.id}:${item.id}"
@@ -149,7 +117,6 @@ object StoresState {
 
     fun installedGame(store: Store, id: String): InstalledStoreGame? = installed.firstOrNull { it.sidecar.store == store && it.sidecar.id == id }
 
-    /** The user's library and the shelves for [store], from the cache first and the network when stale. */
     fun open(context: Context, store: Store, force: Boolean = false) {
         val backend = backends[store] ?: return
         val app = context.applicationContext
@@ -158,7 +125,6 @@ object StoresState {
         if (force || !shelves.containsKey(store)) backend.loadShelves(app, force)
     }
 
-    /** A store not signed into: its public storefront only, for its sign-in page to show. */
     fun preview(context: Context, store: Store) {
         if (!shelves.containsKey(store)) backends[store]?.loadShelves(context.applicationContext, false)
     }
@@ -170,23 +136,19 @@ object StoresState {
 
     fun signOut(context: Context, store: Store) {
         val app = context.applicationContext
-        Thread({
+        background("stores-signout") {
             backends[store]?.signOut(app)
-            StoreAccounts.clear(app, store)
+            if (store == Store.GOG) com.droiddeck.launcher.stores.gog.GogComet.replaceAccount { StoreAccounts.clear(app, store) }
+            else StoreAccounts.clear(app, store)
             main.post {
                 accounts.remove(store); library.remove(store); status.remove(store); problems.remove(store)
                 logLine("${store.label}: signed out")
             }
-        }, "stores-signout").start()
+        }
     }
 
-    /** A notification asked for the Downloads chip; the Stores page takes it and clears it. */
     var openDownloads by mutableStateOf(false)
 
-    /**
-     * Android 13+: notifications need permission. Asked once, the first time a download starts from
-     * a screen; refused, downloads still run, without their notification.
-     */
     private fun askForNotifications(context: Context) {
         val activity = context as? android.app.Activity ?: return
         if (android.os.Build.VERSION.SDK_INT < 33) return
@@ -197,51 +159,66 @@ object StoresState {
         runCatching { activity.requestPermissions(arrayOf("android.permission.POST_NOTIFICATIONS"), 7102) }
     }
 
-    /** An install waiting for the user to say where: the page shows the choice while this is set. */
     var pendingInstall by mutableStateOf<CatalogItem?>(null)
 
-    /**
-     * The way a page starts an install: with a card in the device the user is asked where (the
-     * dialog's default is last time's pick, never a silent choice); with none it goes to internal
-     * storage at once.
-     */
     fun requestInstall(context: Context, item: CatalogItem) {
         askForNotifications(context)
-        // A resume goes where the files already are; there is nothing to choose.
         if (isUnfinished(item)) { install(context, item); return }
         val targets = StoreInstallRoot.targets(context)
         if (targets.size > 1) pendingInstall = item else install(context, item, targets.first().root)
     }
 
-    /** Starts an install into [root] (the internal root when null). */
     fun install(context: Context, item: CatalogItem, root: java.io.File? = null) {
         val app = context.applicationContext
-        val target = root ?: StoreInstallRoot.installRoot(app)
+        val folder = StoreInstallRoot.folderFor(app, item.store, item.id, item.title, root ?: StoreInstallRoot.installRoot(app))
+        val target = folder.parentFile!!.parentFile!!
+        val check = StoreInstallRoot.checkStorage(app, item, target)
+        if (!check.enough) {
+            val errorMsg = check.errorMessage ?: app.getString(com.droiddeck.launcher.R.string.stores_storage_insufficient, formatBytes(check.requiredBytes), formatBytes(check.availableBytes))
+            val entry = com.droiddeck.launcher.stores.download.DownloadEntry(
+                item.store,
+                item.id,
+                item.title,
+                cover = item.imageUrl,
+                bytesTotal = item.sizeBytes,
+                location = StoreInstallRoot.labelFor(app, folder)
+            )
+            com.droiddeck.launcher.stores.download.SavedQueue.remember(app, item, target)
+            com.droiddeck.launcher.stores.download.DownloadQueue.recordFailed(app, entry, errorMsg) {
+                install(app, item, target)
+            }
+            return
+        }
+        com.droiddeck.launcher.stores.download.SavedQueue.remember(app, item, target)
         backends[item.store]?.install(app, item, target) ?: logLine("${item.store.label}: this build cannot install yet")
     }
 
-    /** Removes the game's folder and its shortcut, then [onDone] on the main thread. */
+    val uninstalling = mutableStateMapOf<String, Float>()
+
     fun uninstall(context: Context, game: InstalledStoreGame, onDone: () -> Unit = {}) {
         val app = context.applicationContext
-        Thread({
+        val key = "${game.sidecar.store.id}:${game.sidecar.id}"
+        uninstalling[key] = 0f
+        background("stores-uninstall", onFailure = { main.post { uninstalling.remove(key); onDone() } }) {
             runCatching { backends[game.sidecar.store]?.uninstall(app, game) }
-            StoreInstalls.uninstall(app, game)
+            StoreInstalls.uninstall(app, game, progress = { f -> main.post { if (key in uninstalling) uninstalling[key] = f } }, removed = {
+                main.post {
+                    installed = installed.filterNot { it.folder.absolutePath == game.folder.absolutePath }
+                    uninstalling.remove(key)
+                }
+            })
             main.post(onDone)
-        }, "stores-uninstall").start()
+        }
     }
 
-    /** Told on the main thread when an install or removal changed what is on disk; the launcher rebuilds its Games list. */
     @Volatile var libraryListener: (() -> Unit)? = null
 
-    /** A game landed or went: the installed set is re-read and the launcher told. Any thread. */
     fun notifyLibraryChanged(context: Context) {
         refresh(context)
         main.post { libraryListener?.invoke() }
     }
 
-    /** Appends to the engine log with a clock, keeping the last 80 lines. Any thread. */
     fun logLine(raw: String) {
-        // Every store line passes here, the engines' included: no token or full URL is kept.
         val text = StoreLog.redactLine(raw)
         Log.i(TAG, text)
         val app = appContext ?: return
@@ -250,32 +227,44 @@ object StoresState {
 
     private var appContext: Context? = null
 
-    /** Called once as the app starts: where the log file goes, and the old days pruned. */
     fun init(context: Context) {
         appContext = context.applicationContext
         StoreLogFiles.prune(context)
-        // The EOS overlay an earlier build downloaded (656 MB) is gone with the feature.
         val overlay = java.io.File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context), "root/.local/share/droiddeck/epic-overlay")
-        if (overlay.exists()) Thread({ overlay.deleteRecursively(); Log.i(TAG, "removed the old EOS overlay download") }, "epic-overlay-cleanup").start()
-        // Cloud saves a killed app never uploaded; not while a session (and maybe that game) runs.
+        if (overlay.exists()) background("epic-overlay-cleanup") { overlay.deleteRecursively(); Log.i(TAG, "removed the old EOS overlay download") }
         val app = context.applicationContext
-        Thread({ CloudSaves.uploadAllDirty(app, "recovery") }, "cloud-recovery").start()
+        Thread({
+            runCatching { CloudSaves.uploadAllDirty(app, "recovery") }
+                .onFailure { Log.w(TAG, "cloud save recovery failed", it) }
+        }, "cloud-recovery").start()
     }
 
     internal fun post(block: () -> Unit) = main.post(block)
 
+    /**
+     * A worker thread whose failure is logged. An uncaught exception on a plain Thread reaches the crash
+     * handler, which ends the whole app, and none of these jobs is worth that.
+     */
+    private fun background(name: String, onFailure: () -> Unit = {}, block: () -> Unit) {
+        Thread({
+            try {
+                block()
+            } catch (e: Throwable) {
+                Log.w(TAG, "$name failed", e)
+                runCatching(onFailure)
+            }
+        }, name).start()
+    }
+
     private val CLOCK = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
 }
 
-/** What one store contributes: sign-in, its library, its shelves, installs and removals. */
 interface StoreBackend {
     val store: Store
     fun signIn(context: Context)
     fun signOut(context: Context)
     fun syncLibrary(context: Context, force: Boolean)
     fun loadShelves(context: Context, force: Boolean)
-    /** Queues an install of [item] under [root] (a StoreInstallRoot target). */
     fun install(context: Context, item: CatalogItem, root: java.io.File)
-    /** The store's own records of the install, before the folder goes (the queue row, cached ids). */
     fun uninstall(context: Context, game: InstalledStoreGame)
 }

@@ -1,15 +1,3 @@
-/*
- * A trace instance for mangoapp where the kernel's tracefs is closed to the app.
- *
- * Valve's mangoapp (Deck mode's performance overlay) reads the GPU memory total on a Qualcomm
- * display driver (msm_dpu / msm_drm) from the gpu_mem_total event, through a tracefs instance of
- * its own - and aborts when tracefs_instance_create() fails, taking the whole overlay with it.
- * Android mounts tracefs for root and the readtracefs group only, so it always fails here.
- *
- * The real calls run first. Only when they fail is the instance placed in an empty directory of
- * the session's own, and reading its events answers with one gpu_mem_total record carrying the
- * total KGSL - the GPU driver of every Adreno under Android - reports to the app.
- */
 #define _GNU_SOURCE
 #include <dlfcn.h>
 #include <limits.h>
@@ -25,7 +13,6 @@ struct tracefs_instance;
 struct tep_handle;
 struct tep_event;
 
-/* The head of libtraceevent 1.8's struct tep_record (the version tools/mangoapp/packages.txt pins). */
 struct tep_record {
   unsigned long long ts, offset;
   long long missed_events;
@@ -35,7 +22,6 @@ struct tep_record {
   void *priv;
 };
 
-/* The event as Android kernels declare it (trace/events/gpu_mem.h). */
 static const char gpu_mem_total_format[] =
     "name: gpu_mem_total\n"
     "ID: 1\n"

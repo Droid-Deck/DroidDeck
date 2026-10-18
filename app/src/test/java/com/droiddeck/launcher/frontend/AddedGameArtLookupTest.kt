@@ -20,7 +20,6 @@ import java.io.File
 import java.security.SecureRandom
 import javax.crypto.spec.SecretKeySpec
 
-/** Where an added game's art comes from: its own Steam appid, a matching name, SteamGridDB's key. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class AddedGameArtLookupTest {
@@ -33,29 +32,40 @@ class AddedGameArtLookupTest {
     }
 
     @Test fun anAppidFromTheGamesFilesIsUsedWithoutASearch() {
-        val lookup = File(tmp.newFolder(), "steam-appid")
-        val id = AddedGameArt.steamAppId("Palworld", 1623730, lookup) { fail("searched"); null }
-        assertEquals("1623730", id)
-        assertEquals("1623730", lookup.readText())
-        // An earlier "none" from a search does not stand in its way.
-        lookup.writeText("none")
-        assertEquals("1623730", AddedGameArt.steamAppId("Palworld", 1623730, lookup) { fail("searched"); null })
+        val dir = tmp.newFolder("Palworld")
+        File(dir, "steam_appid.txt").writeText("1623730")
+        val exe = File(dir, "Palworld.exe").apply { writeText("x") }
+        val match = SteamMatch.resolve(app, dir.path, exe, "Palworld") { fail("searched"); null }
+        assertEquals(1623730, match.appId)
+        assertEquals(SteamMatch.Certainty.FILES, match.certainty)
+        assertEquals(1623730, SteamMatch.get(app, dir.path)!!.appId)
     }
 
     @Test fun withoutAnAppidTheTitleIsSearchedOnceAWeek() {
-        val lookup = File(tmp.newFolder(), "steam-appid")
+        val dir = tmp.newFolder("Nothing Like It")
+        val exe = File(dir, "game.exe").apply { writeText("x") }
         var searches = 0
-        assertNull(AddedGameArt.steamAppId("Nothing Like It", null, lookup) { searches++; null })
-        assertEquals("none", lookup.readText())
-        assertNull(AddedGameArt.steamAppId("Nothing Like It", null, lookup) { searches++; "1" })
+        assertEquals(null, SteamMatch.resolve(app, dir.path, exe, "Nothing Like It") { searches++; null }.appId)
+        assertEquals(null, SteamMatch.resolve(app, dir.path, exe, "Nothing Like It") { searches++; 1 }.appId)
         assertEquals(1, searches)
-        lookup.setLastModified(System.currentTimeMillis() - 8L * 24 * 3600 * 1000)
-        assertEquals("42", AddedGameArt.steamAppId("Nothing Like It", null, lookup) { searches++; "42" })
+        val old = SteamMatch.get(app, dir.path)!!
+        SteamMatch.put(app, dir.path, SteamMatch.Match(null, SteamMatch.Certainty.NONE, "", old.checkedAt - 8L * 24 * 3600 * 1000))
+        val found = SteamMatch.resolve(app, dir.path, exe, "Nothing Like It") { searches++; 42 }
+        assertEquals(42, found.appId)
+        assertEquals(SteamMatch.Certainty.NAME, found.certainty)
         assertEquals(2, searches)
     }
 
+    @Test fun anEarlierBuildsArtLookupIsKeptAsANameMatch() {
+        val dir = tmp.newFolder("Hades")
+        val exe = File(dir, "Hades.exe").apply { writeText("x") }
+        val legacy = File(tmp.newFolder(), "steam-appid").apply { writeText("1145360") }
+        val match = SteamMatch.resolve(app, dir.path, exe, "Hades", legacy = legacy) { fail("searched"); null }
+        assertEquals(1145360, match.appId)
+        assertEquals(SteamMatch.Certainty.NAME, match.certainty)
+    }
+
     @Test fun aStoreResultIsTakenOnlyWhenItsNameMatches() {
-        // The first result is no longer taken for being first.
         assertNull(AddedGameArt.pickStoreResult("My Obscure Game", listOf("10" to "Totally Different", "11" to "Another One")))
         assertEquals("20", AddedGameArt.pickStoreResult("Hades", listOf("19" to "Hades II Soundtrack Bundle Extra", "20" to "Hades")))
         assertEquals("30", AddedGameArt.pickStoreResult("Skyrim Special Edition Complete Edition", listOf("1" to "Unrelated", "30" to "Skyrim Special Edition")))
@@ -82,7 +92,6 @@ class AddedGameArtLookupTest {
         assertEquals("build", SteamGridDb.pick("", "build"))
         assertEquals("build", SteamGridDb.pick("  ", "build"))
         assertEquals("", SteamGridDb.pick("", ""))
-        // This test build carries no key.
         assertEquals("", SteamGridDb.builtInKey())
         assertEquals("", SteamGridDb.key(app))
     }
@@ -98,5 +107,67 @@ class AddedGameArtLookupTest {
         SteamGridDb.setUserKey(app, "")
         assertFalse(file.exists())
         assertEquals("", SteamGridDb.key(app))
+    }
+
+    @Test fun aFailedLookupIsNotRememberedAsNoMatch() {
+        val marker = File(tmp.newFolder(), "sgdb-id")
+        try {
+            AddedGameArt.remembered(marker) { throw SteamGridDb.Failed(SteamGridDb.Status.BAD_KEY) }
+            fail("the failure was swallowed")
+        } catch (e: SteamGridDb.Failed) {
+            assertEquals(SteamGridDb.Status.BAD_KEY, e.status)
+        }
+        assertFalse(marker.exists())
+    }
+
+    @Test fun aMissIsKeptUntilTheKeyChangesOrTheUserAsksAgain() {
+        val marker = File(tmp.newFolder(), "sgdb-id")
+        var asked = 0
+        assertNull(AddedGameArt.remembered(marker) { asked++; null })
+        assertEquals("none", marker.readText())
+        assertNull(AddedGameArt.remembered(marker) { asked++; "9" })
+        assertEquals(1, asked)
+        assertEquals("9", AddedGameArt.remembered(marker, notBefore = System.currentTimeMillis() + 1000) { asked++; "9" })
+        assertEquals(2, asked)
+        assertEquals("9", AddedGameArt.remembered(marker) { fail("asked again"); null })
+
+        val old = File(marker.parentFile, "old-id").apply { writeText("none") }
+        assertEquals("5", AddedGameArt.remembered(old, retryMiss = true) { "5" })
+        assertEquals("5", old.readText())
+    }
+
+    @Test fun savingAKeyMarksWhenItChanged() {
+        SteamGridDb.keys = CredentialCipher.KeyProvider { SecretKeySpec(ByteArray(32).also { SecureRandom().nextBytes(it) }, "AES") }
+        assertEquals(0L, SteamGridDb.keyChangedAt(app))
+        SteamGridDb.setUserKey(app, "abcdef0123456789")
+        assertTrue(SteamGridDb.keyChangedAt(app) > 0L)
+    }
+
+    @Test fun aBadResponseSaysWhatWentWrong() {
+        assertEquals(SteamGridDb.Status.BAD_KEY, SteamGridDb.failure(401))
+        assertEquals(SteamGridDb.Status.BAD_KEY, SteamGridDb.failure(403))
+        assertEquals(SteamGridDb.Status.LIMIT, SteamGridDb.failure(429))
+        assertEquals(SteamGridDb.Status.SERVER, SteamGridDb.failure(503))
+        assertNull(SteamGridDb.failure(404))
+        assertNull(SteamGridDb.failure(200))
+    }
+
+    @Test fun searchResultsKeepOnlyGamesWithAnIdAndAName() {
+        val data = JSONArray()
+            .put(JSONObject().put("id", 7).put("name", "DONTFORGET").put("verified", true))
+            .put(JSONObject().put("id", 0).put("name", "No id"))
+            .put(JSONObject().put("id", 8).put("name", ""))
+            .put("junk")
+        val games = SteamGridDb.games(data)
+        assertEquals(1, games.size)
+        assertEquals(7, games[0].id)
+        assertEquals("DONTFORGET", games[0].name)
+        assertTrue(games[0].verified)
+    }
+
+    @Test fun eachSlotAsksItsOwnEndpoint() {
+        assertEquals("heroes/game/5?nsfw=false&humor=false", SteamGridDb.path(5, AddedGameArt.Slot.BACKGROUND))
+        assertEquals("grids/game/5?dimensions=600x900&nsfw=false&humor=false", SteamGridDb.path(5, AddedGameArt.Slot.COVER))
+        assertEquals("grids/game/5?dimensions=460x215,920x430&nsfw=false&humor=false", SteamGridDb.path(5, AddedGameArt.Slot.WIDE))
     }
 }

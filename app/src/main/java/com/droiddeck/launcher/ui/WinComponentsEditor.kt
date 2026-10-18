@@ -15,6 +15,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,6 +42,7 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.DependencyDetector
 import com.droiddeck.launcher.frontend.PrefixInstalledDetector
 import com.droiddeck.launcher.frontend.SteamRedists
+import com.droiddeck.launcher.frontend.WinCompSources
 import com.droiddeck.launcher.session.WinComponentNames
 import com.droiddeck.launcher.session.WinComponents
 import com.droiddeck.launcher.session.WinComponents.Support
@@ -47,55 +52,68 @@ import androidx.compose.runtime.withFrameNanos
 import kotlinx.coroutines.withContext
 import java.io.File
 
-// Windows components for one added game, Bannerlator's list: what the game's folder suggests first,
-// then everything that installs here, then the ones that need a Windows installer (not yet). Each
-// one is a switch, downloaded the first time it is turned on for any game; the launch puts the
-// picked ones into the game's prefix (droiddeck-wincomponents).
 
-/** Bannerlator's detector names installers; here the DLL-copy twin is the one that installs. */
-private fun installable(name: String, all: Map<String, WinComponents.Component>): String {
-    val dll = when (name) {
-        "oalinst" -> "oalinst_dll"
-        else -> "${name}_dll"
-    }
-    val twin = all[dll]
-    return if (twin != null && WinComponents.support(twin, all) == Support.READY) dll else name
+private fun installable(name: String, all: Map<String, WinComponents.Component>): String = WinComponents.installable(name, all)
+
+@Composable
+private fun originName(origin: String): String = stringResource(
+    when (origin) {
+        WinCompSources.Origin.GOG.name -> R.string.wincomp_src_gog
+        WinCompSources.Origin.EPIC.name -> R.string.wincomp_src_epic
+        WinCompSources.Origin.AMAZON.name -> R.string.wincomp_src_amazon
+        else -> R.string.wincomp_src_steam
+    },
+)
+
+@Composable
+private fun autoReason(r: WinComponents.AutoReason): String = when (r.kind) {
+    WinCompSources.Origin.STEAM.name -> stringResource(R.string.wincomp_auto_steam, r.args.getOrElse(1) { "" }, r.args.getOrElse(2) { "" }, r.args.getOrElse(3) { "" })
+    WinCompSources.Origin.GOG.name -> stringResource(R.string.wincomp_auto_gog)
+    WinCompSources.Origin.EPIC.name -> stringResource(R.string.wincomp_auto_epic)
+    WinCompSources.Origin.AMAZON.name -> stringResource(R.string.wincomp_auto_amazon)
+    else -> ""
+}
+
+@Composable
+private fun findingReason(f: WinCompSources.Finding): String = when (f.origin) {
+    WinCompSources.Origin.FOLDER -> stringResource(
+        if (f.args.getOrNull(1) == DependencyDetector.Kind.SHIPPED.name) R.string.wincomp_found_shipped else R.string.wincomp_found_bundled,
+        f.args.getOrElse(0) { f.original },
+    )
+    WinCompSources.Origin.STEAM_NAME -> stringResource(R.string.wincomp_steam_by_name, f.args.getOrElse(0) { f.original }, f.args.getOrElse(2) { "" })
+    else -> autoReason(WinComponents.AutoReason(f.origin.name, listOf(f.original) + f.args))
 }
 
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 internal fun WinComponentsDialog(
     appKey: String, gameName: String, gameDir: File?, byPad: Boolean,
-    /** compatdata/<id>: what the prefix already has. [steamAppId]: a Steam title, whose appmanifest lists Steam's own redists. */
     compat: File? = null, steamAppId: Int? = null,
+    game: com.droiddeck.launcher.frontend.Library.SteamGame? = null,
     onClose: () -> Unit,
 ) {
     val context = LocalContext.current
     val coroutine = rememberCoroutineScope()
     val shown = rememberShown(onClose)
     val close = { shown.targetState = false }
-    // null while the catalog loads; empty when it could not be had.
     var catalog by remember { mutableStateOf<Map<String, WinComponents.Component>?>(null) }
     var offline by remember { mutableStateOf(false) }
-    var recommended by remember { mutableStateOf(emptyList<DependencyDetector.Recommendation>()) }
+    var findings by remember { mutableStateOf(emptyList<WinCompSources.Finding>()) }
+    var findingsKnown by remember { mutableStateOf(game == null) }
+    var slowCatalog by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { kotlinx.coroutines.delay(300); slowCatalog = true }
     var installed by remember { mutableStateOf(emptySet<String>()) }
-    // Detector names (oalinst, physx...) already in the prefix from elsewhere.
     var present by remember { mutableStateOf(emptySet<String>()) }
-    var picks by remember { mutableStateOf(WinComponents.picks(context, appKey)) }
-    // The row being worked on: its id, the latest progress (a dependency's while that installs
-    // first), and whether it is turning off rather than on. The row greys out and shows the bar
-    // the moment the switch is pressed, and only that row; the rest of the page stays as it is.
+    var selection by remember { mutableStateOf(WinComponents.selection(context, appKey)) }
+    val picks = selection.effective
     var busyId by remember { mutableStateOf<String?>(null) }
     var progress by remember { mutableStateOf<WinComponents.Progress?>(null) }
     var reverting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    // The component the error is about, so it shows on its own row and not only at the bottom.
     var failed by remember { mutableStateOf<String?>(null) }
     var showWaiting by remember { mutableStateOf(false) }
-    // Done holds focus while the list loads, then the top switch takes it - opened by touch or by
-    // pad, so the d-pad always has somewhere to start; LB and RB jump between the sections, since
-    // the full list runs past sixty switches.
     val recFocus = remember { FocusRequester() }
+    val recFocusAfterAuto = remember { FocusRequester() }
     val activeFocus = remember { FocusRequester() }
     val allFocus = remember { FocusRequester() }
     val waitFocus = remember { FocusRequester() }
@@ -105,42 +123,56 @@ internal fun WinComponentsDialog(
 
     LaunchedEffect(Unit) {
         val (entries, found) = withContext(Dispatchers.IO) {
-            // The folder's own installers first, then what Steam installs with the game.
-            val own = gameDir?.let { DependencyDetector.detect(it) } ?: emptyList()
-            val steam = steamAppId?.let { SteamRedists.detect(gameDir, it) } ?: emptyList()
-            WinComponents.fetch() to (own + steam)
+            val list = WinComponents.fetch(context)
+            if (game != null) {
+                com.droiddeck.launcher.frontend.AutoComponents.queueGame(context, game, asked = true)
+                val kept = com.droiddeck.launcher.frontend.AutoComponents.cachedFindings(context, appKey)
+                if (kept != null) findingsKnown = true
+                list to kept.orEmpty()
+            } else {
+                val own = gameDir?.let { DependencyDetector.detect(it) } ?: emptyList()
+                val steam = steamAppId?.let { SteamRedists.detect(gameDir, it) } ?: emptyList()
+                list to (own + steam).map { WinCompSources.Finding(it.componentName, it.reason, WinCompSources.Origin.FOLDER, false, listOf(it.reason, it.kind.name)) }
+            }
         }
         offline = entries == null
         catalog = entries.orEmpty().associateBy { it.name }
-        recommended = found
+        findings = found
+        selection = withContext(Dispatchers.IO) { WinComponents.selection(context, appKey) }
         present = withContext(Dispatchers.IO) { PrefixInstalledDetector.detect(compat) }
         installed = withContext(Dispatchers.IO) { WinComponents.installedIds(context).toSet() }
     }
-    fun setPicks(next: List<String>) {
-        picks = next
-        coroutine.launch(Dispatchers.IO) { WinComponents.setPicks(context, appKey, next) }
+    val autoDownloading by com.droiddeck.launcher.frontend.AutoComponents.downloading.collectAsState()
+    val online = rememberOnline()
+    val autoChanges by com.droiddeck.launcher.frontend.AutoComponents.changes.collectAsState()
+    val pendingGames by com.droiddeck.launcher.frontend.AutoComponents.pendingGames.collectAsState()
+    val pendingComponents by com.droiddeck.launcher.frontend.AutoComponents.pendingComponents.collectAsState()
+    LaunchedEffect(autoChanges) {
+        if (game != null) withContext(Dispatchers.IO) { com.droiddeck.launcher.frontend.AutoComponents.cachedFindings(context, appKey) }
+            ?.let { findings = it; if (appKey !in pendingGames) findingsKnown = true }
+        selection = withContext(Dispatchers.IO) { WinComponents.selection(context, appKey) }
+        installed = withContext(Dispatchers.IO) { WinComponents.installedIds(context).toSet() }
+    }
+    fun setUser(id: String, on: Boolean) {
+        selection = WinComponents.Selection(selection.auto, selection.user + (id to on))
+        coroutine.launch(Dispatchers.IO) { WinComponents.setUser(context, appKey, id, on) }
     }
     fun toggle(id: String, on: Boolean) {
-        // Switches stay enabled during a download - a disabled one drops the pad's focus - so a press
-        // then is ignored here; the busy row is greyed instead.
         if (busyId != null) return
         error = null
         failed = null
         if (!on) {
-            // Turning off is a saved pick, quick, but the row greys out until it is written so the
-            // press is seen to land; the files leave the prefix at the game's next launch.
             busyId = id; reverting = true; progress = null
-            val next = picks - id
-            picks = next
+            selection = WinComponents.Selection(selection.auto, selection.user + (id to false))
             coroutine.launch {
-                withContext(Dispatchers.IO) { WinComponents.setPicks(context, appKey, next) }
+                withContext(Dispatchers.IO) { WinComponents.setUser(context, appKey, id, false) }
                 busyId = null; reverting = false
             }
             return
         }
         val all = catalog.orEmpty()
         val c = all[id]
-        if (id in installed || c == null) { setPicks(picks + id); return }
+        if (id in installed || c == null) { setUser(id, true); return }
         busyId = id; reverting = false
         progress = WinComponents.Progress(id, "", WinComponents.Phase.DOWNLOAD, -1)
         coroutine.launch {
@@ -149,28 +181,35 @@ internal fun WinComponentsDialog(
             }
             progress = null
             installed = withContext(Dispatchers.IO) { WinComponents.installedIds(context).toSet() }
-            if (problem != null) { error = problem; failed = id } else setPicks(picks + id)
+            if (problem != null) { error = problem; failed = id } else setUser(id, true)
             busyId = null
         }
     }
 
     val all = catalog
+    var arrived by remember { mutableStateOf(false) }
+    LaunchedEffect(all != null && findingsKnown) { if (all != null && findingsKnown) { withFrameNanos { }; arrived = true } }
     val here = if (all == null) emptySet() else present.map { installable(it, all) }.toSet()
     fun supportOf(id: String): Support =
         all?.get(id)?.let { WinComponents.support(it, all) } ?: if (id in installed) Support.READY else Support.UNSUPPORTED
-    val recIds = if (all == null) emptyList() else recommended.distinctBy { installable(it.componentName, all) }
+    val checking = game != null && !findingsKnown
+    val turningOn = if (all == null) emptyMap() else findings.filter { it.auto && it.component != null }
+        .associateBy { installable(it.component!!, all) }
+        .filterKeys { it !in selection.auto && selection.user[it] != false && (it in pendingComponents || it in autoDownloading) }
+    val autoIds = selection.auto.keys.toList() + turningOn.keys
+    val recIds = if (all == null) emptyList() else findings.filter { it.component != null }
+        .filter { installable(it.component!!, all).let { id -> id !in selection.auto && id !in turningOn } }
+        .distinctBy { installable(it.component!!, all) }
+    val suggestions = findings.filter { it.component == null }.distinctBy { it.origin to it.original }
     val ready = all.orEmpty().values.filter { WinComponents.support(it, all.orEmpty()) == Support.READY }.map { it.name }
     val extra = (installed + picks).filter { all?.containsKey(it) != true }
-    // What is turned on for this game gets its own section under the recommendations, which stay
-    // where they are; the rest of the list is everything else, so a component turned off goes back
-    // to its place in the alphabet.
-    val recSet = recIds.map { installable(it.componentName, all.orEmpty()) }.toSet()
+    val recSet = recIds.map { installable(it.component!!, all.orEmpty()) }.toSet() + autoIds
     val active = picks.filter { it !in recSet && (all?.containsKey(it) == true || it in installed) }.distinct()
         .sortedBy { WinComponentNames.of(it).lowercase() }
-    val list = (ready + extra).distinct().filter { it !in active }.sortedBy { WinComponentNames.of(it).lowercase() }
+    val list = (ready + extra).distinct().filter { it !in active && it !in recSet }.sortedBy { WinComponentNames.of(it).lowercase() }
     val waiting = all.orEmpty().values.filter { WinComponents.support(it, all.orEmpty()) == Support.NEEDS_INSTALLER }
         .map { it.name }.sortedBy { WinComponentNames.of(it).lowercase() }
-    val hasRec = all != null && recIds.any { supportOf(installable(it.componentName, all)) == Support.READY }
+    val hasRec = all != null && (autoIds.isNotEmpty() || recIds.any { supportOf(installable(it.component!!, all)) == Support.READY })
     val sections = listOfNotNull(recFocus.takeIf { hasRec }, activeFocus.takeIf { active.isNotEmpty() },
         allFocus.takeIf { list.isNotEmpty() }, waitFocus.takeIf { waiting.isNotEmpty() }, doneFocus)
     var section by remember { mutableStateOf(0) }
@@ -179,12 +218,10 @@ internal fun WinComponentsDialog(
         runCatching { sections[section].requestFocus() }
     }
     LaunchedEffect(all != null) {
-        // The dialog's window starts in touch mode, where a switch cannot hold focus at all.
         inputMode.requestInputMode(InputMode.Keyboard)
         section = 0
         val target = if (all == null) doneFocus else sections.first()
         switchFocused = false
-        // It animates in and the list composes over a few frames: ask until the switch has it.
         repeat(60) {
             withFrameNanos { }
             runCatching { target.requestFocus() }
@@ -197,13 +234,14 @@ internal fun WinComponentsDialog(
         DialogHeader(gameName, stringResource(R.string.wincomp_title))
         Small(stringResource(R.string.wincomp_applies))
         if (byPad) Small(stringResource(R.string.wincomp_pad_hint))
-        if (all == null) Small(stringResource(R.string.wincomp_loading))
+        if (all == null && slowCatalog) Small(stringResource(R.string.wincomp_loading))
         if (offline) Small(stringResource(R.string.wincomp_offline), error = true)
         @Composable
         fun Item(id: String, reason: String?, focus: FocusRequester?) {
             val c = all?.get(id)
             val support = supportOf(id)
             val status = when {
+                !online && id !in installed && support == Support.READY -> stringResource(R.string.wincomp_when_online)
                 id == failed && error != null -> stringResource(R.string.wincomp_failed, error.orEmpty())
                 id in here && id !in picks -> stringResource(R.string.wincomp_already_here)
                 id in installed -> stringResource(R.string.wincomp_downloaded)
@@ -211,14 +249,16 @@ internal fun WinComponentsDialog(
                 support == Support.UNSUPPORTED -> stringResource(R.string.wincomp_unsupported)
                 else -> null
             }
-            // The catalog key stays in the detail: it is what a log or a bug report names.
             val detail = listOfNotNull(reason, c?.description?.takeIf { it.isNotEmpty() }, status, id).joinToString(" · ")
-            val usable = support == Support.READY
-            val busy = id == busyId
+            val offlineHere = !online && id !in installed
+            val usable = support == Support.READY && !offlineHere
+            val autoProgress = autoDownloading[id]?.takeIf { !offlineHere }
+            val busy = id == busyId || autoProgress != null
+            val shownProgress = if (id == busyId) progress else autoProgress
             val caption = when {
                 !busy -> null
-                reverting -> stringResource(R.string.wincomp_reverting)
-                else -> progress?.let { p ->
+                id == busyId && reverting -> stringResource(R.string.wincomp_reverting)
+                else -> shownProgress?.let { p ->
                     val stage = if (p.component != id && p.stage.isNotEmpty()) "${WinComponentNames.of(p.component)}: ${p.stage}" else p.stage
                     val text = when (p.phase) {
                         WinComponents.Phase.DOWNLOAD -> stringResource(R.string.wincomp_downloading, stage)
@@ -228,61 +268,108 @@ internal fun WinComponentsDialog(
                 }
             }
             ComponentRow(
-                WinComponentNames.of(id), detail, checked = id in picks, enabled = usable || id in picks,
+                WinComponentNames.of(id), detail, checked = id in picks, enabled = usable || (id in picks && id in installed),
                 dim = !usable || busy, busy = busy, caption = caption,
-                percent = if (busy && !reverting) progress?.percent ?: -1 else -1,
+                percent = if (busy && !reverting) shownProgress?.percent ?: -1 else -1,
                 modifier = (if (usable && focus != null) Modifier.focusRequester(focus) else Modifier)
                     .onFocusChanged { if (it.isFocused) switchFocused = true },
             ) { on -> toggle(id, on) }
         }
-        /** The section's requester goes to its first switch that can take focus. */
         fun firstUsable(ids: List<String>, focus: FocusRequester): (String) -> FocusRequester? {
             val first = ids.firstOrNull { supportOf(it) == Support.READY }
             return { id -> focus.takeIf { id == first } }
         }
 
-        if (all != null && recIds.isNotEmpty()) {
-            Section(stringResource(R.string.wincomp_recommended))
-            val focusOf = firstUsable(recIds.map { installable(it.componentName, all) }, recFocus)
-            Panel {
-                recIds.forEachIndexed { i, rec ->
-                    if (i > 0) Divider()
-                    val reason = stringResource(
-                        when (rec.kind) {
-                            DependencyDetector.Kind.BUNDLED -> R.string.wincomp_found_bundled
-                            DependencyDetector.Kind.SHIPPED -> R.string.wincomp_found_shipped
-                            DependencyDetector.Kind.STEAM -> R.string.wincomp_found_steam
-                        }, rec.reason,
-                    )
-                    val id = installable(rec.componentName, all)
-                    Item(id, reason, focusOf(id))
+        androidx.compose.animation.AnimatedVisibility(
+            visible = all != null,
+            enter = androidx.compose.animation.fadeIn(Motion.tw(220)),
+            exit = androidx.compose.animation.fadeOut(Motion.tw(0)),
+            label = "lists",
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
+                if (checking) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    androidx.compose.material3.CircularProgressIndicator(Modifier.padding(start = 2.dp).size(12.dp), strokeWidth = 1.5.dp)
+                    Small(stringResource(R.string.wincomp_checking))
+                }
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = all != null && autoIds.isNotEmpty(),
+                    enter = androidx.compose.animation.fadeIn(Motion.tw(260)) + androidx.compose.animation.expandVertically(Motion.tw(260)),
+                    exit = androidx.compose.animation.fadeOut(Motion.tw(180)) + androidx.compose.animation.shrinkVertically(Motion.tw(200)),
+                    label = "autoSection",
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Section(stringResource(R.string.wincomp_auto_section))
+                        if (turningOn.isNotEmpty()) Small(pluralStringResource(R.plurals.wincomp_turning_on, turningOn.size, turningOn.size))
+                        val focusOf = firstUsable(autoIds, recFocus)
+                        Panel {
+                            autoIds.forEachIndexed { i, id ->
+                                key(id) {
+                                    Arrive(arrived) {
+                                        Column {
+                                            if (i > 0) Divider()
+                                            val reason = selection.auto[id] ?: turningOn[id]?.let { f -> WinComponents.AutoReason(f.origin.name, listOf(f.original) + f.args) }
+                                            Item(id, reason?.let { autoReason(it) }, focusOf(id))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if (all != null && recIds.isNotEmpty()) {
+                    Section(stringResource(R.string.wincomp_recommended))
+                    val focusOf = firstUsable(recIds.map { installable(it.component!!, all) }, if (autoIds.isEmpty()) recFocus else recFocusAfterAuto)
+                    Panel {
+                        recIds.forEachIndexed { i, rec ->
+                            val id = installable(rec.component!!, all)
+                            key(id) {
+                                Arrive(arrived) {
+                                    Column {
+                                        if (i > 0) Divider()
+                                        Item(id, findingReason(rec), focusOf(id))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else if (all != null && gameDir != null && autoIds.isEmpty() && !checking) Small(stringResource(R.string.wincomp_no_recommendation))
+                if (suggestions.isNotEmpty()) {
+                    Section(stringResource(R.string.wincomp_suggestions))
+                    Panel {
+                        suggestions.forEachIndexed { i, f ->
+                            if (i > 0) Divider()
+                            Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
+                                Text(f.original, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground)
+                                Text(stringResource(R.string.wincomp_suggestion_reason, originName(f.origin.name)), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+
+                if (active.isNotEmpty()) {
+                    Section(stringResource(R.string.wincomp_active, active.size))
+                    val focusOf = firstUsable(active, activeFocus)
+                    Panel { active.forEachIndexed { i, id -> if (i > 0) Divider(); Item(id, null, focusOf(id)) } }
+                }
+                if (list.isNotEmpty()) {
+                    Section(stringResource(R.string.wincomp_all, list.size))
+                    val focusOf = firstUsable(list, allFocus)
+                    Panel { list.forEachIndexed { i, id -> if (i > 0) Divider(); Item(id, null, focusOf(id)) } }
+                }
+                if (waiting.isNotEmpty()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Section(stringResource(R.string.wincomp_installers, waiting.size))
+                        Spacer(Modifier.weight(1f))
+                        SecondaryButton(
+                            stringResource(if (showWaiting) R.string.wincomp_hide else R.string.wincomp_show), compact = true,
+                            modifier = Modifier.focusRequester(waitFocus),
+                        ) { showWaiting = !showWaiting }
+                    }
+                    Small(stringResource(R.string.wincomp_installers_note))
+                    if (showWaiting) Panel { waiting.forEachIndexed { i, id -> if (i > 0) Divider(); Item(id, null, null) } }
                 }
             }
-        } else if (all != null && gameDir != null) Small(stringResource(R.string.wincomp_no_recommendation))
-
-        if (active.isNotEmpty()) {
-            Section(stringResource(R.string.wincomp_active, active.size))
-            val focusOf = firstUsable(active, activeFocus)
-            Panel { active.forEachIndexed { i, id -> if (i > 0) Divider(); Item(id, null, focusOf(id)) } }
         }
-        if (list.isNotEmpty()) {
-            Section(stringResource(R.string.wincomp_all, list.size))
-            val focusOf = firstUsable(list, allFocus)
-            Panel { list.forEachIndexed { i, id -> if (i > 0) Divider(); Item(id, null, focusOf(id)) } }
-        }
-        if (waiting.isNotEmpty()) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Section(stringResource(R.string.wincomp_installers, waiting.size))
-                Spacer(Modifier.weight(1f))
-                SecondaryButton(
-                    stringResource(if (showWaiting) R.string.wincomp_hide else R.string.wincomp_show), compact = true,
-                    modifier = Modifier.focusRequester(waitFocus),
-                ) { showWaiting = !showWaiting }
-            }
-            Small(stringResource(R.string.wincomp_installers_note))
-            if (showWaiting) Panel { waiting.forEachIndexed { i, id -> if (i > 0) Divider(); Item(id, null, null) } }
-        }
-
         error?.let { Small(it, error = true) }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
             Small(stringResource(R.string.wincomp_next_launch))
@@ -290,6 +377,37 @@ internal fun WinComponentsDialog(
             PrimaryButton(stringResource(R.string.game_env_done), enabled = busyId == null, modifier = Modifier.focusRequester(doneFocus), onClick = close)
         }
     }
+}
+
+@Composable
+private fun Arrive(arrived: Boolean, content: @Composable () -> Unit) {
+    val state = remember { androidx.compose.animation.core.MutableTransitionState(!arrived) }.apply { targetState = true }
+    androidx.compose.animation.AnimatedVisibility(
+        visibleState = state,
+        enter = androidx.compose.animation.fadeIn(Motion.tw(240)) + androidx.compose.animation.expandVertically(Motion.tw(240)) +
+            androidx.compose.animation.slideInVertically(Motion.tw(240)) { -it / 4 },
+        exit = androidx.compose.animation.fadeOut(Motion.tw(160)),
+        label = "arrive",
+    ) { content() }
+}
+
+@Composable
+private fun rememberOnline(): Boolean {
+    val context = LocalContext.current
+    var online by remember { mutableStateOf(com.droiddeck.launcher.frontend.AutoComponents.isOnline(context)) }
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        val cm = context.getSystemService(android.net.ConnectivityManager::class.java)
+        val main = android.os.Handler(android.os.Looper.getMainLooper())
+        val callback = object : android.net.ConnectivityManager.NetworkCallback() {
+            private fun update() = main.post { online = com.droiddeck.launcher.frontend.AutoComponents.isOnline(context) }
+            override fun onAvailable(network: android.net.Network) { update() }
+            override fun onLost(network: android.net.Network) { update() }
+            override fun onCapabilitiesChanged(network: android.net.Network, caps: android.net.NetworkCapabilities) { update() }
+        }
+        runCatching { cm?.registerDefaultNetworkCallback(callback) }
+        onDispose { runCatching { cm?.unregisterNetworkCallback(callback) } }
+    }
+    return online
 }
 
 @Composable
@@ -304,12 +422,6 @@ private fun Panel(content: @Composable androidx.compose.foundation.layout.Column
 private fun Divider() =
     Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp).heightIn(min = 1.dp, max = 1.dp).background(LocalPalette.current.line))
 
-/**
- * One component: name, detail and its switch; while [busy] the row is greyed and a thin bar runs
- * across it with [caption] above (the download, then the install, each 0..100 as [percent], or
- * indeterminate at -1). The switch stays enabled while busy so a pad's focus does not drop; the
- * press is ignored by the caller instead.
- */
 @Composable
 private fun ComponentRow(
     name: String, detail: String, checked: Boolean, enabled: Boolean, dim: Boolean, busy: Boolean = false,

@@ -1,84 +1,119 @@
-// JNI symbols depend on this package path and class name (app/src/main/rust/stores/JNI.md).
 package com.droiddeck.launcher.stores.amazon
 
 import android.util.Log
+import com.droiddeck.launcher.BuildConfig
 import com.droiddeck.launcher.stores.StoresNative
+import org.json.JSONObject
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
-/**
- * The native Amazon file fetcher in `libdroiddeckstores.so`: one streamed GET per manifest file,
- * SHA-256 checked, written as `<dest>.tmp` and renamed. The manager keeps manifest, auth, markers
- * and post-install; [runBlocking] mirrors the Java loop's shape and polls the cancel probe.
- */
 object AmazonNative {
-    const val TAG = "AmazonNative"
-    private const val CANCEL_POLL_MS = 100L
+    private const val TAG = "AmazonNative"
+    private const val CANCEL_POLL_MS = 250L
 
-    /** Callbacks from the engine; every method is called on a native thread. */
-    interface Listener {
-        /** Once up front with the resume-skipped credit, then after each committed file; [bytesDone] includes skipped files. */
-        fun onProgress(bytesDone: Long, bytesTotal: Long, filesDone: Long, filesTotal: Long)
-        /** One diagnostic line; the engine itself does not write to logcat. */
-        fun onLog(line: String)
-        /** Exactly once, when the run succeeds, fails or is cancelled. */
-        fun onComplete(success: Boolean, error: String, bytesWritten: Long)
+    const val ENGINE_MISSING = "Amazon Games: the store engine is not available"
+
+    @Volatile private var configured = false
+
+    fun ready(): Boolean {
+        if (!StoresNative.ensureLoaded()) return false
+        if (!configured) synchronized(this) {
+            if (!configured) {
+                runCatching { nativeConfigure(BuildConfig.VERSION_NAME) }
+                    .onFailure { Log.w(TAG, "configure: ${it.javaClass.simpleName}") }
+                configured = true
+            }
+        }
+        return true
     }
 
-    fun interface CancelCheck { fun isCancelled(): Boolean }
+    fun call(op: String, request: JSONObject = JSONObject()): JSONObject? {
+        if (!ready()) return null
+        val text = try {
+            nativeCall(op, request.toString())
+        } catch (t: Throwable) {
+            Log.w(TAG, "$op: ${t.javaClass.simpleName}")
+            null
+        } ?: return null
+        return runCatching { JSONObject(text) }.getOrNull()
+    }
 
-    class RunResult(@JvmField val success: Boolean, @JvmField val cancelled: Boolean, @JvmField val error: String, @JvmField val bytesWritten: Long)
+    fun fetch(op: String, request: JSONObject): ByteArray? {
+        if (!ready()) return null
+        return try {
+            nativeFetch(op, request.toString())
+        } catch (t: Throwable) {
+            Log.w(TAG, "$op: ${t.javaClass.simpleName}")
+            null
+        }
+    }
 
-    @JvmStatic
-    fun isAvailable(): Boolean = StoresNative.available
+    fun inspect(manifest: ByteArray, request: JSONObject = JSONObject()): JSONObject? {
+        if (!ready()) return null
+        val text = try {
+            nativeInspect(manifest, request.toString())
+        } catch (t: Throwable) {
+            Log.w(TAG, "inspect: ${t.javaClass.simpleName}")
+            null
+        } ?: return null
+        return runCatching { JSONObject(text) }.getOrNull()
+    }
 
-    /**
-     * Runs one download to completion. [planJson]: `[{relPath, url, size, sha256hex}]`, every
-     * manifest file (the engine skips complete ones itself). [maxWorkers] <= 0 = the engine's default.
-     */
-    @JvmStatic
-    fun runBlocking(planJson: String, installDir: String, caBundlePath: String, maxWorkers: Int, processWorkers: Int, isCancelled: CancelCheck?, listener: Listener): RunResult {
-        if (!StoresNative.ensureLoaded()) return RunResult(false, false, "engine not built", 0L)
-        val latch = CountDownLatch(1)
-        var outcome: RunResult? = null
-        val bridge = object : Listener {
-            override fun onProgress(bytesDone: Long, bytesTotal: Long, filesDone: Long, filesTotal: Long) = listener.onProgress(bytesDone, bytesTotal, filesDone, filesTotal)
-            override fun onLog(line: String) = listener.onLog(line)
-            override fun onComplete(success: Boolean, error: String, bytesWritten: Long) {
-                outcome = RunResult(success, false, error, bytesWritten)
-                listener.onComplete(success, error, bytesWritten)
-                latch.countDown()
+    interface InstallListener {
+        fun onStatus(text: String)
+        fun onCheck(doneBytes: Long, totalBytes: Long, files: Int, filesTotal: Int)
+        fun onSizes(pendingBytes: Long, totalBytes: Long)
+        fun onProgress(done: Long, total: Long, files: Int, filesTotal: Int)
+        fun onLog(line: String)
+        fun beforeReplace(): Boolean
+        fun onComplete(success: Boolean, cancelled: Boolean, error: String, result: String)
+    }
+
+    class InstallOutcome(val success: Boolean, val cancelled: Boolean, val error: String, val result: JSONObject?)
+
+    fun install(request: JSONObject, events: InstallListener, cancelled: AtomicBoolean): InstallOutcome {
+        if (!ready()) return InstallOutcome(false, false, ENGINE_MISSING, null)
+        val done = CountDownLatch(1)
+        val holder = arrayOfNulls<InstallOutcome>(1)
+        val bridge = object : InstallListener by events {
+            override fun onComplete(success: Boolean, cancelled: Boolean, error: String, result: String) {
+                holder[0] = InstallOutcome(success, cancelled, error, result.takeIf { it.isNotEmpty() }?.let { runCatching { JSONObject(it) }.getOrNull() })
+                done.countDown()
             }
         }
         val handle = try {
-            nativeStart(planJson, installDir, caBundlePath, maxWorkers, processWorkers, bridge)
+            nativeInstall(request.toString(), bridge)
         } catch (t: Throwable) {
-            Log.w(TAG, "nativeStart threw: ${t.javaClass.simpleName}: ${t.message}")
-            return RunResult(false, false, "nativeStart: ${t.javaClass.simpleName}", 0L)
+            return InstallOutcome(false, false, "The Amazon install could not start: ${t.javaClass.simpleName}", null)
         }
-        if (handle == 0L) return outcome ?: RunResult(false, false, "native start failed", 0L)
-        var cancelSent = false
+        if (handle == 0L) return holder[0] ?: InstallOutcome(false, false, "The Amazon install could not start", null)
         try {
-            while (!latch.await(CANCEL_POLL_MS, TimeUnit.MILLISECONDS)) {
-                if (!cancelSent && isCancelled?.isCancelled() == true) { nativeCancel(handle); cancelSent = true }
+            var forwarded = false
+            while (true) {
+                val finished = try {
+                    done.await(CANCEL_POLL_MS, TimeUnit.MILLISECONDS)
+                } catch (e: InterruptedException) {
+                    cancelled.set(true)
+                    false
+                }
+                if (finished) break
+                if (!forwarded && cancelled.get()) {
+                    nativeCancel(handle)
+                    forwarded = true
+                }
             }
-        } catch (_: InterruptedException) {
-            Thread.currentThread().interrupt()
-            if (!cancelSent) { nativeCancel(handle); cancelSent = true }
-            try { latch.await(30, TimeUnit.SECONDS) } catch (_: InterruptedException) {}
         } finally {
             nativeRelease(handle)
         }
-        val r = outcome ?: RunResult(false, cancelSent, "no completion", 0L)
-        return RunResult(r.success && !cancelSent, cancelSent, r.error, r.bytesWritten)
+        return holder[0] ?: InstallOutcome(false, false, "The Amazon install ended without a result", null)
     }
 
-    @JvmStatic
-    private external fun nativeStart(planJson: String, installDir: String, caBundlePath: String, maxWorkers: Int, processWorkers: Int, listener: Listener): Long
-
-    @JvmStatic
-    private external fun nativeCancel(handle: Long)
-
-    @JvmStatic
-    private external fun nativeRelease(handle: Long)
+    @JvmStatic private external fun nativeConfigure(appVersion: String)
+    @JvmStatic private external fun nativeCall(op: String, request: String): String?
+    @JvmStatic private external fun nativeFetch(op: String, request: String): ByteArray?
+    @JvmStatic private external fun nativeInspect(manifest: ByteArray, request: String): String?
+    @JvmStatic private external fun nativeInstall(request: String, listener: InstallListener): Long
+    @JvmStatic private external fun nativeCancel(handle: Long)
+    @JvmStatic private external fun nativeRelease(handle: Long)
 }

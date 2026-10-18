@@ -88,7 +88,6 @@ class LogRedactorTest {
         }
     }
 
-    // The Steam UI's own login line (webhelper_js.txt), as the privacy scan found it.
     @Test fun loginStateLineLosesAnEmailAccount() {
         val line = "[2026-10-07 21:14:03] SteamUI: INFO: Login: OnLoginStateChange someone.masked@example.com 2 1 0 0"
         val out = LogRedactor.redact(line)
@@ -147,5 +146,24 @@ class LogRedactorTest {
         )) assertEquals(line, LogRedactor.redactForShare(line))
         val once = LogRedactor.redactForShare("resolver: 192.168.0.1")
         assertEquals(once, LogRedactor.redactForShare(once))
+    }
+
+    @Test fun learnedAccountsComeFromBothClients() {
+        val root = java.nio.file.Files.createTempDirectory("redactor").toFile()
+        try {
+            val arm = java.io.File(root, "root/.local/share/Steam/config/loginusers.vdf")
+            arm.parentFile.mkdirs()
+            arm.writeText("\"users\" { \"7656\" { \"AccountName\" \"armplayer\" \"PersonaName\" \"Arm Persona\" } }")
+            LogRedactor.learnFromRuntime(root)
+            assertEquals("hi <redacted:account> and <redacted:account>", LogRedactor.redact("hi armplayer and Arm Persona"))
+            val x64 = java.io.File(root, "root/.droiddeck-x64/.local/share/Steam/config/loginusers.vdf")
+            x64.parentFile.mkdirs()
+            x64.writeText("\"users\" { \"7656\" { \"AccountName\" \"x64player\" } }")
+            LogRedactor.learnFromRuntime(root)
+            assertEquals("<redacted:account> <redacted:account>", LogRedactor.redact("armplayer x64player"))
+        } finally {
+            LogRedactor.learnAccounts()
+            root.deleteRecursively()
+        }
     }
 }

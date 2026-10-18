@@ -121,7 +121,7 @@ class CompatLibrariesTest(unittest.TestCase):
         manifest(self.pc / "steamapps", 30)
         manifest(self.pc / "steamapps", 3127680, installdir="FEX")
         self.assertEqual(["20", "30"], COMPAT["installed_apps"](str(self.steam)))
-        self.assertEqual(["1628350"], COMPAT["fex_missing"](str(self.steam)))
+        self.assertEqual(["1628350", "4183110"], COMPAT["fex_missing"](str(self.steam)))
 
     def test_newest_proton_across_libraries_wins(self):
         for root, build in ((self.steam, "100"), (self.pc, "200")):
@@ -146,6 +146,19 @@ class DesktopGamesTest(unittest.TestCase):
             with patch.object(desktop, "STEAM_ROOT", str(steam)), patch.object(desktop, "APPS_DIR", str(root / "apps")), \
                  patch.object(desktop, "LIBRARIES", ((str(steam), "Steam Games"), (str(root / "card"), "SD Games"))):
                 self.assertEqual({40: "Internal", 50: "Outside"}, desktop.write_entries())
+
+    def test_runtimes_and_compatibility_tools_get_none(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            steam = root / "Steam"
+            manifest(steam / "steamapps", 40, name="Game")
+            manifest(steam / "steamapps", 1628350, name="Steam Linux Runtime 3.0 (sniper)", installdir="SteamLinuxRuntime_sniper")
+            manifest(steam / "steamapps", 5000, name="Some Proton", installdir="Some Proton")
+            (steam / "steamapps/common/Some Proton").mkdir(parents=True)
+            (steam / "steamapps/common/Some Proton/toolmanifest.vdf").write_text('"manifest"\n{\n}\n')
+            with patch.object(desktop, "STEAM_ROOT", str(steam)), patch.object(desktop, "APPS_DIR", str(root / "apps")), \
+                 patch.object(desktop, "LIBRARIES", ((str(steam), "Steam Games"),)):
+                self.assertEqual({40: "Game"}, desktop.write_entries())
 
 
 if __name__ == "__main__":

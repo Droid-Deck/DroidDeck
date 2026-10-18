@@ -1,6 +1,4 @@
 #!/bin/bash
-# Build the pinned KWin executable with the nested-scale patch on native aarch64 Linux.
-# Its dependencies come from signature-checked Arch Linux ARM packages in a disposable chroot.
 set -euo pipefail
 out=$(realpath -m "${1:?out dir}")
 here=$(cd "$(dirname "$0")" && pwd)
@@ -20,7 +18,6 @@ for repo in core extra alarm; do
 done
 touch "$work/runtime.txt"
 python3 "$here/closure.py" "$work/db" "$work/runtime.txt" "$here/kwin-build-seeds.txt" > "$work/packages.txt"
-# Refuse a repository whose KWin headers/libraries have moved beyond the pinned source.
 grep -Eq '^extra/kwin-6\.7\.5-[0-9]+-aarch64\.pkg\.tar\.' "$work/packages.txt"
 export work mirror builder here
 download() {
@@ -56,8 +53,6 @@ sudo cp "$work/root/build/out/bin/kwin_wayland" "$out/kwin_wayland"
 sudo cp "$work/root/build/out/bin/libkwin.so.$version" "$out/libkwin.so.$version"
 sudo chown "$(id -u):$(id -g)" "$out/kwin_wayland" "$out/libkwin.so.$version"
 strip --strip-unneeded "$out/kwin_wayland" "$out/libkwin.so.$version"
-# The backend lives in libkwin, not the small launcher. Catch accidentally shipping only the
-# executable, which boots successfully but still loads the distribution's unpatched backend.
 grep -aq DROIDDECK_NESTED_SCALE "$out/libkwin.so.$version"
 {
     echo "KWin $version source sha256 $source_sha"

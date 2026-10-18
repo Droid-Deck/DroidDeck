@@ -1,8 +1,4 @@
 #!/bin/sh
-# No Deck dock here. The client runs this with --check at start (systemdockmanager.txt) and reads
-# the exit code: 0 with nothing printed is taken as "an update is available" and puts a Dock
-# Firmware Update row with an Apply button in Settings > System. 7, SteamOS's "nothing to do",
-# is read as up to date (state 2 in that log, against state 4 for exit 0; both seen on device).
 case "${1:-}" in
   --check) exit 7 ;;
 esac

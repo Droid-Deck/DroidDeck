@@ -2,15 +2,6 @@ package com.droiddeck.launcher.wayland;
 
 import android.view.Surface;
 
-/**
- * Embedded Wayland compositor (experimental parallel display runtime).
- *
- * Brings up a libwayland-server compositor in-process so games launched through
- * Wine's winewayland.drv can present into it (companion to the winewayland Proton
- * build). Committed frames (dmabufs from winewayland's Vulkan WSI) are composited
- * onto the given Surface via the native Vulkan present backend. Not on the default
- * X11 path.
- */
 public final class WaylandCompositor {
     static {
         System.loadLibrary("droiddeckwayland");
@@ -20,35 +11,21 @@ public final class WaylandCompositor {
 
     private static volatile Runnable firstFrameListener;
 
-    /** Register a callback fired once, when the compositor presents the first client
-     *  frame to the output Surface. Used to dismiss the launch overlay in wayland mode
-     *  (there is no XServer window-content hook). Runs on the compositor thread - the
-     *  listener must marshal to the UI thread itself. */
     public static void setFirstFrameListener(Runnable r) { firstFrameListener = r; }
 
     public static synchronized void clearFirstFrameListener(Runnable r) {
         if (firstFrameListener == r) firstFrameListener = null;
     }
 
-    /** Invoked from native (droiddeck_on_first_frame) on the first present. */
     @SuppressWarnings("unused")
     static void onFirstFramePresented() {
         Runnable r = firstFrameListener;
         if (r != null) r.run();
     }
 
-    /** The in-game performance HUD's feed in wayland mode (X11 binds the HUD to the window
-     *  carrying _MESA_DRV and counts X presents; there is no X server here). */
     public interface GameListener {
-        /** A window started presenting GPU frames ({@code window} describes it; {@code gpuName} is the
-         *  compositor's GPU), or {@code window == null} when that window closed. Compositor thread. */
         void onGameSurface(String window, String gpuName);
-        /** One GPU frame from that window. Compositor thread - keep it cheap. */
         void onGameFrame();
-        /** The program behind that window, right after {@link #onGameSurface}: its Linux pid (the
-         *  Wayland client's credentials) and executable name ({@code ""} when unknown). The app arms its
-         *  launch-time CPU affinity on it - on X11 that comes from window events, which a Wayland session
-         *  has none of. Compositor thread - marshal to the UI thread. */
         default void onGameProgram(int pid, String program) {}
     }
 
@@ -60,7 +37,6 @@ public final class WaylandCompositor {
         if (gameListener == l) gameListener = null;
     }
 
-    /** Invoked from native (droiddeck_on_game_surface). */
     @SuppressWarnings("unused")
     static void onGameSurface(String window, String gpuName) {
         GameListener l = gameListener;
@@ -69,23 +45,23 @@ public final class WaylandCompositor {
 
     private static volatile long lastFrameNanos;
     private static volatile long frameIntervalNanos;
+    private static volatile long gameFrames; // written by the compositor thread only
 
-    /**
-     * How long frames are taking to arrive right now, in ms, or -1 before the first: the smoothed
-     * interval, or the time since the last frame when that is longer (a session that has stalled).
-     */
+    /** Frames the game has presented since the app started; the rate is the difference over time. */
+    public static long gameFrameCount() { return gameFrames; }
+
     public static long recentFrameIntervalMs() {
         long last = lastFrameNanos;
         if (last == 0) return -1;
         return Math.max(frameIntervalNanos, System.nanoTime() - last) / 1_000_000;
     }
 
-    /** Invoked from native (droiddeck_on_game_frame) for every frame of the HUD's window. */
     @SuppressWarnings("unused")
     static void onGameFrame() {
         long now = System.nanoTime();
         long previous = lastFrameNanos;
         lastFrameNanos = now;
+        gameFrames++;
         if (previous != 0) {
             long interval = now - previous;
             long smoothed = frameIntervalNanos;
@@ -95,19 +71,13 @@ public final class WaylandCompositor {
         if (l != null) l.onGameFrame();
     }
 
-    /** Invoked from native (droiddeck_on_game_program) once per game window that starts presenting. */
     @SuppressWarnings("unused")
     static void onGameProgram(int pid, String program) {
         GameListener l = gameListener;
         if (l != null) l.onGameProgram(pid, program != null ? program : "");
     }
 
-    /** Pointer lock (zwp_pointer_constraints_v1) state, for the app's input path. */
     public interface PointerLockListener {
-        /** A program locked the pointer ({@code locked}): the app must feed the compositor deltas
-         *  (scene input type 6) instead of absolute positions. When the lock ends, {@code x,y} is
-         *  where the pointer now is (scene = virtual-desktop coordinates) for the app to re-sync
-         *  its own pointer to. Compositor thread. */
         void onPointerLock(boolean locked, int x, int y);
     }
 
@@ -115,21 +85,17 @@ public final class WaylandCompositor {
 
     public static void setPointerLockListener(PointerLockListener l) { pointerLockListener = l; }
 
-    /** Unhooks {@code l} only if it is still the listener, so a finishing activity never unhooks its successor's. */
     public static void clearPointerLockListener(PointerLockListener l) {
         if (pointerLockListener == l) pointerLockListener = null;
     }
 
-    /** Invoked from native (droiddeck_on_pointer_lock). */
     @SuppressWarnings("unused")
     static void onPointerLock(boolean locked, int x, int y) {
         PointerLockListener l = pointerLockListener;
         if (l != null) l.onPointerLock(locked, x, y);
     }
 
-    /** Clipboard text a program in the guest copied (wl_data_device / zwlr_data_control). */
     public interface ClipboardListener {
-        /** {@code text} is what the guest put on its clipboard. Compositor thread. */
         void onGuestClipboardText(String text);
     }
 
@@ -139,23 +105,17 @@ public final class WaylandCompositor {
 
     public static boolean isClipboardListener(ClipboardListener l) { return clipboardListener == l; }
 
-    /** A replaced activity must not unhook the clipboard listener of its successor. */
     public static void clearClipboardListener(ClipboardListener l) {
         if (clipboardListener == l) clipboardListener = null;
     }
 
-    /** Invoked from native (droiddeck_on_clipboard_text) with UTF-8 bytes. */
     @SuppressWarnings("unused")
     static void onClipboardText(byte[] utf8) {
         ClipboardListener l = clipboardListener;
         if (l != null && utf8 != null) l.onGuestClipboardText(new String(utf8, java.nio.charset.StandardCharsets.UTF_8));
     }
 
-    /** Text input (zwp_text_input_v3) state: a program accepts IME text, or stopped. */
     public interface TextInputListener {
-        /** {@code enabled}: {@code program} (its exe name) accepts IME text; {@code x,y,w,h} is its caret
-         *  rectangle in scene (virtual desktop) pixels, all 0 until the program positions one. Compositor
-         *  thread. */
         void onTextInput(boolean enabled, String program, int x, int y, int w, int h);
     }
 
@@ -163,7 +123,6 @@ public final class WaylandCompositor {
 
     public static void setTextInputListener(TextInputListener l) { textInputListener = l; }
 
-    /** Invoked from native (droiddeck_on_text_input). */
     @SuppressWarnings("unused")
     static void onTextInput(boolean enabled, String program, int x, int y, int w, int h) {
         TextInputListener l = textInputListener;
@@ -174,16 +133,12 @@ public final class WaylandCompositor {
         return s == null ? new byte[0] : s.getBytes(java.nio.charset.StandardCharsets.UTF_8);
     }
 
-    /** Android's clipboard text becomes the guest's selection ({@code null}/empty clears it). Any thread. */
     public static void setClipboardText(String text) { nativeSetClipboardText(utf8(text)); }
 
-    /** Commit soft-keyboard text to the program accepting text input. Any thread. */
     public static void textInputCommit(String text) { if (text != null && !text.isEmpty()) nativeTextInputCommit(utf8(text)); }
 
-    /** Composing (pre-edit) text with the caret at character index {@code cursor} (-1 = end); empty clears. */
     public static void textInputPreedit(String text, int cursor) { nativeTextInputPreedit(utf8(text), cursor, cursor); }
 
-    /** The IME deleted {@code before} characters before and {@code after} after the caret. */
     public static void textInputDelete(int before, int after) { nativeTextInputDelete(before, after); }
 
     private static native void nativeSetClipboardText(byte[] utf8);
@@ -191,104 +146,47 @@ public final class WaylandCompositor {
     private static native void nativeTextInputPreedit(byte[] utf8, int cursorBegin, int cursorEnd);
     private static native void nativeTextInputDelete(int before, int after);
 
-    /** Start the compositor headless (no output window) - bring-up tests only. */
     public static native void nativeStart(String xdgRuntimeDir);
 
-    /** Start the compositor rendering to {@code surface}. XDG_RUNTIME_DIR = an
-     *  app-writable dir for the wayland socket (e.g. context.getFilesDir()).
-     *  driverPath/libraryName/nativeLibDir select the Turnip driver via adrenotools
-     *  (all null -> system libvulkan, which can't do dmabuf import). */
     public static native void nativeStartWithSurface(Surface surface, String xdgRuntimeDir,
                                                      String driverPath, String libraryName,
                                                      String nativeLibDir);
 
-    /** Replace/clear the output window when the SurfaceView is (re)created/destroyed. */
     public static native void nativeSetSurface(Surface surface);
+    public static native boolean nativeWaitSurface(int timeoutMs);
 
-    /** Inject a pointer event into the compositor (from the SurfaceView touch listener).
-     *  action: 0=down, 1=move, 2=up. x/y in compositor output space (0..1919, 0..1079). */
     public static native void nativeSendPointer(int action, int x, int y);
 
     public static native void nativeSendTouch(int action, int pointerId, int x, int y);
 
-    /**
-     * The client's pointer image, straight from wl_pointer.set_cursor (labwc's resize arrows, a text
-     * field's I-beam). out = [serial, hidden, w, h, hotspotX, hotspotY, ARGB8888 pixels...]; returns
-     * the number of ints written, or 0 if {@code out} is too small. Serial 0 = the client has not
-     * set one yet; [1] = 1 means it asked for NO pointer.
-     */
     public static native int nativeCursorSnapshot(int[] out);
 
-    /** The serial {@link #nativeCursorSnapshot} would report, without copying the image. */
     public static native int nativeCursorSerial();
 
-    /** Enough for the header plus a 256x256 cursor, the largest the compositor snapshots. */
     public static final int CURSOR_BUF_INTS = 6 + 256 * 256;
 
-    /** Inject a key event. evdev = Linux input keycode (KEY_A=30…); state: 1=down, 0=up. */
     public static native void nativeSendKey(int evdev, int state);
 
-    /** One screen refresh (Choreographer frame callback). The compositor draws the newest state
-     *  once per tick, so games run unthrottled and the screen shows their latest frame. */
     public static native void nativeVsync(long frameTimeNanos);
 
-    /** The compositor thread's Linux tid, or 0 before it has started. */
     public static native int nativeCompositorTid();
 
-    /** Shortcut launches: don't draw explorer's windows (desktop, taskbar, Start menu), matching the
-     *  X11 renderer's unviewable "explorer.exe". Set before the compositor starts. */
     public static native void nativeSetHideShell(boolean hide);
 
-    /** The panel's refresh rate in Hz, advertised on the Wayland output so Wine's display modes
-     *  carry the real rate (games that insist on their saved 144 Hz mode find it, as on X11).
-     *  Set before the compositor starts. */
     public static native void nativeSetOutputRefreshRate(float hz);
 
-    /** Show a single fullscreen window on its own Android layer (SurfaceControl) instead of blitting
-     *  it into the compositor's swapchain. DROIDDECK_WAYLAND_ZERO_COPY=1 in the container's environment
-     *  variables is the launch default; see waylandcomp/ZERO_COPY_SPIKE.md.
-     *
-     *  Live and thread-safe: before the compositor starts this is the initial state, and afterwards
-     *  the call is marshalled onto the compositor thread, which flips the state, tells every bound
-     *  game over banner_ahb_v1.mode to rebuild its swapchain for it, and redraws. The switch is one
-     *  frame's worth of latency; the picture never goes black, because the old swapchain's buffers
-     *  keep being shown until the game has replaced them. */
     public static native void nativeSetZeroCopy(boolean on);
 
-    /** Zero-copy frames the compositor presented in its LAST completed 10 s stats window (the
-     *  "| N zero-copy frames" figure of its session-log stats line); 0 while zero-copy is off or
-     *  before the first window closes. Read-only, any thread - the in-game drawer polls it. */
     public static native int nativeZeroCopyFrames();
 
-    /** Milliseconds since the compositor last put a game frame on the display layer without a copy;
-     *  -1 if it never has this session. Unlike nativeZeroCopyFrames this updates on every such frame
-     *  rather than once per 10 s window, so the drawer can tell "switching..." from "running" within
-     *  a frame or two of the live toggle. Read-only, any thread. */
     public static native int nativeZeroCopyLastFrameAgeMs();
 
-    /** Compressed (UBWC) game buffers: the compositor advertises DRM_FORMAT_MOD_QCOM_COMPRESSED next to
-     *  LINEAR on zwp_linux_dmabuf_v1 for every format its driver can import that way, so the game's
-     *  Turnip allocates compressed swapchain images instead of resolving every frame to a linear copy.
-     *  Default on; DROIDDECK_WAYLAND_UBWC=0 in the container's environment variables turns it off (A/B).
-     *  Set before the compositor starts. */
     public static native void nativeSetUbwc(boolean on);
 
-    /** Debug: advertise no DRM device (main device 0:0) in the dma-buf feedback, as a phone that
-     *  exposes no /dev/dri node to apps does. DROIDDECK_WAYLAND_NO_RENDER_NODE=1 in the container's or
-     *  shortcut's environment variables. Set before the compositor starts. */
     public static native void nativeSetNoRenderNode(boolean on);
 
-    /** VRR / refresh-rate matching: mirror the panel refresh-rate vote the activity puts on the
-     *  compositor's SurfaceView onto the game's own SurfaceControl layer. Under zero-copy the game's
-     *  frames go straight onto that layer and never reach the app's surface, so the surface vote alone
-     *  does not tell SurfaceFlinger the game's cadence. Same rate and compatibility as
-     *  {@code Surface.setFrameRate}; {@code 0} clears the vote. Callable any time from any thread; the
-     *  compositor applies it on its next layer transaction and writes one `layer` line per change to
-     *  the session log. A no-op on Android versions without {@code ASurfaceTransaction_setFrameRate}. */
     public static native void nativeSetLayerFrameRate(float hz);
 
-    /** Where the compositor was told to write its log, for the session collector; null if it was
-     *  left to choose. Set before the compositor starts - it opens the file once, at start. */
     private static volatile java.io.File sessionLogFile;
 
     public static void setSessionLogFile(java.io.File file) {
@@ -299,219 +197,121 @@ public final class WaylandCompositor {
         return sessionLogFile;
     }
 
-    /** Write one line into the compositor's session log (Download/Wayland-logs) under the "display"
-     *  area, from Java. Used for facts the platform knows and the native side does not - the panel's
-     *  HDR capability, which lives behind android.view.Display. Safe before the compositor thread is
-     *  up (the line then only reaches logcat) and safe after it has gone. */
     public static native void nativeLogDisplay(String message);
 
-    /** The same under the "perf" area (e.g. the CPU cores Prefer Big Cores picked). Same safety. */
     public static native void nativeLogPerf(String message);
 
-    /** The container's screen size, advertised as the Wayland output's mode so Wine's display-mode
-     *  list stops at the desktop size, as the X server's does on X11. Set before the compositor starts. */
     public static native void nativeSetOutputSize(int width, int height);
 
-    /** A new output size for a running compositor ("Follow screen": a foldable opening or closing).
-     *  The compositor thread re-sends the wl_output mode and an xdg_toplevel configure to every
-     *  client, and gamescope / the desktop's KWin resize their output to it. Any thread. */
+    public static native boolean nativeGamePictureRect(float[] out);
+
     public static native void nativeResizeOutput(int width, int height);
 
-    /** Re-arms the one-shot first-frame notice, for a new session under a compositor that has
-     *  already presented a previous one. */
     public static native void nativeResetFirstFrame();
 
-    // ── HDR10 output, round 1 (waylandcomp/src/droiddeck_color.h, wl_color_mgmt.c) ─────────────────
-    // Opt-in: DROIDDECK_WAYLAND_HDR=1 in the container's or shortcut's env vars. The compositor offers
-    // games HDR10 (wp_color_manager_v1 + 10-bit buffers, frames tagged BT2020_PQ on the game's own
-    // display layer) only when the game's display lists HDR10 as well; otherwise nothing changes and
-    // the session log says why. Not the drawer's "HDR" effect, which is an SDR bloom/contrast filter.
 
-    /** HDR_MODE_OFF / HDR_MODE_ON (DROIDDECK_WAYLAND_HDR=1) / HDR_MODE_FORCE (=force: skip the display
-     *  check, for testing the negotiation on an SDR panel). */
     public static final int HDR_MODE_OFF = 0, HDR_MODE_ON = 1, HDR_MODE_FORCE = 2;
 
-    /** The opt-in: mode, where it came from ("container env" / "shortcut env"), whether DXVK_HDR=1 is
-     *  in the game's environment, and whether the app turned zero-copy on for this session because HDR
-     *  needs it. Set before the compositor starts. */
     public static native void nativeSetHdrRequest(int mode, String source, boolean dxvkHdr, boolean zeroCopyForced);
 
-    /** The game's display as {@code android.view.Display} reports it. Before the compositor starts (it
-     *  feeds the gate) and again whenever it changes (logged; the gate is decided once per session). */
     public static native void nativeSetHdrDisplay(int displayId, String name, String formats, boolean hdr10,
                                                   float maxLuminance, float maxAverageLuminance, float minLuminance,
                                                   boolean hdrSdrRatioAvailable, float hdrSdrRatio, int apiLevel);
 
-    /** One {@code Display.getHdrSdrRatio()} reading ({@code < 0} = not available); {@code listener} = it
-     *  came from the display's ratio listener rather than the periodic sampler. Any thread. */
     public static native void nativeHdrSdrRatioSample(float ratio, boolean listener);
 
-    /** Milliseconds since an HDR frame last reached a display layer; -1 = none this session. Any thread. */
     public static native int nativeHdrLastFrameAgeMs();
 
-    /** -1 = the compositor has not decided the HDR gate yet, 0 = closed, 1 = open. Any thread. */
     public static native int nativeHdrGateState();
 
-    /** The session is ending: the compositor writes its "HDR on screen: …" summary line. Once. */
     public static native void nativeHdrSessionEnd();
 
-    /** True while HDR frames are really on screen: frames tagged BT2020_PQ reached the display in the
-     *  last 1.5 s and, where the display reports an HDR/SDR ratio, it is above 1 (the HUD's badge). */
     public static native boolean nativeHdrOnScreen();
 
-    /** One "color" line in the session log, from Java (the HDR environment, the DXVK warning). */
     public static native void nativeLogColor(String message);
 
-    /** One line in the session log under {@code area} (the log's 9-character column: "gpu", "nvapi"),
-     *  from Java: launch facts the app decides (the GPU name spoof, the Unreal Engine HDR mode). Like
-     *  {@link #nativeLogDisplay}, safe before the session file exists (the line is written when it
-     *  opens) and after it has gone. */
     public static native void nativeLog(String area, String message);
 
-    /** Nits at which SDR content is placed when the compositor composes an HDR picture (a window over
-     *  an HDR game, the desktop around a windowed one). Default 203 (BT.2408). Before the start. */
     public static native void nativeSetHdrSdrWhite(float nits);
 
-    /** The in-game drawer's HDR output switch (only meaningful while the HDR gate is open; per session,
-     *  starts on). On = the game's HDR frames go to the display as HDR; off = the same frames are shown
-     *  tone-mapped to SDR. Live, any thread (queued to the compositor, which logs the flip); the game is
-     *  told nothing - DXVK_HDR and the colour-manager offer were decided at launch. */
     public static native void nativeSetHdrOutput(boolean on);
 
-    /** The HDR output switch's current state (any thread). */
     public static native boolean nativeHdrOutput();
 
-    /** True while an HDR game's frames are being shown tone-mapped to SDR (the last one under 1.5 s ago). */
     public static native boolean nativeHdrToneMappedOnScreen();
 
-    /** 0 = no HDR frames on screen (or not confirmed yet), 1 = HDR frames on screen with HDR headroom,
-     *  2 = HDR frames on screen but the display has given them no headroom (HDR/SDR ratio 1.00) for 5 s
-     *  or more - the brightness slider at maximum, or a screen recording (Android turns HDR headroom off
-     *  while the screen is recorded). The HUD badge and the drawer's HDR row. */
     public static native int nativeHdrState();
 
-    /** Device evidence beside the HDR/SDR headroom, HDR sessions only (any thread): PowerManager thermal
-     *  status (0..6, -1 unknown) and getThermalHeadroom(10) (NaN / negative = not available), and
-     *  Settings.System SCREEN_BRIGHTNESS (0..255, -1 unknown) + SCREEN_BRIGHTNESS_MODE (1 auto, 0 manual,
-     *  -1 unknown). The compositor logs changes of status and brightness and puts the values on every
-     *  no-headroom line, the 10 s HDR line and the verdict. */
     public static native void nativeHdrEnvSample(int thermalStatus, float thermalHeadroom, int brightness,
                                                  int brightnessMode);
 
-    /** Display.getHighestHdrSdrRatio() (Android 16+), <= 0 = not reported: the display's own ceiling, capped
-     *  into the headroom request and logged in the verdict. Any thread. */
     public static native void nativeSetHdrHighestRatio(float ratio);
 
-    /** The HDR headroom the SCREEN surface should ask for while HDR frames go through the HDR10 swapchain
-     *  (frame generation), 0 = none; the app applies it (SurfaceView.setDesiredHdrHeadroom, API 35). */
     public static native float nativeHdrScreenHeadroom();
 
-    /** Why that value ("content peak 1207 nits (max CLL) / SDR 203 ..."), for the log line. */
     public static native String nativeHdrScreenHeadroomWhy();
 
-    /** What the app asked for on the screen surface: > 0 the ratio, 0 cleared, -1 not possible (< Android 15). */
     public static native void nativeHdrNoteHeadroomRequest(float ratio);
 
-    /** Fullscreen mode ({@code Container.FULLSCREEN_OFF/FIT/STRETCH/FILL/INTEGER}) and screen alignment
-     *  ({@code Container.ALIGN_CENTER/TOP/BOTTOM}): how the compositor fits the desktop onto the screen,
-     *  with the same arithmetic as {@code ViewTransformation} (which maps touch input), so the picture and
-     *  the pointer agree. OFF and FIT both letterbox. Callable any time; the next frame uses it. */
     public static native void nativeSetScaleMode(int fullscreenMode, int screenAlignment);
 
-    // ---- Screen effects: the X11 Vulkan renderer's post chain, run by the compositor between the
-    // composited scene and the output blit (waylandcomp/src/effects_chain.c). Same modes, ranges and
-    // pass order as VulkanRenderer's setters, so a saved preset looks the same on both backends.
-    // Callable any time from any thread; the compositor applies them on its next frame and writes
-    // one `effects` line to the session log per change. While any effect is on, a zero-copy
-    // (layer-mode) game is presented through the compositor pass instead.
 
-    /** Scaling mode: 0=None 1=Linear 2=Nearest 3=SGSR 4=FSR 5=FSR Fit 6=Sharpen 7=NIS 8=SGSR HQ.
-     *  Resizes the scene to its mapped output size (there is no render scale on Wayland). */
     public static native void nativeSetUpscaler(int mode);
 
-    /** The upscaler's own sharpness slider 0..100 (RCAS lobe scale, SGSR edge 0.5..4.5, NIS). */
     public static native void nativeSetUpscaleSharpness(int sharpness);
 
-    /** AMD CAS sharpen toggle + level 0..100 (0 = the pass is off). */
     public static native void nativeSetCas(boolean enabled, int sharpness);
 
-    /** Fake-HDR toggle. */
     public static native void nativeSetHdr(boolean enabled);
 
-    /** Terminal debanding toggle + strength 0..200 (100 = 1 LSB). */
     public static native void nativeSetDeband(boolean enabled, int strength);
 
-    /** Colour grade in the drawer's slider units (brightness/contrast -100..100, gamma 0.5..3.0,
-     *  saturation 0..200 percent; 0/0/1/100 = neutral, pass off) plus the FXAA / Toon / CRT / NTSC
-     *  toggles - the same signature as {@code VulkanRenderer.setScreenEffects}. */
     public static native void nativeSetScreenEffects(float brightness, float contrast, float gamma, float saturation,
                                                      boolean fxaa, boolean toon, boolean crt, boolean ntsc);
 
-    /** The Look the controls currently match ({@code null} = Custom); only named in the log line. */
     public static native void nativeSetLookName(String name);
 
-    /** The in-game FPS limiter: frames per second, 0 = unlimited. Paces when replaced buffers go
-     *  back to the game, like the X11 IdleNotify pacer, so the game itself slows to the cap. */
+    public static native void nativeSetCardboard(boolean enabled, int source, float ipdM, float screenDistM,
+                                                 float screenWidthM, float k1, float k2, float fovDeg,
+                                                 float lensInset, float chroma, boolean mono, float displayHz);
+
+    public static native void nativeSetCardboardPose(float[] rotation, boolean live);
+    public static native void nativeSetCardboardSpatialPose(float[] rotation, float[] position, boolean live);
+    public static native boolean nativeSetSpatialFile(String path);
+    public static native void nativePublishSpatial(java.nio.ByteBuffer snapshot);
+
+    public static native void nativeSetCardboardPoseFile(String path);
+
     public static native void nativeSetFpsLimit(int fps);
 
-    /** KGSL power control off (true: the GPU held at its top clock) or back on. Device-wide and
-     *  outlives the process; see {@code GpuClockPin}. A no-op without /dev/kgsl-3d0. */
     public static native void nativeSetGpuTurbo(boolean on);
 
-    /** setpriority() on one of our own processes or threads, only ever raising it (no cgroup move,
-     *  unlike android.os.Process.setThreadPriority). Returns the nice it is left at; 100 = unknown. */
     public static native int nativeRaisePriority(int tid, int nice);
 
-    /** Inject the app's X-server input in scene (virtual desktop) pixels. type 2 = move to a,b;
-     *  3 = evdev button a (BTN_LEFT=0x110…) pressed (b=1) or released (b=0); 4 = a wheel steps,
-     *  negative = up. */
     public static native void nativeSendSceneInput(int type, int a, int b);
 
-    // ── Frame generation (waylandcomp/src/framegen_bridge.c) ─────────────────────────────────
-    // LSFG Native and Win-FG Native run inside the compositor's Turnip device, the same engines
-    // the X11 VulkanRenderer hosts. Every setter only stores a value; the compositor thread applies
-    // it on its next frame, so they are safe from any thread and before the compositor starts.
-    // bionic-fg (the guest-side win-fg layer) is X11-only and has no Wayland counterpart.
     public static final int FG_ENGINE_LSFG = 0, FG_ENGINE_WINFG = 1;
 
-    /** Which native engine generates: {@link #FG_ENGINE_LSFG} or {@link #FG_ENGINE_WINFG}. */
     public static native void nativeSetFrameGenEngine(int kind);
 
-    /** Arm (multiplier 2..4: one real frame plus multiplier-1 interpolated ones per game frame) or
-     *  disarm. A targetFps above 0 makes LSFG adaptive instead: it generates 0..3 frames per game
-     *  frame, whatever reaches that rate. Generated frames are presented ahead of the real frame
-     *  on consecutive vblanks. */
     public static native void nativeSetFrameGenArmed(boolean armed, int multiplier, int targetFps);
 
-    /** LSFG Native: the SPIR-V cache built from the user's Lossless.dll ({@code Lossless.cacheFile}). */
     public static native void nativeSetLsfgCachePath(String path);
 
-    /** Flow scale (0.25-1.0) and the panel's real refresh rate (the pacer never generates above it). */
     public static native void nativeSetFrameGenTuning(float flowScale, float refreshHz);
 
-    /** Win-FG Native only: interpolation model (3/4) and performance preset (0..2). */
     public static native void nativeSetWinFgTuning(int model, int perfPreset);
 
-    /** Same codes as {@code VulkanRenderer.getFrameGenProblem()}: -1 not known yet (the compositor's
-     *  device is not up), 0 fine, 1 the driver lacks what the selected engine needs
-     *  ({@link #nativeFrameGenCapsReason()} says what), 2 the engine failed to start. */
     public static native int nativeFrameGenProblem();
     public static native String nativeFrameGenCapsReason();
 
-    /** Same shape as {@code VulkanRenderer.getFrameGenStats()}: {generations trusted, generations
-     *  planned, real fps, presented fps (generated frames included), thermal (-1 = none),
-     *  GPU ms per generated frame (-1 = unknown)}. */
     public static native float[] nativeFrameGenStats();
 
-    /** Relative pointer motion by dx,dy scene pixels (the Relative Mouse / captured-mouse path):
-     *  while a program holds a pointer lock this is what it receives as relative_motion; otherwise
-     *  the compositor moves its pointer by the delta. */
     public static void sendPointerDelta(int dx, int dy) {
         if (dx == 0 && dy == 0) return;
         nativeSendSceneInput(6, dx * 256, dy * 256);
     }
 
-    /** As {@link #sendPointerDelta(int, int)}, keeping a captured mouse's fractions of a pixel. */
     public static void sendPointerDelta(float dx, float dy) {
         int x = Math.round(dx * 256f), y = Math.round(dy * 256f);
         if (x == 0 && y == 0) return;

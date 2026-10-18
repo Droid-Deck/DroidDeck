@@ -1,0 +1,220 @@
+#!/usr/bin/python3
+"""Holds a game launcher's hidden web interface on one slow core while something else has focus.
+
+Rockstar's launcher keeps drawing its Chromium interface (SocialClubHelper.exe: a renderer, and a
+GPU process compositing through DXVK) for as long as it runs, hidden behind the game too, and at a
+higher priority than the game's (Wine passes Chromium's on: the GPU process ran at nice -10). With
+Red Dead Redemption 2 in front on the RedMagic that was 1.3 to 2.5 cores under FEX, on a phone
+already held back by its temperature, for a page nobody sees. Held, riding at the throttle limit
+went from 46.5 to 48.7 fps, 1% lows from 27.5 to 32.6. So while the focused window belongs to
+anything but the launcher, every helper thread runs on one core of the slowest cluster at nice 19;
+when the launcher's own window has focus again (signing in, the game closed) each thread gets its
+own mask and priority back. Stopping the helpers instead would not hold: proot, the tracer of every
+guest process, resumes a stopped tracee.
+
+Focus comes from droiddeck-agent's focus.json (the path is the argument), which the agent rewrites
+whenever gamescope's focus changes. droiddeck-session starts this for Steam sessions;
+BL_LAUNCHER_CORES=0 leaves the launchers alone."""
+import json
+import os
+import signal
+import sys
+import time
+from pathlib import Path
+
+HELPERS = ("\\rockstar games\\social club\\socialclubhelper.exe",)
+FRONTS = HELPERS + ("\\rockstar games\\launcher\\launcher.exe",)
+NICE = 19
+POLL = 2.0
+RESCAN = 10.0
+STEAM_CLIENT = 769
+
+
+def log(message):
+    print("droiddeck-launcher-cores: " + message, flush=True)
+
+
+def image(proc, pid):
+    """A process's program as Wine names it (argv[0]), lower case with backslashes, or None."""
+    try:
+        with open(proc / str(pid) / "cmdline", "rb") as stream:
+            first = stream.read(4096).split(b"\0", 1)[0]
+    except OSError:
+        return None
+    return first.decode("utf-8", "replace").lower().replace("/", "\\")
+
+
+def is_one_of(path, suffixes):
+    return path is not None and path.endswith(suffixes)
+
+
+def tasks(proc, pid):
+    try:
+        return [int(tid) for tid in os.listdir(proc / str(pid) / "task") if tid.isdigit()]
+    except OSError:
+        return []
+
+
+class Cores:
+    """The kernel calls, apart so a test can stand in for them."""
+
+    def own(self):
+        return os.sched_getaffinity(0)
+
+    def get(self, tid):
+        return os.sched_getaffinity(tid), os.getpriority(os.PRIO_PROCESS, tid)
+
+    def set(self, tid, cpus, nice):
+        try:
+            os.sched_setaffinity(tid, cpus)
+        except OSError:
+            os.sched_setaffinity(tid, self.own())
+        os.setpriority(os.PRIO_PROCESS, tid, nice)
+
+
+class Holder:
+    def __init__(self, proc=Path("/proc"), cpufreq=Path("/sys/devices/system/cpu"), cores=None):
+        self.proc = proc
+        self.cpufreq = cpufreq
+        self.cores = cores or Cores()
+        self.held = {}
+        self.core = None
+
+    def slow_core(self):
+        """The last core of the slowest cluster the session has - not of the game's cores, which
+        the launcher inherits when BL_GAME_CPUS is set: the core the game misses least."""
+        def top(cpu):
+            try:
+                return int((self.cpufreq / f"cpu{cpu}/cpufreq/cpuinfo_max_freq").read_text())
+            except (OSError, ValueError):
+                return 0
+        cpus = self.cores.own()
+        slowest = min(top(cpu) for cpu in cpus)
+        return max(cpu for cpu in cpus if top(cpu) == slowest)
+
+    def helpers(self):
+        for name in os.listdir(self.proc):
+            if name.isdigit() and is_one_of(image(self.proc, name), HELPERS):
+                yield int(name)
+
+    def hold(self):
+        """Every helper thread onto the slow core at NICE: new ones, and held ones the program has
+        moved since (Chromium sets its threads' priorities, and Wine passes that on)."""
+        if self.core is None:
+            self.core = self.slow_core()
+        hold = ({self.core}, NICE)
+        for pid in self.helpers():
+            before = self.held.setdefault(pid, {})
+            for tid in tasks(self.proc, pid):
+                try:
+                    now = self.cores.get(tid)
+                    if now != hold:
+                        self.cores.set(tid, *hold)
+                except OSError:
+                    continue
+                if tid not in before:
+                    before[tid] = now if now != hold else before.get(pid) or self.first() or now
+        for pid in [pid for pid in self.held if not (self.proc / str(pid)).exists()]:
+            del self.held[pid]
+
+    def first(self):
+        for before in self.held.values():
+            for state in before.values():
+                if state != ({self.core}, NICE):
+                    return state
+        return None
+
+    def release(self):
+        """Every held thread back to its own mask and priority; one started during the hold gets
+        what its process had."""
+        for pid, before in self.held.items():
+            default = before.get(pid) or self.first()
+            for tid in tasks(self.proc, pid):
+                state = before.get(tid, default)
+                if state is None:
+                    continue
+                try:
+                    self.cores.set(tid, *state)
+                except OSError:
+                    pass
+        self.held.clear()
+
+
+def focused(snapshot):
+    """(app id, pid) of the window gamescope has focused, from droiddeck-agent's snapshot."""
+    window = snapshot.get("focusedWindow")
+    for entry in snapshot.get("focusableWindows") or []:
+        if entry.get("window") == window:
+            return snapshot.get("focusedApp"), entry.get("pid")
+    return snapshot.get("focusedApp"), None
+
+
+class Governor:
+    def __init__(self, focus_path, holder=None, clock=time.monotonic):
+        self.focus_path = Path(focus_path)
+        self.holder = holder or Holder()
+        self.clock = clock
+        self.seen = None
+        self.app = self.pid = None
+        self.scanned = None
+        self.reported = None
+
+    def read_focus(self):
+        try:
+            stamp = self.focus_path.stat().st_mtime_ns
+        except OSError:
+            return False
+        if stamp == self.seen:
+            return False
+        try:
+            self.app, self.pid = focused(json.loads(self.focus_path.read_text()))
+        except (OSError, ValueError, AttributeError):
+            return False
+        self.seen = stamp
+        return True
+
+    def tick(self):
+        changed = self.read_focus()
+        if self.pid is None:
+            return
+        launcher_in_front = is_one_of(image(self.holder.proc, self.pid), FRONTS)
+        if launcher_in_front:
+            if self.holder.held:
+                self.holder.release()
+                self.report("released: the launcher has focus")
+            return
+        if self.app in (None, 0, STEAM_CLIENT) and not self.holder.held:
+            return
+        now = self.clock()
+        if changed or self.scanned is None or now - self.scanned >= RESCAN:
+            self.scanned = now
+            self.holder.hold()
+            if self.holder.held:
+                self.report(f"{len(self.holder.held)} SocialClubHelper process(es) on core {self.holder.core} "
+                            f"at nice {NICE} while the launcher is hidden")
+
+    def report(self, message):
+        if message != self.reported:
+            self.reported = message
+            log(message)
+
+    def stop(self, *_):
+        self.holder.release()
+        sys.exit(0)
+
+
+def main(argv):
+    if len(argv) != 1:
+        print("usage: droiddeck-launcher-cores <agent focus.json>", file=sys.stderr)
+        return 2
+    governor = Governor(argv[0])
+    signal.signal(signal.SIGTERM, governor.stop)
+    signal.signal(signal.SIGHUP, governor.stop)
+    signal.signal(signal.SIGINT, governor.stop)
+    while True:
+        governor.tick()
+        time.sleep(POLL)
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -1,132 +1,208 @@
 package com.droiddeck.launcher.stores.amazon
 
 import android.content.Context
-import android.content.SharedPreferences
-import android.util.Log
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreNet
+import com.droiddeck.launcher.stores.StoreShelves
 import com.droiddeck.launcher.stores.StoresState
+import com.droiddeck.launcher.stores.mergeItems
 import org.json.JSONArray
 import org.json.JSONObject
-import java.util.concurrent.Callable
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
-/**
- * The signed-in account's Amazon Games library: the entitlements, DLC folded under their base
- * game, cached so the tab paints at once, re-synced when forced or 15 minutes stale. Amazon
- * publishes a square icon and a wide background only, so a 2:3 poster per title is backfilled
- * from SteamGridDB (a few per pass). Ported from Bannerlator's AmazonLibraryRepo.
- */
+data class AmazonGame(
+    val productId: String,
+    val entitlementId: String,
+    val title: String,
+    val artUrl: String = "",
+    val heroUrl: String = "",
+    val developer: String = "",
+    val publisher: String = "",
+    val productSku: String = "",
+    val versionId: String = "",
+)
+
 object AmazonLibrary {
-    private const val TAG = "AmazonLibrary"
-    private const val CACHE_KEY = "library_cache"
-    private const val LAST_SYNC_KEY = "library_synced_at"
-    private const val THROTTLE_MS = 6L * 60L * 60L * 1000L
-    private const val POSTER_BUDGET = 40
+    const val KEY_CACHE = "library_cache"
+    const val KEY_SYNCED_AT = "library_synced_at"
+    private const val THROTTLE_MS = 6 * 60 * 60 * 1000L
+    private const val POSTERS_PER_SYNC = 40
+    private const val POSTER_THREADS = 4
+    private const val STORE_URL = "https://gaming.amazon.com/home"
 
-    private val syncing = AtomicBoolean(false)
+    private val running = AtomicBoolean(false)
+    private val store = Store.AMAZON
 
-    sealed interface SyncResult {
-        class Ok(val games: List<AmazonGame>) : SyncResult
-        class Failed(val message: String) : SyncResult
-        object NotLoggedIn : SyncResult
-        object Busy : SyncResult
-        object Throttled : SyncResult
+    fun toCacheJson(games: List<AmazonGame>): String = JSONArray().apply {
+        for (g in games) put(
+            JSONObject()
+                .put("productId", g.productId).put("entitlementId", g.entitlementId).put("title", g.title)
+                .put("artUrl", g.artUrl).put("heroUrl", g.heroUrl).put("developer", g.developer)
+                .put("publisher", g.publisher).put("productSku", g.productSku).put("versionId", g.versionId),
+        )
+    }.toString()
+
+    fun fromCacheJson(text: String?): List<AmazonGame> {
+        if (text.isNullOrBlank()) return emptyList()
+        val array = runCatching { JSONArray(text) }.getOrNull() ?: return emptyList()
+        val games = (0 until array.length()).mapNotNull { array.optJSONObject(it) }.mapNotNull { o ->
+            AmazonGame(
+                productId = o.optString("productId", "").ifEmpty { return@mapNotNull null },
+                entitlementId = o.optString("entitlementId", ""),
+                title = o.optString("title", ""),
+                artUrl = o.optString("artUrl", ""),
+                heroUrl = o.optString("heroUrl", ""),
+                developer = o.optString("developer", ""),
+                publisher = o.optString("publisher", ""),
+                productSku = o.optString("productSku", ""),
+                versionId = o.optString("versionId", ""),
+            )
+        }
+        return tidy(games)
     }
 
-    fun cached(context: Context): List<AmazonGame> {
-        val json = AmazonPrefs.get(context).getString(CACHE_KEY, null) ?: return emptyList()
-        return runCatching {
-            val arr = JSONArray(json)
-            val out = ArrayList<AmazonGame>(arr.length())
-            for (i in 0 until arr.length()) {
-                val j = arr.optJSONObject(i) ?: continue
-                val g = AmazonGame()
-                g.productId = j.optString("productId", ""); g.entitlementId = j.optString("entitlementId", ""); g.title = j.optString("title", "")
-                g.artUrl = j.optString("artUrl", ""); g.heroUrl = j.optString("heroUrl", ""); g.developer = j.optString("developer", "")
-                g.publisher = j.optString("publisher", ""); g.productSku = j.optString("productSku", ""); g.versionId = j.optString("versionId", "")
-                if (g.productId.isNotEmpty()) out.add(g)
-            }
-            out.distinctBy { it.productId }.sortedBy { it.title.lowercase() }
-        }.getOrDefault(emptyList())
+    private fun tidy(games: List<AmazonGame>): List<AmazonGame> =
+        games.distinctBy { it.productId }.sortedBy { it.title.lowercase() }
+
+    fun cached(context: Context): List<AmazonGame> = fromCacheJson(AmazonPrefs.get(context).getString(KEY_CACHE, null))
+
+    fun forget(context: Context) {
+        AmazonPrefs.get(context).edit().remove(KEY_CACHE).remove(KEY_SYNCED_AT).apply()
     }
 
-    fun poster(context: Context, productId: String): String? = AmazonPrefs.get(context).getString("vcover_$productId", null)?.ifBlank { null }
-
-    fun rememberSize(context: Context, productId: String, bytes: Long) {
-        if (bytes > 0) AmazonPrefs.get(context).edit().putLong("size_$productId", bytes).apply()
+    fun toCatalogItem(context: Context, game: AmazonGame): CatalogItem {
+        val prefs = AmazonPrefs.get(context)
+        val poster = prefs.getString("vcover_${game.productId}", null)?.takeIf { it.isNotBlank() }
+        val art = game.artUrl.ifEmpty { null }
+        val hero = game.heroUrl.ifEmpty { null }
+        val tags = listOf(game.developer, game.publisher.takeIf { it != game.developer }.orEmpty())
+            .filter { it.isNotBlank() }
+            .joinToString(", ")
+        return CatalogItem(
+            store = store,
+            id = game.productId,
+            title = game.title.ifBlank { game.productId.substringAfterLast('.') },
+            imageUrl = hero ?: art,
+            tallImageUrl = poster ?: art ?: hero,
+            tags = tags,
+            developer = game.developer,
+            owned = true,
+            sizeBytes = prefs.getLong("size_${game.productId}", 0L).takeIf { it > 0 } ?: 0L,
+            storeUrl = STORE_URL,
+            extra = mapOf("entitlementId" to game.entitlementId, "sku" to game.productSku, "version" to ""),
+        )
     }
 
-    fun sync(context: Context, force: Boolean = false, onStatus: (String) -> Unit = {}): SyncResult {
-        if (!syncing.compareAndSet(false, true)) return SyncResult.Busy
-        try {
-            val app = context.applicationContext
-            val p = AmazonPrefs.get(app)
-            val cachedList = cached(app)
-            if (!force && cachedList.isNotEmpty() && System.currentTimeMillis() - p.getLong(LAST_SYNC_KEY, 0L) < THROTTLE_MS) {
-                backfillPosters(p, cachedList, onStatus)
-                return SyncResult.Throttled
-            }
-            onStatus("Checking sign-in…")
-            val creds = AmazonCredentialStore.load(app) ?: return SyncResult.NotLoggedIn
-            val token = AmazonCredentialStore.getValidAccessToken(app) ?: return SyncResult.Failed(StoresState.notSignedInLine(Store.AMAZON))
-            onStatus("Fetching game list…")
-            // Refused with the stored token (revoked, or an expiry read wrong): once more on a fresh one.
-            val all = AmazonApiClient.getEntitlements(token, creds.deviceSerial)
-                ?: AmazonCredentialStore.refresh(app)?.let { AmazonApiClient.getEntitlements(it, creds.deviceSerial) }
-            if (all == null) return if (cachedList.isEmpty()) SyncResult.Failed("Amazon Games did not answer for your library: refresh, or sign in again") else SyncResult.Ok(cachedList)
-            if (all.isEmpty()) return if (cachedList.isEmpty()) SyncResult.Failed("No games found in your Amazon library") else SyncResult.Ok(cachedList)
-            val games = all.filter { !(it.isDLC && it.parentProductId.isNotEmpty()) }.ifEmpty { all }
-                .sortedWith { a, b -> a.title.compareTo(b.title, ignoreCase = true) }
-            for (fresh in games) cachedList.firstOrNull { it.productId == fresh.productId }?.let { fresh.versionId = it.versionId }
-            saveCache(p, games)
-            p.edit().putLong(LAST_SYNC_KEY, System.currentTimeMillis()).apply()
-            backfillPosters(p, games, onStatus)
-            Log.i(TAG, "sync: entitlements=${all.size} games=${games.size}")
-            return SyncResult.Ok(games)
-        } catch (e: Exception) {
-            Log.w(TAG, "sync failed: ${e.message}")
-            return SyncResult.Failed(e.message ?: "Sync failed")
-        } finally {
-            syncing.set(false)
+    private fun publish(app: Context, games: List<AmazonGame>) {
+        val items = games.map { toCatalogItem(app, it) }
+        StoresState.post {
+            StoresState.library[store] = mergeItems(StoresState.library[store], items)
+            val installed = StoresState.installed.filter { it.sidecar.store == store }.map { it.sidecar.id }.toSet()
+            StoresState.shelves[store] = StoreShelves(trending = items.filterNot { it.id in installed }, art = StoresState.shelves[store]?.art.orEmpty())
         }
     }
 
-    private fun backfillPosters(p: SharedPreferences, games: List<AmazonGame>, onStatus: (String) -> Unit) {
-        val missing = games.filter { it.productId.isNotEmpty() && !p.contains("vcover_${it.productId}") }.take(POSTER_BUDGET)
-        if (missing.isEmpty()) return
-        onStatus("Fetching cover art…")
-        val pool = Executors.newFixedThreadPool(4)
-        val futures = missing.map { g -> pool.submit(Callable { g.productId to StoreNet.sgdbPoster(g.title) }) }
-        pool.shutdown()
-        val ed = p.edit()
-        for (f in futures) {
-            val (pid, url) = runCatching { f.get() }.getOrNull() ?: continue
-            // A miss is recorded as "" so it is not asked again every pass.
-            ed.putString("vcover_$pid", url)
-        }
-        ed.apply()
-    }
-
-    private fun saveCache(p: SharedPreferences, games: List<AmazonGame>) {
-        runCatching {
-            val arr = JSONArray()
-            for (g in games) arr.put(JSONObject().put("productId", g.productId).put("entitlementId", g.entitlementId).put("title", g.title).put("artUrl", g.artUrl)
-                .put("heroUrl", g.heroUrl).put("developer", g.developer).put("publisher", g.publisher).put("productSku", g.productSku).put("versionId", g.versionId))
-            p.edit().putString(CACHE_KEY, arr.toString()).apply()
-        }
-    }
-
-    fun toCatalogItem(context: Context, g: AmazonGame): CatalogItem = CatalogItem(
-        store = Store.AMAZON, id = g.productId, title = g.title.ifBlank { g.shortId() },
-        imageUrl = g.heroUrl.ifBlank { null } ?: g.artUrl.ifBlank { null },
-        tallImageUrl = poster(context, g.productId) ?: g.artUrl.ifBlank { null } ?: g.heroUrl.ifBlank { null },
-        tags = listOfNotNull(g.developer.ifBlank { null }, g.publisher.ifBlank { null }.takeIf { it != g.developer }).joinToString(", "),
-        developer = g.developer, owned = true,
-        sizeBytes = AmazonPrefs.get(context).getLong("size_${g.productId}", 0L),
-        storeUrl = "https://gaming.amazon.com/home",
-        extra = mapOf("entitlementId" to g.entitlementId, "sku" to g.productSku, "version" to (g.versionId ?: "")),
+    private fun gameFrom(o: JSONObject, before: AmazonGame?): AmazonGame = AmazonGame(
+        productId = o.optString("productId"),
+        entitlementId = o.optString("entitlementId"),
+        title = o.optString("title"),
+        artUrl = o.optString("art"),
+        heroUrl = o.optString("hero"),
+        developer = o.optString("developer"),
+        publisher = o.optString("publisher"),
+        productSku = o.optString("sku"),
+        versionId = before?.versionId.orEmpty(),
     )
+
+    private fun backfillPosters(app: Context, games: List<AmazonGame>) {
+        val prefs = AmazonPrefs.get(app)
+        val todo = games.filter { !prefs.contains("vcover_${it.productId}") }.take(POSTERS_PER_SYNC)
+        if (todo.isEmpty()) return
+        val pool = Executors.newFixedThreadPool(POSTER_THREADS)
+        try {
+            for (g in todo) pool.execute {
+                val poster = runCatching { StoreNet.sgdbPoster(g.title) }.getOrDefault("")
+                prefs.edit().putString("vcover_${g.productId}", poster).apply()
+            }
+        } finally {
+            pool.shutdown()
+            pool.awaitTermination(5, TimeUnit.MINUTES)
+        }
+    }
+
+    private fun entitlements(token: String, serial: String): JSONObject? =
+        AmazonNative.call("library.entitlements", JSONObject().put("accessToken", token).put("deviceSerial", serial))
+
+    private fun failed(answer: JSONObject?): Boolean = answer == null || answer.has("error")
+
+    fun sync(context: Context, force: Boolean) {
+        if (!running.compareAndSet(false, true)) return
+        val app = context.applicationContext
+        val prefs = AmazonPrefs.get(app)
+        val cache = cached(app)
+        val quiet = cache.isNotEmpty() && !force
+        fun status(id: Int) { if (!quiet) StoresState.post { StoresState.status[store] = app.getString(id) } }
+        fun problem(text: String?) {
+            StoresState.post {
+                StoresState.status.remove(store)
+                if (text == null) {
+                    StoresState.problems.remove(store)
+                } else {
+                    StoresState.problems[store] = text
+                }
+            }
+        }
+        try {
+            if (cache.isNotEmpty()) publish(app, cache)
+            if (!AmazonNative.ready()) return problem(AmazonNative.ENGINE_MISSING)
+            val syncedAt = prefs.getLong(KEY_SYNCED_AT, 0L)
+            if (!force && cache.isNotEmpty() && System.currentTimeMillis() - syncedAt in 0 until THROTTLE_MS) {
+                backfillPosters(app, cache)
+                publish(app, cache)
+                return problem(null)
+            }
+
+            status(R.string.stores_sync_sign_in)
+            val account = AmazonCredentialStore.load(app) ?: return problem(StoresState.notSignedInLine(store))
+            val token = AmazonCredentialStore.getValidAccessToken(app) ?: return problem(StoresState.notSignedInLine(store))
+            status(R.string.stores_sync_game_list)
+            var answer = entitlements(token, account.deviceSerial)
+            if (failed(answer)) {
+                StoresState.logLine("amazon: library call failed (${answer?.optString("error").orEmpty().ifEmpty { "no answer" }}); refreshing the session")
+                AmazonCredentialStore.refreshNow(app, token)?.let { answer = entitlements(it, account.deviceSerial) }
+            }
+            val result = answer
+            when {
+                result != null && result.optBoolean("signIn", false) -> return problem(StoresState.notSignedInLine(store))
+                failed(result) -> {
+                    StoresState.logLine("amazon: library sync failed: ${result?.optString("error").orEmpty().ifEmpty { "no answer" }}")
+                    return problem(if (cache.isEmpty()) app.getString(R.string.stores_sync_amazon_no_answer) else null)
+                }
+            }
+            val list = result!!.optJSONArray("games") ?: JSONArray()
+            if (list.length() == 0) {
+                return problem(if (cache.isEmpty()) app.getString(R.string.stores_sync_no_games, store.label) else null)
+            }
+            val before = cache.associateBy { it.productId }
+            val games = tidy(
+                (0 until list.length()).mapNotNull { list.optJSONObject(it) }
+                    .filter { it.optString("productId").isNotEmpty() }
+                    .map { gameFrom(it, before[it.optString("productId")]) },
+            )
+            prefs.edit().putString(KEY_CACHE, toCacheJson(games)).putLong(KEY_SYNCED_AT, System.currentTimeMillis()).apply()
+            StoresState.logLine("amazon: library has ${games.size} games (${result.optInt("total", games.size)} entitlements)")
+            status(R.string.stores_sync_cover_art)
+            backfillPosters(app, games)
+            publish(app, games)
+            problem(null)
+        } catch (e: Exception) {
+            problem(e.message ?: app.getString(R.string.stores_sync_failed))
+        } finally {
+            running.set(false)
+        }
+    }
 }

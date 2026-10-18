@@ -6,8 +6,10 @@ whoever started it: the Games tab, a pinned shortcut, or the Steam client's own 
 looks for the store launcher DroidDeck wrote (.droiddeck-launch.bat) among the arguments; beside it
 .droiddeck-store.json says which store and game it is.
 
-For an Epic game the game needs a fresh exchange code to sign in, which only the app can mint. The
-request goes through files under $BL_LAUNCH_DIR/stores (the session root, the same path on both
+For an Epic game, once the Epic Games Launcher is installed (droiddeck-epic), the game is started
+through it: the hidden launcher signs the game in and hands its arguments back in
+.droiddeck-epic-args. Without the launcher, or when it cannot, the game needs a fresh exchange code
+to sign in, which only the app can mint. The request goes through files under $BL_LAUNCH_DIR/stores (the session root, the same path on both
 sides):
 
     req/<id>.json    {"op": "epic-code", "store": "epic", "id": "<app name>"}   (tmp + rename)
@@ -30,11 +32,19 @@ import json
 import os
 import sys
 import time
+import subprocess
+import tempfile
+import hashlib
 from pathlib import Path
 
 LAUNCHER = ".droiddeck-launch.bat"
 SIDECAR = ".droiddeck-store.json"
 EPIC_CODE = ".droiddeck-epic-code"
+EPIC_ARGS = ".droiddeck-epic-args"
+EPIC_CLIENT = "/usr/local/bin/droiddeck-epic"
+EPIC_CLIENT_CURRENT = ".local/share/droiddeck-epic/current.json"
+EPIC_HANDLED = "DROIDDECK_EPIC_HANDLED"
+CLIENT_TIMEOUT = 150.0
 TIMEOUT = 5.0
 STALE_SECONDS = 300
 SERVER_WAIT = 8.0
@@ -95,6 +105,30 @@ def drop_stale(folder, now=None):
     return False
 
 
+def client_wanted():
+    home = os.environ.get("HOME") or "/root"
+    return os.access(EPIC_CLIENT, os.X_OK) and os.path.isfile(os.path.join(home, EPIC_CLIENT_CURRENT))
+
+
+def through_client(folder, sidecar, timeout=CLIENT_TIMEOUT):
+    extra = sidecar.get("extra") if isinstance(sidecar.get("extra"), dict) else {}
+    namespace, item = str(extra.get("namespace") or ""), str(extra.get("catalogItemId") or "")
+    if not namespace or not item:
+        return "no-catalog-ids"
+    command = [EPIC_CLIENT, "launch", "--app", str(sidecar.get("id")), "--namespace", namespace, "--item", item,
+               "--folder", str(folder), "--owner", str(os.getppid()), "--timeout", str(int(timeout))]
+    try:
+        run = subprocess.run(command, stdout=subprocess.PIPE, stdin=subprocess.DEVNULL, timeout=timeout + 30)
+        answer = json.loads(run.stdout.decode("utf-8", "replace").strip().splitlines()[-1])
+    except (OSError, ValueError, IndexError, subprocess.TimeoutExpired) as error:
+        return "error-" + type(error).__name__
+    if not isinstance(answer, dict):
+        return "no-answer"
+    if answer.get("ok") and (folder / EPIC_ARGS).is_file():
+        return "ok"
+    return str(answer.get("reason") or "failed")
+
+
 def ask(channel, request, timeout=TIMEOUT):
     """Writes [request] under channel/req and waits for channel/resp; the answer, or None on timeout."""
     req_dir, resp_dir = channel / "req", channel / "resp"
@@ -113,7 +147,6 @@ def ask(channel, request, timeout=TIMEOUT):
             return value
         except (OSError, ValueError):
             time.sleep(0.05)
-    # Not answered: the request is withdrawn so a late app does not mint a code nobody reads.
     try:
         (req_dir / (rid + ".json")).unlink()
     except OSError:
@@ -226,10 +259,7 @@ def provision_prefix(compat_data, wait=SERVER_WAIT):
     reg = pfx / "user.reg"
     if not reg.is_file():
         return "prefix-not-created"
-    # A wineserver still up for this prefix would write its own copy of user.reg over these lines.
     busy = not wait_for_server(pfx, wait)
-    # winebrowser starts the first entry it can; an absolute path does not depend on the PATH Wine
-    # hands it.
     set_value(reg, BROWSER_KEY, "Browsers", BROWSER + ",xdg-open")
     removed = remove_value(reg, EOS_KEY, "OverlayPath")
     state = "browser-set" if has_value(reg, BROWSER_KEY, "Browsers", BROWSER + ",xdg-open") else "browser-not-written"
@@ -240,8 +270,6 @@ def provision_prefix(compat_data, wait=SERVER_WAIT):
 
 CLOUD_TIMEOUT = 15.0
 CLOUD_STORES = ("gog", "epic")
-# Exit status that tells droiddeck-proton this was a store game with cloud saves: it then waits for
-# Proton instead of exec'ing it, and runs `droiddeck-store-launch --exited` after.
 STORE_GAME = 10
 
 
@@ -250,10 +278,16 @@ def cloud_on(sidecar):
     return str(sidecar.get("store")) in CLOUD_STORES and sidecar.get("cloud", True) is not False
 
 
-def exited(argv):
+def exited(argv, code=0):
     """After the game: ask the app to upload what changed, without waiting for it."""
     found = find_store_game(argv)
     launch_dir = os.environ.get("BL_LAUNCH_DIR", "")
+    if found is not None and str(found[1].get("store")) == "epic" and os.environ.get(EPIC_HANDLED) != "1" \
+            and os.access(EPIC_CLIENT, os.X_OK):
+        try:
+            subprocess.run([EPIC_CLIENT, "exited", "--code", str(code)], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, timeout=10)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
     if found is None or not launch_dir or not cloud_on(found[1]):
         return 0
     store, game = str(found[1].get("store")), str(found[1].get("id"))
@@ -262,9 +296,84 @@ def exited(argv):
     return 0
 
 
+COMET_DIR = Path("/usr/local/lib/droiddeck-comet")
+
+
+def provision_galaxy(compat_data, proton, timeout=90):
+    """Proton creates the prefix and registers Galaxy before the first game runs."""
+    if not compat_data or not proton or not Path(proton).is_file():
+        return "no-proton"
+    data = Path(compat_data)
+    data.mkdir(parents=True, exist_ok=True)
+    marker = data / "pfx/.droiddeck-comet-service"
+    try:
+        version = (COMET_DIR / "version").read_text().strip()
+        tools = [COMET_DIR / "GalaxyCommunication.exe", COMET_DIR / "update-permissions.exe"]
+        if not all(p.is_file() for p in tools):
+            return "not-installed"
+        stamp = version + " " + " ".join(hashlib.sha256(p.read_bytes()).hexdigest() for p in tools)
+        if marker.is_file() and marker.read_text() == stamp and (data / "pfx/system.reg").is_file():
+            return "ready"
+        with tempfile.TemporaryDirectory(prefix="droiddeck-galaxy-") as tmp:
+            folder = Path(tmp)
+            result = folder / "result"
+            bat = folder / "install.bat"
+            src = windows_path(str(COMET_DIR))
+            answer = windows_path(str(result))
+            target = r"C:\ProgramData\GOG.com\Galaxy\redists"
+            lines = ["@echo off", "setlocal", 'set "DD_DIR=%s"' % target,
+                     "sc query GalaxyCommunication >nul 2>&1",
+                     'if not errorlevel 1 if not exist "%DD_DIR%\\droiddeck-comet" goto existing',
+                     'if not exist "%DD_DIR%" mkdir "%DD_DIR%"',
+                     'copy /y "%s\\GalaxyCommunication.exe" "%s\\GalaxyCommunication.exe" >nul' % (src, target),
+                     'if errorlevel 1 exit /b 1',
+                     'sc query GalaxyCommunication >nul 2>&1',
+                     'if errorlevel 1 sc create GalaxyCommunication binpath= "%s\\GalaxyCommunication.exe"' % target,
+                     'if errorlevel 1 exit /b 1',
+                     '"%s\\update-permissions.exe"' % src,
+                     'if errorlevel 1 exit /b 1',
+                     'sc query GalaxyCommunication >nul 2>&1',
+                     'if errorlevel 1 exit /b 1',
+                     'echo managed>"%s\\droiddeck-comet"' % target,
+                     ':existing', 'echo ready>"%s"' % answer, 'exit /b 0']
+            bat.write_bytes(("\r\n".join(lines) + "\r\n").encode())
+            env = os.environ.copy()
+            env["BL_COMET_BOOTSTRAP"] = "1"
+            run = subprocess.run([proton, "run", "cmd.exe", "/d", "/c", windows_path(str(bat))],
+                                 env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout)
+            if run.returncode or not result.is_file() or result.read_text().strip() != "ready":
+                return "service-unavailable"
+        marker.write_text(stamp)
+        return "ready"
+    except subprocess.TimeoutExpired:
+        return "timeout"
+    except (OSError, ValueError):
+        return "service-unavailable"
+
+
+def prepare_gog(sidecar, compat_data, launch_dir):
+    if not launch_dir:
+        log("gog achievements unavailable: no-channel")
+        return False
+    answer = ask(Path(launch_dir) / "stores", {"op": "gog-achievements", "store": "gog", "id": str(sidecar.get("id"))}, timeout=25.0)
+    if not isinstance(answer, dict) or not answer.get("ready"):
+        log("gog achievements: " + (str(answer.get("reason", "unavailable")) if isinstance(answer, dict) else "timeout"))
+        return False
+    state = provision_galaxy(compat_data, os.environ.get("BL_STORE_PROTON", ""))
+    log("gog achievements prefix: " + state)
+    return state == "ready"
+
+
 def main(argv):
     if argv and argv[0] == "--exited":
-        return exited(argv[1:])
+        rest, code = argv[1:], 0
+        if rest[:1] == ["--code"] and len(rest) > 1:
+            try:
+                code = int(rest[1])
+            except ValueError:
+                pass
+            rest = rest[2:]
+        return exited(rest, code)
     found = find_store_game(argv)
     if found is None:
         return 0
@@ -273,11 +382,30 @@ def main(argv):
     compat_data = os.environ.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
     prefix_id = os.path.basename(compat_data) if compat_data else ""
     launch_dir = os.environ.get("BL_LAUNCH_DIR", "")
+    if store == "gog":
+        prepare_gog(sidecar, compat_data, launch_dir)
     if store == "epic":
-        drop_stale(folder)
+        handled = os.environ.get(EPIC_HANDLED) == "1" and (folder / EPIC_ARGS).is_file()
+        if not handled:
+            drop_stale(folder)
+            try:
+                (folder / EPIC_ARGS).unlink()
+            except OSError:
+                pass
         choice = options(sidecar)
-        if not (choice["eos"] and not choice["offline"]):
-            # Sign-in off, or offline: no code, and none left over from before.
+        client = None
+        if handled:
+            client = "ok"
+        elif choice["eos"] and not choice["offline"] and client_wanted():
+            client = through_client(folder, sidecar)
+            log("epic launch id=%s client=%s" % (game, client))
+        if client == "ok":
+            try:
+                (folder / EPIC_CODE).unlink()
+            except OSError:
+                pass
+            log("epic launch id=%s through=client" % game)
+        elif not (choice["eos"] and not choice["offline"]):
             try:
                 (folder / EPIC_CODE).unlink()
             except OSError:
@@ -298,7 +426,6 @@ def main(argv):
             log("cloud %s %s down result=skipped reason=off" % (store, game))
         return 0
     if launch_dir:
-        # The cloud copy where it is newer, before the game reads its saves; bounded, then on regardless.
         answer = ask(Path(launch_dir) / "stores", {"op": "cloud-down", "store": store, "id": game}, timeout=CLOUD_TIMEOUT)
         if answer is None:
             log("cloud %s %s down result=timeout" % (store, game))
@@ -312,6 +439,6 @@ def main(argv):
 if __name__ == "__main__":
     try:
         sys.exit(main(sys.argv[1:]))
-    except Exception as e:  # never in the way of the launch
+    except Exception as e:
         log("skipped: %s" % type(e).__name__)
         sys.exit(0)

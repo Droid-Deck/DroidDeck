@@ -7,27 +7,22 @@ import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
 import org.json.JSONObject
 
-/**
- * The app's half of droiddeck-store-launch: the compat tool asks, before Proton starts a store
- * game, for what the store needs at launch, through files under the session root's `stores/`
- * (`req/<id>.json` in, `resp/<id>.json` out, both written tmp + rename). Today that is an Epic
- * game's exchange code, which [StoreLaunch.epicCode] writes into the game's own folder; the answer
- * says only whether it did and why not. Watched while a session runs.
- */
 object StoreLaunchRequests {
     private const val TAG = "StoreLaunchRequests"
     private val lock = Any()
     private var observer: FileObserver? = null
 
+    @Volatile var lastLaunched: Pair<Store, String>? = null
+
     fun dir(context: Context) = File(LinuxRuntime.sessionRoot(context), "stores")
 
-    /** Before each session: nothing of the last one's requests; then watch for new ones. */
     fun start(context: Context) {
         val app = context.applicationContext
         synchronized(lock) {
             observer?.stopWatching()
             val root = dir(app)
             root.deleteRecursively()
+            lastLaunched = null
             val req = File(root, "req").apply { mkdirs() }
             File(root, "resp").mkdirs()
             @Suppress("DEPRECATION")
@@ -52,25 +47,26 @@ object StoreLaunchRequests {
         val request = try {
             JSONObject(file.readText()).also { file.delete() }
         } catch (e: Exception) {
-            return  // withdrawn already, or not complete yet (the rename brings it again)
+            return
         }
         val reply = when (request.optString("op")) {
+            "gog-achievements" -> runCatching { com.droiddeck.launcher.stores.gog.GogComet.prepare(app, request.optString("id")) }
+                .getOrElse { JSONObject().put("ok", false).put("ready", false).put("reason", "service-unavailable") }
             "epic-code" -> {
                 val id = request.optString("id")
                 if (id.isEmpty()) JSONObject().put("ok", false).put("reason", "no-id")
                 else {
+                    lastLaunched = Store.EPIC to id
                     val code = StoreLaunch.epicCode(app, id)
                     JSONObject().put("ok", true).put("code", code.written).put("reason", code.reason)
                 }
             }
-            // Cloud saves: down before Proton starts (the wrapper waits a bounded time), up after the
-            // game exits (answered at once; the upload runs on without holding Steam).
             "cloud-down" -> {
                 val store = Store.byId(request.optString("store"))
                 val id = request.optString("id")
                 if (store == null || id.isEmpty()) JSONObject().put("ok", false).put("reason", "no-game")
                 else {
-                    // Marked before the game runs: whatever ends it, an upload follows (CloudSaves.uploadDirty).
+                    lastLaunched = store to id
                     CloudSaves.markDirty(app, store, id)
                     CloudSaves.downloadOrDefer(app, store, id).let { JSONObject().put("ok", it.ok).put("result", it.result).put("files", it.files).put("reason", it.reason) }
                 }
@@ -81,8 +77,6 @@ object StoreLaunchRequests {
                 if (store != null && id.isNotEmpty()) Thread({ CloudSaves.uploadDirty(app, store, id, "exit") }, "cloud-up").start()
                 JSONObject().put("ok", true)
             }
-            // A browser a game opens inside the session (an EOS device sign-in, a store page):
-            // http(s) only, handed to Android's browser.
             "open-url" -> {
                 val url = request.optString("url")
                 if (!(url.startsWith("https://") || url.startsWith("http://"))) JSONObject().put("ok", false).put("reason", "not-http")
@@ -93,6 +87,41 @@ object StoreLaunchRequests {
                 } catch (e: Exception) {
                     JSONObject().put("ok", false).put("reason", e.javaClass.simpleName)
                 }
+            }
+            "epic-sign-in" -> {
+                val url = request.optString("url")
+                try {
+                    if (com.droiddeck.launcher.stores.epic.EpicClient.signIn(app, url, request.optBoolean("auto"))) JSONObject().put("ok", true)
+                    else JSONObject().put("ok", false).put("reason", "not-sign-in")
+                } catch (e: Exception) {
+                    JSONObject().put("ok", false).put("reason", e.javaClass.simpleName)
+                }
+            }
+            "epic-play-in-steam" -> {
+                val id = request.optString("id")
+                if (id.isEmpty()) JSONObject().put("ok", false).put("reason", "no-id")
+                else try {
+                    com.droiddeck.launcher.stores.epic.EpicClient.playInSteam(app, id)
+                } catch (e: Exception) {
+                    JSONObject().put("ok", false).put("reason", e.javaClass.simpleName)
+                }
+            }
+            "steam-run" -> try {
+                com.droiddeck.launcher.stores.epic.EpicClient.runSteamGame(app, request.optString("id"))
+            } catch (e: Exception) {
+                JSONObject().put("ok", false).put("reason", e.javaClass.simpleName)
+            }
+            "epic-signed-out" -> {
+                val signedIn = com.droiddeck.launcher.stores.epic.EpicCredentialStore.isLoggedIn(app)
+                if (signedIn) {
+                    Log.i(TAG, "the Epic Games Launcher was signed out; signing the Epic store out too")
+                    StoresState.signOut(app, Store.EPIC)
+                }
+                JSONObject().put("ok", true).put("signedOut", signedIn)
+            }
+            "epic-client-handoff" -> {
+                if (com.droiddeck.launcher.stores.epic.EpicClient.canHandOff(app)) JSONObject().put("ok", true)
+                else JSONObject().put("ok", false).put("reason", "no-account")
             }
             else -> JSONObject().put("ok", false).put("reason", "unknown-op")
         }

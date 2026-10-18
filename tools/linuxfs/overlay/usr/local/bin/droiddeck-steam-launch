@@ -1,13 +1,4 @@
 #!/bin/bash
-# Starts the Steam client from inside a session (the desktop's menu entries and the per-game
-# launchers droiddeck-desktop-games writes):
-#   droiddeck-steam-launch desktop [appid|steam-url]     Steam's desktop UI, optionally a game
-#   droiddeck-steam-launch bigpicture [appid|steam-url]  Big Picture
-#
-# The desktop (KDE Plasma) composites in software and has no dma-buf, so the client's own Vulkan
-# window - and any game it starts - would die at its first frame there. The request goes to the app
-# instead, which ends the desktop and starts a Steam session under gamescope in its place, as
-# SteamOS's desktop hands Steam back to Gaming Mode.
 set -u
 ui=${1:-desktop}
 target=${2:-}
@@ -20,12 +11,38 @@ case $target in
   *) url=steam://rungameid/$target ;;
 esac
 
-# Ask the app for a Steam session.
+if [ "$ui" = desktop ] && [ "${BL_DESKTOP:-}" = 1 ]; then
+  if [ "${BL_STEAM_CLIENT_ARCH:-}" = x86_64 ]; then
+    client_home=${BL_X64_HOME:-${HOME:-/root}/.droiddeck-x64}
+    client=(/usr/local/bin/droiddeck-steam-x64 --exec)
+  else
+    steam_root=${XDG_DATA_HOME:-${HOME:-/root}/.local/share}/Steam
+    export LD_LIBRARY_PATH=$steam_root/steamrtarm64:$steam_root/steamrtarm64/panorama${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+    client_home=$HOME
+    client=("$steam_root/steamrtarm64/steam")
+  fi
+  mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}/droiddeck"
+  exec 9>"${XDG_CACHE_HOME:-$HOME/.cache}/droiddeck/steam-desktop.lock"
+  if ! flock -n 9; then
+    for ((attempt = 0; attempt < 180; attempt++)); do
+      pid=$(cat "$client_home/.steam/steam.pid" 2>/dev/null || true)
+      if [ -p "$client_home/.steam/steam.pipe" ] && [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
+        exec "${client[@]}" -nobigpicture -no-cef-sandbox \
+          -cef-ozone-platform=x11 -cef-disable-gpu "${url:-steam://open/library}"
+      fi
+      sleep 0.5
+    done
+    echo "droiddeck-steam-launch: the desktop client did not become ready" >&2
+    exit 69
+  fi
+  export BL_INSIDE=1 BL_STEAM_UI=desktop
+  exec /usr/local/bin/droiddeck-session steam "${url:-steam://open/library}"
+fi
+
 dir=${BL_LAUNCH_DIR:-}
 if [ -z "$dir" ] || [ ! -d "$dir" ]; then
   echo "droiddeck-steam-launch: not inside a DroidDeck session (BL_LAUNCH_DIR unset)" >&2
   exit 69
 fi
-# Written whole, then renamed: the app reads it on close, never half-written.
 printf 'ui=%s\nurl=%s\n' "$ui" "$url" > "$dir/steam-launch.tmp" && mv -f "$dir/steam-launch.tmp" "$dir/steam-launch"
 echo "droiddeck-steam-launch: asked the app for Steam ($ui${url:+, $url})"

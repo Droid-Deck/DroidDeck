@@ -12,7 +12,6 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.io.File
 
-/** What the in-app picker lists in a folder: every folder A-Z, then only the files asked for. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class PickListingTest {
