@@ -6,6 +6,7 @@ FEX_URL=https://github.com/Droid-Deck/DroidDeck-Components/releases/download/$FE
 ROOTFS_URL=https://github.com/Droid-Deck/DroidDeck-Components/releases/download/fex-rootfs-ubuntu-24.04-2026-08-11/Ubuntu_24_04.sqsh
 ROOTFS_SHA256=2854b06d3ff1b8f6e526135bfb6dd5b7b30ab3ab73e79ae933a3d9fed959a178
 CDN_LIST="https://client-update.steamstatic.com https://client-update.akamai.steamstatic.com https://client-update.fastly.steamstatic.com"
+GITHUB_MIRRORS="https://gh-proxy.com https://gh-proxy.org https://ghproxy.net https://ghfast.top"
 CDN=https://client-update.fastly.steamstatic.com
 # Must match the -clientbeta droiddeck-session starts this client with (steam_channel).
 X64_CHANNEL=steamdeck_publicbeta
@@ -385,9 +386,17 @@ fex_loads() {
 fex_install() {
   local tag=$1 sha=$2 urls=$3 dst=/ tmp u f
   tmp=$(mktemp -d)
+  local found=""
   for u in $urls; do
-    curl -fsSL --retry 2 "$u" -o "$tmp/fex.tzst" && echo "$sha  $tmp/fex.tzst" | sha256sum -c --quiet >/dev/null 2>&1 && break
-    rm -f "$tmp/fex.tzst"
+    for source in $(github_sources "$u"); do
+      if curl -fsSL --retry 2 "$source" -o "$tmp/fex.tzst" &&
+         echo "$sha  $tmp/fex.tzst" | sha256sum -c --quiet >/dev/null 2>&1; then
+        found=1
+        break
+      fi
+      rm -f "$tmp/fex.tzst"
+    done
+    [ -z "$found" ] || break
   done
   if [ ! -s "$tmp/fex.tzst" ]; then
     echo "== FEX $tag: no source gave the archive with sha256 ${sha:0:12}" >&2
@@ -456,6 +465,29 @@ x64_fetch() {
   return "$rc"
 }
 
+# A release asset on github.com goes through the mirrors when the origin crawls.
+github_sources() {
+  local url=$1 mirror
+  echo "$url"
+  case $url in
+    https://github.com/*)
+      for mirror in $GITHUB_MIRRORS; do echo "$mirror/$url"; done
+      ;;
+  esac
+}
+x64_download() {
+  local url=$1 out=$2 label=$3 sha=$4 source
+  for source in $(github_sources "$url"); do
+    [ "$source" = "$url" ] || step "mirror: ${source%%/https*}"
+    x64_fetch "$source" "$out" "$label" || true
+    if [ -s "$out" ] && echo "$sha  $out" | sha256sum -c --quiet >/dev/null 2>&1; then
+      return 0
+    fi
+    rm -f "$out"
+  done
+  return 1
+}
+
 x64_prepare() {
 x64_fex || { step "FEX could not be installed; see $LOG"; exit 1; }
 step "FEX ready ($FEX_NOW, $FEX_FROM)"
@@ -464,13 +496,8 @@ mkdir -p "$STEAM_X64" && : > "$STEAM_X64/.steam-enable-steamrt64-client"
 
 if [ ! -f "$ROOTFS/.droiddeck-complete" ]; then
   # Resumes a part-done download; a finished one answers 416, which is not a failure here.
-  x64_fetch "$ROOTFS_URL" "$X64_HOME/rootfs.sqsh" "downloading FEX's Ubuntu 24.04 x86 rootfs" || {
-    rc=$?
-    [ "$rc" = 22 ] && [ -s "$X64_HOME/rootfs.sqsh" ] || { step "rootfs download failed (curl $rc)"; exit 1; }
-  }
-  if ! echo "$ROOTFS_SHA256  $X64_HOME/rootfs.sqsh" | sha256sum -c --quiet >/dev/null 2>&1; then
-    rm -f "$X64_HOME/rootfs.sqsh"; step "rootfs download did not match its checksum; try again"; exit 1
-  fi
+  x64_download "$ROOTFS_URL" "$X64_HOME/rootfs.sqsh" "downloading FEX's Ubuntu 24.04 x86 rootfs" "$ROOTFS_SHA256" ||
+    { step "rootfs download failed on every source"; exit 1; }
   step "unpacking the rootfs"
   rm -rf "$ROOTFS"
   /usr/local/bin/unsquashfs -no-xattrs -no-progress -ignore-errors -d "$ROOTFS" "$X64_HOME/rootfs.sqsh" >>"$LOG" 2>&1 || true
