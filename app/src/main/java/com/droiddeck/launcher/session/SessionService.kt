@@ -587,7 +587,10 @@ class SessionService : Service() {
         guest.add("GLIBC_TUNABLES=glibc.pthread.rseq=0:glibc.malloc.top_pad=16777216")
         if (SessionState.mode == MODE_STEAM) guest.add("BL_MANGOAPP=" + (if (SessionPrefs.mangoapp(this)) "1" else "0"))
         SessionState.steamClientArch = if (steamHere) SessionPrefs.steamClientArch(this) else null
-        SessionState.steamClientArch?.let { guest.add("BL_STEAM_CLIENT_ARCH=$it") }
+        SessionState.steamClientArch?.let { arch ->
+            guest.add("BL_STEAM_CLIENT_ARCH=$arch")
+            SessionPaths.current()?.let { SessionArtifacts.recordClient(it, arch) }
+        }
         if (SessionState.mode == MODE_STEAM) {
             guest.add("BL_GAMESCOPE_STRETCH_16X9=" + (if (SessionPrefs.stretch16x9(this)) "1" else "0"))
         }

@@ -2391,7 +2391,7 @@
     <string name="mode_client_arch_arm64">ARM64</string>
     <string name="mode_client_arch_x64">x86-64</string>
     <string name="setup_vac_diag">Diagnostyka VAC</string>
-    <string name="setup_vac_diag_hint">Gry na Source zapisują swoją konsolę (-condebug); vac.txt w logach sesji pokazuje, czy jest zabezpieczone</string>
+    <string name="setup_vac_diag_hint">Gry na Source zapisują swoją konsolę (-condebug); vac.txt w logach sesji pokazuje, czy gra jest chroniona przez VAC</string>
     <string name="load_starting_steam_x64">Uruchamianie Steam x86-64</string>
     <string name="storage_game_x64">%1$s · x86-64</string>
     <string name="storage_tool_x64_client">Używane przez klienta Steam x86-64</string>

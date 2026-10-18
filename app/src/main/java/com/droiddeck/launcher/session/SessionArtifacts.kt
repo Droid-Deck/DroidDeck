@@ -188,6 +188,16 @@ object SessionArtifacts {
         return record
     }
 
+    private const val CLIENT_FILE = "steam-client.txt"
+
+    fun recordClient(dir: File, arch: String) {
+        runCatching { File(dir, CLIENT_FILE).writeText("$arch\n") }
+    }
+
+    /** The Steam client a session ran, when it recorded one. */
+    internal fun recordedClient(dir: File): String? =
+        runCatching { File(dir, CLIENT_FILE).readText().trim() }.getOrNull()?.takeIf { it == "arm64" || it == "x86_64" }
+
     private fun copySteamLogs(context: Context, dir: File, record: Record, steamArch: String? = null) {
         val logs = File(steamArch?.let { SessionPrefs.steamRoot(context, it) } ?: SessionPrefs.activeSteamRoot(context), "logs")
         if (!logs.isDirectory) return
@@ -231,7 +241,7 @@ object SessionArtifacts {
                 )
                 val record = Record(dir)
                 if (newest) {
-                    copySteamLogs(context, dir, record)
+                    copySteamLogs(context, dir, record, recordedClient(dir))
                     VacDiagnostics.collect(context, dir)
                 }
                 SessionLogCapture.dumpCrashBuffer(File(dir, "crash.log"))

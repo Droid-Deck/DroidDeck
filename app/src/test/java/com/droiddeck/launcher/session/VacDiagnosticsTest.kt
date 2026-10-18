@@ -18,6 +18,17 @@ class VacDiagnosticsTest {
         }
     }
 
+    @Test fun theSameGameInTwoLibrariesGetsTwoConsoleNames() {
+        val a = java.io.File("/lib1/steamapps/common/Team Fortress 2/tf/console.log")
+        val b = java.io.File("/lib2/steamapps/common/Team Fortress 2/tf/console.log")
+        val c = java.io.File("/lib1/steamapps/common/Half-Life 2/hl2/console.log")
+        val names = VacDiagnostics.consoleNames(listOf(a, b, c))
+        assertEquals("Team Fortress 2-tf", names[0])
+        assertTrue(names[1].startsWith("Team Fortress 2-tf-") && names[1] != names[0])
+        assertEquals("Half-Life 2-hl2", names[2])
+        assertEquals(names, VacDiagnostics.consoleNames(listOf(a, b, c)))
+    }
+
     @Test fun tailReadsAllOfAReplacedFile() {
         val log = java.io.File.createTempFile("console", ".log")
         try {

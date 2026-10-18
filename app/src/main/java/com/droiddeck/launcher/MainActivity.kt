@@ -1926,7 +1926,7 @@ class MainActivity : ComponentActivity() {
             val scannedX64 = scannedArch == "x86_64"
             val games = if (ready) Library.launchableGames(this, arch = scannedArch) else emptyList()
             val all = games.distinctBy { it.gameId }
-            if (ready) com.droiddeck.launcher.frontend.LibraryCache.save(this, all, scannedX64)
+            if (ready && scanGeneration == libraryScanGeneration) com.droiddeck.launcher.frontend.LibraryCache.save(this, all, scannedX64)
             val endedSession = SessionState.sessionId.takeIf { !SessionState.running && it != null && it != componentSweepSession }
             if (ready && (!componentSweepDone || endedSession != null)) {
                 componentSweepDone = true

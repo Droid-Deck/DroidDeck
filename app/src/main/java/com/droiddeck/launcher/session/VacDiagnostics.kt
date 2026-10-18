@@ -103,8 +103,9 @@ object VacDiagnostics {
                 report.appendLine("  No console.log was written this session. Only Source-engine games write one,")
                 report.appendLine("  and only when started with -condebug (this setting adds it).")
             }
-            consoles.forEach { log ->
-                val name = consoleName(log)
+            val names = consoleNames(consoles)
+            consoles.forEachIndexed { i, log ->
+                val name = names[i]
                 val lines = tail(log, armedSizes[canonical(log)] ?: 0L)
                 File(out, "$name-console.log").bufferedWriter().use { w ->
                     lines.forEach { w.write(LogRedactor.redact(it)); w.newLine() }
@@ -171,6 +172,15 @@ object VacDiagnostics {
             }
         }
         return roots.filter { it.isDirectory }.distinctBy { runCatching { it.canonicalPath }.getOrDefault(it.path) }
+    }
+
+    /** Two libraries can hold the same game and mod folder; a repeated name takes a tag from the log's path. */
+    internal fun consoleNames(logs: List<File>): List<String> {
+        val used = HashSet<String>()
+        return logs.map { log ->
+            val base = consoleName(log)
+            if (used.add(base)) base else "$base-%08x".format(canonical(log).hashCode()).also { used.add(it) }
+        }
     }
 
     private fun consoleName(log: File): String {

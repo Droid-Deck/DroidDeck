@@ -950,7 +950,7 @@ fi
 if [ -n "${BL_CLIENT_CPUS:-}" ] && command -v taskset >/dev/null 2>&1; then
   (
     while sleep 5; do
-      for pid in $(ps -A -o PID,ARGS | awk '($2 == "FEX" || $2 ~ /\/FEX$/) && ($3 ~ /steamrt64\/steam$/ || $3 ~ /steamwebhelper$/) {print $1} $2 ~ /steamrtarm64\/steamwebhelper$/ {print $1}'); do
+      for pid in $(ps -A -o PID,ARGS | awk '($2 ~ /^(.*\/)?FEX(Interpreter)?$/) && ($3 ~ /steamrt64\/steam$/ || $3 ~ /steamwebhelper$/) {print $1} $2 ~ /steamrtarm64\/steamwebhelper$/ {print $1}'); do
         taskset -a -p -c "$BL_CLIENT_CPUS" "$pid" >/dev/null 2>&1
       done
     done
