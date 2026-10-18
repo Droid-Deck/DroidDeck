@@ -244,6 +244,10 @@ bl_vacdiag() {
 
 BL_DIRECTAUDIO_SETUP = """
 bl_directaudio() {
+  case "${verb:-}" in
+    run|waitforexitandrun|runinprefix) ;;
+    *) return 0 ;;
+  esac
   base=$1
   [ -n "${BL_DIRECTAUDIO:-}" ] || return 0
   [ -d "$BL_DIRECTAUDIO" ] || return 0
