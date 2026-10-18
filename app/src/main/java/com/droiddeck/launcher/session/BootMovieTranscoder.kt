@@ -37,11 +37,11 @@ internal object BootMovieTranscoder {
         MediaCodecList(MediaCodecList.REGULAR_CODECS).findDecoderForFormat(format) != null
     }.getOrDefault(false)
 
-    fun transcode(source: File, target: File, keepAudio: Boolean = true, onProgress: (Int) -> Unit): Result? {
+    fun transcode(source: File, target: File, keepAudio: Boolean = true, limitUs: Long = Long.MAX_VALUE, onProgress: (Int) -> Unit): Result? {
         val hadAudio = keepAudio && trackFormat(source, "audio/") != null
-        val audio = if (hadAudio) runCatching { encodeAudio(source) }
+        val audio = if (hadAudio) runCatching { encodeAudio(source, 1f, limitUs) }
             .onFailure { Log.w(TAG, "could not convert the audio of ${source.name}", it) }.getOrNull() else null
-        val muxedAudio = runCatching { encodeVideo(source, target, audio, onProgress) }
+        val muxedAudio = runCatching { encodeVideo(source, target, audio, limitUs, onProgress) }
             .onFailure { Log.w(TAG, "could not convert ${source.name}", it) }.getOrNull() ?: return null
         return Result(audioDropped = hadAudio && !muxedAudio)
     }
@@ -277,7 +277,7 @@ internal object BootMovieTranscoder {
     private fun MediaFormat.intOrNull(key: String): Int? = if (!containsKey(key)) null else
         runCatching { getInteger(key) }.getOrElse { runCatching { getFloat(key).toInt() }.getOrNull() }
 
-    private fun encodeVideo(source: File, target: File, audio: Audio?, onProgress: (Int) -> Unit): Boolean {
+    private fun encodeVideo(source: File, target: File, audio: Audio?, limitUs: Long, onProgress: (Int) -> Unit): Boolean {
         val (track, inFormat) = trackFormat(source, "video/") ?: throw IllegalStateException("no video track")
         val rotation = (inFormat.intOrNull(MediaFormat.KEY_ROTATION) ?: 0).mod(360)
         val layout = layout(inFormat.getInteger(MediaFormat.KEY_WIDTH), inFormat.getInteger(MediaFormat.KEY_HEIGHT), rotation)
@@ -354,7 +354,8 @@ internal object BootMovieTranscoder {
                     val index = dec.dequeueOutputBuffer(decInfo, TIMEOUT_US)
                     if (index >= 0) {
                         val timeUs = decInfo.presentationTimeUs
-                        val keep = decInfo.size > 0 && (lastKept == Long.MIN_VALUE || timeUs - lastKept >= minIntervalUs)
+                        val pastLimit = timeUs > limitUs
+                        val keep = decInfo.size > 0 && !pastLimit && (lastKept == Long.MIN_VALUE || timeUs - lastKept >= minIntervalUs)
                         dec.releaseOutputBuffer(index, keep)
                         if (keep) {
                             if (!frames.awaitFrame()) throw IllegalStateException("decoder frame timed out")
@@ -366,9 +367,10 @@ internal object BootMovieTranscoder {
                                 if (percent != lastProgress) { lastProgress = percent; onProgress(percent) }
                             }
                         }
-                        if (decInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
+                        if (pastLimit || decInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
                             enc.signalEndOfInputStream()
                             decoderDone = true
+                            inputDone = true
                         }
                     }
                 }

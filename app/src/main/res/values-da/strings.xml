@@ -2695,7 +2695,7 @@
     <string name="boot_movie_volume">Lydstyrke</string>
     <string name="boot_movie_length">Længde</string>
     <string name="boot_movie_seconds">%1$d s</string>
-    <string name="boot_movie_length_hint">Hvor mange sekunder af videoen der afspilles. Længere videoer beskæres fra slutningen.</string>
+    <string name="boot_movie_length_hint">Hvor mange sekunder af filmen der afspilles. Alt, hvad der er længere, klippes af til sidst.</string>
     <string name="boot_movie_repo_search">Søg i SteamDeckRepo</string>
     <string name="boot_movie_repo_all">Alle enheder</string>
     <string name="boot_movie_repo_deck">Steam Deck</string>

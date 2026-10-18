@@ -2763,7 +2763,7 @@
     <string name="boot_movie_volume">Гучність</string>
     <string name="boot_movie_length">Тривалість</string>
     <string name="boot_movie_seconds">%1$d с</string>
-    <string name="boot_movie_length_hint">Скільки секунд відео відтворюється. Довші відео обрізаються з кінця.</string>
+    <string name="boot_movie_length_hint">Скільки секунд фільму відтворюється. Усе, що довше, обрізається в кінці.</string>
     <string name="boot_movie_repo_search">Пошук у SteamDeckRepo</string>
     <string name="boot_movie_repo_all">Усі пристрої</string>
     <string name="boot_movie_repo_deck">Steam Deck</string>

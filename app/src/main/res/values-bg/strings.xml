@@ -2695,7 +2695,7 @@
     <string name="boot_movie_volume">Сила на звука</string>
     <string name="boot_movie_length">Продължителност</string>
     <string name="boot_movie_seconds">%1$d с</string>
-    <string name="boot_movie_length_hint">Колко секунди от видеото се възпроизвеждат. По-дългите видеа се скъсяват от края.</string>
+    <string name="boot_movie_length_hint">Колко секунди от филма се възпроизвеждат. Всичко по-дълго се отрязва в края.</string>
     <string name="boot_movie_repo_search">Търсене в SteamDeckRepo</string>
     <string name="boot_movie_repo_all">Всички устройства</string>
     <string name="boot_movie_repo_deck">Steam Deck</string>

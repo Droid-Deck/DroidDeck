@@ -2670,7 +2670,7 @@
     <string name="boot_movie_volume">볼륨</string>
     <string name="boot_movie_length">길이</string>
     <string name="boot_movie_seconds">%1$d초</string>
-    <string name="boot_movie_length_hint">동영상을 몇 초 재생할지 정합니다. 더 짧게 하면 끝부분이 잘립니다.</string>
+    <string name="boot_movie_length_hint">동영상을 몇 초 동안 재생할지 설정합니다. 그보다 긴 부분은 끝에서 잘립니다.</string>
     <string name="boot_movie_repo_search">SteamDeckRepo 검색</string>
     <string name="boot_movie_repo_all">모든 기기</string>
     <string name="boot_movie_repo_deck">Steam Deck</string>

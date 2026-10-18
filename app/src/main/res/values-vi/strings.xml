@@ -2670,7 +2670,7 @@
     <string name="boot_movie_volume">Âm lượng</string>
     <string name="boot_movie_length">Độ dài</string>
     <string name="boot_movie_seconds">%1$d giây</string>
-    <string name="boot_movie_length_hint">Số giây của video được phát. Video dài hơn sẽ bị cắt từ cuối.</string>
+    <string name="boot_movie_length_hint">Số giây của phim sẽ được phát. Phần dài hơn sẽ bị cắt ở cuối.</string>
     <string name="boot_movie_repo_search">Tìm trong SteamDeckRepo</string>
     <string name="boot_movie_repo_all">Tất cả thiết bị</string>
     <string name="boot_movie_repo_deck">Steam Deck</string>

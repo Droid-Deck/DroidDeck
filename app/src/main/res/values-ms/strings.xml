@@ -2670,7 +2670,7 @@
     <string name="boot_movie_volume">Kelantangan</string>
     <string name="boot_movie_length">Tempoh</string>
     <string name="boot_movie_seconds">%1$d s</string>
-    <string name="boot_movie_length_hint">Berapa saat video dimainkan. Video yang lebih pendek dipotong dari hujung.</string>
+    <string name="boot_movie_length_hint">Berapa saat filem dimainkan. Bahagian yang lebih panjang akan dipotong pada penghujungnya.</string>
     <string name="boot_movie_repo_search">Cari SteamDeckRepo</string>
     <string name="boot_movie_repo_all">Semua peranti</string>
     <string name="boot_movie_repo_deck">Steam Deck</string>

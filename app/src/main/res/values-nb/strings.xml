@@ -2695,7 +2695,7 @@
     <string name="boot_movie_volume">Volum</string>
     <string name="boot_movie_length">Lengde</string>
     <string name="boot_movie_seconds">%1$d s</string>
-    <string name="boot_movie_length_hint">Hvor mange sekunder av videoen som spilles av. Kortere videoer kuttes fra slutten.</string>
+    <string name="boot_movie_length_hint">Hvor mange sekunder av filmen som spilles av. Alt som er lengre, klippes bort på slutten.</string>
     <string name="boot_movie_repo_search">Søk i SteamDeckRepo</string>
     <string name="boot_movie_repo_all">Alle enheter</string>
     <string name="boot_movie_repo_deck">Steam Deck</string>

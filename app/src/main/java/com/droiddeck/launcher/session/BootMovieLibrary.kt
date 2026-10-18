@@ -131,7 +131,7 @@ object BootMovieLibrary {
     private const val OVERRIDES = "/uioverrides/movies/"
 
     /** Puts back, in Steam's folder, any movie of DroidDeck's that went missing there, such as after the runtime was reset. */
-    internal fun restore(context: Context) {
+    internal fun restore(context: Context) = synchronized(lock) {
         val meta = readMeta(context)
         val library = libraryDir(context)
         meta.keys().asSequence().toList().forEach { name ->
@@ -209,16 +209,18 @@ object BootMovieLibrary {
                 if (!id.startsWith(PREFIX)) return false
                 val name = id.removePrefix(PREFIX)
                 if (name.isEmpty() || name.contains('/') || name.contains('\\') || name in STAGED || readMeta(context).optJSONObject(name) == null) return false
-                val kept = File(libraryDir(context), name)
-                val copy = File(moviesDir(context), name)
-                val gone = (!copy.exists() || copy.delete()) && (!kept.exists() || kept.delete())
-                if (gone) {
-                    editMeta(context) { it.remove(name) != null }
-                    File(thumbsDir(context), coverName(name)).delete()
-                    thumbsDir(context).listFiles { f -> f.name.startsWith("frame-" + safe(name) + "-") }?.forEach { it.delete() }
-                    File(context.filesDir, "boot-movie/variants").listFiles { f -> f.name.startsWith(variantPrefix(copy)) }?.forEach { it.delete() }
+                synchronized(lock) {
+                    val kept = File(libraryDir(context), name)
+                    val copy = File(moviesDir(context), name)
+                    val gone = (!copy.exists() || copy.delete()) && (!kept.exists() || kept.delete())
+                    if (gone) {
+                        editMeta(context) { it.remove(name) != null }
+                        File(thumbsDir(context), coverName(name)).delete()
+                        thumbsDir(context).listFiles { f -> f.name.startsWith("frame-" + safe(name) + "-") }?.forEach { it.delete() }
+                        File(context.filesDir, "boot-movie/variants").listFiles { f -> f.name.startsWith(variantPrefix(copy)) }?.forEach { it.delete() }
+                    }
+                    gone
                 }
-                gone
             }
         }
         if (removed && SessionPrefs.bootMovie(context) == id) BootMovie.select(context, BootMovie.DROIDDECK_30)

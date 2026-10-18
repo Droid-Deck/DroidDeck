@@ -2710,7 +2710,7 @@
     <string name="boot_movie_volume">Volume</string>
     <string name="boot_movie_length">Length</string>
     <string name="boot_movie_seconds">%1$d s</string>
-    <string name="boot_movie_length_hint">How many seconds of the movie play. Shorter movies are trimmed from the end.</string>
+    <string name="boot_movie_length_hint">How many seconds of the movie play. Anything longer is cut off at the end.</string>
     <string name="boot_movie_repo_search">Search SteamDeckRepo</string>
     <string name="boot_movie_repo_all">All devices</string>
     <string name="boot_movie_repo_deck">Steam Deck</string>

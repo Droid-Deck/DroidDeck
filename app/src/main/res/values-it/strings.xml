@@ -2720,7 +2720,7 @@
     <string name="boot_movie_volume">Volume</string>
     <string name="boot_movie_length">Durata</string>
     <string name="boot_movie_seconds">%1$d s</string>
-    <string name="boot_movie_length_hint">Per quanti secondi viene riprodotto il video. Le durate più brevi tagliano il video dalla fine.</string>
+    <string name="boot_movie_length_hint">Quanti secondi del filmato vengono riprodotti. Tutto ciò che è più lungo viene tagliato alla fine.</string>
     <string name="boot_movie_repo_search">Cerca in SteamDeckRepo</string>
     <string name="boot_movie_repo_all">Tutti i dispositivi</string>
     <string name="boot_movie_repo_deck">Steam Deck</string>

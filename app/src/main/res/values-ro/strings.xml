@@ -2729,7 +2729,7 @@
     <string name="boot_movie_volume">Volum</string>
     <string name="boot_movie_length">Durată</string>
     <string name="boot_movie_seconds">%1$d s</string>
-    <string name="boot_movie_length_hint">Câte secunde din videoclip se redau. Videoclipurile mai lungi sunt tăiate de la final.</string>
+    <string name="boot_movie_length_hint">Câte secunde din film se redau. Tot ce este mai lung este tăiat la final.</string>
     <string name="boot_movie_repo_search">Caută în SteamDeckRepo</string>
     <string name="boot_movie_repo_all">Toate dispozitivele</string>
     <string name="boot_movie_repo_deck">Steam Deck</string>

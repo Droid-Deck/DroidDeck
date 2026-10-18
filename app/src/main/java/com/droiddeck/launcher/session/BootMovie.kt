@@ -102,11 +102,11 @@ object BootMovie {
         val staged = File(folder, out.name + ".staged")
         val ok = runCatching {
             when {
-                volume == 0 -> remux(source, staged, audio = false, limitUs) ||
-                    (BootMovieTranscoder.transcode(source, staged, keepAudio = false) {} != null)
+                volume == 0 -> remux(source, staged, audio = false, limitUs) || transcodeSilent(source, staged, limitUs)
                 volume == 100 -> remux(source, staged, audio = true, limitUs)
                 // A volume that cannot be applied is never played louder than asked: the movie goes without sound instead.
-                else -> BootMovieTranscoder.regain(source, staged, volume / 100f, limitUs) || remux(source, staged, audio = false, limitUs)
+                else -> BootMovieTranscoder.regain(source, staged, volume / 100f, limitUs) || remux(source, staged, audio = false, limitUs) ||
+                    transcodeSilent(source, staged, limitUs)
             }
         }.getOrDefault(false)
         if (ok && staged.renameTo(out)) {
@@ -118,6 +118,9 @@ object BootMovie {
         // Only a length that could not be applied plays as it is; a volume that could not be applied plays nothing.
         return if (volume == 100) source else null
     }
+
+    private fun transcodeSilent(source: File, target: File, limitUs: Long) =
+        BootMovieTranscoder.transcode(source, target, keepAudio = false, limitUs = limitUs) {} != null
 
     /** Keeps at most the one processed copy in use, so trying settings never leaves movies piling up. */
     private fun prune(folder: File, keep: String?) {

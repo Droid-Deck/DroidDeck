@@ -2670,7 +2670,7 @@
     <string name="boot_movie_volume">ระดับเสียง</string>
     <string name="boot_movie_length">ความยาว</string>
     <string name="boot_movie_seconds">%1$d วิ</string>
-    <string name="boot_movie_length_hint">จำนวนวินาทีของวิดีโอที่จะเล่น วิดีโอที่ยาวกว่านี้จะถูกตัดจากท้าย</string>
+    <string name="boot_movie_length_hint">จำนวนวินาทีของภาพยนตร์ที่จะเล่น ส่วนที่ยาวเกินกว่านั้นจะถูกตัดออกที่ท้าย</string>
     <string name="boot_movie_repo_search">ค้นหาใน SteamDeckRepo</string>
     <string name="boot_movie_repo_all">ทุกอุปกรณ์</string>
     <string name="boot_movie_repo_deck">Steam Deck</string>

@@ -2695,7 +2695,7 @@
     <string name="boot_movie_volume">Ένταση</string>
     <string name="boot_movie_length">Διάρκεια</string>
     <string name="boot_movie_seconds">%1$d δευτ.</string>
-    <string name="boot_movie_length_hint">Πόσα δευτερόλεπτα του βίντεο θα παίζουν. Τα μεγαλύτερα βίντεο κόβονται από το τέλος.</string>
+    <string name="boot_movie_length_hint">Πόσα δευτερόλεπτα της ταινίας αναπαράγονται. Ό,τι είναι μεγαλύτερο κόβεται στο τέλος.</string>
     <string name="boot_movie_repo_search">Αναζήτηση στο SteamDeckRepo</string>
     <string name="boot_movie_repo_all">Όλες οι συσκευές</string>
     <string name="boot_movie_repo_deck">Steam Deck</string>

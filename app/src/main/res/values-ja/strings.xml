@@ -2670,7 +2670,7 @@
     <string name="boot_movie_volume">音量</string>
     <string name="boot_movie_length">長さ</string>
     <string name="boot_movie_seconds">%1$d 秒</string>
-    <string name="boot_movie_length_hint">ムービーを再生する秒数です。短くすると末尾が切り取られます。</string>
+    <string name="boot_movie_length_hint">ムービーを何秒間再生するかを設定します。それより長い部分は最後がカットされます。</string>
     <string name="boot_movie_repo_search">SteamDeckRepo を検索</string>
     <string name="boot_movie_repo_all">すべてのデバイス</string>
     <string name="boot_movie_repo_deck">Steam Deck</string>

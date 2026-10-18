@@ -2795,7 +2795,7 @@
     <string name="boot_movie_volume">مستوى الصوت</string>
     <string name="boot_movie_length">المدة</string>
     <string name="boot_movie_seconds">%1$d ث</string>
-    <string name="boot_movie_length_hint">عدد ثوانٍ الفيديو التي تُشغَّل. تُقصّ الفيديوهات الأطول من نهايتها.</string>
+    <string name="boot_movie_length_hint">عدد الثواني التي يتم تشغيلها من الفيديو. أي جزء أطول من ذلك يُقطع في النهاية.</string>
     <string name="boot_movie_repo_search">البحث في SteamDeckRepo</string>
     <string name="boot_movie_repo_all">كل الأجهزة</string>
     <string name="boot_movie_repo_deck">Steam Deck</string>

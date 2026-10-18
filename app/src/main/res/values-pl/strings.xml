@@ -2763,7 +2763,7 @@
     <string name="boot_movie_volume">Głośność</string>
     <string name="boot_movie_length">Długość</string>
     <string name="boot_movie_seconds">%1$d s</string>
-    <string name="boot_movie_length_hint">Ile sekund filmu jest odtwarzane. Krótsze filmy są przycinane od końca.</string>
+    <string name="boot_movie_length_hint">Ile sekund filmu jest odtwarzane. Wszystko, co trwa dłużej, jest ucinane na końcu.</string>
     <string name="boot_movie_repo_search">Szukaj w SteamDeckRepo</string>
     <string name="boot_movie_repo_all">Wszystkie urządzenia</string>
     <string name="boot_movie_repo_deck">Steam Deck</string>

@@ -2763,7 +2763,7 @@
     <string name="boot_movie_volume">Громкость</string>
     <string name="boot_movie_length">Длительность</string>
     <string name="boot_movie_seconds">%1$d с</string>
-    <string name="boot_movie_length_hint">Сколько секунд видео воспроизводится. Более длинные видео обрезаются с конца.</string>
+    <string name="boot_movie_length_hint">Сколько секунд фильма воспроизводится. Всё, что длиннее, обрезается в конце.</string>
     <string name="boot_movie_repo_search">Поиск в SteamDeckRepo</string>
     <string name="boot_movie_repo_all">Все устройства</string>
     <string name="boot_movie_repo_deck">Steam Deck</string>

@@ -2763,7 +2763,7 @@
     <string name="boot_movie_volume">Hlasitost</string>
     <string name="boot_movie_length">Délka</string>
     <string name="boot_movie_seconds">%1$d s</string>
-    <string name="boot_movie_length_hint">Kolik sekund videa se přehraje. Delší videa se zkrátí od konce.</string>
+    <string name="boot_movie_length_hint">Kolik sekund filmu se přehraje. Cokoli delšího se na konci odřízne.</string>
     <string name="boot_movie_repo_search">Hledat v SteamDeckRepo</string>
     <string name="boot_movie_repo_all">Všechna zařízení</string>
     <string name="boot_movie_repo_deck">Steam Deck</string>

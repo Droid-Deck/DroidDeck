@@ -2695,7 +2695,7 @@
     <string name="boot_movie_volume">Äänenvoimakkuus</string>
     <string name="boot_movie_length">Pituus</string>
     <string name="boot_movie_seconds">%1$d s</string>
-    <string name="boot_movie_length_hint">Kuinka monta sekuntia videosta toistetaan. Pidemmät videot lyhennetään lopusta.</string>
+    <string name="boot_movie_length_hint">Kuinka monta sekuntia elokuvasta toistetaan. Sitä pidempi osa leikataan pois lopusta.</string>
     <string name="boot_movie_repo_search">Hae SteamDeckReposta</string>
     <string name="boot_movie_repo_all">Kaikki laitteet</string>
     <string name="boot_movie_repo_deck">Steam Deck</string>

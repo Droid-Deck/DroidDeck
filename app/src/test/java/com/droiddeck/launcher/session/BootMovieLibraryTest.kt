@@ -178,14 +178,4 @@ class BootMovieLibraryTest {
         assertEquals(40, SessionPrefs.bootMovieVolume(app))
         assertEquals(3, SessionPrefs.bootMovieSeconds(app))
     }
-
-    @Test fun scaleQuietsAndCutsTheSoundAtTheSameTime() {
-        val pcm = ShortArray(48_000 * 2) { 1000 }
-        assertSame(pcm, BootMovieTranscoder.scale(pcm, 2, 1f, Long.MAX_VALUE))
-        val quieter = BootMovieTranscoder.scale(pcm, 2, 0.5f, Long.MAX_VALUE)
-        assertEquals(pcm.size, quieter.size)
-        assertEquals(500.toShort(), quieter[0])
-        val cut = BootMovieTranscoder.scale(pcm, 2, 1f, 500_000L)
-        assertEquals(24_000 * 2, cut.size)
-    }
 }

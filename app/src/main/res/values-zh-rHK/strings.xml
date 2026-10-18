@@ -2670,7 +2670,7 @@
     <string name="boot_movie_volume">音量</string>
     <string name="boot_movie_length">長度</string>
     <string name="boot_movie_seconds">%1$d 秒</string>
-    <string name="boot_movie_length_hint">播放動畫的秒數。較長的動畫會從結尾處截斷。</string>
+    <string name="boot_movie_length_hint">播放影片的秒數。超出該時長的部分會在結尾被截斷。</string>
     <string name="boot_movie_repo_search">搜尋 SteamDeckRepo</string>
     <string name="boot_movie_repo_all">所有裝置</string>
     <string name="boot_movie_repo_deck">Steam Deck</string>

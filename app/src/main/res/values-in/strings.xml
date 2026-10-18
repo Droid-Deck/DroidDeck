@@ -2670,7 +2670,7 @@
     <string name="boot_movie_volume">Volume</string>
     <string name="boot_movie_length">Durasi</string>
     <string name="boot_movie_seconds">%1$d dtk</string>
-    <string name="boot_movie_length_hint">Berapa detik video diputar. Video yang lebih pendek dipotong dari bagian akhir.</string>
+    <string name="boot_movie_length_hint">Berapa detik film yang diputar. Bagian yang lebih panjang akan dipotong di bagian akhir.</string>
     <string name="boot_movie_repo_search">Cari di SteamDeckRepo</string>
     <string name="boot_movie_repo_all">Semua perangkat</string>
     <string name="boot_movie_repo_deck">Steam Deck</string>

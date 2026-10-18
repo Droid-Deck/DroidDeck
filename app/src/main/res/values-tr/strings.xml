@@ -2695,7 +2695,7 @@
     <string name="boot_movie_volume">Ses düzeyi</string>
     <string name="boot_movie_length">Süre</string>
     <string name="boot_movie_seconds">%1$d sn</string>
-    <string name="boot_movie_length_hint">Videonun kaç saniyesi oynatılır. Daha uzun videolar sondan kırpılır.</string>
+    <string name="boot_movie_length_hint">Filmin kaç saniyesinin oynatılacağı. Daha uzun olan kısım sonunda kesilir.</string>
     <string name="boot_movie_repo_search">SteamDeckRepo\'da ara</string>
     <string name="boot_movie_repo_all">Tüm cihazlar</string>
     <string name="boot_movie_repo_deck">Steam Deck</string>

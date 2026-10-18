@@ -2695,7 +2695,7 @@
     <string name="boot_movie_volume">Volume</string>
     <string name="boot_movie_length">Duur</string>
     <string name="boot_movie_seconds">%1$d s</string>
-    <string name="boot_movie_length_hint">Hoeveel seconden van de video worden afgespeeld. Kortere video\'s worden aan het einde ingekort.</string>
+    <string name="boot_movie_length_hint">Hoeveel seconden van de film worden afgespeeld. Alles wat langer is, wordt aan het einde afgekapt.</string>
     <string name="boot_movie_repo_search">Zoeken in SteamDeckRepo</string>
     <string name="boot_movie_repo_all">Alle apparaten</string>
     <string name="boot_movie_repo_deck">Steam Deck</string>

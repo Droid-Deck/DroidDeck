@@ -2695,7 +2695,7 @@
     <string name="boot_movie_volume">वॉल्यूम</string>
     <string name="boot_movie_length">अवधि</string>
     <string name="boot_movie_seconds">%1$d सेक</string>
-    <string name="boot_movie_length_hint">वीडियो के कितने सेकंड चलेंगे। लंबे वीडियो को अंत से छोटा कर दिया जाता है।</string>
+    <string name="boot_movie_length_hint">मूवी के कितने सेकंड चलेंगे। इससे लंबा हिस्सा अंत में काट दिया जाता है।</string>
     <string name="boot_movie_repo_search">SteamDeckRepo में खोजें</string>
     <string name="boot_movie_repo_all">सभी डिवाइस</string>
     <string name="boot_movie_repo_deck">Steam Deck</string>
