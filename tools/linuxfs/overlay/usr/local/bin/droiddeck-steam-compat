@@ -567,6 +567,9 @@ class Helper:
             if raw_mapping is None:
                 for app in native_choices:
                     current[app] = ""
+                for app in set(native) - native_choices:
+                    if not current.get(app):
+                        current.pop(app, None)
             else:
                 for app in set(native) | native_choices:
                     if app in raw_mapping:

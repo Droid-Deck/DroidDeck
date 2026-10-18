@@ -488,6 +488,15 @@ class ReconcileTest(unittest.TestCase):
         self.assertEqual(page.sets, [])
         self.assertEqual(state["native_choices"], [app])
 
+    def test_unmapped_dual_platform_game_gets_the_default_without_a_readable_config(self):
+        app, page = self.dual_platform_game({"default": TOOL, "auto": {"10": TOOL}, "native_choices": ["11"]})
+        (self.steam / "config/config.vdf").unlink()
+        page.mapping["11"] = ""
+        state = self.reconcile(page)
+        self.assertEqual(page.sets, [(app, TOOL)])
+        self.assertEqual(state["auto"][app], TOOL)
+        self.assertEqual(state["native_choices"], ["11"])
+
     def test_a_tool_set_live_is_kept_before_the_client_writes_its_config(self):
         app, page = self.dual_platform_game({"default": TOOL, "auto": {"10": TOOL, "11": TOOL, "892970": TOOL}})
         page.known.append(COMPAT["FEX_TOOL"])
