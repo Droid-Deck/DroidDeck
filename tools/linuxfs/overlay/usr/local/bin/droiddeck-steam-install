@@ -34,7 +34,12 @@ if [ -n "$repair" ]; then
     [ "$(sha1sum "$part" | cut -d' ' -f1)" = "$sum" ] || rm -f "$part"
   done
 fi
-if [ -x "$steam_root/steamrtarm64/steam" ] && [ -f "$stamp" ]; then
+sync=
+if [ "${1:-}" = --sync ]; then
+  case "${2:-}" in publicbeta|steamdeck_publicbeta) sync=$2 ;; *) sync=$steam_channel ;; esac
+  manifest=steam_client_${sync}_linuxarm64
+fi
+if [ -z "$sync" ] && [ -x "$steam_root/steamrtarm64/steam" ] && [ -f "$stamp" ]; then
   # The client writes .installed once it has unpacked the archives and never removes them.
   if compgen -G "$steam_root/package/steam_client_*.installed" > /dev/null; then
     rm -f "$steam_root"/package/*.zip.*
@@ -54,6 +59,14 @@ for candidate in $cdn_list; do
 done
 [ -n "$cdn" ] || { echo "droiddeck-steam-install: no Steam client CDN answered for $manifest" >&2; exit 1; }
 version=$(awk -F'"' '$2 == "version" { print $4; exit }' "$work/manifest")
+if [ -n "$sync" ]; then
+  installed=$(awk -F'"' '$2 == "version" { print $4; exit }' "$steam_root/package/$manifest.manifest" 2>/dev/null || true)
+  if [ -x "$steam_root/steamrtarm64/steam" ] && [ "$installed" = "$version" ]; then
+    chmod -R a+x "$steam_root/steamrtarm64" "$steam_root/linuxarm64" 2>/dev/null || true
+    exit 0
+  fi
+  echo "== STEP $(date -u +%H:%M:%S) updating the arm64 Steam client to $version (was ${installed:-none}) for the x86-64 client"
+fi
 awk -F'"' '
   /^\t"/ && NF >= 3 && $4 == "" { block = $2 }
   $2 == "file" { file[block] = $4 }
@@ -154,7 +167,12 @@ find "$steam_root" -depth -name '*\\*' | while read -r odd; do
     mv -f "$odd" "$fixed"
   fi
 done
-echo "$steam_channel" > "$steam_root/package/beta"
+chmod -R a+x "$steam_root/steamrtarm64" "$steam_root/linuxarm64" 2>/dev/null || true
+if [ -n "$sync" ]; then
+  cp -f "$work/manifest" "$steam_root/package/$manifest.manifest"
+else
+  echo "$steam_channel" > "$steam_root/package/beta"
+fi
 ln -sfn "$steam_root/steamrtarm64" "$steam_root/steamrtarm32"
 # The packages carry no exec bits; the client's own updater used to set them.
 chmod -R +x "$steam_root" 2>/dev/null || true

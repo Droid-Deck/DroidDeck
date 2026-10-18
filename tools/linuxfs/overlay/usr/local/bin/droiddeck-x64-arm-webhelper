@@ -1,0 +1,20 @@
+#!/bin/bash
+# The arm64 client's web helper for the x86-64 client, run natively: FEX hands this arm64 program to the CPU.
+x64_home=$HOME
+arm=/root/.local/share/Steam/steamrtarm64
+
+for v in $(compgen -e); do
+  case $v in FEX_*) unset "$v" ;; esac
+done
+unset LD_PRELOAD LIBGL_ALWAYS_SOFTWARE LIBGL_DRI3_DISABLE BL_WEBHELPER_HIDE_TRACER BL_X64_ARM_WEBHELPER
+if [ -f "$x64_home/arm-session.env" ]; then
+  eval "$(grep -E '^declare -x (VK_ICD_FILENAMES|VK_DRIVER_FILES|GALLIUM_DRIVER|MESA_LOADER_DRIVER_OVERRIDE|LIBGL_KOPPER_DRI2|TU_DEBUG|ZINK_DEBUG|ZINK_DESCRIPTORS|MESA_NO_ERROR|MESA_DISK_CACHE_DATABASE)=' "$x64_home/arm-session.env")"
+fi
+export LD_LIBRARY_PATH=$arm:$arm/panorama LIBGL_KOPPER_DISABLE=true
+
+args=()
+for a in "$@"; do
+  case $a in --disable-gpu|--disable-gpu-compositing) ;; *) args+=("$a") ;; esac
+done
+cd "$arm" || exit 1
+exec "$arm/steamwebhelper" "${args[@]}" --ignore-gpu-blocklist

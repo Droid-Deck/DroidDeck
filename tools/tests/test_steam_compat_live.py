@@ -108,6 +108,45 @@ class FakePage:
 
 @unittest.skipUnless(shutil.which("node"), "node is not installed")
 class PageScriptTest(unittest.TestCase):
+    def test_vr_games_wait_for_steamvr_and_preserve_the_original_launch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            script = Path(tmp) / "vr.js"
+            script.write_text(LIVE["VR_JS"])
+            harness = Path(__file__).with_name("steam_vr_launch_harness.js")
+            result = subprocess.run(["node", str(harness), str(script)],
+                                    capture_output=True, text=True, timeout=20)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_steamvr_library_launch_uses_binding_and_other_games_pass_through(self):
+        harness_source = r"""
+const assert = require('assert');
+globalThis.window = globalThis;
+const calls = [], requests = [];
+const apps = { RunGame(...args) { assert.strictEqual(this, apps); calls.push(args); return 'native'; } };
+globalThis.SteamClient = { Apps: apps };
+window.droiddeckLaunchSteamVr = id => requests.push(id);
+const script = require('fs').readFileSync(process.argv[2], 'utf8');
+assert.strictEqual(eval(script), 'installed');
+assert.strictEqual(eval(script), 'present');
+assert.strictEqual(apps.RunGame('250820', '', -1, 100), undefined);
+apps.RunGame(250820, '', -1, 100);
+assert.deepStrictEqual(requests, ['250820', '250820']);
+assert.deepStrictEqual(calls, []);
+assert.strictEqual(apps.RunGame('611670', 'custom args', -1, 100), 'native');
+assert.strictEqual(apps.RunGame('2508200', '', -1, 100), 'native');
+delete window.droiddeckLaunchSteamVr;
+assert.strictEqual(apps.RunGame('250820', '', -1, 100), 'native');
+assert.deepStrictEqual(calls, [['611670', 'custom args', -1, 100], ['2508200', '', -1, 100], ['250820', '', -1, 100]]);
+"""
+        with tempfile.TemporaryDirectory() as tmp:
+            script = Path(tmp) / "vr.js"
+            script.write_text(LIVE["VR_JS"])
+            harness = Path(tmp) / "test.js"
+            harness.write_text(harness_source)
+            result = subprocess.run(["node", str(harness), str(script)],
+                                    capture_output=True, text=True, timeout=20)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_transport_framing_auth_and_notifications(self):
         with tempfile.TemporaryDirectory() as tmp:
             script = Path(tmp) / "install.js"
@@ -492,6 +531,54 @@ class SwitchToDesktopTest(unittest.TestCase):
         helper.attach()
         self.assertNotIn(("Runtime.addBinding", LIVE["SWITCH_BINDING"]), helper.page.calls)
         self.assertNotIn(LIVE["SWITCH_JS"], helper.page.scripts)
+
+    def test_vr_bridge_is_installed_for_both_steam_ui_modes(self):
+        for steamos in (False, True):
+            helper = LIVE["Helper"]("/steam", 1, steamos=steamos)
+            helper.attach()
+            self.assertIn(("Runtime.addBinding", LIVE["VR_BINDING"]), helper.page.calls)
+            self.assertIn(LIVE["VR_JS"], helper.page.scripts)
+
+    def test_vr_bridge_accepts_only_steamvr_and_coalesces_requests(self):
+        helper = LIVE["Helper"]("/steam", 1)
+        helper.page = mock.Mock()
+        event = lambda payload: {"method": "Runtime.bindingCalled", "params": {
+            "name": LIVE["VR_BINDING"], "payload": payload}}
+        with mock.patch.dict(self.globals, {"launch_steamvr": mock.Mock()}) as patched:
+            launch = patched["launch_steamvr"]
+            helper.page.drain.return_value = [event("0"), event("250820; touch /tmp/wrong"),
+                                            event("-1"), event("01"), event("18446744073709551616"),
+                                            event("\u0661"), event(None), event({})]
+            helper.drain()
+            launch.assert_not_called()
+            helper.page.drain.return_value = [event("250820"), event("250820")]
+            helper.drain()
+            launch.assert_called_once_with()
+
+    def test_vr_game_requests_share_an_in_progress_helper_and_retry_after_it_exits(self):
+        helper = LIVE["Helper"]("/steam", 1)
+        helper.page = mock.Mock()
+        event = lambda app: {"method": "Runtime.bindingCalled", "params": {
+            "name": LIVE["VR_BINDING"], "payload": app}}
+        child = mock.Mock()
+        child.poll.return_value = None
+        with mock.patch.dict(self.globals, {"launch_steamvr": mock.Mock(return_value=child)}) as patched:
+            helper.page.drain.return_value = [event("611670"), event("620980")]
+            helper.drain()
+            helper.drain()
+            patched["launch_steamvr"].assert_called_once_with()
+            child.poll.return_value = 0
+            helper.drain()
+            self.assertEqual(patched["launch_steamvr"].call_count, 2)
+
+    def test_vr_launch_runs_helper_without_shell_in_background(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, {"XDG_RUNTIME_DIR": tmp}):
+            with mock.patch.object(self.globals["subprocess"], "Popen") as popen:
+                LIVE["launch_steamvr"]()
+                self.assertEqual(popen.call_args.args, ([LIVE["VR_HELPER"], "launch"],))
+                self.assertTrue(popen.call_args.kwargs["start_new_session"])
+                self.assertNotIn("shell", popen.call_args.kwargs)
+            self.assertTrue((Path(tmp) / "droiddeck-steamvr/library-launch.log").exists())
 
     def test_the_request_goes_to_steamos_session_select(self):
         helper = LIVE["Helper"]("/steam", 1)

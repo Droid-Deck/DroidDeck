@@ -1,0 +1,203 @@
+diff --git a/Source/Tools/LinuxEmulation/LinuxSyscalls/FileManagement.cpp b/Source/Tools/LinuxEmulation/LinuxSyscalls/FileManagement.cpp
+index 7172460..2c80dca 100644
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/FileManagement.cpp
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/FileManagement.cpp
+@@ -29,6 +29,7 @@ $end_info$
+ #include <algorithm>
+ #include <errno.h>
+ #include <cstring>
++#include <linux/magic.h>
+ #include <linux/openat2.h>
+ #include <fcntl.h>
+ #include <filesystem>
+@@ -632,6 +633,163 @@ static bool ShouldSkipOpenInEmu(int flags) {
+   return false;
+ }
+ 
++static bool IsOnProcFS(int DirFD, const char* Pathname) {
++  int FD = ::openat(DirFD, Pathname, O_PATH | O_NOFOLLOW | O_CLOEXEC);
++  if (FD == -1) {
++    return false;
++  }
++
++  struct statfs Buffer {};
++  const bool Result = fstatfs(FD, &Buffer) == 0 && Buffer.f_type == PROC_SUPER_MAGIC;
++  close(FD);
++  return Result;
++}
++
++// openat2() with RESOLVE_IN_ROOT, walked one component at a time: PRoot has no openat2 and fails it with ENOSYS.
++// DirFD is AT_FDCWD only for thunk overlays, which never resolve in the root.
++static int OpenatWithoutOpenat2(int DirFD, const char* Pathname, int Flags, uint32_t Mode) {
++  if (DirFD == AT_FDCWD) {
++    return ::syscall(SYSCALL_DEF(openat), DirFD, Pathname, Flags, Mode);
++  }
++
++  // The kernel's MAXSYMLINKS.
++  constexpr uint32_t MaxSymlinks = 40;
++  uint32_t Symlinks {};
++  std::optional<dev_t> RootDev {};
++
++  // O_NOFOLLOW and O_CREAT | O_EXCL leave a final symlink alone, unless a trailing slash follows it.
++  const bool NoFollow = (Flags & O_NOFOLLOW) || (Flags & (O_CREAT | O_EXCL)) == (O_CREAT | O_EXCL);
++
++  char Resolved[PATH_MAX];
++  size_t ResolvedLen {};
++
++  std::array<char[PATH_MAX], 2> Pending;
++  uint32_t PendingIndex {};
++  const char* Remaining = Pathname;
++
++  for (;;) {
++    while (*Remaining == '/') {
++      ++Remaining;
++    }
++
++    if (*Remaining == 0) {
++      break;
++    }
++
++    const char* Component = Remaining;
++    const char* ComponentEnd = Component;
++    while (*ComponentEnd != 0 && *ComponentEnd != '/') {
++      ++ComponentEnd;
++    }
++    const size_t ComponentLen = ComponentEnd - Component;
++
++    Remaining = ComponentEnd;
++    while (*Remaining == '/') {
++      ++Remaining;
++    }
++    const bool Last = *Remaining == 0;
++    const bool TrailingSlash = Last && Remaining != ComponentEnd;
++
++    if (ComponentLen == 1 && Component[0] == '.') {
++      continue;
++    }
++
++    if (ComponentLen == 2 && Component[0] == '.' && Component[1] == '.') {
++      while (ResolvedLen > 0 && Resolved[ResolvedLen - 1] != '/') {
++        --ResolvedLen;
++      }
++      if (ResolvedLen > 0) {
++        --ResolvedLen;
++      }
++      continue;
++    }
++
++    const size_t Separator = ResolvedLen > 0 ? 1 : 0;
++    const size_t CandidateLen = ResolvedLen + Separator + ComponentLen;
++    if (CandidateLen + 1 >= PATH_MAX) {
++      errno = ENAMETOOLONG;
++      return -1;
++    }
++    if (Separator) {
++      Resolved[ResolvedLen] = '/';
++    }
++    memcpy(&Resolved[ResolvedLen + Separator], Component, ComponentLen);
++    Resolved[CandidateLen] = 0;
++
++    struct stat Buffer {};
++    const bool Follow = !Last || TrailingSlash || !NoFollow;
++    const int StatResult = Follow ? fstatat(DirFD, Resolved, &Buffer, AT_SYMLINK_NOFOLLOW) : -1;
++
++    if (StatResult == 0 && S_ISLNK(Buffer.st_mode)) {
++      if (++Symlinks > MaxSymlinks) {
++        errno = ELOOP;
++        return -1;
++      }
++
++      if (!RootDev) {
++        struct stat Root {};
++        if (fstat(DirFD, &Root) != 0) {
++          return -1;
++        }
++        RootDev = Root.st_dev;
++      }
++
++      if (Buffer.st_dev != *RootDev && IsOnProcFS(DirFD, Resolved)) {
++        // Only procfs has magic links. RESOLVE_IN_ROOT fails them with EXDEV and the callers then open without it.
++        return ::syscall(SYSCALL_DEF(openat), DirFD, Pathname, Flags, Mode);
++      }
++
++      char* Target = Pending[PendingIndex];
++      const ssize_t TargetLen = readlinkat(DirFD, Resolved, Target, PATH_MAX);
++      if (TargetLen <= 0) {
++        if (TargetLen == 0) {
++          errno = ENOENT;
++        }
++        return -1;
++      }
++
++      const size_t RestLen = strlen(ComponentEnd);
++      if (static_cast<size_t>(TargetLen) + RestLen >= PATH_MAX) {
++        errno = ENAMETOOLONG;
++        return -1;
++      }
++      memcpy(&Target[TargetLen], ComponentEnd, RestLen + 1);
++
++      if (Target[0] == '/') {
++        ResolvedLen = 0;
++      }
++      Remaining = Target;
++      PendingIndex ^= 1;
++      continue;
++    }
++
++    if (Last) {
++      // openat reports on the final component, which O_CREAT may create.
++      ResolvedLen = CandidateLen;
++      if (TrailingSlash) {
++        Resolved[ResolvedLen++] = '/';
++      }
++      break;
++    }
++
++    if (StatResult != 0) {
++      return -1;
++    }
++
++    if (!S_ISDIR(Buffer.st_mode)) {
++      errno = ENOTDIR;
++      return -1;
++    }
++    ResolvedLen = CandidateLen;
++  }
++
++  if (ResolvedLen == 0) {
++    Resolved[ResolvedLen++] = '.';
++  }
++  Resolved[ResolvedLen] = 0;
++  return ::syscall(SYSCALL_DEF(openat), DirFD, Resolved, Flags, Mode);
++}
++
+ bool FileManager::ReplaceEmuFd(int fd, int flags, uint32_t mode) {
+   char Tmp[PATH_MAX + 1];
+ 
+@@ -678,6 +836,8 @@ uint64_t FileManager::Open(const char* pathname, int flags, uint32_t mode) {
+         // This means a magic symlink (/proc/foo) was involved. In this case we
+         // just punt and do the access without RESOLVE_IN_ROOT.
+         fd = ::syscall(SYSCALL_DEF(openat), Path.FD, Path.Path, flags, mode);
++      } else if (fd == -1 && errno == ENOSYS) {
++        fd = OpenatWithoutOpenat2(Path.FD, Path.Path, flags, mode);
+       }
+     }
+ 
+@@ -931,6 +1091,8 @@ uint64_t FileManager::Openat([[maybe_unused]] int dirfs, const char* pathname, i
+         // This means a magic symlink (/proc/foo) was involved. In this case we
+         // just punt and do the access without RESOLVE_IN_ROOT.
+         fd = ::syscall(SYSCALL_DEF(openat), Path.FD, Path.Path, flags, mode);
++      } else if (fd == -1 && errno == ENOSYS) {
++        fd = OpenatWithoutOpenat2(Path.FD, Path.Path, flags, mode);
+       }
+     }
+ 
+@@ -967,6 +1129,8 @@ uint64_t FileManager::Openat2(int dirfs, const char* pathname, FEX::HLE::open_ho
+         // This means a magic symlink (/proc/foo) was involved. In this case we
+         // just punt and do the access without RESOLVE_IN_ROOT.
+         fd = ::syscall(SYSCALL_DEF(openat2), Path.FD, Path.Path, how, usize);
++      } else if (fd == -1 && errno == ENOSYS && how->resolve == 0) {
++        fd = OpenatWithoutOpenat2(Path.FD, Path.Path, how->flags, how->mode);
+       }
+     }
+ 

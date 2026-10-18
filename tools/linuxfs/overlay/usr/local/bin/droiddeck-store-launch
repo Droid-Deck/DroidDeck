@@ -6,8 +6,10 @@ whoever started it: the Games tab, a pinned shortcut, or the Steam client's own 
 looks for the store launcher DroidDeck wrote (.droiddeck-launch.bat) among the arguments; beside it
 .droiddeck-store.json says which store and game it is.
 
-For an Epic game the game needs a fresh exchange code to sign in, which only the app can mint. The
-request goes through files under $BL_LAUNCH_DIR/stores (the session root, the same path on both
+For an Epic game, once the Epic Games Launcher is installed (droiddeck-epic), the game is started
+through it: the hidden launcher signs the game in and hands its arguments back in
+.droiddeck-epic-args. Without the launcher, or when it cannot, the game needs a fresh exchange code
+to sign in, which only the app can mint. The request goes through files under $BL_LAUNCH_DIR/stores (the session root, the same path on both
 sides):
 
     req/<id>.json    {"op": "epic-code", "store": "epic", "id": "<app name>"}   (tmp + rename)
@@ -38,6 +40,11 @@ from pathlib import Path
 LAUNCHER = ".droiddeck-launch.bat"
 SIDECAR = ".droiddeck-store.json"
 EPIC_CODE = ".droiddeck-epic-code"
+EPIC_ARGS = ".droiddeck-epic-args"
+EPIC_CLIENT = "/usr/local/bin/droiddeck-epic"
+EPIC_CLIENT_CURRENT = ".local/share/droiddeck-epic/current.json"
+EPIC_HANDLED = "DROIDDECK_EPIC_HANDLED"
+CLIENT_TIMEOUT = 150.0
 TIMEOUT = 5.0
 STALE_SECONDS = 300
 SERVER_WAIT = 8.0
@@ -96,6 +103,30 @@ def drop_stale(folder, now=None):
     except OSError:
         pass
     return False
+
+
+def client_wanted():
+    home = os.environ.get("HOME") or "/root"
+    return os.access(EPIC_CLIENT, os.X_OK) and os.path.isfile(os.path.join(home, EPIC_CLIENT_CURRENT))
+
+
+def through_client(folder, sidecar, timeout=CLIENT_TIMEOUT):
+    extra = sidecar.get("extra") if isinstance(sidecar.get("extra"), dict) else {}
+    namespace, item = str(extra.get("namespace") or ""), str(extra.get("catalogItemId") or "")
+    if not namespace or not item:
+        return "no-catalog-ids"
+    command = [EPIC_CLIENT, "launch", "--app", str(sidecar.get("id")), "--namespace", namespace, "--item", item,
+               "--folder", str(folder), "--owner", str(os.getppid()), "--timeout", str(int(timeout))]
+    try:
+        run = subprocess.run(command, stdout=subprocess.PIPE, stdin=subprocess.DEVNULL, timeout=timeout + 30)
+        answer = json.loads(run.stdout.decode("utf-8", "replace").strip().splitlines()[-1])
+    except (OSError, ValueError, IndexError, subprocess.TimeoutExpired) as error:
+        return "error-" + type(error).__name__
+    if not isinstance(answer, dict):
+        return "no-answer"
+    if answer.get("ok") and (folder / EPIC_ARGS).is_file():
+        return "ok"
+    return str(answer.get("reason") or "failed")
 
 
 def ask(channel, request, timeout=TIMEOUT):
@@ -247,10 +278,16 @@ def cloud_on(sidecar):
     return str(sidecar.get("store")) in CLOUD_STORES and sidecar.get("cloud", True) is not False
 
 
-def exited(argv):
+def exited(argv, code=0):
     """After the game: ask the app to upload what changed, without waiting for it."""
     found = find_store_game(argv)
     launch_dir = os.environ.get("BL_LAUNCH_DIR", "")
+    if found is not None and str(found[1].get("store")) == "epic" and os.environ.get(EPIC_HANDLED) != "1" \
+            and os.access(EPIC_CLIENT, os.X_OK):
+        try:
+            subprocess.run([EPIC_CLIENT, "exited", "--code", str(code)], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, timeout=10)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
     if found is None or not launch_dir or not cloud_on(found[1]):
         return 0
     store, game = str(found[1].get("store")), str(found[1].get("id"))
@@ -329,7 +366,14 @@ def prepare_gog(sidecar, compat_data, launch_dir):
 
 def main(argv):
     if argv and argv[0] == "--exited":
-        return exited(argv[1:])
+        rest, code = argv[1:], 0
+        if rest[:1] == ["--code"] and len(rest) > 1:
+            try:
+                code = int(rest[1])
+            except ValueError:
+                pass
+            rest = rest[2:]
+        return exited(rest, code)
     found = find_store_game(argv)
     if found is None:
         return 0
@@ -341,9 +385,27 @@ def main(argv):
     if store == "gog":
         prepare_gog(sidecar, compat_data, launch_dir)
     if store == "epic":
-        drop_stale(folder)
+        handled = os.environ.get(EPIC_HANDLED) == "1" and (folder / EPIC_ARGS).is_file()
+        if not handled:
+            drop_stale(folder)
+            try:
+                (folder / EPIC_ARGS).unlink()
+            except OSError:
+                pass
         choice = options(sidecar)
-        if not (choice["eos"] and not choice["offline"]):
+        client = None
+        if handled:
+            client = "ok"
+        elif choice["eos"] and not choice["offline"] and client_wanted():
+            client = through_client(folder, sidecar)
+            log("epic launch id=%s client=%s" % (game, client))
+        if client == "ok":
+            try:
+                (folder / EPIC_CODE).unlink()
+            except OSError:
+                pass
+            log("epic launch id=%s through=client" % game)
+        elif not (choice["eos"] and not choice["offline"]):
             try:
                 (folder / EPIC_CODE).unlink()
             except OSError:

@@ -97,6 +97,17 @@ a file removed in Steam drops it, and files the shortcuts writer placed itself
 (`.droiddeck-art.json`) are not mistaken for choices. A chosen image is stored as
 `chosen-<slot>-<time>.<ext>`, so a new choice has a new path and shows at once. Installed GOG, Epic and Amazon games get the same rows through `StoreGameArtEditor`.
 
+"Adjust logo" (last row of every art editor, `LogoPositionDialog`) shows the game's Background with
+its Logo on top and lets the logo be pinned to one of Steam's five places (top left / top center /
+center / bottom left / bottom center) and resized (10-100 %). The value is Steam's own
+`{"nVersion":1,"logoPosition":{"pinnedPosition","nWidthPct","nHeightPct"}}` (`LogoPosition`). It is
+kept in the game's art folder (`logo-position`), written to `<appid>.json` in the grid folder (other
+keys in that file are kept; clearing the position removes the file only when nothing else is in it),
+and, with the client running, set through `SetCustomLogoPositionForApp` /
+`ClearCustomLogoPositionForApp`. `SteamGrid.sync` takes over a position changed or removed in Steam
+the same way it does for images (`grid-json` holds the last seen signature). Reset removes the
+custom position so Steam's default comes back.
+
 Setup › Launcher › Games holds the Artwork switch (automatic fetching) and the
 SteamGridDB API key: the user's own, sealed with `CredentialCipher`, wins over the build's
 (`BuildConfig.SGDB_API_KEY` from the `SGDB_API_KEY` secret); with neither, SteamGridDB is
