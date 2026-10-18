@@ -156,6 +156,10 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
   installed): the app read `fex.json`, and the next x86-64 start logged `downloading FEX (fex-2610-r6)`
   then `FEX ready (fex-2610-r6, catalog)` a second later, with the rootfs and client lines; the client
   came up on it.
+- Review of #1053: an install keeps the files it replaces aside until the installed copy loads and puts
+  them back otherwise (a failed copy could leave a partly replaced FEX marked as the new one;
+  `test_fex_install.py`), and the catalog is read on its own thread, not before the library scan, and
+  not in Offline Mode.
 
 ## 2026-10-15 - `feat/x86-64-steam-client`: SD card library, ARM parity, org main, Counter-Strike 2
 

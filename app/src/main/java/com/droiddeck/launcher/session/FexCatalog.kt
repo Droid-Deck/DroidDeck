@@ -44,6 +44,7 @@ object FexCatalog {
     fun cached(context: Context): Build? = runCatching { parse(file(context).readText()) }.getOrNull()
 
     /** Reads fex.json straight from GitHub (a digest never comes from a mirror), at most every ten minutes. */
+    @Synchronized
     fun refresh(context: Context, now: Long = System.currentTimeMillis()): Build? {
         if (now - refreshedAt < REFRESH_MS) return cached(context)
         refreshedAt = now

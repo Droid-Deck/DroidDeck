@@ -329,9 +329,10 @@ fex_loads() {
   done
 }
 
-# Installs one FEX build only once its archive matches the sha256 and it loads; the current one stays otherwise.
+# Installs one FEX build only once its archive matches the sha256 and it loads. The files it replaces are kept
+# until the installed copy loads too, and put back otherwise; the tag is written last.
 fex_install() {
-  local tag=$1 sha=$2 urls=$3 tmp u
+  local tag=$1 sha=$2 urls=$3 dst=/ tmp u f
   tmp=$(mktemp -d)
   for u in $urls; do
     curl -fsSL --retry 2 "$u" -o "$tmp/fex.tzst" && echo "$sha  $tmp/fex.tzst" | sha256sum -c --quiet >/dev/null 2>&1 && break
@@ -339,12 +340,32 @@ fex_install() {
   done
   if [ ! -s "$tmp/fex.tzst" ]; then
     echo "== FEX $tag: no source gave the archive with sha256 ${sha:0:12}" >&2
-  elif mkdir "$tmp/root" && zstd -dc "$tmp/fex.tzst" | tar -C "$tmp/root" -x && fex_loads "$tmp/root"; then
-    tar -C "$tmp/root" -c . | tar -C / -x
-    mkdir -p /usr/local/share/fex-emu && echo "$tag" > /usr/local/share/fex-emu/.droiddeck-tag
+    rm -rf "$tmp"
+    return 1
+  fi
+  if ! { mkdir "$tmp/root" && zstd -dc "$tmp/fex.tzst" | tar -C "$tmp/root" -x && fex_loads "$tmp/root"; }; then
+    rm -rf "$tmp"
+    return 1
+  fi
+  (cd "$tmp/root" && find . ! -type d) > "$tmp/files"
+  mkdir "$tmp/old"
+  while IFS= read -r f; do
+    f=${f#./}
+    if [ -e "$dst$f" ] || [ -L "$dst$f" ]; then
+      cp -a --parents "$dst$f" "$tmp/old" || { echo "== FEX $tag: could not keep $dst$f aside" >&2; rm -rf "$tmp"; return 1; }
+    fi
+  done < "$tmp/files"
+  if tar -C "$tmp/root" -c . | tar -C "$dst" -x && fex_loads "$dst"; then
+    mkdir -p "${dst}usr/local/share/fex-emu" && echo "$tag" > "${dst}usr/local/share/fex-emu/.droiddeck-tag"
     rm -rf "$tmp"
     return 0
   fi
+  echo "== FEX $tag: the installed copy did not load; putting the previous files back" >&2
+  while IFS= read -r f; do
+    f=${f#./}
+    [ -e "$tmp/old/$dst$f" ] || [ -L "$tmp/old/$dst$f" ] || rm -f "$dst$f"
+  done < "$tmp/files"
+  tar -C "$tmp/old$dst" -c . | tar -C "$dst" -x || echo "== FEX $tag: could not put the previous files back" >&2
   rm -rf "$tmp"
   return 1
 }
