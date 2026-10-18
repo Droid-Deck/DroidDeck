@@ -1,0 +1,49 @@
+name: Build FEX (x86-64 Steam client)
+
+# Checks tools/fex: the same build DroidDeck-Components' build-fex.yml runs from this repository to publish FEX
+# (its single `fex` release and fex.json, which the app follows). Nothing is published from here.
+
+on:
+  push:
+    paths:
+      - 'tools/fex/**'
+      - '.github/workflows/build-fex.yml'
+  workflow_dispatch:
+    inputs:
+      thunks:
+        description: 'Build the host thunks (Vulkan/GL/X11/... to the runtime arm64 libraries)'
+        required: false
+        default: 'false'
+      cxxflags:
+        description: 'Extra CXXFLAGS for a diagnostic build (e.g. -DDEBUG_STRACE)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build in Arch Linux ARM
+        # Inputs reach the shell as environment variables, never pasted into the script.
+        env:
+          FEX_EXTRA_CXXFLAGS: ${{ inputs.cxxflags }}
+          FEX_THUNKS: ${{ inputs.thunks == 'true' && '1' || '0' }}
+        run: |
+          set -euo pipefail
+          docker run --rm -e FEX_EXTRA_CXXFLAGS="$FEX_EXTRA_CXXFLAGS" -e FEX_THUNKS="$FEX_THUNKS" -v "$PWD:/work" -w /work menci/archlinuxarm:base-devel bash tools/fex/build-in-arch.sh
+          sudo chown -R "$(id -u):$(id -g)" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fex
+          path: |
+            fex.tzst
+            fex.tzst.sha256
+            fex-needed.txt
+            fex-files.txt

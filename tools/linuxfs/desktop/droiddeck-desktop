@@ -27,6 +27,15 @@ export BL_DESKTOP=1
 ln -sf /usr/local/bin/droiddeck-steam-launch /usr/local/bin/steamdeck-steam 2>/dev/null
 ln -sf /usr/local/bin/droiddeck-steam-shim /usr/local/bin/steam 2>/dev/null
 python3 /usr/local/bin/droiddeck-desktop-games 2>&1 | sed 's/^/[games] /'
+cat > /usr/share/applications/droiddeck-steam-x64.desktop <<'ENTRY'
+[Desktop Entry]
+Type=Application
+Name=Steam x86-64 (FEX, experimental)
+Comment=Valve's x86-64 Linux client under FEX, in its own home with its own login
+Exec=qterminal -e /usr/local/bin/droiddeck-steam-x64
+Icon=steam
+Categories=System;
+ENTRY
 python3 /usr/local/bin/droiddeck-pad-defaults 2>&1 | sed 's/^/[pads] /'
 ( while sleep 30; do python3 /usr/local/bin/droiddeck-pad-defaults 2>&1 | sed 's/^/[pads] /'; done ) &
 python3 /usr/local/bin/droiddeck-desktop-gpu 2>&1 | sed 's/^/[gpu] /'

@@ -291,6 +291,53 @@ class AgentTest(unittest.TestCase):
             self.assertFalse(result["supported"])
             evaluate.assert_not_called()
 
+    def test_shortcut_state_tells_a_lost_shortcut_from_a_loading_library(self):
+        game_id = str((3333273269 << 32) | 0x02000000)
+        self.assertEqual("not-shortcut", agent.steam_shortcut_state(self.dir, "413150"))
+        for values, wanted, calls in ((["loading", "ready"], "ready", 2), (["loading", "missing"], "missing", 3),
+                                      ([None], "loading", 3)):
+            clock = [0.0]
+            replies = [{"value": v} for v in values] + [{"value": values[-1]}] * 10
+            with self.subTest(values=values), patch.object(agent, "cdp_eval", side_effect=replies) as evaluate, \
+                 patch.object(agent.time, "monotonic", side_effect=lambda: clock[0]), \
+                 patch.object(agent.time, "sleep", side_effect=lambda delay: clock.__setitem__(0, clock[0] + delay)):
+                self.assertEqual(wanted, agent.steam_shortcut_state(self.dir, game_id, timeout=1))
+            self.assertEqual(calls, evaluate.call_count)
+            self.assertIn("GetAppOverviewByGameID(%s)" % json.dumps(game_id), evaluate.call_args_list[0].args[1])
+
+    def test_shortcut_state_waits_out_an_unreachable_client_but_not_other_errors(self):
+        game_id = str((3333273269 << 32) | 0x02000000)
+        clock = [0.0]
+        with patch.object(agent, "cdp_eval", side_effect=agent.AgentError("NO_DEVTOOLS", "down")), \
+             patch.object(agent.time, "monotonic", side_effect=lambda: clock[0]), \
+             patch.object(agent.time, "sleep", side_effect=lambda delay: clock.__setitem__(0, clock[0] + delay)):
+            self.assertEqual("loading", agent.steam_shortcut_state(self.dir, game_id, timeout=1))
+        with patch.object(agent, "cdp_eval", side_effect=agent.AgentError("CDP_EXCEPTION", "boom")):
+            with self.assertRaises(agent.AgentError):
+                agent.steam_shortcut_state(self.dir, game_id, timeout=1)
+
+    def test_shortcut_state_command_exits_with_the_state(self):
+        game_id = str((3333273269 << 32) | 0x02000000)
+        launch = self.dir.parent
+        with patch.dict(os.environ, {"BL_LAUNCH_DIR": str(launch)}):
+            for state, code in (("ready", 0), ("missing", 4), ("not-shortcut", 3), ("loading", 1)):
+                with self.subTest(state=state), patch.object(agent, "steam_shortcut_state", return_value=state) as ask:
+                    self.assertEqual(code, agent.main(["--steam-shortcut-state", game_id, "2"]))
+                self.assertEqual((launch / "agent", game_id, "2"), ask.call_args.args)
+            with patch.object(agent, "steam_shortcut_state", side_effect=agent.AgentError("CDP_EXCEPTION", "boom")):
+                self.assertEqual(1, agent.main(["--steam-shortcut-state", game_id]))
+            self.assertEqual(2, agent.main(["--steam-shortcut-state"]))
+
+    def test_asleep_command_reports_steams_own_sleep_state(self):
+        with patch.dict(os.environ, {"BL_LAUNCH_DIR": str(self.dir.parent)}):
+            for value, code in (("yes", 0), ("no", 5), ("unknown", 1), (None, 1)):
+                with self.subTest(value=value), patch.object(agent, "cdp_eval", return_value={"value": value}) as ask:
+                    self.assertEqual(code, agent.main(["--steam-asleep"]))
+                self.assertIn("m_bSuspending", ask.call_args.args[1])
+                self.assertFalse(ask.call_args.kwargs["await_promise"])
+            with patch.object(agent, "cdp_eval", side_effect=agent.AgentError("NO_DEVTOOLS", "down")):
+                self.assertEqual(1, agent.main(["--steam-asleep"]))
+
     def test_cdp_exception(self):
         server = FakeDevTools({"result": {"result": {"type": "object"}, "exceptionDetails": {
             "text": "Uncaught", "exception": {"description": "ReferenceError: SteamClient is not defined"}}}})

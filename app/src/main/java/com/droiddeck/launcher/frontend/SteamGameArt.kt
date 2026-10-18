@@ -1,8 +1,8 @@
 package com.droiddeck.launcher.frontend
 
 import android.content.Context
-import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.stores.SteamLiveShortcuts
+import com.droiddeck.launcher.session.SessionPrefs
 import java.io.File
 
 object SteamGameArt {
@@ -35,7 +35,7 @@ object SteamGameArt {
     }
 
     fun describe(context: Context, game: Library.SteamGame): List<AddedGameArt.SlotState> {
-        val cache = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/appcache/librarycache")
+        val cache = File(SessionPrefs.activeSteamRoot(context), "appcache/librarycache")
         val own = withOverrides(context, game)
         return AddedGameArt.Slot.values().map { slot ->
             chosenFile(context, game.appId, slot)?.let {
@@ -80,6 +80,14 @@ object SteamGameArt {
             AddedGameArt.chosen(dir(context, game.appId), slot)?.delete()
             setSource(context, game.appId, slot, "")
         }
+    }
+
+    fun position(context: Context, game: Library.SteamGame): LogoPosition.Value? = SteamGrid.position(SteamGrid.target(game, context))
+
+    fun setPosition(context: Context, game: Library.SteamGame, value: LogoPosition.Value?): Boolean {
+        if (!SteamGrid.writePosition(context, SteamGrid.target(game, context), value)) return false
+        AddedGamesPublisher.later(context) { SteamLiveShortcuts.setLogoPosition(context, game.appId.toLong(), value) }
+        return true
     }
 
     private fun push(context: Context, game: Library.SteamGame, slot: AddedGameArt.Slot, file: File?): Boolean {

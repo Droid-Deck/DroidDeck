@@ -88,6 +88,41 @@ object StoreLaunchRequests {
                     JSONObject().put("ok", false).put("reason", e.javaClass.simpleName)
                 }
             }
+            "epic-sign-in" -> {
+                val url = request.optString("url")
+                try {
+                    if (com.droiddeck.launcher.stores.epic.EpicClient.signIn(app, url, request.optBoolean("auto"))) JSONObject().put("ok", true)
+                    else JSONObject().put("ok", false).put("reason", "not-sign-in")
+                } catch (e: Exception) {
+                    JSONObject().put("ok", false).put("reason", e.javaClass.simpleName)
+                }
+            }
+            "epic-play-in-steam" -> {
+                val id = request.optString("id")
+                if (id.isEmpty()) JSONObject().put("ok", false).put("reason", "no-id")
+                else try {
+                    com.droiddeck.launcher.stores.epic.EpicClient.playInSteam(app, id)
+                } catch (e: Exception) {
+                    JSONObject().put("ok", false).put("reason", e.javaClass.simpleName)
+                }
+            }
+            "steam-run" -> try {
+                com.droiddeck.launcher.stores.epic.EpicClient.runSteamGame(app, request.optString("id"))
+            } catch (e: Exception) {
+                JSONObject().put("ok", false).put("reason", e.javaClass.simpleName)
+            }
+            "epic-signed-out" -> {
+                val signedIn = com.droiddeck.launcher.stores.epic.EpicCredentialStore.isLoggedIn(app)
+                if (signedIn) {
+                    Log.i(TAG, "the Epic Games Launcher was signed out; signing the Epic store out too")
+                    StoresState.signOut(app, Store.EPIC)
+                }
+                JSONObject().put("ok", true).put("signedOut", signedIn)
+            }
+            "epic-client-handoff" -> {
+                if (com.droiddeck.launcher.stores.epic.EpicClient.canHandOff(app)) JSONObject().put("ok", true)
+                else JSONObject().put("ok", false).put("reason", "no-account")
+            }
             else -> JSONObject().put("ok", false).put("reason", "unknown-op")
         }
         try {

@@ -33,6 +33,8 @@ class CardboardTest {
         val c = Cardboard(enabled = true, source = Cardboard.SOURCE_SBS, viewer = "none", ipdMm = 70,
             screenWidthDm = 55, screenDistanceDm = 25, headTracking = false)
         assertEquals(c, Cardboard.decode(c.encode()))
+        val flat = c.copy(source = Cardboard.SOURCE_FLAT)
+        assertEquals(flat, Cardboard.decode(flat.encode()))
         val wild = Cardboard.decode(JSONObject().put("ipdMm", 500).put("screenWidthDm", -3).put("viewer", "nope").put("source", 7))
         assertEquals(80, wild.ipdMm)
         assertEquals(5, wild.screenWidthDm)
@@ -106,6 +108,18 @@ class CardboardTest {
         assertEquals(-cos(PI / 6).toFloat(), forward[2], eps)
     }
 
+    @Test fun virtualScreenRecenterUsesTheCurrentHeightAndDirection() {
+        for (pitch in listOf(-30.0, -10.0, 15.0, 35.0)) {
+            val yaw = matrix(quat(0f, 0f, 1f, 50.0))
+            val tilt = HeadPose.multiply(matrix(quat(1f, 0f, 0f, pitch)), matrix(quat(0f, 0f, 1f, 12.0)))
+            val screen = HeadPose.multiply(HeadPose.multiply(yaw, HeadPose.fromGlasses(0f, 0f, 0f, 1f)), tilt)
+            val ref = HeadPose.recenter(screen, centerView = true)
+            assertVec(HeadPose.IDENTITY, HeadPose.relative(ref, screen))
+            val lookUp = matrix(quat(1f, 0f, 0f, 20.0))
+            assertVec(lookUp, HeadPose.relative(ref, HeadPose.multiply(screen, lookUp)))
+        }
+    }
+
     @Test fun turningTheHeadTurnsTheView() {
         val upright = floatArrayOf(1f, 0f, 0f, 0f, 0f, -1f, 0f, 1f, 0f)
         val ref = HeadPose.recenter(upright)
@@ -152,5 +166,38 @@ class CardboardTest {
         val s270 = HeadPose.toScreen(r, 3)
         assertVec(HeadPose.apply(r, floatArrayOf(0f, 1f, 0f)), HeadPose.apply(s270, floatArrayOf(1f, 0f, 0f)))
         assertVec(r, HeadPose.toScreen(HeadPose.toScreen(HeadPose.toScreen(HeadPose.toScreen(r, 1), 1), 1), 1))
+    }
+
+    @Test fun glassesLevelAndAheadIsStraightAhead() {
+        val s2w = HeadPose.fromGlasses(0f, 0f, 0f, 1f)
+        assertVec(floatArrayOf(1f, 0f, 0f), HeadPose.apply(s2w, floatArrayOf(0f, 0f, -1f)))
+        assertVec(floatArrayOf(0f, 0f, 1f), HeadPose.apply(s2w, floatArrayOf(0f, 1f, 0f)))
+        assertVec(HeadPose.IDENTITY, HeadPose.relative(HeadPose.recenter(s2w), s2w))
+    }
+
+    @Test fun glassesTurnedLeftLookLeft() {
+        val ref = HeadPose.recenter(HeadPose.fromGlasses(0f, 0f, 0f, 1f))
+        val q = quat(0f, 0f, 1f, 30.0)
+        val view = HeadPose.relative(ref, HeadPose.fromGlasses(q[0], q[1], q[2], q[3]))
+        val s = sin(PI / 6).toFloat(); val c = cos(PI / 6).toFloat()
+        assertVec(floatArrayOf(-s, 0f, -c), HeadPose.apply(view, floatArrayOf(0f, 0f, -1f)))
+        assertVec(floatArrayOf(0f, 1f, 0f), HeadPose.apply(view, floatArrayOf(0f, 1f, 0f)))
+    }
+
+    @Test fun glassesRecenterKeepsTheHorizon() {
+        val q = quat(0f, 0f, 1f, 75.0)
+        val ref = HeadPose.recenter(HeadPose.fromGlasses(q[0], q[1], q[2], q[3]))
+        assertVec(HeadPose.IDENTITY, HeadPose.relative(ref, HeadPose.fromGlasses(q[0], q[1], q[2], q[3])))
+        val tilt = quat(0f, 1f, 0f, 20.0)
+        val both = HeadPose.multiply(HeadPose.fromQuaternion(q[0], q[1], q[2], q[3]), HeadPose.fromQuaternion(tilt[0], tilt[1], tilt[2], tilt[3]))
+        val view = HeadPose.multiply(HeadPose.transpose(ref.basis), HeadPose.multiply(both, floatArrayOf(0f, 0f, -1f, -1f, 0f, 0f, 0f, 1f, 0f)))
+        val ahead = HeadPose.apply(view, floatArrayOf(0f, 0f, -1f))
+        assertEquals(0f, ahead[0], eps)
+        assertEquals(-sin(PI / 9).toFloat(), ahead[1], eps)
+    }
+
+    @Test fun monoIsNotPartOfTheSavedSettings() {
+        val c = Cardboard(enabled = true, mono = true)
+        assertEquals(false, Cardboard.decode(c.encode()).mono)
     }
 }

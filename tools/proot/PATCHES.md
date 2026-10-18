@@ -88,6 +88,12 @@ Added by DroidDeck:
   `mnt_id` from the pin's fdinfo. A later close/reuse of the tracee fd cannot redirect that read;
   a concurrent reuse for the same inode through a different bind mount is indistinguishable at
   the exit stop. It does not synthesize `STATX_MNT_ID_UNIQUE`.
+- `0016-robust-list-from-seccomp.patch` - Android's app policy refuses `set_robust_list` and
+  `get_robust_list`. proot still answers the first with `ENOSYS` but keeps the head each thread
+  offered (cleared on `execve`, none in a new task), and answers the second for the calling thread
+  with it. SteamVR's `vrclient.so` asks for the head through libc's `syscall()`, which
+  `libblsession.so`'s robust.c never sees: `libopenvr_api.so` opens it `RTLD_DEEPBIND`. Steam
+  aborted on "futex robust_list not initialized by pthreads" as soon as SteamVR was registered.
 
 Prototype (inert unless `PROOT_FASTPATH` is set; see `docs/development/proot-performance.md`):
 

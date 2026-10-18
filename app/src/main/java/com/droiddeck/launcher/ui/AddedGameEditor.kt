@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -58,6 +59,7 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.AddedGameArt
 import com.droiddeck.launcher.frontend.AddedGameEdits
 import com.droiddeck.launcher.frontend.AddedGames
+import com.droiddeck.launcher.frontend.LogoPosition
 import com.droiddeck.launcher.frontend.SteamGameArt
 import com.droiddeck.launcher.frontend.SteamGridDb
 import com.droiddeck.launcher.session.SessionPrefs
@@ -152,6 +154,8 @@ internal class ArtTarget(
     val choices: (Context, AddedGameArt.Slot) -> AddedGameArt.Choices,
     val set: (Context, AddedGameArt.Slot, AddedGameArt.Option) -> Boolean,
     val reset: (Context, AddedGameArt.Slot) -> Unit,
+    val position: (Context) -> LogoPosition.Value?,
+    val setPosition: (Context, LogoPosition.Value?) -> Boolean,
 ) {
     companion object {
         fun of(game: AddedGames.Game) = ArtTarget(
@@ -160,6 +164,8 @@ internal class ArtTarget(
             { c, slot -> AddedGameArt.choices(c, game, slot) },
             { c, slot, option -> AddedGameEdits.setArt(c, game.folder.path, slot, option) },
             { c, slot -> AddedGameEdits.resetArt(c, game.folder.path, slot) },
+            { c -> AddedGameEdits.logoPosition(c, game.folder.path) },
+            { c, value -> AddedGameEdits.setLogoPosition(c, game.folder.path, value) },
         )
 
         fun of(game: com.droiddeck.launcher.frontend.Library.SteamGame) = ArtTarget(
@@ -168,6 +174,8 @@ internal class ArtTarget(
             { c, slot -> SteamGameArt.choices(c, game, slot) },
             { c, slot, option -> SteamGameArt.choose(c, game, slot, option) },
             { c, slot -> SteamGameArt.reset(c, game, slot) },
+            { c -> SteamGameArt.position(c, game) },
+            { c, value -> SteamGameArt.setPosition(c, game, value) },
         )
     }
 }
@@ -202,6 +210,8 @@ private fun ArtOnlyEditor(
     var version by remember { mutableIntStateOf(0) }
     var arts by remember { mutableStateOf<List<AddedGameArt.SlotState>>(emptyList()) }
     var artSlot by remember { mutableStateOf<AddedGameArt.Slot?>(null) }
+    var logoOpen by remember { mutableStateOf(false) }
+    val position = rememberLogoPosition(target, version)
     LaunchedEffect(version, refresh) { if (target != null) arts = withContext(Dispatchers.IO) { describe(app) } }
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) { focusWithinFrames({ false }) { first } }
@@ -222,12 +232,41 @@ private fun ArtOnlyEditor(
                     }
                 }
             }
+            PickerRow(Icons.Outlined.Tune, stringResource(R.string.art_adjust_logo), logoPositionSummary(position?.value), enabled = target != null && position != null) { logoOpen = true }
         }
     }
     val chosen = target ?: return
     artSlot?.let { slot ->
         ArtChooserDialog(chosen, slot, arts.firstOrNull { it.slot == slot }, onBack = { artSlot = null }, onCloseAll = { artSlot = null; close() }) { version++; onChanged() }
     }
+    val loaded = position
+    if (logoOpen && loaded != null) LogoPositionHost(chosen, arts, loaded, onBack = { logoOpen = false }, onCloseAll = { logoOpen = false; close() }) { version++; onChanged() }
+}
+
+/** The position as last read; null until it has been read, so the screen never opens on a guess and saves it over the real one. */
+private class LoadedPosition(val value: LogoPosition.Value?)
+
+@Composable
+private fun rememberLogoPosition(target: ArtTarget?, version: Int): LoadedPosition? {
+    val app = LocalContext.current.applicationContext
+    var position by remember(target) { mutableStateOf<LoadedPosition?>(null) }
+    LaunchedEffect(target, version) {
+        position = if (target == null) null else withContext(Dispatchers.IO) { LoadedPosition(runCatching { target.position(app) }.getOrNull()) }
+    }
+    return position
+}
+
+/** The "Adjust logo" screen for [target], over the game's background and logo as they are now. */
+@Composable
+private fun LogoPositionHost(
+    target: ArtTarget, arts: List<AddedGameArt.SlotState>, start: LoadedPosition,
+    onBack: () -> Unit, onCloseAll: () -> Unit, onChanged: () -> Unit,
+) {
+    fun file(slot: AddedGameArt.Slot) = arts.firstOrNull { it.slot == slot }?.file
+    LogoPositionDialog(
+        target, hero = file(AddedGameArt.Slot.BACKGROUND) ?: file(AddedGameArt.Slot.WIDE), logo = file(AddedGameArt.Slot.LOGO), start = start.value,
+        onBack = onBack, onCloseAll = onCloseAll, onChanged = onChanged,
+    )
 }
 
 @Composable
@@ -256,6 +295,9 @@ internal fun AddedGameEditor(
     var editing by remember { mutableStateOf<String?>(null) }
     var otherExe by remember { mutableStateOf(false) }
     var artSlot by remember { mutableStateOf<AddedGameArt.Slot?>(null) }
+    var logoOpen by remember { mutableStateOf(false) }
+    val artTarget = remember(game?.appId) { game?.let { ArtTarget.of(it) } }
+    val position = rememberLogoPosition(artTarget, version)
     var unreachable by remember { mutableStateOf(false) }
     LaunchedEffect(version) {
         withContext(Dispatchers.IO) {
@@ -329,6 +371,7 @@ internal fun AddedGameEditor(
                     }
                 }
             }
+            PickerRow(Icons.Outlined.Tune, stringResource(R.string.art_adjust_logo), logoPositionSummary(position?.value), enabled = g != null && position != null) { logoOpen = true }
             RemoveRow(armed) {
                 if (!armed) armed = true else {
                     armed = false
@@ -373,6 +416,9 @@ internal fun AddedGameEditor(
         val current = arts.firstOrNull { it.slot == slot }
         ArtChooserDialog(ArtTarget.of(g), slot, current, onBack = { artSlot = null }, onCloseAll = { artSlot = null; close() }) { version++; onChanged() }
     }
+    val logoTarget = artTarget
+    val loaded = position
+    if (logoOpen && logoTarget != null && loaded != null) LogoPositionHost(logoTarget, arts, loaded, onBack = { logoOpen = false }, onCloseAll = { logoOpen = false; close() }) { version++; onChanged() }
 }
 
 private fun hostPath(context: android.content.Context, game: AddedGames.Game): String {
