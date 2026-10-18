@@ -79,11 +79,12 @@ import java.util.Locale
 internal fun HandCameraHost(check: Boolean?, onAskPermission: () -> Unit, onPlay: () -> Unit, onClose: () -> Unit) {
     if (!HandTracking.supported) return
     val context = LocalContext.current
-    val (glasses, _) = rememberGlasses()
+    val (glasses, tracking) = rememberGlasses()
     val settings by HandTracking.settings.collectAsState()
     LaunchedEffect(Unit) { HandTracking.load(context) }
     var prompted by rememberSaveable { mutableStateOf(false) }
-    if (!prompted && HandTracking.shouldAsk(settings, glasses.present && glasses.canControl)) {
+    if (!prompted && !glasses.usesSpatialControllers(tracking) &&
+        HandTracking.shouldAsk(settings, glasses.present && glasses.canControl)) {
         HandCameraPrompt(settings.sides,
             onAllow = { side ->
                 prompted = true
@@ -168,7 +169,7 @@ internal fun HandCameraRows(host: MenuHost, track: (String) -> Modifier, inSessi
         HandTracking.refreshPermission(context)
         denied = !granted
     }
-    ToggleRow(host, "hand-camera", stringResource(R.string.hand_camera_setting), stringResource(R.string.hand_camera_setting_hint),
+    ToggleRow(host, "hand-camera", stringResource(R.string.phone_camera_tracking_setting), stringResource(R.string.hand_camera_setting_hint),
         s.enabled, chipModifier = track("hand-camera")) { on ->
         HandTracking.setEnabled(context, on)
         if (on && !s.permitted) ask.launch(Manifest.permission.CAMERA)

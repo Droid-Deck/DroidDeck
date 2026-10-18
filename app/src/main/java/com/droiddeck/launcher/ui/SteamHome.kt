@@ -49,6 +49,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import com.droiddeck.launcher.frontend.Library
+import com.droiddeck.launcher.glasses.GlassesMenuMirror
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
@@ -120,7 +121,8 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
                         modifier = Modifier.fillMaxWidth().testTag("play-steamvr")) { if (enabled) { drop.open = false; a.onPlaySteamVr() } }
                 },
             ) { tab ->
-                GlassesGroups(rememberMenuHost(), glasses, glassesSettings, inSession = false, tab = tab)
+                GlassesGroups(rememberMenuHost(), glasses, glassesSettings,
+                    onRecenter = GlassesMenuMirror::recenter, inSession = false, tab = tab)
             }
         },
         onOpen = a.onSteamSettings, onPrimary = a.onPlay,

@@ -117,6 +117,7 @@ object SessionFiles {
             "droiddeck/driver.vrdrivermanifest",
             "droiddeck/resources/settings/default.vrsettings",
             "layer/libVkLayer_droiddeck_vr.so",
+            "layer/libdroiddeck_vr_scheduling.so",
             "layer/VK_LAYER_DROIDDECK_vr.json",
         ) + handModels).map { "usr/local/lib/droiddeck-vr/$it" to "usr/local/lib/droiddeck-vr/$it" } +
             listOf("usr/local/lib/droiddeck-vr/layer/VK_LAYER_DROIDDECK_vr_implicit.json" to

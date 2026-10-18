@@ -28,7 +28,7 @@ static float clampf(float v, float lo, float hi) { return v < lo ? lo : v > hi ?
 
 void cardboard_clamp(struct cardboard_params *p) {
     p->enabled = p->enabled ? 1 : 0;
-    p->source = p->source == CARDBOARD_SOURCE_SBS ? CARDBOARD_SOURCE_SBS : CARDBOARD_SOURCE_SCREEN;
+    if (p->source < CARDBOARD_SOURCE_SCREEN || p->source > CARDBOARD_SOURCE_FLAT) p->source = CARDBOARD_SOURCE_SCREEN;
     p->ipd_m = clampf(p->ipd_m, 0.0f, 0.1f);
     p->screen_dist_m = clampf(p->screen_dist_m, 0.5f, 50.0f);
     p->screen_width_m = clampf(p->screen_width_m, 0.2f, 60.0f);
@@ -62,8 +62,11 @@ void cardboard_push_constants(const struct cardboard_params *p, const float pose
     out[21] = out[22] = out[23] = 0.0f;
 }
 
-#ifndef CARDBOARD_HOST_TEST
+void cardboard_push_translation(const struct cardboard_params *p, const float position[3], float out[24]) {
+    for (int i = 0; i < 3; ++i) out[21+i] = p->source == CARDBOARD_SOURCE_SCREEN && isfinite(position[i]) ? position[i] : 0.0f;
+}
 
+#ifndef CARDBOARD_HOST_TEST
 
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
 static struct cardboard_params g_set = {
@@ -72,6 +75,7 @@ static struct cardboard_params g_set = {
 static float g_pose[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
 static volatile int g_changed = 1;
 
+static float g_position[3];
 static int g_live;
 static void shm_publish(int live);
 
@@ -86,7 +90,8 @@ void vkp_cardboard_set(const struct cardboard_params *p) {
     pthread_mutex_unlock(&g_lock);
     if (was != c.enabled || c.enabled)
         droiddeck_log("cardboard", "%s: %s%s, ipd %.0f mm, screen %.1f m wide at %.1f m, lens k1 %.2f k2 %.2f, fov %.0f, inset %.3f, chroma %.3f",
-                      c.enabled ? "on" : "off", c.source == CARDBOARD_SOURCE_SBS ? "side-by-side source" : "virtual screen",
+                      c.enabled ? "on" : "off", c.source == CARDBOARD_SOURCE_SBS ? "side-by-side source" :
+                      c.source == CARDBOARD_SOURCE_FLAT ? "flat image in both eyes" : "virtual screen",
                       c.mono ? " (one eye)" : "", c.ipd_m * 1000.0f, c.screen_width_m, c.screen_dist_m, c.k1, c.k2, c.fov_deg, c.lens_inset, c.chroma);
 }
 
@@ -146,22 +151,31 @@ static void shm_publish(int live) {
 }
 
 
-void vkp_cardboard_set_pose(const float m[9], int live) {
+void vkp_cardboard_set_spatial_pose(const float m[9], const float position[3], int live) {
     pthread_mutex_lock(&g_lock);
     memcpy(g_pose, m, sizeof(g_pose));
+    memcpy(g_position, position, sizeof(g_position));
     g_live = live;
     if (g_set.enabled && g_set.source == CARDBOARD_SOURCE_SCREEN) g_changed = 1;
     shm_publish(live);
     pthread_mutex_unlock(&g_lock);
 }
 
+void vkp_cardboard_set_pose(const float m[9], int live) {
+    const float zero[3] = {0};
+    vkp_cardboard_set_spatial_pose(m, zero, live);
+}
+
+
 static struct cardboard_params g_cur;
 static float g_cur_pose[9];
+static float g_cur_position[3];
 
 static void snapshot(void) {
     pthread_mutex_lock(&g_lock);
     g_cur = g_set;
     memcpy(g_cur_pose, g_pose, sizeof(g_cur_pose));
+    memcpy(g_cur_position, g_position, sizeof(g_cur_position));
     pthread_mutex_unlock(&g_lock);
 }
 
@@ -428,6 +442,7 @@ VkImage vkp_cardboard_run(VkCommandBuffer cmd, VkImage src, int src_w, int src_h
     }
     struct { float ndc[4]; float rest[24]; } pc = {{-1.0f, -1.0f, 1.0f, 1.0f}, {0}};
     cardboard_push_constants(&g_cur, g_cur_pose, src_w, src_h, out_w, out_h, pc.rest);
+    cardboard_push_translation(&g_cur, g_cur_position, pc.rest);
 
     VkRenderPassBeginInfo rpi = {.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO, .renderPass = g_rp,
                                  .framebuffer = g_t.fb, .renderArea = {{0, 0}, {(uint32_t)out_w, (uint32_t)out_h}}};
