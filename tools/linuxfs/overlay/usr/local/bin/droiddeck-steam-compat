@@ -208,7 +208,7 @@ VR_JS = r"""
       return;
     }
     const overview = window.appStore?.GetAppOverviewByGameID?.(gameid);
-    const vr = overview?.vr_only || overview?.vr_supported || overview?.BSupportsVR?.();
+    const vr = overview?.vr_only === true;
     if (vr && self.subscription && /^[1-9][0-9]{0,19}$/.test(gameid)) {
       if (self.pending.has(gameid)) return;
       self.lastError = null;
