@@ -2692,6 +2692,12 @@
     <string name="boot_movie_source_import">Importert</string>
     <string name="boot_movie_source_repo">SteamDeckRepo</string>
     <string name="boot_movie_source_steam">Steam</string>
+    <string name="boot_movie_source_pointshop">Poengbutikk</string>
+    <string name="boot_movie_report">Rapport om oppstartsfilmer</string>
+    <string name="boot_movie_report_hint">Lagrer det DroidDeck og Steam vet om oppstartsfilmer i en tekstfil du kan legge ved en feilrapport.</string>
+    <string name="boot_movie_report_save">Lagre</string>
+    <string name="boot_movie_report_saved">Lagret i %1$s</string>
+    <string name="boot_movie_report_failed">Rapporten kunne ikke lagres.</string>
     <string name="boot_movie_volume">Volum</string>
     <string name="boot_movie_length">Lengde</string>
     <string name="boot_movie_seconds">%1$d s</string>

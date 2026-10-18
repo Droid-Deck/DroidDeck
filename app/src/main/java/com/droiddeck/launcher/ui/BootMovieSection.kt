@@ -54,6 +54,7 @@ import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.session.BootMovie
 import com.droiddeck.launcher.session.BootMovieLibrary
+import com.droiddeck.launcher.session.BootMovieReport
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SteamDeckRepo
 import kotlinx.coroutines.Dispatchers
@@ -143,6 +144,23 @@ private fun InstalledTab(a: ModeSettingsActions) {
         stringResource(R.string.boot_movie_note), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(horizontal = 14.dp).padding(bottom = 12.dp),
     )
+    val app = LocalContext.current.applicationContext
+    val scope = rememberCoroutineScope()
+    var saving by remember { mutableStateOf(false) }
+    SettingsRow(stringResource(R.string.boot_movie_report), stringResource(R.string.boot_movie_report_hint)) {
+        SecondaryButton(stringResource(R.string.boot_movie_report_save), enabled = !saving, onClick = {
+            saving = true
+            scope.launch {
+                val file = withContext(Dispatchers.IO) { BootMovieReport.write(app) }
+                saving = false
+                Toast.makeText(
+                    app,
+                    file?.let { app.getString(R.string.boot_movie_report_saved, it.path) } ?: app.getString(R.string.boot_movie_report_failed),
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
+        })
+    }
     if (browsing) InstalledMoviesDialog(a) { browsing = false }
 }
 
@@ -163,6 +181,7 @@ private fun movieSourceLabel(source: String): String = stringResource(
         BootMovieLibrary.SOURCE_DROIDDECK -> R.string.boot_movie_source_droiddeck
         BootMovieLibrary.SOURCE_REPO -> R.string.boot_movie_source_repo
         BootMovieLibrary.SOURCE_IMPORT -> R.string.boot_movie_source_import
+        BootMovieLibrary.SOURCE_POINTSHOP -> R.string.boot_movie_source_pointshop
         else -> R.string.boot_movie_source_steam
     },
 )

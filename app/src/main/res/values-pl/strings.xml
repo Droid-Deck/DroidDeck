@@ -2760,6 +2760,12 @@
     <string name="boot_movie_source_import">Zaimportowane</string>
     <string name="boot_movie_source_repo">SteamDeckRepo</string>
     <string name="boot_movie_source_steam">Steam</string>
+    <string name="boot_movie_source_pointshop">Sklep za punkty</string>
+    <string name="boot_movie_report">Raport o filmach startowych</string>
+    <string name="boot_movie_report_hint">Zapisuje w pliku tekstowym to, co DroidDeck i Steam wiedzą o filmach startowych, do dołączenia do zgłoszenia błędu.</string>
+    <string name="boot_movie_report_save">Zapisz</string>
+    <string name="boot_movie_report_saved">Zapisano w %1$s</string>
+    <string name="boot_movie_report_failed">Nie udało się zapisać raportu.</string>
     <string name="boot_movie_volume">Głośność</string>
     <string name="boot_movie_length">Długość</string>
     <string name="boot_movie_seconds">%1$d s</string>

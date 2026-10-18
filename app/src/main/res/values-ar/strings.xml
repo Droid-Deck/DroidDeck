@@ -2792,6 +2792,12 @@
     <string name="boot_movie_source_import">مستورد</string>
     <string name="boot_movie_source_repo">SteamDeckRepo</string>
     <string name="boot_movie_source_steam">Steam</string>
+    <string name="boot_movie_source_pointshop">متجر النقاط</string>
+    <string name="boot_movie_report">تقرير فيديو الإقلاع</string>
+    <string name="boot_movie_report_hint">يحفظ ما يعرفه DroidDeck وSteam عن فيديوهات الإقلاع في ملف نصي يمكنك إرفاقه ببلاغ خطأ.</string>
+    <string name="boot_movie_report_save">حفظ</string>
+    <string name="boot_movie_report_saved">تم الحفظ في %1$s</string>
+    <string name="boot_movie_report_failed">تعذّر حفظ التقرير.</string>
     <string name="boot_movie_volume">مستوى الصوت</string>
     <string name="boot_movie_length">المدة</string>
     <string name="boot_movie_seconds">%1$d ث</string>

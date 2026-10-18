@@ -2692,6 +2692,12 @@
     <string name="boot_movie_source_import">Tuotu</string>
     <string name="boot_movie_source_repo">SteamDeckRepo</string>
     <string name="boot_movie_source_steam">Steam</string>
+    <string name="boot_movie_source_pointshop">Pisteputiikki</string>
+    <string name="boot_movie_report">Käynnistyselokuvaraportti</string>
+    <string name="boot_movie_report_hint">Tallentaa tekstitiedostoon, mitä DroidDeck ja Steam tietävät käynnistyselokuvista, liitettäväksi virheilmoitukseen.</string>
+    <string name="boot_movie_report_save">Tallenna</string>
+    <string name="boot_movie_report_saved">Tallennettu: %1$s</string>
+    <string name="boot_movie_report_failed">Raportin tallennus epäonnistui.</string>
     <string name="boot_movie_volume">Äänenvoimakkuus</string>
     <string name="boot_movie_length">Pituus</string>
     <string name="boot_movie_seconds">%1$d s</string>

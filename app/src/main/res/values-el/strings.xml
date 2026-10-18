@@ -2692,6 +2692,12 @@
     <string name="boot_movie_source_import">Εισαγμένο</string>
     <string name="boot_movie_source_repo">SteamDeckRepo</string>
     <string name="boot_movie_source_steam">Steam</string>
+    <string name="boot_movie_source_pointshop">Κατάστημα πόντων</string>
+    <string name="boot_movie_report">Αναφορά ταινιών εκκίνησης</string>
+    <string name="boot_movie_report_hint">Αποθηκεύει σε αρχείο κειμένου ό,τι γνωρίζουν το DroidDeck και το Steam για τις ταινίες εκκίνησης, για να το επισυνάψετε σε αναφορά σφάλματος.</string>
+    <string name="boot_movie_report_save">Αποθήκευση</string>
+    <string name="boot_movie_report_saved">Αποθηκεύτηκε στο %1$s</string>
+    <string name="boot_movie_report_failed">Δεν ήταν δυνατή η αποθήκευση της αναφοράς.</string>
     <string name="boot_movie_volume">Ένταση</string>
     <string name="boot_movie_length">Διάρκεια</string>
     <string name="boot_movie_seconds">%1$d δευτ.</string>

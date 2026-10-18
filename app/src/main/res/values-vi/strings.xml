@@ -2667,6 +2667,12 @@
     <string name="boot_movie_source_import">Đã nhập</string>
     <string name="boot_movie_source_repo">SteamDeckRepo</string>
     <string name="boot_movie_source_steam">Steam</string>
+    <string name="boot_movie_source_pointshop">Cửa hàng điểm</string>
+    <string name="boot_movie_report">Báo cáo phim khởi động</string>
+    <string name="boot_movie_report_hint">Lưu những gì DroidDeck và Steam biết về phim khởi động vào một tệp văn bản để đính kèm báo cáo lỗi.</string>
+    <string name="boot_movie_report_save">Lưu</string>
+    <string name="boot_movie_report_saved">Đã lưu vào %1$s</string>
+    <string name="boot_movie_report_failed">Không thể lưu báo cáo.</string>
     <string name="boot_movie_volume">Âm lượng</string>
     <string name="boot_movie_length">Độ dài</string>
     <string name="boot_movie_seconds">%1$d giây</string>

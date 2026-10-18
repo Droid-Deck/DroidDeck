@@ -2760,6 +2760,12 @@
     <string name="boot_movie_source_import">Importované</string>
     <string name="boot_movie_source_repo">SteamDeckRepo</string>
     <string name="boot_movie_source_steam">Steam</string>
+    <string name="boot_movie_source_pointshop">Obchod s body</string>
+    <string name="boot_movie_report">Zpráva o úvodních videích</string>
+    <string name="boot_movie_report_hint">Uloží do textového souboru, co DroidDeck a Steam vědí o úvodních videích, aby šel přiložit k hlášení chyby.</string>
+    <string name="boot_movie_report_save">Uložit</string>
+    <string name="boot_movie_report_saved">Uloženo do %1$s</string>
+    <string name="boot_movie_report_failed">Zprávu se nepodařilo uložit.</string>
     <string name="boot_movie_volume">Hlasitost</string>
     <string name="boot_movie_length">Délka</string>
     <string name="boot_movie_seconds">%1$d s</string>

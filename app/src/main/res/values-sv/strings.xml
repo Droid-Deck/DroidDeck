@@ -2692,6 +2692,12 @@
     <string name="boot_movie_source_import">Importerad</string>
     <string name="boot_movie_source_repo">SteamDeckRepo</string>
     <string name="boot_movie_source_steam">Steam</string>
+    <string name="boot_movie_source_pointshop">Poängbutiken</string>
+    <string name="boot_movie_report">Rapport om startfilmer</string>
+    <string name="boot_movie_report_hint">Sparar det DroidDeck och Steam vet om startfilmer i en textfil som du kan bifoga en felrapport.</string>
+    <string name="boot_movie_report_save">Spara</string>
+    <string name="boot_movie_report_saved">Sparad i %1$s</string>
+    <string name="boot_movie_report_failed">Rapporten kunde inte sparas.</string>
     <string name="boot_movie_volume">Volym</string>
     <string name="boot_movie_length">Längd</string>
     <string name="boot_movie_seconds">%1$d s</string>

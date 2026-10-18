@@ -219,7 +219,13 @@ object SessionFiles {
             }
             val bigPictureMovieInstalled = startupMovie != null && stageStartupMovie(startupMovie, movieDir, "bigpicture_startup.webm")
             if (startupMovie != null) stageStartupMovie(startupMovie, movieDir, "steam_os_startup.webm")
+            val before = startupMoviePath(config)
             val done = if (bigPictureMovieInstalled) ensureStartupMovieDefault(config, force) else resetMissingStartupMovie(config, force)
+            BootMovieReport.note(
+                context,
+                "stage session=$startsSession pending=$force choice=${SessionPrefs.bootMovie(context)} movie=${startupMovie?.path} " +
+                    "staged=$bigPictureMovieInstalled done=$done steam=${home.path} config: $before -> ${startupMoviePath(config)}",
+            )
             if (!done) allDone = false
             if (index == 0 && done) seen = if (bigPictureMovieInstalled) BOOT_MOVIE_PATH else ""
         }
@@ -293,6 +299,13 @@ object SessionFiles {
         val text = runCatching { config.readText() }.getOrNull() ?: return null
         val movie = findObject(text, "StartupMovie", 0, text.length) ?: return null
         return scalar(text.substring(movie.keyStart, movie.close + 1), "LocalPath")?.takeIf { it.isNotEmpty() }
+    }
+
+    /** The whole `StartupMovie` section of Steam's config, as written there; null when there is none. */
+    internal fun startupMovieBlock(config: File): String? {
+        val text = runCatching { config.readText() }.getOrNull() ?: return null
+        val movie = findObject(text, "StartupMovie", 0, text.length) ?: return null
+        return text.substring(movie.keyStart, movie.close + 1)
     }
 
     /** True when Steam's config selects DroidDeck's staged movie once this returns. */

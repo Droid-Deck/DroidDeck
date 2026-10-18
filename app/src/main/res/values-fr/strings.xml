@@ -2717,6 +2717,12 @@
     <string name="boot_movie_source_import">Importée</string>
     <string name="boot_movie_source_repo">SteamDeckRepo</string>
     <string name="boot_movie_source_steam">Steam</string>
+    <string name="boot_movie_source_pointshop">Boutique de points</string>
+    <string name="boot_movie_report">Rapport sur les vidéos de démarrage</string>
+    <string name="boot_movie_report_hint">Enregistre dans un fichier texte ce que DroidDeck et Steam savent des vidéos de démarrage, à joindre à un rapport de bogue.</string>
+    <string name="boot_movie_report_save">Enregistrer</string>
+    <string name="boot_movie_report_saved">Enregistré dans %1$s</string>
+    <string name="boot_movie_report_failed">Impossible d\'enregistrer le rapport.</string>
     <string name="boot_movie_volume">Volume</string>
     <string name="boot_movie_length">Durée</string>
     <string name="boot_movie_seconds">%1$d s</string>

@@ -2726,6 +2726,12 @@
     <string name="boot_movie_source_import">Importat</string>
     <string name="boot_movie_source_repo">SteamDeckRepo</string>
     <string name="boot_movie_source_steam">Steam</string>
+    <string name="boot_movie_source_pointshop">Magazin de puncte</string>
+    <string name="boot_movie_report">Raport despre filmele de pornire</string>
+    <string name="boot_movie_report_hint">Salvează într-un fișier text ce știu DroidDeck și Steam despre filmele de pornire, pentru a-l atașa la un raport de eroare.</string>
+    <string name="boot_movie_report_save">Salvează</string>
+    <string name="boot_movie_report_saved">Salvat în %1$s</string>
+    <string name="boot_movie_report_failed">Raportul nu a putut fi salvat.</string>
     <string name="boot_movie_volume">Volum</string>
     <string name="boot_movie_length">Durată</string>
     <string name="boot_movie_seconds">%1$d s</string>

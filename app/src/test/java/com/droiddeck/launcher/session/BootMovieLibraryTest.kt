@@ -144,12 +144,28 @@ class BootMovieLibraryTest {
         val file = File(BootMovieLibrary.steamRoot(app), "appcache/startupmovies/Bought.webm").also { it.parentFile!!.mkdirs(); it.writeText("movie") }
         val entry = BootMovieLibrary.list(app).first { it.id == "steam:/appcache/startupmovies/Bought.webm" }
         assertFalse(entry.removable)
-        assertEquals(BootMovieLibrary.SOURCE_STEAM, entry.source)
+        assertEquals(BootMovieLibrary.SOURCE_POINTSHOP, entry.source)
         steamPicksAt("/appcache/startupmovies/Bought.webm")
         assertTrue(BootMovie.syncFromSteam(app))
         assertEquals("steam:/appcache/startupmovies/Bought.webm", BootMovie.choice(app))
         assertEquals(file, BootMovie.currentFile(app))
         assertNull(BootMovieLibrary.file(app, "steam:/../x.webm"))
+    }
+
+    @Test fun aBoughtMovieNamedByIdAndHashIsShownByItsId() {
+        File(BootMovieLibrary.steamRoot(app), "appcache/startupmovies/39900045022_590371b7f10882d09ac59e5d3691b462c0091a6d.webm")
+            .also { it.parentFile!!.mkdirs(); it.writeText("movie") }
+        val entry = BootMovieLibrary.list(app).first { it.source == BootMovieLibrary.SOURCE_POINTSHOP }
+        assertEquals("#39900045022", entry.title)
+    }
+
+    @Test fun theReportNamesWhatStageDidAndWhereMoviesAre() {
+        File(BootMovieLibrary.steamRoot(app), "appcache/startupmovies/1_ab.webm").also { it.parentFile!!.mkdirs(); it.writeText("movie") }
+        BootMovieReport.note(app, "stage test")
+        val report = BootMovieReport.build(app)
+        assertTrue(report.contains("== DroidDeck state"))
+        assertTrue(report.contains("startupmovies/1_ab.webm"))
+        assertTrue(report.contains("stage test"))
     }
 
     @Test fun pathTricksAreNotMovies() {

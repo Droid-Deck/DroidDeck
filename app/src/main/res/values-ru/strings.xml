@@ -2760,6 +2760,12 @@
     <string name="boot_movie_source_import">Импортировано</string>
     <string name="boot_movie_source_repo">SteamDeckRepo</string>
     <string name="boot_movie_source_steam">Steam</string>
+    <string name="boot_movie_source_pointshop">Магазин баллов</string>
+    <string name="boot_movie_report">Отчет о загрузочных роликах</string>
+    <string name="boot_movie_report_hint">Сохраняет в текстовый файл то, что DroidDeck и Steam знают о загрузочных роликах, чтобы приложить к сообщению об ошибке.</string>
+    <string name="boot_movie_report_save">Сохранить</string>
+    <string name="boot_movie_report_saved">Сохранено: %1$s</string>
+    <string name="boot_movie_report_failed">Не удалось сохранить отчет.</string>
     <string name="boot_movie_volume">Громкость</string>
     <string name="boot_movie_length">Длительность</string>
     <string name="boot_movie_seconds">%1$d с</string>

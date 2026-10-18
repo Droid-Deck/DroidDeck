@@ -2692,6 +2692,12 @@
     <string name="boot_movie_source_import">Importált</string>
     <string name="boot_movie_source_repo">SteamDeckRepo</string>
     <string name="boot_movie_source_steam">Steam</string>
+    <string name="boot_movie_source_pointshop">Pontbolt</string>
+    <string name="boot_movie_report">Indítófilm-jelentés</string>
+    <string name="boot_movie_report_hint">Szöveges fájlba menti, amit a DroidDeck és a Steam tud az indítófilmekről, hibajelentéshez csatolható.</string>
+    <string name="boot_movie_report_save">Mentés</string>
+    <string name="boot_movie_report_saved">Mentve: %1$s</string>
+    <string name="boot_movie_report_failed">A jelentést nem sikerült menteni.</string>
     <string name="boot_movie_volume">Hangerő</string>
     <string name="boot_movie_length">Hossz</string>
     <string name="boot_movie_seconds">%1$d mp</string>

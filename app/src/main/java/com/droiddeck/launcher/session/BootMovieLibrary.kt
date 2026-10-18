@@ -31,6 +31,7 @@ object BootMovieLibrary {
     const val SOURCE_IMPORT = "import"
     const val SOURCE_REPO = "repo"
     const val SOURCE_STEAM = "steam"
+    const val SOURCE_POINTSHOP = "pointshop"
 
     class Entry(val id: String, val title: String, val source: String, val file: File?, val removable: Boolean)
 
@@ -131,7 +132,11 @@ object BootMovieLibrary {
         val seen = HashSet<String>()
         for ((id, file) in steam) {
             if (file.name in STAGED || !seen.add(file.canonicalPath)) continue
-            out.add(Entry(id, file.nameWithoutExtension, SOURCE_STEAM, file, removable = false))
+            val native = file.nameWithoutExtension.lowercase() in NATIVE
+            // Steam names a bought movie by an id and a hash; the id is all that is worth showing.
+            val boughtId = Regex("^(\\d+)_").find(file.nameWithoutExtension)?.groupValues?.get(1)
+            val title = if (!native && boughtId != null) "#$boughtId" else file.nameWithoutExtension
+            out.add(Entry(id, title, if (native) SOURCE_STEAM else SOURCE_POINTSHOP, file, removable = false))
         }
         return out
     }

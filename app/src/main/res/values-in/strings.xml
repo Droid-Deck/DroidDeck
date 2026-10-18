@@ -2667,6 +2667,12 @@
     <string name="boot_movie_source_import">Diimpor</string>
     <string name="boot_movie_source_repo">SteamDeckRepo</string>
     <string name="boot_movie_source_steam">Steam</string>
+    <string name="boot_movie_source_pointshop">Toko Poin</string>
+    <string name="boot_movie_report">Laporan film boot</string>
+    <string name="boot_movie_report_hint">Menyimpan apa yang diketahui DroidDeck dan Steam tentang film boot ke berkas teks yang dapat dilampirkan pada laporan bug.</string>
+    <string name="boot_movie_report_save">Simpan</string>
+    <string name="boot_movie_report_saved">Disimpan di %1$s</string>
+    <string name="boot_movie_report_failed">Laporan tidak dapat disimpan.</string>
     <string name="boot_movie_volume">Volume</string>
     <string name="boot_movie_length">Durasi</string>
     <string name="boot_movie_seconds">%1$d dtk</string>

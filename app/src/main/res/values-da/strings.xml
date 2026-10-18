@@ -2692,6 +2692,12 @@
     <string name="boot_movie_source_import">Importeret</string>
     <string name="boot_movie_source_repo">SteamDeckRepo</string>
     <string name="boot_movie_source_steam">Steam</string>
+    <string name="boot_movie_source_pointshop">Pointbutik</string>
+    <string name="boot_movie_report">Rapport om startfilm</string>
+    <string name="boot_movie_report_hint">Gemmer, hvad DroidDeck og Steam ved om startfilm, i en tekstfil, som du kan vedhæfte en fejlrapport.</string>
+    <string name="boot_movie_report_save">Gem</string>
+    <string name="boot_movie_report_saved">Gemt i %1$s</string>
+    <string name="boot_movie_report_failed">Rapporten kunne ikke gemmes.</string>
     <string name="boot_movie_volume">Lydstyrke</string>
     <string name="boot_movie_length">Længde</string>
     <string name="boot_movie_seconds">%1$d s</string>

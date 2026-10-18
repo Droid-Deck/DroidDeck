@@ -2692,6 +2692,12 @@
     <string name="boot_movie_source_import">इंपोर्ट किया गया</string>
     <string name="boot_movie_source_repo">SteamDeckRepo</string>
     <string name="boot_movie_source_steam">Steam</string>
+    <string name="boot_movie_source_pointshop">पॉइंट्स शॉप</string>
+    <string name="boot_movie_report">बूट मूवी रिपोर्ट</string>
+    <string name="boot_movie_report_hint">बूट मूवी के बारे में DroidDeck और Steam की जानकारी एक टेक्स्ट फ़ाइल में सहेजता है, जिसे आप बग रिपोर्ट के साथ जोड़ सकते हैं।</string>
+    <string name="boot_movie_report_save">सहेजें</string>
+    <string name="boot_movie_report_saved">%1$s में सहेजा गया</string>
+    <string name="boot_movie_report_failed">रिपोर्ट सहेजी नहीं जा सकी।</string>
     <string name="boot_movie_volume">वॉल्यूम</string>
     <string name="boot_movie_length">अवधि</string>
     <string name="boot_movie_seconds">%1$d सेक</string>

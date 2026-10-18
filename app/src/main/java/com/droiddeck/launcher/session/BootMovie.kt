@@ -49,6 +49,7 @@ object BootMovie {
     fun select(context: Context, id: String) {
         SessionPrefs.setBootMovie(context, id)
         SessionPrefs.setBootMovieApplyNext(context, true)
+        BootMovieReport.note(context, "picked $id here; Steam names ${SessionFiles.startupMoviePath(BootMovieLibrary.steamConfig(context))}")
         // Whatever Steam names right now is about to be replaced, so it is not a pick to adopt later.
         SessionFiles.startupMoviePath(BootMovieLibrary.steamConfig(context))?.let { SessionPrefs.setBootMovieSteamSeen(context, it) }
     }
@@ -157,6 +158,7 @@ object BootMovie {
         val id = if (path.startsWith(prefix)) BootMovieLibrary.idOf(path.removePrefix(prefix)) else BootMovieLibrary.STEAM_PREFIX + path
         if (BootMovieLibrary.file(context, id) == null) return false
         if (SessionPrefs.bootMovie(context) == id) return false
+        BootMovieReport.note(context, "Steam names $path, taken over as $id")
         select(context, id)
         return true
     }

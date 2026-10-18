@@ -2667,6 +2667,12 @@
     <string name="boot_movie_source_import">นำเข้าแล้ว</string>
     <string name="boot_movie_source_repo">SteamDeckRepo</string>
     <string name="boot_movie_source_steam">Steam</string>
+    <string name="boot_movie_source_pointshop">ร้านค้าแต้ม</string>
+    <string name="boot_movie_report">รายงานวิดีโอเปิดเครื่อง</string>
+    <string name="boot_movie_report_hint">บันทึกสิ่งที่ DroidDeck และ Steam รู้เกี่ยวกับวิดีโอเปิดเครื่องลงในไฟล์ข้อความ เพื่อแนบกับรายงานข้อบกพร่อง</string>
+    <string name="boot_movie_report_save">บันทึก</string>
+    <string name="boot_movie_report_saved">บันทึกไปที่ %1$s แล้ว</string>
+    <string name="boot_movie_report_failed">ไม่สามารถบันทึกรายงานได้</string>
     <string name="boot_movie_volume">ระดับเสียง</string>
     <string name="boot_movie_length">ความยาว</string>
     <string name="boot_movie_seconds">%1$d วิ</string>

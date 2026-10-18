@@ -2717,6 +2717,12 @@
     <string name="boot_movie_source_import">Importado</string>
     <string name="boot_movie_source_repo">SteamDeckRepo</string>
     <string name="boot_movie_source_steam">Steam</string>
+    <string name="boot_movie_source_pointshop">Loja de Pontos</string>
+    <string name="boot_movie_report">Relatório dos filmes de arranque</string>
+    <string name="boot_movie_report_hint">Guarda num ficheiro de texto o que o DroidDeck e o Steam sabem sobre os filmes de arranque, para anexar a um relatório de erro.</string>
+    <string name="boot_movie_report_save">Guardar</string>
+    <string name="boot_movie_report_saved">Guardado em %1$s</string>
+    <string name="boot_movie_report_failed">Não foi possível guardar o relatório.</string>
     <string name="boot_movie_volume">Volume</string>
     <string name="boot_movie_length">Duração</string>
     <string name="boot_movie_seconds">%1$d s</string>
