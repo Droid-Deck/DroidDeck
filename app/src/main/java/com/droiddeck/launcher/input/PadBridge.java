@@ -319,22 +319,37 @@ public final class PadBridge {
         boolean wired = wiredXboxLayout(event);
         pad.rightX = rightX(event, wired);
         pad.rightY = rightY(event, wired);
-        float lt = leftTrigger(event, wired);
-        float rt = rightTrigger(event, wired);
-        pad.leftTrigger = lt;
-        pad.rightTrigger = rt;
-        float hatX = event.getAxisValue(MotionEvent.AXIS_HAT_X);
-        float hatY = event.getAxisValue(MotionEvent.AXIS_HAT_Y);
-        pad.up = hatY < -0.5f;
-        pad.right = hatX > 0.5f;
-        pad.down = hatY > 0.5f;
-        pad.left = hatX < -0.5f;
+        // Pads that send the D-pad or digital triggers as keys have no such axes; reading 0 here would release them.
+        int source = event.getSource();
+        float lt = 0f;
+        float rt = 0f;
+        if (wired || hasAxis(device, source, MotionEvent.AXIS_LTRIGGER, MotionEvent.AXIS_RTRIGGER,
+                MotionEvent.AXIS_BRAKE, MotionEvent.AXIS_GAS)) {
+            lt = leftTrigger(event, wired);
+            rt = rightTrigger(event, wired);
+            pad.leftTrigger = lt;
+            pad.rightTrigger = rt;
+        }
+        if (hasAxis(device, source, MotionEvent.AXIS_HAT_X, MotionEvent.AXIS_HAT_Y)) {
+            float hatX = event.getAxisValue(MotionEvent.AXIS_HAT_X);
+            float hatY = event.getAxisValue(MotionEvent.AXIS_HAT_Y);
+            pad.up = hatY < -0.5f;
+            pad.right = hatX > 0.5f;
+            pad.down = hatY > 0.5f;
+            pad.left = hatX < -0.5f;
+        }
         if (Math.max(Math.max(Math.abs(pad.leftX), Math.abs(pad.leftY)), Math.max(Math.abs(pad.rightX), Math.abs(pad.rightY))) > 0.5f
                 || lt > 0.5f || rt > 0.5f || pad.up || pad.right || pad.down || pad.left) {
             notePlayerInput();
         }
         publish(slot);
         return true;
+    }
+
+    static boolean hasAxis(InputDevice device, int source, int... axes) {
+        if (device == null) return false;
+        for (int axis : axes) if (device.getMotionRange(axis, source) != null) return true;
+        return false;
     }
 
     public interface TouchRoute {

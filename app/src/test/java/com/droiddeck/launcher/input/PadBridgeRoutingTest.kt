@@ -122,6 +122,21 @@ class PadBridgeRoutingTest {
         }
     }
 
+    @Test fun onlyAxesTheDeviceReportsReplaceKeyDrivenTriggersAndDpad() {
+        val js = InputDevice.SOURCE_JOYSTICK
+        val sticksOnly = device(js or InputDevice.SOURCE_GAMEPAD, InputDevice.KEYBOARD_TYPE_NON_ALPHABETIC, rangeSource = js, axis = MotionEvent.AXIS_X)
+        val withTrigger = device(js or InputDevice.SOURCE_GAMEPAD, InputDevice.KEYBOARD_TYPE_NON_ALPHABETIC, rangeSource = js, axis = MotionEvent.AXIS_LTRIGGER)
+        val withHat = device(js or InputDevice.SOURCE_GAMEPAD, InputDevice.KEYBOARD_TYPE_NON_ALPHABETIC, rangeSource = js, axis = MotionEvent.AXIS_HAT_Y)
+        val triggers = intArrayOf(MotionEvent.AXIS_LTRIGGER, MotionEvent.AXIS_RTRIGGER, MotionEvent.AXIS_BRAKE, MotionEvent.AXIS_GAS)
+        val hat = intArrayOf(MotionEvent.AXIS_HAT_X, MotionEvent.AXIS_HAT_Y)
+        assertFalse(PadBridge.hasAxis(sticksOnly, js, *triggers))
+        assertFalse(PadBridge.hasAxis(sticksOnly, js, *hat))
+        assertTrue(PadBridge.hasAxis(withTrigger, js, *triggers))
+        assertFalse(PadBridge.hasAxis(withTrigger, js, *hat))
+        assertTrue(PadBridge.hasAxis(withHat, js, *hat))
+        assertFalse(PadBridge.hasAxis(null, js, *hat))
+    }
+
     private fun key(device: InputDevice, code: Int, action: Int, source: Int = InputDevice.SOURCE_KEYBOARD): KeyEvent {
         val event = KeyEvent(0L, 0L, action, code, 0, 0, device.id, 0, 0, source)
         assertSame(device, event.device)
