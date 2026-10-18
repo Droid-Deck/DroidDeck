@@ -152,6 +152,10 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
   repository's `tools/fex`, replacing the archive on its single `fex` release and recording the version
   in `fex.json`; this repository's `build-fex.yml` only checks the build. Tests: `test_fex_select.py`,
   `FexCatalogTest`.
+  Components' first build there published `2610-r6` (run 39104443888). Device (Pocket FIT, r4
+  installed): the app read `fex.json`, and the next x86-64 start logged `downloading FEX (fex-2610-r6)`
+  then `FEX ready (fex-2610-r6, catalog)` a second later, with the rootfs and client lines; the client
+  came up on it.
 
 ## 2026-10-15 - `feat/x86-64-steam-client`: SD card library, ARM parity, org main, Counter-Strike 2
 
