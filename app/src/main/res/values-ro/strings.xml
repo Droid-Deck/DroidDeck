@@ -2361,6 +2361,17 @@
     <string name="stores_sync_gog_unreachable">Nu s-a putut contacta GOG</string>
     <string name="stores_sync_gog_unreadable">Biblioteca ta GOG nu a putut fi citită</string>
     <string name="stores_registering">Se înregistrează la Steam…</string>
+    <string name="mode_client_arch">Client Steam</string>
+    <string name="mode_client_arch_fex">FEX %1$s</string>
+    <string name="mode_client_arch_arm64">ARM64</string>
+    <string name="mode_client_arch_x64">x86-64</string>
+    <string name="setup_vac_diag">Diagnosticare VAC</string>
+    <string name="setup_vac_diag_hint">Jocurile Source își înregistrează consola (-condebug); vac.txt din jurnalele sesiunii arată dacă e securizat sau nu</string>
+    <string name="load_starting_steam_x64">Se pornește Steam x86-64</string>
+    <string name="storage_game_x64">%1$s · x86-64</string>
+    <string name="storage_tool_x64_client">Folosit de clientul Steam x86-64</string>
+    <string name="storage_uninstall_in_x64">Această copie este în clientul Steam x86-64. Alege x86-64 la Client Steam, apoi dezinstaleaz-o aici.</string>
+    <string name="storage_uninstall_in_arm64">Această copie este în clientul Steam ARM64. Alege ARM64 la Client Steam, apoi dezinstaleaz-o aici.</string>
     <string name="drawer_page_glasses">Ochelari</string>
     <string name="glasses_open">Ochelari VITURE</string>
     <string name="glasses_control">Controlul ochelarilor</string>

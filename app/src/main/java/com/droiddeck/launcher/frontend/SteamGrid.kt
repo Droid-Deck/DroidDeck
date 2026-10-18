@@ -2,7 +2,6 @@ package com.droiddeck.launcher.frontend
 
 import android.content.Context
 import android.util.Log
-import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.SessionPrefs
 import org.json.JSONObject
 import java.io.File
@@ -28,8 +27,7 @@ object SteamGrid {
     }
 
     internal fun dir(context: Context): File? {
-        val root = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam")
-        return AddedGames.accountConfig(root)?.let { File(it, "grid") }
+        return AddedGames.accountConfig(SessionPrefs.activeSteamRoot(context))?.let { File(it, "grid") }
     }
 
     private fun files(grid: File, id: Long, slot: AddedGameArt.Slot): List<File> =
@@ -37,13 +35,18 @@ object SteamGrid {
 
     private fun signature(file: File?) = if (file == null) "" else "${file.length()}:${file.lastModified()}"
 
-    private fun sigFile(target: Target, slot: AddedGameArt.Slot) = File(target.artDir, "grid-${slot.key}")
+    /** Each Steam client has its own grid folder, so what was last seen there is kept per client. */
+    private fun sigName(context: Context, key: String) =
+        if (SessionPrefs.activeSteamClientArch(context) == "x86_64") "grid-x86_64-$key" else "grid-$key"
 
-    private fun recorded(target: Target, slot: AddedGameArt.Slot): String? = sigFile(target, slot).takeIf { it.isFile }?.readText()
+    private fun sigFile(context: Context, target: Target, slot: AddedGameArt.Slot) = File(target.artDir, sigName(context, slot.key))
 
-    private fun record(target: Target, slot: AddedGameArt.Slot, value: String) {
+    private fun recorded(context: Context, target: Target, slot: AddedGameArt.Slot): String? =
+        sigFile(context, target, slot).takeIf { it.isFile }?.readText()
+
+    private fun record(context: Context, target: Target, slot: AddedGameArt.Slot, value: String) {
         target.artDir.mkdirs()
-        sigFile(target, slot).writeText(value)
+        sigFile(context, target, slot).writeText(value)
     }
 
     private fun writtenByDroidDeck(grid: File): Set<String> = runCatching {
@@ -59,7 +62,7 @@ object SteamGrid {
         val grid = dir(context) ?: return true
         if (file == null) {
             if (files(grid, target.id, slot).map { it.delete() }.any { !it }) return false
-            record(target, slot, "")
+            record(context, target, slot, "")
             return true
         }
         val ext = file.extension.lowercase().let { if (it == "jpeg") "jpg" else it }
@@ -73,12 +76,12 @@ object SteamGrid {
             return false
         }
         if (files(grid, target.id, slot).filter { it != dst }.map { it.delete() }.any { !it }) return false
-        record(target, slot, signature(placed))
+        record(context, target, slot, signature(placed))
         return true
     }
 
     private const val POSITION = "logo-position"
-    private const val POSITION_SIG = "grid-json"
+    private const val POSITION_SIG = "json"
 
     private fun positionFile(grid: File, id: Long) = File(grid, "$id.json")
 
@@ -87,11 +90,12 @@ object SteamGrid {
     /** The logo position chosen here (or taken over from Steam) for a game; null when Steam's own default applies. */
     fun position(target: Target): LogoPosition.Value? = positionIn(File(target.artDir, POSITION))
 
-    private fun positionRecorded(target: Target): String? = File(target.artDir, POSITION_SIG).takeIf { it.isFile }?.readText()
+    private fun positionRecorded(context: Context, target: Target): String? =
+        File(target.artDir, sigName(context, POSITION_SIG)).takeIf { it.isFile }?.readText()
 
-    private fun recordPosition(target: Target, value: String) {
+    private fun recordPosition(context: Context, target: Target, value: String) {
         target.artDir.mkdirs()
-        File(target.artDir, POSITION_SIG).writeText(value)
+        File(target.artDir, sigName(context, POSITION_SIG)).writeText(value)
     }
 
     private fun storePosition(target: Target, value: LogoPosition.Value?): Boolean {
@@ -115,7 +119,7 @@ object SteamGrid {
         val next = if (value == null) existing?.let(LogoPosition::without) else LogoPosition.toJson(value, existing ?: JSONObject())
         if (next == null) {
             if (file.isFile && !file.delete()) return false
-            recordPosition(target, "")
+            recordPosition(context, target, "")
             return true
         }
         grid.mkdirs()
@@ -125,7 +129,7 @@ object SteamGrid {
             tmp.delete()
             return false
         }
-        recordPosition(target, signature(file))
+        recordPosition(context, target, signature(file))
         return true
     }
 
@@ -140,16 +144,16 @@ object SteamGrid {
         if (hasUnknownPosition(file)) return
         val theirs = positionIn(file)
         val now = if (theirs != null) signature(file) else ""
-        val before = positionRecorded(target)
+        val before = positionRecorded(context, target)
         val own = position(target)
         when {
             before == null && own != null && theirs == null -> placePosition(context, target, own)
             before == null || now != before -> {
                 // Recorded only once the local side agrees, so a failed take-over is tried again on the next scan.
                 if (theirs != null) {
-                    if (own == theirs || storePosition(target, theirs)) recordPosition(target, now)
+                    if (own == theirs || storePosition(target, theirs)) recordPosition(context, target, now)
                 } else {
-                    if (own == null || storePosition(target, null)) recordPosition(target, "")
+                    if (own == null || storePosition(target, null)) recordPosition(context, target, "")
                 }
             }
             own != null && own != theirs -> placePosition(context, target, own)
@@ -169,20 +173,20 @@ object SteamGrid {
                 val present = files(grid, target.id, slot)
                 val theirs = present.filter { it.name !in ours }.maxByOrNull { it.lastModified() }
                 val now = signature(theirs)
-                val before = recorded(target, slot)
+                val before = recorded(context, target, slot)
                 when {
                     before == null && own != null && theirs == null -> write(context, target, slot, own)
                     before == null || now != before -> {
                         if (theirs != null) {
-                            if (own != null && own.length() == theirs.length() && own.readBytes().contentEquals(theirs.readBytes())) record(target, slot, now)
+                            if (own != null && own.length() == theirs.length() && own.readBytes().contentEquals(theirs.readBytes())) record(context, target, slot, now)
                             else if (AddedGameArt.store(target.artDir, slot, AddedGameArt.Option(AddedGameArt.STEAM, theirs.path, theirs.path))) {
                                 target.setSource(slot, AddedGameArt.STEAM + "|steam-client")
-                                record(target, slot, now)
+                                record(context, target, slot, now)
                                 changed = true
                             }
                         } else {
                             if (own != null && present.isEmpty()) { own.delete(); target.setSource(slot, ""); changed = true }
-                            record(target, slot, "")
+                            record(context, target, slot, "")
                         }
                     }
                     own != null && theirs != null && now == before && own.length() != theirs.length() -> write(context, target, slot, own)

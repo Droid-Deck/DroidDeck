@@ -344,9 +344,21 @@ def main():
         spec.loader.exec_module(compat)
         cfg = os.path.join(steam_root, "config", "config.vdf")
         if os.path.isfile(cfg) and (ours or routes):
-            compat.register_default(cfg, apps=[str(int(g["appid"]) & 0xFFFFFFFF) for g in games if g.get("exe") and not g.get("native")] + [str(appid) for appid in set(routes.values())],
-                                    protect=compat.adopt_extras(os.path.join(steam_root, "compatibilitytools.d")))
-            print("droiddeck-steam-shortcuts: mapped them to %s" % compat.TOOL)
+            tools = os.path.join(steam_root, "compatibilitytools.d")
+            x64_tool = os.environ.get("BL_COMPAT_TOOL")
+            own = {}
+            if x64_tool:
+                protect = {compat.first_key(os.path.join(tools, e, "compatibilitytool.vdf"), ["compatibilitytools", "compat_tools"]) or e: e
+                           for e in (os.listdir(tools) if os.path.isdir(tools) else [])}
+                # Its own state: the arm64 client's state.json lists which of that client's titles follow its default.
+                own = {"default": x64_tool,
+                       "directory": os.path.join(os.path.dirname(os.path.abspath(steam_root)), "droiddeck-compat"),
+                       "linux_tool": "droiddeck-direct"}
+            else:
+                protect = compat.adopt_extras(tools)
+            used = compat.register_default(cfg, apps=[str(int(g["appid"]) & 0xFFFFFFFF) for g in games if g.get("exe") and not g.get("native")] + [str(appid) for appid in set(routes.values())],
+                                           protect=protect, **own)
+            print("droiddeck-steam-shortcuts: mapped them to %s" % used)
     except Exception as e:
         print("droiddeck-steam-shortcuts: compat mapping skipped (%s)" % e)
     return 0

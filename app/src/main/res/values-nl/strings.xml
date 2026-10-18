@@ -2336,6 +2336,17 @@
     <string name="stores_sync_gog_unreachable">Kan GOG niet bereiken</string>
     <string name="stores_sync_gog_unreadable">Je GOG-bibliotheek kon niet worden gelezen</string>
     <string name="stores_registering">Registreren bij Steam…</string>
+    <string name="mode_client_arch">Steam-client</string>
+    <string name="mode_client_arch_fex">FEX %1$s</string>
+    <string name="mode_client_arch_arm64">ARM64</string>
+    <string name="mode_client_arch_x64">x86-64</string>
+    <string name="setup_vac_diag">VAC-diagnose</string>
+    <string name="setup_vac_diag_hint">Source-games leggen hun console vast (-condebug); vac.txt in de sessielogs vermeldt beveiligd of onbeveiligd</string>
+    <string name="load_starting_steam_x64">Steam x86-64 wordt gestart</string>
+    <string name="storage_game_x64">%1$s · x86-64</string>
+    <string name="storage_tool_x64_client">Gebruikt door de x86-64-Steam-client</string>
+    <string name="storage_uninstall_in_x64">Deze kopie staat in de x86-64-Steam-client. Kies x86-64 bij Steam-client en verwijder hem daarna hier.</string>
+    <string name="storage_uninstall_in_arm64">Deze kopie staat in de ARM64-Steam-client. Kies ARM64 bij Steam-client en verwijder hem daarna hier.</string>
     <string name="drawer_page_glasses">Bril</string>
     <string name="glasses_open">VITURE-bril</string>
     <string name="glasses_control">Brilbediening</string>

@@ -50,6 +50,11 @@ object GameStorage {
         }
     }
 
+    const val X64_CARD_DIR = "x86-64"
+    const val X64_CARD_GUEST = "/mnt/droiddeck-sd/$X64_CARD_DIR"
+
+    fun x64CardLibrary(context: Context): File? = effective(context)?.let { File(it.path, X64_CARD_DIR) }
+
     class Library(val host: File, val guest: String, val label: String)
 
     fun gamesFolderLibraries(context: Context): List<Library> {

@@ -1211,7 +1211,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             com.droiddeck.launcher.frontend.Library.nameForProgram(program)?.let { getString(R.string.session_starting_named, it) }
                 ?: getString(R.string.session_starting_program)
         }
-        else -> getString(R.string.load_starting_steam)
+        else -> if (com.droiddeck.launcher.session.SessionPrefs.activeSteamClientArch(this) == "x86_64") getString(R.string.load_starting_steam_x64)
+            else getString(R.string.load_starting_steam)
     }
 
     private fun shareCurrentSessionLogs() {

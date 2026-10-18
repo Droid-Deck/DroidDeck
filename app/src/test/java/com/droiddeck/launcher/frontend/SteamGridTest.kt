@@ -129,6 +129,23 @@ class SteamGridTest {
         assertNull(SteamGameArt.chosenFile(app, 620, AddedGameArt.Slot.BACKGROUND))
     }
 
+    @Test fun theOtherClientsEmptyGridGetsTheChoiceInsteadOfDroppingIt() {
+        File(LinuxRuntime.rootDir(app), "root/.local/share/Steam/userdata/123/config").mkdirs()
+        val picked = image("mine.png", 12)
+        SteamGameArt.choose(app, game(), AddedGameArt.Slot.COVER, AddedGameArt.Option(AddedGameArt.FILE, picked.path, picked.path))
+        assertFalse(SteamGrid.sync(app, listOf(target())))
+
+        val x64 = File(SessionPrefs.steamRoot(app, "x86_64"), "userdata/123/config").apply { mkdirs() }
+        SessionPrefs.setSteamClientArch(app, "x86_64")
+        assertFalse(SteamGrid.sync(app, listOf(target())))
+        assertEquals(12L, SteamGameArt.chosenFile(app, 620, AddedGameArt.Slot.COVER)?.length())
+        assertEquals(12L, File(x64, "grid/620p.png").length())
+
+        SessionPrefs.setSteamClientArch(app, "arm64")
+        assertFalse(SteamGrid.sync(app, listOf(target())))
+        assertEquals(12L, File(grid, "620p.png").length())
+    }
+
     @Test fun aChoiceMadeHereIsNotTakenBackAsASteamChange() {
         File(LinuxRuntime.rootDir(app), "root/.local/share/Steam/userdata/123/config").mkdirs()
         val picked = image("mine.png", 12)

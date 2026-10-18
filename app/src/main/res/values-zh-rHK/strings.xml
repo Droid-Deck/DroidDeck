@@ -2311,6 +2311,17 @@
     <string name="stores_sync_gog_unreachable">無法連線至 GOG</string>
     <string name="stores_sync_gog_unreadable">無法讀取你的 GOG 遊戲庫</string>
     <string name="stores_registering">正在向 Steam 註冊…</string>
+    <string name="mode_client_arch">Steam 用戶端</string>
+    <string name="mode_client_arch_fex">FEX %1$s</string>
+    <string name="mode_client_arch_arm64">ARM64</string>
+    <string name="mode_client_arch_x64">x86-64</string>
+    <string name="setup_vac_diag">VAC 診斷</string>
+    <string name="setup_vac_diag_hint">Source 遊戲會記錄主控台（-condebug）；會話記錄中的 vac.txt 會顯示是否安全</string>
+    <string name="load_starting_steam_x64">正在啟動 Steam x86-64</string>
+    <string name="storage_game_x64">%1$s · x86-64</string>
+    <string name="storage_tool_x64_client">由 x86-64 Steam 用戶端使用</string>
+    <string name="storage_uninstall_in_x64">此副本位於 x86-64 Steam 用戶端中。請在「Steam 用戶端」中選擇 x86-64，然後在此解除安裝。</string>
+    <string name="storage_uninstall_in_arm64">此副本位於 ARM64 Steam 用戶端中。請在「Steam 用戶端」中選擇 ARM64，然後在此解除安裝。</string>
     <string name="drawer_page_glasses">眼鏡</string>
     <string name="glasses_open">VITURE 眼鏡</string>
     <string name="glasses_control">眼鏡控制</string>
