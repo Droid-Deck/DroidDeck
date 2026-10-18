@@ -458,7 +458,6 @@
       <arg name="serial" type="uint"/>
     </event>
 
-    <!-- Version 2 additions -->
     <enum name="error" since="2">
       <entry name="invalid_action" value="0" summary="an invalid or duplicate action was specified"/>
     </enum>

@@ -32,8 +32,10 @@ class RequestFexTest(unittest.TestCase):
                           "start steam://install/1628350", "end steam://install/1628350"],
                          self.log.read_text().splitlines())
         self.install("1628350")
+        self.assertEqual(["4183110"], COMPAT["request_fex"](str(self.root), asked))
+        self.install("4183110")
         self.assertEqual([], COMPAT["request_fex"](str(self.root), asked))
-        self.assertEqual({"3127680", "1628350"}, asked)
+        self.assertEqual({"3127680", "1628350", "4183110"}, asked)
 
     def test_a_declined_install_is_not_asked_again_in_the_same_session(self):
         asked = set()

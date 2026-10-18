@@ -27,14 +27,6 @@ import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-/**
- * The shell's control surface (docs/agent-control.md), in every build: the provider and its start
- * Activity need android.permission.DUMP, held by the shell and privileged or explicitly granted callers. Commands that
- * reach into the app's sandbox are further gated by [AgentAccess].
- *
- * A method's request is JSON, base64-encoded in the "request" extra; every answer is JSON in the
- * "json" key of the returned Bundle, {"ok": true, ...} or {"ok": false, "error": {code, message}}.
- */
 class AgentBridgeProvider : ContentProvider() {
     override fun onCreate(): Boolean {
         val appContext = context?.applicationContext ?: return false
@@ -58,7 +50,6 @@ class AgentBridgeProvider : ContentProvider() {
 
         val response = try {
             val request = decode(extras?.getString(EXTRA_REQUEST))
-            // Binder identity is the shell's; everything below acts as the app.
             val token = Binder.clearCallingIdentity()
             try {
                 dispatch(context, method, request)
@@ -101,10 +92,110 @@ class AgentBridgeProvider : ContentProvider() {
             AgentEnv.override(context, request.optString("name")).put("ok", true).put("command", "override")
         }
         "prefs" -> prefs(context, request)
+        "glasses" -> glasses(context, request)
         "access" -> JSONObject().put("ok", true).put("commands", AgentAccess.commandsAllowed(context))
             .put("debugBuild", BuildConfig.DEBUG).put("inbox", AgentEnv.inbox(context).absolutePath)
         else -> error("UNKNOWN_COMMAND", "Unknown agent command '$method'")
     }
+
+    private fun glasses(context: Context, request: JSONObject): JSONObject {
+        val g = com.droiddeck.launcher.glasses.Glasses
+        when (request.optString("op", "status")) {
+            "status" -> {}
+            "allow" -> g.requestControl()
+            "set" -> {
+                val key = request.optString("key")
+                val value = request.optString("value")
+                fun on() = value == "1" || value.equals("true", true) || value.equals("on", true)
+                val number = value.toIntOrNull()
+                val numeric = setOf("refreshHz", "sbsHz", "brightness", "volume", "picture3d", "screenWidthDm", "screenDistanceDm", "vrFovDeg", "sbsSupport", "eyeHeightCm")
+                if (key in numeric && number == null) return error("INVALID_VALUE", "'$key' takes a number")
+                when (key) {
+                    "refreshHz" -> g.setRefreshHz(number!!)
+                    "sbsHz" -> g.setSbsHz(number!!)
+                    "resolution2d" -> g.setResolution(com.droiddeck.launcher.glasses.GlassesDisplayProfile.TWO_D, value)
+                    "resolution3d" -> g.setResolution(com.droiddeck.launcher.glasses.GlassesDisplayProfile.THREE_D, value)
+                    "resolutionVr" -> g.setResolution(com.droiddeck.launcher.glasses.GlassesDisplayProfile.VR, value)
+                    "brightness" -> g.setBrightness(number!!)
+                    "volume" -> g.setVolume(number!!)
+                    "sunblock" -> g.setSunblock(on())
+                    "3d" -> g.set3d(on())
+                    "3dof" -> g.set3dof(on())
+                    "gameOnGlasses" -> g.setGameOnGlasses(on())
+                    "headTracking" -> g.setHeadTracking(on())
+                    "auto3d" -> g.setAuto3d(on())
+                    "picture3d" -> g.setPicture3d(number!!)
+                    "screenWidthDm" -> g.setScreenWidthDm(number!!)
+                    "screenDistanceDm" -> g.setScreenDistanceDm(number!!)
+                    "vrFovDeg" -> g.setVrFovDeg(number!!)
+                    "sbsSupport" -> g.setSbsSupport(number!!)
+                    "positionalTracking" -> g.setPositionalTracking(on())
+                    "handControllers" -> g.setHandControllers(on())
+                    "joyConTracking" -> g.setJoyConTracking(on())
+                    "eyeHeightCm" -> g.setEyeHeight(number!!)
+                    else -> return error("INVALID_KEY", "Unknown glasses setting '$key'")
+                }
+            }
+            "simulate" -> {
+                fun angle(key: String) = if (request.has(key)) request.optDouble(key).takeIf { it.isFinite() }?.coerceIn(-90.0, 90.0) else null
+                if (!g.simulate(request.optInt("seconds", 20).coerceIn(1, 600), angle("yaw"), angle("pitch"))) return error("BUSY", "Already simulating")
+            }
+            "stop-simulate" -> g.stopSimulation()
+            "calibrate" -> g.startCalibration()
+            "cancel-calibration" -> g.cancelCalibration()
+            "reset-calibration" -> g.resetCalibration()
+            "spatial-diagnostics" -> com.droiddeck.launcher.glasses.SpatialTracking.diagnostics(request.optBoolean("enabled",true))
+            "spatial-recenter" -> com.droiddeck.launcher.glasses.SpatialTracking.recenter(request.optBoolean("screen",false))
+            "spatial-floor" -> g.setSpatialFloor()
+            "spatial-restart" -> g.restartSpatialTracking()
+            "spatial-hand-options" -> {
+                AgentAccess.requireCommands(context)
+                if(request.has("lite")) com.droiddeck.launcher.glasses.SpatialTracking.setHandModel(request.getBoolean("lite"))
+                if(request.has("parallel")) com.droiddeck.launcher.glasses.SpatialTracking.setHandCpuParallel(request.getBoolean("parallel"))
+                if(request.has("halfRate")) com.droiddeck.launcher.glasses.SpatialTracking.setHandHalfRate(request.getBoolean("halfRate"))
+                if(request.has("adaptive")) com.droiddeck.launcher.glasses.SpatialTracking.setHandAdaptiveInput(request.getBoolean("adaptive"))
+                if(request.has("scheduled")) com.droiddeck.launcher.glasses.SpatialTracking.setHandScheduledTracking(request.getBoolean("scheduled"))
+            }
+            "spatial-hand-benchmark" -> {
+                AgentAccess.requireCommands(context)
+                com.droiddeck.launcher.glasses.SpatialTracking.benchmarkSavedCapture(request.getString("capture"))
+            }
+            "spatial-hand-capture" -> {
+                AgentAccess.requireCommands(context)
+                com.droiddeck.launcher.glasses.SpatialTracking.captureDiagnostic()
+            }
+            "spatial-rgb-capture", "spatial-rgb-status" -> {
+                AgentAccess.requireCommands(context)
+                return (if (request.getString("op") == "spatial-rgb-capture")
+                    com.droiddeck.launcher.glasses.LumaRgbDiagnostic.capture(context!!,request.optString("transport","sdk"),
+                        request.optInt("width",640),request.optInt("height",480),request.optInt("fps",30),
+                        request.optInt("durationMs",5000))
+                else com.droiddeck.launcher.glasses.LumaRgbDiagnostic.status(context!!)).put("ok", true)
+            }
+            "query" -> { g.query(); Thread.sleep(600) }
+            "mode" -> {
+                val mode = hex(request.optString("mode"), 0xFF) ?: return error("INVALID_VALUE", "mode must be one hex byte, e.g. 0x31")
+                g.sendMode(mode)
+                Thread.sleep(600)
+            }
+            "imu" -> return g.sampleImu(request.optLong("ms", 2000).coerceIn(200, 20_000)).put("ok", true).put("command", "glasses")
+            "raw" -> {
+                AgentAccess.requireCommands(context)
+                val msgId = hex(request.optString("msgId"), 0xFFFF) ?: return error("INVALID_VALUE", "msgId must be a hex number up to 0xFFFF")
+                val digits = request.optString("payload").removePrefix("0x")
+                if (digits.length % 2 != 0 || digits.any { Character.digit(it, 16) < 0 }) return error("INVALID_VALUE", "payload must be whole hex bytes")
+                val payload = digits.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+                if (!g.sendRaw(msgId, payload)) return error("NOT_CONNECTED", "The glasses' control link is not open")
+                Thread.sleep(300)
+            }
+            else -> return error("INVALID_OP", "Unknown glasses op")
+        }
+        if (request.optString("op") in setOf("set", "allow")) Thread.sleep(400)
+        return g.status().put("ok", true).put("command", "glasses").put("frames", g.recentFrames())
+    }
+
+    private fun hex(text: String, max: Int): Int? =
+        text.removePrefix("0x").removePrefix("0X").takeIf { it.isNotEmpty() }?.toIntOrNull(16)?.takeIf { it in 0..max }
 
     private fun state(context: Context): JSONObject {
         val runtimeVersion = LinuxRuntimeInstaller.installedVersion(context)
@@ -118,6 +209,7 @@ class AgentBridgeProvider : ContentProvider() {
             .put("steamUi", SessionState.steamUi ?: JSONObject.NULL)
             .put("steamUrl", SessionState.steamUrl ?: JSONObject.NULL)
             .put("suspended", SessionState.suspended)
+            .put("steamVr", SessionState.steamVr)
             .put("pip", SessionState.pipActive)
             .put("firstFrame", SessionState.firstFrameSeen)
             .put("output", JSONArray().put(SessionState.outputSize.first).put(SessionState.outputSize.second))
@@ -136,8 +228,6 @@ class AgentBridgeProvider : ContentProvider() {
             .put("status", SessionState.failureStatus ?: JSONObject.NULL)
         session.put("failure", failure)
 
-        // gamescope's focus as last published by the guest agent, without the window lists
-        // (the focus command returns those, fresh).
         val focus = AgentGuest.focus(context)?.let { snap ->
             JSONObject()
                 .put("focusedApp", snap.opt("focusedApp") ?: JSONObject.NULL)
@@ -225,11 +315,9 @@ class AgentBridgeProvider : ContentProvider() {
         return result.put("ok", true).put("command", "prefs")
     }
 
-    /** A guest agent request; its own answer already carries ok or error. */
     private fun guest(context: Context, request: JSONObject, timeoutMs: Long): JSONObject =
         AgentGuest.call(context, request, timeoutMs)
 
-    /** The guest's own timeout plus slack for the round trip. */
     private fun timeoutMs(request: JSONObject, defaultSeconds: Double, slackMs: Long): Long {
         val seconds = if (request.has("timeout")) request.opt("timeout")?.toString()?.toDoubleOrNull()
             ?: throw AgentException("INVALID_REQUEST", "timeout must be a number") else defaultSeconds
@@ -262,7 +350,6 @@ class AgentBridgeProvider : ContentProvider() {
     companion object {
         const val RESULT_JSON = "json"
         const val EXTRA_REQUEST = "request"
-        /** 2 added agent and session.focus; everything in 1 is unchanged. */
         const val SCHEMA = 2
         private val recoveryComplete = CountDownLatch(1)
 

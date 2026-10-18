@@ -43,87 +43,15 @@ enum {
 	WL_EVENT_ERROR    = 0x08
 };
 
-/** File descriptor dispatch function type
- *
- * Functions of this type are used as callbacks for file descriptor events.
- *
- * \param fd The file descriptor delivering the event.
- * \param mask Describes the kind of the event as a bitwise-or of:
- * \c WL_EVENT_READABLE, \c WL_EVENT_WRITABLE, \c WL_EVENT_HANGUP,
- * \c WL_EVENT_ERROR.
- * \param data The user data argument of the related wl_event_loop_add_fd()
- * call.
- * \return If the event source is registered for re-check with
- * wl_event_source_check(): 0 for all done, 1 for needing a re-check.
- * If not registered, the return value is ignored and should be zero.
- *
- * \sa wl_event_loop_add_fd()
- * \memberof wl_event_source
- */
 typedef int (*wl_event_loop_fd_func_t)(int fd, uint32_t mask, void *data);
 
-/** Timer dispatch function type
- *
- * Functions of this type are used as callbacks for timer expiry.
- *
- * \param data The user data argument of the related wl_event_loop_add_timer()
- * call.
- * \return If the event source is registered for re-check with
- * wl_event_source_check(): 0 for all done, 1 for needing a re-check.
- * If not registered, the return value is ignored and should be zero.
- *
- * \sa wl_event_loop_add_timer()
- * \memberof wl_event_source
- */
 typedef int (*wl_event_loop_timer_func_t)(void *data);
 
-/** Signal dispatch function type
- *
- * Functions of this type are used as callbacks for (POSIX) signals.
- *
- * \param signal_number
- * \param data The user data argument of the related wl_event_loop_add_signal()
- * call.
- * \return If the event source is registered for re-check with
- * wl_event_source_check(): 0 for all done, 1 for needing a re-check.
- * If not registered, the return value is ignored and should be zero.
- *
- * \sa wl_event_loop_add_signal()
- * \memberof wl_event_source
- */
 typedef int (*wl_event_loop_signal_func_t)(int signal_number, void *data);
 
-/** Idle task function type
- *
- * Functions of this type are used as callbacks before blocking in
- * wl_event_loop_dispatch().
- *
- * \param data The user data argument of the related wl_event_loop_add_idle()
- * call.
- *
- * \sa wl_event_loop_add_idle() wl_event_loop_dispatch()
- * \memberof wl_event_source
- */
 typedef void (*wl_event_loop_idle_func_t)(void *data);
 
-/** \struct wl_event_loop
- *
- * \brief An event loop context
- *
- * Usually you create an event loop context, add sources to it, and call
- * wl_event_loop_dispatch() in a loop to process events.
- *
- * \sa wl_event_source
- */
 
-/** \struct wl_event_source
- *
- * \brief An abstract event source
- *
- * This is the generic type for fd, timer, signal, and idle sources.
- * Functions that operate on specific source types must not be used with
- * a different type, even if the function signature allows it.
- */
 
 struct wl_event_loop *
 wl_event_loop_create(void);
@@ -266,21 +194,6 @@ wl_global_set_withdrawn_listener(struct wl_global *global,
 void
 wl_global_destroy(struct wl_global *global);
 
-/** A filter function for wl_global objects
- *
- * \param client The client object
- * \param global The global object to show or hide
- * \param data   The user data pointer
- *
- * A filter function enables the server to decide which globals to
- * advertise to each client.
- *
- * When a wl_global filter is set, the given callback function will be
- * called during wl_global advertisement and binding.
- *
- * This function should return true if the global object should be made
- * visible to the client or false otherwise.
- */
 typedef bool (*wl_display_global_filter_func_t)(const struct wl_client *client,
 						const struct wl_global *global,
 						void *data);
@@ -321,7 +234,6 @@ wl_client_get_link(struct wl_client *client);
 struct wl_client *
 wl_client_from_link(struct wl_list *link);
 
-/** Iterate over a list of clients. */
 #define wl_client_for_each(client, list)				\
 	for (client = wl_client_from_link((list)->next);	\
 	     wl_client_get_link(client) != (list);			\
@@ -370,7 +282,6 @@ void
 wl_client_add_resource_created_listener(struct wl_client *client,
                                         struct wl_listener *listener);
 
-/** Callback function type for wl_client_for_each_resource() */
 typedef enum wl_iterator_result (*wl_client_for_each_resource_iterator_func_t)(
 						struct wl_resource *resource,
 						void *user_data);
@@ -393,112 +304,28 @@ wl_client_get_user_data(struct wl_client *client);
 void
 wl_client_set_max_buffer_size(struct wl_client *client, size_t max_buffer_size);
 
-/** \class wl_listener
- *
- * \brief A single listener for Wayland signals
- *
- * wl_listener provides the means to listen for wl_signal notifications. Many
- * Wayland objects use wl_listener for notification of significant events like
- * object destruction.
- *
- * Clients should create wl_listener objects manually and can register them as
- * listeners to signals using wl_signal_add(), assuming the signal is
- * directly accessible. For opaque structs like wl_event_loop, adding a
- * listener should be done through provided accessor methods. A listener can
- * only listen to one signal at a time.
- *
- * \code
- * struct wl_listener your_listener;
- *
- * your_listener.notify = your_callback_method;
- *
- * // Direct access
- * wl_signal_add(&some_object->destroy_signal, &your_listener);
- *
- * // Accessor access
- * wl_event_loop *loop = ...;
- * wl_event_loop_add_destroy_listener(loop, &your_listener);
- * \endcode
- *
- * If the listener is part of a larger struct, #wl_container_of can be used
- * to retrieve a pointer to it:
- *
- * \code
- * void your_listener(struct wl_listener *listener, void *data)
- * {
- * 	struct your_data *data;
- *
- * 	your_data = wl_container_of(listener, data, your_member_name);
- * }
- * \endcode
- *
- * If you need to remove a listener from a signal, use wl_list_remove().
- *
- * \code
- * wl_list_remove(&your_listener.link);
- * \endcode
- *
- * \sa wl_signal
- */
 struct wl_listener {
-	/** Part of wl_signal::listener_list */
 	struct wl_list link;
 
-	/** Callback function pointer */
 	wl_notify_func_t notify;
 };
 
-/** \class wl_signal
- *
- * \brief A source of a type of observable event
- *
- * Signals are recognized points where significant events can be observed.
- * Compositors as well as the server can provide signals. Observers are
- * wl_listener's that are added through #wl_signal_add. Signals are emitted
- * using #wl_signal_emit, which will invoke all listeners until that
- * listener is removed by wl_list_remove() (or whenever the signal is
- * destroyed).
- *
- * \sa wl_listener for more information on using wl_signal
- */
 struct wl_signal {
 	struct wl_list listener_list;
 };
 
-/** Initialize a new \ref wl_signal for use.
- *
- * \param signal The signal that will be initialized
- *
- * \memberof wl_signal
- */
 static inline void
 wl_signal_init(struct wl_signal *signal)
 {
 	wl_list_init(&signal->listener_list);
 }
 
-/** Add the specified listener to this signal.
- *
- * \param signal The signal that will emit events to the listener
- * \param listener The listener to add
- *
- * \memberof wl_signal
- */
 static inline void
 wl_signal_add(struct wl_signal *signal, struct wl_listener *listener)
 {
 	wl_list_insert(signal->listener_list.prev, &listener->link);
 }
 
-/** Gets the listener struct for the specified callback.
- *
- * \param signal The signal that contains the specified listener
- * \param notify The listener that is the target of this search
- * \return the list item that corresponds to the specified listener, or NULL
- * if none was found
- *
- * \memberof wl_signal
- */
 static inline struct wl_listener *
 wl_signal_get(struct wl_signal *signal, wl_notify_func_t notify)
 {
@@ -511,13 +338,6 @@ wl_signal_get(struct wl_signal *signal, wl_notify_func_t notify)
 	return NULL;
 }
 
-/** Emits this signal, notifying all registered listeners.
- *
- * \param signal The signal object that will emit the signal
- * \param data The data that will be emitted with the signal
- *
- * \memberof wl_signal
- */
 static inline void
 wl_signal_emit(struct wl_signal *signal, void *data)
 {
@@ -532,22 +352,6 @@ wl_signal_emit_mutable(struct wl_signal *signal, void *data);
 
 typedef void (*wl_resource_destroy_func_t)(struct wl_resource *resource);
 
-/*
- * Post an event to the client's object referred to by 'resource'.
- * 'opcode' is the event number generated from the protocol XML
- * description (the event name). The variable arguments are the event
- * parameters, in the order they appear in the protocol XML specification.
- *
- * The variable arguments' types are:
- * - type=uint:	uint32_t
- * - type=int:		int32_t
- * - type=fixed:	wl_fixed_t
- * - type=string:	(const char *) to a nil-terminated string
- * - type=array:	(struct wl_array *)
- * - type=fd:		int, that is an open file descriptor
- * - type=new_id:	(struct wl_object *) or (struct wl_resource *)
- * - type=object:	(struct wl_object *) or (struct wl_resource *)
- */
 void
 wl_resource_post_event(struct wl_resource *resource,
 		       uint32_t opcode, ...);
@@ -723,7 +527,6 @@ struct wl_protocol_logger_message {
 	const union wl_argument *arguments;
 };
 
-/** Callback function type for wl_display_add_protocol_logger() */
 typedef void (*wl_protocol_logger_func_t)(void *user_data,
 					  enum wl_protocol_logger_type direction,
 					  const struct wl_protocol_logger_message *message);

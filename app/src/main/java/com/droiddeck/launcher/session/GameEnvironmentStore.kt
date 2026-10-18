@@ -11,8 +11,8 @@ import java.io.File
 object GameEnvironmentStore {
     private const val SETTINGS = "game-environment.json"
     private const val GUEST_FILE = "root/.config/droiddeck/game-environment.json"
-    /** The published file's extra DXVK options (droiddeck-game-env reads it; the app's own file has none). */
     const val DXVK_CONFIG = "dxvkConfig"
+    const val DXVK_CONFIG_GAMES = "dxvkConfigGames"
 
     @Synchronized
     fun read(context: Context): GameEnvironment.Config {
@@ -58,16 +58,50 @@ object GameEnvironmentStore {
     }
 
     @Synchronized
+    fun setGameFexPreset(context: Context, scope: String, preset: String?): GameEnvironment.Config {
+        val config = GameEnvironment.withGameFexPreset(read(context), scope, preset)
+        save(context, config)
+        return config
+    }
+
+    @Synchronized
+    fun setGameSync(context: Context, scope: String, backend: String?): GameEnvironment.Config {
+        val config = GameEnvironment.withGameSync(read(context), scope, backend)
+        save(context, config)
+        return config
+    }
+
+    @Synchronized
+    fun setGameNoSteam(context: Context, scope: String, on: Boolean): GameEnvironment.Config {
+        val config = GameEnvironment.withGameNoSteam(read(context), scope, on)
+        save(context, config)
+        return config
+    }
+
+    @Synchronized
     fun publish(context: Context, config: GameEnvironment.Config = read(context)) {
         val resolved = config.copy(shared = GameEnvironment.defaults(SessionPrefs.fexPreset(context), SessionPrefs.forceSsbs(context)) + config.shared)
         val json = encode(resolved)
-        // The Display page's texture filtering, as DXVK options the launcher appends to
-        // DXVK_CONFIG after the profiles - a user's own DXVK_CONFIG entry keeps its options.
         val dxvk = TextureFiltering.dxvkOptions(
             SessionPrefs.textureAnisotropy(context), SessionPrefs.textureLodBias(context),
             TextureFiltering.autoLodBias(SessionState.upscaleRatio),
         )
         if (dxvk.isNotEmpty()) json.put(DXVK_CONFIG, dxvk)
+        val autoBias = TextureFiltering.autoLodBias(SessionState.upscaleRatio)
+        val generalAnisotropy = SessionPrefs.textureAnisotropy(context)
+        val generalLodBias = SessionPrefs.textureLodBias(context)
+        val gameDxvk = JSONObject()
+        SessionPrefs.gameTextureFiltering(context).forEach { (scope, choice) ->
+            gameDxvk.put(
+                scope,
+                TextureFiltering.dxvkOptions(
+                    choice.anisotropy ?: generalAnisotropy,
+                    choice.lodBias ?: generalLodBias,
+                    autoBias,
+                ),
+            )
+        }
+        if (gameDxvk.length() > 0) json.put(DXVK_CONFIG_GAMES, gameDxvk)
         write(File(LinuxRuntime.rootDir(context), GUEST_FILE), json.toString())
     }
 

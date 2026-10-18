@@ -13,7 +13,6 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
-/** A store install is one more folder the scan finds, named and aimed by its sidecar. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class AddedGamesStoreScanTest {
@@ -38,7 +37,6 @@ class AddedGamesStoreScanTest {
         assertEquals("HOMM3.exe", game.exe.name)
         assertEquals(Store.GOG.id, game.source)
         assertEquals("1207658924", game.storeId)
-        // Inside the runtime's tree the folder needs no bind: its guest path is its path from the tree's root.
         assertEquals("/root/Games/Stores/GOG/Heroes of Might and Magic 3 Complete/HOMM3.exe", game.guestExe)
         assertEquals("/root/Games/Stores/GOG/Heroes of Might and Magic 3 Complete", game.guestDir)
     }
@@ -49,6 +47,23 @@ class AddedGamesStoreScanTest {
         assertEquals("Celeste.exe", game.exe.name)
         assertTrue(game.guestExe.endsWith("/" + StoreLaunch.LAUNCHER))
         assertEquals(Store.EPIC.id, game.source)
+    }
+
+    @Test fun anEpicGameAlwaysUsesItsLauncherWrapperEvenAfterAnExeIsPicked() {
+        val folder = install(Store.EPIC, "picked", "Picked Epic", "Binaries/Game.exe", launcher = true)
+        AddedExes.put(app, AddedExes.Entry(folder.path, File(folder, "Binaries/Game.exe").path, picked = true))
+        val game = AddedGames.scan(app).single { it.folder.absolutePath == folder.absolutePath }
+        assertEquals("Binaries/Game.exe", game.exe.relativeTo(folder).path)
+        assertTrue(game.guestExe.endsWith("/" + StoreLaunch.LAUNCHER))
+    }
+
+    @Test fun aDifferentPickedExeOnAnEpicGameIsRunDirectly() {
+        val folder = install(Store.EPIC, "other", "Other Epic", "Binaries/Game.exe", launcher = true)
+        val tool = File(folder, "Tools/Editor.exe").apply { parentFile!!.mkdirs(); writeText("tool") }
+        AddedExes.put(app, AddedExes.Entry(folder.path, tool.path, picked = true))
+        val game = AddedGames.scan(app).single { it.folder.absolutePath == folder.absolutePath }
+        assertEquals("Tools/Editor.exe", game.exe.relativeTo(folder).path)
+        assertTrue(game.guestExe.endsWith("/Tools/Editor.exe"))
     }
 
     @Test fun anOlderSidecarsSteamSwitchIsIgnoredEveryInstallIsListed() {
@@ -64,5 +79,6 @@ class AddedGamesStoreScanTest {
         val listing = AddedGames.writeListing(app, games).readText()
         assertTrue(listing.contains("\"name\":\"Celeste\""))
         assertTrue(listing.contains(StoreLaunch.LAUNCHER))
+        assertTrue(listing.contains("\"store\":\"${Store.EPIC.id}\""))
     }
 }

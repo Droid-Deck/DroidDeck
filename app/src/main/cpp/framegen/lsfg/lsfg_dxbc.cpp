@@ -1,10 +1,5 @@
-// See lsfg_dxbc.h. DXBC -> SPIR-V via DXVK's vendored translator.
-//
-// Follows upstream lsfg-vk's src/extract/trans.cpp, including its
-// encounter-order binding renumber. Ported to WinNative (lsfg_dxbc.cpp) and
-// DroidDeck by @maxjivi05 from the work of Camille LaVey / the Eden Emulator
-// Project (GPL-3.0-or-later); the translator itself is DXVK's, zlib licensed,
-// vendored under cpp/thirdparty/dxbc.
+// Ported to WinNative and DroidDeck by @maxjivi05 from Camille LaVey / the Eden Emulator Project (GPL-3.0-or-later).
+// DXVK's translator is zlib licensed; vendored under cpp/thirdparty/dxbc.
 
 #include "lsfg_dxbc.h"
 
@@ -21,12 +16,12 @@ namespace {
 
 struct BindingSlot {
     uint32_t bindingIndex  = 0;
-    uint32_t bindingOffset = 0;   // word offset of the Binding literal
+    uint32_t bindingOffset = 0;
     uint32_t setIndex      = 0;
     uint32_t setOffset     = 0;
 };
 
-} // namespace
+}
 
 bool translateDxbc(const uint8_t* bytecode, uint32_t size, std::vector<uint32_t>& outWords) {
     outWords.clear();
@@ -38,9 +33,6 @@ bool translateDxbc(const uint8_t* bytecode, uint32_t size, std::vector<uint32_t>
         const dxvk::DxbcModuleInfo info{};
         auto code = module.compile(info, "CS");
 
-        // Collect the descriptor decorations in the order the Binding
-        // decorations appear. Everything before the first OpFunction is the
-        // decoration block, so the scan stops there.
         std::vector<BindingSlot> slotsByVarId;
         std::vector<uint32_t>    varIdsInOrder;
         for (auto ins : code) {
@@ -60,7 +52,6 @@ bool translateDxbc(const uint8_t* bytecode, uint32_t size, std::vector<uint32_t>
             if (ins.opCode() == spv::OpFunction) break;
         }
 
-        // Renumber to a dense 0..n range, in encounter order.
         uint32_t next = 0;
         for (const uint32_t varId : varIdsInOrder) {
             const BindingSlot& slot = slotsByVarId[varId];
@@ -75,11 +66,9 @@ bool translateDxbc(const uint8_t* bytecode, uint32_t size, std::vector<uint32_t>
         std::memcpy(outWords.data(), code.data(), byteSize);
         return true;
     } catch (...) {
-        // DXVK's compiler signals malformed bytecode by throwing. A bad
-        // resource must degrade to "this DLL is unusable", never to a crash.
         outWords.clear();
         return false;
     }
 }
 
-} // namespace lsfg
+}

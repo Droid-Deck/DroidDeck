@@ -18,7 +18,6 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import java.io.File
 
-/** "Add all games in this folder", the editor's writes to the shortcut listing, art choices. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class AddedGameEditsTest {
@@ -52,14 +51,11 @@ class AddedGameEditsTest {
         val alpha = result.added.first { it.name == "Alpha" }
         assertEquals("Alpha.exe", alpha.exe.name)
         assertFalse(alpha.exeUncertain)
-        // Two lookalikes: the best guess, marked.
         assertTrue(result.added.first { it.name == "Beta" }.exeUncertain)
-        // Entries, not a Games folder.
         assertEquals(emptyList<String>(), SessionPrefs.addedGamesDirs(app))
         assertEquals(3, AddedExes.list(app).size)
         assertTrue(listing().map { it.getString("name") }.containsAll(listOf("Alpha", "Beta", "Celeste")))
 
-        // Again: nothing new, all three there already.
         val again = AddedGames.addFolder(app, dir)
         assertEquals(emptyList<String>(), again.added.map { it.name })
         assertEquals(3, again.already)
@@ -84,7 +80,6 @@ class AddedGameEditsTest {
         assertEquals(game.appId, entry.getLong("appid"))
         assertEquals(game.appId, AddedGameEdits.game(app, folder)!!.appId)
 
-        // Back to automatic.
         AddedGameEdits.setName(app, folder, "")
         assertTrue(AddedGameEdits.setStartIn(app, folder, ""))
         val auto = listing().single()
@@ -109,8 +104,6 @@ class AddedGameEditsTest {
         assertEquals("/g/Game/data", SessionPrefs.addedGameStartIn(app, folder.path))
         assertEquals("-safe", SessionPrefs.addedGameLaunch(app, folder.path))
 
-        // The user renames it in the app before Steam's shortcut is written again: the same Steam
-        // value is not taken a second time.
         SessionPrefs.setAddedGameName(app, folder.path, "Mine")
         AddedGames.adoptSteamEdits(app, folder, record)
         assertEquals("Mine", SessionPrefs.addedGameName(app, folder.path))

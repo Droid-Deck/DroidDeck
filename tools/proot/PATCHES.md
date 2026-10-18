@@ -78,8 +78,22 @@ Added by DroidDeck:
   exit.c act on (`TCSETSF`, the four termios2 requests, `FICLONE`) and allows the rest at once, and
   the ioctl block is emitted first (after WinNative 53836ca9, which traces only the termios2 ones).
   The `faccessat2` exit stop (termux 5ba8b95, for glibc's ENOSYS fallback on kernels before 5.8) and
-  the `statx` one (emulation on kernels before 4.11) are dropped when the running kernel is newer.
+  the `statx` one (emulation on kernels before 4.11) are dropped on kernels 5.8 and newer; patch
+  `0015` keeps it on 4.11–5.7 to return the mount ID added in 5.8.
   Host build: `ioctl` 31.6 -> 0.5 us; `stat`/`statx`/`faccessat2` about 44 -> 28 us (one stop).
+- `0015-statx-mnt-id-fdinfo.patch` - kernels before 5.8 can complete `statx` without the mount ID
+  that libglnx requires while chasing an open descriptor. PRoot keeps the exit stop on those
+  kernels and fills only a missing ordinary `STATX_MNT_ID` for `AT_EMPTY_PATH` after pinning the
+  tracee descriptor, matching its device and inode to the successful statx result, and reading
+  `mnt_id` from the pin's fdinfo. A later close/reuse of the tracee fd cannot redirect that read;
+  a concurrent reuse for the same inode through a different bind mount is indistinguishable at
+  the exit stop. It does not synthesize `STATX_MNT_ID_UNIQUE`.
+- `0016-robust-list-from-seccomp.patch` - Android's app policy refuses `set_robust_list` and
+  `get_robust_list`. proot still answers the first with `ENOSYS` but keeps the head each thread
+  offered (cleared on `execve`, none in a new task), and answers the second for the calling thread
+  with it. SteamVR's `vrclient.so` asks for the head through libc's `syscall()`, which
+  `libblsession.so`'s robust.c never sees: `libopenvr_api.so` opens it `RTLD_DEEPBIND`. Steam
+  aborted on "futex robust_list not initialized by pthreads" as soon as SteamVR was registered.
 
 Prototype (inert unless `PROOT_FASTPATH` is set; see `docs/development/proot-performance.md`):
 
@@ -92,3 +106,14 @@ Prototype (inert unless `PROOT_FASTPATH` is set; see `docs/development/proot-per
   first tracee starts at `-w`'s, so relative lookups inside the tracee resolve where proot would.
   SM8850 (adb shell): `stat` 25.3 -> 0.6 us, `open+close` 25.3 -> 0.9 us, ENOENT 22.9 -> 1.6 us,
   8 threads `stat`ing 89k -> 3.6M/s; equivalence suite (`bench/equiv.py`) byte-identical to proot.
+
+Old kernel fixes:
+
+- `0015-lost-fork-events.patch` - works around a problem reported on Xiaomi's msm 4.14 kernel:
+  the kernel sometimes reports a new process or thread but gives its ID as zero. Without that ID,
+  PRoot cannot finish setting it up, which can leave the session stuck. The patch searches `/proc`
+  for the child. If exactly one matches, PRoot uses its existing setup code. If several threads
+  match, it waits for the creating thread's `clone` call to return and uses the child ID returned
+  by the kernel instead. The original clone flags are preserved. When the kernel supplies a valid
+  ID in the notification, normal setup is unchanged. No timers or background polling are added.
+  Completely missing notifications and ambiguous matches for separate processes are not recovered.

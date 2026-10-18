@@ -33,18 +33,3 @@ adrenotools_lib = shared_library(
 )
 
 subdir('src/hook')
-
-# target_include_directories(['adrenotools', 'PUBLIC', 'include'])
-# target_include_directories(['adrenotools', 'PRIVATE', '.'])
-# target_compile_options(['adrenotools', 'PRIVATE', '-Wall', '-Wextra'])
-# target_link_libraries(['adrenotools', 'android', 'linkernsbypass'])
-# hooks_deb = subproject('src/hook')
-# if build_shared_libs
-  # target_link_options(['adrenotools', 'PRIVATE', '-Wl,-s,--exclude-libs,liblinkernsbypass.a'])
-# endif
-# if gen_install_target
-  # configure_file(['adrenotools.pc.in', 'adrenotools.pc', '@ONLY'])
-  # install(['FILES', cmake_binary_dir, '/adrenotools.pc', 'DESTINATION', 'lib/pkgconfig'])
-  # install(['TARGETS', 'adrenotools', 'main_hook', 'file_redirect_hook', 'gsl_alloc_hook', 'hook_impl'])
-  # install(['DIRECTORY', 'include/', 'DESTINATION', 'include', 'FILES_MATCHING', 'PATTERN', '*.h*'])
-# endif

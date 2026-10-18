@@ -126,10 +126,29 @@ INSTALL_JS = r"""
   return "installed";
 })()
 """.replace("__BINDING__", BINDING)
-# Big Picture's "Switch to Desktop" asks the client's SteamOS manager, which the client has only when it
-# runs as SteamOS (-steamos3, Deck mode); otherwise the request fails and the screen stays on "Switching
-# to Desktop..." for good. The request is caught on its way to the client and answered as SteamOS's
-# own path does, with steamos-session-select.
+TOOLS_JS = r"""
+(() => {
+  if (window.__droiddeckTools) return "present";
+  const installs = SteamClient.Installs, downloads = SteamClient.Downloads;
+  if (typeof installs?.OpenInstallWizard !== "function" || typeof installs?.RegisterForShowInstallWizard !== "function" ||
+      typeof installs?.ContinueInstall !== "function" || typeof downloads?.QueueAppUpdate !== "function")
+    throw new Error("the client's install calls are not ready");
+  const self = { asked: new Map() };
+  installs.RegisterForShowInstallWizard((state) => {
+    const app = Number(state?.currentAppID);
+    if (state?.eInstallState === 7 && Date.now() - (self.asked.get(app) || 0) < 120000) {
+      self.asked.delete(app);
+      installs.ContinueInstall();
+    }
+  });
+  self.install = (app) => { self.asked.set(app, Date.now()); installs.OpenInstallWizard([app], "0"); return true; };
+  self.update = (app) => { downloads.QueueAppUpdate(app, "0"); return true; };
+  window.__droiddeckTools = self;
+  return "installed";
+})()
+"""
+TOOL_CHECK_SECONDS = 60
+TOOL_RETRY_SECONDS = 300
 SWITCH_BINDING = "droiddeckSwitchToDesktop"
 SWITCH_JS = r"""
 (() => {
@@ -157,6 +176,82 @@ SWITCH_JS = r"""
 })()
 """.replace("__BINDING__", SWITCH_BINDING)
 SESSION_SELECT = "/usr/bin/steamos-session-select"
+VR_BINDING = "droiddeckLaunchSteamVr"
+VR_HELPER = "/usr/local/bin/droiddeck-steamvr"
+VR_JS = r"""
+(() => {
+  if (window.__droiddeckSteamVr) return "present";
+  const apps = SteamClient.Apps;
+  if (!apps || typeof apps.RunGame !== "function") throw new Error("Steam RunGame is not ready");
+  const run = apps.RunGame;
+  const self = { running: false, pending: new Map(), lastError: null };
+  const flush = () => {
+    if (!self.running) return;
+    const queued = Array.from(self.pending.values());
+    self.pending.clear();
+    for (const item of queued) {
+      clearTimeout(item.timer);
+      run.call(item.receiver, item.id, ...item.args);
+    }
+  };
+  if (typeof SteamClient.OpenVR?.RegisterForVRModeChange === "function") {
+    self.subscription = SteamClient.OpenVR.RegisterForVRModeChange(running => {
+      self.running = !!running;
+      flush();
+    });
+  }
+  const wrapped = function (id, ...args) {
+    const gameid = String(id);
+    if (typeof window.__BINDING__ !== "function") return run.call(this, id, ...args);
+    if (gameid === "250820") {
+      window.__BINDING__(gameid);
+      return;
+    }
+    const overview = window.appStore?.GetAppOverviewByGameID?.(gameid);
+    const vr = overview?.vr_only === true;
+    if (vr && self.subscription && /^[1-9][0-9]{0,19}$/.test(gameid)) {
+      if (self.pending.has(gameid)) return;
+      self.lastError = null;
+      const item = { receiver: this, id, args, timer: null };
+      item.timer = setTimeout(() => {
+        self.pending.delete(gameid);
+        self.lastError = "SteamVR did not become ready. Start SteamVR from DroidDeck and try the game again.";
+        console.error("DroidDeck: " + self.lastError);
+      }, 600000);
+      self.pending.set(gameid, item);
+      try { window.__BINDING__(gameid); }
+      catch (e) { clearTimeout(item.timer); self.pending.delete(gameid); throw e; }
+      flush();
+      return;
+    }
+    return run.call(this, id, ...args);
+  };
+  apps.RunGame = wrapped;
+  if (apps.RunGame !== wrapped) throw new Error("Steam RunGame could not be redirected");
+  if (typeof SteamClient.OpenVR?.StartVR === "function") {
+    const start = SteamClient.OpenVR.StartVR;
+    SteamClient.OpenVR.StartVR = function (...args) {
+      if (typeof window.__BINDING__ === "function") return window.__BINDING__("250820");
+      return start.apply(this, args);
+    };
+  }
+  window.__droiddeckSteamVr = self;
+  return "installed";
+})()
+""".replace("__BINDING__", VR_BINDING)
+
+
+def launch_steamvr():
+    """Keep downloads/startup off the Steam UI bridge's event loop."""
+    say("SteamVR library launch: using the DroidDeck ARM64 helper")
+    state = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "droiddeck-steamvr")
+    try:
+        os.makedirs(state, exist_ok=True)
+        with open(os.path.join(state, "library-launch.log"), "a") as log:
+            return subprocess.Popen([VR_HELPER, "launch"], stdin=subprocess.DEVNULL,
+                                    stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+    except OSError as e:
+        say("SteamVR library launch failed: %s" % e)
 
 
 class Closed(Exception):
@@ -325,6 +420,9 @@ class Page:
             raise RuntimeError((details.get("exception") or {}).get("description") or details.get("text") or "script failed")
         return result.get("result", {}).get("value")
 
+    def tools(self, call):
+        return self.evaluate("%s;\nwindow.__droiddeckTools.%s" % (TOOLS_JS, call))
+
     def compat(self, call):
         return self.evaluate("%s;\nwindow.__droiddeckCompat.%s" % (INSTALL_JS, call))
 
@@ -409,6 +507,9 @@ class Helper:
         self.known = set()
         self.installed = None
         self.fex_asked = set()
+        self.tools_asked = {}
+        self.tools_checked = None
+        self.vr_launch = None
 
     def attach(self):
         path = shared_context(self.port)
@@ -419,6 +520,8 @@ class Helper:
             if page.evaluate("typeof SteamClient === 'object' && typeof SteamClient.WebUITransport === 'object'") is not True:
                 raise LookupError("SteamClient is not ready")
             page.call("Runtime.addBinding", {"name": BINDING})
+            page.call("Runtime.addBinding", {"name": VR_BINDING})
+            page.evaluate(VR_JS)
             if not self.steamos:
                 page.call("Runtime.addBinding", {"name": SWITCH_BINDING})
                 page.evaluate(SWITCH_JS)
@@ -446,24 +549,77 @@ class Helper:
             installed = COMPAT["installed_apps"](self.steam_root)
             self.installed = installed
             picks = COMPAT["valve_picks"](self.steam_root)
-            apps = sorted(set(installed) | set(picks) | set(state.get("auto", {})), key=COMPAT["app_order"])
+            prior_auto = state.get("auto", {})
+            if not isinstance(prior_auto, dict):
+                prior_auto = {}
+            # "native" from earlier builds also lists dual-platform games nobody chose to run natively.
+            prior_native = state.get("native_choices", ())
+            native_choices = set(prior_native if isinstance(prior_native, (list, tuple, set)) else ())
+            apps = sorted(set(installed) | set(picks) | set(prior_auto) | native_choices, key=COMPAT["app_order"])
+            overrides = COMPAT["requested_games"](
+                COMPAT["game_requests"](), catalog, [t["name"] for t in live])
+            apps = sorted(set(apps) | set(overrides), key=COMPAT["app_order"])
             current = dict(page.compat("many(%s)" % json.dumps(apps)) or {})
             current["0"] = top["selected"]
-            native = COMPAT["native_targets"](self.steam_root, installed)
-            changes, auto = COMPAT["plan_mapping"](current, installed, [t["name"] for t in live], default, COMPAT["followers"](state, current), native, picks)
+            native = COMPAT["native_targets"](self.steam_root, apps)
+            raw_mapping = COMPAT["read_config_mapping"](
+                os.path.join(self.steam_root, "config", "config.vdf"))
+            if raw_mapping is None:
+                for app in native_choices:
+                    current[app] = ""
+                for app in set(native) - native_choices:
+                    if not current.get(app):
+                        current.pop(app, None)
+            else:
+                for app in set(native) | native_choices:
+                    if app in raw_mapping:
+                        # The client shows an explicit native choice as the tool it inherits, and writes config.vdf late.
+                        if raw_mapping[app] == "" or current.get(app) not in self.known:
+                            current[app] = raw_mapping[app]
+                    elif app in prior_auto or app in native_choices:
+                        current[app] = ""
+                    elif not current.get(app):
+                        current.pop(app, None)
+            changes, auto = COMPAT["plan_mapping"](
+                current, installed, [t["name"] for t in live], default,
+                COMPAT["followers"](state, current), native, picks, overrides,
+                prior_auto.keys(), native_choices)
             for app, tool in sorted(changes.items(), key=lambda item: COMPAT["app_order"](item[0])):
-                page.compat("set(%d, %s)" % (int(app), json.dumps(tool)))
-                say("%s -> %s" % ("default" if app == "0" else "app %s" % app, tool))
-            state.update(auto=auto, tools=catalog, live=True)
+                page.compat("set(%d, %s)" % (int(app), json.dumps(tool if tool is not None else "")))
+                say("%s -> %s" % ("default" if app == "0" else "app %s" % app,
+                                   tool if tool is not None else "Steam native default"))
+            state.update(
+                auto={app: tool for app, tool in auto.items() if tool is not COMPAT["NATIVE_CHOICE"]},
+                native_choices=sorted(app for app, tool in auto.items() if tool is COMPAT["NATIVE_CHOICE"]),
+                tools=catalog, live=True)
+            state.pop("native", None)
             if waiting:
                 state["pending"] = wanted
                 say("%s is new to the running client; it applies when Steam next starts" % wanted)
             else:
                 state.pop("pending", None)
             COMPAT["write_json"](state_file, state)
-        if native or os.path.exists(COMPAT["fex_wanted_marker"]()):
-            for app in COMPAT["request_fex"](self.steam_root, self.fex_asked):
-                say("asked the client to install %s for x86 Linux titles and programs" % app)
+
+    def ensure_tools(self):
+        """Proton, FEX and the runtimes FEX needs are fetched as soon as the client is up, never left pending."""
+        now = time.monotonic()
+        if self.tools_checked is not None and now - self.tools_checked < TOOL_CHECK_SECONDS:
+            return
+        self.tools_checked = now
+        if COMPAT["game_running"]():
+            return
+        for app, action in COMPAT["tool_downloads"](self.steam_root):
+            if now - self.tools_asked.get(app, -TOOL_RETRY_SECONDS) < TOOL_RETRY_SECONDS:
+                continue
+            self.tools_asked[app] = now
+            try:
+                self.page.tools("%s(%d)" % (action, int(app)))
+                say("asked the client to %s %s" % (action, app))
+            except Exception as e:
+                say("the client could not %s %s (%s)" % (action, app, e))
+                if action == "install":
+                    for asked in COMPAT["request_fex"](self.steam_root, self.fex_asked):
+                        say("asked the client to install %s through steam://install" % asked)
 
     def request_waiting(self):
         request = COMPAT["read_json"](COMPAT["state_path"]("request.json"))
@@ -475,6 +631,14 @@ class Helper:
         events = self.page.drain()
         if any(called(e, SWITCH_BINDING) for e in events):
             switch_to_desktop()
+        vr_games = {e.get("params", {}).get("payload") for e in events if called(e, VR_BINDING) and
+                    isinstance(e.get("params", {}).get("payload"), str)}
+        vr_games = {game for game in vr_games if isinstance(game, str) and game.isascii() and
+                    game.isdecimal() and not game.startswith("0") and len(game) <= 20 and
+                    int(game) <= 0xffffffffffffffff}
+        if vr_games and (self.vr_launch is None or self.vr_launch.poll() is not None):
+            say("preparing SteamVR for library app(s): " + ", ".join(sorted(vr_games)))
+            self.vr_launch = launch_steamvr()
         return events
 
     def serve(self, watcher):
@@ -482,6 +646,7 @@ class Helper:
             f.write("%d\n" % os.getpid())
         say("attached to the client on port %d" % self.port)
         self.reconcile()
+        self.ensure_tools()
         while True:
             sources = [self.page.ws] + ([watcher] if watcher.fileno() >= 0 else [])
             ready = [self.page.ws] if self.page.ws.pending() else select.select(sources, [], [], 30 if watcher.fileno() >= 0 else 2)[0]
@@ -489,13 +654,14 @@ class Helper:
             if self.page.ws in ready:
                 due = any(called(e, BINDING) for e in self.drain())
             if (watcher in ready or watcher.fileno() < 0) and watcher.changed():
-                due = self.installed != COMPAT["installed_apps"](self.steam_root) or self.request_waiting()
+                due = True
             if due:
                 time.sleep(0.3)
                 if watcher.fileno() >= 0 and select.select([watcher], [], [], 0)[0]:
                     watcher.changed()
                 self.drain()
                 self.reconcile()
+            self.ensure_tools()
 
 
 def detach():
@@ -519,8 +685,8 @@ def main():
         say("no devtools port for this session; the client's mapping is kept through config.vdf")
         return 0
     os.makedirs(COMPAT["COMPAT_DIR"], exist_ok=True)
-    watcher = Watcher([COMPAT["state_path"]("request.json")] + [os.path.join(lib, "steamapps", "libraryfolders.vdf") for lib in (steam_root, COMPAT["LIBRARY"] + "-sd")])
-    # The client has its own SteamOS manager when started as SteamOS (droiddeck-session's Deck mode).
+    watcher = Watcher([COMPAT["state_path"]("request.json"), COMPAT["state_path"]("games.json")] +
+                      [os.path.join(lib, "steamapps", "libraryfolders.vdf") for lib in (steam_root, COMPAT["LIBRARY"] + "-sd")])
     steamos = os.environ.get("BL_STEAMDECK") == "1" and os.environ.get("BL_STEAM_UI") != "desktop"
     helper = Helper(steam_root, port, steamos)
     failures = 0

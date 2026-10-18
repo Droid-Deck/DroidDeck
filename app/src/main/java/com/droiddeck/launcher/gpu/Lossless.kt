@@ -10,16 +10,6 @@ import java.io.File
 import java.security.DigestOutputStream
 import java.security.MessageDigest
 
-/**
- * LSFG's shader chain, from the user's own Lossless Scaling (Steam app 993090).
- *
- * The copy the Steam client installs, in any library it installs to, is taken by
- * itself and taken again whenever the client updates it. Once the session has seen the account
- * own the app, a Lossless.dll can also be imported by hand; it stays until the Steam copy changes
- * or another is imported. The DLL is copied in and its shaders are built into a cache named after
- * its contents, so a different DLL hands the compositor a different path and its engine reloads.
- * Everything here blocks: call it off the main thread.
- */
 object Lossless {
     enum class Source { NONE, STEAM, IMPORT }
 
@@ -46,7 +36,6 @@ object Lossless {
         return State(owned(context), cacheFile(context)?.isFile == true, source)
     }
 
-    /** Recorded once: by the session's ownership check (a flag in the guest's home) or a Steam copy. */
     fun owned(context: Context): Boolean {
         if (prefs(context).getBoolean(KEY_OWNED, false)) return true
         if (!ownedFlag(context).exists()) return false
@@ -56,7 +45,6 @@ object Lossless {
 
     fun cacheFile(context: Context): File? = prefs(context).getString(KEY_ID, null)?.let { cacheFor(context, it) }
 
-    /** Takes a new or updated Steam copy and rebuilds a missing or outdated cache. A [LsfgNative] status. */
     @Synchronized
     fun sync(context: Context): Int {
         val steam = steamDll(context)
@@ -163,11 +151,12 @@ object Lossless {
             ?.forEach { it.delete() }
     }
 
-    /** The newest copy in any library the client installs to: its own, the card's, the Games folders. */
     private fun steamDll(context: Context): File? {
         val libraries = listOfNotNull(
             File(LinuxRuntime.rootDir(context), "root/.local/share/Steam"),
+            File(LinuxRuntime.rootDir(context), "root/.droiddeck-x64/.local/share/Steam"),
             GameStorage.effective(context)?.path?.let(::File),
+            GameStorage.x64CardLibrary(context),
         ) + com.droiddeck.launcher.frontend.AddedGames.roots(context).map { it.host }
         return libraries.map { File(it, STEAM_DLL) }.filter { it.isFile }.maxByOrNull { it.lastModified() }
     }

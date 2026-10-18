@@ -142,7 +142,6 @@
       </description>
     </event>
 
-    <!-- Version 2 additions -->
 
     <event name="primary_selection" since="2">
       <description summary="advertise new primary selection">

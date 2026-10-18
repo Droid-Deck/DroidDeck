@@ -8,6 +8,7 @@ object SteamRepair {
     private fun home(context: Context) = File(LinuxRuntime.rootDir(context), "root")
     private fun request(context: Context) = File(home(context), ".bl-steam-repair")
     private fun unconfirmed(context: Context) = File(home(context), ".local/share/Steam/package/droiddeck-unconfirmed")
+    private fun x64Unconfirmed(context: Context) = File(home(context), ".droiddeck-x64/.local/share/Steam/package/droiddeck-unconfirmed")
 
     fun queued(context: Context): Boolean = request(context).exists()
 
@@ -16,6 +17,6 @@ object SteamRepair {
     }.isSuccess
 
     fun clientShown(context: Context) {
-        unconfirmed(context).delete()
+        (if (SessionPrefs.activeSteamClientArch(context) == "x86_64") x64Unconfirmed(context) else unconfirmed(context)).delete()
     }
 }

@@ -5,16 +5,20 @@ Android owns device power. Suspend here pauses the guest through SessionService;
 the app's Resume action thaws it and completes PrepareForSleep(false). Steam
 must see this service before startup or it can stay black after its idle timer.
 """
+import importlib.machinery
+import importlib.util
 import os
 from pathlib import Path
 import re
+import subprocess
 import sys
+import threading
 import uuid
 
 import gi
 
 gi.require_version("Gio", "2.0")
-from gi.repository import Gio, GLib  # noqa: E402
+from gi.repository import Gio, GLib
 
 NAME = "org.freedesktop.login1"
 ROOT = "/org/freedesktop/login1"
@@ -22,6 +26,8 @@ INTERFACE = NAME + ".Manager"
 UPOWER = "org.freedesktop.UPower"
 UPOWER_ROOT = "/org/freedesktop/UPower"
 NATIVE_PREPARE_MS = 1500
+AGENT = Path(__file__).resolve().with_name("droiddeck-agent")
+ASLEEP_WAIT = 6
 INTROSPECTION = """
 <node>
   <interface name="org.freedesktop.login1.Manager">
@@ -56,8 +62,6 @@ class LoginManager:
         self.preparation = None
         info = Gio.DBusNodeInfo.new_for_xml(INTROSPECTION).interfaces[0]
         self.registration = bus.register_object(ROOT, info, self.method, self.property, None)
-        # Steam can issue its suspend command through the legacy UPower service even
-        # while listening to login1's sleep/resume notifications. Use one handshake.
         upower_info = Gio.DBusNodeInfo.new_for_xml(UPOWER_INTROSPECTION).interfaces[0]
         self.upower_registration = bus.register_object(UPOWER_ROOT, upower_info, self.method, None, None)
         self.monitor = Gio.File.new_for_path(str(self.directory)).monitor_directory(Gio.FileMonitorFlags.NONE, None)
@@ -80,14 +84,13 @@ class LoginManager:
         if name == "CanSuspend":
             reply.return_value(GLib.Variant("(s)", ("yes",)))
         elif name in ("Suspend", "SuspendWithFlags"):
+            print("== login1: %s.%s asked by %s" % (interface.rsplit(".", 1)[-1], name, sender), flush=True)
             if self.pending:
                 reply.return_dbus_error(NAME + ".OperationInProgress", "The session is already pausing")
                 return
             self.pending = uuid.uuid4().hex
             self.notify(True)
             reply.return_value(None)
-            # Flush the signal and method reply without blocking this D-Bus callback. Once both are
-            # on the wire, publishing the request lets the host safely freeze this service.
             self.bus.flush(None, self.publish_after_flush, self.pending)
 
     def publish_after_flush(self, connection, result, token):
@@ -122,7 +125,6 @@ class LoginManager:
             return
         if not re.fullmatch(r"[a-f0-9]{32}", token) or self.pending is not None:
             return
-        # Android may have returned before this helper read its request.
         if self.read_state() == token + ":awake":
             return
         self.pending = token
@@ -138,8 +140,6 @@ class LoginManager:
             return
         self.check_state()
         if self.pending == token:
-            # Keep Steam runnable while it handles the system sleep notification.
-            # This is a bounded grace period, not a claim that every game has saved.
             self.preparation = GLib.timeout_add(NATIVE_PREPARE_MS, self.finish_preparation, token)
 
     def finish_preparation(self, token):
@@ -154,7 +154,7 @@ class LoginManager:
         if file.get_basename() == self.wake.name or (other and other.get_basename() == self.wake.name):
             if self.wake.exists():
                 self.wake.unlink(missing_ok=True)
-                self.resume(force=True)
+                self.woken()
         if file.get_basename() == self.state.name or (other and other.get_basename() == self.state.name):
             self.check_state()
 
@@ -171,17 +171,27 @@ class LoginManager:
     def check_ack(self):
         self.timeout = None
         if self.pending and self.read_state() != self.pending + ":paused":
-            # A missing host or a failed freeze must not strand Steam in black.
             self.request.unlink(missing_ok=True)
             self.native_ready.unlink(missing_ok=True)
             self.resume()
         return False
 
+    def woken(self):
+        if self.pending is not None:
+            self.resume(force=True)
+            return
+        threading.Thread(target=lambda: GLib.idle_add(self.replay_unless_awake, steam_asleep()), daemon=True).start()
+
+    def replay_unless_awake(self, asleep):
+        if asleep is False and self.pending is None:
+            print("== login1: Steam is awake; no sleep/wake replay", flush=True)
+            return False
+        self.resume(force=True)
+        return False
+
     def resume(self, force=False):
         if self.pending is None:
             if force:
-                # A missed suspend command leaves Steam without the first half of
-                # the handshake. Replay both notifications, without pausing again.
                 self.notify(True)
                 self.bus.flush(None, self.finish_recovery, None)
             return
@@ -201,6 +211,24 @@ class LoginManager:
             print("== login1: cannot flush wake recovery: " + str(error), file=sys.stderr)
         if self.pending is None:
             self.notify(False)
+
+
+def steam_asleep():
+    try:
+        code = subprocess.run([str(AGENT), "--steam-asleep"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL, timeout=ASLEEP_WAIT).returncode
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return {0: True, 5: False}.get(code)
+
+
+def load_netmanager():
+    path = Path(__file__).resolve().with_name("droiddeck-netmanager")
+    loader = importlib.machinery.SourceFileLoader("droiddeck_netmanager", str(path))
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
 
 
 def main():
@@ -228,6 +256,8 @@ def main():
 
     owners = [Gio.bus_own_name(Gio.BusType.SYSTEM, name, Gio.BusNameOwnerFlags.NONE, connected, acquired, lost)
               for name in (NAME, UPOWER)]
+    if "--with-netmanager" in sys.argv[1:]:
+        owners.append(load_netmanager().own(loop))
     try:
         loop.run()
     finally:

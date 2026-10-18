@@ -4,9 +4,6 @@
 
 namespace dxvk {
   
-  /**
-   * \brief Instruction code listing
-   */
   enum class DxbcOpcode : uint32_t {
     Add                                  = 0,
     And                                  = 1,
@@ -246,9 +243,6 @@ namespace dxvk {
   };
   
   
-  /**
-   * \brief Extended opcode
-   */
   enum class DxbcExtOpcode : uint32_t {
     Empty                                = 0,
     SampleControls                       = 1,
@@ -257,12 +251,6 @@ namespace dxvk {
   };
   
   
-  /**
-   * \brief Operand type
-   * 
-   * Selects the 'register file' from which
-   * to retrieve an operand's value.
-   */
   enum class DxbcOperandType : uint32_t {
     Temp                    = 0,
     Input                   = 1,
@@ -310,12 +298,6 @@ namespace dxvk {
   };
   
   
-  /**
-   * \brief Number of components
-   * 
-   * Used by operands to determine whether the
-   * operand has one, four or zero components.
-   */
   enum class DxbcComponentCount : uint32_t {
     Component0 = 0,
     Component1 = 1,
@@ -323,13 +305,6 @@ namespace dxvk {
   };
   
   
-  /**
-   * \brief Component selection mode
-   * 
-   * When an operand has four components, the
-   * component selection mode deterines which
-   * components are used for the operation.
-   */
   enum class DxbcRegMode : uint32_t {
     Mask    = 0,
     Swizzle = 1,
@@ -337,12 +312,6 @@ namespace dxvk {
   };
   
   
-  /**
-   * \brief Index representation
-   * 
-   * Determines how an operand
-   * register index is stored.
-   */
   enum class DxbcOperandIndexRepresentation : uint32_t {
     Imm32             = 0,
     Imm64             = 1,
@@ -352,18 +321,11 @@ namespace dxvk {
   };
   
   
-  /**
-   * \brief Extended operand type
-   */
   enum class DxbcOperandExt : uint32_t {
     OperandModifier   = 1,
   };
   
   
-  /**
-   * \brief Resource dimension
-   * The type of a resource.
-   */
   enum class DxbcResourceDim : uint32_t {
     Unknown           = 0,
     Buffer            = 1,
@@ -381,27 +343,19 @@ namespace dxvk {
   };
   
   
-  /**
-   * \brief Resource return type
-   * Data type for resource read ops.
-   */
   enum class DxbcResourceReturnType : uint32_t {
     Unorm             = 1,
     Snorm             = 2,
     Sint              = 3,
     Uint              = 4,
     Float             = 5,
-    Mixed             = 6,  /// ?
+    Mixed             = 6,
     Double            = 7,
-    Continued         = 8,  /// ?
-    Unused            = 9,  /// ?
+    Continued         = 8,
+    Unused            = 9,
   };
   
   
-  /**
-   * \brief Register component type
-   * Data type of a register component.
-   */
   enum class DxbcRegisterComponentType : uint32_t {
     Unknown           = 0,
     Uint32            = 1,
@@ -410,9 +364,6 @@ namespace dxvk {
   };
   
   
-  /**
-   * \brief Instruction return type
-   */
   enum class DxbcInstructionReturnType : uint32_t {
     Float             = 0,
     Uint              = 1,
@@ -493,9 +444,6 @@ namespace dxvk {
   using DxbcSyncFlags = Flags<DxbcSyncFlag>;
   
   
-  /**
-   * \brief Geometry shader input primitive
-   */
   enum class DxbcPrimitive : uint32_t {
     Undefined         =  0,
     Point             =  1,
@@ -538,9 +486,6 @@ namespace dxvk {
   };
   
   
-  /**
-   * \brief Geometry shader output topology
-   */
   enum class DxbcPrimitiveTopology : uint32_t {
     Undefined         = 0,
     PointList         = 1,
@@ -555,9 +500,6 @@ namespace dxvk {
   };
   
   
-  /**
-   * \brief Sampler operation mode
-   */
   enum class DxbcSamplerMode : uint32_t {
     Default           = 0,
     Comparison        = 1,
@@ -565,13 +507,6 @@ namespace dxvk {
   };
   
   
-  /**
-   * \brief Scalar value type
-   * 
-   * Enumerates possible register component
-   * types. Scalar types are represented as
-   * a one-component vector type.
-   */
   enum class DxbcScalarType : uint32_t {
     Uint32    = 0,
     Uint64    = 1,
@@ -583,9 +518,6 @@ namespace dxvk {
   };
   
   
-  /**
-   * \brief Tessellator domain
-   */
   enum class DxbcTessDomain : uint32_t {
     Undefined     = 0,
     Isolines      = 1,
@@ -593,9 +525,6 @@ namespace dxvk {
     Quads         = 3,
   };
   
-  /**
-   * \brief Tessellator partitioning
-   */
   enum class DxbcTessPartitioning : uint32_t {
     Undefined     = 0,
     Integer       = 1,
@@ -604,9 +533,6 @@ namespace dxvk {
     FractEven     = 4,
   };
   
-  /**
-   * \brief UAV definition flags
-   */
   enum class DxbcUavFlag : uint32_t {
     GloballyCoherent = 0,
     RasterizerOrdered = 1,
@@ -614,9 +540,6 @@ namespace dxvk {
   
   using DxbcUavFlags = Flags<DxbcUavFlag>;
   
-  /**
-   * \brief Tessellator output primitive
-   */
   enum class DxbcTessOutputPrimitive : uint32_t {
     Undefined     = 0,
     Point         = 1,
@@ -625,12 +548,6 @@ namespace dxvk {
     TriangleCcw   = 4,
   };
   
-  /**
-   * \brief Custom data class
-   * 
-   * Stores which type of custom data is
-   * referenced by the instruction.
-   */
   enum class DxbcCustomDataClass : uint32_t {
     Comment       = 0,
     DebugInfo     = 1,

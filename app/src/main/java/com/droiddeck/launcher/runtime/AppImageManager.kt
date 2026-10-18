@@ -11,14 +11,6 @@ import com.droiddeck.launcher.core.FileUtils
 import java.io.File
 import java.io.RandomAccessFile
 
-/**
- * AppImages the user brings: picked from storage, checked, and extracted once into the runtime at
- * /opt/appimages/user/<id>/app. proot has no FUSE to mount an image, and extracting it at every
- * start would cost its whole size in /tmp each time. Each one gets a menu entry on the Linux
- * desktop, and the front end starts it under gamescope through droiddeck-appimage-run.
- *
- * <id>/name holds the name to show, <id>/icon.png the icon when the image has a PNG one.
- */
 object AppImageManager {
     private const val TAG = "AppImageManager"
     const val GUEST_DIR = "/opt/appimages/user"
@@ -29,7 +21,6 @@ object AppImageManager {
         val guestDir: String get() = "$GUEST_DIR/$id"
     }
 
-    /** Why a file cannot be imported: [text] with its [args]. */
     internal class Problem(@StringRes val text: Int, vararg val args: Any) {
         fun describe(context: Context): String = context.getString(text, *args)
     }
@@ -47,10 +38,6 @@ object AppImageManager {
                 )
             }?.sortedBy { it.name.lowercase() } ?: emptyList()
 
-    /**
-     * What is wrong with [file] as an AppImage for this device, or null when it can be imported.
-     * An AppImage is an ELF program (its runtime) with "AI" and the format version at byte 8.
-     */
     internal fun problem(file: File): Problem? {
         if (!file.isFile) return Problem(R.string.user_apps_file_gone)
         val head = ByteArray(20)
@@ -71,7 +58,6 @@ object AppImageManager {
         }
     }
 
-    /** A directory name from the image's file name: "Some_App-1.2-aarch64.AppImage" -> "some-app-1-2-aarch64". */
     internal fun idFor(fileName: String, taken: Set<String>): String {
         val base = fileName.removeSuffix(".AppImage").removeSuffix(".appimage").lowercase()
             .replace(Regex("[^a-z0-9]+"), "-").trim('-').take(48).ifEmpty { "appimage" }
@@ -83,17 +69,12 @@ object AppImageManager {
 
     fun dir(context: Context, id: String) = File(root(context), id)
 
-    /**
-     * Imports [file]; null on success, else what went wrong. [name] and [icon] replace the image's own;
-     * each of [meta] is written as a file beside them.
-     */
     fun import(
         context: Context, file: File, name: String?, icon: File?, meta: Map<String, String> = emptyMap(), onProgress: (String) -> Unit,
     ): String? {
         if (!LinuxRuntime.isInstalled(context)) return context.getString(R.string.user_apps_runtime_required)
         problem(file)?.let { return it.describe(context) }
         val base = root(context).apply { mkdirs() }
-        // Room for the image while it is extracted, and the extracted tree (about the same again).
         if (StatFs(base.path).availableBytes < file.length() * 3) {
             return context.getString(R.string.appimg_no_space_import, FileUtils.sizeToString(file.length() * 3))
         }
@@ -114,7 +95,6 @@ object AppImageManager {
         }
     }
 
-    /** Swaps the program of imported [id] for [file], keeping its name and icon; the old one stays if this fails. */
     fun replace(context: Context, id: String, file: File, meta: Map<String, String>, onProgress: (String) -> Unit): String? {
         problem(file)?.let { return it.describe(context) }
         val dir = dir(context, id)
@@ -134,14 +114,11 @@ object AppImageManager {
         }
     }
 
-    /** Extracts [file] to [dir]/app, replacing what is there only once the extraction has worked. */
     private fun extract(context: Context, dir: File, file: File, onProgress: (String) -> Unit): String? {
         val image = File(dir, "image.AppImage")
         val links = File(dir, ".links").apply { mkdirs() }
         try {
             dir.mkdirs()
-            // Copied in, not run where it lies: shared storage is mounted noexec, and proot's loader
-            // maps a program executable.
             onProgress(context.getString(R.string.user_apps_copying, file.name))
             file.inputStream().use { input -> image.outputStream().use { FileUtils.copy(input, it) } }
             image.setExecutable(true, false)
@@ -149,8 +126,6 @@ object AppImageManager {
             val unpack = if (LinuxFex.isX86(LinuxFex.elfMachine(image))) "${LinuxFex.TOOL} extract ./image.AppImage"
                 else "./image.AppImage --appimage-extract || { rm -rf squashfs-root AppDir; ${LinuxFex.TOOL} extract ./image.AppImage; }"
             val out = StringBuilder()
-            // uruntime's DwarFS images unpack into AppDir with squashfs-root a link to it, and keep
-            // one program under several names as hard links (sharun), which Android denies apps.
             val status = GuestCommand.run(context, listOf(
                 "/bin/bash", "-c",
                 "cd \"$1\" && rm -rf squashfs-root AppDir && { $unpack; } >/dev/null && " +
@@ -170,10 +145,6 @@ object AppImageManager {
         }
     }
 
-    /**
-     * Each name proot's link2symlink left for a hard link becomes a file of its own: a program run
-     * through a link would see the shared file's name, and sharun picks what to start by its own.
-     */
     private fun copyLinkedFiles(app: File, links: File) {
         val roots = setOf(links.path + "/", links.canonicalPath + "/")
         app.walkTopDown().onEnter { !Files.isLink(it) }.forEach { f ->
@@ -187,7 +158,6 @@ object AppImageManager {
         }
     }
 
-    /** Name, comment and icon from the image's own desktop entry; the file name when it has none. */
     private fun describe(dir: File, source: File) {
         val app = File(dir, "app")
         val entry = app.listFiles { f -> f.isFile && f.name.endsWith(".desktop") }?.firstOrNull()
@@ -200,11 +170,6 @@ object AppImageManager {
         restoreIcon(dir)
     }
 
-    /**
-     * The image's own icon as [dir]'s: of the files its entry names, beside it or anywhere in its
-     * icon theme, a PNG of at least [SHARP_ICON] px, else the SVG, else the largest PNG; .DirIcon
-     * without any.
-     */
     internal fun restoreIcon(dir: File) {
         val app = File(dir, "app")
         val entry = app.listFiles { f -> f.isFile && f.name.endsWith(".desktop") }?.firstOrNull()
@@ -229,7 +194,6 @@ object AppImageManager {
         f.inputStream().use { val b = ByteArray(4); it.read(b) == 4 && b[1] == 'P'.code.toByte() && b[2] == 'N'.code.toByte() && b[3] == 'G'.code.toByte() }
     } catch (e: Exception) { false }
 
-    /** A key of a desktop entry's main group, unlocalised. */
     internal fun desktopKey(desktop: String, key: String): String? {
         var inMain = false
         for (line in desktop.lineSequence()) {
@@ -241,11 +205,8 @@ object AppImageManager {
     }
 
     private fun menuEntry(context: Context, id: String) =
-        // A system directory, not ~/.local/share/applications: the desktop copies game entries from
-        // here into the user's with a GPU launcher (droiddeck-desktop-gpu), since it composites in software.
         File(LinuxRuntime.rootDir(context), "usr/local/share/applications/droiddeck-appimage-$id.desktop")
 
-    /** The Linux desktop's menu entry: the desktop's own Exec rules (and droiddeck-gpu) apply to it. */
     internal fun writeMenuEntry(context: Context, dir: File) {
         val id = dir.name
         val name = FileUtils.readString(File(dir, "name"))?.trim() ?: id
@@ -256,7 +217,6 @@ object AppImageManager {
             "Terminal=false\nCategories=$categories\nX-DroidDeck-AppImage=$id\n")
     }
 
-    /** The desktop's import of [key]; older ones of the image at [path], since replaced, are removed. */
     fun desktopImport(context: Context, key: String, path: String): String? {
         var found: String? = null
         root(context).listFiles()?.forEach { dir ->

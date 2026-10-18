@@ -1,19 +1,13 @@
 #!/usr/bin/python3
-# The client's installed games, on the desktop. The client writes a menu entry per game itself
-# (`steam steam://rungameid/<id>`, with the game's icon), which the desktop's `steam` shim hands to
-# the app - so an entry of ours exists only for a game the client wrote none for. Plus two links in
-# the home folder to the game files. Run at every desktop start; stale entries go.
-#
-#   droiddeck-desktop-games [steam root]
 import os
 import re
 import sys
 
 HOME = os.environ.get("HOME", "/root")
-STEAM_ROOT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HOME, ".local/share/Steam")
-LIBRARIES = ((STEAM_ROOT, "Steam Games"), ("/mnt/droiddeck-sd", "SD Games"))
-# The client's own tools and runtimes live in steamapps beside the games; they are not titles. A
-# depot with a toolmanifest.vdf is one too (a runtime or a Proton), listed here or not.
+X64 = os.environ.get("BL_STEAM_CLIENT_ARCH") == "x86_64"
+CLIENT_HOME = (os.environ.get("BL_X64_HOME") or os.path.join(HOME, ".droiddeck-x64")) if X64 else HOME
+STEAM_ROOT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(CLIENT_HOME, ".local/share/Steam")
+LIBRARIES = ((STEAM_ROOT, "Steam Games"), ("/mnt/droiddeck-sd/x86-64" if X64 else "/mnt/droiddeck-sd", "SD Games"))
 NOT_GAMES = {228980, 1070560, 1391110, 1493710, 1628350, 3127680, 4183110, 4185400, 4427310, 4628740}
 APPS_DIR = os.path.join(HOME, ".local/share/applications")
 PREFIX = "droiddeck-game-"
@@ -41,7 +35,6 @@ def games(library):
             continue
         name = NAME.search(text)
         state = STATE.search(text)
-        # StateFlags 4 = fully installed; anything else is downloading, updating or broken.
         if not name or not state or (int(state.group(1)) & 4) == 0:
             continue
         installdir = INSTALLDIR.search(text)

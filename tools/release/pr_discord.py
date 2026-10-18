@@ -103,10 +103,11 @@ def description_excerpt(body):
 
 def build_content(repo, number, title, sha, apk, release, description=None):
     excerpt = description_excerpt(description)
-    return (f"**Signed PR test build** `pr-{number}` · `{sha[:7]}`\n"
+    return (f"**Signed test build** `pr-{number}` · `{sha[:7]}`\n"
             f"[#{number}](https://github.com/{repo}/pull/{number}): {plain_title(title)}\n"
             + (f"\n{excerpt}\n\n" if excerpt else "") +
             "_Not merged — for testing._\n"
+            f"In the app: **Updates → Test builds → #{number}**\n"
             f"Download: [standard APK](<{apk}>) · [all variants](<{release}>)")
 
 
@@ -116,7 +117,7 @@ def retired_content(content, merged):
         content = "\n".join(line[2:-2] if line.startswith("~~") and line.endswith("~~") else line
                             for line in content.splitlines()[2:])
     struck = "\n".join(f"~~{line}~~" if line else "" for line in content.splitlines())
-    return f"**{label}** — this PR test build is no longer available.\n\n{struck}"
+    return f"**{label}** — this test build is no longer available.\n\n{struck}"
 
 
 def sync(mode, repo, number, discord, sha="", apk="", release=""):

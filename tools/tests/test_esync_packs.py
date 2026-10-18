@@ -746,6 +746,16 @@ class SelectTest(SyncTestCase):
         self.assertFalse((root / "wanted.tsv").exists())
         self.assertFalse((root / "dist").exists())
 
+    def test_droiddeck_proton_has_esync_built_in(self):
+        root = self.store()
+        tool = make_tool(self.tools, "DroidDeck-Proton 11-7.5", "1791000000 DroidDeck-Proton-11-7.5", builtin=True, ge=True, fsync=True)
+        command, env, said = self.select(tool, self.env())
+        self.assertEqual(command[0], str(tool / "proton"))
+        self.assertNotIn("BL_SYNC_PACK", env)
+        self.assertEqual(said, "droiddeck-esync: DroidDeck-Proton 11-7.5 has esync built in\n")
+        self.assertFalse((root / "wanted.tsv").exists())
+        self.assertFalse((root / "dist").exists())
+
     def test_wanted_rows_are_deduplicated(self):
         root = self.store()
         tool = make_tool(self.tools, "GE-Proton11-7", GE_LINE, ge=True)
@@ -905,6 +915,15 @@ class ReconcileTest(SyncTestCase):
             self.assertEqual((root / "wanted.tsv").read_text(), "")
             self.assertTrue(self.dist_of("ge-GE-Proton11-7-r1", ge).is_dir())
             self.assertIn("ge-GE-Proton11-7-r1", (root / "tools.tsv").read_text())
+
+    def test_droiddeck_proton_is_scanned_but_our_own_tools_are_not(self):
+        steam = self.tmp / "steam"
+        tools = steam / "compatibilitytools.d"
+        ours = make_tool(tools, "DroidDeck-Proton 11-7.5", "1791000000 DroidDeck-Proton-11-7.5", salt=b"dd", builtin=True, ge=True)
+        make_tool(tools, "droiddeck-proton-arm64", salt=b"own")
+        make_tool(tools, "droiddeck-proton-11-arm64", salt=b"own11")
+        with mock.patch.dict(GLOBALS, {"SD_LIBRARY": str(self.tmp / "sd")}):
+            self.assertEqual(SYNC["find_tools"](str(steam)), [str(ours)])
 
     def test_steam_compatibility_reports_sync(self):
         steam = self.tmp / "steam"

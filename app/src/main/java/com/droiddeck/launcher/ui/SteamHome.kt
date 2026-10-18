@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.ui
 
 import androidx.compose.ui.platform.testTag
+import androidx.compose.foundation.layout.fillMaxWidth
 import com.droiddeck.launcher.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -32,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Rect
@@ -47,6 +49,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import com.droiddeck.launcher.frontend.Library
+import com.droiddeck.launcher.glasses.GlassesMenuMirror
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
@@ -58,6 +61,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.inset
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import coil.compose.rememberAsyncImagePainter
@@ -65,58 +69,94 @@ import coil.request.ImageRequest
 import coil.size.Scale
 import coil.transform.RoundedCornersTransformation
 import kotlin.math.roundToInt
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
-/** From this many games the Steam tab is a wall; fewer would only repeat the same covers. */
 private const val WALL_MIN_GAMES = 4
+private const val WALL_DISTINCT = 40
 
 private const val DRIFT_STEP_NS = 15_000_000L
 
-/**
- * The Steam tab: the library as a slowly drifting, tilted wall of capsules (a few games instead
- * lean on their own; none, the DroidDeck mark wandering a blank wall), and over it the wordmark and the one thing to do here -
- * Play. Everything about a single game lives on the Games tab.
- */
 @Composable
 internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier) {
-    // A fixed order, ties included: the wall places each game by its position, so an order that
-    // came out differently from one read of the library to the next moved every capsule.
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(Unit) { com.droiddeck.launcher.frontend.SteamFeatured.load(ctx) }
+    val featured = com.droiddeck.launcher.frontend.SteamFeatured.games
+    val signedIn = s.offlineAccount != null
+    val owned by produceState(emptyList<Pair<Int, java.io.File>>(), signedIn) {
+        value = if (!signedIn) emptyList() else withContext(Dispatchers.IO) { runCatching { Library.steamLibraryArt(ctx).shuffled() }.getOrDefault(emptyList()) }
+    }
     val games = remember(s.steamGames) { s.steamGames.sortedWith(compareByDescending<Library.SteamGame> { it.lastPlayed }.thenBy { it.gameId }) }
     val narrow = LocalNarrowPane.current
-    val colors = MaterialTheme.colorScheme
-    // Where the words and buttons sit, for the empty library's wandering mark to keep off.
     var words by remember { mutableStateOf<Rect?>(null) }
-    Box(modifier = modifier.fillMaxSize().clipToBounds()) {
-        when {
-            games.isEmpty() -> EmptyLibrary(avoid = words) { WallFade() }
-            games.size < WALL_MIN_GAMES -> CapsuleFan(games)
-            else -> {
-                CapsuleWall(games)
-                WallFade()
+    val mode = com.droiddeck.launcher.session.SessionService.MODE_STEAM
+    val tabs = modeSheetTabs(steam = true).map { it to sheetTabLabel(it) }
+    val back = stringResource(R.string.hop_from_play)
+    val extras = SheetExtras(
+        frameGen = { FrameGenGroup(s, a) },
+        performance = { PerformanceLink(a, "steam", SheetTab.SESSION) },
+        drivers = { summary -> DriversLink(a, summary, "steam", back) },
+        account = { host ->
+            SettingsGroup(stringResource(R.string.setup_account)) {
+                ToggleRow(
+                    host, "offline", stringResource(R.string.setup_offline),
+                    s.offlineAccount?.let { if (it.isEmpty()) stringResource(R.string.setup_signed_in_unnamed) else stringResource(R.string.setup_signed_in, it) } ?: stringResource(R.string.setup_sign_in_first),
+                    s.offline, enabled = s.offlineAccount != null,
+                ) { a.onOffline() }
             }
-        }
-        Column(
-            modifier = Modifier.align(Alignment.BottomStart)
-                .padding(start = if (narrow) 20.dp else 44.dp, bottom = if (narrow) 20.dp else 44.dp, end = 20.dp)
-                .onPlaced { words = it.boundsInParent() },
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        },
+    )
+    val (glasses, glassesSettings) = rememberGlasses()
+    val headset = glasses.present && glasses.canControl
+    val drop = rememberDropSheetState()
+    LaunchedEffect(headset) { if (!headset && (drop.open || drop.shown)) drop.reset() }
+    LiftHero(
+        key = "steam", tabs = tabs,
+        drop = drop.takeIf { headset },
+        overlay = { lifted ->
+            if (headset) DropSheet(
+                drop, glassesTabs(glasses), covered = lifted,
+                button = { enabled ->
+                    PrimaryButton(stringResource(R.string.games_play_steamvr), enabled = !s.busy && glasses.usable, large = true, icon = Icons.Filled.PlayArrow, fill = true,
+                        modifier = Modifier.fillMaxWidth().testTag("play-steamvr")) { if (enabled) { drop.open = false; a.onPlaySteamVr() } }
+                },
+            ) { tab ->
+                GlassesGroups(rememberMenuHost(), glasses, glassesSettings,
+                    onRecenter = GlassesMenuMirror::recenter, inSession = false, tab = tab)
+            }
+        },
+        onOpen = a.onSteamSettings, onPrimary = a.onPlay,
+        modifier = modifier.clipToBounds(),
+        start = if (narrow) 20.dp else 44.dp, bottom = if (narrow) 20.dp else 44.dp,
+        background = {
+            when {
+                games.isEmpty() -> EmptyLibrary(
+                    avoid = words,
+                    wall = if (owned.isEmpty() && featured.isEmpty()) null else { { CapsuleWall(emptyList(), owned = owned, featured = featured) } },
+                ) { Box(Modifier.fillMaxSize().graphicsLayer { scaleX = 1.06f; scaleY = 1.06f }) { WallFade() } }
+                games.size < WALL_MIN_GAMES -> CapsuleFan(games)
+                else -> CapsuleWall(games, owned = owned, featured = featured)
+            }
+        },
+        scrim = { if (games.size >= WALL_MIN_GAMES) WallFade() },
+        words = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.onPlaced { words = it.boundsInParent() },
+            ) {
                 Wordmark(if (narrow) 30.dp else 40.dp)
-                // Said only when something stands between Play and Steam; a ready runtime needs no words.
                 if (s.busy || !s.ready || (s.available != null && s.available != s.installed)) RuntimeChip(s)
             }
-            Spacer(Modifier.height(18.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                // Enabled without a runtime: the session's loading screen installs it first.
-                PrimaryButton(stringResource(R.string.games_play_steam), enabled = !s.busy, main = true, large = true, icon = Icons.Filled.PlayArrow, modifier = Modifier.testTag("play-steam"), onClick = a.onPlay)
-                Cog(size = 54.dp, onClick = a.onSteamSettings)
-            }
-        }
-    }
+        },
+        button = { click ->
+            PrimaryButton(stringResource(R.string.games_play_steam), enabled = !s.busy, main = true, large = true, icon = Icons.Filled.PlayArrow, modifier = Modifier.testTag("play-steam"), onClick = click)
+        },
+        rows = { tab -> a.modeSheet(mode, tab, extras) },
+    )
 }
 
-/** The wall fades out behind the words, and toward the bottom where the buttons sit. */
 @Composable
-private fun WallFade() {
+internal fun WallFade() {
     val colors = MaterialTheme.colorScheme
     Box(
         Modifier.fillMaxSize().background(
@@ -131,61 +171,59 @@ private fun WallFade() {
     Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to colors.background.copy(alpha = 0.9f))))
 }
 
-/**
- * Columns of capsules tilted a few degrees, alternate columns drifting up and down. Each column
- * holds its run of covers twice and moves by exactly one run, so the loop has no seam. An empty
- * library draws the same wall in blank capsules, slower.
- */
 @Composable
 internal fun CapsuleWall(
     games: List<Library.SteamGame>,
     driftMs: Int = if (games.isEmpty()) 75_000 else 40_000,
     modifier: Modifier = Modifier,
+    owned: List<Pair<Int, java.io.File>> = emptyList(),
+    featured: List<com.droiddeck.launcher.frontend.SteamFeatured.Game> = emptyList(),
 ) {
     val pal = LocalPalette.current
     val blank = remember(pal) { WallCapsule(Brush.linearGradient(listOf(pal.surface, pal.background)), edge = pal.line) }
-    TiltedWall(games.size, driftMs, modifier) { i -> if (games.isEmpty()) blank else WallCapsule(artBrush(hueOf(games[i].name)), games[i].art) }
+    val padding = remember(games, owned, featured) {
+        val shown = games.map { it.appId }.toMutableSet()
+        val library = owned.filter { shown.add(it.first) }.map { (id, art) -> id.toString() to art }
+        val store = if (owned.isEmpty()) featured.filter { shown.add(it.appId) }.map { it.name to it.art } else emptyList()
+        (library + store).take((WALL_DISTINCT - games.size).coerceAtLeast(0))
+    }
+    TiltedWall(games.size + padding.size, driftMs, modifier) { i ->
+        when {
+            i < games.size -> WallCapsule(artBrush(hueOf(games[i].name)), games[i].art)
+            i - games.size < padding.size -> padding[i - games.size].let { (seed, art) -> WallCapsule(artBrush(hueOf(seed)), art) }
+            else -> blank
+        }
+    }
 }
 
-/** One capsule of a [TiltedWall]: its ground, the art laid over it once loaded, and an outline. */
-internal class WallCapsule(val ground: Brush, val art: Any? = null, val edge: Color? = null)
+internal class WallCapsule(val ground: Brush, val art: Any? = null, val edge: Color? = null, val icon: Any? = null, val bar: Color? = null)
 
-/**
- * [CapsuleWall]'s tilted, drifting columns for any [count] of capsules; [capsule] describes number i
- * (0 until [count], or 0 for each blank one when [count] is 0). Each column is one drawing with the
- * covers' corners cut into their bitmaps: a rounded clip under the tilt is rasterised on the CPU,
- * for every capsule on every frame.
- */
 @Composable
 internal fun TiltedWall(
     count: Int,
     driftMs: Int,
     modifier: Modifier = Modifier,
+    capW: androidx.compose.ui.unit.Dp = 112.dp,
+    capH: androidx.compose.ui.unit.Dp = 168.dp,
+    gap: androidx.compose.ui.unit.Dp = 14.dp,
+    corner: androidx.compose.ui.unit.Dp = 10.dp,
     capsule: (index: Int) -> WallCapsule,
 ) {
-    val capW = 112.dp
-    val capH = 168.dp
-    val gap = 14.dp
-    // Animations off in the system settings: a still wall.
     val still = Motion.scale == 0f
-    // The wall moves a few pixels a step. Stepped on frames at most every 15 ms it looks the same as
-    // stepped on every frame, which on a 120 Hz screen drew it twice as often.
     val drift = remember { mutableFloatStateOf(0f) }
-    if (!still) LaunchedEffect(driftMs) {
-        val period = driftMs * 1_000_000.0 * Motion.scale
-        var start = 0L
+    val period = androidx.compose.runtime.rememberUpdatedState(driftMs)
+    if (!still) LaunchedEffect(Unit) {
         var shown = 0L
         while (true) withFrameNanos { now ->
-            if (start == 0L) start = now
-            if (shown == 0L || now - shown >= DRIFT_STEP_NS) {
+            if (shown == 0L) shown = now
+            else if (now - shown >= DRIFT_STEP_NS) {
+                drift.floatValue = ((drift.floatValue + (now - shown) / (period.value * 1_000_000.0 * Motion.scale)) % 1.0).toFloat()
                 shown = now
-                drift.floatValue = ((now - start) % period / period).toFloat()
             }
         }
     }
     val density = LocalDensity.current
     BoxWithConstraints(modifier.fillMaxSize()) {
-        // Centred on the page and big enough that, once tilted, it still covers every corner.
         val tilt = Math.toRadians(13.0)
         val cos = kotlin.math.cos(tilt).toFloat()
         val sin = kotlin.math.sin(tilt).toFloat()
@@ -196,14 +234,15 @@ internal fun TiltedWall(
         val run = (capH + gap) * perRun
         val cap = with(density) { Size(capW.toPx(), capH.toPx()) }
         val step = with(density) { (capH + gap).toPx() }
-        val radius = with(density) { 10.dp.toPx() }
+        val radius = with(density) { corner.toPx() }
         val line = with(density) { 1.dp.toPx() }
+        val barH = with(density) { 12.dp.toPx() }
         val indexOf = { c: Int, i: Int -> if (count == 0) 0 else (c * 5 + (i % perRun) * 3) % count }
         val shown = remember(count, columns, perRun) { (0 until columns).flatMap { c -> (0 until perRun).map { indexOf(c, it) } }.distinct() }
         val looks = HashMap<Int, Pair<WallCapsule, Painter?>>(shown.size * 2)
         for (index in shown) key(index) {
             val look = capsule(index)
-            looks[index] = look to look.art?.let { rememberCapsuleArt(it, cap, radius) }
+            looks[index] = look to (look.art?.let { rememberCapsuleArt(it, cap, radius) } ?: look.icon?.let { rememberIcon(it) })
         }
         Row(
             horizontalArrangement = Arrangement.spacedBy(gap),
@@ -224,7 +263,7 @@ internal fun TiltedWall(
                             for (i in 0 until perRun * 2) {
                                 val (look, art) = looks[indexOf(c, i)] ?: continue
                                 val top = i * step
-                                inset(0f, top, 0f, size.height - top - cap.height) { drawCapsule(look, art, radius, line) }
+                                inset(0f, top, 0f, size.height - top - cap.height) { drawCapsule(look, art, radius, line, barH) }
                             }
                         },
                 )
@@ -233,7 +272,6 @@ internal fun TiltedWall(
     }
 }
 
-/** A cover sized for a capsule, its corners already cut, so it draws without a clip. */
 @Composable
 private fun rememberCapsuleArt(model: Any, size: Size, radius: Float): Painter {
     val context = LocalContext.current
@@ -247,15 +285,23 @@ private fun rememberCapsuleArt(model: Any, size: Size, radius: Float): Painter {
     )
 }
 
-private fun DrawScope.drawCapsule(look: WallCapsule, art: Painter?, radius: Float, line: Float) {
+@Composable
+private fun rememberIcon(model: Any): Painter =
+    if (model is Int) androidx.compose.ui.res.painterResource(model) else rememberAsyncImagePainter(model)
+
+private fun DrawScope.drawCapsule(look: WallCapsule, art: Painter?, radius: Float, line: Float, barH: Float = 0f) {
     drawRoundRect(look.ground, size = size, cornerRadius = CornerRadius(radius))
-    if (art != null) with(art) { draw(size) }
+    look.bar?.let { drawRect(it, Offset(0f, size.height - barH), Size(size.width, barH)) }
+    if (art != null && look.icon != null) {
+        val side = minOf(size.width, size.height - (if (look.bar != null) barH else 0f)) * 0.5f
+        val cy = (size.height - (if (look.bar != null) barH else 0f)) / 2f
+        translate((size.width - side) / 2f, cy - side / 2f) { with(art) { draw(Size(side, side)) } }
+    } else if (art != null) with(art) { draw(size) }
     look.edge?.let {
         drawRoundRect(it, Offset(line / 2, line / 2), Size(size.width - line, size.height - line), CornerRadius(radius - line / 2), style = Stroke(line))
     }
 }
 
-/** One to three games, each a large capsule leaning on the others and floating a little. */
 @Composable
 private fun CapsuleFan(games: List<Library.SteamGame>) {
     val pal = LocalPalette.current
@@ -265,7 +311,6 @@ private fun CapsuleFan(games: List<Library.SteamGame>) {
         transition.animateFloat(0f, 1f, infiniteRepeatable(tween(ms, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "float")
     }
     val still = Motion.scale == 0f
-    // Where each sits (share of the page), its height (share of the page's) and its lean; front first.
     val slots = listOf(
         FanSlot(0.54f, 0.14f, 0.62f, -9f),
         FanSlot(0.70f, 0.24f, 0.56f, 5f),

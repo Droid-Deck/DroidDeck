@@ -35,7 +35,6 @@ class RuntimeRemovalUiTest {
         try {
             val activity = Robolectric.buildActivity(SessionActivity::class.java).create()
             assertTrue(activity.get().isFinishing)
-            // Even lifecycle callbacks delivered after finish must not touch uninitialised UI.
             activity.start().resume().pause().stop().destroy()
             assertFalse(SessionState.running)
             assertEquals(SessionPhase.IDLE, SessionState.phase)

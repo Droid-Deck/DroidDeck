@@ -13,9 +13,6 @@ namespace dxvk {
     m_osgn    (osgn),
     m_psgn    (psgn),
     m_analysis(&analysis) {
-    // Get number of clipping and culling planes from the
-    // input and output signatures. We will need this to
-    // declare the shader input and output interfaces.
     m_analysis->clipCullIn  = getClipCullInfo(m_isgn);
     m_analysis->clipCullOut = getClipCullInfo(m_osgn);
   }
@@ -36,7 +33,6 @@ namespace dxvk {
           m_analysis->uavInfos[registerId].accessAtomicOp = true;
           m_analysis->uavInfos[registerId].accessFlags |= VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
 
-          // Check whether the atomic operation is order-invariant
           DxvkAccessOp op = DxvkAccessOp::None;
 
           switch (ins.op) {
@@ -104,8 +100,6 @@ namespace dxvk {
         const uint32_t registerId = ins.dst[0].idx[0].offset;
         m_analysis->uavInfos[registerId].accessFlags |= VK_ACCESS_SHADER_WRITE_BIT;
 
-        // The UAV format may change between dispatches, so be conservative here
-        // and only allow this optimization when the app is writing zeroes.
         DxvkAccessOp storeOp = getStoreAccessOp(DxbcRegMask(0xf), ins.src[1u]);
 
         if (storeOp != DxvkAccessOp(DxvkAccessOp::OpType::StoreUi, 0u))
@@ -190,7 +184,6 @@ namespace dxvk {
     if (m_analysis->uavInfos[uav].accessOp == DxvkAccessOp::None)
       m_analysis->uavInfos[uav].accessOp = op;
 
-    // Maintain ordering if the UAV is accessed via other operations as well
     if (op == DxvkAccessOp::None || m_analysis->uavInfos[uav].accessOp != op)
       m_analysis->uavInfos[uav].nonInvariantAccess = true;
   }
@@ -200,31 +193,26 @@ namespace dxvk {
     if (src.type != DxbcOperandType::Imm32)
       return DxvkAccessOp::None;
 
-    // Trivial case, same value is written to all components
     if (src.componentCount == DxbcComponentCount::Component1)
       return getConstantStoreOp(src.imm.u32_1);
 
     if (src.componentCount != DxbcComponentCount::Component4)
       return DxvkAccessOp::None;
 
-    // Otherwise, make sure that all written components are equal
     DxvkAccessOp op = DxvkAccessOp::None;
 
     for (uint32_t i = 0u; i < 4u; i++) {
       if (!writeMask[i])
         continue;
 
-      // If the written value can't be represented, skip
       DxvkAccessOp scalarOp = getConstantStoreOp(src.imm.u32_4[i]);
 
       if (scalarOp == DxvkAccessOp::None)
         return DxvkAccessOp::None;
 
-      // First component written
       if (op == DxvkAccessOp::None)
         op = scalarOp;
 
-      // Conflicting store ops
       if (op != scalarOp)
         return DxvkAccessOp::None;
     }
