@@ -366,7 +366,6 @@
       <arg name="y" type="int" summary="surface position y offset"/>
     </request>
 
-    <!-- Version 3 additions -->
 
     <request name="set_reactive" since="3">
       <description summary="continuously reconstrain the surface">
@@ -1115,7 +1114,6 @@
       </description>
     </event>
 
-    <!-- Version 4 additions -->
 
     <event name="configure_bounds" since="4">
       <description summary="recommended window geometry bounds">
@@ -1139,7 +1137,6 @@
       <arg name="height" type="int"/>
     </event>
 
-    <!-- Version 5 additions -->
 
     <enum name="wm_capabilities" since="5">
       <entry name="window_menu" value="1" summary="show_window_menu is available"/>
@@ -1294,7 +1291,6 @@
       </description>
     </event>
 
-    <!-- Version 3 additions -->
 
     <request name="reposition" since="3">
       <description summary="recalculate the popup's location">

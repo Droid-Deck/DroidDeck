@@ -1,15 +1,3 @@
-// libtracefs.so.1 for mangoapp: the GPU memory Valve's overlay reads, without the kernel's tracing.
-//
-// Valve's mangoapp (msm.cpp, ftrace_gpumem.c) takes the GPU's memory in use - the VRAM and PVRAM
-// lines - from the gpu_mem_total tracepoint (pid 0, the device's total) through libtracefs. An
-// Android app may not use tracefs at all: the instance could not be made, and both lines read 0.
-// This stands in for the libtracefs calls mangoapp makes, and hands its record walker one
-// gpu_mem_total record carrying what the app writes to /run/droiddeck-hud/gpu-mem (bytes; the
-// session's GpuMemComponent, from KGSL's own accounting). Only mangoapp loads this copy.
-//
-// The walker reads libtraceevent's structures directly, so the ones below are libtraceevent
-// 1.8.2's (event-parse.h), the version tools/mangoapp/packages.txt pins; tep_find_event_by_record
-// and tep_read_number are answered here too, ahead of the real libtraceevent in mangoapp's lookup.
 
 #include <sched.h>
 #include <stddef.h>
@@ -76,7 +64,6 @@ struct tep_record {
     void *priv;
 };
 
-// gpu_mem_total's record: gpu_id, pid, size - as the kernel lays it out after the common fields.
 struct gpu_mem_total {
     unsigned int gpu_id;
     unsigned int pid;
@@ -90,7 +77,6 @@ static struct tep_format_field pid_field = {
 static struct tep_event gpu_mem_event = {
     .name = "gpu_mem_total", .system = "gpu_mem", .format = {.nr_fields = 2, .fields = &pid_field}};
 
-// Never dereferenced by mangoapp: they only have to be non-null.
 static char handle;
 static char instance;
 

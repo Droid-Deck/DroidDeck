@@ -15,12 +15,6 @@ namespace dxvk {
   class DxvkDevice;
   class DxvkPipelineManager;
 
-  /**
-   * \brief Order-invariant atomic access operation
-   *
-   * Information used to optimize barriers when a resource
-   * is accessed exlusively via order-invariant stores.
-   */
   struct DxvkAccessOp {
     enum OpType : uint16_t {
       None      = 0x0u,
@@ -56,50 +50,22 @@ namespace dxvk {
 
   static_assert(sizeof(DxvkAccessOp) == sizeof(uint16_t));
 
-  /**
-   * \brief Binding info
-   *
-   * Stores metadata for a single binding in
-   * a given shader, or for the whole pipeline.
-   */
   struct DxvkBindingInfo {
-    VkDescriptorType      descriptorType  = VK_DESCRIPTOR_TYPE_MAX_ENUM;        ///< Vulkan descriptor type
-    uint32_t              resourceBinding = 0u;                                 ///< API binding slot for the resource
-    VkImageViewType       viewType        = VK_IMAGE_VIEW_TYPE_MAX_ENUM;        ///< Image view type
-    VkShaderStageFlagBits stage           = VK_SHADER_STAGE_FLAG_BITS_MAX_ENUM; ///< Shader stage
-    VkAccessFlags         access          = 0u;                                 ///< Access mask for the resource
-    DxvkAccessOp          accessOp        = DxvkAccessOp::None;                 ///< Order-invariant store type, if any
-    bool                  uboSet          = false;                              ///< Whether to include this in the UBO set
-    bool                  isMultisampled  = false;                              ///< Multisampled binding
+    VkDescriptorType      descriptorType  = VK_DESCRIPTOR_TYPE_MAX_ENUM;
+    uint32_t              resourceBinding = 0u;
+    VkImageViewType       viewType        = VK_IMAGE_VIEW_TYPE_MAX_ENUM;
+    VkShaderStageFlagBits stage           = VK_SHADER_STAGE_FLAG_BITS_MAX_ENUM;
+    VkAccessFlags         access          = 0u;
+    DxvkAccessOp          accessOp        = DxvkAccessOp::None;
+    bool                  uboSet          = false;
+    bool                  isMultisampled  = false;
 
-    /**
-     * \brief Computes descriptor set index for the given binding
-     *
-     * This is determines based on the shader stages that use the binding.
-     * \returns Descriptor set index
-     */
     uint32_t computeSetIndex() const;
 
-    /**
-     * \brief Numeric value of the binding
-     *
-     * Used when sorting bindings.
-     * \returns Numeric value
-     */
     uint32_t value() const;
 
-    /**
-     * \brief Checks for equality
-     *
-     * \param [in] other Binding to compare to
-     * \returns \c true if both bindings are equal
-     */
     bool eq(const DxvkBindingInfo& other) const;
 
-    /**
-     * \brief Hashes binding info
-     * \returns Binding hash
-     */
     size_t hash() const;
 
   };

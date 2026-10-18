@@ -122,7 +122,6 @@ def set_value(tokens, opening, key, value):
 def with_language(text, language):
     tokens = tokenize(text)
     if child(tokens, 0, len(tokens), "Registry") is None:
-        # Not a registry the client wrote (or none at all): start one it will read.
         tokens = []
     for path in KEYS:
         set_value(tokens, ensure_block(tokens, path), "language", language)

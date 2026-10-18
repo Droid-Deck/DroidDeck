@@ -1,3 +1,2 @@
 #!/bin/sh
-# The session carries the device's time zone in TZ already; the client's own setter is a no-op.
 exit 0

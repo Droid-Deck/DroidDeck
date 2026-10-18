@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.session
 
+import com.droiddeck.launcher.runtime.LinuxRuntime
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -7,6 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
@@ -58,5 +60,47 @@ class ProtonDefaultTest {
     fun brokenFilesMeanNoAnswer() {
         assertNull(ProtonDefault.chosen(ProtonDefault.parseState("{"), ProtonDefault.parseRequest("[]")))
         assertNull(ProtonDefault.parseRequest("""{"seq": 0, "dir": "x"}"""))
+    }
+
+    @Test
+    fun perGameChoicesPreserveCustomizeAndInheritSemantics() {
+        val games = ProtonDefault.parseGames(
+            """{"version":1,"games":{"42":{"valve":false,"dir":"GE-Proton11-7"},"43":null,"0":null,"bad":{},"44":{"valve":"false","dir":"GE-Proton9-1"}}}""",
+        )
+        assertEquals(ProtonDefault.GameChoice(false, "GE-Proton11-7"), games["42"])
+        assertTrue(games.containsKey("43"))
+        assertNull(games["43"])
+        assertFalse(games.containsKey("0"))
+        assertFalse(games.containsKey("bad"))
+        assertFalse(games.containsKey("44"))
+        assertTrue(ProtonDefault.parseGames("""{"version":2,"games":{"42":null}}""").isEmpty())
+    }
+
+    @Test
+    fun perGameRequestsPersistCustomizeThenInherit() {
+        val context = RuntimeEnvironment.getApplication()
+        val file = File(LinuxRuntime.rootDir(context), "root/.local/share/droiddeck-compat/games.json")
+        file.parentFile?.deleteRecursively()
+        val selected = proton("GE-Proton11-7", false)
+
+        ProtonDefault.requestGame(context, "42", selected)
+        assertEquals(ProtonDefault.GameChoice(false, "GE-Proton11-7"), ProtonDefault.parseGames(file.readText())["42"])
+
+        ProtonDefault.requestGame(context, "42", null)
+        val inherited = ProtonDefault.parseGames(file.readText())
+        assertTrue(inherited.containsKey("42"))
+        assertNull(inherited["42"])
+    }
+
+    @Test
+    fun missingPerGameProtonIdentityRemainsStoredButUnresolved() {
+        val context = RuntimeEnvironment.getApplication()
+        val file = File(LinuxRuntime.rootDir(context), "root/.local/share/droiddeck-compat/games.json")
+        file.parentFile?.deleteRecursively()
+        ProtonDefault.requestGame(context, "42", proton("GE-Proton9-1", false))
+
+        assertEquals(ProtonDefault.GameChoice(false, "GE-Proton9-1"), ProtonDefault.gameChoice(context, "42"))
+        assertNull(ProtonDefault.gameSelectedId(context, "42", listOf(proton("GE-Proton11-7", false))))
+        assertEquals(ProtonDefault.GameChoice(false, "GE-Proton9-1"), ProtonDefault.parseGames(file.readText())["42"])
     }
 }

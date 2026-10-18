@@ -1,91 +1,48 @@
 #!/bin/bash
-# The desktop session: KDE Plasma, set up as SteamOS's desktop mode - KWin nested as a client of the
-# app's compositor, Plasma's shell on it, and Xwayland for the X11 programs (the Steam client, most
-# emulators). Run by droiddeck-session in place of gamescope for mode "lxqt" (the mode's name from
-# the LXQt desktop this replaced; it is what the app and its preferences use).
-# Staged by the app over the desktop package's copy on every launch, so a fix here reaches an
-# installed desktop without re-downloading the package.
 set -u
 export XDG_SESSION_TYPE=wayland XDG_CURRENT_DESKTOP=KDE XDG_SESSION_DESKTOP=KDE DESKTOP_SESSION=plasma
 export KDE_FULL_SESSION=true KDE_SESSION_VERSION=6 KDE_APPLICATIONS_AS_SCOPE=0
-# Qt tries Wayland and falls back to X11 (Xwayland): an AppImage that bundles only Qt's xcb
-# plugin - melonDS - exits at once on a plain "wayland" ("Could not find the Qt platform plugin").
 export QT_QPA_PLATFORM="wayland;xcb" GDK_BACKEND=wayland,x11 SDL_VIDEODRIVER=wayland,x11
 unset QT_QPA_PLATFORMTHEME
-# KDE's programs log through Qt, which writes to the journal when stderr is not a terminal; there is
-# no journal here, so their messages go to the desktop log with everything else.
 export QT_FORCE_STDERR_LOGGING=1
-# SteamOS's /etc/profile.d/kde.sh.
 export MOZ_ENABLE_WAYLAND=1 MOZ_USE_XINPUT2=1
-# Konsole's profile starts the login shell, which it finds here.
 export SHELL=/bin/bash
-# Firefox's child processes sandbox themselves with seccomp and namespaces, neither of which
-# behaves under proot: the content process ends up unable to read the font files its parent can,
-# reports "no fonts" and dies - the tab crash, with the chrome around it still drawing text.
-# The prefs for this are only advisory and a profile can override them; the environment is not.
 export MOZ_DISABLE_CONTENT_SANDBOX=1 MOZ_DISABLE_GMP_SANDBOX=1 MOZ_DISABLE_RDD_SANDBOX=1
 export MOZ_DISABLE_SOCKET_PROCESS_SANDBOX=1 MOZ_DISABLE_UTILITY_SANDBOX=1
-# Firefox seals the size of the shared memory it hands a tab; on Android 16 (Galaxy S25/S26,
-# RedMagic) adding the seal fails, Firefox only warns, and the tab refuses the unsealed memory
-# ("Shared memory PlatformHandle is not safe to map") and dies on signal 11 - every page. Firefox's
-# own switch skips the seals. (#280; the line went missing in the fontconfig move of #252.)
 export MOZ_SHM_NO_SEALS=1
-# KWin composites in software (QPainter): its GPU path allocates through gbm on a DRM render node,
-# and the KGSL stand-in is not one. Its windows get shm buffers only, so GL programs on it draw with
-# Mesa's software rasterizer, Plasma's own Qt Quick draws with Qt's software renderer (plasmashell
-# crashes on llvmpipe here), and a Vulkan program cannot draw at all: games and emulators from the
-# menu run through droiddeck-gpu (their own gamescope on the app's compositor), and Steam goes back
-# to the app as a Steam session - SteamOS's "Return to Gaming Mode". The session's own GL choice
-# (zink on Turnip, for the Steam client) is put back by droiddeck-gpu.
 export KWIN_COMPOSE=Q QT_QUICK_BACKEND=software LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe
-# mpv refuses that software GL and then fails its X11 fallback (an assertion): allowed it, it plays.
 [ -e /etc/mpv/mpv.conf ] || { mkdir -p /etc/mpv && echo gpu-sw=yes >/etc/mpv/mpv.conf; } 2>/dev/null
 export DROIDDECK_NESTED_SCALE=1
 export DROIDDECK_GLTHREAD=${mesa_glthread:-}
 unset MESA_LOADER_DRIVER_OVERRIDE LIBGL_KOPPER_DRI2 mesa_glthread
-# The desktop's own log, beside the session's, so KWin and the programs on it can be read apart
-# from the session that started them. The session log keeps the milestones either way.
 if [ -n "${BL_DEBUG_DIR:-}" ]; then
   mkdir -p "$BL_DEBUG_DIR" 2>/dev/null || true
   exec >>"$BL_DEBUG_DIR/desktop.log" 2>&1
   echo "== droiddeck-desktop $(date -u '+%Y-%m-%d %H:%M:%S UTC') ${BL_WIDTH:-1280}x${BL_HEIGHT:-720}"
 fi
-# The runtime directory outlives a session. KDE's daemons are single-instance programs that leave a
-# lock and a socket there; finding last session's, they decide they are already running and exit
-# without a word. Only the app's own compositor socket (wayland-0) is kept.
 find "$XDG_RUNTIME_DIR" -mindepth 1 -maxdepth 1 ! -name 'wayland-0*' ! -name 'keymap.xkb' -exec rm -rf {} + 2>/dev/null
 chmod 700 "$XDG_RUNTIME_DIR" 2>/dev/null
-# KWin will not start Xwayland when its socket directory is not sticky, as a shared /tmp would be,
-# and Plasma's session manager cannot listen at all without the ICE directory, which only root may
-# create for it.
 mkdir -p /tmp/.X11-unix /tmp/.ICE-unix && chmod 1777 /tmp/.X11-unix /tmp/.ICE-unix 2>/dev/null
-# Fontconfig defaults and Android language fallbacks are set up by droiddeck-session before this
-# script or any desktop program starts.
-# The menu's "Steam" / "Steam Big Picture" entries and one entry per installed game: all of them
-# hand off to the app (droiddeck-steam-launch), since the client cannot draw on this desktop.
 export BL_DESKTOP=1
 ln -sf /usr/local/bin/droiddeck-steam-launch /usr/local/bin/steamdeck-steam 2>/dev/null
 ln -sf /usr/local/bin/droiddeck-steam-shim /usr/local/bin/steam 2>/dev/null
 python3 /usr/local/bin/droiddeck-desktop-games 2>&1 | sed 's/^/[games] /'
-# Player 1 on the controller in every emulator that has no profile of its own yet - now, and again
-# every half minute: an emulator started for the first time writes its own config, which is then
-# given the controller for its next start without waiting for the next desktop.
+cat > /usr/share/applications/droiddeck-steam-x64.desktop <<'ENTRY'
+[Desktop Entry]
+Type=Application
+Name=Steam x86-64 (FEX, experimental)
+Comment=Valve's x86-64 Linux client under FEX, in its own home with its own login
+Exec=qterminal -e /usr/local/bin/droiddeck-steam-x64
+Icon=steam
+Categories=System;
+ENTRY
 python3 /usr/local/bin/droiddeck-pad-defaults 2>&1 | sed 's/^/[pads] /'
 ( while sleep 30; do python3 /usr/local/bin/droiddeck-pad-defaults 2>&1 | sed 's/^/[pads] /'; done ) &
-# Games and emulators from the menu run through droiddeck-gpu; BL_DESKTOP_GPU=on/off overrides,
-# and each entry keeps "Run in a desktop window" either way.
 python3 /usr/local/bin/droiddeck-desktop-gpu 2>&1 | sed 's/^/[gpu] /'
-# The windowed action still opens melonDS at the size/placement the LXQt desktop used.
 /usr/local/bin/droiddeck-desktop-window-rules 2>&1 | sed 's/^/[rules] /'
-# Windows programs, Linux programs, AppImages and scripts open with droiddeck-open (Steam's Proton,
-# FEX for x86); an exec the kernel refuses is handed to it as well (libblsession's binfmt.c). An
-# AppImage run directly cannot mount itself under proot, so it unpacks itself to run.
 python3 /usr/local/bin/droiddeck-open --install 2>&1 | sed 's/^/[open] /'
 export APPIMAGE_EXTRACT_AND_RUN=1
-# A click runs an executable script or program without KIO asking first; Dolphin's settings can still ask.
 [ -e /etc/xdg/kiorc ] || printf '[Executable scripts]\nbehaviourOnLaunch=execute\n' >/etc/xdg/kiorc 2>/dev/null
-# SteamOS's desktop icons: Return to Gaming Mode and Steam, put there once - what the user moves
-# or deletes stays that way.
 desktop_dir=$(xdg-user-dir DESKTOP 2>/dev/null); [ -n "$desktop_dir" ] && [ "$desktop_dir" != "$HOME" ] || desktop_dir=$HOME/Desktop
 if [ ! -e "$HOME/.config/droiddeck-desktop-icons" ]; then
   mkdir -p "$desktop_dir" "$HOME/.config"
@@ -94,23 +51,16 @@ if [ ! -e "$HOME/.config/droiddeck-desktop-icons" ]; then
   chmod +x "$desktop_dir"/*.desktop 2>/dev/null
   touch "$HOME/.config/droiddeck-desktop-icons"
 fi
-# A Return icon still there is kept current with the package's entry (what it runs has changed).
 [ -f "$desktop_dir/Return.desktop" ] && cp -f /usr/share/applications/droiddeck-return-gaming.desktop "$desktop_dir/Return.desktop" 2>/dev/null
-# Plasma's caches of the menu, the icons and the MIME types, which a package install never ran.
 update-mime-database /usr/share/mime >/dev/null 2>&1 &
 [ -f /usr/share/icons/hicolor/icon-theme.cache ] || gtk-update-icon-cache -q -t /usr/share/icons/hicolor 2>/dev/null &
 [ -f /usr/share/glib-2.0/schemas/gschemas.compiled ] || glib-compile-schemas /usr/share/glib-2.0/schemas 2>/dev/null
-# In debug runs Firefox (started from the panel or the menu, so it inherits this) writes its
-# own network log: name lookups, connects, HTTP transactions, the link/offline decisions.
 if [ -f "$HOME/.droiddeck-desktop-debug" ]; then
   mkdir -p "$HOME/.cache/droiddeck"
   export MOZ_LOG="nsHttp:3,nsSocketTransport:3,nsHostResolver:4,NetworkLinkService:5,NetworkConnectivityService:5,nsIOService:5"
   export MOZ_LOG_FILE="$HOME/.cache/droiddeck/firefox-net.log"
   export QT_LOGGING_RULES="kwin_*.debug=true"
 fi
-# Remote runs, for driving the desktop from a debugger: with ~/.droiddeck-remote-run present (only
-# the app or root can create it), each script dropped into ~/.cache/droiddeck/run/ is run once,
-# inside the session with its environment, its output tagged into the desktop log.
 if [ -f "$HOME/.droiddeck-remote-run" ]; then
   mkdir -p "$HOME/.cache/droiddeck/run"
   (
@@ -123,18 +73,10 @@ if [ -f "$HOME/.droiddeck-remote-run" ]; then
     done
   ) &
 fi
-# Plasma as its own login starts it: startplasma-wayland sets up the session's environment and runs
-# plasma_session, which starts KWin (through kwin_wayland_wrapper, ours first on PATH) as a client of
-# the app's compositor with its own Xwayland, then Plasma's daemons, shell and autostart entries on
-# it. The session bus is ours: Plasma, the file manager and the portal all expect one.
 echo "== droiddeck-desktop: Plasma on $WAYLAND_DISPLAY"
 dbus-run-session -- startplasma-wayland
 rc=$?
 echo "== droiddeck-desktop: Plasma ended ($rc)"
-# Plasma logged out - Log Out, or Return to Gaming Mode, which logs out the same way, so open windows
-# are asked to close (and to save) first. As on SteamOS, leaving the desktop goes to Gaming Mode: the
-# app is asked for a Steam session, and it ends this one to start it. A desktop the app stops never
-# gets here; a Plasma that failed does not count as a logout.
 if [ "$rc" -eq 0 ]; then
   /usr/local/bin/droiddeck-steam-launch bigpicture
   sleep 30

@@ -1,0 +1,13 @@
+cmake_minimum_required(VERSION 3.22.1)
+project(droiddeckxr C CXX)
+find_package(OpenXR REQUIRED CONFIG)
+add_library(droiddeckxr_glue STATIC ${ANDROID_NDK}/sources/android/native_app_glue/android_native_app_glue.c)
+target_include_directories(droiddeckxr_glue PUBLIC ${ANDROID_NDK}/sources/android/native_app_glue)
+add_library(droiddeckxr SHARED quest_xr.cpp)
+target_compile_features(droiddeckxr PRIVATE cxx_std_17)
+target_compile_definitions(droiddeckxr PRIVATE XR_USE_PLATFORM_ANDROID XR_USE_GRAPHICS_API_OPENGL_ES XR_USE_TIMESPEC)
+target_compile_options(droiddeckxr PRIVATE -Wall -Wextra -Wno-missing-field-initializers -Werror=return-type)
+target_link_options(droiddeckxr PRIVATE -Wl,-z,max-page-size=16384 -uANativeActivity_onCreate)
+target_link_libraries(droiddeckxr PRIVATE droiddeckxr_glue OpenXR::openxr_loader EGL GLESv3 android log)
+
+target_include_directories(droiddeckxr PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../tools/vr/src)

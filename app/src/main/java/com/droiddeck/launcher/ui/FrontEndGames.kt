@@ -59,31 +59,46 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.frontend.Library
+import com.droiddeck.launcher.stores.epic.EpicClient
 import kotlinx.coroutines.launch
 
-// The Games page: the list, the hero for the selected game and its labels.
 
-/**
- * The Games tab: installed Steam games down the left, most recently played first, and the one
- * picked beside them - its banner, Launch and the launch settings. One game skips the list.
- */
 @Composable
 internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, onSelect: (String) -> Unit, modifier: Modifier) {
-    val games = remember(s.steamGames) { s.steamGames.sortedByDescending { it.lastPlayed } }
+    val pageContext = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(Unit) { EpicClient.refresh(pageContext) }
+    val launcherName = stringResource(R.string.epic_client_title)
+    val epic = EpicClient.status
+    val launcherArt by androidx.compose.runtime.produceState<java.io.File?>(null, epic.version) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { EpicClient.icon(pageContext, epic.version) }
+    }
+    val games = remember(s.steamGames, s.shortcutPicker, epic, launcherName, launcherArt) {
+        val sorted = s.steamGames.sortedByDescending { it.lastPlayed }
+        if (s.shortcutPicker) sorted else EpicClient.withLauncher(sorted, EpicClient.launcherEntry(pageContext, launcherName, epic, launcherArt))
+    }
+    val gameCount = games.count { it.library != Library.EPIC_LAUNCHER }
     val narrow = LocalNarrowPane.current
     val current = games.firstOrNull { "app:${it.appId}" == selected } ?: games.firstOrNull()
-    GamesDialogs(a)
+    GamesDialogs(a, s.steamGames)
     val onAdd: (() -> Unit)? = if (s.shortcutPicker) null else ({ GamesDialogState.adding = true })
-    val pageContext = androidx.compose.ui.platform.LocalContext.current
+    val launch: (Library.SteamGame) -> Unit = { g -> if (g.library == Library.EPIC_LAUNCHER) a.onEpicLauncher() else a.onSteamGame(g) }
     val onEdit: (Library.SteamGame) -> Unit = { g ->
         g.gameFiles?.let { GamesDialogState.editing = EditRequest(it.path, openTarget = false, fromSummary = false, preview = EditPreview.of(pageContext, g, it.path)) }
     }
-    if (current == null) {
+    if (current == null || gameCount == 0) {
         Column(modifier = modifier.padding(horizontal = if (narrow) 16.dp else 22.dp, vertical = if (narrow) 12.dp else 18.dp)) {
-            Rise(0) { PageHeader(stringResource(R.string.content_games)) { onAdd?.let { AddGameButton(it) } } }
+            Rise(0) {
+                PageHeader(stringResource(R.string.content_games)) {
+                    if (s.steamGamesX64) ClientTag()
+                    onAdd?.let { AddGameButton(it) }
+                }
+            }
             Rise(1) { Note(stringResource(if (s.shortcutPicker && s.shortcutLibraryScanning) R.string.game_shortcut_scanning else R.string.games_empty)) }
             if (!s.shortcutPicker) Rise(2) {
-                Actions { PrimaryButton(stringResource(R.string.games_play_steam), enabled = !s.busy, main = true, icon = Icons.Filled.PlayArrow, modifier = Modifier.padding(top = 12.dp).testTag("play-steam"), onClick = a.onPlay) }
+                Actions {
+                    PrimaryButton(stringResource(R.string.games_play_steam), enabled = !s.busy, main = true, icon = Icons.Filled.PlayArrow, modifier = Modifier.padding(top = 12.dp).testTag("play-steam"), onClick = a.onPlay)
+                    games.firstOrNull { it.library == Library.EPIC_LAUNCHER }?.let { SecondaryButton(it.name, enabled = !s.busy, modifier = Modifier.padding(top = 12.dp)) { a.onEpicLauncher() } }
+                }
             }
             GameFileFolderActions(s, a)
         }
@@ -92,12 +107,12 @@ internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, o
     val host = rememberMenuHost()
     if (games.size == 1) {
         Column(modifier = modifier.verticalScroll(rememberScrollState()).padding(horizontal = if (narrow) 16.dp else 22.dp, vertical = if (narrow) 12.dp else 18.dp)) {
-            if (onAdd != null) Rise(0) { GamesHeader(1, onAdd, Modifier.padding(bottom = 10.dp)) }
+            if (onAdd != null) Rise(0) { GamesHeader(gameCount, s.steamGamesX64, onAdd, Modifier.padding(bottom = 10.dp)) }
             Rise(0) {
                 Row(verticalAlignment = Alignment.Bottom) {
                     GameHero(current, Modifier.weight(1f).heightIn(min = if (narrow) 190.dp else 250.dp)) {
                         GameHeroCopy(current, if (narrow) 28.sp else 38.sp)
-                        GameActions(current, s, a, onEdit)
+                        GameActions(current, s, a, onEdit, launch)
                     }
                     if (!narrow) Poster(current.art, current.name, Modifier.width(168.dp))
                 }
@@ -110,7 +125,7 @@ internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, o
     }
     val pal = LocalPalette.current
     Row(modifier = modifier) {
-        GameList(games, current, onSelect = { onSelect("app:${it.appId}") }, onLaunch = { a.onSteamGame(it) }, onAdd = onAdd,
+        GameList(games, gameCount, s.steamGamesX64, current, onSelect = { onSelect("app:${it.appId}") }, onLaunch = launch, onAdd = onAdd,
             modifier = Modifier.width(if (narrow) 168.dp else 250.dp).fillMaxHeight())
         Box(Modifier.width(1.dp).fillMaxHeight().background(pal.line))
         Column(
@@ -119,7 +134,7 @@ internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, o
         ) {
             GameHero(current, Modifier.fillMaxWidth().heightIn(min = if (narrow) 170.dp else 200.dp)) {
                 GameHeroCopy(current, if (narrow) 24.sp else 32.sp)
-                GameActions(current, s, a, onEdit)
+                GameActions(current, s, a, onEdit, launch)
             }
             SectionTitle(stringResource(R.string.games_launch_settings), null)
             LaunchSettings(s, a, host, current)
@@ -147,21 +162,42 @@ private fun GameFileFolderActions(s: FrontEndState, a: FrontEndActions) {
 
 
 @Composable
-private fun GameActions(g: Library.SteamGame, s: FrontEndState, a: FrontEndActions, onEdit: (Library.SteamGame) -> Unit) {
+private fun GameActions(g: Library.SteamGame, s: FrontEndState, a: FrontEndActions, onEdit: (Library.SteamGame) -> Unit, launch: (Library.SteamGame) -> Unit) {
     Actions {
-        PrimaryButton(stringResource(if (s.shortcutPicker) R.string.game_shortcut_choose else R.string.games_launch), enabled = !s.busy, main = true, icon = Icons.Filled.PlayArrow) { a.onSteamGame(g) }
+        PrimaryButton(stringResource(if (s.shortcutPicker) R.string.game_shortcut_choose else R.string.games_launch), enabled = !s.busy, main = true, icon = Icons.Filled.PlayArrow) { launch(g) }
+        if (g.library == Library.EPIC_LAUNCHER) {
+            if (!s.shortcutPicker) UninstallEpicLauncher(s, a)
+            BusyChip(s)
+            return@Actions
+        }
         g.gameFiles?.takeIf { it.isDirectory }?.let { dir ->
             SecondaryButton(stringResource(R.string.games_files), compact = true) { a.onBrowseFiles(dir) }
         }
         g.protonPrefix?.takeIf { it.isDirectory }?.let { dir ->
             SecondaryButton(stringResource(R.string.games_prefix), compact = true) { a.onBrowseFiles(dir) }
-            // Only games added to the library; Steam titles keep their saves with Steam Cloud.
             if (g.library == Library.ADDED) ManageSaves(g, dir, a)
         }
         if (!s.shortcutPicker) GameShortcutMenu(g, a)
-        // A game added in DroidDeck (Custom): its editor, Steam's Properties for a non-Steam game.
         if (!s.shortcutPicker && g.library == Library.ADDED && g.source == Library.ADDED && g.gameFiles != null) EditGameButton { onEdit(g) }
+        else if (!s.shortcutPicker && g.library != Library.ADDED && g.source == Library.SOURCE_STEAM) EditGameButton { GamesDialogState.steamArt = g }
+        else if (!s.shortcutPicker && g.library == Library.ADDED && g.source != Library.ADDED && g.gameFiles != null) EditGameButton { GamesDialogState.storeArt = g }
         BusyChip(s)
+    }
+}
+
+@Composable
+private fun UninstallEpicLauncher(s: FrontEndState, a: FrontEndActions) {
+    var asking by remember { androidx.compose.runtime.mutableStateOf(false) }
+    SecondaryButton(stringResource(R.string.common_uninstall), enabled = !s.busy, compact = true) { asking = true }
+    if (asking) {
+        val body = stringResource(R.string.epic_client_uninstall_body)
+        ConfirmDialog(
+            title = stringResource(R.string.stores_uninstall_title, stringResource(R.string.epic_client_title)),
+            text = if (s.sessionRunning) body + "\n\n" + stringResource(R.string.epic_client_uninstall_stops) else body,
+            confirm = stringResource(R.string.common_uninstall),
+            onConfirm = { a.onUninstallEpicLauncher() },
+            onDismiss = { asking = false },
+        )
     }
 }
 
@@ -184,10 +220,6 @@ private fun GameShortcutMenu(g: Library.SteamGame, a: FrontEndActions) {
     }
 }
 
-/**
- * Manage saves: import a GameHub or Winlator save zip into this game's prefix, export its saves as
- * either, or open the save folder found for it. The saves are looked for when the menu opens.
- */
 @Composable
 private fun ManageSaves(g: Library.SteamGame, prefix: java.io.File, a: FrontEndActions) {
     var open by remember(g.gameId) { androidx.compose.runtime.mutableStateOf(false) }
@@ -211,7 +243,6 @@ private fun ManageSaves(g: Library.SteamGame, prefix: java.io.File, a: FrontEndA
         }
     }
     Box {
-        // A GOG or Epic game's saves are its cloud saves: the one place for them, named so.
         val cloudGame = com.droiddeck.launcher.stores.Store.byId(g.source).let { it == com.droiddeck.launcher.stores.Store.GOG || it == com.droiddeck.launcher.stores.Store.EPIC }
         val label = stringResource(if (cloudGame) R.string.store_cloud_saves else R.string.games_manage_saves)
         SecondaryButton(label, compact = true) { open = !open }
@@ -235,12 +266,6 @@ private fun ManageSaves(g: Library.SteamGame, prefix: java.io.File, a: FrontEndA
     }
 }
 
-/**
- * A GOG or Epic game's cloud saves: the Cloud saves switch, Upload and Download - three rows from
- * the first frame, so nothing moves under the pad while the cloud is checked. Until the check is
- * back the two actions are disabled and read "…"; then only their subtitles change: the last sync,
- * "No cloud saves", or a conflict, when Upload and Download become Keep local and Keep cloud.
- */
 @Composable
 private fun CloudRows(g: Library.SteamGame, open: Boolean, first: androidx.compose.ui.focus.FocusRequester) {
     val store = com.droiddeck.launcher.stores.Store.byId(g.source)?.takeIf { it != com.droiddeck.launcher.stores.Store.AMAZON } ?: return
@@ -253,7 +278,6 @@ private fun CloudRows(g: Library.SteamGame, open: Boolean, first: androidx.compo
             runCatching { com.droiddeck.launcher.stores.CloudSaves.status(context, store, id) }.getOrNull()
         }
     }
-    // The game's own switch (sidecar "cloud"), known locally: right from the first frame.
     val folder = g.gameFiles
     var enabled by remember(g.gameId, open) { androidx.compose.runtime.mutableStateOf(folder?.let { com.droiddeck.launcher.stores.StoreGameSidecar.read(it)?.cloud } ?: true) }
     val st = status
@@ -285,17 +309,14 @@ private fun CloudRows(g: Library.SteamGame, open: Boolean, first: androidx.compo
         st.lastSync > 0 -> stringResource(R.string.cloud_last_sync, android.text.format.DateUtils.getRelativeTimeSpanString(st.lastSync).toString())
         else -> stringResource(R.string.cloud_never)
     }
-    // A conflict turns the two actions into its two answers; the rows stay where they are.
     MenuItem(stringResource(if (conflict) R.string.cloud_keep_local else R.string.cloud_upload), checked = false, enabled = ready, detail = summary) { sync(up = true, force = conflict) }
     MenuItem(stringResource(if (conflict) R.string.cloud_keep_cloud else R.string.cloud_download), checked = false, enabled = ready, detail = if (st == null || busy != null) pending else null) { sync(up = false, force = conflict) }
 }
 
-/** When it was last played (or where it is, if never) over its name, then room for Launch. */
 @Composable
 private fun ColumnScope.GameHeroCopy(g: Library.SteamGame, titleSize: androidx.compose.ui.unit.TextUnit) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         SourceChip(g.source)
-        // A Custom game's chip already says what its eyebrow would; the line then stays empty.
         val eyebrow = lastPlayedText(g.lastPlayed) ?: libraryLabel(g)
         if (eyebrow.isNotEmpty()) Text(
             eyebrow.uppercase(),
@@ -312,18 +333,15 @@ private fun ColumnScope.GameHeroCopy(g: Library.SteamGame, titleSize: androidx.c
 
 @Composable
 private fun GameList(
-    games: List<Library.SteamGame>, current: Library.SteamGame,
+    games: List<Library.SteamGame>, count: Int, x64: Boolean, current: Library.SteamGame,
     onSelect: (Library.SteamGame) -> Unit, onLaunch: (Library.SteamGame) -> Unit, onAdd: (() -> Unit)?, modifier: Modifier,
 ) {
     val colors = MaterialTheme.colorScheme
-    // Laid out whole, as the art grid is: the pad's focus search only finds rows that exist.
     Column(
         verticalArrangement = Arrangement.spacedBy(2.dp),
         modifier = modifier.verticalScroll(rememberScrollState()).padding(start = 12.dp, end = 10.dp, top = 16.dp, bottom = 16.dp),
     ) {
-        GamesHeader(games.size, onAdd, Modifier.padding(start = 6.dp, bottom = 10.dp))
-        // A game that arrives while the list is up (Steam installed it in the session that just
-        // ended, or it was added) eases in; the ones there when the page opened are simply there.
+        GamesHeader(count, x64, onAdd, Modifier.padding(start = 6.dp, bottom = 10.dp))
         val seen = remember { HashSet<Int>() }
         var settled by remember { androidx.compose.runtime.mutableStateOf(false) }
         for (g in games) key(g.appId) {
@@ -338,33 +356,38 @@ private fun GameList(
     }
 }
 
-/** "Games N", and the + that adds a game from its .exe beside it ([onAdd] null: no +). */
 @Composable
-private fun GamesHeader(count: Int, onAdd: (() -> Unit)?, modifier: Modifier) {
+private fun GamesHeader(count: Int, x64: Boolean, onAdd: (() -> Unit)?, modifier: Modifier) {
     val colors = MaterialTheme.colorScheme
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = modifier) {
-        Text(stringResource(R.string.content_games), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1)
-        Text(count.toString(), fontSize = 13.sp, color = colors.onSurfaceVariant)
-        if (onAdd != null) AddGameButton(onAdd)
+    val narrow = LocalNarrowPane.current
+    Column(modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(R.string.content_games), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1)
+            Text(count.toString(), fontSize = 13.sp, color = colors.onSurfaceVariant)
+            if (x64 && !narrow) ClientTag()
+            if (onAdd != null) AddGameButton(onAdd)
+        }
+        if (x64 && narrow) Box(Modifier.padding(top = 4.dp)) { ClientTag() }
     }
 }
 
-/**
- * The Games tab's dialogs, one at a time: the + picker, the summary after "Add all games in this
- * folder", and a game's editor (from the page's ✎ or a summary row, with back to the summary).
- */
+@Composable
+private fun ClientTag() {
+    Box(Modifier.testTag("games-client-x64")) { StateChip(stringResource(R.string.mode_client_arch_x64), ChipTone.PLAIN) }
+}
+
 internal object GamesDialogState {
     var adding by androidx.compose.runtime.mutableStateOf(false)
     var summary by androidx.compose.runtime.mutableStateOf<Pair<List<com.droiddeck.launcher.frontend.AddedGames.Game>, Int>?>(null)
     var editing by androidx.compose.runtime.mutableStateOf<EditRequest?>(null)
-    /** The subfolder "Add all games in this folder" is looking at; null when it is done. */
     var checking by androidx.compose.runtime.mutableStateOf<String?>(null)
-    /** The summary an editor opened from it goes back to. */
+    var steamArt by androidx.compose.runtime.mutableStateOf<Library.SteamGame?>(null)
+    var storeArt by androidx.compose.runtime.mutableStateOf<Library.SteamGame?>(null)
     var behindEditor: Pair<List<com.droiddeck.launcher.frontend.AddedGames.Game>, Int>? = null
 }
 
 @Composable
-private fun GamesDialogs(a: FrontEndActions) {
+private fun GamesDialogs(a: FrontEndActions, games: List<Library.SteamGame>) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val st = GamesDialogState
@@ -398,6 +421,13 @@ private fun GamesDialogs(a: FrontEndActions) {
             a.onAddedGameRemoved(folder, appId, name)
         }, onDismiss = { st.summary = null; st.checking = null })
     }
+    st.steamArt?.let { game ->
+        SteamGameArtEditor(games.firstOrNull { it.appId == game.appId && it.library != Library.ADDED } ?: game, onClose = { st.steamArt = null }, onChanged = { a.onSteamGameArtChanged(game.appId) })
+    }
+    st.storeArt?.let { game ->
+        val folder = game.gameFiles?.path
+        if (folder != null) StoreGameArtEditor(folder, game.name, onClose = { st.storeArt = null }, onChanged = { a.onAddedGamesChanged(listOf(folder)) })
+    }
     st.editing?.let { request ->
         AddedGameEditor(
             request,
@@ -409,7 +439,6 @@ private fun GamesDialogs(a: FrontEndActions) {
     }
 }
 
-/** The ✎ on a Custom game's page: icon only. */
 @Composable
 private fun EditGameButton(onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
@@ -419,8 +448,8 @@ private fun EditGameButton(onClick: () -> Unit) {
     val label = stringResource(R.string.common_edit)
     Box(
         contentAlignment = Alignment.Center,
-        modifier = Modifier.paneItem("game:edit").size(40.dp).clip(Shape12)
-            .background(if (hot) pal.signal.copy(alpha = 0.18f) else colors.surface.copy(alpha = 0.55f))
+        modifier = Modifier.paneItem("game:edit").downToFirstTile().size(44.dp).clip(Shape12)
+            .background(if (hot) pal.signal.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.03f))
             .glideBorder(hot, Shape12, pal.signal, pal.line2)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
             .controllerConfirm(onClick = onClick)
@@ -430,7 +459,6 @@ private fun EditGameButton(onClick: () -> Unit) {
     }
 }
 
-/** A round + that opens the .exe picker. */
 @Composable
 private fun AddGameButton(onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
@@ -452,7 +480,6 @@ private fun AddGameButton(onClick: () -> Unit) {
     }
 }
 
-/** Fades and slides a row in once when [arriving]; nothing for one already there (or with animations off). */
 @Composable
 internal fun Modifier.arriveIn(arriving: Boolean): Modifier {
     val t = remember { androidx.compose.animation.core.Animatable(if (arriving) 0f else 1f) }
@@ -460,7 +487,6 @@ internal fun Modifier.arriveIn(arriving: Boolean): Modifier {
     return graphicsLayer { alpha = t.value; translationY = (1f - t.value) * 12.dp.toPx() }
 }
 
-/** One game in the list. Moving onto it with the pad shows it; A launches it, a tap only shows it. */
 @Composable
 private fun GameRow(g: Library.SteamGame, selected: Boolean, onSelect: () -> Unit, onLaunch: () -> Unit) {
     val colors = MaterialTheme.colorScheme
@@ -484,11 +510,11 @@ private fun GameRow(g: Library.SteamGame, selected: Boolean, onSelect: () -> Uni
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(g.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            // Where it came from beside when it was played: a store's games sit among Steam's own.
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 SourceChip(g.source, small = true)
                 Text(
-                    playedSpan(g.lastPlayed)?.replaceFirstChar { it.uppercase() } ?: stringResource(R.string.games_never_played),
+                    if (g.library == Library.EPIC_LAUNCHER) libraryLabel(g)
+                    else playedSpan(g.lastPlayed)?.replaceFirstChar { it.uppercase() } ?: stringResource(R.string.games_never_played),
                     fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }
@@ -496,7 +522,6 @@ private fun GameRow(g: Library.SteamGame, selected: Boolean, onSelect: () -> Uni
     }
 }
 
-/** A page's title, with room at its right for controls or status. */
 @Composable
 internal fun PageHeader(title: String, trailing: @Composable RowScope.() -> Unit = {}) {
     Row(
@@ -511,13 +536,11 @@ internal fun PageHeader(title: String, trailing: @Composable RowScope.() -> Unit
     }
 }
 
-/** Why a launch button is greyed out: the runtime is being worked on. Nothing when it is not. */
 @Composable
 internal fun BusyChip(s: FrontEndState) {
     if (s.busy) ActionChip(if (s.percent >= 0) stringResource(R.string.games_runtime_busy_percent, s.percent) else s.stage, ok = false)
 }
 
-/** Whether Steam can start, said where Play is rather than only in Setup. */
 @Composable
 internal fun RuntimeChip(s: FrontEndState) = when {
     s.busy -> Chip(if (s.percent >= 0) stringResource(R.string.setup_runtime_progress, s.stage, s.percent) else s.stage, ok = false)
@@ -527,12 +550,10 @@ internal fun RuntimeChip(s: FrontEndState) = when {
     else -> Chip(stringResource(R.string.games_runtime_ready), ok = true)
 }
 
-/** "Last played 3 days ago" from Steam's unix seconds; null for a game never played. */
 @Composable
 private fun lastPlayedText(lastPlayed: Long): String? =
     playedSpan(lastPlayed)?.let { stringResource(R.string.games_last_played, it.replaceFirstChar { c -> c.lowercase() }) }
 
-/** "3 days ago" from Steam's unix seconds; null for a game never played. */
 private fun playedSpan(lastPlayed: Long): String? {
     if (lastPlayed <= 0L) return null
     return android.text.format.DateUtils.getRelativeTimeSpanString(
@@ -540,27 +561,19 @@ private fun playedSpan(lastPlayed: Long): String? {
     ).toString()
 }
 
-/**
- * Where a never-played game lives, beside its source chip: Steam's library, the Games storage for
- * a store install (the chip names the store), "Custom game" for a folder the user added.
- */
 @Composable
 private fun libraryLabel(g: Library.SteamGame): String = when {
+    g.library == Library.EPIC_LAUNCHER -> EpicClient.status.version?.substringBefore('+')?.let { stringResource(R.string.epic_client_version, it) } ?: ""
     g.library != Library.ADDED -> if (g.library == "internal") stringResource(R.string.games_internal) else g.library
     g.source != Library.ADDED -> stringResource(R.string.games_store_storage)
     else -> ""
 }
 
-/**
- * A game's wide banner: Steam's hero art where the client cached one, else its capsule blurred to
- * fill the width. The copy sits bottom-left over a scrim of the ground colour so it always reads;
- * the art takes the banner's size, so a banner given a minimum height grows to fit its copy.
- */
 @Composable
 private fun GameHero(g: Library.SteamGame, modifier: Modifier, content: @Composable ColumnScope.() -> Unit) {
     val colors = MaterialTheme.colorScheme
     Box(modifier = modifier.clip(Shape16).background(artBrush(hueOf(g.name)))) {
-        val image = g.hero ?: g.art
+        val image = g.hero ?: g.art.takeIf { g.library != Library.EPIC_LAUNCHER }
         if (image != null) AsyncImage(
             model = image, contentDescription = null, contentScale = ContentScale.Crop,
             modifier = Modifier.matchParentSize()

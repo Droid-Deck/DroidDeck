@@ -22,6 +22,7 @@ import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -38,6 +39,7 @@ import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -57,12 +59,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-// Small building blocks shared by the front end's pages: text styles, chips and buttons.
 
 internal val Shape14 = RoundedCornerShape(14.dp)
 
@@ -93,7 +96,6 @@ internal fun SectionTitle(t: String, detail: String?) {
 
 @Composable internal fun Note(t: String) = Text(t, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth().clip(Shape12).background(MaterialTheme.colorScheme.surface).border(1.dp, LocalPalette.current.line2, Shape12).padding(12.dp))
 
-/** A page's buttons: they wrap onto a second line rather than run off a narrow page. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun Actions(content: @Composable () -> Unit) = FlowRow(
@@ -101,13 +103,11 @@ internal fun Actions(content: @Composable () -> Unit) = FlowRow(
     verticalArrangement = Arrangement.spacedBy(10.dp),
 ) { content() }
 
-/** A status chip in a row of buttons, centred on their height. */
 @Composable
 internal fun ActionChip(t: String, ok: Boolean) = Box(contentAlignment = Alignment.Center, modifier = Modifier.heightIn(min = 44.dp)) { Chip(t, ok) }
 
 internal val Shape16 = RoundedCornerShape(16.dp)
 
-/** One level up, as Back and B do: a real button, big enough to hit ([compact]: for the tightest layouts). */
 @Composable
 internal fun BackLink(label: String, compact: Boolean = false, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
@@ -150,14 +150,13 @@ internal fun PrimaryButton(
     main: Boolean = false,
     compact: Boolean = false,
     modifier: Modifier = Modifier,
-    /** The Steam tab's own Play: bigger than any other button on a page. */
     large: Boolean = false,
     icon: ImageVector? = null,
+    fill: Boolean = false,
     onClick: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    // The page's main button is where the pane is entered from the rail.
     val frontFocus = if (main) LocalFrontFocus.current else null
     if (frontFocus != null) DisposableEffect(Unit) {
         frontFocus.primaryAttached++
@@ -169,49 +168,56 @@ internal fun PrimaryButton(
     val pressed by src.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.955f else if (hot) 1.02f else 1f, Motion.sp(0.5f, Spring.StiffnessMedium), label = "btnScale")
     val lift by animateFloatAsState(if (hot) 14f else 6f, Motion.tw(300), label = "btnLift")
-    // Where it sits, so a session it starts can grow out of it (LaunchFlood).
     val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
     Row(
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = if (fill) Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally) else Arrangement.spacedBy(8.dp),
         modifier = modifier.then(track)
             .onGloballyPositioned { placed[0] = it }
-            // 48dp to touch on a handheld; compact rows keep 44.
             .heightIn(min = if (compact) 44.dp else 48.dp)
             .then(if (frontFocus != null) Modifier.focusRequester(frontFocus.primary).onFocusChanged { if (it.isFocused) frontFocus.last = FrontFocus.PRIMARY } else Modifier)
             .graphicsLayer { alpha = if (LaunchOrigin.flooding === placed) 0f else 1f; scaleX = scale; scaleY = scale; shadowElevation = if (enabled) lift.dp.toPx() else 0f; shape = Shape12; clip = false; ambientShadowColor = pal.signal; spotShadowColor = pal.signal }
             .clip(Shape12)
             .background(if (enabled) Brush.linearGradient(listOf(colors.primary, pal.primary2)) else Brush.linearGradient(listOf(colors.surfaceVariant, colors.surfaceVariant)))
             .shine(hot, 0.45f)
-            // Off, its fill can match the surface it sits on: the outline keeps it a button.
             .then(if (enabled) Modifier else Modifier.border(1.dp, pal.line2, Shape12))
-            // The grow and shine alone barely show on the light fill: outline it when a
-            // controller is on it, as the other controls are.
             .glideBorder(hot, Shape12, pal.signal)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, enabled = enabled) {
                 placed[0]?.takeIf { it.isAttached }?.let { LaunchOrigin.mark(it.boundsInRoot(), placed) }
                 onClick()
             }
             .padding(
-                start = if (large) 20.dp else if (compact) 10.dp else if (icon != null) 14.dp else 18.dp,
-                end = if (large) 26.dp else if (compact) 10.dp else 18.dp,
+                start = if (fill) 12.dp else if (large) 20.dp else if (compact) 10.dp else if (icon != null) 14.dp else 18.dp,
+                end = if (fill) 12.dp else if (large) 26.dp else if (compact) 10.dp else 18.dp,
                 top = if (large) 16.dp else if (compact) 7.dp else 11.dp,
                 bottom = if (large) 16.dp else if (compact) 7.dp else 11.dp,
             ),
     ) {
         val fg = if (enabled) colors.onPrimary else colors.onSurfaceVariant
         if (icon != null) Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(if (large) 20.dp else 17.dp))
-        Text(
-            text, fontSize = if (large) 17.sp else if (compact) 12.sp else 15.sp,
-            fontWeight = if (large) FontWeight.Bold else FontWeight.SemiBold, letterSpacing = 0.5.sp, color = fg, maxLines = 1,
-        )
+        val style = LocalTextStyle.current.merge(TextStyle(
+            fontSize = if (large) 17.sp else if (compact) 12.sp else 15.sp,
+            fontWeight = if (large) FontWeight.Bold else FontWeight.SemiBold, letterSpacing = 0.5.sp, color = fg,
+        ))
+        if (fill) FittedLabel(text, style, Modifier.weight(1f, fill = false))
+        else Text(text, style = style, maxLines = 1)
     }
 }
 
-/**
- * [label] while idle; while [progress] is set, a spinner and how far along it is in its place.
- * The label stays laid out underneath, invisible, so the button keeps its width. The spinner
- * turns until there is a first figure to show.
- */
+@Composable
+private fun FittedLabel(text: String, style: TextStyle, modifier: Modifier = Modifier) {
+    BoxWithConstraints(modifier) {
+        val measurer = rememberTextMeasurer()
+        val max = constraints.maxWidth
+        val size = remember(text, style, max) {
+            var size = style.fontSize
+            while (size.value > 10f && measurer.measure(text, style.copy(fontSize = size), maxLines = 1, softWrap = false).size.width > max) size = (size.value - 0.5f).sp
+            size
+        }
+        Text(text, style = style.copy(fontSize = size), maxLines = 1, softWrap = false)
+    }
+}
+
 @Composable
 internal fun ProgressLabel(label: @Composable (Modifier) -> Unit, progress: Float?, fontSize: androidx.compose.ui.unit.TextUnit = 15.sp) {
     val pal = LocalPalette.current
@@ -253,7 +259,6 @@ internal fun Cog(size: androidx.compose.ui.unit.Dp = 48.dp, onClick: () -> Unit)
     val colors = MaterialTheme.colorScheme
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src)
-    // A press spins it on a half turn as the page it opens blooms out of it (PageOrigin).
     var spins by remember { mutableIntStateOf(0) }
     val rot by animateFloatAsState((if (hot) 90f else 0f) + spins * 180f, Motion.sp(0.55f), label = "cog")
     val pal = LocalPalette.current

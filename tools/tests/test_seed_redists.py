@@ -22,6 +22,28 @@ GAME_SCRIPT = r'''"InstallScript"
 }
 '''
 
+VULKAN_SCRIPT = r'''"InstallScript"
+{
+	"Run Process"
+	{
+		"Vulkan111080"
+		{
+			"HasRunKey"		"HKEY_LOCAL_MACHINE\\Software\\Valve\\Steam\\Apps\\1174180"
+			"process 1"		"%INSTALLDIR%\\Redistributables\\VulkanRT-1.1.108.0-Installer.exe"
+			"command 1"		"/S"
+			"NoCleanUp"		"0"
+		}
+		"RockstarLauncher"
+		{
+			"HasRunKey"		"HKEY_LOCAL_MACHINE\\Software\\Rockstar Games\\Steam\\Launcher"
+			"process 1"		"%INSTALLDIR%\\Redistributables\\Rockstar-Games-Launcher.exe"
+			"command 1"		"/s /t"
+			"NoCleanUp"		"0"
+		}
+	}
+}
+'''
+
 
 class SeedRedistsTest(unittest.TestCase):
     def setUp(self):
@@ -78,6 +100,53 @@ class SeedRedistsTest(unittest.TestCase):
         self.run_seed()
         self.assertIn('"VCRedist2022"=dword:00000001', self.reg.read_text())
 
+    def test_markers_a_replaced_registry_lost_are_seeded_again(self):
+        self.game()
+        stock = self.reg.read_text()
+        self.run_seed()
+        ledger = (self.reg.parent / ".droiddeck-redists").read_text()
+        self.assertIn("VCRedist2022", ledger)
+        self.reg.write_text(stock)
+        self.run_seed()
+        reg = self.reg.read_text()
+        self.assertEqual(reg.count('"VCRedist2022"=dword:00000001'), 2, "both views again")
+        self.assertIn("[Software\\\\Microsoft\\\\VisualStudio\\\\14.0\\\\VC\\\\Runtimes\\\\x86]", reg)
+        self.assertEqual(sorted((self.reg.parent / ".droiddeck-redists").read_text().splitlines()), sorted(ledger.splitlines()))
+        self.run_seed()
+        self.assertEqual(reg, self.reg.read_text())
+
+    def test_a_marker_kept_in_only_one_view_is_seeded_again(self):
+        self.game()
+        self.run_seed()
+        wow = "[Software\\\\Wow6432Node\\\\Valve\\\\Steam\\\\Apps\\\\CommonRedist\\\\vcredist\\\\2022]"
+        blocks = self.reg.read_text().split("\n\n")
+        self.reg.write_text("\n\n".join(b for b in blocks if not (b.startswith(wow) and '"VCRedist2022"' in b)))
+        self.assertEqual(self.reg.read_text().count('"VCRedist2022"'), 1)
+        self.run_seed()
+        reg = self.reg.read_text()
+        self.assertEqual(reg.count('"VCRedist2022"'), 3, "the one left plus both views again")
+        self.assertTrue(any(b.startswith(wow) and '"VCRedist2022"' in b for b in reg.split("\n\n")))
+
+    def test_a_vc_runtime_another_architecture_lost_is_seeded_again(self):
+        self.run_seed()
+        arm64 = "[Software\\\\Wow6432Node\\\\Microsoft\\\\VisualStudio\\\\14.0\\\\VC\\\\Runtimes\\\\arm64]"
+        blocks = self.reg.read_text().split("\n\n")
+        self.reg.write_text("\n\n".join(b for b in blocks if not b.startswith(arm64)))
+        self.assertNotIn(arm64, self.reg.read_text())
+        self.run_seed()
+        reg = self.reg.read_text()
+        self.assertIn(arm64, reg)
+        self.assertEqual(reg.count("[Software\\\\Microsoft\\\\VisualStudio\\\\14.0\\\\VC\\\\Runtimes\\\\x86]"), 2)
+
+    def test_a_marker_written_in_one_view_only_is_kept_as_it_is(self):
+        self.game(script=GAME_SCRIPT.replace("Software\\\\Valve\\\\Steam\\\\Apps\\\\CommonRedist\\\\vcredist\\\\2022", "SOFTWARE\\\\AGEIA Technologies").replace("VCRedist2022", "PhysX Version"))
+        self.run_seed()
+        once = self.reg.read_text()
+        self.assertEqual(once.count('"PhysX Version"=dword:00000001'), 1)
+        result = self.run_seed()
+        self.assertEqual(once, self.reg.read_text())
+        self.assertNotIn("gone", result.stdout)
+
     def test_an_evaluator_script_nested_deeper_is_read(self):
         script = self.tmp / "legacycompat/evaluatorscript_409710.vdf"
         script.parent.mkdir(parents=True)
@@ -90,6 +159,44 @@ class SeedRedistsTest(unittest.TestCase):
         os.utime(self.reg, (1_000_000_000, 1_000_000_000))
         self.run_seed()
         self.assertEqual(int(self.reg.stat().st_mtime), 1_000_000_000)
+
+    def rdr2(self):
+        path = self.steam / "steamapps/common/Red Dead Redemption 2/installscript.vdf"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(VULKAN_SCRIPT)
+        (self.steam / "steamapps/appmanifest_1174180.acf").write_text('"AppState" { "installdir" "Red Dead Redemption 2" }')
+
+    def test_a_vulkan_runtime_installer_is_left_to_run(self):
+        self.rdr2()
+        self.run_seed()
+        reg = self.reg.read_text()
+        self.assertNotIn("Vulkan111080", reg)
+        self.assertIn('"RockstarLauncher"=dword:00000001', reg)
+        self.assertNotIn("Vulkan111080", (self.reg.parent / ".droiddeck-redists").read_text())
+
+    def test_a_vulkan_marker_an_earlier_seeding_wrote_comes_out_once(self):
+        self.rdr2()
+        marker = "HKEY_LOCAL_MACHINE\\\\Software\\\\Valve\\\\Steam\\\\Apps\\\\1174180\tVulkan111080"
+        self.reg.write_text(
+            "WINE REGISTRY Version 2\n"
+            "\n[Software\\\\Valve\\\\Steam\\\\Apps\\\\1174180] 1791729070\n#time=1dd598d29161f72\n"
+            '"Other"=dword:00000001\n"Vulkan111080"=dword:00000001\n'
+            "\n[Software\\\\Wow6432Node\\\\Valve\\\\Steam\\\\Apps\\\\1174180] 1791729070\n"
+            '"Vulkan111080"=dword:00000001\n'
+            "\n[Software\\\\Valve\\\\Steam\\\\Apps\\\\22380] 1791311644\n"
+            '"Vulkan111080"=dword:00000001\n')
+        (self.reg.parent / ".droiddeck-redists").write_text(marker + "\n")
+        os.utime(self.reg, (1_000_000_000, 1_000_000_000))
+        self.run_seed()
+        reg = self.reg.read_text()
+        self.assertEqual(reg.count('"Vulkan111080"'), 1, "only the other app's value stays")
+        self.assertIn('"Other"=dword:00000001', reg)
+        self.assertNotIn("Vulkan111080", (self.reg.parent / ".droiddeck-redists").read_text())
+        self.assertEqual(int(self.reg.stat().st_mtime), 1_000_000_000)
+        with self.reg.open("a") as out:
+            out.write('\n[Software\\\\Valve\\\\Steam\\\\Apps\\\\1174180] 1791730000\n"Vulkan111080"=dword:00000001\n')
+        self.run_seed()
+        self.assertEqual(self.reg.read_text().count('"Vulkan111080"'), 2)
 
 
 if __name__ == "__main__":
