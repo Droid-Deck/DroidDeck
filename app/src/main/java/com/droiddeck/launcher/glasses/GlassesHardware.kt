@@ -9,6 +9,8 @@ interface GlassesModel {
     val diagonalFovDeg: Float
     val sbs90: Boolean
     val hasSunblock: Boolean get() = true
+    val resolutions: List<GlassesResolution> get() = emptyList()
+    fun mode(hz: Int, sbs: Boolean, resolution: GlassesResolution?): Int = mode(hz, sbs)
     fun mode(hz: Int, sbs: Boolean): Int
     fun modeForStep(step: Int): Int?
 }

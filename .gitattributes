@@ -9,3 +9,4 @@ tools/linuxfs/desktop/** text eol=lf
 tools/mangoapp/mangoapp text eol=lf
 app/src/main/assets/desktop-removal/*.json text eol=lf
 app/src/main/assets/desktop-removal/*.txt text eol=lf
+*.pdf binary

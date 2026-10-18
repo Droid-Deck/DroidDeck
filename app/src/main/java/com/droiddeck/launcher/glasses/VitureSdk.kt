@@ -15,8 +15,16 @@ internal object VitureSdk {
     fun marketName(pid: Int): String? = if (available) nativeMarketName(pid) else null
     external fun nativeAvailable(): Boolean
     external fun nativeMarketName(pid: Int): String?
-    external fun nativeOpen(pid: Int, fd: Int, cacheDirectory: String): Long
+    external fun nativeOpen(pid: Int, fd: Int, cacheDirectory: String, spatial: Boolean = false): Long
+    external fun nativeSpatialPose(token: Long, pose: FloatArray, state: IntArray): Long
+    external fun nativeCapture(token: Long, enabled: Boolean, ratePermille: Int)
+    external fun nativeStereo(token: Long, left: java.nio.ByteBuffer, right: java.nio.ByteBuffer, metadata: DoubleArray, head: FloatArray, waitForPose: Boolean): Long
+    external fun nativeCameraSynchronized(token: Long, sourceSeconds: Double): Boolean
+    external fun nativeRgbSnapshot(vid: Int, pid: Int, fd: Int, metadata: LongArray, logFd: Int): ByteArray?
     external fun nativeType(token: Long): Int
+    external fun nativeFirmware(token: Long): String?
+    external fun nativeSerialHash(token: Long): ByteArray?
+    external fun nativeSpatialDiagnostics(token: Long): DoubleArray?
     external fun nativeTracking(token: Long, enabled: Boolean): Int
     external fun nativeCommand(token: Long, command: Int, value: Int): Int
     /** Returns CLOCK_BOOTTIME receipt time, zero for no new pose, or a negative SDK error. */
@@ -32,6 +40,11 @@ internal object VitureSdk {
     const val GET_VOLUME = 5
     const val SET_VOLUME = 6
     const val SET_FILM = 7
+}
+
+internal object VitureSpatialIdentity {
+    fun fromSerialHash(hash: ByteArray?): String? = hash?.takeIf { it.size == 32 && it.any { b -> b != 0.toByte() } }
+        ?.joinToString("", prefix = "viture:sn-sha256:") { "%02x".format(it.toInt() and 0xff) }
 }
 
 internal object VitureSdkPose {

@@ -26,11 +26,13 @@ class WindowsVrBuildTest(unittest.TestCase):
         for name, source in vr.CONFIGS.items():
             self.write(self.root / source, b'{"name": "current"}\n')
             self.write(self.out / name, b'{"name": "current"}\n')
-        for name in vr.LIBRARIES:
+        for name in vr.LIBRARIES | vr.EXECUTABLES:
             data = bytearray(64)
             data[:6] = b'\x7fELF\x02\x01'
             struct.pack_into('<HH', data, 16, 3, 183)
             self.write(self.out / name, data)
+        for name in vr.HAND_MODELS:
+            self.write(self.out / name, b'generated hand model\n')
         for name in ('vulkan/vulkan_core.h', 'vulkan/vk_layer.h'):
             self.write(self.include / name, b'vulkan header\n')
         self.commit = mock.patch.object(vr, 'commit', return_value='current-revision')

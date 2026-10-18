@@ -13,13 +13,21 @@ internal class VitureSdkLink private constructor(
     private val token: Long,
     private val listener: Listener,
     family: VitureProtocol.Family?,
+    private val spatial: Boolean,
 ) : GlassesLink {
     interface Listener {
         fun onValue(msgId: Int, value: Int)
         fun onPose(q: FloatArray, timeNs: Long)
+        fun onSpatial(pose: FloatArray, timeNs: Long, valid: Boolean) {}
         fun onLost()
     }
 
+    internal val sdkToken get() = token
+    internal val spatialEnabled get() = spatial
+    internal val firmware = VitureSdk.nativeFirmware(token)
+    internal fun spatialDiagnostics() = if (running && spatial) VitureSdk.nativeSpatialDiagnostics(token) else null
+    internal val isCarina = VitureSdk.nativeType(token) == VitureSdk.CARINA
+    internal val spatialIdentity = if (isCarina) VitureSpatialIdentity.fromSerialHash(VitureSdk.nativeSerialHash(token)) else null
     private val lock = Any()
     @Volatile private var running = true
     @Volatile private var tracking = false
@@ -71,6 +79,8 @@ internal class VitureSdkLink private constructor(
 
     private fun poll() {
         val pose = FloatArray(4)
+        val spatialPose = FloatArray(7)
+        val spatialStatus = IntArray(1)
         val event = IntArray(2)
         var failures = 0
         while (running) {
@@ -84,7 +94,14 @@ internal class VitureSdkLink private constructor(
                         3 -> listener.onValue(VitureProtocol.MSG_FILM, event[1])
                     }
                 }
-                if (!running || !tracking) 0L else VitureSdk.nativePose(token, pose)
+                if (!running || !tracking) 0L else if (spatial && isCarina) {
+                    val time = VitureSdk.nativeSpatialPose(token, spatialPose, spatialStatus)
+                    if (time > 0) listener.onSpatial(spatialPose, time, spatialStatus[0] == 0)
+                    if (spatialStatus[0] == 0) {
+                        spatialPose.copyInto(pose, 0, 3, 7)
+                        time
+                    } else if (spatialStatus[0] < 0) spatialStatus[0].toLong() else 0L
+                } else VitureSdk.nativePose(token, pose)
             }
             if (timestamp > 0) {
                 failures = 0
@@ -113,15 +130,15 @@ internal class VitureSdkLink private constructor(
 
     companion object {
         fun open(usb: UsbManager, device: UsbDevice, cacheDirectory: File, listener: Listener,
-            family: VitureProtocol.Family? = null): VitureSdkLink? {
+            family: VitureProtocol.Family? = null, spatial: Boolean = false): VitureSdkLink? {
             if (!VitureSdk.available) return null
             val conn = usb.openDevice(device) ?: return null
             val token = runCatching {
                 cacheDirectory.mkdirs()
-                VitureSdk.nativeOpen(device.productId, conn.fileDescriptor, cacheDirectory.absolutePath)
+                VitureSdk.nativeOpen(device.productId, conn.fileDescriptor, cacheDirectory.absolutePath, spatial)
             }.onFailure { Log.w("VitureSdkLink", "SDK initialization failed", it) }.getOrDefault(0)
             if (token <= 0) { conn.close(); return null }
-            return runCatching { VitureSdkLink(conn, token, listener, family) }.getOrElse {
+            return runCatching { VitureSdkLink(conn, token, listener, family, spatial) }.getOrElse {
                 VitureSdk.nativeClose(token)
                 conn.close()
                 Log.w("VitureSdkLink", "SDK worker could not start", it)
