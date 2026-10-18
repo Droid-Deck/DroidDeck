@@ -108,15 +108,19 @@ class AgentBridgeProvider : ContentProvider() {
                 val value = request.optString("value")
                 fun on() = value == "1" || value.equals("true", true) || value.equals("on", true)
                 val number = value.toIntOrNull()
-                val numeric = setOf("refreshHz", "sbsHz", "brightness", "volume", "picture3d", "screenWidthDm", "screenDistanceDm", "vrFovDeg", "sbsSupport")
+                val numeric = setOf("refreshHz", "sbsHz", "brightness", "volume", "picture3d", "screenWidthDm", "screenDistanceDm", "vrFovDeg", "sbsSupport", "eyeHeightCm")
                 if (key in numeric && number == null) return error("INVALID_VALUE", "'$key' takes a number")
                 when (key) {
                     "refreshHz" -> g.setRefreshHz(number!!)
                     "sbsHz" -> g.setSbsHz(number!!)
+                    "resolution2d" -> g.setResolution(com.droiddeck.launcher.glasses.GlassesDisplayProfile.TWO_D, value)
+                    "resolution3d" -> g.setResolution(com.droiddeck.launcher.glasses.GlassesDisplayProfile.THREE_D, value)
+                    "resolutionVr" -> g.setResolution(com.droiddeck.launcher.glasses.GlassesDisplayProfile.VR, value)
                     "brightness" -> g.setBrightness(number!!)
                     "volume" -> g.setVolume(number!!)
                     "sunblock" -> g.setSunblock(on())
                     "3d" -> g.set3d(on())
+                    "3dof" -> g.set3dof(on())
                     "gameOnGlasses" -> g.setGameOnGlasses(on())
                     "headTracking" -> g.setHeadTracking(on())
                     "auto3d" -> g.setAuto3d(on())
@@ -125,6 +129,10 @@ class AgentBridgeProvider : ContentProvider() {
                     "screenDistanceDm" -> g.setScreenDistanceDm(number!!)
                     "vrFovDeg" -> g.setVrFovDeg(number!!)
                     "sbsSupport" -> g.setSbsSupport(number!!)
+                    "positionalTracking" -> g.setPositionalTracking(on())
+                    "handControllers" -> g.setHandControllers(on())
+                    "joyConTracking" -> g.setJoyConTracking(on())
+                    "eyeHeightCm" -> g.setEyeHeight(number!!)
                     else -> return error("INVALID_KEY", "Unknown glasses setting '$key'")
                 }
             }
@@ -136,6 +144,34 @@ class AgentBridgeProvider : ContentProvider() {
             "calibrate" -> g.startCalibration()
             "cancel-calibration" -> g.cancelCalibration()
             "reset-calibration" -> g.resetCalibration()
+            "spatial-diagnostics" -> com.droiddeck.launcher.glasses.SpatialTracking.diagnostics(request.optBoolean("enabled",true))
+            "spatial-recenter" -> com.droiddeck.launcher.glasses.SpatialTracking.recenter(request.optBoolean("screen",false))
+            "spatial-floor" -> g.setSpatialFloor()
+            "spatial-restart" -> g.restartSpatialTracking()
+            "spatial-hand-options" -> {
+                AgentAccess.requireCommands(context)
+                if(request.has("lite")) com.droiddeck.launcher.glasses.SpatialTracking.setHandModel(request.getBoolean("lite"))
+                if(request.has("parallel")) com.droiddeck.launcher.glasses.SpatialTracking.setHandCpuParallel(request.getBoolean("parallel"))
+                if(request.has("halfRate")) com.droiddeck.launcher.glasses.SpatialTracking.setHandHalfRate(request.getBoolean("halfRate"))
+                if(request.has("adaptive")) com.droiddeck.launcher.glasses.SpatialTracking.setHandAdaptiveInput(request.getBoolean("adaptive"))
+                if(request.has("scheduled")) com.droiddeck.launcher.glasses.SpatialTracking.setHandScheduledTracking(request.getBoolean("scheduled"))
+            }
+            "spatial-hand-benchmark" -> {
+                AgentAccess.requireCommands(context)
+                com.droiddeck.launcher.glasses.SpatialTracking.benchmarkSavedCapture(request.getString("capture"))
+            }
+            "spatial-hand-capture" -> {
+                AgentAccess.requireCommands(context)
+                com.droiddeck.launcher.glasses.SpatialTracking.captureDiagnostic()
+            }
+            "spatial-rgb-capture", "spatial-rgb-status" -> {
+                AgentAccess.requireCommands(context)
+                return (if (request.getString("op") == "spatial-rgb-capture")
+                    com.droiddeck.launcher.glasses.LumaRgbDiagnostic.capture(context!!,request.optString("transport","sdk"),
+                        request.optInt("width",640),request.optInt("height",480),request.optInt("fps",30),
+                        request.optInt("durationMs",5000))
+                else com.droiddeck.launcher.glasses.LumaRgbDiagnostic.status(context!!)).put("ok", true)
+            }
             "query" -> { g.query(); Thread.sleep(600) }
             "mode" -> {
                 val mode = hex(request.optString("mode"), 0xFF) ?: return error("INVALID_VALUE", "mode must be one hex byte, e.g. 0x31")

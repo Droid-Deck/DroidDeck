@@ -1192,7 +1192,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun playSteamVr() {
-        if (com.droiddeck.launcher.handtracking.HandTracking.wanted(this)) placementCheck = true
+        val tracking = com.droiddeck.launcher.glasses.Glasses.settings.value
+        if (!com.droiddeck.launcher.glasses.Glasses.state.value.usesSpatialControllers(tracking) &&
+            com.droiddeck.launcher.handtracking.HandTracking.wanted(this)) placementCheck = true
         else startSteamSession(steamVr = true)
     }
 

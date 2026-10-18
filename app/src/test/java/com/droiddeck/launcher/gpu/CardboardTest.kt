@@ -33,6 +33,8 @@ class CardboardTest {
         val c = Cardboard(enabled = true, source = Cardboard.SOURCE_SBS, viewer = "none", ipdMm = 70,
             screenWidthDm = 55, screenDistanceDm = 25, headTracking = false)
         assertEquals(c, Cardboard.decode(c.encode()))
+        val flat = c.copy(source = Cardboard.SOURCE_FLAT)
+        assertEquals(flat, Cardboard.decode(flat.encode()))
         val wild = Cardboard.decode(JSONObject().put("ipdMm", 500).put("screenWidthDm", -3).put("viewer", "nope").put("source", 7))
         assertEquals(80, wild.ipdMm)
         assertEquals(5, wild.screenWidthDm)
@@ -104,6 +106,18 @@ class CardboardTest {
         assertEquals(0f, forward[0], eps)
         assertEquals(-sin(PI / 6).toFloat(), forward[1], eps)
         assertEquals(-cos(PI / 6).toFloat(), forward[2], eps)
+    }
+
+    @Test fun virtualScreenRecenterUsesTheCurrentHeightAndDirection() {
+        for (pitch in listOf(-30.0, -10.0, 15.0, 35.0)) {
+            val yaw = matrix(quat(0f, 0f, 1f, 50.0))
+            val tilt = HeadPose.multiply(matrix(quat(1f, 0f, 0f, pitch)), matrix(quat(0f, 0f, 1f, 12.0)))
+            val screen = HeadPose.multiply(HeadPose.multiply(yaw, HeadPose.fromGlasses(0f, 0f, 0f, 1f)), tilt)
+            val ref = HeadPose.recenter(screen, centerView = true)
+            assertVec(HeadPose.IDENTITY, HeadPose.relative(ref, screen))
+            val lookUp = matrix(quat(1f, 0f, 0f, 20.0))
+            assertVec(lookUp, HeadPose.relative(ref, HeadPose.multiply(screen, lookUp)))
+        }
     }
 
     @Test fun turningTheHeadTurnsTheView() {

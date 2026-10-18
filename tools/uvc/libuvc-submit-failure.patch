@@ -1,0 +1,19 @@
+--- a/src/stream.c
++++ b/src/stream.c
+@@ -1281,13 +1281,15 @@
+   }
+ 
+   if ( ret != UVC_SUCCESS && transfer_id >= 0 ) {
++    pthread_mutex_lock(&strmh->cb_mutex);
+     for ( ; transfer_id < LIBUVC_NUM_TRANSFER_BUFS; transfer_id++) {
+       free ( strmh->transfers[transfer_id]->buffer );
+       libusb_free_transfer ( strmh->transfers[transfer_id]);
+       strmh->transfers[transfer_id] = 0;
+     }
+-    ret = UVC_SUCCESS;
++    pthread_mutex_unlock(&strmh->cb_mutex);
++    uvc_stream_stop(strmh);
+   }
+ 
+   UVC_EXIT(ret);
+   return ret;

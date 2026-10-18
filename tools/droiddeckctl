@@ -676,6 +676,10 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
             request["mode"] = args.mode
         elif args.glasses_op == "imu":
             request["ms"] = args.ms
+        elif args.glasses_op == "spatial-diagnostics":
+            request["enabled"] = not args.off
+        elif args.glasses_op == "spatial-recenter":
+            request["screen"] = args.screen
         elif args.glasses_op == "raw":
             request.update(msgId=args.msg_id, payload=args.payload or "")
         return add_serial(checked(provider_call(adb, serial, "glasses", request=request), "GLASSES_FAILED"), serial)
@@ -853,7 +857,7 @@ def build_parser() -> argparse.ArgumentParser:
     glasses_ops = glasses.add_subparsers(dest="glasses_op")
     glasses_ops.add_parser("status")
     glasses_ops.add_parser("allow", help="ask for USB control of the glasses again")
-    glasses_set = glasses_ops.add_parser("set", help="refreshHz, sbsHz, brightness, volume, sunblock, 3d, gameOnGlasses, headTracking, auto3d, picture3d, screenWidthDm, screenDistanceDm, vrFovDeg")
+    glasses_set = glasses_ops.add_parser("set", help="refreshHz, sbsHz, resolution2d, resolution3d, resolutionVr (auto or WIDTHxHEIGHT per eye), brightness, volume, sunblock, 3d, 3dof, gameOnGlasses, headTracking, auto3d, picture3d, screenWidthDm, screenDistanceDm, vrFovDeg")
     glasses_set.add_argument("key")
     glasses_set.add_argument("value")
     glasses_sim = glasses_ops.add_parser("simulate", help="feed a moving head pose (yaw, pitch and roll sweeps), or hold one")
@@ -862,6 +866,12 @@ def build_parser() -> argparse.ArgumentParser:
     glasses_sim.add_argument("--pitch", type=float, help="hold this pitch (degrees, down positive) instead of sweeping")
     glasses_ops.add_parser("stop-simulate")
     glasses_ops.add_parser("query", help="ask the glasses for their display mode, brightness, volume and IMU state")
+    spatial_diagnostics = glasses_ops.add_parser("spatial-diagnostics", help="start stereo diagnostics without saving images")
+    spatial_diagnostics.add_argument("--off", action="store_true")
+    spatial_recenter = glasses_ops.add_parser("spatial-recenter", help="recenter the current spatial origin")
+    spatial_recenter.add_argument("--screen", action="store_true")
+    glasses_ops.add_parser("spatial-floor", help="set floor using configured eye height")
+    glasses_ops.add_parser("spatial-restart", help="restart the provider for explicit tracking recovery")
     glasses_mode = glasses_ops.add_parser("mode", help="send a display mode byte, e.g. 0x31 (1080p60), 0x34 (1080p120), 0x32 (3D)")
     glasses_mode.add_argument("mode")
     glasses_imu = glasses_ops.add_parser("imu", help="stream the glasses' IMU for a moment and show what it reports")

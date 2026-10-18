@@ -761,7 +761,8 @@ fun SettingsPage(
 }
 
 @Composable
-fun <T> SegmentedTabs(options: List<Pair<T, String>>, selected: T?, modifier: Modifier = Modifier, onPick: (T) -> Unit) {
+fun <T> SegmentedTabs(options: List<Pair<T, String>>, selected: T?, modifier: Modifier = Modifier,
+    tabModifier: (T) -> Modifier = { Modifier }, onPick: (T) -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val index = options.indexOfFirst { it.first == selected }
@@ -798,7 +799,7 @@ fun <T> SegmentedTabs(options: List<Pair<T, String>>, selected: T?, modifier: Mo
                     val pick = { onPick(value) }
                     Box(
                         contentAlignment = Alignment.Center,
-                        modifier = Modifier.width(segment).fillMaxHeight()
+                        modifier = tabModifier(value).width(segment).fillMaxHeight()
                             .clip(pillShape)
                             .glideBorder(hot, pillShape, if (chosen) pal.onSignal else pal.signal)
                             .semantics { role = Role.Tab; this.selected = chosen }

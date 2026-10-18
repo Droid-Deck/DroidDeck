@@ -14,18 +14,27 @@ IMAGE = 'droiddeck-local-cross:24.04-v3'
 MANIFEST = 'vr-build.json'
 SOURCE_TREES = ('tools/vr/src', 'tools/vr/tests', 'tools/vr/third_party',
                 'tools/vr/driver_droiddeck', 'tools/vr/layer')
-SOURCE_FILES = ('tools/vr/build.sh', 'tools/vr/build_windows.py', 'tools/local-cross.Dockerfile',
+SOURCE_FILES = ('tools/vr/build.sh', 'tools/vr/build_windows.py', 'tools/vr/make_hand_models.cpp', 'tools/local-cross.Dockerfile',
                 'app/src/main/cpp/waylandcomp/src/headpose_shm.h',
+                'app/src/main/cpp/waylandcomp/src/spatialpose_shm.h',
                 'app/src/main/cpp/waylandcomp/generated/xdg-shell-protocol.c',
                 'app/src/main/cpp/waylandcomp/generated/xdg-shell-client-protocol.h')
-LIBRARIES = {'droiddeck/bin/linuxarm64/driver_droiddeck.so', 'layer/libVkLayer_droiddeck_vr.so'}
+LIBRARIES = {'droiddeck/bin/linuxarm64/driver_droiddeck.so', 'layer/libVkLayer_droiddeck_vr.so',
+             'layer/libdroiddeck_vr_scheduling.so'}
 CONFIGS = {
     'droiddeck/driver.vrdrivermanifest': 'tools/vr/driver_droiddeck/driver.vrdrivermanifest',
     'droiddeck/resources/settings/default.vrsettings': 'tools/vr/driver_droiddeck/resources/settings/default.vrsettings',
     'layer/VK_LAYER_DROIDDECK_vr.json': 'tools/vr/layer/VK_LAYER_DROIDDECK_vr.json',
     'layer/VK_LAYER_DROIDDECK_vr_implicit.json': 'tools/vr/layer/VK_LAYER_DROIDDECK_vr_implicit.json',
 }
-OUTPUTS = LIBRARIES | CONFIGS.keys()
+EXECUTABLES = {'droiddeck/bin/linuxarm64/xr-display-mode'}
+HAND_MODELS = {
+    f'droiddeck/resources/rendermodels/droiddeck_hand_{side}/{name}'
+    for side in ('left', 'right')
+    for name in (f'droiddeck_hand_{side}.json', 'hand.mtl', 'hand.png', 'hand_open.obj',
+                 'hand_fist.obj', 'thumb_index_open.obj', 'thumb_index_pinch.obj')
+}
+OUTPUTS = LIBRARIES | CONFIGS.keys() | EXECUTABLES | HAND_MODELS
 
 
 def is_source(path):
@@ -75,12 +84,15 @@ def read_outputs(folder, root):
         if path.is_symlink() or not path.resolve().is_relative_to(folder.resolve()):
             raise ValueError('VR output escapes its build directory: ' + name)
         data = path.read_bytes()
-        if name in LIBRARIES:
+        if name in LIBRARIES or name in EXECUTABLES:
             if (len(data) < 64 or data[:6] != b'\x7fELF\x02\x01' or
-                    struct.unpack_from('<HH', data, 16) != (3, 183)):
-                raise ValueError('VR library is not an ARM64 ELF shared library: ' + name)
-        elif json.loads(data) != json.loads((root / CONFIGS[name]).read_bytes()):
+                    struct.unpack_from('<H', data, 16)[0] not in ((3,) if name in LIBRARIES else (2, 3)) or
+                    struct.unpack_from('<H', data, 18)[0] != 183):
+                raise ValueError('VR output is not an ARM64 ELF shared library or executable: ' + name)
+        elif name in CONFIGS and json.loads(data) != json.loads((root / CONFIGS[name]).read_bytes()):
             raise ValueError('VR configuration differs from current source: ' + name)
+        elif not data:
+            raise ValueError('Empty VR output: ' + name)
         files[name] = data
     return files
 

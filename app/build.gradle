@@ -12,7 +12,14 @@ if (localBuildOptionsFile.asFile.exists()) {
 }
 def pythonExecutable = project.findProperty('pythonExecutable')
     ?: localBuildOptions.getProperty('droiddeck.python', 'python3')
-def vitureSdkDir = project.findProperty('vitureSdkDir') ?: localBuildOptions.getProperty('droiddeck.vitureSdk', '')
+def vitureSdkDir = project.hasProperty('vitureSdkDir') ? project.property('vitureSdkDir') : localBuildOptions.getProperty('droiddeck.vitureSdk', '')
+def uvcDir = project.hasProperty('uvcDir') ? project.property('uvcDir') : localBuildOptions.getProperty('droiddeck.uvcDir', '')
+if (uvcDir) {
+    ['arm64-v8a/libusb.so', 'arm64-v8a/libuvc.a', 'include/libusb.h', 'include/libuvc/libuvc.h',
+     'licenses/libusb-COPYING', 'licenses/libuvc-LICENSE.txt'].each { required ->
+        if (!new File(uvcDir, required).isFile()) throw new GradleException("Incomplete UVC build: missing ${required}")
+    }
+}
 if (vitureSdkDir) {
     ['android/arm64-v8a/libglasses.so', 'android/arm64-v8a/libcarina_vio.so',
      'android/arm64-v8a/libcloud_protocol.so', 'include/viture_glasses_provider.h',
@@ -98,8 +105,8 @@ android {
         applicationId "com.droiddeck.launcher"
         minSdkVersion 26
         targetSdkVersion 28
-        versionCode 13
-        versionName "0.4.0"
+        versionCode 14
+        versionName "0.5.0"
         buildConfigField "String", "BUILD_LABEL", "\"${escapedBuildLabel}\""
         buildConfigField "String", "SOURCE_COMMIT", "\"${sourceCommit}\""
         buildConfigField "int", "PR_NUMBER", "${prNumber}"
@@ -120,6 +127,7 @@ android {
             cmake {
                 arguments '-DANDROID_STL=c++_shared'
                 arguments "-DDROIDDECK_VITURE_SDK_DIR=${vitureSdkDir.toString().replace('\\', '/')}"
+                arguments "-DDROIDDECK_UVC_DIR=${uvcDir.toString().replace('\\', '/')}"
             }
         }
     }
@@ -225,6 +233,14 @@ def stageRuntimeAssets = tasks.register('stageRuntimeAssets', Sync) {
 }
 android.sourceSets.main.assets.setSrcDirs([runtimeAssetsDir])
 if (vitureSdkDir) android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('vitureAssets'))
+if (uvcDir) {
+    def stageUvcNotices = tasks.register('stageUvcNotices', Copy) {
+        from(new File(uvcDir, 'licenses'))
+        into(layout.buildDirectory.dir('uvcAssets/licenses/uvc'))
+    }
+    tasks.named('preBuild').configure { dependsOn(stageUvcNotices) }
+    android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('uvcAssets'))
+}
 tasks.named('preBuild').configure { dependsOn(stageRuntimeAssets) }
 
 def verifyRuntimeInputs = tasks.register('verifyRuntimeInputs', Exec) {
@@ -266,7 +282,22 @@ def buildRustStores = tasks.register('buildRustStores', Exec) {
 if (!skipRust) android.sourceSets.main.jniLibs.srcDir(rustJniLibsDir)
 tasks.named('preBuild').configure { dependsOn(buildRustStores) }
 
+def verifyHandModel = tasks.register('verifyHandModel') {
+    def models = ['hand_landmarker.task': 'fbc2a30080c3c557093b5ddfc334698132eb341044ccee322ccf8bcf3607cde1',
+                  'hand_landmarker_lite.task': '173c0f47ecee7e935bd4a1e93aa580756b4180c1307c07d709313e82c28672c8']
+        .collectEntries { name, hash -> [(file("src/main/assets/models/$name")): hash] }
+    inputs.files(models.keySet())
+    doLast {
+        models.each { model, expected ->
+            def actual = java.security.MessageDigest.getInstance('SHA-256').digest(model.bytes).encodeHex().toString()
+            if (actual != expected) throw new GradleException("Hand Landmarker model checksum mismatch: ${model.name}")
+        }
+    }
+}
+tasks.named('preBuild').configure { dependsOn(verifyHandModel) }
+
 dependencies {
+    implementation 'org.opencv:opencv:4.13.0'
     implementation 'org.khronos.openxr:openxr_loader_for_android:1.1.49'
     implementation 'com.github.luben:zstd-jni:1.5.7-4@aar'
     implementation 'org.apache.commons:commons-compress:1.27.1'
@@ -285,7 +316,7 @@ dependencies {
     implementation 'com.termux.termux-app:terminal-view:0.118.0'
     implementation 'androidx.camera:camera-camera2:1.4.2'
     implementation 'androidx.camera:camera-lifecycle:1.4.2'
-    implementation('com.google.mediapipe:tasks-vision:0.10.21') {
+    implementation('com.google.mediapipe:tasks-vision:1.0.0') {
         exclude group: 'com.google.auto.value', module: 'auto-value'
     }
 
