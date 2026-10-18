@@ -1937,6 +1937,14 @@
     <string name="stores_buy_price">Mua · %1$s</string>
     <string name="stores_installed_chip">Đã cài</string>
     <string name="stores_in_library">Trong thư viện</string>
+    <string name="stores_itch_key">Khóa API</string>
+    <string name="stores_itch_get_key">Lấy khóa</string>
+    <string name="stores_itch_key_rejected">Khóa bị từ chối</string>
+    <string name="stores_itch_not_owned">Không có trong thư viện itch.io của bạn</string>
+    <string name="stores_itch_no_upload">Không có bản tải Windows cho game này</string>
+    <string name="stores_itch_no_catalog">itch.io không phản hồi</string>
+    <string name="stores_itch_archive">Không hỗ trợ tệp %1$s</string>
+    <string name="stores_itch_download_failed">itch.io trả về HTTP %1$d</string>
     <string name="stores_free">Miễn phí</string>
     <string name="stores_resume">Tiếp tục</string>
     <string name="stores_refresh">Làm mới</string>

@@ -1979,6 +1979,14 @@
     <string name="stores_buy_price">Cumpără · %1$s</string>
     <string name="stores_installed_chip">Instalat</string>
     <string name="stores_in_library">În bibliotecă</string>
+    <string name="stores_itch_key">Cheie API</string>
+    <string name="stores_itch_get_key">Obține o cheie</string>
+    <string name="stores_itch_key_rejected">Cheie respinsă</string>
+    <string name="stores_itch_not_owned">Nu este în biblioteca ta itch.io</string>
+    <string name="stores_itch_no_upload">Nu există descărcare pentru Windows la acest joc</string>
+    <string name="stores_itch_no_catalog">itch.io nu a răspuns</string>
+    <string name="stores_itch_archive">Arhivele %1$s nu sunt acceptate</string>
+    <string name="stores_itch_download_failed">itch.io a răspuns HTTP %1$d</string>
     <string name="stores_free">Gratuit</string>
     <string name="stores_resume">Reluare</string>
     <string name="stores_refresh">Reîmprospătează</string>

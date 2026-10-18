@@ -1976,6 +1976,14 @@
     <string name="stores_buy_price">Comprar · %1$s</string>
     <string name="stores_installed_chip">Instalado</string>
     <string name="stores_in_library">En la biblioteca</string>
+    <string name="stores_itch_key">Clave de API</string>
+    <string name="stores_itch_get_key">Obtener una clave</string>
+    <string name="stores_itch_key_rejected">Clave rechazada</string>
+    <string name="stores_itch_not_owned">No está en tu biblioteca de itch.io</string>
+    <string name="stores_itch_no_upload">No hay descarga para Windows de este juego</string>
+    <string name="stores_itch_no_catalog">itch.io no respondió</string>
+    <string name="stores_itch_archive">Los archivos %1$s no son compatibles</string>
+    <string name="stores_itch_download_failed">itch.io respondió HTTP %1$d</string>
     <string name="stores_free">Gratis</string>
     <string name="stores_resume">Reanudar</string>
     <string name="stores_refresh">Actualizar</string>

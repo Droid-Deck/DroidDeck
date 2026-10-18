@@ -1958,6 +1958,14 @@
     <string name="stores_buy_price">Køb · %1$s</string>
     <string name="stores_installed_chip">Installeret</string>
     <string name="stores_in_library">I biblioteket</string>
+    <string name="stores_itch_key">API-nøgle</string>
+    <string name="stores_itch_get_key">Hent en nøgle</string>
+    <string name="stores_itch_key_rejected">Nøgle afvist</string>
+    <string name="stores_itch_not_owned">Ikke i dit itch.io-bibliotek</string>
+    <string name="stores_itch_no_upload">Ingen Windows-download til dette spil</string>
+    <string name="stores_itch_no_catalog">itch.io svarede ikke</string>
+    <string name="stores_itch_archive">%1$s-arkiver understøttes ikke</string>
+    <string name="stores_itch_download_failed">itch.io svarede HTTP %1$d</string>
     <string name="stores_free">Gratis</string>
     <string name="stores_resume">Genoptag</string>
     <string name="stores_refresh">Opdater</string>

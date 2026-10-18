@@ -1958,6 +1958,14 @@
     <string name="stores_buy_price">Kopen · %1$s</string>
     <string name="stores_installed_chip">Geïnstalleerd</string>
     <string name="stores_in_library">In bibliotheek</string>
+    <string name="stores_itch_key">API-sleutel</string>
+    <string name="stores_itch_get_key">Sleutel ophalen</string>
+    <string name="stores_itch_key_rejected">Sleutel geweigerd</string>
+    <string name="stores_itch_not_owned">Niet in je itch.io-bibliotheek</string>
+    <string name="stores_itch_no_upload">Geen Windows-download voor dit spel</string>
+    <string name="stores_itch_no_catalog">itch.io gaf geen antwoord</string>
+    <string name="stores_itch_archive">%1$s-archieven worden niet ondersteund</string>
+    <string name="stores_itch_download_failed">itch.io antwoordde HTTP %1$d</string>
     <string name="stores_free">Gratis</string>
     <string name="stores_resume">Hervatten</string>
     <string name="stores_refresh">Vernieuwen</string>

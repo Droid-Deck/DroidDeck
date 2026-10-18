@@ -724,11 +724,16 @@ private fun SignInButton(store: Store, large: Boolean = false) {
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
+    var askKey by remember { mutableStateOf(false) }
+    if (askKey) ItchKeyDialog { askKey = false }
     Box(Modifier.onGloballyPositioned { placed[0] = it }) {
         PrimaryButton(stringResource(R.string.stores_signin), main = true, large = large, icon = if (large) Icons.AutoMirrored.Filled.Login else null) {
-            val at = placed[0]?.takeIf { it.isAttached }?.boundsInRoot()
-            if (at == null || Motion.scale == 0f || StoresMotion.signIn != null) StoresState.signIn(ctx, store)
-            else StoresMotion.signIn = SignInFlood(store, at, colors.primary, sourceColours(store.id).dot)
+            if (store == Store.ITCH) askKey = true
+            else {
+                val at = placed[0]?.takeIf { it.isAttached }?.boundsInRoot()
+                if (at == null || Motion.scale == 0f || StoresMotion.signIn != null) StoresState.signIn(ctx, store)
+                else StoresMotion.signIn = SignInFlood(store, at, colors.primary, sourceColours(store.id).dot)
+            }
         }
     }
 }
@@ -752,13 +757,16 @@ private fun Storefront(
     val colors = MaterialTheme.colorScheme
     val library = StoresState.library[store] ?: emptyList()
     val shelves = StoresState.shelves[store]
+    val found = StoresState.found[store] ?: emptyList()
     val installedItems = remember(StoresState.installed, library) { com.droiddeck.launcher.stores.installedCards(store, StoresState.installed, library) }
     val installedKeys = remember(installedItems) { installedItems.map { it.id }.toSet() + StoresState.installed.filter { it.sidecar.store == store }.map { it.sidecar.id } }
     val q = query.trim().lowercase()
-    fun matches(i: CatalogItem) = q.isEmpty() || i.title.lowercase().contains(q)
+    val foundKeys = remember(found) { found.map { it.key }.toSet() }
+    fun matches(i: CatalogItem) = q.isEmpty() || i.title.lowercase().contains(q) || i.key in foundKeys
     fun shown(i: CatalogItem) = s.storesShowMature || !i.mature || i.owned
     fun shelf(l: List<CatalogItem>?) = l?.filter(::shown)
-    val everything = remember(library, shelves) { (library + (shelves?.all ?: emptyList())).distinctBy { it.id } }
+    val everything = remember(library, shelves, found) { (found + library + (shelves?.all ?: emptyList())).distinctBy { it.id } }
+    LaunchedEffect(store, q) { StoresState.search(ctx, store, q) }
     val installedOnly = tab == "installed"
     val loaded = StoresState.library.containsKey(store)
     val showGrid = tab != "store" || q.isNotEmpty()
@@ -998,6 +1006,7 @@ internal fun storePalette(base: Palette, store: Store?): Palette {
         Store.GOG -> Color(0xFFC25BC8) to Color(0xFF9A3FA1)
         Store.EPIC -> Color(0xFFE6E6E6) to Color(0xFFBDBDBD)
         Store.AMAZON -> Color(0xFFFF9900) to Color(0xFFE07800)
+        Store.ITCH -> Color(0xFFFF5C5C) to Color(0xFFD93B3B)
         null -> return base
     }
     val on = if (accent.luminance() > 0.18f) Color(0xFF0B0B0D) else Color.White

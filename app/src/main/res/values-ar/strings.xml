@@ -2042,6 +2042,14 @@
     <string name="stores_buy_price">شراء · %1$s</string>
     <string name="stores_installed_chip">مثبَّتة</string>
     <string name="stores_in_library">في المكتبة</string>
+    <string name="stores_itch_key">مفتاح API</string>
+    <string name="stores_itch_get_key">الحصول على مفتاح</string>
+    <string name="stores_itch_key_rejected">تم رفض المفتاح</string>
+    <string name="stores_itch_not_owned">ليس في مكتبة itch.io الخاصة بك</string>
+    <string name="stores_itch_no_upload">لا يوجد تنزيل لنظام Windows لهذه اللعبة</string>
+    <string name="stores_itch_no_catalog">لم يستجب itch.io</string>
+    <string name="stores_itch_archive">أرشيفات %1$s غير مدعومة</string>
+    <string name="stores_itch_download_failed">استجاب itch.io بـ HTTP %1$d</string>
     <string name="stores_free">مجاني</string>
     <string name="stores_resume">استئناف</string>
     <string name="stores_refresh">تحديث</string>

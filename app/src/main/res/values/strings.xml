@@ -1997,6 +1997,14 @@
     <string name="stores_buy_price">Buy · %1$s</string>
     <string name="stores_installed_chip">Installed</string>
     <string name="stores_in_library">In library</string>
+    <string name="stores_itch_key">API key</string>
+    <string name="stores_itch_get_key">Get a key</string>
+    <string name="stores_itch_key_rejected">Key rejected</string>
+    <string name="stores_itch_not_owned">Not in your itch.io library</string>
+    <string name="stores_itch_no_upload">No Windows download for this game</string>
+    <string name="stores_itch_no_catalog">itch.io did not answer</string>
+    <string name="stores_itch_archive">%1$s archives are not supported</string>
+    <string name="stores_itch_download_failed">itch.io answered HTTP %1$d</string>
     <string name="stores_free">Free</string>
     <string name="stores_resume">Resume</string>
     <string name="stores_refresh">Refresh</string>

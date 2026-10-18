@@ -2013,6 +2013,14 @@
     <string name="stores_buy_price">购买 · %1$s</string>
     <string name="stores_installed_chip">已安装</string>
     <string name="stores_in_library">已在库中</string>
+    <string name="stores_itch_key">API 密钥</string>
+    <string name="stores_itch_get_key">获取密钥</string>
+    <string name="stores_itch_key_rejected">密钥被拒绝</string>
+    <string name="stores_itch_not_owned">不在你的 itch.io 库中</string>
+    <string name="stores_itch_no_upload">这个游戏没有 Windows 下载</string>
+    <string name="stores_itch_no_catalog">itch.io 没有响应</string>
+    <string name="stores_itch_archive">不支持 %1$s 压缩包</string>
+    <string name="stores_itch_download_failed">itch.io 返回 HTTP %1$d</string>
     <string name="stores_free">免费</string>
     <string name="stores_resume">继续</string>
     <string name="stores_refresh">刷新</string>

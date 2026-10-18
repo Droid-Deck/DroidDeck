@@ -1958,6 +1958,14 @@
     <string name="stores_buy_price">खरीदें · %1$s</string>
     <string name="stores_installed_chip">इंस्टॉल है</string>
     <string name="stores_in_library">लाइब्रेरी में</string>
+    <string name="stores_itch_key">API कुंजी</string>
+    <string name="stores_itch_get_key">कुंजी पाएं</string>
+    <string name="stores_itch_key_rejected">कुंजी अस्वीकृत</string>
+    <string name="stores_itch_not_owned">आपकी itch.io लाइब्रेरी में नहीं</string>
+    <string name="stores_itch_no_upload">इस गेम के लिए Windows डाउनलोड नहीं है</string>
+    <string name="stores_itch_no_catalog">itch.io ने जवाब नहीं दिया</string>
+    <string name="stores_itch_archive">%1$s आर्काइव समर्थित नहीं हैं</string>
+    <string name="stores_itch_download_failed">itch.io ने HTTP %1$d लौटाया</string>
     <string name="stores_free">फ़्री</string>
     <string name="stores_resume">फिर से शुरू करें</string>
     <string name="stores_refresh">रीफ़्रेश करें</string>

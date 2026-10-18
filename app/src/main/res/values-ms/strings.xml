@@ -1937,6 +1937,14 @@
     <string name="stores_buy_price">Beli · %1$s</string>
     <string name="stores_installed_chip">Dipasang</string>
     <string name="stores_in_library">Dalam pustaka</string>
+    <string name="stores_itch_key">Kunci API</string>
+    <string name="stores_itch_get_key">Dapatkan kunci</string>
+    <string name="stores_itch_key_rejected">Kunci ditolak</string>
+    <string name="stores_itch_not_owned">Tiada dalam pustaka itch.io anda</string>
+    <string name="stores_itch_no_upload">Tiada muat turun Windows untuk permainan ini</string>
+    <string name="stores_itch_no_catalog">itch.io tidak menjawab</string>
+    <string name="stores_itch_archive">Arkib %1$s tidak disokong</string>
+    <string name="stores_itch_download_failed">itch.io menjawab HTTP %1$d</string>
     <string name="stores_free">Percuma</string>
     <string name="stores_resume">Sambung</string>
     <string name="stores_refresh">Segar semula</string>

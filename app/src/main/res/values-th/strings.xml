@@ -1937,6 +1937,14 @@
     <string name="stores_buy_price">ซื้อ · %1$s</string>
     <string name="stores_installed_chip">ติดตั้งแล้ว</string>
     <string name="stores_in_library">อยู่ในไลบรารี</string>
+    <string name="stores_itch_key">คีย์ API</string>
+    <string name="stores_itch_get_key">รับคีย์</string>
+    <string name="stores_itch_key_rejected">คีย์ถูกปฏิเสธ</string>
+    <string name="stores_itch_not_owned">ไม่มีในคลัง itch.io ของคุณ</string>
+    <string name="stores_itch_no_upload">เกมนี้ไม่มีการดาวน์โหลดสำหรับ Windows</string>
+    <string name="stores_itch_no_catalog">itch.io ไม่ตอบสนอง</string>
+    <string name="stores_itch_archive">ไม่รองรับไฟล์ %1$s</string>
+    <string name="stores_itch_download_failed">itch.io ตอบกลับ HTTP %1$d</string>
     <string name="stores_free">ฟรี</string>
     <string name="stores_resume">ดำเนินการต่อ</string>
     <string name="stores_refresh">รีเฟรช</string>

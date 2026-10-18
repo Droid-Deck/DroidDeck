@@ -1958,6 +1958,14 @@
     <string name="stores_buy_price">Αγορά · %1$s</string>
     <string name="stores_installed_chip">Εγκατεστημένο</string>
     <string name="stores_in_library">Στη βιβλιοθήκη</string>
+    <string name="stores_itch_key">Κλειδί API</string>
+    <string name="stores_itch_get_key">Λήψη κλειδιού</string>
+    <string name="stores_itch_key_rejected">Το κλειδί απορρίφθηκε</string>
+    <string name="stores_itch_not_owned">Δεν είναι στη βιβλιοθήκη σας στο itch.io</string>
+    <string name="stores_itch_no_upload">Δεν υπάρχει λήψη για Windows για αυτό το παιχνίδι</string>
+    <string name="stores_itch_no_catalog">Το itch.io δεν απάντησε</string>
+    <string name="stores_itch_archive">Τα αρχεία %1$s δεν υποστηρίζονται</string>
+    <string name="stores_itch_download_failed">Το itch.io απάντησε HTTP %1$d</string>
     <string name="stores_free">Δωρεάν</string>
     <string name="stores_resume">Συνέχιση</string>
     <string name="stores_refresh">Ανανέωση</string>

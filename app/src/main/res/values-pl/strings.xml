@@ -2000,6 +2000,14 @@
     <string name="stores_buy_price">Kup · %1$s</string>
     <string name="stores_installed_chip">Zainstalowano</string>
     <string name="stores_in_library">W bibliotece</string>
+    <string name="stores_itch_key">Klucz API</string>
+    <string name="stores_itch_get_key">Pobierz klucz</string>
+    <string name="stores_itch_key_rejected">Klucz odrzucony</string>
+    <string name="stores_itch_not_owned">Nie ma go w Twojej bibliotece itch.io</string>
+    <string name="stores_itch_no_upload">Brak wersji na Windows dla tej gry</string>
+    <string name="stores_itch_no_catalog">itch.io nie odpowiedziało</string>
+    <string name="stores_itch_archive">Archiwa %1$s nie są obsługiwane</string>
+    <string name="stores_itch_download_failed">itch.io odpowiedziało HTTP %1$d</string>
     <string name="stores_free">Bezpłatna</string>
     <string name="stores_resume">Wznów</string>
     <string name="stores_refresh">Odśwież</string>

@@ -2657,4 +2657,12 @@
     <string name="boot_movie_converting_started">Convirtiendo %1$s para Steam. Mantén DroidDeck abierto.</string>
     <string name="boot_movie_unsupported">Este dispositivo no puede decodificar ese video.</string>
     <string name="boot_movie_import_failed">No se pudo importar ese video</string>
+    <string name="stores_itch_key">Clave de API</string>
+    <string name="stores_itch_get_key">Obtener una clave</string>
+    <string name="stores_itch_key_rejected">Clave rechazada</string>
+    <string name="stores_itch_not_owned">No está en tu biblioteca de itch.io</string>
+    <string name="stores_itch_no_upload">Este juego no tiene descarga para Windows</string>
+    <string name="stores_itch_no_catalog">itch.io no respondió</string>
+    <string name="stores_itch_archive">Los archivos %1$s no son compatibles</string>
+    <string name="stores_itch_download_failed">itch.io respondió HTTP %1$d</string>
 </resources>
