@@ -3519,6 +3519,12 @@ EXPORT int ioctl(int fd, ioctl_request_t op, ...) {
   } else if (type == 0x45 && number == 0x90) {
     Logger::log("Hooking ioctl EVIOCGRAB for event %s\n", event);
     return 0;
+  } else if (type == 0x6A && !strncmp(event, "event", 5)) {
+    // Older SDL2 builds treat any JSIOCGNAME answer as a joydev node and skip EVIOCGID, then drop the pad as 0000:0000.
+    Logger::log("Rejecting joydev ioctl %d for event %s\n", number, event);
+    guard.unlock();
+    errno = EINVAL;
+    return -1;
   } else if (type == 0x6A && number == 0x1) {
     Logger::log("Hooking ioctl JSIOCGVERSION for event %s\n", event);
     int version = JS_VERSION;

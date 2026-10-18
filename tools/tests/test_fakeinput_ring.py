@@ -42,6 +42,29 @@ int main(void)
     return got > 0 ? 0 : 1;
 }
 """
+PROBE = r"""
+#include <errno.h>
+#include <fcntl.h>
+#include <linux/input.h>
+#include <linux/joystick.h>
+#include <stdio.h>
+#include <sys/ioctl.h>
+
+int main(void)
+{
+    char name[128] = "";
+    struct input_id id = {0};
+    int fd = open("/dev/input/event16", O_RDONLY | O_NONBLOCK);
+    if (fd < 0)
+        return 1;
+    int joydev = ioctl(fd, JSIOCGNAME(sizeof(name)), name);
+    printf("JSIOCGNAME %d %s\n", joydev, joydev < 0 && errno == EINVAL ? "EINVAL" : name);
+    if (ioctl(fd, EVIOCGID, &id) < 0 || ioctl(fd, EVIOCGNAME(sizeof(name)), name) < 0)
+        return 1;
+    printf("%04x:%04x %s\n", id.vendor, id.product, name);
+    return 0;
+}
+"""
 
 
 def can_build(bits):
@@ -65,21 +88,26 @@ class FakeinputRingTest(unittest.TestCase):
         (hooks / "event16").touch()
         ring = bytearray(HEADER + CAPACITY * EVENT + DESCRIPTION)
         struct.pack_into("<IIIIQQQ", ring, 0, RING_MAGIC, 2, EVENT, CAPACITY, 5, 0, 0)
-        struct.pack_into("<Ii", ring, HEADER + CAPACITY * EVENT, DESCRIPTION_MAGIC, os.getpid())
+        struct.pack_into("<IiHHHHI80s", ring, HEADER + CAPACITY * EVENT, DESCRIPTION_MAGIC, os.getpid(),
+                         3, 0x28de, 0x11ff, 1, 16, b"Microsoft X-Box 360 pad 0")
         path = hooks / ".uinput-event16"
         path.write_bytes(bytes(ring))
         return hooks, path
 
-    def read_through(self, bits):
+    def build(self, bits, program, name):
         if not can_build(bits):
             self.skipTest("no %s C++ toolchain" % bits)
         library = self.tmp / ("libfakeinput%s.so" % bits)
         subprocess.run(["g++", bits, "-shared", "-fPIC", "-O2", "-Wno-attributes", "-pthread", "-std=c++17",
                         "-static-libstdc++", "-static-libgcc", "-Wl,--exclude-libs,ALL", "-o", str(library),
                         str(SOURCE), "-ldl"], check=True, capture_output=True)
-        reader = self.tmp / ("reader%s" % bits)
-        (self.tmp / "reader.c").write_text(READER)
-        subprocess.run(["gcc", bits, "-o", str(reader), str(self.tmp / "reader.c")], check=True)
+        binary = self.tmp / (name + bits)
+        (self.tmp / (name + ".c")).write_text(program)
+        subprocess.run(["gcc", bits, "-o", str(binary), str(self.tmp / (name + ".c"))], check=True)
+        return library, binary
+
+    def read_through(self, bits):
+        library, reader = self.build(bits, READER, "reader")
         hooks, path = self.ring()
         env = dict(os.environ, LD_PRELOAD=str(library), FAKE_EVDEV_DIR=str(hooks))
         process = subprocess.Popen([str(reader)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, env=env, text=True)
@@ -102,6 +130,14 @@ class FakeinputRingTest(unittest.TestCase):
     def test_a_64_bit_guest_reads_the_same_ring(self):
         self.assertEqual(self.read_through("-m64"),
                          "1700000000.250000 1 304 1\n1700000001.250000 3 1 -32768\n1700000002.250000 0 0 0\n")
+
+    def test_an_event_node_rejects_joydev_requests_so_sdl_reads_its_id(self):
+        library, probe = self.build("-m64", PROBE, "probe")
+        hooks, _ = self.ring()
+        run = subprocess.run([str(probe)], capture_output=True, text=True, timeout=10,
+                             env=dict(os.environ, LD_PRELOAD=str(library), FAKE_EVDEV_DIR=str(hooks)))
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(run.stdout, "JSIOCGNAME -1 EINVAL\n28de:11ff Microsoft X-Box 360 pad 0\n")
 
 
 if __name__ == "__main__":
