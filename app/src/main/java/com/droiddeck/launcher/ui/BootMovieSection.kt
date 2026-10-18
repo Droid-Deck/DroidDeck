@@ -57,13 +57,21 @@ import com.droiddeck.launcher.session.BootMovieLibrary
 import com.droiddeck.launcher.session.BootMovieReport
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SteamDeckRepo
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
 private enum class MovieTab { INSTALLED, IMPORT, REPO, SOUND }
+
+/** Downloads run here rather than in a tab, so switching tabs or closing the settings does not cancel one halfway. */
+private val installScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+/** The downloads under way, by post id and percent; kept here so they are still known when the tab or the settings come back. */
+private val installProgress = mutableStateMapOf<String, Int>()
 
 /** What the movie list looks like right now: every movie and the one Steam will play. */
 private class MovieSnapshot(val entries: List<BootMovieLibrary.Entry>, val selected: String)
@@ -299,6 +307,7 @@ private fun SoundTab(s: ModeSettings, a: ModeSettingsActions, host: MenuHost) {
 
 @Composable
 private fun RepoTab(a: ModeSettingsActions) {
+    val progress = installProgress
     val app = LocalContext.current.applicationContext
     val scope = rememberCoroutineScope()
     var sort by rememberSaveable { mutableStateOf(SteamDeckRepo.Sort.TRENDING) }
@@ -314,7 +323,6 @@ private fun RepoTab(a: ModeSettingsActions) {
             chosen?.takeIf { it.startsWith(BootMovieLibrary.PREFIX) }?.let { BootMovieLibrary.repoId(app, it.removePrefix(BootMovieLibrary.PREFIX)) }
         }
     }
-    val progress = remember { mutableStateMapOf<String, Int>() }
     LaunchedEffect(typed) { delay(400); if (query != typed) { query = typed; page = 1 } }
     LaunchedEffect(progress.size) { installed = withContext(Dispatchers.IO) { BootMovieLibrary.installedRepoIds(app) } }
     val result by androidx.compose.runtime.produceState<SteamDeckRepo.Page?>(null, sort, device, query, page, retry) {
@@ -357,14 +365,19 @@ private fun RepoTab(a: ModeSettingsActions) {
                 r.posts.chunked(2).forEach { row ->
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                         row.forEach { post ->
-                            RepoCard(post, installed = post.id in installed, inUse = post.id == inUse, percent = progress[post.id], modifier = Modifier.weight(1f),
+                            RepoCard(post, installed = post.id in installed, inUse = post.id == inUse, percent = progress[post.id], busy = progress.isNotEmpty(), modifier = Modifier.weight(1f),
                                 onInstall = {
-                                    if (post.id !in progress) scope.launch {
+                                    if (progress.isEmpty()) {
                                         progress[post.id] = 0
-                                        val outcome = withContext(Dispatchers.IO) { install(app, post) { progress[post.id] = it } }
-                                        progress.remove(post.id)
-                                        Toast.makeText(app, outcome ?: app.getString(R.string.boot_movie_repo_installed, post.title), Toast.LENGTH_LONG).show()
-                                        a.onBootMovieChanged()
+                                        installScope.launch {
+                                            val outcome = try {
+                                                withContext(Dispatchers.IO) { install(app, post) { progress[post.id] = it } }
+                                            } finally {
+                                                progress.remove(post.id)
+                                            }
+                                            Toast.makeText(app, outcome ?: app.getString(R.string.boot_movie_repo_installed, post.title), Toast.LENGTH_LONG).show()
+                                            a.onBootMovieChanged()
+                                        }
                                     }
                                 },
                                 onUse = {
@@ -408,7 +421,7 @@ private fun install(app: android.content.Context, post: SteamDeckRepo.Post, onPr
 }
 
 @Composable
-private fun RepoCard(post: SteamDeckRepo.Post, installed: Boolean, inUse: Boolean, percent: Int?, modifier: Modifier, onInstall: () -> Unit, onUse: () -> Unit) {
+private fun RepoCard(post: SteamDeckRepo.Post, installed: Boolean, inUse: Boolean, percent: Int?, busy: Boolean, modifier: Modifier, onInstall: () -> Unit, onUse: () -> Unit) {
     val pal = LocalPalette.current
     val colors = MaterialTheme.colorScheme
     val shape = RoundedCornerShape(10.dp)
@@ -431,7 +444,7 @@ private fun RepoCard(post: SteamDeckRepo.Post, installed: Boolean, inUse: Boolea
         else if (installed) SecondaryButton(stringResource(R.string.boot_movie_repo_use), compact = true, modifier = Modifier.fillMaxWidth(), onClick = onUse)
         else SecondaryButton(
             if (percent != null) stringResource(R.string.boot_movie_converting, percent) else stringResource(R.string.boot_movie_repo_install),
-            enabled = percent == null, compact = true, modifier = Modifier.fillMaxWidth(), onClick = onInstall,
+            enabled = !busy, compact = true, modifier = Modifier.fillMaxWidth(), onClick = onInstall,
         )
     }
 }
