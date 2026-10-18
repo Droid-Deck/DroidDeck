@@ -113,12 +113,34 @@ class StoreGameSidecarTest {
         assertFalse(text.contains("DD_AUTH"))
     }
 
+    @Test fun epicLauncherPrefersTheClientsArguments() {
+        val text = StoreLaunch.launcherText(sample.copy(exe = "Binaries/Win64/Celeste.exe"))
+        val lines = text.split("\r\n")
+        val jump = lines.indexOf("if exist \"%~dp0.droiddeck-epic-args\" goto client")
+        assertTrue(jump in 0 until lines.indexOf("set \"DD_X=\""))
+        val client = lines.indexOf(":client")
+        assertTrue(client > lines.indexOfFirst { it.contains("-AUTH_TYPE=exchangecode") })
+        assertEquals("goto :eof", lines[client - 1])
+        assertEquals(
+            listOf(
+                "set \"DD_A=\"",
+                "set /p DD_A=<\"%~dp0.droiddeck-epic-args\"",
+                "del \"%~dp0.droiddeck-epic-args\"",
+                "if exist \"%~dp0.droiddeck-epic-code\" del \"%~dp0.droiddeck-epic-code\"",
+                "set \"DD_A=\" & \"%~dp0Binaries\\Win64\\Celeste.exe\" %DD_A%",
+            ),
+            lines.subList(client + 1, client + 6),
+        )
+        assertTrue(text.endsWith("%DD_A%\r\n"))
+    }
+
     @Test fun gogLauncherHasNoEpicBlockAndIsOnlyWrittenWhenNeeded() {
         val plain = StoreGameSidecar(Store.GOG, "1", "T", "game.exe")
         val text = StoreLaunch.launcherText(plain.copy(args = listOf("-windowed")))
         assertFalse(text.contains("exchangecode"))
         assertTrue(text.contains("\"%~dp0game.exe\" -windowed\r\n"))
         assertFalse(text.contains("DD_X"))
+        assertFalse(text.contains("droiddeck-epic-args"))
         assertEquals("\"two words\"", StoreLaunch.quoteArg("two words"))
         assertEquals("-x=\"a b\"", StoreLaunch.quoteArg("-x=\"a b\""))
     }

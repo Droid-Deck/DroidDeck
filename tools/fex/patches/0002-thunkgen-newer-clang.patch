@@ -1,0 +1,9 @@
+--- a/ThunkLibs/Generator/gen.cpp
++++ b/ThunkLibs/Generator/gen.cpp
+@@ -840,6 +840,5 @@
+ 
+   const bool Success = Compiler.ExecuteAction(Action);
+ 
+-  Files->clearStatCache();
+   return Success;
+ }

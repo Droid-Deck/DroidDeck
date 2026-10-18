@@ -9,6 +9,7 @@
 enum {
     DROIDDECK_HEADPOSE_LIVE = 1u << 0,
     DROIDDECK_HEADPOSE_ENABLED = 1u << 1,
+    DROIDDECK_HEADPOSE_MONO = 1u << 2,
 };
 
 struct droiddeck_headpose {
@@ -22,7 +23,10 @@ struct droiddeck_headpose {
     float tan_half_fov;
     float eye_aspect;
     uint32_t eye_w, eye_h;
-    uint32_t reserved[12];
+    float display_hz;
+    // Uses a formerly reserved word; older publishers leave this zero.
+    uint32_t render_height;
+    uint32_t reserved[10];
 };
 
 #ifdef __cplusplus

@@ -2,3 +2,11 @@ tools/linuxfs/** text=auto eol=lf
 tools/mangoapp/** text=auto eol=lf
 tools/comet/LICENSE whitespace=-blank-at-eof
 tools/comet/droiddeck.patch whitespace=-blank-at-eol,-blank-at-eof
+
+# These helpers are packaged verbatim and executed inside the Linux runtime.
+tools/linuxfs/overlay/** text eol=lf
+tools/linuxfs/desktop/** text eol=lf
+tools/mangoapp/mangoapp text eol=lf
+app/src/main/assets/desktop-removal/*.json text eol=lf
+app/src/main/assets/desktop-removal/*.txt text eol=lf
+*.pdf binary

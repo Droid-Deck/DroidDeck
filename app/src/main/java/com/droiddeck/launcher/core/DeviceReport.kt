@@ -2,10 +2,15 @@ package com.droiddeck.launcher.core
 
 import android.app.ActivityManager
 import android.content.Context
+import android.hardware.display.DisplayManager
 import android.os.Build
 import android.os.Environment
+import android.os.PerformanceHintManager
+import android.os.PowerManager
 import android.os.StatFs
+import android.provider.Settings
 import android.util.Log
+import android.view.Display
 import com.droiddeck.launcher.gpu.LinuxVulkanDriver
 import com.droiddeck.launcher.gpu.LinuxVulkanDriverManager
 import com.droiddeck.launcher.gpu.TurnipDriver
@@ -53,6 +58,29 @@ object DeviceReport {
         16 -> "PACKAGE_UPDATED"
         else -> "REASON_$reason"
     }
+
+    internal fun thermalStatusName(status: Int): String = when (status) {
+        0 -> "NONE"
+        1 -> "LIGHT"
+        2 -> "MODERATE"
+        3 -> "SEVERE"
+        4 -> "CRITICAL"
+        5 -> "EMERGENCY"
+        6 -> "SHUTDOWN"
+        else -> "STATUS_$status"
+    }
+
+    internal fun gameModeName(mode: Int): String = when (mode) {
+        0 -> "UNSUPPORTED"
+        1 -> "STANDARD"
+        2 -> "PERFORMANCE"
+        3 -> "BATTERY"
+        4 -> "CUSTOM"
+        else -> "MODE_$mode"
+    }
+
+    internal fun refreshModesSummary(rates: List<Float>): String =
+        rates.map { Math.round(it) }.distinct().sortedDescending().joinToString(", ") { "$it Hz" }
 
     internal fun exitSummary(processName: String?, reason: Int, status: Int, description: String?): String =
         buildString {
@@ -125,6 +153,19 @@ object DeviceReport {
             k("RAM available", FileUtils.sizeToString(mi.availMem))
         }
         runCatching {
+            val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) k("Thermal status", thermalStatusName(pm.currentThermalStatus))
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                k("Thermal headroom (10 s)", pm.getThermalHeadroom(10).let { if (it.isNaN()) "not reported" else String.format(Locale.US, "%.2f", it) })
+            }
+            k("Power saver", pm.isPowerSaveMode)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val rate = runCatching { context.getSystemService(PerformanceHintManager::class.java)?.preferredUpdateRateNanos }.getOrNull()
+            k("ADPF hint sessions", if (rate == null || rate <= 0) "not supported" else "supported (preferred update ${rate / 1000} us)")
+            k("Game Mode", runCatching { context.getSystemService(android.app.GameManager::class.java)?.gameMode }.getOrNull()?.let { gameModeName(it) })
+        }
+        runCatching {
             val fs = StatFs(context.filesDir.path)
             k("App storage free", FileUtils.sizeToString(fs.availableBlocksLong * fs.blockSizeLong))
         }
@@ -141,6 +182,13 @@ object DeviceReport {
         h("Display")
         k("Session output", SessionState.outputSize?.let { "${it.first}x${it.second}" })
         k("Session refresh", String.format(Locale.US, "%.2f Hz", SessionState.refreshHz))
+        runCatching {
+            val display = context.getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY)
+            k("Panel refresh now", String.format(Locale.US, "%.2f Hz", display.refreshRate))
+            k("Panel refresh modes", refreshModesSummary(display.supportedModes.map { it.refreshRate }))
+        }
+        k("peak_refresh_rate", runCatching { Settings.System.getString(context.contentResolver, "peak_refresh_rate") }.getOrNull() ?: "not set")
+        k("refresh_rate_mode", runCatching { Settings.Secure.getString(context.contentResolver, "refresh_rate_mode") }.getOrNull() ?: "not set")
         val panelSize = com.droiddeck.launcher.session.SessionDisplay.panelSize(context)
         for ((label, mode) in listOf("Resolution (Steam)" to SessionService.MODE_STEAM, "Resolution (Desktop)" to SessionService.MODE_DESKTOP)) {
             val choice = SessionPrefs.resolutionChoice(context, mode, panelSize)
@@ -154,7 +202,8 @@ object DeviceReport {
         k("GPU", "${gpu.name} · ${gpu.family.label} · ${gpu.supportText}" + if (gpu.oneUi8Gen2) " · One UI 8 Gen 2" else "")
         k("Driver mode", SessionPrefs.gpuDriverMode(context) +
             (com.droiddeck.launcher.gpu.DriverPairs.recommendedKey(gpu, com.droiddeck.launcher.gpu.DriverPairs.from(
-                com.droiddeck.launcher.gpu.TurnipReleases.cached(context)))?.let { " (recommended pair: $it)" } ?: ""))
+                com.droiddeck.launcher.gpu.TurnipReleases.cached(context)), com.droiddeck.launcher.gpu.TurnipReleases.autoPicks(context),
+                com.droiddeck.launcher.gpu.AutoDriverTrial.bad(context))?.let { " (recommended pair: $it)" } ?: ""))
         val turnip = TurnipDriver(context)
         val androidChoice = SessionPrefs.androidDriver(context)
         k("Display driver (chosen)", if (androidChoice.isEmpty()) "Auto -> ${turnip.autoId()}" else androidChoice)
