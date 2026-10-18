@@ -2386,6 +2386,17 @@
     <string name="stores_sync_gog_unreachable">Couldn\'t reach GOG</string>
     <string name="stores_sync_gog_unreadable">Could not read your GOG library</string>
     <string name="stores_registering">Registering with Steam…</string>
+    <string name="mode_client_arch">Steam client</string>
+    <string name="mode_client_arch_fex">FEX %1$s</string>
+    <string name="mode_client_arch_arm64">ARM64</string>
+    <string name="mode_client_arch_x64">x86-64</string>
+    <string name="setup_vac_diag">VAC diagnostics</string>
+    <string name="setup_vac_diag_hint">Source games log their console (-condebug); vac.txt in the session logs says secure or insecure</string>
+    <string name="load_starting_steam_x64">Starting Steam x86-64</string>
+    <string name="storage_game_x64">%1$s · x86-64</string>
+    <string name="storage_tool_x64_client">Used by the x86-64 Steam client</string>
+    <string name="storage_uninstall_in_x64">This copy is in the x86-64 Steam client. Choose x86-64 under Steam client, then uninstall it here.</string>
+    <string name="storage_uninstall_in_arm64">This copy is in the ARM64 Steam client. Choose ARM64 under Steam client, then uninstall it here.</string>
     <string name="drawer_page_glasses">Glasses</string>
     <string name="glasses_open">VITURE glasses</string>
     <string name="glasses_control">Glasses control</string>

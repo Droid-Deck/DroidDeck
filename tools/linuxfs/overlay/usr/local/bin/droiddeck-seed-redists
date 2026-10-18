@@ -6,9 +6,11 @@ LIBRARIES=${DROIDDECK_LIBRARIES-/mnt/droiddeck /mnt/droiddeck-sd}
 redist="$steam_root/steamapps/common/Steamworks Shared/_CommonRedist"
 
 read_scripts() { xargs -0 -r awk -v want="${1:-redists}" '
-  FNR == 1 { depth = 0; pending = "" }
-  /^[[:space:]]*\{/ { depth++; name[depth] = pending; key[depth] = ""; vulkan[depth] = 0; pending = ""; next }
+  FNR == 1 { depth = 0; pending = ""; appid = "" }
+  /^[[:space:]]*\{/ { depth++; name[depth] = pending; key[depth] = ""; vulkan[depth] = 0; proc[depth] = 0; pending = ""; next }
   /^[[:space:]]*\}/ {
+    if (depth > 0 && key[depth] == "" && proc[depth] && appid != "" && name[depth] != "" && vulkan[depth] == (want == "vulkan"))
+      printf "HKEY_LOCAL_MACHINE\\\\Software\\\\Valve\\\\Steam\\\\Apps\\\\%s\t%s\n", appid, name[depth]
     if (depth > 0 && key[depth] != "" && name[depth] != "" && vulkan[depth] == (want == "vulkan"))
       printf "%s\t%s\n", key[depth], name[depth]
     if (depth > 0) depth--
@@ -16,8 +18,10 @@ read_scripts() { xargs -0 -r awk -v want="${1:-redists}" '
   }
   {
     n = split($0, part, "\"")
+    if (n >= 5 && tolower(part[2]) == "appid" && part[4] ~ /^[0-9]+$/) { appid = part[4]; next }
     if (n >= 5 && tolower(part[2]) == "hasrunkey") { key[depth] = part[4]; next }
     if (n >= 5 && tolower(part[2]) ~ /^process [0-9]+$/) {
+      proc[depth] = 1
       program = tolower(part[4])
       sub(/.*[\\\/]/, "", program)
       if (program ~ /vulkan/) vulkan[depth] = 1

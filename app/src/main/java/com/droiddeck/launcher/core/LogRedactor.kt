@@ -51,25 +51,29 @@ object LogRedactor {
     @Volatile
     private var accounts: List<Learned> = emptyList()
 
-    fun learnAccounts(loginUsers: java.io.File) {
-        val found = ArrayList<Learned>()
-        try {
-            if (loginUsers.isFile) {
-                val kv = Regex("\"(AccountName|PersonaName)\"\\s+\"([^\"]*)\"")
-                kv.findAll(loginUsers.readText()).map { it.groupValues[2].trim() }.filter { it.length >= 3 }.distinct().forEach { name ->
-                    val needs = name.lowercase().takeIf { name.all { it.code < 0x80 } }
-                    found += Learned(Regex("(?i)(?<![A-Za-z0-9_])" + Regex.escape(name) + "(?![A-Za-z0-9_])"), needs)
-                }
-            }
-        } catch (e: Exception) {
-            return
+    fun learnAccounts(vararg loginUsers: java.io.File) {
+        val names = LinkedHashSet<String>()
+        val kv = Regex("\"(AccountName|PersonaName)\"\\s+\"([^\"]*)\"")
+        var unread = false
+        for (file in loginUsers) {
+            if (!file.isFile) continue
+            val text = try { file.readText() } catch (e: Exception) { unread = true; continue }
+            kv.findAll(text).map { it.groupValues[2].trim() }.filter { it.length >= 3 }.forEach { names += it }
         }
-        accounts = found
+        val learned = names.map { name ->
+            val needs = name.lowercase().takeIf { name.all { it.code < 0x80 } }
+            Learned(Regex("(?i)(?<![A-Za-z0-9_])" + Regex.escape(name) + "(?![A-Za-z0-9_])"), needs)
+        }
+        // A file that could not be read keeps the names learned from it before.
+        accounts = if (unread) (accounts + learned).distinctBy { it.regex.pattern } else learned
     }
 
     fun learnFromRuntime(root: java.io.File) {
         learnOwnAddresses(java.io.File(root, "etc/droiddeck-net"))
-        learnAccounts(java.io.File(root, "root/.local/share/Steam/config/loginusers.vdf"))
+        learnAccounts(
+            java.io.File(root, "root/.local/share/Steam/config/loginusers.vdf"),
+            java.io.File(root, "root/.droiddeck-x64/.local/share/Steam/config/loginusers.vdf"),
+        )
     }
 
     @Volatile

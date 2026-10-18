@@ -72,6 +72,10 @@ object SessionFiles {
             "usr/local/bin/droiddeck-open-url" to "usr/local/bin/droiddeck-open-url",
             "usr/local/bin/droiddeck-steam-games" to "usr/local/bin/droiddeck-steam-games",
             "usr/local/bin/droiddeck-pad-defaults" to "usr/local/bin/droiddeck-pad-defaults",
+            "usr/local/bin/droiddeck-steam-x64" to "usr/local/bin/droiddeck-steam-x64",
+            "usr/local/bin/droiddeck-x64-arm-proton" to "usr/local/bin/droiddeck-x64-arm-proton",
+            "usr/local/bin/droiddeck-x64-arm-webhelper" to "usr/local/bin/droiddeck-x64-arm-webhelper",
+            "usr/local/bin/droiddeck-x64-webhelper" to "usr/local/bin/droiddeck-x64-webhelper",
             "usr/local/bin/droiddeck-steamvr" to "usr/local/bin/droiddeck-steamvr",
             "usr/local/bin/droiddeck-steamvr-settings" to "usr/local/bin/droiddeck-steamvr-settings",
             "usr/local/bin/droiddeck-steamvr-game" to "usr/local/bin/droiddeck-steamvr-game",
@@ -194,13 +198,18 @@ object SessionFiles {
             Log.e(TAG, "could not write steam-compatibility-label")
         }
 
-        val startupMovieDir = File(root, "root/.local/share/Steam/config/uioverrides/movies")
         val startupMovie = BootMovie.prepare(context)
-        val bigPictureMovieInstalled = startupMovie != null &&
-            stageStartupMovie(startupMovie, startupMovieDir, "bigpicture_startup.webm")
-        if (startupMovie != null) stageStartupMovie(startupMovie, startupMovieDir, "steam_os_startup.webm")
-        if (bigPictureMovieInstalled) {
-            ensureStartupMovieDefault(File(root, "root/.local/share/Steam/config/config.vdf"))
+        // The x86-64 client's config is left alone until its first start creates it.
+        val steamRoots = listOf(File(root, "root/.local/share/Steam"), File(root, "root/.droiddeck-x64/.local/share/Steam"))
+            .filterIndexed { i, steam -> i == 0 || File(steam, "config").isDirectory }
+        for (steam in steamRoots) {
+            val startupMovieDir = File(steam, "config/uioverrides/movies")
+            val bigPictureMovieInstalled = startupMovie != null &&
+                stageStartupMovie(startupMovie, startupMovieDir, "bigpicture_startup.webm")
+            if (startupMovie != null) stageStartupMovie(startupMovie, startupMovieDir, "steam_os_startup.webm")
+            if (bigPictureMovieInstalled) {
+                ensureStartupMovieDefault(File(steam, "config/config.vdf"))
+            }
         }
     }
 
