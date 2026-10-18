@@ -12,13 +12,15 @@ data class Cardboard(
     val screenWidthDm: Int = 40,
     val screenDistanceDm: Int = 30,
     val headTracking: Boolean = true,
+    val mono: Boolean = false,
 ) {
     val lens: Viewer get() = Viewer.byId(viewer)
 
-    fun push(panelWidthMm: Float, panelHeightMm: Float) {
+    fun push(panelWidthMm: Float, panelHeightMm: Float, fovOverrideDeg: Float = 0f, displayHz: Float = 0f) {
         val l = lens
         WaylandCompositor.nativeSetCardboard(enabled, source, ipdMm / 1000f, screenDistanceDm / 10f,
-            screenWidthDm / 10f, l.k1, l.k2, fovDeg(l, panelHeightMm), lensInset(panelWidthMm, l.lensSeparationMm), l.chroma)
+            screenWidthDm / 10f, l.k1, l.k2, if (fovOverrideDeg > 0f) fovOverrideDeg else fovDeg(l, panelHeightMm),
+            if (mono) 0f else lensInset(panelWidthMm, l.lensSeparationMm), l.chroma, mono, displayHz)
     }
 
     fun encode(): JSONObject = JSONObject()
@@ -29,7 +31,8 @@ data class Cardboard(
                       val lensSeparationMm: Float, val chroma: Float, val fallbackFovDeg: Float) {
         CARDBOARD_V2("cardboard2", 0.34f, 0.55f, 39.3f, 63.9f, 0.006f, 90f),
         CARDBOARD_V1("cardboard1", 0.441f, 0.156f, 42f, 60f, 0.004f, 80f),
-        NONE("none", 0f, 0f, 0f, 0f, 0f, 60f);
+        NONE("none", 0f, 0f, 0f, 0f, 0f, 60f),
+        VITURE("viture", 0f, 0f, 0f, 0f, 0f, 23.3f);
 
         companion object {
             fun byId(id: String): Viewer = entries.firstOrNull { it.id == id } ?: CARDBOARD_V2
@@ -122,6 +125,10 @@ object HeadPose {
         val r = i / 3; val c = i % 3
         a[r * 3] * b[c] + a[r * 3 + 1] * b[3 + c] + a[r * 3 + 2] * b[6 + c]
     }
+
+    private val GLASSES_AXES = floatArrayOf(0f, 0f, -1f, -1f, 0f, 0f, 0f, 1f, 0f)
+
+    fun fromGlasses(x: Float, y: Float, z: Float, w: Float): FloatArray = multiply(fromQuaternion(x, y, z, w), GLASSES_AXES)
 
     fun transpose(m: FloatArray): FloatArray = floatArrayOf(m[0], m[3], m[6], m[1], m[4], m[7], m[2], m[5], m[8])
 

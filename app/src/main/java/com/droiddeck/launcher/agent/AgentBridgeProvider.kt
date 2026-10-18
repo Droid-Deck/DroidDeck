@@ -92,10 +92,74 @@ class AgentBridgeProvider : ContentProvider() {
             AgentEnv.override(context, request.optString("name")).put("ok", true).put("command", "override")
         }
         "prefs" -> prefs(context, request)
+        "glasses" -> glasses(context, request)
         "access" -> JSONObject().put("ok", true).put("commands", AgentAccess.commandsAllowed(context))
             .put("debugBuild", BuildConfig.DEBUG).put("inbox", AgentEnv.inbox(context).absolutePath)
         else -> error("UNKNOWN_COMMAND", "Unknown agent command '$method'")
     }
+
+    private fun glasses(context: Context, request: JSONObject): JSONObject {
+        val g = com.droiddeck.launcher.glasses.Glasses
+        when (request.optString("op", "status")) {
+            "status" -> {}
+            "allow" -> g.requestControl()
+            "set" -> {
+                val key = request.optString("key")
+                val value = request.optString("value")
+                fun on() = value == "1" || value.equals("true", true) || value.equals("on", true)
+                val number = value.toIntOrNull()
+                val numeric = setOf("refreshHz", "sbsHz", "brightness", "volume", "picture3d", "screenWidthDm", "screenDistanceDm", "vrFovDeg", "sbsSupport")
+                if (key in numeric && number == null) return error("INVALID_VALUE", "'$key' takes a number")
+                when (key) {
+                    "refreshHz" -> g.setRefreshHz(number!!)
+                    "sbsHz" -> g.setSbsHz(number!!)
+                    "brightness" -> g.setBrightness(number!!)
+                    "volume" -> g.setVolume(number!!)
+                    "sunblock" -> g.setSunblock(on())
+                    "3d" -> g.set3d(on())
+                    "gameOnGlasses" -> g.setGameOnGlasses(on())
+                    "headTracking" -> g.setHeadTracking(on())
+                    "auto3d" -> g.setAuto3d(on())
+                    "picture3d" -> g.setPicture3d(number!!)
+                    "screenWidthDm" -> g.setScreenWidthDm(number!!)
+                    "screenDistanceDm" -> g.setScreenDistanceDm(number!!)
+                    "vrFovDeg" -> g.setVrFovDeg(number!!)
+                    "sbsSupport" -> g.setSbsSupport(number!!)
+                    else -> return error("INVALID_KEY", "Unknown glasses setting '$key'")
+                }
+            }
+            "simulate" -> {
+                fun angle(key: String) = if (request.has(key)) request.optDouble(key).takeIf { it.isFinite() }?.coerceIn(-90.0, 90.0) else null
+                if (!g.simulate(request.optInt("seconds", 20).coerceIn(1, 600), angle("yaw"), angle("pitch"))) return error("BUSY", "Already simulating")
+            }
+            "stop-simulate" -> g.stopSimulation()
+            "calibrate" -> g.startCalibration()
+            "cancel-calibration" -> g.cancelCalibration()
+            "reset-calibration" -> g.resetCalibration()
+            "query" -> { g.query(); Thread.sleep(600) }
+            "mode" -> {
+                val mode = hex(request.optString("mode"), 0xFF) ?: return error("INVALID_VALUE", "mode must be one hex byte, e.g. 0x31")
+                g.sendMode(mode)
+                Thread.sleep(600)
+            }
+            "imu" -> return g.sampleImu(request.optLong("ms", 2000).coerceIn(200, 20_000)).put("ok", true).put("command", "glasses")
+            "raw" -> {
+                AgentAccess.requireCommands(context)
+                val msgId = hex(request.optString("msgId"), 0xFFFF) ?: return error("INVALID_VALUE", "msgId must be a hex number up to 0xFFFF")
+                val digits = request.optString("payload").removePrefix("0x")
+                if (digits.length % 2 != 0 || digits.any { Character.digit(it, 16) < 0 }) return error("INVALID_VALUE", "payload must be whole hex bytes")
+                val payload = digits.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+                if (!g.sendRaw(msgId, payload)) return error("NOT_CONNECTED", "The glasses' control link is not open")
+                Thread.sleep(300)
+            }
+            else -> return error("INVALID_OP", "Unknown glasses op")
+        }
+        if (request.optString("op") in setOf("set", "allow")) Thread.sleep(400)
+        return g.status().put("ok", true).put("command", "glasses").put("frames", g.recentFrames())
+    }
+
+    private fun hex(text: String, max: Int): Int? =
+        text.removePrefix("0x").removePrefix("0X").takeIf { it.isNotEmpty() }?.toIntOrNull(16)?.takeIf { it in 0..max }
 
     private fun state(context: Context): JSONObject {
         val runtimeVersion = LinuxRuntimeInstaller.installedVersion(context)
@@ -109,6 +173,7 @@ class AgentBridgeProvider : ContentProvider() {
             .put("steamUi", SessionState.steamUi ?: JSONObject.NULL)
             .put("steamUrl", SessionState.steamUrl ?: JSONObject.NULL)
             .put("suspended", SessionState.suspended)
+            .put("steamVr", SessionState.steamVr)
             .put("pip", SessionState.pipActive)
             .put("firstFrame", SessionState.firstFrameSeen)
             .put("output", JSONArray().put(SessionState.outputSize.first).put(SessionState.outputSize.second))

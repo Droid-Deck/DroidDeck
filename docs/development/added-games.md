@@ -47,7 +47,7 @@ shortcut appid is stored per folder at the first scan and never changes after.
 
 The ✎ on a Custom game's page (`AddedGameEditor`) mirrors Steam's Properties for a
 non-Steam game: Name, Target (ranked exes, "?", Other exe… opening the picker in the
-game's folder), Start in (automatic = the exe's folder), Launch options, Artwork (Cover,
+game's folder), Start in (automatic = the exe's folder), Launch options, Artwork (Cover, Wide cover,
 Background, Logo, Icon, each with its thumbnail and source), and Remove (two presses; the
 files stay; adding it again brings it back). `AddedGameEdits` writes each change through
 the same shortcut: the listing (`name`, `exe`, `dir`, `launch`, `art`, the stored `appid`)
@@ -85,17 +85,28 @@ editor (`SteamGameArtEditor`) with the same rows and the same chooser (Steam's o
 SteamGridDB's best few, "Search SteamGridDB…", "Pick image…", "Reset to automatic"), shared
 through `ArtTarget`. A choice is a copy in `files/steam-art/<appid>/chosen-<slot>.<ext>`
 (`SteamGameArt`); `Library.steamGames` shows it in place of the librarycache image, and with a
-client running the Cover / Background / Logo is also set in Steam
+client running the Cover / Wide cover / Background / Logo is also set in Steam
 (`SetCustomArtworkForApp` / `ClearCustomArtworkForApp`). Icon is launcher-only.
 
 `SteamGrid` keeps both sides in step through the client's grid folder
-(`userdata/<account>/config/grid`, `<appid>p`, `_hero`, `_logo`), for Steam and Custom games alike.
+(`userdata/<account>/config/grid`, `<appid>p`, `<appid>` for the wide cover, `_hero`, `_logo`), for Steam and Custom games alike.
 A choice is written there at once, so it reaches Steam while the client is closed. Every library
 scan (`Library.launchableGames`) compares the folder with what was last written or read
 (`grid-<slot>` in the game's art folder): a file Steam changed becomes the choice (source Steam),
 a file removed in Steam drops it, and files the shortcuts writer placed itself
 (`.droiddeck-art.json`) are not mistaken for choices. A chosen image is stored as
-`chosen-<slot>-<time>.<ext>`, so a new choice has a new path and shows at once. Games from GOG, Epic and Amazon are not covered.
+`chosen-<slot>-<time>.<ext>`, so a new choice has a new path and shows at once. Installed GOG, Epic and Amazon games get the same rows through `StoreGameArtEditor`.
+
+"Adjust logo" (last row of every art editor, `LogoPositionDialog`) shows the game's Background with
+its Logo on top and lets the logo be pinned to one of Steam's five places (top left / top center /
+center / bottom left / bottom center) and resized (10-100 %). The value is Steam's own
+`{"nVersion":1,"logoPosition":{"pinnedPosition","nWidthPct","nHeightPct"}}` (`LogoPosition`). It is
+kept in the game's art folder (`logo-position`), written to `<appid>.json` in the grid folder (other
+keys in that file are kept; clearing the position removes the file only when nothing else is in it),
+and, with the client running, set through `SetCustomLogoPositionForApp` /
+`ClearCustomLogoPositionForApp`. `SteamGrid.sync` takes over a position changed or removed in Steam
+the same way it does for images (`grid-json` holds the last seen signature). Reset removes the
+custom position so Steam's default comes back.
 
 Setup › Launcher › Games holds the Artwork switch (automatic fetching) and the
 SteamGridDB API key: the user's own, sealed with `CredentialCipher`, wins over the build's

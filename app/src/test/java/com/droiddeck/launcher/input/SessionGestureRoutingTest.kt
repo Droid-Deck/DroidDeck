@@ -30,11 +30,15 @@ class SessionGestureRoutingTest {
     private lateinit var activity: SessionActivity
     private lateinit var gestures: TouchscreenGestures
     private lateinit var steamTap: ThreeFingerTap
+    private lateinit var launcherScroll: ScrollTouchGestures
     private val keys = mutableListOf<Pair<Int, Boolean>>()
+    private val scrollPositions = mutableListOf<Pair<Float, Float>>()
+    private val scrollDeltas = mutableListOf<Pair<Float, Float>>()
     private var keyboards = 0
 
     @After fun tearDown() {
         if (::gestures.isInitialized) gestures.cancel()
+        if (::launcherScroll.isInitialized) launcherScroll.cancel()
         SessionState.mode = SessionService.MODE_STEAM
         SessionState.steamUi = null
         SessionState.suspended = false
@@ -61,6 +65,29 @@ class SessionGestureRoutingTest {
         assertTrue(keys.isEmpty())
     }
 
+    @Test fun gestureModeKeepsItsBindingsWhileLauncherMouseIsAvailable() {
+        prepare(SessionPrefs.TOUCH_GESTURES, TouchGestureConfig(threeFingerTapAction = "key_E"))
+        setField("padMouseOn", true)
+        tapThreeFingers(expectSteamGesture = false)
+        assertEquals(listOf(18 to true, 18 to false), keys)
+        assertTrue(scrollPositions.isEmpty())
+        assertTrue(scrollDeltas.isEmpty())
+    }
+
+    @Test fun directModeStillRoutesLauncherTouchesToScrolling() {
+        prepare(SessionPrefs.TOUCH_DIRECT)
+        setField("padMouseOn", true)
+        val down = SystemClock.uptimeMillis()
+        for ((index, action) in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE, MotionEvent.ACTION_UP).withIndex()) {
+            val event = MotionEvent.obtain(down, down + index * 32L, action, 400f, if (index == 0) 300f else 200f, 0)
+            try { assertTrue(activity.onTouchEvent(event)) } finally { event.recycle() }
+        }
+        assertEquals(listOf(400f to 300f), scrollPositions)
+        assertTrue(scrollDeltas.isNotEmpty())
+        assertTrue(keys.isEmpty())
+        assertFalse(steamTap.active)
+    }
+
     @Test fun upstreamSteamShortcutStillReceivesTouchesInLegacyModes() {
         for (mode in listOf(SessionPrefs.TOUCH_DIRECT, SessionPrefs.TOUCH_PAD)) {
             prepare(mode)
@@ -85,12 +112,16 @@ class SessionGestureRoutingTest {
         startLongPress()
         setField("surfaceW", 1000)
         setField("surfaceH", 600)
-        val surface = SessionActivity::class.java.getDeclaredField("surfaceView").apply { isAccessible = true }.get(activity) as SurfaceView
         val window = android.view.Surface(android.graphics.SurfaceTexture(0))
-        val holder = object : android.view.SurfaceHolder by surface.holder {
+        var activeHolder: android.view.SurfaceHolder? = null
+        val surface = object : SurfaceView(RuntimeEnvironment.getApplication()) {
+            override fun getHolder() = activeHolder ?: super.getHolder()
+        }.apply { layout(0, 0, 1000, 600) }
+        activeHolder = object : android.view.SurfaceHolder by surface.holder {
             override fun getSurface() = window
         }
-        try { activity.surfaceChanged(holder, 0, 800, 600) } finally { window.release() }
+        setField("surfaceView", surface)
+        try { activity.surfaceChanged(surface.holder, 0, 800, 600) } finally { window.release() }
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(350))
         assertTrue(keys.isEmpty())
         assertFalse(SessionActivity::class.java.getDeclaredField("gesturePointerReady").apply { isAccessible = true }.getBoolean(activity))
@@ -104,6 +135,15 @@ class SessionGestureRoutingTest {
         activity.surfaceChanged(surface.holder, 0, 1000, 600)
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(350))
         assertEquals(listOf(18 to true), keys)
+    }
+
+    @Test fun inactiveSurfaceDestructionDoesNotInterruptCurrentGesture() {
+        startLongPress()
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(350))
+        val staleSurface = SurfaceView(RuntimeEnvironment.getApplication())
+        activity.surfaceDestroyed(staleSurface.holder)
+        assertEquals(listOf(18 to true), keys)
+        assertTrue(SessionActivity::class.java.getDeclaredField("gesturePointerReady").apply { isAccessible = true }.getBoolean(activity))
     }
 
     private fun startLongPress() {
@@ -130,6 +170,7 @@ class SessionGestureRoutingTest {
             override fun showKeyboard() { keyboards++ }
         }).also { it.configure(config) }
         setField("routedTouchMode", mode)
+        setField("padMouseCheckedAt", SystemClock.uptimeMillis())
         setField("threeFingerTap", steamTap)
         setField("touchscreenGestures", gestures)
         setField("surfaceView", SurfaceView(RuntimeEnvironment.getApplication()).apply { layout(0, 0, 1000, 600) })
@@ -139,6 +180,13 @@ class SessionGestureRoutingTest {
             override fun onWheel(steps: Int) {}
             override fun onLongPress() {}
         }))
+        launcherScroll = ScrollTouchGestures(8f, 50f, object : ScrollTouchGestures.Listener {
+            override fun onMove(x: Float, y: Float) { scrollPositions += x to y }
+            override fun onButton(button: Int, pressed: Boolean) {}
+            override fun onScroll(dx: Float, dy: Float) { scrollDeltas += dx to dy }
+            override fun onLongPress() {}
+        })
+        setField("scrollTouch", launcherScroll)
     }
 
     private fun tapThreeFingers(expectSteamGesture: Boolean) {

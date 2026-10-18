@@ -97,6 +97,23 @@ class SteamStorageTest {
         assertEquals("GE-Proton11-9-aarch64", SteamStorage.compatToolName(vdf))
     }
 
+    @Test fun countsToolUseInBothClients() {
+        assertEquals("GE-Proton11-9-a64", SteamStorage.x64ToolName("GE-Proton11-9-aarch64"))
+        assertEquals("droiddeck-proton-a64", SteamStorage.x64ToolName("droiddeck-proton-arm64"))
+        assertEquals("GE-Proton10-1", SteamStorage.x64ToolName("GE-Proton10-1"))
+        val arm = SteamStorage.ToolUse(mapOf("0" to "droiddeck-proton-arm64", "10" to "GE-Proton11-9-aarch64", "20" to "GE-Proton11-9-aarch64"), setOf("10"))
+        val x64 = SteamStorage.ToolUse(
+            mapOf("0" to "GE-Proton11-9-a64", "30" to "GE-Proton11-9-a64", "40" to "droiddeck-direct", "50" to "GE-Proton11-9-aarch64"),
+            setOf("30", "40", "50"), x64 = true,
+        )
+        assertEquals(1, arm.games("GE-Proton11-9-aarch64"))
+        assertEquals(1, x64.games("GE-Proton11-9-aarch64"))
+        assertFalse(arm.isDefault("GE-Proton11-9-aarch64"))
+        assertTrue(x64.isDefault("GE-Proton11-9-aarch64"))
+        assertTrue(arm.isDefault("droiddeck-proton-arm64"))
+        assertFalse(x64.isDefault("droiddeck-proton-arm64"))
+    }
+
     @Test fun listingCountsPendingDownloadsAndUnreadableManifests() {
         val library = tmp.newFolder("lib")
         val apps = File(library, "steamapps").apply { mkdirs() }
@@ -115,6 +132,19 @@ class SteamStorageTest {
             assertFalse(after.complete)
         }
         assertNull(SteamStorage.manifests(File(library, "missing")))
+    }
+
+    @Test fun anEmptyX64FolderIsNoClient() {
+        val root = tmp.newFolder("x64")
+        File(root, ".cef-enable-remote-debugging").createNewFile()
+        assertFalse(SteamStorage.x64ClientPresent(root))
+        assertFalse(SteamStorage.x64ClientPresent(File(root, "missing")))
+        File(root, "package").mkdirs()
+        File(root, "package/droiddeck-installed").writeText("1\n")
+        assertTrue(SteamStorage.x64ClientPresent(root))
+        val bare = tmp.newFolder("x64-steamapps")
+        File(bare, "steamapps").mkdirs()
+        assertTrue(SteamStorage.x64ClientPresent(bare))
     }
 
     @Test fun leftoverIdsSkipTheSharedPrefixAndShortcuts() {

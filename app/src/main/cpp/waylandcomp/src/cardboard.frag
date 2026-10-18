@@ -10,7 +10,7 @@ layout(push_constant) uniform PC {
     vec4 rot2;
     vec4 lens;
     vec4 view;
-
+    vec4 extra;
 } pc;
 
 const vec3 BACKDROP = vec3(0.015, 0.015, 0.02);
@@ -40,9 +40,10 @@ vec3 eyeSample(vec2 tan, float eye) {
 }
 
 void main() {
-    float eye = uv.x < 0.5 ? 0.0 : 1.0;
-    vec2 local = vec2(uv.x * 2.0 - eye, uv.y);
-    float cx = 0.5 + (eye < 0.5 ? pc.view.x : -pc.view.x);
+    bool mono = pc.extra.x > 0.5;
+    float eye = mono || uv.x < 0.5 ? 0.0 : 1.0;
+    vec2 local = mono ? uv : vec2(uv.x * 2.0 - eye, uv.y);
+    float cx = mono ? 0.5 : 0.5 + (eye < 0.5 ? pc.view.x : -pc.view.x);
     vec2 p = local - vec2(cx, 0.5);
     float tanH = pc.lens.z;
     vec2 t = vec2(p.x * pc.view.w, p.y) * 2.0 * tanH;

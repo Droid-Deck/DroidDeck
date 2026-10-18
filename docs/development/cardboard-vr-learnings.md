@@ -44,12 +44,16 @@ OpenVR to SteamVR's ARM64 `vrclient.so`, so no x86 SteamVR is involved.
    - `helloxr` blocked in a wait-idle in `vrclient.so`;
    - DXVK's `dxvk-queue` thread blocked in Proton games.
 
-   The layer now gives a submit's wait on an imported shared value 3 ms, then drops it. It is kept
-   when the value is already reached, or when this process has queued the signal itself. Two details
-   mattered:
+   The layer now gives a submit's wait on an imported shared value 3 ms, then drops it, at once when
+   the shared counter has not moved for 100 ms. It is kept when the value is already reached, when
+   this process has queued the signal itself, or while a Quest session's frame socket exists (checked
+   at most once a second). Three details mattered:
    - the waits are judged before the submit's own signals count, because an acquire waits on one
      value and signals the next on the same semaphore;
-   - SteamVR's client interop device is Vulkan 1.0, so only the `KHR` entry points resolve there.
+   - SteamVR's client interop device is Vulkan 1.0, so only the `KHR` entry points resolve there;
+   - a Proton game waits on two values a frame that are never signalled (5,500 dropped, none reached
+     within 200 ms afterwards). With the grace on each, Angry Birds VR's submit thread lost 6 ms a
+     frame and the game ran at 60 fps; without it, 120.
 4. **UBWC layouts must agree.** An imported image has to be created with the same
    `VkImageFormatListCreateInfo` (sRGB + UNORM) as its creator, or Turnip lays out the compression
    differently and the reader sees garbage. The presenter's eye-texture import does this.
@@ -83,6 +87,21 @@ OpenVR to SteamVR's ARM64 `vrclient.so`, so no x86 SteamVR is involved.
 - **Memory.** Steam, SteamVR and one VR game fit in the Thor's 12 GB. A large game such as The Lab, or
   two games at once, push the device into critical pressure, and the low-memory killer takes
   DroidDeck itself (`ended-without-teardown.txt` in the session logs, `lowmemorykiller` in logcat).
+- **Frames shown out of order.** Video from the glasses jumped back a few frames in bursts while the
+  head turned. Two causes, each found by stamping a frame counter into the presenter's output:
+  - the presenter copied SteamVR's eye texture a fixed 4 ms after `Present`, with no fence. Under
+    GPU load `vrcompositor` had not drawn it yet, so the copy got that texture's previous frame. The
+    layer now fences `vrcompositor`'s submits and the presenter waits for the frame's count;
+  - DroidDeck's compositor copies a Wayland client's dma-buf without waiting for its implicit fence,
+    and KGSL does not order the copy after the client's GPU work. The presenter's blit sat behind the
+    game's frame, so the compositor showed the swapchain image's older picture. The presenter now
+    waits for its blit before it presents.
+- **Flat games under SteamVR.** With SteamVR running, Steam lists a flat game after its own window in
+  gamescope's base layer, so Big Picture keeps the focus and the game never shows, theatre setting or
+  not. SteamVR is therefore started only by Play SteamVR, never with the glasses alone.
+- **A new projection needs an event.** `SetDisplayProjectionRaw` changed what `vrserver` reports, but
+  `vrcompositor` kept the frustum it started with, so the glasses' field of view did nothing until
+  SteamVR restarted. The driver now follows it with `VREvent_LensDistortionChanged`.
 - **Head-tracking axes.** With the display at `ROTATION_90`, screen x is minus device y and screen y is
   device x. Getting this wrong made a turn at the hips tilt the view. Recentring now keeps the world
   vertical and resets the heading only.
@@ -123,8 +142,9 @@ OpenVR to SteamVR's ARM64 `vrclient.so`, so no x86 SteamVR is involved.
 - **SteamVR Home** needs `IVROverlayView_002` in Proton's `vrclient`, or an ARM64 build of Home.
 - **The Lab and other large games** need memory headroom. Candidates: stop Steam's own web helpers
   while a VR game runs, or lower SteamVR's footprint.
-- **Wait drops are a heuristic.** A 3 ms grace keeps the common case in sync. A submit thread in the
-  layer, deferring submits until their waits are reachable, would be exact.
+- **Wait drops are a heuristic.** A 3 ms grace keeps the common case in sync, and an idle counter
+  skips it. A submit thread in the layer, deferring submits until their waits are reachable, would be
+  exact.
 - **Layers:** only the first layer of each frame is presented. No reprojection.
 - **Controllers** are a gaze pointer driven by the pad. Pad presses did not close the SteamVR menu in
   testing. Untested: whether that came from gamescope focus being on Steam, or from the system button

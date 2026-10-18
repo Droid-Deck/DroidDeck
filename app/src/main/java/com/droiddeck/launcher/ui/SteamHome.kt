@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.ui
 
 import androidx.compose.ui.platform.testTag
+import androidx.compose.foundation.layout.fillMaxWidth
 import com.droiddeck.launcher.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -104,8 +105,24 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
             }
         },
     )
+    val (glasses, glassesSettings) = rememberGlasses()
+    val headset = glasses.present && glasses.canControl
+    val drop = rememberDropSheetState()
+    LaunchedEffect(headset) { if (!headset && (drop.open || drop.shown)) drop.reset() }
     LiftHero(
         key = "steam", tabs = tabs,
+        drop = drop.takeIf { headset },
+        overlay = { lifted ->
+            if (headset) DropSheet(
+                drop, glassesTabs(glasses), covered = lifted,
+                button = { enabled ->
+                    PrimaryButton(stringResource(R.string.games_play_steamvr), enabled = !s.busy && glasses.usable, large = true, icon = Icons.Filled.PlayArrow, fill = true,
+                        modifier = Modifier.fillMaxWidth().testTag("play-steamvr")) { if (enabled) { drop.open = false; a.onPlaySteamVr() } }
+                },
+            ) { tab ->
+                GlassesGroups(rememberMenuHost(), glasses, glassesSettings, inSession = false, tab = tab)
+            }
+        },
         onOpen = a.onSteamSettings, onPrimary = a.onPlay,
         modifier = modifier.clipToBounds(),
         start = if (narrow) 20.dp else 44.dp, bottom = if (narrow) 20.dp else 44.dp,
