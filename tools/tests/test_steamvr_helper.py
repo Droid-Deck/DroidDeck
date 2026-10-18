@@ -14,6 +14,14 @@ SOURCE = Path(__file__).resolve().parents[1] / 'linuxfs/overlay/usr/local/bin/dr
 
 
 class SteamVrHelperTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.compiler_output = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(cls.compiler_output.cleanup)
+        cls.scheduling = Path(cls.compiler_output.name) / 'libdroiddeck_vr_scheduling.so'
+        source = Path(__file__).resolve().parents[1] / 'vr/src/scheduling.c'
+        subprocess.run(['cc', '-shared', '-fPIC', '-o', str(cls.scheduling), str(source), '-ldl'], check=True)
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
@@ -37,6 +45,9 @@ class SteamVrHelperTest(unittest.TestCase):
         self.executable(self.steamvr / 'bin/linuxarm64/vrstartup',
                         'echo "display=${DROIDDECK_VR_DISPLAY_MODE:-unset}"')
         (self.driver / 'driver_droiddeck.so').touch()
+        layer = self.root / 'driver/layer'
+        layer.mkdir()
+        shutil.copyfile(self.scheduling, layer / self.scheduling.name)
         self.environment = dict(os.environ)
         self.environment.pop('DROIDDECK_VR_DISPLAY_MODE', None)
         self.environment.pop('DROIDDECK_VR_PRESENT', None)

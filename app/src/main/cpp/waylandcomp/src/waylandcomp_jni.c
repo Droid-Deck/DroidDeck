@@ -649,3 +649,14 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeRaisePriority(JNIEnv
     int after = getpriority(PRIO_PROCESS, (id_t)tid);
     return after == -1 && errno != 0 ? 100 : after;
 }
+
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetCardboardSpatialPose(JNIEnv *env, jclass clazz,
+        jfloatArray rot, jfloatArray pos, jboolean live) {
+    (void)clazz;
+    if (!rot || !pos || (*env)->GetArrayLength(env, rot) != 9 || (*env)->GetArrayLength(env, pos) != 3) return;
+    float m[9], p[3];
+    (*env)->GetFloatArrayRegion(env, rot, 0, 9, m);
+    (*env)->GetFloatArrayRegion(env, pos, 0, 3, p);
+    vkp_cardboard_set_spatial_pose(m, p, live ? 1 : 0);
+}
