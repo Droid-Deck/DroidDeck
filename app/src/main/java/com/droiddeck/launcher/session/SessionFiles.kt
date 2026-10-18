@@ -27,7 +27,8 @@ object SessionFiles {
         "etc/xdg/autostart/droiddeck-clipboard.desktop" to "etc/xdg/autostart/droiddeck-clipboard.desktop",
     )
 
-    fun stage(context: Context, root: File) {
+    /** Puts the session's files in place; [startsSession] is true only for the call that starts the Steam session. */
+    fun stage(context: Context, root: File, startsSession: Boolean = false) {
         if (DesktopCatalog.desktopInstalled(root)) try { DesktopCatalog.cleanLegacy(context) }
         catch (e: Exception) { Log.w(TAG, "LXQt cleanup will retry next session", e) }
         GameEnvironmentStore.publish(context)
@@ -222,8 +223,9 @@ object SessionFiles {
             if (!done) allDone = false
             if (index == 0 && done) seen = if (bigPictureMovieInstalled) BOOT_MOVIE_PATH else ""
         }
-        // A pick made in the app is done once every Steam client's config has it, or no longer names a missing movie.
-        if (force && allDone) SessionPrefs.setBootMovieApplyNext(context, false)
+        // A pick made in the app is done once a session started with every Steam client's config having it; guest commands run
+        // before that, and a Steam that is already running writes its own choice back when it exits.
+        if (force && allDone && startsSession) SessionPrefs.setBootMovieApplyNext(context, false)
         seen?.let { SessionPrefs.setBootMovieSteamSeen(context, it) }
     }
 

@@ -2709,6 +2709,7 @@
     <string name="boot_movie_repo_empty">Videoita ei löytynyt</string>
     <string name="boot_movie_repo_install">Asenna</string>
     <string name="boot_movie_repo_use">Käytä</string>
+    <string name="boot_movie_in_use">Käytössä</string>
     <string name="boot_movie_repo_installed">%1$s asennettu</string>
     <string name="boot_movie_repo_download_failed">Videota ei voitu ladata</string>
     <string name="boot_movie_repo_previous">Edellinen</string>

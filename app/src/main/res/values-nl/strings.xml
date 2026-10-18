@@ -2709,6 +2709,7 @@
     <string name="boot_movie_repo_empty">Geen video\'s gevonden</string>
     <string name="boot_movie_repo_install">Installeren</string>
     <string name="boot_movie_repo_use">Gebruiken</string>
+    <string name="boot_movie_in_use">In gebruik</string>
     <string name="boot_movie_repo_installed">%1$s geïnstalleerd</string>
     <string name="boot_movie_repo_download_failed">Kan die video niet downloaden</string>
     <string name="boot_movie_repo_previous">Vorige</string>

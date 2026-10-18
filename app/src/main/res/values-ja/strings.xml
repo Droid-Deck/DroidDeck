@@ -2684,6 +2684,7 @@
     <string name="boot_movie_repo_empty">ムービーが見つかりません</string>
     <string name="boot_movie_repo_install">インストール</string>
     <string name="boot_movie_repo_use">使用</string>
+    <string name="boot_movie_in_use">使用中</string>
     <string name="boot_movie_repo_installed">%1$s をインストールしました</string>
     <string name="boot_movie_repo_download_failed">ムービーをダウンロードできませんでした</string>
     <string name="boot_movie_repo_previous">前へ</string>

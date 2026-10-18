@@ -22,6 +22,8 @@ class BootMovieLibraryTest {
         movies.deleteRecursively()
         BootMovieLibrary.libraryDir(app).deleteRecursively()
         File(BootMovieLibrary.steamRoot(app), "steamui").deleteRecursively()
+        File(BootMovieLibrary.steamRoot(app), "appcache").deleteRecursively()
+        BootMovieLibrary.forgetScan()
         BootMovieLibrary.steamConfig(app).delete()
     }
 
@@ -57,9 +59,9 @@ class BootMovieLibraryTest {
         assertEquals("Fancy", list["file:Fancy.webm"]!!.title)
         assertEquals(BootMovieLibrary.SOURCE_REPO, list["file:Fancy.webm"]!!.source)
         assertTrue(list["file:Fancy.webm"]!!.removable)
-        assertFalse(list["file:b.webm"]!!.removable)
+        assertTrue(list["file:b.webm"]!!.removable)
         assertEquals("b", list["file:b.webm"]!!.title)
-        assertEquals(BootMovieLibrary.SOURCE_STEAM, list["file:b.webm"]!!.source)
+        assertEquals(BootMovieLibrary.SOURCE_IMPORT, list["file:b.webm"]!!.source)
         assertEquals(setOf("id1"), BootMovieLibrary.installedRepoIds(app))
         assertEquals("Fancy.webm", BootMovieLibrary.nameForRepo(app, "id1"))
     }
@@ -74,11 +76,19 @@ class BootMovieLibraryTest {
         assertFalse(File(BootMovieLibrary.libraryDir(app), name).exists())
     }
 
-    @Test fun moviesThatAreNotDroidDecksAreNeverDeleted() {
-        movie("steam-own.webm")
-        assertFalse(BootMovieLibrary.remove(app, "file:steam-own.webm"))
-        assertTrue(File(movies, "steam-own.webm").exists())
-        assertFalse(BootMovieLibrary.list(app).first { it.id == "file:steam-own.webm" }.removable)
+    @Test fun aMovieInSteamsCustomFolderCanBeRemovedEvenWithoutANote() {
+        movie("by-hand.webm")
+        assertTrue(BootMovieLibrary.list(app).first { it.id == "file:by-hand.webm" }.removable)
+        assertTrue(BootMovieLibrary.remove(app, "file:by-hand.webm"))
+        assertFalse(File(movies, "by-hand.webm").exists())
+    }
+
+    @Test fun steamsOwnMoviesAreNeverDeleted() {
+        val own = File(BootMovieLibrary.steamRoot(app), "steamui/movies/deck_startup.webm").also { it.parentFile!!.mkdirs(); it.writeText("movie") }
+        val entry = BootMovieLibrary.list(app).first { it.id == "steam:/movies/deck_startup.webm" }
+        assertFalse(entry.removable)
+        assertFalse(BootMovieLibrary.remove(app, entry.id))
+        assertTrue(own.exists())
     }
 
     @Test fun anImportSurvivesTheRuntimeBeingReset() {
@@ -119,13 +129,25 @@ class BootMovieLibraryTest {
         assertNull(SessionFiles.startupMoviePath(BootMovieLibrary.steamConfig(app)))
     }
 
-    @Test fun aMovieSteamKeepsElsewhereIsListedAndAdopted() {
-        val file = File(BootMovieLibrary.steamRoot(app), "steamui/movies/Bought.webm").also { it.parentFile!!.mkdirs(); it.writeText("movie") }
-        val ids = BootMovieLibrary.list(app).map { it.id }
-        assertTrue("steam:/movies/Bought.webm" in ids)
-        steamPicksAt("/movies/Bought.webm")
+    @Test fun onlyTheThreeStartupMoviesOfSteamAreListed() {
+        listOf("deck_startup", "oled_startup", "startup_machine", "controller_generic_thumbstick_move").forEach {
+            File(BootMovieLibrary.steamRoot(app), "steamui/movies/$it.webm").also { f -> f.parentFile!!.mkdirs(); f.writeText("movie") }
+        }
+        val ids = BootMovieLibrary.list(app).map { it.id }.filter { it.startsWith("steam:") }
+        assertEquals(
+            listOf("steam:/movies/deck_startup.webm", "steam:/movies/oled_startup.webm", "steam:/movies/startup_machine.webm"),
+            ids.sorted(),
+        )
+    }
+
+    @Test fun aMovieBoughtInThePointsShopIsListedAndAdopted() {
+        val file = File(BootMovieLibrary.steamRoot(app), "appcache/startupmovies/Bought.webm").also { it.parentFile!!.mkdirs(); it.writeText("movie") }
+        val entry = BootMovieLibrary.list(app).first { it.id == "steam:/appcache/startupmovies/Bought.webm" }
+        assertFalse(entry.removable)
+        assertEquals(BootMovieLibrary.SOURCE_STEAM, entry.source)
+        steamPicksAt("/appcache/startupmovies/Bought.webm")
         assertTrue(BootMovie.syncFromSteam(app))
-        assertEquals("steam:/movies/Bought.webm", BootMovie.choice(app))
+        assertEquals("steam:/appcache/startupmovies/Bought.webm", BootMovie.choice(app))
         assertEquals(file, BootMovie.currentFile(app))
         assertNull(BootMovieLibrary.file(app, "steam:/../x.webm"))
     }

@@ -2684,6 +2684,7 @@
     <string name="boot_movie_repo_empty">Không tìm thấy video</string>
     <string name="boot_movie_repo_install">Cài đặt</string>
     <string name="boot_movie_repo_use">Dùng</string>
+    <string name="boot_movie_in_use">Đang dùng</string>
     <string name="boot_movie_repo_installed">Đã cài %1$s</string>
     <string name="boot_movie_repo_download_failed">Không thể tải video đó</string>
     <string name="boot_movie_repo_previous">Trước</string>

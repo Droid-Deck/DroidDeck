@@ -2734,6 +2734,7 @@
     <string name="boot_movie_repo_empty">Nenhum vídeo encontrado</string>
     <string name="boot_movie_repo_install">Instalar</string>
     <string name="boot_movie_repo_use">Usar</string>
+    <string name="boot_movie_in_use">Em utilização</string>
     <string name="boot_movie_repo_installed">%1$s instalado</string>
     <string name="boot_movie_repo_download_failed">Não foi possível transferir esse vídeo</string>
     <string name="boot_movie_repo_previous">Anterior</string>

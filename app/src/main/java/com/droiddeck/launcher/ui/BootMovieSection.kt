@@ -289,6 +289,12 @@ private fun RepoTab(a: ModeSettingsActions) {
     var page by rememberSaveable { mutableIntStateOf(1) }
     var retry by remember { mutableIntStateOf(0) }
     var installed by remember { mutableStateOf(setOf<String>()) }
+    val chosen = rememberMovies(0, a.onBootMovieChanged)?.selected
+    val inUse by androidx.compose.runtime.produceState<String?>(null, chosen) {
+        value = withContext(Dispatchers.IO) {
+            chosen?.takeIf { it.startsWith(BootMovieLibrary.PREFIX) }?.let { BootMovieLibrary.repoId(app, it.removePrefix(BootMovieLibrary.PREFIX)) }
+        }
+    }
     val progress = remember { mutableStateMapOf<String, Int>() }
     LaunchedEffect(typed) { delay(400); if (query != typed) { query = typed; page = 1 } }
     LaunchedEffect(progress.size) { installed = withContext(Dispatchers.IO) { BootMovieLibrary.installedRepoIds(app) } }
@@ -332,7 +338,7 @@ private fun RepoTab(a: ModeSettingsActions) {
                 r.posts.chunked(2).forEach { row ->
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                         row.forEach { post ->
-                            RepoCard(post, installed = post.id in installed, percent = progress[post.id], modifier = Modifier.weight(1f),
+                            RepoCard(post, installed = post.id in installed, inUse = post.id == inUse, percent = progress[post.id], modifier = Modifier.weight(1f),
                                 onInstall = {
                                     if (post.id !in progress) scope.launch {
                                         progress[post.id] = 0
@@ -383,13 +389,15 @@ private fun install(app: android.content.Context, post: SteamDeckRepo.Post, onPr
 }
 
 @Composable
-private fun RepoCard(post: SteamDeckRepo.Post, installed: Boolean, percent: Int?, modifier: Modifier, onInstall: () -> Unit, onUse: () -> Unit) {
+private fun RepoCard(post: SteamDeckRepo.Post, installed: Boolean, inUse: Boolean, percent: Int?, modifier: Modifier, onInstall: () -> Unit, onUse: () -> Unit) {
     val pal = LocalPalette.current
     val colors = MaterialTheme.colorScheme
     val shape = RoundedCornerShape(10.dp)
     Column(
         verticalArrangement = Arrangement.spacedBy(5.dp),
-        modifier = modifier.clip(shape).background(colors.surface.copy(alpha = 0.6f)).border(1.dp, pal.line, shape).padding(6.dp),
+        modifier = modifier.clip(shape)
+            .background(if (inUse) pal.signal.copy(alpha = 0.14f) else colors.surface.copy(alpha = 0.6f))
+            .border(if (inUse) 2.dp else 1.dp, if (inUse) pal.signal else pal.line, shape).padding(6.dp),
     ) {
         Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(7.dp)).background(Color(0xFF0E1218))) {
             if (post.thumbnail.isNotEmpty()) AsyncImage(model = post.thumbnail, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
@@ -400,7 +408,8 @@ private fun RepoCard(post: SteamDeckRepo.Post, installed: Boolean, percent: Int?
                 .filter { it.isNotEmpty() }.joinToString(" · "),
             fontSize = 11.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
-        if (installed) SecondaryButton(stringResource(R.string.boot_movie_repo_use), compact = true, modifier = Modifier.fillMaxWidth(), onClick = onUse)
+        if (inUse) SecondaryButton(stringResource(R.string.boot_movie_in_use), compact = true, modifier = Modifier.fillMaxWidth(), onClick = {})
+        else if (installed) SecondaryButton(stringResource(R.string.boot_movie_repo_use), compact = true, modifier = Modifier.fillMaxWidth(), onClick = onUse)
         else SecondaryButton(
             if (percent != null) stringResource(R.string.boot_movie_converting, percent) else stringResource(R.string.boot_movie_repo_install),
             enabled = percent == null, compact = true, modifier = Modifier.fillMaxWidth(), onClick = onInstall,

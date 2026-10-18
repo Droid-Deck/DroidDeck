@@ -2684,6 +2684,7 @@
     <string name="boot_movie_repo_empty">Video tidak ditemukan</string>
     <string name="boot_movie_repo_install">Pasang</string>
     <string name="boot_movie_repo_use">Gunakan</string>
+    <string name="boot_movie_in_use">Sedang digunakan</string>
     <string name="boot_movie_repo_installed">%1$s terpasang</string>
     <string name="boot_movie_repo_download_failed">Tidak dapat mengunduh video itu</string>
     <string name="boot_movie_repo_previous">Sebelumnya</string>

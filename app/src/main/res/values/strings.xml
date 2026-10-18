@@ -2785,6 +2785,7 @@
     <string name="boot_movie_repo_empty">No movies found</string>
     <string name="boot_movie_repo_install">Install</string>
     <string name="boot_movie_repo_use">Use</string>
+    <string name="boot_movie_in_use">In use</string>
     <string name="boot_movie_repo_installed">%1$s installed</string>
     <string name="boot_movie_repo_download_failed">Could not download that movie</string>
     <string name="boot_movie_repo_previous">Previous</string>

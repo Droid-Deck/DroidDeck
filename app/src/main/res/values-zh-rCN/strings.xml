@@ -2684,6 +2684,7 @@
     <string name="boot_movie_repo_empty">未找到动画</string>
     <string name="boot_movie_repo_install">安装</string>
     <string name="boot_movie_repo_use">使用</string>
+    <string name="boot_movie_in_use">使用中</string>
     <string name="boot_movie_repo_installed">已安装 %1$s</string>
     <string name="boot_movie_repo_download_failed">无法下载该动画</string>
     <string name="boot_movie_repo_previous">上一页</string>

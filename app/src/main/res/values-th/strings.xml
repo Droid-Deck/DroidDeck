@@ -2684,6 +2684,7 @@
     <string name="boot_movie_repo_empty">ไม่พบวิดีโอ</string>
     <string name="boot_movie_repo_install">ติดตั้ง</string>
     <string name="boot_movie_repo_use">ใช้</string>
+    <string name="boot_movie_in_use">กำลังใช้งาน</string>
     <string name="boot_movie_repo_installed">ติดตั้ง %1$s แล้ว</string>
     <string name="boot_movie_repo_download_failed">ดาวน์โหลดวิดีโอนั้นไม่ได้</string>
     <string name="boot_movie_repo_previous">ก่อนหน้า</string>

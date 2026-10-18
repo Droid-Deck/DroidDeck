@@ -2709,6 +2709,7 @@
     <string name="boot_movie_repo_empty">कोई वीडियो नहीं मिला</string>
     <string name="boot_movie_repo_install">इंस्टॉल करें</string>
     <string name="boot_movie_repo_use">इस्तेमाल करें</string>
+    <string name="boot_movie_in_use">उपयोग में</string>
     <string name="boot_movie_repo_installed">%1$s इंस्टॉल हो गया</string>
     <string name="boot_movie_repo_download_failed">वह वीडियो डाउनलोड नहीं हो सका</string>
     <string name="boot_movie_repo_previous">पिछला</string>

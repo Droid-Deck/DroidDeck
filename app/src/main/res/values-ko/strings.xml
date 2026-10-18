@@ -2684,6 +2684,7 @@
     <string name="boot_movie_repo_empty">동영상이 없습니다</string>
     <string name="boot_movie_repo_install">설치</string>
     <string name="boot_movie_repo_use">사용</string>
+    <string name="boot_movie_in_use">사용 중</string>
     <string name="boot_movie_repo_installed">%1$s 설치됨</string>
     <string name="boot_movie_repo_download_failed">동영상을 다운로드하지 못했습니다</string>
     <string name="boot_movie_repo_previous">이전</string>

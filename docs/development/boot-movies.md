@@ -14,10 +14,12 @@ Settings → Boot movie has four tabs.
 
 Imported and installed movies are kept in `files/boot-movie/library` (with their list, `files/boot-movie/movies.json`) and
 copied into Steam's movies folder, so resetting the Linux runtime does not lose them; the copy is put back when it is
-missing. The list is changed under one lock, so imports at the same time cannot overwrite each other. Only movies in that
-list can be removed (after a confirmation); every other movie in Steam's folder is Steam's or the person's and is never
-deleted. Movies Steam keeps elsewhere (`config/movies`, `steamui/movies`, or whatever path Steam's `StartupMovie.LocalPath`
-names, such as a points shop movie) are listed as Steam movies and adopted when picked in Steam.
+missing. The list is changed under one lock, so imports at the same time cannot overwrite each other. Every movie in Steam's custom movies
+folder (`config/uioverrides/movies`) can be removed after a confirmation, whether DroidDeck put it there or it was added by
+hand or by Steam's own picker. Steam's own three startup movies (`deck_startup`, `oled_startup`, `startup_machine` in
+`steamui/movies`) and points shop movies (any other `.webm` below Steam's `config`, `userdata`, `appcache` and `steamui`
+folders, plus whatever path `StartupMovie.LocalPath` names) are listed as Steam movies, adopted when picked in Steam, and
+never deleted. Other videos in `steamui/movies` are not startup movies and are not listed.
 Only one processed copy (volume or length change) is kept in `files/boot-movie/variants`; a volume that cannot be applied
 plays without sound rather than louder, and plays nothing if that fails too. Covers are cached in `files/boot-movie/thumbs`. Selecting a movie here sets `bootMovieApplyNext`, so the next session overwrites a movie Steam had
 picked; otherwise a movie picked in Steam is left alone.

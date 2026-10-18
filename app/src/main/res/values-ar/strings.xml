@@ -2809,6 +2809,7 @@
     <string name="boot_movie_repo_empty">لم يُعثر على فيديوهات</string>
     <string name="boot_movie_repo_install">تثبيت</string>
     <string name="boot_movie_repo_use">استخدام</string>
+    <string name="boot_movie_in_use">قيد الاستخدام</string>
     <string name="boot_movie_repo_installed">تم تثبيت %1$s</string>
     <string name="boot_movie_repo_download_failed">تعذّر تنزيل هذا الفيديو</string>
     <string name="boot_movie_repo_previous">السابق</string>

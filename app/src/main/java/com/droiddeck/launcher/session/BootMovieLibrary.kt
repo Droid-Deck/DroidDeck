@@ -10,9 +10,9 @@ import org.json.JSONObject
 import java.io.File
 
 /**
- * The boot movies a person can pick from: DroidDeck's own two, a movie imported before this list existed, and every
- * `.webm` in Steam's own movies folder (the folder Steam's startup movie picker lists too), whether it came from Steam,
- * from an import or from SteamDeckRepo.
+ * The boot movies a person can pick from: DroidDeck's own two, a movie imported before this list existed, every `.webm` in
+ * Steam's custom movies folder (imports, SteamDeckRepo and movies put there by hand; all of them can be removed), Steam's own
+ * three startup movies and the movies bought in Steam's points shop (neither can be removed).
  */
 object BootMovieLibrary {
     private const val TAG = "BootMovieLibrary"
@@ -49,11 +49,17 @@ object BootMovieLibrary {
 
     fun idOf(name: String) = PREFIX + name
 
+    /** Every Steam client folder: the usual one and the x86-64 client's. */
+    internal fun steamRoots(context: Context): List<File> = listOf(
+        steamRoot(context), File(LinuxRuntime.rootDir(context), "root/.droiddeck-x64/.local/share/Steam"),
+    ).filter { it.isDirectory }
+
     private fun steamFile(context: Context, id: String): File? {
         val path = id.removePrefix(STEAM_PREFIX)
         if (!path.startsWith("/") || path.contains("..") || path.contains('\\') || !path.endsWith(".webm", ignoreCase = true)) return null
-        val root = steamRoot(context)
-        return listOf("config", "steamui").map { File(root, it + path) }.firstOrNull { it.isFile && it.length() > 0L }
+        return steamRoots(context).firstNotNullOfOrNull { root ->
+            listOf("config", "steamui", "").map { File(root, it + path) }.firstOrNull { it.isFile && it.length() > 0L }
+        }
     }
 
     fun file(context: Context, id: String): File? {
@@ -110,22 +116,53 @@ object BootMovieLibrary {
             val info = meta.optJSONObject(f.name)
             val source = info?.optString("source")?.takeIf { it.isNotEmpty() } ?: SOURCE_STEAM
             val title = info?.optString("title")?.takeIf { it.isNotEmpty() } ?: f.nameWithoutExtension
-            // Only what DroidDeck put here can be removed; every other movie in the folder is Steam's own or the person's.
-            out.add(Entry(idOf(f.name), title, source, f, removable = info != null && source != SOURCE_STEAM))
+            // Everything in Steam's custom movies folder is the person's own (imported, from SteamDeckRepo or put there by hand).
+            out.add(Entry(idOf(f.name), title, if (source == SOURCE_STEAM) SOURCE_IMPORT else source, f, removable = true))
+        }
+        val steam = LinkedHashMap<String, File>()
+        SessionFiles.startupMoviePath(steamConfig(context))?.takeIf { !it.startsWith(OVERRIDES) }?.let { path ->
+            steamFile(context, STEAM_PREFIX + path)?.let { steam[STEAM_PREFIX + path] = it }
+        }
+        for (root in steamRoots(context)) {
+            File(root, "steamui/movies").listFiles { f -> isMovie(f) && f.nameWithoutExtension.lowercase() in NATIVE }.orEmpty()
+                .sortedBy { it.name.lowercase() }.forEach { steam.putIfAbsent(STEAM_PREFIX + "/movies/" + it.name, it) }
+            for (found in pointShopMovies(root)) steam.putIfAbsent(STEAM_PREFIX + "/" + found.relativeTo(root).invariantSeparatorsPath, found)
         }
         val seen = HashSet<String>()
-        val others = ArrayList<String>()
-        SessionFiles.startupMoviePath(steamConfig(context))?.takeIf { !it.startsWith(OVERRIDES) }?.let { others.add(it) }
-        for ((folder, prefix) in listOf(File(steamRoot(context), "config/movies") to "/movies/", File(steamRoot(context), "steamui/movies") to "/movies/")) {
-            folder.listFiles { f -> isMovie(f) }.orEmpty().sortedBy { it.name.lowercase() }.forEach { others.add(prefix + it.name) }
-        }
-        for (path in others) {
-            val id = STEAM_PREFIX + path
-            val file = steamFile(context, id) ?: continue
-            if (!seen.add(id) || file.name in STAGED) continue
+        for ((id, file) in steam) {
+            if (file.name in STAGED || !seen.add(file.canonicalPath)) continue
             out.add(Entry(id, file.nameWithoutExtension, SOURCE_STEAM, file, removable = false))
         }
         return out
+    }
+
+    /** The three startup movies Steam ships with; Steam's movies folder holds many more videos that are not startup movies. */
+    private val NATIVE = setOf("deck_startup", "oled_startup", "startup_machine")
+
+    private val skippedFolders = setOf("uioverrides", "steamapps", "librarycache", "httpcache", "logs", "compatdata", "shadercache")
+
+    private val scanLock = Any()
+    private var scan: Triple<String, Long, List<File>>? = null
+
+    /** Forgets the last search for Steam's own movies. */
+    internal fun forgetScan() = synchronized(scanLock) { scan = null }
+
+    /**
+     * Movies Steam keeps outside its custom movies folder, such as ones bought in its points shop: every `.webm` below the
+     * client's config, cache and user folders. The search is repeated at most every 15 seconds.
+     */
+    private fun pointShopMovies(root: File): List<File> = synchronized(scanLock) {
+        val now = System.currentTimeMillis()
+        scan?.let { (key, at, found) -> if (key == root.path && now - at < 15_000L) return found }
+        val found = listOf("config", "userdata", "appcache", "steamui").flatMap { top ->
+            val base = File(root, top)
+            if (!base.isDirectory) return@flatMap emptyList()
+            base.walkTopDown().maxDepth(5)
+                .onEnter { dir -> dir.name !in skippedFolders && !(top == "steamui" && dir.parentFile == base && dir.name == "movies") }
+                .take(20_000).filter { isMovie(it) }.toList()
+        }.sortedBy { it.path.lowercase() }
+        scan = Triple(root.path, now, found)
+        found
     }
 
     private const val OVERRIDES = "/uioverrides/movies/"
@@ -205,10 +242,11 @@ object BootMovieLibrary {
         val removed = when {
             id == BootMovie.CUSTOM -> { BootMovie.removeCustom(context); true }
             else -> {
-                // Only a movie DroidDeck itself put here is ever deleted; Steam's own movies are left alone.
+                // Only movies in Steam's custom movies folder are ever deleted; Steam's own and points shop movies are left alone.
                 if (!id.startsWith(PREFIX)) return false
                 val name = id.removePrefix(PREFIX)
-                if (name.isEmpty() || name.contains('/') || name.contains('\\') || name in STAGED || readMeta(context).optJSONObject(name) == null) return false
+                if (name.isEmpty() || name.contains('/') || name.contains('\\') || name in STAGED) return false
+                if (readMeta(context).optJSONObject(name) == null && !File(moviesDir(context), name).isFile && !File(libraryDir(context), name).isFile) return false
                 synchronized(lock) {
                     val kept = File(libraryDir(context), name)
                     val copy = File(moviesDir(context), name)

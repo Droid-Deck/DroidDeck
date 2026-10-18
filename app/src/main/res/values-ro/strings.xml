@@ -2743,6 +2743,7 @@
     <string name="boot_movie_repo_empty">Nu s-au găsit videoclipuri</string>
     <string name="boot_movie_repo_install">Instalează</string>
     <string name="boot_movie_repo_use">Folosește</string>
+    <string name="boot_movie_in_use">În uz</string>
     <string name="boot_movie_repo_installed">%1$s instalat</string>
     <string name="boot_movie_repo_download_failed">Videoclipul nu a putut fi descărcat</string>
     <string name="boot_movie_repo_previous">Înapoi</string>

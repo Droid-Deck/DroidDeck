@@ -2709,6 +2709,7 @@
     <string name="boot_movie_repo_empty">Keine Videos gefunden</string>
     <string name="boot_movie_repo_install">Installieren</string>
     <string name="boot_movie_repo_use">Verwenden</string>
+    <string name="boot_movie_in_use">In Verwendung</string>
     <string name="boot_movie_repo_installed">%1$s installiert</string>
     <string name="boot_movie_repo_download_failed">Das Video konnte nicht heruntergeladen werden</string>
     <string name="boot_movie_repo_previous">Zurück</string>

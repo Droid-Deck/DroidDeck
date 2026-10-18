@@ -2709,6 +2709,7 @@
     <string name="boot_movie_repo_empty">Не са намерени видеа</string>
     <string name="boot_movie_repo_install">Инсталиране</string>
     <string name="boot_movie_repo_use">Използване</string>
+    <string name="boot_movie_in_use">Използва се</string>
     <string name="boot_movie_repo_installed">%1$s е инсталирано</string>
     <string name="boot_movie_repo_download_failed">Видеото не можа да бъде изтеглено</string>
     <string name="boot_movie_repo_previous">Назад</string>

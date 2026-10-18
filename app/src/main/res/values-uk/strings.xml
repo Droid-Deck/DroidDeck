@@ -2777,6 +2777,7 @@
     <string name="boot_movie_repo_empty">Відео не знайдено</string>
     <string name="boot_movie_repo_install">Встановити</string>
     <string name="boot_movie_repo_use">Використати</string>
+    <string name="boot_movie_in_use">Використовується</string>
     <string name="boot_movie_repo_installed">%1$s встановлено</string>
     <string name="boot_movie_repo_download_failed">Не вдалося завантажити це відео</string>
     <string name="boot_movie_repo_previous">Назад</string>

@@ -2734,6 +2734,7 @@
     <string name="boot_movie_repo_empty">No se encontraron vídeos</string>
     <string name="boot_movie_repo_install">Instalar</string>
     <string name="boot_movie_repo_use">Usar</string>
+    <string name="boot_movie_in_use">En uso</string>
     <string name="boot_movie_repo_installed">%1$s instalado</string>
     <string name="boot_movie_repo_download_failed">No se pudo descargar ese vídeo</string>
     <string name="boot_movie_repo_previous">Anterior</string>

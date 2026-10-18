@@ -2709,6 +2709,7 @@
     <string name="boot_movie_repo_empty">Δεν βρέθηκαν βίντεο</string>
     <string name="boot_movie_repo_install">Εγκατάσταση</string>
     <string name="boot_movie_repo_use">Χρήση</string>
+    <string name="boot_movie_in_use">Σε χρήση</string>
     <string name="boot_movie_repo_installed">Το %1$s εγκαταστάθηκε</string>
     <string name="boot_movie_repo_download_failed">Δεν ήταν δυνατή η λήψη αυτού του βίντεο</string>
     <string name="boot_movie_repo_previous">Προηγούμενη</string>

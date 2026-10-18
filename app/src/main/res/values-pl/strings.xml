@@ -2777,6 +2777,7 @@
     <string name="boot_movie_repo_empty">Nie znaleziono filmów</string>
     <string name="boot_movie_repo_install">Zainstaluj</string>
     <string name="boot_movie_repo_use">Użyj</string>
+    <string name="boot_movie_in_use">W użyciu</string>
     <string name="boot_movie_repo_installed">Zainstalowano %1$s</string>
     <string name="boot_movie_repo_download_failed">Nie udało się pobrać tego filmu</string>
     <string name="boot_movie_repo_previous">Poprzednia</string>

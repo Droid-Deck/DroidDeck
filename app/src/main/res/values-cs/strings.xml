@@ -2777,6 +2777,7 @@
     <string name="boot_movie_repo_empty">Nenalezena žádná videa</string>
     <string name="boot_movie_repo_install">Nainstalovat</string>
     <string name="boot_movie_repo_use">Použít</string>
+    <string name="boot_movie_in_use">Používá se</string>
     <string name="boot_movie_repo_installed">%1$s nainstalováno</string>
     <string name="boot_movie_repo_download_failed">Video se nepodařilo stáhnout</string>
     <string name="boot_movie_repo_previous">Předchozí</string>
