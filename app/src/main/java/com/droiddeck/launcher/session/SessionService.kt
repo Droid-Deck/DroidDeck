@@ -247,7 +247,10 @@ class SessionService : Service() {
         SessionState.programArgs = intent?.getStringArrayExtra(EXTRA_PROGRAM_ARGS)?.toList().orEmpty()
         SessionState.steamUi = intent?.getStringExtra(EXTRA_STEAM_UI)
         SessionState.steamUrl = intent?.getStringExtra(EXTRA_STEAM_URL)
-        SessionState.running = true
+        synchronized(stopLock) {
+            SessionState.steamClientArch = null
+            SessionState.running = true
+        }
         if (SessionState.stopRequested) {
             stopSession(0)
             return START_NOT_STICKY
@@ -268,9 +271,9 @@ class SessionService : Service() {
         return START_NOT_STICKY
     }
 
-    private fun collectSessionArtifacts(dir: File) {
+    private fun collectSessionArtifacts(dir: File, steamArch: String?) {
         try {
-            SessionArtifacts.collect(this, dir, "session stopped")
+            SessionArtifacts.collect(this, dir, "session stopped", steamArch)
         } finally {
             SessionLogCapture.stopFor(dir)
             SessionPaths.release(this, dir)
@@ -317,6 +320,10 @@ class SessionService : Service() {
         val runtimeDir = File(filesDir, ".wayland-rt").apply { mkdirs() }
         killStragglers()
         SessionFiles.stage(this, root)
+        // Earlier sessions' reports still read the Steam logs and VAC marker this session replaces.
+        SessionArtifacts.awaitCollections()
+        SessionArtifacts.finishAbandoned(this)
+        VacDiagnostics.arm(this)
         com.droiddeck.launcher.agent.AgentGuest.reset(this)
         com.droiddeck.launcher.stores.gog.GogComet.begin()
         com.droiddeck.launcher.stores.StoreLaunchRequests.start(this)
@@ -407,7 +414,7 @@ class SessionService : Service() {
             Log.i(TAG, "run: $program (${SessionState.programArgs.size} arguments) under gamescope")
         }
 
-        FileUtils.clear(File(cacheDir, "shm"))
+        FileUtils.clear(File(LinuxRuntime.liveDir(this), "shm"))
 
         val binds = sessionBinds(controllersOn, fakeInputDir, sessionDir, guest, sessionRoot, runtimeDir)
         val fastPathKey = if (ProotFastPath.enabled(this)) {
@@ -432,7 +439,7 @@ class SessionService : Service() {
 
         val hostEnv = HostEnvironment()
         hostEnv["PROOT_LOADER"] = LinuxRuntime.prootLoader(this).path
-        hostEnv["PROOT_TMP_DIR"] = cacheDir.path
+        hostEnv["PROOT_TMP_DIR"] = LinuxRuntime.prootTempDir(this).path
         if (SessionPrefs.prootNoSeccomp(this)) {
             hostEnv["PROOT_NO_SECCOMP"] = "1"
             Log.i(TAG, "proot: seccomp acceleration off by request")
@@ -579,6 +586,12 @@ class SessionService : Service() {
         guest.add("MESA_DISK_CACHE_DATABASE=1")
         guest.add("GLIBC_TUNABLES=glibc.pthread.rseq=0:glibc.malloc.top_pad=16777216")
         if (SessionState.mode == MODE_STEAM) guest.add("BL_MANGOAPP=" + (if (SessionPrefs.mangoapp(this)) "1" else "0"))
+        SessionState.steamClientArch = if (steamHere) SessionPrefs.steamClientArch(this) else null
+        SessionState.steamClientArch?.let { arch ->
+            guest.add("BL_STEAM_CLIENT_ARCH=$arch")
+            SessionPaths.current()?.let { SessionArtifacts.recordClient(it, arch) }
+            if (arch == "x86_64") FexCatalog.cached(this)?.let { guest.addAll(FexCatalog.environment(it)) }
+        }
         if (SessionState.mode == MODE_STEAM) {
             guest.add("BL_GAMESCOPE_STRETCH_16X9=" + (if (SessionPrefs.stretch16x9(this)) "1" else "0"))
         }
@@ -822,6 +835,40 @@ class SessionService : Service() {
                     Log.w(TAG, "steam library: ${games.host} private directories could not be prepared", e)
                 }
             }
+        }
+        val x64Libraries = org.json.JSONArray()
+        // Desktop mode offers the x86-64 client either way; droiddeck-steam-x64 drops library folders it is not given.
+        val x64Here = SessionPrefs.steamClientArch(this) == "x86_64" ||
+            (SessionState.mode == MODE_DESKTOP &&
+                com.droiddeck.launcher.storage.SteamStorage.x64ClientPresent(SessionPrefs.steamRoot(this, "x86_64")))
+        if (storageDiagnosticLibrary != null && library != null && x64Here) {
+            val x64 = File(library.path, GameStorage.X64_CARD_DIR)
+            val problem = GameStorage.prepare(this, x64.path)
+            if (problem != null) {
+                Log.w(TAG, "x86-64 steam library: $problem")
+            } else try {
+                val room = if (ProotFastPath.enabled(this)) {
+                    ProotFastPath.MAX_BINDS - LinuxRuntime.binds(this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds).size
+                } else Int.MAX_VALUE
+                val extra = SecondaryLibrary.binds(filesDir, x64, listOf(GameStorage.X64_CARD_GUEST)).drop(1)
+                if (extra.size > room) {
+                    Log.w(TAG, "x86-64 steam library: $x64 needs ${extra.size} binds, $room left for the fast path; not a library this session")
+                } else {
+                    binds.addAll(extra)
+                    x64Libraries.put(org.json.JSONObject().put("path", GameStorage.X64_CARD_GUEST).put("label", library.label.replace('"', ' ').replace('\\', ' ')))
+                    Log.i(TAG, "x86-64 steam library: $x64 -> ${GameStorage.X64_CARD_GUEST} (\"${library.label}\")")
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "x86-64 steam library: $x64 private directories could not be prepared", e)
+            }
+        }
+        try {
+            val listing = File(filesDir, "session/steam-libraries-x64.json").apply { parentFile?.mkdirs() }
+            listing.writeText(x64Libraries.toString())
+            val envAt = guest.indexOf(LinuxRuntime.SESSION_SCRIPT).takeIf { it >= 0 } ?: guest.size
+            guest.add(envAt, "BL_X64_STEAM_LIBRARIES=" + listing.path)
+        } catch (e: Exception) {
+            Log.w(TAG, "x86-64 steam library: the list could not be written; internal storage alone this session", e)
         }
         try {
             val listing = File(filesDir, "session/steam-libraries.json").apply { parentFile?.mkdirs() }
@@ -1328,6 +1375,9 @@ class SessionService : Service() {
                 val failureStatus = SessionState.failureStatus ?: status
                 SessionEvents.fail(code, message, failureStatus)
             }
+            SessionState.steamVr = false
+            com.droiddeck.launcher.glasses.Glasses.cancelSteamVrStart()
+            com.droiddeck.launcher.glasses.Glasses.setVrActive(false)
             com.droiddeck.launcher.glasses.Glasses.set3dForVr(false)
             SessionState.notifyEnded(status)
             stopForeground(STOP_FOREGROUND_REMOVE)
@@ -1356,9 +1406,10 @@ class SessionService : Service() {
     private fun stopSession(status: Int) {
         cancelQueuedSteamGame()
         completeNativeSleep()
-        synchronized(stopLock) {
+        val (ended, endedArch) = synchronized(stopLock) {
             if (!SessionState.running) return
             SessionState.running = false
+            SessionPaths.take() to SessionState.steamClientArch
         }
         xrActivityVisible = false
         updateDownloadMonitoring()
@@ -1383,8 +1434,11 @@ class SessionService : Service() {
         SessionTerminal.clear(sessionGen)
         val controller = suspendController
         suspendController = null
-        val ended = SessionPaths.take()
-        if (ended != null) Thread({ collectSessionArtifacts(ended) }, "session-collect").start()
+        if (ended != null) {
+            VacDiagnostics.snapshot(this, ended)
+            SessionArtifacts.collectionStarted(ended)
+            Thread({ collectSessionArtifacts(ended, endedArch) }, "session-collect").start()
+        }
         components.reversed().forEach {
             try {
                 it.stop()
@@ -1584,6 +1638,7 @@ class SessionService : Service() {
                 downloadActive = steamDownloadMonitor.poll(
                     LinuxRuntime.rootDir(this@SessionService),
                     receivedBytes = TrafficStats.getUidRxBytes(android.os.Process.myUid()),
+                    client = SessionState.steamClientArch,
                 )
                 if (wasActive != downloadActive) refreshNotification()
                 updateSuspendPolicy()

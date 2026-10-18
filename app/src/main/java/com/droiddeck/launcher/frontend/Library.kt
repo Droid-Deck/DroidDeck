@@ -74,11 +74,14 @@ object Library {
     private val LAST_PLAYED = Regex("^\\s*\"LastPlayed\"\\s*\"(\\d+)\"", RegexOption.MULTILINE)
     private val INSTALL_DIR = Regex("^\\s*\"installdir\"\\s*\"([^\"]*)\"", RegexOption.MULTILINE)
 
-    internal fun steamLibraries(context: Context): List<Pair<File, String>> {
-        val root = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam")
+    internal fun steamLibraries(context: Context, arch: String = SessionPrefs.activeSteamClientArch(context)): List<Pair<File, String>> {
+        val root = SessionPrefs.steamRoot(context, arch)
+        // The session gives the x86-64 client only its card folder; the games folders stay the arm64 client's.
+        val card = GameStorage.effective(context)
+        if (arch == "x86_64") return listOfNotNull(root to "internal", card?.let { File(it.path, GameStorage.X64_CARD_DIR) to it.label })
         return listOfNotNull(
             root to "internal",
-            GameStorage.effective(context)?.let { File(it.path) to it.label },
+            card?.let { File(it.path) to it.label },
         ) + GameStorage.gamesFolderLibraries(context).map { it.host to it.label }
     }
 
@@ -98,10 +101,10 @@ object Library {
             .firstOrNull { it.isDirectory }
     }
 
-    fun steamGames(context: Context, strictRead: Boolean = false): List<SteamGame> {
-        val root = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam")
+    fun steamGames(context: Context, strictRead: Boolean = false, arch: String = SessionPrefs.activeSteamClientArch(context)): List<SteamGame> {
+        val root = SessionPrefs.steamRoot(context, arch)
         val cache = File(root, "appcache/librarycache")
-        val libraries = steamLibraries(context)
+        val libraries = steamLibraries(context, arch)
         val roots = libraries.map { it.first }
         val out = LinkedHashMap<Int, SteamGame>()
         for ((library, label) in libraries) {
@@ -134,19 +137,24 @@ object Library {
     }
 
     fun steamLibraryArt(context: Context): List<Pair<Int, File>> {
-        val cache = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/appcache/librarycache")
+        val cache = File(SessionPrefs.activeSteamRoot(context), "appcache/librarycache")
         return cache.listFiles().orEmpty().mapNotNull { dir ->
             val appId = dir.name.toIntOrNull()?.takeIf { it !in NOT_GAMES } ?: return@mapNotNull null
             steamCacheImage(cache, appId, STEAM_CAPSULES)?.let { appId to it }
         }
     }
 
-    fun launchableGames(context: Context, strictRead: Boolean = false, added: List<AddedGames.Game>? = null): List<SteamGame> {
-        val roots = steamLibraries(context).map { it.first }
+    fun fromSteamClient(g: SteamGame): Boolean = g.library != ADDED && g.source == SOURCE_STEAM
+
+    fun launchableGames(
+        context: Context, strictRead: Boolean = false, added: List<AddedGames.Game>? = null,
+        arch: String = SessionPrefs.activeSteamClientArch(context),
+    ): List<SteamGame> {
+        val roots = steamLibraries(context, arch).map { it.first }
         val list = added ?: AddedGames.scan(context)
-        var steam = steamGames(context, strictRead)
-        val targets = steam.filter { it.library != ADDED && it.source == SOURCE_STEAM }.map { SteamGrid.target(it, context) } + list.map { SteamGrid.target(it, context) }
-        if (runCatching { SteamGrid.sync(context, targets) }.getOrDefault(false)) steam = steamGames(context, strictRead)
+        var steam = steamGames(context, strictRead, arch)
+        val targets = steam.filter(::fromSteamClient).map { SteamGrid.target(it, context) } + list.map { SteamGrid.target(it, context) }
+        if (runCatching { SteamGrid.sync(context, targets) }.getOrDefault(false)) steam = steamGames(context, strictRead, arch)
         return (steam + list.map { g -> addedGame(context, g, roots) }).distinctBy { it.gameId }
     }
 

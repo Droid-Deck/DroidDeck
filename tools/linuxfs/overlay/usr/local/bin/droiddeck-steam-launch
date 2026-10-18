@@ -12,15 +12,22 @@ case $target in
 esac
 
 if [ "$ui" = desktop ] && [ "${BL_DESKTOP:-}" = 1 ]; then
-  steam_root=${XDG_DATA_HOME:-${HOME:-/root}/.local/share}/Steam
-  export LD_LIBRARY_PATH=$steam_root/steamrtarm64:$steam_root/steamrtarm64/panorama${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+  if [ "${BL_STEAM_CLIENT_ARCH:-}" = x86_64 ]; then
+    client_home=${BL_X64_HOME:-${HOME:-/root}/.droiddeck-x64}
+    client=(/usr/local/bin/droiddeck-steam-x64 --exec)
+  else
+    steam_root=${XDG_DATA_HOME:-${HOME:-/root}/.local/share}/Steam
+    export LD_LIBRARY_PATH=$steam_root/steamrtarm64:$steam_root/steamrtarm64/panorama${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+    client_home=$HOME
+    client=("$steam_root/steamrtarm64/steam")
+  fi
   mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}/droiddeck"
   exec 9>"${XDG_CACHE_HOME:-$HOME/.cache}/droiddeck/steam-desktop.lock"
   if ! flock -n 9; then
     for ((attempt = 0; attempt < 180; attempt++)); do
-      pid=$(cat "$HOME/.steam/steam.pid" 2>/dev/null || true)
-      if [ -p "$HOME/.steam/steam.pipe" ] && [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
-        exec "$steam_root/steamrtarm64/steam" -nobigpicture -no-cef-sandbox \
+      pid=$(cat "$client_home/.steam/steam.pid" 2>/dev/null || true)
+      if [ -p "$client_home/.steam/steam.pipe" ] && [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
+        exec "${client[@]}" -nobigpicture -no-cef-sandbox \
           -cef-ozone-platform=x11 -cef-disable-gpu "${url:-steam://open/library}"
       fi
       sleep 0.5

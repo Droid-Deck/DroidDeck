@@ -87,7 +87,12 @@ internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, o
     }
     if (current == null || gameCount == 0) {
         Column(modifier = modifier.padding(horizontal = if (narrow) 16.dp else 22.dp, vertical = if (narrow) 12.dp else 18.dp)) {
-            Rise(0) { PageHeader(stringResource(R.string.content_games)) { onAdd?.let { AddGameButton(it) } } }
+            Rise(0) {
+                PageHeader(stringResource(R.string.content_games)) {
+                    if (s.steamGamesX64) ClientTag()
+                    onAdd?.let { AddGameButton(it) }
+                }
+            }
             Rise(1) { Note(stringResource(if (s.shortcutPicker && s.shortcutLibraryScanning) R.string.game_shortcut_scanning else R.string.games_empty)) }
             if (!s.shortcutPicker) Rise(2) {
                 Actions {
@@ -102,7 +107,7 @@ internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, o
     val host = rememberMenuHost()
     if (games.size == 1) {
         Column(modifier = modifier.verticalScroll(rememberScrollState()).padding(horizontal = if (narrow) 16.dp else 22.dp, vertical = if (narrow) 12.dp else 18.dp)) {
-            if (onAdd != null) Rise(0) { GamesHeader(gameCount, onAdd, Modifier.padding(bottom = 10.dp)) }
+            if (onAdd != null) Rise(0) { GamesHeader(gameCount, s.steamGamesX64, onAdd, Modifier.padding(bottom = 10.dp)) }
             Rise(0) {
                 Row(verticalAlignment = Alignment.Bottom) {
                     GameHero(current, Modifier.weight(1f).heightIn(min = if (narrow) 190.dp else 250.dp)) {
@@ -120,7 +125,7 @@ internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, o
     }
     val pal = LocalPalette.current
     Row(modifier = modifier) {
-        GameList(games, gameCount, current, onSelect = { onSelect("app:${it.appId}") }, onLaunch = launch, onAdd = onAdd,
+        GameList(games, gameCount, s.steamGamesX64, current, onSelect = { onSelect("app:${it.appId}") }, onLaunch = launch, onAdd = onAdd,
             modifier = Modifier.width(if (narrow) 168.dp else 250.dp).fillMaxHeight())
         Box(Modifier.width(1.dp).fillMaxHeight().background(pal.line))
         Column(
@@ -328,7 +333,7 @@ private fun ColumnScope.GameHeroCopy(g: Library.SteamGame, titleSize: androidx.c
 
 @Composable
 private fun GameList(
-    games: List<Library.SteamGame>, count: Int, current: Library.SteamGame,
+    games: List<Library.SteamGame>, count: Int, x64: Boolean, current: Library.SteamGame,
     onSelect: (Library.SteamGame) -> Unit, onLaunch: (Library.SteamGame) -> Unit, onAdd: (() -> Unit)?, modifier: Modifier,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -336,7 +341,7 @@ private fun GameList(
         verticalArrangement = Arrangement.spacedBy(2.dp),
         modifier = modifier.verticalScroll(rememberScrollState()).padding(start = 12.dp, end = 10.dp, top = 16.dp, bottom = 16.dp),
     ) {
-        GamesHeader(count, onAdd, Modifier.padding(start = 6.dp, bottom = 10.dp))
+        GamesHeader(count, x64, onAdd, Modifier.padding(start = 6.dp, bottom = 10.dp))
         val seen = remember { HashSet<Int>() }
         var settled by remember { androidx.compose.runtime.mutableStateOf(false) }
         for (g in games) key(g.appId) {
@@ -352,13 +357,23 @@ private fun GameList(
 }
 
 @Composable
-private fun GamesHeader(count: Int, onAdd: (() -> Unit)?, modifier: Modifier) {
+private fun GamesHeader(count: Int, x64: Boolean, onAdd: (() -> Unit)?, modifier: Modifier) {
     val colors = MaterialTheme.colorScheme
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = modifier) {
-        Text(stringResource(R.string.content_games), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1)
-        Text(count.toString(), fontSize = 13.sp, color = colors.onSurfaceVariant)
-        if (onAdd != null) AddGameButton(onAdd)
+    val narrow = LocalNarrowPane.current
+    Column(modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(R.string.content_games), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1)
+            Text(count.toString(), fontSize = 13.sp, color = colors.onSurfaceVariant)
+            if (x64 && !narrow) ClientTag()
+            if (onAdd != null) AddGameButton(onAdd)
+        }
+        if (x64 && narrow) Box(Modifier.padding(top = 4.dp)) { ClientTag() }
     }
+}
+
+@Composable
+private fun ClientTag() {
+    Box(Modifier.testTag("games-client-x64")) { StateChip(stringResource(R.string.mode_client_arch_x64), ChipTone.PLAIN) }
 }
 
 internal object GamesDialogState {

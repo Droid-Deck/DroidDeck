@@ -1,5 +1,7 @@
 # VITURE Android SDK integration
 
+For the cross-brand feature matrix and user setup, see [smart-glasses support](../smart-glasses-support.md).
+
 The optional adapter is built against the user-supplied VITURE XR Glasses SDK
 2.4.0. Set `droiddeck.vitureSdk=C:/path/to/VITURE_XR_Glasses_SDK_for_Android`
 in the ignored `local.properties`, or pass `-PvitureSdkDir=/path/to/sdk`.
@@ -26,9 +28,10 @@ Device firmware can reject individual modes; Android's physical display size
 must confirm SBS before the app considers the switch successful.
 
 All three feed the existing `Glasses.PoseSink`, head recentering, compositor and
-SteamVR pipeline. Ultra explicitly selects 3DoF before SDK initialization because
-the current pipeline consumes orientation. Positional 6DoF and camera passthrough
-are outside this integration. The SDK's optional statistics reporter is not enabled.
+SteamVR pipeline. Ultra selects 3DoF or the opt-in positional 6DoF mode before SDK
+initialization. Its positional poses and stereo cameras feed the
+[Luma spatial pipeline](luma-spatial-tracking.md); camera passthrough is not implemented.
+The SDK's optional statistics reporter is not enabled.
 
 The SDK owns USB interface selection and I/O. `UsbDeviceConnection` remains open
 until stop/shutdown/destroy finish. A generation token rejects callbacks from an
@@ -40,19 +43,64 @@ mode can fall back to the native table, with rollback on failure.
 
 `Game on glasses` uses Android's existing Presentation output. USB control alone
 does not create a video display: the phone, cable and adapter must expose a usable
-external display. Discovery checks both display name and product metadata, with
+external display. Enabling 3D also enables and saves `Game on glasses` before
+requesting the stereo mode, so the picture uses the glasses' presentation instead
+of the mirrored phone output. Returning to 2D keeps the game on the glasses.
+Discovery checks both display name and product metadata, with
 a single unnamed-display fallback when recognized glasses USB is present.
 
 Screen width and distance apply to **Virtual screen** rendering. In **Automatic**,
-ordinary 2D games stay flat, ordinary games with a confirmed SBS display use a
-virtual screen, and a running SteamVR session uses the direct stereo view.
+ordinary 2D games stay flat. On an SBS display, the complete flat frame is fitted
+into each eye without cropping or head tracking. A running SteamVR session uses
+the direct stereo view. Games or videos that already contain separate eye images
+use the explicit **Side-by-side game** picture setting. Switching SBS on does not
+activate a virtual screen or head tracking for ordinary games.
 The direct view uses SteamVR field of view instead of virtual-screen dimensions
 while SteamVR is running. A plain side-by-side game fills each eye and does not
 use the SteamVR field-of-view or recenter controls.
-The settings UI and session renderer share this mode selection through
-`GlassesRendering`; home-screen changes configure sessions rather than resizing
-Android's mirrored launcher. Regular refresh rate applies to 2D output; SBS uses
-the model's separate 3D refresh rate.
+
+All supported glasses with an available head-tracking connection have a separate
+**3DoF virtual screen** toggle, including VITURE, RayNeo and XREAL 1S. Availability
+comes from the connected transport's IMU capability rather than a model whitelist.
+The app renders this screen without enabling a built-in 3DoF mode or changing
+brightness. Enabling it selects Virtual screen, head tracking and Game on glasses,
+and saves those preferences without changing the glasses' 2D/SBS mode. It works
+with flat games in either display mode. Disabling it returns the picture to Automatic; switching
+SBS on or off preserves the 3DoF selection. Virtual screens center on the current
+viewing direction when tracking starts or the user recenters, including the
+up/down angle. Direct SteamVR views retain their gravity-aligned recentering.
+
+The settings UI, menu presentation, and session renderer share this mode selection
+through `GlassesRendering`. Setup → Smart glasses configures DroidDeck menus,
+non-Steam launchers, desktop sessions, and games. Tracked menus use the app's own
+glasses presentation while phone controls remain available; see
+[tracked menus](glasses-menu-tracking.md). Regular refresh rate applies to 2D
+output; SBS uses the model's separate 3D refresh rate.
+Both the home menu and session drawer use **Display**, **VR**, **Tracking**, and
+**Device** tabs. Display groups connection and output controls, 2D/3D resolution
+and active refresh rate, then picture and virtual-screen geometry. VR contains
+SteamVR controls, automatic 3D, VR resolution, and field of view. Tracking groups
+head orientation, position and floor, and hands with camera setup. Device contains
+brightness, volume, and sunblock. Unsupported hardware tabs are hidden. Recenter
+is the first action on every session tab while head tracking is enabled for a
+3DoF/6DoF virtual screen or SteamVR.
+
+Display saves **2D resolution** and **3D resolution**; VR saves **VR resolution**. Values are per eye: 1920 x 1080 or, on tall VITURE
+models, 1920 x 1200. Automatic keeps the existing model default; VR defaults to
+following the active 2D/3D preference. Home settings expose all three profiles,
+while a running session shows the active profile next to its refresh control.
+Switching resolution retains the refresh preference and does not change brightness,
+color processing, or the session's game-rendering resolution. Android selects an
+advertised mode with matching dimensions and the closest available refresh rate,
+without crossing the 2D/SBS layout. VITURE's USB command selects the matching
+resolution family first. A saved resolution unsupported by another attached model
+falls back to its automatic behavior. Resolution controls wait for a pending SBS
+transition to finish before accepting another change.
+
+Both lists offer 30 Hz only when Android advertises a matching native display mode at the current
+resolution and **Game on glasses** is enabled. Android's presentation selects that mode without a
+vendor command. A saved 30 Hz choice falls back to 60 Hz if the display or eye layout lacks it;
+mirrored output never substitutes a 30 fps rendering limit.
 Software picture controls remain available while a display is connected even if
 USB control is lost; hardware controls and head tracking still require USB.
 Presentation refresh preferences are revalidated on display changes even when

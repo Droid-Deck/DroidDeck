@@ -66,17 +66,26 @@ class JoyConShmTest {
     }
 
     @Test fun reopeningKeepsTheSequenceMovingForward() {
-        JoyConShm.open(file) {}!!.write(JoyCon.LEFT, JoyConShm.Hand(connected = true))
+        val first = JoyConShm.open(file) {}!!
+        first.write(JoyCon.LEFT, JoyConShm.Hand(connected = true))
         assertEquals(4, read().getInt(8))
-        file.outputStream().use { }
-        assertEquals(0L, file.length())
+        first.close()
+        val previous = read().getInt(8)
         assertNotNull(JoyConShm.open(file) {})
-        assertEquals(2, read().getInt(8))
+        assertTrue(read().getInt(8) > previous)
         java.io.RandomAccessFile(file, "rw").use { it.seek(8); it.write(byteArrayOf(7, 0, 0, 0)) }
         JoyConShm.open(file) {}!!
         val after = read().getInt(8)
         assertEquals(0, after and 1)
         assertTrue("$after after a torn write", after > 7)
+    }
+
+    @Test fun anEmptyFileStartsANewSequence() {
+        file.parentFile!!.mkdirs()
+        file.outputStream().use { }
+        assertEquals(0L, file.length())
+        assertNotNull(JoyConShm.open(file) {})
+        assertEquals(2, read().getInt(8))
     }
 
     @Test fun anUnwritableLocationIsReportedAsMissing() {

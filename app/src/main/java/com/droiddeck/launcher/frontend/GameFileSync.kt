@@ -38,7 +38,7 @@ object GameFileSync {
 
     @Synchronized private fun sync(context: Context, folder: File) {
         check(LinuxRuntime.isInstalled(context)) { context.getString(R.string.game_sync_err_runtime) }
-        check(File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/steamapps").isDirectory) { context.getString(R.string.game_sync_err_steam_library) }
+        check(File(SessionPrefs.activeSteamRoot(context), "steamapps").isDirectory) { context.getString(R.string.game_sync_err_steam_library) }
         val storage = GameStorage.effective(context)
         val storageSetting = SessionPrefs.gameStorage(context)
         val previousStorage = prefs(context).getString("storagePath", null)

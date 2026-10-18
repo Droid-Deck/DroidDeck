@@ -162,10 +162,11 @@ class WindowsRuntimePreparationTest(unittest.TestCase):
         with mock.patch.object(prepare, 'source_assets', return_value={}), \
                 mock.patch.object(prepare, 'changed', side_effect=[set(), {'app/src/main/cpp/CMakeLists.txt'}, set()]), \
                 mock.patch.object(prepare, 'git', side_effect=[prepare.DONOR_TREE.encode(),
-                    b'app/src/main/cpp/viture/sdk_bridge.cpp\0']):
+                    b'app/src/main/cpp/viture/sdk_bridge.cpp\0app/src/main/cpp/viture/stereo_frame_gate.h\0']):
             classifications = prepare.check_sources()
             self.assertEqual(set(classifications), {'app/src/main/cpp/CMakeLists.txt',
-                                                    'app/src/main/cpp/viture/sdk_bridge.cpp'})
+                                                    'app/src/main/cpp/viture/sdk_bridge.cpp',
+                                                    'app/src/main/cpp/viture/stereo_frame_gate.h'})
             self.assertTrue(all('compiled by Gradle' in action for action in classifications.values()))
         with mock.patch.object(prepare, 'changed', side_effect=[set(), set()]), \
                 mock.patch.object(prepare, 'git', side_effect=[prepare.DONOR_TREE.encode(),
