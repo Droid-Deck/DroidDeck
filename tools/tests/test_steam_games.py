@@ -84,6 +84,17 @@ class ImportsTest(unittest.TestCase):
             imports.watch(str(self.steam), str(listing))
         identify.assert_not_called()
 
+    def test_native_programs_stay_shortcuts_and_are_never_looked_up(self):
+        self.snapshot()
+        game = dict(self.game, native=True)
+        self.assertEqual(([game], {}), imports.route(self.steam, self.acct, [game]))
+        self.assertFalse((self.steam / 'steamapps/appmanifest_42.acf').exists())
+        listing = self.root / 'games.json'
+        listing.write_text(json.dumps([game]))
+        with patch.object(imports, 'identify') as identify:
+            imports.watch(str(self.steam), str(listing))
+        identify.assert_not_called()
+
     def test_migrates_only_unchanged_legacy_import_manifests(self):
         self.snapshot()
         imports.route(self.steam, self.acct, [self.game])

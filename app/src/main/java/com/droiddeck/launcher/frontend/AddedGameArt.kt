@@ -22,7 +22,7 @@ object AddedGameArt {
     }
 
     enum class Slot(val key: String, val cacheName: String, val assetType: Int?) {
-        COVER("p", "p.jpg", 0), BACKGROUND("hero", "hero.jpg", 1), LOGO("logo", "logo.png", 2), ICON("icon", "icon.png", null),
+        COVER("p", "p.jpg", 0), WIDE("header", "header.jpg", 3), BACKGROUND("hero", "hero.jpg", 1), LOGO("logo", "logo.png", 2), ICON("icon", "icon.png", null),
     }
 
     const val FOLDER = "folder"
@@ -40,7 +40,7 @@ object AddedGameArt {
 
     class Found<T>(val items: List<T>, val status: SteamGridDb.Status)
 
-    private val CHOSEN = Regex("""chosen-(p|hero|logo|icon)(?:-\d+)?\.(\w+)""")
+    private val CHOSEN = Regex("""chosen-(p|header|hero|logo|icon)(?:-\d+)?\.(\w+)""")
 
     internal fun chosen(cache: File, slot: Slot): File? =
         cache.listFiles { f -> CHOSEN.matchEntire(f.name)?.groupValues?.get(1) == slot.key }?.maxWithOrNull(compareBy({ it.lastModified() }, { it.name }))
@@ -79,7 +79,7 @@ object AddedGameArt {
         fun cached(name: String) = File(cache, name).takeIf { it.isFile }
         return Art(
             portrait = chosen(cache, Slot.COVER) ?: own.portrait ?: cached("p.jpg") ?: exeArt(context, game, cover = true),
-            header = own.header ?: cached("header.jpg") ?: exeArt(context, game, cover = false),
+            header = chosen(cache, Slot.WIDE) ?: own.header ?: cached("header.jpg") ?: exeArt(context, game, cover = false),
             hero = chosen(cache, Slot.BACKGROUND) ?: own.hero ?: cached("hero.jpg"),
             logo = chosen(cache, Slot.LOGO) ?: own.logo ?: cached("logo.png"),
             icon = chosen(cache, Slot.ICON) ?: own.icon ?: cached("icon-sgdb.png") ?: exeIcon(context, game),
@@ -96,6 +96,7 @@ object AddedGameArt {
             chosen(cache, slot)?.let { return@map SlotState(slot, it, chosenSource(context, game, slot).first.ifEmpty { FILE }, true) }
             val auto: Pair<File, String>? = when (slot) {
                 Slot.COVER -> own.portrait?.let { it to FOLDER } ?: cached("p.jpg") ?: exeArt(context, game, cover = true)?.let { it to EXE }
+                Slot.WIDE -> own.header?.let { it to FOLDER } ?: cached("header.jpg") ?: exeArt(context, game, cover = false)?.let { it to EXE }
                 Slot.BACKGROUND -> own.hero?.let { it to FOLDER } ?: cached("hero.jpg")
                 Slot.LOGO -> own.logo?.let { it to FOLDER } ?: cached("logo.png")
                 Slot.ICON -> own.icon?.let { it to FOLDER } ?: File(cache, "icon-sgdb.png").takeIf { it.isFile }?.let { it to SGDB }
@@ -124,7 +125,7 @@ object AddedGameArt {
     }
 
     internal fun steamOption(steamId: String, slot: Slot): Option? {
-        val remote = when (slot) { Slot.COVER -> "library_600x900.jpg"; Slot.BACKGROUND -> "library_hero.jpg"; Slot.LOGO -> "logo.png"; Slot.ICON -> null } ?: return null
+        val remote = when (slot) { Slot.COVER -> "library_600x900.jpg"; Slot.WIDE -> "header.jpg"; Slot.BACKGROUND -> "library_hero.jpg"; Slot.LOGO -> "logo.png"; Slot.ICON -> null } ?: return null
         val url = "$CDN$steamId/$remote".takeIf { exists(it) } ?: steamAssetUrl(steamId, remote) ?: return null
         return Option(STEAM, url, url)
     }

@@ -1,0 +1,46 @@
+#!/bin/bash
+# Runs natively: droiddeck-steam-x64's x86 wrappers start it through an arm64 binary, which FEX hands to the CPU.
+tool=$1; shift
+x64_home=$HOME
+
+# The game overlay tags the game's windows with the Steam app ID; without it gamescope never shows them.
+overlay=0
+case ${LD_PRELOAD:-} in *gameoverlayrenderer.so*) overlay=1 ;; esac
+
+for v in $(compgen -e); do
+  case $v in FEX_*) unset "$v" ;; esac
+done
+unset LD_LIBRARY_PATH LD_PRELOAD STEAM_RUNTIME_STEAMRT STEAM_STEAMRT_RECURSION_GUARD \
+  LIBGL_ALWAYS_SOFTWARE LIBGL_DRI3_DISABLE GALLIUM_DRIVER BL_WEBHELPER_HIDE_TRACER PROOT_FP_OFF
+
+game_display=${DISPLAY:-}
+if [ -f "$x64_home/arm-session.env" ]; then
+  . "$x64_home/arm-session.env"
+else
+  export HOME=/root
+fi
+[ -z "$game_display" ] || export DISPLAY=$game_display
+# Proton takes its Steam client parts from the client's install folder; the x86-64 client's are x86.
+export BL_X64_STEAM_ROOT=${STEAM_COMPAT_CLIENT_INSTALL_PATH:-}
+export STEAM_COMPAT_CLIENT_INSTALL_PATH=$HOME/.local/share/Steam
+arm_overlay=$STEAM_COMPAT_CLIENT_INSTALL_PATH/steamrtarm64/gameoverlayrenderer.so
+if [ "$overlay" = 1 ] && [ -f "$arm_overlay" ]; then
+  export LD_PRELOAD=$arm_overlay${LD_PRELOAD:+:$LD_PRELOAD}
+fi
+
+dir=$HOME/.local/share/Steam/compatibilitytools.d/$tool
+manifest=$dir/toolmanifest.vdf
+[ -f "$manifest" ] || { echo "droiddeck-x64-arm-proton: no tool $dir" >&2; exit 127; }
+if ! grep -q droiddeck-proton-wrap "$manifest" 2>/dev/null; then
+  python3 - "${dir%/*}" <<'PY' >&2 || true
+import importlib.machinery, importlib.util, sys
+path = "/usr/local/bin/steam-compatibility"
+spec = importlib.util.spec_from_file_location("compat", path, loader=importlib.machinery.SourceFileLoader("compat", path))
+compat = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(compat)
+compat.adopt_extras(sys.argv[1])
+PY
+fi
+cmd=$(sed -n 's/^[[:space:]]*"commandline"[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" | head -n 1)
+entry=${cmd%% *}
+exec "$dir/${entry#/}" "$@"

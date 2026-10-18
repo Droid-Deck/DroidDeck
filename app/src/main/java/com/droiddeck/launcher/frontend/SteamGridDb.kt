@@ -121,6 +121,7 @@ object SteamGridDb {
     internal fun path(id: Int, slot: AddedGameArt.Slot): String =
         when (slot) {
             AddedGameArt.Slot.COVER -> "grids/game/$id?dimensions=600x900&$QUERY"
+            AddedGameArt.Slot.WIDE -> "grids/game/$id?dimensions=460x215,920x430&$QUERY"
             AddedGameArt.Slot.BACKGROUND -> "heroes/game/$id?$QUERY"
             AddedGameArt.Slot.LOGO -> "logos/game/$id?$QUERY"
             AddedGameArt.Slot.ICON -> "icons/game/$id?$QUERY"

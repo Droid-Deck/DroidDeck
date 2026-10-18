@@ -23,6 +23,7 @@ IFACE = NAME + ".Manager"
 @unittest.skipUnless(Gio and os.environ.get("DBUS_SESSION_BUS_ADDRESS"), "requires dbus-run-session and PyGObject")
 class SleepHandshakeTest(unittest.TestCase):
     ARGS = []
+    AGENT_EXIT = None
 
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
@@ -37,7 +38,16 @@ class SleepHandshakeTest(unittest.TestCase):
             lambda bus, sender, path, interface, name, body: self.signals.append(body.unpack()[0]))
         env = dict(os.environ, BL_LAUNCH_DIR=str(self.dir),
                    DBUS_SYSTEM_BUS_ADDRESS=os.environ["DBUS_SESSION_BUS_ADDRESS"])
-        self.process = subprocess.Popen(["/usr/bin/python3", str(SCRIPT), *self.ARGS], env=env,
+        script = SCRIPT
+        if self.AGENT_EXIT is not None:
+            bin_dir = self.dir / "bin"
+            bin_dir.mkdir()
+            script = bin_dir / SCRIPT.name
+            script.write_text(SCRIPT.read_text())
+            agent = bin_dir / "droiddeck-agent"
+            agent.write_text("#!/bin/sh\necho \"$@\" >> \"%s\"\nexit %d\n" % (self.dir / "agent-calls", self.AGENT_EXIT))
+            agent.chmod(0o755)
+        self.process = subprocess.Popen(["/usr/bin/python3", str(script), *self.ARGS], env=env,
                                         stdout=subprocess.DEVNULL)
         self.wait_for(lambda: (self.dir / "steam-sleep-ready").exists())
 
@@ -218,6 +228,53 @@ class SleepHandshakeTest(unittest.TestCase):
         self.wait_for(lambda: self.signals == [True, False])
         with self.assertRaises(GLib.Error):
             self.call(IFACE, "PowerOff", GLib.Variant("(b)", (True,)))
+
+
+class FakeAgentCase(unittest.TestCase):
+    ARGS = []
+    setUp = SleepHandshakeTest.setUp
+    tearDown = SleepHandshakeTest.tearDown
+    wait_for = SleepHandshakeTest.wait_for
+    call = SleepHandshakeTest.call
+    suspend = SleepHandshakeTest.suspend
+    state = SleepHandshakeTest.state
+    request_wake = SleepHandshakeTest.request_wake
+
+    def asked(self):
+        path = self.dir / "agent-calls"
+        return path.read_text().split() if path.exists() else []
+
+
+@unittest.skipUnless(Gio and os.environ.get("DBUS_SESSION_BUS_ADDRESS"), "requires dbus-run-session and PyGObject")
+class AwakeSteamTest(FakeAgentCase):
+    AGENT_EXIT = 5
+
+    def test_resuming_an_awake_steam_sends_no_sleep_wake_pair(self):
+        self.request_wake()
+        self.wait_for(lambda: self.asked())
+        deadline = time.monotonic() + 1.5
+        while time.monotonic() < deadline:
+            self.wait_for(lambda: True)
+            time.sleep(0.05)
+        self.assertEqual([], self.signals)
+        self.assertEqual(["--steam-asleep"], self.asked())
+
+    def test_a_pending_sleep_still_wakes_without_asking_steam(self):
+        token = self.suspend()
+        self.state(token, "paused")
+        self.request_wake()
+        self.wait_for(lambda: self.signals == [True, False])
+        self.assertEqual([], self.asked())
+
+
+@unittest.skipUnless(Gio and os.environ.get("DBUS_SESSION_BUS_ADDRESS"), "requires dbus-run-session and PyGObject")
+class AsleepSteamTest(FakeAgentCase):
+    AGENT_EXIT = 0
+
+    def test_resuming_a_sleeping_steam_replays_the_pair(self):
+        self.request_wake()
+        self.wait_for(lambda: self.signals == [True, False])
+        self.assertEqual(["--steam-asleep"], self.asked())
 
 
 class WithNetworkManagerTest(SleepHandshakeTest):

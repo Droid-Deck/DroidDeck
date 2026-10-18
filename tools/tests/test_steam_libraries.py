@@ -121,7 +121,7 @@ class CompatLibrariesTest(unittest.TestCase):
         manifest(self.pc / "steamapps", 30)
         manifest(self.pc / "steamapps", 3127680, installdir="FEX")
         self.assertEqual(["20", "30"], COMPAT["installed_apps"](str(self.steam)))
-        self.assertEqual(["1628350"], COMPAT["fex_missing"](str(self.steam)))
+        self.assertEqual(["1628350", "4183110"], COMPAT["fex_missing"](str(self.steam)))
 
     def test_newest_proton_across_libraries_wins(self):
         for root, build in ((self.steam, "100"), (self.pc, "200")):

@@ -3,6 +3,7 @@ add_library(droiddeckwayland SHARED
         src/vk_present.c
         src/effects_chain.c
         src/cardboard.c
+        src/spatialpose.c
         src/vk_loader.c
         src/sc_layer.c
         src/ahb_swapchain.c

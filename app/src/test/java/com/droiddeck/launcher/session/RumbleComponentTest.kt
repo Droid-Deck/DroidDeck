@@ -8,6 +8,7 @@ import android.os.Looper
 import android.os.Vibrator
 import android.os.VibratorManager
 import com.droiddeck.launcher.input.ControllerPrefs
+import com.droiddeck.launcher.input.JoyCon
 import com.droiddeck.launcher.input.PadBridge
 import java.io.IOException
 import org.junit.After
@@ -202,8 +203,53 @@ class RumbleComponentTest {
         assertFalse(shadowOf(vibrator).isVibrating)
     }
 
+    @Test fun eachVrHandRumblesItsOwnJoyConAndNeverThePhone() {
+        val left = FakeMotors()
+        val right = FakeMotors()
+        rumble.controllerMotors = { id -> if (id == PAD_ID) left else if (id == SECOND_PAD_ID) right else null }
+        JoyCon.setVrDevices(this, intArrayOf(PAD_ID, SECOND_PAD_ID))
+        effect(strong = 30000, weak = 30000, slot = JoyCon.VR_RUMBLE_SLOT + JoyCon.LEFT)
+        effect(strong = 20000, weak = 20000, slot = JoyCon.VR_RUMBLE_SLOT + JoyCon.RIGHT)
+        assertEquals(listOf(Triple(30000, 30000, 5000L)), left.played)
+        assertEquals(listOf(Triple(20000, 20000, 5000L)), right.played)
+        JoyCon.clearVrDevices(this)
+        effect(strong = 10000, weak = 10000, slot = JoyCon.VR_RUMBLE_SLOT + JoyCon.LEFT)
+        assertFalse("the hand kept rumbling after SteamVR let it go", left.vibrating)
+        assertFalse(shadowOf(vibrator).isVibrating)
+    }
+
+    @Test fun aJoyConPairSplitsTheMotorsLikeOneController() {
+        val left = FakeMotors()
+        val right = FakeMotors()
+        rumble.controllerMotors = { id -> if (id == PAD_ID) left else if (id == SECOND_PAD_ID) right else null }
+        activeController(SECOND_PAD_ID)
+        joyCons(0, PAD_ID, SECOND_PAD_ID)
+        effect(strong = 40000, weak = 1000)
+        assertEquals(listOf(Triple(40000, 0, 5000L)), left.played)
+        assertEquals(listOf(Triple(0, 1000, 5000L)), right.played)
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(RumbleComponent.MIN_GAP_MS))
+        effect(strong = 20000, weak = 0)
+        assertTrue(left.vibrating)
+        assertFalse(right.vibrating)
+        joyCons(0, PadBridge.NO_CONTROLLER, PadBridge.NO_CONTROLLER)
+        effect(strong = 10000, weak = 10000)
+        assertEquals("a lone Joy-Con missed the effect", Triple(10000, 10000, 5000L), right.played.last())
+        assertFalse("the departed Joy-Con kept rumbling", left.vibrating)
+        assertFalse(shadowOf(vibrator).isVibrating)
+    }
+
     @After fun clearActiveController() {
-        for (slot in 0 until PadBridge.SLOTS) activeController(PadBridge.NO_CONTROLLER, slot)
+        for (slot in 0 until PadBridge.SLOTS) {
+            activeController(PadBridge.NO_CONTROLLER, slot)
+            joyCons(slot, PadBridge.NO_CONTROLLER, PadBridge.NO_CONTROLLER)
+        }
+        JoyCon.clearVrDevices(this)
+    }
+
+    private fun joyCons(slot: Int, left: Int, right: Int) {
+        val pairs = PadBridge::class.java.getDeclaredField("slotJoyCons").apply { isAccessible = true }.get(null)
+        (pairs as java.util.concurrent.atomic.AtomicIntegerArray).set(slot * 2 + JoyCon.LEFT, left)
+        pairs.set(slot * 2 + JoyCon.RIGHT, right)
     }
 
     private fun activeController(id: Int, slot: Int = 0) {

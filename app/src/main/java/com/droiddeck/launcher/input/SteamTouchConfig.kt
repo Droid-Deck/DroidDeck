@@ -136,7 +136,7 @@ object SteamTouchConfig {
         null
     }
 
-    fun steamRoot(context: Context) = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam")
+    fun steamRoot(context: Context) = com.droiddeck.launcher.session.SessionPrefs.activeSteamRoot(context)
 
     fun configDir(context: Context): File? {
         val base = File(steamRoot(context), "steamapps/common/Steam Controller Configs")

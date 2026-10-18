@@ -65,6 +65,13 @@ object GameEnvironmentStore {
     }
 
     @Synchronized
+    fun setGameSync(context: Context, scope: String, backend: String?): GameEnvironment.Config {
+        val config = GameEnvironment.withGameSync(read(context), scope, backend)
+        save(context, config)
+        return config
+    }
+
+    @Synchronized
     fun setGameNoSteam(context: Context, scope: String, on: Boolean): GameEnvironment.Config {
         val config = GameEnvironment.withGameNoSteam(read(context), scope, on)
         save(context, config)
