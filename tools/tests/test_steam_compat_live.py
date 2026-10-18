@@ -649,17 +649,6 @@ class ToolDownloadTest(unittest.TestCase):
         self.assertEqual(page.calls, ["install(3127680)"])
         self.assertEqual(self.requested, [str(self.steam)])
 
-    def test_fex_becoming_ready_reconciles_again(self):
-        self.helper.page = ToolPage()
-        self.helper.fex_ready = False
-        with mock.patch.object(self.helper, "reconcile") as reconcile:
-            self.helper.tick()
-            reconcile.assert_not_called()
-            for app in ("4427310", "3127680", "1628350", "4183110"):
-                self.manifest(app, "4")
-            self.helper.tick()
-            reconcile.assert_called_once_with()
-
 
 @unittest.skipUnless(shutil.which("node"), "node is not installed")
 class SwitchScriptTest(unittest.TestCase):

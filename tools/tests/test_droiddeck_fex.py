@@ -677,68 +677,35 @@ class AppInfoTest(unittest.TestCase):
                 }, hex(magic))
 
     @staticmethod
-    def manifest(steam, app, flags="4", depots=()):
-        installed = "".join('"%s" { "manifest" "1" "size" "1" } ' % depot for depot in depots)
+    def manifest(steam, app, flags="4"):
         (steam / "steamapps").mkdir(exist_ok=True)
-        (steam / ("steamapps/appmanifest_%s.acf" % app)).write_text(
-            '"AppState" { "appid" "%s" "StateFlags" "%s" "InstalledDepots" { %s} }' % (app, flags, installed))
+        (steam / ("steamapps/appmanifest_%s.acf" % app)).write_text('"AppState" { "appid" "%s" "StateFlags" "%s" }' % (app, flags))
 
-    def dual_platform(self, steam):
-        def game(oslist="windows,linux", osarch=""):
-            return {"common": {"type": "Game", "oslist": oslist, "osarch": osarch}, "depots": {
-                "11": {"config": {"oslist": "windows"}}, "12": {"config": {"oslist": "linux"}}, "13": {"manifests": {}}}}
-        (steam / "appcache").mkdir()
-        (steam / "appcache/appinfo.vdf").write_bytes(self.appinfo({
-            10: game(), 20: game(), 30: game(), 40: game(), 50: game("windows,linux", "arm64"), 60: ("windows", "", "game"),
-            70: ("linux", "", "game"),
-        }))
-        self.COMPAT["APPINFO_CACHE"].clear()
-        self.manifest(steam, 20, depots=("13", "11"))
-        self.manifest(steam, 30, depots=("12", "13"))
-        self.manifest(steam, 40, flags="1026", depots=())
-
-    def test_dual_platform_titles_follow_the_build_they_hold(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            steam = Path(tmp)
-            self.dual_platform(steam)
-            apps = ["10", "20", "30", "40", "50", "60", "70"]
-            native = self.COMPAT["NATIVE_CHOICE"]
-            self.assertEqual(self.COMPAT["native_targets"](str(steam), apps), {
-                "10": native, "20": native, "30": "droiddeck-fex", "40": native, "50": None, "70": "droiddeck-fex"})
-            self.assertEqual(self.COMPAT["linux_titles"](str(steam)), [])
-            for app in ("3127680", "1628350"):
-                self.manifest(steam, app)
-            self.manifest(steam, "4183110", flags="1026")
-            self.assertFalse(self.COMPAT["fex_ready"](str(steam)))
-            self.manifest(steam, "4183110", flags="6")
-            self.assertTrue(self.COMPAT["fex_ready"](str(steam)))
-            self.assertEqual(self.COMPAT["native_targets"](str(steam), apps), {
-                "10": "droiddeck-fex", "20": native, "30": "droiddeck-fex", "40": "droiddeck-fex", "50": None,
-                "70": "droiddeck-fex"})
-            self.assertEqual(self.COMPAT["linux_titles"](str(steam)), ["10", "20", "30", "40"])
-
-    def test_a_pass_without_the_picks_keeps_dual_platform_titles_on_fex(self):
+    def test_dual_platform_titles_keep_the_proton_default_unless_the_user_picks_fex(self):
         with tempfile.TemporaryDirectory() as tmp:
             steam = Path(tmp) / "Steam"
-            steam.mkdir()
-            state = Path(tmp) / "state"
-            state.mkdir()
-            self.dual_platform(steam)
+            (steam / "appcache").mkdir(parents=True)
+            (steam / "appcache/appinfo.vdf").write_bytes(self.appinfo({
+                10: ("windows,linux", "", "game"), 20: ("windows,linux", "", "game"), 30: ("windows,linux", "", "game"),
+                40: ("linux", "", "game"),
+            }))
+            self.COMPAT["APPINFO_CACHE"].clear()
             for app in ("3127680", "1628350", "4183110"):
                 self.manifest(steam, app)
-            tool = self.COMPAT["TOOL"]
+            tool, fex = self.COMPAT["TOOL"], self.COMPAT["FEX_TOOL"]
+            state = Path(tmp) / "state"
+            state.mkdir()
+            (state / "state.json").write_text(json.dumps({"auto": {"20": fex}}))
             catalog = [{"name": tool, "display": "Proton Experimental ARM64", "dir": "Proton Experimental (ARM64)", "valve": True}]
             config = steam / "config/config.vdf"
             config.parent.mkdir()
             config.write_text('"InstallConfigStore" { "Software" { "Valve" { "Steam" { "CompatToolMapping" { '
-                              '"0" { "name" "%s" "config" "" "priority" "75" } } } } } }' % tool)
-            picks = self.COMPAT["linux_titles"](str(steam))
-            self.COMPAT["register_default"](str(config), [], catalog=catalog, directory=str(state), picks=picks)
-            expected = {"0": tool, "10": "droiddeck-fex", "20": tool, "30": "droiddeck-fex", "40": "droiddeck-fex"}
-            self.assertEqual(self.COMPAT["read_config_mapping"](str(config)), expected)
-            self.COMPAT["register_default"](str(config), ["2147483649"], catalog=catalog, directory=str(state))
-            self.assertEqual(self.COMPAT["read_config_mapping"](str(config)), dict(expected, **{"2147483649": tool}))
-            self.assertEqual(json.loads((state / "state.json").read_text())["auto"]["10"], "droiddeck-fex")
+                              '"0" { "name" "%s" "config" "" "priority" "75" } '
+                              '"20" { "name" "%s" "config" "" "priority" "250" } '
+                              '"30" { "name" "%s" "config" "" "priority" "250" } } } } } }' % (tool, fex, fex))
+            self.COMPAT["register_default"](str(config), ["10", "20", "30", "40"], catalog=catalog, directory=str(state))
+            self.assertEqual(self.COMPAT["read_config_mapping"](str(config)),
+                             {"0": tool, "10": tool, "20": tool, "30": fex, "40": fex})
 
     def test_tools_are_fetched_until_fully_installed_and_up_to_date(self):
         with tempfile.TemporaryDirectory() as tmp:

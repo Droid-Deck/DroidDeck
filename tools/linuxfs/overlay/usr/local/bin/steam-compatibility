@@ -769,10 +769,8 @@ def appinfo_entries(path):
         deck = common.get("steam_deck_compatibility")
         configuration = deck.get("configuration") if isinstance(deck, dict) else None
         recommended = configuration.get("recommended_runtime", "") if isinstance(configuration, dict) else ""
-        depots = info.get("depots") if isinstance(info.get("depots"), dict) else {}
         entry = {
             "oslist": {part.strip().lower() for part in str(common.get("oslist", "")).split(",") if part.strip()},
-            "depots": {key: depot_oslist(depot) for key, depot in depots.items() if key.isdigit() and isinstance(depot, dict)},
             "osarch": str(common.get("osarch", "")).lower(),
             "type": str(common.get("type", "")).lower(),
             "recommended": str(recommended),
@@ -787,11 +785,6 @@ def appinfo_entries(path):
         found[str(app)] = entry
     APPINFO_CACHE[path] = (stamp, found)
     return found
-
-
-def depot_oslist(depot):
-    config = depot.get("config") if isinstance(depot.get("config"), dict) else {}
-    return {part.strip().lower() for part in str(config.get("oslist", "")).split(",") if part.strip()}
 
 
 def appinfo_platforms(path, wanted):
@@ -813,38 +806,19 @@ def valve_picks(steam_root):
     return sorted(picks, key=int)
 
 
-def linux_titles(steam_root):
-    """x86 titles that ship a Linux build beside the Windows one, so their install follows FEX once it can run them."""
-    if not fex_ready(steam_root):
-        return []
-    found = []
-    for app, entry in appinfo_entries(os.path.join(steam_root, "appcache", "appinfo.vdf")).items():
-        if app in NOT_GAMES or entry["type"] not in PLAYABLE_TYPES or not {"linux", "windows"} <= entry["oslist"]:
-            continue
-        if "arm64" not in entry["osarch"] and "aarch64" not in entry["osarch"]:
-            found.append(app)
-    return sorted(found, key=int)
-
-
 def native_targets(steam_root, apps):
     wanted = {str(app) for app in apps if str(app) not in NOT_GAMES}
     if not wanted:
         return {}
-    path = os.path.join(steam_root, "appcache", "appinfo.vdf")
-    ready = None
     targets = {}
-    for app, (oslist, osarch, kind) in appinfo_platforms(path, wanted).items():
+    for app, (oslist, osarch, kind) in appinfo_platforms(os.path.join(steam_root, "appcache", "appinfo.vdf"), wanted).items():
         if kind not in PLAYABLE_TYPES or "linux" not in oslist:
             continue
         if "arm64" in osarch or "aarch64" in osarch:
             targets[app] = None
             continue
         if "windows" in oslist:
-            build = installed_build(steam_root, app, appinfo_entries(path).get(app, {}).get("depots", {}))
-            if build is None and ready is None:
-                ready = fex_ready(steam_root)
-            # Switching an installed game between Proton and FEX makes the client download the other platform's build.
-            targets[app] = FEX_TOOL if build == "linux" or (build is None and ready) else NATIVE_CHOICE
+            targets[app] = NATIVE_CHOICE
             continue
         targets[app] = FEX_TOOL
     return targets
@@ -866,40 +840,6 @@ def manifest_flags(tokens):
             value = tokens[i + 1].strip('"')
             return int(value) if value.isdigit() else 0
     return 0
-
-
-def manifest_depots(tokens):
-    block = find_block(tokens, ["AppState", "InstalledDepots"])
-    if block is None:
-        return []
-    depots, end, i = [], block_end(tokens, block), block + 1
-    while i < end:
-        if i + 1 < end and tokens[i + 1] == "{":
-            depots.append(tokens[i].strip('"'))
-            i = block_end(tokens, i + 1) + 1
-        else:
-            i += 2
-    return depots
-
-
-def installed_build(steam_root, app, depots):
-    """"linux" or "windows" for the platform build an installed title holds, None while that is unknown."""
-    tokens = app_manifest(steam_root, app)
-    systems = [depots.get(depot, set()) for depot in manifest_depots(tokens)] if tokens else []
-    linux = any("linux" in oslist and "windows" not in oslist for oslist in systems)
-    windows = any("windows" in oslist and "linux" not in oslist for oslist in systems)
-    if linux != windows:
-        return "linux" if linux else "windows"
-    return None
-
-
-def tool_installed(steam_root, app):
-    tokens = app_manifest(steam_root, app)
-    return tokens is not None and bool(manifest_flags(tokens) & FULLY_INSTALLED)
-
-
-def fex_ready(steam_root):
-    return all(tool_installed(steam_root, app) for app in FEX_DEPENDENCIES)
 
 
 def tool_downloads(steam_root):
@@ -1389,7 +1329,7 @@ def main():
         print("steam-compatibility: the live helper keeps the client's mapping; tools listed")
     elif os.path.isfile(config):
         apps = installed_apps(steam_root)
-        picks = sorted(set(valve_picks(steam_root)) | set(linux_titles(steam_root)), key=int)
+        picks = valve_picks(steam_root)
         default = register_default(config, apps, protect=extras, catalog=catalog, settle=not steam_running(), picks=picks)
         print("steam-compatibility: default, %d installed title(s) and %d title(s) with a Valve pick set to %s" % (len(apps), len(picks), default))
     sync = os.path.join(os.path.dirname(os.path.realpath(__file__)), "droiddeck-esync")

@@ -509,7 +509,6 @@ class Helper:
         self.fex_asked = set()
         self.tools_asked = {}
         self.tools_checked = None
-        self.fex_ready = None
         self.vr_launch = None
 
     def attach(self):
@@ -549,9 +548,7 @@ class Helper:
             default, state = COMPAT["choose_default"](top["selected"], state, request, live, apply_request=not waiting)
             installed = COMPAT["installed_apps"](self.steam_root)
             self.installed = installed
-            self.fex_ready = COMPAT["fex_ready"](self.steam_root)
-            picks = sorted(set(COMPAT["valve_picks"](self.steam_root)) | set(COMPAT["linux_titles"](self.steam_root)),
-                           key=COMPAT["app_order"])
+            picks = COMPAT["valve_picks"](self.steam_root)
             prior_auto = state.get("auto", {})
             if not isinstance(prior_auto, dict):
                 prior_auto = {}
@@ -621,11 +618,6 @@ class Helper:
                     for asked in COMPAT["request_fex"](self.steam_root, self.fex_asked):
                         say("asked the client to install %s through steam://install" % asked)
 
-    def tick(self):
-        self.ensure_tools()
-        if COMPAT["fex_ready"](self.steam_root) != self.fex_ready:
-            self.reconcile()
-
     def request_waiting(self):
         request = COMPAT["read_json"](COMPAT["state_path"]("request.json"))
         state = COMPAT["read_json"](COMPAT["state_path"]("state.json"))
@@ -666,7 +658,7 @@ class Helper:
                     watcher.changed()
                 self.drain()
                 self.reconcile()
-            self.tick()
+            self.ensure_tools()
 
 
 def detach():
