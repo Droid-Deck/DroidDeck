@@ -93,6 +93,15 @@ OpenVR to SteamVR's ARM64 `vrclient.so`, so no x86 SteamVR is involved.
   only `sysmem` on `Adreno840*`, leaving other flags, the parent Steam session and other GPUs unchanged.
   The user confirmed improved landing-area brightness and colors with this configuration and asked
   to preserve them.
+- **Adreno 840 with DD-Turnip v0.2.0.** SteamVR also reproduced `vkerror=-4` with `sysmem` removed,
+  including on the previous app build and with the presenter disabled. A `TU_DEBUG=flushall`
+  run rendered normally for over a minute; a run applying the flag only to SteamVR rendered
+  for about 32 seconds before background suspension, with no observed device loss.
+  The helper adds this flag only for
+  `Adreno840*` using the single imported `linux_vulkan_drivers/DD-Turnip_v0.2.0/icd.json`, preferring
+  `VK_DRIVER_FILES` over `VK_ICD_FILENAMES`. It preserves other flags and leaves the parent Steam
+  session, other driver versions and other GPUs unchanged. This is a scoped compatibility
+  workaround; the underlying driver failure has not been established.
 - **Live files are not cache.** Android's `installd` evicted `cache/shm/u10528-*` while SteamVR was
   running, followed by Chromium shared-memory failures and lost IPC. Shared memory, emulated device
   files, sandbox trees and PRoot temporary files now use `no_backup/guest-runtime`, retaining their
