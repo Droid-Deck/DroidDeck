@@ -10,6 +10,9 @@ import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Color
 import android.graphics.Paint
+import android.text.Layout
+import android.text.StaticLayout
+import android.text.TextPaint
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
@@ -93,12 +96,12 @@ class SpatialTrackingActivity : ComponentActivity() {
     override fun onPause() { SpatialTracking.diagnostics(false);super.onPause() }
     private fun printBoard() {
         if(!OpenCVLoader.initLocal()) return
-        val c=StereoCalibrator();val mat=Mat()
+        val c=StereoCalibrator(this);val mat=Mat()
         c.board.generateImage(Size(1500.0,2100.0),mat,0,1)
         val bitmap=Bitmap.createBitmap(1500,2100,Bitmap.Config.ARGB_8888)
         Utils.matToBitmap(mat,bitmap);mat.release();c.close()
         val manager=getSystemService(PRINT_SERVICE) as PrintManager
-        manager.print("DroidDeck ChArUco 30 mm",object:PrintDocumentAdapter() {
+        manager.print(getString(R.string.spatial_print_job),object:PrintDocumentAdapter() {
             override fun onLayout(old: PrintAttributes?, new: PrintAttributes, signal: CancellationSignal, callback: LayoutResultCallback, extras: Bundle?) {
                 callback.onLayoutFinished(PrintDocumentInfo.Builder("droiddeck-charuco.pdf").setPageCount(1).setContentType(PrintDocumentInfo.CONTENT_TYPE_DOCUMENT).build(),true)
             }
@@ -111,14 +114,14 @@ class SpatialTrackingActivity : ComponentActivity() {
                         val scale=72f/25.4f
                         page.canvas.drawBitmap(bitmap,Rect(0,0,1500,2100),RectF(30*scale,35*scale,180*scale,245*scale),null)
                         val ink = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK; textSize = 11f; textAlign = Paint.Align.CENTER }
-                        page.canvas.drawText("DroidDeck - Luma Ultra calibration", 297.5f, 16*scale, ink)
+                        printText(page.canvas, getString(R.string.spatial_print_title), 12*scale, ink)
                         ink.textSize = 9f
-                        page.canvas.drawText("Print at 100% / Actual size. Each square: 30 mm (1.181 in).", 297.5f, 24*scale, ink)
-                        page.canvas.drawText("Keep the board flat and stationary; move the glasses between captures.", 297.5f, 258*scale, ink)
+                        printText(page.canvas, getString(R.string.spatial_print_scale), 21*scale, ink)
+                        printText(page.canvas, getString(R.string.spatial_print_stationary), 254*scale, ink)
                         page.canvas.drawLine(55*scale, 270*scale, 155*scale, 270*scale, ink)
                         page.canvas.drawLine(55*scale, 268*scale, 55*scale, 272*scale, ink)
                         page.canvas.drawLine(155*scale, 268*scale, 155*scale, 272*scale, ink)
-                        page.canvas.drawText("Scale check: 100 mm (3.937 in) between ticks", 297.5f, 279*scale, ink)
+                        printText(page.canvas, getString(R.string.spatial_print_check), 276*scale, ink)
                         pdf.finishPage(page)
                         java.io.FileOutputStream(destination.fileDescriptor).use { pdf.writeTo(it) }
                     } finally { pdf.close() }
@@ -128,6 +131,16 @@ class SpatialTrackingActivity : ComponentActivity() {
             override fun onFinish() { bitmap.recycle() }
         },PrintAttributes.Builder().setMediaSize(PrintAttributes.MediaSize.ISO_A4).setColorMode(PrintAttributes.COLOR_MODE_MONOCHROME)
             .setMinMargins(PrintAttributes.Margins.NO_MARGINS).build())
+    }
+
+    private fun printText(canvas: android.graphics.Canvas, text: String, y: Float, ink: Paint) {
+        val paint = TextPaint(ink).apply { textAlign = Paint.Align.LEFT }
+        val layout = StaticLayout.Builder.obtain(text, 0, text.length, paint, 535)
+            .setAlignment(Layout.Alignment.ALIGN_CENTER).setIncludePad(false).build()
+        val saved = canvas.save()
+        canvas.translate(30f, y)
+        layout.draw(canvas)
+        canvas.restoreToCount(saved)
     }
 }
 
@@ -156,82 +169,81 @@ internal fun SpatialSetupScreen(
             CompositionLocalProvider(LocalNarrowPane provides (maxWidth < NarrowPaneWidth)) {
                 SettingsPage(host, null, actions.done, compactLayout = true,
                     modifier = Modifier.testTag("spatial-setup-page"), header = {
-                        Text("Spatial setup", style = MaterialTheme.typography.titleLarge,
+                        Text(stringResource(R.string.spatial_title), style = MaterialTheme.typography.titleLarge,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }) {
-                    SettingsGroup("Tracking") {
-                        SettingsRow("Head tracking", status.message, stacked = true) {
-                            SecondaryButton(if (status.recenterPending) "Waiting for tracking…" else "Recenter",
+                    SettingsGroup(stringResource(R.string.glasses_tracking)) {
+                        SettingsRow(stringResource(R.string.glasses_head_tracking), status.message.ifEmpty { stringResource(R.string.spatial_disabled) }, stacked = true) {
+                            SecondaryButton(if (status.recenterPending) stringResource(R.string.spatial_wait_tracking) else stringResource(R.string.cardboard_recenter_button),
                                 enabled = !status.recenterPending, onClick = actions.recenter)
                         }
                         preview?.let {
-                            Image(it.asImageBitmap(), "Left and right tracking cameras",
+                            Image(it.asImageBitmap(), stringResource(R.string.spatial_cameras_description),
                                 Modifier.fillMaxWidth().padding(12.dp).aspectRatio(it.width.toFloat() / it.height))
                         }
-                        SettingsRow("Camera synchronization", if (status.synchronized) "Ready" else
-                            "Waiting for camera and head tracking to line up. Keep the glasses connected.") {}
+                        SettingsRow(stringResource(R.string.spatial_camera_sync), if (status.synchronized) stringResource(R.string.spatial_ready) else
+                            stringResource(R.string.spatial_sync_hint)) {}
                     }
-                    SettingsGroup("1. Prepare the board") {
-                        ActionRow("Print at actual size", "Each square must measure 30 mm (1.181 in). Mount the sheet flat on a rigid surface in a well-lit area.",
-                            "Print board", actions.print)
+                    SettingsGroup(stringResource(R.string.spatial_prepare)) {
+                        ActionRow(stringResource(R.string.spatial_print_actual), stringResource(R.string.spatial_print_hint),
+                            stringResource(R.string.spatial_print), actions.print)
                     }
-                    SettingsGroup("2. Capture different views") {
-                        SettingsRow("Keep the board stationary", "Move the glasses closer, farther and sideways. Turn them left/right, angle them up/down, and tilt them sideways. Keep the board in both cameras and pause briefly before each capture.", stacked = true) {
-                            SecondaryButton("Start new calibration", enabled = ready, onClick = actions.start)
+                    SettingsGroup(stringResource(R.string.spatial_capture_group)) {
+                        SettingsRow(stringResource(R.string.spatial_board_stationary), stringResource(R.string.spatial_capture_hint), stacked = true) {
+                            SecondaryButton(stringResource(R.string.spatial_start), enabled = ready, onClick = actions.start)
                         }
-                        SettingsRow("${progress.views} / 24 views captured", when {
-                            !status.trackingValid -> "Capture paused: ${status.message}"
-                            !status.synchronized -> "Waiting for camera synchronization."
-                            !progress.collecting -> progress.captureMessage ?: "Start a new calibration to collect views."
-                            else -> progress.captureMessage ?: "Keep the board visible in both previews. Capture at least 24 sharp views from different angles."
+                        SettingsRow(stringResource(R.string.spatial_views_count, progress.views), when {
+                            !status.trackingValid -> stringResource(R.string.spatial_capture_paused, status.message)
+                            !status.synchronized -> stringResource(R.string.spatial_wait_sync)
+                            !progress.collecting -> progress.captureMessage ?: stringResource(R.string.spatial_start_hint)
+                            else -> progress.captureMessage ?: stringResource(R.string.spatial_views_hint)
                         }, stacked = true) {
-                            SecondaryButton(if (progress.capturing) "Capturing…" else "Capture board view",
+                            SecondaryButton(if (progress.capturing) stringResource(R.string.spatial_capturing) else stringResource(R.string.spatial_capture),
                                 enabled = ready && progress.collecting && !progress.capturing, onClick = actions.capture)
                         }
-                        SettingsRow("Calculate camera alignment", message, stacked = true) {
-                            SecondaryButton(if (progress.solving) "Calculating…" else "Calculate calibration",
+                        SettingsRow(stringResource(R.string.spatial_alignment), message, stacked = true) {
+                            SecondaryButton(if (progress.solving) stringResource(R.string.spatial_calculating) else stringResource(R.string.spatial_calculate),
                                 enabled = !progress.solving && !progress.validating && progress.views >= 24, onClick = actions.solve)
                         }
                     }
-                    SettingsGroup("3. Check the distance") {
-                        ChoiceRow(host, "calibration-distance", "Measured distance", "Start with 12 in or 30 cm so the printed markers are easier to detect. Choose the exact measurement you will use.",
-                            CalibrationDistance.entries.map { it to it.label }, distance, onPick = { distance = it })
-                        SettingsRow("Left camera to board center", progress.validationMessage ?:
-                            "Measure ${distance.label}. Show the complete board in both previews, then hold still.", stacked = true) {
-                            SecondaryButton(if(progress.validating) "Checking distance…" else "Validate distance",
+                    SettingsGroup(stringResource(R.string.spatial_distance_group)) {
+                        ChoiceRow(host, "calibration-distance", stringResource(R.string.spatial_distance), stringResource(R.string.spatial_distance_hint),
+                            CalibrationDistance.entries.map { it to stringResource(it.labelRes) }, distance, onPick = { distance = it })
+                        SettingsRow(stringResource(R.string.spatial_camera_board_distance), progress.validationMessage ?:
+                            stringResource(R.string.spatial_measure_hint, stringResource(distance.labelRes)), stacked = true) {
+                            SecondaryButton(if(progress.validating) stringResource(R.string.spatial_checking_distance) else stringResource(R.string.spatial_validate),
                                 enabled = ready && progress.fitted, onClick = { actions.validate(distance.meters) })
                         }
                         HandCalibrationStatus(status)
-                        SettingsRow(stringResource(R.string.glasses_hands_group), status.handStatus) {}
+                        SettingsRow(stringResource(R.string.glasses_hands_group), status.handStatus.ifEmpty { stringResource(R.string.spatial_hands_off) }) {}
                     }
-                    SettingsGroup("Diagnostics") {
-                        ToggleRow(host, "spatial-diagnostics", "Show diagnostics", "Camera timing and tracking recovery tools.", diagnostics) { diagnostics = it }
+                    SettingsGroup(stringResource(R.string.spatial_diagnostics)) {
+                        ToggleRow(host, "spatial-diagnostics", stringResource(R.string.spatial_show_diagnostics), stringResource(R.string.spatial_diagnostics_hint), diagnostics) { diagnostics = it }
                         if (diagnostics) {
-                            SettingsRow("Camera timing", "%.1f Hz • frame age %.1f ms • processing %.1f ms".format(status.cameraHz, status.frameAgeMs, status.processingMs)) {}
-                            SettingsRow("Hand input", if (status.cameraHz > 0)
-                                "Input limit %.1f Hz • %.0f%% of camera frames. Head tracking stays at full rate."
-                                    .format(status.cameraHz*status.cameraCopyPermille/1000f,status.cameraCopyPermille/10f)
-                                else "Waiting for camera timing.") {}
-                            SettingsRow("Frames", "${status.frames} processed • ${status.dropped} dropped • ${status.rateLimitedFrames} skipped by input limit") {}
-                            ToggleRow(host, "spatial-gpu", "GPU hand inference", "CPU is the default. GPU is experimental and can cause SteamVR to restart. This choice resets when tracking restarts.", gpu, onChange = actions.gpu)
-                            ToggleRow(host, "spatial-lite", "Lighter finger model", "Keep the full palm detector and test faster finger tracking. Check aiming and pinch accuracy. Resets when tracking restarts.", lite, onChange = actions.lite)
-                            ToggleRow(host, "spatial-adaptive-rate", "Automatic hand input rate", "Adjust input to processing speed. Resets when tracking restarts.", adaptive, onChange = actions.adaptive)
-                            if (!adaptive) ToggleRow(host, "spatial-half-rate", "Limit hand input rate", "Use half the camera frames. Turn off to compare the full rate. Resets when tracking restarts.", halfRate, onChange = actions.halfRate)
-                            ActionRow("Diagnostic capture", "Save one stereo frame locally. Images are saved only when requested.", "Save frame", actions.saveFrame)
-                            ActionRow("Restart tracking", "Use if tracking does not recover in a well-lit area. A restart requires a new tracking origin.", "Restart", { confirmRestart = true })
+                            SettingsRow(stringResource(R.string.spatial_camera_timing), stringResource(R.string.spatial_timing_values, status.cameraHz, status.frameAgeMs, status.processingMs)) {}
+                            SettingsRow(stringResource(R.string.spatial_hand_input), if (status.cameraHz > 0)
+                                stringResource(R.string.spatial_input_values, status.cameraHz*status.cameraCopyPermille/1000f, status.cameraCopyPermille/10f)
+                                else stringResource(R.string.spatial_wait_timing)) {}
+                            SettingsRow(stringResource(R.string.spatial_frames), stringResource(R.string.spatial_frame_counts, status.frames, status.dropped, status.rateLimitedFrames)) {}
+                            ToggleRow(host, "spatial-gpu", stringResource(R.string.spatial_gpu), stringResource(R.string.spatial_gpu_hint), gpu, onChange = actions.gpu)
+                            ToggleRow(host, "spatial-lite", stringResource(R.string.spatial_lite), stringResource(R.string.spatial_lite_hint), lite, onChange = actions.lite)
+                            ToggleRow(host, "spatial-adaptive-rate", stringResource(R.string.spatial_adaptive), stringResource(R.string.spatial_adaptive_hint), adaptive, onChange = actions.adaptive)
+                            if (!adaptive) ToggleRow(host, "spatial-half-rate", stringResource(R.string.spatial_half_rate), stringResource(R.string.spatial_half_rate_hint), halfRate, onChange = actions.halfRate)
+                            ActionRow(stringResource(R.string.spatial_diagnostic_capture), stringResource(R.string.spatial_diagnostic_capture_hint), stringResource(R.string.spatial_save_frame), actions.saveFrame)
+                            ActionRow(stringResource(R.string.spatial_restart_tracking), stringResource(R.string.spatial_restart_hint), stringResource(R.string.spatial_restart), { confirmRestart = true })
                         }
                     }
                     Spacer(Modifier.height(16.dp))
-                    SecondaryButton("Done", onClick = actions.done)
+                    SecondaryButton(stringResource(R.string.setup_check_done), onClick = actions.done)
                 }
             }
         }
     }
     if (confirmRestart) AlertDialog(
-        onDismissRequest = { confirmRestart = false }, title = { Text("Restart tracking?") },
-        text = { Text("Unsaved calibration views will be lost. Keep the glasses still afterward and recenter when tracking returns.") },
-        confirmButton = { TextButton(onClick = { confirmRestart = false; actions.restart() }) { Text("Restart") } },
-        dismissButton = { TextButton(onClick = { confirmRestart = false }) { Text("Cancel") } },
+        onDismissRequest = { confirmRestart = false }, title = { Text(stringResource(R.string.spatial_restart_title)) },
+        text = { Text(stringResource(R.string.spatial_restart_confirm)) },
+        confirmButton = { TextButton(onClick = { confirmRestart = false; actions.restart() }) { Text(stringResource(R.string.spatial_restart)) } },
+        dismissButton = { TextButton(onClick = { confirmRestart = false }) { Text(stringResource(R.string.common_cancel)) } },
     )
 }
 

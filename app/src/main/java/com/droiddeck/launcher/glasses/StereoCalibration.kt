@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.glasses
 
+import android.content.Context
+import com.droiddeck.launcher.R
 import org.json.JSONArray
 import org.json.JSONObject
 import org.opencv.calib3d.Calib3d
@@ -13,10 +15,8 @@ import kotlin.math.*
 
 internal data class BoardObservation(val objects: Mat, val left: Mat, val right: Mat, val head: SpatialPose)
 
-internal class CalibrationAlignmentException(val deviation: Float) : IllegalArgumentException(
-    "Head tracking and the board disagree by ${SpatialMeasurements.validation(deviation)} (limit 5 cm / 2 in). " +
-        "Keep the board fixed and wait for steady tracking before starting a new set. " +
-        "Turn and tilt the glasses gently; pause before each capture.")
+internal class CalibrationAlignmentException(context: Context, val deviation: Float) : IllegalArgumentException(
+    context.getString(R.string.spatial_alignment_error, SpatialMeasurements.validation(deviation)))
 
 internal class StereoCalibration(val identity: String, val width: Int, val height: Int, val fisheye: Boolean,
     val k1: Mat, val d1: Mat, val k2: Mat, val d2: Mat, val r: Mat, val t: Mat,
@@ -129,7 +129,7 @@ internal class StereoCalibration(val identity: String, val width: Int, val heigh
     }
 }
 
-internal class StereoCalibrator : AutoCloseable {
+internal class StereoCalibrator(private val context: Context) : AutoCloseable {
     val board = CharucoBoard(Size(5.0,7.0),0.03f,0.022f,Objdetect.getPredefinedDictionary(Objdetect.DICT_4X4_50))
     private val detector = CharucoDetector(board)
     val observations = mutableListOf<BoardObservation>()
@@ -149,10 +149,10 @@ internal class StereoCalibrator : AutoCloseable {
         } finally { listOf(lc,li,rc,ri).forEach { it.release() } }
     }
     fun solve(identity: String,width: Int,height: Int): StereoCalibration {
-        require(observations.size>=24) { "Capture at least 24 varied views of the stationary board." }
+        require(observations.size>=24) { context.getString(R.string.spatial_need_views) }
         val initial=observations.first().head.rotation
         val axes=observations.map { initial.inverse()*it.head.rotation }.map { SpatialVector(it.x,it.y,it.z) }
-        require(axes.any { a -> axes.any { b -> a.cross(b).length()>0.02f } }) { "Rotate the glasses through both yaw and pitch; translation alone cannot calibrate camera alignment." }
+        require(axes.any { a -> axes.any { b -> a.cross(b).length()>0.02f } }) { context.getString(R.string.spatial_need_rotation) }
         val training=observations.filterIndexed { i,_ -> i%5!=0 }; val held=observations.filterIndexed { i,_ -> i%5==0 }
         val failures = mutableListOf<Pair<String, Exception>>()
         val candidates=listOf(false,true).mapNotNull { fish ->
@@ -169,10 +169,10 @@ internal class StereoCalibrator : AutoCloseable {
             val reason=alignment?.message ?: failures.joinToString(" ") { (model,e) ->
                 "$model: ${e.message?.substringBefore('\n') ?: e.javaClass.simpleName}"
             }
-            error("Calibration could not finish. $reason Your captured views are saved.")
+            error(context.getString(R.string.spatial_calibration_error, reason))
         }
         candidates.filter { it !== best }.forEach { it.close() }
-        if(best.error>2.0) { best.close(); error("Held-out reprojection error ${best.error} px exceeds 2 px. Recalibrate.") }
+        if(best.error>2.0) { best.close(); error(context.getString(R.string.spatial_reprojection_error, best.error)) }
         return best
     }
     private fun fit(identity: String,w: Int,h: Int,fish: Boolean,train: List<BoardObservation>,held: List<BoardObservation>): StereoCalibration {
@@ -189,7 +189,7 @@ internal class StereoCalibrator : AutoCloseable {
         try {
             intrinsic(k1,d1,train.map { it.left }); intrinsic(k2,d2,train.map { it.right })
             stereoGeometry(objects,train.map{it.left},train.map{it.right},k1,d1,k2,d2,size,fish,r,t)
-            require(Core.norm(t) in 0.02..0.3) { "Implausible camera baseline" }
+            require(Core.norm(t) in 0.02..0.3) { context.getString(R.string.spatial_bad_baseline) }
             val hr=mutableListOf<Mat>(); val ht=mutableListOf<Mat>(); val br=mutableListOf<Mat>(); val bt=mutableListOf<Mat>()
             val camR=Mat(); val camT=Mat()
             try {
@@ -200,9 +200,9 @@ internal class StereoCalibrator : AutoCloseable {
                     hr.add(matrix(o.head.rotation)); ht.add(vector(o.head.position))
                 }
                 Calib3d.calibrateHandEye(hr,ht,br,bt,camR,camT,Calib3d.CALIB_HAND_EYE_PARK)
-                require(Core.checkRange(camR) && Core.checkRange(camT) && Core.norm(camT)<0.3) { "Move your head through more varied orientations." }
+                require(Core.checkRange(camR) && Core.checkRange(camT) && Core.norm(camT)<0.3) { context.getString(R.string.spatial_need_orientations) }
                 val cameraToHead=pose(camR,camT)
-                require(abs(Core.determinant(camR)-1.0)<0.01) { "Invalid camera-to-head rotation" }
+                require(abs(Core.determinant(camR)-1.0)<0.01) { context.getString(R.string.spatial_bad_rotation) }
                 val boardWorld=held.map { o ->
                     val rv=Mat();val tv=Mat();val rotation=Mat()
                     try {
@@ -212,9 +212,9 @@ internal class StereoCalibrator : AutoCloseable {
                 }
                 val center=boardWorld.map { it.position }.reduce { a,b -> a+b }*(1f/boardWorld.size)
                 val drift = boardWorld.maxOf { (it.position-center).length() }
-                if (drift>=0.05f) throw CalibrationAlignmentException(drift)
+                if (drift>=0.05f) throw CalibrationAlignmentException(context,drift)
                 val orientation=boardWorld.first().rotation
-                require(boardWorld.all { val q=orientation.inverse()*it.rotation;abs(q.w)>cos(Math.toRadians(8.0)/2) }) { "Camera-to-head alignment is inconsistent." }
+                require(boardWorld.all { val q=orientation.inverse()*it.rotation;abs(q.w)>cos(Math.toRadians(8.0)/2) }) { context.getString(R.string.spatial_bad_alignment) }
                 val error=held.map { reprojection(it,k1,d1,k2,d2,r,t,fish) }.average()
                 require(error.isFinite())
                 return StereoCalibration(identity,w,h,fish,k1,d1,k2,d2,r,t,cameraToHead,error)
@@ -255,9 +255,9 @@ internal class StereoCalibrator : AutoCloseable {
         java.nio.file.Files.move(temporary.toPath(),file.toPath(),java.nio.file.StandardCopyOption.REPLACE_EXISTING)
     }
     companion object {
-        fun load(file: File, identity: String, width: Int, height: Int): StereoCalibrator? {
+        fun load(context: Context, file: File, identity: String, width: Int, height: Int): StereoCalibrator? {
             if (!file.isFile) return null
-            val restored=StereoCalibrator()
+            val restored=StereoCalibrator(context)
             try {
                 val data=JSONObject(file.readText())
                 require(data.getInt("version")==1 && data.getString("identity")==identity && data.getInt("width")==width && data.getInt("height")==height)

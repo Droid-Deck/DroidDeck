@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.glasses
 
 import android.content.Context
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.wayland.WaylandCompositor
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -8,11 +9,11 @@ import kotlinx.coroutines.flow.update
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-data class SpatialTrackingStatus(val message: String = "Disabled", val calibration: Boolean = false,
+data class SpatialTrackingStatus(val message: String = "", val calibration: Boolean = false,
     val frames: Long = 0, val dropped: Long = 0, val processingMs: Float = 0f,
     val frameAgeMs: Float = -1f, val cameraHz: Float = 0f, val synchronized: Boolean = false,
     val trackingValid: Boolean = false, val needsRecenter: Boolean = false, val recenterPending: Boolean = false,
-    val handStatus: String = "Hand controllers are off", val headFresh: Boolean = false,
+    val handStatus: String = "", val headFresh: Boolean = false,
     val cameraFrameDivisor: Int = 1, val rateLimitedFrames: Long = 0, val cameraCopyPermille: Int = 1000,
     val calibrationSource: String = "none", val calibrationVerified: Boolean = false)
 
@@ -36,7 +37,14 @@ object SpatialTracking {
     internal val joyConsEnabled get() = enabled && joyConsSelected
     private var hadSpatialSession = false
     internal val selected: Boolean get() = spatialSelected
-    fun initialize(app: Context) { context = app.applicationContext }
+    private fun text(id: Int) = context?.getString(id).orEmpty()
+    fun initialize(app: Context) {
+        context = app.applicationContext
+        mutableStatus.update { it.copy(
+            message = it.message.ifEmpty { text(R.string.spatial_disabled) },
+            handStatus = it.handStatus.ifEmpty { text(R.string.spatial_hands_off) },
+        ) }
+    }
     fun attachPublisher(path: String) {
         publisherAttached = WaylandCompositor.nativeSetSpatialFile(path)
         publish(System.nanoTime())
@@ -52,7 +60,7 @@ object SpatialTracking {
         session.reset(generation, eyeHeight, spatial && hadSpatialSession)
         hadSpatialSession = hadSpatialSession || spatial
         if (spatial) context?.let { engine = StereoHandEngine(it, token, generation, identity) }
-        mutableStatus.value = SpatialTrackingStatus(if (spatial) "Waiting for stable tracking" else "Disabled")
+        mutableStatus.value = SpatialTrackingStatus(if (spatial) text(R.string.spatial_wait_stable) else text(R.string.spatial_disabled))
         engine?.setEnabled(handsEnabled)
         engine?.diagnostics(diagnosticsEnabled)
         publish(System.nanoTime())
@@ -62,7 +70,7 @@ object SpatialTracking {
         session.reset(session.generation + 1, 1.6f)
         publish(System.nanoTime())
         engine?.close(); engine = null
-        mutableStatus.value = SpatialTrackingStatus("Disconnected")
+        mutableStatus.value = SpatialTrackingStatus(text(R.string.spatial_disconnected))
         publish(System.nanoTime())
     }
     @Synchronized internal fun useLegacyTracking() {
@@ -91,13 +99,13 @@ object SpatialTracking {
         val recenter = session.needsRecenter
         val fresh = session.latest()?.let { it.valid && checkedAt-it.timeNs in 0..100_000_000L } == true
         mutableStatus.update { it.copy(trackingValid = valid, needsRecenter = recenter, recenterPending = pending, headFresh = fresh,
-            handStatus = engine?.handStatus?.message ?: "Hand controllers are off",
+            handStatus = engine?.handStatus?.message ?: text(R.string.spatial_hands_off),
             message = when {
-                !enabled -> "Positional tracking is off or glasses are disconnected"
-                pending -> "Recenter requested — hold still while tracking stabilizes"
-                !fresh -> "Tracking lost — face a well-lit area with visible detail"
-                recenter -> "Tracking origin changed — tap Recenter, then hold still"
-                else -> "6DoF active"
+                !enabled -> text(R.string.spatial_tracking_off)
+                pending -> text(R.string.spatial_recenter_pending)
+                !fresh -> text(R.string.spatial_tracking_lost)
+                recenter -> text(R.string.spatial_origin_changed)
+                else -> text(R.string.spatial_active)
             }) }
     }
     @Synchronized fun setControllers(hands: Boolean, joyCons: Boolean) {
@@ -131,7 +139,7 @@ object SpatialTracking {
     internal fun handAdaptiveInputEnabled() = engine?.adaptiveInput ?: true
     fun benchmarkSavedCapture(id: String) { checkNotNull(engine) { "Connect glasses and enable positional tracking" }.benchmarkSavedCapture(id) }
     internal fun diagnosticFrame() = engine?.preview
-    internal fun diagnosticMessage() = engine?.message ?: "Connect Luma Ultra and enable positional tracking."
+    internal fun diagnosticMessage() = engine?.message ?: text(R.string.spatial_connect_hint)
     internal fun calibrationProgress() = engine?.calibrationProgress ?: SpatialCalibrationProgress()
     internal fun gpuEnabled() = engine?.gpu ?: false
     fun diagnosticStatus(): org.json.JSONObject {

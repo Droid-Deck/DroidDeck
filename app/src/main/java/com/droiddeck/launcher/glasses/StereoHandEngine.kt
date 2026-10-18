@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.glasses
 
 import android.content.Context
+import com.droiddeck.launcher.R
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -69,9 +70,9 @@ internal class StereoHandEngine(private val context: Context, private val token:
     @Volatile private var enabled=false
     @Volatile private var debug=false
     @Volatile var preview: Bitmap? = null; private set
-    @Volatile var message="Waiting for stereo cameras"; private set
+    @Volatile var message=context.getString(R.string.spatial_wait_cameras); private set
     @Volatile var calibrationProgress = SpatialCalibrationProgress(); private set
-    @Volatile var handStatus = HandTrackingDiagnostics("Waiting for hand tracking"); private set
+    @Volatile var handStatus = HandTrackingDiagnostics(context.getString(R.string.spatial_wait_hands)); private set
     val hasStableIdentity get() = identity != null
     private val commands=ConcurrentLinkedQueue<() -> Unit>()
     private var calibrator: StereoCalibrator?=null
@@ -130,33 +131,33 @@ internal class StereoHandEngine(private val context: Context, private val token:
         }
     }
     fun startCalibration() { debug=true; commands.add {
-        check(width > 0 && height > 0) { "Wait for both camera previews before starting calibration." }
-        calibrator?.close();calibrator=StereoCalibrator()
+        check(width > 0 && height > 0) { context.getString(R.string.spatial_wait_previews) }
+        calibrator?.close();calibrator=StereoCalibrator(context)
         calibrationFrame = SpatialTracking.session.trackingFrameGeneration
         calibrationProgress = SpatialCalibrationProgress(collecting = true)
         saveCaptures()
-        message="Keep the 5 × 7 board stationary. Capture 24+ views while moving and rotating the glasses."
+        message=context.getString(R.string.spatial_collect_instructions)
     } }
     fun captureCalibration() { commands.add {
         check(calibrationProgress.collecting && calibrationFrame==SpatialTracking.session.trackingFrameGeneration) {
-            "Saved views can be recalculated. Start a new calibration to capture in the current tracking frame."
+            context.getString(R.string.spatial_saved_views_hint)
         }
         capture=true
-        calibrationProgress = calibrationProgress.copy(capturing = true, captureMessage = "Waiting for the next camera image. Hold the glasses still.")
+        calibrationProgress = calibrationProgress.copy(capturing = true, captureMessage = context.getString(R.string.spatial_capture_pending))
     } }
     fun recordDiagnostic() { commands.add { record=true } }
     fun validateCalibration(distance: Float) { commands.add {
         require(distance.isFinite() && distance in 0.15f..1.5f)
         verify=distance;validationRequestedAt=System.nanoTime()
         calibrationProgress=calibrationProgress.copy(validating=true,
-            validationMessage="Checking the next camera image. Keep the full board visible and hold still.")
+            validationMessage=context.getString(R.string.spatial_validation_pending))
     } }
     private var width=0; private var height=0
     private val imageBuffer=HandImageBuffer()
     private val rightImageBuffer=HandImageBuffer()
     private val worker=Thread({ loop() },"viture-stereo-hands").apply { isDaemon=true; start() }
     fun solveCalibration() { commands.add {
-        val c=calibrator ?: error("Start calibration first")
+        val c=calibrator ?: error(context.getString(R.string.spatial_start_first))
         saveCaptures()
         calibrationProgress = calibrationProgress.copy(solving = true, validationMessage = null)
         try {
@@ -165,13 +166,13 @@ internal class StereoHandEngine(private val context: Context, private val token:
             calibration?.close();calibration=fitted
             calibrationProgress = calibrationProgress.copy(fitted = true)
             if(identity!=null) fitted.save(profile)
-            message="Fit %.2f px. Measure your selected distance from the left camera to the board center, then validate.".format(fitted.error)
+            message=context.getString(R.string.spatial_fit_ready, fitted.error)
         } finally { calibrationProgress = calibrationProgress.copy(solving = false) }
     } }
     private fun detector(selected: HandModel=model, useGpu: Boolean=gpu, maxHands: Int=2): HandLandmarker {
         val bytes=context.assets.open(selected.asset).use { it.readBytes() }
         val hash=MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
-        check(hash==selected.sha256) { "Hand model checksum mismatch" }
+        check(hash==selected.sha256) { context.getString(R.string.spatial_model_checksum_error) }
         return HandLandmarker.createFromOptions(context,HandLandmarker.HandLandmarkerOptions.builder()
             .setBaseOptions(BaseOptions.builder().setModelAssetPath(selected.asset)
                 .setDelegate(if(useGpu) Delegate.GPU else Delegate.CPU).build())
@@ -324,7 +325,7 @@ internal class StereoHandEngine(private val context: Context, private val token:
         SpatialTracking.session.setHands(generation,SpatialHand(),SpatialHand())
     }
     private fun loop() {
-        try { check(OpenCVLoader.initLocal()) } catch(e: Throwable) { message="OpenCV unavailable: ${e.message}";return }
+        try { check(OpenCVLoader.initLocal()) } catch(e: Throwable) { message=context.getString(R.string.spatial_opencv_error, e.message.orEmpty());return }
         var grayL=Mat();var grayR=Mat();val rgba=Mat()
         var bmpL: Bitmap?=null;var bmpR: Bitmap?=null
         var leftGray=ByteArray(0);var rightGray=ByteArray(0)
@@ -335,7 +336,7 @@ internal class StereoHandEngine(private val context: Context, private val token:
         var lastSource=0L;var lastStamp=0L;var captureOn=false;var captureRate=1000;var lastInputSeq=0L
         var rate=0f
         try {
-            check(OpenCVLoader.initLocal()) { "OpenCV could not load" }
+            check(OpenCVLoader.initLocal()) { context.getString(R.string.spatial_opencv_load_error) }
             joyConFlow=StereoJoyConFlow()
             while(running) {
                 while(true) {
@@ -345,7 +346,7 @@ internal class StereoHandEngine(private val context: Context, private val token:
                 if (verify!=null && System.nanoTime()-validationRequestedAt>2_000_000_000L) {
                     verify=null
                     calibrationProgress=calibrationProgress.copy(validating=false,
-                        validationMessage="No fresh camera image arrived. Check the glasses connection and camera previews, then retry.")
+                        validationMessage=context.getString(R.string.spatial_no_camera_frame))
                 }
                 val want=enabled || debug
                 val copyPermille=if(enabled && !calibrationProgress.collecting && !capture && verify==null && !record)
@@ -364,7 +365,7 @@ internal class StereoHandEngine(private val context: Context, private val token:
                 lastSeq=seq;frames++
                 val start=System.nanoTime();val source=(metadata[2]*1e9).toLong();val receipt=metadata[3].toLong()
                 val inputSequence=metadata[7].toLong()
-                if(source<=lastSource) { clearHands();message="Camera clock reset";closeDetectors();lastStamp=0 }
+                if(source<=lastSource) { clearHands();message=context.getString(R.string.spatial_clock_reset);closeDetectors();lastStamp=0 }
                 if(lastSource>0 && source>lastSource) {
                     val hz=1e9f*(inputSequence-lastInputSeq).coerceAtLeast(1)/(source-lastSource)
                     rate=if(rate==0f)hz else rate*.9f+hz*.1f
@@ -374,7 +375,7 @@ internal class StereoHandEngine(private val context: Context, private val token:
                 val trackingFrame = SpatialTracking.session.trackingFrameGeneration
                 if (calibrator != null && calibrationProgress.collecting && calibrationFrame != trackingFrame) {
                     capture=false
-                    message="Tracking frame changed. Your views are saved for recalculation. Recenter, then start a new set to capture more views."
+                    message=context.getString(R.string.spatial_frame_changed)
                     calibrationProgress = calibrationProgress.copy(collecting = false, capturing = false, captureMessage = message)
                 }
                 // The callback pose's basis is undocumented; use canonical GL pose history.
@@ -394,15 +395,15 @@ internal class StereoHandEngine(private val context: Context, private val token:
                     calibration=selected?.let(StereoCalibration::fromProfile)
                     calibrator?.close();calibrator=null
                     calibrationProgress = SpatialCalibrationProgress(fitted = calibration != null)
-                    message="Stereo ${w}×${h}; ${when {
-                        calibration?.verified==true -> "device calibration loaded"
-                        calibration?.bundledBase==true -> "Luma Ultra base calibration loaded"
-                        else -> "calibration required"
-                    }}"
-                    if (identity!=null) calibrator=StereoCalibrator.load(captures,identity,w,h)
+                    message=context.getString(R.string.spatial_stereo_loaded, w, h, when {
+                        calibration?.verified==true -> context.getString(R.string.spatial_device_loaded)
+                        calibration?.bundledBase==true -> context.getString(R.string.spatial_base_loaded)
+                        else -> context.getString(R.string.spatial_calibration_needed)
+                    })
+                    if (identity!=null) calibrator=StereoCalibrator.load(context,captures,identity,w,h)
                     calibrator?.let {
                         calibrationFrame=-1
-                        val restored="${it.observations.size} saved views restored. Calculate calibration to retry, or start a new set to capture more."
+                        val restored=context.getString(R.string.spatial_restored, it.observations.size)
                         calibrationProgress=calibrationProgress.copy(views=it.observations.size,captureMessage=restored)
                         message=restored
                     }
@@ -422,15 +423,15 @@ internal class StereoHandEngine(private val context: Context, private val token:
                         calibrator!!.observations.add(observation)
                         calibrationProgress = calibrationProgress.copy(views = calibrator!!.observations.size)
                         saveCaptures()
-                        message="Captured ${calibrator!!.observations.size} / 24 views. Keep the board fixed; move the glasses for the next view."
+                        message=context.getString(R.string.spatial_captured, calibrator!!.observations.size)
                     } else {
                         observation?.let { listOf(it.objects,it.left,it.right).forEach(Mat::release) }
                         message = when {
-                            calibrator == null -> "Tap Start new calibration first."
-                            SpatialTracking.session.recenterPending -> "Recenter is waiting for steady tracking. Hold still for a moment."
-                            SpatialTracking.session.needsRecenter -> "Tracking changed. Tap Recenter once, then hold still before capturing."
-                            captureHead == null || !currentTracking -> "Capture rejected: head tracking was not synchronized or changed during capture. Hold still and try again."
-                            else -> "Capture rejected: ${calibrator?.commonCorners ?: 0} / 12 required corners visible in both cameras. Show more of the board, hold still, then try again."
+                            calibrator == null -> context.getString(R.string.spatial_tap_start)
+                            SpatialTracking.session.recenterPending -> context.getString(R.string.spatial_capture_recenter_pending)
+                            SpatialTracking.session.needsRecenter -> context.getString(R.string.spatial_capture_recenter)
+                            captureHead == null || !currentTracking -> context.getString(R.string.spatial_capture_unsynchronized)
+                            else -> context.getString(R.string.spatial_capture_corners, calibrator?.commonCorners ?: 0)
                         }
                     }
                     calibrationProgress = calibrationProgress.copy(capturing = false, captureMessage = message)
@@ -442,19 +443,19 @@ internal class StereoHandEngine(private val context: Context, private val token:
                     var temporary: StereoCalibrator?=null
                     var observed: BoardObservation?=null
                     try {
-                        check(c!=null) { "Calculate camera alignment before checking the distance." }
-                        temporary=StereoCalibrator()
+                        check(c!=null) { context.getString(R.string.spatial_align_first) }
+                        temporary=StereoCalibrator(context)
                         observed=temporary.detect(grayL,grayR,SpatialPose())
                         val points=observed?.let { c.triangulateRaw(it.left,it.right) }
-                        val result=CalibrationDistanceCheck.evaluate(distance,temporary.commonCorners,points)
+                        val result=CalibrationDistanceCheck.evaluate(context,distance,temporary.commonCorners,points)
                         if(result.accepted) {
                             c.verified=true;if(identity!=null)c.save(profile)
                             calibrationProgress=calibrationProgress.copy(validationMessage=result.message+
-                                if(identity==null) " Calibration verified for this connection." else " Calibration verified and saved.")
+                                if(identity==null) " " + context.getString(R.string.spatial_validation_session) else " " + context.getString(R.string.spatial_validation_saved))
                         } else calibrationProgress=calibrationProgress.copy(validationMessage=result.message)
                     } catch (e: Exception) {
                         android.util.Log.w("StereoCalibration","Distance validation failed",e)
-                        calibrationProgress=calibrationProgress.copy(validationMessage="Distance check could not finish: ${e.message?.substringBefore('\n') ?: "camera processing failed"}. Try again.")
+                        calibrationProgress=calibrationProgress.copy(validationMessage=context.getString(R.string.spatial_validation_error, e.message?.substringBefore('\n') ?: context.getString(R.string.spatial_processing_failed)))
                     } finally {
                         calibrationProgress=calibrationProgress.copy(validating=false)
                         observed?.let { listOf(it.objects,it.left,it.right).forEach(Mat::release) };temporary?.close()
@@ -476,7 +477,7 @@ internal class StereoHandEngine(private val context: Context, private val token:
                         }
                         catch(e: Exception) {
                             closeDetectors()
-                            enabled=false;clearHands();message="Inference unavailable: ${e.message}. Change delegate or toggle hand controllers to retry."
+                            enabled=false;clearHands();message=context.getString(R.string.spatial_inference_error, e.message.orEmpty())
                             val unavailable=HandObservationDiagnostic(HandObservationOutcome.INFERENCE_UNAVAILABLE)
                             handMetrics.observe(seq,false,unavailable,unavailable)
                             handStatus=HandTrackingDiagnostics(message,observationTimeNs=time,
@@ -554,19 +555,19 @@ internal class StereoHandEngine(private val context: Context, private val token:
                     val accepted=if(current && fresh) hands.count { it.valid } else 0
                     trackingHealthy=accepted>0
                     nextStatus=HandTrackingDiagnostics(when {
-                        !current -> "Head tracking changed during hand detection"
-                        !fresh -> "Hand detection exceeded ${HandObservation.MAX_AGE_NS / 1_000_000} ms; observation discarded"
-                        captureHead==null -> "Waiting for camera and head synchronization"
-                        accepted>0 && joyConMode -> "$accepted / 2 Joy-Con wrist positions measured by stereo"
-                        accepted>0 -> "$accepted / 2 palms tracked; pinch ready: ${hands.count { it.valid && it.triggerValid }}; grip ready: ${hands.count { it.valid && it.gripValid }}"
-                        dl.isEmpty() && dr.isEmpty() && joyConMode -> "No wrists detected. Keep your Joy-Con grips in front of the glasses"
-                        dl.isEmpty() && dr.isEmpty() -> "No hands detected. Show open palms in front of the glasses"
-                        (dl.isEmpty() || dr.isEmpty()) && joyConMode -> "Wrists visible in only one camera; keep your grips in the shared view"
-                        dl.isEmpty() || dr.isEmpty() -> "Hands visible in only one camera; keep both palms in the shared view"
-                        matched==0 -> "Both cameras see hands, but left/right matching is ambiguous"
-                        reconstructed==0 -> "Hands detected, but stereo depth is inconsistent"
-                        joyConMode -> "Wrist position rejected by stereo or motion checks"
-                        else -> "Stereo points detected, but palm geometry is inconsistent"
+                        !current -> context.getString(R.string.spatial_hand_head_changed)
+                        !fresh -> context.getString(R.string.spatial_hand_timeout, HandObservation.MAX_AGE_NS / 1_000_000)
+                        captureHead==null -> context.getString(R.string.spatial_hand_wait_sync)
+                        accepted>0 && joyConMode -> context.getString(R.string.spatial_wrists_tracked, accepted)
+                        accepted>0 -> context.getString(R.string.spatial_palms_tracked, accepted, hands.count { it.valid && it.triggerValid }, hands.count { it.valid && it.gripValid })
+                        dl.isEmpty() && dr.isEmpty() && joyConMode -> context.getString(R.string.spatial_no_wrists)
+                        dl.isEmpty() && dr.isEmpty() -> context.getString(R.string.spatial_no_hands)
+                        (dl.isEmpty() || dr.isEmpty()) && joyConMode -> context.getString(R.string.spatial_one_camera_wrists)
+                        dl.isEmpty() || dr.isEmpty() -> context.getString(R.string.spatial_one_camera_hands)
+                        matched==0 -> context.getString(R.string.spatial_ambiguous_hands)
+                        reconstructed==0 -> context.getString(R.string.spatial_inconsistent_depth)
+                        joyConMode -> context.getString(R.string.spatial_rejected_wrist)
+                        else -> context.getString(R.string.spatial_inconsistent_palm)
                     },dl.size,dr.size,matched,reconstructed,accepted,preprocessMs,inferenceMs,
                         if(current && fresh) hands.count { it.valid && it.triggerValid } else 0,
                         if(current && fresh) hands.count { it.valid && it.gripValid } else 0,
@@ -584,11 +585,11 @@ internal class StereoHandEngine(private val context: Context, private val token:
                     }
                     for(side in 0..1) sideDiagnostics[side]=HandObservationDiagnostic(outcome)
                     nextStatus=HandTrackingDiagnostics(when {
-                        !enabled -> "Hand controllers are off"
-                        c?.readyForTracking!=true -> "Complete calibration and the distance check to enable hands"
-                        captureHead==null -> "Waiting for camera and head synchronization"
-                        !SpatialTracking.session.isCurrentTrackingFrame(generation,trackingFrame) -> "Waiting for stable head tracking; recenter if requested"
-                        else -> "Camera observation is too old; waiting for a fresh pair"
+                        !enabled -> context.getString(R.string.spatial_hands_off)
+                        c?.readyForTracking!=true -> context.getString(R.string.spatial_hands_need_calibration)
+                        captureHead==null -> context.getString(R.string.spatial_hand_wait_sync)
+                        !SpatialTracking.session.isCurrentTrackingFrame(generation,trackingFrame) -> context.getString(R.string.spatial_hands_wait_stable)
+                        else -> context.getString(R.string.spatial_old_frame)
                     })
                 }
                 handMetrics.observe(seq,inferred,sideDiagnostics[0],sideDiagnostics[1])
@@ -614,7 +615,7 @@ internal class StereoHandEngine(private val context: Context, private val token:
                     Imgcodecs.imwrite(File(folder,"left.png").path,grayL);Imgcodecs.imwrite(File(folder,"right.png").path,grayR)
                     File(folder,"frame.json").writeText(JSONObject().put("sourceSeconds",metadata[2]).put("receiptNs",receipt)
                         .put("connection",generation).put("width",w).put("height",h).put("pairedPose",captureHead!=null).toString())
-                    message="Saved diagnostic capture to ${folder.path}"
+                    message=context.getString(R.string.spatial_capture_saved, folder.path)
                 }
                 if(running && generation==SpatialTracking.session.generation) {
                     val finished=System.nanoTime()
@@ -627,7 +628,7 @@ internal class StereoHandEngine(private val context: Context, private val token:
             }
         } catch(e: InterruptedException) { /* Shutdown interrupts the idle wait. */ }
         catch(e: Throwable) {
-            message="Hand tracking stopped: ${e.message}"
+            message=context.getString(R.string.spatial_hand_error, e.message.orEmpty())
             val unavailable=HandObservationDiagnostic(HandObservationOutcome.INFERENCE_UNAVAILABLE)
             handStatus=HandTrackingDiagnostics(message,left=unavailable,right=unavailable,observations=handMetrics.snapshot())
             calibrationProgress = calibrationProgress.copy(capturing = false, captureMessage = message,

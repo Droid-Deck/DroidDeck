@@ -7,12 +7,14 @@ import com.droiddeck.launcher.glasses.SpatialCalibrationProgress
 import com.droiddeck.launcher.glasses.SpatialTrackingStatus
 import com.droiddeck.launcher.glasses.CalibrationDistance
 import com.droiddeck.launcher.glasses.CalibrationDistanceCheck
+import com.droiddeck.launcher.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
@@ -23,6 +25,45 @@ import java.io.File
 class SpatialSetupTest {
     @get:Rule val compose = createRobolectricComposeRule()
     private lateinit var view: android.view.View
+
+    @Test
+    @Config(qualifiers = "fr-w411dp-h891dp")
+    fun frenchCalibrationControlsKeepTheSelectedDistanceAndActions() {
+        val context = RuntimeEnvironment.getApplication()
+        var selected = 0f
+        compose.setContent {
+            DroidDeckTheme {
+                view = LocalView.current
+                SpatialSetupScreen(SpatialTrackingStatus(trackingValid = true, synchronized = true),
+                    SpatialCalibrationProgress(views = 24, fitted = true), null, "",
+                    SpatialSetupActions(validate = { selected = it }))
+            }
+        }
+        compose.onNodeWithText("Configuration spatiale").assertIsDisplayed()
+        compose.onNodeWithText("Spatial setup").assertDoesNotExist()
+        compose.onNodeWithText(context.getString(R.string.spatial_validate)).performScrollTo().performClick()
+        assertEquals(.3048f, selected, .000001f)
+        savePreview("calibration-fr")
+    }
+
+    @Test
+    @Config(qualifiers = "ar-w411dp-h891dp")
+    fun arabicCalibrationDiagnosticsUseTranslatedLabelsAndFormatNumbers() {
+        val context = RuntimeEnvironment.getApplication()
+        compose.setContent {
+            DroidDeckTheme {
+                view = LocalView.current
+                SpatialSetupScreen(SpatialTrackingStatus(cameraHz = 25f, cameraCopyPermille = 500, frames = 12),
+                    SpatialCalibrationProgress(), null, "", SpatialSetupActions())
+            }
+        }
+        compose.onNodeWithText(context.getString(R.string.spatial_title)).assertIsDisplayed()
+        compose.onNodeWithText("Spatial setup").assertDoesNotExist()
+        compose.onNodeWithTag("setting-spatial-diagnostics").performScrollTo().performClick()
+        compose.onNodeWithText(context.getString(R.string.spatial_input_values, 12.5f, 50f)).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Show diagnostics").assertDoesNotExist()
+        savePreview("calibration-ar")
+    }
 
     @Test fun directLaunchWithoutConnectedUltraClosesBeforeShowingCalibration() {
         val field = com.droiddeck.launcher.glasses.Glasses::class.java.getDeclaredField("_state")
@@ -84,7 +125,7 @@ class SpatialSetupTest {
         savePreview("distance-check")
         for (choice in CalibrationDistance.entries.drop(1)) {
             compose.onNodeWithTag("setting-calibration-distance").performScrollTo().performClick()
-            compose.onNodeWithText(choice.label).performClick()
+            compose.onNodeWithText(RuntimeEnvironment.getApplication().getString(choice.labelRes)).performClick()
             compose.onNodeWithText("Validate distance").performScrollTo().performClick()
             assertEquals(choice.meters, distance, 0.000001f)
         }
@@ -115,7 +156,7 @@ class SpatialSetupTest {
     }
 
     @Test fun distanceResultAppearsBesideValidationButton() {
-        val reason=CalibrationDistanceCheck.evaluate(.3048f,3,null).message
+        val reason=CalibrationDistanceCheck.evaluate(RuntimeEnvironment.getApplication(),.3048f,3,null).message
         compose.setContent {
             DroidDeckTheme {
                 view=LocalView.current
