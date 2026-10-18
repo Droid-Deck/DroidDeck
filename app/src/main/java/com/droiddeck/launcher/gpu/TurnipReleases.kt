@@ -1,21 +1,25 @@
 package com.droiddeck.launcher.gpu
 
+import com.droiddeck.launcher.core.DownloadSource
+import com.droiddeck.launcher.core.Downloader
 import com.droiddeck.launcher.core.Hashes
 import com.droiddeck.launcher.R
 import android.content.Context
+import android.util.Log
 import com.droiddeck.launcher.core.FileUtils
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
-import java.io.FileOutputStream
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 
 object TurnipReleases {
+    private const val TAG = "TurnipReleases"
     private const val PREFS = "turnip_releases"
     private const val KEY_RELEASE = "latest"
     private const val KEY_DOWNLOADS = "downloads"
+    private const val KEY_PICKS = "autoPicks"
 
     class Asset(val source: String, val tag: String, val name: String, val url: String, val size: Long, val linux: Boolean, val label: String,
                 val sha256: String = "", val pair: String = "", val bundle: Boolean = false)
@@ -53,6 +57,9 @@ object TurnipReleases {
             Kind(false, "Android + Linux · all Adreno", DriverPairs.ddTurnip(tag), bundle = true)
         },
     )
+
+    fun autoPicks(context: Context): List<AutoPicks.Rule> =
+        AutoPicks.parse(prefs(context).getString(KEY_PICKS, null)) ?: AutoPicks.BUILT_IN
 
     fun cached(context: Context): Check? {
         val raw = prefs(context).getString(KEY_RELEASE, null) ?: return null
@@ -97,6 +104,10 @@ object TurnipReleases {
             }
         }
         if (failed.size == SOURCES.size) throw lastError ?: IOException("no source answered")
+        runCatching { get(context, AutoPicks.URL, AutoPicks.URL) }
+            .onFailure { Log.i(TAG, "auto picks: ${it.message}") }
+            .getOrNull()?.takeIf { AutoPicks.parse(it) != null }
+            ?.let { prefs(context).edit().putString(KEY_PICKS, it).apply() }
         val stored = JSONObject().put("assets", assets).put("latest", latest)
             .put("failed", JSONArray(failed)).put("checkedAt", System.currentTimeMillis())
         prefs(context).edit().putString(KEY_RELEASE, stored.toString()).apply()
@@ -104,7 +115,24 @@ object TurnipReleases {
     }
 
     private fun get(context: Context, url: String): String {
-        val c = URL(url).openConnection() as HttpURLConnection
+        val sources = DownloadSource.candidates(url)
+        var last: IOException? = null
+        for ((index, source) in sources.withIndex()) {
+            try {
+                val body = get(context, source, url)
+                DownloadSource.succeeded(source)
+                return body
+            } catch (e: IOException) {
+                last = e
+                if (index < sources.lastIndex) Log.i(TAG, "retrying $url via $source")
+            }
+        }
+        DownloadSource.failed()
+        throw last ?: IOException(context.getString(R.string.turnip_github_http, 0))
+    }
+
+    private fun get(context: Context, source: String, url: String): String {
+        val c = URL(source).openConnection() as HttpURLConnection
         c.connectTimeout = 15_000
         c.readTimeout = 20_000
         c.setRequestProperty("Accept", "application/vnd.github+json")
@@ -160,39 +188,13 @@ object TurnipReleases {
     fun download(context: Context, asset: Asset, progress: (Int) -> Unit): File {
         if (asset.sha256.isEmpty()) throw IOException(context.getString(R.string.turnip_list_predates_checksums))
         val target = File(context.cacheDir, asset.name)
-        val c = URL(asset.url).openConnection() as HttpURLConnection
-        c.connectTimeout = 15_000
-        c.readTimeout = 60_000
-        c.setRequestProperty("User-Agent", "DroidDeck-app")
-        c.instanceFollowRedirects = true
-        try {
-            if (c.responseCode != 200) throw IOException(context.getString(R.string.turnip_download_http, c.responseCode))
-            val total = c.contentLengthLong.takeIf { it > 0 } ?: asset.size
-            c.inputStream.use { input ->
-                FileOutputStream(target).use { out ->
-                    val buf = ByteArray(1 shl 16)
-                    var done = 0L
-                    var last = -1
-                    while (true) {
-                        val r = input.read(buf)
-                        if (r <= 0) break
-                        out.write(buf, 0, r)
-                        done += r
-                        val pct = if (total > 0) (done * 100 / total).toInt() else 0
-                        if (pct != last) { last = pct; progress(pct) }
-                    }
-                }
-            }
-            if (!asset.sha256.equals(Hashes.sha256(target), ignoreCase = true)) {
-                throw IOException(context.getString(R.string.turnip_checksum_mismatch))
-            }
-            return target
-        } catch (e: Exception) {
+        val ok = Downloader.downloadFile(asset.url, target, true, asset.sha256) { f -> progress(if (f < 0) -1 else (f * 100).toInt()) }
+        if (!ok) throw IOException(context.getString(R.string.turnip_download_failed))
+        if (!asset.sha256.equals(Hashes.sha256(target), ignoreCase = true)) {
             FileUtils.delete(target)
-            throw e
-        } finally {
-            c.disconnect()
+            throw IOException(context.getString(R.string.turnip_checksum_mismatch))
         }
+        return target
     }
 
     private fun downloads(context: Context): JSONObject =

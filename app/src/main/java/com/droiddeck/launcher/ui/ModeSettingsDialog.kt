@@ -27,6 +27,7 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import com.droiddeck.launcher.core.FexPreset
 import com.droiddeck.launcher.runtime.DeckyManager
+import com.droiddeck.launcher.session.BootMovie
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionService
 
@@ -79,11 +80,17 @@ class ModeSettings(
     val syncBackend: String? = null,
     val picturePosition: String? = null,
     val stretch16x9: Boolean? = null,
+    val steamClientArch: String? = null,
     val steamRepairQueued: Boolean = false,
     val mangoapp: Boolean = true,
     val steamController: String? = null,
     val unfoldedControls: Boolean? = null,
     val runSteamAtStartup: Boolean = false,
+    val bootMovie: String? = null,
+    val bootMovieSound: Boolean = true,
+    val bootMovieCustomName: String? = null,
+    val bootMovieImporting: Boolean = false,
+    val bootMovieProgress: Int = -1,
     val wifiDiscovery: Boolean? = null,
     val wifiDiscoveryPermission: Boolean = false,
     val wifiDiscoveryLocation: Boolean = false,
@@ -124,10 +131,15 @@ class ModeSettingsActions(
     val onPicturePosition: (String) -> Unit = {},
     val onStretch16x9: (Boolean) -> Unit = {},
     val onSteamRepair: () -> Unit = {},
+    val onSteamClientArch: (String) -> Unit = {},
     val onMangoapp: (Boolean) -> Unit = {},
     val onSteamController: (String) -> Unit = {},
     val onUnfoldedControls: (Boolean) -> Unit = {},
     val onRunSteamAtStartup: (Boolean) -> Unit = {},
+    val onBootMovie: (String) -> Unit = {},
+    val onBootMovieSound: (Boolean) -> Unit = {},
+    val onImportBootMovie: () -> Unit = {},
+    val onRemoveBootMovie: () -> Unit = {},
     val onWifiDiscovery: (Boolean) -> Unit = {},
     val onWifiDiscoverySettings: () -> Unit = {},
     val onDeckyInstall: (DeckyManager.Release) -> Unit = {},
@@ -137,6 +149,29 @@ class ModeSettingsActions(
     val onPickDeckyPluginZip: () -> Unit = {},
     val onDismiss: () -> Unit,
 )
+
+/** "2610 r3" from droiddeck-steam-x64's FEX_TAG line (fex-2610-r3), the build the x86-64 client downloads. */
+internal fun fexVersionOf(script: String): String? =
+    Regex("""(?m)^FEX_TAG=(fex-\d+-r\d+)\s*$""").find(script)?.let { fexVersionOfTag(it.groupValues[1]) }
+
+/** "2610 r5" from a tag such as fex-2610-r5. */
+internal fun fexVersionOfTag(tag: String): String? =
+    Regex("""fex-(\d+)-r(\d+)""").matchEntire(tag.trim())?.let { "${it.groupValues[1]} r${it.groupValues[2]}" }
+
+/** The build installed in the runtime, else the one fex.json names, else the one the launcher pins. */
+@Composable
+private fun x64FexVersion(context: android.content.Context): String? = remember {
+    val root = com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context)
+    runCatching { java.io.File(root, "usr/local/share/fex-emu/.droiddeck-tag").readText() }.getOrNull()?.let(::fexVersionOfTag)
+        ?: com.droiddeck.launcher.session.FexCatalog.cached(context)?.tag?.let(::fexVersionOfTag)
+        ?: runCatching {
+            context.assets.open("linuxfs/usr/local/bin/droiddeck-steam-x64").bufferedReader().use { fexVersionOf(it.readText()) }
+        }.getOrNull()
+}
+
+@Composable
+private fun clientArchHint(hint: String, fex: String?): String =
+    if (fex == null) hint else hint + " " + stringResource(R.string.mode_client_arch_fex, fex)
 
 internal fun modeSheetTabs(steam: Boolean): List<String> =
     if (steam) listOf(SheetTab.STEAM, SheetTab.DISPLAY, SheetTab.CONTROLS, SheetTab.AUDIO, SheetTab.SESSION, SheetTab.LIBRARY)
@@ -289,6 +324,15 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 s.zramCompression && s.zramSupported != false, enabled = s.zramSupported == true,
                 onChange = a.onZramCompression,
             )
+            if (s.syncBackend != null) ChoiceRow(
+                host, "sync", stringResource(R.string.sync_backend_title), stringResource(R.string.sync_backend_hint),
+                listOf(
+                    SessionPrefs.SYNC_NTSYNC to stringResource(R.string.sync_backend_ntsync),
+                    SessionPrefs.SYNC_FSYNC to stringResource(R.string.sync_backend_fsync),
+                    SessionPrefs.SYNC_ESYNC to stringResource(R.string.sync_backend_esync),
+                    SessionPrefs.SYNC_WINESERVER to stringResource(R.string.sync_backend_wineserver),
+                ), s.syncBackend, onPick = a.onSyncBackend,
+            )
         }
         if (s.pipSupported) SettingsGroup(stringResource(R.string.pip_title)) {
             ToggleRow(host, "pip-auto", stringResource(R.string.pip_auto), null,
@@ -415,6 +459,47 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 stringResource(if (s.steamRepairQueued) R.string.mode_steam_repair_queued else R.string.mode_steam_repair_hint),
             ) {
                 SecondaryButton(stringResource(R.string.mode_steam_repair_button), enabled = !s.steamRepairQueued, onClick = a.onSteamRepair)
+            }
+            if (s.steamClientArch != null) ChoiceRow(
+                host, "clientArch", stringResource(R.string.mode_client_arch),
+                clientArchHint(stringResource(R.string.common_applies_next_session), x64FexVersion(LocalContext.current)),
+                listOf("arm64" to stringResource(R.string.mode_client_arch_arm64), "x86_64" to stringResource(R.string.mode_client_arch_x64)), s.steamClientArch,
+                onPick = a.onSteamClientArch,
+            )
+        }
+        if (s.bootMovie != null) SettingsGroup(stringResource(R.string.boot_movie)) {
+            ChoiceRow(
+                host, "boot-movie", stringResource(R.string.boot_movie_video), stringResource(R.string.common_applies_next_session),
+                buildList {
+                    add(BootMovie.DROIDDECK_30 to stringResource(R.string.boot_movie_droiddeck, 30))
+                    add(BootMovie.DROIDDECK_60 to stringResource(R.string.boot_movie_droiddeck, 60))
+                    s.bootMovieCustomName?.let { add(BootMovie.CUSTOM to it) }
+                }, s.bootMovie,
+                note = stringResource(R.string.boot_movie_note), onPick = a.onBootMovie,
+            )
+            ToggleRow(
+                host, "boot-movie-sound", stringResource(R.string.boot_movie_sound),
+                stringResource(R.string.common_applies_next_session), s.bootMovieSound, onChange = a.onBootMovieSound,
+            )
+            SettingsRow(
+                stringResource(R.string.boot_movie_custom),
+                stringResource(R.string.boot_movie_custom_hint, (BootMovie.MAX_BYTES shr 20).toInt(), BootMovie.MAX_CONVERT_SECONDS),
+            ) {
+                Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
+                    SecondaryButton(
+                        when {
+                            s.bootMovieProgress >= 0 -> stringResource(R.string.boot_movie_converting, s.bootMovieProgress)
+                            s.bootMovieImporting -> stringResource(R.string.common_working)
+                            else -> stringResource(R.string.boot_movie_import)
+                        },
+                        enabled = !s.bootMovieImporting,
+                        progress = s.bootMovieProgress.takeIf { it >= 0 }?.let { it / 100f },
+                        onClick = a.onImportBootMovie,
+                    )
+                    if (s.bootMovieCustomName != null) SecondaryButton(
+                        stringResource(R.string.boot_movie_remove), enabled = !s.bootMovieImporting, onClick = a.onRemoveBootMovie,
+                    )
+                }
             }
         }
         if (s.wifiDiscovery != null) SettingsGroup(stringResource(R.string.mode_network)) {

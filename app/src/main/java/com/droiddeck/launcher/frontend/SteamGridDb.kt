@@ -118,23 +118,42 @@ object SteamGridDb {
             .filter { it.optInt("id") > 0 && it.optString("name").isNotEmpty() }
             .map { Game(it.optInt("id"), it.optString("name"), it.optBoolean("verified")) }
 
-    internal fun path(id: Int, slot: AddedGameArt.Slot, page: Int): String {
-        val base = when (slot) {
+    internal fun path(id: Int, slot: AddedGameArt.Slot): String =
+        when (slot) {
             AddedGameArt.Slot.COVER -> "grids/game/$id?dimensions=600x900&$QUERY"
+            AddedGameArt.Slot.WIDE -> "grids/game/$id?dimensions=460x215,920x430&$QUERY"
             AddedGameArt.Slot.BACKGROUND -> "heroes/game/$id?$QUERY"
             AddedGameArt.Slot.LOGO -> "logos/game/$id?$QUERY"
             AddedGameArt.Slot.ICON -> "icons/game/$id?$QUERY"
         }
-        return if (page > 0) "$base&page=$page" else base
-    }
 
-    fun page(key: String, id: Int, slot: AddedGameArt.Slot, page: Int): List<Pair<String, String>> {
-        val items = json(key, "$API/${path(id, slot, page)}")?.optJSONArray("data") ?: return emptyList()
+    fun page(key: String, id: Int, slot: AddedGameArt.Slot): List<Pair<String, String>> {
+        val items = json(key, "$API/${path(id, slot)}")?.optJSONArray("data") ?: return emptyList()
         return ranked(items, pngOnly = slot == AddedGameArt.Slot.LOGO || slot == AddedGameArt.Slot.ICON)
     }
 
+    private const val PAGE_SIZE = 50
+    private const val MAX_PAGES = 4
+
+    fun all(key: String, id: Int, slot: AddedGameArt.Slot): List<Pair<String, String>> {
+        val raw = JSONArray()
+        for (n in 0 until MAX_PAGES) {
+            val url = "$API/${path(id, slot)}" + if (n > 0) "&page=$n" else ""
+            val data: JSONArray? = try {
+                json(key, url)?.optJSONArray("data")
+            } catch (e: Failed) {
+                if (n == 0) throw e
+                null
+            }
+            val items = data ?: break
+            for (i in 0 until items.length()) raw.put(items.get(i))
+            if (items.length() < PAGE_SIZE) break
+        }
+        return ranked(raw, pngOnly = slot == AddedGameArt.Slot.LOGO || slot == AddedGameArt.Slot.ICON)
+    }
+
     fun images(key: String, id: Int, slot: AddedGameArt.Slot, limit: Int): List<Pair<String, String>> =
-        page(key, id, slot, 0).take(limit)
+        page(key, id, slot).take(limit)
 
     internal fun ranked(items: JSONArray, pngOnly: Boolean): List<Pair<String, String>> =
         (0 until items.length()).map { items.getJSONObject(it) }

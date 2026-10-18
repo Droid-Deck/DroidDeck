@@ -1,0 +1,103 @@
+diff --git a/Source/Tools/LinuxEmulation/LinuxSyscalls/LinuxAllocator.cpp b/Source/Tools/LinuxEmulation/LinuxSyscalls/LinuxAllocator.cpp
+index 60b0ef1..4a94009 100644
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/LinuxAllocator.cpp
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/LinuxAllocator.cpp
+@@ -2,6 +2,7 @@
+ #include "LinuxSyscalls/LinuxAllocator.h"
+ #include "LinuxSyscalls/Syscalls.h"
+ 
++#include <FEXCore/Utils/Allocator.h>
+ #include <FEXCore/Utils/MathUtils.h>
+ #include <FEXCore/Utils/TypeDefines.h>
+ #include <FEXHeaderUtils/Syscalls.h>
+@@ -9,6 +10,7 @@
+ #include <FEXCore/fextl/memory.h>
+ 
+ #include <bitset>
++#include <fcntl.h>
+ #include <linux/mman.h>
+ #include <unistd.h>
+ #include <sys/user.h>
+@@ -82,6 +84,7 @@ private:
+   std::mutex AllocMutex {};
+   uint64_t FindPageRange(uint64_t Start, size_t Pages) const;
+   uint64_t FindPageRange_TopDown(uint64_t Start, size_t Pages) const;
++  bool SetHostMappedPages(uint64_t PageAddr, size_t PagesLength);
+   using FindHandler = uint64_t (MemAllocator32Bit::*)(uint64_t Start, size_t Pages) const;
+   FindHandler FindPageRangePtr {};
+ };
+@@ -132,6 +135,37 @@ uint64_t MemAllocator32Bit::FindPageRange_TopDown(uint64_t Start, size_t Pages)
+   return 0;
+ }
+ 
++// Marks each run of host mappings that overlaps the range as used, in full. Returns false if none overlaps.
++bool MemAllocator32Bit::SetHostMappedPages(uint64_t PageAddr, size_t PagesLength) {
++  const int MapsFD = ::open("/proc/self/maps", O_RDONLY | O_CLOEXEC);
++  if (MapsFD == -1) {
++    return false;
++  }
++
++  const auto Gaps =
++    FEXCore::Allocator::CollectMemoryGaps(BASE_KEY << FEXCore::Utils::FEX_PAGE_SHIFT, TOP_KEY << FEXCore::Utils::FEX_PAGE_SHIFT, MapsFD);
++  close(MapsFD);
++
++  const uint64_t EndPage = PageAddr + PagesLength;
++  uint64_t MappedBegin = BASE_KEY;
++  bool Marked = false;
++  auto MarkIfOverlapping = [&](uint64_t MappedEnd) {
++    if (MappedBegin < MappedEnd && MappedBegin < EndPage && PageAddr < MappedEnd) {
++      SetUsedPages(MappedBegin, MappedEnd - MappedBegin);
++      Marked = true;
++    }
++  };
++
++  for (const auto& Gap : Gaps) {
++    const uintptr_t GapBegin = reinterpret_cast<uintptr_t>(Gap.Ptr);
++    MarkIfOverlapping(GapBegin >> FEXCore::Utils::FEX_PAGE_SHIFT);
++    MappedBegin = (GapBegin + Gap.Size) >> FEXCore::Utils::FEX_PAGE_SHIFT;
++  }
++  MarkIfOverlapping(TOP_KEY);
++
++  return Marked;
++}
++
+ void* MemAllocator32Bit::Mmap(void* addr, size_t length, int prot, int flags, int fd, off_t offset) {
+   std::scoped_lock<std::mutex> lk {AllocMutex};
+   size_t PagesLength = FEXCore::AlignUp(length, FEXCore::Utils::FEX_PAGE_SIZE) >> FEXCore::Utils::FEX_PAGE_SHIFT;
+@@ -175,11 +209,17 @@ void* MemAllocator32Bit::Mmap(void* addr, size_t length, int prot, int flags, in
+ 
+   auto AllocateNoHint = [&]() -> void* {
+     bool Wrapped = false;
++    bool Restarted = false;
+     uint64_t BottomPage = Map32Bit && (LastScanLocation >= LastKeyLocation32Bit) ? LastKeyLocation32Bit : LastScanLocation;
+ restart: {
+   // Linear range scan
+   uint64_t LowerPage = (this->*FindPageRangePtr)(BottomPage, PagesLength);
+   if (LowerPage == 0) {
++    // A second scan from the start found nothing either: the range is full, as the kernel would say.
++    if (Restarted) {
++      return reinterpret_cast<void*>(-ENOMEM);
++    }
++    Restarted = true;
+     // Try again but this time from the start
+     BottomPage = Map32Bit ? LastKeyLocation32Bit : LastKeyLocation;
+     LowerPage = (this->*FindPageRangePtr)(BottomPage, PagesLength);
+@@ -206,7 +246,17 @@ restart: {
+         return (void*)(uintptr_t)-errno;
+       } else {
+         // Try again
+-        if (SearchDown) {
++        if (Map32Bit) {
++          // MAP_32BIT from a 64-bit guest, whose other mappings bypass this allocator: once Counter-Strike 2 had reserved the
++          // low 2GB, stepping one page at a time scanned for ever. Record what the host holds there and rescan the range, or
++          // move past it if that mapping is gone.
++          const bool Marked = SetHostMappedPages(LowerPage, PagesLength);
++          if (SearchDown) {
++            BottomPage = Marked ? UpperPage - 1 : LowerPage - 1;
++          } else {
++            BottomPage = Marked ? LowerPage : UpperPage;
++          }
++        } else if (SearchDown) {
+           --BottomPage;
+         } else {
+           ++BottomPage;

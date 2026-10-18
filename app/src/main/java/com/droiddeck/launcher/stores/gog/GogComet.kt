@@ -122,7 +122,7 @@ object GogComet {
         pb.environment().apply {
             remove("LD_PRELOAD"); remove("LD_AUDIT"); remove("LD_LIBRARY_PATH")
             put("PROOT_LOADER", LinuxRuntime.prootLoader(context).path)
-            put("PROOT_TMP_DIR", context.cacheDir.path)
+            put("PROOT_TMP_DIR", LinuxRuntime.prootTempDir(context).path)
             if (SessionPrefs.prootNoSeccomp(context)) put("PROOT_NO_SECCOMP", "1")
             LinuxRuntime.prootLibraryPath(context).takeIf { it.isNotEmpty() }?.let { put("LD_LIBRARY_PATH", it) }
         }

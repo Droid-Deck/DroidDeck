@@ -46,7 +46,7 @@ object GuestCommand {
         val builder = ProcessBuilder(cmd).directory(root).redirectErrorStream(true)
         builder.environment().apply {
             put("PROOT_LOADER", LinuxRuntime.prootLoader(context).path)
-            put("PROOT_TMP_DIR", context.cacheDir.path)
+            put("PROOT_TMP_DIR", LinuxRuntime.prootTempDir(context).path)
             if (linkDir != null) put("PROOT_L2S_DIR", linkDir.path)
             if (SessionPrefs.prootNoSeccomp(context)) put("PROOT_NO_SECCOMP", "1")
             LinuxRuntime.prootLibraryPath(context).takeIf { it.isNotEmpty() }?.let { put("LD_LIBRARY_PATH", it) }

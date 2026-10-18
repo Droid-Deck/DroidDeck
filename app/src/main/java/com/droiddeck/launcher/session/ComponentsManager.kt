@@ -711,9 +711,71 @@ object ComponentsManager {
         saveState(context, state)
     }
 
+    class StoredPackage(val pkg: Package, val inUse: Boolean)
+    class StoredOriginal(val protonId: String, val protonName: String?, val comp: String, val protonVersion: String, val size: Long, val kept: Boolean)
+    class Stored(val packages: List<StoredPackage>, val originals: List<StoredOriginal>)
+
+    private fun packagesInUse(state: JSONObject): Set<String> {
+        val names = HashSet<String>()
+        for (key in listOf("active", "queued")) {
+            val byProton = state.optJSONObject(key) ?: continue
+            for (pid in byProton.keys()) {
+                val comps = byProton.optJSONObject(pid) ?: continue
+                for (comp in comps.keys()) comps.optJSONObject(comp)?.optString("file")?.takeIf { it.isNotEmpty() }?.let(names::add)
+            }
+        }
+        val profiles = state.optJSONObject("profiles")
+        for (scope in profiles?.keys() ?: emptyList<String>().iterator()) {
+            val profile = profiles?.optJSONObject(scope) ?: continue
+            COMPONENTS.forEach { comp -> profile.optString(comp).takeIf { it.isNotEmpty() }?.let(names::add) }
+        }
+        return names
+    }
+
+    private fun originalKept(state: JSONObject, installed: Map<String, Proton>, protonId: String, comp: String, version: String): Boolean {
+        val current = installed[protonId]?.let { safeName(it.version) == version } == true
+        val queued = state.optJSONObject("queued")?.optJSONObject(protonId)?.optJSONObject(comp)
+            ?.takeIf { it.optString("kind") == "original" }?.let { safeName(it.optString("protonVersion")) == version } == true
+        return current || queued
+    }
+
+    fun stored(context: Context): Stored = synchronized(lock) {
+        val state = loadState(context)
+        val used = packagesInUse(state)
+        val installed = protons(context).associateBy { it.id }
+        val originals = originalsDir(context).listFiles()?.filter { it.isDirectory }?.flatMap { proton ->
+            proton.listFiles()?.filter { it.isDirectory }?.flatMap { version ->
+                COMPONENTS.mapNotNull { comp ->
+                    val f = File(version, "$comp.wcp")
+                    if (!f.isFile) null else StoredOriginal(
+                        proton.name, installed[proton.name]?.name, comp, version.name, f.length(),
+                        originalKept(state, installed, proton.name, comp, version.name),
+                    )
+                }
+            }.orEmpty()
+        }.orEmpty()
+        Stored(packages(context).map { StoredPackage(it, it.file in used) }, originals)
+    }
+
+    fun deleteUnusedOriginal(context: Context, protonId: String, comp: String, protonVersion: String): Boolean = synchronized(lock) {
+        val state = loadState(context)
+        if (originalKept(state, protons(context).associateBy { it.id }, protonId, comp, protonVersion)) return false
+        if (comp !in COMPONENTS || listOf(protonId, protonVersion).any { it.isEmpty() || '/' in it || it == "." || it == ".." }) return false
+        val f = File(originalsDir(context), "$protonId/$protonVersion/$comp.wcp")
+        if (!f.isFile || !f.delete()) return false
+        f.parentFile?.takeIf { it.listFiles().isNullOrEmpty() }?.delete()
+        f.parentFile?.parentFile?.takeIf { it.listFiles().isNullOrEmpty() }?.delete()
+        true
+    }
+
     fun deletePackage(context: Context, file: String): String = synchronized(lock) {
         val name = safeName(file)
         val state = loadState(context)
+        val queued = state.sub("queued")
+        for (pid in queued.keys()) {
+            val comps = queued.optJSONObject(pid) ?: continue
+            for (comp in comps.keys()) check(comps.optJSONObject(comp)?.optString("file") != name) { context.getString(R.string.cmgr_package_in_use, name, pid) }
+        }
         val active = state.sub("active")
         for (pid in active.keys()) {
             val comps = active.optJSONObject(pid) ?: continue
@@ -867,8 +929,7 @@ object ComponentsManager {
         require(Hashes.isGithubSha256(item.digest)) { context.getString(R.string.cmgr_list_predates_checksums) }
         val dest = File(packagesDir(context), safeName(item.file))
         val part = File(dest.parentFile, dest.name + ".part")
-        part.delete()
-        check(Downloader.downloadFile(item.url, part, false) { f -> progress(if (f < 0) -1 else (f * 100).toInt().coerceIn(0, 100)) }) { context.getString(R.string.user_apps_download_failed) }
+        check(Downloader.downloadFile(item.url, part, true, item.digest.substringAfter(':')) { f -> progress(if (f < 0) -1 else (f * 100).toInt().coerceIn(0, 100)) }) { context.getString(R.string.user_apps_download_failed) }
         if (!Hashes.sha256(part).equals(item.digest.substringAfter(':'), true)) { part.delete(); error(context.getString(R.string.cmgr_checksum_mismatch)) }
         val info = runCatching { packageInfo(context, part) }.getOrElse { part.delete(); throw it }
         synchronized(lock) { part.renameTo(dest) }

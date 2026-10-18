@@ -68,10 +68,18 @@ object SessionFiles {
             "usr/local/bin/droiddeck-steam-shim" to "usr/local/bin/droiddeck-steam-shim",
             "usr/local/bin/droiddeck-steam-shortcuts" to "usr/local/bin/droiddeck-steam-shortcuts",
             "usr/local/bin/droiddeck-store-launch" to "usr/local/bin/droiddeck-store-launch",
+            "usr/local/bin/droiddeck-epic" to "usr/local/bin/droiddeck-epic",
+            "usr/local/bin/droiddeck-epic-steam" to "usr/local/bin/droiddeck-epic-steam",
             "usr/local/bin/droiddeck-open-url" to "usr/local/bin/droiddeck-open-url",
             "usr/local/bin/droiddeck-steam-games" to "usr/local/bin/droiddeck-steam-games",
             "usr/local/bin/droiddeck-pad-defaults" to "usr/local/bin/droiddeck-pad-defaults",
+            "usr/local/bin/droiddeck-steam-x64" to "usr/local/bin/droiddeck-steam-x64",
+            "usr/local/bin/droiddeck-x64-arm-proton" to "usr/local/bin/droiddeck-x64-arm-proton",
+            "usr/local/bin/droiddeck-x64-arm-webhelper" to "usr/local/bin/droiddeck-x64-arm-webhelper",
+            "usr/local/bin/droiddeck-x64-webhelper" to "usr/local/bin/droiddeck-x64-webhelper",
             "usr/local/bin/droiddeck-steamvr" to "usr/local/bin/droiddeck-steamvr",
+            "usr/local/bin/droiddeck-steamvr-settings" to "usr/local/bin/droiddeck-steamvr-settings",
+            "usr/local/bin/droiddeck-steamvr-game" to "usr/local/bin/droiddeck-steamvr-game",
             "usr/local/bin/droiddeck-bwrap" to "usr/local/bin/droiddeck-bwrap",
             "usr/local/bin/droiddeck-flatpak" to "usr/local/bin/droiddeck-flatpak",
             "usr/local/bin/droiddeck-flatpak-setup" to "usr/local/bin/droiddeck-flatpak-setup",
@@ -103,18 +111,25 @@ object SessionFiles {
         val msitools = listOf("msiinfo", "cabextract", "7z", "7z.so", "libmsi-1.0.so.0", "libgsf-1.so.114", "libgcab-1.0.so.0")
             .map { "usr/local/lib/droiddeck-msitools/$it" } +
             listOf("NOTICE", "GPL-2", "GPL-3", "LGPL-2.1", "7zip-License", "7zip-unRarLicense").map { "usr/local/share/licenses/droiddeck-msitools/$it" }
-        val vr = listOf(
+        val handModels = listOf("left", "right").flatMap { side ->
+            listOf("droiddeck_hand_$side.json", "hand.mtl", "hand.png", "hand_open.obj", "hand_fist.obj", "thumb_index_open.obj",
+                "thumb_index_pinch.obj")
+                .map { "droiddeck/resources/rendermodels/droiddeck_hand_$side/$it" }
+        }
+        val vr = (listOf(
             "droiddeck/bin/linuxarm64/driver_droiddeck.so",
+            "droiddeck/bin/linuxarm64/xr-display-mode",
             "droiddeck/driver.vrdrivermanifest",
             "droiddeck/resources/settings/default.vrsettings",
             "layer/libVkLayer_droiddeck_vr.so",
+            "layer/libdroiddeck_vr_scheduling.so",
             "layer/VK_LAYER_DROIDDECK_vr.json",
-        ).map { "usr/local/lib/droiddeck-vr/$it" to "usr/local/lib/droiddeck-vr/$it" } +
+        ) + handModels).map { "usr/local/lib/droiddeck-vr/$it" to "usr/local/lib/droiddeck-vr/$it" } +
             listOf("usr/local/lib/droiddeck-vr/layer/VK_LAYER_DROIDDECK_vr_implicit.json" to
                 "usr/share/vulkan/implicit_layer.d/droiddeck_vr.json")
         val fexPreloads = listOf("x86_64", "i386").flatMap { arch ->
             listOf("libblsession.so", "libfakeinput.so", "libfaultreport.so").map { "$arch/$it" to "usr/local/lib/droiddeck-fex/$arch/$it" }
-        } + listOf("libthunkaudit.so", "libvulkan-thunk.so").map { "x86_64/$it" to "usr/local/lib/droiddeck-fex/x86_64/$it" }
+        } + listOf("libvulkan-thunk.so", "libwebkitinput.so").map { "x86_64/$it" to "usr/local/lib/droiddeck-fex/x86_64/$it" }
         val optional = (arrayOf(
             "usr/local/bin/gamescope" to "usr/local/bin/gamescope",
             "usr/local/lib/droiddeck/uruntime" to "usr/local/lib/droiddeck/uruntime",
@@ -185,28 +200,35 @@ object SessionFiles {
             Log.e(TAG, "could not write steam-compatibility-label")
         }
 
-        val startupMovieDir = File(root, "root/.local/share/Steam/config/uioverrides/movies")
-        val bigPictureMovieInstalled = stageStartupMovie(
-            context,
-            startupMovieDir,
-            "bigpicture_startup.webm",
-        )
-        stageStartupMovie(context, startupMovieDir, "steam_os_startup.webm")
-        if (bigPictureMovieInstalled) {
-            ensureStartupMovieDefault(File(root, "root/.local/share/Steam/config/config.vdf"))
+        val startupMovie = BootMovie.prepare(context)
+        // The x86-64 client's config is left alone until its first start creates it.
+        val steamRoots = listOf(File(root, "root/.local/share/Steam"), File(root, "root/.droiddeck-x64/.local/share/Steam"))
+            .filterIndexed { i, steam -> i == 0 || File(steam, "config").isDirectory }
+        for (steam in steamRoots) {
+            val startupMovieDir = File(steam, "config/uioverrides/movies")
+            val bigPictureMovieInstalled = startupMovie != null &&
+                stageStartupMovie(startupMovie, startupMovieDir, "bigpicture_startup.webm")
+            if (startupMovie != null) stageStartupMovie(startupMovie, startupMovieDir, "steam_os_startup.webm")
+            if (bigPictureMovieInstalled) {
+                ensureStartupMovieDefault(File(steam, "config/config.vdf"))
+            }
         }
     }
 
-    private fun stageStartupMovie(context: Context, directory: File, name: String): Boolean {
+    private fun stageStartupMovie(source: File, directory: File, name: String): Boolean {
         val movie = File(directory, name)
+        val stamp = File(directory, ".$name.source")
+        val identity = "${source.absolutePath}\n${source.length()}\n${source.lastModified()}"
+        if (movie.length() == source.length() && runCatching { stamp.readText() }.getOrNull() == identity) return true
         val staged = File(directory, "$name.staged")
         var installed = false
         try {
             directory.mkdirs()
-            context.assets.open("steam-startup/droiddeck-startup.webm").use { input ->
+            source.inputStream().use { input ->
                 staged.outputStream().use { output -> FileUtils.copy(input, output) }
             }
             installed = staged.setReadable(true, false) && staged.renameTo(movie)
+            if (installed) FileUtils.writeString(stamp, identity)
         } catch (e: Exception) {
             Log.w(TAG, "could not stage Steam startup movie $name", e)
         } finally {

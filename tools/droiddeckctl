@@ -5,13 +5,18 @@ from __future__ import annotations
 
 import argparse
 import base64
+import gzip
 import json
 import os
 import re
 import shutil
 import subprocess
+import struct
 import sys
+import tempfile
 import time
+import uuid
+import zlib
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -21,6 +26,7 @@ from adb_device import DeviceResolutionError, resolve_serial
 # tools/release/variants.txt: the same app also ships as other packages (e.g. com.antutu.benchmark.full).
 PACKAGE = os.environ.get("DROIDDECK_PACKAGE", "com.droiddeck.launcher")
 AUTHORITY = f"content://{PACKAGE}.agent"
+PACKAGE_NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+")
 STEAM_CLIENT_APP = 769
 REQUEST_CAP = 256 * 1024
 
@@ -295,27 +301,35 @@ def pacing_summary(text: str, package: str = PACKAGE) -> dict:
     frames shown, and 60 handed over can be 48 on screen with one in four held for two refreshes.
     """
     records = {"game": [], "surface": []}
-    for part in re.split(r"^layerName = ", text, flags=re.M)[1:]:
-        name, _, body = part.partition("\n")
+    for part in re.split(r"^displayRefreshRate = ", text, flags=re.M)[1:]:
+        rate = re.match(r"(\d+)", part)
+        layer = re.search(r"^layerName = (.*)$", part, re.M)
+        frames = re.search(r"^totalFrames = (\d+)", part, re.M)
+        hist = re.search(r"^present2present histogram is as below:\n(.*)", part, re.M)
+        if not (rate and layer and frames and hist):
+            continue
+        name = layer.group(1)
         kind = ("game" if "droiddeck_wayland_game" in name
                 else "surface" if f"SurfaceView[{package}/" in name else None)
-        frames = re.search(r"^totalFrames = (\d+)", body, re.M)
-        hist = re.search(r"^present2present histogram is as below:\n(.*)", body, re.M)
-        if kind and frames and hist:
-            records[kind].append((re.sub(r"#\d+$", "", name.strip()), int(frames.group(1)), hist.group(1)))
+        if kind and int(frames.group(1)):
+            bins = {int(ms): int(n) for ms, n in re.findall(r"(\d+)ms=(\d+)", hist.group(1)) if int(n)}
+            records[kind].append((re.sub(r"#\d+$", "", name.strip()), int(frames.group(1)), bins, int(rate.group(1))))
     chosen = records["game"] or records["surface"]
     histogram: dict[int, int] = {}
-    for _, _, hist in chosen:
-        for ms, count in re.findall(r"(\d+)ms=(\d+)", hist):
-            if int(count):
-                histogram[int(ms)] = histogram.get(int(ms), 0) + int(count)
+    off = 0
+    for _, _, bins, _ in chosen:
+        for ms, count in bins.items():
+            histogram[ms] = histogram.get(ms, 0) + count
+        if bins:
+            # SurfaceFlinger bins by whole milliseconds, so one cadence spans two buckets (16.7 ms: 16 and 17).
+            mode = max(bins, key=bins.get)
+            off += sum(count for ms, count in bins.items() if abs(ms - mode) > 1)
     intervals = sum(histogram.values())
     cadence = max(histogram, key=histogram.get) if histogram else None
-    off = intervals - histogram.get(cadence, 0) if histogram else 0
     return {
-        "layers": sorted({name for name, _, _ in chosen}),
-        "frames": sum(frames for _, frames, _ in chosen),
-        "refreshRates": sorted({int(r) for r in re.findall(r"^displayRefreshRate = (\d+)", text, re.M)}),
+        "layers": sorted({name for name, _, _, _ in chosen}),
+        "frames": sum(frames for _, frames, _, _ in chosen),
+        "refreshRates": sorted({rate for _, _, _, rate in chosen}),
         "presentToPresentMs": {str(ms): histogram[ms] for ms in sorted(histogram)},
         "cadenceMs": cadence,
         "offCadence": off,
@@ -327,17 +341,30 @@ def pacing(adb: str, serial: str, seconds: float) -> dict:
     """Frames on screen and their intervals over `seconds`, from SurfaceFlinger's timestats."""
     seconds = max(1.0, min(600.0, seconds))
     timestats = ("shell", "dumpsys", "SurfaceFlinger", "--timestats")
-    if run_adb(adb, serial, *timestats, "-clear", "-enable").returncode != 0:
+    try:
+        enabled = run_adb(adb, serial, *timestats, "-clear", "-enable")
+    except ControlError as exc:
+        raise ControlError(str(exc), "PACING_FAILED") from exc
+    if enabled.returncode != 0:
         raise ControlError("could not enable SurfaceFlinger timestats", "PACING_FAILED")
     started = time.monotonic()
-    time.sleep(seconds)
-    dump = run_adb(adb, serial, *timestats, "-dump", timeout=60)
-    elapsed = time.monotonic() - started
-    run_adb(adb, serial, *timestats, "-disable")
+    try:
+        time.sleep(seconds)
+        dump = run_adb(adb, serial, *timestats, "-dump", timeout=60)
+    except ControlError as exc:
+        raise ControlError(str(exc), "PACING_FAILED") from exc
+    finally:
+        elapsed = time.monotonic() - started
+        try:
+            disabled = run_adb(adb, serial, *timestats, "-disable").returncode == 0
+        except ControlError:
+            disabled = False
     if dump.returncode != 0:
         raise ControlError(dump.stderr.decode(errors="replace").strip() or "timestats dump failed", "PACING_FAILED")
+    if not disabled:
+        raise ControlError("could not turn SurfaceFlinger timestats off", "PACING_FAILED")
     summary = pacing_summary(dump.stdout.decode(errors="replace"))
-    if not summary["layers"]:
+    if not summary["layers"] or not summary["frames"]:
         raise ControlError("No DroidDeck layer drew during the capture: is a session on screen?", "NO_FRAMES")
     summary["fpsOnScreen"] = round(summary["frames"] / elapsed, 1)
     return {"ok": True, "command": "pacing", "seconds": round(elapsed, 1), **summary}
@@ -382,8 +409,101 @@ def input_request(args: argparse.Namespace) -> dict:
     raise ControlError(f"Unknown input type {kind}", "INVALID_INPUT")
 
 
+def xr_ppm_to_png(data: bytes, linear: bool = False) -> bytes:
+    header = re.match(rb"P6\n([0-9]+) ([0-9]+)\n255\n", data)
+    if not header:
+        raise ControlError("Invalid XR image header", "XR_CAPTURE_FAILED")
+    width, height = map(int, header.groups())
+    pixels = data[header.end():]
+    if not (0 < width <= 16384 and 0 < height <= 16384) or len(pixels) != width * height * 3:
+        raise ControlError("Invalid XR image dimensions or incomplete pixels", "XR_CAPTURE_FAILED")
+    def chunk(kind: bytes, value: bytes) -> bytes:
+        return struct.pack('>I', len(value)) + kind + value + struct.pack('>I', zlib.crc32(kind + value))
+    stride = width * 3
+    rows = b''.join(b'\0' + pixels[start:start + stride] for start in range(0, len(pixels), stride))
+    transfer = chunk(b'gAMA', struct.pack('>I', 100000)) if linear else chunk(b'sRGB', b'\0')
+    return (b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 2, 0, 0, 0)) + transfer +
+            chunk(b'IDAT', zlib.compress(rows)) + chunk(b'IEND', b''))
+
+
+def xr_capture(adb: str, serial: str, destination: Path, timeout: float) -> dict:
+    if not 0 < timeout <= 120:
+        raise ControlError("XR capture timeout must be between 0 and 120 seconds", "INVALID_TIMEOUT")
+    remote = f'/sdcard/Android/data/{PACKAGE}/files/xr-capture'
+    token = uuid.uuid4().hex
+    with tempfile.TemporaryDirectory() as temporary:
+        request = Path(temporary) / 'request'
+        request.write_text(token, encoding='ascii')
+        pushed = run_adb(adb, serial, 'push', str(request), remote + '.request.tmp')
+        if pushed.returncode:
+            raise ControlError(pushed.stderr.decode(errors='replace'), 'XR_CAPTURE_FAILED')
+        moved = run_adb(adb, serial, 'shell', 'mv', remote + '.request.tmp', remote + '.request')
+        if moved.returncode:
+            raise ControlError(moved.stderr.decode(errors='replace'), 'XR_CAPTURE_FAILED')
+        deadline = time.monotonic() + timeout
+        metadata = None
+        while time.monotonic() < deadline:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            try:
+                result = run_adb(adb, serial, 'shell', 'cat', remote + '.json', timeout=remaining)
+            except ControlError as error:
+                if not isinstance(error.__cause__, subprocess.TimeoutExpired):
+                    raise
+                break
+            try:
+                answer = json.loads(result.stdout)
+                if answer.get('id') == token:
+                    metadata = answer
+                    break
+            except (ValueError, AttributeError):
+                pass
+            time.sleep(0.2)
+        if metadata is None:
+            try:
+                run_adb(adb, serial, 'shell', 'rm', '-f', remote + '.request', timeout=1)
+            except ControlError:
+                pass
+            raise ControlError('No fresh XR capture. Enter SteamVR using a build with XR capture support.', 'TIMEOUT')
+        if not metadata.get('ok'):
+            detail = 'No valid XR projection layer is being submitted' if not metadata.get('validLayer') else 'GPU readback or image write failed'
+            raise ControlError(detail, 'XR_CAPTURE_FAILED')
+        images = {}
+        for eye in (('left', 'right', 'source') if metadata.get('sourceImage') else ('left', 'right')):
+            pulled = run_adb(adb, serial, 'exec-out', 'gzip', '-c', remote + '-' + eye + '.ppm', timeout=120)
+            if pulled.returncode:
+                raise ControlError(pulled.stderr.decode(errors='replace'), 'XR_CAPTURE_FAILED')
+            try:
+                pixels = gzip.decompress(pulled.stdout)
+            except (OSError, EOFError, zlib.error) as error:
+                raise ControlError('Incomplete compressed XR image', 'XR_CAPTURE_FAILED') from error
+            images[eye] = xr_ppm_to_png(pixels, linear=eye == 'source' and metadata.get('sourceColorSpace') == 'linear')
+        # Detect overlapping captures before publishing images with another request's metadata.
+        check = run_adb(adb, serial, 'shell', 'cat', remote + '.json')
+        try:
+            unchanged = json.loads(check.stdout).get('id') == token
+        except (ValueError, AttributeError):
+            unchanged = False
+        if not unchanged:
+            raise ControlError('XR capture was replaced by another request; retry', 'XR_CAPTURE_FAILED')
+    try:
+        destination.mkdir(parents=True, exist_ok=True)
+        for eye, image in images.items():
+            (destination / (eye + '.png')).write_bytes(image)
+        (destination / 'capture.json').write_text(json.dumps(metadata, indent=2), encoding='utf-8')
+    except OSError as error:
+        raise ControlError(str(error), 'FILE_IO') from error
+    return {'ok': True, 'command': 'xr-frame', 'deviceSerial': serial, 'capture': metadata,
+            'left': str((destination / 'left.png').resolve()), 'right': str((destination / 'right.png').resolve()),
+            **({'source': str((destination / 'source.png').resolve())} if 'source' in images else {}),
+            'scope': 'App eye textures before headset compositor reprojection; excludes Meta system overlays'}
+
+
 def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
     command = args.command
+    if command == 'xr-frame':
+        return xr_capture(adb, serial, Path(args.path), args.timeout)
 
     if command == "state":
         return add_serial(get_state(adb, serial), serial)
@@ -397,6 +517,8 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
                 if not args.url.startswith("steam://"):
                     raise ControlError("Steam URL must start with steam://", "INVALID_STEAM_URL")
                 request["steamUrl"] = args.url
+            if args.steamvr:
+                request["steamVr"] = True
         if args.reuse:
             current = get_state(adb, serial)["session"]
             wanted = {"steam": "steam", "desktop": "lxqt"}[args.mode]
@@ -540,6 +662,28 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
     if command == "access":
         return add_serial(checked(provider_call(adb, serial, "access"), "ACCESS_FAILED"), serial)
 
+    if command == "glasses":
+        request = {"op": args.glasses_op or "status"}
+        if args.glasses_op == "set":
+            request.update(key=args.key, value=args.value)
+        elif args.glasses_op == "simulate":
+            request["seconds"] = args.seconds
+            if args.yaw is not None:
+                request["yaw"] = args.yaw
+            if args.pitch is not None:
+                request["pitch"] = args.pitch
+        elif args.glasses_op == "mode":
+            request["mode"] = args.mode
+        elif args.glasses_op == "imu":
+            request["ms"] = args.ms
+        elif args.glasses_op == "spatial-diagnostics":
+            request["enabled"] = not args.off
+        elif args.glasses_op == "spatial-recenter":
+            request["screen"] = args.screen
+        elif args.glasses_op == "raw":
+            request.update(msgId=args.msg_id, payload=args.payload or "")
+        return add_serial(checked(provider_call(adb, serial, "glasses", request=request), "GLASSES_FAILED"), serial)
+
     if command == "logs":
         state = get_state(adb, serial)
         session = state.get("session", {})
@@ -590,6 +734,7 @@ def build_parser() -> argparse.ArgumentParser:
     start = commands.add_parser("start", help="start Steam or the desktop")
     start.add_argument("mode", choices=["steam", "desktop"])
     start.add_argument("--ui", choices=["bigpicture", "desktop"], default="bigpicture")
+    start.add_argument("--steamvr", action="store_true", help="start SteamVR with the session (VITURE glasses)")
     start.add_argument("--url", help="steam:// URL to pass to the client")
     start.add_argument("--wait", action="store_true", help="wait for READY after starting")
     start.add_argument("--reuse", action="store_true", help="keep a running session of this mode instead of failing")
@@ -708,6 +853,33 @@ def build_parser() -> argparse.ArgumentParser:
 
     commands.add_parser("access", help="whether debugging tools are enabled on the device")
 
+    glasses = commands.add_parser("glasses", help="VITURE glasses: status, settings, head tracking test")
+    glasses_ops = glasses.add_subparsers(dest="glasses_op")
+    glasses_ops.add_parser("status")
+    glasses_ops.add_parser("allow", help="ask for USB control of the glasses again")
+    glasses_set = glasses_ops.add_parser("set", help="refreshHz, sbsHz, resolution2d, resolution3d, resolutionVr (auto or WIDTHxHEIGHT per eye), brightness, volume, sunblock, 3d, 3dof, gameOnGlasses, headTracking, auto3d, picture3d, screenWidthDm, screenDistanceDm, vrFovDeg")
+    glasses_set.add_argument("key")
+    glasses_set.add_argument("value")
+    glasses_sim = glasses_ops.add_parser("simulate", help="feed a moving head pose (yaw, pitch and roll sweeps), or hold one")
+    glasses_sim.add_argument("--seconds", type=int, default=20)
+    glasses_sim.add_argument("--yaw", type=float, help="hold this yaw (degrees, left positive) instead of sweeping")
+    glasses_sim.add_argument("--pitch", type=float, help="hold this pitch (degrees, down positive) instead of sweeping")
+    glasses_ops.add_parser("stop-simulate")
+    glasses_ops.add_parser("query", help="ask the glasses for their display mode, brightness, volume and IMU state")
+    spatial_diagnostics = glasses_ops.add_parser("spatial-diagnostics", help="start stereo diagnostics without saving images")
+    spatial_diagnostics.add_argument("--off", action="store_true")
+    spatial_recenter = glasses_ops.add_parser("spatial-recenter", help="recenter the current spatial origin")
+    spatial_recenter.add_argument("--screen", action="store_true")
+    glasses_ops.add_parser("spatial-floor", help="set floor using configured eye height")
+    glasses_ops.add_parser("spatial-restart", help="restart the provider for explicit tracking recovery")
+    glasses_mode = glasses_ops.add_parser("mode", help="send a display mode byte, e.g. 0x31 (1080p60), 0x34 (1080p120), 0x32 (3D)")
+    glasses_mode.add_argument("mode")
+    glasses_imu = glasses_ops.add_parser("imu", help="stream the glasses' IMU for a moment and show what it reports")
+    glasses_imu.add_argument("--ms", type=int, default=2000)
+    glasses_raw = glasses_ops.add_parser("raw", help="send one MCU command (debugging tools)")
+    glasses_raw.add_argument("msg_id", help="hex message id, e.g. 0x0007")
+    glasses_raw.add_argument("payload", nargs="?", help="hex bytes")
+
     logs = commands.add_parser("logs", help="pull the latest session artifact directory")
     logs.add_argument("which", choices=["latest"])
     logs.add_argument("destination", nargs="?")
@@ -716,6 +888,10 @@ def build_parser() -> argparse.ArgumentParser:
     shot = commands.add_parser("screenshot", help="save a device screenshot")
     shot.add_argument("path")
     shot.add_argument("--display", type=int, help="logical display id (see displays); default the default display")
+
+    xr = commands.add_parser('xr-frame', help='capture both submitted XR eyes and pose metadata')
+    xr.add_argument('path', help='output directory for left.png, right.png and capture.json')
+    xr.add_argument('--timeout', type=float, default=15)
 
     rec = commands.add_parser("record", help="record the screen to an mp4")
     rec.add_argument("path")
@@ -738,7 +914,7 @@ EXIT_SESSION = {
 }
 EXIT_TIMEOUT = {"TIMEOUT", "ARTIFACT_TIMEOUT"}
 EXIT_FILE = {"NO_SESSION_LOGS", "LOG_PULL_FAILED", "SCREENSHOT_FAILED", "FILE_IO", "RECORD_FAILED", "PUSH_FAILED",
-             "PACING_FAILED"}
+             "PACING_FAILED", "XR_CAPTURE_FAILED"}
 EXIT_DENIED = {"AGENT_COMMANDS_DISABLED", "PROTECTED_PREFS", "PROTECTED_CONTROL"}
 
 
@@ -763,6 +939,8 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     serial = None
     try:
+        if not PACKAGE_NAME.fullmatch(PACKAGE):  # it reaches the device shell through `am start` and `content call`
+            raise ControlError(f"DROIDDECK_PACKAGE is not an Android package name: {PACKAGE!r}", "INVALID_REQUEST")
         adb = adb_path(args.adb)
         serial = resolve_serial(adb, args.serial, log=True)
         result = execute(args, adb, serial)

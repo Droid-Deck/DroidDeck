@@ -2,6 +2,7 @@ package com.droiddeck.launcher.session
 
 import android.content.Context
 import android.util.Log
+import com.droiddeck.launcher.core.DownloadSource
 import com.droiddeck.launcher.core.GameEnvironment
 import com.droiddeck.launcher.input.ControllerPrefs
 import com.droiddeck.launcher.runtime.LinuxRuntime
@@ -20,7 +21,7 @@ object SettingsReset {
         "noXalia", "fastSync", "fsyncFirst", "syncFallback", "prootNoSeccomp", "prootFastPath",
         "guestHostname", "fexPreset", "forceSsbs", "logs", "storageDiagnostics",
         "upscaler", "upscaleSharpness", "screenEffects", "textureAnisotropy", "textureLodBias",
-        "steamDownloadsInBackground", "steam_offline",
+        "steamDownloadsInBackground", "steam_offline", "bootMovie", "bootMovieSound",
         "questDefaultsV1",
     )
 
@@ -41,6 +42,7 @@ object SettingsReset {
         context.getSharedPreferences("frame_gen", Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences("steam_touch", Context.MODE_PRIVATE).edit()
             .apply { STEAM_TOUCH_KEYS.forEach { remove(it) } }.commit()
+        DownloadSource.reset(context)
         com.droiddeck.launcher.agent.AgentAccess.setCommandsEnabled(context, false)
 
         if (gameProfiles) {
