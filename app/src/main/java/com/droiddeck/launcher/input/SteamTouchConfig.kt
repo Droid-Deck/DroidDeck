@@ -130,7 +130,7 @@ object SteamTouchConfig {
 
 
     fun gameName(context: Context, appId: Int): String? = try {
-        val kv = KeyValues.parse(File(steamRoot(context), "steamapps/appmanifest_$appId.acf").readText())
+        val kv = KeyValues.parse(File(steamRoot(context), "steamapps/appmanifest_${appIdText(appId)}.acf").readText())
         (kv.child("AppState") ?: kv).string("name")
     } catch (_: Exception) {
         null
@@ -156,6 +156,9 @@ object SteamTouchConfig {
         null
     }
 
+    // Steam app ids are unsigned 32-bit; kotlin keeps the raw bits in an Int
+    fun appIdText(appId: Int): String = appId.toUInt().toString()
+
     fun load(context: Context, appId: Int): Config {
         val dir = configDir(context)
         val file = dir?.let { deviceConfig(context, it, appId) }
@@ -163,7 +166,7 @@ object SteamTouchConfig {
             ?: loggedConfig(context, appId)?.takeIf { isTouchConfig(it) }
             ?: dir?.let { configsetConfig(context, it, appId) }
         if (file == null) {
-            Log.i(TAG, "steam touch: app $appId has no touch config on disk; default layout")
+            Log.i(TAG, "steam touch: app ${appIdText(appId)} has no touch config on disk; default layout")
             return Config(null, null, null, emptyMap())
         }
         return try {
@@ -171,7 +174,7 @@ object SteamTouchConfig {
             val kv = KeyValues.parse(text.removePrefix("﻿"))
             val mappings = kv.child("controller_mappings") ?: kv
             val layouts = mappings.string("touch_layout")?.let { hex -> decodeLayouts(hexToBytes(hex)) }
-            Log.i(TAG, "steam touch: app $appId uses ${file.path} (${layouts?.layouts?.size ?: 0} layouts)")
+            Log.i(TAG, "steam touch: app ${appIdText(appId)} uses ${file.path} (${layouts?.layouts?.size ?: 0} layouts)")
             Config(file, text, layouts, availability(mappings), mappings)
         } catch (e: Exception) {
             Log.w(TAG, "steam touch: ${file.path} unreadable: $e")
@@ -193,7 +196,7 @@ object SteamTouchConfig {
         }
         val touchIndex = Regex("""!! Controller (\d+) attributes:\s*\n\s*Type: 43""").findAll(tail).lastOrNull()?.groupValues?.get(1)
         if (touchIndex == null) null else {
-            val loaded = Regex("""Loaded Config for [^\n]*? Path for App ID $appId, Controller $touchIndex: ([^\n]+)""")
+            val loaded = Regex("""Loaded Config for [^\n]*? Path for App ID ${appIdText(appId)}, Controller $touchIndex: ([^\n]+)""")
                 .findAll(tail).lastOrNull()?.groupValues?.get(1)?.trim()
             loaded?.let { guestPath -> File(LinuxRuntime.rootDir(context), guestPath.trimStart('/').replace("//", "/")) }
         }
@@ -202,8 +205,8 @@ object SteamTouchConfig {
     }
 
     private fun autosaveConfig(dir: File, appId: Int): File? = try {
-        val set = KeyValues.parse(File(dir, CONFIGSET).readText()).child("controller_config")?.child(appId.toString())
-        if (set?.string("autosave") == "1") File(dir, "$appId/controller_mobile_touch.vdf").takeIf { it.isFile } else null
+        val set = KeyValues.parse(File(dir, CONFIGSET).readText()).child("controller_config")?.child(appIdText(appId))
+        if (set?.string("autosave") == "1") File(dir, "${appIdText(appId)}/controller_mobile_touch.vdf").takeIf { it.isFile } else null
     } catch (_: Exception) {
         null
     }
@@ -213,10 +216,10 @@ object SteamTouchConfig {
     private fun deviceConfig(context: Context, dir: File, appId: Int): File? = entryConfig(context, dir, DEVICE_CONFIGSET, appId)
 
     private fun entryConfig(context: Context, dir: File, configset: String, appId: Int): File? = try {
-        val set = KeyValues.parse(File(dir, configset).readText()).child("controller_config")?.child(appId.toString())
+        val set = KeyValues.parse(File(dir, configset).readText()).child("controller_config")?.child(appIdText(appId))
         when {
             set == null -> null
-            set.string("autosave") == "1" -> File(dir, "$appId/controller_mobile_touch.vdf")
+            set.string("autosave") == "1" -> File(dir, "${appIdText(appId)}/controller_mobile_touch.vdf")
             set.string("workshop") != null -> workshopConfig(context, set.string("workshop")!!)
             set.string("template") != null -> File(steamRoot(context), "controller_base/templates/" + set.string("template"))
             else -> null
@@ -359,7 +362,7 @@ object SteamTouchConfig {
         val source = bindings.entries.fold(config.text ?: return null) { text, (ref, change) ->
             SteamTouchBindings.rewrite(text, ref, change) ?: text
         }
-        val target = File(dir, "$appId/controller_mobile_touch.vdf")
+        val target = File(dir, "${appIdText(appId)}/controller_mobile_touch.vdf")
         val old = config.layouts
         val keep = old?.layouts?.filter { it.actionSet !in sets.keys }.orEmpty()
         val written = sets.map { (id, elements) ->
@@ -379,7 +382,7 @@ object SteamTouchConfig {
         if (!tmp.renameTo(target)) return null
         selectAutosave(dir, appId)
         dropDeviceEntry(dir, appId)
-        Log.i(TAG, "steam touch: saved layouts ${sets.keys} for app $appId to ${target.path}")
+        Log.i(TAG, "steam touch: saved layouts ${sets.keys} for app ${appIdText(appId)} to ${target.path}")
         return target
     }
 
@@ -387,7 +390,7 @@ object SteamTouchConfig {
         val file = File(dir, DEVICE_CONFIGSET)
         if (!file.isFile) return
         val text = file.readText()
-        val block = Regex("""\n\s*"$appId"\s*\{[^}]*\}""")
+        val block = Regex("""\n\s*"${appIdText(appId)}"\s*\{[^}]*\}""")
         if (!block.containsMatchIn(text)) return
         File(file.path + ".tmp").apply { writeText(text.replace(block, "")) }.renameTo(file)
     }
@@ -395,8 +398,8 @@ object SteamTouchConfig {
     private fun selectAutosave(dir: File, appId: Int) {
         val file = File(dir, CONFIGSET)
         val text = if (file.isFile) file.readText() else "\"controller_config\"\n{\n}\n"
-        val entry = "\t\"$appId\"\n\t{\n\t\t\"autosave\"\t\t\"1\"\n\t}"
-        val block = Regex("""\n\s*"$appId"\s*\{[^}]*\}""")
+        val entry = "\t\"${appIdText(appId)}\"\n\t{\n\t\t\"autosave\"\t\t\"1\"\n\t}"
+        val block = Regex("""\n\s*"${appIdText(appId)}"\s*\{[^}]*\}""")
         val next = if (block.containsMatchIn(text)) text.replace(block, "\n$entry")
         else text.substring(0, text.lastIndexOf('}')).trimEnd() + "\n$entry\n}\n"
         File(file.path + ".tmp").apply { writeText(next) }.renameTo(file)

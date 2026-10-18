@@ -2309,7 +2309,7 @@
     <string name="touch_done">Τέλος</string>
     <string name="touch_save_failed">Δεν ήταν δυνατή η αποθήκευση της διάταξης αφής</string>
     <string name="touch_saved">Η διάταξη αφής αποθηκεύτηκε στο Steam</string>
-    <string name="touch_app_id">Εφαρμογή %1$d</string>
+    <string name="touch_app_id">Εφαρμογή %1$s</string>
     <string name="touch_label_hint">Ετικέτα (προαιρετικό)</string>
     <string name="touch_icons_missing">Τα εικονίδια του Steam δεν βρέθηκαν</string>
     <plurals name="touch_icons_found">

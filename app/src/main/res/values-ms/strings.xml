@@ -2286,7 +2286,7 @@
     <string name="touch_done">Selesai</string>
     <string name="touch_save_failed">Susun atur sentuh tidak dapat disimpan</string>
     <string name="touch_saved">Susun atur sentuh disimpan ke Steam</string>
-    <string name="touch_app_id">Apl %1$d</string>
+    <string name="touch_app_id">Apl %1$s</string>
     <string name="touch_label_hint">Label (pilihan)</string>
     <string name="touch_icons_missing">Ikon Steam tidak dijumpai</string>
     <plurals name="touch_icons_found">

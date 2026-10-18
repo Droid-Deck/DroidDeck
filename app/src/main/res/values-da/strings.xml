@@ -2309,7 +2309,7 @@
     <string name="touch_done">Udført</string>
     <string name="touch_save_failed">Berøringslayoutet kunne ikke gemmes</string>
     <string name="touch_saved">Berøringslayout gemt i Steam</string>
-    <string name="touch_app_id">App %1$d</string>
+    <string name="touch_app_id">App %1$s</string>
     <string name="touch_label_hint">Etiket (valgfrit)</string>
     <string name="touch_icons_missing">Steams ikoner blev ikke fundet</string>
     <plurals name="touch_icons_found">

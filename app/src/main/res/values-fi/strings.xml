@@ -2309,7 +2309,7 @@
     <string name="touch_done">Valmis</string>
     <string name="touch_save_failed">Kosketusasettelua ei voitu tallentaa</string>
     <string name="touch_saved">Kosketusasettelu tallennettu Steamiin</string>
-    <string name="touch_app_id">Sovellus %1$d</string>
+    <string name="touch_app_id">Sovellus %1$s</string>
     <string name="touch_label_hint">Nimike (valinnainen)</string>
     <string name="touch_icons_missing">Steamin kuvakkeita ei löytynyt</string>
     <plurals name="touch_icons_found">

@@ -2355,7 +2355,7 @@
     <string name="touch_done">Готово</string>
     <string name="touch_save_failed">Не вдалося зберегти сенсорну розкладку</string>
     <string name="touch_saved">Сенсорну розкладку збережено в Steam</string>
-    <string name="touch_app_id">Застосунок %1$d</string>
+    <string name="touch_app_id">Застосунок %1$s</string>
     <string name="touch_label_hint">Підпис (необов\'язково)</string>
     <string name="touch_icons_missing">Значки Steam не знайдено</string>
     <plurals name="touch_icons_found">

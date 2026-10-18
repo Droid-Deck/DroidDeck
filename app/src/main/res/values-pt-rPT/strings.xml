@@ -2318,7 +2318,7 @@
     <string name="touch_done">Concluído</string>
     <string name="touch_save_failed">Não foi possível guardar o esquema tátil</string>
     <string name="touch_saved">Esquema tátil guardado na Steam</string>
-    <string name="touch_app_id">Aplicação %1$d</string>
+    <string name="touch_app_id">Aplicação %1$s</string>
     <string name="touch_label_hint">Etiqueta (opcional)</string>
     <string name="touch_icons_missing">Os ícones da Steam não foram encontrados</string>
     <plurals name="touch_icons_found">

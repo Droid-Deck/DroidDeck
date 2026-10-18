@@ -2332,7 +2332,7 @@
     <string name="touch_done">Terminat</string>
     <string name="touch_save_failed">Aranjamentul tactil nu a putut fi salvat</string>
     <string name="touch_saved">Aranjamentul tactil a fost salvat în Steam</string>
-    <string name="touch_app_id">Aplicația %1$d</string>
+    <string name="touch_app_id">Aplicația %1$s</string>
     <string name="touch_label_hint">Etichetă (opțional)</string>
     <string name="touch_icons_missing">Pictogramele Steam nu au fost găsite</string>
     <plurals name="touch_icons_found">

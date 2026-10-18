@@ -2326,7 +2326,7 @@
     <string name="touch_done">Hecho</string>
     <string name="touch_save_failed">No se pudo guardar la disposición táctil</string>
     <string name="touch_saved">Disposición táctil guardada en Steam</string>
-    <string name="touch_app_id">App %1$d</string>
+    <string name="touch_app_id">App %1$s</string>
     <string name="touch_label_hint">Etiqueta (opcional)</string>
     <string name="touch_icons_missing">No se encontraron los iconos de Steam</string>
     <plurals name="touch_icons_found">

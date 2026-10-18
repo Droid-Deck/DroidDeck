@@ -2309,7 +2309,7 @@
     <string name="touch_done">Готово</string>
     <string name="touch_save_failed">Сензорното разположение не можа да се запази</string>
     <string name="touch_saved">Сензорното разположение е запазено в Steam</string>
-    <string name="touch_app_id">Приложение %1$d</string>
+    <string name="touch_app_id">Приложение %1$s</string>
     <string name="touch_label_hint">Етикет (незадължително)</string>
     <string name="touch_icons_missing">Иконите на Steam не бяха намерени</string>
     <plurals name="touch_icons_found">

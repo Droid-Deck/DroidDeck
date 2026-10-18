@@ -2355,7 +2355,7 @@
     <string name="touch_done">Hotovo</string>
     <string name="touch_save_failed">Dotykové rozložení se nepodařilo uložit</string>
     <string name="touch_saved">Dotykové rozložení uloženo ve Steamu</string>
-    <string name="touch_app_id">Aplikace %1$d</string>
+    <string name="touch_app_id">Aplikace %1$s</string>
     <string name="touch_label_hint">Popisek (nepovinné)</string>
     <string name="touch_icons_missing">Ikony Steamu nebyly nalezeny</string>
     <plurals name="touch_icons_found">

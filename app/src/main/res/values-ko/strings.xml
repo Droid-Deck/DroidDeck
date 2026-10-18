@@ -2286,7 +2286,7 @@
     <string name="touch_done">완료</string>
     <string name="touch_save_failed">터치 레이아웃을 저장할 수 없습니다</string>
     <string name="touch_saved">터치 레이아웃이 Steam에 저장되었습니다</string>
-    <string name="touch_app_id">앱 %1$d</string>
+    <string name="touch_app_id">앱 %1$s</string>
     <string name="touch_label_hint">라벨(선택 사항)</string>
     <string name="touch_icons_missing">Steam 아이콘을 찾을 수 없습니다</string>
     <plurals name="touch_icons_found">

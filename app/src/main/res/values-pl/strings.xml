@@ -2355,7 +2355,7 @@
     <string name="touch_done">Gotowe</string>
     <string name="touch_save_failed">Nie udało się zapisać układu dotykowego</string>
     <string name="touch_saved">Układ dotykowy zapisany w Steam</string>
-    <string name="touch_app_id">Aplikacja %1$d</string>
+    <string name="touch_app_id">Aplikacja %1$s</string>
     <string name="touch_label_hint">Etykieta (opcjonalnie)</string>
     <string name="touch_icons_missing">Nie znaleziono ikon Steam</string>
     <plurals name="touch_icons_found">

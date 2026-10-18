@@ -2401,7 +2401,7 @@
     <string name="touch_done">تم</string>
     <string name="touch_save_failed">تعذّر حفظ تخطيط اللمس</string>
     <string name="touch_saved">تم حفظ تخطيط اللمس في Steam</string>
-    <string name="touch_app_id">التطبيق %1$d</string>
+    <string name="touch_app_id">التطبيق %1$s</string>
     <string name="touch_label_hint">التسمية (اختياري)</string>
     <string name="touch_icons_missing">لم يتم العثور على أيقونات Steam</string>
     <plurals name="touch_icons_found">

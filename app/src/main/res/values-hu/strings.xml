@@ -2309,7 +2309,7 @@
     <string name="touch_done">Kész</string>
     <string name="touch_save_failed">Az érintőelrendezést nem sikerült elmenteni</string>
     <string name="touch_saved">Az érintőelrendezés elmentve a Steambe</string>
-    <string name="touch_app_id">%1$d. alkalmazás</string>
+    <string name="touch_app_id">%1$s. alkalmazás</string>
     <string name="touch_label_hint">Felirat (nem kötelező)</string>
     <string name="touch_icons_missing">A Steam ikonjai nem találhatók</string>
     <plurals name="touch_icons_found">

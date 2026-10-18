@@ -2309,7 +2309,7 @@
     <string name="touch_done">हो गया</string>
     <string name="touch_save_failed">टच लेआउट सेव नहीं हो सका</string>
     <string name="touch_saved">टच लेआउट Steam में सेव हो गया</string>
-    <string name="touch_app_id">ऐप %1$d</string>
+    <string name="touch_app_id">ऐप %1$s</string>
     <string name="touch_label_hint">लेबल (वैकल्पिक)</string>
     <string name="touch_icons_missing">Steam के आइकॉन नहीं मिले</string>
     <plurals name="touch_icons_found">
