@@ -2,6 +2,7 @@
 """Runs a Windows program with the Proton the Steam client has chosen for it.
 
     droiddeck-proton-run [--window] PROGRAM [ARGS...]
+    droiddeck-proton-run --app ID [--dir FOLDER] [--options TEXT] [PROGRAM [ARGS...]]
 
 The program belongs to an installed Steam game when it sits in one's folder, to a prefix when it
 sits in one's drive_c, or to a non-Steam shortcut that names it; any other program gets a prefix of
@@ -10,11 +11,15 @@ config.vdf picks the tool, else the client's default for all other titles ("0").
 started as the client starts it - its toolmanifest's command line, the waitforexitandrun verb and
 the STEAM_COMPAT_* environment - so its wrapper applies the game's settings, components and audio.
 --window keeps the program in the desktop's own window, drawn with WineD3D.
+--app starts one game without the Steam client (its Start without Steam): a Steam game's default
+Windows launch option from appinfo.vdf when no program is given, else the program in that
+shortcut's own prefix, started in --dir with the shortcut's launch options (--options).
 """
 import json
 import os
 import re
 import runpy
+import shlex
 import struct
 import sys
 import zlib
@@ -249,6 +254,81 @@ def locate(program, root):
                   os.path.dirname(program), root, "own")
 
 
+def split_words(text):
+    try:
+        return shlex.split(text or "")
+    except ValueError:
+        return (text or "").split()
+
+
+def split_options(text):
+    """A shortcut's launch options: NAME=value words before %command% go to the environment, the words
+    after it - or all of them, without %command% - are the program's arguments."""
+    words = split_words(text)
+    if "%command%" not in words:
+        return {}, words
+    at = words.index("%command%")
+    env = {}
+    for word in words[:at]:
+        name, equals, value = word.partition("=")
+        if equals and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+            env[name] = value
+    return env, words[at + 1:]
+
+
+def find_file(base, relative):
+    """base/relative, matching each part without regard to case as Windows does."""
+    path = base
+    for part in [p for p in relative.replace("\\", "/").split("/") if p and p != "."]:
+        exact = os.path.join(path, part)
+        if part == ".." or os.path.exists(exact):
+            path = exact
+            continue
+        try:
+            match = next((name for name in sorted(os.listdir(path)) if name.lower() == part.lower()), None)
+        except OSError:
+            return None
+        if match is None:
+            return None
+        path = os.path.join(path, match)
+    return os.path.normpath(path)
+
+
+def steam_install(appid, root):
+    for library in libraries(root):
+        found = re.search(r'"installdir"\s+"([^"]+)"',
+                          read_text(os.path.join(library, "steamapps", "appmanifest_%s.acf" % appid)) or "")
+        if found:
+            return library, os.path.join(library, "steamapps", "common", found.group(1))
+    return None, None
+
+
+def steam_launch(appid, root):
+    """(target, program, arguments) for a Steam game's default Windows launch option, or None."""
+    library, install = steam_install(appid, root)
+    if not install or not os.path.isdir(install):
+        return None
+    entry = compat()["appinfo_entries"](os.path.join(root, "appcache", "appinfo.vdf")).get(str(appid), {})
+    options = [option for option in entry.get("launch_options", ())
+               if not option["betakey"] and (not option["oslist"] or "windows" in option["oslist"])]
+    options.sort(key=lambda option: (option["type"] not in ("", "default", "none"),
+                                     int(option["key"]) if option["key"].isdigit() else 0))
+    for option in options:
+        program = find_file(install, option["executable"])
+        if not program or not os.path.isfile(program):
+            continue
+        start = find_file(install, option["workingdir"]) if option["workingdir"] else None
+        target = Target(appid, os.path.join(library, "steamapps", "compatdata", str(appid)), install, library, "steam",
+                        start if start and os.path.isdir(start) else os.path.dirname(program))
+        return target, program, split_words(option["arguments"])
+    return None
+
+
+def shortcut_target(appid, program, start, root):
+    return Target(appid, os.path.join(root, "steamapps", "compatdata", str(appid)), os.path.dirname(program), root,
+                  "shortcut", start if start and os.path.isdir(start) else None)
+
+
 def steam_launches(target, program, root):
     """Whether a launch option of the Steam game starts [program]: then Steam should start it."""
     if target.kind != "steam":
@@ -292,24 +372,52 @@ def arguments(program, args):
 
 def main(argv):
     window = False
+    app, start, options = None, None, ""
     while argv and argv[0].startswith("--"):
         option = argv.pop(0)
         if option == "--window":
             window = True
+        elif option in ("--app", "--dir", "--options") and argv:
+            value = argv.pop(0)
+            if option == "--app":
+                app = value
+            elif option == "--dir":
+                start = value
+            else:
+                options = value
         elif option == "--":
             break
         else:
             say("unknown option %s" % option)
             return 2
-    if not argv:
+    if app is not None and not (app.isdigit() and 0 < int(app) < 2 ** 32):
+        say("%s is not an app id" % app)
+        return 2
+    if not argv and app is None:
         say("usage: droiddeck-proton-run [--window] PROGRAM [ARGS...]")
         return 2
-    program = os.path.abspath(argv[0])
-    if not os.path.isfile(program):
-        say("%s does not exist" % program)
-        return 2
     root = os.environ.get("STEAM_COMPAT_CLIENT_INSTALL_PATH") or STEAM_ROOT
-    target = locate(program, root)
+    extra, args = split_options(options)
+    if not argv:
+        if int(app) >= STEAM_APP_LIMIT:
+            say("shortcut %s needs its program" % app)
+            return 2
+        found = steam_launch(app, root)
+        if found is None:
+            say("Steam game %s is not installed, or has no Windows launch option" % app)
+            return 2
+        target, program, own = found
+        args = own + args
+    else:
+        program = os.path.abspath(argv[0])
+        if not os.path.isfile(program):
+            say("%s does not exist" % program)
+            return 2
+        args = args + argv[1:]
+        if app is not None and int(app) >= STEAM_APP_LIMIT:
+            target = shortcut_target(app, program, start, root)
+        else:
+            target = locate(program, root)
     available = tools(root)
     name, why = choose_tool(target.appid, mapping(root), available)
     if name is None:
@@ -318,13 +426,15 @@ def main(argv):
     folder, command = available[name]
     os.makedirs(target.compatdata, exist_ok=True)
     env = environment(os.environ, target, folder, root, window)
-    say("%s with %s (%s), %s prefix %s" % (program, name, why, target.kind, target.compatdata))
+    env.update(extra)
+    say("%s with %s (%s), %s prefix %s%s" % (program, name, why, target.kind, target.compatdata,
+                                              ", without the Steam client" if app is not None else ""))
     try:
         os.chdir(target.start)
     except OSError:
         os.chdir(os.path.dirname(program))
     entry = os.path.join(folder, command)
-    os.execve(entry, [entry, VERB] + arguments(program, argv[1:]), env)
+    os.execve(entry, [entry, VERB] + arguments(program, args), env)
 
 
 if __name__ == "__main__":

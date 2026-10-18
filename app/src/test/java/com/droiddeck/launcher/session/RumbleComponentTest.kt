@@ -8,6 +8,7 @@ import android.os.Looper
 import android.os.Vibrator
 import android.os.VibratorManager
 import com.droiddeck.launcher.input.ControllerPrefs
+import com.droiddeck.launcher.input.JoyCon
 import com.droiddeck.launcher.input.PadBridge
 import java.io.IOException
 import org.junit.After
@@ -35,7 +36,7 @@ class RumbleComponentTest {
         vibrator = if (Build.VERSION.SDK_INT >= 31) context.getSystemService(VibratorManager::class.java).defaultVibrator
             else context.getSystemService(Vibrator::class.java)
         shadowOf(vibrator).setHasVibrator(true)
-        rumble = RumbleComponent().also { it.attach(context); it.start() }
+        rumble = RumbleComponent().also { it.motorLooper = Looper.getMainLooper(); it.attach(context); it.start() }
     }
 
     @After fun stopListener() { rumble.stop() }
@@ -78,22 +79,71 @@ class RumbleComponentTest {
         assertFalse("the phone buzzed as well", shadowOf(vibrator).isVibrating)
     }
 
-    @Test fun repeatedAndRapidEffectsDoNotRestartTheMotors() {
+    @Test fun repeatedAndRapidEffectsDoNotRestartTheMotorsButTheLatestStillLands() {
         val pad = FakeMotors()
         rumble.controllerMotors = { pad }
         activeController(PAD_ID)
         repeat(5) { effect(strong = 40000, weak = 1000) }
         effect(strong = 20000, weak = 1000)
+        effect(strong = 30000, weak = 1000)
         assertEquals("a stream of packets restarted the motor each time", 1, pad.played.size)
-        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(RumbleComponent.MIN_GAP_MS))
-        effect(strong = 40000, weak = 1000)
-        assertEquals("the same strength, still playing, was started again", 1, pad.played.size)
-        effect(strong = 20000, weak = 1000)
-        assertEquals(Triple(20000, 1000, 5000L), pad.played.last())
+        idle(RumbleComponent.MIN_GAP_MS)
+        assertEquals("the last change inside the gap was lost",
+            listOf(Triple(40000, 1000, 5000L), Triple(30000, 1000, 5000L)), pad.played)
+        effect(strong = 30000, weak = 1000)
+        assertEquals("the same strength, still playing, was started again", 2, pad.played.size)
         effect(strong = 0, weak = 0)
         assertFalse(pad.vibrating)
         effect(strong = 20000, weak = 1000)
         assertTrue("an effect right after a stop was dropped", pad.vibrating)
+    }
+
+    @Test fun aHeldEffectKeepsTheMotorsRunningUntilTheGameStopsIt() {
+        val pad = FakeMotors()
+        rumble.controllerMotors = { pad }
+        activeController(PAD_ID)
+        effect(strong = 40000, weak = 20000, ms = RumbleComponent.HOLD_MS)
+        assertEquals(listOf(Triple(40000, 20000, RumbleComponent.HOLD_EFFECT_MS)), pad.played)
+        idle(RumbleComponent.KEEPALIVE_MS * 4 + 100)
+        assertEquals("the held effect was not re-armed before it ran out", 5, pad.played.size)
+        effect(strong = 40000, weak = 20000, ms = RumbleComponent.HOLD_MS)
+        assertEquals("a repeat of the held strength restarted the motors", 5, pad.played.size)
+        effect(strong = 0, weak = 0)
+        assertFalse(pad.vibrating)
+        idle(RumbleComponent.KEEPALIVE_MS * 4 + 100)
+        assertEquals("the keepalive restarted the motors after a stop", 5, pad.played.size)
+        assertFalse(pad.vibrating)
+    }
+
+    @Test fun aHeldEffectFollowsTheGamesNewStrength() {
+        val pad = FakeMotors()
+        rumble.controllerMotors = { pad }
+        activeController(PAD_ID)
+        effect(strong = 40000, weak = 0, ms = RumbleComponent.HOLD_MS)
+        effect(strong = 10000, weak = 0, ms = RumbleComponent.HOLD_MS)
+        idle(RumbleComponent.KEEPALIVE_MS * 2)
+        assertTrue(pad.played.drop(1).isNotEmpty())
+        assertTrue("the keepalive replayed an old strength", pad.played.drop(1).all { it.first == 10000 })
+    }
+
+    @Test fun aTimedEffectIsNotRearmed() {
+        val pad = FakeMotors()
+        rumble.controllerMotors = { pad }
+        activeController(PAD_ID)
+        effect(strong = 40000, weak = 0, ms = 300)
+        idle(RumbleComponent.KEEPALIVE_MS * 3)
+        assertEquals(listOf(Triple(40000, 0, 300L)), pad.played)
+    }
+
+    @Test fun disablingStopsTheKeepalive() {
+        val pad = FakeMotors()
+        rumble.controllerMotors = { pad }
+        activeController(PAD_ID)
+        effect(ms = RumbleComponent.HOLD_MS)
+        ControllerPrefs.setRumble(context, false)
+        idle(RumbleComponent.KEEPALIVE_MS * 3)
+        assertEquals(1, pad.played.size)
+        assertFalse(pad.vibrating)
     }
 
     @Test fun aControllerWithoutMotorsFallsBackToThePhone() {
@@ -153,8 +203,53 @@ class RumbleComponentTest {
         assertFalse(shadowOf(vibrator).isVibrating)
     }
 
+    @Test fun eachVrHandRumblesItsOwnJoyConAndNeverThePhone() {
+        val left = FakeMotors()
+        val right = FakeMotors()
+        rumble.controllerMotors = { id -> if (id == PAD_ID) left else if (id == SECOND_PAD_ID) right else null }
+        JoyCon.setVrDevices(this, intArrayOf(PAD_ID, SECOND_PAD_ID))
+        effect(strong = 30000, weak = 30000, slot = JoyCon.VR_RUMBLE_SLOT + JoyCon.LEFT)
+        effect(strong = 20000, weak = 20000, slot = JoyCon.VR_RUMBLE_SLOT + JoyCon.RIGHT)
+        assertEquals(listOf(Triple(30000, 30000, 5000L)), left.played)
+        assertEquals(listOf(Triple(20000, 20000, 5000L)), right.played)
+        JoyCon.clearVrDevices(this)
+        effect(strong = 10000, weak = 10000, slot = JoyCon.VR_RUMBLE_SLOT + JoyCon.LEFT)
+        assertFalse("the hand kept rumbling after SteamVR let it go", left.vibrating)
+        assertFalse(shadowOf(vibrator).isVibrating)
+    }
+
+    @Test fun aJoyConPairSplitsTheMotorsLikeOneController() {
+        val left = FakeMotors()
+        val right = FakeMotors()
+        rumble.controllerMotors = { id -> if (id == PAD_ID) left else if (id == SECOND_PAD_ID) right else null }
+        activeController(SECOND_PAD_ID)
+        joyCons(0, PAD_ID, SECOND_PAD_ID)
+        effect(strong = 40000, weak = 1000)
+        assertEquals(listOf(Triple(40000, 0, 5000L)), left.played)
+        assertEquals(listOf(Triple(0, 1000, 5000L)), right.played)
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(RumbleComponent.MIN_GAP_MS))
+        effect(strong = 20000, weak = 0)
+        assertTrue(left.vibrating)
+        assertFalse(right.vibrating)
+        joyCons(0, PadBridge.NO_CONTROLLER, PadBridge.NO_CONTROLLER)
+        effect(strong = 10000, weak = 10000)
+        assertEquals("a lone Joy-Con missed the effect", Triple(10000, 10000, 5000L), right.played.last())
+        assertFalse("the departed Joy-Con kept rumbling", left.vibrating)
+        assertFalse(shadowOf(vibrator).isVibrating)
+    }
+
     @After fun clearActiveController() {
-        for (slot in 0 until PadBridge.SLOTS) activeController(PadBridge.NO_CONTROLLER, slot)
+        for (slot in 0 until PadBridge.SLOTS) {
+            activeController(PadBridge.NO_CONTROLLER, slot)
+            joyCons(slot, PadBridge.NO_CONTROLLER, PadBridge.NO_CONTROLLER)
+        }
+        JoyCon.clearVrDevices(this)
+    }
+
+    private fun joyCons(slot: Int, left: Int, right: Int) {
+        val pairs = PadBridge::class.java.getDeclaredField("slotJoyCons").apply { isAccessible = true }.get(null)
+        (pairs as java.util.concurrent.atomic.AtomicIntegerArray).set(slot * 2 + JoyCon.LEFT, left)
+        pairs.set(slot * 2 + JoyCon.RIGHT, right)
     }
 
     private fun activeController(id: Int, slot: Int = 0) {
@@ -163,11 +258,13 @@ class RumbleComponentTest {
         (slots as java.util.concurrent.atomic.AtomicIntegerArray).set(slot, id)
     }
 
-    private fun effect(strong: Int = 65535, weak: Int = 65535, slot: Int = 0) {
+    private fun effect(strong: Int = 65535, weak: Int = 65535, slot: Int = 0, ms: Int = 5000) {
         val int = Int::class.javaPrimitiveType
         RumbleComponent::class.java.getDeclaredMethod("buzz", int, int, int, int)
-            .apply { isAccessible = true }.invoke(rumble, strong, weak, 5000, slot)
+            .apply { isAccessible = true }.invoke(rumble, strong, weak, ms, slot)
     }
+
+    private fun idle(ms: Long) = shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(ms))
 
     private class FakeMotors : RumbleComponent.Motors {
         override val name = "fake pad"

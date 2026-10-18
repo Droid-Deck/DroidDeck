@@ -25,7 +25,7 @@ object GamesFolderMigration {
             var n = 0
             val steamInstalls = AddedGames.steamInstallDirs(root.host)
             for (folder in root.host.listFiles { f -> f.isDirectory }?.sortedBy { it.name.lowercase() }.orEmpty()) {
-                if (folder.name.equals("steamapps", ignoreCase = true) || folder.name.lowercase() in steamInstalls) continue
+                if (AddedGames.isSteamLibraryFolder(folder.name) || folder.name.lowercase() in steamInstalls) continue
                 if (folder.absolutePath in storeRoots || StoreGameSidecar.read(folder) != null) continue
                 if (folder.path in entries) continue
                 val picked = SessionPrefs.addedGameExe(context, folder.path).takeIf { it.isNotEmpty() }?.let { File(it) }?.takeIf { it.isFile }

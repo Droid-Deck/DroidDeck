@@ -155,7 +155,7 @@ object SteamDeckPad {
 
             val listing = listingDir(sessionRoot)
             for (name in listOf("sys/bus", "sys/class", "sys/devices", "class/hidraw", "bus")) File(listing, name).mkdirs()
-            link(File(context.cacheDir, "drm/sys/$MAJOR:$MINOR"), HIDRAW)
+            link(File(LinuxRuntime.liveDir(context), "drm/sys/$MAJOR:$MINOR"), HIDRAW)
 
             val udevData = File(LinuxRuntime.rootDir(context), "run/udev/data").apply { mkdirs() }
             File(udevData, "c$MAJOR:$MINOR").writeText("I:1\nE:ID_INPUT=1\nE:ID_INPUT_JOYSTICK=1\n")
@@ -183,7 +183,7 @@ object SteamDeckPad {
                 link(File(dir(TOUCH_HIDRAW), "subsystem"), "/sys/class/hidraw")
                 link(File(dir(TOUCH_HIDRAW), "device"), TOUCH_HID)
                 link(File(hidrawClass, TOUCH_NODE), TOUCH_HIDRAW)
-                link(File(context.cacheDir, "drm/sys/$MAJOR:$TOUCH_MINOR"), TOUCH_HIDRAW)
+                link(File(LinuxRuntime.liveDir(context), "drm/sys/$MAJOR:$TOUCH_MINOR"), TOUCH_HIDRAW)
                 File(udevData, "c$MAJOR:$TOUCH_MINOR").writeText("I:1\nE:ID_INPUT=1\nE:ID_INPUT_JOYSTICK=1\n")
                 Log.i(TAG, "deck pad: /dev/$TOUCH_NODE described as Steam's touch controller (0000:11fb)")
             }
@@ -220,7 +220,7 @@ object SteamDeckPad {
                 link(File(dir(hidraw), "subsystem"), "/sys/class/hidraw")
                 link(File(dir(hidraw), "device"), hid)
                 if (wired) padNodes[minor] = hidraw else link(File(hidrawClass, node), hidraw)
-                link(File(context.cacheDir, "drm/sys/$MAJOR:$minor"), hidraw)
+                link(File(LinuxRuntime.liveDir(context), "drm/sys/$MAJOR:$minor"), hidraw)
                 File(udevData, "c$MAJOR:$minor").writeText("I:1\nE:ID_INPUT=1\nE:ID_INPUT_JOYSTICK=1\n")
                 Log.i(TAG, "steam controller: /dev/$node described as Triton (28de:$product)")
             }
@@ -255,7 +255,7 @@ object SteamDeckPad {
                 link(File(dir(hidraw), "subsystem"), "/sys/class/hidraw")
                 link(File(dir(hidraw), "device"), hid)
                 padNodes[minor] = hidraw
-                link(File(context.cacheDir, "drm/sys/$MAJOR:$minor"), hidraw)
+                link(File(LinuxRuntime.liveDir(context), "drm/sys/$MAJOR:$minor"), hidraw)
                 File(udevData, "c$MAJOR:$minor").writeText("I:1\nE:ID_INPUT=1\nE:ID_INPUT_JOYSTICK=1\n")
                 Log.i(TAG, "playstation pad: /dev/$node described as 054c:$product")
             }

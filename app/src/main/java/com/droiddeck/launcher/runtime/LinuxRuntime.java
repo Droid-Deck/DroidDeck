@@ -48,6 +48,19 @@ public final class LinuxRuntime {
         return new File(context.getFilesDir(), "session");
     }
 
+    public static File liveDir(Context context) {
+        // Android may evict cache files even while guest processes are using them.
+        File dir = new File(context.getNoBackupFilesDir(), "guest-runtime");
+        dir.mkdirs();
+        return dir;
+    }
+
+    public static File prootTempDir(Context context) {
+        File dir = new File(liveDir(context), "proot");
+        dir.mkdirs();
+        return dir;
+    }
+
     private static final String HOST_DIR = "opt/android-host";
 
     public static File prootBinary(Context context) {
@@ -151,6 +164,7 @@ public final class LinuxRuntime {
         bind(cmd, new File(root, "etc/droiddeck/empty").getPath() + ":/sys/fs/selinux");
         bind(cmd, context.getFilesDir().getPath());
         bind(cmd, context.getCacheDir().getPath());
+        bind(cmd, liveDir(context).getPath());
         if (runtimeDir != null) {
             bind(cmd, runtimeDir.getPath());
             bind(cmd, runtimeDir.getPath() + ":" + GUEST_RUNTIME_DIR);
@@ -159,7 +173,7 @@ public final class LinuxRuntime {
         if (externalStorage != null && externalStorage.isDirectory()) {
             bind(cmd, externalStorage.getPath());
         }
-        File shm = new File(context.getCacheDir(), "shm");
+        File shm = new File(liveDir(context), "shm");
         shm.mkdirs();
         bind(cmd, shm.getPath() + ":/dev/shm");
         bindSystemFonts(cmd, root);
@@ -222,7 +236,7 @@ public final class LinuxRuntime {
         long major = ((dev >> 8) & 0xfff) | ((dev >> 32) & ~0xfffL);
         long minor = (dev & 0xff) | ((dev >> 12) & ~0xffL);
         String node = "renderD" + minor;
-        File base = new File(context.getCacheDir(), "drm");
+        File base = new File(liveDir(context), "drm");
         File dri = new File(base, "dri");
         File device = new File(base, "sys/" + major + ":" + minor + "/device");
         File drm = new File(device, "drm/" + node);
