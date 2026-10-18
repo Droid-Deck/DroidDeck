@@ -95,6 +95,26 @@ class BootMovieLibraryTest {
         assertEquals(8, BootMovieLibrary.list(app).count { it.source == BootMovieLibrary.SOURCE_IMPORT })
     }
 
+    @Test fun steamIsPointedBackAtItsDefaultWhenTheStagedMovieIsGone() {
+        steamPicksAt(SessionFiles.BOOT_MOVIE_PATH)
+        assertTrue(SessionFiles.resetMissingStartupMovie(BootMovieLibrary.steamConfig(app), false))
+        assertNull(SessionFiles.startupMoviePath(BootMovieLibrary.steamConfig(app)))
+    }
+
+    @Test fun aStagedMovieThatIsThereIsLeftAlone() {
+        movie("bigpicture_startup.webm")
+        steamPicksAt(SessionFiles.BOOT_MOVIE_PATH)
+        assertFalse(SessionFiles.resetMissingStartupMovie(BootMovieLibrary.steamConfig(app), false))
+        assertEquals(SessionFiles.BOOT_MOVIE_PATH, SessionFiles.startupMoviePath(BootMovieLibrary.steamConfig(app)))
+    }
+
+    @Test fun aPendingPickResetsASteamMovieThatWasRemoved() {
+        steamPicksAt("/uioverrides/movies/gone.webm")
+        assertFalse(SessionFiles.resetMissingStartupMovie(BootMovieLibrary.steamConfig(app), false))
+        assertTrue(SessionFiles.resetMissingStartupMovie(BootMovieLibrary.steamConfig(app), true))
+        assertNull(SessionFiles.startupMoviePath(BootMovieLibrary.steamConfig(app)))
+    }
+
     @Test fun aMovieSteamKeepsElsewhereIsListedAndAdopted() {
         val file = File(BootMovieLibrary.steamRoot(app), "steamui/movies/Bought.webm").also { it.parentFile!!.mkdirs(); it.writeText("movie") }
         val ids = BootMovieLibrary.list(app).map { it.id }

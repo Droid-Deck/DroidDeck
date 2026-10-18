@@ -207,12 +207,44 @@ object SessionFiles {
         val bigPictureMovieInstalled = startupMovie != null &&
             stageStartupMovie(startupMovie, startupMovieDir, "bigpicture_startup.webm")
         if (startupMovie != null) stageStartupMovie(startupMovie, startupMovieDir, "steam_os_startup.webm")
+        val config = File(root, "root/.local/share/Steam/config/config.vdf")
+        val force = SessionPrefs.bootMovieApplyNext(context)
         if (bigPictureMovieInstalled) {
-            val force = SessionPrefs.bootMovieApplyNext(context)
-            if (ensureStartupMovieDefault(File(root, "root/.local/share/Steam/config/config.vdf"), force)) {
+            if (ensureStartupMovieDefault(config, force)) {
                 if (force) SessionPrefs.setBootMovieApplyNext(context, false)
                 SessionPrefs.setBootMovieSteamSeen(context, BOOT_MOVIE_PATH)
             }
+        } else if (resetMissingStartupMovie(config, force)) {
+            // Steam no longer names a movie that is not there; a pending pick is only done once that is so.
+            if (force) SessionPrefs.setBootMovieApplyNext(context, false)
+            SessionPrefs.setBootMovieSteamSeen(context, "")
+        }
+    }
+
+    /**
+     * Points Steam's startup movie back at its own default when it names a movie that is gone: DroidDeck's staged copy that
+     * could not be prepared, or (when a pick here is waiting) a movie removed from Steam's folder. True when Steam's config
+     * no longer names a missing movie.
+     */
+    internal fun resetMissingStartupMovie(config: File, force: Boolean): Boolean {
+        val text = runCatching { config.readText() }.getOrNull() ?: return true
+        val movie = findObject(text, "StartupMovie", 0, text.length) ?: return true
+        val block = text.substring(movie.keyStart, movie.close + 1)
+        val path = scalar(block, "LocalPath").orEmpty()
+        if (path.isEmpty()) return true
+        val missing = File(config.parentFile, "uioverrides/movies/" + path.removePrefix(BOOT_MOVIES_DIR))
+        val gone = path.startsWith(BOOT_MOVIES_DIR) && !missing.isFile && (force || path == BOOT_MOVIE_PATH)
+        if (!gone) return false
+        val newline = if (text.contains("\r\n")) "\r\n" else "\n"
+        val updated = setScalar(setScalar(block, "MovieID", "0", newline), "LocalPath", "", newline)
+        val staged = File(config.parentFile, config.name + ".staged")
+        return try {
+            staged.writeText(text.replaceRange(movie.keyStart, movie.close + 1, updated))
+            (staged.renameTo(config)).also { if (!it) staged.delete() }
+        } catch (e: Exception) {
+            staged.delete()
+            Log.w(TAG, "could not reset Steam startup movie selection", e)
+            false
         }
     }
 
@@ -241,6 +273,7 @@ object SessionFiles {
 
     private data class VdfBlock(val keyStart: Int, val open: Int, val close: Int)
 
+    internal const val BOOT_MOVIES_DIR = "/uioverrides/movies/"
     internal const val BOOT_MOVIE_PATH = "/uioverrides/movies/bigpicture_startup.webm"
 
     /** The movie Steam's config selects, as a path like `/uioverrides/movies/x.webm`; null when none is named. */
