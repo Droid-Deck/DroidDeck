@@ -1,4 +1,7 @@
-name: Build FEX (x86-64 Steam client experiment)
+name: Build FEX (x86-64 Steam client)
+
+# Checks tools/fex: the same build DroidDeck-Components' build-fex.yml runs from this repository to publish FEX
+# (its single `fex` release and fex.json, which the app follows). Nothing is published from here.
 
 on:
   push:
@@ -7,16 +10,12 @@ on:
       - '.github/workflows/build-fex.yml'
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Release tag to publish as (e.g. fex-2609-r1); empty = artifact only'
-        required: false
-        default: ''
       thunks:
         description: 'Build the host thunks (Vulkan/GL/X11/... to the runtime arm64 libraries)'
         required: false
         default: 'false'
       cxxflags:
-        description: 'Extra CXXFLAGS for a diagnostic build (e.g. -DDEBUG_STRACE); never published with a tag'
+        description: 'Extra CXXFLAGS for a diagnostic build (e.g. -DDEBUG_STRACE)'
         required: false
         default: ''
 
@@ -48,30 +47,3 @@ jobs:
             fex.tzst.sha256
             fex-needed.txt
             fex-files.txt
-
-  # Only this job can write: the build above runs third-party images and toolchains with a read-only token.
-  publish:
-    needs: build
-    if: github.event_name == 'workflow_dispatch' && inputs.tag != '' && inputs.cxxflags == '' && inputs.thunks == 'true'
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: fex
-      - name: Publish
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          TAG: ${{ inputs.tag }}
-        run: |
-          set -euo pipefail
-          # droiddeck-steam-x64 pins each tag's sha256 and the build is not reproducible: never rebuild over a tag.
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "::error::release $TAG already exists; publish under a new tag"
-            exit 1
-          fi
-          gh release create "$TAG" --target "$GITHUB_SHA" --latest=false --prerelease=false --title "$TAG" --notes "FEX for the runtime (tools/fex/build-in-arch.sh); fetched by droiddeck-steam-x64. sha256 $(cut -d' ' -f1 fex.tzst.sha256)" fex.tzst fex.tzst.sha256
-          # Fetched by tag by the app, never installed by users: never the repo's Latest release nor a pre-release.
-          gh release edit "$TAG" --latest=false --prerelease=false

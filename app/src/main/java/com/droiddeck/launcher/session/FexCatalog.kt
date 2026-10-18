@@ -7,13 +7,18 @@ import com.droiddeck.launcher.core.Downloader
 import org.json.JSONObject
 import java.io.File
 
-/** The FEX build DroidDeck-Components' fex.json names for the x86-64 client. A session uses the last copy read. */
+/**
+ * The FEX build DroidDeck-Components' fex.json names for the x86-64 client. A session uses the last copy read.
+ * Components' build-fex.yml replaces the archive on its single `fex` release and records the build's version;
+ * a release per build (fex-2610-r5) is still read.
+ */
 object FexCatalog {
     private const val TAG = "FexCatalog"
     const val CATALOG_URL = "https://raw.githubusercontent.com/Droid-Deck/DroidDeck-Components/main/fex.json"
     private const val RELEASES = "https://github.com/Droid-Deck/DroidDeck-Components/releases/download/"
     private const val REFRESH_MS = 10 * 60 * 1000L
     private val TAG_FORMAT = Regex("""fex-\d+-r\d+""")
+    private val VERSION_FORMAT = Regex("""\d+-r\d+""")
     private val SHA256 = Regex("[0-9a-f]{64}")
 
     data class Build(val tag: String, val url: String, val sha256: String)
@@ -24,10 +29,16 @@ object FexCatalog {
 
     internal fun parse(text: String): Build? = runCatching {
         val o = JSONObject(text)
-        val tag = o.getString("release")
+        val release = o.getString("release")
         val url = o.getString("url")
         val sha = o.getString("sha256").lowercase()
-        Build(tag, url, sha).takeIf { TAG_FORMAT.matches(tag) && url == "$RELEASES$tag/fex.tzst" && SHA256.matches(sha) }
+        val version = o.optString("version")
+        val tag = when {
+            TAG_FORMAT.matches(release) -> release
+            release == "fex" && VERSION_FORMAT.matches(version) -> "fex-$version"
+            else -> return@runCatching null
+        }
+        Build(tag, url, sha).takeIf { url == "$RELEASES$release/fex.tzst" && SHA256.matches(sha) }
     }.getOrNull()
 
     fun cached(context: Context): Build? = runCatching { parse(file(context).readText()) }.getOrNull()

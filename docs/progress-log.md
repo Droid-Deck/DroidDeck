@@ -148,7 +148,10 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
   rootfs download in tenths instead of a progress bar (one report's log ended in hundreds of bar lines),
   and, when the web helper's GPU process keeps exiting (a report from an Adreno 840: the menus never
   appeared), say so in one line with x86 `glxinfo`/`vulkaninfo` through FEX. Settings shows the FEX
-  build installed. Tests: `test_fex_select.py`, `FexCatalogTest`.
+  build installed. FEX is now built and published by DroidDeck-Components' `build-fex.yml` from this
+  repository's `tools/fex`, replacing the archive on its single `fex` release and recording the version
+  in `fex.json`; this repository's `build-fex.yml` only checks the build. Tests: `test_fex_select.py`,
+  `FexCatalogTest`.
 
 ## 2026-10-15 - `feat/x86-64-steam-client`: SD card library, ARM parity, org main, Counter-Strike 2
 

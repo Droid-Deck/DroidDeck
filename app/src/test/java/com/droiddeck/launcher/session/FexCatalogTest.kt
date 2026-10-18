@@ -20,6 +20,13 @@ class FexCatalogTest {
         assertEquals(FexCatalog.Build("fex-2610-r5", url, sha), FexCatalog.parse(json()))
     }
 
+    @Test fun readsTheSingleReleaseByItsVersion() {
+        val single = "https://github.com/Droid-Deck/DroidDeck-Components/releases/download/fex/fex.tzst"
+        assertEquals(FexCatalog.Build("fex-2610-r6", single, sha), FexCatalog.parse(json(release = "fex", url = single).replace("}", ", \"version\": \"2610-r6\"}")))
+        assertNull(FexCatalog.parse(json(release = "fex", url = single).replace("}", ", \"version\": \"latest\"}")))
+        assertNull(FexCatalog.parse(json(release = "fex", url = single)))
+    }
+
     @Test fun refusesAnArchiveOutsideItsOwnRelease() {
         assertNull(FexCatalog.parse(json(url = "https://example.com/fex.tzst")))
         assertNull(FexCatalog.parse(json(url = url.replace("fex-2610-r5/", "fex-2610-r4/"))))
