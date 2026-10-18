@@ -815,6 +815,13 @@ int __fxstat64(int ver, int fd, struct stat64 *st) { return __fxstat(ver, fd, (s
 
 static int statx_missing;
 
+static unsigned int dev_major(unsigned long long dev) {
+  return ((dev >> 8) & 0xfff) | ((unsigned int)(dev >> 32) & ~0xfffU);
+}
+static unsigned int dev_minor(unsigned long long dev) {
+  return (dev & 0xff) | ((unsigned int)(dev >> 12) & ~0xffU);
+}
+
 static void fill_statx(struct statx *out, const struct stat *st) {
   memset(out, 0, sizeof *out);
   out->stx_mask = STATX_BASIC_STATS;
@@ -832,10 +839,10 @@ static void fill_statx(struct statx *out, const struct stat *st) {
   out->stx_ctime.tv_nsec = st->st_ctim.tv_nsec;
   out->stx_mtime.tv_sec = st->st_mtim.tv_sec;
   out->stx_mtime.tv_nsec = st->st_mtim.tv_nsec;
-  out->stx_rdev_major = major(st->st_rdev);
-  out->stx_rdev_minor = minor(st->st_rdev);
-  out->stx_dev_major = major(st->st_dev);
-  out->stx_dev_minor = minor(st->st_dev);
+  out->stx_rdev_major = dev_major(st->st_rdev);
+  out->stx_rdev_minor = dev_minor(st->st_rdev);
+  out->stx_dev_major = dev_major(st->st_dev);
+  out->stx_dev_minor = dev_minor(st->st_dev);
 }
 
 /* Emulate statx on older kernels < 4.11 */
