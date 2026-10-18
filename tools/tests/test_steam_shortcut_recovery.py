@@ -36,12 +36,13 @@ class SteamShortcutRecoveryTest(unittest.TestCase):
             "exit \"$last\"\n")
         self.agent.chmod(0o755)
 
-    def launch_game(self, states, focusable="769", extra=None):
+    def launch_game(self, states, focusable="769", extra=None, client=None):
         xprop = self.bin / "xprop"
         xprop.write_text("#!/bin/sh\necho 'GAMESCOPE_FOCUSABLE_APPS(CARDINAL) = %s'\n" % focusable)
         xprop.chmod(0o755)
-        script = "nap() { :; }\nsteam_root=%s\n%s\nsteam_launch_game %s\n" % (
-            self.root / "steam", FUNCTIONS.replace("/usr/local/bin/droiddeck-agent", str(self.agent)), GAME)
+        script = "nap() { :; }\nsteam_root=%s\n%s%s\nsteam_launch_game %s\n" % (
+            self.root / "steam", "steam_client=(%s --exec)\n" % client if client else "",
+            FUNCTIONS.replace("/usr/local/bin/droiddeck-agent", str(self.agent)), GAME)
         env = dict(os.environ, HOME=str(self.root), BL_LAUNCH_DIR=str(self.launch),
                    PATH=str(self.bin) + os.pathsep + os.environ["PATH"], STEAM_LOG=str(self.steam_log),
                    AGENT_COUNT=str(self.root / "agent-count"), AGENT_STATES=states, **(extra or {}))
@@ -62,6 +63,16 @@ class SteamShortcutRecoveryTest(unittest.TestCase):
         self.assertEqual(["steam://rungameid/" + GAME, "-shutdown"], steam)
         self.assertEqual(GAME, restart)
         self.assertIn("dropped shortcut", out)
+
+    def test_the_running_x86_64_client_gets_the_launch_and_the_restart(self):
+        x64 = self.bin / "droiddeck-steam-x64"
+        x64_log = self.root / "x64-args"
+        x64.write_text("#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$X64_LOG\"\n")
+        x64.chmod(0o755)
+        steam, restart, _ = self.launch_game("0 0 4", client=x64, extra={"X64_LOG": str(x64_log)})
+        self.assertEqual([], steam)
+        self.assertEqual(["--exec steam://rungameid/" + GAME, "--exec -shutdown"], x64_log.read_text().splitlines())
+        self.assertEqual(GAME, restart)
 
     def test_a_shortcut_already_lost_restarts_steam_without_launching(self):
         steam, restart, out = self.launch_game("4")

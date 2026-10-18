@@ -538,11 +538,11 @@ static FILE *synthesize(const char *table) {
     return out;
 }
 
-int bl_status_without_tracer(const char *path, int flags) __attribute__((visibility("hidden")));
+int bl_status_without_tracer(const char *path, int flags, const void *caller) __attribute__((visibility("hidden")));
 
-static FILE *open_stream(fopen_fn real, const char *path, const char *mode) {
+static FILE *open_stream(fopen_fn real, const char *path, const char *mode, const void *caller) {
     int status = mode && mode[0] == 'r' && !strchr(mode, '+')
-            ? bl_status_without_tracer(path, O_RDONLY | O_CLOEXEC) : -1;
+            ? bl_status_without_tracer(path, O_RDONLY | O_CLOEXEC, caller) : -1;
     if (status >= 0) {
         FILE *copy = fdopen(status, "r");
         if (copy == NULL) close(status);
@@ -560,11 +560,11 @@ static FILE *open_stream(fopen_fn real, const char *path, const char *mode) {
 FILE *fopen(const char *path, const char *mode) {
     static fopen_fn real;
     if (real == NULL) real = (fopen_fn) dlsym(RTLD_NEXT, "fopen");
-    return open_stream(real, path, mode);
+    return open_stream(real, path, mode, __builtin_return_address(0));
 }
 
 FILE *fopen64(const char *path, const char *mode) {
     static fopen_fn real;
     if (real == NULL) real = (fopen_fn) dlsym(RTLD_NEXT, "fopen64");
-    return open_stream(real, path, mode);
+    return open_stream(real, path, mode, __builtin_return_address(0));
 }

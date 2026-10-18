@@ -145,7 +145,8 @@ static int steam_client(void) {
   static int cached = -1;
   if (cached < 0)
     cached = strcmp(program_invocation_short_name, "steam") == 0 &&
-             strstr(program_invocation_name, "steamrtarm64") != NULL;
+             (strstr(program_invocation_name, "steamrtarm64") != NULL ||
+              strstr(program_invocation_name, "steamrt64") != NULL);
   return cached;
 }
 
