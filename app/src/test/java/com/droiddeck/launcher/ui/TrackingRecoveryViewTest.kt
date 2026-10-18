@@ -13,6 +13,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
+import kotlin.math.abs
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk=[34])
@@ -54,23 +55,39 @@ class TrackingRecoveryViewTest {
     @Test fun stereoDuplicatesTheWholeMessageForEachEyeAndMatchesMono() {
         val view=view();view.update(TrackingRecovery.LOST,false)
         val mono=render(view)
-        view.update(TrackingRecovery.LOST,true)
-        val stereo=render(view,3840,1200)
-        save(mono,"glasses-mono");save(stereo,"glasses-stereo")
-        val expected=IntArray(1920*1200);mono.getPixels(expected,0,1920,0,0,1920,1200)
-        for(x in listOf(0,1920)) {
-            val eye=IntArray(expected.size);stereo.getPixels(eye,0,1920,x,0,1920,1200)
-            var changed=0
-            var difference=0L
-            for(i in eye.indices) {
-                if(eye[i]!=expected[i]) changed++
-                for(shift in listOf(0,8,16)) difference+=kotlin.math.abs(((eye[i] ushr shift) and 255)-((expected[i] ushr shift) and 255))
+        try {
+            view.update(TrackingRecovery.LOST,true)
+            val stereo=render(view,3840,1200)
+            try {
+                save(mono,"glasses-mono");save(stereo,"glasses-stereo")
+                val expected=IntArray(mono.width)
+                val eye=IntArray(mono.width)
+                val pixels=mono.width*mono.height
+                for(x in listOf(0,mono.width)) {
+                    var changed=0
+                    var difference=0L
+                    for(y in 0 until mono.height) {
+                        mono.getPixels(expected,0,mono.width,0,y,mono.width,1)
+                        stereo.getPixels(eye,0,mono.width,x,y,mono.width,1)
+                        for(i in eye.indices) {
+                            val actual=eye[i]
+                            val reference=expected[i]
+                            if(actual!=reference) changed++
+                            difference+=abs((actual and 255)-(reference and 255))
+                            difference+=abs(((actual ushr 8) and 255)-((reference ushr 8) and 255))
+                            difference+=abs(((actual ushr 16) and 255)-((reference ushr 16) and 255))
+                        }
+                    }
+                    // Native text rasterization can round a translated glyph edge differently.
+                    assertTrue("Eye at x=$x changed $changed pixels",changed<pixels/1000)
+                    assertTrue("Eye at x=$x has different content",difference.toDouble()/(pixels*3)<0.1)
+                }
+            } finally {
+                stereo.recycle()
             }
-            // Native text rasterization can round a translated glyph edge differently.
-            assertTrue("Eye at x=$x changed $changed pixels",changed<expected.size/1000)
-            assertTrue("Eye at x=$x has different content",difference.toDouble()/(expected.size*3)<0.1)
+        } finally {
+            mono.recycle()
         }
-        mono.recycle();stereo.recycle()
     }
 
     @Test fun activePaletteChangesTheBackgroundAndMessageColors() {
