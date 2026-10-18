@@ -42,12 +42,13 @@ data class Cardboard(
     companion object {
         const val SOURCE_SCREEN = 0
         const val SOURCE_SBS = 1
+        const val SOURCE_FLAT = 2
 
         val OFF = Cardboard()
 
         fun decode(json: JSONObject): Cardboard = Cardboard(
             enabled = json.optBoolean("enabled", false),
-            source = if (json.optInt("source", SOURCE_SCREEN) == SOURCE_SBS) SOURCE_SBS else SOURCE_SCREEN,
+            source = json.optInt("source", SOURCE_SCREEN).takeIf { it in SOURCE_SCREEN..SOURCE_FLAT } ?: SOURCE_SCREEN,
             viewer = Viewer.byId(json.optString("viewer", Viewer.CARDBOARD_V2.id)).id,
             ipdMm = json.optInt("ipdMm", 64).coerceIn(50, 80),
             screenWidthDm = json.optInt("screenWidthDm", 40).coerceIn(5, 200),
@@ -102,7 +103,8 @@ object HeadPose {
 
     class Reference(val basis: FloatArray, val tilt: FloatArray)
 
-    fun recenter(screenToWorld: FloatArray): Reference {
+    fun recenter(screenToWorld: FloatArray, centerView: Boolean = false): Reference {
+        if (centerView) return Reference(screenToWorld.copyOf(), IDENTITY)
         val fz = -screenToWorld[8]
         val flat = kotlin.math.abs(fz) > FLAT_SIN
         var fx = if (flat) screenToWorld[1] else -screenToWorld[2]

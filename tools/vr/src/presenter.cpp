@@ -10,6 +10,7 @@ typedef unsigned long VisualID;
 
 #include "../../../app/src/main/cpp/waylandcomp/src/headpose_shm.h"
 #include "presenter.h"
+#include "presenter_image.h"
 #include "present_sync.h"
 #include "xr_tracking_file.h"
 #include "xr_frame_channel.h"
@@ -107,6 +108,7 @@ struct Imported {
     VkDeviceMemory memory = VK_NULL_HANDLE;
     uint32_t width = 0, height = 0;
     uint32_t producerPid = 0;
+    VkFormat format = VK_FORMAT_UNDEFINED;
 };
 
 struct PendingImport {
@@ -132,14 +134,6 @@ private:
     bool acquired_;
     bool gpuComplete_ = true;
 };
-
-VkFormat UnormOf(uint32_t f) {
-    switch (f) {
-    case VK_FORMAT_R8G8B8A8_SRGB: return VK_FORMAT_R8G8B8A8_UNORM;
-    case VK_FORMAT_B8G8R8A8_SRGB: return VK_FORMAT_B8G8R8A8_UNORM;
-    default: return (VkFormat)f;
-    }
-}
 
 class Impl {
 public:
@@ -276,7 +270,9 @@ private:
             } else if (f.texture[0] && !frameChannel_) {
                 std::this_thread::sleep_until(at + guard_);
             }
-            if (f.texture[0] && wayland_) FollowPanel();
+            if (!frameChannel_) {
+                if (const Imported *eye = Find(f.texture[0])) FollowPanel(eye->format);
+            }
             if (f.texture[0] && (frameChannel_ ? Capture(f) : Draw(f))) shown++;
             {
                 std::lock_guard<std::mutex> lock(mutex_);
@@ -335,12 +331,13 @@ private:
         return false;
     }
 
-    void FollowPanel() {
-        uint32_t w = 0, h = 0;
-        if (!PanelSize(&w, &h)) return;
+    void FollowPanel(VkFormat eyeFormat) {
+        uint32_t w = width_, h = height_;
+        if (wayland_ && !PanelSize(&w, &h)) return;
         const bool resized = w != width_ || h != height_;
+        const bool encodingChanged = SrgbEyeFormat(eyeFormat) != SrgbEyeFormat(eyeFormat_);
         const auto now = std::chrono::steady_clock::now();
-        if (!resized && (swapchain_ || now < retryAt_)) return;
+        if (!resized && !encodingChanged && (swapchain_ || now < retryAt_)) return;
         vk_.DeviceWaitIdle(dev_);
         if (swapchain_) vk_.DestroySwapchainKHR(dev_, swapchain_, nullptr);
         swapchain_ = VK_NULL_HANDLE;
@@ -348,6 +345,7 @@ private:
         if (resized) Log("presenter: panel now %ux%u (was %ux%u)", w, h, width_, height_);
         width_ = w;
         height_ = h;
+        eyeFormat_ = eyeFormat;
         if (!CreateSwapchain()) retryAt_ = now + std::chrono::seconds(1);
     }
 
@@ -539,7 +537,6 @@ private:
         VkSemaphoreCreateInfo semci = {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, nullptr, 0};
         vk_.CreateSemaphore(dev_, &semci, nullptr, &acquired_);
         vk_.CreateSemaphore(dev_, &semci, nullptr, &rendered_);
-        if (!frameChannel_ && !CreateSwapchain() && !wayland_) return false;
         Log("presenter: Vulkan on %s, queue family %u", props.deviceName, qfam_);
         return true;
     }
@@ -551,9 +548,11 @@ private:
         vk_.GetPhysicalDeviceSurfaceFormatsKHR(pd_, surface_, &nf, nullptr);
         std::vector<VkSurfaceFormatKHR> fmts(nf);
         vk_.GetPhysicalDeviceSurfaceFormatsKHR(pd_, surface_, &nf, fmts.data());
-        VkSurfaceFormatKHR fmt = fmts.empty() ? VkSurfaceFormatKHR{VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR} : fmts[0];
-        for (auto &f : fmts)
-            if (f.format == VK_FORMAT_B8G8R8A8_UNORM || f.format == VK_FORMAT_R8G8B8A8_UNORM) { fmt = f; break; }
+        VkSurfaceFormatKHR fmt{};
+        if (!EyeSurfaceFormat(eyeFormat_, fmts.data(), nf, &fmt)) {
+            Log("presenter: no surface format preserves eye format %d", eyeFormat_);
+            return false;
+        }
         uint32_t npm = 0;
         vk_.GetPhysicalDeviceSurfacePresentModesKHR(pd_, surface_, &npm, nullptr);
         std::vector<VkPresentModeKHR> pms(npm);
@@ -606,17 +605,10 @@ private:
         im.width = p.width;
         im.height = p.height;
         im.producerPid = p.producerPid;
-        const char *fl = getenv("DROIDDECK_VR_IMPORT_FORMAT_LIST");
-        const bool formatList = !fl || strcmp(fl, "0") != 0;
-        VkFormat formats[2] = {(VkFormat)p.format, UnormOf(p.format)};
-        VkImageFormatListCreateInfo list = {VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO, nullptr, 2, formats};
-        VkExternalMemoryImageCreateInfo ext = {VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO, formatList ? &list : nullptr,
-                                               VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT};
-        VkImageCreateInfo ici = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO, &ext, VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT, VK_IMAGE_TYPE_2D,
-                                 UnormOf(p.format), {p.width, p.height, 1}, 1, 1, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_TILING_OPTIMAL,
-                                 VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
-                                 VK_SHARING_MODE_EXCLUSIVE, 0, nullptr, VK_IMAGE_LAYOUT_UNDEFINED};
-        VkResult r = vk_.CreateImage(dev_, &ici, nullptr, &im.image);
+        im.format = (VkFormat)p.format;
+        // Dedicated OPAQUE_FD imports must match SteamVR's exported image description.
+        SharedEyeImage description(im.format, p.width, p.height);
+        VkResult r = vk_.CreateImage(dev_, &description.info, nullptr, &im.image);
         if (r != VK_SUCCESS) { Log("presenter: import image %d", r); close(p.fd); return; }
         VkMemoryRequirements req;
         vk_.GetImageMemoryRequirements(dev_, im.image, &req);
@@ -632,8 +624,11 @@ private:
             vk_.DestroyImage(dev_, im.image, nullptr);
             return;
         }
-        if (vk_.BindImageMemory(dev_, im.image, im.memory, 0) != VK_SUCCESS) {
-            vk_.DestroyImage(dev_, im.image, nullptr); vk_.FreeMemory(dev_, im.memory, nullptr);
+        r = vk_.BindImageMemory(dev_, im.image, im.memory, 0);
+        if (r != VK_SUCCESS) {
+            Log("presenter: bind imported image %d", r);
+            vk_.DestroyImage(dev_, im.image, nullptr);
+            vk_.FreeMemory(dev_, im.memory, nullptr);
             return;
         }
         textures_.push_back(im);
@@ -798,6 +793,7 @@ private:
     bool Draw(const EyeFrame &f) {
         const Imported *eye[2] = {Find(f.texture[0]), Find(f.texture[1])};
         if (!eye[0] || !eye[1] || !swapchain_) return false;
+        if (SrgbEyeFormat(eye[0]->format) != SrgbEyeFormat(eye[1]->format)) return false;
         vk_.WaitForFences(dev_, 1, &fence_, VK_TRUE, UINT64_MAX);
         uint32_t idx = 0;
         VkResult r = vk_.AcquireNextImageKHR(dev_, swapchain_, 100000000ull, acquired_, VK_NULL_HANDLE, &idx);
@@ -902,6 +898,7 @@ private:
     VkFence fence_ = VK_NULL_HANDLE;
     VkSemaphore acquired_ = VK_NULL_HANDLE, rendered_ = VK_NULL_HANDLE;
     VkSwapchainKHR swapchain_ = VK_NULL_HANDLE;
+    VkFormat eyeFormat_ = VK_FORMAT_UNDEFINED;
     VkExtent2D extent_{};
     std::vector<VkImage> images_;
     std::vector<Imported> textures_;

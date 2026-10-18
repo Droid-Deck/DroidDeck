@@ -1192,7 +1192,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun playSteamVr() {
-        if (com.droiddeck.launcher.handtracking.HandTracking.wanted(this)) placementCheck = true
+        val tracking = com.droiddeck.launcher.glasses.Glasses.settings.value
+        if (!com.droiddeck.launcher.glasses.Glasses.state.value.usesSpatialControllers(tracking) &&
+            com.droiddeck.launcher.handtracking.HandTracking.wanted(this)) placementCheck = true
         else startSteamSession(steamVr = true)
     }
 
@@ -1906,6 +1908,9 @@ class MainActivity : ComponentActivity() {
         val scanGeneration = ++libraryScanGeneration
         val artRefreshesAtStart = HashMap(steamArtRefreshes)
         if (shortcutPicker) shortcutLibraryScanning = true
+        if (SessionPrefs.steamClientArch(this) == "x86_64" && !OfflineMode.enabled(this)) {
+            Thread({ com.droiddeck.launcher.session.FexCatalog.refresh(this) }, "fex-catalog").start()
+        }
         Thread({
             val emus = Library.emulators(this) { id -> DesktopCatalog.installed(this, id) != null }
             ui.post { if (scanGeneration == libraryScanGeneration) emulatorList = emus }

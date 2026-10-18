@@ -18,7 +18,7 @@ import org.json.JSONObject
 
 object DeckyManager {
     private const val TAG = "DeckyManager"
-    const val REPOSITORY = "Droid-Deck/decky-loader"
+    const val REPOSITORY = "SteamDeckHomebrew/decky-loader"
     private const val RELEASES = "https://api.github.com/repos/$REPOSITORY/releases?per_page=30"
     private const val PATH = "root/homebrew/services/PluginLoader"
     private const val VERSION = "root/homebrew/services/.droiddeck-decky-version"

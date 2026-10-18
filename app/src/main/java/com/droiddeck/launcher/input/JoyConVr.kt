@@ -91,6 +91,10 @@ class JoyConVr(
         worker.post { hands.forEach { it?.release() } }
     }
 
+    fun recenter() {
+        worker.post { hands.forEach { it?.recenter() } }
+    }
+
     fun close() {
         worker.post {
             closed = true
@@ -195,9 +199,7 @@ class JoyConVr(
         private val hold = Runnable {
             if (!systemDown || held) return@Runnable
             held = true
-            recenter++
-            confirm()
-            publish()
+            recenter()
         }
         private val tapEnd = Runnable {
             systemTap = false
@@ -278,6 +280,13 @@ class JoyConVr(
             held = false
             worker.removeCallbacks(hold)
             worker.removeCallbacks(tapEnd)
+            publish()
+        }
+
+        fun recenter() {
+            if (!live) return
+            recenter++
+            confirm()
             publish()
         }
 

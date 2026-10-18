@@ -8,9 +8,11 @@ import android.hardware.SensorManager
 import android.os.Handler
 import android.os.HandlerThread
 import android.util.Log
+import com.droiddeck.launcher.glasses.SpatialTracking
 import com.droiddeck.launcher.wayland.WaylandCompositor
 
-class HeadTracker(context: Context, private val glasses: Boolean = false, private val rotation: () -> Int) : SensorEventListener {
+class HeadTracker(context: Context, private val glasses: Boolean = false, val centerView: Boolean = false,
+                  private val rotation: () -> Int) : SensorEventListener {
     private val sensors = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
     private val sensor: Sensor? = sensors.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR)
         ?: sensors.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
@@ -26,7 +28,12 @@ class HeadTracker(context: Context, private val glasses: Boolean = false, privat
         synchronized(glassesLock) {
             if (!started) return@PoseSink
             latest = m
-            apply(m)
+            if (SpatialTracking.enabled) {
+                SpatialTracking.session.view(centerView)?.let { pose ->
+                    WaylandCompositor.nativeSetCardboardSpatialPose(pose.rotation.matrix(), pose.position.array(),
+                        SpatialTracking.session.valid(System.nanoTime()))
+                }
+            } else apply(m)
         }
     }
 
@@ -64,6 +71,7 @@ class HeadTracker(context: Context, private val glasses: Boolean = false, privat
             synchronized(glassesLock) {
                 if (!started) return
                 started = false
+                SpatialTracking.publish(System.nanoTime())
                 WaylandCompositor.nativeSetCardboardPose(HeadPose.IDENTITY, false)
             }
             com.droiddeck.launcher.glasses.Glasses.clearPoseSink(glassesSink)
@@ -77,6 +85,7 @@ class HeadTracker(context: Context, private val glasses: Boolean = false, privat
     }
 
     fun recenter() {
+        if (glasses && SpatialTracking.enabled) { SpatialTracking.recenter(centerView); return }
         recenterPending = true
         if (glasses) synchronized(glassesLock) { if (started) latest?.let { apply(it) } }
         else latest?.let { apply(it) }
@@ -90,7 +99,7 @@ class HeadTracker(context: Context, private val glasses: Boolean = false, privat
     }
 
     private fun apply(screenToWorld: FloatArray) {
-        val ref = reference.takeUnless { recenterPending } ?: HeadPose.recenter(screenToWorld).also {
+        val ref = reference.takeUnless { recenterPending } ?: HeadPose.recenter(screenToWorld, centerView).also {
             reference = it
             recenterPending = false
         }

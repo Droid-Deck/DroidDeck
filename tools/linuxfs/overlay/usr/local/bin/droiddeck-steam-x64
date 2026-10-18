@@ -319,24 +319,101 @@ print("droiddeck-steam-x64: %d Linux title(s) on DroidDeck direct (%d on the new
 PY
 }
 
-x64_prepare() {
-if [ ! -x /usr/local/bin/FEX ] || [ "$(cat /usr/local/share/fex-emu/.droiddeck-tag 2>/dev/null)" != "$FEX_TAG" ]; then
-  step "downloading FEX ($FEX_TAG)"
+# Whether every program in the FEX tree at $1 finds its libraries (r4 did not without libxxhash).
+fex_loads() {
+  local b out
+  for b in FEX FEXServer unsquashfs; do
+    out=$(/usr/lib/ld-linux-aarch64.so.1 --list "$1/usr/local/bin/$b" 2>&1) && ! grep -q "not found" <<<"$out" && continue
+    echo "== FEX check: $b: $(grep -E "not found|error" <<<"$out" | tr -s '\t ' ' ' | tr '\n' ';')" >&2
+    return 1
+  done
+}
+
+# Installs one FEX build only once its archive matches the sha256 and it loads. The files it replaces are kept
+# until the installed copy loads too, and put back otherwise; the tag is written last.
+fex_install() {
+  local tag=$1 sha=$2 urls=$3 dst=/ tmp u f
   tmp=$(mktemp -d)
-  curl -fL --progress-bar "$FEX_URL" -o "$tmp/fex.tzst"
-  if [ "$FEX_SHA256" != PENDING ]; then echo "$FEX_SHA256  $tmp/fex.tzst" | sha256sum -c --quiet; fi
-  zstd -dc "$tmp/fex.tzst" | tar -C / -x
+  for u in $urls; do
+    curl -fsSL --retry 2 "$u" -o "$tmp/fex.tzst" && echo "$sha  $tmp/fex.tzst" | sha256sum -c --quiet >/dev/null 2>&1 && break
+    rm -f "$tmp/fex.tzst"
+  done
+  if [ ! -s "$tmp/fex.tzst" ]; then
+    echo "== FEX $tag: no source gave the archive with sha256 ${sha:0:12}" >&2
+    rm -rf "$tmp"
+    return 1
+  fi
+  if ! { mkdir "$tmp/root" && zstd -dc "$tmp/fex.tzst" | tar -C "$tmp/root" -x && fex_loads "$tmp/root"; }; then
+    rm -rf "$tmp"
+    return 1
+  fi
+  (cd "$tmp/root" && find . ! -type d) > "$tmp/files"
+  mkdir "$tmp/old"
+  while IFS= read -r f; do
+    f=${f#./}
+    if [ -e "$dst$f" ] || [ -L "$dst$f" ]; then
+      cp -a --parents "$dst$f" "$tmp/old" || { echo "== FEX $tag: could not keep $dst$f aside" >&2; rm -rf "$tmp"; return 1; }
+    fi
+  done < "$tmp/files"
+  if tar -C "$tmp/root" -c . | tar -C "$dst" -x && fex_loads "$dst" &&
+     mkdir -p "${dst}usr/local/share/fex-emu" && echo "$tag" > "${dst}usr/local/share/fex-emu/.droiddeck-tag"; then
+    rm -rf "$tmp"
+    return 0
+  fi
+  echo "== FEX $tag: the installed copy did not load or its tag was not written; putting the previous files back" >&2
+  while IFS= read -r f; do
+    f=${f#./}
+    [ -e "$tmp/old/$dst$f" ] || [ -L "$tmp/old/$dst$f" ] || rm -f "$dst$f"
+  done < "$tmp/files"
+  tar -C "$tmp/old$dst" -c . | tar -C "$dst" -x || echo "== FEX $tag: could not put the previous files back" >&2
   rm -rf "$tmp"
-  mkdir -p /usr/local/share/fex-emu && echo "$FEX_TAG" > /usr/local/share/fex-emu/.droiddeck-tag
-fi
-step "FEX ready ($FEX_TAG)"
+  return 1
+}
+
+# The build DroidDeck-Components' fex.json names (the app passes it as BL_FEX_*) comes first, then a working
+# installed one, then FEX_TAG above. Sets FEX_NOW and FEX_FROM.
+x64_fex() {
+  local have ok=
+  have=$(cat /usr/local/share/fex-emu/.droiddeck-tag 2>/dev/null || true)
+  [ -x /usr/local/bin/FEX ] && fex_loads / && ok=1
+  if [ -n "${BL_FEX_TAG:-}" ]; then
+    if [ -n "$ok" ] && [ "$have" = "$BL_FEX_TAG" ]; then FEX_NOW=$have FEX_FROM=catalog; return 0; fi
+    step "downloading FEX ($BL_FEX_TAG)"
+    if fex_install "$BL_FEX_TAG" "${BL_FEX_SHA256:-}" "${BL_FEX_URLS:-}"; then FEX_NOW=$BL_FEX_TAG FEX_FROM=catalog; return 0; fi
+    if [ -n "$ok" ]; then FEX_NOW=$have FEX_FROM="kept; $BL_FEX_TAG did not install"; return 0; fi
+  fi
+  if [ -n "$ok" ] && [ "$have" = "$FEX_TAG" ]; then FEX_NOW=$have FEX_FROM=built-in; return 0; fi
+  step "downloading FEX ($FEX_TAG)"
+  if fex_install "$FEX_TAG" "$FEX_SHA256" "$FEX_URL"; then FEX_NOW=$FEX_TAG FEX_FROM=built-in; return 0; fi
+  if [ -n "$ok" ]; then FEX_NOW=$have FEX_FROM="kept; $FEX_TAG did not install"; return 0; fi
+  return 1
+}
+
+# A resumable download that reports every tenth of its size as a step.
+x64_fetch() {
+  local url=$1 out=$2 label=$3 total pid rc=0 last=-1 pct
+  total=$(curl -fsSIL "$url" 2>/dev/null | tr -d '\r' | awk 'tolower($1) == "content-length:" { v = $2 } END { print v + 0 }')
+  curl -fL -sS -C - "$url" -o "$out" &
+  pid=$!
+  while kill -0 "$pid" 2>/dev/null; do
+    sleep 3
+    [ "$total" -gt 0 ] || continue
+    pct=$(( $(stat -c %s "$out" 2>/dev/null || echo 0) * 10 / total * 10 ))
+    if [ "$pct" -gt "$last" ]; then last=$pct; step "$label ($pct%)"; fi
+  done
+  wait "$pid" || rc=$?
+  return "$rc"
+}
+
+x64_prepare() {
+x64_fex || { step "FEX could not be installed; see $LOG"; exit 1; }
+step "FEX ready ($FEX_NOW, $FEX_FROM)"
 # The client's opt-in to its SteamRT3 build; without it, it re-executes through steam.sh, whose checks fail under proot.
 mkdir -p "$STEAM_X64" && : > "$STEAM_X64/.steam-enable-steamrt64-client"
 
 if [ ! -f "$ROOTFS/.droiddeck-complete" ]; then
-  step "downloading FEX's Ubuntu 24.04 x86 rootfs"
   # Resumes a part-done download; a finished one answers 416, which is not a failure here.
-  curl -fL --progress-bar -C - "$ROOTFS_URL" -o "$X64_HOME/rootfs.sqsh" || {
+  x64_fetch "$ROOTFS_URL" "$X64_HOME/rootfs.sqsh" "downloading FEX's Ubuntu 24.04 x86 rootfs" || {
     rc=$?
     [ "$rc" = 22 ] && [ -s "$X64_HOME/rootfs.sqsh" ] || { step "rootfs download failed (curl $rc)"; exit 1; }
   }
@@ -350,6 +427,7 @@ if [ ! -f "$ROOTFS/.droiddeck-complete" ]; then
   rm -f "$X64_HOME/rootfs.sqsh"
   touch "$ROOTFS/.droiddeck-complete"
 fi
+echo "== x86-64 rootfs: $(sed -n 's|.*/download/\([^/]*\)/.*|\1|p' <<<"$ROOTFS_URL") (sha256 ${ROOTFS_SHA256:0:12})" >&2
 # FEX falls back to the guest's own /etc/ld.so.preload (arm64 libraries) when the rootfs has none. The x86
 # session shim provides System V IPC, which Android kernels lack and the client's tier0 needs to start.
 : > "$ROOTFS/etc/ld.so.preload"
@@ -792,6 +870,37 @@ export STEAM_STEAMRT_RECURSION_GUARD=1
 export BL_WEBHELPER_HIDE_TRACER=1
 }
 
+x64_manifest_version() {
+  local chan
+  chan=$(cat "$STEAM_X64/package/beta" 2>/dev/null || echo "$X64_CHANNEL")
+  awk -F'"' '$2 == "version" { print $4; exit }' "$STEAM_X64/package/steam_client_${chan}_$1.manifest" 2>/dev/null || echo "?"
+}
+
+# What x86 GL and Vulkan look like through FEX's thunks, for a session whose menus failed on the GPU.
+x64_gpu_probe() {
+  local fex=${BL_FEX:-/usr/local/bin/FEX}
+  echo "== x86-64 GPU probe (x86 glxinfo and vulkaninfo through FEX):"
+  (
+    unset LD_LIBRARY_PATH
+    export DISABLE_GAMESCOPE_WSI=1 vk_xwayland_wait_ready=true LIBGL_KOPPER_DISABLE=true
+    timeout 30 "$fex" /usr/bin/glxinfo -B 2>&1 | grep -E "OpenGL (renderer|core profile version|version) string|direct rendering|rror" | head -5
+    timeout 30 "$fex" /usr/bin/vulkaninfo --summary 2>&1 | grep -E "deviceName|driverName|driverInfo|apiVersion|rror" | head -6
+  ) | sed 's/^/   /'
+}
+
+# Steam's menus come from the web helper; when its GPU process keeps exiting, Chromium gives up on the GPU and
+# the menus never appear. Says so once in the session log, with the probe above.
+x64_gpu_watch() {
+  local log=$STEAM_X64/logs/console-linux.txt from n codes
+  from=$(( $(wc -l 2>/dev/null < "$log" || echo 0) + 1 ))
+  tail -n0 -F --pid=$$ "$log" 2>/dev/null | grep -q -m1 "GPU process isn't usable" || return 0
+  n=$(tail -n +"$from" "$log" | grep -c "GPU process exited unexpectedly" || true)
+  codes=$(tail -n +"$from" "$log" | grep -oE "GPU process exited unexpectedly: exit_code=[0-9]+" | sed 's/.*=//' |
+    sort | uniq -c | awk '{ printf "%s%s x%s", s, $2, $1; s = ", " }')
+  echo "== x86-64: Steam's menu renderer gave up on the GPU after $n GPU process exits (exit code ${codes:-?}); the menus stay blank. See steam/console-linux.txt and steam/webhelper_gpu.txt"
+  x64_gpu_probe
+}
+
 x64_exec() {
   x64_env
   cd "$STEAM_X64"
@@ -828,6 +937,8 @@ x64_exec() {
   touch "$STEAM_X64/logs/bootstrap_log.txt"
   ( tail -n0 -F --pid=$$ "$STEAM_X64/logs/bootstrap_log.txt" 2>/dev/null |
       grep --line-buffered -oE 'Downloading update \([0-9,]+ of [0-9,]+ KB\)' | sed -u 's/,//g' >&2 ) &
+  echo "== x86-64 client: ubuntu12 $(x64_manifest_version ubuntu12), steamrt64 $(x64_manifest_version steamrt64) (the client may update itself)" >&2
+  x64_webhelper_gpu && { x64_gpu_watch >&2 & }
   exec "${BL_FEX:-/usr/local/bin/FEX}" "$STEAM_X64/steamrt64/steam" "$@"
 }
 
