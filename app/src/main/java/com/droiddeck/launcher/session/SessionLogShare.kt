@@ -58,7 +58,7 @@ object SessionLogShare {
             if (percent != shown) { shown = percent; onProgress?.invoke(percent / 100f) }
         }
         ZipOutputStream(zip.outputStream().buffered()).use { z ->
-            files.forEach { f -> addEntry(z, folder.name + "/" + f.relativeTo(folder).path, f); advance(f) }
+            files.forEach { f -> addEntry(z, folder.name + "/" + f.relativeTo(folder).invariantSeparatorsPath, f); advance(f) }
             live.forEach { f -> addEntry(z, folder.name + "/steam/" + f.name, f); advance(f) }
             stores.forEach { f -> addEntry(z, "$STORES_DIR/" + f.name, f); advance(f) }
             tools.forEach { f -> addEntry(z, SessionPaths.TOOLS_DIR + "/" + f.name, f); advance(f) }
@@ -80,7 +80,7 @@ object SessionLogShare {
 
     private fun liveSteamLogs(context: Context, folder: File): List<File> {
         if (folder != SessionPaths.current() || File(folder, "steam").exists()) return emptyList()
-        val logs = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/logs")
+        val logs = File(SessionPrefs.activeSteamRoot(context), "logs")
         return logs.listFiles()?.filter { it.isFile && it.length() <= STEAM_LOG_MAX_BYTES }.orEmpty()
     }
 

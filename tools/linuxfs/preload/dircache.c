@@ -91,7 +91,8 @@ static int enabled(void) {
   if (cached < 0) {
     const char *off = getenv("BL_NO_DIR_CACHE");
     cached = strcmp(program_invocation_short_name, "steam") == 0 &&
-             strstr(program_invocation_name, "steamrtarm64") != NULL && !(off && strcmp(off, "1") == 0);
+             (strstr(program_invocation_name, "steamrtarm64") != NULL ||
+              strstr(program_invocation_name, "steamrt64") != NULL) && !(off && strcmp(off, "1") == 0);
     if (cached) pthread_atfork(NULL, NULL, after_fork);
   }
   return cached && !forked;
@@ -256,9 +257,10 @@ static void install(struct listing *l) {
   int slot = find(l->dev, l->ino);
   if (slot >= 0) {
     struct listing *old = table[slot];
+    int old_wd = old->wd;
     table[slot] = l;
     detach(old);
-    if (old->wd != l->wd) release(old->wd);
+    if (old_wd != l->wd) release(old_wd);
     return;
   }
   int victim = -1;

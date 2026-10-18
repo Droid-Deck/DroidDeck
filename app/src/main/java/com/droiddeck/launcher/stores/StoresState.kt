@@ -71,7 +71,7 @@ object StoresState {
     fun refresh(context: Context) {
         val app = context.applicationContext
         com.droiddeck.launcher.stores.download.SavedQueue.restore(app)
-        Thread({
+        background("stores-refresh") {
             val found = Store.entries.mapNotNull { store -> StoreAccounts.signedInAs(app, store)?.let { store to it } }
             val onDisk = StoreInstallRoot.gameFolders(app).mapNotNull { folder ->
                 StoreGameSidecar.read(folder)?.takeIf { it.isInstalled }?.let { InstalledStoreGame(it, folder) }
@@ -85,7 +85,7 @@ object StoresState {
                 unfinished = partial
                 engine = version
             }
-        }, "stores-refresh").start()
+        }
     }
 
     fun isSignedIn(store: Store): Boolean = accounts.containsKey(store)
@@ -136,7 +136,7 @@ object StoresState {
 
     fun signOut(context: Context, store: Store) {
         val app = context.applicationContext
-        Thread({
+        background("stores-signout") {
             backends[store]?.signOut(app)
             if (store == Store.GOG) com.droiddeck.launcher.stores.gog.GogComet.replaceAccount { StoreAccounts.clear(app, store) }
             else StoreAccounts.clear(app, store)
@@ -144,7 +144,7 @@ object StoresState {
                 accounts.remove(store); library.remove(store); status.remove(store); problems.remove(store)
                 logLine("${store.label}: signed out")
             }
-        }, "stores-signout").start()
+        }
     }
 
     var openDownloads by mutableStateOf(false)
@@ -170,7 +170,25 @@ object StoresState {
 
     fun install(context: Context, item: CatalogItem, root: java.io.File? = null) {
         val app = context.applicationContext
-        val target = root ?: StoreInstallRoot.installRoot(app)
+        val folder = StoreInstallRoot.folderFor(app, item.store, item.id, item.title, root ?: StoreInstallRoot.installRoot(app))
+        val target = folder.parentFile!!.parentFile!!
+        val check = StoreInstallRoot.checkStorage(app, item, target)
+        if (!check.enough) {
+            val errorMsg = check.errorMessage ?: app.getString(com.droiddeck.launcher.R.string.stores_storage_insufficient, formatBytes(check.requiredBytes), formatBytes(check.availableBytes))
+            val entry = com.droiddeck.launcher.stores.download.DownloadEntry(
+                item.store,
+                item.id,
+                item.title,
+                cover = item.imageUrl,
+                bytesTotal = item.sizeBytes,
+                location = StoreInstallRoot.labelFor(app, folder)
+            )
+            com.droiddeck.launcher.stores.download.SavedQueue.remember(app, item, target)
+            com.droiddeck.launcher.stores.download.DownloadQueue.recordFailed(app, entry, errorMsg) {
+                install(app, item, target)
+            }
+            return
+        }
         com.droiddeck.launcher.stores.download.SavedQueue.remember(app, item, target)
         backends[item.store]?.install(app, item, target) ?: logLine("${item.store.label}: this build cannot install yet")
     }
@@ -181,7 +199,7 @@ object StoresState {
         val app = context.applicationContext
         val key = "${game.sidecar.store.id}:${game.sidecar.id}"
         uninstalling[key] = 0f
-        Thread({
+        background("stores-uninstall", onFailure = { main.post { uninstalling.remove(key); onDone() } }) {
             runCatching { backends[game.sidecar.store]?.uninstall(app, game) }
             StoreInstalls.uninstall(app, game, progress = { f -> main.post { if (key in uninstalling) uninstalling[key] = f } }, removed = {
                 main.post {
@@ -190,7 +208,7 @@ object StoresState {
                 }
             })
             main.post(onDone)
-        }, "stores-uninstall").start()
+        }
     }
 
     @Volatile var libraryListener: (() -> Unit)? = null
@@ -213,12 +231,30 @@ object StoresState {
         appContext = context.applicationContext
         StoreLogFiles.prune(context)
         val overlay = java.io.File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context), "root/.local/share/droiddeck/epic-overlay")
-        if (overlay.exists()) Thread({ overlay.deleteRecursively(); Log.i(TAG, "removed the old EOS overlay download") }, "epic-overlay-cleanup").start()
+        if (overlay.exists()) background("epic-overlay-cleanup") { overlay.deleteRecursively(); Log.i(TAG, "removed the old EOS overlay download") }
         val app = context.applicationContext
-        Thread({ CloudSaves.uploadAllDirty(app, "recovery") }, "cloud-recovery").start()
+        Thread({
+            runCatching { CloudSaves.uploadAllDirty(app, "recovery") }
+                .onFailure { Log.w(TAG, "cloud save recovery failed", it) }
+        }, "cloud-recovery").start()
     }
 
     internal fun post(block: () -> Unit) = main.post(block)
+
+    /**
+     * A worker thread whose failure is logged. An uncaught exception on a plain Thread reaches the crash
+     * handler, which ends the whole app, and none of these jobs is worth that.
+     */
+    private fun background(name: String, onFailure: () -> Unit = {}, block: () -> Unit) {
+        Thread({
+            try {
+                block()
+            } catch (e: Throwable) {
+                Log.w(TAG, "$name failed", e)
+                runCatching(onFailure)
+            }
+        }, name).start()
+    }
 
     private val CLOCK = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
 }

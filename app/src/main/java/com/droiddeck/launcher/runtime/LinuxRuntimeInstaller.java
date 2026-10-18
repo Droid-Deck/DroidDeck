@@ -230,16 +230,38 @@ public final class LinuxRuntimeInstaller {
         }
     }
 
+    /**
+     * The download is named after the release, so a partial file is only ever resumed for the same
+     * version and checksum, never for a different runtime that happens to share a fixed name.
+     */
+    static String archiveName(Release release) {
+        String version = release.version.replaceAll("[^A-Za-z0-9._-]", "_");
+        String sum = release.sha256.replaceAll("[^A-Za-z0-9]", "");
+        if (sum.length() > 12) sum = sum.substring(0, 12);
+        return "linuxfs-" + version + "-" + sum + ".tar.zst";
+    }
+
+    /** Removes archives left by other releases and by builds that used the fixed name. */
+    private static void deleteOtherArchives(File dir, String keep) {
+        File[] files = dir.listFiles((d, name) -> name.startsWith("linuxfs") && name.endsWith(".tar.zst") && !name.equals(keep));
+        if (files == null) return;
+        for (File file : files) file.delete();
+    }
+
     private static boolean installOnce(Context context, Release release, ProgressListener listener) {
-        File archive = new File(context.getCacheDir(), "linuxfs.tar.zst");
+        File archive = new File(context.getCacheDir(), archiveName(release));
+        // A failed download keeps what it fetched so the next attempt resumes it; anything that
+        // reached verification and failed is not trusted and is removed.
+        boolean keepPartial = false;
         try {
+            deleteOtherArchives(context.getCacheDir(), archive.getName());
             File pendingRemoval = removalDirectory(LinuxRuntime.rootDir(context));
             if (pendingRemoval.exists() && listener != null) listener.onProgress(context.getString(R.string.rtinst_removing_leftovers), -1);
             if (!discard(pendingRemoval, null)) throw new IOException("Cannot clear the previous runtime: " + pendingRemoval);
             emptyTrash(LinuxRuntime.rootDir(context).getParentFile());
             String downloading = context.getString(R.string.rtinst_downloading);
             if (listener != null) listener.onProgress(Step.DOWNLOADING, downloading, 0);
-            boolean ok = Downloader.downloadFile(release.url, archive, true, (fraction) -> {
+            boolean ok = Downloader.downloadFile(release.url, archive, true, release.sha256, (fraction) -> {
                 if (listener != null) {
                     listener.onProgress(Step.DOWNLOADING, downloading,
                             fraction < 0 ? -1 : Math.round(fraction * 100f));
@@ -247,6 +269,7 @@ public final class LinuxRuntimeInstaller {
             });
             if (!ok) {
                 Log.w(TAG, "download failed");
+                keepPartial = true;
                 return false;
             }
 
@@ -300,7 +323,7 @@ public final class LinuxRuntimeInstaller {
             Log.e(TAG, "install", e);
             return false;
         } finally {
-            archive.delete();
+            if (!keepPartial) archive.delete();
         }
     }
 
@@ -344,10 +367,15 @@ public final class LinuxRuntimeInstaller {
     }
 
     public static Removal beginUninstall(Context context) {
-        if (com.droiddeck.launcher.session.SessionState.INSTANCE.getRunning()) return null;
-        com.droiddeck.launcher.session.SessionPhase phase = com.droiddeck.launcher.session.SessionState.INSTANCE.getPhase();
-        if (phase != com.droiddeck.launcher.session.SessionPhase.IDLE && phase != com.droiddeck.launcher.session.SessionPhase.FAILED) return null;
+        if (sessionInUse()) return null;
         return beginUninstall(context.getApplicationContext(), LinuxRuntime.rootDir(context));
+    }
+
+    private static boolean sessionInUse() {
+        com.droiddeck.launcher.session.SessionState session = com.droiddeck.launcher.session.SessionState.INSTANCE;
+        com.droiddeck.launcher.session.SessionPhase phase = session.getPhase();
+        return session.getRunning() ||
+                (phase != com.droiddeck.launcher.session.SessionPhase.IDLE && phase != com.droiddeck.launcher.session.SessionPhase.FAILED);
     }
 
     static Removal beginUninstall(Context app, File root) {
@@ -374,6 +402,7 @@ public final class LinuxRuntimeInstaller {
             if (!started.compareAndSet(false, true)) return join(job, listener);
             if (listener != null) job.listeners.add(listener);
             try {
+                requireStopped();
                 report(text(app, R.string.rtinst_removing), -1);
                 final long[] removed = {0};
                 final long[] lastShown = {0};
@@ -400,6 +429,8 @@ public final class LinuxRuntimeInstaller {
                     if (!discard(leftover, progress)) throw new IOException("Cannot remove " + leftover);
                 }
                 emptyTrash(root.getParentFile());
+                requireStopped();
+                if (app != null) RuntimeFileTree.delete(new File(app.getNoBackupFilesDir(), "guest-runtime"), null);
                 job.ok = true;
                 report(text(app, R.string.rtinst_removed), 100);
                 return true;
@@ -412,6 +443,11 @@ public final class LinuxRuntimeInstaller {
                 synchronized (JOB_LOCK) { running = null; }
                 job.done.countDown();
             }
+        }
+
+        private void requireStopped() throws IOException {
+            if (Thread.currentThread().isInterrupted()) throw new IOException("Runtime removal was interrupted");
+            if (app != null && sessionInUse()) throw new IOException("A session is still using the runtime");
         }
         private void report(String stage, int percent) {
             job.stage = stage;

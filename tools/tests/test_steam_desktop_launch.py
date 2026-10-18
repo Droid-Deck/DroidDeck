@@ -23,9 +23,13 @@ class DesktopSteamLaunchTest(unittest.TestCase):
         supervisor = self.root / 'supervisor'
         supervisor.write_text('#!/bin/bash\nprintf "%s\\n" "$BL_INSIDE" "$BL_STEAM_UI" "$DISPLAY" "$@"\n')
         supervisor.chmod(0o755)
+        x64 = self.root / 'steam-x64'
+        x64.write_text('#!/bin/bash\nprintf "%s\\n" x64 "$@"\n')
+        x64.chmod(0o755)
         self.launcher = self.root / 'launch'
         self.launcher.write_text((BIN / 'droiddeck-steam-launch').read_text().replace(
-            '/usr/local/bin/droiddeck-session', str(supervisor)))
+            '/usr/local/bin/droiddeck-session', str(supervisor)).replace(
+            '/usr/local/bin/droiddeck-steam-x64', str(x64)))
 
     def launch(self, *args):
         return subprocess.run(['bash', str(self.launcher), *args], env=self.env,
@@ -61,6 +65,22 @@ class DesktopSteamLaunchTest(unittest.TestCase):
         self.assertEqual(result.stdout.splitlines(), ['-nobigpicture', '-no-cef-sandbox', '-cef-ozone-platform=x11',
                                                    '-cef-disable-gpu', 'steam://open/settings'])
         self.assertFalse((self.session / 'steam-launch').exists())
+
+    def test_second_click_forwards_to_the_x86_64_client_in_its_own_home(self):
+        lock = self.root / 'cache/droiddeck/steam-desktop.lock'
+        lock.parent.mkdir(parents=True)
+        x64_home = self.root / 'x64'
+        (x64_home / '.steam').mkdir(parents=True)
+        os.mkfifo(x64_home / '.steam/steam.pipe')
+        (x64_home / '.steam/steam.pid').write_text(str(os.getpid()))
+        self.env.update(BL_STEAM_CLIENT_ARCH='x86_64', BL_X64_HOME=str(x64_home))
+        with lock.open('w') as handle:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            result = self.launch('desktop', '501590')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines(), ['x64', '--exec', '-nobigpicture', '-no-cef-sandbox',
+                                                   '-cef-ozone-platform=x11', '-cef-disable-gpu',
+                                                   'steam://rungameid/501590'])
 
     def test_second_click_waits_for_steam_ipc_during_startup(self):
         lock = self.root / 'cache/droiddeck/steam-desktop.lock'

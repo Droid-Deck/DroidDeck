@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <stdatomic.h>
 #include <fcntl.h>
 #include <time.h>
 #include <stdarg.h>
@@ -271,7 +272,9 @@ volatile int g_ubwc = 1;
 
 volatile int g_no_render_node;
 
-volatile int g_output_refresh_mhz;
+static atomic_int g_output_refresh_mhz = 60000;
+static atomic_int g_output_refresh_pending;
+static int g_output_announced_refresh_mhz = 60000;
 
 volatile int g_output_w, g_output_h;
 struct pending_release {
@@ -397,6 +400,7 @@ static struct seat_keyboard g_kbs[MAX_PTRS];
 static int g_nkbs;
 static uint32_t g_mods_depressed, g_mods_locked;
 static uint32_t g_mod_keys_held;
+static uint8_t g_keys_down[0x300 / 8];
 static struct seat_touch g_touches[MAX_PTRS];
 static int g_ntouches;
 
@@ -656,6 +660,7 @@ static void take_pixel(struct surface *s, const uint8_t bgra[4], struct wl_resou
 static struct surface *g_hud_surface;
 static int64_t g_hud_last_ns, g_hud_alive_ns;
 static int g_hud_fresh;
+static uint64_t g_game_frames;
 extern void droiddeck_on_game_surface(const char *window, const char *gpu);
 extern void droiddeck_on_game_frame(void);
 extern void droiddeck_on_game_program(int pid, const char *program);
@@ -739,9 +744,11 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
     }
     if (s == g_hud_surface) {
         g_hud_alive_ns = now_ns();
-        if (!repeat) { g_hud_last_ns = g_hud_alive_ns; g_hud_fresh = 1; droiddeck_on_game_frame(); }
+        if (!repeat) { g_hud_last_ns = g_hud_alive_ns; g_hud_fresh = 1; g_game_frames++; droiddeck_on_game_frame(); }
     }
 }
+
+uint64_t droiddeck_game_frames(void) { return g_game_frames; }
 
 struct dmabuf_buffer *droiddeck_dmabuf_from_resource(struct wl_resource *buffer) { return get_dmabuf(buffer); }
 int droiddeck_dmabuf_fd(const struct dmabuf_buffer *b) { return b && b->n_planes > 0 ? b->fd[0] : -1; }
@@ -793,7 +800,7 @@ static void feedback_discard_all(struct wl_list *list) {
 }
 
 static uint32_t nominal_refresh_ns(void) {
-    int mhz = g_output_refresh_mhz;
+    int mhz = atomic_load(&g_output_refresh_mhz);
     if (mhz <= 0) mhz = 60000;
     return (uint32_t)(1000000000000LL / (int64_t)mhz);
 }
@@ -1506,10 +1513,10 @@ static const struct wl_output_interface output_impl = { .release = output_releas
 static struct wl_list g_outputs;
 static void output_resource_destroy(struct wl_resource *r) { wl_list_remove(wl_resource_get_link(r)); }
 
-static void output_send_mode(struct wl_resource *r) {
+static void output_send_mode(struct wl_resource *r, int mhz) {
     wl_output_send_mode(r, WL_OUTPUT_MODE_CURRENT | WL_OUTPUT_MODE_PREFERRED,
                         g_output_w > 0 ? g_output_w : 1920, g_output_h > 0 ? g_output_h : 1080,
-                        g_output_refresh_mhz > 0 ? g_output_refresh_mhz : 60000);
+                        mhz);
 }
 
 static void bind_output(struct wl_client *c, void *data, uint32_t ver, uint32_t id) {
@@ -1519,7 +1526,7 @@ static void bind_output(struct wl_client *c, void *data, uint32_t ver, uint32_t 
     wl_list_insert(&g_outputs, wl_resource_get_link(r));
     wl_output_send_geometry(r, 0, 0, 340, 190, WL_OUTPUT_SUBPIXEL_UNKNOWN,
                             "DroidDeck", "Wayland", WL_OUTPUT_TRANSFORM_NORMAL);
-    output_send_mode(r);
+    output_send_mode(r, g_output_announced_refresh_mhz);
     if (ver >= WL_OUTPUT_NAME_SINCE_VERSION) {
         wl_output_send_name(r, "DroidDeck-1");
         wl_output_send_description(r, "DroidDeck display");
@@ -1870,7 +1877,12 @@ static void render_scene(void) {
         else if (rendered && how == 2) droiddeck_color_frame_shown(hs.color, DROIDDECK_HDR_TONEMAPPED, 0);
         else if (rendered) hdr_copy = "the HDR composition pass is unavailable on this driver";
     }
-    if (hdr_route == 0 || hdr_route == 3) {
+    if (hdr_route == 0 && vkp_quest_layer_presentation() && !framegen && !cardboard &&
+        !ahb_layer_only_candidate(w, h)) {
+        /* The complete SDR scene stays on one display layer. Do not hide/re-show GAME
+         * on each desktop frame just because it is not a single fullscreen window. */
+        rendered = vkp_render(w, h, dl.d, dl.n) == 0;
+    } else if (hdr_route == 0 || hdr_route == 3) {
     const int pass_on = fx_on || framegen;
     int li = (g_zero_copy && !framegen && !cardboard) ? layer_candidate(&dl, w, h) : -1;
     int over = li >= 0 ? dl.n - 1 - li : 0;
@@ -2193,6 +2205,7 @@ struct constraint {
     int pending_region_set;
     int hint_set, pending_hint_set;
     double hint_x, hint_y, pending_hint_x, pending_hint_y;
+    int gave_keys;
 };
 static struct wl_list g_constraints;
 static struct constraint *g_active_constraint;
@@ -2271,6 +2284,14 @@ static void constraint_end(struct constraint *k, int tell_client, const char *wh
         g_ptr_y = oy + k->hint_y;
     }
     g_raw_valid = 0;
+    if (k->gave_keys) {
+        k->gave_keys = 0;
+        for (int i = 0; i < g_nkbs; i++) {
+            if (!k->surface || g_kbs[i].focus != k->surface->resource) continue;
+            wl_keyboard_send_leave(g_kbs[i].kb, wl_display_next_serial(g_display), g_kbs[i].focus);
+            g_kbs[i].focus = NULL;
+        }
+    }
     if (tell_client) constraint_send_state(k, 0);
     constraint_describe(k, name, sizeof(name));
     droiddeck_log("pointer", "%s: %s (%s), pointer at %d,%d", k->is_lock ? "unlocked" : "unconfined",
@@ -2289,6 +2310,12 @@ static void constraint_activate(struct constraint *k) {
     if (!k->is_lock) confine_clamp(k, &g_ptr_x, &g_ptr_y);
     constraint_origin(k, &ox, &oy);
     pointer_focus(k->surface->resource, wl_fixed_from_double(g_ptr_x - ox), wl_fixed_from_double(g_ptr_y - oy));
+    int focused = 0;
+    for (int i = 0; i < g_nkbs; i++) if (g_kbs[i].focus) focused = 1;
+    if (k->is_lock && !focused && keyboard_for(wl_resource_get_client(k->surface->resource))) {
+        keyboard_focus(k->surface->resource);
+        k->gave_keys = 1;
+    }
     constraint_send_state(k, 1);
     constraint_describe(k, name, sizeof(name));
     if (k->is_lock)
@@ -2593,7 +2620,24 @@ static void pointer_delta(double dx, double dy) {
 }
 
 static void pointer_button(uint32_t button, int pressed) {
-    pointer_input(0, 0, 1, button, pressed);
+    if (pressed) {
+        pointer_input(0, 0, 1, button, pressed);
+        return;
+    }
+    // Releases also clean up interrupted gestures. Deliver them to the existing
+    // pointer focus without motion or hit-testing: native touch has independent
+    // coordinates, so replaying g_ptr_x/y here can warp the game cursor.
+    uint32_t t = now_ms();
+    for (int i = 0; i < g_nptrs; i++) {
+        struct seat_pointer *sp = &g_ptrs[i];
+        if (!sp->focus) continue;
+        wl_pointer_send_button(sp->ptr, wl_display_next_serial(g_display), t, button,
+                               WL_POINTER_BUTTON_STATE_RELEASED);
+        if (wl_resource_get_version(sp->ptr) >= WL_POINTER_FRAME_SINCE_VERSION)
+            wl_pointer_send_frame(sp->ptr);
+    }
+    g_grab = NULL;
+    wl_display_flush_clients(g_display);
 }
 
 static void deliver_pointer(const struct input_msg *m) {
@@ -2797,10 +2841,19 @@ static void deliver_key(const struct input_msg *m) {
     key_event((uint32_t)m->p1, m->p2);
 }
 
-static void scroll_event(int steps) {
+static void send_axis(struct seat_pointer *sp, uint32_t t, uint32_t axis, int value120) {
+    if (!value120) return;
+    if (wl_resource_get_version(sp->ptr) >= WL_POINTER_AXIS_VALUE120_SINCE_VERSION)
+        wl_pointer_send_axis_value120(sp->ptr, axis, value120);
+    else if (wl_resource_get_version(sp->ptr) >= WL_POINTER_AXIS_DISCRETE_SINCE_VERSION && value120 % 120 == 0)
+        wl_pointer_send_axis_discrete(sp->ptr, axis, value120 / 120);
+    wl_pointer_send_axis(sp->ptr, t, axis, wl_fixed_from_double(value120 / 12.0));
+}
+
+static void axis_event(int vertical120, int horizontal120) {
     struct surface *target = g_active_constraint ? g_active_constraint->surface
                            : g_desktop ? g_desktop : (g_grab ? g_grab : toplevel_at(g_ptr_x, g_ptr_y));
-    if (!target || !steps) return;
+    if (!target || (!vertical120 && !horizontal120)) return;
     struct wl_client *client = wl_resource_get_client(target->resource);
     struct seat_pointer *sp;
     if (!pointer_for(client)) return;
@@ -2809,15 +2862,16 @@ static void scroll_event(int steps) {
     uint32_t t = now_ms();
     pointer_focus(target->resource, wl_fixed_from_double(g_ptr_x - tx), wl_fixed_from_double(g_ptr_y - ty));
     for_each_pointer_of(client, sp) {
-        if (wl_resource_get_version(sp->ptr) >= WL_POINTER_AXIS_VALUE120_SINCE_VERSION)
-            wl_pointer_send_axis_value120(sp->ptr, WL_POINTER_AXIS_VERTICAL_SCROLL, steps * 120);
-        else if (wl_resource_get_version(sp->ptr) >= WL_POINTER_AXIS_DISCRETE_SINCE_VERSION)
-            wl_pointer_send_axis_discrete(sp->ptr, WL_POINTER_AXIS_VERTICAL_SCROLL, steps);
-        wl_pointer_send_axis(sp->ptr, t, WL_POINTER_AXIS_VERTICAL_SCROLL, wl_fixed_from_int(steps * 10));
+        send_axis(sp, t, WL_POINTER_AXIS_VERTICAL_SCROLL, vertical120);
+        send_axis(sp, t, WL_POINTER_AXIS_HORIZONTAL_SCROLL, horizontal120);
         if (wl_resource_get_version(sp->ptr) >= WL_POINTER_FRAME_SINCE_VERSION)
             wl_pointer_send_frame(sp->ptr);
     }
     wl_display_flush_clients(g_display);
+}
+
+static void scroll_event(int steps) {
+    axis_event(steps * 120, 0);
 }
 
 static int update_modifiers(uint32_t evdev, int pressed) {
@@ -2845,6 +2899,11 @@ static int update_modifiers(uint32_t evdev, int pressed) {
 }
 
 static void key_event(uint32_t evdev, int pressed) {
+    if (evdev < 0x300) {
+        uint8_t bit = (uint8_t)(1u << (evdev & 7));
+        if (pressed && (g_keys_down[evdev >> 3] & bit)) return;
+        if (pressed) g_keys_down[evdev >> 3] |= bit; else g_keys_down[evdev >> 3] &= (uint8_t)~bit;
+    }
     int mods_changed = update_modifiers(evdev, pressed);
     struct surface *target = NULL;
     struct wl_resource *ime = droiddeck_ime_target();
@@ -2870,13 +2929,19 @@ static void key_event(uint32_t evdev, int pressed) {
     wl_display_flush_clients(g_display);
 }
 
-static void output_resized(void) {
-    struct surface *s;
+static void output_notify_mode(void) {
+    int mhz = atomic_load(&g_output_refresh_mhz);
     struct wl_resource *r;
     wl_resource_for_each(r, &g_outputs) {
-        output_send_mode(r);
+        output_send_mode(r, mhz);
         if (wl_resource_get_version(r) >= 2) wl_output_send_done(r);
     }
+    g_output_announced_refresh_mhz = mhz;
+}
+
+static void output_resized(void) {
+    struct surface *s;
+    output_notify_mode();
     wl_list_for_each(s, &g_surfaces, link)
         if (s->xdg_toplevel && s->toplevel_committed) send_toplevel_configure(s);
     droiddeck_log("display", "output resized to %dx%d", g_output_w, g_output_h);
@@ -2885,20 +2950,44 @@ static void output_resized(void) {
 
 static int on_input_readable(int fd, uint32_t mask, void *data) {
     struct input_msg m;
+    int vsync = 0;
+    int64_t vsync_ns = 0;
     while (read(fd, &m, sizeof(m)) == (ssize_t)sizeof(m)) {
         switch (m.type) {
         case 1: deliver_key(&m); break;
         case 2: pointer_event(m.p1, m.p2, 0, 0); break;
         case 3: pointer_button(m.p1, m.p2); break;
         case 4: scroll_event(m.p1); break;
-        case 5: on_vsync(((int64_t)m.p1 << 32) | (uint32_t)m.p2); break;
+        case 5: vsync = 1; vsync_ns = ((int64_t)m.p1 << 32) | (uint32_t)m.p2; break;
         case 6: pointer_delta(m.p1 / 256.0, m.p2 / 256.0); break;
         case 7: deliver_touch(&m); break;
         case 8: output_resized(); break;
+        case 9:
+            vk_present_set_scale_mode(m.p1, m.p2);
+            schedule_render();
+            break;
+        case 10: break;
+        case 11: axis_event(m.p1, m.p2); break;
         default: deliver_pointer(&m); break;
         }
     }
+    if (atomic_exchange(&g_output_refresh_pending, 0) &&
+            atomic_load(&g_output_refresh_mhz) != g_output_announced_refresh_mhz) {
+        output_notify_mode();
+        wl_display_flush_clients(g_display);
+    }
+    if (vsync) on_vsync(vsync_ns);
     return 0;
+}
+
+void droiddeck_wayland_set_scale_mode(int mode, int alignment) {
+    if (g_input_pipe[1] < 0) {
+        vk_present_set_scale_mode(mode, alignment);
+        return;
+    }
+    struct input_msg m = { 9, mode, alignment, 0, 0 };
+    ssize_t n = write(g_input_pipe[1], &m, sizeof(m));
+    (void)n;
 }
 
 void droiddeck_wayland_send_pointer(int action, int x, int y) {
@@ -2926,6 +3015,16 @@ void droiddeck_wayland_output_resized(void) {
     if (g_input_pipe[1] < 0) return;
     struct input_msg m = { 8, 0, 0, 0, 0 };
     ssize_t n = write(g_input_pipe[1], &m, sizeof(m));
+    (void)n;
+}
+
+void droiddeck_wayland_set_output_refresh_rate(int mhz) {
+    if (mhz <= 0) mhz = 60000;
+    if (atomic_exchange(&g_output_refresh_mhz, mhz) == mhz || g_input_pipe[1] < 0) return;
+    atomic_store(&g_output_refresh_pending, 1);
+    struct input_msg m = { 10, 0, 0, 0, 0 };
+    ssize_t n;
+    do { n = write(g_input_pipe[1], &m, sizeof(m)); } while (n < 0 && errno == EINTR);
     (void)n;
 }
 
@@ -3104,6 +3203,9 @@ int droiddeck_wayland_run(void) {
     open_session_log();
 
     if (vkp_ready() != 0) WLOGE("renderer unavailable; clients will connect but nothing is drawn");
+    /* Presentation compatibility is not HDR capability. Set the initial layer mode before
+     * clients bind, including when Desktop is the first session in this app process. */
+    if (vkp_quest_layer_presentation() && sc_layer_available()) g_zero_copy = 1;
 
     struct wl_display *display = wl_display_create();
     if (!display) {
@@ -3163,6 +3265,7 @@ int droiddeck_wayland_run(void) {
     if ((g_stats_timer = wl_event_loop_add_timer(wl_display_get_event_loop(display), on_stats_timer, NULL)))
         wl_event_source_timer_update(g_stats_timer, 10000);
 
+    g_output_announced_refresh_mhz = atomic_load(&g_output_refresh_mhz);
     wl_display_run(display);
 
     wl_display_destroy(display);

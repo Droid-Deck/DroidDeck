@@ -239,12 +239,16 @@ class StoreDownloadService : Service() {
             val app = context.applicationContext
             channels(app)
             val code = entry.key.hashCode()
-            val n = Notification.Builder(app, DONE_CHANNEL)
+            val builder = Notification.Builder(app, DONE_CHANNEL)
                 .setSmallIcon(if (installed) android.R.drawable.stat_sys_download_done else android.R.drawable.stat_notify_error)
                 .setContentTitle(app.getString(if (installed) R.string.stores_notification_installed else R.string.stores_notification_failed, entry.name))
                 .setAutoCancel(true)
                 .setContentIntent(if (installed && gamesKey != null) openPage(app, gamesKey, code + 10) else openDownloads(app, code + 11))
-                .build()
+            if (!installed && !entry.error.isNullOrBlank()) {
+                builder.setContentText(entry.error)
+                builder.style = Notification.BigTextStyle().bigText(entry.error)
+            }
+            val n = builder.build()
             runCatching { app.getSystemService(NotificationManager::class.java)?.notify(ID + 1 + (code and 0xFFFF), n) }
         }
     }

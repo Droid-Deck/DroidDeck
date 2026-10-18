@@ -26,7 +26,44 @@ def config_text(entries):
     return '"InstallConfigStore" { "Software" { "Valve" { "Steam" { "CompatToolMapping" { %s } } } } }' % mapping
 
 
+class ReadConfigMappingTest(unittest.TestCase):
+    def test_missing_parent_or_unbalanced_vdf_is_not_treated_as_absent_choices(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.vdf"
+            config.write_text('"InstallConfigStore" { "Software" { "Other" {} } }')
+            self.assertIsNone(COMPAT["read_config_mapping"](str(config)))
+            config.write_text('"InstallConfigStore" { "Software" { "Valve" { "Steam" {} }')
+            self.assertIsNone(COMPAT["read_config_mapping"](str(config)))
+
+    def test_valid_steam_parent_without_compat_mapping_has_no_per_app_choices(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.vdf"
+            config.write_text('"InstallConfigStore" { "Software" { "Valve" { "Steam" {} } } }')
+            self.assertEqual(COMPAT["read_config_mapping"](str(config)), {})
+
+
 class GameEnvironmentTest(unittest.TestCase):
+    def test_directaudio_capture_follows_the_session_microphone_setting(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            probe = home / "probe"
+            probe.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ.get('BANNER_AUDIO_DIRECT_MIC', 'unset'))\n")
+            probe.chmod(0o755)
+            config = home / ".config/droiddeck/game-environment.json"
+            config.parent.mkdir(parents=True)
+            for enabled, override, expected in (("1", None, "1"), ("0", "1", "0"), ("1", "0", "0")):
+                with self.subTest(enabled=enabled, override=override):
+                    profile = {} if override is None else {
+                        "BANNER_AUDIO_DIRECT_MIC": override, "BL_MIC_ENABLED": override,
+                    }
+                    config.write_text(json.dumps({"version": 1, "games": {"42": profile}}))
+                    env = dict(os.environ, HOME=tmp, BL_MIC_ENABLED=enabled,
+                               BANNER_AUDIO_DIRECT_MIC="1", STEAM_COMPAT_DATA_PATH="/compatdata/42")
+                    result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"),
+                                             str(probe), "waitforexitandrun"],
+                                            env=env, text=True, capture_output=True, check=True)
+                    self.assertEqual(result.stdout.strip(), expected)
+
     def test_the_install_script_evaluator_gets_its_scripts_marked_first(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -52,6 +89,12 @@ class GameEnvironmentTest(unittest.TestCase):
         self.assertEqual(MODULE["apply_config"](env, config, "42"), {"KEEP": "inherited", "CUSTOM": "game", "EMPTY": ""})
         self.assertEqual(env["REMOVE"], "inherited")
         self.assertEqual(MODULE["apply_config"](env, config, "43")["CUSTOM"], "shared")
+
+    def test_a_games_wine_sync_choice_also_reaches_its_setup_runs(self):
+        env = {"BL_SYNC": "1", "BL_SYNC_FALLBACK": "1", "BL_FSYNC_FIRST": "0", "OTHER": "kept"}
+        config = {"version": 1, "games": {"42": {"BL_SYNC": "0", "BL_FSYNC_FIRST": "1", "PROTON_NO_ESYNC": "1", "FEX_TSOENABLED": "1"}}}
+        chosen = MODULE["apply_config"](env, MODULE["sync_config"](config, "42"), "42")
+        self.assertEqual(chosen, {"BL_SYNC": "0", "BL_SYNC_FALLBACK": "1", "BL_FSYNC_FIRST": "1", "PROTON_NO_ESYNC": "1", "OTHER": "kept"})
 
     def test_component_profiles_override_general_and_restore_it_for_the_next_game(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -135,6 +178,25 @@ class GameEnvironmentTest(unittest.TestCase):
             other.mkdir()
             (other / "Other.exe").touch()
             self.assertEqual(MODULE["engine_fixes"](str(other / "Other.exe"), []), ({}, [], []))
+
+    def test_arkham_city_gets_full_x87_precision_over_the_preset(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            city = Path(tmp) / "Batman Arkham City GOTY/Binaries/Win32"
+            city.mkdir(parents=True)
+            for name in ("BatmanAC.exe", "BmLauncher.exe"):
+                (city / name).touch()
+            for exe in ("BatmanAC.exe", "BmLauncher.exe"):
+                env, extra, notes = MODULE["engine_fixes"](str(city / exe), [])
+                self.assertEqual((env, extra), ({"FEX_X87REDUCEDPRECISION": "0"}, []))
+            config = {"version": 1, "shared": {"FEX_X87REDUCEDPRECISION": "1"}}
+            self.assertEqual(MODULE["apply_config"]({}, config, "200260", env)["FEX_X87REDUCEDPRECISION"], "0")
+            config["games"] = {"200260": {"FEX_X87REDUCEDPRECISION": "1"}}
+            self.assertEqual(MODULE["apply_config"]({}, config, "200260", env)["FEX_X87REDUCEDPRECISION"], "1")
+            asylum = Path(tmp) / "Batman Arkham Asylum GOTY/Binaries"
+            asylum.mkdir(parents=True)
+            for name in ("ShippingPC-BmGame.exe", "BmLauncher.exe"):
+                (asylum / name).touch()
+            self.assertEqual(MODULE["engine_fixes"](str(asylum / "BmLauncher.exe"), []), ({}, [], []))
 
     def test_a_new_fix_only_needs_registering(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -415,6 +477,218 @@ class ProtonDefaultTest(unittest.TestCase):
         self.assertEqual(changes, {"0": "GE-Proton11-7", "10": "GE-Proton11-7", "11": "GE-Proton11-7", "14": "GE-Proton11-7"})
         self.assertEqual(auto, {"10": "GE-Proton11-7", "11": "GE-Proton11-7", "14": "GE-Proton11-7"})
 
+    def test_windows_only_titles_still_follow_the_default(self):
+        changes, auto = COMPAT["plan_mapping"](
+            {"0": self.TOOL}, ["42"], self.NAMES, self.TOOL, {})
+        self.assertEqual(changes, {"42": self.TOOL})
+        self.assertEqual(auto, {"42": self.TOOL})
+
+    def test_native_arm64_default_clears_only_our_auto_mapping(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.vdf"
+            config.write_text(config_text([("0", self.TOOL), ("42", self.TOOL)]))
+            (Path(tmp) / "state.json").write_text(json.dumps({
+                "default": self.TOOL,
+                "auto": {"42": self.TOOL},
+            }))
+            globals_ = COMPAT["register_default"].__globals__
+            original_native_targets = globals_["native_targets"]
+            globals_["native_targets"] = lambda _root, _apps: {"42": None}
+            try:
+                COMPAT["register_default"](
+                    str(config), ["42"], catalog=self.CATALOG, directory=tmp)
+                first = config.read_bytes()
+                self.assertEqual(mapping_of(first.decode()), {"0": self.TOOL})
+                self.assertEqual(COMPAT["tokenize"](first.decode()),
+                                 COMPAT["tokenize"](config_text([("0", self.TOOL)])))
+                self.assertEqual(json.loads((Path(tmp) / "state.json").read_text())["auto"], {})
+
+                COMPAT["register_default"](
+                    str(config), ["42"], catalog=self.CATALOG, directory=tmp)
+                self.assertEqual(config.read_bytes(), first)
+            finally:
+                globals_["native_targets"] = original_native_targets
+
+    def test_saved_native_choice_survives_valve_pick_without_appinfo(self):
+        app = "452280"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            steam = root / "Steam"
+            config = steam / "config/config.vdf"
+            config.parent.mkdir(parents=True)
+            (steam / "steamapps").mkdir()
+            (steam / "steamapps" / ("appmanifest_%s.acf" % app)).write_text("")
+            config.write_text(config_text([("0", self.TOOL)]))
+            (root / "state.json").write_text(json.dumps({
+                "default": self.TOOL,
+                "auto": {},
+                "native_choices": [app],
+            }))
+
+            globals_ = COMPAT["register_default"].__globals__
+            original_native_targets = globals_["native_targets"]
+            globals_["native_targets"] = lambda _root, _apps: {}
+            try:
+                COMPAT["register_default"](
+                    str(config), [], catalog=self.CATALOG, directory=tmp, picks=[app])
+                self.assertEqual(mapping_of(config.read_text()), {"0": self.TOOL})
+                state = json.loads((root / "state.json").read_text())
+                self.assertEqual(state["auto"], {})
+                self.assertEqual(state["native_choices"], [app])
+            finally:
+                globals_["native_targets"] = original_native_targets
+
+    def test_shortcuts_scanner_keeps_native_choice_for_unrelated_app_list(self):
+        app, added_shortcut = "452280", "3537741571"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            steam = root / "Steam"
+            config = steam / "config/config.vdf"
+            config.parent.mkdir(parents=True)
+            (steam / "steamapps").mkdir()
+            (steam / "steamapps" / ("appmanifest_%s.acf" % app)).write_text("")
+            config.write_text(config_text([("0", self.TOOL)]))
+            (root / "state.json").write_text(json.dumps({
+                "default": self.TOOL,
+                "auto": {},
+                "native_choices": [app],
+            }))
+
+            globals_ = COMPAT["register_default"].__globals__
+            original_native_targets = globals_["native_targets"]
+            globals_["native_targets"] = lambda _root, wanted: {
+                app: COMPAT["NATIVE_CHOICE"]
+            } if app in wanted else {}
+            try:
+                COMPAT["register_default"](
+                    str(config), [app], catalog=self.CATALOG, directory=tmp)
+                self.assertEqual(json.loads((root / "state.json").read_text())["native_choices"], [app])
+
+                COMPAT["register_default"](
+                    str(config), [added_shortcut], catalog=self.CATALOG, directory=tmp)
+                state = json.loads((root / "state.json").read_text())
+                self.assertEqual(state["native_choices"], [app])
+                self.assertEqual(state["auto"], {added_shortcut: self.TOOL})
+                self.assertEqual(mapping_of(config.read_text()), {
+                    "0": self.TOOL,
+                    added_shortcut: self.TOOL,
+                })
+            finally:
+                globals_["native_targets"] = original_native_targets
+
+    def test_factorio_preserves_an_observed_native_choice_despite_ambiguous_metadata(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            steam = Path(tmp) / "Steam"
+            config = steam / "config/config.vdf"
+            config.parent.mkdir(parents=True)
+            config.write_text(config_text([("0", self.TOOL)]))
+            state = {"default": self.TOOL, "auto": {}}
+            (Path(tmp) / "state.json").write_text(json.dumps(state))
+
+            globals_ = COMPAT["native_targets"].__globals__
+            original_platforms = globals_["appinfo_platforms"]
+            globals_["appinfo_platforms"] = lambda _path, wanted: {
+                "427520": ({"linux", "macos", "windows"}, "", "game")
+            } if "427520" in wanted else {}
+            try:
+                native = COMPAT["native_targets"](str(steam), ["427520"])
+                self.assertIs(native["427520"], COMPAT["NATIVE_CHOICE"])
+
+                changes, auto = COMPAT["plan_mapping"](
+                    {"0": self.TOOL}, ["427520"], self.NAMES, self.TOOL, {}, native)
+                self.assertEqual(changes, {"427520": self.TOOL})
+                self.assertEqual(auto, {"427520": self.TOOL})
+
+                COMPAT["register_default"](
+                    str(config), ["427520"], catalog=self.CATALOG, directory=tmp)
+                self.assertEqual(mapping_of(config.read_text()), {"0": self.TOOL, "427520": self.TOOL})
+
+                state["auto"] = {"427520": self.TOOL}
+                (Path(tmp) / "state.json").write_text(json.dumps(state))
+                config.write_text(config_text([("0", self.TOOL)]))
+                COMPAT["register_default"](
+                    str(config), ["427520"], catalog=self.CATALOG, directory=tmp)
+                first = config.read_bytes()
+                self.assertEqual(mapping_of(first.decode()), {"0": self.TOOL})
+                self.assertEqual(COMPAT["tokenize"](first.decode()),
+                                 COMPAT["tokenize"](config_text([("0", self.TOOL)])))
+                self.assertEqual(json.loads((Path(tmp) / "state.json").read_text())["auto"], {})
+                self.assertEqual(json.loads((Path(tmp) / "state.json").read_text())["native_choices"], ["427520"])
+
+                COMPAT["register_default"](
+                    str(config), ["427520"], catalog=self.CATALOG, directory=tmp)
+                self.assertEqual(config.read_bytes(), first)
+
+                config.write_text(config_text([("0", self.TOOL), ("427520", "")]))
+                COMPAT["register_default"](
+                    str(config), ["427520"], catalog=self.CATALOG, directory=tmp)
+                native_choice = config.read_bytes()
+                self.assertEqual(mapping_of(native_choice.decode()), {"0": self.TOOL, "427520": ""})
+                self.assertEqual(json.loads((Path(tmp) / "state.json").read_text())["auto"], {})
+                self.assertEqual(json.loads((Path(tmp) / "state.json").read_text())["native_choices"], ["427520"])
+                COMPAT["register_default"](
+                    str(config), ["427520"], catalog=self.CATALOG, directory=tmp)
+                self.assertEqual(config.read_bytes(), native_choice)
+
+                for choice in (COMPAT["FEX_TOOL"], COMPAT["TOOL_11"], "GE-Proton11-7"):
+                    config.write_text(config_text([("0", self.TOOL), ("427520", choice)]))
+                    COMPAT["register_default"](
+                        str(config), ["427520"], catalog=self.CATALOG, directory=tmp)
+                    self.assertEqual(mapping_of(config.read_text()), {"0": self.TOOL, "427520": choice})
+                    self.assertEqual(json.loads((Path(tmp) / "state.json").read_text())["native_choices"], [])
+
+                state = json.loads((Path(tmp) / "state.json").read_text())
+                state["native_choices"] = ["427520"]
+                state["auto"] = {}
+                (Path(tmp) / "state.json").write_text(json.dumps(state))
+                config.write_text(config_text([("0", self.TOOL), ("427520", "proton_experimental")]))
+                COMPAT["register_default"](
+                    str(config), ["427520"], catalog=self.CATALOG, directory=tmp)
+                self.assertEqual(mapping_of(config.read_text()), {"0": self.TOOL, "427520": self.TOOL})
+                saved = json.loads((Path(tmp) / "state.json").read_text())
+                self.assertEqual(saved["native_choices"], [])
+                self.assertEqual(saved["auto"], {"427520": self.TOOL})
+            finally:
+                globals_["appinfo_platforms"] = original_platforms
+
+    def test_native_arm64_preserves_a_proton_mapping_without_managed_state(self):
+        changes, auto = COMPAT["plan_mapping"](
+            {"0": self.TOOL, "42": self.TOOL}, ["42"], self.NAMES, self.TOOL,
+            {"42": self.TOOL}, {"42": None}, managed=())
+        self.assertEqual(changes, {})
+        self.assertEqual(auto, {})
+
+    def test_native_arm64_keeps_a_chosen_valve_proton_through_its_wrapper(self):
+        changes, auto = COMPAT["plan_mapping"](
+            {"0": self.TOOL, "42": "proton_experimental"}, ["42"], self.NAMES,
+            self.TOOL, {}, {"42": None})
+        self.assertEqual(changes, {"42": self.TOOL})
+        self.assertEqual(auto, {})
+
+        changes, auto = COMPAT["plan_mapping"](
+            {"0": self.TOOL, "42": self.TOOL}, ["42"], self.NAMES,
+            self.TOOL, {}, {"42": None})
+        self.assertEqual(changes, {})
+        self.assertEqual(auto, {})
+
+    def test_native_arm64_keeps_explicit_runtime_fex_and_proton_profiles(self):
+        fex = COMPAT["FEX_TOOL"]
+        current = {
+            "0": self.TOOL,
+            "42": COMPAT["TOOL_11"],
+            "43": "GE-Proton11-7",
+            "44": "steamlinuxruntime_arm64",
+            "45": fex,
+            "46": "",
+        }
+        changes, auto = COMPAT["plan_mapping"](
+            current, ["42", "43", "44", "45", "46"], self.NAMES, self.TOOL, {},
+            {app: None for app in ("42", "43", "44", "45", "46")},
+            overrides={"46": "GE-Proton11-7"},
+        )
+        self.assertEqual(changes, {"46": "GE-Proton11-7"})
+        self.assertEqual(auto, {})
+
     def test_titles_following_the_default_move_with_it_and_picks_stay(self):
         current = {"0": self.TOOL, "10": self.TOOL, "11": "GE-Proton11-7", "12": self.TOOL}
         auto = {"10": self.TOOL, "11": self.TOOL, "12": self.TOOL}
@@ -575,12 +849,12 @@ class DirectAudioPrefixTest(unittest.TestCase):
             (self.windows / folder).mkdir(parents=True)
         self.reg = self.compat / "pfx/user.reg"
 
-    def run_setup(self):
-        script = COMPAT["BL_DIRECTAUDIO_SETUP"] + '\nbl_directaudio "$1"\necho "WINEDLLPATH=$WINEDLLPATH"\necho "WINE_AUDIO_DRIVER=${WINE_AUDIO_DRIVER:-}"\n'
+    def run_setup(self, verb="waitforexitandrun"):
+        script = COMPAT["BL_DIRECTAUDIO_SETUP"] + '\nverb=$2\nbl_directaudio "$1"\necho "WINEDLLPATH=$WINEDLLPATH"\necho "WINE_AUDIO_DRIVER=${WINE_AUDIO_DRIVER:-}"\n'
         env = dict(os.environ, BL_DIRECTAUDIO=str(self.sets), STEAM_COMPAT_DATA_PATH=str(self.compat))
         env.pop("WINEDLLPATH", None)
         env.pop("WINE_AUDIO_DRIVER", None)
-        return subprocess.run(["bash", "-c", script, "bash", str(self.tool)], env=env, capture_output=True, text=True, check=True)
+        return subprocess.run(["bash", "-c", script, "bash", str(self.tool), verb], env=env, capture_output=True, text=True, check=True)
 
     def audio_values(self):
         found, current = [], None
@@ -594,6 +868,27 @@ class DirectAudioPrefixTest(unittest.TestCase):
     def link(self, folder):
         path = self.windows / folder / "winedirectaudio.drv"
         return os.readlink(path) if path.is_symlink() else None
+
+    def test_non_launch_verbs_preserve_audio_configuration(self):
+        for verb in ("getcompatpath", "getnativepath", "destroyprefix"):
+            with self.subTest(verb=verb):
+                self.reg.write_text('WINE REGISTRY Version 2\n\n[Software\\\\Wine\\\\Drivers] 1\n"Audio"="pulse"\n')
+                before = self.reg.read_bytes()
+                result = self.run_setup(verb)
+                self.assertEqual(self.reg.read_bytes(), before)
+                self.assertIsNone(self.link("system32"))
+                self.assertIsNone(self.link("syswow64"))
+                self.assertIn("WINEDLLPATH=\n", result.stdout)
+                self.assertIn("WINE_AUDIO_DRIVER=\n", result.stdout)
+
+    def test_other_windows_launch_verbs_still_set_up_audio(self):
+        self.reg.write_text("WINE REGISTRY Version 2\n")
+        for verb in ("run", "runinprefix"):
+            with self.subTest(verb=verb):
+                result = self.run_setup(verb)
+                self.assertIn("DirectAudio ready", result.stderr)
+                self.assertIn("WINE_AUDIO_DRIVER=directaudio,pulse\n", result.stdout)
+                self.assertEqual(self.link("system32"), str(self.audio / "lib/wine/aarch64-windows/winedirectaudio.drv"))
 
     def test_the_driver_is_placed_and_selected_the_way_wine_reads_it(self):
         self.reg.write_text("WINE REGISTRY Version 2\n;; All keys relative to \\\\User\\\\S-1-5-21-0-0-0-1000\n\n#arch=win64\n")
@@ -677,28 +972,6 @@ class DirectAudioPrefixTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-
-class StartWithoutSteamTest(unittest.TestCase):
-    def test_start_without_steam_uses_umu_or_runinprefix_and_only_when_asked(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            ge = Path(tmp) / "ge/proton"
-            ge.parent.mkdir()
-            ge.write_text('if "UMU_ID" in os.environ:\n    argv = [wine, "c:\\\\windows\\\\system32\\\\umu.exe"]\n')
-            valve = Path(tmp) / "valve/proton"
-            valve.parent.mkdir()
-            valve.write_text('argv = [wine, "c:\\\\windows\\\\system32\\\\steam.exe"]\n')
-            start = MODULE["start_without_steam"]
-            game = [str(ge), "waitforexitandrun", "/games/Game.exe", "-windowed"]
-            self.assertEqual(start(game, {}, "3384071994"), (game, {}))
-            on = {"DROIDDECK_NO_STEAM": "1"}
-            self.assertEqual(start(game, on, "3384071994"), (game, dict(on, UMU_ID="0")))
-            self.assertEqual(start(game, on, "570940")[1]["UMU_ID"], "570940")
-            self.assertEqual(start(game, dict(on, UMU_ID="umu-1"), "570940")[1]["UMU_ID"], "umu-1")
-            plain = [str(valve)] + game[1:]
-            self.assertEqual(start(plain, on, "570940"), ([str(valve), "runinprefix", "/games/Game.exe", "-windowed"], on))
-            for other in ([str(ge), "run", "/x.exe"], [str(ge), "waitforexitandrun"], [str(valve), "getcompatpath", "/x"]):
-                self.assertEqual(start(other, on, "570940"), (other, on))
 
 
 class ForceSsbsTest(unittest.TestCase):

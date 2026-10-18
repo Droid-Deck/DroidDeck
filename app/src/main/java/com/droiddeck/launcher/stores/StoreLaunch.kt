@@ -9,6 +9,7 @@ object StoreLaunch {
     private const val TAG = "StoreLaunch"
     const val LAUNCHER = ".droiddeck-launch.bat"
     const val EPIC_CODE = ".droiddeck-epic-code"
+    const val EPIC_ARGS = ".droiddeck-epic-args"
 
     fun writeLauncher(folder: File, sidecar: StoreGameSidecar): StoreGameSidecar {
         val needs = sidecar.args.isNotEmpty() || sidecar.env.isNotEmpty() || sidecar.store == Store.EPIC
@@ -30,6 +31,7 @@ object StoreLaunch {
         val args = sidecar.args.joinToString(" ") { quoteArg(it) }
         val run = "\"%~dp0$exe\"" + (if (args.isNotEmpty()) " $args" else "")
         if (sidecar.store == Store.EPIC) {
+            lines += "if exist \"%~dp0$EPIC_ARGS\" goto client"
             lines += "set \"$CODE_VAR=\""
             lines += "if exist \"%~dp0$EPIC_CODE\" set /p $CODE_VAR=<\"%~dp0$EPIC_CODE\""
             lines += "if exist \"%~dp0$EPIC_CODE\" del \"%~dp0$EPIC_CODE\""
@@ -38,6 +40,13 @@ object StoreLaunch {
             lines += "goto :eof"
             lines += ":signed"
             lines += "set \"$CODE_VAR=\" & $run -AUTH_LOGIN=unused -AUTH_PASSWORD=%$CODE_VAR% -AUTH_TYPE=exchangecode"
+            lines += "goto :eof"
+            lines += ":client"
+            lines += "set \"$CLIENT_VAR=\""
+            lines += "set /p $CLIENT_VAR=<\"%~dp0$EPIC_ARGS\""
+            lines += "del \"%~dp0$EPIC_ARGS\""
+            lines += "if exist \"%~dp0$EPIC_CODE\" del \"%~dp0$EPIC_CODE\""
+            lines += "set \"$CLIENT_VAR=\" & \"%~dp0$exe\" %$CLIENT_VAR%"
         } else {
             lines += run
         }
@@ -52,6 +61,7 @@ object StoreLaunch {
     }
 
     private const val CODE_VAR = "DD_X"
+    private const val CLIENT_VAR = "DD_A"
 
     fun refreshLauncher(folder: File, sidecar: StoreGameSidecar) {
         if (sidecar.launcher != LAUNCHER) return

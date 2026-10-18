@@ -7,26 +7,21 @@ import android.content.Context
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
+import android.view.Display
 
 object PerfMode {
     private const val TAG = "PerfMode"
 
-    fun apply(a: Activity, fpsLimit: Int = 0): String {
+    fun apply(a: Activity, fpsLimit: Int = 0, refreshLimit: Int = 0): String {
         val parts = ArrayList<String>(2)
 
         parts += try {
             val display = if (Build.VERSION.SDK_INT >= 30) a.display else @Suppress("DEPRECATION") a.windowManager.defaultDisplay
             if (display == null || Build.VERSION.SDK_INT < 23) "display mode unchanged" else {
                 val cur = display.mode
-                val cap = peakRefreshCap(a)
-                val sameSize = display.supportedModes
-                    .filter { it.physicalWidth == cur.physicalWidth && it.physicalHeight == cur.physicalHeight }
-                    .filter { it.refreshRate <= cap + 0.5f }
-                    .ifEmpty { display.supportedModes.filter { it.modeId == cur.modeId } }
-                val best = sameSize.filter { cadenceFits(it.refreshRate, fpsLimit) }.maxByOrNull { it.refreshRate }
-                    ?: sameSize.maxByOrNull { it.refreshRate }
-                if (best != null && best.modeId != cur.modeId &&
-                    (best.refreshRate > cur.refreshRate + 0.5f || !cadenceFits(cur.refreshRate, fpsLimit))) {
+                val cap = minOf(peakRefreshCap(a), refreshLimit.takeIf { it > 0 }?.toFloat() ?: Float.POSITIVE_INFINITY)
+                val best = selectMode(display.supportedModes, cur, fpsLimit, cap)
+                if (best != null && a.window.attributes.preferredDisplayModeId != best.modeId) {
                     a.window.attributes = a.window.attributes.apply { preferredDisplayModeId = best.modeId }
                     "display ${cur.refreshRate.toInt()} → ${best.refreshRate.toInt()} Hz (mode ${best.modeId})"
                 } else "display ${cur.refreshRate.toInt()} Hz"
@@ -57,6 +52,16 @@ object PerfMode {
             Settings.System.getFloat(context.contentResolver, "peak_refresh_rate")
         } catch (_: Throwable) { 0f }
         return if (peak >= 1f) peak else Float.POSITIVE_INFINITY
+    }
+
+    internal fun selectMode(modes: Array<Display.Mode>, current: Display.Mode, fpsLimit: Int, cap: Float): Display.Mode? {
+        val sameSize = modes.filter {
+            it.physicalWidth == current.physicalWidth && it.physicalHeight == current.physicalHeight
+        }
+        val allowed = sameSize.filter { it.refreshRate <= cap + 0.5f }
+        return allowed.filter { cadenceFits(it.refreshRate, fpsLimit) }.maxByOrNull { it.refreshRate }
+            ?: allowed.maxByOrNull { it.refreshRate }
+            ?: sameSize.minByOrNull { it.refreshRate }
     }
 
     fun cadenceFits(hz: Float, fpsLimit: Int): Boolean {

@@ -92,6 +92,38 @@ class FexTestCase(unittest.TestCase):
         self.write(self.steam / "steamapps/appmanifest_1628350.acf", '"AppState" { "installdir" "SteamLinuxRuntime_sniper" }')
         return platform
 
+    def graphics(self, sniper, libc=b"GLIBC_2.2.5 GLIBC_2.31 GLIBC_2.34 GLIBC_2.41", libstdcxx=b"GLIBCXX_3.4.28 GLIBCXX_3.4.33"):
+        files = Path(sniper) / "files"
+        x86 = files / "lib/x86_64-linux-gnu"
+        self.write(x86 / "libc-2.31.so", b"GLIBC_2.2.5 GLIBC_2.31")
+        os.unlink(x86 / "libc.so.6")
+        os.symlink("libc-2.31.so", x86 / "libc.so.6")
+        self.write(x86 / "ld-2.31.so", b"old ld")
+        os.symlink("ld-2.31.so", x86 / "ld-linux-x86-64.so.2")
+        self.write(x86 / "libstdc++.so.6", b"GLIBCXX_3.4.28")
+        self.write(x86 / "libSegFault.so", b"old")
+        self.write(x86 / "libSDL2-2.0.so.0", b"sdl")
+        self.write(x86 / "libfoo.so.1.2", b"foo")
+        os.symlink("libfoo.so.1.2", x86 / "libfoo.so.1")
+        self.write(x86 / "gconv/OLD.so", b"old gconv")
+        self.write(files / "lib/i386-linux-gnu/libc.so.6", b"GLIBC_2.31")
+        self.write(files / "lib/i386-linux-gnu/ld-2.31.so", b"old ld32")
+        os.symlink("i386-linux-gnu/ld-2.31.so", files / "lib/ld-linux.so.2")
+        os.unlink(files / "lib64/ld-linux-x86-64.so.2")
+        os.symlink("../lib/x86_64-linux-gnu/ld-2.31.so", files / "lib64/ld-linux-x86-64.so.2")
+        platform = self.steam / "steamapps/common/SteamLinuxRuntime_4/steamrt4_platform_4.0.20260928.262390"
+        provided = platform / "files/lib/x86_64-linux-gnu"
+        self.write(provided / "libc.so.6", libc)
+        self.write(provided / "libstdc++.so.6", libstdcxx)
+        self.write(provided / "ld-linux-x86-64.so.2", b"new ld")
+        self.write(provided / "gconv/NEW.so", b"new gconv")
+        self.write(platform / "files/lib/i386-linux-gnu/libc.so.6", b"GLIBC_2.41")
+        self.write(platform / "files/lib/i386-linux-gnu/ld-linux.so.2", b"new ld32")
+        with gzip.open(platform / "usr-mtree.txt.gz", "wt") as out:
+            out.write("#mtree\n. type=dir\n")
+        self.write(self.steam / "steamapps/appmanifest_4183110.acf", '"AppState" { "installdir" "SteamLinuxRuntime_4" }')
+        return platform
+
     def quiet(self, function, *args):
         with contextlib.redirect_stderr(io.StringIO()) as err:
             return function(*args), err.getvalue()
@@ -198,12 +230,11 @@ class PrepareTest(FexTestCase):
         for arch in ("x86_64", "i386"):
             for name in ("libblsession.so", "libfakeinput.so"):
                 self.write(self.tmp / "preloads" / arch / name, arch.encode() + name.encode())
-        self.write(self.tmp / "preloads/x86_64/libthunkaudit.so", b"audit")
         self.write(self.tmp / "preloads/x86_64/libvulkan-thunk.so", b"pin")
         self.write(self.tmp / "ld.so.preload", "/usr/local/lib/libblsession.so\n/usr/local/lib/libfakeinput.so\n")
         FEX["install_preloads"](str(root))
-        self.assertEqual((root / "lib/x86_64-linux-gnu/droiddeck/libthunkaudit.so").read_bytes(), b"audit")
-        self.assertEqual((root / "lib/x86_64-linux-gnu/droiddeck/libvulkan-thunk.so").read_bytes(), b"pin")
+        self.assertEqual((root / "lib/x86_64-linux-gnu/droiddeck/vulkan/libvulkan.so.1").read_bytes(), b"pin")
+        self.assertEqual(os.readlink(root / "lib/x86_64-linux-gnu/droiddeck/vulkan/libvulkan.so"), "libvulkan.so.1")
         self.assertEqual((root / "etc/ld.so.preload").read_text(),
                          "/usr/$LIB/droiddeck/libblsession.so\n/usr/$LIB/droiddeck/libfakeinput.so\n")
         self.assertEqual((root / "lib/i386-linux-gnu/droiddeck/libfakeinput.so").read_bytes(), b"i386libfakeinput.so")
@@ -252,7 +283,71 @@ class PrepareTest(FexTestCase):
         status = json.loads((self.home / ".local/share/droiddeck-fex/status.json").read_text())
         self.assertEqual((status["ready"], status["runtime"], status["thunks"]), (True, str(platform), True))
         self.assertFalse((self.home / ".config/droiddeck/fex-wanted").exists())
-        self.assertEqual(self.quiet(FEX["prepare"])[1], "")
+        self.assertNotIn("prepared", self.quiet(FEX["prepare"])[1])
+
+    def test_a_newer_runtime_supplies_the_c_and_cxx_libraries(self):
+        self.fex_tool()
+        sniper = self.runtime()
+        FEX["materialize"](str(sniper))
+        provider = self.graphics(sniper)
+        fex, said = self.quiet(FEX["prepare"])
+        root = self.home / ".local/share/droiddeck-fex/rootfs"
+        self.assertIn("built the x86 runtime from sniper_platform_", said)
+        self.assertEqual(fex["rootfs"], str(root))
+        config = json.loads((self.home / ".local/share/droiddeck-fex/config/Config.json").read_text())
+        self.assertEqual(config["Config"]["RootFS"], str(root))
+        x86 = root / "lib/x86_64-linux-gnu"
+        self.assertEqual((x86 / "libc.so.6").read_bytes(), b"GLIBC_2.2.5 GLIBC_2.31 GLIBC_2.34 GLIBC_2.41")
+        self.assertEqual((x86 / "libstdc++.so.6").read_bytes(), b"GLIBCXX_3.4.28 GLIBCXX_3.4.33")
+        self.assertEqual((x86 / "ld-linux-x86-64.so.2").read_bytes(), b"new ld")
+        self.assertEqual((x86 / "gconv/NEW.so").read_bytes(), b"new gconv")
+        self.assertEqual((root / "lib/i386-linux-gnu/libc.so.6").read_bytes(), b"GLIBC_2.41")
+        self.assertEqual((x86 / "libSDL2-2.0.so.0").read_bytes(), b"sdl")
+        self.assertEqual(os.readlink(x86 / "libfoo.so.1"), "libfoo.so.1.2")
+        self.assertEqual((x86 / "libfoo.so.1").read_bytes(), b"foo")
+        for stale in ("libc-2.31.so", "ld-2.31.so", "libSegFault.so"):
+            self.assertFalse(os.path.lexists(x86 / stale), stale)
+        self.assertEqual(os.readlink(root / "lib/ld-linux.so.2"), "i386-linux-gnu/ld-linux.so.2")
+        self.assertEqual((root / "lib/ld-linux.so.2").read_bytes(), b"new ld32")
+        self.assertEqual(os.readlink(root / "lib64/ld-linux-x86-64.so.2"), "../lib/x86_64-linux-gnu/ld-linux-x86-64.so.2")
+        self.assertEqual((root / "lib64/ld-linux-x86-64.so.2").read_bytes(), b"new ld")
+        self.assertEqual(os.readlink(root / "usr"), ".")
+        self.assertEqual((root / "usr/bin/[").read_bytes(), b"blob")
+        self.assertEqual((sniper / "files/lib/x86_64-linux-gnu/libc.so.6").read_bytes(), b"GLIBC_2.2.5 GLIBC_2.31")
+        status = json.loads((self.home / ".local/share/droiddeck-fex/status.json").read_text())
+        self.assertEqual(status["graphics"], str(provider))
+        self.assertNotIn("built", self.quiet(FEX["prepare"])[1])
+        os.utime(provider / "usr-mtree.txt.gz", ns=(1, 1))
+        self.assertIn("built the x86 runtime", self.quiet(FEX["prepare"])[1])
+        self.assertEqual(sorted(os.listdir(root.parent)), ["config", "lock", "rootfs", "status.json"])
+
+    def test_a_runtime_that_is_not_newer_is_left_out(self):
+        self.fex_tool()
+        sniper = self.runtime()
+        FEX["materialize"](str(sniper))
+        self.graphics(sniper, libc=b"GLIBC_2.2.5 GLIBC_2.31", libstdcxx=b"GLIBCXX_3.4.28")
+        fex, said = self.quiet(FEX["prepare"])
+        self.assertEqual(fex["rootfs"], str(sniper / "files"))
+        self.assertIn("has no newer C and C++ libraries than sniper_platform_", said)
+        self.assertFalse((self.home / ".local/share/droiddeck-fex/rootfs").exists())
+
+    def test_x86_steamworks_finds_the_x86_client(self):
+        for directory, machine in (("linux64", 62), ("linux32", 3), ("linuxarm64", 183)):
+            self.write(self.steam / directory / "steamclient.so", elf(machine))
+        sdk = self.home / ".steam"
+        sdk.mkdir(parents=True)
+        os.symlink(self.steam / "linuxarm64", sdk / "sdk64")
+        os.symlink(self.steam / "linuxarm64", sdk / "sdkarm64")
+        FEX["link_steam_sdk"]()
+        self.assertEqual(os.readlink(sdk / "sdk64"), str(self.steam / "linux64"))
+        self.assertEqual(os.readlink(sdk / "sdk32"), str(self.steam / "linux32"))
+        self.assertEqual(os.readlink(sdk / "sdkarm64"), str(self.steam / "linuxarm64"))
+        os.unlink(sdk / "sdk32")
+        os.symlink(self.tmp / "elsewhere", sdk / "sdk32")
+        self.write(self.tmp / "elsewhere/steamclient.so", elf(3))
+        FEX["link_steam_sdk"]()
+        self.assertEqual(os.readlink(sdk / "sdk32"), str(self.tmp / "elsewhere"))
+        self.assertEqual(sorted(os.listdir(sdk)), ["sdk32", "sdk64", "sdkarm64"])
 
     def test_status_refreshes_what_the_app_reads_once_steam_installed_fex(self):
         with mock.patch.dict(G, {"steam_running": lambda: False}):
@@ -317,6 +412,35 @@ class ExtractTest(FexTestCase):
         self.assertTrue((self.home / ".config/droiddeck/fex-wanted").is_file())
         self.assertFalse(json.loads((self.home / ".local/share/droiddeck-fex/status.json").read_text())["ready"])
 
+    def test_uruntime_that_only_drops_extended_attributes_still_unpacks(self):
+        tool = self.uruntime(
+            "mkdir -p AppDir && touch AppDir/AppRun\n"
+            "echo 'Failed to exec memfd: EACCES: Permission denied. Trying tmpfile in /tmp...' >&2\n"
+            "echo 'write_xattr: could not write xattr security.selinux for file ./AppDir/.DirIcon because you are not superuser!' >&2\n"
+            "echo 'Further error messages of this type are suppressed!' >&2\n"
+            "exit 2\n")
+        with mock.patch.dict(G, {"URUNTIME": tool, "fex_install": lambda: None, "steam_running": lambda: False}):
+            status, said = self.quiet(FEX["extract"], "image.AppImage")
+        self.assertEqual(status, 0)
+        self.assertIn("could not keep the image's extended attributes", said)
+        self.assertTrue(Path("squashfs-root/AppRun").is_file())
+
+    def test_an_attribute_only_failure_without_apprun_is_not_taken_as_unpacked(self):
+        tool = self.uruntime(
+            "mkdir -p AppDir\n"
+            "echo 'write_xattr: could not write xattr security.selinux for file ./AppDir/.DirIcon because you are not superuser!' >&2\n"
+            "exit 2\n")
+        with mock.patch.dict(G, {"URUNTIME": tool, "fex_install": lambda: None, "steam_running": lambda: False, "prepare": lambda: None}):
+            status, said = self.quiet(FEX["extract"], "image.AppImage")
+        self.assertIn("uruntime could not extract it (status 2)", said)
+        self.assertNotIn("could not keep the image's extended attributes", said)
+        self.assertFalse(os.path.lexists("squashfs-root/AppRun"))
+
+    def test_other_uruntime_errors_are_not_taken_as_unpacked(self):
+        self.assertFalse(FEX["only_xattrs_failed"]("write_xattr: could not write xattr\nwrite_file: failed to create file x\n"))
+        self.assertFalse(FEX["only_xattrs_failed"](""))
+        self.assertTrue(FEX["only_xattrs_failed"]("proot error: execveat() failed\nwrite_xattr: could not write xattr\n"))
+
     def test_an_arm64_image_does_not_ask_for_fex(self):
         self.write(self.image, elf(183) + b"payload", 0o755)
         tool = self.uruntime("mkdir -p squashfs-root\n")
@@ -335,13 +459,40 @@ class ExtractTest(FexTestCase):
         self.assertIn("no AppImage runtime for ARM64, no FEX yet and no unsquashfs", said)
         self.assertFalse(os.path.lexists("squashfs-root"))
 
+    def test_unsquashfs_fallback_disables_unwritable_xattrs(self):
+        tool = self.uruntime("exit 1\n")
+        commands = []
+
+        def call(argv, **kwargs):
+            commands.append(argv)
+            if argv[0] == tool:
+                return 1
+            (self.work / "squashfs-root").mkdir()
+            (self.work / "squashfs-root/AppRun").touch()
+            return 0
+
+        with mock.patch.dict(G, {
+            "URUNTIME": tool,
+            "prepare": lambda: None,
+            "fex_install": lambda: None,
+            "steam_running": lambda: False,
+            "want_fex": lambda: None,
+        }), mock.patch("shutil.which", return_value="/usr/bin/unsquashfs"), \
+                mock.patch("subprocess.call", side_effect=call):
+            status, said = self.quiet(FEX["extract"], "image.AppImage")
+        self.assertEqual(status, 0)
+        self.assertIn("uruntime could not extract it (status 1)", said)
+        self.assertEqual(commands[-1][0], "/usr/bin/unsquashfs")
+        self.assertIn("-no-xattrs", commands[-1])
+        self.assertTrue(Path("squashfs-root/AppRun").is_file())
+
 
 class LaunchTest(FexTestCase):
     def test_the_guest_environment(self):
         arm = self.write(self.tmp / "arm.so", elf(183))
         x86 = self.write(self.tmp / "x86.so", elf(62))
         env = {"LD_PRELOAD": "%s:%s %s" % (arm, x86, self.tmp / "gone.so"),
-               "LD_LIBRARY_PATH": "/steam/steamrtarm64:/usr/lib/aarch64-linux-gnu:/game/lib",
+               "LD_LIBRARY_PATH": "/steam/steamrtarm64:/usr/lib/aarch64-linux-gnu:/game/lib:/steam/linuxarm64",
                "FEX_ROOTFS": "/usr/share/guestos/fex-mesa", "FEX_TSOENABLED": "1"}
         guest = FEX["guest_environment"]({"portable": True}, env)
         self.assertEqual((guest["LD_PRELOAD"], guest["LD_LIBRARY_PATH"], guest["FEX_PORTABLE"]), (str(x86), "/game/lib", "1"))
@@ -349,8 +500,10 @@ class LaunchTest(FexTestCase):
         self.assertEqual(guest["FEX_TSOENABLED"], "1")
         self.assertTrue(guest["FEX_APP_CONFIG_LOCATION"].endswith("/config/"))
         self.assertEqual((guest["FEX_SILENTLOG"], guest["FEX_OUTPUTLOG"]), ("0", "stderr"))
-        guest = FEX["guest_environment"]({"portable": False}, {"LD_PRELOAD": str(arm), "FEX_PORTABLE": "1", "FEX_OUTPUTLOG": "/tmp/fex.log"})
-        self.assertEqual(guest["FEX_OUTPUTLOG"], "/tmp/fex.log")
+        self.assertEqual(guest["GC_DISABLE_INCREMENTAL"], "1")
+        guest = FEX["guest_environment"]({"portable": False}, {"LD_PRELOAD": str(arm), "FEX_PORTABLE": "1", "FEX_OUTPUTLOG": "/tmp/fex.log",
+                                                               "GC_DISABLE_INCREMENTAL": "0"})
+        self.assertEqual((guest["FEX_OUTPUTLOG"], guest["GC_DISABLE_INCREMENTAL"]), ("/tmp/fex.log", "0"))
         self.assertNotIn("LD_PRELOAD", guest)
         self.assertNotIn("FEX_PORTABLE", guest)
 
@@ -414,9 +567,8 @@ class LaunchTest(FexTestCase):
         self.runtime()
         self.write(tool / "usr/share/fex-emu/GuestThunks/libvulkan-guest.so",
                    elf(62) + b"\0libstdc++.so.6\0GLIBCXX_3.4\0GLIBCXX_3.4.29\0libc.so.6\0GLIBC_2.2.5\0GLIBC_2.34\0")
-        self.write(self.tmp / "preloads/x86_64/libthunkaudit.so", elf(62))
-        pin = self.write(self.tmp / "preloads/x86_64/libvulkan-thunk.so", elf(62))
-        audit = "/usr/lib/x86_64-linux-gnu/droiddeck/libthunkaudit.so"
+        pin = self.write(self.tmp / "preloads/x86_64/libvulkan-thunk.so", elf(62) + b"\0libc.so.6\0GLIBC_2.2.5\0")
+        pinned = "/usr/lib/x86_64-linux-gnu/droiddeck/vulkan"
 
         def app(name, glibc=b"GLIBC_2.34\0GLIBC_2.44", glibcxx=b"GLIBCXX_3.4.29\0GLIBCXX_3.4.36", bundled=True):
             run = self.write(self.tmp / name / "AppRun", elf(62), 0o755)
@@ -431,25 +583,32 @@ class LaunchTest(FexTestCase):
                 _, said = self.quiet(FEX["launch"], [str(program)], dict(env or {}), "on", decide)
             return emulated.call_args[0][2], said
 
+        def search(env):
+            return env.get("LD_LIBRARY_PATH", "").split(":")[0]
+
         env, said = started(app("new"))
-        self.assertEqual(env["LD_AUDIT"], audit)
-        self.assertIn("thunks on, its own Vulkan loader too", said)
-        env, _ = started(app("kept"), {"LD_AUDIT": "/opt/audit.so"})
-        self.assertEqual(env["LD_AUDIT"], audit + ":/opt/audit.so")
-        env, _ = started(self.write(self.tmp / "elsewhere/run.sh", "#!/bin/sh\n", 0o755), decide=str(self.tmp / "new"))
-        self.assertEqual(env["LD_AUDIT"], audit)
-        env, said = started(app("old-cxx", glibcxx=b"GLIBCXX_3.4.28"))
+        self.assertEqual(search(env), pinned)
         self.assertNotIn("LD_AUDIT", env)
+        self.assertNotIn("LD_BIND_NOW", env)
+        self.assertIn("thunks on, its own Vulkan loader too", said)
+        env, _ = started(app("kept"), {"LD_LIBRARY_PATH": "/game/lib"})
+        self.assertEqual(env["LD_LIBRARY_PATH"], pinned + ":/game/lib")
+        env, _ = started(self.write(self.tmp / "elsewhere/run.sh", "#!/bin/sh\n", 0o755), decide=str(self.tmp / "new"))
+        self.assertEqual(search(env), pinned)
+        env, said = started(app("old-cxx", glibcxx=b"GLIBCXX_3.4.28"))
+        self.assertNotEqual(search(env), pinned)
         self.assertIn("thunks on)", said)
-        self.assertNotIn("LD_AUDIT", started(app("old-libc", glibc=b"GLIBC_2.31"))[0])
-        self.assertNotIn("LD_AUDIT", started(app("runtime-only", bundled=False))[0])
+        self.assertNotEqual(search(started(app("old-libc", glibc=b"GLIBC_2.31"))[0]), pinned)
+        self.assertNotEqual(search(started(app("runtime-only", bundled=False))[0]), pinned)
         i386 = self.write(self.tmp / "new/game.i386", elf(3), 0o755)
-        self.assertNotIn("LD_AUDIT", started(i386)[0])
+        self.assertNotEqual(search(started(i386)[0]), pinned)
+        self.write(pin, elf(62) + b"\0libc.so.6\0GLIBC_2.45\0")
+        self.assertNotEqual(search(started(app("new"))[0]), pinned)
         pin.unlink()
-        self.assertNotIn("LD_AUDIT", started(app("no-pin"))[0])
+        self.assertNotEqual(search(started(app("no-pin"))[0]), pinned)
         self.write(pin, elf(62))
         (tool / "usr/share/fex-emu/GuestThunks/libvulkan-guest.so").unlink()
-        self.assertNotIn("LD_AUDIT", started(app("no-thunk"))[0])
+        self.assertNotEqual(search(started(app("no-thunk"))[0]), pinned)
 
     def test_steam_verbs(self):
         with mock.patch.dict(G, {"launch": mock.Mock(return_value=0)}):
@@ -499,19 +658,70 @@ class AppInfoTest(unittest.TestCase):
         table = struct.pack("<I", len(strings)) + b"".join(s.encode() + b"\0" for s in strings)
         return struct.pack("<IIq", magic, 1, table_at) + body + table
 
-    def test_linux_only_titles_are_sent_to_fex(self):
+    def test_linux_only_titles_are_sent_to_fex_and_dual_platform_is_deferred(self):
         for magic in (0x07564427, 0x07564428, 0x07564429):
             with tempfile.TemporaryDirectory() as tmp:
                 steam = Path(tmp)
                 (steam / "appcache").mkdir()
                 (steam / "appcache/appinfo.vdf").write_bytes(self.appinfo({
                     10: ("windows", "", "Game"), 20: ("linux", "64", "Game"), 30: ("windows,linux,macos", "", "game"),
-                    40: ("linux", "arm64", "game"), 50: ("linux", "", "Demo"), 70: ("linux", "", "Tool"), 80: ("linux", "", "config"),
+                    40: ("linux", "arm64", "game"), 41: ("windows,linux", "aarch64", "game"),
+                    50: ("linux", "", "Demo"), 70: ("linux", "", "Tool"), 80: ("linux", "", "config"),
                     90: ("linux", "", ""),
                 }, magic))
                 self.COMPAT["APPINFO_CACHE"].clear()
-                targets = self.COMPAT["native_targets"](str(steam), ["10", "20", "30", "40", "50", "70", "80", "90", "1628350", "60"])
-                self.assertEqual(targets, {"20": "droiddeck-fex", "50": "droiddeck-fex"}, hex(magic))
+                targets = self.COMPAT["native_targets"](str(steam), ["10", "20", "30", "40", "41", "50", "70", "80", "90", "1628350", "60"])
+                self.assertEqual(targets, {
+                    "20": "droiddeck-fex", "30": self.COMPAT["NATIVE_CHOICE"],
+                    "40": None, "41": None, "50": "droiddeck-fex",
+                }, hex(magic))
+
+    @staticmethod
+    def manifest(steam, app, flags="4"):
+        (steam / "steamapps").mkdir(exist_ok=True)
+        (steam / ("steamapps/appmanifest_%s.acf" % app)).write_text('"AppState" { "appid" "%s" "StateFlags" "%s" }' % (app, flags))
+
+    def test_dual_platform_titles_keep_the_proton_default_unless_the_user_picks_fex(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            steam = Path(tmp) / "Steam"
+            (steam / "appcache").mkdir(parents=True)
+            (steam / "appcache/appinfo.vdf").write_bytes(self.appinfo({
+                10: ("windows,linux", "", "game"), 20: ("windows,linux", "", "game"), 30: ("windows,linux", "", "game"),
+                40: ("linux", "", "game"),
+            }))
+            self.COMPAT["APPINFO_CACHE"].clear()
+            for app in ("3127680", "1628350", "4183110"):
+                self.manifest(steam, app)
+            tool, fex = self.COMPAT["TOOL"], self.COMPAT["FEX_TOOL"]
+            state = Path(tmp) / "state"
+            state.mkdir()
+            (state / "state.json").write_text(json.dumps({"auto": {"20": fex}}))
+            catalog = [{"name": tool, "display": "Proton Experimental ARM64", "dir": "Proton Experimental (ARM64)", "valve": True}]
+            config = steam / "config/config.vdf"
+            config.parent.mkdir()
+            config.write_text('"InstallConfigStore" { "Software" { "Valve" { "Steam" { "CompatToolMapping" { '
+                              '"0" { "name" "%s" "config" "" "priority" "75" } '
+                              '"20" { "name" "%s" "config" "" "priority" "250" } '
+                              '"30" { "name" "%s" "config" "" "priority" "250" } } } } } }' % (tool, fex, fex))
+            self.COMPAT["register_default"](str(config), ["10", "20", "30", "40"], catalog=catalog, directory=str(state))
+            self.assertEqual(self.COMPAT["read_config_mapping"](str(config)),
+                             {"0": tool, "10": tool, "20": tool, "30": fex, "40": fex})
+
+    def test_tools_are_fetched_until_fully_installed_and_up_to_date(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            steam = Path(tmp)
+            (steam / "steamapps").mkdir()
+            downloads = self.COMPAT["tool_downloads"]
+            self.assertEqual(downloads(str(steam)), [
+                ("4427310", "install"), ("3127680", "install"), ("1628350", "install"), ("4183110", "install")])
+            self.manifest(steam, "4427310", flags="6")
+            self.manifest(steam, "3127680", flags="1026")
+            self.manifest(steam, "1628350", flags="4")
+            (steam / "steamapps/appmanifest_4183110.acf").write_text('"AppState" { "appid" "4183110" }')
+            self.assertEqual(downloads(str(steam)), [("4427310", "update"), ("3127680", "update"), ("4183110", "update")])
+            for app in ("4427310", "3127680", "4183110"):
+                self.manifest(steam, app)
+            self.assertEqual(downloads(str(steam)), [])
 
     def test_titles_with_a_valve_pick_are_found_installed_or_not(self):
         def deck(oslist, runtime, kind="game"):
@@ -545,14 +755,34 @@ class AppInfoTest(unittest.TestCase):
         self.assertEqual(changes, {"30": "GE-Proton11-7", "32": "GE-Proton11-7"})
         self.assertEqual(auto, {"30": "GE-Proton11-7", "32": "GE-Proton11-7"})
 
-    def test_the_mapping_sends_native_titles_to_fex_and_keeps_picks(self):
+    def test_automatic_native_mapping_uses_fex_and_keeps_explicit_tools(self):
         tool, fex = self.COMPAT["TOOL"], self.COMPAT["FEX_TOOL"]
         changes, auto = self.COMPAT["plan_mapping"](
             {"0": tool, "20": "fex", "21": "steamlinuxruntime_sniper", "22": "GE-Proton11-7"},
             ["20", "21", "22", "23", "24"], [tool, "GE-Proton11-7"], tool, {},
             {"20": fex, "21": fex, "22": fex, "23": fex})
-        self.assertEqual(changes, {"20": fex, "21": fex, "23": fex, "24": tool})
-        self.assertEqual(auto, {"20": fex, "21": fex, "23": fex, "24": tool})
+        self.assertEqual(changes, {"23": fex, "24": tool})
+        self.assertEqual(auto, {"23": fex, "24": tool})
+
+    def test_explicit_linux_runtime_and_fex_selections_survive_default_maintenance(self):
+        tool, fex = self.COMPAT["TOOL"], self.COMPAT["FEX_TOOL"]
+        changes, auto = self.COMPAT["plan_mapping"](
+            {"0": tool, "20": "steamlinuxruntime_arm64", "21": fex},
+            ["20", "21"], [tool], tool, {}, {"20": None, "21": fex}, ["20", "21"])
+        self.assertEqual(changes, {})
+        self.assertEqual(auto, {})
+
+    def test_native_arm64_default_stays_unmapped_and_old_auto_proton_is_cleared(self):
+        tool = self.COMPAT["TOOL"]
+        changes, auto = self.COMPAT["plan_mapping"](
+            {"0": tool, "20": tool}, ["20"], [tool], tool, {"20": tool}, {"20": None}, ["20"])
+        self.assertEqual(changes, {"20": None})
+        self.assertEqual(auto, {})
+
+        changes, auto = self.COMPAT["plan_mapping"](
+            {"0": tool}, ["20"], [tool], tool, {}, {"20": None}, ["20"])
+        self.assertEqual(changes, {})
+        self.assertEqual(auto, {})
 
     def test_the_tool_files(self):
         with tempfile.TemporaryDirectory() as tmp:

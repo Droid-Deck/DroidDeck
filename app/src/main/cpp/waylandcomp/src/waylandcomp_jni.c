@@ -18,6 +18,7 @@
 #include "droiddeck_color.h"
 
 extern int droiddeck_wayland_run(void);
+extern void droiddeck_wayland_set_scale_mode(int mode, int alignment);
 extern void droiddeck_wayland_send_pointer(int action, int x, int y);
 extern void droiddeck_wayland_send_touch(int action, int pointer_id, int x, int y);
 extern int  droiddeck_cursor_snapshot(int *out, int cap);
@@ -26,13 +27,13 @@ extern void droiddeck_wayland_send_key(int evdev, int state);
 extern void droiddeck_wayland_send_scene_input(int type, int a, int b);
 extern void droiddeck_wayland_vsync(int64_t frame_time_ns);
 extern void droiddeck_wayland_output_resized(void);
+extern void droiddeck_wayland_set_output_refresh_rate(int mhz);
 extern volatile int g_fps_limit;
 extern volatile int g_hide_shell;
 extern volatile int g_zero_copy;
 extern volatile unsigned g_zero_copy_last;
 extern volatile int g_ubwc;
 extern volatile int g_no_render_node;
-extern volatile int g_output_refresh_mhz;
 extern volatile int g_output_w, g_output_h;
 
 #define TAG "DroidDeckWayland"
@@ -327,7 +328,7 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetLayerFrameRate(JN
 
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetOutputRefreshRate(JNIEnv *env, jclass clazz, jfloat hz) {
-    g_output_refresh_mhz = hz > 1.0f ? (int)(hz * 1000.0f + 0.5f) : 0;
+    droiddeck_wayland_set_output_refresh_rate(hz > 1.0f ? (int)(hz * 1000.0f + 0.5f) : 0);
 }
 
 extern void vkp_reset_first_frame(void);
@@ -341,6 +342,7 @@ JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetOutputSize(JNIEnv *env, jclass clazz, jint w, jint h) {
     g_output_w = w > 0 ? w : 0;
     g_output_h = h > 0 ? h : 0;
+    vkp_cardboard_set_render_height(h);
 }
 
 JNIEXPORT void JNICALL
@@ -349,15 +351,25 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeResizeOutput(JNIEnv 
     if (w <= 0 || h <= 0) return;
     g_output_w = w;
     g_output_h = h;
+    vkp_cardboard_set_render_height(h);
     droiddeck_wayland_output_resized();
 }
 
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetScaleMode(JNIEnv *env, jclass clazz, jint mode, jint alignment) {
-    vk_present_set_scale_mode(mode, alignment);
+    droiddeck_wayland_set_scale_mode(mode, alignment);
     __android_log_print(ANDROID_LOG_INFO, TAG, "scale mode %d alignment %d", mode, alignment);
 }
 
+
+JNIEXPORT jboolean JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeGamePictureRect(JNIEnv *env, jclass clazz, jfloatArray out) {
+    if (!out || (*env)->GetArrayLength(env, out) < 4) return JNI_FALSE;
+    float rect[4];
+    if (!vkp_game_picture_rect(rect)) return JNI_FALSE;
+    (*env)->SetFloatArrayRegion(env, out, 0, 4, rect);
+    return JNI_TRUE;
+}
 
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetUpscaler(JNIEnv *env, jclass clazz, jint mode) {
@@ -392,10 +404,11 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetScreenEffects(JNI
 
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetCardboard(JNIEnv *env, jclass clazz, jboolean enabled,
-        jint source, jfloat ipd, jfloat dist, jfloat width, jfloat k1, jfloat k2, jfloat fov, jfloat inset, jfloat chroma) {
+        jint source, jfloat ipd, jfloat dist, jfloat width, jfloat k1, jfloat k2, jfloat fov, jfloat inset, jfloat chroma,
+        jboolean mono, jfloat hz) {
     struct cardboard_params p = {.enabled = enabled ? 1 : 0, .source = source, .ipd_m = ipd, .screen_dist_m = dist,
                                  .screen_width_m = width, .k1 = k1, .k2 = k2, .fov_deg = fov, .lens_inset = inset,
-                                 .chroma = chroma};
+                                 .chroma = chroma, .mono = mono ? 1 : 0, .display_hz = hz};
     vkp_cardboard_set(&p);
 }
 
@@ -582,6 +595,12 @@ static char *dup_bytes(JNIEnv *env, jbyteArray arr, int *len) {
     return buf;
 }
 
+JNIEXPORT jboolean JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeWaitSurface(
+        JNIEnv *env, jclass clazz, jint timeout_ms) {
+    return vkp_wait_window_request(timeout_ms) ? JNI_TRUE : JNI_FALSE;
+}
+
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetClipboardText(JNIEnv *env, jclass clazz, jbyteArray utf8) {
     int len;
@@ -629,4 +648,15 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeRaisePriority(JNIEnv
     errno = 0;
     int after = getpriority(PRIO_PROCESS, (id_t)tid);
     return after == -1 && errno != 0 ? 100 : after;
+}
+
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetCardboardSpatialPose(JNIEnv *env, jclass clazz,
+        jfloatArray rot, jfloatArray pos, jboolean live) {
+    (void)clazz;
+    if (!rot || !pos || (*env)->GetArrayLength(env, rot) != 9 || (*env)->GetArrayLength(env, pos) != 3) return;
+    float m[9], p[3];
+    (*env)->GetFloatArrayRegion(env, rot, 0, 9, m);
+    (*env)->GetFloatArrayRegion(env, pos, 0, 3, p);
+    vkp_cardboard_set_spatial_pose(m, p, live ? 1 : 0);
 }

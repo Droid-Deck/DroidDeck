@@ -19,6 +19,7 @@ public final class PadBridge {
     private static final float DEAD_ZONE = 0.12f;
     private static final int[] JOYSTICK_AXES = {
             MotionEvent.AXIS_X, MotionEvent.AXIS_Y, MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ,
+            MotionEvent.AXIS_RX, MotionEvent.AXIS_RY,
             MotionEvent.AXIS_HAT_X, MotionEvent.AXIS_HAT_Y, MotionEvent.AXIS_LTRIGGER,
             MotionEvent.AXIS_RTRIGGER, MotionEvent.AXIS_BRAKE, MotionEvent.AXIS_GAS
     };
@@ -29,6 +30,7 @@ public final class PadBridge {
             KeyEvent.KEYCODE_BUTTON_THUMBL, KeyEvent.KEYCODE_BUTTON_THUMBR,
             KeyEvent.KEYCODE_BUTTON_MODE, KeyEvent.KEYCODE_BUTTON_L2, KeyEvent.KEYCODE_BUTTON_R2
     };
+    private static final int[] ROUTED_PASS_THROUGH = {PadState.GUIDE, PadState.QAM, PadState.SELECT};
     private static final long QAM_GUIDE_LEAD_MIN_MS = 80;
     private static final long QAM_GUIDE_LEAD_MAX_MS = 1500;
     private static final int QAM_GUIDE_LEAD_FRAMES = 8;
@@ -45,16 +47,21 @@ public final class PadBridge {
     private final FakeInputWriter writer;
     private final PadState state = new PadState();
     private final int[] owners = new int[SLOTS];
+    private final int[] partners = new int[SLOTS];
+    private volatile java.util.function.IntPredicate excluded = id -> false;
     private final FakeInputWriter[] playerWriters = new FakeInputWriter[SLOTS];
     private final PadState[] playerStates = new PadState[SLOTS];
     private final PadState effectiveState = new PadState();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private boolean open;
     private volatile boolean selectSteam;
+    private TouchRoute touchRoute;
+    private final PadState routedTouch = new PadState();
     private boolean systemGuidePressed;
     private boolean systemQamPressed;
     private boolean qamChordActive;
-    private boolean qamSyntheticAPressed;
+    private int chordButton = -1;
+    private boolean chordButtonPressed;
     private boolean qamTapPressed;
     private int qamChordGeneration;
     private volatile Runnable onPlayerInput;
@@ -70,8 +77,10 @@ public final class PadBridge {
     public static final int NO_CONTROLLER = -1;
     private static volatile int activeControllerId = NO_CONTROLLER;
     private static final AtomicIntegerArray slotControllers = new AtomicIntegerArray(SLOTS);
+    private static final AtomicIntegerArray slotJoyCons = new AtomicIntegerArray(SLOTS * 2);
     static {
         for (int slot = 0; slot < SLOTS; slot++) slotControllers.set(slot, NO_CONTROLLER);
+        for (int i = 0; i < SLOTS * 2; i++) slotJoyCons.set(i, NO_CONTROLLER);
     }
 
     public static int activeControllerId() { return activeControllerId; }
@@ -80,15 +89,25 @@ public final class PadBridge {
         return slot >= 0 && slot < SLOTS ? slotControllers.get(slot) : activeControllerId;
     }
 
+    public static int joyConForSlot(int slot, int side) {
+        return slot >= 0 && slot < SLOTS && (side == JoyCon.LEFT || side == JoyCon.RIGHT)
+                ? slotJoyCons.get(slot * 2 + side) : NO_CONTROLLER;
+    }
+
     public PadBridge(File fakeInputDir) {
         this.fakeInputDir = fakeInputDir;
         writer = new FakeInputWriter(fakeInputDir.getAbsolutePath(), 0);
         Arrays.fill(owners, NO_CONTROLLER);
+        Arrays.fill(partners, NO_CONTROLLER);
         for (int slot = 1; slot < SLOTS; slot++) playerStates[slot] = new PadState();
     }
 
     public void setSelectSteam(boolean on) {
         selectSteam = on;
+    }
+
+    public void setExcluded(java.util.function.IntPredicate devices) {
+        excluded = devices;
     }
 
     public synchronized boolean start() {
@@ -100,10 +119,13 @@ public final class PadBridge {
     }
 
     public synchronized void stop() {
+        releaseBackPaddles();
         activeControllerId = NO_CONTROLLER;
         for (int slot = 0; slot < SLOTS; slot++) {
             owners[slot] = NO_CONTROLLER;
+            partners[slot] = NO_CONTROLLER;
             slotControllers.set(slot, NO_CONTROLLER);
+            clearJoyCons(slot);
             if (playerWriters[slot] != null) {
                 playerWriters[slot].destroy();
                 playerWriters[slot] = null;
@@ -113,7 +135,7 @@ public final class PadBridge {
         systemGuidePressed = false;
         systemQamPressed = false;
         qamChordActive = false;
-        qamSyntheticAPressed = false;
+        chordButtonPressed = false;
         qamTapPressed = false;
         qamChordGeneration++;
         if (open) {
@@ -203,7 +225,7 @@ public final class PadBridge {
     public synchronized void syncConnectedControllers() {
         for (int deviceId : InputDevice.getDeviceIds()) {
             InputDevice device = InputDevice.getDevice(deviceId);
-            if (isFromController(device)) publish(slotFor(device));
+            if (isFromController(device) && !excluded.test(deviceId)) publish(slotFor(device));
         }
     }
 
@@ -221,8 +243,10 @@ public final class PadBridge {
     }
 
     public synchronized boolean onKeyEvent(KeyEvent event) {
-        if (!isControllerKeyEvent(event)) return false;
+        if (!isControllerKeyEvent(event) || excluded.test(event.getDeviceId())) return false;
         int slot = slotFor(event.getDevice());
+        int side = JoyCon.side(event.getDevice());
+        if (side >= 0 && partners[slot] != NO_CONTROLLER && JoyCon.isRail(side, event.getScanCode())) return true;
         PadState pad = stateFor(slot);
         boolean pressed = event.getAction() == KeyEvent.ACTION_DOWN;
         switch (event.getKeyCode()) {
@@ -243,6 +267,12 @@ public final class PadBridge {
             case KeyEvent.KEYCODE_BUTTON_THUMBR: pad.press(9, pressed); break;
             case KeyEvent.KEYCODE_BUTTON_MODE:
             case KeyEvent.KEYCODE_HOME: pad.press(PadState.GUIDE, pressed); break;
+            case KeyEvent.KEYCODE_BUTTON_Z:
+                if (isPrimary(event)) DeckControls.INSTANCE.setGrip(DeckControls.L4, pressed);
+                break;
+            case KeyEvent.KEYCODE_BUTTON_C:
+                if (isPrimary(event)) DeckControls.INSTANCE.setGrip(DeckControls.R4, pressed);
+                break;
             case KeyEvent.KEYCODE_BUTTON_L2: pad.leftTrigger = pressed ? 1f : 0f; break;
             case KeyEvent.KEYCODE_BUTTON_R2: pad.rightTrigger = pressed ? 1f : 0f; break;
             case KeyEvent.KEYCODE_DPAD_UP: pad.up = pressed; break;
@@ -260,21 +290,37 @@ public final class PadBridge {
     }
 
     public synchronized boolean onMotionEvent(MotionEvent event) {
-        if (!isControllerMotionEvent(event)) return false;
+        if (!isControllerMotionEvent(event) || excluded.test(event.getDeviceId())) return false;
         if (event.getAction() != MotionEvent.ACTION_MOVE) return false;
         int slot = slotFor(event.getDevice());
         PadState pad = stateFor(slot);
         noteDevice(event.getDevice(), slot);
         statAxes++;
         scheduleStats();
+        InputDevice device = event.getDevice();
+        int side = JoyCon.side(device);
+        if (side >= 0) {
+            int[] stick = JoyCon.stickAxes(side, device, event.getSource());
+            float x = axis(event, stick[0]);
+            float y = axis(event, stick[1]);
+            if (side == JoyCon.LEFT) {
+                pad.leftX = x;
+                pad.leftY = y;
+            } else {
+                pad.rightX = x;
+                pad.rightY = y;
+            }
+            if (Math.max(Math.abs(x), Math.abs(y)) > 0.5f) notePlayerInput();
+            publish(slot);
+            return true;
+        }
         pad.leftX = axis(event, MotionEvent.AXIS_X);
         pad.leftY = axis(event, MotionEvent.AXIS_Y);
-        pad.rightX = axis(event, MotionEvent.AXIS_Z);
-        pad.rightY = axis(event, MotionEvent.AXIS_RZ);
-        float lt = event.getAxisValue(MotionEvent.AXIS_LTRIGGER);
-        float rt = event.getAxisValue(MotionEvent.AXIS_RTRIGGER);
-        if (lt == 0f) lt = event.getAxisValue(MotionEvent.AXIS_BRAKE);
-        if (rt == 0f) rt = event.getAxisValue(MotionEvent.AXIS_GAS);
+        boolean wired = wiredXboxLayout(event);
+        pad.rightX = rightX(event, wired);
+        pad.rightY = rightY(event, wired);
+        float lt = leftTrigger(event, wired);
+        float rt = rightTrigger(event, wired);
         pad.leftTrigger = lt;
         pad.rightTrigger = rt;
         float hatX = event.getAxisValue(MotionEvent.AXIS_HAT_X);
@@ -291,7 +337,36 @@ public final class PadBridge {
         return true;
     }
 
+    public interface TouchRoute {
+        boolean active();
+
+        void accept(PadState state);
+    }
+
+    public synchronized void setTouchRoute(TouchRoute route) {
+        touchRoute = route;
+        routedTouch.clear();
+    }
+
     public synchronized void applyTouch(java.util.function.Consumer<PadState> mutation) {
+        if (touchRoute != null && touchRoute.active()) {
+            mutation.accept(routedTouch);
+            touchRoute.accept(routedTouch);
+            boolean changed = false;
+            for (int button : ROUTED_PASS_THROUGH) {
+                boolean down = routedTouch.isDown(button);
+                if (state.isDown(button) == down) continue;
+                state.press(button, down);
+                changed = true;
+            }
+            if (changed) {
+                activeControllerId = NO_CONTROLLER;
+                slotControllers.set(0, NO_CONTROLLER);
+                publish();
+            }
+            return;
+        }
+        routedTouch.clear();
         mutation.accept(state);
         activeControllerId = NO_CONTROLLER;
         slotControllers.set(0, NO_CONTROLLER);
@@ -317,11 +392,13 @@ public final class PadBridge {
         boolean qamStarted = qamPressed && !systemQamPressed;
         systemGuidePressed = guidePressed;
         systemQamPressed = qamPressed;
-        if (qamStarted && !nativeQam()) startQamChord();
+        if (qamStarted && !nativeQam()) startChord(PadState.A);
         else publish();
     }
 
     public synchronized void releaseAll() {
+        routedTouch.clear();
+        releaseBackPaddles();
         state.clear();
         publish();
         for (int slot = 1; slot < SLOTS; slot++) {
@@ -333,7 +410,7 @@ public final class PadBridge {
 
     public synchronized void onDeviceRemoved(int deviceId) {
         for (int slot = 0; slot < SLOTS; slot++) {
-            if (owners[slot] == deviceId) free(slot);
+            if (owners[slot] == deviceId || partners[slot] == deviceId) leave(slot, deviceId);
         }
     }
 
@@ -343,7 +420,7 @@ public final class PadBridge {
 
     public synchronized void triggerQam() {
         if (!nativeQam()) {
-            startQamChord();
+            startChord(PadState.A);
             return;
         }
         if (qamTapPressed) return;
@@ -359,12 +436,17 @@ public final class PadBridge {
         publish();
     }
 
-    private void startQamChord() {
+    public synchronized void triggerSteamKeyboard() {
+        startChord(PadState.X);
+    }
+
+    private void startChord(int button) {
         if (qamChordActive) return;
         qamChordActive = true;
+        chordButton = button;
         int generation = ++qamChordGeneration;
         publish();
-        chordHandler.postDelayed(() -> pressQamA(generation), qamGuideLeadMs());
+        chordHandler.postDelayed(() -> pressChordButton(generation), qamGuideLeadMs());
     }
 
     static long qamGuideLeadMs() {
@@ -373,16 +455,16 @@ public final class PadBridge {
         return Math.max(QAM_GUIDE_LEAD_MIN_MS, Math.min(QAM_GUIDE_LEAD_MAX_MS, frame * QAM_GUIDE_LEAD_FRAMES));
     }
 
-    private synchronized void pressQamA(int generation) {
+    private synchronized void pressChordButton(int generation) {
         if (generation != qamChordGeneration || !qamChordActive) return;
-        qamSyntheticAPressed = true;
+        chordButtonPressed = true;
         publish();
-        chordHandler.postDelayed(() -> releaseQamA(generation), QAM_A_HOLD_MS);
+        chordHandler.postDelayed(() -> releaseChordButton(generation), QAM_A_HOLD_MS);
     }
 
-    private synchronized void releaseQamA(int generation) {
+    private synchronized void releaseChordButton(int generation) {
         if (generation != qamChordGeneration || !qamChordActive) return;
-        qamSyntheticAPressed = false;
+        chordButtonPressed = false;
         publish();
         chordHandler.postDelayed(() -> releaseQamGuide(generation), QAM_GUIDE_TAIL_MS);
     }
@@ -395,12 +477,26 @@ public final class PadBridge {
 
     private int slotFor(InputDevice device) {
         int id = device.getId();
-        if (owners[0] == id) return 0;
+        if (owners[0] == id || partners[0] == id) return 0;
         for (int slot = 1; slot < SLOTS; slot++) {
-            if (owners[slot] == id) return slot;
+            if (owners[slot] == id || partners[slot] == id) return slot;
         }
         for (int slot = 0; slot < SLOTS; slot++) {
-            if (owners[slot] != NO_CONTROLLER && InputDevice.getDevice(owners[slot]) == null) free(slot);
+            if (partners[slot] != NO_CONTROLLER && InputDevice.getDevice(partners[slot]) == null) leave(slot, partners[slot]);
+            if (owners[slot] != NO_CONTROLLER && InputDevice.getDevice(owners[slot]) == null) leave(slot, owners[slot]);
+        }
+        int side = JoyCon.side(device);
+        for (int slot = 0; side >= 0 && slot < SLOTS; slot++) {
+            if (owners[slot] == NO_CONTROLLER || partners[slot] != NO_CONTROLLER) continue;
+            InputDevice owner = InputDevice.getDevice(owners[slot]);
+            if (JoyCon.side(owner) != 1 - side) continue;
+            partners[slot] = id;
+            slotJoyCons.set(slot * 2 + side, id);
+            slotJoyCons.set(slot * 2 + 1 - side, owner.getId());
+            if (slot == 0) releaseBackPaddles();
+            stateFor(slot).clear();
+            Log.i(TAG, "\"" + device.getName() + "\" (id " + id + ") joins \"" + owner.getName() + "\" as player " + (slot + 1));
+            return slot;
         }
         for (int slot = 0; slot < SLOTS; slot++) {
             if (owners[slot] != NO_CONTROLLER) continue;
@@ -415,11 +511,45 @@ public final class PadBridge {
         return slot == 0 ? state : playerStates[slot];
     }
 
+    private boolean isPrimary(KeyEvent event) {
+        int id = event.getDevice().getId();
+        return owners[0] == id || partners[0] == id;
+    }
+
+    private void releaseBackPaddles() {
+        DeckControls.INSTANCE.setGrip(DeckControls.L4, false);
+        DeckControls.INSTANCE.setGrip(DeckControls.R4, false);
+    }
+
+    private void leave(int slot, int id) {
+        if (partners[slot] == NO_CONTROLLER) {
+            free(slot);
+            return;
+        }
+        Log.i(TAG, "player " + (slot + 1) + " Joy-Con (id " + id + ") left");
+        if (owners[slot] == id) owners[slot] = partners[slot];
+        partners[slot] = NO_CONTROLLER;
+        clearJoyCons(slot);
+        if (slotControllers.get(slot) == id) slotControllers.set(slot, owners[slot]);
+        if (activeControllerId == id) activeControllerId = owners[slot];
+        if (slot == 0) releaseBackPaddles();
+        stateFor(slot).clear();
+        publish(slot);
+    }
+
+    private static void clearJoyCons(int slot) {
+        slotJoyCons.set(slot * 2, NO_CONTROLLER);
+        slotJoyCons.set(slot * 2 + 1, NO_CONTROLLER);
+    }
+
     private void free(int slot) {
         Log.i(TAG, "player " + (slot + 1) + " (id " + owners[slot] + ") left");
         owners[slot] = NO_CONTROLLER;
+        partners[slot] = NO_CONTROLLER;
+        clearJoyCons(slot);
         slotControllers.set(slot, NO_CONTROLLER);
         if (slot == 0) {
+            releaseBackPaddles();
             state.clear();
             publish();
             return;
@@ -491,8 +621,39 @@ public final class PadBridge {
         effectiveState.copyFrom(state);
         if (guide) effectiveState.press(PadState.GUIDE, true);
         if (qam) effectiveState.press(PadState.QAM, true);
-        if (qamSyntheticAPressed) effectiveState.press(PadState.A, true);
+        if (chordButtonPressed) effectiveState.press(chordButton, true);
         writer.writePad(effectiveState);
+    }
+
+    public static boolean wiredXboxLayout(MotionEvent event) {
+        InputDevice device = event.getDevice();
+        return device != null
+                && ((device.getVendorId() == 0x20d6 && device.getProductId() == 0x2063)
+                || (device.getVendorId() == 0x0e6f && device.getProductId() == 0x02f0))
+                && device.getMotionRange(MotionEvent.AXIS_RX, event.getSource()) != null
+                && device.getMotionRange(MotionEvent.AXIS_RY, event.getSource()) != null
+                && device.getMotionRange(MotionEvent.AXIS_Z, event.getSource()) != null
+                && device.getMotionRange(MotionEvent.AXIS_RZ, event.getSource()) != null;
+    }
+
+    public static float rightX(MotionEvent event, boolean wired) {
+        return axis(event, wired ? MotionEvent.AXIS_RX : MotionEvent.AXIS_Z);
+    }
+
+    public static float rightY(MotionEvent event, boolean wired) {
+        return axis(event, wired ? MotionEvent.AXIS_RY : MotionEvent.AXIS_RZ);
+    }
+
+    public static float leftTrigger(MotionEvent event, boolean wired) {
+        if (wired) return Math.max(0f, Math.min(1f, (event.getAxisValue(MotionEvent.AXIS_Z) + 1f) / 2f));
+        float value = event.getAxisValue(MotionEvent.AXIS_LTRIGGER);
+        return value != 0f ? value : event.getAxisValue(MotionEvent.AXIS_BRAKE);
+    }
+
+    public static float rightTrigger(MotionEvent event, boolean wired) {
+        if (wired) return Math.max(0f, Math.min(1f, (event.getAxisValue(MotionEvent.AXIS_RZ) + 1f) / 2f));
+        float value = event.getAxisValue(MotionEvent.AXIS_RTRIGGER);
+        return value != 0f ? value : event.getAxisValue(MotionEvent.AXIS_GAS);
     }
 
     private static float axis(MotionEvent event, int axis) {

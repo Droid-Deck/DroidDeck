@@ -89,6 +89,7 @@ import com.droiddeck.launcher.stores.download.DownloadQueue
 import com.droiddeck.launcher.stores.download.DownloadStage
 import com.droiddeck.launcher.stores.download.DownloadState
 import com.droiddeck.launcher.stores.download.StoreDownloadTier
+import com.droiddeck.launcher.stores.epic.EpicClient
 import com.droiddeck.launcher.stores.formatBytes
 import com.droiddeck.launcher.stores.formatSpeed
 
@@ -215,7 +216,7 @@ private fun FinishedRow(d: DownloadEntry, s: FrontEndState, a: FrontEndActions, 
         Text(stringResource(if (d.state == DownloadState.INSTALLED) R.string.stores_installed_chip else R.string.stores_dl_cancelled), fontSize = 12.sp, color = Color.White.copy(alpha = 0.72f), maxLines = 1)
         Spacer(Modifier.weight(1f))
         if (d.state == DownloadState.INSTALLED) Box(Modifier.bloomIn(bloom, GATHER_HOLD_MS + 150)) {
-            RoundAction(Icons.Filled.PlayArrow, stringResource(R.string.stores_play), primary = true) { launchStoreGame(ctx, d.store, d.id, s, a) }
+            RoundAction(Icons.Filled.PlayArrow, stringResource(R.string.stores_play), primary = true) { if (d.key == EpicClient.DOWNLOAD_KEY) a.onEpicLauncher() else launchStoreGame(ctx, d.store, d.id, s, a) }
         }
     }
 }
@@ -305,6 +306,7 @@ private fun Modifier.timeRim(left: () -> Float, color: Color): Modifier = drawWi
 @Composable
 private fun DownloadCard(d: DownloadEntry, s: FrontEndState, a: FrontEndActions) {
     val ctx = LocalContext.current
+    val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val narrow = LocalNarrowPane.current
     val ink = Color.White
@@ -326,7 +328,11 @@ private fun DownloadCard(d: DownloadEntry, s: FrontEndState, a: FrontEndActions)
                     val meta = when (d.state) {
                         DownloadState.INSTALLED -> stringResource(R.string.stores_installed_chip)
                         DownloadState.CANCELLED -> stringResource(R.string.stores_dl_cancelled)
-                        DownloadState.FAILED -> if (d.bytesDone > 0) stringResource(R.string.stores_dl_failed_kept, formatBytes(d.bytesDone)) else stringResource(R.string.stores_dl_failed)
+                        DownloadState.FAILED -> {
+                            if (!d.error.isNullOrBlank()) stringResource(R.string.stores_dl_failed_reason, d.error)
+                            else if (d.bytesDone > 0) stringResource(R.string.stores_dl_failed_kept, formatBytes(d.bytesDone))
+                            else stringResource(R.string.stores_dl_failed)
+                        }
                         DownloadState.PAUSED -> stringResource(R.string.stores_dl_paused)
                         DownloadState.QUEUED -> if (d.queuePosition > 0) stringResource(R.string.stores_dl_queued_at, d.queuePosition) else stringResource(R.string.stores_dl_queued)
                         DownloadState.RUNNING -> {
@@ -338,7 +344,8 @@ private fun DownloadCard(d: DownloadEntry, s: FrontEndState, a: FrontEndActions)
                             }
                         }
                     }
-                    Text(meta, fontSize = 12.sp, color = dim, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    val metaColor = if (d.state == DownloadState.FAILED) colors.error else dim
+                    Text(meta, fontSize = 12.sp, color = metaColor, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                     if (d.state == DownloadState.RUNNING && (d.stage == DownloadStage.DOWNLOAD || d.stage == DownloadStage.INSTALL) && d.speedBps > 0) {
                         Text(formatSpeed(d.speedBps), fontSize = 12.sp, color = dim, maxLines = 1)
                         if (d.etaSeconds >= 0) Text(eta(d.etaSeconds), fontSize = 12.sp, color = dim, maxLines = 1)
@@ -355,9 +362,12 @@ private fun DownloadCard(d: DownloadEntry, s: FrontEndState, a: FrontEndActions)
                         RoundAction(Icons.Filled.PlayArrow, stringResource(R.string.stores_dl_resume), primary = true) { DownloadQueue.resume(ctx, d.key) }
                         CancelAction { DownloadQueue.cancel(ctx, d.key) }
                     }
-                    DownloadState.FAILED -> RoundAction(Icons.Filled.Refresh, stringResource(R.string.stores_dl_resume), primary = true) { DownloadQueue.retry(ctx, d.key) }
+                    DownloadState.FAILED -> {
+                        RoundAction(Icons.Filled.Refresh, stringResource(R.string.stores_dl_resume), primary = true) { DownloadQueue.retry(ctx, d.key) }
+                        CancelAction { DownloadQueue.clear(ctx, d.key) }
+                    }
                     DownloadState.INSTALLED -> Box(Modifier.bloomIn(true, 420)) {
-                        RoundAction(Icons.Filled.PlayArrow, stringResource(R.string.stores_play), primary = true) { launchStoreGame(ctx, d.store, d.id, s, a) }
+                        RoundAction(Icons.Filled.PlayArrow, stringResource(R.string.stores_play), primary = true) { if (d.key == EpicClient.DOWNLOAD_KEY) a.onEpicLauncher() else launchStoreGame(ctx, d.store, d.id, s, a) }
                     }
                     DownloadState.CANCELLED -> {}
                 }
@@ -411,6 +421,7 @@ private fun StageBar(d: DownloadEntry) {
                 val x = i * (segW + gap)
                 drawRoundRect(colors.surfaceVariant, Offset(x, cy - h / 2f), Size(segW, h), CornerRadius(h / 2f))
                 val base = when {
+                    d.state == DownloadState.FAILED -> colors.error
                     done[i] -> pal.good
                     actives[i] && paused -> pausedColor.copy(alpha = breath)
                     actives[i] && stages[i] == DownloadStage.VERIFY -> verifyColor

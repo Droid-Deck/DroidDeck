@@ -24,6 +24,22 @@ object QuestExperimental {
     fun isSupported(): Boolean = supported(Build.MODEL, Build.DEVICE, Build.MANUFACTURER)
     fun isQuest2(): Boolean = quest2(Build.MODEL, Build.DEVICE, Build.MANUFACTURER)
 
+    fun defaultAndroidDriver(): String? = when {
+        !isSupported() -> null
+        isQuest2() -> DRIVER_A6XX
+        else -> DRIVER
+    }
+
+    fun applyAutoDrivers(context: Context): Boolean {
+        if (SessionPrefs.gpuDriverMode(context) != SessionPrefs.GPU_DRIVERS_AUTO) return false
+        val driver = defaultAndroidDriver() ?: return false
+        context.getSharedPreferences("session", Context.MODE_PRIVATE).edit()
+            .putString("androidDriver", driver)
+            .putString("linuxDriver", "")
+            .apply()
+        return true
+    }
+
     fun initialize(context: Context) {
         if (!isSupported()) return
         val prefs = context.getSharedPreferences("session", Context.MODE_PRIVATE)

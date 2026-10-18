@@ -6,6 +6,7 @@ import java.nio.file.LinkOption.NOFOLLOW_LINKS
 import java.nio.file.StandardCopyOption.COPY_ATTRIBUTES
 import java.security.MessageDigest
 import java.util.Locale
+import java.util.UUID
 
 object SecondaryLibrary {
     private val bootstrapTools = linkedMapOf(
@@ -16,6 +17,34 @@ object SecondaryLibrary {
         "3127680" to "FEX-Emu",
     )
 
+    fun contentPath(library: File): File {
+        val path = library.absolutePath
+        if (!path.startsWith("/storage/")) return library
+        val candidate = File("/mnt/media_rw/" + path.removePrefix("/storage/"))
+        return verifiedAlias(library, candidate)
+    }
+
+    internal fun verifiedAlias(
+        library: File,
+        candidate: File,
+        readableAndWritable: (File) -> Boolean = { it.canRead() && it.canWrite() },
+    ): File {
+        if (!candidate.isDirectory || !readableAndWritable(candidate)) return library
+        var probe: File? = null
+        return try {
+            val created = File.createTempFile(".droiddeck-path-", ".probe", candidate)
+            probe = created
+            val token = UUID.randomUUID().toString()
+            created.writeText(token)
+            val visible = File(library, created.name)
+            if (visible.readText() == token && visible.delete() && !created.exists()) candidate else library
+        } catch (_: Exception) {
+            library
+        } finally {
+            probe?.delete()
+        }
+    }
+
     fun privateRoot(files: File, library: File): File {
         val digest = MessageDigest.getInstance("SHA-256").digest(library.canonicalPath.toByteArray())
             .joinToString("") { "%02x".format(it.toInt() and 255) }
@@ -24,7 +53,7 @@ object SecondaryLibrary {
 
     val CARD_GUESTS = listOf("/mnt/droiddeck-sd", "/mnt/bannerlator-sd")
 
-    fun binds(files: File, library: File, guests: List<String> = CARD_GUESTS): List<String> {
+    fun binds(files: File, library: File, guests: List<String> = CARD_GUESTS, content: File = library): List<String> {
         val private = privateRoot(files, library)
         val apps = File(library, "steamapps")
         val tools = LinkedHashMap(bootstrapTools)
@@ -52,7 +81,7 @@ object SecondaryLibrary {
             }
         }
         return guests.flatMap { guest ->
-            listOf("${library.path}:$guest") + overrides.map { (host, relative) -> "${host.path}:$guest/$relative" }
+            listOf("${content.path}:$guest") + overrides.map { (host, relative) -> "${host.path}:$guest/$relative" }
         }
     }
 

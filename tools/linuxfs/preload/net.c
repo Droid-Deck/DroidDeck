@@ -6,6 +6,7 @@
 #include <linux/netlink.h>
 #include <netinet/in.h>
 #include <stdio.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -262,6 +263,7 @@ __attribute__((visibility("hidden"))) void bl_binfmt_before(const char *path, ch
 __attribute__((visibility("hidden"))) int bl_binfmt_retry(const char *path, char *const argv[], char *const envp[], int error);
 __attribute__((visibility("hidden"))) void bl_binfmt_before_search(const char *file, char *const argv[], char *const envp[]);
 __attribute__((visibility("hidden"))) int bl_binfmt_after_search(const char *file, char *const argv[], char *const envp[], int error);
+__attribute__((visibility("hidden"))) char *const *bl_webhelper_argv(const char *path, char *const argv[]);
 __attribute__((visibility("hidden"))) int bl_binfmt_spawn(pid_t *pid, const char *path, const posix_spawn_file_actions_t *fa,
                                                           const posix_spawnattr_t *attr, char *const argv[], char *const envp[],
                                                           spawn_fn real);
@@ -308,10 +310,39 @@ static int maybe_answer_lsof(const char *path, char *const argv[]) {
   _exit(0);
 }
 
-int execve(const char *path, char *const argv[], char *const envp[]) {
+static char **web_helper_redirect(const char *path, char *const argv[], const char **launcher) {
+  const char *want = getenv("BL_X64_ARM_WEBHELPER");
+  if (!want || !*want || !path) return NULL;
+  const char *base = strrchr(path, '/');
+  if (strcmp(base ? base + 1 : path, "steamwebhelper") != 0) return NULL;
+  if (!strstr(path, "/steamrt64/")) {
+    char cwd[PATH_MAX];
+    size_t n;
+    if (path[0] == '/' || !getcwd(cwd, sizeof(cwd))) return NULL;
+    n = strlen(cwd);
+    if (n < 10 || strcmp(cwd + n - 10, "/steamrt64") != 0) return NULL;
+  }
+  int argc = 0;
+  while (argv && argv[argc]) argc++;
+  char **out = calloc((size_t)argc + 2, sizeof(char *));
+  if (!out) return NULL;
+  out[0] = (char *)want;
+  for (int i = 1; i < argc; i++) out[i] = argv[i];
+  *launcher = want;
+  return out;
+}
+
+int execve(const char *path, char *const argv_in[], char *const envp[]) {
+  char *const *argv = bl_webhelper_argv(path, argv_in);
   static int (*real)(const char *, char *const[], char *const[]);
   if (!real) real = (int (*)(const char *, char *const[], char *const[]))dlsym(RTLD_NEXT, "execve");
   maybe_answer_lsof(path, argv);
+  const char *launcher = NULL;
+  char **redirected = web_helper_redirect(path, argv, &launcher);
+  if (redirected) {
+    real(launcher, redirected, envp);
+    free(redirected);
+  }
   bl_binfmt_before(path, argv, envp);
   real(path, argv, envp);
   return bl_binfmt_retry(path, argv, envp, errno);
@@ -332,7 +363,8 @@ static int answer_lsof_via_spawn(const char *path, char *const argv[], pid_t *pi
   return 0;
 }
 
-int execvp(const char *file, char *const argv[]) {
+int execvp(const char *file, char *const argv_in[]) {
+  char *const *argv = bl_webhelper_argv(file, argv_in);
   static int (*real)(const char *, char *const[]);
   if (!real) real = (int (*)(const char *, char *const[]))dlsym(RTLD_NEXT, "execvp");
   maybe_answer_lsof(file, argv);
@@ -341,10 +373,17 @@ int execvp(const char *file, char *const argv[]) {
   return bl_binfmt_after_search(file, argv, environ, errno);
 }
 
-int execv(const char *path, char *const argv[]) {
+int execv(const char *path, char *const argv_in[]) {
+  char *const *argv = bl_webhelper_argv(path, argv_in);
   static int (*real)(const char *, char *const[]);
   if (!real) real = (int (*)(const char *, char *const[]))dlsym(RTLD_NEXT, "execv");
   maybe_answer_lsof(path, argv);
+  const char *launcher = NULL;
+  char **redirected = web_helper_redirect(path, argv, &launcher);
+  if (redirected) {
+    real(launcher, redirected);
+    free(redirected);
+  }
   bl_binfmt_before(path, argv, environ);
   real(path, argv);
   return bl_binfmt_retry(path, argv, environ, errno);

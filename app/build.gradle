@@ -4,6 +4,32 @@ plugins {
 apply plugin: 'kotlin-android'
 apply plugin: 'org.jetbrains.kotlin.plugin.compose'
 
+// Machine-specific tooling and optional CI-prepared inputs stay out of version control.
+def localBuildOptions = new Properties()
+def localBuildOptionsFile = rootProject.layout.projectDirectory.file('local.properties')
+if (localBuildOptionsFile.asFile.exists()) {
+    localBuildOptions.load(new StringReader(providers.fileContents(localBuildOptionsFile).asText.get()))
+}
+def pythonExecutable = project.findProperty('pythonExecutable')
+    ?: localBuildOptions.getProperty('droiddeck.python', 'python3')
+def vitureSdkDir = project.hasProperty('vitureSdkDir') ? project.property('vitureSdkDir') : localBuildOptions.getProperty('droiddeck.vitureSdk', '')
+def uvcDir = project.hasProperty('uvcDir') ? project.property('uvcDir') : localBuildOptions.getProperty('droiddeck.uvcDir', '')
+if (uvcDir) {
+    ['arm64-v8a/libusb.so', 'arm64-v8a/libuvc.a', 'include/libusb.h', 'include/libuvc/libuvc.h',
+     'licenses/libusb-COPYING', 'licenses/libuvc-LICENSE.txt'].each { required ->
+        if (!new File(uvcDir, required).isFile()) throw new GradleException("Incomplete UVC build: missing ${required}")
+    }
+}
+if (vitureSdkDir) {
+    ['android/arm64-v8a/libglasses.so', 'android/arm64-v8a/libcarina_vio.so',
+     'android/arm64-v8a/libcloud_protocol.so', 'include/viture_glasses_provider.h',
+     'android/LICENSE', 'android/NOTICE'].each { required ->
+        if (!new File(vitureSdkDir, required).isFile()) {
+            throw new GradleException("Incomplete VITURE Android SDK: missing ${required}")
+        }
+    }
+}
+
 def gitValue = { List<String> arguments ->
     try {
         def output = providers.exec {
@@ -79,8 +105,8 @@ android {
         applicationId "com.droiddeck.launcher"
         minSdkVersion 26
         targetSdkVersion 28
-        versionCode 13
-        versionName "0.4.0"
+        versionCode 14
+        versionName "0.5.0"
         buildConfigField "String", "BUILD_LABEL", "\"${escapedBuildLabel}\""
         buildConfigField "String", "SOURCE_COMMIT", "\"${sourceCommit}\""
         buildConfigField "int", "PR_NUMBER", "${prNumber}"
@@ -100,6 +126,8 @@ android {
         externalNativeBuild {
             cmake {
                 arguments '-DANDROID_STL=c++_shared'
+                arguments "-DDROIDDECK_VITURE_SDK_DIR=${vitureSdkDir.toString().replace('\\', '/')}"
+                arguments "-DDROIDDECK_UVC_DIR=${uvcDir.toString().replace('\\', '/')}"
             }
         }
     }
@@ -128,6 +156,11 @@ android {
         debug {
             minifyEnabled false
             signingConfig signingConfigs.testkey
+            def localSuffix = localBuildOptions.getProperty('droiddeck.debugApplicationIdSuffix')
+            if (localSuffix) {
+                applicationIdSuffix localSuffix
+                resValue 'string', 'app_name', 'DroidDeck XR Dev'
+            }
         }
         release {
             minifyEnabled false
@@ -150,6 +183,7 @@ android {
     }
 
     buildFeatures {
+        prefab true
         compose true
         buildConfig true
     }
@@ -157,6 +191,10 @@ android {
     testOptions {
         unitTests.returnDefaultValues = true
         unitTests.includeAndroidResources = true
+        unitTests.all {
+            def logTarget = providers.systemProperty('robolectric.logging').orNull
+            if (logTarget != null) systemProperty 'robolectric.logging', logTarget
+        }
     }
 
     compileOptions {
@@ -166,6 +204,16 @@ android {
     kotlinOptions {
         jvmTarget = '17'
     }
+}
+
+// Vendor binaries remain in the user's SDK directory; never vendor them into Git.
+if (vitureSdkDir) {
+    android.sourceSets.main.jniLibs.srcDir(new File(vitureSdkDir, 'android'))
+    def stageVitureNotices = tasks.register('stageVitureNotices', Copy) {
+        from(new File(vitureSdkDir, 'android')) { include 'LICENSE', 'NOTICE' }
+        into(layout.buildDirectory.dir('vitureAssets/licenses/viture'))
+    }
+    tasks.named('preBuild').configure { dependsOn(stageVitureNotices) }
 }
 
 def stageSessionScripts = tasks.register('stageSessionScripts', Copy) {
@@ -184,12 +232,21 @@ def stageRuntimeAssets = tasks.register('stageRuntimeAssets', Sync) {
     into(runtimeAssetsDir)
 }
 android.sourceSets.main.assets.setSrcDirs([runtimeAssetsDir])
+if (vitureSdkDir) android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('vitureAssets'))
+if (uvcDir) {
+    def stageUvcNotices = tasks.register('stageUvcNotices', Copy) {
+        from(new File(uvcDir, 'licenses'))
+        into(layout.buildDirectory.dir('uvcAssets/licenses/uvc'))
+    }
+    tasks.named('preBuild').configure { dependsOn(stageUvcNotices) }
+    android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('uvcAssets'))
+}
 tasks.named('preBuild').configure { dependsOn(stageRuntimeAssets) }
 
 def verifyRuntimeInputs = tasks.register('verifyRuntimeInputs', Exec) {
     mustRunAfter(stageSessionScripts, stageRuntimeAssets)
     workingDir rootProject.projectDir
-    commandLine 'python3', 'tools/release/runtime_inputs.py', 'verify'
+    commandLine pythonExecutable, 'tools/release/runtime_inputs.py', 'verify'
 }
 tasks.configureEach { task ->
     if (task.name in ['packageDebug', 'packageRelease']) task.dependsOn(verifyRuntimeInputs)
@@ -197,7 +254,8 @@ tasks.configureEach { task ->
 
 def rustCrateDir = layout.projectDirectory.dir('src/main/rust/stores')
 def rustJniLibsDir = layout.buildDirectory.dir('rustJniLibs')
-def skipRust = (project.findProperty('skipRust') ?: 'false').toString().toBoolean()
+def skipRust = (project.findProperty('skipRust')
+    ?: localBuildOptions.getProperty('droiddeck.skipRust', 'false')).toString().toBoolean()
 def buildRustStores = tasks.register('buildRustStores', Exec) {
     description = 'Cross-compiles the store download engines (libdroiddeckstores.so) with cargo-ndk.'
     onlyIf { !skipRust }
@@ -224,8 +282,24 @@ def buildRustStores = tasks.register('buildRustStores', Exec) {
 if (!skipRust) android.sourceSets.main.jniLibs.srcDir(rustJniLibsDir)
 tasks.named('preBuild').configure { dependsOn(buildRustStores) }
 
+def verifyHandModel = tasks.register('verifyHandModel') {
+    def models = ['hand_landmarker.task': 'fbc2a30080c3c557093b5ddfc334698132eb341044ccee322ccf8bcf3607cde1',
+                  'hand_landmarker_lite.task': '173c0f47ecee7e935bd4a1e93aa580756b4180c1307c07d709313e82c28672c8']
+        .collectEntries { name, hash -> [(file("src/main/assets/models/$name")): hash] }
+    inputs.files(models.keySet())
+    doLast {
+        models.each { model, expected ->
+            def actual = java.security.MessageDigest.getInstance('SHA-256').digest(model.bytes).encodeHex().toString()
+            if (actual != expected) throw new GradleException("Hand Landmarker model checksum mismatch: ${model.name}")
+        }
+    }
+}
+tasks.named('preBuild').configure { dependsOn(verifyHandModel) }
+
 dependencies {
-    implementation 'com.github.luben:zstd-jni:1.5.2-3@aar'
+    implementation 'org.opencv:opencv:4.13.0'
+    implementation 'org.khronos.openxr:openxr_loader_for_android:1.1.49'
+    implementation 'com.github.luben:zstd-jni:1.5.7-4@aar'
     implementation 'org.apache.commons:commons-compress:1.27.1'
     implementation 'org.tukaani:xz:1.10'
     implementation platform('androidx.compose:compose-bom:2024.02.00')
@@ -240,9 +314,14 @@ dependencies {
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
     implementation 'com.flyfishxu:kadb-android:1.2.1'
     implementation 'com.termux.termux-app:terminal-view:0.118.0'
+    implementation 'androidx.camera:camera-camera2:1.4.2'
+    implementation 'androidx.camera:camera-lifecycle:1.4.2'
+    implementation('com.google.mediapipe:tasks-vision:1.0.0') {
+        exclude group: 'com.google.auto.value', module: 'auto-value'
+    }
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.robolectric:robolectric:4.16.1'
     testImplementation 'androidx.compose.ui:ui-test-junit4'
-    testRuntimeOnly 'com.github.luben:zstd-jni:1.5.2-3@jar'
+    testRuntimeOnly 'com.github.luben:zstd-jni:1.5.7-4@jar'
 }
