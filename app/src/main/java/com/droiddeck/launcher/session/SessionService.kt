@@ -308,11 +308,14 @@ class SessionService : Service() {
     private fun runSession(gen: Int) {
         val detailed = SessionPrefs.sessionLogLevel(this) == SessionPrefs.LOG_LEVEL_DETAILED
         var prepMark = SystemClock.elapsedRealtime()
+        var capturing = false
+        val pendingPrep = ArrayList<String>()
         fun prep(step: String) {
             if (!detailed) return
             val now = SystemClock.elapsedRealtime()
-            Log.i(TAG, "prep: $step ${now - prepMark}ms")
+            val line = "prep: $step ${now - prepMark}ms"
             prepMark = now
+            if (capturing) Log.i(TAG, line) else pendingPrep.add(line)
         }
 
         SessionTerminal.clear()
@@ -345,6 +348,9 @@ class SessionService : Service() {
 
         val sessionDir = openSessionFolder()
         val sessionLog = File(sessionDir, "session.log")
+        capturing = true
+        pendingPrep.forEach { Log.i(TAG, it) }
+        pendingPrep.clear()
         prep("report and log capture")
 
         Log.i(TAG, GpuClockPin.start(this))
@@ -564,7 +570,7 @@ class SessionService : Service() {
         SessionEvents.record("session.logs_ready", mapOf("logDir" to sessionDir.path))
         DeviceReport.write(this, File(sessionDir, "device.txt"), SessionState.mode)
         NetworkReport.write(this, File(sessionDir, "network.txt"))
-        SessionLogCapture.start(File(sessionDir, "app.log"), SessionPrefs.sessionLogLevel(this) == SessionPrefs.LOG_LEVEL_DETAILED)
+        SessionLogCapture.start(File(sessionDir, "app.log"))
         return sessionDir
     }
 
