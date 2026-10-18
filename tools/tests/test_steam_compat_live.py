@@ -117,6 +117,47 @@ class PageScriptTest(unittest.TestCase):
                                     capture_output=True, text=True, timeout=20)
             self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_tool_installs_skip_only_their_own_install_dialog(self):
+        harness_source = r"""
+const assert = require('assert');
+globalThis.window = globalThis;
+const script = require('fs').readFileSync(process.argv[2], 'utf8');
+globalThis.SteamClient = { Installs: {}, Downloads: {} };
+assert.throws(() => eval(script), /install calls are not ready/);
+const opened = [], queued = [];
+let wizard = null, continued = 0;
+globalThis.SteamClient = {
+  Installs: {
+    OpenInstallWizard(apps, client) { opened.push([apps, client]); },
+    RegisterForShowInstallWizard(callback) { assert.strictEqual(wizard, null); wizard = callback; return { unregister() {} }; },
+    ContinueInstall() { continued++; },
+  },
+  Downloads: { QueueAppUpdate(app, client) { queued.push([app, client]); } },
+};
+assert.strictEqual(eval(script), 'installed');
+assert.strictEqual(eval(script), 'present');
+const tools = window.__droiddeckTools;
+wizard({ eInstallState: 7, currentAppID: 4183110 });
+assert.strictEqual(continued, 0);
+tools.install(4183110);
+assert.deepStrictEqual(opened, [[[4183110], '0']]);
+wizard({ eInstallState: 8, currentAppID: 4183110 });
+wizard({ eInstallState: 7, currentAppID: 892970 });
+assert.strictEqual(continued, 0);
+wizard({ eInstallState: 7, currentAppID: 4183110 });
+wizard({ eInstallState: 7, currentAppID: 4183110 });
+assert.strictEqual(continued, 1);
+tools.update(4427310);
+assert.deepStrictEqual(queued, [[4427310, '0']]);
+"""
+        with tempfile.TemporaryDirectory() as tmp:
+            script = Path(tmp) / "tools.js"
+            script.write_text(LIVE["TOOLS_JS"])
+            harness = Path(tmp) / "harness.js"
+            harness.write_text(harness_source)
+            result = subprocess.run(["node", str(harness), str(script)], capture_output=True, text=True, timeout=20)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_steamvr_library_launch_uses_binding_and_other_games_pass_through(self):
         harness_source = r"""
 const assert = require('assert');
@@ -447,6 +488,21 @@ class ReconcileTest(unittest.TestCase):
         self.assertEqual(page.sets, [])
         self.assertEqual(state["native_choices"], [app])
 
+    def test_a_tool_set_live_is_kept_before_the_client_writes_its_config(self):
+        app, page = self.dual_platform_game({"default": TOOL, "auto": {"10": TOOL, "11": TOOL, "892970": TOOL}})
+        page.known.append(COMPAT["FEX_TOOL"])
+        page.mapping[app] = TOOL
+        config = self.steam / "config/config.vdf"
+        config.write_text(
+            '"InstallConfigStore" { "Software" { "Valve" { "Steam" { '
+            '"CompatToolMapping" { "0" { "name" "%s" } "%s" { "name" "%s" } } } } } }' % (TOOL, app, TOOL))
+        with mock.patch.dict(COMPAT, {"native_targets": lambda _root, apps: {app: COMPAT["FEX_TOOL"]} if app in apps else {}}):
+            state = self.reconcile(page)
+            self.assertEqual(page.sets, [(app, COMPAT["FEX_TOOL"])])
+            state = self.reconcile(page)
+        self.assertEqual(page.sets, [(app, COMPAT["FEX_TOOL"])])
+        self.assertEqual(state["auto"][app], COMPAT["FEX_TOOL"])
+
     def test_native_list_from_earlier_builds_is_not_trusted(self):
         app, page = self.dual_platform_game({"default": TOOL, "auto": {"10": TOOL, "11": TOOL}, "native": ["892970"]})
         state = self.reconcile(page)
@@ -522,6 +578,90 @@ console.log(JSON.stringify({ sent: sent.length, asked: asked.length }));
 
 
 @unittest.skipUnless(shutil.which("node"), "node is not installed")
+class ToolPage(FakePage):
+    def __init__(self, fail=False):
+        super().__init__({"0": TOOL}, [TOOL])
+        self.calls = []
+        self.fail = fail
+
+    def tools(self, call):
+        self.calls.append(call)
+        if self.fail:
+            raise RuntimeError("the client's install calls are not ready")
+        return True
+
+
+class ToolDownloadTest(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.steam = Path(tmp.name) / "Steam"
+        (self.steam / "steamapps").mkdir(parents=True)
+        self.helper = LIVE["Helper"](str(self.steam), 1)
+        self.now = [1000.0]
+        self.running = [False]
+        self.requested = []
+        patcher = mock.patch.dict(COMPAT, {
+            "game_running": lambda: self.running[0],
+            "request_fex": lambda root, asked: self.requested.append(root) or ["3127680"],
+        })
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        clock = mock.patch.object(LIVE["time"], "monotonic", lambda: self.now[0])
+        clock.start()
+        self.addCleanup(clock.stop)
+
+    def manifest(self, app, flags):
+        (self.steam / ("steamapps/appmanifest_%s.acf" % app)).write_text('"AppState" { "StateFlags" "%s" }' % flags)
+
+    def test_missing_tools_are_installed_and_deferred_ones_queued(self):
+        self.manifest("4427310", "6")
+        self.manifest("3127680", "4")
+        self.manifest("1628350", "1026")
+        self.helper.page = page = ToolPage()
+        self.helper.ensure_tools()
+        self.assertEqual(page.calls, ["update(4427310)", "update(1628350)", "install(4183110)"])
+        self.now[0] += 30
+        self.helper.ensure_tools()
+        self.now[0] += 60
+        self.helper.ensure_tools()
+        self.assertEqual(len(page.calls), 3)
+        self.now[0] += 300
+        self.manifest("4427310", "4")
+        self.helper.ensure_tools()
+        self.assertEqual(page.calls[3:], ["update(1628350)", "install(4183110)"])
+        self.assertEqual(self.requested, [])
+
+    def test_nothing_is_queued_while_a_game_runs(self):
+        self.running[0] = True
+        self.helper.page = page = ToolPage()
+        self.helper.ensure_tools()
+        self.assertEqual(page.calls, [])
+        self.running[0] = False
+        self.now[0] += 60
+        self.helper.ensure_tools()
+        self.assertEqual(len(page.calls), 4)
+
+    def test_an_install_falls_back_to_the_steam_url(self):
+        for app in ("4427310", "1628350", "4183110"):
+            self.manifest(app, "4")
+        self.helper.page = page = ToolPage(fail=True)
+        self.helper.ensure_tools()
+        self.assertEqual(page.calls, ["install(3127680)"])
+        self.assertEqual(self.requested, [str(self.steam)])
+
+    def test_fex_becoming_ready_reconciles_again(self):
+        self.helper.page = ToolPage()
+        self.helper.fex_ready = False
+        with mock.patch.object(self.helper, "reconcile") as reconcile:
+            self.helper.tick()
+            reconcile.assert_not_called()
+            for app in ("4427310", "3127680", "1628350", "4183110"):
+                self.manifest(app, "4")
+            self.helper.tick()
+            reconcile.assert_called_once_with()
+
+
 class SwitchScriptTest(unittest.TestCase):
     def test_the_request_is_reported_and_still_sent(self):
         with tempfile.TemporaryDirectory() as tmp:
