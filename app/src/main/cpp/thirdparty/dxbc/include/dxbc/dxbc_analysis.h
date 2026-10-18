@@ -9,13 +9,6 @@
 
 namespace dxvk {
   
-  /**
-   * \brief Info about unordered access views
-   * 
-   * Stores whether an UAV is accessed with typed
-   * read or atomic instructions. This information
-   * will be used to generate image types.
-   */
   struct DxbcUavInfo {
     bool accessTypedLoad    = false;
     bool accessAtomicOp     = false;
@@ -25,27 +18,15 @@ namespace dxvk {
     VkAccessFlags accessFlags = 0;
   };
   
-  /**
-   * \brief Info about shader resource views
-   *
-   * Stores whether an SRV is accessed with
-   * sparse feedback. Useful for buffers.
-   */
   struct DxbcSrvInfo {
     bool sparseFeedback  = false;
   };
 
-  /**
-   * \brief Counts cull and clip distances
-   */
   struct DxbcClipCullInfo {
     uint32_t numClipPlanes = 0;
     uint32_t numCullPlanes = 0;
   };
   
-  /**
-   * \brief Shader analysis info
-   */
   struct DxbcAnalysisInfo {
     std::array<DxbcUavInfo, 64>   uavInfos;
     std::array<DxbcSrvInfo, 128>  srvInfos;
@@ -60,13 +41,6 @@ namespace dxvk {
     bool usesKill         = false;
   };
   
-  /**
-   * \brief DXBC shader analysis pass
-   * 
-   * Collects information about the shader itself
-   * and the resources used by the shader, which
-   * will later be used by the actual compiler.
-   */
   class DxbcAnalyzer {
     
   public:
@@ -81,10 +55,6 @@ namespace dxvk {
     
     ~DxbcAnalyzer();
     
-    /**
-     * \brief Processes a single instruction
-     * \param [in] ins The instruction
-     */
     void processInstruction(
       const DxbcShaderInstruction&  ins);
     

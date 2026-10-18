@@ -16,17 +16,7 @@ import java.io.File
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicInteger
 
-/**
- * The numbers behind the top-right line: the game's own frame rate and, when frame generation
- * is on, what the screen is actually being shown - "60 → 118 fps" is the proof that the engine
- * is doing something, and "FG starting" or a reason is the proof that it is not.
- *
- * The base rate is the game window's own frames, counted here from the compositor's per-frame
- * callback with or without an engine - what Steam's overlay counts too. The presented rate comes
- * from the engine's telemetry while it generates.
- */
 class PerfHud(context: Context) {
-    /** Empty when the HUD is off or not yet started. */
     var text by mutableStateOf("")
         private set
 
@@ -36,19 +26,15 @@ class PerfHud(context: Context) {
     private var running = false
     private val handler = Handler(Looper.getMainLooper())
 
-    /** The session's own switch (drawer), with the Downloads file as a device-side override. */
     private val enabled: Boolean
         get() = SessionPrefs.hudEnabled(context)
             && !File(Environment.getExternalStorageDirectory(), "Download/droiddeck-no-hud").exists()
 
-    /** Told, on the main thread, when the window presenting frames changes. */
     var onPresentingWindowChanged: (() -> Unit)? = null
     private var lastWindow: String? = null
 
     private val listener = object : WaylandCompositor.GameListener {
         override fun onGameSurface(window: String?, gpuName: String?) {
-            // gamescope forwards a fullscreen game's own buffers straight through and its composited
-            // output when the Steam menu is up; each is a different window here. Compositor thread.
             if (window != null && window != lastWindow) {
                 lastWindow = window
                 handler.post { onPresentingWindowChanged?.invoke() }
@@ -68,7 +54,6 @@ class PerfHud(context: Context) {
         }
     }
 
-    /** Re-reads the switch: starts or stops to match it. */
     fun refresh() {
         if (enabled) start() else stop()
     }

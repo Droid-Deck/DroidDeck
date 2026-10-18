@@ -3,12 +3,6 @@ package com.droiddeck.launcher.stores
 import java.io.File
 import org.json.JSONObject
 
-/**
- * Game sizes as found, kept per game AND the version they were found for, in
- * `filesDir/stores/<store>/sizes.json`: a size is never fetched twice for one version, and a
- * new version (a library refresh brings it) simply misses and is looked up again. The file carries
- * its format; one in another format is discarded, not read.
- */
 class SizeCache(private val file: File) {
     private val sizes = HashMap<String, Pair<String, Long>>()
 

@@ -12,7 +12,6 @@ class FlathubApiTest {
     }
 
     @Test fun refsReadAsWords() {
-        // The words come from string resources; stand in for them with their English.
         val english = mapOf(
             R.string.flatpakmgr_ref_runtime_branch to "%1\$s runtime %2\$s",
             R.string.flatpakmgr_ref_graphics_drivers to "graphics drivers",

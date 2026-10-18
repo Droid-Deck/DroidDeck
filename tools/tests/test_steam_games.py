@@ -55,6 +55,46 @@ class ImportsTest(unittest.TestCase):
         self.assertEqual(self.folder, (self.steam / 'steamapps/common/DroidDeck-42').resolve())
         self.assertEqual(b'game', self.exe.read_bytes())
 
+    def test_store_installs_stay_shortcuts_even_when_owned_on_steam(self):
+        self.snapshot()
+        game = dict(self.game, store='amazon')
+        games, routes = imports.route(self.steam, self.acct, [game])
+        self.assertEqual([game], games)
+        self.assertEqual({}, routes)
+        self.assertFalse((self.steam / 'steamapps/appmanifest_42.acf').exists())
+        self.assertFalse(os.path.lexists(self.steam / 'steamapps/common/DroidDeck-42'))
+
+    def test_store_installs_imported_earlier_are_released(self):
+        self.snapshot()
+        imports.route(self.steam, self.acct, [self.game])
+        unrelated = self.steam / 'steamapps/appmanifest_7.acf'
+        unrelated.write_text('"AppState"\n{\n    "appid" "7"\n    "installdir" "Other"\n}\n')
+        games, routes = imports.route(self.steam, self.acct, [dict(self.game, store='epic')])
+        self.assertEqual({}, routes)
+        self.assertEqual(1, len(games))
+        self.assertFalse((self.steam / 'steamapps/appmanifest_42.acf').exists())
+        self.assertFalse(os.path.lexists(self.steam / 'steamapps/common/DroidDeck-42'))
+        self.assertTrue(unrelated.is_file())
+        self.assertEqual(b'game', self.exe.read_bytes())
+
+    def test_watch_never_looks_up_store_installs(self):
+        listing = self.root / 'games.json'
+        listing.write_text(json.dumps([dict(self.game, store='gog')]))
+        with patch.object(imports, 'identify') as identify:
+            imports.watch(str(self.steam), str(listing))
+        identify.assert_not_called()
+
+    def test_native_programs_stay_shortcuts_and_are_never_looked_up(self):
+        self.snapshot()
+        game = dict(self.game, native=True)
+        self.assertEqual(([game], {}), imports.route(self.steam, self.acct, [game]))
+        self.assertFalse((self.steam / 'steamapps/appmanifest_42.acf').exists())
+        listing = self.root / 'games.json'
+        listing.write_text(json.dumps([game]))
+        with patch.object(imports, 'identify') as identify:
+            imports.watch(str(self.steam), str(listing))
+        identify.assert_not_called()
+
     def test_migrates_only_unchanged_legacy_import_manifests(self):
         self.snapshot()
         imports.route(self.steam, self.acct, [self.game])

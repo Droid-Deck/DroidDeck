@@ -2,14 +2,9 @@ package com.droiddeck.launcher.session
 
 import java.util.Locale
 
-/**
- * Steam's name for a language: the API language codes the client and the Steamworks API use
- * ("english", "schinese", "koreana"...), for every language Steam's interface comes in.
- */
 object SteamLanguage {
     const val DEFAULT = "english"
 
-    /** Every language the Steam client's interface is offered in. */
     val all: Set<String> = setOf(
         "arabic", "bulgarian", "schinese", "tchinese", "czech", "danish", "dutch", "english",
         "finnish", "french", "german", "greek", "hungarian", "indonesian", "italian", "japanese",
@@ -17,16 +12,11 @@ object SteamLanguage {
         "spanish", "latam", "swedish", "thai", "turkish", "ukrainian", "vietnamese", "malay",
     )
 
-    /** Spanish-speaking regions Steam serves with Latin American Spanish rather than Spain's. */
     private val latinAmerica = setOf(
         "419", "AR", "BO", "CL", "CO", "CR", "CU", "DO", "EC", "GT", "HN", "MX", "NI", "PA", "PE",
         "PR", "PY", "SV", "US", "UY", "VE",
     )
 
-    /**
-     * Steam's language for [locale]. [region] stands in for the locale's own when it has none: the
-     * app's Spanish carries no region, and a player in Mexico should get Latin American Spanish.
-     */
     fun forLocale(locale: Locale, region: String? = null): String {
         val country = locale.country.ifEmpty { region.orEmpty() }
         return when (locale.language) {

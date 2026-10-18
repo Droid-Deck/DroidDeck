@@ -1,11 +1,5 @@
 package com.droiddeck.launcher.session
 
-/**
- * What to call a catalog component on screen. Bannerlator's catalog keys (vcredist2010_dll,
- * oalinst_dll, d3dcompiler_47...) have no display name, and some descriptions do not fit the entry,
- * so names come from here: families by pattern, the rest from a table, the key itself otherwise.
- * The "_dll" twin of an installer (the direct DLL copy) shares the installer's name.
- */
 object WinComponentNames {
     private val TABLE = mapOf(
         "oalinst" to "OpenAL", "XLiveRedist" to "Games for Windows Live", "gfw" to "Games for Windows Live",

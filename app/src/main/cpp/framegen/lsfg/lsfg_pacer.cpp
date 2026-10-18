@@ -1,9 +1,5 @@
 // SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
 // SPDX-License-Identifier: GPL-3.0-or-later
-//
-// LSFG from the work of Camille LaVey / the Eden Emulator Project, following
-// upstream lsfg-vk. Ported to WinNative and DroidDeck by @maxjivi05; only the
-// Vulkan dispatch differs here (see lsfg_vkd.h).
 
 #include "lsfg_pacer.hpp"
 
@@ -21,7 +17,6 @@ constexpr float SOURCE_SMOOTHING = 0.15f;
 constexpr float SOURCE_STALE_SECONDS = 0.5f;
 constexpr float DISCONTINUITY_SECONDS = 0.25f;
 constexpr float HEADROOM_EPSILON = 0.02f;
-// A target is aimed just under, so rounding never puts output past the panel's refresh rate.
 constexpr float TARGET_MARGIN = 0.1f;
 constexpr float CREDIT_EPSILON = 1.0e-4f;
 constexpr float SOURCE_ACCUM_FLOOR = 0.01f;
@@ -121,17 +116,6 @@ LsfgPlan LsfgPacer::Plan(size_t capacity, uint64_t source_frames) {
     if (target_rate > 0.0f) target_rate -= TARGET_MARGIN;
 
     if (target_rate == 0.0f) {
-        // No explicit target rate: the multiplier is the multiplier, full stop.
-        // The panel-headroom clamp was here briefly and was removed at the
-        // user's decision; this is also upstream's behaviour on this branch.
-        //
-        // What that means above the panel's refresh rate, for the record: the
-        // display cannot show more frames than it refreshes, so under FIFO the
-        // surplus presents queue and the render thread waits on acquire. Nothing
-        // is displayed faster, and the compositor falls behind on guest
-        // deliveries instead. Below the refresh rate - every source at or under
-        // panel/4 - this branch behaves identically with or without the clamp.
-        // To restore it: limit = std::min(ceiling, HeadroomLimit()).
         output_credit = 0.0f;
         limit = ceiling;
         return LsfgPlan{limit, true};

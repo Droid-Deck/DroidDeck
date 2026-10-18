@@ -70,11 +70,14 @@ import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import com.droiddeck.launcher.HomeApp
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.gpu.FrameGen
 import com.droiddeck.launcher.gpu.Lossless
 import com.droiddeck.launcher.input.SecondScreenDisplay
+import com.droiddeck.launcher.core.DownloadSource
 import com.droiddeck.launcher.core.PhantomProcessLimit
 import com.droiddeck.launcher.core.PhantomProcessStatus
 import com.droiddeck.launcher.session.SessionPrefs
@@ -95,9 +98,10 @@ class FrontEndState(
     val frameGenLabel: String,
     val romsDir: String?,
     val logsEnabled: Boolean,
-    /** Setup's Debugging tools toggle (AgentAccess): off unless the user turns it on. */
+    val vacDiagnostics: Boolean = false,
     val agentCommands: Boolean = false,
     val steamGames: List<Library.SteamGame>,
+    val steamGamesX64: Boolean = false,
     val emulators: List<Library.Emulator>,
     val running: String?,
     val frameGen: FrameGen.Mode = FrameGen.Mode.OFF,
@@ -107,7 +111,6 @@ class FrontEndState(
     val gameSyncFolder: String? = null,
     val pageKey: String? = null,
     val theme: String = Themes.GRAPHITE,
-    /** The language picked in Setup, or AppLanguage.SYSTEM to follow the system. */
     val language: String = "",
     val appScale: Int = com.droiddeck.launcher.core.AppUiPrefs.DEFAULT_SCALE,
     val isHomeApp: Boolean = false,
@@ -131,55 +134,51 @@ class FrontEndState(
     val showPhantomGate: Boolean = false,
     val orientation: Int = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE,
     val launcherFullscreen: Boolean = true,
+    val downloadSource: String = DownloadSource.MODE_AUTO,
+    val downloadMirror: String = "",
+    val downloadPrefix: String = "",
     val animationsEnabled: Boolean = true,
-    /** The Flathub Store, a beta the user turns on in Setup. */
-    val storeEnabled: Boolean = false,
-    /** The Stores section (GOG, Epic Games, Amazon Games), turned on in Setup. */
-    val gameStoresEnabled: Boolean = false,
-    /** Setup › Stores: the download engine's speed tier (stores/download/StoreDownloadTier ids). */
+    val gameStoresEnabled: Boolean = true,
     val gameStoresSpeedTier: String = "fast",
-    /** Setup › Stores: the tab a signed-in store opens on (SessionPrefs.STORES_OPEN_LIBRARY / STORE). */
     val storesOpenTab: String = SessionPrefs.STORES_OPEN_LIBRARY,
-    /** A page to open once: "stores:downloads", or a selection such as "app:<id>" (a notification's tap). */
     val navigate: String? = null,
-    /** Setup: art for added games is fetched; the user has a SteamGridDB key of their own. */
     val addedGamesArt: Boolean = true,
     val sgdbUserKey: Boolean = false,
     val storesShowMature: Boolean = false,
-    /** Downloads queued, running or paused across the three stores; the rail item's badge. */
+    val storesSort: String = SessionPrefs.STORES_SORTS.first(),
+    val storesView: String = SessionPrefs.STORES_VIEWS.first(),
     val storeDownloadsActive: Int = 0,
-    /** The Updates page: DroidDeck's own builds and the channel followed. */
     val updates: UpdatesState = UpdatesState(),
 )
 
 class FrontEndActions(
     val onPlay: () -> Unit,
+    val onPlaySteamVr: () -> Unit = {},
     val onPlayDesktopUi: () -> Unit,
+    val onSteamUrl: (String) -> Unit = {},
     val onSteamGame: (Library.SteamGame) -> Unit,
     val onGameShortcut: (Library.SteamGame) -> Unit = {},
     val onExportGameFile: (Library.SteamGame) -> Unit = {},
     val onSyncGameFiles: () -> Unit = {},
-    /** The Games tab's +: the .exe picked in its dialog, to add as a game. */
     val onAddGameExe: (path: String) -> Unit = {},
-    /** These added games (by folder) were added or edited: the Games tab updates just them. */
     val onAddedGamesChanged: (folders: List<String>) -> Unit = {},
-    /** An added game removed in its editor: off the Games tab at once, out of Steam after. */
+    val onSteamGameArtChanged: (appId: Int) -> Unit = {},
     val onAddedGameRemoved: (folder: String, appId: Long?, name: String) -> Unit = { _, _, _ -> },
-    /** Setup's Artwork switch and the user's SteamGridDB API key ("" removes it). */
     val onAddedGamesArt: (Boolean) -> Unit = {},
     val onSgdbKey: (String) -> Unit = {},
     val onStopGameFileSync: () -> Unit = {},
     val onCopyGameLink: (Library.SteamGame) -> Unit = {},
+    val onEpicLauncher: () -> Unit = {},
+    val onUninstallEpicLauncher: () -> Unit = {},
     val onDesktop: () -> Unit,
     val onEmulator: (Library.Emulator) -> Unit,
-    /** A Flatpak app by id and name, from the Store. */
     val onFlatpakApp: (String, String) -> Unit = { _, _ -> },
-    /** An app added on the Desktop page. */
     val onUserApp: (com.droiddeck.launcher.runtime.UserApps.App) -> Unit = {},
     val onRom: (Library.Rom) -> Unit,
     val onResume: () -> Unit,
     val onSteamSettings: () -> Unit,
     val onDesktopSettings: () -> Unit,
+    val modeSheet: @Composable (mode: String, tab: String, extras: SheetExtras) -> Unit = { _, _, _ -> },
     val onRemoveDesktop: () -> Unit = {},
     val onInstallPackage: (String) -> Unit,
     val onRemovePackage: (String) -> Unit,
@@ -187,9 +186,8 @@ class FrontEndActions(
     val onFrameGenPick: (FrameGen.Mode) -> Unit,
     val onImportLossless: () -> Unit,
     val onProtons: () -> Unit,
-    /** The Components page: FEX / DXVK / VKD3D-Proton per Proton. */
     val onComponents: (focusContent: Boolean) -> Unit,
-    /** A game page's Manage saves: import a save zip into this game, or export its saves in a layout. */
+    val onComponentsTab: (String) -> Unit = {},
     val onSaveImport: (Library.SteamGame) -> Unit = {},
     val onSaveExport: (Library.SteamGame, com.droiddeck.launcher.session.GameSaves.Layout) -> Unit = { _, _ -> },
     val onPerformance: () -> Unit,
@@ -197,9 +195,11 @@ class FrontEndActions(
     val onFiles: () -> Unit,
     val onBrowseFiles: (File) -> Unit = {},
     val onLogs: () -> Unit,
+    val onVacDiagnostics: () -> Unit = {},
     val onAgentCommands: () -> Unit = {},
     val onShareLogs: () -> Unit = {},
     val onClearLogs: () -> Unit = {},
+    val onResetSettings: () -> Unit = {},
     val onOffline: () -> Unit,
     val onPageBack: () -> Unit = {},
     val onTheme: (String) -> Unit = {},
@@ -208,13 +208,16 @@ class FrontEndActions(
     val onOrientation: (Int) -> Unit = {},
     val onLauncherFullscreen: (Boolean) -> Unit = {},
     val onAnimationsEnabled: (Boolean) -> Unit = {},
-    val onStoreEnabled: (Boolean) -> Unit = {},
+    val onDownloadSource: (String) -> Unit = {},
+    val onDownloadMirror: (String) -> Unit = {},
+    val onDownloadPrefix: (String) -> Unit = {},
     val onGameStoresEnabled: (Boolean) -> Unit = {},
     val onGameStoresSpeedTier: (String) -> Unit = {},
     val onStoresOpenTab: (String) -> Unit = {},
     val onNavigated: () -> Unit = {},
     val onStoresShowMature: (Boolean) -> Unit = {},
-    /** The Games list rebuilt now: a store install or removal changed what is on disk. */
+    val onStoresSort: (String) -> Unit = {},
+    val onStoresView: (String) -> Unit = {},
     val onLibraryChanged: () -> Unit = {},
     val onHomeApp: () -> Unit = {},
     val onHomeScreen: (Boolean) -> Unit = {},
@@ -237,15 +240,12 @@ class FrontEndActions(
 internal object Motion {
     var scale by mutableStateOf(1f)
         private set
-    /** App animations can be disabled independently; Android's "Remove animations" always wins. */
     fun refresh(context: android.content.Context) {
         scale = if (SessionPrefs.animationsEnabled(context))
             Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
         else 0f
     }
     val Ease = CubicBezierEasing(0.2f, 0.8f, 0.2f, 1f)
-    /** A wall-clock wait (a coroutine delay) scaled as the animations around it are. Compose already
-     *  scales its own animation clock by the same setting, so animation specs take unscaled times. */
     fun ms(base: Int) = (base * scale).roundToInt()
     fun <T> tw(base: Int, delay: Int = 0, easing: Easing = Ease): FiniteAnimationSpec<T> = if (scale == 0f) snap() else tween(base, delay, easing)
     fun <T> sp(damping: Float = 0.7f, stiffness: Float = Spring.StiffnessMediumLow): FiniteAnimationSpec<T> =
@@ -300,26 +300,15 @@ internal fun Modifier.shine(trigger: Boolean, strength: Float = 0.22f): Modifier
     }
 }
 
-/**
- * Controller focus on the front end: each rail item's requester and the page's main button (Play,
- * Open desktop, Open <emulator>, Launch...). The pane leaves, to the left, for the selected rail
- * item - whatever tile or button it leaves from - and remembers that control, so coming back in
- * lands on it again; a page not yet visited enters on its main button.
- */
 internal class FrontFocus {
     val rail = HashMap<String, FocusRequester>()
     val primary = FocusRequester()
     var primaryAttached by mutableStateOf(0)
     var focusedRail by mutableStateOf<String?>(null)
     fun railFor(key: String): FocusRequester = rail.getOrPut(key) { FocusRequester() }
-    // The pane's controls by id (a tile's key, a button's label), how many of each are on screen,
-    // and the last one focused.
     val items = HashMap<String, FocusRequester>()
     val attached = HashMap<String, Int>()
-    // State, so the controller hints follow it: A launches from a game row but selects elsewhere.
     var last by mutableStateOf<String?>(null)
-    // The first tile of the page's grid: Down from the page's buttons goes to it, not to whichever
-    // tile happens to sit under the button.
     val firstTile = FocusRequester()
     var firstTileAttached = 0
     fun paneEntry(): FocusRequester {
@@ -334,14 +323,13 @@ internal class FrontFocus {
     companion object { const val PRIMARY = "\u0000primary" }
 }
 
-/** Down from this button goes to the first tile of the page's grid, when there is one. */
 @Composable
 internal fun Modifier.downToFirstTile(): Modifier {
+    if (LocalSheetBeat.current != null) return this
     val ff = LocalFrontFocus.current ?: return this
     return this.focusProperties { down = if (ff.firstTileAttached > 0) ff.firstTile else FocusRequester.Default }
 }
 
-/** Marks the first tile of the page's grid. */
 @Composable
 internal fun Modifier.firstTile(): Modifier {
     val ff = LocalFrontFocus.current ?: return this
@@ -352,7 +340,6 @@ internal fun Modifier.firstTile(): Modifier {
     return this.focusRequester(ff.firstTile)
 }
 
-/** Lets the pane come back to this control: it is remembered when focused. */
 @Composable
 internal fun Modifier.paneItem(id: String): Modifier {
     val ff = LocalFrontFocus.current ?: return this
@@ -366,19 +353,20 @@ internal fun Modifier.paneItem(id: String): Modifier {
 
 internal val LocalFrontFocus = staticCompositionLocalOf<FrontFocus?> { null }
 
-/** The pane's exit animation (170ms) and a frame's margin: a new page is in after this. */
 private const val PAGE_EXIT_MS = 200
 
-/**
- * Asks [target] for focus once a frame until [done] (or a focus request lands), for at most half a
- * second: a control can take focus only once it is laid out, and that is a frame or two, not a
- * fixed number of milliseconds.
- */
 internal suspend fun focusWithinFrames(done: () -> Boolean, target: () -> FocusRequester) {
     repeat(30) {
         androidx.compose.runtime.withFrameNanos { }
         if (done()) return
         if (runCatching { target().requestFocus() }.isSuccess && done()) return
+    }
+}
+
+internal suspend fun focusSoon(target: () -> FocusRequester) {
+    repeat(30) {
+        androidx.compose.runtime.withFrameNanos { }
+        if (runCatching { target().requestFocus() }.isSuccess) return
     }
 }
 
@@ -395,7 +383,11 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     LaunchedEffect(s.shortcutPicker) { if (s.shortcutPicker) selected = "games" }
     LaunchedEffect(s.navigate) {
         val target = s.navigate ?: return@LaunchedEffect
-        if (target == "stores:downloads") { com.droiddeck.launcher.stores.StoresState.openDownloads = true; selected = "stores" } else selected = target
+        when (target) {
+            "stores:downloads" -> { com.droiddeck.launcher.stores.StoresState.openDownloads = true; selected = "stores" }
+            "components" -> a.onComponents(true)
+            else -> selected = target
+        }
         a.onNavigated()
     }
     var showWirelessAdbFix by rememberSaveable { mutableStateOf(false) }
@@ -423,43 +415,48 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             }
         }
     }
-    BackHandler(enabled = !processSettingsPageVisible && s.pageKey != null && page != null) { a.onPageBack() }
-    // Back (and B) from a ROM, an emulator or an added app steps out one level, as its "‹" link
-    // does, instead of leaving the app: a ROM -> its emulator, the others -> Desktop.
+    val pageBack = { if (!Hops.back(a.onPageBack)) a.onPageBack() }
+    BackHandler(enabled = !processSettingsPageVisible && s.pageKey != null && page != null) { pageBack() }
+    LaunchedEffect(s.pageKey, selected) { Hops.forget(s.pageKey ?: selected) }
+    BackHandler(enabled = !processSettingsPageVisible && s.pageKey == null && Hops.origin?.page == selected) {
+        val rail = Hops.origin?.rail ?: return@BackHandler
+        Hops.back { selected = rail }
+    }
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    remember(density) { Hops.density = density; true }
     BackHandler(
         enabled = !processSettingsPageVisible && (s.pageKey == null || page == null) &&
-            (selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:")),
+            (selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:") || selected == "store"),
     ) {
         selected = if (selected.startsWith("rom:")) "emu:" + selected.removePrefix("rom:").substringBefore(':') else "desktop"
     }
     LaunchedEffect(s.isHomeApp) { if (!s.isHomeApp && selected == "android-apps") selected = "steam" }
-    // The Store turned off in Setup takes its page with it; so does Stores.
-    LaunchedEffect(s.storeEnabled) { if (!s.storeEnabled && selected == "store") selected = "steam" }
-    LaunchedEffect(s.gameStoresEnabled) { if (!s.gameStoresEnabled && selected == "stores") selected = "games" }
-    // The last game uninstalled leaves the Games tab on its empty state.
     LaunchedEffect(s.steamGames.isEmpty()) {
         if (s.steamGames.isEmpty() && selected.startsWith("app:")) selected = "games"
     }
     remember { Motion.refresh(ctx); true }
 
     val railSelection = when {
-        s.pageKey == "performance" || s.pageKey == "protons" || s.pageKey == "controller-mapping" -> "setup"
-        s.pageKey?.startsWith("settings:steam") == true -> "steam"
-        s.pageKey?.startsWith("settings:") == true -> "desktop"
+        Hops.origin != null && s.pageKey == Hops.origin?.page -> Hops.origin!!.dest
+        s.pageKey == "performance" -> "steam"
+        s.pageKey == "controller-mapping" -> "setup"
         selected.startsWith("app:") -> "games"
-        selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:") -> "desktop"
+        selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:") || selected == "store" -> "desktop"
         else -> s.pageKey ?: selected
     }
-    // Bumped each time a rail item is picked, so a controller moves on into the new page.
     var railPicks by remember { mutableStateOf(0) }
     val showRailPage: (String, Boolean) -> Unit = { key, focusContent ->
-        // Components is a full page like Protons or Performance, opened over the current rail
-        // selection rather than replacing it.
         if (key == "components") a.onComponents(focusContent)
         else {
             if (s.pageKey != null) a.onPageBack()
+            Hops.origin = null
+            Hops.restore = null
+            Hops.sinking = null
             selected = key
         }
+    }
+    LaunchedEffect(com.droiddeck.launcher.storage.StorageState.openRequests) {
+        if (com.droiddeck.launcher.storage.StorageState.openPending) showRailPage("setup", true)
     }
     val onRailFocus: (String) -> Unit = { key ->
         if (key != railSelection) showRailPage(key, false)
@@ -470,25 +467,19 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     }
     val inputModeManager = LocalInputModeManager.current
     val window = LocalWindowInfo.current
+    val androidContext = androidx.compose.ui.platform.LocalContext.current
     var anyFocused by remember { mutableStateOf(false) }
     Box(
         modifier = Modifier.fillMaxSize().background(colors.background)
             .windowInsetsPadding(if (s.launcherFullscreen) WindowInsets.displayCutout else WindowInsets.systemBars)
             .onFocusChanged { anyFocused = it.hasFocus },
     ) {
-        // Start controllers on the current page's main action, else on the rail.
         LaunchedEffect(processSettingsPageVisible) {
             if (processSettingsPageVisible) return@LaunchedEffect
             snapshotFlow { window.isWindowFocused }.first { it }
             if (inputModeManager.inputMode != InputMode.Keyboard) inputModeManager.requestInputMode(InputMode.Keyboard)
             focusWithinFrames({ anyFocused }) { if (frontFocus.primaryAttached > 0) frontFocus.primary else frontFocus.railFor(railSelection) }
         }
-        // A tile or button that opens a page goes away with the page it was on, and focus with it;
-        // the pad then had nothing to move from (a press landed back on the rail's first item). So
-        // once the new page is in, a controller lands on its main button.
-        // Backing out of a page: it stays on screen while it leaves (and holds focus there), so hand
-        // focus back now to the control it was opened from. Not when the page closed because
-        // another rail item was picked: focus is on the rail then, and stays there.
         var openPage by remember { mutableStateOf<String?>(null) }
         LaunchedEffect(s.pageKey) {
             val closed = openPage != null && s.pageKey == null
@@ -499,17 +490,22 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         }
         LaunchedEffect(selected, s.pageKey, processSettingsPageVisible) {
             if (processSettingsPageVisible) return@LaunchedEffect
-            // Past the old page's exit (170ms), then the first frame the new page takes focus.
             kotlinx.coroutines.delay(Motion.ms(PAGE_EXIT_MS).toLong())
-            if (anyFocused || inputModeManager.inputMode != InputMode.Keyboard) return@LaunchedEffect
+            if (inputModeManager.inputMode != InputMode.Keyboard) return@LaunchedEffect
+            if (s.pageKey == "performance") {
+                val back = "back:${androidContext.getString(R.string.mode_back)}"
+                focusWithinFrames({ frontFocus.last == back && anyFocused && frontFocus.focusedRail == null }) {
+                    frontFocus.items[back] ?: FocusRequester.Default
+                }
+                return@LaunchedEffect
+            }
+            if (anyFocused) return@LaunchedEffect
             focusWithinFrames({ anyFocused }) { if (frontFocus.primaryAttached > 0) frontFocus.primary else frontFocus.railFor(railSelection) }
         }
-        // A rail item picked with a controller moves on into its page, once the page is in.
         LaunchedEffect(railPicks) {
             if (railPicks == 0 || processSettingsPageVisible) return@LaunchedEffect
             kotlinx.coroutines.delay(Motion.ms(PAGE_EXIT_MS).toLong())
             if (inputModeManager.inputMode != InputMode.Keyboard) return@LaunchedEffect
-            // Waits for the new page's main button rather than a fixed guess at how long it takes.
             withTimeoutOrNull(1_000) { snapshotFlow { frontFocus.primaryAttached > 0 }.first { it } } ?: return@LaunchedEffect
             focusWithinFrames({ frontFocus.focusedRail == null && anyFocused }) { frontFocus.paneEntry() }
         }
@@ -519,7 +515,19 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         val railFocus = Modifier
             .focusProperties { enter = { frontFocus.railFor(railSelection) } }
             .focusGroup()
-        Row(modifier = Modifier.fillMaxSize()) {
+        LaunchedEffect(Hops.restore) {
+            val r = Hops.restore ?: return@LaunchedEffect
+            if (r.surface == HOP_SURFACE_SHEET) return@LaunchedEffect
+            Hops.restore = null
+            if (r.rail != selected && !(r.rail == "games" && selected.startsWith("app:"))) selected = r.rail
+            kotlinx.coroutines.delay(Motion.ms(PAGE_EXIT_MS).toLong())
+            if (inputModeManager.inputMode != InputMode.Keyboard) return@LaunchedEffect
+            frontFocus.last = r.control
+            focusWithinFrames({ frontFocus.last == r.control && anyFocused }) { frontFocus.items[r.control] ?: frontFocus.paneEntry() }
+        }
+        var screenAt by remember { mutableStateOf(Offset.Zero) }
+        CompositionLocalProvider(LocalShowSection provides { key -> selected = key }) {
+        Row(modifier = Modifier.fillMaxSize().onGloballyPositioned { screenAt = it.positionInRoot() }) {
             SideRail(s, railSelection, onRailSelect, onRailFocus, a, railFocus.fillMaxHeight())
             Box(Modifier.width(1.dp).fillMaxHeight().background(pal.line))
             Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
@@ -534,6 +542,10 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                 )
             }
         }
+
+        }
+        FlightsLayer(screenAt)
+        StepsLayer(screenAt)
 
         appToChooseDisplay?.let { app ->
             val secondaryDisplay = s.secondScreenDisplays.firstOrNull()
@@ -597,9 +609,9 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         }
     }
     val hasBackTarget = (s.pageKey != null && page != null) ||
+        (s.pageKey == null && Hops.origin?.page == selected) ||
         ((s.pageKey == null || page == null) &&
-            (selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:")))
-    // At the top of a section, Back goes to the rail - the launcher itself is never backed out of.
+            (selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:") || selected == "store"))
     BackHandler(enabled = !processSettingsPageVisible && !hasBackTarget) {
         if (inputModeManager.inputMode != InputMode.Keyboard) inputModeManager.requestInputMode(InputMode.Keyboard)
         runCatching { frontFocus.railFor(railSelection).requestFocus() }

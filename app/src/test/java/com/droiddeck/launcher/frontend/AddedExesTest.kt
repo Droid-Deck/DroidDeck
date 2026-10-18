@@ -13,7 +13,6 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
-/** The Games tab's +: one picked .exe becomes a game, once, wherever the session can see it. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class AddedExesTest {
@@ -54,7 +53,6 @@ class AddedExesTest {
         assertEquals(Library.ADDED, game.source)
         assertTrue(File(app.filesDir, "session/added-games.json").readText().contains("Celeste.exe"))
 
-        // The same exe again: the game it already is, no second entry.
         val again = AddedGames.addExe(app, pick)
         assertTrue(again is AddedGames.AddResult.Existing)
         assertEquals(game.appId, (again as AddedGames.AddResult.Existing).game.appId)
@@ -83,7 +81,6 @@ class AddedExesTest {
         val result = AddedGames.addExe(app, deep)
         assertTrue(result is AddedGames.AddResult.Switched)
         assertEquals(deep.path, AddedGames.scan(app).single().exe.path)
-        // The Games folder's game is an entry of its own (GamesFolderMigration); no second one.
         assertEquals(listOf(File(games, "Example").path), AddedExes.list(app).map { it.folder })
     }
 

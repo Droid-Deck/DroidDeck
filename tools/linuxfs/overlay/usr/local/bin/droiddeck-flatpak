@@ -1,27 +1,14 @@
 #!/usr/bin/python3
-# The app's store talks to Flatpak through this: one JSON object per line on stdout, so progress
-# reaches the front end as numbers rather than a terminal's redrawn bar. Per-user installation,
-# Flathub as the remote, this device's architecture.
-#
-#   droiddeck-flatpak install <app-id>      the app and whatever runtimes it needs
-#   droiddeck-flatpak install-bundle <file> a .flatpak file, its runtimes from Flathub
-#   droiddeck-flatpak uninstall <app-id>    the app, then runtimes nothing uses any more
-#   droiddeck-flatpak update [<app-id>]     one app, or everything with an update
-#   droiddeck-flatpak updates               what has one (a "updates" line)
-#
-# Lines: {"e":"op","i":1,"n":3,"kind":"install","ref":"..."} as each step starts,
-# {"e":"progress","i":1,"n":3,"percent":45,"status":"..."} while it runs,
-# {"e":"error","message":"..."} and {"e":"done"} at the end (with "id" for a bundle). Exit status 0 on success.
 import json
 import os
 import sys
 
 os.environ.setdefault("FLATPAK_BWRAP", "/usr/local/bin/droiddeck-bwrap")
 
-import gi  # noqa: E402
+import gi
 
 gi.require_version("Flatpak", "1.0")
-from gi.repository import Flatpak, Gio, GLib  # noqa: E402
+from gi.repository import Flatpak, Gio, GLib
 
 REMOTE = "flathub"
 
@@ -82,12 +69,6 @@ def transaction(inst):
         progress.connect("changed", changed)
 
     def on_operation_error(tr, op, err, details):
-        # A runtime extension that fails to install (a missing translation, an unneeded GL
-        # driver) is not worth losing the app over; anything else ends the transaction.
-        # FLATPAK_TRANSACTION_ERROR_DETAILS_NON_FATAL is 1, but PyGObject does not always hand the
-        # flags over ("g_value_get_flags: assertion ... failed" and a 0). An extension installed
-        # alongside an app - its translations, debug data, a GL or codecs runtime - is what Flatpak
-        # marks non-fatal, as the flatpak CLI does: its failure costs that extension, not the app.
         try:
             non_fatal = bool(int(details) & 1)
         except (TypeError, ValueError):
@@ -108,7 +89,6 @@ def transaction(inst):
     t.connect("ready", on_ready)
     t.connect("new-operation", on_new_operation)
     t.connect("operation-error", on_operation_error)
-    # A dependency found on more than one remote comes from the first (Flathub, the only one).
     t.connect("choose-remote-for-ref", lambda tr, ref, runtime_ref, remotes: 0)
     t.connect("end-of-lifed-with-rebase", lambda *a: False)
     t.connect("add-new-remote", lambda *a: False)
@@ -135,7 +115,6 @@ def install(app_id):
     if app_ref(inst, app_id) is not None:
         emit(e="done", note="already installed")
         return 0
-    # Flathub publishes apps on "stable"; libflatpak's default branch is "master".
     branch, last = None, None
     for candidate in ("stable", "master"):
         try:
@@ -149,8 +128,6 @@ def install(app_id):
     t, state = transaction(inst)
     t.add_install(REMOTE, "app/%s/%s/%s" % (app_id, arch, branch), None)
     rc = run(t, state, report_done=False)
-    # A failure the transaction did not report (an error handler that raised, say) must not read
-    # as an install: the app is there, or it is not.
     if rc == 0 and app_ref(installation(), app_id) is None:
         emit(e="error", message="%s did not install; see flatpak-install.log" % app_id)
         return 1
@@ -192,7 +169,6 @@ def uninstall(app_id):
     t.add_uninstall(ref.format_ref())
     rc = run(t, state)
     if rc == 0:
-        # Runtimes only this app used; Flatpak's own `uninstall --unused`.
         try:
             unused = inst.list_unused_refs(None, None)
         except GLib.Error:
@@ -203,6 +179,27 @@ def uninstall(app_id):
                 t.add_uninstall(r.format_ref())
             run(t, state)
     return rc
+
+
+def prune():
+    inst = installation()
+    try:
+        unused = inst.list_unused_refs(None, None)
+    except GLib.Error as err:
+        emit(e="error", message=err.message)
+        return 1
+    if unused:
+        t, state = transaction(inst)
+        for r in unused:
+            t.add_uninstall(r.format_ref())
+        if run(t, state, report_done=False):
+            return 1
+    try:
+        inst.prune_local_repo(None)
+    except GLib.Error as err:
+        emit(e="warning", message=err.message)
+    emit(e="done", removed=len(unused))
+    return 0
 
 
 def updatable(inst):
@@ -240,7 +237,7 @@ def updates():
 
 def main():
     if len(sys.argv) < 2:
-        sys.stderr.write(__doc__ or "usage: droiddeck-flatpak install|install-bundle|uninstall|update|updates [app-id|file]\n")
+        sys.stderr.write(__doc__ or "usage: droiddeck-flatpak install|install-bundle|uninstall|update|updates|prune [app-id|file]\n")
         return 2
     cmd, args = sys.argv[1], sys.argv[2:]
     if cmd in ("install", "install-bundle", "update"):
@@ -255,7 +252,9 @@ def main():
         return update(args[0] if args else None)
     if cmd == "updates":
         return updates()
-    sys.stderr.write("usage: droiddeck-flatpak install|install-bundle|uninstall|update|updates [app-id|file]\n")
+    if cmd == "prune":
+        return prune()
+    sys.stderr.write("usage: droiddeck-flatpak install|install-bundle|uninstall|update|updates|prune [app-id|file]\n")
     return 2
 
 

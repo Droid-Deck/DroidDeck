@@ -21,6 +21,7 @@ Requests: ping, exec, focus, cdp, quit. Each answer is {"ok": true, ...} or
 import base64
 import json
 import math
+import re
 import os
 import selectors
 import signal
@@ -68,7 +69,6 @@ class AgentError(Exception):
         self.code = code
 
 
-# --- X11: just enough of the protocol for root properties, the window tree and events ---------
 
 class X:
     """One connection to an Xwayland server. The rootfs has xprop but no python X library."""
@@ -178,6 +178,11 @@ class X:
             return list(struct.unpack("<%dI" % n, data))
         return data
 
+    def cardinals(self, window, name, values):
+        self.s.sendall(struct.pack("<BBHIIIB3xI", 18, 0, 6 + len(values), window,
+                                  self.atom(name), self.atom("CARDINAL"), 32, len(values))
+                       + struct.pack("<%dI" % len(values), *values))
+
 
 def windows(x):
     """Top-level windows that are mapped or carry an app id: what gamescope picks focus from."""
@@ -250,6 +255,67 @@ def focus_snapshot():
     return snap
 
 
+STEAM_APP_CLASS = re.compile(r"steam_app_(\d+)$")
+
+
+def tag_game_windows(snap):
+    if os.environ.get("BL_STEAM_CLIENT_ARCH") != "x86_64":
+        return False
+    tagged = False
+    for display, wins in snap.get("displays", {}).items():
+        if display == os.environ.get("DISPLAY"):
+            continue
+        for win in wins:
+            match = STEAM_APP_CLASS.match(win.get("class") or "")
+            if not match or win.get("appId") or win.get("map") != "viewable" or win.get("overrideRedirect"):
+                continue
+            try:
+                done = subprocess.run(["xprop", "-display", display, "-id", str(win["window"]), "-f", "STEAM_GAME", "32c",
+                                       "-set", "STEAM_GAME", match.group(1)],
+                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5).returncode == 0
+            except (OSError, subprocess.TimeoutExpired):
+                done = False
+            log("game window %s on %s tagged STEAM_GAME=%s: %s" % (win["window"], display, match.group(1), "ok" if done else "failed"))
+            tagged = tagged or done
+    return tagged
+
+
+def vr_scene_app(path=Path('/run/droiddeck/droiddeck-steamvr/scene-focus.json'), proc=Path('/proc')):
+    """Only a live SteamVR scene with its dashboard hidden may claim game focus."""
+    try:
+        state = json.loads(path.read_text())
+        server, scene = int(state['serverPid']), int(state['scenePid'])
+        if server <= 0 or scene <= 0 or state['dashboard'] is not False:
+            return None
+        if (proc / str(server) / 'comm').read_text().strip() != 'vrserver':
+            return None
+        for entry in (proc / str(scene) / 'environ').read_bytes().split(b'\0'):
+            if entry.startswith(b'SteamAppId='):
+                app = int(entry.split(b'=', 1)[1])
+                return app if 0 < app < 2**32 else None
+    except (OSError, ValueError, TypeError, KeyError):
+        pass
+    return None
+
+
+class VrSceneFocus:
+    def __init__(self):
+        self.original = None
+        self.written = None
+
+    def order(self, current, focusable, app):
+        if app is None or app not in focusable:
+            restore = self.original if self.written == current else None
+            self.original = self.written = None
+            return restore
+        if current and current[0] == app:
+            return None
+        if self.original is None:
+            self.original = list(current)
+        self.written = [app] + [item for item in current if item != app]
+        return self.written
+
+
 class FocusWatcher(threading.Thread):
     """Rewrites focus.json when gamescope's focus properties change, and every few seconds when
     the windows do (a window can change without any root property moving)."""
@@ -260,18 +326,34 @@ class FocusWatcher(threading.Thread):
         self.changed = threading.Event()
         self.last = None
         self.seq = 0
+        self.vr_focus = VrSceneFocus()
 
     def run(self):
         threading.Thread(target=self.listen, daemon=True, name="focus-events").start()
+        last_app, last_snapshot = None, 0
         while True:
-            self.changed.wait(timeout=5)
+            notified = self.changed.wait(timeout=0.5)
             self.changed.clear()
-            time.sleep(0.2)  # let a burst of property changes settle
+            app = vr_scene_app()
+            if not notified and app == last_app and time.monotonic() - last_snapshot < 5:
+                continue
+            last_app, last_snapshot = app, time.monotonic()
+            time.sleep(0.2)
             try:
                 snap = focus_snapshot()
+                order = self.vr_focus.order(snap.get('baselayerAppIds', []), snap.get('focusableApps', []), app)
+                if order is not None:
+                    x = X(os.environ['DISPLAY'])
+                    try:
+                        x.cardinals(x.root, 'GAMESCOPECTRL_BASELAYER_APPID', order)
+                    finally:
+                        x.close()
             except (OSError, AgentError) as e:
                 log("focus snapshot failed: %s" % e)
                 time.sleep(2)
+                continue
+            if tag_game_windows(snap):
+                self.changed.set()
                 continue
             body = {k: v for k, v in snap.items() if k != "t"}
             if body == self.last:
@@ -286,9 +368,7 @@ class FocusWatcher(threading.Thread):
             try:
                 x = X(os.environ["DISPLAY"])
                 wanted = {x.atom(name) for name in FOCUS_PROPS}
-                x.select(x.root, 0x400000)  # PropertyChangeMask
-                # Waits for events as long as there are none: the connect timeout left in place
-                # here dropped and remade the connection, and took a snapshot, every few seconds.
+                x.select(x.root, 0x400000)
                 x.s.settimeout(None)
                 self.changed.set()
                 while True:
@@ -300,7 +380,6 @@ class FocusWatcher(threading.Thread):
                 time.sleep(2)
 
 
-# --- Steam client DevTools (CDP) -----------------------------------------------------------------
 
 class WebSocket:
     """A minimal RFC 6455 client: text frames out, text frames in. Enough for CDP."""
@@ -384,7 +463,7 @@ class WebSocket:
             op = b0 & 0x0F
             if op == 8:
                 raise OSError("DevTools closed the WebSocket")
-            if op == 9:  # ping
+            if op == 9:
                 continue
             if op in (0, 1, 2):
                 message += data
@@ -453,7 +532,108 @@ def cdp_eval(agent_dir, expression, target=None, await_promise=True, timeout=15)
         ws.close()
 
 
-# --- Game processes ------------------------------------------------------------------------------
+def steam_selection(agent_dir, timeout=5):
+    result = cdp_eval(
+        agent_dir,
+        """(() => {
+            let node = document.activeElement;
+            while (node) {
+                for (const name of ["data-id", "data-appid"]) {
+                    const value = node.getAttribute?.(name);
+                    if (/^[1-9][0-9]{0,9}$/.test(value || "")) {
+                        const appId = Number(value);
+                        if (Number.isSafeInteger(appId) && appId <= 4294967295) return value;
+                    }
+                }
+                node = node.parentElement;
+            }
+            return null;
+        })()""",
+        target="Steam Big Picture Mode",
+        timeout=timeout,
+    )
+    value = result.get("value")
+    if value is None:
+        return {"appId": None}
+    if not isinstance(value, str) or not value.isdigit() or not 0 < int(value) <= 4294967295:
+        raise AgentError("INVALID_SELECTION", "Steam returned an invalid selected app id")
+    return {"appId": int(value)}
+
+
+def steam_shortcut_app_id(game_id):
+    """Return the 32-bit app id in Steam's shortcut CGameID form, or None for other ids.
+
+    DroidDeck's shortcut IDs are `(appid << 32) | 0x02000000`. The URL still needs that full
+    CGameID for RunGame; the app-details API separately needs the unsigned 32-bit app id.
+    """
+    if not isinstance(game_id, str) or not game_id.isascii() or not game_id.isdigit():
+        return None
+    try:
+        game_id_value = int(game_id)
+    except ValueError:
+        return None
+    if str(game_id_value) != game_id or not 0 < game_id_value <= 0xFFFFFFFFFFFFFFFF:
+        return None
+    if game_id_value <= 0xFFFFFFFF or game_id_value & 0xFFFFFFFF != 0x02000000:
+        return None
+    app_id = game_id_value >> 32
+    return app_id if 0 < app_id <= 0xFFFFFFFF else None
+
+
+def wait_for_steam_shortcut_overview(agent_dir, game_id, timeout=45):
+    """Wait until Steam can map a shortcut CGameID to its 32-bit app overview."""
+    app_id = steam_shortcut_app_id(game_id)
+    if app_id is None:
+        return {"supported": False, "ready": False}
+
+    timeout = request_timeout({"timeout": timeout}, 45)
+    deadline = time.monotonic() + timeout
+    expression = """(() => {
+        const store = globalThis.appStore;
+        if (typeof store?.GetAppOverviewByGameID !== 'function') return null;
+        const overview = store.GetAppOverviewByGameID(%s);
+        return overview == null ? null : String(overview.appid);
+    })()""" % json.dumps(game_id)
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        try:
+            result = cdp_eval(agent_dir, expression, await_promise=False,
+                              timeout=min(5, max(0.25, remaining)))
+            if result.get("value") == str(app_id):
+                return {"supported": True, "ready": True, "appId": app_id}
+        except AgentError as error:
+            if error.code not in ("NO_DEVTOOLS", "DEVTOOLS_UNREACHABLE", "NO_TARGET", "TIMEOUT"):
+                raise
+        time.sleep(min(0.25, max(0, deadline - time.monotonic())))
+    raise AgentError("STEAM_OVERVIEW_TIMEOUT", "Steam did not load shortcut app overview %d" % app_id)
+
+
+def steam_shortcut_state(agent_dir, game_id, timeout=6):
+    if steam_shortcut_app_id(game_id) is None:
+        return "not-shortcut"
+    timeout = request_timeout({"timeout": timeout}, 6)
+    deadline = time.monotonic() + timeout
+    expression = """(() => {
+        const store = globalThis.appStore;
+        if (typeof store?.GetAppOverviewByGameID !== 'function' || !store.m_bIsInitialized) return 'loading';
+        if (store.GetAppOverviewByGameID(%s) != null) return 'ready';
+        return store.allApps.some(app => app.app_type == 1073741824) ? 'missing' : 'loading';
+    })()""" % json.dumps(game_id)
+    state = "loading"
+    while True:
+        try:
+            state = cdp_eval(agent_dir, expression, await_promise=False,
+                             timeout=min(5, max(0.25, deadline - time.monotonic()))).get("value") or "loading"
+        except AgentError as error:
+            if error.code not in ("NO_DEVTOOLS", "DEVTOOLS_UNREACHABLE", "NO_TARGET", "TIMEOUT"):
+                raise
+            state = "loading"
+        if state == "ready" or time.monotonic() >= deadline:
+            return state
+        time.sleep(min(0.5, max(0, deadline - time.monotonic())))
+
 
 def game_pids(app_id):
     """Our processes started for this Steam app (Steam sets SteamAppId / SteamGameId in their
@@ -510,7 +690,38 @@ def quit_game(agent_dir, app_id, timeout):
     return {"appId": int(app_id), "steps": steps, "remaining": game_pids(app_id)}
 
 
-# --- Requests ------------------------------------------------------------------------------------
+
+VR_HELPER = "/usr/local/bin/droiddeck-steamvr"
+VR_ACTIONS = ("status", "install", "start", "stop")
+
+
+def steamvr(req):
+    """Cardboard mode's SteamVR: a fixed helper with four actions, unlike exec (no command line from
+    the request). install downloads 571 MB, so it runs detached and status reports it."""
+    action = req.get("action", "status")
+    if action not in VR_ACTIONS:
+        raise AgentError("INVALID_REQUEST", "vr action must be one of " + ", ".join(VR_ACTIONS))
+    helper = os.environ.get("DROIDDECK_VR_HELPER", VR_HELPER)
+    if not os.path.isfile(helper):
+        raise AgentError("UNAVAILABLE", "this runtime has no " + helper)
+    if action == "install":
+        state = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "droiddeck-steamvr"
+        state.mkdir(parents=True, exist_ok=True)
+        with open(state / "install.log", "ab") as log_file:
+            subprocess.Popen(["sh", helper, "install"], stdin=subprocess.DEVNULL, stdout=log_file,
+                             stderr=subprocess.STDOUT, start_new_session=True)
+        return {"action": action, "started": True}
+    done = subprocess.run(["sh", helper, action], stdin=subprocess.DEVNULL, capture_output=True,
+                          timeout=request_timeout(req, 30))
+    out = done.stdout.decode("utf-8", "replace").strip()
+    result = {"action": action, "exitCode": done.returncode, "output": out[-2000:]}
+    if action == "status":
+        for part in out.split():
+            key, _, value = part.partition("=")
+            if key in ("installed", "running", "installing", "driver"):
+                result[key] = value == "1"
+    return result
+
 
 def run_exec(req):
     argv = req.get("argv")
@@ -624,8 +835,12 @@ def handle(agent_dir, req):
             raise AgentError("INVALID_REQUEST", "cdp eval needs an expression")
         return cdp_eval(agent_dir, expression, req.get("target"), bool(req.get("awaitPromise", True)),
                         request_timeout(req, 15))
+    if kind == "steam-selection":
+        return steam_selection(agent_dir, request_timeout(req, 5))
     if kind == "quit":
         return quit_game(agent_dir, req.get("appId"), request_timeout(req, 15))
+    if kind == "vr":
+        return steamvr(req)
     raise AgentError("UNKNOWN_REQUEST", "Unknown agent request '%s'" % kind)
 
 
@@ -652,7 +867,7 @@ def answer(agent_dir, path):
             result = dict(handle(agent_dir, req), ok=True)
         except AgentError as e:
             result = {"ok": False, "error": {"code": e.code, "message": str(e)}}
-        except Exception as e:  # an answer of some kind always goes back
+        except Exception as e:
             result = {"ok": False, "error": {"code": "AGENT_FAILED", "message": "%s: %s" % (type(e).__name__, e)}}
     write_json(agent_dir / "resp" / (rid + ".json"), result)
 
@@ -682,6 +897,43 @@ def main(argv):
     if not base:
         print("BL_LAUNCH_DIR is not set", file=sys.stderr)
         return 2
+    if argv and argv[0] == "--wait-steam-shortcut-overview":
+        if len(argv) not in (2, 3):
+            print("usage: droiddeck-agent --wait-steam-shortcut-overview <cgameid> [timeout-seconds]", file=sys.stderr)
+            return 2
+        timeout = argv[2] if len(argv) == 3 else 45
+        try:
+            prepared = wait_for_steam_shortcut_overview(Path(base) / "agent", argv[1], timeout)
+        except (AgentError, OSError, ValueError) as error:
+            print("droiddeck-agent: shortcut overview was not ready: %s" % error, file=sys.stderr)
+            return 1
+        if not prepared["supported"]:
+            print("droiddeck-agent: id is not a DroidDeck shortcut CGameID")
+            return 3
+        print("droiddeck-agent: Steam overview is ready for shortcut app %d" % prepared["appId"])
+        return 0
+    if argv and argv[0] == "--steam-asleep":
+        expression = """(() => {
+            const store = globalThis.SuspendResumeStore;
+            return store ? (store.m_bSuspending ? 'yes' : 'no') : 'unknown';
+        })()"""
+        try:
+            state = cdp_eval(Path(base) / "agent", expression, await_promise=False, timeout=3).get("value") or "unknown"
+        except (AgentError, OSError, ValueError):
+            state = "unknown"
+        print(state)
+        return {"yes": 0, "no": 5}.get(state, 1)
+    if argv and argv[0] == "--steam-shortcut-state":
+        if len(argv) not in (2, 3):
+            print("usage: droiddeck-agent --steam-shortcut-state <cgameid> [timeout-seconds]", file=sys.stderr)
+            return 2
+        try:
+            state = steam_shortcut_state(Path(base) / "agent", argv[1], argv[2] if len(argv) == 3 else 6)
+        except (AgentError, OSError, ValueError) as error:
+            print("droiddeck-agent: could not ask the client about the shortcut: %s" % error, file=sys.stderr)
+            return 1
+        print(state)
+        return {"ready": 0, "missing": 4, "not-shortcut": 3}.get(state, 1)
     serve(Path(base) / "agent", focus="--no-focus" not in argv)
     return 0
 

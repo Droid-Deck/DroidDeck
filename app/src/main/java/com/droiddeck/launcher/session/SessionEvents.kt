@@ -6,15 +6,11 @@ import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
 
-/** Writes the machine-readable lifecycle stream beside the existing session artifacts. */
 object SessionEvents {
     private const val TAG = "SessionEvents"
     private val lock = Any()
 
-    /** [label] names the session's folder for what is being run (SessionPaths.label). */
     fun begin(context: Context, mode: String, label: String? = null) {
-        // A runtime-install failure can leave the folder claimed before the service ever starts.
-        // Keep that folder, but give the next attempt its own session directory.
         SessionPaths.take()
         val dir = SessionPaths.beginOrCurrent(context, label ?: SessionPaths.label(mode, null))
         synchronized(SessionState) {
@@ -35,6 +31,7 @@ object SessionEvents {
             SessionState.programArgs = emptyList()
             SessionState.steamUi = null
             SessionState.steamUrl = null
+            SessionState.steamVr = false
             SessionState.firstFrameSeen = false
             SessionState.suspended = false
         }
@@ -107,6 +104,7 @@ object SessionEvents {
         if (!SessionState.running || SessionState.guestPid <= 1 || !SessionState.firstFrameSeen || SessionState.suspended) return
         if (SessionState.phase != SessionPhase.READY) {
             transition(SessionPhase.READY, "session.ready")
+            Thread({ com.droiddeck.launcher.gpu.AutoDriverTrial.sessionReady() }, "gpu-driver-trial").start()
         }
     }
 

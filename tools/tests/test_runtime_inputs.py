@@ -1,11 +1,12 @@
 import importlib.util
 import gzip
 import io
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 import subprocess
 import tarfile
 import tempfile
 import unittest
+from unittest import mock
 from zipfile import ZipFile
 
 
@@ -55,6 +56,20 @@ class RuntimeInputsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'sources changed'):
             runtime.verify(self.root)
 
+    def test_changed_quest_source_rejects_old_outputs(self):
+        source = self.root / 'tools/quest/kgsl_compat.c'
+        source.parent.mkdir(parents=True)
+        source.write_text('old compatibility code')
+        runtime.record(self.root)
+        source.write_text('new compatibility code')
+        with self.assertRaisesRegex(ValueError, 'sources changed'):
+            runtime.verify(self.root)
+
+    def test_missing_quest_driver_cannot_be_attested(self):
+        (self.root / 'app/build/prepared-assets/graphics_driver/adrenotools-turnip25.1.0-quest1.tzst').unlink()
+        with self.assertRaisesRegex(ValueError, 'quest1.tzst'):
+            runtime.record(self.root)
+
     def test_modified_prebuilt_binary_is_rejected(self):
         runtime.record(self.root)
         (self.root / 'app/src/main/jniLibs/arm64-v8a/libproot.so').write_bytes(b'old APK binary')
@@ -78,6 +93,29 @@ class RuntimeInputsTest(unittest.TestCase):
         apk = self.root / 'current.apk'
         with ZipFile(apk, 'w') as package:
             for name, output in data['outputs'].items():
+                package.writestr(name, (self.root / output['path']).read_bytes())
+        runtime.check_apk(apk, self.root)
+
+    def test_windows_manifest_matches_portable_apk_paths(self):
+        path_type = type(self.root)
+        original_relative_to = path_type.relative_to
+
+        def windows_relative_to(path, *args, **kwargs):
+            return PureWindowsPath(original_relative_to(path, *args, **kwargs))
+
+        with mock.patch.object(path_type, 'relative_to', windows_relative_to):
+            runtime.record(self.root)
+        data = runtime.verify(self.root)
+        self.assertIn('tools/linuxfs/preload/test.c', data['sources'])
+        nested_asset = 'assets/linuxfs/usr/local/bin/gamescope'
+        self.assertEqual(data['outputs'][nested_asset]['path'], 'app/src/main/' + nested_asset)
+        for name in data['sources']:
+            self.assertNotIn('\\', name)
+        apk = self.root / 'portable.apk'
+        with ZipFile(apk, 'w') as package:
+            for name, output in data['outputs'].items():
+                self.assertNotIn('\\', name)
+                self.assertNotIn('\\', output['path'])
                 package.writestr(name, (self.root / output['path']).read_bytes())
         runtime.check_apk(apk, self.root)
 
