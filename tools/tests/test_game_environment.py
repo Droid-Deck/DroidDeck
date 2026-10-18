@@ -434,6 +434,8 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual(changes, {"42": COMPAT["TOOL"]})
 
     def test_both_proton_wrappers_call_environment_launcher(self):
+        self.assertIn('bl_directaudio "$depot" "$@"', COMPAT["LAUNCHER_SH"])
+        self.assertIn('bl_directaudio "$here" "$@"', COMPAT["EXTRA_WRAPPER_SH"] % "proton")
         for script in (COMPAT["LAUNCHER_SH"], COMPAT["EXTRA_WRAPPER_SH"] % "proton"):
             subprocess.run(["bash", "-n"], input=script, text=True, check=True)
             self.assertIn('bl_run ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env', script)
@@ -849,12 +851,15 @@ class DirectAudioPrefixTest(unittest.TestCase):
             (self.windows / folder).mkdir(parents=True)
         self.reg = self.compat / "pfx/user.reg"
 
-    def run_setup(self):
-        script = COMPAT["BL_DIRECTAUDIO_SETUP"] + '\nbl_directaudio "$1"\necho "WINEDLLPATH=$WINEDLLPATH"\necho "WINE_AUDIO_DRIVER=${WINE_AUDIO_DRIVER:-}"\n'
-        env = dict(os.environ, BL_DIRECTAUDIO=str(self.sets), STEAM_COMPAT_DATA_PATH=str(self.compat))
+    def run_setup(self, target="game.exe", cwd=None):
+        script = COMPAT["BL_DIRECTAUDIO_SETUP"] + '\nbl_directaudio "$1" "$2"\necho "WINEDLLPATH=$WINEDLLPATH"\necho "WINE_AUDIO_DRIVER=${WINE_AUDIO_DRIVER:-}"\n'
+        steam = self.compat.parent / "Steam"
+        env = dict(os.environ, BL_DIRECTAUDIO=str(self.sets), STEAM_COMPAT_DATA_PATH=str(self.compat),
+                   STEAM_COMPAT_CLIENT_INSTALL_PATH=str(steam))
         env.pop("WINEDLLPATH", None)
         env.pop("WINE_AUDIO_DRIVER", None)
-        return subprocess.run(["bash", "-c", script, "bash", str(self.tool)], env=env, capture_output=True, text=True, check=True)
+        return subprocess.run(["bash", "-c", script, "bash", str(self.tool), target], cwd=cwd, env=env,
+                              capture_output=True, text=True, check=True)
 
     def audio_values(self):
         found, current = [], None
@@ -868,6 +873,36 @@ class DirectAudioPrefixTest(unittest.TestCase):
     def link(self, folder):
         path = self.windows / folder / "winedirectaudio.drv"
         return os.readlink(path) if path.is_symlink() else None
+
+    def test_steam_installscript_evaluator_does_not_change_prefix_audio(self):
+        legacycompat = self.compat.parent / "Steam/legacycompat"
+        legacycompat.mkdir(parents=True)
+        (legacycompat / "iscriptevaluator.exe").write_bytes(b"Steam install-script evaluator")
+        self.reg.write_text("WINE REGISTRY Version 2\n\n#arch=win64\n")
+
+        result = self.run_setup("iscriptevaluator.exe", cwd=legacycompat)
+
+        self.assertIn("DirectAudio skipped for Steam's install-script evaluator", result.stderr)
+        self.assertIn("WINEDLLPATH=\n", result.stdout)
+        self.assertIn("WINE_AUDIO_DRIVER=\n", result.stdout)
+        self.assertEqual(self.reg.read_text(), "WINE REGISTRY Version 2\n\n#arch=win64\n")
+        self.assertIsNone(self.link("system32"))
+        self.assertIsNone(self.link("syswow64"))
+
+    def test_same_basename_outside_steam_legacycompat_keeps_normal_setup(self):
+        legacycompat = self.compat.parent / "Steam/legacycompat"
+        legacycompat.mkdir(parents=True)
+        (legacycompat / "iscriptevaluator.exe").write_bytes(b"Steam install-script evaluator")
+        other = self.compat.parent / "other"
+        other.mkdir()
+        (other / "iscriptevaluator.exe").write_bytes(b"unrelated executable")
+        self.reg.write_text("WINE REGISTRY Version 2\n\n#arch=win64\n")
+
+        result = self.run_setup("iscriptevaluator.exe", cwd=other)
+
+        self.assertIn("DirectAudio selected", result.stderr)
+        self.assertEqual(self.link("system32"), str(self.audio / "lib/wine/aarch64-windows/winedirectaudio.drv"))
+        self.assertEqual(self.audio_values(), [("[Software\\\\Wine\\\\Drivers]", '"Audio"="directaudio,pulse"')])
 
     def test_the_driver_is_placed_and_selected_the_way_wine_reads_it(self):
         self.reg.write_text("WINE REGISTRY Version 2\n;; All keys relative to \\\\User\\\\S-1-5-21-0-0-0-1000\n\n#arch=win64\n")
