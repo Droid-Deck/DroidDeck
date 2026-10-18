@@ -500,12 +500,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
         loading = LoadingState(this, steam = loadingMode() == SessionService.MODE_STEAM)
         if (!SessionState.running) {
-            val needRuntime = com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.installedVersion(this) == null
+            val repair = intent.getBooleanExtra(EXTRA_REPAIR_RUNTIME, false)
+            intent.removeExtra(EXTRA_REPAIR_RUNTIME)
+            val needRuntime = repair || com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.installedVersion(this) == null
+            val needResume = !needRuntime && com.droiddeck.launcher.runtime.DesktopCatalog.interrupted(this).isNotEmpty()
             val needDesktop = intent.getStringExtra(SessionService.EXTRA_MODE) == SessionService.MODE_DESKTOP &&
-                !com.droiddeck.launcher.runtime.DesktopCatalog.desktopInstalled(this)
+                (repair || !com.droiddeck.launcher.runtime.DesktopCatalog.desktopInstalled(this))
             val needProton = (intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM) == SessionService.MODE_STEAM &&
                 com.droiddeck.launcher.runtime.DesktopCatalog.protonSeedNeeded(this)
-            if (needRuntime || needDesktop || needProton) installThenStart(needRuntime, needDesktop, needProton)
+            if (needRuntime || needResume || needDesktop || needProton) installThenStart(needRuntime, needDesktop, needProton, needResume)
         }
         hud = PerfHud(this)
         hud.onPresentingWindowChanged = {
@@ -635,6 +638,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     onCancel = { SessionService.stop(this@SessionActivity); finish() },
                     endedDetail = loading.endedDetail,
                     onRetry = { retrySession() },
+                    onRepair = if (repairOffered) ({ repairRuntime() }) else null,
                     onShareLogs = { shareCurrentSessionLogs() },
                     onClose = { finish() },
                     flood = floodColor?.let { androidx.compose.ui.graphics.Color(it) },
@@ -1320,17 +1324,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
 
     @Volatile private var installingRuntime = false
+    private var repairOffered by mutableStateOf(false)
 
-    private fun installThenStart(runtime: Boolean, desktop: Boolean, proton: Boolean = false) {
+    private fun installThenStart(runtime: Boolean, desktop: Boolean, proton: Boolean = false, resume: Boolean = false) {
         if (SessionState.stopRequested) return
         installingRuntime = true
-        SessionState.installing = if (runtime) "runtime" else if (desktop) "desktop" else "proton"
+        SessionState.installing = if (runtime) "runtime" else if (resume) "package" else if (desktop) "desktop" else "proton"
         SessionEvents.transition(
             SessionPhase.INSTALLING_RUNTIME,
             "${SessionState.installing}.installing",
             mapOf("component" to SessionState.installing),
         )
-        val first = if (runtime) RUNTIME_LINES else if (desktop) DESKTOP_LINES else PROTON_LINES
+        val first = if (runtime || resume) RUNTIME_LINES else if (desktop) DESKTOP_LINES else PROTON_LINES
         loading.say(getString(first.downloading), first.topic, readable = true)
         loading.percent = -1
         Thread({
@@ -1339,6 +1344,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             if (runtime) {
                 problem = installRuntime()
                 if (problem == null) SessionEvents.record("runtime.ready") else failedComponent = "runtime"
+            }
+            if (problem == null && resume && !SessionState.stopRequested) {
+                SessionState.installing = "package"
+                SessionEvents.transition(SessionPhase.INSTALLING_RUNTIME, "package.resuming", mapOf("component" to "package"))
+                problem = com.droiddeck.launcher.runtime.DesktopCatalog.resumeInterrupted(this, progressAsIs())
+                    ?.let { getString(R.string.session_package_resume_failed, it) }
+                if (problem == null) SessionEvents.record("package.ready") else failedComponent = "package"
             }
             if (problem == null && desktop && !SessionState.stopRequested) {
                 SessionState.installing = "desktop"
@@ -1364,7 +1376,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     return@post
                 }
                 if (problem != null) {
-                    val code = if (failedComponent == "runtime") "RUNTIME_INSTALL_FAILED" else "DESKTOP_INSTALL_FAILED"
+                    val code = when (failedComponent) {
+                        "runtime" -> "RUNTIME_INSTALL_FAILED"
+                        "package" -> "PACKAGE_RESUME_FAILED"
+                        else -> "DESKTOP_INSTALL_FAILED"
+                    }
                     SessionEvents.fail(code, problem)
                     collectStartArtifacts("session start failed")
                     loading.showEnded(problem)
@@ -1412,9 +1428,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
     }
 
+    private fun progressAsIs() = com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.ProgressListener { stage, percent ->
+        uiHandler.post {
+            loading.percent = percent
+            loading.say(stage, LoadingState.Topic.RUNTIME, readable = true)
+        }
+    }
+
     private fun installRuntime(): String? {
         val release = com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.fetchRelease()
             ?: return getString(R.string.session_runtime_catalog_unreachable)
+        runCatching { com.droiddeck.launcher.runtime.RuntimeInstallService.start(this, release) }
         val ok = com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.install(this, release,
             progressFor(RUNTIME_LINES, release.size / 1_000_000))
         return if (ok) null else getString(R.string.session_runtime_install_failed)
@@ -1714,7 +1738,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             return
         }
         Thread({
-            val hint = sessionEndHint(SessionState.logFile)
+            val hint = runtimeDamageHint() ?: sessionEndHint(SessionState.logFile)
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 showEnded(status, hint)
@@ -1733,6 +1757,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             SessionService.MODE_DESKTOP -> getString(R.string.session_ended_desktop)
             else -> getString(R.string.session_ended_named, "Steam")
         }
+        repairOffered = hint?.repair == true
         loading.showEnded(
             hint?.text ?: stopped,
             getString(R.string.session_ended_detail, status, SessionState.logFile?.path ?: getString(R.string.session_ended_no_log)),
@@ -1751,6 +1776,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         uiHandler.post { sessionOverlay.requestFocus() }
     }
 
+    private fun repairRuntime() {
+        val again = Intent(intent).putExtra(EXTRA_REPAIR_RUNTIME, true)
+        closeAtOnce = true
+        finish()
+        startActivity(again)
+    }
+
     private fun retrySession() {
         val again = Intent(intent)
         closeAtOnce = true
@@ -1758,7 +1790,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         startActivity(again)
     }
 
-    private class EndHint(val text: String, val evenOnSuccess: Boolean = false)
+    private class EndHint(val text: String, val evenOnSuccess: Boolean = false, val repair: Boolean = false)
+
+    private fun runtimeDamageHint(): EndHint? {
+        val broken = runCatching { com.droiddeck.launcher.runtime.RuntimeHealth.brokenLibraryLinks(this) }.getOrDefault(emptyList())
+        if (broken.isEmpty()) return null
+        Log.w(TAG, "runtime has ${broken.size} broken library link(s): ${broken.take(8).joinToString()}")
+        return EndHint(resources.getQuantityString(R.plurals.session_end_runtime_damaged, broken.size, broken.size, broken.first()), repair = true)
+    }
 
     private fun sessionEndHint(log: File?): EndHint? {
         if (log == null || !log.isFile) return null
@@ -3186,6 +3225,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     companion object {
         const val EXTRA_RETURN_HOME = "returnHome"
         const val EXTRA_STEAMVR = "steamVr"
+        const val EXTRA_REPAIR_RUNTIME = "repairRuntime"
         private const val LEAVE_TIMEOUT_MS = 1_500L
         private const val TAG = "SessionActivity"
         private var startedScreens = 0
