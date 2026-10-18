@@ -2840,7 +2840,7 @@
     <string name="spatial_tap_start">Tap Start new calibration first.</string>
     <string name="spatial_capture_recenter_pending">Recenter is waiting for steady tracking. Hold still for a moment.</string>
     <string name="spatial_capture_recenter">Tracking changed. Tap Recenter once, then hold still before capturing.</string>
-    <string name="spatial_capture_unsynchronized">Capture rejected: head tracking was not synchronized or changed during capture. Hold still and try again.</string>
+    <string name="spatial_capture_unsynchronized">Capture rejected: head tracking was out of sync, or it changed during capture. Hold still and try again.</string>
     <string name="spatial_align_first">Calculate camera alignment before checking the distance.</string>
     <string name="spatial_processing_failed">camera processing failed</string>
     <string name="spatial_hand_head_changed">Head tracking changed during hand detection</string>

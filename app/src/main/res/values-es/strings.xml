@@ -2381,7 +2381,7 @@
     <string name="glasses_auto3d">3D para juegos de RV</string>
     <string name="glasses_auto3d_hint">Cambia a 3D mientras SteamVR está en marcha, y vuelve después.</string>
     <string name="glasses_picture">Imagen</string>
-    <string name="glasses_picture_hint">Muestra automáticamente contenido plano en ambos ojos y detecta SteamVR. Seleccione Juego en paralelo para contenido SBS.</string>
+    <string name="glasses_picture_hint">Muestra automáticamente contenido plano en ambos ojos y detecta SteamVR. Seleccione Juego lado a lado para contenido SBS.</string>
     <string name="glasses_picture_auto">Automático</string>
     <string name="glasses_picture_screen">Pantalla virtual</string>
     <string name="glasses_picture_sbs">Juego lado a lado</string>
@@ -2850,7 +2850,7 @@
     <string name="spatial_tap_start">Toque Iniciar nueva calibración primero.</string>
     <string name="spatial_capture_recenter_pending">El restablecimiento del centro de seguimiento está esperando un seguimiento estable. Mantén las gafas quietas un momento.</string>
     <string name="spatial_capture_recenter">El seguimiento ha cambiado. Pulsa el botón para restablecer el centro de seguimiento una vez y, a continuación, mantén las gafas quietas antes de capturar.</string>
-    <string name="spatial_capture_unsynchronized">Captura rechazada: el seguimiento de la cabeza no se sincronizó ni se modificó durante la captura. Quédate quieto y vuelve a intentarlo.</string>
+    <string name="spatial_capture_unsynchronized">Captura rechazada: el seguimiento de la cabeza no se sincronizó o cambió durante la captura. Quédate quieto y vuelve a intentarlo.</string>
     <string name="spatial_align_first">Calcule la alineación de la cámara antes de verificar la distancia.</string>
     <string name="spatial_processing_failed">el procesamiento de la cámara falló</string>
     <string name="spatial_hand_head_changed">El seguimiento de la cabeza cambió durante la detección de manos</string>

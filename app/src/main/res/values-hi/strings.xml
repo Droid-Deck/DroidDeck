@@ -2757,7 +2757,7 @@
     <string name="spatial_distance_group">3. दूरी की जाँच करें</string>
     <string name="spatial_distance">मापी गई दूरी</string>
     <string name="spatial_distance_hint">12 इंच या 30 सेमी से शुरू करें ताकि मुद्रित मार्करों का पता लगाना आसान हो। वह सटीक माप चुनें जिसका आप उपयोग करेंगे.</string>
-    <string name="spatial_camera_board_distance">कैमरे को अंशांकन लक्ष्य केंद्र पर छोड़ें</string>
+    <string name="spatial_camera_board_distance">बाएँ कैमरे से कैलिब्रेशन लक्ष्य के केंद्र तक की दूरी</string>
     <string name="spatial_checking_distance">दूरी की जाँच हो रही है...</string>
     <string name="spatial_validate">दूरी मान्य करें</string>
     <string name="spatial_diagnostics">डायग्नोस्टिक्स</string>
@@ -2798,7 +2798,7 @@
     <string name="spatial_distance_30cm">30 सेमी (11.81 इंच)</string>
     <string name="spatial_distance_20in">20 इंच (50.8 सेमी)</string>
     <string name="spatial_distance_50cm">50 सेमी (19.69 इंच)</string>
-    <string name="spatial_disabled">विकलांग</string>
+    <string name="spatial_disabled">बंद</string>
     <string name="spatial_wait_stable">स्थिर ट्रैकिंग की प्रतीक्षा में</string>
     <string name="spatial_disconnected">डिसकनेक्ट किया गया</string>
     <string name="spatial_hands_off">नंगे हाथों से संचालित होने वाले नियंत्रक बंद हैं</string>
@@ -2825,7 +2825,7 @@
     <string name="spatial_tap_start">सबसे पहले स्टार्ट न्यू कैलिब्रेशन पर टैप करें।</string>
     <string name="spatial_capture_recenter_pending">ट्रैकिंग सेंटर रीसेट करने के लिए ट्रैकिंग के स्थिर होने का इंतज़ार किया जा रहा है. थोड़ी देर के लिए स्थिर रखें.</string>
     <string name="spatial_capture_recenter">ट्रैकिंग बदल गई है. ट्रैकिंग सेंटर को रीसेट करने के लिए एक बार टैप करें, फिर कैप्चर करने से पहले उसे स्थिर रखें.</string>
-    <string name="spatial_capture_unsynchronized">कैप्चर अस्वीकृत: कैप्चर के दौरान हेड ट्रैकिंग को सिंक्रोनाइज़ नहीं किया गया था या बदला नहीं गया था। स्थिर रहें और पुनः प्रयास करें।</string>
+    <string name="spatial_capture_unsynchronized">कैप्चर अस्वीकृत: कैप्चर के दौरान हेड ट्रैकिंग सिंक्रोनाइज़ नहीं थी या उसमें बदलाव आया। स्थिर रहें और पुनः प्रयास करें।</string>
     <string name="spatial_align_first">दूरी की जांच करने से पहले कैमरा संरेखण की गणना करें।</string>
     <string name="spatial_processing_failed">कैमरा प्रोसेसिंग विफल रही</string>
     <string name="spatial_hand_head_changed">हाथों का पता लगाने के दौरान हेड ट्रैकिंग बदल गई</string>

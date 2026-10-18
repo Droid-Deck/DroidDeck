@@ -2825,7 +2825,7 @@
     <string name="spatial_tap_start">Tippen Sie auf „Zuerst neue Kalibrierung starten“.</string>
     <string name="spatial_capture_recenter_pending">Das Zurücksetzen des Tracking-Zentrums wartet auf stabiles Tracking. Halten Sie die Smart Glasses kurz ruhig.</string>
     <string name="spatial_capture_recenter">Tracking geändert. Tippen Sie einmal auf „Tracking-Zentrum zurücksetzen“ und halten Sie die Smart Glasses vor der Aufnahme ruhig.</string>
-    <string name="spatial_capture_unsynchronized">Aufnahme abgelehnt: Head-Tracking wurde während der Aufnahme nicht synchronisiert oder geändert. Halten Sie still und versuchen Sie es erneut.</string>
+    <string name="spatial_capture_unsynchronized">Aufnahme abgelehnt: Die Kopfverfolgung war nicht synchron oder hat sich während der Aufnahme geändert. Halten Sie still und versuchen Sie es erneut.</string>
     <string name="spatial_align_first">Berechnen Sie die Kameraausrichtung, bevor Sie den Abstand überprüfen.</string>
     <string name="spatial_processing_failed">Kameraverarbeitung fehlgeschlagen</string>
     <string name="spatial_hand_head_changed">Die Kopfverfolgung wurde während der Handerkennung geändert</string>
@@ -2862,7 +2862,7 @@
     <string name="spatial_bad_rotation">Ungültige Kamera-zu-Kopf-Rotation</string>
     <string name="spatial_bad_alignment">Die Ausrichtung der Kamera zum Kopf ist inkonsistent.</string>
     <string name="spatial_calibration_error">Die Kalibrierung konnte nicht abgeschlossen werden. %1$s Ihre erfassten Ansichten werden gespeichert.</string>
-    <string name="spatial_reprojection_error">Ausbleibender Neuprojektionsfehler %1$.2f px überschreitet 2 px. Neu kalibrieren.</string>
+    <string name="spatial_reprojection_error">Reprojektionsfehler bei der Validierung %1$.2f px überschreitet 2 px. Neu kalibrieren.</string>
     <string name="spatial_distance_corners">%1$d / 24 Schachbrettecken in beiden Kameras erkannt. Halten Sie das vollständige Kalibrierungsziel sichtbar und halten Sie es ruhig. Wenn es bereits sichtbar ist, wählen Sie 12 Zoll oder 30 cm und messen Sie den näheren Abstand, bevor Sie es erneut versuchen.</string>
     <string name="spatial_distance_depth">Das Kalibrierungsziel ist sichtbar, seine Tiefe konnte jedoch nicht zuverlässig gemessen werden. Halten Sie die Datenbrille ruhig und halten Sie das Kalibrierungsziel flach und gut beleuchtet. Versuchen Sie es dann erneut.</string>
     <string name="spatial_distance_invalid">Die Kameramessung war ungültig. Halten Sie still und versuchen Sie es erneut.</string>

@@ -2765,7 +2765,7 @@
     <string name="spatial_frame_counts">%1$d đã xử lý • %2$d bị loại bỏ • %3$d bị bỏ qua theo giới hạn đầu vào</string>
     <string name="spatial_print_job">DroidDeck ChArUco 30 mm</string>
     <string name="spatial_print_title">DroidDeck - Hiệu chuẩn Luma Ultra</string>
-    <string name="spatial_print_scale" formatted="false">In ở tốc độ 100% / Kích thước thực tế. Mỗi hình vuông: 30 mm (1,181 in).</string>
+    <string name="spatial_print_scale" formatted="false">In ở tỷ lệ 100% / Kích thước thực tế. Mỗi hình vuông: 30 mm (1,181 in).</string>
     <string name="spatial_print_stationary">Giữ mục tiêu hiệu chỉnh bằng phẳng và cố định; di chuyển kính thông minh giữa các lần chụp.</string>
     <string name="spatial_print_check">Kiểm tra tỷ lệ: 100 mm (3,937 in) giữa các dấu tích</string>
     <string name="spatial_distance_12in">12 inch (30,48 cm)</string>
@@ -2784,7 +2784,7 @@
     <string name="spatial_connect_hint">Kết nối Luma Ultra và bật theo dõi vị trí.</string>
     <string name="spatial_validation_session">Đã xác minh hiệu chuẩn cho kết nối này.</string>
     <string name="spatial_validation_saved">Đã xác minh và lưu hiệu chuẩn.</string>
-    <string name="spatial_wait_cameras">Đang chờ camera âm thanh nổi</string>
+    <string name="spatial_wait_cameras">Đang chờ camera lập thể</string>
     <string name="spatial_wait_hands">Chờ theo dõi bàn tay</string>
     <string name="spatial_collect_instructions">Giữ mục tiêu hiệu chỉnh 5 × 7 cố định. Chụp hơn 24 góc nhìn trong khi di chuyển và xoay kính thông minh.</string>
     <string name="spatial_capture_pending">Đang chờ hình ảnh camera tiếp theo. Giữ yên kính thông minh.</string>
@@ -2799,7 +2799,7 @@
     <string name="spatial_tap_start">Trước tiên hãy nhấn vào Bắt đầu hiệu chuẩn mới.</string>
     <string name="spatial_capture_recenter_pending">Đang chờ theo dõi ổn định. Giữ yên trong giây lát.</string>
     <string name="spatial_capture_recenter">Quá trình theo dõi đã thay đổi. Chạm vào đặt lại trung tâm theo dõi một lần, sau đó giữ yên trước khi chụp.</string>
-    <string name="spatial_capture_unsynchronized">Việc chụp bị từ chối: tính năng theo dõi đầu không được đồng bộ hóa hoặc thay đổi trong quá trình chụp. Giữ yên và thử lại.</string>
+    <string name="spatial_capture_unsynchronized">Không thể chụp: tính năng theo dõi đầu chưa đồng bộ hoặc đã thay đổi trong khi chụp. Giữ yên và thử lại.</string>
     <string name="spatial_align_first">Tính toán căn chỉnh camera trước khi kiểm tra khoảng cách.</string>
     <string name="spatial_processing_failed">xử lý máy ảnh không thành công</string>
     <string name="spatial_hand_head_changed">Tính năng theo dõi đầu đã thay đổi trong quá trình phát hiện bàn tay</string>
@@ -2809,8 +2809,8 @@
     <string name="spatial_one_camera_wrists">Chỉ có thể nhìn thấy cổ tay trong một camera; giữ các tay cầm điều khiển của bạn ở chế độ xem chung</string>
     <string name="spatial_one_camera_hands">Chỉ nhìn thấy bàn tay trong một camera; giữ cả hai lòng bàn tay trong chế độ xem chung</string>
     <string name="spatial_ambiguous_hands">Cả hai camera đều nhìn thấy bàn tay, nhưng việc khớp trái/phải không rõ ràng</string>
-    <string name="spatial_inconsistent_depth">Đã phát hiện thấy bàn tay nhưng độ sâu âm thanh nổi không nhất quán</string>
-    <string name="spatial_rejected_wrist">Vị trí cổ tay bị từ chối bởi kiểm tra âm thanh nổi hoặc chuyển động</string>
+    <string name="spatial_inconsistent_depth">Đã phát hiện thấy bàn tay nhưng độ sâu lập thể không nhất quán</string>
+    <string name="spatial_rejected_wrist">Vị trí cổ tay bị từ chối bởi kiểm tra lập thể hoặc chuyển động</string>
     <string name="spatial_inconsistent_palm">Đã phát hiện thấy các điểm nổi, nhưng hình dạng lòng bàn tay không nhất quán</string>
     <string name="spatial_hands_need_calibration">Hoàn tất hiệu chỉnh và kiểm tra khoảng cách để kích hoạt tay</string>
     <string name="spatial_hands_wait_stable">Đang chờ theo dõi đầu ổn định; đặt lại trung tâm theo dõi nếu được yêu cầu</string>
@@ -2823,11 +2823,11 @@
     <string name="spatial_validation_error">Kiểm tra khoảng cách không thể hoàn thành: %1$s. Hãy thử lại.</string>
     <string name="spatial_inference_error">Không thể phát hiện bàn tay: %1$s. Thay đổi CPU/GPU hoặc bộ điều khiển chuyển đổi được vận hành bằng tay trần để thử lại.</string>
     <string name="spatial_hand_timeout">Phát hiện bàn tay vượt quá %1$d ms; quan sát bị loại bỏ</string>
-    <string name="spatial_wrists_tracked">%1$d/2 vị trí cổ tay Joy-Con được đo bằng âm thanh nổi</string>
+    <string name="spatial_wrists_tracked">%1$d/2 vị trí cổ tay Joy-Con được đo bằng lập thể</string>
     <string name="spatial_palms_tracked">Lòng bàn tay được theo dõi: %1$d / 2; sẵn sàng chụm ngón: %2$d; sẵn sàng nắm: %3$d</string>
     <string name="spatial_capture_saved">Đã lưu bản chụp chẩn đoán vào %1$s</string>
     <string name="spatial_hand_error">Đã ngừng theo dõi bàn tay: %1$s</string>
-    <string name="spatial_stereo_loaded">Âm thanh nổi %1$d×%2$d; %3$s</string>
+    <string name="spatial_stereo_loaded">Lập thể %1$d×%2$d; %3$s</string>
     <string name="spatial_alignment_error">Theo dõi đầu và mục tiêu hiệu chỉnh không đồng nhất ở mức %1$s (giới hạn 5 cm / 2 in). Giữ mục tiêu hiệu chuẩn cố định và chờ theo dõi ổn định trước khi bắt đầu thiết lập mới. Xoay và nghiêng kính thông minh một cách nhẹ nhàng; tạm dừng trước mỗi lần chụp.</string>
     <string name="spatial_need_views">Chụp ít nhất 24 góc nhìn khác nhau của mục tiêu hiệu chỉnh cố định.</string>
     <string name="spatial_need_rotation">Xoay kính thông minh sang trái và phải và nghiêng lên xuống; chuyển động không xoay không thể hiệu chỉnh căn chỉnh camera.</string>

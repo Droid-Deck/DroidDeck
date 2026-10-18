@@ -2893,7 +2893,7 @@
     <string name="spatial_tap_start">Nejprve klepněte na Spustit novou kalibraci.</string>
     <string name="spatial_capture_recenter_pending">Obnovení centra sledování čeká na stabilní sledování. Chvíli držte v klidu.</string>
     <string name="spatial_capture_recenter">Sledování se změnilo. Klepněte jednou na resetování centra sledování a poté držte v klidu před zachycením.</string>
-    <string name="spatial_capture_unsynchronized">Zachycení odmítnuto: Sledování hlavy nebylo synchronizováno nebo změněno během zachycování. Nehýbejte se a zkuste to znovu.</string>
+    <string name="spatial_capture_unsynchronized">Snímek odmítnut: sledování hlavy nebylo synchronizované nebo se během snímání změnilo. Nehýbejte se a zkuste to znovu.</string>
     <string name="spatial_align_first">Před kontrolou vzdálenosti vypočítejte vyrovnání kamery.</string>
     <string name="spatial_processing_failed">zpracování fotoaparátu se nezdařilo</string>
     <string name="spatial_hand_head_changed">Sledování hlavy se změnilo během detekce rukou</string>

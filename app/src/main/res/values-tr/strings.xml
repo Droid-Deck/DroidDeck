@@ -2824,7 +2824,7 @@
     <string name="spatial_tap_start">Önce yeni kalibrasyonu başlat\'a dokunun.</string>
     <string name="spatial_capture_recenter_pending">İzleme merkezi sıfırlama, sabit izlemeyi bekliyor. Bir an için sabit tutun.</string>
     <string name="spatial_capture_recenter">İzleme değişti. Yakalamadan önce izleme merkezini sıfırla\'ya bir kez dokunun, ardından sabit tutun.</string>
-    <string name="spatial_capture_unsynchronized">Yakalama reddedildi: Kafa takibi, yakalama sırasında senkronize edilmedi veya değiştirilmedi. Kımıldama ve tekrar dene.</string>
+    <string name="spatial_capture_unsynchronized">Yakalama reddedildi: Baş takibi yakalama sırasında senkronize değildi veya değişti. Hareketsiz kal ve tekrar dene.</string>
     <string name="spatial_align_first">Mesafeyi kontrol etmeden önce kamera hizalamasını hesaplayın.</string>
     <string name="spatial_processing_failed">kamera işleme başarısız oldu</string>
     <string name="spatial_hand_head_changed">Ellerin tespiti sırasında kafa takibi değişti</string>

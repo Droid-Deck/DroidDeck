@@ -96,8 +96,23 @@ class TrackingRecoveryViewTest {
             val palette=Themes.byId(theme)
             view.update(TrackingRecovery.LOST,false,palette)
             val bitmap=render(view)
-            assertEquals(palette.background.toArgb(),bitmap.getPixel(0,0))
-            save(bitmap,"theme-$theme");bitmap.recycle()
+            try {
+                assertEquals(palette.background.toArgb(),bitmap.getPixel(0,0))
+                val row=IntArray(bitmap.width)
+                val textColor=palette.onBackground.toArgb()
+                var foundTextColor=false
+                for(y in 0 until bitmap.height) {
+                    bitmap.getPixels(row,0,bitmap.width,0,y,bitmap.width,1)
+                    if(row.any { it==textColor }) {
+                        foundTextColor=true
+                        break
+                    }
+                }
+                assertTrue("Missing message color for theme $theme",foundTextColor)
+                save(bitmap,"theme-$theme")
+            } finally {
+                bitmap.recycle()
+            }
         }
     }
 }

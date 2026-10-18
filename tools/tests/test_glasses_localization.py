@@ -52,9 +52,10 @@ class GlassesLocalizationTest(unittest.TestCase):
                     self.assertEqual(collections.Counter(FORMAT.findall(source)), collections.Counter(FORMAT.findall(target)))
                     self.assertEqual(source.count(r"\n"), target.count(r"\n"))
 
-    def test_printed_board_and_distance_choices_preserve_measurements(self):
+    def test_printed_board_and_distance_guidance_preserve_measurements(self):
         keys = ("spatial_print_hint", "spatial_print_scale", "spatial_print_check", "spatial_distance_12in",
-                "spatial_distance_30cm", "spatial_distance_20in", "spatial_distance_50cm")
+                "spatial_distance_30cm", "spatial_distance_20in", "spatial_distance_50cm",
+                "spatial_distance_hint", "spatial_distance_corners")
 
         def numbers(value):
             value = "".join(str(unicodedata.decimal(char)) if char.isdecimal() else char for char in value)

@@ -2392,7 +2392,7 @@
     <string name="glasses_volume">Volume</string>
     <string name="glasses_sunblock">Escurecimento</string>
     <string name="glasses_sunblock_hint">Escurece as lentes frontais.</string>
-    <string name="glasses_tracking">Rastreamento</string>
+    <string name="glasses_tracking">Rastreio</string>
     <string name="glasses_head_tracking">Seguimento da cabeça</string>
     <string name="glasses_head_tracking_hint">Os sensores dos próprios óculos rodam o ecrã virtual e o SteamVR com a sua cabeça.</string>
     <string name="glasses_recenter">Recentrar vista</string>
@@ -2708,7 +2708,7 @@
     <string name="glasses_picture_group">Imagem e ecrã virtual</string>
     <string name="glasses_position_group">Posição e nível do piso</string>
     <string name="glasses_hands_group">Rastreio de mãos — Experimental</string>
-    <string name="glasses_tracking_status">Estado do rastreamento</string>
+    <string name="glasses_tracking_status">Estado do rastreio</string>
     <string name="glasses_resolution_2d">Resolução 2D</string>
     <string name="glasses_resolution_3d">Resolução 3D</string>
     <string name="glasses_resolution_vr">Resolução VR</string>
@@ -2737,7 +2737,7 @@
     <string name="glasses_spatial_open">Abrir configuração</string>
     <string name="glasses_hands">Controladores operados com as mãos nuas</string>
     <string name="glasses_hands_hint">Utilize as câmaras dos óculos inteligentes para fazer pontaria com as mãos, faça o gesto de pinça para clicar e feche a mão para agarrar em VR. Os joysticks do gamepad movem-se e giram. Substitui o seguimento de posição do Joy-Con. Pode haver atraso ou perda de rastreio durante os jogos.</string>
-    <string name="glasses_hands_ready_hint">Ative os controladores operados com as mãos nuas sob as câmaras Luma Ultra em Tracking. Mostre primeiro as mãos abertas.</string>
+    <string name="glasses_hands_ready_hint">Ative os controladores operados com as mãos nuas sob as câmaras Luma Ultra em Rastreio. Mostre primeiro as mãos abertas.</string>
     <string name="glasses_hands_base">Calibração partilhada do Luma Ultra</string>
     <string name="glasses_hands_base_hint">Utilizando a base partilhada do Luma Ultra. Calibre os seus próprios óculos inteligentes para verificar a sua precisão.</string>
     <string name="glasses_hands_calibration_verified">Calibração medida verificada</string>
@@ -2750,7 +2750,7 @@
     <string name="tracking_recovery_usb_help">Uma vez ligado, olhe lentamente em redor numa sala bem iluminada para restaurar o rastreio.</string>
     <string name="tracking_recovery_recenter">É necessário recentralizar</string>
     <string name="tracking_recovery_recenter_steps">O rastreio retornou numa nova posição.\nOlhe em frente e toque em repor centro de rastreio no seu telefone.</string>
-    <string name="tracking_recovery_recenter_help">Também pode encontrar a opção de repor o centro de seguimento em óculos inteligentes → Seguimento → Abrir configuração. A sua calibração de câmara salva será mantida.</string>
+    <string name="tracking_recovery_recenter_help">Também pode encontrar a opção de repor o centro de seguimento em óculos inteligentes → Rastreio → Abrir configuração. A sua calibração de câmara salva será mantida.</string>
     <string name="tracking_recovery_stabilizing">Fique imóvel por um momento</string>
     <string name="tracking_recovery_hold">A reposição do centro de seguimento está em curso.\nMantenha os óculos inteligentes firmes enquanto o rastreio estabiliza.</string>
     <string name="tracking_recovery_automatic">Este ecrã fecha automaticamente quando o rastreio da cabeça está pronto.</string>
@@ -2780,7 +2780,7 @@
     <string name="spatial_calculate">Calcular calibração</string>
     <string name="spatial_distance_group">3. Verifique a distância</string>
     <string name="spatial_distance">Distância medida</string>
-    <string name="spatial_distance_hint">Comece com 30 cm ou 30 cm para que os marcadores impressos sejam mais fáceis de detetar. Escolha a medida exata que vai utilizar.</string>
+    <string name="spatial_distance_hint">Comece com 12 pol. ou 30 cm para que os marcadores impressos sejam mais fáceis de detetar. Escolha a medida exata que vai utilizar.</string>
     <string name="spatial_camera_board_distance">Câmara esquerda para o centro do alvo de calibração</string>
     <string name="spatial_checking_distance">Verificação de distância…</string>
     <string name="spatial_validate">Validar distância</string>
@@ -2795,9 +2795,9 @@
     <string name="spatial_gpu_hint">CPU é o padrão. A GPU é experimental e pode fazer com que o SteamVR reinicie. Esta escolha é reposta quando o rastreio é reiniciado.</string>
     <string name="spatial_lite">Detecção Lite de modelos de mãos</string>
     <string name="spatial_lite_hint">Utilize o detetor de palma Lite e os pontos-chave Lite nas mãos. Verifique a mira, aperte e agarre a precisão. Repõe quando o rastreio é reiniciado.</string>
-    <string name="spatial_adaptive">Frequência de entrada automática para seguimento de ponteiros</string>
+    <string name="spatial_adaptive">Frequência de entrada automática para rastreio de mãos</string>
     <string name="spatial_adaptive_hint">Ajuste a entrada à velocidade de processamento. Repõe quando o rastreio é reiniciado.</string>
-    <string name="spatial_half_rate">Limite a frequência de entrada para o seguimento de ponteiros</string>
+    <string name="spatial_half_rate">Limitar a frequência de entrada para rastreio de mãos</string>
     <string name="spatial_half_rate_hint">Utilize metade das imagens da câmara. Desligue para comparar a frequência máxima. Repõe quando o rastreio é reiniciado.</string>
     <string name="spatial_diagnostic_capture">Captura de diagnóstico</string>
     <string name="spatial_diagnostic_capture_hint">Guarde localmente um par de imagens estéreo. As imagens são guardadas apenas quando solicitadas.</string>
@@ -2825,7 +2825,7 @@
     <string name="spatial_disabled">Desativado</string>
     <string name="spatial_wait_stable">Aguarda rastreio estável</string>
     <string name="spatial_disconnected">Desligado</string>
-    <string name="spatial_hands_off">Os controladores operados com as mãos desprotegidas estão desligados</string>
+    <string name="spatial_hands_off">Os controladores operados com as mãos nuas estão desligados</string>
     <string name="spatial_tracking_off">O seguimento posicional está desativado ou os óculos inteligentes estão desligados</string>
     <string name="spatial_recenter_pending">Reposição do centro de seguimento solicitada — mantenha os óculos imóveis enquanto o seguimento estabiliza.</string>
     <string name="spatial_tracking_lost">Rastreio perdido — enfrente uma área bem iluminada com detalhes visíveis</string>
@@ -2849,20 +2849,20 @@
     <string name="spatial_tap_start">Toque primeiro em Iniciar nova calibração.</string>
     <string name="spatial_capture_recenter_pending">A reposição do centro de rastreio está a aguardar um rastreio estável. Mantenha os óculos imóveis por um momento.</string>
     <string name="spatial_capture_recenter">Rastreio alterado. Toque em repor o centro de rastreio uma vez e mantenha os óculos imóveis antes de capturar.</string>
-    <string name="spatial_capture_unsynchronized">Captura rejeitada: o seguimento da cabeça não foi sincronizado ou alterado durante a captura. Fique imóvel e tente novamente.</string>
+    <string name="spatial_capture_unsynchronized">Captura rejeitada: o rastreio da cabeça estava fora de sincronia ou mudou durante a captura. Fique imóvel e tente novamente.</string>
     <string name="spatial_align_first">Calcule o alinhamento da câmara antes de verificar a distância.</string>
     <string name="spatial_processing_failed">falha no processamento da câmara</string>
     <string name="spatial_hand_head_changed">Rastreio da cabeça alterado durante a deteção das mãos</string>
-    <string name="spatial_hand_wait_sync">Aguarda sincronização da câmara e do cabeçote</string>
+    <string name="spatial_hand_wait_sync">Aguarda sincronização da câmara e da cabeça</string>
     <string name="spatial_no_wrists">Nenhum pulso detetado. Mantenha as pegas do comando Joy-Con na frente dos óculos inteligentes</string>
     <string name="spatial_no_hands">Nenhuma mão detectada. Mostre as palmas das mãos abertas à frente dos óculos inteligentes</string>
-    <string name="spatial_one_camera_wrists">Pulsos visíveis em apenas uma câmara; mantenha os identificadores do seu controlador na vista partilhada</string>
+    <string name="spatial_one_camera_wrists">Pulsos visíveis em apenas uma câmara; mantenha as pegas do comando na vista partilhada</string>
     <string name="spatial_one_camera_hands">Mãos visíveis em apenas uma câmara; mantenha as duas palmas na visualização partilhada</string>
     <string name="spatial_ambiguous_hands">Ambas as câmaras veem mãos, mas a correspondência esquerda/direita é ambígua</string>
     <string name="spatial_inconsistent_depth">Mãos detetadas, mas a profundidade estéreo é inconsistente</string>
     <string name="spatial_rejected_wrist">Posição do pulso rejeitada por verificações de estéreo ou de movimento</string>
     <string name="spatial_inconsistent_palm">Pontos estéreo detetados, mas a geometria da palma é inconsistente</string>
-    <string name="spatial_hands_need_calibration">Conclua a calibração e a verificação de distância para ativar os ponteiros</string>
+    <string name="spatial_hands_need_calibration">Conclua a calibração e a verificação de distância para ativar o rastreio de mãos</string>
     <string name="spatial_hands_wait_stable">Aguarda rastreio de cabeça estável; reponha o centro de rastreio se solicitado.</string>
     <string name="spatial_old_frame">A observação da câmara é muito antiga; à espera de um novo par</string>
     <string name="spatial_fit_ready">Ajustar %1$.2f px. Meça a distância selecionada da câmara esquerda até ao centro do alvo de calibração e valide.</string>
@@ -2871,12 +2871,12 @@
     <string name="spatial_captured">Capturado %1$d/24 visualizações. Mantenha o alvo de calibração fixo; mova os óculos inteligentes para a visualização seguinte.</string>
     <string name="spatial_capture_corners">Captura rejeitada: %1$d/12 cantos necessários visíveis em ambas as câmaras. Mostre mais do alvo de calibração, mantenha-se imóvel e tente novamente.</string>
     <string name="spatial_validation_error">A verificação da distância não pôde ser concluída: %1$s. Tente novamente.</string>
-    <string name="spatial_inference_error">Detecção de mãos indisponível: %1$s. Troque a CPU/GPU ou alterne os controladores operados com as mãos desprotegidas para tentar novamente.</string>
+    <string name="spatial_inference_error">Detecção de mãos indisponível: %1$s. Troque a CPU/GPU ou alterne os controladores operados com as mãos nuas para tentar novamente.</string>
     <string name="spatial_hand_timeout">A deteção de mãos excedeu os %1$d ms; observação descartada</string>
     <string name="spatial_wrists_tracked">%1$d / 2 posições de pulso do Joy-Con medidas por estéreo</string>
     <string name="spatial_palms_tracked">Palmas seguidas: %1$d / 2; gesto de pinça pronto: %2$d; gesto de agarrar pronto: %3$d</string>
     <string name="spatial_capture_saved">Captura de diagnóstico guardada em %1$s</string>
-    <string name="spatial_hand_error">Rastreio de ponteiros interrompido: %1$s</string>
+    <string name="spatial_hand_error">Rastreio de mãos interrompido: %1$s</string>
     <string name="spatial_stereo_loaded">Estéreo %1$d×%2$d; %3$s</string>
     <string name="spatial_alignment_error">O seguimento da cabeça e o alvo de calibração discordam em %1$s (limite de 5 cm/2 pol.). Mantenha o alvo de calibração fixo e aguarde um seguimento estável antes de iniciar um novo conjunto. Rode e incline os óculos inteligentes suavemente; faça uma pausa antes de cada captura.</string>
     <string name="spatial_need_views">Capte pelo menos 24 visualizações variadas do alvo de calibração estacionário.</string>
@@ -2895,7 +2895,7 @@
     <string name="spatial_distance_result">Câmaras medidas %1$s; distância selecionada %2$s. %3$s</string>
     <string name="spatial_wait_previews">Aguarde pelas visualizações de ambas as câmaras antes de iniciar a calibração.</string>
     <string name="spatial_saved_views_hint">As visualizações guardadas podem ser recalculadas. Inicie uma nova calibração para captar no sistema de coordenadas de seguimento atual.</string>
-    <string name="spatial_model_checksum_error">Incompatibilidade de checksum do modelo manual</string>
+    <string name="spatial_model_checksum_error">Incompatibilidade de checksum do modelo de mãos</string>
     <string name="spatial_opencv_load_error">O OpenCV não conseguiu carregar</string>
     <string name="tracking_recovery_look">Olhe em redor lentamente num ambiente bem iluminado.\nMantenha as câmaras de seguimento desobstruídas e viradas para móveis ou outros detalhes visíveis.</string>
 </resources>

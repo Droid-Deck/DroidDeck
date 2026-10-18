@@ -2749,8 +2749,8 @@
     <string name="tracking_recovery_connect">Controlla la connessione USB e ricollega gli occhiali intelligenti.\nAccetta la richiesta di accesso USB sul telefono, se visualizzata.</string>
     <string name="tracking_recovery_usb_help">Una volta connesso, guardati intorno lentamente in una stanza ben illuminata per ripristinare il tracciamento.</string>
     <string name="tracking_recovery_recenter">È necessario ricentrare</string>
-    <string name="tracking_recovery_recenter_steps">Il tracciamento è tornato in una nuova posizione.\nGuarda in avanti, quindi tocca reimposta il centro di tracciamento sul telefono.</string>
-    <string name="tracking_recovery_recenter_help">Puoi trovare \"Ripristina centro di tracciamento\" anche in Smart Glasses → Tracciamento → Apri impostazioni. La calibrazione della fotocamera salvata viene mantenuta.</string>
+    <string name="tracking_recovery_recenter_steps">Il tracciamento è tornato in una nuova posizione.\nGuarda in avanti, quindi tocca \"Ricentra\" sul telefono.</string>
+    <string name="tracking_recovery_recenter_help">Puoi trovare \"Ricentra\" anche in Occhiali smart → Tracciamento → Apri la configurazione. La calibrazione salvata della fotocamera viene mantenuta.</string>
     <string name="tracking_recovery_stabilizing">Resta fermo per un momento</string>
     <string name="tracking_recovery_hold">Ripristino del centro di tracciamento in corso.\nMantieni gli Smart Glasses fermi mentre il tracciamento si stabilizza.</string>
     <string name="tracking_recovery_automatic">Questa schermata si chiude automaticamente quando il tracciamento della testa è pronto.</string>
@@ -2826,9 +2826,9 @@
     <string name="spatial_disconnected">Disconnesso</string>
     <string name="spatial_hands_off">I controller azionati a mani nude sono spenti</string>
     <string name="spatial_tracking_off">Il rilevamento della posizione è disattivato o gli occhiali intelligenti sono disconnessi</string>
-    <string name="spatial_recenter_pending">Richiesta di ripristino del centro di tracciamento: tieni gli occhi fermi mentre il tracciamento si stabilizza.</string>
+    <string name="spatial_recenter_pending">Richiesta di ripristino del centro di tracciamento: tieni fermi gli occhiali mentre il tracciamento si stabilizza.</string>
     <string name="spatial_tracking_lost">Tracciamento perso: rivolgiti verso un\'area ben illuminata con dettagli visibili</string>
-    <string name="spatial_origin_changed">Origine del tracciamento modificata: tocca \"Ripristina centro di tracciamento\", quindi tieni gli occhi fermi.</string>
+    <string name="spatial_origin_changed">Origine del tracciamento modificata: tocca \"Ricentra\", quindi tieni fermi gli occhiali.</string>
     <string name="spatial_active">6DoF attivo</string>
     <string name="spatial_connect_hint">Collegare Luma Ultra e abilitare il tracciamento posizionale.</string>
     <string name="spatial_validation_session">Calibrazione verificata per questa connessione.</string>
@@ -2846,9 +2846,9 @@
     <string name="spatial_base_loaded">Calibrazione base Luma Ultra caricata</string>
     <string name="spatial_calibration_needed">calibrazione richiesta</string>
     <string name="spatial_tap_start">Toccare prima Avvia nuova calibrazione.</string>
-    <string name="spatial_capture_recenter_pending">Il ripristino del centro di tracciamento è in attesa di un tracciamento stabile. Tieni gli occhi fermi per un momento.</string>
-    <string name="spatial_capture_recenter">Tracciamento modificato. Tocca \"Ripristina centro di tracciamento\" una volta, quindi tieni gli occhi fermi prima di acquisire.</string>
-    <string name="spatial_capture_unsynchronized">Cattura rifiutata: il tracciamento della testa non è stato sincronizzato o modificato durante la cattura. Stai fermo e riprova.</string>
+    <string name="spatial_capture_recenter_pending">Il ripristino del centro di tracciamento è in attesa di un tracciamento stabile. Tieni fermi gli occhiali per un momento.</string>
+    <string name="spatial_capture_recenter">Tracciamento modificato. Tocca \"Ricentra\" una volta, quindi tieni fermi gli occhiali prima di acquisire.</string>
+    <string name="spatial_capture_unsynchronized">Acquisizione rifiutata: il tracciamento della testa non era sincronizzato oppure è cambiato durante l’acquisizione. Rimani fermo e riprova.</string>
     <string name="spatial_align_first">Calcolare l\'allineamento della telecamera prima di controllare la distanza.</string>
     <string name="spatial_processing_failed">elaborazione della fotocamera non riuscita</string>
     <string name="spatial_hand_head_changed">Il rilevamento della testa è stato modificato durante il rilevamento delle mani</string>
@@ -2858,7 +2858,7 @@
     <string name="spatial_one_camera_wrists">Polsi visibili in una sola telecamera; mantieni gli handle del controller nella vista condivisa</string>
     <string name="spatial_one_camera_hands">Mani visibili in una sola telecamera; mantieni entrambi i palmi nella vista condivisa</string>
     <string name="spatial_ambiguous_hands">Entrambe le fotocamere vedono le mani, ma la corrispondenza sinistra/destra è ambigua</string>
-    <string name="spatial_inconsistent_depth">Lancette rilevate, ma la profondità stereo non è coerente</string>
+    <string name="spatial_inconsistent_depth">Mani rilevate, ma la profondità stereo non è coerente</string>
     <string name="spatial_rejected_wrist">Posizione del polso rifiutata dai controlli stereo o di movimento</string>
     <string name="spatial_inconsistent_palm">Sono stati rilevati punti stereo, ma la geometria del palmo non è coerente</string>
     <string name="spatial_hands_need_calibration">Calibrazione completa e controllo della distanza per abilitare le mani</string>
@@ -2875,7 +2875,7 @@
     <string name="spatial_wrists_tracked">%1$d / 2 Posizioni del polso dei Joy-Con misurate tramite stereo</string>
     <string name="spatial_palms_tracked">Palmi tracciati: %1$d / 2; gesto di pizzico pronto: %2$d; presa pronta: %3$d</string>
     <string name="spatial_capture_saved">Acquisizione diagnostica salvata in %1$s</string>
-    <string name="spatial_hand_error">Monitoraggio delle lancette interrotto: %1$s</string>
+    <string name="spatial_hand_error">Tracciamento delle mani interrotto: %1$s</string>
     <string name="spatial_stereo_loaded">Stereo %1$d×%2$d; %3$s</string>
     <string name="spatial_alignment_error">Il rilevamento della testa e il target di calibrazione non sono d\'accordo di %1$s (limite 5 cm/2 pollici). Mantenere fisso il target di calibrazione e attendere un tracciamento costante prima di iniziare una nuova serie. Ruota e inclina delicatamente gli occhiali intelligenti; fare una pausa prima di ogni acquisizione.</string>
     <string name="spatial_need_views">Cattura almeno 24 viste diverse del target di calibrazione stazionario.</string>

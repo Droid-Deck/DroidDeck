@@ -2786,7 +2786,7 @@
     <string name="glasses_hands_calibration_required">Требуется проверка</string>
     <string name="glasses_hands_calibration_required_hint">Контроллеры, управляемые голыми руками, становятся доступны после успешного прохождения проверки расстояния.</string>
     <string name="tracking_recovery_lost">Отслеживание потеряно</string>
-    <string name="tracking_recovery_look">Медленно осмотритесь в хорошо освещенной комнате.\nДержите камеры слежения вдали от мебели или других видимых деталей.</string>
+    <string name="tracking_recovery_look">Медленно осмотритесь в хорошо освещённой комнате.\nНе закрывайте камеры слежения и смотрите на мебель или другие хорошо различимые детали.</string>
     <string name="tracking_recovery_restart_help">Все еще застряли? На телефоне: умные очки → Отслеживание → Открыть настройку → Показать диагностику → Перезапустить отслеживание.</string>
     <string name="tracking_recovery_disconnected">Умные очки отключены</string>
     <string name="tracking_recovery_connect">Проверьте USB-соединение и повторно подключите смарт-очки.\nПримите запрос на USB-доступ на телефоне, если он появится.</string>
@@ -2890,7 +2890,7 @@
     <string name="spatial_tap_start">Нажмите «Сначала начать новую калибровку».</string>
     <string name="spatial_capture_recenter_pending">Сброс центра отслеживания ожидает стабилизации отслеживания. Удерживайте неподвижно некоторое время.</string>
     <string name="spatial_capture_recenter">Отслеживание изменилось. Нажмите один раз, чтобы сбросить центр отслеживания, затем удерживайте неподвижно перед захватом.</string>
-    <string name="spatial_capture_unsynchronized">Захват отклонен: отслеживание положения головы не было синхронизировано или изменено во время захвата. Держитесь спокойно и попробуйте еще раз.</string>
+    <string name="spatial_capture_unsynchronized">Снимок отклонён: отслеживание головы не было синхронизировано либо изменилось во время съёмки. Не двигайтесь и попробуйте снова.</string>
     <string name="spatial_align_first">Перед проверкой расстояния рассчитайте выравнивание камеры.</string>
     <string name="spatial_processing_failed">ошибка обработки камеры</string>
     <string name="spatial_hand_head_changed">Изменено отслеживание головы при обнаружении рук.</string>

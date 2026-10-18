@@ -2850,7 +2850,7 @@
     <string name="spatial_tap_start">Appuyez d\'abord sur Démarrer un nouvel étalonnage.</string>
     <string name="spatial_capture_recenter_pending">La réinitialisation du centre de suivi attend un suivi stable. Restez immobile un instant.</string>
     <string name="spatial_capture_recenter">Suivi modifié. Appuyez une fois sur Réinitialiser le centre de suivi, puis restez immobile avant de capturer.</string>
-    <string name="spatial_capture_unsynchronized">Capture rejetée : le suivi de la tête n\'a pas été synchronisé ou modifié pendant la capture. Restez immobile et réessayez.</string>
+    <string name="spatial_capture_unsynchronized">Capture rejetée : le suivi de la tête était désynchronisé ou a changé pendant la capture. Restez immobile et réessayez.</string>
     <string name="spatial_align_first">Calculez l\'alignement de la caméra avant de vérifier la distance.</string>
     <string name="spatial_processing_failed">Échec du traitement de la caméra</string>
     <string name="spatial_hand_head_changed">Le suivi de la tête a changé lors de la détection des mains</string>

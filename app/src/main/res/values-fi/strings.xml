@@ -2415,7 +2415,7 @@
     <string name="hand_camera_allow">Käytä kameraa</string>
     <string name="hand_camera_not_now">Ei nyt</string>
     <string name="hand_camera_setting">Käden seuranta kameralla</string>
-    <string name="hand_camera_setting_hint">Käytä puhelimen kameraa paljain käsin tehtäviin eleisiin tai pariliitettyjen Joy-Con-ohjainten asemointiin VR:ssä. Joy-Con-ohjaimet tarjoavat kierto- ja painikesyötteitä. Keskeyttää, kunnes älylasit seuraavat käsiäsi tai Joy-Con-ohjaimiasi. Kuvia käsitellään vain tässä laitteessa.</string>
+    <string name="hand_camera_setting_hint">Käytä puhelimen kameraa paljain käsin tehtäviin eleisiin tai pariliitettyjen Joy-Con-ohjainten asemointiin VR:ssä. Joy-Con-ohjaimet tarjoavat kierto- ja painikesyötteitä. Seuranta keskeytyy, kun älylasit seuraavat käsiäsi tai Joy-Con-ohjaimiasi. Kuvia käsitellään vain tässä laitteessa.</string>
     <string name="hand_camera_choice">Kamera</string>
     <string name="hand_camera_access">Kameran käyttöoikeus</string>
     <string name="hand_camera_access_hint">Salli kameran käyttö, jotta käden seuranta voi käynnistyä.</string>
@@ -2719,7 +2719,7 @@
     <string name="glasses_hands_calibration_required">Vahvistus vaaditaan</string>
     <string name="glasses_hands_calibration_required_hint">Paljain käsin käytettävät ohjaimet tulevat saataville, kun mitattu etäisyystarkistus on suoritettu.</string>
     <string name="tracking_recovery_lost">Seuranta menetetty</string>
-    <string name="tracking_recovery_look">Katsele hitaasti ympärillesi hyvin valaistussa huoneessa.\nPidä seurantakamerat poissa ja katso huonekaluja tai muita näkyviä yksityiskohtia kohti.</string>
+    <string name="tracking_recovery_look">Katsele hitaasti ympärillesi hyvin valaistussa huoneessa.\nPidä seurantakameroiden näkymä esteettömänä ja katso huonekaluja tai muita näkyviä yksityiskohtia kohti.</string>
     <string name="tracking_recovery_restart_help">Oletko edelleen jumissa? Puhelimessa: älylasit → Seuranta → Avaa asetukset → Näytä diagnostiikka → Aloita seuranta uudelleen.</string>
     <string name="tracking_recovery_disconnected">Älylasit irrotettu</string>
     <string name="tracking_recovery_connect">Tarkista USB-yhteys ja yhdistä älylasit uudelleen.\nHyväksy puhelimesi USB-käyttökehote, jos se tulee näkyviin.</string>
@@ -2757,7 +2757,7 @@
     <string name="spatial_distance_group">3. Tarkista etäisyys</string>
     <string name="spatial_distance">Mitattu etäisyys</string>
     <string name="spatial_distance_hint">Aloita 12 tuumasta tai 30 cm:stä, jotta painetut merkit on helpompi havaita. Valitse tarkka mitta, jota käytät.</string>
-    <string name="spatial_camera_board_distance">Vasen kamera kalibrointikohteen keskelle</string>
+    <string name="spatial_camera_board_distance">Vasemman kameran ja kalibrointikohteen keskipisteen välinen etäisyys</string>
     <string name="spatial_checking_distance">Tarkistetaan etäisyyttä…</string>
     <string name="spatial_validate">Vahvista etäisyys</string>
     <string name="spatial_diagnostics">Diagnostiikka</string>
@@ -2825,7 +2825,7 @@
     <string name="spatial_tap_start">Napauta Aloita uusi kalibrointi ensin.</string>
     <string name="spatial_capture_recenter_pending">Seurantakeskuksen nollaus odottaa vakaata seurantaa. Pysy paikallasi hetki.</string>
     <string name="spatial_capture_recenter">Seuranta muuttunut. Napauta seurantakeskuksen nollausta kerran ja pidä sitten paikallasi ennen kuvaamista.</string>
-    <string name="spatial_capture_unsynchronized">Sieppaus hylätty: pään seurantaa ei synkronoitu tai muutettu sieppauksen aikana. Pysy paikallaan ja yritä uudelleen.</string>
+    <string name="spatial_capture_unsynchronized">Kuvaus hylätty: pään seuranta ei ollut synkronoitu tai se muuttui kuvauksen aikana. Pysy paikallasi ja yritä uudelleen.</string>
     <string name="spatial_align_first">Laske kameran kohdistus ennen etäisyyden tarkistamista.</string>
     <string name="spatial_processing_failed">Kameran käsittely epäonnistui</string>
     <string name="spatial_hand_head_changed">Pään seuranta muuttui käsien havaitsemisen aikana</string>

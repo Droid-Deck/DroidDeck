@@ -2685,7 +2685,7 @@
     <string name="glasses_spatial_setup_hint">게임 시작 전 카메라 보정 및 손 추적을 확인하세요.</string>
     <string name="glasses_spatial_open">설정 열기</string>
     <string name="glasses_hands">맨손으로 조작하는 컨트롤러</string>
-    <string name="glasses_hands_hint">스마트 안경 카메라를 사용하여 손으로 조준하고, 손가락으로 확대/축소하여 클릭하고, 손을 오므려 잡으세요. 게임패드 스틱이 움직이고 회전합니다. Joy-Con 위치 추적을 대체합니다. 게임 중 지연이 발생하거나 추적이 끊길 수 있습니다.</string>
+    <string name="glasses_hands_hint">스마트 안경 카메라를 사용하여 VR에서 손으로 조준하고, 엄지와 검지를 오므려 클릭하고, 손을 오므려 잡으세요. 게임패드 스틱으로 이동하고 방향을 바꿀 수 있습니다. Joy-Con 위치 추적을 대체합니다. 게임 중 지연이 발생하거나 추적이 끊길 수 있습니다.</string>
     <string name="glasses_hands_ready_hint">추적 설정에서 Luma Ultra 카메라 아래에 맨손으로 조작하는 컨트롤러를 활성화합니다. 먼저 손을 펼친 상태를 표시합니다.</string>
     <string name="glasses_hands_base">Luma Ultra 공유 보정</string>
     <string name="glasses_hands_base_hint">Luma Ultra 공유 베이스 사용 스마트 안경의 정확도를 확인하려면 직접 보정하십시오.</string>
@@ -2695,7 +2695,7 @@
     <string name="tracking_recovery_lost">추적 실패</string>
     <string name="tracking_recovery_disconnected">스마트 안경 연결이 끊어졌습니다.</string>
     <string name="spatial_capturing">캡처하는 중…</string>
-    <string name="spatial_camera_board_distance">보정 대상 중앙에 왼쪽 카메라</string>
+    <string name="spatial_camera_board_distance">왼쪽 카메라에서 보정 대상 중심까지의 거리</string>
     <string name="spatial_checking_distance">거리 확인 중…</string>
     <string name="spatial_validate">거리 확인</string>
     <string name="spatial_diagnostics">진단</string>
@@ -2824,7 +2824,7 @@
     <string name="spatial_no_camera_frame">새로운 카메라 이미지가 도착하지 않았습니다. 스마트 안경 연결 및 카메라 미리보기를 확인한 후 다시 시도하세요.</string>
     <string name="spatial_tap_start">먼저 새 보정 시작을 탭합니다.</string>
     <string name="spatial_capture_recenter_pending">추적 중심 재설정이 안정적인 추적을 기다리고 있습니다. 잠시 움직이지 마세요.</string>
-    <string name="spatial_capture_unsynchronized">캡처 거부됨: 캡처 중에 머리 추적이 동기화되지 않았거나 변경되지 않았습니다. 가만히 있다가 다시 시도해 보세요.</string>
+    <string name="spatial_capture_unsynchronized">캡처 거부됨: 머리 추적이 동기화되지 않았거나 캡처 중에 변경되었습니다. 움직이지 말고 다시 시도하세요.</string>
     <string name="spatial_align_first">거리를 확인하기 전에 카메라 정렬을 계산하십시오.</string>
     <string name="spatial_hand_wait_sync">카메라와 헤드의 동기화를 기다리는 중</string>
     <string name="spatial_no_wrists">손목이 감지되지 않았습니다. Joy-Con 컨트롤러 핸들을 스마트 안경 앞에 두십시오.</string>

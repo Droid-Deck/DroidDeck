@@ -2732,7 +2732,7 @@
     <string name="spatial_distance_group">3. Semak jarak</string>
     <string name="spatial_distance">Jarak yang diukur</string>
     <string name="spatial_distance_hint">Mulakan dengan 12 in atau 30 cm supaya penanda yang dicetak lebih mudah untuk dikesan. Pilih ukuran tepat yang akan anda gunakan.</string>
-    <string name="spatial_camera_board_distance">Kiri kamera ke pusat sasaran penentukuran</string>
+    <string name="spatial_camera_board_distance">Jarak dari kamera kiri ke pusat sasaran penentukuran</string>
     <string name="spatial_checking_distance">Menyemak jarak…</string>
     <string name="spatial_validate">Sahkan jarak</string>
     <string name="spatial_diagnostics">Diagnostik</string>
@@ -2767,7 +2767,7 @@
     <string name="spatial_print_job">DroidDeck ChArUco 30 mm</string>
     <string name="spatial_print_scale" formatted="false">Cetak pada 100% / Saiz sebenar. Setiap segi empat sama: 30 mm (1.181 in).</string>
     <string name="spatial_print_stationary">Pastikan sasaran penentukuran rata dan pegun; gerakkan cermin mata pintar antara tangkapan.</string>
-    <string name="spatial_print_check">Semakan skala: 100 mm (3.937 in) antara kutu</string>
+    <string name="spatial_print_check">Semakan skala: 100 mm (3.937 in) antara tanda skala</string>
     <string name="spatial_distance_12in">12 in (30.48 sm)</string>
     <string name="spatial_distance_30cm">30 sm (11.81 in)</string>
     <string name="spatial_distance_20in">20 in (50.8 sm)</string>
@@ -2798,7 +2798,7 @@
     <string name="spatial_tap_start">Ketik Mulakan penentukuran baharu dahulu.</string>
     <string name="spatial_capture_recenter_pending">Tetapkan semula pusat penjejakan sedang menunggu penjejakan yang stabil. Tahan pegun seketika.</string>
     <string name="spatial_capture_recenter">Penjejakan berubah. Ketik tetapkan semula pusat penjejakan sekali, kemudian tahan pegun sebelum menangkap.</string>
-    <string name="spatial_capture_unsynchronized">Tangkapan ditolak: pengesanan kepala tidak disegerakkan atau ditukar semasa tangkapan. Diam dan cuba lagi.</string>
+    <string name="spatial_capture_unsynchronized">Tangkapan ditolak: penjejakan kepala tidak segerak atau telah berubah semasa tangkapan. Kekal diam dan cuba lagi.</string>
     <string name="spatial_align_first">Kira penjajaran kamera sebelum menyemak jarak.</string>
     <string name="spatial_processing_failed">pemprosesan kamera gagal</string>
     <string name="spatial_hand_head_changed">Pengesanan kepala berubah semasa pengesanan tangan</string>

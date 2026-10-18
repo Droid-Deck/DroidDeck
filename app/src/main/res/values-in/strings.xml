@@ -2800,7 +2800,7 @@
     <string name="spatial_tap_start">Ketuk Mulai kalibrasi baru terlebih dahulu.</string>
     <string name="spatial_capture_recenter_pending">Reset pusat pelacakan sedang menunggu pelacakan stabil. Diamkan sebentar.</string>
     <string name="spatial_capture_recenter">Pelacakan berubah. Ketuk reset pusat pelacakan sekali, lalu diamkan sebelum menangkap.</string>
-    <string name="spatial_capture_unsynchronized">Pengambilan ditolak: pelacakan kepala tidak disinkronkan atau diubah selama pengambilan. Tahan dan coba lagi.</string>
+    <string name="spatial_capture_unsynchronized">Pengambilan ditolak: pelacakan kepala tidak sinkron atau berubah selama pengambilan. Tetap diam dan coba lagi.</string>
     <string name="spatial_align_first">Hitung keselarasan kamera sebelum memeriksa jarak.</string>
     <string name="spatial_processing_failed">pemrosesan kamera gagal</string>
     <string name="spatial_hand_head_changed">Pelacakan kepala berubah selama deteksi tangan</string>
@@ -2841,7 +2841,7 @@
     <string name="spatial_distance_corners">%1$d / 24 sudut kotak-kotak terdeteksi di kedua kamera. Jaga agar target kalibrasi penuh tetap terlihat dan diam. Jika sudah terlihat, pilih 12 inci atau 30 cm dan ukur jarak terdekatnya sebelum mencoba lagi.</string>
     <string name="spatial_distance_depth">Target kalibrasi terlihat, namun kedalamannya tidak dapat diukur dengan andal. Pegang kacamata pintar dengan tenang dan jaga target kalibrasi tetap datar dan terang, lalu coba lagi.</string>
     <string name="spatial_distance_invalid">Pengukuran kamera tidak valid. Tahan dan coba lagi.</string>
-    <string name="spatial_distance_passed">Pemeriksaan jarak berlalu.</string>
+    <string name="spatial_distance_passed">Pemeriksaan jarak berhasil.</string>
     <string name="spatial_distance_retry">Periksa kembali jarak dari kamera kiri ke pusat target kalibrasi, lalu coba lagi.</string>
     <string name="spatial_distance_result">Kamera diukur %1$s; jarak yang dipilih %2$s. %3$s</string>
     <string name="spatial_wait_previews">Tunggu pratinjau kedua kamera sebelum memulai kalibrasi.</string>

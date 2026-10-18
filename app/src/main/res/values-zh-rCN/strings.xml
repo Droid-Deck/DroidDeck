@@ -2770,7 +2770,7 @@
     <string name="spatial_distance_30cm">30 厘米（11.81 英寸）</string>
     <string name="spatial_distance_20in">20 英寸（50.8 厘米）</string>
     <string name="spatial_distance_50cm">50 厘米（19.69 英寸）</string>
-    <string name="spatial_disabled">残疾人</string>
+    <string name="spatial_disabled">已停用</string>
     <string name="spatial_wait_stable">等待稳定跟踪</string>
     <string name="spatial_disconnected">已断开连接</string>
     <string name="spatial_hands_off">徒手操作的控制器已关闭</string>
@@ -2797,7 +2797,7 @@
     <string name="spatial_tap_start">点击首先开始新的校准。</string>
     <string name="spatial_capture_recenter_pending">重置追踪中心正在等待稳定的追踪。请保持静止片刻。</string>
     <string name="spatial_capture_recenter">追踪已更改。点击“重置追踪中心”一次，然后在捕获之前保持静止。</string>
-    <string name="spatial_capture_unsynchronized">捕获被拒绝：头部跟踪在捕获期间未同步或更改。保持不动，然后再试一次。</string>
+    <string name="spatial_capture_unsynchronized">采集被拒绝：头部跟踪未同步，或在采集过程中发生了变化。保持不动后重试。</string>
     <string name="spatial_align_first">在检查距离之前计算相机对准。</string>
     <string name="spatial_processing_failed">相机处理失败</string>
     <string name="spatial_hand_head_changed">检测手部期间头部追踪发生变化</string>

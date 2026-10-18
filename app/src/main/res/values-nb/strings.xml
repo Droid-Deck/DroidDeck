@@ -2719,7 +2719,7 @@
     <string name="glasses_hands_calibration_required">Validering kreves</string>
     <string name="glasses_hands_calibration_required_hint">Kontrollere som betjenes med bare hender blir tilgjengelige etter at den målte avstandskontrollen er bestått.</string>
     <string name="tracking_recovery_lost">Sporing tapt</string>
-    <string name="tracking_recovery_look">Se deg sakte rundt i et godt opplyst rom.\nHold sporingskameraene unna og vend deg mot møbler eller andre synlige detaljer.</string>
+    <string name="tracking_recovery_look">Se deg sakte rundt i et godt opplyst rom.\nHold sikten til sporingskameraene fri og vend deg mot møbler eller andre synlige detaljer.</string>
     <string name="tracking_recovery_restart_help">Fortsatt fast? På telefonen: smartbriller → Sporing → Åpne oppsett → Vis diagnostikk → Start sporing på nytt.</string>
     <string name="tracking_recovery_disconnected">Smarte briller frakoblet</string>
     <string name="tracking_recovery_connect">Sjekk USB-tilkoblingen og koble til smartbrillene igjen.\nGodta forespørselen om USB-tilgang på telefonen din hvis den vises.</string>
@@ -2825,7 +2825,7 @@
     <string name="spatial_tap_start">Trykk på Start ny kalibrering først.</string>
     <string name="spatial_capture_recenter_pending">Tilbakestill sporingssenter venter på stabil sporing. Hold stille et øyeblikk.</string>
     <string name="spatial_capture_recenter">Sporing endret. Trykk på tilbakestill sporingssenter én gang, og hold deretter stille før du tar opptak.</string>
-    <string name="spatial_capture_unsynchronized">Opptak avvist: hodesporing ble ikke synkronisert eller endret under fotografering. Hold stille og prøv igjen.</string>
+    <string name="spatial_capture_unsynchronized">Opptak avvist: Hodesporingen var ikke synkronisert, eller den endret seg under opptaket. Hold deg i ro og prøv igjen.</string>
     <string name="spatial_align_first">Beregn kamerajustering før du sjekker avstanden.</string>
     <string name="spatial_processing_failed">kamerabehandling mislyktes</string>
     <string name="spatial_hand_head_changed">Hodesporing endret under deteksjon av hender</string>

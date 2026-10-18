@@ -2515,7 +2515,7 @@
     <string name="hand_camera_allow">استخدام الكاميرا</string>
     <string name="hand_camera_not_now">ليس الآن</string>
     <string name="hand_camera_setting">تتبّع اليدين بالكاميرا</string>
-    <string name="hand_camera_setting_hint">استخدم كاميرا الهاتف لإيماءات اليد المجردة أو لتحديد موضع وحدات تحكم Joy-Con المقترنة في الواقع الافتراضي. توفر وحدات تحكم Joy-Con التحكم في الدوران والأزرار. يتوقف التتبع مؤقتًا بينما تتعقب النظارات الذكية يديك أو وحدات تحكم Joy-Con. تتم معالجة الصور على هذا الجهاز فقط.    تتم معالجة الصور على هذا الجهاز فقط.</string>
+    <string name="hand_camera_setting_hint">استخدم كاميرا الهاتف لإيماءات اليد المجردة أو لتحديد موضع وحدات تحكم Joy-Con المقترنة في الواقع الافتراضي. توفر وحدات تحكم Joy-Con التحكم في الدوران والأزرار. يتوقف التتبع مؤقتًا بينما تتعقب النظارات الذكية يديك أو وحدات تحكم Joy-Con. تتم معالجة الصور على هذا الجهاز فقط.</string>
     <string name="hand_camera_choice">الكاميرا</string>
     <string name="hand_camera_access">الوصول إلى الكاميرا</string>
     <string name="hand_camera_access_hint">اسمح بالوصول إلى الكاميرا حتى يبدأ تتبّع اليدين.</string>

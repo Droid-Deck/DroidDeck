@@ -2755,7 +2755,7 @@
     <string name="spatial_distance_group">3. Ellenőrizze a távolságot</string>
     <string name="spatial_distance">Mért távolság</string>
     <string name="spatial_distance_hint">Kezdje 12 hüvelykkel vagy 30 cm-rel, hogy a nyomtatott jelölők könnyebben felismerhetők legyenek. Válassza ki a használni kívánt pontos méretet.</string>
-    <string name="spatial_camera_board_distance">Bal kamera a kalibrációs célponthoz</string>
+    <string name="spatial_camera_board_distance">A bal kamera és a kalibrációs céltábla középpontja közötti távolság</string>
     <string name="spatial_checking_distance">Távolság ellenőrzése…</string>
     <string name="spatial_validate">Távolság érvényesítése</string>
     <string name="spatial_diagnostics">Diagnosztika</string>
@@ -2791,7 +2791,7 @@
     <string name="spatial_print_title">DroidDeck – Luma Ultra kalibrálás</string>
     <string name="spatial_print_scale" formatted="false">Nyomtatás 100%/Tényleges méretben. Mindegyik négyzet: 30 mm (1,181 hüvelyk).</string>
     <string name="spatial_print_stationary">Tartsa a kalibrációs célt síkban és álló helyzetben; mozgassa az okosszemüveget a felvételek között.</string>
-    <string name="spatial_print_check">Skálaellenőrzés: 100 mm (3,937 hüvelyk) a kullancsok között</string>
+    <string name="spatial_print_check">Skálaellenőrzés: 100 mm (3,937 hüvelyk) a jelölések között</string>
     <string name="spatial_distance_12in">12 hüvelyk (30,48 cm)</string>
     <string name="spatial_distance_30cm">30 cm (11,81 hüvelyk)</string>
     <string name="spatial_distance_20in">20 hüvelyk (50,8 cm)</string>

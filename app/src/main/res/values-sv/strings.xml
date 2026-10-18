@@ -2824,7 +2824,7 @@
     <string name="spatial_tap_start">Tryck på Starta ny kalibrering först.</string>
     <string name="spatial_capture_recenter_pending">Återställning av spårningscenter väntar på stabil spårning. Håll still en stund.</string>
     <string name="spatial_capture_recenter">Spårning ändras. Tryck på återställ spårningscenter en gång och håll sedan still innan du fångar.</string>
-    <string name="spatial_capture_unsynchronized">Infångning avvisades: huvudspårning synkroniserades eller ändrades inte under fångst. Håll still och försök igen.</string>
+    <string name="spatial_capture_unsynchronized">Bilden avvisades: huvudspårningen var inte synkroniserad eller ändrades under bildtagningen. Håll stilla och försök igen.</string>
     <string name="spatial_align_first">Beräkna kamerainriktningen innan du kontrollerar avståndet.</string>
     <string name="spatial_processing_failed">kamerabehandling misslyckades</string>
     <string name="spatial_hand_head_changed">Huvudspårningen ändrades under detektering av händer</string>

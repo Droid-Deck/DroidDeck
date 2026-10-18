@@ -2784,7 +2784,7 @@
     <string name="spatial_restart_confirm">Niet-opgeslagen kalibratiebeelden gaan verloren. Houd de smartbril daarna stil en reset het trackingcentrum wanneer de tracking is hersteld.</string>
     <string name="spatial_views_count">%1$d / 24 weergaven vastgelegd</string>
     <string name="spatial_capture_paused">Opname onderbroken: %1$s</string>
-    <string name="spatial_measure_hint">Maatregel %1$s. Toon het volledige kalibratiedoel in beide voorbeelden en houd vervolgens stil.</string>
+    <string name="spatial_measure_hint">Meet %1$s. Zorg dat het volledige kalibratiedoel in beide cameravoorbeelden zichtbaar is en houd de bril vervolgens stil.</string>
     <string name="spatial_timing_values">%1$.1f Hz • beeldleeftijd %2$.1f ms • verwerking %3$.1f ms</string>
     <string name="spatial_input_values">Ingangslimiet %1$.1f Hz • %2$.0f%% van camerabeelden. Het volgen van het hoofd gaat door op de maximale frequentie.</string>
     <string name="spatial_frame_counts">%1$d verwerkt • %2$d verwijderd • %3$d overgeslagen op invoerlimiet</string>
@@ -2823,7 +2823,7 @@
     <string name="spatial_tap_start">Tik op Start eerst nieuwe kalibratie.</string>
     <string name="spatial_capture_recenter_pending">Het resetten van het trackingcentrum wacht op stabiele tracking. Blijf even stil staan.</string>
     <string name="spatial_capture_recenter">Tracking gewijzigd. Tik één keer op \'Trackingcentrum resetten\' en blijf vervolgens stil staan ​​voordat je een opname maakt.</string>
-    <string name="spatial_capture_unsynchronized">Vastlegging afgewezen: het volgen van het hoofd werd niet gesynchroniseerd of gewijzigd tijdens het vastleggen. Houd stil en probeer het opnieuw.</string>
+    <string name="spatial_capture_unsynchronized">Opname afgewezen: de hoofdtracking was niet gesynchroniseerd of is tijdens de opname veranderd. Houd de bril stil en probeer het opnieuw.</string>
     <string name="spatial_align_first">Bereken de camera-uitlijning voordat u de afstand controleert.</string>
     <string name="spatial_processing_failed">Cameraverwerking mislukt</string>
     <string name="spatial_hand_head_changed">Volgen van hoofd gewijzigd tijdens detectie van handen</string>

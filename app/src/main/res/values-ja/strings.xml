@@ -2771,7 +2771,7 @@
     <string name="spatial_distance_30cm">30cm (11.81インチ)</string>
     <string name="spatial_distance_20in">20 インチ (50.8 センチメートル)</string>
     <string name="spatial_distance_50cm">50cm (19.69インチ)</string>
-    <string name="spatial_disabled">障害者</string>
+    <string name="spatial_disabled">無効</string>
     <string name="spatial_wait_stable">安定した追跡を待っています</string>
     <string name="spatial_disconnected">切断されました</string>
     <string name="spatial_hands_off">素手で操作するコントローラーはオフです</string>
@@ -2811,7 +2811,7 @@
     <string name="spatial_inconsistent_depth">手は検出されましたが、ステレオの深度が一貫していません</string>
     <string name="spatial_rejected_wrist">手首の位置がステレオまたはモーション チェックで拒否されました</string>
     <string name="spatial_inconsistent_palm">ステレオ ポイントが検出されましたが、手のひらのジオメトリが一貫していません</string>
-    <string name="spatial_hands_need_calibration">キャリブレーションと距離チェックを完了して針を有効にする</string>
+    <string name="spatial_hands_need_calibration">手のトラッキングを有効にするには、キャリブレーションと距離チェックを完了してください</string>
     <string name="spatial_hands_wait_stable">安定したヘッドトラッキングを待機中。必要に応じてトラッキングセンターをリセットします。</string>
     <string name="spatial_old_frame">カメラによる観察は古すぎる。新しいペアを待っています</string>
     <string name="spatial_fit_ready">%1$.2f ピクセルにフィットします。左側のカメラからキャリブレーション ターゲットの中心までの選択した距離を測定し、検証します。</string>

@@ -2892,7 +2892,7 @@
     <string name="spatial_tap_start">Торкніться «Спочатку почати нове калібрування».</string>
     <string name="spatial_capture_recenter_pending">Центр скидання відстеження очікує на стабільне відстеження. Затримайтеся нерухомо на мить.</string>
     <string name="spatial_capture_recenter">Відстеження змінено. Натисніть «Скинути центр відстеження» один раз, а потім тримайте нерухомо перед зйомкою.</string>
-    <string name="spatial_capture_unsynchronized">Зйомку відхилено: відстеження голови не було синхронізовано або змінено під час зйомки. Затримайтеся та спробуйте ще раз.</string>
+    <string name="spatial_capture_unsynchronized">Знімок відхилено: відстеження голови не було синхронізоване або змінилося під час зйомки. Не рухайтеся та спробуйте ще раз.</string>
     <string name="spatial_align_first">Розрахуйте вирівнювання камери перед перевіркою відстані.</string>
     <string name="spatial_processing_failed">Помилка обробки камери</string>
     <string name="spatial_hand_head_changed">Відстеження голови змінено під час виявлення рук</string>
@@ -2902,7 +2902,7 @@
     <string name="spatial_one_camera_wrists">Зап’ястя видно лише в одній камері; тримайте ручки контролера в спільному поданні</string>
     <string name="spatial_one_camera_hands">Руки видно лише в одній камері; тримайте обидві долоні в загальному вигляді</string>
     <string name="spatial_ambiguous_hands">Обидві камери бачать руки, але відповідність ліворуч/праворуч неоднозначна</string>
-    <string name="spatial_inconsistent_depth">Стрілки виявлено, але глибина стерео непостійна</string>
+    <string name="spatial_inconsistent_depth">Руки виявлено, але стереоглибина неузгоджена</string>
     <string name="spatial_rejected_wrist">Положення зап’ястя відхилено стереосистемою чи перевіркою руху</string>
     <string name="spatial_inconsistent_palm">Виявлено стереоточки, але геометрія долоні суперечлива</string>
     <string name="spatial_hands_need_calibration">Завершіть калібрування та перевірте відстань, щоб увімкнути руки</string>
