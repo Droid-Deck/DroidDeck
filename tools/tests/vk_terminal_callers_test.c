@@ -50,11 +50,26 @@ static void unmap(VkDevice d, VkDeviceMemory m) { ++destroys; }
  * signatures remain checked by the production headers. */
 int __android_log_print(int p, const char *t, const char *f, ...) { return 0; }
 void droiddeck_log(const char *t, const char *f, ...) {}
+int __system_property_get(const char *name, char *value) {
+    (void)name; value[0]=0; return 0; /* host fixture: Android properties are absent */
+}
 void droiddeck_on_first_frame(void) {}
 int32_t ANativeWindow_getWidth(ANativeWindow *w) { return 64; }
 int32_t ANativeWindow_getHeight(ANativeWindow *w) { return 64; }
 void ANativeWindow_release(ANativeWindow *w) {}
 void sc_layer_window_gone(void) {}
+void sc_layer_hide(void) {}
+void sc_layer_hide_base(void) {}
+void sc_layer_hide_overlay(void) {}
+int sc_layer_base_black(int w, int h) { assert(0); return -1; }
+int sc_layer_present_pass(const struct vkp_draw *d, int n, int w, int h) { assert(0); return -1; }
+void vkp_cardboard_bind_device(VkDevice d, const VkPhysicalDeviceMemoryProperties *m) {}
+int vkp_cardboard_active(void) { return 0; }
+void vkp_cardboard_begin_frame(void) { live(); }
+VkImage vkp_cardboard_run(VkCommandBuffer c, VkImage i, int w, int h, int ow, int oh) {
+    assert(0); return VK_NULL_HANDLE;
+}
+void vkp_effects_forget_image(VkImage i) {}
 int vk_loader_open(const char *a, const char *b, const char *c) { assert(0); return -1; }
 void vk_loader_load_instance(VkInstance i) { assert(0); }
 void vk_loader_load_device(VkDevice d) { assert(0); }
@@ -216,7 +231,11 @@ static void upload_timeout(int single_pixel) {
 int main(int argc, char **argv) {
     assert(argc == 2);
     const char *name = argv[1];
-    if (!strcmp(name, "first-out-of-date")) acquire_failure(0, VK_ERROR_OUT_OF_DATE_KHR);
+    if (!strcmp(name, "device-properties")) {
+        char value[PROP_VALUE_MAX]; memset(value, 0x5a, sizeof(value));
+        assert(__system_property_get("ro.product.model", value) == 0 && !value[0]);
+        assert(!vkp_quest_layer_presentation());
+    } else if (!strcmp(name, "first-out-of-date")) acquire_failure(0, VK_ERROR_OUT_OF_DATE_KHR);
     else if (!strcmp(name, "first-surface-lost")) acquire_failure(0, VK_ERROR_SURFACE_LOST_KHR);
     else if (!strcmp(name, "later-out-of-date")) acquire_failure(1, VK_ERROR_OUT_OF_DATE_KHR);
     else if (!strcmp(name, "later-surface-lost")) acquire_failure(1, VK_ERROR_SURFACE_LOST_KHR);

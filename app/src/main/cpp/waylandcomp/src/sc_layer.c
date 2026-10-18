@@ -973,6 +973,7 @@ void sc_layer_hide_overlay(void) {
 }
 
 void sc_layer_window_gone(void) {
+    if (vkp_completion_unknown()) return;
     base_hide(1); /* the backdrop belongs to the old window, just like GAME and OVERLAY */
     if (api.state != 1) return;
     layers_init();

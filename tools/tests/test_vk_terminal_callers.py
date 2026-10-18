@@ -19,7 +19,8 @@ SOURCE = ROOT / 'app/src/main/cpp/waylandcomp/src/vk_present.c'
 
 def vulkan_include():
     candidates = [Path(p) for p in [os.environ.get('DROIDDECK_VULKAN_INCLUDE', ''),
-                                  '/usr/include', '/usr/local/include'] if p]
+                                  '/usr/include', '/usr/local/include',
+                                  '/opt/homebrew/include'] if p]
     for name in ('ANDROID_HOME', 'ANDROID_SDK_ROOT', 'ANDROID_NDK_HOME', 'NDK'):
         if os.environ.get(name):
             root = Path(os.environ[name])
@@ -55,6 +56,12 @@ void ANativeWindow_release(ANativeWindow *);
 #define ANDROID_LOG_INFO 4
 int __android_log_print(int, const char *, const char *, ...);
 ''')
+        (tmp / 'sys').mkdir()
+        (tmp / 'sys/system_properties.h').write_text('''
+#pragma once
+#define PROP_VALUE_MAX 92
+int __system_property_get(const char *, char *);
+''')
         (tmp / 'wayland-server.h').write_text('#pragma once\nstruct wl_display; struct wl_resource; struct wl_client;\n')
         compositor = (SOURCE.parent / 'compositor.c').read_text()
         callers = '\n'.join(function(compositor, n) for n in ('buffer_release_blocked', 'send_buffer_release', 'take_shm', 'take_pixel'))
@@ -73,6 +80,9 @@ int __android_log_print(int, const char *, const char *, ...);
     def run_scenario(self, name):
         ran = subprocess.run([str(self.binary), name], capture_output=True, text=True, timeout=10)
         self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
+
+    def test_missing_android_properties_keep_non_quest_default(self):
+        self.run_scenario('device-properties')
 
     def test_first_acquire_idle_failure(self):
         self.run_scenario('first-out-of-date')

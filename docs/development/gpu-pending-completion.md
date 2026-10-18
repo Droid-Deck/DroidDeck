@@ -41,6 +41,14 @@ Copied SHM releases and healthy/genuine-device-loss cleanup keep their existing
 behaviour. This intentionally prevents further client buffer reuse; restarting
 the Android app process, not just the guest session, is required.
 
+Window removal also leaves SurfaceControl layers and their imported AHB pool
+untouched after quarantine. Retaining only the Vulkan image while releasing its
+AHB would lose ownership of memory that pending GPU work may still use. New
+DMA-BUF creation is rejected with a protocol error before moving its plane FDs
+into a new retained buffer record; the existing params destructor still closes
+those FDs. This bounds
+new buffer-record retention while preserving buffers that may already be pending.
+
 ## Regression coverage
 
 `python3 -m unittest discover -s tools/tests -p test_vk_pending_completion.py -v`
@@ -55,8 +63,10 @@ additionally compiles the **entire production `vk_present.c`**, with fake Vulkan
 dispatch callbacks and stub external modules. The compositor's `take_shm` and
 `take_pixel` callers are inserted verbatim, not rewritten. It needs the Android
 NDK's Vulkan-Headers (`ANDROID_HOME`/`ANDROID_SDK_ROOT`/`NDK`), a host Vulkan
-development package, or `DROIDDECK_VULKAN_INCLUDE`; absent headers are explicitly
-reported as a skip. No Android runtime or GPU is required.
+development package (including Homebrew), or `DROIDDECK_VULKAN_INCLUDE`; absent headers are explicitly
+reported as a skip. Android properties are explicitly faked as absent, so the
+host fixture uses the non-Quest default; it does not validate Android property
+lookup or Quest presentation. No Android runtime or GPU is required.
 
 The 12 scenarios include first/later OUT_OF_DATE and SURFACE_LOST followed by an
 idle failure, a finite blit timeout followed by same-size SHM/single-pixel
@@ -86,3 +96,18 @@ FDs/references/AHB ownership, removal of surface listeners and disarmed timers.
 The same harness can test an old source directory via
 `DROIDDECK_DMABUF_TEST_SOURCE`; it does not inject a real driver fault or prove
 long-term device stability.
+
+`python3 -m unittest discover -s tools/tests -p test_sc_layer_quarantine.py -v`
+compiles the production window teardown, pool drain and Vulkan image destructor,
+with fake SurfaceControl/GPU/AHB endpoints and real pipe FDs. It checks retained
+AHBs, images, layer records and FDs, repeated window removal, missing APIs, and
+unchanged healthy or genuine-device-loss cleanup.
+
+`python3 -m unittest discover -s tools/tests -p test_dmabuf_creation_quarantine.py -v`
+compiles production DMA-BUF creation, params cleanup and buffer unref functions,
+using real FDs with fake Wayland endpoints. It covers regular/asynchronous/immediate
+creation, repeated terminal requests, healthy and device-loss cleanup, and Wayland
+allocation failure. `DROIDDECK_WINDOW_TEST_SOURCE` and
+`DROIDDECK_CREATION_TEST_SOURCE` select an old source directory for negative
+controls; `DROIDDECK_TEST_CFLAGS` adds optional host sanitizer flags. These tests
+do not inject a GPU fault, execute the Wayland server, or establish device stability.
