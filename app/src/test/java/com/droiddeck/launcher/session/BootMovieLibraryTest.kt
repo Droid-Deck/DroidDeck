@@ -198,6 +198,16 @@ class BootMovieLibraryTest {
         assertEquals("file:c.webm", BootMovie.choice(app))
     }
 
+    @Test fun aSteamPickOfTheMovieAlreadyChosenIsStillStagedNextSession() {
+        movie("a.webm")
+        BootMovie.select(app, "file:a.webm")
+        SessionPrefs.setBootMovieApplyNext(app, false)
+        steamPicks("a.webm")
+        assertFalse(BootMovie.syncFromSteam(app))
+        assertEquals("file:a.webm", BootMovie.choice(app))
+        assertTrue(SessionPrefs.bootMovieApplyNext(app))
+    }
+
     @Test fun aPickMadeHereBeatsAnOlderSteamPickThatWasNeverSeen() {
         movie("a.webm"); movie("b.webm")
         steamPicks("b.webm")
