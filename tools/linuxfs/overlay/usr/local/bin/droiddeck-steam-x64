@@ -942,23 +942,117 @@ x64_exec() {
   exec "${BL_FEX:-/usr/local/bin/FEX}" "$STEAM_X64/steamrt64/steam" "$@"
 }
 
-# Steam refuses one client's login token from the other: each keeps its own, and only a client with no accounts gets the other's list.
+# Steam renews its token every few days and refuses old copies: copy the newest every start, never while a client runs.
 x64_sync_login() {
   pgrep -f 'steamrt64/steam( |$)' >/dev/null 2>&1 && return 0
   pgrep -f 'steamrtarm64/steam( |$)' >/dev/null 2>&1 && return 0
-  python3 - "$ARM_STEAM" "$STEAM_X64" "$REAL_HOME/.steam/registry.vdf" "$X64_HOME/.steam/registry.vdf" <<'PY' || step "could not share the accounts between the clients"
-import os, shutil, sys
+  python3 - "$ARM_STEAM" "$STEAM_X64" "$REAL_HOME/.steam/registry.vdf" "$X64_HOME/.steam/registry.vdf" <<'PY' || step "could not share the sign-in between the clients"
+import os, re, shutil, sys
 arm, x64, arm_reg, x64_reg = sys.argv[1:5]
-USERS = "config/loginusers.vdf"
-for src, dst, sreg, dreg, who in ((arm, x64, arm_reg, x64_reg, "arm64"), (x64, arm, x64_reg, arm_reg, "x86-64")):
-    if not os.path.isfile(os.path.join(src, USERS)) or os.path.isfile(os.path.join(dst, USERS)):
-        continue
-    os.makedirs(os.path.dirname(os.path.join(dst, USERS)), exist_ok=True)
-    shutil.copy2(os.path.join(src, USERS), os.path.join(dst, USERS))
-    if os.path.isfile(sreg) and not os.path.isfile(dreg):
-        os.makedirs(os.path.dirname(dreg), exist_ok=True)
-        shutil.copy2(sreg, dreg)
-    print("droiddeck-steam-x64: accounts listed from the %s client" % who)
+FILES = ("config/loginusers.vdf", "local.vdf")
+
+
+def read(path):
+    try:
+        return open(path, encoding="utf-8", errors="surrogateescape").read()
+    except OSError:
+        return None
+
+
+def write(path, text):
+    open(path, "w", encoding="utf-8", errors="surrogateescape").write(text)
+
+
+def block(text, name):
+    m = re.search(r'"%s"\s*\{' % name, text)
+    if not m:
+        return None
+    depth, k = 1, m.end()
+    while depth and k < len(text):
+        depth += text[k] == "{"
+        depth -= text[k] == "}"
+        k += 1
+    return m, k
+
+
+def accounts(root):
+    text = read(os.path.join(root, "config/config.vdf")) or ""
+    found = block(text, "Accounts")
+    if not found:
+        return {}
+    return dict(re.findall(r'"([^"]+)"\s*\{\s*"SteamID"\s*"(\d+)"', text[found[0].end():found[1]]))
+
+
+def add_accounts(root, wanted):
+    path = os.path.join(root, "config/config.vdf")
+    text = read(path)
+    if text is None:
+        return
+    have = accounts(root)
+    missing = {name: sid for name, sid in wanted.items() if name not in have}
+    if not missing:
+        return
+    entries = "".join('\n\t\t\t\t\t"%s"\n\t\t\t\t\t{\n\t\t\t\t\t\t"SteamID"\t\t"%s"\n\t\t\t\t\t}' % item for item in missing.items())
+    found = block(text, "Accounts")
+    if found:
+        text = text[:found[0].end()] + entries + text[found[0].end():]
+    else:
+        steam = re.search(r'"Valve"\s*\{\s*"Steam"\s*\{', text)
+        if not steam:
+            return
+        text = text[:steam.end()] + '\n\t\t\t\t"Accounts"\n\t\t\t\t{' + entries + '\n\t\t\t\t}' + text[steam.end():]
+    write(path, text)
+
+
+def set_keys(src_reg, dst_reg, force):
+    st, dt = read(src_reg), read(dst_reg)
+    if st is None or dt is None:
+        return
+    for key in ("AutoLoginUser", "RememberPassword"):
+        v = re.search(r'"%s"\s*"([^"]*)"' % key, st)
+        if not v:
+            continue
+        if re.search(r'"%s"\s*"' % key, dt):
+            if force:
+                dt = re.sub(r'("%s"\s*")[^"]*(")' % key, lambda m: m.group(1) + v.group(1) + m.group(2), dt, count=1)
+            continue
+        hkcu = re.search(r'"HKCU"\s*\{\s*"Software"\s*\{\s*"Valve"\s*\{\s*"Steam"\s*\{\n', dt)
+        if hkcu:
+            dt = dt[:hkcu.end()] + '\t\t\t\t\t"%s"\t\t"%s"\n' % (key, v.group(1)) + dt[hkcu.end():]
+    write(dst_reg, dt)
+
+
+def stamp(root):
+    if not all(os.path.isfile(os.path.join(root, f)) for f in FILES):
+        return None
+    # A client that refused its token leaves an empty ConnectCache: newest, but copying it signs the other out.
+    text = open(os.path.join(root, "local.vdf"), encoding="utf-8", errors="surrogateescape").read()
+    if not re.search(r'"ConnectCache"\s*\{\s*"[^"]+"\s*"[^"]+"', text):
+        return None
+    return os.path.getmtime(os.path.join(root, "local.vdf"))
+
+
+a, x = stamp(arm), stamp(x64)
+if a is not None or x is not None:
+    if x is None or (a is not None and a > x):
+        src, dst, sreg, dreg, who = arm, x64, arm_reg, x64_reg, "arm64"
+    else:
+        src, dst, sreg, dreg, who = x64, arm, x64_reg, arm_reg, "x86-64"
+    copy = a is None or x is None or abs(a - x) >= 1
+    if copy:
+        for f in FILES:
+            os.makedirs(os.path.dirname(os.path.join(dst, f)), exist_ok=True)
+            # copy2 keeps the time stamp, so both match until one client signs in again.
+            shutil.copy2(os.path.join(src, f), os.path.join(dst, f))
+        if os.path.isfile(sreg) and not os.path.isfile(dreg):
+            os.makedirs(os.path.dirname(dreg), exist_ok=True)
+            shutil.copy2(sreg, dreg)
+    set_keys(sreg, dreg, copy)
+    set_keys(dreg, sreg, False)
+    add_accounts(dst, accounts(src))
+    add_accounts(src, accounts(dst))
+    if copy:
+        print("droiddeck-steam-x64: sign-in shared from the %s client (the newer one)" % who)
 PY
 }
 

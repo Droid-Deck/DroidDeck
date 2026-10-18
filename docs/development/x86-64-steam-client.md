@@ -22,7 +22,7 @@ arm64 client down first.
 | `droiddeck-steam-x64 [steam:// URL or client arguments]` | standalone run (the desktop menu entry) |
 | `droiddeck-steam-x64 --prepare` | install and set up, then exit |
 | `droiddeck-steam-x64 --exec ARGS...` | run the client binary in its environment (how the session starts it) |
-| `droiddeck-steam-x64 --sync-login` | give a client with no accounts the other's account list |
+| `droiddeck-steam-x64 --sync-login` | copy the newer sign-in to the other client |
 | `droiddeck-steam-x64 --map-direct [--live]` | map Linux titles to DroidDeck direct |
 | `droiddeck-steam-x64 --default-tool` | print the default ARM64 Proton wrapper's tool name |
 | `droiddeck-steam-x64 --gpu` / `--webhelper-gpu` | exit status: client / x86 web helper on the GPU |
@@ -309,14 +309,19 @@ alone would then read as an installed client.
   `dircache.c` recognised only `steamrtarm64/steam`, and the x86 client wrote each download in full as
   zeros first (Audiosurf: 415 MB written, 0 downloaded). After the fix: FlatOut, 1.19 GB, to the card
   in 51 s.
-- **Sign-in.** Each client keeps its own login token. Steam refuses one client's token from the
-  other: the arm64 client signed in with its token (valid until 2027) and the x86 client was answered
-  "Invalid Password" with the same token minutes later, and both clients read the same files and
-  machine-id. Copying the newer token each start therefore signed one client out after every switch.
-  Before either client starts, one with no `config/loginusers.vdf` gets the other's (and
-  `registry.vdf` if it has none), so it lists the account. The x86 client asks for a sign-in once and
-  then keeps its own token; the arm64 client's is never overwritten (device: it still signed in after
-  x86 sessions).
+- **Sign-in.** Before either client starts, the newer sign-in (`config/loginusers.vdf`, the login token
+  in `local.vdf`, `AutoLoginUser` and `RememberPassword` in `registry.vdf`) is copied to the other, so
+  signing in or switching accounts in one counts for both; never while either client runs, since each
+  rewrites these files. A client that refused its token rewrites `local.vdf` with an empty
+  `ConnectCache`, so it is never the source. The copy keeps the time stamp, so both match until one
+  client signs in again. The rest of `registry.vdf` (language, skin) stays each client's.
+- **Account IDs.** A client logs on with the token only once it knows the account's SteamID, which it
+  takes from `Accounts` in `config/config.vdf`. The x86 client's `config.vdf` is made by this script
+  without one, so it logged on as `[U:1:0]` with the arm64 token and Steam answered "Invalid Password"
+  (and the client then dropped the token and `AutoLoginUser`): every switch asked for the password.
+  Each start adds the accounts either client knows to the other's `Accounts`, and an `AutoLoginUser` or
+  `RememberPassword` one client has and the other lacks. Device: the x86 client signed in with the
+  arm64 token (`RecvMsgClientLogOnResponse ... 'OK'`).
 - **App side.** The library, art picker, grid sync and boot movie follow the running client, else the
   selected one; a changed client applies from the next session. A game is listed once per client: an added game
   whose folder a Steam install already covers (its `DroidDeck-<appid>` import) is shown as that Steam
@@ -324,7 +329,7 @@ alone would then read as an installed client.
   Steam, an import stays one when its ownership cannot be confirmed that session instead of gaining a
   shortcut beside it, and only the client's own library folders count as an install (the arm64 card
   library made the x86 client skip a game's import and its shortcut). Offline Mode is written to both
-  clients' `loginusers.vdf`; until the x86 client's first start its account list is the arm64 one. The log
+  clients' `loginusers.vdf`; until the x86 client's first start its sign-in is the arm64 one. The log
   redactor learns account names from both clients. The startup movie is staged into the x86 client's
   config only once its first start has created it; `--prepare` links the arm64 `config/uioverrides`
   and copies the `StartupMovie` choice.
