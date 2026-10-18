@@ -2311,6 +2311,17 @@
     <string name="stores_sync_gog_unreachable">GOG에 연결할 수 없습니다</string>
     <string name="stores_sync_gog_unreadable">GOG 라이브러리를 읽을 수 없습니다</string>
     <string name="stores_registering">Steam에 등록 중…</string>
+    <string name="mode_client_arch">Steam 클라이언트</string>
+    <string name="mode_client_arch_fex">FEX %1$s</string>
+    <string name="mode_client_arch_arm64">ARM64</string>
+    <string name="mode_client_arch_x64">x86-64</string>
+    <string name="setup_vac_diag">VAC 진단</string>
+    <string name="setup_vac_diag_hint">Source 게임은 콘솔을 기록합니다(-condebug). 세션 로그의 vac.txt에서 보안 여부를 확인할 수 있습니다</string>
+    <string name="load_starting_steam_x64">Steam x86-64 시작 중</string>
+    <string name="storage_game_x64">%1$s · x86-64</string>
+    <string name="storage_tool_x64_client">x86-64 Steam 클라이언트에서 사용</string>
+    <string name="storage_uninstall_in_x64">이 사본은 x86-64 Steam 클라이언트에 있습니다. Steam 클라이언트에서 x86-64를 선택한 다음 여기에서 제거하세요.</string>
+    <string name="storage_uninstall_in_arm64">이 사본은 ARM64 Steam 클라이언트에 있습니다. Steam 클라이언트에서 ARM64를 선택한 다음 여기에서 제거하세요.</string>
     <string name="drawer_page_glasses">안경</string>
     <string name="glasses_open">VITURE 안경</string>
     <string name="glasses_control">안경 제어</string>

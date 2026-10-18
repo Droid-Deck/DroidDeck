@@ -2311,6 +2311,17 @@
     <string name="stores_sync_gog_unreachable">Tidak dapat menyambung ke GOG</string>
     <string name="stores_sync_gog_unreadable">Pustaka GOG anda tidak dapat dibaca</string>
     <string name="stores_registering">Mendaftar dengan Steam…</string>
+    <string name="mode_client_arch">Klien Steam</string>
+    <string name="mode_client_arch_fex">FEX %1$s</string>
+    <string name="mode_client_arch_arm64">ARM64</string>
+    <string name="mode_client_arch_x64">x86-64</string>
+    <string name="setup_vac_diag">Diagnostik VAC</string>
+    <string name="setup_vac_diag_hint">Permainan Source merekodkan konsolnya (-condebug); vac.txt dalam log sesi menunjukkan selamat atau tidak</string>
+    <string name="load_starting_steam_x64">Memulakan Steam x86-64</string>
+    <string name="storage_game_x64">%1$s · x86-64</string>
+    <string name="storage_tool_x64_client">Digunakan oleh klien Steam x86-64</string>
+    <string name="storage_uninstall_in_x64">Salinan ini berada dalam klien Steam x86-64. Pilih x86-64 di bawah Klien Steam, kemudian nyahpasangnya di sini.</string>
+    <string name="storage_uninstall_in_arm64">Salinan ini berada dalam klien Steam ARM64. Pilih ARM64 di bawah Klien Steam, kemudian nyahpasangnya di sini.</string>
     <string name="drawer_page_glasses">Cermin mata</string>
     <string name="glasses_open">Cermin mata VITURE</string>
     <string name="glasses_control">Kawalan cermin mata</string>

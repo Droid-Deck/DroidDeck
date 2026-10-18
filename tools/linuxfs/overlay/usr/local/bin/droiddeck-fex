@@ -422,6 +422,12 @@ def guest_environment(fex, env):
     result["FEX_APP_CONFIG_LOCATION"] = CONFIG_DIR + "/"
     result["FEX_APP_DATA_LOCATION"] = data + "/"
     result["FEX_APP_CACHE_LOCATION"] = CACHE_DIR + "/"
+    # Valve's FEX-Emu binds its server socket under $STEAM_COMPAT_DATA_PATH/fex-emu whatever FEX_APP_DATA_LOCATION or
+    # FEX_SERVERSOCKETPATH say, and sun_path is 108 bytes: compatdata under the app's data folder is too long.
+    if result.get("STEAM_COMPAT_DATA_PATH"):
+        short = data if data != DATA_DIR else "/tmp/fex"
+        os.makedirs(short, exist_ok=True)
+        result["STEAM_COMPAT_DATA_PATH"] = short
     result.setdefault("FEX_SILENTLOG", "0")
     result.setdefault("FEX_OUTPUTLOG", "stderr")
     if fex["portable"]:

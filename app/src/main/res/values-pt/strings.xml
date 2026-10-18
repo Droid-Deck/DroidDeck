@@ -2347,6 +2347,17 @@
     <string name="stores_sync_gog_unreachable">Não foi possível conectar à GOG</string>
     <string name="stores_sync_gog_unreadable">Não foi possível ler sua biblioteca da GOG</string>
     <string name="stores_registering">Registrando na Steam…</string>
+    <string name="mode_client_arch">Cliente Steam</string>
+    <string name="mode_client_arch_fex">FEX %1$s</string>
+    <string name="mode_client_arch_arm64">ARM64</string>
+    <string name="mode_client_arch_x64">x86-64</string>
+    <string name="setup_vac_diag">Diagnóstico do VAC</string>
+    <string name="setup_vac_diag_hint">Jogos Source registram o console (-condebug); o vac.txt nos logs da sessão informa se está seguro ou não</string>
+    <string name="load_starting_steam_x64">Iniciando o Steam x86-64</string>
+    <string name="storage_game_x64">%1$s · x86-64</string>
+    <string name="storage_tool_x64_client">Usado pelo cliente Steam x86-64</string>
+    <string name="storage_uninstall_in_x64">Esta cópia está no cliente Steam x86-64. Escolha x86-64 em Cliente Steam e depois desinstale-a aqui.</string>
+    <string name="storage_uninstall_in_arm64">Esta cópia está no cliente Steam ARM64. Escolha ARM64 em Cliente Steam e depois desinstale-a aqui.</string>
     <string name="drawer_page_glasses">Óculos</string>
     <string name="glasses_open">Óculos VITURE</string>
     <string name="glasses_control">Controle dos óculos</string>
