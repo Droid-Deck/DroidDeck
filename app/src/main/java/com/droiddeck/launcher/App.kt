@@ -16,10 +16,11 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        // The restart screen must not initialize USB, guest processes, or another graphics context.
-        val process = (getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager)
-            .runningAppProcesses?.firstOrNull { it.pid == android.os.Process.myPid() }?.processName
-        if (process == "$packageName:vr_recovery") return
+        // Helper processes must not initialize the main USB provider or guest graphics context.
+        val process = if (android.os.Build.VERSION.SDK_INT >= 28) Application.getProcessName()
+            else (getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager)
+                .runningAppProcesses?.firstOrNull { it.pid == android.os.Process.myPid() }?.processName
+        if (process == "$packageName:vr_recovery" || process == "$packageName:rgb_diagnostic") return
         CrashHandler.install(this)
         com.droiddeck.launcher.session.QuestExperimental.initialize(this)
         com.droiddeck.launcher.session.SessionPrefs.settleGpuDriverMode(this)
@@ -27,6 +28,7 @@ class App : Application() {
         com.droiddeck.launcher.core.DownloadSource.init(this)
         GpuClockPin.clearLeftover(this)
         com.droiddeck.launcher.glasses.Glasses.init(this)
+        com.droiddeck.launcher.glasses.GlassesMenuMirror.initialize(this)
         BwrapSpawner.start(this)
         com.droiddeck.launcher.frontend.GameFileSync.start(this)
         com.droiddeck.launcher.stores.StoresState.init(this)

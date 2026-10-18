@@ -969,26 +969,20 @@ static int submit_drop_wait(VkSemaphore s, uint64_t value) {
     const uint64_t queued = b->submitted;
     const uint64_t seen_us = b->seen_us;
     VkDevice dev = b->dev;
-    _Atomic uint64_t *counter = b->counter;
     pthread_mutex_unlock(&g_br_lock);
     if (!value || value <= queued) return 0;
     struct dev *d = dev_for(dev);
     if (!d || quest_frames()) return 0;
     PFN_vkGetSemaphoreCounterValue get = (PFN_vkGetSemaphoreCounterValue)d->gdpa(dev, "vkGetSemaphoreCounterValue");
     if (!get) get = (PFN_vkGetSemaphoreCounterValue)d->gdpa(dev, "vkGetSemaphoreCounterValueKHR");
-    PFN_vkSignalSemaphore sig = (PFN_vkSignalSemaphore)d->gdpa(dev, "vkSignalSemaphore");
-    if (!sig) sig = (PFN_vkSignalSemaphore)d->gdpa(dev, "vkSignalSemaphoreKHR");
     if (!get) return 0;
     const uint64_t start = now_us();
     const uint64_t until = start + (start - seen_us > SHARED_IDLE_US ? 0 : SUBMIT_GRACE_US);
     for (;;) {
         uint64_t local = 0;
         if (get(dev, s, &local) == VK_SUCCESS && local >= value) return 0;
-        uint64_t shared = atomic_load(counter);
-        if (shared >= value && sig) {
-            VkSemaphoreSignalInfo si = {VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO, NULL, s, shared};
-            if (sig(dev, &si) == VK_SUCCESS) return 0;
-        }
+        /* Only the poller mirrors shared values. A second host signal here can
+         * race its signal and submit the same timeline value twice. */
         if (now_us() >= until) break;
         usleep(100);
     }
@@ -1110,11 +1104,7 @@ static void sync_init(void) {
     say("%s", "frames go to the presenter once their GPU work is done");
 }
 
-static struct tracked *track_take(VkQueue q) {
-    pthread_once(&g_sync_once, sync_init);
-    if (!g_sync) return NULL;
-    struct dev *d = dev_for(q);
-    if (!d) return NULL;
+static struct tracked *track_take(struct dev *d) {
     pthread_mutex_lock(&g_trk_lock);
     struct tracked *t = track_pool_take(&g_trk, d->handle, d->gdpa);
     pthread_mutex_unlock(&g_trk_lock);
@@ -1138,20 +1128,30 @@ static void track_forget_device(VkDevice dev) {
 }
 
 static VkResult submit_tracked(PFN_vkQueueSubmit next, VkQueue q, uint32_t count, const VkSubmitInfo *submits, VkFence fence) {
-    struct tracked *slot = track_take(q);
-    if (!slot) return next(q, count, submits, fence);
+    if (strcmp(program_invocation_short_name, "vrcompositor")) return next(q, count, submits, fence);
+    pthread_once(&g_sync_once, sync_init);
+    struct dev *d = dev_for(q);
+    if (!g_sync || !d) return next(q, count, submits, fence);
+    struct tracked *slot = track_take(d);
+    if (!slot) return VK_ERROR_OUT_OF_HOST_MEMORY;
     const VkFence mine = slot->fence;
     VkResult r = next(q, count, submits, fence ? fence : mine);
-    track_submitted(slot, r == VK_SUCCESS && fence ? next(q, 0, NULL, mine) : r);
+    if (r == VK_SUCCESS && fence) r = next(q, 0, NULL, mine);
+    track_submitted(slot, r);
     return r;
 }
 
 static VkResult submit2_tracked(PFN_vkQueueSubmit2 next, VkQueue q, uint32_t count, const VkSubmitInfo2 *submits, VkFence fence) {
-    struct tracked *slot = track_take(q);
-    if (!slot) return next(q, count, submits, fence);
+    if (strcmp(program_invocation_short_name, "vrcompositor")) return next(q, count, submits, fence);
+    pthread_once(&g_sync_once, sync_init);
+    struct dev *d = dev_for(q);
+    if (!g_sync || !d) return next(q, count, submits, fence);
+    struct tracked *slot = track_take(d);
+    if (!slot) return VK_ERROR_OUT_OF_HOST_MEMORY;
     const VkFence mine = slot->fence;
     VkResult r = next(q, count, submits, fence ? fence : mine);
-    track_submitted(slot, r == VK_SUCCESS && fence ? next(q, 0, NULL, mine) : r);
+    if (r == VK_SUCCESS && fence) r = next(q, 0, NULL, mine);
+    track_submitted(slot, r);
     return r;
 }
 

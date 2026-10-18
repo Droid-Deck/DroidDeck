@@ -185,6 +185,145 @@ there stays behind the client's loading screen however healthy its window looks
 server's windows with map state, override-redirect, app id, `WM_STATE`, pid, class, opacity and
 `_NET_WM_STATE`.
 
+## Hand tracking diagnostics
+
+With debugging tools enabled, the glasses provider accepts `spatial-hand-options` with optional
+boolean `lite`, `halfRate`, `parallel`, `adaptive`, and `scheduled` fields. These are temporary
+tracking-session controls and do not change the CPU/GPU delegate. `parallel` selects concurrent
+camera inference on CPU; GPU remains serial on its owning thread. `scheduled` enables persistent
+one-hand and two-hand detector banks on CPU, using the one-hand bank after stable agreement
+and periodically searching for another hand. GPU retains ordinary two-hand inference.
+`adaptive` lets CPU input rise from 500 permille to 600 or 800 only after sustained processing
+and observation-age headroom. Slow processing lowers the rate, and tracking loss resets it.
+Explicit `halfRate` selects manual input and disables adaptation; if both fields are supplied,
+`adaptive` is applied afterward. This allows restoring the manual preference and automatic mode
+in one request. CPU, full model, parallel inference, scheduled discovery, and automatic input
+starting at 500 permille are the defaults.
+
+`handModel`, `handCpuParallel`, `handAdaptiveInput`, and `handScheduledTracking` identify the live
+selection. `handInputRatePermille` reports the current requested frame fraction, while
+`cameraCopyPermille` records the fraction used for the latest reported camera processing sample.
+At a 25 Hz source, 500/600/800 correspond to input limits of about 12.5/15/20 Hz, not completed
+tracking throughput. Calibration and explicit capture use 1000. `cameraFrameDivisor` remains
+2 for 500, 1 for 1000, and 0 for intermediate fractions; use `cameraCopyPermille` for rate calculations.
+`cameraHz` still describes the source cameras; `rateLimitedFrames` counts deliberate skips and
+`dropped` counts eligible pairs replaced while processing is busy. These controls do not change
+the glasses' sensor rate or native head tracking.
+
+`spatial-hand-capture`, with debugging tools enabled, requests one local stereo pair in
+`files/spatial/captures`. Use only for an explicitly requested diagnostic capture; it includes
+the wearer's surroundings. It does not upload images.
+
+`spatial-rgb-capture` requests one local JPEG from the Luma Ultra's separate UVC RGB camera.
+It requires Android camera permission, USB permission for that camera, and debugging tools.
+If USB permission is requested, approve it and explicitly repeat the capture request; permission
+approval alone does not save an image. Poll `spatial-rgb-status` for completion and the local
+`files/spatial/rgb-captures` path. The isolated worker stops the stream after the requested
+diagnostic window or a timeout, then exits. The default `transport: "sdk"` uses the vendor's
+fixed 1920×1080/30-fps stream. With the optional UVC build present, `transport: "uvc"` selects
+the independent eight-buffer transport; `width`, `height`, `fps`, and `durationMs` default to
+640, 480, 30, and 5000. Duration is bounded to 1000–30000 ms and camera modes must be supported
+by the device. This remains a manual debugging command, not a source of live controller positions.
+Both paths save `usb.log` and `usb-descriptors.bin`, including when acquisition fails.
+Direct UVC reports `snapshotAcquired` separately from `streamHealthy`. Health requires the
+full requested observation window, at least 80% of requested FPS, and no frame gap exceeding
+the larger of 250 ms or three frame periods. `observedFps`, `maxFrameGapMs`, and
+`tailFrameAgeMs` include silence at the end of the window. Status remains busy with
+`phase: "finishing"` until the capture worker exits, so a new request cannot race its teardown.
+`receiptNs` is the host callback time, not camera exposure time; the SDK timestamp can be zero.
+This diagnostic does not supply controller positions or replace the stereo tracking stream.
+
+`spatial-hand-benchmark` takes a numeric `capture` directory name from the app's existing
+`files/spatial/captures` folder. It replays that saved stereo pair on CPU with full-model two-hand
+inference, scheduled full, scheduled lite, then full-model two-hand inference again, all with
+concurrent cameras. It clears live hand input during the comparison and never captures new images.
+Poll `glasses.spatial.handBenchmark` for completion, timing, and geometric results. Every replay
+row reports `parallel` and `scheduled`. `wristOnly` identifies the selected controller mode: bare-hand
+replay estimates `hands`, while Joy-Con replay estimates `joyCons` from wrist 0. Both report
+`wrists` after stereo geometry checks. Image preprocessing is raw grayscale replicated into RGB;
+lens correction applies once to landmark coordinates before triangulation. `wrists` reports landmark 0 after the existing stereo depth
+and reprojection checks, with the same unambiguous handedness pairing. Live Joy-Con tracking
+also uses wrist 0 directly, with motion and freshness checks; its `positionEstimator` is
+`joycon-wrist`. Samples identify the selected bank as `inferenceHandLimit`
+(1 or 2). Timings exclude model construction. Saved-pair results are not live accuracy,
+second-hand discovery delay, game performance, or motion-to-display latency measurements.
+
+The live baseline is Full palm + Full landmarks. `handImagePreprocessing` is `raw-grayscale-rgb`;
+`handLensCorrection` reports `pinhole-points-only`, `fisheye-points-only`, or `none`.
+`steadyHandAim` is true only when bare hands and the optional shoulder-based aim setting are active.
+
+`handTracking` includes `leftRawHands`/`rightRawHands` before handedness-confidence filtering,
+`previousLeftRawHands`/`previousRightRawHands` from the previous inference on those detectors
+(-1 after detector creation), and `leftInferenceMs`/`rightInferenceMs`. Existing
+`leftCameraHands`/`rightCameraHands` count confident handedness results. Compare camera timing
+against its previous raw count: the stock two-hand graph may repeat palm search when fewer
+than two hand regions were tracked. `inferenceHandLimit` identifies the bank that produced these
+counts; previous counts belong to that same persistent bank, not necessarily the preceding camera
+frame. These counts approximate graph conditions; they do not directly expose internal graph
+execution. Replay samples also include raw counts and camera timings. Accepted palms still
+require stereo depth, while pinch and grip validity now use agreement between image-space
+finger estimates from both cameras. Palm acceptance alone does not establish valid gesture input.
+
+`handTracking.experimental` is always true. `observationTimeNs` identifies the processed camera
+observation; `observationAgeMs` is its age when diagnostics were published. Per-side `left` and
+`right` records expose `outcome`, `reconstructedPalmLandmarks`, raw trigger/grip estimates,
+geometry validity, and final input validity. `observations` contains connection-lifetime
+`processedPairs`, `inferencePairs`, and independent left/right acceptance, rejection-cause,
+tracking-loss, and gesture-loss counters. Each processed camera sequence is counted once;
+repeated status polling does not inflate these counters. Setup/off/clock/head failures count
+as processed pairs but not completed inference pairs. Skipped callbacks are not fabricated as
+observations. Sample deltas over a controlled hand-visible interval and inspect rejection
+causes before changing thresholds; these counters do not prove external latency or accuracy.
+
+`spatial.calibrationSource` is `device`, `luma-ultra-base`, or `none`.
+`calibrationVerified` indicates an individual distance-validated profile; `calibrated` indicates
+geometry is available for experimental tracking, including the bundled model base. A shared base
+does not claim validation on every Luma Ultra. Matching local profiles take precedence.
+
+`glasses set joyConTracking true` enables experimental Luma stereo-assisted Joy-Cons after
+positional tracking is enabled. It defaults off, excludes bare-hand controllers, and appears in
+both saved settings and spatial diagnostics. Driver logs identify each hand's transition between
+`stereo hand` and `6DoF arm estimate`; camera positions are hand proxies, while Joy-Con sensors and
+buttons supply orientation and input.
+
+The shared-memory channel is protocol **4**, still 176 bytes. Snapshot flag bit 2 selects Luma
+Joy-Con tracking; bit 1 selects bare-hand controllers. Its word at byte offset 36 is
+`input_epochs`: four unsigned bytes in left-trigger, left-grip, right-trigger, right-grip order.
+Each byte increments modulo 256 when that gesture becomes ineligible. Inspect these counters
+when a loss may have happened between two reader samples: a later valid pose does not erase
+the intervening loss. Versions 1 through 3 are rejected, so a decoder, app, and driver must agree
+on version 4. Hand observation age remains limited to 200 ms, head age to 100 ms. For bare-hand
+controllers, a gap beyond
+200 ms from the driver's last accepted observation releases input state even when the next
+read contains a fresh replacement. Duplicate observations cannot rearm an input; recovery
+requires a newer valid released gesture before a subsequent press.
+
+Driver lines containing `left optical input` or `right optical input` report state changes,
+changed connection/origin/loss counters, and changed input API errors, rather than every frame.
+`pose` is the displayed pose's validity and can remain true during its short held-pose window;
+`input` is the current observation's eligibility for input processing. Read `flags` for independent
+gesture validity. `raw` contains trigger strength/grip state; `out` contains submitted trigger
+strength/click/grip; `armed` and `epochs` are trigger/grip pairs. `error` is ordered **grip, trigger
+click, trigger scalar**, using OpenVR's `EVRInputError` codes (0 means `VRInputError_None`).
+The line also includes `ageMs`, `connection`, and `origin`. `controller inputs cleared: error=...`
+records neutralization on mode changes, disconnect, or deactivation; a nonzero value is the last
+failed component update in that clearing pass.
+
+The driver publishes these input updates before the controller pose, including invalid poses,
+and clears components before deactivation. A zero API error establishes successful submission,
+not delivery of a dashboard mouse-up event. The installed Vive compositor binding maps trigger
+to dashboard `LeftClick` (0.65 activation, 0.60 release) and grip to `Back`. Its grab-handle
+JavaScript attaches to the initiating hand on mouse-down and clears that attachment on mouse-up;
+that component has no tracking-invalid cleanup. A stuck dashboard drag therefore needs the
+driver submission and actual dashboard behavior checked separately. Do not synthesize a press
+or a valid pose as a recovery shortcut.
+
+Controller display smoothing is independent of these gesture logs: there is no stationary
+dead zone. Poses converge with one 15 ms correction and bounded receipt-relative translation
+prediction (80 ms / 2 cm). A missed observation holds the last pose for up to 350 ms from capture;
+input freshness remains limited to 200 ms, and a detected miss releases inputs immediately.
+Neither stabilization nor prediction refreshes camera timestamps or creates gesture input.
+
 ## Events
 
 Each session writes `events.jsonl` beside its other artifacts: the lifecycle (`session.created`,

@@ -44,6 +44,8 @@
         android:isGame="true">
 
         <meta-data android:name="android.game_mode_config" android:resource="@xml/game_mode_config" />
+        <service android:name=".glasses.LumaRgbCaptureService" android:exported="false"
+            android:process=":rgb_diagnostic" />
         <meta-data android:name="com.oculus.supportedDevices" android:value="quest2|quest3|quest3s" />
         <activity android:name=".QuestXrActivity" android:exported="true" android:launchMode="singleTask"
             android:permission="android.permission.DUMP"
@@ -200,6 +202,7 @@
             android:exported="true"
             android:permission="android.permission.DUMP"
             android:grantUriPermissions="false" />
+        <activity android:name=".ui.SpatialTrackingActivity" android:exported="false" />
         <service
             android:name="com.google.android.datatransport.runtime.backends.TransportBackendDiscovery"
             tools:node="merge">

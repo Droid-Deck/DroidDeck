@@ -414,7 +414,7 @@ class SessionService : Service() {
             Log.i(TAG, "run: $program (${SessionState.programArgs.size} arguments) under gamescope")
         }
 
-        FileUtils.clear(File(cacheDir, "shm"))
+        FileUtils.clear(File(LinuxRuntime.liveDir(this), "shm"))
 
         val binds = sessionBinds(controllersOn, fakeInputDir, sessionDir, guest, sessionRoot, runtimeDir)
         val fastPathKey = if (ProotFastPath.enabled(this)) {
@@ -439,7 +439,7 @@ class SessionService : Service() {
 
         val hostEnv = HostEnvironment()
         hostEnv["PROOT_LOADER"] = LinuxRuntime.prootLoader(this).path
-        hostEnv["PROOT_TMP_DIR"] = cacheDir.path
+        hostEnv["PROOT_TMP_DIR"] = LinuxRuntime.prootTempDir(this).path
         if (SessionPrefs.prootNoSeccomp(this)) {
             hostEnv["PROOT_NO_SECCOMP"] = "1"
             Log.i(TAG, "proot: seccomp acceleration off by request")
@@ -1375,6 +1375,9 @@ class SessionService : Service() {
                 val failureStatus = SessionState.failureStatus ?: status
                 SessionEvents.fail(code, message, failureStatus)
             }
+            SessionState.steamVr = false
+            com.droiddeck.launcher.glasses.Glasses.cancelSteamVrStart()
+            com.droiddeck.launcher.glasses.Glasses.setVrActive(false)
             com.droiddeck.launcher.glasses.Glasses.set3dForVr(false)
             SessionState.notifyEnded(status)
             stopForeground(STOP_FOREGROUND_REMOVE)

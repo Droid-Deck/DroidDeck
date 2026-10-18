@@ -21,7 +21,11 @@ FEX_LAUNCHER = "droiddeck-fex-tool"
 FEX_FILES = ("toolmanifest.vdf", "compatibilitytool.vdf", FEX_LAUNCHER)
 FEX_APPID = "3127680"
 SNIPER_APPID = "1628350"
-FEX_DEPENDENCIES = (FEX_APPID, SNIPER_APPID)
+SLR4_APPID = "4183110"
+FEX_DEPENDENCIES = (FEX_APPID, SNIPER_APPID, SLR4_APPID)
+REQUIRED_TOOLS = (PROTON_ARM64_APPID,) + FEX_DEPENDENCIES
+FULLY_INSTALLED = 4
+UPDATE_REQUIRED = 2
 REQUEST_HANDOFF_SECONDS = 30
 PLAYABLE_TYPES = frozenset(("game", "demo", "application", "beta"))
 COMPAT_DIR = os.path.join(os.environ.get("HOME", "/root"), ".local", "share", "droiddeck-compat")
@@ -850,6 +854,36 @@ def native_targets(steam_root, apps):
     return targets
 
 
+def app_manifest(steam_root, app):
+    for library in libraries(steam_root):
+        try:
+            with open(os.path.join(library, "steamapps", "appmanifest_%s.acf" % app), encoding="utf-8", errors="replace") as f:
+                return tokenize(f.read())
+        except OSError:
+            continue
+    return None
+
+
+def manifest_flags(tokens):
+    for i in range(len(tokens) - 1):
+        if tokens[i].lower() == '"stateflags"':
+            value = tokens[i + 1].strip('"')
+            return int(value) if value.isdigit() else 0
+    return 0
+
+
+def tool_downloads(steam_root):
+    """(app, "install" or "update") for each tool the client has yet to install or bring up to date."""
+    wanted = []
+    for app in REQUIRED_TOOLS:
+        tokens = app_manifest(steam_root, app)
+        if tokens is None:
+            wanted.append((app, "install"))
+        elif not manifest_flags(tokens) & FULLY_INSTALLED or manifest_flags(tokens) & UPDATE_REQUIRED:
+            wanted.append((app, "update"))
+    return wanted
+
+
 def fex_missing(steam_root):
     missing = []
     for app in FEX_DEPENDENCIES:
@@ -1174,6 +1208,21 @@ def steam_running():
     return False
 
 
+def game_running():
+    try:
+        pids = [p for p in os.listdir("/proc") if p.isdigit()]
+    except OSError:
+        return False
+    for pid in pids:
+        try:
+            with open("/proc/%s/cmdline" % pid, "rb") as f:
+                if b"\0SteamLaunch\0AppId=" in f.read():
+                    return True
+        except OSError:
+            continue
+    return False
+
+
 def live_helper_running(directory=None):
     try:
         with open(state_path("live.pid", directory)) as f:
@@ -1209,21 +1258,22 @@ def register_default(config_path, apps=(), protect=(), default=None, catalog=Non
                 default = state.get("default") if state.get("default") in names else TOOL
         steam_root = os.path.dirname(os.path.dirname(os.path.abspath(config_path)))
         overrides = requested_games(game_requests(directory), catalog)
-        native = native_targets(steam_root, set(apps) | set(picks))
+        managed = state.get("auto", {}).keys() if isinstance(state.get("auto"), dict) else ()
+        native_choices = state.get("native_choices", ())
+        native = native_targets(steam_root, set(apps) | set(picks) | set(managed) | set(native_choices))
         if linux_tool != FEX_TOOL:
             native = {app: linux_tool if tool == FEX_TOOL else tool for app, tool in native.items()}
         changes, auto = plan_mapping(
-            current, apps, names, default, followers(state, current),
-            native, picks,
-            overrides, state.get("auto", {}).keys() if isinstance(state.get("auto"), dict) else (),
-            state.get("native", ()))
+            current, apps, names, default, followers(state, current), native, picks,
+            overrides, managed, native_choices)
         for app, tool in changes.items():
             set_mapping(tokens, mapping, app, tool)
         text = serialize(tokens)
         if text != serialize(tokenize(original)):
             write_changed(config_path, text)
         state["auto"] = {app: tool for app, tool in auto.items() if tool is not NATIVE_CHOICE}
-        state["native"] = sorted(app for app, tool in auto.items() if tool is NATIVE_CHOICE)
+        state["native_choices"] = sorted(app for app, tool in auto.items() if tool is NATIVE_CHOICE)
+        state.pop("native", None)
         state["tools"] = catalog
         state.setdefault("default", default)
         write_json(state_path("state.json", directory), state)

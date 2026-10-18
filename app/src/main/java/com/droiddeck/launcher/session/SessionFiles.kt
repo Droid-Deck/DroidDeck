@@ -121,13 +121,14 @@ object SessionFiles {
             "droiddeck/driver.vrdrivermanifest",
             "droiddeck/resources/settings/default.vrsettings",
             "layer/libVkLayer_droiddeck_vr.so",
+            "layer/libdroiddeck_vr_scheduling.so",
             "layer/VK_LAYER_DROIDDECK_vr.json",
         ) + handModels).map { "usr/local/lib/droiddeck-vr/$it" to "usr/local/lib/droiddeck-vr/$it" } +
             listOf("usr/local/lib/droiddeck-vr/layer/VK_LAYER_DROIDDECK_vr_implicit.json" to
                 "usr/share/vulkan/implicit_layer.d/droiddeck_vr.json")
         val fexPreloads = listOf("x86_64", "i386").flatMap { arch ->
             listOf("libblsession.so", "libfakeinput.so", "libfaultreport.so").map { "$arch/$it" to "usr/local/lib/droiddeck-fex/$arch/$it" }
-        } + listOf("libthunkaudit.so", "libvulkan-thunk.so", "libwebkitinput.so").map { "x86_64/$it" to "usr/local/lib/droiddeck-fex/x86_64/$it" }
+        } + listOf("libvulkan-thunk.so", "libwebkitinput.so").map { "x86_64/$it" to "usr/local/lib/droiddeck-fex/x86_64/$it" }
         val optional = (arrayOf(
             "usr/local/bin/gamescope" to "usr/local/bin/gamescope",
             "usr/local/lib/droiddeck/uruntime" to "usr/local/lib/droiddeck/uruntime",
