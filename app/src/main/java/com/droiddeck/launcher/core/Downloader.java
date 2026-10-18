@@ -278,11 +278,11 @@ public final class Downloader {
 
     private static long measure(String url) {
         HttpURLConnection connection = null;
+        long startedAt = System.currentTimeMillis();
         try {
             connection = open(url, PROBE_TIMEOUT_MS);
             connection.setRequestProperty("Range", "bytes=0-" + (PROBE_BYTES - 1));
             if (connection.getResponseCode() / 100 != 2) return 0;
-            long startedAt = System.currentTimeMillis();
             long read = 0;
             try (InputStream in = connection.getInputStream()) {
                 byte[] buffer = new byte[1 << 16];
