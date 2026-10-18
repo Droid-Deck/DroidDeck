@@ -590,6 +590,7 @@ class SessionService : Service() {
         SessionState.steamClientArch?.let { arch ->
             guest.add("BL_STEAM_CLIENT_ARCH=$arch")
             SessionPaths.current()?.let { SessionArtifacts.recordClient(it, arch) }
+            if (arch == "x86_64") FexCatalog.cached(this)?.let { guest.addAll(FexCatalog.environment(it)) }
         }
         if (SessionState.mode == MODE_STEAM) {
             guest.add("BL_GAMESCOPE_STRETCH_16X9=" + (if (SessionPrefs.stretch16x9(this)) "1" else "0"))
