@@ -1997,6 +1997,9 @@
     <string name="cloud_last_sync">最終同期 %1$s</string>
     <string name="cloud_never">未同期</string>
     <string name="cloud_done">%1$d個のファイル</string>
+    <string name="cloud_up_to_date">すでに最新です</string>
+    <string name="cloud_signed_out">セーブを同期するにはストアにサインインしてください</string>
+    <string name="cloud_not_synced">セーブは同期されませんでした</string>
     <string name="stores_eyebrow_installed">インストール済み</string>
     <string name="stores_eyebrow_library">ライブラリ内</string>
     <string name="stores_eyebrow_store">ストア</string>

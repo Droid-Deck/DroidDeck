@@ -2073,6 +2073,9 @@
     <string name="cloud_last_sync">上次同步：%1$s</string>
     <string name="cloud_never">尚未同步</string>
     <string name="cloud_done">%1$d 个文件</string>
+    <string name="cloud_up_to_date">已是最新</string>
+    <string name="cloud_signed_out">登录商店以同步存档</string>
+    <string name="cloud_not_synced">存档未同步</string>
     <string name="stores_eyebrow_installed">已安装</string>
     <string name="stores_eyebrow_library">在你的库中</string>
     <string name="stores_eyebrow_store">商店</string>

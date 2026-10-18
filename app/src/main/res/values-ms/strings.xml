@@ -1997,6 +1997,9 @@
     <string name="cloud_last_sync">Segerak terakhir %1$s</string>
     <string name="cloud_never">Belum disegerakkan</string>
     <string name="cloud_done">%1$d fail</string>
+    <string name="cloud_up_to_date">Sudah terkini</string>
+    <string name="cloud_signed_out">Log masuk ke kedai untuk menyegerakkan simpanan</string>
+    <string name="cloud_not_synced">Simpanan tidak disegerakkan</string>
     <string name="stores_eyebrow_installed">dipasang</string>
     <string name="stores_eyebrow_library">dalam pustaka anda</string>
     <string name="stores_eyebrow_store">kedai</string>

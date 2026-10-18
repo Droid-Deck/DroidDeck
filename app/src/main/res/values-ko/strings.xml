@@ -1997,6 +1997,9 @@
     <string name="cloud_last_sync">마지막 동기화 %1$s</string>
     <string name="cloud_never">아직 동기화 안 됨</string>
     <string name="cloud_done">파일 %1$d개</string>
+    <string name="cloud_up_to_date">이미 최신 상태입니다</string>
+    <string name="cloud_signed_out">저장 파일을 동기화하려면 스토어에 로그인하세요</string>
+    <string name="cloud_not_synced">저장 파일이 동기화되지 않았습니다</string>
     <string name="stores_eyebrow_installed">설치됨</string>
     <string name="stores_eyebrow_library">내 라이브러리</string>
     <string name="stores_eyebrow_store">스토어</string>

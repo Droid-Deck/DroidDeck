@@ -1997,6 +1997,9 @@
     <string name="cloud_last_sync">Sinkronisasi terakhir %1$s</string>
     <string name="cloud_never">Belum disinkronkan</string>
     <string name="cloud_done">%1$d file</string>
+    <string name="cloud_up_to_date">Sudah terbaru</string>
+    <string name="cloud_signed_out">Masuk ke toko untuk menyinkronkan simpanan</string>
+    <string name="cloud_not_synced">Simpanan tidak disinkronkan</string>
     <string name="stores_eyebrow_installed">terinstal</string>
     <string name="stores_eyebrow_library">dalam pustaka Anda</string>
     <string name="stores_eyebrow_store">toko</string>

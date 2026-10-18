@@ -2018,6 +2018,9 @@
     <string name="cloud_last_sync">Τελευταίος συγχρονισμός %1$s</string>
     <string name="cloud_never">Δεν έχει συγχρονιστεί ακόμα</string>
     <string name="cloud_done">%1$d αρχεία</string>
+    <string name="cloud_up_to_date">Ήδη ενημερωμένο</string>
+    <string name="cloud_signed_out">Συνδεθείτε στο κατάστημα για συγχρονισμό αποθηκεύσεων</string>
+    <string name="cloud_not_synced">Οι αποθηκεύσεις δεν συγχρονίστηκαν</string>
     <string name="stores_eyebrow_installed">εγκατεστημένο</string>
     <string name="stores_eyebrow_library">στη βιβλιοθήκη σας</string>
     <string name="stores_eyebrow_store">κατάστημα</string>

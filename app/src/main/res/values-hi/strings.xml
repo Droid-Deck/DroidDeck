@@ -2018,6 +2018,9 @@
     <string name="cloud_last_sync">आख़िरी सिंक %1$s</string>
     <string name="cloud_never">अभी सिंक नहीं हुआ</string>
     <string name="cloud_done">%1$d फ़ाइलें</string>
+    <string name="cloud_up_to_date">पहले से अप टू डेट</string>
+    <string name="cloud_signed_out">सेव सिंक करने के लिए स्टोर में साइन इन करें</string>
+    <string name="cloud_not_synced">सेव सिंक नहीं हुए</string>
     <string name="stores_eyebrow_installed">इंस्टॉल है</string>
     <string name="stores_eyebrow_library">आपकी लाइब्रेरी में</string>
     <string name="stores_eyebrow_store">स्टोर</string>

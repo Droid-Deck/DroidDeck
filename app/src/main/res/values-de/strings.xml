@@ -2007,6 +2007,9 @@
     <string name="cloud_last_sync">Zuletzt synchronisiert %1$s</string>
     <string name="cloud_never">Noch nicht synchronisiert</string>
     <string name="cloud_done">%1$d Dateien</string>
+    <string name="cloud_up_to_date">Bereits aktuell</string>
+    <string name="cloud_signed_out">Im Store anmelden, um Spielstände zu synchronisieren</string>
+    <string name="cloud_not_synced">Spielstände wurden nicht synchronisiert</string>
     <string name="stores_eyebrow_installed">installiert</string>
     <string name="stores_eyebrow_library">in deiner Bibliothek</string>
     <string name="stores_eyebrow_store">Store</string>

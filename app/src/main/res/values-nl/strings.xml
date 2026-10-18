@@ -2018,6 +2018,9 @@
     <string name="cloud_last_sync">Laatste synchronisatie %1$s</string>
     <string name="cloud_never">Nog niet gesynchroniseerd</string>
     <string name="cloud_done">%1$d bestanden</string>
+    <string name="cloud_up_to_date">Al up-to-date</string>
+    <string name="cloud_signed_out">Log in bij de winkel om opslagbestanden te synchroniseren</string>
+    <string name="cloud_not_synced">Opslagbestanden zijn niet gesynchroniseerd</string>
     <string name="stores_eyebrow_installed">geïnstalleerd</string>
     <string name="stores_eyebrow_library">in je bibliotheek</string>
     <string name="stores_eyebrow_store">winkel</string>

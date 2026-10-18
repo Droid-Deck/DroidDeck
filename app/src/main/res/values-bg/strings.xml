@@ -2018,6 +2018,9 @@
     <string name="cloud_last_sync">Последна синхронизация %1$s</string>
     <string name="cloud_never">Още не е синхронизирано</string>
     <string name="cloud_done">%1$d файла</string>
+    <string name="cloud_up_to_date">Вече е актуално</string>
+    <string name="cloud_signed_out">Влезте в магазина, за да синхронизирате записите</string>
+    <string name="cloud_not_synced">Записите не бяха синхронизирани</string>
     <string name="stores_eyebrow_installed">инсталирана</string>
     <string name="stores_eyebrow_library">в библиотеката ти</string>
     <string name="stores_eyebrow_store">магазин</string>

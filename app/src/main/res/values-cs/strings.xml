@@ -2060,6 +2060,9 @@
     <string name="cloud_last_sync">Poslední synchronizace %1$s</string>
     <string name="cloud_never">Ještě nesynchronizováno</string>
     <string name="cloud_done">%1$d souborů</string>
+    <string name="cloud_up_to_date">Už je aktuální</string>
+    <string name="cloud_signed_out">Pro synchronizaci uložených pozic se přihlaste do obchodu</string>
+    <string name="cloud_not_synced">Uložené pozice nebyly synchronizovány</string>
     <string name="stores_eyebrow_installed">nainstalováno</string>
     <string name="stores_eyebrow_library">ve vaší knihovně</string>
     <string name="stores_eyebrow_store">obchod</string>

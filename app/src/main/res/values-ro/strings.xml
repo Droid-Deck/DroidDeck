@@ -2039,6 +2039,9 @@
     <string name="cloud_last_sync">Ultima sincronizare %1$s</string>
     <string name="cloud_never">Nesincronizat încă</string>
     <string name="cloud_done">%1$d fișiere</string>
+    <string name="cloud_up_to_date">Deja actualizat</string>
+    <string name="cloud_signed_out">Conectează-te la magazin pentru a sincroniza salvările</string>
+    <string name="cloud_not_synced">Salvările nu au fost sincronizate</string>
     <string name="stores_eyebrow_installed">instalat</string>
     <string name="stores_eyebrow_library">în biblioteca ta</string>
     <string name="stores_eyebrow_store">magazin</string>

@@ -2028,6 +2028,9 @@
     <string name="cloud_last_sync">Última sincronização: %1$s</string>
     <string name="cloud_never">Ainda não sincronizado</string>
     <string name="cloud_done">%1$d ficheiros</string>
+    <string name="cloud_up_to_date">Já está atualizado</string>
+    <string name="cloud_signed_out">Inicie sessão na loja para sincronizar os jogos guardados</string>
+    <string name="cloud_not_synced">Os jogos guardados não foram sincronizados</string>
     <string name="stores_eyebrow_installed">instalado</string>
     <string name="stores_eyebrow_library">na sua biblioteca</string>
     <string name="stores_eyebrow_store">loja</string>

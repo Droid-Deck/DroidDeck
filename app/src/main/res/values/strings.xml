@@ -2062,6 +2062,9 @@
     <string name="cloud_last_sync">Last sync %1$s</string>
     <string name="cloud_never">Not synced yet</string>
     <string name="cloud_done">%1$d files</string>
+    <string name="cloud_up_to_date">Already up to date</string>
+    <string name="cloud_signed_out">Sign in to the store to sync saves</string>
+    <string name="cloud_not_synced">Saves were not synced</string>
     <string name="stores_eyebrow_installed">installed</string>
     <string name="stores_eyebrow_library">in your library</string>
     <string name="stores_eyebrow_store">store</string>

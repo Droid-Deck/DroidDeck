@@ -2060,6 +2060,9 @@
     <string name="cloud_last_sync">Остання синхронізація %1$s</string>
     <string name="cloud_never">Ще не синхронізовано</string>
     <string name="cloud_done">%1$d файлів</string>
+    <string name="cloud_up_to_date">Уже актуально</string>
+    <string name="cloud_signed_out">Увійдіть у магазин, щоб синхронізувати збереження</string>
+    <string name="cloud_not_synced">Збереження не синхронізовано</string>
     <string name="stores_eyebrow_installed">встановлено</string>
     <string name="stores_eyebrow_library">у вашій бібліотеці</string>
     <string name="stores_eyebrow_store">магазин</string>

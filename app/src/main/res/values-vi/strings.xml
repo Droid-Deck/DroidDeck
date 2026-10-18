@@ -1997,6 +1997,9 @@
     <string name="cloud_last_sync">Đồng bộ lần cuối %1$s</string>
     <string name="cloud_never">Chưa đồng bộ</string>
     <string name="cloud_done">%1$d tệp</string>
+    <string name="cloud_up_to_date">Đã cập nhật</string>
+    <string name="cloud_signed_out">Đăng nhập cửa hàng để đồng bộ bản lưu</string>
+    <string name="cloud_not_synced">Bản lưu chưa được đồng bộ</string>
     <string name="stores_eyebrow_installed">đã cài</string>
     <string name="stores_eyebrow_library">trong thư viện của bạn</string>
     <string name="stores_eyebrow_store">cửa hàng</string>

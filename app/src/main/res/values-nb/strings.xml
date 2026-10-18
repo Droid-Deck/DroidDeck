@@ -2018,6 +2018,9 @@
     <string name="cloud_last_sync">Siste synkronisering %1$s</string>
     <string name="cloud_never">Ikke synkronisert ennå</string>
     <string name="cloud_done">%1$d filer</string>
+    <string name="cloud_up_to_date">Allerede oppdatert</string>
+    <string name="cloud_signed_out">Logg inn i butikken for å synkronisere lagrede spill</string>
+    <string name="cloud_not_synced">Lagrede spill ble ikke synkronisert</string>
     <string name="stores_eyebrow_installed">installert</string>
     <string name="stores_eyebrow_library">i biblioteket ditt</string>
     <string name="stores_eyebrow_store">butikk</string>

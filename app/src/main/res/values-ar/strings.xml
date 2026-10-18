@@ -2102,6 +2102,9 @@
     <string name="cloud_last_sync">آخر مزامنة %1$s</string>
     <string name="cloud_never">لم تتم المزامنة بعد</string>
     <string name="cloud_done">%1$d ملفات</string>
+    <string name="cloud_up_to_date">محدَّث بالفعل</string>
+    <string name="cloud_signed_out">سجّل الدخول إلى المتجر لمزامنة الحفظ</string>
+    <string name="cloud_not_synced">لم تتم مزامنة الحفظ</string>
     <string name="stores_eyebrow_installed">مثبَّتة</string>
     <string name="stores_eyebrow_library">في مكتبتك</string>
     <string name="stores_eyebrow_store">متجر</string>

@@ -2028,6 +2028,9 @@
     <string name="cloud_last_sync">Ultima sincronizzazione %1$s</string>
     <string name="cloud_never">Non ancora sincronizzato</string>
     <string name="cloud_done">%1$d file</string>
+    <string name="cloud_up_to_date">Già aggiornato</string>
+    <string name="cloud_signed_out">Accedi allo store per sincronizzare i salvataggi</string>
+    <string name="cloud_not_synced">I salvataggi non sono stati sincronizzati</string>
     <string name="stores_eyebrow_installed">installato</string>
     <string name="stores_eyebrow_library">nella tua libreria</string>
     <string name="stores_eyebrow_store">negozio</string>

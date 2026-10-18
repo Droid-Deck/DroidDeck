@@ -2018,6 +2018,9 @@
     <string name="cloud_last_sync">Utolsó szinkronizálás: %1$s</string>
     <string name="cloud_never">Még nincs szinkronizálva</string>
     <string name="cloud_done">%1$d fájl</string>
+    <string name="cloud_up_to_date">Már naprakész</string>
+    <string name="cloud_signed_out">Jelentkezz be az áruházba a mentések szinkronizálásához</string>
+    <string name="cloud_not_synced">A mentések nem lettek szinkronizálva</string>
     <string name="stores_eyebrow_installed">telepítve</string>
     <string name="stores_eyebrow_library">a könyvtárában</string>
     <string name="stores_eyebrow_store">áruház</string>

@@ -2007,6 +2007,9 @@
     <string name="cloud_last_sync">Son eşitleme %1$s</string>
     <string name="cloud_never">Henüz eşitlenmedi</string>
     <string name="cloud_done">%1$d dosya</string>
+    <string name="cloud_up_to_date">Zaten güncel</string>
+    <string name="cloud_signed_out">Kayıtları eşitlemek için mağazada oturum açın</string>
+    <string name="cloud_not_synced">Kayıtlar eşitlenmedi</string>
     <string name="stores_eyebrow_installed">yüklü</string>
     <string name="stores_eyebrow_library">kütüphanenizde</string>
     <string name="stores_eyebrow_store">mağaza</string>

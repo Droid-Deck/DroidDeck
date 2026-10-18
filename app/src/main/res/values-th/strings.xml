@@ -1997,6 +1997,9 @@
     <string name="cloud_last_sync">ซิงค์ล่าสุด %1$s</string>
     <string name="cloud_never">ยังไม่ได้ซิงค์</string>
     <string name="cloud_done">%1$d ไฟล์</string>
+    <string name="cloud_up_to_date">อัปเดตแล้ว</string>
+    <string name="cloud_signed_out">ลงชื่อเข้าใช้ร้านค้าเพื่อซิงค์เซฟ</string>
+    <string name="cloud_not_synced">เซฟไม่ได้ซิงค์</string>
     <string name="stores_eyebrow_installed">ติดตั้งแล้ว</string>
     <string name="stores_eyebrow_library">อยู่ในไลบรารีของคุณ</string>
     <string name="stores_eyebrow_store">สโตร์</string>
