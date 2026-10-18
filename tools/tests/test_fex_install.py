@@ -68,6 +68,17 @@ class FexInstallTest(unittest.TestCase):
         self.assertFalse((self.root / "usr/local/lib/libxxhash.so.0").exists())
         self.assertEqual("fex-2610-r5", self.tag())
 
+    def test_a_tag_that_cannot_be_written_puts_the_old_files_back(self):
+        share = self.root / "usr/local/share/fex-emu"
+        (share / ".droiddeck-tag").unlink()
+        share.rmdir()
+        share.write_text("not a folder\n")
+        result, err = self.install(installed_loads=True)
+        self.assertEqual("FAILED", result)
+        self.assertIn("putting the previous files back", err)
+        self.assertEqual("old FEX\n", (self.root / "usr/local/bin/FEX").read_text())
+        self.assertFalse((self.root / "usr/local/lib/libxxhash.so.0").exists())
+
     def test_an_archive_that_does_not_match_installs_nothing(self):
         result, err = self.install(installed_loads=True, sha="0" * 64)
         self.assertEqual("FAILED", result)

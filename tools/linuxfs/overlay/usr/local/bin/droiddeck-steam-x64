@@ -355,12 +355,12 @@ fex_install() {
       cp -a --parents "$dst$f" "$tmp/old" || { echo "== FEX $tag: could not keep $dst$f aside" >&2; rm -rf "$tmp"; return 1; }
     fi
   done < "$tmp/files"
-  if tar -C "$tmp/root" -c . | tar -C "$dst" -x && fex_loads "$dst"; then
-    mkdir -p "${dst}usr/local/share/fex-emu" && echo "$tag" > "${dst}usr/local/share/fex-emu/.droiddeck-tag"
+  if tar -C "$tmp/root" -c . | tar -C "$dst" -x && fex_loads "$dst" &&
+     mkdir -p "${dst}usr/local/share/fex-emu" && echo "$tag" > "${dst}usr/local/share/fex-emu/.droiddeck-tag"; then
     rm -rf "$tmp"
     return 0
   fi
-  echo "== FEX $tag: the installed copy did not load; putting the previous files back" >&2
+  echo "== FEX $tag: the installed copy did not load or its tag was not written; putting the previous files back" >&2
   while IFS= read -r f; do
     f=${f#./}
     [ -e "$tmp/old/$dst$f" ] || [ -L "$tmp/old/$dst$f" ] || rm -f "$dst$f"
