@@ -306,6 +306,10 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val host = rememberMenuHost()
+    val (glasses, glassesSettings) = rememberGlasses()
+    val glassesPages = glassesTabs(glasses)
+    var selectedGlassesTab by rememberSaveable { mutableStateOf(GlassesTab.DISPLAY) }
+    val glassesTab = selectedGlassesTab.takeIf { key -> glassesPages.any { it.first == key } } ?: GlassesTab.DISPLAY
     var androidAppsExpanded by rememberSaveable { mutableStateOf(false) }
     var advancedEffectsExpanded by rememberSaveable { mutableStateOf(false) }
     var appToChooseDisplay by remember { mutableStateOf<HomeApp.LaunchableApp?>(null) }
@@ -313,6 +317,10 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
     var sheetCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
     var stopCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
     val pageScroll = remember { SessionDrawerPage.entries.associateWith { ScrollState(0) } }
+    LaunchedEffect(glassesTab) {
+        if (page == SessionDrawerPage.GLASSES) host.open = null
+        pageScroll.getValue(SessionDrawerPage.GLASSES).scrollTo(0)
+    }
     val veil by animateFloatAsState(if (open) 1f else 0f, Motion.tw(260), label = "veil")
     val focus = remember { DrawerFocus() }
     val inputModeManager = LocalInputModeManager.current
@@ -339,7 +347,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
         if (open && !controllerActive) focusManager.clearFocus(force = true)
     }
     var focusedPage by remember { mutableStateOf(page) }
-    LaunchedEffect(open, page, controllerActive, host.open, appToChooseDisplay, confirmStop) {
+    LaunchedEffect(open, page, glassesTab, controllerActive, host.open, appToChooseDisplay, confirmStop) {
         if (!open) {
             host.open = null
             confirmStop = false
@@ -348,7 +356,11 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
             if (host.open != null || appToChooseDisplay != null || confirmStop) return@LaunchedEffect
             val turned = page != focusedPage
             focusedPage = page
-            val first = if (page == SessionDrawerPage.SESSION && a.isHomeApp) "apps" else page.firstControl
+            val first = when {
+                page == SessionDrawerPage.GLASSES -> "glasses-tab-$glassesTab"
+                page == SessionDrawerPage.SESSION && a.isHomeApp -> "apps"
+                else -> page.firstControl
+            }
             if (turned) focus.forget(page)
             val target = focus.target(page) ?: first
             repeat(24) {
@@ -437,6 +449,10 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         host.open = null; onPageChange(pages.step(page, 1))
                     }
                 }
+                if (page == SessionDrawerPage.GLASSES) SegmentedTabs(
+                    glassesPages, glassesTab, modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    tabModifier = { key -> focus.track(page, "glasses-tab-$key").testTag("glasses-tab-$key") },
+                ) { selectedGlassesTab = it }
                 Column(
                     modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(pageScroll.getValue(page)),
                 ) { CompositionLocalProvider(LocalChipMinWidth provides 120.dp) {
@@ -538,9 +554,8 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                             SecondScreenGroup(host, a) { key -> focus.track(page, key) }
                         }
                         SessionDrawerPage.GLASSES -> {
-                            val (g, s) = rememberGlasses()
-                            GlassesGroups(host, g, s, { key -> focus.track(page, key) }, onRecenter = a.onGlassesRecenter,
-                                outputActive = a.glassesOutput, steamVrRunning = a.steamVr == SteamVr.Status.RUNNING,
+                            GlassesGroups(host, glasses, glassesSettings, { key -> focus.track(page, key) }, onRecenter = a.onGlassesRecenter,
+                                tab = glassesTab, outputActive = a.glassesOutput, steamVrRunning = a.steamVr == SteamVr.Status.RUNNING,
                                 steamVr = { SteamVrRow(a) })
                         }
                         SessionDrawerPage.GAMES -> {

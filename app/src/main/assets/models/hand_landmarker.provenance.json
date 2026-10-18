@@ -1,0 +1,9 @@
+{
+  "url": "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+  "sha256": "fbc2a30080c3c557093b5ddfc334698132eb341044ccee322ccf8bcf3607cde1",
+  "bytes": 7819105,
+  "mediapipe": "com.google.mediapipe:tasks-vision:1.0.0",
+  "opencv": "org.opencv:opencv:4.13.0",
+  "documentation": "https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker",
+  "runtime": "Two video-mode instances; CPU default; GPU requires separate performance acceptance"
+}

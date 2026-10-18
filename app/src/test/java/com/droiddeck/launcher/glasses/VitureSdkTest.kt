@@ -6,6 +6,16 @@ import kotlin.math.sqrt
 import com.droiddeck.launcher.gpu.HeadPose
 
 class VitureSdkTest {
+    @Test fun spatialIdentityUsesTheFullSdkDigestAndRejectsMissingValues() {
+        assertNull(VitureSpatialIdentity.fromSerialHash(null))
+        assertNull(VitureSpatialIdentity.fromSerialHash(ByteArray(32)))
+        assertNull(VitureSpatialIdentity.fromSerialHash(ByteArray(31) { 1 }))
+        val digest=ByteArray(32) { it.toByte() }
+        val id=VitureSpatialIdentity.fromSerialHash(digest)
+        assertEquals("viture:sn-sha256:000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",id)
+        assertEquals(id,VitureSpatialIdentity.fromSerialHash(digest.copyOf()))
+        assertNotEquals(id,VitureSpatialIdentity.fromSerialHash(digest.copyOf().also { it[31]=0xff.toByte() }))
+    }
     @Test fun pro2UsesItsOwnSdkTransportAndDisplayLimits() {
         val m = VitureProtocol.sdkModel("Pro 2")!!
         assertTrue(m.needsSdk)

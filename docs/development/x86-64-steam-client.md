@@ -186,26 +186,42 @@ alone would then read as an installed client.
     restarted from the top forever (found with `perf_event_open` IP sampling, since proot holds
     ptrace). Such a range is now skipped whole and a second exhausted scan returns `-ENOMEM`, as the
     kernel does (`fex-2610-r3`).
-- **`build-fex.yml`.** The build job runs third-party images and toolchains with a read-only token,
-  and inputs reach the shell as environment variables. A separate publish job (contents: write) runs
-  only on a dispatch with a tag, host thunks on and no extra `cxxflags` (diagnostic builds such as
-  `-DDEBUG_STRACE` stay artifacts). `droiddeck-steam-x64` pins each tag's sha256 and the archive is not
-  reproducible, so a tag is never rebuilt over. The release is never the repo's Latest nor a
-  pre-release: it is a component fetched by tag, not something users install.
+- **Building and publishing.** Droid-Deck/DroidDeck-Components' `build-fex.yml` builds `tools/fex` from
+  this repository at a chosen ref (default `main`) with host thunks, in the same Arch Linux ARM container
+  with a read-only token, then a separate job replaces `fex.tzst` on Components' single `fex` release,
+  checks the digest GitHub stored, and records the build's version, sha256 and size in its `fex.json`
+  (in that order: a device that reads the old `fex.json` meanwhile gets a mismatching archive and keeps
+  its FEX). This repository's `build-fex.yml` only builds `tools/fex` when it changes (and on dispatch,
+  for diagnostic builds such as `-DDEBUG_STRACE`); nothing is published from it.
 - Releases so far: `fex-2609-r2` (no thunks), `fex-2609-r3` (thunks), `fex-2610-r1`, `fex-2610-r2`,
   `fex-2610-r3`, `fex-2610-r4` (in-root resolution when openat2 is missing, exact MAP_32BIT
   marking), `fex-2610-r5` (current: bundles libxxhash, which the Linux runtime does not ship; the
   build fails when a program in the package needs a library that is neither bundled nor listed in
   `tools/fex/runtime-libs.txt`). They were built and published in The412Banner/DroidDeck; up to r3 their tags point at that
-  repository's `main`, from r4 at the commit each was built from.
+  repository's `main`, from r4 at the commit each was built from. Later builds are versions on the single
+  `fex` release; `fex-2610-r5` stays published as the build `droiddeck-steam-x64` pins.
 - **Where the app gets it.** The app downloads FEX from Droid-Deck/DroidDeck-Components, where nothing is
-  uploaded by hand: a new tag is published by `build-fex.yml`, recorded in that repository's `fex.json`
-  (sha256 and size), and brought in by its `mirror-release.yml`, which refuses an archive that does not
-  match. `FEX_TAG` and `FEX_SHA256` in `droiddeck-steam-x64` then move to the new tag. The rootfs is
+  uploaded by hand. The app follows its `fex.json`: while the x86-64 client is selected it reads it from
+  Components' `main` (directly, at most every ten minutes) and keeps the last copy, and a session passes
+  that build to `droiddeck-steam-x64` (`BL_FEX_TAG`, `BL_FEX_SHA256`, `BL_FEX_URLS` with the download
+  source's mirrors). The script installs a build only after its archive matches the sha256 and every
+  program in it loads (`ld-linux --list`); the files it replaces are kept aside until the installed copy
+  loads too and put back otherwise, and the tag is written last. Otherwise it keeps the installed one while that still loads,
+  then falls back to `FEX_TAG`/`FEX_SHA256` built in, which stay the first-start default when no copy
+  of `fex.json` has been read. Publishing a FEX build therefore takes a Components run only; a
+  replaced archive cannot be pointed back to, so undoing a build means building an earlier ref. The rootfs is
   FEX-Emu's own image, unmodified: `fex-rootfs.json` there names its rootfs.fex-emu.gg link, sha256 and
   size, and `mirror-upstream.yml` fetches it into the catalog's release only when both match. A newer
   image is a new catalog release; `ROOTFS_URL` and `ROOTFS_SHA256` then move to it, and a device that
   already unpacked one keeps it.
+
+- **What a session log shows.** `FEX ready (<tag>, <source>)` names the build and where it came from
+  (`catalog`, `built-in`, or `kept` when a newer one did not install, with the reason a line above);
+  `x86-64 rootfs:` names the image; `x86-64 client:` the client's ubuntu12 and steamrt64 builds at start
+  (it may update itself after). The rootfs download reports every tenth of its size as a step. When the
+  web helper's GPU process keeps exiting until Chromium gives up on the GPU (the menus then never appear),
+  one line says so with the exit codes, followed by x86 `glxinfo -B` and `vulkaninfo --summary` through
+  FEX's thunks.
 
 ## DroidDeck direct for Linux games and runtimes
 
