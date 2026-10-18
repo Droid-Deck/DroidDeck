@@ -146,15 +146,20 @@ object LogRedactor {
         return out
     }
 
-    fun isText(file: java.io.File): Boolean = try {
-        file.isFile && file.length() < 64L * 1024 * 1024 && file.inputStream().use { input ->
+    /** The at-rest rewrite reads a file into memory twice; larger logs are only scrubbed on the way out. */
+    const val IN_MEMORY_SCRUB_MAX = 64L * 1024 * 1024
+
+    fun isBinary(file: java.io.File): Boolean = try {
+        file.inputStream().use { input ->
             val buf = ByteArray(4096)
             val n = input.read(buf)
-            n <= 0 || (0 until n).none { buf[it].toInt() == 0 }
+            n > 0 && (0 until n).any { buf[it].toInt() == 0 }
         }
     } catch (e: Exception) {
-        false
+        true
     }
+
+    fun isText(file: java.io.File): Boolean = file.isFile && file.length() < IN_MEMORY_SCRUB_MAX && !isBinary(file)
 
     const val RULES_VERSION = 3
 

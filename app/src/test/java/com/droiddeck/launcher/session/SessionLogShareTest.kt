@@ -32,6 +32,27 @@ class SessionLogShareTest {
             "rules $rules\n" + files.joinToString("") { val f = File(folder, it); "${f.length()}\t${f.lastModified()}\t$it\n" })
     }
 
+    @Test fun aLogPastTheInMemoryCapIsStillScrubbedIntoTheZip() {
+        val folder = tmp.newFolder("2026-10-18-01-steam")
+        val line = ("x".repeat(1023) + "\n").toByteArray()
+        File(folder, "session.log").outputStream().buffered().use { out ->
+            out.write("$secret\n".toByteArray())
+            repeat(65 * 1024) { out.write(line) }
+        }
+        assertTrue(File(folder, "session.log").length() >= LogRedactor.IN_MEMORY_SCRUB_MAX)
+        val out = zip(folder)
+        assertTrue(out.containsKey("session.log"))
+        assertFalse(out.getValue("session.log").contains(leaked))
+    }
+
+    @Test fun aLogWithANulByteIsScrubbedNotCopiedRaw() {
+        val folder = tmp.newFolder("2026-10-18-02-steam")
+        File(folder, "crash.log").writeBytes(byteArrayOf(0) + "$secret\n".toByteArray())
+        val out = zip(folder)
+        assertTrue(out.containsKey("crash.log"))
+        assertFalse(out.getValue("crash.log").contains(leaked))
+    }
+
     @Test fun aRecordedUnchangedFileIsScrubbedAgainOnTheWayIntoTheZip() {
         val folder = tmp.newFolder("2026-10-06-01-steam")
         File(folder, "session.log").writeText("$secret\n")
