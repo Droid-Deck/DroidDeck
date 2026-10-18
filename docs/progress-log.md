@@ -116,6 +116,29 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
 - **Org PR**: the draft #152 from 2026-10-02 (same branch name, 12 commits, conflicting with main) is
   refreshed as one commit on org main 45513c90 and marked ready, once the review of the translations
   is clean. Its old head is kept at `refs/backup/20261018/x86-64-steam-client-afa479ee`.
+- Korean: the review of the translations found `을(를)` left in the two uninstall strings; both client
+  names end in a vowel when read, so they take `를`. The next review was clean.
+- **Submitted**: #152 is one commit (a53fd117) on org main 45513c90, ready for review; Build APK passed.
+  Its `kwin` job (Build desktop package, KDE Plasma) failed for an unrelated reason: `build-kwin.sh`
+  requires Arch Linux ARM's `kwin-6.7.5`, which `extra` replaced with 6.8.0 on 2026-10-15; the job ran
+  only because refreshing the branch from its 2026-10-14 head spanned main's own `tools/desktop-kde`
+  changes. This branch changes nothing there.
+- **Org review** (CodeRabbit on #152, 7 points): the library cache is saved only by the newest scan; a
+  session records the client it ran (`steam-client.txt`) so an abandoned session's Steam logs come
+  from that client; two console logs with the same game and mod get distinct names in the VAC report;
+  CPU pinning also unwraps `FEXInterpreter`; the VAC hint names the game in pl, ru, uk, cs and bg.
+  Pinning `actions/download-artifact` to a SHA was left out: no workflow here pins one. Follow-up
+  commit eb8634ea.
+- Merged as ae94d9db.
+- **FEX r5** (report: a Galaxy S25 without the KDE desktop): the x86-64 client exited 127 at its first
+  FEX call, `error while loading shared libraries: libxxhash.so.0`. FEX, FEXServer, FEXRootFSFetcher
+  and FEXOfflineCompiler link libxxhash; linuxfs-r9 does not ship it, and the test device had it only
+  from the KDE desktop package. r5 bundles it in `usr/local/lib` with RUNPATH `$ORIGIN/../lib` on
+  those programs (the runtime has no ld.so.cache), and `build-in-arch.sh` now fails when a program
+  needs a library that is neither bundled nor listed in `tools/fex/runtime-libs.txt` (the r9 libraries
+  FEX uses). With the device's libxxhash hidden, r4 failed with the reported error and r5 loaded.
+  Mirrored in DroidDeck-Components (#5); the app moves to fex-2610-r5 and an installed r4 is replaced
+  at the next x86-64 start.
 
 ## 2026-10-15 - `feat/x86-64-steam-client`: SD card library, ARM parity, org main, Counter-Strike 2
 
