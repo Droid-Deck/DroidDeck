@@ -162,6 +162,39 @@ class WinComponentsTest(unittest.TestCase):
         self.apply()
         self.assertEqual((self.pfx / "system32/drivers/gm.dls").read_bytes(), b"dls")
 
+    def test_font_component_uses_real_font_registration_and_reuses_its_installed_files(self):
+        self.component("trebuchet", [], {"drive_c/windows/Fonts/trebuc.ttf": b"font payload"})
+        fonts = self.pfx / "Fonts"
+        fonts.mkdir(parents=True)
+        system = self.compat / "pfx/system.reg"
+        system.write_text("WINE REGISTRY Version 2\n")
+        values = [{"hive": "HKLM", "key": key, "name": "Trebuchet MS (TrueType)",
+                   "type": "sz", "data": "trebuc.ttf"}
+                  for key in [r"Software\Microsoft\Windows NT\CurrentVersion\Fonts",
+                              r"Software\Microsoft\Windows\CurrentVersion\Fonts"]]
+        (self.store / "trebuchet/registry.json").write_text(json.dumps({"values": values}))
+        self.pick("trebuchet")
+        names, _ = self.apply()
+        self.assertEqual([], names)
+        self.assertEqual(b"font payload", (fonts / "trebuc.ttf").read_bytes())
+        self.assertIn('"Trebuchet MS (TrueType)"="trebuc.ttf"', system.read_text())
+        self.assertNotIn("FontSubstitutes", system.read_text())
+        first = (fonts / "trebuc.ttf").stat().st_mtime_ns
+        self.apply()
+        self.assertEqual(first, (fonts / "trebuc.ttf").stat().st_mtime_ns)
+
+    def test_turning_font_component_off_restores_a_previous_font(self):
+        self.component("verdana", [], {"drive_c/windows/Fonts/verdana.ttf": b"component font"})
+        font = self.pfx / "Fonts/verdana.ttf"
+        font.parent.mkdir(parents=True)
+        font.write_bytes(b"previous font")
+        self.pick("verdana")
+        self.apply()
+        self.assertEqual(b"component font", font.read_bytes())
+        self.pick()
+        self.apply()
+        self.assertEqual(b"previous font", font.read_bytes())
+
     def test_overrides_value_last_word_wins_and_refuses_junk(self):
         self.assertEqual(MODULE["overrides_value"](["a", "b=n", "a=b", "bad;name", "c=x"]), "b=n;a=b")
 

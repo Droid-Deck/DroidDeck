@@ -145,10 +145,20 @@ object DeviceInfo {
         add("Driver mode", SessionPrefs.gpuDriverMode(context))
         val turnip = TurnipDriver(context)
         val choice = SessionPrefs.androidDriver(context).ifEmpty { turnip.autoId() }
-        add("Display driver", "${turnip.displayName(choice)} ${turnip.driverVersion(choice)}".trim())
+        val profile = gpu.family.systemProfile
+        add("Display driver", if (choice == "system") builtinDriverLabel(profile, runtime = false)
+            else "${turnip.displayName(choice)} ${turnip.driverVersion(choice)}".trim())
         val linux = LinuxVulkanDriverManager(context)
         val id = SessionPrefs.linuxDriver(context)
-        add("Game driver", if (id.isEmpty()) "the runtime's own Turnip" else "${linux.getDriverName(id)} ${linux.getDriverVersion(id)}".trim())
+        add("Game driver", if (id.isEmpty()) builtinDriverLabel(profile, runtime = true) else "${linux.getDriverName(id)} ${linux.getDriverVersion(id)}".trim())
         if (gpu.oneUi8Gen2) add("Note", "One UI on an 8 Gen 2: needs the OneUI Turnip build")
     })
+
+    /** Shared by the device card and the session report, which are written in English. */
+    internal fun builtinDriverLabel(profile: SystemVulkanDriver.Profile?, runtime: Boolean): String = when {
+        profile != null -> "System ${profile.gpuName}"
+        runtime -> "the runtime's own Turnip"
+        else -> "System Vulkan"
+    }
+
 }

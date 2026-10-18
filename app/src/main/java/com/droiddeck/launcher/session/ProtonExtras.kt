@@ -7,6 +7,8 @@ import android.os.StatFs
 import android.util.Log
 import com.droiddeck.launcher.core.Downloader
 import com.droiddeck.launcher.core.FileUtils
+import com.droiddeck.launcher.artifact.GitHubArtifacts
+import com.droiddeck.launcher.artifact.RepositorySources
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
 import org.json.JSONArray
@@ -15,22 +17,79 @@ import org.json.JSONObject
 object ProtonExtras {
     private const val TAG = "ProtonExtras"
     private const val NEED_BYTES = 4L * 1024 * 1024 * 1024
-    private const val RELEASES = "https://api.github.com/repos/%s/releases?per_page=15"
+    const val SOURCE_SCOPE = "proton"
     const val CHECK_EVERY_MS = 6L * 60 * 60 * 1000
     @Volatile
     var installInProgress = false
         private set
 
-    class Tool(val id: String, val name: String, val prefix: String, val repo: String, val assetPattern: Regex)
+    class Tool(
+        val id: String, val name: String, val prefix: String, val repo: String, val assetPattern: Regex,
+        val sourceId: String = "", val baseId: String = id,
+    )
 
     internal data class Asset(val tag: String, val name: String, val url: String, val sha512: String?, val size: Long,
-                             val sha256: String? = null)
+                             val sha256: String? = null, val sourceId: String = "", val repository: String = "",
+                             val repositoryId: Long = 0, val releaseId: Long = 0, val assetId: Long = 0,
+                             val toolName: String = "", val toolPrefix: String = "")
 
     val tools = listOf(
-        Tool("ge", "GE-Proton", "GE-Proton", "GloriousEggroll/proton-ge-custom", Regex("aarch64\\.tar\\.(gz|xz)$")),
-        Tool("cachyos", "proton-cachyos", "proton-cachyos", "CachyOS/proton-cachyos", Regex("arm64\\.tar\\.(gz|xz)$")),
-        Tool("droiddeck", "DroidDeck-Proton", "DroidDeck-Proton", "Droid-Deck/DroidDeck-Proton", Regex("aarch64\\.tar\\.(gz|xz)$")),
+        Tool("ge", "GE-Proton", "GE-Proton", "gloriouseggroll/proton-ge-custom", Regex("aarch64\\.tar\\.(gz|xz)$")),
+        Tool("cachyos", "proton-cachyos", "proton-cachyos", "cachyos/proton-cachyos", Regex("arm64\\.tar\\.(gz|xz)$")),
+        Tool("droiddeck", "DroidDeck-Proton", "DroidDeck-Proton", "droid-deck/droiddeck-proton", Regex("aarch64\\.tar\\.(gz|xz)$")),
     )
+
+    @JvmStatic fun sourceBuiltIns(): List<String> = tools.map { it.repo }
+
+    @JvmStatic fun sources(context: Context): List<RepositorySources.Source> =
+        RepositorySources.list(context, SOURCE_SCOPE, sourceBuiltIns())
+
+    @JvmStatic fun saveSources(context: Context, rows: List<RepositorySources.Source>): List<RepositorySources.Source> =
+        RepositorySources.save(context, SOURCE_SCOPE, sourceBuiltIns(), rows)
+
+    @JvmStatic fun availableTools(context: Context): List<Tool> {
+        val visible = RepositorySources.visible(context, SOURCE_SCOPE, sourceBuiltIns()).associateBy { it.id }
+        val known = tools.mapNotNull { tool ->
+            visible.values.firstOrNull { it.repository == tool.repo }?.let { source ->
+                Tool(tool.id, tool.name, tool.prefix, tool.repo, tool.assetPattern, source.id, tool.id)
+            }
+        }
+        val cache = readJson(latestFile(context))
+        val custom = cache.keys().asSequence().mapNotNull { id ->
+            val row = cache.optJSONObject(id) ?: return@mapNotNull null
+            val source = visible[row.optString("sourceId")] ?: return@mapNotNull null
+            if (source.repository in sourceBuiltIns()) return@mapNotNull null
+            val baseId = row.optString("baseId")
+            val base = tools.firstOrNull { it.id == baseId }
+            if (base == null && baseId != "manifest") return@mapNotNull null
+            Tool(id, row.optString("name", "${source.repository} · ${base?.name ?: "Proton"}"),
+                row.optString("prefix", base?.prefix ?: ""), source.repository,
+                base?.assetPattern ?: Regex("a^"), source.id, baseId)
+        }.toList()
+        return (known + custom).distinctBy { it.id }
+    }
+
+    @JvmStatic fun displayTools(context: Context): List<Tool> {
+        val available = availableTools(context)
+        val installedBuiltIns = tools.map { tool ->
+            val source = RepositorySources.source(tool.repo)
+            Tool(tool.id, tool.name, tool.prefix, source.repository, tool.assetPattern, source.id, tool.id)
+        }.filter { installedAll(context, it).isNotEmpty() }
+        val receipts = toolsDir(context).listFiles()?.mapNotNull { directory ->
+            if (!directory.isDirectory) return@mapNotNull null
+            val json = runCatching { JSONObject(FileUtils.readString(File(directory, ".droiddeck-source.json")) ?: return@runCatching null) }
+                .getOrNull() ?: return@mapNotNull null
+            val sourceId = json.optString("sourceId")
+            val id = json.optString("toolId")
+            val prefix = json.optString("toolPrefix")
+            val repo = json.optString("repository")
+            if (sourceId.isEmpty() || id.isEmpty() || prefix.isEmpty() || repo.isEmpty()) return@mapNotNull null
+            val base = tools.firstOrNull { it.id == json.optString("baseId") }
+            Tool(id, json.optString("toolName", repo), prefix, repo, base?.assetPattern ?: Regex("a^"),
+                sourceId, json.optString("baseId", "manifest"))
+        }.orEmpty()
+        return (available + installedBuiltIns + receipts).distinctBy { it.id }
+    }
 
     private fun home(context: Context) = File(LinuxRuntime.rootDir(context), "root")
     private fun requests(context: Context) = File(home(context), ".bl-proton-extra")
@@ -44,16 +103,29 @@ object ProtonExtras {
 
     internal fun installedIn(dir: File, tool: Tool): List<String> =
         dir.listFiles()
-            ?.filter { it.isDirectory && it.name.startsWith(tool.prefix) && File(it, "toolmanifest.vdf").isFile }
+            ?.filter { directory ->
+                if (!directory.isDirectory || !File(directory, "toolmanifest.vdf").isFile) {
+                    return@filter false
+                }
+                val receipt = runCatching { JSONObject(FileUtils.readString(File(directory, ".droiddeck-source.json")) ?: "{}") }
+                    .getOrDefault(JSONObject())
+                val recorded = receipt.optString("sourceId")
+                if (recorded.isNotEmpty()) {
+                    recorded == tool.sourceId && receipt.optString("toolId") == tool.id
+                } else {
+                    directory.name.startsWith(tool.prefix) && tool.repo in sourceBuiltIns()
+                }
+            }
             ?.map { it.name }
             ?.sortedWith { a, b -> compareVersions(a, b) }
             ?: emptyList()
 
     private val ARCH = Regex("(?i)aarch64|arm64|x86_64|x86-64|amd64")
+    private val SOURCE_SUFFIX = Regex("--dd-[0-9a-f]{64}-[0-9a-f]{64}$")
     private val NUMBER = Regex("\\d+")
 
     internal fun versionKey(name: String): List<Long> =
-        NUMBER.findAll(ARCH.replace(name, " ")).mapNotNull { it.value.toLongOrNull() }.toList()
+        NUMBER.findAll(ARCH.replace(SOURCE_SUFFIX.replace(name, ""), " ")).mapNotNull { it.value.toLongOrNull() }.toList()
 
     internal fun compareVersions(a: String, b: String): Int {
         val x = versionKey(a)
@@ -89,17 +161,51 @@ object ProtonExtras {
         synchronized(checkLock) {
             val file = latestFile(context)
             val cache = readJson(file)
-            val due = tools.filter { tool ->
+            val visible = RepositorySources.visible(context, SOURCE_SCOPE, sourceBuiltIns())
+            val candidates = visible.flatMap { source ->
+                tools.filter { it.repo == source.repository }.map {
+                    Tool(it.id, it.name, it.prefix, source.repository, it.assetPattern, source.id, it.id)
+                }.ifEmpty {
+                    tools.map { base ->
+                        Tool("${source.id.take(12)}-${base.id}", "${source.repository} · ${base.name}", base.prefix,
+                            source.repository, base.assetPattern, source.id, base.id)
+                    } + Tool("${source.id.take(12)}-manifest", source.repository, "", source.repository,
+                        Regex("a^"), source.id, "manifest")
+                }
+            }
+            val due = candidates.filter { tool ->
                 val at = cache.optJSONObject(tool.id)?.optLong("at", 0L) ?: 0L
                 force || (now - at) !in 0 until CHECK_EVERY_MS
             }
             if (due.isEmpty() || !force && (now - lastAttempt) in 0 until RETRY_MS) return false
             lastAttempt = now
-            for (tool in due) {
-                val tag = findLatestAsset(tool)?.tag ?: continue
-                cache.put(tool.id, JSONObject().put("tag", tag).put("at", now))
+            var refreshError: Throwable? = null
+            for ((sourceId, sourceTools) in due.groupBy { it.sourceId }) {
+                val source = visible.firstOrNull { it.id == sourceId } ?: continue
+                val releases = runCatching {
+                    GitHubArtifacts.refreshReleases(context, SOURCE_SCOPE, sourceBuiltIns(), source)
+                }.onFailure {
+                    Log.w(TAG, "release check for ${source.repository}", it)
+                    if (refreshError == null || GitHubArtifacts.isRateLimited(it)) refreshError = it
+                }.getOrNull() ?: continue
+                val bound = RepositorySources.visible(context, SOURCE_SCOPE, sourceBuiltIns())
+                    .firstOrNull { it.id == sourceId } ?: continue
+                for (tool in sourceTools) {
+                    val asset = runCatching {
+                        if (tool.baseId == "manifest") pickManifest(context, bound, releases)
+                        else pickAsset(tool, bound, releases)
+                    }.onFailure {
+                        Log.w(TAG, "release check for ${tool.id}", it)
+                        if (refreshError == null || GitHubArtifacts.isRateLimited(it)) refreshError = it
+                    }.getOrNull() ?: continue
+                    cache.put(tool.id, JSONObject().put("tag", asset.tag).put("at", now)
+                        .put("sourceId", tool.sourceId).put("baseId", tool.baseId)
+                        .put("name", asset.toolName.ifEmpty { tool.name })
+                        .put("prefix", asset.toolPrefix.ifEmpty { tool.prefix }))
+                }
             }
             runCatching { file.writeText(cache.toString()) }
+            if (force) refreshError?.let { throw it }
             return true
         }
     }
@@ -109,7 +215,9 @@ object ProtonExtras {
             val latest = readJson(latestFile(context))
             val known = latest.optJSONObject(tool.id)?.optString("tag")
             if (known.isNullOrEmpty() || compareVersions(tag, known) >= 0) {
-                latest.put(tool.id, JSONObject().put("tag", tag).put("at", System.currentTimeMillis()))
+                latest.put(tool.id, JSONObject().put("tag", tag).put("at", System.currentTimeMillis())
+                    .put("sourceId", tool.sourceId).put("baseId", tool.baseId).put("name", tool.name)
+                    .put("prefix", tool.prefix))
                 latestFile(context).writeText(latest.toString())
             }
             if (dir != null) {
@@ -147,16 +255,22 @@ object ProtonExtras {
     fun install(context: Context, tool: Tool, onProgress: (String, Int) -> Unit): String? {
         if (installInProgress) return context.getString(R.string.pextra_busy)
         installInProgress = true
-        return try { installNow(context, tool, onProgress) } finally { installInProgress = false }
+        return try { installNow(context, tool, onProgress) }
+        catch (error: Exception) {
+            Log.w(TAG, "install ${tool.id}", error)
+            GitHubArtifacts.failureMessage(context, error)
+        } finally { installInProgress = false }
     }
 
     private fun installNow(context: Context, tool: Tool, onProgress: (String, Int) -> Unit): String? {
         if (SessionState.running) return context.getString(R.string.pextra_stop_session)
         if (!LinuxRuntime.isInstalled(context)) return context.getString(R.string.user_apps_runtime_required)
 
-        val asset = findLatestAsset(tool) ?: return context.getString(R.string.pextra_no_release, tool.name)
+        val asset = findLatestAsset(context, tool) ?: return context.getString(R.string.pextra_no_release, tool.name)
+        if (asset.size !in 1..(2L * 1024 * 1024 * 1024)) return "Proton archive has an invalid size"
+        val sourceGeneration = RepositorySources.generation(context, SOURCE_SCOPE, sourceBuiltIns())
         val downloads = File(context.filesDir, "proton-downloads").apply { mkdirs() }
-        val archive = File(downloads, "${tool.id}-${asset.name}")
+        val archive = File(downloads, "${asset.sha256}-${asset.sourceId}.tar")
         if (asset.size > 0 && archive.length() > asset.size) archive.delete()
         val missing = (asset.size - archive.length()).coerceAtLeast(0L)
         if (StatFs(LinuxRuntime.rootDir(context).path).availableBytes < NEED_BYTES + missing) {
@@ -205,6 +319,10 @@ object ProtonExtras {
             archive.delete()
             return context.getString(R.string.pextra_checksum_mismatch)
         }
+        if (!RepositorySources.isCurrent(context, SOURCE_SCOPE, sourceBuiltIns(), asset.sourceId, sourceGeneration)) {
+            archive.delete()
+            return "Proton source changed while downloading"
+        }
 
         if (SessionState.running) return context.getString(R.string.pextra_session_started)
         val installing = context.getString(R.string.pextra_installing, tool.name)
@@ -218,6 +336,7 @@ object ProtonExtras {
                 "/usr/bin/env", "-i", "HOME=/root", "USER=root", "PATH=/usr/local/bin:/usr/bin:/bin",
                 "LANG=C.UTF-8", "XDG_DATA_HOME=/root/.local/share",
                 "/usr/local/bin/droiddeck-proton-extra", "/root/.local/share/Steam", archive.absolutePath,
+                "--identity", "${asset.sourceId}-${asset.sha256}", "--prefix", tool.prefix,
             )
             val command = LinuxRuntime.command(context, null, runtimeDir, null, guest)
             val process = ProcessBuilder(command)
@@ -240,9 +359,21 @@ object ProtonExtras {
             }
             val status = child.waitFor()
             if (status != 0) context.getString(R.string.pextra_install_failed, tool.name, status)
+            else if (!RepositorySources.isCurrent(context, SOURCE_SCOPE, sourceBuiltIns(), asset.sourceId, sourceGeneration)) {
+                placed?.let { File(toolsDir(context), it).deleteRecursively() }
+                "Proton source changed while installing"
+            }
             else {
                 archive.delete()
                 unqueue(context, tool)
+                placed?.let {
+                    try {
+                        writeProvenance(context, it, tool, asset)
+                    } catch (error: Throwable) {
+                        File(toolsDir(context), it).deleteRecursively()
+                        throw error
+                    }
+                }
                 record(context, tool, placed, asset.tag)
                 if (EsyncPacks.enabled(context)) {
                     onProgress(context.getString(R.string.esync_fetching), -1)
@@ -260,14 +391,89 @@ object ProtonExtras {
         }
     }
 
-    private fun findLatestAsset(tool: Tool): Asset? {
-        val releases = Downloader.downloadString(RELEASES.format(tool.repo)) ?: return null
+    private fun findLatestAsset(context: Context, tool: Tool): Asset? {
+        val source = RepositorySources.visible(context, SOURCE_SCOPE, sourceBuiltIns()).firstOrNull {
+            (tool.sourceId.isNotEmpty() && it.id == tool.sourceId) || (tool.sourceId.isEmpty() && it.repository == tool.repo)
+        } ?: return null
         return try {
-            pickAsset(tool, JSONArray(releases))
+            val releases = GitHubArtifacts.refreshReleases(context, SOURCE_SCOPE, sourceBuiltIns(), source)
+            val bound = RepositorySources.visible(context, SOURCE_SCOPE, sourceBuiltIns()).single { it.id == source.id }
+            if (tool.baseId == "manifest") pickManifest(context, bound, releases) else pickAsset(tool, bound, releases)
         } catch (e: Exception) {
             Log.w(TAG, "release metadata for ${tool.id}", e)
+            if (GitHubArtifacts.isRateLimited(e)) throw e
             null
         }
+    }
+
+    private fun pickAsset(
+        tool: Tool,
+        source: RepositorySources.Source,
+        releases: List<GitHubArtifacts.Release>,
+    ): Asset? {
+        for (release in releases) {
+            if (release.prerelease) continue
+            val archive = release.assets.sortedBy { it.name }.firstOrNull { tool.assetPattern.containsMatchIn(it.name) } ?: continue
+            return Asset(release.tag, archive.name, archive.url, null, archive.size, archive.sha256,
+                source.id, source.repository, source.repositoryId ?: 0, release.id, archive.id)
+        }
+        return null
+    }
+
+    private fun pickManifest(
+        context: Context,
+        source: RepositorySources.Source,
+        releases: List<GitHubArtifacts.Release>,
+    ): Asset? {
+        for (release in releases) {
+            if (release.prerelease) continue
+            val sidecar = release.assets.singleOrNull {
+                it.name == "droiddeck-component-proton.json" || it.name == "droiddeck-proton.json"
+            } ?: continue
+            val json = JSONObject(GitHubArtifacts.readReleaseAsset(
+                context = context,
+                key = SOURCE_SCOPE, builtIns = sourceBuiltIns(), source = source,
+                tag = release.tag, asset = sidecar, maxBytes = 256 * 1024,
+            )
+                .toString(Charsets.UTF_8))
+            require(json.getInt("schema") == 1) { "Unsupported Proton manifest" }
+            if (sidecar.name == "droiddeck-component-proton.json") {
+                require(json.getString("component") == "proton") { "Proton manifest component does not match" }
+                require(json.getString("variant").matches(Regex("[a-z0-9][a-z0-9._-]{0,63}"))) { "Invalid Proton variant" }
+            }
+            val name = json.getString("name")
+            val prefix = json.getString("prefix")
+            require(name.isNotBlank() && name.length <= 100 && Regex("[A-Za-z0-9._+ -]{1,100}").matches(prefix)) {
+                "Invalid Proton tool identity"
+            }
+            val artifact = json.getJSONObject("artifact")
+            val artifactName = artifact.getString("name")
+            require(Regex("(?i).+\\.tar\\.(gz|xz)").matches(artifactName)) { "Proton artifact must be a tar.gz or tar.xz" }
+            val archive = release.assets.singleOrNull { it.name == artifactName }
+                ?: throw IllegalArgumentException("Proton manifest artifact is missing or ambiguous")
+            val declaredSha = artifact.getString("sha256")
+            require(Regex("[0-9a-f]{64}").matches(declaredSha) && declaredSha == archive.sha256) {
+                "Proton manifest digest does not match"
+            }
+            require(artifact.getLong("size") == archive.size) { "Proton manifest size does not match" }
+            return Asset(release.tag, archive.name, archive.url, null, archive.size, archive.sha256,
+                source.id, source.repository, source.repositoryId ?: 0, release.id, archive.id, name, prefix)
+        }
+        return null
+    }
+
+    private fun writeProvenance(context: Context, directory: String, tool: Tool, asset: Asset) {
+        val installed = File(toolsDir(context), directory)
+        if (!installed.isDirectory) return
+        val receipt = JSONObject().put("schema", 1).put("sourceId", asset.sourceId)
+            .put("repository", asset.repository).put("repositoryId", asset.repositoryId)
+            .put("releaseId", asset.releaseId).put("tag", asset.tag).put("assetId", asset.assetId)
+            .put("name", asset.name).put("sha256", asset.sha256).put("toolId", tool.id)
+            .put("baseId", tool.baseId).put("toolName", tool.name).put("toolPrefix", tool.prefix)
+        val file = File(installed, ".droiddeck-source.json")
+        val tmp = File(installed, ".droiddeck-source.json.tmp")
+        tmp.writeText(receipt.toString())
+        check(tmp.renameTo(file)) { "Could not record Proton source" }
     }
 
     internal fun pickAsset(tool: Tool, array: JSONArray): Asset? {

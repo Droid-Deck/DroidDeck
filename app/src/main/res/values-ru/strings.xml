@@ -412,10 +412,10 @@
     <string name="common_size_mb">%1$.1f МБ</string>
     <string name="comp_runtime_driver">Драйвер среды выполнения</string>
     <string name="comp_runtime_driver_hint">Используется Steam, играми и рабочим столом. Вступит в силу в следующей сессии.</string>
-    <string name="comp_import_turnip">Импорт Turnip zip…</string>
+    <string name="comp_import_turnip">Импорт ZIP драйвера среды выполнения…</string>
     <string name="comp_display_driver">Драйвер дисплея</string>
     <string name="comp_display_driver_hint">Отвечает за вывод изображения на экран в обоих режимах. Вступит в силу после перезапуска приложения.</string>
-    <string name="comp_import_adrenotools">Импорт AdrenoTools zip…</string>
+    <string name="comp_import_adrenotools">Импорт ZIP драйвера отображения…</string>
     <string name="comp_never">никогда</string>
     <string name="comp_nightlies_checked">Nightlies проверены: %1$s</string>
     <string name="comp_title">Компоненты</string>
@@ -680,7 +680,7 @@
     <string name="setup_gpu_unsupported">GPU не поддерживается</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam требует драйвер Adreno; на %1$s возможен черный экран.</string>
+    <string name="setup_gpu_unsupported_detail">Совместимый графический бэкенд недоступен; на %1$s возможен черный экран.</string>
     <string name="setup_runtime">Среда выполнения Linux</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">Не установлено · около 3 ГБ, устанавливается при первом запуске игры</string>

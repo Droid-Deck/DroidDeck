@@ -6,6 +6,7 @@ import android.system.ErrnoException;
 import android.system.Os;
 import android.system.StructStat;
 import android.system.StructUtsname;
+import com.droiddeck.launcher.gpu.SystemVulkanDriver;
 import com.droiddeck.launcher.session.SessionPrefs;
 
 
@@ -143,6 +144,13 @@ public final class LinuxRuntime {
         bind(cmd, "/dev");
         bind(cmd, "/proc");
         bind(cmd, "/sys");
+        if (SystemVulkanDriver.isSupportedGpu()) {
+            // The glibc bridge loads the device's existing Android HAL and its dependencies.
+            // These read-only Android partitions remain subject to the app's normal permissions.
+            for (String path : new String[]{"/system", "/vendor", "/apex", "/system_ext", "/product", "/odm"})
+                if (new File(path).isDirectory()) bind(cmd, path);
+            if (new File("/linkerconfig/ld.config.txt").isFile()) bind(cmd, "/linkerconfig/ld.config.txt");
+        }
         bind(cmd, "/dev/urandom:/dev/random");
         bind(cmd, "/proc/self/fd:/dev/fd");
         bind(cmd, "/proc/self/fd/0:/dev/stdin");
@@ -200,7 +208,11 @@ public final class LinuxRuntime {
                 bind(cmd, fake.getPath() + ":" + entry[1]);
             }
         }
-        bindGpuNode(context, cmd);
+        if (SystemVulkanDriver.requiresRenderNode()) {
+            bindSystemVulkanGpuNode(context, cmd);
+        } else if (!SystemVulkanDriver.isSupportedGpu()) {
+            bindGpuNode(context, cmd);
+        }
         bindAdrenoStats(cmd, extraBinds);
         bindCpuTemps(cmd, root);
         if (extraBinds != null) {
@@ -209,6 +221,24 @@ public final class LinuxRuntime {
         List<String> specs = new ArrayList<>();
         for (int i = 0; i + 1 < cmd.size(); i += 2) specs.add(cmd.get(i + 1));
         return specs;
+    }
+
+    private static void bindSystemVulkanGpuNode(Context context, List<String> cmd) {
+        if (new File("/dev/dri").list() != null) return;
+        String node = SystemVulkanDriver.renderNodePath();
+        if (node == null) return;
+        String name = new File(node).getName();
+        File dri = new File(context.getCacheDir(), "powervr-drm/" + name + "/dri");
+        try {
+            if (!dri.isDirectory() && !dri.mkdirs()) return;
+            new File(dri, name).createNewFile();
+        } catch (IOException e) {
+            android.util.Log.w("LinuxRuntime", "Cannot expose the system Vulkan render node", e);
+            return;
+        }
+        bind(cmd, dri.getPath() + ":/dev/dri");
+        bind(cmd, node + ":" + node);
+        android.util.Log.i("LinuxRuntime", "System Vulkan: exposing real " + name + " through a listable directory");
     }
 
     private static void bindGpuNode(Context context, List<String> cmd) {

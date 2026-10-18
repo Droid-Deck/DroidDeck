@@ -215,6 +215,15 @@ class ReconcileTest(unittest.TestCase):
         self.helper.reconcile()
         return json.loads((self.state / "state.json").read_text())
 
+    def write_config_mapping(self, mapping):
+        config = self.steam / "config/config.vdf"
+        config.parent.mkdir(parents=True, exist_ok=True)
+        entries = " ".join('"%s" { "name" "%s" }' % item for item in mapping.items())
+        config.write_text(
+            '"InstallConfigStore" { "Software" { "Valve" { "Steam" { '
+            '"CompatToolMapping" { %s } } } } }' % entries)
+        return config
+
     def test_new_install_gets_the_default_live(self):
         page = FakePage({"0": TOOL, "10": TOOL, "11": "proton_experimental"}, [TOOL, TOOL_11])
         state = self.reconcile(page)
@@ -259,6 +268,90 @@ class ReconcileTest(unittest.TestCase):
         state = self.reconcile(page)
         self.assertEqual(page.sets, [("10", TOOL_11), ("11", TOOL)])
         self.assertEqual(state["auto"], {"11": TOOL})
+
+    def test_new_implicit_native_choice_stays_managed_until_the_user_clears_it(self):
+        self.write_config_mapping({"0": TOOL})
+        page = FakePage({"0": TOOL, "10": "native", "11": TOOL}, [TOOL, TOOL_11, "native"])
+        with mock.patch.dict(COMPAT, {"native_targets": lambda _root, apps: {
+                "10": COMPAT["NATIVE_CHOICE"]} if "10" in apps else {}}):
+            state = self.reconcile(page)
+            self.assertEqual(page.sets, [("10", TOOL)])
+            self.assertEqual(state["auto"]["10"], TOOL)
+
+            page.sets.clear()
+            state = self.reconcile(page)
+            self.assertEqual(page.sets, [])
+            self.assertEqual(state["auto"]["10"], TOOL)
+            self.assertEqual(state["native"], [])
+
+            page.mapping["10"] = "native"
+            state = self.reconcile(page)
+            self.assertEqual(page.sets, [])
+            self.assertNotIn("10", state["auto"])
+            self.assertEqual(state["native"], ["10"])
+
+    def test_new_implicit_x86_linux_choice_waits_for_config_confirmation(self):
+        self.write_config_mapping({"0": TOOL})
+        page = FakePage({"0": TOOL, "10": "SteamLinuxRuntime_sniper", "11": TOOL}, [TOOL, TOOL_11])
+        with mock.patch.dict(COMPAT, {"native_targets": lambda _root, apps: {
+                "10": COMPAT["FEX_TOOL"]} if "10" in apps else {}}):
+            state = self.reconcile(page)
+            self.assertEqual(page.sets, [("10", COMPAT["FEX_TOOL"])])
+            self.assertEqual(state["auto"]["10"], COMPAT["FEX_TOOL"])
+
+            page.sets.clear()
+            state = self.reconcile(page)
+            self.assertEqual(page.sets, [])
+            self.assertEqual(state["auto"]["10"], COMPAT["FEX_TOOL"])
+
+            self.write_config_mapping({"0": TOOL, "10": COMPAT["FEX_TOOL"]})
+            state = self.reconcile(page)
+            self.assertEqual(page.sets, [])
+            self.assertEqual(self.helper.live_applied, {})
+            self.assertEqual(state["native"], [])
+
+    def test_saved_native_runtime_mapping_is_preserved(self):
+        self.write_config_mapping({"0": TOOL, "10": "SteamLinuxRuntime_sniper"})
+        page = FakePage({"0": TOOL, "10": "SteamLinuxRuntime_sniper", "11": TOOL}, [TOOL, TOOL_11])
+        with mock.patch.dict(COMPAT, {"native_targets": lambda _root, apps: {
+                "10": COMPAT["FEX_TOOL"]} if "10" in apps else {}}):
+            state = self.reconcile(page)
+        self.assertEqual(page.sets, [])
+        self.assertEqual(page.mapping["10"], "SteamLinuxRuntime_sniper")
+        self.assertNotIn("10", state["auto"])
+        self.assertEqual(state["native"], [])
+
+    def test_saved_runtime_wins_when_a_fex_change_is_still_pending(self):
+        self.write_config_mapping({"0": TOOL})
+        page = FakePage({"0": TOOL, "10": "SteamLinuxRuntime_sniper", "11": TOOL}, [TOOL, TOOL_11])
+        with mock.patch.dict(COMPAT, {"native_targets": lambda _root, apps: {
+                "10": COMPAT["FEX_TOOL"]} if "10" in apps else {}}):
+            self.reconcile(page)
+            self.assertEqual(page.sets, [("10", COMPAT["FEX_TOOL"])])
+
+            page.sets.clear()
+            page.mapping["10"] = "SteamLinuxRuntime_sniper"
+            self.write_config_mapping({"0": TOOL, "10": "SteamLinuxRuntime_sniper"})
+            state = self.reconcile(page)
+        self.assertEqual(page.sets, [])
+        self.assertEqual(page.mapping["10"], "SteamLinuxRuntime_sniper")
+        self.assertEqual(self.helper.live_applied, {})
+        self.assertNotIn("10", state["auto"])
+
+    def test_prior_managed_and_native_choices_remain_native(self):
+        self.write_config_mapping({"0": TOOL})
+        (self.state / "state.json").write_text(json.dumps({
+            "default": TOOL,
+            "auto": {"10": TOOL},
+            "native": ["11"],
+        }))
+        page = FakePage({"0": TOOL, "10": "native", "11": "native"}, [TOOL, TOOL_11])
+        with mock.patch.dict(COMPAT, {"native_targets": lambda _root, apps: {
+                app: COMPAT["NATIVE_CHOICE"] for app in ("10", "11") if app in apps}}):
+            state = self.reconcile(page)
+        self.assertEqual(page.sets, [])
+        self.assertEqual(state["auto"], {})
+        self.assertEqual(state["native"], ["10", "11"])
 
     def test_native_arm64_title_drops_auto_proton_once_and_keeps_explicit_choices(self):
         (self.steam / "steamapps/appmanifest_11.acf").unlink()

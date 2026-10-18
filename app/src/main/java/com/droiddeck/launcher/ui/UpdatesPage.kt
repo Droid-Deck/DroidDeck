@@ -63,6 +63,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.update.AppUpdates
+import com.droiddeck.launcher.artifact.RepositorySources
 import com.droiddeck.launcher.update.AppUpdates.Channel
 import com.droiddeck.launcher.update.AppUpdates.Follow
 import com.droiddeck.launcher.update.AppUpdates.Offer
@@ -76,6 +77,8 @@ class UpdatesState(
     val stage: String? = null,
     val percent: Int = -1,
     val askPermission: Boolean = false,
+    val sources: List<RepositorySources.Source> = emptyList(),
+    val selectedSourceId: String? = null,
 ) {
     val hasUpdate: Boolean get() = AppUpdates.hasUpdate(catalog, follow)
 }
@@ -86,6 +89,8 @@ class UpdatesActions(
     val onInstall: (Release) -> Unit = {},
     val onAllowInstalls: () -> Unit = {},
     val onDismissPermission: () -> Unit = {},
+    val onSourcesChanged: () -> Unit = {},
+    val onSource: (String) -> Unit = {},
 )
 
 @Composable
@@ -105,8 +110,16 @@ internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
                 if (u.checking) stringResource(R.string.common_checking) else if (checked != null) stringResource(R.string.upd_checked, ago(checked).replaceFirstChar { it.lowercase() }) else stringResource(R.string.upd_not_checked),
                 fontSize = 13.sp, color = colors.onSurfaceVariant,
             )
+            RepositorySourcesButton(
+                scopeKey = AppUpdates.SOURCE_SCOPE,
+                builtIns = AppUpdates.sourceBuiltIns(),
+                enabled = u.stage == null,
+                title = stringResource(R.string.sources_updates_title),
+                onSaved = ua.onSourcesChanged,
+            )
             ToolIcon(Icons.Outlined.Refresh, stringResource(R.string.store_check_updates), busy = u.checking, enabled = !u.checking && u.stage == null, onClick = ua.onCheck)
         }
+        UpdateSourcePicker(u, ua)
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             val stacked = LocalNarrowPane.current || maxWidth < 600.dp
             Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 8.dp)) {
@@ -136,6 +149,30 @@ internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
         confirmButton = { TextButton(onClick = ua.onAllowInstalls) { Text(stringResource(R.string.upd_open_settings)) } },
         dismissButton = { TextButton(onClick = ua.onDismissPermission) { Text(stringResource(R.string.upd_not_now)) } },
     )
+}
+
+@Composable
+private fun UpdateSourcePicker(state: UpdatesState, actions: UpdatesActions) {
+    var open by remember { mutableStateOf(false) }
+    val selected = state.sources.firstOrNull { it.id == state.selectedSourceId }
+    Row(
+        Modifier.fillMaxWidth().padding(bottom = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(stringResource(R.string.sources_update_from), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+        Box(Modifier.weight(1f, fill = false)) {
+            ValueChip(selected?.repository ?: stringResource(R.string.sources_selected_unavailable), open, enabled = state.stage == null && state.sources.isNotEmpty()) { open = !open }
+            AnchoredMenu(open, onDismiss = { open = false }, title = stringResource(R.string.sources_updates_title)) { first ->
+                state.sources.forEachIndexed { index, source ->
+                    MenuItem(source.repository, checked = source.id == state.selectedSourceId, focusRequester = if (index == 0) first else null) {
+                        actions.onSource(source.id)
+                        open = false
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable

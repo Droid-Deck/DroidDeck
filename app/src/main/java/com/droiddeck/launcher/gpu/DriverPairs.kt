@@ -62,7 +62,7 @@ object DriverPairs {
     }
 
     fun recommendedKey(gpu: GpuInfo, pairs: List<DriverPair>): String? = when (gpu.family) {
-        Family.NOT_ADRENO -> null
+        Family.NOT_ADRENO, Family.POWERVR, Family.XCLIPSE, Family.MALI -> null
         Family.A8XX -> if (gpu.model == 840) newestDdTurnip(pairs) ?: WN_BALANCED else WN_BALANCED
         Family.A7XX_LOW -> BANNER_710
         Family.A7XX -> if (gpu.oneUi8Gen2) BANNER_ONEUI else BANNER

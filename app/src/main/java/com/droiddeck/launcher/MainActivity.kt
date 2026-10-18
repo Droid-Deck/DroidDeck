@@ -44,6 +44,7 @@ import com.droiddeck.launcher.session.ComponentsManager
 import com.droiddeck.launcher.ui.ComponentsPage
 import com.droiddeck.launcher.session.GameSaves
 import com.droiddeck.launcher.session.SessionLogShare
+import com.droiddeck.launcher.session.SessionPaths
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SteamRepair
 import com.droiddeck.launcher.core.CpuCores
@@ -404,6 +405,8 @@ class MainActivity : ComponentActivity() {
     private var emulatorList by mutableStateOf<List<Library.Emulator>>(emptyList())
     private var runningLabel by mutableStateOf<String?>(null)
     private var logsEnabled by mutableStateOf(true)
+    private var gameDebugLogsEnabled by mutableStateOf(false)
+    private var gameDebugLogsNeedsRestart by mutableStateOf(false)
     private var agentCommands by mutableStateOf(false)
     private var showRoms by mutableStateOf(false)
     private var homeAppSelected by mutableStateOf(false)
@@ -761,7 +764,7 @@ class MainActivity : ComponentActivity() {
                         busy = busy, stage = stage, percent = percent,
                         desktopInstalled = desktopInstalled, desktopPresent = desktopPresent,
                         offlineAccount = offlineAccount, offline = offline,
-                        frameGenLabel = frameGenLabel, romsDir = romsDir, logsEnabled = logsEnabled, agentCommands = agentCommands,
+                        frameGenLabel = frameGenLabel, romsDir = romsDir, logsEnabled = logsEnabled, gameDebugLogsEnabled = gameDebugLogsEnabled, gameDebugLogsNeedsRestart = gameDebugLogsNeedsRestart, agentCommands = agentCommands,
                         steamGames = steamGames, emulators = emulatorList, running = runningLabel,
                         frameGen = FrameGen.mode(this),
                         lossless = lossless,
@@ -910,6 +913,13 @@ class MainActivity : ComponentActivity() {
                         onLogs = {
                             SessionPrefs.setLogsEnabled(this, !SessionPrefs.logsEnabled(this))
                             logsEnabled = SessionPrefs.logsEnabled(this)
+                            gameDebugLogsEnabled = SessionPrefs.gameDebugLogsEnabled(this)
+                            gameDebugLogsNeedsRestart = gameDebugLogsNeedsRestart()
+                        },
+                        onGameDebugLogs = {
+                            SessionPrefs.setGameDebugLogsEnabled(this, !SessionPrefs.gameDebugLogsEnabled(this))
+                            gameDebugLogsEnabled = SessionPrefs.gameDebugLogsEnabled(this)
+                            gameDebugLogsNeedsRestart = gameDebugLogsNeedsRestart()
                         },
                         onAgentCommands = {
                             com.droiddeck.launcher.agent.AgentAccess.setCommandsEnabled(this, !com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(this))
@@ -1440,7 +1450,11 @@ class MainActivity : ComponentActivity() {
             onDeletePackage = { file -> components.componentAction(getString(R.string.comp_busy_deleting)) { ComponentsManager.deletePackage(this, file) } },
             onDeleteOriginal = { version -> components.compProton?.let { pid -> components.componentAction(getString(R.string.comp_busy_deleting)) { ComponentsManager.deleteOriginal(this, pid, components.compComp, version) } } },
             onDownload = { components.downloadComponent(it) },
-            onRefresh = { components.refreshComponentCatalog() },
+            onRefresh = { components.refreshComponentCatalog(); protons.checkUpdates(force = true) },
+            onSourcesChanged = { layer ->
+                if (layer == com.droiddeck.launcher.ui.PROTON_TAB) protons.sourcesChanged()
+                else components.sourcesChanged(layer)
+            },
             onImport = { pickComponent.launch(InAppFilePicker.buildIntent(this, WCP_EXT, getString(R.string.comp_pick_wcp))) },
             onBack = { if (!com.droiddeck.launcher.ui.Hops.back { showComponents = false }) showComponents = false },
             games = steamGames,
@@ -1450,7 +1464,7 @@ class MainActivity : ComponentActivity() {
             gpuActions = com.droiddeck.launcher.ui.GpuDriversActions(
                 onAuto = { on -> drivers.setMode(on) },
                 onPair = { key -> drivers.selectPair(key) },
-                onRefresh = { if (drivers.mode == SessionPrefs.GPU_DRIVERS_AUTO) drivers.ensureAuto(force = true) else drivers.checkLatestTurnip() },
+                onRefresh = { drivers.refreshSources() },
                 onSelectLinux = { id -> drivers.selectDriver(id, linux = true) },
                 onSelectAndroid = { id -> drivers.selectDriver(id, linux = false) },
                 onRemoveLinux = { id -> drivers.deleteDriver(id, linux = true) },
@@ -1462,6 +1476,7 @@ class MainActivity : ComponentActivity() {
                 onRestoreBundled = { TurnipDriver(this).restoreBundled(); drivers.refreshDrivers() },
                 onMode = { m -> drivers.chooseMode(m) },
                 onRestart = { drivers.restartApp() },
+                onSourcesChanged = { drivers.sourcesChanged() },
             ),
             protons = com.droiddeck.launcher.ui.ProtonsState(
                 rows = protons.protonRows, busyId = protons.protonBusyId, stage = protons.protonStage, percent = protons.protonPercent,
@@ -1469,7 +1484,7 @@ class MainActivity : ComponentActivity() {
             ),
             protonActions = com.droiddeck.launcher.ui.ProtonsActions(
                 onInstall = { id -> protons.installProton(id) },
-                onCancel = { id -> ProtonExtras.tools.firstOrNull { it.id == id }?.let { ProtonExtras.unqueue(this, it) }; protons.refreshProtons() },
+                onCancel = { id -> ProtonExtras.displayTools(this).firstOrNull { it.id == id }?.let { ProtonExtras.unqueue(this, it) }; protons.refreshProtons() },
                 onRemove = { id, dir -> protons.removeProton(id, dir) },
                 onRemoveOlder = { id -> protons.removeProton(id, older = true) },
             ),
@@ -1862,6 +1877,10 @@ class MainActivity : ComponentActivity() {
         refreshPhantomStatus()
     }
 
+    private fun gameDebugLogsNeedsRestart(): Boolean =
+        SessionPrefs.logsEnabled(this) && SessionPrefs.gameDebugLogsEnabled(this) &&
+            !SessionPaths.currentSessionLogsRetained(this)
+
     private fun refresh() {
         if (!busy && LinuxRuntimeInstaller.isBusy()) followRuntimeOperation { LinuxRuntimeInstaller.attach(it) }
         if (showComponents) drivers.refreshDrivers()
@@ -1876,6 +1895,8 @@ class MainActivity : ComponentActivity() {
         frameGenLabel = FrameGen.label(this)
         romsDir = SessionPrefs.romsDir(this).takeIf { it.isNotEmpty() }
         logsEnabled = SessionPrefs.logsEnabled(this)
+        gameDebugLogsEnabled = SessionPrefs.gameDebugLogsEnabled(this)
+        gameDebugLogsNeedsRestart = gameDebugLogsNeedsRestart()
         agentCommands = com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(this)
         runningLabel = if (SessionState.running) when (SessionState.mode) {
             SessionService.MODE_DESKTOP -> getString(R.string.rail_desktop)
@@ -1940,12 +1961,22 @@ class MainActivity : ComponentActivity() {
             Thread({ checkCatalog() }, "catalog").start()
             return
         }
-        if (installed == null && !com.droiddeck.launcher.core.DeviceSupport.adreno()) { showNonAdreno = release; return }
+        if (installed == null && !com.droiddeck.launcher.core.DeviceSupport.graphicsAvailable()) { showNonAdreno = release; return }
         install(release)
     }
 
     private fun startSession(intent: Intent, steamSession: Boolean = false): Boolean {
         if (busy || LinuxRuntimeInstaller.isBusy()) return false
+        if (!SessionState.running &&
+            com.droiddeck.launcher.gpu.SystemVulkanDriver.isAvailable() &&
+            com.droiddeck.launcher.gpu.SystemVulkanDriver.usesDefault(SessionPrefs.linuxDriver(this)) &&
+            !com.droiddeck.launcher.gpu.SystemVulkanDriver.isReady(this)) {
+            components.compComp = com.droiddeck.launcher.ui.GPU_TAB
+            showComponents = true
+            drivers.ensureAuto(force = false)
+            android.widget.Toast.makeText(this, R.string.gpu_component_required, android.widget.Toast.LENGTH_LONG).show()
+            return false
+        }
         if (com.droiddeck.launcher.storage.StorageState.cleaning) {
             android.widget.Toast.makeText(this, R.string.storage_cleanup_busy, android.widget.Toast.LENGTH_SHORT).show()
             return false
@@ -1955,7 +1986,7 @@ class MainActivity : ComponentActivity() {
             showPhantomGate = true
             return false
         }
-        val warn = installed == null && !com.droiddeck.launcher.core.DeviceSupport.adreno()
+        val warn = installed == null && !com.droiddeck.launcher.core.DeviceSupport.graphicsAvailable()
         if (warn && available != null) { showNonAdreno = available; return false }
         startActivity(intent)
         return true

@@ -3235,6 +3235,7 @@ int droiddeck_wayland_run(void) {
     wl_global_create(display, &wl_output_interface, 4, NULL, bind_output);
     wl_global_create(display, &xdg_wm_base_interface, 1, NULL, bind_xdg_wm_base);
     wl_global_create(display, &zwp_linux_dmabuf_v1_interface, 4, NULL, bind_dmabuf);
+    droiddeck_android_wlegl_init(display);
     wl_global_create(display, &wl_seat_interface, 9, NULL, bind_seat);
     wl_global_create(display, &banner_desktop_v1_interface, 1, NULL, bind_desktop);
     wl_global_create(display, &wp_presentation_interface, 2, NULL, bind_presentation);

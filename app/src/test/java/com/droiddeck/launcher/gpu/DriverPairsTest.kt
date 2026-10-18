@@ -43,6 +43,59 @@ class DriverPairsTest {
     }
 
     @Test
+    fun powerVrUsesItsOwnFamilyWithoutClaimingAllModelsAreTested() {
+        assertEquals(Family.POWERVR, GpuInfo.familyOf(false, 0, systemProfile = SystemVulkanDriver.Profile.POWERVR))
+        assertEquals(Family.NOT_ADRENO, GpuInfo.familyOf(false, 0, systemProfile = null))
+        assertEquals(Family.A7XX, GpuInfo.familyOf(true, 740, systemProfile = SystemVulkanDriver.Profile.POWERVR))
+        val powerVr = GpuInfo("PowerVR", 0, Family.POWERVR, "", false)
+        assertEquals(GpuInfo.Support.UNTESTED, powerVr.support)
+        assertNull("PowerVR never downloads an Adreno driver pair", DriverPairs.recommendedKey(powerVr, emptyList()))
+        val pairs = DriverPairs.from(TurnipReleases.Check(
+            listOf(asset("Turnip-r4.zip", "r4", false, DriverPairs.BANNER),
+                asset("Turnip-r4-Linux.zip", "r4", true, DriverPairs.BANNER)),
+            emptyList(), emptyList(), 0L,
+        ))
+        assertFalse(pairs.single().suits(powerVr))
+        assertNull(DriverPairs.recommendedKey(powerVr, pairs))
+    }
+
+    @Test
+    fun maliRemainsExperimentalAndNeverRecommendsAdrenoPairs() {
+        assertEquals(Family.MALI, GpuInfo.familyOf(false, 0, systemProfile = SystemVulkanDriver.Profile.MALI))
+        assertEquals(Family.A7XX, GpuInfo.familyOf(true, 740, systemProfile = SystemVulkanDriver.Profile.MALI))
+        val mali = GpuInfo("Mali-G715", 0, Family.MALI, "", false)
+        assertEquals(GpuInfo.Support.UNTESTED, mali.support)
+        assertTrue(mali.supportText.contains("Experimental system Mali"))
+        assertNull(DriverPairs.recommendedKey(mali, emptyList()))
+        val pairs = DriverPairs.from(TurnipReleases.Check(
+            listOf(asset("Turnip-r4.zip", "r4", false, DriverPairs.BANNER),
+                asset("Turnip-r4-Linux.zip", "r4", true, DriverPairs.BANNER)),
+            emptyList(), emptyList(), 0L,
+        ))
+        assertFalse(pairs.single().suits(mali))
+        assertNull(DriverPairs.recommendedKey(mali, pairs))
+    }
+
+    @Test
+    fun xclipseHasItsOwnLabelsAndNeverRecommendsAdrenoPairs() {
+        val profile = SystemVulkanDriver.Profile.XCLIPSE
+        assertEquals(Family.XCLIPSE, GpuInfo.familyOf(false, 0, profile))
+        assertEquals(Family.A7XX, GpuInfo.familyOf(true, 740, profile))
+        val xclipse = GpuInfo("Xclipse 940", 0, Family.XCLIPSE, "", false)
+        assertEquals(GpuInfo.Support.UNTESTED, xclipse.support)
+        assertEquals("Xclipse", xclipse.family.label)
+        assertTrue(xclipse.supportText.contains("system Xclipse"))
+        assertFalse(xclipse.supportText.contains("PowerVR"))
+        val pairs = DriverPairs.from(TurnipReleases.Check(
+            listOf(asset("Turnip-r4.zip", "r4", false, DriverPairs.BANNER),
+                asset("Turnip-r4-Linux.zip", "r4", true, DriverPairs.BANNER)),
+            emptyList(), emptyList(), 0L,
+        ))
+        assertFalse(pairs.single().suits(xclipse))
+        assertNull(DriverPairs.recommendedKey(xclipse, pairs))
+    }
+
+    @Test
     fun autoPicksWinNativeBalancedOn8xxAndBannersElsewhere() {
         assertEquals(DriverPairs.WN_BALANCED, DriverPairs.recommendedKey(gpu(830), emptyList()))
         assertEquals("840 with no DD-Turnip release listed", DriverPairs.WN_BALANCED, DriverPairs.recommendedKey(gpu(840), emptyList()))

@@ -6,7 +6,12 @@ if [ -n "${BL_DEBUG_DIR:-}" ]; then
 fi
 width=${BL_WIDTH:-1280}
 height=${BL_HEIGHT:-720}
-args=(--backend wayland --expose-wayland -f -W "$width" -H "$height" -w "$width" -h "$height")
+backend=${BL_GAMESCOPE_BACKEND:-wayland}
+case "$backend" in
+  wayland|sdl) ;;
+  *) echo "== unsupported gamescope backend: $backend" >&2; exit 64 ;;
+esac
+args=(--backend "$backend" --expose-wayland -f -W "$width" -H "$height" -w "$width" -h "$height")
 if [ "${BL_FPS:-0}" -gt 0 ]; then
   args+=(-r "$BL_FPS")
 elif [ "${BL_REFRESH:-0}" -gt 0 ]; then
@@ -16,11 +21,53 @@ fi
 echo "== droiddeck-gpu $(date -u +%H:%M:%S): $* (gamescope ${width}x${height} on wayland-0)"
 export WAYLAND_DISPLAY=wayland-0
 export GDK_BACKEND=x11 QT_QPA_PLATFORM=xcb SDL_VIDEODRIVER=x11
+[ "$backend" = sdl ] && export SDL_VIDEODRIVER=wayland
 unset LIBGL_ALWAYS_SOFTWARE QT_QUICK_BACKEND KWIN_COMPOSE
 export MESA_LOADER_DRIVER_OVERRIDE=zink GALLIUM_DRIVER=zink LIBGL_KOPPER_DRI2=true
 [ -n "${DROIDDECK_GLTHREAD:-}" ] && export mesa_glthread=$DROIDDECK_GLTHREAD
 export APPIMAGE_EXTRACT_AND_RUN=1
-gamescope "${args[@]}" -- /usr/local/bin/droiddeck-gpu-window "$@"
+client_env=(SDL_VIDEODRIVER=x11)
+system_runtime=${DROIDDECK_SYSTEM_VULKAN_RUNTIME:-${DROIDDECK_POWERVR_RUNTIME:-}}
+system_presentation=${DROIDDECK_SYSTEM_VULKAN_PRESENTATION:-}
+if [ -z "$system_presentation" ]; then
+  system_presentation=native
+  [ "${DROIDDECK_SYSTEM_VULKAN_GPU:-}" = mali ] && system_presentation=x11-shm
+fi
+if [ -n "$system_runtime" ] && [ "${DROIDDECK_HYBRIS_SESSION_BC_TEXTURES+x}" ]; then
+  # Games may enable BC emulation; Gamescope needs the session policy. Keep the
+  # caller's exact policy (including an unset value) for the nested application.
+  if [ "${HYBRIS_BC_TEXTURES+x}" ]; then
+    client_env+=("HYBRIS_BC_TEXTURES=$HYBRIS_BC_TEXTURES")
+  else
+    client_env=(-u HYBRIS_BC_TEXTURES "${client_env[@]}")
+  fi
+  export HYBRIS_BC_TEXTURES=$DROIDDECK_HYBRIS_SESSION_BC_TEXTURES
+fi
+if [ -n "$system_runtime" ] && { [ "$system_presentation" = x11-shm ] || [ -n "${DROIDDECK_HYBRIS_SESSION_LAYERS:-}" ]; }; then
+  # A nested launch may inherit game WSI/layers. Restore Gamescope's Wayland
+  # profile; native clients retain the caller's layer and presentation settings.
+  if [ "$system_presentation" != x11-shm ]; then
+    for variable in VK_LAYER_PATH VK_INSTANCE_LAYERS WSI_X11_FORCE_SHM ENABLE_GAMESCOPE_WSI VK_LOADER_LAYERS_DISABLE; do
+      if [[ -v $variable ]]; then
+        client_env+=("$variable=${!variable}")
+      else
+        client_env=(-u "$variable" "${client_env[@]}")
+      fi
+    done
+  fi
+  export VK_LAYER_PATH="$system_runtime/lib${DROIDDECK_HYBRIS_LAYER_PATH:+:$DROIDDECK_HYBRIS_LAYER_PATH}"
+  export VK_INSTANCE_LAYERS="${DROIDDECK_HYBRIS_SESSION_LAYERS:-VK_LAYER_HYBRIS_compat}"
+  unset WSI_X11_FORCE_SHM ENABLE_GAMESCOPE_WSI VK_LOADER_LAYERS_DISABLE
+fi
+if [ "$system_presentation" = x11-shm ] && [ -n "$system_runtime" ]; then
+  # This profile's inner Xwayland needs the X11 WSI layer and shared-memory
+  # presentation on the application; gamescope itself still presents over Wayland.
+  client_env=(-u DISABLE_WSI_LAYER "${client_env[@]}"
+    "VK_LAYER_PATH=$system_runtime/wsi:$VK_LAYER_PATH"
+    "VK_INSTANCE_LAYERS=VK_LAYER_window_system_integration:$VK_INSTANCE_LAYERS"
+    WSI_X11_FORCE_SHM=1 ENABLE_GAMESCOPE_WSI=0 'VK_LOADER_LAYERS_DISABLE=*gamescope*')
+fi
+gamescope "${args[@]}" -- env "${client_env[@]}" /usr/local/bin/droiddeck-gpu-window "$@"
 rc=$?
 echo "== droiddeck-gpu $(date -u +%H:%M:%S): exited $rc"
 exit $rc

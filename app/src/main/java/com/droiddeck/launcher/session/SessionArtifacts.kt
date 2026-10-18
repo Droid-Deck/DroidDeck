@@ -49,15 +49,10 @@ object SessionArtifacts {
         }?.toList() ?: return
         if (dirs.isEmpty()) return
         LogRedactor.learnFromRuntime(LinuxRuntime.rootDir(context))
-        val workers = (Runtime.getRuntime().availableProcessors() / 2).coerceIn(1, 4)
-        val pool = java.util.concurrent.Executors.newFixedThreadPool(workers) { r ->
-            Thread({ android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND); r.run() }, "scrub-logs")
-        }
-        val done = try {
-            pool.invokeAll(dirs.map { dir -> java.util.concurrent.Callable { scrubAndMark(dir) } })
-                .count { f -> try { f.get() } catch (e: Exception) { false } }
-        } finally {
-            pool.shutdown()
+        var done = 0
+        for (dir in dirs) {
+            if (SessionState.running) break
+            if (scrubAndMark(dir, stopWhenSessionStarts = true)) done++
         }
         val failed = dirs.size - done
         Log.i(TAG, "logs: scrubbed $done folders under r${LogRedactor.RULES_VERSION}" +
@@ -75,14 +70,18 @@ object SessionArtifacts {
     private class Record(val dir: File) {
         val files = HashMap<File, Scrubbed>()
         var failed = false
+        var deferred = false
     }
 
-    private fun scrubFolder(dir: File, record: Record) {
-        dir.listFiles { f -> f.isFile && !f.name.startsWith(".") && f !in record.files }?.forEach { f ->
-            if (!LogRedactor.isText(f)) return@forEach
+    private fun scrubFolder(dir: File, record: Record, stopWhenSessionStarts: Boolean): Boolean {
+        val files = dir.listFiles { f -> f.isFile && !f.name.startsWith(".") && f !in record.files } ?: return true
+        for (f in files) {
+            if (stopWhenSessionStarts && SessionState.running) return false
+            if (!LogRedactor.isText(f)) continue
             val done = scrubFile(dir, f)
             if (done == null) record.failed = true else record.files[f] = done
         }
+        return true
     }
 
     private fun scrubFile(dir: File, f: File): Scrubbed? {
@@ -90,18 +89,49 @@ object SessionArtifacts {
         return try {
             val before = Scrubbed(f.length(), f.lastModified())
             tmp.bufferedWriter().use { w -> LogRedactor.scrubTo(f, w) }
-            val scrubbed = tmp.readBytes()
-            if (scrubbed.contentEquals(f.readBytes())) {
+            val scrubbedLength = tmp.length()
+            if (sameContents(tmp, f)) {
                 tmp.delete()
                 before.takeIf { f.length() == it.length && f.lastModified() == it.modified }
             } else {
-                if (!tmp.renameTo(f)) { f.writeBytes(scrubbed); tmp.delete() }
-                Scrubbed(scrubbed.size.toLong(), f.lastModified()).takeIf { f.length() == it.length }
+                if (!tmp.renameTo(f)) {
+                    tmp.inputStream().use { input -> f.outputStream().use { output -> input.copyTo(output, 64 * 1024) } }
+                    tmp.delete()
+                }
+                Scrubbed(scrubbedLength, f.lastModified()).takeIf { f.length() == it.length }
             }
         } catch (e: Exception) {
             Log.w(TAG, "could not scrub ${f.name}", e)
             tmp.delete()
             null
+        }
+    }
+
+    private fun sameContents(a: File, b: File): Boolean {
+        if (a.length() != b.length()) return false
+        fun readChunk(input: java.io.InputStream, buffer: ByteArray): Int {
+            var count = 0
+            while (count < buffer.size) {
+                val read = input.read(buffer, count, buffer.size - count)
+                if (read < 0) break
+                if (read == 0) continue
+                count += read
+            }
+            return count
+        }
+        return a.inputStream().buffered().use { left ->
+            b.inputStream().buffered().use { right ->
+                val leftBuffer = ByteArray(64 * 1024)
+                val rightBuffer = ByteArray(64 * 1024)
+                while (true) {
+                    val leftCount = readChunk(left, leftBuffer)
+                    val rightCount = readChunk(right, rightBuffer)
+                    if (leftCount != rightCount) return false
+                    if (leftCount == 0) break
+                    for (i in 0 until leftCount) if (leftBuffer[i] != rightBuffer[i]) return false
+                }
+                true
+            }
         }
     }
 
@@ -142,23 +172,44 @@ object SessionArtifacts {
         }.toSet()
     }
 
-    internal fun scrubAndMark(dir: File): Boolean = markScrubbed(scrubTree(Record(dir)))
+    internal fun scrubAndMark(dir: File, stopWhenSessionStarts: Boolean = false): Boolean {
+        val record = scrubTree(Record(dir), stopWhenSessionStarts)
+        if (stopWhenSessionStarts && SessionState.running) {
+            record.failed = true
+            record.deferred = true
+        }
+        return markScrubbed(record)
+    }
 
-    private fun scrubTree(record: Record): Record {
-        record.dir.walkTopDown().filter { it.isDirectory }.forEach { scrubFolder(it, record) }
+    private fun scrubTree(record: Record, stopWhenSessionStarts: Boolean = false): Record {
+        for (dir in record.dir.walkTopDown().filter { it.isDirectory }) {
+            if (stopWhenSessionStarts && SessionState.running || !scrubFolder(dir, record, stopWhenSessionStarts)) {
+                record.failed = true
+                record.deferred = true
+                break
+            }
+        }
+        if (stopWhenSessionStarts && SessionState.running) {
+            record.failed = true
+            record.deferred = true
+        }
         return record
     }
 
-    private fun copySteamLogs(context: Context, dir: File, record: Record) {
+    private fun copySteamLogs(context: Context, dir: File, record: Record, stopWhenSessionStarts: Boolean = false) {
         val logs = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/logs")
         if (!logs.isDirectory) return
         val out = File(dir, "steam").apply { mkdirs() }
-        logs.listFiles { f -> f.isFile && f.length() < 8L * 1024 * 1024 }?.forEach { src ->
+        val sources = logs.listFiles { f -> f.isFile && f.length() < 8L * 1024 * 1024 } ?: return
+        for (src in sources) {
+            if (stopWhenSessionStarts && SessionState.running) {
+                record.failed = true
+                record.deferred = true
+                break
+            }
             try {
                 val dst = File(out, src.name)
-                dst.bufferedWriter().use { w ->
-                    src.forEachLine { line -> w.write(LogRedactor.redact(line)); w.newLine() }
-                }
+                dst.bufferedWriter().use { w -> LogRedactor.scrubTo(src, w) }
                 record.files[dst] = Scrubbed(dst.length(), dst.lastModified())
             } catch (e: Exception) {
                 Log.w(TAG, "could not scrub ${src.name}", e)
@@ -175,26 +226,46 @@ object SessionArtifacts {
         }?.sortedWith(SessionPaths.chronological) ?: return
         if (abandoned.isEmpty()) return
         val current = SessionPaths.current()
+        val latestSession = SessionPaths.sessionFolders(context).lastOrNull()
         LogRedactor.learnFromRuntime(LinuxRuntime.rootDir(context))
-        abandoned.forEachIndexed { i, dir ->
-            if (dir == current) return@forEachIndexed
-            val newest = i == abandoned.lastIndex
+        for (dir in abandoned) {
+            if (SessionState.running) break
+            if (dir == current) continue
+            val newest = dir == latestSession
             try {
-                File(dir, "ended-without-teardown.txt").writeText(
-                    "This session's process ended without running its own teardown - killed by\n" +
-                        "Android, a native crash, or the device going down - so the files below were\n" +
-                        "gathered when the app next started, at ${now()}.\n" +
-                        "The logs written during the session (session.log, app.log, wayland.log,\n" +
-                        "audio.log, device.txt) were on disk already and are as they were left.\n" +
-                        (if (newest) "" else "Steam's logs are not included: a later session has overwritten them.\n") +
-                        "crash.log holds Android's crash buffer as of the next app start - if this\n" +
-                        "session died of a crash, the entry is in there unless the device rebooted.\n"
-                )
+                val recoveryNote = File(dir, "ended-without-teardown.txt")
+                val recoveryAttempted = recoveryNote.exists()
+                if (!recoveryAttempted) {
+                    recoveryNote.writeText(
+                        "This session's process ended without running its own teardown - killed by\n" +
+                            "Android, a native crash, or the device going down - so the files below were\n" +
+                            "gathered when the app next started, at ${now()}.\n" +
+                            "The logs written during the session (session.log, app.log, wayland.log,\n" +
+                            "audio.log, device.txt) were on disk already and are as they were left.\n" +
+                            (if (newest) "" else "Steam's logs are not included: a later session has overwritten them.\n") +
+                            "crash.log holds Android's crash buffer as of the next app start - if this\n" +
+                            "session died of a crash, the entry is in there unless the device rebooted.\n"
+                    )
+                }
                 val record = Record(dir)
-                if (newest) copySteamLogs(context, dir, record)
+                if (newest && !recoveryAttempted) copySteamLogs(context, dir, record, stopWhenSessionStarts = true)
+                if (record.deferred || SessionState.running) {
+                    record.failed = true
+                    record.deferred = true
+                    markScrubbed(record)
+                    break
+                }
                 SessionLogCapture.dumpCrashBuffer(File(dir, "crash.log"))
+                if (SessionState.running) {
+                    record.failed = true
+                    record.deferred = true
+                    markScrubbed(record)
+                    break
+                }
                 SessionEvents.record("session.artifacts_recovered", mapOf("newest" to newest), dir)
-                markScrubbed(scrubTree(record))
+                val scrubbed = scrubTree(record, stopWhenSessionStarts = true)
+                markScrubbed(scrubbed)
+                if (scrubbed.deferred) break
                 File(dir, COMPLETE_MARKER).writeText("collected: late, at next app start, ${now()}\n")
                 Log.i(TAG, "finished the abandoned session folder $dir")
             } catch (e: Exception) {

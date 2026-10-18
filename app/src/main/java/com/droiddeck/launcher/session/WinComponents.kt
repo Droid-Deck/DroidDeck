@@ -26,7 +26,7 @@ object WinComponents {
     private const val GUEST_SELECTION = "root/.config/droiddeck/wincomponents.json"
     private const val STORE = "opt/droiddeck/wincomponents"
     private val ID = Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
-    private val FILE_STEPS = setOf("download_archive", "archive_extract", "copy_dll", "copy_file", "override_dll", "register_dll")
+    private val FILE_STEPS = setOf("download_archive", "archive_extract", "copy_dll", "copy_file", "override_dll", "register_dll", "install_font")
     private val INSTALLER_STEPS = setOf("install_exe", "install_msi")
     private val OFFLINE_STEPS = setOf("set_windows", "set_register_key", "get_from_cab", "uninstall")
     private val RUNS_OWN_SETUP = setOf(
@@ -86,25 +86,32 @@ object WinComponents {
 
     private val SNAPSHOT_COVERS = INSTALLER_STEPS + setOf("download_archive", "archive_extract", "copy_dll", "copy_file") + OFFLINE_STEPS
 
-    fun fetch(): List<Component>? = Downloader.downloadString(CATALOG_URL)?.let { parse(it) }
+    fun fetch(): List<Component>? = loadCatalog(Downloader.downloadString(CATALOG_URL))
 
     private const val CATALOG_CACHE = "wincomponents-catalog.json"
 
-    fun fetch(context: Context): List<Component>? {
-        val cache = File(context.filesDir, CATALOG_CACHE)
-        Downloader.downloadString(CATALOG_URL)?.let { body ->
-            parse(body)?.let { runCatching { write(cache, body) }; return it }
+    fun fetch(context: Context): List<Component>? =
+        loadCatalog(Downloader.downloadString(CATALOG_URL), File(context.filesDir, CATALOG_CACHE))
+
+    internal fun loadCatalog(downloaded: String?, cache: File? = null): List<Component>? {
+        downloaded?.let { body ->
+            parse(body)?.let { components ->
+                cache?.let { runCatching { write(it, body) } }
+                return components
+            }
         }
-        return runCatching { parse(cache.readText()) }.getOrNull()
+        // A font-only list is not a full catalog: reconciliation would remove
+        // existing automatic picks for components absent from that partial list.
+        return cache?.let { runCatching { parse(it.readText()) }.getOrNull() }
     }
 
     fun cached(context: Context): List<Component>? =
-        runCatching { parse(File(context.filesDir, CATALOG_CACHE).readText()) }.getOrNull()
+        loadCatalog(null, File(context.filesDir, CATALOG_CACHE))
 
     private fun parse(body: String): List<Component>? {
         return try {
             val arr = JSONObject(body).getJSONArray("components")
-            (0 until arr.length()).mapNotNull { i ->
+            WinFontComponents.merge((0 until arr.length()).mapNotNull { i ->
                 val o = arr.getJSONObject(i)
                 val name = o.optString("name")
                 if (!validId(name)) return@mapNotNull null
@@ -116,13 +123,14 @@ object WinComponents {
                     (0 until steps.length()).map { steps.getJSONObject(it).let { s -> Step(s.optString("action"), s) } },
                     o.optString("snapshot"),
                 )
-            }
+            })
         } catch (e: Exception) {
             Log.w(TAG, "catalog: $e"); null
         }
     }
 
     fun installable(name: String, all: Map<String, Component>): String {
+        if (WinFontComponents.isPinned(name)) return name
         val twin = all[if (name == "oalinst") "oalinst_dll" else "${name}_dll"]
         return if (twin != null && support(twin, all) == Support.READY) twin.name else name
     }
@@ -134,7 +142,7 @@ object WinComponents {
             return c.dependencies.map { all[it]?.let { d -> support(d, all, depth + 1) } ?: Support.UNSUPPORTED }
                 .maxOrNull() ?: Support.READY
         }
-        fun offline(step: Step) = step.action == "delete_dlls" || step.action in OFFLINE_STEPS || step.action in FILE_STEPS && fileStepOk(step)
+        fun offline(step: Step) = step.action == "delete_dlls" || step.action in OFFLINE_STEPS || step.action in FILE_STEPS && fileStepOk(c.name, step)
         val own = when {
             installers.isNotEmpty() && c.name !in RUNS_OWN_SETUP && installers.all { isPackage(it) } &&
                 c.steps.all { it in installers || offline(it) } -> Support.READY
@@ -147,12 +155,13 @@ object WinComponents {
             .maxOrNull() ?: Support.READY
     }
 
-    private fun fileStepOk(step: Step): Boolean = when (step.action) {
+    private fun fileStepOk(component: String, step: Step): Boolean = when (step.action) {
         "download_archive", "archive_extract" -> step.str("url").let { url ->
             !url.startsWith("http") || url.startsWith("https://github.com/") &&
                 url.substringBefore('?').lowercase().let { it.endsWith(".tar.xz") || it.endsWith(".zip") || it.endsWith(".exe") || it.endsWith(".cab") }
         }
         "copy_dll", "copy_file" -> ".." !in step.str("dest")
+        "install_font" -> WinFontComponents.font(component, step.str("file_name"), step.str("family")) != null
         else -> true
     }
 
@@ -229,9 +238,7 @@ object WinComponents {
                         else File(work, "${archives.size}-$name")
                     val ok = Downloader.downloadFile(url, file, false) { f -> onProgress(Progress(c.name, name, Phase.DOWNLOAD, if (f < 0) -1 else Math.round(f * 100f))) }
                     if (!ok) return "download failed: $name"
-                    step.str("file_checksum").takeIf { it.length == 32 }?.let { md5 ->
-                        if (!digest(file, "MD5").equals(md5, ignoreCase = true)) return "checksum mismatch: $name"
-                    }
+                    if (!checksumMatches(file, step.str("file_checksum"))) return "checksum mismatch: $name"
                     onProgress(Progress(c.name, "unpacking $name", Phase.INSTALL, -1))
                     val dir = if (byRuntime) {
                         runtimeArchives[step.str("file_name").ifEmpty { name }] = file
@@ -295,6 +302,10 @@ object WinComponents {
                 registry += value
             }
             "uninstall" -> Unit
+            "install_font" -> {
+                val from = source ?: return "a font step before any archive"
+                registry += WinFontComponents.stage(c.name, step.str("file_name"), step.str("family"), from, staging)
+            }
             "copy_dll", "copy_file" -> {
                 val from = source ?: return "a copy step before any archive"
                 val dest = step.str("dest")
@@ -467,9 +478,7 @@ object WinComponents {
             if (!Downloader.downloadFile(url, file, false) { f -> onProgress(Progress(c.name, name, Phase.DOWNLOAD, if (f < 0) -1 else Math.round(f * 100f))) }) {
                 return null to "download failed: $name"
             }
-            step.str("file_checksum").takeIf { it.length == 32 }?.let { md5 ->
-                if (!digest(file, "MD5").equals(md5, ignoreCase = true)) return null to "checksum mismatch: $name"
-            }
+            if (!checksumMatches(file, step.str("file_checksum"))) return null to "checksum mismatch: $name"
             onProgress(Progress(c.name, "installing", Phase.INSTALL, 0))
             var result: JSONObject? = null
             var problem: String? = null
@@ -490,6 +499,13 @@ object WinComponents {
         } finally {
             file.delete()
         }
+    }
+
+    internal fun checksumMatches(file: File, checksum: String): Boolean {
+        if (checksum.isEmpty()) return true
+        if (!checksum.all { it in '0'..'9' || it.lowercaseChar() in 'a'..'f' }) return false
+        val algorithm = when (checksum.length) { 32 -> "MD5"; 64 -> "SHA-256"; else -> return false }
+        return digest(file, algorithm).equals(checksum, ignoreCase = true)
     }
 
     private fun digest(file: File, algorithm: String): String {

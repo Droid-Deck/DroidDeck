@@ -61,6 +61,22 @@ class DriverBundleTest {
         "manifest.json" to manifest.toString().toByteArray(),
     ) + extra)
 
+    @Test fun alternativeVendorRuntimeLibraryImportsWithTheSameElfValidation() {
+        val uri = zip(mapOf("libvulkan_mali.so" to library("libc.so.6"),
+            "meta.json" to JSONObject().put("name", "Experimental Mali ICD").toString().toByteArray()))
+        val manager = LinuxVulkanDriverManager(context)
+        val id = manager.installDriver(uri, "mali-driver.zip")
+        assertTrue(manager.isInstalled(id))
+        assertEquals("Experimental Mali ICD", manager.getDriverName(id))
+        val rejected = zip(mapOf("libvulkan_mali.so" to library("libc.so")))
+        try {
+            manager.installDriver(rejected, "android-mali.zip")
+            fail("an Android library must not be accepted as a Linux ICD")
+        } catch (e: IllegalArgumentException) {
+            assertTrue(e.message!!.contains("glibc"))
+        }
+    }
+
     @Test fun manifestNeedsBothHalvesInSeparateSafeDirectories() {
         val m = DriverBundle.parseManifest(manifest)!!
         assertEquals("android", m.androidPath)

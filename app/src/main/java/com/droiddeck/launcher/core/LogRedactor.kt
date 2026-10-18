@@ -1,6 +1,52 @@
 package com.droiddeck.launcher.core
 
 object LogRedactor {
+    internal const val MAX_LINE_LENGTH = 64 * 1024
+    internal const val OVERSIZED_LINE = "<oversized log line withheld>"
+
+    private data class MatcherKey(val pattern: String, val options: Set<RegexOption>)
+
+    private class MatcherCache : LinkedHashMap<MatcherKey, java.util.regex.Matcher>(32, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<MatcherKey, java.util.regex.Matcher>?): Boolean =
+            size > 32
+    }
+
+    // Android matchers own native state, so reuse them instead of creating one for every log line.
+    private val matchers = object : ThreadLocal<MatcherCache>() {
+        override fun initialValue(): MatcherCache = MatcherCache()
+    }
+
+    private fun <T> withMatcher(
+        regex: Regex,
+        input: CharSequence,
+        action: (java.util.regex.Matcher) -> T,
+    ): T {
+        val key = MatcherKey(regex.pattern, regex.options)
+        val matcher = matchers.get()!!.getOrPut(key) { regex.toPattern().matcher("") }
+        return try {
+            action(matcher.reset(input))
+        } finally {
+            matcher.reset("")
+        }
+    }
+
+    private fun replaceMatches(input: String, regex: Regex, replacement: String): String =
+        replaceMatches(input, regex) { replacement }
+
+    private fun replaceMatches(
+        input: String,
+        regex: Regex,
+        replacement: (java.util.regex.Matcher) -> String,
+    ): String = withMatcher(regex, input) { matcher ->
+        if (!matcher.find()) return@withMatcher input
+        val out = StringBuffer(input.length)
+        do {
+            matcher.appendReplacement(out, java.util.regex.Matcher.quoteReplacement(replacement(matcher)))
+        } while (matcher.find())
+        matcher.appendTail(out)
+        out.toString()
+    }
+
     private val EMAIL = Regex("[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}")
     private val JWT_LABELLED = Regex("(?i)(\\bJWT[\\s=:]+)(\\d{8,})")
     private val JWT_BASE64 = Regex("ey[A-Za-z0-9_\\-]{6,}\\.[A-Za-z0-9_\\-]{6,}\\.[A-Za-z0-9_\\-]{6,}")
@@ -70,6 +116,7 @@ object LogRedactor {
     fun learnFromRuntime(root: java.io.File) {
         learnOwnAddresses(java.io.File(root, "etc/droiddeck-net"))
         learnAccounts(java.io.File(root, "root/.local/share/Steam/config/loginusers.vdf"))
+        matchers.remove()
     }
 
     @Volatile
@@ -137,13 +184,13 @@ object LogRedactor {
     }
 
     fun describeAddresses(text: String): String {
-        var out = IPV6.replace(text) { m -> kind(m.value)?.let { "<$it>" } ?: m.value }
-        out = IPV4.replace(out) { m -> kind(m.value)?.let { "<$it>" } ?: m.value }
+        var out = replaceMatches(text, IPV6) { m -> kind(m.group())?.let { "<$it>" } ?: m.group() }
+        out = replaceMatches(out, IPV4) { m -> kind(m.group())?.let { "<$it>" } ?: m.group() }
         return out
     }
 
     fun isText(file: java.io.File): Boolean = try {
-        file.isFile && file.length() < 64L * 1024 * 1024 && file.inputStream().use { input ->
+        file.isFile && file.inputStream().use { input ->
             val buf = ByteArray(4096)
             val n = input.read(buf)
             n <= 0 || (0 until n).none { buf[it].toInt() == 0 }
@@ -159,21 +206,68 @@ object LogRedactor {
     )
 
     fun scrubTo(src: java.io.File, out: java.io.Writer) {
-        src.forEachLine { line -> out.write(redact(line)); out.write("\n") }
+        scrubLines(src, out, ::redact)
     }
 
     fun redactForShare(line: String): String {
         if (line.isEmpty()) return line
+        if (line.length > MAX_LINE_LENGTH) return OVERSIZED_LINE
         return try {
             val out = SecretScrub.scrub(redact(line), SecretScrub.Urls.KEEP_PATH, "<redacted:token>")
-            LAN_IPV4.replace(out, "<lan-address>")
+            replaceMatches(out, LAN_IPV4, "<lan-address>")
         } catch (t: Throwable) {
             "<redaction failed; line withheld>"
         }
     }
 
     fun scrubForShare(src: java.io.File, out: java.io.Writer) {
-        src.forEachLine { line -> out.write(redactForShare(line)); out.write("\n") }
+        scrubLines(src, out, ::redactForShare)
+    }
+
+    private fun scrubLines(src: java.io.File, out: java.io.Writer, scrub: (String) -> String) {
+        src.bufferedReader().use { input ->
+            val chunk = CharArray(8192)
+            val line = StringBuilder(4096)
+            var oversized = false
+            var pendingContent = false
+            var pendingCarriageReturn = false
+
+            fun emit() {
+                out.write(if (oversized) OVERSIZED_LINE else scrub(line.toString()))
+                out.write("\n")
+                line.setLength(0)
+                oversized = false
+                pendingContent = false
+            }
+
+            while (true) {
+                val count = input.read(chunk)
+                if (count < 0) break
+                for (i in 0 until count) {
+                    val char = chunk[i]
+                    if (pendingCarriageReturn) {
+                        emit()
+                        pendingCarriageReturn = false
+                        if (char == '\n') continue
+                    }
+                    when (char) {
+                        '\r' -> pendingCarriageReturn = true
+                        '\n' -> emit()
+                        else -> {
+                            pendingContent = true
+                            if (!oversized) {
+                                if (line.length < MAX_LINE_LENGTH) line.append(char)
+                                else {
+                                    line.setLength(0)
+                                    oversized = true
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (pendingCarriageReturn || pendingContent) emit()
+        }
     }
 
     private fun quoted(value: String): String {
@@ -215,43 +309,44 @@ object LogRedactor {
 
     fun redact(line: String): String {
         if (line.isEmpty()) return line
+        if (line.length > MAX_LINE_LENGTH) return OVERSIZED_LINE
         return try {
             val out = Line(line)
-            if (out.has("mac")) out.set(MAC_FIELD.replace(out.text) { "${it.groupValues[1]}<redacted:mac>" })
-            if (out.holds(':', 5) || out.holds('-', 5)) out.set(MAC.replace(out.text, "<redacted:mac>"))
-            if (out.has("serial", "android")) out.set(DEVICE_IDENTIFIER.replace(out.text) {
-                val value = it.groupValues[2]
+            if (out.has("mac")) out.set(replaceMatches(out.text, MAC_FIELD) { "${it.group(1)}<redacted:mac>" })
+            if (out.holds(':', 5) || out.holds('-', 5)) out.set(replaceMatches(out.text, MAC, "<redacted:mac>"))
+            if (out.has("serial", "android")) out.set(replaceMatches(out.text, DEVICE_IDENTIFIER) {
+                val value = it.group(2)
                 val quote = value.first().takeIf { char -> char == '\"' || char == '\'' }?.toString().orEmpty()
-                "${it.groupValues[1]}${quote}<redacted:serial>${quote}"
+                "${it.group(1)}${quote}<redacted:serial>${quote}"
             })
-            if (out.holds('-', 4)) out.set(GUID.replace(out.text, "<redacted:guid>"))
-            if (out.has("jwt")) out.set(JWT_LABELLED.replace(out.text) { "${it.groupValues[1]}<redacted:jwt>" })
-            if ("ey" in out.text) out.set(JWT_BASE64.replace(out.text, "<redacted:jwt>"))
+            if (out.holds('-', 4)) out.set(replaceMatches(out.text, GUID, "<redacted:guid>"))
+            if (out.has("jwt")) out.set(replaceMatches(out.text, JWT_LABELLED) { "${it.group(1)}<redacted:jwt>" })
+            if ("ey" in out.text) out.set(replaceMatches(out.text, JWT_BASE64, "<redacted:jwt>"))
             if (out.has("token", "auth", "ticket", "sessionid", "steamloginsecure", "api", "machine", "pass", "pwd", "secret")) {
-                out.set(SECRET_KV.replace(out.text) { "${it.groupValues[1]}${it.groupValues[2]}<redacted:token>" })
+                out.set(replaceMatches(out.text, SECRET_KV) { "${it.group(1)}${it.group(2)}<redacted:token>" })
             }
-            if (out.has("guard", "factor", "2fa")) out.set(GUARD_CODE.replace(out.text) { "${it.groupValues[1]}<redacted:code>" })
-            if (out.hasRun(32, ::isHex)) out.set(WEBAPI_KEY.replace(out.text, "<redacted:key>"))
-            if ("76561" in out.text) out.set(STEAMID64.replace(out.text) { "${it.groupValues[1]}********${it.groupValues[3]}" })
-            if ("[U:1:" in out.text) out.set(STEAMID3.replace(out.text) { m ->
-                val id = m.groupValues[1]
+            if (out.has("guard", "factor", "2fa")) out.set(replaceMatches(out.text, GUARD_CODE) { "${it.group(1)}<redacted:code>" })
+            if (out.hasRun(32, ::isHex)) out.set(replaceMatches(out.text, WEBAPI_KEY, "<redacted:key>"))
+            if ("76561" in out.text) out.set(replaceMatches(out.text, STEAMID64) { "${it.group(1)}********${it.group(3)}" })
+            if ("[U:1:" in out.text) out.set(replaceMatches(out.text, STEAMID3) { m ->
+                val id = m.group(1)
                 "[U:1:${if (id.length > 4) "*".repeat(id.length - 4) + id.takeLast(4) else id}]"
             })
-            if (out.has("external")) out.set(EXTERNAL_ADDR.replace(out.text) { "${it.groupValues[1]}<redacted:ip>" })
-            for (r in own) if (r.needs == null || out.has(r.needs)) out.set(r.regex.replace(out.text, "<redacted:ip>"))
-            if (out.has("onloginstatechange")) out.set(LOGIN_STATE.replace(out.text) { "${it.groupValues[1]}<redacted:account>" })
-            if ("OnLoginUsersChanged " in out.text) out.set(LOGIN_USERS.replace(out.text) { "${it.groupValues[1]}<redacted:account>" })
+            if (out.has("external")) out.set(replaceMatches(out.text, EXTERNAL_ADDR) { "${it.group(1)}<redacted:ip>" })
+            for (r in own) if (r.needs == null || out.has(r.needs)) out.set(replaceMatches(out.text, r.regex, "<redacted:ip>"))
+            if (out.has("onloginstatechange")) out.set(replaceMatches(out.text, LOGIN_STATE) { "${it.group(1)}<redacted:account>" })
+            if ("OnLoginUsersChanged " in out.text) out.set(replaceMatches(out.text, LOGIN_USERS) { "${it.group(1)}<redacted:account>" })
             if (out.has("account", "user")) {
-                out.set(ACCOUNT_KV.replace(out.text) { "${it.groupValues[1]}${it.groupValues[2]}${quoted(it.groupValues[3])}" })
+                out.set(replaceMatches(out.text, ACCOUNT_KV) { "${it.group(1)}${it.group(2)}${quoted(it.group(3))}" })
             }
-            if (out.has("login")) out.set(LOGIN_KV.replace(out.text) { "${it.groupValues[1]}${it.groupValues[2]}${quoted(it.groupValues[3])}" })
-            for (r in accounts) if (r.needs == null || out.has(r.needs)) out.set(r.regex.replace(out.text, "<redacted:account>"))
-            if ('@' in out.text) out.set(EMAIL.replace(out.text, "<redacted:email>"))
+            if (out.has("login")) out.set(replaceMatches(out.text, LOGIN_KV) { "${it.group(1)}${it.group(2)}${quoted(it.group(3))}" })
+            for (r in accounts) if (r.needs == null || out.has(r.needs)) out.set(replaceMatches(out.text, r.regex, "<redacted:account>"))
+            if ('@' in out.text) out.set(replaceMatches(out.text, EMAIL, "<redacted:email>"))
             if (out.has("jwt", "token", "ticket", "sessionid", "steamloginsecure", "machineauth")) {
-                out.set(RESIDUAL.replace(out.text) { "${it.groupValues[1]}=<redacted:token>" })
+                out.set(replaceMatches(out.text, RESIDUAL) { "${it.group(1)}=<redacted:token>" })
             }
             if (out.hasRun(88) { it in 'a'..'z' || it in 'A'..'Z' || it in '0'..'9' || it == '_' || it == '-' }) {
-                out.set(LONG_TOKEN.replace(out.text, "<redacted:token>"))
+                out.set(replaceMatches(out.text, LONG_TOKEN, "<redacted:token>"))
             }
             out.text
         } catch (t: Throwable) {

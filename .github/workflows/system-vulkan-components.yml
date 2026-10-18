@@ -1,0 +1,96 @@
+name: Publish System Vulkan components
+run-name: System Vulkan ${{ inputs.version }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Component version and immutable release suffix
+        required: true
+        type: string
+      publish:
+        description: Publish a GitHub release after validation
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: system-vulkan-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install archive tools
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y zstd
+
+      - name: Validate component packager
+        run: |
+          set -euo pipefail
+          python3 -m unittest \
+            tools.tests.test_powervr_runtime \
+            tools.tests.test_system_vulkan_components
+
+      - name: Package pinned vendor components
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMPONENT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$COMPONENT_VERSION" =~ ^[A-Za-z0-9._-]{1,80}$ ]]; then
+            echo "::error::Version must contain only letters, digits, dots, underscores, and dashes."
+            exit 1
+          fi
+          RELEASE_TAG="system-vulkan-${COMPONENT_VERSION}"
+          repository_id=$(gh api "repos/${GITHUB_REPOSITORY}" --jq .id)
+          python3 tools/powervr/package_components.py \
+            --output out/system-vulkan \
+            --repository "$GITHUB_REPOSITORY" \
+            --repository-id "$repository_id" \
+            --commit "$GITHUB_SHA" \
+            --build-url "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            --release-tag "$RELEASE_TAG" \
+            --version "$COMPONENT_VERSION"
+          sha256sum out/system-vulkan/* > out/system-vulkan/SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: system-vulkan-${{ inputs.version }}
+          path: out/system-vulkan/
+          if-no-files-found: error
+
+      - name: Publish immutable component release
+        if: inputs.publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMPONENT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          RELEASE_TAG="system-vulkan-${COMPONENT_VERSION}"
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "::error::Release $RELEASE_TAG already exists; component releases are immutable."
+            exit 1
+          fi
+          gh api "repos/${GITHUB_REPOSITORY}/git/refs" --method POST \
+            -f "ref=refs/tags/${RELEASE_TAG}" -f "sha=${GITHUB_SHA}" >/dev/null
+          gh release create "$RELEASE_TAG" \
+            out/system-vulkan/system-vulkan-*.tar.zst \
+            out/system-vulkan/droiddeck-component-system-vulkan-*.json \
+            out/system-vulkan/component-bootstrap.json \
+            out/system-vulkan/SHA256SUMS \
+            --verify-tag --prerelease --latest=false \
+            --target "$GITHUB_SHA" \
+            --title "System Vulkan $COMPONENT_VERSION" \
+            --notes "Per-vendor System Vulkan components built from the checksum-pinned native archives in this commit."

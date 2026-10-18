@@ -13,6 +13,7 @@ object GameEnvironmentStore {
     private const val GUEST_FILE = "root/.config/droiddeck/game-environment.json"
     const val DXVK_CONFIG = "dxvkConfig"
     const val DXVK_CONFIG_GAMES = "dxvkConfigGames"
+    const val GAME_DEBUG_LOGS = "gameDebugLogs"
 
     @Synchronized
     fun read(context: Context): GameEnvironment.Config {
@@ -102,6 +103,11 @@ object GameEnvironmentStore {
             )
         }
         if (gameDxvk.length() > 0) json.put(DXVK_CONFIG_GAMES, gameDxvk)
+        json.put(
+            GAME_DEBUG_LOGS,
+            SessionPrefs.logsEnabled(context) && SessionPrefs.gameDebugLogsEnabled(context) &&
+                SessionPaths.currentSessionLogsRetained(context),
+        )
         write(File(LinuxRuntime.rootDir(context), GUEST_FILE), json.toString())
     }
 

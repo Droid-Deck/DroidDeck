@@ -10,6 +10,8 @@ import com.droiddeck.launcher.core.TextureFiltering
 import com.droiddeck.launcher.core.ZramSupport
 import com.droiddeck.launcher.gpu.Cardboard
 import com.droiddeck.launcher.gpu.ScreenEffects
+import com.droiddeck.launcher.gpu.SystemVulkanDriver
+import com.droiddeck.launcher.gpu.TurnipDriver
 import org.json.JSONObject
 
 object SessionPrefs {
@@ -215,6 +217,14 @@ object SessionPrefs {
         if (p.contains("gpuDriverMode")) return
         val chosen = androidDriver(context).isNotEmpty() || linuxDriver(context).isNotEmpty()
         p.edit().putString("gpuDriverMode", if (chosen) GPU_DRIVERS_MANUAL else GPU_DRIVERS_AUTO).apply()
+    }
+
+    @JvmStatic
+    fun ensureSystemVulkanAutoDrivers(context: Context) = ensureSystemVulkanAutoDrivers(context, SystemVulkanDriver.isSupportedGpu())
+
+    internal fun ensureSystemVulkanAutoDrivers(context: Context, systemVulkan: Boolean) {
+        if (!systemVulkan || gpuDriverMode(context) != GPU_DRIVERS_AUTO) return
+        prefs(context).edit().putString("linuxDriver", "").putString("androidDriver", TurnipDriver.AUTO).apply()
     }
 
     fun gpuAutoInstalled(context: Context): Set<String> =
@@ -443,6 +453,16 @@ object SessionPrefs {
 
     fun setLogsEnabled(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("logs", on).apply()
+        publishGameEnvironment(context)
+    }
+
+    /** Extra Proton, Wine and graphics diagnostics for the next game launch; off unless chosen. */
+    fun gameDebugLogsEnabled(context: Context): Boolean =
+        prefs(context).getBoolean("gameDebugLogsEnabled", false)
+
+    fun setGameDebugLogsEnabled(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("gameDebugLogsEnabled", on).apply()
+        publishGameEnvironment(context)
     }
 
     fun storageDiagnosticsEnabled(context: Context): Boolean =

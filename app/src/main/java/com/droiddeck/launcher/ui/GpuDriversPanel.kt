@@ -109,6 +109,13 @@ class GpuDriversState(
     val supported: Boolean = true,
     val unsupported: Boolean = false,
     val auto: Boolean = true,
+    /** A GPU whose Auto choice uses its Android system driver. */
+    val systemGpu: Boolean = false,
+    /** The selected runtime uses the system Vulkan bridge. */
+    val systemVulkan: Boolean = false,
+    /** Only runtimes with a compatible bundled DXVK own component selection. */
+    val runtimeManagedDxvk: Boolean = false,
+    val systemDriverName: String = "",
     val pairs: List<PairRow> = emptyList(),
     val busy: String? = null,
     val percent: Int = -1,
@@ -128,6 +135,8 @@ class GpuDriversState(
     val runtime: DriverSlot = DriverSlot(),
     val canRestart: Boolean = true,
     val checkedAt: Long = 0L,
+    val sourceKey: String = "",
+    val sourceBuiltIns: List<String> = emptyList(),
 ) {
     val activePair: PairRow? get() = pairs.firstOrNull { it.active }
 }
@@ -147,6 +156,7 @@ class GpuDriversActions(
     val onRestoreBundled: () -> Unit = {},
     val onMode: (String) -> Unit = {},
     val onRestart: () -> Unit = {},
+    val onSourcesChanged: () -> Unit = {},
 )
 
 @Composable
@@ -237,7 +247,7 @@ internal fun GpuDriversBody(
         InUseCard(gpu, actions, first)
         PanelHeading(stringResource(R.string.gpu_mode_title))
         val modes = listOf(
-            Triple(GPU_MODE_AUTO, R.string.common_auto, R.string.gpu_mode_auto_detail),
+            Triple(GPU_MODE_AUTO, R.string.common_auto, if (gpu.systemGpu) R.string.gpu_auto_system_hint else R.string.gpu_mode_auto_detail),
             Triple(GPU_MODE_PAIR, R.string.gpu_mode_pair, R.string.gpu_mode_pair_detail),
             Triple(GPU_MODE_MIX, R.string.gpu_mode_mix, R.string.gpu_mode_mix_detail),
         )
@@ -331,10 +341,14 @@ private fun AutoBody(gpu: GpuDriversState) {
     val colors = MaterialTheme.colorScheme
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         PanelTitle(
-            stringResource(if (gpu.activePair != null) R.string.gpu_auto_title else R.string.gpu_auto_builtin_title, gpu.gpuName),
-            stringResource(R.string.gpu_auto_reason, gpu.gpuFamily),
+            stringResource(when {
+                gpu.systemGpu -> R.string.gpu_auto_system_title
+                gpu.activePair != null -> R.string.gpu_auto_title
+                else -> R.string.gpu_auto_builtin_title
+            }, gpu.gpuName),
+            if (gpu.systemGpu) stringResource(R.string.gpu_auto_system_hint) else stringResource(R.string.gpu_auto_reason, gpu.gpuFamily),
         )
-        gpu.activePair?.let { p -> PanelRow(p.name, "${p.version} · ${p.detail}", selected = true, onClick = null) }
+        if (!gpu.systemGpu) gpu.activePair?.let { p -> PanelRow(p.name, "${p.version} · ${p.detail}", selected = true, onClick = null) }
         if (gpu.autoStatus.isNotEmpty()) Text(gpu.autoStatus, fontSize = 13.sp, color = colors.onSurfaceVariant)
     }
 }
@@ -440,6 +454,7 @@ private fun PanelRow(
             .then(
                 if (onClick != null) Modifier.hoverable(src)
                     .clickable(interactionSource = src, indication = null, enabled = enabled, role = Role.RadioButton, onClick = onClick)
+                    .controllerConfirm(enabled = enabled, onClick = onClick)
                 else Modifier,
             )
             .padding(horizontal = 14.dp, vertical = 10.dp),

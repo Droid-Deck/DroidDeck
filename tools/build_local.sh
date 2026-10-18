@@ -13,7 +13,7 @@ else
 fi
 sdk_dir=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-"${HOME}/Library/Android/sdk"}}
 java_dir=${JAVA_HOME:-"/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home"}
-image_name=${DROIDDECK_BUILD_IMAGE:-droiddeck-local-cross:24.04-v3}
+image_name=${DROIDDECK_BUILD_IMAGE:-droiddeck-local-cross:24.04-v4}
 build_variant=${DROIDDECK_BUILD_VARIANT:-release}
 case "$build_variant" in
     debug) gradle_task=assembleDebug ;;

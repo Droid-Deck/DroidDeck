@@ -255,6 +255,7 @@ private class BelowEndProvider(private val gap: Int) : PopupPositionProvider {
 fun AnchoredMenu(
     open: Boolean, onDismiss: () -> Unit, title: String? = null, note: String? = null,
     compact: Boolean = false, minWidth: androidx.compose.ui.unit.Dp = 120.dp,
+    maxWidth: androidx.compose.ui.unit.Dp = 340.dp,
     content: @Composable ColumnScope.(FocusRequester) -> Unit,
 ) {
     val state = remember { MutableTransitionState(false) }
@@ -286,7 +287,7 @@ fun AnchoredMenu(
             val maxHeight = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.86f).dp
             Column(
                 modifier = Modifier
-                    .then(if (compact) Modifier.widthIn(min = minWidth, max = 260.dp).width(androidx.compose.foundation.layout.IntrinsicSize.Max) else Modifier.widthIn(min = 220.dp, max = 340.dp))
+                    .then(if (compact) Modifier.widthIn(min = minWidth, max = 260.dp).width(androidx.compose.foundation.layout.IntrinsicSize.Max) else Modifier.widthIn(min = 220.dp, max = maxWidth))
                     .heightIn(max = maxHeight)
                     .shadow(24.dp, RowShape, ambientColor = Color.Black, spotColor = Color.Black)
                     .clip(RowShape)

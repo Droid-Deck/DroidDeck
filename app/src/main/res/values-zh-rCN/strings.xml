@@ -409,10 +409,10 @@
     <string name="common_size_mb">%1$.1f MB</string>
     <string name="comp_runtime_driver">运行时驱动</string>
     <string name="comp_runtime_driver_hint">由 Steam、游戏和桌面使用。将在下次会话生效。</string>
-    <string name="comp_import_turnip">导入 Turnip zip 包…</string>
+    <string name="comp_import_turnip">导入运行时驱动 zip…</string>
     <string name="comp_display_driver">显示驱动</string>
     <string name="comp_display_driver_hint">在两种模式下都将帧绘制到屏幕。重启应用以生效。</string>
-    <string name="comp_import_adrenotools">导入 AdrenoTools zip 包…</string>
+    <string name="comp_import_adrenotools">导入显示驱动 zip…</string>
     <string name="comp_never">从未</string>
     <string name="comp_nightlies_checked">Nightlies 检查时间：%1$s</string>
     <string name="comp_title">组件</string>
@@ -674,7 +674,7 @@
     <string name="setup_gpu_unsupported">GPU 不受支持</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s：%2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam 需要 Adreno 驱动；%1$s 可能显示黑屏</string>
+    <string name="setup_gpu_unsupported_detail">没有可用的兼容图形后端；%1$s 可能显示黑屏</string>
     <string name="setup_runtime">Linux 运行时</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">未安装 · 约 3 GB，首次点“游玩”时安装</string>
@@ -1280,8 +1280,8 @@
     <string name="main_wadb_unavailable">无线调试不可用</string>
     <string name="main_adb_copied">已复制 ADB 命令</string>
     <string name="main_pick_roms">选择 ROM 文件夹</string>
-    <string name="main_non_adreno_title">不是 Adreno GPU</string>
-    <string name="main_non_adreno_text">Turnip 支持 Adreno GPU。在 %1$s 上，Steam 可能显示黑屏。需下载：%2$.0f MB。</string>
+    <string name="main_non_adreno_title">不受支持的 GPU</string>
+    <string name="main_non_adreno_text">没有适用于 %1$s 的兼容图形后端。Steam 可能显示黑屏。需下载：%2$.0f MB。</string>
     <string name="main_install_anyway">仍要安装</string>
     <string name="main_remove_runtime_title">移除 Linux 运行时</string>
     <string name="main_remove_runtime_text">这会删除运行时、其中的 Steam 客户端，以及安装在其中的所有游戏。</string>
@@ -1333,8 +1333,8 @@
     <string name="drivers_not_checked">尚未检查 — 点按刷新以查找新驱动</string>
     <string name="drivers_bundle_sets_display">Android + Linux：同时设置显示驱动</string>
     <string name="drivers_bundle_sets_runtime">Android + Linux：同时设置运行时驱动</string>
-    <string name="drivers_runtime_builtin">运行时内置的 Turnip</string>
-    <string name="drivers_system_vulkan">系统 Vulkan：没有适用于此 GPU 的内置构建</string>
+    <string name="drivers_runtime_builtin">运行时内置</string>
+    <string name="drivers_system_vulkan">使用手机的系统 Vulkan 驱动</string>
     <string name="drivers_bundled">%1$s（内置）</string>
     <string name="drivers_manual">手动</string>
     <string name="drivers_summary">%1$s · %2$s</string>
@@ -1855,7 +1855,7 @@
     <string name="gpuinfo_supported">受支持</string>
     <string name="gpuinfo_experimental">实验性：其驱动为测试构建</string>
     <string name="gpuinfo_below_tested">低于已测试的硬件（Adreno 725 及更新）：可能无法运行</string>
-    <string name="gpuinfo_unsupported">不受支持：DroidDeck 需要 Adreno（骁龙）GPU</string>
+    <string name="gpuinfo_unsupported">不受支持：没有适用于此 GPU 的兼容图形后端</string>
 
     <string name="turnip_rate_limited">已达到 GitHub 的请求频率限制 — 请稍后重试</string>
     <string name="turnip_github_http">GitHub 返回 HTTP %1$d</string>
@@ -1871,7 +1871,7 @@
     <string name="turnip_reject_library_missing">meta.json 指定了 %1$s，但它不在 zip 包中</string>
     <string name="turnip_reject_not_aarch64">%1$s 不是 64 位 AArch64 ELF 共享库</string>
     <string name="turnip_reject_glibc">%1$s 链接了 glibc — 这是“-Linux”Turnip，应在“运行时驱动”下导入</string>
-    <string name="lvd_no_library">此 zip 包中没有 libvulkan_freedreno*.so。Android（AdrenoTools）或 -Wayland Turnip zip 包不是 Linux 运行时驱动。</string>
+    <string name="lvd_no_library">此 zip 包中没有 libvulkan_*.so。Android（AdrenoTools）或 -Wayland Turnip zip 包不是 Linux 运行时驱动。</string>
     <string name="lvd_not_aarch64">%1$s 不是 64 位 AArch64 ELF 共享库。</string>
     <string name="lvd_not_glibc">%1$s 不是 glibc 驱动 — 它链接的是 Android 的 libc。Linux 运行时需要“-Linux”zip 包；普通或“-Wayland”Turnip 完全无法被 Steam 客户端加载。</string>
     <string name="bundle_no_manifest">不是驱动组合包：没有指定 Android 和 Linux 驱动的 manifest.json</string>

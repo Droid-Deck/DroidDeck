@@ -68,9 +68,18 @@ class ForcedPackageTest {
         val wanted = item(dxvk2, "Dxvk-Linux")
         val otherRelease = item(dxvk2, "Dxvk-gplasync-Linux")
         val otherFile = item("dxvk-3.1-linux.wcp", "Dxvk-Linux")
-        assertEquals(wanted, ComponentsManager.catalogMatch(listOf(otherFile, otherRelease, wanted), dxvk2, "Dxvk-Linux"))
+        val fork = wanted.copy(repository = "owner/nightlies")
+        assertEquals(wanted, ComponentsManager.catalogMatch(listOf(fork, otherFile, otherRelease, wanted), dxvk2, "Dxvk-Linux"))
+        assertNull(ComponentsManager.catalogMatch(listOf(fork), dxvk2, "Dxvk-Linux"))
         assertNull(ComponentsManager.catalogMatch(listOf(otherFile, otherRelease), dxvk2, "Dxvk-Linux"))
         assertNull(ComponentsManager.catalogMatch(emptyList(), dxvk2, "Dxvk-Linux"))
+    }
+
+    @Test fun componentArchivePathsStayInsideTheirStagingDirectory() {
+        assertEquals("files/lib/good.dll", ComponentsManager.safeArchivePath("./files/lib/good.dll"))
+        for (path in listOf("/files/escape", "../escape", "files/../escape", "files/./escape", "files//escape", "files\\escape")) {
+            assertThrows(IllegalArgumentException::class.java) { ComponentsManager.safeArchivePath(path) }
+        }
     }
 
     @Test fun thisMachineIsNotForced() {
@@ -128,6 +137,34 @@ class ForcedPackageTest {
 
         assertFalse(ComponentsManager.gameComponents(context, "42").containsKey("dxvk"))
         assertDefaultDxvkRestoreRow(protonName)
+    }
+
+    @Test fun systemPowerVrRejectsNewGameDxvkSelectionsWithoutChangingSavedProfiles() {
+        writeGameProfile("42", "dxvk", "custom-dxvk.wcp")
+        val state = File(context.filesDir, "components/state.json")
+        val saved = state.readText()
+
+        assertThrows(IllegalStateException::class.java) {
+            ComponentsManager.setGameComponent(context, "42", "dxvk", "replacement.wcp") {
+                ComponentsManager.runtimeManaged(it, true)
+            }
+        }
+
+        assertEquals(saved, state.readText())
+        assertEquals("custom-dxvk.wcp", ComponentsManager.gameComponents(context, "42")["dxvk"])
+        assertFalse(launchState().exists())
+    }
+
+    @Test fun systemPowerVrAllowsClearingASavedGameDxvkSelection() {
+        proton("proton-exp")
+        writeGameProfile("42", "dxvk", "custom-dxvk.wcp")
+
+        ComponentsManager.setGameComponent(context, "42", "dxvk", null) {
+            ComponentsManager.runtimeManaged(it, true)
+        }
+
+        assertTrue(ComponentsManager.gameComponents(context, "42").isEmpty())
+        assertDefaultDxvkRestoreRow("proton-exp")
     }
 
     @Test fun aNewProtonIsCapturedWhenTheLastOverrideIsReset() {

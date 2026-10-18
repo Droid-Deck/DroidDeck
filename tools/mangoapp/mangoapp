@@ -1,5 +1,17 @@
 #!/bin/sh
 export XDG_SESSION_TYPE=x11
+system_runtime=${DROIDDECK_SYSTEM_VULKAN_RUNTIME:-${DROIDDECK_POWERVR_RUNTIME:-}}
+system_presentation=${DROIDDECK_SYSTEM_VULKAN_PRESENTATION:-}
+if [ -z "$system_presentation" ]; then
+  system_presentation=native
+  [ "${DROIDDECK_SYSTEM_VULKAN_GPU:-}" = mali ] && system_presentation=x11-shm
+fi
+if [ "$system_presentation" = x11-shm ] && [ -n "$system_runtime" ]; then
+  export VK_LAYER_PATH="$system_runtime/wsi:$system_runtime/lib${DROIDDECK_HYBRIS_LAYER_PATH:+:$DROIDDECK_HYBRIS_LAYER_PATH}"
+  export VK_INSTANCE_LAYERS="VK_LAYER_window_system_integration:${DROIDDECK_HYBRIS_SESSION_LAYERS:-VK_LAYER_HYBRIS_compat}"
+  export WSI_X11_FORCE_SHM=1 ENABLE_GAMESCOPE_WSI=0 VK_LOADER_LAYERS_DISABLE='*gamescope*'
+  unset DISABLE_WSI_LAYER
+fi
 starts=/tmp/droiddeck-mangoapp-starts
 now=$(date +%s)
 recent=$(awk -v now="$now" '$1 > now - 60' "$starts" 2>/dev/null)

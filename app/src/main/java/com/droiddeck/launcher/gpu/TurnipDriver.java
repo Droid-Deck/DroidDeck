@@ -256,6 +256,7 @@ public final class TurnipDriver {
     }
 
     private String choose() {
+        SessionPrefs.ensureSystemVulkanAutoDrivers(context);
         String chosen = SessionPrefs.androidDriver(context);
         if (chosen != null && !chosen.isEmpty()) {
             if (BUNDLED.contains(chosen)) {
@@ -282,6 +283,7 @@ public final class TurnipDriver {
             if (forced.startsWith("a7")) return DRIVER_A7XX;
             if (forced.startsWith("a6")) return DRIVER_A6XX;
         }
+        if (SystemVulkanDriver.isSupportedGpu()) return null;
         String quest = QuestExperimental.INSTANCE.defaultAndroidDriver();
         if (quest != null) return quest;
         String model = gpuModel();

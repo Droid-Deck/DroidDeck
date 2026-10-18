@@ -409,10 +409,10 @@
     <string name="common_size_mb">%1$.1f MB</string>
     <string name="comp_runtime_driver">執行環境驅動程式</string>
     <string name="comp_runtime_driver_hint">供 Steam、遊戲和桌面使用。下次工作階段生效。</string>
-    <string name="comp_import_turnip">匯入 Turnip zip…</string>
+    <string name="comp_import_turnip">匯入執行環境驅動程式 zip…</string>
     <string name="comp_display_driver">顯示驅動程式</string>
     <string name="comp_display_driver_hint">在兩種模式下都負責將畫面輸出到螢幕。重新啟動應用程式後生效。</string>
-    <string name="comp_import_adrenotools">匯入 AdrenoTools zip…</string>
+    <string name="comp_import_adrenotools">匯入顯示驅動程式 zip…</string>
     <string name="comp_never">從未</string>
     <string name="comp_nightlies_checked">Nightlies 檢查時間：%1$s</string>
     <string name="comp_title">元件</string>
@@ -674,7 +674,7 @@
     <string name="setup_gpu_unsupported">GPU 不受支援</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s：%2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam 需要 Adreno 驅動程式；%1$s 可能出現黑畫面。</string>
+    <string name="setup_gpu_unsupported_detail">沒有可用的相容圖形後端；%1$s 可能出現黑畫面。</string>
     <string name="setup_runtime">Linux 執行環境</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">未安裝 · 約 3 GB，首次點擊「執行」時安裝</string>
@@ -1198,8 +1198,8 @@
     <string name="main_wadb_unavailable">無法使用無線偵錯</string>
     <string name="main_adb_copied">已複製 ADB 指令</string>
     <string name="main_pick_roms">選擇 ROM 資料夾</string>
-    <string name="main_non_adreno_title">不是 Adreno GPU</string>
-    <string name="main_non_adreno_text">Turnip 支援 Adreno GPU。在 %1$s 上，Steam 可能會出現黑畫面。下載大小：%2$.0f MB。</string>
+    <string name="main_non_adreno_title">不受支援的 GPU</string>
+    <string name="main_non_adreno_text">沒有適用於 %1$s 的相容圖形後端。Steam 可能會出現黑畫面。下載大小：%2$.0f MB。</string>
     <string name="main_install_anyway">仍要安裝</string>
     <string name="main_remove_runtime_title">移除 Linux 執行環境</string>
     <string name="main_remove_runtime_text">這會刪除執行環境、其中的 Steam 用戶端，以及安裝在其中的所有遊戲。</string>
@@ -1251,8 +1251,8 @@
     <string name="drivers_not_checked">尚未檢查 - 點擊重新整理以尋找新驅動程式</string>
     <string name="drivers_bundle_sets_display">Android + Linux：同時設定顯示驅動程式</string>
     <string name="drivers_bundle_sets_runtime">Android + Linux：同時設定執行環境驅動程式</string>
-    <string name="drivers_runtime_builtin">執行環境內建的 Turnip</string>
-    <string name="drivers_system_vulkan">系統 Vulkan：沒有適用於此 GPU 的內建版本</string>
+    <string name="drivers_runtime_builtin">內建於執行環境</string>
+    <string name="drivers_system_vulkan">使用手機的系統 Vulkan 驅動程式</string>
     <string name="drivers_bundled">%1$s（內建）</string>
     <string name="drivers_manual">手動</string>
     <string name="drivers_summary">%1$s · %2$s</string>
@@ -1779,7 +1779,7 @@
     <string name="gpuinfo_supported">受支援</string>
     <string name="gpuinfo_experimental">實驗性：其驅動程式為測試版本</string>
     <string name="gpuinfo_below_tested">低於已測試的硬體（Adreno 725 及更新機型）：可能無法執行</string>
-    <string name="gpuinfo_unsupported">不受支援：DroidDeck 需要 Adreno（Snapdragon）GPU</string>
+    <string name="gpuinfo_unsupported">不受支援：沒有適用於此 GPU 的相容圖形後端</string>
 
     <string name="turnip_rate_limited">已達 GitHub 速率限制 - 請稍後再試</string>
     <string name="turnip_github_http">GitHub 回應 HTTP %1$d</string>
@@ -1795,7 +1795,7 @@
     <string name="turnip_reject_library_missing">meta.json 指定了 %1$s，但 zip 中沒有此檔案</string>
     <string name="turnip_reject_not_aarch64">%1$s 不是 64 位元 AArch64 ELF 共用程式庫</string>
     <string name="turnip_reject_glibc">%1$s 連結 glibc - 這是「-Linux」Turnip，應放在「執行環境驅動程式」下</string>
-    <string name="lvd_no_library">此 zip 中沒有 libvulkan_freedreno*.so。Android（AdrenoTools）或 -Wayland Turnip zip 不是 Linux 執行環境驅動程式。</string>
+    <string name="lvd_no_library">此 zip 中沒有 libvulkan_*.so。Android（AdrenoTools）或 -Wayland Turnip zip 不是 Linux 執行環境驅動程式。</string>
     <string name="lvd_not_aarch64">%1$s 不是 64 位元 AArch64 ELF 共用程式庫。</string>
     <string name="lvd_not_glibc">%1$s 不是 glibc 驅動程式 - 它連結的是 Android 的 libc。Linux 執行環境需要「-Linux」zip；一般或「-Wayland」Turnip 完全無法由 Steam 用戶端載入。</string>
     <string name="bundle_no_manifest">不是驅動程式套件組合：沒有指定 Android 與 Linux 驅動程式的 manifest.json</string>

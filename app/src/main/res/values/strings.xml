@@ -341,6 +341,8 @@
     <string name="wincomp_auto_gog">From GOG\'s list for this game</string>
     <string name="wincomp_auto_epic">From Epic\'s prerequisites for this game</string>
     <string name="wincomp_auto_amazon">From Amazon\'s install steps for this game</string>
+    <string name="wincomp_src_game">Game requirements</string>
+    <string name="wincomp_auto_known_game">Fonts requested by %1$s (app %2$s)</string>
     <string name="wincomp_steam_by_name">Steam installs %1$s with app %2$s, matched by name</string>
     <string name="wincomp_suggestions">Also listed</string>
     <string name="wincomp_suggestion_reason">Listed by %1$s; not a component here</string>
@@ -411,10 +413,10 @@
     <string name="common_size_mb">%1$.1f MB</string>
     <string name="comp_runtime_driver">Runtime driver</string>
     <string name="comp_runtime_driver_hint">Used by Steam, games and the desktop. Applies next session.</string>
-    <string name="comp_import_turnip">Import Turnip zip…</string>
+    <string name="comp_import_turnip">Import runtime driver zip…</string>
     <string name="comp_display_driver">Display driver</string>
     <string name="comp_display_driver_hint">Draws frames to the screen in both modes. Restart the app to apply.</string>
-    <string name="comp_import_adrenotools">Import an AdrenoTools zip…</string>
+    <string name="comp_import_adrenotools">Import display driver zip…</string>
     <string name="comp_never">never</string>
     <string name="comp_nightlies_checked">Nightlies checked %1$s</string>
     <string name="comp_title">Components</string>
@@ -704,7 +706,7 @@
     <string name="setup_gpu_unsupported">GPU not supported</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam needs an Adreno driver; %1$s may show a black screen</string>
+    <string name="setup_gpu_unsupported_detail">No compatible graphics backend is available; %1$s may show a black screen</string>
     <string name="setup_runtime">Linux runtime</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">Not installed · about 3 GB, installed on first Play</string>
@@ -731,6 +733,9 @@
     <string name="setup_session">Session</string>
     <string name="setup_logs">Session logs</string>
     <string name="setup_logs_hint">Saved after each session</string>
+    <string name="setup_game_debug_logs">Game debug logs</string>
+    <string name="setup_game_debug_logs_hint">Include Proton, Wine and graphics diagnostics on the next game launch. Can reduce performance and use more storage.</string>
+    <string name="setup_game_debug_logs_restart">Restart this session to save game debug logs</string>
     <string name="setup_agent_commands">Debugging tools</string>
     <string name="setup_latest_logs">Latest session logs</string>
     <string name="setup_saved_logs">Saved session logs</string>
@@ -1235,8 +1240,8 @@
     <string name="main_wadb_unavailable">Wireless debugging is unavailable</string>
     <string name="main_adb_copied">ADB command copied</string>
     <string name="main_pick_roms">Choose the ROMs folder</string>
-    <string name="main_non_adreno_title">Not an Adreno GPU</string>
-    <string name="main_non_adreno_text">Turnip supports Adreno GPUs. On %1$s, Steam may show a black screen. Download: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">Unsupported GPU</string>
+    <string name="main_non_adreno_text">No compatible graphics backend is available for %1$s. Steam may show a black screen. Download: %2$.0f MB.</string>
     <string name="main_install_anyway">Install anyway</string>
     <string name="main_remove_runtime_title">Remove Linux runtime</string>
     <string name="main_remove_runtime_text">This deletes the runtime, the Steam client inside it, and every game installed there.</string>
@@ -1288,8 +1293,8 @@
     <string name="drivers_not_checked">Not checked yet - tap refresh to look for new drivers</string>
     <string name="drivers_bundle_sets_display">Android + Linux: sets the display driver with it</string>
     <string name="drivers_bundle_sets_runtime">Android + Linux: sets the runtime driver with it</string>
-    <string name="drivers_runtime_builtin">the Turnip built into the runtime</string>
-    <string name="drivers_system_vulkan">system Vulkan: no bundled build for this GPU</string>
+    <string name="drivers_runtime_builtin">Built into the runtime</string>
+    <string name="drivers_system_vulkan">Uses the phone\'s system Vulkan driver</string>
     <string name="drivers_bundled">%1$s (bundled)</string>
     <string name="drivers_manual">Manual</string>
     <string name="drivers_summary">%1$s · %2$s</string>
@@ -1835,10 +1840,18 @@
     <string name="look_anime_edge_desc">Toon outlines plus sharpening.</string>
 
     <string name="gpuinfo_not_adreno">Not an Adreno GPU</string>
+    <string name="gpuinfo_system_driver">System %1$s driver: compatibility varies by device</string>
+    <string name="gpuinfo_system_experimental">Experimental system %1$s driver: compatibility varies by device</string>
+    <string name="gpu_system_driver">System %1$s</string>
+    <string name="gpu_auto_system_hint">Downloads the matching GPU component when needed</string>
+    <string name="drivers_system_builtin">The system %1$s driver is selected for the runtime and display.</string>
+    <string name="drivers_system_experimental_builtin">The experimental system %1$s driver is selected for the runtime and display.</string>
+    <string name="cmgr_powervr_dxvk_queued">Queued: %1$s (waiting for a different runtime driver)</string>
+    <string name="cmgr_system_dxvk_managed">DXVK is provided by the system %1$s runtime. Other DXVK packages can be stored but are not applied with this driver.</string>
     <string name="gpuinfo_supported">Supported</string>
     <string name="gpuinfo_experimental">Experimental: its drivers are test builds</string>
     <string name="gpuinfo_below_tested">Below tested hardware (Adreno 725 and newer): it may not run</string>
-    <string name="gpuinfo_unsupported">Not supported: DroidDeck needs an Adreno (Snapdragon) GPU</string>
+    <string name="gpuinfo_unsupported">Not supported: no compatible graphics backend is available for this GPU</string>
 
     <string name="turnip_rate_limited">GitHub\'s rate limit was hit - try again later</string>
     <string name="turnip_github_http">GitHub answered HTTP %1$d</string>
@@ -1854,7 +1867,7 @@
     <string name="turnip_reject_library_missing">meta.json names %1$s, which is not in the zip</string>
     <string name="turnip_reject_not_aarch64">%1$s is not a 64-bit AArch64 ELF shared library</string>
     <string name="turnip_reject_glibc">%1$s links glibc - a \"-Linux\" Turnip, which belongs under \"Linux runtime driver\"</string>
-    <string name="lvd_no_library">No libvulkan_freedreno*.so in this zip. An Android (AdrenoTools) or -Wayland Turnip zip is not a Linux runtime driver.</string>
+    <string name="lvd_no_library">No libvulkan_*.so in this zip. An Android (AdrenoTools) or -Wayland Turnip zip is not a Linux runtime driver.</string>
     <string name="lvd_not_aarch64">%1$s is not a 64-bit AArch64 ELF shared library.</string>
     <string name="lvd_not_glibc">%1$s is not a glibc driver - it links Android\'s libc. The Linux runtime needs a \"-Linux\" zip; a plain or \"-Wayland\" Turnip cannot be loaded by the Steam client at all.</string>
     <string name="bundle_no_manifest">Not a driver bundle: no manifest.json naming an android and a linux driver</string>
@@ -2684,4 +2697,23 @@
     <string name="boot_movie_converting_started">Converting %1$s for Steam. Keep DroidDeck open.</string>
     <string name="boot_movie_unsupported">This device cannot decode that video.</string>
     <string name="boot_movie_import_failed">Could not import that movie</string>
+    <string name="sources_component_title">Component Sources</string>
+    <string name="gpu_auto_system_title">Auto uses the system driver for your %1$s</string>
+    <string name="gpu_component_required">Download the GPU component in Components before starting a session.</string>
+    <string name="sources_updates_title">Update Sources</string>
+    <string name="sources_repository">GitHub owner/repository</string>
+    <string name="sources_add">Add repository</string>
+    <string name="sources_remove">Remove %1$s</string>
+    <string name="sources_hide">Hide %1$s</string>
+    <string name="sources_show">Show %1$s</string>
+    <string name="sources_save">Save</string>
+    <string name="sources_saving">Saving…</string>
+    <string name="sources_hidden_note">Hidden sources stop checks and hide available downloads. Downloaded components stay available.</string>
+    <string name="sources_load_error">Could not read repository sources. Close this menu and try again.</string>
+    <string name="sources_github_rate_limited">GitHub is rate limiting source refreshes. Try again after a few minutes.</string>
+    <string name="sources_update_catalog_missing">Could not find this source or its update catalog. Use a public repository that publishes catalog.json on its main branch.</string>
+    <string name="sources_save_error">Could not save repository sources. Check for duplicate repositories and try again.</string>
+    <string name="sources_invalid_repository">Use owner/repository or an HTTPS GitHub repository URL.</string>
+    <string name="sources_update_from">Update from</string>
+    <string name="sources_selected_unavailable">Selected source is hidden or removed</string>
 </resources>

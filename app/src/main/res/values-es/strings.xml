@@ -410,10 +410,10 @@
     <string name="common_size_mb">%1$.1f MB</string>
     <string name="comp_runtime_driver">Controlador de runtime</string>
     <string name="comp_runtime_driver_hint">Lo usan Steam, los juegos y el escritorio. Se aplica en la próxima sesión.</string>
-    <string name="comp_import_turnip">Importar zip de Turnip…</string>
+    <string name="comp_import_turnip">Importar ZIP de controlador del entorno…</string>
     <string name="comp_display_driver">Controlador de pantalla</string>
     <string name="comp_display_driver_hint">Dibuja los fotogramas en pantalla en ambos modos. Reinicia la app para aplicarlo.</string>
-    <string name="comp_import_adrenotools">Importar un zip de AdrenoTools…</string>
+    <string name="comp_import_adrenotools">Importar ZIP de controlador de pantalla…</string>
     <string name="comp_never">nunca</string>
     <string name="comp_nightlies_checked">Última comprobación de Nightlies: %1$s</string>
     <string name="comp_title">Componentes</string>
@@ -677,7 +677,7 @@
     <string name="setup_gpu_unsupported">GPU no compatible</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam necesita un controlador Adreno; %1$s puede mostrar una pantalla negra</string>
+    <string name="setup_gpu_unsupported_detail">No hay un motor gráfico compatible disponible; %1$s puede mostrar una pantalla negra</string>
     <string name="setup_runtime">Runtime de Linux</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">No instalado · unos 3 GB, se instala al jugar por primera vez</string>
@@ -1215,8 +1215,8 @@
     <string name="main_wadb_unavailable">La Depuración inalámbrica no está disponible</string>
     <string name="main_adb_copied">Comando ADB copiado</string>
     <string name="main_pick_roms">Elige la carpeta de ROMs</string>
-    <string name="main_non_adreno_title">La GPU no es Adreno</string>
-    <string name="main_non_adreno_text">Turnip es compatible con GPU Adreno. En %1$s, Steam puede mostrar una pantalla negra. Descarga: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">GPU no compatible</string>
+    <string name="main_non_adreno_text">No hay un motor gráfico compatible disponible para %1$s. Steam puede mostrar una pantalla negra. Descarga: %2$.0f MB.</string>
     <string name="main_install_anyway">Instalar de todos modos</string>
     <string name="main_remove_runtime_title">Eliminar el runtime de Linux</string>
     <string name="main_remove_runtime_text">Esto elimina el runtime, el cliente de Steam que contiene y todos los juegos instalados en él.</string>
@@ -1268,8 +1268,8 @@
     <string name="drivers_not_checked">Aún sin comprobar - toca actualizar para buscar controladores nuevos</string>
     <string name="drivers_bundle_sets_display">Android + Linux: define también el controlador de pantalla</string>
     <string name="drivers_bundle_sets_runtime">Android + Linux: define también el controlador de runtime</string>
-    <string name="drivers_runtime_builtin">el Turnip integrado en el runtime</string>
-    <string name="drivers_system_vulkan">Vulkan del sistema: no hay versión incluida para esta GPU</string>
+    <string name="drivers_runtime_builtin">Integrado en el entorno de ejecución</string>
+    <string name="drivers_system_vulkan">Usa el controlador Vulkan del sistema del teléfono</string>
     <string name="drivers_bundled">%1$s (incluido)</string>
     <string name="drivers_manual">Manual</string>
     <string name="drivers_summary">%1$s · %2$s</string>
@@ -1818,7 +1818,7 @@
     <string name="gpuinfo_supported">Compatible</string>
     <string name="gpuinfo_experimental">Experimental: sus controladores son versiones de prueba</string>
     <string name="gpuinfo_below_tested">Por debajo del hardware probado (Adreno 725 y posteriores): puede que no funcione</string>
-    <string name="gpuinfo_unsupported">No compatible: DroidDeck necesita una GPU Adreno (Snapdragon)</string>
+    <string name="gpuinfo_unsupported">No compatible: no hay un motor gráfico compatible disponible para esta GPU</string>
 
     <string name="turnip_rate_limited">Se alcanzó el límite de solicitudes de GitHub - inténtalo más tarde</string>
     <string name="turnip_github_http">GitHub respondió HTTP %1$d</string>
@@ -1834,7 +1834,7 @@
     <string name="turnip_reject_library_missing">meta.json indica %1$s, que no está en el zip</string>
     <string name="turnip_reject_not_aarch64">%1$s no es una biblioteca compartida ELF AArch64 de 64 bits</string>
     <string name="turnip_reject_glibc">%1$s enlaza glibc - es un Turnip \"-Linux\", que va en \"Controlador de runtime\"</string>
-    <string name="lvd_no_library">No hay ningún libvulkan_freedreno*.so en este zip. Un zip de Turnip para Android (AdrenoTools) o -Wayland no es un controlador de runtime de Linux.</string>
+    <string name="lvd_no_library">No hay ningún libvulkan_*.so en este zip. Un zip de Turnip para Android (AdrenoTools) o -Wayland no es un controlador de runtime de Linux.</string>
     <string name="lvd_not_aarch64">%1$s no es una biblioteca compartida ELF AArch64 de 64 bits.</string>
     <string name="lvd_not_glibc">%1$s no es un controlador glibc: enlaza la libc de Android. El runtime de Linux necesita un zip \"-Linux\"; el cliente de Steam no puede cargar en absoluto un Turnip normal o \"-Wayland\".</string>
     <string name="bundle_no_manifest">No es un paquete de controladores: no hay un manifest.json que indique un controlador android y uno linux</string>

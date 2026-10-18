@@ -409,10 +409,10 @@
     <string name="common_size_mb">%1$.1f MB</string>
     <string name="comp_runtime_driver">런타임 드라이버</string>
     <string name="comp_runtime_driver_hint">Steam, 게임 및 데스크톱에서 사용됩니다. 다음 세션에 적용됩니다.</string>
-    <string name="comp_import_turnip">Turnip zip 가져오기…</string>
+    <string name="comp_import_turnip">런타임 드라이버 zip 가져오기…</string>
     <string name="comp_display_driver">디스플레이 드라이버</string>
     <string name="comp_display_driver_hint">두 모드 모두에서 화면 출력을 담당합니다. 앱을 다시 시작한 후 적용됩니다.</string>
-    <string name="comp_import_adrenotools">AdrenoTools zip 가져오기…</string>
+    <string name="comp_import_adrenotools">디스플레이 드라이버 zip 가져오기…</string>
     <string name="comp_never">없음</string>
     <string name="comp_nightlies_checked">Nightlies 확인 시각 %1$s</string>
     <string name="comp_title">구성 요소</string>
@@ -674,7 +674,7 @@
     <string name="setup_gpu_unsupported">GPU 지원되지 않음</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
-    <string name="setup_gpu_unsupported_detail">Steam에는 Adreno 드라이버가 필요합니다. %1$s에서 화면이 검게 변할 수 있습니다.</string>
+    <string name="setup_gpu_unsupported_detail">사용할 수 있는 호환 그래픽 백엔드가 없습니다. %1$s에서 화면이 검게 표시될 수 있습니다.</string>
     <string name="setup_runtime">Linux 런타임</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
     <string name="setup_runtime_missing">설치되지 않음 · 약 3GB, 처음 \"Steam 실행\" 시 설치</string>
@@ -1198,8 +1198,8 @@
     <string name="main_wadb_unavailable">무선 디버깅을 사용할 수 없습니다</string>
     <string name="main_adb_copied">ADB 명령이 복사되었습니다</string>
     <string name="main_pick_roms">ROM 폴더 선택</string>
-    <string name="main_non_adreno_title">Adreno GPU가 아님</string>
-    <string name="main_non_adreno_text">Turnip은 Adreno GPU를 지원합니다. %1$s에서는 Steam 화면이 검게 표시될 수 있습니다. 다운로드: %2$.0f MB.</string>
+    <string name="main_non_adreno_title">지원되지 않는 GPU</string>
+    <string name="main_non_adreno_text">%1$s에서 사용할 수 있는 호환 그래픽 백엔드가 없습니다. Steam 화면이 검게 표시될 수 있습니다. 다운로드: %2$.0f MB.</string>
     <string name="main_install_anyway">그래도 설치</string>
     <string name="main_remove_runtime_title">Linux 런타임 제거</string>
     <string name="main_remove_runtime_text">런타임과 그 안의 Steam 클라이언트, 그리고 런타임에 설치된 모든 게임이 삭제됩니다.</string>
@@ -1251,8 +1251,8 @@
     <string name="drivers_not_checked">아직 확인하지 않음 - 새로 고침을 탭하여 새 드라이버를 찾으세요</string>
     <string name="drivers_bundle_sets_display">Android + Linux: 디스플레이 드라이버도 함께 설정</string>
     <string name="drivers_bundle_sets_runtime">Android + Linux: 런타임 드라이버도 함께 설정</string>
-    <string name="drivers_runtime_builtin">런타임 내장 Turnip</string>
-    <string name="drivers_system_vulkan">시스템 Vulkan: 이 GPU용 내장 빌드 없음</string>
+    <string name="drivers_runtime_builtin">런타임에 내장됨</string>
+    <string name="drivers_system_vulkan">휴대전화의 시스템 Vulkan 드라이버 사용</string>
     <string name="drivers_bundled">%1$s(내장)</string>
     <string name="drivers_manual">수동</string>
     <string name="drivers_summary">%1$s · %2$s</string>
@@ -1779,7 +1779,7 @@
     <string name="gpuinfo_supported">지원됨</string>
     <string name="gpuinfo_experimental">실험적: 드라이버가 테스트 빌드입니다</string>
     <string name="gpuinfo_below_tested">테스트된 하드웨어(Adreno 725 이상)보다 낮음: 실행되지 않을 수 있습니다</string>
-    <string name="gpuinfo_unsupported">지원되지 않음: DroidDeck에는 Adreno(Snapdragon) GPU가 필요합니다</string>
+    <string name="gpuinfo_unsupported">지원되지 않음: 이 GPU에서 사용할 수 있는 호환 그래픽 백엔드가 없습니다</string>
 
     <string name="turnip_rate_limited">GitHub 요청 한도에 도달했습니다. 나중에 다시 시도하세요</string>
     <string name="turnip_github_http">GitHub 응답: HTTP %1$d</string>
@@ -1795,7 +1795,7 @@
     <string name="turnip_reject_library_missing">meta.json에 지정된 %1$s이(가) zip에 없습니다</string>
     <string name="turnip_reject_not_aarch64">%1$s은(는) 64비트 AArch64 ELF 공유 라이브러리가 아닙니다</string>
     <string name="turnip_reject_glibc">%1$s은(는) glibc에 링크되어 있습니다. \"-Linux\" Turnip이므로 \"Linux 런타임 드라이버\"에서 가져오세요</string>
-    <string name="lvd_no_library">이 zip에 libvulkan_freedreno*.so가 없습니다. Android(AdrenoTools)용 또는 -Wayland Turnip zip은 Linux 런타임 드라이버가 아닙니다.</string>
+    <string name="lvd_no_library">이 zip에 libvulkan_*.so가 없습니다. Android(AdrenoTools)용 또는 -Wayland Turnip zip은 Linux 런타임 드라이버가 아닙니다.</string>
     <string name="lvd_not_aarch64">%1$s은(는) 64비트 AArch64 ELF 공유 라이브러리가 아닙니다.</string>
     <string name="lvd_not_glibc">%1$s은(는) glibc 드라이버가 아니며 Android의 libc에 링크되어 있습니다. Linux 런타임에는 \"-Linux\" zip이 필요합니다. 일반 또는 \"-Wayland\" Turnip은 Steam 클라이언트에서 전혀 불러올 수 없습니다.</string>
     <string name="bundle_no_manifest">드라이버 번들이 아닙니다: android 및 linux 드라이버를 지정하는 manifest.json이 없습니다</string>

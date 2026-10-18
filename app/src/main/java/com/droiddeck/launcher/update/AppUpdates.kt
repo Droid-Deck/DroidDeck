@@ -3,30 +3,27 @@ package com.droiddeck.launcher.update
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
-import android.util.Log
 import com.droiddeck.launcher.BuildConfig
 import com.droiddeck.launcher.R
-import com.droiddeck.launcher.core.DownloadSource
+import com.droiddeck.launcher.artifact.GitHubArtifacts
+import com.droiddeck.launcher.artifact.RepositorySources
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
-import java.net.HttpURLConnection
-import java.net.URL
-import java.security.MessageDigest
 
 object AppUpdates {
-    private const val TAG = "AppUpdates"
     private const val REPO = "Droid-Deck/DroidDeck"
     private const val CI_REPO = "Droid-Deck/DroidDeck-CI"
-    private const val CATALOG_URL = "https://raw.githubusercontent.com/$CI_REPO/main/catalog.json"
+    const val SOURCE_SCOPE = "updates/app"
     private const val PREFS = "app_updates"
     private const val KEY_CATALOG = "catalog"
     private const val KEY_CHANNEL = "channel"
+    private const val KEY_SOURCE = "source"
     private const val CATALOG_SCHEMA = 1
 
     enum class Channel { STABLE, NIGHTLY, TEST }
 
-    data class Follow(val channel: Channel, val pr: Int = 0)
+    data class Follow(val channel: Channel, val pr: Int = 0, val sourceId: String = "")
 
     class Apk(
         val name: String,
@@ -64,7 +61,16 @@ object AppUpdates {
         val tests: List<Release>,
         val checkedAt: Long,
         val recentPreviews: List<PreviewChange> = emptyList(),
+        val sourceId: String = "",
     )
+
+    @JvmStatic fun sourceBuiltIns(): List<String> = listOf(CI_REPO)
+
+    @JvmStatic fun sources(context: Context): List<RepositorySources.Source> =
+        RepositorySources.list(context, SOURCE_SCOPE, sourceBuiltIns())
+
+    @JvmStatic fun saveSources(context: Context, rows: List<RepositorySources.Source>): List<RepositorySources.Source> =
+        RepositorySources.save(context, SOURCE_SCOPE, sourceBuiltIns(), rows)
 
     class Installed(
         val commit: String,
@@ -95,28 +101,25 @@ object AppUpdates {
     @Volatile private var releaseSigned = BuildConfig.CI_BUILD
 
     fun init(context: Context) {
-        releaseSigned = runCatching {
-            signers(context).any { it.equals(BuildConfig.RELEASE_SIGNER, ignoreCase = true) }
-        }.getOrDefault(BuildConfig.CI_BUILD)
+        releaseSigned = runCatching { hasInstalledSigner(context) }.getOrDefault(BuildConfig.CI_BUILD)
     }
 
-    private fun signers(context: Context): List<String> {
-        val pm = context.packageManager
-        @Suppress("DEPRECATION")
-        val certs = if (Build.VERSION.SDK_INT >= 28) {
-            val info = pm.getPackageInfo(
-                context.packageName,
-                PackageManager.GET_SIGNING_CERTIFICATES,
-            ).signingInfo ?: return emptyList()
-            if (info.hasMultipleSigners()) info.apkContentsSigners else info.signingCertificateHistory
+    @Suppress("DEPRECATION")
+    private fun hasInstalledSigner(context: Context): Boolean =
+        if (Build.VERSION.SDK_INT >= 28) {
+            val signing = context.packageManager.getPackageInfo(
+                context.packageName, PackageManager.GET_SIGNING_CERTIFICATES,
+            ).signingInfo
+            signing != null && if (signing.hasMultipleSigners()) {
+                signing.apkContentsSigners.orEmpty().isNotEmpty()
+            } else {
+                signing.signingCertificateHistory.orEmpty().isNotEmpty()
+            }
         } else {
-            pm.getPackageInfo(context.packageName, PackageManager.GET_SIGNATURES).signatures
-        } ?: return emptyList()
-        return certs.map { cert ->
-            MessageDigest.getInstance("SHA-256").digest(cert.toByteArray())
-                .joinToString("") { "%02x".format(it) }
+            context.packageManager.getPackageInfo(
+                context.packageName, PackageManager.GET_SIGNATURES,
+            ).signatures.orEmpty().isNotEmpty()
         }
-    }
 
     fun installed(): Installed = Installed(
         BuildConfig.SOURCE_COMMIT,
@@ -202,13 +205,14 @@ object AppUpdates {
 
     fun follow(context: Context, catalog: Catalog?): Follow {
         stored(context)?.let { return it }
+        val initialSource = RepositorySources.visible(context, SOURCE_SCOPE, sourceBuiltIns()).firstOrNull()?.id.orEmpty()
         val me = installed()
         val inferred = when {
-            me.pr != 0 -> Follow(Channel.TEST, me.pr)
-            catalog == null -> return Follow(Channel.STABLE)
-            catalog.stable != null && isRunning(catalog.stable, me) -> Follow(Channel.STABLE)
-            me.updatable -> Follow(Channel.NIGHTLY)
-            else -> Follow(Channel.STABLE)
+            me.pr != 0 -> Follow(Channel.TEST, me.pr, initialSource)
+            catalog == null -> Follow(Channel.STABLE, sourceId = initialSource)
+            catalog.stable != null && isRunning(catalog.stable, me) -> Follow(Channel.STABLE, sourceId = initialSource)
+            me.updatable -> Follow(Channel.NIGHTLY, sourceId = initialSource)
+            else -> Follow(Channel.STABLE, sourceId = initialSource)
         }
         setFollow(context, inferred)
         return inferred
@@ -217,35 +221,55 @@ object AppUpdates {
     fun setFollow(context: Context, follow: Follow) {
         val value = if (follow.channel == Channel.TEST) "test:${follow.pr}"
         else follow.channel.name.lowercase()
-        prefs(context).edit().putString(KEY_CHANNEL, value).apply()
+        prefs(context).edit().putString(KEY_CHANNEL, value).putString(KEY_SOURCE, follow.sourceId).apply()
     }
 
     private fun stored(context: Context): Follow? {
         val v = prefs(context).getString(KEY_CHANNEL, null) ?: return null
+        val sourceId = if (prefs(context).contains(KEY_SOURCE)) prefs(context).getString(KEY_SOURCE, "").orEmpty()
+        else RepositorySources.visible(context, SOURCE_SCOPE, sourceBuiltIns()).firstOrNull()?.id.orEmpty()
         return when {
-            v == "stable" -> Follow(Channel.STABLE)
-            v == "nightly" || v == "preview" -> Follow(Channel.NIGHTLY)
+            v == "stable" -> Follow(Channel.STABLE, sourceId = sourceId)
+            v == "nightly" || v == "preview" -> Follow(Channel.NIGHTLY, sourceId = sourceId)
             v.startsWith("test:") -> v.removePrefix("test:").toIntOrNull()?.let {
-                Follow(Channel.TEST, it)
+                Follow(Channel.TEST, it, sourceId)
             }
             else -> null
         }
     }
 
-    fun cached(context: Context): Catalog? {
-        val raw = prefs(context).getString(KEY_CATALOG, null) ?: return null
-        return runCatching { readCachedCatalog(JSONObject(raw)) }.getOrNull()
+    @JvmOverloads fun cached(context: Context, sourceId: String = follow(context, null).sourceId): Catalog? {
+        if (sourceId.isEmpty() || RepositorySources.visible(context, SOURCE_SCOPE, sourceBuiltIns()).none { it.id == sourceId }) return null
+        val preferences = prefs(context)
+        val scopedKey = "$KEY_CATALOG:$sourceId"
+        var raw = preferences.getString(scopedKey, null)
+        if (raw == null && sourceId == RepositorySources.source(CI_REPO).id) {
+            raw = preferences.getString(KEY_CATALOG, null)
+            if (raw != null) preferences.edit().putString(scopedKey, raw).remove(KEY_CATALOG).apply()
+        }
+        raw ?: return null
+        return runCatching { readCachedCatalog(JSONObject(raw), sourceId) }.getOrNull()
     }
 
-    fun refresh(context: Context): Catalog {
+    @JvmOverloads fun refresh(context: Context, sourceId: String = follow(context, null).sourceId): Catalog {
+        val source = RepositorySources.visible(context, SOURCE_SCOPE, sourceBuiltIns()).singleOrNull { it.id == sourceId }
+            ?: throw IOException("The selected update source is hidden or unavailable")
         val checkedAt = System.currentTimeMillis()
-        val published = JSONObject(get(context, "$CATALOG_URL?checked=$checkedAt"))
+        val published = try {
+            JSONObject(GitHubArtifacts.readRepositoryFile(
+                context, SOURCE_SCOPE, sourceBuiltIns(), source, "catalog.json", "main", 1024 * 1024,
+            ).toString(Charsets.UTF_8))
+        } catch (error: GitHubArtifacts.HttpException) {
+            if (error.status == 404) throw IOException(context.getString(R.string.sources_update_catalog_missing), error)
+            throw error
+        }
         val catalog = try {
-            readPublishedCatalog(published, context.packageName, checkedAt)
+            readPublishedCatalog(published, context.packageName, checkedAt, expectedSourceRepo = null,
+                expectedCiRepo = source.repository, sourceId = source.id)
         } catch (e: IOException) {
             throw IOException(context.getString(R.string.appupd_catalog_rejected, e.message), e)
         }
-        prefs(context).edit().putString(KEY_CATALOG, writeCatalog(catalog).toString()).apply()
+        prefs(context).edit().putString("$KEY_CATALOG:${source.id}", writeCatalog(catalog).toString()).apply()
         return catalog
     }
 
@@ -253,11 +277,19 @@ object AppUpdates {
         root: JSONObject,
         packageName: String,
         checkedAt: Long,
+        expectedSourceRepo: String? = REPO,
+        expectedCiRepo: String = CI_REPO,
+        sourceId: String = "",
     ): Catalog {
         val schema = root.optInt("schema")
         val sourceRepo = root.optString("sourceRepo")
         val ciRepo = root.optString("ciRepo")
-        if (schema != CATALOG_SCHEMA || sourceRepo != REPO || ciRepo != CI_REPO) {
+        val canonicalSource = runCatching { RepositorySources.canonicalRepository(sourceRepo) }.getOrNull()
+        val canonicalCi = runCatching { RepositorySources.canonicalRepository(ciRepo) }.getOrNull()
+        val expectedSource = expectedSourceRepo?.let { RepositorySources.canonicalRepository(it) }
+        val expectedCi = RepositorySources.canonicalRepository(expectedCiRepo)
+        if (schema != CATALOG_SCHEMA || canonicalSource == null || canonicalCi == null ||
+            (expectedSource != null && canonicalSource != expectedSource) || canonicalCi != expectedCi) {
             throw IOException(
                 "The update catalog has an unsupported format (schema $schema, source $sourceRepo, CI $ciRepo)",
             )
@@ -265,10 +297,10 @@ object AppUpdates {
         val tests = root.optJSONArray("tests") ?: JSONArray()
         val recentPreviews = root.optJSONArray("recentPreviews") ?: JSONArray()
         return Catalog(
-            root.optJSONObject("stable")?.let { readPublishedRelease(it, packageName) },
-            root.optJSONObject("preview")?.let { readPublishedRelease(it, packageName) },
+            root.optJSONObject("stable")?.let { readPublishedRelease(it, packageName, sourceRepo, ciRepo) },
+            root.optJSONObject("preview")?.let { readPublishedRelease(it, packageName, sourceRepo, ciRepo) },
             (0 until tests.length())
-                .map { readPublishedRelease(tests.getJSONObject(it), packageName) }
+                .map { readPublishedRelease(tests.getJSONObject(it), packageName, sourceRepo, ciRepo) }
                 .filter { it.pr > 0 }
                 .sortedByDescending { it.publishedAt },
             checkedAt,
@@ -277,6 +309,7 @@ object AppUpdates {
                 .sortedByDescending { it.publishedAt }
                 .distinctBy { it.commit.lowercase() }
                 .take(10),
+            sourceId,
         )
     }
 
@@ -286,7 +319,7 @@ object AppUpdates {
         return PreviewChange(commit.lowercase(), o.optString("title"), o.optString("summary"), o.optLong("publishedAt"))
     }
 
-    private fun readPublishedRelease(o: JSONObject, packageName: String): Release {
+    private fun readPublishedRelease(o: JSONObject, packageName: String, sourceRepo: String, ciRepo: String): Release {
         val commit = o.getString("commit")
         if (!Regex("^[0-9a-fA-F]{7,40}$").matches(commit)) {
             throw IOException("The update catalog contains an invalid commit")
@@ -294,7 +327,7 @@ object AppUpdates {
         val versionCode = o.getInt("versionCode")
         if (versionCode <= 0) throw IOException("The update catalog contains an invalid versionCode")
         val apk = o.optJSONObject("apks")?.optJSONObject(packageName)?.let {
-            readPublishedApk(it, packageName)
+            readPublishedApk(it, packageName, sourceRepo, ciRepo)
         }
         if (apk != null && apk.versionCode != versionCode) {
             throw IOException("The update catalog disagrees about the APK versionCode")
@@ -313,31 +346,38 @@ object AppUpdates {
         )
     }
 
-    private fun readPublishedApk(o: JSONObject, packageName: String): Apk {
+    private fun readPublishedApk(o: JSONObject, packageName: String, sourceRepo: String, ciRepo: String): Apk {
         val actualPackage = o.getString("packageName")
         val versionCode = o.getInt("versionCode")
         val signer = o.getString("signerSha256").lowercase()
         val sha = o.getString("sha256").lowercase()
         val url = o.getString("url")
+        val name = o.getString("name")
+        val size = o.getLong("size")
         if (actualPackage != packageName) throw IOException("The update catalog names the wrong Android package")
         if (versionCode <= 0) throw IOException("The update catalog has an invalid APK versionCode")
+        if (size !in 1..(2L * 1024 * 1024 * 1024) || name.isEmpty() || name.length > 240 ||
+            name.any { it == '/' || it == '\\' || it.isISOControl() }) {
+            throw IOException("The update catalog has invalid APK file metadata")
+        }
         if (!Regex("^[0-9a-f]{64}$").matches(sha)) {
             throw IOException("The update catalog has an invalid checksum")
         }
-        if (!signer.equals(BuildConfig.RELEASE_SIGNER, ignoreCase = true)) {
+        val official = RepositorySources.canonicalRepository(ciRepo) == RepositorySources.canonicalRepository(CI_REPO)
+        if (!Regex("^[0-9a-f]{64}$").matches(signer) || (official && !signer.equals(BuildConfig.RELEASE_SIGNER, ignoreCase = true))) {
             throw IOException("The update catalog is not signed for DroidDeck's release key")
         }
         val allowed = listOf(
-            "https://github.com/$REPO/releases/download/",
-            "https://github.com/$CI_REPO/releases/download/",
+            "https://github.com/$sourceRepo/releases/download/",
+            "https://github.com/$ciRepo/releases/download/",
         )
         if (allowed.none { url.startsWith(it) }) {
             throw IOException("The update catalog has an unexpected download URL")
         }
         return Apk(
-            o.getString("name"),
+            name,
             url,
-            o.optLong("size"),
+            size,
             sha,
             actualPackage,
             versionCode,
@@ -353,39 +393,6 @@ object AppUpdates {
             if (c != 0) return c
         }
         return 0
-    }
-
-    private fun get(context: Context, url: String): String {
-        val sources = DownloadSource.candidates(url)
-        var last: IOException? = null
-        for ((index, source) in sources.withIndex()) {
-            try {
-                val body = get(context, source, url)
-                DownloadSource.succeeded(source)
-                return body
-            } catch (e: IOException) {
-                last = e
-                if (index < sources.lastIndex) Log.i(TAG, "retrying $url via $source")
-            }
-        }
-        DownloadSource.failed()
-        throw last ?: IOException(context.getString(R.string.appupd_http, 0))
-    }
-
-    private fun get(context: Context, source: String, url: String): String {
-        val c = URL(source).openConnection() as HttpURLConnection
-        c.connectTimeout = 15_000
-        c.readTimeout = 20_000
-        c.setRequestProperty("Accept", "application/json")
-        c.setRequestProperty("User-Agent", "DroidDeck-app")
-        c.setRequestProperty("Cache-Control", "no-cache")
-        try {
-            val code = c.responseCode
-            if (code != 200) throw IOException(context.getString(R.string.appupd_http, code))
-            return c.inputStream.bufferedReader().use { it.readText() }
-        } finally {
-            c.disconnect()
-        }
     }
 
     private fun writeApk(a: Apk): JSONObject = JSONObject()
@@ -445,7 +452,7 @@ object AppUpdates {
         .put("summary", c.summary)
         .put("publishedAt", c.publishedAt)
 
-    internal fun readCachedCatalog(o: JSONObject): Catalog {
+    internal fun readCachedCatalog(o: JSONObject, sourceId: String = ""): Catalog {
         val tests = o.optJSONArray("tests") ?: JSONArray()
         val preview = o.optJSONObject("preview") ?: o.optJSONObject("nightly")
         val recentPreviews = o.optJSONArray("recentPreviews") ?: JSONArray()
@@ -459,6 +466,7 @@ object AppUpdates {
                 .sortedByDescending { it.publishedAt }
                 .distinctBy { it.commit.lowercase() }
                 .take(10),
+            sourceId,
         )
     }
 
