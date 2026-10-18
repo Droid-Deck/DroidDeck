@@ -304,10 +304,11 @@ public final class LinuxRuntimeInstaller {
                 return false;
             }
 
+            java.util.List<String> carried;
             try {
-                RuntimeFileTree.carryHome(old, staging);
+                carried = RuntimeFileTree.carryUserData(old, staging, false);
             } catch (IOException e) {
-                Log.w(TAG, "could not carry root across the update; rolling back", e);
+                Log.w(TAG, "could not carry user data across the update; rolling back", e);
                 old.renameTo(root);
                 try { RuntimeFileTree.delete(staging, null); }
                 catch (IOException cleanup) { Log.w(TAG, "could not clear the failed staging tree", cleanup); }
@@ -315,9 +316,11 @@ public final class LinuxRuntimeInstaller {
             }
 
             if (!staging.renameTo(root)) {
-                File keptTo = new File(staging, USER_DATA);
-                if (keptTo.isDirectory() && old.isDirectory()) keptTo.renameTo(new File(old, USER_DATA));
-                if (old.isDirectory()) old.renameTo(root);
+                if (old.isDirectory()) {
+                    try { RuntimeFileTree.carryBack(staging, old, carried); }
+                    catch (IOException e) { Log.w(TAG, "could not move all user data back after a failed swap", e); }
+                    old.renameTo(root);
+                }
                 return false;
             }
             discard(old, null);
@@ -337,6 +340,10 @@ public final class LinuxRuntimeInstaller {
         if (target.isDirectory() && stagedHome.isDirectory() && (!home.exists() || isEmptyDir(home))) {
             RuntimeFileTree.carryHome(staging, target);
             Log.w(TAG, "recovered " + USER_DATA + " from an interrupted update");
+        }
+        if (target.isDirectory() && staging.isDirectory()) {
+            java.util.List<String> rest = RuntimeFileTree.carryUserData(staging, target, true);
+            if (!rest.isEmpty()) Log.w(TAG, "recovered " + rest + " from an interrupted update");
         }
         if (!root.isDirectory() && old.isDirectory() && old.renameTo(root)) {
             Log.w(TAG, "restored the previous runtime after an interrupted update");
