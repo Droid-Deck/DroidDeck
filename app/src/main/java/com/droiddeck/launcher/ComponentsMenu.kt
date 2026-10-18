@@ -15,7 +15,7 @@ internal class ComponentsMenu(private val activity: android.app.Activity, privat
     var compProton by mutableStateOf<String?>(null)
     var compComp by mutableStateOf(com.droiddeck.launcher.ui.GPU_TAB)
     var compChecking by mutableStateOf(false)
-    var compBusy by mutableStateOf<String?>(null)
+    var compBusy by LauncherJobs::compBusy
     var compDownloads: Map<String, Int>
         get() = downloads
         private set(value) { downloads = value }

@@ -127,15 +127,14 @@ class MainActivity : ComponentActivity() {
     private var focusComponentsContent by mutableStateOf(true)
     private var componentsGameKey by mutableStateOf<String?>(null)
     private var showMapping by mutableStateOf(false)
-    private var saveBusy: String? = null
-    private var onSavePicked: ((File) -> Unit)? = null
+    private var saveBusy by LauncherJobs::saveBusy
     private var controllerSettings by mutableStateOf<ControllerPrefs.Settings?>(null)
     private var catalog by mutableStateOf<List<DesktopCatalog.Entry>?>(null)
     private var catalogLoading by mutableStateOf(false)
     private var packageRows by mutableStateOf<List<PackageRow>?>(null)
-    private var pkgId by mutableStateOf<String?>(null)
-    private var pkgStage by mutableStateOf<String?>(null)
-    private var pkgPercent by mutableIntStateOf(-1)
+    private var pkgId by LauncherJobs::pkgId
+    private var pkgStage by LauncherJobs::pkgStage
+    private var pkgPercent by LauncherJobs::pkgPercent
     private var desktopInstalled by mutableStateOf(false)
     private var desktopPresent by mutableStateOf(false)
     private var offlineAccount by mutableStateOf<String?>(null)
@@ -231,12 +230,12 @@ class MainActivity : ComponentActivity() {
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { importLossless(it) }
     }
     private val pickSaveZip = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
-        val then = onSavePicked.also { onSavePicked = null } ?: return@registerForActivityResult
-        if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let(then)
+        val then = LauncherJobs.savePicked.also { LauncherJobs.savePicked = null } ?: return@registerForActivityResult
+        if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { then(this, it) }
     }
     private val pickSaveDir = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
-        val then = onSavePicked.also { onSavePicked = null } ?: return@registerForActivityResult
-        if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let(then)
+        val then = LauncherJobs.savePicked.also { LauncherJobs.savePicked = null } ?: return@registerForActivityResult
+        if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { then(this, it) }
     }
 
     private fun refreshWifiDiscovery() {
@@ -316,11 +315,11 @@ class MainActivity : ComponentActivity() {
             android.widget.Toast.makeText(this, R.string.main_saves_close_session, android.widget.Toast.LENGTH_LONG).show()
             return
         }
-        onSavePicked = { zip ->
-            saveAction(getString(R.string.main_saves_importing, name)) {
-                val (written, backup) = GameSaves.import(this, game(), zip)
-                val kind = GameSaves.layoutOf(zip)?.label(this) ?: getString(R.string.saves_zip)
-                resources.getQuantityString(
+        LauncherJobs.savePicked = { a, zip ->
+            a.saveAction(a.getString(R.string.main_saves_importing, name)) {
+                val (written, backup) = GameSaves.import(a, game(), zip)
+                val kind = GameSaves.layoutOf(zip)?.label(a) ?: a.getString(R.string.saves_zip)
+                a.resources.getQuantityString(
                     if (backup != null) R.plurals.main_saves_imported_backup else R.plurals.main_saves_imported,
                     written, written, kind, name,
                 )
@@ -330,10 +329,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun exportSaves(name: String, layout: GameSaves.Layout, game: () -> GameSaves.Game) {
-        onSavePicked = { dir ->
-            saveAction(getString(R.string.main_saves_exporting, name)) {
-                val (zip, count) = GameSaves.export(this, game(), layout, dir)
-                resources.getQuantityString(R.plurals.main_saves_exported, count, count, layout.label(this), zip.path.removePrefix("/storage/emulated/0/"))
+        LauncherJobs.savePicked = { a, dir ->
+            a.saveAction(a.getString(R.string.main_saves_exporting, name)) {
+                val (zip, count) = GameSaves.export(a, game(), layout, dir)
+                a.resources.getQuantityString(R.plurals.main_saves_exported, count, count, layout.label(a), zip.path.removePrefix("/storage/emulated/0/"))
             }
         }
         GameSaves.savesDir().mkdirs()
@@ -432,7 +431,7 @@ class MainActivity : ComponentActivity() {
     override fun startActivity(intent: Intent?) {
         if (intent?.component?.className == SessionActivity::class.java.name) {
             when {
-                busy || LinuxRuntimeInstaller.isBusy() -> {
+                busy || LinuxRuntimeInstaller.isBusy() || saveBusy != null -> {
                     android.widget.Toast.makeText(this, R.string.main_wait_runtime, android.widget.Toast.LENGTH_SHORT).show()
                     return
                 }
@@ -472,17 +471,17 @@ class MainActivity : ComponentActivity() {
     private var pendingGameLink: String? = null
     private var gameSyncFolder by mutableStateOf<String?>(null)
     private fun pickGameExport(game: Library.SteamGame?) {
-        onSavePicked = { folder ->
-            saveAction(getString(R.string.game_frontend_files)) {
-                val saved = if (game != null) GameFiles.export(this, folder, game)
+        LauncherJobs.savePicked = { a, folder ->
+            a.saveAction(a.getString(R.string.game_frontend_files)) {
+                val saved = if (game != null) GameFiles.export(a, folder, game)
                 else {
-                    GameFileSync.enable(this, folder)
+                    GameFileSync.enable(a, folder)
                     folder
                 }
-                ui.post {
-                    gameSyncFolder = GameFileSync.folder(this)
+                a.ui.post {
+                    a.gameSyncFolder = GameFileSync.folder(a)
                 }
-                getString(R.string.game_file_exported, saved.path)
+                a.getString(R.string.game_file_exported, saved.path)
             }
         }
         pickSaveDir.launch(InAppFilePicker.buildDirIntent(this, getString(R.string.game_file_folder), gameSyncFolder))
