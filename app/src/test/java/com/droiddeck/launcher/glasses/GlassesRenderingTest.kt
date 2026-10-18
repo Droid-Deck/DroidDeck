@@ -11,6 +11,25 @@ class GlassesRenderingTest {
     )
     private val base = Cardboard(ipdMm = 67)
 
+    @Test fun thirtyHzRequiresANativeModeAndDedicatedGlassesOutput() {
+        val settings = GlassesSettings(refreshHz = 30, sbsHz = 30)
+        for (stereo in listOf(false, true)) for (sbs90 in listOf(false, true)) {
+            val state = ultra.copy(sbs = stereo, sbs90 = sbs90, supports30Hz = true)
+            assertTrue(GlassesRendering.refreshRates(settings, state).contains(30))
+            assertEquals(30, GlassesRendering.outputHz(settings, state))
+            assertEquals(60, GlassesRendering.mirrorRefreshLimit(settings, state.copy(hz = 60f), false))
+            assertEquals(30, GlassesRendering.mirrorRefreshLimit(settings, state.copy(hz = 29.97f), false))
+            for (unavailable in listOf(state.copy(supports30Hz = false), state.copy(noSignal = true), state.copy(displayId = -1))) {
+                assertFalse(GlassesRendering.refreshRates(settings, unavailable).contains(30))
+                assertEquals(60, GlassesRendering.outputHz(settings, unavailable))
+            }
+            val mirrored = settings.copy(gameOnGlasses = false)
+            assertFalse(GlassesRendering.refreshRates(mirrored, state).contains(30))
+            assertEquals(60, GlassesRendering.outputHz(mirrored, state))
+            assertEquals(60, GlassesRendering.mirrorRefreshLimit(mirrored, state, false))
+        }
+    }
+
     @Test fun mirroredRefreshUsesTheSelectedGlassesRateEvenBeforeTheDisplaySwitches() {
         val settings = GlassesSettings(gameOnGlasses = false, refreshHz = 60)
         assertEquals(60, GlassesRendering.mirrorRefreshLimit(settings, ultra.copy(hz = 120f), false))
@@ -75,25 +94,80 @@ class GlassesRenderingTest {
         assertFalse(changed.headTracking)
     }
 
-    @Test fun automatic3dGamesUseAVirtualScreenButSteamVrUsesDirectStereo() {
+    @Test fun automaticSbsDuplicatesTheWholeFrameWithoutEnablingHeadTracking() {
         val settings = GlassesSettings()
         val stereo = ultra.copy(sbs = true, width = 3840)
-        assertEquals(GlassesRendering.Picture.VIRTUAL_SCREEN, GlassesRendering.picture(settings, true, false))
-        assertEquals(Cardboard.SOURCE_SCREEN, render(settings, stereo).source)
+        assertEquals(GlassesRendering.Picture.DUPLICATED, GlassesRendering.picture(settings, true, false))
+        assertEquals(Cardboard.SOURCE_FLAT, render(settings, stereo).source)
+        assertFalse(render(settings, stereo).headTracking)
         assertFalse(render(settings, stereo).mono)
         assertEquals(GlassesRendering.Picture.STEREO, GlassesRendering.picture(settings, true, true))
         assertEquals(Cardboard.SOURCE_SBS, render(settings, stereo, steamVr = true).source)
+        assertTrue(render(settings, stereo, steamVr = true).headTracking)
     }
 
-    @Test fun explicitPictureChoiceOverridesAutomaticResolution() {
+    @Test fun flatSbsDoesNotDependOnTheTrackingPreferenceOrUsbControl() {
+        for (tracking in listOf(false, true)) for (connected in listOf(false, true)) {
+            for (height in listOf(1080, 1200)) {
+                val state = ultra.copy(sbs = true, width = 3840, height = height, connected = connected)
+                val settings = GlassesSettings(headTracking = tracking)
+                val flat = render(settings, state)
+                assertTrue(flat.enabled)
+                assertFalse(flat.mono)
+                assertFalse(flat.headTracking)
+                assertEquals(Cardboard.SOURCE_FLAT, flat.source)
+                assertEquals(Cardboard.SOURCE_SBS, render(settings.copy(picture3d = GlassesSettings.PICTURE_SBS), state).source)
+            }
+        }
+    }
+
+    @Test fun virtualScreenTracksFlatContentIndependentlyOfTheHardwareSbsMode() {
+        val settings = GlassesSettings(picture3d = GlassesSettings.PICTURE_SCREEN)
+        assertTrue(settings.screen3dof)
+        assertFalse(settings.copy(headTracking = false).screen3dof)
+        for (height in listOf(1080, 1200)) {
+            for (sbs in listOf(false, true)) {
+                val projection = render(settings, ultra.copy(width = if (sbs) 3840 else 1920, height = height, sbs = sbs))
+                assertTrue(projection.enabled)
+                assertTrue(projection.headTracking)
+                assertEquals(Cardboard.SOURCE_SCREEN, projection.source)
+                assertEquals(!sbs, projection.mono)
+            }
+        }
+    }
+
+    @Test fun explicitPictureChoiceOverridesAutomaticResolutionOutsideSteamVr() {
         val virtual = GlassesSettings(picture3d = GlassesSettings.PICTURE_SCREEN)
         val direct = GlassesSettings(picture3d = GlassesSettings.PICTURE_SBS)
         for (stereo in listOf(false, true)) {
-            for (vr in listOf(false, true)) {
-                assertEquals(GlassesRendering.Picture.VIRTUAL_SCREEN, GlassesRendering.picture(virtual, stereo, vr))
-                assertEquals(GlassesRendering.Picture.STEREO, GlassesRendering.picture(direct, stereo, vr))
+            assertEquals(GlassesRendering.Picture.VIRTUAL_SCREEN, GlassesRendering.picture(virtual, stereo, false))
+            assertEquals(GlassesRendering.Picture.STEREO, GlassesRendering.picture(direct, stereo, false))
+        }
+    }
+
+    @Test fun steamVrSplitsTheEyePairRegardlessOfTheSavedFlatGamePicture() {
+        for (picture in listOf(GlassesSettings.PICTURE_AUTO, GlassesSettings.PICTURE_SCREEN, GlassesSettings.PICTURE_SBS)) {
+            val settings = GlassesSettings(picture3d = picture, auto3d = true)
+            for (stereo in listOf(false, true)) for (outputActive in listOf(false, true)) {
+                val state = ultra.copy(sbs = stereo, width = if (stereo) 3840 else 1920)
+                val projection = GlassesRendering.cardboard(base, settings, state, outputActive, true)
+                assertEquals(GlassesRendering.Picture.STEREO, GlassesRendering.picture(settings, stereo, true))
+                assertEquals(Cardboard.SOURCE_SBS, projection.source)
+                assertEquals(!stereo, projection.mono)
+                assertTrue(projection.enabled)
+                assertTrue(projection.headTracking)
             }
         }
+    }
+
+    @Test fun stoppingSteamVrRestoresTheSavedVirtualScreen() {
+        val settings = GlassesSettings(picture3d = GlassesSettings.PICTURE_SCREEN, auto3d = true,
+            screenWidthDm = 18, screenDistanceDm = 30)
+        val before = render(settings)
+        assertEquals(Cardboard.SOURCE_SCREEN, before.source)
+        assertEquals(Cardboard.SOURCE_SBS, render(settings, steamVr = true).source)
+        assertEquals(before, render(settings))
+        assertEquals(GlassesSettings.PICTURE_SCREEN, settings.picture3d)
     }
 
     @Test fun mirrorModeKeepsThePhoneProjectionInsteadOfApplyingDormantGlassesSettings() {

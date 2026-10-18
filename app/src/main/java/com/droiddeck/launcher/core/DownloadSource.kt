@@ -38,6 +38,7 @@ object DownloadSource {
     private val CATALOGS = listOf(
         "https://raw.githubusercontent.com/Droid-Deck/DroidDeck-CI/",
         "https://raw.githubusercontent.com/Droid-Deck/DroidDeck-Components/",
+        "https://raw.githubusercontent.com/Droid-Deck/Drivers-CI/",
     )
 
     data class Mirror(val host: String, val api: Boolean)

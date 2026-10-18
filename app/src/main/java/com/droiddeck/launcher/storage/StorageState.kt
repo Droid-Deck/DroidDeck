@@ -134,13 +134,15 @@ object StorageState {
         }, "storage-$name").start()
     }
 
-    fun clearShaders(context: Context, appId: Int) = act(context, "shaders-$appId", { _, fresh ->
-        val dir = fresh.games.firstOrNull { it.appId == appId }?.shaderDir ?: return@act false
+    // A game can be installed in both Steam clients, and an id can be left over in several libraries.
+    fun clearShaders(context: Context, appId: Int, x64: Boolean = false) = act(context, "shaders-$appId", { _, fresh ->
+        val dir = fresh.games.firstOrNull { it.appId == appId && it.x64 == x64 }?.shaderDir ?: return@act false
         FileOps.delete(dir)
     })
 
-    fun removeLeftover(context: Context, appId: Int) = act(context, "leftover-$appId", { _, fresh ->
-        val leftover = fresh.leftovers.firstOrNull { it.appId == appId } ?: return@act false
+    fun removeLeftover(context: Context, l: Leftover) = act(context, "leftover-${l.appId}", { _, fresh ->
+        val leftover = fresh.leftovers.firstOrNull { it.appId == l.appId && it.prefix?.path == l.prefix?.path && it.shaders?.path == l.shaders?.path }
+            ?: return@act false
         deleteLeftover(leftover)
         true
     })

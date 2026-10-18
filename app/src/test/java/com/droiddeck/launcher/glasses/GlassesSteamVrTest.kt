@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import com.droiddeck.launcher.SessionActivity
 import com.droiddeck.launcher.gpu.SteamVr
 import com.droiddeck.launcher.session.LoadingState
@@ -24,6 +25,7 @@ import org.robolectric.annotation.LooperMode
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
+import java.time.Duration
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], application = Application::class)
@@ -33,8 +35,10 @@ class GlassesSteamVrTest {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var restore: () -> Unit
     private fun field(name: String) = Glasses::class.java.getDeclaredField(name).apply { isAccessible = true }
+    private val spatialGate get() = field("steamVrSpatialGate").get(null) as SteamVrSpatialGate
 
     @Before fun prepare() {
+        spatialGate.cancel()
         val fields = listOf("handler", "app", "model").associateWith { field(it).get(null) }
         @Suppress("UNCHECKED_CAST")
         val flows = listOf("_state", "_settings").map { field(it).get(null) as MutableStateFlow<Any> }
@@ -64,6 +68,7 @@ class GlassesSteamVrTest {
 
     @After fun cleanUp() {
         handler.removeCallbacksAndMessages(null)
+        spatialGate.cancel()
         field("link").set(null, null)
         (field("modeState").get(null) as GlassesModeState).apply { manual(); sent(false, 0) }
         SessionState.steamVr = false
@@ -133,6 +138,7 @@ class GlassesSteamVrTest {
                 .apply { isAccessible = true }.invoke(activity, name)
             action("start")
             assertTrue("A manual start must keep status polling alive", SessionState.steamVr)
+            shadowOf(Looper.getMainLooper()).idle()
             val worker = SessionActivity::class.java.getDeclaredField("steamVrWorker")
                 .apply { isAccessible = true }.get(null) as ThreadPoolExecutor
             assertEquals(1, worker.queue.size)
@@ -144,6 +150,90 @@ class GlassesSteamVrTest {
             action("stop")
             assertFalse(SessionState.steamVr)
         }
+    }
+
+    @Test fun preparationCallbackRunsAfterSuspensionAndCancelWorksBeforeRunning() {
+        @Suppress("UNCHECKED_CAST")
+        val settings = field("_settings").get(null) as MutableStateFlow<GlassesSettings>
+        settings.value = GlassesSettings(positionalTracking = true, handControllers = true)
+        val saved = settings.value
+        var prepared = 0
+        repeat(2) {
+            Glasses.prepareSteamVrStart {
+                assertFalse(spatialGate.spatialEnabled(true, SystemClock.uptimeMillis()))
+                prepared++
+            }
+        }
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(2, prepared)
+        Glasses.setVrActive(false)
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(3))
+        assertFalse(spatialGate.spatialEnabled(true, SystemClock.uptimeMillis()))
+        Glasses.cancelSteamVrStart()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(spatialGate.spatialEnabled(true, SystemClock.uptimeMillis()))
+        assertEquals(saved, settings.value)
+    }
+
+    @Test fun rapidRestartDoesNotLaunchTheCancelledPreparedRequest() = withLaunch(auto3d = false) { activity ->
+        SessionState.steamVr = false
+        val action = SessionActivity::class.java.getDeclaredMethod("steamVrAction", String::class.java)
+            .apply { isAccessible = true }
+        action.invoke(activity, "start")
+        action.invoke(activity, "stop")
+        action.invoke(activity, "start")
+        shadowOf(Looper.getMainLooper()).idle()
+        val worker = SessionActivity::class.java.getDeclaredField("steamVrWorker")
+            .apply { isAccessible = true }.get(null) as ThreadPoolExecutor
+        assertTrue(SessionState.steamVr)
+        assertEquals("Only stop and the latest start should reach the worker", 2, worker.queue.size)
+    }
+
+    @Test fun duplicateRunningKeepsDeadlineAndStoppingCancelsThePendingResume() {
+        Glasses.prepareSteamVrStart()
+        Glasses.setVrActive(true)
+        shadowOf(Looper.getMainLooper()).idle()
+        val deadline = spatialGate.deadline!!
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(1_999))
+        var prepared = false
+        Glasses.prepareSteamVrStart { prepared = true }
+        Glasses.setVrActive(true)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(prepared)
+        assertEquals(deadline, spatialGate.deadline)
+        assertFalse(spatialGate.spatialEnabled(true, SystemClock.uptimeMillis()))
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(1))
+        assertTrue(spatialGate.spatialEnabled(true, SystemClock.uptimeMillis()))
+        Glasses.setVrActive(false)
+        Glasses.prepareSteamVrStart()
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(3))
+        assertFalse(spatialGate.spatialEnabled(true, SystemClock.uptimeMillis()))
+        assertNull(spatialGate.deadline)
+    }
+
+    @Test fun restartWhileDisplayStillReportsRunningGetsANewTrackingDeadline() {
+        Glasses.setVrActive(true)
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(3))
+        assertTrue(spatialGate.spatialEnabled(true, SystemClock.uptimeMillis()))
+        Glasses.cancelSteamVrStart()
+        Glasses.prepareSteamVrStart()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(Glasses.state.value.vrActive)
+        assertFalse(spatialGate.spatialEnabled(true, SystemClock.uptimeMillis()))
+        Glasses.setVrActive(true)
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(1_999))
+        assertFalse(spatialGate.spatialEnabled(true, SystemClock.uptimeMillis()))
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(1))
+        assertTrue(spatialGate.spatialEnabled(true, SystemClock.uptimeMillis()))
+    }
+
+    @Test fun endedSessionIgnoresLateRunningStatus() = withLaunch(auto3d = true) { activity ->
+        SessionActivity::class.java.getDeclaredField("ended").apply { isAccessible = true }.set(activity, true)
+        status(activity, SteamVr.Status.RUNNING)
+        assertFalse(Glasses.state.value.vrActive)
+        assertNull(spatialGate.deadline)
+        assertTrue(spatialGate.spatialEnabled(true, SystemClock.uptimeMillis()))
+        assertTrue(commands.isEmpty())
     }
 
     private fun status(activity: SessionActivity, status: SteamVr.Status) {

@@ -23,6 +23,24 @@ quest_settings() {
         "$HOME/.local/share/Steam/config/steamvr.vrsettings" "$backup"
 }
 
+configure_graphics() {
+    case "$(cat /sys/class/kgsl/kgsl-3d0/gpu_model 2>/dev/null)" in
+        Adreno840*)
+            # The session's forced sysmem mode loses the Vulkan device in SteamVR.
+            export TU_DEBUG="$(
+                IFS=', '
+                set -f
+                separator=
+                for flag in ${TU_DEBUG:-}; do
+                    case "$flag" in ''|sysmem) continue ;; esac
+                    printf '%s%s' "$separator" "$flag"
+                    separator=,
+                done
+            )"
+            ;;
+    esac
+}
+
 stop() {
     rm -f "$state/active"
     for n in vrcompositor vrserver vrmonitor vrdashboard vrstartup vrwebhelper; do
@@ -176,6 +194,8 @@ JSON
     export VK_LAYER_PATH="$layer${VK_LAYER_PATH:+:$VK_LAYER_PATH}"
     export VK_INSTANCE_LAYERS="VK_LAYER_DROIDDECK_vr${VK_INSTANCE_LAYERS:+:$VK_INSTANCE_LAYERS}"
     export VK_LOADER_LAYERS_DISABLE="${VK_LOADER_LAYERS_DISABLE:-~implicit~}"
+    configure_graphics
+    export LD_PRELOAD="$layer/libdroiddeck_vr_scheduling.so${LD_PRELOAD:+:$LD_PRELOAD}"
     if [ "${DROIDDECK_VR_PRESENT:-}" = questwsi ]; then
         quest_settings apply || exit 1
         startup_handed_off=0

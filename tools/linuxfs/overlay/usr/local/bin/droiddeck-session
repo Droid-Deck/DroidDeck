@@ -33,9 +33,9 @@ prepare_locale() {
 
 clear_stale_tmp() {
   local running names=() n
-  running=$(pgrep -af 'steamwebhelper|steamrtarm64/steam|--type=|droiddeck-appimage-run|dbus-run-session|dbus-daemon.*--session|dbus-launch|kwin|plasmashell' 2>/dev/null)
+  running=$(pgrep -af 'steamwebhelper|steamrtarm64/steam|steamrt64/steam|--type=|droiddeck-appimage-run|dbus-run-session|dbus-daemon.*--session|dbus-launch|kwin|plasmashell' 2>/dev/null)
   case $running in
-    *steamwebhelper* | *steamrtarm64/steam*) ;;
+    *steamwebhelper* | *steamrtarm64/steam* | *steamrt64/steam*) ;;
     *) names+=(-o -name 'mangohud.????????' -o -name '.com.valvesoftware.Steam.??????'
                -o -name 'steam_chrome_shmem_uid*' -o \( -type d -empty -name 'steam??????' \)) ;;
   esac
@@ -79,10 +79,11 @@ run_gamescope() (
 collect_steam_logs() {
   [ -n "${BL_DEBUG_DIR:-}" ] || return 0
   local steam_root=${XDG_DATA_HOME:-$HOME/.local/share}/Steam
+  [ "${steam_x64:-0}" = 1 ] && steam_root=${BL_X64_HOME:-$HOME/.droiddeck-x64}/.local/share/Steam
   mkdir -p "$BL_DEBUG_DIR/steam" 2>/dev/null || return 0
   [ -d "$steam_root/logs" ] && find "$steam_root/logs" -maxdepth 1 -type f -size -8192k \
     -exec cp {} "$BL_DEBUG_DIR/steam/" \; 2>/dev/null
-  [ -f "$HOME/.steam/steam/logs/steamwebhelper.log" ] && cp "$HOME/.steam/steam/logs/steamwebhelper.log" "$BL_DEBUG_DIR/steam/" 2>/dev/null
+  [ "${steam_x64:-0}" = 0 ] && [ -f "$HOME/.steam/steam/logs/steamwebhelper.log" ] && cp "$HOME/.steam/steam/logs/steamwebhelper.log" "$BL_DEBUG_DIR/steam/" 2>/dev/null
   local sync_store=$HOME/.local/share/droiddeck-esync sync_file
   if [ -d "$sync_store" ] && mkdir -p "$BL_DEBUG_DIR/droiddeck-esync" 2>/dev/null; then
     for sync_file in launches.log tools.tsv wanted.tsv prefixes.json; do
@@ -344,17 +345,52 @@ case $mode in
     esac
     ;;
   steam)
-    step "checking the Steam client (first run downloads it, ~1-2 min with nothing on screen)"
-    droiddeck-steam-install || exit $?
-    step "Steam client ready"
-    steam_root=$XDG_DATA_HOME/Steam
+    steam_x64=0
+    [ "${BL_STEAM_CLIENT_ARCH:-}" = x86_64 ] && steam_x64=1
+    steam_cef_gpu=1
+    if [ "$steam_x64" = 1 ]; then
+      step "checking the Steam client's arm64 parts (first run downloads them, ~1-2 min)"
+      # droiddeck-steam-install removes the repair request: read it first so Repair Steam covers both clients.
+      _bl_x64_repair=0
+      [ -e "$HOME/.bl-steam-repair" ] && _bl_x64_repair=1
+      droiddeck-steam-install || exit $?
+      droiddeck-steam-install --sync steamdeck_publicbeta || step "could not update the arm64 client's parts; the x86-64 client keeps its own web helper"
+      step "checking the x86-64 Steam client (FEX, experimental; the first run downloads ~2 GB)"
+      BL_X64_REPAIR=$_bl_x64_repair droiddeck-steam-x64 --prepare || exit $?
+      step "x86-64 Steam client ready"
+      steam_root=${BL_X64_HOME:-$HOME/.droiddeck-x64}/.local/share/Steam
+      steam_client=(droiddeck-steam-x64 --exec)
+      if [ "${BL_X64_X86_WEBHELPER:-0}" = 1 ] &&
+         ! droiddeck-steam-x64 --webhelper-gpu; then
+        steam_cef_gpu=0
+      fi
+    else
+      step "checking the Steam client (first run downloads it, ~1-2 min with nothing on screen)"
+      droiddeck-steam-install || exit $?
+      step "Steam client ready"
+      steam_root=$XDG_DATA_HOME/Steam
+      if [ -f "${BL_X64_HOME:-$HOME/.droiddeck-x64}/.local/share/Steam/local.vdf" ]; then
+        droiddeck-steam-x64 --sync-login || true
+      fi
+      steam_client=("$steam_root/steamrtarm64/steam")
+    fi
+    _bl_proton_root=$steam_root
+    if [ "$steam_x64" = 1 ]; then
+      _bl_proton_root=$XDG_DATA_HOME/Steam
+      if ! ls -d "$_bl_proton_root"/compatibilitytools.d/GE-Proton*-aarch64 >/dev/null 2>&1 &&
+         ! grep -q '^ge' "$HOME/.bl-proton-extra" 2>/dev/null; then
+        echo ge >> "$HOME/.bl-proton-extra"
+      fi
+    fi
     if [ -s "$HOME/.bl-proton-extra" ]; then
       _bl_left=$HOME/.bl-proton-extra.left
       : > "$_bl_left"
+      _bl_got_proton=0
       while read -r _bl_extra || [ -n "$_bl_extra" ]; do
         case ${_bl_extra# } in ""|"#"*) continue ;; esac
         step "installing Proton '$_bl_extra' (large download, several minutes)"
-        if droiddeck-proton-extra "$steam_root" $_bl_extra; then
+        if droiddeck-proton-extra "$_bl_proton_root" $_bl_extra; then
+          _bl_got_proton=1
           step "installed Proton '$_bl_extra'"
         else
           step "Proton '$_bl_extra' failed; will retry next session"
@@ -362,6 +398,9 @@ case $mode in
         fi
       done < "$HOME/.bl-proton-extra"
       mv -f "$_bl_left" "$HOME/.bl-proton-extra"
+      if [ "$steam_x64" = 1 ] && [ "$_bl_got_proton" = 1 ]; then
+        droiddeck-steam-x64 --prepare || true
+      fi
     fi
     if [ -s "$HOME/.bl-steam-urls" ]; then
       while read -r _bl_url || [ -n "$_bl_url" ]; do
@@ -381,7 +420,9 @@ case $mode in
         bl_zram_scan() {
           _bl_game=0 _bl_pids=()
           for _d in /proc/[0-9]*; do
-            IFS= read -r -d '' _c 2>/dev/null < "$_d/cmdline" || continue
+            # Under FEX the program is FEX's first argument.
+            { IFS= read -r -d '' _c && case ${_c##*/} in FEX|FEXInterpreter) IFS= read -r -d '' _c ;; esac; } \
+              2>/dev/null < "$_d/cmdline" || continue
             case ${_c##*/} in
               reaper) _bl_game=1 ;;
               steam|steamwebhelper) _bl_pids+=("${_d#/proc/}") ;;
@@ -430,6 +471,7 @@ case $mode in
       /usr/local/bin/droiddeck-launcher-cores "$BL_LAUNCH_DIR/agent/focus.json" 2>&1 &
     fi
 
+    if [ "$steam_x64" = 0 ]; then
     step "registering the app's game library with Steam"
     droiddeck-steam-library "$steam_root" || true
     step "setting up the ARM64 Proton compatibility tool"
@@ -442,7 +484,22 @@ case $mode in
       droiddeck-steam-shortcuts "$steam_root" "$BL_ADDED_GAMES" || true
     fi
     droiddeck-seed-redists "$steam_root" || true
-    if [ ! -f "$steam_root/steamapps/appmanifest_4427310.acf" ]; then
+    else
+    _bl_x64_tool=$(droiddeck-steam-x64 --default-tool)
+    if [ -n "$_bl_x64_tool" ]; then
+      if [ -n "${BL_ADDED_GAMES:-}" ]; then
+        step "adding the app's own games to the x86-64 client's library"
+        BL_COMPAT_TOOL=$_bl_x64_tool droiddeck-steam-shortcuts "$steam_root" "$BL_ADDED_GAMES" || true
+      fi
+      step "pointing the x86-64 client's Windows titles at $_bl_x64_tool"
+      BL_COMPAT_TOOL=$_bl_x64_tool steam-compatibility "$steam_root" --x64 || true
+    fi
+    if [ -z "${BL_DESKTOP:-}" ] && [ "${BL_STEAM_UI:-}" != desktop ]; then
+      droiddeck-steam-ui-scale "$steam_root" "${BL_WIDTH:-1280}" "${BL_HEIGHT:-720}" || true
+    fi
+    droiddeck-seed-redists "$steam_root" || true
+    fi
+    if [ "$steam_x64" = 0 ] && [ ! -f "$steam_root/steamapps/appmanifest_4427310.acf" ]; then
       step "asking the client to fetch the ARM64 Proton"
       set -- "$@" steam://install/4427310
       (
@@ -454,7 +511,7 @@ case $mode in
             steam-compatibility "$steam_root" >/dev/null 2>&1 || true
             step "compatibility layer installed: restarting the Steam client once"
             : > "$HOME/.bl-restart-once"
-            "$steam_root/steamrtarm64/steam" -shutdown >/dev/null 2>&1 || true
+            "${steam_client[@]}" -shutdown >/dev/null 2>&1 || true
             exit 0
           fi
         done
@@ -478,7 +535,7 @@ case $mode in
                 sleep 10
                 [ -f "$_bl_acf" ] && exit 0
                 step "signed in: asking the client again for the ARM64 Proton (try $_bl_try of 3)"
-                "$steam_root/steamrtarm64/steam" steam://install/4427310 >/dev/null 2>&1 || true
+                "${steam_client[@]}" steam://install/4427310 >/dev/null 2>&1 || true
                 sleep 50
               done
               exit 0
@@ -712,23 +769,26 @@ BUSCONF
       echo "== steam: devtools port $BL_CDP_PORT, guest processes only"
     fi
     [ -n "${BL_LAUNCH_DIR:-}" ] && mkdir -p "$BL_LAUNCH_DIR/agent" && echo "$BL_CDP_PORT" > "$BL_LAUNCH_DIR/agent/cdp-port"
-    "${_bl_compat_env[@]}" droiddeck-steam-compat "$steam_root" 2>&1 &
+    [ "$steam_x64" = 1 ] || "${_bl_compat_env[@]}" droiddeck-steam-compat "$steam_root" 2>&1 &
     _bl_ui=(-gamepadui)
     [ "${BL_STEAM_UI:-}" = desktop ] && _bl_ui=()
     _bl_cef=(-cef-force-gpu -cef-use-gl=angle -cef-use-angle=vulkan)
+    [ "${steam_cef_gpu:-1}" = 1 ] || _bl_cef=(-cef-disable-gpu)
     if [ "${BL_DESKTOP:-}" = 1 ] && [ "${BL_STEAM_UI:-}" = desktop ]; then
       _bl_cef=(-cef-disable-gpu)
       _bl_ui=(-nobigpicture)
     fi
     if [ "${BL_STEAM_UI:-}" != desktop ]; then
-      _bl_ui+=(-steamdeck -steamos3)
-      export STEAM_GAMESCOPE_NIS_SUPPORTED=1
-      export STEAM_GAMESCOPE_FANCY_SCALING_SUPPORT=1
-      echo "== steam: Deck mode on (-steamdeck -steamos3)"
+      if [ "$steam_x64" = 0 ] || [ "${BL_X64_DECK:-1}" != 0 ]; then
+        _bl_ui+=(-steamdeck -steamos3)
+        export STEAM_GAMESCOPE_NIS_SUPPORTED=1
+        export STEAM_GAMESCOPE_FANCY_SCALING_SUPPORT=1
+        echo "== steam: Deck mode on (-steamdeck -steamos3)"
+      fi
     fi
     export STEAMOS_STEAM_SHUTDOWN_SENTINEL="$HOME/.bl-steam-shutdown"
     export STEAMOS_STEAM_REBOOT_SENTINEL="$HOME/.bl-steam-reboot"
-    if ! pgrep -f 'steamwebhelper|steamrtarm64/steam' >/dev/null 2>&1; then
+    if ! pgrep -f 'steamwebhelper|steamrtarm64/steam|steamrt64/steam' >/dev/null 2>&1; then
       _stale=""
       for _f in "$steam_root/.crash" "$steam_root/steam.pid" \
                 "$steam_root/config/htmlcache/SingletonLock" "$steam_root/config/htmlcache/SingletonCookie" \
@@ -743,10 +803,16 @@ BUSCONF
     [ -n "${BL_STEAM_LANGUAGE:-}" ] && _bl_lang=(-language "$BL_STEAM_LANGUAGE")
     steam_beta=$steam_root/package/beta
     if [ -n "${BL_ADDED_GAMES:-}" ] && [ -f "$BL_ADDED_GAMES" ]; then
-      droiddeck-steam-games watch "$steam_root" "$BL_ADDED_GAMES" &
+      if [ "$steam_x64" = 0 ]; then
+        droiddeck-steam-games watch "$steam_root" "$BL_ADDED_GAMES" &
+      else
+        BL_STEAMCLIENT=$XDG_DATA_HOME/Steam/steamrtarm64/steamclient.so \
+          BL_STEAM_SHUTDOWN="droiddeck-steam-x64 --exec -shutdown" \
+          droiddeck-steam-games watch "$steam_root" "$BL_ADDED_GAMES" &
+      fi
       games_watcher=$!
     fi
-    echo "== steam args: ${_bl_ui[*]} ${_bl_cdp[*]} ${_bl_lang[*]} -clientbeta $steam_channel -no-cef-sandbox -cef-ozone-platform=x11 ${_bl_cef[*]} $*"
+    echo "== steam args: ${_bl_ui[*]} ${_bl_cdp[*]} ${_bl_lang[*]} -clientbeta $steam_channel -no-cef-sandbox -cef-ozone-platform=x11 ${_bl_cef[*]} $*$([ "$steam_x64" = 1 ] && echo ' (x86-64 client under FEX)')"
     steam_updates=0
     rm -f "$HOME/.bl-stop-requested" "$STEAMOS_STEAM_SHUTDOWN_SENTINEL" "$STEAMOS_STEAM_REBOOT_SENTINEL"
     steam_other_game_running() {
@@ -768,7 +834,7 @@ BUSCONF
       printf '%s\n' "$1" > "$HOME/.bl-restarted-for"
       echo "== steam: $2; restarting Steam to launch it"
       printf '%s\n' "$1" > "$HOME/.bl-restart-game"
-      "$steam_root/steamrtarm64/steam" -shutdown >/dev/null 2>&1
+      "${steam_client[@]:-$steam_root/steamrtarm64/steam}" -shutdown >/dev/null 2>&1
     }
     steam_launch_game() {
       local state=0 tries
@@ -781,7 +847,7 @@ BUSCONF
           return
         fi
       fi
-      "$steam_root/steamrtarm64/steam" "steam://rungameid/$1" >/dev/null 2>&1
+      "${steam_client[@]:-$steam_root/steamrtarm64/steam}" "steam://rungameid/$1" >/dev/null 2>&1
       [ "$state" -eq 3 ] && return
       for tries in 1 2 3 4 5 6 7 8; do
         nap 1
@@ -822,7 +888,7 @@ BUSCONF
       pgrep -f 'SteamLaunch AppId=[0-9]' >/dev/null 2>&1 && return 0
       echo "== steam: the client dropped shortcut(s)$lost when they exited; restarting Steam so it lists them again"
       : > "$HOME/.bl-restart-lost"
-      "$steam_root/steamrtarm64/steam" -shutdown >/dev/null 2>&1
+      "${steam_client[@]:-$steam_root/steamrtarm64/steam}" -shutdown >/dev/null 2>&1
     }
     steam_bring_forward() {
       local end=$((SECONDS + 600)) behind=0 line name value focused other n
@@ -895,13 +961,34 @@ BUSCONF
         done
         return 1
       }
+      compat_pending=$HOME/.bl-compat-pending
+      compat_restarted=$HOME/.bl-compat-restarted
+      rm -f "$compat_pending"
+      : > "$compat_restarted"
+      compat_restarts=0
+      compat_settled() {
+        local app m flags r card=/mnt/droiddeck-sd
+        # The arm64 card library may hold that client's copy of the same title.
+        [ "$steam_x64" = 1 ] && card=/mnt/droiddeck-sd/x86-64
+        while read -r app; do
+          [ -n "$app" ] || continue
+          m=
+          for r in "$steam_root" "$card"; do
+            [ -f "$r/steamapps/appmanifest_$app.acf" ] && { m=$r/steamapps/appmanifest_$app.acf; break; }
+          done
+          [ -n "$m" ] || return 1
+          flags=$(sed -n 's/^[[:space:]]*"StateFlags"[[:space:]]*"\([0-9]*\)".*/\1/p' "$m" | head -n 1)
+          [ "$flags" = 4 ] || return 1
+        done < "$compat_pending"
+        ! pgrep -f 'reaper SteamLaunch' >/dev/null 2>&1
+      }
       while :; do
         if [ -n "$requests" ]; then
           if [ -e "$BL_LAUNCH_DIR/steam-stop" ]; then
             rm -f "$BL_LAUNCH_DIR/steam-stop"
             : > "$HOME/.bl-stop-requested"
             echo "== steam: the app asked for a clean exit"
-            "$steam_root/steamrtarm64/steam" -shutdown >/dev/null 2>&1 || true
+            "${steam_client[@]}" -shutdown >/dev/null 2>&1 || true
             exit 0
           fi
           if [ -f "$BL_LAUNCH_DIR/steam-uninstall" ]; then
@@ -911,7 +998,7 @@ BUSCONF
               ''|0*|*[!0-9]*|???????????*) echo "== steam: ignored invalid uninstall request" ;;
               *)
                 echo "== steam: opening the uninstall dialog for $uninstall_id"
-                "$steam_root/steamrtarm64/steam" "steam://uninstall/$uninstall_id" >/dev/null 2>&1 &
+                "${steam_client[@]}" "steam://uninstall/$uninstall_id" >/dev/null 2>&1 &
                 ;;
             esac
           fi
@@ -944,8 +1031,9 @@ BUSCONF
         steam_check_exits
         if [ "$beat" -le 720 ] && [ -n "${BL_CLIENT_CPUS:-}" ]; then
           for _d in /proc/[0-9]*; do
-            IFS= read -r -d '' _c < "$_d/cmdline" 2>/dev/null || continue
-            case $_c in *steamwebhelper*|*steamrtarm64/steam|*gamescope*) ;; *) continue ;; esac
+            { IFS= read -r -d '' _c && { IFS= read -r -d '' _c1 || _c1=; }; } < "$_d/cmdline" 2>/dev/null || continue
+            case $_c in FEX|*/FEX|FEXInterpreter|*/FEXInterpreter) _c=$_c1 ;; esac
+            case $_c in *steamwebhelper*|*steamrtarm64/steam|*steamrt64/steam|*gamescope*) ;; *) continue ;; esac
             _t=("$_d"/task/*)
             _p=${_d#/proc/}
             [ "${_bl_pinned[$_p]:-}" = "${#_t[@]}" ] && client_single_core_matches "$BL_CLIENT_CPUS" "${_t[@]}" && continue
@@ -963,9 +1051,32 @@ BUSCONF
             [ -n "$compat" ] && : > "$compat_stamp"
             (
               [ -z "$seed" ] || droiddeck-seed-redists "$steam_root" >/dev/null 2>&1 || true
-              [ -z "$compat" ] || steam-compatibility "$steam_root" >/dev/null 2>&1 || true
+              if [ -n "$compat" ]; then
+                if [ "$steam_x64" = 1 ]; then
+                  [ -z "${_bl_x64_tool:-}" ] ||
+                    BL_COMPAT_TOOL=$_bl_x64_tool steam-compatibility "$steam_root" --x64 --live >/dev/null 2>&1 || true
+                  droiddeck-steam-x64 --map-direct --live >/dev/null 2>&1 || true
+                else
+                  steam-compatibility "$steam_root" >/dev/null 2>&1 || true
+                fi
+              fi
             ) &
             library_job=$!
+          fi
+        fi
+        if [ "$((beat % 3))" -eq 0 ] && [ -s "$compat_pending" ] && [ "$compat_restarts" -lt 3 ] && compat_settled; then
+          _bl_new=$(sort -u "$compat_pending" | grep -vxF -f "$compat_restarted" || true)
+          rm -f "$compat_pending"
+          if [ -n "$_bl_new" ]; then
+            compat_restarts=$((compat_restarts + 1))
+            printf '%s\n' $_bl_new >> "$compat_restarted"
+            if [ "$steam_x64" = 1 ]; then
+              step "newly installed title(s) $(echo $_bl_new) set to an ARM64 Proton (Windows builds) or DroidDeck direct (Linux builds): restarting the Steam client once so it takes effect"
+            else
+              step "newly installed title(s) $(echo $_bl_new) set to the ARM64 Proton: restarting the Steam client once so it takes effect"
+            fi
+            : > "$HOME/.bl-restart-once"
+            "${steam_client[@]}" -shutdown >/dev/null 2>&1 || true
           fi
         fi
         if [ "$lossless_left" -gt 0 ] && [ "$((beat % 6))" -eq 0 ] && { [ -z "$lossless_job" ] || ! kill -0 "$lossless_job" 2>/dev/null; }; then
@@ -974,6 +1085,8 @@ BUSCONF
             lossless_left=0
           elif ! pgrep -x wineserver >/dev/null 2>&1; then
             (
+              # The probe reaches the x86-64 client through the arm64 client's steamclient.so, as the import watcher does.
+              if [ "$steam_x64" = 1 ]; then export BL_STEAMCLIENT=$XDG_DATA_HOME/Steam/steamrtarm64/steamclient.so; fi
               answer=$(droiddeck-steam-games probe "$steam_root" 993090 2>/dev/null) || exit 0
               case $answer in
                 *'"993090": true'*) mkdir -p "${lossless_owned%/*}" && : > "$lossless_owned" && echo "== Lossless Scaling: owned" ;;
@@ -999,7 +1112,11 @@ BUSCONF
         _bl_counted=1
       fi
       if [ -n "${BL_STEAM_LANGUAGE:-}" ]; then
-        droiddeck-steam-language "$HOME" "$BL_STEAM_LANGUAGE" || true
+        if [ "$steam_x64" = 1 ]; then
+          droiddeck-steam-language "${BL_X64_HOME:-$HOME/.droiddeck-x64}" "$BL_STEAM_LANGUAGE" || true
+        else
+          droiddeck-steam-language "$HOME" "$BL_STEAM_LANGUAGE" || true
+        fi
       fi
       step "starting the Steam client${BL_STEAM_UI:+ ($BL_STEAM_UI UI)}"
       desktop_ui_pid=
@@ -1008,7 +1125,7 @@ BUSCONF
         desktop_ui_pid=$!
       fi
       steam_started=$SECONDS
-      "$steam_root/steamrtarm64/steam" "${_bl_ui[@]}" "${_bl_cdp[@]}" "${_bl_lang[@]}" -clientbeta "$steam_channel" \
+      "${steam_client[@]}" "${_bl_ui[@]}" "${_bl_cdp[@]}" "${_bl_lang[@]}" -clientbeta "$steam_channel" \
         -no-cef-sandbox -cef-ozone-platform=x11 "${_bl_cef[@]}" "$@"
       rc=$?
       steam_ran=$((SECONDS - steam_started))
@@ -1017,12 +1134,22 @@ BUSCONF
         wait "$desktop_ui_pid" 2>/dev/null || true
       fi
       echo "== steam exited rc=$rc"
-      if [ -n "${BL_ADDED_GAMES:-}" ] && [ -f "$BL_ADDED_GAMES" ]; then
-        droiddeck-steam-shortcuts "$steam_root" "$BL_ADDED_GAMES" || true
-      fi
       collect_steam_logs
       if [ -f "$HOME/.config/droiddeck/fex-wanted" ] && [ -x /usr/local/bin/droiddeck-fex ]; then
         /usr/local/bin/droiddeck-fex status >/dev/null 2>&1 || true
+      fi
+      if [ -n "${BL_ADDED_GAMES:-}" ] && [ -f "$BL_ADDED_GAMES" ]; then
+        if [ "$steam_x64" = 0 ]; then
+          droiddeck-steam-shortcuts "$steam_root" "$BL_ADDED_GAMES" || true
+        elif [ -n "${_bl_x64_tool:-}" ]; then
+          BL_COMPAT_TOOL=$_bl_x64_tool droiddeck-steam-shortcuts "$steam_root" "$BL_ADDED_GAMES" || true
+        fi
+      fi
+      # The x86-64 client rewrote config.vdf from memory on exit, over the live passes' mapping.
+      if [ "$steam_x64" = 1 ]; then
+        [ -z "${_bl_x64_tool:-}" ] ||
+          BL_COMPAT_TOOL=$_bl_x64_tool steam-compatibility "$steam_root" --x64 >/dev/null 2>&1 || true
+        droiddeck-steam-x64 --map-direct || true
       fi
       if [ -f "$HOME/.bl-stop-requested" ]; then
         rm -f "$HOME/.bl-stop-requested" "$HOME/.bl-restart-once"

@@ -276,6 +276,9 @@ public final class WaylandCompositor {
                                                  float lensInset, float chroma, boolean mono, float displayHz);
 
     public static native void nativeSetCardboardPose(float[] rotation, boolean live);
+    public static native void nativeSetCardboardSpatialPose(float[] rotation, float[] position, boolean live);
+    public static native boolean nativeSetSpatialFile(String path);
+    public static native void nativePublishSpatial(java.nio.ByteBuffer snapshot);
 
     public static native void nativeSetCardboardPoseFile(String path);
 

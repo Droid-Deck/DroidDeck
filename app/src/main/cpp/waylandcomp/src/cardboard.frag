@@ -24,14 +24,21 @@ vec3 eyeSample(vec2 tan, float eye) {
     if (pc.view.z > 0.5) {
         float tanH = pc.lens.z;
         vec2 s = vec2(tan.x / (tanH * pc.view.w), tan.y / tanH) * 0.5 + 0.5;
+        if (pc.view.z > 1.5) {
+            vec2 fit = max(vec2(pc.view.w / pc.view.y, pc.view.y / pc.view.w), vec2(1.0));
+            s = (s - 0.5) * fit + 0.5;
+            if (any(lessThan(s, vec2(0.0))) || any(greaterThan(s, vec2(1.0)))) return vec3(0.0);
+            return texture(Source, s).rgb;
+        }
         if (any(lessThan(s, vec2(0.0))) || any(greaterThan(s, vec2(1.0)))) return vec3(0.0);
         return texture(Source, vec2((s.x + eye) * 0.5, s.y)).rgb;
     }
     mat3 R = transpose(mat3(pc.rot0.xyz, pc.rot1.xyz, pc.rot2.xyz));
     vec3 d = R * normalize(vec3(tan.x, -tan.y, -1.0));
-    vec3 o = R * vec3((eye < 0.5 ? -1.0 : 1.0) * pc.rot0.w, 0.0, 0.0);
+    vec3 o = pc.extra.yzw + R * vec3((eye < 0.5 ? -1.0 : 1.0) * pc.rot0.w, 0.0, 0.0);
     if (d.z > -1e-4) return BACKDROP;
     float t = (-pc.rot1.w - o.z) / d.z;
+    if (t <= 0.0) return BACKDROP;
     vec3 hit = o + d * t;
     float halfW = pc.rot2.w, halfH = halfW / pc.view.y;
     vec2 s = vec2(hit.x / halfW, -hit.y / halfH) * 0.5 + 0.5;

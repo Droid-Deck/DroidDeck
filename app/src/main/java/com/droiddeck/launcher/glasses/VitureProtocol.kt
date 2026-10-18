@@ -48,11 +48,21 @@ object VitureProtocol {
             Family.BEAST -> 58f
         }
 
-        override fun mode(hz: Int, sbs: Boolean): Int = when {
-            tall && sbs -> if (hz >= 90 && sbs90) 0x45 else 0x42
-            tall -> when { hz >= 120 -> 0x44; hz >= 90 -> 0x43; else -> 0x41 }
-            sbs -> if (hz >= 90 && sbs90) 0x35 else 0x32
-            else -> when { hz >= 120 -> 0x34; hz >= 90 -> 0x33; else -> 0x31 }
+        override val resolutions: List<GlassesResolution> get() = buildList {
+            add(GlassesResolution(1920, 1080))
+            if (tall) add(GlassesResolution(1920, 1200))
+        }
+
+        override fun mode(hz: Int, sbs: Boolean): Int = mode(hz, sbs, null)
+
+        override fun mode(hz: Int, sbs: Boolean, resolution: GlassesResolution?): Int {
+            val useTall = tall && (resolution == null || resolution !in resolutions || resolution.height == 1200)
+            return when {
+                useTall && sbs -> if (hz >= 90 && sbs90) 0x45 else 0x42
+                useTall -> when { hz >= 120 -> 0x44; hz >= 90 -> 0x43; else -> 0x41 }
+                sbs -> if (hz >= 90 && sbs90) 0x35 else 0x32
+                else -> when { hz >= 120 -> 0x34; hz >= 90 -> 0x33; else -> 0x31 }
+            }
         }
 
         override fun modeForStep(step: Int): Int? = if (tall) null else when (step) {
