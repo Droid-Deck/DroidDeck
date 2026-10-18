@@ -103,7 +103,8 @@ object BootMovie {
         val ok = runCatching {
             when {
                 volume == 0 -> remux(source, staged, audio = false, limitUs) || transcodeSilent(source, staged, limitUs)
-                volume == 100 -> remux(source, staged, audio = true, limitUs)
+                volume == 100 -> remux(source, staged, audio = true, limitUs) ||
+                    (BootMovieTranscoder.transcode(source, staged, limitUs = limitUs) {} != null)
                 // A volume that cannot be applied is never played louder than asked: the movie goes without sound instead.
                 else -> BootMovieTranscoder.regain(source, staged, volume / 100f, limitUs) || remux(source, staged, audio = false, limitUs) ||
                     transcodeSilent(source, staged, limitUs)
