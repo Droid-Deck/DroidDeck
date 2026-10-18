@@ -1882,7 +1882,7 @@ class MainActivity : ComponentActivity() {
         val listX64 = SessionPrefs.activeSteamClientArch(this) == "x86_64"
         if (listX64 != steamGamesX64) {
             steamGamesX64 = listX64
-            steamGames = steamGames.filterNot(Library::fromSteamClient)
+            steamGames = steamGames.filterNot { Library.fromSteamClient(it) || (it.library == Library.ADDED && it.gameId in 1..0xFFFFFFFFL) }
         }
         if (!busy && LinuxRuntimeInstaller.isBusy()) followRuntimeOperation { LinuxRuntimeInstaller.attach(it) }
         if (showComponents) drivers.refreshDrivers()
@@ -1916,12 +1916,13 @@ class MainActivity : ComponentActivity() {
             ui.post { if (scanGeneration == libraryScanGeneration) emulatorList = emus }
             if (ready) {
                 val quick = runCatching { Library.steamGames(this) }.getOrNull()
+                val claimed = quick?.let { runCatching { Library.claimedFolders(it) }.getOrDefault(emptySet()) }.orEmpty()
                 if (quick != null) ui.post {
                     if (scanGeneration == libraryScanGeneration && steamGames.isNotEmpty()) {
                         val before = steamGames.map { it.gameId }.toSet()
                         val fresh = quick.filter { it.gameId !in before }
                         if (fresh.isNotEmpty()) {
-                            steamGames = (quick + steamGames.filter { it.library == Library.ADDED }).distinctBy { it.gameId }
+                            steamGames = (quick + steamGames.filter { it.library == Library.ADDED && it.gameFiles?.absolutePath.let { path -> path == null || path !in claimed } }).distinctBy { it.gameId }
                             fresh.forEach { com.droiddeck.launcher.frontend.AutoComponents.queueGame(this, it, asked = false) }
                         }
                     }

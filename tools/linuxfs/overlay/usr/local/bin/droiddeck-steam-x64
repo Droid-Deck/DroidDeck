@@ -8,7 +8,7 @@ ROOTFS_SHA256=2854b06d3ff1b8f6e526135bfb6dd5b7b30ab3ab73e79ae933a3d9fed959a178
 CDN=https://client-update.fastly.steamstatic.com
 # Must match the -clientbeta droiddeck-session starts this client with (steam_channel).
 X64_CHANNEL=steamdeck_publicbeta
-MANIFEST=steam_client_${X64_CHANNEL}_ubuntu12
+MANIFEST=steam_client_${X64_CHANNEL}_steamrt64
 
 REAL_HOME=${HOME:-/root}
 X64_HOME=${BL_X64_HOME:-$REAL_HOME/.droiddeck-x64}
@@ -37,17 +37,17 @@ x64_client_parts() {
     /^\t"/ && NF >= 3 && $4 == "" { block = $2 }
     $2 == "file" { file[block] = $4 }
     $2 == "sha2" { sha[block] = $4 }
-    END { for (b in file) if (b ~ /_all$/ || b ~ /_ubuntu12$/) print b, file[b], sha[b] }
+    END { for (b in file) if (b ~ /_all$/ || b ~ /_steamrt64$/) print b, file[b], sha[b] }
   ' "$1" | sort
 }
 
 x64_sync_client() {
   local chan cur version work total i block file sum old
   chan=$(cat "$STEAM_X64/package/beta" 2>/dev/null || echo "$X64_CHANNEL")
-  old=$STEAM_X64/package/steam_client_${chan}_ubuntu12.manifest
+  old=$STEAM_X64/package/steam_client_${chan}_steamrt64.manifest
   cur=$(awk -F'"' '$2 == "version" { print $4; exit }' "$old" 2>/dev/null || true)
   work=$(mktemp -d)
-  if ! curl -fsSL "$CDN/steam_client_${chan}_ubuntu12" -o "$work/manifest"; then
+  if ! curl -fsSL "$CDN/steam_client_${chan}_steamrt64" -o "$work/manifest"; then
     rm -rf "$work"; return 0
   fi
   version=$(awk -F'"' '$2 == "version" { print $4; exit }' "$work/manifest")
@@ -471,7 +471,7 @@ if [ ! -x "$STEAM_X64/steamrt64/steam" ] || [ ! -f "$STEAM_X64/package/droiddeck
     /^\t"/ && NF >= 3 && $4 == "" { block = $2 }
     $2 == "file" { file[block] = $4 }
     $2 == "sha2" { sha[block] = $4 }
-    END { for (b in file) if (b ~ /_all$/ || b ~ /_ubuntu12$/) print b, file[b], sha[b] }
+    END { for (b in file) if (b ~ /_all$/ || b ~ /_steamrt64$/) print b, file[b], sha[b] }
   ' "$work/manifest" | sort > "$work/parts"
   [ -s "$work/parts" ] || { step "no client components in $MANIFEST"; exit 1; }
   mkdir -p "$STEAM_X64/package"
@@ -910,7 +910,7 @@ x64_exec() {
      [ -x "$ARM_STEAM/steamrtarm64/steamwebhelper" ]; then
     local chan x86_build arm_build
     chan=$(cat "$STEAM_X64/package/beta" 2>/dev/null || echo "$X64_CHANNEL")
-    x86_build=$(awk -F'"' '$2 == "version" { print $4; exit }' "$STEAM_X64/package/steam_client_${chan}_ubuntu12.manifest" 2>/dev/null || true)
+    x86_build=$(awk -F'"' '$2 == "version" { print $4; exit }' "$STEAM_X64/package/steam_client_${chan}_steamrt64.manifest" 2>/dev/null || true)
     arm_build=$(awk -F'"' '$2 == "version" { print $4; exit }' "$ARM_STEAM/package/steam_client_${chan}_linuxarm64.manifest" 2>/dev/null || true)
     if [ -n "$x86_build" ] && [ "$x86_build" = "$arm_build" ]; then
       export BL_X64_ARM_WEBHELPER=/usr/local/bin/droiddeck-x64-arm-webhelper
@@ -937,57 +937,28 @@ x64_exec() {
   touch "$STEAM_X64/logs/bootstrap_log.txt"
   ( tail -n0 -F --pid=$$ "$STEAM_X64/logs/bootstrap_log.txt" 2>/dev/null |
       grep --line-buffered -oE 'Downloading update \([0-9,]+ of [0-9,]+ KB\)' | sed -u 's/,//g' >&2 ) &
-  echo "== x86-64 client: ubuntu12 $(x64_manifest_version ubuntu12), steamrt64 $(x64_manifest_version steamrt64) (the client may update itself)" >&2
+  echo "== x86-64 client: steamrt64 $(x64_manifest_version steamrt64) (the client may update itself)" >&2
   x64_webhelper_gpu && { x64_gpu_watch >&2 & }
   exec "${BL_FEX:-/usr/local/bin/FEX}" "$STEAM_X64/steamrt64/steam" "$@"
 }
 
-# Steam renews its token every few days and refuses old copies: copy the newest every start, never while a client runs.
+# Steam refuses one client's login token from the other: each keeps its own, and only a client with no accounts gets the other's list.
 x64_sync_login() {
   pgrep -f 'steamrt64/steam( |$)' >/dev/null 2>&1 && return 0
   pgrep -f 'steamrtarm64/steam( |$)' >/dev/null 2>&1 && return 0
-  python3 - "$ARM_STEAM" "$STEAM_X64" "$REAL_HOME/.steam/registry.vdf" "$X64_HOME/.steam/registry.vdf" <<'PY' || step "could not share the sign-in between the clients"
-import os, re, shutil, sys
+  python3 - "$ARM_STEAM" "$STEAM_X64" "$REAL_HOME/.steam/registry.vdf" "$X64_HOME/.steam/registry.vdf" <<'PY' || step "could not share the accounts between the clients"
+import os, shutil, sys
 arm, x64, arm_reg, x64_reg = sys.argv[1:5]
-FILES = ("config/loginusers.vdf", "local.vdf")
-
-
-def stamp(root):
-    if not all(os.path.isfile(os.path.join(root, f)) for f in FILES):
-        return None
-    # A client that refused its token leaves an empty ConnectCache: newest, but copying it signs the other out.
-    text = open(os.path.join(root, "local.vdf"), encoding="utf-8", errors="surrogateescape").read()
-    if not re.search(r'"ConnectCache"\s*\{\s*"[^"]+"\s*"[^"]+"', text):
-        return None
-    return os.path.getmtime(os.path.join(root, "local.vdf"))
-
-
-a, x = stamp(arm), stamp(x64)
-if a is None and x is None:
-    sys.exit(0)
-if a is not None and x is not None and abs(a - x) < 1:
-    sys.exit(0)
-if x is None or (a is not None and a > x):
-    src, dst, sreg, dreg, who = arm, x64, arm_reg, x64_reg, "arm64"
-else:
-    src, dst, sreg, dreg, who = x64, arm, x64_reg, arm_reg, "x86-64"
-for f in FILES:
-    os.makedirs(os.path.dirname(os.path.join(dst, f)), exist_ok=True)
-    # copy2 keeps the time stamp, so both match until one client signs in again.
-    shutil.copy2(os.path.join(src, f), os.path.join(dst, f))
-if os.path.isfile(sreg):
-    st = open(sreg, encoding="utf-8", errors="surrogateescape").read()
-    if not os.path.isfile(dreg):
+USERS = "config/loginusers.vdf"
+for src, dst, sreg, dreg, who in ((arm, x64, arm_reg, x64_reg, "arm64"), (x64, arm, x64_reg, arm_reg, "x86-64")):
+    if not os.path.isfile(os.path.join(src, USERS)) or os.path.isfile(os.path.join(dst, USERS)):
+        continue
+    os.makedirs(os.path.dirname(os.path.join(dst, USERS)), exist_ok=True)
+    shutil.copy2(os.path.join(src, USERS), os.path.join(dst, USERS))
+    if os.path.isfile(sreg) and not os.path.isfile(dreg):
         os.makedirs(os.path.dirname(dreg), exist_ok=True)
         shutil.copy2(sreg, dreg)
-    else:
-        dt = open(dreg, encoding="utf-8", errors="surrogateescape").read()
-        for key in ("AutoLoginUser", "RememberPassword"):
-            v = re.search(r'"%s"\s*"([^"]*)"' % key, st)
-            if v and re.search(r'"%s"\s*"' % key, dt):
-                dt = re.sub(r'("%s"\s*")[^"]*(")' % key, lambda m: m.group(1) + v.group(1) + m.group(2), dt, count=1)
-        open(dreg, "w", encoding="utf-8", errors="surrogateescape").write(dt)
-print("droiddeck-steam-x64: sign-in shared from the %s client (the newer one)" % who)
+    print("droiddeck-steam-x64: accounts listed from the %s client" % who)
 PY
 }
 

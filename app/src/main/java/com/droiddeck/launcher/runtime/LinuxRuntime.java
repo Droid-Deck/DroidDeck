@@ -214,6 +214,9 @@ public final class LinuxRuntime {
                 bind(cmd, fake.getPath() + ":" + entry[1]);
             }
         }
+        if (unreadablePciDevice()) {
+            bind(cmd, new File(root, "etc/droiddeck/empty").getPath() + ":/sys/bus/pci/devices");
+        }
         bindGpuNode(context, cmd);
         bindAdrenoStats(cmd, extraBinds);
         bindCpuTemps(cmd, root);
@@ -223,6 +226,15 @@ public final class LinuxRuntime {
         List<String> specs = new ArrayList<>();
         for (int i = 0; i + 1 < cmd.size(); i += 2) specs.add(cmd.get(i + 1));
         return specs;
+    }
+
+    private static boolean unreadablePciDevice() {
+        File[] devices = new File("/sys/bus/pci/devices").listFiles();
+        if (devices == null) return false;
+        for (File device : devices) {
+            if (!new File(device, "vendor").canRead()) return true;
+        }
+        return false;
     }
 
     private static void bindGpuNode(Context context, List<String> cmd) {
