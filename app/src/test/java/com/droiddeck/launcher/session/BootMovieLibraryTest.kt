@@ -101,6 +101,10 @@ class BootMovieLibraryTest {
         assertNull(SessionFiles.startupMoviePath(BootMovieLibrary.steamConfig(app)))
     }
 
+    @Test fun aMissingConfigNeedsNoReset() {
+        assertTrue(SessionFiles.resetMissingStartupMovie(BootMovieLibrary.steamConfig(app), true))
+    }
+
     @Test fun aStagedMovieThatIsThereIsLeftAlone() {
         movie("bigpicture_startup.webm")
         steamPicksAt(SessionFiles.BOOT_MOVIE_PATH)

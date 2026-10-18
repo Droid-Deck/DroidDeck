@@ -232,7 +232,11 @@ object SessionFiles {
      * no longer names a missing movie.
      */
     internal fun resetMissingStartupMovie(config: File, force: Boolean): Boolean {
-        val text = runCatching { config.readText() }.getOrNull() ?: return true
+        if (!config.isFile) return true
+        val text = runCatching { config.readText() }.getOrElse {
+            Log.w(TAG, "could not read Steam config to reset the startup movie", it)
+            return false
+        }
         val movie = findObject(text, "StartupMovie", 0, text.length) ?: return true
         val block = text.substring(movie.keyStart, movie.close + 1)
         val path = scalar(block, "LocalPath").orEmpty()
