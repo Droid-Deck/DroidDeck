@@ -5,19 +5,6 @@ import android.util.Log
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
 
-/**
- * Starting the Steam client signed out of Valve's servers.
- *
- * The client can run without a connection - installed games launch, Proton and the frame-gen are
- * all local - but only if it has credentials from an earlier successful sign-in. Two keys in
- * loginusers.vdf decide what it does when it cannot reach a CM: WantsOfflineMode makes it go
- * offline on its own, SkipOfflineModeWarning stops it asking first. Both are read once, while the
- * client starts, which is why this belongs to the main screen and not to the in-session drawer:
- * changing it during a session would write the file and change nothing until the next launch.
- *
- * The client rewrites this file when it exits, so the request is kept as our own preference and
- * written into the file again at every session start.
- */
 object OfflineMode {
     private const val TAG = "OfflineMode"
     private const val KEY = "steam_offline"
@@ -30,9 +17,13 @@ object OfflineMode {
 
     private fun loginUsers(root: File) = File(root, "root/.local/share/Steam/config/loginusers.vdf")
 
-    /** The account the client could sign in as offline: its name, "" when it recorded none, null when there is none. */
+    private fun x64LoginUsers(root: File) = File(root, "root/.droiddeck-x64/.local/share/Steam/config/loginusers.vdf")
+
     fun account(context: Context): String? {
-        val file = loginUsers(LinuxRuntime.rootDir(context))
+        val root = LinuxRuntime.rootDir(context)
+        // Until its first start the x86-64 client has no sign-in; droiddeck-steam-x64 --sync-login copies the arm64 one.
+        val file = x64LoginUsers(root).takeIf { SessionPrefs.activeSteamClientArch(context) == "x86_64" && it.isFile }
+            ?: loginUsers(root)
         val text = try {
             if (file.isFile) file.readText() else return null
         } catch (e: Exception) {
@@ -49,14 +40,12 @@ object OfflineMode {
         apply(context, LinuxRuntime.rootDir(context))
     }
 
-    /**
-     * Write the request into loginusers.vdf. Every account block gets the same answer: the client
-     * signs in as one of them and we have no say in which. Keys the file does not carry are added
-     * beside the account's name; a file without an account block is left alone, since there is
-     * nothing to be offline as.
-     */
     fun apply(context: Context, root: File) {
-        val file = loginUsers(root)
+        applyTo(context, loginUsers(root))
+        applyTo(context, x64LoginUsers(root))
+    }
+
+    private fun applyTo(context: Context, file: File) {
         if (!file.isFile) return
         val want = if (enabled(context)) "1" else "0"
         try {

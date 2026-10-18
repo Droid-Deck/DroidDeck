@@ -1,16 +1,3 @@
-/*
- * wp_color_manager_v1 (wayland-protocols staging color-management-v1, version 1) - the subset Mesa's
- * Wayland WSI binds - plus the HDR gate, the per-surface image descriptions and the session log's
- * HDR evidence. See droiddeck_color.h for the design and HDR_RECON.md for why it is shaped this way.
- *
- * Strictness policy. A protocol error disconnects the client, and the client here is a GAME, so
- * errors are only raised where the protocol leaves no choice and a conforming client can never hit
- * them: a request gated on a feature we did not advertise, a property set twice, an incomplete
- * parameter set, a description that is not ready, an intent we did not advertise. Everything a
- * conforming client CAN produce on a bad day is accepted and logged instead: out-of-range HDR
- * metadata is dropped (Android gets none rather than nonsense), a second colour-management object
- * for the same surface replaces the first, a request on an inert object is ignored.
- */
 #define _GNU_SOURCE
 #include "droiddeck_color.h"
 #include "droiddeck_ext.h"
@@ -29,7 +16,6 @@ extern volatile int g_zero_copy;
 
 #define TAG "color"
 
-/* AHARDWAREBUFFER_FORMAT_* (android/hardware_buffer.h), for the log only. */
 const char *droiddeck_ahb_format_name(uint32_t f) {
     static char other[32];
     switch (f) {
@@ -80,24 +66,24 @@ static const char *dataspace_name(int32_t ds) {
     }
 }
 
-/* ---------------------------------------------------------------- request (app) + gate */
 
-static pthread_mutex_t g_mu = PTHREAD_MUTEX_INITIALIZER; /* g_req, g_hdr (app threads + compositor) */
+
+static pthread_mutex_t g_mu = PTHREAD_MUTEX_INITIALIZER;
 
 static struct {
-    int mode;                       /* 0 off, 1 on, 2 forced */
+    int mode;
     char source[64];
     int dxvk_hdr, zero_copy_forced;
     int display_known;
     int display_id, hdr10, ratio_available, api;
     char display_name[96], formats[96];
     float max_lum, max_avg, min_lum, ratio;
-    float highest_ratio;            /* Display.getHighestHdrSdrRatio() (Android 16+), < 0 = not reported */
+    float highest_ratio;
 } g_req = {.highest_ratio = -1.0f};
 
-static _Atomic int g_gate = -1;     /* -1 undecided, 0 closed, 1 open */
-static char g_gate_why[320];        /* the closed gate's reason (for the summary) */
-static _Atomic int g_output_on = 1; /* the drawer's HDR output switch (per session, starts on) */
+static _Atomic int g_gate = -1;
+static char g_gate_why[320];
+static _Atomic int g_output_on = 1;
 
 void droiddeck_color_set_request(int mode, const char *source, int dxvk_hdr, int zero_copy_forced) {
     pthread_mutex_lock(&g_mu);
@@ -106,7 +92,7 @@ void droiddeck_color_set_request(int mode, const char *source, int dxvk_hdr, int
     g_req.dxvk_hdr = dxvk_hdr ? 1 : 0;
     g_req.zero_copy_forced = zero_copy_forced ? 1 : 0;
     pthread_mutex_unlock(&g_mu);
-    atomic_store(&g_output_on, 1); /* the drawer's switch is per session and starts on */
+    atomic_store(&g_output_on, 1);
 }
 
 void droiddeck_color_set_display(int id, const char *name, const char *formats, int hdr10, float max_lum,
@@ -123,8 +109,6 @@ void droiddeck_color_set_display(int id, const char *name, const char *formats, 
     g_req.ratio = ratio;
     g_req.api = api;
     pthread_mutex_unlock(&g_mu);
-    /* The gate is decided once, when the compositor starts: a display that changes under a running
-     * session is recorded, and what it means is said out loud. */
     if (was_known && atomic_load(&g_gate) >= 0 && (was_hdr10 != (hdr10 ? 1 : 0) || was_id != id)) {
         if (atomic_load(&g_gate) == 1 && !hdr10)
             droiddeck_log(TAG, "the game is now on \"%s\" (display %d), which reports no HDR10: HDR frames stay tagged "
@@ -139,48 +123,39 @@ void droiddeck_color_set_display(int id, const char *name, const char *formats, 
 int droiddeck_color_gate_state(void) { return atomic_load(&g_gate); }
 int droiddeck_color_hdr_open(void) { return atomic_load(&g_gate) == 1; }
 
-/* ---------------------------------------------------------------- HDR evidence (summary) */
 
 static struct {
-    unsigned descs;                 /* HDR image descriptions made ready */
-    unsigned applied;               /* commits that made one current on a surface */
-    char applied_who[160];          /* the last surface that got one */
-    uint64_t layer_frames, layer_10bit, layer_copy8, copy_frames; /* layer_frames = every frame shown AS HDR */
+    unsigned descs;
+    unsigned applied;
+    char applied_who[160];
+    uint64_t layer_frames, layer_10bit, layer_copy8, copy_frames;
     uint64_t composed, swapchain, tonemapped;
-    uint64_t tm_off;                /* of `tonemapped`: while the drawer's HDR output switch was off */
-    unsigned output_offs;           /* times the switch was turned off */
+    uint64_t tm_off;
+    unsigned output_offs;
     unsigned win_layer, win_copy, win_copy8, win_zc, win_composed, win_swapchain, win_tonemapped;
     char copy_reason[160];
     char layer_fmt[48];
     int ratio_n, win_ratio_n, ratio_live_n;
     float ratio_min, ratio_max, ratio_last, win_ratio_min, win_ratio_max, ratio_logged;
-    float ratio_live_max;           /* highest reading taken WHILE HDR frames were on screen (the verdict's) */
+    float ratio_live_max;
     int64_t ratio_logged_ns, ratio_periodic_ns;
-    /* Live headroom. The display may grant HDR frames no headroom at all while they are on screen - seen
-     * on the Fold while the screen was being RECORDED (Android turns HDR headroom off for a recording,
-     * which is SDR), and plausibly with the brightness slider at maximum (SDR white already at the panel's
-     * limit) - so "the ratio rose once" is not enough for a reader at minute 3: time with HDR frames on
-     * screen, the part of it with the ratio above 1, and the current no-headroom streak. */
     int64_t prev_sample_ns; int prev_live; float prev_ratio;
     int64_t live_ns, headroom_ns;
-    int64_t nohead_since_ns;        /* HDR frames on screen and ratio <= 1.01 since then (0 = not now) */
-    int nohead_said;                /* the streak's "no headroom" line is written */
+    int64_t nohead_since_ns;
+    int nohead_said;
     char verdict[512];
 } g_hdr;
 static _Atomic int64_t g_last_frame_ns;
-static _Atomic int64_t g_last_tm_ns;    /* the last HDR frame shown tone-mapped to SDR */
+static _Atomic int64_t g_last_tm_ns;
 
-/* What the device says beside the headroom (the app, non-root APIs; droiddeck_color_env_*). The Fold showed
- * three ways to lose HDR headroom with HDR frames on screen - a screen recording, heat under load, and
- * (plausibly) the brightness slider at maximum - so every no-headroom line carries this. Under g_mu. */
 static struct {
     int known;
-    int thermal;            /* PowerManager THERMAL_STATUS_* (0 none .. 6 shutdown), -1 unknown */
-    float headroom;         /* PowerManager.getThermalHeadroom(10), < 0 = not available */
-    int brightness;         /* Settings.System.SCREEN_BRIGHTNESS (0..255), -1 unknown */
-    int bmode;              /* SCREEN_BRIGHTNESS_MODE: 1 automatic, 0 manual, -1 unknown */
-    float requested;        /* the last HDR headroom asked for (layer or screen surface): > 0 the ratio,
-                             * 0 none asked, -1 the API is missing on this Android (< 15) */
+    int thermal;
+    float headroom;
+    int brightness;
+    int bmode;
+    float requested;
+
 } g_env = {0, -1, -1.0f, -1, -1, 0.0f};
 
 static const char *thermal_name(int t) {
@@ -190,7 +165,6 @@ static const char *thermal_name(int t) {
     }
 }
 
-/* "thermal MODERATE (headroom 0.83), brightness 180/255 manual". Caller holds g_mu. */
 static void env_text_locked(char *out, size_t n) {
     char t[48], b[40];
     if (g_env.thermal < 0) snprintf(t, sizeof(t), "thermal ?");
@@ -203,9 +177,6 @@ static void env_text_locked(char *out, size_t n) {
     snprintf(out, n, "%s, %s", t, b);
 }
 
-/* What the evidence says about headroom lost with HDR frames on screen. A screenshot or a screen recording
- * is not detected in this build (that needs extra permissions), so it is named as a possibility when
- * nothing the app can measure explains the loss. Caller holds g_mu. */
 static void nohead_causes_locked(char *out, size_t n, int brief) {
     const char *parts[2];
     char hot[48];
@@ -214,7 +185,6 @@ static void nohead_causes_locked(char *out, size_t n, int brief) {
         snprintf(hot, sizeof(hot), "the device is hot (thermal %s)", thermal_name(g_env.thermal));
         parts[np++] = hot;
     }
-    /* Maximum brightness only counts when it is MANUAL: the Fold kept 3.00 of headroom at 255 auto. */
     if (g_env.brightness >= 250 && g_env.bmode == 0) parts[np++] = "brightness at maximum (manual)";
     if (np == 1) snprintf(out, n, "likely %s", parts[0]);
     else if (np == 2) snprintf(out, n, "likely %s and %s", parts[0], parts[1]);
@@ -235,11 +205,11 @@ static void nohead_causes_locked(char *out, size_t n, int brief) {
         snprintf(out, n, "a screenshot or screen recording, heat, or manual brightness at maximum");
 }
 
-/* ---- the explicit HDR headroom request (API 35; sc_layer.c for the game layer, the app for the screen
- * surface): content peak / SDR white, capped at the display's highest ratio when it reports one. */
-static _Atomic int g_screen_hr_x1000;       /* the screen surface's wanted headroom x1000 (HDR10 swapchain) */
-static _Atomic int64_t g_screen_hr_ns;      /* the last HDR10-swapchain frame */
-static char g_screen_hr_why[200];           /* under g_mu */
+
+
+static _Atomic int g_screen_hr_x1000;
+static _Atomic int64_t g_screen_hr_ns;
+static char g_screen_hr_why[200];
 
 static float peak_of(const struct droiddeck_color *c, float disp_max, const char **src) {
     if (c->max_cll > 0.0f) { *src = "max CLL"; return c->max_cll; }
@@ -308,15 +278,12 @@ int droiddeck_color_last_frame_age_ms(void) {
     return age > 0x7fffffff ? 0x7fffffff : (int)age;
 }
 
-/* The one-line answer a tester quotes. Caller holds g_mu. */
 static void verdict_locked(char *out, size_t size) {
     int gate = atomic_load(&g_gate);
     if (gate < 0) { snprintf(out, size, "not decided yet (the compositor has not started)"); return; }
     if (gate == 0) { snprintf(out, size, "no, because %s", g_gate_why); return; }
     if (g_hdr.layer_frames) {
         const char *who = g_hdr.applied_who[0] ? g_hdr.applied_who : "the game";
-        /* Only the paths that carried frames, so the ratio, the share and the device evidence still fit
-         * the log line. */
         char paths[200] = "";
         size_t pp = 0;
         const uint64_t zc_other = g_hdr.layer_frames - g_hdr.layer_10bit - g_hdr.layer_copy8 - g_hdr.composed -
@@ -336,12 +303,7 @@ static void verdict_locked(char *out, size_t size) {
                  (unsigned long long)g_hdr.layer_frames, who, paths);
         char env[128] = "", causes[256] = "";
         if (g_env.known) env_text_locked(env, sizeof(env));
-        /* Brief: the verdict has to fit one log line with everything else in it. */
         if (g_hdr.nohead_said) nohead_causes_locked(causes, sizeof(causes), 1);
-        /* Only readings taken while HDR frames were on screen count: the ratio says what the display did
-         * with THEM, not with whatever else was up at another moment. And the share of that time with any
-         * headroom, plus where it stands now: a ratio that rose once and then fell to 1.00 for minutes is
-         * not the same answer. */
         char share[384] = "";
         const long long live_s = (long long)(g_hdr.live_ns / 1000000000LL);
         if (g_hdr.live_ns >= 1000000000LL)
@@ -351,7 +313,6 @@ static void verdict_locked(char *out, size_t size) {
                      (long long)(g_hdr.headroom_ns / 1000000000LL), live_s, g_hdr.ratio_last,
                      g_hdr.nohead_said ? " - no headroom now: " : "", g_hdr.nohead_said ? causes : "",
                      env[0] ? " [" : "", env, env[0] ? "]" : "");
-        /* The display's own ceiling (Android 16+) and what was asked for, where known. */
         char ceil[80] = "", req[48] = "";
         if (g_req.highest_ratio > 0.0f) snprintf(ceil, sizeof(ceil), ", highest possible %.2f", g_req.highest_ratio);
         if (g_env.requested > 0.0f) snprintf(req, sizeof(req), ", %.1fx requested", g_env.requested);
@@ -400,7 +361,6 @@ static void verdict_locked(char *out, size_t size) {
              "image description (is DXVK_HDR=1 set, and is HDR switched on in the game's own display options?)");
 }
 
-/* Log the verdict when it changed (force = log it even if not). */
 static void log_verdict(int force) {
     char v[512];
     pthread_mutex_lock(&g_mu);
@@ -435,7 +395,7 @@ void droiddeck_color_frame_shown(const struct droiddeck_color *c, int path, uint
         snprintf(g_hdr.layer_fmt, sizeof(g_hdr.layer_fmt), "HDR10 swapchain");
         atomic_store(&g_screen_hr_ns, now_ns());
         break;
-    default: /* DROIDDECK_HDR_TONEMAPPED: shown, but not as HDR */
+    default:
         g_hdr.tonemapped++; g_hdr.win_tonemapped++;
         if (!atomic_load(&g_output_on)) g_hdr.tm_off++;
         pthread_mutex_unlock(&g_mu);
@@ -447,8 +407,6 @@ void droiddeck_color_frame_shown(const struct droiddeck_color *c, int path, uint
     pthread_mutex_unlock(&g_mu);
     atomic_store(&g_last_frame_ns, now_ns());
     if (path == DROIDDECK_HDR_SWAPCHAIN) {
-        /* The screen surface's headroom request (the app applies it): worked out again when the
-         * description changes, else once a second. */
         static uint32_t ident;
         static int64_t calc_ns;
         const int64_t t = now_ns();
@@ -494,7 +452,6 @@ void droiddeck_color_ratio_sample(float ratio, int listener) {
     pthread_mutex_lock(&g_mu);
     was = g_hdr.ratio_logged;
     if (ratio > 0.0f) {
-        /* Time with HDR frames on screen, credited to the reading that stood over it. */
         if (g_hdr.prev_sample_ns && g_hdr.prev_live) {
             int64_t dt = t - g_hdr.prev_sample_ns;
             if (dt > 0 && dt < 3000000000LL) {
@@ -520,8 +477,6 @@ void droiddeck_color_ratio_sample(float ratio, int listener) {
             if (!g_hdr.ratio_live_n || ratio > g_hdr.ratio_live_max) g_hdr.ratio_live_max = ratio;
             g_hdr.ratio_live_n++;
         }
-        /* A change is logged at once (at most 4 lines a second); while HDR frames are on screen the
-         * steady value is restated every 5 s, so a tester's log shows it holding, not just moving. */
         float moved = ratio - g_hdr.ratio_logged;
         if (moved < 0.0f) moved = -moved;
         if ((g_hdr.ratio_n == 1 || moved >= 0.02f) && t - g_hdr.ratio_logged_ns > 250000000LL)
@@ -562,7 +517,7 @@ void droiddeck_color_stats_tick(void) {
     char line[512];
     int any;
     pthread_mutex_lock(&g_mu);
-    any = g_hdr.win_layer || g_hdr.win_copy || g_hdr.win_tonemapped; /* the ratio alone is logged when it moves */
+    any = g_hdr.win_layer || g_hdr.win_copy || g_hdr.win_tonemapped;
     if (any) {
         char ratio[256] = "no HDR/SDR ratio reading", env[128] = "", causes[256] = "";
         if (g_env.known) env_text_locked(env, sizeof(env));
@@ -591,7 +546,7 @@ int droiddeck_color_hdr_state(void) {
     int age = droiddeck_color_last_frame_age_ms();
     if (age < 0 || age >= 1500) return 0;
     pthread_mutex_lock(&g_mu);
-    int confirmed = !g_hdr.ratio_n || g_hdr.ratio_last > 1.01f; /* no ratio on this display: the tag is all there is */
+    int confirmed = !g_hdr.ratio_n || g_hdr.ratio_last > 1.01f;
     int nohead = g_hdr.nohead_said;
     pthread_mutex_unlock(&g_mu);
     return confirmed ? 1 : nohead ? 2 : 0;
@@ -617,7 +572,7 @@ int droiddeck_color_requested(void) {
 int droiddeck_color_output(void) { return atomic_load(&g_output_on); }
 
 void droiddeck_color_env_sample(int thermal, float headroom, int brightness, int bmode) {
-    if (atomic_load(&g_gate) != 1) return;  /* evidence for the HDR lines only */
+    if (atomic_load(&g_gate) != 1) return;
     char msg[2][200];
     int nmsg = 0;
     pthread_mutex_lock(&g_mu);
@@ -656,7 +611,6 @@ int droiddeck_color_tonemapped_on_screen(void) {
 void droiddeck_color_set_output(int on) {
     on = on ? 1 : 0;
     if (atomic_load(&g_gate) != 1) {
-        /* The drawer only shows the switch in sessions whose gate is open; say so if it ever gets here. */
         droiddeck_log(TAG, "HDR output switch (%s) ignored: HDR is not open in this session", on ? "on" : "off");
         return;
     }
@@ -674,7 +628,7 @@ void droiddeck_color_set_output(int on) {
         droiddeck_log(TAG, "HDR output switched OFF in the drawer: HDR frames are tone-mapped to SDR from the next frame "
                    "(%s; %s). The game is not told - it keeps rendering HDR; its own HDR setting and DXVK_HDR are "
                    "untouched", who, age >= 0 && age < 1500 ? "HDR frames were on screen" : "no HDR frames on screen just now");
-    droiddeck_request_redraw(); /* a paused game commits nothing: show the change now */
+    droiddeck_request_redraw();
 }
 
 static _Atomic int g_session_ended;
@@ -685,19 +639,16 @@ void droiddeck_color_session_end(void) {
     pthread_mutex_lock(&g_mu);
     int asked = g_req.mode != 0;
     pthread_mutex_unlock(&g_mu);
-    if (asked) log_verdict(1); /* nobody asked for HDR: no summary to write */
+    if (asked) log_verdict(1);
 }
 
-/* ---------------------------------------------------------------- image descriptions */
 
 struct cm_desc {
-    int refs;                       /* protocol objects + surfaces (pending / current) */
+    int refs;
     struct droiddeck_color c;
-    /* Set on the output / preferred descriptions the compositor serves (never on one a game built
-     * from parameters): get_information is answered rather than refused, with these as the target. */
     int informative;
-    float ref_lum;                  /* nits: PQ reference white */
-    float disp_min_lum, disp_max_lum; /* nits: the display's own volume, from the app */
+    float ref_lum;
+    float disp_min_lum, disp_max_lum;
 };
 
 static uint32_t g_next_identity = 1;
@@ -705,11 +656,10 @@ static uint32_t g_next_identity = 1;
 static struct cm_desc *desc_ref(struct cm_desc *d) { if (d) d->refs++; return d; }
 static void desc_unref(struct cm_desc *d) { if (d && --d->refs <= 0) free(d); }
 
-/* The parametric creator's collected properties. 0 / has_* = 0 means unset. */
 struct cm_params {
     uint32_t tf, primaries;
     int has_mprim; int32_t mprim[8];
-    int has_mlum; uint32_t mlum_min, mlum_max;   /* min is cd/m² * 10000, max is cd/m² */
+    int has_mlum; uint32_t mlum_min, mlum_max;
     int has_cll; uint32_t cll;
     int has_fall; uint32_t fall;
 };
@@ -718,7 +668,6 @@ static void image_description_destroy_req(struct wl_client *c, struct wl_resourc
 static void image_description_get_information(struct wl_client *c, struct wl_resource *r, uint32_t id) {
     struct cm_desc *d = wl_resource_get_user_data(r);
     if (!d || !d->informative) {
-        /* Built by the game from parameters: the protocol says it knows what it asked for. */
         wl_resource_post_error(r, WP_IMAGE_DESCRIPTION_V1_ERROR_NO_INFORMATION,
                                "get_information is not allowed on this image description");
         return;
@@ -726,7 +675,7 @@ static void image_description_get_information(struct wl_client *c, struct wl_res
     struct wl_resource *info = wl_resource_create(c, &wp_image_description_info_v1_interface,
                                                   wl_resource_get_version(r), id);
     if (!info) { wl_client_post_no_memory(c); return; }
-    wl_resource_set_implementation(info, NULL, NULL, NULL); /* events only */
+    wl_resource_set_implementation(info, NULL, NULL, NULL);
     const struct droiddeck_color *col = &d->c;
     int32_t xy[8] = { (int32_t)(col->red[0] * 1e6f + 0.5f),   (int32_t)(col->red[1] * 1e6f + 0.5f),
                       (int32_t)(col->green[0] * 1e6f + 0.5f), (int32_t)(col->green[1] * 1e6f + 0.5f),
@@ -735,13 +684,11 @@ static void image_description_get_information(struct wl_client *c, struct wl_res
     wp_image_description_info_v1_send_primaries(info, xy[0], xy[1], xy[2], xy[3], xy[4], xy[5], xy[6], xy[7]);
     wp_image_description_info_v1_send_primaries_named(info, col->primaries);
     wp_image_description_info_v1_send_tf_named(info, col->tf);
-    /* min is cd/m² * 10000, max and reference are cd/m² */
     wp_image_description_info_v1_send_luminances(info, (uint32_t)(col->min_lum * 10000.0f + 0.5f),
                                                  (uint32_t)(col->max_lum + 0.5f), (uint32_t)(d->ref_lum + 0.5f));
     wp_image_description_info_v1_send_target_primaries(info, xy[0], xy[1], xy[2], xy[3], xy[4], xy[5], xy[6], xy[7]);
     wp_image_description_info_v1_send_target_luminance(info, (uint32_t)(d->disp_min_lum * 10000.0f + 0.5f),
                                                        (uint32_t)(d->disp_max_lum + 0.5f));
-    /* done is a destructor event: the client's proxy is gone once it arrives, so the resource goes too. */
     wp_image_description_info_v1_send_done(info);
     wl_resource_destroy(info);
 }
@@ -753,15 +700,6 @@ static void image_description_resource_destroy(struct wl_resource *r) {
     desc_unref(wl_resource_get_user_data(r));
 }
 
-/* What the display layer shows while the gate is open - BT.2020 + PQ over the display's own
- * volume - served as the output's image description and as every surface's preferred one. It is
- * ready at once and open to get_information, and that is not optional: gamescope asks for the
- * preferred description and for its information in the same breath, before any roundtrip
- * (WaylandBackend.cpp, UpdateWPPreferredColorManagement). Answering 'failed' and then refusing
- * get_information with a protocol error severs its connection mid-roundtrip - the Fold 8 on r5:
- * "Broken pipe", signal 6 - while a device with the gate closed never offers colour management
- * and never gets here. gamescope reads only the luminances from the answer (reference white vs
- * the display's peak) to decide whether it exposes HDR to what it hosts. */
 static void make_output_description(struct wl_client *c, struct wl_resource *parent, uint32_t id, const char *what) {
     struct cm_desc *d = calloc(1, sizeof(*d));
     if (!d) { wl_client_post_no_memory(c); return; }
@@ -774,9 +712,9 @@ static void make_output_description(struct wl_client *c, struct wl_resource *par
     col->has_st2086 = 1;
     col->red[0] = 0.708f; col->red[1] = 0.292f; col->green[0] = 0.170f; col->green[1] = 0.797f;
     col->blue[0] = 0.131f; col->blue[1] = 0.046f; col->white[0] = 0.3127f; col->white[1] = 0.3290f;
-    col->min_lum = 0.005f; col->max_lum = 10000.0f;  /* the PQ volume */
+    col->min_lum = 0.005f; col->max_lum = 10000.0f;
     d->informative = 1;
-    d->ref_lum = 203.0f;                              /* PQ reference white */
+    d->ref_lum = 203.0f;
     pthread_mutex_lock(&g_mu);
     d->disp_min_lum = g_req.min_lum > 0.0f ? g_req.min_lum : 0.0f;
     d->disp_max_lum = g_req.max_lum > 0.0f ? g_req.max_lum : 1000.0f;
@@ -811,8 +749,6 @@ static void params_create(struct wl_client *client, struct wl_resource *r, uint3
     else if (p->primaries == WP_COLOR_MANAGER_V1_PRIMARIES_BT2020 && p->tf == WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_HLG)
         c->dataspace = DROIDDECK_ADATASPACE_BT2020_HLG;
 
-    /* HDR metadata, kept only when it makes sense. The PQ defaults stand in for what was not given
-     * (0.005 - 10000 cd/m², the target volume = the primary one); CTA-861.3 treats 0 as unknown. */
     char dropped[160] = "";
     float mlum_min = 0.005f, mlum_max = 10000.0f;
     if (p->has_mlum) {
@@ -827,7 +763,7 @@ static void params_create(struct wl_client *client, struct wl_resource *r, uint3
             c->green[0] = p->mprim[2] / 1e6f; c->green[1] = p->mprim[3] / 1e6f;
             c->blue[0] = p->mprim[4] / 1e6f; c->blue[1] = p->mprim[5] / 1e6f;
             c->white[0] = p->mprim[6] / 1e6f; c->white[1] = p->mprim[7] / 1e6f;
-        } else { /* the container's own primaries (BT.2020, D65) */
+        } else {
             c->red[0] = 0.708f; c->red[1] = 0.292f; c->green[0] = 0.170f; c->green[1] = 0.797f;
             c->blue[0] = 0.131f; c->blue[1] = 0.046f; c->white[0] = 0.3127f; c->white[1] = 0.3290f;
         }
@@ -862,8 +798,6 @@ static void params_create(struct wl_client *client, struct wl_resource *r, uint3
     if (!out) { free(d); wl_client_post_no_memory(client); return; }
     d->refs = 1;
     wl_resource_set_implementation(out, &image_description_impl, d, image_description_resource_destroy);
-    /* Sent from inside the request: Mesa blocks its swapchain on this event (it dispatches its queue
-     * until ready/failed arrives), and the event loop flushes it before it sleeps again. */
     wp_image_description_v1_send_ready(out, c->identity);
     if (c->dataspace) {
         pthread_mutex_lock(&g_mu);
@@ -878,7 +812,7 @@ static void params_create(struct wl_client *client, struct wl_resource *r, uint3
         droiddeck_log(TAG, "image description #%u: dropped HDR metadata that breaks the protocol's rules:%s "
                    "(Android gets the rest)", c->identity, dropped);
     }
-    wl_resource_destroy(r); /* create is the creator's destructor */
+    wl_resource_destroy(r);
 }
 
 #define PARAMS_ONCE(field, what)                                                                      \
@@ -958,14 +892,11 @@ static const struct wp_image_description_creator_params_v1_interface params_impl
 };
 static void params_resource_destroy(struct wl_resource *r) { free(wl_resource_get_user_data(r)); }
 
-/* ---------------------------------------------------------------- per-surface state */
 
-/* One per wl_surface that ever had a colour-management object. Lives until the wl_surface goes (a
- * swapchain rebuild destroys the object and makes a new one for the same surface). */
 struct cm_surf {
-    struct wl_resource *surface;        /* the wl_surface */
+    struct wl_resource *surface;
     struct wl_listener surface_destroy;
-    struct wl_resource *owner;          /* the live wp_color_management_surface_v1, NULL = none */
+    struct wl_resource *owner;
     struct cm_desc *pending, *current;
     int pending_dirty;
 };
@@ -989,7 +920,7 @@ static void describe_surface(struct wl_resource *surface, char *out, size_t size
 static void cm_surface_destroyed(struct wl_listener *l, void *data) {
     struct cm_surf *cs = wl_container_of(l, cs, surface_destroy);
     wl_list_remove(&cs->surface_destroy.link);
-    if (cs->owner) wl_resource_set_user_data(cs->owner, NULL); /* inert from now on */
+    if (cs->owner) wl_resource_set_user_data(cs->owner, NULL);
     desc_unref(cs->pending);
     desc_unref(cs->current);
     free(cs);
@@ -1035,7 +966,6 @@ static const struct wp_color_management_surface_v1_interface cm_surface_impl = {
     .unset_image_description = cm_surface_unset_image_description,
 };
 
-/* Destroying the object does what unset_image_description does (double-buffered, like it). */
 static void cm_surface_resource_destroy(struct wl_resource *r) {
     struct cm_surf *cs = wl_resource_get_user_data(r);
     if (!cs || cs->owner != r) return;
@@ -1079,7 +1009,6 @@ const struct droiddeck_color *droiddeck_color_of(struct wl_resource *surface) {
     return cs && cs->current ? &cs->current->c : NULL;
 }
 
-/* ---------------------------------------------------------------- output + feedback */
 
 static void cm_output_destroy_req(struct wl_client *c, struct wl_resource *r) { wl_resource_destroy(r); }
 static void cm_output_get_image_description(struct wl_client *c, struct wl_resource *r, uint32_t id) {
@@ -1100,7 +1029,6 @@ static const struct wp_color_management_surface_feedback_v1_interface cm_feedbac
     .get_preferred_parametric = cm_feedback_get_preferred,
 };
 
-/* ---------------------------------------------------------------- wp_color_manager_v1 */
 
 static void cm_destroy_req(struct wl_client *c, struct wl_resource *r) { wl_resource_destroy(r); }
 
@@ -1124,7 +1052,6 @@ static void cm_get_surface(struct wl_client *c, struct wl_resource *r, uint32_t 
     char who[160];
     describe_surface(surface, who, sizeof(who));
     if (cs->owner) {
-        /* The protocol says surface_exists; a game would be disconnected for it. The newer object wins. */
         droiddeck_log(TAG, "%s: a second colour-management object for the same surface - the newer one takes over "
                    "(protocol error surface_exists not raised)", who);
         wl_resource_set_user_data(cs->owner, NULL);
@@ -1174,16 +1101,12 @@ static void bind_cm(struct wl_client *c, void *data, uint32_t ver, uint32_t id) 
     struct wl_resource *r = wl_resource_create(c, &wp_color_manager_v1_interface, ver > 1 ? 1 : (int)ver, id);
     if (!r) { wl_client_post_no_memory(c); return; }
     wl_resource_set_implementation(r, &cm_impl, NULL, NULL);
-    /* All at bind, then done: Mesa reads them in the registry roundtrip that follows the bind and
-     * lists VK_COLOR_SPACE_HDR10_ST2084_EXT from exactly this pair (bt2020 + st2084_pq). Only what
-     * the display layer can honour is offered. */
     wp_color_manager_v1_send_supported_intent(r, WP_COLOR_MANAGER_V1_RENDER_INTENT_PERCEPTUAL);
     wp_color_manager_v1_send_supported_feature(r, WP_COLOR_MANAGER_V1_FEATURE_PARAMETRIC);
     wp_color_manager_v1_send_supported_feature(r, WP_COLOR_MANAGER_V1_FEATURE_SET_MASTERING_DISPLAY_PRIMARIES);
     wp_color_manager_v1_send_supported_primaries_named(r, WP_COLOR_MANAGER_V1_PRIMARIES_BT2020);
     wp_color_manager_v1_send_supported_tf_named(r, WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_ST2084_PQ);
     wp_color_manager_v1_send_done(r);
-    /* One line per program: Mesa binds again for every surface-format query. */
     if (last_named != c) {
         last_named = c;
         droiddeck_log(TAG, "%s bound wp_color_manager_v1 version %u (offered: perceptual intent; parametric descriptions "
@@ -1194,7 +1117,6 @@ static void bind_cm(struct wl_client *c, void *data, uint32_t ver, uint32_t id) 
 
 void droiddeck_color_client_gone(struct wl_client *client) {
     if (atomic_load(&g_gate) != 1 || atomic_load(&g_session_ended)) return;
-    /* A program that presented HDR has left: say where the session stands now, while it is fresh. */
     const char *name = droiddeck_client_name(client);
     int mine;
     pthread_mutex_lock(&g_mu);
@@ -1203,7 +1125,6 @@ void droiddeck_color_client_gone(struct wl_client *client) {
     if (mine) log_verdict(1);
 }
 
-/* ---------------------------------------------------------------- the gate */
 
 void droiddeck_color_init(struct wl_display *display) {
     char why[320] = "";
@@ -1227,7 +1148,6 @@ void droiddeck_color_init(struct wl_display *display) {
     else
         snprintf(disp, sizeof(disp), "the app could not read the display's HDR capability");
 
-    /* What asked for HDR, in the words the user knows it by: the editors' setting, or the env override. */
     char asked[128];
     if (mode == 2) snprintf(asked, sizeof(asked), "DROIDDECK_WAYLAND_HDR=force (%s)", source);
     else if (strstr(source, "env")) snprintf(asked, sizeof(asked), "DROIDDECK_WAYLAND_HDR=1 (%s)", source);
@@ -1262,8 +1182,6 @@ void droiddeck_color_init(struct wl_display *display) {
                            "(games that check fall back to SDR; some show washed-out colours) - remove it on this display");
             log_verdict(1);
         } else if (dxvk_hdr || (known && hdr10)) {
-            /* Off, and silent unless it is worth a line: a display that could show HDR10, or a DXVK
-             * switch that promises games an HDR display they cannot get. */
             droiddeck_log(TAG, "HDR output off for this session (%s)%s%s", off_why,
                        (known && hdr10) ? " - this display lists HDR10, so switching HDR output on for this game would "
                                           "offer it to games" : "",

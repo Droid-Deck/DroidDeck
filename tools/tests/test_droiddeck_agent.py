@@ -91,6 +91,37 @@ class AgentTest(unittest.TestCase):
         self.assertFalse(path.exists(), "the request file is consumed")
         return json.loads((self.dir / "resp" / "req.json").read_text())
 
+    def vr_helper(self, body):
+        helper = self.dir / "droiddeck-steamvr"
+        helper.write_text("#!/bin/sh\n" + body)
+        old = os.environ.get("DROIDDECK_VR_HELPER")
+        os.environ["DROIDDECK_VR_HELPER"] = str(helper)
+        self.addCleanup(lambda: os.environ.pop("DROIDDECK_VR_HELPER") if old is None
+                        else os.environ.__setitem__("DROIDDECK_VR_HELPER", old))
+        return helper
+
+    def test_vr_status_is_parsed(self):
+        self.vr_helper('echo "installed=1 running=0 installing=0 driver=1"\n')
+        answer = self.ask({"kind": "vr", "action": "status"})
+        self.assertTrue(answer["ok"])
+        self.assertEqual((True, False, False, True),
+                         (answer["installed"], answer["running"], answer["installing"], answer["driver"]))
+
+    def test_vr_runs_only_its_own_actions(self):
+        log = self.dir / "args"
+        self.vr_helper('echo "$@" > %s\n' % log)
+        self.assertTrue(self.ask({"kind": "vr", "action": "start"})["ok"])
+        self.assertEqual("start", log.read_text().strip())
+        answer = self.ask({"kind": "vr", "action": "rm -rf /"})
+        self.assertFalse(answer["ok"])
+        self.assertEqual("INVALID_REQUEST", answer["error"]["code"])
+
+    def test_vr_without_a_helper_is_unavailable(self):
+        os.environ["DROIDDECK_VR_HELPER"] = str(self.dir / "missing")
+        self.addCleanup(os.environ.pop, "DROIDDECK_VR_HELPER")
+        answer = self.ask({"kind": "vr", "action": "status"})
+        self.assertEqual("UNAVAILABLE", answer["error"]["code"])
+
     def test_exec_output_and_status(self):
         answer = self.ask({"kind": "exec", "argv": ["sh", "-c", "echo out; echo err >&2; exit 3"], "env": {"X": "1"}})
         self.assertTrue(answer["ok"])
@@ -224,6 +255,89 @@ class AgentTest(unittest.TestCase):
             answer = self.ask({"kind": "steam-selection"})
         self.assertEqual("INVALID_SELECTION", answer["error"]["code"])
 
+    def test_shortcut_cgameid_waits_for_exact_steam_overview_mapping(self):
+        game_id = str((3551182975 << 32) | 0x02000000)
+        self.assertEqual(3551182975, agent.steam_shortcut_app_id(game_id))
+        self.assertIsNone(agent.steam_shortcut_app_id("413150"))
+        self.assertIsNone(agent.steam_shortcut_app_id(str((3551182975 << 32) | 0x03000000)))
+        clock = [0.0]
+        with patch.object(agent, "cdp_eval", side_effect=[{"value": None}, {"value": "3551182975"}]) as evaluate, \
+             patch.object(agent.time, "monotonic", side_effect=lambda: clock[0]), \
+             patch.object(agent.time, "sleep", side_effect=lambda delay: clock.__setitem__(0, clock[0] + delay)):
+            result = agent.wait_for_steam_shortcut_overview(self.dir, game_id, timeout=1)
+        self.assertEqual({"supported": True, "ready": True, "appId": 3551182975}, result)
+        expression = evaluate.call_args_list[0].args[1]
+        self.assertIn("GetAppOverviewByGameID", expression)
+        self.assertIn(json.dumps(game_id), expression)
+        self.assertNotIn("RequestAppDetails", expression)
+        self.assertFalse(evaluate.call_args_list[0].kwargs["await_promise"])
+
+    def test_wrong_overview_app_id_keeps_shortcut_url_held_until_timeout(self):
+        game_id = str((3537741571 << 32) | 0x02000000)
+        clock = [0.0]
+        with patch.object(agent, "cdp_eval", return_value={"value": "646570"}) as evaluate, \
+             patch.object(agent.time, "monotonic", side_effect=lambda: clock[0]), \
+             patch.object(agent.time, "sleep", side_effect=lambda delay: clock.__setitem__(0, clock[0] + delay)):
+            with self.assertRaises(agent.AgentError) as raised:
+                agent.wait_for_steam_shortcut_overview(self.dir, game_id, timeout=0.5)
+        self.assertEqual("STEAM_OVERVIEW_TIMEOUT", raised.exception.code)
+        self.assertGreater(evaluate.call_count, 0)
+        self.assertTrue(all("RequestAppDetails" not in call.args[1] for call in evaluate.call_args_list))
+
+    def test_normal_steam_ids_and_unknown_cgameids_skip_overview_wait(self):
+        for game_id in ("413150", str((123456789 << 32) | 0x03000000), "18446744073709551616"):
+            with self.subTest(game_id=game_id), patch.object(agent, "cdp_eval") as evaluate:
+                result = agent.wait_for_steam_shortcut_overview(self.dir, game_id)
+            self.assertFalse(result["supported"])
+            evaluate.assert_not_called()
+
+    def test_shortcut_state_tells_a_lost_shortcut_from_a_loading_library(self):
+        game_id = str((3333273269 << 32) | 0x02000000)
+        self.assertEqual("not-shortcut", agent.steam_shortcut_state(self.dir, "413150"))
+        for values, wanted, calls in ((["loading", "ready"], "ready", 2), (["loading", "missing"], "missing", 3),
+                                      ([None], "loading", 3)):
+            clock = [0.0]
+            replies = [{"value": v} for v in values] + [{"value": values[-1]}] * 10
+            with self.subTest(values=values), patch.object(agent, "cdp_eval", side_effect=replies) as evaluate, \
+                 patch.object(agent.time, "monotonic", side_effect=lambda: clock[0]), \
+                 patch.object(agent.time, "sleep", side_effect=lambda delay: clock.__setitem__(0, clock[0] + delay)):
+                self.assertEqual(wanted, agent.steam_shortcut_state(self.dir, game_id, timeout=1))
+            self.assertEqual(calls, evaluate.call_count)
+            self.assertIn("GetAppOverviewByGameID(%s)" % json.dumps(game_id), evaluate.call_args_list[0].args[1])
+
+    def test_shortcut_state_waits_out_an_unreachable_client_but_not_other_errors(self):
+        game_id = str((3333273269 << 32) | 0x02000000)
+        clock = [0.0]
+        with patch.object(agent, "cdp_eval", side_effect=agent.AgentError("NO_DEVTOOLS", "down")), \
+             patch.object(agent.time, "monotonic", side_effect=lambda: clock[0]), \
+             patch.object(agent.time, "sleep", side_effect=lambda delay: clock.__setitem__(0, clock[0] + delay)):
+            self.assertEqual("loading", agent.steam_shortcut_state(self.dir, game_id, timeout=1))
+        with patch.object(agent, "cdp_eval", side_effect=agent.AgentError("CDP_EXCEPTION", "boom")):
+            with self.assertRaises(agent.AgentError):
+                agent.steam_shortcut_state(self.dir, game_id, timeout=1)
+
+    def test_shortcut_state_command_exits_with_the_state(self):
+        game_id = str((3333273269 << 32) | 0x02000000)
+        launch = self.dir.parent
+        with patch.dict(os.environ, {"BL_LAUNCH_DIR": str(launch)}):
+            for state, code in (("ready", 0), ("missing", 4), ("not-shortcut", 3), ("loading", 1)):
+                with self.subTest(state=state), patch.object(agent, "steam_shortcut_state", return_value=state) as ask:
+                    self.assertEqual(code, agent.main(["--steam-shortcut-state", game_id, "2"]))
+                self.assertEqual((launch / "agent", game_id, "2"), ask.call_args.args)
+            with patch.object(agent, "steam_shortcut_state", side_effect=agent.AgentError("CDP_EXCEPTION", "boom")):
+                self.assertEqual(1, agent.main(["--steam-shortcut-state", game_id]))
+            self.assertEqual(2, agent.main(["--steam-shortcut-state"]))
+
+    def test_asleep_command_reports_steams_own_sleep_state(self):
+        with patch.dict(os.environ, {"BL_LAUNCH_DIR": str(self.dir.parent)}):
+            for value, code in (("yes", 0), ("no", 5), ("unknown", 1), (None, 1)):
+                with self.subTest(value=value), patch.object(agent, "cdp_eval", return_value={"value": value}) as ask:
+                    self.assertEqual(code, agent.main(["--steam-asleep"]))
+                self.assertIn("m_bSuspending", ask.call_args.args[1])
+                self.assertFalse(ask.call_args.kwargs["await_promise"])
+            with patch.object(agent, "cdp_eval", side_effect=agent.AgentError("NO_DEVTOOLS", "down")):
+                self.assertEqual(1, agent.main(["--steam-asleep"]))
+
     def test_cdp_exception(self):
         server = FakeDevTools({"result": {"result": {"type": "object"}, "exceptionDetails": {
             "text": "Uncaught", "exception": {"description": "ReferenceError: SteamClient is not defined"}}}})
@@ -266,6 +380,36 @@ class AgentTest(unittest.TestCase):
         self.addCleanup(lambda: (child.kill(), child.wait()))
         time.sleep(0.2)
         self.assertIn(child.pid, agent.game_pids(424242))
+
+
+class VrFocusTest(unittest.TestCase):
+    def test_scene_dashboard_and_external_focus_changes(self):
+        focus = agent.VrSceneFocus()
+        self.assertEqual(focus.order([9, 7], [7, 42], 42), [42, 9, 7])
+        self.assertIsNone(focus.order([42, 9, 7], [7, 42], 42))
+        self.assertEqual(focus.order([42, 9, 7], [7, 42], None), [9, 7])
+        self.assertIsNone(focus.order([9, 7], [7], 42))
+        self.assertEqual(focus.order([9, 7], [7, 42], 42), [42, 9, 7])
+        # Do not overwrite a different focus order installed after our last write.
+        self.assertIsNone(focus.order([123, 7], [7, 42], None))
+
+    def test_scene_requires_live_server_and_game_environment(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            state = root / 'scene.json'
+            for pid in (100, 200):
+                (root / str(pid)).mkdir()
+            (root / '100/comm').write_text('vrserver\n')
+            (root / '200/environ').write_bytes(b'SteamAppId=42\0Other=value\0')
+            state.write_text(json.dumps(dict(serverPid=100, scenePid=200, dashboard=False)))
+            self.assertEqual(agent.vr_scene_app(state, root), 42)
+            state.write_text(json.dumps(dict(serverPid=100, scenePid=200, dashboard=True)))
+            self.assertIsNone(agent.vr_scene_app(state, root))
+            state.write_text(json.dumps(dict(serverPid=100, scenePid=200, dashboard=False)))
+            (root / '100/comm').write_text('other\n')
+            self.assertIsNone(agent.vr_scene_app(state, root))
+            (root / '100/comm').unlink()
+            self.assertIsNone(agent.vr_scene_app(state, root))
 
 
 if __name__ == "__main__":

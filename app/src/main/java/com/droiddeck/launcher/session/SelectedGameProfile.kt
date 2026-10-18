@@ -16,13 +16,15 @@ data class SelectedGameProfile(
     val componentFiles: Map<String, String>,
     val environmentOverrides: Int,
     val windowsComponentNames: List<String>,
+    val startWithoutSteam: Boolean = false,
 ) {
     val hasOverrides: Boolean
         get() = !fexPreset.inherited ||
             !proton.inherited ||
             components.values.any { !it.inherited } ||
             environmentOverrides > 0 ||
-            windowsComponentNames.isNotEmpty()
+            windowsComponentNames.isNotEmpty() ||
+            startWithoutSteam
 
     companion object {
         fun resolve(
@@ -50,7 +52,8 @@ data class SelectedGameProfile(
                     inherited = override == null,
                 )
             }
-            val otherEnvironment = environment.games[game.profileKey].orEmpty().keys - FexPreset.environmentKeys
+            val otherEnvironment = environment.games[game.profileKey].orEmpty().keys - FexPreset.environmentKeys -
+                GameEnvironment.NO_STEAM
             return SelectedGameProfile(
                 appId = selectedAppId,
                 name = game.name,
@@ -64,6 +67,7 @@ data class SelectedGameProfile(
                 componentFiles = gameComponents,
                 environmentOverrides = otherEnvironment.size,
                 windowsComponentNames = gameWindowsComponents.map(WinComponentNames::of),
+                startWithoutSteam = GameEnvironment.gameNoSteam(environment, game.profileKey),
             )
         }
     }

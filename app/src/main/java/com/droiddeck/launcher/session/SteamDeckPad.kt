@@ -7,33 +7,8 @@ import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
 
-/**
- * The session's pad, described to the Steam client as a Steam Deck controller.
- *
- * On a Deck - and on the handhelds InputPlumber serves as one - the client finds the controller
- * through libudev as a `hidraw` device under a `hid` device under a USB interface and reads it
- * itself. libfakeinput serves the device node (`/dev/hidraw16`, built from the pad's input ring);
- * what the client also needs is the sysfs it walks to find and identify that node, which a sandbox
- * shows nothing of. This writes that sysfs as the kernel lays out a Deck's controller interface and
- * returns the binds that put it in place:
- *
- * - `/sys/devices/droiddeck/usb1` - the USB device (Valve, 28de:1205), its interface 2, the HID
- *   device on it (`HID_ID`, `report_descriptor`) and that device's `hidraw/hidraw16`;
- * - `/sys/class/hidraw/hidraw16` - what an enumeration of the `hidraw` subsystem lists;
- * - `/sys/dev/char/240:16` - how the node's device number is looked up (in the directory the
- *   runtime already binds there for the GPU);
- * - `/run/udev/data/c240:16` - the udev database entry that marks the device initialised, without
- *   which libudev's enumeration leaves a device node out;
- * - [listingDir] - stand-ins for the listings of `/sys`, `/sys/class` and `/sys/bus`. An app under
- *   an enforcing SELinux policy (every retail phone) may not list those directories, and libudev
- *   abandons its whole scan when it cannot, so the client never reached `hidraw`; libfakeinput
- *   lists these to the client instead when the real listing is refused (FAKE_DECK_SYSFS_LISTING).
- *
- * Symlinks are absolute guest paths; proot resolves them inside the session.
- */
 object SteamDeckPad {
     private const val TAG = "SessionService"
-    /** Must match libfakeinput (fakeinput_steam.cpp: DECK_HIDRAW_*). */
     private const val MAJOR = 240
     private const val MINOR = 16
     private const val NODE = "hidraw$MINOR"
@@ -44,20 +19,14 @@ object SteamDeckPad {
     private const val HIDRAW = "$HID/hidraw/$NODE"
     private const val SERIAL = "DROIDDECK0001"
 
-    // The paired Bluetooth Steam Controller is a separate Triton HID device. It must not inherit
-    // the Deck's identity or report format. Must match fakeinput_steam.cpp (TRITON_HIDRAW_*).
     private const val TRITON_MINOR = 18
     private const val TRITON_HID = "$GUEST_DEVICES/bluetooth/0005:28DE:1303.0003"
     private const val TRITON_SERIAL = "DROIDDECKSC01"
-    // The handheld's own pad as the Steam Controller (SessionPrefs.CONTROLLER_STEAM): the wired
-    // controller (28de:1302) on a USB device of its own, since it is built in.
     private const val TRITON_USB = "$GUEST_DEVICES/usb3"
     private const val TRITON_INTERFACE = "$TRITON_USB/3-1:1.0"
     private const val TRITON_WIRED_HID = "$TRITON_INTERFACE/0003:28DE:1302.0004"
-    /** Must match libfakeinput (DS4_HIDRAW_MINOR, DUALSENSE_HIDRAW_MINOR). */
     private const val SONY_DS4_MINOR = 20
     private const val SONY_DUALSENSE_MINOR = 21
-    /** Must match libfakeinput's kDs4ReportDescriptor and kDualSenseReportDescriptor. */
     private val DS4_REPORT_DESCRIPTOR = intArrayOf(
         0x05, 0x01, 0x09, 0x05, 0xa1, 0x01, 0x06, 0x00, 0xff, 0x15, 0x00, 0x26, 0xff, 0x00, 0x75, 0x08,
         0x85, 0x01, 0x09, 0x20, 0x95, 0x3f, 0x81, 0x02, 0x85, 0x05, 0x09, 0x21, 0x95, 0x1f, 0x91, 0x02,
@@ -71,11 +40,8 @@ object SteamDeckPad {
         0x85, 0x05, 0x09, 0x22, 0x95, 0x28, 0xb1, 0x02, 0x85, 0x09, 0x09, 0x23, 0x95, 0x13, 0xb1, 0x02,
         0x85, 0x20, 0x09, 0x24, 0x95, 0x3f, 0xb1, 0x02, 0xc0,
     ).map { it.toByte() }.toByteArray()
-    /** Must match libfakeinput (TRITON_PAD_HIDRAW_*): its own node, so a paired controller keeps 18. */
     private const val TRITON_PAD_MINOR = 19
 
-    // Steam's touch controller (SteamTouchDevice), a second device beside the Deck's: 0000:11fb,
-    // "Mobile Touch Control", on a USB device of its own. Must match libfakeinput (TOUCH_*).
     private const val TOUCH_MINOR = 17
     private const val TOUCH_NODE = "hidraw$TOUCH_MINOR"
     private const val TOUCH_USB = "$GUEST_DEVICES/usb2"
@@ -84,7 +50,6 @@ object SteamDeckPad {
     private const val TOUCH_HIDRAW = "$TOUCH_HID/hidraw/$TOUCH_NODE"
     private const val TOUCH_SERIAL = "DROIDDECK0001"
 
-    /** libfakeinput's kTouchReportDescriptor: Generic Desktop / Game Pad, 40-byte input report. */
     private val TOUCH_REPORT_DESCRIPTOR = intArrayOf(
         0x05, 0x01, 0x09, 0x05, 0xa1, 0x01,
         0x09, 0x02, 0x15, 0x00, 0x26, 0xff, 0x00, 0x75, 0x08, 0x95, 0x28, 0x81, 0x02,
@@ -92,14 +57,12 @@ object SteamDeckPad {
         0x09, 0x04, 0x15, 0x00, 0x26, 0xff, 0x00, 0x75, 0x08, 0x95, 0x40, 0xb1, 0x02, 0xc0,
     ).map { it.toByte() }.toByteArray()
 
-    /** InputPlumber's CONTROLLER_DESCRIPTOR, as libfakeinput answers HIDIOCGRDESC. */
     private val REPORT_DESCRIPTOR = intArrayOf(
         0x06, 0xff, 0xff, 0x09, 0x01, 0xa1, 0x01, 0x09, 0x02, 0x09, 0x03, 0x15, 0x00,
         0x26, 0xff, 0x00, 0x75, 0x08, 0x95, 0x40, 0x81, 0x02, 0x09, 0x06, 0x09, 0x07,
         0x15, 0x00, 0x26, 0xff, 0x00, 0x75, 0x08, 0x95, 0x40, 0xb1, 0x02, 0xc0,
     ).map { it.toByte() }.toByteArray()
 
-    /** Triton's native 0x45/0x47 input and 0x80-0x85 haptic output report IDs. */
     private val TRITON_REPORT_DESCRIPTOR = intArrayOf(
         0x06, 0x00, 0xff, 0x09, 0x01, 0xa1, 0x01,
         0x15, 0x00, 0x26, 0xff, 0x00, 0x75, 0x08,
@@ -115,23 +78,13 @@ object SteamDeckPad {
         0xc0,
     ).map { it.toByte() }.toByteArray()
 
-    /** The wired controller's: its 0x42 state report in place of the Bluetooth 0x45. */
     private val TRITON_WIRED_REPORT_DESCRIPTOR = TRITON_REPORT_DESCRIPTOR.copyOf().also { it[15] = 0x42 }
 
-    /** Where [prepare] puts the stand-in listings; bound into the guest at the same path. */
     fun listingDir(sessionRoot: File) = File(sessionRoot, "sys/deck/listing")
 
-    /** Writes the tree and returns the `host:guest` binds for it, or none if it could not be made. */
-    /** The pad's own devices by minor (the Deck, its Steam Controller, the PlayStation pads): guest paths. */
     private val padNodes = mutableMapOf<Int, String>()
     @Volatile private var hidrawClassDir: File? = null
 
-    /**
-     * Lists only the device the pad is now ([padType], FakeInputWriter.PAD_TYPE_*) in
-     * /sys/class/hidraw, none for an Xbox 360 pad. Device scans then find what is plugged in: SDL's
-     * (the PlayStation pads' driver) keeps a device it found and could not open, and never tries it
-     * again, while one that disappears from the listing is let go. Before the shim is told.
-     */
     @Synchronized
     fun showPad(padType: Int) {
         val dir = hidrawClassDir ?: return
@@ -200,12 +153,9 @@ object SteamDeckPad {
             padNodes.clear()
             padNodes[MINOR] = HIDRAW
 
-            // Only the names matter: libudev reads a listing for the subsystems to descend into and
-            // then opens /sys/class/hidraw itself, which is the bind above.
             val listing = listingDir(sessionRoot)
             for (name in listOf("sys/bus", "sys/class", "sys/devices", "class/hidraw", "bus")) File(listing, name).mkdirs()
-            // The runtime binds this directory over /sys/dev/char for the GPU (LinuxRuntime.bindGpuNode).
-            link(File(context.cacheDir, "drm/sys/$MAJOR:$MINOR"), HIDRAW)
+            link(File(LinuxRuntime.liveDir(context), "drm/sys/$MAJOR:$MINOR"), HIDRAW)
 
             val udevData = File(LinuxRuntime.rootDir(context), "run/udev/data").apply { mkdirs() }
             File(udevData, "c$MAJOR:$MINOR").writeText("I:1\nE:ID_INPUT=1\nE:ID_INPUT_JOYSTICK=1\n")
@@ -233,13 +183,11 @@ object SteamDeckPad {
                 link(File(dir(TOUCH_HIDRAW), "subsystem"), "/sys/class/hidraw")
                 link(File(dir(TOUCH_HIDRAW), "device"), TOUCH_HID)
                 link(File(hidrawClass, TOUCH_NODE), TOUCH_HIDRAW)
-                link(File(context.cacheDir, "drm/sys/$MAJOR:$TOUCH_MINOR"), TOUCH_HIDRAW)
+                link(File(LinuxRuntime.liveDir(context), "drm/sys/$MAJOR:$TOUCH_MINOR"), TOUCH_HIDRAW)
                 File(udevData, "c$MAJOR:$TOUCH_MINOR").writeText("I:1\nE:ID_INPUT=1\nE:ID_INPUT_JOYSTICK=1\n")
                 Log.i(TAG, "deck pad: /dev/$TOUCH_NODE described as Steam's touch controller (0000:11fb)")
             }
 
-            // A Steam Controller's HID device: the handheld's own pad as the wired one, or the paired
-            // one on Bluetooth. Both are always described; libfakeinput offers whichever is in use.
             fun describeTriton(wired: Boolean) {
                 val hid = if (wired) TRITON_WIRED_HID else TRITON_HID
                 val product = if (wired) "1302" else "1303"
@@ -272,12 +220,10 @@ object SteamDeckPad {
                 link(File(dir(hidraw), "subsystem"), "/sys/class/hidraw")
                 link(File(dir(hidraw), "device"), hid)
                 if (wired) padNodes[minor] = hidraw else link(File(hidrawClass, node), hidraw)
-                link(File(context.cacheDir, "drm/sys/$MAJOR:$minor"), hidraw)
+                link(File(LinuxRuntime.liveDir(context), "drm/sys/$MAJOR:$minor"), hidraw)
                 File(udevData, "c$MAJOR:$minor").writeText("I:1\nE:ID_INPUT=1\nE:ID_INPUT_JOYSTICK=1\n")
                 Log.i(TAG, "steam controller: /dev/$node described as Triton (28de:$product)")
             }
-            // The handheld's own pad as a PlayStation controller, each a USB device of its own with
-            // the report descriptor libfakeinput serves (kDs4/kDualSenseReportDescriptor).
             fun describeSony(dualSense: Boolean) {
                 val bus = if (dualSense) 5 else 4
                 val product = if (dualSense) "0ce6" else "09cc"
@@ -309,7 +255,7 @@ object SteamDeckPad {
                 link(File(dir(hidraw), "subsystem"), "/sys/class/hidraw")
                 link(File(dir(hidraw), "device"), hid)
                 padNodes[minor] = hidraw
-                link(File(context.cacheDir, "drm/sys/$MAJOR:$minor"), hidraw)
+                link(File(LinuxRuntime.liveDir(context), "drm/sys/$MAJOR:$minor"), hidraw)
                 File(udevData, "c$MAJOR:$minor").writeText("I:1\nE:ID_INPUT=1\nE:ID_INPUT_JOYSTICK=1\n")
                 Log.i(TAG, "playstation pad: /dev/$node described as 054c:$product")
             }

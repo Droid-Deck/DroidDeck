@@ -13,8 +13,10 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
@@ -35,19 +37,9 @@ import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.sin
 
-// The moves the stores made first, for any section: one selection shape that glides along a row
-// (or down a column) of choices, and a pressed control that squashes into a dot and flies home.
 
-/** Which way a [ChipGlide]'s choices run. */
 internal enum class GlideAxis { Horizontal, Vertical }
 
-/**
- * The selection under a row of chips: [at] (in the row) of chip [index], in [tint]. A move to the
- * next chip stretches it - the leading edge on the focus ring's lead spring, the trailing one a
- * beat later on its trail spring - and a hop past a chip pinches it to a drop, carries it and
- * opens it. [axis] runs it down a column instead (the rail, a stack of layers). [corner] is the
- * chips' own corner; null draws a capsule. [fill] and [outline] are the resting alphas.
- */
 @Composable
 internal fun BoxScope.ChipGlide(
     index: Int,
@@ -57,12 +49,17 @@ internal fun BoxScope.ChipGlide(
     corner: Dp? = null,
     fill: Float = 0.16f,
     outline: Float = 0.7f,
+    visible: Boolean = true,
 ) {
     val density = androidx.compose.ui.platform.LocalDensity.current
-    // The two edges along the axis (left and right, or top and bottom), and the two across it.
     val start = remember { Animatable(Float.NaN) }
     val end = remember { Animatable(0f) }
     val pinch = remember { Animatable(0f) }
+    val pad = androidx.compose.ui.platform.LocalInputModeManager.current.inputMode == androidx.compose.ui.input.InputMode.Keyboard
+    @Suppress("NAME_SHADOWING") val visible = visible && !pad
+    val shown = remember { Animatable(if (visible) 1f else 0f) }
+    val visibleNow = rememberUpdatedState(visible)
+    LaunchedEffect(visible) { shown.animateTo(if (visible) 1f else 0f, Motion.tw(if (visible) 160 else 120)) }
     val crossStart = remember { mutableStateOf(0f) }
     val crossEnd = remember { mutableStateOf(0f) }
     val was = remember { intArrayOf(-1) }
@@ -77,19 +74,17 @@ internal fun BoxScope.ChipGlide(
         was[0] = index
         if (start.value.isNaN() || from == index || from < 0 || Motion.scale == 0f) {
             start.snapTo(s); end.snapTo(e); pinch.snapTo(0f)
+            if (visibleNow.value) shown.snapTo(1f)
+            return@LaunchedEffect
+        }
+        if (!visibleNow.value || shown.value < 0.5f) {
+            start.snapTo(s); end.snapTo(e); pinch.snapTo(0f)
             return@LaunchedEffect
         }
         coroutineScope {
-            if (abs(index - from) > 1) {
-                // Too far to stretch: pinch into a drop where it is, carry it over, open it there.
-                pinch.animateTo(1f, Motion.tw(90))
-                val l = launch { start.animateTo(s, Motion.sp(0.7f, 380f)) }
-                val r = launch { end.animateTo(e, Motion.sp(0.7f, 380f)) }
-                l.join(); r.join()
-                pinch.animateTo(0f, Motion.sp(0.6f, 500f))
-            } else {
-                // An adjacent move can interrupt a long hop while it is still pinched.
+            run {
                 launch { pinch.animateTo(0f, Motion.sp(0.6f, 500f)) }
+                launch { shown.animateTo(1f, Motion.tw(120)) }
                 val forward = index > from
                 val (lead, trail) = if (forward) end to start else start to end
                 val leadTo = if (forward) e else s
@@ -107,25 +102,36 @@ internal fun BoxScope.ChipGlide(
         val size = shape.size
         val round = minOf(size.width, size.height) / 2f
         val r = CornerRadius(corner?.let { lerp(minOf(with(density) { it.toPx() }, round), round, p) } ?: round)
-        // A drop in flight is solid; on a chip it is the chip's tinted fill and outline.
-        drawRoundRect(tint.value.copy(alpha = lerp(fill, 0.9f, p)), at0, size, r)
+        val a = shown.value
+        drawRoundRect(tint.value.copy(alpha = lerp(fill, 0.9f, p) * a), at0, size, r)
         if (outline > 0f) {
-            // Inside the chip's edge: a stroke on it would lose its outer half to a scrolling row's clip.
             val w = with(density) { 1.dp.toPx() }
             val inset = w / 2f
             drawRoundRect(
-                tint.value.copy(alpha = outline * (1f - p)), at0 + Offset(inset, inset), Size(size.width - w, size.height - w),
+                tint.value.copy(alpha = outline * (1f - p) * a), at0 + Offset(inset, inset), Size(size.width - w, size.height - w),
                 CornerRadius((r.x - inset).coerceAtLeast(0f)), style = Stroke(w),
             )
         }
     }
 }
 
-/**
- * Where a glide's shape is: its edges along the axis at [start] and [end] (either order), across
- * it from [crossStart] to [crossEnd], pinched [pinch] of the way (0 to 1) into a drop [drop] each
- * side of its centre. [vertical] runs the axis down instead of across.
- */
+@Composable
+internal fun Modifier.shownBar(on: Boolean, color: Color, vertical: Boolean = false): Modifier {
+    val shown = androidx.compose.animation.core.animateFloatAsState(if (on) 1f else 0f, Motion.tw(if (on) 140 else 100), label = "shownBar").value
+    return drawWithContent {
+        drawContent()
+        if (shown <= 0.01f) return@drawWithContent
+        val t = 3.dp.toPx()
+        if (vertical) {
+            val l = size.height * 0.5f
+            drawRect(color, Offset(0f, (size.height - l) / 2f), Size(t, l), alpha = shown)
+        } else {
+            val w = size.width * 0.36f
+            drawRect(color, Offset((size.width - w) / 2f, size.height - t), Size(w, t), alpha = shown)
+        }
+    }
+}
+
 internal fun glideShape(start: Float, end: Float, crossStart: Float, crossEnd: Float, pinch: Float, drop: Float, vertical: Boolean): Rect {
     val a0 = minOf(start, end)
     val a1 = maxOf(start, end)
@@ -138,11 +144,6 @@ internal fun glideShape(start: Float, end: Float, crossStart: Float, crossEnd: F
     return if (vertical) Rect(c0, s0, c1, s1) else Rect(s0, c0, s1, c1)
 }
 
-/**
- * A dot on its way somewhere: from the control at [from] (root px) to the point [to] gives (root
- * px, asked each frame, so a target that moves is followed). [color] null is the palette's signal
- * blue. [onHalf] runs as it passes the top of its arc, [onLand] once it lands.
- */
 internal class Flight(
     val from: Rect,
     val to: Density.() -> Offset?,
@@ -155,27 +156,20 @@ internal class Flight(
     private companion object { var next = 0L }
 }
 
-/** Dots flying anywhere outside the Stores page (which keeps its own): a hop, a swap, a toggle. */
 internal object Flights {
     val all = mutableStateListOf<Flight>()
 
-    /** Sends [f], or with animations off just runs its ends. */
     fun fly(f: Flight) {
         if (Motion.scale == 0f) { f.onHalf(); f.onLand(); return }
         all += f
     }
 }
 
-/** [Flights] drawn over everything, in the space of an element at [origin] (root px). */
 @Composable
 internal fun FlightsLayer(origin: Offset) {
     for (f in Flights.all.toList()) key(f.id) { FlightDot(f, origin) { Flights.all.remove(f) } }
 }
 
-/**
- * One dot: the control squashes into a 14dp dot (width first, a little bloop), which then flies
- * on an arc to its target, stretched along its path like the focus ring's drop.
- */
 @Composable
 internal fun FlightDot(f: Flight, origin: Offset, onDone: () -> Unit) {
     val pal = LocalPalette.current
@@ -197,7 +191,6 @@ internal fun FlightDot(f: Flight, origin: Offset, onDone: () -> Unit) {
         val b = (f.to(this) ?: return@Canvas) - origin
         val v = t.value
         if (v < 1f) {
-            // Squash: the width goes first, then the height, into the dot; a bloop at the end.
             val w = lerp(from.width, 2 * r, (v * 1.4f).coerceAtMost(1f))
             val h = lerp(from.height, 2 * r, ((v - 0.25f) / 0.75f).coerceIn(0f, 1f))
             val k = 1f - 0.15f * sin(PI * v).toFloat()
@@ -219,10 +212,6 @@ internal fun FlightDot(f: Flight, origin: Offset, onDone: () -> Unit) {
     }
 }
 
-/**
- * A row that scrolls sideways fades out at an edge it has more past, instead of slicing a pill or
- * a card through: the content's own alpha, so whatever is behind the row shows through.
- */
 internal fun Modifier.edgeFade(scroll: androidx.compose.foundation.ScrollState, width: Dp = 28.dp): Modifier =
     this.graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
         .drawWithContent {

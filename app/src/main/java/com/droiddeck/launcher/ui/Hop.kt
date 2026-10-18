@@ -29,17 +29,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
 
-// A link from a control in one section to a page in another (the Play sheet's Graphics drivers,
-// a game's Components card): the control squashes into a dot that flies to the destination's rail
-// item, the rail's selection glides there as it passes the top of its arc, and the page floods
-// out of the rail item once it lands. B on that page flies the dot back and puts the source
-// surface back as it was, focus on the control that asked.
-
-/**
- * Where a hop came from: the rail item that was showing ([rail]), the surface on it (a sheet, the
- * Games page) and its tab, the control's key and its root bounds, and the words for the way back.
- * [page] is the page key the hop opened, so leaving it any other way forgets the way back.
- */
 internal class HopOrigin(
     val rail: String,
     val surface: String,
@@ -51,46 +40,29 @@ internal class HopOrigin(
     val page: String,
 )
 
-/** The surfaces a hop can start from and come back to. */
 internal const val HOP_SURFACE_GAMES = "games"
 internal const val HOP_SURFACE_DESKTOP = "desktop"
 internal const val HOP_SURFACE_SHEET = "sheet"
 
 internal object Hops {
-    /** The hop the page on screen was reached by, while B can still undo it. */
     var origin by mutableStateOf<HopOrigin?>(null)
 
-    /** The pane content a hop is leaving (a rail key): it sinks back as the dot leaves it. */
     var sinking by mutableStateOf<String?>(null)
 
-    /** Set while a hop's dot is flying: the rail item its selection has already glided to. */
     var railPreview by mutableStateOf<String?>(null)
 
-    /**
-     * Set as a page leaves through a hop (either way), so the pane sinks it rather than draining
-     * it; the pane clears it once the change has started.
-     */
     var linking by mutableStateOf(false)
 
-    /** A surface to put back as it was (a sheet re-lifted on its tab), once, and the control to focus. */
     var restore by mutableStateOf<HopOrigin?>(null)
 
-    /** Per rail item, bumped when a dot lands on it: the item pops. */
     val railLanded = mutableStateMapOf<String, Int>()
 
-    /** Bumped when a hop's page has flooded in: its target (a layer card) sends out one ring. */
     var arrived by mutableIntStateOf(0)
 
-    /** Where each rail item sits, root px. */
     val railBounds = HashMap<String, Rect>()
 
-    /** Where each control that can start a hop sits, root px. */
     val sources = HashMap<String, Rect>()
 
-    /**
-     * Hops from the control at [origin].bounds to [origin].dest: [go] opens the page there once the dot lands.
-     * With animations off there is no dot and no flood, only the page.
-     */
     fun go(origin: HopOrigin, go: () -> Unit) {
         val railAt = railBounds[origin.dest]
         val finish: () -> Unit = {
@@ -103,7 +75,6 @@ internal object Hops {
             arrived++
         }
         if (railAt == null || Motion.scale == 0f) { finish(); return }
-        // The surface the control is on sinks as its dot leaves, and stays down as it goes.
         sinking = origin.rail
         Flights.fly(Flight(
             origin.bounds, to = { railAt.center },
@@ -112,10 +83,6 @@ internal object Hops {
         ))
     }
 
-    /**
-     * B on a page reached by a hop: the page sinks, the source surface comes back as it was, and
-     * the dot flies home from the rail item to the control. False when there is no hop to undo.
-     */
     fun back(close: () -> Unit): Boolean {
         val o = origin ?: return false
         origin = null
@@ -133,26 +100,18 @@ internal object Hops {
         return true
     }
 
-    /** The page the hop opened has gone some other way: there is no way back to keep. */
     fun forget(pageKey: String?) {
         val o = origin ?: return
         if (pageKey != o.page) { origin = null; sinking = null }
     }
 
-    /** Screen density, for the rail item's corner; set by the front end. */
     var density = 1f
 }
 
-/** Shows a rail section directly (no page closing, nothing forgotten): what a hop's way back calls. */
 internal val LocalShowSection = androidx.compose.runtime.staticCompositionLocalOf<(String) -> Unit> { {} }
 
-/** Remembers where this control sits, so a hop from it can fly from it and back to it. */
 internal fun Modifier.hopSource(key: String): Modifier = onGloballyPositioned { Hops.sources[key] = it.boundsInRoot() }
 
-/**
- * "B · back to <source>" at the right of a page's header while it was reached by a hop; a tap is B.
- * Nothing when it was not.
- */
 @Composable
 internal fun HopBackChip(onBack: () -> Unit) {
     val o = Hops.origin ?: return

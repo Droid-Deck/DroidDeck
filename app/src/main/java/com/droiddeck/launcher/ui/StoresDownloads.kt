@@ -48,6 +48,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -88,22 +89,14 @@ import com.droiddeck.launcher.stores.download.DownloadQueue
 import com.droiddeck.launcher.stores.download.DownloadStage
 import com.droiddeck.launcher.stores.download.DownloadState
 import com.droiddeck.launcher.stores.download.StoreDownloadTier
+import com.droiddeck.launcher.stores.epic.EpicClient
 import com.droiddeck.launcher.stores.formatBytes
 import com.droiddeck.launcher.stores.formatSpeed
 
-// The Downloads chip: one queue for the three stores, its settings and the engine log.
 
 @Composable
 internal fun StoresDownloadsPane(s: FrontEndState, a: FrontEndActions) {
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val wide = maxWidth >= 700.dp
-        val list: @Composable () -> Unit = { DownloadList(s, a) }
-        val side: @Composable () -> Unit = { DownloadSettings(s, a) }
-        if (wide) Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-            Box(Modifier.weight(3f)) { list() }
-            Box(Modifier.weight(2f)) { side() }
-        } else Column { list(); side() }
-    }
+    DownloadList(s, a)
 }
 
 @Composable
@@ -112,22 +105,26 @@ private fun DownloadList(s: FrontEndState, a: FrontEndActions) {
     val pal = LocalPalette.current
     val scope = rememberCoroutineScope()
     val entries = StoresState.downloads
-    // Clearing: the finished rows go into the divider's X one by one, bottom first, and only then
-    // leave the queue.
     var clearing by remember { mutableStateOf(false) }
-    // Under way on top; finished below a line whose X clears them all (rows only - a failed
-    // download's kept files stay until its game page's Clear).
-    val (active, finished) = entries.partition { it.isActive }
+    val (active, finished) = entries.partition { it.isActive }.let { (on, off) ->
+        on.sortedWith(compareBy<DownloadEntry>({ when (it.state) { DownloadState.RUNNING -> 0; DownloadState.PAUSED -> 1; else -> 2 } }, { it.queuePosition })) to off
+    }
     val finishedShown = if (clearing) emptyList() else finished
+    val queued = entries.mapTo(HashSet()) { it.key }
+    val ctx = LocalContext.current
+    val missing = StoresState.unfinished.map { it.store }.filter { StoresState.library[it] == null }.toSet()
+    LaunchedEffect(missing) { missing.forEach { StoresState.backend(it)?.syncLibrary(ctx, false) } }
+    val interrupted = StoresState.unfinished.mapNotNull { u ->
+        StoresState.library[u.store]?.firstOrNull {
+            u.id == it.id || (u.id == null && u.folder.name == com.droiddeck.launcher.stores.StoreInstallRoot.folderName(it.title, it.id))
+        }
+    }.filter { "${it.store.id}:${it.id}" !in queued }.distinctBy { "${it.store.id}:${it.id}" }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        AnimatedVisibility(entries.isEmpty(), enter = fadeIn(Motion.tw(300, 300)), exit = fadeOut(Motion.tw(120))) {
+        AnimatedVisibility(entries.isEmpty() && interrupted.isEmpty(), enter = fadeIn(Motion.tw(300, 300)), exit = fadeOut(Motion.tw(120))) {
             Box(Modifier.fillMaxWidth().padding(vertical = 40.dp), contentAlignment = Alignment.Center) {
                 Text(stringResource(R.string.stores_downloads_empty), fontSize = 13.sp, color = colors.onSurfaceVariant)
             }
         }
-        // The list changes only when rows come, go or change state; each row reads its own progress.
-        // A row pours out of the count's side (the right), and leaves the way it came; one that
-        // installed stays a beat for its bar to gather into Play first.
         AnimatedRows(
             active, key = { it.key },
             enter = { i, later ->
@@ -141,6 +138,11 @@ private fun DownloadList(s: FrontEndState, a: FrontEndActions) {
                 else shrinkHorizontally(Motion.tw(260), shrinkTowards = Alignment.End) + shrinkVertically(Motion.tw(300, 120)) + fadeOut(Motion.tw(200, 80))
             },
         ) { row, _ -> DownloadCard(StoresState.download(row.key) ?: row, s, a) }
+        AnimatedRows(
+            interrupted, key = { "${it.store.id}:${it.id}" },
+            enter = { i, _ -> fadeIn(Motion.tw(300, 60 * i.coerceAtMost(5))) + expandVertically(Motion.tw(260)) },
+            exit = { _, _, _ -> fadeOut(Motion.tw(160)) + shrinkVertically(Motion.tw(220, 60)) },
+        ) { item, _ -> InterruptedRow(item) }
         AnimatedVisibility(
             finishedShown.isNotEmpty(),
             enter = expandVertically(Motion.tw(260)) + fadeIn(Motion.tw(220)),
@@ -163,9 +165,7 @@ private fun DownloadList(s: FrontEndState, a: FrontEndActions) {
         }
         AnimatedRows(
             finishedShown, key = { it.key },
-            // One that just finished joins after its row above has gathered; the rest are simply there.
             enter = { i, later -> if (later) expandVertically(Motion.tw(300, GATHER_HOLD_MS)) + fadeIn(Motion.tw(220, GATHER_HOLD_MS + 50)) else fadeIn(Motion.tw(300, 60 * i.coerceAtMost(5))) },
-            // Into the X at the top right, bottom row first.
             exit = { _, i, n ->
                 val wait = 60 * (n - 1 - i).coerceIn(0, 8)
                 scaleOut(Motion.tw(220, wait), targetScale = 0.2f, transformOrigin = TransformOrigin(1f, 0f)) +
@@ -178,28 +178,49 @@ private fun DownloadList(s: FrontEndState, a: FrontEndActions) {
     }
 }
 
-/** How long a row that installed holds for its bar to gather into Play before it moves under the line. */
+@Composable
+private fun InterruptedRow(item: com.droiddeck.launcher.stores.CatalogItem) {
+    val ctx = LocalContext.current
+    ArtStrip(item.imageUrl ?: item.tallImageUrl, item.title) {
+        Text(item.title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+        SourceChip(item.store.id, small = true)
+        Text(stringResource(R.string.stores_dl_interrupted), fontSize = 12.sp, color = Color(0xFFFFC24D), maxLines = 1)
+        Spacer(Modifier.weight(1f))
+        RoundAction(Icons.Filled.PlayArrow, stringResource(R.string.stores_dl_resume), primary = true) { StoresState.requestInstall(ctx, item) }
+        CancelAction { StoresState.clearUnfinished(ctx, item) }
+    }
+}
+
 private const val GATHER_HOLD_MS = 900
 
-/** A finished download: its name and store, and Play when it installed - blooming out of a dot when it just did. */
+@Composable
+private fun ArtStrip(cover: String?, name: String, content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit) {
+    val pal = LocalPalette.current
+    Box(Modifier.fillMaxWidth().heightIn(min = 60.dp).clip(Shape12).background(Color(0xFF101318)).border(1.dp, pal.line, Shape12)) {
+        if (!cover.isNullOrEmpty()) AsyncImage(model = cover, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+        else Spacer(Modifier.matchParentSize().background(artBrush(hueOf(name))))
+        Spacer(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to Color.Black.copy(alpha = 0.92f), 0.5f to Color.Black.copy(alpha = 0.72f), 1f to Color.Black.copy(alpha = 0.2f))))
+        Row(
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp), content = content,
+        )
+    }
+}
+
 @Composable
 private fun FinishedRow(d: DownloadEntry, s: FrontEndState, a: FrontEndActions, bloom: Boolean = false) {
     val ctx = LocalContext.current
-    val colors = MaterialTheme.colorScheme
-    Row(
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
-        modifier = Modifier.fillMaxWidth().clip(Shape12).background(colors.surface).padding(horizontal = 12.dp, vertical = 6.dp),
-    ) {
-        Text(d.name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+    ArtStrip(d.cover, d.name) {
+        Text(d.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
         SourceChip(d.store.id, small = true)
-        Text(stringResource(if (d.state == DownloadState.INSTALLED) R.string.stores_installed_chip else R.string.stores_dl_cancelled), fontSize = 11.sp, color = colors.onSurfaceVariant, maxLines = 1, modifier = Modifier.weight(1f))
+        Text(stringResource(if (d.state == DownloadState.INSTALLED) R.string.stores_installed_chip else R.string.stores_dl_cancelled), fontSize = 12.sp, color = Color.White.copy(alpha = 0.72f), maxLines = 1)
+        Spacer(Modifier.weight(1f))
         if (d.state == DownloadState.INSTALLED) Box(Modifier.bloomIn(bloom, GATHER_HOLD_MS + 150)) {
-            RoundAction(Icons.Filled.PlayArrow, stringResource(R.string.stores_play), primary = true) { launchStoreGame(ctx, d.store, d.id, s, a) }
+            RoundAction(Icons.Filled.PlayArrow, stringResource(R.string.stores_play), primary = true) { if (d.key == EpicClient.DOWNLOAD_KEY) a.onEpicLauncher() else launchStoreGame(ctx, d.store, d.id, s, a) }
         }
     }
 }
 
-/** Grows out of a dot (sp 0.5 / 300) after [waitMs], when [on]; otherwise just there. */
 private fun Modifier.bloomIn(on: Boolean, waitMs: Int): Modifier = composed {
     val k = remember { Animatable(if (on && Motion.scale > 0f) 0f else 1f) }
     LaunchedEffect(Unit) {
@@ -211,10 +232,6 @@ private fun Modifier.bloomIn(on: Boolean, waitMs: Int): Modifier = composed {
     graphicsLayer { scaleX = k.value; scaleY = k.value; alpha = k.value.coerceIn(0f, 1f) }
 }
 
-/**
- * A row's action as a round icon button - the label is its description - sized like the old
- * compact buttons and focusable by pad. [primary] fills it with the accent, [danger] in red.
- */
 @Composable
 internal fun RoundAction(
     icon: androidx.compose.ui.graphics.vector.ImageVector, description: String, primary: Boolean = false, danger: Boolean = false,
@@ -236,10 +253,6 @@ internal fun RoundAction(
     ) { androidx.compose.material3.Icon(icon, description, tint = tint, modifier = Modifier.size(size * 0.5f)) }
 }
 
-/**
- * Cancel as End session's confirm: the X drops a pull and Keep and Delete step out to its left,
- * in red. Keep's rim runs out the four seconds after which it folds back by itself.
- */
 @Composable
 private fun CancelAction(onDelete: () -> Unit) {
     val colors = MaterialTheme.colorScheme
@@ -255,7 +268,6 @@ private fun CancelAction(onDelete: () -> Unit) {
             ) {
                 val left = remember { Animatable(1f) }
                 LaunchedEffect(Unit) {
-                    // Wall-clock seconds, as before; the rim follows them when animations run.
                     if (Motion.scale > 0f) launch { left.animateTo(0f, androidx.compose.animation.core.tween((CANCEL_HOLD_MS / Motion.scale).toInt(), easing = LinearEasing)) }
                     delay(CANCEL_HOLD_MS.toLong())
                     StoresMotion.fold()
@@ -271,7 +283,6 @@ private fun CancelAction(onDelete: () -> Unit) {
 
 private const val CANCEL_HOLD_MS = 4000
 
-/** A capsule's outline drawn for [left] (1 to 0) of its length, clockwise from the top centre: time running out. */
 private fun Modifier.timeRim(left: () -> Float, color: Color): Modifier = drawWithContent {
     drawContent()
     val v = left()
@@ -295,12 +306,11 @@ private fun Modifier.timeRim(left: () -> Float, color: Color): Modifier = drawWi
 @Composable
 private fun DownloadCard(d: DownloadEntry, s: FrontEndState, a: FrontEndActions) {
     val ctx = LocalContext.current
+    val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val narrow = LocalNarrowPane.current
     val ink = Color.White
     val dim = Color.White.copy(alpha = 0.72f)
-    // The game's wide art is the row: cropped to it, a dark wash from the left so the copy reads
-    // in white there, the art clear on the right.
     Box(Modifier.fillMaxWidth().heightIn(min = 88.dp).clip(Shape12).background(Color(0xFF101318)).border(1.dp, pal.line, Shape12)) {
         if (!d.cover.isNullOrEmpty()) AsyncImage(model = d.cover, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
         else Spacer(Modifier.matchParentSize().background(artBrush(hueOf(d.name))))
@@ -318,8 +328,11 @@ private fun DownloadCard(d: DownloadEntry, s: FrontEndState, a: FrontEndActions)
                     val meta = when (d.state) {
                         DownloadState.INSTALLED -> stringResource(R.string.stores_installed_chip)
                         DownloadState.CANCELLED -> stringResource(R.string.stores_dl_cancelled)
-                        // The reason is in the engine log; the row only says what is kept for Resume.
-                        DownloadState.FAILED -> if (d.bytesDone > 0) stringResource(R.string.stores_dl_failed_kept, formatBytes(d.bytesDone)) else stringResource(R.string.stores_dl_failed)
+                        DownloadState.FAILED -> {
+                            if (!d.error.isNullOrBlank()) stringResource(R.string.stores_dl_failed_reason, d.error)
+                            else if (d.bytesDone > 0) stringResource(R.string.stores_dl_failed_kept, formatBytes(d.bytesDone))
+                            else stringResource(R.string.stores_dl_failed)
+                        }
                         DownloadState.PAUSED -> stringResource(R.string.stores_dl_paused)
                         DownloadState.QUEUED -> if (d.queuePosition > 0) stringResource(R.string.stores_dl_queued_at, d.queuePosition) else stringResource(R.string.stores_dl_queued)
                         DownloadState.RUNNING -> {
@@ -331,14 +344,14 @@ private fun DownloadCard(d: DownloadEntry, s: FrontEndState, a: FrontEndActions)
                             }
                         }
                     }
-                    Text(meta, fontSize = 12.sp, color = dim, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    val metaColor = if (d.state == DownloadState.FAILED) colors.error else dim
+                    Text(meta, fontSize = 12.sp, color = metaColor, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                     if (d.state == DownloadState.RUNNING && (d.stage == DownloadStage.DOWNLOAD || d.stage == DownloadStage.INSTALL) && d.speedBps > 0) {
                         Text(formatSpeed(d.speedBps), fontSize = 12.sp, color = dim, maxLines = 1)
                         if (d.etaSeconds >= 0) Text(eta(d.etaSeconds), fontSize = 12.sp, color = dim, maxLines = 1)
                     }
                 }
             }
-            // The row's actions on the right, over the art: icons, their labels as descriptions.
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 when (d.state) {
                     DownloadState.RUNNING, DownloadState.QUEUED -> {
@@ -349,10 +362,12 @@ private fun DownloadCard(d: DownloadEntry, s: FrontEndState, a: FrontEndActions)
                         RoundAction(Icons.Filled.PlayArrow, stringResource(R.string.stores_dl_resume), primary = true) { DownloadQueue.resume(ctx, d.key) }
                         CancelAction { DownloadQueue.cancel(ctx, d.key) }
                     }
-                    DownloadState.FAILED -> RoundAction(Icons.Filled.Refresh, stringResource(R.string.stores_dl_resume), primary = true) { DownloadQueue.retry(ctx, d.key) }
-                    // Just installed (this row is on its way under the line): Play blooms where the bar gathered.
+                    DownloadState.FAILED -> {
+                        RoundAction(Icons.Filled.Refresh, stringResource(R.string.stores_dl_resume), primary = true) { DownloadQueue.retry(ctx, d.key) }
+                        CancelAction { DownloadQueue.clear(ctx, d.key) }
+                    }
                     DownloadState.INSTALLED -> Box(Modifier.bloomIn(true, 420)) {
-                        RoundAction(Icons.Filled.PlayArrow, stringResource(R.string.stores_play), primary = true) { launchStoreGame(ctx, d.store, d.id, s, a) }
+                        RoundAction(Icons.Filled.PlayArrow, stringResource(R.string.stores_play), primary = true) { if (d.key == EpicClient.DOWNLOAD_KEY) a.onEpicLauncher() else launchStoreGame(ctx, d.store, d.id, s, a) }
                     }
                     DownloadState.CANCELLED -> {}
                 }
@@ -361,13 +376,6 @@ private fun DownloadCard(d: DownloadEntry, s: FrontEndState, a: FrontEndActions)
     }
 }
 
-/**
- * One segment per stage - Manifest, Download, Verify, Install - equal widths: a passed or skipped
- * stage full, the active one filling with its own progress (a sliver while it has nothing to count),
- * the rest empty. Fills ride a spring; a stage that completes swells and settles (the bloop); a
- * paused one breathes; and once the download has installed the four gather into one green line
- * that draws up into a dot, where Play blooms.
- */
 @Composable
 private fun StageBar(d: DownloadEntry) {
     val pal = LocalPalette.current
@@ -378,8 +386,6 @@ private fun StageBar(d: DownloadEntry) {
     val fills = stages.mapIndexed { i, st ->
         when {
             actives[i] -> d.stageFraction.let { if (it < 0f) 0.04f else it }
-            // A stage a store skips or folds into another (Epic checks chunks while it fetches,
-            // Amazon writes while it downloads) reads complete once a later one has started.
             d.passed(st) || st.ordinal < d.stage.ordinal || d.stage == DownloadStage.DONE -> 1f
             else -> 0f
         }
@@ -408,7 +414,6 @@ private fun StageBar(d: DownloadEntry) {
         val cy = size.height / 2f
         val g = gather.value
         if (g < 0.5f) {
-            // The segments: the gaps close and every fill turns done-green as the gather starts.
             val join = (g * 2f).coerceIn(0f, 1f)
             val gap = 3.dp.toPx() * (1f - join)
             val segW = (size.width - gap * 3f) / 4f
@@ -416,6 +421,7 @@ private fun StageBar(d: DownloadEntry) {
                 val x = i * (segW + gap)
                 drawRoundRect(colors.surfaceVariant, Offset(x, cy - h / 2f), Size(segW, h), CornerRadius(h / 2f))
                 val base = when {
+                    d.state == DownloadState.FAILED -> colors.error
                     done[i] -> pal.good
                     actives[i] && paused -> pausedColor.copy(alpha = breath)
                     actives[i] && stages[i] == DownloadStage.VERIFY -> verifyColor
@@ -428,7 +434,6 @@ private fun StageBar(d: DownloadEntry) {
                 )
             }
         } else {
-            // One line drawing up into a dot at its right end.
             val p = ((g - 0.5f) * 2f).coerceIn(0f, 1f)
             val dot = 10.dp.toPx()
             val left = androidx.compose.ui.util.lerp(0f, size.width - dot, p)
@@ -438,7 +443,6 @@ private fun StageBar(d: DownloadEntry) {
     }
 }
 
-/** 1, or while [on] (and animations run), an alpha going 1 → 0.5 → 1 over the rail's live-dot period. */
 @Composable
 private fun breathing(on: Boolean): Float {
     if (!on || Motion.scale == 0f) return 1f
@@ -453,22 +457,6 @@ private fun eta(seconds: Long): String = when {
     else -> "~${seconds / 3600} h ${(seconds % 3600) / 60} m"
 }
 
-/** The queue's settings beside it: speed tier, downloads at a time, and the engine log. */
-@Composable
-private fun DownloadSettings(s: FrontEndState, a: FrontEndActions) {
-    val ctx = LocalContext.current
-    val colors = MaterialTheme.colorScheme
-    val pal = LocalPalette.current
-    SectionTitle(stringResource(R.string.stores_download_manager), null)
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().clip(Shape12).background(colors.surface).border(1.dp, pal.line, Shape12).padding(horizontal = 14.dp, vertical = 10.dp)) {
-        DownloadControls(s, a)
-    }
-}
-
-/**
- * The queue's two knobs on one line - the speed tier on the left, downloads at a time on the
- * right; the same control sits in the cog's popup. A narrow page puts them on two tight lines.
- */
 @Composable
 internal fun DownloadControls(s: FrontEndState, a: FrontEndActions) {
     val ctx = LocalContext.current
@@ -492,15 +480,9 @@ internal fun DownloadControls(s: FrontEndState, a: FrontEndActions) {
     }
 }
 
-/**
- * The chip row's cog: the section's own settings stepped out of it - which tab a store opens on,
- * mature titles, the speed tier and how many at once, and the download engine. Their only home;
- * Setup no longer repeats them. Every install is added to Steam; that is not a choice. [s] is
- * read live, so a change shows at once in what is stepped out.
- */
 internal fun storesSettingsStep(at: Rect, s: androidx.compose.runtime.State<FrontEndState>, a: FrontEndActions, accent: androidx.compose.ui.graphics.Color): StepAsk =
     StepAsk(
-        anchor = at, side = StepSide.Left, accent = accent, items = 3, maxWidth = 440.dp,
+        anchor = at, side = StepSide.Left, accent = accent, items = 2, maxWidth = 440.dp,
         handle = { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Settings, null, tint = accent, modifier = Modifier.size(20.dp)) },
     ) {
         StepTitle(stringResource(R.string.stores_settings_eyebrow))
@@ -510,19 +492,23 @@ internal fun storesSettingsStep(at: Rect, s: androidx.compose.runtime.State<Fron
         ) {
             val st = s.value
             SettingsRow(stringResource(R.string.setup_stores_open_on), null, stacked = true) {
-                SegmentedTabs(
+                Box(Modifier.focusRequester(first).focusGroup()) { SegmentedTabs(
                     listOf(SessionPrefs.STORES_OPEN_LIBRARY to stringResource(R.string.stores_tab_library), SessionPrefs.STORES_OPEN_STORE to stringResource(R.string.stores_tab_store)),
                     st.storesOpenTab,
-                ) { a.onStoresOpenTab(it) }
+                ) { a.onStoresOpenTab(it) } }
             }
             SettingsRow(stringResource(R.string.stores_show_mature), null) {
                 ToggleSwitch(st.storesShowMature, label = stringResource(R.string.stores_show_mature)) { a.onStoresShowMature(it) }
             }
-            // The queue's two knobs as one compact row, the same control the Downloads page has.
             Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { DownloadControls(st, a) }
+            val context = androidx.compose.ui.platform.LocalContext.current
+            var gogAchievements by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(com.droiddeck.launcher.stores.gog.GogComet.enabled(context)) }
+            SettingsRow(stringResource(R.string.gog_achievements), stringResource(R.string.gog_achievements_hint)) {
+                ToggleSwitch(gogAchievements, label = stringResource(R.string.gog_achievements)) {
+                    gogAchievements = it
+                    com.droiddeck.launcher.stores.gog.GogComet.setEnabled(context, it)
+                }
+            }
             StoresEngineRow()
-        }
-        Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth().stepItem(2).padding(top = 8.dp)) {
-            StepChoice(stringResource(R.string.common_ok), enabled = open, modifier = Modifier.focusRequester(first)) { StoresMotion.fold() }
         }
     }

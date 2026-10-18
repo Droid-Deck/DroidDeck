@@ -1,17 +1,3 @@
-//! The GOG gen2 fetch loop on top of the shared fetch core. One call = one Java pool run
-//! (`runGen2` base loop, `doInstallDlc` loop, or one `assembleDependencyInstaller`).
-//!
-//! What this mirrors, and where (see Bannerlator's `docs/RUST_GOG_PARITY.md`):
-//! - resume/skip: [`file_verified`] = `GogDownloadManager.fileVerified` (exists, non-empty, size
-//!   when known, MD5 when known) — a verified file is reported as "Verified…" progress with NO
-//!   bytes credited, exactly like the Java task;
-//! - per chunk: compressed size → compressed MD5 → inflate (stored fallback) → decompressed size →
-//!   decompressed MD5 (`fetchChunkVerified`); a mismatch is a retryable failure (Java: hard fail
-//!   ≤3 with backoff; the core: ≤5 attempts with backoff);
-//! - per file: write into `<file>.bhtmp` (positioned, so chunks may land out of order), then
-//!   whole-file size + MD5, delete any existing final, rename (`assembleDepotFile`);
-//! - failure of any file aborts the run (`anyFailed`), cancel aborts the run; in both cases every
-//!   unfinished `.bhtmp` is deleted (Java deletes its tmp on the failing/cancelled thread).
 
 use std::collections::HashSet;
 use std::fs::{self, File, OpenOptions};
@@ -30,35 +16,25 @@ use super::plan::{
 };
 use super::{inflate_zlib, md5_hex, md5_hex_file};
 
-/// Per-request timeout on chunk fetches (Java: `TIMEOUT = 30_000` connect + read).
 pub const CHUNK_TIMEOUT: Duration = Duration::from_secs(30);
-/// Java sends this on every content-system / CDN request (`fetchBytesEx`).
 pub const USER_AGENT: &str = "GOG Galaxy";
-/// Java staging suffix (`assembleDepotFile`).
 pub const TMP_SUFFIX: &str = ".bhtmp";
-/// Floor for the per-host cap (the core's default); a single-host store gets the whole ceiling.
 pub const PER_HOST_CAP_FLOOR: usize = 6;
 
-/// `max(6, ceil(max_workers / distinct_hosts))` — one CDN host gets the whole ceiling, several
-/// share it.
 pub fn per_host_cap_for(max_workers: usize, distinct_hosts: usize) -> usize {
     let hosts = distinct_hosts.max(1);
     let workers = max_workers.max(1);
     PER_HOST_CAP_FLOOR.max(workers.div_ceil(hosts))
 }
 
-/// Which Java loop this run replaces.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum PlanKind {
-    /// gen2: depot manifests → chunks → `assembleDepotFile` (base install, DLC, dependencies).
     #[default]
     Gen2Chunks,
-    /// gen1: build manifest → per-file HTTP Range GET streamed to disk (`runGen1`).
     Gen1Ranges,
 }
 
 impl PlanKind {
-    /// JNI mapping (`GogNative.KIND_*`): 0 = gen2 chunks, 1 = gen1 ranges, anything else → gen2.
     pub fn from_i32(v: i32) -> Self {
         if v == 1 {
             PlanKind::Gen1Ranges
@@ -68,39 +44,21 @@ impl PlanKind {
     }
 }
 
-/// Inputs — exactly what the Java manager has in hand after manifest + secure-link resolution.
 #[derive(Clone, Debug, Default)]
 pub struct GogRequest {
     pub kind: PlanKind,
-    /// gen2: inflated depot-manifest JSON strings, in the order Java fetched them (already filtered
-    /// by base-product / DLC-product and language in Java). gen1: the inflated build manifest.
     pub depot_manifests: Vec<String>,
-    /// gen2: the resolved CDN bases from the secure-link answer (every `urls[]` entry, query
-    /// strings kept, in the order GOG lists them), or the one unauthenticated dependency store
-    /// base. Several bases on distinct hosts let the fetch core spread the window across CDNs
-    /// with its per-host cap; a base on a host already listed is dropped (the first one wins).
-    /// gen1: unused (file URLs live in the manifest).
     pub cdn_bases: Vec<String>,
     pub install_dir: String,
-    /// Files already completed by an earlier run of this same download (secure-link refresh
-    /// re-run): counted as done WITHOUT re-hashing and WITHOUT a progress event.
     pub skip_paths: Vec<String>,
     pub ca_bundle_path: String,
-    /// Java pool size: `resolveDownloadThreads` (base), 8 (DLC), 1 (dependency).
     pub max_workers: usize,
-    /// Inflate/hash/write threads; Java did that on the same pool threads, so pass the same count.
     pub process_workers: usize,
-    /// Base install: largest-first (LPT) ordering; DLC / dependency: manifest order.
     pub sort_largest_first: bool,
-    /// Log prefix, e.g. `gog base=1207658930`.
     pub label: String,
 }
 
-/// Callbacks out of the engine (JNI listener or a test recorder). Must be callable from the
-/// process-pool threads.
 pub trait GogEvents: Sync {
-    /// One file reached its final state. `verified` = resume-skip (no bytes credited); otherwise a
-    /// freshly assembled + verified file (`file_bytes` credited). `files_done` counts both.
     #[allow(clippy::too_many_arguments)]
     fn on_file_done(
         &self,
@@ -113,9 +71,6 @@ pub trait GogEvents: Sync {
         bytes_total: u64,
     );
     fn on_log(&self, line: &str);
-    /// Periodic byte progress while files are in flight (~4/s, only when the value moved):
-    /// assembled bytes plus the bytes of files not yet finished. Same `bytes_total` as
-    /// `on_file_done`. Default: ignored (test recorders).
     fn on_bytes(&self, _bytes_done: u64, _bytes_total: u64) {}
 }
 
@@ -123,20 +78,14 @@ pub trait GogEvents: Sync {
 pub struct GogRunResult {
     pub success: bool,
     pub cancelled: bool,
-    /// The run died on an HTTP code Java treats as an expired secure link (401/403/404/500) —
-    /// the Java caller refreshes the link (cap 5) and re-runs with `skip_paths` filled in.
     pub link_expiry: bool,
     pub error: String,
-    /// Decompressed bytes of files assembled by THIS run (Java `totalBytes`).
     pub bytes_written: u64,
-    /// Files done = verified-skipped + assembled (Java `doneCount`), excluding `skip_paths`.
     pub files_done: u32,
     pub files_verified: u32,
     pub files_total: u32,
 }
 
-/// `GogDownloadManager.fileVerified`: true only if the file exists, is non-empty, matches the
-/// expected size when known and the expected MD5 when known.
 pub fn file_verified(path: &Path, expected_size: u64, expected_md5: &str) -> bool {
     let Ok(meta) = fs::metadata(path) else {
         return false;
@@ -156,8 +105,6 @@ pub fn file_verified(path: &Path, expected_size: u64, expected_md5: &str) -> boo
     true
 }
 
-/// Finds an HTTP status in a fetch-core error string (`non-200 HTTP status (403)`, `status 403`,
-/// `HTTP 403`, `http=403`, `code=403`). The link-expiry set is Java's `fetchChunkVerified` list.
 pub fn http_status_in(message: &str) -> Option<u16> {
     let lower = message.to_ascii_lowercase();
     for marker in ["status (", "status ", "http ", "http=", "code=", "code "] {
@@ -178,7 +125,6 @@ pub fn http_status_in(message: &str) -> Option<u16> {
     None
 }
 
-/// Java: `code == 401 || code == 403 || code == 404 || code == 500` → refresh the secure link.
 pub fn is_link_expiry_status(code: u16) -> bool {
     matches!(code, 401 | 403 | 404 | 500)
 }
@@ -186,8 +132,6 @@ pub fn is_link_expiry_status(code: u16) -> bool {
 struct FileState {
     handle: Option<Arc<File>>,
     chunks_done: usize,
-    /// Decompressed bytes of this file's finished chunks, credited to the sink's `partial`
-    /// counter until the file itself is finalized and moves into `bytes_done`.
     partial: u64,
     finalized: bool,
     failed: bool,
@@ -240,11 +184,6 @@ impl SpeedSampler {
     }
 }
 
-/// Positioned writer for ONE chunk's decompressed byte range inside the file's `.bhtmp`: hashes
-/// everything it is given (the decompressed MD5) and counts it, but only writes bytes inside the
-/// chunk's expected range when the size is known — an inflate overshoot then fails the size
-/// check instead of clobbering the neighbouring chunk. An I/O error is remembered so the sink can
-/// tell "disk failed" (fatal) from "stream failed" (retry).
 struct RangeWriter {
     file: Arc<File>,
     base: u64,
@@ -294,13 +233,10 @@ enum ChunkMode {
     Stored(RangeWriter),
 }
 
-/// Per-item streaming state for one attempt (reset whenever a piece arrives at `offset == 0`).
 struct ChunkStream {
     comp_md5: crate::md5_small::Md5,
     comp_len: u64,
-    /// Decided on the first non-empty piece (`0x78` → zlib, else stored — Java's `inflateZlib`).
     mode: Option<ChunkMode>,
-    /// The writer until the mode is decided (an empty body never decides).
     writer: Option<RangeWriter>,
 }
 
@@ -315,17 +251,10 @@ impl ChunkStream {
     }
 }
 
-/// The `FetchSink`. Stream mode (what `run_gen2` uses): pieces of a chunk are inflated as they
-/// arrive straight into the chunk's byte range of the file, the compressed MD5 and the
-/// decompressed size/MD5 accumulate on the fly, and `on_finish` runs the checks in Java's order
-/// (compressed size → compressed MD5 → inflate → size → MD5). Body mode (`process`) is the same
-/// pipeline on a whole buffer and stays available for tests / a body-mode fallback.
 struct GogSink<'a> {
     files: &'a [PlannedFile],
-    /// item id → (file index, chunk index)
     table: Vec<(usize, usize)>,
     states: Vec<Mutex<FileState>>,
-    /// item id → in-flight stream attempt (stream mode only)
     streams: Vec<Mutex<Option<ChunkStream>>>,
     files_total: u32,
     bytes_total: u64,
@@ -333,8 +262,6 @@ struct GogSink<'a> {
     bytes_done: &'a AtomicU64,
     events: &'a dyn GogEvents,
     speed: Mutex<SpeedSampler>,
-    /// Bytes of files still in flight (finished chunks; for gen1, the current attempt's pieces).
-    /// `bytes_done + partial` is what the byte ticker reports between file completions.
     partial: AtomicU64,
 }
 
@@ -343,8 +270,6 @@ impl<'a> GogSink<'a> {
         self.events.on_log(line);
     }
 
-    /// `assembleDepotFile` head: `parent.mkdirs(); tmpFile.delete(); new FileOutputStream(tmp)` —
-    /// once per file, on its first chunk. Returns a shared handle for positioned writes.
     fn file_handle(&self, file_idx: usize) -> Result<Arc<File>, SinkError> {
         let file = &self.files[file_idx];
         let mut st = self
@@ -385,9 +310,6 @@ impl<'a> GogSink<'a> {
         }
     }
 
-    /// One verified chunk landed: count it; on the file's last chunk run the whole-file verify +
-    /// rename and fire the per-file progress event (Java: doneCount++, totalBytes += df.totalSize,
-    /// "Downloading: <name>  <speed>").
     fn chunk_done(&self, file_idx: usize, chunk_bytes: u64) -> Result<(), SinkError> {
         let file = &self.files[file_idx];
         let mut st = self
@@ -431,7 +353,6 @@ impl<'a> GogSink<'a> {
         Ok(())
     }
 
-    /// `assembleDepotFile` tail: whole-file size + MD5 on the tmp, delete existing final, rename.
     fn finalize_file(&self, file_idx: usize, st: &mut FileState) -> Result<(), String> {
         let file = &self.files[file_idx];
         if let Some(handle) = st.handle.take() {
@@ -469,7 +390,6 @@ impl<'a> GogSink<'a> {
         Ok(())
     }
 
-    /// Delete every unfinished `.bhtmp` (Java: `tmpFile.delete()` on the failing/cancelled task).
     fn cleanup_partials(&self) {
         for st in &self.states {
             let Ok(mut st) = st.lock() else {
@@ -496,8 +416,6 @@ impl<'a> GogSink<'a> {
 }
 
 impl<'a> FetchSink for GogSink<'a> {
-    /// Body mode: `fetchChunkVerified` on a whole buffer, then a positioned write of the inflated
-    /// bytes (used by tests and available as a non-stream fallback).
     fn process(&self, item: &FetchItem, body: Vec<u8>) -> Result<u64, SinkError> {
         let Some(&(file_idx, chunk_idx)) = self.table.get(item.id as usize) else {
             return Err(SinkError::Fatal(format!("unknown item id {}", item.id)));
@@ -508,7 +426,6 @@ impl<'a> FetchSink for GogSink<'a> {
             speed.record(body.len() as u64);
         }
 
-        // fetchChunkVerified, in order: compressed size → compressed MD5 → inflate → size → MD5.
         if chunk.compressed_size > 0 && body.len() as u64 != chunk.compressed_size {
             let msg = format!(
                 "chunk compressed-size mismatch chunk={} exp={} got={}",
@@ -528,7 +445,7 @@ impl<'a> FetchSink for GogSink<'a> {
         }
         let inflated = match inflate_zlib(&body) {
             Some(out) => out,
-            None => body, // stored (non-zlib) chunk
+            None => body,
         };
         if chunk.size > 0 && inflated.len() as u64 != chunk.size {
             let msg = format!(
@@ -563,8 +480,6 @@ impl<'a> FetchSink for GogSink<'a> {
         Ok(credited)
     }
 
-    /// Stream mode: hash the compressed piece, inflate it straight into the chunk's byte range
-    /// (or pass it through for a stored chunk), hashing + counting the decompressed output.
     fn on_chunk(&self, item: &FetchItem, offset: u64, data: &[u8]) -> Result<(), SinkError> {
         let id = item.id as usize;
         let Some(&(file_idx, chunk_idx)) = self.table.get(id) else {
@@ -581,7 +496,6 @@ impl<'a> FetchSink for GogSink<'a> {
             .and_then(|m| m.lock().ok())
             .ok_or_else(|| SinkError::Fatal("chunk stream poisoned".to_string()))?;
         if offset == 0 || slot.is_none() {
-            // (Re)start of an attempt: fresh hashers + inflater; positioned writes re-cover the range.
             let handle = self.file_handle(file_idx)?;
             *slot = Some(ChunkStream::new(handle, chunk.offset, chunk.size));
         }
@@ -601,7 +515,7 @@ impl<'a> FetchSink for GogSink<'a> {
             stream.mode = Some(if data[0] == 0x78 {
                 ChunkMode::Zlib(flate2::write::ZlibDecoder::new(writer))
             } else {
-                ChunkMode::Stored(writer) // stored (non-zlib) chunk — Java's `inflated = raw`
+                ChunkMode::Stored(writer)
             });
         }
         let result = match stream.mode.as_mut() {
@@ -616,7 +530,6 @@ impl<'a> FetchSink for GogSink<'a> {
         match result {
             Ok(()) => Ok(()),
             Err((_, Some(io))) => {
-                // Disk, not stream: Java's `fos.write` exception → file fails → run aborts.
                 if let Some(mut st) = self.states.get(file_idx).and_then(|m| m.lock().ok()) {
                     st.failed = true;
                     let _ = st.handle.take();
@@ -627,7 +540,6 @@ impl<'a> FetchSink for GogSink<'a> {
                 Err(SinkError::Fatal(msg))
             }
             Err((err, None)) => {
-                // Corrupt zlib body. Java: inflate → null → raw → decompressed-size mismatch → retry.
                 let msg = format!("chunk inflate failed chunk={} err={err}", chunk.hash);
                 self.log(&msg);
                 *slot = None;
@@ -636,7 +548,6 @@ impl<'a> FetchSink for GogSink<'a> {
         }
     }
 
-    /// Stream mode: the body ended — run Java's checks in order and count the chunk.
     fn on_finish(&self, item: &FetchItem, _total_len: u64) -> Result<u64, SinkError> {
         let id = item.id as usize;
         let Some(&(file_idx, chunk_idx)) = self.table.get(id) else {
@@ -652,7 +563,6 @@ impl<'a> FetchSink for GogSink<'a> {
             .take();
         let stream = match taken {
             Some(s) => s,
-            // Empty body with no pieces: same checks on zero bytes.
             None => ChunkStream::new(self.file_handle(file_idx)?, chunk.offset, chunk.size),
         };
 
@@ -717,11 +627,8 @@ impl<'a> FetchSink for GogSink<'a> {
     }
 }
 
-/// How often the byte ticker reports while files are in flight.
 pub const BYTE_TICK: Duration = Duration::from_millis(250);
 
-/// The CDN bases to fetch from: empty entries dropped, then one per distinct host (`host_key`),
-/// the first base seen for a host kept, order preserved.
 pub fn distinct_bases(bases: &[String]) -> Vec<String> {
     let mut seen: HashSet<String> = HashSet::new();
     bases
@@ -732,10 +639,6 @@ pub fn distinct_bases(bases: &[String]) -> Vec<String> {
         .collect()
 }
 
-/// Runs `fetch` with a reporter thread beside it that calls `on_bytes(bytes_done + partial,
-/// bytes_total)` every [`BYTE_TICK`] when the value moved. `on_file_done` only fires when a whole
-/// file is finished, so a game made of a few large files gave the UI a progress bar that sat
-/// still and then jumped; this fills the gaps. One last report is made when `fetch` returns.
 fn with_byte_ticker<T>(
     events: &dyn GogEvents,
     bytes_done: &AtomicU64,
@@ -765,9 +668,6 @@ fn with_byte_ticker<T>(
     })
 }
 
-/// Runs one download loop. Blocking; returns when every pending file is finalized, on the first
-/// fatal file failure, or on cancel. Safe to call again with `skip_paths` extended by the files
-/// this run reported done (that is how the Java side re-runs after a secure-link refresh).
 pub fn run(req: &GogRequest, cancel: &AtomicBool, events: &dyn GogEvents) -> GogRunResult {
     match req.kind {
         PlanKind::Gen2Chunks => run_gen2(req, cancel, events),
@@ -808,8 +708,6 @@ fn run_gen2(req: &GogRequest, cancel: &AtomicBool, events: &dyn GogEvents) -> Go
     let files_verified = AtomicU32::new(0);
 
     if files.is_empty() {
-        // Java: the caller already returned "no depot files collected" before the loop; reaching
-        // here means the two parsers disagree — surface it loudly rather than pretend success.
         return GogRunResult {
             success: false,
             error: "no files in plan (manifest parse mismatch)".to_string(),
@@ -818,8 +716,6 @@ fn run_gen2(req: &GogRequest, cancel: &AtomicBool, events: &dyn GogEvents) -> Go
         };
     }
 
-    // Resume / repair pass — Java does this per task on the pool threads; here it runs up front
-    // on `process_workers` threads so the fetch item list can exclude verified files.
     let pending: Vec<AtomicBool> = files.iter().map(|_| AtomicBool::new(false)).collect();
     let next = AtomicUsize::new(0);
     let verify_threads = process_workers.min(files.len().max(1));
@@ -870,7 +766,6 @@ fn run_gen2(req: &GogRequest, cancel: &AtomicBool, events: &dyn GogEvents) -> Go
         };
     }
 
-    // Fetch items: one per chunk of every pending file, in plan order (chunks in manifest order).
     let mut table: Vec<(usize, usize)> = Vec::new();
     let mut items: Vec<FetchItem> = Vec::new();
     let mut states: Vec<Mutex<FileState>> = Vec::new();
@@ -884,7 +779,6 @@ fn run_gen2(req: &GogRequest, cancel: &AtomicBool, events: &dyn GogEvents) -> Go
             handle: None,
             chunks_done: 0,
             partial: 0,
-            // Files not pending (verified or skip-listed) are already final for this run.
             finalized: !is_pending,
             failed: false,
             tmp_path,
@@ -899,7 +793,6 @@ fn run_gen2(req: &GogRequest, cancel: &AtomicBool, events: &dyn GogEvents) -> Go
             let path = build_cdn_path(&chunk.hash);
             items.push(FetchItem {
                 id: table.len() as u64,
-                // One URL per host, in `hosts` order: the core picks `urls[host_idx]`.
                 urls: bases.iter().map(|b| build_chunk_url(b, &path)).collect(),
                 reserve: chunk.compressed_size,
                 range: None,
@@ -943,15 +836,12 @@ fn run_gen2(req: &GogRequest, cancel: &AtomicBool, events: &dyn GogEvents) -> Go
     };
     let opts = FetchOptions {
         max_workers,
-        // The ceiling split across the distinct CDN hosts (floor 6); one host gets all of it.
         per_host_cap,
         timeout: CHUNK_TIMEOUT,
         headers: vec![("User-Agent".to_string(), USER_AGENT.to_string())],
         ca_bundle_path: req.ca_bundle_path.clone(),
         process_workers,
         label: req.label.clone(),
-        // Stream mode: pieces inflate straight to disk; no whole-body byte budget (the 24 MiB
-        // body budget + largest-first big chunks left 1-3 requests in flight at window 16).
         stream: true,
     };
     let log = |line: &str| events.on_log(line);
@@ -1010,23 +900,14 @@ fn run_gen2(req: &GogRequest, cancel: &AtomicBool, events: &dyn GogEvents) -> Go
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────────────────────
-// gen1: per-file HTTP Range GET streamed to disk (`runGen1` / `downloadRange`)
-// ─────────────────────────────────────────────────────────────────────────────────────────────
 
 struct Gen1State {
     handle: Option<File>,
-    /// Bytes this file's current attempt has written (credited to the sink's `partial`); a new
-    /// attempt starts over, so a retry never counts its bytes twice.
     attempt_bytes: u64,
     out_path: PathBuf,
     finalized: bool,
 }
 
-/// Stream-mode sink for gen1. Java's `downloadRange`: `outFile.delete()` before EVERY attempt,
-/// `new FileOutputStream(out)`, copy the Range body, no size/hash check; success → `doneG1++`,
-/// `totalBytesG1 += size`, `"Downloading: <name>  <speed>"`. Pieces arrive in order with their
-/// offset; `offset == 0` marks the (re)start of an attempt, exactly where Java deletes the file.
 struct Gen1Sink<'a> {
     files: &'a [Gen1File],
     states: Vec<Mutex<Gen1State>>,
@@ -1036,8 +917,6 @@ struct Gen1Sink<'a> {
     bytes_done: &'a AtomicU64,
     events: &'a dyn GogEvents,
     speed: Mutex<SpeedSampler>,
-    /// Bytes of files still in flight (finished chunks; for gen1, the current attempt's pieces).
-    /// `bytes_done + partial` is what the byte ticker reports between file completions.
     partial: AtomicU64,
 }
 
@@ -1061,7 +940,6 @@ impl<'a> FetchSink for Gen1Sink<'a> {
             .lock()
             .map_err(|_| SinkError::Fatal("gen1 state poisoned".to_string()))?;
         if offset == 0 {
-            // New attempt: Java `outFile.delete()` + `new FileOutputStream(out)`.
             self.partial
                 .fetch_sub(std::mem::take(&mut st.attempt_bytes), Ordering::Relaxed);
             st.handle = None;
@@ -1109,7 +987,7 @@ impl<'a> FetchSink for Gen1Sink<'a> {
             let mut st = state
                 .lock()
                 .map_err(|_| SinkError::Fatal("gen1 state poisoned".to_string()))?;
-            st.handle = None; // close
+            st.handle = None;
             st.finalized = true;
             let attempt = std::mem::take(&mut st.attempt_bytes);
             self.bytes_done.fetch_add(file.size, Ordering::Relaxed);
@@ -1130,10 +1008,6 @@ impl<'a> FetchSink for Gen1Sink<'a> {
     }
 }
 
-/// gen1 loop. Resume = `exists && length == size` ("Resuming…", no bytes). Items = one Range GET
-/// per pending file; retries/back-off by the core (Java: 3 attempts, 1 s / 2 s). Failed or
-/// cancelled attempts leave whatever was written, like Java (a wrong-size partial fails the
-/// size-match resume and is re-pulled next time; a base-install cancel deletes the whole dir).
 fn run_gen1(req: &GogRequest, cancel: &AtomicBool, events: &dyn GogEvents) -> GogRunResult {
     let mut files: Vec<Gen1File> = Vec::new();
     for manifest in &req.depot_manifests {
@@ -1298,7 +1172,7 @@ fn run_gen1(req: &GogRequest, cancel: &AtomicBool, events: &dyn GogEvents) -> Go
     GogRunResult {
         success,
         cancelled,
-        link_expiry: false, // gen1 has no secure-link refresh in Java
+        link_expiry: false,
         error: if cancelled && error.is_empty() { "cancelled".to_string() } else { error },
         bytes_written: bytes_done.load(Ordering::Relaxed),
         files_done: files_done.load(Ordering::Relaxed),
@@ -1412,8 +1286,6 @@ mod tests {
         assert!(peak >= 8.0, "2 MB across at most two buckets → ≥8 Mbps peak, got {peak}");
     }
 
-    /// Whole-file finalize through the sink with a synthetic body (no network): verifies the
-    /// chunk → positioned write → whole-file MD5 → rename path and the progress event shape.
     #[test]
     fn sink_assembles_verifies_and_renames() {
         use flate2::write::ZlibEncoder;
@@ -1468,10 +1340,8 @@ mod tests {
         };
         let item = |id: u64| FetchItem { id, urls: vec!["x".into()], reserve: 0, range: None };
 
-        // Second chunk first: positioned write must still produce the right bytes.
         assert_eq!(sink.process(&item(1), cb.clone()).unwrap(), part_b.len() as u64);
         assert!(tmp_path.exists() && !out_path.exists(), "still staging after 1 of 2 chunks");
-        // A corrupt body is a retryable failure, not fatal.
         match sink.process(&item(0), b"\x78garbage".to_vec()) {
             Err(SinkError::Retry(msg)) => assert!(msg.contains("mismatch"), "{msg}"),
             Err(SinkError::Fatal(msg)) => panic!("expected Retry, got Fatal({msg})"),
@@ -1580,16 +1450,14 @@ mod tests {
         assert_eq!(per_host_cap_for(0, 0), 6);
     }
 
-    /// Stream mode: zlib chunk split into pieces (with a poisoned first attempt restarting at
-    /// offset 0), a stored chunk, corrupt data → Retry, then the whole-file finalize.
     #[test]
     fn stream_sink_inflates_pieces_verifies_and_finalizes() {
         use flate2::write::ZlibEncoder;
         use flate2::Compression;
 
         let dir = temp_dir("stream");
-        let part_a = b"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA".repeat(50); // 2000 bytes, compresses well
-        let part_b = b"\x01\x02stored bytes".to_vec(); // first byte != 0x78 → stored
+        let part_a = b"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA".repeat(50);
+        let part_b = b"\x01\x02stored bytes".to_vec();
         let whole = [part_a.clone(), part_b.clone()].concat();
         let mut enc = ZlibEncoder::new(Vec::new(), Compression::default());
         enc.write_all(&part_a).unwrap();
@@ -1632,7 +1500,6 @@ mod tests {
         };
         let item = |id: u64| FetchItem { id, urls: vec!["x".into()], reserve: 0, range: None };
 
-        // Attempt 1 of the zlib chunk: corrupt tail → Retry from on_chunk.
         let mut corrupt = ca.clone();
         for b in corrupt.iter_mut().skip(2) {
             *b = !*b;
@@ -1642,7 +1509,6 @@ mod tests {
             Err(SinkError::Retry(m)) => assert!(m.contains("inflate failed"), "{m}"),
             Err(SinkError::Fatal(m)) => panic!("expected Retry, got Fatal({m})"),
             Ok(()) => {
-                // Some corruptions only surface at finish: that must also be a Retry.
                 match sink.on_finish(&item(0), corrupt.len() as u64) {
                     Err(SinkError::Retry(_)) => {}
                     other => panic!("expected Retry at finish, got {}", match other {
@@ -1653,7 +1519,6 @@ mod tests {
                 }
             }
         }
-        // Attempt 2: restart at offset 0 in three pieces.
         let cut1 = ca.len() / 3;
         let cut2 = 2 * ca.len() / 3;
         sink.on_chunk(&item(0), 0, &ca[..cut1]).unwrap();
@@ -1661,7 +1526,6 @@ mod tests {
         sink.on_chunk(&item(0), cut2 as u64, &ca[cut2..]).unwrap();
         assert_eq!(sink.on_finish(&item(0), ca.len() as u64).unwrap(), 0);
         assert!(tmp_path.exists() && !out_path.exists());
-        // Stored chunk, one piece; wrong length first (→ Retry), then the real one.
         sink.on_chunk(&item(1), 0, &part_b[..3]).unwrap();
         match sink.on_finish(&item(1), 3) {
             Err(SinkError::Retry(m)) => assert!(m.contains("compressed-size mismatch"), "{m}"),
@@ -1705,7 +1569,6 @@ mod tests {
             partial: AtomicU64::new(0),
         };
         let item = FetchItem { id: 0, urls: vec!["x".into()], reserve: 8, range: Some((100, 107)) };
-        // Attempt 1 writes a partial, attempt 2 restarts from offset 0 and truncates it.
         sink.on_chunk(&item, 0, b"ZZZZZZZZZZZZ").unwrap();
         sink.on_chunk(&item, 0, b"abcd").unwrap();
         sink.on_chunk(&item, 4, b"efgh").unwrap();
@@ -1737,11 +1600,7 @@ mod tests {
             ..Default::default()
         };
         let rec = Recorder { events: StdMutex::new(Vec::new()) };
-        // Cancel before the fetch so no network is touched: the resume pass still runs.
         let cancel = AtomicBool::new(false);
-        // Use a pre-set cancel via a second request: run the resume pass, then expect the fetch
-        // to be attempted for short.bin only. We can't reach the network here, so assert on the
-        // plan log line instead of the outcome.
         cancel.store(true, Ordering::Relaxed);
         let res = run(&req, &cancel, &rec);
         assert!(res.cancelled, "{res:?}");

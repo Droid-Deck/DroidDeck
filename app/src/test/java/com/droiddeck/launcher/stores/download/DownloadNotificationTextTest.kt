@@ -4,7 +4,6 @@ import com.droiddeck.launcher.stores.Store
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/** The notification's line: what the Downloads row says, on one line. */
 class DownloadNotificationTextTest {
     private val base = DownloadEntry(Store.EPIC, "m", "Metalstorm", state = DownloadState.RUNNING)
 

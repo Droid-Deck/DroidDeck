@@ -9,33 +9,17 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
 
-/**
- * Fake evdev transport for the emulated Xbox 360 pads.
- *
- * <p>Replaces the old append-file transport (which desynced after ~15 min when an
- * unlooped {@code channel.write} left a partial event in the file and the
- * IOException was swallowed) with a fixed-size mmap RING BUFFER shared with the
- * native reader in {@code fakeinput.cpp}. Delta events are published into the
- * ring under a monotonic {@code write_seq}; an authoritative absolute-state
- * snapshot is published alongside under a seqlock so the native reader can replay
- * a full keyframe to heal any desync (open, ring overflow) without duplicate
- * input. Ring layout (magic/version/offsets) is a paired ABI with the native
- * {@code FakeInputRingHeader} - keep the two in lockstep.
- */
 public class FakeInputWriter {
     private static final String TAG = "FakeInputWriter";
 
-    // Event types
     public static final short EV_SYN = 0x00;
     public static final short EV_KEY = 0x01;
     public static final short EV_ABS = 0x03;
     public static final short EV_MSC = 0x04;
 
-    // Event codes
     public static final short MSC_SCAN = 0x04;
     public static final short SYN_REPORT = 0x00;
 
-    // Xbox 360 controller button codes
     public static final short BTN_A = 0x130;
     public static final short BTN_B = 0x131;
     public static final short BTN_X = 0x133;
@@ -48,7 +32,6 @@ public class FakeInputWriter {
     public static final short BTN_MODE = 0x13C;
     public static final short BTN_THUMBR = 0x13E;
 
-    // Absolute axis codes
     public static final short ABS_X = 0x00;
     public static final short ABS_Y = 0x01;
     public static final short ABS_RX = 0x03;
@@ -58,17 +41,12 @@ public class FakeInputWriter {
     public static final short ABS_HAT0X = 0x10;
     public static final short ABS_HAT0Y = 0x11;
 
-    // Button mapping (bit i of the snapshot buttons word)
     private static final short[] BUTTON_MAP = {
             BTN_A, BTN_B, BTN_X, BTN_Y, BTN_TL, BTN_TR,
             BTN_SELECT, BTN_START, BTN_THUMBL, BTN_THUMBR,
             BTN_MODE
     };
-    /** Bit 10 of the snapshot word. The first ten are PadState's own bit order; the Steam
-     *  button is not, because PadState keeps 10 and 11 for the triggers. */
     private static final int SNAPSHOT_IDX_MODE = 10;
-    /** Bit 11: the Quick Access button. Snapshot only - an Xbox pad's evdev node has no such key;
-     *  libfakeinput's Deck controller reads it from here. */
     private static final int SNAPSHOT_IDX_QAM = 11;
 
     private static final int EVENT_SIZE = 24;
@@ -76,11 +54,10 @@ public class FakeInputWriter {
     private static final int BUFFER_SIZE = EVENT_SIZE * MAX_EVENTS_PER_UPDATE;
     private static final int MAX_FAKE_INPUT_SLOTS = 4;
 
-    // Ring layout - MUST match FakeInputRingHeader in fakeinput.cpp.
     private static final int RING_CAPACITY_EVENTS = 4096;
     private static final int RING_HEADER_SIZE = 64;
     private static final int RING_SIZE = RING_HEADER_SIZE + (RING_CAPACITY_EVENTS * EVENT_SIZE);
-    private static final int RING_MAGIC = 0x46494252; // FIBR
+    private static final int RING_MAGIC = 0x46494252;
     private static final int RING_VERSION = 2;
     private static final int RING_MAGIC_OFFSET = 0;
     private static final int RING_VERSION_OFFSET = 4;
@@ -88,40 +65,33 @@ public class FakeInputWriter {
     private static final int RING_CAPACITY_OFFSET = 12;
     private static final int RING_WRITE_SEQ_OFFSET = 16;
     private static final int RING_GENERATION_OFFSET = 24;
-    // Authoritative absolute-state snapshot the native reader replays as a full
-    // keyframe to heal any delta-stream desync. Written under a seqlock
-    // (RING_SNAPSHOT_SEQ_OFFSET: odd = write in progress).
     private static final int RING_SNAPSHOT_SEQ_OFFSET = 32;
     private static final int RING_SNAPSHOT_BUTTONS_OFFSET = 40;
-    private static final int RING_SNAPSHOT_AXES_OFFSET = 44; // short[8]
-    // After the events - MUST match the blocks in fakeinput_steam.cpp. DeckImu carries the
-    // Deck-only motion, grips and trackpads. TritonShared carries the paired Steam Controller's
-    // native BLE reports and output reports, so the Steam client can see it as its own device.
+    private static final int RING_SNAPSHOT_AXES_OFFSET = 44;
     private static final int IMU_OFFSET = RING_SIZE;
-    private static final int IMU_MAGIC = 0x31554D49; // IMU1
-    // Written by libfakeinput, not here: the client's SETTING_IMU_MODE | 0x80000000 (readImuMode).
+    private static final int IMU_MAGIC = 0x31554D49;
     private static final int IMU_MODE_OFFSET = IMU_OFFSET + 4;
     private static final int IMU_SEQ_OFFSET = IMU_OFFSET + 8;
-    private static final int IMU_ACCEL_OFFSET = IMU_OFFSET + 16; // short[3]
-    private static final int IMU_GYRO_OFFSET = IMU_OFFSET + 22; // short[3]
-    private static final int DECK_PADS_OFFSET = IMU_OFFSET + 28; // short[4]: left X, Y, right X, Y
-    private static final int DECK_PRESSURE_OFFSET = IMU_OFFSET + 36; // short[2]: left, right
-    private static final int DECK_CONTROLS_OFFSET = IMU_OFFSET + 40; // int: DeckControls bits
-    // Slot 0 only: what the pad is to the Steam client (libfakeinput's PAD_TYPE_*), | PAD_TYPE_SET.
+    private static final int IMU_ACCEL_OFFSET = IMU_OFFSET + 16;
+    private static final int IMU_GYRO_OFFSET = IMU_OFFSET + 22;
+    private static final int DECK_PADS_OFFSET = IMU_OFFSET + 28;
+    private static final int DECK_PRESSURE_OFFSET = IMU_OFFSET + 36;
+    private static final int DECK_CONTROLS_OFFSET = IMU_OFFSET + 40;
     private static final int PAD_TYPE_OFFSET = IMU_OFFSET + 44;
     private static final int PAD_TYPE_SET = 0x80000000;
+    private static final int LATENCY_OFFSET = IMU_OFFSET + 48;
+    public static final int LATENCY_CONTROLLER = 1;
+    public static final int LATENCY_TOUCH = 2;
+    private static volatile int latency = 0;
     public static final int PAD_TYPE_DECK = 0;
     public static final int PAD_TYPE_STEAM = 1;
     public static final int PAD_TYPE_XBOX = 2;
     public static final int PAD_TYPE_DS4 = 3;
     public static final int PAD_TYPE_DUALSENSE = 4;
-    /** The type chosen this process, written into a ring made after the choice too; -1 for none. */
     private static volatile int padType = -1;
-    /** The paired controller's state, likewise written into a ring made after it connected. */
     private static volatile boolean tritonConnected = false;
     private static final int TRITON_OFFSET = RING_SIZE + 64;
-    private static final int TRITON_MAGIC = 0x4e525454; // TTRN
-    // Whether the paired controller is connected: libfakeinput offers its device only then.
+    private static final int TRITON_MAGIC = 0x4e525454;
     private static final int TRITON_CONNECTED_OFFSET = TRITON_OFFSET + 4;
     private static final int TRITON_INPUT_SEQ_OFFSET = TRITON_OFFSET + 8;
     private static final int TRITON_REPORT_ID_OFFSET = TRITON_OFFSET + 16;
@@ -131,7 +101,6 @@ public class FakeInputWriter {
     private static final int TRITON_OUTPUT_FEATURE_OFFSET = TRITON_OFFSET + 96;
     private static final int TRITON_OUTPUT_LENGTH_OFFSET = TRITON_OFFSET + 100;
     private static final int TRITON_OUTPUT_OFFSET = TRITON_OFFSET + 104;
-    // A feature read: libfakeinput bumps the request, the reply names the request it answers.
     private static final int TRITON_GET_REQUEST_OFFSET = TRITON_OFFSET + 168;
     private static final int TRITON_GET_REPLY_OFFSET = TRITON_OFFSET + 176;
     private static final int TRITON_GET_REPORT_ID_OFFSET = TRITON_OFFSET + 184;
@@ -150,6 +119,10 @@ public class FakeInputWriter {
 
     private static native void nativeStoreFence();
 
+    public static void storeFence() {
+        nativeStoreFence();
+    }
+
     private final File eventFile;
     private final int slot;
     private final ByteBuffer buffer = ByteBuffer.allocateDirect(BUFFER_SIZE);
@@ -163,9 +136,6 @@ public class FakeInputWriter {
     private int prevTriggerL, prevTriggerR;
     private int prevHatX, prevHatY;
     private boolean hasChanges = false;
-    // If a publish fails after prev* state has already advanced, the next frame
-    // must re-emit the whole state once; otherwise an unchanged control would stay
-    // silent and the ring snapshot would never catch up.
     private boolean pendingFullResend = false;
     private boolean forceResend = false;
 
@@ -186,7 +156,6 @@ public class FakeInputWriter {
         boolean everActivated;
     }
 
-    // ---- Static ring management (shared by all writers + the env exporter) ----
 
     public static void prepareRingSlots(File fakeInputDir, int slotCount) {
         int boundedSlotCount = Math.max(0, Math.min(slotCount, MAX_FAKE_INPUT_SLOTS));
@@ -197,10 +166,6 @@ public class FakeInputWriter {
         }
     }
 
-    /**
-     * Prepares every slot ring and returns the {@code slot=path;...} spec the native
-     * reader consumes via FAKE_EVDEV_MEMFD_PATHS.
-     */
     public static String getRingEnv(File fakeInputDir) {
         synchronized (RING_LOCK) {
             prepareRingSlotsLocked(fakeInputDir, MAX_FAKE_INPUT_SLOTS);
@@ -257,6 +222,7 @@ public class FakeInputWriter {
         data.putInt(DECK_CONTROLS_OFFSET, 0);
         int type = padType;
         data.putInt(PAD_TYPE_OFFSET, type >= 0 ? PAD_TYPE_SET | type : 0);
+        data.putInt(LATENCY_OFFSET, latency);
         data.putInt(TRITON_OFFSET, TRITON_MAGIC);
         data.putInt(TRITON_CONNECTED_OFFSET, tritonConnected ? 1 : 0);
         data.putLong(TRITON_INPUT_SEQ_OFFSET, 0L);
@@ -269,8 +235,6 @@ public class FakeInputWriter {
         data.putLong(TRITON_GET_REPLY_OFFSET, 0L);
     }
 
-    // Lock order: RING_LOCK, then the slot. Every writer holds the slot while it touches data, and
-    // re-checks it there: a writer that looked the slot up just before this ran finds it gone.
     private static void releaseRingSlotLocked(int slot) {
         RingSlot ringSlot = RING_SLOTS[slot];
         if (ringSlot == null) {
@@ -433,8 +397,6 @@ public class FakeInputWriter {
             return false;
         }
 
-        // Raw byte copy: endianness is irrelevant since we never interpret
-        // multi-byte fields out of the source here.
         ByteBuffer source = this.buffer.duplicate();
         synchronized (ringSlot) {
             ByteBuffer ring = ringSlot.data;
@@ -446,19 +408,12 @@ public class FakeInputWriter {
             while (source.remaining() >= EVENT_SIZE) {
                 int eventIndex = (int) (writeSeq % RING_CAPACITY_EVENTS);
                 int targetOffset = RING_HEADER_SIZE + (eventIndex * EVENT_SIZE);
-                // Bulk-copy one event (EVENT_SIZE bytes) instead of byte-by-byte.
-                // Bound the source to a single event, position the ring at the slot,
-                // then let put(ByteBuffer) move the whole block. Mutating the ring's
-                // Java position is harmless: the native reader uses a raw pointer, not
-                // this position. API-26 safe (no JDK 13+ absolute bulk put).
                 source.limit(source.position() + EVENT_SIZE);
                 ring.position(targetOffset);
                 ring.put(source);
                 source.limit(sourceLimit);
                 writeSeq++;
             }
-            // Publish the resulting absolute state. prev* now hold the post-update
-            // values, i.e. exactly the state the events just written transition to.
             writeSnapshotLocked(ring);
             nativeStoreFence();
             ring.putLong(RING_WRITE_SEQ_OFFSET, writeSeq);
@@ -466,9 +421,6 @@ public class FakeInputWriter {
         return true;
     }
 
-    // Publishes the full absolute controller state for the native reader to replay
-    // as a keyframe. seqlock: bump to odd, write fields, bump to even, with
-    // store-store fences so the reader's acquire loads see consistent payloads.
     private void writeSnapshotLocked(ByteBuffer ring) {
         int buttons = 0;
         for (int i = 0; i < BUTTON_MAP.length; i++) {
@@ -480,11 +432,9 @@ public class FakeInputWriter {
             buttons |= (1 << SNAPSHOT_IDX_QAM);
         }
         long seq = ring.getLong(RING_SNAPSHOT_SEQ_OFFSET);
-        ring.putLong(RING_SNAPSHOT_SEQ_OFFSET, seq + 1); // odd: write in progress
+        ring.putLong(RING_SNAPSHOT_SEQ_OFFSET, seq + 1);
         nativeStoreFence();
         ring.putInt(RING_SNAPSHOT_BUTTONS_OFFSET, buttons);
-        // Axis order must match the native kSnapshotAxisCodes:
-        // X, Y, RX, RY, GAS(=triggerR), BRAKE(=triggerL), HAT0X, HAT0Y.
         ring.putShort(RING_SNAPSHOT_AXES_OFFSET, clampShort(this.prevThumbLX));
         ring.putShort(RING_SNAPSHOT_AXES_OFFSET + 2, clampShort(this.prevThumbLY));
         ring.putShort(RING_SNAPSHOT_AXES_OFFSET + 4, clampShort(this.prevThumbRX));
@@ -494,13 +444,9 @@ public class FakeInputWriter {
         ring.putShort(RING_SNAPSHOT_AXES_OFFSET + 12, clampShort(this.prevHatX));
         ring.putShort(RING_SNAPSHOT_AXES_OFFSET + 14, clampShort(this.prevHatY));
         nativeStoreFence();
-        ring.putLong(RING_SNAPSHOT_SEQ_OFFSET, seq + 2); // even: write complete
+        ring.putLong(RING_SNAPSHOT_SEQ_OFFSET, seq + 2);
     }
 
-    /**
-     * Publishes the pad's motion for slot {@code slot}: accelerometer and gyro, already in the Deck
-     * controller's axes and units (see PadMotion). Safe from any thread.
-     */
     public static void writeMotion(int slot, short[] accel, short[] gyro) {
         RingSlot ringSlot;
         synchronized (RING_LOCK) {
@@ -511,7 +457,7 @@ public class FakeInputWriter {
             ByteBuffer ring = ringSlot.data;
             if (ring == null) return;
             long seq = ring.getLong(IMU_SEQ_OFFSET);
-            ring.putLong(IMU_SEQ_OFFSET, seq + 1); // odd: write in progress
+            ring.putLong(IMU_SEQ_OFFSET, seq + 1);
             nativeStoreFence();
             for (int i = 0; i < 3; i++) {
                 ring.putShort(IMU_ACCEL_OFFSET + i * 2, accel[i]);
@@ -523,10 +469,6 @@ public class FakeInputWriter {
         }
     }
 
-    /**
-     * The motion the Steam client asked the Deck controller of slot {@code slot} for: its
-     * SETTING_IMU_MODE (0 = off), or -1 until it has said. Safe from any thread.
-     */
     public static int readImuMode(int slot) {
         RingSlot ringSlot;
         synchronized (RING_LOCK) {
@@ -540,11 +482,6 @@ public class FakeInputWriter {
         }
     }
 
-    /**
-     * Publishes the Deck's back grips and trackpads for slot {@code slot} (see DeckControls):
-     * {@code controls} is the DeckControls bit set, {@code pads} left X, Y, right X, Y and
-     * {@code pressure} left, right, already in the Deck's units. Safe from any thread.
-     */
     public static void writeDeckControls(int slot, int controls, short[] pads, short[] pressure) {
         RingSlot ringSlot;
         synchronized (RING_LOCK) {
@@ -566,10 +503,11 @@ public class FakeInputWriter {
         }
     }
 
-    /**
-     * Switches what the pad is to the Steam client while the session runs ([PAD_TYPE_DECK],
-     * [PAD_TYPE_STEAM] or [PAD_TYPE_XBOX]); libfakeinput unplugs the old device and plugs in the new.
-     */
+    public static boolean padHasQam() {
+        int type = padType;
+        return type < 0 || type == PAD_TYPE_DECK || type == PAD_TYPE_STEAM;
+    }
+
     public static void setPadType(int type) {
         padType = type;
         RingSlot ringSlot;
@@ -585,7 +523,22 @@ public class FakeInputWriter {
         }
     }
 
-    /** The paired Steam Controller came or went (SteamControllerBle): its device is plugged in or out. */
+    public static void setLowLatency(boolean controller, boolean touch) {
+        int flags = (controller ? LATENCY_CONTROLLER : 0) | (touch ? LATENCY_TOUCH : 0);
+        latency = flags;
+        RingSlot ringSlot;
+        synchronized (RING_LOCK) {
+            ringSlot = RING_SLOTS[0];
+        }
+        if (ringSlot == null) return;
+        synchronized (ringSlot) {
+            ByteBuffer ring = ringSlot.data;
+            if (ring == null) return;
+            nativeStoreFence();
+            ring.putInt(LATENCY_OFFSET, flags);
+        }
+    }
+
     public static void setTritonConnected(int slot, boolean connected) {
         tritonConnected = connected;
         RingSlot ringSlot = tritonSlot(slot);
@@ -598,7 +551,6 @@ public class FakeInputWriter {
         }
     }
 
-    /** Publishes a native Triton input report (without the HID report ID byte). */
     public static void writeTritonState(int slot, int reportId, byte[] report) {
         if (report == null || report.length == 0 || report.length > TRITON_REPORT_MAX) return;
         RingSlot ringSlot;
@@ -623,7 +575,6 @@ public class FakeInputWriter {
         }
     }
 
-    /** Returns the newest Steam-client output report after {@code lastSequence}, or null. */
     public static byte[] readTritonOutput(int slot, long lastSequence) {
         RingSlot ringSlot;
         synchronized (RING_LOCK) {
@@ -647,7 +598,6 @@ public class FakeInputWriter {
         }
     }
 
-    /** The Steam client's newest unanswered feature read, or 0: its request number. */
     public static long readTritonFeatureRequest(int slot) {
         RingSlot ringSlot = tritonSlot(slot);
         if (ringSlot == null) return 0L;
@@ -660,7 +610,6 @@ public class FakeInputWriter {
         }
     }
 
-    /** Answers feature read {@code request} with the controller's report, or a failure when null. */
     public static void writeTritonFeatureReply(int slot, long request, byte[] report) {
         RingSlot ringSlot = tritonSlot(slot);
         if (ringSlot == null) return;
@@ -738,11 +687,6 @@ public class FakeInputWriter {
         isOpen = false;
     }
 
-    /**
-     * Reset all input state to neutral (all buttons released, axes zeroed).
-     * This keeps the ring active so games that cache the file descriptor can still
-     * reconnect.
-     */
     public synchronized void reset() {
         if (!isOpen && !open())
             return;
@@ -750,7 +694,6 @@ public class FakeInputWriter {
         buffer.clear();
         hasChanges = false;
 
-        // Release all buttons
         for (int i = 0; i < BUTTON_MAP.length; i++) {
             if (prevButtonStates[i]) {
                 prevButtonStates[i] = false;
@@ -764,7 +707,6 @@ public class FakeInputWriter {
             hasChanges = true;
         }
 
-        // Zero all axes
         if (prevThumbLX != 0) {
             prevThumbLX = 0;
             writeEvent(EV_ABS, ABS_X, 0);
@@ -813,9 +755,6 @@ public class FakeInputWriter {
         Log.i(TAG, "Soft released fake input: " + eventFile.getAbsolutePath());
     }
 
-    /**
-     * Full destroy - reset, tear the ring generation down, and delete the discovery node.
-     */
     public synchronized void destroy() {
         destroyed = true;
         reset();
@@ -851,9 +790,6 @@ public class FakeInputWriter {
         if (!isOpen && !open())
             return;
 
-        // Keep the ring delta-first for latency. Full event frames are only used as
-        // a one-shot repair after a failed publish; normal open/overflow recovery is
-        // handled by the native snapshot keyframe.
         forceResend = pendingFullResend;
         pendingFullResend = false;
         if (forceResend) {
@@ -863,13 +799,9 @@ public class FakeInputWriter {
         buffer.clear();
         hasChanges = false;
 
-        // Buttons
         for (int i = 0; i < 10; i++) {
             writeButton(i, state.isDown(i));
         }
-        // The Steam button. In a Linux session this is what opens the client's own in-game menu,
-        // and the client looks for it where an Xbox pad keeps it: evdev BTN_MODE, which SDL then
-        // reports as button 8 - exactly the "guide:b8" in the mapping Steam writes for this pad.
         writeButton(SNAPSHOT_IDX_MODE,
                 state.isDown(PadState.GUIDE));
         boolean qam = state.isDown(PadState.QAM);
@@ -878,14 +810,11 @@ public class FakeInputWriter {
             hasChanges = true;
         }
 
-        // Sticks
         int lx = (int) (state.leftX * 32767);
         int ly = (int) (state.leftY * 32767);
         int rx = (int) (state.rightX * 32767);
         int ry = (int) (state.rightY * 32767);
 
-        // The fake evdev ring is event-queue semantics, so unchanged axes normally
-        // stay silent; forceResend overrides that to emit a complete keyframe.
         if (forceResend || lx != prevThumbLX) {
             prevThumbLX = lx;
             writeEvent(EV_ABS, ABS_X, lx);
@@ -903,7 +832,6 @@ public class FakeInputWriter {
             writeEvent(EV_ABS, ABS_RY, ry);
         }
 
-        // L2 and R2 (Triggers)
         int tl = (int) (state.leftTrigger * 255);
         int tr = (int) (state.rightTrigger * 255);
         if (forceResend || tl != prevTriggerL) {
@@ -915,7 +843,6 @@ public class FakeInputWriter {
             writeEvent(EV_ABS, ABS_GAS, tr);
         }
 
-        // D-pad
         int hatX = state.hatX();
         int hatY = state.hatY();
         if (forceResend || hatX != prevHatX) {
@@ -927,13 +854,11 @@ public class FakeInputWriter {
             writeEvent(EV_ABS, ABS_HAT0Y, hatY);
         }
 
-        // Detect change else no need to write
         if (hasChanges) {
             writeEvent(EV_SYN, SYN_REPORT, 0);
             buffer.flip();
             if (!flushBuffer()) {
                 Log.e(TAG, "Gamepad write error: fake input mmap ring unavailable");
-                // Couldn't publish; re-assert the whole state on the next frame.
                 pendingFullResend = true;
             }
         }

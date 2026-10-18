@@ -5,27 +5,12 @@ import android.util.Log
 import com.droiddeck.launcher.frontend.Library
 import java.io.File
 
-/**
- * How a store game is started inside the session. The shortcut Steam gets can only name an exe,
- * so when a game needs arguments or environment the install writes a small `.droiddeck-launch.bat`
- * beside it and the shortcut runs that: Proton's steam.exe shim hands a .bat to Wine's cmd, the
- * script sets the variables, steps into the exe's folder and starts it, and waits for it as a
- * batch file does, so Steam sees the game running.
- *
- * Epic's online sign-in is a fresh exchange code per launch (it expires in minutes), which no fixed
- * command line can carry: [prepare] mints one right before a launch and leaves it in
- * `.droiddeck-epic-code`; the script reads the file, deletes it and passes the AUTH arguments. With
- * no file the game starts in its offline identity mode, which most EOS titles accept.
- */
 object StoreLaunch {
     private const val TAG = "StoreLaunch"
     const val LAUNCHER = ".droiddeck-launch.bat"
     const val EPIC_CODE = ".droiddeck-epic-code"
+    const val EPIC_ARGS = ".droiddeck-epic-args"
 
-    /**
-     * Writes the launcher for [sidecar] when it needs one (arguments, environment, or an Epic
-     * sign-in), removes a stale one otherwise, and returns the sidecar with [StoreGameSidecar.launcher] set.
-     */
     fun writeLauncher(folder: File, sidecar: StoreGameSidecar): StoreGameSidecar {
         val needs = sidecar.args.isNotEmpty() || sidecar.env.isNotEmpty() || sidecar.store == Store.EPIC
         val file = File(folder, LAUNCHER)
@@ -34,7 +19,6 @@ object StoreLaunch {
         return sidecar.copy(launcher = LAUNCHER)
     }
 
-    /** The batch file's text; pure, so it can be checked without a folder. CRLF line ends, as cmd expects. */
     fun launcherText(sidecar: StoreGameSidecar): String {
         val exe = sidecar.exe.replace('/', '\\')
         val dir = exe.substringBeforeLast('\\', "")
@@ -47,9 +31,7 @@ object StoreLaunch {
         val args = sidecar.args.joinToString(" ") { quoteArg(it) }
         val run = "\"%~dp0$exe\"" + (if (args.isNotEmpty()) " $args" else "")
         if (sidecar.store == Store.EPIC) {
-            // The one-shot code reaches the game on its command line only. cmd expands %DD_X% when it
-            // parses the last line, so the variable is cleared on that same line before the game
-            // starts: nothing of it is left in the environment the game inherits (and dumps).
+            lines += "if exist \"%~dp0$EPIC_ARGS\" goto client"
             lines += "set \"$CODE_VAR=\""
             lines += "if exist \"%~dp0$EPIC_CODE\" set /p $CODE_VAR=<\"%~dp0$EPIC_CODE\""
             lines += "if exist \"%~dp0$EPIC_CODE\" del \"%~dp0$EPIC_CODE\""
@@ -58,6 +40,13 @@ object StoreLaunch {
             lines += "goto :eof"
             lines += ":signed"
             lines += "set \"$CODE_VAR=\" & $run -AUTH_LOGIN=unused -AUTH_PASSWORD=%$CODE_VAR% -AUTH_TYPE=exchangecode"
+            lines += "goto :eof"
+            lines += ":client"
+            lines += "set \"$CLIENT_VAR=\""
+            lines += "set /p $CLIENT_VAR=<\"%~dp0$EPIC_ARGS\""
+            lines += "del \"%~dp0$EPIC_ARGS\""
+            lines += "if exist \"%~dp0$EPIC_CODE\" del \"%~dp0$EPIC_CODE\""
+            lines += "set \"$CLIENT_VAR=\" & \"%~dp0$exe\" %$CLIENT_VAR%"
         } else {
             lines += run
         }
@@ -66,24 +55,14 @@ object StoreLaunch {
 
     private val ENV_NAME = Regex("[A-Za-z_][A-Za-z0-9_]*")
 
-    /** An argument on cmd's line: quoted when it has a space and is not already quoted; control characters dropped. */
     fun quoteArg(arg: String): String {
         val clean = arg.filter { it >= ' ' && it != '\u007f' }
         return if (' ' in clean && !clean.contains('"')) "\"$clean\"" else clean
     }
 
-    /**
-     * Everything a launch needs done first, then [onReady] on the main thread: for an Epic game a
-     * fresh exchange code written beside its launcher (a few seconds at most; the launch goes
-     * ahead without one when the store cannot be reached). Other stores need nothing.
-     */
-    /** The launcher's variable for the one-shot code; a plain name, cleared before the game starts. */
     private const val CODE_VAR = "DD_X"
+    private const val CLIENT_VAR = "DD_A"
 
-    /**
-     * Rewrites a game's launcher when its text is not what this build writes - an install from an
-     * earlier build keeps its old .bat otherwise. Called before every Epic launch.
-     */
     fun refreshLauncher(folder: File, sidecar: StoreGameSidecar) {
         if (sidecar.launcher != LAUNCHER) return
         val file = File(folder, LAUNCHER)
@@ -103,16 +82,8 @@ object StoreLaunch {
         }, "stores-launch-prep").start()
     }
 
-    /** What [epicCode] did, for the guest's request and the log: whether a code was written, and why not. */
     class CodeResult(val written: Boolean, val reason: String)
 
-    /**
-     * Mints an Epic exchange code for the installed game [id] and writes it as [EPIC_CODE] into the
-     * very folder its sidecar and launcher are in, where the launcher .bat reads and deletes it.
-     * Blocking (network). Logs `epic launch id=<id> code=yes|no reason=...` - never the code. Every
-     * launch path comes here: the Games tab and Stores before they launch, and the compat tool for
-     * any launch, the Steam client's own Play button included ([StoreLaunchRequests]).
-     */
     fun epicCode(context: Context, id: String): CodeResult {
         val app = context.applicationContext
         val result = try {
@@ -152,9 +123,7 @@ object StoreLaunch {
     }
 }
 
-/** What the Epic backend adds for launches: a short-lived exchange code for the signed-in account. */
 interface EpicLaunchSupport {
     fun exchangeCode(context: Context): String?
-    /** True when the stored sign-in can no longer be refreshed: the user has to sign in again. */
     fun signInExpired(context: Context): Boolean
 }

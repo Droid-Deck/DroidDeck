@@ -22,13 +22,11 @@ permissions:
   pull-requests: write
 
 concurrency:
-  # Replace older builds only for the same PR. Each push/dispatch gets its own group so one main
-  # build cannot cancel another before it signs and publishes.
   group: build-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  PRELOAD_CACHE_VERSION: v3
+  PRELOAD_CACHE_VERSION: v6
 
 jobs:
   build:
@@ -186,7 +184,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: app/src/main/assets/linuxfs
-          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'tools/linuxfs/preload/*.c', 'tools/linuxfs/build-x86-preloads.sh', 'tools/linuxfs/fex/*', 'tools/linuxfs/clipboard/*.c', 'tools/linuxfs/ssbs/*.c', 'tools/proot/fastpath/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/linuxfs/uruntime.env', 'tools/linuxfs/licenses/*', 'tools/mangoapp/*', 'tools/msitools/**', 'tools/linuxfs/debian-image.env') }}
+          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'app/src/main/cpp/adrenotools/src/hook/kgsl.h', 'tools/quest/*', 'tools/linuxfs/preload/*.c', 'tools/linuxfs/build-x86-preloads.sh', 'tools/linuxfs/fex/*', 'tools/linuxfs/clipboard/*.c', 'tools/linuxfs/ssbs/*.c', 'tools/proot/fastpath/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/linuxfs/uruntime.env', 'tools/linuxfs/licenses/*', 'tools/mangoapp/*', 'tools/msitools/**', 'tools/comet/**', 'tools/linuxfs/debian-image.env', 'tools/vr/**') }}
 
       - name: Build libfakeinput.so and libblsession.so (glibc aarch64)
         if: steps.preloads.outputs.cache-hit != 'true'
@@ -195,7 +193,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y -qq gcc-aarch64-linux-gnu g++-aarch64-linux-gnu >/dev/null
+          sudo apt-get install -y -qq gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libvulkan1 mesa-vulkan-drivers >/dev/null
           D=app/src/main/assets/linuxfs
           mkdir -p "$D"
           aarch64-linux-gnu-g++ -shared -fPIC -O2 -Wall -Wno-attributes -Wno-nonnull-compare \
@@ -211,13 +209,14 @@ jobs:
           aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -nostdlib -ffreestanding -fno-stack-protector \
             -fno-tree-loop-distribute-patterns -Wl,-z,defs -o "$D/libblaudit.so" tools/proot/fastpath/audit.c
           aarch64-linux-gnu-strip --strip-unneeded "$D/libblaudit.so"
-          # Force-SSBS adapter, preloaded into a game's Wine only when the game asks for it.
           aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
             -o "$D/libssbs.so" tools/linuxfs/ssbs/ssbs_adapter.c -ldl
           aarch64-linux-gnu-strip --strip-unneeded "$D/libssbs.so"
           mkdir -p "$D/usr/local/bin"
           aarch64-linux-gnu-gcc -O2 -Wall -Wextra -o "$D/usr/local/bin/droiddeck-clipboard" tools/linuxfs/clipboard/clipboard.c -ldl
           aarch64-linux-gnu-strip --strip-unneeded "$D/usr/local/bin/droiddeck-clipboard"
+          VK_INCLUDE=$(ls -d "${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-$ANDROID_NDK_ROOT}}"/toolchains/llvm/prebuilt/*/sysroot/usr/include | head -1) \
+            tools/vr/build.sh --native "$D/usr/local/lib/droiddeck-vr"
           for script in tools/linuxfs/overlay/usr/local/bin/droiddeck-* tools/linuxfs/overlay/usr/local/bin/steam-compatibility; do
             install -Dm644 "$script" "$D/usr/local/bin/$(basename "$script")"
           done
@@ -251,14 +250,12 @@ jobs:
           for so in libfmt.so.10 libspdlog.so.1.13 libglfw.so.3 libtraceevent.so.1; do
             cp -L "mango-pkgs/usr/lib/$so" "$M/$so"
           done
-          # Ours, not the package's: GPU memory without tracefs (tools/mangoapp/libtracefs-shim.c).
           aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wl,-soname,libtracefs.so.1 \
             -o "$M/libtracefs.so.1" tools/mangoapp/libtracefs-shim.c
           aarch64-linux-gnu-strip --strip-unneeded "$M/libtracefs.so.1"
           install -Dm644 tools/mangoapp/mangoapp "$D/usr/local/bin/mangoapp"
           rm -rf mango-pkgs
           ls -l "$M"
-          # The Windows components installer's tools (tools/msitools/packages.txt).
           T="$D/usr/local/lib/droiddeck-msitools"
           mkdir -p "$T" msi-pkgs
           grep -v '^#' tools/msitools/packages.txt | while read -r sum url; do
@@ -270,7 +267,6 @@ jobs:
           done
           install -m644 msi-pkgs/usr/bin/msiinfo "$T/msiinfo"
           install -m644 msi-pkgs/usr/bin/cabextract "$T/cabextract"
-          # 7-Zip (the full build with its format plugin) opens installer .exe wrappers.
           install -m644 msi-pkgs/usr/lib/7zip/7z "$T/7z"
           install -m644 msi-pkgs/usr/lib/7zip/7z.so "$T/7z.so"
           for so in libmsi-1.0.so.0 libgsf-1.so.114 libgcab-1.0.so.0; do
@@ -288,10 +284,6 @@ jobs:
           install -Dm644 tools/linuxfs/desktop/firefox-droiddeck.js "$D/usr/lib/firefox/defaults/pref/droiddeck.js"
           ls -lR "$D"
 
-      # The Debian 11 image the preloads are compiled in comes from a release on this repo
-      # (published once by ci-debian-image.yml, pinned in tools/linuxfs/debian-image.env): the
-      # public registry mirrors rate-limit the shared runner addresses and failed builds on a
-      # busy evening. Only if that download fails is the image pulled, with retries.
       - name: Fetch the Debian image the preloads build in
         if: steps.preloads.outputs.cache-hit != 'true'
         env:
@@ -321,9 +313,15 @@ jobs:
           set -euo pipefail
           docker run --rm -v "$PWD:/src" -w /src public.ecr.aws/docker/library/debian:bullseye bash -c '
             set -euo pipefail
-            printf "deb http://archive.debian.org/debian bullseye main\ndeb http://archive.debian.org/debian-security bullseye-security main\n" > /etc/apt/sources.list
-            apt-get -o Acquire::Check-Valid-Until=false update -qq
-            DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends gcc g++ gcc-multilib g++-multilib binutils >/dev/null
+            install_compilers() {
+              apt-get -o Acquire::Check-Valid-Until=false update -qq &&
+                DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends gcc g++ gcc-multilib g++-multilib binutils >/dev/null
+            }
+            printf "deb http://deb.debian.org/debian bullseye main\ndeb http://security.debian.org/debian-security bullseye-security main\n" > /etc/apt/sources.list
+            if ! install_compilers; then
+              printf "deb http://archive.debian.org/debian bullseye main\ndeb http://archive.debian.org/debian-security bullseye-security main\n" > /etc/apt/sources.list
+              install_compilers
+            fi
             tools/linuxfs/build-x86-preloads.sh app/src/main/assets/linuxfs
           '
           sudo chown -R "$(id -u):$(id -g)" app/src/main/assets/linuxfs
@@ -367,9 +365,6 @@ jobs:
           set -euo pipefail
           curl -fsSL -o pa.tar.gz https://github.com/pulseaudio/pulseaudio/archive/refs/tags/v13.0.tar.gz
           mkdir -p pa13 && tar -xzf pa.tar.gz -C pa13 --strip-components=1 && rm pa.tar.gz
-      # DirectAudio - the game driver (one set per Wine audio interface), the Android-side helper and
-      # the Steam client's sinks - comes from a pinned release of The412Banner/directaudio, checksummed,
-      # exactly like gamescope; nothing compiled for audio is kept in this repo.
       - name: Fetch DirectAudio (tools/directaudio/release.env)
         run: tools/directaudio/fetch.sh "$PWD" "$PWD/sink-out"
       - name: Build the AAudio sink into the audio bundle
@@ -407,12 +402,30 @@ jobs:
           set -euo pipefail
           bash tools/linuxfs/check-preloads.sh app/src/main/assets/linuxfs
 
-      # The store download engines (app/src/main/rust/stores) are Rust, built by Gradle's
-      # buildRustStores task through cargo-ndk. rustup and cargo are on the runner image; the Android
-      # target and cargo-ndk are added here. Cache = cargo registry + cargo-ndk + the crate's target
-      # tree, keyed on the rustc version and Cargo.lock, so a source-only change rebuilds this crate
-      # on top of the cached dependency objects, and a lockfile change still starts from the
-      # previous objects (restore-keys).
+      - name: Check Quest tracking IPC
+        run: |
+          set -euo pipefail
+          NDK="${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-$ANDROID_NDK_ROOT}}"
+          VK_INCLUDE=$(ls -d "$NDK"/toolchains/llvm/prebuilt/*/sysroot/usr/include | head -1)
+          mkdir -p build/vr/include
+          cp -R "$VK_INCLUDE/vulkan" build/vr/include/
+          if [ -d "$VK_INCLUDE/vk_video" ]; then cp -R "$VK_INCLUDE/vk_video" build/vr/include/; fi
+          g++ -std=c++17 -Wall -Wextra -Werror -pthread tools/vr/tests/test_xr_tracking.cpp -o /tmp/test-xr-tracking
+          /tmp/test-xr-tracking
+          g++ -std=c++17 -Wall -Wextra -Werror tools/vr/tests/test_xr_touch.cpp -o /tmp/test-xr-touch
+          /tmp/test-xr-touch
+          g++ -std=c++17 -Wall -Wextra -Werror -pthread tools/vr/tests/test_xr_vsync.cpp -o /tmp/test-xr-vsync
+          /tmp/test-xr-vsync
+          g++ -std=c++17 -Wall -Wextra -Werror -pthread tools/vr/tests/test_xr_frames.cpp -o /tmp/test-xr-frames
+          /tmp/test-xr-frames
+          cc -Itools/vr/third_party/wayland -c tools/vr/src/wayland_client_stub.c -o /tmp/test-wayland-stub.o
+          cc -Itools/vr/third_party/wayland -c app/src/main/cpp/waylandcomp/generated/xdg-shell-protocol.c -o /tmp/test-xdg-shell.o
+          g++ -std=c++17 -Wall -Wextra -Werror -Wno-unused-parameter -Wno-missing-field-initializers -pthread -Ibuild/vr/include \
+            -Itools/vr/third_party/wayland -Iapp/src/main/cpp/waylandcomp/generated \
+            tools/vr/tests/test_presenter_shutdown.cpp tools/vr/src/presenter.cpp /tmp/test-wayland-stub.o /tmp/test-xdg-shell.o \
+            -ldl -o /tmp/test-presenter-shutdown
+          timeout 10 /tmp/test-presenter-shutdown
+
       - name: Rust toolchain for the store engines (aarch64-linux-android)
         id: rust
         run: |
@@ -446,9 +459,16 @@ jobs:
           path: |
             app/.cxx
             app/build/intermediates/cxx
-          key: cxx-${{ env.NDK_VERSION }}-${{ hashFiles('app/src/main/cpp/**') }}
+          key: cxx-${{ env.NDK_VERSION }}-${{ hashFiles('app/src/main/cpp/**', 'tools/vr/src/xr_*.h') }}
           restore-keys: |
             cxx-${{ env.NDK_VERSION }}-
+
+      - name: Build GOG Galaxy companion
+        if: steps.preloads.outputs.cache-hit != 'true'
+        run: |
+          rustup toolchain install 1.90.0 --profile minimal
+          rustup target add --toolchain 1.90.0 aarch64-unknown-linux-gnu
+          RUSTUP_TOOLCHAIN=1.90.0 bash tools/comet/build.sh
 
       - name: Build
         id: build
@@ -457,15 +477,13 @@ jobs:
           SGDB_API_KEY: ${{ secrets.SGDB_API_KEY }}
         run: |
           set -o pipefail
+          python3 tools/quest/build-driver.py "$ANDROID_HOME/ndk/$NDK_VERSION"
           python3 tools/release/runtime_inputs.py record
           ./gradlew assembleRelease --console=plain -PndkVersion="$NDK_VERSION" 2>&1 | tee /tmp/build.log
           python3 tools/release/check_session_assets.py app/build/outputs/apk/release/app-release.apk
           python3 tools/release/runtime_inputs.py apk app/build/outputs/apk/release/app-release.apk
 
       - name: Check the store engines' library
-        # The exports Kotlin binds must be in the apk's libdroiddeckstores.so, or the stores fail on
-        # the device with an UnsatisfiedLinkError instead of here. The lockfile check is the
-        # reproducibility guard: cargo must not have had to re-resolve anything.
         run: |
           set -euo pipefail
           NDK="${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-$ANDROID_NDK_ROOT}}"
@@ -476,11 +494,6 @@ jobs:
             || { echo "::error::Cargo.lock changed during the build; commit the regenerated lockfile (uploaded as stores-cargo-lock)"; exit 1; }
 
       - name: Store engines host unit tests
-        # The crate's #[test] functions are pure host-side logic (manifest parsing, chunk plans,
-        # assembly from a cache, hashes), so a plain `cargo test` on the runner's own architecture
-        # runs them; the Android build above compiles none of them. Informational on this first
-        # run - the point is to learn whether they pass - and bounded so a hang can never hold
-        # the apk. Make it blocking once it is known green.
         timeout-minutes: 10
         continue-on-error: true
         run: |
@@ -499,7 +512,24 @@ jobs:
         run: python3 -m unittest discover -s tools/tests -p 'test_*.py'
 
       - name: Unit tests
-        run: ./gradlew testReleaseUnitTest --console=plain -PndkVersion="$NDK_VERSION"
+        id: unit-tests
+        run: |
+          set -o pipefail
+          mkdir -p app/build
+          ./gradlew testReleaseUnitTest --console=plain --info --stacktrace -Drobolectric.logging=stderr -PndkVersion="$NDK_VERSION" 2>&1 | tee app/build/unit-tests.log
+
+      - name: Upload unit test diagnostics
+        id: unit-test-diagnostics
+        if: always() && steps.unit-tests.outcome != 'skipped'
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: |
+            app/build/unit-tests.log
+            app/build/test-results/testReleaseUnitTest/
+            app/build/reports/tests/testReleaseUnitTest/
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Sign with the testkey (v1 + v2 + v3)
         run: |
@@ -529,6 +559,15 @@ jobs:
           grep -qi "CN=Android, OU=Android, O=Android" /tmp/sig.txt \
             || { echo "::error::apk is not signed with the AOSP testkey"; exit 1; }
 
+      - uses: actions/upload-artifact@v4
+        id: apk-upload
+        with:
+          name: droiddeck-apk
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
       - name: Report on the pull request
         if: always() && github.event_name == 'pull_request'
         continue-on-error: true
@@ -537,6 +576,9 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           BUILD_OUTCOME: ${{ steps.build.outcome }}
+          UNIT_TEST_OUTCOME: ${{ steps.unit-tests.outcome }}
+          TEST_DIAGNOSTICS_URL: ${{ steps.unit-test-diagnostics.outputs.artifact-url }}
+          APK_OUTCOME: ${{ steps.apk-upload.outcome }}
           SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
         run: |
           set -uo pipefail
@@ -547,8 +589,8 @@ jobs:
             echo
             [ -f /tmp/pr-merge.md ] && cat /tmp/pr-merge.md
             echo
-            case "$BUILD_OUTCOME" in
-              success)
+            case "$BUILD_OUTCOME:$UNIT_TEST_OUTCOME:$APK_OUTCOME" in
+              success:success:success)
                 echo "###  Build passed"
                 echo
                 echo "The \`droiddeck-apk\` artifact is [on this run]($RUN_URL), signed with the public test key."
@@ -561,7 +603,28 @@ jobs:
                 echo
                 echo "Fallback: [open **PR Release Publish**]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/pr-release-publish.yml) on \`main\` and enter PR \`$PR\`."
                 ;;
-              failure)
+              success:success:*)
+                echo "###  APK publication incomplete"
+                echo
+                echo "Compilation and unit tests passed, but APK publication did not complete. See [the run]($RUN_URL)."
+                ;;
+              success:failure:*)
+                echo "### ERROR: Unit tests failed"
+                echo
+                echo "The APK compiled, but unit tests failed. No installable artifact was published."
+                echo
+                if [ -n "$TEST_DIAGNOSTICS_URL" ]; then
+                  echo "The [unit-test-results]($TEST_DIAGNOSTICS_URL) artifact contains the test log and any generated reports."
+                else
+                  echo "The test diagnostics upload did not complete. See [the test log]($RUN_URL)."
+                fi
+                ;;
+              success:*)
+                echo "###  Build incomplete"
+                echo
+                echo "The APK compiled, but unit tests did not complete successfully. See [the run]($RUN_URL)."
+                ;;
+              failure:*)
                 echo "### ERROR: Build failed"
                 echo
                 echo "The compiler's errors ([full log]($RUN_URL)):"
@@ -579,7 +642,7 @@ jobs:
                 echo '```'
                 echo "</details>"
                 ;;
-              skipped|cancelled)
+              skipped:*|cancelled:*)
                 echo "###  Not built"
                 echo
                 echo "The build did not run (see above, or [the run]($RUN_URL))."
@@ -595,14 +658,6 @@ jobs:
             gh api -X POST "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" -F body=@/tmp/pr-report.md >/dev/null
           fi
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: droiddeck-apk
-          path: app/build/outputs/apk/release/*.apk
-          if-no-files-found: error
-          retention-days: 30
-          compression-level: 0
-
   sign:
     needs: build
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
@@ -615,12 +670,6 @@ jobs:
       variants: ${{ needs.build.outputs.variants }}
     secrets: inherit
 
-  # Each signed main build as a prerelease of the public Droid-Deck/DroidDeck-CI (main-<sha>, the
-  # last KEEP kept), where anyone can download it without a GitHub account, then a post in the
-  # Discord's builds channel linking to it. The release is made with a token of the org's
-  # "DroidDeck CI Publisher" app (installed on DroidDeck-CI only, Contents: write): its ID in the
-  # DROIDDECK_CI_APP_ID variable, its private key in the DROIDDECK_CI_APP_KEY secret.
-  # DISCORD_BUILDS_WEBHOOK is the channel's webhook URL.
   announce:
     needs: [build, sign]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
@@ -647,8 +696,6 @@ jobs:
           owner: Droid-Deck
           repositories: DroidDeck-CI
 
-      # What this build is, for the top of the release notes: the merged PR's title and the first
-      # paragraph of its description, or the commit's subject for a push made without a PR.
       - name: Describe the change
         env:
           GH_TOKEN: ${{ github.token }}
@@ -698,15 +745,12 @@ jobs:
           gh release delete "$tag" -R "$CI_REPO" --yes --cleanup-tag 2>/dev/null || true
           gh release create "$tag" -R "$CI_REPO" --target main --prerelease \
             --title "main ${GITHUB_SHA::7}" --notes "$notes" signed/*
-          # Keep the newest main builds by publication time. GitHub App releases can share createdAt.
           gh release list -R "$CI_REPO" -L 200 --json tagName,publishedAt \
             --jq '[.[] | select(.tagName | startswith("main-"))] | sort_by(.publishedAt) | reverse | .['"$KEEP"':][] | .tagName' |
             while IFS= read -r old; do
-              # Never remove this run's release, even if the API returns an unexpected ordering.
               if [ "$old" = "$tag" ]; then
                 continue
               fi
-              # Another main publish may have removed the same old release concurrently.
               if ! gh release delete "$old" -R "$CI_REPO" --yes --cleanup-tag 2>/dev/null; then
                 if gh release view "$old" -R "$CI_REPO" >/dev/null 2>&1; then
                   echo "::error::Could not delete old release $old"
@@ -722,7 +766,7 @@ jobs:
           echo "apk=$GITHUB_SERVER_URL/$CI_REPO/releases/download/$tag/$apk" >> "$GITHUB_OUTPUT"
           echo "Published $url"
 
-      - name: Post to Discord
+      - name: Post the Preview build to Discord
         env:
           WEBHOOK: ${{ secrets.DISCORD_BUILDS_WEBHOOK }}
           GH_TOKEN: ${{ github.token }}
@@ -736,8 +780,6 @@ jobs:
           fi
           commit=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA")
           subject=$(jq -r '.commit.message | split("\n")[0]' <<<"$commit")
-          # A merge commit's subject is "Merge pull request #N from ..."; its body's first line is
-          # the PR's title, which says more.
           title=$(jq -r '.commit.message | split("\n") | map(select(length > 0)) | .[1] // ""' <<<"$commit")
           pr=$(sed -n 's/^Merge pull request #\([0-9]*\).*/\1/p' <<<"$subject")
           if [ -n "$pr" ]; then
@@ -746,7 +788,7 @@ jobs:
             what="[\`${GITHUB_SHA::7}\`]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$GITHUB_SHA): $subject"
           fi
           get=$(printf 'Download: [standard APK](<%s>) · [all variants](<%s>)' "$APK" "$RELEASE")
-          content=$(printf '**New signed build** `main-%s`\n%s\n%s' "${GITHUB_SHA::7}" "$what" "$get")
+          content=$(printf '**New signed Preview build** `main-%s`\n%s\nIn the app: **Updates → Preview**\n%s' "${GITHUB_SHA::7}" "$what" "$get")
           jq -n --arg content "$content" '{content: $content, allowed_mentions: {parse: []}}' |
             curl -fsS -H 'Content-Type: application/json' -d @- "$WEBHOOK" -o /dev/null
           echo "Posted: $content"

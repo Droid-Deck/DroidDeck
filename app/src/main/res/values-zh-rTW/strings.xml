@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="steamvr_recovery_title">SteamVR 圖形已停止運作</string>
+    <string name="steamvr_recovery_countdown">DroidDeck 將在 %1$d 秒後重新啟動，以重設圖形並重新開啟 SteamVR。執行中的遊戲會被關閉，未儲存的進度將無法復原。</string>
+    <string name="steamvr_recovery_repeated">最近一次重新啟動後，圖形故障再次發生。為避免無限循環，已暫停自動復原。重新啟動會關閉你的遊戲，未儲存的進度將無法復原。</string>
+    <string name="steamvr_recovery_restart">立即重新啟動</string>
+    <string name="steamvr_recovery_cancel">保持開啟</string>
+    <string name="steamvr_recovery_restarting">正在重設圖形並重新開啟 SteamVR…</string>
+    <string name="steamvr_recovery_failed">DroidDeck 無法自動重新啟動。請完全關閉應用程式，然後重新開啟。</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>首次執行會下載 Steam。這可能需要幾分鐘。</item>
@@ -15,8 +22,10 @@
     <string name="session_channel">工作階段</string>
     <string name="session_channel_description">在 Steam 或桌面工作階段開啟時顯示</string>
     <string name="session_notification">Steam 正在執行</string>
+    <string name="session_notification_downloads">Steam 正在下載</string>
     <string name="session_notification_paused">工作階段已暫停 - 準備好後點擊繼續</string>
     <string name="resume_session">繼續</string>
+    <string name="suspend_now">立即暫停</string>
     <string name="stop_session">結束此工作階段</string>
     <string name="frame_gen_title">影格生成</string>
     <string name="frame_gen_hint">請選擇你要使用的影格生成模式</string>
@@ -90,7 +99,7 @@
     <string name="fex_preset_title">FEX 預設</string>
     <string name="fex_next_launch">下次啟動遊戲時生效。</string>
     <string name="game_settings_title">遊戲</string>
-    <string name="fex_default_label">FEX 預設</string>
+    <string name="fex_default_label">FEX 預設值</string>
     <string name="fex_default_detail">使用 FEX 預設設定。</string>
     <string name="fex_stability_label">穩定</string>
     <string name="fex_stability_detail">最安全、最慢的設定。</string>
@@ -182,6 +191,8 @@
     <string name="add_app_flatpak_id">應用程式 ID</string>
     <string name="add_app_flatpak_placeholder">org.ppsspp.PPSSPP</string>
     <string name="add_app_flatpak_invalid">不是有效的 Flathub 應用程式 ID</string>
+    <string name="add_app_flatpak_bundle_hint">或是 .flatpak 檔案，適用於 Flathub 上沒有的應用程式。</string>
+    <string name="add_app_pick_flatpak">選擇 .flatpak 檔案</string>
     <string name="add_app_source">來源</string>
     <string name="add_app_appearance">顯示在桌面</string>
     <string name="add_app_preview_name">新應用程式</string>
@@ -201,7 +212,7 @@
     <string name="add_app_folder_copied">該資料夾包含 Linux 程式，共用儲存空間無法執行這些程式，因此會將其複製到 DroidDeck（%1$s）。</string>
     <string name="add_app_confirm">新增</string>
     <string name="add_app_cancel">取消</string>
-    <string name="add_app_runtime_required">請先從「設定」中安裝 Linux 執行環境。</string>
+    <string name="add_app_runtime_required">請先從「初始設定」中安裝 Linux 執行環境。</string>
     <string name="add_app_busy">請等待 %1$s 完成。</string>
     <string name="steam_compat_label">相容</string>
     <string name="proton_compatible_note">在 Steam 的「相容性」選單中標示「%1$s」的組建版本包含 DroidDeck 的 前綴修正，可在此啟動遊戲。預設為 Proton Experimental ARM64（%1$s）；安裝較新的 Proton 11.0 ARM64（%1$s）後則改用該版本。Valve 自己未帶此標示的 Proton 項目無法在這部裝置上啟動遊戲。</string>
@@ -215,7 +226,7 @@
     <string name="common_update">更新</string>
     <string name="common_checking">正在檢查…</string>
     <string name="common_working">處理中…</string>
-    <string name="common_forget">忘記</string>
+    <string name="common_forget">清除</string>
     <string name="common_add_ellipsis">新增…</string>
     <string name="common_use">使用</string>
     <string name="common_applies_next_session">下次工作階段生效。</string>
@@ -251,6 +262,10 @@
     <string name="mode_osc">螢幕控制</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">自動模式會在未連接控制器時顯示螢幕控制。</string>
+    <string name="osc_steam_touch">Steam 觸控（測試版）</string>
+    <string name="osc_style_next_session">Steam 觸控控制會在下次 Steam 工作階段啟用</string>
+    <string name="osc_steam_layout">Steam 觸控版面配置</string>
+    <string name="osc_steam_layout_hint">移動、調整大小或隱藏這款遊戲的觸控控制；會儲存到 Steam</string>
     <string name="mode_controller">控制器</string>
     <string name="mode_controller_hint">Steam 辨識你的控制器的方式。下次工作階段生效。</string>
     <string name="mode_controller_deck">Steam Deck 控制器</string>
@@ -268,6 +283,11 @@
     <string name="mode_suspend_manual">手動</string>
     <string name="mode_suspend_native">原生</string>
     <string name="mode_suspend_steam_note">「自動」會暫停，並在重新顯示時繼續。「原生」會先讓 Steam 做好睡眠準備。「手動」會等你點擊「繼續」。「從不」則會持續執行。</string>
+    <string name="mode_background_downloads">讓下載持續進行</string>
+    <string name="mode_background_downloads_hint">Steam 正在下載時，延後在背景暫停。</string>
+    <string name="mode_zram">zRAM 壓縮</string>
+    <string name="mode_zram_hint">遊戲執行時，Steam 用戶端記憶體會壓縮進裝置的 zram，為遊戲騰出更多記憶體。下次啟動 Steam 時生效。</string>
+    <string name="mode_zram_unsupported">無法使用：此裝置沒有 zram 或 swap，或核心版本低於 5.4。</string>
     <string name="mode_suspend_note">「自動」會在背景時暫停，並在重新顯示時繼續。「手動」會等你點擊「繼續」。「從不」則會持續執行。</string>
     <string name="mode_startup">啟動</string>
     <string name="mode_steam_startup">隨 DroidDeck 啟動 Steam</string>
@@ -296,8 +316,8 @@
     <string name="mode_sgdb_key">SteamGridDB API 金鑰</string>
     <string name="mode_sgdb_key_yours">你的金鑰</string>
     <string name="mode_sgdb_edit">編輯…</string>
-    <string name="mode_added_art_hint">按資料夾名稱補全缺少的圖片。遊戲資料夾中的 cover.jpg、hero.jpg、logo.png 或 icon.png 優先使用。</string>
-    <string name="summary_remove_game">Remove %1$s</string>
+    <string name="mode_added_art_hint">自動從 Steam、其次從 SteamGridDB 補齊缺少的圖片。遊戲資料夾中你自己的 cover.jpg、hero.jpg、logo.png 或 icon.png 優先使用。</string>
+    <string name="summary_remove_game">移除 %1$s</string>
     <string name="mode_added_remove_confirm">移除？</string>
     <string name="games_add">新增遊戲</string>
     <string name="games_add_title">新增遊戲：</string>
@@ -331,16 +351,20 @@
     <string name="wincomp_found_shipped">遊戲含有 %1$s（通常可直接使用）</string>
     <string name="wincomp_already_here">這款遊戲中已有</string>
     <string name="wincomp_no_recommendation">遊戲資料夾中沒有指向任何元件的內容。</string>
+    <string name="wincomp_active">已為這款遊戲安裝（%1$d）</string>
     <string name="wincomp_all">所有元件（%1$d）</string>
     <string name="wincomp_installers">需要 Windows 安裝程式（%1$d）</string>
-    <string name="wincomp_installers_note">這些元件需要在前綴中執行真正的安裝程式（.NET、PhysX、XNA、完整的 Visual C++ 安裝程式等）。DroidDeck 目前還做不到，接下來就會支援。</string>
+    <string name="wincomp_installers_note">這些是各自的安裝程式，內部沒有可拆出的軟體包，目前也還沒有記錄它們會安裝什麼。其中多數是 Proton 內建 Mono 已能取代的舊執行環境；安裝記錄會陸續補充。</string>
     <string name="wincomp_show">顯示</string>
     <string name="wincomp_hide">隱藏</string>
-    <string name="wincomp_needs_installer">需要 Windows 安裝程式（即將支援）</string>
+    <string name="wincomp_needs_installer">會執行自己的安裝程式（暫無安裝記錄）</string>
     <string name="wincomp_unsupported">這裡尚不支援</string>
     <string name="wincomp_loading">正在載入元件…</string>
     <string name="wincomp_failed">無法安裝：%1$s</string>
     <string name="wincomp_downloaded">已下載</string>
+    <string name="wincomp_downloading">正在下載 %1$s</string>
+    <string name="wincomp_installing">正在安裝：%1$s</string>
+    <string name="wincomp_reverting">正在關閉…</string>
     <string name="wincomp_download_size">下載 %1$s</string>
     <string name="wincomp_next_launch">將在下次啟動遊戲時生效。</string>
     <string name="mode_stretch169">拉伸 16:9 遊戲</string>
@@ -390,13 +414,58 @@
     <string name="comp_display_driver_hint">在兩種模式下都負責將畫面輸出到螢幕。重新啟動應用程式後生效。</string>
     <string name="comp_import_adrenotools">匯入 AdrenoTools zip…</string>
     <string name="comp_never">從未</string>
-    <string name="comp_nightlies_checked">已於 %1$s 檢查 Nightlies</string>
+    <string name="comp_nightlies_checked">Nightlies 檢查時間：%1$s</string>
     <string name="comp_title">元件</string>
     <string name="comp_about">關於元件</string>
     <string name="comp_check_drivers">檢查新驅動程式</string>
     <string name="comp_check_nightlies">檢查 Nightlies 中的新套件</string>
     <string name="comp_proton">Proton</string>
     <string name="comp_proton_note">這裡選擇的 Proton 會執行所有未在 Steam 中自選 Proton 的遊戲，在 Steam 中所做的變更也會顯示在這裡。Steam 更新時會取代 Valve 的 Proton；每個組建版本的原始檔案都會保留。</string>
+    <string name="comp_scope">設定</string>
+    <string name="comp_profile_configure">調整設定檔</string>
+    <string name="comp_profile">設定檔</string>
+    <string name="comp_scope_general">預設設定檔</string>
+    <string name="comp_scope_general_detail">沒有覆寫設定的遊戲會自動使用。</string>
+    <string name="comp_profile_game_detail">%1$s 啟動時自動使用的已儲存設定。</string>
+    <string name="comp_game_hint">只選擇這款遊戲需要的設定，其餘設定會繼續使用預設設定檔。</string>
+    <string name="comp_game_fex">FEX 預設集</string>
+    <string name="comp_game_fex_inherited">使用預設設定檔的預設集。</string>
+    <string name="comp_game_fex_override">已為這款遊戲儲存自訂預設集。</string>
+    <string name="comp_game_fex_custom">自訂 FEX 變數</string>
+    <string name="comp_game_use_general">使用預設</string>
+    <string name="comp_game_compatibility">遊戲相容性</string>
+    <string name="comp_game_environment_hint">這款遊戲的 Proton、DXVK、VKD3D 與同步環境選項。</string>
+    <string name="comp_game_proton_inherited">使用預設設定檔的 Proton。</string>
+    <string name="comp_game_proton_override">已透過 Steam 相容性對應為這款遊戲儲存自訂 Proton。</string>
+    <string name="comp_no_proton_short">無 Proton</string>
+    <string name="comp_game_dxvk">DXVK</string>
+    <string name="comp_game_vkd3d">VKD3D-Proton</string>
+    <string name="comp_game_component_runtime">使用預設設定檔中來自 %1$s 的套件，除非這款遊戲另選其他套件。</string>
+    <string name="comp_game_component_general">使用預設設定檔的元件套件。</string>
+    <string name="comp_game_component_override">僅這款遊戲使用 %1$s。</string>
+    <string name="comp_game_runtime_options">執行環境選項</string>
+    <string name="comp_game_environment_other_hint">其他個別遊戲的 Proton、DXVK、VKD3D-Proton 與同步環境選項。</string>
+    <string name="comp_game_saved_next">已儲存 %1$s 的設定檔，下次啟動遊戲時生效。</string>
+    <string name="game_no_steam_title">不啟動 Steam 直接開始</string>
+    <string name="game_no_steam_detail">在不啟動 Steam 用戶端的情況下用 Proton/FEX 開啟；Steam 功能關閉。</string>
+    <string name="game_no_steam_on">開</string>
+    <string name="game_steam_with">隨 Steam 啟動</string>
+    <string name="game_steam_without">不經 Steam 啟動</string>
+    <string name="game_settings_card">設定</string>
+    <string name="game_settings_menu_title">%1$s 設定</string>
+    <string name="game_settings_default">預設</string>
+    <string name="game_settings_default_detail">將為此遊戲變更的所有內容還原為應用程式的設定。</string>
+    <string name="game_sync_custom">自訂同步變數</string>
+    <string name="comp_game_proton_live">已儲存 %1$s 的 Proton 選擇，現在即可在 Steam 中使用。</string>
+    <string name="comp_game_proton_next">已儲存 %1$s 的 Proton 選擇。啟動遊戲前請重新啟動 Steam。</string>
+    <string name="comp_game_proton_not_runnable">%1$s 無法在這部裝置上使用所選的 Proton。</string>
+    <string name="comp_game_load_failed">無法載入 %1$s 的設定檔：%2$s</string>
+    <string name="comp_game_save_failed">無法儲存遊戲設定檔：%1$s</string>
+    <string name="comp_game_reset">重設遊戲設定檔</string>
+    <string name="comp_game_reset_title">要重設 %1$s 的設定檔嗎？</string>
+    <string name="comp_game_reset_body">要移除這款遊戲的 Proton、FEX、元件套件、環境、材質過濾和 Windows 元件覆寫嗎？遊戲將改用預設設定檔。</string>
+    <string name="comp_game_reset_done">%1$s 現在使用預設設定檔。</string>
+    <string name="comp_game_reset_failed">無法完全重設遊戲設定檔：%1$s</string>
     <string name="comp_default_live">%1$s 現在會執行所有未在 Steam 中自選 Proton 的遊戲。</string>
     <string name="comp_default_next">從下次啟動 Steam 起，%1$s 會執行所有未自選 Proton 的遊戲。</string>
     <string name="comp_default_not_runnable">%1$s 無法在此啟動遊戲，因此不能設為預設。</string>
@@ -408,7 +477,7 @@
     <string name="comp_esync_wanted">%1$s · 尚無 droiddeck-esync 套件</string>
     <string name="comp_esync_builtin">%1$s · 內建 esync，不需要套件</string>
     <string name="comp_gpu_drivers">GPU 驅動程式</string>
-    <string name="comp_reapplied">%1$s · 已在啟動 %2$s 時重新套用</string>
+    <string name="comp_reapplied">%1$s · 已於 %2$s 啟動時重新套用</string>
     <string name="comp_next_queued">下一項：%1$s · 遊戲關閉後</string>
     <string name="comp_in_use">正在使用 %1$s：%2$s</string>
     <string name="comp_waits">等待遊戲關閉</string>
@@ -521,6 +590,10 @@
     <string name="drawer_cas">銳化（CAS）</string>
     <string name="drawer_cas_level">銳化程度</string>
     <string name="drawer_fake_hdr">模擬 HDR</string>
+    <string name="vr_title">VR</string>
+    <string name="steamvr_title">SteamVR</string>
+    <string name="steamvr_enter">進入 SteamVR</string>
+    <string name="steamvr_checking">正在檢查 SteamVR…</string>
     <string name="drawer_deband">去色帶</string>
     <string name="drawer_deband_strength">去色帶強度</string>
     <string name="drawer_brightness">亮度</string>
@@ -538,6 +611,11 @@
     <string name="drawer_texture_sharpness_note">負的 mip 偏移：材質更銳利，但會有些閃爍。「自動」會依工作階段畫面放大到螢幕的倍率調整。</string>
     <string name="drawer_touch_auto">自動（%1$s）</string>
     <string name="drawer_keyboard">鍵盤</string>
+    <string name="drawer_latency">延遲</string>
+    <string name="drawer_low_latency_controller">低延遲控制器</string>
+    <string name="drawer_low_latency_controller_hint">控制器以 1000 Hz 而非 250 Hz 回報。CPU 使用率略高。</string>
+    <string name="drawer_low_latency_touch">低延遲觸控</string>
+    <string name="drawer_low_latency_touch_hint">觸控略過影格合併，Steam 觸控以 1000 Hz 回報。CPU 使用率略高。</string>
     <string name="drawer_pc_keyboard">電腦鍵盤</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">第二螢幕</string>
@@ -560,11 +638,23 @@
     <string name="drawer_stop_title">停止工作階段？</string>
     <string name="drawer_running_now">目前正在執行</string>
     <string name="drawer_no_game">目前沒有使用 Proton 執行的遊戲</string>
+    <string name="drawer_selected_profile">遊戲設定檔</string>
+    <string name="drawer_selected_profile_none">尚無法取得設定檔詳細資料。</string>
+    <string name="drawer_profile_refresh_failed_initial">無法載入遊戲設定檔，正在自動重試。</string>
+    <string name="drawer_profile_refresh_failed_stale">無法重新整理遊戲設定檔。目前顯示最後取得的資料，正在自動重試。</string>
+    <string name="drawer_profile_inspect_hint">檢視並編輯下次啟動時使用的已儲存設定。</string>
+    <string name="drawer_profile_default">使用預設設定檔</string>
+    <string name="drawer_profile_custom">自訂設定檔</string>
+    <string name="drawer_component_inherited">使用預設設定檔中的 %1$s。</string>
+    <string name="drawer_game_components_note">變更會儲存到 %1$s 的設定檔，並在下次啟動遊戲時生效。</string>
+    <plurals name="drawer_profile_environment_overrides">
+        <item quantity="other">%1$d 項遊戲覆寫</item>
+    </plurals>
     <string name="drawer_no_proton">尚未安裝 Proton。</string>
     <string name="drawer_game_running">遊戲執行中</string>
-    <string name="drawer_reapplied">已在啟動 %1$s 時重新套用</string>
+    <string name="drawer_reapplied">已於 %1$s 啟動時重新套用</string>
     <string name="drawer_original">原始</string>
-    <string name="drawer_components_note">請在「元件」頁面下載、匯入和刪除。</string>
+    <string name="drawer_components_note">請在「元件」頁面匯入和刪除。</string>
     <string name="setup_check_done">完成</string>
     <string name="setup_check_warn">需要處理</string>
     <string name="setup_check_busy">處理中</string>
@@ -616,6 +706,14 @@
     <string name="setup_saved_logs">已儲存的工作階段日誌</string>
     <string name="setup_saved_logs_hint">保留最新的 %1$d 個</string>
     <string name="setup_clear_logs">清除日誌</string>
+    <string name="setup_reset_settings">重設所有設定</string>
+    <string name="setup_reset_settings_hint">將所有設定還原為預設值</string>
+    <string name="setup_reset_settings_button">重設</string>
+    <string name="setup_reset_settings_title">要重設所有設定嗎？</string>
+    <string name="setup_reset_settings_body">顯示、效能、控制器、佈景主題、語言和啟動器設定將還原為預設值。你的遊戲、Steam 登入、商店帳戶、已下載的驅動程式和儲存資料夾都會保留。</string>
+    <string name="setup_reset_settings_profiles">同時重設遊戲設定檔（每個遊戲的 Proton、FEX、元件和環境，以及預設設定檔的環境）</string>
+    <string name="setup_reset_settings_session_running">請先停止工作階段再重設設定。</string>
+    <string name="setup_reset_settings_partial">設定已重設，但部分項目無法重設。詳細資訊請查看日誌。</string>
     <string name="setup_offline">離線模式</string>
     <string name="setup_sign_in_first">請先登入 Steam</string>
     <string name="setup_launcher">啟動器</string>
@@ -631,6 +729,10 @@
     <string name="setup_home">用作主螢幕</string>
     <string name="setup_home_on">DroidDeck 可以作為主螢幕應用程式</string>
     <string name="setup_home_off">DroidDeck 不會作為主螢幕應用程式提供</string>
+    <string name="setup_orientation">螢幕方向</string>
+    <string name="setup_orientation_auto">自動橫向</string>
+    <string name="setup_orientation_landscape">橫向</string>
+    <string name="setup_orientation_reverse">反向橫向</string>
     <string name="setup_fullscreen">全螢幕</string>
     <string name="setup_fullscreen_on">隱藏 Android 狀態列和導覽列</string>
     <string name="setup_fullscreen_off">顯示 Android 狀態列和導覽列</string>
@@ -657,7 +759,7 @@
     <string name="store_title">商店</string>
     <string name="store_chip_flathub">Flathub · ARM64</string>
     <string name="store_chip_ready">● Flatpak 已就緒</string>
-    <string name="store_needs_runtime">請先從「設定」中安裝 Linux 執行環境。</string>
+    <string name="store_needs_runtime">請先從「初始設定」中安裝 Linux 執行環境。</string>
     <string name="store_setup_title">設定 Flatpak</string>
     <string name="store_setup_text">新增 Flatpak 並連線到 Flathub（約 20 MB）。第一個應用程式還會下載其執行環境。</string>
     <string name="store_setting_up">正在設定…</string>
@@ -769,13 +871,13 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android 會停止那些啟動大量背景處理程序的應用程式，而 Steam 會啟動數十個處理程序。在變更此設定前，遊戲可能會在沒有錯誤提示的情況下關閉。</string>
     <string name="gate_fix_for_me">幫我修復</string>
-    <string name="gate_toggle_steps">開啟「停用子處理程序限制」，然後返回。請保持開發人員選項開啟，否則該開關會再次關閉。</string>
+    <string name="gate_toggle_steps">開啟「停止限制子程序」，然後返回。請保持開發人員選項開啟，否則該開關會再次關閉。</string>
     <string name="gate_open_dev">開啟開發人員選項</string>
     <string name="gate_no_toggle">此 Android 版本沒有該開關，因此 DroidDeck 會透過無線偵錯進行修改。大約需要一分鐘，無需電腦。</string>
     <string name="gate_needs_wifi">無線偵錯需要 Wi-Fi。任何網路都可以，不需要網際網路。</string>
     <string name="gate_needs_notifications">配對碼會顯示在通知中。請允許 DroidDeck 傳送通知，或使用「其他方式」。</string>
     <string name="gate_allow_notifications">允許通知</string>
-    <string name="gate_step1">開啟設定 → 開發人員選項 → 無線偵錯，並將其開啟</string>
+    <string name="gate_step1">開啟「Android 設定」→「開發人員選項」→「無線偵錯」，並將其開啟</string>
     <string name="gate_step2">點擊「使用配對碼配對裝置」</string>
     <string name="gate_step3">將配對碼輸入 DroidDeck 通知中</string>
     <string name="gate_waiting">正在等待配對彈出視窗…</string>
@@ -819,8 +921,8 @@
     <string name="wadb_turn_off">關閉限制</string>
     <string name="wadb_other_ways">其他變更方式</string>
     <string name="wadb_dev_try_first">1 · 開發人員選項（優先嘗試）</string>
-    <string name="wadb_restrict_on">開啟「限制子處理程序」。</string>
-    <string name="wadb_restrict_off">關閉「限制子處理程序」。</string>
+    <string name="wadb_restrict_on">關閉「停止限制子程序」。</string>
+    <string name="wadb_restrict_off">開啟「停止限制子程序」。</string>
     <string name="wadb_computer_last">3 · 電腦 ADB（最後手段）</string>
     <string name="wadb_only_if">僅在無線偵錯無法使用時使用。</string>
     <string name="wadb_computer_group">3 · 電腦 ADB（最後手段）</string>
@@ -841,6 +943,8 @@
     <string name="ctrl_keyboard_button">鍵盤按鈕</string>
     <string name="ctrl_select_steam">按 Select 開啟 Steam 功能表</string>
     <string name="ctrl_select_steam_hint">代替 View/Select。</string>
+    <string name="ctrl_joycon_vr">將 Joy-Con 當作 VR 控制器</string>
+    <string name="ctrl_joycon_vr_hint">SteamVR 執行時，每個 Joy-Con 都會變成一隻手。將它指向前方並按住 HOME 鍵或擷取鍵，即可重新置中。</string>
     <string name="setup_animations">動畫</string>
     <string name="ctrl_adaptive_hint">搖桿會出現在你觸控的位置，並在放開後隱藏</string>
     <string name="ctrl_layout">版面配置</string>
@@ -876,7 +980,7 @@
     <string name="content_runtime_required">需要執行環境</string>
     <string name="content_loading_details">正在載入安裝詳細資料…</string>
     <string name="content_details_unavailable">安裝詳細資料無法使用。請稍後重試。</string>
-    <string name="content_needs_runtime">請先從「設定」中安裝 Linux 執行環境。</string>
+    <string name="content_needs_runtime">請先從「初始設定」中安裝 Linux 執行環境。</string>
     <string name="content_stop_first">請停止正在執行的工作階段後再安裝桌面應用程式。</string>
     <string name="content_install_into">將 %1$s 安裝到 Linux 桌面。</string>
     <string name="store_busy_percent_short">%1$s · %2$d%%</string>
@@ -888,10 +992,17 @@
     <string name="content_page_gone">該頁面已不存在。請從左側選擇一個區段。</string>
     <string name="content_open_desktop">開啟桌面</string>
     <string name="content_install_open_desktop">安裝並開啟桌面</string>
+    <string name="desktop_remove_title">解除安裝桌面</string>
+    <string name="desktop_remove_text">移除桌面及其內建的應用程式。遊戲、已新增的應用程式、設定和共用程式庫都會保留。</string>
+    <string name="desktop_removing">正在移除桌面</string>
+    <string name="desktop_removed">已移除桌面</string>
+    <string name="desktop_cleaning_legacy">正在移除舊的 LXQt 檔案</string>
+    <string name="desktop_removal_unknown">請先更新 DroidDeck，再移除此桌面版本。</string>
     <string name="content_linux_desktop">Linux 桌面</string>
     <string name="content_linux_desktop_hint">KDE Plasma、Firefox 和你的模擬器</string>
     <string name="games_empty">在 Steam 中安裝的遊戲會在工作階段結束後顯示在這裡。</string>
     <string name="games_play_steam">執行 Steam</string>
+    <string name="games_play_steamvr">執行 SteamVR</string>
     <string name="games_launch_settings">啟動設定</string>
     <string name="games_launch">啟動</string>
     <string name="games_files">遊戲檔案</string>
@@ -916,6 +1027,8 @@
     <string name="games_last_played">上次執行 %1$s</string>
     <string name="games_internal">內部儲存空間</string>
     <string name="games_added">已新增的遊戲</string>
+    <string name="games_custom">自訂遊戲</string>
+    <string name="games_store_storage">遊戲儲存空間</string>
     <string name="gpu_auto_hint">為此 GPU 選擇最佳驅動程式組合，並保持最新</string>
     <string name="gpu_manual_hint">自行選擇驅動程式組合</string>
     <string name="gpu_checking">正在檢查驅動程式…</string>
@@ -927,7 +1040,6 @@
     <string name="gpu_set_with_runtime">與執行環境驅動程式一起設定：%1$s 同時包含兩者。</string>
     <string name="gpu_runtime_hint">供遊戲和桌面使用。</string>
     <string name="gpu_runtime_default">執行環境預設</string>
-    <string name="gpu_display_hint">負責將畫面輸出到螢幕。重新啟動 DroidDeck 後生效。</string>
     <string name="gpu_auto_by_gpu">自動 - 按 GPU 選擇</string>
     <string name="gpu_manage">下載、匯入或刪除…</string>
     <string name="gpu_in_use_caps">正在使用</string>
@@ -957,6 +1069,12 @@
     <string name="deck_tab_left">左側觸控板</string>
     <string name="deck_tab_right">右側觸控板</string>
     <string name="deck_tab_both">兩側</string>
+    <string name="deck_tab_gamepad">手把</string>
+    <string name="deck_surface_stick">搖桿</string>
+    <string name="deck_surface_trackpad">觸控板</string>
+    <string name="deck_surface_switch">在搖桿與觸控板之間切換</string>
+    <string name="deck_more_controls">更多 Deck 控制</string>
+    <string name="deck_panels">面板</string>
     <string name="deck_close">關閉第二螢幕控制</string>
     <string name="deck_open_steam_menu">開啟 Steam 選單</string>
     <string name="deck_left_upper">左側 · 上方</string>
@@ -992,6 +1110,10 @@
     <string name="proton_installed">已安裝 %1$s</string>
     <string name="proton_queued">上一次要求留下的待處理項</string>
     <string name="proton_not_installed">未安裝</string>
+    <string name="proton_update_available">有可用更新 → %1$s</string>
+    <string name="proton_remove_older">移除舊版 %1$s</string>
+    <string name="proton_remove_older_body">將移除 %1$s。設定為使用這些版本的遊戲必須改用其他 Proton。</string>
+    <string name="proton_remove_body">設定為使用此版本的遊戲必須改用其他 Proton。</string>
     <string name="proton_install_now">立即安裝</string>
     <string name="proton_cancel_queued">取消排隊</string>
     <string name="pckb_android">Android 鍵盤</string>
@@ -1020,6 +1142,8 @@
     <string name="game_env_eyebrow">Proton 遊戲</string>
     <string name="pip_title">子母畫面</string>
     <string name="pip_auto">自動進入子母畫面</string>
+    <string name="unfolded_controls">展開螢幕時的控制</string>
+    <string name="unfolded_controls_hint">展開時，遊戲會顯示在 Steam Deck 觸控板和背面握把上方。摺疊時，遊戲以全螢幕顯示。</string>
     <string name="pip_suspended">已暫停</string>
     <string name="pip_not_ready">工作階段準備就緒後即可使用子母畫面。</string>
     <string name="pip_permission">請在 Android 設定中允許 DroidDeck 使用子母畫面。</string>
@@ -1045,19 +1169,12 @@
     <string name="game_file_exported">遊戲檔案已儲存到 %1$s</string>
     <string name="game_frontend_files">前端檔案</string>
 
-    <!-- Launcher, session and menus -->
-
-    <!-- Launcher (MainActivity) -->
     <string name="main_wait_runtime">請等待執行環境作業完成</string>
     <string name="main_wait_proton_install">請等待相容性工具安裝完成</string>
     <string name="main_wait_desktop_install">請等待桌面應用程式安裝完成</string>
     <string name="main_wait_install_game">請等待安裝完成後再啟動遊戲</string>
     <string name="main_saves_close_session">請先關閉 Steam 工作階段，以免遊戲存檔覆蓋匯入的內容</string>
-
-    <!-- Busy line while saves are imported; %1$s is the game's name -->
     <string name="main_saves_importing">正在匯入到 %1$s</string>
-
-    <!-- %1$d files, %2$s the save layout (e.g. GameHub zip), %3$s the game's name -->
     <plurals name="main_saves_imported">
         <item quantity="other">已從 %2$s 匯入 %1$d 個檔案到 %3$s</item>
     </plurals>
@@ -1065,20 +1182,12 @@
         <item quantity="other">已從 %2$s 匯入 %1$d 個檔案到 %3$s。舊存檔已備份到 Download/DroidDeck/Saves/backups</item>
     </plurals>
     <string name="main_saves_pick_zip">選擇 %1$s 的存檔壓縮檔</string>
-
-    <!-- Busy line while saves are exported; %1$s is the game's name -->
     <string name="main_saves_exporting">正在匯出 %1$s</string>
-
-    <!-- %1$d files, %2$s the save layout (e.g. GameHub zip), %3$s the zip's path -->
     <plurals name="main_saves_exported">
         <item quantity="other">已將 %1$d 個檔案匯出為 %2$s：%3$s</item>
     </plurals>
-
-    <!-- %1$s is the game's name, %2$s the save layout -->
     <string name="main_saves_pick_folder">選擇 %1$s 的儲存位置（%2$s）</string>
-
-    <!-- %1$s is what was being done (e.g. Importing into Portal 2, Swapping), %2$s the error -->
-    <string name="main_action_failed">失敗（%1$s）：%2$s</string>
+    <string name="main_action_failed">%1$s 失敗：%2$s</string>
     <string name="main_no_logs_yet">還沒有工作階段日誌：請先執行一次工作階段。</string>
     <string name="main_no_logs_to_clear">沒有可清除的工作階段日誌。</string>
     <plurals name="main_logs_cleared">
@@ -1090,78 +1199,55 @@
     <string name="main_adb_copied">已複製 ADB 指令</string>
     <string name="main_pick_roms">選擇 ROM 資料夾</string>
     <string name="main_non_adreno_title">不是 Adreno GPU</string>
-
-    <!-- %1$s is the GPU's name, %2$.0f the download size in MB -->
     <string name="main_non_adreno_text">Turnip 支援 Adreno GPU。在 %1$s 上，Steam 可能會出現黑畫面。下載大小：%2$.0f MB。</string>
     <string name="main_install_anyway">仍要安裝</string>
     <string name="main_remove_runtime_title">移除 Linux 執行環境</string>
     <string name="main_remove_runtime_text">這會刪除執行環境、其中的 Steam 用戶端，以及安裝在其中的所有遊戲。</string>
-
-    <!-- Toast; %1$s is a list of components, separated by commas -->
     <string name="main_applied">已套用：%1$s</string>
     <string name="android_app_open_failed_primary">無法在主螢幕上開啟 %1$s</string>
-
-    <!-- %1$s is the app, %2$s the name of the display -->
     <string name="android_app_open_failed_on">無法在 %2$s 上開啟 %1$s</string>
-
-    <!-- %1$s is the app, %2$d the display's number -->
     <string name="android_app_open_failed_display">無法在螢幕 %2$d 上開啟 %1$s</string>
-
-    <!-- Components page busy lines, shown with … after them -->
     <string name="comp_busy_importing">正在匯入</string>
     <string name="comp_busy_swapping">正在換入</string>
     <string name="comp_busy_restoring">正在還原</string>
     <string name="comp_busy_cancelling">正在取消</string>
     <string name="comp_busy_deleting">正在刪除</string>
     <string name="comp_cannot_read">無法讀取檔案</string>
-
-    <!-- %1$s is a version or a name -->
     <string name="comp_imported">已匯入 %1$s</string>
     <string name="comp_swap_cancelled">已取消等待中的換入。</string>
     <string name="comp_pick_wcp">選擇元件套件（-linux .wcp）</string>
     <string name="comp_nightlies_unreachable">無法連線到 Nightlies</string>
-
-    <!-- %1$s is the package version -->
     <string name="comp_stored">已儲存 %1$s</string>
     <string name="comp_download_failed">下載失敗：%1$s</string>
     <string name="drivers_pick_linux">選擇 Linux 執行環境驅動程式（-Linux zip 或 Android + Linux 套件組合）</string>
     <string name="drivers_pick_android">選擇顯示驅動程式（AdrenoTools zip 或 Android + Linux 套件組合）</string>
     <string name="drivers_pick_any">選擇驅動程式 zip 或 Android + Linux 套件組合</string>
-
-    <!-- %1$s is a desktop app's name, %2$s what went wrong -->
     <string name="main_pkg_problem">%1$s：%2$s</string>
     <string name="main_removing_named">正在移除 %1$s…</string>
-    <string name="main_forgetting_named">正在忘記 %1$s…</string>
+    <string name="main_forgetting_named">正在清除 %1$s…</string>
     <string name="main_pick_game_storage">選擇遊戲儲存資料夾</string>
     <string name="main_pick_decky_zip">選擇 Decky 外掛程式 ZIP</string>
     <string name="main_storage_not_usable">無法使用：%1$s</string>
-
-    <!-- What is running, when it is a program without a known name -->
     <string name="main_running_program">程式</string>
     <string name="main_removing_runtime">正在移除 Linux 執行環境</string>
     <string name="main_settings_main_screen">無法在底部螢幕開啟「設定」，已改在主螢幕上開啟。</string>
-    <string name="main_open_dev_options">在「設定」中開啟開發人員選項</string>
+    <string name="main_open_dev_options">在「Android 設定」中開啟開發人員選項</string>
 
-    <!-- Updates -->
     <string name="upd_unknown_apps_failed">無法開啟 Android 的「安裝不明應用程式」設定</string>
     <string name="upd_couldnt_check">無法檢查：%1$s</string>
     <string name="upd_no_download">此組建版本沒有適用於此 DroidDeck 複本的下載檔案</string>
     <string name="upd_stop_first">請先停止正在執行的工作階段，再進行更新</string>
-
-    <!-- Update stages, shown with … after them -->
     <string name="upd_stage_downloading">正在下載</string>
     <string name="upd_stage_installing">正在安裝</string>
     <string name="upd_stage_confirm">等待你確認</string>
     <string name="upd_failed">更新失敗</string>
     <string name="upd_not_offered">Android 未提供安裝此更新的選項</string>
 
-    <!-- Decky -->
     <string name="decky_install_failed">Decky 安裝失敗：%1$s</string>
     <string name="decky_plugin_starting">正在開始匯入外掛程式…</string>
     <string name="decky_plugin_failed">外掛程式匯入失敗：%1$s</string>
     <string name="decky_plugin_installed">外掛程式已安裝。請重新啟動 Steam 以載入。</string>
 
-    <!-- GPU drivers -->
     <string name="drivers_not_checked">尚未檢查 - 點擊重新整理以尋找新驅動程式</string>
     <string name="drivers_bundle_sets_display">Android + Linux：同時設定顯示驅動程式</string>
     <string name="drivers_bundle_sets_runtime">Android + Linux：同時設定執行環境驅動程式</string>
@@ -1169,26 +1255,26 @@
     <string name="drivers_system_vulkan">系統 Vulkan：沒有適用於此 GPU 的內建版本</string>
     <string name="drivers_bundled">%1$s（內建）</string>
     <string name="drivers_manual">手動</string>
-
-    <!-- Driver mode, then the driver pair in use -->
     <string name="drivers_summary">%1$s · %2$s</string>
     <string name="drivers_half_published">目前只發布了其中一半</string>
     <string name="drivers_pair_size">兩者共 %1$.0f MB</string>
-
-    <!-- %1$s says why (the GPU's support status) -->
     <string name="drivers_none_to_set">沒有可設定的驅動程式：%1$s</string>
     <string name="drivers_checking_latest">正在檢查最新驅動程式…</string>
     <string name="drivers_up_to_date_check_failed">已是最新（無法檢查：%1$s）</string>
     <string name="drivers_recommended_unpublished">建議的驅動程式目前尚未發布</string>
-
-    <!-- %1$s is the driver pair's name, %2$s its version -->
     <string name="drivers_downloading_pair">正在下載 %1$s %2$s…</string>
     <string name="drivers_updated_to">已更新到 %1$s %2$s。</string>
     <string name="drivers_updated_to_restart">已更新到 %1$s %2$s。顯示驅動程式會在 DroidDeck 重新啟動後生效。</string>
+    <string name="drivers_auto_waits_for_session">驅動程式更新會等到工作階段結束後進行。</string>
+    <string name="drivers_auto_waits_for_network">結束行動數據與省電模式後，將下載 %1$s %2$s。</string>
+    <string name="drivers_skipping_bad">%1$s %2$s 在此裝置上未能啟動工作階段，自動模式繼續使用可用的驅動程式。</string>
+    <string name="drivers_rolled_back">%1$s 兩次未能啟動工作階段，自動模式已回到可用的驅動程式。</string>
     <string name="drivers_switched_to">已切換到 %1$s %2$s。</string>
     <string name="drivers_switched_to_restart">已切換到 %1$s %2$s。顯示驅動程式會在 DroidDeck 重新啟動後生效。</string>
     <string name="drivers_using">正在使用 %1$s %2$s。</string>
     <string name="drivers_using_restart">正在使用 %1$s %2$s。顯示驅動程式會在 DroidDeck 重新啟動後生效。</string>
+    <string name="drivers_using_quest">使用內建的 Quest 顯示驅動程式與執行環境預設值。</string>
+    <string name="drivers_using_quest_restart">使用內建的 Quest 顯示驅動程式與執行環境預設值。顯示驅動程式將在 DroidDeck 重新啟動後生效。</string>
     <string name="drivers_not_a_driver">不是驅動程式 zip：既不是 AdrenoTools 驅動程式、-Linux Turnip，也不是 Android + Linux 套件組合</string>
     <string name="drivers_import_failed">匯入失敗：%1$s</string>
     <string name="drivers_imported_unnamed">已匯入的驅動程式</string>
@@ -1196,11 +1282,7 @@
     <string name="drivers_using_bundle_restart">正在將 %1$s 同時用作執行環境驅動程式和顯示驅動程式。顯示驅動程式會在 DroidDeck 重新啟動後生效。</string>
     <string name="drivers_deleted_bundle">已刪除 %1$s（兩個驅動程式）</string>
     <string name="drivers_deleted">已刪除 %1$s</string>
-
-    <!-- %1$s lists the latest releases, %2$s when they were checked (e.g. 5 min ago) -->
     <string name="drivers_release_status">最新：%1$s · 檢查於 %2$s</string>
-
-    <!-- %1$s lists the latest releases, %2$s the sources that could not be reached, %3$s when they were checked -->
     <string name="drivers_release_status_failed">最新：%1$s · 無法連線到 %2$s · 檢查於 %3$s</string>
     <plurals name="drivers_ago_minutes">
         <item quantity="other">%1$d 分鐘前</item>
@@ -1213,39 +1295,25 @@
     </plurals>
     <string name="drivers_checking_sources">正在檢查 Banners-Turnip、WinNative 和 DroidDeck…</string>
     <string name="drivers_check_failed">檢查失敗</string>
-
-    <!-- %1$s is the driver's name -->
     <string name="drivers_installed_pick_either">已安裝 %1$s - 在任一清單中選擇它即可同時設定兩個驅動程式</string>
     <string name="drivers_installed_pick">已安裝 %1$s - 請在選單中選擇</string>
 
-    <!-- Session (SessionActivity) -->
     <string name="session_wait_removal">請等待執行環境移除完成</string>
-
-    <!-- Drawer title when the running program has no known name -->
     <string name="session_title_game">遊戲</string>
-
-    <!-- Shown as "Auto (touchpad)" in the drawer's touch setting -->
     <string name="session_touch_auto_touchpad">觸控板</string>
-
-    <!-- Shown as "Auto (direct)" in the drawer's touch setting -->
     <string name="session_touch_auto_direct">直接</string>
     <string name="session_swap_failed">換入失敗：%1$s</string>
+    <string name="session_profile_save_failed">設定檔儲存失敗：%1$s</string>
     <string name="session_desktop_paused">桌面已暫停</string>
-
-    <!-- %1$s is the program's name -->
     <string name="session_named_paused">%1$s 已暫停</string>
     <string name="session_program_paused">程式已暫停</string>
     <string name="session_starting_desktop">正在啟動桌面</string>
-
-    <!-- %1$s is the program's name -->
     <string name="session_starting_named">正在啟動 %1$s</string>
     <string name="session_starting_program">正在啟動程式</string>
     <string name="session_no_logs">此工作階段沒有日誌。</string>
     <string name="session_logs_archive_failed">無法建立工作階段日誌封存檔。</string>
     <string name="session_logs_share_failed">無法分享工作階段日誌。</string>
     <string name="session_starting_session">正在啟動工作階段…</string>
-
-    <!-- Loading screen lines while packages download; %1$d and %2$d are megabytes -->
     <string name="session_runtime_downloading">正在下載 Linux 執行環境</string>
     <string name="session_runtime_downloading_mb">正在下載 Linux 執行環境 · %1$d/%2$d MB</string>
     <string name="session_runtime_checking">正在檢查 Linux 執行環境</string>
@@ -1260,33 +1328,20 @@
     <string name="session_proton_unpacking">正在解壓縮 Proton Experimental（ARM64）</string>
     <string name="session_runtime_catalog_unreachable">無法連線到執行環境目錄。請檢查網路連線，然後再按一次「執行」。</string>
     <string name="session_runtime_install_failed">Linux 執行環境未能安裝。請在「設定」中檢查執行環境，然後再按一次「執行」。</string>
-
-    <!-- %1$s says what went wrong -->
     <string name="session_desktop_install_failed">桌面未能安裝（%1$s）。請檢查網路連線，然後再按一次「桌面」。</string>
-
-    <!-- %1$s is the program's name, or Steam -->
     <string name="session_ended_named">%1$s 意外停止。請在錯誤報告中附上日誌，或再試一次。</string>
     <string name="session_ended_program">程式意外停止。請在錯誤報告中附上日誌，或再試一次。</string>
     <string name="session_ended_desktop">桌面意外停止。請在錯誤報告中附上日誌，或再試一次。</string>
-
-    <!-- %1$d is the exit status, %2$s the log file's path -->
     <string name="session_ended_detail">結束狀態 %1$d · %2$s</string>
     <string name="session_ended_no_log">沒有日誌</string>
-
-    <!-- %1$d errors; %2$s, %3$s and %4$s are the Performance page and its two settings -->
     <plurals name="session_hint_enosys">
         <item quantity="other">日誌中出現 %1$d 個「Function not implemented」錯誤：proot 的 seccomp 加速在這部裝置上導致輔助程式失敗。請嘗試 %2$s →「%3$s」（或「%4$s」），然後重新啟動。</item>
     </plurals>
 
-    <!-- Screens, files, controller and store -->
-
-    <!-- Mode settings -->
     <string name="mode_decky_plugins">外掛程式</string>
     <string name="mode_decky_plugins_hint">安裝外掛程式 ZIP，供下次 Steam 工作階段使用。</string>
     <string name="mode_decky_plugin_downloading">正在下載…</string>
     <string name="mode_decky_plugin_install_zip">從 ZIP 安裝</string>
-
-    <!-- Store -->
     <string name="store_cat_games">遊戲</string>
     <string name="store_cat_audio_video">影音</string>
     <string name="store_cat_graphics">圖形</string>
@@ -1299,28 +1354,14 @@
     <string name="store_cat_utilities">工具程式</string>
     <string name="store_section_popular">熱門</string>
     <string name="store_section_trending">趨勢</string>
-
-    <!-- Store front-page section of recently added apps -->
     <string name="store_section_new">最新上架</string>
-
-    <!-- Store front-page section of recently updated apps -->
     <string name="store_section_updated">最近更新</string>
     <string name="store_section_loading">正在載入…</string>
     <string name="store_flatpak_setup">Flatpak 設定</string>
-
-    <!-- %1$s is what failed (an app name or "Flatpak setup"), %2$s the error -->
     <string name="store_problem">%1$s：%2$s</string>
     <string name="store_updates_check_failed">無法從 Flathub 檢查更新</string>
-
-    <!-- Library tiles -->
-
-    <!-- Subtitle of a game tile whose cover art was found -->
     <string name="content_rom_installed">已安裝</string>
-
-    <!-- Subtitle of a game that is a folder rather than a single file -->
     <string name="content_rom_folder">資料夾</string>
-
-    <!-- Launcher themes -->
     <string name="theme_graphite">石墨</string>
     <string name="theme_graphite_detail">石墨色介面，選取、聚焦或按下的項目都使用標誌本身的球體藍。</string>
     <string name="theme_paper">黑底白紙</string>
@@ -1329,8 +1370,6 @@
     <string name="theme_icon_blue_detail">黑色背景、白色文字，選取、聚焦或按下的項目使用藍色。</string>
     <string name="theme_electric">電光藏青</string>
     <string name="theme_electric_detail">更亮的藍色，搭配偏藏青而非灰色的介面。</string>
-
-    <!-- PC keyboard key caps (keep them short; they label physical PC keys) -->
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>
@@ -1348,27 +1387,17 @@
     <string name="pckb_key_alt">Alt</string>
     <string name="pckb_key_space">Space</string>
     <string name="pckb_key_altgr">AltGr</string>
-
-    <!-- Terminal key strip on the second screen -->
     <string name="second_key_tab">Tab</string>
-
-    <!-- A modifier key (%1$s, e.g. Ctrl) that is currently held -->
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
-
-    <!-- Game file sync errors -->
     <string name="game_sync_err_runtime">請先安裝執行環境</string>
     <string name="game_sync_err_steam_library">無法使用 Steam 收藏庫</string>
     <string name="game_sync_err_previous_sd">無法使用先前的 SD 卡收藏庫</string>
     <string name="game_sync_err_game_storage">無法使用遊戲儲存空間</string>
     <string name="game_sync_err_added_games">無法使用已新增遊戲的資料夾</string>
     <string name="game_sync_err_manifests">無法使用 Steam 資訊清單</string>
-
-    <!-- The systems RetroArch emulates, shown under its name -->
     <string name="content_system_many">多種主機</string>
-
-    <!-- File manager -->
     <string name="fm_drive_internal">內部</string>
     <string name="fm_drive_linux">Linux 系統</string>
     <string name="fm_drive_sd">SD 卡</string>
@@ -1386,8 +1415,6 @@
     <string name="fm_no_favorites">還沒有我的最愛 - 透過資料夾的 ⋮ 選單釘選，即可快速回到這裡。</string>
     <string name="fm_unpin_favorite">從我的最愛移除</string>
     <string name="fm_size_zero">0 位元組</string>
-
-    <!-- Size unit for sizes under 1 KB, shown after a number -->
     <string name="fm_unit_bytes">位元組</string>
     <string name="fm_prop_location">位置</string>
     <string name="fm_prop_type">類型</string>
@@ -1395,8 +1422,6 @@
     <string name="fm_prop_modified">修改日期</string>
     <string name="fm_type_folder">資料夾</string>
     <string name="fm_type_file">檔案</string>
-
-    <!-- File type in Properties; %1$s is the file extension in capitals, e.g. TXT -->
     <string name="fm_type_ext_file">%1$s 檔案</string>
     <string name="fm_read_only">唯讀</string>
     <string name="fm_read_only_hint">防止遊戲（和 Wine）覆寫或刪除此檔案。</string>
@@ -1410,19 +1435,11 @@
     <string name="fm_delete_failed">刪除失敗</string>
     <string name="fm_op_moving">正在移動...</string>
     <string name="fm_op_copying">正在複製...</string>
-
-    <!-- %1$s is the file name -->
     <string name="fm_op_moving_item">正在移動 - %1$s</string>
     <string name="fm_op_copying_item">正在複製 - %1$s</string>
-
-    <!-- %1$d is the item number, %2$d the number of items, %3$s the file name -->
     <string name="fm_op_moving_batch">正在移動 %1$d/%2$d - %3$s</string>
     <string name="fm_op_copying_batch">正在複製 %1$d/%2$d - %3$s</string>
-
-    <!-- Paste result; %1$d items done, %2$d items failed -->
     <string name="fm_paste_failed">%1$d 個完成，%2$d 個失敗</string>
-
-    <!-- Paste result; %1$d items done, %2$d items skipped -->
     <string name="fm_paste_skipped">%1$d 個完成，%2$d 個略過</string>
     <plurals name="fm_paste_moved">
         <item quantity="other">已移動 %1$d 個項目</item>
@@ -1430,8 +1447,6 @@
     <plurals name="fm_paste_copied">
         <item quantity="other">已複製 %1$d 個項目</item>
     </plurals>
-
-    <!-- %1$s is a file or folder name -->
     <string name="fm_already_exists">「%1$s」已存在</string>
     <string name="fm_op_renaming">正在重新命名...</string>
     <string name="fm_rename_failed">重新命名失敗</string>
@@ -1442,20 +1457,14 @@
     <string name="fm_create">建立</string>
     <string name="fm_new_name">新名稱</string>
     <string name="fm_delete_title">要刪除嗎？</string>
-
-    <!-- %1$s is a file or folder name -->
     <string name="fm_delete_text">要永久刪除「%1$s」嗎？</string>
     <plurals name="fm_delete_items_title">
         <item quantity="other">要刪除 %1$d 個項目嗎？</item>
     </plurals>
     <string name="fm_cannot_undo">此動作無法復原。</string>
-
-    <!-- After a list of the first five names in a delete confirmation -->
     <plurals name="fm_and_more">
         <item quantity="other">…及其他 %1$d 個</item>
     </plurals>
-
-    <!-- %1$d is the item number, %2$d the number of items, %3$s the file name -->
     <string name="fm_op_deleting_batch">正在刪除 %1$d/%2$d - %3$s</string>
     <plurals name="fm_delete_some_failed">
         <item quantity="other">有 %1$d 個無法刪除</item>
@@ -1469,8 +1478,6 @@
     <string name="fm_conflict_skip">略過</string>
     <string name="fm_select_this_folder">選擇此資料夾</string>
     <string name="fm_back">返回</string>
-
-    <!-- %1$s is a storage name, e.g. SD card -->
     <string name="fm_drive_not_readable">%1$s 已掛載，但目前無法讀取</string>
     <string name="fm_list_view">清單檢視</string>
     <string name="fm_grid_view">格狀檢視</string>
@@ -1485,51 +1492,31 @@
     <string name="fm_hide_favorites">隱藏我的最愛</string>
     <string name="fm_show_favorites">顯示我的最愛</string>
     <string name="fm_filter_folder">篩選此資料夾</string>
-
-    <!-- Free space on the storage being browsed; %1$s is a size, e.g. 12.50 GB -->
     <string name="fm_free_space">可用 %1$s</string>
     <string name="fm_selected_count">已選取 %1$d 個</string>
-
-    <!-- Selection bar: clear the selection -->
     <string name="fm_select_none">全不選</string>
-
-    <!-- Selection bar: select every item -->
     <string name="fm_select_all">全選</string>
     <string name="fm_paste">貼上</string>
     <plurals name="fm_items">
         <item quantity="other">%1$d 個項目</item>
     </plurals>
-
-    <!-- %1$s is a file name or a number of items -->
     <string name="fm_paste_here">將 %1$s 貼到這裡</string>
-
-    <!-- %1$s is a file name or a number of items -->
     <string name="fm_paste_move_here">將 %1$s 移動到這裡</string>
     <string name="fm_rail_title">檔案</string>
     <string name="fm_rail_storage">儲存空間</string>
-
-    <!-- Rail section of shortcut folders (Downloads, ROMs, …) -->
     <string name="fm_rail_quick">快速存取</string>
     <string name="fm_rail_favorites">我的最愛</string>
     <string name="fm_rail_downloads">下載</string>
-
-    <!-- Downloads shortened to fit under an icon (about 8 characters) -->
     <string name="fm_rail_downloads_short">下載</string>
     <string name="fm_rail_roms">ROM</string>
     <string name="fm_rail_session_logs">工作階段日誌</string>
     <string name="fm_rail_pictures">圖片</string>
-
-    <!-- %1$s is a folder name -->
     <string name="fm_favorite_added">已將「%1$s」加入我的最愛</string>
-
-    <!-- %1$s is a folder name -->
     <string name="fm_favorite_removed">已將「%1$s」從我的最愛移除</string>
     <string name="fm_empty_directory">空的資料夾</string>
     <string name="fm_up_one_level">返回上一層</string>
     <string name="fm_choose_folder">選擇資料夾</string>
     <string name="fm_choose_file">選擇檔案</string>
-
-    <!-- On-screen controller tint colors -->
     <string name="ctrl_tint_steam_blue">Steam 藍</string>
     <string name="ctrl_tint_sky">天藍</string>
     <string name="ctrl_tint_white">白色</string>
@@ -1538,8 +1525,6 @@
     <string name="ctrl_tint_amber">琥珀</string>
     <string name="ctrl_tint_red">紅色</string>
     <string name="ctrl_tint_pink">粉紅</string>
-
-    <!-- On-screen buttons that can be remapped -->
     <string name="ctrl_button_a">A 按鈕</string>
     <string name="ctrl_button_b">B 按鈕</string>
     <string name="ctrl_button_x">X 按鈕</string>
@@ -1550,34 +1535,21 @@
     <string name="ctrl_button_rt">右扳機</string>
     <string name="ctrl_button_view">檢視按鈕</string>
     <string name="ctrl_button_menu">選單按鈕</string>
-
-    <!-- What a remapped on-screen button sends; letters and Steam are controller button names -->
-
-    <!-- Controller View button -->
     <string name="ctrl_target_view">檢視</string>
-
-    <!-- Controller Menu button -->
     <string name="ctrl_target_menu">選單</string>
     <string name="ctrl_target_up">方向鍵上</string>
     <string name="ctrl_target_down">方向鍵下</string>
     <string name="ctrl_target_left">方向鍵左</string>
     <string name="ctrl_target_right">方向鍵右</string>
-
-    <!-- The on-screen button is not shown -->
     <string name="ctrl_target_hidden">隱藏</string>
     <string name="ctrl_editor_drag">拖曳以移動</string>
     <string name="ctrl_editor_snap">對齊</string>
     <string name="ctrl_editor_save">儲存</string>
-
-    <!-- What the second screen shows during a session -->
     <string name="second_mode_none">無</string>
     <string name="second_mode_keyboard_trackpad">鍵盤 + 觸控板</string>
     <string name="second_mode_terminal">終端機</string>
     <string name="second_mode_deck_controls">Deck 握把 + 觸控板</string>
 
-    <!-- Runtime, updates and setup helpers -->
-
-    <!-- Linux runtime install / removal (LinuxRuntimeInstaller, RuntimeInstallService) -->
     <string name="rtinst_removing">正在移除 Linux 執行環境</string>
     <plurals name="rtinst_removing_entries">
         <item quantity="other">正在移除 Linux 執行環境 · %1$d 個項目</item>
@@ -1592,75 +1564,47 @@
     <string name="rtinst_title_installing">正在安裝 Linux 執行環境</string>
     <string name="rtinst_title_removing">正在移除 Linux 執行環境</string>
 
-    <!-- Hosted desktop and emulator packages (DesktopCatalog) -->
     <string name="deskpkg_runtime_missing">尚未安裝 Linux 執行環境</string>
-
-    <!-- %1$s: package name -->
     <string name="deskpkg_no_checksum">目錄中沒有 %1$s 的校驗碼</string>
     <string name="deskpkg_checksum_mismatch">校驗碼不符 - 未進行任何變更</string>
-
-    <!-- %1$s: package name -->
     <string name="deskpkg_installing">正在安裝 %1$s</string>
     <string name="deskpkg_place_failed">無法放置 AppImage</string>
     <string name="deskpkg_extract_failed">解壓縮失敗</string>
     <string name="deskpkg_install_failed">安裝失敗</string>
 
-    <!-- Flatpak store operations (FlatpakManager) -->
     <string name="flatpakmgr_setup_failed">Flatpak 設定失敗（結束代碼 %1$d）</string>
     <string name="flatpakmgr_setup_unfinished">Flatpak 設定未完成</string>
     <string name="flatpakmgr_busy">另一個商店工作正在執行</string>
     <string name="flatpakmgr_not_ready">請先設定 Flatpak</string>
     <string name="flatpakmgr_starting">正在啟動</string>
     <string name="flatpakmgr_exit_status">Flatpak 已結束，狀態碼 %1$d</string>
-
-    <!-- %1$s: an app or runtime name, e.g. "SuperTux" or "GNOME runtime 50" -->
     <string name="flatpakmgr_installing">正在安裝 %1$s</string>
     <string name="flatpakmgr_updating">正在更新 %1$s</string>
     <string name="flatpakmgr_removing">正在移除 %1$s</string>
-
-    <!-- %1$s: an app or runtime name; %2$d of %3$d: this step and the number of steps -->
     <string name="flatpakmgr_installing_step">正在安裝 %1$s（%2$d/%3$d）</string>
     <string name="flatpakmgr_updating_step">正在更新 %1$s（%2$d/%3$d）</string>
     <string name="flatpakmgr_removing_step">正在移除 %1$s（%2$d/%3$d）</string>
-
-    <!-- Names for Flatpak runtime parts, shown inside "Installing %1$s" -->
     <string name="flatpakmgr_ref_translations">翻譯</string>
     <string name="flatpakmgr_ref_graphics_drivers">圖形驅動程式</string>
     <string name="flatpakmgr_ref_media_codecs">媒體轉碼器</string>
-
-    <!-- %1$s: runtime vendor, e.g. GNOME, KDE, Freedesktop -->
     <string name="flatpakmgr_ref_runtime">%1$s 執行環境</string>
-
-    <!-- %1$s: runtime vendor, e.g. GNOME; %2$s: its version, e.g. 50 -->
     <string name="flatpakmgr_ref_runtime_branch">%1$s 執行環境 %2$s</string>
 
-    <!-- Imported AppImages (AppImageManager) -->
     <string name="appimg_too_small">檔案太小，不可能是 AppImage</string>
-
-    <!-- %1$s: the system's reason -->
     <string name="appimg_unreadable">無法讀取檔案：%1$s</string>
     <string name="appimg_not_linux">這不是 AppImage（不是 Linux 程式）</string>
     <string name="appimg_wrong_arch">此 AppImage 既不是為 ARM64（aarch64）也不是為 x86 電腦組建的</string>
     <string name="appimg_not_appimage">這是 Linux 程式，但不是 AppImage</string>
     <string name="appimg_wrong_type">只能匯入第 2 型 AppImage（此檔案為第 %1$d 型）</string>
-
-    <!-- %1$s: a size such as "3.2 GB" -->
     <string name="appimg_no_space_import">可用空間不足：匯入需要約 %1$s</string>
-
-    <!-- %1$s: a size such as "3.2 GB" -->
     <string name="appimg_no_space_update">可用空間不足：更新需要約 %1$s</string>
     <string name="appimg_import_failed">匯入失敗</string>
     <string name="appimg_gone">該 AppImage 已不存在</string>
     <string name="appimg_update_failed">更新失敗</string>
-
-    <!-- %1$s: file name -->
     <string name="appimg_extracting">正在解壓縮 %1$s</string>
     <string name="appimg_extract_failed">無法解壓縮 AppImage</string>
-
-    <!-- %1$s: the last line the extractor printed -->
     <string name="appimg_extract_failed_detail">無法解壓縮 AppImage：%1$s</string>
 
-    <!-- Decky Loader and plugin installs (DeckyManager) -->
     <string name="deckymgr_stop_session_loader">安裝 Decky Loader 前，請先停止執行中的工作階段</string>
     <string name="deckymgr_download_failed">Decky Loader 下載失敗</string>
     <string name="deckymgr_size_mismatch">Decky Loader 的大小與發行版本中繼資料不符</string>
@@ -1696,27 +1640,13 @@
     <string name="deckymgr_remote_entry_invalid">remote_binary 項目無效</string>
     <string name="deckymgr_remote_name_invalid">遠端二進位檔名稱無效</string>
     <string name="deckymgr_remote_url_https">遠端二進位檔 URL 必須使用 HTTPS</string>
-
-    <!-- %1$s: binary file name -->
     <string name="deckymgr_remote_hash_invalid">遠端二進位檔 %1$s 的 SHA-256 雜湊值無效</string>
     <string name="deckymgr_bin_dir_failed">無法建立外掛程式的 bin 目錄</string>
-
-    <!-- %1$s: binary file name -->
     <string name="deckymgr_downloading_binary">正在下載外掛程式二進位檔 · %1$s</string>
-
-    <!-- %1$s: binary file name -->
     <string name="deckymgr_binary_download_failed">無法下載外掛程式二進位檔 %1$s</string>
-
-    <!-- %1$s: binary file name -->
     <string name="deckymgr_binary_checksum_mismatch">外掛程式二進位檔校驗碼不符 · %1$s</string>
-
-    <!-- %1$s: binary file name -->
     <string name="deckymgr_binary_not_executable">無法將外掛程式二進位檔標示為可執行 · %1$s</string>
-
-    <!-- %1$s: binary file name -->
     <string name="deckymgr_binary_replace_failed">無法取代外掛程式二進位檔 · %1$s</string>
-
-    <!-- %1$s: binary file name -->
     <string name="deckymgr_binary_install_failed">無法安裝外掛程式二進位檔 · %1$s</string>
     <string name="deckymgr_folder_taken">外掛程式資料夾屬於另一個外掛程式</string>
     <string name="deckymgr_preserve_failed">無法保留現有的外掛程式</string>
@@ -1724,24 +1654,14 @@
     <string name="deckymgr_settings_failed">無法更新 Decky 外掛程式設定</string>
     <string name="deckymgr_restore_failed">無法還原現有的外掛程式</string>
 
-    <!-- Child-process limit change over Wireless debugging (WirelessAdbFix) -->
     <string name="adbfix_save_failed">無法儲存無線偵錯身分</string>
-
-    <!-- %1$d: the command's exit status -->
     <string name="adbfix_command_failed">ADB 指令失敗（%1$d）</string>
-
-    <!-- %1$s: what Android answered -->
     <string name="adbfix_not_confirmed">Android 未確認子處理程序限制已變更：%1$s</string>
     <string name="adbfix_no_pairing">尚未儲存任何無線偵錯配對</string>
     <string name="adbfix_enter_address">請輸入目前的無線偵錯 IP 位址和連接埠</string>
 
-    <!-- Wireless debugging pairing notification (WirelessAdbPairingService) -->
     <string name="adbpair_timed_out">等待配對彈出視窗逾時。請從 DroidDeck 再試一次。</string>
-
-    <!-- %1$d: Android's error code -->
     <string name="adbpair_discovery_failed_code">無法尋找配對彈出視窗（%1$d）。請確認 Wi-Fi 已開啟。</string>
-
-    <!-- %1$s: the system's reason -->
     <string name="adbpair_discovery_failed">無法尋找配對彈出視窗：%1$s</string>
     <string name="adbpair_six_digits">請輸入完整的 6 位數配對碼</string>
     <string name="adbpair_pairing">正在配對…</string>
@@ -1751,35 +1671,26 @@
     <string name="adbpair_applying">正在套用設定…</string>
     <string name="adbpair_command_failed">無線偵錯指令失敗</string>
     <string name="adbpair_channel_name">無線偵錯設定</string>
-    <string name="adbpair_channel_description">在「設定」開啟時要求輸入無線偵錯配對碼</string>
+    <string name="adbpair_channel_description">在「Android 設定」開啟時要求輸入無線偵錯配對碼</string>
     <string name="adbpair_title_pair">配對無線偵錯</string>
     <string name="adbpair_waiting_text">開啟無線偵錯，然後點擊「使用配對碼配對裝置」。</string>
     <string name="adbpair_waiting_long">開啟無線偵錯，然後點擊「使用配對碼配對裝置」。請留在「設定」中：配對碼要輸入在這則通知裡。</string>
-
-    <!-- Label of the notification's reply field -->
     <string name="adbpair_code_label">6 位數配對碼</string>
-    <string name="adbpair_code_hint">點擊「輸入配對碼」，然後輸入「設定」中顯示的 6 位數字。</string>
+    <string name="adbpair_code_hint">點擊「輸入配對碼」，然後輸入「Android 設定」中顯示的 6 位數字。</string>
     <string name="adbpair_title_code">輸入 Wi-Fi 配對碼</string>
     <string name="adbpair_title_retry">請再次輸入配對碼</string>
-
-    <!-- Notification action button -->
     <string name="adbpair_enter_code">輸入配對碼</string>
     <string name="adbpair_title_working">正在設定 Steam</string>
     <string name="adbpair_title_done">Steam 已就緒</string>
     <string name="adbpair_done_text">點擊即可返回 DroidDeck。現在可以關閉無線偵錯了。</string>
     <string name="adbpair_title_failed">無線偵錯設定已停止</string>
 
-    <!-- DroidDeck's own updates (SelfInstaller, AppUpdates) -->
-    <string name="selfinst_http">下載回應 HTTP %1$d</string>
+    <string name="selfinst_download_failed">下載失敗</string>
     <string name="selfinst_size_mismatch">下載的大小與發布的 APK 不符，已捨棄 - 請再試一次</string>
     <string name="selfinst_checksum_mismatch">下載的檔案與校驗碼不符，已捨棄 - 請再試一次</string>
-
-    <!-- %1$s: the update's Android package name; %2$s: this app's -->
     <string name="selfinst_wrong_package">此更新適用於 Android 套件 %1$s，而非 %2$s</string>
     <string name="selfinst_metadata_signer">更新中繼資料未列出 DroidDeck 的發行簽署金鑰</string>
     <string name="selfinst_unreadable">Android 無法讀取下載的 APK</string>
-
-    <!-- %1$s: the APK's Android package name; %2$s: this app's -->
     <string name="selfinst_apk_wrong_package">下載的 APK 適用於 %1$s，而非 %2$s</string>
     <string name="selfinst_version_mismatch">下載的 APK 標示 versionCode 為 %1$d，與發布的 %2$d 不符</string>
     <string name="selfinst_downgrade">Android 不會以 versionCode %1$d 覆蓋已安裝的 %2$d</string>
@@ -1787,19 +1698,11 @@
     <string name="selfinst_wrong_signer">下載的 APK 並非以 DroidDeck 的發行金鑰簽署</string>
     <string name="appupd_http">更新目錄回應 HTTP %1$d</string>
 
-    <!-- Session, GPU and display -->
-
-    <!-- Session loading screen -->
     <string name="loadstate_starting">正在啟動工作階段…</string>
-
-    <!-- %1$d minutes, %2$02d seconds since the session started -->
     <string name="loadstate_elapsed">已經過 %1$d:%2$02d · 仍在處理中</string>
     <string name="loadstate_steam_update">正在下載 Steam 用戶端更新 · %1$d%%</string>
-
-    <!-- %1$s is the client's own download progress, as it prints it -->
     <string name="loadstate_steam_client">正在下載 Steam 用戶端 · %1$s</string>
 
-    <!-- Installing GE-Proton / proton-cachyos (%1$s is the tool's name, %2$s its release tag) -->
     <string name="pextra_busy">已有相容性工具正在安裝</string>
     <string name="pextra_stop_session">安裝相容性工具前，請先停止執行中的工作階段</string>
     <string name="pextra_no_release">找不到 %1$s 的 ARM64 發行版本</string>
@@ -1816,55 +1719,38 @@
     <string name="pextra_checksum_mismatch">校驗碼不符；已刪除下載內容</string>
     <string name="pextra_session_started">下載期間有工作階段啟動；請先停止它，再安裝相容性工具</string>
     <string name="pextra_installing">正在安裝 %1$s</string>
-
-    <!-- %2$d is the installer's exit status -->
     <string name="pextra_install_failed">%1$s 安裝失敗（結束代碼 %2$d）</string>
     <string name="pextra_could_not_install">無法安裝 %1$s</string>
     <string name="esync_fetching">正在取得 droiddeck-esync 套件</string>
 
-    <!-- Components (FEX / DXVK / VKD3D-Proton swapped into a Proton). %1$s component, %2$s version, %3$s Proton -->
     <string name="cmgr_fex_linux_helpers">含 Linux 輔助程式</string>
     <string name="cmgr_fex_dlls_only">僅 DLL</string>
     <string name="cmgr_original_proton_updated">原始（上次換入後 Proton 已更新）</string>
     <string name="cmgr_changed_outside">已在「元件」之外變更</string>
-
-    <!-- A component version that could not be found in a Proton -->
     <string name="cmgr_not_present">不存在</string>
-
-    <!-- %1$s is the Proton build the original files were saved from -->
     <string name="cmgr_original_version">原始 %1$s</string>
     <string name="cmgr_original_from">原始版本來自 %1$s</string>
     <string name="cmgr_swap_queued">%1$s %2$s 會在 %3$s 上執行的遊戲關閉後換入。</string>
     <string name="cmgr_swap_done">%1$s %2$s 已換入 %3$s。下次啟動遊戲時生效。</string>
     <string name="cmgr_original_missing">未儲存該原始套件組合</string>
-
-    <!-- %1$s component, %2$s Proton -->
     <string name="cmgr_restore_queued">%2$s 的 %1$s 會在其上執行的遊戲關閉後還原為原始版本。</string>
-
-    <!-- %1$s component, %2$s Proton, %3$s the Proton build the original came from -->
     <string name="cmgr_restore_done">已從 %3$s 的原始版本還原 %2$s 的 %1$s。</string>
-
-    <!-- %1$s package file, %2$s Proton id -->
     <string name="cmgr_package_in_use">%2$s 正在使用 %1$s。請先為該 Proton 換入其他版本。</string>
     <string name="cmgr_package_not_stored">未儲存 %1$s</string>
     <string name="cmgr_deleted">已刪除 %1$s。</string>
     <string name="cmgr_original_kept">已安裝組建的原始版本會保留，以便還原。</string>
     <string name="cmgr_not_stored">未儲存</string>
-
-    <!-- %1$s Proton build, %2$s component -->
     <string name="cmgr_deleted_original">已刪除 %2$s 來自 %1$s 的原始版本。</string>
     <string name="cmgr_nightlies_only">只會從 Nightlies 發行版本下載</string>
     <string name="cmgr_list_predates_checksums">此套件清單早於校驗碼機制 - 請重新整理後再試一次</string>
     <string name="cmgr_checksum_mismatch">校驗碼不符</string>
 
-    <!-- Display choices -->
     <string name="sprefs_upscaler_linear">線性</string>
     <string name="sprefs_upscaler_nearest">最近鄰</string>
     <string name="sprefs_upscaler_gsr_quality">Snapdragon GSR（品質）</string>
     <string name="sprefs_upscaler_sharpen">僅銳化</string>
     <string name="sprefs_lod_bias_auto">自動（依縮放）</string>
 
-    <!-- Screen effect Looks: preset names and the line under the row -->
     <string name="look_off_desc">未套用任何效果。</string>
     <string name="look_game_clarity">遊戲清晰</string>
     <string name="look_game_clarity_desc">銳化並稍微提高對比 - 適合日常使用。</string>
@@ -1889,29 +1775,23 @@
     <string name="look_anime_edge">動畫描邊</string>
     <string name="look_anime_edge_desc">卡通描邊加上銳化。</string>
 
-    <!-- GPU support line -->
     <string name="gpuinfo_not_adreno">不是 Adreno GPU</string>
     <string name="gpuinfo_supported">受支援</string>
     <string name="gpuinfo_experimental">實驗性：其驅動程式為測試版本</string>
     <string name="gpuinfo_below_tested">低於已測試的硬體（Adreno 725 及更新機型）：可能無法執行</string>
     <string name="gpuinfo_unsupported">不受支援：DroidDeck 需要 Adreno（Snapdragon）GPU</string>
 
-    <!-- Driver downloads and imports -->
     <string name="turnip_rate_limited">已達 GitHub 速率限制 - 請稍後再試</string>
     <string name="turnip_github_http">GitHub 回應 HTTP %1$d</string>
-    <string name="turnip_download_http">下載回應 HTTP %1$d</string>
+    <string name="turnip_download_failed">下載失敗</string>
     <string name="turnip_list_predates_checksums">此驅動程式清單早於校驗碼機制 - 請重新整理後再試一次</string>
     <string name="turnip_checksum_mismatch">校驗碼不符 - 已捨棄下載內容</string>
-
-    <!-- %1$s is one of the turnip_reject_* reasons -->
     <string name="turnip_not_adrenotools">不是 AdrenoTools 驅動程式：%1$s</string>
     <string name="turnip_reject_no_meta">沒有 meta.json</string>
     <string name="turnip_reject_meta_unreadable">無法讀取 meta.json（%1$s）</string>
     <string name="turnip_reject_linux_driver">這是 Linux 執行環境驅動程式（請在「執行環境驅動程式」下匯入）</string>
     <string name="turnip_reject_wayland">這是 Wayland 遊戲驅動程式，此應用程式用不到</string>
     <string name="turnip_reject_no_library_name">meta.json 未指定 libraryName，因此無法交給 AdrenoTools</string>
-
-    <!-- %1$s is a library file name -->
     <string name="turnip_reject_library_missing">meta.json 指定了 %1$s，但 zip 中沒有此檔案</string>
     <string name="turnip_reject_not_aarch64">%1$s 不是 64 位元 AArch64 ELF 共用程式庫</string>
     <string name="turnip_reject_glibc">%1$s 連結 glibc - 這是「-Linux」Turnip，應放在「執行環境驅動程式」下</string>
@@ -1922,115 +1802,61 @@
     <string name="bundle_entry_outside">不是驅動程式套件組合：%1$s 指向組合外部</string>
     <string name="bundle_too_large">不是驅動程式套件組合：解壓縮後超過 %1$d MB</string>
 
-    <!-- Game storage -->
     <string name="gstore_sd_card">SD 卡</string>
-
-    <!-- %1$s is a size, like 12.3 GB -->
     <string name="gstore_folder">資料夾</string>
+
     <string name="logshare_chooser">分享工作階段日誌</string>
 
-    <!-- Stands in for the Steam account name when the client did not record one -->
-
-    <!-- Why the HDR switch is greyed out -->
     <string name="hdr_needs_android_10">需要 Android 10 或更新版本（具備色彩空間的顯示圖層）</string>
     <string name="hdr_none">此顯示器未回報支援 HDR</string>
-
-    <!-- %1$s lists HDR formats, like Dolby Vision, HDR10+ -->
     <string name="hdr_not_hdr10">此顯示器支援 %1$s，但不支援 HDR10</string>
 
-    <!-- Follow-up -->
-
-    <!-- Stands in for the GPU name when the device does not report one -->
     <string name="gpu_this_gpu">此 GPU</string>
     <string name="phantom_title_on">子處理程序限制已開啟</string>
     <string name="phantom_title_unset">子處理程序限制未設定</string>
     <string name="phantom_title_unreadable">無法檢查子處理程序限制</string>
     <string name="phantom_title_off">子處理程序限制已關閉</string>
     <string name="phantom_title_not_required">不需要變更子處理程序限制</string>
-
-    <!-- %1$s is the sentence saying how to turn the limit off on this device -->
     <string name="phantom_instructions_fix">%1$s 如果無法這麼做，請將此裝置連接到裝有 ADB 的電腦並執行下方指令，然後返回這裡重新檢查。</string>
     <string name="phantom_instructions_off">可以啟動 Steam 工作階段。</string>
     <string name="phantom_instructions_not_applicable">此 Android 版本不使用這項限制。</string>
-    <string name="phantom_fix_toggle">在開發人員選項中開啟「停用子處理程序限制」，之後請保持開發人員選項開啟。</string>
+    <string name="phantom_fix_toggle">在開發人員選項中開啟「停止限制子程序」，之後請保持開發人員選項開啟。</string>
     <string name="phantom_fix_no_toggle">此 Android 版本沒有這個開關。請使用無線偵錯，直接在此裝置上變更。</string>
     <string name="upd_block_no_apk">此組建版本沒有適用於此 DroidDeck 複本的下載檔案。</string>
-
-    <!-- %1$d is the offered build's versionCode, %2$d the installed one's -->
     <string name="upd_block_version_code">Android 不會以此版本覆蓋目前的組建，因為它的 versionCode %1$d 低於已安裝的 %2$d。</string>
     <string name="upd_fail_downgrade">Android 不會以舊版本覆蓋新版本。請先留在此組建版本，等更新頻道趕上。</string>
     <string name="upd_fail_signature">此 DroidDeck 複本的簽章不同（是本機組建的嗎？），因此 Android 無法直接覆寫更新。</string>
     <string name="upd_fail_storage">可用空間不足，無法更新。</string>
     <string name="upd_fail_aborted">已取消更新。</string>
-
-    <!-- %1$s is Android's own (English) installer message -->
     <string name="upd_fail_with_message">未能安裝更新：%1$s</string>
     <string name="upd_fail_generic">未能安裝更新。</string>
-
-    <!-- A save zip's layout; %1$s is the app it comes from (GameHub, Winlator) -->
     <string name="saves_layout_zip">%1$s 壓縮檔</string>
-
-    <!-- A save zip whose layout is not known -->
     <string name="saves_zip">壓縮檔</string>
-
-    <!-- %1$s is the game's name -->
     <string name="saves_not_launched">%1$s 尚未啟動過</string>
     <string name="saves_none_found">找不到 %1$s 的存檔</string>
-
-    <!-- %1$s is the zip's file name -->
     <string name="saves_not_save_zip">%1$s 中沒有 drive_c 資料夾，因此不是 GameHub 或 Winlator 存檔壓縮檔</string>
-
-    <!-- %1$s is a folder path -->
     <string name="gstore_cannot_create">無法在 %1$s 中建立資料夾</string>
     <string name="gstore_cannot_write">無法寫入 %1$s</string>
-
-    <!-- %1$s is a folder path, %2$s the system's error -->
     <string name="gstore_cannot_write_detail">無法寫入 %1$s（%2$s）</string>
     <string name="gfiles_folder_unavailable">無法使用資料夾</string>
-
-    <!-- %1$s is a file name -->
     <string name="gfiles_name_taken">已有其他檔案使用 %1$s</string>
     <string name="gfiles_art_unavailable">無法使用圖片資料夾</string>
     <string name="gfiles_unrelated_inventory">資料夾中有不相關的同步清單</string>
-
-    <!-- %1$s is a file name -->
     <string name="gfiles_remove_failed">無法移除 %1$s</string>
     <string name="gfiles_outside_folder">檔案位於匯出資料夾之外</string>
-
-    <!-- A FEX build whose DLL carries no version name -->
     <string name="cmgr_fex_unnamed">FEX（未標示版本名稱的組建）</string>
-
-    <!-- %1$s is a package file name -->
     <string name="cmgr_no_profile">%1$s 中沒有 profile.json</string>
-
-    <!-- %1$s is a package file name, %2$s the type its profile.json gives -->
     <string name="cmgr_not_component_package">%1$s 不是 Linux 元件套件（類型 %2$s）</string>
-
-    <!-- A storage volume in the second-library menu; %1$s is its name, %2$s its free space, like 12.3 GB -->
     <string name="gstore_volume_free">%1$s · 可用 %2$s</string>
-
-    <!-- The second-library setting's value when it is automatic (short form of mode_storage_auto) -->
     <string name="mode_storage_auto_short">自動</string>
-
-    <!-- %1$s is the technical reason, kept in English -->
     <string name="appupd_catalog_rejected">更新目錄未通過檢查（%1$s）</string>
-
-    <!-- Label of the copied ADB command on the clipboard -->
     <string name="main_adb_clip_label">DroidDeck 子處理程序設定</string>
-
-    <!-- Signed in, but the Steam client recorded no account name -->
     <string name="setup_signed_in_offline_unnamed">已登入 · 離線模式</string>
     <string name="setup_signed_in_unnamed">已登入</string>
-
-    <!-- Small uppercase tags beside a driver's name: where it came from -->
     <string name="driver_tag_bundled">內建</string>
     <string name="driver_tag_downloaded">已下載</string>
     <string name="driver_tag_imported">已匯入</string>
-
-    <!-- The driver is one half of a bundle that sets both drivers -->
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
-
-    <!-- %1$s is the limit's state (e.g. Child-process limit is on), %2$s what to do, %3$s the ADB command -->
     <string name="phantom_warning">%1$s。%2$s\n\n%3$s</string>
     <string name="display_session">工作階段顯示</string>
     <string name="display_resolution">解析度</string>
@@ -2048,6 +1874,7 @@
     <string name="display_frame_rate">影格率</string>
     <string name="display_look_filter">%1$s 將縮放設為 %2$s。</string>
     <string name="display_match_screen">符合螢幕（%1$d×%2$d）</string>
+    <string name="display_follow_screen">跟隨螢幕（摺疊或展開時調整大小）</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">顯示裝置詳細資料</string>
     <string name="device_info_hide">隱藏裝置詳細資料</string>
@@ -2057,6 +1884,213 @@
     <string name="device_info_copied">已複製。</string>
     <string name="force_ssbs_title">強制 SSBS</string>
     <string name="force_ssbs_hint">讓一項 Wine 會不斷關閉的 CPU 速度設定保持開啟。在 Snapdragon 8 Elite 上可能讓 Windows 遊戲更快；在較舊的晶片上變化不大。下次啟動遊戲時生效。</string>
+
+    <string name="rail_stores">遊戲商店</string>
+    <string name="source_steam">Steam</string>
+    <string name="source_added">自訂</string>
+    <string name="setup_stores">遊戲商店</string>
+    <string name="setup_stores_open_on">開啟商店時顯示</string>
+    <string name="setup_stores_speed">下載速度等級</string>
+    <string name="setup_stores_engine">商店引擎</string>
+    <string name="setup_stores_engine_chip_ready">● 引擎已就緒</string>
+    <string name="setup_stores_engine_chip_missing">尚未組建</string>
+    <string name="stores_tier_balanced">平衡</string>
+    <string name="stores_tier_fast">快速</string>
+    <string name="stores_tier_max">最高</string>
+    <string name="stores_title">遊戲商店</string>
+    <string name="stores_settings">遊戲商店設定</string>
+    <string name="stores_settings_eyebrow">設定</string>
+    <string name="stores_chip_signed_out">（未登入）</string>
+    <string name="stores_tab_store">商店</string>
+    <string name="stores_tab_installed">已安裝</string>
+    <string name="stores_tab_library">收藏庫</string>
+    <string name="stores_tab_all">全部</string>
+    <string name="stores_tab_downloads">下載</string>
+    <string name="stores_tab_count">%1$s（%2$d）</string>
+    <string name="stores_signin">登入</string>
+    <string name="stores_signout_named">%1$s · 登出</string>
+    <string name="stores_signout_title">要登出 %1$s 嗎？</string>
+    <string name="stores_signout_note">已安裝的遊戲會保留。重新登入後會再次取得你的收藏庫。</string>
+    <string name="stores_signout_stay">保持登入</string>
+    <string name="stores_signout_go">登出</string>
+    <string name="stores_search_catalog">搜尋 %1$s 目錄…</string>
+    <string name="stores_search_installed">搜尋已安裝的遊戲…</string>
+    <string name="stores_search_library">搜尋你的收藏庫…</string>
+    <string name="stores_search_open">搜尋</string>
+    <string name="stores_installed_empty">尚未安裝任何內容</string>
+    <string name="stores_library_loading">正在載入</string>
+    <string name="stores_nothing_matches">沒有遊戲</string>
+    <string name="stores_shelves_loading">正在載入商店…</string>
+    <string name="stores_amazon_no_catalog">沒有目錄</string>
+    <string name="stores_shelf_new">最新上架</string>
+    <string name="stores_shelf_deals">特惠</string>
+    <string name="stores_shelf_free">免費遊戲</string>
+    <string name="stores_shelf_trending">趨勢</string>
+    <string name="stores_shelf_library">你的收藏庫</string>
+    <string name="stores_play">執行</string>
+    <string name="stores_install">安裝</string>
+    <string name="stores_resume_install">繼續安裝</string>
+    <string name="stores_dl_interrupted">已中斷</string>
+    <string name="stores_install_size">安裝 · %1$s</string>
+    <string name="stores_get_free">免費取得</string>
+    <string name="stores_view_on">在 %1$s 檢視</string>
+    <string name="stores_buy_price">購買 · %1$s</string>
+    <string name="stores_installed_chip">已安裝</string>
+    <string name="stores_in_library">已在收藏庫中</string>
+    <string name="stores_free">免費</string>
+    <string name="stores_resume">繼續</string>
+    <string name="stores_refresh">重新整理</string>
+    <string name="stores_sort">排序</string>
+    <string name="stores_sort_last_played">最近遊玩</string>
+    <string name="stores_sort_recently_installed">最近安裝</string>
+    <string name="stores_sort_title_asc">標題 A–Z</string>
+    <string name="stores_sort_title_desc">標題 Z–A</string>
+    <string name="stores_sort_size_desc">大小: 由大到小</string>
+    <string name="stores_sort_size_asc">大小: 由小到大</string>
+    <string name="stores_sort_release_date">發行日期</string>
+    <string name="stores_view_list">列表檢視</string>
+    <string name="stores_view_cards">卡片檢視</string>
+    <string name="stores_show_mature">顯示成人內容</string>
+    <string name="epic_card_title">Epic</string>
+    <string name="epic_card_eos">EOS</string>
+    <string name="epic_card_offline">離線</string>
+    <string name="epic_card_none">關閉</string>
+    <string name="epic_eos">Epic 登入（EOS）</string>
+    <string name="epic_offline">離線啟動</string>
+    <string name="epic_resolve">解決 Epic 登入問題</string>
+    <string name="epic_client_version">版本 %1$s</string>
+    <string name="epic_client_no_runtime">請先安裝 Linux 執行環境</string>
+    <string name="epic_client_checking">正在檢查最新版本…</string>
+    <string name="epic_client_unpacking">正在解壓縮…</string>
+    <string name="epic_client_unreachable">下載伺服器沒有回應</string>
+    <string name="epic_client_needs_fex">Epic Games Launcher 需要 FEX，FEX 由 Steam 下載。請在 Steam 啟動後再次開啟啟動器。</string>
+    <string name="epic_client_download_failed">下載失敗：%1$s</string>
+    <string name="epic_client_unpack_failed">無法解壓縮啟動器：%1$s</string>
+    <string name="epic_client_sign_in_failed">Epic Games Launcher 沒有接受登入。請從啟動器重新啟動它。</string>
+    <string name="epic_client_uninstall_body">移除啟動器並釋放其空間。你的 Epic 遊戲會保持安裝並可正常運作，登入資訊也會保留，以便重新安裝時使用。</string>
+    <string name="epic_client_uninstall_stops">會先關閉正在執行的工作階段。</string>
+    <string name="epic_client_uninstalled">已解除安裝 Epic Games Launcher</string>
+    <string name="epic_client_uninstall_failed">部分啟動器檔案無法刪除。請再試一次。</string>
+    <string name="epic_client_uninstalling">請等待 Epic Games Launcher 解除安裝完成</string>
+    <string name="store_cloud_saves">雲端存檔</string>
+    <string name="cloud_upload">上傳到雲端</string>
+    <string name="cloud_download">從雲端下載</string>
+    <string name="cloud_none">沒有雲端存檔</string>
+    <string name="cloud_conflict">雲端衝突</string>
+    <string name="cloud_conflict_files">雲端衝突 · %1$d 個檔案</string>
+    <string name="cloud_pending">…</string>
+    <string name="cloud_keep_cloud">保留雲端版本</string>
+    <string name="cloud_keep_local">保留本機版本</string>
+    <string name="cloud_checking">正在檢查雲端…</string>
+    <string name="cloud_last_sync">上次同步：%1$s</string>
+    <string name="cloud_never">尚未同步</string>
+    <string name="cloud_done">%1$d 個檔案</string>
+    <string name="stores_eyebrow_installed">已安裝</string>
+    <string name="stores_eyebrow_library">在你的收藏庫中</string>
+    <string name="stores_eyebrow_store">商店</string>
+    <string name="achievements_title">成就</string>
+    <string name="achievements_count">已解鎖 %1$d / %2$d</string>
+    <string name="achievements_count_short">%1$d / %2$d</string>
+    <string name="achievements_group_unlocked">已解鎖 · %1$d</string>
+    <string name="achievements_group_locked">未解鎖 · %1$d</string>
+    <string name="achievements_group_hidden">隱藏 · %1$d</string>
+    <string name="achievements_hidden">隱藏成就</string>
+    <string name="achievements_hidden_detail">解鎖後會顯示詳細資訊。</string>
+    <string name="achievements_all">已解鎖所有成就</string>
+    <string name="achievements_reading">正在讀取…</string>
+    <string name="achievements_signed_out">登入 %1$s 以查看你的成就。</string>
+    <string name="achievements_unreachable">無法連線到 %1$s。請在連上網路後再查看。</string>
+    <string name="achievements_none">%1$s 沒有列出這款遊戲的成就。</string>
+    <string name="achievements_show_all">顯示全部 %1$d 項</string>
+    <string name="achievements_dialog_title">成就 · %1$s</string>
+    <string name="stores_in_steam">✓ 已在 Steam 中</string>
+    <string name="stores_uninstall">解除安裝</string>
+    <string name="stores_uninstalling">正在解除安裝…</string>
+    <string name="stores_uninstall_title">要解除安裝 %1$s 嗎？</string>
+    <string name="stores_uninstall_body_size">將釋放 %1$s，並從 Steam 中移除。</string>
+    <string name="stores_uninstall_body">將移除其檔案和 Steam 捷徑。</string>
+    <string name="stores_launch_not_registered">Steam 下次啟動時會加入這款遊戲；請從 Steam 啟動，或立即啟動 Steam。</string>
+    <string name="stores_card_proton">Proton</string>
+    <string name="stores_card_proton_value">由 Steam 依遊戲選擇</string>
+    <string name="stores_card_audio">音訊</string>
+    <string name="stores_card_audio_value">DirectAudio</string>
+    <string name="stores_card_components">元件</string>
+    <string name="stores_card_components_value">FEX、DXVK、VKD3D</string>
+    <string name="stores_card_engine">引擎</string>
+    <string name="stores_card_engine_value">%1$s · 原生</string>
+    <string name="stores_card_engine_java">%1$s · 內建</string>
+    <string name="stores_how_it_runs">執行方式</string>
+    <string name="stores_kv_fetched">取得來源</string>
+    <string name="stores_kv_fetched_value">%1$s，使用你的帳號</string>
+    <string name="stores_kv_installed_to">安裝位置</string>
+    <string name="stores_kv_installed_to_value">遊戲儲存空間（Games/%1$s/%2$s）</string>
+    <string name="stores_kv_launched_by">啟動方式</string>
+    <string name="stores_kv_launched_by_value">透過 Steam 和 Proton，與 Steam 遊戲的方式相同</string>
+    <string name="stores_kv_launched_by_epic">Steam 和 Proton · 每次啟動時登入 Epic，EOS 重疊層關閉</string>
+    <string name="stores_kv_launched_by_amazon">Steam 和 Proton · 已設定 Amazon Games Services 變數</string>
+    <string name="stores_kv_steam">Steam</string>
+    <string name="stores_kv_steam_on">安裝時加入 Steam（Deck 介面 + Steam Input）</string>
+    <string name="stores_downloads_empty">沒有下載項目</string>
+    <string name="stores_dl_paused">已暫停</string>
+    <string name="stores_dl_queued">排隊中</string>
+    <string name="stores_dl_queued_at">排隊中 · #%1$d</string>
+    <string name="stores_dl_cancelled">已取消</string>
+    <string name="stores_dl_failed">失敗</string>
+    <string name="stores_dl_failed_reason">失敗 · %1$s</string>
+    <string name="stores_dl_stage_percent">%1$s · %2$d%%</string>
+    <string name="stores_dl_bytes">%1$s / %2$s · %3$d%%</string>
+    <string name="stores_dl_pause">暫停</string>
+    <string name="stores_dl_resume">繼續</string>
+    <string name="stores_dl_cancel">取消</string>
+    <string name="stores_dl_retry">重試</string>
+    <string name="stores_dl_clear">清除</string>
+    <string name="stores_dl_clear_all">清除已完成項目</string>
+    <string name="stores_stage_manifest">資訊清單</string>
+    <string name="stores_stage_download">下載</string>
+    <string name="stores_stage_verify">驗證</string>
+    <string name="stores_stage_install">安裝</string>
+    <string name="stores_stage_done">完成</string>
+    <string name="stores_stage_checking">正在檢查</string>
+    <string name="stores_stage_downloading">正在下載</string>
+    <string name="stores_dl_cancel_confirm">要刪除下載內容嗎？</string>
+    <string name="stores_dl_failed_kept">失敗 · 已保留 %1$s</string>
+    <string name="stores_stage_verifying">正在驗證</string>
+    <string name="stores_stage_installing">正在安裝</string>
+    <string name="stores_dl_active_percent">%1$s %2$d%%</string>
+    <string name="stores_dl_with">%1$s · %2$s</string>
+    <string name="stores_dl_amount">%1$s / %2$s</string>
+    <string name="stores_dl_items">%1$d/%2$d 個檔案</string>
+    <string name="stores_download_manager">下載管理員</string>
+    <string name="stores_parallel">同時下載數</string>
+    <string name="stores_install_where">安裝到</string>
+    <string name="stores_install_title">安裝 %1$s：</string>
+    <string name="stores_target_internal">內部</string>
+    <string name="stores_target_free">可用 %1$s</string>
+    <string name="stores_target_free_unknown">可用空間不明</string>
+    <string name="stores_storage_insufficient">可用空間不足：需要 %1$s，僅剩 %2$s</string>
+    <string name="stores_storage_low">空間不足（可用 %1$s，需要 %2$s）</string>
+    <string name="stores_notification_channel">商店下載</string>
+    <string name="stores_notification_channel_hint">顯示遊戲下載進度，並讓下載在背景持續進行</string>
+    <string name="stores_notification_one">正在下載</string>
+    <string name="stores_notification_many">%1$d 個下載項目</string>
+    <string name="stores_notification_waiting">正在準備…</string>
+    <string name="stores_notification_done_channel">已完成的商店下載</string>
+    <string name="stores_notification_installed">已安裝 %1$s</string>
+    <string name="stores_notification_failed">%1$s 下載失敗</string>
+    <string name="stores_notification_delete">刪除</string>
+    <string name="stores_notification_keep">保留</string>
+    <string name="stores_login_title">登入 %1$s</string>
+    <string name="stores_login_provider_title">使用你的服務商帳號登入</string>
+    <string name="stores_login_reload">重新載入</string>
+    <string name="stores_login_close">關閉</string>
+    <string name="stores_login_retry">再試一次</string>
+    <string name="stores_login_finishing">正在完成登入…</string>
+    <string name="stores_login_error_network">無法載入登入頁面：%1$s</string>
+    <string name="stores_login_error_idp_blocked">此提供者拒絕從內嵌頁面登入。請改用商店密碼登入。</string>
+    <string name="stores_login_error_http">登入頁面回應錯誤（HTTP %1$d）。</string>
+    <string name="stores_login_error_ssl">與登入頁面的連線不安全。</string>
+    <string name="stores_login_error_verification">無法驗證登入。請再試一次。</string>
+    <string name="stores_login_error_generic">登入失敗。請再試一次。</string>
     <string name="common_close">關閉</string>
     <string name="common_back">返回</string>
     <string name="common_edit">編輯</string>
@@ -2070,6 +2104,21 @@
     <string name="edit_other_exe">其他 exe…</string>
     <string name="edit_remove">移除</string>
     <string name="art_cover">封面</string>
+    <string name="art_wide_cover">寬封面</string>
+    <string name="art_adjust_logo">調整標誌</string>
+    <string name="logo_pos_default">預設</string>
+    <string name="logo_pos_upper_left">左上</string>
+    <string name="logo_pos_upper_center">中上</string>
+    <string name="logo_pos_center">置中</string>
+    <string name="logo_pos_bottom_left">左下</string>
+    <string name="logo_pos_bottom_center">中下</string>
+    <string name="logo_pos_position">位置</string>
+    <string name="logo_pos_size">大小</string>
+    <string name="logo_pos_save">儲存</string>
+    <string name="logo_pos_reset">還原預設</string>
+    <string name="logo_pos_hint">顯示在遊戲背景上，與 Steam 的繪製方式一致。實際位置可能相差幾個像素。</string>
+    <string name="logo_pos_no_logo">此遊戲尚無標誌。請在標誌中選擇一個，即可在此檢視。</string>
+    <string name="logo_pos_failed">無法儲存標誌位置。請再試一次。</string>
     <string name="art_background">背景</string>
     <string name="art_logo">標誌</string>
     <string name="art_icon">圖示</string>
@@ -2082,10 +2131,732 @@
     <string name="art_pick_image">選擇圖片…</string>
     <string name="art_pick_title">選擇圖片：%1$s</string>
     <string name="art_reset">重設為自動</string>
+    <string name="art_search_sgdb">搜尋 SteamGridDB…</string>
+    <string name="art_sgdb_title">SteamGridDB：%1$s</string>
+    <string name="art_sgdb_search_label">搜尋遊戲</string>
+    <string name="art_sgdb_other_games">其他相符結果</string>
+    <string name="art_sgdb_none">找不到。</string>
+    <string name="art_sgdb_no_key">SteamGridDB 需要 API 金鑰。請在設定 › 啟動器中新增。</string>
+    <string name="art_sgdb_bad_key">SteamGridDB 未接受此 API 金鑰。請在設定 › 啟動器中檢查。</string>
+    <string name="art_sgdb_limit">SteamGridDB 目前受到請求限制。請稍後再試。</string>
+    <string name="art_sgdb_offline">無法連線至 SteamGridDB。請檢查網路連線。</string>
+    <string name="art_sgdb_server">SteamGridDB 發生問題。請稍後再試。</string>
+    <string name="art_sgdb_no_game">SteamGridDB 沒有此遊戲的相符項目。請改用搜尋。</string>
     <plurals name="games_added_n">
         <item quantity="other">已新增 %1$d 個遊戲</item>
     </plurals>
     <plurals name="games_already_n">
         <item quantity="other">%1$d 個已在遊戲中</item>
     </plurals>
+    <string name="hop_back">B · 返回%1$s</string>
+    <string name="hop_from_games">遊戲</string>
+    <string name="hop_from_play">執行設定</string>
+    <string name="sheet_graphics_drivers">圖形驅動程式</string>
+    <string name="comp_this_proton">此 Proton</string>
+    <string name="comp_every_proton">所有 Proton</string>
+    <string name="comp_for_every_proton">適用於所有 Proton</string>
+    <string name="comp_available_count">可用 · %1$d</string>
+    <string name="comp_checked">已檢查 %1$s</string>
+    <string name="comp_check_all">檢查新元件和驅動程式</string>
+    <string name="comp_get">取得</string>
+    <string name="comp_proton_bar">%1$s · 下方的 DXVK、VKD3D-Proton 和 FEX 屬於此 Proton</string>
+    <string name="comp_device_tested">%1$s · 已測試</string>
+    <string name="comp_device_untested">%1$s · 未測試</string>
+    <string name="comp_device_unsupported">%1$s · 不支援</string>
+    <string name="gpu_auto_keeps">讓建議的驅動程式組合保持最新</string>
+    <string name="gpu_bar_auto">自動 · %1$s</string>
+    <string name="gpu_separately">分別設定執行環境驅動程式和顯示驅動程式</string>
+    <string name="gpu_use_title">要使用 %1$s 嗎？</string>
+    <string name="gpu_mode_title">驅動程式的選擇方式</string>
+    <string name="gpu_mode_auto_detail">為此 GPU 自動選擇最佳組合並保持更新</string>
+    <string name="gpu_mode_pair">配對組合</string>
+    <string name="gpu_mode_pair_detail">選擇一組組合，同時設定兩個驅動程式</string>
+    <string name="gpu_mode_mix">自由搭配</string>
+    <string name="gpu_mode_mix_detail">分別選擇顯示驅動程式與執行環境驅動程式</string>
+    <string name="gpu_mode_pair_short">配對</string>
+    <string name="gpu_mode_mix_short">混合</string>
+    <string name="gpu_src_auto">自動</string>
+    <string name="gpu_src_pair">配對</string>
+    <string name="gpu_src_bundle">內建</string>
+    <string name="gpu_src_chosen">已選</string>
+    <string name="gpu_src_by_gpu">依 GPU</string>
+    <string name="gpu_src_default">預設</string>
+    <string name="gpu_display_live">正在繪製</string>
+    <string name="gpu_display_pending">等待重新啟動 · 目前由 %1$s 繪製</string>
+    <string name="gpu_runtime_live">正在執行</string>
+    <string name="gpu_runtime_pending">下次工作階段生效 · 本次工作階段繼續使用 %1$s</string>
+    <string name="gpu_display_next">負責繪製畫面。從下次工作階段起生效。</string>
+    <string name="gpu_previous_driver">上一個驅動程式</string>
+    <string name="gpu_restart_banner">重新啟動以切換顯示驅動程式。</string>
+    <string name="gpu_restart_blocked">請先停止執行中的工作階段，再重新啟動 DroidDeck 以切換顯示驅動程式。</string>
+    <string name="gpu_restart_now">立即重新啟動</string>
+    <string name="gpu_restart_later">稍後</string>
+    <string name="gpu_auto_title">已為你的 %1$s 自動選擇此組合</string>
+    <string name="gpu_auto_builtin_title">自動模式正為你的 %1$s 使用內建驅動程式</string>
+    <string name="gpu_auto_reason">為 %1$s 系列選擇。新版本會在背景安裝。</string>
+    <string name="gpu_pair_title">選擇組合</string>
+    <string name="gpu_pair_hint">組合會同時設定顯示驅動程式與執行環境驅動程式。</string>
+    <string name="gpu_mix_title">分別選擇驅動程式</string>
+    <string name="gpu_mix_hint">內建組合包會同時填入兩者。顯示驅動程式的變更在重新啟動後生效，執行環境驅動程式在下次工作階段生效。</string>
+    <string name="gpu_change_display">更換顯示驅動程式</string>
+    <string name="gpu_change_runtime">更換執行環境驅動程式</string>
+    <string name="gpu_autos_pick">自動選擇</string>
+    <string name="gpu_installed">已安裝</string>
+    <string name="gpu_summary_mix">%1$s + %2$s</string>
+    <string name="gpu_summary_restart">%1$s · 重新啟動後生效</string>
+    <string name="gpu_chip_restart">%1$s · 等待重新啟動</string>
+    <string name="comp_this_device">此裝置</string>
+    <string name="proton_remove_title">要移除 %1$s 嗎？</string>
+    <string name="setup_tab_diagnostics">診斷</string>
+    <string name="setup_ready">已可開始遊戲</string>
+    <string name="setup_not_ready">尚未準備好開始遊戲</string>
+    <string name="setup_ready_runtime">執行環境 %1$s</string>
+    <string name="setup_ready_limit_off">處理程序限制已關閉</string>
+    <string name="setup_ready_signed_in">已登入為 %1$s</string>
+    <string name="setup_needs_you">需要你處理的項目</string>
+    <string name="setup_group_look">外觀</string>
+    <string name="setup_group_device">這部裝置</string>
+    <string name="setup_group_art">收藏庫圖片</string>
+    <string name="setup_group_download">下載</string>
+    <string name="setup_download_source">來源</string>
+    <string name="setup_download_source_auto">自動</string>
+    <string name="setup_download_source_direct">直連</string>
+    <string name="setup_download_source_mirror">鏡像</string>
+    <string name="setup_download_source_custom">自訂前綴</string>
+    <string name="setup_download_mirror">站點</string>
+    <string name="setup_download_prefix">前綴</string>
+    <string name="flathub_eyebrow">LINUX 應用程式</string>
+    <string name="flathub_name">Flathub</string>
+    <string name="flathub_line">適用於 Linux 桌面的應用程式，從「桌面」開啟。</string>
+    <string name="flathub_setup">設定 Flathub</string>
+    <string name="flathub_remove_title">要移除 %1$s 嗎？</string>
+    <string name="flathub_remove_note">其設定和檔案會保留。</string>
+    <string name="flathub_keep">保留</string>
+    <string name="desktop_size">佔用空間</string>
+    <string name="desktop_uninstall_title">要解除安裝桌面嗎？</string>
+    <string name="desktop_all_systems">全部</string>
+    <string name="gog_achievements">GOG 成就</string>
+    <string name="gog_achievements_hint">為支援的 GOG 遊戲同步成就。下次啟動時生效。</string>
+    <string name="gog_achievements_off">成就已關閉</string>
+    <string name="gog_achievements_on">成就已開啟</string>
+    <string name="gog_achievements_signin">重新登入 GOG</string>
+    <string name="gog_achievements_uploaded">成就已上傳</string>
+    <string name="gog_achievements_pending">成就上傳待處理</string>
+    <string name="gog_achievements_enable_store">在「商店」設定中開啟 GOG 成就</string>
+    <string name="gog_achievements_unavailable">成就無法使用；請查看工作階段記錄</string>
+    <string name="achievement_unlocked">成就已解鎖</string>
+    <string name="touch_paste">貼上</string>
+    <string name="touch_dpad">方向鍵</string>
+    <string name="touch_left_stick">左搖桿</string>
+    <string name="touch_right_stick">右搖桿</string>
+    <string name="touch_menu">選單</string>
+    <string name="touch_keyboard">鍵盤</string>
+    <string name="touch_dpad_up">方向鍵上</string>
+    <string name="touch_dpad_down">方向鍵下</string>
+    <string name="touch_dpad_left">方向鍵左</string>
+    <string name="touch_dpad_right">方向鍵右</string>
+    <string name="touch_title">觸控操作</string>
+    <string name="touch_controller">觸控控制器</string>
+    <string name="touch_mouse">滑鼠</string>
+    <string name="touch_on">開</string>
+    <string name="touch_off">關</string>
+    <string name="touch_speed_slow">慢</string>
+    <string name="touch_speed_normal">正常</string>
+    <string name="touch_speed_fast">快</string>
+    <string name="touch_edit_layout">編輯版面配置</string>
+    <string name="touch_droiddeck_menu">DroidDeck 選單</string>
+    <string name="touch_drag_hint">將控制項拖曳到畫面上</string>
+    <string name="touch_arrange">排列</string>
+    <string name="touch_discard">放棄</string>
+    <string name="touch_saving">儲存中…</string>
+    <string name="touch_icon">圖示</string>
+    <string name="touch_narrower">寬−</string>
+    <string name="touch_wider">寬+</string>
+    <string name="touch_shorter">高−</string>
+    <string name="touch_taller">高+</string>
+    <string name="touch_hide">隱藏</string>
+    <string name="touch_color_opacity">顏色與不透明度…</string>
+    <string name="touch_copy_layout">複製這個版面配置</string>
+    <string name="touch_layout_copied">版面配置已複製，可貼到任何遊戲的觸控版面配置中</string>
+    <string name="touch_paste_layout">貼上複製的版面配置</string>
+    <string name="touch_reset_layout">還原為 Steam 的預設值</string>
+    <string name="touch_no_binding">這個控制項在 Steam 中沒有綁定，無法設定圖示</string>
+    <string name="touch_icon_for">%1$s 的圖示</string>
+    <string name="touch_layout_color">觸控版面配置顏色</string>
+    <string name="touch_done">完成</string>
+    <string name="touch_save_failed">無法儲存觸控版面配置</string>
+    <string name="touch_saved">觸控版面配置已儲存至 Steam</string>
+    <string name="touch_app_id">應用程式 %1$d</string>
+    <string name="touch_label_hint">標籤（選用）</string>
+    <string name="touch_icons_missing">找不到 Steam 的圖示</string>
+    <plurals name="touch_icons_found">
+        <item quantity="other">來自 Steam 的 %1$d 個圖示</item>
+    </plurals>
+    <string name="touch_icon_color">圖示顏色</string>
+    <string name="touch_button_color">按鈕顏色</string>
+    <string name="touch_no_icon">沒有圖示</string>
+
+    <string name="stores_sync_sign_in">正在檢查登入狀態…</string>
+    <string name="stores_sync_library">正在取得你的遊戲庫…</string>
+    <string name="stores_sync_game_list">正在取得遊戲清單…</string>
+    <string name="stores_sync_details">正在載入遊戲詳細資料…（%1$d/%2$d）</string>
+    <plurals name="stores_sync_games">
+        <item quantity="other">正在同步 %1$d 個遊戲…</item>
+    </plurals>
+    <string name="stores_sync_progress">正在同步… %1$d/%2$d</string>
+    <string name="stores_sync_cover_art">正在取得封面圖片…</string>
+    <string name="stores_sync_failed">同步失敗</string>
+    <string name="stores_sync_no_games">在你的 %1$s 遊戲庫中找不到遊戲</string>
+    <string name="stores_sync_amazon_no_answer">Amazon Games 未回應你的遊戲庫要求：請重新整理，或重新登入</string>
+    <string name="stores_sync_gog_unreachable">無法連線到 GOG</string>
+    <string name="stores_sync_gog_unreadable">無法讀取你的 GOG 遊戲庫</string>
+    <string name="stores_registering">正在向 Steam 註冊…</string>
+    <string name="mode_client_arch">Steam 用戶端</string>
+    <string name="mode_client_arch_fex">FEX %1$s</string>
+    <string name="mode_client_arch_arm64">ARM64</string>
+    <string name="mode_client_arch_x64">x86-64</string>
+    <string name="setup_vac_diag">VAC 診斷</string>
+    <string name="setup_vac_diag_hint">Source 遊戲會記錄主控台（-condebug）；工作階段日誌中的 vac.txt 會顯示是否安全</string>
+    <string name="load_starting_steam_x64">正在啟動 Steam x86-64</string>
+    <string name="storage_game_x64">%1$s · x86-64</string>
+    <string name="storage_tool_x64_client">由 x86-64 Steam 用戶端使用</string>
+    <string name="storage_uninstall_in_x64">此副本位於 x86-64 Steam 用戶端中。請在「Steam 用戶端」中選擇 x86-64，然後在此解除安裝。</string>
+    <string name="storage_uninstall_in_arm64">此副本位於 ARM64 Steam 用戶端中。請在「Steam 用戶端」中選擇 ARM64，然後在此解除安裝。</string>
+    <string name="drawer_page_glasses">眼鏡</string>
+    <string name="glasses_open">VITURE 眼鏡</string>
+    <string name="glasses_control">眼鏡控制</string>
+    <string name="glasses_driver_missing">這個版本未包含這副眼鏡的驅動程式。</string>
+    <string name="glasses_connection_failed">無法連線到眼鏡。請重新插上傳輸線，或點擊「允許」重試。</string>
+    <string name="glasses_allow">允許</string>
+    <string name="glasses_allow_hint">允許 DroidDeck 設定眼鏡的更新率、3D 模式、亮度、音量和遮光，並讀取其頭部追蹤。</string>
+    <string name="glasses_asking">正在等待你在 Android 提示中允許…</string>
+    <string name="glasses_denied">控制已被拒絕。允許後才能變更眼鏡設定。</string>
+    <string name="glasses_no_control">這副眼鏡可以顯示遊戲，但無法在此變更其設定。</string>
+    <string name="glasses_output">輸出</string>
+    <string name="glasses_status">%1$d×%2$d · %3$d Hz · %4$s</string>
+    <string name="glasses_mode_2d">2D</string>
+    <string name="glasses_mode_3d">3D</string>
+    <string name="glasses_game_on">在眼鏡上顯示遊戲</string>
+    <string name="glasses_game_on_hint">只在眼鏡上顯示遊戲。關閉：由手機顯示，Android 會鏡像手機畫面。</string>
+    <string name="glasses_display">顯示</string>
+    <string name="glasses_refresh">更新率</string>
+    <string name="glasses_3d">3D（左右並排）</string>
+    <string name="glasses_3d_hint">將智慧眼鏡切換至並排 3D 模式。頭部追蹤單獨控制。</string>
+    <string name="glasses_3d_failed">未能確認 3D 訊號。請在 2D 畫面恢復後再試。</string>
+    <string name="glasses_no_signal">沒有畫面：眼鏡處於這支手機無法輸出的模式。請長按眼鏡的 2D/3D 按鈕，或拔除後重新連接。</string>
+    <string name="glasses_3d_refresh">3D 更新率</string>
+    <string name="glasses_auto3d">VR 遊戲使用 3D</string>
+    <string name="glasses_auto3d_hint">SteamVR 執行時切換到 3D，結束後切回。</string>
+    <string name="glasses_picture">圖片</string>
+    <string name="glasses_picture_hint">自動模式會在雙眼顯示平面內容並偵測 SteamVR。選擇「並排遊戲」模式可顯示 SBS 內容。</string>
+    <string name="glasses_picture_auto">自動</string>
+    <string name="glasses_picture_screen">虛擬螢幕</string>
+    <string name="glasses_picture_sbs">左右並排遊戲</string>
+    <string name="glasses_screen_size">螢幕寬度</string>
+    <string name="glasses_screen_distance">螢幕距離</string>
+    <string name="glasses_screen_next_session">當遊戲以虛擬螢幕形式在眼鏡上執行時，寬度和距離才會生效。</string>
+    <string name="glasses_screen_no_output">這些設定會在開啟「在眼鏡上顯示遊戲」且遊戲顯示於眼鏡上時生效。</string>
+    <string name="glasses_screen_flat_hint">「自動」會讓這款 2D 遊戲全螢幕顯示。使用虛擬螢幕即可調整其寬度、距離和頭部追蹤。</string>
+    <string name="glasses_screen_use">使用虛擬螢幕</string>
+    <string name="glasses_screen_direct_hint">SteamVR 將充滿整個視野。在 VR 中調整其視野範圍；寬度和距離僅適用於虛擬螢幕。</string>
+    <string name="glasses_screen_sbs_hint">左右並排遊戲會填滿每隻眼睛的視野。寬度和距離只適用於虛擬螢幕。</string>
+    <string name="glasses_tracking_flat_hint">「自動」會讓這款 2D 遊戲固定在視野中。如要使用頭部追蹤，請在「顯示」中選擇「虛擬螢幕」。</string>
+    <string name="glasses_tracking_sbs_hint">頭部追蹤適用於虛擬螢幕或執行中的 SteamVR 遊戲。</string>
+    <string name="glasses_hardware">設備</string>
+    <string name="glasses_brightness">亮度</string>
+    <string name="glasses_volume">音量</string>
+    <string name="glasses_sunblock">遮光</string>
+    <string name="glasses_sunblock_hint">讓前鏡片變暗。</string>
+    <string name="glasses_tracking">追蹤</string>
+    <string name="glasses_head_tracking">頭部追蹤</string>
+    <string name="glasses_head_tracking_hint">眼鏡內建的感測器會隨頭部轉動虛擬螢幕和 SteamVR。</string>
+    <string name="glasses_recenter">重新置中視角</string>
+    <string name="glasses_recenter_button">重設螢幕中心</string>
+    <string name="glasses_vr_fov">SteamVR 視野角度</string>
+    <string name="glasses_vr_fov_hint">調低讓 SteamVR 更近並填滿眼鏡；調高可看到更多周圍內容。</string>
+    <string name="glasses_playing">正在 %1$s 上遊玩</string>
+    <string name="glasses_calibration">追蹤校正</string>
+    <string name="glasses_calibration_hint">減少漂移並對齊水平基準。</string>
+    <string name="glasses_calibration_saved_hint">這副眼鏡已套用儲存的校正資料。</string>
+    <string name="glasses_calibration_open">校正</string>
+    <string name="glasses_calibration_instructions">將已連接的眼鏡上下顛倒放在水平面上，讓鏡框平穩貼合。點擊「開始」，然後約 8 秒內不要碰觸。只要移動，測量就會重新開始。這項操作會校正漂移和傾斜，但不校正朝向。</string>
+    <string name="glasses_calibration_settling">請保持眼鏡上下顛倒且不要碰觸。正在等待眼鏡靜止…</string>
+    <string name="glasses_calibration_collecting">正在測量感測器。請保持眼鏡靜止。</string>
+    <string name="glasses_calibration_moving">偵測到移動。請勿碰觸眼鏡；測量會自動重新開始。</string>
+    <string name="glasses_calibration_turn_over">請將眼鏡上下顛倒放在水平面上。放置正確後就會開始測量。</string>
+    <string name="glasses_calibration_complete">校正已儲存。戴上眼鏡並直視前方，然後點擊「完成」以重新置中。</string>
+    <string name="glasses_calibration_failed">無法完成校正。請檢查連線並保持眼鏡靜止，然後再試一次。先前的校正不受影響。</string>
+    <string name="glasses_calibration_start">開始</string>
+    <string name="glasses_calibration_done">完成</string>
+    <string name="glasses_calibration_reset">重設追蹤校正</string>
+    <string name="glasses_calibration_reset_hint">要移除已儲存的校正並還原此型號的預設值嗎？重新戴上眼鏡後請重新置中。</string>
+    <string name="glasses_calibration_reset_button">重設</string>
+    <string name="hand_camera_group">手部追蹤</string>
+    <string name="hand_camera_prompt_title">使用手機相機追蹤手部或 Joy-Con 控制器？</string>
+    <string name="hand_camera_prompt_body">未連接控制器時，手機相機會在 VR 中追蹤您的裸手：拇指和食指捏合即可點擊，握緊拳頭即可抓取，掌心朝向自己並捏合即可打開選單。連接 Joy-Con 控制器後，相機會追蹤其位置，同時 Joy-Con 控制器會提供旋轉和按鍵輸入。照片會在本設備上處理，不會儲存或傳送。</string>
+    <string name="hand_camera_rear">後置相機</string>
+    <string name="hand_camera_rear_hint">建議使用。通常更清晰、視野更廣。</string>
+    <string name="hand_camera_front">前置相機</string>
+    <string name="hand_camera_front_hint">適用於裝置背面無法朝向你的情況。</string>
+    <string name="hand_camera_allow">使用相機</string>
+    <string name="hand_camera_not_now">暫時不要</string>
+    <string name="hand_camera_setting">相機手部追蹤</string>
+    <string name="hand_camera_setting_hint">使用手機相機進行徒手手勢操作或在 VR 中定位已配對的 Joy-Con 控制器。 Joy-Con 控制器提供旋轉和按鍵輸入。當智慧眼鏡追蹤您的手或 Joy-Con 控制器時，此功能會暫停。影像僅在此裝置上處理。</string>
+    <string name="hand_camera_choice">相機</string>
+    <string name="hand_camera_access">相機權限</string>
+    <string name="hand_camera_access_hint">請允許相機權限，才能開始手部追蹤。</string>
+    <string name="hand_camera_access_denied">相機權限已關閉。請在 Android 設定中開啟。</string>
+    <string name="hand_camera_allow_button">允許</string>
+    <string name="hand_camera_open_settings">開啟設定</string>
+    <string name="hand_camera_placement">相機位置</string>
+    <string name="hand_camera_placement_hint">開始遊玩前，請確認相機能看到你。</string>
+    <string name="hand_camera_check">檢查</string>
+    <string name="hand_camera_check_title">相機位置</string>
+    <string name="hand_camera_how_rear">將裝置立在距離 1.5 到 2 公尺、約胸口高度的地方，讓後置相機對著你。然後張開雙手走進畫面。</string>
+    <string name="hand_camera_how_front">將裝置立在距離 1.5 到 2 公尺、約胸口高度的地方，讓螢幕對著你。然後張開雙手走進畫面。</string>
+    <string name="hand_camera_starting">正在啟動相機…</string>
+    <string name="hand_camera_stand_up">裝置平放著。請將它立起來，讓相機對著你。</string>
+    <string name="hand_camera_upright">請把裝置立得更直一點，讓相機對著你。</string>
+    <string name="hand_camera_not_seen">還看不到你。請走進畫面，讓頭和肩膀露出來。</string>
+    <string name="hand_camera_move_back">請稍微往後退一點。</string>
+    <string name="hand_camera_move_closer">請再靠近一點。</string>
+    <string name="hand_camera_show_hands">請在相機能看到的位置伸出雙手。</string>
+    <string name="hand_camera_good">看起來不錯。</string>
+    <string name="hand_camera_failed">相機無法啟動。請關閉正在使用相機的其他應用程式，然後再試一次。</string>
+    <string name="hand_camera_switch">切換相機</string>
+    <string name="hand_camera_skip">略過</string>
+    <string name="hand_camera_done">完成</string>
+    <string name="glasses_xreal_network_missing">正在等待眼鏡的 USB Ethernet 連線。這支手機可能不會向應用程式開放此連線。</string>
+    <string name="glasses_xreal_connection_failed">XREAL 連線中斷或傳回不支援的回應。正在重試…</string>
+    <string name="glasses_xreal_experimental">實驗性 1S 支援。請在眼鏡選單中使用跟隨模式並關閉畫面穩定。追蹤方向和顯示模式仍需在實機上測試。</string>
+    <string name="stores_fact_developer">開發商</string>
+    <string name="stores_fact_publisher">發行商</string>
+    <string name="stores_fact_released">發行日期</string>
+    <string name="stores_hltb_main">主線</string>
+    <string name="stores_hltb_extras">+ 支線</string>
+    <string name="stores_hltb_completionist">全收集</string>
+    <string name="stores_hltb_hours">%1$s 小時</string>
+    <string name="stores_hltb_minutes">%1$d 分鐘</string>
+    <string name="cardboard_title">Cardboard VR</string>
+    <string name="cardboard_mode">Cardboard 模式</string>
+    <string name="cardboard_mode_hint">為手機 VR 眼鏡提供左右眼畫面。</string>
+    <string name="cardboard_source">畫面</string>
+    <string name="cardboard_source_screen">虛擬螢幕</string>
+    <string name="cardboard_source_sbs">左右並排 3D</string>
+    <string name="cardboard_viewer">眼鏡</string>
+    <string name="cardboard_viewer_v2">Cardboard</string>
+    <string name="cardboard_viewer_v1">Cardboard（2014）</string>
+    <string name="cardboard_viewer_none">無鏡片</string>
+    <string name="cardboard_ipd">瞳距</string>
+    <string name="cardboard_screen_width">螢幕寬度</string>
+    <string name="cardboard_screen_distance">螢幕距離</string>
+    <string name="cardboard_head_tracking">頭部追蹤</string>
+    <string name="cardboard_no_sensor">這部裝置沒有旋轉感測器。</string>
+    <string name="cardboard_recenter">重設視角</string>
+    <string name="cardboard_recenter_button">重設</string>
+    <string name="cardboard_steamvr">SteamVR（實驗性）</string>
+    <string name="cardboard_steamvr_install">安裝</string>
+    <string name="cardboard_steamvr_installing">正在下載並解壓縮 SteamVR…</string>
+    <string name="cardboard_steamvr_start">啟動</string>
+    <string name="cardboard_steamvr_stop">停止</string>
+    <string name="cardboard_steamvr_unavailable">這個工作階段無法使用。</string>
+    <string name="cardboard_steamvr_failed">SteamVR 沒有回應；請查看工作階段記錄。</string>
+    <string name="drawer_component_downloads">下載元件</string>
+    <string name="drawer_component_downloads_hint">下載內容與「元件」頁面共用。在上方選擇已下載的版本，即可在下次啟動遊戲時使用。</string>
+    <string name="drawer_component_choose_download">選擇要下載的版本</string>
+    <string name="display_picture_position">畫面位置</string>
+    <string name="display_position_top">置頂</string>
+    <string name="display_position_bottom">置底</string>
+    <string name="display_position_center">置中（預設）</string>
+    <string name="setup_tab_storage">儲存空間</string>
+    <string name="storage_measuring">正在統計儲存空間…</string>
+    <string name="storage_measuring_hint">首次統計需要幾秒鐘。</string>
+    <string name="storage_internal">內部儲存空間</string>
+    <string name="storage_used_of">已用 %1$s / %2$s</string>
+    <string name="storage_free">可用 %1$s</string>
+    <string name="storage_droiddeck_uses">DroidDeck 使用 %1$s。統計時間 %2$s。</string>
+    <string name="storage_rescanning">正在重新統計…</string>
+    <string name="storage_other_apps">其他 Android 應用程式</string>
+    <string name="storage_safe_now">現在可安全釋放</string>
+    <string name="storage_safe_hint">未使用的執行環境、殘留、舊日誌</string>
+    <string name="storage_clean_up">清理…</string>
+    <string name="storage_session_running">停止工作階段後才能清理或移除。容量仍會顯示。</string>
+    <string name="storage_where">空間去向</string>
+    <string name="storage_games">Steam 遊戲</string>
+    <string name="storage_game_data">遊戲資料</string>
+    <string name="storage_game_data_hint">前綴 %1$s · 工作坊 %2$s · 著色器 %3$s</string>
+    <string name="storage_tools">Proton 與執行環境</string>
+    <string name="storage_tools_unused">%1$s 未使用</string>
+    <string name="storage_stores">GOG、Epic 及其他商店</string>
+    <string name="storage_stores_hint">在商店中解除安裝</string>
+    <string name="storage_desktop">桌面應用程式</string>
+    <string name="storage_desktop_hint">Flatpak 應用程式與執行環境</string>
+    <string name="storage_system">Linux 系統與 Steam 用戶端</string>
+    <string name="storage_system_hint">執行任何內容所必需</string>
+    <string name="storage_app_data">DroidDeck 資料</string>
+    <string name="storage_app_data_hint">舊工作階段日誌 %1$s · 快取 · 驅動程式</string>
+    <string name="storage_legend_games">遊戲</string>
+    <string name="storage_legend_data">遊戲資料</string>
+    <string name="storage_legend_tools">Proton 與執行環境</string>
+    <string name="storage_legend_stores">其他商店</string>
+    <string name="storage_legend_desktop">桌面應用程式</string>
+    <string name="storage_legend_system">Linux 系統</string>
+    <string name="storage_legend_app">DroidDeck</string>
+    <string name="storage_clean_up_title">清理</string>
+    <string name="storage_clean_up_lede">此處不會影響已安裝的遊戲或進行中的下載。</string>
+    <string name="storage_nothing_to_clean">目前沒有可清理的內容。</string>
+    <string name="storage_selected">已選：%1$s · %2$s → 可用 %3$s</string>
+    <string name="storage_cleaning">正在清理…</string>
+    <string name="storage_free_button">釋放 %1$s</string>
+    <string name="storage_freed">已釋放 %1$s。</string>
+    <string name="storage_item_runtimes">未使用的 Steam 執行環境與 Proton</string>
+    <string name="storage_item_leftovers">已解除安裝遊戲的殘留</string>
+    <string name="storage_item_leftovers_unsure">可能含存檔的殘留</string>
+    <string name="storage_item_logs">舊工作階段日誌</string>
+    <string name="storage_item_logs_detail">保留目前工作階段的日誌</string>
+    <string name="storage_item_custom_detail">沒有遊戲使用它。如需使用，請在元件中重新安裝。</string>
+    <string name="storage_item_shaders">已安裝遊戲的著色器快取</string>
+    <string name="storage_item_shaders_detail">會隨著遊玩重新產生。每個遊戲開頭幾分鐘會再次卡頓。</string>
+    <string name="storage_tag_safe">安全</string>
+    <string name="storage_tag_unused">未使用</string>
+    <string name="storage_tag_stutter">卡頓</string>
+    <string name="storage_tag_saves">檢查存檔</string>
+    <string name="storage_tag_default">預設</string>
+    <string name="storage_tag_required">必需</string>
+    <string name="storage_tag_not_used">未使用</string>
+    <string name="storage_back">儲存空間</string>
+    <string name="storage_games_with_data">%1$s 及其資料</string>
+    <string name="storage_sort_largest">最大</string>
+    <string name="storage_sort_least_played">最少遊玩</string>
+    <string name="storage_sort_sd">在 SD 卡上</string>
+    <string name="storage_no_games">此處沒有遊戲。</string>
+    <string name="storage_played">遊玩 %1$s</string>
+    <string name="storage_never_played">從未遊玩</string>
+    <string name="storage_game_parts">遊戲 %1$s · 資料 %2$s</string>
+    <string name="storage_uninstall">解除安裝</string>
+    <string name="storage_games_note">解除安裝會開啟 Steam 內建的對話方塊，以便 Steam 記錄。若要將遊戲移到 SD 卡，請使用 Steam › 設定 › 儲存空間。</string>
+    <string name="storage_uninstall_title">要解除安裝 %1$s 嗎？</string>
+    <string name="storage_uninstall_body">Steam 會開啟並要求確認。這會釋放此遊戲的 %1$s。其前綴會保留到清理殘留時，Steam 雲端存檔仍留在你的帳號中。</string>
+    <string name="storage_open_steam">開啟 Steam</string>
+    <string name="storage_tools_detail">%1$s · %2$s 未使用</string>
+    <string name="storage_remove_unused">移除未使用 · %1$s</string>
+    <string name="storage_in_use">使用中</string>
+    <string name="storage_not_used">未使用</string>
+    <string name="storage_remove">移除</string>
+    <string name="storage_remove_title">要移除 %1$s 嗎？</string>
+    <string name="storage_remove_body">釋放 %1$s。若之後有遊戲需要，Steam 會重新下載。</string>
+    <string name="storage_tool_fex_runtime">Linux x86 遊戲所需（FEX）</string>
+    <string name="storage_tool_arm_runtime">ARM64 Proton 所需</string>
+    <string name="storage_tool_redist">遊戲要求的 VC++ 與 DirectX 安裝程式</string>
+    <string name="storage_tool_fex">執行 Linux x86 遊戲</string>
+    <string name="storage_tool_steam">Steam 工具</string>
+    <string name="storage_tool_old_runtime">DroidDeck 不需要此執行環境即可執行遊戲</string>
+    <string name="storage_tool_x86_proton">x86 Proton，DroidDeck 無法執行</string>
+    <string name="storage_tool_custom_default">所有遊戲的預設項目</string>
+    <string name="storage_tool_custom_unused">沒有遊戲使用它</string>
+    <string name="storage_tool_custom_unknown">無法讀取 Steam 的設定，因此保留</string>
+    <string name="storage_cleanup_busy">請等待儲存空間清理完成</string>
+    <string name="storage_low_title">僅剩 %1$s 可用</string>
+    <string name="storage_low_body">Steam 需要空間用於更新與著色器快取。低於 10 GB 時，遊戲更新可能中途失敗。</string>
+    <string name="storage_low_safe">%1$s 可安全釋放。</string>
+    <string name="storage_free_up">釋放空間</string>
+    <string name="storage_play_anyway">仍要遊玩</string>
+    <plurals name="storage_games_installed">
+        <item quantity="one">已安裝 %d 個</item>
+        <item quantity="other">已安裝 %d 個</item>
+    </plurals>
+    <plurals name="storage_games_on_sd">
+        <item quantity="one">%d 個在 SD 卡上</item>
+        <item quantity="other">%d 個在 SD 卡上</item>
+    </plurals>
+    <plurals name="storage_tools_count">
+        <item quantity="one">%d 個工具</item>
+        <item quantity="other">%d 個工具</item>
+    </plurals>
+    <plurals name="storage_item_leftovers_detail">
+        <item quantity="one">%d 個遊戲的空前綴資料夾與著色器快取</item>
+        <item quantity="other">%d 個遊戲的空前綴資料夾與著色器快取</item>
+    </plurals>
+    <plurals name="storage_item_leftovers_unsure_detail">
+        <item quantity="one">%d 個遊戲的前綴仍含檔案，其中可能有本機存檔。如需保留請先備份。</item>
+        <item quantity="other">%d 個遊戲的前綴仍含檔案，其中可能有本機存檔。如需保留請先備份。</item>
+    </plurals>
+    <plurals name="storage_tag_games">
+        <item quantity="one">%d 個遊戲</item>
+        <item quantity="other">%d 個遊戲</item>
+    </plurals>
+    <string name="storage_tool_default_proton">DroidDeck 的預設 Proton</string>
+    <string name="storage_tool_proton">DroidDeck 的 Proton 11 選項</string>
+    <plurals name="storage_tool_custom_games">
+        <item quantity="one">%d 個遊戲使用</item>
+        <item quantity="other">%d 個遊戲使用</item>
+    </plurals>
+    <string name="storage_legend_components">元件</string>
+    <string name="storage_components">元件</string>
+    <string name="storage_item_components">未使用的元件</string>
+    <string name="storage_component_original">原始 %1$s · %2$s</string>
+    <string name="storage_original_confirm">釋放 %1$s。它只會還原一個已不再安裝的 Proton 版本。</string>
+    <string name="storage_leftovers_unchecked">未檢查：無法讀取某個 Steam 應用程式清單，因此在可讀取前會保留已解除安裝遊戲的前綴。</string>
+    <string name="storage_failed">未能完成：%1$s</string>
+    <string name="storage_desktop_shared">共用 %1$s</string>
+    <string name="storage_data_installed">已安裝遊戲</string>
+    <string name="storage_data_parts">前綴 %1$s · 著色器 %2$s · 工作坊 %3$s</string>
+    <string name="storage_clear_shaders">清除著色器</string>
+    <string name="storage_data_leftovers">已解除安裝遊戲</string>
+    <string name="storage_steam_app">Steam 應用程式 %1$d</string>
+    <string name="storage_leftover_unsure_detail">其前綴仍含檔案，其中可能有本機存檔</string>
+    <string name="storage_leftover_confirm">刪除其 Wine 前綴與著色器快取（%1$s）。請先備份需要的存檔；Steam 雲端存檔仍留在你的帳號中。</string>
+    <string name="storage_data_other">保留</string>
+    <string name="storage_data_other_title">非 Steam 遊戲與 Steam 的共用前綴</string>
+    <string name="storage_data_other_detail">從商店或手動新增的遊戲的前綴</string>
+    <string name="storage_components_packages">已下載的套件</string>
+    <string name="storage_components_originals">已儲存的原始檔案</string>
+    <string name="storage_components_none">沒有已下載的元件套件。</string>
+    <string name="storage_component_in_use">已為某個 Proton 或遊戲選取</string>
+    <string name="storage_component_unused">未在任何地方選取</string>
+    <string name="storage_original_kept">還原已安裝的 Proton</string>
+    <string name="storage_original_old">不再安裝的 Proton 版本</string>
+    <string name="storage_tag_in_use">使用中</string>
+    <string name="storage_components_note">使用中的元件會被鎖定。請在元件中選取它們；在此移除的內容可以在那裡重新下載。</string>
+    <string name="storage_component_confirm">釋放 %1$s。你自己匯入的套件無法再次下載。</string>
+    <string name="storage_desktop_detail">%1$s，用於 Flatpak 應用程式及其共用內容</string>
+    <string name="storage_desktop_apps_title">應用程式</string>
+    <string name="storage_desktop_none">未安裝 Flatpak 應用程式。</string>
+    <string name="storage_desktop_shared_title">應用程式共用</string>
+    <string name="storage_desktop_runtimes">執行環境</string>
+    <string name="storage_desktop_runtimes_detail">應用程式所依賴的程式庫；未使用的會隨「移除未使用」一併清理</string>
+    <string name="storage_desktop_cache">下載倉庫</string>
+    <string name="storage_desktop_cache_detail">Flatpak 的物件倉庫與快取的下載</string>
+    <string name="storage_desktop_prune">移除未使用</string>
+    <string name="storage_desktop_prune_body">移除沒有已安裝應用程式需要的執行環境，並清理 Flatpak 的物件倉庫。已安裝的應用程式照常運作。</string>
+    <string name="storage_flatpak_uninstall_body">移除此應用程式（%1$s）以及沒有其他應用程式使用的執行環境。其主目錄中的資料會保留。</string>
+    <plurals name="storage_components_count">
+        <item quantity="one">%d 個套件</item>
+        <item quantity="other">%d 個套件</item>
+    </plurals>
+    <plurals name="storage_desktop_apps">
+        <item quantity="one">%d 個應用程式</item>
+        <item quantity="other">%d 個應用程式</item>
+    </plurals>
+    <string name="boot_movie">開機動畫</string>
+    <string name="boot_movie_video">影片</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
+    <string name="boot_movie_note">60 fps 較流暢，但 Steam 啟動時會使用較多 CPU。在 Steam 本身設定中選擇的啟動動畫優先。</string>
+    <string name="boot_movie_sound">聲音</string>
+    <string name="boot_movie_custom">自訂影片</string>
+    <string name="boot_movie_custom_hint">MP4、MOV、MKV 或 WebM。其他格式及超過 %1$d MB 的檔案會在裝置上轉換為 720p WebM，最長 %2$d 秒。</string>
+    <string name="boot_movie_import">匯入</string>
+    <string name="boot_movie_remove">移除</string>
+    <string name="boot_movie_pick">選擇開機動畫</string>
+    <string name="boot_movie_imported">%1$s 現在是開機動畫</string>
+    <string name="boot_movie_imported_silent">%1$s 現在是開機動畫（無聲）</string>
+    <string name="boot_movie_too_long">需要轉換的影片不能超過 %1$d 秒</string>
+    <string name="boot_movie_converting">正在轉換 %1$d%%</string>
+    <string name="boot_movie_converting_started">正在為 Steam 轉換 %1$s。請保持 DroidDeck 開啟。</string>
+    <string name="boot_movie_unsupported">此裝置無法解碼該影片。</string>
+    <string name="boot_movie_import_failed">無法匯入此影片</string>
+    <string name="glasses_experimental">Luma Ultra 相機 — 實驗性功能</string>
+    <string name="glasses_joycons">Joy-Con 位置追踪</string>
+    <string name="glasses_joycons_hint">使用智慧眼鏡攝影機定位已配對的 Joy-Con 控制器。旋轉和按鍵輸入來自 Joy-Con 控制器。當您的手腕被遮住時，系統會估算位置。此功能會取代徒手操作的控制器，並暫停手機相機追蹤。連接或重設追蹤中心時，請將 Joy-Con 控制器指向前方。</string>
+    <string name="glasses_joycons_requires_position">請先啟用位置追蹤功能。需要 Android 12 或更高版本且 Joy-Con 控制器支援體感功能。預設關閉。</string>
+    <string name="setup_tab_glasses">智慧眼鏡</string>
+    <string name="setup_glasses_scope">顯示和頭部追蹤設定可在 DroidDeck 選單、遊戲和桌面會話之間共用。</string>
+    <string name="setup_glasses_connect">連接智慧眼鏡以變更其顯示和追蹤設定。斷開連線後，您儲存的設定將被保留。</string>
+    <string name="glasses_vr">VR</string>
+    <string name="glasses_display_mode">顯示模式</string>
+    <string name="glasses_output_2d">2D 輸出</string>
+    <string name="glasses_output_3d">3D 輸出</string>
+    <string name="glasses_picture_group">畫面與虛擬螢幕</string>
+    <string name="glasses_position_group">位置與地面高度</string>
+    <string name="glasses_hands_group">手部追蹤 — 實驗性功能</string>
+    <string name="glasses_tracking_status">追蹤狀態</string>
+    <string name="glasses_resolution_2d">2D 分辨率</string>
+    <string name="glasses_resolution_3d">3D 分辨率</string>
+    <string name="glasses_resolution_vr">VR 分辨率</string>
+    <string name="glasses_resolution_auto">自動</string>
+    <string name="glasses_resolution_inherit">與 2D / 3D 相同</string>
+    <string name="glasses_resolution_hint">單眼輸出分辨率</string>
+    <string name="glasses_refresh_30_hint">啟用智慧眼鏡遊戲功能，選擇顯示器的原生 30 Hz 模式。</string>
+    <string name="glasses_3dof">3DoF 虛擬螢幕</string>
+    <string name="glasses_3dof_hint">將平面遊戲固定在您面前，以便您可以環顧四周。無需切換到 3D 模式即可啟用智慧眼鏡遊戲功能。</string>
+    <string name="glasses_screen_app_wide">寬度和距離會立即更新 DroidDeck 選單、遊戲和桌面會話的追蹤虛擬畫面。</string>
+    <string name="glasses_head_tracking_spatial_vr_hint">位置追蹤包含 SteamVR 中的頭部旋轉。如需僅進行旋轉追踪，請關閉位置追蹤。</string>
+    <string name="glasses_head_tracking_spatial_hint">控制虛擬螢幕上的頭部移動。位置追蹤包含 SteamVR 中的頭部旋轉。</string>
+    <string name="glasses_quick_actions">快速操作</string>
+    <string name="glasses_recenter_screen_hint">看向您希望螢幕顯示的位置，然後重設追蹤中心以設定其高度和方向。</string>
+    <string name="glasses_recenter_joycons_button">重設 Joy-Con 中心</string>
+    <string name="phone_camera_tracking_group">手機相機 — 實驗性功能</string>
+    <string name="phone_camera_tracking_setting">追蹤手部或 Joy-Con 控制器</string>
+    <string name="glasses_position">位置追蹤 — 實驗性功能</string>
+    <string name="glasses_position_hint">在VR中以及虛擬螢幕周圍進行實體移動。重新開始追蹤需要一些時間。</string>
+    <string name="glasses_eye_height">當前眼睛離地面的高度</string>
+    <string name="glasses_floor">依照目前高度設定地面高度</string>
+    <string name="glasses_floor_set">設定地面高度</string>
+    <string name="glasses_spatial_setup">立體攝影機設定與診斷</string>
+    <string name="glasses_spatial_setup_hint">遊戲前檢查相機校準和手部追蹤。</string>
+    <string name="glasses_spatial_open">開啟設定</string>
+    <string name="glasses_hands">用手操作控制器</string>
+    <string name="glasses_hands_hint">使用智慧眼鏡攝影機用手瞄準，捏合點擊，握緊手掌抓取VR中的物品。遊戲手把搖桿可以移動和旋轉。取代Joy-Con的位置追蹤。遊戲過程中可能會出現延遲或追蹤遺失。</string>
+    <string name="glasses_hands_ready_hint">在追蹤設定中，啟用Luma Ultra攝影機下的徒手操作控制器。首先顯示張開的手。</string>
+    <string name="glasses_hands_base">共享Luma Ultra校準</string>
+    <string name="glasses_hands_base_hint">使用共用的Luma Ultra底座。校準您的智慧眼鏡以驗證其準確性。</string>
+    <string name="glasses_hands_calibration_verified">測量校準已驗證</string>
+    <string name="glasses_hands_calibration_required">需要驗證</string>
+    <string name="glasses_hands_calibration_required_hint">測量距離檢查後，即可使用裸手操作控制器。</string>
+    <string name="tracking_recovery_lost">追蹤遺失</string>
+    <string name="tracking_recovery_restart_help">還卡住了嗎？在手機上：智慧型眼鏡→追蹤→開啟設定→顯示診斷→重新啟動追蹤。</string>
+    <string name="tracking_recovery_disconnected">智慧眼鏡斷開連接</string>
+    <string name="tracking_recovery_connect">檢查 USB 連接並重新連接智慧眼鏡。\n如果手機上出現 USB 存取提示，請接受該提示。</string>
+    <string name="tracking_recovery_usb_help">連結後，在光線充足的房間中慢慢環顧四周以恢復跟踪。</string>
+    <string name="tracking_recovery_recenter">需要重設中心</string>
+    <string name="tracking_recovery_recenter_steps">追蹤已恢復到新位置。\n看向前方，然後在手機上點選「重置追蹤中心」。</string>
+    <string name="tracking_recovery_recenter_help">您也可以在智慧眼鏡 → 追蹤 → 開啟設定中找到重置追蹤中心。您儲存的相機校準資訊將會保留。</string>
+    <string name="tracking_recovery_stabilizing">等一下</string>
+    <string name="tracking_recovery_hold">重置追蹤中心正在進行中。\n請在追蹤穩定期間保持智慧眼鏡靜止。</string>
+    <string name="tracking_recovery_automatic">當頭部追蹤準備就緒時，此畫面自動關閉。</string>
+    <string name="glasses_steady_hand_aim">穩定雙手瞄準</string>
+    <string name="glasses_steady_hand_aim_hint">從肩膀到手掌瞄準。關閉以進行手腕控制旋轉。</string>
+    <string name="spatial_title">空間設定</string>
+    <string name="spatial_wait_tracking">等待追蹤…</string>
+    <string name="spatial_cameras_description">左、右跟蹤攝影機</string>
+    <string name="spatial_camera_sync">相機同步</string>
+    <string name="spatial_ready">準備好了</string>
+    <string name="spatial_sync_hint">等待相機和頭部追蹤對齊。保持智慧眼鏡連接。</string>
+    <string name="spatial_prepare">1.準備校準目標</string>
+    <string name="spatial_print_actual">以實際尺寸列印</string>
+    <string name="spatial_print_hint">每個正方形的尺寸必須為 30 毫米（1.181 吋）。將板材平坦地安裝在光線充足區域的剛性表面上。</string>
+    <string name="spatial_print">列印校準板</string>
+    <string name="spatial_capture_group">2.捕捉不同的觀點</string>
+    <string name="spatial_board_stationary">保持校準目標靜止</string>
+    <string name="spatial_capture_hint">將智慧眼鏡移近、移遠和側向移動。向左/向右轉動它們，向上/向下傾斜它們，並向側面傾斜它們。將校準目標保留在兩台相機中，並在每次捕獲之前短暫暫停。</string>
+    <string name="spatial_start">開始新的校準</string>
+    <string name="spatial_wait_sync">等待相機同步。</string>
+    <string name="spatial_start_hint">開始新的校準以收集視圖。</string>
+    <string name="spatial_views_hint">保持校準目標在兩個預覽中可見。從不同角度捕捉至少 24 個清晰視野。</string>
+    <string name="spatial_capturing">捕捉…</string>
+    <string name="spatial_capture">捕捉校準目標視圖</string>
+    <string name="spatial_alignment">計算相機對準</string>
+    <string name="spatial_calculating">正在計算中…</string>
+    <string name="spatial_calculate">計算校準</string>
+    <string name="spatial_distance_group">3.檢查距離</string>
+    <string name="spatial_distance">測量距離</string>
+    <string name="spatial_distance_hint">從 12 英吋或 30 公分開始，以便列印的標記更容易檢測到。選擇您將使用的精確測量值。</string>
+    <string name="spatial_camera_board_distance">左相機至標定目標中心</string>
+    <string name="spatial_checking_distance">檢查距離…</string>
+    <string name="spatial_validate">驗證距離</string>
+    <string name="spatial_diagnostics">診斷</string>
+    <string name="spatial_show_diagnostics">顯示診斷</string>
+    <string name="spatial_diagnostics_hint">相機定時與追蹤恢復工具。</string>
+    <string name="spatial_camera_timing">相機計時</string>
+    <string name="spatial_hand_input">來自手部追蹤的輸入</string>
+    <string name="spatial_wait_timing">等待相機計時。</string>
+    <string name="spatial_frames">相機影像</string>
+    <string name="spatial_gpu">GPU檢測手部</string>
+    <string name="spatial_gpu_hint">CPU 是預設值。 GPU 是實驗性的，可能會導致 SteamVR 重新啟動。當追蹤重新啟動時，此選擇會重置。</string>
+    <string name="spatial_lite">手部模型的精簡檢測</string>
+    <string name="spatial_lite_hint">使用 Lite 手掌偵測器和手上的 Lite 重點。檢查瞄準、捏合和抓取的準確性。追蹤重新啟動時重置。</string>
+    <string name="spatial_adaptive">自動輸入頻率以追蹤手部</string>
+    <string name="spatial_adaptive_hint">調整輸入處理速度。追蹤重新啟動時重置。</string>
+    <string name="spatial_half_rate">限製手部追蹤的輸入頻率</string>
+    <string name="spatial_half_rate_hint">使用一半的相機影像。關閉以比較最大頻率。追蹤重新啟動時重置。</string>
+    <string name="spatial_diagnostic_capture">診斷捕獲</string>
+    <string name="spatial_diagnostic_capture_hint">在本地保存一對立體影像。僅在請求時才儲存影像。</string>
+    <string name="spatial_save_frame">儲存相機影像</string>
+    <string name="spatial_restart_tracking">重新開始追蹤</string>
+    <string name="spatial_restart_hint">如果追蹤在光線充足的區域中無法恢復，請使用。重新啟動需要新的追蹤來源。</string>
+    <string name="spatial_restart">重啟</string>
+    <string name="spatial_restart_title">重新開始追蹤？</string>
+    <string name="spatial_restart_confirm">未儲存的校準視圖將會遺失。之後請保持智慧眼鏡靜止，並在追蹤恢復後重置追蹤中心。</string>
+    <string name="spatial_views_count">%1$d / 已捕獲 24 次觀看</string>
+    <string name="spatial_capture_paused">擷取已暫停：%1$s</string>
+    <string name="spatial_measure_hint">測量%1$s。在兩個預覽中顯示完整的校準目標，然後保持不動。</string>
+    <string name="spatial_timing_values">%1$.1f Hz • 影像年齡 %2$.1f ms • 處理 %3$.1f ms</string>
+    <string name="spatial_input_values">輸入限制%1$.1f Hz • 攝影機影像的%2$.0f%%。頭部追蹤繼續以其最大頻率進行。</string>
+    <string name="spatial_frame_counts">%1$d 已處理 • %2$d 已丟棄 • %3$d 因輸入限製而被跳過</string>
+    <string name="spatial_print_title">DroidDeck - Luma Ultra 校準</string>
+    <string name="spatial_print_scale" formatted="false">以 100%/實際尺寸列印。每個正方形：30 毫米（1.181 吋）。</string>
+    <string name="spatial_print_stationary">保持校準目標平坦且靜止；在拍攝之間移動智慧眼鏡。</string>
+    <string name="spatial_print_check">刻度檢查：刻度之間 100 毫米（3.937 吋）</string>
+    <string name="spatial_distance_12in">12 吋（30.48 公分）</string>
+    <string name="spatial_distance_30cm">30 公分（11.81 吋）</string>
+    <string name="spatial_distance_20in">20 吋（50.8 公分）</string>
+    <string name="spatial_distance_50cm">50 公分（19.69 吋）</string>
+    <string name="spatial_disabled">已停用</string>
+    <string name="spatial_wait_stable">等待穩定跟踪</string>
+    <string name="spatial_disconnected">已斷開連接</string>
+    <string name="spatial_hands_off">徒手操作的控制器已關閉</string>
+    <string name="spatial_tracking_off">位置追蹤已關閉或智慧眼鏡已斷開連接</string>
+    <string name="spatial_recenter_pending">已要求重置追蹤中心 — 請在追蹤穩定期間保持靜止。</string>
+    <string name="spatial_tracking_lost">追蹤失去 — 面對光線充足且細節可見的區域</string>
+    <string name="spatial_origin_changed">追蹤原點已更改 — 點擊“重置追蹤中心”，然後保持靜止。</string>
+    <string name="spatial_active">6DoF 主動</string>
+    <string name="spatial_connect_hint">連接 Luma Ultra 並啟用位置追蹤。</string>
+    <string name="spatial_validation_session">已驗證此連接的校準。</string>
+    <string name="spatial_validation_saved">校準已驗證並儲存。</string>
+    <string name="spatial_wait_cameras">等待立體攝影機</string>
+    <string name="spatial_wait_hands">等待手部追蹤</string>
+    <string name="spatial_collect_instructions">保持 5 × 7 校準目標靜止。移動和旋轉智慧眼鏡時可捕捉 24 個以上視圖。</string>
+    <string name="spatial_capture_pending">等待下一個攝影機影像。保持智慧眼鏡不動。</string>
+    <string name="spatial_validation_pending">檢查下一個攝影機影像。保持完整校準目標可見並保持靜止。</string>
+    <string name="spatial_start_first">先開始校準</string>
+    <string name="spatial_no_camera_frame">沒有新的相機影像到達。檢查智慧眼鏡連接和相機預覽，然後重試。</string>
+    <string name="spatial_clock_reset">相機時鐘重置</string>
+    <string name="spatial_frame_changed">追蹤座標系已更改。您的視圖已儲存以供重新計算。重置追蹤中心，然後開始新的設定以捕獲更多視圖。</string>
+    <string name="spatial_device_loaded">設備校準已載入</string>
+    <string name="spatial_base_loaded">Luma Ultra 基本校準已載入</string>
+    <string name="spatial_calibration_needed">需要校準</string>
+    <string name="spatial_tap_start">點選先開始新的校準。</string>
+    <string name="spatial_capture_recenter_pending">重置追蹤中心正在等待穩定的追蹤。請保持靜止片刻。</string>
+    <string name="spatial_capture_recenter">追蹤已更改。點擊“重置追蹤中心”一次，然後在捕獲之前保持靜止。</string>
+    <string name="spatial_capture_unsynchronized">擷取被拒絕：頭部追蹤未同步，或在擷取過程中發生了變化。保持不動後重試。</string>
+    <string name="spatial_align_first">在檢查距離之前計算相機對準。</string>
+    <string name="spatial_processing_failed">相機處理失敗</string>
+    <string name="spatial_hand_head_changed">偵測手部期間頭部追蹤發生變化</string>
+    <string name="spatial_hand_wait_sync">等待相機和雲台同步</string>
+    <string name="spatial_no_wrists">未偵測到手腕。將 Joy-Con 控制器手把放在智慧眼鏡前面</string>
+    <string name="spatial_no_hands">未偵測到手。在智慧眼鏡前展示張開的手掌</string>
+    <string name="spatial_one_camera_wrists">僅在一台攝影機中可以看到手腕；將控制器句柄保留在共享視圖中</string>
+    <string name="spatial_one_camera_hands">僅在一台攝影機中可以看到手；將雙手掌保持在共享視圖中</string>
+    <string name="spatial_ambiguous_hands">兩個攝影機都能看到手，但左/右匹配不明確</string>
+    <string name="spatial_inconsistent_depth">偵測到手，但立體深度不一致</string>
+    <string name="spatial_rejected_wrist">立體或運動檢查拒絕手腕位置</string>
+    <string name="spatial_inconsistent_palm">偵測到立體點，但手掌幾何形狀不一致</string>
+    <string name="spatial_hands_need_calibration">完成校準和距離檢查以啟用指針</string>
+    <string name="spatial_hands_wait_stable">正在等待穩定的頭部追蹤；如果需要，請重設追蹤中心。</string>
+    <string name="spatial_old_frame">相機觀察太舊；等待一雙新的</string>
+    <string name="spatial_fit_ready">適合 %1$.2f 像素。測量您選擇的從左側攝影機到校準目標中心的距離，然後進行驗證。</string>
+    <string name="spatial_opencv_error">OpenCV 不可用：%1$s</string>
+    <string name="spatial_restored">%1$d 已恢復已儲存的視圖。計算校準以重試，或開始新的一組以捕獲更多。</string>
+    <string name="spatial_captured">已捕獲 %1$d / 24 次觀看。保持校準目標固定；移動智慧眼鏡以查看下一個視圖。</string>
+    <string name="spatial_capture_corners">捕捉被拒絕：%1$d / 12 個必需的角落在兩個攝影機中均可見。顯示更多校準目標，保持不動，然後重試。</string>
+    <string name="spatial_validation_error">距離檢查無法完成：%1$s。再試一次。</string>
+    <string name="spatial_inference_error">偵測到手部不可用：%1$s。更換CPU/GPU或切換徒手操作的控制器重試。</string>
+    <string name="spatial_hand_timeout">偵測手部超過%1$d毫秒；觀察被丟棄</string>
+    <string name="spatial_wrists_tracked">%1$d / 2 以立體聲測量的 Joy-Con 手腕位置</string>
+    <string name="spatial_palms_tracked">已追蹤手掌：%1$d / 2；可用捏合手勢：%2$d；可用抓取手勢：%3$d</string>
+    <string name="spatial_capture_saved">已將診斷擷取儲存到 %1$s</string>
+    <string name="spatial_hand_error">手部追蹤已停止：%1$s</string>
+    <string name="spatial_stereo_loaded">立體聲%1$d×%2$d；%3$s</string>
+    <string name="spatial_alignment_error">頭部追蹤和校準目標不一致 %1$s（限制 5 公分/2 英吋）。保持校準目標固定並等待穩定跟踪，然後再開始新的一組。輕輕轉動、傾斜智慧眼鏡；每次捕獲前暫停。</string>
+    <string name="spatial_need_views">捕捉固定校準目標的至少24個不同視圖。</string>
+    <string name="spatial_need_rotation">左右轉動智慧眼鏡，上下傾斜；不旋轉的移動無法校準相機對準。</string>
+    <string name="spatial_bad_baseline">難以置信的相機基線</string>
+    <string name="spatial_need_orientations">透過更多不同的方向移動您的頭部。</string>
+    <string name="spatial_bad_rotation">相機到頭旋轉無效</string>
+    <string name="spatial_bad_alignment">相機與頭部的對齊不一致。</string>
+    <string name="spatial_calibration_error">校準無法完成。 %1$s 您所擷取的視圖已儲存。</string>
+    <string name="spatial_reprojection_error">保留重投影錯誤 %1$.2f 像素超過 2 像素。重新校準。</string>
+    <string name="spatial_distance_corners">%1$d / 兩個相機都偵測到 24 個棋盤角。保持完整校準目標可見並保持靜止。如果已經可見，請選擇 12 英寸或 30 厘米，並在重試之前測量更近的距離。</string>
+    <string name="spatial_distance_depth">校準目標是可見的，但無法可靠地測量其深度。保持智慧眼鏡不動，並保持校準目標平坦且光線充足，然後重試。</string>
+    <string name="spatial_distance_invalid">相機測量無效。保持不動，然後再試一次。</string>
+    <string name="spatial_distance_passed">距離檢查已通過。</string>
+    <string name="spatial_distance_retry">重新檢查左攝影機到校準目標中心的距離，然後重試。</string>
+    <string name="spatial_distance_result">測量相機%1$s；所選的距離%2$s。 %3$s</string>
+    <string name="spatial_wait_previews">開始校準之前等待兩個攝影機預覽。</string>
+    <string name="spatial_saved_views_hint">可以重新計算已儲存的視圖。開始新的校準以在當前追蹤座標系中捕獲。</string>
+    <string name="spatial_model_checksum_error">手模型校驗與不匹配</string>
+    <string name="spatial_opencv_load_error">OpenCV 無法載入</string>
+    <string name="glasses_6dof">6DoF 虛擬螢幕</string>
+    <string name="tracking_recovery_look">在光線充足的房間內緩慢環顧四周。\n不要遮擋追蹤攝影機，並面向家具等有明顯細節的物體。</string>
+    <string name="spatial_print_job">DroidDeck ChArUco 30 mm</string>
 </resources>

@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="steamvr_recovery_title">SteamVR 그래픽 중지됨</string>
+    <string name="steamvr_recovery_countdown">그래픽을 초기화하고 SteamVR을 다시 열기 위해 %1$d초 후 DroidDeck이 다시 시작됩니다. 실행 중인 게임은 종료되며, 저장하지 않은 진행 상황은 복구할 수 없습니다.</string>
+    <string name="steamvr_recovery_repeated">최근 다시 시작한 후 그래픽 오류가 다시 발생했습니다. 반복을 막기 위해 자동 복구를 일시 중지했습니다. 다시 시작하면 게임이 종료되며, 저장하지 않은 진행 상황은 복구할 수 없습니다.</string>
+    <string name="steamvr_recovery_restart">지금 다시 시작</string>
+    <string name="steamvr_recovery_cancel">열어 두기</string>
+    <string name="steamvr_recovery_restarting">그래픽을 초기화하고 SteamVR을 다시 여는 중…</string>
+    <string name="steamvr_recovery_failed">DroidDeck을 자동으로 다시 시작하지 못했습니다. 앱을 완전히 종료한 후 다시 여세요.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>첫 실행 시 Steam을 다운로드합니다. 몇 분 정도 걸릴 수 있습니다.</item>
@@ -15,8 +22,10 @@
     <string name="session_channel">세션</string>
     <string name="session_channel_description">Steam 또는 데스크톱 세션이 실행 중일 때 표시</string>
     <string name="session_notification">Steam이 실행 중입니다</string>
+    <string name="session_notification_downloads">Steam 다운로드 진행 중</string>
     <string name="session_notification_paused">세션이 일시 중지됨 - 준비되면 \"재개\"를 탭하세요</string>
     <string name="resume_session">재개</string>
+    <string name="suspend_now">지금 일시 중지</string>
     <string name="stop_session">세션 종료</string>
     <string name="frame_gen_title">프레임 생성</string>
     <string name="frame_gen_hint">사용할 프레임 생성 모드를 선택하세요</string>
@@ -182,6 +191,8 @@
     <string name="add_app_flatpak_id">앱 ID</string>
     <string name="add_app_flatpak_placeholder">org.ppsspp.PPSSPP</string>
     <string name="add_app_flatpak_invalid">유효한 Flathub 앱 ID가 아닙니다</string>
+    <string name="add_app_flatpak_bundle_hint">또는 Flathub에 없는 앱의 .flatpak 파일.</string>
+    <string name="add_app_pick_flatpak">.flatpak 파일 선택</string>
     <string name="add_app_source">소스</string>
     <string name="add_app_appearance">데스크톱에 표시</string>
     <string name="add_app_preview_name">새 앱</string>
@@ -251,6 +262,10 @@
     <string name="mode_osc">화면 컨트롤</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">자동 모드에서는 컨트롤러가 연결되지 않은 경우 화면 컨트롤을 표시합니다.</string>
+    <string name="osc_steam_touch">Steam 터치(베타)</string>
+    <string name="osc_style_next_session">Steam 터치 컨트롤은 다음 Steam 세션부터 적용됩니다</string>
+    <string name="osc_steam_layout">Steam 터치 레이아웃</string>
+    <string name="osc_steam_layout_hint">이 게임의 터치 컨트롤을 옮기거나 크기를 바꾸거나 숨깁니다. Steam에 저장됩니다</string>
     <string name="mode_controller">컨트롤러</string>
     <string name="mode_controller_hint">Steam이 컨트롤러를 인식하는 방식입니다. 다음 세션에 적용됩니다.</string>
     <string name="mode_controller_deck">Steam Deck 컨트롤러</string>
@@ -268,6 +283,11 @@
     <string name="mode_suspend_manual">수동</string>
     <string name="mode_suspend_native">네이티브</string>
     <string name="mode_suspend_steam_note">자동: 일시 중지되고 다시 표시되면 재개됩니다. 네이티브: 먼저 Steam을 절전에 대비시킵니다. 수동: \"재개\"를 탭할 때까지 기다립니다. 안 함: 계속 실행됩니다.</string>
+    <string name="mode_background_downloads">다운로드 계속 진행</string>
+    <string name="mode_background_downloads_hint">Steam이 다운로드 중일 때는 백그라운드 일시 중지를 미룹니다.</string>
+    <string name="mode_zram">zRAM 압축</string>
+    <string name="mode_zram_hint">게임을 실행하는 동안 Steam 클라이언트의 메모리가 기기의 zram으로 압축되어 게임에 더 많은 메모리가 남습니다. 다음에 Steam을 시작할 때 적용됩니다.</string>
+    <string name="mode_zram_unsupported">사용할 수 없음: 이 기기에 zram 또는 swap이 없거나 커널이 5.4 미만입니다.</string>
     <string name="mode_suspend_note">자동: 백그라운드에서 일시 중지되고 다시 표시되면 재개됩니다. 수동: \"재개\"를 탭할 때까지 기다립니다. 안 함: 계속 실행됩니다.</string>
     <string name="mode_startup">시작</string>
     <string name="mode_steam_startup">DroidDeck을 열 때 Steam 시작</string>
@@ -296,8 +316,8 @@
     <string name="mode_sgdb_key">SteamGridDB API 키</string>
     <string name="mode_sgdb_key_yours">내 키</string>
     <string name="mode_sgdb_edit">편집…</string>
-    <string name="mode_added_art_hint">폴더 이름을 기준으로 누락된 이미지를 채웁니다. 게임 폴더의 cover.jpg, hero.jpg, logo.png 또는 icon.png가 우선적으로 사용됩니다.</string>
-    <string name="summary_remove_game">Remove %1$s</string>
+    <string name="mode_added_art_hint">누락된 이미지를 Steam, 그다음 SteamGridDB에서 채웁니다. 게임 폴더의 cover.jpg, hero.jpg, logo.png 또는 icon.png가 우선적으로 사용됩니다.</string>
+    <string name="summary_remove_game">%1$s 제거</string>
     <string name="mode_added_remove_confirm">제거?</string>
     <string name="games_add">게임 추가</string>
     <string name="games_add_title">게임 추가:</string>
@@ -331,16 +351,20 @@
     <string name="wincomp_found_shipped">게임에 %1$s이(가) 있습니다 (대개 그대로 작동)</string>
     <string name="wincomp_already_here">이 게임에 이미 있음</string>
     <string name="wincomp_no_recommendation">게임 폴더에서 필요한 구성 요소를 가리키는 것이 없습니다.</string>
+    <string name="wincomp_active">이 게임에 설치됨 (%1$d)</string>
     <string name="wincomp_all">모든 구성 요소 (%1$d)</string>
     <string name="wincomp_installers">Windows 설치 프로그램 필요 (%1$d)</string>
-    <string name="wincomp_installers_note">이 항목들은 프리픽스 안에서 실제 설치 프로그램을 실행합니다(.NET, PhysX, XNA, 전체 Visual C++ 설치 프로그램 등). DroidDeck은 아직 지원하지 않으며 다음에 지원할 예정입니다.</string>
+    <string name="wincomp_installers_note">이 항목들은 내부에 풀어낼 패키지가 없는 자체 설치 프로그램이며, 설치하는 내용은 아직 기록되지 않았습니다. 대부분 Proton에 포함된 Mono가 이미 대신하는 오래된 런타임이며, 기록은 만들어지는 대로 추가됩니다.</string>
     <string name="wincomp_show">표시</string>
     <string name="wincomp_hide">숨기기</string>
-    <string name="wincomp_needs_installer">Windows 설치 프로그램 필요 (예정)</string>
+    <string name="wincomp_needs_installer">자체 설치 프로그램을 실행합니다 (아직 기록 없음)</string>
     <string name="wincomp_unsupported">아직 여기서 지원되지 않음</string>
     <string name="wincomp_loading">구성 요소를 불러오는 중…</string>
     <string name="wincomp_failed">설치할 수 없습니다: %1$s</string>
     <string name="wincomp_downloaded">다운로드됨</string>
+    <string name="wincomp_downloading">%1$s 다운로드 중</string>
+    <string name="wincomp_installing">설치 중: %1$s</string>
+    <string name="wincomp_reverting">끄는 중…</string>
     <string name="wincomp_download_size">%1$s 다운로드</string>
     <string name="wincomp_next_launch">다음에 게임을 시작할 때 적용됩니다.</string>
     <string name="mode_stretch169">16:9 게임 늘리기</string>
@@ -397,6 +421,51 @@
     <string name="comp_check_nightlies">Nightlies의 새 패키지 확인</string>
     <string name="comp_proton">Proton</string>
     <string name="comp_proton_note">여기에서 선택한 Proton은 Steam에서 Proton을 따로 선택하지 않은 모든 게임을 실행하며, Steam에서 변경한 내용도 여기에 표시됩니다. Steam 업데이트 시 Valve의 Proton이 교체되지만 각 빌드의 원본 파일은 유지됩니다.</string>
+    <string name="comp_scope">구성</string>
+    <string name="comp_profile_configure">프로필 구성</string>
+    <string name="comp_profile">프로필</string>
+    <string name="comp_scope_general">기본 프로필</string>
+    <string name="comp_scope_general_detail">재정의가 없는 게임에서 자동으로 사용됩니다.</string>
+    <string name="comp_profile_game_detail">%1$s 실행 시 자동으로 사용되는 저장된 설정입니다.</string>
+    <string name="comp_game_hint">이 게임에 필요한 설정만 선택하세요. 나머지는 계속 기본 프로필을 사용합니다.</string>
+    <string name="comp_game_fex">FEX 프리셋</string>
+    <string name="comp_game_fex_inherited">기본 프로필의 프리셋 사용 중.</string>
+    <string name="comp_game_fex_override">이 게임에 사용자 정의 프리셋이 저장되었습니다.</string>
+    <string name="comp_game_fex_custom">사용자 정의 FEX 변수</string>
+    <string name="comp_game_use_general">기본값 사용</string>
+    <string name="comp_game_compatibility">게임 호환성</string>
+    <string name="comp_game_environment_hint">이 게임의 Proton, DXVK, VKD3D 및 동기화 환경 옵션입니다.</string>
+    <string name="comp_game_proton_inherited">기본 프로필의 Proton 사용 중.</string>
+    <string name="comp_game_proton_override">Steam 호환성 매핑을 통해 이 게임에 사용자 정의 Proton이 저장되었습니다.</string>
+    <string name="comp_no_proton_short">Proton 없음</string>
+    <string name="comp_game_dxvk">DXVK</string>
+    <string name="comp_game_vkd3d">VKD3D-Proton</string>
+    <string name="comp_game_component_runtime">이 게임에서 다른 패키지를 선택하지 않으면 %1$s의 기본 프로필 패키지를 사용합니다.</string>
+    <string name="comp_game_component_general">기본 프로필의 구성 요소 패키지를 사용합니다.</string>
+    <string name="comp_game_component_override">이 게임에만 %1$s을(를) 사용합니다.</string>
+    <string name="comp_game_runtime_options">런타임 옵션</string>
+    <string name="comp_game_environment_other_hint">기타 게임별 Proton, DXVK, VKD3D-Proton 및 동기화 환경 옵션입니다.</string>
+    <string name="comp_game_saved_next">%1$s의 프로필이 저장되었습니다. 다음 게임 실행 시 적용됩니다.</string>
+    <string name="game_no_steam_title">Steam 없이 시작</string>
+    <string name="game_no_steam_detail">Steam 클라이언트 없이 Proton/FEX에서 엽니다. Steam 기능은 꺼집니다.</string>
+    <string name="game_no_steam_on">켜짐</string>
+    <string name="game_steam_with">Steam과 함께 시작</string>
+    <string name="game_steam_without">Steam 없이 시작</string>
+    <string name="game_settings_card">설정</string>
+    <string name="game_settings_menu_title">%1$s 설정</string>
+    <string name="game_settings_default">기본값</string>
+    <string name="game_settings_default_detail">이 게임에서 변경한 모든 항목을 앱 설정으로 되돌립니다.</string>
+    <string name="game_sync_custom">사용자 지정 동기화 변수</string>
+    <string name="comp_game_proton_live">%1$s의 Proton 선택이 저장되었으며 지금 Steam에서 사용할 수 있습니다.</string>
+    <string name="comp_game_proton_next">%1$s의 Proton 선택이 저장되었습니다. 게임을 실행하기 전에 Steam을 다시 시작하세요.</string>
+    <string name="comp_game_proton_not_runnable">%1$s은(는) 이 기기에서 선택한 Proton을 사용할 수 없습니다.</string>
+    <string name="comp_game_load_failed">%1$s의 프로필을 불러올 수 없습니다: %2$s</string>
+    <string name="comp_game_save_failed">게임 프로필을 저장할 수 없습니다: %1$s</string>
+    <string name="comp_game_reset">게임 프로필 초기화</string>
+    <string name="comp_game_reset_title">%1$s의 프로필을 초기화하시겠습니까?</string>
+    <string name="comp_game_reset_body">이 게임의 Proton, FEX, 구성 요소 패키지, 환경, 텍스처 필터링 및 Windows 구성 요소 재정의를 제거하시겠습니까? 이후 기본 프로필을 사용합니다.</string>
+    <string name="comp_game_reset_done">이제 %1$s은(는) 기본 프로필을 사용합니다.</string>
+    <string name="comp_game_reset_failed">게임 프로필을 완전히 초기화할 수 없습니다: %1$s</string>
     <string name="comp_default_live">이제 Steam에서 Proton을 따로 선택하지 않은 모든 게임을 %1$s(으)로 실행합니다.</string>
     <string name="comp_default_next">다음에 Steam을 시작할 때부터 Proton을 따로 선택하지 않은 모든 게임을 %1$s(으)로 실행합니다.</string>
     <string name="comp_default_not_runnable">%1$s(으)로는 여기에서 게임을 실행할 수 없으므로 기본값으로 설정할 수 없습니다.</string>
@@ -521,6 +590,10 @@
     <string name="drawer_cas">샤프닝(CAS)</string>
     <string name="drawer_cas_level">샤프닝 강도</string>
     <string name="drawer_fake_hdr">가상 HDR</string>
+    <string name="vr_title">VR</string>
+    <string name="steamvr_title">SteamVR</string>
+    <string name="steamvr_enter">SteamVR 시작</string>
+    <string name="steamvr_checking">SteamVR 확인 중…</string>
     <string name="drawer_deband">디밴딩</string>
     <string name="drawer_deband_strength">디밴딩 강도</string>
     <string name="drawer_brightness">밝기</string>
@@ -538,6 +611,11 @@
     <string name="drawer_texture_sharpness_note">음수 밉 바이어스: 텍스처가 선명해지지만 약간 깜박일 수 있습니다. 자동으로 설정하면 세션 화면이 확대되는 정도에 맞춥니다.</string>
     <string name="drawer_touch_auto">자동(%1$s)</string>
     <string name="drawer_keyboard">키보드</string>
+    <string name="drawer_latency">지연</string>
+    <string name="drawer_low_latency_controller">저지연 컨트롤러</string>
+    <string name="drawer_low_latency_controller_hint">컨트롤러가 250 Hz 대신 1000 Hz로 보고됩니다. CPU 사용량이 약간 늘어납니다.</string>
+    <string name="drawer_low_latency_touch">저지연 터치</string>
+    <string name="drawer_low_latency_touch_hint">터치가 프레임 병합을 건너뛰고 Steam 터치가 1000 Hz로 보고됩니다. CPU 사용량이 약간 늘어납니다.</string>
     <string name="drawer_pc_keyboard">PC 키보드</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">보조 화면</string>
@@ -560,11 +638,23 @@
     <string name="drawer_stop_title">세션을 중지하시겠습니까?</string>
     <string name="drawer_running_now">현재 실행 중</string>
     <string name="drawer_no_game">현재 Proton으로 실행 중인 게임이 없습니다</string>
+    <string name="drawer_selected_profile">게임 프로필</string>
+    <string name="drawer_selected_profile_none">프로필 세부 정보를 아직 사용할 수 없습니다.</string>
+    <string name="drawer_profile_refresh_failed_initial">게임 프로필을 불러올 수 없습니다. 자동으로 다시 시도합니다.</string>
+    <string name="drawer_profile_refresh_failed_stale">게임 프로필을 새로 고칠 수 없습니다. 마지막으로 가져온 데이터를 표시하며 자동으로 다시 시도합니다.</string>
+    <string name="drawer_profile_inspect_hint">다음 실행 시 사용되는 저장된 설정을 보고 편집합니다.</string>
+    <string name="drawer_profile_default">기본 프로필 사용 중</string>
+    <string name="drawer_profile_custom">사용자 정의 프로필</string>
+    <string name="drawer_component_inherited">기본 프로필의 %1$s 사용 중.</string>
+    <string name="drawer_game_components_note">변경 사항은 %1$s의 프로필에 저장되며 다음 게임 실행 시 적용됩니다.</string>
+    <plurals name="drawer_profile_environment_overrides">
+        <item quantity="other">게임 재정의 %1$d개</item>
+    </plurals>
     <string name="drawer_no_proton">Proton이 설치되지 않았습니다.</string>
     <string name="drawer_game_running">게임 실행 중</string>
     <string name="drawer_reapplied">%1$s 시작 시 다시 적용됨</string>
     <string name="drawer_original">원본</string>
-    <string name="drawer_components_note">\"구성 요소\" 페이지에서 다운로드, 가져오기 및 삭제하세요.</string>
+    <string name="drawer_components_note">구성 요소 페이지에서 가져오기 및 삭제하세요.</string>
     <string name="setup_check_done">완료</string>
     <string name="setup_check_warn">처리 필요</string>
     <string name="setup_check_busy">처리 중</string>
@@ -616,6 +706,14 @@
     <string name="setup_saved_logs">저장된 세션 로그</string>
     <string name="setup_saved_logs_hint">최신 %1$d개 유지</string>
     <string name="setup_clear_logs">로그 지우기</string>
+    <string name="setup_reset_settings">모든 설정 초기화</string>
+    <string name="setup_reset_settings_hint">모든 설정을 기본값으로 되돌립니다</string>
+    <string name="setup_reset_settings_button">초기화</string>
+    <string name="setup_reset_settings_title">모든 설정을 초기화할까요?</string>
+    <string name="setup_reset_settings_body">화면, 성능, 컨트롤러, 테마, 언어 및 런처 설정이 기본값으로 돌아갑니다. 게임, Steam 로그인, 스토어 계정, 다운로드한 드라이버 및 저장소 폴더는 유지됩니다.</string>
+    <string name="setup_reset_settings_profiles">게임 프로필도 초기화 (각 게임의 Proton, FEX, 구성 요소 및 환경, 기본 프로필의 환경)</string>
+    <string name="setup_reset_settings_session_running">설정을 초기화하기 전에 세션을 중지하세요.</string>
+    <string name="setup_reset_settings_partial">설정이 초기화되었지만 일부는 초기화하지 못했습니다. 자세한 내용은 로그를 확인하세요.</string>
     <string name="setup_offline">오프라인 모드</string>
     <string name="setup_sign_in_first">먼저 Steam에 로그인하세요</string>
     <string name="setup_launcher">런처</string>
@@ -631,6 +729,10 @@
     <string name="setup_home">홈 화면으로 사용</string>
     <string name="setup_home_on">DroidDeck을 홈 앱으로 사용할 수 있습니다</string>
     <string name="setup_home_off">DroidDeck은 홈 앱으로 제공되지 않습니다</string>
+    <string name="setup_orientation">화면 방향</string>
+    <string name="setup_orientation_auto">자동 가로 모드</string>
+    <string name="setup_orientation_landscape">가로 모드</string>
+    <string name="setup_orientation_reverse">역방향 가로 모드</string>
     <string name="setup_fullscreen">전체 화면</string>
     <string name="setup_fullscreen_on">Android 상태 표시줄 및 탐색 표시줄 숨기기</string>
     <string name="setup_fullscreen_off">Android 상태 표시줄 및 탐색 표시줄 표시</string>
@@ -819,8 +921,8 @@
     <string name="wadb_turn_off">제한 끄기</string>
     <string name="wadb_other_ways">기타 변경 방법</string>
     <string name="wadb_dev_try_first">1 · 개발자 옵션(먼저 시도)</string>
-    <string name="wadb_restrict_on">\"하위 프로세스 제한\"을 켭니다.</string>
-    <string name="wadb_restrict_off">\"하위 프로세스 제한\"을 끕니다.</string>
+    <string name="wadb_restrict_on">\"하위 프로세스 제한 사용 중지\"를 끕니다.</string>
+    <string name="wadb_restrict_off">\"하위 프로세스 제한 사용 중지\"를 켭니다.</string>
     <string name="wadb_computer_last">3 · PC ADB(최후의 수단)</string>
     <string name="wadb_only_if">무선 디버깅을 사용할 수 없을 때만 사용하세요.</string>
     <string name="wadb_computer_group">3 · PC ADB(최후의 수단)</string>
@@ -841,6 +943,8 @@
     <string name="ctrl_keyboard_button">키보드 버튼</string>
     <string name="ctrl_select_steam">Select를 눌러 Steam 메뉴 열기</string>
     <string name="ctrl_select_steam_hint">View/Select 대신.</string>
+    <string name="ctrl_joycon_vr">Joy-Con을 VR 컨트롤러로 사용</string>
+    <string name="ctrl_joycon_vr_hint">SteamVR이 실행되는 동안 각 Joy-Con이 손이 됩니다. 앞을 향하게 한 채 HOME 또는 캡처 버튼을 길게 누르면 다시 가운데로 맞춥니다.</string>
     <string name="setup_animations">애니메이션</string>
     <string name="ctrl_adaptive_hint">스틱이 터치한 위치에 나타나며 손을 떼면 숨겨집니다</string>
     <string name="ctrl_layout">레이아웃</string>
@@ -888,10 +992,17 @@
     <string name="content_page_gone">해당 페이지가 더 이상 존재하지 않습니다. 왼쪽에서 항목을 선택하세요.</string>
     <string name="content_open_desktop">데스크톱 열기</string>
     <string name="content_install_open_desktop">설치 및 데스크톱 열기</string>
+    <string name="desktop_remove_title">데스크톱 제거</string>
+    <string name="desktop_remove_text">데스크톱과 번들 앱을 제거합니다. 게임, 추가한 앱, 설정 및 공유 라이브러리는 유지됩니다.</string>
+    <string name="desktop_removing">데스크톱 제거 중</string>
+    <string name="desktop_removed">데스크톱 제거됨</string>
+    <string name="desktop_cleaning_legacy">이전 LXQt 파일 제거 중</string>
+    <string name="desktop_removal_unknown">이 데스크톱 버전을 제거하기 전에 DroidDeck을 업데이트하세요.</string>
     <string name="content_linux_desktop">Linux 데스크톱</string>
     <string name="content_linux_desktop_hint">KDE Plasma, Firefox 및 에뮬레이터</string>
     <string name="games_empty">Steam에서 설치한 게임은 세션 종료 후 여기에 표시됩니다.</string>
     <string name="games_play_steam">Steam 실행</string>
+    <string name="games_play_steamvr">SteamVR 실행</string>
     <string name="games_launch_settings">실행 설정</string>
     <string name="games_launch">실행</string>
     <string name="games_files">게임 파일</string>
@@ -916,6 +1027,8 @@
     <string name="games_last_played">마지막 실행 %1$s</string>
     <string name="games_internal">내부 저장 공간</string>
     <string name="games_added">추가된 게임</string>
+    <string name="games_custom">사용자 정의 게임</string>
+    <string name="games_store_storage">게임 저장 공간</string>
     <string name="gpu_auto_hint">이 GPU에 가장 적합한 드라이버 조합을 선택하고 최신 상태로 유지합니다</string>
     <string name="gpu_manual_hint">드라이버 조합을 직접 선택</string>
     <string name="gpu_checking">드라이버 확인 중…</string>
@@ -927,7 +1040,6 @@
     <string name="gpu_set_with_runtime">런타임 드라이버와 함께 설정: %1$s에 둘 다 포함됩니다.</string>
     <string name="gpu_runtime_hint">게임 및 데스크톱에서 사용됩니다.</string>
     <string name="gpu_runtime_default">런타임 기본값</string>
-    <string name="gpu_display_hint">화면 출력을 담당합니다. DroidDeck을 다시 시작한 후 적용됩니다.</string>
     <string name="gpu_auto_by_gpu">자동 - GPU별 선택</string>
     <string name="gpu_manage">다운로드, 가져오기 또는 삭제…</string>
     <string name="gpu_in_use_caps">사용 중</string>
@@ -957,6 +1069,12 @@
     <string name="deck_tab_left">왼쪽 터치패드</string>
     <string name="deck_tab_right">오른쪽 터치패드</string>
     <string name="deck_tab_both">양쪽</string>
+    <string name="deck_tab_gamepad">게임패드</string>
+    <string name="deck_surface_stick">스틱</string>
+    <string name="deck_surface_trackpad">터치패드</string>
+    <string name="deck_surface_switch">스틱과 터치패드 간 전환</string>
+    <string name="deck_more_controls">Deck 컨트롤 더 보기</string>
+    <string name="deck_panels">패널</string>
     <string name="deck_close">보조 화면 컨트롤 닫기</string>
     <string name="deck_open_steam_menu">Steam 메뉴 열기</string>
     <string name="deck_left_upper">왼쪽 · 위</string>
@@ -992,6 +1110,10 @@
     <string name="proton_installed">%1$s 설치됨</string>
     <string name="proton_queued">이전 요청으로 인한 대기 항목</string>
     <string name="proton_not_installed">설치되지 않음</string>
+    <string name="proton_update_available">업데이트 있음 → %1$s</string>
+    <string name="proton_remove_older">이전 %1$s 버전 제거</string>
+    <string name="proton_remove_older_body">%1$s을(를) 제거합니다. 이 버전으로 설정된 게임은 다른 Proton으로 전환해야 합니다.</string>
+    <string name="proton_remove_body">이 버전으로 설정된 게임은 다른 Proton으로 전환해야 합니다.</string>
     <string name="proton_install_now">지금 설치</string>
     <string name="proton_cancel_queued">대기 취소</string>
     <string name="pckb_android">Android 키보드</string>
@@ -1020,6 +1142,8 @@
     <string name="game_env_eyebrow">Proton 게임</string>
     <string name="pip_title">PIP (픽처 인 픽처)</string>
     <string name="pip_auto">자동으로 PIP 시작</string>
+    <string name="unfolded_controls">펼친 화면의 컨트롤</string>
+    <string name="unfolded_controls_hint">펼치면 게임이 Steam Deck 터치패드와 뒷면 그립 위에 표시됩니다. 접으면 게임이 전체 화면으로 표시됩니다.</string>
     <string name="pip_suspended">일시 중지됨</string>
     <string name="pip_not_ready">세션이 준비되면 PIP를 사용할 수 있습니다.</string>
     <string name="pip_permission">Android 설정에서 DroidDeck의 PIP 사용을 허용하세요.</string>
@@ -1045,19 +1169,12 @@
     <string name="game_file_exported">게임 파일이 %1$s에 저장되었습니다</string>
     <string name="game_frontend_files">프론트엔드 파일</string>
 
-    <!-- Launcher, session and menus -->
-
-    <!-- Launcher (MainActivity) -->
     <string name="main_wait_runtime">런타임 작업이 끝날 때까지 기다려 주세요</string>
     <string name="main_wait_proton_install">호환성 도구 설치가 끝날 때까지 기다려 주세요</string>
     <string name="main_wait_desktop_install">데스크톱 앱 설치가 끝날 때까지 기다려 주세요</string>
     <string name="main_wait_install_game">설치가 끝난 후 게임을 실행하세요</string>
     <string name="main_saves_close_session">게임이 가져온 데이터를 덮어쓰지 않도록 먼저 Steam 세션을 종료하세요</string>
-
-    <!-- Busy line while saves are imported; %1$s is the game's name -->
     <string name="main_saves_importing">%1$s(으)로 가져오는 중</string>
-
-    <!-- %1$d files, %2$s the save layout (e.g. GameHub zip), %3$s the game's name -->
     <plurals name="main_saves_imported">
         <item quantity="other">%2$s에서 %3$s(으)로 파일 %1$d개를 가져왔습니다</item>
     </plurals>
@@ -1065,19 +1182,11 @@
         <item quantity="other">%2$s에서 %3$s(으)로 파일 %1$d개를 가져왔습니다. 이전 저장 데이터는 Download/DroidDeck/Saves/backups에 백업되었습니다</item>
     </plurals>
     <string name="main_saves_pick_zip">%1$s의 저장 데이터 zip 선택</string>
-
-    <!-- Busy line while saves are exported; %1$s is the game's name -->
     <string name="main_saves_exporting">%1$s 내보내는 중</string>
-
-    <!-- %1$d files, %2$s the save layout (e.g. GameHub zip), %3$s the zip's path -->
     <plurals name="main_saves_exported">
         <item quantity="other">파일 %1$d개를 %2$s(으)로 내보냈습니다: %3$s</item>
     </plurals>
-
-    <!-- %1$s is the game's name, %2$s the save layout -->
     <string name="main_saves_pick_folder">%1$s을(를) 저장할 위치 선택(%2$s)</string>
-
-    <!-- %1$s is what was being done (e.g. Importing into Portal 2, Swapping), %2$s the error -->
     <string name="main_action_failed">%1$s 실패: %2$s</string>
     <string name="main_no_logs_yet">아직 세션 로그가 없습니다. 먼저 세션을 실행하세요.</string>
     <string name="main_no_logs_to_clear">지울 세션 로그가 없습니다.</string>
@@ -1090,78 +1199,55 @@
     <string name="main_adb_copied">ADB 명령이 복사되었습니다</string>
     <string name="main_pick_roms">ROM 폴더 선택</string>
     <string name="main_non_adreno_title">Adreno GPU가 아님</string>
-
-    <!-- %1$s is the GPU's name, %2$.0f the download size in MB -->
     <string name="main_non_adreno_text">Turnip은 Adreno GPU를 지원합니다. %1$s에서는 Steam 화면이 검게 표시될 수 있습니다. 다운로드: %2$.0f MB.</string>
     <string name="main_install_anyway">그래도 설치</string>
     <string name="main_remove_runtime_title">Linux 런타임 제거</string>
     <string name="main_remove_runtime_text">런타임과 그 안의 Steam 클라이언트, 그리고 런타임에 설치된 모든 게임이 삭제됩니다.</string>
-
-    <!-- Toast; %1$s is a list of components, separated by commas -->
     <string name="main_applied">적용됨: %1$s</string>
     <string name="android_app_open_failed_primary">메인 화면에서 %1$s을(를) 열 수 없습니다</string>
-
-    <!-- %1$s is the app, %2$s the name of the display -->
     <string name="android_app_open_failed_on">%2$s에서 %1$s을(를) 열 수 없습니다</string>
-
-    <!-- %1$s is the app, %2$d the display's number -->
     <string name="android_app_open_failed_display">디스플레이 %2$d에서 %1$s을(를) 열 수 없습니다</string>
-
-    <!-- Components page busy lines, shown with … after them -->
     <string name="comp_busy_importing">가져오는 중</string>
     <string name="comp_busy_swapping">교체하는 중</string>
     <string name="comp_busy_restoring">복원하는 중</string>
     <string name="comp_busy_cancelling">취소하는 중</string>
     <string name="comp_busy_deleting">삭제하는 중</string>
     <string name="comp_cannot_read">파일을 읽을 수 없음</string>
-
-    <!-- %1$s is a version or a name -->
     <string name="comp_imported">%1$s 가져옴</string>
     <string name="comp_swap_cancelled">대기 중이던 교체가 취소되었습니다.</string>
     <string name="comp_pick_wcp">구성 요소 패키지 선택(-linux .wcp)</string>
     <string name="comp_nightlies_unreachable">Nightlies에 연결할 수 없습니다</string>
-
-    <!-- %1$s is the package version -->
     <string name="comp_stored">%1$s 저장됨</string>
     <string name="comp_download_failed">다운로드 실패: %1$s</string>
     <string name="drivers_pick_linux">Linux 런타임 드라이버 선택(-Linux zip 또는 Android + Linux 번들)</string>
     <string name="drivers_pick_android">디스플레이 드라이버 선택(AdrenoTools zip 또는 Android + Linux 번들)</string>
     <string name="drivers_pick_any">드라이버 zip 또는 Android + Linux 번들 선택</string>
-
-    <!-- %1$s is a desktop app's name, %2$s what went wrong -->
     <string name="main_pkg_problem">%1$s: %2$s</string>
     <string name="main_removing_named">%1$s 제거 중…</string>
     <string name="main_forgetting_named">%1$s 잊는 중…</string>
     <string name="main_pick_game_storage">게임 저장 폴더 선택</string>
     <string name="main_pick_decky_zip">Decky 플러그인 ZIP 선택</string>
     <string name="main_storage_not_usable">사용할 수 없음: %1$s</string>
-
-    <!-- What is running, when it is a program without a known name -->
     <string name="main_running_program">프로그램</string>
     <string name="main_removing_runtime">Linux 런타임 제거 중</string>
     <string name="main_settings_main_screen">하단 화면에서 설정을 열 수 없어 메인 화면에서 열었습니다.</string>
     <string name="main_open_dev_options">설정에서 개발자 옵션을 여세요</string>
 
-    <!-- Updates -->
     <string name="upd_unknown_apps_failed">Android의 \"출처를 알 수 없는 앱 설치\" 설정을 열 수 없습니다</string>
     <string name="upd_couldnt_check">확인할 수 없음: %1$s</string>
     <string name="upd_no_download">이 빌드에는 이 DroidDeck 복사본용 다운로드가 없습니다</string>
     <string name="upd_stop_first">실행 중인 세션을 먼저 중지한 후 업데이트하세요</string>
-
-    <!-- Update stages, shown with … after them -->
     <string name="upd_stage_downloading">다운로드 중</string>
     <string name="upd_stage_installing">설치 중</string>
     <string name="upd_stage_confirm">확인 대기 중</string>
     <string name="upd_failed">업데이트 실패</string>
     <string name="upd_not_offered">Android에서 업데이트 설치를 진행하지 않았습니다</string>
 
-    <!-- Decky -->
     <string name="decky_install_failed">Decky 설치 실패: %1$s</string>
     <string name="decky_plugin_starting">플러그인 가져오기 시작 중…</string>
     <string name="decky_plugin_failed">플러그인 가져오기 실패: %1$s</string>
     <string name="decky_plugin_installed">플러그인이 설치되었습니다. 불러오려면 Steam을 다시 시작하세요.</string>
 
-    <!-- GPU drivers -->
     <string name="drivers_not_checked">아직 확인하지 않음 - 새로 고침을 탭하여 새 드라이버를 찾으세요</string>
     <string name="drivers_bundle_sets_display">Android + Linux: 디스플레이 드라이버도 함께 설정</string>
     <string name="drivers_bundle_sets_runtime">Android + Linux: 런타임 드라이버도 함께 설정</string>
@@ -1169,26 +1255,26 @@
     <string name="drivers_system_vulkan">시스템 Vulkan: 이 GPU용 내장 빌드 없음</string>
     <string name="drivers_bundled">%1$s(내장)</string>
     <string name="drivers_manual">수동</string>
-
-    <!-- Driver mode, then the driver pair in use -->
     <string name="drivers_summary">%1$s · %2$s</string>
     <string name="drivers_half_published">현재 한쪽만 배포되어 있습니다</string>
     <string name="drivers_pair_size">둘 다 %1$.0f MB</string>
-
-    <!-- %1$s says why (the GPU's support status) -->
     <string name="drivers_none_to_set">설정할 드라이버 없음: %1$s</string>
     <string name="drivers_checking_latest">최신 드라이버 확인 중…</string>
     <string name="drivers_up_to_date_check_failed">최신 버전(확인 실패: %1$s)</string>
     <string name="drivers_recommended_unpublished">현재 권장 드라이버가 배포되지 않았습니다</string>
-
-    <!-- %1$s is the driver pair's name, %2$s its version -->
     <string name="drivers_downloading_pair">%1$s %2$s 다운로드 중…</string>
     <string name="drivers_updated_to">%1$s %2$s(으)로 업데이트했습니다.</string>
     <string name="drivers_updated_to_restart">%1$s %2$s(으)로 업데이트했습니다. 디스플레이 드라이버는 DroidDeck을 다시 시작한 후 적용됩니다.</string>
+    <string name="drivers_auto_waits_for_session">드라이버 업데이트는 세션이 끝난 뒤 진행됩니다.</string>
+    <string name="drivers_auto_waits_for_network">모바일 데이터와 절전 모드를 해제하면 다음을 내려받습니다: %1$s %2$s</string>
+    <string name="drivers_skipping_bad">%1$s %2$s 드라이버가 이 기기에서 세션을 시작하지 못해 자동 모드가 사용 가능한 드라이버를 계속 사용합니다.</string>
+    <string name="drivers_rolled_back">%1$s 드라이버가 두 번 세션을 시작하지 못해 자동 모드가 사용 가능한 드라이버로 되돌렸습니다.</string>
     <string name="drivers_switched_to">%1$s %2$s(으)로 전환했습니다.</string>
     <string name="drivers_switched_to_restart">%1$s %2$s(으)로 전환했습니다. 디스플레이 드라이버는 DroidDeck을 다시 시작한 후 적용됩니다.</string>
     <string name="drivers_using">%1$s %2$s 사용 중.</string>
     <string name="drivers_using_restart">%1$s %2$s 사용 중. 디스플레이 드라이버는 DroidDeck을 다시 시작한 후 적용됩니다.</string>
+    <string name="drivers_using_quest">내장 Quest 디스플레이 드라이버와 런타임 기본값을 사용합니다.</string>
+    <string name="drivers_using_quest_restart">내장 Quest 디스플레이 드라이버와 런타임 기본값을 사용합니다. 디스플레이 드라이버는 DroidDeck을 다시 시작한 뒤 적용됩니다.</string>
     <string name="drivers_not_a_driver">드라이버 zip이 아닙니다. AdrenoTools 드라이버, -Linux Turnip, Android + Linux 번들 중 어느 것도 아닙니다</string>
     <string name="drivers_import_failed">가져오기 실패: %1$s</string>
     <string name="drivers_imported_unnamed">가져온 드라이버</string>
@@ -1196,11 +1282,7 @@
     <string name="drivers_using_bundle_restart">%1$s을(를) 런타임 및 디스플레이 드라이버로 사용 중. 디스플레이 드라이버는 DroidDeck을 다시 시작한 후 적용됩니다.</string>
     <string name="drivers_deleted_bundle">%1$s 삭제됨(드라이버 2개)</string>
     <string name="drivers_deleted">%1$s 삭제됨</string>
-
-    <!-- %1$s lists the latest releases, %2$s when they were checked (e.g. 5 min ago) -->
     <string name="drivers_release_status">최신: %1$s · %2$s 확인</string>
-
-    <!-- %1$s lists the latest releases, %2$s the sources that could not be reached, %3$s when they were checked -->
     <string name="drivers_release_status_failed">최신: %1$s · %2$s 연결 불가 · %3$s 확인</string>
     <plurals name="drivers_ago_minutes">
         <item quantity="other">%1$d분 전</item>
@@ -1213,39 +1295,25 @@
     </plurals>
     <string name="drivers_checking_sources">Banners-Turnip, WinNative 및 DroidDeck 확인 중…</string>
     <string name="drivers_check_failed">확인 실패</string>
-
-    <!-- %1$s is the driver's name -->
     <string name="drivers_installed_pick_either">%1$s 설치됨 - 두 목록 중 어디에서든 선택하면 두 드라이버가 모두 설정됩니다</string>
     <string name="drivers_installed_pick">%1$s 설치됨 - 메뉴에서 선택하세요</string>
 
-    <!-- Session (SessionActivity) -->
     <string name="session_wait_removal">런타임 제거가 끝날 때까지 기다려 주세요</string>
-
-    <!-- Drawer title when the running program has no known name -->
     <string name="session_title_game">게임</string>
-
-    <!-- Shown as "Auto (touchpad)" in the drawer's touch setting -->
     <string name="session_touch_auto_touchpad">터치패드</string>
-
-    <!-- Shown as "Auto (direct)" in the drawer's touch setting -->
     <string name="session_touch_auto_direct">직접 터치</string>
     <string name="session_swap_failed">교체 실패: %1$s</string>
+    <string name="session_profile_save_failed">프로필 저장 실패: %1$s</string>
     <string name="session_desktop_paused">데스크톱이 일시 중지됨</string>
-
-    <!-- %1$s is the program's name -->
     <string name="session_named_paused">%1$s 일시 중지됨</string>
     <string name="session_program_paused">프로그램이 일시 중지됨</string>
     <string name="session_starting_desktop">데스크톱 시작 중</string>
-
-    <!-- %1$s is the program's name -->
     <string name="session_starting_named">%1$s 시작 중</string>
     <string name="session_starting_program">프로그램 시작 중</string>
     <string name="session_no_logs">이 세션의 로그가 없습니다.</string>
     <string name="session_logs_archive_failed">세션 로그 압축 파일을 만들 수 없습니다.</string>
     <string name="session_logs_share_failed">세션 로그를 공유할 수 없습니다.</string>
     <string name="session_starting_session">세션 시작 중…</string>
-
-    <!-- Loading screen lines while packages download; %1$d and %2$d are megabytes -->
     <string name="session_runtime_downloading">Linux 런타임 다운로드 중</string>
     <string name="session_runtime_downloading_mb">Linux 런타임 다운로드 중 · %1$d/%2$d MB</string>
     <string name="session_runtime_checking">Linux 런타임 확인 중</string>
@@ -1260,33 +1328,20 @@
     <string name="session_proton_unpacking">Proton Experimental(ARM64) 압축 해제 중</string>
     <string name="session_runtime_catalog_unreachable">런타임 카탈로그에 연결할 수 없습니다. 연결을 확인한 후 \"Steam 실행\"을 다시 누르세요.</string>
     <string name="session_runtime_install_failed">Linux 런타임이 설치되지 않았습니다. \"설정\"에서 런타임을 확인한 후 \"Steam 실행\"을 다시 누르세요.</string>
-
-    <!-- %1$s says what went wrong -->
     <string name="session_desktop_install_failed">데스크톱이 설치되지 않았습니다(%1$s). 연결을 확인한 후 \"데스크톱\"을 다시 누르세요.</string>
-
-    <!-- %1$s is the program's name, or Steam -->
     <string name="session_ended_named">%1$s이(가) 예기치 않게 중지되었습니다. 버그 리포트와 함께 로그를 공유하거나 다시 시도하세요.</string>
     <string name="session_ended_program">프로그램이 예기치 않게 중지되었습니다. 버그 리포트와 함께 로그를 공유하거나 다시 시도하세요.</string>
     <string name="session_ended_desktop">데스크톱이 예기치 않게 중지되었습니다. 버그 리포트와 함께 로그를 공유하거나 다시 시도하세요.</string>
-
-    <!-- %1$d is the exit status, %2$s the log file's path -->
     <string name="session_ended_detail">종료 상태 %1$d · %2$s</string>
     <string name="session_ended_no_log">로그 없음</string>
-
-    <!-- %1$d errors; %2$s, %3$s and %4$s are the Performance page and its two settings -->
     <plurals name="session_hint_enosys">
         <item quantity="other">로그에 \"Function not implemented\" 오류가 %1$d개 있습니다. 이 기기에서 proot의 seccomp 가속이 보조 프로세스를 실패시키고 있습니다. %2$s → \"%3$s\"(또는 \"%4$s\")를 시도한 후 다시 시작하세요.</item>
     </plurals>
 
-    <!-- Screens, files, controller and store -->
-
-    <!-- Mode settings -->
     <string name="mode_decky_plugins">플러그인</string>
     <string name="mode_decky_plugins_hint">다음 Steam 세션에 사용할 플러그인 ZIP을 설치합니다.</string>
     <string name="mode_decky_plugin_downloading">다운로드 중…</string>
     <string name="mode_decky_plugin_install_zip">ZIP에서 설치</string>
-
-    <!-- Store -->
     <string name="store_cat_games">게임</string>
     <string name="store_cat_audio_video">오디오 및 비디오</string>
     <string name="store_cat_graphics">그래픽</string>
@@ -1299,28 +1354,14 @@
     <string name="store_cat_utilities">유틸리티</string>
     <string name="store_section_popular">인기</string>
     <string name="store_section_trending">급상승</string>
-
-    <!-- Store front-page section of recently added apps -->
     <string name="store_section_new">신규</string>
-
-    <!-- Store front-page section of recently updated apps -->
     <string name="store_section_updated">업데이트됨</string>
     <string name="store_section_loading">불러오는 중…</string>
     <string name="store_flatpak_setup">Flatpak 설정</string>
-
-    <!-- %1$s is what failed (an app name or "Flatpak setup"), %2$s the error -->
     <string name="store_problem">%1$s: %2$s</string>
     <string name="store_updates_check_failed">Flathub에서 업데이트를 확인할 수 없습니다</string>
-
-    <!-- Library tiles -->
-
-    <!-- Subtitle of a game tile whose cover art was found -->
     <string name="content_rom_installed">설치됨</string>
-
-    <!-- Subtitle of a game that is a folder rather than a single file -->
     <string name="content_rom_folder">폴더</string>
-
-    <!-- Launcher themes -->
     <string name="theme_graphite">그래파이트</string>
     <string name="theme_graphite_detail">그래파이트 색상의 화면에, 선택·포커스·누름 상태에는 로고의 오브 블루를 사용합니다.</string>
     <string name="theme_paper">블랙 앤 화이트</string>
@@ -1329,8 +1370,6 @@
     <string name="theme_icon_blue_detail">검은색 배경에 흰색 글자, 선택·포커스·누름 상태에는 파란색을 사용합니다.</string>
     <string name="theme_electric">일렉트릭 네이비</string>
     <string name="theme_electric_detail">회색 대신 네이비 톤의 화면에 더 밝은 파란색을 사용합니다.</string>
-
-    <!-- PC keyboard key caps (keep them short; they label physical PC keys) -->
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>
@@ -1348,27 +1387,17 @@
     <string name="pckb_key_alt">Alt</string>
     <string name="pckb_key_space">Space</string>
     <string name="pckb_key_altgr">AltGr</string>
-
-    <!-- Terminal key strip on the second screen -->
     <string name="second_key_tab">Tab</string>
-
-    <!-- A modifier key (%1$s, e.g. Ctrl) that is currently held -->
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
-
-    <!-- Game file sync errors -->
     <string name="game_sync_err_runtime">먼저 런타임을 설치하세요</string>
     <string name="game_sync_err_steam_library">Steam 라이브러리를 사용할 수 없습니다</string>
     <string name="game_sync_err_previous_sd">이전 SD 라이브러리를 사용할 수 없습니다</string>
     <string name="game_sync_err_game_storage">게임 저장 공간을 사용할 수 없습니다</string>
     <string name="game_sync_err_added_games">추가된 게임 폴더를 사용할 수 없습니다</string>
     <string name="game_sync_err_manifests">Steam 매니페스트를 사용할 수 없습니다</string>
-
-    <!-- The systems RetroArch emulates, shown under its name -->
     <string name="content_system_many">다양한 기종</string>
-
-    <!-- File manager -->
     <string name="fm_drive_internal">내부</string>
     <string name="fm_drive_linux">Linux 시스템</string>
     <string name="fm_drive_sd">SD 카드</string>
@@ -1386,8 +1415,6 @@
     <string name="fm_no_favorites">즐겨찾기가 없습니다. 폴더의 ⋮ 메뉴에서 고정하면 여기로 빠르게 이동할 수 있습니다.</string>
     <string name="fm_unpin_favorite">즐겨찾기에서 제거</string>
     <string name="fm_size_zero">0바이트</string>
-
-    <!-- Size unit for sizes under 1 KB, shown after a number -->
     <string name="fm_unit_bytes">바이트</string>
     <string name="fm_prop_location">위치</string>
     <string name="fm_prop_type">유형</string>
@@ -1395,8 +1422,6 @@
     <string name="fm_prop_modified">수정한 날짜</string>
     <string name="fm_type_folder">폴더</string>
     <string name="fm_type_file">파일</string>
-
-    <!-- File type in Properties; %1$s is the file extension in capitals, e.g. TXT -->
     <string name="fm_type_ext_file">%1$s 파일</string>
     <string name="fm_read_only">읽기 전용</string>
     <string name="fm_read_only_hint">게임(및 Wine)이 이 파일을 덮어쓰거나 삭제하지 못하게 합니다.</string>
@@ -1410,19 +1435,11 @@
     <string name="fm_delete_failed">삭제 실패</string>
     <string name="fm_op_moving">이동 중...</string>
     <string name="fm_op_copying">복사 중...</string>
-
-    <!-- %1$s is the file name -->
     <string name="fm_op_moving_item">이동 중 - %1$s</string>
     <string name="fm_op_copying_item">복사 중 - %1$s</string>
-
-    <!-- %1$d is the item number, %2$d the number of items, %3$s the file name -->
     <string name="fm_op_moving_batch">이동 중 %1$d/%2$d - %3$s</string>
     <string name="fm_op_copying_batch">복사 중 %1$d/%2$d - %3$s</string>
-
-    <!-- Paste result; %1$d items done, %2$d items failed -->
     <string name="fm_paste_failed">%1$d개 완료, %2$d개 실패</string>
-
-    <!-- Paste result; %1$d items done, %2$d items skipped -->
     <string name="fm_paste_skipped">%1$d개 완료, %2$d개 건너뜀</string>
     <plurals name="fm_paste_moved">
         <item quantity="other">항목 %1$d개 이동됨</item>
@@ -1430,8 +1447,6 @@
     <plurals name="fm_paste_copied">
         <item quantity="other">항목 %1$d개 복사됨</item>
     </plurals>
-
-    <!-- %1$s is a file or folder name -->
     <string name="fm_already_exists">\"%1$s\"이(가) 이미 있습니다</string>
     <string name="fm_op_renaming">이름 바꾸는 중...</string>
     <string name="fm_rename_failed">이름 바꾸기 실패</string>
@@ -1442,20 +1457,14 @@
     <string name="fm_create">만들기</string>
     <string name="fm_new_name">새 이름</string>
     <string name="fm_delete_title">삭제하시겠습니까?</string>
-
-    <!-- %1$s is a file or folder name -->
     <string name="fm_delete_text">\"%1$s\"을(를) 영구적으로 삭제하시겠습니까?</string>
     <plurals name="fm_delete_items_title">
         <item quantity="other">항목 %1$d개를 삭제하시겠습니까?</item>
     </plurals>
     <string name="fm_cannot_undo">이 작업은 되돌릴 수 없습니다.</string>
-
-    <!-- After a list of the first five names in a delete confirmation -->
     <plurals name="fm_and_more">
         <item quantity="other">…외 %1$d개</item>
     </plurals>
-
-    <!-- %1$d is the item number, %2$d the number of items, %3$s the file name -->
     <string name="fm_op_deleting_batch">삭제 중 %1$d/%2$d - %3$s</string>
     <plurals name="fm_delete_some_failed">
         <item quantity="other">%1$d개를 삭제할 수 없습니다</item>
@@ -1469,8 +1478,6 @@
     <string name="fm_conflict_skip">건너뛰기</string>
     <string name="fm_select_this_folder">이 폴더 선택</string>
     <string name="fm_back">뒤로</string>
-
-    <!-- %1$s is a storage name, e.g. SD card -->
     <string name="fm_drive_not_readable">%1$s이(가) 마운트되었지만 지금은 읽을 수 없습니다</string>
     <string name="fm_list_view">목록 보기</string>
     <string name="fm_grid_view">격자 보기</string>
@@ -1485,51 +1492,31 @@
     <string name="fm_hide_favorites">즐겨찾기 숨기기</string>
     <string name="fm_show_favorites">즐겨찾기 표시</string>
     <string name="fm_filter_folder">이 폴더에서 필터</string>
-
-    <!-- Free space on the storage being browsed; %1$s is a size, e.g. 12.50 GB -->
     <string name="fm_free_space">%1$s 사용 가능</string>
     <string name="fm_selected_count">%1$d개 선택됨</string>
-
-    <!-- Selection bar: clear the selection -->
     <string name="fm_select_none">선택 해제</string>
-
-    <!-- Selection bar: select every item -->
     <string name="fm_select_all">전체</string>
     <string name="fm_paste">붙여넣기</string>
     <plurals name="fm_items">
         <item quantity="other">항목 %1$d개</item>
     </plurals>
-
-    <!-- %1$s is a file name or a number of items -->
     <string name="fm_paste_here">여기에 %1$s 붙여넣기</string>
-
-    <!-- %1$s is a file name or a number of items -->
     <string name="fm_paste_move_here">여기에 %1$s 붙여넣기(이동)</string>
     <string name="fm_rail_title">파일</string>
     <string name="fm_rail_storage">저장소</string>
-
-    <!-- Rail section of shortcut folders (Downloads, ROMs, …) -->
     <string name="fm_rail_quick">바로 가기</string>
     <string name="fm_rail_favorites">즐겨찾기</string>
     <string name="fm_rail_downloads">다운로드</string>
-
-    <!-- Downloads shortened to fit under an icon (about 8 characters) -->
     <string name="fm_rail_downloads_short">다운로드</string>
     <string name="fm_rail_roms">ROMs</string>
     <string name="fm_rail_session_logs">세션 로그</string>
     <string name="fm_rail_pictures">사진</string>
-
-    <!-- %1$s is a folder name -->
     <string name="fm_favorite_added">\"%1$s\"을(를) 즐겨찾기에 추가했습니다</string>
-
-    <!-- %1$s is a folder name -->
     <string name="fm_favorite_removed">\"%1$s\"을(를) 즐겨찾기에서 제거했습니다</string>
     <string name="fm_empty_directory">빈 폴더</string>
     <string name="fm_up_one_level">상위 폴더로</string>
     <string name="fm_choose_folder">폴더 선택</string>
     <string name="fm_choose_file">파일 선택</string>
-
-    <!-- On-screen controller tint colors -->
     <string name="ctrl_tint_steam_blue">Steam 블루</string>
     <string name="ctrl_tint_sky">하늘색</string>
     <string name="ctrl_tint_white">흰색</string>
@@ -1538,8 +1525,6 @@
     <string name="ctrl_tint_amber">호박색</string>
     <string name="ctrl_tint_red">빨간색</string>
     <string name="ctrl_tint_pink">분홍색</string>
-
-    <!-- On-screen buttons that can be remapped -->
     <string name="ctrl_button_a">A 버튼</string>
     <string name="ctrl_button_b">B 버튼</string>
     <string name="ctrl_button_x">X 버튼</string>
@@ -1550,34 +1535,21 @@
     <string name="ctrl_button_rt">오른쪽 트리거</string>
     <string name="ctrl_button_view">보기 버튼</string>
     <string name="ctrl_button_menu">메뉴 버튼</string>
-
-    <!-- What a remapped on-screen button sends; letters and Steam are controller button names -->
-
-    <!-- Controller View button -->
     <string name="ctrl_target_view">보기</string>
-
-    <!-- Controller Menu button -->
     <string name="ctrl_target_menu">메뉴</string>
     <string name="ctrl_target_up">방향 패드 위</string>
     <string name="ctrl_target_down">방향 패드 아래</string>
     <string name="ctrl_target_left">방향 패드 왼쪽</string>
     <string name="ctrl_target_right">방향 패드 오른쪽</string>
-
-    <!-- The on-screen button is not shown -->
     <string name="ctrl_target_hidden">숨김</string>
     <string name="ctrl_editor_drag">드래그하여 이동</string>
     <string name="ctrl_editor_snap">맞춤</string>
     <string name="ctrl_editor_save">저장</string>
-
-    <!-- What the second screen shows during a session -->
     <string name="second_mode_none">없음</string>
     <string name="second_mode_keyboard_trackpad">키보드 + 터치패드</string>
     <string name="second_mode_terminal">터미널</string>
     <string name="second_mode_deck_controls">Deck 그립 + 터치패드</string>
 
-    <!-- Runtime, updates and setup helpers -->
-
-    <!-- Linux runtime install / removal (LinuxRuntimeInstaller, RuntimeInstallService) -->
     <string name="rtinst_removing">Linux 런타임 제거 중</string>
     <plurals name="rtinst_removing_entries">
         <item quantity="other">Linux 런타임 제거 중 · 항목 %1$d개</item>
@@ -1592,75 +1564,47 @@
     <string name="rtinst_title_installing">Linux 런타임 설치 중</string>
     <string name="rtinst_title_removing">Linux 런타임 제거 중</string>
 
-    <!-- Hosted desktop and emulator packages (DesktopCatalog) -->
     <string name="deskpkg_runtime_missing">Linux 런타임이 설치되지 않았습니다</string>
-
-    <!-- %1$s: package name -->
     <string name="deskpkg_no_checksum">카탈로그에 %1$s의 체크섬이 없습니다</string>
     <string name="deskpkg_checksum_mismatch">체크섬이 일치하지 않습니다. 변경된 내용은 없습니다</string>
-
-    <!-- %1$s: package name -->
     <string name="deskpkg_installing">%1$s 설치 중</string>
     <string name="deskpkg_place_failed">AppImage를 배치할 수 없습니다</string>
     <string name="deskpkg_extract_failed">압축 해제 실패</string>
     <string name="deskpkg_install_failed">설치 실패</string>
 
-    <!-- Flatpak store operations (FlatpakManager) -->
     <string name="flatpakmgr_setup_failed">Flatpak 설정 실패(종료 코드 %1$d)</string>
     <string name="flatpakmgr_setup_unfinished">Flatpak 설정이 완료되지 않았습니다</string>
     <string name="flatpakmgr_busy">다른 스토어 작업이 진행 중입니다</string>
     <string name="flatpakmgr_not_ready">먼저 Flatpak을 설정하세요</string>
     <string name="flatpakmgr_starting">시작 중</string>
     <string name="flatpakmgr_exit_status">Flatpak이 종료되었습니다(상태 %1$d)</string>
-
-    <!-- %1$s: an app or runtime name, e.g. "SuperTux" or "GNOME runtime 50" -->
     <string name="flatpakmgr_installing">%1$s 설치 중</string>
     <string name="flatpakmgr_updating">%1$s 업데이트 중</string>
     <string name="flatpakmgr_removing">%1$s 제거 중</string>
-
-    <!-- %1$s: an app or runtime name; %2$d of %3$d: this step and the number of steps -->
     <string name="flatpakmgr_installing_step">%1$s 설치 중(%2$d/%3$d)</string>
     <string name="flatpakmgr_updating_step">%1$s 업데이트 중(%2$d/%3$d)</string>
     <string name="flatpakmgr_removing_step">%1$s 제거 중(%2$d/%3$d)</string>
-
-    <!-- Names for Flatpak runtime parts, shown inside "Installing %1$s" -->
     <string name="flatpakmgr_ref_translations">번역</string>
     <string name="flatpakmgr_ref_graphics_drivers">그래픽 드라이버</string>
     <string name="flatpakmgr_ref_media_codecs">미디어 코덱</string>
-
-    <!-- %1$s: runtime vendor, e.g. GNOME, KDE, Freedesktop -->
     <string name="flatpakmgr_ref_runtime">%1$s 런타임</string>
-
-    <!-- %1$s: runtime vendor, e.g. GNOME; %2$s: its version, e.g. 50 -->
     <string name="flatpakmgr_ref_runtime_branch">%1$s 런타임 %2$s</string>
 
-    <!-- Imported AppImages (AppImageManager) -->
     <string name="appimg_too_small">파일이 너무 작아 AppImage가 아닙니다</string>
-
-    <!-- %1$s: the system's reason -->
     <string name="appimg_unreadable">파일을 읽을 수 없습니다: %1$s</string>
     <string name="appimg_not_linux">AppImage가 아닙니다(Linux 프로그램이 아님)</string>
     <string name="appimg_wrong_arch">이 AppImage는 ARM64(aarch64)용도, x86 PC용도 아닙니다</string>
     <string name="appimg_not_appimage">Linux 프로그램이지만 AppImage가 아닙니다</string>
     <string name="appimg_wrong_type">유형 2 AppImage만 가져올 수 있습니다(이 파일은 유형 %1$d)</string>
-
-    <!-- %1$s: a size such as "3.2 GB" -->
     <string name="appimg_no_space_import">사용 가능한 공간 부족: 가져오려면 약 %1$s이(가) 필요합니다</string>
-
-    <!-- %1$s: a size such as "3.2 GB" -->
     <string name="appimg_no_space_update">사용 가능한 공간 부족: 업데이트하려면 약 %1$s이(가) 필요합니다</string>
     <string name="appimg_import_failed">가져오기 실패</string>
     <string name="appimg_gone">AppImage가 더 이상 존재하지 않습니다</string>
     <string name="appimg_update_failed">업데이트 실패</string>
-
-    <!-- %1$s: file name -->
     <string name="appimg_extracting">%1$s 압축 해제 중</string>
     <string name="appimg_extract_failed">AppImage의 압축을 풀 수 없습니다</string>
-
-    <!-- %1$s: the last line the extractor printed -->
     <string name="appimg_extract_failed_detail">AppImage의 압축을 풀 수 없습니다: %1$s</string>
 
-    <!-- Decky Loader and plugin installs (DeckyManager) -->
     <string name="deckymgr_stop_session_loader">Decky Loader를 설치하기 전에 실행 중인 세션을 중지하세요</string>
     <string name="deckymgr_download_failed">Decky Loader 다운로드 실패</string>
     <string name="deckymgr_size_mismatch">Decky Loader 크기가 릴리스 정보와 일치하지 않습니다</string>
@@ -1696,27 +1640,13 @@
     <string name="deckymgr_remote_entry_invalid">잘못된 remote_binary 항목</string>
     <string name="deckymgr_remote_name_invalid">잘못된 원격 바이너리 이름</string>
     <string name="deckymgr_remote_url_https">원격 바이너리 URL은 HTTPS를 사용해야 합니다</string>
-
-    <!-- %1$s: binary file name -->
     <string name="deckymgr_remote_hash_invalid">원격 바이너리 %1$s의 SHA-256 해시가 잘못되었습니다</string>
     <string name="deckymgr_bin_dir_failed">플러그인 bin 폴더를 만들 수 없습니다</string>
-
-    <!-- %1$s: binary file name -->
     <string name="deckymgr_downloading_binary">플러그인 바이너리 다운로드 중 · %1$s</string>
-
-    <!-- %1$s: binary file name -->
     <string name="deckymgr_binary_download_failed">플러그인 바이너리 %1$s을(를) 다운로드할 수 없습니다</string>
-
-    <!-- %1$s: binary file name -->
     <string name="deckymgr_binary_checksum_mismatch">플러그인 바이너리 체크섬 불일치 · %1$s</string>
-
-    <!-- %1$s: binary file name -->
     <string name="deckymgr_binary_not_executable">플러그인 바이너리를 실행 가능으로 설정할 수 없습니다 · %1$s</string>
-
-    <!-- %1$s: binary file name -->
     <string name="deckymgr_binary_replace_failed">플러그인 바이너리를 교체할 수 없습니다 · %1$s</string>
-
-    <!-- %1$s: binary file name -->
     <string name="deckymgr_binary_install_failed">플러그인 바이너리를 설치할 수 없습니다 · %1$s</string>
     <string name="deckymgr_folder_taken">플러그인 폴더를 다른 플러그인이 사용하고 있습니다</string>
     <string name="deckymgr_preserve_failed">기존 플러그인을 보존할 수 없습니다</string>
@@ -1724,24 +1654,14 @@
     <string name="deckymgr_settings_failed">Decky 플러그인 설정을 업데이트할 수 없습니다</string>
     <string name="deckymgr_restore_failed">기존 플러그인을 복원할 수 없습니다</string>
 
-    <!-- Child-process limit change over Wireless debugging (WirelessAdbFix) -->
     <string name="adbfix_save_failed">무선 디버깅 ID를 저장할 수 없습니다</string>
-
-    <!-- %1$d: the command's exit status -->
     <string name="adbfix_command_failed">ADB 명령 실패(%1$d)</string>
-
-    <!-- %1$s: what Android answered -->
     <string name="adbfix_not_confirmed">Android에서 하위 프로세스 제한 변경을 확인하지 않았습니다: %1$s</string>
     <string name="adbfix_no_pairing">저장된 무선 디버깅 페어링이 없습니다</string>
     <string name="adbfix_enter_address">현재 무선 디버깅의 IP 주소 및 포트를 입력하세요</string>
 
-    <!-- Wireless debugging pairing notification (WirelessAdbPairingService) -->
     <string name="adbpair_timed_out">페어링 팝업을 기다리는 시간이 초과되었습니다. DroidDeck에서 다시 시도하세요.</string>
-
-    <!-- %1$d: Android's error code -->
     <string name="adbpair_discovery_failed_code">페어링 팝업을 찾을 수 없습니다(%1$d). Wi-Fi가 켜져 있는지 확인하세요.</string>
-
-    <!-- %1$s: the system's reason -->
     <string name="adbpair_discovery_failed">페어링 팝업을 찾을 수 없습니다: %1$s</string>
     <string name="adbpair_six_digits">코드 6자리를 모두 입력하세요</string>
     <string name="adbpair_pairing">페어링 중…</string>
@@ -1755,31 +1675,22 @@
     <string name="adbpair_title_pair">무선 디버깅 페어링</string>
     <string name="adbpair_waiting_text">무선 디버깅을 켠 다음 “페어링 코드로 기기 페어링”을 탭하세요.</string>
     <string name="adbpair_waiting_long">무선 디버깅을 켠 다음 “페어링 코드로 기기 페어링”을 탭하세요. 코드는 이 알림에 입력하므로 설정 화면에 머물러 있으세요.</string>
-
-    <!-- Label of the notification's reply field -->
     <string name="adbpair_code_label">6자리 페어링 코드</string>
     <string name="adbpair_code_hint">\"코드 입력\"을 탭하고 설정에 표시된 6자리 숫자를 입력하세요.</string>
     <string name="adbpair_title_code">Wi-Fi 페어링 코드 입력</string>
     <string name="adbpair_title_retry">코드를 다시 입력하세요</string>
-
-    <!-- Notification action button -->
     <string name="adbpair_enter_code">코드 입력</string>
     <string name="adbpair_title_working">Steam 설정 중</string>
     <string name="adbpair_title_done">Steam 준비 완료</string>
     <string name="adbpair_done_text">탭하여 DroidDeck으로 돌아가세요. 이제 무선 디버깅을 꺼도 됩니다.</string>
     <string name="adbpair_title_failed">무선 디버깅 설정이 중단되었습니다</string>
 
-    <!-- DroidDeck's own updates (SelfInstaller, AppUpdates) -->
-    <string name="selfinst_http">다운로드 응답: HTTP %1$d</string>
+    <string name="selfinst_download_failed">다운로드 실패</string>
     <string name="selfinst_size_mismatch">다운로드 크기가 배포된 APK와 일치하지 않아 삭제했습니다. 다시 시도하세요</string>
     <string name="selfinst_checksum_mismatch">다운로드한 파일이 체크섬과 일치하지 않아 삭제했습니다. 다시 시도하세요</string>
-
-    <!-- %1$s: the update's Android package name; %2$s: this app's -->
     <string name="selfinst_wrong_package">이 업데이트는 %2$s이(가) 아닌 Android 패키지 %1$s용입니다</string>
     <string name="selfinst_metadata_signer">업데이트 메타데이터에 DroidDeck 릴리스 서명 키가 지정되어 있지 않습니다</string>
     <string name="selfinst_unreadable">Android에서 다운로드한 APK를 읽을 수 없습니다</string>
-
-    <!-- %1$s: the APK's Android package name; %2$s: this app's -->
     <string name="selfinst_apk_wrong_package">다운로드한 APK는 %2$s이(가) 아닌 %1$s용입니다</string>
     <string name="selfinst_version_mismatch">다운로드한 APK의 versionCode가 배포된 %2$d이(가) 아닌 %1$d입니다</string>
     <string name="selfinst_downgrade">Android에서 설치된 versionCode %2$d 위에 %1$d을(를) 설치하지 않습니다</string>
@@ -1787,19 +1698,11 @@
     <string name="selfinst_wrong_signer">다운로드한 APK가 DroidDeck 릴리스 키로 서명되지 않았습니다</string>
     <string name="appupd_http">업데이트 카탈로그 응답: HTTP %1$d</string>
 
-    <!-- Session, GPU and display -->
-
-    <!-- Session loading screen -->
     <string name="loadstate_starting">세션 시작 중…</string>
-
-    <!-- %1$d minutes, %2$02d seconds since the session started -->
     <string name="loadstate_elapsed">%1$d:%2$02d 경과 · 아직 진행 중</string>
     <string name="loadstate_steam_update">Steam 클라이언트 업데이트 다운로드 중 · %1$d%%</string>
-
-    <!-- %1$s is the client's own download progress, as it prints it -->
     <string name="loadstate_steam_client">Steam 클라이언트 다운로드 중 · %1$s</string>
 
-    <!-- Installing GE-Proton / proton-cachyos (%1$s is the tool's name, %2$s its release tag) -->
     <string name="pextra_busy">호환성 도구를 이미 설치하고 있습니다</string>
     <string name="pextra_stop_session">호환성 도구를 설치하기 전에 실행 중인 세션을 중지하세요</string>
     <string name="pextra_no_release">%1$s의 ARM64 릴리스를 찾을 수 없습니다</string>
@@ -1816,55 +1719,38 @@
     <string name="pextra_checksum_mismatch">체크섬이 일치하지 않아 다운로드를 삭제했습니다</string>
     <string name="pextra_session_started">다운로드 중에 세션이 시작되었습니다. 호환성 도구를 설치하기 전에 세션을 중지하세요</string>
     <string name="pextra_installing">%1$s 설치 중</string>
-
-    <!-- %2$d is the installer's exit status -->
     <string name="pextra_install_failed">%1$s 설치 실패(종료 코드 %2$d)</string>
     <string name="pextra_could_not_install">%1$s을(를) 설치할 수 없습니다</string>
     <string name="esync_fetching">droiddeck-esync 팩 받는 중</string>
 
-    <!-- Components (FEX / DXVK / VKD3D-Proton swapped into a Proton). %1$s component, %2$s version, %3$s Proton -->
     <string name="cmgr_fex_linux_helpers">Linux 도우미 포함</string>
     <string name="cmgr_fex_dlls_only">DLL만</string>
     <string name="cmgr_original_proton_updated">원본(마지막 교체 이후 Proton 업데이트됨)</string>
     <string name="cmgr_changed_outside">\"구성 요소\" 외부에서 변경됨</string>
-
-    <!-- A component version that could not be found in a Proton -->
     <string name="cmgr_not_present">없음</string>
-
-    <!-- %1$s is the Proton build the original files were saved from -->
     <string name="cmgr_original_version">원본 %1$s</string>
     <string name="cmgr_original_from">%1$s의 원본</string>
     <string name="cmgr_swap_queued">%3$s을(를) 사용하는 게임이 종료되면 %1$s %2$s(으)로 교체됩니다.</string>
     <string name="cmgr_swap_done">이제 %3$s에 %1$s %2$s이(가) 적용되었습니다. 다음 게임 실행 시 적용됩니다.</string>
     <string name="cmgr_original_missing">해당 원본 번들이 저장되어 있지 않습니다</string>
-
-    <!-- %1$s component, %2$s Proton -->
     <string name="cmgr_restore_queued">%2$s의 %1$s은(는) 해당 Proton을 사용하는 게임이 종료되면 원본으로 복원됩니다.</string>
-
-    <!-- %1$s component, %2$s Proton, %3$s the Proton build the original came from -->
     <string name="cmgr_restore_done">%2$s의 %1$s을(를) %3$s 원본으로 복원했습니다.</string>
-
-    <!-- %1$s package file, %2$s Proton id -->
     <string name="cmgr_package_in_use">%1$s은(는) %2$s에서 사용 중입니다. 먼저 해당 Proton을 다른 항목으로 교체하세요.</string>
     <string name="cmgr_package_not_stored">%1$s이(가) 저장되어 있지 않습니다</string>
     <string name="cmgr_deleted">%1$s을(를) 삭제했습니다.</string>
     <string name="cmgr_original_kept">설치된 빌드의 원본은 되돌리기 위해 유지됩니다.</string>
     <string name="cmgr_not_stored">저장되지 않음</string>
-
-    <!-- %1$s Proton build, %2$s component -->
     <string name="cmgr_deleted_original">%2$s의 %1$s 원본을 삭제했습니다.</string>
     <string name="cmgr_nightlies_only">Nightlies 릴리스에서만 다운로드할 수 있습니다</string>
     <string name="cmgr_list_predates_checksums">이 패키지 목록은 체크섬 도입 이전의 것입니다. 새로 고친 후 다시 시도하세요</string>
     <string name="cmgr_checksum_mismatch">체크섬 불일치</string>
 
-    <!-- Display choices -->
     <string name="sprefs_upscaler_linear">선형</string>
     <string name="sprefs_upscaler_nearest">최근접</string>
     <string name="sprefs_upscaler_gsr_quality">Snapdragon GSR(품질)</string>
     <string name="sprefs_upscaler_sharpen">샤프닝 전용</string>
     <string name="sprefs_lod_bias_auto">자동(스케일링에 맞춤)</string>
 
-    <!-- Screen effect Looks: preset names and the line under the row -->
     <string name="look_off_desc">적용된 효과 없음.</string>
     <string name="look_game_clarity">게임 선명도</string>
     <string name="look_game_clarity_desc">샤프닝에 약간의 대비를 더한 일상용 프리셋.</string>
@@ -1889,29 +1775,23 @@
     <string name="look_anime_edge">애니메 윤곽</string>
     <string name="look_anime_edge_desc">툰 윤곽선과 샤프닝.</string>
 
-    <!-- GPU support line -->
     <string name="gpuinfo_not_adreno">Adreno GPU가 아님</string>
     <string name="gpuinfo_supported">지원됨</string>
     <string name="gpuinfo_experimental">실험적: 드라이버가 테스트 빌드입니다</string>
     <string name="gpuinfo_below_tested">테스트된 하드웨어(Adreno 725 이상)보다 낮음: 실행되지 않을 수 있습니다</string>
     <string name="gpuinfo_unsupported">지원되지 않음: DroidDeck에는 Adreno(Snapdragon) GPU가 필요합니다</string>
 
-    <!-- Driver downloads and imports -->
     <string name="turnip_rate_limited">GitHub 요청 한도에 도달했습니다. 나중에 다시 시도하세요</string>
     <string name="turnip_github_http">GitHub 응답: HTTP %1$d</string>
-    <string name="turnip_download_http">다운로드 응답: HTTP %1$d</string>
+    <string name="turnip_download_failed">다운로드 실패</string>
     <string name="turnip_list_predates_checksums">이 드라이버 목록은 체크섬 도입 이전의 것입니다. 새로 고친 후 다시 시도하세요</string>
     <string name="turnip_checksum_mismatch">체크섬이 일치하지 않아 다운로드를 삭제했습니다</string>
-
-    <!-- %1$s is one of the turnip_reject_* reasons -->
     <string name="turnip_not_adrenotools">AdrenoTools 드라이버가 아닙니다: %1$s</string>
     <string name="turnip_reject_no_meta">meta.json 없음</string>
     <string name="turnip_reject_meta_unreadable">meta.json을 읽을 수 없음(%1$s)</string>
     <string name="turnip_reject_linux_driver">Linux 런타임 드라이버입니다(\"Linux 런타임 드라이버\"에서 가져오세요)</string>
     <string name="turnip_reject_wayland">Wayland 게임 드라이버이며, 이 앱에서는 사용하지 않습니다</string>
     <string name="turnip_reject_no_library_name">meta.json에 libraryName이 지정되지 않아 AdrenoTools에 전달할 수 없습니다</string>
-
-    <!-- %1$s is a library file name -->
     <string name="turnip_reject_library_missing">meta.json에 지정된 %1$s이(가) zip에 없습니다</string>
     <string name="turnip_reject_not_aarch64">%1$s은(는) 64비트 AArch64 ELF 공유 라이브러리가 아닙니다</string>
     <string name="turnip_reject_glibc">%1$s은(는) glibc에 링크되어 있습니다. \"-Linux\" Turnip이므로 \"Linux 런타임 드라이버\"에서 가져오세요</string>
@@ -1922,115 +1802,61 @@
     <string name="bundle_entry_outside">드라이버 번들이 아닙니다: %1$s이(가) 번들 외부를 가리킵니다</string>
     <string name="bundle_too_large">드라이버 번들이 아닙니다: 압축을 풀면 %1$d MB를 초과합니다</string>
 
-    <!-- Game storage -->
     <string name="gstore_sd_card">SD 카드</string>
-
-    <!-- %1$s is a size, like 12.3 GB -->
     <string name="gstore_folder">폴더</string>
+
     <string name="logshare_chooser">세션 로그 공유</string>
 
-    <!-- Stands in for the Steam account name when the client did not record one -->
-
-    <!-- Why the HDR switch is greyed out -->
     <string name="hdr_needs_android_10">Android 10 이상 필요(색 공간을 지원하는 디스플레이 레이어)</string>
     <string name="hdr_none">이 디스플레이는 HDR을 지원하지 않습니다</string>
-
-    <!-- %1$s lists HDR formats, like Dolby Vision, HDR10+ -->
     <string name="hdr_not_hdr10">이 디스플레이는 HDR10이 아닌 %1$s 형식을 지원합니다</string>
 
-    <!-- Follow-up -->
-
-    <!-- Stands in for the GPU name when the device does not report one -->
     <string name="gpu_this_gpu">이 GPU</string>
     <string name="phantom_title_on">하위 프로세스 제한 켜짐</string>
     <string name="phantom_title_unset">하위 프로세스 제한 설정되지 않음</string>
     <string name="phantom_title_unreadable">하위 프로세스 제한을 확인할 수 없음</string>
     <string name="phantom_title_off">하위 프로세스 제한 꺼짐</string>
     <string name="phantom_title_not_required">하위 프로세스 제한 해당 없음</string>
-
-    <!-- %1$s is the sentence saying how to turn the limit off on this device -->
     <string name="phantom_instructions_fix">%1$s 이 방법을 사용할 수 없으면 이 기기를 ADB가 설치된 PC에 연결하고 아래 명령을 실행하세요. 그런 다음 여기로 돌아와 다시 확인하세요.</string>
     <string name="phantom_instructions_off">Steam 세션을 시작할 수 있습니다.</string>
     <string name="phantom_instructions_not_applicable">이 Android 버전에서는 이 제한을 사용하지 않습니다.</string>
     <string name="phantom_fix_toggle">개발자 옵션에서 “하위 프로세스 제한 사용 중지”를 켜고, 이후에도 개발자 옵션을 켜 둔 상태로 유지하세요.</string>
     <string name="phantom_fix_no_toggle">이 Android 버전에는 해당 스위치가 없습니다. 무선 디버깅을 사용하여 이 기기에서 변경하세요.</string>
     <string name="upd_block_no_apk">이 빌드에는 이 DroidDeck 복사본용 다운로드가 없습니다.</string>
-
-    <!-- %1$d is the offered build's versionCode, %2$d the installed one's -->
     <string name="upd_block_version_code">versionCode %1$d이(가) 설치된 %2$d보다 낮아 Android에서 이 빌드 위에 설치하지 않습니다.</string>
     <string name="upd_fail_downgrade">Android에서는 최신 버전 위에 이전 버전을 설치할 수 없습니다. 채널이 따라잡을 때까지 현재 빌드를 유지하세요.</string>
     <string name="upd_fail_signature">이 DroidDeck 복사본은 다른 키로 서명되어 있어(로컬 빌드일 수 있음) Android에서 덮어쓰기 업데이트를 할 수 없습니다.</string>
     <string name="upd_fail_storage">업데이트에 필요한 저장 공간이 부족합니다.</string>
     <string name="upd_fail_aborted">업데이트가 취소되었습니다.</string>
-
-    <!-- %1$s is Android's own (English) installer message -->
     <string name="upd_fail_with_message">업데이트가 설치되지 않았습니다: %1$s</string>
     <string name="upd_fail_generic">업데이트가 설치되지 않았습니다.</string>
-
-    <!-- A save zip's layout; %1$s is the app it comes from (GameHub, Winlator) -->
     <string name="saves_layout_zip">%1$s zip</string>
-
-    <!-- A save zip whose layout is not known -->
     <string name="saves_zip">zip</string>
-
-    <!-- %1$s is the game's name -->
     <string name="saves_not_launched">%1$s을(를) 아직 실행한 적이 없습니다</string>
     <string name="saves_none_found">%1$s의 저장 파일을 찾을 수 없습니다</string>
-
-    <!-- %1$s is the zip's file name -->
     <string name="saves_not_save_zip">%1$s에 drive_c 폴더가 없으므로 GameHub 또는 Winlator 저장 데이터 zip이 아닙니다</string>
-
-    <!-- %1$s is a folder path -->
     <string name="gstore_cannot_create">%1$s에 폴더를 만들 수 없음</string>
     <string name="gstore_cannot_write">%1$s에 쓸 수 없음</string>
-
-    <!-- %1$s is a folder path, %2$s the system's error -->
     <string name="gstore_cannot_write_detail">%1$s에 쓸 수 없음(%2$s)</string>
     <string name="gfiles_folder_unavailable">폴더를 사용할 수 없습니다</string>
-
-    <!-- %1$s is a file name -->
     <string name="gfiles_name_taken">다른 파일이 이미 %1$s 이름을 사용하고 있습니다</string>
     <string name="gfiles_art_unavailable">이미지 폴더를 사용할 수 없습니다</string>
     <string name="gfiles_unrelated_inventory">폴더에 관련 없는 동기화 목록이 있습니다</string>
-
-    <!-- %1$s is a file name -->
     <string name="gfiles_remove_failed">%1$s을(를) 제거할 수 없습니다</string>
     <string name="gfiles_outside_folder">파일이 내보내기 폴더 밖을 가리킵니다</string>
-
-    <!-- A FEX build whose DLL carries no version name -->
     <string name="cmgr_fex_unnamed">FEX(버전 이름 없는 빌드)</string>
-
-    <!-- %1$s is a package file name -->
     <string name="cmgr_no_profile">%1$s에 profile.json이 없음</string>
-
-    <!-- %1$s is a package file name, %2$s the type its profile.json gives -->
     <string name="cmgr_not_component_package">%1$s은(는) Linux 구성 요소 패키지가 아닙니다(유형 %2$s)</string>
-
-    <!-- A storage volume in the second-library menu; %1$s is its name, %2$s its free space, like 12.3 GB -->
     <string name="gstore_volume_free">%1$s · %2$s 사용 가능</string>
-
-    <!-- The second-library setting's value when it is automatic (short form of mode_storage_auto) -->
     <string name="mode_storage_auto_short">자동</string>
-
-    <!-- %1$s is the technical reason, kept in English -->
     <string name="appupd_catalog_rejected">업데이트 카탈로그가 검사를 통과하지 못했습니다(%1$s)</string>
-
-    <!-- Label of the copied ADB command on the clipboard -->
     <string name="main_adb_clip_label">DroidDeck 하위 프로세스 설정</string>
-
-    <!-- Signed in, but the Steam client recorded no account name -->
     <string name="setup_signed_in_offline_unnamed">로그인됨 · 오프라인 모드</string>
     <string name="setup_signed_in_unnamed">로그인됨</string>
-
-    <!-- Small uppercase tags beside a driver's name: where it came from -->
     <string name="driver_tag_bundled">내장</string>
     <string name="driver_tag_downloaded">다운로드됨</string>
     <string name="driver_tag_imported">가져옴</string>
-
-    <!-- The driver is one half of a bundle that sets both drivers -->
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
-
-    <!-- %1$s is the limit's state (e.g. Child-process limit is on), %2$s what to do, %3$s the ADB command -->
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">세션 디스플레이</string>
     <string name="display_resolution">해상도</string>
@@ -2048,6 +1874,7 @@
     <string name="display_frame_rate">프레임 속도</string>
     <string name="display_look_filter">%1$s 스케일링을 %2$s(으)로 설정합니다.</string>
     <string name="display_match_screen">화면에 맞춤(%1$d×%2$d)</string>
+    <string name="display_follow_screen">화면 따라가기(접거나 펼치면 크기 변경)</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">기기 세부 정보 표시</string>
     <string name="device_info_hide">기기 세부 정보 숨기기</string>
@@ -2057,6 +1884,213 @@
     <string name="device_info_copied">복사했습니다.</string>
     <string name="force_ssbs_title">SSBS 강제</string>
     <string name="force_ssbs_hint">Wine이 계속 끄는 CPU 속도 설정을 켜 둡니다. Snapdragon 8 Elite에서 Windows 게임이 빨라질 수 있으며, 이전 칩에서는 변화가 거의 없습니다. 다음 게임 실행 시 적용됩니다.</string>
+
+    <string name="rail_stores">스토어</string>
+    <string name="source_steam">Steam</string>
+    <string name="source_added">사용자 정의</string>
+    <string name="setup_stores">스토어</string>
+    <string name="setup_stores_open_on">스토어를 열 때 표시</string>
+    <string name="setup_stores_speed">다운로드 속도 단계</string>
+    <string name="setup_stores_engine">스토어 엔진</string>
+    <string name="setup_stores_engine_chip_ready">● 엔진 준비됨</string>
+    <string name="setup_stores_engine_chip_missing">빌드되지 않음</string>
+    <string name="stores_tier_balanced">균형</string>
+    <string name="stores_tier_fast">빠름</string>
+    <string name="stores_tier_max">최대</string>
+    <string name="stores_title">스토어</string>
+    <string name="stores_settings">스토어 설정</string>
+    <string name="stores_settings_eyebrow">설정</string>
+    <string name="stores_chip_signed_out">(로그인 안 됨)</string>
+    <string name="stores_tab_store">스토어</string>
+    <string name="stores_tab_installed">설치됨</string>
+    <string name="stores_tab_library">라이브러리</string>
+    <string name="stores_tab_all">전체</string>
+    <string name="stores_tab_downloads">다운로드</string>
+    <string name="stores_tab_count">%1$s (%2$d)</string>
+    <string name="stores_signin">로그인</string>
+    <string name="stores_signout_named">%1$s · 로그아웃</string>
+    <string name="stores_signout_title">%1$s에서 로그아웃하시겠습니까?</string>
+    <string name="stores_signout_note">설치된 게임은 유지됩니다. 다시 로그인하면 라이브러리를 다시 가져옵니다.</string>
+    <string name="stores_signout_stay">로그인 유지</string>
+    <string name="stores_signout_go">로그아웃</string>
+    <string name="stores_search_catalog">%1$s 카탈로그 검색…</string>
+    <string name="stores_search_installed">설치된 게임 검색…</string>
+    <string name="stores_search_library">내 라이브러리 검색…</string>
+    <string name="stores_search_open">검색</string>
+    <string name="stores_installed_empty">설치된 항목 없음</string>
+    <string name="stores_library_loading">불러오는 중</string>
+    <string name="stores_nothing_matches">게임 없음</string>
+    <string name="stores_shelves_loading">스토어 불러오는 중…</string>
+    <string name="stores_amazon_no_catalog">카탈로그 없음</string>
+    <string name="stores_shelf_new">새로 나온 게임</string>
+    <string name="stores_shelf_deals">할인</string>
+    <string name="stores_shelf_free">무료 게임</string>
+    <string name="stores_shelf_trending">인기 급상승</string>
+    <string name="stores_shelf_library">내 라이브러리</string>
+    <string name="stores_play">플레이</string>
+    <string name="stores_install">설치</string>
+    <string name="stores_resume_install">설치 재개</string>
+    <string name="stores_dl_interrupted">중단됨</string>
+    <string name="stores_install_size">설치 · %1$s</string>
+    <string name="stores_get_free">무료로 받기</string>
+    <string name="stores_view_on">%1$s에서 보기</string>
+    <string name="stores_buy_price">구매 · %1$s</string>
+    <string name="stores_installed_chip">설치됨</string>
+    <string name="stores_in_library">라이브러리에 있음</string>
+    <string name="stores_free">무료</string>
+    <string name="stores_resume">재개</string>
+    <string name="stores_refresh">새로 고침</string>
+    <string name="stores_sort">정렬</string>
+    <string name="stores_sort_last_played">최근 플레이</string>
+    <string name="stores_sort_recently_installed">최근 설치</string>
+    <string name="stores_sort_title_asc">제목 A–Z</string>
+    <string name="stores_sort_title_desc">제목 Z–A</string>
+    <string name="stores_sort_size_desc">크기: 큰순</string>
+    <string name="stores_sort_size_asc">크기: 작은순</string>
+    <string name="stores_sort_release_date">출시일</string>
+    <string name="stores_view_list">목록 보기</string>
+    <string name="stores_view_cards">카드 보기</string>
+    <string name="stores_show_mature">성인용 콘텐츠 표시</string>
+    <string name="epic_card_title">Epic</string>
+    <string name="epic_card_eos">EOS</string>
+    <string name="epic_card_offline">오프라인</string>
+    <string name="epic_card_none">끔</string>
+    <string name="epic_eos">Epic 로그인(EOS)</string>
+    <string name="epic_offline">오프라인으로 실행</string>
+    <string name="epic_resolve">Epic 로그인 문제 해결</string>
+    <string name="epic_client_version">버전 %1$s</string>
+    <string name="epic_client_no_runtime">먼저 Linux 런타임을 설치하세요</string>
+    <string name="epic_client_checking">최신 버전 확인 중…</string>
+    <string name="epic_client_unpacking">압축 해제 중…</string>
+    <string name="epic_client_unreachable">다운로드 서버가 응답하지 않았습니다</string>
+    <string name="epic_client_needs_fex">Epic Games Launcher에는 Steam이 다운로드하는 FEX가 필요합니다. Steam이 시작된 후 런처를 다시 여세요.</string>
+    <string name="epic_client_download_failed">다운로드 실패: %1$s</string>
+    <string name="epic_client_unpack_failed">런처 압축을 해제할 수 없습니다: %1$s</string>
+    <string name="epic_client_sign_in_failed">Epic Games Launcher가 로그인을 받아들이지 않았습니다. 런처에서 다시 시작하세요.</string>
+    <string name="epic_client_uninstall_body">런처를 삭제하고 공간을 확보합니다. Epic 게임은 설치된 상태로 계속 작동하며, 로그인은 다시 설치할 때를 위해 유지됩니다.</string>
+    <string name="epic_client_uninstall_stops">실행 중인 세션이 먼저 종료됩니다.</string>
+    <string name="epic_client_uninstalled">Epic Games Launcher를 제거했습니다</string>
+    <string name="epic_client_uninstall_failed">일부 런처 파일을 삭제하지 못했습니다. 다시 시도하세요.</string>
+    <string name="epic_client_uninstalling">Epic Games Launcher 제거가 끝날 때까지 기다려 주세요</string>
+    <string name="store_cloud_saves">클라우드 저장</string>
+    <string name="cloud_upload">클라우드에 업로드</string>
+    <string name="cloud_download">클라우드에서 다운로드</string>
+    <string name="cloud_none">클라우드 저장 없음</string>
+    <string name="cloud_conflict">클라우드 충돌</string>
+    <string name="cloud_conflict_files">클라우드 충돌 · 파일 %1$d개</string>
+    <string name="cloud_pending">…</string>
+    <string name="cloud_keep_cloud">클라우드 유지</string>
+    <string name="cloud_keep_local">로컬 유지</string>
+    <string name="cloud_checking">클라우드 확인 중…</string>
+    <string name="cloud_last_sync">마지막 동기화 %1$s</string>
+    <string name="cloud_never">아직 동기화 안 됨</string>
+    <string name="cloud_done">파일 %1$d개</string>
+    <string name="stores_eyebrow_installed">설치됨</string>
+    <string name="stores_eyebrow_library">내 라이브러리</string>
+    <string name="stores_eyebrow_store">스토어</string>
+    <string name="achievements_title">도전 과제</string>
+    <string name="achievements_count">%2$d개 중 %1$d개 달성</string>
+    <string name="achievements_count_short">%1$d / %2$d</string>
+    <string name="achievements_group_unlocked">달성 · %1$d</string>
+    <string name="achievements_group_locked">미달성 · %1$d</string>
+    <string name="achievements_group_hidden">숨겨짐 · %1$d</string>
+    <string name="achievements_hidden">숨겨진 도전 과제</string>
+    <string name="achievements_hidden_detail">달성하면 세부 정보가 표시됩니다.</string>
+    <string name="achievements_all">모든 도전 과제 달성</string>
+    <string name="achievements_reading">불러오는 중…</string>
+    <string name="achievements_signed_out">도전 과제를 보려면 %1$s에 로그인하세요.</string>
+    <string name="achievements_unreachable">%1$s에 연결할 수 없습니다. 온라인 상태에서 다시 확인하세요.</string>
+    <string name="achievements_none">%1$s에 이 게임의 도전 과제가 없습니다.</string>
+    <string name="achievements_show_all">모두 보기(%1$d)</string>
+    <string name="achievements_dialog_title">도전 과제 · %1$s</string>
+    <string name="stores_in_steam">✓ Steam에 있음</string>
+    <string name="stores_uninstall">제거</string>
+    <string name="stores_uninstalling">제거 중…</string>
+    <string name="stores_uninstall_title">%1$s을(를) 제거하시겠습니까?</string>
+    <string name="stores_uninstall_body_size">%1$s의 공간을 확보하고 Steam에서 제거합니다.</string>
+    <string name="stores_uninstall_body">게임 파일과 Steam 바로 가기를 제거합니다.</string>
+    <string name="stores_launch_not_registered">다음에 Steam을 시작하면 게임이 표시됩니다. Steam에서 실행하거나 지금 Steam을 시작하세요.</string>
+    <string name="stores_card_proton">Proton</string>
+    <string name="stores_card_proton_value">게임별 Steam 선택</string>
+    <string name="stores_card_audio">오디오</string>
+    <string name="stores_card_audio_value">DirectAudio</string>
+    <string name="stores_card_components">구성 요소</string>
+    <string name="stores_card_components_value">FEX, DXVK, VKD3D</string>
+    <string name="stores_card_engine">엔진</string>
+    <string name="stores_card_engine_value">%1$s · 네이티브</string>
+    <string name="stores_card_engine_java">%1$s · 내장</string>
+    <string name="stores_how_it_runs">실행 방식</string>
+    <string name="stores_kv_fetched">가져온 곳</string>
+    <string name="stores_kv_fetched_value">%1$s, 내 계정으로</string>
+    <string name="stores_kv_installed_to">설치 위치</string>
+    <string name="stores_kv_installed_to_value">게임 저장 공간(Games/%1$s/%2$s)</string>
+    <string name="stores_kv_launched_by">실행 도구</string>
+    <string name="stores_kv_launched_by_value">Steam 및 Proton, Steam 게임과 같은 방식</string>
+    <string name="stores_kv_launched_by_epic">Steam 및 Proton · 실행할 때마다 Epic 로그인, EOS 오버레이 끔</string>
+    <string name="stores_kv_launched_by_amazon">Steam 및 Proton · Amazon Games Services 변수 설정됨</string>
+    <string name="stores_kv_steam">Steam</string>
+    <string name="stores_kv_steam_on">설치 시 Steam에 추가됨(Deck UI + Steam Input)</string>
+    <string name="stores_downloads_empty">다운로드 없음</string>
+    <string name="stores_dl_paused">일시 중지됨</string>
+    <string name="stores_dl_queued">대기 중</string>
+    <string name="stores_dl_queued_at">대기 중 · #%1$d</string>
+    <string name="stores_dl_cancelled">취소됨</string>
+    <string name="stores_dl_failed">실패</string>
+    <string name="stores_dl_failed_reason">실패 · %1$s</string>
+    <string name="stores_dl_stage_percent">%1$s · %2$d%%</string>
+    <string name="stores_dl_bytes">%1$s / %2$s · %3$d%%</string>
+    <string name="stores_dl_pause">일시 중지</string>
+    <string name="stores_dl_resume">재개</string>
+    <string name="stores_dl_cancel">취소</string>
+    <string name="stores_dl_retry">다시 시도</string>
+    <string name="stores_dl_clear">지우기</string>
+    <string name="stores_dl_clear_all">완료된 항목 지우기</string>
+    <string name="stores_stage_manifest">매니페스트</string>
+    <string name="stores_stage_download">다운로드</string>
+    <string name="stores_stage_verify">검증</string>
+    <string name="stores_stage_install">설치</string>
+    <string name="stores_stage_done">완료</string>
+    <string name="stores_stage_checking">확인 중</string>
+    <string name="stores_stage_downloading">다운로드 중</string>
+    <string name="stores_dl_cancel_confirm">다운로드를 삭제하시겠습니까?</string>
+    <string name="stores_dl_failed_kept">실패 · %1$s 유지됨</string>
+    <string name="stores_stage_verifying">검증 중</string>
+    <string name="stores_stage_installing">설치 중</string>
+    <string name="stores_dl_active_percent">%1$s %2$d%%</string>
+    <string name="stores_dl_with">%1$s · %2$s</string>
+    <string name="stores_dl_amount">%1$s / %2$s</string>
+    <string name="stores_dl_items">파일 %1$d/%2$d개</string>
+    <string name="stores_download_manager">다운로드 관리자</string>
+    <string name="stores_parallel">동시 다운로드 수</string>
+    <string name="stores_install_where">설치 위치</string>
+    <string name="stores_install_title">%1$s 설치:</string>
+    <string name="stores_target_internal">내부 저장 공간</string>
+    <string name="stores_target_free">%1$s 사용 가능</string>
+    <string name="stores_target_free_unknown">사용 가능한 공간 알 수 없음</string>
+    <string name="stores_storage_insufficient">공간 부족: %1$s 필요, %2$s 남음</string>
+    <string name="stores_storage_low">공간 부족(사용 가능 %1$s, 필요 %2$s)</string>
+    <string name="stores_notification_channel">스토어 다운로드</string>
+    <string name="stores_notification_channel_hint">게임 다운로드 진행률을 표시하고 백그라운드에서 다운로드를 계속 진행합니다</string>
+    <string name="stores_notification_one">다운로드 중</string>
+    <string name="stores_notification_many">다운로드 %1$d개</string>
+    <string name="stores_notification_waiting">준비 중…</string>
+    <string name="stores_notification_done_channel">완료된 스토어 다운로드</string>
+    <string name="stores_notification_installed">%1$s 설치됨</string>
+    <string name="stores_notification_failed">%1$s 다운로드 실패</string>
+    <string name="stores_notification_delete">삭제</string>
+    <string name="stores_notification_keep">유지</string>
+    <string name="stores_login_title">%1$s에 로그인</string>
+    <string name="stores_login_provider_title">계정 제공업체로 로그인</string>
+    <string name="stores_login_reload">새로 고침</string>
+    <string name="stores_login_close">닫기</string>
+    <string name="stores_login_retry">다시 시도</string>
+    <string name="stores_login_finishing">로그인 완료 중…</string>
+    <string name="stores_login_error_network">로그인 페이지를 불러올 수 없습니다: %1$s</string>
+    <string name="stores_login_error_idp_blocked">이 제공업체는 앱에 포함된 페이지에서 로그인을 허용하지 않습니다. 대신 스토어 비밀번호로 로그인하세요.</string>
+    <string name="stores_login_error_http">로그인 페이지에서 오류를 반환했습니다(HTTP %1$d).</string>
+    <string name="stores_login_error_ssl">로그인 페이지 연결이 안전하지 않습니다.</string>
+    <string name="stores_login_error_verification">로그인을 확인할 수 없습니다. 다시 시도하세요.</string>
+    <string name="stores_login_error_generic">로그인에 실패했습니다. 다시 시도하세요.</string>
     <string name="common_close">닫기</string>
     <string name="common_back">뒤로</string>
     <string name="common_edit">편집</string>
@@ -2070,6 +2104,21 @@
     <string name="edit_other_exe">다른 exe…</string>
     <string name="edit_remove">제거</string>
     <string name="art_cover">커버</string>
+    <string name="art_wide_cover">와이드 커버</string>
+    <string name="art_adjust_logo">로고 조정</string>
+    <string name="logo_pos_default">기본</string>
+    <string name="logo_pos_upper_left">왼쪽 위</string>
+    <string name="logo_pos_upper_center">가운데 위</string>
+    <string name="logo_pos_center">가운데</string>
+    <string name="logo_pos_bottom_left">왼쪽 아래</string>
+    <string name="logo_pos_bottom_center">가운데 아래</string>
+    <string name="logo_pos_position">위치</string>
+    <string name="logo_pos_size">크기</string>
+    <string name="logo_pos_save">저장</string>
+    <string name="logo_pos_reset">기본값으로</string>
+    <string name="logo_pos_hint">게임 배경에 Steam과 같은 방식으로 그려집니다. 위치가 몇 픽셀 어긋날 수 있습니다.</string>
+    <string name="logo_pos_no_logo">이 게임에는 아직 로고가 없습니다. 로고에서 하나를 고르면 여기에 표시됩니다.</string>
+    <string name="logo_pos_failed">로고 위치를 저장하지 못했습니다. 다시 시도하세요.</string>
     <string name="art_background">배경</string>
     <string name="art_logo">로고</string>
     <string name="art_icon">아이콘</string>
@@ -2082,10 +2131,732 @@
     <string name="art_pick_image">이미지 선택…</string>
     <string name="art_pick_title">이미지 선택: %1$s</string>
     <string name="art_reset">자동으로 재설정</string>
+    <string name="art_search_sgdb">SteamGridDB 검색…</string>
+    <string name="art_sgdb_title">SteamGridDB: %1$s</string>
+    <string name="art_sgdb_search_label">게임 검색</string>
+    <string name="art_sgdb_other_games">다른 결과</string>
+    <string name="art_sgdb_none">찾을 수 없습니다.</string>
+    <string name="art_sgdb_no_key">SteamGridDB에는 API 키가 필요합니다. 설정 › 런처에서 추가하세요.</string>
+    <string name="art_sgdb_bad_key">SteamGridDB가 이 API 키를 받지 않았습니다. 설정 › 런처에서 확인하세요.</string>
+    <string name="art_sgdb_limit">SteamGridDB가 현재 요청을 제한하고 있습니다. 잠시 후 다시 시도하세요.</string>
+    <string name="art_sgdb_offline">SteamGridDB에 연결할 수 없습니다. 네트워크 연결을 확인하세요.</string>
+    <string name="art_sgdb_server">SteamGridDB에 문제가 발생했습니다. 잠시 후 다시 시도하세요.</string>
+    <string name="art_sgdb_no_game">SteamGridDB에 이 게임의 결과가 없습니다. 검색을 사용해 보세요.</string>
     <plurals name="games_added_n">
         <item quantity="other">게임 %1$d개 추가됨</item>
     </plurals>
     <plurals name="games_already_n">
         <item quantity="other">%1$d개는 이미 게임에 있음</item>
     </plurals>
+    <string name="hop_back">B · %1$s(으)로 돌아가기</string>
+    <string name="hop_from_games">게임</string>
+    <string name="hop_from_play">플레이 설정</string>
+    <string name="sheet_graphics_drivers">그래픽 드라이버</string>
+    <string name="comp_this_proton">이 Proton</string>
+    <string name="comp_every_proton">모든 Proton</string>
+    <string name="comp_for_every_proton">모든 Proton에 적용</string>
+    <string name="comp_available_count">사용 가능 · %1$d</string>
+    <string name="comp_checked">확인 시각 %1$s</string>
+    <string name="comp_check_all">새 구성 요소 및 드라이버 확인</string>
+    <string name="comp_get">받기</string>
+    <string name="comp_proton_bar">%1$s · 아래의 DXVK, VKD3D-Proton 및 FEX는 이 Proton용입니다</string>
+    <string name="comp_device_tested">%1$s · 테스트됨</string>
+    <string name="comp_device_untested">%1$s · 테스트되지 않음</string>
+    <string name="comp_device_unsupported">%1$s · 지원되지 않음</string>
+    <string name="gpu_auto_keeps">권장 조합을 최신 상태로 유지합니다</string>
+    <string name="gpu_bar_auto">자동 · %1$s</string>
+    <string name="gpu_separately">런타임 및 디스플레이 드라이버 개별 설정</string>
+    <string name="gpu_use_title">%1$s을(를) 사용하시겠습니까?</string>
+    <string name="gpu_mode_title">드라이버 선택 방식</string>
+    <string name="gpu_mode_auto_detail">이 GPU에 가장 좋은 조합을 자동으로 선택하고 최신으로 유지합니다</string>
+    <string name="gpu_mode_pair">조합</string>
+    <string name="gpu_mode_pair_detail">조합 하나를 골라 두 드라이버를 함께 설정합니다</string>
+    <string name="gpu_mode_mix">개별 선택</string>
+    <string name="gpu_mode_mix_detail">디스플레이 드라이버와 런타임 드라이버를 따로 선택합니다</string>
+    <string name="gpu_mode_pair_short">조합</string>
+    <string name="gpu_mode_mix_short">개별</string>
+    <string name="gpu_src_auto">자동</string>
+    <string name="gpu_src_pair">조합</string>
+    <string name="gpu_src_bundle">내장</string>
+    <string name="gpu_src_chosen">선택됨</string>
+    <string name="gpu_src_by_gpu">GPU별</string>
+    <string name="gpu_src_default">기본</string>
+    <string name="gpu_display_live">그리는 중</string>
+    <string name="gpu_display_pending">재시작 대기 · 현재 %1$s 그리는 중</string>
+    <string name="gpu_runtime_live">실행 중</string>
+    <string name="gpu_runtime_pending">다음 세션에 적용 · 이번 세션은 %1$s 사용</string>
+    <string name="gpu_display_next">화면 그리기를 담당합니다. 다음 세션부터 적용됩니다.</string>
+    <string name="gpu_previous_driver">이전 드라이버</string>
+    <string name="gpu_restart_banner">디스플레이 드라이버를 바꾸려면 다시 시작하세요.</string>
+    <string name="gpu_restart_blocked">실행 중인 세션을 중지한 뒤 디스플레이 드라이버를 바꾸려면 DroidDeck을 다시 시작하세요.</string>
+    <string name="gpu_restart_now">지금 다시 시작</string>
+    <string name="gpu_restart_later">나중에</string>
+    <string name="gpu_auto_title">%1$s에 맞춰 이 조합을 자동으로 선택했습니다</string>
+    <string name="gpu_auto_builtin_title">자동 모드가 %1$s에 내장 드라이버를 사용합니다</string>
+    <string name="gpu_auto_reason">%1$s 시리즈에 맞춰 선택했습니다. 새 버전은 백그라운드에서 설치됩니다.</string>
+    <string name="gpu_pair_title">조합 선택</string>
+    <string name="gpu_pair_hint">조합은 디스플레이 드라이버와 런타임 드라이버를 함께 설정합니다.</string>
+    <string name="gpu_mix_title">드라이버 개별 선택</string>
+    <string name="gpu_mix_hint">내장 패키지는 둘 다 함께 채웁니다. 디스플레이 드라이버 변경은 다시 시작한 뒤, 런타임 드라이버는 다음 세션에 적용됩니다.</string>
+    <string name="gpu_change_display">디스플레이 드라이버 변경</string>
+    <string name="gpu_change_runtime">런타임 드라이버 변경</string>
+    <string name="gpu_autos_pick">자동 선택</string>
+    <string name="gpu_installed">설치됨</string>
+    <string name="gpu_summary_mix">%1$s + %2$s</string>
+    <string name="gpu_summary_restart">%1$s · 재시작 후 적용</string>
+    <string name="gpu_chip_restart">%1$s · 재시작 대기</string>
+    <string name="comp_this_device">이 기기</string>
+    <string name="proton_remove_title">%1$s을(를) 제거하시겠습니까?</string>
+    <string name="setup_tab_diagnostics">진단</string>
+    <string name="setup_ready">플레이 준비 완료</string>
+    <string name="setup_not_ready">아직 플레이할 준비가 되지 않음</string>
+    <string name="setup_ready_runtime">런타임 %1$s</string>
+    <string name="setup_ready_limit_off">프로세스 제한 꺼짐</string>
+    <string name="setup_ready_signed_in">%1$s(으)로 로그인됨</string>
+    <string name="setup_needs_you">확인이 필요한 항목</string>
+    <string name="setup_group_look">외관</string>
+    <string name="setup_group_device">이 기기</string>
+    <string name="setup_group_art">라이브러리 아트워크</string>
+    <string name="setup_group_download">다운로드</string>
+    <string name="setup_download_source">소스</string>
+    <string name="setup_download_source_auto">자동</string>
+    <string name="setup_download_source_direct">직접</string>
+    <string name="setup_download_source_mirror">미러</string>
+    <string name="setup_download_source_custom">사용자 지정 프리픽스</string>
+    <string name="setup_download_mirror">사이트</string>
+    <string name="setup_download_prefix">프리픽스</string>
+    <string name="flathub_eyebrow">LINUX 앱</string>
+    <string name="flathub_name">Flathub</string>
+    <string name="flathub_line">Linux 데스크톱용 앱으로, 데스크톱에서 엽니다.</string>
+    <string name="flathub_setup">Flathub 설정</string>
+    <string name="flathub_remove_title">%1$s을(를) 제거하시겠습니까?</string>
+    <string name="flathub_remove_note">설정과 파일은 유지됩니다.</string>
+    <string name="flathub_keep">유지</string>
+    <string name="desktop_size">디스크 사용량</string>
+    <string name="desktop_uninstall_title">데스크톱을 제거하시겠습니까?</string>
+    <string name="desktop_all_systems">전체</string>
+    <string name="gog_achievements">GOG 도전 과제</string>
+    <string name="gog_achievements_hint">지원되는 GOG 게임의 도전 과제를 동기화합니다. 다음 실행부터 적용됩니다.</string>
+    <string name="gog_achievements_off">도전 과제 꺼짐</string>
+    <string name="gog_achievements_on">도전 과제 켜짐</string>
+    <string name="gog_achievements_signin">GOG에 다시 로그인하세요</string>
+    <string name="gog_achievements_uploaded">도전 과제 업로드됨</string>
+    <string name="gog_achievements_pending">도전 과제 업로드 대기 중</string>
+    <string name="gog_achievements_enable_store">스토어 설정에서 GOG 도전 과제를 활성화하세요</string>
+    <string name="gog_achievements_unavailable">도전 과제를 사용할 수 없습니다. 세션 로그를 확인하세요</string>
+    <string name="achievement_unlocked">도전 과제 잠금 해제됨</string>
+    <string name="touch_paste">붙여넣기</string>
+    <string name="touch_dpad">방향패드</string>
+    <string name="touch_left_stick">왼쪽 스틱</string>
+    <string name="touch_right_stick">오른쪽 스틱</string>
+    <string name="touch_menu">메뉴</string>
+    <string name="touch_keyboard">키보드</string>
+    <string name="touch_dpad_up">방향패드 위</string>
+    <string name="touch_dpad_down">방향패드 아래</string>
+    <string name="touch_dpad_left">방향패드 왼쪽</string>
+    <string name="touch_dpad_right">방향패드 오른쪽</string>
+    <string name="touch_title">터치 컨트롤</string>
+    <string name="touch_controller">터치 컨트롤러</string>
+    <string name="touch_mouse">마우스</string>
+    <string name="touch_on">켜짐</string>
+    <string name="touch_off">꺼짐</string>
+    <string name="touch_speed_slow">느림</string>
+    <string name="touch_speed_normal">보통</string>
+    <string name="touch_speed_fast">빠름</string>
+    <string name="touch_edit_layout">레이아웃 편집</string>
+    <string name="touch_droiddeck_menu">DroidDeck 메뉴</string>
+    <string name="touch_drag_hint">화면으로 컨트롤을 끌어다 놓으세요</string>
+    <string name="touch_arrange">배치</string>
+    <string name="touch_discard">취소</string>
+    <string name="touch_saving">저장 중…</string>
+    <string name="touch_icon">아이콘</string>
+    <string name="touch_narrower">너−</string>
+    <string name="touch_wider">너+</string>
+    <string name="touch_shorter">높−</string>
+    <string name="touch_taller">높+</string>
+    <string name="touch_hide">숨기기</string>
+    <string name="touch_color_opacity">색상 및 불투명도…</string>
+    <string name="touch_copy_layout">이 레이아웃 복사</string>
+    <string name="touch_layout_copied">레이아웃이 복사되었습니다. 어떤 게임의 터치 레이아웃에도 붙여넣을 수 있습니다</string>
+    <string name="touch_paste_layout">복사한 레이아웃 붙여넣기</string>
+    <string name="touch_reset_layout">Steam 기본값으로 재설정</string>
+    <string name="touch_no_binding">이 컨트롤에는 아이콘을 지정할 Steam 바인딩이 없습니다</string>
+    <string name="touch_icon_for">%1$s 아이콘</string>
+    <string name="touch_layout_color">터치 레이아웃 색상</string>
+    <string name="touch_done">완료</string>
+    <string name="touch_save_failed">터치 레이아웃을 저장할 수 없습니다</string>
+    <string name="touch_saved">터치 레이아웃이 Steam에 저장되었습니다</string>
+    <string name="touch_app_id">앱 %1$d</string>
+    <string name="touch_label_hint">라벨(선택 사항)</string>
+    <string name="touch_icons_missing">Steam 아이콘을 찾을 수 없습니다</string>
+    <plurals name="touch_icons_found">
+        <item quantity="other">Steam 아이콘 %1$d개</item>
+    </plurals>
+    <string name="touch_icon_color">아이콘 색상</string>
+    <string name="touch_button_color">버튼 색상</string>
+    <string name="touch_no_icon">아이콘 없음</string>
+
+    <string name="stores_sync_sign_in">로그인 확인 중…</string>
+    <string name="stores_sync_library">라이브러리를 가져오는 중…</string>
+    <string name="stores_sync_game_list">게임 목록을 가져오는 중…</string>
+    <string name="stores_sync_details">게임 정보를 불러오는 중… (%1$d/%2$d)</string>
+    <plurals name="stores_sync_games">
+        <item quantity="other">게임 %1$d개 동기화 중…</item>
+    </plurals>
+    <string name="stores_sync_progress">동기화 중… %1$d/%2$d</string>
+    <string name="stores_sync_cover_art">커버 아트를 가져오는 중…</string>
+    <string name="stores_sync_failed">동기화 실패</string>
+    <string name="stores_sync_no_games">%1$s 라이브러리에서 게임을 찾을 수 없습니다</string>
+    <string name="stores_sync_amazon_no_answer">Amazon Games가 라이브러리 요청에 응답하지 않았습니다. 새로고침하거나 다시 로그인하세요</string>
+    <string name="stores_sync_gog_unreachable">GOG에 연결할 수 없습니다</string>
+    <string name="stores_sync_gog_unreadable">GOG 라이브러리를 읽을 수 없습니다</string>
+    <string name="stores_registering">Steam에 등록 중…</string>
+    <string name="mode_client_arch">Steam 클라이언트</string>
+    <string name="mode_client_arch_fex">FEX %1$s</string>
+    <string name="mode_client_arch_arm64">ARM64</string>
+    <string name="mode_client_arch_x64">x86-64</string>
+    <string name="setup_vac_diag">VAC 진단</string>
+    <string name="setup_vac_diag_hint">Source 게임은 콘솔을 기록합니다(-condebug). 세션 로그의 vac.txt에서 보안 여부를 확인할 수 있습니다</string>
+    <string name="load_starting_steam_x64">Steam x86-64 시작 중</string>
+    <string name="storage_game_x64">%1$s · x86-64</string>
+    <string name="storage_tool_x64_client">x86-64 Steam 클라이언트에서 사용</string>
+    <string name="storage_uninstall_in_x64">이 사본은 x86-64 Steam 클라이언트에 있습니다. Steam 클라이언트에서 x86-64를 선택한 다음 여기에서 제거하세요.</string>
+    <string name="storage_uninstall_in_arm64">이 사본은 ARM64 Steam 클라이언트에 있습니다. Steam 클라이언트에서 ARM64를 선택한 다음 여기에서 제거하세요.</string>
+    <string name="drawer_page_glasses">안경</string>
+    <string name="glasses_open">VITURE 안경</string>
+    <string name="glasses_control">안경 제어</string>
+    <string name="glasses_driver_missing">이 빌드에는 이 안경용 드라이버가 포함되어 있지 않습니다.</string>
+    <string name="glasses_connection_failed">안경에 연결하지 못했습니다. 케이블을 다시 연결하거나 “허용”을 탭하여 다시 시도하세요.</string>
+    <string name="glasses_allow">허용</string>
+    <string name="glasses_allow_hint">DroidDeck이 안경의 주사율, 3D 모드, 밝기, 볼륨, 선블록을 설정하고 헤드 트래킹을 읽도록 허용합니다.</string>
+    <string name="glasses_asking">Android 안내 창에서 허용하기를 기다리는 중…</string>
+    <string name="glasses_denied">제어가 거부되었습니다. 안경 설정을 바꾸려면 허용하세요.</string>
+    <string name="glasses_no_control">이 안경은 게임을 표시하지만 여기에서 설정을 바꿀 수는 없습니다.</string>
+    <string name="glasses_output">출력</string>
+    <string name="glasses_status">%1$d×%2$d · %3$d Hz · %4$s</string>
+    <string name="glasses_mode_2d">2D</string>
+    <string name="glasses_mode_3d">3D</string>
+    <string name="glasses_game_on">안경에 게임 표시</string>
+    <string name="glasses_game_on_hint">게임을 안경에만 표시합니다. 끄면 휴대폰에 표시되고 Android가 휴대폰 화면을 미러링합니다.</string>
+    <string name="glasses_display">디스플레이</string>
+    <string name="glasses_refresh">주사율</string>
+    <string name="glasses_3d">3D (사이드 바이 사이드)</string>
+    <string name="glasses_3d_hint">스마트 안경을 사이드 바이 사이드 3D 모드로 전환합니다. 헤드 추적은 별도로 제어됩니다.</string>
+    <string name="glasses_3d_failed">3D 신호를 확인하지 못했습니다. 2D 화면이 돌아오면 다시 시도하세요.</string>
+    <string name="glasses_no_signal">화면 없음: 안경이 이 휴대폰에서 보낼 수 없는 모드에 있습니다. 2D/3D 버튼을 길게 누르거나 안경을 뺐다가 다시 연결하세요.</string>
+    <string name="glasses_3d_refresh">3D 주사율</string>
+    <string name="glasses_auto3d">VR 게임에서 3D</string>
+    <string name="glasses_auto3d_hint">SteamVR이 실행되는 동안 3D로 전환하고 끝나면 되돌립니다.</string>
+    <string name="glasses_picture">화면</string>
+    <string name="glasses_picture_hint">자동 모드는 양쪽 눈에 평면 콘텐츠를 표시하고 SteamVR을 감지합니다. SBS 콘텐츠의 경우 \'Side-by-side 게임\'을 선택하세요.</string>
+    <string name="glasses_picture_auto">자동</string>
+    <string name="glasses_picture_screen">가상 화면</string>
+    <string name="glasses_picture_sbs">사이드 바이 사이드 게임</string>
+    <string name="glasses_screen_size">화면 너비</string>
+    <string name="glasses_screen_distance">화면 거리</string>
+    <string name="glasses_screen_next_session">너비와 거리는 게임이 안경에서 가상 화면으로 실행될 때 적용됩니다.</string>
+    <string name="glasses_screen_no_output">이 설정은 “안경에 게임 표시”가 켜져 있고 게임이 안경에 표시될 때 적용됩니다.</string>
+    <string name="glasses_screen_flat_hint">“자동”에서는 이 2D 게임이 전체 화면으로 유지됩니다. 너비, 거리, 헤드 트래킹을 조정하려면 가상 화면을 사용하세요.</string>
+    <string name="glasses_screen_use">가상 화면 사용</string>
+    <string name="glasses_screen_direct_hint">SteamVR은 화면을 가득 채웁니다. VR 환경에서 시야각을 조정하세요. 너비와 거리는 가상 화면에만 적용됩니다.</string>
+    <string name="glasses_screen_sbs_hint">사이드 바이 사이드 게임은 양쪽 눈의 시야를 각각 가득 채웁니다. 너비와 거리는 가상 화면에만 적용됩니다.</string>
+    <string name="glasses_tracking_flat_hint">“자동”에서는 이 2D 게임이 시야에 고정됩니다. 헤드 트래킹을 사용하려면 “디스플레이”에서 “가상 화면”을 선택하세요.</string>
+    <string name="glasses_tracking_sbs_hint">헤드 트래킹은 가상 화면이나 실행 중인 SteamVR 게임에 적용됩니다.</string>
+    <string name="glasses_hardware">장치</string>
+    <string name="glasses_brightness">밝기</string>
+    <string name="glasses_volume">볼륨</string>
+    <string name="glasses_sunblock">선블록</string>
+    <string name="glasses_sunblock_hint">앞쪽 렌즈를 어둡게 합니다.</string>
+    <string name="glasses_tracking">추적</string>
+    <string name="glasses_head_tracking">헤드 트래킹</string>
+    <string name="glasses_head_tracking_hint">안경의 센서가 머리 움직임에 맞춰 가상 화면과 SteamVR을 돌립니다.</string>
+    <string name="glasses_recenter">시점 재설정</string>
+    <string name="glasses_recenter_button">화면 중심 재설정</string>
+    <string name="glasses_vr_fov">SteamVR 시야각</string>
+    <string name="glasses_vr_fov_hint">낮추면 SteamVR이 가까워져 안경을 가득 채우고, 높이면 주변이 더 넓게 보입니다.</string>
+    <string name="glasses_playing">%1$s에서 플레이 중</string>
+    <string name="glasses_calibration">트래킹 보정</string>
+    <string name="glasses_calibration_hint">드리프트를 줄이고 수평 기준을 맞춥니다.</string>
+    <string name="glasses_calibration_saved_hint">저장된 보정이 이 안경에 적용되어 있습니다.</string>
+    <string name="glasses_calibration_open">보정</string>
+    <string name="glasses_calibration_instructions">연결된 안경을 수평한 곳에 뒤집어 놓고 프레임이 고르게 닿도록 하세요. “시작”을 탭한 다음 약 8초 동안 건드리지 마세요. 움직이면 측정이 다시 시작됩니다. 드리프트와 기울기는 보정되지만 좌우 방향은 보정되지 않습니다.</string>
+    <string name="glasses_calibration_settling">안경을 뒤집어 둔 채 건드리지 마세요. 안정될 때까지 기다리는 중…</string>
+    <string name="glasses_calibration_collecting">센서를 측정하는 중입니다. 안경을 움직이지 마세요.</string>
+    <string name="glasses_calibration_moving">움직임이 감지되었습니다. 안경을 건드리지 마세요. 측정이 자동으로 다시 시작됩니다.</string>
+    <string name="glasses_calibration_turn_over">안경을 수평한 곳에 뒤집어 놓으세요. 올바른 위치에 놓이면 측정이 시작됩니다.</string>
+    <string name="glasses_calibration_complete">보정이 저장되었습니다. 안경을 쓰고 정면을 바라본 다음 “완료”를 탭하여 중앙을 맞추세요.</string>
+    <string name="glasses_calibration_failed">보정을 완료하지 못했습니다. 연결을 확인하고 안경을 움직이지 않게 둔 다음 다시 시도하세요. 이전 보정은 그대로 유지됩니다.</string>
+    <string name="glasses_calibration_start">시작</string>
+    <string name="glasses_calibration_done">완료</string>
+    <string name="glasses_calibration_reset">트래킹 보정 초기화</string>
+    <string name="glasses_calibration_reset_hint">저장된 보정을 삭제하고 모델 기본값으로 되돌릴까요? 안경을 다시 쓴 후 중앙을 맞추세요.</string>
+    <string name="glasses_calibration_reset_button">초기화</string>
+    <string name="hand_camera_group">핸드 트래킹</string>
+    <string name="hand_camera_prompt_title">스마트폰 카메라로 손 또는 Joy-Con 컨트롤러 추적?</string>
+    <string name="hand_camera_prompt_body">컨트롤러가 연결되지 않은 경우, 스마트폰 카메라가 VR 환경에서 맨손을 추적합니다. 엄지와 검지를 오므려 클릭, 손을 오므려 잡기, 손바닥을 자신 쪽으로 돌리고 오므려 메뉴를 엽니다. Joy-Con 컨트롤러가 연결된 경우, 카메라가 컨트롤러의 위치를 ​​추적하는 동안 Joy-Con 컨트롤러는 회전 및 버튼 입력을 제공합니다. 사진은 이 기기에서 처리되며 저장되거나 전송되지 않습니다.</string>
+    <string name="hand_camera_rear">후면 카메라</string>
+    <string name="hand_camera_rear_hint">권장합니다. 보통 더 선명하고 화각이 넓습니다.</string>
+    <string name="hand_camera_front">전면 카메라</string>
+    <string name="hand_camera_front_hint">기기의 뒷면을 당신 쪽으로 향하게 할 수 없을 때 사용합니다.</string>
+    <string name="hand_camera_allow">카메라 사용</string>
+    <string name="hand_camera_not_now">나중에</string>
+    <string name="hand_camera_setting">카메라 핸드 트래킹</string>
+    <string name="hand_camera_setting_hint">휴대폰 카메라를 사용하여 맨손 제스처를 사용하거나 VR에서 페어링된 Joy-Con 컨트롤러의 위치를 ​​조정합니다. Joy-Con 컨트롤러는 회전 및 버튼 입력을 제공합니다. 스마트 안경이 손이나 Joy-Con 컨트롤러를 추적하는 동안 일시 중지됩니다. 이미지는 이 기기에서만 처리됩니다.</string>
+    <string name="hand_camera_choice">카메라</string>
+    <string name="hand_camera_access">카메라 권한</string>
+    <string name="hand_camera_access_hint">핸드 트래킹을 시작하려면 카메라 권한을 허용하세요.</string>
+    <string name="hand_camera_access_denied">카메라 권한이 꺼져 있습니다. Android 설정에서 켜세요.</string>
+    <string name="hand_camera_allow_button">허용</string>
+    <string name="hand_camera_open_settings">설정 열기</string>
+    <string name="hand_camera_placement">카메라 위치</string>
+    <string name="hand_camera_placement_hint">플레이하기 전에 카메라에 당신이 보이는지 확인하세요.</string>
+    <string name="hand_camera_check">확인</string>
+    <string name="hand_camera_check_title">카메라 위치</string>
+    <string name="hand_camera_how_rear">기기를 가슴 높이쯤에서 1.5~2m 떨어진 곳에 세우고, 후면 카메라가 당신을 향하게 하세요. 그런 다음 손을 벌리고 화면 안으로 들어오세요.</string>
+    <string name="hand_camera_how_front">기기를 가슴 높이쯤에서 1.5~2m 떨어진 곳에 세우고, 화면이 당신을 향하게 하세요. 그런 다음 손을 벌리고 화면 안으로 들어오세요.</string>
+    <string name="hand_camera_starting">카메라를 시작하는 중…</string>
+    <string name="hand_camera_stand_up">기기가 눕혀져 있습니다. 카메라가 당신을 향하도록 세워 주세요.</string>
+    <string name="hand_camera_upright">카메라가 당신을 향하도록 기기를 더 세워 주세요.</string>
+    <string name="hand_camera_not_seen">아직 보이지 않습니다. 머리와 어깨가 보이도록 화면 안으로 들어와 주세요.</string>
+    <string name="hand_camera_move_back">조금 뒤로 물러나 주세요.</string>
+    <string name="hand_camera_move_closer">조금 더 가까이 와 주세요.</string>
+    <string name="hand_camera_show_hands">카메라가 볼 수 있는 곳에서 양손을 뻗어 보여주세요.</string>
+    <string name="hand_camera_good">좋습니다.</string>
+    <string name="hand_camera_failed">카메라를 시작하지 못했습니다. 카메라를 사용 중인 다른 앱을 닫고 다시 시도하세요.</string>
+    <string name="hand_camera_switch">카메라 전환</string>
+    <string name="hand_camera_skip">건너뛰기</string>
+    <string name="hand_camera_done">완료</string>
+    <string name="glasses_xreal_network_missing">안경의 USB Ethernet 연결을 기다리는 중입니다. 이 휴대폰은 앱에 이 연결을 제공하지 않을 수 있습니다.</string>
+    <string name="glasses_xreal_connection_failed">XREAL 연결이 중단되었거나 지원되지 않는 응답을 받았습니다. 다시 시도하는 중…</string>
+    <string name="glasses_xreal_experimental">1S 지원은 실험 단계입니다. 안경 메뉴에서 Follow 모드를 사용하고 안정화를 끄세요. 트래킹 방향과 디스플레이 모드는 아직 기기에서 테스트가 필요합니다.</string>
+    <string name="stores_fact_developer">개발사</string>
+    <string name="stores_fact_publisher">배급사</string>
+    <string name="stores_fact_released">출시일</string>
+    <string name="stores_hltb_main">메인</string>
+    <string name="stores_hltb_extras">+ 추가 요소</string>
+    <string name="stores_hltb_completionist">완전 정복</string>
+    <string name="stores_hltb_hours">%1$s시간</string>
+    <string name="stores_hltb_minutes">%1$d분</string>
+    <string name="cardboard_title">Cardboard VR</string>
+    <string name="cardboard_mode">Cardboard 모드</string>
+    <string name="cardboard_mode_hint">휴대폰 VR 뷰어용 왼쪽 및 오른쪽 눈 화면입니다.</string>
+    <string name="cardboard_source">화면</string>
+    <string name="cardboard_source_screen">가상 스크린</string>
+    <string name="cardboard_source_sbs">사이드 바이 사이드 3D</string>
+    <string name="cardboard_viewer">뷰어</string>
+    <string name="cardboard_viewer_v2">Cardboard</string>
+    <string name="cardboard_viewer_v1">Cardboard (2014)</string>
+    <string name="cardboard_viewer_none">렌즈 없음</string>
+    <string name="cardboard_ipd">눈 사이 거리</string>
+    <string name="cardboard_screen_width">스크린 너비</string>
+    <string name="cardboard_screen_distance">스크린 거리</string>
+    <string name="cardboard_head_tracking">머리 추적</string>
+    <string name="cardboard_no_sensor">이 기기에는 회전 센서가 없습니다.</string>
+    <string name="cardboard_recenter">시점 재설정</string>
+    <string name="cardboard_recenter_button">재설정</string>
+    <string name="cardboard_steamvr">SteamVR (실험적)</string>
+    <string name="cardboard_steamvr_install">설치</string>
+    <string name="cardboard_steamvr_installing">SteamVR 다운로드 및 압축 해제 중…</string>
+    <string name="cardboard_steamvr_start">시작</string>
+    <string name="cardboard_steamvr_stop">중지</string>
+    <string name="cardboard_steamvr_unavailable">이 세션에서는 사용할 수 없습니다.</string>
+    <string name="cardboard_steamvr_failed">SteamVR이 응답하지 않았습니다. 세션 로그를 확인하세요.</string>
+    <string name="drawer_component_downloads">구성 요소 다운로드</string>
+    <string name="drawer_component_downloads_hint">다운로드는 구성 요소 페이지와 공유됩니다. 위에서 다운로드한 버전을 선택하면 다음 게임 실행 시 사용됩니다.</string>
+    <string name="drawer_component_choose_download">다운로드할 버전 선택</string>
+    <string name="display_picture_position">화면 위치</string>
+    <string name="display_position_top">위</string>
+    <string name="display_position_bottom">아래</string>
+    <string name="display_position_center">가운데(기본)</string>
+    <string name="setup_tab_storage">저장 공간</string>
+    <string name="storage_measuring">저장 공간 계산 중…</string>
+    <string name="storage_measuring_hint">처음 계산할 때는 몇 초 걸립니다.</string>
+    <string name="storage_internal">내부 저장 공간</string>
+    <string name="storage_used_of">%1$s / %2$s 사용 중</string>
+    <string name="storage_free">%1$s 사용 가능</string>
+    <string name="storage_droiddeck_uses">DroidDeck 사용량 %1$s. 계산 시각 %2$s.</string>
+    <string name="storage_rescanning">다시 계산 중…</string>
+    <string name="storage_other_apps">다른 Android 앱</string>
+    <string name="storage_safe_now">지금 안전하게 확보 가능</string>
+    <string name="storage_safe_hint">사용하지 않는 런타임, 잔여물, 오래된 로그</string>
+    <string name="storage_clean_up">정리…</string>
+    <string name="storage_session_running">세션을 중지해야 정리하거나 제거할 수 있습니다. 용량은 계속 표시됩니다.</string>
+    <string name="storage_where">사용 내역</string>
+    <string name="storage_games">Steam 게임</string>
+    <string name="storage_game_data">게임 데이터</string>
+    <string name="storage_game_data_hint">프리픽스 %1$s · 워크숍 %2$s · 셰이더 %3$s</string>
+    <string name="storage_tools">Proton과 런타임</string>
+    <string name="storage_tools_unused">%1$s 사용 안 함</string>
+    <string name="storage_stores">GOG, Epic 및 기타 스토어</string>
+    <string name="storage_stores_hint">스토어에서 제거</string>
+    <string name="storage_desktop">데스크톱 앱</string>
+    <string name="storage_desktop_hint">Flatpak 앱과 런타임</string>
+    <string name="storage_system">Linux 시스템과 Steam 클라이언트</string>
+    <string name="storage_system_hint">무엇이든 실행하는 데 필요</string>
+    <string name="storage_app_data">DroidDeck 데이터</string>
+    <string name="storage_app_data_hint">오래된 세션 로그 %1$s · 캐시 · 드라이버</string>
+    <string name="storage_legend_games">게임</string>
+    <string name="storage_legend_data">게임 데이터</string>
+    <string name="storage_legend_tools">Proton과 런타임</string>
+    <string name="storage_legend_stores">기타 스토어</string>
+    <string name="storage_legend_desktop">데스크톱 앱</string>
+    <string name="storage_legend_system">Linux 시스템</string>
+    <string name="storage_legend_app">DroidDeck</string>
+    <string name="storage_clean_up_title">정리</string>
+    <string name="storage_clean_up_lede">설치된 게임이나 진행 중인 다운로드에는 영향을 주지 않습니다.</string>
+    <string name="storage_nothing_to_clean">지금은 정리할 항목이 없습니다.</string>
+    <string name="storage_selected">선택: %1$s · %2$s → 사용 가능 %3$s</string>
+    <string name="storage_cleaning">정리 중…</string>
+    <string name="storage_free_button">%1$s 확보</string>
+    <string name="storage_freed">%1$s 확보됨.</string>
+    <string name="storage_item_runtimes">사용하지 않는 Steam 런타임과 Proton</string>
+    <string name="storage_item_leftovers">제거한 게임의 잔여물</string>
+    <string name="storage_item_leftovers_unsure">저장 파일이 있을 수 있는 잔여물</string>
+    <string name="storage_item_logs">오래된 세션 로그</string>
+    <string name="storage_item_logs_detail">현재 세션의 로그는 유지됩니다</string>
+    <string name="storage_item_custom_detail">어떤 게임도 사용하지 않습니다. 사용하려면 구성 요소에서 다시 설치하세요.</string>
+    <string name="storage_item_shaders">설치된 게임의 셰이더 캐시</string>
+    <string name="storage_item_shaders_detail">플레이하면 다시 생성됩니다. 게임마다 첫 몇 분은 다시 끊깁니다.</string>
+    <string name="storage_tag_safe">안전</string>
+    <string name="storage_tag_unused">사용 안 함</string>
+    <string name="storage_tag_stutter">끊김</string>
+    <string name="storage_tag_saves">저장 파일 확인</string>
+    <string name="storage_tag_default">기본</string>
+    <string name="storage_tag_required">필수</string>
+    <string name="storage_tag_not_used">사용 안 함</string>
+    <string name="storage_back">저장 공간</string>
+    <string name="storage_games_with_data">%1$s 및 데이터</string>
+    <string name="storage_sort_largest">큰 순</string>
+    <string name="storage_sort_least_played">적게 플레이한 순</string>
+    <string name="storage_sort_sd">SD 카드에 있음</string>
+    <string name="storage_no_games">여기에 게임이 없습니다.</string>
+    <string name="storage_played">플레이 %1$s</string>
+    <string name="storage_never_played">플레이한 적 없음</string>
+    <string name="storage_game_parts">게임 %1$s · 데이터 %2$s</string>
+    <string name="storage_uninstall">제거</string>
+    <string name="storage_games_note">제거하면 Steam 기본 대화 상자가 열려 Steam에 기록됩니다. 게임을 SD 카드로 옮기려면 Steam › 설정 › 저장 공간을 사용하세요.</string>
+    <string name="storage_uninstall_title">%1$s 제거할까요?</string>
+    <string name="storage_uninstall_body">Steam이 열리고 확인을 요청합니다. 이 게임의 %1$s이 확보됩니다. 프리픽스는 잔여물을 정리할 때까지 남고, Steam 클라우드 저장 파일은 계정에 남습니다.</string>
+    <string name="storage_open_steam">Steam 열기</string>
+    <string name="storage_tools_detail">%1$s · %2$s 사용 안 함</string>
+    <string name="storage_remove_unused">사용 안 함 제거 · %1$s</string>
+    <string name="storage_in_use">사용 중</string>
+    <string name="storage_not_used">사용 안 함</string>
+    <string name="storage_remove">제거</string>
+    <string name="storage_remove_title">%1$s 제거할까요?</string>
+    <string name="storage_remove_body">%1$s이 확보됩니다. 나중에 게임이 필요로 하면 Steam이 다시 내려받습니다.</string>
+    <string name="storage_tool_fex_runtime">Linux x86 게임에 필요(FEX)</string>
+    <string name="storage_tool_arm_runtime">ARM64 Proton에 필요</string>
+    <string name="storage_tool_redist">게임이 요청한 VC++ 및 DirectX 설치 관리자</string>
+    <string name="storage_tool_fex">Linux x86 게임 실행</string>
+    <string name="storage_tool_steam">Steam 도구</string>
+    <string name="storage_tool_old_runtime">DroidDeck은 이 런타임 없이 게임을 실행할 수 있습니다</string>
+    <string name="storage_tool_x86_proton">x86 Proton이라 DroidDeck에서 실행할 수 없습니다</string>
+    <string name="storage_tool_custom_default">모든 게임의 기본값</string>
+    <string name="storage_tool_custom_unused">어떤 게임도 사용하지 않습니다</string>
+    <string name="storage_tool_custom_unknown">Steam 설정을 읽을 수 없어 유지합니다</string>
+    <string name="storage_cleanup_busy">저장 공간 정리가 끝날 때까지 기다리세요</string>
+    <string name="storage_low_title">%1$s만 남았습니다</string>
+    <string name="storage_low_body">Steam은 업데이트와 셰이더 캐시에 공간이 필요합니다. 10 GB 미만이면 게임 업데이트가 중간에 실패할 수 있습니다.</string>
+    <string name="storage_low_safe">%1$s 안전하게 확보 가능.</string>
+    <string name="storage_free_up">공간 확보</string>
+    <string name="storage_play_anyway">그래도 플레이</string>
+    <plurals name="storage_games_installed">
+        <item quantity="one">%d개 설치됨</item>
+        <item quantity="other">%d개 설치됨</item>
+    </plurals>
+    <plurals name="storage_games_on_sd">
+        <item quantity="one">%d개 SD 카드에 있음</item>
+        <item quantity="other">%d개 SD 카드에 있음</item>
+    </plurals>
+    <plurals name="storage_tools_count">
+        <item quantity="one">도구 %d개</item>
+        <item quantity="other">도구 %d개</item>
+    </plurals>
+    <plurals name="storage_item_leftovers_detail">
+        <item quantity="one">게임 %d개의 빈 프리픽스 폴더와 셰이더 캐시</item>
+        <item quantity="other">게임 %d개의 빈 프리픽스 폴더와 셰이더 캐시</item>
+    </plurals>
+    <plurals name="storage_item_leftovers_unsure_detail">
+        <item quantity="one">게임 %d개의 프리픽스에 파일이 남아 있고 로컬 저장 파일이 있을 수 있습니다. 남기려면 먼저 백업하세요.</item>
+        <item quantity="other">게임 %d개의 프리픽스에 파일이 남아 있고 로컬 저장 파일이 있을 수 있습니다. 남기려면 먼저 백업하세요.</item>
+    </plurals>
+    <plurals name="storage_tag_games">
+        <item quantity="one">게임 %d개</item>
+        <item quantity="other">게임 %d개</item>
+    </plurals>
+    <string name="storage_tool_default_proton">DroidDeck 기본 Proton</string>
+    <string name="storage_tool_proton">DroidDeck의 Proton 11 옵션</string>
+    <plurals name="storage_tool_custom_games">
+        <item quantity="one">게임 %d개 사용</item>
+        <item quantity="other">게임 %d개 사용</item>
+    </plurals>
+    <string name="storage_legend_components">구성 요소</string>
+    <string name="storage_components">구성 요소</string>
+    <string name="storage_item_components">사용하지 않는 구성 요소</string>
+    <string name="storage_component_original">원본 %1$s · %2$s</string>
+    <string name="storage_original_confirm">%1$s이 확보됩니다. 더 이상 설치되지 않은 Proton 버전만 되돌립니다.</string>
+    <string name="storage_leftovers_unchecked">확인하지 않음: Steam 앱 매니페스트를 읽을 수 없어 읽을 수 있을 때까지 제거한 게임의 프리픽스를 유지합니다.</string>
+    <string name="storage_failed">완료하지 못했습니다: %1$s</string>
+    <string name="storage_desktop_shared">공유 %1$s</string>
+    <string name="storage_data_installed">설치된 게임</string>
+    <string name="storage_data_parts">프리픽스 %1$s · 셰이더 %2$s · 워크숍 %3$s</string>
+    <string name="storage_clear_shaders">셰이더 지우기</string>
+    <string name="storage_data_leftovers">제거한 게임</string>
+    <string name="storage_steam_app">Steam 앱 %1$d</string>
+    <string name="storage_leftover_unsure_detail">프리픽스에 파일이 남아 있고 로컬 저장 파일이 있을 수 있습니다</string>
+    <string name="storage_leftover_confirm">Wine 프리픽스와 셰이더 캐시(%1$s)를 삭제합니다. 필요한 저장 파일은 먼저 백업하세요. Steam 클라우드 저장 파일은 계정에 남습니다.</string>
+    <string name="storage_data_other">유지</string>
+    <string name="storage_data_other_title">Steam이 아닌 게임과 Steam의 공유 프리픽스</string>
+    <string name="storage_data_other_detail">스토어에서 추가했거나 직접 추가한 게임의 프리픽스</string>
+    <string name="storage_components_packages">내려받은 패키지</string>
+    <string name="storage_components_originals">저장된 원본 파일</string>
+    <string name="storage_components_none">내려받은 구성 요소 패키지가 없습니다.</string>
+    <string name="storage_component_in_use">Proton이나 게임에서 선택됨</string>
+    <string name="storage_component_unused">어디에서도 선택되지 않음</string>
+    <string name="storage_original_kept">설치된 Proton 복원</string>
+    <string name="storage_original_old">더 이상 설치되지 않은 Proton 버전</string>
+    <string name="storage_tag_in_use">사용 중</string>
+    <string name="storage_components_note">사용 중인 구성 요소는 잠깁니다. 구성 요소에서 선택하세요. 여기에서 제거한 항목은 거기에서 다시 내려받을 수 있습니다.</string>
+    <string name="storage_component_confirm">%1$s이 확보됩니다. 직접 가져온 패키지는 다시 내려받을 수 없습니다.</string>
+    <string name="storage_desktop_detail">Flatpak 앱과 공유 콘텐츠에 사용되는 %1$s</string>
+    <string name="storage_desktop_apps_title">앱</string>
+    <string name="storage_desktop_none">설치된 Flatpak 앱이 없습니다.</string>
+    <string name="storage_desktop_shared_title">앱 공유</string>
+    <string name="storage_desktop_runtimes">런타임</string>
+    <string name="storage_desktop_runtimes_detail">앱이 의존하는 라이브러리이며, 사용하지 않는 것은 사용 안 함 제거로 정리됩니다</string>
+    <string name="storage_desktop_cache">다운로드 저장소</string>
+    <string name="storage_desktop_cache_detail">Flatpak 객체 저장소와 캐시된 다운로드</string>
+    <string name="storage_desktop_prune">사용 안 함 제거</string>
+    <string name="storage_desktop_prune_body">설치된 앱이 필요로 하지 않는 런타임을 제거하고 Flatpak 객체 저장소를 정리합니다. 설치된 앱은 그대로 동작합니다.</string>
+    <string name="storage_flatpak_uninstall_body">이 앱(%1$s)과 다른 앱이 사용하지 않는 런타임을 제거합니다. 홈 디렉터리의 데이터는 유지됩니다.</string>
+    <plurals name="storage_components_count">
+        <item quantity="one">패키지 %d개</item>
+        <item quantity="other">패키지 %d개</item>
+    </plurals>
+    <plurals name="storage_desktop_apps">
+        <item quantity="one">앱 %d개</item>
+        <item quantity="other">앱 %d개</item>
+    </plurals>
+    <string name="boot_movie">부팅 동영상</string>
+    <string name="boot_movie_video">동영상</string>
+    <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
+    <string name="boot_movie_note">60 fps는 더 부드럽지만 Steam이 시작되는 동안 CPU를 더 사용합니다. Steam 자체 설정에서 고른 시작 동영상이 우선합니다.</string>
+    <string name="boot_movie_sound">소리</string>
+    <string name="boot_movie_custom">내 동영상</string>
+    <string name="boot_movie_custom_hint">MP4, MOV, MKV 또는 WebM. 다른 형식과 %1$d MB를 넘는 파일은 기기에서 720p WebM으로 변환됩니다(최대 %2$d초).</string>
+    <string name="boot_movie_import">가져오기</string>
+    <string name="boot_movie_remove">삭제</string>
+    <string name="boot_movie_pick">부팅 동영상 선택</string>
+    <string name="boot_movie_imported">%1$s이(가) 이제 부팅 동영상입니다</string>
+    <string name="boot_movie_imported_silent">%1$s이(가) 이제 부팅 동영상입니다(소리 없음)</string>
+    <string name="boot_movie_too_long">변환이 필요한 동영상은 %1$d초 이하여야 합니다</string>
+    <string name="boot_movie_converting">변환 중 %1$d%%</string>
+    <string name="boot_movie_converting_started">Steam용으로 %1$s 변환 중입니다. DroidDeck을 열어 두세요.</string>
+    <string name="boot_movie_unsupported">이 기기에서 해당 동영상을 디코딩할 수 없습니다.</string>
+    <string name="boot_movie_import_failed">동영상을 가져오지 못했습니다</string>
+    <string name="glasses_experimental">Luma Ultra 카메라 — 실험적 기능</string>
+    <string name="glasses_joycons">Joy-Con 위치 추적</string>
+    <string name="glasses_joycons_hint">스마트 안경 카메라를 사용하여 페어링된 Joy-Con 컨트롤러의 위치를 ​​조정합니다. 회전 및 버튼 입력은 Joy-Con 컨트롤러에서 이루어집니다. 손목이 가려진 경우 위치가 추정됩니다. 맨손으로 조작하는 컨트롤러를 대체하며, 휴대폰 카메라 추적이 일시 중지됩니다. 추적 센터를 연결하거나 재설정할 때는 Joy-Con 컨트롤러를 앞쪽으로 향하게 하십시오.</string>
+    <string name="glasses_joycons_requires_position">위치 추적을 먼저 활성화해야 합니다. Android 12 이상에서 모션 기능을 지원하는 Joy-Con 컨트롤러가 필요합니다. 기본적으로 비활성화되어 있습니다.</string>
+    <string name="setup_tab_glasses">스마트 안경</string>
+    <string name="setup_glasses_scope">디스플레이 및 헤드 트래킹 설정은 DroidDeck 메뉴, 게임 및 데스크톱 세션에서 공유됩니다.</string>
+    <string name="setup_glasses_connect">스마트 안경을 연결하여 디스플레이 및 추적 설정을 변경하십시오. 연결을 해제해도 저장된 설정이 유지됩니다.</string>
+    <string name="glasses_vr">VR</string>
+    <string name="glasses_display_mode">표시 모드</string>
+    <string name="glasses_output_2d">2D 출력</string>
+    <string name="glasses_output_3d">3D 출력</string>
+    <string name="glasses_picture_group">화면 및 가상 화면</string>
+    <string name="glasses_position_group">위치 및 층수</string>
+    <string name="glasses_hands_group">손 추적 - 실험적 기능</string>
+    <string name="glasses_tracking_status">추적 상태</string>
+    <string name="glasses_resolution_2d">2D 해상도</string>
+    <string name="glasses_resolution_3d">3D 해상도</string>
+    <string name="glasses_resolution_vr">VR 해상도</string>
+    <string name="glasses_resolution_auto">자동</string>
+    <string name="glasses_resolution_inherit">2D/3D 동일</string>
+    <string name="glasses_resolution_hint">눈별 출력 해상도</string>
+    <string name="glasses_refresh_30_hint">스마트 안경에서 게임 기능을 활성화하여 디스플레이의 기본 30Hz 모드를 선택합니다.</string>
+    <string name="glasses_3dof">3DoF 가상 화면</string>
+    <string name="glasses_3dof_hint">플랫 게임을 정면에 고정하여 주변을 둘러볼 수 있습니다. 3D 모드로 전환하지 않고도 스마트 안경에서 게임 기능을 활성화할 수 있습니다.</string>
+    <string name="glasses_screen_app_wide">너비와 거리는 DroidDeck 메뉴, 게임 및 데스크톱 세션에 대해 추적된 가상 화면을 즉시 업데이트합니다.</string>
+    <string name="glasses_head_tracking_spatial_vr_hint">위치 추적은 SteamVR에서 머리 회전을 포함합니다. 회전만 추적하려면 위치 추적을 끄세요.</string>
+    <string name="glasses_head_tracking_spatial_hint">가상 화면에서 머리 움직임을 제어합니다. 위치 추적은 SteamVR에서 머리 회전을 포함합니다.</string>
+    <string name="glasses_quick_actions">빠른 실행</string>
+    <string name="glasses_recenter_screen_hint">화면을 표시할 위치를 바라본 다음 추적 센터를 재설정하여 높이와 방향을 설정합니다.</string>
+    <string name="glasses_recenter_joycons_button">Joy-Con 중심 재설정</string>
+    <string name="phone_camera_tracking_group">스마트폰 카메라 - 실험적 기능</string>
+    <string name="phone_camera_tracking_setting">손 또는 Joy-Con 컨트롤러 추적</string>
+    <string name="glasses_position">위치 추적 - 실험적 기능</string>
+    <string name="glasses_position_hint">VR 및 가상 화면 주변에서의 물리적 움직임. 추적을 다시 시작하면 잠시 시간이 걸립니다.</string>
+    <string name="glasses_eye_height">현재 눈높이(바닥 위)</string>
+    <string name="glasses_floor">현재 높이에서 바닥 높이 설정</string>
+    <string name="glasses_floor_set">바닥 높이 설정</string>
+    <string name="glasses_spatial_setup">스테레오 카메라 설정 및 진단</string>
+    <string name="glasses_spatial_setup_hint">게임 시작 전 카메라 보정 및 손 추적을 확인하세요.</string>
+    <string name="glasses_spatial_open">설정 열기</string>
+    <string name="glasses_hands">맨손으로 조작하는 컨트롤러</string>
+    <string name="glasses_hands_hint">스마트 안경 카메라를 사용하여 VR에서 손으로 조준하고, 엄지와 검지를 오므려 클릭하고, 손을 오므려 잡으세요. 게임패드 스틱으로 이동하고 방향을 바꿀 수 있습니다. Joy-Con 위치 추적을 대체합니다. 게임 중 지연이 발생하거나 추적이 끊길 수 있습니다.</string>
+    <string name="glasses_hands_ready_hint">추적 설정에서 Luma Ultra 카메라 아래에 맨손으로 조작하는 컨트롤러를 활성화합니다. 먼저 손을 펼친 상태를 표시합니다.</string>
+    <string name="glasses_hands_base">Luma Ultra 공유 보정</string>
+    <string name="glasses_hands_base_hint">Luma Ultra 공유 베이스 사용 스마트 안경의 정확도를 확인하려면 직접 보정하십시오.</string>
+    <string name="glasses_hands_calibration_verified">측정된 보정 확인됨</string>
+    <string name="glasses_hands_calibration_required">검증 필요</string>
+    <string name="glasses_hands_calibration_required_hint">측정 거리 확인이 완료되면 맨손으로 조작하는 컨트롤러를 사용할 수 있습니다.</string>
+    <string name="tracking_recovery_lost">추적 실패</string>
+    <string name="tracking_recovery_disconnected">스마트 안경 연결이 끊어졌습니다.</string>
+    <string name="spatial_capturing">캡처하는 중…</string>
+    <string name="spatial_camera_board_distance">왼쪽 카메라에서 보정 대상 중심까지의 거리</string>
+    <string name="spatial_checking_distance">거리 확인 중…</string>
+    <string name="spatial_validate">거리 확인</string>
+    <string name="spatial_diagnostics">진단</string>
+    <string name="spatial_camera_timing">카메라 타이밍</string>
+    <string name="spatial_frames">카메라 이미지</string>
+    <string name="spatial_lite">Lite 손 추적 모델</string>
+    <string name="spatial_lite_hint">Lite 손바닥 감지 모델과 Lite 손 랜드마크 모델을 사용합니다. 조준, 집기 및 잡기 동작의 정확도를 확인하세요. 추적을 다시 시작하면 초기화됩니다.</string>
+    <string name="spatial_adaptive">손 추적을 위한 자동 입력 주파수</string>
+    <string name="spatial_adaptive_hint">입력을 처리 속도로 조정합니다. 추적이 다시 시작되면 재설정됩니다.</string>
+    <string name="spatial_save_frame">카메라 이미지 저장</string>
+    <string name="spatial_restart_tracking">추적 다시 시작</string>
+    <string name="spatial_restart_hint">조명이 밝은 곳에서 추적이 복구되지 않는 경우 사용합니다. 다시 시작하려면 새로운 추적 원본이 필요합니다.</string>
+    <string name="spatial_restart">재시작</string>
+    <string name="spatial_restart_title">추적을 다시 시작하시겠습니까?</string>
+    <string name="spatial_restart_confirm">저장하지 않은 보정 이미지가 삭제됩니다. 다시 시작한 뒤에는 안경을 움직이지 말고, 추적이 복구되면 중심을 재설정하세요.</string>
+    <string name="spatial_views_count">%1$d / 24개 보정 이미지 촬영됨</string>
+    <string name="spatial_timing_values">%1$.1fHz • 이미지 수명 %2$.1fms • 처리 중 %3$.1fms</string>
+    <string name="spatial_input_values">카메라 이미지의 입력 제한 %1$.1fHz • %2$.0f%%. 머리 추적은 최대 빈도로 계속됩니다.</string>
+    <string name="spatial_frame_counts">%1$d 처리됨 • %2$d 삭제됨 • 입력 제한으로 인해 %3$d 건너뛰음</string>
+    <string name="spatial_print_job">DroidDeck ChArUco 30 mm</string>
+    <string name="spatial_print_title">DroidDeck - Luma Ultra 보정</string>
+    <string name="spatial_print_check">눈금 확인: 눈금 간 100mm(3.937인치)</string>
+    <string name="spatial_distance_12in">30.48cm(12인치)</string>
+    <string name="spatial_distance_30cm">30cm(11.81인치)</string>
+    <string name="spatial_distance_20in">50.8cm(20인치)</string>
+    <string name="spatial_distance_50cm">50cm(19.69인치)</string>
+    <string name="spatial_disabled">비활성화됨</string>
+    <string name="spatial_wait_stable">안정적인 추적을 기다리는 중</string>
+    <string name="spatial_disconnected">연결 끊김</string>
+    <string name="spatial_hands_off">맨손으로 조작하는 컨트롤러는 꺼짐</string>
+    <string name="spatial_tracking_off">위치 추적이 꺼져 있거나 스마트 안경이 연결되지 않은 경우</string>
+    <string name="spatial_recenter_pending">추적 중심 재설정 요청됨 - 추적이 안정될 때까지 움직이지 마세요.</string>
+    <string name="spatial_tracking_lost">추적 손실 - 눈에 보이는 세부 사항이 있는 밝은 조명 영역을 향합니다.</string>
+    <string name="spatial_origin_changed">추적 원점 변경됨 - 추적 중심 재설정을 탭한 다음 움직이지 마세요.</string>
+    <string name="spatial_validation_session">이 연결에 대한 교정이 확인되었습니다.</string>
+    <string name="spatial_validation_saved">교정이 확인되고 저장되었습니다.</string>
+    <string name="spatial_wait_cameras">스테레오 카메라를 기다리는 중</string>
+    <string name="spatial_clock_reset">카메라 시계 재설정</string>
+    <string name="spatial_frame_changed">추적 좌표계가 변경되었습니다. 뷰가 재계산을 위해 저장됩니다. 추적 중심을 재설정한 다음 새 세트를 시작하여 더 많은 뷰를 캡처하세요.</string>
+    <string name="spatial_device_loaded">장치 교정 로드됨</string>
+    <string name="spatial_base_loaded">Luma Ultra 기본 보정 로드됨</string>
+    <string name="spatial_calibration_needed">교정이 필요함</string>
+    <string name="spatial_capture_recenter">추적이 변경되었습니다. 캡처하기 전에 추적 중심 재설정을 한 번 탭한 다음 움직이지 마세요.</string>
+    <string name="spatial_processing_failed">카메라 처리 실패</string>
+    <string name="spatial_hand_head_changed">손 감지 시 헤드 트래킹이 변경됨</string>
+    <string name="spatial_ambiguous_hands">두 카메라 모두 손은 보이나 좌우 매칭이 모호함</string>
+    <string name="spatial_inconsistent_depth">손이 감지되었으나 스테레오 깊이가 일치하지 않습니다.</string>
+    <string name="spatial_rejected_wrist">스테레오 또는 모션 검사에 의해 손목 위치가 거부됨</string>
+    <string name="spatial_inconsistent_palm">스테레오 포인트가 감지되었지만 손바닥 형상이 일치하지 않습니다.</string>
+    <string name="spatial_fit_ready">%1$.2f픽셀에 맞춥니다. 왼쪽 카메라에서 보정 대상 중심까지 선택한 거리를 측정한 다음 확인합니다.</string>
+    <string name="spatial_opencv_error">OpenCV를 사용할 수 없습니다: %1$s</string>
+    <string name="spatial_restored">%1$d 저장된 뷰가 복원되었습니다. 다시 시도하려면 보정을 계산하고, 더 많은 것을 캡처하려면 새 세트를 시작하세요.</string>
+    <string name="spatial_captured">캡쳐 %1$d / 조회수 24입니다. 교정 대상을 고정된 상태로 유지하십시오. 다음 보기를 위해 스마트 안경을 이동하세요.</string>
+    <string name="spatial_capture_corners">캡처 거부됨: %1$d / 두 카메라 모두에 12개의 필수 모서리가 표시됩니다. 보정 대상을 더 많이 표시하고 가만히 있다가 다시 시도하세요.</string>
+    <string name="spatial_validation_error">거리 확인을 완료할 수 없습니다: %1$s. 다시 시도해 보세요.</string>
+    <string name="spatial_inference_error">손 감지 불가: %1$s. CPU/GPU를 변경하거나 맨손으로 조작하는 컨트롤러를 전환하여 다시 시도하세요.</string>
+    <string name="spatial_hand_timeout">손 감지가 %1$dms를 초과했습니다. 관찰이 폐기됨</string>
+    <string name="spatial_wrists_tracked">%1$d / 스테레오로 측정한 Joy-Con 손목 위치 2개</string>
+    <string name="spatial_palms_tracked">추적 중인 손바닥: %1$d / 2; 집기 준비: %2$d; 잡기 준비: %3$d</string>
+    <string name="spatial_capture_saved">진단 캡처를 %1$s에 저장했습니다.</string>
+    <string name="spatial_bad_rotation">잘못된 카메라 대 머리 회전</string>
+    <string name="spatial_calibration_error">교정을 완료할 수 없습니다. %1$s 캡처한 보기가 저장되었습니다.</string>
+    <string name="spatial_reprojection_error">보류 재투영 오류 %1$.2f px가 2px를 초과합니다. 재보정하세요.</string>
+    <string name="spatial_distance_invalid">카메라 측정이 잘못되었습니다. 가만히 있다가 다시 시도해 보세요.</string>
+    <string name="spatial_distance_passed">거리 확인이 통과되었습니다.</string>
+    <string name="spatial_model_checksum_error">손 모델 체크섬 불일치</string>
+    <string name="spatial_opencv_load_error">OpenCV를 로드할 수 없습니다.</string>
+    <string name="glasses_6dof">6DoF 가상 화면</string>
+    <string name="tracking_recovery_look">조명이 밝은 방에서 천천히 주변을 둘러보세요.\n추적 카메라를 가리지 말고 가구처럼 특징이 뚜렷한 곳을 바라보세요.</string>
+    <string name="tracking_recovery_restart_help">아직도 막혔나요? 휴대폰에서: 스마트 안경 → 추적 → 설정 열기 → 진단 표시 → 추적 다시 시작.</string>
+    <string name="tracking_recovery_connect">USB 연결을 확인하고 스마트 안경을 다시 연결하세요.\n휴대전화에 USB 액세스 메시지가 나타나면 수락하세요.</string>
+    <string name="tracking_recovery_usb_help">일단 연결되면, 조명이 밝은 방에서 천천히 주위를 둘러보며 추적을 복원하십시오.</string>
+    <string name="tracking_recovery_recenter">중심 재설정 필요</string>
+    <string name="tracking_recovery_recenter_steps">새로운 위치에서 추적이 재개되었습니다.\n앞을 바라본 다음 휴대폰에서 추적 센터 재설정을 탭하세요.</string>
+    <string name="tracking_recovery_recenter_help">스마트 안경 → 추적 → 설정 열기에서 추적 중심 재설정을 찾을 수도 있습니다. 저장된 카메라 보정값이 유지됩니다.</string>
+    <string name="tracking_recovery_stabilizing">잠시만 가만히 있어주세요</string>
+    <string name="tracking_recovery_hold">추적 중심 재설정이 진행 중입니다.\n추적이 안정될 때까지 스마트 안경을 움직이지 마세요.</string>
+    <string name="tracking_recovery_automatic">이 화면은 머리 추적이 준비되면 자동으로 닫힙니다.</string>
+    <string name="glasses_steady_hand_aim">손으로 안정화된 조준</string>
+    <string name="glasses_steady_hand_aim_hint">어깨부터 손바닥까지 조준하세요. 손목으로 제어되는 회전을 사용하려면 끄세요.</string>
+    <string name="spatial_title">공간 설정</string>
+    <string name="spatial_wait_tracking">추적을 기다리는 중…</string>
+    <string name="spatial_cameras_description">왼쪽 및 오른쪽 추적 카메라</string>
+    <string name="spatial_camera_sync">카메라 동기화</string>
+    <string name="spatial_ready">준비</string>
+    <string name="spatial_sync_hint">카메라와 머리 추적이 정렬되기를 기다리는 중입니다. 스마트 안경을 연결된 상태로 유지하세요.</string>
+    <string name="spatial_prepare">1. 교정 타겟 준비</string>
+    <string name="spatial_print_actual">실제 크기로 인쇄</string>
+    <string name="spatial_print_hint">각 정사각형의 크기는 30mm(1.181인치)여야 합니다. 조명이 밝은 곳의 단단한 표면에 시트를 평평하게 장착합니다.</string>
+    <string name="spatial_print">보정 패턴 인쇄</string>
+    <string name="spatial_capture_group">2. 다양한 뷰 캡처</string>
+    <string name="spatial_board_stationary">교정 타겟을 고정된 상태로 유지하세요.</string>
+    <string name="spatial_capture_hint">스마트 안경을 더 가까이, 더 멀리, 옆으로 움직여 보세요. 왼쪽/오른쪽으로 돌리고, 위쪽/아래쪽 각도를 맞추고, 옆쪽으로 기울입니다. 두 카메라 모두에서 보정 대상을 유지하고 각 캡처 전에 잠시 일시 중지합니다.</string>
+    <string name="spatial_start">새로운 교정 시작</string>
+    <string name="spatial_wait_sync">카메라 동기화를 기다리는 중입니다.</string>
+    <string name="spatial_start_hint">뷰를 수집하기 위해 새로운 교정을 시작합니다.</string>
+    <string name="spatial_views_hint">두 미리보기 모두에서 교정 타겟이 표시되도록 유지합니다. 다양한 각도에서 최소 24개의 선명한 뷰를 캡처하세요.</string>
+    <string name="spatial_capture">캡쳐 캘리브레이션 타겟 화면</string>
+    <string name="spatial_alignment">카메라 정렬 계산</string>
+    <string name="spatial_calculating">계산 중…</string>
+    <string name="spatial_calculate">교정 계산</string>
+    <string name="spatial_distance_group">3. 거리 확인</string>
+    <string name="spatial_distance">측정된 거리</string>
+    <string name="spatial_distance_hint">인쇄된 마커를 더 쉽게 감지할 수 있도록 12인치 또는 30cm로 시작하세요. 사용할 정확한 측정값을 선택하세요.</string>
+    <string name="spatial_show_diagnostics">진단 표시</string>
+    <string name="spatial_diagnostics_hint">카메라 타이밍 및 추적 복구 도구.</string>
+    <string name="spatial_hand_input">손 추적을 통한 입력</string>
+    <string name="spatial_wait_timing">카메라 타이밍을 기다리는 중입니다.</string>
+    <string name="spatial_gpu">손의 GPU 감지</string>
+    <string name="spatial_gpu_hint">CPU가 기본값이다. GPU는 실험적이므로 SteamVR이 다시 시작될 수 있습니다. 이 선택은 추적이 다시 시작되면 재설정됩니다.</string>
+    <string name="spatial_half_rate">손 추적을 위한 입력 빈도 제한</string>
+    <string name="spatial_half_rate_hint">카메라 이미지의 절반을 사용합니다. 최대 주파수를 비교하려면 끄십시오. 추적이 다시 시작되면 재설정됩니다.</string>
+    <string name="spatial_diagnostic_capture">진단 캡처</string>
+    <string name="spatial_diagnostic_capture_hint">하나의 스테레오 이미지 쌍을 로컬에 저장합니다. 이미지는 요청한 경우에만 저장됩니다.</string>
+    <string name="spatial_capture_paused">캡처가 일시 중지되었습니다: %1$s</string>
+    <string name="spatial_measure_hint">%1$s을 측정한다. 두 미리보기 모두에 전체 보정 대상을 표시한 다음 가만히 기다리세요.</string>
+    <string name="spatial_print_scale" formatted="false">100% / 실제 크기로 인쇄합니다. 각 정사각형: 30mm(1.181인치).</string>
+    <string name="spatial_print_stationary">교정 대상을 평평하고 고정된 상태로 유지하십시오. 캡처 사이에 스마트 안경을 이동합니다.</string>
+    <string name="spatial_active">6DoF 활성</string>
+    <string name="spatial_connect_hint">Luma Ultra를 연결하고 위치 추적을 활성화합니다.</string>
+    <string name="spatial_wait_hands">손 추적을 기다리는 중</string>
+    <string name="spatial_collect_instructions">5 × 7 교정 대상을 고정된 상태로 유지하십시오. 스마트 안경을 이동하고 회전하면서 24개 이상의 뷰를 캡처하세요.</string>
+    <string name="spatial_capture_pending">다음 카메라 영상을 기다리는 중입니다. 스마트 안경을 가만히 잡으세요.</string>
+    <string name="spatial_validation_pending">다음 카메라 영상을 확인하는 중입니다. 전체 교정 대상이 보이도록 유지하고 가만히 기다리십시오.</string>
+    <string name="spatial_start_first">먼저 캘리브레이션을 시작하세요</string>
+    <string name="spatial_no_camera_frame">새로운 카메라 이미지가 도착하지 않았습니다. 스마트 안경 연결 및 카메라 미리보기를 확인한 후 다시 시도하세요.</string>
+    <string name="spatial_tap_start">먼저 새 보정 시작을 탭합니다.</string>
+    <string name="spatial_capture_recenter_pending">추적 중심 재설정이 안정적인 추적을 기다리고 있습니다. 잠시 움직이지 마세요.</string>
+    <string name="spatial_capture_unsynchronized">캡처 거부됨: 머리 추적이 동기화되지 않았거나 캡처 중에 변경되었습니다. 움직이지 말고 다시 시도하세요.</string>
+    <string name="spatial_align_first">거리를 확인하기 전에 카메라 정렬을 계산하십시오.</string>
+    <string name="spatial_hand_wait_sync">카메라와 헤드의 동기화를 기다리는 중</string>
+    <string name="spatial_no_wrists">손목이 감지되지 않았습니다. Joy-Con 컨트롤러 핸들을 스마트 안경 앞에 두십시오.</string>
+    <string name="spatial_no_hands">손이 감지되지 않습니다. 스마트 안경 앞에 손바닥을 펼쳐 보여주세요.</string>
+    <string name="spatial_one_camera_wrists">하나의 카메라에서만 손목이 보입니다. 컨트롤러 핸들을 공유 보기에 유지하세요</string>
+    <string name="spatial_one_camera_hands">하나의 카메라에서만 손이 보입니다. 두 손바닥을 공유 보기에 유지</string>
+    <string name="spatial_hands_need_calibration">손이 활성화되도록 보정 및 거리 확인을 완료합니다.</string>
+    <string name="spatial_hands_wait_stable">안정적인 헤드 추적을 기다리는 중; 요청 시 추적 중심을 재설정하세요.</string>
+    <string name="spatial_old_frame">카메라 관찰이 너무 오래되었습니다. 새로운 한 쌍을 기다리고 있어요</string>
+    <string name="spatial_hand_error">손 추적이 중지됨: %1$s</string>
+    <string name="spatial_stereo_loaded">스테레오 %1$d×%2$d; %3$s</string>
+    <string name="spatial_alignment_error">머리 추적과 보정 대상이 %1$s(5cm/2인치 제한)만큼 일치하지 않습니다. 교정 대상을 고정된 상태로 유지하고 새 세트를 시작하기 전에 안정적인 추적을 기다립니다. 스마트 안경을 부드럽게 돌리고 기울이세요. 각 캡처 전에 일시 중지합니다.</string>
+    <string name="spatial_need_views">고정된 교정 대상에 대해 최소 24개의 다양한 뷰를 캡처합니다.</string>
+    <string name="spatial_need_rotation">스마트 안경을 좌우로 돌리고, 상하로 기울이는 단계; 회전 없는 움직임은 카메라 정렬을 교정할 수 없습니다.</string>
+    <string name="spatial_bad_baseline">믿기지 않는 카메라 기준선</string>
+    <string name="spatial_need_orientations">좀 더 다양한 방향으로 머리를 움직여 보세요.</string>
+    <string name="spatial_bad_alignment">카메라와 머리의 정렬이 일관되지 않습니다.</string>
+    <string name="spatial_distance_corners">%1$d / 두 카메라 모두에서 24개의 체커보드 모서리가 감지되었습니다. 전체 교정 대상이 보이도록 유지하고 가만히 기다리십시오. 이미 보이는 경우 12인치 또는 30cm를 선택하고 다시 시도하기 전에 더 가까운 거리를 측정합니다.</string>
+    <string name="spatial_distance_depth">교정대상은 보이지만 깊이를 확실하게 측정할 수 없었다. 스마트 안경을 가만히 잡고 보정 대상을 평평하게 유지하고 조명을 밝게 유지한 후 다시 시도하세요.</string>
+    <string name="spatial_distance_retry">왼쪽 카메라에서 캘리브레이션 대상 중심까지의 거리를 다시 확인하고 재시도하세요.</string>
+    <string name="spatial_distance_result">카메라 측정 %1$s; 선택한 거리 %2$s. %3$s</string>
+    <string name="spatial_wait_previews">보정을 시작하기 전에 두 카메라 미리보기를 모두 기다리세요.</string>
+    <string name="spatial_saved_views_hint">저장된 뷰는 다시 계산될 수 있습니다. 현재 추적 좌표계에서 캡처하려면 새 보정을 시작하세요.</string>
 </resources>

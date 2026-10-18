@@ -1,50 +1,24 @@
-//! Depot-manifest JSON → download plan. Mirrors `GogDownloadManager.parseDepotManifest` rule for
-//! rule (see Bannerlator's `docs/RUST_GOG_PARITY.md` §3):
-//! - root `depot.items[]`; `path` with `\` → `/` and one leading `/` stripped;
-//! - a file is kept only when `path` is non-empty AND `chunks[]` is non-empty;
-//! - per chunk: CDN hash = `compressedMd5` when non-empty, else `md5`; a chunk with neither is
-//!   dropped; `compressedSize` / `size` default 0;
-//! - file `md5` kept when non-empty; `total_size` = Σ chunk `size` (decompressed);
-//! - a file whose chunks all dropped is not added.
-//! `org.json` coercion (`optString` turns numbers/bools into their text, `optLong` parses numeric
-//! strings) is reproduced by [`opt_string`] / [`opt_u64`].
-//!
-//! Additionally each chunk carries `offset` = prefix-sum of the preceding chunks' decompressed
-//! sizes — Java appends sequentially so it never needs one; the Rust sink writes chunks at that
-//! offset as they arrive so the final bytes are identical.
 
 use serde_json::Value;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ChunkRef {
-    /// CDN-path hash (`compressedMd5` preferred, else `md5`).
     pub hash: String,
-    /// Verify compressed bytes before inflate (may be empty).
     pub compressed_md5: String,
-    /// Verify decompressed bytes after inflate (may be empty).
     pub md5: String,
-    /// Expected compressed size, 0 if absent.
     pub compressed_size: u64,
-    /// Expected decompressed size, 0 if absent.
     pub size: u64,
-    /// Decompressed offset inside the file (prefix-sum of preceding `size`s).
     pub offset: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PlannedFile {
-    /// Install-dir-relative path, forward slashes, no leading slash.
     pub relative_path: String,
-    /// Whole-file MD5 from the manifest ("" when absent).
     pub md5: String,
-    /// Σ chunk decompressed sizes (0 if unknown).
     pub total_size: u64,
     pub chunks: Vec<ChunkRef>,
 }
 
-/// `JSONObject.optString(key, "")` semantics: strings as-is, numbers/bools rendered, null/absent
-/// → "". (`org.json` renders `JSONObject.NULL` as "null"; GOG manifests never carry JSON nulls in
-/// these fields, and treating one as absent is the only safe reading.)
 pub fn opt_string(obj: &Value, key: &str) -> String {
     match obj.get(key) {
         Some(Value::String(s)) => s.clone(),
@@ -54,8 +28,6 @@ pub fn opt_string(obj: &Value, key: &str) -> String {
     }
 }
 
-/// `JSONObject.optLong(key, 0)` semantics for a size field (numbers, or numeric strings; a
-/// negative/float value that Java would truncate is clamped to 0 — sizes are never negative).
 pub fn opt_u64(obj: &Value, key: &str) -> u64 {
     match obj.get(key) {
         Some(Value::Number(n)) => n
@@ -68,8 +40,6 @@ pub fn opt_u64(obj: &Value, key: &str) -> u64 {
     }
 }
 
-/// Parses one inflated gen2 depot manifest and appends its files to `out`
-/// (`GogDownloadManager.parseDepotManifest`). Malformed JSON adds nothing, like Java's catch-all.
 pub fn parse_depot_manifest(json: &str, out: &mut Vec<PlannedFile>) {
     let Ok(root) = serde_json::from_str::<Value>(json) else {
         return;
@@ -137,20 +107,14 @@ pub fn parse_depot_manifest(json: &str, out: &mut Vec<PlannedFile>) {
     }
 }
 
-/// One gen1 file: a byte range of a (pre-signed) depot blob (`GogDownloadManager.Gen1File`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Gen1File {
-    /// Install-dir-relative path, used verbatim (Java's gen1 path does not normalise slashes).
     pub path: String,
     pub url: String,
     pub offset: u64,
     pub size: u64,
 }
 
-/// Parses a gen1 build manifest (`runGen1`): every `depot[]` entry that is not `support: true`,
-/// its `files[]` → (`path`, `url`, `offset` default 0, `size` default 0); an entry with
-/// `size == 0` is dropped (Java's `path == null || url == null` checks never fire — `optString`
-/// returns "" — so `size == 0` is the only effective filter, mirrored here).
 pub fn parse_gen1_manifest(json: &str, out: &mut Vec<Gen1File>) {
     let Ok(root) = serde_json::from_str::<Value>(json) else {
         return;
@@ -184,10 +148,6 @@ pub fn parse_gen1_manifest(json: &str, out: &mut Vec<Gen1File>) {
     }
 }
 
-/// Parses every manifest in order (the order Java fetched the depots) and optionally applies the
-/// base-install largest-first (LPT) ordering — a STABLE sort by descending `total_size`, exactly
-/// `Collections.sort(files, (a, b) -> Long.compare(b.totalSize, a.totalSize))`. The DLC and
-/// dependency paths in Java do not sort, so they pass `sort_largest_first = false`.
 pub fn build_plan(manifests: &[String], sort_largest_first: bool) -> Vec<PlannedFile> {
     let mut files = Vec::new();
     for manifest in manifests {
@@ -199,8 +159,6 @@ pub fn build_plan(manifests: &[String], sort_largest_first: bool) -> Vec<Planned
     files
 }
 
-/// `GogDownloadManager.buildCdnPath`: `"ab/cd/abcdef..."`. A hash shorter than 4 chars would
-/// throw in Java (and fail that file); here it is returned unchanged and fails at fetch time.
 pub fn build_cdn_path(hash: &str) -> String {
     if !hash.is_char_boundary(2) || !hash.is_char_boundary(4) || hash.len() < 4 {
         return hash.to_string();
@@ -208,8 +166,6 @@ pub fn build_cdn_path(hash: &str) -> String {
     format!("{}/{}/{}", &hash[0..2], &hash[2..4], hash)
 }
 
-/// `GogDownloadManager.buildChunkUrl`: appends the chunk path BEFORE any query string so the
-/// secure-link token survives.
 pub fn build_chunk_url(base: &str, chunk_path: &str) -> String {
     match base.find('?') {
         Some(q) => format!("{}/{}{}", &base[..q], chunk_path, &base[q..]),
@@ -217,8 +173,6 @@ pub fn build_chunk_url(base: &str, chunk_path: &str) -> String {
     }
 }
 
-/// Per-host key for the fetch core's host semaphores: `scheme://host[:port]` of `url` (lowercased
-/// host). Java has one resolved CDN base per run, so the host list has exactly one entry.
 pub fn host_key(url: &str) -> String {
     let (scheme, rest) = match url.find("://") {
         Some(i) => (&url[..i], &url[i + 3..]),

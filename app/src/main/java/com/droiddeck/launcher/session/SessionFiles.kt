@@ -11,37 +11,22 @@ import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.runtime.ProotFastPath
 import java.io.File
 
-/** Everything the session needs written into the runtime before it starts. */
 object SessionFiles {
     private const val TAG = "SessionFiles"
     private const val NO_PAD_SWITCH = "Download/droiddeck-no-pad"
-    /** Where the DirectAudio driver lives inside the runtime; the wrappers get it as BL_DIRECTAUDIO. */
     const val DIRECTAUDIO_DIR = "usr/local/lib/directaudio"
-    /** The driver sets staged under it: classic Wine 11 (Valve, GE) and the system-thread interface (Proton-CachyOS). */
     val DIRECTAUDIO_SETS = arrayOf("linux-wine11", "linux-wine11-systhread")
 
-    // Staged only with a complete desktop; removal matches these against the APK as well.
     internal val DESKTOP_FILES = arrayOf(
         "usr/local/bin/droiddeck-desktop" to "usr/local/bin/droiddeck-desktop",
-        // Games and emulators from the menu, full screen in a gamescope of their own.
         "usr/local/bin/droiddeck-gpu" to "usr/local/bin/droiddeck-gpu",
         "usr/local/bin/droiddeck-desktop-gpu" to "usr/local/bin/droiddeck-desktop-gpu",
         "usr/local/bin/droiddeck-desktop-window-rules" to "usr/local/bin/droiddeck-desktop-window-rules",
-        // KWin at the app's surface size, for Plasma's session (it starts KWin through this name).
         "usr/local/bin/kwin_wayland_wrapper" to "usr/local/bin/kwin_wayland_wrapper",
         "usr/lib/firefox/defaults/pref/droiddeck.js" to "usr/lib/firefox/defaults/pref/droiddeck.js",
         "etc/xdg/autostart/droiddeck-clipboard.desktop" to "etc/xdg/autostart/droiddeck-clipboard.desktop",
     )
 
-    /**
-     * The libraries and scripts the session runs, refreshed from the apk at every launch.
-     *
-     * The runtime image carries its own copies, but a runtime installed months ago carries the
-     * copies of that day and a device has no way to replace them from outside the app. Staging
-     * them here is how a fix inside the session shim, the controller reader or one of the scripts
-     * reaches an already-installed runtime without a ~790 MB re-download. Each lands through a
-     * rename, so a session that still has one mapped keeps the file it opened.
-     */
     fun stage(context: Context, root: File) {
         if (DesktopCatalog.desktopInstalled(root)) try { DesktopCatalog.cleanLegacy(context) }
         catch (e: Exception) { Log.w(TAG, "LXQt cleanup will retry next session", e) }
@@ -81,45 +66,38 @@ object SessionFiles {
             "usr/local/bin/droiddeck-desktop-bookmarks" to "usr/local/bin/droiddeck-desktop-bookmarks",
             "usr/local/bin/droiddeck-steam-shim" to "usr/local/bin/droiddeck-steam-shim",
             "usr/local/bin/droiddeck-steam-shortcuts" to "usr/local/bin/droiddeck-steam-shortcuts",
-            // Asks the app for an Epic game's sign-in code at launch, from the compat tool (StoreLaunchRequests).
             "usr/local/bin/droiddeck-store-launch" to "usr/local/bin/droiddeck-store-launch",
-            // A game's web links to Android's browser (Wine's winebrowser starts it).
+            "usr/local/bin/droiddeck-epic" to "usr/local/bin/droiddeck-epic",
+            "usr/local/bin/droiddeck-epic-steam" to "usr/local/bin/droiddeck-epic-steam",
             "usr/local/bin/droiddeck-open-url" to "usr/local/bin/droiddeck-open-url",
             "usr/local/bin/droiddeck-steam-games" to "usr/local/bin/droiddeck-steam-games",
             "usr/local/bin/droiddeck-pad-defaults" to "usr/local/bin/droiddeck-pad-defaults",
-            // Flatpak: the bwrap stand-in, the store's helper and setup, and the front end's launcher.
+            "usr/local/bin/droiddeck-steam-x64" to "usr/local/bin/droiddeck-steam-x64",
+            "usr/local/bin/droiddeck-x64-arm-proton" to "usr/local/bin/droiddeck-x64-arm-proton",
+            "usr/local/bin/droiddeck-x64-arm-webhelper" to "usr/local/bin/droiddeck-x64-arm-webhelper",
+            "usr/local/bin/droiddeck-x64-webhelper" to "usr/local/bin/droiddeck-x64-webhelper",
+            "usr/local/bin/droiddeck-steamvr" to "usr/local/bin/droiddeck-steamvr",
+            "usr/local/bin/droiddeck-steamvr-settings" to "usr/local/bin/droiddeck-steamvr-settings",
+            "usr/local/bin/droiddeck-steamvr-game" to "usr/local/bin/droiddeck-steamvr-game",
             "usr/local/bin/droiddeck-bwrap" to "usr/local/bin/droiddeck-bwrap",
             "usr/local/bin/droiddeck-flatpak" to "usr/local/bin/droiddeck-flatpak",
             "usr/local/bin/droiddeck-flatpak-setup" to "usr/local/bin/droiddeck-flatpak-setup",
             "usr/local/bin/droiddeck-flatpak-run" to "usr/local/bin/droiddeck-flatpak-run",
-            // The user's own AppImages, extracted at import (AppImageManager).
             "usr/local/bin/droiddeck-appimage-run" to "usr/local/bin/droiddeck-appimage-run",
             "usr/local/bin/droiddeck-script-run" to "usr/local/bin/droiddeck-script-run",
-            // The desktop's Run entries and its exec fallback: Windows programs through Steam's Proton,
-            // x86 Linux programs through FEX.
             "usr/local/bin/droiddeck-open" to "usr/local/bin/droiddeck-open",
             "usr/local/bin/droiddeck-proton-run" to "usr/local/bin/droiddeck-proton-run",
-            // The SteamOS helpers the client calls in Deck mode: the two Armada found it needs, plus
-            // the three under /usr/bin, all no-ops that answer "nothing to do" (see each file).
             "usr/bin/steamos-update" to "usr/bin/steamos-update",
             "usr/bin/steamos-select-branch" to "usr/bin/steamos-select-branch",
-            // Big Picture's "Switch to Desktop": asks the app for the desktop with Steam in it.
             "usr/bin/steamos-session-select" to "usr/bin/steamos-session-select",
             "usr/bin/jupiter-biosupdate" to "usr/bin/jupiter-biosupdate",
             "usr/bin/steamos-polkit-helpers/steamos-priv-write" to "usr/bin/steamos-polkit-helpers/steamos-priv-write",
             "usr/bin/steamos-polkit-helpers/steamos-set-timezone" to "usr/bin/steamos-polkit-helpers/steamos-set-timezone",
-            // On device the client called these four by their polkit-helpers path, not /usr/bin: the
-            // "Update Error" dialog was steamos-update missing there.
             "usr/bin/steamos-polkit-helpers/steamos-update" to "usr/bin/steamos-polkit-helpers/steamos-update",
             "usr/bin/steamos-polkit-helpers/steamos-select-branch" to "usr/bin/steamos-polkit-helpers/steamos-select-branch",
             "usr/bin/steamos-polkit-helpers/jupiter-biosupdate" to "usr/bin/steamos-polkit-helpers/jupiter-biosupdate",
             "usr/bin/steamos-polkit-helpers/jupiter-dock-updater" to "usr/bin/steamos-polkit-helpers/jupiter-dock-updater",
         )
-        // The patched gamescope (tools/gamescope): the runtime's own version rebuilt with the ARM64
-        // client fixes, over /usr/local/bin so it comes first in the session's PATH. Only when the
-        // apk carries it - a build without the asset leaves the runtime's copy alone.
-        // Valve's mangoapp (tools/mangoapp) - Deck mode's performance overlay - with the five
-        // libraries the runtime lacks beside it, and the wrapper on PATH that points it at them.
         val mangoapp = listOf(
             "usr/local/bin/mangoapp",
             "usr/local/lib/mangoapp/mangoapp",
@@ -129,18 +107,33 @@ object SessionFiles {
             "usr/local/lib/mangoapp/libtraceevent.so.1",
             "usr/local/lib/mangoapp/libtracefs.so.1",
         ).map { it to it }
-        // What the Windows components installer reads .msi packages with (tools/msitools).
         val msitools = listOf("msiinfo", "cabextract", "7z", "7z.so", "libmsi-1.0.so.0", "libgsf-1.so.114", "libgcab-1.0.so.0")
             .map { "usr/local/lib/droiddeck-msitools/$it" } +
             listOf("NOTICE", "GPL-2", "GPL-3", "LGPL-2.1", "7zip-License", "7zip-unRarLicense").map { "usr/local/share/licenses/droiddeck-msitools/$it" }
+        val handModels = listOf("left", "right").flatMap { side ->
+            listOf("droiddeck_hand_$side.json", "hand.mtl", "hand.png", "hand_open.obj", "hand_fist.obj", "thumb_index_open.obj",
+                "thumb_index_pinch.obj")
+                .map { "droiddeck/resources/rendermodels/droiddeck_hand_$side/$it" }
+        }
+        val vr = (listOf(
+            "droiddeck/bin/linuxarm64/driver_droiddeck.so",
+            "droiddeck/bin/linuxarm64/xr-display-mode",
+            "droiddeck/driver.vrdrivermanifest",
+            "droiddeck/resources/settings/default.vrsettings",
+            "layer/libVkLayer_droiddeck_vr.so",
+            "layer/libdroiddeck_vr_scheduling.so",
+            "layer/VK_LAYER_DROIDDECK_vr.json",
+        ) + handModels).map { "usr/local/lib/droiddeck-vr/$it" to "usr/local/lib/droiddeck-vr/$it" } +
+            listOf("usr/local/lib/droiddeck-vr/layer/VK_LAYER_DROIDDECK_vr_implicit.json" to
+                "usr/share/vulkan/implicit_layer.d/droiddeck_vr.json")
         val fexPreloads = listOf("x86_64", "i386").flatMap { arch ->
             listOf("libblsession.so", "libfakeinput.so", "libfaultreport.so").map { "$arch/$it" to "usr/local/lib/droiddeck-fex/$arch/$it" }
-        } + listOf("libthunkaudit.so", "libvulkan-thunk.so").map { "x86_64/$it" to "usr/local/lib/droiddeck-fex/x86_64/$it" }
+        } + listOf("libvulkan-thunk.so", "libwebkitinput.so").map { "x86_64/$it" to "usr/local/lib/droiddeck-fex/x86_64/$it" }
         val optional = (arrayOf(
             "usr/local/bin/gamescope" to "usr/local/bin/gamescope",
             "usr/local/lib/droiddeck/uruntime" to "usr/local/lib/droiddeck/uruntime",
             "usr/local/share/licenses/uruntime/LICENSE" to "usr/local/share/licenses/uruntime/LICENSE",
-        ) + mangoapp + msitools.map { it to it } + fexPreloads).filter { (asset, _) ->
+        ) + mangoapp + listOf("comet", "GalaxyCommunication.exe", "update-permissions.exe", "LICENSE", "version").map { "usr/local/lib/droiddeck-comet/$it" to "usr/local/lib/droiddeck-comet/$it" } + msitools.map { it to it } + vr + fexPreloads).filter { (asset, _) ->
             val dir = asset.substringBeforeLast('/')
             runCatching { context.assets.list("linuxfs/$dir")?.contains(asset.substringAfterLast('/')) == true }.getOrDefault(false)
         }
@@ -166,12 +159,6 @@ object SessionFiles {
         LegacyNames.migrateRootfs(root)
         ComponentsManager.migrateLaunchDir(context)
         EsyncPacks.stageBundled(context, root)
-        // The DirectAudio driver for games under Proton: the glibc build of winedirectaudio, which
-        // the Proton wrappers add to WINEDLLPATH when the session asks for it (BL_DIRECTAUDIO). Two
-        // sets, one per Wine audio interface - the wrapper picks by what the Proton's own winepulse.so
-        // imports (see steam-compatibility), because both Wines call themselves 11.0 and the wrong set
-        // plays silence. Staged like the scripts, so a driver fix reaches an installed runtime without
-        // re-hosting. The sets come from the pinned DirectAudio release (tools/directaudio/release.env).
         val directAudio = arrayOf(
             "aarch64-unix/winedirectaudio.so",
             "aarch64-windows/winedirectaudio.drv",
@@ -195,18 +182,11 @@ object SessionFiles {
             }
             if (!installed) Log.e(TAG, "DirectAudio $set/$relative NOT staged")
         }
-        // A runtime from before the sets had names kept the driver at the directory's root; it would
-        // never be picked again, so it goes.
         for (old in arrayOf("aarch64-unix", "aarch64-windows", "i386-windows")) File(root, "$DIRECTAUDIO_DIR/lib/wine/$old").deleteRecursively()
-        // What every process in the session preloads. LD_PRELOAD in the environment would not
-        // survive: the Steam client rebuilds it for each process it starts and appends its own
-        // overlay entry without a separator, which silently drops whatever was there.
         val preload = StringBuilder("/usr/local/lib/libblsession.so\n")
         if (!File(Environment.getExternalStorageDirectory(), NO_PAD_SWITCH).exists()) {
             preload.append("/usr/local/lib/libfakeinput.so\n")
         }
-        // Last, so the others' opens and stats reach it through RTLD_NEXT. It stays idle in any
-        // process its proot did not describe to it (ProotFastPath).
         if (ProotFastPath.enabled(context)) preload.append(ProotFastPath.LIBRARY + "\n")
         val etc = File(root, "etc").apply { mkdirs() }
         val staged = File(etc, "ld.so.preload.staged")
@@ -219,30 +199,35 @@ object SessionFiles {
             Log.e(TAG, "could not write steam-compatibility-label")
         }
 
-        val startupMovieDir = File(root, "root/.local/share/Steam/config/uioverrides/movies")
-        // Steam looks up these conventional names in its user override directory. Keep both
-        // variants populated because the startup movie name differs across Steam clients.
-        val bigPictureMovieInstalled = stageStartupMovie(
-            context,
-            startupMovieDir,
-            "bigpicture_startup.webm",
-        )
-        stageStartupMovie(context, startupMovieDir, "steam_os_startup.webm")
-        if (bigPictureMovieInstalled) {
-            ensureStartupMovieDefault(File(root, "root/.local/share/Steam/config/config.vdf"))
+        val startupMovie = BootMovie.prepare(context)
+        // The x86-64 client's config is left alone until its first start creates it.
+        val steamRoots = listOf(File(root, "root/.local/share/Steam"), File(root, "root/.droiddeck-x64/.local/share/Steam"))
+            .filterIndexed { i, steam -> i == 0 || File(steam, "config").isDirectory }
+        for (steam in steamRoots) {
+            val startupMovieDir = File(steam, "config/uioverrides/movies")
+            val bigPictureMovieInstalled = startupMovie != null &&
+                stageStartupMovie(startupMovie, startupMovieDir, "bigpicture_startup.webm")
+            if (startupMovie != null) stageStartupMovie(startupMovie, startupMovieDir, "steam_os_startup.webm")
+            if (bigPictureMovieInstalled) {
+                ensureStartupMovieDefault(File(steam, "config/config.vdf"))
+            }
         }
     }
 
-    private fun stageStartupMovie(context: Context, directory: File, name: String): Boolean {
+    private fun stageStartupMovie(source: File, directory: File, name: String): Boolean {
         val movie = File(directory, name)
+        val stamp = File(directory, ".$name.source")
+        val identity = "${source.absolutePath}\n${source.length()}\n${source.lastModified()}"
+        if (movie.length() == source.length() && runCatching { stamp.readText() }.getOrNull() == identity) return true
         val staged = File(directory, "$name.staged")
         var installed = false
         try {
             directory.mkdirs()
-            context.assets.open("steam-startup/droiddeck-startup.webm").use { input ->
+            source.inputStream().use { input ->
                 staged.outputStream().use { output -> FileUtils.copy(input, output) }
             }
             installed = staged.setReadable(true, false) && staged.renameTo(movie)
+            if (installed) FileUtils.writeString(stamp, identity)
         } catch (e: Exception) {
             Log.w(TAG, "could not stage Steam startup movie $name", e)
         } finally {
@@ -373,10 +358,5 @@ object SessionFiles {
         indent + "}",
     ).joinToString(newline)
 
-    /**
-     * Where the session writes its log: app-private `files/logs`, bound into the session at the same
-     * path, so the session script's own redirection always opens. A folder leaves the device only
-     * through Share logs, which scrubs every file again on the way into the zip.
-     */
     fun logDirectory(context: Context): File = LinuxRuntime.logDir(context).apply { mkdirs() }
 }

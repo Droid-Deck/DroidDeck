@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.core
 
+import com.droiddeck.launcher.session.SessionPrefs
+
 object GameEnvironment {
     data class Config(
         val shared: Map<String, String?> = emptyMap(),
@@ -29,20 +31,24 @@ object GameEnvironment {
         "MESA_SHADER_CACHE_DISABLE" to "false",
         "VKD3D_FEATURE_LEVEL" to "12_2",
         "VKD3D_SHADER_MODEL" to "6_9",
-        // .NET 7 and later reserve 256 GB of address space for the GC heap at startup, more than an
-        // Android process has free, and the runtime fails to start. 32 GB is plenty for a game.
-        // Older NativeAOT runtimes require bare hex digits. CoreCLR accepts this form too.
         "DOTNET_GCRegionRange" to "800000000",
-        // .NET's W^X writes JIT code through a second mapping that FEX does not watch, so FEX keeps
-        // running the stale translation and the game hangs at startup.
         "DOTNET_EnableWriteXorExecute" to "0",
     ).apply {
         FexPreset.env(preset).forEach { put(it.substringBefore('='), it.substringAfter('=')) }
-        // Steam settings' Force SSBS: droiddeck-game-env preloads libssbs.so into the game's Wine.
         if (forceSsbs) put(FORCE_SSBS, "1")
     }
 
     const val FORCE_SSBS = "DROIDDECK_FORCE_SSBS"
+
+    const val NO_STEAM = "DROIDDECK_NO_STEAM"
+
+    fun gameNoSteam(config: Config, scope: String): Boolean =
+        scope.isNotEmpty() && config.games[scope]?.get(NO_STEAM)?.lowercase() in setOf("1", "on", "true", "yes")
+
+    fun withGameNoSteam(config: Config, scope: String, on: Boolean): Config {
+        require(scope.isNotEmpty() && validScope(scope))
+        return withScopeValue(config, scope, NO_STEAM, if (on) "1" else null)
+    }
 
     fun effective(config: Config, preset: String, scope: String, forceSsbs: Boolean = false): Map<String, String?> =
         defaults(preset, forceSsbs) + config.shared + if (scope.isEmpty()) emptyMap() else config.games[scope].orEmpty()
@@ -79,4 +85,34 @@ object GameEnvironment {
     }
 
     const val CUSTOM_FEX_PRESET = "__custom__"
+
+    val syncBackends = listOf(SessionPrefs.SYNC_NTSYNC, SessionPrefs.SYNC_FSYNC, SessionPrefs.SYNC_ESYNC, SessionPrefs.SYNC_WINESERVER)
+
+    val syncKeys = listOf("BL_SYNC", "BL_FSYNC_FIRST", "BL_SYNC_FALLBACK", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC", "PROTON_NO_NTSYNC", "WINEESYNC")
+
+    fun syncEnvironment(backend: String): Map<String, String> {
+        require(backend in syncBackends) { "unknown sync $backend" }
+        return buildMap {
+            put("BL_SYNC", if (backend == SessionPrefs.SYNC_NTSYNC) "1" else "0")
+            put("BL_FSYNC_FIRST", if (backend == SessionPrefs.SYNC_FSYNC) "1" else "0")
+            put("BL_SYNC_FALLBACK", if (backend == SessionPrefs.SYNC_WINESERVER) "0" else "1")
+            if (backend == SessionPrefs.SYNC_FSYNC) put("PROTON_NO_ESYNC", "1")
+        }
+    }
+
+    fun gameSync(config: Config, scope: String): String? {
+        require(scope.isNotEmpty() && validScope(scope))
+        val entries = config.games[scope].orEmpty().filterKeys { it in syncKeys }
+        if (entries.isEmpty()) return null
+        return syncBackends.firstOrNull { entries == syncEnvironment(it) } ?: CUSTOM_SYNC
+    }
+
+    fun withGameSync(config: Config, scope: String, backend: String?): Config {
+        require(scope.isNotEmpty() && validScope(scope))
+        val entries = config.entries(scope).filterKeys { it !in syncKeys }.toMutableMap()
+        if (backend != null) entries += syncEnvironment(backend)
+        return config.withEntries(scope, entries)
+    }
+
+    const val CUSTOM_SYNC = "__custom__"
 }

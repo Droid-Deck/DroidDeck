@@ -1,8 +1,5 @@
 name: Publish the CI Debian image
 
-# Pulls the Debian 11 image the x86 preloads build in, once, and publishes it as a release asset
-# on this repo so build.yml never depends on a registry mirror's rate limit. Run it again (with a
-# new tag) only to refresh the image; tools/linuxfs/debian-image.env names the one builds use.
 
 on:
   workflow_dispatch:
@@ -32,7 +29,6 @@ jobs:
         run: |
           set -euo pipefail
           image=public.ecr.aws/docker/library/debian:bullseye
-          # A published image is pinned by checksum in the build; never replace one by accident.
           if [ "$REPLACE" != true ] && gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json assets -q '.assets[].name' 2>/dev/null | grep -qx debian-bullseye.tar.zst; then
             echo "::error::$TAG already carries debian-bullseye.tar.zst; publish to a new tag, or set replace and re-pin tools/linuxfs/debian-image.env"
             exit 1

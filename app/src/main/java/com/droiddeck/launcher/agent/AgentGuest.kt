@@ -1,6 +1,11 @@
 package com.droiddeck.launcher.agent
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import android.os.FileObserver
 import android.util.Log
 import com.droiddeck.launcher.runtime.LinuxRuntime
@@ -10,12 +15,10 @@ import org.json.JSONObject
 import java.io.File
 import java.util.UUID
 
-/**
- * The app's side of the guest agent (tools/linuxfs/overlay/usr/local/bin/droiddeck-agent): requests
- * go in as files under the session root's agent directory and answers come back the same way, so
- * whatever runs does so inside the live session with its own environment.
- */
 object AgentGuest {
+    private val main by lazy { Handler(Looper.getMainLooper()) }
+    var focusRevision by mutableIntStateOf(0)
+        private set
     private const val TAG = "AgentGuest"
     private const val POLL_MS = 50L
     private val lock = Any()
@@ -24,11 +27,6 @@ object AgentGuest {
 
     fun dir(context: Context) = File(LinuxRuntime.sessionRoot(context), "agent")
 
-    /**
-     * Before each session: nothing of the last one's daemon, answers or focus may be read as
-     * current. Then watch for the new daemon's hello and focus snapshots, which go into the
-     * session's events.jsonl.
-     */
     fun reset(context: Context) {
         synchronized(lock) {
             observer?.stopWatching()
@@ -51,7 +49,6 @@ object AgentGuest {
         }
     }
 
-    /** At the end of a session: no more events for a folder that is being closed. */
     fun stop() {
         synchronized(lock) {
             observer?.stopWatching()
@@ -70,10 +67,10 @@ object AgentGuest {
             if (key == lastFocusKey) return
             lastFocusKey = key
         }
+        main.post { focusRevision++ }
         SessionEvents.record("focus.changed", fields + ("seq" to snapshot.optInt("seq")))
     }
 
-    /** The daemon's hello, when it is running in the current session. */
     fun hello(context: Context): JSONObject? {
         if (!SessionState.running) return null
         val hello = readJson(File(dir(context), "hello.json")) ?: return null
@@ -81,18 +78,15 @@ object AgentGuest {
         return hello.takeIf { pid > 1 && File("/proc/$pid").exists() }
     }
 
-    /** The newest focus snapshot the daemon published, when a session is running. */
     fun focus(context: Context): JSONObject? =
         if (SessionState.running) readJson(File(dir(context), "focus.json")) else null
 
-    /** The Steam library game whose tile currently has controller or keyboard focus. */
     fun selectedSteamAppId(context: Context): Long? {
         val result = call(context, JSONObject().put("kind", "steam-selection"), 6_000)
         if (!result.optBoolean("ok") || result.isNull("appId")) return null
         return result.optLong("appId").takeIf { it in 1..4_294_967_295L }
     }
 
-    /** The installed game Gamescope is presenting, including while Steam's overlay has focus. */
     fun activeSteamAppId(context: Context, installedAppIds: Set<Long>): Long? {
         val snapshot = focus(context) ?: return null
         val focusedAppId = snapshot.optLong("focusedApp").takeIf { snapshot.has("focusedApp") }
@@ -142,9 +136,12 @@ object AgentGuest {
         return null
     }
 
-    /** Send one request and wait for its answer. Throws [AgentException] with a stable code. */
-    fun call(context: Context, request: JSONObject, timeoutMs: Long): JSONObject {
-        if (request.optString("kind") in setOf("exec", "cdp")) AgentAccess.requireCommands(context)
+    fun steamEval(context: Context, expression: String, timeoutMs: Long): JSONObject =
+        call(context, JSONObject().put("kind", "cdp").put("expression", expression).put("timeout", timeoutMs / 1000.0),
+            timeoutMs + 2_000, trusted = true)
+
+    fun call(context: Context, request: JSONObject, timeoutMs: Long, trusted: Boolean = false): JSONObject {
+        if (!trusted && request.optString("kind") in setOf("exec", "cdp")) AgentAccess.requireCommands(context)
         if (!SessionState.running) throw AgentException("NO_ACTIVE_SESSION", "There is no running session")
         hello(context) ?: throw AgentException("AGENT_UNAVAILABLE", "The guest agent is not running in this session (yet)")
         val dir = dir(context)

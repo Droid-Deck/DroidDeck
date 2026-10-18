@@ -6,12 +6,6 @@ import android.view.Display
 import android.view.WindowManager
 import com.droiddeck.launcher.R
 
-/**
- * What the panel says about HDR, read from android.view.Display: the gate the compositor's HDR10
- * output sits behind (droiddeck_color.h). A property of the display, not the device - and the
- * settings screen greys the HDR switch out with the reason when it is not there, rather than
- * offering a switch that a session would then silently ignore.
- */
 class HdrProbe(
     val hdr10: Boolean,
     val formats: String,
@@ -22,13 +16,12 @@ class HdrProbe(
     val ratio: Float,
     val displayId: Int,
     val name: String,
-    /** Why HDR cannot be offered, or null when it can. */
     val reason: String?,
 )
 
 object HdrSupport {
-    fun probe(context: Context): HdrProbe {
-        val display: Display? = if (Build.VERSION.SDK_INT >= 30) {
+    fun probe(context: Context, output: Display? = null): HdrProbe {
+        val display: Display? = output ?: if (Build.VERSION.SDK_INT >= 30) {
             try { context.display } catch (e: Exception) { null }
         } else {
             @Suppress("DEPRECATION")

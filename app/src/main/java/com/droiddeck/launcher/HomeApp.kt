@@ -13,7 +13,6 @@ import androidx.core.graphics.drawable.toBitmap
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 
-/** Android Home role and the launchable Android apps shown by the in-session app drawer. */
 object HomeApp {
     data class LaunchableApp(
         val label: String,
@@ -22,17 +21,10 @@ object HomeApp {
         val icon: Bitmap?,
     )
 
-    /**
-     * Whether the app offers itself as a Home app at all. HomeActivity is declared disabled and
-     * only enabled when the user turns on "Use as a Home screen": a player who does not want a
-     * launcher never gets Android's "which Home app?" question, and it is one apk either way.
-     * The setting is the component's own state, which Android keeps across updates.
-     */
     fun isHomeScreenEnabled(context: Context): Boolean =
         context.packageManager.getComponentEnabledSetting(ComponentName(context, HomeActivity::class.java)) ==
             PackageManager.COMPONENT_ENABLED_STATE_ENABLED
 
-    /** Turned off while DroidDeck is the Home app, the phone goes back to its own launcher. */
     fun setHomeScreenEnabled(context: Context, enabled: Boolean) {
         context.packageManager.setComponentEnabledSetting(
             ComponentName(context, HomeActivity::class.java),
@@ -113,7 +105,6 @@ object HomeApp {
         try {
             context.startActivity(settingsIntent())
         } catch (_: Exception) {
-            // A role request remains available on Android 10+ if the settings page is missing.
             val request = roleRequestIntent(context)
             if (request != null) context.startActivity(request)
         }

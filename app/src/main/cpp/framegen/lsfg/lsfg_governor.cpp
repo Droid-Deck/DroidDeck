@@ -1,4 +1,3 @@
-// See lsfg_governor.h.
 
 #include "lsfg_governor.h"
 
@@ -12,13 +11,10 @@
 namespace lsfg {
 namespace {
 
-// A probe has to run long enough to survive a single unlucky frame, and the
-// baseline long enough to be a fair comparison.
 constexpr float kBaselineSeconds = 2.0f;
 constexpr float kProbeSeconds    = 2.0f;
 constexpr uint32_t kMinSamples   = 30;
 
-// Keep the extra generation only if it actually paid off.
 constexpr float kOutputGainRequired = 1.15f;
 constexpr float kSourceFloor        = 0.70f;
 
@@ -28,20 +24,20 @@ constexpr uint32_t kBackoffSteps  = 4;
 constexpr float kThermalPollSeconds = 2.0f;
 constexpr float kThermalDecaySeconds = 1.0f;
 
-// ADEVICE_THERMAL_STATUS_* from <android/thermal.h>, which is API 30. Resolved
-// by dlsym so the build keeps working below that and on devices that do not
-// ship the service; -1 simply means "no thermal signal", never "hot".
-// Android reports a STATUS, not a temperature - NONE 0, LIGHT 1, MODERATE 2,
-// SEVERE 3, CRITICAL 4, EMERGENCY 5, SHUTDOWN 6 - so there is no degree value
-// here to raise. The equivalent of "let it run hotter" is to act on a higher
-// status, which is what these now do.
-//
-// A handheld under a real 3D load sits at SEVERE routinely; blocking there
-// made the governor refuse on a device that was working exactly as intended.
-// It now only stops GROWING at SEVERE and only gives frames back at CRITICAL,
-// leaving the device's own thermal management as the authority.
-constexpr int kThermalBlock    = 4;  // CRITICAL: give generations back
-constexpr int kThermalNoGrowth = 3;  // SEVERE: keep what we have, stop probing
+
+
+
+
+
+
+
+
+
+
+
+
+constexpr int kThermalBlock    = 4;
+constexpr int kThermalNoGrowth = 3;
 
 using PFN_AThermal_acquireManager = void* (*)();
 using PFN_AThermal_getCurrentThermalStatus = int (*)(void*);
@@ -72,17 +68,12 @@ float phaseSeconds(std::chrono::steady_clock::time_point a,
     return std::chrono::duration<float>(b - a).count();
 }
 
-} // namespace
+}
 
 void ProbeGovernor::configure(uint32_t maxGenerations) {
     if (maxGenerations_ == maxGenerations) return;
-    // Raising the ceiling must NOT throw away what we already know works -
-    // going 2x -> 4x used to reset the accepted level to zero and restart the
-    // whole baseline/probe cycle, so a user raising the multiplier got FEWER
-    // frames. Only clamp down to a ceiling that has actually been lowered.
     maxGenerations_ = maxGenerations;
     if (accepted_ > maxGenerations_) accepted_ = maxGenerations_;
-    // Re-measure against the new ceiling, but keep the accepted level.
     phase_ = Phase::Baseline;
     havePhaseStart_ = false;
     sourceAccum_ = loopAccum_ = 0.0f;
@@ -132,19 +123,8 @@ uint32_t ProbeGovernor::cap(uint32_t requested, float sourceRate, float loopRate
     if (!havePhaseStart_) enterBaseline(now);
     pollThermal(now);
 
-    // Thermal override: at SEVERE and above we stop asking for more and give
-    // generations back, but SLOWLY.
-    //
-    // This runs once per source frame - about forty times a second - so the
-    // previous version's unconditional accepted_-- was not "give one back", it
-    // was "slam to zero in three frames", and its unconditional enterBackoff()
-    // reset the backoff clock every single call, so the backoff could never
-    // expire and the governor could never measure or recover. One decay per
-    // second, and no churn at all once there is nothing left to give back.
     thermalBlocked_ = thermal_ >= kThermalBlock;
     if (thermal_ >= kThermalBlock) {
-        // Logged, sparingly. This is a REFUSAL TO EVEN MEASURE, and it was
-        // silent: on device it looked identical to "measured and declined".
         if ((refusalLog_++ % 600u) == 0u)
             GOV_LOGI("thermal status %d - not probing (accepted=%u)", thermal_, accepted_);
         const bool decayDue = !haveThermalDecay_
@@ -183,12 +163,10 @@ uint32_t ProbeGovernor::cap(uint32_t requested, float sourceRate, float loopRate
                 sourceAccum_ = loopAccum_ = 0.0f;
                 samples_ = 0;
             } else {
-                // Also previously silent. "Baseline completed but we did not
-                // probe" is a decision worth seeing in a log.
                 if ((refusalLog_++ % 600u) == 0u)
                     GOV_LOGI("not probing: accepted=%u max=%u requested=%u thermal=%d",
                              accepted_, maxGenerations_, requested, thermal_);
-                enterBaseline(now);   // nothing to try; measure again later
+                enterBaseline(now);
             }
         }
         break;
@@ -226,12 +204,10 @@ uint32_t ProbeGovernor::cap(uint32_t requested, float sourceRate, float loopRate
         break;
     }
 
-    // While probing we allow one more than is currently accepted; otherwise the
-    // accepted level is the ceiling, and the pacer's own answer still applies.
     const uint32_t allowed = phase_ == Phase::Probing
         ? std::min(accepted_ + 1, maxGenerations_)
         : accepted_;
     return std::min(requested, allowed);
 }
 
-} // namespace lsfg
+}
