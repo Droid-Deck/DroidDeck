@@ -201,6 +201,7 @@ object SessionPrefs {
 
     const val GPU_DRIVERS_AUTO = "auto"
     const val GPU_DRIVERS_MANUAL = "manual"
+    const val GPU_DRIVERS_MIX = "mix"
 
     fun gpuDriverMode(context: Context): String =
         prefs(context).getString("gpuDriverMode", GPU_DRIVERS_AUTO) ?: GPU_DRIVERS_AUTO
@@ -451,6 +452,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("storageDiagnostics", on).apply()
     }
 
+    fun vacDiagnostics(context: Context): Boolean =
+        prefs(context).getBoolean("vac_diagnostics", false)
+
+    fun setVacDiagnostics(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("vac_diagnostics", on).apply()
+    }
 
     private fun resolutionCap(context: Context, mode: String): Int = prefs(context).getInt("resolutionCap.$mode", 720)
 
@@ -496,6 +503,33 @@ object SessionPrefs {
         prefs(context).edit().putString("fexPreset", id).apply()
         runCatching { GameEnvironmentStore.publish(context) }
             .onFailure { android.util.Log.e("GameEnvironment", "Could not update game environment", it) }
+    }
+
+    fun steamClientArch(context: Context): String = prefs(context).getString("steamClientArch", null) ?: "arm64"
+
+    fun setSteamClientArch(context: Context, id: String) {
+        prefs(context).edit().putString("steamClientArch", id).apply()
+    }
+
+    /** The running session's client, else the selected one: a changed setting applies from the next session. */
+    fun activeSteamClientArch(context: Context): String =
+        SessionState.steamClientArch?.takeIf { SessionState.running } ?: steamClientArch(context)
+
+    fun activeSteamRoot(context: Context): java.io.File = steamRoot(context, activeSteamClientArch(context))
+
+    fun steamRoot(context: Context, arch: String): java.io.File = java.io.File(
+        com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context),
+        if (arch == "x86_64") "root/.droiddeck-x64/.local/share/Steam" else "root/.local/share/Steam",
+    )
+
+    fun bootMovie(context: Context): String =
+        prefs(context).getString("bootMovie", BootMovie.DROIDDECK_30) ?: BootMovie.DROIDDECK_30
+    fun setBootMovie(context: Context, id: String) { prefs(context).edit().putString("bootMovie", id).apply() }
+    fun bootMovieSound(context: Context): Boolean = prefs(context).getBoolean("bootMovieSound", true)
+    fun setBootMovieSound(context: Context, on: Boolean) { prefs(context).edit().putBoolean("bootMovieSound", on).apply() }
+    fun bootMovieCustomName(context: Context): String? = prefs(context).getString("bootMovieCustomName", null)
+    fun setBootMovieCustomName(context: Context, name: String?) {
+        prefs(context).edit().apply { if (name == null) remove("bootMovieCustomName") else putString("bootMovieCustomName", name) }.apply()
     }
 
     fun runSteamAtStartup(context: Context): Boolean = prefs(context).getBoolean("runSteamAtStartup", false)
@@ -598,6 +632,36 @@ object SessionPrefs {
 
     fun addedGameStoredAppId(context: Context, folderPath: String): Long? =
         prefs(context).getLong("addedAppId:$folderPath", 0L).takeIf { it != 0L }
+
+    fun followStoreGame(context: Context, key: String, folderPath: String, gone: (String) -> Boolean) = synchronized(addedGameLock) {
+        val p = prefs(context)
+        val previous = p.getString("storeFolder:$key", null)
+        if (previous == folderPath) return@synchronized
+        if (previous != null && !gone(previous)) return@synchronized
+        val edit = p.edit().putString("storeFolder:$key", folderPath)
+        if (previous != null && !p.contains("addedAppId:$folderPath")) {
+            val moved = movedAddedGame(p.all, previous, folderPath)
+            moved.keys.forEach { edit.remove(it) }
+            moved.values.forEach { (name, value) ->
+                when (value) {
+                    is String -> edit.putString(name, value)
+                    is Long -> edit.putLong(name, value)
+                    is Int -> edit.putInt(name, value)
+                    is Boolean -> edit.putBoolean(name, value)
+                    is Float -> edit.putFloat(name, value)
+                }
+            }
+            val removed = removedAddedGames(context)
+            if (previous in removed) edit.putString("removedAddedGames", removed.map { if (it == previous) folderPath else it }.joinToString("\n"))
+        }
+        edit.apply()
+    }
+
+    internal fun movedAddedGame(all: Map<String, *>, from: String, to: String): Map<String, Pair<String, Any?>> =
+        all.filterKeys { it.startsWith("added") && it.endsWith(":$from") }.mapValues { (name, value) ->
+            val moved = if (value is String && (value == from || value.startsWith("$from/"))) to + value.removePrefix(from) else value
+            name.removeSuffix(from) + to to moved
+        }
 
     fun addedGameAppId(context: Context, folderPath: String, first: Long): Long = synchronized(addedGameLock) {
         val p = prefs(context)

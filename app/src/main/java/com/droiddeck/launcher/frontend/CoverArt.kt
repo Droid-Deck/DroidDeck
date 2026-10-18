@@ -3,6 +3,7 @@ package com.droiddeck.launcher.frontend
 import android.content.Context
 import android.graphics.BitmapFactory
 import android.util.Log
+import com.droiddeck.launcher.core.DownloadSource
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -199,24 +200,62 @@ object CoverArt {
             setRequestProperty("User-Agent", "DroidDeck")
         }
 
-    private fun exists(url: String): Boolean = try {
-        val c = open(url, "HEAD"); val ok = c.responseCode == 200; c.disconnect(); ok
-    } catch (e: Exception) { false }
+    private fun <T> through(url: String, attempt: (String, Boolean) -> T?): T? {
+        for (source in DownloadSource.candidates(url)) {
+            val result = attempt(source, source == url)
+            if (result != null) {
+                DownloadSource.succeeded(source)
+                return result
+            }
+        }
+        DownloadSource.failed()
+        return null
+    }
 
-    private fun get(url: String): String? = try {
+    private fun exists(url: String): Boolean = through(url) { source, original -> head(source, original) } ?: false
+
+    private fun head(url: String, original: Boolean): Boolean? = try {
+        val c = open(url, "HEAD")
+        val code = c.responseCode
+        c.disconnect()
+        when {
+            code == 200 -> true
+            code == 404 || code == 410 -> if (original) false else null
+            else -> null
+        }
+    } catch (e: Exception) { null }
+
+    private fun get(url: String): String? = through(url) { source, original -> text(source, original) }
+
+    private fun text(url: String, original: Boolean): String? = try {
         val c = open(url)
-        if (c.responseCode != 200) { c.disconnect(); null } else c.inputStream.bufferedReader().use { it.readText() }
+        val code = c.responseCode
+        when {
+            code == 200 -> c.inputStream.bufferedReader().use { it.readText() }.takeIf { it.isNotEmpty() }
+            code == 404 || code == 410 -> { c.disconnect(); if (original) "" else null }
+            else -> { c.disconnect(); null }
+        }
     } catch (e: Exception) { Log.w(TAG, "$url: $e"); null }
 
-    private fun download(url: String, target: File): Boolean = try {
+    private fun download(url: String, target: File): Boolean = through(url) { source, original -> fetch(source, target, original) } ?: false
+
+    private fun fetch(url: String, target: File, original: Boolean): Boolean? = try {
         val c = open(url)
-        if (c.responseCode != 200) { c.disconnect(); false } else {
-            target.parentFile?.mkdirs()
-            val tmp = File(target.path + ".part")
-            c.inputStream.use { input -> tmp.outputStream().use { input.copyTo(it) } }
-            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeFile(tmp.path, bounds)
-            if (bounds.outWidth > 0 && tmp.renameTo(target)) true else { tmp.delete(); false }
+        when (val code = c.responseCode) {
+            200 -> {
+                target.parentFile?.mkdirs()
+                val tmp = File(target.path + ".part")
+                c.inputStream.use { input -> tmp.outputStream().use { input.copyTo(it) } }
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeFile(tmp.path, bounds)
+                when {
+                    bounds.outWidth > 0 && tmp.renameTo(target) -> true
+                    original -> { tmp.delete(); false }
+                    else -> { tmp.delete(); null }
+                }
+            }
+            404, 410 -> { c.disconnect(); if (original) false else null }
+            else -> { c.disconnect(); null }
         }
-    } catch (e: Exception) { Log.w(TAG, "$url: $e"); false }
+    } catch (e: Exception) { Log.w(TAG, "$url: $e"); null }
 }

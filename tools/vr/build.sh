@@ -28,6 +28,41 @@ mkdir -p "$work/out/droiddeck/bin/linuxarm64" "$work/out/layer"
 compile() {
     local cmd=(sh -c '
         set -e
+        cc -std=c11 -O2 -Wall -Wextra -Werror -Ibuild/vr/include -Itools/vr/src \
+            -o build/vr/test_fence_tracker tools/vr/tests/test_fence_tracker.c
+        build/vr/test_fence_tracker
+        cc -std=c11 -O2 -Wall -Wextra -Wno-unused-parameter -pthread -Ibuild/vr/include \
+            -o build/vr/test_timeline_bridge tools/vr/tests/test_timeline_bridge.c -ldl
+        build/vr/test_timeline_bridge
+        cc -std=c11 -O2 -Wall -Wextra -Wno-unused-parameter -pthread -Ibuild/vr/include \
+            -o build/vr/test_compositor_submit tools/vr/tests/test_compositor_submit.c -ldl
+        build/vr/test_compositor_submit
+        c++ -std=c++17 -O2 -Wall -Wextra -Werror -Itools/vr/src \
+            -o build/vr/test_render_target tools/vr/tests/test_render_target.cpp
+        build/vr/test_render_target
+        c++ -std=c++17 -O2 -Wall -Wextra -Werror -Ibuild/vr/include -Itools/vr/src \
+            -o build/vr/test_presenter_image tools/vr/tests/test_presenter_image.cpp
+        build/vr/test_presenter_image
+        c++ -std=c++17 -O2 -Wall -Wextra -Werror -Itools/vr/src \
+            -o build/vr/test_spatial_tracking tools/vr/tests/test_spatial_tracking.cpp
+        build/vr/test_spatial_tracking
+        c++ -std=c++17 -O2 -Wall -Wextra -Werror -Itools/vr/src \
+            -o build/vr/test_adaptive_pose tools/vr/tests/test_adaptive_pose.cpp
+        build/vr/test_adaptive_pose
+        c++ -std=c++17 -O2 -Wall -Wextra -Wno-unused-parameter -pthread -Itools/vr/src \
+            -o build/vr/test_optical_controller tools/vr/tests/test_optical_controller.cpp
+        build/vr/test_optical_controller
+        cc -shared -fPIC -O2 -Wall -Wextra -Werror \
+            -o build/vr/libdroiddeck_vr_scheduling.so tools/vr/src/scheduling.c -ldl
+        cc -O2 -Wall -Wextra -Werror -o build/vr/test_scheduling tools/vr/tests/test_scheduling.c
+        LD_PRELOAD="$PWD/build/vr/libdroiddeck_vr_scheduling.so" build/vr/test_scheduling
+        c++ -std=c++17 -O2 -Wall -Wextra -Werror -Wno-unused-parameter -Itools/vr/src \
+            -o build/vr/test_joycon tools/vr/tests/test_joycon.cpp
+        build/vr/test_joycon
+        c++ -std=c++17 -O2 -Wall -Wextra -Werror -Wno-unused-parameter -Itools/vr/src \
+            -o build/vr/make_hand_models tools/vr/make_hand_models.cpp
+        mkdir -p build/vr/out/droiddeck/resources
+        build/vr/make_hand_models build/vr/out/droiddeck/resources/rendermodels
         mkdir -p build/vr/stub
         aarch64-linux-gnu-g++ -std=c++17 -O2 -Wall -Wextra -Werror -static-libstdc++ -static-libgcc -pthread \
             -o build/vr/out/droiddeck/bin/linuxarm64/xr-display-mode tools/vr/src/xr_display_mode.cpp
@@ -45,8 +80,10 @@ compile() {
         aarch64-linux-gnu-g++ -std=c++17 -shared -fPIC -O2 -Wall -Wextra -Wno-missing-field-initializers -fvisibility=hidden -pthread \
             -static-libstdc++ -static-libgcc -Wl,-z,defs -Wl,-z,nodelete -Ibuild/vr/include \
             -o build/vr/out/layer/libVkLayer_droiddeck_vr.so build/vr/vk_layer.o tools/vr/src/wsi_capture.cpp -ldl
+        aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wextra -Werror -Wl,-z,defs \
+            -o build/vr/out/layer/libdroiddeck_vr_scheduling.so tools/vr/src/scheduling.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded build/vr/out/droiddeck/bin/linuxarm64/driver_droiddeck.so \
-            build/vr/out/layer/libVkLayer_droiddeck_vr.so')
+            build/vr/out/layer/libVkLayer_droiddeck_vr.so build/vr/out/layer/libdroiddeck_vr_scheduling.so')
     if [ "$native" = 1 ]; then
         (cd "$repo" && "${cmd[@]}")
     else

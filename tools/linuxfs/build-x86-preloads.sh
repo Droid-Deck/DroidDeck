@@ -26,7 +26,7 @@ for arch in x86_64 i386; do
     fi
   done
 done
-for target in x86_64/faultreport i386/faultreport x86_64/thunkaudit; do
+for target in x86_64/faultreport i386/faultreport; do
   arch=${target%/*} name=${target#*/}
   case $arch in
     x86_64) bits=-m64 ;;
@@ -41,13 +41,24 @@ for target in x86_64/faultreport i386/faultreport x86_64/thunkaudit; do
     exit 1
   fi
 done
+lib=$out/x86_64/libwebkitinput.so
+gcc -m64 -shared -fPIC -O2 -Wall -Wextra -nostdlib -fno-stack-protector -fno-builtin -fvisibility=hidden \
+  -o "$lib" tools/linuxfs/fex/webkitinput.c
+strip --strip-unneeded "$lib"
+if objdump -p "$lib" | grep -q NEEDED || [ "$(nm -D --undefined-only "$lib" | awk '{print $1 $2}' | LC_ALL=C sort | tr '\n' ' ')" != "wdlsym wg_object_get_data wg_object_set wg_object_set_data wg_type_check_instance_is_a wgtk_container_forall wgtk_container_get_type wgtk_key_snooper_install wgtk_widget_get_toplevel wwebkit_user_script_new wwebkit_user_script_unref wwebkit_web_view_get_type wwebkit_web_view_get_uri wwebkit_web_view_run_javascript " ]; then
+  echo "$lib must need nothing but weak GLib, GTK and WebKit calls" >&2
+  exit 1
+fi
 stub=$(mktemp -d)
 gcc -m64 -shared -nostdlib -Wl,-soname,/usr/lib/x86_64-linux-gnu/libvulkan.so.1 -o "$stub/libvulkan.so.1" -x c /dev/null
-gcc -m64 -shared -nostdlib -Wl,-z,nodelete -Wl,--no-as-needed \
-  -o "$out/x86_64/libvulkan-thunk.so" -x c /dev/null -x none "$stub/libvulkan.so.1"
+lib=$out/x86_64/libvulkan-thunk.so
+gcc -m64 -shared -fPIC -O2 -Wall -Wextra -fvisibility=hidden -Wl,-soname,libvulkan.so.1 -Wl,-z,nodelete -Wl,--no-as-needed \
+  -o "$lib" tools/linuxfs/fex/vulkanpin.c "$stub/libvulkan.so.1" -ldl
 rm -rf "$stub"
-if ! objdump -p "$out/x86_64/libvulkan-thunk.so" | grep -q 'NEEDED *\/usr/lib/x86_64-linux-gnu/libvulkan\.so\.1$' \
-   || ! objdump -p "$out/x86_64/libvulkan-thunk.so" | grep -q 'FLAGS_1 *0x0*8$'; then
-  echo "$out/x86_64/libvulkan-thunk.so must be nodelete and need only the Vulkan thunk" >&2
+strip --strip-unneeded "$lib"
+newest=$(objdump -T "$lib" | grep -o 'GLIBC_2\.[0-9]*' | sort -u -t. -k2,2n | tail -1)
+if ! objdump -p "$lib" | grep -q 'NEEDED *\/usr/lib/x86_64-linux-gnu/libvulkan\.so\.1$' \
+   || ! objdump -p "$lib" | grep -q 'FLAGS_1 *0x0*8$' || [ "${newest#GLIBC_2.}" -gt 31 ]; then
+  echo "$lib must be nodelete, need the Vulkan thunk and run on glibc 2.31" >&2
   exit 1
 fi
