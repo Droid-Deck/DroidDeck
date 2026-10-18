@@ -88,7 +88,8 @@ object BootMovie {
         val volume = if (SessionPrefs.bootMovieSound(context)) SessionPrefs.bootMovieVolume(context) else 0
         val seconds = SessionPrefs.bootMovieSeconds(context)
         val folder = File(dir(context), "variants")
-        if (volume == 100 && seconds == 0) {
+        val plan = plan(volume, seconds)
+        if (plan.passthrough) {
             prune(folder, null)
             return source
         }
@@ -101,13 +102,14 @@ object BootMovie {
         }
         val staged = File(folder, out.name + ".staged")
         val ok = runCatching {
-            when {
-                volume == 0 -> remux(source, staged, audio = false, limitUs) || transcodeSilent(source, staged, limitUs)
-                volume == 100 -> remux(source, staged, audio = true, limitUs) ||
-                    (BootMovieTranscoder.transcode(source, staged, limitUs = limitUs) {} != null)
-                // A volume that cannot be applied is never played louder than asked: the movie goes without sound instead.
-                else -> BootMovieTranscoder.regain(source, staged, volume / 100f, limitUs) || remux(source, staged, audio = false, limitUs) ||
-                    transcodeSilent(source, staged, limitUs)
+            plan.steps.any { step ->
+                when (step) {
+                    Step.REMUX_SILENT -> remux(source, staged, audio = false, limitUs)
+                    Step.REMUX_AUDIO -> remux(source, staged, audio = true, limitUs)
+                    Step.TRANSCODE_SILENT -> transcodeSilent(source, staged, limitUs)
+                    Step.TRANSCODE_AUDIO -> BootMovieTranscoder.transcode(source, staged, limitUs = limitUs) {} != null
+                    Step.REGAIN -> BootMovieTranscoder.regain(source, staged, volume / 100f, limitUs)
+                }
             }
         }.getOrDefault(false)
         if (ok && staged.renameTo(out)) {
@@ -116,8 +118,23 @@ object BootMovie {
         }
         staged.delete()
         Log.e(TAG, "could not prepare ${source.name} (volume $volume, $seconds s)")
-        // Only a length that could not be applied plays as it is; a volume that could not be applied plays nothing.
-        return if (volume == 100) source else null
+        return if (plan.sourceOnFailure) source else null
+    }
+
+    internal enum class Step { REMUX_SILENT, REMUX_AUDIO, TRANSCODE_SILENT, TRANSCODE_AUDIO, REGAIN }
+
+    /**
+     * How a movie is processed: the steps tried in order until one works, whether the source goes out untouched, and
+     * whether it still plays as it is when every step fails.
+     */
+    internal class Plan(val passthrough: Boolean, val steps: List<Step>, val sourceOnFailure: Boolean)
+
+    internal fun plan(volume: Int, seconds: Int): Plan = when {
+        volume == 100 && seconds == 0 -> Plan(true, emptyList(), true)
+        volume == 0 -> Plan(false, listOf(Step.REMUX_SILENT, Step.TRANSCODE_SILENT), false)
+        // Only a length that could not be applied plays as it is; a volume that could not be applied plays no louder.
+        volume == 100 -> Plan(false, listOf(Step.REMUX_AUDIO, Step.TRANSCODE_AUDIO), true)
+        else -> Plan(false, listOf(Step.REGAIN, Step.REMUX_SILENT, Step.TRANSCODE_SILENT), false)
     }
 
     private fun transcodeSilent(source: File, target: File, limitUs: Long) =
