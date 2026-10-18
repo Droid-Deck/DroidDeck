@@ -273,7 +273,7 @@ public final class WaylandCompositor {
 
     public static native void nativeSetCardboard(boolean enabled, int source, float ipdM, float screenDistM,
                                                  float screenWidthM, float k1, float k2, float fovDeg,
-                                                 float lensInset, float chroma);
+                                                 float lensInset, float chroma, boolean mono, float displayHz);
 
     public static native void nativeSetCardboardPose(float[] rotation, boolean live);
 

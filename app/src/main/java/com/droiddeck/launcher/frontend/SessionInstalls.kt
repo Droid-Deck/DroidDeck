@@ -25,9 +25,16 @@ object SessionInstalls {
             STATE.find(text)?.groupValues?.get(1)?.toIntOrNull() == 4, file.parentFile!!)
     }.getOrNull()
 
-    internal fun steamappsDirs(context: Context): List<File> = listOfNotNull(
-        File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/steamapps"),
-        GameStorage.effective(context)?.let { File(it.path, "steamapps") },
+    internal fun steamappsDirs(context: Context): List<File> = (
+        if (com.droiddeck.launcher.session.SessionPrefs.activeSteamClientArch(context) == "x86_64")
+            listOfNotNull(
+                File(com.droiddeck.launcher.session.SessionPrefs.activeSteamRoot(context), "steamapps"),
+                GameStorage.x64CardLibrary(context)?.let { File(it, "steamapps") },
+            )
+        else listOfNotNull(
+            File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/steamapps"),
+            GameStorage.effective(context)?.let { File(it.path, "steamapps") },
+        )
     ).filter { it.isDirectory }
 
     internal class Watch(private val dirs: () -> List<File>) {

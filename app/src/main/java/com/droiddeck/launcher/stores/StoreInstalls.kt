@@ -58,11 +58,13 @@ object StoreInstalls {
         try {
             val games = AddedGames.scan(app)
             AddedGames.writeListing(app, games)
-            LibraryCache.save(app, Library.launchableGames(app, added = games))
+            val arch = SessionPrefs.activeSteamClientArch(app)
+            LibraryCache.save(app, Library.launchableGames(app, added = games, arch = arch), arch == "x86_64")
             SteamLiveShortcuts.sync(app, games)
         } catch (e: Exception) {
             Log.w(TAG, "registration: ${e.message}")
         }
+        com.droiddeck.launcher.stores.epic.EpicClient.libraryChanged(app)
     }
 
     fun uninstall(context: Context, game: InstalledStoreGame, progress: (Float) -> Unit = {}, removed: () -> Unit = {}) {

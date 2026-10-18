@@ -26,7 +26,7 @@ class QuestXrActivity : NativeActivity() {
         if (active) {
             check(CompositorHost.isStarted) { "DroidDeck compositor is not running" }
             SessionService.resume(this)
-            WaylandCompositor.nativeSetCardboard(false, 1, 0.064f, 3f, 4f, 0f, 0f, 90f, 0f, 0f)
+            WaylandCompositor.nativeSetCardboard(false, 1, 0.064f, 3f, 4f, 0f, 0f, 90f, 0f, 0f, false, 0f)
             WaylandCompositor.nativeSetFrameGenArmed(false, 0, 0)
             WaylandCompositor.nativeSetZeroCopy(false)
             CompositorHost.attachXr()
