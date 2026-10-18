@@ -142,18 +142,18 @@ object BootMovieLibrary {
     private val skippedFolders = setOf("uioverrides", "steamapps", "librarycache", "httpcache", "logs", "compatdata", "shadercache")
 
     private val scanLock = Any()
-    private var scan: Triple<String, Long, List<File>>? = null
+    private val scans = HashMap<String, Pair<Long, List<File>>>()
 
     /** Forgets the last search for Steam's own movies. */
-    internal fun forgetScan() = synchronized(scanLock) { scan = null }
+    internal fun forgetScan() = synchronized(scanLock) { scans.clear() }
 
     /**
      * Movies Steam keeps outside its custom movies folder, such as ones bought in its points shop: every `.webm` below the
-     * client's config, cache and user folders. The search is repeated at most every 15 seconds.
+     * client's config, cache and user folders. The search is repeated at most every 15 seconds for each client folder.
      */
     private fun pointShopMovies(root: File): List<File> = synchronized(scanLock) {
         val now = System.currentTimeMillis()
-        scan?.let { (key, at, found) -> if (key == root.path && now - at < 15_000L) return found }
+        scans[root.path]?.let { (at, found) -> if (now - at < 15_000L) return found }
         val found = listOf("config", "userdata", "appcache", "steamui").flatMap { top ->
             val base = File(root, top)
             if (!base.isDirectory) return@flatMap emptyList()
@@ -161,7 +161,7 @@ object BootMovieLibrary {
                 .onEnter { dir -> dir.name !in skippedFolders && !(top == "steamui" && dir.parentFile == base && dir.name == "movies") }
                 .take(20_000).filter { isMovie(it) }.toList()
         }.sortedBy { it.path.lowercase() }
-        scan = Triple(root.path, now, found)
+        scans[root.path] = now to found
         found
     }
 
