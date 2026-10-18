@@ -21,7 +21,45 @@ object SessionArtifacts {
 
     const val SCRUBBED_TREE_MARKER = ".scrubbed-tree"
 
-    fun collect(context: Context, dir: File, reason: String) {
+    private val collectingLock = java.util.concurrent.locks.ReentrantLock()
+    private val collectingDone = collectingLock.newCondition()
+    private val collecting = HashSet<File>()
+
+    /** Recovery leaves [dir] alone from the stop until [collect] has finished it. */
+    fun collectionStarted(dir: File) {
+        collectingLock.lock()
+        try { collecting.add(dir) } finally { collectingLock.unlock() }
+    }
+
+    private fun collectionDone(dir: File) {
+        collectingLock.lock()
+        try { collecting.remove(dir); collectingDone.signalAll() } finally { collectingLock.unlock() }
+    }
+
+    private fun inFlight(dir: File): Boolean {
+        collectingLock.lock()
+        try { return dir in collecting } finally { collectingLock.unlock() }
+    }
+
+    fun awaitCollections(timeoutMs: Long = 30_000) {
+        collectingLock.lock()
+        try {
+            var left = java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(timeoutMs)
+            while (collecting.isNotEmpty() && left > 0) left = collectingDone.awaitNanos(left)
+        } finally {
+            collectingLock.unlock()
+        }
+    }
+
+    fun collect(context: Context, dir: File, reason: String, steamArch: String? = null) {
+        try {
+            collectNow(context, dir, reason, steamArch)
+        } finally {
+            collectionDone(dir)
+        }
+    }
+
+    private fun collectNow(context: Context, dir: File, reason: String, steamArch: String?) {
         try {
             val wayland = File(dir, "wayland.log")
             if (!wayland.exists()) {
@@ -31,7 +69,8 @@ object SessionArtifacts {
             }
             LogRedactor.learnFromRuntime(LinuxRuntime.rootDir(context))
             val record = Record(dir)
-            copySteamLogs(context, dir, record)
+            copySteamLogs(context, dir, record, steamArch)
+            VacDiagnostics.collect(context, dir)
             SessionLogCapture.dumpCrashBuffer(File(dir, "crash.log"))
             markScrubbed(scrubTree(record))
             SessionEvents.record("session.artifacts_collected", mapOf("reason" to reason), dir)
@@ -149,8 +188,18 @@ object SessionArtifacts {
         return record
     }
 
-    private fun copySteamLogs(context: Context, dir: File, record: Record) {
-        val logs = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/logs")
+    private const val CLIENT_FILE = "steam-client.txt"
+
+    fun recordClient(dir: File, arch: String) {
+        runCatching { File(dir, CLIENT_FILE).writeText("$arch\n") }
+    }
+
+    /** The Steam client a session ran, when it recorded one. */
+    internal fun recordedClient(dir: File): String? =
+        runCatching { File(dir, CLIENT_FILE).readText().trim() }.getOrNull()?.takeIf { it == "arm64" || it == "x86_64" }
+
+    private fun copySteamLogs(context: Context, dir: File, record: Record, steamArch: String? = null) {
+        val logs = File(steamArch?.let { SessionPrefs.steamRoot(context, it) } ?: SessionPrefs.activeSteamRoot(context), "logs")
         if (!logs.isDirectory) return
         val out = File(dir, "steam").apply { mkdirs() }
         logs.listFiles { f -> f.isFile && f.length() < 8L * 1024 * 1024 }?.forEach { src ->
@@ -171,7 +220,7 @@ object SessionArtifacts {
     fun finishAbandoned(context: Context) {
         val parent = LinuxRuntime.logDir(context)
         val abandoned = parent.listFiles { f ->
-            SessionPaths.isSessionFolder(f) && !File(f, COMPLETE_MARKER).exists()
+            SessionPaths.isSessionFolder(f) && !File(f, COMPLETE_MARKER).exists() && !inFlight(f)
         }?.sortedWith(SessionPaths.chronological) ?: return
         if (abandoned.isEmpty()) return
         val current = SessionPaths.current()
@@ -191,7 +240,10 @@ object SessionArtifacts {
                         "session died of a crash, the entry is in there unless the device rebooted.\n"
                 )
                 val record = Record(dir)
-                if (newest) copySteamLogs(context, dir, record)
+                if (newest) {
+                    copySteamLogs(context, dir, record, recordedClient(dir))
+                    VacDiagnostics.collect(context, dir)
+                }
                 SessionLogCapture.dumpCrashBuffer(File(dir, "crash.log"))
                 SessionEvents.record("session.artifacts_recovered", mapOf("newest" to newest), dir)
                 markScrubbed(scrubTree(record))

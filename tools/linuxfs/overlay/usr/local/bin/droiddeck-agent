@@ -21,6 +21,7 @@ Requests: ping, exec, focus, cdp, quit. Each answer is {"ok": true, ...} or
 import base64
 import json
 import math
+import re
 import os
 import selectors
 import signal
@@ -254,6 +255,31 @@ def focus_snapshot():
     return snap
 
 
+STEAM_APP_CLASS = re.compile(r"steam_app_(\d+)$")
+
+
+def tag_game_windows(snap):
+    if os.environ.get("BL_STEAM_CLIENT_ARCH") != "x86_64":
+        return False
+    tagged = False
+    for display, wins in snap.get("displays", {}).items():
+        if display == os.environ.get("DISPLAY"):
+            continue
+        for win in wins:
+            match = STEAM_APP_CLASS.match(win.get("class") or "")
+            if not match or win.get("appId") or win.get("map") != "viewable" or win.get("overrideRedirect"):
+                continue
+            try:
+                done = subprocess.run(["xprop", "-display", display, "-id", str(win["window"]), "-f", "STEAM_GAME", "32c",
+                                       "-set", "STEAM_GAME", match.group(1)],
+                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5).returncode == 0
+            except (OSError, subprocess.TimeoutExpired):
+                done = False
+            log("game window %s on %s tagged STEAM_GAME=%s: %s" % (win["window"], display, match.group(1), "ok" if done else "failed"))
+            tagged = tagged or done
+    return tagged
+
+
 def vr_scene_app(path=Path('/run/droiddeck/droiddeck-steamvr/scene-focus.json'), proc=Path('/proc')):
     """Only a live SteamVR scene with its dashboard hidden may claim game focus."""
     try:
@@ -325,6 +351,9 @@ class FocusWatcher(threading.Thread):
             except (OSError, AgentError) as e:
                 log("focus snapshot failed: %s" % e)
                 time.sleep(2)
+                continue
+            if tag_game_windows(snap):
+                self.changed.set()
                 continue
             body = {k: v for k, v in snap.items() if k != "t"}
             if body == self.last:

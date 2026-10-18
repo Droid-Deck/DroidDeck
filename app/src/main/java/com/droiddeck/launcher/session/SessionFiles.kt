@@ -72,6 +72,10 @@ object SessionFiles {
             "usr/local/bin/droiddeck-open-url" to "usr/local/bin/droiddeck-open-url",
             "usr/local/bin/droiddeck-steam-games" to "usr/local/bin/droiddeck-steam-games",
             "usr/local/bin/droiddeck-pad-defaults" to "usr/local/bin/droiddeck-pad-defaults",
+            "usr/local/bin/droiddeck-steam-x64" to "usr/local/bin/droiddeck-steam-x64",
+            "usr/local/bin/droiddeck-x64-arm-proton" to "usr/local/bin/droiddeck-x64-arm-proton",
+            "usr/local/bin/droiddeck-x64-arm-webhelper" to "usr/local/bin/droiddeck-x64-arm-webhelper",
+            "usr/local/bin/droiddeck-x64-webhelper" to "usr/local/bin/droiddeck-x64-webhelper",
             "usr/local/bin/droiddeck-steamvr" to "usr/local/bin/droiddeck-steamvr",
             "usr/local/bin/droiddeck-steamvr-settings" to "usr/local/bin/droiddeck-steamvr-settings",
             "usr/local/bin/droiddeck-steamvr-game" to "usr/local/bin/droiddeck-steamvr-game",
@@ -117,13 +121,14 @@ object SessionFiles {
             "droiddeck/driver.vrdrivermanifest",
             "droiddeck/resources/settings/default.vrsettings",
             "layer/libVkLayer_droiddeck_vr.so",
+            "layer/libdroiddeck_vr_scheduling.so",
             "layer/VK_LAYER_DROIDDECK_vr.json",
         ) + handModels).map { "usr/local/lib/droiddeck-vr/$it" to "usr/local/lib/droiddeck-vr/$it" } +
             listOf("usr/local/lib/droiddeck-vr/layer/VK_LAYER_DROIDDECK_vr_implicit.json" to
                 "usr/share/vulkan/implicit_layer.d/droiddeck_vr.json")
         val fexPreloads = listOf("x86_64", "i386").flatMap { arch ->
             listOf("libblsession.so", "libfakeinput.so", "libfaultreport.so").map { "$arch/$it" to "usr/local/lib/droiddeck-fex/$arch/$it" }
-        } + listOf("libthunkaudit.so", "libvulkan-thunk.so", "libwebkitinput.so").map { "x86_64/$it" to "usr/local/lib/droiddeck-fex/x86_64/$it" }
+        } + listOf("libvulkan-thunk.so", "libwebkitinput.so").map { "x86_64/$it" to "usr/local/lib/droiddeck-fex/x86_64/$it" }
         val optional = (arrayOf(
             "usr/local/bin/gamescope" to "usr/local/bin/gamescope",
             "usr/local/lib/droiddeck/uruntime" to "usr/local/lib/droiddeck/uruntime",
@@ -194,13 +199,18 @@ object SessionFiles {
             Log.e(TAG, "could not write steam-compatibility-label")
         }
 
-        val startupMovieDir = File(root, "root/.local/share/Steam/config/uioverrides/movies")
         val startupMovie = BootMovie.prepare(context)
-        val bigPictureMovieInstalled = startupMovie != null &&
-            stageStartupMovie(startupMovie, startupMovieDir, "bigpicture_startup.webm")
-        if (startupMovie != null) stageStartupMovie(startupMovie, startupMovieDir, "steam_os_startup.webm")
-        if (bigPictureMovieInstalled) {
-            ensureStartupMovieDefault(File(root, "root/.local/share/Steam/config/config.vdf"))
+        // The x86-64 client's config is left alone until its first start creates it.
+        val steamRoots = listOf(File(root, "root/.local/share/Steam"), File(root, "root/.droiddeck-x64/.local/share/Steam"))
+            .filterIndexed { i, steam -> i == 0 || File(steam, "config").isDirectory }
+        for (steam in steamRoots) {
+            val startupMovieDir = File(steam, "config/uioverrides/movies")
+            val bigPictureMovieInstalled = startupMovie != null &&
+                stageStartupMovie(startupMovie, startupMovieDir, "bigpicture_startup.webm")
+            if (startupMovie != null) stageStartupMovie(startupMovie, startupMovieDir, "steam_os_startup.webm")
+            if (bigPictureMovieInstalled) {
+                ensureStartupMovieDefault(File(steam, "config/config.vdf"))
+            }
         }
     }
 

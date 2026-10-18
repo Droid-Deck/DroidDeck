@@ -80,6 +80,7 @@ class ModeSettings(
     val syncBackend: String? = null,
     val picturePosition: String? = null,
     val stretch16x9: Boolean? = null,
+    val steamClientArch: String? = null,
     val steamRepairQueued: Boolean = false,
     val mangoapp: Boolean = true,
     val steamController: String? = null,
@@ -130,6 +131,7 @@ class ModeSettingsActions(
     val onPicturePosition: (String) -> Unit = {},
     val onStretch16x9: (Boolean) -> Unit = {},
     val onSteamRepair: () -> Unit = {},
+    val onSteamClientArch: (String) -> Unit = {},
     val onMangoapp: (Boolean) -> Unit = {},
     val onSteamController: (String) -> Unit = {},
     val onUnfoldedControls: (Boolean) -> Unit = {},
@@ -147,6 +149,29 @@ class ModeSettingsActions(
     val onPickDeckyPluginZip: () -> Unit = {},
     val onDismiss: () -> Unit,
 )
+
+/** "2610 r3" from droiddeck-steam-x64's FEX_TAG line (fex-2610-r3), the build the x86-64 client downloads. */
+internal fun fexVersionOf(script: String): String? =
+    Regex("""(?m)^FEX_TAG=(fex-\d+-r\d+)\s*$""").find(script)?.let { fexVersionOfTag(it.groupValues[1]) }
+
+/** "2610 r5" from a tag such as fex-2610-r5. */
+internal fun fexVersionOfTag(tag: String): String? =
+    Regex("""fex-(\d+)-r(\d+)""").matchEntire(tag.trim())?.let { "${it.groupValues[1]} r${it.groupValues[2]}" }
+
+/** The build installed in the runtime, else the one fex.json names, else the one the launcher pins. */
+@Composable
+private fun x64FexVersion(context: android.content.Context): String? = remember {
+    val root = com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context)
+    runCatching { java.io.File(root, "usr/local/share/fex-emu/.droiddeck-tag").readText() }.getOrNull()?.let(::fexVersionOfTag)
+        ?: com.droiddeck.launcher.session.FexCatalog.cached(context)?.tag?.let(::fexVersionOfTag)
+        ?: runCatching {
+            context.assets.open("linuxfs/usr/local/bin/droiddeck-steam-x64").bufferedReader().use { fexVersionOf(it.readText()) }
+        }.getOrNull()
+}
+
+@Composable
+private fun clientArchHint(hint: String, fex: String?): String =
+    if (fex == null) hint else hint + " " + stringResource(R.string.mode_client_arch_fex, fex)
 
 internal fun modeSheetTabs(steam: Boolean): List<String> =
     if (steam) listOf(SheetTab.STEAM, SheetTab.DISPLAY, SheetTab.CONTROLS, SheetTab.AUDIO, SheetTab.SESSION, SheetTab.LIBRARY)
@@ -435,6 +460,12 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
             ) {
                 SecondaryButton(stringResource(R.string.mode_steam_repair_button), enabled = !s.steamRepairQueued, onClick = a.onSteamRepair)
             }
+            if (s.steamClientArch != null) ChoiceRow(
+                host, "clientArch", stringResource(R.string.mode_client_arch),
+                clientArchHint(stringResource(R.string.common_applies_next_session), x64FexVersion(LocalContext.current)),
+                listOf("arm64" to stringResource(R.string.mode_client_arch_arm64), "x86_64" to stringResource(R.string.mode_client_arch_x64)), s.steamClientArch,
+                onPick = a.onSteamClientArch,
+            )
         }
         if (s.bootMovie != null) SettingsGroup(stringResource(R.string.boot_movie)) {
             ChoiceRow(

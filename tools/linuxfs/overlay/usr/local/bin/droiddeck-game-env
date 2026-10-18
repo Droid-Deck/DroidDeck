@@ -261,7 +261,7 @@ def mark_install_scripts(command, env):
     ones stop with an error."""
     if not any(arg.lower().replace("\\", "/").endswith("iscriptevaluator.exe") for arg in command):
         return
-    root = env.get("STEAM_COMPAT_CLIENT_INSTALL_PATH") or str(Path.home() / ".local/share/Steam")
+    root = env.get("BL_X64_STEAM_ROOT") or env.get("STEAM_COMPAT_CLIENT_INSTALL_PATH") or str(Path.home() / ".local/share/Steam")
     scripts = [str(Path(root) / arg.replace("\\", "/")) for arg in command if EVALUATOR_SCRIPT.search(arg)]
     scripts = [path for path in scripts if os.path.isfile(path)]
     if not scripts:

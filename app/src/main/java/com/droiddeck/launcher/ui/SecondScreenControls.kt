@@ -1,21 +1,17 @@
 package com.droiddeck.launcher.ui
 
 import com.droiddeck.launcher.R
-import android.app.Presentation
 import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
-import android.os.Bundle
 import android.util.Log
-import android.view.Display
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewConfiguration
-import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.FrameLayout
@@ -37,9 +33,9 @@ import com.termux.terminal.TerminalSessionClient
 import com.termux.view.TerminalView
 import com.termux.view.TerminalViewClient
 
-class SecondScreenPresentation(
+internal class SecondScreenControls(
+    context: Context,
     private val sessionActivity: SessionActivity,
-    display: Display,
     private val sendPointer: (x: Float, y: Float, width: Float, height: Float) -> Unit,
     private val sendButton: (button: Int, pressed: Boolean) -> Unit,
     private val sendWheel: (steps: Int) -> Unit,
@@ -47,12 +43,8 @@ class SecondScreenPresentation(
     private val onQam: () -> Unit,
     private val onClose: () -> Unit,
     private val pad: PadBridge? = null,
-) : Presentation(sessionActivity, display) {
-    private val root = LinearLayout(context).apply {
-        orientation = LinearLayout.VERTICAL
-        setBackgroundColor(Color.rgb(15, 18, 22))
-        isFocusableInTouchMode = true
-    }
+) : LinearLayout(context) {
+    private val root get() = this
     private var currentMode = SecondScreenMode.NONE
     private var keyboardHost: KeyboardHost? = null
     private var terminalSession: TerminalSession? = null
@@ -60,35 +52,22 @@ class SecondScreenPresentation(
     private var terminalPid = -1
     private var ctrlActive = false
     private var altActive = false
-    private var created = false
-
     init {
-        setCancelable(false)
-        setCanceledOnTouchOutside(false)
-        setOnDismissListener { closeTerminal() }
-    }
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        created = true
-        window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
-        setContentView(root)
-        applyImmersiveMode()
-        renderMode()
+        orientation = VERTICAL
+        setBackgroundColor(Color.rgb(15, 18, 22))
+        isFocusableInTouchMode = true
     }
 
     fun showMode(mode: SecondScreenMode) {
-        if (currentMode == mode && isShowing) return
+        if (currentMode == mode) return
         currentMode = mode
-        if (created) renderMode()
+        renderMode()
     }
 
     fun closeControls() {
         closeTerminal()
         keyboardHost?.hide()
         keyboardHost = null
-        dismiss()
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -96,14 +75,6 @@ class SecondScreenPresentation(
             if (sessionActivity.dispatchKeyEvent(event)) return true
         }
         return super.dispatchKeyEvent(event)
-    }
-
-    override fun onWindowFocusChanged(hasFocus: Boolean) {
-        super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) {
-            applyImmersiveMode()
-            sessionActivity.refreshClipboard()
-        }
     }
 
     private fun renderMode() {
@@ -290,16 +261,6 @@ class SecondScreenPresentation(
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density + 0.5f).toInt()
 
     private fun weightParams() = LinearLayout.LayoutParams(-1, 0, 1f)
-
-    private fun applyImmersiveMode() {
-        @Suppress("DEPRECATION")
-        window?.decorView?.systemUiVisibility = (View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-            or View.SYSTEM_UI_FLAG_FULLSCREEN
-            or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-            or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-            or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-            or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION)
-    }
 
     private inner class TrackpadView(context: Context) : View(context) {
         private val gestures = TouchpadGestures(ViewConfiguration.get(context).scaledTouchSlop.toFloat(),

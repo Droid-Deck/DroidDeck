@@ -75,7 +75,16 @@ static constexpr uint8_t GAMEPAD_AXIS_COUNT = 8;
 static constexpr uint8_t GAMEPAD_BUTTON_COUNT = 11;
 static constexpr uint32_t FAKE_INPUT_RING_MAGIC = 0x46494252;
 static constexpr uint32_t FAKE_INPUT_RING_VERSION = 2;
-static constexpr uint32_t FAKE_INPUT_EVENT_SIZE = sizeof(struct input_event);
+// Rings hold the 64-bit input_event layout that the arm64 writers use; 32-bit guests convert on read.
+struct RingEvent {
+  int64_t sec;
+  int64_t usec;
+  uint16_t type;
+  uint16_t code;
+  int32_t value;
+};
+static_assert(sizeof(RingEvent) == 24, "ring events must stay ABI-stable");
+static constexpr uint32_t FAKE_INPUT_EVENT_SIZE = sizeof(RingEvent);
 static constexpr uint32_t FAKE_INPUT_RING_CAPACITY = 4096;
 static constexpr unsigned int FAKE_INPUT_MAJOR = 13;
 static constexpr unsigned int FAKE_INPUT_EVENT_MINOR_BASE = 64;
@@ -928,14 +937,13 @@ __attribute__((visibility("hidden"))) static void flush_uinput(UinputWriter &w) 
     return;
   }
   FakeInputRingHeader *ring = w.ring;
-  auto *events = reinterpret_cast<struct input_event *>(reinterpret_cast<uint8_t *>(ring) +
-                                                        FAKE_INPUT_RING_HEADER_SIZE);
+  auto *events = reinterpret_cast<RingEvent *>(reinterpret_cast<uint8_t *>(ring) +
+                                               FAKE_INPUT_RING_HEADER_SIZE);
   uint64_t write_seq = __atomic_load_n(&ring->write_seq, __ATOMIC_RELAXED);
   struct timeval now = {};
   gettimeofday(&now, nullptr);
-  for (struct input_event ev : w.pending) {
-    ev.time = now;
-    events[write_seq % FAKE_INPUT_RING_CAPACITY] = ev;
+  for (const struct input_event &ev : w.pending) {
+    events[write_seq % FAKE_INPUT_RING_CAPACITY] = {now.tv_sec, now.tv_usec, ev.type, ev.code, ev.value};
     write_seq++;
     if (ev.type == EV_KEY) {
       for (size_t i = 0; i < kSnapshotButtonCount; i++)
@@ -3511,6 +3519,12 @@ EXPORT int ioctl(int fd, ioctl_request_t op, ...) {
   } else if (type == 0x45 && number == 0x90) {
     Logger::log("Hooking ioctl EVIOCGRAB for event %s\n", event);
     return 0;
+  } else if (type == 0x6A && !strncmp(event, "event", 5)) {
+    // Older SDL2 builds treat any JSIOCGNAME answer as a joydev node and skip EVIOCGID, then drop the pad as 0000:0000.
+    Logger::log("Rejecting joydev ioctl %d for event %s\n", number, event);
+    guard.unlock();
+    errno = EINVAL;
+    return -1;
   } else if (type == 0x6A && number == 0x1) {
     Logger::log("Hooking ioctl JSIOCGVERSION for event %s\n", event);
     int version = JS_VERSION;
@@ -3573,7 +3587,7 @@ EXPORT ssize_t read(int fd, void *buf, size_t count) {
   }
   auto handle = controller->second;
   FakeController &fake = *handle;
-  if (count < FAKE_INPUT_EVENT_SIZE) {
+  if (count < sizeof(struct input_event)) {
     errno = EINVAL;
     return -1;
   }
@@ -3591,7 +3605,7 @@ EXPORT ssize_t read(int fd, void *buf, size_t count) {
       return -1;
     }
     for (int attempt = 0; attempt < 8; ++attempt) {
-      size_t requested = count / FAKE_INPUT_EVENT_SIZE;
+      size_t requested = count / sizeof(struct input_event);
       if (fake.keyframe_remaining == 0) {
         SnapshotState snap;
         if (!read_snapshot(fake.ring, snap)) break;
@@ -3610,17 +3624,22 @@ EXPORT ssize_t read(int fd, void *buf, size_t count) {
                                        FAKE_INPUT_RING_HEADER_SIZE;
           for (size_t i = 0; i < events; ++i) {
             size_t index = (fake.read_seq + i) % FAKE_INPUT_RING_CAPACITY;
-            struct input_event ev;
-            memcpy(&ev, ring_events + index * FAKE_INPUT_EVENT_SIZE, FAKE_INPUT_EVENT_SIZE);
+            RingEvent stored;
+            memcpy(&stored, ring_events + index * FAKE_INPUT_EVENT_SIZE, FAKE_INPUT_EVENT_SIZE);
+            struct input_event ev = {};
+            ev.time.tv_sec = stored.sec;
+            ev.time.tv_usec = stored.usec;
+            ev.type = stored.type;
+            ev.code = stored.code;
+            ev.value = stored.value;
             if (ev.type == EV_ABS) ev.code = presented_abs_code(fake, ev.code);
-            memcpy(static_cast<uint8_t *>(buf) + i * FAKE_INPUT_EVENT_SIZE, &ev,
-                   FAKE_INPUT_EVENT_SIZE);
+            memcpy(static_cast<uint8_t *>(buf) + i * sizeof(ev), &ev, sizeof(ev));
           }
           __atomic_thread_fence(__ATOMIC_ACQUIRE);
           if (snap.sequence != __atomic_load_n(&fake.ring->snapshot_seq, __ATOMIC_RELAXED))
             continue;
           fake.read_seq += events;
-          return static_cast<ssize_t>(events * FAKE_INPUT_EVENT_SIZE);
+          return static_cast<ssize_t>(events * sizeof(struct input_event));
         }
       }
 
@@ -3635,11 +3654,10 @@ EXPORT ssize_t read(int fd, void *buf, size_t count) {
         ev.code = kNeutralEvents[index].code;
         ev.value = keyframe_value(fake, ev.type, ev.code);
         if (ev.type == EV_ABS) ev.code = presented_abs_code(fake, ev.code);
-        memcpy(static_cast<uint8_t *>(buf) + i * FAKE_INPUT_EVENT_SIZE,
-               &ev, FAKE_INPUT_EVENT_SIZE);
+        memcpy(static_cast<uint8_t *>(buf) + i * sizeof(ev), &ev, sizeof(ev));
         --fake.keyframe_remaining;
       }
-      return static_cast<ssize_t>(events * FAKE_INPUT_EVENT_SIZE);
+      return static_cast<ssize_t>(events * sizeof(struct input_event));
     }
     if (nonblock) {
       errno = EAGAIN;

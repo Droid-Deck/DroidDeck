@@ -28,6 +28,30 @@ class AddedGamesScanTest {
         assertEquals(listOf("Example"), AddedGames.scan(app).map { it.name })
     }
 
+    private fun cardWithX8664Library(): File {
+        val card = tmp.newFolder("Card")
+        File(card, "Example").mkdirs()
+        File(card, "Example/Example.exe").writeText("game")
+        File(card, "x86-64/steamapps/common/FlatOut").mkdirs()
+        File(card, "x86-64/steamapps/common/FlatOut/FlatOut.exe").writeText("steam game")
+        return card
+    }
+
+    @Test fun theX8664ClientsCardLibraryIsNotAGame() {
+        val card = cardWithX8664Library()
+        SessionPrefs.setGameStorage(app, card.path, "Card")
+        assertEquals(listOf("Example"), AddedGames.scan(app).map { it.name })
+        assertTrue(AddedGames.isSteamLibraryFolder("x86-64"))
+        assertFalse(AddedGames.isSteamLibraryFolder("x86-64 games"))
+    }
+
+    @Test fun anOldGamesFolderHoldingTheX8664LibraryDoesNotMigrateItAsAGame() {
+        val card = cardWithX8664Library()
+        SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
+        SessionPrefs.setAddedGamesDirs(app, listOf(card.path))
+        assertEquals(listOf("Example"), AddedGames.scan(app).map { it.name })
+    }
+
     @Test fun aStorePackageLaunchesTheExecutableItDeclares() {
         val game = tmp.newFolder("Minecraft Dungeons")
         File(game, "Dungeons.exe").writeText("unreal bootstrap")

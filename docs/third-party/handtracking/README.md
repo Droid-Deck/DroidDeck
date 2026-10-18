@@ -2,8 +2,8 @@
 
 ## Included
 
-[MediaPipe](https://github.com/google-ai-edge/mediapipe) Tasks Vision 0.10.21
-(`com.google.mediapipe:tasks-vision`, tag `v0.10.21` at cad7f3ab99ebf175947e40c5252c642612aae927;
+[MediaPipe](https://github.com/google-ai-edge/mediapipe) Tasks Vision 1.0.0
+(`com.google.mediapipe:tasks-vision`, shared with the Luma stereo tracking pipeline;
 copyright Google LLC and the MediaPipe authors, Apache License 2.0, `LICENSE_MEDIAPIPE` here) finds
 the player's body in each camera frame. It comes from Maven Central with its dependencies
 (Guava, Flogger, protobuf-javalite and Google's `datatransport`), all Apache-2.0.
@@ -23,6 +23,16 @@ bundle, a palm detector and a hand landmark model, unchanged from
 [model card](https://storage.googleapis.com/mediapipe-assets/Model%20Card%20Hand%20Tracking%20(Lite_Full)%20with%20Fairness%20Oct%202021.pdf)
 licenses it under the Apache License 2.0; it gives 21 landmarks per hand in the picture and in metres,
 based on the GHUM hand model, and is meant for prominently shown hands.
+
+The Luma stereo pipeline defaults to the Full bundle at
+`app/src/main/assets/models/hand_landmarker.task`, with the same checksum as the Full bundle
+above. The optional `app/src/main/assets/models/hand_landmarker_lite.task` is built from
+the official `palm_detection_lite.tflite` and `hand_landmark_lite.tflite` assets at
+`https://storage.googleapis.com/mediapipe-assets/`. It uses the matching tensor metadata and
+associated labels from the Full task bundle. These models share the MediaPipe hand tracking
+model card and Apache License 2.0. Source checksums and the generated bundle checksum are in
+`app/src/main/assets/models/hand_landmarker_lite.provenance.json`; `tools/build_hand_lite.py`
+reproduces the bundle with MediaPipe 0.10.21 metadata tooling.
 
 [CameraX](https://developer.android.com/jetpack/androidx/releases/camera) 1.4.2
 (`androidx.camera:camera-camera2`, `camera-lifecycle`; copyright The Android Open Source Project,

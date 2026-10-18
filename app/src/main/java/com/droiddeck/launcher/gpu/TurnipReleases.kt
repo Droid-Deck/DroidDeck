@@ -19,6 +19,7 @@ object TurnipReleases {
     private const val PREFS = "turnip_releases"
     private const val KEY_RELEASE = "latest"
     private const val KEY_DOWNLOADS = "downloads"
+    private const val KEY_PICKS = "autoPicks"
 
     class Asset(val source: String, val tag: String, val name: String, val url: String, val size: Long, val linux: Boolean, val label: String,
                 val sha256: String = "", val pair: String = "", val bundle: Boolean = false)
@@ -56,6 +57,9 @@ object TurnipReleases {
             Kind(false, "Android + Linux · all Adreno", DriverPairs.ddTurnip(tag), bundle = true)
         },
     )
+
+    fun autoPicks(context: Context): List<AutoPicks.Rule> =
+        AutoPicks.parse(prefs(context).getString(KEY_PICKS, null)) ?: AutoPicks.BUILT_IN
 
     fun cached(context: Context): Check? {
         val raw = prefs(context).getString(KEY_RELEASE, null) ?: return null
@@ -100,6 +104,10 @@ object TurnipReleases {
             }
         }
         if (failed.size == SOURCES.size) throw lastError ?: IOException("no source answered")
+        runCatching { get(context, AutoPicks.URL, AutoPicks.URL) }
+            .onFailure { Log.i(TAG, "auto picks: ${it.message}") }
+            .getOrNull()?.takeIf { AutoPicks.parse(it) != null }
+            ?.let { prefs(context).edit().putString(KEY_PICKS, it).apply() }
         val stored = JSONObject().put("assets", assets).put("latest", latest)
             .put("failed", JSONArray(failed)).put("checkedAt", System.currentTimeMillis())
         prefs(context).edit().putString(KEY_RELEASE, stored.toString()).apply()
