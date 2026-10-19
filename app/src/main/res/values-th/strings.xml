@@ -726,6 +726,9 @@
     <string name="setup_app_scale_default">%1$d%% (ค่าเริ่มต้น)</string>
     <string name="setup_theme">ธีม</string>
     <string name="setup_theme_hint">รูปลักษณ์ของตัวเปิดแอป</string>
+    <string name="setup_launcher_icon">ไอคอนแอป</string>
+    <string name="setup_launcher_icon_dark">มืด</string>
+    <string name="setup_launcher_icon_light">สว่าง</string>
     <string name="setup_home">ใช้เป็นหน้าจอหลัก</string>
     <string name="setup_home_on">DroidDeck สามารถเป็นแอปหน้าจอหลักได้</string>
     <string name="setup_home_off">DroidDeck จะไม่ถูกเสนอให้เป็นแอปหน้าจอหลัก</string>
@@ -1362,7 +1365,7 @@
     <string name="store_updates_check_failed">ไม่สามารถตรวจสอบการอัปเดตจาก Flathub ได้</string>
     <string name="content_rom_installed">ติดตั้งแล้ว</string>
     <string name="content_rom_folder">โฟลเดอร์</string>
-    <string name="theme_graphite">Graphite</string>
+    <string name="theme_graphite">แกรไฟต์</string>
     <string name="theme_graphite_detail">พื้นผิวสีเทาแกรไฟต์ พร้อมสีฟ้าของโลโก้สำหรับทุกสิ่งที่ถูกเลือก โฟกัส หรือกด</string>
     <string name="theme_paper">กระดาษบนพื้นดำ</string>
     <string name="theme_paper_detail">สีขาวเป็นหลัก สีฟ้าของไอคอนเป็นสัญญาณสำหรับเส้น วงแหวน และจุด</string>
@@ -1745,8 +1748,8 @@
     <string name="cmgr_list_predates_checksums">รายการแพ็กเกจนี้เก่ากว่าระบบค่าตรวจสอบ - รีเฟรชแล้วลองใหม่</string>
     <string name="cmgr_checksum_mismatch">ค่าตรวจสอบไม่ตรงกัน</string>
 
-    <string name="sprefs_upscaler_linear">Linear</string>
-    <string name="sprefs_upscaler_nearest">Nearest</string>
+    <string name="sprefs_upscaler_linear">เชิงเส้น</string>
+    <string name="sprefs_upscaler_nearest">ใกล้ที่สุด</string>
     <string name="sprefs_upscaler_gsr_quality">Snapdragon GSR (คุณภาพ)</string>
     <string name="sprefs_upscaler_sharpen">เพิ่มความคมชัดเท่านั้น</string>
     <string name="sprefs_lod_bias_auto">อัตโนมัติ (ตามอัตราขยาย)</string>

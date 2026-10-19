@@ -729,6 +729,9 @@
     <string name="setup_app_scale_default">%1$d%% (Standaard)</string>
     <string name="setup_theme">Thema</string>
     <string name="setup_theme_hint">Uiterlijk van de launcher</string>
+    <string name="setup_launcher_icon">App-pictogram</string>
+    <string name="setup_launcher_icon_dark">Donker</string>
+    <string name="setup_launcher_icon_light">Licht</string>
     <string name="setup_home">Als startscherm gebruiken</string>
     <string name="setup_home_on">DroidDeck kan de startschermapp zijn</string>
     <string name="setup_home_off">DroidDeck wordt nooit aangeboden als startschermapp</string>

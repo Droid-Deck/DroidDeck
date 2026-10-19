@@ -729,6 +729,9 @@
     <string name="setup_app_scale_default">%1$d%% (डिफ़ॉल्ट)</string>
     <string name="setup_theme">थीम</string>
     <string name="setup_theme_hint">लॉन्चर की दिखावट</string>
+    <string name="setup_launcher_icon">ऐप आइकन</string>
+    <string name="setup_launcher_icon_dark">गहरा</string>
+    <string name="setup_launcher_icon_light">हल्का</string>
     <string name="setup_home">होम स्क्रीन के तौर पर इस्तेमाल करें</string>
     <string name="setup_home_on">DroidDeck होम ऐप हो सकता है</string>
     <string name="setup_home_off">DroidDeck को होम ऐप के तौर पर कभी नहीं दिखाया जाता</string>
@@ -1894,7 +1897,7 @@
     <string name="display_sharpness">फ़िल्टर शार्पनेस</string>
     <string name="display_frame_rate">फ़्रेम रेट</string>
     <string name="display_look_filter">%1$s स्केलिंग को %2$s पर सेट करता है।</string>
-    <string name="display_match_screen">Match screen (%1$d×%2$d)</string>
+    <string name="display_match_screen">स्क्रीन से मिलाएँ (%1$d×%2$d)</string>
     <string name="display_follow_screen">Follow screen (खुलने या बंद होने पर आकार बदलता है)</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">डिवाइस जानकारी दिखाएं</string>

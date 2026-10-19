@@ -741,6 +741,9 @@
     <string name="setup_app_scale_default">%1$d%% (افتراضي)</string>
     <string name="setup_theme">المظهر</string>
     <string name="setup_theme_hint">مظهر المشغّل</string>
+    <string name="setup_launcher_icon">أيقونة التطبيق</string>
+    <string name="setup_launcher_icon_dark">داكنة</string>
+    <string name="setup_launcher_icon_light">فاتحة</string>
     <string name="setup_home">استخدام كشاشة رئيسية</string>
     <string name="setup_home_on">يمكن أن يكون DroidDeck تطبيق الشاشة الرئيسية</string>
     <string name="setup_home_off">لا يُعرَض DroidDeck أبدًا كتطبيق للشاشة الرئيسية</string>
@@ -2687,33 +2690,61 @@
     <string name="storage_free_up">تحرير مساحة</string>
     <string name="storage_play_anyway">اللعب على أي حال</string>
     <plurals name="storage_games_installed">
+        <item quantity="zero">%d مثبَّتة</item>
         <item quantity="one">%d مثبَّتة</item>
+        <item quantity="two">%d مثبَّتة</item>
+        <item quantity="few">%d مثبَّتة</item>
+        <item quantity="many">%d مثبَّتة</item>
         <item quantity="other">%d مثبَّتة</item>
     </plurals>
     <plurals name="storage_games_on_sd">
+        <item quantity="zero">%d على بطاقة SD</item>
         <item quantity="one">%d على بطاقة SD</item>
+        <item quantity="two">%d على بطاقة SD</item>
+        <item quantity="few">%d على بطاقة SD</item>
+        <item quantity="many">%d على بطاقة SD</item>
         <item quantity="other">%d على بطاقة SD</item>
     </plurals>
     <plurals name="storage_tools_count">
+        <item quantity="zero">%d أداة</item>
         <item quantity="one">%d أداة</item>
-        <item quantity="other">%d أدوات</item>
+        <item quantity="two">%d أداة</item>
+        <item quantity="few">%d أدوات</item>
+        <item quantity="many">%d أداة</item>
+        <item quantity="other">%d أداة</item>
     </plurals>
     <plurals name="storage_item_leftovers_detail">
+        <item quantity="zero">مجلدات بادئة فارغة وذاكرة شيدرات من %d لعبة</item>
         <item quantity="one">مجلدات بادئة فارغة وذاكرة شيدرات من %d لعبة</item>
+        <item quantity="two">مجلدات بادئة فارغة وذاكرة شيدرات من %d لعبة</item>
+        <item quantity="few">مجلدات بادئة فارغة وذاكرة شيدرات من %d ألعاب</item>
+        <item quantity="many">مجلدات بادئة فارغة وذاكرة شيدرات من %d لعبة</item>
         <item quantity="other">مجلدات بادئة فارغة وذاكرة شيدرات من %d لعبة</item>
     </plurals>
     <plurals name="storage_item_leftovers_unsure_detail">
+        <item quantity="zero">بادئات %d لعبة تحتوي على ملفات، منها حفظات محلية. انسخها أولًا إن كنت تحتاجها.</item>
         <item quantity="one">بادئة %d لعبة تحتوي على ملفات، منها حفظات محلية. انسخها أولًا إن كنت تحتاجها.</item>
+        <item quantity="two">بادئات %d لعبة تحتوي على ملفات، منها حفظات محلية. انسخها أولًا إن كنت تحتاجها.</item>
+        <item quantity="few">بادئات %d ألعاب تحتوي على ملفات، منها حفظات محلية. انسخها أولًا إن كنت تحتاجها.</item>
+        <item quantity="many">بادئات %d لعبة تحتوي على ملفات، منها حفظات محلية. انسخها أولًا إن كنت تحتاجها.</item>
         <item quantity="other">بادئات %d لعبة تحتوي على ملفات، منها حفظات محلية. انسخها أولًا إن كنت تحتاجها.</item>
     </plurals>
     <plurals name="storage_tag_games">
+        <item quantity="zero">%d لعبة</item>
         <item quantity="one">%d لعبة</item>
+        <item quantity="two">%d لعبة</item>
+        <item quantity="few">%d ألعاب</item>
+        <item quantity="many">%d لعبة</item>
         <item quantity="other">%d لعبة</item>
     </plurals>
     <string name="storage_tool_default_proton">Proton الافتراضي في DroidDeck</string>
     <string name="storage_tool_proton">خيار Proton 11 في DroidDeck</string>
     <plurals name="storage_tool_custom_games">
+        <item quantity="zero">تستخدمه %d لعبة</item>
         <item quantity="one">تستخدمه %d لعبة</item>
+        <item quantity="two">تستخدمه %d لعبة</item>
+        <item quantity="few">تستخدمه %d ألعاب</item>
+        <item quantity="many">تستخدمه %d لعبة</item>
         <item quantity="other">تستخدمه %d لعبة</item>
     </plurals>
     <string name="storage_legend_components">المكوّنات</string>
@@ -2756,12 +2787,20 @@
     <string name="storage_desktop_prune_body">يحذف بيئات التشغيل التي لا يحتاجها أي تطبيق مثبَّت وينظّف مخزن كائنات Flatpak. تبقى التطبيقات المثبَّتة تعمل.</string>
     <string name="storage_flatpak_uninstall_body">يحذف التطبيق (%1$s) وبيئات التشغيل التي لا يستخدمها غيره. تبقى بياناته في مجلدك الرئيسي.</string>
     <plurals name="storage_components_count">
+        <item quantity="zero">%d حزمة</item>
         <item quantity="one">%d حزمة</item>
-        <item quantity="other">%d حزم</item>
+        <item quantity="two">%d حزمة</item>
+        <item quantity="few">%d حزم</item>
+        <item quantity="many">%d حزمة</item>
+        <item quantity="other">%d حزمة</item>
     </plurals>
     <plurals name="storage_desktop_apps">
+        <item quantity="zero">%d تطبيق</item>
         <item quantity="one">%d تطبيق</item>
-        <item quantity="other">%d تطبيقات</item>
+        <item quantity="two">%d تطبيق</item>
+        <item quantity="few">%d تطبيقات</item>
+        <item quantity="many">%d تطبيقًا</item>
+        <item quantity="other">%d تطبيق</item>
     </plurals>
     <string name="boot_movie">فيديو الإقلاع</string>
     <string name="boot_movie_video">الفيديو</string>

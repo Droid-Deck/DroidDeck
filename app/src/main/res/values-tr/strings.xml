@@ -718,6 +718,9 @@
     <string name="setup_app_scale_default">%%%1$d (Varsayılan)</string>
     <string name="setup_theme">Tema</string>
     <string name="setup_theme_hint">Başlatıcı görünümü</string>
+    <string name="setup_launcher_icon">Uygulama simgesi</string>
+    <string name="setup_launcher_icon_dark">Koyu</string>
+    <string name="setup_launcher_icon_light">Açık</string>
     <string name="setup_home">Ana ekran olarak kullan</string>
     <string name="setup_home_on">DroidDeck ana ekran uygulaması olabilir</string>
     <string name="setup_home_off">DroidDeck hiçbir zaman ana ekran uygulaması olarak sunulmaz</string>

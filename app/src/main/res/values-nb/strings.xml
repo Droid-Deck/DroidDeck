@@ -527,7 +527,7 @@
     <string name="perf_client_ui">Klientgrensesnitt</string>
     <string name="perf_glthread">Trådet GL</string>
     <string name="perf_glthread_hint">Kan gjøre Steam-menyer mer responsive.</string>
-    <string name="perf_zink">Zink: lazy descriptors</string>
+    <string name="perf_zink">Zink: late deskriptorer</string>
     <string name="perf_zink_hint">Anbefales for drivere uten descriptor buffers.</string>
     <string name="perf_noglerror">Hopp over GL-feilkontroller</string>
     <string name="perf_noglerror_hint">Slår av GL-validering per kall.</string>
@@ -729,6 +729,9 @@
     <string name="setup_app_scale_default">%1$d%% (Standard)</string>
     <string name="setup_theme">Tema</string>
     <string name="setup_theme_hint">Launcherens utseende</string>
+    <string name="setup_launcher_icon">Appikon</string>
+    <string name="setup_launcher_icon_dark">Mørk</string>
+    <string name="setup_launcher_icon_light">Lys</string>
     <string name="setup_home">Bruk som Hjem-skjerm</string>
     <string name="setup_home_on">DroidDeck kan være Hjem-appen</string>
     <string name="setup_home_off">DroidDeck tilbys aldri som en Hjem-app</string>

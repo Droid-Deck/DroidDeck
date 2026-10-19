@@ -726,6 +726,9 @@
     <string name="setup_app_scale_default">%1$d%%（默认）</string>
     <string name="setup_theme">主题</string>
     <string name="setup_theme_hint">启动器外观</string>
+    <string name="setup_launcher_icon">应用图标</string>
+    <string name="setup_launcher_icon_dark">深色</string>
+    <string name="setup_launcher_icon_light">浅色</string>
     <string name="setup_home">用作主屏幕</string>
     <string name="setup_home_on">DroidDeck 可以设为主屏幕应用</string>
     <string name="setup_home_off">系统不会把 DroidDeck 作为主屏幕应用提供</string>

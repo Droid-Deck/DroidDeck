@@ -729,6 +729,9 @@
     <string name="setup_app_scale_default">%1$d%% (par défaut)</string>
     <string name="setup_theme">Thème</string>
     <string name="setup_theme_hint">Apparence du lanceur</string>
+    <string name="setup_launcher_icon">Icône de l\'app</string>
+    <string name="setup_launcher_icon_dark">Sombre</string>
+    <string name="setup_launcher_icon_light">Clair</string>
     <string name="setup_home">Utiliser comme écran d\'accueil</string>
     <string name="setup_home_on">DroidDeck peut être utilisé comme application d\'écran d\'accueil</string>
     <string name="setup_home_off">DroidDeck ne sera pas proposé comme application d\'écran d\'accueil</string>
@@ -2613,32 +2616,39 @@
     <string name="storage_play_anyway">Jouer quand même</string>
     <plurals name="storage_games_installed">
         <item quantity="one">%d installé</item>
+        <item quantity="many">%d installés</item>
         <item quantity="other">%d installés</item>
     </plurals>
     <plurals name="storage_games_on_sd">
         <item quantity="one">%d sur la carte SD</item>
+        <item quantity="many">%d sur la carte SD</item>
         <item quantity="other">%d sur la carte SD</item>
     </plurals>
     <plurals name="storage_tools_count">
         <item quantity="one">%d outil</item>
+        <item quantity="many">%d outils</item>
         <item quantity="other">%d outils</item>
     </plurals>
     <plurals name="storage_item_leftovers_detail">
         <item quantity="one">Dossiers de préfixe vides et cache de shaders de %d jeu</item>
+        <item quantity="many">Dossiers de préfixe vides et caches de shaders de %d jeux</item>
         <item quantity="other">Dossiers de préfixe vides et caches de shaders de %d jeux</item>
     </plurals>
     <plurals name="storage_item_leftovers_unsure_detail">
         <item quantity="one">Le préfixe de %d jeu contient encore des fichiers, dont d\'éventuelles sauvegardes locales. Sauvegardez-les avant si vous y tenez.</item>
+        <item quantity="many">Les préfixes de %d jeux contiennent encore des fichiers, dont d\'éventuelles sauvegardes locales. Sauvegardez-les avant si vous y tenez.</item>
         <item quantity="other">Les préfixes de %d jeux contiennent encore des fichiers, dont d\'éventuelles sauvegardes locales. Sauvegardez-les avant si vous y tenez.</item>
     </plurals>
     <plurals name="storage_tag_games">
         <item quantity="one">%d jeu</item>
+        <item quantity="many">%d jeux</item>
         <item quantity="other">%d jeux</item>
     </plurals>
     <string name="storage_tool_default_proton">Proton par défaut de DroidDeck</string>
     <string name="storage_tool_proton">Option Proton 11 de DroidDeck</string>
     <plurals name="storage_tool_custom_games">
         <item quantity="one">Utilisé par %d jeu</item>
+        <item quantity="many">Utilisé par %d jeux</item>
         <item quantity="other">Utilisé par %d jeux</item>
     </plurals>
     <string name="storage_legend_components">Composants</string>
@@ -2682,10 +2692,12 @@
     <string name="storage_flatpak_uninstall_body">Supprime l\'application (%1$s) et tout environnement d\'exécution que rien d\'autre n\'utilise. Ses données dans votre dossier personnel restent.</string>
     <plurals name="storage_components_count">
         <item quantity="one">%d paquet</item>
+        <item quantity="many">%d paquets</item>
         <item quantity="other">%d paquets</item>
     </plurals>
     <plurals name="storage_desktop_apps">
         <item quantity="one">%d application</item>
+        <item quantity="many">%d applications</item>
         <item quantity="other">%d applications</item>
     </plurals>
     <string name="boot_movie">Vidéo de démarrage</string>

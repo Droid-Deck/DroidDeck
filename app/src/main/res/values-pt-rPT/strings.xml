@@ -721,6 +721,9 @@
     <string name="setup_app_scale_default">%1$d%% (padrão)</string>
     <string name="setup_theme">Tema</string>
     <string name="setup_theme_hint">Aspeto do iniciador</string>
+    <string name="setup_launcher_icon">Ícone da app</string>
+    <string name="setup_launcher_icon_dark">Escuro</string>
+    <string name="setup_launcher_icon_light">Claro</string>
     <string name="setup_home">Utilizar como página inicial</string>
     <string name="setup_home_on">O DroidDeck pode ser a app de página inicial</string>
     <string name="setup_home_off">O DroidDeck nunca é proposto como app de página inicial</string>
@@ -1092,10 +1095,10 @@
     <string name="second_terminal_not_ready">A sessão Linux ainda não está pronta para um terminal.</string>
     <string name="rail_steam">Steam</string>
     <string name="rail_games">Jogos</string>
-    <string name="rail_desktop">Desktop</string>
+    <string name="rail_desktop">Ambiente de trabalho</string>
     <string name="rail_store">Loja</string>
     <string name="rail_components">Componentes</string>
-    <string name="rail_apps">Apps</string>
+    <string name="rail_apps">Aplicações</string>
     <string name="rail_setup">Configuração</string>
     <string name="rail_updates">Atualizações</string>
     <string name="rail_percent">%1$d%%</string>
@@ -2242,7 +2245,7 @@
     <string name="setup_tab_diagnostics">Diagnóstico</string>
     <string name="setup_ready">Pronto para jogar</string>
     <string name="setup_not_ready">Ainda não está pronto para jogar</string>
-    <string name="setup_ready_runtime">runtime %1$s</string>
+    <string name="setup_ready_runtime">ambiente de execução %1$s</string>
     <string name="setup_ready_limit_off">limite de processos desativado</string>
     <string name="setup_ready_signed_in">sessão iniciada como %1$s</string>
     <string name="setup_needs_you">Quando algo precisa de si</string>
@@ -2613,32 +2616,39 @@
     <string name="storage_play_anyway">Jogar mesmo assim</string>
     <plurals name="storage_games_installed">
         <item quantity="one">%d instalado</item>
+        <item quantity="many">%d instalados</item>
         <item quantity="other">%d instalados</item>
     </plurals>
     <plurals name="storage_games_on_sd">
         <item quantity="one">%d no cartão SD</item>
+        <item quantity="many">%d no cartão SD</item>
         <item quantity="other">%d no cartão SD</item>
     </plurals>
     <plurals name="storage_tools_count">
         <item quantity="one">%d ferramenta</item>
+        <item quantity="many">%d ferramentas</item>
         <item quantity="other">%d ferramentas</item>
     </plurals>
     <plurals name="storage_item_leftovers_detail">
         <item quantity="one">Pastas de prefixo vazias e cache de shaders de %d jogo</item>
+        <item quantity="many">Pastas de prefixo vazias e cache de shaders de %d jogos</item>
         <item quantity="other">Pastas de prefixo vazias e cache de shaders de %d jogos</item>
     </plurals>
     <plurals name="storage_item_leftovers_unsure_detail">
         <item quantity="one">O prefixo de %d jogo ainda tem ficheiros, que podem incluir jogos guardados locais. Se precisar deles, faça uma cópia antes.</item>
+        <item quantity="many">Os prefixos de %d jogos ainda têm ficheiros, que podem incluir jogos guardados locais. Se precisar deles, faça uma cópia antes.</item>
         <item quantity="other">Os prefixos de %d jogos ainda têm ficheiros, que podem incluir jogos guardados locais. Se precisar deles, faça uma cópia antes.</item>
     </plurals>
     <plurals name="storage_tag_games">
         <item quantity="one">%d jogo</item>
+        <item quantity="many">%d jogos</item>
         <item quantity="other">%d jogos</item>
     </plurals>
     <string name="storage_tool_default_proton">Proton predefinido do DroidDeck</string>
     <string name="storage_tool_proton">Opção Proton 11 do DroidDeck</string>
     <plurals name="storage_tool_custom_games">
         <item quantity="one">Usado por %d jogo</item>
+        <item quantity="many">Usado por %d jogos</item>
         <item quantity="other">Usado por %d jogos</item>
     </plurals>
     <string name="storage_legend_components">Componentes</string>
@@ -2682,10 +2692,12 @@
     <string name="storage_flatpak_uninstall_body">Remove a aplicação (%1$s) e os ambientes de execução que mais ninguém usa. Os dados dela na pasta pessoal mantêm-se.</string>
     <plurals name="storage_components_count">
         <item quantity="one">%d pacote</item>
+        <item quantity="many">%d pacotes</item>
         <item quantity="other">%d pacotes</item>
     </plurals>
     <plurals name="storage_desktop_apps">
         <item quantity="one">%d aplicação</item>
+        <item quantity="many">%d aplicações</item>
         <item quantity="other">%d aplicações</item>
     </plurals>
     <string name="boot_movie">Vídeo de arranque</string>

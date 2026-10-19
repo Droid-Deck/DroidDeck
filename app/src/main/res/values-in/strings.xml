@@ -726,6 +726,9 @@
     <string name="setup_app_scale_default">%1$d%% (Default)</string>
     <string name="setup_theme">Tema</string>
     <string name="setup_theme_hint">Tampilan peluncur</string>
+    <string name="setup_launcher_icon">Ikon aplikasi</string>
+    <string name="setup_launcher_icon_dark">Gelap</string>
+    <string name="setup_launcher_icon_light">Terang</string>
     <string name="setup_home">Gunakan sebagai Layar Utama</string>
     <string name="setup_home_on">DroidDeck dapat menjadi aplikasi Utama</string>
     <string name="setup_home_off">DroidDeck tidak pernah ditawarkan sebagai aplikasi Utama</string>
@@ -1520,9 +1523,9 @@
     <string name="ctrl_tint_steam_blue">Biru Steam</string>
     <string name="ctrl_tint_sky">Langit</string>
     <string name="ctrl_tint_white">Putih</string>
-    <string name="ctrl_tint_violet">Violet</string>
+    <string name="ctrl_tint_violet">Ungu</string>
     <string name="ctrl_tint_green">Hijau</string>
-    <string name="ctrl_tint_amber">Amber</string>
+    <string name="ctrl_tint_amber">Ambar</string>
     <string name="ctrl_tint_red">Merah</string>
     <string name="ctrl_tint_pink">Merah muda</string>
     <string name="ctrl_button_a">Tombol A</string>
@@ -1745,8 +1748,8 @@
     <string name="cmgr_list_predates_checksums">Daftar paket ini dibuat sebelum adanya checksum - segarkan dan coba lagi</string>
     <string name="cmgr_checksum_mismatch">Checksum tidak cocok</string>
 
-    <string name="sprefs_upscaler_linear">Linear</string>
-    <string name="sprefs_upscaler_nearest">Nearest</string>
+    <string name="sprefs_upscaler_linear">Linier</string>
+    <string name="sprefs_upscaler_nearest">Terdekat</string>
     <string name="sprefs_upscaler_gsr_quality">Snapdragon GSR (kualitas)</string>
     <string name="sprefs_upscaler_sharpen">Hanya penajaman</string>
     <string name="sprefs_lod_bias_auto">Otomatis (sesuaikan skala)</string>
@@ -1754,7 +1757,7 @@
     <string name="look_off_desc">Tidak ada yang diterapkan.</string>
     <string name="look_game_clarity">Kejernihan Gim</string>
     <string name="look_game_clarity_desc">Penajaman dengan sedikit kontras - cocok untuk sehari-hari.</string>
-    <string name="look_vivid">Vivid</string>
+    <string name="look_vivid">Cerah</string>
     <string name="look_vivid_desc">Warna didorong lebih kuat. Deband aktif agar langit tidak bergaris.</string>
     <string name="look_cinematic">Sinematik</string>
     <string name="look_cinematic_desc">Kontras lebih dalam, warna lebih dingin, tepi dihaluskan.</string>

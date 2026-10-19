@@ -721,6 +721,9 @@
     <string name="setup_app_scale_default">%1$d%% (predefinita)</string>
     <string name="setup_theme">Tema</string>
     <string name="setup_theme_hint">Aspetto del launcher</string>
+    <string name="setup_launcher_icon">Icona dell\'app</string>
+    <string name="setup_launcher_icon_dark">Scura</string>
+    <string name="setup_launcher_icon_light">Chiara</string>
     <string name="setup_home">Usa come schermata Home</string>
     <string name="setup_home_on">DroidDeck può essere l\'app Home</string>
     <string name="setup_home_off">DroidDeck non viene mai proposta come app Home</string>
@@ -2613,32 +2616,39 @@
     <string name="storage_play_anyway">Gioca comunque</string>
     <plurals name="storage_games_installed">
         <item quantity="one">%d installato</item>
+        <item quantity="many">%d installati</item>
         <item quantity="other">%d installati</item>
     </plurals>
     <plurals name="storage_games_on_sd">
         <item quantity="one">%d su scheda SD</item>
+        <item quantity="many">%d su scheda SD</item>
         <item quantity="other">%d su scheda SD</item>
     </plurals>
     <plurals name="storage_tools_count">
         <item quantity="one">%d strumento</item>
+        <item quantity="many">%d strumenti</item>
         <item quantity="other">%d strumenti</item>
     </plurals>
     <plurals name="storage_item_leftovers_detail">
         <item quantity="one">Cartelle di prefisso vuote e cache shader di %d gioco</item>
+        <item quantity="many">Cartelle di prefisso vuote e cache shader di %d giochi</item>
         <item quantity="other">Cartelle di prefisso vuote e cache shader di %d giochi</item>
     </plurals>
     <plurals name="storage_item_leftovers_unsure_detail">
         <item quantity="one">Il prefisso di %d gioco contiene ancora file, che possono includere salvataggi locali. Se ti servono, fanne una copia prima.</item>
+        <item quantity="many">I prefissi di %d giochi contengono ancora file, che possono includere salvataggi locali. Se ti servono, fanne una copia prima.</item>
         <item quantity="other">I prefissi di %d giochi contengono ancora file, che possono includere salvataggi locali. Se ti servono, fanne una copia prima.</item>
     </plurals>
     <plurals name="storage_tag_games">
         <item quantity="one">%d gioco</item>
+        <item quantity="many">%d giochi</item>
         <item quantity="other">%d giochi</item>
     </plurals>
     <string name="storage_tool_default_proton">Proton predefinito di DroidDeck</string>
     <string name="storage_tool_proton">Opzione Proton 11 di DroidDeck</string>
     <plurals name="storage_tool_custom_games">
         <item quantity="one">Usato da %d gioco</item>
+        <item quantity="many">Usato da %d giochi</item>
         <item quantity="other">Usato da %d giochi</item>
     </plurals>
     <string name="storage_legend_components">Componenti</string>
@@ -2682,10 +2692,12 @@
     <string name="storage_flatpak_uninstall_body">Rimuove l\'app (%1$s) e i runtime che nessun altro usa. I suoi dati nella cartella home restano.</string>
     <plurals name="storage_components_count">
         <item quantity="one">%d pacchetto</item>
+        <item quantity="many">%d pacchetti</item>
         <item quantity="other">%d pacchetti</item>
     </plurals>
     <plurals name="storage_desktop_apps">
         <item quantity="one">%d app</item>
+        <item quantity="many">%d app</item>
         <item quantity="other">%d app</item>
     </plurals>
     <string name="boot_movie">Video di avvio</string>

@@ -115,7 +115,7 @@
     <string name="fex_extreme_detail">Poistaa itseään muokkaavan koodin tarkistukset käytöstä. JIT-pelit ja DRM voivat hajota.</string>
     <string name="fex_extreme_tso_label">Äärimmäinen + TSO</string>
     <string name="fex_extreme_tso_detail">Äärimmäiset asetukset, pääasiallinen TSO käytössä.</string>
-    <string name="fex_extreme_gn_label">Extreme-gn</string>
+    <string name="fex_extreme_gn_label">Äärimmäinen-gn</string>
     <string name="fex_extreme_gn_detail">Suorituskyky TSC- ja metadatavihjeillä. Kokeile ennen Äärimmäistä.</string>
     <string name="fex_denuvo_label">Denuvo</string>
     <string name="fex_denuvo_detail">Suorituskyky täysin koodintarkistuksin ja hypervisor-bitti piilotettuna.</string>
@@ -299,7 +299,7 @@
     <string name="mode_decky_installed">Asennettu · %1$s</string>
     <string name="mode_decky_update">Päivitys saatavilla · %1$s</string>
     <string name="mode_decky_current">Ajan tasalla · %1$s</string>
-    <string name="mode_decky_loader">Loader</string>
+    <string name="mode_decky_loader">Lataaja</string>
     <string name="mode_decky_install_latest">Asenna uusin</string>
     <string name="mode_decky_on">Käynnistyy Steamin kanssa. Päällä ollessaan muut tämän laitteen sovellukset voivat pystyä ohjaamaan Steamia.</string>
     <string name="mode_decky_off">Pois. Steamin etävianmääritysportti pysyy suljettuna.</string>
@@ -729,6 +729,9 @@
     <string name="setup_app_scale_default">%1$d %% (Oletus)</string>
     <string name="setup_theme">Teema</string>
     <string name="setup_theme_hint">Käynnistimen ulkoasu</string>
+    <string name="setup_launcher_icon">Sovelluskuvake</string>
+    <string name="setup_launcher_icon_dark">Tumma</string>
+    <string name="setup_launcher_icon_light">Vaalea</string>
     <string name="setup_home">Käytä Aloitusnäyttönä</string>
     <string name="setup_home_on">DroidDeck voi olla kotisovellus</string>
     <string name="setup_home_off">DroidDeckiä ei koskaan tarjota kotisovellukseksi</string>

@@ -729,6 +729,9 @@
     <string name="setup_app_scale_default">%1$d%% (Alapértelmezett)</string>
     <string name="setup_theme">Téma</string>
     <string name="setup_theme_hint">Az indítóalkalmazás megjelenése</string>
+    <string name="setup_launcher_icon">Alkalmazásikon</string>
+    <string name="setup_launcher_icon_dark">Sötét</string>
+    <string name="setup_launcher_icon_light">Világos</string>
     <string name="setup_home">Használat kezdőképernyőként</string>
     <string name="setup_home_on">A DroidDeck lehet a kezdőképernyő alkalmazás</string>
     <string name="setup_home_off">A DroidDeck soha nem jelenik meg kezdőképernyő alkalmazásként</string>
@@ -1012,7 +1015,7 @@
     <string name="games_launch_settings">Indítási beállítások</string>
     <string name="games_launch">Indítás</string>
     <string name="games_files">Játékfájlok</string>
-    <string name="games_prefix">Proton prefix</string>
+    <string name="games_prefix">Proton-prefix</string>
     <string name="games_saves_looking">Mentések keresése…</string>
     <string name="games_saves_none">Nem található mentésmappa név szerint. Az exportálás a teljes felhasználói mappát veszi.</string>
     <string name="games_saves_folders">%1$d mentésmappa</string>
