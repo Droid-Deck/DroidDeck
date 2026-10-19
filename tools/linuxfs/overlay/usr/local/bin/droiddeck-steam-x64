@@ -589,6 +589,7 @@ if [ ! -x "$STEAM_X64/steamrt64/steam" ] || [ ! -f "$STEAM_X64/package/droiddeck
 fi
 [ -n "$x64_repair" ] && printf 'tracked\nrepaired\n' > "$unconfirmed"
 x64_sync_client
+fix_backslashes
 if [ ! -s "$STEAM_X64/package/droiddeck-cdn" ] && [ -f "$STEAM_X64/package/$MANIFEST.manifest" ]; then
   want=$(awk -F'"' '$2 == "file" && $4 ~ /_ubuntu12$/ { print $4; exit }' "$STEAM_X64/package/$MANIFEST.manifest" 2>/dev/null || true)
   if [ -n "$want" ]; then
