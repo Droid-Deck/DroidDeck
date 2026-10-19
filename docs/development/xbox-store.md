@@ -27,7 +27,10 @@ not Xbox console emulation or UWP/APPX packages.
    It should retain partial files, refresh authenticated URLs and resume only
    verified checkpoints. An error or cancelled process must never create an
    installed/Play entry. Cancel removes a new installation's partial files.
-5. Play the installed game. Steam/session startup uses the selected ARM64 Proton.
+5. Press Play as soon as installation completes, including while the main library
+   list is still refreshing. It should resolve the completed installation instead
+   of showing the "Steam picks the game up when it next starts" toast.
+   Steam/session startup uses the selected ARM64 Proton.
    First launch prepares that game's prefix. Check that a window appears, the
    game reaches its menu, controller buttons/axes work, and audio is audible.
    Record the selected Proton, game/version, and any startup failure.
