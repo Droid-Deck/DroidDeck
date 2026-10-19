@@ -77,6 +77,13 @@ not an in-game rendering or SteamVR session.
 Tested APK SHA-256:
 `f5a2484ea1708a143cb94a96e084188cb0d2b122154a2645d3127c66f6d04f21`.
 
+## User game test
+
+After installing the tested build, the user reported that the Pro 2 game test
+passed. This adds user-reported in-game validation to the automated USB and
+application checks above. The game title, test duration, and separate recentering
+or SteamVR checks were not recorded.
+
 ## Local capture fingerprints
 
 Full motion logs are local diagnostic artifacts, not required build inputs. These

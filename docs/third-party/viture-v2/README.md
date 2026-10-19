@@ -27,7 +27,8 @@ cutoff does not establish when hardware produced a sample or purge device/kernel
 buffers. The pose
 basis conversion follows upstream's Y-up rendering convention. Hardware captures
 verify changing, normalized poses during head motion; the relative rotation mapping
-is unit-tested. In-game axis direction and comfort still need user validation.
+is unit-tested. The user also reported a successful Pro 2 game test; see the
+validation notes for the scope of that report.
 
 Raw gyro and accelerometer packets can be decoded with their complete payload
 preserved, but raw data is not fused or used by the application. Upstream reports
