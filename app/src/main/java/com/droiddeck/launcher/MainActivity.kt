@@ -124,6 +124,7 @@ class MainActivity : ComponentActivity() {
     private var steamController by mutableStateOf(SessionPrefs.CONTROLLER_DECK)
     private var showComponents by mutableStateOf(false)
     private var focusComponentsContent by mutableStateOf(true)
+    private var componentsGameKey by mutableStateOf<String?>(null)
     private var showMapping by mutableStateOf(false)
     private var saveBusy: String? = null
     private var onSavePicked: ((File) -> Unit)? = null
@@ -922,6 +923,7 @@ class MainActivity : ComponentActivity() {
                         },
                         onProtons = { openProtons() },
                         onComponents = { focusContent -> openComponents(focusContent) },
+                        onGameComponents = { game -> openComponents(gameKey = game.profileKey) },
                         onComponentsTab = { tab -> openComponents(focusContent = true, tab = tab) },
                         onSaveImport = { sg -> importSaves(sg.name) { GameSaves.game(sg) } },
                         onSaveExport = { sg, layout -> exportSaves(sg.name, layout) { GameSaves.game(sg) } },
@@ -1434,8 +1436,9 @@ class MainActivity : ComponentActivity() {
         )
     }
 
-    private fun openComponents(focusContent: Boolean = true, tab: String? = null) {
+    private fun openComponents(focusContent: Boolean = true, tab: String? = null, gameKey: String? = null) {
         focusComponentsContent = focusContent
+        componentsGameKey = gameKey
         if (tab != null) components.compComp = tab
         showPerformance = false
         showMapping = false
@@ -1484,6 +1487,7 @@ class MainActivity : ComponentActivity() {
             onImport = { pickComponent.launch(InAppFilePicker.buildIntent(this, WCP_EXT, getString(R.string.comp_pick_wcp))) },
             onBack = { if (!com.droiddeck.launcher.ui.Hops.back { showComponents = false }) showComponents = false },
             games = steamGames,
+            initialGameKey = componentsGameKey,
             generalFexPreset = fexPreset,
             onGeneralFexPreset = { id -> SessionPrefs.setFexPreset(this, id); fexPreset = id },
             gpu = drivers.state(),
