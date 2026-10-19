@@ -1973,6 +1973,7 @@
     <string name="stores_itch_key_rejected">Chave rejeitada</string>
     <string name="stores_itch_not_owned">Não está na sua biblioteca do itch.io</string>
     <string name="stores_itch_no_upload">Sem download para Windows deste jogo</string>
+    <string name="stores_itch_no_exe">Nenhum jogo para Windows encontrado no download</string>
     <string name="stores_itch_no_catalog">O itch.io não respondeu</string>
     <string name="stores_itch_archive">Arquivos %1$s não são suportados</string>
     <string name="stores_itch_download_failed">O itch.io respondeu HTTP %1$d</string>

@@ -2005,6 +2005,7 @@
     <string name="stores_itch_key_rejected">Klíč odmítnut</string>
     <string name="stores_itch_not_owned">Není ve vaší knihovně itch.io</string>
     <string name="stores_itch_no_upload">Pro tuto hru není ke stažení verze pro Windows</string>
+    <string name="stores_itch_no_exe">Ve stahování nebyla nalezena hra pro Windows</string>
     <string name="stores_itch_no_catalog">itch.io neodpovědělo</string>
     <string name="stores_itch_archive">Archivy %1$s nejsou podporovány</string>
     <string name="stores_itch_download_failed">itch.io odpovědělo HTTP %1$d</string>

@@ -1963,6 +1963,7 @@
     <string name="stores_itch_key_rejected">Nøgle afvist</string>
     <string name="stores_itch_not_owned">Ikke i dit itch.io-bibliotek</string>
     <string name="stores_itch_no_upload">Ingen Windows-download til dette spil</string>
+    <string name="stores_itch_no_exe">Der blev ikke fundet et Windows-spil i downloaden</string>
     <string name="stores_itch_no_catalog">itch.io svarede ikke</string>
     <string name="stores_itch_archive">%1$s-arkiver understøttes ikke</string>
     <string name="stores_itch_download_failed">itch.io svarede HTTP %1$d</string>

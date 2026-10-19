@@ -2005,6 +2005,7 @@
     <string name="stores_itch_key_rejected">Klucz odrzucony</string>
     <string name="stores_itch_not_owned">Nie ma go w Twojej bibliotece itch.io</string>
     <string name="stores_itch_no_upload">Brak wersji na Windows dla tej gry</string>
+    <string name="stores_itch_no_exe">W pobranych plikach nie znaleziono gry na Windows</string>
     <string name="stores_itch_no_catalog">itch.io nie odpowiedziało</string>
     <string name="stores_itch_archive">Archiwa %1$s nie są obsługiwane</string>
     <string name="stores_itch_download_failed">itch.io odpowiedziało HTTP %1$d</string>

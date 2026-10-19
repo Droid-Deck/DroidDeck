@@ -1942,6 +1942,7 @@
     <string name="stores_itch_key_rejected">Kunci ditolak</string>
     <string name="stores_itch_not_owned">Tidak ada di pustaka itch.io Anda</string>
     <string name="stores_itch_no_upload">Tidak ada unduhan Windows untuk game ini</string>
+    <string name="stores_itch_no_exe">Tidak ada game Windows di unduhan</string>
     <string name="stores_itch_no_catalog">itch.io tidak menjawab</string>
     <string name="stores_itch_archive">Arsip %1$s tidak didukung</string>
     <string name="stores_itch_download_failed">itch.io menjawab HTTP %1$d</string>

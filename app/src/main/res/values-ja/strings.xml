@@ -1942,6 +1942,7 @@
     <string name="stores_itch_key_rejected">キーが拒否されました</string>
     <string name="stores_itch_not_owned">itch.io ライブラリにありません</string>
     <string name="stores_itch_no_upload">このゲームには Windows 版のダウンロードがありません</string>
+    <string name="stores_itch_no_exe">ダウンロードに Windows 版のゲームが見つかりません</string>
     <string name="stores_itch_no_catalog">itch.io から応答がありません</string>
     <string name="stores_itch_archive">%1$s 形式のアーカイブには対応していません</string>
     <string name="stores_itch_download_failed">itch.io が HTTP %1$d を返しました</string>

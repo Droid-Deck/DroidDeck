@@ -1942,6 +1942,7 @@
     <string name="stores_itch_key_rejected">키가 거부되었습니다</string>
     <string name="stores_itch_not_owned">itch.io 라이브러리에 없습니다</string>
     <string name="stores_itch_no_upload">이 게임의 Windows 다운로드가 없습니다</string>
+    <string name="stores_itch_no_exe">다운로드에서 Windows 게임을 찾을 수 없습니다</string>
     <string name="stores_itch_no_catalog">itch.io가 응답하지 않았습니다</string>
     <string name="stores_itch_archive">%1$s 압축 파일은 지원하지 않습니다</string>
     <string name="stores_itch_download_failed">itch.io가 HTTP %1$d을(를) 반환했습니다</string>

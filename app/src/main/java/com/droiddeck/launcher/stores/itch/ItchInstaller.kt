@@ -13,6 +13,7 @@ import com.droiddeck.launcher.stores.download.DownloadQueue
 import com.droiddeck.launcher.stores.download.DownloadStage
 import org.apache.commons.compress.archivers.sevenz.SevenZFile
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
+import org.apache.commons.compress.archivers.zip.ZipFile
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.apache.commons.compress.compressors.xz.XZCompressorInputStream
@@ -23,7 +24,6 @@ import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.zip.ZipInputStream
 
 internal class ItchInstaller(
     private val app: Context,
@@ -54,6 +54,11 @@ internal class ItchInstaller(
         if (cancelled.get()) return null
         handle.stage(DownloadStage.INSTALL)
         val exe = install(archive, filename, handle)
+        if (exe == null) {
+            if (cancelled.get()) return null
+            StoreInstalls.discard(app, folder, listOf(scratch))
+            throw IllegalStateException(app.getString(R.string.stores_itch_no_exe))
+        }
         archive.delete()
         StoreInstalls.deleteTree(scratch)
         val sidecar = StoreGameSidecar(
@@ -111,7 +116,7 @@ internal class ItchInstaller(
         }
     }
 
-    private fun install(archive: File, filename: String, handle: DownloadQueue.JobHandle): String {
+    private fun install(archive: File, filename: String, handle: DownloadQueue.JobHandle): String? {
         folder.mkdirs()
         when (val kind = sniff(archive, filename)) {
             "zip" -> unzip(archive, handle)
@@ -126,7 +131,7 @@ internal class ItchInstaller(
         val exe = StoreExe.pick(folder, hint.ifBlank { null }, item.title)
         if (exe.isBlank()) {
             handle.log("itch.io: no exe found in ${folder.name}")
-            return "game.exe"
+            return null
         }
         return exe
     }
@@ -271,37 +276,37 @@ internal class ItchInstaller(
         FileInputStream(source).use { input -> FileOutputStream(target).use { out -> input.copyTo(out, 128 * 1024) } }
     }
 
+    // Streaming readers stop silently on zips whose data descriptors disagree with the local headers;
+    // the central directory is authoritative.
     private fun unzip(archive: File, handle: DownloadQueue.JobHandle) {
         val total = archive.length()
         var written = 0L
-        ZipInputStream(BufferedInputStream(FileInputStream(archive))).use { zip ->
-            val buffer = ByteArray(64 * 1024)
-            while (true) {
+        val buffer = ByteArray(64 * 1024)
+        ZipFile.builder().setFile(archive).get().use { zip ->
+            for (entry in zip.entries) {
                 if (cancelled.get()) return
-                val entry = zip.nextEntry ?: break
                 val target = target(entry.name)
                 if (target == null) {
                     handle.log("itch.io: skipped an entry outside the game folder")
-                    zip.closeEntry()
                     continue
                 }
                 if (entry.isDirectory) {
                     target.mkdirs()
-                    zip.closeEntry()
                     continue
                 }
                 target.parentFile?.mkdirs()
-                FileOutputStream(target).use { out ->
-                    while (true) {
-                        if (cancelled.get()) return
-                        val read = zip.read(buffer)
-                        if (read < 0) break
-                        out.write(buffer, 0, read)
-                        written += read
-                        handle.stageProgress(written, total)
+                zip.getInputStream(entry).use { input ->
+                    FileOutputStream(target).use { out ->
+                        while (true) {
+                            if (cancelled.get()) return
+                            val read = input.read(buffer)
+                            if (read < 0) break
+                            out.write(buffer, 0, read)
+                            written += read
+                            handle.stageProgress(written, total)
+                        }
                     }
                 }
-                zip.closeEntry()
             }
         }
     }

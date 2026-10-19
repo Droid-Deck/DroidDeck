@@ -2047,6 +2047,7 @@
     <string name="stores_itch_key_rejected">تم رفض المفتاح</string>
     <string name="stores_itch_not_owned">ليس في مكتبة itch.io الخاصة بك</string>
     <string name="stores_itch_no_upload">لا يوجد تنزيل لنظام Windows لهذه اللعبة</string>
+    <string name="stores_itch_no_exe">لم يتم العثور على لعبة Windows في التنزيل</string>
     <string name="stores_itch_no_catalog">لم يستجب itch.io</string>
     <string name="stores_itch_archive">أرشيفات %1$s غير مدعومة</string>
     <string name="stores_itch_download_failed">استجاب itch.io بـ HTTP %1$d</string>

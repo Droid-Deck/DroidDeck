@@ -1973,6 +1973,7 @@
     <string name="stores_itch_key_rejected">Chiave rifiutata</string>
     <string name="stores_itch_not_owned">Non è nella tua libreria itch.io</string>
     <string name="stores_itch_no_upload">Nessun download per Windows di questo gioco</string>
+    <string name="stores_itch_no_exe">Nessun gioco Windows trovato nel download</string>
     <string name="stores_itch_no_catalog">itch.io non ha risposto</string>
     <string name="stores_itch_archive">Gli archivi %1$s non sono supportati</string>
     <string name="stores_itch_download_failed">itch.io ha risposto HTTP %1$d</string>

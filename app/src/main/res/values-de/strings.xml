@@ -1952,6 +1952,7 @@
     <string name="stores_itch_key_rejected">Schlüssel abgelehnt</string>
     <string name="stores_itch_not_owned">Nicht in deiner itch.io-Bibliothek</string>
     <string name="stores_itch_no_upload">Kein Windows-Download für dieses Spiel</string>
+    <string name="stores_itch_no_exe">Im Download wurde kein Windows-Spiel gefunden</string>
     <string name="stores_itch_no_catalog">itch.io hat nicht geantwortet</string>
     <string name="stores_itch_archive">%1$s-Archive werden nicht unterstützt</string>
     <string name="stores_itch_download_failed">itch.io antwortete mit HTTP %1$d</string>

@@ -1942,6 +1942,7 @@
     <string name="stores_itch_key_rejected">คีย์ถูกปฏิเสธ</string>
     <string name="stores_itch_not_owned">ไม่มีในคลัง itch.io ของคุณ</string>
     <string name="stores_itch_no_upload">เกมนี้ไม่มีการดาวน์โหลดสำหรับ Windows</string>
+    <string name="stores_itch_no_exe">ไม่พบเกม Windows ในไฟล์ที่ดาวน์โหลด</string>
     <string name="stores_itch_no_catalog">itch.io ไม่ตอบสนอง</string>
     <string name="stores_itch_archive">ไม่รองรับไฟล์ %1$s</string>
     <string name="stores_itch_download_failed">itch.io ตอบกลับ HTTP %1$d</string>

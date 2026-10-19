@@ -1942,6 +1942,7 @@
     <string name="stores_itch_key_rejected">Khóa bị từ chối</string>
     <string name="stores_itch_not_owned">Không có trong thư viện itch.io của bạn</string>
     <string name="stores_itch_no_upload">Không có bản tải Windows cho game này</string>
+    <string name="stores_itch_no_exe">Không tìm thấy trò chơi Windows trong bản tải xuống</string>
     <string name="stores_itch_no_catalog">itch.io không phản hồi</string>
     <string name="stores_itch_archive">Không hỗ trợ tệp %1$s</string>
     <string name="stores_itch_download_failed">itch.io trả về HTTP %1$d</string>
