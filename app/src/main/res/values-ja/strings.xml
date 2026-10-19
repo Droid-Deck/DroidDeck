@@ -2442,6 +2442,7 @@
     <string name="glasses_xreal_network_missing">グラスの USB Ethernet 接続を待っています。このスマートフォンでは、アプリがこの接続を利用できない場合があります。</string>
     <string name="glasses_xreal_connection_failed">XREAL との接続が中断されたか、サポートされていない応答が返されました。再試行しています…</string>
     <string name="glasses_xreal_experimental">1S のサポートは試験運用中です。グラスのメニューで Follow モードを使い、安定化をオフにしてください。トラッキングの方向と表示モードは、まだ実機でのテストが必要です。</string>
+    <string name="glasses_pro2_experimental">Pro 2 のヘッドトラッキングは試験運用中です。明るさと音量の調整、および表示モードの切り替えにはまだ対応していません。</string>
     <string name="stores_fact_developer">開発元</string>
     <string name="stores_fact_publisher">パブリッシャー</string>
     <string name="stores_fact_released">発売日</string>

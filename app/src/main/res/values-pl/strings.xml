@@ -2517,6 +2517,7 @@
     <string name="glasses_xreal_network_missing">Oczekiwanie na połączenie USB Ethernet okularów. Ten telefon może nie udostępniać go aplikacjom.</string>
     <string name="glasses_xreal_connection_failed">Połączenie z XREAL zostało przerwane lub zwróciło nieobsługiwaną odpowiedź. Ponawianie…</string>
     <string name="glasses_xreal_experimental">Eksperymentalna obsługa 1S. Użyj trybu Follow i wyłącz stabilizację w menu okularów. Kierunki śledzenia i tryby wyświetlania wymagają jeszcze testów na urządzeniu.</string>
+    <string name="glasses_pro2_experimental">Eksperymentalne śledzenie ruchów głowy dla Pro 2. Regulacja jasności i głośności oraz przełączanie trybu wyświetlania nie są jeszcze obsługiwane.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Tryb Cardboard</string>
     <string name="cardboard_mode_hint">Obraz dla lewego i prawego oka do gogli VR na telefon.</string>

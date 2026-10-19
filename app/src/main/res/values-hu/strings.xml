@@ -2467,6 +2467,7 @@
     <string name="glasses_xreal_network_missing">Várakozás a szemüveg USB-s Ethernet-kapcsolatára. Lehet, hogy ez a telefon nem teszi elérhetővé az alkalmazások számára.</string>
     <string name="glasses_xreal_connection_failed">Az XREAL-kapcsolat megszakadt, vagy nem támogatott választ adott. Újrapróbálkozás…</string>
     <string name="glasses_xreal_experimental">Kísérleti 1S-támogatás. Használja a Follow módot, és kapcsolja ki a stabilizálást a szemüveg menüjében. A követési irányokat és a megjelenítési módokat még tesztelni kell az eszközön.</string>
+    <string name="glasses_pro2_experimental">Kísérleti fejkövetés a Pro 2-höz. A fényerő és a hangerő beállítása, valamint a megjelenítési mód váltása még nem támogatott.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Cardboard mód</string>
     <string name="cardboard_mode_hint">Bal és jobb szem képe telefonos VR-szemüveghez.</string>

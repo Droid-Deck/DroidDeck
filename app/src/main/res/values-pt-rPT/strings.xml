@@ -2478,6 +2478,7 @@
     <string name="glasses_xreal_network_missing">A aguardar a ligação Ethernet por USB dos óculos. Este telemóvel pode não a disponibilizar às apps.</string>
     <string name="glasses_xreal_connection_failed">A ligação aos óculos XREAL foi interrompida ou devolveu uma resposta não suportada. A tentar novamente…</string>
     <string name="glasses_xreal_experimental">Suporte experimental para os 1S. Utilize o modo Follow e desative a estabilização no menu dos óculos. As direções de seguimento e os modos de ecrã ainda têm de ser testados no dispositivo.</string>
+    <string name="glasses_pro2_experimental">Seguimento experimental dos movimentos da cabeça para Pro 2. O ajuste do brilho e do volume e a mudança do modo de ecrã ainda não são suportados.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Modo Cardboard</string>
     <string name="cardboard_mode_hint">Imagens para o olho esquerdo e o direito, para uns óculos de RV para telemóvel.</string>

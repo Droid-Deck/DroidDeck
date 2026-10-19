@@ -2453,6 +2453,7 @@
     <string name="glasses_xreal_network_missing">Warte auf die USB-Ethernet-Verbindung der Brille. Dieses Smartphone stellt sie Apps möglicherweise nicht bereit.</string>
     <string name="glasses_xreal_connection_failed">Die XREAL-Verbindung wurde unterbrochen oder hat eine nicht unterstützte Antwort geliefert. Neuer Versuch …</string>
     <string name="glasses_xreal_experimental">Experimentelle Unterstützung für die 1S. Nutze den Follow-Modus und deaktiviere die Stabilisierung im Menü der Brille. Tracking-Richtungen und Anzeigemodi müssen noch auf Geräten getestet werden.</string>
+    <string name="glasses_pro2_experimental">Experimentelles Kopftracking für Pro 2. Das Einstellen von Helligkeit und Lautstärke sowie das Umschalten des Anzeigemodus werden noch nicht unterstützt.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Cardboard-Modus</string>
     <string name="cardboard_mode_hint">Bilder für linkes und rechtes Auge für eine Smartphone-VR-Brille.</string>

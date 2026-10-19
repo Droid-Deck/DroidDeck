@@ -2467,6 +2467,7 @@
     <string name="glasses_xreal_network_missing">Αναμονή για τη σύνδεση USB Ethernet των γυαλιών. Αυτό το τηλέφωνο ίσως δεν τη διαθέτει στις εφαρμογές.</string>
     <string name="glasses_xreal_connection_failed">Η σύνδεση XREAL διακόπηκε ή επέστρεψε μη υποστηριζόμενη απόκριση. Νέα προσπάθεια…</string>
     <string name="glasses_xreal_experimental">Πειραματική υποστήριξη για 1S. Χρησιμοποιήστε τη λειτουργία Follow και απενεργοποιήστε τη σταθεροποίηση στο μενού των γυαλιών. Οι κατευθύνσεις παρακολούθησης και οι λειτουργίες οθόνης χρειάζονται ακόμα δοκιμή σε συσκευή.</string>
+    <string name="glasses_pro2_experimental">Πειραματική παρακολούθηση κεφαλής για Pro 2. Η ρύθμιση της φωτεινότητας και της έντασης ήχου και η αλλαγή λειτουργίας οθόνης δεν υποστηρίζονται ακόμη.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Λειτουργία Cardboard</string>
     <string name="cardboard_mode_hint">Εικόνες για το αριστερό και το δεξί μάτι, για γυαλιά VR κινητού.</string>

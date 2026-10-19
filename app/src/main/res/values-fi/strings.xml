@@ -2467,6 +2467,7 @@
     <string name="glasses_xreal_network_missing">Odotetaan lasien USB-Ethernet-yhteyttä. Tämä puhelin ei ehkä tarjoa sitä sovelluksille.</string>
     <string name="glasses_xreal_connection_failed">XREAL-yhteys katkesi tai palautti vastauksen, jota ei tueta. Yritetään uudelleen…</string>
     <string name="glasses_xreal_experimental">Kokeellinen 1S-tuki. Käytä Follow-tilaa ja poista vakautus käytöstä lasien valikosta. Seurannan suunnat ja näyttötilat vaativat vielä testausta laitteella.</string>
+    <string name="glasses_pro2_experimental">Kokeellinen päänliikkeiden seuranta Pro 2:lle. Kirkkauden ja äänenvoimakkuuden säätöä sekä näyttötilan vaihtamista ei vielä tueta.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Cardboard-tila</string>
     <string name="cardboard_mode_hint">Vasemman ja oikean silmän kuvat puhelimen VR-laseille.</string>

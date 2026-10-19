@@ -2511,6 +2511,7 @@
     <string name="glasses_xreal_network_missing">Ожидание подключения очков по USB Ethernet. Этот телефон может не предоставлять его приложениям.</string>
     <string name="glasses_xreal_connection_failed">Подключение к XREAL прервано или получен неподдерживаемый ответ. Повторная попытка…</string>
     <string name="glasses_xreal_experimental">Экспериментальная поддержка 1S. Включите режим Follow и отключите стабилизацию в меню очков. Направления отслеживания и режимы отображения ещё нужно проверить на устройстве.</string>
+    <string name="glasses_pro2_experimental">Экспериментальное отслеживание движений головы для Pro 2. Настройка яркости и громкости и переключение режимов отображения пока не поддерживаются.</string>
     <string name="stores_fact_developer">Разработчик</string>
     <string name="stores_fact_publisher">Издатель</string>
     <string name="stores_fact_released">Дата выхода</string>

@@ -2467,6 +2467,7 @@
     <string name="glasses_xreal_network_missing">Venter på USB Ethernet-tilkoblingen til brillene. Denne telefonen gjør den kanskje ikke tilgjengelig for apper.</string>
     <string name="glasses_xreal_connection_failed">XREAL-tilkoblingen ble avbrutt eller ga et svar som ikke støttes. Prøver igjen…</string>
     <string name="glasses_xreal_experimental">Eksperimentell støtte for 1S. Bruk Follow-modus og slå av stabilisering i brillemenyen. Sporingsretninger og visningsmoduser må fortsatt testes på enheten.</string>
+    <string name="glasses_pro2_experimental">Eksperimentell hodesporing for Pro 2. Justering av lysstyrke og volum samt bytte av visningsmodus støttes ikke ennå.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Cardboard-modus</string>
     <string name="cardboard_mode_hint">Bilder for venstre og høyre øye til en VR-brille for mobil.</string>

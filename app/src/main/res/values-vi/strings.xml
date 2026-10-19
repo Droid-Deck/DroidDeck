@@ -2442,6 +2442,7 @@
     <string name="glasses_xreal_network_missing">Đang chờ kết nối USB Ethernet của kính. Điện thoại này có thể không cho ứng dụng truy cập kết nối đó.</string>
     <string name="glasses_xreal_connection_failed">Kết nối XREAL bị gián đoạn hoặc trả về phản hồi không được hỗ trợ. Đang thử lại…</string>
     <string name="glasses_xreal_experimental">Hỗ trợ 1S thử nghiệm. Dùng chế độ Follow và tắt ổn định hình ảnh trong menu của kính. Hướng theo dõi và các chế độ hiển thị vẫn cần thử nghiệm trên thiết bị.</string>
+    <string name="glasses_pro2_experimental">Theo dõi chuyển động đầu thử nghiệm cho Pro 2. Chưa hỗ trợ điều chỉnh độ sáng, âm lượng và chuyển chế độ hiển thị.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Chế độ Cardboard</string>
     <string name="cardboard_mode_hint">Hình cho mắt trái và mắt phải dành cho kính VR điện thoại.</string>

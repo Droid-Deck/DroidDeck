@@ -2442,6 +2442,7 @@
     <string name="glasses_xreal_network_missing">Menunggu sambungan USB Ethernet cermin mata. Telefon ini mungkin tidak mendedahkannya kepada apl.</string>
     <string name="glasses_xreal_connection_failed">Sambungan XREAL terganggu atau memberikan respons yang tidak disokong. Mencuba semula…</string>
     <string name="glasses_xreal_experimental">Sokongan eksperimen untuk 1S. Gunakan mod Follow dan matikan penstabilan dalam menu cermin mata. Arah penjejakan dan mod paparan masih perlu diuji pada peranti.</string>
+    <string name="glasses_pro2_experimental">Penjejakan kepala Pro 2 secara eksperimen. Pelarasan kecerahan, kelantangan dan pertukaran mod paparan belum disokong.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Mod Cardboard</string>
     <string name="cardboard_mode_hint">Paparan mata kiri dan kanan untuk kaca mata VR telefon.</string>

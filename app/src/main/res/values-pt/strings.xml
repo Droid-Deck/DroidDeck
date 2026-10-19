@@ -2478,6 +2478,7 @@
     <string name="glasses_xreal_network_missing">Aguardando a conexão Ethernet por USB dos óculos. Este celular pode não disponibilizá-la para os apps.</string>
     <string name="glasses_xreal_connection_failed">A conexão com os óculos XREAL foi interrompida ou retornou uma resposta incompatível. Tentando novamente…</string>
     <string name="glasses_xreal_experimental">Suporte experimental ao 1S. Use o modo Follow e desative a estabilização no menu dos óculos. As direções do rastreamento e os modos de exibição ainda precisam de testes no dispositivo.</string>
+    <string name="glasses_pro2_experimental">Rastreamento experimental da cabeça para Pro 2. Os ajustes de brilho e volume e a troca do modo de exibição ainda não são compatíveis.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Modo Cardboard</string>
     <string name="cardboard_mode_hint">Imagens para o olho esquerdo e o direito, para um óculos de RV de celular.</string>

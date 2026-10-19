@@ -2442,6 +2442,7 @@
     <string name="glasses_xreal_network_missing">正在等候眼鏡的 USB Ethernet 連線。這部手機可能不會向應用程式開放此連線。</string>
     <string name="glasses_xreal_connection_failed">XREAL 連線中斷或傳回不支援的回應。正在重試…</string>
     <string name="glasses_xreal_experimental">實驗性 1S 支援。請在眼鏡選單中使用跟隨模式並關閉畫面穩定。追蹤方向和顯示模式仍需在裝置上測試。</string>
+    <string name="glasses_pro2_experimental">Pro 2 實驗性頭部追蹤。暫不支援亮度、音量調整及顯示模式切換。</string>
     <string name="stores_fact_developer">開發商</string>
     <string name="stores_fact_publisher">發行商</string>
     <string name="stores_fact_released">發行日期</string>

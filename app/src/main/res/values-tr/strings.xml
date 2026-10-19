@@ -2453,6 +2453,7 @@
     <string name="glasses_xreal_network_missing">Gözlüğün USB Ethernet bağlantısı bekleniyor. Bu telefon bu bağlantıyı uygulamalara açmıyor olabilir.</string>
     <string name="glasses_xreal_connection_failed">XREAL bağlantısı kesildi veya desteklenmeyen bir yanıt döndü. Yeniden deneniyor…</string>
     <string name="glasses_xreal_experimental">Deneysel 1S desteği. Gözlük menüsünde Follow modunu kullanın ve görüntü sabitlemeyi kapatın. Takip yönlerinin ve ekran modlarının hâlâ cihazda test edilmesi gerekiyor.</string>
+    <string name="glasses_pro2_experimental">Pro 2 için deneysel baş takibi. Parlaklık ve ses düzeyi ayarı ile ekran modu değiştirme henüz desteklenmiyor.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Cardboard modu</string>
     <string name="cardboard_mode_hint">Telefon VR gözlüğü için sol ve sağ göz görüntüleri.</string>

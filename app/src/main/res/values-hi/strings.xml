@@ -2467,6 +2467,7 @@
     <string name="glasses_xreal_network_missing">चश्मे के USB Ethernet कनेक्शन का इंतज़ार है। हो सकता है यह फ़ोन इसे ऐप्स को उपलब्ध न कराए।</string>
     <string name="glasses_xreal_connection_failed">XREAL कनेक्शन टूट गया या उसने ऐसा जवाब दिया जो समर्थित नहीं है। फिर से कोशिश हो रही है…</string>
     <string name="glasses_xreal_experimental">1S के लिए प्रायोगिक सपोर्ट। चश्मे के मेनू में Follow मोड चुनें और स्टेबिलाइज़ेशन बंद करें। ट्रैकिंग की दिशाएं और डिस्प्ले मोड अभी डिवाइस पर टेस्ट होने बाकी हैं।</string>
+    <string name="glasses_pro2_experimental">Pro 2 के लिए प्रायोगिक हेड ट्रैकिंग। चमक और वॉल्यूम बदलना और डिस्प्ले मोड स्विच करना अभी समर्थित नहीं है।</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Cardboard मोड</string>
     <string name="cardboard_mode_hint">फ़ोन VR व्यूअर के लिए बाईं और दाईं आंख के व्यू।</string>

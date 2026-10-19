@@ -2467,6 +2467,7 @@
     <string name="glasses_xreal_network_missing">Изчаква се USB Ethernet връзката на очилата. Този телефон може да не я предоставя на приложенията.</string>
     <string name="glasses_xreal_connection_failed">Връзката с XREAL беше прекъсната или върна неподдържан отговор. Нов опит…</string>
     <string name="glasses_xreal_experimental">Експериментална поддръжка на 1S. Използвайте режим Follow и изключете стабилизацията в менюто на очилата. Посоките на проследяване и режимите на показване все още трябва да се тестват на устройство.</string>
+    <string name="glasses_pro2_experimental">Експериментално проследяване на движенията на главата за Pro 2. Регулирането на яркостта и силата на звука и превключването на режима на показване все още не се поддържат.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Режим Cardboard</string>
     <string name="cardboard_mode_hint">Изображения за лявото и дясното око за VR очила за телефон.</string>
