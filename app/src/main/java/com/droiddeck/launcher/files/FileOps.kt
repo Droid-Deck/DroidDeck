@@ -111,13 +111,14 @@ object FileOps {
             val target = Files.readSymbolicLink(src.toPath())
             val parent = dst.parentFile
             if (parent != null && !parent.exists() && !parent.mkdirs()) return false
-            val tmp = File(dst.parentFile, "." + dst.name + ".link-tmp").toPath()
+            val staging = Files.createTempDirectory(checkNotNull(dst.absoluteFile.parentFile).toPath(), ".droiddeck-link-")
+            val tmp = staging.resolve("link")
             try {
-                Files.deleteIfExists(tmp)
                 Files.createSymbolicLink(tmp, target)
                 Files.move(tmp, dst.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
             } finally {
                 Files.deleteIfExists(tmp)
+                Files.deleteIfExists(staging)
             }
             true
         } catch (e: Exception) {

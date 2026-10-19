@@ -40,6 +40,38 @@ class FileOpsLinksTest {
         assertTrue(Files.isSymbolicLink(File(dst, "l").toPath()))
     }
 
+    @Test fun copyingALinkPreservesAnUnrelatedStagingName() {
+        val src = File(tmp.root, "source")
+        assumeTrue("symlinks unavailable here", link(src, "missing-target"))
+        val dst = File(tmp.root, "dest")
+        dst.writeText("old destination")
+        val sibling = File(tmp.root, ".dest.link-tmp")
+        sibling.writeText("unrelated user data")
+
+        assertTrue(FileOps.copyWithProgress(src, dst, null))
+        assertEquals("unrelated user data", sibling.readText())
+        assertEquals("missing-target", Files.readSymbolicLink(dst.toPath()).toString())
+        assertEquals(setOf("source", "dest", ".dest.link-tmp"), tmp.root.list()!!.toSet())
+    }
+
+    @Test fun anUnrelatedStagingDirectoryDoesNotPreventCopyingALink() {
+        val src = File(tmp.root, "source")
+        assumeTrue("symlinks unavailable here", link(src, "missing-target"))
+        val sibling = tmp.newFolder(".dest.link-tmp")
+        File(sibling, "keep").writeText("unrelated user data")
+
+        assertTrue(FileOps.copyWithProgress(src, File(tmp.root, "dest"), null))
+        assertEquals("unrelated user data", File(sibling, "keep").readText())
+    }
+
+    @Test fun aLongDestinationNameDoesNotOverflowTheStagingName() {
+        val src = File(tmp.root, "source")
+        assumeTrue("symlinks unavailable here", link(src, "missing-target"))
+        val dst = File(tmp.root, "d".repeat(240))
+        assertTrue(FileOps.copyWithProgress(src, dst, null))
+        assertEquals("missing-target", Files.readSymbolicLink(dst.toPath()).toString())
+    }
+
     @Test fun aLinkThatCannotReplaceTheDestinationLeavesItAlone() {
         val src = tmp.newFolder("c")
         assumeTrue("symlinks unavailable here", link(File(src, "l"), "x"))
