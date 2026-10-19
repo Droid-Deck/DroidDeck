@@ -205,6 +205,7 @@ private fun InstalledMoviesDialog(a: ModeSettingsActions, onDismiss: () -> Unit)
     val snapshot = rememberMovies(refresh, a.onBootMovieChanged)
     var picked by remember { mutableStateOf<String?>(null) }
     var removing by remember { mutableStateOf<BootMovieLibrary.Entry?>(null) }
+    var filter by rememberSaveable { mutableStateOf<String?>(null) }
     val selected = picked ?: snapshot?.selected
     LaunchedEffect(snapshot?.selected) { picked = null }
     removing?.let { entry ->
@@ -223,8 +224,23 @@ private fun InstalledMoviesDialog(a: ModeSettingsActions, onDismiss: () -> Unit)
     }
     AppDialog(shown, close, "boot-movies", wide = false) {
         DialogTitleRow(stringResource(R.string.boot_movie_installed), close)
+        val filters = listOf(
+            null to stringResource(R.string.store_all),
+            BootMovieLibrary.SOURCE_DROIDDECK to movieSourceLabel(BootMovieLibrary.SOURCE_DROIDDECK),
+            BootMovieLibrary.SOURCE_STEAM to movieSourceLabel(BootMovieLibrary.SOURCE_STEAM),
+            BootMovieLibrary.SOURCE_POINTSHOP to movieSourceLabel(BootMovieLibrary.SOURCE_POINTSHOP),
+            BootMovieLibrary.SOURCE_REPO to movieSourceLabel(BootMovieLibrary.SOURCE_REPO),
+            BootMovieLibrary.SOURCE_IMPORT to movieSourceLabel(BootMovieLibrary.SOURCE_IMPORT),
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+            filters.chunked(3).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                    row.forEach { (source, label) -> TabChip(label, filter == source, Modifier.weight(1f)) { filter = source } }
+                }
+            }
+        }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().heightIn(max = 460.dp)) {
-            items(snapshot?.entries.orEmpty(), key = { it.id }) { entry ->
+            items(snapshot?.entries.orEmpty().filter { filter == null || it.source == filter }, key = { it.id }) { entry ->
                 ListRow(accent = entry.id == selected, tall = true, onClick = { picked = entry.id; a.onBootMovie(entry.id) }) {
                     MovieCover(entry, Modifier.size(width = 96.dp, height = 54.dp))
                     Column(Modifier.weight(1f)) {
