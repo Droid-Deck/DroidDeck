@@ -8,6 +8,7 @@ import os
 import re
 import runpy
 import shutil
+import socket
 import struct
 import subprocess
 import sys
@@ -22,6 +23,7 @@ CACHE_DIR = os.path.join(HOME, ".cache", "droiddeck-fex")
 STATUS_FILE = os.path.join(STATE, "status.json")
 WANTED = os.path.join(HOME, ".config", "droiddeck", "fex-wanted")
 GAME_ENVIRONMENT = os.path.join(HOME, ".config", "droiddeck", "game-environment.json")
+COMPAT_SHORT_BASE = "/tmp/c"
 BIN_DIR = os.path.dirname(os.path.abspath(__file__))
 PRELOADS = "/usr/local/lib/droiddeck-fex"
 URUNTIME = "/usr/local/lib/droiddeck/uruntime"
@@ -514,29 +516,46 @@ def data_dir(env):
     return DATA_DIR
 
 
+def is_stale_socket(path):
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+            sock.connect(path)
+            return False
+    except ConnectionRefusedError:
+        return True
+    except OSError:
+        return False
+
+
 def shorten_compat_path(path):
     if not path:
         return path
     real = os.path.abspath(path.rstrip("/"))
-    short_base = "/tmp/c"
-    if real.startswith(short_base):
+    if real == COMPAT_SHORT_BASE or real.startswith(COMPAT_SHORT_BASE + "/"):
         return real
     app_id = os.path.basename(real)
-    os.makedirs(short_base, exist_ok=True)
+    os.makedirs(COMPAT_SHORT_BASE, exist_ok=True)
     os.makedirs(real, exist_ok=True)
-    short = os.path.join(short_base, app_id)
+    short = os.path.join(COMPAT_SHORT_BASE, app_id)
     if os.path.islink(short):
         if os.readlink(short) != real:
             os.unlink(short)
             os.symlink(real, short)
     elif not os.path.lexists(short):
         os.symlink(real, short)
+    elif os.path.isdir(short) and not os.listdir(short):
+        os.rmdir(short)
+        os.symlink(real, short)
+    else:
+        raise OSError(f"Short compat path exists and cannot be safely replaced: {short}")
     server_dir = os.path.join(real, "fex-emu", "Server")
     if os.path.isdir(server_dir):
-        for stale in os.listdir(server_dir):
-            if stale.endswith(".Socket"):
-                with contextlib.suppress(OSError):
-                    os.unlink(os.path.join(server_dir, stale))
+        for entry in os.listdir(server_dir):
+            if entry.endswith(".Socket"):
+                sock_path = os.path.join(server_dir, entry)
+                if is_stale_socket(sock_path):
+                    with contextlib.suppress(OSError):
+                        os.unlink(sock_path)
     return short
 
 
@@ -648,9 +667,14 @@ def game_environment(command=(), env=None):
         command, env = (), command
     try:
         game_env = runpy.run_path(os.path.join(BIN_DIR, "droiddeck-game-env"))
-        app = game_env["game_id"](env) or env.get("SteamAppId") or env.get("SteamGameId")
-        fixes = {}
-        if app and len(command) > 2 and command[1] == "waitforexitandrun":
+    except Exception as error:
+        say("game settings were not applied (%s)" % error)
+        return env
+
+    app = game_env["game_id"](env) or env.get("SteamAppId") or env.get("SteamGameId")
+    fixes = {}
+    if app and len(command) > 2 and command[1] == "waitforexitandrun":
+        try:
             fixes, _, _ = game_env["engine_fixes"](command[2], command[3:])
             components = game_env["win_components"](env.get("STEAM_COMPAT_DATA_PATH", ""), app)
             if components:
@@ -658,18 +682,31 @@ def game_environment(command=(), env=None):
                 fixes["WINEDLLOVERRIDES"] = components + ";" + own if own else components
             try:
                 with open(GAME_ENVIRONMENT, encoding="utf-8") as source:
-                    env = game_env["apply_config"](env, json.load(source), str(app), fixes)
+                    config = json.load(source)
             except FileNotFoundError:
-                env = game_env["apply_config"](env, {"version": 1}, str(app), fixes)
-        elif app:
-            with contextlib.suppress(FileNotFoundError):
-                with open(GAME_ENVIRONMENT, encoding="utf-8") as source:
-                    env = game_env["apply_config"](env, json.load(source), str(app))
-        if command:
+                config = {"version": 1}
+            except Exception as error:
+                say("game settings were not applied (%s)" % error)
+                config = {"version": 1}
+            env = game_env["apply_config"](env, config, str(app), fixes)
+        except Exception as error:
+            say("game settings were not applied (%s)" % error)
+    elif app:
+        try:
+            with open(GAME_ENVIRONMENT, encoding="utf-8") as source:
+                config = json.load(source)
+            env = game_env["apply_config"](env, config, str(app))
+        except FileNotFoundError:
+            pass
+        except Exception as error:
+            say("game settings were not applied (%s)" % error)
+
+    if command:
+        try:
             env = game_env["anticheat_runtimes"](command, env)
             env = game_env["force_ssbs"](command, env)
-    except Exception as error:
-        say("game settings were not applied (%s)" % error)
+        except Exception as error:
+            say("game settings were not applied (%s)" % error)
     return env
 
 

@@ -58,8 +58,10 @@ def game_tree_files(exe):
     names = set(game_files(exe))
     folder = os.path.dirname(os.path.abspath(exe))
     for _ in range(3):
+        if os.path.basename(folder).lower() == "common":
+            break
         parent = os.path.dirname(folder)
-        if not parent or parent == folder:
+        if not parent or parent == folder or os.path.basename(parent).lower() == "common":
             break
         folder = parent
         try:

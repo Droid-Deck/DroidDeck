@@ -5,7 +5,10 @@ import json
 import os
 import runpy
 import shutil
+import socket
 import struct
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -517,25 +520,72 @@ class LaunchTest(FexTestCase):
         self.assertEqual(guest["FEX_APP_DATA_LOCATION"], G["DATA_DIR"] + "/")
 
     def test_shorten_compat_path_and_socket_cleanup(self):
-        compat = self.tmp / "compatdata/1808500"
-        server = compat / "fex-emu/Server"
-        server.mkdir(parents=True)
-        dead_socket = server / "10114.FEXServer.Socket"
-        dead_socket.touch()
-        other_file = server / "keep.txt"
-        other_file.touch()
+        short_base = self.tmp / "c"
+        with mock.patch.dict(G, {"COMPAT_SHORT_BASE": str(short_base)}):
+            compat = self.tmp / "compatdata/1808500"
+            server = compat / "fex-emu/Server"
+            server.mkdir(parents=True)
+            dead_socket = server / "10114.FEXServer.Socket"
+            dead_socket.touch()
+            other_file = server / "keep.txt"
+            other_file.touch()
 
-        short = FEX["shorten_compat_path"](str(compat))
-        self.assertTrue(os.path.islink(short))
-        self.assertEqual(os.path.realpath(short), str(compat.resolve()))
-        self.assertFalse(dead_socket.exists())
-        self.assertTrue(other_file.exists())
-        self.assertLessEqual(len("/data/data/com.droiddeck.launcher/files/rootfs" + short + "/fex-emu/Server/10114.FEXServer.Socket"), 108)
+            live_socket_path = str(server / "live.FEXServer.Socket")
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as live_sock:
+                live_sock.bind(live_socket_path)
+                live_sock.listen(1)
 
-        fex = {"portable": False}
-        env = {"STEAM_COMPAT_DATA_PATH": str(compat)}
-        guest = FEX["guest_environment"](fex, env)
-        self.assertEqual(guest["STEAM_COMPAT_DATA_PATH"], short)
+                short = FEX["shorten_compat_path"](str(compat))
+                self.assertTrue(os.path.islink(short))
+                self.assertEqual(os.path.realpath(short), str(compat.resolve()))
+                self.assertFalse(dead_socket.exists())
+                self.assertTrue(os.path.exists(live_socket_path))
+                self.assertTrue(other_file.exists())
+                self.assertLessEqual(len("/data/data/com.droiddeck.launcher/files/rootfs/tmp/c/1808500/fex-emu/Server/10114.FEXServer.Socket"), 108)
+
+                unrelated = self.tmp / "compatdata_other"
+                unrelated.mkdir(parents=True)
+                short_unrelated = FEX["shorten_compat_path"](str(unrelated))
+                self.assertNotEqual(short_unrelated, str(unrelated))
+                self.assertTrue(short_unrelated.startswith(str(short_base)))
+
+                collision_target = self.tmp / "compatdata/collision"
+                collision_short = short_base / "collision"
+                collision_short.touch()
+                with self.assertRaises(OSError):
+                    FEX["shorten_compat_path"](str(collision_target))
+                collision_short.unlink()
+
+                collision_short.mkdir()
+                res = FEX["shorten_compat_path"](str(collision_target))
+                self.assertTrue(os.path.islink(res))
+                self.assertEqual(os.path.realpath(res), str(collision_target.resolve()))
+
+            fex = {"portable": False}
+            env = {"STEAM_COMPAT_DATA_PATH": str(compat)}
+            guest = FEX["guest_environment"](fex, env)
+            self.assertEqual(guest["STEAM_COMPAT_DATA_PATH"], short)
+
+    def test_game_environment_invalid_config_does_not_skip_anticheat_runtimes(self):
+        steam = self.tmp / ".local/share/Steam"
+        eac = steam / "steamapps/common/Proton EasyAntiCheat Runtime"
+        eac.mkdir(parents=True)
+        game = self.tmp / "Game"
+        (game / "EasyAntiCheat").mkdir(parents=True)
+        exe = game / "Game.exe"
+        exe.touch()
+        proton = self.tmp / "Proton/proton"
+        proton.parent.mkdir(parents=True)
+        proton.touch()
+
+        invalid_cfg = self.tmp / "bad_env.json"
+        invalid_cfg.write_text("{this is not valid json")
+
+        with mock.patch.dict(G, {"GAME_ENVIRONMENT": str(invalid_cfg)}):
+            env = {"HOME": str(self.tmp), "SteamAppId": "1808500"}
+            command = [str(proton), "waitforexitandrun", str(exe)]
+            result = FEX["game_environment"](command, env)
+            self.assertEqual(result.get("PROTON_EAC_RUNTIME"), str(eac))
 
     def test_steam_action_unwraps_entry_point_and_runs_game_env(self):
         proton = self.tmp / "Proton/proton"
@@ -556,6 +606,29 @@ class LaunchTest(FexTestCase):
                 execvpe.assert_called_once()
                 self.assertEqual(execvpe.call_args[0][0], str(orig))
                 self.assertEqual(execvpe.call_args[0][1], [str(orig), "waitforexitandrun", "--", str(proton), "waitforexitandrun", "Game.exe"])
+
+            log_file = self.tmp / "probe.log"
+            probe = self.tmp / "probe"
+            probe.write_text(
+                f"#!{sys.executable}\n"
+                "import os, sys, json\n"
+                f"with open({repr(str(log_file))}, 'w') as f:\n"
+                "    json.dump({'argv': sys.argv, 'compat': os.environ.get('STEAM_COMPAT_DATA_PATH')}, f)\n"
+                "sys.exit(42)\n"
+            )
+            probe.chmod(0o755)
+
+            sub_env = dict(os.environ, STEAM_COMPAT_DATA_PATH=str(self.tmp / "compatdata/1808500"))
+            res = subprocess.run(
+                [sys.executable, str(BIN / "droiddeck-fex"), "valve-fex", str(probe),
+                 "waitforexitandrun", "--", "/runtime/_v2-entry-point", "--verb=waitforexitandrun", "--",
+                 str(proton), "waitforexitandrun", "Game.exe"],
+                env=sub_env, capture_output=True, text=True
+            )
+            self.assertEqual(res.returncode, 42)
+            payload = json.loads(log_file.read_text())
+            self.assertEqual(payload["argv"], [str(probe), "waitforexitandrun", "--", str(proton), "waitforexitandrun", "Game.exe"])
+            self.assertTrue(payload["compat"].startswith(G["COMPAT_SHORT_BASE"]))
 
             FEX["main"](["steam", "waitforexitandrun", "--", str(proton), "waitforexitandrun", "Game.exe"])
             self.assertEqual(launched[-1][0], [str(proton), "waitforexitandrun", "Game.exe"])
@@ -840,6 +913,20 @@ class AppInfoTest(unittest.TestCase):
             {"0": tool}, ["20"], [tool], tool, {}, {"20": None}, ["20"])
         self.assertEqual(changes, {})
         self.assertEqual(auto, {})
+
+    def test_plan_mapping_excludes_not_games(self):
+        tool = self.COMPAT["TOOL"]
+        current = {"0": tool, "1245040": "proton_5", "1628350": "sniper", "42": "proton_5"}
+        installed = ["1245040", "1628350", "42"]
+        changes, auto = self.COMPAT["plan_mapping"](
+            current, installed, [tool], tool, {}
+        )
+        self.assertNotIn("1245040", changes)
+        self.assertNotIn("1628350", changes)
+        self.assertNotIn("1245040", auto)
+        self.assertNotIn("1628350", auto)
+        self.assertEqual(changes.get("42"), tool)
+        self.assertEqual(auto.get("42"), tool)
 
     def test_the_tool_files(self):
         with tempfile.TemporaryDirectory() as tmp:

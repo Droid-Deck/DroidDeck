@@ -1043,7 +1043,8 @@ def plan_mapping(current, installed, runnable, default, auto, native=None, picks
     changes, kept = {}, {}
     if current.get("0", "") != default:
         changes["0"] = default
-    for app in sorted((set(current) | installed | picks | set(auto) | set(overrides) | native_choices) - {"0"}, key=app_order):
+    candidates = (set(current) | installed | picks | set(auto) | set(overrides) | native_choices) - {"0"} - NOT_GAMES
+    for app in sorted(candidates, key=app_order):
         name = current.get(app, "")
         if app in overrides:
             target = overrides[app]

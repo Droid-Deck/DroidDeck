@@ -1119,3 +1119,31 @@ class ForceSsbsTest(unittest.TestCase):
             self.assertEqual(got["PROTON_EAC_RUNTIME"], str(eac))
             self.assertIn("Easy Anti-Cheat runtime ready", err.getvalue())
 
+    def test_sibling_game_eac_marker_does_not_trigger_diagnostic(self):
+        import io
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            common = root / ".local/share/Steam/steamapps/common"
+            game_a = common / "NormalGame"
+            game_a_bin = game_a / "Binaries/Win64"
+            game_a_bin.mkdir(parents=True)
+            game_a_exe = game_a_bin / "NormalGame.exe"
+            game_a_exe.touch()
+
+            sibling = common / "SiblingGame/EasyAntiCheat"
+            sibling.mkdir(parents=True)
+            (sibling / "easyanticheat_x64.so").touch()
+
+            tree = MODULE["game_tree_files"](str(game_a_exe))
+            self.assertNotIn("easyanticheat_x64.so", tree)
+
+            arm = root / "arm"
+            (arm / "files/lib/wine/aarch64-unix").mkdir(parents=True)
+            err = io.StringIO()
+            with mock.patch("sys.stderr", err):
+                got = MODULE["anticheat_runtimes"]([str(arm / "proton"), "waitforexitandrun", str(game_a_exe)], {"HOME": str(root)})
+            self.assertNotIn("PROTON_EAC_RUNTIME", got)
+            self.assertNotIn("Easy Anti-Cheat detected", err.getvalue())
+
+
