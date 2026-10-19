@@ -78,15 +78,7 @@ public final class GogDownloadManager {
         String buildsJson = httpGet(buildsUrl, null);
         if (buildsJson == null) buildsJson = httpGet(buildsUrl, token);
         if (buildsJson != null) {
-            Gen2Outcome out = runGen2(ctx, game, token, buildsJson, installPath, cb, cancelled, true);
-            if (out.result == null && !cancelled.get() && !out.hardStop && GogNative.isAvailable()) {
-                // A native-engine fetch failure (a truncated chunk body, a CDN host refusing one chunk)
-                // is not a reason to give up on the Galaxy build: the built-in engine takes CDN hosts in
-                // turn and resumes from the files already verified, instead of downloading the whole
-                // offline installer as a single part and launching its stub.
-                cb.onLog("gog: native engine failed (" + out.error + "); retrying with the built-in engine");
-                out = runGen2(ctx, game, token, buildsJson, installPath, cb, cancelled, false);
-            }
+            Gen2Outcome out = runGen2(ctx, game, token, buildsJson, installPath, cb, cancelled);
             if (out.result != null || cancelled.get()) return out.result;
             if (out.hardStop) throw new InstallException(out.error);
             cb.onLog("gen2 unavailable: " + out.error);
@@ -109,8 +101,7 @@ public final class GogDownloadManager {
         Result result; String error; boolean hardStop;
     }
 
-    private static Gen2Outcome runGen2(Context ctx, GogGame game, String token, String buildsJson, File installPath, Callback cb,
-                                      AtomicBoolean cancelled, boolean allowNative) {
+    private static Gen2Outcome runGen2(Context ctx, GogGame game, String token, String buildsJson, File installPath, Callback cb, AtomicBoolean cancelled) {
         Gen2Outcome out = new Gen2Outcome();
         try {
             cb.onProgress("Fetching manifest…", 5);
@@ -189,7 +180,7 @@ public final class GogDownloadManager {
             cb.onLog("gog: " + total + " files, " + formatBytes(planned) + ", base=" + baseProductId);
 
             int threads = downloadThreads();
-            if (allowNative && GogNative.isAvailable()) {
+            if (GogNative.isAvailable()) {
                 runNativeEngine(ctx, GogNative.KIND_GEN2_CHUNKS, "Verified…", depotJsons, installPath, cdnBaseRef, secureLinkUrl, token,
                         cdnRefreshCount, MAX_CDN_REFRESH, threads, threads, true, "gog base=" + baseProductId,
                         cancelled, anyFailed, doneCount, total, planned, totalBytes, lastSpeedMs, lastSpeedB, speedBps, cb);
