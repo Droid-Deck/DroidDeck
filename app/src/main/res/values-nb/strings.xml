@@ -1983,6 +1983,7 @@
     <string name="stores_sort_release_date">Utgivelsesdato</string>
     <string name="stores_view_list">Listevisning</string>
     <string name="stores_view_cards">Kortvisning</string>
+    <string name="stores_view_capsules">Omslagsvisning</string>
     <string name="stores_show_mature">Vis innhold for voksne</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

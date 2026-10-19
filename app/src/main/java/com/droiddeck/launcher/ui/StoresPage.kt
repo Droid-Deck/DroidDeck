@@ -90,6 +90,7 @@ import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.ViewList
+import androidx.compose.material.icons.filled.ViewModule
 import com.droiddeck.launcher.stores.sortCatalogItems
 import com.droiddeck.launcher.stores.retainCatalogOrder
 import androidx.compose.foundation.layout.widthIn
@@ -803,6 +804,8 @@ private fun Storefront(
     val headerItems = 1 + (if (sizeSortPending) 1 else 0) +
         (if (StoresState.status[store] != null) 1 else 0) + (if (StoresState.problems[store] != null) 1 else 0)
     val listMode = s.storesView == "list" && tab == "library"
+    val capsules = s.storesView == "capsules" && tab == "library"
+    val tileWidth = if (capsules) CapsuleWidth else CardWidth
     val card: @Composable (CatalogItem) -> Unit = { item ->
         val first = if (showGrid) item.key == visible.firstOrNull()?.key else !firstPlaced
         firstPlaced = true
@@ -834,12 +837,12 @@ private fun Storefront(
             }
         }
         if (listMode) GameListRow(item, store, installedKeys, onOpen, first, navigation)
-        else GameCard(item, store, s, a, installedKeys, onOpen, first, navigation)
+        else GameCard(item, store, s, a, installedKeys, onOpen, first, navigation, capsule = capsules)
     }
     LazyVerticalGrid(
-        columns = if (listMode) GridCells.Fixed(1) else GridCells.Adaptive(CardWidth), state = grid, modifier = Modifier.fillMaxSize().focusGroup().onSizeChanged {
+        columns = if (listMode) GridCells.Fixed(1) else GridCells.Adaptive(tileWidth), state = grid, modifier = Modifier.fillMaxSize().focusGroup().onSizeChanged {
             val gap = with(density) { 10.dp.roundToPx() }
-            val minimum = with(density) { (if (listMode) CardWidth * 2 else CardWidth).roundToPx() }
+            val minimum = with(density) { (if (listMode) CardWidth * 2 else tileWidth).roundToPx() }
             columns = ((it.width + gap) / (minimum + gap)).toInt().coerceAtLeast(1)
         },
         horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -1094,12 +1097,13 @@ private fun SortButton(s: FrontEndState, a: FrontEndActions) {
 
 @Composable
 private fun ViewButton(s: FrontEndState, a: FrontEndActions) {
-    val list = s.storesView == "list"
+    val views = SessionPrefs.STORES_VIEWS
+    val next = views[(views.indexOf(s.storesView) + 1) % views.size]
     HeaderIconButton(
-        if (list) stringResource(R.string.stores_view_cards) else stringResource(R.string.stores_view_list),
-        if (list) Icons.Filled.GridView else Icons.Filled.ViewList,
+        stringResource(when (next) { "capsules" -> R.string.stores_view_capsules; "list" -> R.string.stores_view_list; else -> R.string.stores_view_cards }),
+        when (next) { "capsules" -> Icons.Filled.ViewModule; "list" -> Icons.Filled.ViewList; else -> Icons.Filled.GridView },
         "view",
-    ) { a.onStoresView(if (list) "cards" else "list") }
+    ) { a.onStoresView(next) }
 }
 
 @Composable
@@ -1226,9 +1230,13 @@ private fun LazyGridScope.storeGrid(games: List<CatalogItem>, empty: String, car
 }
 
 private val CardWidth = 112.dp
+private val CapsuleWidth = 92.dp
 
 @Composable
-private fun GameCard(item: CatalogItem, store: Store, s: FrontEndState, a: FrontEndActions, installedKeys: Set<String>, onOpen: (String) -> Unit, first: Boolean = false, navigation: Modifier = Modifier) {
+private fun GameCard(
+    item: CatalogItem, store: Store, s: FrontEndState, a: FrontEndActions, installedKeys: Set<String>, onOpen: (String) -> Unit,
+    first: Boolean = false, navigation: Modifier = Modifier, capsule: Boolean = false,
+) {
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -1241,7 +1249,8 @@ private fun GameCard(item: CatalogItem, store: Store, s: FrontEndState, a: Front
     val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
     val corner = with(androidx.compose.ui.platform.LocalDensity.current) { 10.dp.toPx() }
     val open = {
-        placed[0]?.takeIf { it.isAttached }?.let { StoresMotion.markCard(CardMark(item.key, it.boundsInRoot(), corner, item.imageUrl ?: item.tallImageUrl)) }
+        val art = if (capsule) item.tallImageUrl ?: item.imageUrl else item.imageUrl ?: item.tallImageUrl
+        placed[0]?.takeIf { it.isAttached }?.let { StoresMotion.markCard(CardMark(item.key, it.boundsInRoot(), corner, art)) }
         onOpen(item.key)
     }
     val screen = with(androidx.compose.ui.platform.LocalDensity.current) { androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp.toPx() }
@@ -1259,7 +1268,7 @@ private fun GameCard(item: CatalogItem, store: Store, s: FrontEndState, a: Front
             .clip(RoundedCornerShape(10.dp)).glideBorder(hot, RoundedCornerShape(10.dp), pal.signal, pal.line)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, onClick = open).controllerConfirm(onClick = open),
     ) {
-        CardFace(item, download, hot) { CardMarker(item, installed, download) }
+        CardFace(item, download, hot, capsule) { CardMarker(item, installed, download, compact = capsule) }
     }
 }
 
@@ -1281,13 +1290,28 @@ private val CardStrip = 26.dp
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun CardFace(item: CatalogItem, download: com.droiddeck.launcher.stores.download.DownloadEntry?, hot: Boolean, marker: @Composable () -> Unit) {
-    val url = item.imageUrl ?: item.tallImageUrl
+private fun CardFace(
+    item: CatalogItem, download: com.droiddeck.launcher.stores.download.DownloadEntry?, hot: Boolean, capsule: Boolean = false,
+    marker: @Composable () -> Unit,
+) {
+    val url = if (capsule) item.tallImageUrl ?: item.imageUrl else item.imageUrl ?: item.tallImageUrl
     val blurs = android.os.Build.VERSION.SDK_INT >= 31
+    var landscape by remember(url) { mutableStateOf(false) }
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val total = maxWidth * 9f / 16f + CardStrip
+        val total = if (capsule) maxWidth * 7f / 5f + CardStrip else maxWidth * 9f / 16f + CardStrip
         Box(Modifier.fillMaxWidth().height(total).background(Color(0xFF101318)).then(if (url == null) Modifier.background(artBrush(hueOf(item.title))) else Modifier)) {
-            if (url != null) AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+            if (url != null && capsule && landscape) {
+                // Stores without portrait covers (itch) would lose most of the art to a portrait crop.
+                AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize().blur(24.dp))
+                Spacer(Modifier.matchParentSize().background(Color.Black.copy(alpha = if (blurs) 0.35f else 0.7f)))
+                AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.matchParentSize().padding(bottom = CardStrip))
+            } else if (url != null) AsyncImage(
+                model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize(),
+                onSuccess = { r ->
+                    val art = r.result.drawable
+                    if (capsule && art.intrinsicWidth > 0 && art.intrinsicHeight > 0) landscape = art.intrinsicWidth > art.intrinsicHeight * 0.95f
+                },
+            )
             Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(CardStrip).clipToBounds()) {
                 if (url != null) AsyncImage(
                     model = url, contentDescription = null, contentScale = ContentScale.Crop,
@@ -1315,7 +1339,7 @@ private fun CardFace(item: CatalogItem, download: com.droiddeck.launcher.stores.
 }
 
 @Composable
-private fun CardMarker(item: CatalogItem, installed: Boolean, download: com.droiddeck.launcher.stores.download.DownloadEntry?) {
+private fun CardMarker(item: CatalogItem, installed: Boolean, download: com.droiddeck.launcher.stores.download.DownloadEntry?, compact: Boolean = false) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val small = 10.sp
@@ -1323,12 +1347,13 @@ private fun CardMarker(item: CatalogItem, installed: Boolean, download: com.droi
         installed -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
             val ctx = LocalContext.current
             val game = StoresState.installedGame(item.store, item.id)
-            if (game != null) androidx.compose.runtime.LaunchedEffect(item.key) { com.droiddeck.launcher.stores.StoreSizes.requestDisk(ctx, item.key, game) }
-            com.droiddeck.launcher.stores.StoreSizes.onDisk[item.key]?.let { Text(formatBytes(it), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1) }
+            if (game != null && !compact) androidx.compose.runtime.LaunchedEffect(item.key) { com.droiddeck.launcher.stores.StoreSizes.requestDisk(ctx, item.key, game) }
+            if (!compact) com.droiddeck.launcher.stores.StoreSizes.onDisk[item.key]?.let { Text(formatBytes(it), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1) }
             Icon(Icons.Filled.Check, stringResource(R.string.stores_installed_chip), tint = pal.good, modifier = Modifier.size(11.dp))
         }
         download != null -> Text("${download.percent}%", fontSize = small, fontWeight = FontWeight.Bold, color = pal.signal, maxLines = 1)
         item.owned && StoresState.isUnfinished(item) -> Text(stringResource(R.string.stores_resume), fontSize = small, fontWeight = FontWeight.Bold, color = pal.signal, maxLines = 1)
+        item.owned && compact -> Unit
         item.owned -> com.droiddeck.launcher.stores.StoreSizes.size(item).takeIf { it > 0 }?.let { Text(formatBytes(it), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1) }
         item.isFree -> Text(stringResource(R.string.stores_free), fontSize = small, fontWeight = FontWeight.Bold, color = pal.good, maxLines = 1)
         item.isDiscounted -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {

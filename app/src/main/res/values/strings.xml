@@ -2026,6 +2026,7 @@
     <string name="stores_sort_release_date">Release date</string>
     <string name="stores_view_list">List view</string>
     <string name="stores_view_cards">Card view</string>
+    <string name="stores_view_capsules">Capsule view</string>
     <string name="stores_show_mature">Show mature content</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

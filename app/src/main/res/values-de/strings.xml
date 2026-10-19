@@ -1972,6 +1972,7 @@
     <string name="stores_sort_release_date">Erscheinungsdatum</string>
     <string name="stores_view_list">Listenansicht</string>
     <string name="stores_view_cards">Kartenansicht</string>
+    <string name="stores_view_capsules">Coveransicht</string>
     <string name="stores_show_mature">Inhalte für Erwachsene anzeigen</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

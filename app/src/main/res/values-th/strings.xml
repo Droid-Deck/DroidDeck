@@ -1962,6 +1962,7 @@
     <string name="stores_sort_release_date">วันวางจำหน่าย</string>
     <string name="stores_view_list">มุมมองรายการ</string>
     <string name="stores_view_cards">มุมมองการ์ด</string>
+    <string name="stores_view_capsules">มุมมองปก</string>
     <string name="stores_show_mature">แสดงเนื้อหาสำหรับผู้ใหญ่</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

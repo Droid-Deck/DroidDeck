@@ -2025,6 +2025,7 @@
     <string name="stores_sort_release_date">Дата виходу</string>
     <string name="stores_view_list">Вигляд списком</string>
     <string name="stores_view_cards">Вигляд картками</string>
+    <string name="stores_view_capsules">Вигляд обкладинок</string>
     <string name="stores_show_mature">Показувати контент для дорослих</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

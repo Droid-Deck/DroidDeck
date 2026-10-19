@@ -1983,6 +1983,7 @@
     <string name="stores_sort_release_date">Julkaisupäivä</string>
     <string name="stores_view_list">Luettelonäkymä</string>
     <string name="stores_view_cards">Korttinäkymä</string>
+    <string name="stores_view_capsules">Kansinäkymä</string>
     <string name="stores_show_mature">Näytä aikuisille tarkoitettu sisältö</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

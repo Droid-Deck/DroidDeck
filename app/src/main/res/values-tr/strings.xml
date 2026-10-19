@@ -1972,6 +1972,7 @@
     <string name="stores_sort_release_date">Çıkış tarihi</string>
     <string name="stores_view_list">Liste görünümü</string>
     <string name="stores_view_cards">Kart görünümü</string>
+    <string name="stores_view_capsules">Kapak görünümü</string>
     <string name="stores_show_mature">Yetişkin içeriği göster</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

@@ -1962,6 +1962,7 @@
     <string name="stores_sort_release_date">リリース日</string>
     <string name="stores_view_list">リスト表示</string>
     <string name="stores_view_cards">カード表示</string>
+    <string name="stores_view_capsules">パッケージ表示</string>
     <string name="stores_show_mature">成人向けコンテンツを表示</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

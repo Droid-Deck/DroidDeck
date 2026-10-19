@@ -1962,6 +1962,7 @@
     <string name="stores_sort_release_date">출시일</string>
     <string name="stores_view_list">목록 보기</string>
     <string name="stores_view_cards">카드 보기</string>
+    <string name="stores_view_capsules">표지 보기</string>
     <string name="stores_show_mature">성인용 콘텐츠 표시</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>
