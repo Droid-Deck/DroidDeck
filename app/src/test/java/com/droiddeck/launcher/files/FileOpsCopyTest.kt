@@ -134,4 +134,16 @@ class FileOpsCopyTest {
         assertEquals("replacement", dst.readText())
         assertEquals(setOf("dest"), tmp.root.list()!!.toSet())
     }
+
+    @Test fun overwritingThroughASymlinkKeepsTheLinkAndUpdatesItsTarget() {
+        assumeTrue(Files.getFileStore(tmp.root.toPath()).supportsFileAttributeView("posix"))
+        val src = tmp.newFile("source").apply { writeText("replacement") }
+        val realTarget = tmp.newFile("real-target").apply { writeText("original user data") }
+        val link = File(tmp.root, "dest-link")
+        Files.createSymbolicLink(link.toPath(), realTarget.toPath())
+
+        assertTrue(FileOps.copyWithProgress(src, link, null))
+        assertTrue("destination symlink was replaced instead of written through", Files.isSymbolicLink(link.toPath()))
+        assertEquals("replacement", realTarget.readText())
+    }
 }

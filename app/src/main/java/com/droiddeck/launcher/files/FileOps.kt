@@ -86,15 +86,19 @@ object FileOps {
         val chunk = 4L * 1024 * 1024
         var staging: File? = null
         try {
+            val target = if (isSymlink(dst)) dst.canonicalFile else dst
+            if (isSymlink(target) || target.parentFile?.isDirectory != true) {
+                throw IOException("Destination symlink target is not a writable directory entry: $dst")
+            }
             val permissions = try {
-                Files.getPosixFilePermissions(dst.toPath())
+                Files.getPosixFilePermissions(target.toPath())
             } catch (e: java.nio.file.NoSuchFileException) {
                 null
             } catch (e: UnsupportedOperationException) {
                 null
             }
-            if (dst.exists() && !dst.canWrite()) throw IOException("Destination is not writable: $dst")
-            val directory = Files.createTempDirectory(checkNotNull(dst.absoluteFile.parentFile).toPath(), ".droiddeck-copy-")
+            if (target.exists() && !target.canWrite()) throw IOException("Destination is not writable: $target")
+            val directory = Files.createTempDirectory(checkNotNull(target.absoluteFile.parentFile).toPath(), ".droiddeck-copy-")
             staging = directory.toFile()
             val copied = directory.resolve("file")
             FileInputStream(src).channel.use { input ->
@@ -114,7 +118,7 @@ object FileOps {
             if (permissions != null && Files.getPosixFilePermissions(copied) != permissions) {
                 Files.setPosixFilePermissions(copied, permissions)
             }
-            Files.move(copied, dst.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+            Files.move(copied, target.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
             return true
         } catch (e: java.util.concurrent.CancellationException) {
             throw e
