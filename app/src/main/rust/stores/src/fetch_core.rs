@@ -1,7 +1,8 @@
 use crate::fetch_tuning::{
     budget_admits, connect_timeout, inflight_budget_bytes, retry_backoff_millis, AsyncFetchError,
     FetchFailKind, BOOTSTRAP_WINDOW, MAX_CHUNK_ATTEMPTS, NOMINAL_CHUNK_RESERVE_BYTES,
-    RATE_LIMIT_COOLDOWN_MS, SERVER_EXPLORE_EVERY, USER_AGENT, WINDOW_BPS_EWMA_ALPHA,
+    RATE_LIMIT_COOLDOWN_MS, SERVER_EXPLORE_EVERY, SERVER_FAULT_COOLDOWN_MS, USER_AGENT,
+    WINDOW_BPS_EWMA_ALPHA,
     WINDOW_COOLDOWN_MS, WINDOW_DECLINE_EPS, WINDOW_ERR_BURST_IMMEDIATE, WINDOW_ERR_RATE_HIGH,
     WINDOW_ERR_RATE_LOW, WINDOW_HARD_CAP, WINDOW_IMPROVE_EPS, WINDOW_LOG_EVERY_PROBES,
     WINDOW_MIN_FLOOR, WINDOW_PLATEAU_PATIENCE, WINDOW_PLATEAU_REARM_MAX_MS,
@@ -607,6 +608,10 @@ fn classify_reqwest_error(err: &reqwest::Error) -> FetchFailKind {
         FetchFailKind::Timeout
     } else if err.is_connect() {
         FetchFailKind::Connect
+    } else if err.is_body() || err.is_decode() {
+        // A truncated or undecodable body comes from the CDN, not the request. Rest that host so
+        // the retry goes to another mirror instead of reading the same bad object again.
+        FetchFailKind::ServerFault
     } else {
         FetchFailKind::Other
     }
@@ -663,14 +668,9 @@ async fn fetch_once(
                 }
                 Ok(None) => break,
                 Err(err) => {
-                    let kind = if err.is_timeout() {
-                        FetchFailKind::Timeout
-                    } else {
-                        FetchFailKind::Other
-                    };
                     return Err(AsyncFetchError {
                         message: format!("http body: {err}"),
-                        kind,
+                        kind: classify_reqwest_error(&err),
                     });
                 }
             }
@@ -1436,8 +1436,10 @@ impl FetchScheduler {
         let h = &mut self.health[server_idx];
         h.consecutive_errors = h.consecutive_errors.saturating_add(1);
         let mut backoff = retry_backoff_millis(h.consecutive_errors);
-        if kind == FetchFailKind::RateLimited {
-            backoff = backoff.max(RATE_LIMIT_COOLDOWN_MS);
+        match kind {
+            FetchFailKind::RateLimited => backoff = backoff.max(RATE_LIMIT_COOLDOWN_MS),
+            FetchFailKind::ServerFault => backoff = backoff.max(SERVER_FAULT_COOLDOWN_MS),
+            _ => {}
         }
         h.cooldown_until = Some(now + Duration::from_millis(backoff));
         h.ewma_bps *= 0.5;
@@ -1806,6 +1808,7 @@ mod tests {
     use super::*;
     use crate::fetch_tuning::{
         FETCH_INFLIGHT_BUDGET_FLOOR_BYTES, FETCH_INFLIGHT_BUDGET_HARD_CAP_BYTES, PER_HOST_CAP,
+        SERVER_FAULT_COOLDOWN_MS,
     };
     use std::collections::HashMap;
     use std::io::{Read, Write};
@@ -1909,6 +1912,24 @@ mod tests {
         s.on_error(1, now, FetchFailKind::RateLimited);
         assert_eq!(s.pick(now), None);
         assert_eq!(s.pick(now + Duration::from_secs(6)), Some(0));
+    }
+
+    #[test]
+    fn a_server_fault_rests_the_host_for_the_other_mirror() {
+        let hosts = vec!["a".to_string(), "b".to_string()];
+        let mut s = FetchScheduler::new(&hosts, 2);
+        let now = Instant::now();
+        s.on_success(0, 1_000_000, Duration::from_millis(100));
+        s.on_success(1, 1_000_000, Duration::from_millis(100));
+        s.on_error(0, now, FetchFailKind::ServerFault);
+        assert_eq!(s.pick(now), Some(1));
+        assert_eq!(
+            s.pick(now + Duration::from_millis(SERVER_FAULT_COOLDOWN_MS - 1)),
+            Some(1)
+        );
+        assert!(s
+            .pick(now + Duration::from_millis(SERVER_FAULT_COOLDOWN_MS))
+            .is_some());
     }
 
     #[test]
