@@ -1905,7 +1905,6 @@
     <string name="stores_settings_eyebrow">Setelan</string>
     <string name="stores_chip_signed_out">(belum masuk)</string>
     <string name="stores_tab_store">Toko</string>
-    <string name="stores_tab_installed">Terinstal</string>
     <string name="stores_tab_library">Pustaka</string>
     <string name="stores_tab_all">Semua</string>
     <string name="stores_tab_downloads">Unduhan</string>
@@ -1917,10 +1916,8 @@
     <string name="stores_signout_stay">Tetap masuk</string>
     <string name="stores_signout_go">Keluar</string>
     <string name="stores_search_catalog">Cari katalog %1$s…</string>
-    <string name="stores_search_installed">Cari gim yang terinstal…</string>
     <string name="stores_search_library">Cari pustaka Anda…</string>
     <string name="stores_search_open">Cari</string>
-    <string name="stores_installed_empty">Belum ada yang terinstal</string>
     <string name="stores_library_loading">Memuat</string>
     <string name="stores_nothing_matches">Tidak ada gim</string>
     <string name="stores_shelves_loading">Memuat toko…</string>

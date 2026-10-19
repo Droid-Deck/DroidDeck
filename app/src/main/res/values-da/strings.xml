@@ -1926,7 +1926,6 @@
     <string name="stores_settings_eyebrow">Indstillinger</string>
     <string name="stores_chip_signed_out">(ikke logget ind)</string>
     <string name="stores_tab_store">Butik</string>
-    <string name="stores_tab_installed">Installeret</string>
     <string name="stores_tab_library">Bibliotek</string>
     <string name="stores_tab_all">Alle</string>
     <string name="stores_tab_downloads">Downloads</string>
@@ -1938,10 +1937,8 @@
     <string name="stores_signout_stay">Bliv logget ind</string>
     <string name="stores_signout_go">Log ud</string>
     <string name="stores_search_catalog">Søg i %1$s-kataloget…</string>
-    <string name="stores_search_installed">Søg i installerede spil…</string>
     <string name="stores_search_library">Søg i dit bibliotek…</string>
     <string name="stores_search_open">Søg</string>
-    <string name="stores_installed_empty">Intet installeret</string>
     <string name="stores_library_loading">Indlæser</string>
     <string name="stores_nothing_matches">Ingen spil</string>
     <string name="stores_shelves_loading">Indlæser butikken…</string>

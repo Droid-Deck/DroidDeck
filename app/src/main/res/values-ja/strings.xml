@@ -1905,7 +1905,6 @@
     <string name="stores_settings_eyebrow">設定</string>
     <string name="stores_chip_signed_out">（未ログイン）</string>
     <string name="stores_tab_store">ストア</string>
-    <string name="stores_tab_installed">インストール済み</string>
     <string name="stores_tab_library">ライブラリ</string>
     <string name="stores_tab_all">すべて</string>
     <string name="stores_tab_downloads">ダウンロード</string>
@@ -1917,10 +1916,8 @@
     <string name="stores_signout_stay">ログインしたままにする</string>
     <string name="stores_signout_go">ログアウト</string>
     <string name="stores_search_catalog">%1$sのカタログを検索…</string>
-    <string name="stores_search_installed">インストール済みのゲームを検索…</string>
     <string name="stores_search_library">ライブラリを検索…</string>
     <string name="stores_search_open">検索</string>
-    <string name="stores_installed_empty">何もインストールされていません</string>
     <string name="stores_library_loading">読み込み中</string>
     <string name="stores_nothing_matches">ゲームがありません</string>
     <string name="stores_shelves_loading">ストアを読み込み中…</string>

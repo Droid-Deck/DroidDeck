@@ -1944,7 +1944,6 @@
     <string name="stores_settings_eyebrow">Paramètres</string>
     <string name="stores_chip_signed_out">(non connecté)</string>
     <string name="stores_tab_store">Boutique</string>
-    <string name="stores_tab_installed">Installés</string>
     <string name="stores_tab_library">Bibliothèque</string>
     <string name="stores_tab_all">Tous</string>
     <string name="stores_tab_downloads">Téléchargements</string>
@@ -1956,10 +1955,8 @@
     <string name="stores_signout_stay">Rester connecté</string>
     <string name="stores_signout_go">Se déconnecter</string>
     <string name="stores_search_catalog">Rechercher dans le catalogue %1$s…</string>
-    <string name="stores_search_installed">Rechercher dans les jeux installés…</string>
     <string name="stores_search_library">Rechercher dans votre bibliothèque…</string>
     <string name="stores_search_open">Rechercher</string>
-    <string name="stores_installed_empty">Aucun jeu installé</string>
     <string name="stores_library_loading">Chargement</string>
     <string name="stores_nothing_matches">Aucun jeu</string>
     <string name="stores_shelves_loading">Chargement de la boutique…</string>

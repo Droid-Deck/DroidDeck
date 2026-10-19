@@ -1936,7 +1936,6 @@
     <string name="stores_settings_eyebrow">Impostazioni</string>
     <string name="stores_chip_signed_out">(accesso non eseguito)</string>
     <string name="stores_tab_store">Negozio</string>
-    <string name="stores_tab_installed">Installati</string>
     <string name="stores_tab_library">Libreria</string>
     <string name="stores_tab_all">Tutti</string>
     <string name="stores_tab_downloads">Download</string>
@@ -1948,10 +1947,8 @@
     <string name="stores_signout_stay">Resta connesso</string>
     <string name="stores_signout_go">Esci</string>
     <string name="stores_search_catalog">Cerca nel catalogo di %1$s…</string>
-    <string name="stores_search_installed">Cerca tra i giochi installati…</string>
     <string name="stores_search_library">Cerca nella tua libreria…</string>
     <string name="stores_search_open">Cerca</string>
-    <string name="stores_installed_empty">Niente di installato</string>
     <string name="stores_library_loading">Caricamento</string>
     <string name="stores_nothing_matches">Nessun gioco</string>
     <string name="stores_shelves_loading">Caricamento del negozio…</string>

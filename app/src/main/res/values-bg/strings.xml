@@ -1926,7 +1926,6 @@
     <string name="stores_settings_eyebrow">Настройки</string>
     <string name="stores_chip_signed_out">(не е вписан)</string>
     <string name="stores_tab_store">Магазин</string>
-    <string name="stores_tab_installed">Инсталирани</string>
     <string name="stores_tab_library">Библиотека</string>
     <string name="stores_tab_all">Всички</string>
     <string name="stores_tab_downloads">Изтегляния</string>
@@ -1938,10 +1937,8 @@
     <string name="stores_signout_stay">Остани вписан</string>
     <string name="stores_signout_go">Изход</string>
     <string name="stores_search_catalog">Търсене в каталога на %1$s…</string>
-    <string name="stores_search_installed">Търсене в инсталираните игри…</string>
     <string name="stores_search_library">Търсене в твоята библиотека…</string>
     <string name="stores_search_open">Търсене</string>
-    <string name="stores_installed_empty">Нищо инсталирано</string>
     <string name="stores_library_loading">Зареждане</string>
     <string name="stores_nothing_matches">Няма игри</string>
     <string name="stores_shelves_loading">Зареждане на магазина…</string>

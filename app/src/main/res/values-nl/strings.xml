@@ -1926,7 +1926,6 @@
     <string name="stores_settings_eyebrow">Instellingen</string>
     <string name="stores_chip_signed_out">(niet aangemeld)</string>
     <string name="stores_tab_store">Winkel</string>
-    <string name="stores_tab_installed">Geïnstalleerd</string>
     <string name="stores_tab_library">Bibliotheek</string>
     <string name="stores_tab_all">Alle</string>
     <string name="stores_tab_downloads">Downloads</string>
@@ -1938,10 +1937,8 @@
     <string name="stores_signout_stay">Aangemeld blijven</string>
     <string name="stores_signout_go">Afmelden</string>
     <string name="stores_search_catalog">Zoeken in de catalogus van %1$s…</string>
-    <string name="stores_search_installed">Geïnstalleerde games zoeken…</string>
     <string name="stores_search_library">Zoeken in je bibliotheek…</string>
     <string name="stores_search_open">Zoeken</string>
-    <string name="stores_installed_empty">Niets geïnstalleerd</string>
     <string name="stores_library_loading">Laden</string>
     <string name="stores_nothing_matches">Geen games</string>
     <string name="stores_shelves_loading">Winkel laden…</string>

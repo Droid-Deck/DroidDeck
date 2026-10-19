@@ -1926,7 +1926,6 @@
     <string name="stores_settings_eyebrow">Beállítások</string>
     <string name="stores_chip_signed_out">(nincs bejelentkezve)</string>
     <string name="stores_tab_store">Áruház</string>
-    <string name="stores_tab_installed">Telepítve</string>
     <string name="stores_tab_library">Könyvtár</string>
     <string name="stores_tab_all">Összes</string>
     <string name="stores_tab_downloads">Letöltések</string>
@@ -1938,10 +1937,8 @@
     <string name="stores_signout_stay">Bejelentkezve marad</string>
     <string name="stores_signout_go">Kijelentkezés</string>
     <string name="stores_search_catalog">Keresés a %1$s katalógusban…</string>
-    <string name="stores_search_installed">Keresés a telepített játékok között…</string>
     <string name="stores_search_library">Keresés a könyvtárában…</string>
     <string name="stores_search_open">Keresés</string>
-    <string name="stores_installed_empty">Nincs telepítve semmi</string>
     <string name="stores_library_loading">Betöltés</string>
     <string name="stores_nothing_matches">Nincs játék</string>
     <string name="stores_shelves_loading">Az áruház betöltése…</string>

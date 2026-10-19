@@ -1965,7 +1965,6 @@
     <string name="stores_settings_eyebrow">Настройки</string>
     <string name="stores_chip_signed_out">(вход не выполнен)</string>
     <string name="stores_tab_store">Магазин</string>
-    <string name="stores_tab_installed">Установлено</string>
     <string name="stores_tab_library">Библиотека</string>
     <string name="stores_tab_all">Все</string>
     <string name="stores_tab_downloads">Загрузки</string>
@@ -1977,10 +1976,8 @@
     <string name="stores_signout_stay">Не выходить</string>
     <string name="stores_signout_go">Выйти</string>
     <string name="stores_search_catalog">Поиск в каталоге %1$s…</string>
-    <string name="stores_search_installed">Поиск установленных игр…</string>
     <string name="stores_search_library">Поиск в библиотеке…</string>
     <string name="stores_search_open">Поиск</string>
-    <string name="stores_installed_empty">Ничего не установлено</string>
     <string name="stores_library_loading">Загрузка</string>
     <string name="stores_nothing_matches">Нет игр</string>
     <string name="stores_shelves_loading">Загрузка магазина…</string>

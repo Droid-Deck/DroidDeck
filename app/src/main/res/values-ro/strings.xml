@@ -1947,7 +1947,6 @@
     <string name="stores_settings_eyebrow">Setări</string>
     <string name="stores_chip_signed_out">(neautentificat)</string>
     <string name="stores_tab_store">Magazin</string>
-    <string name="stores_tab_installed">Instalate</string>
     <string name="stores_tab_library">Bibliotecă</string>
     <string name="stores_tab_all">Toate</string>
     <string name="stores_tab_downloads">Descărcări</string>
@@ -1959,10 +1958,8 @@
     <string name="stores_signout_stay">Rămâi autentificat</string>
     <string name="stores_signout_go">Deconectare</string>
     <string name="stores_search_catalog">Caută în catalogul %1$s…</string>
-    <string name="stores_search_installed">Caută jocurile instalate…</string>
     <string name="stores_search_library">Caută în biblioteca ta…</string>
     <string name="stores_search_open">Căutare</string>
-    <string name="stores_installed_empty">Nimic instalat</string>
     <string name="stores_library_loading">Se încarcă</string>
     <string name="stores_nothing_matches">Niciun joc</string>
     <string name="stores_shelves_loading">Se încarcă magazinul…</string>

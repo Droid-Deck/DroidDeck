@@ -1944,7 +1944,6 @@
     <string name="stores_settings_eyebrow">Ajustes</string>
     <string name="stores_chip_signed_out">(sin iniciar sesión)</string>
     <string name="stores_tab_store">Tienda</string>
-    <string name="stores_tab_installed">Instalados</string>
     <string name="stores_tab_library">Biblioteca</string>
     <string name="stores_tab_all">Todos</string>
     <string name="stores_tab_downloads">Descargas</string>
@@ -1956,10 +1955,8 @@
     <string name="stores_signout_stay">Mantener la sesión</string>
     <string name="stores_signout_go">Cerrar sesión</string>
     <string name="stores_search_catalog">Buscar en el catálogo de %1$s…</string>
-    <string name="stores_search_installed">Buscar juegos instalados…</string>
     <string name="stores_search_library">Buscar en tu biblioteca…</string>
     <string name="stores_search_open">Buscar</string>
-    <string name="stores_installed_empty">Nada instalado</string>
     <string name="stores_library_loading">Cargando</string>
     <string name="stores_nothing_matches">No hay juegos</string>
     <string name="stores_shelves_loading">Cargando la tienda…</string>

@@ -1926,7 +1926,6 @@
     <string name="stores_settings_eyebrow">Asetukset</string>
     <string name="stores_chip_signed_out">(ei kirjautunut)</string>
     <string name="stores_tab_store">Kauppa</string>
-    <string name="stores_tab_installed">Asennetut</string>
     <string name="stores_tab_library">Kirjasto</string>
     <string name="stores_tab_all">Kaikki</string>
     <string name="stores_tab_downloads">Lataukset</string>
@@ -1938,10 +1937,8 @@
     <string name="stores_signout_stay">Pysy kirjautuneena</string>
     <string name="stores_signout_go">Kirjaudu ulos</string>
     <string name="stores_search_catalog">Hae %1$s-luettelosta…</string>
-    <string name="stores_search_installed">Hae asennetuista peleistä…</string>
     <string name="stores_search_library">Hae kirjastostasi…</string>
     <string name="stores_search_open">Hae</string>
-    <string name="stores_installed_empty">Ei mitään asennettuna</string>
     <string name="stores_library_loading">Latautuu</string>
     <string name="stores_nothing_matches">Ei pelejä</string>
     <string name="stores_shelves_loading">Ladataan kauppaa…</string>

@@ -1915,7 +1915,6 @@
     <string name="stores_settings_eyebrow">Ayarlar</string>
     <string name="stores_chip_signed_out">(oturum açılmadı)</string>
     <string name="stores_tab_store">Mağaza</string>
-    <string name="stores_tab_installed">Yüklü</string>
     <string name="stores_tab_library">Kütüphane</string>
     <string name="stores_tab_all">Tümü</string>
     <string name="stores_tab_downloads">İndirmeler</string>
@@ -1927,10 +1926,8 @@
     <string name="stores_signout_stay">Oturumu açık tut</string>
     <string name="stores_signout_go">Oturumu kapat</string>
     <string name="stores_search_catalog">%1$s kataloğunda ara…</string>
-    <string name="stores_search_installed">Yüklü oyunlarda ara…</string>
     <string name="stores_search_library">Kütüphanenizde ara…</string>
     <string name="stores_search_open">Ara</string>
-    <string name="stores_installed_empty">Yüklü bir şey yok</string>
     <string name="stores_library_loading">Yükleniyor</string>
     <string name="stores_nothing_matches">Oyun yok</string>
     <string name="stores_shelves_loading">Mağaza yükleniyor…</string>
