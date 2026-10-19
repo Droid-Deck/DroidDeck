@@ -358,26 +358,13 @@ object BootMovieLibrary {
 
     private const val MIN_COVER_LUMA = 24
 
-    /** Steam draws a preview of the movie it plays at start; it is of the picked movie while that one is staged. */
-    private fun stagedPreview(context: Context, entry: Entry): File? {
-        if (SessionPrefs.bootMovie(context) != entry.id) return null
-        val dir = moviesDir(context)
-        val movie = File(dir, "bigpicture_startup.webm")
-        val preview = File(dir, "bigpicture_startup.jpg")
-        return preview.takeIf { it.isFile && it.length() > 0L && movie.isFile && it.lastModified() >= movie.lastModified() }
-    }
-
     /** A cover for a movie: the picture SteamDeckRepo gave it, or one frame taken from the video and remembered. */
     fun cover(context: Context, entry: Entry): File? {
         val file = fileOf(context, entry) ?: return null
         val name = if (entry.id.startsWith(PREFIX)) file.name else entry.id
-        val given = File(thumbsDir(context), coverName(name))
+        // Points Shop covers once kept a picture that was not always the movie's own; those files are not used.
+        val given = File(thumbsDir(context), if (entry.source == SOURCE_POINTSHOP) "v2-" + coverName(name) else coverName(name))
         if (given.isFile && given.length() > 0L) return given
-        if (entry.source == SOURCE_POINTSHOP) stagedPreview(context, entry)?.let { preview ->
-            thumbsDir(context).mkdirs()
-            val kept = runCatching { preview.copyTo(given, overwrite = true) }.getOrNull()
-            if (kept != null && kept.length() > 0L) return kept
-        }
         val key = "frame-" + safe(name) + "-v2-" + file.length() + "-" + file.lastModified() + ".jpg"
         val frame = File(thumbsDir(context), key)
         if (frame.isFile && frame.length() > 0L) return frame
