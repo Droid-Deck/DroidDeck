@@ -13,6 +13,7 @@ internal object XboxRuntime {
     private var owner: String? = null
     private var serviceSocket: File? = null
     private var generation = 0L
+    private val views = XboxLaunchViews()
     private val launches = XboxLaunchLeases { android.os.SystemClock.uptimeMillis() }
     fun isActive(id: String): Boolean = launches.active(id)
     fun authorize(app: Context, id: String) {
@@ -47,8 +48,11 @@ internal object XboxRuntime {
             val socket = service(app, account, current)
             check(synchronized(state) { generation == current }) { "Xbox launch was cancelled" }
             val market = game.second.extra["market"]?.takeIf { it.matches(Regex("[A-Z]{2}")) } ?: Xodus.market()
-            val process = Xodus.start(app, listOf("run", game.first.path, "droiddeck:prepare", "--exe", game.second.exe,
-                "--materialize-chain", "--market", market))
+            val directory = views.create(app.filesDir)
+            val process = try {
+                Xodus.start(app, listOf("run", game.first.path, "droiddeck:prepare", "--exe", game.second.exe,
+                    "--materialize-chain", "--market", market), launchDirectory = directory)
+            } catch (e: Exception) { XboxLaunchViews.remove(directory); throw e }
             if (!launches.attach(token, process)) { process.close(); error("Xbox launch was cancelled") }
             Xodus.diagnostics(process)
             val result = java.util.concurrent.FutureTask {

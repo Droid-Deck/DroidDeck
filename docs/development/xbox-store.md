@@ -56,7 +56,10 @@ not Xbox console emulation or UWP/APPX packages.
 9. Stop a game and launch it again. A delayed release from the first launch must
    not clear the second launch's activity. Suspend/resume while playing; the
    launch lease should survive suspension. Stop the session during preparation
-   and verify its backend and private launch view are cleaned up.
+   and verify both backend processes exit and the host-owned launch directory
+   under `files/xbox-runtime/views` is removed. A fresh app process recovers
+   abandoned `launch-*` directories there before preparing another game;
+   cleanup must preserve installed game files reached through view symlinks.
 10. Sign out from Xbox. Installed files should remain, account library data should
    clear, and Play/download licensing should require sign-in again.
 
