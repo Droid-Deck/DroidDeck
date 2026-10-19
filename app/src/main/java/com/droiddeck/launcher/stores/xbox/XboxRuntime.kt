@@ -65,12 +65,15 @@ internal object XboxRuntime {
         } catch (e: Exception) { released(token); throw e }
     }
 
+    internal fun newServiceSocket(files: File): File =
+        File(files, "xbox-runtime/s-${java.util.UUID.randomUUID().toString().replace("-", "")}/xodus.sock")
+
     private fun service(app: Context, account: String, current: Long): File = synchronized(startup) {
         val existing = synchronized(state) {
             check(generation == current) { "Xbox launch was cancelled" }
             serviceSocket?.takeIf { child?.process?.isAlive == true && owner == account }
         }
-        val socket = existing ?: File(app.filesDir, "xbox-runtime/service-${java.util.UUID.randomUUID()}/xodus.sock")
+        val socket = existing ?: newServiceSocket(app.filesDir)
         if (existing == null) {
             val old = synchronized(state) { child.also { child = null; owner = null; serviceSocket = null } }
             old?.close()
