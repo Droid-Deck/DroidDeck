@@ -182,8 +182,22 @@ object Library {
         var steam = steamGames(context, strictRead, arch)
         val targets = steam.filter(::fromSteamClient).map { SteamGrid.target(it, context) } + list.map { SteamGrid.target(it, context) }
         if (runCatching { SteamGrid.sync(context, targets) }.getOrDefault(false)) steam = steamGames(context, strictRead, arch)
-        return (steam + list.map { g -> addedGame(context, g, roots) }).distinctBy { it.gameId }
+        val claimed = claimedFolders(steam)
+        val own = list.filter { g ->
+            g.steamAppId != null || claimed.isEmpty() ||
+                (runCatching { g.folder.canonicalPath }.getOrDefault(g.folder.absolutePath) !in claimed &&
+                    AddedGames.guestPath(context, g.folder).let { it == null || it !in claimed })
+        }
+        return (steam + own.map { g -> addedGame(context, g, roots) }).distinctBy { it.gameId }
     }
+
+    fun claimedFolders(steam: List<SteamGame>): Set<String> = steam.filter(::fromSteamClient).flatMap { g ->
+        val dir = g.gameFiles ?: return@flatMap emptyList()
+        listOfNotNull(
+            runCatching { dir.canonicalPath }.getOrNull(),
+            runCatching { java.nio.file.Files.readSymbolicLink(dir.toPath()).toString() }.getOrNull(),
+        )
+    }.toSet()
 
     fun addedGame(context: Context, g: AddedGames.Game, roots: List<File> = steamLibraries(context).map { it.first }): SteamGame =
         AddedGameArt.resolve(context, g).let { art ->

@@ -3,7 +3,7 @@
 #include "config.hpp"
 #include <vector>
 
-namespace winfg {
+namespace ddfg {
 
 class FrameGen {
 public:
@@ -12,7 +12,8 @@ public:
     void configure(const Config& c);
     bool onResize(VkExtent2D extent, VkFormat colorFormat, bool force = false);
     void record(VkCommandBuffer cmd, VkImageView prevView, VkImageView currView,
-                VkImageView outView, float alpha, uint32_t gmSlot = 0);
+                VkImageView outView, float alpha, uint32_t gmSlot = 0,
+                uint32_t synthSlot = 0, bool reuseFlow = false);
     void destroy();
     bool valid() const { return device_ != VK_NULL_HANDLE && ready_; }
     const Config& config() const { return cfg_; }
@@ -25,6 +26,7 @@ public:
 
 
     static constexpr int kGmSlots   = 3;
+    static constexpr int kSynthSlots = 3;
     static constexpr int kGmLevel   = 3;
     static constexpr int kGmThreads = 512;
     static constexpr int kGmStride  = 32;

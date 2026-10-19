@@ -208,6 +208,19 @@ static long openat_in_root(int dirfd, const char *path, int flags, long mode) {
       }
       memmove(pending + target_len, tail, rest_len + 1);
       if (pending[0] == '/') {
+        char saved = pending[target_len];
+        pending[target_len] = 0;
+        const char *inside = pending;
+        while (*inside == '/') {
+          inside++;
+        }
+        bl_stat probe;
+        int host = *inside && real_syscall(BL_SYS_FSTATAT, (long)dirfd, (long)inside, (long)&probe, (long)AT_SYMLINK_NOFOLLOW) != 0 &&
+                   errno == ENOENT && real_syscall(BL_SYS_FSTATAT, (long)AT_FDCWD, (long)pending, (long)&probe, 0L) == 0;
+        pending[target_len] = saved;
+        if (host) {
+          return real_syscall(SYS_openat, (long)AT_FDCWD, (long)pending, (long)flags, mode);
+        }
         resolved_len = 0;
       }
       rest = pending;

@@ -30,7 +30,7 @@
     <string name="frame_gen_title">Kare oluşturma</string>
     <string name="frame_gen_hint">Kare oluşturma modunu seçin</string>
     <string name="frame_gen_off">Kapalı</string>
-    <string name="frame_gen_winfg">Win-FG %1$d×</string>
+    <string name="frame_gen_ddfg">DD-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
     <string name="frame_gen_lsfg_adaptive">LSFG Uyarlanabilir %1$d</string>
     <string name="lsfg_needs_steam">Steam\'de Lossless Scaling gerekli</string>
@@ -718,6 +718,9 @@
     <string name="setup_app_scale_default">%%%1$d (Varsayılan)</string>
     <string name="setup_theme">Tema</string>
     <string name="setup_theme_hint">Başlatıcı görünümü</string>
+    <string name="setup_launcher_icon">Uygulama simgesi</string>
+    <string name="setup_launcher_icon_dark">Koyu</string>
+    <string name="setup_launcher_icon_light">Açık</string>
     <string name="setup_home">Ana ekran olarak kullan</string>
     <string name="setup_home_on">DroidDeck ana ekran uygulaması olabilir</string>
     <string name="setup_home_off">DroidDeck hiçbir zaman ana ekran uygulaması olarak sunulmaz</string>
@@ -1912,7 +1915,6 @@
     <string name="stores_settings_eyebrow">Ayarlar</string>
     <string name="stores_chip_signed_out">(oturum açılmadı)</string>
     <string name="stores_tab_store">Mağaza</string>
-    <string name="stores_tab_installed">Yüklü</string>
     <string name="stores_tab_library">Kütüphane</string>
     <string name="stores_tab_all">Tümü</string>
     <string name="stores_tab_downloads">İndirmeler</string>
@@ -1924,10 +1926,8 @@
     <string name="stores_signout_stay">Oturumu açık tut</string>
     <string name="stores_signout_go">Oturumu kapat</string>
     <string name="stores_search_catalog">%1$s kataloğunda ara…</string>
-    <string name="stores_search_installed">Yüklü oyunlarda ara…</string>
     <string name="stores_search_library">Kütüphanenizde ara…</string>
     <string name="stores_search_open">Ara</string>
-    <string name="stores_installed_empty">Yüklü bir şey yok</string>
     <string name="stores_library_loading">Yükleniyor</string>
     <string name="stores_nothing_matches">Oyun yok</string>
     <string name="stores_shelves_loading">Mağaza yükleniyor…</string>
@@ -1946,7 +1946,19 @@
     <string name="stores_view_on">%1$s\'te görüntüle</string>
     <string name="stores_buy_price">Satın al · %1$s</string>
     <string name="stores_installed_chip">Yüklü</string>
+    <string name="stores_section_installed">Yüklü</string>
+    <string name="stores_section_not_installed">Yüklü değil</string>
     <string name="stores_in_library">Kütüphanede</string>
+    <string name="stores_itch_key">API anahtarı</string>
+    <string name="stores_itch_get_key">Anahtar al</string>
+    <string name="stores_itch_key_rejected">Anahtar reddedildi</string>
+    <string name="stores_itch_not_owned">itch.io kütüphanenizde yok</string>
+    <string name="stores_itch_no_upload">Bu oyunun Windows indirmesi yok</string>
+    <string name="stores_itch_no_exe">İndirmede Windows oyunu bulunamadı</string>
+    <string name="stores_itch_extract_failed">İndirme ayıklanamadı (kod %1$d)</string>
+    <string name="stores_itch_no_catalog">itch.io yanıt vermedi</string>
+    <string name="stores_itch_archive">%1$s arşivleri desteklenmiyor</string>
+    <string name="stores_itch_download_failed">itch.io HTTP %1$d yanıtı verdi</string>
     <string name="stores_free">Ücretsiz</string>
     <string name="stores_resume">Sürdür</string>
     <string name="stores_refresh">Yenile</string>
@@ -1960,6 +1972,7 @@
     <string name="stores_sort_release_date">Çıkış tarihi</string>
     <string name="stores_view_list">Liste görünümü</string>
     <string name="stores_view_cards">Kart görünümü</string>
+    <string name="stores_view_capsules">Kapak görünümü</string>
     <string name="stores_show_mature">Yetişkin içeriği göster</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

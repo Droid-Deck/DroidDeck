@@ -4,9 +4,9 @@
 #include <cmath>
 #include <cstdio>
 
-namespace winfg {
+namespace ddfg {
 
-#define VKOK(x) do { if ((x) != VK_SUCCESS) { WFG_LOGE("vk fail: %s", #x); return false; } } while (0)
+#define VKOK(x) do { if ((x) != VK_SUCCESS) { DDFG_LOGE("vk fail: %s", #x); return false; } } while (0)
 
 uint32_t FrameGen::findMemType(uint32_t bits, VkMemoryPropertyFlags props) const {
     for (uint32_t i = 0; i < memProps_.memoryTypeCount; ++i)
@@ -153,9 +153,9 @@ bool FrameGen::init(const DeviceDispatch* dd, const InstanceDispatch* id,
     if (!makePipe(pGmReduce_,  embedded::OF3_GM_REDUCE,  unused)) return false;
     if (!makePipe(pGmPrewarp_, embedded::OF3_GM_PREWARP, unused)) return false;
     if (!makePipe(pFlowReg_,  embedded::OF3_FLOWREG, unused)) return false;
-    if (!makePipe(pSynth_,    embedded::WFG_SYNTH, unused)) return false;
-    if (!makeGmBuffers()) { WFG_LOGE("framegen: GM SSBO alloc failed - C1 disabled"); }
-    WFG_LOGI("framegen init ok (queueFamily=%u, 10 pipelines, model=%d, C1 gm=%d, C2 flow_reg=%d iters=%d)",
+    if (!makePipe(pSynth_,    embedded::DDFG_SYNTH, unused)) return false;
+    if (!makeGmBuffers()) { DDFG_LOGE("framegen: GM SSBO alloc failed - C1 disabled"); }
+    DDFG_LOGI("framegen init ok (queueFamily=%u, 10 pipelines, model=%d, C1 gm=%d, C2 flow_reg=%d iters=%d)",
              queueFamily_, cfg_.model, cfg_.gmMode, cfg_.frMode, cfg_.frIters);
     return true;
 }
@@ -194,7 +194,7 @@ bool FrameGen::onResize(VkExtent2D extent, VkFormat  , bool force) {
     if (!makeImage(flowRegA_, levelExtent(extent, flowFinest_), VK_FORMAT_R16G16B16A16_SFLOAT, regUsage)) return false;
     if (!makeImage(flowRegB_, levelExtent(extent, flowFinest_), VK_FORMAT_R16G16B16A16_SFLOAT, regUsage)) return false;
     ready_ = true;
-    WFG_LOGI("framegen resized to %ux%u (%d pyramid levels, kFlowFinest=%d perf_preset=%d)",
+    DDFG_LOGI("framegen resized to %ux%u (%d pyramid levels, kFlowFinest=%d perf_preset=%d)",
              extent.width, extent.height, kLevels, flowFinest_, cfg_.perfPreset);
     return true;
 }

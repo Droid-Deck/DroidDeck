@@ -30,7 +30,7 @@
     <string name="frame_gen_title">Generare de cadre</string>
     <string name="frame_gen_hint">Selectează modul de generare a cadrelor</string>
     <string name="frame_gen_off">Dezactivat</string>
-    <string name="frame_gen_winfg">Win-FG %1$d×</string>
+    <string name="frame_gen_ddfg">DD-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
     <string name="frame_gen_lsfg_adaptive">LSFG Adaptiv %1$d</string>
     <string name="lsfg_needs_steam">Necesită Lossless Scaling pe Steam</string>
@@ -732,6 +732,9 @@
     <string name="setup_app_scale_default">%1$d%% (Implicit)</string>
     <string name="setup_theme">Temă</string>
     <string name="setup_theme_hint">Aspectul launcherului</string>
+    <string name="setup_launcher_icon">Pictograma aplicației</string>
+    <string name="setup_launcher_icon_dark">Întunecată</string>
+    <string name="setup_launcher_icon_light">Luminoasă</string>
     <string name="setup_home">Folosește ca ecran Acasă</string>
     <string name="setup_home_on">DroidDeck poate fi aplicația Acasă</string>
     <string name="setup_home_off">DroidDeck nu este niciodată oferit ca aplicație Acasă</string>
@@ -1442,8 +1445,8 @@
     <string name="fm_pin_current">Fixează folderul curent</string>
     <string name="fm_no_favorites">Niciun favorit încă - fixează un folder din meniul său ⋮ pentru a reveni rapid aici.</string>
     <string name="fm_unpin_favorite">Elimină din favorite</string>
-    <string name="fm_size_zero">0 bytes</string>
-    <string name="fm_unit_bytes">bytes</string>
+    <string name="fm_size_zero">0 octeți</string>
+    <string name="fm_unit_bytes">octeți</string>
     <string name="fm_prop_location">Locație</string>
     <string name="fm_prop_type">Tip</string>
     <string name="fm_prop_size">Dimensiune</string>
@@ -1562,7 +1565,7 @@
     <string name="ctrl_tint_white">Alb</string>
     <string name="ctrl_tint_violet">Violet</string>
     <string name="ctrl_tint_green">Verde</string>
-    <string name="ctrl_tint_amber">Amber</string>
+    <string name="ctrl_tint_amber">Chihlimbariu</string>
     <string name="ctrl_tint_red">Roșu</string>
     <string name="ctrl_tint_pink">Roz</string>
     <string name="ctrl_button_a">Butonul A</string>
@@ -1798,7 +1801,7 @@
     <string name="look_game_clarity_desc">Claritate cu puțin contrast - cea de zi cu zi.</string>
     <string name="look_vivid">Viu</string>
     <string name="look_vivid_desc">Culoare intensificată puternic. Eliminarea benzilor activată, ca cerurile să nu aibă dungi.</string>
-    <string name="look_cinematic">Cinematic</string>
+    <string name="look_cinematic">Cinematografic</string>
     <string name="look_cinematic_desc">Contrast mai profund, culoare mai rece, margini netezite.</string>
     <string name="look_competitive">Competitiv</string>
     <string name="look_competitive_desc">Umbre ridicate și claritate puternică - observă persoanele mai întâi.</string>
@@ -1944,7 +1947,6 @@
     <string name="stores_settings_eyebrow">Setări</string>
     <string name="stores_chip_signed_out">(neautentificat)</string>
     <string name="stores_tab_store">Magazin</string>
-    <string name="stores_tab_installed">Instalate</string>
     <string name="stores_tab_library">Bibliotecă</string>
     <string name="stores_tab_all">Toate</string>
     <string name="stores_tab_downloads">Descărcări</string>
@@ -1956,10 +1958,8 @@
     <string name="stores_signout_stay">Rămâi autentificat</string>
     <string name="stores_signout_go">Deconectare</string>
     <string name="stores_search_catalog">Caută în catalogul %1$s…</string>
-    <string name="stores_search_installed">Caută jocurile instalate…</string>
     <string name="stores_search_library">Caută în biblioteca ta…</string>
     <string name="stores_search_open">Căutare</string>
-    <string name="stores_installed_empty">Nimic instalat</string>
     <string name="stores_library_loading">Se încarcă</string>
     <string name="stores_nothing_matches">Niciun joc</string>
     <string name="stores_shelves_loading">Se încarcă magazinul…</string>
@@ -1978,7 +1978,19 @@
     <string name="stores_view_on">Vezi pe %1$s</string>
     <string name="stores_buy_price">Cumpără · %1$s</string>
     <string name="stores_installed_chip">Instalat</string>
+    <string name="stores_section_installed">Instalat</string>
+    <string name="stores_section_not_installed">Neinstalat</string>
     <string name="stores_in_library">În bibliotecă</string>
+    <string name="stores_itch_key">Cheie API</string>
+    <string name="stores_itch_get_key">Obține o cheie</string>
+    <string name="stores_itch_key_rejected">Cheie respinsă</string>
+    <string name="stores_itch_not_owned">Nu este în biblioteca ta itch.io</string>
+    <string name="stores_itch_no_upload">Nu există descărcare pentru Windows la acest joc</string>
+    <string name="stores_itch_no_exe">Nu s-a găsit niciun joc Windows în descărcare</string>
+    <string name="stores_itch_extract_failed">Descărcarea nu a putut fi extrasă (cod %1$d)</string>
+    <string name="stores_itch_no_catalog">itch.io nu a răspuns</string>
+    <string name="stores_itch_archive">Arhivele %1$s nu sunt acceptate</string>
+    <string name="stores_itch_download_failed">itch.io a răspuns HTTP %1$d</string>
     <string name="stores_free">Gratuit</string>
     <string name="stores_resume">Reluare</string>
     <string name="stores_refresh">Reîmprospătează</string>
@@ -1992,6 +2004,7 @@
     <string name="stores_sort_release_date">Data lansării</string>
     <string name="stores_view_list">Vizualizare listă</string>
     <string name="stores_view_cards">Vizualizare carduri</string>
+    <string name="stores_view_capsules">Vizualizare coperți</string>
     <string name="stores_show_mature">Arată conținutul pentru adulți</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

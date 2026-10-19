@@ -30,9 +30,9 @@
     <string name="frame_gen_title">Генерация кадров</string>
     <string name="frame_gen_hint">Выберите режим генерации кадров</string>
     <string name="frame_gen_off">Выкл.</string>
-    <string name="frame_gen_winfg">Win-FG %1$d×</string>
+    <string name="frame_gen_ddfg">DD-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
-    <string name="frame_gen_lsfg_adaptive">LSFG Adaptive %1$d</string>
+    <string name="frame_gen_lsfg_adaptive">LSFG Адаптивный %1$d</string>
     <string name="lsfg_needs_steam">Требуется Lossless Scaling из Steam</string>
     <string name="lsfg_needs_install">Установите Lossless Scaling в Steam или импортируйте Lossless.dll</string>
     <string name="lsfg_import">Импорт Lossless.dll…</string>
@@ -750,6 +750,9 @@
     <string name="setup_app_scale_default">%1$d%% (по умолчанию)</string>
     <string name="setup_theme">Тема</string>
     <string name="setup_theme_hint">Внешний вид лаунчера</string>
+    <string name="setup_launcher_icon">Значок приложения</string>
+    <string name="setup_launcher_icon_dark">Тёмный</string>
+    <string name="setup_launcher_icon_light">Светлый</string>
     <string name="setup_home">Использовать как главный экран</string>
     <string name="setup_home_on">DroidDeck может использоваться как приложение главного экрана</string>
     <string name="setup_home_off">DroidDeck не будет доступен как приложение главного экрана</string>
@@ -1610,7 +1613,7 @@
     <string name="ctrl_button_rt">Правый триггер</string>
     <string name="ctrl_button_view">Кнопка View</string>
     <string name="ctrl_button_menu">Кнопка «Меню»</string>
-    <string name="ctrl_target_view">View</string>
+    <string name="ctrl_target_view">Вид</string>
     <string name="ctrl_target_menu">Меню</string>
     <string name="ctrl_target_up">Крестовина вверх</string>
     <string name="ctrl_target_down">Крестовина вниз</string>
@@ -1980,7 +1983,6 @@
     <string name="stores_settings_eyebrow">Настройки</string>
     <string name="stores_chip_signed_out">(вход не выполнен)</string>
     <string name="stores_tab_store">Магазин</string>
-    <string name="stores_tab_installed">Установлено</string>
     <string name="stores_tab_library">Библиотека</string>
     <string name="stores_tab_all">Все</string>
     <string name="stores_tab_downloads">Загрузки</string>
@@ -1992,10 +1994,8 @@
     <string name="stores_signout_stay">Не выходить</string>
     <string name="stores_signout_go">Выйти</string>
     <string name="stores_search_catalog">Поиск в каталоге %1$s…</string>
-    <string name="stores_search_installed">Поиск установленных игр…</string>
     <string name="stores_search_library">Поиск в библиотеке…</string>
     <string name="stores_search_open">Поиск</string>
-    <string name="stores_installed_empty">Ничего не установлено</string>
     <string name="stores_library_loading">Загрузка</string>
     <string name="stores_nothing_matches">Нет игр</string>
     <string name="stores_shelves_loading">Загрузка магазина…</string>
@@ -2014,7 +2014,19 @@
     <string name="stores_view_on">Открыть в %1$s</string>
     <string name="stores_buy_price">Купить · %1$s</string>
     <string name="stores_installed_chip">Установлено</string>
+    <string name="stores_section_installed">Установлено</string>
+    <string name="stores_section_not_installed">Не установлено</string>
     <string name="stores_in_library">В библиотеке</string>
+    <string name="stores_itch_key">Ключ API</string>
+    <string name="stores_itch_get_key">Получить ключ</string>
+    <string name="stores_itch_key_rejected">Ключ отклонён</string>
+    <string name="stores_itch_not_owned">Нет в вашей библиотеке itch.io</string>
+    <string name="stores_itch_no_upload">Для этой игры нет загрузки для Windows</string>
+    <string name="stores_itch_no_exe">В загрузке не найдена игра для Windows</string>
+    <string name="stores_itch_extract_failed">Не удалось распаковать загрузку (код %1$d)</string>
+    <string name="stores_itch_no_catalog">itch.io не ответил</string>
+    <string name="stores_itch_archive">Архивы %1$s не поддерживаются</string>
+    <string name="stores_itch_download_failed">itch.io ответил HTTP %1$d</string>
     <string name="stores_free">Бесплатно</string>
     <string name="stores_resume">Продолжить</string>
     <string name="stores_refresh">Обновить</string>
@@ -2028,6 +2040,7 @@
     <string name="stores_sort_release_date">Дата выхода</string>
     <string name="stores_view_list">Вид списком</string>
     <string name="stores_view_cards">Вид карточками</string>
+    <string name="stores_view_capsules">Вид обложек</string>
     <string name="stores_show_mature">Показывать контент для взрослых</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

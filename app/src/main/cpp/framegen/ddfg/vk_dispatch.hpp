@@ -3,7 +3,7 @@
 #include <vulkan/vk_layer.h>
 #include <cstring>
 
-namespace winfg {
+namespace ddfg {
 
 static inline void* dispatch_key(void* handle) { return *reinterpret_cast<void**>(handle); }
 
