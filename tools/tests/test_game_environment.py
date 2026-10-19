@@ -1061,9 +1061,19 @@ class ForceSsbsTest(unittest.TestCase):
                 "#!" + sys.executable + "\nimport os, sys\nprint(os.environ.get('PROTON_EAC_RUNTIME', ''))\n"
             )
             proton.chmod(0o755)
+            sub_env = {
+                k: v for k, v in os.environ.items()
+                if k not in (
+                    "BL_X64_STEAM_ROOT",
+                    "STEAM_COMPAT_CLIENT_INSTALL_PATH",
+                    "PROTON_EAC_RUNTIME",
+                    "PROTON_BATTLEYE_RUNTIME",
+                )
+            }
+            sub_env.update(HOME=str(root), XDG_DATA_HOME=str(root / ".local/share"), SteamAppId="1808500")
             proc = subprocess.run(
                 [sys.executable, str(BIN / "droiddeck-game-env"), str(proton), "waitforexitandrun", str(exe)],
-                env=dict(os.environ, HOME=str(root), SteamAppId="1808500"),
+                env=sub_env,
                 capture_output=True,
                 text=True,
                 timeout=20,
