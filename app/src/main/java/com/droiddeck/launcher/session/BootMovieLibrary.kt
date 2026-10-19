@@ -343,7 +343,7 @@ object BootMovieLibrary {
             if (luma >= MIN_COVER_LUMA) return frame
             if (luma > bestLuma) { best = frame; bestLuma = luma }
         }
-        return best
+        return best ?: runCatching { retriever.frameAtTime }.getOrNull()
     }
 
     private fun averageLuma(bitmap: Bitmap): Int {
@@ -358,12 +358,17 @@ object BootMovieLibrary {
 
     private const val MIN_COVER_LUMA = 24
 
+    /** The picture Steam keeps next to a movie it manages, when there is one. */
+    private fun previewBeside(movie: File): File? =
+        listOf("jpg", "jpeg", "png").map { File(movie.parentFile, movie.nameWithoutExtension + "." + it) }.firstOrNull { it.isFile && it.length() > 0L }
+
     /** A cover for a movie: the picture SteamDeckRepo gave it, or one frame taken from the video and remembered. */
     fun cover(context: Context, entry: Entry): File? {
         val file = fileOf(context, entry) ?: return null
         val name = if (entry.id.startsWith(PREFIX)) file.name else entry.id
         val given = File(thumbsDir(context), coverName(name))
         if (given.isFile && given.length() > 0L) return given
+        if (entry.source == SOURCE_POINTSHOP) previewBeside(file)?.let { return it }
         val key = "frame-" + safe(name) + "-v2-" + file.length() + "-" + file.lastModified() + ".jpg"
         val frame = File(thumbsDir(context), key)
         if (frame.isFile && frame.length() > 0L) return frame

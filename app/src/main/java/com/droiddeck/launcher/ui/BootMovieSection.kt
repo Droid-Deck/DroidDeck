@@ -223,7 +223,6 @@ private fun InstalledMoviesDialog(a: ModeSettingsActions, onDismiss: () -> Unit)
         )
     }
     AppDialog(shown, close, "boot-movies", wide = false) {
-        DialogTitleRow(stringResource(R.string.boot_movie_installed), close)
         val filters = listOf(
             null to stringResource(R.string.store_all),
             BootMovieLibrary.SOURCE_DROIDDECK to movieSourceLabel(BootMovieLibrary.SOURCE_DROIDDECK),
@@ -232,12 +231,29 @@ private fun InstalledMoviesDialog(a: ModeSettingsActions, onDismiss: () -> Unit)
             BootMovieLibrary.SOURCE_REPO to movieSourceLabel(BootMovieLibrary.SOURCE_REPO),
             BootMovieLibrary.SOURCE_IMPORT to movieSourceLabel(BootMovieLibrary.SOURCE_IMPORT),
         )
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
-            filters.chunked(3).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-                    row.forEach { (source, label) -> TabChip(label, filter == source, Modifier.weight(1f)) { filter = source } }
+        var filterOpen by remember { mutableStateOf(false) }
+        Row(
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+        ) {
+            Text(
+                stringResource(R.string.boot_movie_installed), fontSize = 15.sp, color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+            )
+            Box {
+                androidx.compose.runtime.CompositionLocalProvider(LocalChipMinWidth provides 100.dp) {
+                    ValueChip(filters.first { it.first == filter }.second, filterOpen) { filterOpen = !filterOpen }
+                }
+                AnchoredMenu(filterOpen, onDismiss = { filterOpen = false }, compact = true) { firstItemFocus ->
+                    filters.forEachIndexed { index, (source, label) ->
+                        MenuItem(label, checked = filter == source, focusRequester = if (index == 0) firstItemFocus else null) {
+                            filter = source
+                            filterOpen = false
+                        }
+                    }
                 }
             }
+            SmallIconButton(Icons.Filled.Close, stringResource(R.string.common_close), tint = MaterialTheme.colorScheme.error, onClick = close)
         }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().heightIn(max = 460.dp)) {
             items(snapshot?.entries.orEmpty().filter { filter == null || it.source == filter }, key = { it.id }) { entry ->
