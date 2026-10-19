@@ -35,4 +35,17 @@ class LibraryArchTest {
         val second = AddedGames.Game(other, "Other", File(other, "Other.exe"), "/g/Other.exe", "/g", 0x81234567L, (0x81234567L shl 32) or 0x02000000L, emptyList())
         assertEquals(listOf("Example" to "internal", "Other" to Library.ADDED), Library.launchableGames(app, added = listOf(added, second), arch = "arm64").map { it.name to it.library })
     }
+
+    @Test fun manifestsWithToolManifestVdfAreExcludedFromSteamGames() {
+        SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
+        val apps = File(SessionPrefs.steamRoot(app, "arm64"), "steamapps").apply { mkdirs() }
+        File(apps, "common/CustomProton/toolmanifest.vdf").apply { parentFile?.mkdirs(); writeText("\"manifest\" {}") }
+        File(apps, "appmanifest_999999.acf").writeText(
+            "\"AppState\"\n{\n\t\"appid\"\t\t\"999999\"\n\t\"name\"\t\t\"Custom Proton\"\n\t\"StateFlags\"\t\t\"4\"\n\t\"installdir\"\t\t\"CustomProton\"\n}\n"
+        )
+        File(apps, "appmanifest_1808500.acf").writeText(
+            "\"AppState\"\n{\n\t\"appid\"\t\t\"1808500\"\n\t\"name\"\t\t\"ARC Raiders\"\n\t\"StateFlags\"\t\t\"4\"\n\t\"installdir\"\t\t\"Arc Raiders\"\n}\n"
+        )
+        assertEquals(listOf(1808500), Library.steamGames(app, arch = "arm64").map { it.appId })
+    }
 }

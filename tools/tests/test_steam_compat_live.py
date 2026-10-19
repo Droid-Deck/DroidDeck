@@ -578,13 +578,27 @@ class ReconcileTest(unittest.TestCase):
             "default": TOOL,
             "auto": {"10": TOOL, "1245040": TOOL, "999": TOOL},
         }))
+        (self.state / "games.json").write_text(json.dumps({
+            "version": 1,
+            "games": {
+                "1245040": None,
+                "1826330": {"valve": True, "dir": "Proton Experimental (ARM64)"},
+            },
+        }))
         page = FakePage({"0": TOOL, "10": TOOL, "11": "proton_experimental"}, [TOOL, TOOL_11])
         many = page.compat
-        page.compat = lambda call: (
-            {k: v for k, v in many(call).items() if k != "999"}
-            if call.startswith("many(") else many(call)
-        )
+        queried = []
+
+        def compat(call):
+            if call.startswith("many("):
+                queried.extend(json.loads("[%s]" % call.partition("(")[2][:-1])[0])
+                return {k: v for k, v in many(call).items() if k != "999"}
+            return many(call)
+
+        page.compat = compat
         state = self.reconcile(page)
+        self.assertNotIn("1245040", queried)
+        self.assertNotIn("1826330", queried)
         self.assertEqual(page.sets, [("11", TOOL)])
         self.assertEqual(state["auto"], {"10": TOOL, "11": TOOL})
         self.assertEqual(self.helper.installed, ["10", "11", "999"])

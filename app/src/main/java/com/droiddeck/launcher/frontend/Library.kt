@@ -121,12 +121,13 @@ object Library {
                     val name = NAME.find(text)?.groupValues?.get(1)?.trim().orEmpty()
                     val flags = STATE.find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
                     if (name.isEmpty() || flags and 4 == 0) return@forEach
-                    val art = steamCacheImage(cache, appId, STEAM_CAPSULES)
-                    val hero = steamCacheImage(cache, appId, STEAM_HEROES)
-                    val lastPlayed = LAST_PLAYED.find(text)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
                     val installDir = INSTALL_DIR.find(text)?.groupValues?.get(1)?.trim()
                         ?.takeIf { it.isNotEmpty() && it != "." && it != ".." && '/' !in it && '\\' !in it }
                     val gameFiles = installDir?.let { File(steamapps, "common/$it").takeIf(File::isDirectory) }
+                    if (gameFiles != null && File(gameFiles, "toolmanifest.vdf").isFile) return@forEach
+                    val art = steamCacheImage(cache, appId, STEAM_CAPSULES)
+                    val hero = steamCacheImage(cache, appId, STEAM_HEROES)
+                    val lastPlayed = LAST_PLAYED.find(text)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
                     out[appId] = SteamGameArt.withOverrides(context, SteamGame(
                         appId, name, art, label, hero = hero, lastPlayed = lastPlayed,
                         gameFiles = gameFiles,

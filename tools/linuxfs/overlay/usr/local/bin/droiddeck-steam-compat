@@ -566,8 +566,11 @@ class Helper:
             native_choices = {app for app in (prior_native if isinstance(prior_native, (list, tuple, set)) else ())
                               if str(app) not in not_games}
             apps = sorted(set(installed) | set(picks) | set(prior_auto) | native_choices, key=COMPAT["app_order"])
-            overrides = COMPAT["requested_games"](
-                COMPAT["game_requests"](), catalog, [t["name"] for t in live])
+            overrides = {
+                app: tool for app, tool in COMPAT["requested_games"](
+                    COMPAT["game_requests"](), catalog, [t["name"] for t in live]).items()
+                if str(app) not in not_games
+            }
             apps = sorted(set(apps) | set(overrides), key=COMPAT["app_order"])
             current = dict(page.compat("many(%s)" % json.dumps(apps)) or {})
             rejected = (set(apps) - set(current)) - {"0"}
