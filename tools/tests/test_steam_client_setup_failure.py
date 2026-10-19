@@ -31,7 +31,8 @@ class SteamClientSetupFailureTest(unittest.TestCase):
         script.chmod(0o755)
 
     def env(self, **extra):
-        return dict(os.environ, PATH=str(self.root) + os.pathsep + os.environ['PATH'],
+        base = {k: v for k, v in os.environ.items() if k != 'BL_STEAM_EXIT_FILE'}
+        return dict(base, PATH=str(self.root) + os.pathsep + os.environ['PATH'],
                     XDG_RUNTIME_DIR=str(self.root), **extra)
 
     def run_block(self, status, exit_file=None):
