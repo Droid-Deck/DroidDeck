@@ -485,16 +485,18 @@ class MainActivity : ComponentActivity() {
         pickSaveDir.launch(InAppFilePicker.buildDirIntent(this, getString(R.string.game_file_folder), gameSyncFolder))
     }
 
-    private fun switchLauncherIcon(style: String) {
+    private fun switchLauncherIcon(style: String): Boolean {
         val before = LauncherIcon.current(this)
         LauncherIcon.set(this, style)
         launcherIcon = LauncherIcon.current(this)
-        if (launcherIcon == before) return
+        if (launcherIcon == before) return false
         // Android finishes activities started through the alias that was just disabled.
         startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
             .setComponent(LauncherIcon.activity(this))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
             .putExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV, "setup:launcher"))
+        finishAndRemoveTask()
+        return true
     }
 
     private fun readGameIntent(request: Intent) {
@@ -2061,7 +2063,7 @@ class MainActivity : ComponentActivity() {
                 com.droiddeck.launcher.core.AppLanguage.setChosen(this, com.droiddeck.launcher.core.AppLanguage.SYSTEM)
                 if (!ok) android.widget.Toast.makeText(this, R.string.setup_reset_settings_partial, android.widget.Toast.LENGTH_LONG).show()
                 com.droiddeck.launcher.ui.Motion.refresh(this)
-                recreate()
+                if (!switchLauncherIcon(LauncherIcon.DARK)) recreate()
             }
         }, "reset-settings").start()
     }
