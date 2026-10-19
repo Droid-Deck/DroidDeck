@@ -475,6 +475,19 @@ github_sources() {
       ;;
   esac
 }
+# Valve's zips carry Windows separators; the client looks for clientui/fonts, not clientui\fonts.
+fix_backslashes() {
+  local odd fixed
+  find "$STEAM_X64" -depth -name '*\\*' | while read -r odd; do
+    fixed=${odd//\\/\/}
+    mkdir -p "$(dirname "$fixed")"
+    if [ -d "$odd" ]; then
+      cp -a "$odd/." "$fixed/" && rm -rf "$odd"
+    else
+      mv -f "$odd" "$fixed"
+    fi
+  done
+}
 x64_download() {
   local url=$1 out=$2 label=$3 sha=$4 source rc
   for source in $(github_sources "$url"); do
@@ -496,6 +509,7 @@ x64_fex || { step "FEX could not be installed; see $LOG"; exit 1; }
 step "FEX ready ($FEX_NOW, $FEX_FROM)"
 # The client's opt-in to its SteamRT3 build; without it, it re-executes through steam.sh, whose checks fail under proot.
 mkdir -p "$STEAM_X64" && : > "$STEAM_X64/.steam-enable-steamrt64-client"
+fix_backslashes
 
 if [ ! -f "$ROOTFS/.droiddeck-complete" ]; then
   # Resumes a part-done download; a finished one answers 416, which is not a failure here.
