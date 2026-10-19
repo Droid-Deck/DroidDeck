@@ -76,6 +76,8 @@ bool Engine::prepare(uint32_t w, uint32_t h, VkFormat fmt) {
     return true;
 }
 
+static_assert(kMaxGenerations <= (uint32_t)FrameGen::kSynthSlots, "each generation needs its own synth slot");
+
 uint32_t Engine::plan(uint32_t capacity) const {
     if (!valid() || history_ < 2) return 0;
     const uint32_t want = (uint32_t)std::max(cfg_.multiplier - 1, 0);
@@ -131,7 +133,8 @@ void Engine::generateInto(VkCommandBuffer cmd, uint32_t generation, uint32_t cou
     dd_.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &toWrite);
 
-    fg_.record(cmd, prev.view, curr.view, targetView, alphaFor(generation, count), gmSlot_);
+    fg_.record(cmd, prev.view, curr.view, targetView, alphaFor(generation, count), gmSlot_,
+               generation, generation > 0);
     if (generation + 1 == count) gmSlot_ = (gmSlot_ + 1) % (uint32_t)FrameGen::kGmSlots;
 
     (void)w; (void)h;
