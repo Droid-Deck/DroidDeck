@@ -99,6 +99,12 @@ def godot_sentry(game):
 
 
 @fix
+def deep_rock_gdk_raytracing(game):
+    if game.stem == "fsd-wingdk-shipping" and not any(game.has_arg(arg) for arg in ("-raytracing", "-noraytracing")):
+        return {}, ["-noraytracing", "-ini:Engine:[/Script/Engine.RendererSettings]:r.RayTracing=False"], "Deep Rock Galactic GDK: ray tracing off (D3D12 pipeline creation fails on Thor)"
+
+
+@fix
 def arkham_city_x87(game):
     """Batman: Arkham City (BatmanAC.exe, also started through BmLauncher.exe beside it) leans on x87
     and stops with Unreal's "Fatal error!" right after start when FEX reduces its precision."""

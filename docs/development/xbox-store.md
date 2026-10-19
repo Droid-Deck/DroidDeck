@@ -83,6 +83,11 @@ Verified during development:
   Windows launcher with a Microsoft account displayed on Thor. The account
   service remained running with the executable. Minecraft gameplay and in-game
   Xbox services remain unverified.
+- Deep Rock Galactic's GDK executable also loads through Xodus/ARM64 Proton.
+  Its default launch crashes in D3D12 ray-tracing pipeline creation. Disabling
+  ray tracing in Unreal reaches the rendered title screen on Thor; this workaround
+  is applied to `FSD-WinGDK-Shipping.exe`. Gameplay and online services remain
+  unverified.
 - Account-free tests cover purchase/subscription separation, stale/wrong-account
   responses, malformed parent licenses, manifest traversal/XXE rejection,
   fail-closed encrypted credential writes, download checkpoint behavior,

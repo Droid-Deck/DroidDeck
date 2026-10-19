@@ -179,6 +179,17 @@ class GameEnvironmentTest(unittest.TestCase):
             (other / "Other.exe").touch()
             self.assertEqual(MODULE["engine_fixes"](str(other / "Other.exe"), []), ({}, [], []))
 
+    def test_deep_rock_gdk_avoids_the_raytracing_pipeline_crash(self):
+        game = "/game/FSD/Binaries/WinGDK/FSD-WinGDK-Shipping.exe"
+        env, extra, notes = MODULE["engine_fixes"](game, [])
+        self.assertEqual(extra, ["-noraytracing", "-ini:Engine:[/Script/Engine.RendererSettings]:r.RayTracing=False"])
+        self.assertEqual(env, {})
+        self.assertTrue(notes)
+        for choice in ("-raytracing", "-noraytracing"):
+            self.assertEqual(MODULE["engine_fixes"](game, [choice]), ({}, [], []))
+        self.assertEqual(MODULE["engine_fixes"]("/game/FSD-Win64-Shipping.exe", []), ({}, [], []))
+        self.assertEqual(MODULE["engine_fixes"]("/game/Other-WinGDK-Shipping.exe", []), ({}, [], []))
+
     def test_arkham_city_gets_full_x87_precision_over_the_preset(self):
         with tempfile.TemporaryDirectory() as tmp:
             city = Path(tmp) / "Batman Arkham City GOTY/Binaries/Win32"
