@@ -1,0 +1,37 @@
+name: Conventions
+
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: conventions-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  conventions:
+    name: Conventions
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Fetch the pull request head
+        run: git fetch --no-tags origin "pull/${{ github.event.pull_request.number }}/head:pr"
+
+      - name: Record the title and body
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: python3 -I -c "import os, pathlib; pathlib.Path('pr-title.txt').write_text(os.environ.get('PR_TITLE') or '', encoding='utf-8'); pathlib.Path('pr-body.md').write_text(os.environ.get('PR_BODY') or '', encoding='utf-8')"
+
+      # The checker executed here is the copy on main. Do not check out the pull request branch or run its files.
+      - name: Check conventions
+        run: python3 -I tools/check_conventions.py --base main --head pr --title-file pr-title.txt --body pr-body.md

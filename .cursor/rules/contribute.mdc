@@ -1,0 +1,12 @@
+---
+description: Contribution procedure
+alwaysApply: true
+---
+
+Follow AGENTS.md. Hard stops:
+
+- If `git status --porcelain` is not empty, or this branch was not just created from fetched `origin/main`, stop.
+- If an open pull request already changes the same files, stop and link it.
+- Do not push to `origin`. Open with `gh pr create --repo Droid-Deck/DroidDeck --head <fork-owner>:<branch> --base main`.
+- Commit only the fix. No notes, images, logs, or extra agent instruction files.
+- Run `python tools/check_conventions.py --base origin/main --title "..." --body <file>` and require it to pass before `gh pr create`.
