@@ -204,8 +204,10 @@ object AddedGames {
         GamesFolderMigration.run(context)
         val path = canonical(exe)
         fun holds(f: File) = inside(path, canonical(f))
-        AddedExes.list(context).map { File(it.folder) }.firstOrNull(::holds)?.let { return it }
-        SessionPrefs.removedAddedGames(context).map { File(it) }.firstOrNull(::holds)?.let { return it }
+        val entries = AddedExes.list(context)
+        fun owns(f: File) = holds(f) && sameGame(f, currentExe(context, entries, f), exe)
+        entries.map { File(it.folder) }.filter(::owns).maxByOrNull { canonical(it).length }?.let { return it }
+        SessionPrefs.removedAddedGames(context).map { File(it) }.filter(::owns).maxByOrNull { canonical(it).length }?.let { return it }
         StoreInstallRoot.gameFolders(context).firstOrNull(::holds)?.let { return it }
         val dirs = listOfNotNull(
             GameStorage.effective(context)?.let { File(it.path, "steamapps/common") },
@@ -219,6 +221,24 @@ object AddedGames {
         }
         return null
     }
+
+    private fun currentExe(context: Context, entries: List<AddedExes.Entry>, folder: File): File? =
+        SessionPrefs.addedGameExe(context, folder.path).takeIf { it.isNotEmpty() }?.let(::File)
+            ?: entries.firstOrNull { it.folder == folder.path }?.let { File(it.exe) }
+            ?: rank(folder).exes.firstOrNull()
+
+    private fun sameGame(folder: File, current: File?, pick: File): Boolean {
+        val base = canonical(folder)
+        if (current == null || pick.parentFile?.let(::canonical) == base) return true
+        val known = canonical(current)
+        if (!inside(known, base) || known.substringBeforeLast('/') == base) return true
+        val picked = canonical(pick)
+        fun top(p: String) = p.removePrefix("$base/").substringBefore('/')
+        fun stem(p: String) = p.substringAfterLast('/').lowercase().removeSuffix(".exe").replace(EXE_BUILD, "").filter { it.isLetterOrDigit() }
+        return top(known) == top(picked) || stem(known).let { it.isNotEmpty() && it == stem(picked) }
+    }
+
+    private val EXE_BUILD = Regex("([-_. ](x64|x86|win64|win32|64|32|shipping))+$")
 
     fun addExe(context: Context, exe: File): AddResult {
         val app = context.applicationContext
