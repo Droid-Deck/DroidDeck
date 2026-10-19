@@ -729,6 +729,9 @@
     <string name="setup_app_scale_default">%1$d%% (Alapértelmezett)</string>
     <string name="setup_theme">Téma</string>
     <string name="setup_theme_hint">Az indítóalkalmazás megjelenése</string>
+    <string name="setup_launcher_icon">Alkalmazásikon</string>
+    <string name="setup_launcher_icon_dark">Sötét</string>
+    <string name="setup_launcher_icon_light">Világos</string>
     <string name="setup_home">Használat kezdőképernyőként</string>
     <string name="setup_home_on">A DroidDeck lehet a kezdőképernyő alkalmazás</string>
     <string name="setup_home_off">A DroidDeck soha nem jelenik meg kezdőképernyő alkalmazásként</string>

@@ -726,6 +726,9 @@
     <string name="setup_app_scale_default">%1$d%% (Mặc định)</string>
     <string name="setup_theme">Giao diện</string>
     <string name="setup_theme_hint">Giao diện launcher</string>
+    <string name="setup_launcher_icon">Biểu tượng ứng dụng</string>
+    <string name="setup_launcher_icon_dark">Tối</string>
+    <string name="setup_launcher_icon_light">Sáng</string>
     <string name="setup_home">Dùng làm màn hình chính</string>
     <string name="setup_home_on">DroidDeck có thể là ứng dụng Màn hình chính</string>
     <string name="setup_home_off">DroidDeck không bao giờ được đề xuất làm ứng dụng Màn hình chính</string>

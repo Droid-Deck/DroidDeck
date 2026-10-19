@@ -732,6 +732,9 @@
     <string name="setup_app_scale_default">%1$d%% (Implicit)</string>
     <string name="setup_theme">Temă</string>
     <string name="setup_theme_hint">Aspectul launcherului</string>
+    <string name="setup_launcher_icon">Pictograma aplicației</string>
+    <string name="setup_launcher_icon_dark">Întunecată</string>
+    <string name="setup_launcher_icon_light">Luminoasă</string>
     <string name="setup_home">Folosește ca ecran Acasă</string>
     <string name="setup_home_on">DroidDeck poate fi aplicația Acasă</string>
     <string name="setup_home_off">DroidDeck nu este niciodată oferit ca aplicație Acasă</string>

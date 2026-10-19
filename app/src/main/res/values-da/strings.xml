@@ -729,6 +729,9 @@
     <string name="setup_app_scale_default">%1$d%% (standard)</string>
     <string name="setup_theme">Tema</string>
     <string name="setup_theme_hint">Launcherens udseende</string>
+    <string name="setup_launcher_icon">Appikon</string>
+    <string name="setup_launcher_icon_dark">Mørk</string>
+    <string name="setup_launcher_icon_light">Lys</string>
     <string name="setup_home">Brug som startskærm</string>
     <string name="setup_home_on">DroidDeck kan være Home-appen</string>
     <string name="setup_home_off">DroidDeck tilbydes aldrig som Home-app</string>

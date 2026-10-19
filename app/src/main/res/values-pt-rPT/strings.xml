@@ -721,6 +721,9 @@
     <string name="setup_app_scale_default">%1$d%% (padrão)</string>
     <string name="setup_theme">Tema</string>
     <string name="setup_theme_hint">Aspeto do iniciador</string>
+    <string name="setup_launcher_icon">Ícone da app</string>
+    <string name="setup_launcher_icon_dark">Escuro</string>
+    <string name="setup_launcher_icon_light">Claro</string>
     <string name="setup_home">Utilizar como página inicial</string>
     <string name="setup_home_on">O DroidDeck pode ser a app de página inicial</string>
     <string name="setup_home_off">O DroidDeck nunca é proposto como app de página inicial</string>

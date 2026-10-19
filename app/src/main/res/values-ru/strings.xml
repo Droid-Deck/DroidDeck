@@ -732,6 +732,9 @@
     <string name="setup_app_scale_default">%1$d%% (по умолчанию)</string>
     <string name="setup_theme">Тема</string>
     <string name="setup_theme_hint">Внешний вид лаунчера</string>
+    <string name="setup_launcher_icon">Значок приложения</string>
+    <string name="setup_launcher_icon_dark">Тёмный</string>
+    <string name="setup_launcher_icon_light">Светлый</string>
     <string name="setup_home">Использовать как главный экран</string>
     <string name="setup_home_on">DroidDeck может использоваться как приложение главного экрана</string>
     <string name="setup_home_off">DroidDeck не будет доступен как приложение главного экрана</string>

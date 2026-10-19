@@ -726,6 +726,9 @@
     <string name="setup_app_scale_default">%1$d%% (Default)</string>
     <string name="setup_theme">Tema</string>
     <string name="setup_theme_hint">Tampilan peluncur</string>
+    <string name="setup_launcher_icon">Ikon aplikasi</string>
+    <string name="setup_launcher_icon_dark">Gelap</string>
+    <string name="setup_launcher_icon_light">Terang</string>
     <string name="setup_home">Gunakan sebagai Layar Utama</string>
     <string name="setup_home_on">DroidDeck dapat menjadi aplikasi Utama</string>
     <string name="setup_home_off">DroidDeck tidak pernah ditawarkan sebagai aplikasi Utama</string>

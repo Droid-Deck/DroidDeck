@@ -726,6 +726,9 @@
     <string name="setup_app_scale_default">%1$d%% (ค่าเริ่มต้น)</string>
     <string name="setup_theme">ธีม</string>
     <string name="setup_theme_hint">รูปลักษณ์ของตัวเปิดแอป</string>
+    <string name="setup_launcher_icon">ไอคอนแอป</string>
+    <string name="setup_launcher_icon_dark">มืด</string>
+    <string name="setup_launcher_icon_light">สว่าง</string>
     <string name="setup_home">ใช้เป็นหน้าจอหลัก</string>
     <string name="setup_home_on">DroidDeck สามารถเป็นแอปหน้าจอหลักได้</string>
     <string name="setup_home_off">DroidDeck จะไม่ถูกเสนอให้เป็นแอปหน้าจอหลัก</string>

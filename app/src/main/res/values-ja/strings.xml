@@ -726,6 +726,9 @@
     <string name="setup_app_scale_default">%1$d%%（デフォルト）</string>
     <string name="setup_theme">テーマ</string>
     <string name="setup_theme_hint">ランチャーの外観</string>
+    <string name="setup_launcher_icon">アプリアイコン</string>
+    <string name="setup_launcher_icon_dark">ダーク</string>
+    <string name="setup_launcher_icon_light">ライト</string>
     <string name="setup_home">ホーム画面として使用</string>
     <string name="setup_home_on">DroidDeckをホームアプリとして使用できます</string>
     <string name="setup_home_off">DroidDeckはホームアプリとして提供されません</string>

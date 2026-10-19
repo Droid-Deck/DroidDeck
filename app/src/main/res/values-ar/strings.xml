@@ -741,6 +741,9 @@
     <string name="setup_app_scale_default">%1$d%% (افتراضي)</string>
     <string name="setup_theme">المظهر</string>
     <string name="setup_theme_hint">مظهر المشغّل</string>
+    <string name="setup_launcher_icon">أيقونة التطبيق</string>
+    <string name="setup_launcher_icon_dark">داكنة</string>
+    <string name="setup_launcher_icon_light">فاتحة</string>
     <string name="setup_home">استخدام كشاشة رئيسية</string>
     <string name="setup_home_on">يمكن أن يكون DroidDeck تطبيق الشاشة الرئيسية</string>
     <string name="setup_home_off">لا يُعرَض DroidDeck أبدًا كتطبيق للشاشة الرئيسية</string>
