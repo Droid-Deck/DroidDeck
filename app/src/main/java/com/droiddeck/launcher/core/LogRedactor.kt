@@ -181,8 +181,58 @@ object LogRedactor {
         }
     }
 
+    private const val SHARE_LINE_MAX = 64 * 1024
+
     fun scrubForShare(src: java.io.File, out: java.io.Writer) {
-        src.forEachLine { line -> out.write(redactForShare(line)); out.write("\n") }
+        src.inputStream().buffered().use { input ->
+            input.mark(2)
+            val first = input.read()
+            val second = input.read()
+            input.reset()
+            if ((first == 0xff && second == 0xfe) || (first == 0xfe && second == 0xff)) {
+                out.write("<unsupported encoding; file withheld>\n")
+                return
+            }
+            val decoder = Charsets.UTF_8.newDecoder()
+                .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+            java.io.InputStreamReader(input, decoder).use { reader ->
+                val buffer = CharArray(8192)
+                val line = StringBuilder()
+                var withheld = false
+                var afterCr = false
+                fun emit() {
+                    out.write(if (withheld) "<unsupported or oversized line withheld>" else redactForShare(line.toString()))
+                    out.write("\n")
+                    line.setLength(0)
+                    withheld = false
+                }
+                while (true) {
+                    val size = reader.read(buffer)
+                    if (size < 0) break
+                    for (i in 0 until size) {
+                        val ch = buffer[i]
+                        if (afterCr) {
+                            afterCr = false
+                            if (ch == '\n') continue
+                        }
+                        if (ch == '\r' || ch == '\n') {
+                            emit()
+                            afterCr = ch == '\r'
+                        } else if (!withheld) {
+                            // Splitting a line can separate a credential from its label.
+                            if (ch == '\u0000' || line.length == SHARE_LINE_MAX) {
+                                withheld = true
+                                line.setLength(0)
+                            } else {
+                                line.append(ch)
+                            }
+                        }
+                    }
+                }
+                if (withheld || line.isNotEmpty()) emit()
+            }
+        }
     }
 
     private fun quoted(value: String): String {

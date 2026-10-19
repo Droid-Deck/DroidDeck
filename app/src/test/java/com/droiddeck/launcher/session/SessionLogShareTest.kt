@@ -53,6 +53,14 @@ class SessionLogShareTest {
         assertFalse(out.getValue("crash.log").contains(leaked))
     }
 
+    @Test fun utf16SecretsDoNotEscapeInTheSharedZip() {
+        val folder = tmp.newFolder("2026-10-18-03-steam")
+        File(folder, "crash.log").writeBytes("sessionid=$leaked".toByteArray(Charsets.UTF_16LE))
+        val output = zip(folder).getValue("crash.log")
+        assertFalse(output.replace("\u0000", "").contains(leaked))
+        assertTrue(output.contains("withheld"))
+    }
+
     @Test fun aRecordedUnchangedFileIsScrubbedAgainOnTheWayIntoTheZip() {
         val folder = tmp.newFolder("2026-10-06-01-steam")
         File(folder, "session.log").writeText("$secret\n")
