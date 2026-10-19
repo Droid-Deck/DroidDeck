@@ -13,6 +13,7 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
+import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import org.json.JSONObject
@@ -150,19 +151,22 @@ object CloudSaves {
     fun keepCloud(context: Context, store: Store, id: String): Result = download(context, store, id, force = true)
     fun keepLocal(context: Context, store: Store, id: String): Result = upload(context, store, id, force = true)
 
-    fun downloadOrDefer(context: Context, store: Store, id: String): Result {
+    fun downloadOrDefer(context: Context, store: Store, id: String): Result =
+        downloadOrDefer(context, store, id, Executor { Thread(it, "cloud-deferred").start() })
+
+    internal fun downloadOrDefer(context: Context, store: Store, id: String, executor: Executor): Result {
         val app = context.applicationContext
         val g = game(app, store, id) ?: return done(store, id, "down", Result("skipped", 0, 0, "not-installed"))
         if (!g.second.cloud) return done(store, id, "down", Result("skipped", 0, 0, "off"))
         if (prefix(app, g.first)?.let { CloudSavePaths.profile(it).isDirectory } == true) return download(app, store, id)
-        Thread({
+        executor.execute {
             val end = System.currentTimeMillis() + PREFIX_WAIT_MS
             while (System.currentTimeMillis() < end) {
-                if (prefix(app, g.first)?.let { CloudSavePaths.profile(it).isDirectory } == true) { download(app, store, id); return@Thread }
+                if (prefix(app, g.first)?.let { CloudSavePaths.profile(it).isDirectory } == true) { download(app, store, id); return@execute }
                 Thread.sleep(2000)
             }
             done(store, id, "down", Result("skipped", 0, 0, "no-prefix"))
-        }, "cloud-deferred").start()
+        }
         return done(store, id, "down", Result("deferred", 0, 0, "no-prefix"))
     }
 

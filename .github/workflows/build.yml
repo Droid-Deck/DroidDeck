@@ -192,7 +192,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          sudo apt-get update -qq
+          sudo apt-get -o Dir::Etc::sourcelist=sources.list.d/ubuntu.sources \
+            -o Dir::Etc::sourceparts=- -o Acquire::Retries=3 update -qq
           sudo apt-get install -y -qq gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libvulkan1 mesa-vulkan-drivers >/dev/null
           D=app/src/main/assets/linuxfs
           mkdir -p "$D"
