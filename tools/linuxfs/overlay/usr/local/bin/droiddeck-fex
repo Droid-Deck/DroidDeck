@@ -61,6 +61,8 @@ SCAN_LIMIT = 4000
 MODES = ("auto", "on", "off")
 STEAM_VERBS = ("run", "waitforexitandrun")
 ESCAPE = re.compile(rb"\\([0-7]{3})")
+DEVICE_FONTS = "/usr/local/share/fonts/android"
+FONT_RULES = "/etc/fonts/conf.d/66-droiddeck-device-fonts.conf"
 
 
 def say(message):
@@ -352,6 +354,16 @@ def write_config(fex, root):
     write_if_changed(os.path.join(CONFIG_DIR, "Config.json"), json.dumps(config, indent=2) + "\n")
 
 
+def install_fonts(root):
+    target = os.path.join(root, FONT_RULES.lstrip("/"))
+    rules = read_text(FONT_RULES) or ""
+    if not os.path.isdir(DEVICE_FONTS) or "<fontconfig>" not in rules:
+        with contextlib.suppress(FileNotFoundError):
+            os.unlink(target)
+        return
+    write_if_changed(target, rules.replace("<fontconfig>", "<fontconfig>\n<dir>%s</dir>" % DEVICE_FONTS, 1))
+
+
 def link_steam_sdk():
     for sdk, candidates in (("sdk64", ("linux64", "ubuntu12_64")), ("sdk32", ("linux32", "ubuntu12_32"))):
         link = os.path.join(HOME, ".steam", sdk)
@@ -454,6 +466,7 @@ def prepare(app=SNIPER_APPID):
         if materialize(platform):
             say("prepared %s as the x86 runtime" % os.path.basename(platform))
         install_preloads(root)
+        install_fonts(root)
         provider = None
         if app == SNIPER_APPID:
             provider = graphics_platform()

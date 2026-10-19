@@ -45,6 +45,8 @@ class FexTestCase(unittest.TestCase):
             "WANTED": str(self.home / ".config/droiddeck/fex-wanted"),
             "PRELOADS": str(self.tmp / "preloads"),
             "HOST_PRELOAD": str(self.tmp / "ld.so.preload"),
+            "DEVICE_FONTS": str(self.tmp / "android-fonts"),
+            "FONT_RULES": str(self.tmp / "66-droiddeck-device-fonts.conf"),
         }
         patcher = mock.patch.dict(G, patches)
         patcher.start()
@@ -260,6 +262,21 @@ class PrepareTest(FexTestCase):
         self.assertEqual((root / "lib/x86_64-linux-gnu/droiddeck/libfaultreport.so").read_bytes(), b"report64")
         self.assertEqual((root / "lib/i386-linux-gnu/droiddeck/libfaultreport.so").read_bytes(), b"report32")
         self.assertEqual((root / "etc/ld.so.preload").read_text(), "/usr/$LIB/droiddeck/libfaultreport.so\n")
+
+    def test_device_fonts_reach_the_x86_runtime(self):
+        root = self.tmp / "root"
+        conf = root / str(self.tmp / "66-droiddeck-device-fonts.conf").lstrip("/")
+        rules = '<?xml version="1.0"?><fontconfig>\n<match target="pattern"></match>\n</fontconfig>\n'
+        self.write(self.tmp / "66-droiddeck-device-fonts.conf", rules)
+        FEX["install_fonts"](str(root))
+        self.assertFalse(conf.exists())
+        (self.tmp / "android-fonts").mkdir()
+        FEX["install_fonts"](str(root))
+        self.assertEqual(conf.read_text(), '<?xml version="1.0"?><fontconfig>\n<dir>%s</dir>\n<match target="pattern"></match>\n</fontconfig>\n'
+                         % (self.tmp / "android-fonts"))
+        (self.tmp / "66-droiddeck-device-fonts.conf").unlink()
+        FEX["install_fonts"](str(root))
+        self.assertFalse(conf.exists())
 
     def test_config_turns_thunks_on_only_when_complete(self):
         FEX["write_config"]({"host_thunks": "/h", "guest_thunks": "/g", "thunks_db": "/db"}, "/root")
