@@ -386,9 +386,13 @@ fex_loads() {
 fex_install() {
   local tag=$1 sha=$2 urls=$3 dst=/ tmp u f
   tmp=$(mktemp -d)
-  local found=""
+  local found="" u sources source mirror
   for u in $urls; do
-    for source in $(github_sources "$u"); do
+    sources=$u
+    case $u in
+      https://github.com/*) for mirror in ${GITHUB_MIRRORS:-}; do sources="$sources $mirror/$u"; done ;;
+    esac
+    for source in $sources; do
       if curl -fsSL --retry 2 "$source" -o "$tmp/fex.tzst" &&
          echo "$sha  $tmp/fex.tzst" | sha256sum -c --quiet >/dev/null 2>&1; then
         found=1
