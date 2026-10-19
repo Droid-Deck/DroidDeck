@@ -185,7 +185,7 @@ def steam_game(program, libs):
 def prefix_of(program):
     for folder, below in ancestors(program):
         parent = os.path.dirname(folder)
-        if below == "pfx" and os.path.basename(parent) == "compatdata" and os.path.basename(folder).lstrip("-").isdigit():
+        if below == "pfx" and os.path.basename(parent) == "compatdata" and re.fullmatch(r"-?[0-9]+", os.path.basename(folder)):
             library = os.path.dirname(os.path.dirname(parent))
             return Target(str(int(os.path.basename(folder)) % 2 ** 32), folder, os.path.dirname(program), library, "prefix")
     return None
@@ -238,8 +238,10 @@ def prefix_folder(root, appid):
     except OSError:
         names = []
     for name in names:
-        if name.lstrip("-").isdigit() and int(name) % 2 ** 32 == appid % 2 ** 32:
-            return os.path.join(folder, name)
+        if re.fullmatch(r"-?[0-9]+", name) and int(name) % 2 ** 32 == appid % 2 ** 32:
+            match = os.path.join(folder, name)
+            if os.path.isdir(match):
+                return match
     return os.path.join(folder, str(appid))
 
 
