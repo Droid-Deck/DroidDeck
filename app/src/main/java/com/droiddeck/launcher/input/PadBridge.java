@@ -323,20 +323,23 @@ public final class PadBridge {
         int source = event.getSource();
         float lt = 0f;
         float rt = 0f;
-        if (wired || hasAxis(device, source, MotionEvent.AXIS_LTRIGGER, MotionEvent.AXIS_RTRIGGER,
-                MotionEvent.AXIS_BRAKE, MotionEvent.AXIS_GAS)) {
+        if (wired || hasAxis(device, source, MotionEvent.AXIS_LTRIGGER, MotionEvent.AXIS_BRAKE)) {
             lt = leftTrigger(event, wired);
-            rt = rightTrigger(event, wired);
             pad.leftTrigger = lt;
+        }
+        if (wired || hasAxis(device, source, MotionEvent.AXIS_RTRIGGER, MotionEvent.AXIS_GAS)) {
+            rt = rightTrigger(event, wired);
             pad.rightTrigger = rt;
         }
-        if (hasAxis(device, source, MotionEvent.AXIS_HAT_X, MotionEvent.AXIS_HAT_Y)) {
+        if (hasAxis(device, source, MotionEvent.AXIS_HAT_X)) {
             float hatX = event.getAxisValue(MotionEvent.AXIS_HAT_X);
+            pad.right = hatX > 0.5f;
+            pad.left = hatX < -0.5f;
+        }
+        if (hasAxis(device, source, MotionEvent.AXIS_HAT_Y)) {
             float hatY = event.getAxisValue(MotionEvent.AXIS_HAT_Y);
             pad.up = hatY < -0.5f;
-            pad.right = hatX > 0.5f;
             pad.down = hatY > 0.5f;
-            pad.left = hatX < -0.5f;
         }
         if (Math.max(Math.max(Math.abs(pad.leftX), Math.abs(pad.leftY)), Math.max(Math.abs(pad.rightX), Math.abs(pad.rightY))) > 0.5f
                 || lt > 0.5f || rt > 0.5f || pad.up || pad.right || pad.down || pad.left) {
