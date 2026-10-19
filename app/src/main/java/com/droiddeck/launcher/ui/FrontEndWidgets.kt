@@ -72,7 +72,7 @@ import java.util.Locale
 internal val Shape14 = RoundedCornerShape(14.dp)
 
 @Composable
-private fun headingUppercase(text: String): String =
+internal fun headingUppercase(text: String): String =
     text.uppercase(LocalConfiguration.current.locales[0] ?: Locale.ROOT)
 
 @Composable

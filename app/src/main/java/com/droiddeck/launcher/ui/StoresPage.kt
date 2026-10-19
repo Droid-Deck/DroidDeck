@@ -924,7 +924,7 @@ private suspend fun <T> CompletableFuture<T>.await(): T =
 @Composable
 private fun SectionLabel(title: String) {
     Text(
-        title.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp,
+        headingUppercase(title), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp,
         color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth().padding(top = 6.dp, start = 2.dp),
     )
 }
