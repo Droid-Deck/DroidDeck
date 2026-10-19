@@ -23,6 +23,7 @@ if [ -n "$repair" ]; then
   rm -f "$stamp" "$legacy_stamp" "$steam_root/.crash" "$steam_root/steam.pid" \
     "$steam_root/package/droiddeck-cdn" \
     "$steam_root"/package/steam_client_*.manifest "$steam_root"/package/steam_client_*.installed
+  rm -rf "$steam_root/package/droiddeck-parts"
   for part in "$steam_root"/package/*.zip.*; do
     [ -f "$part" ] || continue
     sum=${part##*.}
@@ -61,6 +62,7 @@ done
 version=$(awk -F'"' '$2 == "version" { print $4; exit }' "$work/manifest")
 if [ -n "$sync" ]; then
   installed=$(awk -F'"' '$2 == "version" { print $4; exit }' "$steam_root/package/$manifest.manifest" 2>/dev/null || true)
+  [ -n "$installed" ] || installed=$(cat "$stamp" 2>/dev/null || true)
   if [ -x "$steam_root/steamrtarm64/steam" ] && [ "$installed" = "$version" ]; then
     chmod -R a+x "$steam_root/steamrtarm64" "$steam_root/linuxarm64" 2>/dev/null || true
     exit 0
@@ -101,17 +103,17 @@ for candidate in $cdn_list; do
   [ "$candidate" = "$fastest" ] || cdn_order+=("$candidate")
 done
 
-mkdir -p "$steam_root/package"
+mkdir -p "$steam_root/package" "$steam_root/package/droiddeck-parts"
+parts=$steam_root/package/droiddeck-parts
 # The client fetches its own first-run update; it should use the source measured above.
 echo "${fastest#https://}/" > "$steam_root/package/droiddeck-cdn"
 fetch_part() {
-  local host=$1 file=$2 sum=$3 target
-  target=$work/$file
-  rm -f "$target"
+  local host=$1 file=$2 sum=$3 target=$parts/$2
+  echo "$sum  $target" | sha256sum -c --quiet 2>/dev/null && return 0
   # The floor only has to notice a source that stopped moving; a higher one aborts
   # transfers that are slow but still finishing.
   curl -fsSL --connect-timeout 10 --speed-limit 102400 --speed-time 30 --max-time 1800 \
-    --retry 3 --retry-delay 3 --retry-all-errors "$host/$file" -o "$target" || return 1
+    --retry 3 --retry-delay 3 --retry-all-errors -C - "$host/$file" -o "$target" || return 1
   echo "$sum  $target" | sha256sum -c --quiet 2>/dev/null || { rm -f "$target"; return 1; }
 }
 while read -r block file sum size; do
@@ -122,8 +124,8 @@ while read -r block file sum size; do
     fetch_part "$host" "$file" "$sum" && { fetched=$host; break; }
   done
   [ -n "$fetched" ] || { echo "droiddeck-steam-install: $file failed on every CDN" >&2; exit 1; }
-  unzip -qo "$work/$file" -d "$steam_root"
-  rm -f "$work/$file"
+  unzip -qo "$parts/$file" -d "$steam_root"
+  rm -f "$parts/$file"
 done < "$work/parts"
 # Steam verifies the archives in package/ by name and size before it unpacks them, so
 # leaving them there saves the client a first run that fetches the whole set again.
@@ -156,8 +158,9 @@ while read -r block name sum bytes; do
     fetch_part "$host" "$name" "$sum" && { fetched=$host; break; }
   done
   [ -n "$fetched" ] || { echo "droiddeck-steam-install: $name failed on every CDN" >&2; exit 1; }
-  mv -f "$work/$name" "$target"
+  mv -f "$parts/$name" "$target"
 done < "$work/packages"
+rm -rf "$parts"
 find "$steam_root" -depth -name '*\\*' | while read -r odd; do
   fixed=${odd//\\//}
   mkdir -p "$(dirname "$fixed")"
