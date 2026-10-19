@@ -737,7 +737,10 @@ class SessionService : Service() {
             components.add(gpuStats)
             binds.addAll(gpuStats.binds())
         }
-        if (controllersOn) components.add(RumbleComponent().also { it.attach(this) })
+        if (controllersOn) {
+            components.add(RumbleComponent().also { it.attach(this) })
+            components.add(DualSenseOutputBridge().also { it.attach(this) })
+        }
         val home = File(LinuxRuntime.rootDir(this), "root")
         File(home, "Storage").mkdirs()
         binds.add(Environment.getExternalStorageDirectory().path + ":/root/Storage")

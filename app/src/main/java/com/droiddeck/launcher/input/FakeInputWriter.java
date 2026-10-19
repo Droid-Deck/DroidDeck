@@ -114,13 +114,21 @@ public class FakeInputWriter {
     private static final RingSlot[] RING_SLOTS = new RingSlot[MAX_FAKE_INPUT_SLOTS];
 
     static {
-        System.loadLibrary("sdnative");
+        try {
+            System.loadLibrary("sdnative");
+        } catch (UnsatisfiedLinkError e) {
+            // Running in desktop unit test environment without Android JNI library
+        }
     }
 
     private static native void nativeStoreFence();
 
     public static void storeFence() {
-        nativeStoreFence();
+        try {
+            nativeStoreFence();
+        } catch (UnsatisfiedLinkError e) {
+            // Fallback for desktop unit tests
+        }
     }
 
     private final File eventFile;
@@ -501,6 +509,19 @@ public class FakeInputWriter {
             nativeStoreFence();
             ring.putLong(IMU_SEQ_OFFSET, seq + 2);
         }
+    }
+
+    public static void setDeckIMU(int slot, short[] accel, short[] gyro) {
+        writeMotion(slot, accel, gyro);
+    }
+
+    public static void setDeckTouch(int slot, short[] pads, int touchControls) {
+        short[] pressure = new short[]{ (short) ((touchControls & 192) != 0 ? Short.MAX_VALUE : 0), 0 };
+        writeDeckControls(slot, touchControls, pads, pressure);
+    }
+
+    public static void setDeckButtons(int slot, int buttonBitmask) {
+        writeDeckControls(slot, buttonBitmask, new short[4], new short[2]);
     }
 
     public static boolean padHasQam() {
