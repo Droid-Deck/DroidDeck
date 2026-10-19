@@ -923,13 +923,10 @@ private suspend fun <T> CompletableFuture<T>.await(): T =
 
 @Composable
 private fun SectionLabel(title: String) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
-        modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-    ) {
-        Text(title.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Box(Modifier.weight(1f).height(1.dp).background(LocalPalette.current.line))
-    }
+    Text(
+        title.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth().padding(top = 6.dp, start = 2.dp),
+    )
 }
 
 @Composable
