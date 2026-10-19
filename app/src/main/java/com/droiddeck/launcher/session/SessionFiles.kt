@@ -206,6 +206,7 @@ object SessionFiles {
         val steamHomes = listOf(File(root, "root/.local/share/Steam")) +
             listOf(File(root, "root/.droiddeck-x64/.local/share/Steam")).filter { File(it, "config").isDirectory }
         var allDone = true
+        var allInstalled = true
         var seen: String? = null
         val activeIsX64 = SessionPrefs.activeSteamClientArch(context) == "x86_64"
         for (home in steamHomes) {
@@ -228,11 +229,12 @@ object SessionFiles {
                     "staged=$bigPictureMovieInstalled done=$done steam=${home.path} config: $before -> ${startupMoviePath(config)}",
             )
             if (!done) allDone = false
+            if (!bigPictureMovieInstalled) allInstalled = false
             if (done && home.path.contains(".droiddeck-x64") == activeIsX64) seen = if (bigPictureMovieInstalled) BOOT_MOVIE_PATH else ""
         }
         // A pick made in the app is done once a session started with every Steam client's config having it; guest commands run
         // before that, and a Steam that is already running writes its own choice back when it exits.
-        if (force && allDone && startsSession) SessionPrefs.setBootMovieApplyNext(context, false)
+        if (force && allDone && allInstalled && startsSession) SessionPrefs.setBootMovieApplyNext(context, false)
         seen?.let { SessionPrefs.setBootMovieSteamSeen(context, it) }
     }
 
