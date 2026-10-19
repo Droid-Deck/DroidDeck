@@ -295,7 +295,8 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     }
     val pal = LocalPalette.current
     fun cycleStore(step: Int) {
-        val ids = Store.entries.map { it.id }
+        val ids = tabs.filter { it.shown }.map { it.store.id }
+        if (ids.isEmpty()) return
         val at = ids.indexOf(chip)
         pickChip(ids[if (at < 0) (if (step > 0) 0 else ids.size - 1) else (at + step + ids.size) % ids.size])
     }
@@ -304,6 +305,15 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     }
     BackHandler(enabled = openGame != null) { closeGame() }
     BackHandler(enabled = arranging) { arranging = false }
+    LaunchedEffect(arranging) {
+        val focus = ff ?: return@LaunchedEffect
+        if (!arranging || inputMode.inputMode != androidx.compose.ui.input.InputMode.Keyboard) return@LaunchedEffect
+        repeat(45) {
+            androidx.compose.runtime.withFrameNanos { }
+            val req = tabs.firstOrNull()?.let { focus.items["storechip:${it.store.id}"] } ?: return@repeat
+            if (runCatching { req.requestFocus() }.isSuccess) return@LaunchedEffect
+        }
+    }
     val scroll = rememberScrollState()
     val detailScroll = rememberScrollState()
     LaunchedEffect(chip, tab) { scroll.scrollTo(0); grid.scrollToItem(0) }
@@ -653,13 +663,16 @@ private fun RowScope.ArrangeStoreChip(
     )
     val pill = remember { RoundedCornerShape(99.dp) }
     val signedIn = StoresState.isSignedIn(store) && StoresState.expired[store] != true
-    fun finish() {
-        val from = drag.from
-        val to = drag.target
+    fun reset() {
         drag.store = null
         drag.from = -1
         drag.target = -1
         drag.x = 0f
+    }
+    fun commit() {
+        val from = drag.from
+        val to = drag.target
+        reset()
         if (from >= 0 && to >= 0 && to != from) onMoveTab(store, to)
     }
     StoreChip(
@@ -673,7 +686,7 @@ private fun RowScope.ArrangeStoreChip(
                 shape = pill
                 clip = false
             }
-            .pointerInput(store) {
+            .pointerInput(store, index) {
                 detectDragGestures(
                     onDragStart = {
                         drag.store = store
@@ -681,8 +694,8 @@ private fun RowScope.ArrangeStoreChip(
                         drag.target = index
                         drag.x = 0f
                     },
-                    onDragEnd = { finish() },
-                    onDragCancel = { finish() },
+                    onDragEnd = { commit() },
+                    onDragCancel = { reset() },
                 ) { change, amount ->
                     change.consume()
                     val step = box.floatValue + gapPx
