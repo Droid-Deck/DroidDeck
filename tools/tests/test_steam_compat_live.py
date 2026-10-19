@@ -83,6 +83,12 @@ const install = require("fs").readFileSync(process.argv[4], "utf8");
   await c.set(0, "droiddeck-proton-11-arm64");
   await c.set(42, "");
   const after = await c.many(["0", "42", "43", "1245040"]);
+  const origGet = c.get;
+  c.get = async () => { throw new Error("CompatManager.GetCompatTools#1 timed out"); };
+  let rethrown = false;
+  try { await c.many(["42"]); } catch (e) { rethrown = /timed out/.test(e.message); }
+  c.get = origGet;
+  if (!rethrown) throw new Error("many swallowed non-eresult error");
   await new Promise((r) => setTimeout(r, 10));
   console.log(JSON.stringify({ before, after, log: state.log, notify: state.notify, url: state.socket.url }));
 })().catch((e) => { console.error(e.stack || String(e)); process.exit(1); });

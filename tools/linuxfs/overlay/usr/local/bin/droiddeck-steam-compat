@@ -105,7 +105,11 @@ INSTALL_JS = r"""
     const body = [];
     uint(1, appid, body);
     const r = await send("CompatManager.GetCompatTools#1", body);
-    if (!r.ok) throw new Error("GetCompatTools " + appid + " failed (" + r.eresult + " " + r.error + ")");
+    if (!r.ok) {
+      const err = new Error("GetCompatTools " + appid + " failed (" + r.eresult + " " + r.error + ")");
+      err.eresult = r.eresult;
+      throw err;
+    }
     return { selected: text(r.body, 3), fallback: text(r.body, 4), tools: (r.body[1] || []).map((t) => text(parse(t), 1)) };
   };
   self.set = async (appid, name) => {
@@ -121,7 +125,7 @@ INSTALL_JS = r"""
     const out = {};
     for (const app of apps) {
       try { out[app] = (await self.get(Number(app))).selected; }
-      catch (e) { if (!self.ws || self.ws.readyState !== 1) throw e; }
+      catch (e) { if (!e?.eresult || !self.ws || self.ws.readyState !== 1) throw e; }
     }
     return out;
   };

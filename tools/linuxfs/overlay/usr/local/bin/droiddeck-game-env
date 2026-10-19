@@ -286,15 +286,20 @@ EAC_MARKERS = frozenset((
 ))
 
 
+SD_LIBRARY = "/mnt/droiddeck-sd"
+
+
 def steam_libraries(env):
     home = env.get("HOME") or str(Path.home())
-    root = env.get("BL_X64_STEAM_ROOT") or env.get("STEAM_COMPAT_CLIENT_INSTALL_PATH") or os.path.join(home, ".local/share/Steam")
+    data_home = env.get("XDG_DATA_HOME") or os.path.join(home, ".local/share")
+    root = env.get("BL_X64_STEAM_ROOT") or env.get("STEAM_COMPAT_CLIENT_INSTALL_PATH") or os.path.join(data_home, "Steam")
     found = [root]
     try:
         with open(os.path.join(root, "steamapps", "libraryfolders.vdf"), encoding="utf-8", errors="replace") as f:
             found += [path.replace("\\\\", "\\") for path in re.findall(r'"path"\s+"((?:[^"\\]|\\.)*)"', f.read())]
     except OSError:
         pass
+    found.append(SD_LIBRARY)
     return list(dict.fromkeys(found))
 
 

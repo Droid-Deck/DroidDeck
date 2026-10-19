@@ -1035,3 +1035,39 @@ class ForceSsbsTest(unittest.TestCase):
                 got = MODULE["anticheat_runtimes"]([str(x86 / "proton"), "waitforexitandrun", str(exe)], env)
             self.assertEqual(got["PROTON_EAC_RUNTIME"], str(eac))
             self.assertIn("Easy Anti-Cheat runtime ready", err.getvalue())
+
+            xdg = root / "xdg"
+            xdg_eac = xdg / "Steam/steamapps/common/Proton EasyAntiCheat Runtime"
+            xdg_eac.mkdir(parents=True)
+            sd = root / "sd"
+            sd_be = sd / "steamapps/common/Proton BattlEye Runtime"
+            sd_be.mkdir(parents=True)
+            g = MODULE["steam_libraries"].__globals__
+            old_sd = g["SD_LIBRARY"]
+            g["SD_LIBRARY"] = str(sd)
+            try:
+                with mock.patch("sys.stderr", io.StringIO()):
+                    got = MODULE["anticheat_runtimes"](
+                        [str(x86 / "proton"), "waitforexitandrun", str(exe)],
+                        {"HOME": str(root / "empty-home"), "XDG_DATA_HOME": str(xdg)},
+                    )
+                self.assertEqual(got["PROTON_EAC_RUNTIME"], str(xdg_eac))
+                self.assertEqual(got["PROTON_BATTLEYE_RUNTIME"], str(sd_be))
+            finally:
+                g["SD_LIBRARY"] = old_sd
+
+            proton = x86 / "proton"
+            proton.write_text(
+                "#!" + sys.executable + "\nimport os, sys\nprint(os.environ.get('PROTON_EAC_RUNTIME', ''))\n"
+            )
+            proton.chmod(0o755)
+            proc = subprocess.run(
+                [sys.executable, str(BIN / "droiddeck-game-env"), str(proton), "waitforexitandrun", str(exe)],
+                env=dict(os.environ, HOME=str(root), SteamAppId="1808500"),
+                capture_output=True,
+                text=True,
+                timeout=20,
+            )
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertEqual(proc.stdout.strip(), str(eac))
+            self.assertIn("Easy Anti-Cheat runtime ready", proc.stderr)
