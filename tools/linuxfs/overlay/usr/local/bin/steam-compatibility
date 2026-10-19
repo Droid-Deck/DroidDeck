@@ -640,16 +640,44 @@ def adopt_extras(tools):
 
 NOT_GAMES = frozenset((
     "228980",
+    "858280",
+    "961940",
+    "993090",
+    "1054830",
     "1070560",
+    "1113280",
+    "1161040",
+    "1245040",
     "1391110",
-    "1628350",
+    "1420170",
     "1493710",
+    "1580130",
+    "1628350",
+    "1826330",
+    "1887720",
+    "2180100",
+    "2348590",
+    "2805730",
+    "3029110",
     "3127680",
+    "3658110",
     "4183110",
     "4185400",
     "4427310",
+    "4628710",
     "4628740",
+    "4690330",
 ))
+INSTALLDIR = re.compile(r'^\s*"installdir"\s*"([^"]*)"', re.M)
+
+
+def is_tool_manifest(steamapps, name):
+    try:
+        with open(os.path.join(steamapps, name), encoding="utf-8", errors="replace") as f:
+            m = INSTALLDIR.search(f.read())
+    except OSError:
+        return False
+    return bool(m and m.group(1) and os.path.isfile(os.path.join(steamapps, "common", m.group(1), "toolmanifest.vdf")))
 
 
 def libraries(steam_root):
@@ -674,7 +702,7 @@ def installed_apps(steam_root):
             continue
         for name in names:
             m = re.fullmatch(r"appmanifest_(\d+)\.acf", name)
-            if m and m.group(1) not in NOT_GAMES:
+            if m and m.group(1) not in NOT_GAMES and not is_tool_manifest(steamapps, name):
                 apps.add(m.group(1))
     return sorted(apps, key=int)
 
@@ -1024,8 +1052,8 @@ def plan_mapping(current, installed, runnable, default, auto, native=None, picks
 
 def followers(state, current):
     if "auto" in state:
-        return state["auto"]
-    return {app: name for app, name in current.items() if app != "0" and name == TOOL}
+        return {app: name for app, name in state["auto"].items() if str(app) not in NOT_GAMES}
+    return {app: name for app, name in current.items() if app != "0" and str(app) not in NOT_GAMES and name == TOOL}
 
 
 def tool_entry(name, display, path, valve):

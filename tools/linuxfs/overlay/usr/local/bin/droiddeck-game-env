@@ -273,6 +273,55 @@ def mark_install_scripts(command, env):
         print("droiddeck-game-env: install scripts not marked (%s)" % error, file=sys.stderr)
 
 
+ANTICHEAT_RUNTIMES = (
+    ("PROTON_EAC_RUNTIME", "Proton EasyAntiCheat Runtime"),
+    ("PROTON_BATTLEYE_RUNTIME", "Proton BattlEye Runtime"),
+)
+EAC_MARKERS = frozenset((
+    "easyanticheat",
+    "start_protected_game.exe",
+    "easyanticheat_eos.dll",
+    "easyanticheat_x64.dll",
+    "easyanticheat_x86.dll",
+))
+
+
+def steam_libraries(env):
+    home = env.get("HOME") or str(Path.home())
+    root = env.get("BL_X64_STEAM_ROOT") or env.get("STEAM_COMPAT_CLIENT_INSTALL_PATH") or os.path.join(home, ".local/share/Steam")
+    found = [root]
+    try:
+        with open(os.path.join(root, "steamapps", "libraryfolders.vdf"), encoding="utf-8", errors="replace") as f:
+            found += [path.replace("\\\\", "\\") for path in re.findall(r'"path"\s+"((?:[^"\\]|\\.)*)"', f.read())]
+    except OSError:
+        pass
+    return list(dict.fromkeys(found))
+
+
+def anticheat_runtimes(command, env):
+    libraries = None
+    for key, folder in ANTICHEAT_RUNTIMES:
+        if env.get(key):
+            continue
+        if libraries is None:
+            libraries = steam_libraries(env)
+        for library in libraries:
+            candidate = os.path.join(library, "steamapps", "common", folder)
+            if os.path.isdir(candidate):
+                env = dict(env, **{key: candidate})
+                break
+    if len(command) > 2 and command[1] == "waitforexitandrun" and (game_files(command[2]) & EAC_MARKERS):
+        eac = env.get("PROTON_EAC_RUNTIME", "")
+        proton = os.path.dirname(command[0]) if command else ""
+        if not eac or not os.path.isdir(eac):
+            print("droiddeck-game-env: Easy Anti-Cheat detected, but Proton EasyAntiCheat Runtime (1826330) is not installed", file=sys.stderr)
+        elif os.path.isdir(os.path.join(proton, "files/lib/wine/aarch64-unix")):
+            print("droiddeck-game-env: Easy Anti-Cheat detected on ARM64 Proton; Linux easyanticheat_x64.so is x86_64-only and requires an x86_64 Proton tool under FEX", file=sys.stderr)
+        else:
+            print("droiddeck-game-env: Easy Anti-Cheat runtime ready (%s)" % eac, file=sys.stderr)
+    return env
+
+
 def main():
     command = sys.argv[1:]
     if not command:
@@ -309,6 +358,7 @@ def main():
             print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
     if mic_enabled == "0":
         env["BANNER_AUDIO_DIRECT_MIC"] = "0"
+    env = anticheat_runtimes(command, env)
     env = force_ssbs(command, env)
     sync = load_sync()
     launch, launch_env = select_sync(command, env, sync)

@@ -50,6 +50,9 @@ class SteamStorageTest {
         assertEquals(SteamStorage.Kind.X86_PROTON, SteamStorage.kind(manifest(1493710, "Proton - Experimental")))
         assertEquals(SteamStorage.Kind.X86_PROTON, SteamStorage.kind(manifest(2805730, "Proton 9.0")))
         assertEquals(SteamStorage.Kind.REQUIRED, SteamStorage.kind(manifest(228980, "Steamworks Shared")))
+        assertEquals(SteamStorage.Kind.REQUIRED, SteamStorage.kind(manifest(1826330, "Proton EasyAntiCheat Runtime")))
+        assertEquals(SteamStorage.Kind.REQUIRED, SteamStorage.kind(manifest(1161040, "Proton BattlEye Runtime")))
+        assertTrue(SteamStorage.isTool(manifest(1826330, "Proton EasyAntiCheat Runtime")))
         assertTrue(SteamStorage.isTool(manifest(2805730, "Proton 9.0")))
         assertFalse(SteamStorage.isTool(manifest(204360, "CastleCrashers")))
     }

@@ -996,3 +996,42 @@ class ForceSsbsTest(unittest.TestCase):
                 self.assertEqual(MODULE["force_ssbs"]([str(x86 / "proton")], on), on)
             finally:
                 g["SSBS_LIB"] = old
+
+    def test_anticheat_runtimes_and_eac_diagnostics(self):
+        import io
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            steam = root / ".local/share/Steam"
+            eac = steam / "steamapps/common/Proton EasyAntiCheat Runtime"
+            be = steam / "steamapps/common/Proton BattlEye Runtime"
+            arm = root / "arm"
+            (arm / "files/lib/wine/aarch64-unix").mkdir(parents=True)
+            x86 = root / "x86"
+            (x86 / "files/lib/wine/x86_64-unix").mkdir(parents=True)
+            game = root / "Arc Raiders"
+            (game / "EasyAntiCheat").mkdir(parents=True)
+            exe = game / "PioneerGame.exe"
+            exe.touch()
+
+            env = {"HOME": str(root)}
+            err = io.StringIO()
+            with mock.patch("sys.stderr", err):
+                got = MODULE["anticheat_runtimes"]([str(arm / "proton"), "waitforexitandrun", str(exe)], env)
+            self.assertNotIn("PROTON_EAC_RUNTIME", got)
+            self.assertIn("Proton EasyAntiCheat Runtime (1826330) is not installed", err.getvalue())
+
+            eac.mkdir(parents=True)
+            be.mkdir(parents=True)
+            err = io.StringIO()
+            with mock.patch("sys.stderr", err):
+                got = MODULE["anticheat_runtimes"]([str(arm / "proton"), "waitforexitandrun", str(exe)], env)
+            self.assertEqual(got["PROTON_EAC_RUNTIME"], str(eac))
+            self.assertEqual(got["PROTON_BATTLEYE_RUNTIME"], str(be))
+            self.assertIn("Easy Anti-Cheat detected on ARM64 Proton", err.getvalue())
+
+            err = io.StringIO()
+            with mock.patch("sys.stderr", err):
+                got = MODULE["anticheat_runtimes"]([str(x86 / "proton"), "waitforexitandrun", str(exe)], env)
+            self.assertEqual(got["PROTON_EAC_RUNTIME"], str(eac))
+            self.assertIn("Easy Anti-Cheat runtime ready", err.getvalue())

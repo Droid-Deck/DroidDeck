@@ -119,7 +119,10 @@ INSTALL_JS = r"""
   };
   self.many = async (apps) => {
     const out = {};
-    for (const app of apps) out[app] = (await self.get(Number(app))).selected;
+    for (const app of apps) {
+      try { out[app] = (await self.get(Number(app))).selected; }
+      catch (e) { if (!self.ws || self.ws.readyState !== 1) throw e; }
+    }
     return out;
   };
   window.__droiddeckCompat = self;
@@ -549,17 +552,28 @@ class Helper:
             installed = COMPAT["installed_apps"](self.steam_root)
             self.installed = installed
             picks = COMPAT["valve_picks"](self.steam_root)
+            not_games = COMPAT["NOT_GAMES"]
             prior_auto = state.get("auto", {})
             if not isinstance(prior_auto, dict):
                 prior_auto = {}
+            prior_auto = {app: tool for app, tool in prior_auto.items() if str(app) not in not_games}
             # "native" from earlier builds also lists dual-platform games nobody chose to run natively.
             prior_native = state.get("native_choices", ())
-            native_choices = set(prior_native if isinstance(prior_native, (list, tuple, set)) else ())
+            native_choices = {app for app in (prior_native if isinstance(prior_native, (list, tuple, set)) else ())
+                              if str(app) not in not_games}
             apps = sorted(set(installed) | set(picks) | set(prior_auto) | native_choices, key=COMPAT["app_order"])
             overrides = COMPAT["requested_games"](
                 COMPAT["game_requests"](), catalog, [t["name"] for t in live])
             apps = sorted(set(apps) | set(overrides), key=COMPAT["app_order"])
             current = dict(page.compat("many(%s)" % json.dumps(apps)) or {})
+            rejected = (set(apps) - set(current)) - {"0"}
+            if rejected:
+                installed = [app for app in installed if app not in rejected]
+                picks = [app for app in picks if app not in rejected]
+                prior_auto = {app: tool for app, tool in prior_auto.items() if app not in rejected}
+                native_choices -= rejected
+                overrides = {app: tool for app, tool in overrides.items() if app not in rejected}
+                apps = [app for app in apps if app not in rejected]
             current["0"] = top["selected"]
             native = COMPAT["native_targets"](self.steam_root, apps)
             raw_mapping = COMPAT["read_config_mapping"](

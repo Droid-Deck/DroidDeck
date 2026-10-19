@@ -120,6 +120,11 @@ class CompatLibrariesTest(unittest.TestCase):
         manifest(self.steam / "steamapps", 20)
         manifest(self.pc / "steamapps", 30)
         manifest(self.pc / "steamapps", 3127680, installdir="FEX")
+        manifest(self.steam / "steamapps", 1245040, installdir="Proton 5.0")
+        manifest(self.steam / "steamapps", 1826330, installdir="Proton EasyAntiCheat Runtime")
+        manifest(self.steam / "steamapps", 5000, installdir="Custom Tool")
+        (self.steam / "steamapps/common/Custom Tool").mkdir(parents=True)
+        (self.steam / "steamapps/common/Custom Tool/toolmanifest.vdf").write_text('"manifest"\n{\n}\n')
         self.assertEqual(["20", "30"], COMPAT["installed_apps"](str(self.steam)))
         self.assertEqual(["1628350", "4183110"], COMPAT["fex_missing"](str(self.steam)))
 

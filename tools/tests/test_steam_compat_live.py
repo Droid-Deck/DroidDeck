@@ -56,9 +56,12 @@ class FakeSocket {
     } else if (!state.authed) result = 5;
     else if (method === "CompatManager.GetCompatTools#1") {
       const app = String(body[1] ? body[1][0] : 0n);
-      for (const name of state.known) { const t = []; lenField(1, enc.encode(name), t); lenField(2, enc.encode(name + " shown"), t); lenField(1, t, out); }
-      lenField(3, enc.encode(state.mapping[app] || ""), out);
-      lenField(4, enc.encode("proton_experimental"), out);
+      if (app === "1245040") result = 128;
+      else {
+        for (const name of state.known) { const t = []; lenField(1, enc.encode(name), t); lenField(2, enc.encode(name + " shown"), t); lenField(1, t, out); }
+        lenField(3, enc.encode(state.mapping[app] || ""), out);
+        lenField(4, enc.encode("proton_experimental"), out);
+      }
     } else if (method === "CompatManager.SpecifyCompatTool#1") {
       const app = String(body[1] ? body[1][0] : 0n), name = body[2] ? dec.decode(body[2][0]) : "";
       state.mapping[app] = name; state.log.push(app + "=" + name);
@@ -79,7 +82,7 @@ const install = require("fs").readFileSync(process.argv[4], "utf8");
   const before = await c.get(0);
   await c.set(0, "droiddeck-proton-11-arm64");
   await c.set(42, "");
-  const after = await c.many(["0", "42", "43"]);
+  const after = await c.many(["0", "42", "43", "1245040"]);
   await new Promise((r) => setTimeout(r, 10));
   console.log(JSON.stringify({ before, after, log: state.log, notify: state.notify, url: state.socket.url }));
 })().catch((e) => { console.error(e.stack || String(e)); process.exit(1); });
@@ -561,6 +564,24 @@ class ReconcileTest(unittest.TestCase):
         self.assertTrue(COMPAT["live_helper_running"]())
         LIVE["detach"]()
         self.assertFalse(COMPAT["live_helper_running"]())
+
+    def test_valve_tools_and_rejected_apps_are_ignored_live(self):
+        for app in ("1245040", "1826330", "1161040", "999"):
+            (self.steam / ("steamapps/appmanifest_%s.acf" % app)).write_text("")
+        (self.state / "state.json").write_text(json.dumps({
+            "default": TOOL,
+            "auto": {"10": TOOL, "1245040": TOOL, "999": TOOL},
+        }))
+        page = FakePage({"0": TOOL, "10": TOOL, "11": "proton_experimental"}, [TOOL, TOOL_11])
+        many = page.compat
+        page.compat = lambda call: (
+            {k: v for k, v in many(call).items() if k != "999"}
+            if call.startswith("many(") else many(call)
+        )
+        state = self.reconcile(page)
+        self.assertEqual(page.sets, [("11", TOOL)])
+        self.assertEqual(state["auto"], {"10": TOOL, "11": TOOL})
+        self.assertEqual(self.helper.installed, ["10", "11", "999"])
 
 
 SWITCH_HARNESS = r"""
