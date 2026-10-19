@@ -538,33 +538,40 @@ class LaunchTest(FexTestCase):
         self.assertEqual(guest["STEAM_COMPAT_DATA_PATH"], short)
 
     def test_steam_action_unwraps_entry_point_and_runs_game_env(self):
-        game_env = self.tmp / "droiddeck-game-env"
-        game_env.write_text("#!/bin/sh\n")
-        game_env.chmod(0o755)
         proton = self.tmp / "Proton/proton"
         proton.parent.mkdir(parents=True)
         proton.write_text("#!/usr/bin/python3\n")
         proton.chmod(0o755)
 
+        orig = self.tmp / "fex-compat-tool.droiddeck-orig"
+        orig.write_text("#!/bin/sh\n")
+        orig.chmod(0o755)
+
         launched = []
         old_launch = G["launch"]
-        old_bin = G["BIN_DIR"]
-        G["BIN_DIR"] = str(self.tmp)
         G["launch"] = lambda cmd, env, mode: launched.append((cmd, env, mode)) or 0
         try:
+            with mock.patch("os.execvpe") as execvpe:
+                FEX["main"](["valve-fex", str(orig), "waitforexitandrun", "--", "/runtime/_v2-entry-point", "--verb=waitforexitandrun", "--", str(proton), "waitforexitandrun", "Game.exe"])
+                execvpe.assert_called_once()
+                self.assertEqual(execvpe.call_args[0][0], str(orig))
+                self.assertEqual(execvpe.call_args[0][1], [str(orig), "waitforexitandrun", "--", str(proton), "waitforexitandrun", "Game.exe"])
+
             FEX["main"](["steam", "waitforexitandrun", "--", str(proton), "waitforexitandrun", "Game.exe"])
-            self.assertEqual(launched[-1][0], [str(game_env), str(proton), "waitforexitandrun", "Game.exe"])
+            self.assertEqual(launched[-1][0], [str(proton), "waitforexitandrun", "Game.exe"])
+            self.assertEqual(launched[-1][2], "on")
 
             FEX["main"](["steam", "waitforexitandrun", "--", "/runtime/_v2-entry-point", "--verb=waitforexitandrun", "--", str(proton), "waitforexitandrun", "Game.exe"])
-            self.assertEqual(launched[-1][0], [str(game_env), str(proton), "waitforexitandrun", "Game.exe"])
+            self.assertEqual(launched[-1][0], [str(proton), "waitforexitandrun", "Game.exe"])
+            self.assertEqual(launched[-1][2], "on")
 
             game_x86 = self.tmp / "game.x86_64"
             game_x86.touch()
             FEX["main"](["steam", "waitforexitandrun", "--", str(game_x86)])
             self.assertEqual(launched[-1][0], [str(game_x86)])
+            self.assertEqual(launched[-1][2], "auto")
         finally:
             G["launch"] = old_launch
-            G["BIN_DIR"] = old_bin
 
     def test_the_runtime_and_thunks_are_passed_to_fex(self):
         fex = {"portable": True, "rootfs": "/rt/files", "host_thunks": "/h", "guest_thunks": "/g", "thunks_db": "/db"}

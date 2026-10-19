@@ -643,19 +643,34 @@ def launch(command, env, mode, decide=None):
     return os.execve(fex["bin"], [fex["bin"], program] + command[1:], guest)
 
 
-def game_environment(env):
+def game_environment(command=(), env=None):
+    if env is None:
+        command, env = (), command
     try:
         game_env = runpy.run_path(os.path.join(BIN_DIR, "droiddeck-game-env"))
         app = game_env["game_id"](env) or env.get("SteamAppId") or env.get("SteamGameId")
-        if not app:
-            return env
-        with open(GAME_ENVIRONMENT, encoding="utf-8") as source:
-            return game_env["apply_config"](env, json.load(source), str(app))
-    except FileNotFoundError:
-        return env
+        fixes = {}
+        if app and len(command) > 2 and command[1] == "waitforexitandrun":
+            fixes, _, _ = game_env["engine_fixes"](command[2], command[3:])
+            components = game_env["win_components"](env.get("STEAM_COMPAT_DATA_PATH", ""), app)
+            if components:
+                own = fixes.get("WINEDLLOVERRIDES")
+                fixes["WINEDLLOVERRIDES"] = components + ";" + own if own else components
+            try:
+                with open(GAME_ENVIRONMENT, encoding="utf-8") as source:
+                    env = game_env["apply_config"](env, json.load(source), str(app), fixes)
+            except FileNotFoundError:
+                env = game_env["apply_config"](env, {"version": 1}, str(app), fixes)
+        elif app:
+            with contextlib.suppress(FileNotFoundError):
+                with open(GAME_ENVIRONMENT, encoding="utf-8") as source:
+                    env = game_env["apply_config"](env, json.load(source), str(app))
+        if command:
+            env = game_env["anticheat_runtimes"](command, env)
+            env = game_env["force_ssbs"](command, env)
     except Exception as error:
         say("game settings were not applied (%s)" % error)
-        return env
+    return env
 
 
 def appimage_offset(path):
@@ -770,13 +785,16 @@ def parse_run(args):
 
 def main(argv):
     if not argv:
-        say("usage: droiddeck-fex steam VERB CMD... | run [--mode auto|on|off] [--for PATH] [--] CMD... | needs PATH | extract IMAGE | prepare | status")
+        say("usage: droiddeck-fex steam VERB CMD... | valve-fex ORIG VERB CMD... | run [--mode auto|on|off] [--for PATH] [--] CMD... | needs PATH | extract IMAGE | prepare | status")
         return 2
     action, args = argv[0], list(argv[1:])
-    if action == "steam":
+    if action in ("steam", "valve-fex"):
+        orig = args.pop(0) if action == "valve-fex" and args else None
         if not args:
             return 2
         verb, command = args[0], list(args[1:])
+        if orig and os.path.isfile(orig) and os.access(orig, os.X_OK) and verb not in STEAM_VERBS:
+            return os.execvpe(orig, [orig, verb] + command, dict(os.environ))
         if verb not in STEAM_VERBS:
             return 0
         if command and command[0] == "--":
@@ -787,10 +805,12 @@ def main(argv):
             return 2
         if os.environ.get("STEAM_COMPAT_DATA_PATH"):
             os.environ["STEAM_COMPAT_DATA_PATH"] = shorten_compat_path(os.environ["STEAM_COMPAT_DATA_PATH"])
-        game_env = os.path.join(BIN_DIR, "droiddeck-game-env")
-        if os.path.isfile(game_env) and (os.path.basename(command[0]) == "proton" or command[0].endswith("/proton")):
-            command = [game_env] + command
-        return launch(command, game_environment(dict(os.environ)), os.environ.get("DROIDDECK_FEX", "auto"))
+        env = game_environment(command, dict(os.environ))
+        if orig and os.path.isfile(orig) and os.access(orig, os.X_OK):
+            return os.execvpe(orig, [orig, verb, "--"] + command, env)
+        is_proton = os.path.basename(command[0]) == "proton" or command[0].endswith("/proton")
+        mode = "on" if is_proton else os.environ.get("DROIDDECK_FEX", "auto")
+        return launch(command, env, mode)
     if action == "run":
         try:
             mode, decide, command = parse_run(args)

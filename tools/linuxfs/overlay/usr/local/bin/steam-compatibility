@@ -449,7 +449,8 @@ exec /usr/local/bin/droiddeck-fex steam "$verb" "$@"
 """
 VALVE_FEX_TOOL = "fex-compat-tool"
 VALVE_FEX_WRAPPER_SH = """#!/bin/bash
-exec /usr/local/bin/droiddeck-fex steam "$@"
+self=$(realpath "$0" 2>/dev/null || readlink -f "$0" 2>/dev/null || printf '%s' "$0")
+exec /usr/local/bin/droiddeck-fex valve-fex "${self}.droiddeck-orig" "$@"
 """
 
 
