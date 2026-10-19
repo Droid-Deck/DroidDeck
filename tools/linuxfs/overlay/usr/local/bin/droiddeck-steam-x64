@@ -476,14 +476,17 @@ github_sources() {
   esac
 }
 x64_download() {
-  local url=$1 out=$2 label=$3 sha=$4 source
+  local url=$1 out=$2 label=$3 sha=$4 source rc
   for source in $(github_sources "$url"); do
     [ "$source" = "$url" ] || step "mirror: ${source%%/https*}"
-    x64_fetch "$source" "$out" "$label" || true
+    rc=0
+    x64_fetch "$source" "$out" "$label" || rc=$?
     if [ -s "$out" ] && echo "$sha  $out" | sha256sum -c --quiet >/dev/null 2>&1; then
       return 0
     fi
-    rm -f "$out"
+    # A source that stopped short leaves its bytes for the next one to resume; a
+    # finished download that fails the digest is not worth appending to.
+    [ "$rc" = 0 ] && rm -f "$out"
   done
   return 1
 }
