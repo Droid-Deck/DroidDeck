@@ -185,9 +185,9 @@ def steam_game(program, libs):
 def prefix_of(program):
     for folder, below in ancestors(program):
         parent = os.path.dirname(folder)
-        if below == "pfx" and os.path.basename(parent) == "compatdata" and os.path.basename(folder).isdigit():
+        if below == "pfx" and os.path.basename(parent) == "compatdata" and os.path.basename(folder).lstrip("-").isdigit():
             library = os.path.dirname(os.path.dirname(parent))
-            return Target(os.path.basename(folder), folder, os.path.dirname(program), library, "prefix")
+            return Target(str(int(os.path.basename(folder)) % 2 ** 32), folder, os.path.dirname(program), library, "prefix")
     return None
 
 
@@ -230,10 +230,23 @@ def shortcut_entries(root):
     return entries
 
 
+def prefix_folder(root, appid):
+    """The prefix folder the client made for [appid], under either spelling of the id."""
+    folder = os.path.join(root, "steamapps", "compatdata")
+    try:
+        names = sorted(os.listdir(folder))
+    except OSError:
+        names = []
+    for name in names:
+        if name.lstrip("-").isdigit() and int(name) % 2 ** 32 == appid % 2 ** 32:
+            return os.path.join(folder, name)
+    return os.path.join(folder, str(appid))
+
+
 def shortcut(program, root):
     for appid, exe, start in shortcut_entries(root):
         if same_file(program, exe):
-            return Target(appid, os.path.join(root, "steamapps", "compatdata", str(appid)),
+            return Target(appid, prefix_folder(root, appid),
                           os.path.dirname(program), root, "shortcut", start if os.path.isdir(start) else None)
     return None
 
@@ -250,7 +263,7 @@ def locate(program, root):
     if found:
         return found
     appid = own_id(program)
-    return Target(appid, os.path.join(root, "steamapps", "compatdata", str(appid)),
+    return Target(appid, prefix_folder(root, appid),
                   os.path.dirname(program), root, "own")
 
 
