@@ -1,4 +1,5 @@
 import importlib.util
+from contextlib import redirect_stdout
 import gzip
 import io
 from pathlib import Path, PureWindowsPath
@@ -16,6 +17,10 @@ spec.loader.exec_module(runtime)
 
 
 class RuntimeInputsTest(unittest.TestCase):
+    VITURE_INPUTS = ['lib/arm64-v8a/libdroiddeck_viture.so', 'lib/arm64-v8a/libglasses.so',
+                     'lib/arm64-v8a/libcarina_vio.so', 'lib/arm64-v8a/libcloud_protocol.so',
+                     'assets/licenses/viture/LICENSE', 'assets/licenses/viture/NOTICE']
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -39,6 +44,16 @@ class RuntimeInputsTest(unittest.TestCase):
                 archive.addfile(entry, io.BytesIO(b'x'))
         path = self.root / 'app/build/prepared-assets/pulseaudio.tzst'
         path.write_bytes(subprocess.run(['zstd', '-q', '-c'], input=stream.getvalue(), capture_output=True, check=True).stdout)
+
+    def current_apk(self, extra=None):
+        data = runtime.verify(self.root)
+        apk = self.root / 'current.apk'
+        with ZipFile(apk, 'w') as package:
+            for name, output in data['outputs'].items():
+                package.writestr(name, (self.root / output['path']).read_bytes())
+            for name, content in (extra or {}).items():
+                package.writestr(name, content)
+        return apk
 
     def test_missing_proot_cannot_be_attested(self):
         (self.root / 'app/src/main/jniLibs/arm64-v8a/libproot.so').unlink()
@@ -87,14 +102,41 @@ class RuntimeInputsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'stale runtime input'):
             runtime.check_apk(apk, self.root)
 
-    def test_complete_current_payload_passes(self):
+    def test_complete_current_payload_without_optional_sdk_passes(self):
         runtime.record(self.root)
-        data = runtime.verify(self.root)
-        apk = self.root / 'current.apk'
-        with ZipFile(apk, 'w') as package:
-            for name, output in data['outputs'].items():
-                package.writestr(name, (self.root / output['path']).read_bytes())
-        runtime.check_apk(apk, self.root)
+        runtime.check_apk(self.current_apk(), self.root)
+
+    def test_release_with_viture_libraries_and_notices_passes(self):
+        runtime.record(self.root)
+        apk = self.current_apk({name: b'VITURE input' for name in self.VITURE_INPUTS})
+        runtime.check_apk(apk, self.root, require_viture_sdk=True)
+
+    def test_release_cannot_omit_any_viture_library_or_notice(self):
+        runtime.record(self.root)
+        for missing in self.VITURE_INPUTS:
+            with self.subTest(missing=missing):
+                apk = self.current_apk({name: b'VITURE input' for name in self.VITURE_INPUTS
+                                        if name != missing})
+                with self.assertRaises(ValueError) as error:
+                    runtime.check_apk(apk, self.root, require_viture_sdk=True)
+                self.assertEqual(str(error.exception), 'APK missing required VITURE SDK input: ' + missing)
+
+    def test_release_cannot_package_empty_viture_inputs(self):
+        runtime.record(self.root)
+        for empty in self.VITURE_INPUTS:
+            with self.subTest(empty=empty):
+                apk = self.current_apk({name: b'' if name == empty else b'VITURE input'
+                                        for name in self.VITURE_INPUTS})
+                with self.assertRaises(ValueError) as error:
+                    runtime.check_apk(apk, self.root, require_viture_sdk=True)
+                self.assertEqual(str(error.exception), 'APK has empty VITURE SDK input: ' + empty)
+
+    def test_release_cannot_substitute_viture_libraries_for_another_abi(self):
+        runtime.record(self.root)
+        apk = self.current_apk({name.replace('arm64-v8a', 'x86_64'): b'VITURE input'
+                                for name in self.VITURE_INPUTS})
+        with self.assertRaisesRegex(ValueError, 'APK missing required VITURE SDK input: lib/arm64-v8a/'):
+            runtime.check_apk(apk, self.root, require_viture_sdk=True)
 
     def test_windows_manifest_matches_portable_apk_paths(self):
         path_type = type(self.root)
@@ -138,3 +180,13 @@ class RuntimeInputsTest(unittest.TestCase):
         path.write_bytes(b'not a gzip stream')
         with self.assertRaisesRegex(ValueError, 'Invalid desktop removal inventory'):
             runtime.record(self.root)
+
+
+class RuntimeInputsCliTest(unittest.TestCase):
+    def test_release_requirement_is_explicit(self):
+        for arguments, required in [(['apk', 'release.apk', '--require-viture-sdk'], True),
+                                    (['apk', 'local.apk'], False)]:
+            with self.subTest(arguments=arguments), mock.patch.object(runtime, 'check_apk') as check:
+                with redirect_stdout(io.StringIO()):
+                    runtime.main(arguments)
+                check.assert_called_once_with(arguments[1], require_viture_sdk=required)

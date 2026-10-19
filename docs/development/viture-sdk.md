@@ -13,6 +13,107 @@ Gradle compiles `droiddeck_viture`, packages `libglasses`, `libcarina_vio`, and
 A build without the optional SDK still supports the existing legacy VITURE and
 RayNeo transports, but does not advertise control for SDK-dependent glasses.
 
+## Release builds
+
+The Build APK workflow requires the SDK for pushes to `main` and manual runs.
+Complete the maintainer setup below before merging this workflow change; missing
+SDK access deliberately fails the build rather than publishing another APK
+without the Luma Ultra driver.
+
+### Download and verify the SDK
+
+1. Open the [VITURE developer portal](https://www.viture.com/developer) and choose
+   **Download** under **VITURE XR Glasses SDK**. Request the **Android** SDK,
+   complete the contact/use-case form, and review the SDK agreement. The Unity
+   SDK is a different download.
+2. Use VITURE's emailed link to download the original
+   `VITURE_XR_Glasses_SDK_for_Android.zip`. Keep the ZIP unchanged; extracting and
+   recompressing it changes the checksum. This integration pins **2.4.0**. If the
+   portal supplies a newer SDK, obtain 2.4.0 from VITURE or review and test an SDK
+   upgrade before changing the pin.
+3. Check the archive with `sha256sum VITURE_XR_Glasses_SDK_for_Android.zip` on
+   Linux, `shasum -a 256 VITURE_XR_Glasses_SDK_for_Android.zip` on macOS, or
+   `Get-FileHash .\VITURE_XR_Glasses_SDK_for_Android.zip -Algorithm SHA256` in
+   PowerShell. The expected SHA-256 in `tools/viture/release.json` is:
+
+   ```text
+   df2dd9d8b060400d37eae5e6db588bbd2b95665b27810c1e0345f180f72cdb72
+   ```
+
+### Recommended: private GitHub release asset
+
+The original ZIP is about 39 MB; [GitHub Actions secrets are limited to 48 KB](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets#storing-large-secrets).
+Store the archive in a private repository and only its read credential in a secret.
+
+1. Create or use a **private** repository owned by the maintainers, with access
+   limited to authorized SDK users. Create a release tagged **`android-sdk-2.4.0`**,
+   attach the unchanged ZIP named **`VITURE_XR_Glasses_SDK_for_Android.zip`**, and
+   publish the release within that private repository. Do not attach it to a
+   release in the public DroidDeck repository.
+2. Create a fine-grained personal access token with the private repository's
+   owner as **Resource owner**, **Only select repositories** pointing to that
+   repository, and **Contents: Read-only**. Complete organization approval if
+   required. [Release-asset downloads require Contents read access](https://docs.github.com/en/rest/releases/assets#get-a-release-asset).
+   Choose an expiration and arrange renewal before it expires.
+3. In the repository that runs **Build APK**, open **Settings → Secrets and
+   variables → Actions**. Under **Variables**, create `VITURE_SDK_REPOSITORY`
+   containing `OWNER/PRIVATE-REPOSITORY`. Under **Secrets**, create
+   `VITURE_SDK_TOKEN` containing the token. The default `GITHUB_TOKEN` is scoped
+   to the workflow repository and cannot supply access to the separate private
+   repository. See [GitHub's token documentation](https://docs.github.com/en/actions/concepts/security/github_token).
+4. After reviewing the code, run **Actions → Build APK → Run workflow** against
+   the maintainer-controlled branch containing this change. Confirm **Prepare
+   VITURE SDK for release builds** succeeds, followed by the APK and native
+   dependency checks. Publish through **Release APKs** only after the matching
+   `main` build succeeds.
+
+The private-repository route takes precedence when `VITURE_SDK_REPOSITORY` is set.
+Its download uses the tag `android-sdk-<pinned version>` and the exact asset name
+above. A missing token, denied access, or missing asset fails the build.
+
+### Alternative: private HTTPS download
+
+Leave `VITURE_SDK_REPOSITORY` unset and configure the repository Actions secret
+`VITURE_SDK_URL` with an authorized HTTPS URL that directly returns the same ZIP.
+This route does not support a separate Authorization header. An unexpired signed
+VITURE email link can work, but must be renewed before expiration; a browser
+login/share page or ordinary private GitHub URL will not work. Use the private
+GitHub release route above for a stable GitHub-managed archive location.
+Keep download credentials out of repository files and workflow logs.
+
+### Build behavior and local use
+
+`tools/viture/prepare_sdk.py` verifies the ZIP before staging only the headers,
+ARM64 libraries, LICENSE, and NOTICE. The workflow passes that directory to all
+Gradle invocations through `ORG_GRADLE_PROJECT_vitureSdkDir`. Missing configuration,
+download failure, or a checksum mismatch stops the build. After packaging,
+`runtime_inputs.py apk --require-viture-sdk` requires the adapter, all three vendor
+libraries, and both notices; the existing Android library check also verifies ELF
+dependency closure. Release signing consumes this already checked APK.
+
+Pull-request builds remain SDK-free and do not receive the private download
+secret. They exercise the preparation and packaging checks with synthetic test
+archives. SDK-enabled hardware validation uses a local build or a trusted manual
+build after review. Do not change the workflow to expose the SDK secret to
+pull-request code through `pull_request_target`.
+
+An existing SDK ZIP can be prepared locally without downloading it:
+
+```sh
+python3 tools/viture/prepare_sdk.py --archive /path/to/VITURE_XR_Glasses_SDK_for_Android.zip --output /path/to/prepared-sdk
+./gradlew assembleRelease -PvitureSdkDir=/path/to/prepared-sdk
+python3 tools/release/runtime_inputs.py apk app/build/outputs/apk/release/app-release.apk --require-viture-sdk
+```
+
+The output directory must not already exist. Normal local builds can still omit
+the SDK. When upgrading, review the new SDK and update the pinned version and
+archive digest together.
+
+Vendor SDK files remain outside Git. The [VITURE SDK agreement](https://www.viture.com/viture-sdk-license-agreement)
+distinguishes distributing object code as part of an application from publishing
+the SDK itself. Release maintainers must arrange SDK access and distribution
+rights under the applicable terms, including the LICENSE shipped in their SDK.
+
 ## Supported app functions
 
 | Device | Transport and tracking | App controls |

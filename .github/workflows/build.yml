@@ -179,6 +179,25 @@ jobs:
           echo "DROIDDECK_PR_NUMBER=${PR_NUMBER:-0}" >> "$GITHUB_ENV"
           echo "Build: \`$label\`" >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Prepare VITURE SDK for release builds
+        if: github.event_name != 'pull_request'
+        env:
+          VITURE_SDK_REPOSITORY: ${{ vars.VITURE_SDK_REPOSITORY }}
+          GH_TOKEN: ${{ secrets.VITURE_SDK_TOKEN }}
+          VITURE_SDK_URL: ${{ secrets.VITURE_SDK_URL }}
+        run: |
+          set -euo pipefail
+          sdk_args=()
+          if [[ -n "$VITURE_SDK_REPOSITORY" ]]; then
+            [[ -n "$GH_TOKEN" ]] || { echo "::error::Set VITURE_SDK_TOKEN to read the private SDK repository"; exit 1; }
+            version=$(python3 -c 'import json; print(json.load(open("tools/viture/release.json"))["version"])')
+            gh release download "android-sdk-$version" --repo "$VITURE_SDK_REPOSITORY" \
+              --pattern VITURE_XR_Glasses_SDK_for_Android.zip --dir "$RUNNER_TEMP/viture-sdk-download"
+            sdk_args+=(--archive "$RUNNER_TEMP/viture-sdk-download/VITURE_XR_Glasses_SDK_for_Android.zip")
+          fi
+          python3 tools/viture/prepare_sdk.py --output "$RUNNER_TEMP/viture-sdk" "${sdk_args[@]}"
+          echo "ORG_GRADLE_PROJECT_vitureSdkDir=$RUNNER_TEMP/viture-sdk" >> "$GITHUB_ENV"
+
       - name: Cache the preloads
         id: preloads
         uses: actions/cache@v4
@@ -459,7 +478,7 @@ jobs:
           path: |
             app/.cxx
             app/build/intermediates/cxx
-          key: cxx-${{ env.NDK_VERSION }}-${{ hashFiles('app/src/main/cpp/**', 'tools/vr/src/xr_*.h') }}
+          key: cxx-${{ env.NDK_VERSION }}-${{ hashFiles('app/src/main/cpp/**', 'tools/vr/src/xr_*.h', 'tools/viture/**') }}
           restore-keys: |
             cxx-${{ env.NDK_VERSION }}-
 
@@ -476,12 +495,14 @@ jobs:
           DROIDDECK_BUILD_LABEL: ${{ steps.build-label.outputs.label }}
           SGDB_API_KEY: ${{ secrets.SGDB_API_KEY }}
         run: |
-          set -o pipefail
+          set -euo pipefail
           python3 tools/quest/build-driver.py "$ANDROID_HOME/ndk/$NDK_VERSION"
           python3 tools/release/runtime_inputs.py record
           ./gradlew assembleRelease --console=plain -PndkVersion="$NDK_VERSION" 2>&1 | tee /tmp/build.log
           python3 tools/release/check_session_assets.py app/build/outputs/apk/release/app-release.apk
-          python3 tools/release/runtime_inputs.py apk app/build/outputs/apk/release/app-release.apk
+          sdk_check=()
+          if [[ "$GITHUB_EVENT_NAME" != pull_request ]]; then sdk_check+=(--require-viture-sdk); fi
+          python3 tools/release/runtime_inputs.py apk app/build/outputs/apk/release/app-release.apk "${sdk_check[@]}"
 
       - name: Check the store engines' library
         run: |

@@ -1,4 +1,5 @@
 """Attest prepared runtime inputs and reject stale local or CI APK payloads."""
+import argparse
 import hashlib
 import gzip
 import json
@@ -12,6 +13,9 @@ from zipfile import ZipFile
 
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = Path('app/build/runtime-inputs.json')
+VITURE_APK_INPUTS = ['lib/arm64-v8a/' + name for name in
+                     ['libdroiddeck_viture.so', 'libglasses.so', 'libcarina_vio.so', 'libcloud_protocol.so']]
+VITURE_APK_INPUTS += ['assets/licenses/viture/' + name for name in ['LICENSE', 'NOTICE']]
 SOURCE_PATHS = ['app/build.gradle', 'app/src/main/cpp/fakeinput_steam.cpp', 'app/src/main/assets/pulseaudio.tzst',
                 'tools/linuxfs', 'tools/proot', 'tools/aaudio-sink', 'tools/directaudio',
                 'tools/gamescope/release.env', 'tools/droiddeck-esync/release.env',
@@ -154,9 +158,17 @@ def verify(root=ROOT):
     return data
 
 
-def check_apk(apk, root=ROOT):
+def check_apk(apk, root=ROOT, require_viture_sdk=False):
     data = verify(root)
     with ZipFile(apk) as package:
+        if require_viture_sdk:
+            for name in VITURE_APK_INPUTS:
+                try:
+                    entry = package.getinfo(name)
+                except KeyError:
+                    raise ValueError('APK missing required VITURE SDK input: ' + name)
+                if not entry.file_size:
+                    raise ValueError('APK has empty VITURE SDK input: ' + name)
         for name, output in data['outputs'].items():
             try:
                 content = package.read(name)
@@ -166,16 +178,27 @@ def check_apk(apk, root=ROOT):
                 raise ValueError('APK has stale runtime input: ' + name)
 
 
-if __name__ == '__main__':
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    commands = parser.add_subparsers(dest='command', required=True)
+    commands.add_parser('record')
+    commands.add_parser('verify')
+    apk = commands.add_parser('apk')
+    apk.add_argument('path')
+    apk.add_argument('--require-viture-sdk', action='store_true',
+                     help='require VITURE tracking libraries and license notices in release APKs')
+    args = parser.parse_args(argv)
     try:
-        if sys.argv[1] == 'record':
+        if args.command == 'record':
             record()
-        elif sys.argv[1] == 'verify':
+        elif args.command == 'verify':
             verify()
-        elif sys.argv[1] == 'apk':
-            check_apk(sys.argv[2])
         else:
-            raise ValueError('Expected record, verify or apk <path>')
+            check_apk(args.path, require_viture_sdk=args.require_viture_sdk)
     except (ValueError, OSError) as error:
         sys.exit(str(error))
     print('Runtime inputs verified')
+
+
+if __name__ == '__main__':
+    main()
