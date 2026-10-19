@@ -156,7 +156,11 @@ object BootMovie {
         SessionPrefs.setBootMovieSteamSeen(context, path)
         if (path == SessionFiles.BOOT_MOVIE_PATH) return false
         val prefix = "/uioverrides/movies/"
-        val id = if (path.startsWith(prefix)) BootMovieLibrary.idOf(path.removePrefix(prefix)) else BootMovieLibrary.STEAM_PREFIX + path
+        // The list names a bought movie from the Steam folder (/config/communityitemscache/...), Steam's config from its config folder.
+        val id = if (path.startsWith(prefix)) BootMovieLibrary.idOf(path.removePrefix(prefix)) else {
+            val listed = BootMovieLibrary.list(context).firstOrNull { it.id.startsWith(BootMovieLibrary.STEAM_PREFIX) && it.id.endsWith(path) }
+            listed?.id ?: BootMovieLibrary.STEAM_PREFIX + path
+        }
         if (BootMovieLibrary.file(context, id) == null) return false
         val changed = SessionPrefs.bootMovie(context) != id
         BootMovieReport.note(context, "Steam names $path, taken over as $id")
