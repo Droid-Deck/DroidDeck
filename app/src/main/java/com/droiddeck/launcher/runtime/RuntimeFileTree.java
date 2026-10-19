@@ -79,13 +79,14 @@ public final class RuntimeFileTree {
      * AppImages with their menu entries and markers. Tar-kind catalog packages (the desktop) unpack over /usr and cannot
      * be carried.
      */
-    static java.util.List<String> userPaths(File tree) {
+    static java.util.List<String> userPaths(File tree) throws IOException {
         java.util.List<String> paths = new java.util.ArrayList<>(java.util.Arrays.asList("root", "opt/appimages/user", "opt/droiddeck-apps"));
-        String[] menu = new File(tree, "usr/local/share/applications").list((d, n) -> n.endsWith(".desktop")
-                && (n.startsWith("droiddeck-app-") || n.startsWith("droiddeck-appimage-")));
-        if (menu != null) for (String n : menu) paths.add("usr/local/share/applications/" + n);
-        String[] images = new File(tree, "opt/appimages").list((d, n) -> n.endsWith(".AppImage"));
-        if (images != null) for (String n : images) {
+        for (String n : children(new File(tree, "usr/local/share/applications"))) {
+            if (n.endsWith(".desktop") && (n.startsWith("droiddeck-app-") || n.startsWith("droiddeck-appimage-")))
+                paths.add("usr/local/share/applications/" + n);
+        }
+        for (String n : children(new File(tree, "opt/appimages"))) {
+            if (!n.endsWith(".AppImage")) continue;
             String id = n.substring(0, n.length() - ".AppImage".length());
             java.util.Collections.addAll(paths, "opt/appimages/" + n,
                     "usr/share/applications/droiddeck-" + id + ".desktop", ".droiddeck-pkg-" + id);
@@ -93,20 +94,47 @@ public final class RuntimeFileTree {
         return paths;
     }
 
+    private static java.util.List<String> children(File dir) throws IOException {
+        java.util.List<String> names = new java.util.ArrayList<>();
+        try (DirectoryStream<Path> entries = Files.newDirectoryStream(dir.toPath())) {
+            for (Path entry : entries) names.add(entry.getFileName().toString());
+        } catch (NoSuchFileException e) {
+            return names;
+        }
+        return names;
+    }
+
+    static boolean exists(Path path) throws IOException {
+        try { Files.readAttributes(path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS); return true; }
+        catch (NoSuchFileException e) { return false; }
+    }
+
+    private static java.util.Set<String> userPaths(File from, File to) throws IOException {
+        java.util.Set<String> paths = new java.util.LinkedHashSet<>(userPaths(from));
+        paths.addAll(userPaths(to));
+        return paths;
+    }
+
+    static boolean hasUserData(File from, File to) throws IOException {
+        for (String rel : userPaths(from, to)) if (exists(new File(from, rel).toPath())) return true;
+        return false;
+    }
+
     /**
      * Moves each user path that exists in {@code from} into {@code to}, replacing what {@code to} ships there. With
      * {@code onlyMissing}, a path already present in {@code to} is left alone. On failure the paths already moved go back
-     * before the exception is thrown, so nothing the user owns is left in a tree that is about to be deleted.
+     * before the exception is thrown. Rollback failures are suppressed on that exception; callers must retain the source
+     * of any incomplete rollback.
      * Returns the moved paths.
      */
     static java.util.List<String> carryUserData(File from, File to, boolean onlyMissing) throws IOException {
         java.util.List<String> moved = new java.util.ArrayList<>();
         try {
-            for (String rel : userPaths(from)) {
+            for (String rel : userPaths(from, to)) {
                 File src = new File(from, rel);
-                if (!Files.exists(src.toPath(), LinkOption.NOFOLLOW_LINKS)) continue;
+                if (!exists(src.toPath())) continue;
                 File dst = new File(to, rel);
-                if (onlyMissing && Files.exists(dst.toPath(), LinkOption.NOFOLLOW_LINKS)) continue;
+                if (onlyMissing && exists(dst.toPath())) continue;
                 move(from, to, rel);
                 moved.add(rel);
             }

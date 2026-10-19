@@ -309,9 +309,14 @@ public final class LinuxRuntimeInstaller {
                 carried = RuntimeFileTree.carryUserData(old, staging, false);
             } catch (IOException e) {
                 Log.w(TAG, "could not carry user data across the update; rolling back", e);
-                old.renameTo(root);
-                try { RuntimeFileTree.delete(staging, null); }
-                catch (IOException cleanup) { Log.w(TAG, "could not clear the failed staging tree", cleanup); }
+                if (old.isDirectory() && !old.renameTo(root))
+                    Log.w(TAG, "could not restore the previous runtime; retained at " + old);
+                if (e.getSuppressed().length == 0) {
+                    try { RuntimeFileTree.delete(staging, null); }
+                    catch (IOException cleanup) { Log.w(TAG, "could not clear the failed staging tree", cleanup); }
+                } else {
+                    Log.w(TAG, "incomplete rollback; retaining user data in " + staging);
+                }
                 return false;
             }
 
@@ -334,10 +339,14 @@ public final class LinuxRuntimeInstaller {
     }
 
     static void recoverInterruptedSwap(File root, File staging, File old) throws IOException {
+        if (!root.isDirectory() && old.isDirectory()) {
+            if (!old.renameTo(root)) throw new IOException("Cannot restore the previous runtime at " + old);
+            Log.w(TAG, "restored the previous runtime after an interrupted update");
+        }
         File target = root.isDirectory() ? root : old;
         File stagedHome = new File(staging, USER_DATA);
         File home = new File(target, USER_DATA);
-        if (target.isDirectory() && stagedHome.isDirectory() && (!home.exists() || isEmptyDir(home))) {
+        if (target.isDirectory() && stagedHome.isDirectory() && (!RuntimeFileTree.exists(home.toPath()) || isEmptyDir(home))) {
             RuntimeFileTree.carryHome(staging, target);
             Log.w(TAG, "recovered " + USER_DATA + " from an interrupted update");
         }
@@ -345,9 +354,8 @@ public final class LinuxRuntimeInstaller {
             java.util.List<String> rest = RuntimeFileTree.carryUserData(staging, target, true);
             if (!rest.isEmpty()) Log.w(TAG, "recovered " + rest + " from an interrupted update");
         }
-        if (!root.isDirectory() && old.isDirectory() && old.renameTo(root)) {
-            Log.w(TAG, "restored the previous runtime after an interrupted update");
-        }
+        if (staging.isDirectory() && RuntimeFileTree.hasUserData(staging, target))
+            throw new IOException("User data still needs recovery from " + staging);
     }
 
     static final String TRASH = ".runtime-trash";
@@ -371,9 +379,10 @@ public final class LinuxRuntimeInstaller {
             Log.i(TAG, "some runtime leftovers still cannot be deleted: " + trash);
     }
 
-    private static boolean isEmptyDir(File dir) {
-        String[] names = dir.list();
-        return dir.isDirectory() && names != null && names.length == 0;
+    private static boolean isEmptyDir(File dir) throws IOException {
+        try (java.nio.file.DirectoryStream<java.nio.file.Path> entries = java.nio.file.Files.newDirectoryStream(dir.toPath())) {
+            return !entries.iterator().hasNext();
+        }
     }
 
     public static Removal beginUninstall(Context context) {

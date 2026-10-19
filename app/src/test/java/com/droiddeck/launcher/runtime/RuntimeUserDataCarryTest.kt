@@ -2,6 +2,10 @@ package com.droiddeck.launcher.runtime
 
 import java.io.File
 import java.io.IOException
+import java.nio.file.Files
+import org.junit.After
+import org.junit.Assume.assumeTrue
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -12,6 +16,8 @@ import org.junit.rules.TemporaryFolder
 
 class RuntimeUserDataCarryTest {
     @get:Rule val tmp = TemporaryFolder()
+
+    @After fun resetFaults() { RuntimeFileTree.refuseForTest = null }
 
     private fun put(root: File, rel: String, text: String = rel) = File(root, rel).apply { parentFile.mkdirs(); writeText(text) }
 
@@ -75,5 +81,95 @@ class RuntimeUserDataCarryTest {
         assertEquals(listOf("opt/appimages/user"), moved)
         assertEquals("kept", File(target, "opt/droiddeck-apps/game/run.sh").readText())
         assertTrue(File(target, "opt/appimages/user/app1/app.AppImage").exists())
+    }
+    @Test fun recoveryFindsCompanionsWhoseAppImageWasAlreadyPutBack() {
+        val root = tmp.newFolder("runtime")
+        val staging = tmp.newFolder("runtime.new")
+        val old = File(tmp.root, "runtime.old")
+        put(root, "opt/appimages/dolphin.AppImage", "user app")
+        put(staging, "usr/share/applications/droiddeck-dolphin.desktop", "menu")
+        put(staging, ".droiddeck-pkg-dolphin", "version")
+        put(staging, ".droiddeck-pkg-desktop-kde", "system package marker")
+
+        LinuxRuntimeInstaller.recoverInterruptedSwap(root, staging, old)
+        assertEquals("menu", File(root, "usr/share/applications/droiddeck-dolphin.desktop").readText())
+        assertEquals("version", File(root, ".droiddeck-pkg-dolphin").readText())
+        assertFalse(File(root, ".droiddeck-pkg-desktop-kde").exists())
+        assertEquals("user app", File(root, "opt/appimages/dolphin.AppImage").readText())
+    }
+
+    @Test fun anUnreadableAppImageDirectoryAbortsBeforeMovingHome() {
+        assumeTrue(Files.getFileStore(tmp.root.toPath()).supportsFileAttributeView("posix"))
+        val old = userTree()
+        val images = File(old, "opt/appimages")
+        val staging = tmp.newFolder("staging")
+        assertTrue(images.setReadable(false, false))
+        assertTrue(images.setExecutable(false, false))
+        try {
+            assertThrows(IOException::class.java) { RuntimeFileTree.carryUserData(old, staging, false) }
+            assertEquals("mine", File(old, "root/save.dat").readText())
+            assertFalse(File(staging, "root/save.dat").exists())
+        } finally {
+            images.setReadable(true, true)
+            images.setExecutable(true, true)
+        }
+    }
+
+    @Test fun recoveryRestoresTheRuntimeBeforeTryingAFallibleHomeMove() {
+        val root = File(tmp.root, "runtime")
+        val old = tmp.newFolder("runtime.old")
+        val staging = tmp.newFolder("runtime.new")
+        put(old, "usr/bin/usable", "previous runtime")
+        File(old, "root").mkdirs()
+        put(staging, "root/save.dat", "staged user data")
+        RuntimeFileTree.refuseForTest = java.util.function.Predicate { it.fileName.toString() == "root" }
+
+        assertThrows(IOException::class.java) { LinuxRuntimeInstaller.recoverInterruptedSwap(root, staging, old) }
+        assertTrue("the previous runtime was not restored", root.isDirectory)
+        assertEquals("previous runtime", File(root, "usr/bin/usable").readText())
+        assertEquals("staged user data", File(staging, "root/save.dat").readText())
+    }
+
+    @Test fun conflictingRecoveryDataIsRetainedOnEveryRetry() {
+        val root = tmp.newFolder("runtime")
+        val staging = tmp.newFolder("runtime.new")
+        val old = File(tmp.root, "runtime.old")
+        put(root, "root/current.dat", "current user data")
+        put(staging, "root/older.dat", "unrecovered user data")
+
+        repeat(2) {
+            assertThrows(IOException::class.java) { LinuxRuntimeInstaller.recoverInterruptedSwap(root, staging, old) }
+            assertEquals("current user data", File(root, "root/current.dat").readText())
+            assertEquals("unrecovered user data", File(staging, "root/older.dat").readText())
+        }
+    }
+
+    @Test fun stagedDataWithoutASurvivingRuntimeIsKeptForRecovery() {
+        val root = File(tmp.root, "runtime")
+        val old = File(tmp.root, "runtime.old")
+        val staging = tmp.newFolder("runtime.new")
+        put(staging, "root/save.dat", "only surviving user data")
+        assertThrows(IOException::class.java) { LinuxRuntimeInstaller.recoverInterruptedSwap(root, staging, old) }
+        assertEquals("only surviving user data", File(staging, "root/save.dat").readText())
+    }
+
+    @Test fun anInaccessibleLiveHomeIsNeverTreatedAsMissing() {
+        assumeTrue(Files.getFileStore(tmp.root.toPath()).supportsFileAttributeView("posix"))
+        val root = tmp.newFolder("runtime")
+        val staging = tmp.newFolder("runtime.new")
+        val old = File(tmp.root, "runtime.old")
+        put(root, "root/keep.dat", "current user data")
+        put(staging, "root/staged.dat", "staged user data")
+        assertTrue(root.setExecutable(false, false))
+        val failure = try {
+            runCatching { LinuxRuntimeInstaller.recoverInterruptedSwap(root, staging, old) }.exceptionOrNull()
+        } finally {
+            root.setExecutable(true, true)
+        }
+
+        assertTrue("the existing live home was deleted", File(root, "root/keep.dat").isFile)
+        assertEquals("current user data", File(root, "root/keep.dat").readText())
+        assertEquals("staged user data", File(staging, "root/staged.dat").readText())
+        assertTrue("inaccessible data must abort recovery", failure is IOException)
     }
 }
