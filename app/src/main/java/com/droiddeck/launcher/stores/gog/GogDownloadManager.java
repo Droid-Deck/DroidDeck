@@ -77,7 +77,15 @@ public final class GogDownloadManager {
         String buildsJson = httpGet(buildsUrl, null);
         if (buildsJson == null) buildsJson = httpGet(buildsUrl, token);
         if (buildsJson != null) {
-            Gen2Outcome out = runGen2(ctx, game, token, buildsJson, installPath, cb, cancelled);
+            Gen2Outcome out = runGen2(ctx, game, token, buildsJson, installPath, cb, cancelled, true);
+            if (out.result == null && !cancelled.get() && !out.hardStop && GogNative.isAvailable()) {
+                // A native-engine fetch failure (a truncated chunk body, a CDN host refusing one chunk)
+                // is not a reason to give up on the Galaxy build: the built-in engine takes CDN hosts in
+                // turn and resumes from the files already verified, instead of downloading the whole
+                // offline installer as a single part and launching its stub.
+                cb.onLog("gog: native engine failed (" + out.error + "); retrying with the built-in engine");
+                out = runGen2(ctx, game, token, buildsJson, installPath, cb, cancelled, false);
+            }
             if (out.result != null || cancelled.get()) return out.result;
             if (out.hardStop) throw new InstallException(out.error);
             cb.onLog("gen2 unavailable: " + out.error);
@@ -100,7 +108,8 @@ public final class GogDownloadManager {
         Result result; String error; boolean hardStop;
     }
 
-    private static Gen2Outcome runGen2(Context ctx, GogGame game, String token, String buildsJson, File installPath, Callback cb, AtomicBoolean cancelled) {
+    private static Gen2Outcome runGen2(Context ctx, GogGame game, String token, String buildsJson, File installPath, Callback cb,
+                                      AtomicBoolean cancelled, boolean allowNative) {
         Gen2Outcome out = new Gen2Outcome();
         try {
             cb.onProgress("Fetching manifest…", 5);
@@ -179,7 +188,7 @@ public final class GogDownloadManager {
             cb.onLog("gog: " + total + " files, " + formatBytes(planned) + ", base=" + baseProductId);
 
             int threads = downloadThreads();
-            if (GogNative.isAvailable()) {
+            if (allowNative && GogNative.isAvailable()) {
                 runNativeEngine(ctx, GogNative.KIND_GEN2_CHUNKS, "Verified…", depotJsons, installPath, cdnBaseRef, secureLinkUrl, token,
                         cdnRefreshCount, MAX_CDN_REFRESH, threads, threads, true, "gog base=" + baseProductId,
                         cancelled, anyFailed, doneCount, total, planned, totalBytes, lastSpeedMs, lastSpeedB, speedBps, cb);
@@ -385,39 +394,89 @@ public final class GogDownloadManager {
             String productJson = httpGet("https://api.gog.com/products/" + game.gameId + "?expand=downloads", token);
             if (productJson == null) throw new InstallException("No downloadable builds for this game");
             JSONObject downloads = new JSONObject(productJson).optJSONObject("downloads");
-            JSONArray installers = downloads == null ? null : downloads.optJSONArray("installers");
-            if (installers == null || installers.length() == 0) throw new InstallException("No downloadable builds for this game");
-            String manualUrl = null, fileName = null;
-            for (int i = 0; i < installers.length(); i++) {
-                JSONObject inst = installers.getJSONObject(i);
-                if (!"windows".equals(inst.optString("os"))) continue;
-                JSONArray files = inst.optJSONArray("files");
-                if (files != null && files.length() > 0) {
-                    JSONObject f = files.getJSONObject(0);
-                    manualUrl = f.optString("downlink", null);
-                    if (manualUrl == null) manualUrl = f.optString("manualUrl", null);
-                    fileName = f.optString("filename", null);
-                }
-                if (manualUrl == null) manualUrl = inst.optString("manualUrl", null);
-                if (fileName == null || fileName.isEmpty()) fileName = "setup_" + game.gameId + ".exe";
-                break;
-            }
-            if (manualUrl == null) throw new InstallException("No Windows installer for this game");
-            String downloadUrl = resolveRedirect(manualUrl, token);
-            if (downloadUrl == null) throw new InstallException("The installer link could not be resolved");
+            List<InstallerPart> parts = installerParts(downloads, game.gameId);
+            if (parts.isEmpty()) throw new InstallException("No downloadable builds for this game");
             installPath.mkdirs();
-            File outFile = new File(installPath, fileName);
-            cb.onProgress("Downloading installer: " + fileName, 15);
-            long size = downloadWithProgress(downloadUrl, outFile, cb, cancelled);
-            if (cancelled.get()) return null;
-            if (size <= 0) throw new InstallException("The installer download failed");
-            cb.onLog("gog: installer downloaded; the game installs itself on first launch");
-            return new Result(fileName, "", size);
+            long planned = 0;
+            boolean sized = true;
+            for (InstallerPart part : parts) { planned += part.size; if (part.size <= 0) sized = false; }
+            long total = 0;
+            for (InstallerPart part : parts) {
+                if (cancelled.get()) return null;
+                String downloadUrl = resolveRedirect(part.url, token);
+                if (downloadUrl == null) throw new InstallException("The installer link could not be resolved: " + part.filename);
+                File outFile = new File(installPath, part.filename);
+                cb.onProgress("Downloading installer: " + part.filename, 15 + (int) ((total / (float) Math.max(1, planned)) * 80));
+                long size = downloadWithProgress(downloadUrl, outFile, cb, cancelled, total, sized ? planned : 0);
+                if (cancelled.get()) return null;
+                if (size <= 0) throw new InstallException("The installer download failed: " + part.filename);
+                total += size;
+            }
+            cb.onLog("gog: installer downloaded (" + parts.size() + " file(s)); the game installs itself on first launch");
+            return new Result(parts.get(0).filename, "", total);
         } catch (InstallException e) {
             throw e;
         } catch (Exception e) {
             throw new InstallException("Installer download error: " + e.getClass().getSimpleName());
         }
+    }
+
+    static final class InstallerPart {
+        final String url;
+        final String filename;
+        final long size;
+        InstallerPart(String url, String filename, long size) { this.url = url; this.filename = filename; this.size = size; }
+    }
+
+    /**
+     * Every file of the first usable Windows installer. GOG lists a setup stub and its data parts as
+     * separate files, often without a filename; the parts are named after the stub so the installer
+     * finds them when launched (setup_&lt;id&gt;.exe, setup_&lt;id&gt;-1.bin, ...).
+     */
+    static List<InstallerPart> installerParts(JSONObject downloads, String gameId) {
+        List<InstallerPart> out = new ArrayList<>();
+        if (downloads == null) return out;
+        JSONArray installers = downloads.optJSONArray("installers");
+        if (installers == null) return out;
+        for (int i = 0; i < installers.length(); i++) {
+            JSONObject inst = installers.optJSONObject(i);
+            if (inst == null || !"windows".equals(inst.optString("os"))) continue;
+            JSONArray files = inst.optJSONArray("files");
+            String base = null;
+            if (files != null) {
+                for (int j = 0; j < files.length(); j++) {
+                    JSONObject f = files.optJSONObject(j);
+                    if (f == null) continue;
+                    String url = f.optString("downlink", "");
+                    if (url.isEmpty()) url = f.optString("manualUrl", "");
+                    if (url.isEmpty()) continue;
+                    String name = partName(f.optString("filename", ""));
+                    if (name.isEmpty()) {
+                        if (base == null) base = "setup_" + safeName(gameId);
+                        name = out.isEmpty() ? base + ".exe" : base + "-" + out.size() + ".bin";
+                    } else if (base == null) {
+                        base = name.toLowerCase(java.util.Locale.US).endsWith(".exe") ? name.substring(0, name.length() - 4) : name;
+                    }
+                    out.add(new InstallerPart(url, name, f.optLong("size", 0)));
+                }
+            }
+            if (out.isEmpty()) {
+                String url = inst.optString("manualUrl", "");
+                if (url.isEmpty()) url = inst.optString("downlink", "");
+                if (!url.isEmpty()) out.add(new InstallerPart(url, "setup_" + safeName(gameId) + ".exe", inst.optLong("total_size", 0)));
+            }
+            if (!out.isEmpty()) return out;
+        }
+        return out;
+    }
+
+    private static String partName(String raw) {
+        return raw == null ? "" : new File(raw.replace('\\', '/')).getName();
+    }
+
+    private static String safeName(String raw) {
+        String cleaned = raw == null ? "" : raw.replaceAll("[^A-Za-z0-9._-]", "_");
+        return cleaned.isEmpty() ? "game" : cleaned;
     }
 
     private static String resolveRedirect(String url, String token) {
@@ -452,7 +511,7 @@ public final class GogDownloadManager {
         return null;
     }
 
-    private static long downloadWithProgress(String url, File out, Callback cb, AtomicBoolean cancelled) {
+    private static long downloadWithProgress(String url, File out, Callback cb, AtomicBoolean cancelled, long doneBefore, long planned) {
         try {
             HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
             conn.setConnectTimeout(TIMEOUT); conn.setReadTimeout(60_000);
@@ -468,7 +527,11 @@ public final class GogDownloadManager {
                     downloaded += n; windowBytes += n;
                     long elapsed = System.currentTimeMillis() - windowStart;
                     if (elapsed >= 500) { speed = windowBytes * 1000L / elapsed; windowStart = System.currentTimeMillis(); windowBytes = 0; }
-                    if (total > 0) {
+                    if (planned > 0) {
+                        long shown = doneBefore + downloaded;
+                        cb.onProgress("Downloading: " + out.getName() + speedSuffix(speed), 15 + (int) ((shown / (float) planned) * 80));
+                        cb.onBytes(shown, planned, speed);
+                    } else if (total > 0) {
                         cb.onProgress("Downloading: " + out.getName() + speedSuffix(speed), 15 + (int) ((downloaded / (float) total) * 80));
                         cb.onBytes(downloaded, total, speed);
                     }
