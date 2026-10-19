@@ -35,6 +35,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
@@ -169,7 +171,7 @@ internal fun TabStrip(
         BumperKey("LB", stringResource(R.string.widgets_prev_tab)) { onSelect((selected + tabs.size - 1) % tabs.size) }
         Row(
             modifier = Modifier.weight(1f, fill = false).clip(shape).background(colors.surfaceVariant).border(1.dp, pal.line2, shape)
-                .horizontalScroll(scroll).padding(3.dp),
+                .horizontalScroll(scroll).selectableGroup().padding(3.dp),
         ) {
             tabs.forEachIndexed { i, label ->
                 val on = i == selected
@@ -189,7 +191,7 @@ internal fun TabStrip(
                         .clip(tabShape)
                         .background(if (on) pal.signal else if (hot) pal.signal.copy(alpha = 0.16f) else Color.Transparent)
                         .glideBorder(hot, tabShape, if (on) colors.onBackground else pal.signal)
-                        .hoverable(src).clickable(interactionSource = src, indication = null, role = Role.Tab, onClick = pick)
+                        .hoverable(src).selectable(selected = on, interactionSource = src, indication = null, role = Role.Tab, onClick = pick)
                         .controllerConfirm(onClick = pick)
                         .padding(horizontal = tabPadding, vertical = 12.dp),
                 )
@@ -783,7 +785,7 @@ fun <T> SegmentedTabs(options: List<Pair<T, String>>, selected: T?, modifier: Mo
                     .graphicsLayer { alpha = shown }
                     .clip(pillShape).background(pal.signal),
             )
-            Row {
+            Row(Modifier.selectableGroup()) {
                 options.forEachIndexed { i, (value, label) ->
                     val src = remember { MutableInteractionSource() }
                     val hot = src.collectIsFocusedAsState().value || src.collectIsHoveredAsState().value
@@ -802,9 +804,8 @@ fun <T> SegmentedTabs(options: List<Pair<T, String>>, selected: T?, modifier: Mo
                         modifier = tabModifier(value).width(segment).fillMaxHeight()
                             .clip(pillShape)
                             .glideBorder(hot, pillShape, if (chosen) pal.onSignal else pal.signal)
-                            .semantics { role = Role.Tab; this.selected = chosen }
                             .hoverable(src)
-                            .clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = src, indication = LocalIndication.current, onClick = pick)
+                            .selectable(selected = chosen, role = Role.Tab, interactionSource = src, indication = LocalIndication.current, onClick = pick)
                             .controllerConfirm(onClick = pick),
                     ) {
                         Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = ink, maxLines = 1, softWrap = false)

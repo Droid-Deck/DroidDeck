@@ -56,6 +56,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -934,7 +936,7 @@ private fun HeaderTabs(labels: List<String>, selected: Int, onSelect: (Int) -> U
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val shape = RoundedCornerShape(8.dp)
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.selectableGroup()) {
         labels.forEachIndexed { i, label ->
             val src = remember { MutableInteractionSource() }
             val hot = rememberHot(src)
@@ -943,7 +945,7 @@ private fun HeaderTabs(labels: List<String>, selected: Int, onSelect: (Int) -> U
                 label, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1,
                 color = if (i == selected || hot) colors.onBackground else colors.onSurfaceVariant.copy(alpha = 0.7f),
                 modifier = Modifier.clip(shape).glideBorder(hot, shape, pal.signal)
-                    .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Tab, onClick = pick)
+                    .hoverable(src).selectable(selected = i == selected, interactionSource = src, indication = LocalIndication.current, role = Role.Tab, onClick = pick)
                     .controllerConfirm(onClick = pick)
                     .padding(horizontal = 4.dp, vertical = 6.dp),
             )
