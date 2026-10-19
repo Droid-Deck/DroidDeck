@@ -144,15 +144,27 @@ if [ "$do_density" = 1 ] && [ -n "$orig_density" ]; then
   before=$(top_activity); pid0=$(app_pid)
   sh_ logcat -b events -c >/dev/null
   density_changed=1
-  sh_ wm density "$target" >/dev/null; sleep 6
+  wm_status=0
+  sh_ wm density "$target" >/dev/null || wm_status=$?
+  sleep 6
   after=$(top_activity); pid1=$(app_pid)
-  [ -n "$pid1" ] && [ "$pid0" = "$pid1" ] && ok "same process after $orig_density -> $target dpi" || bad "process changed ($pid0 -> $pid1)"
+  if [ "$wm_status" -ne 0 ]; then
+    bad "wm density failed"
+  elif [ -n "$pid1" ] && [ "$pid0" = "$pid1" ]; then
+    ok "same process after $orig_density -> $target dpi"
+  else
+    bad "process changed ($pid0 -> $pid1)"
+  fi
   case $before in "$pkg"/*)
     n=$(relaunches_of "${before#*/}")
     [ "${n:-0}" = 0 ] && ok "$before was not recreated" || bad "$before was recreated ${n}x"
     [ "$after" = "$before" ] && ok "same top activity after the change" || bad "top activity changed ($before -> $after)"
   ;; *) note "top activity was not the app ($before)" ;; esac
-  restore_density; density_changed=0
+  if restore_density; then
+    density_changed=0
+  else
+    bad "could not restore display density"
+  fi
   sleep 3
 fi
 
@@ -164,10 +176,22 @@ if [ "$do_size" = 1 ]; then
     w=$(( ($2 * 2 / 3) / 2 * 2 )); h=$1   # a narrower, taller window, like a cover screen
     pid0=$(app_pid)
     size_changed=1
-    sh_ wm size "${w}x${h}" >/dev/null; sleep 6
+    wm_status=0
+    sh_ wm size "${w}x${h}" >/dev/null || wm_status=$?
+    sleep 6
     pid1=$(app_pid)
-    [ -n "$pid1" ] && [ "$pid0" = "$pid1" ] && ok "same process at ${w}x${h}" || bad "process changed ($pid0 -> $pid1)"
-    restore_size; size_changed=0
+    if [ "$wm_status" -ne 0 ]; then
+      bad "wm size failed"
+    elif [ -n "$pid1" ] && [ "$pid0" = "$pid1" ]; then
+      ok "same process at ${w}x${h}"
+    else
+      bad "process changed ($pid0 -> $pid1)"
+    fi
+    if restore_size; then
+      size_changed=0
+    else
+      bad "could not restore window size"
+    fi
     sleep 3
   else
     note "could not read the physical size"
