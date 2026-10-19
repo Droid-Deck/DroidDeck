@@ -1966,6 +1966,8 @@
     <string name="stores_title">Магазини</string>
     <string name="stores_settings">Налаштування магазинів</string>
     <string name="stores_settings_eyebrow">Налаштування</string>
+    <string name="stores_tabs_arrange">Упорядкувати вкладки</string>
+    <string name="stores_tabs_arrange_done">Готово</string>
     <string name="stores_chip_signed_out">(вхід не виконано)</string>
     <string name="stores_tab_store">Магазин</string>
     <string name="stores_tab_library">Бібліотека</string>

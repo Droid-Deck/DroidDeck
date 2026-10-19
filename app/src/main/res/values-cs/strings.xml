@@ -1966,6 +1966,8 @@
     <string name="stores_title">Obchody</string>
     <string name="stores_settings">Nastavení obchodů</string>
     <string name="stores_settings_eyebrow">Nastavení</string>
+    <string name="stores_tabs_arrange">Uspořádat karty</string>
+    <string name="stores_tabs_arrange_done">Hotovo</string>
     <string name="stores_chip_signed_out">(nepřihlášen)</string>
     <string name="stores_tab_store">Obchod</string>
     <string name="stores_tab_library">Knihovna</string>

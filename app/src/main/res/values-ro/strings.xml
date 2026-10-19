@@ -1945,6 +1945,8 @@
     <string name="stores_title">Magazine</string>
     <string name="stores_settings">Setările magazinelor</string>
     <string name="stores_settings_eyebrow">Setări</string>
+    <string name="stores_tabs_arrange">Aranjează filele</string>
+    <string name="stores_tabs_arrange_done">Gata</string>
     <string name="stores_chip_signed_out">(neautentificat)</string>
     <string name="stores_tab_store">Magazin</string>
     <string name="stores_tab_library">Bibliotecă</string>

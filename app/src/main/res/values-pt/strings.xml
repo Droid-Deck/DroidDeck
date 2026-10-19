@@ -1934,6 +1934,8 @@
     <string name="stores_title">Lojas</string>
     <string name="stores_settings">Configurações das lojas</string>
     <string name="stores_settings_eyebrow">Configurações</string>
+    <string name="stores_tabs_arrange">Organizar abas</string>
+    <string name="stores_tabs_arrange_done">Concluído</string>
     <string name="stores_chip_signed_out">(sem login)</string>
     <string name="stores_tab_store">Loja</string>
     <string name="stores_tab_library">Biblioteca</string>

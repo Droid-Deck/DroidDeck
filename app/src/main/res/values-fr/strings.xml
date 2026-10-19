@@ -1942,6 +1942,8 @@
     <string name="stores_title">Boutiques</string>
     <string name="stores_settings">Paramètres des boutiques</string>
     <string name="stores_settings_eyebrow">Paramètres</string>
+    <string name="stores_tabs_arrange">Organiser les onglets</string>
+    <string name="stores_tabs_arrange_done">Terminé</string>
     <string name="stores_chip_signed_out">(non connecté)</string>
     <string name="stores_tab_store">Boutique</string>
     <string name="stores_tab_library">Bibliothèque</string>

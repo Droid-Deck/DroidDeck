@@ -1924,6 +1924,8 @@
     <string name="stores_title">Winkels</string>
     <string name="stores_settings">Instellingen voor winkels</string>
     <string name="stores_settings_eyebrow">Instellingen</string>
+    <string name="stores_tabs_arrange">Tabbladen rangschikken</string>
+    <string name="stores_tabs_arrange_done">Klaar</string>
     <string name="stores_chip_signed_out">(niet aangemeld)</string>
     <string name="stores_tab_store">Winkel</string>
     <string name="stores_tab_library">Bibliotheek</string>

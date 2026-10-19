@@ -1924,6 +1924,8 @@
     <string name="stores_title">Kaupat</string>
     <string name="stores_settings">Kauppojen asetukset</string>
     <string name="stores_settings_eyebrow">Asetukset</string>
+    <string name="stores_tabs_arrange">Järjestä välilehdet</string>
+    <string name="stores_tabs_arrange_done">Valmis</string>
     <string name="stores_chip_signed_out">(ei kirjautunut)</string>
     <string name="stores_tab_store">Kauppa</string>
     <string name="stores_tab_library">Kirjasto</string>

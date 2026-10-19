@@ -1924,6 +1924,8 @@
     <string name="stores_title">Áruházak</string>
     <string name="stores_settings">Áruházbeállítások</string>
     <string name="stores_settings_eyebrow">Beállítások</string>
+    <string name="stores_tabs_arrange">Fülek rendezése</string>
+    <string name="stores_tabs_arrange_done">Kész</string>
     <string name="stores_chip_signed_out">(nincs bejelentkezve)</string>
     <string name="stores_tab_store">Áruház</string>
     <string name="stores_tab_library">Könyvtár</string>

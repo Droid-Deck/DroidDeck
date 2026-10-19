@@ -1966,6 +1966,8 @@
     <string name="stores_title">Sklepy</string>
     <string name="stores_settings">Ustawienia sklepów</string>
     <string name="stores_settings_eyebrow">Ustawienia</string>
+    <string name="stores_tabs_arrange">Ułóż karty</string>
+    <string name="stores_tabs_arrange_done">Gotowe</string>
     <string name="stores_chip_signed_out">(niezalogowano)</string>
     <string name="stores_tab_store">Sklep</string>
     <string name="stores_tab_library">Biblioteka</string>

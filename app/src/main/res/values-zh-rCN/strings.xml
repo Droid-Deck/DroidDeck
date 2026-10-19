@@ -1979,6 +1979,8 @@
     <string name="stores_title">游戏商店</string>
     <string name="stores_settings">游戏商店设置</string>
     <string name="stores_settings_eyebrow">设置</string>
+    <string name="stores_tabs_arrange">整理标签</string>
+    <string name="stores_tabs_arrange_done">完成</string>
     <string name="stores_chip_signed_out">（未登录）</string>
     <string name="stores_tab_store">商店</string>
     <string name="stores_tab_library">库</string>

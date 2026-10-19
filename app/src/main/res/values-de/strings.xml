@@ -1913,6 +1913,8 @@
     <string name="stores_title">Stores</string>
     <string name="stores_settings">Store-Einstellungen</string>
     <string name="stores_settings_eyebrow">Einstellungen</string>
+    <string name="stores_tabs_arrange">Tabs anordnen</string>
+    <string name="stores_tabs_arrange_done">Fertig</string>
     <string name="stores_chip_signed_out">(nicht angemeldet)</string>
     <string name="stores_tab_store">Store</string>
     <string name="stores_tab_library">Bibliothek</string>

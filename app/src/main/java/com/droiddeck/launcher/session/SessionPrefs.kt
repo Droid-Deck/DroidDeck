@@ -118,6 +118,20 @@ object SessionPrefs {
         prefs(context).edit().putString("storesView", if (view in STORES_VIEWS) view else STORES_VIEWS.first()).apply()
     }
 
+    fun storesTabOrder(context: Context): List<String> = idList(prefs(context).getString("storesTabOrder", null))
+
+    fun setStoresTabOrder(context: Context, order: List<String>) {
+        prefs(context).edit().putString("storesTabOrder", order.joinToString(",")).apply()
+    }
+
+    fun storesTabHidden(context: Context): Set<String> = idList(prefs(context).getString("storesTabHidden", null)).toSet()
+
+    fun setStoresTabHidden(context: Context, hidden: Set<String>) {
+        prefs(context).edit().putString("storesTabHidden", hidden.joinToString(",")).apply()
+    }
+
+    private fun idList(raw: String?): List<String> = raw.orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }
+
     val STORES_SORTS = listOf("lastPlayed", "recentlyInstalled", "titleAsc", "titleDesc", "sizeDesc", "sizeAsc", "releaseDateDesc")
     val STORES_VIEWS = listOf("cards", "capsules", "list")
 

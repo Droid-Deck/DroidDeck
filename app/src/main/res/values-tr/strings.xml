@@ -1913,6 +1913,8 @@
     <string name="stores_title">Mağazalar</string>
     <string name="stores_settings">Mağaza ayarları</string>
     <string name="stores_settings_eyebrow">Ayarlar</string>
+    <string name="stores_tabs_arrange">Sekmeleri düzenle</string>
+    <string name="stores_tabs_arrange_done">Bitti</string>
     <string name="stores_chip_signed_out">(oturum açılmadı)</string>
     <string name="stores_tab_store">Mağaza</string>
     <string name="stores_tab_library">Kütüphane</string>

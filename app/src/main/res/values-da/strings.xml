@@ -1924,6 +1924,8 @@
     <string name="stores_title">Butikker</string>
     <string name="stores_settings">Butiksindstillinger</string>
     <string name="stores_settings_eyebrow">Indstillinger</string>
+    <string name="stores_tabs_arrange">Arranger faner</string>
+    <string name="stores_tabs_arrange_done">Færdig</string>
     <string name="stores_chip_signed_out">(ikke logget ind)</string>
     <string name="stores_tab_store">Butik</string>
     <string name="stores_tab_library">Bibliotek</string>

@@ -1903,6 +1903,8 @@
     <string name="stores_title">Toko</string>
     <string name="stores_settings">Setelan toko</string>
     <string name="stores_settings_eyebrow">Setelan</string>
+    <string name="stores_tabs_arrange">Atur tab</string>
+    <string name="stores_tabs_arrange_done">Selesai</string>
     <string name="stores_chip_signed_out">(belum masuk)</string>
     <string name="stores_tab_store">Toko</string>
     <string name="stores_tab_library">Pustaka</string>

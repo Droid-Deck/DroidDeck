@@ -25,6 +25,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.geometry.Size
@@ -483,7 +484,7 @@ internal fun DownloadControls(s: FrontEndState, a: FrontEndActions) {
     }
 }
 
-internal fun storesSettingsStep(at: Rect, s: androidx.compose.runtime.State<FrontEndState>, a: FrontEndActions, accent: androidx.compose.ui.graphics.Color): StepAsk =
+internal fun storesSettingsStep(at: Rect, s: androidx.compose.runtime.State<FrontEndState>, a: FrontEndActions, accent: androidx.compose.ui.graphics.Color, onArrange: () -> Unit): StepAsk =
     StepAsk(
         anchor = at, side = StepSide.Left, accent = accent, items = 2, maxWidth = 440.dp,
         handle = { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Settings, null, tint = accent, modifier = Modifier.size(20.dp)) },
@@ -494,6 +495,12 @@ internal fun storesSettingsStep(at: Rect, s: androidx.compose.runtime.State<Fron
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             val st = s.value
+            SettingsRow(stringResource(R.string.stores_tabs_arrange), null) {
+                RoundAction(Icons.Filled.SwapHoriz, stringResource(R.string.stores_tabs_arrange), size = 36.dp) {
+                    StoresMotion.fold()
+                    onArrange()
+                }
+            }
             SettingsRow(stringResource(R.string.setup_stores_open_on), null, stacked = true) {
                 Box(Modifier.focusRequester(first).focusGroup()) { SegmentedTabs(
                     listOf(SessionPrefs.STORES_OPEN_LIBRARY to stringResource(R.string.stores_tab_library), SessionPrefs.STORES_OPEN_STORE to stringResource(R.string.stores_tab_store)),

@@ -1975,6 +1975,8 @@
     <string name="stores_title">Tiendas</string>
     <string name="stores_settings">Ajustes de las tiendas</string>
     <string name="stores_settings_eyebrow">Ajustes</string>
+    <string name="stores_tabs_arrange">Organizar pestañas</string>
+    <string name="stores_tabs_arrange_done">Listo</string>
     <string name="stores_chip_signed_out">(sin iniciar sesión)</string>
     <string name="stores_tab_store">Tienda</string>
     <string name="stores_tab_library">Biblioteca</string>

@@ -1963,6 +1963,8 @@
     <string name="stores_title">Магазины</string>
     <string name="stores_settings">Настройки магазинов</string>
     <string name="stores_settings_eyebrow">Настройки</string>
+    <string name="stores_tabs_arrange">Упорядочить вкладки</string>
+    <string name="stores_tabs_arrange_done">Готово</string>
     <string name="stores_chip_signed_out">(вход не выполнен)</string>
     <string name="stores_tab_store">Магазин</string>
     <string name="stores_tab_library">Библиотека</string>

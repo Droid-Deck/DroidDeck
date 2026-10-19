@@ -1975,6 +1975,8 @@
     <string name="stores_title">Stores</string>
     <string name="stores_settings">Stores settings</string>
     <string name="stores_settings_eyebrow">Settings</string>
+    <string name="stores_tabs_arrange">Arrange tabs</string>
+    <string name="stores_tabs_arrange_done">Done</string>
     <string name="stores_chip_signed_out">(not signed in)</string>
     <string name="stores_tab_store">Store</string>
     <string name="stores_tab_library">Library</string>

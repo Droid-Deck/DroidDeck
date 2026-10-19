@@ -1924,6 +1924,8 @@
     <string name="stores_title">Καταστήματα</string>
     <string name="stores_settings">Ρυθμίσεις καταστημάτων</string>
     <string name="stores_settings_eyebrow">Ρυθμίσεις</string>
+    <string name="stores_tabs_arrange">Τακτοποίηση καρτελών</string>
+    <string name="stores_tabs_arrange_done">Έγινε</string>
     <string name="stores_chip_signed_out">(μη συνδεδεμένος)</string>
     <string name="stores_tab_store">Κατάστημα</string>
     <string name="stores_tab_library">Βιβλιοθήκη</string>

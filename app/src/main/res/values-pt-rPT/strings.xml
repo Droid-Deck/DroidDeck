@@ -1934,6 +1934,8 @@
     <string name="stores_title">Lojas</string>
     <string name="stores_settings">Definições das lojas</string>
     <string name="stores_settings_eyebrow">Definições</string>
+    <string name="stores_tabs_arrange">Organizar separadores</string>
+    <string name="stores_tabs_arrange_done">Concluído</string>
     <string name="stores_chip_signed_out">(sessão não iniciada)</string>
     <string name="stores_tab_store">Loja</string>
     <string name="stores_tab_library">Biblioteca</string>

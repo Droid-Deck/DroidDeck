@@ -1934,6 +1934,8 @@
     <string name="stores_title">Negozi</string>
     <string name="stores_settings">Impostazioni negozi</string>
     <string name="stores_settings_eyebrow">Impostazioni</string>
+    <string name="stores_tabs_arrange">Disponi schede</string>
+    <string name="stores_tabs_arrange_done">Fine</string>
     <string name="stores_chip_signed_out">(accesso non eseguito)</string>
     <string name="stores_tab_store">Negozio</string>
     <string name="stores_tab_library">Libreria</string>

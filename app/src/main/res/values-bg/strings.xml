@@ -1924,6 +1924,8 @@
     <string name="stores_title">Магазини</string>
     <string name="stores_settings">Настройки на магазините</string>
     <string name="stores_settings_eyebrow">Настройки</string>
+    <string name="stores_tabs_arrange">Подреждане на раздели</string>
+    <string name="stores_tabs_arrange_done">Готово</string>
     <string name="stores_chip_signed_out">(не е вписан)</string>
     <string name="stores_tab_store">Магазин</string>
     <string name="stores_tab_library">Библиотека</string>

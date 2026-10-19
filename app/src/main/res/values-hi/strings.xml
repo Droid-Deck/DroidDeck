@@ -1924,6 +1924,8 @@
     <string name="stores_title">स्टोर</string>
     <string name="stores_settings">स्टोर सेटिंग</string>
     <string name="stores_settings_eyebrow">सेटिंग</string>
+    <string name="stores_tabs_arrange">टैब व्यवस्थित करें</string>
+    <string name="stores_tabs_arrange_done">हो गया</string>
     <string name="stores_chip_signed_out">(साइन इन नहीं है)</string>
     <string name="stores_tab_store">स्टोर</string>
     <string name="stores_tab_library">लाइब्रेरी</string>
