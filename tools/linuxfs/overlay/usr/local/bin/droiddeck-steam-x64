@@ -126,6 +126,28 @@ x64_sync_client() {
     unzip -qo "$work/$file" -d "$STEAM_X64"
     rm -f "$work/$file"
   done < "$work/todo"
+  awk -F'"' '
+    /^\t"/ && NF >= 3 && $4 == "" { block = $2 }
+    $2 == "file" { file[block] = $4 }
+    $2 == "sha2" { sha[block] = $4 }
+    $2 == "size" { size[block] = $4 }
+    $2 == "zipvz" { vz[block] = $4 }
+    $2 == "sha2vz" { vzsha[block] = $4 }
+    END {
+      for (b in file) {
+        if (vz[b] != "") { n = split(vz[b], part, "_"); print b, vz[b], vzsha[b], part[n] }
+        else print b, file[b], sha[b], size[b]
+      }
+    }
+  ' "$work/manifest" | sort > "$work/packages"
+  total=$(grep -c . "$work/packages" || true)
+  j=0
+  while read -r block name sum bytes; do
+    j=$((j + 1))
+    if [ -f "$STEAM_X64/package/$name" ] && [ "$(stat -c %s "$STEAM_X64/package/$name")" = "$bytes" ]; then continue; fi
+    step "downloading Steam: $block ($j/$total)"
+    x64_package_fetch "$name" "$sum" || { step "will let the client fetch $name itself"; rm -f "$STEAM_X64/package/$name"; }
+  done < "$work/packages"
   cp -f "$work/manifest" "$old"
   echo "$version" > "$STEAM_X64/package/droiddeck-installed"
   chmod +x "$STEAM_X64/steam.sh" "$STEAM_X64/steamrt64/steam" "$STEAM_X64/ubuntu12_32/steam" 2>/dev/null || true
@@ -467,6 +489,19 @@ x64_fetch() {
   done
   wait "$pid" || rc=$?
   return "$rc"
+}
+
+# Steam verifies package/ by name and size before it fetches anything, so the archives our
+# own fetch leaves there turn the client's first run into an unpack, and -C resumes them.
+x64_package_fetch() {
+  local name=$1 sum=$2 target=$STEAM_X64/package/$1 host
+  for host in "${cdn_order[@]}"; do
+    if x64_fetch "$host/$name" "$target" "downloading Steam: $name"; then
+      if echo "$sum  $target" | sha256sum -c --quiet >/dev/null 2>&1; then return 0; fi
+      rm -f "$target"
+    fi
+  done
+  return 1
 }
 
 # A release asset on github.com goes through the mirrors when the origin crawls.
