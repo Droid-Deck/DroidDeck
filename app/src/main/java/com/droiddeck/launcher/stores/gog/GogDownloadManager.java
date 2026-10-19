@@ -20,6 +20,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -405,7 +406,12 @@ public final class GogDownloadManager {
                 if (cancelled.get()) return null;
                 String downloadUrl = resolveRedirect(part.url, token);
                 if (downloadUrl == null) throw new InstallException("The installer link could not be resolved: " + part.filename);
-                File outFile = new File(installPath, part.filename);
+                File outFile;
+                try {
+                    outFile = installerDestination(installPath, part.filename);
+                } catch (IOException e) {
+                    throw new InstallException("The installer part is not inside the game folder: " + part.filename);
+                }
                 cb.onProgress("Downloading installer: " + part.filename, 15 + (int) ((total / (float) Math.max(1, planned)) * 80));
                 long size = downloadWithProgress(downloadUrl, outFile, cb, cancelled, total, sized ? planned : 0);
                 if (cancelled.get()) return null;
@@ -467,6 +473,15 @@ public final class GogDownloadManager {
             }
             if (!out.isEmpty()) return out;
         }
+        return out;
+    }
+
+    static File installerDestination(File installPath, String filename) throws IOException {
+        File root = installPath.getCanonicalFile();
+        File candidate = new File(root, filename);
+        if (Files.isSymbolicLink(candidate.toPath())) throw new IOException("installer part is a link");
+        File out = candidate.getCanonicalFile();
+        if (out.equals(root) || !out.toPath().startsWith(root.toPath())) throw new IOException("installer part leaves the game folder");
         return out;
     }
 

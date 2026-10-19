@@ -1,7 +1,11 @@
 package com.droiddeck.launcher.stores.gog
 
+import java.io.File
+import java.io.IOException
+import java.nio.file.Files
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -53,6 +57,30 @@ class GogInstallerPartsTest {
         assertEquals(1, parts.size)
         assertEquals("setup_.._game_id.exe", parts[0].filename)
         assertEquals(42L, parts[0].size)
+    }
+
+    @Test fun installerPartsStayInsideTheGameFolder() {
+        val root = kotlin.io.path.createTempDirectory("gog-installer").toFile()
+        try {
+            assertEquals(
+                File(root, "setup_1.exe").canonicalFile,
+                GogDownloadManager.installerDestination(root, "setup_1.exe"),
+            )
+            assertThrows(IOException::class.java) {
+                GogDownloadManager.installerDestination(root, "../outside.exe")
+            }
+            val outside = File(root.parentFile, "outside-${System.nanoTime()}.bin").apply { writeText("x") }
+            try {
+                Files.createSymbolicLink(File(root, "setup_1-1.bin").toPath(), outside.toPath())
+                assertThrows(IOException::class.java) {
+                    GogDownloadManager.installerDestination(root, "setup_1-1.bin")
+                }
+            } finally {
+                outside.delete()
+            }
+        } finally {
+            root.deleteRecursively()
+        }
     }
 
     @Test fun anotherPlatformOrNoDownloadsAddsNothing() {
