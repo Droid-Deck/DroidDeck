@@ -87,6 +87,7 @@ class RuntimeUserDataCarryTest {
         val staging = tmp.newFolder("runtime.new")
         val old = File(tmp.root, "runtime.old")
         put(root, "opt/appimages/dolphin.AppImage", "user app")
+        put(staging, LinuxRuntimeInstaller.CARRY_MARKER, "1")
         put(staging, "usr/share/applications/droiddeck-dolphin.desktop", "menu")
         put(staging, ".droiddeck-pkg-dolphin", "version")
         put(staging, ".droiddeck-pkg-desktop-kde", "system package marker")
@@ -96,6 +97,18 @@ class RuntimeUserDataCarryTest {
         assertEquals("version", File(root, ".droiddeck-pkg-dolphin").readText())
         assertFalse(File(root, ".droiddeck-pkg-desktop-kde").exists())
         assertEquals("user app", File(root, "opt/appimages/dolphin.AppImage").readText())
+    }
+
+    @Test fun unmarkedExtractedStagingDoesNotBlockRecovery() {
+        val root = tmp.newFolder("runtime")
+        val staging = tmp.newFolder("runtime.new")
+        val old = File(tmp.root, "runtime.old")
+        put(root, "root/save.dat", "current user data")
+        put(staging, "root/.bashrc", "shipped home from interrupted extract")
+
+        LinuxRuntimeInstaller.recoverInterruptedSwap(root, staging, old)
+        assertEquals("current user data", File(root, "root/save.dat").readText())
+        assertEquals("shipped home from interrupted extract", File(staging, "root/.bashrc").readText())
     }
 
     @Test fun anUnreadableAppImageDirectoryAbortsBeforeMovingHome() {
@@ -121,6 +134,7 @@ class RuntimeUserDataCarryTest {
         val staging = tmp.newFolder("runtime.new")
         put(old, "usr/bin/usable", "previous runtime")
         File(old, "root").mkdirs()
+        put(staging, LinuxRuntimeInstaller.CARRY_MARKER, "1")
         put(staging, "root/save.dat", "staged user data")
         RuntimeFileTree.refuseForTest = java.util.function.Predicate { it.fileName.toString() == "root" }
 
@@ -135,6 +149,7 @@ class RuntimeUserDataCarryTest {
         val staging = tmp.newFolder("runtime.new")
         val old = File(tmp.root, "runtime.old")
         put(root, "root/current.dat", "current user data")
+        put(staging, LinuxRuntimeInstaller.CARRY_MARKER, "1")
         put(staging, "root/older.dat", "unrecovered user data")
 
         repeat(2) {
@@ -148,6 +163,7 @@ class RuntimeUserDataCarryTest {
         val root = File(tmp.root, "runtime")
         val old = File(tmp.root, "runtime.old")
         val staging = tmp.newFolder("runtime.new")
+        put(staging, LinuxRuntimeInstaller.CARRY_MARKER, "1")
         put(staging, "root/save.dat", "only surviving user data")
         assertThrows(IOException::class.java) { LinuxRuntimeInstaller.recoverInterruptedSwap(root, staging, old) }
         assertEquals("only surviving user data", File(staging, "root/save.dat").readText())
@@ -159,6 +175,7 @@ class RuntimeUserDataCarryTest {
         val staging = tmp.newFolder("runtime.new")
         val old = File(tmp.root, "runtime.old")
         put(root, "root/keep.dat", "current user data")
+        put(staging, LinuxRuntimeInstaller.CARRY_MARKER, "1")
         put(staging, "root/staged.dat", "staged user data")
         assertTrue(root.setExecutable(false, false))
         val failure = try {
