@@ -30,7 +30,7 @@
     <string name="frame_gen_title">Δημιουργία καρέ</string>
     <string name="frame_gen_hint">Επιλέξτε τη λειτουργία δημιουργίας καρέ</string>
     <string name="frame_gen_off">Ανενεργό</string>
-    <string name="frame_gen_winfg">Win-FG %1$d×</string>
+    <string name="frame_gen_ddfg">DD-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
     <string name="frame_gen_lsfg_adaptive">LSFG προσαρμοστικό %1$d</string>
     <string name="lsfg_needs_steam">Απαιτεί το Lossless Scaling στο Steam</string>

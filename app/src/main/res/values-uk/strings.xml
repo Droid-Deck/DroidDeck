@@ -30,7 +30,7 @@
     <string name="frame_gen_title">Генерація кадрів</string>
     <string name="frame_gen_hint">Виберіть режим генерації кадрів</string>
     <string name="frame_gen_off">Вимк.</string>
-    <string name="frame_gen_winfg">Win-FG %1$d×</string>
+    <string name="frame_gen_ddfg">DD-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
     <string name="frame_gen_lsfg_adaptive">LSFG адаптивний %1$d</string>
     <string name="lsfg_needs_steam">Потрібен Lossless Scaling зі Steam</string>

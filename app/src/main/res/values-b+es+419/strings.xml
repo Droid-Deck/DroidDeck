@@ -30,7 +30,7 @@
     <string name="frame_gen_title">Generación de fotogramas</string>
     <string name="frame_gen_hint">Elige el modo de generación de fotogramas</string>
     <string name="frame_gen_off">Desactivada</string>
-    <string name="frame_gen_winfg">Win-FG %1$d×</string>
+    <string name="frame_gen_ddfg">DD-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
     <string name="frame_gen_lsfg_adaptive">LSFG adaptativo %1$d</string>
     <string name="lsfg_needs_steam">Requiere Lossless Scaling en Steam</string>

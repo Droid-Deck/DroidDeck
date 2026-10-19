@@ -30,7 +30,7 @@
     <string name="frame_gen_title">Tạo khung hình</string>
     <string name="frame_gen_hint">Chọn chế độ tạo khung hình</string>
     <string name="frame_gen_off">Tắt</string>
-    <string name="frame_gen_winfg">Win-FG %1$d×</string>
+    <string name="frame_gen_ddfg">DD-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
     <string name="frame_gen_lsfg_adaptive">LSFG thích ứng %1$d</string>
     <string name="lsfg_needs_steam">Cần Lossless Scaling trên Steam</string>

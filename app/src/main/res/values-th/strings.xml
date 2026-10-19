@@ -30,7 +30,7 @@
     <string name="frame_gen_title">การสร้างเฟรม</string>
     <string name="frame_gen_hint">เลือกโหมดการสร้างเฟรม</string>
     <string name="frame_gen_off">ปิด</string>
-    <string name="frame_gen_winfg">Win-FG %1$d×</string>
+    <string name="frame_gen_ddfg">DD-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
     <string name="frame_gen_lsfg_adaptive">LSFG แบบปรับอัตโนมัติ %1$d</string>
     <string name="lsfg_needs_steam">ต้องมี Lossless Scaling บน Steam</string>

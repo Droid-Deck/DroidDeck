@@ -30,7 +30,7 @@
     <string name="frame_gen_title">帧生成</string>
     <string name="frame_gen_hint">选择帧生成模式</string>
     <string name="frame_gen_off">关闭</string>
-    <string name="frame_gen_winfg">Win-FG %1$d×</string>
+    <string name="frame_gen_ddfg">DD-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
     <string name="frame_gen_lsfg_adaptive">LSFG 自适应 %1$d</string>
     <string name="lsfg_needs_steam">需要 Steam 上的 Lossless Scaling</string>

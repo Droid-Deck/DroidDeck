@@ -1,25 +1,25 @@
 
 namespace {
 struct ScratchState {
-    VkBuffer synthUbo[winfg::FrameGen::kSynthSlots]{};
-    VkDeviceMemory synthUboMem[winfg::FrameGen::kSynthSlots]{};
-    void* synthUboPtr[winfg::FrameGen::kSynthSlots]{};
+    VkBuffer synthUbo[ddfg::FrameGen::kSynthSlots]{};
+    VkDeviceMemory synthUboMem[ddfg::FrameGen::kSynthSlots]{};
+    void* synthUboPtr[ddfg::FrameGen::kSynthSlots]{};
     std::vector<VkBuffer> flowUbo; std::vector<VkDeviceMemory> flowUboMem; std::vector<void*> flowUboPtr;
     VkBuffer expandUbo = VK_NULL_HANDLE; VkDeviceMemory expandUboMem = VK_NULL_HANDLE; void* expandUboPtr = nullptr;
     VkBuffer flowRegUbo = VK_NULL_HANDLE; VkDeviceMemory flowRegUboMem = VK_NULL_HANDLE; void* flowRegUboPtr = nullptr;
-    VkBuffer gmUbo[winfg::FrameGen::kGmSlots]{};
-    VkDeviceMemory gmUboMem[winfg::FrameGen::kGmSlots]{};
-    void* gmUboPtr[winfg::FrameGen::kGmSlots]{};
+    VkBuffer gmUbo[ddfg::FrameGen::kGmSlots]{};
+    VkDeviceMemory gmUboMem[ddfg::FrameGen::kGmSlots]{};
+    void* gmUboPtr[ddfg::FrameGen::kGmSlots]{};
     VkDescriptorSet sLumaCurr = VK_NULL_HANDLE, sLumaPrev = VK_NULL_HANDLE;
     std::vector<VkDescriptorSet> sDownA, sDownB, sFlow;
-    VkDescriptorSet sExpand[winfg::FrameGen::kGmSlots]{};
+    VkDescriptorSet sExpand[ddfg::FrameGen::kGmSlots]{};
 
 
 
     VkDescriptorSet sFlowReg0 = VK_NULL_HANDLE, sFlowRegAB = VK_NULL_HANDLE, sFlowRegBA = VK_NULL_HANDLE;
-    VkDescriptorSet sSynth[winfg::FrameGen::kSynthSlots]{};
-    VkDescriptorSet sGmReduce[winfg::FrameGen::kGmSlots]{};
-    std::vector<VkDescriptorSet> sGmPrewarp[winfg::FrameGen::kGmSlots];
+    VkDescriptorSet sSynth[ddfg::FrameGen::kSynthSlots]{};
+    VkDescriptorSet sGmReduce[ddfg::FrameGen::kGmSlots]{};
+    std::vector<VkDescriptorSet> sGmPrewarp[ddfg::FrameGen::kGmSlots];
     VkExtent2D builtFor{0,0};
     bool built = false;
     bool flowInited = false;
@@ -28,7 +28,7 @@ struct ScratchState {
 ScratchState g_scratch;
 }
 
-static bool makeUbo(const winfg::DeviceDispatch* dd, VkDevice dev,
+static bool makeUbo(const ddfg::DeviceDispatch* dd, VkDevice dev,
                     const VkPhysicalDeviceMemoryProperties& mp,
                     VkDeviceSize size, VkBuffer& buf, VkDeviceMemory& mem, void*& ptr) {
     VkBufferCreateInfo bi{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
@@ -44,21 +44,21 @@ static bool makeUbo(const winfg::DeviceDispatch* dd, VkDevice dev,
     return dd->MapMemory(dev, mem, 0, size, 0, &ptr) == VK_SUCCESS;
 }
 
-static VkDescriptorSet allocSet(const winfg::DeviceDispatch* dd, VkDevice dev,
+static VkDescriptorSet allocSet(const ddfg::DeviceDispatch* dd, VkDevice dev,
                                 VkDescriptorPool pool, VkDescriptorSetLayout layout) {
     VkDescriptorSetAllocateInfo ai{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
     ai.descriptorPool = pool; ai.descriptorSetCount = 1; ai.pSetLayouts = &layout;
     VkDescriptorSet s = VK_NULL_HANDLE; dd->AllocateDescriptorSets(dev, &ai, &s); return s;
 }
 
-static void wImg(const winfg::DeviceDispatch* dd, VkDevice dev, VkDescriptorSet set, uint32_t binding,
+static void wImg(const ddfg::DeviceDispatch* dd, VkDevice dev, VkDescriptorSet set, uint32_t binding,
                  VkDescriptorType type, VkImageView view, VkSampler samp, VkImageLayout layout) {
     VkDescriptorImageInfo ii{}; ii.imageView = view; ii.sampler = samp; ii.imageLayout = layout;
     VkWriteDescriptorSet w{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
     w.dstSet = set; w.dstBinding = binding; w.descriptorCount = 1; w.descriptorType = type; w.pImageInfo = &ii;
     dd->UpdateDescriptorSets(dev, 1, &w, 0, nullptr);
 }
-static void wUbo(const winfg::DeviceDispatch* dd, VkDevice dev, VkDescriptorSet set, uint32_t binding,
+static void wUbo(const ddfg::DeviceDispatch* dd, VkDevice dev, VkDescriptorSet set, uint32_t binding,
                  VkBuffer buf, VkDeviceSize range) {
     VkDescriptorBufferInfo bi{}; bi.buffer = buf; bi.range = range;
     VkWriteDescriptorSet w{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
@@ -66,7 +66,7 @@ static void wUbo(const winfg::DeviceDispatch* dd, VkDevice dev, VkDescriptorSet 
     w.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; w.pBufferInfo = &bi;
     dd->UpdateDescriptorSets(dev, 1, &w, 0, nullptr);
 }
-static void wSsbo(const winfg::DeviceDispatch* dd, VkDevice dev, VkDescriptorSet set, uint32_t binding,
+static void wSsbo(const ddfg::DeviceDispatch* dd, VkDevice dev, VkDescriptorSet set, uint32_t binding,
                   VkBuffer buf, VkDeviceSize range) {
     VkDescriptorBufferInfo bi{}; bi.buffer = buf; bi.range = range;
     VkWriteDescriptorSet w{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
@@ -120,7 +120,7 @@ static void mulAff(const double A[3][3], const double B[3][3], double out[3][3])
     out[2][0]=0.0; out[2][1]=0.0; out[2][2]=1.0;
 }
 
-namespace winfg {
+namespace ddfg {
 
 static bool ensureScratch(FrameGen* fg, const DeviceDispatch* dd, VkDevice dev,
                           const VkPhysicalDeviceMemoryProperties& mp, VkDescriptorPool pool,
@@ -157,7 +157,7 @@ void FrameGen::configure(const Config& c) {
     int want = flowFinestForPreset(cfg_.perfPreset);
     const int maxFinest = kLevels - 2;
     if (want > maxFinest) {
-        WFG_LOGE("perf-preset=%d wants kFlowFinest=%d but only %d pyramid levels exist "
+        DDFG_LOGE("perf-preset=%d wants kFlowFinest=%d but only %d pyramid levels exist "
                  "(need >=2 solved) - clamping to %d", cfg_.perfPreset, want, kLevels, maxFinest);
         want = maxFinest;
     }
@@ -166,7 +166,7 @@ void FrameGen::configure(const Config& c) {
     const int prevFinest = flowFinest_;
     flowFinest_ = want;
     const bool live = (flowFinest_ != prevFinest) && ready_;
-    WFG_LOGI("perf-preset=%d -> kFlowFinest=%d (was %d) live-rebuild=%d ready=%d",
+    DDFG_LOGI("perf-preset=%d -> kFlowFinest=%d (was %d) live-rebuild=%d ready=%d",
              cfg_.perfPreset, flowFinest_, prevFinest, live ? 1 : 0, ready_ ? 1 : 0);
 
     if (!live) return;
@@ -177,12 +177,12 @@ void FrameGen::configure(const Config& c) {
     dd_->DeviceWaitIdle(device_);
     destroyScratch(dd_, device_, descPool_);
     if (!onResize(extent_, VK_FORMAT_UNDEFINED,  true))
-        WFG_LOGE("perf-preset live rebuild: onResize FAILED at %ux%u - FG disabled until next resize",
+        DDFG_LOGE("perf-preset live rebuild: onResize FAILED at %ux%u - FG disabled until next resize",
                  extent_.width, extent_.height);
     for (int i = 0; i < 6; ++i) gmRun_[i] = 0.0;
     for (int s = 0; s < kGmSlots; ++s) { gmSlotValid_[s] = false; for (int i = 0; i < 6; ++i) gmLinAt_[s][i] = 0.0; }
     gmHaveEst_ = false; gmEngaged_ = false; gmStableCount_ = 0; gmLastTransPx_ = 0.0f;
-    WFG_LOGI("perf-preset live rebuild DONE (kFlowFinest=%d, flow predictor reset)", flowFinest_);
+    DDFG_LOGI("perf-preset live rebuild DONE (kFlowFinest=%d, flow predictor reset)", flowFinest_);
 }
 
 bool FrameGen::updateGlobalMotion(uint32_t gmSlot, VkExtent2D fullExtent) {
@@ -285,7 +285,7 @@ void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView cur
         {
             static int lastEng = -1;
             if (gmEngaged != (lastEng == 1) || (gmFrames_ % 300ull) == 0) {
-                WFG_LOGI("C1 global-motion: engaged=%d mode=%d stable=%d transPx=%.1f (model=%d)",
+                DDFG_LOGI("C1 global-motion: engaged=%d mode=%d stable=%d transPx=%.1f (model=%d)",
                          gmEngaged ? 1 : 0, cfg_.gmMode, gmStableCount_, gmLastTransPx_, cfg_.model);
                 lastEng = gmEngaged ? 1 : 0;
             }
@@ -403,7 +403,7 @@ void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView cur
             static int lastFr = -1;
             int fe = frEngaged ? 1 : 0;
             if (fe != lastFr || (gmFrames_ % 300ull) == 0) {
-                WFG_LOGI("C2 flow-reg: engaged=%d mode=%d iters=%d lambda=%.2f dt=%.2f edge=%.1f eps=%.3f (model=%d)",
+                DDFG_LOGI("C2 flow-reg: engaged=%d mode=%d iters=%d lambda=%.2f dt=%.2f edge=%.1f eps=%.3f (model=%d)",
                          fe, cfg_.frMode, cfg_.frIters, cfg_.frLambda, cfg_.frDt, cfg_.frEdge, cfg_.frEps, cfg_.model);
                 lastFr = fe;
             }

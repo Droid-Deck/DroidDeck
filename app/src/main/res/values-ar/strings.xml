@@ -30,7 +30,7 @@
     <string name="frame_gen_title">توليد الإطارات</string>
     <string name="frame_gen_hint">اختر وضع توليد الإطارات</string>
     <string name="frame_gen_off">إيقاف</string>
-    <string name="frame_gen_winfg">Win-FG %1$d×</string>
+    <string name="frame_gen_ddfg">DD-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
     <string name="frame_gen_lsfg_adaptive">LSFG تكيّفي %1$d</string>
     <string name="lsfg_needs_steam">يتطلب Lossless Scaling على Steam</string>

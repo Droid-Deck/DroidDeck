@@ -30,7 +30,7 @@
     <string name="frame_gen_title">Generazione di frame</string>
     <string name="frame_gen_hint">Seleziona la modalità di generazione di frame</string>
     <string name="frame_gen_off">Disattivata</string>
-    <string name="frame_gen_winfg">Win-FG %1$d×</string>
+    <string name="frame_gen_ddfg">DD-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
     <string name="frame_gen_lsfg_adaptive">LSFG adattivo %1$d</string>
     <string name="lsfg_needs_steam">Richiede Lossless Scaling su Steam</string>

@@ -30,7 +30,7 @@
     <string name="frame_gen_title">Bildrutegenerering</string>
     <string name="frame_gen_hint">Välj läge för bildrutegenerering</string>
     <string name="frame_gen_off">Av</string>
-    <string name="frame_gen_winfg">Win-FG %1$d×</string>
+    <string name="frame_gen_ddfg">DD-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
     <string name="frame_gen_lsfg_adaptive">LSFG adaptiv %1$d</string>
     <string name="lsfg_needs_steam">Kräver Lossless Scaling på Steam</string>

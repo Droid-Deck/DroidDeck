@@ -3,7 +3,7 @@
 #include "config.hpp"
 #include <vector>
 
-namespace winfg {
+namespace ddfg {
 
 class FrameGen {
 public:

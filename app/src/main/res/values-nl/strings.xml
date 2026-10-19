@@ -30,7 +30,7 @@
     <string name="frame_gen_title">Framegeneratie</string>
     <string name="frame_gen_hint">Kies de modus voor framegeneratie</string>
     <string name="frame_gen_off">Uit</string>
-    <string name="frame_gen_winfg">Win-FG %1$d×</string>
+    <string name="frame_gen_ddfg">DD-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
     <string name="frame_gen_lsfg_adaptive">LSFG adaptief %1$d</string>
     <string name="lsfg_needs_steam">Vereist Lossless Scaling op Steam</string>

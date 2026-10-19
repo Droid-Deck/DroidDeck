@@ -30,7 +30,7 @@
     <string name="frame_gen_title">フレーム生成</string>
     <string name="frame_gen_hint">使用するフレーム生成モードを選択してください</string>
     <string name="frame_gen_off">オフ</string>
-    <string name="frame_gen_winfg">Win-FG %1$d×</string>
+    <string name="frame_gen_ddfg">DD-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
     <string name="frame_gen_lsfg_adaptive">LSFG アダプティブ %1$d</string>
     <string name="lsfg_needs_steam">Steam版のLossless Scalingが必要です</string>

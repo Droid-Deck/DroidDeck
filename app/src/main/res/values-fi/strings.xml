@@ -30,7 +30,7 @@
     <string name="frame_gen_title">Kehysten generointi</string>
     <string name="frame_gen_hint">Valitse kehysten generoinnin tila</string>
     <string name="frame_gen_off">Pois</string>
-    <string name="frame_gen_winfg">Win-FG %1$d×</string>
+    <string name="frame_gen_ddfg">DD-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
     <string name="frame_gen_lsfg_adaptive">LSFG Mukautuva %1$d</string>
     <string name="lsfg_needs_steam">Vaatii Lossless Scalingin Steamista</string>
