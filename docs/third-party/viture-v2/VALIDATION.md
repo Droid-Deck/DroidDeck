@@ -50,12 +50,32 @@ close, readiness and tracking were both false. The complete sequence took 13.03 
 This validates the production USB driver; it does not by itself exercise the full
 DroidDeck UI or an in-game head-tracking session.
 
-All 115 selected host-side tests passed. They cover wire framing/checksums, bounded parsing, pose and raw layouts,
+All 115 selected host-side tests passed. They cover wire framing/checksums,
+bounded parsing, pose and raw layouts,
 invalid samples, readiness without trusting ACKs, host-receipt cutoffs and
 duplicate/backward device-tick rejection,
 stop/restart behavior, transport failures, relative coordinate conversion, exact
 USB model routing, consumer removal before the first restarted pose, and UI hiding
 of unsupported hardware/display controls.
+
+## Full application check
+
+The complete debug APK built successfully with `:app:assembleDebug -PvitureSdkDir=`
+and passed the repository's runtime-input verification and APK signature checks.
+The APK contains the upstream MIT license and contains none of `libglasses.so`,
+`libcarina_vio.so`, `libcloud_protocol.so`, or `libdroiddeck_viture.so`.
+
+Installed as `com.droiddeck.launcher.xr`, version 0.5.0, on the same phone, it
+recognized Pro 2 and exposed `supportsScreen3dof=true` after USB permission and
+valid bootstrap samples. A five-second sample through DroidDeck's own `glasses`
+agent endpoint returned **595 poses (118.98 Hz including startup)**, with quaternion
+norms within 0.00000006 of one and zero bad frames. Tracking was false before the
+sample, true during it, and false afterward; the connection remained ready with
+no control error. This checks application integration and consumer-driven streaming,
+not an in-game rendering or SteamVR session.
+
+Tested APK SHA-256:
+`f5a2484ea1708a143cb94a96e084188cb0d2b122154a2645d3127c66f6d04f21`.
 
 ## Local capture fingerprints
 
@@ -68,6 +88,7 @@ SHA-256 values identify the captures behind the table above:
 | `pro2-pose-motion.jsonl` | `d72f3bbd6564061e9bf4e06fec7f4c6dcdbfabeee626a99a7bff279b416ccc61` |
 | `pro2-raw.jsonl` | `944ac2fe30c7b1a817bc4d3281ead620000be32aa2dbd96e6b104cf4d7063091` |
 | `pro2-production-driver-final.jsonl` | `0f1c1073963a7c3052bf8bdbcb39e3ef8ec332367ab1a3e39b622d36fcd06db2` |
+| `pro2-full-app.json` | `3e48d9c3e8a230ec84e09bb51395b8566618406abb93937b8e2b69c40b4854c5` |
 
 The provenance in [README.md](README.md) applies to all these checks: the upstream
 MIT project used SDK traffic captures in its research. This adaptation contains
