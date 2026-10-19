@@ -84,9 +84,21 @@ object FileOps {
         val parent = dst.parentFile
         if (!src.exists() || (parent != null && !parent.exists() && !parent.mkdirs())) return false
         val chunk = 4L * 1024 * 1024
+        var staging: File? = null
         try {
+            val permissions = try {
+                Files.getPosixFilePermissions(dst.toPath())
+            } catch (e: java.nio.file.NoSuchFileException) {
+                null
+            } catch (e: UnsupportedOperationException) {
+                null
+            }
+            if (dst.exists() && !dst.canWrite()) throw IOException("Destination is not writable: $dst")
+            val directory = Files.createTempDirectory(checkNotNull(dst.absoluteFile.parentFile).toPath(), ".droiddeck-copy-")
+            staging = directory.toFile()
+            val copied = directory.resolve("file")
             FileInputStream(src).channel.use { input ->
-                FileOutputStream(dst).channel.use { output ->
+                FileOutputStream(copied.toFile()).channel.use { output ->
                     val size = input.size()
                     var position = 0L
                     while (position < size) {
@@ -99,14 +111,21 @@ object FileOps {
                     if (position < size) throw IOException("Incomplete copy: $position/$size bytes")
                 }
             }
+            if (permissions != null && Files.getPosixFilePermissions(copied) != permissions) {
+                Files.setPosixFilePermissions(copied, permissions)
+            }
+            Files.move(copied, dst.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
             return true
         } catch (e: java.util.concurrent.CancellationException) {
-            dst.delete()
             throw e
         } catch (e: IOException) {
             Log.e(TAG, "Failed to copy file: $src to $dst", e)
-            dst.delete()
             return false
+        } finally {
+            staging?.let { directory ->
+                File(directory, "file").delete()
+                directory.delete()
+            }
         }
     }
 
