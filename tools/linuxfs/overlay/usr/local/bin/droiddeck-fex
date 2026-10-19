@@ -51,6 +51,7 @@ FAULT_REPORT = "libfaultreport.so"
 VULKAN_PIN = "libvulkan-thunk.so"
 VULKAN_PIN_DIR = "lib/x86_64-linux-gnu/droiddeck/vulkan"
 VULKAN_THUNK = "libvulkan-guest.so"
+ASOUND_CONF = "pcm.!default {\n    type pulse\n}\nctl.!default {\n    type pulse\n}\n"
 RUNTIME_LIBRARIES = (("libc.so.6", b"GLIBC_"), ("libstdc++.so.6", b"GLIBCXX_"))
 VERSION_NAME = re.compile(rb"GLIBC(?:XX)?_[0-9][0-9.]*[0-9]")
 BUNDLE_DEPTH = 3
@@ -343,6 +344,7 @@ def install_preloads(root):
     if len(shipped.get(FAULT_REPORT, ())) == len(GUEST_LIBDIRS):
         wanted.append(FAULT_REPORT)
     write_if_changed(os.path.join(root, "etc", "ld.so.preload"), "".join("/usr/$LIB/droiddeck/%s\n" % name for name in wanted))
+    write_if_changed(os.path.join(root, "etc", "asound.conf"), ASOUND_CONF)
 
 
 def write_config(fex, root):

@@ -251,6 +251,8 @@ class PrepareTest(FexTestCase):
         self.assertEqual((root / "etc/ld.so.preload").read_text(),
                          "/usr/$LIB/droiddeck/libblsession.so\n/usr/$LIB/droiddeck/libfakeinput.so\n")
         self.assertEqual((root / "lib/i386-linux-gnu/droiddeck/libfakeinput.so").read_bytes(), b"i386libfakeinput.so")
+        self.assertEqual((root / "etc/asound.conf").read_text(),
+                         "pcm.!default {\n    type pulse\n}\nctl.!default {\n    type pulse\n}\n")
         self.write(self.tmp / "ld.so.preload", "/usr/local/lib/libblsession.so\n")
         FEX["install_preloads"](str(root))
         self.assertEqual((root / "etc/ld.so.preload").read_text(), "/usr/$LIB/droiddeck/libblsession.so\n")
