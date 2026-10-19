@@ -479,7 +479,7 @@ x64_fex() {
 x64_fetch() {
   local url=$1 out=$2 label=$3 total pid rc=0 last=-1 pct
   total=$(curl -fsSIL "$url" 2>/dev/null | tr -d '\r' | awk 'tolower($1) == "content-length:" { v = $2 } END { print v + 0 }')
-  curl -fL -sS -C - "$url" -o "$out" &
+  curl -fL -sS -C - --speed-limit 102400 --speed-time 30 --retry 3 --retry-delay 3 "$url" -o "$out" &
   pid=$!
   while kill -0 "$pid" 2>/dev/null; do
     sleep 3
