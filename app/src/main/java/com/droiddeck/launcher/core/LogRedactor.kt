@@ -207,30 +207,34 @@ object LogRedactor {
                     line.setLength(0)
                     withheld = false
                 }
-                while (true) {
-                    val size = reader.read(buffer)
-                    if (size < 0) break
-                    for (i in 0 until size) {
-                        val ch = buffer[i]
-                        if (afterCr) {
-                            afterCr = false
-                            if (ch == '\n') continue
-                        }
-                        if (ch == '\r' || ch == '\n') {
-                            emit()
-                            afterCr = ch == '\r'
-                        } else if (!withheld) {
-                            // Splitting a line can separate a credential from its label.
-                            if (ch == '\u0000' || line.length == SHARE_LINE_MAX) {
-                                withheld = true
-                                line.setLength(0)
-                            } else {
-                                line.append(ch)
+                try {
+                    while (true) {
+                        val size = reader.read(buffer)
+                        if (size < 0) break
+                        for (i in 0 until size) {
+                            val ch = buffer[i]
+                            if (afterCr) {
+                                afterCr = false
+                                if (ch == '\n') continue
+                            }
+                            if (ch == '\r' || ch == '\n') {
+                                emit()
+                                afterCr = ch == '\r'
+                            } else if (!withheld) {
+                                // Splitting a line can separate a credential from its label.
+                                if (ch == '\u0000' || line.length == SHARE_LINE_MAX) {
+                                    withheld = true
+                                    line.setLength(0)
+                                } else {
+                                    line.append(ch)
+                                }
                             }
                         }
                     }
+                    if (withheld || line.isNotEmpty()) emit()
+                } catch (_: java.nio.charset.CharacterCodingException) {
+                    out.write("<unsupported encoding; file withheld>\n")
                 }
-                if (withheld || line.isNotEmpty()) emit()
             }
         }
     }

@@ -1,11 +1,9 @@
 package com.droiddeck.launcher.core
 
-import java.io.IOException
 import java.io.StringWriter
 import java.io.Writer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -50,12 +48,13 @@ class LogRedactorStreamTest {
         assertFalse(out.toString().contains("private_value"))
     }
 
-    @Test fun malformedUtf8AbortsWithoutReturningTheUnredactedLine() {
+    @Test fun malformedUtf8WithholdsWithoutReturningTheUnredactedLine() {
         val src = tmp.newFile()
         src.writeBytes("sessionid=synthetic_private_value ".toByteArray() + byteArrayOf(0xc3.toByte(), 0x28))
         val out = StringWriter()
-        assertThrows(IOException::class.java) { LogRedactor.scrubForShare(src, out) }
+        LogRedactor.scrubForShare(src, out)
         assertFalse(out.toString().contains("synthetic_private_value"))
+        assertTrue(out.toString().contains("withheld"))
     }
 
     @Test fun normalUnicodeAndLineEndingsKeepTheirDiagnosticContent() {
