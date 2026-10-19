@@ -30,8 +30,9 @@ rejects writes when Keystore is unavailable. No token values enter process
 arguments, external storage, application logs or a plaintext credential file.
 Account-generation invalidation prevents a signed-out child's later writes from
 restoring credentials. Each backend gets its own socket. The host checks the peer UID, the PRoot tracer
-owned by its live child, and the running executable's SHA-256 against the APK
-asset. A socket name alone grants no credential operations, including to another
+owned by its live child, and an executable mapping of the backend file with a matching inode and
+SHA-256 against the APK asset. PRoot's loader can occupy `/proc/<pid>/exe`, so
+authentication checks the mapped backend image instead. A socket name alone grants no credential operations, including to another
 copy of Xodus started by the guest.
 
 Licensed launch-view preparation runs in an Android-owned Xodus child, which

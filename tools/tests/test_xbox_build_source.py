@@ -10,7 +10,7 @@ class XboxBuildSourceTest(unittest.TestCase):
         try:
             import yaml
         except ImportError:
-            self.skipTest('PyYAML is needed to execute workflow steps')
+            self.fail('PyYAML is required to execute workflow steps')
         workflow = yaml.safe_load((Path(__file__).resolve().parents[2] / '.github/workflows/build.yml').read_text())
         jobs = workflow['jobs']
         step = lambda job, name: next(s['run'] for s in jobs[job]['steps'] if s.get('name') == name)

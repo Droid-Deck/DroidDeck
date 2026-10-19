@@ -19,6 +19,20 @@ class XboxLaunchTest(unittest.TestCase):
             (folder / '.droiddeck-store.json').write_text(json.dumps({'store': 'gog', 'id': '1'}))
             self.assertIsNone(xbox['launch'](['/proton', 'waitforexitandrun', str(folder / 'Game.exe')], {}))
 
+    def test_renewal_retries_a_timeout_and_stops_after_rejection(self):
+        stopped = unittest.mock.Mock()
+        stopped.wait.side_effect = [False, False, False, AssertionError('renewed a rejected lease')]
+        ask = unittest.mock.Mock(side_effect=[None, {'ok': True}, {'ok': False}])
+        xbox['renew_lease'](ask, Path('/channel'), 'GAME', 'lease-1', stopped)
+        self.assertEqual(ask.call_count, 3)
+
+    def test_stopping_a_launch_stops_renewal_without_another_request(self):
+        stopped = threading.Event()
+        stopped.set()
+        ask = unittest.mock.Mock()
+        xbox['renew_lease'](ask, Path('/channel'), 'GAME', 'lease-1', stopped)
+        ask.assert_not_called()
+
     def test_missing_store_detector_keeps_stock_launch(self):
         for error in (FileNotFoundError('missing'), RuntimeError('module initialization failed')):
             with self.subTest(error=error), patch('runpy.run_path', side_effect=error):

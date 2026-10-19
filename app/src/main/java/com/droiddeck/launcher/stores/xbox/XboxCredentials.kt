@@ -18,34 +18,43 @@ internal class XboxCredentials(private val app: Context) : Closeable {
     private val bound = java.util.concurrent.CountDownLatch(1)
     private var backend: Process? = null
     private var binaryHash = byteArrayOf()
+    private lateinit var binary: java.io.File
     private val peers = HashMap<Int, String>()
 
-    fun bind(process: Process, digest: ByteArray) {
+    fun bind(process: Process, file: java.io.File, digest: ByteArray) {
         backend = process
+        binary = file.canonicalFile
         binaryHash = digest
         bound.countDown()
     }
 
+    private fun rejected(reason: String): Boolean {
+        android.util.Log.w("XboxCredentials", "Rejected credential peer: $reason")
+        return false
+    }
+
     private fun authorized(pid: Int): Boolean {
-        if (!bound.await(5, java.util.concurrent.TimeUnit.SECONDS) || closed) return false
-        val process = backend ?: return false
-        if (!process.isAlive) return false
+        if (!bound.await(5, java.util.concurrent.TimeUnit.SECONDS) || closed) return rejected("unbound")
+        val process = backend ?: return rejected("missing-child")
+        if (!process.isAlive) return rejected("exited-child")
         val root = com.droiddeck.launcher.core.HostProcess.pidOf(process)
-        if (root <= 0 || pid <= 0) return false
+        if (root <= 0 || pid <= 0) return rejected("missing-process-id")
         val status = java.io.File("/proc/$pid/status").readLines()
         val tracer = status.first { it.startsWith("TracerPid:") }.substringAfter(':').trim().toInt()
         val tracerGroup = java.io.File("/proc/$tracer/status").readLines()
             .first { it.startsWith("Tgid:") }.substringAfter(':').trim().toInt()
-        if (tracerGroup != root) return false
-        val executable = android.system.Os.stat("/proc/$pid/exe")
+        if (tracerGroup != root) return rejected("foreign-tracer")
+        val executable = android.system.Os.stat(binary.path)
+        if (!mapsBackend(java.io.File("/proc/$pid/maps").readText(), binary.path, executable.st_ino))
+            return rejected("unmapped-backend")
         val identity = java.io.File("/proc/$pid/stat").readText().substringAfterLast(") ").split(' ')[19] + ":${executable.st_dev}:${executable.st_ino}"
         if (peers[pid] == identity) return true
         val digest = java.security.MessageDigest.getInstance("SHA-256")
-        java.io.File("/proc/$pid/exe").inputStream().use { input ->
+        binary.inputStream().use { input ->
             val buffer = ByteArray(65536)
             while (true) { val n = input.read(buffer); if (n < 0) break; digest.update(buffer, 0, n) }
         }
-        if (!java.security.MessageDigest.isEqual(binaryHash, digest.digest())) return false
+        if (!java.security.MessageDigest.isEqual(binaryHash, digest.digest())) return rejected("different-executable")
         peers[pid] = identity
         return true
     }
@@ -64,7 +73,10 @@ internal class XboxCredentials(private val app: Context) : Closeable {
                             check(!closed && epoch(app) == generation && authorized(peer.pid))
                             answer(request)
                         }
-                    }.getOrElse { JSONObject().put("ok", false) }
+                    }.getOrElse {
+                        android.util.Log.w("XboxCredentials", "Credential request rejected: ${it.javaClass.simpleName}")
+                        JSONObject().put("ok", false)
+                    }
                     runCatching { it.outputStream.write((reply.toString() + "\n").toByteArray()) }
                 }
             }
@@ -98,6 +110,11 @@ internal class XboxCredentials(private val app: Context) : Closeable {
 
     companion object {
         val lock = Any()
+        internal fun mapsBackend(maps: String, path: String, inode: Long): Boolean = maps.lineSequence().any { line ->
+            val fields = line.trim().split(Regex("\\s+"), limit = 6)
+            fields.size == 6 && 'x' in fields[1] && fields[4].toLongOrNull() == inode &&
+                runCatching { java.io.File(fields[5]).canonicalPath == path }.getOrDefault(false)
+        }
         private fun epoch(app: Context): String = runCatching { java.io.File(StoreAccounts.dir(app, Store.XBOX), "generation").readText() }.getOrDefault("")
         fun invalidate(app: Context) = storage(app) {
             java.io.File(StoreAccounts.dir(app, Store.XBOX), "generation").writeText(UUID.randomUUID().toString())

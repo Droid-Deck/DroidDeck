@@ -73,7 +73,7 @@ internal object Xodus {
                 while (true) { val n = input.read(buffer); if (n < 0) break; digest.update(buffer, 0, n) }
             }
             val process = builder.start()
-            credentials.bind(process, digest.digest())
+            credentials.bind(process, File(LinuxRuntime.rootDir(app), binary.removePrefix("/")), digest.digest())
             return Child(process, credentials)
         } catch (e: Exception) { credentials.close(); throw e }
     }

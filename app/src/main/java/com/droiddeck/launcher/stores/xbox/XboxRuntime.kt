@@ -12,7 +12,7 @@ internal object XboxRuntime {
     private var child: Xodus.Child? = null
     private var owner: String? = null
     private var generation = 0L
-    private val launches = XboxLaunchLeases { android.os.SystemClock.elapsedRealtime() }
+    private val launches = XboxLaunchLeases { android.os.SystemClock.uptimeMillis() }
     fun isActive(id: String): Boolean = launches.active(id)
     fun authorize(app: Context, id: String) {
         StoreAccounts.signedInAs(app, Store.XBOX)?.let { launches.authorize(id, it) }
@@ -79,16 +79,22 @@ internal object XboxRuntime {
                 (generation == current).also { if (it) { child = service; owner = account } }
             }
             if (!accepted) { service.close(); error("Xbox launch was cancelled") }
-            Xodus.diagnostics(service)
-            Thread({ runCatching { service.process.inputStream.use { input ->
-                val buffer = ByteArray(8192)
-                while (input.read(buffer) >= 0) { Thread.yield() }
-            } } }, "xbox-service-output").start()
-            val deadline = android.os.SystemClock.elapsedRealtime() + 90_000
-            while (!socket.exists() && service.process.isAlive && SessionState.running &&
-                synchronized(state) { generation == current } && android.os.SystemClock.elapsedRealtime() < deadline) Thread.sleep(100)
-            check(socket.exists() && service.process.isAlive && SessionState.running) {
-                "Xbox account service did not become ready. Check your sign-in and network connection."
+            try {
+                Xodus.diagnostics(service)
+                Thread({ runCatching { service.process.inputStream.use { input ->
+                    val buffer = ByteArray(8192)
+                    while (input.read(buffer) >= 0) { Thread.yield() }
+                } } }, "xbox-service-output").start()
+                val deadline = android.os.SystemClock.elapsedRealtime() + 90_000
+                while (!socket.exists() && service.process.isAlive && SessionState.running &&
+                    synchronized(state) { generation == current } && android.os.SystemClock.elapsedRealtime() < deadline) Thread.sleep(100)
+                check(socket.exists() && service.process.isAlive && SessionState.running) {
+                    "Xbox account service did not become ready. Check your sign-in and network connection."
+                }
+            } catch (e: Exception) {
+                synchronized(state) { if (child === service) { child = null; owner = null } }
+                service.close()
+                throw e
             }
         }
         socket

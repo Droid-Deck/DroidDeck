@@ -129,6 +129,13 @@ def wine(argv, source_env=None):
     return subprocess.call([*command[:2], argv[0], *command[3:]], env=env)
 
 
+def renew_lease(ask, channel, product, lease, stopped):
+    while not stopped.wait(15):
+        response = ask(channel, {'op': 'xbox-renew', 'id': product, 'lease': lease}, timeout=10)
+        if response is not None and response.get('ok') is False:
+            return
+
+
 def launch(command, env):
     if len(command) < 3 or command[1] != 'waitforexitandrun' or env.get('DROIDDECK_XBOX_ACTIVE') == '1':
         return None
@@ -155,14 +162,8 @@ def launch(command, env):
     try:
         port, key, close = bridge(reply['socket'])
 
-        def renew():
-            while not stopped.wait(15):
-                response = store['ask'](Path(launch_dir) / 'stores',
-                                        {'op': 'xbox-renew', 'id': sidecar['id'], 'lease': reply['lease']}, timeout=10)
-                if not response or not response.get('ok'):
-                    return
-
-        threading.Thread(target=renew, daemon=True).start()
+        threading.Thread(target=renew_lease, args=(store['ask'], Path(launch_dir) / 'stores',
+                         sidecar['id'], reply['lease'], stopped), daemon=True).start()
         with tempfile.TemporaryDirectory(prefix='droiddeck-xbox-') as temporary:
             context = Path(temporary) / 'command.json'
             context.write_text(json.dumps(command), encoding='utf-8')
