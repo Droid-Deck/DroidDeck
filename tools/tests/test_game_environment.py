@@ -1081,3 +1081,41 @@ class ForceSsbsTest(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, proc.stderr)
             self.assertEqual(proc.stdout.strip(), str(eac))
             self.assertIn("Easy Anti-Cheat runtime ready", proc.stderr)
+
+    def test_nested_game_files_and_anticheat_detection(self):
+        import io
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            steam = root / ".local/share/Steam"
+            eac = steam / "steamapps/common/Proton EasyAntiCheat Runtime"
+            eac.mkdir(parents=True)
+            arm = root / "arm"
+            (arm / "files/lib/wine/aarch64-unix").mkdir(parents=True)
+            x86 = root / "x86"
+            (x86 / "files/lib/wine/x86_64-unix").mkdir(parents=True)
+
+            game_root = root / "Arc Raiders"
+            binaries = game_root / "PioneerGame/Binaries/Win64"
+            binaries.mkdir(parents=True)
+            exe = binaries / "PioneerGame.exe"
+            exe.touch()
+            installers = game_root / "Installers"
+            installers.mkdir(parents=True)
+            (installers / "AntiCheatInstaller.exe").touch()
+
+            self.assertIn("anticheatinstaller.exe", MODULE["game_tree_files"](str(exe)))
+
+            env = {"HOME": str(root)}
+            err = io.StringIO()
+            with mock.patch("sys.stderr", err):
+                got = MODULE["anticheat_runtimes"]([str(arm / "proton"), "waitforexitandrun", str(exe)], env)
+            self.assertEqual(got["PROTON_EAC_RUNTIME"], str(eac))
+            self.assertIn("Easy Anti-Cheat detected on ARM64 Proton; Linux easyanticheat_x64.so is x86_64-only and requires an x86_64 Proton tool under FEX", err.getvalue())
+
+            err = io.StringIO()
+            with mock.patch("sys.stderr", err):
+                got = MODULE["anticheat_runtimes"]([str(x86 / "proton"), "waitforexitandrun", str(exe)], env)
+            self.assertEqual(got["PROTON_EAC_RUNTIME"], str(eac))
+            self.assertIn("Easy Anti-Cheat runtime ready", err.getvalue())
+

@@ -516,6 +516,56 @@ class LaunchTest(FexTestCase):
         guest = FEX["guest_environment"]({"portable": True}, {"XDG_RUNTIME_DIR": str(self.tmp / "missing")})
         self.assertEqual(guest["FEX_APP_DATA_LOCATION"], G["DATA_DIR"] + "/")
 
+    def test_shorten_compat_path_and_socket_cleanup(self):
+        compat = self.tmp / "compatdata/1808500"
+        server = compat / "fex-emu/Server"
+        server.mkdir(parents=True)
+        dead_socket = server / "10114.FEXServer.Socket"
+        dead_socket.touch()
+        other_file = server / "keep.txt"
+        other_file.touch()
+
+        short = FEX["shorten_compat_path"](str(compat))
+        self.assertTrue(os.path.islink(short))
+        self.assertEqual(os.path.realpath(short), str(compat.resolve()))
+        self.assertFalse(dead_socket.exists())
+        self.assertTrue(other_file.exists())
+        self.assertLessEqual(len("/data/data/com.droiddeck.launcher/files/rootfs" + short + "/fex-emu/Server/10114.FEXServer.Socket"), 108)
+
+        fex = {"portable": False}
+        env = {"STEAM_COMPAT_DATA_PATH": str(compat)}
+        guest = FEX["guest_environment"](fex, env)
+        self.assertEqual(guest["STEAM_COMPAT_DATA_PATH"], short)
+
+    def test_steam_action_unwraps_entry_point_and_runs_game_env(self):
+        game_env = self.tmp / "droiddeck-game-env"
+        game_env.write_text("#!/bin/sh\n")
+        game_env.chmod(0o755)
+        proton = self.tmp / "Proton/proton"
+        proton.parent.mkdir(parents=True)
+        proton.write_text("#!/usr/bin/python3\n")
+        proton.chmod(0o755)
+
+        launched = []
+        old_launch = G["launch"]
+        old_bin = G["BIN_DIR"]
+        G["BIN_DIR"] = str(self.tmp)
+        G["launch"] = lambda cmd, env, mode: launched.append((cmd, env, mode)) or 0
+        try:
+            FEX["main"](["steam", "waitforexitandrun", "--", str(proton), "waitforexitandrun", "Game.exe"])
+            self.assertEqual(launched[-1][0], [str(game_env), str(proton), "waitforexitandrun", "Game.exe"])
+
+            FEX["main"](["steam", "waitforexitandrun", "--", "/runtime/_v2-entry-point", "--verb=waitforexitandrun", "--", str(proton), "waitforexitandrun", "Game.exe"])
+            self.assertEqual(launched[-1][0], [str(game_env), str(proton), "waitforexitandrun", "Game.exe"])
+
+            game_x86 = self.tmp / "game.x86_64"
+            game_x86.touch()
+            FEX["main"](["steam", "waitforexitandrun", "--", str(game_x86)])
+            self.assertEqual(launched[-1][0], [str(game_x86)])
+        finally:
+            G["launch"] = old_launch
+            G["BIN_DIR"] = old_bin
+
     def test_the_runtime_and_thunks_are_passed_to_fex(self):
         fex = {"portable": True, "rootfs": "/rt/files", "host_thunks": "/h", "guest_thunks": "/g", "thunks_db": "/db"}
         guest = FEX["guest_environment"](fex, {})
@@ -794,6 +844,20 @@ class AppInfoTest(unittest.TestCase):
             vdf = (tool / "compatibilitytool.vdf").read_text()
             self.assertIn('"from_oslist" "linux"', vdf)
             self.assertIn('"to_oslist" "linux"', vdf)
+
+    def test_adopt_fex_tool(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            steam = Path(tmp) / "Steam"
+            fex_dir = steam / "steamapps/common/FEX-Emu"
+            fex_dir.mkdir(parents=True)
+            tool = fex_dir / self.COMPAT["VALVE_FEX_TOOL"]
+            tool.write_text("#!/bin/bash\noriginal FEX tool\n")
+            tool.chmod(0o755)
+            adopted = self.COMPAT["adopt_fex_tool"](str(steam))
+            self.assertEqual(adopted, [str(tool)])
+            self.assertEqual(tool.with_name(self.COMPAT["VALVE_FEX_TOOL"] + self.COMPAT["ORIGINAL_SUFFIX"]).read_text(), "#!/bin/bash\noriginal FEX tool\n")
+            self.assertEqual(tool.read_text(), self.COMPAT["VALVE_FEX_WRAPPER_SH"])
+            self.assertTrue(os.access(tool, os.X_OK))
 
 
 if __name__ == "__main__":

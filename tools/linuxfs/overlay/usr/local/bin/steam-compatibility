@@ -447,6 +447,10 @@ case $verb in
 esac
 exec /usr/local/bin/droiddeck-fex steam "$verb" "$@"
 """
+VALVE_FEX_TOOL = "fex-compat-tool"
+VALVE_FEX_WRAPPER_SH = """#!/bin/bash
+exec /usr/local/bin/droiddeck-fex steam "$@"
+"""
 
 
 TOKEN = re.compile(r'\s*(?:"((?:[^"\\]|\\.)*)"|([{}])|//[^\n]*)')
@@ -635,6 +639,36 @@ def adopt_extras(tools):
             print("steam-compatibility: could not adopt %s (%s)" % (entry, e))
             continue
         adopted[name] = entry
+    return adopted
+
+
+def adopt_fex_tool(steam_root):
+    adopted = []
+    for library in libraries(steam_root):
+        fex_dir = os.path.join(library, "steamapps", "common", "FEX-Emu")
+        target = os.path.join(fex_dir, VALVE_FEX_TOOL)
+        if not os.path.isdir(fex_dir) or not os.path.exists(target):
+            continue
+        original = target + ORIGINAL_SUFFIX
+        legacy = target + LEGACY_ORIGINAL_SUFFIX
+        if not os.path.isfile(original) and os.path.isfile(legacy):
+            try:
+                os.replace(legacy, original)
+            except OSError:
+                continue
+        if not os.path.isfile(original):
+            try:
+                shutil.copy2(target, original)
+            except OSError:
+                continue
+        try:
+            write_changed(target, VALVE_FEX_WRAPPER_SH, 0o755)
+            legacy_orig = target + LEGACY_ORIGINAL_SUFFIX
+            if os.path.isfile(legacy_orig):
+                os.unlink(legacy_orig)
+            adopted.append(target)
+        except OSError as e:
+            print("steam-compatibility: could not wrap %s (%s)" % (target, e))
     return adopted
 
 
@@ -1447,6 +1481,8 @@ def main():
     extras = adopt_extras(tools)
     for name, directory in sorted(extras.items()):
         print("steam-compatibility: adopted %s as %s" % (directory, name))
+    for target in adopt_fex_tool(steam_root):
+        print("steam-compatibility: adopted Valve FEX tool at %s" % target)
     catalog = tool_catalog(steam_root, extras)
     config = os.path.join(steam_root, "config", "config.vdf")
     if live_helper_running():

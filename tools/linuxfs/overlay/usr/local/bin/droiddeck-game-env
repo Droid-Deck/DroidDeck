@@ -54,6 +54,29 @@ def game_files(exe):
     return names
 
 
+def game_tree_files(exe):
+    names = set(game_files(exe))
+    folder = os.path.dirname(os.path.abspath(exe))
+    for _ in range(3):
+        parent = os.path.dirname(folder)
+        if not parent or parent == folder:
+            break
+        folder = parent
+        try:
+            with os.scandir(folder) as it:
+                for entry in it:
+                    names.add(entry.name.lower())
+                    if entry.is_dir(follow_symlinks=False):
+                        try:
+                            with os.scandir(entry.path) as inner:
+                                names.update(e.name.lower() for e in inner)
+                        except OSError:
+                            pass
+        except OSError:
+            pass
+    return names
+
+
 class Game:
     """What a fix gets to look at: the executable, its launch arguments and the files beside it."""
 
@@ -283,6 +306,9 @@ EAC_MARKERS = frozenset((
     "easyanticheat_eos.dll",
     "easyanticheat_x64.dll",
     "easyanticheat_x86.dll",
+    "anticheatinstaller.exe",
+    "easyanticheat_setup.exe",
+    "easyanticheat.exe",
 ))
 
 
@@ -315,7 +341,7 @@ def anticheat_runtimes(command, env):
             if os.path.isdir(candidate):
                 env = dict(env, **{key: candidate})
                 break
-    if len(command) > 2 and command[1] == "waitforexitandrun" and (game_files(command[2]) & EAC_MARKERS):
+    if len(command) > 2 and command[1] == "waitforexitandrun" and (game_tree_files(command[2]) & EAC_MARKERS):
         eac = env.get("PROTON_EAC_RUNTIME", "")
         proton = os.path.dirname(command[0]) if command else ""
         if not eac or not os.path.isdir(eac):

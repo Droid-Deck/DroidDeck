@@ -514,6 +514,32 @@ def data_dir(env):
     return DATA_DIR
 
 
+def shorten_compat_path(path):
+    if not path:
+        return path
+    real = os.path.abspath(path.rstrip("/"))
+    short_base = "/tmp/c"
+    if real.startswith(short_base):
+        return real
+    app_id = os.path.basename(real)
+    os.makedirs(short_base, exist_ok=True)
+    os.makedirs(real, exist_ok=True)
+    short = os.path.join(short_base, app_id)
+    if os.path.islink(short):
+        if os.readlink(short) != real:
+            os.unlink(short)
+            os.symlink(real, short)
+    elif not os.path.lexists(short):
+        os.symlink(real, short)
+    server_dir = os.path.join(real, "fex-emu", "Server")
+    if os.path.isdir(server_dir):
+        for stale in os.listdir(server_dir):
+            if stale.endswith(".Socket"):
+                with contextlib.suppress(OSError):
+                    os.unlink(os.path.join(server_dir, stale))
+    return short
+
+
 def guest_environment(fex, env):
     result = dict(env)
     data = data_dir(env)
@@ -522,12 +548,8 @@ def guest_environment(fex, env):
     result["FEX_APP_CONFIG_LOCATION"] = CONFIG_DIR + "/"
     result["FEX_APP_DATA_LOCATION"] = data + "/"
     result["FEX_APP_CACHE_LOCATION"] = CACHE_DIR + "/"
-    # Valve's FEX-Emu binds its server socket under $STEAM_COMPAT_DATA_PATH/fex-emu whatever FEX_APP_DATA_LOCATION or
-    # FEX_SERVERSOCKETPATH say, and sun_path is 108 bytes: compatdata under the app's data folder is too long.
     if result.get("STEAM_COMPAT_DATA_PATH"):
-        short = data if data != DATA_DIR else "/tmp/fex"
-        os.makedirs(short, exist_ok=True)
-        result["STEAM_COMPAT_DATA_PATH"] = short
+        result["STEAM_COMPAT_DATA_PATH"] = shorten_compat_path(result["STEAM_COMPAT_DATA_PATH"])
     result.setdefault("FEX_SILENTLOG", "0")
     result.setdefault("FEX_OUTPUTLOG", "stderr")
     # Mono's incremental Boehm collector corrupts its heap under FEX, so Unity games crash at their first collections.
@@ -754,11 +776,20 @@ def main(argv):
     if action == "steam":
         if not args:
             return 2
-        verb, command = args[0], args[1:]
+        verb, command = args[0], list(args[1:])
         if verb not in STEAM_VERBS:
             return 0
+        if command and command[0] == "--":
+            command.pop(0)
+        if command and os.path.basename(command[0]) in ("_v2-entry-point", "run-in-steam-runtime") and "--" in command:
+            command = command[command.index("--") + 1:]
         if not command:
             return 2
+        if os.environ.get("STEAM_COMPAT_DATA_PATH"):
+            os.environ["STEAM_COMPAT_DATA_PATH"] = shorten_compat_path(os.environ["STEAM_COMPAT_DATA_PATH"])
+        game_env = os.path.join(BIN_DIR, "droiddeck-game-env")
+        if os.path.isfile(game_env) and (os.path.basename(command[0]) == "proton" or command[0].endswith("/proton")):
+            command = [game_env] + command
         return launch(command, game_environment(dict(os.environ)), os.environ.get("DROIDDECK_FEX", "auto"))
     if action == "run":
         try:
