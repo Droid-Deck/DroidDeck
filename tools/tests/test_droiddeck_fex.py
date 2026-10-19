@@ -949,9 +949,22 @@ class AppInfoTest(unittest.TestCase):
             tool.chmod(0o755)
             adopted = self.COMPAT["adopt_fex_tool"](str(steam))
             self.assertEqual(adopted, [str(tool)])
-            self.assertEqual(tool.with_name(self.COMPAT["VALVE_FEX_TOOL"] + self.COMPAT["ORIGINAL_SUFFIX"]).read_text(), "#!/bin/bash\noriginal FEX tool\n")
+            orig = tool.with_name(self.COMPAT["VALVE_FEX_TOOL"] + self.COMPAT["ORIGINAL_SUFFIX"])
+            self.assertEqual(orig.read_text(), "#!/bin/bash\noriginal FEX tool\n")
             self.assertEqual(tool.read_text(), self.COMPAT["VALVE_FEX_WRAPPER_SH"])
             self.assertTrue(os.access(tool, os.X_OK))
+
+            adopted2 = self.COMPAT["adopt_fex_tool"](str(steam))
+            self.assertEqual(adopted2, [str(tool)])
+            self.assertEqual(orig.read_text(), "#!/bin/bash\noriginal FEX tool\n")
+            self.assertEqual(tool.read_text(), self.COMPAT["VALVE_FEX_WRAPPER_SH"])
+
+            tool.write_text("#!/bin/bash\nupdated FEX tool v2\n")
+            tool.chmod(0o755)
+            adopted3 = self.COMPAT["adopt_fex_tool"](str(steam))
+            self.assertEqual(adopted3, [str(tool)])
+            self.assertEqual(orig.read_text(), "#!/bin/bash\nupdated FEX tool v2\n")
+            self.assertEqual(tool.read_text(), self.COMPAT["VALVE_FEX_WRAPPER_SH"])
 
 
 if __name__ == "__main__":
