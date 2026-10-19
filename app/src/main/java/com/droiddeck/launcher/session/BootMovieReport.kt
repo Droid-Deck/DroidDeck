@@ -36,9 +36,12 @@ object BootMovieReport {
         }
     }
 
-    /** Writes the report to Downloads/DroidDeck, or to the app's own folder when that is not possible; null when neither works. */
+    /** Writes the report to Downloads/DroidDeck, or to the app's own folder when that is not possible; null when the report cannot be built or neither folder works. */
     fun write(context: Context): File? {
-        val text = runCatching { build(context) }.getOrElse { "report failed: $it" }
+        val text = runCatching { build(context) }.getOrElse {
+            Log.w(TAG, "could not build the report", it)
+            return null
+        }
         val folders = listOfNotNull(
             File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "DroidDeck"),
             context.getExternalFilesDir(null),

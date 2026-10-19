@@ -44,7 +44,8 @@ object BootMovieLibrary {
 
     internal fun steamRoot(context: Context) = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam")
 
-    internal fun steamConfig(context: Context) = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/config/config.vdf")
+    /** The running (else selected) Steam client's config, the one whose startup movie choice is read and recorded. */
+    internal fun steamConfig(context: Context) = File(SessionPrefs.activeSteamRoot(context), "config/config.vdf")
 
     private fun thumbsDir(context: Context) = File(context.filesDir, "boot-movie/thumbs")
 
