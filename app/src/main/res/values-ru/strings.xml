@@ -32,7 +32,7 @@
     <string name="frame_gen_off">Выкл.</string>
     <string name="frame_gen_winfg">Win-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
-    <string name="frame_gen_lsfg_adaptive">LSFG Adaptive %1$d</string>
+    <string name="frame_gen_lsfg_adaptive">LSFG Адаптивный %1$d</string>
     <string name="lsfg_needs_steam">Требуется Lossless Scaling из Steam</string>
     <string name="lsfg_needs_install">Установите Lossless Scaling в Steam или импортируйте Lossless.dll</string>
     <string name="lsfg_import">Импорт Lossless.dll…</string>
@@ -1592,7 +1592,7 @@
     <string name="ctrl_button_rt">Правый триггер</string>
     <string name="ctrl_button_view">Кнопка View</string>
     <string name="ctrl_button_menu">Кнопка «Меню»</string>
-    <string name="ctrl_target_view">View</string>
+    <string name="ctrl_target_view">Вид</string>
     <string name="ctrl_target_menu">Меню</string>
     <string name="ctrl_target_up">Крестовина вверх</string>
     <string name="ctrl_target_down">Крестовина вниз</string>

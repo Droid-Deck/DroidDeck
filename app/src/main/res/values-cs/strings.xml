@@ -32,7 +32,7 @@
     <string name="frame_gen_off">Vypnuto</string>
     <string name="frame_gen_winfg">Win-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
-    <string name="frame_gen_lsfg_adaptive">LSFG Adaptive %1$d</string>
+    <string name="frame_gen_lsfg_adaptive">LSFG Adaptivní %1$d</string>
     <string name="lsfg_needs_steam">Vyžaduje Lossless Scaling na Steamu</string>
     <string name="lsfg_needs_install">Nainstalujte Lossless Scaling ve Steamu nebo naimportujte Lossless.dll</string>
     <string name="lsfg_import">Importovat Lossless.dll…</string>

@@ -1442,8 +1442,8 @@
     <string name="fm_pin_current">Fixează folderul curent</string>
     <string name="fm_no_favorites">Niciun favorit încă - fixează un folder din meniul său ⋮ pentru a reveni rapid aici.</string>
     <string name="fm_unpin_favorite">Elimină din favorite</string>
-    <string name="fm_size_zero">0 bytes</string>
-    <string name="fm_unit_bytes">bytes</string>
+    <string name="fm_size_zero">0 octeți</string>
+    <string name="fm_unit_bytes">octeți</string>
     <string name="fm_prop_location">Locație</string>
     <string name="fm_prop_type">Tip</string>
     <string name="fm_prop_size">Dimensiune</string>
@@ -1562,7 +1562,7 @@
     <string name="ctrl_tint_white">Alb</string>
     <string name="ctrl_tint_violet">Violet</string>
     <string name="ctrl_tint_green">Verde</string>
-    <string name="ctrl_tint_amber">Amber</string>
+    <string name="ctrl_tint_amber">Chihlimbariu</string>
     <string name="ctrl_tint_red">Roșu</string>
     <string name="ctrl_tint_pink">Roz</string>
     <string name="ctrl_button_a">Butonul A</string>
@@ -1798,7 +1798,7 @@
     <string name="look_game_clarity_desc">Claritate cu puțin contrast - cea de zi cu zi.</string>
     <string name="look_vivid">Viu</string>
     <string name="look_vivid_desc">Culoare intensificată puternic. Eliminarea benzilor activată, ca cerurile să nu aibă dungi.</string>
-    <string name="look_cinematic">Cinematic</string>
+    <string name="look_cinematic">Cinematografic</string>
     <string name="look_cinematic_desc">Contrast mai profund, culoare mai rece, margini netezite.</string>
     <string name="look_competitive">Competitiv</string>
     <string name="look_competitive_desc">Umbre ridicate și claritate puternică - observă persoanele mai întâi.</string>

@@ -527,7 +527,7 @@
     <string name="perf_client_ui">Klientgrænseflade</string>
     <string name="perf_glthread">Threaded GL</string>
     <string name="perf_glthread_hint">Kan gøre Steam-menuer mere lydhøre.</string>
-    <string name="perf_zink">Zink: lazy descriptors</string>
+    <string name="perf_zink">Zink: dovne deskriptorer</string>
     <string name="perf_zink_hint">Anbefalet til drivere uden descriptor buffers.</string>
     <string name="perf_noglerror">Spring GL-fejlkontrol over</string>
     <string name="perf_noglerror_hint">Slår validering af GL fra for hvert kald.</string>
@@ -549,7 +549,7 @@
     <string name="perf_xalia_hint">Deaktiverer Protons gamepad-navigationshjælper, som koster CPU i hvert spil.</string>
     <string name="perf_seccomp">Kør proot uden seccomp</string>
     <string name="perf_seccomp_hint">Kan afhjælpe fejl om manglende systemkald på nogle kerner. Kan reducere ydelsen.</string>
-    <string name="perf_fastpath">proot fast path</string>
+    <string name="perf_fastpath">proot-hurtigvej</string>
     <string name="perf_fastpath_needs_seccomp">Kræver prootets seccomp-filter.</string>
     <string name="perf_fastpath_hint">Hurtigere filopslag og mindre hak. Slå fra, hvis et program ikke kan finde sine filer.</string>
     <string name="perf_identity">Sessionsidentitet</string>
@@ -942,7 +942,7 @@
     <string name="ctrl_size_hint" formatted="false">100% er standardstørrelsen</string>
     <string name="ctrl_stick_click">Stick-klik</string>
     <string name="ctrl_stick_click_hint">Dobbelttryk og hold en stick nede for L3 eller R3</string>
-    <string name="ctrl_adaptive">Adaptive sticks</string>
+    <string name="ctrl_adaptive">Adaptive styrepinde</string>
     <string name="ctrl_rumble">Spilvibration</string>
     <string name="ctrl_steam_button">Steam-knap</string>
     <string name="ctrl_qam_button">QAM-knap</string>

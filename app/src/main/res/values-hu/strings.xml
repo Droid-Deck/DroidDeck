@@ -1012,7 +1012,7 @@
     <string name="games_launch_settings">Indítási beállítások</string>
     <string name="games_launch">Indítás</string>
     <string name="games_files">Játékfájlok</string>
-    <string name="games_prefix">Proton prefix</string>
+    <string name="games_prefix">Proton-prefix</string>
     <string name="games_saves_looking">Mentések keresése…</string>
     <string name="games_saves_none">Nem található mentésmappa név szerint. Az exportálás a teljes felhasználói mappát veszi.</string>
     <string name="games_saves_folders">%1$d mentésmappa</string>

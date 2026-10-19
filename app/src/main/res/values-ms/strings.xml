@@ -53,7 +53,7 @@
     <string name="second_library_import_hint">Menambah pustaka Steam dan mengimbasnya untuk permainan Windows. Permainan yang dimiliki menggunakan entri Steam masing-masing; selebihnya menjadi pintasan bukan Steam.</string>
     <string name="game_env_title">Persekitaran permainan</string>
     <string name="game_env_hint">Pembolehubah persekitaran untuk permainan Proton.</string>
-    <string name="game_env_edit">Edit</string>
+    <string name="game_env_edit">Sunting</string>
     <string name="game_env_shared">Semua permainan Proton</string>
     <string name="game_env_scope">Profil</string>
     <string name="game_env_app_id">ID apl Steam</string>
@@ -153,7 +153,7 @@
     <string name="user_apps_update_failed">Mengemas kini apl gagal</string>
     <string name="user_apps_icon_failed">Ikon itu tidak dapat dibaca</string>
     <string name="user_apps_saved">%1$s disimpan</string>
-    <string name="user_apps_edit">Edit</string>
+    <string name="user_apps_edit">Sunting</string>
     <string name="user_apps_check_updates">Semak kemas kini</string>
     <string name="user_apps_checking_updates">Menyemak kemas kini…</string>
     <string name="user_apps_update_to">Kemas kini kepada %1$s</string>
@@ -205,7 +205,7 @@
     <string name="add_app_icon_suggestions">Daripada repositori</string>
     <string name="add_app_icon_searching">Mencari ikon…</string>
     <string name="add_app_icon_reset">Lalai</string>
-    <string name="edit_app_title">Edit %1$s</string>
+    <string name="edit_app_title">Sunting %1$s</string>
     <string name="edit_app_save">Simpan</string>
     <string name="add_app_checking_folder">Menyemak folder…</string>
     <string name="add_app_folder_linked">Foldernya dipautkan ke dalam sesi: %1$s</string>
@@ -315,7 +315,7 @@
     <string name="mode_added_art">Karya seni</string>
     <string name="mode_sgdb_key">Kunci API SteamGridDB</string>
     <string name="mode_sgdb_key_yours">Kunci anda</string>
-    <string name="mode_sgdb_edit">Edit…</string>
+    <string name="mode_sgdb_edit">Sunting…</string>
     <string name="mode_added_art_hint">Melengkapkan karya seni yang hilang daripada Steam, kemudian SteamGridDB. cover.jpg, hero.jpg, logo.png atau icon.png anda sendiri dalam folder permainan diutamakan.</string>
     <string name="summary_remove_game">Alih keluar %1$s</string>
     <string name="mode_added_remove_confirm">Alih keluar?</string>
@@ -1520,7 +1520,7 @@
     <string name="ctrl_tint_steam_blue">Biru Steam</string>
     <string name="ctrl_tint_sky">Langit</string>
     <string name="ctrl_tint_white">Putih</string>
-    <string name="ctrl_tint_violet">Violet</string>
+    <string name="ctrl_tint_violet">Ungu</string>
     <string name="ctrl_tint_green">Hijau</string>
     <string name="ctrl_tint_amber">Ambar</string>
     <string name="ctrl_tint_red">Merah</string>

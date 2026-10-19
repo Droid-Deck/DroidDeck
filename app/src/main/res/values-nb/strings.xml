@@ -527,7 +527,7 @@
     <string name="perf_client_ui">Klientgrensesnitt</string>
     <string name="perf_glthread">Trådet GL</string>
     <string name="perf_glthread_hint">Kan gjøre Steam-menyer mer responsive.</string>
-    <string name="perf_zink">Zink: lazy descriptors</string>
+    <string name="perf_zink">Zink: late deskriptorer</string>
     <string name="perf_zink_hint">Anbefales for drivere uten descriptor buffers.</string>
     <string name="perf_noglerror">Hopp over GL-feilkontroller</string>
     <string name="perf_noglerror_hint">Slår av GL-validering per kall.</string>
