@@ -30,6 +30,8 @@ not Xbox console emulation or UWP/APPX packages.
 5. Press Play as soon as installation completes, including while the main library
    list is still refreshing. It should resolve the completed installation instead
    of showing the "Steam picks the game up when it next starts" toast.
+   A launch taking over 20 seconds should not produce a duplicate Steam launch
+   or a "Game already running" dialog while licensing is still preparing it.
    Steam/session startup uses the selected ARM64 Proton.
    First launch prepares that game's prefix. Check that a window appears, the
    game reaches its menu, controller buttons/axes work, and audio is audible.

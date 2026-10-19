@@ -596,6 +596,7 @@ case $mode in
     steam_hold_launch() {
       local game=$1 shortcut= waited=0 status=0
       _bl_focused() { xprop -root GAMESCOPE_FOCUSED_APP 2>/dev/null | sed -n 's/.*= *//p'; }
+      _bl_starting() { pgrep -f "reaper SteamLaunch AppId=$(((game >> 32) & 0xffffffff))( |$)" >/dev/null 2>&1; }
       _bl_hand_off() {
         printf '%s\n' "$game" > "$BL_LAUNCH_DIR/steam-game.tmp" && mv -f "$BL_LAUNCH_DIR/steam-game.tmp" "$BL_LAUNCH_DIR/steam-game"
       }
@@ -610,16 +611,22 @@ case $mode in
       _bl_hand_off
       [ -n "$shortcut" ] || return 0
       # Steam can drop a shortcut launch it gets before the shortcut's overview exists (large libraries).
-      # Hand it over again only if the game never took focus, so a launch that worked is not started twice.
+      # A launch can be running before it creates its first window.
       while [ "$(_bl_focused)" = 769 ] && [ "$waited" -lt 20 ]; do
         sleep 1
         waited=$((waited + 1))
       done
       [ "$(_bl_focused)" = 769 ] || return 0
+      if _bl_starting; then
+        echo "== steam: the requested game is already starting; not launching again"
+        return 0
+      fi
       echo "== steam: the game is not in front after about 20 s; waiting for the shortcut overview"
       /usr/local/bin/droiddeck-agent --wait-steam-shortcut-overview "$game" 45 || status=$?
       if [ "$status" -eq 3 ]; then
         echo "== steam: not a shortcut CGameID; not launching again"
+      elif _bl_starting; then
+        echo "== steam: the requested game started while waiting; not launching again"
       elif [ "$(_bl_focused)" = 769 ]; then
         echo "== steam: launching the requested game again $game (overview status $status)"
         _bl_hand_off
