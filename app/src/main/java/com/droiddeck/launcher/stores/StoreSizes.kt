@@ -54,6 +54,7 @@ object StoreSizes {
                     when (item.store) {
                         Store.EPIC -> EpicPrefs.get(app).edit().putLong("size_${item.id}", it).apply()
                         Store.AMAZON -> AmazonPrefs.get(app).edit().putLong("size_${item.id}", it).apply()
+                        Store.ITCH -> {}
                         Store.GOG -> {}
                     }
                 }
@@ -108,5 +109,6 @@ object StoreSizes {
             AmazonManifest.parse(bytes).totalInstallSize
         }
         Store.GOG -> 0L
+        Store.ITCH -> com.droiddeck.launcher.stores.itch.ItchLibrary.size(context, item)
     } }
 }

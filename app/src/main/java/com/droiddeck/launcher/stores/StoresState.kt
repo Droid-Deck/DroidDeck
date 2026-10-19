@@ -16,6 +16,7 @@ import java.util.Locale
 
 object StoresState {
     private const val TAG = "Stores"
+    private const val SEARCH_DELAY_MS = 400L
     private val main = Handler(Looper.getMainLooper())
 
     val accounts = mutableStateMapOf<Store, String>()
@@ -23,6 +24,8 @@ object StoresState {
     val library = mutableStateMapOf<Store, List<CatalogItem>>()
 
     val shelves = mutableStateMapOf<Store, StoreShelves>()
+
+    val found = mutableStateMapOf<Store, List<CatalogItem>>()
 
     val status = mutableStateMapOf<Store, String>()
 
@@ -63,6 +66,8 @@ object StoresState {
 
 
     private val backends = HashMap<Store, StoreBackend>()
+
+    private val searchSeq = java.util.concurrent.ConcurrentHashMap<Store, Int>()
 
     fun backend(store: Store): StoreBackend? = backends[store]
 
@@ -127,6 +132,26 @@ object StoresState {
 
     fun preview(context: Context, store: Store) {
         if (!shelves.containsKey(store)) backends[store]?.loadShelves(context.applicationContext, false)
+    }
+
+    fun search(context: Context, store: Store, query: String) {
+        val backend = backends[store] ?: return
+        val text = query.trim()
+        if (text.isEmpty()) {
+            searchSeq.remove(store)
+            found.remove(store)
+            return
+        }
+        val seq = (searchSeq[store] ?: 0) + 1
+        searchSeq[store] = seq
+        val app = context.applicationContext
+        Thread({
+            Thread.sleep(SEARCH_DELAY_MS)
+            if (searchSeq[store] != seq) return@Thread
+            val items = runCatching { backend.search(app, text) }.getOrDefault(emptyList())
+            if (searchSeq[store] != seq) return@Thread
+            main.post { found[store] = items }
+        }, "stores-search").start()
     }
 
     fun signIn(context: Context, store: Store) {
@@ -265,6 +290,7 @@ interface StoreBackend {
     fun signOut(context: Context)
     fun syncLibrary(context: Context, force: Boolean)
     fun loadShelves(context: Context, force: Boolean)
+    fun search(context: Context, query: String): List<CatalogItem> = emptyList()
     fun install(context: Context, item: CatalogItem, root: java.io.File)
     fun uninstall(context: Context, game: InstalledStoreGame)
 }
