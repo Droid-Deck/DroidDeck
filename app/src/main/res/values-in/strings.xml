@@ -726,6 +726,9 @@
     <string name="setup_app_scale_default">%1$d%% (Default)</string>
     <string name="setup_theme">Tema</string>
     <string name="setup_theme_hint">Tampilan peluncur</string>
+    <string name="setup_launcher_icon">Ikon aplikasi</string>
+    <string name="setup_launcher_icon_dark">Gelap</string>
+    <string name="setup_launcher_icon_light">Terang</string>
     <string name="setup_home">Gunakan sebagai Layar Utama</string>
     <string name="setup_home_on">DroidDeck dapat menjadi aplikasi Utama</string>
     <string name="setup_home_off">DroidDeck tidak pernah ditawarkan sebagai aplikasi Utama</string>
@@ -1520,9 +1523,9 @@
     <string name="ctrl_tint_steam_blue">Biru Steam</string>
     <string name="ctrl_tint_sky">Langit</string>
     <string name="ctrl_tint_white">Putih</string>
-    <string name="ctrl_tint_violet">Violet</string>
+    <string name="ctrl_tint_violet">Ungu</string>
     <string name="ctrl_tint_green">Hijau</string>
-    <string name="ctrl_tint_amber">Amber</string>
+    <string name="ctrl_tint_amber">Ambar</string>
     <string name="ctrl_tint_red">Merah</string>
     <string name="ctrl_tint_pink">Merah muda</string>
     <string name="ctrl_button_a">Tombol A</string>
@@ -1745,8 +1748,8 @@
     <string name="cmgr_list_predates_checksums">Daftar paket ini dibuat sebelum adanya checksum - segarkan dan coba lagi</string>
     <string name="cmgr_checksum_mismatch">Checksum tidak cocok</string>
 
-    <string name="sprefs_upscaler_linear">Linear</string>
-    <string name="sprefs_upscaler_nearest">Nearest</string>
+    <string name="sprefs_upscaler_linear">Linier</string>
+    <string name="sprefs_upscaler_nearest">Terdekat</string>
     <string name="sprefs_upscaler_gsr_quality">Snapdragon GSR (kualitas)</string>
     <string name="sprefs_upscaler_sharpen">Hanya penajaman</string>
     <string name="sprefs_lod_bias_auto">Otomatis (sesuaikan skala)</string>
@@ -1754,7 +1757,7 @@
     <string name="look_off_desc">Tidak ada yang diterapkan.</string>
     <string name="look_game_clarity">Kejernihan Gim</string>
     <string name="look_game_clarity_desc">Penajaman dengan sedikit kontras - cocok untuk sehari-hari.</string>
-    <string name="look_vivid">Vivid</string>
+    <string name="look_vivid">Cerah</string>
     <string name="look_vivid_desc">Warna didorong lebih kuat. Deband aktif agar langit tidak bergaris.</string>
     <string name="look_cinematic">Sinematik</string>
     <string name="look_cinematic_desc">Kontras lebih dalam, warna lebih dingin, tepi dihaluskan.</string>
@@ -1902,7 +1905,6 @@
     <string name="stores_settings_eyebrow">Setelan</string>
     <string name="stores_chip_signed_out">(belum masuk)</string>
     <string name="stores_tab_store">Toko</string>
-    <string name="stores_tab_installed">Terinstal</string>
     <string name="stores_tab_library">Pustaka</string>
     <string name="stores_tab_all">Semua</string>
     <string name="stores_tab_downloads">Unduhan</string>
@@ -1914,10 +1916,8 @@
     <string name="stores_signout_stay">Tetap masuk</string>
     <string name="stores_signout_go">Keluar</string>
     <string name="stores_search_catalog">Cari katalog %1$s…</string>
-    <string name="stores_search_installed">Cari gim yang terinstal…</string>
     <string name="stores_search_library">Cari pustaka Anda…</string>
     <string name="stores_search_open">Cari</string>
-    <string name="stores_installed_empty">Belum ada yang terinstal</string>
     <string name="stores_library_loading">Memuat</string>
     <string name="stores_nothing_matches">Tidak ada gim</string>
     <string name="stores_shelves_loading">Memuat toko…</string>
@@ -1936,7 +1936,19 @@
     <string name="stores_view_on">Lihat di %1$s</string>
     <string name="stores_buy_price">Beli · %1$s</string>
     <string name="stores_installed_chip">Terinstal</string>
+    <string name="stores_section_installed">Terinstal</string>
+    <string name="stores_section_not_installed">Belum terinstal</string>
     <string name="stores_in_library">Dalam pustaka</string>
+    <string name="stores_itch_key">Kunci API</string>
+    <string name="stores_itch_get_key">Dapatkan kunci</string>
+    <string name="stores_itch_key_rejected">Kunci ditolak</string>
+    <string name="stores_itch_not_owned">Tidak ada di pustaka itch.io Anda</string>
+    <string name="stores_itch_no_upload">Tidak ada unduhan Windows untuk game ini</string>
+    <string name="stores_itch_no_exe">Tidak ada game Windows di unduhan</string>
+    <string name="stores_itch_extract_failed">Tidak dapat mengekstrak unduhan (kode %1$d)</string>
+    <string name="stores_itch_no_catalog">itch.io tidak menjawab</string>
+    <string name="stores_itch_archive">Arsip %1$s tidak didukung</string>
+    <string name="stores_itch_download_failed">itch.io menjawab HTTP %1$d</string>
     <string name="stores_free">Gratis</string>
     <string name="stores_resume">Lanjutkan</string>
     <string name="stores_refresh">Segarkan</string>
@@ -1950,6 +1962,7 @@
     <string name="stores_sort_release_date">Tanggal rilis</string>
     <string name="stores_view_list">Tampilan daftar</string>
     <string name="stores_view_cards">Tampilan kartu</string>
+    <string name="stores_view_capsules">Tampilan sampul</string>
     <string name="stores_show_mature">Tampilkan konten dewasa</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

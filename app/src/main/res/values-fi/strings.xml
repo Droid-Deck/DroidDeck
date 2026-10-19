@@ -115,7 +115,7 @@
     <string name="fex_extreme_detail">Poistaa itseään muokkaavan koodin tarkistukset käytöstä. JIT-pelit ja DRM voivat hajota.</string>
     <string name="fex_extreme_tso_label">Äärimmäinen + TSO</string>
     <string name="fex_extreme_tso_detail">Äärimmäiset asetukset, pääasiallinen TSO käytössä.</string>
-    <string name="fex_extreme_gn_label">Extreme-gn</string>
+    <string name="fex_extreme_gn_label">Äärimmäinen-gn</string>
     <string name="fex_extreme_gn_detail">Suorituskyky TSC- ja metadatavihjeillä. Kokeile ennen Äärimmäistä.</string>
     <string name="fex_denuvo_label">Denuvo</string>
     <string name="fex_denuvo_detail">Suorituskyky täysin koodintarkistuksin ja hypervisor-bitti piilotettuna.</string>
@@ -299,7 +299,7 @@
     <string name="mode_decky_installed">Asennettu · %1$s</string>
     <string name="mode_decky_update">Päivitys saatavilla · %1$s</string>
     <string name="mode_decky_current">Ajan tasalla · %1$s</string>
-    <string name="mode_decky_loader">Loader</string>
+    <string name="mode_decky_loader">Lataaja</string>
     <string name="mode_decky_install_latest">Asenna uusin</string>
     <string name="mode_decky_on">Käynnistyy Steamin kanssa. Päällä ollessaan muut tämän laitteen sovellukset voivat pystyä ohjaamaan Steamia.</string>
     <string name="mode_decky_off">Pois. Steamin etävianmääritysportti pysyy suljettuna.</string>
@@ -729,6 +729,9 @@
     <string name="setup_app_scale_default">%1$d %% (Oletus)</string>
     <string name="setup_theme">Teema</string>
     <string name="setup_theme_hint">Käynnistimen ulkoasu</string>
+    <string name="setup_launcher_icon">Sovelluskuvake</string>
+    <string name="setup_launcher_icon_dark">Tumma</string>
+    <string name="setup_launcher_icon_light">Vaalea</string>
     <string name="setup_home">Käytä Aloitusnäyttönä</string>
     <string name="setup_home_on">DroidDeck voi olla kotisovellus</string>
     <string name="setup_home_off">DroidDeckiä ei koskaan tarjota kotisovellukseksi</string>
@@ -1923,7 +1926,6 @@
     <string name="stores_settings_eyebrow">Asetukset</string>
     <string name="stores_chip_signed_out">(ei kirjautunut)</string>
     <string name="stores_tab_store">Kauppa</string>
-    <string name="stores_tab_installed">Asennetut</string>
     <string name="stores_tab_library">Kirjasto</string>
     <string name="stores_tab_all">Kaikki</string>
     <string name="stores_tab_downloads">Lataukset</string>
@@ -1935,10 +1937,8 @@
     <string name="stores_signout_stay">Pysy kirjautuneena</string>
     <string name="stores_signout_go">Kirjaudu ulos</string>
     <string name="stores_search_catalog">Hae %1$s-luettelosta…</string>
-    <string name="stores_search_installed">Hae asennetuista peleistä…</string>
     <string name="stores_search_library">Hae kirjastostasi…</string>
     <string name="stores_search_open">Hae</string>
-    <string name="stores_installed_empty">Ei mitään asennettuna</string>
     <string name="stores_library_loading">Latautuu</string>
     <string name="stores_nothing_matches">Ei pelejä</string>
     <string name="stores_shelves_loading">Ladataan kauppaa…</string>
@@ -1957,7 +1957,19 @@
     <string name="stores_view_on">Näytä %1$s:ssä</string>
     <string name="stores_buy_price">Osta · %1$s</string>
     <string name="stores_installed_chip">Asennettu</string>
+    <string name="stores_section_installed">Asennettu</string>
+    <string name="stores_section_not_installed">Ei asennettu</string>
     <string name="stores_in_library">Kirjastossa</string>
+    <string name="stores_itch_key">API-avain</string>
+    <string name="stores_itch_get_key">Hae avain</string>
+    <string name="stores_itch_key_rejected">Avain hylätty</string>
+    <string name="stores_itch_not_owned">Ei itch.io-kirjastossasi</string>
+    <string name="stores_itch_no_upload">Ei Windows-latausta tälle pelille</string>
+    <string name="stores_itch_no_exe">Latauksesta ei löytynyt Windows-peliä</string>
+    <string name="stores_itch_extract_failed">Latausta ei voitu purkaa (koodi %1$d)</string>
+    <string name="stores_itch_no_catalog">itch.io ei vastannut</string>
+    <string name="stores_itch_archive">%1$s-arkistot eivät ole tuettuja</string>
+    <string name="stores_itch_download_failed">itch.io vastasi HTTP %1$d</string>
     <string name="stores_free">Ilmainen</string>
     <string name="stores_resume">Jatka</string>
     <string name="stores_refresh">Päivitä</string>
@@ -1971,6 +1983,7 @@
     <string name="stores_sort_release_date">Julkaisupäivä</string>
     <string name="stores_view_list">Luettelonäkymä</string>
     <string name="stores_view_cards">Korttinäkymä</string>
+    <string name="stores_view_capsules">Kansinäkymä</string>
     <string name="stores_show_mature">Näytä aikuisille tarkoitettu sisältö</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

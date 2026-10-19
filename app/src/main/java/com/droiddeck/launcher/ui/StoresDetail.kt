@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -115,10 +117,13 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
                 Actions {
                     when {
                         installed != null -> {
-                            ActionChip(stringResource(R.string.stores_in_steam), ok = true)
                             val gone = StoresState.uninstalling["${store.id}:$id"]
+                            PrimaryButton(stringResource(R.string.stores_play), enabled = !s.busy && gone == null && download == null, main = true, icon = Icons.Filled.PlayArrow, modifier = leadOn) {
+                                launchStoreGame(ctx, store, id, s, a)
+                            }
+                            ActionChip(stringResource(R.string.stores_in_steam), ok = true)
                             if (gone != null) SecondaryButton(stringResource(R.string.stores_uninstalling), enabled = false, progress = gone) {}
-                            else UninstallButton(title, installed, enabled = download == null, modifier = leadOn) {
+                            else UninstallButton(title, installed, enabled = download == null) {
                                 StoresState.uninstall(ctx, installed) { StoresState.refresh(ctx); a.onLibraryChanged() }
                             }
                         }
