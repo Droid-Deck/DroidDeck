@@ -528,7 +528,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 if (a.steam) ChoiceRow(host, "back-actions", stringResource(R.string.mode_back), null,
                                     listOf(false to stringResource(SessionPrefs.BACK_MENU_THEN_QAM), true to stringResource(SessionPrefs.BACK_QAM_THEN_MENU)),
                                     a.backActionsInverted, chipModifier = focus.track(page, "back-actions"), onPick = a.onBackActionsInverted)
-                                if ((a.steam || a.direct) && a.unfoldedControls != null) ToggleRow(host, "unfolded-controls", stringResource(R.string.unfolded_controls),
+                                if (a.steam && a.unfoldedControls != null) ToggleRow(host, "unfolded-controls", stringResource(R.string.unfolded_controls),
                                     stringResource(R.string.unfolded_controls_hint), a.unfoldedControls,
                                     chipModifier = focus.track(page, "unfolded-controls"), onChange = a.onUnfoldedControls)
                             }
