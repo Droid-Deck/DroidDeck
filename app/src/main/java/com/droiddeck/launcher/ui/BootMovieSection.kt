@@ -157,19 +157,23 @@ private fun InstalledTab(a: ModeSettingsActions) {
     val app = LocalContext.current.applicationContext
     val scope = rememberCoroutineScope()
     var saving by remember { mutableStateOf(false) }
-    SettingsRow(stringResource(R.string.boot_movie_report), stringResource(R.string.boot_movie_report_hint)) {
-        SecondaryButton(stringResource(R.string.boot_movie_report_save), enabled = !saving, onClick = {
-            saving = true
-            scope.launch {
-                val file = withContext(Dispatchers.IO) { BootMovieReport.write(app) }
-                saving = false
-                Toast.makeText(
-                    app,
-                    file?.let { app.getString(R.string.boot_movie_report_saved, it.path) } ?: app.getString(R.string.boot_movie_report_failed),
-                    Toast.LENGTH_LONG,
-                ).show()
-            }
-        })
+    // The report is for bug reports, so it shows only while Debugging tools is on (read each time this tab opens).
+    val debugging = remember { com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(app) }
+    if (debugging) {
+        SettingsRow(stringResource(R.string.boot_movie_report), stringResource(R.string.boot_movie_report_hint)) {
+            SecondaryButton(stringResource(R.string.boot_movie_report_save), enabled = !saving, onClick = {
+                saving = true
+                scope.launch {
+                    val file = withContext(Dispatchers.IO) { BootMovieReport.write(app) }
+                    saving = false
+                    Toast.makeText(
+                        app,
+                        file?.let { app.getString(R.string.boot_movie_report_saved, it.path) } ?: app.getString(R.string.boot_movie_report_failed),
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+            })
+        }
     }
     if (browsing) InstalledMoviesDialog(a) { browsing = false }
 }
