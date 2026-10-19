@@ -19,6 +19,50 @@ class XboxLaunchTest(unittest.TestCase):
             (folder / '.droiddeck-store.json').write_text(json.dumps({'store': 'gog', 'id': '1'}))
             self.assertIsNone(xbox['launch'](['/proton', 'waitforexitandrun', str(folder / 'Game.exe')], {}))
 
+    def test_missing_store_detector_keeps_stock_launch(self):
+        for error in (FileNotFoundError('missing'), RuntimeError('module initialization failed')):
+            with self.subTest(error=error), patch('runpy.run_path', side_effect=error):
+                self.assertIsNone(xbox['launch'](['/proton', 'waitforexitandrun', '/Game.exe'], {}))
+
+    def test_launch_uses_prepared_image_and_never_receives_account_credentials(self):
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            runtime = root / 'runtime/windows'
+            runtime.mkdir(parents=True)
+            for name in xbox['DLLS']:
+                (runtime / name).write_bytes(b'MZ')
+            store = {'find_store_game': lambda argv: (root, {'store': 'xbox', 'id': 'GAME'}),
+                     'ask': unittest.mock.Mock(return_value={'ok': True, 'socket': '/service', 'lease': 'lease-1',
+                                                            'exe': '/private/Game.exe', 'playfab': 'game-token'})}
+            close = unittest.mock.Mock()
+            with patch('runpy.run_path', return_value=store), patch.dict(xbox['launch'].__globals__, RUNTIME=runtime.parent), \
+                 patch.dict(xbox['launch'].__globals__, bridge=lambda path: (1234, 'key', close)), \
+                 patch.dict(xbox['launch'].__globals__, wine=unittest.mock.Mock(return_value=7)):
+                launch = xbox['launch']
+                self.assertEqual(launch(['/proton', 'waitforexitandrun', '/encrypted/Game.exe'],
+                                        {'BL_LAUNCH_DIR': '/launch', 'DROIDDECK_XBOX_CREDENTIAL_SOCKET': 'stale'}), 7)
+                wine = launch.__globals__['wine']
+                self.assertEqual(wine.call_args.args[0], ['/private/Game.exe'])
+                env = wine.call_args.args[1]
+                self.assertNotIn('DROIDDECK_XBOX_CREDENTIAL_SOCKET', env)
+                self.assertEqual(env['XODUS_XSTS_PLAYFAB'], 'game-token')
+            close.assert_called_once()
+            self.assertEqual(store['ask'].call_args.args[1], {'op': 'xbox-released', 'lease': 'lease-1'})
+
+    def test_bridge_start_failure_still_releases_the_lease(self):
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            runtime = root / 'windows'
+            runtime.mkdir()
+            for name in xbox['DLLS']:
+                (runtime / name).touch()
+            ask = unittest.mock.Mock(return_value={'ok': True, 'socket': '/service', 'lease': 'lease-1'})
+            with patch('runpy.run_path', return_value={'find_store_game': lambda argv: (root, {'store': 'xbox', 'id': 'GAME'}), 'ask': ask}), \
+                 patch.dict(xbox['launch'].__globals__, RUNTIME=root, bridge=unittest.mock.Mock(side_effect=OSError('bind failed'))):
+                with self.assertRaises(OSError):
+                    xbox['launch'](['/proton', 'waitforexitandrun', '/Game.exe'], {'BL_LAUNCH_DIR': '/launch'})
+            self.assertEqual(ask.call_args.args[1], {'op': 'xbox-released', 'lease': 'lease-1'})
+
     def test_bridge_authenticates_before_forwarding(self):
         with tempfile.TemporaryDirectory() as root:
             path = str(Path(root) / 'service.sock')

@@ -28,15 +28,16 @@ internal object XboxCatalog {
                 (row.isNull("satisfiedByProductId") || productId.matches(row.optString("satisfiedByProductId")))
             if (!valid || id in rows || id in blocked) { blocked.add(id); rows.remove(id) } else rows[id] = row
         }
+        fun active(row: JSONObject) = row.getString("status") == "Active" && !row.getBoolean("isTrial") && !row.getBoolean("special") &&
+            row.getString("sharingSource") == "None" && timestamp(row.getString("endDate")).isAfter(now)
         fun kind(id: String, visited: Set<String> = emptySet()): String? {
             if (id in blocked || id in visited || visited.size >= 16) return null
             val row = rows[id] ?: return null
-            if (row.getString("status") != "Active" || row.getBoolean("isTrial") || row.getBoolean("special") ||
-                row.getString("sharingSource") != "None" || !timestamp(row.getString("endDate")).isAfter(now)) return null
+            if (!active(row)) return null
             val parent = row.optString("satisfiedByProductId").takeUnless { it.isBlank() || it == "null" }
             if (parent == null) return if (id in plans) null else "owned"
             if (parent in blocked) return null
-            if (parent in plans) return "gamepass"
+            if (parent in plans) return if (rows[parent]?.let(::active) == true) "gamepass" else null
             return kind(parent, visited + id)
         }
         return rows.keys.mapNotNull { id -> kind(id)?.let { id to it } }.toMap()

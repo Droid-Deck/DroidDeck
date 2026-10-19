@@ -83,6 +83,7 @@ object StoreLaunch {
     }
 
     fun prepare(context: Context, store: Store, id: String, onReady: () -> Unit) {
+        if (store == Store.XBOX) com.droiddeck.launcher.stores.xbox.XboxRuntime.authorize(context, id)
         if (store != Store.EPIC) { onReady(); return }
         val app = context.applicationContext
         Thread({

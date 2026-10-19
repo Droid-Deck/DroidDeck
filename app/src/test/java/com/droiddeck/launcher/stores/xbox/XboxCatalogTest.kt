@@ -21,8 +21,17 @@ class XboxCatalogTest {
     private fun access(vararg rows: JSONObject) = XboxCatalog.access(envelope(*rows), "test@example.test", "US", now)
 
     @Test fun purchasedAndSubscriptionAccessRemainDistinct() {
-        assertEquals(mapOf(game to "owned", parent to "gamepass"), access(row(game), row(parent, plan)))
+        assertEquals(mapOf(game to "owned", parent to "gamepass"), access(row(game), row(parent, plan), row(plan)))
         assertFalse(access(row(plan)).containsKey(plan))
+    }
+
+    @Test fun subscriptionRequiresAnActivePlanRow() {
+        assertTrue(access(row(game, plan)).isEmpty())
+        for ((key, value) in listOf("status" to "Expired", "isTrial" to true, "special" to true,
+            "sharingSource" to "Family", "endDate" to now.toString())) {
+            assertTrue(access(row(game, plan), row(plan).put(key, value)).isEmpty())
+        }
+        assertEquals(mapOf(game to "gamepass", parent to "gamepass"), access(row(game, parent), row(parent, plan), row(plan)))
     }
 
     @Test fun backendRfc3339OffsetsAndNanosecondsAreAccepted() {

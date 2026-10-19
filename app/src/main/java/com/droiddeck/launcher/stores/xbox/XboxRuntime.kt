@@ -7,40 +7,100 @@ import org.json.JSONObject
 import java.io.File
 
 internal object XboxRuntime {
+    private val state = Any()
+    private val startup = Any()
     private var child: Xodus.Child? = null
     private var owner: String? = null
-    private val activeGames = HashMap<String, Int>()
-    @Synchronized fun isActive(id: String): Boolean = activeGames.getOrDefault(id, 0) > 0
-    @Synchronized fun released(id: String) {
-        val count = activeGames.getOrDefault(id, 0)
-        if (count <= 1) activeGames.remove(id) else activeGames[id] = count - 1
+    private var generation = 0L
+    private val launches = XboxLaunchLeases { android.os.SystemClock.elapsedRealtime() }
+    fun isActive(id: String): Boolean = launches.active(id)
+    fun authorize(app: Context, id: String) {
+        StoreAccounts.signedInAs(app, Store.XBOX)?.let { launches.authorize(id, it) }
     }
+    fun released(token: String) { runCatching { launches.release(token)?.close() } }
+    fun renew(app: Context, id: String, token: String): Boolean = launches.renew(token, id,
+        StoreAccounts.signedInAs(app, Store.XBOX), SessionState.sessionId.takeIf { SessionState.running })
 
-    @Synchronized fun prepare(app: Context, id: String): JSONObject {
+    fun prepare(app: Context, id: String): JSONObject {
         check(!XboxContent.busy(id)) { "Wait for Xbox content downloads to finish" }
         check(SessionState.running) { "No running DroidDeck session" }
-        check(StoreGameSidecar.find(app, Store.XBOX, id)?.isInstalled == true) { "Xbox game is not installed" }
+        val session = SessionState.sessionId ?: error("No running DroidDeck session")
+        val game = StoreInstallRoot.gameFolders(app).mapNotNull { folder ->
+            StoreGameSidecar.read(folder)?.takeIf { it.store == Store.XBOX && it.id == id && it.isInstalled }?.let { folder to it }
+        }.firstOrNull() ?: error("Xbox game is not installed")
         val account = StoreAccounts.signedInAs(app, Store.XBOX) ?: error("Sign in to Xbox before playing")
-        val socket = File(app.filesDir, "xbox-runtime/xodus.sock")
-        if (child?.process?.isAlive != true || owner != account) {
-            stop()
-            socket.delete()
-            val service = Xodus.start(app, emptyList(), service = true)
-            child = service; owner = account
-            Xodus.diagnostics(service)
-            Thread({ runCatching { service.process.inputStream.use { val buffer = ByteArray(8192); while (it.read(buffer) >= 0) {} } } }, "xbox-service-output").start()
-            val deadline = android.os.SystemClock.elapsedRealtime() + 90_000
-            while (!socket.exists() && service.process.isAlive && SessionState.running && android.os.SystemClock.elapsedRealtime() < deadline) Thread.sleep(100)
-            if (!socket.exists() || !service.process.isAlive || !SessionState.running) {
-                stop(); error("Xbox account service did not become ready. Check your sign-in and network connection.")
-            }
+        val token: String
+        val current: Long
+        synchronized(state) {
+            current = generation
+            token = launches.begin(id, account, session)
         }
-        activeGames[id] = activeGames.getOrDefault(id, 0) + 1
-        return JSONObject().put("ok", true).put("socket", socket.path).put("credentials", child!!.credentialSocket)
+        Thread({
+            while (isActive(id)) {
+                Thread.sleep(10_000)
+                launches.stale(StoreAccounts.signedInAs(app, Store.XBOX), SessionState.sessionId.takeIf { SessionState.running },
+                    SessionState.suspended).forEach { runCatching { it.close() } }
+            }
+        }, "xbox-launch-expiry").start()
+        try {
+            val socket = service(app, account, current)
+            check(synchronized(state) { generation == current }) { "Xbox launch was cancelled" }
+            val market = game.second.extra["market"]?.takeIf { it.matches(Regex("[A-Z]{2}")) } ?: Xodus.market()
+            val process = Xodus.start(app, listOf("run", game.first.path, "droiddeck:prepare", "--exe", game.second.exe,
+                "--materialize-chain", "--market", market))
+            if (!launches.attach(token, process)) { process.close(); error("Xbox launch was cancelled") }
+            Xodus.diagnostics(process)
+            val result = java.util.concurrent.FutureTask {
+                val input = process.process.inputStream.buffered()
+                var line: String
+                do { line = XboxCredentials.readLine(input, 131_072) } while (!line.startsWith("DROIDDECK_LAUNCH_V1 "))
+                JSONObject(line.removePrefix("DROIDDECK_LAUNCH_V1 "))
+            }
+            Thread(result, "xbox-launch-view").start()
+            val view = result.get(90, java.util.concurrent.TimeUnit.SECONDS)
+            check(renew(app, id, token) && synchronized(state) { generation == current }) { "Xbox launch was cancelled" }
+            return JSONObject().put("ok", true).put("socket", socket.path).put("lease", token)
+                .put("exe", view.getString("exe")).put("playfab", view.opt("playfab"))
+        } catch (e: Exception) { released(token); throw e }
     }
 
-    @Synchronized fun stop() {
-        val process = child; child = null; owner = null; activeGames.clear()
-        runCatching { process?.close() }
+    private fun service(app: Context, account: String, current: Long): File = synchronized(startup) {
+        val socket = File(app.filesDir, "xbox-runtime/xodus.sock")
+        val existing = synchronized(state) {
+            check(generation == current) { "Xbox launch was cancelled" }
+            child?.takeIf { it.process.isAlive && owner == account }
+        }
+        if (existing == null) {
+            val old = synchronized(state) { child.also { child = null; owner = null } }
+            old?.close()
+            socket.delete()
+            val service = Xodus.start(app, emptyList(), service = true)
+            val accepted = synchronized(state) {
+                (generation == current).also { if (it) { child = service; owner = account } }
+            }
+            if (!accepted) { service.close(); error("Xbox launch was cancelled") }
+            Xodus.diagnostics(service)
+            Thread({ runCatching { service.process.inputStream.use { input ->
+                val buffer = ByteArray(8192)
+                while (input.read(buffer) >= 0) { Thread.yield() }
+            } } }, "xbox-service-output").start()
+            val deadline = android.os.SystemClock.elapsedRealtime() + 90_000
+            while (!socket.exists() && service.process.isAlive && SessionState.running &&
+                synchronized(state) { generation == current } && android.os.SystemClock.elapsedRealtime() < deadline) Thread.sleep(100)
+            check(socket.exists() && service.process.isAlive && SessionState.running) {
+                "Xbox account service did not become ready. Check your sign-in and network connection."
+            }
+        }
+        socket
+    }
+
+    fun stop() {
+        val processes = synchronized(state) {
+            generation++
+            val all = launches.clear() + listOfNotNull(child)
+            child = null; owner = null
+            all
+        }
+        Thread({ processes.forEach { runCatching { it.close() } } }, "xbox-runtime-stop").start()
     }
 }

@@ -316,7 +316,11 @@ def main():
     if mic_enabled == "0":
         env["BANNER_AUDIO_DIRECT_MIC"] = "0"
     env = force_ssbs(command, env)
-    xbox = runpy.run_path(str(Path(__file__).with_name("droiddeck-xbox")))
+    try:
+        xbox = runpy.run_path(str(Path(__file__).with_name("droiddeck-xbox")))
+    except Exception as error:
+        print("droiddeck-game-env: Xbox support unavailable (%s); stock launch" % error, file=sys.stderr)
+        xbox = {"launch": lambda command, env: None}
     try:
         xbox_result = xbox["launch"](command, env)
     except (OSError, ValueError, KeyError, RuntimeError) as error:

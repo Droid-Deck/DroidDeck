@@ -14,15 +14,17 @@ internal object Xodus {
     fun market(): String = java.util.Locale.getDefault().country.uppercase().takeIf { it.matches(Regex("[A-Z]{2}")) } ?: "US"
 
     class Child(val process: Process, private val credentials: XboxCredentials) : Closeable {
-        val credentialSocket: String get() = credentials.name
         @Synchronized fun send(frame: JSONObject) {
             process.outputStream.write((frame.toString() + "\n").toByteArray())
             process.outputStream.flush()
         }
         override fun close() {
-            process.destroy()
-            if (!process.waitFor(2, TimeUnit.SECONDS)) process.destroyForcibly()
             credentials.close()
+            runCatching { process.outputStream.close() }
+            if (!process.waitFor(2, TimeUnit.SECONDS)) {
+                process.destroy()
+                if (!process.waitFor(2, TimeUnit.SECONDS)) process.destroyForcibly()
+            }
         }
     }
 
@@ -65,7 +67,14 @@ internal object Xodus {
                 if (SessionPrefs.prootNoSeccomp(app)) put("PROOT_NO_SECCOMP", "1")
                 LinuxRuntime.prootLibraryPath(app).takeIf { it.isNotEmpty() }?.let { put("LD_LIBRARY_PATH", it) }
             }
-            return Child(builder.start(), credentials)
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            app.assets.open("linuxfs$binary").use { input ->
+                val buffer = ByteArray(65536)
+                while (true) { val n = input.read(buffer); if (n < 0) break; digest.update(buffer, 0, n) }
+            }
+            val process = builder.start()
+            credentials.bind(process, digest.digest())
+            return Child(process, credentials)
         } catch (e: Exception) { credentials.close(); throw e }
     }
 

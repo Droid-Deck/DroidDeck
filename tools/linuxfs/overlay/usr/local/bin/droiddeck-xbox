@@ -102,15 +102,16 @@ def bridge(upstream):
     return server.getsockname()[1], key.decode('ascii'), close
 
 
-def wine(argv):
-    with open(os.environ['DROIDDECK_XBOX_COMMAND_FILE'], encoding='utf-8') as file:
+def wine(argv, source_env=None):
+    source_env = os.environ if source_env is None else source_env
+    with open(source_env['DROIDDECK_XBOX_COMMAND_FILE'], encoding='utf-8') as file:
         command = json.load(file)
     if len(command) < 3 or command[1] != 'waitforexitandrun' or len(argv) != 1:
         raise ValueError('Invalid Xbox Proton invocation')
-    env = dict(os.environ)
+    env = dict(source_env)
     env.pop('DROIDDECK_XBOX_CREDENTIAL_SOCKET', None)
     env.pop('DROIDDECK_XBOX_COMMAND_FILE', None)
-    prefix = Path(os.environ['STEAM_COMPAT_DATA_PATH']) / 'pfx'
+    prefix = Path(source_env['STEAM_COMPAT_DATA_PATH']) / 'pfx'
     prefix.parent.mkdir(parents=True, exist_ok=True)
     if not (prefix / 'system.reg').is_file():
         result = subprocess.run([command[0], 'run', 'cmd', '/c', 'exit', '0'], stdout=sys.stderr, env=env)
@@ -131,7 +132,11 @@ def wine(argv):
 def launch(command, env):
     if len(command) < 3 or command[1] != 'waitforexitandrun' or env.get('DROIDDECK_XBOX_ACTIVE') == '1':
         return None
-    store = runpy.run_path(str(BIN / 'droiddeck-store-launch'))
+    try:
+        store = runpy.run_path(str(BIN / 'droiddeck-store-launch'))
+    except Exception as error:
+        print('droiddeck-xbox: store detection unavailable (%s); stock launch' % error, file=sys.stderr)
+        return None
     found = store['find_store_game'](command[2:])
     if found is None or found[1].get('store') != 'xbox':
         return None
@@ -142,19 +147,32 @@ def launch(command, env):
     launch_dir = env.get('BL_LAUNCH_DIR')
     if not launch_dir:
         raise RuntimeError('No Xbox account channel; start the game from DroidDeck')
-    reply = store['ask'](Path(launch_dir) / 'stores', {'op': 'xbox-prepare', 'id': sidecar['id']}, timeout=95)
+    reply = store['ask'](Path(launch_dir) / 'stores', {'op': 'xbox-prepare', 'id': sidecar['id']}, timeout=190)
     if not reply or not reply.get('ok'):
         raise RuntimeError('Xbox account service is unavailable; sign in again and retry')
-    port, key, close = bridge(reply['socket'])
+    stopped = threading.Event()
+    close = lambda: None
     try:
+        port, key, close = bridge(reply['socket'])
+
+        def renew():
+            while not stopped.wait(15):
+                response = store['ask'](Path(launch_dir) / 'stores',
+                                        {'op': 'xbox-renew', 'id': sidecar['id'], 'lease': reply['lease']}, timeout=10)
+                if not response or not response.get('ok'):
+                    return
+
+        threading.Thread(target=renew, daemon=True).start()
         with tempfile.TemporaryDirectory(prefix='droiddeck-xbox-') as temporary:
             context = Path(temporary) / 'command.json'
             context.write_text(json.dumps(command), encoding='utf-8')
             context.chmod(0o600)
             owned_env = dict(env, DROIDDECK_XBOX_ACTIVE='1', DROIDDECK_XBOX_COMMAND_FILE=str(context),
-                             DROIDDECK_XBOX_CREDENTIAL_SOCKET=reply['credentials'],
                              XODUS_SOCKET=reply['socket'], XODUS_BRIDGE_PORT=str(port), XODUS_BRIDGE_KEY=key,
                              XODUS_LOG='off', RUST_LOG='off', XODUS_SAVE_SYNC='auto' if sidecar.get('cloud', True) else 'off')
+            owned_env.pop('DROIDDECK_XBOX_CREDENTIAL_SOCKET', None)
+            if reply.get('playfab'):
+                owned_env['XODUS_XSTS_PLAYFAB'] = reply['playfab']
             content = folder / '.xbox-content'
             roots = []
             if content.is_dir():
@@ -167,12 +185,11 @@ def launch(command, env):
                         pass
             if roots:
                 owned_env['XODUS_CONTENT_ROOTS'] = ';'.join(roots)
-            market = sidecar.get('extra', {}).get('market', 'US')
-            return subprocess.call([str(RUNTIME / 'xodus-cli'), 'run', str(folder), str(BIN / 'droiddeck-xbox'),
-                                    '--exe', sidecar['exe'], '--materialize-chain', '--market', market], env=owned_env)
+            return wine([reply['exe']], owned_env)
     finally:
+        stopped.set()
         close()
-        store['ask'](Path(launch_dir) / 'stores', {'op': 'xbox-released', 'id': sidecar['id']})
+        store['ask'](Path(launch_dir) / 'stores', {'op': 'xbox-released', 'lease': reply['lease']})
 
 
 if __name__ == '__main__':

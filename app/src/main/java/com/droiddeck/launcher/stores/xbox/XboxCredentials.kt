@@ -15,6 +15,40 @@ internal class XboxCredentials(private val app: Context) : Closeable {
     private val generation = storage(app) { epoch(app) }
     private val server = LocalServerSocket(name)
     @Volatile private var closed = false
+    private val bound = java.util.concurrent.CountDownLatch(1)
+    private var backend: Process? = null
+    private var binaryHash = byteArrayOf()
+    private val peers = HashMap<Int, String>()
+
+    fun bind(process: Process, digest: ByteArray) {
+        backend = process
+        binaryHash = digest
+        bound.countDown()
+    }
+
+    private fun authorized(pid: Int): Boolean {
+        if (!bound.await(5, java.util.concurrent.TimeUnit.SECONDS) || closed) return false
+        val process = backend ?: return false
+        if (!process.isAlive) return false
+        val root = com.droiddeck.launcher.core.HostProcess.pidOf(process)
+        if (root <= 0 || pid <= 0) return false
+        val status = java.io.File("/proc/$pid/status").readLines()
+        val tracer = status.first { it.startsWith("TracerPid:") }.substringAfter(':').trim().toInt()
+        val tracerGroup = java.io.File("/proc/$tracer/status").readLines()
+            .first { it.startsWith("Tgid:") }.substringAfter(':').trim().toInt()
+        if (tracerGroup != root) return false
+        val executable = android.system.Os.stat("/proc/$pid/exe")
+        val identity = java.io.File("/proc/$pid/stat").readText().substringAfterLast(") ").split(' ')[19] + ":${executable.st_dev}:${executable.st_ino}"
+        if (peers[pid] == identity) return true
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        java.io.File("/proc/$pid/exe").inputStream().use { input ->
+            val buffer = ByteArray(65536)
+            while (true) { val n = input.read(buffer); if (n < 0) break; digest.update(buffer, 0, n) }
+        }
+        if (!java.security.MessageDigest.isEqual(binaryHash, digest.digest())) return false
+        peers[pid] = identity
+        return true
+    }
 
     init {
         Thread({
@@ -23,10 +57,12 @@ internal class XboxCredentials(private val app: Context) : Closeable {
                 socket.use {
                     it.soTimeout = 10_000
                     val reply = runCatching {
-                        check(it.peerCredentials.uid == android.os.Process.myUid())
+                        val peer = it.peerCredentials
+                        check(peer.uid == android.os.Process.myUid() && authorized(peer.pid))
+                        val request = JSONObject(readLine(it.inputStream.buffered(), 2_097_152))
                         storage(app) {
-                            check(epoch(app) == generation)
-                            answer(JSONObject(readLine(it.inputStream.buffered(), 2_097_152)))
+                            check(!closed && epoch(app) == generation && authorized(peer.pid))
+                            answer(request)
                         }
                     }.getOrElse { JSONObject().put("ok", false) }
                     runCatching { it.outputStream.write((reply.toString() + "\n").toByteArray()) }
@@ -58,7 +94,7 @@ internal class XboxCredentials(private val app: Context) : Closeable {
         return result
     }
 
-    override fun close() { closed = true; runCatching { server.close() } }
+    override fun close() { closed = true; bound.countDown(); runCatching { server.close() } }
 
     companion object {
         val lock = Any()
