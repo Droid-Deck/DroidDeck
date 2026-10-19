@@ -2549,6 +2549,7 @@
     <string name="glasses_xreal_network_missing">Waiting for the glasses’ USB Ethernet connection. This phone may not expose it to apps.</string>
     <string name="glasses_xreal_connection_failed">The XREAL connection was interrupted or returned an unsupported response. Retrying…</string>
     <string name="glasses_xreal_experimental">Experimental 1S support. Use Follow mode and disable stabilization in the glasses menu. Tracking directions and display modes still need device testing.</string>
+    <string name="glasses_pro2_experimental">Experimental Pro 2 head tracking. Brightness, volume, and display switching are not supported yet.</string>
     <string name="display_picture_position">Picture position</string>
     <string name="display_position_top">Top</string>
     <string name="display_position_bottom">Bottom</string>

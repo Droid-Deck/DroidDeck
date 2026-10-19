@@ -4,6 +4,8 @@ package com.droiddeck.launcher.glasses
 interface GlassesModel {
     val name: String
     val controllable: Boolean
+    val hardwareControls: Boolean get() = true
+    val supportsDisplayModeControl: Boolean get() = true
     val brightnessMax: Int
     val volumeMax: Int
     val diagonalFovDeg: Float

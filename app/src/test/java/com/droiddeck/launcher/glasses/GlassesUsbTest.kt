@@ -155,6 +155,58 @@ class GlassesUsbTest {
         assertEquals(listOf(gt), manager.requests)
     }
 
+    @Test fun pro2RequestsPermissionWithoutTheSdkAndDoesNotClaimCompanionProducts() {
+        val pro2 = device(0x1301, name = "VITURE Luma Ultra")
+        manager.devices[pro2.deviceName] = pro2
+        refresh(ask = true)
+        assertEquals("VITURE Pro 2", state.value.model)
+        assertTrue(state.value.controllable)
+        assertTrue(state.value.experimental)
+        assertFalse(state.value.hardwareControls)
+        assertFalse(state.value.supportsDisplayModeControl)
+        assertFalse(state.value.supportsScreen3dof)
+        assertFalse(state.value.supportsSpatial)
+        assertEquals(listOf(pro2), manager.requests)
+        assertEquals(null, Glasses.deviceModel(device(0x1301, 0x1234, "VITURE Pro 2")))
+        assertEquals(null, Glasses.deviceModel(device(0x1102, name = "VITURE Pro 2")))
+        assertEquals(null, Glasses.deviceModel(device(0x1302, name = "VITURE Pro 2")))
+        val ultra = Glasses.deviceModel(device(0x1104)) as VitureProtocol.Model
+        assertEquals(VitureProtocol.Family.ULTRA, ultra.family)
+        assertTrue(ultra.needsSdk)
+    }
+
+    @Test fun pro2PoseAvailabilityDoesNotEnableDisplayOrHardwareWrites() {
+        val pro2 = device(0x1301)
+        manager.devices[pro2.deviceName] = pro2
+        manager.granted.add(pro2.deviceName)
+        val sent = mutableListOf<Int>()
+        field("linkDevice").set(null, pro2)
+        field("link").set(null, object : GlassesLink {
+            override val hasImu = true
+            override fun send(msgId: Int, payload: ByteArray): Boolean { sent += msgId; return true }
+            override fun close() {}
+        })
+        try {
+            refresh()
+            assertTrue(state.value.canControl)
+            assertTrue(state.value.supportsScreen3dof)
+            assertFalse(state.value.can3d)
+            assertFalse(state.value.supportsDisplayModeControl)
+            assertFalse(state.value.hardwareControls)
+            assertEquals(0, state.value.brightnessMax)
+            assertEquals(0, state.value.volumeMax)
+            Glasses.sendMode(0x32)
+            Glasses.setBrightness(5)
+            Glasses.setVolume(5)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertTrue(sent.isEmpty())
+        } finally {
+            field("link").set(null, null)
+            field("linkDevice").set(null, null)
+            (field("handler").get(null) as Handler).removeCallbacksAndMessages(null)
+        }
+    }
+
     @Test fun gtVendorRequestsPermissionAndRetainsMaxProductName() {
         val gt = device(0xaf50, 0x3941, "RayNeo GT MAX")
         manager.devices[gt.deviceName] = gt

@@ -6,6 +6,7 @@ import kotlin.math.sqrt
 
 object VitureProtocol {
     const val VENDOR_ID = 0x35CA
+    const val PRO2_PRODUCT_ID = 0x1301
     const val PACKET_SIZE = 64
     private const val HEADER = 0x12
 
@@ -33,13 +34,19 @@ object VitureProtocol {
 
     enum class Family { ONE, PRO, LUMA, ULTRA, BEAST, PRO2 }
 
-    class Model(override val name: String, val family: Family) : GlassesModel {
+    class Model(
+        override val name: String,
+        val family: Family,
+        val needsSdk: Boolean = family == Family.ULTRA || family == Family.BEAST || family == Family.PRO2,
+    ) : GlassesModel {
         override val controllable: Boolean get() = true
-        val needsSdk: Boolean get() = family == Family.ULTRA || family == Family.BEAST || family == Family.PRO2
+        private val directPro2: Boolean get() = family == Family.PRO2 && !needsSdk
+        override val hardwareControls: Boolean get() = !directPro2
+        override val supportsDisplayModeControl: Boolean get() = !directPro2
         val tall: Boolean get() = family == Family.LUMA || family == Family.ULTRA || family == Family.BEAST
         override val sbs90: Boolean get() = family == Family.ULTRA
-        override val brightnessMax: Int get() = 8
-        override val volumeMax: Int get() = if (family == Family.BEAST) 15 else 8
+        override val brightnessMax: Int get() = if (directPro2) 0 else 8
+        override val volumeMax: Int get() = if (directPro2) 0 else if (family == Family.BEAST) 15 else 8
         override val hasSunblock: Boolean get() = family != Family.PRO2
         override val diagonalFovDeg: Float get() = when (family) {
             Family.ONE -> 43f
@@ -89,6 +96,7 @@ object VitureProtocol {
     }
 
     fun model(productId: Int, productName: String?): Model? {
+        if (productId == PRO2_PRODUCT_ID) return Model("VITURE Pro 2", Family.PRO2, needsSdk = false)
         val family = when (productId) {
             0x1011, 0x1013, 0x1015, 0x1017, 0x101b -> Family.ONE
             0x1019, 0x101d -> Family.PRO
