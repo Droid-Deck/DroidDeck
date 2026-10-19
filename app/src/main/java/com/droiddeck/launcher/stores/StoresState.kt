@@ -20,6 +20,8 @@ object StoresState {
     private val main = Handler(Looper.getMainLooper())
 
     val accounts = mutableStateMapOf<Store, String>()
+    var accountsLoaded by mutableStateOf(false)
+        private set
 
     val library = mutableStateMapOf<Store, List<CatalogItem>>()
 
@@ -84,11 +86,15 @@ object StoresState {
             val partial = StoreInstallRoot.unfinished(app)
             val version = if (StoresNative.available) StoresNative.version ?: "" else ""
             main.post {
-                accounts.clear()
-                found.forEach { (store, name) -> accounts[store] = name }
-                installed = onDisk
-                unfinished = partial
-                engine = version
+                androidx.compose.runtime.snapshots.Snapshot.withMutableSnapshot {
+                    val restored = found.toMap()
+                    accounts.keys.toList().filter { it !in restored }.forEach { accounts.remove(it) }
+                    accounts.putAll(restored)
+                    installed = onDisk
+                    unfinished = partial
+                    engine = version
+                    accountsLoaded = true
+                }
             }
         }
     }

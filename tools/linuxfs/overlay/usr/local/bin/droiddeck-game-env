@@ -310,6 +310,14 @@ def main():
     if mic_enabled == "0":
         env["BANNER_AUDIO_DIRECT_MIC"] = "0"
     env = force_ssbs(command, env)
+    xbox = runpy.run_path(str(Path(__file__).with_name("droiddeck-xbox")))
+    try:
+        xbox_result = xbox["launch"](command, env)
+    except (OSError, ValueError, KeyError, RuntimeError) as error:
+        print("droiddeck-game-env: Xbox launch could not start (%s)" % error, file=sys.stderr)
+        return 1
+    if xbox_result is not None:
+        return xbox_result
     sync = load_sync()
     launch, launch_env = select_sync(command, env, sync)
     if launch[0] != command[0]:

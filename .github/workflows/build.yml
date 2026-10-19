@@ -29,7 +29,46 @@ env:
   PRELOAD_CACHE_VERSION: v6
 
 jobs:
+  xbox:
+    name: Xbox ARM64 backend
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/cache@v4
+        id: xbox-cache
+        with:
+          path: |
+            app/src/main/assets/linuxfs/usr/local/lib/droiddeck-xbox
+            app/build/xbox/xodus-droiddeck-source.tar.xz
+            app/build/xbox/runtime/*-source.tar.xz
+          key: xbox-arm64-${{ hashFiles('tools/xbox/**') }}
+      - name: Build Xbox backend
+        if: steps.xbox-cache.outputs.cache-hit != 'true'
+        run: |
+          rustup toolchain install 1.99.0 --profile minimal
+          sudo apt-get update -qq
+          sudo apt-get install -y build-essential pkg-config libssl-dev protobuf-compiler cmake xz-utils
+          bash tools/xbox/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xbox-arm64
+          path: app/src/main/assets/linuxfs/usr/local/lib/droiddeck-xbox
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xbox-corresponding-source
+          path: |
+            app/build/xbox/xodus-droiddeck-source.tar.xz
+            app/build/xbox/runtime/*-source.tar.xz
+          if-no-files-found: error
+          retention-days: 14
+
   build:
+    needs: xbox
     name: Build APK
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     runs-on: ubuntu-24.04
@@ -184,7 +223,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: app/src/main/assets/linuxfs
-          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'app/src/main/cpp/adrenotools/src/hook/kgsl.h', 'tools/quest/*', 'tools/linuxfs/preload/*.c', 'tools/linuxfs/build-x86-preloads.sh', 'tools/linuxfs/fex/*', 'tools/linuxfs/clipboard/*.c', 'tools/linuxfs/ssbs/*.c', 'tools/proot/fastpath/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/linuxfs/uruntime.env', 'tools/linuxfs/licenses/*', 'tools/mangoapp/*', 'tools/msitools/**', 'tools/comet/**', 'tools/linuxfs/debian-image.env', 'tools/vr/**') }}
+          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'app/src/main/cpp/adrenotools/src/hook/kgsl.h', 'tools/quest/*', 'tools/linuxfs/preload/*.c', 'tools/linuxfs/build-x86-preloads.sh', 'tools/linuxfs/fex/*', 'tools/linuxfs/clipboard/*.c', 'tools/linuxfs/ssbs/*.c', 'tools/proot/fastpath/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/linuxfs/uruntime.env', 'tools/linuxfs/licenses/*', 'tools/mangoapp/*', 'tools/msitools/**', 'tools/comet/**', 'tools/xbox/**', 'tools/linuxfs/debian-image.env', 'tools/vr/**') }}
 
       - name: Build libfakeinput.so and libblsession.so (glibc aarch64)
         if: steps.preloads.outputs.cache-hit != 'true'
@@ -463,6 +502,11 @@ jobs:
           key: cxx-${{ env.NDK_VERSION }}-${{ hashFiles('app/src/main/cpp/**', 'tools/vr/src/xr_*.h') }}
           restore-keys: |
             cxx-${{ env.NDK_VERSION }}-
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: xbox-arm64
+          path: app/src/main/assets/linuxfs/usr/local/lib/droiddeck-xbox
 
       - name: Build GOG Galaxy companion
         if: steps.preloads.outputs.cache-hit != 'true'

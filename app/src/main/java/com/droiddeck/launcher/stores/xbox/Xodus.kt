@@ -1,0 +1,106 @@
+package com.droiddeck.launcher.stores.xbox
+
+import android.content.Context
+import android.os.Environment
+import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.droiddeck.launcher.session.SessionPrefs
+import org.json.JSONObject
+import java.io.Closeable
+import java.io.File
+import java.util.concurrent.TimeUnit
+
+internal object Xodus {
+    const val DIR = "/usr/local/lib/droiddeck-xbox"
+    fun market(): String = java.util.Locale.getDefault().country.uppercase().takeIf { it.matches(Regex("[A-Z]{2}")) } ?: "US"
+
+    class Child(val process: Process, private val credentials: XboxCredentials) : Closeable {
+        val credentialSocket: String get() = credentials.name
+        @Synchronized fun send(frame: JSONObject) {
+            process.outputStream.write((frame.toString() + "\n").toByteArray())
+            process.outputStream.flush()
+        }
+        override fun close() {
+            process.destroy()
+            if (!process.waitFor(2, TimeUnit.SECONDS)) process.destroyForcibly()
+            credentials.close()
+        }
+    }
+
+    @Synchronized private fun stage(app: Context) {
+        val root = File(LinuxRuntime.rootDir(app), DIR.removePrefix("/"))
+        val packaged = app.assets.open("linuxfs$DIR/version").bufferedReader().use { it.readText() }
+        if (runCatching { File(root, "version").readText() }.getOrNull() == packaged) return
+        fun copy(relative: String) {
+            val entries = app.assets.list("linuxfs$DIR/$relative").orEmpty()
+            if (entries.isNotEmpty()) { entries.forEach { copy(if (relative.isEmpty()) it else "$relative/$it") }; return }
+            if (relative == "version") return
+            val file = File(root, relative)
+            file.parentFile?.mkdirs()
+            val staged = File(file.path + ".staged")
+            app.assets.open("linuxfs$DIR/$relative").use { input -> staged.outputStream().use { input.copyTo(it) } }
+            staged.setExecutable(true, false)
+            check(staged.renameTo(file))
+        }
+        copy("")
+        File(root, "version").writeText(packaged)
+    }
+
+    fun start(app: Context, args: List<String>, service: Boolean = false): Child {
+        check(LinuxRuntime.isInstalled(app)) { "Install the Linux runtime before using Xbox." }
+        stage(app)
+        val binary = "$DIR/${if (service) "xodus-service" else "xodus-cli"}"
+        check(File(LinuxRuntime.rootDir(app), binary.removePrefix("/")).isFile) { "The Xbox backend is missing. Update the Linux runtime." }
+        val credentials = XboxCredentials(app)
+        try {
+            val runtime = File(app.filesDir, "xbox-runtime").apply { mkdirs() }
+            val command = LinuxRuntime.command(app, null, null, Environment.getExternalStorageDirectory(), listOf(
+                "/usr/bin/env", "HOME=/root", "XODUS_LOG=off", "RUST_LOG=off",
+                "XDG_RUNTIME_DIR=${runtime.path}", "DROIDDECK_XBOX_CREDENTIAL_SOCKET=${credentials.name}", binary,
+            ) + args)
+            val builder = ProcessBuilder(command).directory(LinuxRuntime.rootDir(app))
+            builder.environment().apply {
+                remove("LD_PRELOAD"); remove("LD_AUDIT"); remove("LD_LIBRARY_PATH")
+                put("PROOT_LOADER", LinuxRuntime.prootLoader(app).path)
+                put("PROOT_TMP_DIR", LinuxRuntime.prootTempDir(app).path)
+                if (SessionPrefs.prootNoSeccomp(app)) put("PROOT_NO_SECCOMP", "1")
+                LinuxRuntime.prootLibraryPath(app).takeIf { it.isNotEmpty() }?.let { put("LD_LIBRARY_PATH", it) }
+            }
+            return Child(builder.start(), credentials)
+        } catch (e: Exception) { credentials.close(); throw e }
+    }
+
+    fun run(app: Context, args: List<String>, timeout: Long = 90): JSONObject {
+        start(app, args).use { child ->
+            val output = java.io.ByteArrayOutputStream()
+            var readError: Throwable? = null
+            val reader = Thread({
+                try {
+                    val buffer = ByteArray(8192)
+                    child.process.inputStream.use { input ->
+                        while (true) {
+                            val count = input.read(buffer)
+                            if (count < 0) break
+                            check(output.size() + count <= 8_000_000)
+                            output.write(buffer, 0, count)
+                        }
+                    }
+                } catch (t: Throwable) { readError = t; child.process.destroy() }
+            }, "xbox-result").apply { start() }
+            val diagnostic = diagnostics(child)
+            check(child.process.waitFor(timeout, TimeUnit.SECONDS)) { "Xbox request timed out. Try again." }
+            reader.join(3000); diagnostic.join(3000)
+            check(readError == null && !reader.isAlive) { "Xbox returned an invalid response." }
+            check(child.process.exitValue() == 0) { "Xbox request failed. Check your account and network connection." }
+            return JSONObject(output.toString("UTF-8"))
+        }
+    }
+
+    fun diagnostics(child: Child): Thread = Thread({
+        runCatching {
+            child.process.errorStream.bufferedReader().useLines { lines -> lines.forEach { line ->
+                if (line.matches(Regex("NEXUS_CREDENTIAL_ERROR_V1 [a-z-]{1,48}|NEXUS_LIBRARY_DIAGNOSTIC_V1 [a-z-]{1,48} [0-9]{1,3} [0-9]{1,6}|NEXUS_SESSION_DIAGNOSTIC_V1 [a-z-]{1,64}|Account library unavailable \\([a-z-]{1,64}\\); credentials and installed games are unchanged\\.|Account library timed out; installed games are unchanged\\.")))
+                    com.droiddeck.launcher.stores.StoresState.logLine("Xbox: $line")
+            } }
+        }
+    }, "xbox-diagnostics").apply { start() }
+}
