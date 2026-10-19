@@ -774,24 +774,38 @@ object ComponentsManager {
         true
     }
 
-    fun deletePackage(context: Context, file: String): String = synchronized(lock) {
-        val name = safeName(file)
-        val state = loadState(context)
-        val queued = state.sub("queued")
-        for (pid in queued.keys()) {
-            val comps = queued.optJSONObject(pid) ?: continue
-            for (comp in comps.keys()) check(comps.optJSONObject(comp)?.optString("file") != name) { context.getString(R.string.cmgr_package_in_use, name, pid) }
-        }
-        val active = state.sub("active")
-        for (pid in active.keys()) {
-            val comps = active.optJSONObject(pid) ?: continue
-            for (comp in comps.keys()) check(comps.optJSONObject(comp)?.optString("file") != name) { context.getString(R.string.cmgr_package_in_use, name, pid) }
+    private fun checkPackageUnused(context: Context, state: JSONObject, name: String) {
+        for (key in listOf("queued", "active")) {
+            val byProton = state.sub(key)
+            for (pid in byProton.keys()) {
+                val comps = byProton.optJSONObject(pid) ?: continue
+                for (comp in comps.keys()) check(comps.optJSONObject(comp)?.optString("file") != name) { context.getString(R.string.cmgr_package_in_use, name, pid) }
+            }
         }
         val profiles = state.sub("profiles")
         for (scope in profiles.keys()) {
             val profile = profiles.optJSONObject(scope) ?: continue
             check(COMPONENTS.none { profile.optString(it) == name }) { context.getString(R.string.cmgr_package_in_use, name, scope) }
         }
+    }
+
+    private fun storePackage(context: Context, part: File, dest: File) {
+        try {
+            if (dest.isFile && Hashes.sha256(dest).equals(Hashes.sha256(part), true)) return
+            if (dest.exists()) checkPackageUnused(context, loadState(context), dest.name)
+            File(launchDir(context), "store/" + safeName(dest.name.removeSuffix(".wcp"))).deleteRecursively()
+            if (!part.renameTo(dest)) {
+                dest.delete()
+                check(part.renameTo(dest)) { "Could not store ${dest.name}" }
+            }
+        } finally {
+            part.delete()
+        }
+    }
+
+    fun deletePackage(context: Context, file: String): String = synchronized(lock) {
+        val name = safeName(file)
+        checkPackageUnused(context, loadState(context), name)
         val f = File(packagesDir(context), name)
         check(f.isFile) { context.getString(R.string.cmgr_package_not_stored, name) }
         f.delete()
@@ -811,7 +825,7 @@ object ComponentsManager {
     fun importPackage(context: Context, source: File, name: String): Package = synchronized(lock) {
         val info = packageInfo(context, source)
         val dest = File(packagesDir(context), safeName(name).let { if (it.endsWith(".wcp")) it else "$it.wcp" })
-        source.copyTo(File(dest.parentFile, dest.name + ".part"), overwrite = true).renameTo(dest)
+        storePackage(context, source.copyTo(File(dest.parentFile, dest.name + ".part"), overwrite = true), dest)
         info.copy(file = dest.name)
     }
 
@@ -963,7 +977,7 @@ object ComponentsManager {
         }
         if (!Hashes.sha256(part).equals(item.digest.substringAfter(':'), true)) { part.delete(); error(context.getString(R.string.cmgr_checksum_mismatch)) }
         val info = runCatching { packageInfo(context, part) }.getOrElse { part.delete(); throw it }
-        synchronized(lock) { part.renameTo(dest) }
+        synchronized(lock) { storePackage(context, part, dest) }
         return info.copy(file = dest.name)
     }
 }
