@@ -243,6 +243,8 @@ object AddedGames {
 
     fun addFolder(context: Context, dir: File, onGame: (Game) -> Unit = {}, onChecking: (String?) -> Unit = {}): FolderResult {
         val app = context.applicationContext
+        // Binds are mounted at session start, so a new one reaches the session from the next start.
+        if (guestPath(app, dir) == null) bindFolder(app, dir)
         val removed = SessionPrefs.removedAddedGames(app).toSet()
         val listed = listedFolders(app, removed)
         var already = 0
@@ -264,6 +266,20 @@ object AddedGames {
         AddedGamesPublisher.later(app) { com.droiddeck.launcher.stores.SteamLiveShortcuts.sync(app, added) { true } }
         Log.i(TAG, "added ${added.size} game(s) from ${dir.name}, $already already listed")
         return FolderResult(added, already)
+    }
+
+    @Synchronized
+    internal fun bindFolder(context: Context, dir: File) {
+        if (!dir.isDirectory || !dir.canRead()) return
+        val binds = SessionPrefs.gameFolderBinds(context)
+        if (binds.any { it.first == dir.path }) return
+        val taken = binds.map { it.second }.toSet()
+        val base = GamesFolderMigration.legacyRoots(binds.map { it.first } + dir.path).last().guest
+        var guest = base
+        var n = 2
+        while (guest in taken) guest = "$base-${n++}"
+        SessionPrefs.setGameFolderBinds(context, binds + (dir.path to guest))
+        Log.i(TAG, "games: bound $dir at $guest")
     }
 
     private fun listedFolders(context: Context, removed: Set<String>): List<String> {
