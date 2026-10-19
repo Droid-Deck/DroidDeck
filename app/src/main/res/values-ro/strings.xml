@@ -1985,6 +1985,7 @@
     <string name="stores_itch_not_owned">Nu este în biblioteca ta itch.io</string>
     <string name="stores_itch_no_upload">Nu există descărcare pentru Windows la acest joc</string>
     <string name="stores_itch_no_exe">Nu s-a găsit niciun joc Windows în descărcare</string>
+    <string name="stores_itch_extract_failed">Descărcarea nu a putut fi extrasă (cod %1$d)</string>
     <string name="stores_itch_no_catalog">itch.io nu a răspuns</string>
     <string name="stores_itch_archive">Arhivele %1$s nu sunt acceptate</string>
     <string name="stores_itch_download_failed">itch.io a răspuns HTTP %1$d</string>

@@ -1943,6 +1943,7 @@
     <string name="stores_itch_not_owned">不在你的 itch.io 收藏庫中</string>
     <string name="stores_itch_no_upload">這個遊戲沒有 Windows 下載</string>
     <string name="stores_itch_no_exe">下載內容中找不到 Windows 遊戲</string>
+    <string name="stores_itch_extract_failed">無法解壓下載內容（代碼 %1$d）</string>
     <string name="stores_itch_no_catalog">itch.io 沒有回應</string>
     <string name="stores_itch_archive">不支援 %1$s 壓縮檔</string>
     <string name="stores_itch_download_failed">itch.io 回應 HTTP %1$d</string>

@@ -2019,6 +2019,7 @@
     <string name="stores_itch_not_owned">不在你的 itch.io 库中</string>
     <string name="stores_itch_no_upload">这个游戏没有 Windows 下载</string>
     <string name="stores_itch_no_exe">下载内容中未找到 Windows 游戏</string>
+    <string name="stores_itch_extract_failed">无法解压下载内容（代码 %1$d）</string>
     <string name="stores_itch_no_catalog">itch.io 没有响应</string>
     <string name="stores_itch_archive">不支持 %1$s 压缩包</string>
     <string name="stores_itch_download_failed">itch.io 返回 HTTP %1$d</string>

@@ -1964,6 +1964,7 @@
     <string name="stores_itch_not_owned">Niet in je itch.io-bibliotheek</string>
     <string name="stores_itch_no_upload">Geen Windows-download voor dit spel</string>
     <string name="stores_itch_no_exe">Geen Windows-game gevonden in de download</string>
+    <string name="stores_itch_extract_failed">Download kan niet worden uitgepakt (code %1$d)</string>
     <string name="stores_itch_no_catalog">itch.io gaf geen antwoord</string>
     <string name="stores_itch_archive">%1$s-archieven worden niet ondersteund</string>
     <string name="stores_itch_download_failed">itch.io antwoordde HTTP %1$d</string>

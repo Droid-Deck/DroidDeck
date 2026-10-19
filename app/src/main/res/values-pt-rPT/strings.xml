@@ -1974,6 +1974,7 @@
     <string name="stores_itch_not_owned">Não está na sua biblioteca do itch.io</string>
     <string name="stores_itch_no_upload">Sem transferência para Windows deste jogo</string>
     <string name="stores_itch_no_exe">Não foi encontrado nenhum jogo para Windows na transferência</string>
+    <string name="stores_itch_extract_failed">Não foi possível extrair a transferência (código %1$d)</string>
     <string name="stores_itch_no_catalog">O itch.io não respondeu</string>
     <string name="stores_itch_archive">Ficheiros %1$s não são suportados</string>
     <string name="stores_itch_download_failed">O itch.io respondeu HTTP %1$d</string>

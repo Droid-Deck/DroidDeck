@@ -1982,6 +1982,7 @@
     <string name="stores_itch_not_owned">No está en tu biblioteca de itch.io</string>
     <string name="stores_itch_no_upload">No hay descarga para Windows de este juego</string>
     <string name="stores_itch_no_exe">No se ha encontrado un juego de Windows en la descarga</string>
+    <string name="stores_itch_extract_failed">No se ha podido extraer la descarga (código %1$d)</string>
     <string name="stores_itch_no_catalog">itch.io no respondió</string>
     <string name="stores_itch_archive">Los archivos %1$s no son compatibles</string>
     <string name="stores_itch_download_failed">itch.io respondió HTTP %1$d</string>

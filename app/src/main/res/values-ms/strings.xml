@@ -1943,6 +1943,7 @@
     <string name="stores_itch_not_owned">Tiada dalam pustaka itch.io anda</string>
     <string name="stores_itch_no_upload">Tiada muat turun Windows untuk permainan ini</string>
     <string name="stores_itch_no_exe">Tiada permainan Windows ditemui dalam muat turun</string>
+    <string name="stores_itch_extract_failed">Tidak dapat mengekstrak muat turun (kod %1$d)</string>
     <string name="stores_itch_no_catalog">itch.io tidak menjawab</string>
     <string name="stores_itch_archive">Arkib %1$s tidak disokong</string>
     <string name="stores_itch_download_failed">itch.io menjawab HTTP %1$d</string>

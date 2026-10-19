@@ -1964,6 +1964,7 @@
     <string name="stores_itch_not_owned">Inte i ditt itch.io-bibliotek</string>
     <string name="stores_itch_no_upload">Ingen Windows-nedladdning för det här spelet</string>
     <string name="stores_itch_no_exe">Inget Windows-spel hittades i nedladdningen</string>
+    <string name="stores_itch_extract_failed">Det gick inte att packa upp nedladdningen (kod %1$d)</string>
     <string name="stores_itch_no_catalog">itch.io svarade inte</string>
     <string name="stores_itch_archive">%1$s-arkiv stöds inte</string>
     <string name="stores_itch_download_failed">itch.io svarade HTTP %1$d</string>

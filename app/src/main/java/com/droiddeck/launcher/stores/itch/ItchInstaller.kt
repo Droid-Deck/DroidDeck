@@ -2,6 +2,8 @@ package com.droiddeck.launcher.stores.itch
 
 import android.content.Context
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.runtime.GuestCommand
+import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreExe
@@ -48,12 +50,17 @@ internal class ItchInstaller(
         val scratch = StoreInstallRoot.scratchDir(app, Store.ITCH, item.id)
         scratch.mkdirs()
         val archive = File(scratch, filename.ifBlank { "download.bin" })
-        handle.stage(DownloadStage.DOWNLOAD)
-        handle.progress(0, size)
-        download(key, downloadKeyId, uploadId, archive, size, handle)
-        if (cancelled.get()) return null
-        handle.stage(DownloadStage.INSTALL)
-        val exe = install(archive, filename, handle)
+        val exe = try {
+            handle.stage(DownloadStage.DOWNLOAD)
+            handle.progress(0, size)
+            download(key, downloadKeyId, uploadId, archive, size, handle)
+            if (cancelled.get()) return null
+            handle.stage(DownloadStage.INSTALL)
+            install(archive, filename, handle)
+        } catch (t: Throwable) {
+            if (!cancelled.get()) StoreInstalls.discard(app, folder, listOf(scratch))
+            throw t
+        }
         if (exe == null) {
             if (cancelled.get()) return null
             StoreInstalls.discard(app, folder, listOf(scratch))
@@ -121,7 +128,7 @@ internal class ItchInstaller(
         when (val kind = sniff(archive, filename)) {
             "zip" -> unzip(archive, handle)
             "7z" -> sevenZip(archive, handle)
-            "rar" -> throw IllegalStateException(app.getString(R.string.stores_itch_archive, kind))
+            "rar" -> unrar(archive, handle)
             "exe" -> copy(archive, File(folder, filename.ifBlank { "game.exe" }))
             "tar" -> untar(archive, null, handle)
             "gz", "bz2", "xz" -> untar(archive, kind, handle) ?: single(archive, kind, handle)
@@ -159,6 +166,32 @@ internal class ItchInstaller(
         val root = folder.canonicalPath
         val path = file.canonicalPath
         return if (path == root || path.startsWith(root + File.separator)) file else null
+    }
+
+    // No JVM library reads RAR5; the runtime's bsdtar (libarchive) does.
+    private fun unrar(archive: File, handle: DownloadQueue.JobHandle) {
+        if (!LinuxRuntime.isInstalled(app)) throw IllegalStateException(app.getString(R.string.stores_itch_archive, "rar"))
+        val binds = if (listOf(app.filesDir, app.cacheDir).any { folder.absolutePath.startsWith(it.absolutePath + "/") }) null
+            else listOf(folder.absolutePath)
+        fun bsdtar(args: List<String>, onLine: (String) -> Unit) =
+            GuestCommand.run(app, listOf("/usr/bin/bsdtar") + args, logName = "itch-unrar", extraBinds = binds, fastPath = true) { line ->
+                if (!line.startsWith("proot ")) onLine(line)
+            }
+        var entries = 0L
+        bsdtar(listOf("-tf", archive.absolutePath)) { entries++ }
+        var done = 0L
+        val tail = ArrayDeque<String>()
+        val code = bsdtar(listOf("-xvf", archive.absolutePath, "-C", folder.absolutePath)) { line ->
+            if (line.startsWith("x ")) handle.stageProgress(++done, entries) else {
+                if (tail.size == 5) tail.removeFirst()
+                tail.addLast(line)
+            }
+        }
+        if (cancelled.get()) return
+        if (code != 0) {
+            handle.log("itch.io: bsdtar exited $code: ${tail.joinToString(" | ")}")
+            throw IllegalStateException(app.getString(R.string.stores_itch_extract_failed, code))
+        }
     }
 
     private fun sevenZip(archive: File, handle: DownloadQueue.JobHandle) {

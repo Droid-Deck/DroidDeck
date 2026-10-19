@@ -1964,6 +1964,7 @@
     <string name="stores_itch_not_owned">Nincs az itch.io-könyvtáradban</string>
     <string name="stores_itch_no_upload">Ehhez a játékhoz nincs Windows-letöltés</string>
     <string name="stores_itch_no_exe">A letöltésben nem található Windows-játék</string>
+    <string name="stores_itch_extract_failed">A letöltés nem bontható ki (kód: %1$d)</string>
     <string name="stores_itch_no_catalog">Az itch.io nem válaszolt</string>
     <string name="stores_itch_archive">A(z) %1$s archívumok nem támogatottak</string>
     <string name="stores_itch_download_failed">Az itch.io HTTP %1$d választ adott</string>

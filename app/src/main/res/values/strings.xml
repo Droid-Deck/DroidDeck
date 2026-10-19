@@ -2007,6 +2007,7 @@
     <string name="stores_itch_not_owned">Not in your itch.io library</string>
     <string name="stores_itch_no_upload">No Windows download for this game</string>
     <string name="stores_itch_no_exe">No Windows game found in the download</string>
+    <string name="stores_itch_extract_failed">Could not extract the download (exit %1$d)</string>
     <string name="stores_itch_no_catalog">itch.io did not answer</string>
     <string name="stores_itch_archive">%1$s archives are not supported</string>
     <string name="stores_itch_download_failed">itch.io answered HTTP %1$d</string>

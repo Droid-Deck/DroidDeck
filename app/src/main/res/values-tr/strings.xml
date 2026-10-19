@@ -1953,6 +1953,7 @@
     <string name="stores_itch_not_owned">itch.io kütüphanenizde yok</string>
     <string name="stores_itch_no_upload">Bu oyunun Windows indirmesi yok</string>
     <string name="stores_itch_no_exe">İndirmede Windows oyunu bulunamadı</string>
+    <string name="stores_itch_extract_failed">İndirme ayıklanamadı (kod %1$d)</string>
     <string name="stores_itch_no_catalog">itch.io yanıt vermedi</string>
     <string name="stores_itch_archive">%1$s arşivleri desteklenmiyor</string>
     <string name="stores_itch_download_failed">itch.io HTTP %1$d yanıtı verdi</string>
