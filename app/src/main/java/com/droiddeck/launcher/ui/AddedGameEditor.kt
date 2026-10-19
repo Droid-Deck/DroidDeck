@@ -56,12 +56,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.core.GameEnvironment
 import com.droiddeck.launcher.frontend.AddedGameArt
 import com.droiddeck.launcher.frontend.AddedGameEdits
 import com.droiddeck.launcher.frontend.AddedGames
 import com.droiddeck.launcher.frontend.LogoPosition
 import com.droiddeck.launcher.frontend.SteamGameArt
 import com.droiddeck.launcher.frontend.SteamGridDb
+import com.droiddeck.launcher.session.GameEnvironmentStore
 import com.droiddeck.launcher.session.SessionPrefs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -124,7 +126,10 @@ private fun FieldRow(label: String, focus: FocusRequester? = null, onClick: () -
     }
 }
 
-internal class EditRequest(val folder: String, val openTarget: Boolean, val fromSummary: Boolean, val preview: EditPreview)
+internal class EditRequest(
+    val folder: String, val openTarget: Boolean, val fromSummary: Boolean, val preview: EditPreview,
+    val scope: String = "",
+)
 
 internal class EditPreview(
     val name: String, val exeName: String?, val startIn: String?, val launchOptions: String,
@@ -274,6 +279,9 @@ private fun Loading() {
     androidx.compose.material3.CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
 }
 
+private fun localeScope(request: EditRequest, game: AddedGames.Game?): String =
+    request.scope.ifEmpty { game?.let { java.lang.Integer.toUnsignedString(it.appId.toInt()) } ?: "" }
+
 @Composable
 internal fun AddedGameEditor(
     request: EditRequest, onBack: () -> Unit, onClose: () -> Unit, onChanged: () -> Unit,
@@ -296,6 +304,8 @@ internal fun AddedGameEditor(
     var otherExe by remember { mutableStateOf(false) }
     var artSlot by remember { mutableStateOf<AddedGameArt.Slot?>(null) }
     var logoOpen by remember { mutableStateOf(false) }
+    var localeMenu by remember { mutableStateOf(false) }
+    var locale by remember { mutableStateOf<String?>(null) }
     val artTarget = remember(game?.appId) { game?.let { ArtTarget.of(it) } }
     val position = rememberLogoPosition(artTarget, version)
     var unreachable by remember { mutableStateOf(false) }
@@ -307,6 +317,8 @@ internal fun AddedGameEditor(
                 ranked = g.candidates.let { list -> if (list.any { it.path == g.exe.path }) list else listOf(g.exe) + list }
                 arts = AddedGameArt.describe(app, g)
             }
+            val key = localeScope(request, g)
+            locale = if (GameEnvironment.validScope(key)) GameEnvironment.gameLocale(GameEnvironmentStore.read(app), key) else null
         }
     }
     LaunchedEffect(armed) { if (armed) { kotlinx.coroutines.delay(4_000); armed = false } }
@@ -315,6 +327,14 @@ internal fun AddedGameEditor(
             withContext(Dispatchers.IO) { work() }
             version++
             onChanged()
+        }
+    }
+    val localeKey = localeScope(request, game)
+    val setLocale: (String?) -> Unit = { value ->
+        localeMenu = false
+        scope.launch {
+            withContext(Dispatchers.IO) { GameEnvironmentStore.setGameLocale(app, localeKey, value) }
+            version++
         }
     }
     val first = remember { FocusRequester() }
@@ -361,6 +381,22 @@ internal fun AddedGameEditor(
             }
             val launch = g?.launchOptions ?: preview.launchOptions
             FieldRow(stringResource(R.string.edit_launch_options), onClick = { editing = "launch" }) { ValueText(launch.ifEmpty { "—" }, muted = launch.isEmpty()) }
+            Box {
+                FieldRow(
+                    stringResource(R.string.game_locale_title),
+                    onClick = { if (GameEnvironment.validScope(localeKey)) localeMenu = !localeMenu },
+                ) {
+                    ValueText(locale?.let { localeLabel(it) } ?: stringResource(R.string.comp_game_use_general), muted = locale == null)
+                }
+                AnchoredMenu(localeMenu, onDismiss = { localeMenu = false }, title = stringResource(R.string.game_locale_title)) { first ->
+                    MenuItem(stringResource(R.string.comp_game_use_general), checked = locale == null, focusRequester = first) {
+                        setLocale(null)
+                    }
+                    for (tag in GameEnvironment.locales) MenuItem(localeLabel(tag), checked = locale == tag) {
+                        setLocale(tag)
+                    }
+                }
+            }
             Text(stringResource(R.string.edit_artwork), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp, top = 8.dp))
             for (slot in AddedGameArt.Slot.values()) key(slot) {
                 val state = arts.firstOrNull { it.slot == slot }

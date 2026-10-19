@@ -83,7 +83,7 @@ internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, o
     val onAdd: (() -> Unit)? = if (s.shortcutPicker) null else ({ GamesDialogState.adding = true })
     val launch: (Library.SteamGame) -> Unit = { g -> if (g.library == Library.EPIC_LAUNCHER) a.onEpicLauncher() else a.onSteamGame(g) }
     val onEdit: (Library.SteamGame) -> Unit = { g ->
-        g.gameFiles?.let { GamesDialogState.editing = EditRequest(it.path, openTarget = false, fromSummary = false, preview = EditPreview.of(pageContext, g, it.path)) }
+        g.gameFiles?.let { GamesDialogState.editing = EditRequest(it.path, openTarget = false, fromSummary = false, preview = EditPreview.of(pageContext, g, it.path), scope = g.profileKey) }
     }
     if (current == null || gameCount == 0) {
         Column(modifier = modifier.padding(horizontal = if (narrow) 16.dp else 22.dp, vertical = if (narrow) 12.dp else 18.dp)) {
