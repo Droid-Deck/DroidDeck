@@ -86,8 +86,9 @@ object AgentEnv {
         val state = load(context)
         val active = strings(state.optJSONArray("pending"))
         val overrides = strings(state.optJSONArray("pendingOverrides"))
+        val previousOverrides = strings(state.optJSONArray("activeOverrides"))
         bin(context).listFiles()
-            ?.filter { it.name !in overrides }?.forEach { it.delete() }
+            ?.filter { it.name !in overrides && it.name !in previousOverrides }?.forEach { it.delete() }
         val lines = strings(state.optJSONArray("persistent")) + active
         val withPath = if (overrides.isEmpty()) lines else lines + "PATH=$GUEST_BIN:${pathOf(lines)}"
         state.put("active", JSONArray(active)).put("pending", JSONArray())
