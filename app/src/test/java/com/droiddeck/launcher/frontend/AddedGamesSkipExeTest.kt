@@ -13,7 +13,7 @@ class AddedGamesSkipExeTest {
     @Test fun installersToolsAndServersAreSkipped() {
         listOf("unins000.exe", "setup.exe", "vc_redist.x64.exe", "DXSETUP.exe", "CrashReportClient.exe",
             "UnityCrashHandler64.exe", "gamelaunchhelper.exe", "EACLauncher.exe", "DedicatedServer.exe",
-            "UE4Editor.exe", "valheim_server.exe", "GameConfig.exe", "Settings.exe", "Updater.exe",
+            "UE4Editor.exe", "valheim_server.exe", "GameConfig.exe", "GameConfigure.exe", "Settings.exe", "Updater.exe",
             "EasyAntiCheat_Setup.exe").forEach { assertTrue(it, AddedGames.skipExe(it)) }
     }
 }

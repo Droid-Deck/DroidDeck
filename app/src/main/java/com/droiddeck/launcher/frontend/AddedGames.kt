@@ -45,7 +45,7 @@ object AddedGames {
     private val SKIP_PART = Regex("(?i)redist|prereq|installer|uninstall|crashreport|crashhandler|crashpad|crashsender|launchhelper")
     private val SKIP_WORDS = setOf(
         "eac", "report", "reporter", "editor", "server", "benchmark", "helper",
-        "update", "updater", "config", "configurator", "configuration", "settings",
+        "update", "updater", "config", "configure", "configurator", "configuration", "settings",
     )
     private val WORD = Regex("[A-Z]?[a-z]+|[A-Z]+(?![a-z])|[0-9]+")
 
