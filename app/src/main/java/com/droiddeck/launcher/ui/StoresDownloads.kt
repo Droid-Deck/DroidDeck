@@ -182,10 +182,7 @@ private fun DownloadList(s: FrontEndState, a: FrontEndActions) {
 private fun InterruptedRow(item: com.droiddeck.launcher.stores.CatalogItem) {
     val ctx = LocalContext.current
     ArtStrip(item.imageUrl ?: item.tallImageUrl, item.title) {
-        Text(item.title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-        SourceChip(item.store.id, small = true)
-        Text(stringResource(R.string.stores_dl_interrupted), fontSize = 12.sp, color = Color(0xFFFFC24D), maxLines = 1)
-        Spacer(Modifier.weight(1f))
+        StripLabel(item.title, item.store.id, stringResource(R.string.stores_dl_interrupted), Color(0xFFFFC24D))
         RoundAction(Icons.Filled.PlayArrow, stringResource(R.string.stores_dl_resume), primary = true) { StoresState.requestInstall(ctx, item) }
         CancelAction { StoresState.clearUnfinished(ctx, item) }
     }
@@ -208,13 +205,19 @@ private fun ArtStrip(cover: String?, name: String, content: @Composable androidx
 }
 
 @Composable
+private fun androidx.compose.foundation.layout.RowScope.StripLabel(title: String, store: String, status: String, statusColor: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.weight(1f)) {
+        Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+        SourceChip(store, small = true)
+        Text(status, fontSize = 12.sp, color = statusColor, maxLines = 1)
+    }
+}
+
+@Composable
 private fun FinishedRow(d: DownloadEntry, s: FrontEndState, a: FrontEndActions, bloom: Boolean = false) {
     val ctx = LocalContext.current
     ArtStrip(d.cover, d.name) {
-        Text(d.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-        SourceChip(d.store.id, small = true)
-        Text(stringResource(if (d.state == DownloadState.INSTALLED) R.string.stores_installed_chip else R.string.stores_dl_cancelled), fontSize = 12.sp, color = Color.White.copy(alpha = 0.72f), maxLines = 1)
-        Spacer(Modifier.weight(1f))
+        StripLabel(d.name, d.store.id, stringResource(if (d.state == DownloadState.INSTALLED) R.string.stores_installed_chip else R.string.stores_dl_cancelled), Color.White.copy(alpha = 0.72f))
         if (d.state == DownloadState.INSTALLED) Box(Modifier.bloomIn(bloom, GATHER_HOLD_MS + 150)) {
             RoundAction(Icons.Filled.PlayArrow, stringResource(R.string.stores_play), primary = true) { if (d.key == EpicClient.DOWNLOAD_KEY) a.onEpicLauncher() else launchStoreGame(ctx, d.store, d.id, s, a) }
         }

@@ -576,13 +576,14 @@ private fun StoreChips(
                 ) { onStore(store, rootBounds[store.id]) }
             }
             StoreChip(
-                label = stringResource(R.string.stores_tab_downloads), on = selected == DOWNLOADS, under = fillShown && highlighted == DOWNLOADS, key = DOWNLOADS, mark = pal.signal,
-                modifier = Modifier.weight(1f).onGloballyPositioned {
+                label = null, on = selected == DOWNLOADS, under = fillShown && highlighted == DOWNLOADS, key = DOWNLOADS, mark = pal.signal,
+                modifier = Modifier.onGloballyPositioned {
                     bounds[DOWNLOADS] = it.boundsInParent()
                     StoresMotion.downloadsChip = it.boundsInRoot()
                 },
                 lead = { Icon(Icons.Outlined.Download, null, modifier = Modifier.size(18.dp)) },
                 trail = if (active > 0) { { CountPill(active) } } else null,
+                description = stringResource(R.string.stores_tab_downloads),
                 onFocused = onFocusChip,
             ) { onDownloads() }
             var cogAt by remember { mutableStateOf<Rect?>(null) }
@@ -596,7 +597,7 @@ private fun StoreChips(
 
 @Composable
 private fun StoreChip(
-    label: String, on: Boolean, under: Boolean, key: String, mark: Color, modifier: Modifier, lead: @Composable () -> Unit,
+    label: String?, on: Boolean, under: Boolean, key: String, mark: Color, modifier: Modifier, lead: @Composable () -> Unit,
     trail: (@Composable () -> Unit)? = null, description: String? = null,
     onFocused: (String?) -> Unit = {}, onClick: () -> Unit,
 ) {
@@ -634,7 +635,7 @@ private fun StoreChip(
         androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides ink) {
             Box(Modifier.pulseRing(picked, mark), contentAlignment = Alignment.Center) { lead() }
         }
-        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (label != null) Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
         trail?.invoke()
     }
 }
