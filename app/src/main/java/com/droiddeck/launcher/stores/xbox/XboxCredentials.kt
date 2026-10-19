@@ -10,9 +10,9 @@ import java.io.Closeable
 import java.io.InputStream
 import java.util.UUID
 
-internal class XboxCredentials(private val app: Context) : Closeable {
+internal class XboxCredentials(private val app: Context, expectedGeneration: String? = null) : Closeable {
     val name = "droiddeck-xbox-${UUID.randomUUID()}"
-    private val generation = storage(app) { epoch(app) }
+    private val generation = lifecycle(app, expectedGeneration) { it }
     private val server = LocalServerSocket(name)
     @Volatile private var closed = false
     private val bound = java.util.concurrent.CountDownLatch(1)
@@ -130,9 +130,15 @@ internal class XboxCredentials(private val app: Context) : Closeable {
                 runCatching { java.io.File(fields[5]).canonicalPath == path }.getOrDefault(false)
         }
         private fun epoch(app: Context): String = runCatching { java.io.File(StoreAccounts.dir(app, Store.XBOX), "generation").readText() }.getOrDefault("")
-        fun invalidate(app: Context) = storage(app) {
+        fun <T> lifecycle(app: Context, expected: String? = null, block: (String) -> T): T = storage(app) {
+            val current = epoch(app)
+            check(expected == null || expected == current) { "Xbox account changed during the request" }
+            block(current)
+        }
+        fun invalidate(app: Context, revoked: () -> Unit = {}) = storage(app) {
             java.io.File(StoreAccounts.dir(app, Store.XBOX), "generation").writeText(UUID.randomUUID().toString())
             StoreAccounts.clear(app, Store.XBOX)
+            revoked()
         }
         fun <T> storage(app: Context, block: () -> T): T = synchronized(lock) {
             java.io.RandomAccessFile(java.io.File(StoreAccounts.dir(app, Store.XBOX), "account.lock"), "rw").use { file ->

@@ -20,13 +20,14 @@ object XboxBackend : StoreBackend {
     }
 
     override fun signOut(context: Context) {
-        synchronized(this) {
-            generation++
-            access = emptyMap()
+        XboxCredentials.invalidate(context) {
+            synchronized(this) {
+                generation++
+                access = emptyMap()
+            }
+            XboxLibraryCache.clear(context)
+            XboxRuntime.stop()
         }
-        XboxCredentials.invalidate(context)
-        XboxLibraryCache.clear(context)
-        XboxRuntime.stop()
         StoresState.post { packageChoice = null; StoresState.shelves.remove(store); StoresState.found.remove(store) }
     }
 

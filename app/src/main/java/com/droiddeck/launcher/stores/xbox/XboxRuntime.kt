@@ -16,12 +16,18 @@ internal object XboxRuntime {
     private val views = XboxLaunchViews()
     private val launches = XboxLaunchLeases { android.os.SystemClock.uptimeMillis() }
     fun isActive(id: String): Boolean = launches.active(id)
-    fun authorize(app: Context, id: String) {
-        StoreAccounts.signedInAs(app, Store.XBOX)?.let { launches.authorize(id, it) }
-    }
+    fun authorize(app: Context, id: String): Boolean = runCatching {
+        XboxCredentials.lifecycle(app) {
+            val account = StoreAccounts.signedInAs(app, Store.XBOX) ?: return@lifecycle false
+            launches.authorize(id, account)
+            true
+        }
+    }.getOrDefault(false)
     fun released(token: String) { runCatching { launches.release(token)?.close() } }
     fun renew(app: Context, id: String, token: String): Boolean = launches.renew(token, id,
         StoreAccounts.signedInAs(app, Store.XBOX), SessionState.sessionId.takeIf { SessionState.running })
+
+    private data class Authorization(val account: String, val token: String, val runtime: Long, val credentials: String)
 
     fun prepare(app: Context, id: String): JSONObject {
         check(!XboxContent.busy(id)) { "Wait for Xbox content downloads to finish" }
@@ -30,12 +36,9 @@ internal object XboxRuntime {
         val game = StoreInstallRoot.gameFolders(app).mapNotNull { folder ->
             StoreGameSidecar.read(folder)?.takeIf { it.store == Store.XBOX && it.id == id && it.isInstalled }?.let { folder to it }
         }.firstOrNull() ?: error("Xbox game is not installed")
-        val account = StoreAccounts.signedInAs(app, Store.XBOX) ?: error("Sign in to Xbox before playing")
-        val token: String
-        val current: Long
-        synchronized(state) {
-            current = generation
-            token = launches.begin(id, account, session)
+        val (account, token, current, credentials) = XboxCredentials.lifecycle(app) { epoch ->
+            val account = StoreAccounts.signedInAs(app, Store.XBOX) ?: error("Sign in to Xbox before playing")
+            synchronized(state) { Authorization(account, launches.begin(id, account, session), generation, epoch) }
         }
         Thread({
             while (isActive(id)) {
@@ -45,13 +48,13 @@ internal object XboxRuntime {
             }
         }, "xbox-launch-expiry").start()
         try {
-            val socket = service(app, account, current)
+            val socket = service(app, account, current, credentials)
             check(synchronized(state) { generation == current }) { "Xbox launch was cancelled" }
             val market = game.second.extra["market"]?.takeIf { it.matches(Regex("[A-Z]{2}")) } ?: Xodus.market()
             val directory = views.create(app.filesDir)
             val process = try {
                 Xodus.start(app, listOf("run", game.first.path, "droiddeck:prepare", "--exe", game.second.exe,
-                    "--materialize-chain", "--market", market), launchDirectory = directory)
+                    "--materialize-chain", "--market", market), launchDirectory = directory, credentialGeneration = credentials)
             } catch (e: Exception) { XboxLaunchViews.remove(directory); throw e }
             if (!launches.attach(token, process)) { process.close(); error("Xbox launch was cancelled") }
             Xodus.diagnostics(process)
@@ -72,7 +75,7 @@ internal object XboxRuntime {
     internal fun newServiceSocket(files: File): File =
         File(files, "xbox-runtime/s-${java.util.UUID.randomUUID().toString().replace("-", "")}/xodus.sock")
 
-    private fun service(app: Context, account: String, current: Long): File = synchronized(startup) {
+    private fun service(app: Context, account: String, current: Long, credentials: String): File = synchronized(startup) {
         val existing = synchronized(state) {
             check(generation == current) { "Xbox launch was cancelled" }
             serviceSocket?.takeIf { child?.process?.isAlive == true && owner == account }
@@ -82,7 +85,7 @@ internal object XboxRuntime {
             val old = synchronized(state) { child.also { child = null; owner = null; serviceSocket = null } }
             old?.close()
             socket.delete()
-            val service = Xodus.start(app, emptyList(), service = true, runtimeDirectory = socket.parentFile!!)
+            val service = Xodus.start(app, emptyList(), service = true, runtimeDirectory = socket.parentFile!!, credentialGeneration = credentials)
             val accepted = synchronized(state) {
                 (generation == current).also { if (it) { child = service; owner = account; serviceSocket = socket } }
             }

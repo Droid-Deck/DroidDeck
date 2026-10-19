@@ -61,12 +61,12 @@ internal object Xodus {
         File(root, "version").writeText(packaged)
     }
 
-    fun start(app: Context, args: List<String>, service: Boolean = false, runtimeDirectory: File? = null, launchDirectory: File? = null): Child {
+    fun start(app: Context, args: List<String>, service: Boolean = false, runtimeDirectory: File? = null, launchDirectory: File? = null, credentialGeneration: String? = null): Child {
         check(LinuxRuntime.isInstalled(app)) { "Install the Linux runtime before using Xbox." }
         stage(app)
         val binary = "$DIR/${if (service) "xodus-service" else "xodus-cli"}"
         check(File(LinuxRuntime.rootDir(app), binary.removePrefix("/")).isFile) { "The Xbox backend is missing. Update the Linux runtime." }
-        val credentials = XboxCredentials(app)
+        val credentials = XboxCredentials(app, credentialGeneration)
         try {
             val runtime = (runtimeDirectory ?: File(app.filesDir, "xbox-runtime")).apply { mkdirs() }
             val command = LinuxRuntime.command(app, null, null, Environment.getExternalStorageDirectory(), listOf(
@@ -93,8 +93,8 @@ internal object Xodus {
         } catch (e: Exception) { credentials.close(); throw e }
     }
 
-    fun run(app: Context, args: List<String>, timeout: Long = 90): JSONObject {
-        start(app, args).use { child ->
+    fun run(app: Context, args: List<String>, timeout: Long = 90, credentialGeneration: String? = null): JSONObject {
+        start(app, args, credentialGeneration = credentialGeneration).use { child ->
             val output = java.io.ByteArrayOutputStream()
             var readError: Throwable? = null
             val reader = Thread({
