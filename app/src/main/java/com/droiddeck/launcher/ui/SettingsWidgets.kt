@@ -34,7 +34,9 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.hoverable
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
@@ -140,6 +142,11 @@ internal fun Modifier.controllerBack(onBack: () -> Unit): Modifier = onPreviewKe
         true
     }
 }
+
+internal fun Modifier.blockTouches(): Modifier = pointerInput(Unit) { detectTapGestures { } }
+
+internal fun Modifier.tapOutside(onTap: () -> Unit): Modifier =
+    pointerInput(onTap) { detectTapGestures(onTap = { onTap() }) }
 
 internal fun Modifier.bumpers(onPrevious: () -> Unit, onNext: () -> Unit): Modifier = onPreviewKeyEvent { event ->
     val keyEvent = event.nativeKeyEvent
