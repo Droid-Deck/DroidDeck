@@ -20,4 +20,30 @@ internal object LauncherJobs {
 
     /** Takes the Activity that receives the picker result, so a recreated screen still gets it. */
     var savePicked: ((MainActivity, File) -> Unit)? = null
+        private set
+    enum class SavePicker { ZIP, DIRECTORY }
+    private var savePicker: SavePicker? = null
+    private var savePickerOwner: String? = null
+
+    fun beginSavePick(owner: String, picker: SavePicker, then: (MainActivity, File) -> Unit): Boolean {
+        if (savePicked != null || saveBusy != null) return false
+        savePickerOwner = owner
+        savePicker = picker
+        savePicked = then
+        return true
+    }
+
+    fun takeSavePick(owner: String, picker: SavePicker): ((MainActivity, File) -> Unit)? {
+        if (savePickerOwner != owner || savePicker != picker) return null
+        savePicker = null
+        savePickerOwner = null
+        return savePicked.also { savePicked = null }
+    }
+
+    fun abandonSavePick(owner: String) {
+        if (savePickerOwner != owner) return
+        savePicker = null
+        savePickerOwner = null
+        savePicked = null
+    }
 }

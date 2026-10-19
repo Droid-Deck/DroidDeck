@@ -229,12 +229,13 @@ class MainActivity : ComponentActivity() {
     private val pickLossless = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { importLossless(it) }
     }
+    private var savePickerOwner = java.util.UUID.randomUUID().toString()
     private val pickSaveZip = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
-        val then = LauncherJobs.savePicked.also { LauncherJobs.savePicked = null } ?: return@registerForActivityResult
+        val then = LauncherJobs.takeSavePick(savePickerOwner, LauncherJobs.SavePicker.ZIP) ?: return@registerForActivityResult
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { then(this, it) }
     }
     private val pickSaveDir = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
-        val then = LauncherJobs.savePicked.also { LauncherJobs.savePicked = null } ?: return@registerForActivityResult
+        val then = LauncherJobs.takeSavePick(savePickerOwner, LauncherJobs.SavePicker.DIRECTORY) ?: return@registerForActivityResult
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { then(this, it) }
     }
 
@@ -310,12 +311,26 @@ class MainActivity : ComponentActivity() {
         }, "lossless-import").start()
     }
 
+    private fun pickSave(picker: LauncherJobs.SavePicker, intent: Intent, then: (MainActivity, File) -> Unit) {
+        if (!LauncherJobs.beginSavePick(savePickerOwner, picker, then)) return
+        try {
+            when (picker) {
+                LauncherJobs.SavePicker.ZIP -> pickSaveZip.launch(intent)
+                LauncherJobs.SavePicker.DIRECTORY -> pickSaveDir.launch(intent)
+            }
+        } catch (e: Exception) {
+            LauncherJobs.takeSavePick(savePickerOwner, picker)
+            throw e
+        }
+    }
+
     private fun importSaves(name: String, game: () -> GameSaves.Game) {
         if (SessionState.running) {
             android.widget.Toast.makeText(this, R.string.main_saves_close_session, android.widget.Toast.LENGTH_LONG).show()
             return
         }
-        LauncherJobs.savePicked = { a, zip ->
+        pickSave(LauncherJobs.SavePicker.ZIP,
+            InAppFilePicker.buildIntent(this, listOf("zip"), getString(R.string.main_saves_pick_zip, name), GameSaves.savesDir().parentFile?.parentFile?.path)) { a, zip ->
             a.saveAction(a.getString(R.string.main_saves_importing, name)) {
                 val (written, backup) = GameSaves.import(a, game(), zip)
                 val kind = GameSaves.layoutOf(zip)?.label(a) ?: a.getString(R.string.saves_zip)
@@ -325,18 +340,17 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
-        pickSaveZip.launch(InAppFilePicker.buildIntent(this, listOf("zip"), getString(R.string.main_saves_pick_zip, name), GameSaves.savesDir().parentFile?.parentFile?.path))
     }
 
     private fun exportSaves(name: String, layout: GameSaves.Layout, game: () -> GameSaves.Game) {
-        LauncherJobs.savePicked = { a, dir ->
+        GameSaves.savesDir().mkdirs()
+        pickSave(LauncherJobs.SavePicker.DIRECTORY,
+            InAppFilePicker.buildDirIntent(this, getString(R.string.main_saves_pick_folder, name, layout.label(this)), GameSaves.savesDir().path)) { a, dir ->
             a.saveAction(a.getString(R.string.main_saves_exporting, name)) {
                 val (zip, count) = GameSaves.export(a, game(), layout, dir)
                 a.resources.getQuantityString(R.plurals.main_saves_exported, count, count, layout.label(a), zip.path.removePrefix("/storage/emulated/0/"))
             }
         }
-        GameSaves.savesDir().mkdirs()
-        pickSaveDir.launch(InAppFilePicker.buildDirIntent(this, getString(R.string.main_saves_pick_folder, name, layout.label(this)), GameSaves.savesDir().path))
     }
     private fun addGameExe(path: String) {
         val exe = java.io.File(path)
@@ -428,38 +442,50 @@ class MainActivity : ComponentActivity() {
         refreshHomeAppState()
     }
 
+    private fun sessionLaunchAllowed(): Boolean {
+        when {
+            busy || LinuxRuntimeInstaller.isBusy() || saveBusy != null -> {
+                android.widget.Toast.makeText(this, R.string.main_wait_runtime, android.widget.Toast.LENGTH_SHORT).show()
+                return false
+            }
+            protons.protonBusyId != null || ProtonExtras.installInProgress -> {
+                android.widget.Toast.makeText(this, R.string.main_wait_proton_install, android.widget.Toast.LENGTH_SHORT).show()
+                return false
+            }
+            pkgStage != null -> {
+                android.widget.Toast.makeText(this, R.string.main_wait_desktop_install, android.widget.Toast.LENGTH_SHORT).show()
+                return false
+            }
+        }
+        return true
+    }
+
     override fun startActivity(intent: Intent?) {
         if (intent?.component?.className == SessionActivity::class.java.name) {
-            when {
-                busy || LinuxRuntimeInstaller.isBusy() || saveBusy != null -> {
-                    android.widget.Toast.makeText(this, R.string.main_wait_runtime, android.widget.Toast.LENGTH_SHORT).show()
-                    return
-                }
-                protons.protonBusyId != null || ProtonExtras.installInProgress -> {
-                    android.widget.Toast.makeText(this, R.string.main_wait_proton_install, android.widget.Toast.LENGTH_SHORT).show()
-                    return
-                }
-                pkgStage != null -> {
-                    android.widget.Toast.makeText(this, R.string.main_wait_desktop_install, android.widget.Toast.LENGTH_SHORT).show()
-                    return
-                }
-            }
+            startSessionActivity(intent)
+        } else super.startActivity(intent)
+    }
+
+    private fun startSessionActivity(intent: Intent): Boolean {
+        if (!sessionLaunchAllowed() || flood != null) return false
+        val from = com.droiddeck.launcher.ui.LaunchOrigin.take()
+        if (from != null && !SessionState.running && com.droiddeck.launcher.ui.Motion.scale != 0f) {
+            flood = PendingFlood(from, intent)
+            return true
         }
-        if (intent?.component?.className == SessionActivity::class.java.name) {
-            if (flood != null) return
-            val from = com.droiddeck.launcher.ui.LaunchOrigin.take()
-            if (from != null && !SessionState.running && com.droiddeck.launcher.ui.Motion.scale != 0f) {
-                flood = PendingFlood(from, intent)
-                return
-            }
-            com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
-        }
+        com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
         super.startActivity(intent)
-        if (intent?.component?.className == SessionActivity::class.java.name) overridePendingTransition(R.anim.session_rise, R.anim.session_hold)
+        overridePendingTransition(R.anim.session_rise, R.anim.session_hold)
+        return true
     }
 
     private fun launchFlooded(f: PendingFlood) {
-        if (busy || LinuxRuntimeInstaller.isBusy()) { flood = null; floodProgress = 0f; return }
+        if (!sessionLaunchAllowed()) {
+            flood = null
+            floodProgress = 0f
+            com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
+            return
+        }
         val signal = com.droiddeck.launcher.ui.Themes.byId(theme).signal
         super.startActivity(f.intent.putExtra(com.droiddeck.launcher.ui.EXTRA_FLOOD, signal.toArgb()))
         overridePendingTransition(0, 0)
@@ -471,7 +497,8 @@ class MainActivity : ComponentActivity() {
     private var pendingGameLink: String? = null
     private var gameSyncFolder by mutableStateOf<String?>(null)
     private fun pickGameExport(game: Library.SteamGame?) {
-        LauncherJobs.savePicked = { a, folder ->
+        pickSave(LauncherJobs.SavePicker.DIRECTORY,
+            InAppFilePicker.buildDirIntent(this, getString(R.string.game_file_folder), gameSyncFolder)) { a, folder ->
             a.saveAction(a.getString(R.string.game_frontend_files)) {
                 val saved = if (game != null) GameFiles.export(a, folder, game)
                 else {
@@ -484,7 +511,6 @@ class MainActivity : ComponentActivity() {
                 a.getString(R.string.game_file_exported, saved.path)
             }
         }
-        pickSaveDir.launch(InAppFilePicker.buildDirIntent(this, getString(R.string.game_file_folder), gameSyncFolder))
     }
 
     private fun switchLauncherIcon(style: String): Boolean {
@@ -736,6 +762,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        restoreSavePickerOwner(savedInstanceState)
         super.onCreate(savedInstanceState)
         readGameIntent(intent)
         gameSyncFolder = GameFileSync.folder(this)
@@ -1331,6 +1358,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
+        outState.putString(KEY_SAVE_PICKER_OWNER, savePickerOwner)
         pendingSwitch?.let { outState.putParcelable(KEY_PENDING_SWITCH, it) }
         switchingTo?.let {
             outState.putParcelable(KEY_SWITCHING_TO, it)
@@ -1342,7 +1370,12 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= 33) state.getParcelable(key, Intent::class.java)
         else @Suppress("DEPRECATION") state.getParcelable(key)
 
+    private fun restoreSavePickerOwner(state: Bundle?) {
+        state?.getString(KEY_SAVE_PICKER_OWNER)?.let { savePickerOwner = it }
+    }
+
     override fun onDestroy() {
+        if (isFinishing) LauncherJobs.abandonSavePick(savePickerOwner)
         updates.unregister()
         super.onDestroy()
     }
@@ -2081,8 +2114,7 @@ class MainActivity : ComponentActivity() {
         }
         val warn = installed == null && !com.droiddeck.launcher.core.DeviceSupport.adreno()
         if (warn && available != null) { showNonAdreno = available; return false }
-        startActivity(intent)
-        return true
+        return startSessionActivity(intent)
     }
 
     private fun refreshPhantomStatus() {
@@ -2189,6 +2221,7 @@ class MainActivity : ComponentActivity() {
         private const val MEDIA_SETTLE_MS = 1500L
         private const val SESSION_SWITCH_WAIT_MS = 30_000L
         private const val SESSION_SWITCH_POLL_MS = 250L
+        private const val KEY_SAVE_PICKER_OWNER = "save_picker_owner"
         private const val KEY_PENDING_SWITCH = "pending_switch"
         private const val KEY_SWITCHING_TO = "switching_to"
         private const val KEY_SWITCH_DEADLINE = "switch_deadline"
