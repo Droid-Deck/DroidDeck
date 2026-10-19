@@ -6,6 +6,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PrimaryButtonContrastTest {
+    @Test fun electricTextButtonsRemainReadableOnPageAndDialogSurfaces() {
+        val palette = Themes.byId(Themes.ELECTRIC)
+        for (background in listOf(palette.background, palette.surface)) {
+            assertTrue("Electric text button: ${contrast(palette.primary, background)}",
+                contrast(palette.primary, background) >= 4.5f)
+        }
+    }
+
     @Test fun normalSizedPrimaryTextMeetsContrastAcrossEveryThemeGradient() {
         for (palette in Themes.all) {
             for (step in 0..100) {
