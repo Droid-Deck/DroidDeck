@@ -318,7 +318,7 @@ internal fun AddedGameEditor(
                 arts = AddedGameArt.describe(app, g)
             }
             val key = localeScope(request, g)
-            locale = if (GameEnvironment.validScope(key)) GameEnvironment.gameLocale(GameEnvironmentStore.read(app), key) else null
+            locale = if (key.isNotEmpty() && GameEnvironment.validScope(key)) GameEnvironment.gameLocale(GameEnvironmentStore.read(app), key) else null
         }
     }
     LaunchedEffect(armed) { if (armed) { kotlinx.coroutines.delay(4_000); armed = false } }
@@ -381,19 +381,21 @@ internal fun AddedGameEditor(
             }
             val launch = g?.launchOptions ?: preview.launchOptions
             FieldRow(stringResource(R.string.edit_launch_options), onClick = { editing = "launch" }) { ValueText(launch.ifEmpty { "—" }, muted = launch.isEmpty()) }
-            Box {
-                FieldRow(
-                    stringResource(R.string.game_locale_title),
-                    onClick = { if (GameEnvironment.validScope(localeKey)) localeMenu = !localeMenu },
-                ) {
-                    ValueText(locale?.let { localeLabel(it) } ?: stringResource(R.string.comp_game_use_general), muted = locale == null)
-                }
-                AnchoredMenu(localeMenu, onDismiss = { localeMenu = false }, title = stringResource(R.string.game_locale_title)) { first ->
-                    MenuItem(stringResource(R.string.comp_game_use_general), checked = locale == null, focusRequester = first) {
-                        setLocale(null)
+            if (localeKey.isNotEmpty()) {
+                Box {
+                    FieldRow(
+                        stringResource(R.string.game_locale_title),
+                        onClick = { if (GameEnvironment.validScope(localeKey)) localeMenu = !localeMenu },
+                    ) {
+                        ValueText(locale?.let { localeLabel(it) } ?: stringResource(R.string.comp_game_use_general), muted = locale == null)
                     }
-                    for (tag in GameEnvironment.locales) MenuItem(localeLabel(tag), checked = locale == tag) {
-                        setLocale(tag)
+                    AnchoredMenu(localeMenu, onDismiss = { localeMenu = false }, title = stringResource(R.string.game_locale_title)) { first ->
+                        MenuItem(stringResource(R.string.comp_game_use_general), checked = locale == null, focusRequester = first) {
+                            setLocale(null)
+                        }
+                        for (tag in GameEnvironment.locales) MenuItem(localeLabel(tag), checked = locale == tag) {
+                            setLocale(tag)
+                        }
                     }
                 }
             }
