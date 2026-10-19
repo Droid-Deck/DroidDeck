@@ -52,8 +52,7 @@ internal class ItchInstaller(
         val archive = File(scratch, filename.ifBlank { "download.bin" })
         val exe = try {
             handle.stage(DownloadStage.DOWNLOAD)
-            handle.progress(0, size)
-            download(key, downloadKeyId, uploadId, archive, size, handle)
+            download(key, downloadKeyId, uploadId, upload.optString("updated_at", upload.optString("updatedAt")), archive, size, handle)
             if (cancelled.get()) return null
             handle.stage(DownloadStage.INSTALL)
             install(archive, filename, handle)
@@ -89,37 +88,62 @@ internal class ItchInstaller(
         if (deleteFiles) StoreInstalls.discard(app, folder, listOf(StoreInstallRoot.scratchDir(app, Store.ITCH, item.id)))
     }
 
-    private fun download(key: String, downloadKeyId: String, uploadId: String, target: File, expected: Long, handle: DownloadQueue.JobHandle) {
-        var conn: HttpURLConnection? = null
-        try {
-            conn = (URL(ItchApi.downloadUrl(uploadId, downloadKeyId)).openConnection() as HttpURLConnection).apply {
-                connectTimeout = 30_000
-                readTimeout = 60_000
-                instanceFollowRedirects = true
-                setRequestProperty("User-Agent", StoreNet.BROWSER_UA)
-                setRequestProperty("Authorization", "Bearer $key")
-                setRequestProperty("Accept", "*/*")
-            }
-            val code = conn.responseCode
-            if (code !in 200..299) throw IllegalStateException(app.getString(R.string.stores_itch_download_failed, code))
-            val total = conn.contentLengthLong.takeIf { it > 0 } ?: expected
-            var done = 0L
-            val buffer = ByteArray(128 * 1024)
-            conn.inputStream.use { input ->
-                FileOutputStream(target).use { out ->
-                    while (true) {
-                        if (cancelled.get()) return
-                        val read = input.read(buffer)
-                        if (read < 0) break
-                        out.write(buffer, 0, read)
-                        done += read
-                        handle.progress(done, total)
+    private fun download(key: String, downloadKeyId: String, uploadId: String, version: String, target: File, expected: Long,
+                         handle: DownloadQueue.JobHandle) {
+        // A partial file is only resumed when it came from this exact upload build.
+        val origin = File(target.path + ".from")
+        val stamp = "$uploadId $version $expected"
+        if (!target.isFile || runCatching { origin.readText() }.getOrNull() != stamp) {
+            target.delete()
+            origin.writeText(stamp)
+        }
+        if (expected > 0 && target.length() == expected) {
+            handle.progress(expected, expected)
+            return
+        }
+        for (attempt in 0..1) {
+            val have = target.length()
+            var conn: HttpURLConnection? = null
+            try {
+                conn = (URL(ItchApi.downloadUrl(uploadId, downloadKeyId)).openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 30_000
+                    readTimeout = 60_000
+                    instanceFollowRedirects = true
+                    setRequestProperty("User-Agent", StoreNet.BROWSER_UA)
+                    setRequestProperty("Authorization", "Bearer $key")
+                    setRequestProperty("Accept", "*/*")
+                    if (have > 0) setRequestProperty("Range", "bytes=$have-")
+                }
+                val code = conn.responseCode
+                if (code == 416 && attempt == 0) {
+                    target.delete()
+                    continue
+                }
+                if (code !in 200..299) throw IllegalStateException(app.getString(R.string.stores_itch_download_failed, code))
+                val append = code == 206 && have > 0
+                if (have > 0) handle.log(if (append) "itch.io: resuming at ${have} bytes" else "itch.io: server ignored the resume, starting over")
+                var done = if (append) have else 0L
+                val total = conn.contentLengthLong.takeIf { it > 0 }?.let { if (append) it + have else it } ?: expected
+                // The first report is the queue's speed baseline, so resumed bytes don't read as instant throughput.
+                handle.progress(done, total)
+                val buffer = ByteArray(128 * 1024)
+                conn.inputStream.use { input ->
+                    FileOutputStream(target, append).use { out ->
+                        while (true) {
+                            if (cancelled.get()) return
+                            val read = input.read(buffer)
+                            if (read < 0) break
+                            out.write(buffer, 0, read)
+                            done += read
+                            handle.progress(done, total)
+                        }
                     }
                 }
+                if (total > 0 && done < total) throw IllegalStateException(app.getString(R.string.stores_itch_download_failed, code))
+                return
+            } finally {
+                runCatching { conn?.disconnect() }
             }
-            if (total > 0 && done < total) throw IllegalStateException(app.getString(R.string.stores_itch_download_failed, code))
-        } finally {
-            runCatching { conn?.disconnect() }
         }
     }
 
