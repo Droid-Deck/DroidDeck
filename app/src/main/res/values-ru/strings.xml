@@ -1996,6 +1996,8 @@
     <string name="stores_view_on">Открыть в %1$s</string>
     <string name="stores_buy_price">Купить · %1$s</string>
     <string name="stores_installed_chip">Установлено</string>
+    <string name="stores_section_installed">Установлено</string>
+    <string name="stores_section_not_installed">Не установлено</string>
     <string name="stores_in_library">В библиотеке</string>
     <string name="stores_itch_key">Ключ API</string>
     <string name="stores_itch_get_key">Получить ключ</string>

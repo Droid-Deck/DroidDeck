@@ -1936,6 +1936,8 @@
     <string name="stores_view_on">Lihat pada %1$s</string>
     <string name="stores_buy_price">Beli · %1$s</string>
     <string name="stores_installed_chip">Dipasang</string>
+    <string name="stores_section_installed">Dipasang</string>
+    <string name="stores_section_not_installed">Belum dipasang</string>
     <string name="stores_in_library">Dalam pustaka</string>
     <string name="stores_itch_key">Kunci API</string>
     <string name="stores_itch_get_key">Dapatkan kunci</string>

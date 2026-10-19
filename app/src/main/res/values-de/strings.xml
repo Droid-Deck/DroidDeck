@@ -1946,6 +1946,8 @@
     <string name="stores_view_on">Auf %1$s ansehen</string>
     <string name="stores_buy_price">Kaufen · %1$s</string>
     <string name="stores_installed_chip">Installiert</string>
+    <string name="stores_section_installed">Installiert</string>
+    <string name="stores_section_not_installed">Nicht installiert</string>
     <string name="stores_in_library">In der Bibliothek</string>
     <string name="stores_itch_key">API-Schlüssel</string>
     <string name="stores_itch_get_key">Schlüssel holen</string>

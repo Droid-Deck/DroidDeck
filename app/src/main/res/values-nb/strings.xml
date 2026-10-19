@@ -1957,6 +1957,8 @@
     <string name="stores_view_on">Vis på %1$s</string>
     <string name="stores_buy_price">Kjøp · %1$s</string>
     <string name="stores_installed_chip">Installert</string>
+    <string name="stores_section_installed">Installert</string>
+    <string name="stores_section_not_installed">Ikke installert</string>
     <string name="stores_in_library">I biblioteket</string>
     <string name="stores_itch_key">API-nøkkel</string>
     <string name="stores_itch_get_key">Hent en nøkkel</string>

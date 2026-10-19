@@ -1999,6 +1999,8 @@
     <string name="stores_view_on">Переглянути на %1$s</string>
     <string name="stores_buy_price">Купити · %1$s</string>
     <string name="stores_installed_chip">Встановлено</string>
+    <string name="stores_section_installed">Встановлено</string>
+    <string name="stores_section_not_installed">Не встановлено</string>
     <string name="stores_in_library">У бібліотеці</string>
     <string name="stores_itch_key">Ключ API</string>
     <string name="stores_itch_get_key">Отримати ключ</string>

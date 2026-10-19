@@ -1936,6 +1936,8 @@
     <string name="stores_view_on">Xem trên %1$s</string>
     <string name="stores_buy_price">Mua · %1$s</string>
     <string name="stores_installed_chip">Đã cài</string>
+    <string name="stores_section_installed">Đã cài</string>
+    <string name="stores_section_not_installed">Chưa cài</string>
     <string name="stores_in_library">Trong thư viện</string>
     <string name="stores_itch_key">Khóa API</string>
     <string name="stores_itch_get_key">Lấy khóa</string>

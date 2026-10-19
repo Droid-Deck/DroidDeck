@@ -1999,6 +1999,8 @@
     <string name="stores_view_on">Zobacz w %1$s</string>
     <string name="stores_buy_price">Kup · %1$s</string>
     <string name="stores_installed_chip">Zainstalowano</string>
+    <string name="stores_section_installed">Zainstalowano</string>
+    <string name="stores_section_not_installed">Nie zainstalowano</string>
     <string name="stores_in_library">W bibliotece</string>
     <string name="stores_itch_key">Klucz API</string>
     <string name="stores_itch_get_key">Pobierz klucz</string>

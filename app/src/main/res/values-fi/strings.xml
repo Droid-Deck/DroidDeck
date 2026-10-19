@@ -1957,6 +1957,8 @@
     <string name="stores_view_on">Näytä %1$s:ssä</string>
     <string name="stores_buy_price">Osta · %1$s</string>
     <string name="stores_installed_chip">Asennettu</string>
+    <string name="stores_section_installed">Asennettu</string>
+    <string name="stores_section_not_installed">Ei asennettu</string>
     <string name="stores_in_library">Kirjastossa</string>
     <string name="stores_itch_key">API-avain</string>
     <string name="stores_itch_get_key">Hae avain</string>

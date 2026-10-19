@@ -1936,6 +1936,8 @@
     <string name="stores_view_on">ดูบน %1$s</string>
     <string name="stores_buy_price">ซื้อ · %1$s</string>
     <string name="stores_installed_chip">ติดตั้งแล้ว</string>
+    <string name="stores_section_installed">ติดตั้งแล้ว</string>
+    <string name="stores_section_not_installed">ยังไม่ติดตั้ง</string>
     <string name="stores_in_library">อยู่ในไลบรารี</string>
     <string name="stores_itch_key">คีย์ API</string>
     <string name="stores_itch_get_key">รับคีย์</string>

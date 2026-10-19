@@ -1936,6 +1936,8 @@
     <string name="stores_view_on">在 %1$s 查看</string>
     <string name="stores_buy_price">購買 · %1$s</string>
     <string name="stores_installed_chip">已安裝</string>
+    <string name="stores_section_installed">已安裝</string>
+    <string name="stores_section_not_installed">未安裝</string>
     <string name="stores_in_library">已在收藏庫中</string>
     <string name="stores_itch_key">API 金鑰</string>
     <string name="stores_itch_get_key">取得金鑰</string>

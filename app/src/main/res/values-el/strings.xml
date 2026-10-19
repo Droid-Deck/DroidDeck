@@ -1957,6 +1957,8 @@
     <string name="stores_view_on">Προβολή στο %1$s</string>
     <string name="stores_buy_price">Αγορά · %1$s</string>
     <string name="stores_installed_chip">Εγκατεστημένο</string>
+    <string name="stores_section_installed">Εγκατεστημένο</string>
+    <string name="stores_section_not_installed">Δεν είναι εγκατεστημένο</string>
     <string name="stores_in_library">Στη βιβλιοθήκη</string>
     <string name="stores_itch_key">Κλειδί API</string>
     <string name="stores_itch_get_key">Λήψη κλειδιού</string>

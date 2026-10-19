@@ -1978,6 +1978,8 @@
     <string name="stores_view_on">Vezi pe %1$s</string>
     <string name="stores_buy_price">Cumpără · %1$s</string>
     <string name="stores_installed_chip">Instalat</string>
+    <string name="stores_section_installed">Instalat</string>
+    <string name="stores_section_not_installed">Neinstalat</string>
     <string name="stores_in_library">În bibliotecă</string>
     <string name="stores_itch_key">Cheie API</string>
     <string name="stores_itch_get_key">Obține o cheie</string>

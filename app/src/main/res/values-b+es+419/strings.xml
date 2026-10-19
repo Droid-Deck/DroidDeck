@@ -2008,6 +2008,8 @@
     <string name="stores_view_on">Ver en %1$s</string>
     <string name="stores_buy_price">Comprar · %1$s</string>
     <string name="stores_installed_chip">Instalado</string>
+    <string name="stores_section_installed">Instalado</string>
+    <string name="stores_section_not_installed">No instalada</string>
     <string name="stores_in_library">En la biblioteca</string>
     <string name="stores_free">Gratis</string>
     <string name="stores_resume">Reanudar</string>

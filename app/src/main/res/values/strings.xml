@@ -2000,6 +2000,8 @@
     <string name="stores_view_on">View on %1$s</string>
     <string name="stores_buy_price">Buy · %1$s</string>
     <string name="stores_installed_chip">Installed</string>
+    <string name="stores_section_installed">Installed</string>
+    <string name="stores_section_not_installed">Not installed</string>
     <string name="stores_in_library">In library</string>
     <string name="stores_itch_key">API key</string>
     <string name="stores_itch_get_key">Get a key</string>

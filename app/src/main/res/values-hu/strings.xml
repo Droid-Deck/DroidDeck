@@ -1957,6 +1957,8 @@
     <string name="stores_view_on">Megtekintés itt: %1$s</string>
     <string name="stores_buy_price">Megvétel · %1$s</string>
     <string name="stores_installed_chip">Telepítve</string>
+    <string name="stores_section_installed">Telepítve</string>
+    <string name="stores_section_not_installed">Nincs telepítve</string>
     <string name="stores_in_library">A könyvtárban</string>
     <string name="stores_itch_key">API-kulcs</string>
     <string name="stores_itch_get_key">Kulcs beszerzése</string>

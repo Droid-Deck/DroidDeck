@@ -1957,6 +1957,8 @@
     <string name="stores_view_on">Bekijken op %1$s</string>
     <string name="stores_buy_price">Kopen · %1$s</string>
     <string name="stores_installed_chip">Geïnstalleerd</string>
+    <string name="stores_section_installed">Geïnstalleerd</string>
+    <string name="stores_section_not_installed">Niet geïnstalleerd</string>
     <string name="stores_in_library">In bibliotheek</string>
     <string name="stores_itch_key">API-sleutel</string>
     <string name="stores_itch_get_key">Sleutel ophalen</string>

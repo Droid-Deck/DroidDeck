@@ -214,6 +214,11 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
         }
     }
     val pal = LocalPalette.current
+    fun cycleStore(step: Int) {
+        val ids = Store.entries.map { it.id }
+        val at = ids.indexOf(chip)
+        pickChip(ids[if (at < 0) (if (step > 0) 0 else ids.size - 1) else (at + step + ids.size) % ids.size])
+    }
     fun openModes(st: Store) {
         if (chip != st.id) pickChip(st.id) else move("first")
     }
@@ -293,8 +298,8 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     Column(
         modifier = Modifier.fillMaxSize().padding(horizontal = padH, vertical = if (narrow) 10.dp else 14.dp)
             .bumpers(
-                onPrevious = { if (openGame == null && chip != DOWNLOADS) { val t = tabsFor(store); switchTab(t[(t.indexOf(shownTab) + t.size - 1) % t.size]) } },
-                onNext = { if (openGame == null && chip != DOWNLOADS) { val t = tabsFor(store); switchTab(t[(t.indexOf(shownTab) + 1) % t.size]) } },
+                onPrevious = { if (openGame == null) cycleStore(-1) },
+                onNext = { if (openGame == null) cycleStore(1) },
             ),
     ) {
         Box(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
@@ -816,7 +821,7 @@ private fun Storefront(
                 else -> {
                     if (key.action == KeyEvent.ACTION_DOWN) {
                         val target = "card:${visible[next].key}"
-                        val targetIndex = headerItems + next + if (split > 0 && next >= split) 1 else 0
+                        val targetIndex = headerItems + next + if (split == 0) 0 else if (next < split) 1 else 2
                         val visibleTarget = grid.layoutInfo.visibleItemsInfo.any { it.index == targetIndex }
                         if (!visibleTarget || (focus.attached[target] ?: 0) == 0 ||
                             runCatching { focus.items.getValue(target).requestFocus() }.isFailure) scope.launch {
@@ -851,7 +856,7 @@ private fun Storefront(
                     placeholder = if (tab == "store") stringResource(R.string.stores_search_catalog, store.label) else stringResource(R.string.stores_search_library),
                     lead = if (tabs.size < 2) null else { {
                         val labels = tabs.map { if (it == "store") stringResource(R.string.stores_tab_store) else libraryLabel }
-                        TabStrip(labels, tabs.indexOf(tab).coerceAtLeast(0), { onTab(tabs[it]) })
+                        HeaderTabs(labels, tabs.indexOf(tab).coerceAtLeast(0)) { onTab(tabs[it]) }
                     } },
                 ) {
                     if (tab == "library") {
@@ -883,10 +888,9 @@ private fun Storefront(
             "library" -> if (!loaded) Unit
                 else if (split == 0) storeGrid(visible, empty, card)
                 else {
+                    item(key = "installed-label", span = { GridItemSpan(maxLineSpan) }) { SectionLabel(stringResource(R.string.stores_section_installed)) }
                     storeGrid(visible.take(split), empty, card)
-                    item(key = "installed-divider", span = { GridItemSpan(maxLineSpan) }) {
-                        Box(Modifier.fillMaxWidth().padding(vertical = 6.dp).height(1.dp).background(LocalPalette.current.line))
-                    }
+                    item(key = "not-installed-label", span = { GridItemSpan(maxLineSpan) }) { SectionLabel(stringResource(R.string.stores_section_not_installed)) }
                     storeGrid(visible.drop(split), empty, card)
                 }
             else -> {
@@ -916,6 +920,39 @@ private suspend fun <T> CompletableFuture<T>.await(): T =
             else continuation.resumeWithException(error)
         }
     }
+
+@Composable
+private fun SectionLabel(title: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+    ) {
+        Text(title.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Box(Modifier.weight(1f).height(1.dp).background(LocalPalette.current.line))
+    }
+}
+
+@Composable
+private fun HeaderTabs(labels: List<String>, selected: Int, onSelect: (Int) -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val shape = RoundedCornerShape(8.dp)
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        labels.forEachIndexed { i, label ->
+            val src = remember { MutableInteractionSource() }
+            val hot = rememberHot(src)
+            val pick = { onSelect(i) }
+            Text(
+                label, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1,
+                color = if (i == selected || hot) colors.onBackground else colors.onSurfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.clip(shape).glideBorder(hot, shape, pal.signal)
+                    .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Tab, onClick = pick)
+                    .controllerConfirm(onClick = pick)
+                    .padding(horizontal = 4.dp, vertical = 6.dp),
+            )
+        }
+    }
+}
 
 @Composable
 internal fun ModeHeader(
