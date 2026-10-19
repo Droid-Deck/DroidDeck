@@ -19,7 +19,7 @@ internal class XboxCredentials(private val app: Context) : Closeable {
     private var backend: Process? = null
     private var binaryHash = byteArrayOf()
     private lateinit var binary: java.io.File
-    private val peers = HashMap<Int, String>()
+    private val peers = java.util.concurrent.ConcurrentHashMap<Int, String>()
 
     fun bind(process: Process, file: java.io.File, digest: ByteArray) {
         backend = process
@@ -39,15 +39,7 @@ internal class XboxCredentials(private val app: Context) : Closeable {
         if (!process.isAlive) return rejected("exited-child")
         val root = com.droiddeck.launcher.core.HostProcess.pidOf(process)
         if (root <= 0 || pid <= 0) return rejected("missing-process-id")
-        val status = java.io.File("/proc/$pid/status").readLines()
-        val tracer = status.first { it.startsWith("TracerPid:") }.substringAfter(':').trim().toInt()
-        val tracerGroup = java.io.File("/proc/$tracer/status").readLines()
-            .first { it.startsWith("Tgid:") }.substringAfter(':').trim().toInt()
-        if (tracerGroup != root) return rejected("foreign-tracer")
-        val executable = android.system.Os.stat(binary.path)
-        if (!mapsBackend(java.io.File("/proc/$pid/maps").readText(), binary.path, executable.st_ino))
-            return rejected("unmapped-backend")
-        val identity = java.io.File("/proc/$pid/stat").readText().substringAfterLast(") ").split(' ')[19] + ":${executable.st_dev}:${executable.st_ino}"
+        val identity = identity(pid, root) ?: return rejected("foreign-backend")
         if (peers[pid] == identity) return true
         val digest = java.security.MessageDigest.getInstance("SHA-256")
         binary.inputStream().use { input ->
@@ -57,6 +49,28 @@ internal class XboxCredentials(private val app: Context) : Closeable {
         if (!java.security.MessageDigest.isEqual(binaryHash, digest.digest())) return rejected("different-executable")
         peers[pid] = identity
         return true
+    }
+
+    private fun identity(pid: Int, root: Int): String? {
+        if (root <= 0 || pid <= 0) return null
+        val status = java.io.File("/proc/$pid/status").readLines()
+        val tracer = status.first { it.startsWith("TracerPid:") }.substringAfter(':').trim().toInt()
+        val tracerGroup = java.io.File("/proc/$tracer/status").readLines()
+            .first { it.startsWith("Tgid:") }.substringAfter(':').trim().toInt()
+        if (tracerGroup != root) return null
+        val executable = android.system.Os.stat(binary.path)
+        if (!mapsBackend(java.io.File("/proc/$pid/maps").readText(), binary.path, executable.st_ino))
+            return null
+        return java.io.File("/proc/$pid/stat").readText().substringAfterLast(") ").split(' ')[19] + ":${executable.st_dev}:${executable.st_ino}"
+    }
+
+    fun signalBackend(signal: Int) {
+        val process = backend ?: return
+        if (!process.isAlive) return
+        val root = com.droiddeck.launcher.core.HostProcess.pidOf(process)
+        peers.forEach { (pid, expected) -> runCatching {
+            if (identity(pid, root) == expected) android.system.Os.kill(pid, signal)
+        } }
     }
 
     init {

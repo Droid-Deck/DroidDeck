@@ -13,7 +13,7 @@ internal object Xodus {
     const val DIR = "/usr/local/lib/droiddeck-xbox"
     fun market(): String = java.util.Locale.getDefault().country.uppercase().takeIf { it.matches(Regex("[A-Z]{2}")) } ?: "US"
 
-    class Child(val process: Process, private val credentials: XboxCredentials) : Closeable {
+    class Child(val process: Process, private val credentials: XboxCredentials, private val runtimeDirectory: File? = null) : Closeable {
         @Synchronized fun send(frame: JSONObject) {
             process.outputStream.write((frame.toString() + "\n").toByteArray())
             process.outputStream.flush()
@@ -22,8 +22,18 @@ internal object Xodus {
             credentials.close()
             runCatching { process.outputStream.close() }
             if (!process.waitFor(2, TimeUnit.SECONDS)) {
-                process.destroy()
-                if (!process.waitFor(2, TimeUnit.SECONDS)) process.destroyForcibly()
+                credentials.signalBackend(android.system.OsConstants.SIGINT)
+                if (!process.waitFor(2, TimeUnit.SECONDS)) {
+                    credentials.signalBackend(android.system.OsConstants.SIGKILL)
+                    if (!process.waitFor(1, TimeUnit.SECONDS)) {
+                        val pid = com.droiddeck.launcher.core.HostProcess.pidOf(process)
+                        if (pid > 0) android.os.Process.killProcess(pid)
+                    }
+                }
+            }
+            runtimeDirectory?.let { directory ->
+                File(directory, "xodus.sock").delete()
+                directory.delete()
             }
         }
     }
@@ -47,14 +57,14 @@ internal object Xodus {
         File(root, "version").writeText(packaged)
     }
 
-    fun start(app: Context, args: List<String>, service: Boolean = false): Child {
+    fun start(app: Context, args: List<String>, service: Boolean = false, runtimeDirectory: File? = null): Child {
         check(LinuxRuntime.isInstalled(app)) { "Install the Linux runtime before using Xbox." }
         stage(app)
         val binary = "$DIR/${if (service) "xodus-service" else "xodus-cli"}"
         check(File(LinuxRuntime.rootDir(app), binary.removePrefix("/")).isFile) { "The Xbox backend is missing. Update the Linux runtime." }
         val credentials = XboxCredentials(app)
         try {
-            val runtime = File(app.filesDir, "xbox-runtime").apply { mkdirs() }
+            val runtime = (runtimeDirectory ?: File(app.filesDir, "xbox-runtime")).apply { mkdirs() }
             val command = LinuxRuntime.command(app, null, null, Environment.getExternalStorageDirectory(), listOf(
                 "/usr/bin/env", "HOME=/root", "XODUS_LOG=off", "RUST_LOG=off",
                 "XDG_RUNTIME_DIR=${runtime.path}", "DROIDDECK_XBOX_CREDENTIAL_SOCKET=${credentials.name}", binary,
@@ -74,7 +84,7 @@ internal object Xodus {
             }
             val process = builder.start()
             credentials.bind(process, File(LinuxRuntime.rootDir(app), binary.removePrefix("/")), digest.digest())
-            return Child(process, credentials)
+            return Child(process, credentials, runtimeDirectory)
         } catch (e: Exception) { credentials.close(); throw e }
     }
 

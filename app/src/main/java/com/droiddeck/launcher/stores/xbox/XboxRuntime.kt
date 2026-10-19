@@ -11,6 +11,7 @@ internal object XboxRuntime {
     private val startup = Any()
     private var child: Xodus.Child? = null
     private var owner: String? = null
+    private var serviceSocket: File? = null
     private var generation = 0L
     private val launches = XboxLaunchLeases { android.os.SystemClock.uptimeMillis() }
     fun isActive(id: String): Boolean = launches.active(id)
@@ -65,18 +66,18 @@ internal object XboxRuntime {
     }
 
     private fun service(app: Context, account: String, current: Long): File = synchronized(startup) {
-        val socket = File(app.filesDir, "xbox-runtime/xodus.sock")
         val existing = synchronized(state) {
             check(generation == current) { "Xbox launch was cancelled" }
-            child?.takeIf { it.process.isAlive && owner == account }
+            serviceSocket?.takeIf { child?.process?.isAlive == true && owner == account }
         }
+        val socket = existing ?: File(app.filesDir, "xbox-runtime/service-${java.util.UUID.randomUUID()}/xodus.sock")
         if (existing == null) {
-            val old = synchronized(state) { child.also { child = null; owner = null } }
+            val old = synchronized(state) { child.also { child = null; owner = null; serviceSocket = null } }
             old?.close()
             socket.delete()
-            val service = Xodus.start(app, emptyList(), service = true)
+            val service = Xodus.start(app, emptyList(), service = true, runtimeDirectory = socket.parentFile!!)
             val accepted = synchronized(state) {
-                (generation == current).also { if (it) { child = service; owner = account } }
+                (generation == current).also { if (it) { child = service; owner = account; serviceSocket = socket } }
             }
             if (!accepted) { service.close(); error("Xbox launch was cancelled") }
             try {
@@ -92,7 +93,7 @@ internal object XboxRuntime {
                     "Xbox account service did not become ready. Check your sign-in and network connection."
                 }
             } catch (e: Exception) {
-                synchronized(state) { if (child === service) { child = null; owner = null } }
+                synchronized(state) { if (child === service) { child = null; owner = null; serviceSocket = null } }
                 service.close()
                 throw e
             }
@@ -104,7 +105,7 @@ internal object XboxRuntime {
         val processes = synchronized(state) {
             generation++
             val all = launches.clear() + listOfNotNull(child)
-            child = null; owner = null
+            child = null; owner = null; serviceSocket = null
             all
         }
         Thread({ processes.forEach { runCatching { it.close() } } }, "xbox-runtime-stop").start()
