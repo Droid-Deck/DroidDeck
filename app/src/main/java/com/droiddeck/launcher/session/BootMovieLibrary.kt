@@ -138,14 +138,14 @@ object BootMovieLibrary {
             if (file.name in STAGED || !seen.add(file.canonicalPath)) continue
             val native = file.nameWithoutExtension.lowercase() in NATIVE
             // Steam names a bought movie by an item number and a hash; the points shop's own title is shown when Steam has it.
-            val title = if (native) file.nameWithoutExtension else bought[file.path] ?: boughtId(file)?.let { "#$it" } ?: file.nameWithoutExtension
+            val title = if (native) NATIVE[file.nameWithoutExtension.lowercase()] ?: file.nameWithoutExtension else bought[file.path] ?: boughtId(file)?.let { "#$it" } ?: file.nameWithoutExtension
             out.add(Entry(id, title, if (native) SOURCE_STEAM else SOURCE_POINTSHOP, file, removable = false))
         }
         return out
     }
 
     /** The three startup movies Steam ships with; Steam's movies folder holds many more videos that are not startup movies. */
-    private val NATIVE = setOf("deck_startup", "oled_startup", "startup_machine")
+    private val NATIVE = mapOf("deck_startup" to "Deck startup", "oled_startup" to "Oled startup", "startup_machine" to "Machine startup")
 
     private val skippedFolders = setOf("uioverrides", "steamapps", "librarycache", "httpcache", "logs", "compatdata", "shadercache")
 
