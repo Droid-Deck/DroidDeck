@@ -1126,6 +1126,23 @@ def tool_catalog(steam_root, extras=None):
     return catalog
 
 
+def valve_tool_names(steam_root):
+    tools = set()
+    for library in libraries(steam_root):
+        common = os.path.join(library, "steamapps", "common")
+        try:
+            entries = os.listdir(common)
+        except OSError:
+            continue
+        for entry in entries:
+            vdf = os.path.join(common, entry, "compatibilitytool.vdf")
+            if os.path.isfile(vdf):
+                tool = first_key(vdf, ["compatibilitytools", "compat_tools"])
+                if tool:
+                    tools.add(tool)
+    return tools
+
+
 def requested_tool(request, catalog):
     name = request.get("name")
     if isinstance(name, str) and any(t["name"] == name for t in catalog):
@@ -1320,16 +1337,16 @@ def register_default(config_path, apps=(), protect=(), default=None, catalog=Non
         if mapping is None:
             return state.get("default") or TOOL
         current = read_mapping(tokens, mapping)
+        steam_root = os.path.dirname(os.path.dirname(os.path.abspath(config_path)))
         if catalog is None:
-            catalog = tool_catalog(os.path.dirname(os.path.dirname(os.path.abspath(config_path))),
+            catalog = tool_catalog(steam_root,
                                    dict(protect) if isinstance(protect, dict) else {name: name for name in protect})
-        names = [t["name"] for t in catalog]
+        names = set(t["name"] for t in catalog) | set(state.get("known_tools", ())) | valve_tool_names(steam_root)
         if default is None:
             if settle:
                 default, state = choose_default(current.get("0", ""), state, read_json(state_path("request.json", directory)), catalog)
             else:
                 default = state.get("default") if state.get("default") in names else TOOL
-        steam_root = os.path.dirname(os.path.dirname(os.path.abspath(config_path)))
         overrides = requested_games(game_requests(directory), catalog)
         managed = state.get("auto", {}).keys() if isinstance(state.get("auto"), dict) else ()
         native_choices = state.get("native_choices", ())

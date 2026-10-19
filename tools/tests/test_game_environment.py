@@ -538,6 +538,23 @@ class ProtonDefaultTest(unittest.TestCase):
             finally:
                 globals_["native_targets"] = original_native_targets
 
+    def test_register_default_preserves_installed_valve_tools(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            steam = root / "Steam"
+            config = steam / "config/config.vdf"
+            config.parent.mkdir(parents=True)
+            steamapps = steam / "steamapps"
+            steamapps.mkdir()
+            proton_common = steamapps / "common" / "Proton 9.0 (Beta)"
+            proton_common.mkdir(parents=True)
+            (proton_common / "compatibilitytool.vdf").write_text(
+                '"compatibilitytools"\n{\n  "compat_tools"\n  {\n    "proton_9"\n    {\n      "install_path" "."\n    }\n  }\n}\n')
+            config.write_text(config_text([("0", self.TOOL), ("1808500", "proton_9")]))
+            COMPAT["register_default"](str(config), ["1808500"], catalog=self.CATALOG, directory=tmp)
+            self.assertEqual(mapping_of(config.read_text()), {"0": self.TOOL, "1808500": "proton_9"})
+
+
     def test_shortcuts_scanner_keeps_native_choice_for_unrelated_app_list(self):
         app, added_shortcut = "452280", "3537741571"
         with tempfile.TemporaryDirectory() as tmp:

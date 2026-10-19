@@ -602,7 +602,7 @@ class Helper:
                     elif not current.get(app):
                         current.pop(app, None)
             changes, auto = COMPAT["plan_mapping"](
-                current, installed, [t["name"] for t in live], default,
+                current, installed, set(t["name"] for t in live) | self.known, default,
                 COMPAT["followers"](state, current), native, picks, overrides,
                 prior_auto.keys(), native_choices)
             for app, tool in sorted(changes.items(), key=lambda item: COMPAT["app_order"](item[0])):
@@ -612,6 +612,7 @@ class Helper:
             state.update(
                 auto={app: tool for app, tool in auto.items() if tool is not COMPAT["NATIVE_CHOICE"]},
                 native_choices=sorted(app for app, tool in auto.items() if tool is COMPAT["NATIVE_CHOICE"]),
+                known_tools=sorted(self.known),
                 tools=catalog, live=True)
             state.pop("native", None)
             if waiting:

@@ -603,6 +603,18 @@ class ReconcileTest(unittest.TestCase):
         self.assertEqual(state["auto"], {"10": TOOL, "11": TOOL})
         self.assertEqual(self.helper.installed, ["10", "11", "999"])
 
+    def test_user_selected_valve_proton_is_preserved_live(self):
+        page = FakePage({"0": TOOL, "10": TOOL, "11": "proton_9", "12": "proton_experimental"},
+                        [TOOL, TOOL_11, "proton_9", "proton_experimental"])
+        state = self.reconcile(page)
+        self.assertEqual(page.sets, [])
+        self.assertEqual(page.mapping["11"], "proton_9")
+        self.assertEqual(page.mapping["12"], "proton_experimental")
+        self.assertNotIn("11", state["auto"])
+        self.assertNotIn("12", state["auto"])
+        self.assertIn("proton_9", state["known_tools"])
+
+
 
 SWITCH_HARNESS = r"""
 const sent = [], asked = [];
