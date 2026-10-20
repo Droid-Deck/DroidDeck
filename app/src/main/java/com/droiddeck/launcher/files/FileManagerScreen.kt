@@ -151,7 +151,6 @@ fun FileManagerScreen(
     var conflictChoice by remember { mutableStateOf<ConflictChoice?>(null) }
     var conflictApplyToAll by remember { mutableStateOf(false) }
     var operationJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-    // A cancelled paste keeps writing until its blocking copy returns; no new paste starts before that.
     var cancelledJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var pendingBulkDelete by remember { mutableStateOf<List<File>>(emptyList()) }
     var searchQuery by remember { mutableStateOf("") }
