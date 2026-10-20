@@ -187,10 +187,15 @@ public final class LinuxRuntime {
             } catch (java.io.IOException e) {
             }
         }
-        File fileMax = new File(fakeProc, "file-max");
-        if (!fileMax.isFile()) {
+        String[][] seeded = {
+                {"file-max", "9223372036854775807\n"},
+                {"overcommit_memory", "0\n"},
+        };
+        for (String[] entry : seeded) {
+            File fake = new File(fakeProc, entry[0]);
+            if (fake.isFile()) continue;
             try {
-                Files.write(fileMax.toPath(), "9223372036854775807\n".getBytes(StandardCharsets.US_ASCII));
+                Files.write(fake.toPath(), entry[1].getBytes(StandardCharsets.US_ASCII));
             } catch (IOException e) {
             }
         }
@@ -205,6 +210,7 @@ public final class LinuxRuntime {
                 {"overflowuid", "/proc/sys/kernel/overflowuid"},
                 {"overflowgid", "/proc/sys/kernel/overflowgid"},
                 {"file-max", "/proc/sys/fs/file-max"},
+                {"overcommit_memory", "/proc/sys/vm/overcommit_memory"},
         };
         for (String[] entry : procFiles) {
             File fake = new File(fakeProc, entry[0]);
