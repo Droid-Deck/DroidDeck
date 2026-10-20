@@ -1601,6 +1601,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 intent.getStringExtra(SessionService.EXTRA_STEAM_UI),
                 intent.getStringExtra(SessionService.EXTRA_STEAM_URL),
                 intent.getStringArrayExtra(SessionService.EXTRA_PROGRAM_ARGS),
+                shownOnDisplayId,
             )
         }
         applyFrameGen()
@@ -1651,6 +1652,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
+        if (started) SessionService.setActivityDisplay(this, shownOnDisplayId)
         cancelTouchGestures()
         applyFollowOrientation(newConfig)
         applyUnfoldedControls()
@@ -2274,9 +2276,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         return true
     }
 
+    private val shownOnDisplayId: Int get() =
+        if (Build.VERSION.SDK_INT >= 30) display?.displayId ?: windowManager.defaultDisplay.displayId
+        else windowManager.defaultDisplay.displayId
+
     private fun refreshSecondScreenDisplays() {
         if (!::displayManager.isInitialized) return
-        val primaryId = display?.displayId ?: windowManager.defaultDisplay.displayId
+        val primaryId = shownOnDisplayId
         val candidates = SecondScreenDisplays.available(displayManager, primaryId)
             .filter { glassesScreen == null || it.id != glasses.displayId }
         val oldIds = secondScreenDisplays.map { it.id }.toSet()
@@ -2799,7 +2805,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         refreshSecondScreenDisplays()
         if (secondScreenMode != SecondScreenMode.NONE && secondScreenPresentation == null) showSecondScreen(secondScreenMode)
         startedScreens++
-        SessionService.setActivityVisible(this, true)
+        SessionService.setActivityVisible(this, true, shownOnDisplayId)
         Glasses.rescan()
         updateGlassesScreen()
         updateHandCamera()
