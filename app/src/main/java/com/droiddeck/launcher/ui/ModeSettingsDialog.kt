@@ -85,6 +85,9 @@ class ModeSettings(
     val mangoapp: Boolean = true,
     val steamController: String? = null,
     val unfoldedControls: Boolean? = null,
+    val deckControlsWhen: String = com.droiddeck.launcher.session.SessionDisplay.CONTROLS_UNFOLDED,
+    val foldedAspect: String = com.droiddeck.launcher.session.SessionDisplay.FOLDED_16X9,
+    val deckControlsScale: Int = 100,
     val runSteamAtStartup: Boolean = false,
     val bootMovie: String? = null,
     val bootMovieSound: Boolean = true,
@@ -135,6 +138,9 @@ class ModeSettingsActions(
     val onMangoapp: (Boolean) -> Unit = {},
     val onSteamController: (String) -> Unit = {},
     val onUnfoldedControls: (Boolean) -> Unit = {},
+    val onDeckControlsWhen: (String) -> Unit = {},
+    val onFoldedAspect: (String) -> Unit = {},
+    val onDeckControlsScale: (Int) -> Unit = {},
     val onRunSteamAtStartup: (Boolean) -> Unit = {},
     val onBootMovie: (String) -> Unit = {},
     val onBootMovieSound: (Boolean) -> Unit = {},
@@ -282,6 +288,28 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 stringResource(R.string.unfolded_controls_hint),
                 s.unfoldedControls, onChange = a.onUnfoldedControls,
             )
+            if (steam && s.unfoldedControls == true) {
+                ChoiceRow(
+                    host, "deck-controls-when", stringResource(R.string.deck_controls_when), null,
+                    listOf(
+                        com.droiddeck.launcher.session.SessionDisplay.CONTROLS_UNFOLDED to stringResource(R.string.deck_controls_when_unfolded),
+                        com.droiddeck.launcher.session.SessionDisplay.CONTROLS_HALF_FOLDED to stringResource(R.string.deck_controls_when_half_folded),
+                    ), s.deckControlsWhen, onPick = a.onDeckControlsWhen,
+                )
+                ChoiceRow(
+                    host, "folded-aspect", stringResource(R.string.folded_aspect), stringResource(R.string.folded_aspect_hint),
+                    listOf(
+                        com.droiddeck.launcher.session.SessionDisplay.FOLDED_FILL to stringResource(R.string.folded_aspect_fill),
+                        com.droiddeck.launcher.session.SessionDisplay.FOLDED_16X9 to "16:9",
+                        com.droiddeck.launcher.session.SessionDisplay.FOLDED_16X10 to "16:10",
+                        com.droiddeck.launcher.session.SessionDisplay.FOLDED_SCOPE to stringResource(R.string.folded_aspect_scope),
+                    ), s.foldedAspect, onPick = a.onFoldedAspect,
+                )
+                ChoiceRow(
+                    host, "deck-controls-scale", stringResource(R.string.deck_controls_scale), null,
+                    SessionPrefs.DECK_CONTROLS_SCALES.map { it to "$it %" }, s.deckControlsScale, onPick = a.onDeckControlsScale,
+                )
+            }
             if (steam) ChoiceRow(
                 host, "back-actions", stringResource(R.string.mode_back), stringResource(SessionPrefs.backActionsOrder(s.backActionsInverted)),
                 listOf(
