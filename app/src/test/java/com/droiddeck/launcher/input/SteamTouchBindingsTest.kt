@@ -122,6 +122,8 @@ class SteamTouchBindingsTest {
         assertEquals(32, SteamTouchBindings.cleanLabel("x".repeat(40)).length)
         val b = SteamTouchBindings.Binding("key_press SPACE", "Ju\"mp", "", "", "")
         assertEquals("Ju mp", SteamTouchBindings.parse(b.compose()).label)
+        val comma = SteamTouchBindings.Binding("key_press SPACE", "Jump,Run", "icon", "#FFFFFF", "")
+        assertEquals(SteamTouchBindings.Binding("key_press SPACE", "Jump Run", "icon", "#FFFFFF", ""), SteamTouchBindings.parse(comma.compose()))
     }
 
     @Test

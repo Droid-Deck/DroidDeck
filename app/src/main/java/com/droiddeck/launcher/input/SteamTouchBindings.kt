@@ -16,7 +16,6 @@ object SteamTouchBindings {
     const val DEFAULT_FOREGROUND = "#232323"
     const val DEFAULT_BACKGROUND = "#E4E4E4"
 
-    /** Steam VDF strings end at a quote and binding fields split on commas. */
     fun cleanLabel(raw: String): String =
         raw.replace(Regex("""["\\,\p{Cntrl}]"""), " ").replace(Regex("""\s+"""), " ").trim().let { it.take(it.offsetByCodePoints(0, minOf(32, it.codePointCount(0, it.length)))) }
 
