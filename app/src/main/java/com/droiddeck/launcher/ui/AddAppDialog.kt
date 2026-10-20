@@ -305,6 +305,7 @@ internal fun AppDialog(
     modifier: Modifier = Modifier, maxWidth: Dp? = null,
     width: Dp? = null, fitContent: Boolean = false,
     back: (() -> Unit)? = null,
+    scrollable: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val pal = LocalPalette.current
@@ -342,7 +343,7 @@ internal fun AppDialog(
                         .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
                         .controllerBack(back ?: close)
                         .then(modifier)
-                        .verticalScroll(rememberScrollState())
+                        .then(if (scrollable) Modifier.verticalScroll(rememberScrollState()) else Modifier)
                         .padding(horizontal = 18.dp, vertical = 16.dp),
                     content = content,
                 )

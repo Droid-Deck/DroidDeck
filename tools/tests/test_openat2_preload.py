@@ -117,8 +117,17 @@ CASES = [
     ("o", os.O_RDONLY, "proc/self/status", "proc"),
 ]
 
+# Only the preload: an absolute link to a path missing in the tree but present outside it, as droiddeck-fex's rootfs has.
+HOST_CASES = [
+    ("r", os.O_RDONLY, "lib/x86_64-linux-gnu/libbar.so.2", "host:libbar.so.2"),
+    ("r", os.O_RDONLY, "hostdir/sub/data", "host:sub/data"),
+    ("r", os.O_RDONLY | os.O_DIRECTORY, "hostdir/sub", "host:sub"),
+    ("r", os.O_RDONLY, "etc/alternatives/hn", "etc/hostname"),
+    ("r", os.O_RDONLY, "hostdir/missing", "ENOENT"),
+]
 
-def make_tree(root):
+
+def make_tree(root, outside):
     for folder in ("usr/lib/x86_64-linux-gnu", "etc/alternatives", "loop", "chain"):
         (root / folder).mkdir(parents=True)
     (root / "usr/lib/x86_64-linux-gnu/libfoo.so.1.2").write_text("x86")
@@ -129,16 +138,24 @@ def make_tree(root):
              "etc/alternatives/hn": "/etc/hostname", "etc/escape": "../../../../../../etc/hostname", "loop/a": "b",
              "loop/b": "a", "dirlink": "/usr", "rootlink": "/", "dangling": "/usr/newfile"}
     links.update({"chain/l%d" % i: ("l%d" % (i + 1) if i < 41 else "end") for i in range(1, 42)})
+    links.update({"usr/lib/x86_64-linux-gnu/libbar.so.2": str(outside / "libbar.so.2"), "hostdir": str(outside)})
     for link, target in links.items():
         os.symlink(target, root / link)
 
 
-def labels(lines, root):
+def make_outside(outside):
+    (outside / "sub").mkdir(parents=True)
+    (outside / "libbar.so.2").write_text("host")
+    (outside / "sub/data").write_text("host")
+
+
+def labels(lines, root, outside):
     inodes = {(os.lstat(root).st_dev, os.lstat(root).st_ino): "."}
-    for folder, dirs, files in os.walk(root):
-        for name in dirs + files:
-            st = os.lstat(os.path.join(folder, name))
-            inodes[(st.st_dev, st.st_ino)] = os.path.relpath(os.path.join(folder, name), root)
+    for base, prefix in ((root, ""), (outside, "host:")):
+        for folder, dirs, files in os.walk(base):
+            for name in dirs + files:
+                st = os.lstat(os.path.join(folder, name))
+                inodes[(st.st_dev, st.st_ino)] = prefix + os.path.relpath(os.path.join(folder, name), base)
     out = []
     for line in lines:
         kind, *values = line.split()
@@ -161,16 +178,19 @@ class Openat2PreloadTest(unittest.TestCase):
         source.write_text(PROGRAM)
         subprocess.run(["cc", "-O2", "-Wall", "-Werror", "-o", str(cls.tmp / "openat2"), str(source), "-ldl"], check=True)
         cls.trees = (cls.tmp / "kernel", cls.tmp / "preload")
+        cls.outside = cls.tmp / "outside"
+        make_outside(cls.outside)
         for tree in cls.trees:
-            make_tree(tree)
-        cases = "".join("%s\t%d\t%s\n" % case[:3] for case in CASES)
+            make_tree(tree, cls.outside)
+        every = CASES + HOST_CASES
+        cases = "".join("%s\t%d\t%s\n" % case[:3] for case in every)
         result = subprocess.run([str(cls.tmp / "openat2"), *map(str, cls.trees)], input=cases, capture_output=True, text=True,
                                 env=dict(os.environ, LD_PRELOAD=str(cls.lib)), timeout=60)
         if result.returncode != 0:
             raise AssertionError(result.stdout + result.stderr)
         lines = result.stdout.splitlines()
-        cls.kernel = labels(lines[1:1 + len(CASES)], cls.trees[0]) if lines[0] == "kernel" else None
-        cls.preload = labels(lines[-len(CASES):], cls.trees[1])
+        cls.kernel = labels(lines[1:1 + len(CASES)], cls.trees[0], cls.outside) if lines[0] == "kernel" else None
+        cls.preload = labels(lines[-len(every):], cls.trees[1], cls.outside)
 
     @classmethod
     def tearDownClass(cls):
@@ -180,6 +200,10 @@ class Openat2PreloadTest(unittest.TestCase):
         for case, got in zip(CASES, self.preload):
             self.assertEqual(got, case[3], case)
         self.assertTrue((self.trees[1] / "usr/newfile").exists())
+
+    def test_preload_finishes_a_link_to_a_path_only_outside_the_root_there(self):
+        for case, got in zip(HOST_CASES, self.preload[len(CASES):]):
+            self.assertEqual(got, case[3], case)
 
     def test_the_kernel_agrees(self):
         if self.kernel is None:
