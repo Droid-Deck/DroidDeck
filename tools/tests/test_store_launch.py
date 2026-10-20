@@ -314,3 +314,96 @@ class GogAchievements(unittest.TestCase):
             with patch.object(store, 'COMET_DIR', base), patch.object(store.subprocess, 'run', return_value=__import__('subprocess').CompletedProcess([], 1)):
                 self.assertEqual('service-unavailable', store.provision_galaxy(str(base / 'compat'), str(base / 'proton')))
                 self.assertFalse((base / 'compat/pfx/.droiddeck-comet-service').exists())
+
+
+def gog_script(folder, product, actions):
+    (folder / ('goggame-%s.script' % product)).write_text(json.dumps({'actions': actions, 'baseProductId': product, 'version': 1}))
+
+
+def set_registry(**arguments):
+    return {'install': {'action': 'setRegistry', 'arguments': arguments}, 'name': 'setRegistry'}
+
+
+class GogRegistry(unittest.TestCase):
+    def test_the_scripts_registry_values_are_read_with_the_games_paths(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='1454587428')
+            gog_script(folder, '1454587428', [
+                set_registry(root='HKEY_LOCAL_MACHINE', subkey='Software\\Bethesda Softworks\\FalloutNV',
+                             valueName='Installed Path', valueData='{app}\\', valueType='string'),
+                set_registry(root='HKEY_LOCAL_MACHINE', subkey='Software\\GOG.com\\Games\\{productId}',
+                             valueName='buildId', valueData='42', valueType='dword'),
+                set_registry(root='HKEY_CURRENT_USER', subkey='Software\\Game', valueName='', valueData='AAH/', valueType='binary'),
+                set_registry(root='HKEY_LOCAL_MACHINE', subkey='Software\\Empty'),
+                set_registry(root='HKEY_LOCAL_MACHINE', subkey='Software\\Game', valueName='x', valueData='1', valueType='qword'),
+                set_registry(root='HKEY_LOCAL_MACHINE', subkey='Software\\Game', valueName='x', valueData='{nowhere}', valueType='string'),
+                set_registry(root='HKEY_USERS', subkey='S-1-5', valueName='x', valueData='1', valueType='string'),
+                {'install': {'action': 'Execute', 'arguments': {'executable': 'setup.exe'}}},
+                'nonsense',
+            ])
+            entries, skipped = store.gog_registry(folder)
+            app = store.windows_path(str(folder)).replace('\\', '\\\\')
+            self.assertEqual([
+                '[HKEY_LOCAL_MACHINE\\Software\\Bethesda Softworks\\FalloutNV]\r\n"Installed Path"="%s\\\\"' % app,
+                '[HKEY_LOCAL_MACHINE\\Software\\GOG.com\\Games\\1454587428]\r\n"buildId"=dword:0000002a',
+                '[HKEY_CURRENT_USER\\Software\\Game]\r\n@=hex:00,01,ff',
+                '[HKEY_LOCAL_MACHINE\\Software\\Empty]',
+            ], entries)
+            self.assertEqual(3, skipped)
+
+    def test_a_game_without_a_script_starts_without_proton(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog')
+            with patch.object(store.subprocess, 'run') as run:
+                self.assertEqual('none', store.apply_gog_registry(folder, root + '/compat', root + '/proton'))
+                run.assert_not_called()
+
+    def test_values_are_imported_into_the_32_bit_view_once_until_the_script_changes(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='1454587428')
+            proton = Path(root) / 'proton'
+            proton.write_text('selected Proton')
+            data = Path(root) / 'compat'
+            action = set_registry(root='HKLM', subkey='Software\\Bethesda Softworks\\FalloutNV',
+                                  valueName='Installed Path', valueData='{app}', valueType='string')
+            gog_script(folder, '1454587428', [action])
+            imported = []
+            def run(argv, **kwargs):
+                self.assertEqual([str(proton), 'run', 'reg.exe', 'import'], argv[:4])
+                self.assertEqual('/reg:32', argv[5])
+                raw = Path(argv[4][2:].replace('\\', '/')).read_bytes()
+                self.assertTrue(raw.startswith(b'\xff\xfe'))
+                imported.append(raw[2:].decode('utf-16-le'))
+                (data / 'pfx').mkdir(parents=True, exist_ok=True)
+                (data / 'pfx/system.reg').write_text('Wine registry')
+                return __import__('subprocess').CompletedProcess(argv, 0)
+            with patch.object(store.subprocess, 'run', side_effect=run):
+                self.assertEqual('written=1', store.apply_gog_registry(folder, str(data), str(proton)))
+                self.assertTrue(imported[0].startswith('Windows Registry Editor Version 5.00\r\n'))
+                self.assertIn('[HKEY_LOCAL_MACHINE\\Software\\Bethesda Softworks\\FalloutNV]', imported[0])
+                self.assertEqual('ready', store.apply_gog_registry(folder, str(data), str(proton)))
+                self.assertEqual(1, len(imported))
+                action['install']['arguments']['valueData'] = '{app}\\'
+                gog_script(folder, '1454587428', [action])
+                self.assertEqual('written=1', store.apply_gog_registry(folder, str(data), str(proton)))
+                self.assertEqual(2, len(imported))
+
+    def test_a_failed_import_is_tried_again_next_launch(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='7')
+            proton = Path(root) / 'proton'
+            proton.write_text('selected Proton')
+            gog_script(folder, '7', [set_registry(root='HKLM', subkey='Software\\Game', valueName='a', valueData='b', valueType='string')])
+            with patch.object(store.subprocess, 'run', return_value=__import__('subprocess').CompletedProcess([], 1)):
+                self.assertEqual('import-failed', store.apply_gog_registry(folder, root + '/compat', str(proton)))
+            self.assertFalse((Path(root) / 'compat/pfx' / store.GOG_REGISTRY_MARK).exists())
+            self.assertEqual('no-proton', store.apply_gog_registry(folder, root + '/compat', root + '/missing'))
+
+    def test_every_gog_launch_brings_the_registry_in(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog')
+            with patch.dict(os.environ, {'BL_LAUNCH_DIR': root, 'STEAM_COMPAT_DATA_PATH': root + '/compat/', 'BL_STORE_PROTON': '/chosen/proton'}), \
+                    patch.object(store, 'prepare_gog', return_value=False), patch.object(store, 'ask', return_value=None), \
+                    patch.object(store, 'apply_gog_registry', return_value='ready') as apply:
+                store.main([str(folder / store.LAUNCHER)])
+                apply.assert_called_once_with(folder, root + '/compat', '/chosen/proton')
