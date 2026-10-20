@@ -2714,8 +2714,8 @@
     <string name="boot_movie_volume">Hangerő</string>
     <string name="boot_movie_length">Hossz</string>
     <string name="boot_movie_seconds">%1$d mp</string>
-    <string name="boot_movie_length_hint">A film hány másodperce játszódik le. Ami ennél hosszabb, azt a végén levágjuk.</string>
-    <string name="boot_movie_repo_search">Keresés: SteamDeckRepo</string>
+    <string name="boot_movie_length_hint">A videó hány másodperce játszódik le. Ami ennél hosszabb, azt a végén levágjuk.</string>
+    <string name="boot_movie_repo_search">Keresés a SteamDeckRepo-ban</string>
     <string name="boot_movie_repo_all">Minden eszköz</string>
     <string name="boot_movie_repo_deck">Steam Deck</string>
     <string name="boot_movie_repo_machine">Steam Machine</string>
