@@ -1050,6 +1050,9 @@
     <string name="games_added">Додана гра</string>
     <string name="games_custom">Власна гра</string>
     <string name="games_store_storage">Сховище ігор</string>
+    <string name="games_uninstall_body">Видаляє її файли та прибирає її зі Steam.</string>
+    <string name="games_remove_title">Видалити %1$s?</string>
+    <string name="games_remove_body">Видаляє ярлик. Файли гри залишаються.</string>
     <string name="gpu_auto_hint">Найкраща пара для цього GPU, завжди в актуальному стані</string>
     <string name="gpu_manual_hint">Виберіть пару самостійно</string>
     <string name="gpu_checking">Перевірка драйверів…</string>

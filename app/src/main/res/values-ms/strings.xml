@@ -1032,6 +1032,9 @@
     <string name="games_added">Permainan ditambah</string>
     <string name="games_custom">Permainan tersuai</string>
     <string name="games_store_storage">Storan permainan</string>
+    <string name="games_uninstall_body">Memadam failnya dan mengalih keluarnya daripada Steam.</string>
+    <string name="games_remove_title">Alih keluar %1$s?</string>
+    <string name="games_remove_body">Memadam pintasannya. Fail permainan kekal.</string>
     <string name="gpu_auto_hint">Pasangan terbaik untuk GPU ini, dikemas kini sentiasa</string>
     <string name="gpu_manual_hint">Pilih pasangan sendiri</string>
     <string name="gpu_checking">Menyemak pemacu…</string>

@@ -1038,6 +1038,9 @@
     <string name="games_added">Tilføjet spil</string>
     <string name="games_custom">Brugerdefineret spil</string>
     <string name="games_store_storage">Spillager</string>
+    <string name="games_uninstall_body">Sletter dets filer og fjerner det fra Steam.</string>
+    <string name="games_remove_title">Fjern %1$s?</string>
+    <string name="games_remove_body">Sletter genvejen. Spillets filer bliver.</string>
     <string name="gpu_auto_hint">Det bedste par til denne GPU, holdt opdateret</string>
     <string name="gpu_manual_hint">Vælg et par selv</string>
     <string name="gpu_checking">Søger efter drivere…</string>

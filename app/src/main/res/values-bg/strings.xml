@@ -1038,6 +1038,9 @@
     <string name="games_added">Добавена игра</string>
     <string name="games_custom">Персонализирана игра</string>
     <string name="games_store_storage">Хранилище за игри</string>
+    <string name="games_uninstall_body">Изтрива файловете ѝ и я премахва от Steam.</string>
+    <string name="games_remove_title">Премахване на %1$s?</string>
+    <string name="games_remove_body">Изтрива пряката пътека. Файловете на играта остават.</string>
     <string name="gpu_auto_hint">Най-добрата двойка за този GPU, поддържана актуална</string>
     <string name="gpu_manual_hint">Изберете двойка сами</string>
     <string name="gpu_checking">Проверка за драйвери…</string>

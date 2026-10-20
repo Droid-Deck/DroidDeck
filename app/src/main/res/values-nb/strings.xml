@@ -1038,6 +1038,9 @@
     <string name="games_added">Lagt til spill</string>
     <string name="games_custom">Egendefinert spill</string>
     <string name="games_store_storage">Spillagring</string>
+    <string name="games_uninstall_body">Sletter filene og fjerner det fra Steam.</string>
+    <string name="games_remove_title">Fjern %1$s?</string>
+    <string name="games_remove_body">Sletter snarveien. Spillets filer blir liggende.</string>
     <string name="gpu_auto_hint">Det beste paret for denne GPU-en, holdt oppdatert</string>
     <string name="gpu_manual_hint">Velg et par selv</string>
     <string name="gpu_checking">Ser etter drivere…</string>

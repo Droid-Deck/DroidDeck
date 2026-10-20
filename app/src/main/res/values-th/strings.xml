@@ -1032,6 +1032,9 @@
     <string name="games_added">เกมที่เพิ่ม</string>
     <string name="games_custom">เกมกำหนดเอง</string>
     <string name="games_store_storage">พื้นที่จัดเก็บเกม</string>
+    <string name="games_uninstall_body">ลบไฟล์และนำออกจาก Steam</string>
+    <string name="games_remove_title">ลบ %1$s?</string>
+    <string name="games_remove_body">ลบช็อตคัต ไฟล์เกมยังอยู่</string>
     <string name="gpu_auto_hint">คู่ที่ดีที่สุดสำหรับ GPU นี้ อัปเดตให้ล่าสุดเสมอ</string>
     <string name="gpu_manual_hint">เลือกคู่ด้วยตัวเอง</string>
     <string name="gpu_checking">กำลังตรวจสอบไดรเวอร์…</string>

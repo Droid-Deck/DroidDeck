@@ -1041,6 +1041,9 @@
     <string name="games_added">Juego añadido</string>
     <string name="games_custom">Juego personalizado</string>
     <string name="games_store_storage">Almacenamiento de juegos</string>
+    <string name="games_uninstall_body">Elimina sus archivos y lo quita de Steam.</string>
+    <string name="games_remove_title">¿Quitar %1$s?</string>
+    <string name="games_remove_body">Elimina su acceso directo. Los archivos del juego se conservan.</string>
     <string name="gpu_auto_hint">El mejor par para esta GPU, siempre actualizado</string>
     <string name="gpu_manual_hint">Elige un par manualmente</string>
     <string name="gpu_checking">Buscando controladores…</string>

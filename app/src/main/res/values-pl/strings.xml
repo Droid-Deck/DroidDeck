@@ -1050,6 +1050,9 @@
     <string name="games_added">Dodana gra</string>
     <string name="games_custom">Własna gra</string>
     <string name="games_store_storage">Miejsce na gry</string>
+    <string name="games_uninstall_body">Usuwa jej pliki i usuwa ją ze Steam.</string>
+    <string name="games_remove_title">Usunąć %1$s?</string>
+    <string name="games_remove_body">Usuwa skrót. Pliki gry pozostają.</string>
     <string name="gpu_auto_hint">Najlepsza para dla tego GPU, aktualizowana automatycznie</string>
     <string name="gpu_manual_hint">Wybierz parę samodzielnie</string>
     <string name="gpu_checking">Sprawdzanie sterowników…</string>

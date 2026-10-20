@@ -860,6 +860,7 @@ class MainActivity : ComponentActivity() {
                         },
                         onSteamGameArtChanged = { appId -> refreshSteamGameArt(appId) },
                         onAddedGameRemoved = { folder, appId, name -> removeAddedGame(folder, appId, name) },
+                        onGameRemoved = { g -> removeGame(g) },
                         onAddedGamesArt = { on -> SessionPrefs.setAddedGamesArt(this, on); addedGamesArt = on; if (on) refreshAddedGames() },
                         onSgdbKey = { key ->
                             Thread({
@@ -1804,6 +1805,30 @@ class MainActivity : ComponentActivity() {
                 steamGames = steamGames.map { if (it.appId == appId && it.library != Library.ADDED) fresh else it }
             }
         }, "steam-art-update").start()
+    }
+
+    private fun removeGame(g: Library.SteamGame) {
+        val folder = g.gameFiles ?: return
+        when (com.droiddeck.launcher.frontend.GameRemoval.kind(g)) {
+            com.droiddeck.launcher.frontend.GameRemoval.Kind.LAUNCHER -> Unit
+            com.droiddeck.launcher.frontend.GameRemoval.Kind.SHORTCUT -> removeAddedGame(folder.path, g.gameId, g.name)
+            com.droiddeck.launcher.frontend.GameRemoval.Kind.STORE -> {
+                val installed = com.droiddeck.launcher.frontend.GameRemoval.storeGame(g)
+                if (installed != null) {
+                    com.droiddeck.launcher.stores.StoresState.uninstall(this, installed) { refreshAddedGames(); refresh() }
+                    return
+                }
+                if (g.library == Library.ADDED) {
+                    removeAddedGame(folder.path, g.gameId, g.name)
+                    return
+                }
+                val target = com.droiddeck.launcher.frontend.GameRemoval.steamFiles(g) ?: return
+                Thread({
+                    com.droiddeck.launcher.frontend.GameRemoval.delete(target)
+                    ui.post { refreshAddedGames(); refresh() }
+                }, "game-remove").start()
+            }
+        }
     }
 
     private fun removeAddedGame(folder: String, appId: Long?, name: String) {

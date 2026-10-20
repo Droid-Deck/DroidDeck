@@ -1038,6 +1038,9 @@
     <string name="games_added">Tillagt spel</string>
     <string name="games_custom">Anpassat spel</string>
     <string name="games_store_storage">Spellagring</string>
+    <string name="games_uninstall_body">Tar bort dess filer och tar bort det från Steam.</string>
+    <string name="games_remove_title">Ta bort %1$s?</string>
+    <string name="games_remove_body">Tar bort genvägen. Spelets filer ligger kvar.</string>
     <string name="gpu_auto_hint">Det bästa paret för den här GPU:n, hålls uppdaterat</string>
     <string name="gpu_manual_hint">Välj ett par själv</string>
     <string name="gpu_checking">Söker efter drivrutiner…</string>
