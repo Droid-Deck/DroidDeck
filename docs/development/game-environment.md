@@ -10,7 +10,9 @@ Changes apply on the next game launch, including when Steam is already running.
 A running game must be restarted. Native Linux games and Steam itself are outside
 this editor's scope.
 
-The Components page also has a **Configuration** dropdown. **Default profile** owns the
+Opening **Components** from a game's launch settings selects that game's profile.
+Opening Components from the navigation rail selects **Default profile**. Use the
+**Configuration** dropdown to switch profiles explicitly. **Default profile** owns the
 default Proton and FEX preset. An installed game can inherit those defaults or
 choose its own Proton and FEX preset. Proton choices are applied through Steam's
 per-app compatibility mapping, including while Steam is running when its live

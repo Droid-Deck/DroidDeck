@@ -85,7 +85,7 @@ class AppFilesProvider : DocumentsProvider() {
 
     override fun deleteDocument(documentId: String) {
         val file = fileFor(documentId)
-        if (file.absolutePath == base.absolutePath) throw FileNotFoundException("the app folder itself is not deleted")
+        if (file.canonicalPath == baseCanonical) throw FileNotFoundException("the app folder itself is not deleted")
         try {
             deleteTree(file.toPath())
         } catch (e: IOException) {
@@ -154,7 +154,7 @@ class AppFilesProvider : DocumentsProvider() {
 
     private fun fileFor(documentId: String): File {
         val f = File(documentId)
-        if (!f.isAbsolute || !inside(f)) throw FileNotFoundException("$documentId is outside the app's files")
+        if (!f.isAbsolute || f.normalize().path != documentId || !inside(f)) throw FileNotFoundException("$documentId is outside the app's files")
         if (!f.exists()) throw FileNotFoundException("$documentId not found")
         return f
     }

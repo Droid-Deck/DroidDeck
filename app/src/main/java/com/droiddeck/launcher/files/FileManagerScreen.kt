@@ -151,8 +151,11 @@ fun FileManagerScreen(
     var conflictChoice by remember { mutableStateOf<ConflictChoice?>(null) }
     var conflictApplyToAll by remember { mutableStateOf(false) }
     var operationJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    var cancelledJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var pendingBulkDelete by remember { mutableStateOf<List<File>>(emptyList()) }
     var searchQuery by remember { mutableStateOf("") }
+    val visibleEntries = if (searchQuery.isBlank()) entries
+    else entries.filter { it.name.contains(searchQuery, ignoreCase = true) }
     var showSearch by remember { mutableStateOf(false) }
     var sortBy by remember { mutableStateOf(browsePrefs.getString("fmSortBy", "name") ?: "name") }
     var sortDesc by remember { mutableStateOf(browsePrefs.getBoolean("fmSortDesc", false)) }
@@ -174,16 +177,20 @@ fun FileManagerScreen(
     var showFavorites by remember { mutableStateOf(false) }
     var favTick by remember { mutableIntStateOf(0) }
 
+    var listingJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+
     fun loadDirectory(dir: File, resetScroll: Boolean = true) {
         currentDir = dir
         if (pickMode) pickPrefs.edit().putString("lastFilePickerDir", dir.absolutePath).apply()
-        scope.launch {
+        listingJob?.cancel()
+        listingJob = scope.launch {
             val list = withContext(Dispatchers.IO) {
                 dir.listFiles()?.toList()
                     ?.filter { if (pickDirMode) it.isDirectory else !pickMode || it.isDirectory || matchesPickExt(it) }
                     ?.filter { showHidden || !it.name.startsWith(".") }
                     ?.sortedWith(comparatorFor(sortBy, sortDesc)) ?: emptyList()
             }
+            if (currentDir != dir) return@launch
             entries = list
             if (resetScroll) listState.scrollToItem(0)
         }
@@ -252,7 +259,7 @@ fun FileManagerScreen(
 
     fun performPaste() {
         val sources = clipboardFiles
-        if (sources.isEmpty()) return
+        if (sources.isEmpty() || isOperationRunning || operationJob?.isActive == true || cancelledJob?.isCompleted == false) return
         val dstDir = currentDir
         val cut = isCutOperation
 
@@ -791,19 +798,21 @@ fun FileManagerScreen(
                     fontSize = 13.sp,
                     modifier = Modifier.weight(1f),
                 )
+                val allVisibleSelected = visibleEntries.isNotEmpty() && visibleEntries.all { it.absolutePath in selectedPaths }
+                val anyVisibleSelected = visibleEntries.any { it.absolutePath in selectedPaths }
                 val selBarPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
                 OutlinedButton(
                     onClick = {
-                        selectedPaths = if (selectedPaths.size == entries.size) emptySet()
-                        else entries.map { it.absolutePath }.toSet()
+                        val shown = visibleEntries.map { it.absolutePath }
+                        selectedPaths = if (allVisibleSelected) selectedPaths - shown.toSet() else selectedPaths + shown
                     },
                     contentPadding = selBarPadding,
-                ) { Text(if (selectedPaths.size == entries.size) stringResource(R.string.fm_select_none) else stringResource(R.string.fm_select_all), fontSize = 12.sp) }
+                ) { Text(if (allVisibleSelected) stringResource(R.string.fm_select_none) else stringResource(R.string.fm_select_all), fontSize = 12.sp) }
                 Spacer(Modifier.width(4.dp))
                 OutlinedButton(
-                    enabled = selectedPaths.isNotEmpty(),
+                    enabled = anyVisibleSelected,
                     onClick = {
-                        clipboardFiles = entries.filter { it.absolutePath in selectedPaths }
+                        clipboardFiles = visibleEntries.filter { it.absolutePath in selectedPaths }
                         isCutOperation = false
                         selectionMode = false
                         selectedPaths = emptySet()
@@ -812,9 +821,9 @@ fun FileManagerScreen(
                 ) { Text(stringResource(R.string.fm_copy), fontSize = 12.sp) }
                 Spacer(Modifier.width(4.dp))
                 OutlinedButton(
-                    enabled = selectedPaths.isNotEmpty(),
+                    enabled = anyVisibleSelected,
                     onClick = {
-                        clipboardFiles = entries.filter { it.absolutePath in selectedPaths }
+                        clipboardFiles = visibleEntries.filter { it.absolutePath in selectedPaths }
                         isCutOperation = true
                         selectionMode = false
                         selectedPaths = emptySet()
@@ -823,8 +832,8 @@ fun FileManagerScreen(
                 ) { Text(stringResource(R.string.fm_cut), fontSize = 12.sp) }
                 Spacer(Modifier.width(4.dp))
                 OutlinedButton(
-                    enabled = selectedPaths.isNotEmpty(),
-                    onClick = { pendingBulkDelete = entries.filter { it.absolutePath in selectedPaths } },
+                    enabled = anyVisibleSelected,
+                    onClick = { pendingBulkDelete = visibleEntries.filter { it.absolutePath in selectedPaths } },
                     contentPadding = selBarPadding,
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
                 ) { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
@@ -842,7 +851,7 @@ fun FileManagerScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
-                    .clickable { performPaste() }
+                    .clickable(enabled = !isOperationRunning) { performPaste() }
                     .padding(horizontal = 16.dp, vertical = 8.dp),
             ) {
                 Icon(Icons.Filled.ContentPaste, stringResource(R.string.fm_paste), tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
@@ -878,6 +887,7 @@ fun FileManagerScreen(
                     )
                     if (operationJob != null) {
                         TextButton(onClick = {
+                            cancelledJob = operationJob
                             operationJob?.cancel()
                             operationJob = null
                             isOperationRunning = false
@@ -964,8 +974,7 @@ fun FileManagerScreen(
                 .fillMaxSize()
                 .nestedScroll(pullState.nestedScrollConnection),
         ) {
-            val shownEntries = if (searchQuery.isBlank()) entries
-            else entries.filter { it.name.contains(searchQuery, ignoreCase = true) }
+            val shownEntries = visibleEntries
 
             if (showGrid && entries.isNotEmpty()) {
                 LazyVerticalGrid(
