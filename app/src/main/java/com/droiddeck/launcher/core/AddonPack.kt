@@ -14,8 +14,10 @@ import java.io.File
 import java.io.FileInputStream
 
 /**
- * A pack built by CI alongside this APK (tools/packs) and published to DroidDeck-Components under a
- * content-addressed tag. The APK pins the pack's SHA-256, so only the bytes this build was made with install.
+ * A pack built by CI alongside this APK (tools/packs). Main and release builds publish it to
+ * DroidDeck-Components under a content-addressed tag; a PR test build attaches packs that are not there
+ * yet to its pr-N release on DroidDeck-CI. The APK pins the pack's SHA-256, so only the bytes this build
+ * was made with install, whichever host serves them.
  */
 internal class AddonPack(val name: String, private val sha256: String, val size: Long, private val required: List<String>) {
     sealed interface State {
@@ -30,7 +32,11 @@ internal class AddonPack(val name: String, private val sha256: String, val size:
     private val lock = Any()
 
     val available: Boolean get() = sha256.isNotEmpty()
-    private val url get() = "https://github.com/$REPO/releases/download/pack-$name-${sha256.take(16)}/$name.tar.zst"
+    private val tag get() = "pack-$name-${sha256.take(16)}"
+    private val urls get() = listOfNotNull(
+        "https://github.com/$REPO/releases/download/$tag/$name.tar.zst",
+        BuildConfig.PR_NUMBER.takeIf { it > 0 }?.let { "https://github.com/$PR_REPO/releases/download/pr-$it/$tag.tar.zst" },
+    )
 
     private fun root(context: Context) = File(context.filesDir, "addons/$name")
     /** App-private and written only after the archive matched the pinned digest. */
@@ -85,8 +91,11 @@ internal class AddonPack(val name: String, private val sha256: String, val size:
         }
         val root = root(context).apply { mkdirs() }
         val archive = File(root, "$sha256.tar.zst")
-        if (!Downloader.downloadFile(url, archive, true, sha256) { p -> mutableState.value = State.Downloading(p.coerceIn(0f, 1f)) })
-            return false
+        val downloaded = urls.any { url ->
+            Downloader.downloadFile(url, archive, true, sha256) { p -> mutableState.value = State.Downloading(p.coerceIn(0f, 1f)) }
+                .also { if (!it) archive.delete() }
+        }
+        if (!downloaded) return false
         val staging = File(root, "$sha256.partial")
         staging.deleteRecursively()
         try {
@@ -107,6 +116,7 @@ internal class AddonPack(val name: String, private val sha256: String, val size:
     companion object {
         private const val TAG = "AddonPack"
         private const val REPO = "Droid-Deck/DroidDeck-Components"
+        private const val PR_REPO = "Droid-Deck/DroidDeck-CI"
         const val COMPLETE = ".complete"
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
