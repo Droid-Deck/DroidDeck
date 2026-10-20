@@ -248,7 +248,10 @@ object AddedGames {
         if (owner != null && owner.path !in SessionPrefs.removedAddedGames(app)) {
             single(app, owner.path)?.takeIf { canonical(it.exe) == path }?.let { return AddResult.Existing(it) }
         }
-        if (owner == null && guestPath(app, exe) == null) return AddResult.Unreachable
+        if (guestPath(app, exe) == null) {
+            (owner ?: exe.parentFile)?.takeIf { guestPath(app, it) == null }?.let { bindFolder(app, it) }
+            if (guestPath(app, exe) == null) return AddResult.Unreachable
+        }
         val folder = owner ?: exe.parentFile ?: return AddResult.NotFound
         SessionPrefs.setAddedGameRemoved(app, folder.path, false)
         SessionPrefs.setAddedGameExe(app, folder.path, exe.path)

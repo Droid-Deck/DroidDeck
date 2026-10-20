@@ -133,12 +133,49 @@ class AddedExesTest {
         assertEquals(2, AddedGames.scan(app).size)
     }
 
-    @Test fun anExeTheSessionCannotSeeIsNotAdded() {
+    @Test fun anExeTheSessionCannotSeeBindsItsFolderAndIsAdded() {
+        noGamesFolders()
+        val outside = exe(File(tmp.newFolder("card"), "Hades/Hades.exe"))
+        assertNull(AddedGames.guestPath(app, outside))
+        val game = (AddedGames.addExe(app, outside) as AddedGames.AddResult.Added).game
+        assertEquals(listOf(outside.parent to "${AddedGames.GUEST_DIR}/Hades"), SessionPrefs.gameFolderBinds(app))
+        assertEquals("${AddedGames.GUEST_DIR}/Hades/Hades.exe", game.guestExe)
+        assertTrue(AddedGames.addExe(app, outside) is AddedGames.AddResult.Existing)
+        assertEquals(1, SessionPrefs.gameFolderBinds(app).size)
+    }
+
+    @Test fun anotherExeOfAGameTheSessionCannotSeeBindsTheGameFolder() {
+        noGamesFolders()
+        val held = exe(File(tmp.newFolder("card"), "Hades/Hades.exe"))
+        val pick = exe(File(held.parentFile, "x64/Hades.exe"))
+        AddedExes.put(app, AddedExes.Entry(held.parent!!, held.path, picked = false))
+        val switched = AddedGames.addExe(app, pick) as AddedGames.AddResult.Switched
+        assertEquals(listOf(held.parent to "${AddedGames.GUEST_DIR}/Hades"), SessionPrefs.gameFolderBinds(app))
+        assertEquals("${AddedGames.GUEST_DIR}/Hades/x64/Hades.exe", switched.game.guestExe)
+    }
+
+    @Test fun aGameFolderTheSessionAlreadySeesIsNotBoundAgain() {
+        noGamesFolders()
+        val held = onStorage("Games2/Hades/Hades.exe")
+        onStorage("Games2/Hades/x64/Hades.exe")
+        AddedExes.put(app, AddedExes.Entry(held.parent!!, held.path, picked = false))
+        val alias = File(tmp.root, "alias").toPath()
+        java.nio.file.Files.createSymbolicLink(alias, held.parentFile!!.parentFile!!.toPath())
+        assertEquals(AddedGames.AddResult.Unreachable, AddedGames.addExe(app, File(alias.toFile(), "Hades/x64/Hades.exe")))
+        assertEquals(0, SessionPrefs.gameFolderBinds(app).size)
+    }
+
+    @Test fun anExeInAFolderTheAppCannotReadIsNotAdded() {
         noGamesFolders()
         val outside = exe(File(tmp.newFolder("elsewhere"), "Game/Game.exe"))
-        assertEquals(AddedGames.AddResult.Unreachable, AddedGames.addExe(app, outside))
+        outside.parentFile!!.setReadable(false)
+        try {
+            assertEquals(AddedGames.AddResult.Unreachable, AddedGames.addExe(app, outside))
+        } finally {
+            outside.parentFile!!.setReadable(true)
+        }
         assertEquals(0, AddedExes.list(app).size)
-        assertEquals(0, AddedGames.scan(app).size)
+        assertEquals(0, SessionPrefs.gameFolderBinds(app).size)
     }
 
     @Test fun addingAFolderTheSessionCannotSeeBindsItAndAddsItsGames() {
