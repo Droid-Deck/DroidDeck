@@ -17,6 +17,7 @@ BNET = runpy.run_path(str(BIN / "droiddeck-battlenet"))["main"].__globals__
 BNET["CACHE"] = tempfile.mkdtemp(prefix="bnet-test-cache-")
 BNET["LOG"] = os.path.join(BNET["CACHE"], "battlenet.log")
 RUN = runpy.run_path(str(BIN / "droiddeck-proton-run"))["main"].__globals__
+STORE = runpy.run_path(str(BIN / "droiddeck-store-launch"))["main"].__globals__
 KOTLIN = REPO / "app/src/main/java/com/droiddeck/launcher/runtime/BattleNet.kt"
 
 
@@ -103,6 +104,17 @@ class ProtonRunOptionsTest(Temp):
         self.assertEqual(env["STEAM_COMPAT_DATA_PATH"], str(self.root / "steamapps/compatdata/2596113170"))
         self.assertNotIn("PROTON_USE_WINED3D", env)
         self.assertEqual(self.run_main(["--game-id", "0", client]), (2, []))
+
+    def test_start_without_steam_has_droiddeck_battlenet_launch_a_games_shortcut(self):
+        client = str(self.write("Steam/steamapps/compatdata/2596113170/pfx/drive_c/Program Files (x86)/Battle.net/Battle.net.exe", b"MZ"))
+        prefix = str(self.root / "steamapps/compatdata/2596113170")
+        options = 'STEAM_COMPAT_DATA_PATH=%s %%command%% --exec="launch Fen"' % prefix
+        status, calls = self.run_main(["--app", "3000000000", "--dir", os.path.dirname(client), "--options", options, "--", client])
+        self.assertIsNone(status)
+        _, argv, env = calls[0]
+        self.assertEqual(argv, [self.entry, "waitforexitandrun", client, "--exec=launch Fen"])
+        self.assertEqual(env["STEAM_COMPAT_DATA_PATH"], prefix)
+        self.assertEqual(STORE["battlenet"](argv[2:], env={}), [STORE["BATTLENET"], "launch", "Fen"])
 
     def test_a_bad_prefix_or_verb_is_refused(self):
         setup = str(self.write("Download/setup.exe", b"MZ"))

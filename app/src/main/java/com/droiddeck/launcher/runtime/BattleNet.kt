@@ -115,16 +115,6 @@ object BattleNet {
 
     fun fexInUse(context: Context): String? = ComponentsManager.gameComponents(context, APP_ID.toString())["fex"]
 
-    fun launchArgs(game: com.droiddeck.launcher.frontend.Library.SteamGame): List<String>? {
-        if (game.source != SOURCE) return null
-        val code = game.storeId?.let(::title)?.code ?: return null
-        return listOf("launch", code)
-    }
-
-    fun sessionName(args: List<String>): String? =
-        if (args.getOrNull(0) == "launch") args.getOrNull(1)?.let { code -> TITLES.firstOrNull { it.code.equals(code, ignoreCase = true) }?.name }
-        else null
-
     internal fun title(uid: String): Title? {
         val id = uid.lowercase()
         TITLES.firstOrNull { it.uid == id }?.let { return it }
@@ -355,10 +345,20 @@ object BattleNet {
 
     private const val DXVK_CONFIG = "DXVK_CONFIG"
 
+    // Once only: switching Start without Steam off removes the profile's entry rather than storing off.
+    fun ensureNoSteam(context: Context): Boolean {
+        if (com.droiddeck.launcher.session.SessionPrefs.battleNetNoSteamSet(context)) return false
+        GameEnvironmentStore.setGameNoSteam(context, APP_ID.toString(), true)
+        com.droiddeck.launcher.session.SessionPrefs.setBattleNetNoSteamSet(context)
+        Log.i(TAG, "Start without Steam for the Battle.net profile")
+        return true
+    }
+
     fun answerFexRequest(context: Context, dir: File) {
         val app = context.applicationContext
         Thread({
             runCatching { ensureVideoMemory(app) }.onFailure { Log.w(TAG, "video memory cap for the Battle.net profile", it) }
+            runCatching { ensureNoSteam(app) }.onFailure { Log.w(TAG, "Start without Steam for the Battle.net profile", it) }
             val answer = try {
                 "ok " + ensureFex(app)
             } catch (e: Exception) {

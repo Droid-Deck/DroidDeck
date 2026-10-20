@@ -244,8 +244,6 @@ object Library {
         if (program == com.droiddeck.launcher.runtime.FlatpakManager.LAUNCHER || program == com.droiddeck.launcher.runtime.AppImageManager.LAUNCHER ||
             program == com.droiddeck.launcher.runtime.UserApps.SCRIPT_LAUNCHER) {
             com.droiddeck.launcher.session.SessionState.programArgs.firstOrNull()?.let { flatpakNames[it] ?: it.substringAfterLast('.') }
-        } else if (program == com.droiddeck.launcher.runtime.BattleNet.PROGRAM) {
-            com.droiddeck.launcher.runtime.BattleNet.sessionName(com.droiddeck.launcher.session.SessionState.programArgs) ?: "Battle.net"
         } else com.droiddeck.launcher.session.NoSteamLaunch.nameFor(program, com.droiddeck.launcher.session.SessionState.programArgs)
             ?: specs.firstOrNull { it.program == program }?.name
 

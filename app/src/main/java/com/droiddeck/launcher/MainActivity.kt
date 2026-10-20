@@ -552,14 +552,6 @@ class MainActivity : ComponentActivity() {
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
             return true
         }
-        // steamSession: Wine's many processes need the same child-process gate as Steam.
-        com.droiddeck.launcher.runtime.BattleNet.launchArgs(game)?.let { args ->
-            return startSession(Intent(this, SessionActivity::class.java)
-                .putExtra(SessionActivity.EXTRA_RETURN_HOME, returnHome)
-                .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_RUN)
-                .putExtra(SessionService.EXTRA_PROGRAM, com.droiddeck.launcher.runtime.BattleNet.PROGRAM)
-                .putExtra(SessionService.EXTRA_PROGRAM_ARGS, args.toTypedArray()), steamSession = true)
-        }
         return startSession(Intent(this, SessionActivity::class.java)
                 .putExtra(SessionActivity.EXTRA_RETURN_HOME, returnHome)
                 .apply {
@@ -689,7 +681,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startSessionOrWait(next: Intent): Boolean {
-        val started = startSession(next, steamSession = next.hasExtra(SessionService.EXTRA_STEAM_URL))
+        // Proton's processes count against Android's child-process limit with or without Steam.
+        val started = startSession(next, steamSession = next.hasExtra(SessionService.EXTRA_STEAM_URL) ||
+            next.getStringExtra(SessionService.EXTRA_PROGRAM) == com.droiddeck.launcher.session.NoSteamLaunch.PROTON_RUN)
         if (!started && (busy || LinuxRuntimeInstaller.isBusy())) android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
         return started
     }

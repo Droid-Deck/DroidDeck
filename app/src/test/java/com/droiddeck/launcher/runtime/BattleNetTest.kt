@@ -267,18 +267,26 @@ class BattleNetTest {
         assertTrue("OSI" in offered)
     }
 
-    @Test fun aBattleNetGameLaunchesInASessionOfItsOwnWithoutSteam() {
-        fun game(source: String, storeId: String?) = com.droiddeck.launcher.frontend.Library.SteamGame(
-            -123, "x", null, com.droiddeck.launcher.frontend.Library.ADDED, source = source, storeId = storeId)
-        assertEquals(listOf("launch", "Fen"), BattleNet.launchArgs(game(BattleNet.SOURCE, "fenris")))
-        assertEquals(listOf("launch", "OSI"), BattleNet.launchArgs(game(BattleNet.SOURCE, "osi")))
-        assertEquals(listOf("launch", "D3"), BattleNet.launchArgs(game(BattleNet.SOURCE, "diablo3_enus")))
-        assertNull(BattleNet.launchArgs(game(BattleNet.SOURCE, "unknown_title")))
-        assertNull(BattleNet.launchArgs(game(BattleNet.SOURCE, null)))
-        assertNull(BattleNet.launchArgs(game("gog", "fenris")))
-        assertEquals("Diablo IV", BattleNet.sessionName(listOf("launch", "Fen")))
-        assertNull(BattleNet.sessionName(listOf("open")))
-        assertNull(BattleNet.sessionName(emptyList()))
+    @Test fun aBattleNetGameStartsWithoutSteamThroughItsShortcutUntilThatIsSwitchedOff() {
+        File(context.filesDir, "game-environment.json").delete()
+        val folder = File(BattleNet.prefix(context), "pfx/drive_c/Program Files (x86)/Diablo IV").apply { mkdirs() }
+        File(folder, "Diablo IV Launcher.exe").writeBytes(byteArrayOf(0x4d, 0x5a))
+        val shortcut = BattleNet.shortcut(context, BattleNet.Game("fenris", "Diablo IV", "Fen", folder))!!
+        val game = com.droiddeck.launcher.frontend.Library.SteamGame(
+            shortcut.appId.toInt(), shortcut.name, null, com.droiddeck.launcher.frontend.Library.ADDED, shortcut.gameId,
+            source = BattleNet.SOURCE, storeId = shortcut.storeId)
+        val noSteam = com.droiddeck.launcher.session.NoSteamLaunch
+        assertEquals(BattleNet.APP_ID.toString(), noSteam.scope(game))
+        assertFalse(noSteam.enabled(context, game))
+        assertTrue(BattleNet.ensureNoSteam(context))
+        assertTrue(noSteam.enabled(context, game))
+        val command = noSteam.command(game, shortcut)!!
+        assertEquals(noSteam.PROTON_RUN, command.program)
+        assertEquals(listOf("--app", shortcut.appId.toString(), "--dir", shortcut.guestDir, "--options", shortcut.launchOptions, "--", shortcut.guestExe),
+            command.args)
+        GameEnvironmentStore.setGameNoSteam(context, BattleNet.APP_ID.toString(), false)
+        assertFalse(BattleNet.ensureNoSteam(context))
+        assertFalse(noSteam.enabled(context, game))
     }
 
     @Test fun theGamesAreToldOfAFifthOfThePhonesMemory() {
