@@ -119,7 +119,7 @@ object SessionPrefs {
     }
 
     val STORES_SORTS = listOf("lastPlayed", "recentlyInstalled", "titleAsc", "titleDesc", "sizeDesc", "sizeAsc", "releaseDateDesc")
-    val STORES_VIEWS = listOf("cards", "list")
+    val STORES_VIEWS = listOf("cards", "capsules", "list")
 
     const val STORES_OPEN_LIBRARY = "library"
     const val STORES_OPEN_STORE = "store"
@@ -888,6 +888,11 @@ object SessionPrefs {
     }
 
     fun prefMode(mode: String): String = if (mode == SessionService.MODE_RUN) SessionService.MODE_STEAM else mode
+
+    fun displayMode(context: Context, mode: String, program: String?): String =
+        if (mode == SessionService.MODE_RUN && com.droiddeck.launcher.runtime.UserApps.launches(program) &&
+            resolutionChosen(context, SessionService.MODE_DESKTOP)) SessionService.MODE_DESKTOP
+        else prefMode(mode)
 
     fun pipAutoEnter(context: Context): Boolean = prefs(context).getBoolean("pipAutoEnter", false)
 

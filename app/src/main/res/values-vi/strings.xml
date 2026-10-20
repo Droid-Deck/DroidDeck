@@ -30,7 +30,7 @@
     <string name="frame_gen_title">Tạo khung hình</string>
     <string name="frame_gen_hint">Chọn chế độ tạo khung hình</string>
     <string name="frame_gen_off">Tắt</string>
-    <string name="frame_gen_winfg">Win-FG %1$d×</string>
+    <string name="frame_gen_ddfg">DD-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
     <string name="frame_gen_lsfg_adaptive">LSFG thích ứng %1$d</string>
     <string name="lsfg_needs_steam">Cần Lossless Scaling trên Steam</string>
@@ -1962,6 +1962,7 @@
     <string name="stores_sort_release_date">Ngày phát hành</string>
     <string name="stores_view_list">Chế độ danh sách</string>
     <string name="stores_view_cards">Chế độ thẻ</string>
+    <string name="stores_view_capsules">Chế độ xem bìa</string>
     <string name="stores_show_mature">Hiện nội dung người lớn</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

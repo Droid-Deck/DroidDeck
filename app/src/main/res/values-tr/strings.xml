@@ -30,7 +30,7 @@
     <string name="frame_gen_title">Kare oluşturma</string>
     <string name="frame_gen_hint">Kare oluşturma modunu seçin</string>
     <string name="frame_gen_off">Kapalı</string>
-    <string name="frame_gen_winfg">Win-FG %1$d×</string>
+    <string name="frame_gen_ddfg">DD-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
     <string name="frame_gen_lsfg_adaptive">LSFG Uyarlanabilir %1$d</string>
     <string name="lsfg_needs_steam">Steam\'de Lossless Scaling gerekli</string>
@@ -1972,6 +1972,7 @@
     <string name="stores_sort_release_date">Çıkış tarihi</string>
     <string name="stores_view_list">Liste görünümü</string>
     <string name="stores_view_cards">Kart görünümü</string>
+    <string name="stores_view_capsules">Kapak görünümü</string>
     <string name="stores_show_mature">Yetişkin içeriği göster</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

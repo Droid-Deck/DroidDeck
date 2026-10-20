@@ -1,31 +1,34 @@
 
 namespace {
 struct ScratchState {
-    VkBuffer synthUbo = VK_NULL_HANDLE; VkDeviceMemory synthUboMem = VK_NULL_HANDLE; void* synthUboPtr = nullptr;
+    VkBuffer synthUbo[ddfg::FrameGen::kSynthSlots]{};
+    VkDeviceMemory synthUboMem[ddfg::FrameGen::kSynthSlots]{};
+    void* synthUboPtr[ddfg::FrameGen::kSynthSlots]{};
     std::vector<VkBuffer> flowUbo; std::vector<VkDeviceMemory> flowUboMem; std::vector<void*> flowUboPtr;
     VkBuffer expandUbo = VK_NULL_HANDLE; VkDeviceMemory expandUboMem = VK_NULL_HANDLE; void* expandUboPtr = nullptr;
     VkBuffer flowRegUbo = VK_NULL_HANDLE; VkDeviceMemory flowRegUboMem = VK_NULL_HANDLE; void* flowRegUboPtr = nullptr;
-    VkBuffer gmUbo[winfg::FrameGen::kGmSlots]{};
-    VkDeviceMemory gmUboMem[winfg::FrameGen::kGmSlots]{};
-    void* gmUboPtr[winfg::FrameGen::kGmSlots]{};
+    VkBuffer gmUbo[ddfg::FrameGen::kGmSlots]{};
+    VkDeviceMemory gmUboMem[ddfg::FrameGen::kGmSlots]{};
+    void* gmUboPtr[ddfg::FrameGen::kGmSlots]{};
     VkDescriptorSet sLumaCurr = VK_NULL_HANDLE, sLumaPrev = VK_NULL_HANDLE;
     std::vector<VkDescriptorSet> sDownA, sDownB, sFlow;
-    VkDescriptorSet sExpand[winfg::FrameGen::kGmSlots]{};
+    VkDescriptorSet sExpand[ddfg::FrameGen::kGmSlots]{};
 
 
 
     VkDescriptorSet sFlowReg0 = VK_NULL_HANDLE, sFlowRegAB = VK_NULL_HANDLE, sFlowRegBA = VK_NULL_HANDLE;
-    VkDescriptorSet sSynth = VK_NULL_HANDLE;
-    VkDescriptorSet sGmReduce[winfg::FrameGen::kGmSlots]{};
-    std::vector<VkDescriptorSet> sGmPrewarp[winfg::FrameGen::kGmSlots];
+    VkDescriptorSet sSynth[ddfg::FrameGen::kSynthSlots]{};
+    VkDescriptorSet sGmReduce[ddfg::FrameGen::kGmSlots]{};
+    std::vector<VkDescriptorSet> sGmPrewarp[ddfg::FrameGen::kGmSlots];
     VkExtent2D builtFor{0,0};
     bool built = false;
     bool flowInited = false;
+    bool flowReady = false;
 };
 ScratchState g_scratch;
 }
 
-static bool makeUbo(const winfg::DeviceDispatch* dd, VkDevice dev,
+static bool makeUbo(const ddfg::DeviceDispatch* dd, VkDevice dev,
                     const VkPhysicalDeviceMemoryProperties& mp,
                     VkDeviceSize size, VkBuffer& buf, VkDeviceMemory& mem, void*& ptr) {
     VkBufferCreateInfo bi{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
@@ -41,21 +44,21 @@ static bool makeUbo(const winfg::DeviceDispatch* dd, VkDevice dev,
     return dd->MapMemory(dev, mem, 0, size, 0, &ptr) == VK_SUCCESS;
 }
 
-static VkDescriptorSet allocSet(const winfg::DeviceDispatch* dd, VkDevice dev,
+static VkDescriptorSet allocSet(const ddfg::DeviceDispatch* dd, VkDevice dev,
                                 VkDescriptorPool pool, VkDescriptorSetLayout layout) {
     VkDescriptorSetAllocateInfo ai{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
     ai.descriptorPool = pool; ai.descriptorSetCount = 1; ai.pSetLayouts = &layout;
     VkDescriptorSet s = VK_NULL_HANDLE; dd->AllocateDescriptorSets(dev, &ai, &s); return s;
 }
 
-static void wImg(const winfg::DeviceDispatch* dd, VkDevice dev, VkDescriptorSet set, uint32_t binding,
+static void wImg(const ddfg::DeviceDispatch* dd, VkDevice dev, VkDescriptorSet set, uint32_t binding,
                  VkDescriptorType type, VkImageView view, VkSampler samp, VkImageLayout layout) {
     VkDescriptorImageInfo ii{}; ii.imageView = view; ii.sampler = samp; ii.imageLayout = layout;
     VkWriteDescriptorSet w{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
     w.dstSet = set; w.dstBinding = binding; w.descriptorCount = 1; w.descriptorType = type; w.pImageInfo = &ii;
     dd->UpdateDescriptorSets(dev, 1, &w, 0, nullptr);
 }
-static void wUbo(const winfg::DeviceDispatch* dd, VkDevice dev, VkDescriptorSet set, uint32_t binding,
+static void wUbo(const ddfg::DeviceDispatch* dd, VkDevice dev, VkDescriptorSet set, uint32_t binding,
                  VkBuffer buf, VkDeviceSize range) {
     VkDescriptorBufferInfo bi{}; bi.buffer = buf; bi.range = range;
     VkWriteDescriptorSet w{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
@@ -63,7 +66,7 @@ static void wUbo(const winfg::DeviceDispatch* dd, VkDevice dev, VkDescriptorSet 
     w.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; w.pBufferInfo = &bi;
     dd->UpdateDescriptorSets(dev, 1, &w, 0, nullptr);
 }
-static void wSsbo(const winfg::DeviceDispatch* dd, VkDevice dev, VkDescriptorSet set, uint32_t binding,
+static void wSsbo(const ddfg::DeviceDispatch* dd, VkDevice dev, VkDescriptorSet set, uint32_t binding,
                   VkBuffer buf, VkDeviceSize range) {
     VkDescriptorBufferInfo bi{}; bi.buffer = buf; bi.range = range;
     VkWriteDescriptorSet w{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
@@ -117,7 +120,7 @@ static void mulAff(const double A[3][3], const double B[3][3], double out[3][3])
     out[2][0]=0.0; out[2][1]=0.0; out[2][2]=1.0;
 }
 
-namespace winfg {
+namespace ddfg {
 
 static bool ensureScratch(FrameGen* fg, const DeviceDispatch* dd, VkDevice dev,
                           const VkPhysicalDeviceMemoryProperties& mp, VkDescriptorPool pool,
@@ -140,7 +143,7 @@ static void destroyScratch(const DeviceDispatch* dd, VkDevice dev, VkDescriptorP
         b = VK_NULL_HANDLE; m = VK_NULL_HANDLE; p = nullptr;
     };
     auto& S = g_scratch;
-    freeUbo(S.synthUbo,   S.synthUboMem,   S.synthUboPtr);
+    for (int s = 0; s < FrameGen::kSynthSlots; ++s) freeUbo(S.synthUbo[s], S.synthUboMem[s], S.synthUboPtr[s]);
     freeUbo(S.expandUbo,  S.expandUboMem,  S.expandUboPtr);
     freeUbo(S.flowRegUbo, S.flowRegUboMem, S.flowRegUboPtr);
     for (size_t i = 0; i < S.flowUbo.size(); ++i) freeUbo(S.flowUbo[i], S.flowUboMem[i], S.flowUboPtr[i]);
@@ -154,7 +157,7 @@ void FrameGen::configure(const Config& c) {
     int want = flowFinestForPreset(cfg_.perfPreset);
     const int maxFinest = kLevels - 2;
     if (want > maxFinest) {
-        WFG_LOGE("perf-preset=%d wants kFlowFinest=%d but only %d pyramid levels exist "
+        DDFG_LOGE("perf-preset=%d wants kFlowFinest=%d but only %d pyramid levels exist "
                  "(need >=2 solved) - clamping to %d", cfg_.perfPreset, want, kLevels, maxFinest);
         want = maxFinest;
     }
@@ -163,7 +166,7 @@ void FrameGen::configure(const Config& c) {
     const int prevFinest = flowFinest_;
     flowFinest_ = want;
     const bool live = (flowFinest_ != prevFinest) && ready_;
-    WFG_LOGI("perf-preset=%d -> kFlowFinest=%d (was %d) live-rebuild=%d ready=%d",
+    DDFG_LOGI("perf-preset=%d -> kFlowFinest=%d (was %d) live-rebuild=%d ready=%d",
              cfg_.perfPreset, flowFinest_, prevFinest, live ? 1 : 0, ready_ ? 1 : 0);
 
     if (!live) return;
@@ -174,12 +177,12 @@ void FrameGen::configure(const Config& c) {
     dd_->DeviceWaitIdle(device_);
     destroyScratch(dd_, device_, descPool_);
     if (!onResize(extent_, VK_FORMAT_UNDEFINED,  true))
-        WFG_LOGE("perf-preset live rebuild: onResize FAILED at %ux%u - FG disabled until next resize",
+        DDFG_LOGE("perf-preset live rebuild: onResize FAILED at %ux%u - FG disabled until next resize",
                  extent_.width, extent_.height);
     for (int i = 0; i < 6; ++i) gmRun_[i] = 0.0;
     for (int s = 0; s < kGmSlots; ++s) { gmSlotValid_[s] = false; for (int i = 0; i < 6; ++i) gmLinAt_[s][i] = 0.0; }
     gmHaveEst_ = false; gmEngaged_ = false; gmStableCount_ = 0; gmLastTransPx_ = 0.0f;
-    WFG_LOGI("perf-preset live rebuild DONE (kFlowFinest=%d, flow predictor reset)", flowFinest_);
+    DDFG_LOGI("perf-preset live rebuild DONE (kFlowFinest=%d, flow predictor reset)", flowFinest_);
 }
 
 bool FrameGen::updateGlobalMotion(uint32_t gmSlot, VkExtent2D fullExtent) {
@@ -249,9 +252,10 @@ bool FrameGen::updateGlobalMotion(uint32_t gmSlot, VkExtent2D fullExtent) {
 }
 
 void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView currView,
-                      VkImageView outView, float alpha, uint32_t gmSlot) {
+                      VkImageView outView, float alpha, uint32_t gmSlot, uint32_t synthSlot, bool reuseFlow) {
     if (!valid()) return;
     if (gmSlot >= (uint32_t)kGmSlots) gmSlot = 0;
+    if (synthSlot >= (uint32_t)kSynthSlots) synthSlot = 0;
     const bool m4 = (cfg_.model == 4);
     const Pipe& flowP   = m4 ? pFlowM4_   : pFlow_;
     const Pipe& expandP = m4 ? pExpandM4_ : pExpand_;
@@ -263,35 +267,42 @@ void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView cur
                       pFlowReg_, flowRegA_, flowRegB_, gmSsbo_, kLevels, cfg_);
     }
 
-    bool gmEngaged = updateGlobalMotion(gmSlot, extent_);
-    if (g_scratch.gmUboPtr[gmSlot]) {
-        GMUBO g{};
-        g.lin[0]=(float)gmRun_[0]; g.lin[1]=(float)gmRun_[1]; g.lin[2]=(float)gmRun_[2]; g.lin[3]=(float)gmRun_[3];
-        g.linT[0]=(float)gmRun_[4]; g.linT[1]=(float)gmRun_[5]; g.linT[2]=gmEngaged?1.0f:0.0f; g.linT[3]=0.0f;
-        if (gmEngaged) {
-            g.app[0]=(float)gmRun_[0]; g.app[1]=(float)gmRun_[1]; g.app[2]=(float)gmRun_[2]; g.app[3]=(float)gmRun_[3];
-            g.appT[0]=(float)gmRun_[4]; g.appT[1]=(float)gmRun_[5];
+    // Every generation of one real frame is recorded into the same command buffer, so the flow
+    // between prev and curr is computed once and each generation gets its own synth UBO and set.
+    if (reuseFlow && !g_scratch.flowReady) return;
+    if (!reuseFlow) {
+        bool gmEngaged = updateGlobalMotion(gmSlot, extent_);
+        if (g_scratch.gmUboPtr[gmSlot]) {
+            GMUBO g{};
+            g.lin[0]=(float)gmRun_[0]; g.lin[1]=(float)gmRun_[1]; g.lin[2]=(float)gmRun_[2]; g.lin[3]=(float)gmRun_[3];
+            g.linT[0]=(float)gmRun_[4]; g.linT[1]=(float)gmRun_[5]; g.linT[2]=gmEngaged?1.0f:0.0f; g.linT[3]=0.0f;
+            if (gmEngaged) {
+                g.app[0]=(float)gmRun_[0]; g.app[1]=(float)gmRun_[1]; g.app[2]=(float)gmRun_[2]; g.app[3]=(float)gmRun_[3];
+                g.appT[0]=(float)gmRun_[4]; g.appT[1]=(float)gmRun_[5];
+            }
+            std::memcpy(g_scratch.gmUboPtr[gmSlot], &g, sizeof(g));
         }
-        std::memcpy(g_scratch.gmUboPtr[gmSlot], &g, sizeof(g));
-    }
-    {
-        static int lastEng = -1;
-        if (gmEngaged != (lastEng == 1) || (gmFrames_ % 300ull) == 0) {
-            WFG_LOGI("C1 global-motion: engaged=%d mode=%d stable=%d transPx=%.1f (model=%d)",
-                     gmEngaged ? 1 : 0, cfg_.gmMode, gmStableCount_, gmLastTransPx_, cfg_.model);
-            lastEng = gmEngaged ? 1 : 0;
+        {
+            static int lastEng = -1;
+            if (gmEngaged != (lastEng == 1) || (gmFrames_ % 300ull) == 0) {
+                DDFG_LOGI("C1 global-motion: engaged=%d mode=%d stable=%d transPx=%.1f (model=%d)",
+                         gmEngaged ? 1 : 0, cfg_.gmMode, gmStableCount_, gmLastTransPx_, cfg_.model);
+                lastEng = gmEngaged ? 1 : 0;
+            }
         }
+
+        wImg(dd_, device_, g_scratch.sLumaCurr, 32, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, currView, linear_, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        wImg(dd_, device_, g_scratch.sLumaPrev, 32, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, prevView, linear_, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     }
 
     SynthUBO su{cfg_.flowScale, alpha, cfg_.beta, cfg_.lambda, cfg_.epsilon, cfg_.photoScale, 0, 0,
                 cfg_.hudX0, cfg_.hudY0, cfg_.hudX1, cfg_.hudY1};
-    if (g_scratch.synthUboPtr) std::memcpy(g_scratch.synthUboPtr, &su, sizeof(su));
+    if (g_scratch.synthUboPtr[synthSlot]) std::memcpy(g_scratch.synthUboPtr[synthSlot], &su, sizeof(su));
 
-    wImg(dd_, device_, g_scratch.sLumaCurr, 32, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, currView, linear_, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-    wImg(dd_, device_, g_scratch.sLumaPrev, 32, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, prevView, linear_, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-    wImg(dd_, device_, g_scratch.sSynth, 32, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, prevView, linear_, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-    wImg(dd_, device_, g_scratch.sSynth, 33, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, currView, linear_, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-    wImg(dd_, device_, g_scratch.sSynth, 48, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, outView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL);
+    const VkDescriptorSet synthSet = g_scratch.sSynth[synthSlot];
+    wImg(dd_, device_, synthSet, 32, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, prevView, linear_, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    wImg(dd_, device_, synthSet, 33, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, currView, linear_, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    wImg(dd_, device_, synthSet, 48, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, outView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL);
 
     auto disp = [&](const Pipe& p, VkDescriptorSet set, VkExtent2D e) {
         dd_->CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, p.pipeline);
@@ -300,106 +311,109 @@ void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView cur
     };
     auto bar = [&](FrameGen::Img& i){ barrier(cmd, i.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL); };
 
-    for (auto& i : pyrA_)    barrier(cmd, i.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-    for (auto& i : pyrB_)    barrier(cmd, i.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-    for (int l = flowFinest_; l < kLevels; ++l) barrier(cmd, pyrAs_[l].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-    barrier(cmd, flowExpA_.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-    barrier(cmd, flowExpB_.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-    barrier(cmd, flowRegA_.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-    barrier(cmd, flowRegB_.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-    {
-        VkClearColorValue zero{};
-        VkImageSubresourceRange rng{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    if (!reuseFlow) {
+        for (auto& i : pyrA_)    barrier(cmd, i.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+        for (auto& i : pyrB_)    barrier(cmd, i.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+        for (int l = flowFinest_; l < kLevels; ++l) barrier(cmd, pyrAs_[l].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+        barrier(cmd, flowExpA_.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+        barrier(cmd, flowExpB_.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+        barrier(cmd, flowRegA_.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+        barrier(cmd, flowRegB_.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+        {
+            VkClearColorValue zero{};
+            VkImageSubresourceRange rng{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+            for (int l = flowFinest_; l < kLevels; ++l) {
+                VkImageMemoryBarrier b{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+                b.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED; b.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+                b.srcAccessMask = 0; b.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+                b.image = flowLvl_[l].image; b.subresourceRange = rng;
+                b.srcQueueFamilyIndex = b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+                dd_->CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &b);
+                dd_->CmdClearColorImage(cmd, flowLvl_[l].image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &zero, 1, &rng);
+                b.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL; b.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+                b.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT; b.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+                dd_->CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &b);
+            }
+        }
+
+        disp(pLuma_, g_scratch.sLumaCurr, levelExtent(extent_, 0));
+        disp(pLuma_, g_scratch.sLumaPrev, levelExtent(extent_, 0));
+        bar(pyrA_[0]); bar(pyrB_[0]);
+        for (int l = 1; l < kLevels; ++l) {
+            disp(pDown_, g_scratch.sDownA[l - 1], levelExtent(extent_, l));
+            disp(pDown_, g_scratch.sDownB[l - 1], levelExtent(extent_, l));
+            bar(pyrA_[l]); bar(pyrB_[l]);
+        }
+        if (gmBuffersReady_ && g_scratch.sGmReduce[gmSlot]) {
+            dd_->CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pGmReduce_.pipeline);
+            dd_->CmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pGmReduce_.layout, 0, 1, &g_scratch.sGmReduce[gmSlot], 0, nullptr);
+            dd_->CmdDispatch(cmd, (uint32_t)(kGmThreads / 64), 1, 1);
+            VkMemoryBarrier mb{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
+            mb.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT; mb.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
+            dd_->CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_HOST_BIT,
+                                    0, 1, &mb, 0, nullptr, 0, nullptr);
+        }
         for (int l = flowFinest_; l < kLevels; ++l) {
-            VkImageMemoryBarrier b{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
-            b.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED; b.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-            b.srcAccessMask = 0; b.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            b.image = flowLvl_[l].image; b.subresourceRange = rng;
-            b.srcQueueFamilyIndex = b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-            dd_->CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &b);
-            dd_->CmdClearColorImage(cmd, flowLvl_[l].image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &zero, 1, &rng);
-            b.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL; b.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-            b.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT; b.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-            dd_->CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &b);
+            disp(pGmPrewarp_, g_scratch.sGmPrewarp[gmSlot][l], levelExtent(extent_, l));
+            bar(pyrAs_[l]);
         }
-    }
+        for (int l = kLevels - 1; l >= flowFinest_; --l) {
+            disp(flowP, g_scratch.sFlow[l], levelExtent(extent_, l));
+            bar(flowLvl_[l]);
+        }
 
-    disp(pLuma_, g_scratch.sLumaCurr, levelExtent(extent_, 0));
-    disp(pLuma_, g_scratch.sLumaPrev, levelExtent(extent_, 0));
-    bar(pyrA_[0]); bar(pyrB_[0]);
-    for (int l = 1; l < kLevels; ++l) {
-        disp(pDown_, g_scratch.sDownA[l - 1], levelExtent(extent_, l));
-        disp(pDown_, g_scratch.sDownB[l - 1], levelExtent(extent_, l));
-        bar(pyrA_[l]); bar(pyrB_[l]);
-    }
-    if (gmBuffersReady_ && g_scratch.sGmReduce[gmSlot]) {
-        dd_->CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pGmReduce_.pipeline);
-        dd_->CmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pGmReduce_.layout, 0, 1, &g_scratch.sGmReduce[gmSlot], 0, nullptr);
-        dd_->CmdDispatch(cmd, (uint32_t)(kGmThreads / 64), 1, 1);
-        VkMemoryBarrier mb{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
-        mb.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT; mb.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
-        dd_->CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_HOST_BIT,
-                                0, 1, &mb, 0, nullptr, 0, nullptr);
-    }
-    for (int l = flowFinest_; l < kLevels; ++l) {
-        disp(pGmPrewarp_, g_scratch.sGmPrewarp[gmSlot][l], levelExtent(extent_, l));
-        bar(pyrAs_[l]);
-    }
-    for (int l = kLevels - 1; l >= flowFinest_; --l) {
-        disp(flowP, g_scratch.sFlow[l], levelExtent(extent_, l));
-        bar(flowLvl_[l]);
-    }
+        const bool frEngaged = (cfg_.frMode != 2) && (cfg_.frIters > 0);
+        if (frEngaged) {
+            const int F = flowFinest_;
+            const VkExtent2D fe = levelExtent(extent_, F);
+            if (g_scratch.flowRegUboPtr) {
+                FlowRegUBO fu{cfg_.frDt, cfg_.frLambda, cfg_.frEdge, cfg_.frEps};
+                std::memcpy(g_scratch.flowRegUboPtr, &fu, sizeof(fu));
+            }
+            FrameGen::Img* last = nullptr;
+            for (int it = 0; it < cfg_.frIters; ++it) {
+                VkDescriptorSet set; FrameGen::Img* outImg;
+                if      (it == 0)      { set = g_scratch.sFlowReg0;  outImg = &flowRegA_; }
+                else if (it % 2 == 1)  { set = g_scratch.sFlowRegAB; outImg = &flowRegB_; }
+                else                   { set = g_scratch.sFlowRegBA; outImg = &flowRegA_; }
+                dd_->CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pFlowReg_.pipeline);
+                dd_->CmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pFlowReg_.layout, 0, 1, &set, 0, nullptr);
+                dd_->CmdDispatch(cmd, (fe.width + 15) / 16, (fe.height + 15) / 16, 1);
+                bar(*outImg);
+                last = outImg;
+            }
+            VkMemoryBarrier mb{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
+            mb.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+            mb.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+            dd_->CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                    0, 1, &mb, 0, nullptr, 0, nullptr);
+            VkImageCopy region{};
+            region.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+            region.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+            region.extent = {fe.width, fe.height, 1};
+            dd_->CmdCopyImage(cmd, last->image, VK_IMAGE_LAYOUT_GENERAL,
+                              flowLvl_[F].image, VK_IMAGE_LAYOUT_GENERAL, 1, &region);
+            VkMemoryBarrier mb2{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
+            mb2.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            mb2.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            dd_->CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                    0, 1, &mb2, 0, nullptr, 0, nullptr);
+        }
+        {
+            static int lastFr = -1;
+            int fe = frEngaged ? 1 : 0;
+            if (fe != lastFr || (gmFrames_ % 300ull) == 0) {
+                DDFG_LOGI("C2 flow-reg: engaged=%d mode=%d iters=%d lambda=%.2f dt=%.2f edge=%.1f eps=%.3f (model=%d)",
+                         fe, cfg_.frMode, cfg_.frIters, cfg_.frLambda, cfg_.frDt, cfg_.frEdge, cfg_.frEps, cfg_.model);
+                lastFr = fe;
+            }
+        }
 
-    const bool frEngaged = (cfg_.frMode != 2) && (cfg_.frIters > 0);
-    if (frEngaged) {
-        const int F = flowFinest_;
-        const VkExtent2D fe = levelExtent(extent_, F);
-        if (g_scratch.flowRegUboPtr) {
-            FlowRegUBO fu{cfg_.frDt, cfg_.frLambda, cfg_.frEdge, cfg_.frEps};
-            std::memcpy(g_scratch.flowRegUboPtr, &fu, sizeof(fu));
-        }
-        FrameGen::Img* last = nullptr;
-        for (int it = 0; it < cfg_.frIters; ++it) {
-            VkDescriptorSet set; FrameGen::Img* outImg;
-            if      (it == 0)      { set = g_scratch.sFlowReg0;  outImg = &flowRegA_; }
-            else if (it % 2 == 1)  { set = g_scratch.sFlowRegAB; outImg = &flowRegB_; }
-            else                   { set = g_scratch.sFlowRegBA; outImg = &flowRegA_; }
-            dd_->CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pFlowReg_.pipeline);
-            dd_->CmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pFlowReg_.layout, 0, 1, &set, 0, nullptr);
-            dd_->CmdDispatch(cmd, (fe.width + 15) / 16, (fe.height + 15) / 16, 1);
-            bar(*outImg);
-            last = outImg;
-        }
-        VkMemoryBarrier mb{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
-        mb.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-        mb.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
-        dd_->CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                0, 1, &mb, 0, nullptr, 0, nullptr);
-        VkImageCopy region{};
-        region.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-        region.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-        region.extent = {fe.width, fe.height, 1};
-        dd_->CmdCopyImage(cmd, last->image, VK_IMAGE_LAYOUT_GENERAL,
-                          flowLvl_[F].image, VK_IMAGE_LAYOUT_GENERAL, 1, &region);
-        VkMemoryBarrier mb2{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
-        mb2.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        mb2.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        dd_->CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                0, 1, &mb2, 0, nullptr, 0, nullptr);
+        disp(expandP, g_scratch.sExpand[gmSlot], levelExtent(extent_, 0));
+        bar(flowExpA_); bar(flowExpB_);
+        g_scratch.flowReady = true;
     }
-    {
-        static int lastFr = -1;
-        int fe = frEngaged ? 1 : 0;
-        if (fe != lastFr || (gmFrames_ % 300ull) == 0) {
-            WFG_LOGI("C2 flow-reg: engaged=%d mode=%d iters=%d lambda=%.2f dt=%.2f edge=%.1f eps=%.3f (model=%d)",
-                     fe, cfg_.frMode, cfg_.frIters, cfg_.frLambda, cfg_.frDt, cfg_.frEdge, cfg_.frEps, cfg_.model);
-            lastFr = fe;
-        }
-    }
-
-    disp(expandP, g_scratch.sExpand[gmSlot], levelExtent(extent_, 0));
-    bar(flowExpA_); bar(flowExpB_);
-    disp(pSynth_, g_scratch.sSynth, levelExtent(extent_, 0));
+    disp(pSynth_, synthSet, levelExtent(extent_, 0));
 }
 
 static bool ensureScratch(FrameGen* fg, const DeviceDispatch* dd, VkDevice dev,
@@ -418,7 +432,8 @@ static bool ensureScratch(FrameGen* fg, const DeviceDispatch* dd, VkDevice dev,
     S = ScratchState{};
     const auto GEN = VK_IMAGE_LAYOUT_GENERAL;
 
-    makeUbo(dd, dev, mp, sizeof(SynthUBO), S.synthUbo, S.synthUboMem, S.synthUboPtr);
+    for (int s = 0; s < FrameGen::kSynthSlots; ++s)
+        makeUbo(dd, dev, mp, sizeof(SynthUBO), S.synthUbo[s], S.synthUboMem[s], S.synthUboPtr[s]);
     makeUbo(dd, dev, mp, sizeof(FlowUBO), S.expandUbo, S.expandUboMem, S.expandUboPtr);
     if (S.expandUboPtr) { FlowUBO u{cfg.flowScale, 0, 0.6f, 1.6f}; std::memcpy(S.expandUboPtr, &u, sizeof(u)); }
     makeUbo(dd, dev, mp, sizeof(FlowRegUBO), S.flowRegUbo, S.flowRegUboMem, S.flowRegUboPtr);
@@ -509,10 +524,12 @@ static bool ensureScratch(FrameGen* fg, const DeviceDispatch* dd, VkDevice dev,
         wImg(dd, dev, S.sFlowRegBA, 48, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,          flowRegA.view,   VK_NULL_HANDLE, GEN);
     }
 
-    S.sSynth = allocSet(dd, dev, pool, pSynth.setLayout);
-    wUbo(dd, dev, S.sSynth, 0, S.synthUbo, sizeof(SynthUBO));
-    wImg(dd, dev, S.sSynth, 34, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, expA.view, samp, GEN);
-    wImg(dd, dev, S.sSynth, 35, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, expB.view, samp, GEN);
+    for (int s = 0; s < FrameGen::kSynthSlots; ++s) {
+        S.sSynth[s] = allocSet(dd, dev, pool, pSynth.setLayout);
+        wUbo(dd, dev, S.sSynth[s], 0, S.synthUbo[s], sizeof(SynthUBO));
+        wImg(dd, dev, S.sSynth[s], 34, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, expA.view, samp, GEN);
+        wImg(dd, dev, S.sSynth[s], 35, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, expB.view, samp, GEN);
+    }
 
     S.builtFor = ext; S.built = true;
     return true;

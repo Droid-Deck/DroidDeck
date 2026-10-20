@@ -30,7 +30,7 @@
     <string name="frame_gen_title">Frame-Generierung</string>
     <string name="frame_gen_hint">Modus der Frame-Generierung auswählen</string>
     <string name="frame_gen_off">Aus</string>
-    <string name="frame_gen_winfg">Win-FG %1$d×</string>
+    <string name="frame_gen_ddfg">DD-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
     <string name="frame_gen_lsfg_adaptive">LSFG Adaptiv %1$d</string>
     <string name="lsfg_needs_steam">Benötigt Lossless Scaling auf Steam</string>
@@ -1972,6 +1972,7 @@
     <string name="stores_sort_release_date">Erscheinungsdatum</string>
     <string name="stores_view_list">Listenansicht</string>
     <string name="stores_view_cards">Kartenansicht</string>
+    <string name="stores_view_capsules">Coveransicht</string>
     <string name="stores_show_mature">Inhalte für Erwachsene anzeigen</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

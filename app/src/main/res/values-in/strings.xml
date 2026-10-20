@@ -30,7 +30,7 @@
     <string name="frame_gen_title">Pembuatan frame</string>
     <string name="frame_gen_hint">Pilih mode pembuatan frame</string>
     <string name="frame_gen_off">Nonaktif</string>
-    <string name="frame_gen_winfg">Win-FG %1$d×</string>
+    <string name="frame_gen_ddfg">DD-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
     <string name="frame_gen_lsfg_adaptive">LSFG Adaptif %1$d</string>
     <string name="lsfg_needs_steam">Memerlukan Lossless Scaling di Steam</string>
@@ -1962,6 +1962,7 @@
     <string name="stores_sort_release_date">Tanggal rilis</string>
     <string name="stores_view_list">Tampilan daftar</string>
     <string name="stores_view_cards">Tampilan kartu</string>
+    <string name="stores_view_capsules">Tampilan sampul</string>
     <string name="stores_show_mature">Tampilkan konten dewasa</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

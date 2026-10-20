@@ -30,7 +30,7 @@
     <string name="frame_gen_title">Генерация кадров</string>
     <string name="frame_gen_hint">Выберите режим генерации кадров</string>
     <string name="frame_gen_off">Выкл.</string>
-    <string name="frame_gen_winfg">Win-FG %1$d×</string>
+    <string name="frame_gen_ddfg">DD-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
     <string name="frame_gen_lsfg_adaptive">LSFG Адаптивный %1$d</string>
     <string name="lsfg_needs_steam">Требуется Lossless Scaling из Steam</string>
@@ -2022,6 +2022,7 @@
     <string name="stores_sort_release_date">Дата выхода</string>
     <string name="stores_view_list">Вид списком</string>
     <string name="stores_view_cards">Вид карточками</string>
+    <string name="stores_view_capsules">Вид обложек</string>
     <string name="stores_show_mature">Показывать контент для взрослых</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

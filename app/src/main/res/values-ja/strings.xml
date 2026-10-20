@@ -30,7 +30,7 @@
     <string name="frame_gen_title">フレーム生成</string>
     <string name="frame_gen_hint">使用するフレーム生成モードを選択してください</string>
     <string name="frame_gen_off">オフ</string>
-    <string name="frame_gen_winfg">Win-FG %1$d×</string>
+    <string name="frame_gen_ddfg">DD-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
     <string name="frame_gen_lsfg_adaptive">LSFG アダプティブ %1$d</string>
     <string name="lsfg_needs_steam">Steam版のLossless Scalingが必要です</string>
@@ -1962,6 +1962,7 @@
     <string name="stores_sort_release_date">リリース日</string>
     <string name="stores_view_list">リスト表示</string>
     <string name="stores_view_cards">カード表示</string>
+    <string name="stores_view_capsules">パッケージ表示</string>
     <string name="stores_show_mature">成人向けコンテンツを表示</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

@@ -30,7 +30,7 @@
     <string name="frame_gen_title">Generování snímků</string>
     <string name="frame_gen_hint">Vyberte režim generování snímků</string>
     <string name="frame_gen_off">Vypnuto</string>
-    <string name="frame_gen_winfg">Win-FG %1$d×</string>
+    <string name="frame_gen_ddfg">DD-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
     <string name="frame_gen_lsfg_adaptive">LSFG Adaptivní %1$d</string>
     <string name="lsfg_needs_steam">Vyžaduje Lossless Scaling na Steamu</string>
@@ -2025,6 +2025,7 @@
     <string name="stores_sort_release_date">Datum vydání</string>
     <string name="stores_view_list">Zobrazení seznamu</string>
     <string name="stores_view_cards">Zobrazení karet</string>
+    <string name="stores_view_capsules">Zobrazení obalů</string>
     <string name="stores_show_mature">Zobrazovat obsah pro dospělé</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

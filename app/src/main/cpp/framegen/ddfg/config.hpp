@@ -6,7 +6,7 @@
 #include <fstream>
 #include <sstream>
 
-namespace winfg {
+namespace ddfg {
 
 struct Config {
     bool     enabled     = false;
@@ -213,48 +213,48 @@ static inline void apply_toml(Config& c, const std::string& path) {
 }
 
 static inline std::string conf_path() {
-    if (const char* p = std::getenv("WIN_FG_CONF")) return p;
+    if (const char* p = std::getenv("DD_FG_CONF")) return p;
     const char* home = std::getenv("HOME");
-    return home ? std::string(home) + "/.config/win-fg/conf.toml" : std::string();
+    return home ? std::string(home) + "/.config/dd-fg/conf.toml" : std::string();
 }
 
 static inline std::string capture_root(const Config& c) {
     if (!c.capDir.empty()) return c.capDir;
-    if (const char* home = std::getenv("HOME")) return std::string(home) + "/.cache/winfg-capture";
-    return std::string("/tmp/winfg-capture");
+    if (const char* home = std::getenv("HOME")) return std::string(home) + "/.cache/ddfg-capture";
+    return std::string("/tmp/ddfg-capture");
 }
 
 static inline Config load_config() {
     Config c;
-    c.enabled    = envi("WIN_FG_ENABLE", 0) != 0;
-    if (const char* d = std::getenv("WIN_FG_DEBUG")) c.debug = parse_bool(d, c.debug);
-    if (const char* pc = std::getenv("WIN_FG_PACING")) c.pacing = parse_bool(pc, c.pacing);
-    c.model      = envi("WIN_FG_MODEL", c.model);
-    c.multiplier = envi("WIN_FG_MULT", c.multiplier);
-    c.extraImages = envi("WIN_FG_EXTRA_IMAGES", c.extraImages);
-    c.perfPreset  = envi("WIN_FG_PERF_PRESET", c.perfPreset);
-    if (const char* g = std::getenv("WIN_FG_GM")) c.gmMode = parse_tristate(g, c.gmMode);
-    if (const char* r = std::getenv("WIN_FG_FLOWREG")) c.frMode = parse_tristate(r, c.frMode);
-    c.frIters    = envi("WIN_FG_FR_ITERS", c.frIters);
-    c.frLambda   = envf("WIN_FG_FR_LAMBDA", c.frLambda);
-    c.frDt       = envf("WIN_FG_FR_DT", c.frDt);
-    c.frEdge     = envf("WIN_FG_FR_EDGE", c.frEdge);
-    c.frEps      = envf("WIN_FG_FR_EPS", c.frEps);
-    c.flowScale  = envf("WIN_FG_FLOWSCALE", c.flowScale);
-    c.beta       = envf("WIN_FG_BETA", c.beta);
-    c.lambda     = envf("WIN_FG_LAMBDA", c.lambda);
-    c.epsilon    = envf("WIN_FG_EPSILON", c.epsilon);
-    c.photoScale = envf("WIN_FG_PHOTOSCALE", c.photoScale);
-    if (const char* cc = std::getenv("WIN_FG_CAPTURE")) c.capture = parse_bool(cc, c.capture);
-    c.captureW     = envi("WIN_FG_CAPTURE_W", c.captureW);
-    c.captureH     = envi("WIN_FG_CAPTURE_H", c.captureH);
-    if (const char* cm = std::getenv("WIN_FG_CAPTURE_MODE")) c.capMode = parse_capmode(cm, c.capMode);
-    c.capPatches   = envi("WIN_FG_CAPTURE_PATCHES", c.capPatches);
-    c.capPatchSize = envi("WIN_FG_CAPTURE_PATCH", c.capPatchSize);
-    c.capMotion    = envf("WIN_FG_CAPTURE_MOTION", c.capMotion);
-    c.capShardMB   = envi("WIN_FG_CAPTURE_SHARD_MB", c.capShardMB);
-    if (const char* cd = std::getenv("WIN_FG_CAPTURE_DIR")) c.capDir = cd;
-    if (const char* h = std::getenv("WIN_FG_HUD_RECT")) {
+    c.enabled    = envi("DD_FG_ENABLE", 0) != 0;
+    if (const char* d = std::getenv("DD_FG_DEBUG")) c.debug = parse_bool(d, c.debug);
+    if (const char* pc = std::getenv("DD_FG_PACING")) c.pacing = parse_bool(pc, c.pacing);
+    c.model      = envi("DD_FG_MODEL", c.model);
+    c.multiplier = envi("DD_FG_MULT", c.multiplier);
+    c.extraImages = envi("DD_FG_EXTRA_IMAGES", c.extraImages);
+    c.perfPreset  = envi("DD_FG_PERF_PRESET", c.perfPreset);
+    if (const char* g = std::getenv("DD_FG_GM")) c.gmMode = parse_tristate(g, c.gmMode);
+    if (const char* r = std::getenv("DD_FG_FLOWREG")) c.frMode = parse_tristate(r, c.frMode);
+    c.frIters    = envi("DD_FG_FR_ITERS", c.frIters);
+    c.frLambda   = envf("DD_FG_FR_LAMBDA", c.frLambda);
+    c.frDt       = envf("DD_FG_FR_DT", c.frDt);
+    c.frEdge     = envf("DD_FG_FR_EDGE", c.frEdge);
+    c.frEps      = envf("DD_FG_FR_EPS", c.frEps);
+    c.flowScale  = envf("DD_FG_FLOWSCALE", c.flowScale);
+    c.beta       = envf("DD_FG_BETA", c.beta);
+    c.lambda     = envf("DD_FG_LAMBDA", c.lambda);
+    c.epsilon    = envf("DD_FG_EPSILON", c.epsilon);
+    c.photoScale = envf("DD_FG_PHOTOSCALE", c.photoScale);
+    if (const char* cc = std::getenv("DD_FG_CAPTURE")) c.capture = parse_bool(cc, c.capture);
+    c.captureW     = envi("DD_FG_CAPTURE_W", c.captureW);
+    c.captureH     = envi("DD_FG_CAPTURE_H", c.captureH);
+    if (const char* cm = std::getenv("DD_FG_CAPTURE_MODE")) c.capMode = parse_capmode(cm, c.capMode);
+    c.capPatches   = envi("DD_FG_CAPTURE_PATCHES", c.capPatches);
+    c.capPatchSize = envi("DD_FG_CAPTURE_PATCH", c.capPatchSize);
+    c.capMotion    = envf("DD_FG_CAPTURE_MOTION", c.capMotion);
+    c.capShardMB   = envi("DD_FG_CAPTURE_SHARD_MB", c.capShardMB);
+    if (const char* cd = std::getenv("DD_FG_CAPTURE_DIR")) c.capDir = cd;
+    if (const char* h = std::getenv("DD_FG_HUD_RECT")) {
         float r[4] = {0,0,0,0}; int n = 0;
         std::string s = h; size_t start = 0;
         for (; n < 4; ++n) {
@@ -266,8 +266,8 @@ static inline Config load_config() {
         c.hudX0 = r[0]; c.hudY0 = r[1]; c.hudX1 = r[2]; c.hudY1 = r[3];
     }
     const char* home = std::getenv("HOME");
-    if (home) apply_toml(c, std::string(home) + "/.config/win-fg/conf.toml");
-    if (const char* p = std::getenv("WIN_FG_CONF")) apply_toml(c, p);
+    if (home) apply_toml(c, std::string(home) + "/.config/dd-fg/conf.toml");
+    if (const char* p = std::getenv("DD_FG_CONF")) apply_toml(c, p);
     c.sanitize();
     return c;
 }

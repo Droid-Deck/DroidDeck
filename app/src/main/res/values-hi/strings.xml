@@ -30,7 +30,7 @@
     <string name="frame_gen_title">फ़्रेम जनरेशन</string>
     <string name="frame_gen_hint">फ़्रेम जनरेशन मोड चुनें</string>
     <string name="frame_gen_off">बंद</string>
-    <string name="frame_gen_winfg">Win-FG %1$d×</string>
+    <string name="frame_gen_ddfg">DD-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
     <string name="frame_gen_lsfg_adaptive">LSFG एडैप्टिव %1$d</string>
     <string name="lsfg_needs_steam">Steam पर Lossless Scaling की ज़रूरत है</string>
@@ -1983,6 +1983,7 @@
     <string name="stores_sort_release_date">रिलीज़ तिथि</string>
     <string name="stores_view_list">सूची दृश्य</string>
     <string name="stores_view_cards">कार्ड दृश्य</string>
+    <string name="stores_view_capsules">कवर व्यू</string>
     <string name="stores_show_mature">वयस्क कंटेंट दिखाएं</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

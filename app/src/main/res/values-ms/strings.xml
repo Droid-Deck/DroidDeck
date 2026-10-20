@@ -30,7 +30,7 @@
     <string name="frame_gen_title">Penjanaan bingkai</string>
     <string name="frame_gen_hint">Pilih mod penjanaan bingkai</string>
     <string name="frame_gen_off">Mati</string>
-    <string name="frame_gen_winfg">Win-FG %1$d×</string>
+    <string name="frame_gen_ddfg">DD-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
     <string name="frame_gen_lsfg_adaptive">LSFG Adaptif %1$d</string>
     <string name="lsfg_needs_steam">Memerlukan Lossless Scaling pada Steam</string>
@@ -1962,6 +1962,7 @@
     <string name="stores_sort_release_date">Tarikh keluaran</string>
     <string name="stores_view_list">Paparan senarai</string>
     <string name="stores_view_cards">Paparan kad</string>
+    <string name="stores_view_capsules">Paparan kulit</string>
     <string name="stores_show_mature">Papar kandungan matang</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

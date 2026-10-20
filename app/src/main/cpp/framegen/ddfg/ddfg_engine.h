@@ -6,7 +6,7 @@
 
 struct VkTable;
 
-namespace winfg {
+namespace ddfg {
 
 constexpr uint32_t kMaxGenerations = 3;
 
