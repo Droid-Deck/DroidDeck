@@ -1852,6 +1852,7 @@
     <string name="gpuinfo_not_adreno">Not an Adreno GPU</string>
     <string name="gpuinfo_supported">Supported</string>
     <string name="gpuinfo_experimental">Experimental: its drivers are test builds</string>
+    <string name="gpuinfo_xclipse_experimental">Experimental: Xclipse is recognized, but game support is not available yet</string>
     <string name="gpuinfo_below_tested">Below tested hardware (Adreno 725 and newer): it may not run</string>
     <string name="gpuinfo_unsupported">Not supported: DroidDeck needs an Adreno (Snapdragon) GPU</string>
 

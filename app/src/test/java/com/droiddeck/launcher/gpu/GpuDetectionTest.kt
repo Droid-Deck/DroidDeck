@@ -3,11 +3,13 @@ package com.droiddeck.launcher.gpu
 import com.droiddeck.launcher.gpu.GpuInfo.Family
 import com.droiddeck.launcher.gpu.GpuInfo.Support
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GpuDetectionTest {
-    private fun info(adreno: Boolean, model: Int) =
-        GpuInfo(name = "x", model = model, family = GpuInfo.familyOf(adreno, model), soc = "", oneUi8Gen2 = false)
+    private fun info(adreno: Boolean, model: Int, xclipse: Boolean = false) =
+        GpuInfo(name = "x", model = model, family = GpuInfo.familyOf(adreno, model, xclipse), soc = "", oneUi8Gen2 = false)
 
     @Test fun modelIsTheFirstThreeDigitsOfWhateverTheKernelOrVulkanReports() {
         assertEquals(650, GpuInfo.threeDigits("Adreno650"))
@@ -26,9 +28,18 @@ class GpuDetectionTest {
         assertEquals(Family.NOT_ADRENO, GpuInfo.familyOf(false, 0))
         assertEquals(Family.NOT_ADRENO, GpuInfo.familyOf(false, GpuInfo.threeDigits("Samsung Xclipse 920")))
         assertEquals(Family.NOT_ADRENO, GpuInfo.familyOf(false, GpuInfo.threeDigits("Xclipse 940")))
+        assertEquals(Family.XCLIPSE, GpuInfo.familyOf(false, 0, xclipse = true))
+        assertEquals(Family.ADRENO_UNKNOWN, GpuInfo.familyOf(true, 0, xclipse = true))
         assertEquals(Family.NOT_ADRENO, GpuInfo.familyOf(false, GpuInfo.threeDigits("Mali-G720-Immortalis MC12")))
         assertEquals(Family.NOT_ADRENO, GpuInfo.familyOf(false, GpuInfo.threeDigits("Mali-G715")))
         assertEquals(Family.NOT_ADRENO, GpuInfo.familyOf(false, 830))
+    }
+
+    @Test fun xclipseDetectionUsesGpuIdentityNotTheSamsungDisplayController() {
+        assertTrue(GpuInfo.isXclipse(null, listOf("DRIVER=sgpu\nOF_NAME=sgpu")))
+        assertTrue(GpuInfo.isXclipse("Samsung Xclipse 950", emptyList()))
+        assertFalse(GpuInfo.isXclipse("Mali-G715", listOf("DRIVER=exynos-drm")))
+        assertFalse(GpuInfo.isXclipse(null, emptyList()))
     }
 
     @Test fun familyBoundaries() {
@@ -53,6 +64,7 @@ class GpuDetectionTest {
         assertEquals(Support.TESTED, info(true, 740).support)
         assertEquals(Support.TESTED, info(true, 750).support)
         assertEquals(Support.TESTED, info(true, 830).support)
+        assertEquals(Support.UNTESTED, info(false, 0, xclipse = true).support)
         assertEquals(Support.UNSUPPORTED, info(false, 0).support)
         assertEquals(Support.UNSUPPORTED, info(false, 830).support)
     }
@@ -62,6 +74,10 @@ class GpuDetectionTest {
         assertEquals("Experimental: its drivers are test builds", info(true, 720).supportText)
         assertEquals("Outside tested hardware (Adreno 650, 725 and newer): it may not run", info(true, 618).supportText)
         assertEquals("Not supported: DroidDeck needs an Adreno (Snapdragon) GPU", info(false, 0).supportText)
+        assertEquals(
+            "Experimental: Xclipse is recognized, but game support is not available yet",
+            info(false, 0, xclipse = true).supportText,
+        )
         assertEquals("Not an Adreno GPU", Family.NOT_ADRENO.label)
         assertEquals("Adreno 8xx", Family.A8XX.label)
     }

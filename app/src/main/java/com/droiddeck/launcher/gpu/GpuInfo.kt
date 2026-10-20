@@ -21,6 +21,7 @@ data class GpuInfo(
         A7XX("Adreno 7xx"),
         A6XX("Adreno 6xx"),
         ADRENO_UNKNOWN("Adreno"),
+        XCLIPSE("Xclipse"),
         NOT_ADRENO("Not an Adreno GPU");
 
         fun label(context: Context): String = if (this == NOT_ADRENO) context.getString(R.string.gpuinfo_not_adreno) else label
@@ -30,6 +31,7 @@ data class GpuInfo(
 
     val support: Support
         get() = when {
+            family == Family.XCLIPSE -> Support.UNTESTED
             family == Family.NOT_ADRENO -> Support.UNSUPPORTED
             family == Family.A6XX && model == 650 -> Support.TESTED
             family == Family.A8XX -> Support.TESTED
@@ -40,14 +42,21 @@ data class GpuInfo(
     val supportText: String
         get() = when (support) {
             Support.TESTED -> "Supported"
-            Support.UNTESTED -> if (family == Family.A7XX_LOW) "Experimental: its drivers are test builds"
-                else "Outside tested hardware (Adreno 650, 725 and newer): it may not run"
+            Support.UNTESTED -> when (family) {
+                Family.XCLIPSE -> "Experimental: Xclipse is recognized, but game support is not available yet"
+                Family.A7XX_LOW -> "Experimental: its drivers are test builds"
+                else -> "Outside tested hardware (Adreno 650, 725 and newer): it may not run"
+            }
             Support.UNSUPPORTED -> "Not supported: DroidDeck needs an Adreno (Snapdragon) GPU"
         }
 
     fun supportText(context: Context): String = context.getString(when (support) {
         Support.TESTED -> R.string.gpuinfo_supported
-        Support.UNTESTED -> if (family == Family.A7XX_LOW) R.string.gpuinfo_experimental else R.string.gpuinfo_below_tested
+        Support.UNTESTED -> when (family) {
+            Family.XCLIPSE -> R.string.gpuinfo_xclipse_experimental
+            Family.A7XX_LOW -> R.string.gpuinfo_experimental
+            else -> R.string.gpuinfo_below_tested
+        }
         Support.UNSUPPORTED -> R.string.gpuinfo_unsupported
     })
 
@@ -71,15 +80,36 @@ data class GpuInfo(
                 fromPlatform > 0 -> "platform"
                 else -> ""
             }
-            val family = familyOf(adreno, model)
+            val vulkanDevice = VulkanInfo.cachedOrNull()?.get("device")
+            val xclipse = !adreno && isXclipse(vulkanDevice, xclipseRenderNodeUevents())
+            val family = familyOf(adreno, model, xclipse)
             val samsung = Build.MANUFACTURER.equals("samsung", ignoreCase = true)
             return GpuInfo(
-                name = if (!adreno) Build.HARDWARE.ifBlank { UNNAMED } else if (model > 0) "Adreno $model" else "Adreno",
+                name = when {
+                    xclipse -> vulkanDevice?.takeIf { it.contains("xclipse", ignoreCase = true) } ?: "Xclipse"
+                    !adreno -> Build.HARDWARE.ifBlank { UNNAMED }
+                    model > 0 -> "Adreno $model"
+                    else -> "Adreno"
+                },
                 model = model, family = family, soc = soc,
                 oneUi8Gen2 = samsung && model == 740,
                 kgslName = raw.orEmpty(), modelSource = source,
             )
         }
+
+        internal fun isXclipse(vulkanDevice: String?, renderNodeUevents: Iterable<String>): Boolean =
+            vulkanDevice?.contains("xclipse", ignoreCase = true) == true ||
+                renderNodeUevents.any { uevent ->
+                    uevent.lineSequence().any { it.startsWith("DRIVER=") && it.substringAfter('=').equals("sgpu", ignoreCase = true) }
+                }
+
+        private fun xclipseRenderNodeUevents(): List<String> =
+            File("/sys/class/drm").listFiles()
+                ?.asSequence()
+                ?.filter { it.name.startsWith("renderD") && it.name.removePrefix("renderD").all(Char::isDigit) }
+                ?.mapNotNull { FileUtils.readString(File(it, "device/uevent")) }
+                ?.toList()
+                .orEmpty()
 
         internal fun threeDigits(text: String): Int = Regex("""(\d{3})""").find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
 
@@ -97,7 +127,8 @@ data class GpuInfo(
             ""
         }
 
-        internal fun familyOf(adreno: Boolean, model: Int): Family = when {
+        internal fun familyOf(adreno: Boolean, model: Int, xclipse: Boolean = false): Family = when {
+            !adreno && xclipse -> Family.XCLIPSE
             !adreno -> Family.NOT_ADRENO
             model == 0 -> Family.ADRENO_UNKNOWN
             model >= 800 -> Family.A8XX

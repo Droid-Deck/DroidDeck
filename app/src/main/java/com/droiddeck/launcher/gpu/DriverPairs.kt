@@ -66,7 +66,7 @@ object DriverPairs {
         rules: List<AutoPicks.Rule> = AutoPicks.BUILT_IN, bad: Set<String> = emptySet(),
         sdk: Int = android.os.Build.VERSION.SDK_INT, blob: Int? = null,
     ): String? {
-        if (gpu.family == Family.NOT_ADRENO) return null
+        if (gpu.family == Family.NOT_ADRENO || gpu.family == Family.XCLIPSE) return null
         val keys = AutoPicks.preferences(gpu, rules, sdk, blob)
             .ifEmpty { AutoPicks.preferences(gpu, AutoPicks.BUILT_IN, sdk, blob) }
             .mapNotNull { if (it == AutoPicks.NEWEST_DD_TURNIP) newestDdTurnip(pairs) else it }

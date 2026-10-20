@@ -55,6 +55,21 @@ class DriverPairsTest {
     }
 
     @Test
+    fun xclipseDoesNotReceiveAnAdrenoDriverRecommendation() {
+        val tag = "DD-Turnip-v1.0.0"
+        val bundle = TurnipReleases.Asset(
+            "DroidDeck", tag, "$tag.zip", "https://example/$tag", 6_000_000,
+            false, "Android + Linux", "0".repeat(64), DriverPairs.ddTurnip(tag), bundle = true,
+        )
+        val pairs = DriverPairs.from(TurnipReleases.Check(listOf(bundle), emptyList(), emptyList(), 0L))
+        val xclipse = GpuInfo("Xclipse", 0, Family.XCLIPSE, "", false)
+        val rule = AutoPicks.Rule(setOf(Family.XCLIPSE), prefer = listOf(DriverPairs.ddTurnip(tag)))
+
+        assertTrue(pairs.single().complete)
+        assertNull(DriverPairs.recommendedKey(xclipse, pairs, rules = listOf(rule)))
+    }
+
+    @Test
     fun pairsMatchHalvesAndNeverMixBannersReleases() {
         val check = TurnipReleases.Check(
             listOf(
