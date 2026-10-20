@@ -55,6 +55,13 @@ Added for Flatpak:
   `linkat` fails with `EACCES` and Flatpak could not create its repo (`Creating repo: linkat:
   Permission denied`). `O_TMPFILE` answers `EOPNOTSUPP`, so libglnx writes a named temporary file
   and renames it, and a denied link answers `EPERM`, on which ostree's checkout copies instead.
+- `0017-android-execstack-denial.patch` - the same policy denies apps executable stacks, so the
+  `mprotect(PROT_READ | PROT_WRITE | PROT_EXEC | PROT_GROWSDOWN)` with which `ld.so` makes the main
+  stack executable for an object whose `PT_GNU_STACK` asks for it fails with `EACCES`, and the
+  program stops before `main` ("cannot enable executable stack as shared object requires:
+  Permission denied", `libQt5Gui.so.5` in ONLYOFFICE's Flatpak). The filter traces `mprotect` only
+  for that exact request, and a denied one answers success: the stack stays non-executable, as
+  Android keeps it anyway, and objects that only carry the flag load.
 Added by DroidDeck:
 
 - `0011-kompat-utsname-only.patch` - `--kernel-release` (the guest's `DroidDeck` hostname) loads

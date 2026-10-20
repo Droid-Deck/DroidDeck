@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.droiddeck.launcher.core.AddonPack
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.SessionEvents
 import com.droiddeck.launcher.session.SessionPrefs
@@ -24,7 +25,8 @@ import java.util.concurrent.TimeUnit
 
 object GogComet {
     private const val TAG = "GogComet"
-    private const val BIN = "/usr/local/lib/droiddeck-comet/comet"
+    private const val DIR = "/usr/local/lib/droiddeck-comet"
+    private const val BIN = "$DIR/comet"
     private val lock = Any()
     @Volatile private var process: Process? = null
     private var pid = -1
@@ -41,7 +43,27 @@ object GogComet {
 
     fun setEnabled(context: Context, on: Boolean) {
         GogPrefs.get(context).edit().putBoolean("achievements", on).apply()
+        if (on) AddonPack.COMET.ensure(context)
+    }
 
+    private fun stage(context: Context): Boolean {
+        if (!AddonPack.COMET.installed(context)) {
+            AddonPack.COMET.ensure(context)
+            return false
+        }
+        val pack = AddonPack.COMET.dir(context)
+        val root = File(LinuxRuntime.rootDir(context), DIR.removePrefix("/"))
+        val packaged = File(pack, "version").readText()
+        if (runCatching { File(root, "version").readText() }.getOrNull() == packaged) return true
+        root.mkdirs()
+        pack.listFiles().orEmpty().filter { it.isFile && it.name != "version" && it.name != AddonPack.COMPLETE }.forEach { source ->
+            val staged = File(root, source.name + ".staged")
+            source.inputStream().use { input -> staged.outputStream().use { input.copyTo(it) } }
+            staged.setExecutable(true, false)
+            check(staged.renameTo(File(root, source.name)))
+        }
+        File(root, "version").writeText(packaged)
+        return true
     }
 
     fun begin() = synchronized(lock) {
@@ -113,7 +135,8 @@ object GogComet {
             return JSONObject().put("ok", true).put("ready", true).put("reason", "ready")
         }
         stopLocked()
-        if (!File(LinuxRuntime.rootDir(context), BIN.removePrefix("/")).isFile) return reply(false, "not-installed")
+        if (!runCatching { stage(context) }.onFailure { Log.w(TAG, "staging failed", it) }.getOrDefault(false) ||
+            !File(LinuxRuntime.rootDir(context), BIN.removePrefix("/")).isFile) return reply(false, "not-installed")
         val data = File(context.filesDir, "gog-achievements").apply { mkdirs() }
         val ready = CountDownLatch(1)
         val command = LinuxRuntime.command(context, null, null, Environment.getExternalStorageDirectory(),
