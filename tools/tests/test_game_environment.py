@@ -213,6 +213,16 @@ class GameEnvironmentTest(unittest.TestCase):
         self.assertEqual(MODULE["engine_fixes"]("/game/FSD-Win64-Shipping.exe", []), ({}, [], []))
         self.assertEqual(MODULE["engine_fixes"]("/game/Other-WinGDK-Shipping.exe", []), ({}, [], []))
 
+    def test_arc_raiders_avoids_raytracing_pipeline_crash(self):
+        for game in ("/game/Arc Raiders/PioneerGame.exe", "/game/Arc Raiders/PioneerGame-Win64-Shipping.exe"):
+            env, extra, notes = MODULE["engine_fixes"](game, [])
+            self.assertEqual(extra, ["-noraytracing", "-ini:Engine:[/Script/Engine.RendererSettings]:r.RayTracing=False"])
+            self.assertEqual(env, {})
+            self.assertTrue(notes)
+            for choice in ("-raytracing", "-noraytracing"):
+                self.assertEqual(MODULE["engine_fixes"](game, [choice]), ({}, [], []))
+        self.assertEqual(MODULE["engine_fixes"]("/game/OtherGame.exe", []), ({}, [], []))
+
     def test_arkham_city_gets_full_x87_precision_over_the_preset(self):
         with tempfile.TemporaryDirectory() as tmp:
             city = Path(tmp) / "Batman Arkham City GOTY/Binaries/Win32"
@@ -723,6 +733,30 @@ class ProtonDefaultTest(unittest.TestCase):
             self.TOOL, {}, {"42": None})
         self.assertEqual(changes, {})
         self.assertEqual(auto, {})
+
+    def test_native_targets_excludes_eac_games_from_arm64_proton(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            steam = Path(tmp) / "Steam"
+            common = steam / "steamapps/common/Arc Raiders"
+            common.mkdir(parents=True)
+            (steam / "steamapps/appmanifest_1808500.acf").write_text('"AppState"\n{\n\t"appid"\t"1808500"\n\t"installdir"\t"Arc Raiders"\n}\n')
+            (common / "start_protected_game.exe").touch()
+
+            globals_ = COMPAT["native_targets"].__globals__
+            original_platforms = globals_["appinfo_platforms"]
+            globals_["appinfo_platforms"] = lambda _path, wanted: {
+                "1808500": ({"windows"}, "x86_64", "game")
+            } if "1808500" in wanted else {}
+            try:
+                targets = COMPAT["native_targets"](str(steam), ["1808500"])
+                self.assertIn("1808500", targets)
+                self.assertIsNone(targets["1808500"])
+                changes, auto = COMPAT["plan_mapping"](
+                    {"0": "droiddeck-proton-arm64"}, ["1808500"], {"droiddeck-proton-arm64"}, "droiddeck-proton-arm64", {}, targets)
+                self.assertNotIn("1808500", changes)
+                self.assertNotIn("1808500", auto)
+            finally:
+                globals_["appinfo_platforms"] = original_platforms
 
     def test_native_arm64_keeps_explicit_runtime_fex_and_proton_profiles(self):
         fex = COMPAT["FEX_TOOL"]

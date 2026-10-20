@@ -619,7 +619,39 @@ def shorten_compat_path(path):
     except FileExistsError:
         if not (os.path.islink(short) and os.readlink(short) == real):
             raise
-    server_dir = os.path.join(real, "fex-emu", "Server")
+    fex_target = os.path.join(COMPAT_SHORT_BASE, f"f{app_id}")
+    real_fex = os.path.join(real, "fex-emu")
+    try:
+        if os.path.islink(real_fex):
+            if os.readlink(real_fex) != fex_target:
+                with contextlib.suppress(FileNotFoundError):
+                    os.unlink(real_fex)
+                os.symlink(fex_target, real_fex)
+        elif not os.path.lexists(real_fex):
+            os.symlink(fex_target, real_fex)
+        elif os.path.isdir(real_fex):
+            if not os.path.lexists(fex_target):
+                os.rename(real_fex, fex_target)
+            else:
+                for root, dirs, files in os.walk(real_fex):
+                    rel = os.path.relpath(root, real_fex)
+                    target_root = os.path.join(fex_target, rel)
+                    os.makedirs(target_root, exist_ok=True)
+                    for file in files:
+                        src = os.path.join(root, file)
+                        dst = os.path.join(target_root, file)
+                        if not os.path.exists(dst):
+                            with contextlib.suppress(OSError):
+                                shutil.move(src, dst)
+                with contextlib.suppress(OSError):
+                    shutil.rmtree(real_fex)
+            os.symlink(fex_target, real_fex)
+        elif not (os.path.islink(real_fex) and os.readlink(real_fex) == fex_target):
+            raise OSError(f"fex-emu path exists and cannot be safely replaced: {real_fex}")
+    except FileExistsError:
+        if not (os.path.islink(real_fex) and os.readlink(real_fex) == fex_target):
+            raise
+    server_dir = os.path.join(fex_target, "Server")
     os.makedirs(server_dir, exist_ok=True)
     if os.path.isdir(server_dir):
         for entry in os.listdir(server_dir):

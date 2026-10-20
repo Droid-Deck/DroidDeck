@@ -131,6 +131,12 @@ def deep_rock_gdk_raytracing(game):
 
 
 @fix
+def arc_raiders_raytracing(game):
+    if game.stem in ("pioneergame", "pioneergame-win64-shipping") and not any(game.has_arg(arg) for arg in ("-raytracing", "-noraytracing")):
+        return {}, ["-noraytracing", "-ini:Engine:[/Script/Engine.RendererSettings]:r.RayTracing=False"], "Arc Raiders: ray tracing off (D3D12 pipeline creation / black screen on Turnip)"
+
+
+@fix
 def arkham_city_x87(game):
     """Batman: Arkham City (BatmanAC.exe, also started through BmLauncher.exe beside it) leans on x87
     and stops with Unreal's "Fatal error!" right after start when FEX reduces its precision."""

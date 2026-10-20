@@ -595,10 +595,14 @@ class LaunchTest(FexTestCase):
                 short = FEX["shorten_compat_path"](str(compat))
                 self.assertTrue(os.path.islink(short))
                 self.assertEqual(os.path.realpath(short), str(compat.resolve()))
+                self.assertTrue(os.path.islink(compat / "fex-emu"))
+                self.assertEqual(os.path.realpath(compat / "fex-emu"), str((short_base / "f1808500").resolve()))
                 self.assertFalse(dead_socket.exists())
                 self.assertTrue(os.path.exists(live_socket_path))
-                computed_sock = "/data/data/com.droiddeck.launcher/files/rootfs" + os.path.join(FEX["COMPAT_SHORT_BASE"], "1808500", "fex-emu", "Server", "10114.FEXServer.Socket")
-                self.assertLessEqual(len(computed_sock), 108)
+                canonical_sock = os.path.realpath(os.path.join(short, "fex-emu", "Server", "10114.FEXServer.Socket"))
+                self.assertTrue(canonical_sock.startswith(str((short_base / "f1808500" / "Server").resolve())))
+                host_sock = "/data/user/0/com.droiddeck.launcher/files/linuxfs" + canonical_sock[len(str(self.tmp.resolve())):]
+                self.assertLessEqual(len(host_sock), 108)
 
                 unrelated = self.tmp / "compatdata_other"
                 unrelated.mkdir(parents=True)

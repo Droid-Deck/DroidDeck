@@ -921,6 +921,40 @@ def valve_picks(steam_root):
     return sorted(picks, key=int)
 
 
+EAC_MARKERS = frozenset((
+    "easyanticheat_x64.so", "easyanticheat_x86.so",
+    "easyanticheat_eos_setup.exe", "start_protected_game.exe",
+    "easyanticheat_eos.dll", "easyanticheat_x64.dll", "anticheatinstaller.exe",
+))
+
+
+def is_eac_installed(steam_root, app):
+    for library in libraries(steam_root):
+        steamapps = os.path.join(library, "steamapps")
+        manifest = os.path.join(steamapps, "appmanifest_%s.acf" % app)
+        try:
+            with open(manifest, encoding="utf-8", errors="replace") as f:
+                m = INSTALLDIR.search(f.read())
+        except OSError:
+            continue
+        if not (m and m.group(1)):
+            continue
+        game_dir = os.path.join(steamapps, "common", m.group(1))
+        if os.path.isdir(os.path.join(game_dir, "EasyAntiCheat")):
+            return True
+        try:
+            with os.scandir(game_dir) as entries:
+                for entry in entries:
+                    name = entry.name.lower()
+                    if name in EAC_MARKERS:
+                        return True
+                    if entry.is_dir(follow_symlinks=False) and name in ("easyanticheat", "anticheat"):
+                        return True
+        except OSError:
+            pass
+    return False
+
+
 def native_targets(steam_root, apps):
     wanted = {str(app) for app in apps if str(app) not in NOT_GAMES}
     if not wanted:
@@ -936,6 +970,9 @@ def native_targets(steam_root, apps):
             targets[app] = NATIVE_CHOICE
             continue
         targets[app] = FEX_TOOL
+    for app in wanted:
+        if app not in targets and is_eac_installed(steam_root, app):
+            targets[app] = None
     return targets
 
 
