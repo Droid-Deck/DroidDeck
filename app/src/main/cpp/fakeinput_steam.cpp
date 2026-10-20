@@ -21,6 +21,9 @@
 
 #include <dirent.h>
 #include <dlfcn.h>
+#ifdef __GLIBC__
+#include <gnu/lib-names.h>
+#endif
 #include <fcntl.h>
 #include <linux/input.h>
 #include <linux/joystick.h>
@@ -4103,4 +4106,92 @@ EXPORT int __fxstat64(int version, int fd, struct stat64 *buf) {
   if (!real) return fstat64(fd, buf);
   return fake_stat_fd(fd, buf, [version](int f, struct stat64 *b) { return real(version, f, b); });
 }
+
+#if defined(__x86_64__) || defined(__i386__)
+using dlsym_fn = void *(*)(void *, const char *);
+
+static const char *const interposed_names[] = {
+    "open", "open64", "openat", "openat64", "close", "read", "write", "writev", "ioctl", "poll",
+    "ppoll", "select", "stat", "stat64", "fstat", "fstat64", "__xstat", "__xstat64", "__fxstat",
+    "__fxstat64", "statx", "statfs", "statfs64", "fstatfs", "fstatfs64", "access", "faccessat",
+    "opendir", "scandir", "inotify_add_watch",
+};
+
+static dlsym_fn next_dlsym() {
+  static const dlsym_fn fn = [] {
+#ifdef __x86_64__
+    const char *base = "GLIBC_2.2.5";
+#else
+    const char *base = "GLIBC_2.0";
+#endif
+    for (const char *version : {base, "GLIBC_2.34"}) {
+      if (auto found = reinterpret_cast<dlsym_fn>(dlvsym(RTLD_NEXT, "dlsym", version))) return found;
+    }
+    return dlsym_fn{};
+  }();
+  return fn;
+}
+
+static void *global_dlsym(void *, const char *name) { return next_dlsym()(RTLD_DEFAULT, name); }
+
+static void *missing_dlsym(void *, const char *) { return nullptr; }
+
+static bool interposed(const char *name) {
+  for (const char *interposed_name : interposed_names) {
+    if (strcmp(interposed_name, name) == 0) return true;
+  }
+  return false;
+}
+
+extern "C" __attribute__((visibility("hidden"), used)) void *fakeinput_dlsym_target(void *handle, const char *name) {
+  dlsym_fn next = next_dlsym();
+  if (!next) return reinterpret_cast<void *>(missing_dlsym);
+  if (handle == RTLD_DEFAULT || handle == RTLD_NEXT || name == nullptr) return reinterpret_cast<void *>(next);
+  static void *const libc = dlopen(LIBC_SO, RTLD_LAZY | RTLD_NOLOAD);
+  if (handle != libc || !interposed(name)) return reinterpret_cast<void *>(next);
+  return reinterpret_cast<void *>(global_dlsym);
+}
+
+#ifdef __x86_64__
+__asm__(".text\n"
+        ".globl dlsym\n"
+        ".type dlsym, @function\n"
+        "dlsym:\n"
+        ".cfi_startproc\n"
+        "pushq %rdi\n"
+        ".cfi_adjust_cfa_offset 8\n"
+        "pushq %rsi\n"
+        ".cfi_adjust_cfa_offset 8\n"
+        "subq $8, %rsp\n"
+        ".cfi_adjust_cfa_offset 8\n"
+        "call fakeinput_dlsym_target\n"
+        "addq $8, %rsp\n"
+        ".cfi_adjust_cfa_offset -8\n"
+        "popq %rsi\n"
+        ".cfi_adjust_cfa_offset -8\n"
+        "popq %rdi\n"
+        ".cfi_adjust_cfa_offset -8\n"
+        "jmp *%rax\n"
+        ".cfi_endproc\n"
+        ".size dlsym, .-dlsym\n");
+#else
+__asm__(".text\n"
+        ".globl dlsym\n"
+        ".type dlsym, @function\n"
+        "dlsym:\n"
+        ".cfi_startproc\n"
+        "subl $12, %esp\n"
+        ".cfi_adjust_cfa_offset 12\n"
+        "movl 20(%esp), %eax\n"
+        "movl %eax, 4(%esp)\n"
+        "movl 16(%esp), %eax\n"
+        "movl %eax, (%esp)\n"
+        "call fakeinput_dlsym_target\n"
+        "addl $12, %esp\n"
+        ".cfi_adjust_cfa_offset -12\n"
+        "jmp *%eax\n"
+        ".cfi_endproc\n"
+        ".size dlsym, .-dlsym\n");
+#endif
+#endif
 #endif
