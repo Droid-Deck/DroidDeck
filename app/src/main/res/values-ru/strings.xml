@@ -274,6 +274,7 @@
     <string name="mode_controller_dualsense">DualSense</string>
     <string name="mode_controller_x360">Контроллер Xbox 360</string>
     <string name="mode_controller_note">Deck: кнопка быстрого доступа и гироскоп. Steam Controller: то же самое, с датчиком хвата на задних кнопках. DualShock 4 и DualSense: гироскоп, а трекпады работают как их тачпад. Xbox 360: используйте Guide+A для быстрого доступа.</string>
+    <string name="mode_builtin_pad">Встроенный контроллер</string>
     <string name="mode_back">Назад</string>
     <string name="back_menu_then_qam">Меню → QAM</string>
     <string name="back_qam_then_menu">QAM → Меню</string>
@@ -571,7 +572,6 @@
     <string name="drawer_page_controls">Управление</string>
     <string name="drawer_page_components">Компоненты</string>
     <string name="drawer_page_controller">Контроллер</string>
-    <string name="drawer_builtin_pad">Встроенный контроллер</string>
     <string name="drawer_page_settings">Настройки</string>
     <string name="drawer_page_desc">Страница %1$s</string>
     <string name="drawer_steam">Steam</string>

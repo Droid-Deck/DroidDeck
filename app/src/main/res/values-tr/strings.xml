@@ -274,6 +274,7 @@
     <string name="mode_controller_dualsense">DualSense</string>
     <string name="mode_controller_x360">Xbox 360 kumandası</string>
     <string name="mode_controller_note">Deck: Hızlı Erişim düğmesi ve jiroskop. Steam Controller: aynısı, ayrıca arka düğmelerde kavrama algılama. DualShock 4 ve DualSense: jiroskop; dokunmatik yüzeyler kumandanın dokunmatik paneli olur. Xbox 360: Hızlı Erişim\'i Guide+A ile açın.</string>
+    <string name="mode_builtin_pad">Yerleşik denetleyici</string>
     <string name="mode_back">Geri</string>
     <string name="back_menu_then_qam">Menü → QAM</string>
     <string name="back_qam_then_menu">QAM → Menü</string>
@@ -567,7 +568,6 @@
     <string name="drawer_page_controls">Kontroller</string>
     <string name="drawer_page_components">Bileşenler</string>
     <string name="drawer_page_controller">Kumanda</string>
-    <string name="drawer_builtin_pad">Yerleşik denetleyici</string>
     <string name="drawer_page_settings">Ayarlar</string>
     <string name="drawer_page_desc">%1$s sayfası</string>
     <string name="drawer_steam">Steam</string>

@@ -274,6 +274,7 @@
     <string name="mode_controller_dualsense">DualSense</string>
     <string name="mode_controller_x360">Kontroler Xbox 360</string>
     <string name="mode_controller_note">Deck: przycisk szybkiego dostępu i żyroskop. Steam Controller: to samo oraz wykrywanie chwytu na tylnych przyciskach. DualShock 4 i DualSense: żyroskop, a gładziki działają jako ich touchpad. Xbox 360: szybki dostęp otwiera Guide+A.</string>
+    <string name="mode_builtin_pad">Wbudowany kontroler</string>
     <string name="mode_back">Wstecz</string>
     <string name="back_menu_then_qam">Menu → QAM</string>
     <string name="back_qam_then_menu">QAM → Menu</string>
@@ -574,7 +575,6 @@
     <string name="drawer_page_controls">Sterowanie</string>
     <string name="drawer_page_components">Komponenty</string>
     <string name="drawer_page_controller">Kontroler</string>
-    <string name="drawer_builtin_pad">Wbudowany kontroler</string>
     <string name="drawer_page_settings">Ustawienia</string>
     <string name="drawer_page_desc">Strona: %1$s</string>
     <string name="drawer_steam">Steam</string>

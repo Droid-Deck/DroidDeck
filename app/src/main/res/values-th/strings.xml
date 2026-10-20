@@ -274,6 +274,7 @@
     <string name="mode_controller_dualsense">DualSense</string>
     <string name="mode_controller_x360">คอนโทรลเลอร์ Xbox 360</string>
     <string name="mode_controller_note">Deck: ปุ่ม Quick Access และไจโร Steam Controller: เหมือนกัน พร้อมเซนเซอร์แรงจับที่ปุ่มด้านหลัง DualShock 4 และ DualSense: ไจโร และแทร็กแพดทำหน้าที่เป็นทัชแพด Xbox 360: เปิด Quick Access ด้วย Guide+A</string>
+    <string name="mode_builtin_pad">คอนโทรลเลอร์ในตัว</string>
     <string name="mode_back">กลับ</string>
     <string name="back_menu_then_qam">เมนู → QAM</string>
     <string name="back_qam_then_menu">QAM → เมนู</string>
@@ -568,7 +569,6 @@
     <string name="drawer_page_controls">การควบคุม</string>
     <string name="drawer_page_components">Components</string>
     <string name="drawer_page_controller">คอนโทรลเลอร์</string>
-    <string name="drawer_builtin_pad">คอนโทรลเลอร์ในตัว</string>
     <string name="drawer_page_settings">การตั้งค่า</string>
     <string name="drawer_page_desc">หน้า %1$s</string>
     <string name="drawer_steam">Steam</string>

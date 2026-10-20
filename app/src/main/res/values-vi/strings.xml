@@ -274,6 +274,7 @@
     <string name="mode_controller_dualsense">DualSense</string>
     <string name="mode_controller_x360">Tay cầm Xbox 360</string>
     <string name="mode_controller_note">Deck: nút Quick Access và con quay hồi chuyển. Steam Controller: tương tự, cộng với cảm biến nắm ở các nút phía sau. DualShock 4 và DualSense: con quay hồi chuyển, và touchpad dùng làm bàn di chuột. Xbox 360: mở Quick Access bằng Guide+A.</string>
+    <string name="mode_builtin_pad">Tay cầm tích hợp</string>
     <string name="mode_back">Quay lại</string>
     <string name="back_menu_then_qam">Menu → QAM</string>
     <string name="back_qam_then_menu">QAM → Menu</string>
@@ -568,7 +569,6 @@
     <string name="drawer_page_controls">Điều khiển</string>
     <string name="drawer_page_components">Thành phần</string>
     <string name="drawer_page_controller">Tay cầm</string>
-    <string name="drawer_builtin_pad">Tay cầm tích hợp</string>
     <string name="drawer_page_settings">Thiết lập</string>
     <string name="drawer_page_desc">Trang %1$s</string>
     <string name="drawer_steam">Steam</string>

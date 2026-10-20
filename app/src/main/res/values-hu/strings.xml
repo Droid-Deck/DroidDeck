@@ -274,6 +274,7 @@
     <string name="mode_controller_dualsense">DualSense</string>
     <string name="mode_controller_x360">Xbox 360 kontroller</string>
     <string name="mode_controller_note">Deck: Gyors hozzáférés gomb és gyroszkóp. Steam Controller: ugyanez, a hátsó gombok fogásérzékelésével. DualShock 4 és DualSense: gyroszkóp, és az érintőpadok mint touchpad. Xbox 360: a Gyors hozzáférés megnyitása Guide+A-val.</string>
+    <string name="mode_builtin_pad">Beépített vezérlő</string>
     <string name="mode_back">Vissza gomb</string>
     <string name="back_menu_then_qam">Menü → QAM</string>
     <string name="back_qam_then_menu">QAM → Menü</string>
@@ -570,7 +571,6 @@
     <string name="drawer_page_controls">Vezérlők</string>
     <string name="drawer_page_components">Összetevők</string>
     <string name="drawer_page_controller">Kontroller</string>
-    <string name="drawer_builtin_pad">Beépített vezérlő</string>
     <string name="drawer_page_settings">Beállítások</string>
     <string name="drawer_page_desc">%1$s oldal</string>
     <string name="drawer_steam">Steam</string>

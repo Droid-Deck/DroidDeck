@@ -278,6 +278,7 @@
     <string name="mode_controller_dualsense">DualSense</string>
     <string name="mode_controller_x360">Xbox 360 controller</string>
     <string name="mode_controller_note">Deck: Quick Access button and gyro. Steam Controller: the same, with grip sense on the back buttons. DualShock 4 and DualSense: gyro, and the trackpads as their touchpad. Xbox 360: open Quick Access with Guide+A.</string>
+    <string name="mode_builtin_pad">Built-in controller</string>
     <string name="mode_back">Back</string>
     <string name="back_menu_then_qam">Menu → QAM</string>
     <string name="back_qam_then_menu">QAM → Menu</string>
@@ -574,7 +575,6 @@
     <string name="drawer_page_controls">Controls</string>
     <string name="drawer_page_components">Components</string>
     <string name="drawer_page_controller">Controller</string>
-    <string name="drawer_builtin_pad">Built-in controller</string>
     <string name="drawer_page_settings">Settings</string>
     <string name="drawer_page_desc">%1$s page</string>
     <string name="drawer_steam">Steam</string>

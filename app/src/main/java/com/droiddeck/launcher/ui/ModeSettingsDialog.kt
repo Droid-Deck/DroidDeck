@@ -84,6 +84,7 @@ class ModeSettings(
     val steamRepairQueued: Boolean = false,
     val mangoapp: Boolean = true,
     val steamController: String? = null,
+    val builtinPad: Boolean? = null,
     val unfoldedControls: Boolean? = null,
     val runSteamAtStartup: Boolean = false,
     val bootMovie: String? = null,
@@ -134,6 +135,7 @@ class ModeSettingsActions(
     val onSteamClientArch: (String) -> Unit = {},
     val onMangoapp: (Boolean) -> Unit = {},
     val onSteamController: (String) -> Unit = {},
+    val onBuiltinPad: (Boolean) -> Unit = {},
     val onUnfoldedControls: (Boolean) -> Unit = {},
     val onRunSteamAtStartup: (Boolean) -> Unit = {},
     val onBootMovie: (String) -> Unit = {},
@@ -276,6 +278,10 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 ), s.steamController,
                 note = stringResource(R.string.mode_controller_note),
                 onPick = a.onSteamController,
+            )
+            if (steam && s.builtinPad != null) ToggleRow(
+                host, "builtin-pad", stringResource(R.string.mode_builtin_pad), null,
+                s.builtinPad, onChange = a.onBuiltinPad,
             )
             if (steam && s.unfoldedControls != null) ToggleRow(
                 host, "unfolded-controls", stringResource(R.string.unfolded_controls),

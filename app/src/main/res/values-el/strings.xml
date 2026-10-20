@@ -274,6 +274,7 @@
     <string name="mode_controller_dualsense">DualSense</string>
     <string name="mode_controller_x360">Χειριστήριο Xbox 360</string>
     <string name="mode_controller_note">Deck: κουμπί Quick Access και γυροσκόπιο. Steam Controller: το ίδιο, με αίσθηση λαβής στα πίσω κουμπιά. DualShock 4 και DualSense: γυροσκόπιο, και τα trackpad ως πινακίδα αφής τους. Xbox 360: ανοίξτε το Quick Access με Guide+A.</string>
+    <string name="mode_builtin_pad">Ενσωματωμένο χειριστήριο</string>
     <string name="mode_back">Πίσω</string>
     <string name="back_menu_then_qam">Μενού → QAM</string>
     <string name="back_qam_then_menu">QAM → Μενού</string>
@@ -570,7 +571,6 @@
     <string name="drawer_page_controls">Χειριστήρια</string>
     <string name="drawer_page_components">Στοιχεία</string>
     <string name="drawer_page_controller">Χειριστήριο</string>
-    <string name="drawer_builtin_pad">Ενσωματωμένο χειριστήριο</string>
     <string name="drawer_page_settings">Ρυθμίσεις</string>
     <string name="drawer_page_desc">Σελίδα %1$s</string>
     <string name="drawer_steam">Steam</string>

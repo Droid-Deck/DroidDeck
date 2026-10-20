@@ -274,6 +274,7 @@
     <string name="mode_controller_dualsense">DualSense</string>
     <string name="mode_controller_x360">Xbox 360-controller</string>
     <string name="mode_controller_note">Deck: Hurtig adgang-knap og gyro. Steam Controller: det samme, med gribefølsomme bagknapper. DualShock 4 og DualSense: gyro, og touchpaddene som deres touchpad. Xbox 360: åbn Hurtig adgang med Guide+A.</string>
+    <string name="mode_builtin_pad">Indbygget controller</string>
     <string name="mode_back">Tilbage</string>
     <string name="back_menu_then_qam">Menu → QAM</string>
     <string name="back_qam_then_menu">QAM → Menu</string>
@@ -570,7 +571,6 @@
     <string name="drawer_page_controls">Kontroller</string>
     <string name="drawer_page_components">Komponenter</string>
     <string name="drawer_page_controller">Controller</string>
-    <string name="drawer_builtin_pad">Indbygget controller</string>
     <string name="drawer_page_settings">Indstillinger</string>
     <string name="drawer_page_desc">Siden %1$s</string>
     <string name="drawer_steam">Steam</string>

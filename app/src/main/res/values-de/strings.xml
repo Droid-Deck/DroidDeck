@@ -274,6 +274,7 @@
     <string name="mode_controller_dualsense">DualSense</string>
     <string name="mode_controller_x360">Xbox-360-Controller</string>
     <string name="mode_controller_note">Deck: Schnellzugriffstaste und Gyro. Steam Controller: dasselbe, mit Griffsensor an den Rücktasten. DualShock 4 und DualSense: Gyro, die Trackpads dienen als deren Touchpad. Xbox 360: Schnellzugriff mit Guide+A öffnen.</string>
+    <string name="mode_builtin_pad">Integrierter Controller</string>
     <string name="mode_back">Zurück</string>
     <string name="back_menu_then_qam">Menü → QAM</string>
     <string name="back_qam_then_menu">QAM → Menü</string>
@@ -567,7 +568,6 @@
     <string name="drawer_page_controls">Steuerung</string>
     <string name="drawer_page_components">Komponenten</string>
     <string name="drawer_page_controller">Controller</string>
-    <string name="drawer_builtin_pad">Integrierter Controller</string>
     <string name="drawer_page_settings">Einstellungen</string>
     <string name="drawer_page_desc">Seite %1$s</string>
     <string name="drawer_steam">Steam</string>

@@ -274,6 +274,7 @@
     <string name="mode_controller_dualsense">DualSense</string>
     <string name="mode_controller_x360">Xbox 360コントローラー</string>
     <string name="mode_controller_note">Deck：クイックアクセスボタンとジャイロを提供します。Xbox 360：Guide+Aでクイックアクセスを開きます。</string>
+    <string name="mode_builtin_pad">内蔵コントローラー</string>
     <string name="mode_back">戻る</string>
     <string name="back_menu_then_qam">メニュー → QAM</string>
     <string name="back_qam_then_menu">QAM → メニュー</string>
@@ -568,7 +569,6 @@
     <string name="drawer_page_controls">コントロール</string>
     <string name="drawer_page_components">コンポーネント</string>
     <string name="drawer_page_controller">コントローラー</string>
-    <string name="drawer_builtin_pad">内蔵コントローラー</string>
     <string name="drawer_page_settings">設定</string>
     <string name="drawer_page_desc">%1$sページ</string>
     <string name="drawer_steam">Steam</string>

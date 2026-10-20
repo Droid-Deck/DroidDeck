@@ -274,6 +274,7 @@
     <string name="mode_controller_dualsense">DualSense</string>
     <string name="mode_controller_x360">Control de Xbox 360</string>
     <string name="mode_controller_note">Deck: botón de Quick Access y giroscopio. Steam Controller: lo mismo, con detección de agarre en los botones traseros. DualShock 4 y DualSense: giroscopio, y los trackpads como su panel táctil. Xbox 360: abre Quick Access con Guide+A.</string>
+    <string name="mode_builtin_pad">Controlador integrado</string>
     <string name="mode_back">Atrás</string>
     <string name="back_menu_then_qam">Menú → QAM</string>
     <string name="back_qam_then_menu">QAM → Menú</string>
@@ -565,7 +566,6 @@
     <string name="drawer_page_controls">Controles</string>
     <string name="drawer_page_components">Componentes</string>
     <string name="drawer_page_controller">Control</string>
-    <string name="drawer_builtin_pad">Controlador integrado</string>
     <string name="drawer_page_settings">Ajustes</string>
     <string name="drawer_page_desc">Página %1$s</string>
     <string name="drawer_steam">Steam</string>
