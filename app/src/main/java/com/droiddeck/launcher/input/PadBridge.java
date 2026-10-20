@@ -319,7 +319,6 @@ public final class PadBridge {
         boolean wired = wiredXboxLayout(event);
         pad.rightX = rightX(event, wired);
         pad.rightY = rightY(event, wired);
-        // Pads that send the D-pad or digital triggers as keys have no such axes; reading 0 here would release them.
         int source = event.getSource();
         float lt = 0f;
         float rt = 0f;
