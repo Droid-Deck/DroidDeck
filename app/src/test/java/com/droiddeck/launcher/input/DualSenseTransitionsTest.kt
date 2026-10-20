@@ -469,6 +469,76 @@ class DualSenseTransitionsTest {
         assertFalse(DeckControls.externalImuActive)
     }
 
+    @Test
+    fun testWirelessSensorImuConversionAndRawHidSuppression() {
+        val manager = DualSenseManager(context)
+        val wirelessDs = inputDevice(pid = DualSense.PRODUCT_DUALSENSE, id = 31)
+        manager.onInputDeviceAdded(wirelessDs.id)
+
+        // Feed wireless gyroscope (rad/s) and accelerometer (m/s^2)
+        manager.onInputDeviceSensorEvent(Sensor.TYPE_GYROSCOPE, floatArrayOf(1.0f, 2.0f, 3.0f))
+        manager.onInputDeviceSensorEvent(Sensor.TYPE_ACCELEROMETER, floatArrayOf(0.0f, 9.80665f, -4.903325f))
+
+        assertTrue(DeckControls.externalImuActive)
+        assertNotNull(RecordingWriter.lastGyro)
+        assertNotNull(RecordingWriter.lastAccel)
+
+        // Mapping: [x, -z, y]
+        assertEquals(Math.round(1.0f * DualSenseManager.GYRO_COUNTS_PER_RAD_S).toShort(), RecordingWriter.lastGyro!![0])
+        assertEquals(Math.round(-3.0f * DualSenseManager.GYRO_COUNTS_PER_RAD_S).toShort(), RecordingWriter.lastGyro!![1])
+        assertEquals(Math.round(2.0f * DualSenseManager.GYRO_COUNTS_PER_RAD_S).toShort(), RecordingWriter.lastGyro!![2])
+
+        assertEquals(0.toShort(), RecordingWriter.lastAccel!![0])
+        assertEquals(Math.round(4.903325f * DualSenseManager.ACCEL_COUNTS_PER_M_S2).toShort(), RecordingWriter.lastAccel!![1])
+        assertEquals(Math.round(9.80665f * DualSenseManager.ACCEL_COUNTS_PER_M_S2).toShort(), RecordingWriter.lastAccel!![2])
+
+        // Now deliver a raw HID report (which sets lastRawReportMs) and verify wireless IMU yields to raw HID
+        val rawReport = createNeutralReport()
+        manager.onInputReport(rawReport)
+        RecordingWriter.reset()
+
+        val handledWhileRawActive = manager.onInputDeviceSensorEvent(Sensor.TYPE_GYROSCOPE, floatArrayOf(5.0f, 5.0f, 5.0f))
+        assertFalse("Wireless IMU must yield when raw HID is actively delivering", handledWhileRawActive)
+        assertNull(RecordingWriter.lastGyro)
+
+        manager.stop()
+    }
+
+    @Test
+    fun testWirelessExtraKeyEventsAndBluetoothOutputDispatch() {
+        val manager = DualSenseManager(context)
+        val edgeDev = inputDevice(pid = DualSense.PRODUCT_DUALSENSE_EDGE, id = 33)
+        manager.onInputDeviceAdded(edgeDev.id)
+
+        // Test wireless Mute + Edge L4 + R5 + Touchpad Click via KeyEvent
+        val muteDown = android.view.KeyEvent(0L, 0L, android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_MUTE, 0, 0, edgeDev.id, 248)
+        val l4Down = android.view.KeyEvent(0L, 0L, android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_BUTTON_1, 0, 0, edgeDev.id, 308)
+        val tpClickDown = android.view.KeyEvent(0L, 0L, android.view.KeyEvent.ACTION_DOWN, DualSenseManager.KEYCODE_BUTTON_TOUCHPAD, 0, 0, edgeDev.id, 317)
+
+        assertTrue(manager.onKeyEvent(muteDown))
+        assertTrue(manager.onKeyEvent(l4Down))
+        assertTrue(manager.onKeyEvent(tpClickDown))
+
+        assertTrue((RecordingWriter.lastControls and DeckControls.MUTE) != 0)
+        assertTrue((RecordingWriter.lastControls and DeckControls.L4) != 0)
+        assertTrue((RecordingWriter.lastControls and 192) == 192)
+
+        // Test wireless Bluetooth 78-byte 0x31 output report dispatch via bluetoothReportSender
+        var capturedBtReport: ByteArray? = null
+        manager.bluetoothReportSender = { bt78 ->
+            capturedBtReport = bt78.clone()
+            true
+        }
+
+        val usbOut = DualSense.buildOutputReport(leftMotor = 120, rightMotor = 60, r = 0, g = 200, b = 100)
+        assertTrue(manager.sendOutputReport(usbOut))
+        assertNotNull(capturedBtReport)
+        assertEquals(DualSense.REPORT_SIZE_BT_OUTPUT, capturedBtReport!!.size)
+        assertEquals(DualSense.REPORT_ID_BT_OUTPUT, capturedBtReport!![0])
+
+        manager.stop()
+    }
+
     // =========================================================================
     // 6. SHADOW FAKEINPUTWRITER
     // =========================================================================

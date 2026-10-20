@@ -1,6 +1,13 @@
 package com.droiddeck.launcher.input
 
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothProfile
 import android.content.Context
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.hardware.input.InputManager
 import android.hardware.usb.UsbConstants
 import android.hardware.usb.UsbDevice
@@ -8,9 +15,13 @@ import android.hardware.usb.UsbDeviceConnection
 import android.hardware.usb.UsbEndpoint
 import android.hardware.usb.UsbInterface
 import android.hardware.usb.UsbManager
+import android.os.Build
+import android.os.Handler
+import android.os.HandlerThread
 import android.os.SystemClock
 import android.util.Log
 import android.view.InputDevice
+import android.view.KeyEvent
 import android.view.MotionEvent
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionState
@@ -22,6 +33,7 @@ import java.io.RandomAccessFile
 import java.net.Socket
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.math.roundToInt
 
 class DualSenseManager(private val context: Context) {
     @Volatile var isDualSenseActive: Boolean = false
@@ -53,6 +65,43 @@ class DualSenseManager(private val context: Context) {
     @Volatile var usbEndpointIn: UsbEndpoint? = null
     @Volatile var usbEndpointOut: UsbEndpoint? = null
     private var usbReaderThread: Thread? = null
+
+    // Phase 2: Wireless (Bluetooth / InputDevice) state
+    @Volatile var isEdgeConnected: Boolean = false
+    @Volatile var btConnectTimestampMs: Long = 0L
+    private var btOutputSeq: Int = 0
+    @Volatile var bluetoothReportSender: ((ByteArray) -> Boolean)? = null
+    @Volatile private var bluetoothHidHostProxy: BluetoothProfile? = null
+
+    private var sensorThread: HandlerThread? = null
+    private var sensorHandler: Handler? = null
+    private val registeredSensorManagers = ConcurrentHashMap<Int, SensorManager>()
+    private val wirelessAccel = ShortArray(3)
+    private val wirelessGyro = ShortArray(3)
+
+    // OS InputDevice state for wireless touchpad & extra buttons (Mute, L4/R4/L5/R5)
+    @Volatile private var osTouch0X: Short = 0
+    @Volatile private var osTouch0Y: Short = 0
+    @Volatile private var osTouch0Down: Boolean = false
+    @Volatile private var osTouch1X: Short = 0
+    @Volatile private var osTouch1Y: Short = 0
+    @Volatile private var osTouch1Down: Boolean = false
+    @Volatile private var osTouchpadClickDown: Boolean = false
+    @Volatile private var osMuteDown: Boolean = false
+    @Volatile private var osL4Down: Boolean = false
+    @Volatile private var osR4Down: Boolean = false
+    @Volatile private var osL5Down: Boolean = false
+    @Volatile private var osR5Down: Boolean = false
+
+    private val deviceSensorListener = object : SensorEventListener {
+        override fun onSensorChanged(event: SensorEvent?) {
+            val ev = event ?: return
+            val sensor = ev.sensor ?: return
+            onInputDeviceSensorEvent(sensor.type, ev.values)
+        }
+
+        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
+    }
 
     private val inputDeviceListener = object : InputManager.InputDeviceListener {
         override fun onInputDeviceAdded(deviceId: Int) {
@@ -87,6 +136,7 @@ class DualSenseManager(private val context: Context) {
             Log.w(TAG, "Could not register input device listener: $e")
         }
 
+        initBluetoothHidHost()
         checkConnectedDevices()
         startTcpBridgeClient()
     }
@@ -106,6 +156,9 @@ class DualSenseManager(private val context: Context) {
         } catch (e: Exception) {
             // ignore
         }
+
+        unregisterAllDeviceSensors()
+        closeBluetoothHidHost()
 
         tcpThread?.interrupt()
         tcpThread = null
@@ -152,6 +205,7 @@ class DualSenseManager(private val context: Context) {
     fun onUsbDeviceAttached(device: UsbDevice) {
         if (!DualSense.isDualSense(device)) return
         hasDetached = false
+        if (DualSense.isEdge(device)) isEdgeConnected = true
         val key = "usb:${device.deviceName}"
         activeSources.add(key)
         openUsbDevice(device)
@@ -241,6 +295,30 @@ class DualSenseManager(private val context: Context) {
         usbEndpointOut = null
     }
 
+    /**
+     * Builds the next 78-byte 0x31 Bluetooth output report from a 48-byte 0x02 USB output report,
+     * applying the 4-bit sequence counter (0..15), DualSense Edge flags, 0xA2 CRC-32, and
+     * the 3.0-second Bluetooth startup Lightbar lockup guard.
+     */
+    fun buildNextBluetoothOutputReport(
+        usbReport: ByteArray,
+        nowMs: Long = SystemClock.uptimeMillis()
+    ): ByteArray {
+        val btInit = btConnectTimestampMs > 0L &&
+                (nowMs - btConnectTimestampMs) in 0 until DualSense.BT_LIGHTBAR_GUARD_MS
+        val seq = synchronized(this) {
+            val s = btOutputSeq
+            btOutputSeq = (btOutputSeq + 1) and 0x0F
+            s
+        }
+        return DualSense.buildBluetoothOutputReport(
+            usbReport = usbReport,
+            seq = seq,
+            isEdge = isEdgeConnected,
+            btInitializing = btInit
+        )
+    }
+
     fun sendOutputReport(data: ByteArray): Boolean {
         if (data.size < DualSense.REPORT_SIZE_OUTPUT || data[0] != DualSense.REPORT_ID_OUTPUT) {
             return false
@@ -259,23 +337,102 @@ class DualSenseManager(private val context: Context) {
                 false
             }
         }
-        val conn = usbConnection ?: return false
-        val epOut = usbEndpointOut
-        val intf = usbInterface
+        val conn = usbConnection
+        if (conn != null) {
+            val epOut = usbEndpointOut
+            val intf = usbInterface
+            val sent = try {
+                if (epOut != null) {
+                    conn.bulkTransfer(epOut, data, DualSense.REPORT_SIZE_OUTPUT, 1000) >= 0
+                } else if (intf != null) {
+                    // HID SET_REPORT: Request Type 0x21, Request 0x09, Value 0x0202 (Report Type Output | Report ID 2)
+                    conn.controlTransfer(0x21, 0x09, 0x0202, intf.id, data, DualSense.REPORT_SIZE_OUTPUT, 1000) >= 0
+                } else false
+            } catch (e: Exception) {
+                false
+            }
+            if (sent) return true
+        }
+
+        // Phase 2: Wireless Bluetooth 0x31 Output Report dispatch (Adaptive Triggers, LEDs, Rumble)
+        val btSender = bluetoothReportSender
+        if (btSender != null) {
+            val btReport = buildNextBluetoothOutputReport(data)
+            if (btSender(btReport)) return true
+        }
+
+        if (bluetoothHidHostProxy != null) {
+            val btReport = buildNextBluetoothOutputReport(data)
+            if (sendViaBluetoothHidHost(btReport)) return true
+        }
+
+        return false
+    }
+
+    private fun initBluetoothHidHost() {
+        try {
+            val adapter = BluetoothAdapter.getDefaultAdapter() ?: return
+            adapter.getProfileProxy(context, object : BluetoothProfile.ServiceListener {
+                override fun onServiceConnected(profile: Int, proxy: BluetoothProfile?) {
+                    if (profile == HID_HOST_PROFILE) {
+                        bluetoothHidHostProxy = proxy
+                    }
+                }
+
+                override fun onServiceDisconnected(profile: Int) {
+                    if (profile == HID_HOST_PROFILE) {
+                        bluetoothHidHostProxy = null
+                    }
+                }
+            }, HID_HOST_PROFILE)
+        } catch (e: Exception) {
+            // Bluetooth not supported or permission not granted
+        }
+    }
+
+    private fun closeBluetoothHidHost() {
+        val proxy = bluetoothHidHostProxy ?: return
+        bluetoothHidHostProxy = null
+        try {
+            BluetoothAdapter.getDefaultAdapter()?.closeProfileProxy(HID_HOST_PROFILE, proxy)
+        } catch (e: Exception) {
+            // ignore
+        }
+    }
+
+    @Suppress("MissingPermission")
+    private fun sendViaBluetoothHidHost(btReport: ByteArray): Boolean {
+        val proxy = bluetoothHidHostProxy ?: return false
         return try {
-            if (epOut != null) {
-                conn.bulkTransfer(epOut, data, DualSense.REPORT_SIZE_OUTPUT, 1000) >= 0
-            } else if (intf != null) {
-                // HID SET_REPORT: Request Type 0x21, Request 0x09, Value 0x0202 (Report Type Output | Report ID 2)
-                conn.controlTransfer(0x21, 0x09, 0x0202, intf.id, data, DualSense.REPORT_SIZE_OUTPUT, 1000) >= 0
-            } else false
+            val devices = proxy.connectedDevices ?: return false
+            val target: BluetoothDevice = devices.firstOrNull { dev ->
+                val name = try { dev.name ?: "" } catch (_: Exception) { "" }
+                name.contains("DualSense", ignoreCase = true) ||
+                        name.contains("Wireless Controller", ignoreCase = true)
+            } ?: return false
+
+            val setReport = proxy.javaClass.getMethod(
+                "setReport",
+                BluetoothDevice::class.java,
+                Byte::class.javaPrimitiveType,
+                String::class.java
+            )
+            val hex = StringBuilder(btReport.size * 2)
+            for (b in btReport) {
+                val v = b.toInt() and 0xFF
+                hex.append(HEX_CHARS[v ushr 4])
+                hex.append(HEX_CHARS[v and 0x0F])
+            }
+            // REPORT_TYPE_OUTPUT = 2
+            val ok = setReport.invoke(proxy, target, 2.toByte(), hex.toString()) as? Boolean
+            ok == true
         } catch (e: Exception) {
             false
         }
     }
 
     fun isRawHidDelivering(): Boolean =
-        isDualSenseActive && (SystemClock.uptimeMillis() - lastRawHidTimestamp < 1000L)
+        isDualSenseActive && isRawHidActive && (SystemClock.uptimeMillis() - lastRawHidTimestamp < 1000L)
 
     fun shouldSuppressInputDevice(device: InputDevice?): Boolean {
         if (device == null) return false
@@ -286,18 +443,120 @@ class DualSenseManager(private val context: Context) {
         val dev = getInputDevice(deviceId)
         if (dev != null && DualSense.isDualSense(dev)) {
             hasDetached = false
+            if (DualSense.isEdge(dev)) isEdgeConnected = true
+            if (btConnectTimestampMs == 0L) {
+                btConnectTimestampMs = SystemClock.uptimeMillis()
+            }
             val key = "input:$deviceId"
             activeSources.add(key)
             promoteToDualSense()
+            registerDeviceSensors(dev)
         }
     }
 
     fun onInputDeviceRemoved(deviceId: Int) {
+        unregisterDeviceSensors(deviceId)
         val key = "input:$deviceId"
         if (activeSources.remove(key) && activeSources.isEmpty()) {
             hasDetached = true
             demoteFromDualSense()
         }
+    }
+
+    private fun registerDeviceSensors(device: InputDevice) {
+        if (Build.VERSION.SDK_INT < 31) return
+        if (registeredSensorManagers.containsKey(device.id)) return
+        try {
+            val sm = device.sensorManager ?: return
+            val gyro = sm.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
+            val accel = sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+            if (gyro == null && accel == null) return
+
+            val handler = synchronized(this) {
+                var h = sensorHandler
+                if (h == null) {
+                    val t = HandlerThread("dualsense-wireless-imu", android.os.Process.THREAD_PRIORITY_DISPLAY).apply { start() }
+                    sensorThread = t
+                    h = Handler(t.looper)
+                    sensorHandler = h
+                }
+                h
+            }
+            var registered = false
+            if (gyro != null && sm.registerListener(deviceSensorListener, gyro, SENSOR_SAMPLING_US, handler)) {
+                registered = true
+            }
+            if (accel != null && sm.registerListener(deviceSensorListener, accel, SENSOR_SAMPLING_US, handler)) {
+                registered = true
+            }
+            if (registered) {
+                registeredSensorManagers[device.id] = sm
+                Log.i(TAG, "Registered wireless IMU sensors for DualSense deviceId=${device.id} (gyro=${gyro != null}, accel=${accel != null})")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to register DualSense InputDevice sensors: $e")
+        }
+    }
+
+    private fun unregisterDeviceSensors(deviceId: Int) {
+        val sm = registeredSensorManagers.remove(deviceId) ?: return
+        try {
+            sm.unregisterListener(deviceSensorListener)
+        } catch (e: Exception) {
+            // ignore
+        }
+    }
+
+    private fun unregisterAllDeviceSensors() {
+        for ((_, sm) in registeredSensorManagers) {
+            try {
+                sm.unregisterListener(deviceSensorListener)
+            } catch (e: Exception) {
+                // ignore
+            }
+        }
+        registeredSensorManagers.clear()
+        synchronized(this) {
+            sensorThread?.quitSafely()
+            sensorThread = null
+            sensorHandler = null
+        }
+        wirelessAccel.fill(0)
+        wirelessGyro.fill(0)
+    }
+
+    /**
+     * Processes a hardware Gyroscope (rad/s) or Accelerometer (m/s^2) event from a DualSense
+     * `InputDevice.getSensorManager()` when connected wirelessly over Bluetooth.
+     * Automatically suppressed when raw 64B/78B HID reports are actively delivering IMU data.
+     */
+    fun onInputDeviceSensorEvent(sensorType: Int, values: FloatArray): Boolean {
+        if (stopped || !isDualSenseActive || isRawHidDelivering()) return false
+        if (values.size < 3) return false
+
+        val scale: Float
+        val target: ShortArray
+        when (sensorType) {
+            Sensor.TYPE_GYROSCOPE -> {
+                scale = GYRO_COUNTS_PER_RAD_S
+                target = wirelessGyro
+            }
+            Sensor.TYPE_ACCELEROMETER -> {
+                scale = ACCEL_COUNTS_PER_M_S2
+                target = wirelessAccel
+            }
+            else -> return false
+        }
+
+        synchronized(this) {
+            if (!isDualSenseActive || isRawHidDelivering()) return false
+            target[0] = (values[0] * scale).roundToInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
+            target[1] = (-values[2] * scale).roundToInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
+            target[2] = (values[1] * scale).roundToInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
+            FakeInputWriter.setDeckIMU(0, wirelessAccel, wirelessGyro)
+            DeckControls.externalImuActive = true
+        }
+        return true
     }
 
     fun onRawSourceAttached() {
@@ -336,7 +595,24 @@ class DualSenseManager(private val context: Context) {
         isDualSenseActive = false
         DeckControls.externalImuActive = false
         isRawHidActive = false
+        isEdgeConnected = false
+        btConnectTimestampMs = 0L
+        btOutputSeq = 0
         cachedPreference = null
+        osTouch0X = 0
+        osTouch0Y = 0
+        osTouch0Down = false
+        osTouch1X = 0
+        osTouch1Y = 0
+        osTouch1Down = false
+        osTouchpadClickDown = false
+        osMuteDown = false
+        osL4Down = false
+        osR4Down = false
+        osL5Down = false
+        osR5Down = false
+        wirelessAccel.fill(0)
+        wirelessGyro.fill(0)
         DeckControls.releaseAll()
         SessionState.padBridge?.releaseAll()
         Log.i(TAG, "DualSense deactivated, restored preference to: $restorePref (padType: $padType)")
@@ -486,7 +762,7 @@ class DualSenseManager(private val context: Context) {
             }
         }
 
-        // 5. Save 64B raw report to ${fakeInputDir}/pad.bin
+        // 5. Save normalized 64B 0x01 report to ${fakeInputDir}/pad.bin (normalizing 78B 0x31 BT reports)
         writePadBin(data, offset)
 
         // 6. Notify optional UI/activity state listener
@@ -496,6 +772,7 @@ class DualSenseManager(private val context: Context) {
     @Synchronized
     private fun writePadBin(data: ByteArray, offset: Int) {
         val dir = SessionState.fakeInputDir ?: return
+        val usb64 = DualSense.convertBtInputToUsb64(data, offset) ?: return
         try {
             if (dir != lastFakeInputDir || padBinRaf == null) {
                 padBinRaf?.close()
@@ -506,7 +783,7 @@ class DualSenseManager(private val context: Context) {
             }
             val raf = padBinRaf ?: return
             raf.seek(0)
-            raf.write(data, offset, DualSense.REPORT_SIZE_INPUT)
+            raf.write(usb64, 0, DualSense.REPORT_SIZE_INPUT)
             raf.setLength(DualSense.REPORT_SIZE_INPUT.toLong())
         } catch (e: Exception) {
             // ignore
@@ -514,33 +791,136 @@ class DualSenseManager(private val context: Context) {
     }
 
     fun onTouchpadEvent(event: MotionEvent): Boolean {
-        if (!isDualSenseActive) return false
-        val down0 = event.actionMasked != MotionEvent.ACTION_UP && event.pointerCount > 0
+        val device = getInputDevice(event.deviceId) ?: event.device
+        if (!isDualSenseActive) {
+            if (DualSense.isDualSense(device) && !hasDetached && !stopped) {
+                onInputDeviceAdded(event.deviceId)
+            }
+            if (!isDualSenseActive) return false
+        }
+        if (isRawHidDelivering()) return true
+
+        val action = event.actionMasked
+        val pointerCount = event.pointerCount
+        val liftedIdx = if (action == MotionEvent.ACTION_POINTER_UP) event.actionIndex else -1
+        val allUp = action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL || pointerCount <= 0
+
+        val activeIndices = ArrayList<Int>(2)
+        if (!allUp) {
+            for (i in 0 until pointerCount) {
+                if (i != liftedIdx) {
+                    activeIndices.add(i)
+                    if (activeIndices.size == 2) break
+                }
+            }
+        }
+
         val rangeX = event.device?.getMotionRange(MotionEvent.AXIS_X, event.source)
         val rangeY = event.device?.getMotionRange(MotionEvent.AXIS_Y, event.source)
         val maxX = rangeX?.max?.takeIf { it > 0 } ?: (DualSense.TOUCHPAD_WIDTH - 1).toFloat()
         val maxY = rangeY?.max?.takeIf { it > 0 } ?: (DualSense.TOUCHPAD_HEIGHT - 1).toFloat()
 
-        val rawX0 = if (down0) ((event.getX(0) / maxX) * (DualSense.TOUCHPAD_WIDTH - 1)).toInt() else 0
-        val rawY0 = if (down0) ((event.getY(0) / maxY) * (DualSense.TOUCHPAD_HEIGHT - 1)).toInt() else 0
-        val down1 = down0 && event.pointerCount > 1
-        val rawX1 = if (down1) ((event.getX(1) / maxX) * (DualSense.TOUCHPAD_WIDTH - 1)).toInt() else 0
-        val rawY1 = if (down1) ((event.getY(1) / maxY) * (DualSense.TOUCHPAD_HEIGHT - 1)).toInt() else 0
+        val down0 = activeIndices.isNotEmpty()
+        val idx0 = if (down0) activeIndices[0] else 0
+        val rawX0 = if (down0) ((event.getX(idx0) / maxX) * (DualSense.TOUCHPAD_WIDTH - 1)).toInt() else 0
+        val rawY0 = if (down0) ((event.getY(idx0) / maxY) * (DualSense.TOUCHPAD_HEIGHT - 1)).toInt() else 0
+
+        val down1 = activeIndices.size > 1
+        val idx1 = if (down1) activeIndices[1] else 0
+        val rawX1 = if (down1) ((event.getX(idx1) / maxX) * (DualSense.TOUCHPAD_WIDTH - 1)).toInt() else 0
+        val rawY1 = if (down1) ((event.getY(idx1) / maxY) * (DualSense.TOUCHPAD_HEIGHT - 1)).toInt() else 0
 
         val x0 = DualSense.touchXToPad(rawX0)
         val y0 = DualSense.touchYToPad(rawY0)
         val x1 = DualSense.touchXToPad(rawX1)
         val y1 = DualSense.touchYToPad(rawY1)
 
-        val click = (event.buttonState and MotionEvent.BUTTON_PRIMARY) != 0
+        osTouch0X = x0
+        osTouch0Y = y0
+        osTouch0Down = down0
+        osTouch1X = x1
+        osTouch1Y = y1
+        osTouch1Down = down1
+
+        val buttonPrimary = (event.buttonState and MotionEvent.BUTTON_PRIMARY) != 0
+        val click = buttonPrimary || osTouchpadClickDown
         DeckControls.setDualSenseTouch(x0, y0, down0, x1, y1, down1, click = click)
         return true
+    }
+
+    /**
+     * Handles wireless DualSense / DualSense Edge extra buttons (Touchpad click, Mic Mute,
+     * Edge L4/R4 function buttons and L5/R5 back paddles) delivered via Android KeyEvents.
+     * Standard gamepad buttons return false so PadBridge processes them normally.
+     */
+    fun onKeyEvent(event: KeyEvent): Boolean {
+        val device = getInputDevice(event.deviceId) ?: event.device
+        if (!DualSense.isDualSense(device)) return false
+        if (isRawHidDelivering()) return true
+        val action = event.action
+        if (action != KeyEvent.ACTION_DOWN && action != KeyEvent.ACTION_UP) return false
+        val down = action == KeyEvent.ACTION_DOWN
+        val keyCode = event.keyCode
+        val scanCode = event.scanCode
+
+        // 1. Touchpad Click (KEYCODE_BUTTON_TOUCHPAD = 1004 or BTN_LEFT = 272 / 317 from touchpad)
+        if (keyCode == KEYCODE_BUTTON_TOUCHPAD ||
+            scanCode == 317 ||
+            (scanCode == 272 && (event.isFromSource(InputDevice.SOURCE_TOUCHPAD) || event.isFromSource(InputDevice.SOURCE_MOUSE)))
+        ) {
+            osTouchpadClickDown = down
+            DeckControls.setDualSenseTouch(
+                osTouch0X, osTouch0Y, osTouch0Down,
+                osTouch1X, osTouch1Y, osTouch1Down,
+                click = down
+            )
+            return true
+        }
+
+        // 2. Mic Mute Button (KEYCODE_MUTE = 91, KEYCODE_VOLUME_MUTE = 164, KEY_MICMUTE = 248)
+        if (keyCode == KeyEvent.KEYCODE_MUTE || keyCode == KeyEvent.KEYCODE_VOLUME_MUTE || scanCode == 248) {
+            osMuteDown = down
+            DeckControls.setDualSenseExtras(osMuteDown, osL4Down, osR4Down, osL5Down, osR5Down)
+            return true
+        }
+
+        // 3. DualSense Edge Extra Buttons (L4/R4 Function buttons & L5/R5 Back Paddles)
+        when {
+            keyCode == KeyEvent.KEYCODE_BUTTON_1 || scanCode == 308 -> {
+                osL4Down = down
+                DeckControls.setDualSenseExtras(osMuteDown, osL4Down, osR4Down, osL5Down, osR5Down)
+                return true
+            }
+            keyCode == KeyEvent.KEYCODE_BUTTON_2 || scanCode == 309 -> {
+                osR4Down = down
+                DeckControls.setDualSenseExtras(osMuteDown, osL4Down, osR4Down, osL5Down, osR5Down)
+                return true
+            }
+            keyCode == KeyEvent.KEYCODE_BUTTON_3 || scanCode == 306 -> {
+                osL5Down = down
+                DeckControls.setDualSenseExtras(osMuteDown, osL4Down, osR4Down, osL5Down, osR5Down)
+                return true
+            }
+            keyCode == KeyEvent.KEYCODE_BUTTON_4 || scanCode == 307 -> {
+                osR5Down = down
+                DeckControls.setDualSenseExtras(osMuteDown, osL4Down, osR4Down, osL5Down, osR5Down)
+                return true
+            }
+        }
+
+        return false
     }
 
     companion object {
         private const val TAG = "DualSenseManager"
         const val TCP_PORT = 21337
         private const val RECONNECT_DELAY_MS = 1000L
+        private const val HID_HOST_PROFILE = 4
+        private const val SENSOR_SAMPLING_US = 4000
+        const val KEYCODE_BUTTON_TOUCHPAD = 1004
+        const val ACCEL_COUNTS_PER_M_S2 = 16384f / SensorManager.GRAVITY_EARTH
+        const val GYRO_COUNTS_PER_RAD_S = (32768f / 2000f) * (180f / Math.PI.toFloat())
+        private val HEX_CHARS = "0123456789ABCDEF".toCharArray()
 
         @Volatile
         var activeManager: DualSenseManager? = null

@@ -1855,6 +1855,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if ((pcKeyboardOpen || achievementsOpen) && fromController) return super.dispatchKeyEvent(event)
         if (joyConVr?.onKeyEvent(event) == true) return true
         if (fromController && event.keyCode != KeyEvent.KEYCODE_BACK && padMouseMode() && padMouse.onKey(event)) return true
+        if (dualSenseManager?.onKeyEvent(event) == true) return true
         if (event.keyCode != KeyEvent.KEYCODE_BACK && padBridge?.onKeyEvent(event) == true) return true
         if (CompositorHost.isStarted && event.keyCode != KeyEvent.KEYCODE_BACK && !fromController) {
             val down = event.action == KeyEvent.ACTION_DOWN
@@ -1913,6 +1914,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
         if (pipUi) return true
+        if (event.isFromSource(InputDevice.SOURCE_TOUCHPAD) && com.droiddeck.launcher.input.DualSense.isDualSense(event.device)) {
+            if (dualSenseManager?.onTouchpadEvent(event) == true) return true
+        }
         if (event.actionMasked == MotionEvent.ACTION_DOWN && event.isFromSource(InputDevice.SOURCE_TOUCHSCREEN)) {
             drawerControllerActive = false
         }

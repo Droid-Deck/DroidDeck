@@ -417,6 +417,7 @@ class MainActivity : ComponentActivity() {
     private var secondScreenDisplays by mutableStateOf<List<SecondScreenDisplay>>(emptyList())
     private lateinit var displayManager: DisplayManager
     private var dualSenseManager: com.droiddeck.launcher.input.DualSenseManager? = null
+    private var dualSenseOutputBridge: com.droiddeck.launcher.session.DualSenseOutputBridge? = null
     private var lastDsState: com.droiddeck.launcher.input.DualSense.State? = null
     private val secondScreenDisplayListener = object : DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) = refreshSecondScreenDisplays()
@@ -768,9 +769,11 @@ class MainActivity : ComponentActivity() {
         if (SessionState.fakeInputDir == null) {
             SessionState.fakeInputDir = File(filesDir, "fakeinput").apply { mkdirs() }
         }
-        dualSenseManager = com.droiddeck.launcher.input.DualSenseManager(this).apply {
+        val dsManager = com.droiddeck.launcher.input.DualSenseManager(this).apply {
             onStateUpdated = { state -> handleLauncherDualSenseInput(state) }
         }
+        dualSenseManager = dsManager
+        dualSenseOutputBridge = com.droiddeck.launcher.session.DualSenseOutputBridge()
         setContent {
             DroidDeckTheme(theme, appScale = appScale) {
             com.droiddeck.launcher.ui.FocusGlideHost(androidx.compose.ui.Modifier.fillMaxSize().exposeTestTags()) {
@@ -1308,7 +1311,10 @@ class MainActivity : ComponentActivity() {
         refreshAddedGames()
         if (catalog == null) loadDesktopCatalog()
         if (!busy) Thread({ checkCatalog() }, "catalog").start()
-        if (!SessionState.running) dualSenseManager?.start()
+        if (!SessionState.running) {
+            dualSenseManager?.start()
+            dualSenseOutputBridge?.start()
+        }
     }
 
     private fun handleLauncherDualSenseInput(state: com.droiddeck.launcher.input.DualSense.State) {
@@ -1347,7 +1353,10 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onPause() {
-        if (!SessionState.running) dualSenseManager?.stop()
+        if (!SessionState.running) {
+            dualSenseOutputBridge?.stop()
+            dualSenseManager?.stop()
+        }
         lastDsState = null
         super.onPause()
     }
@@ -1378,7 +1387,11 @@ class MainActivity : ComponentActivity() {
         else @Suppress("DEPRECATION") state.getParcelable(key)
 
     override fun onDestroy() {
-        if (!SessionState.running) dualSenseManager?.stop()
+        if (!SessionState.running) {
+            dualSenseOutputBridge?.stop()
+            dualSenseManager?.stop()
+        }
+        dualSenseOutputBridge = null
         dualSenseManager = null
         updates.unregister()
         super.onDestroy()

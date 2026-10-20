@@ -150,7 +150,7 @@ class DualSenseTest {
 
     @Test
     fun testInvalidReportRejection() {
-        val tooShort = ByteArray(63)
+        val tooShort = ByteArray(9)
         tooShort[0] = DualSense.REPORT_ID_INPUT
         assertNull(DualSense.parseInputReport(tooShort))
 
@@ -636,6 +636,135 @@ class DualSenseTest {
             report[49] = v.toByte()
             assertFalse("Expected non-tuning for $v", DualSense.parseInputReport(report)!!.isEdgeTuningActive)
         }
+    }
+
+    @Test
+    fun testConvertBtInputToUsb64AndPadBinNormalization() {
+        val bt = ByteArray(DualSense.REPORT_SIZE_BT_INPUT)
+        bt[0] = DualSense.REPORT_ID_BT_INPUT // 0x31
+        bt[1] = 0x01 // BT header byte
+        bt[2] = 200.toByte() // LX -> usb[1]
+        bt[3] = 60.toByte()  // LY -> usb[2]
+        bt[4] = 128.toByte() // RX -> usb[3]
+        bt[5] = 128.toByte() // RY -> usb[4]
+        bt[6] = 255.toByte() // L2 -> usb[5]
+        bt[7] = 100.toByte() // R2 -> usb[6]
+        bt[9] = 0x28.toByte() // Cross + Hat 8 -> usb[8]
+        bt[11] = 0x04.toByte() // Mute -> usb[10]
+        bt[34] = 0x01.toByte() // Touch0 active ID 1 -> usb[33]
+        bt[35] = 0x80.toByte() // X low
+        bt[36] = 0x03.toByte() // X high (0x380 = 896)
+        bt[37] = 0x20.toByte() // Y (0x200 = 512)
+        bt[38] = 0x80.toByte() // Touch1 inactive -> usb[37]
+        bt[54] = 0x17.toByte() // Battery level 7 (70%), charging status 1 -> usb[53]
+
+        val crc = java.util.zip.CRC32()
+        crc.update(0xA1)
+        crc.update(bt, 0, 74)
+        val crcVal = crc.value
+        bt[74] = (crcVal and 0xFF).toByte()
+        bt[75] = ((crcVal shr 8) and 0xFF).toByte()
+        bt[76] = ((crcVal shr 16) and 0xFF).toByte()
+        bt[77] = ((crcVal shr 24) and 0xFF).toByte()
+
+        val usb64 = DualSense.convertBtInputToUsb64(bt)
+        assertNotNull(usb64)
+        assertEquals(64, usb64!!.size)
+        assertEquals(DualSense.REPORT_ID_INPUT, usb64[0])
+        assertEquals(200.toByte(), usb64[1])
+        assertEquals(0x17.toByte(), usb64[53])
+
+        val parsed = DualSense.parseInputReport(bt)!!
+        assertEquals(75, parsed.batteryPercent)
+        assertTrue(parsed.isCharging)
+        assertTrue(parsed.cross)
+        assertTrue(parsed.mute)
+        assertTrue(parsed.touch0Down)
+
+        // Feed 78B BT report into DualSenseManager and verify pad.bin is normalized to 64B 0x01
+        val manager = DualSenseManager(context)
+        val dev = inputDevice(DualSense.PRODUCT_DUALSENSE, id = 42)
+        val im = context.getSystemService(Context.INPUT_SERVICE) as android.hardware.input.InputManager
+        org.robolectric.Shadows.shadowOf(im).addInputDevice(dev)
+        manager.onInputDeviceAdded(dev.id)
+        manager.onInputReport(bt)
+
+        val padBin = File(tempDir, "pad.bin")
+        assertTrue(padBin.exists())
+        assertEquals(64L, padBin.length())
+        val padBinBytes = padBin.readBytes()
+        assertEquals(DualSense.REPORT_ID_INPUT, padBinBytes[0])
+        assertEquals(200.toByte(), padBinBytes[1])
+        assertEquals(0x17.toByte(), padBinBytes[53])
+        manager.stop()
+    }
+
+    @Test
+    fun testBasicBluetooth10ByteReportParsing() {
+        val basic = ByteArray(DualSense.REPORT_SIZE_BT_BASIC_INPUT)
+        basic[0] = DualSense.REPORT_ID_INPUT // 0x01 (10-byte basic BT mode)
+        basic[1] = 0.toByte()   // LX = -1.0f
+        basic[2] = 255.toByte() // LY = +1.0f
+        basic[3] = 255.toByte() // RX = +1.0f
+        basic[4] = 0.toByte()   // RY = -1.0f
+        basic[5] = 0x20.toByte() // Cross + Hat 0 (Up)
+        basic[6] = 0x03.toByte() // L1 + R1
+        basic[7] = 0x02.toByte() // Touchpad click
+        basic[8] = 255.toByte() // L2 = 1.0f
+        basic[9] = 128.toByte() // R2 = ~0.5f
+
+        val state = DualSense.parseInputReport(basic)
+        assertNotNull(state)
+        state!!
+        assertEquals(-1.0f, state.leftX, 0.01f)
+        assertEquals(1.0f, state.leftY, 0.01f)
+        assertEquals(1.0f, state.rightX, 0.01f)
+        assertEquals(-1.0f, state.rightY, 0.01f)
+        assertTrue(state.dpadUp)
+        assertTrue(state.cross)
+        assertTrue(state.l1)
+        assertTrue(state.r1)
+        assertTrue(state.touchpadClick)
+        assertEquals(1.0f, state.leftTrigger, 0.01f)
+    }
+
+    @Test
+    fun testBluetooth3SecondLightbarInitializationGuard() {
+        val usbReport = DualSense.buildOutputReport(
+            leftMotor = 50,
+            rightMotor = 100,
+            r = 255,
+            g = 64,
+            b = 128,
+            playerLeds = 0x04
+        )
+        // During first 3.0s of Bluetooth connection (btInitializing = true):
+        val btInitReport = DualSense.buildBluetoothOutputReport(
+            usbReport,
+            seq = 7,
+            isEdge = false,
+            btInitializing = true
+        )
+        assertEquals(DualSense.REPORT_ID_BT_OUTPUT, btInitReport[0])
+        assertEquals(((7 shl 4) or 0x02).toByte(), btInitReport[1])
+        // enable2 (bt[3]) must have 0x04 cleared
+        assertEquals(0, btInitReport[3].toInt() and 0x04)
+        // lightbarSetup (bt[43]) must be 0x01 and RGB (bt[46..48]) zeroed
+        assertEquals(0x01.toByte(), btInitReport[43])
+        assertEquals(0.toByte(), btInitReport[46])
+        assertEquals(0.toByte(), btInitReport[47])
+        assertEquals(0.toByte(), btInitReport[48])
+
+        // Verify CRC32 with 0xA2 seed is valid
+        val btCrc = java.util.zip.CRC32()
+        btCrc.update(0xA2)
+        btCrc.update(btInitReport, 0, 74)
+        val expectedCrc = btCrc.value
+        val actualCrc = (btInitReport[74].toLong() and 0xFF) or
+                ((btInitReport[75].toLong() and 0xFF) shl 8) or
+                ((btInitReport[76].toLong() and 0xFF) shl 16) or
+                ((btInitReport[77].toLong() and 0xFF) shl 24)
+        assertEquals(expectedCrc, actualCrc)
     }
 
     // -------------------------------------------------------------------------

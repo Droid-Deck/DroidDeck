@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.session
 
+import android.hardware.lights.Light
 import android.hardware.lights.LightState
 import android.hardware.lights.LightsManager
 import android.hardware.lights.LightsRequest
@@ -338,31 +339,57 @@ class DualSenseOutputBridge : SessionPart() {
         val enable0 = report[1].toInt() and 0xFF
         val enable1 = report[2].toInt() and 0xFF
 
-        // 1. RGB Lightbar (valid_flag1 & 0x04)
-        if ((enable1 and 0x04) != 0) {
+        // 1. Lights: RGB Lightbar (valid_flag1 & 0x04), Player ID LEDs (0x10), Mic Mute LED (0x01)
+        if ((enable1 and 0x15) != 0) {
             val customLights = lightsDispatcher
             if (customLights != null) {
                 if (customLights(report, device)) handled = true
             } else {
                 try {
                     val lm = device.lightsManager
-                    val r = report[45].toInt() and 0xFF
-                    val g = report[46].toInt() and 0xFF
-                    val b = report[47].toInt() and 0xFF
-                    val color = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
-                    val rgbLight = lm.lights.firstOrNull { it.hasRgbControl() }
-                    if (rgbLight != null) {
+                    val lights = lm.lights
+                    val reqBuilder = LightsRequest.Builder()
+                    var addedAny = false
+
+                    if ((enable1 and 0x04) != 0) {
+                        val r = report[45].toInt() and 0xFF
+                        val g = report[46].toInt() and 0xFF
+                        val b = report[47].toInt() and 0xFF
+                        val color = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+                        val rgbLight = lights.firstOrNull { it.hasRgbControl() }
+                        if (rgbLight != null) {
+                            reqBuilder.addLight(rgbLight, LightState.Builder().setColor(color).build())
+                            addedAny = true
+                        }
+                    }
+
+                    if ((enable1 and 0x10) != 0) {
+                        val playerMask = report[44].toInt() and 0x1F
+                        val playerLight = lights.firstOrNull { it.type == Light.LIGHT_TYPE_PLAYER_ID }
+                        if (playerLight != null) {
+                            reqBuilder.addLight(playerLight, LightState.Builder().setPlayerId(playerMask).build())
+                            addedAny = true
+                        }
+                    }
+
+                    if ((enable1 and 0x01) != 0) {
+                        val micMode = report[9].toInt() and 0xFF
+                        val micLight = lights.firstOrNull { it.type == Light.LIGHT_TYPE_MICROPHONE }
+                        if (micLight != null) {
+                            val micColor = if (micMode != 0) 0xFFFFFFFF.toInt() else 0
+                            reqBuilder.addLight(micLight, LightState.Builder().setColor(micColor).build())
+                            addedAny = true
+                        }
+                    }
+
+                    if (addedAny) {
                         val session = (activeLightsSession as? LightsManager.LightsSession) ?: try {
                             lm.openSession().also { activeLightsSession = it }
                         } catch (e: Exception) {
                             null
                         }
                         if (session != null) {
-                            session.requestLights(
-                                LightsRequest.Builder()
-                                    .addLight(rgbLight, LightState.Builder().setColor(color).build())
-                                    .build()
-                            )
+                            session.requestLights(reqBuilder.build())
                             handled = true
                         }
                     }

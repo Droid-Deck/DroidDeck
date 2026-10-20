@@ -1,13 +1,14 @@
 <#
 .SYNOPSIS
     Bridges a physically connected Sony PlayStation 5 DualSense / DualSense Edge controller
-    on the Windows host PC to a running Android Emulator or connected device over TCP via adb reverse.
+    (via USB or Bluetooth) on the Windows host PC to a running Android Emulator or device over TCP via adb reverse.
 
 .DESCRIPTION
-    - Enumerates USB HID devices for Sony DualSense (VID 0x054C, PID 0x0CE6) and DualSense Edge (PID 0x0DF2).
-    - Reads 64-byte input reports (0x01) continuously via Win32 ReadFile and streams them to Android.
-    - Receives 48-byte output reports (0x02) from Android and writes them directly to the physical controller
-      via Win32 WriteFile (supporting Adaptive Triggers, RGB Lightbar, Player LEDs, Rumble).
+    - Enumerates USB and Bluetooth HID devices for Sony DualSense (VID 0x054C, PID 0x0CE6) and DualSense Edge (PID 0x0DF2).
+    - Automatically detects USB (64B Input 0x01 / 48B Output 0x02) vs Bluetooth (78B Input 0x31 / 78B Output 0x31 with 0xA2 CRC-32).
+    - Queries Feature Report 0x05 (41B IMU calibration) on startup, which also switches Bluetooth DualSense from 10B 0x01 mode to 78B 0x31 mode.
+    - Normalizes 78B Bluetooth 0x31 input reports to canonical 64B 0x01 reports for the Android TCP stream.
+    - Wraps 48B 0x02 output reports from Android into 78B 0x31 Bluetooth output reports (with sequence counter, 3.0s Lightbar guard, and 0xA2 CRC-32) when connected over Bluetooth.
 
 .PARAMETER AdbPath
     Path to adb.exe. Defaults to $env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe.
@@ -19,8 +20,8 @@
     TCP port for the bridge connection. Defaults to 21337.
 
 .PARAMETER TestOnly
-    When specified, finds the controller, verifies hardware/firmware versions via Feature Report 0x20,
-    writes a 48-byte test output report (Cyan lightbar, solid mic LED, Player 1 dot), and exits.
+    When specified, finds the controller, verifies hardware/firmware/calibration via Feature Reports 0x05 & 0x20,
+    writes a test output report (Cyan lightbar, solid mic LED, Player 1 dot), and exits.
 #>
 
 [CmdletBinding()]
@@ -38,6 +39,7 @@ if (-not ([System.Management.Automation.PSTypeName]'DualSenseBridge').Type) {
     Add-Type -TypeDefinition @'
 using System;
 using System.IO;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Collections.Generic;
 using Microsoft.Win32.SafeHandles;
@@ -114,6 +116,86 @@ public class DualSenseBridge {
     [DllImport("kernel32.dll", SetLastError = true)]
     public static extern bool WriteFile(SafeFileHandle hFile, byte[] lpBuffer, int nNumberOfBytesToWrite, out int lpNumberOfBytesWritten, IntPtr lpOverlapped);
 
+    private static readonly uint[] Crc32Table = BuildCrc32Table();
+
+    private static uint[] BuildCrc32Table() {
+        uint[] table = new uint[256];
+        for (uint i = 0; i < 256; i++) {
+            uint c = i;
+            for (int j = 0; j < 8; j++) {
+                c = (c & 1) != 0 ? (0xEDB88320u ^ (c >> 1)) : (c >> 1);
+            }
+            table[i] = c;
+        }
+        return table;
+    }
+
+    public static uint ComputeBtCrc32(byte seed, byte[] data, int offset, int length) {
+        uint crc = 0xFFFFFFFFu;
+        crc = (crc >> 8) ^ Crc32Table[(crc ^ seed) & 0xFF];
+        for (int i = 0; i < length; i++) {
+            crc = (crc >> 8) ^ Crc32Table[(crc ^ data[offset + i]) & 0xFF];
+        }
+        return ~crc;
+    }
+
+    public static byte[] WrapUsbOutputToBt78(byte[] usb48, int seq, bool btInitializing) {
+        byte[] bt = new byte[78];
+        bt[0] = 0x31;
+        bt[1] = (byte)(((seq & 0x0F) << 4) | 0x02);
+        Array.Copy(usb48, 1, bt, 2, 47);
+        if (btInitializing) {
+            bt[3] = (byte)(bt[3] & ~0x04);
+            bt[43] = 0x01;
+            bt[46] = 0;
+            bt[47] = 0;
+            bt[48] = 0;
+        }
+        uint crc = ComputeBtCrc32(0xA2, bt, 0, 74);
+        bt[74] = (byte)(crc & 0xFF);
+        bt[75] = (byte)((crc >> 8) & 0xFF);
+        bt[76] = (byte)((crc >> 16) & 0xFF);
+        bt[77] = (byte)((crc >> 24) & 0xFF);
+        return bt;
+    }
+
+    public static bool NormalizeInputToUsb64(byte[] inBuf, int readBytes, byte[] outUsb64) {
+        if (readBytes >= 64 && inBuf[0] == 0x01) {
+            Array.Copy(inBuf, 0, outUsb64, 0, 64);
+            return true;
+        }
+        if (readBytes >= 78 && inBuf[0] == 0x31) {
+            outUsb64[0] = 0x01;
+            Array.Copy(inBuf, 2, outUsb64, 1, 63);
+            return true;
+        }
+        if (readBytes >= 10 && inBuf[0] == 0x01) {
+            Array.Clear(outUsb64, 0, 64);
+            outUsb64[0] = 0x01;
+            outUsb64[1] = inBuf[1];
+            outUsb64[2] = inBuf[2];
+            outUsb64[3] = inBuf[3];
+            outUsb64[4] = inBuf[4];
+            outUsb64[5] = inBuf[8];
+            outUsb64[6] = inBuf[9];
+            outUsb64[8] = inBuf[5];
+            outUsb64[9] = inBuf[6];
+            outUsb64[10] = (byte)(inBuf[7] & 0x03);
+            outUsb64[33] = 0x80;
+            outUsb64[37] = 0x80;
+            outUsb64[53] = 0x0A;
+            return true;
+        }
+        return false;
+    }
+
+    public static bool IsBluetoothPath(string path) {
+        if (string.IsNullOrEmpty(path)) return false;
+        return path.IndexOf("{00001124-0000-1000-8000-00805f9b34fb}", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               path.IndexOf("_vid&0002054c", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               path.IndexOf("bth", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
     public static string FindDualSensePath() {
         Guid hidGuid;
         HidD_GetHidGuid(out hidGuid);
@@ -124,6 +206,7 @@ public class DualSenseBridge {
         ifData.cbSize = Marshal.SizeOf(ifData);
 
         string bestMatch = null;
+        string btMatch = null;
 
         for (int i = 0; SetupDiEnumDeviceInterfaces(hDevInfo, IntPtr.Zero, ref hidGuid, i, ref ifData); i++) {
             int reqSize = 0;
@@ -131,8 +214,12 @@ public class DualSenseBridge {
             detail.cbSize = IntPtr.Size == 8 ? 8 : 5;
             if (SetupDiGetDeviceInterfaceDetail(hDevInfo, ref ifData, ref detail, 512, ref reqSize, IntPtr.Zero)) {
                 string p = detail.devicePath ?? "";
-                if (p.IndexOf("vid_054c&pid_0ce6", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    p.IndexOf("vid_054c&pid_0df2", StringComparison.OrdinalIgnoreCase) >= 0) {
+                bool isUsbMatch = p.IndexOf("vid_054c&pid_0ce6", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                  p.IndexOf("vid_054c&pid_0df2", StringComparison.OrdinalIgnoreCase) >= 0;
+                bool isBtMatch = (p.IndexOf("054c", StringComparison.OrdinalIgnoreCase) >= 0) &&
+                                 (p.IndexOf("0ce6", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                  p.IndexOf("0df2", StringComparison.OrdinalIgnoreCase) >= 0);
+                if (isUsbMatch) {
                     if (p.IndexOf("mi_03", StringComparison.OrdinalIgnoreCase) >= 0) {
                         SetupDiDestroyDeviceInfoList(hDevInfo);
                         return p;
@@ -140,16 +227,20 @@ public class DualSenseBridge {
                     if (bestMatch == null && p.IndexOf("&col", StringComparison.OrdinalIgnoreCase) < 0) {
                         bestMatch = p;
                     }
+                } else if (isBtMatch && btMatch == null) {
+                    btMatch = p;
                 }
             }
         }
         SetupDiDestroyDeviceInfoList(hDevInfo);
-        return bestMatch;
+        return bestMatch ?? btMatch;
     }
 
-    public static System.Threading.Thread StartUpstreamBridge(SafeFileHandle handle, System.IO.Stream stream) {
+    public static System.Threading.Thread StartUpstreamBridge(SafeFileHandle handle, System.IO.Stream stream, bool isBluetooth) {
         System.Threading.Thread t = new System.Threading.Thread(() => {
             byte[] buf = new byte[48];
+            int seq = 0;
+            Stopwatch sw = Stopwatch.StartNew();
             try {
                 while (true) {
                     int offset = 0;
@@ -159,7 +250,14 @@ public class DualSenseBridge {
                         offset += n;
                     }
                     int written = 0;
-                    WriteFile(handle, buf, 48, out written, IntPtr.Zero);
+                    if (isBluetooth) {
+                        bool btInit = sw.ElapsedMilliseconds < 3000;
+                        byte[] bt78 = WrapUsbOutputToBt78(buf, seq, btInit);
+                        seq = (seq + 1) & 0x0F;
+                        WriteFile(handle, bt78, 78, out written, IntPtr.Zero);
+                    } else {
+                        WriteFile(handle, buf, 48, out written, IntPtr.Zero);
+                    }
                 }
             } catch {}
         });
@@ -171,13 +269,15 @@ public class DualSenseBridge {
 '@
 }
 
-# 1. Enumerate and open physical DualSense
+# 1. Enumerate and open physical DualSense (USB or Bluetooth)
 $path = [DualSenseBridge]::FindDualSensePath()
 if (-not $path) {
-    Write-Error "No Sony DualSense (0x0CE6) or DualSense Edge (0x0DF2) USB HID device detected on host."
+    Write-Error "No Sony DualSense (0x0CE6) or DualSense Edge (0x0DF2) USB or Bluetooth HID device detected on host."
     exit 1
 }
-Write-Host "Found physical DualSense at: $path" -ForegroundColor Green
+$isBluetooth = [DualSenseBridge]::IsBluetoothPath($path)
+$transportLabel = if ($isBluetooth) { "Bluetooth (0x31 78-byte)" } else { "USB (0x01 64-byte / 0x02 48-byte)" }
+Write-Host "Found physical DualSense [$transportLabel] at: $path" -ForegroundColor Green
 
 $handle = $null
 $listener = $null
@@ -190,7 +290,16 @@ try {
         throw "Failed to open DualSense handle. Win32 Error: $([Runtime.InteropServices.Marshal]::GetLastWin32Error())"
     }
 
-    # 2. Query Feature Report 0x20 (Hardware & Firmware info)
+    # 2a. Query Feature Report 0x05 (41B IMU calibration; also switches Bluetooth DualSense into 78B 0x31 mode)
+    $f05 = New-Object byte[] 41
+    $f05[0] = 0x05
+    if ([DualSenseBridge]::HidD_GetFeature($handle, $f05, 41)) {
+        Write-Host "DualSense Feature 0x05 (IMU Calibration / BT 0x31 Mode Switch) read OK (41 bytes)." -ForegroundColor Cyan
+    } else {
+        Write-Warning "Could not read Feature 0x05 from device."
+    }
+
+    # 2b. Query Feature Report 0x20 (Hardware & Firmware info)
     $f20 = New-Object byte[] 64
     $f20[0] = 0x20
     if ([DualSenseBridge]::HidD_GetFeature($handle, $f20, 64)) {
@@ -201,7 +310,7 @@ try {
         Write-Warning "Could not read Feature 0x20 from device."
     }
 
-    # 3. TestOnly Mode: send 48-byte test report and exit
+    # 3. TestOnly Mode: send test output report and exit
     if ($TestOnly) {
         # Send test output report (Cyan lightbar, solid mic LED, Player 1 center dot)
         $testOut = New-Object byte[] 48
@@ -209,13 +318,19 @@ try {
         $testOut[1] = 0x03   # ucEnableBits1: rumble emulation + classic rumble
         $testOut[2] = 0x15   # ucEnableBits2: mic mute LED + lightbar RGB + player LED
         $testOut[9] = 0x01   # ucMicLightMode: Solid On
+        $testOut[42] = 0x02  # ucLightbarSetup
         $testOut[44] = 0x04  # ucPadLights: Player 1 (center dot)
         $testOut[45] = 0x00  # Red
         $testOut[46] = 128   # Green
         $testOut[47] = 255   # Blue (Cyan-Blue)
         $written = 0
-        [DualSenseBridge]::WriteFile($handle, $testOut, 48, [ref]$written, [IntPtr]::Zero) | Out-Null
-        Write-Host "Test output report sent. Written: $written bytes." -ForegroundColor Green
+        if ($isBluetooth) {
+            $bt78 = [DualSenseBridge]::WrapUsbOutputToBt78($testOut, 0, $false)
+            [DualSenseBridge]::WriteFile($handle, $bt78, 78, [ref]$written, [IntPtr]::Zero) | Out-Null
+        } else {
+            [DualSenseBridge]::WriteFile($handle, $testOut, 48, [ref]$written, [IntPtr]::Zero) | Out-Null
+        }
+        Write-Host "Test output report sent ($transportLabel). Written: $written bytes." -ForegroundColor Green
         $handle.Close()
         exit 0
     }
@@ -242,23 +357,26 @@ try {
     $listener.Start()
     Write-Host "Host bridge listening on 127.0.0.1:$Port. Waiting for DroidDeck in emulator..." -ForegroundColor Green
 
+    $readLen = if ($isBluetooth) { 78 } else { 64 }
+
     while ($true) {
         $client = $listener.AcceptTcpClient()
         $client.NoDelay = $true
-        Write-Host "Emulator connected! Starting bidirectional bridge..." -ForegroundColor Green
+        Write-Host "Emulator connected! Starting bidirectional bridge ($transportLabel)..." -ForegroundColor Green
         $stream = $client.GetStream()
 
-        # Thread: Upstream (Emulator -> Physical Controller WriteFile 48B)
-        $writerThread = [DualSenseBridge]::StartUpstreamBridge($handle, $stream)
+        # Thread: Upstream (Emulator 48B 0x02 -> Physical Controller WriteFile 48B USB or 78B BT 0x31)
+        $writerThread = [DualSenseBridge]::StartUpstreamBridge($handle, $stream, $isBluetooth)
 
-        # Main loop: Downstream (Physical Controller ReadFile 64B -> TCP Send to Emulator)
-        $inBuf = New-Object byte[] 64
+        # Main loop: Downstream (Physical Controller ReadFile 64B/78B -> Normalize to 64B 0x01 -> TCP Send to Emulator)
+        $inBuf = New-Object byte[] $readLen
+        $usb64 = New-Object byte[] 64
         try {
             while ($client.Connected) {
                 $readBytes = 0
-                if ([DualSenseBridge]::ReadFile($handle, $inBuf, 64, [ref]$readBytes, [IntPtr]::Zero)) {
-                    if ($readBytes -eq 64) {
-                        $stream.Write($inBuf, 0, 64)
+                if ([DualSenseBridge]::ReadFile($handle, $inBuf, $readLen, [ref]$readBytes, [IntPtr]::Zero)) {
+                    if ([DualSenseBridge]::NormalizeInputToUsb64($inBuf, $readBytes, $usb64)) {
+                        $stream.Write($usb64, 0, 64)
                     }
                 } else {
                     break

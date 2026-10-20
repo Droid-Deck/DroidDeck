@@ -194,6 +194,7 @@ android {
         unitTests.all {
             // Robolectric keeps a sandbox per SDK level the tests ask for; seven no longer fit in Gradle's default 512 MB.
             maxHeapSize = '2g'
+            jvmArgs '-Duser.language=en', '-Duser.country=US', '-Duser.language.format=en', '-Duser.country.format=US'
             def logTarget = providers.systemProperty('robolectric.logging').orNull
             if (logTarget != null) systemProperty 'robolectric.logging', logTarget
         }
