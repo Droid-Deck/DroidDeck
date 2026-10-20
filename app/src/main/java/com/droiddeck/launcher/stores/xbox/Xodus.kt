@@ -2,6 +2,7 @@ package com.droiddeck.launcher.stores.xbox
 
 import android.content.Context
 import android.os.Environment
+import com.droiddeck.launcher.core.AddonPack
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.SessionPrefs
 import org.json.JSONObject
@@ -42,28 +43,30 @@ internal object Xodus {
         }
     }
 
-    @Synchronized private fun stage(app: Context) {
+    @Synchronized private fun stage(app: Context): File {
+        check(AddonPack.XBOX.await(app)) { "Couldn't download the Xbox components. Check your connection and try again." }
+        val pack = AddonPack.XBOX.dir(app)
         val root = File(LinuxRuntime.rootDir(app), DIR.removePrefix("/"))
-        val packaged = app.assets.open("linuxfs$DIR/version").bufferedReader().use { it.readText() }
-        if (runCatching { File(root, "version").readText() }.getOrNull() == packaged) return
-        fun copy(relative: String) {
-            val entries = app.assets.list("linuxfs$DIR/$relative").orEmpty()
-            if (entries.isNotEmpty()) { entries.forEach { copy(if (relative.isEmpty()) it else "$relative/$it") }; return }
-            if (relative == "version") return
+        val packaged = File(pack, "version").readText()
+        if (runCatching { File(root, "version").readText() }.getOrNull() == packaged) return pack
+        fun copy(source: File, relative: String) {
+            if (source.isDirectory) { source.listFiles().orEmpty().forEach { copy(it, if (relative.isEmpty()) it.name else "$relative/${it.name}") }; return }
+            if (relative == "version" || relative == AddonPack.COMPLETE) return
             val file = File(root, relative)
             file.parentFile?.mkdirs()
             val staged = File(file.path + ".staged")
-            app.assets.open("linuxfs$DIR/$relative").use { input -> staged.outputStream().use { input.copyTo(it) } }
+            source.inputStream().use { input -> staged.outputStream().use { input.copyTo(it) } }
             staged.setExecutable(true, false)
             check(staged.renameTo(file))
         }
-        copy("")
+        copy(pack, "")
         File(root, "version").writeText(packaged)
+        return pack
     }
 
     fun start(app: Context, args: List<String>, service: Boolean = false, runtimeDirectory: File? = null, launchDirectory: File? = null, credentialGeneration: String? = null): Child {
         check(LinuxRuntime.isInstalled(app)) { "Install the Linux runtime before using Xbox." }
-        stage(app)
+        val pack = stage(app)
         val binary = "$DIR/${if (service) "xodus-service" else "xodus-cli"}"
         check(File(LinuxRuntime.rootDir(app), binary.removePrefix("/")).isFile) { "The Xbox backend is missing. Update the Linux runtime." }
         val credentials = XboxCredentials(app, credentialGeneration)
@@ -83,7 +86,7 @@ internal object Xodus {
                 LinuxRuntime.prootLibraryPath(app).takeIf { it.isNotEmpty() }?.let { put("LD_LIBRARY_PATH", it) }
             }
             val digest = java.security.MessageDigest.getInstance("SHA-256")
-            app.assets.open("linuxfs$binary").use { input ->
+            File(pack, binary.removePrefix("$DIR/")).inputStream().use { input ->
                 val buffer = ByteArray(65536)
                 while (true) { val n = input.read(buffer); if (n < 0) break; digest.update(buffer, 0, n) }
             }

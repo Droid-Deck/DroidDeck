@@ -9,7 +9,8 @@ import sys
 recipe = Path(__file__).resolve().parent
 cache = Path(sys.argv[1]).resolve()
 lock = json.loads((recipe / 'backend.lock.json').read_text())
-identity = hashlib.sha256((recipe / 'backend.lock.json').read_bytes() + (recipe / 'droiddeck-credentials.patch').read_bytes() + (recipe / 'droiddeck-launch-view.patch').read_bytes()).hexdigest()
+local_patches = ['droiddeck-credentials.patch', 'droiddeck-launch-view.patch', 'droiddeck-library-subscriptions.patch']
+identity = hashlib.sha256((recipe / 'backend.lock.json').read_bytes() + b''.join((recipe / name).read_bytes() for name in local_patches)).hexdigest()
 source = cache / ('source-' + identity[:16])
 if not (source / '.prepared').is_file():
     if source.exists():
@@ -29,8 +30,8 @@ if not (source / '.prepared').is_file():
         file = nexus / 'assets' / patch['file']
         assert hashlib.sha256(file.read_bytes()).hexdigest() == patch['sha256']
         subprocess.run(['git', '-C', str(source), 'apply', str(file)], check=True)
-    subprocess.run(['git', '-C', str(source), 'apply', str(recipe / 'droiddeck-credentials.patch')], check=True)
-    subprocess.run(['git', '-C', str(source), 'apply', str(recipe / 'droiddeck-launch-view.patch')], check=True)
+    for name in local_patches:
+        subprocess.run(['git', '-C', str(source), 'apply', str(recipe / name)], check=True)
     (source / '.prepared').write_text(identity + '\n')
 assert (source / '.prepared').read_text().strip() == identity
 print(source)

@@ -90,6 +90,7 @@
     <string name="game_env_no_fsync">Set to 1 to keep this game off droiddeck-fsync; it uses droiddeck-esync where a pack exists, otherwise droiddeck-ntsync.</string>
     <string name="game_env_fsync_first">Set to 1 to run this game on droiddeck-fsync, or 0 to put droiddeck-esync first where a pack fits its Proton.</string>
     <string name="game_env_xalia">Set to 0 to disable Proton’s gamepad-navigation helper for this game.</string>
+    <string name="game_env_anticheat_offline">On by default. Starts an Easy Anti-Cheat game without its anti-cheat when the game supports offline play. Turn off to launch through Easy Anti-Cheat as usual. Online modes that require Easy Anti-Cheat remain unavailable.</string>
     <string name="game_env_hud">DXVK overlay for D3D9–11. fps displays frame rate; unset hides it.</string>
     <string name="game_env_dxvk_config">DXVK settings separated by semicolons. Recent builds use dxvk.maxFrameRate for frame limiting; prefer the session frame limiter for ordinary play.</string>
     <string name="game_env_vkd3d_limit">D3D12 frame-rate limit. 0 disables the limit.</string>
@@ -1069,6 +1070,9 @@
     <string name="games_added">Added game</string>
     <string name="games_custom">Custom game</string>
     <string name="games_store_storage">Games storage</string>
+    <string name="games_uninstall_body">Deletes its files and removes it from Steam.</string>
+    <string name="games_remove_title">Remove %1$s?</string>
+    <string name="games_remove_body">Deletes its shortcut. The game files stay.</string>
     <string name="gpu_auto_hint">The best pair for this GPU, kept up to date</string>
     <string name="gpu_manual_hint">Pick a pair yourself</string>
     <string name="gpu_checking">Checking for drivers…</string>
@@ -1957,6 +1961,8 @@
     <string name="stores_title">Stores</string>
     <string name="stores_settings">Stores settings</string>
     <string name="stores_settings_eyebrow">Settings</string>
+    <string name="stores_tabs_arrange">Arrange tabs</string>
+    <string name="stores_tabs_arrange_done">Done</string>
     <string name="stores_chip_signed_out">(not signed in)</string>
     <string name="stores_tab_store">Store</string>
     <string name="stores_tab_library">Library</string>
@@ -2521,6 +2527,12 @@
     <string name="hand_camera_placement">Camera placement</string>
     <string name="hand_camera_placement_hint">Check that the camera can see you before you play.</string>
     <string name="hand_camera_check">Check</string>
+    <string name="tracking_pack_title">Hand tracking download</string>
+    <string name="tracking_pack_hint">Hand tracking needs a one-time %1$s download.</string>
+    <string name="tracking_pack_download">Download</string>
+    <string name="tracking_pack_retry">Retry</string>
+    <string name="tracking_pack_downloading">Downloading hand tracking… %1$d%%</string>
+    <string name="tracking_pack_failed">Hand tracking couldn\'t be downloaded. Check your connection and try again.</string>
     <string name="hand_camera_check_title">Camera placement</string>
     <string name="hand_camera_how_rear">Stand the device up 1.5 to 2 metres away at about chest height, with the back camera facing you. Then step into view with your hands out.</string>
     <string name="hand_camera_how_front">Stand the device up 1.5 to 2 metres away at about chest height, with the screen facing you. Then step into view with your hands out.</string>
@@ -2916,7 +2928,6 @@
     <string name="spatial_hands_wait_stable">Waiting for stable head tracking; recenter if requested</string>
     <string name="spatial_old_frame">Camera observation is too old; waiting for a fresh pair</string>
     <string name="spatial_fit_ready">Fit %1$.2f px. Measure your selected distance from the left camera to the board center, then validate.</string>
-    <string name="spatial_opencv_error">OpenCV unavailable: %1$s</string>
     <string name="spatial_restored">%1$d saved views restored. Calculate calibration to retry, or start a new set to capture more.</string>
     <string name="spatial_captured">Captured %1$d / 24 views. Keep the board fixed; move the glasses for the next view.</string>
     <string name="spatial_capture_corners">Capture rejected: %1$d / 12 required corners visible in both cameras. Show more of the board, hold still, then try again.</string>

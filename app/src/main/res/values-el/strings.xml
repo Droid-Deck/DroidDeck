@@ -1037,6 +1037,9 @@
     <string name="games_added">Προστέθηκε παιχνίδι</string>
     <string name="games_custom">Προσαρμοσμένο παιχνίδι</string>
     <string name="games_store_storage">Αποθήκευση παιχνιδιών</string>
+    <string name="games_uninstall_body">Διαγράφει τα αρχεία του και το αφαιρεί από το Steam.</string>
+    <string name="games_remove_title">Αφαίρεση του %1$s;</string>
+    <string name="games_remove_body">Διαγράφει τη συντόμευση. Τα αρχεία του παιχνιδιού παραμένουν.</string>
     <string name="gpu_auto_hint">Το καλύτερο ζεύγος για αυτή τη GPU, ενημερωμένο</string>
     <string name="gpu_manual_hint">Επιλέξτε ένα ζεύγος εσείς</string>
     <string name="gpu_checking">Έλεγχος για προγράμματα οδήγησης…</string>
@@ -1905,6 +1908,8 @@
     <string name="stores_title">Καταστήματα</string>
     <string name="stores_settings">Ρυθμίσεις καταστημάτων</string>
     <string name="stores_settings_eyebrow">Ρυθμίσεις</string>
+    <string name="stores_tabs_arrange">Τακτοποίηση καρτελών</string>
+    <string name="stores_tabs_arrange_done">Έγινε</string>
     <string name="stores_chip_signed_out">(μη συνδεδεμένος)</string>
     <string name="stores_tab_store">Κατάστημα</string>
     <string name="stores_tab_library">Βιβλιοθήκη</string>
@@ -2892,7 +2897,6 @@
     <string name="spatial_hands_wait_stable">Αναμονή για σταθερή παρακολούθηση κεφαλής. Επαναφέρετε το κέντρο παρακολούθησης εάν ζητηθεί</string>
     <string name="spatial_old_frame">Η παρατήρηση με κάμερα είναι πολύ παλιά. περιμένοντας ένα φρέσκο ζευγάρι</string>
     <string name="spatial_fit_ready">Προσαρμογή %1$.2f px. Μετρήστε την επιλεγμένη απόσταση από την αριστερή κάμερα μέχρι το κέντρο στόχου βαθμονόμησης και, στη συνέχεια, επικυρώστε.</string>
-    <string name="spatial_opencv_error">Το OpenCV δεν είναι διαθέσιμο: %1$s</string>
     <string name="spatial_restored">Αποκαταστάθηκαν οι αποθηκευμένες προβολές %1$d. Υπολογίστε τη βαθμονόμηση για να προσπαθήσετε ξανά ή ξεκινήστε ένα νέο σύνολο για να καταγράψετε περισσότερα.</string>
     <string name="spatial_captured">Λήψη %1$d / 24 προβολές. Διατηρήστε σταθερό τον στόχο βαθμονόμησης. μετακινήστε τα έξυπνα γυαλιά για την επόμενη προβολή.</string>
     <string name="spatial_capture_corners">Η λήψη απορρίφθηκε: %1$d / 12 απαιτούμενες γωνίες ορατές και στις δύο κάμερες. Εμφάνιση μεγαλύτερου μέρους του στόχου βαθμονόμησης, κρατήστε ακίνητο και μετά δοκιμάστε ξανά.</string>

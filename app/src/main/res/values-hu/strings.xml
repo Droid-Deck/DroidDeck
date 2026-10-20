@@ -1037,6 +1037,9 @@
     <string name="games_added">Hozzáadott játék</string>
     <string name="games_custom">Egyéni játék</string>
     <string name="games_store_storage">Játéktárhely</string>
+    <string name="games_uninstall_body">Törli a fájljait, és eltávolítja a Streamből.</string>
+    <string name="games_remove_title">%1$s eltávolítása?</string>
+    <string name="games_remove_body">Törli a parancsikont. A játék fájljai megmaradnak.</string>
     <string name="gpu_auto_hint">A legjobb páros ehhez a GPU-hoz, naprakészen tartva</string>
     <string name="gpu_manual_hint">Válasszon párost saját kezűleg</string>
     <string name="gpu_checking">Illesztőprogramok keresése…</string>
@@ -1905,6 +1908,8 @@
     <string name="stores_title">Áruházak</string>
     <string name="stores_settings">Áruházbeállítások</string>
     <string name="stores_settings_eyebrow">Beállítások</string>
+    <string name="stores_tabs_arrange">Fülek rendezése</string>
+    <string name="stores_tabs_arrange_done">Kész</string>
     <string name="stores_chip_signed_out">(nincs bejelentkezve)</string>
     <string name="stores_tab_store">Áruház</string>
     <string name="stores_tab_library">Könyvtár</string>
@@ -2890,7 +2895,6 @@
     <string name="spatial_hands_wait_stable">Várakozás stabil fejkövetésre; szükség esetén állítsa vissza a követőközpontot.</string>
     <string name="spatial_old_frame">A kamerás megfigyelés túl régi; friss párra vár</string>
     <string name="spatial_fit_ready">Fit %1$.2f px. Mérje meg a kiválasztott távolságot a bal oldali kamera és a kalibrációs célközép között, majd érvényesítse.</string>
-    <string name="spatial_opencv_error">Az OpenCV nem érhető el: %1$s</string>
     <string name="spatial_restored">%1$d mentett nézet visszaállítva. Számítsa ki a kalibrációt az újrapróbálkozáshoz, vagy indítson új sorozatot, hogy többet rögzítsen.</string>
     <string name="spatial_captured">Rögzített %1$d / 24 megtekintés. Tartsa rögzítve a kalibrációs célt; mozgassa az okosszemüveget a következő nézethez.</string>
     <string name="spatial_capture_corners">Rögzítés elutasítva: %1$d / 12 szükséges sarok mindkét kamerán látható. Mutasson többet a kalibrációs célból, tartsa mozdulatlanul, majd próbálja újra.</string>

@@ -1049,6 +1049,9 @@
     <string name="games_added">Додана гра</string>
     <string name="games_custom">Власна гра</string>
     <string name="games_store_storage">Сховище ігор</string>
+    <string name="games_uninstall_body">Видаляє її файли та прибирає її зі Steam.</string>
+    <string name="games_remove_title">Видалити %1$s?</string>
+    <string name="games_remove_body">Видаляє ярлик. Файли гри залишаються.</string>
     <string name="gpu_auto_hint">Найкраща пара для цього GPU, завжди в актуальному стані</string>
     <string name="gpu_manual_hint">Виберіть пару самостійно</string>
     <string name="gpu_checking">Перевірка драйверів…</string>
@@ -1947,6 +1950,8 @@
     <string name="stores_title">Магазини</string>
     <string name="stores_settings">Налаштування магазинів</string>
     <string name="stores_settings_eyebrow">Налаштування</string>
+    <string name="stores_tabs_arrange">Упорядкувати вкладки</string>
+    <string name="stores_tabs_arrange_done">Готово</string>
     <string name="stores_chip_signed_out">(вхід не виконано)</string>
     <string name="stores_tab_store">Магазин</string>
     <string name="stores_tab_library">Бібліотека</string>
@@ -2959,7 +2964,6 @@
     <string name="spatial_hands_wait_stable">Очікування стабільного відстеження голови; скиньте центр відстеження, якщо запитується.</string>
     <string name="spatial_old_frame">Камера спостереження занадто стара; в очікуванні свіжої пари</string>
     <string name="spatial_fit_ready">Розмістити %1$.2f пікс. Виміряйте вибрану відстань від лівої камери до центру калібрувальної мішені, а потім перевірте.</string>
-    <string name="spatial_opencv_error">OpenCV недоступний: %1$s</string>
     <string name="spatial_restored">%1$d збережені перегляди відновлено. Обчисліть калібрування, щоб повторити спробу, або почніть новий набір, щоб отримати більше.</string>
     <string name="spatial_captured">Знято %1$d / 24 перегляди. Тримайте цілі калібрування фіксованими; перемістіть розумні окуляри для наступного перегляду.</string>
     <string name="spatial_capture_corners">Зйомку відхилено: %1$d / 12 необхідних кутів видно в обох камерах. Покажіть більше калібрувальної мішені, затримайтеся та повторіть спробу.</string>
