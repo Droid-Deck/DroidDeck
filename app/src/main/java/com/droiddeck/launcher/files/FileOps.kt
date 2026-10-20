@@ -132,6 +132,7 @@ object FileOps {
                 if (permissions != null && Files.getPosixFilePermissions(copied) != permissions) {
                     Files.setPosixFilePermissions(copied, permissions)
                 }
+                if (isCancelled()) throw java.util.concurrent.CancellationException("Copy cancelled: $src")
                 Files.move(copied, target.toPath(), java.nio.file.StandardCopyOption.ATOMIC_MOVE)
             }
             return true
