@@ -37,6 +37,13 @@ object BootMovieLibrary {
 
     internal fun moviesDir(context: Context) = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/config/uioverrides/movies")
 
+    /**
+     * The folders whose custom movies are listed, found and removed: the running (else selected) Steam client's own, which is
+     * where a movie put there or picked in that Steam lives, and [moviesDir], where imports are put and managed.
+     */
+    internal fun customMovieDirs(context: Context): List<File> =
+        listOf(File(SessionPrefs.activeSteamRoot(context), "config/uioverrides/movies"), moviesDir(context)).distinctBy { it.path }
+
     /** Where imported and installed movies are kept for good; Steam's folder holds a copy, which is put back if it goes missing. */
     internal fun libraryDir(context: Context) = File(context.filesDir, "boot-movie/library")
 
@@ -69,7 +76,7 @@ object BootMovieLibrary {
         if (!id.startsWith(PREFIX)) return null
         val name = id.removePrefix(PREFIX)
         if (name.isEmpty() || name.contains('/') || name.contains('\\') || name in STAGED) return null
-        return File(moviesDir(context), name).takeIf { it.isFile && it.length() > 0L }
+        return customMovieDirs(context).map { File(it, name) }.firstOrNull { it.isFile && it.length() > 0L }
     }
 
     private fun isMovie(file: File) = file.isFile && file.length() > 0L && file.name.endsWith(".webm", ignoreCase = true) &&
@@ -114,7 +121,9 @@ object BootMovieLibrary {
         BootMovie.customName(context)?.let { out.add(Entry(BootMovie.CUSTOM, it, SOURCE_IMPORT, BootMovie.legacyCustomFile(context), removable = true)) }
         restore(context)
         val meta = readMeta(context)
-        moviesDir(context).listFiles { f -> isMovie(f) }.orEmpty().sortedBy { it.name.lowercase() }.forEach { f ->
+        val names = HashSet<String>()
+        customMovieDirs(context).flatMap { dir -> dir.listFiles { f -> isMovie(f) }.orEmpty().toList() }
+            .filter { names.add(it.name) }.sortedBy { it.name.lowercase() }.forEach { f ->
             val info = meta.optJSONObject(f.name)
             val source = info?.optString("source")?.takeIf { it.isNotEmpty() } ?: SOURCE_STEAM
             val title = info?.optString("title")?.takeIf { it.isNotEmpty() } ?: f.nameWithoutExtension
@@ -248,11 +257,11 @@ object BootMovieLibrary {
     /** A free `.webm` name for a movie called [title]; the same title twice gets " (2)", " (3)"… */
     fun freeName(context: Context, title: String): String {
         val base = title.replace(Regex("[^\\p{L}\\p{N} ._()\\-]"), "").replace(Regex("\\s+"), " ").trim().trim('.').take(60).ifEmpty { "movie" }
-        val dir = moviesDir(context)
+        val dirs = customMovieDirs(context)
         val library = libraryDir(context)
         var name = "$base.webm"
         var n = 2
-        while (File(dir, name).exists() || File(library, name).exists() || name in STAGED) name = "$base ($n).webm".also { n++ }
+        while (dirs.any { File(it, name).exists() } || File(library, name).exists() || name in STAGED) name = "$base ($n).webm".also { n++ }
         return name
     }
 
@@ -292,16 +301,17 @@ object BootMovieLibrary {
                 if (!id.startsWith(PREFIX)) return false
                 val name = id.removePrefix(PREFIX)
                 if (name.isEmpty() || name.contains('/') || name.contains('\\') || name in STAGED) return false
-                if (readMeta(context).optJSONObject(name) == null && !File(moviesDir(context), name).isFile && !File(libraryDir(context), name).isFile) return false
+                val copies = customMovieDirs(context).map { File(it, name) }
+                if (readMeta(context).optJSONObject(name) == null && copies.none { it.isFile } && !File(libraryDir(context), name).isFile) return false
                 synchronized(lock) {
                     val kept = File(libraryDir(context), name)
-                    val copy = File(moviesDir(context), name)
-                    val gone = (!copy.exists() || copy.delete()) && (!kept.exists() || kept.delete())
+                    val gone = copies.all { !it.exists() || it.delete() } && (!kept.exists() || kept.delete())
                     if (gone) {
                         editMeta(context) { it.remove(name) != null }
                         File(thumbsDir(context), coverName(name)).delete()
                         thumbsDir(context).listFiles { f -> f.name.startsWith("frame-" + safe(name) + "-") }?.forEach { it.delete() }
-                        File(context.filesDir, "boot-movie/variants").listFiles { f -> f.name.startsWith(variantPrefix(copy)) }?.forEach { it.delete() }
+                        val prefixes = copies.map { variantPrefix(it) }
+                        File(context.filesDir, "boot-movie/variants").listFiles { f -> prefixes.any { f.name.startsWith(it) } }?.forEach { it.delete() }
                     }
                     gone
                 }

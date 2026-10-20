@@ -43,6 +43,24 @@ class BootMovieLibraryTest {
 
     private fun steamPicks(name: String) = steamPicksAt("/uioverrides/movies/$name")
 
+    @Test fun theActiveX64ClientsOwnMoviesAreListedAndRemovedToo() {
+        SessionPrefs.setSteamClientArch(app, "x86_64")
+        val x64 = File(SessionPrefs.steamRoot(app, "x86_64"), "config/uioverrides/movies")
+        try {
+            File(x64, "Mine.webm").also { it.parentFile!!.mkdirs(); it.writeText("movie") }
+            movie("Main.webm")
+            val entries = BootMovieLibrary.list(app).filter { it.id.startsWith(BootMovieLibrary.PREFIX) }
+            assertEquals(listOf("file:Main.webm", "file:Mine.webm"), entries.map { it.id })
+            assertTrue(entries.all { it.removable })
+            assertEquals("Mine.webm", BootMovieLibrary.file(app, "file:Mine.webm")?.name)
+            assertEquals("Mine (2).webm", BootMovieLibrary.freeName(app, "Mine"))
+            assertTrue(BootMovieLibrary.remove(app, "file:Mine.webm"))
+            assertFalse(File(x64, "Mine.webm").exists())
+        } finally {
+            x64.deleteRecursively()
+        }
+    }
+
     @Test fun listsTheDroidDeckMoviesAndEveryWebmButNotTheStagedCopies() {
         movie("Intro.webm")
         movie("bigpicture_startup.webm")
