@@ -107,14 +107,23 @@ class BootMovieLibraryTest {
         }
     }
 
-    @Test fun theSameMovieInBothFoldersIsOneEntryAndIsRemovedFromBoth() {
+    @Test fun identicalSameNamedMoviesInBothFoldersAreStillSeparateEntries() {
         withX64 { x64 ->
             write(x64, "Intro.webm", "same movie")
             write(movies, "Intro.webm", "same movie")
-            assertEquals(listOf("file:Intro.webm"), fileEntries().map { it.id })
-            assertTrue(BootMovieLibrary.remove(app, "file:Intro.webm"))
+            val entries = fileEntries()
+            assertEquals(2, entries.size)
+            assertEquals(2, entries.map { it.id }.toSet().size)
+
+            assertTrue(BootMovieLibrary.remove(app, entries.first { it.file!!.parentFile!!.path == x64.path }.id))
             assertFalse(File(x64, "Intro.webm").exists())
+            assertTrue(File(movies, "Intro.webm").isFile)
+
+            write(x64, "Intro.webm", "same movie")
+            val primary = fileEntries().first { it.file!!.parentFile!!.path == movies.path }
+            assertTrue(BootMovieLibrary.remove(app, primary.id))
             assertFalse(File(movies, "Intro.webm").exists())
+            assertTrue(File(x64, "Intro.webm").isFile)
         }
     }
 
