@@ -111,8 +111,21 @@ public final class PadBridge {
         excluded = devices;
     }
 
-    public void setBuiltinPad(boolean on) {
+    public synchronized void setBuiltinPad(boolean on) {
+        boolean changed = builtinPad != on;
         builtinPad = on;
+        if (changed && !on) resetBuiltin();
+    }
+
+    private void resetBuiltin() {
+        routedTouch.clear();
+        systemGuidePressed = false;
+        systemQamPressed = false;
+        qamTapPressed = false;
+        qamChordActive = false;
+        chordHandler.removeCallbacksAndMessages(null);
+        state.clear();
+        publish();
     }
 
     public synchronized boolean start() {
