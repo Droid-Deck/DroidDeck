@@ -1959,6 +1959,9 @@
     <string name="display_look_filter">%1$s Cambia el escalado a %2$s.</string>
     <string name="display_match_screen">Igual a la pantalla (%1$d×%2$d)</string>
     <string name="display_follow_screen">Seguir la pantalla (cambia de tamaño al plegar o desplegar)</string>
+    <string name="display_follow_divisor">Tamaño de renderizado</string>
+    <string name="display_follow_divisor_game">%1$s para este juego en esta ventana de %2$s. Cada juego guarda el suyo para cada tamaño de ventana: pantalla, orientación o plegado.</string>
+    <string name="display_follow_divisor_client">%1$s para el cliente de Steam en esta ventana de %2$s. Cada tamaño de ventana guarda el suyo: pantalla, orientación o plegado.</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">Mostrar detalles del dispositivo</string>
     <string name="device_info_hide">Ocultar detalles del dispositivo</string>

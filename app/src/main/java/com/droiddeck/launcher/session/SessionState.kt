@@ -87,6 +87,9 @@ object SessionState {
     var followScreen = false
 
     @Volatile
+    var followDivisor = 1f
+
+    @Volatile
     var refreshHz: Float = 60f
 
     @Volatile

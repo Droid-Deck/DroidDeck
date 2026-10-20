@@ -1949,6 +1949,9 @@
     <string name="display_look_filter">%1$s Ustawia skalowanie na %2$s.</string>
     <string name="display_match_screen">Dopasuj do ekranu (%1$d×%2$d)</string>
     <string name="display_follow_screen">Dopasuj do ekranu (zmienia rozmiar po złożeniu lub rozłożeniu)</string>
+    <string name="display_follow_divisor">Rozmiar renderowania</string>
+    <string name="display_follow_divisor_game">%1$s dla tej gry w tym oknie %2$s. Każda gra pamięta własny dla każdego rozmiaru okna: ekranu, orientacji lub złożenia.</string>
+    <string name="display_follow_divisor_client">%1$s dla klienta Steam w tym oknie %2$s. Każdy rozmiar okna pamięta własny: ekran, orientację lub złożenie.</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">Pokaż szczegóły urządzenia</string>
     <string name="device_info_hide">Skryj szczegóły urządzenia</string>

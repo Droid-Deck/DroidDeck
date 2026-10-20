@@ -1917,6 +1917,9 @@
     <string name="display_look_filter">%1$s Define a escala como %2$s.</string>
     <string name="display_match_screen">Igual à tela (%1$d×%2$d)</string>
     <string name="display_follow_screen">Seguir a tela (redimensiona ao dobrar ou desdobrar)</string>
+    <string name="display_follow_divisor">Tamanho de renderização</string>
+    <string name="display_follow_divisor_game">%1$s para este jogo nesta janela de %2$s. Cada jogo guarda o seu para cada tamanho de janela: tela, orientação ou dobra.</string>
+    <string name="display_follow_divisor_client">%1$s para o cliente Steam nesta janela de %2$s. Cada tamanho de janela guarda o seu: tela, orientação ou dobra.</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">Mostrar detalhes do dispositivo</string>
     <string name="device_info_hide">Ocultar detalhes do dispositivo</string>

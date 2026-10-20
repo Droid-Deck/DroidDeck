@@ -41,6 +41,16 @@ class SessionDisplayTest {
         assertEquals(2184 to 984, SessionDisplay.unfoldedGameSize(2184, 1968, SessionDisplay.FOLDED_FILL))
     }
 
+    @Test fun followScreenCanRenderAtAFractionOfTheWindow() {
+        assertEquals(1092 to 984, SessionDisplay.followSize(2184, 1968, 2f))
+        assertEquals(1456 to 1312, SessionDisplay.followSize(2184, 1968, 1.5f))
+        assertEquals(728 to 656, SessionDisplay.followSize(2184, 1968, 3f))
+        assertEquals(546 to 492, SessionDisplay.followSize(2184, 1968, 4f))
+        assertNull(SessionDisplay.followSize(640, 360, 2f))
+        assertEquals("÷1.5", SessionDisplay.divisorLabel(1.5f))
+        assertEquals("÷2", SessionDisplay.divisorLabel(2f))
+    }
+
     @Test fun aHalfFoldedGameTakesTheLargestBoxOfItsShapeAboveTheFold() {
         assertEquals(2184 to 984, SessionDisplay.foldedGameSize(2184, 984, SessionDisplay.FOLDED_FILL))
         assertEquals(1748 to 984, SessionDisplay.foldedGameSize(2184, 984, SessionDisplay.FOLDED_16X9))

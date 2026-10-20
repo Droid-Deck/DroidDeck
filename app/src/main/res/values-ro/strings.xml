@@ -1928,6 +1928,9 @@
     <string name="display_look_filter">%1$s Setează scalarea la %2$s.</string>
     <string name="display_match_screen">Potrivire ecran (%1$d×%2$d)</string>
     <string name="display_follow_screen">Urmărește ecranul (se redimensionează la împăturire sau desfacere)</string>
+    <string name="display_follow_divisor">Dimensiune de randare</string>
+    <string name="display_follow_divisor_game">%1$s pentru acest joc în această fereastră de %2$s. Fiecare joc o păstrează pe a sa pentru fiecare dimensiune de fereastră: ecran, orientare sau pliere.</string>
+    <string name="display_follow_divisor_client">%1$s pentru clientul Steam în această fereastră de %2$s. Fiecare dimensiune de fereastră o păstrează pe a sa: ecran, orientare sau pliere.</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">Arată detaliile dispozitivului</string>
     <string name="device_info_hide">Ascunde detaliile dispozitivului</string>

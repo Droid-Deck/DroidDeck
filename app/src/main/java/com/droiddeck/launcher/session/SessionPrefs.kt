@@ -938,6 +938,17 @@ object SessionPrefs {
         prefs(context).edit().putString("foldedAspect", aspect).apply()
     }
 
+    const val FOLLOW_CLIENT = "client"
+
+    /** Keyed by game, or [FOLLOW_CLIENT], and window size ("2184x984"); 1 when never chosen. */
+    fun followDivisor(context: Context, game: String, window: String): Float =
+        prefs(context).getFloat("followDivisor.$game.$window", 1f).takeIf { it in SessionDisplay.FOLLOW_DIVISORS } ?: 1f
+
+    fun setFollowDivisor(context: Context, game: String, window: String, divisor: Float) {
+        val key = "followDivisor.$game.$window"
+        prefs(context).edit().apply { if (divisor == 1f) remove(key) else putFloat(key, divisor) }.apply()
+    }
+
     val DECK_CONTROLS_SCALES = listOf(70, 80, 90, 100)
 
     fun deckControlsScale(context: Context): Int =

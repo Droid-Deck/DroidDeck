@@ -248,6 +248,10 @@ class DrawerActions(
     val onGestureSettings: () -> Unit = {},
     val onFexPreset: (String) -> Unit,
     val onUpscaler: (Int) -> Unit = {},
+    val followWindowSize: String? = null,
+    val followGameInFront: Boolean = false,
+    val followDivisor: Float = 1f,
+    val onFollowDivisor: (Float) -> Unit = {},
     val onUpscaleSharpness: (Int) -> Unit = {},
     val onEffects: (ScreenEffects) -> Unit = {},
     val onCardboard: (Cardboard) -> Unit = {},
@@ -478,6 +482,16 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 }
                             }
                             SettingsGroup(stringResource(R.string.display_image_scaling)) {
+                                if (a.followWindowSize != null) {
+                                    val (fw, fh) = a.followWindowSize.split('x').map { it.toInt() }
+                                    val now = com.droiddeck.launcher.session.SessionDisplay.followSize(fw, fh, a.followDivisor)
+                                    ChoiceRow(host, "follow-divisor", stringResource(R.string.display_follow_divisor),
+                                        stringResource(if (a.followGameInFront) R.string.display_follow_divisor_game else R.string.display_follow_divisor_client,
+                                            now?.let { "${it.first}×${it.second}" } ?: "-", "$fw×$fh"),
+                                        com.droiddeck.launcher.session.SessionDisplay.FOLLOW_DIVISORS.map {
+                                            it to com.droiddeck.launcher.session.SessionDisplay.divisorLabel(it)
+                                        }, a.followDivisor, chipModifier = focus.track(page, "follow-divisor"), onPick = a.onFollowDivisor)
+                                }
                                 ChoiceRow(host, "upscaler", stringResource(R.string.display_filter), null,
                                     SessionPrefs.upscalerChoices(LocalContext.current), a.upscaler,
                                     note = stringResource(R.string.display_filter_note),

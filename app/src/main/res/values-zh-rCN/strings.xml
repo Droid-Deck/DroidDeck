@@ -1962,6 +1962,9 @@
     <string name="display_look_filter">%1$s 将缩放设为 %2$s。</string>
     <string name="display_match_screen">匹配屏幕（%1$d×%2$d）</string>
     <string name="display_follow_screen">跟随屏幕（折叠或展开时调整大小）</string>
+    <string name="display_follow_divisor">渲染尺寸</string>
+    <string name="display_follow_divisor_game">此游戏在此 %2$s 窗口中为 %1$s。每个游戏为每种窗口尺寸（屏幕、方向或折叠）分别保存。</string>
+    <string name="display_follow_divisor_client">Steam 客户端在此 %2$s 窗口中为 %1$s。每种窗口尺寸（屏幕、方向或折叠）分别保存。</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">显示设备详情</string>
     <string name="device_info_hide">隐藏设备详情</string>

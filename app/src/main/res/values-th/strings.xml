@@ -1886,6 +1886,9 @@
     <string name="display_look_filter">%1$s ตั้งการปรับขนาดเป็น %2$s</string>
     <string name="display_match_screen">พอดีหน้าจอ (%1$d×%2$d)</string>
     <string name="display_follow_screen">ตามหน้าจอ (ปรับขนาดเมื่อพับหรือกาง)</string>
+    <string name="display_follow_divisor">ขนาดการเรนเดอร์</string>
+    <string name="display_follow_divisor_game">%1$s สำหรับเกมนี้ในหน้าต่าง %2$s นี้ แต่ละเกมจะจำค่าของตัวเองสำหรับแต่ละขนาดหน้าต่าง: หน้าจอ การวางแนว หรือการพับ</string>
+    <string name="display_follow_divisor_client">%1$s สำหรับไคลเอนต์ Steam ในหน้าต่าง %2$s นี้ แต่ละขนาดหน้าต่างจะจำค่าของตัวเอง: หน้าจอ การวางแนว หรือการพับ</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">แสดงรายละเอียดอุปกรณ์</string>
     <string name="device_info_hide">ซ่อนรายละเอียดอุปกรณ์</string>

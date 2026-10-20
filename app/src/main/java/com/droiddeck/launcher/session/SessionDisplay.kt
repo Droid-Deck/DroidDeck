@@ -8,6 +8,11 @@ object SessionDisplay {
     const val FOLLOW_SCREEN = "follow"
     const val FOLLOW_MIN_SIDE = 480
 
+    val FOLLOW_DIVISORS = listOf(1f, 1.5f, 2f, 3f, 4f)
+
+    fun divisorLabel(divisor: Float): String =
+        "÷" + if (divisor % 1f == 0f) divisor.toInt().toString() else divisor.toString()
+
     const val DEFAULT_RESOLUTION = "720p"
     private val PRESET_HEIGHTS = listOf(720, 900, 1080)
 
@@ -31,8 +36,11 @@ object SessionDisplay {
             .filter { resolveChoice(panel, it) != screenSize(panel) } + MATCH_SCREEN + FOLLOW_SCREEN
     }
 
-    fun followSize(width: Int, height: Int): Pair<Int, Int>? =
-        if (minOf(width, height) < FOLLOW_MIN_SIDE) null else (width and 1.inv()) to (height and 1.inv())
+    fun followSize(width: Int, height: Int, divisor: Float = 1f): Pair<Int, Int>? {
+        if (minOf(width, height) < FOLLOW_MIN_SIDE) return null
+        val d = divisor.coerceAtLeast(1f)
+        return ((width / d).toInt() and 1.inv()) to ((height / d).toInt() and 1.inv())
+    }
 
     fun foldable(context: Context): Boolean =
         context.packageManager.hasSystemFeature("android.hardware.sensor.hinge_angle")

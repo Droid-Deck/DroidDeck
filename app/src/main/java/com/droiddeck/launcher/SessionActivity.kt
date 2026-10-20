@@ -34,6 +34,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -217,6 +218,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private lateinit var touchscreenGestures: TouchscreenGestures
     private var gestureConfig = com.droiddeck.launcher.input.TouchGestureConfig()
     private var gestureGame: String? = null
+    private var followGame by mutableStateOf<String?>(null)
+    private var followDivisor by mutableFloatStateOf(1f)
+    private var followWindowSize by mutableStateOf<String?>(null)
     private var gestureSettingsOpen by mutableStateOf(false)
     private var recognizedGesture by mutableStateOf<TouchscreenGestures.Gesture?>(null)
     private var gesturePointerX = 0f
@@ -710,6 +714,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         }
                     }
                     if (nextGame != gestureGame) { gestureGame = nextGame; refreshGestureConfig() }
+                    if (nextGame != followGame) { followGame = nextGame; applyGameFollowDivisor() }
                 }
                 LaunchedEffect(drawerOpen, pcKeyboardOpen, achievementsOpen, gestureSettingsOpen, pipUi, SessionState.suspended) {
                     if (drawerOpen || pcKeyboardOpen || achievementsOpen || gestureSettingsOpen || pipUi || SessionState.suspended) {
@@ -800,6 +805,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     secondScreenDisplays = secondScreenDisplays,
                     selectedSecondScreenDisplay = selectedSecondScreenDisplay,
                     onHud = { on -> SessionPrefs.setHudEnabled(this@SessionActivity, on); hudOn = on; hud.refresh() },
+                    followWindowSize = if (SessionState.followScreen) followWindowSize else null,
+                    followGameInFront = followGame != null,
+                    followDivisor = followDivisor,
+                    onFollowDivisor = ::chooseFollowDivisor,
                     onUpscaler = { m ->
                         SessionPrefs.setUpscaler(this@SessionActivity, m); upscaler = m
                         WaylandCompositor.nativeSetUpscaler(m)
@@ -1562,7 +1571,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
         val previous = SessionState.outputSize
         val live = if (SessionState.followScreen && !isInPictureInPictureMode)
-            com.droiddeck.launcher.session.SessionDisplay.followSize(holder.surfaceFrame.width(), holder.surfaceFrame.height())
+            com.droiddeck.launcher.session.SessionDisplay.followSize(holder.surfaceFrame.width(), holder.surfaceFrame.height(), SessionState.followDivisor)
         else null
         val size = live ?: if (SessionState.running) previous else glassesOutputSize() ?: outputSize()
         SessionState.outputSize = size
@@ -1650,13 +1659,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             cancelTouchGestures()
             Log.i(TAG, "surface resized to ${width}x$height - rebinding the compositor")
             CompositorHost.resize(holder.surface) { applyFrameGen() }
-            followWindow(width, height)
         }
+        applyGameFollowDivisor()
     }
 
     private fun followWindow(width: Int, height: Int) {
         if (!SessionState.followScreen || isInPictureInPictureMode || !CompositorHost.isStarted) return
-        val size = com.droiddeck.launcher.session.SessionDisplay.followSize(width, height) ?: return
+        val size = com.droiddeck.launcher.session.SessionDisplay.followSize(width, height, SessionState.followDivisor) ?: return
         if (size == SessionState.outputSize) return
         Log.i(TAG, "follow screen: ${SessionState.outputSize.first}x${SessionState.outputSize.second} -> ${size.first}x${size.second}")
         SessionState.outputSize = size
@@ -1665,11 +1674,32 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         WaylandCompositor.nativeResizeOutput(size.first, size.second)
     }
 
+    private fun applyGameFollowDivisor() {
+        val window = if (surfaceW > 0) "${surfaceW}x$surfaceH" else null
+        followWindowSize = window
+        val divisor = window?.let { SessionPrefs.followDivisor(this, followGame ?: SessionPrefs.FOLLOW_CLIENT, it) } ?: 1f
+        followDivisor = divisor
+        if (!SessionState.followScreen) return
+        if (divisor != SessionState.followDivisor) {
+            Log.i(TAG, "follow screen: divisor ${SessionState.followDivisor} -> $divisor for ${followGame ?: "the client"} at $window")
+            SessionState.followDivisor = divisor
+        }
+        if (surfaceW > 0) followWindow(surfaceW, surfaceH)
+    }
+
+    private fun chooseFollowDivisor(divisor: Float) {
+        val window = followWindowSize ?: return
+        SessionPrefs.setFollowDivisor(this, followGame ?: SessionPrefs.FOLLOW_CLIENT, window, divisor)
+        applyGameFollowDivisor()
+    }
+
     private fun followChoice(): Boolean {
         val mode = displayMode()
         return SessionPrefs.resolutionChoice(this, mode, com.droiddeck.launcher.session.SessionDisplay.panelSize(this)) ==
             com.droiddeck.launcher.session.SessionDisplay.FOLLOW_SCREEN
     }
+
+
 
     private fun applyFollowOrientation(config: android.content.res.Configuration) {
         val wanted = if (SessionState.followScreen && config.smallestScreenWidthDp >= 600) {

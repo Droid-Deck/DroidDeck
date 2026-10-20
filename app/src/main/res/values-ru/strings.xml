@@ -1946,6 +1946,9 @@
     <string name="display_look_filter">%1$s Устанавливает масштабирование: %2$s.</string>
     <string name="display_match_screen">По размеру экрана (%1$d×%2$d)</string>
     <string name="display_follow_screen">По экрану (меняется при складывании и раскладывании)</string>
+    <string name="display_follow_divisor">Размер рендеринга</string>
+    <string name="display_follow_divisor_game">%1$s для этой игры в этом окне %2$s. Каждая игра запоминает свой для каждого размера окна: экрана, ориентации или сгиба.</string>
+    <string name="display_follow_divisor_client">%1$s для клиента Steam в этом окне %2$s. Каждый размер окна запоминает свой: экран, ориентацию или сгиб.</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">Показать сведения об устройстве</string>
     <string name="device_info_hide">Скрыть сведения об устройстве</string>

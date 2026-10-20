@@ -1886,6 +1886,9 @@
     <string name="display_look_filter">%1$s 將縮放設為 %2$s。</string>
     <string name="display_match_screen">符合螢幕（%1$d×%2$d）</string>
     <string name="display_follow_screen">跟隨螢幕（摺疊或展開時調整大小）</string>
+    <string name="display_follow_divisor">算繪尺寸</string>
+    <string name="display_follow_divisor_game">此遊戲在此 %2$s 視窗中為 %1$s。每個遊戲為每種視窗尺寸（螢幕、方向或摺疊）分別儲存。</string>
+    <string name="display_follow_divisor_client">Steam 用戶端在此 %2$s 視窗中為 %1$s。每種視窗尺寸（螢幕、方向或摺疊）分別儲存。</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">顯示裝置詳細資料</string>
     <string name="device_info_hide">隱藏裝置詳細資料</string>
