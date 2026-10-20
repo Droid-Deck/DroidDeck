@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcuts_title">Scurtături pentru butoane fizice</string>
+    <string name="shortcuts_hint">Atribuie butoane pentru fiecare controler. Scurtăturile Steam funcționează doar în sesiunile Steam. Butoanele neatribuite își păstrează comportamentul implicit.</string>
+    <string name="shortcuts_dd_menu">Meniul DroidDeck</string>
+    <string name="shortcuts_default">Comportament implicit (fără modificări)</string>
+    <string name="shortcuts_assign">Atribuie un buton</string>
+    <string name="shortcuts_remove">Elimină</string>
+    <string name="shortcuts_capture">Atribuie: %1$s</string>
+    <string name="shortcuts_press">Apasă și eliberează butonul fizic dorit. Folosește ecranul tactil pentru a anula.</string>
+    <string name="shortcuts_release">Eliberează butonul pentru a continua.</string>
+    <string name="shortcuts_detected">%1$s: %2$s</string>
+    <string name="shortcuts_conflict">Acest buton este deja atribuit pentru: %1$s</string>
+    <string name="shortcuts_replace">Salvarea înlocuiește orice scurtătură care folosește acest buton sau aceeași acțiune pe acest controler.</string>
+    <string name="shortcuts_save">Salvează scurtătura</string>
+    <string name="shortcuts_retry">Încearcă alt buton</string>
+    <string name="shortcuts_limitations">Buton nedetectat? Android sau firmware-ul poate intercepta Acasă sau butoanele suplimentare. Butoanele trebuie să trimită evenimente distincte către DroidDeck. Tastele de volum și de sistem nu pot fi atribuite.</string>
+    <string name="shortcuts_reset">Resetează scurtăturile fizice</string>
+    <string name="shortcuts_reset_hint">Elimini toate scurtăturile fizice și restabilești comportamentul implicit? Comenzile tactile și celelalte setări ale controlerului se păstrează.</string>
+</resources>

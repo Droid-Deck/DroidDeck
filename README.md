@@ -19,6 +19,14 @@ Use Android 9 or newer on a supported Adreno device (730 or newer, or 8xx). Adre
 
 On Android 14 and newer, before Steam launches, you must turn on **Disable child process restrictions** in Developer options. If this option is not available in developer settings (Android 12 and 13 devices), first launch of Steam will present a "Fix it for me" button, which will help automate the setup process.
 
+## Physical button shortcuts
+
+Open **Setup → Controller → Physical button shortcuts**, or the session drawer's **Controller** page. Choose **Steam menu**, **Open Quick Access Menu**, or **DroidDeck menu**, select **Assign a button**, then press and release a physical button and save. Assignments are stored per controller; each action has one assigned button per controller. Saving shows conflicts before replacing an assignment. A mapped button performs the shortcut instead of sending its normal input to the game. Steam shortcuts only apply in Steam sessions, and shortcuts are inactive while loading, suspended, or using the on-screen keyboard or other input dialogs.
+
+Unassigned buttons keep their existing behavior, including the Back button's single/double-press setting and Select-to-Steam option. Remove an individual assignment or use **Reset physical shortcuts** to restore that behavior without changing touch layouts or other controller settings. The touchscreen remains available for configuration and recovery.
+
+Extra buttons such as M1/M2 work only if Android exposes distinct key events to the app. Android Home, volume and other reserved system keys cannot be assigned; making DroidDeck the default launcher retains its existing Home-to-Steam behavior. Firmware that intercepts a button or makes it duplicate another button cannot be overridden here. During capture, the detected device, Android key code and scan code are shown; capture and shortcut-action diagnostics are included in session logs when capture runs inside a session. If a button is not detected, record its physical label, firmware/controller mode, and whether it leaves the app, then share the session logs.
+
 ## Smart glasses
 
 Use **Setup → Smart glasses** for app-wide virtual-screen settings across DroidDeck menus, launchers, desktop sessions, and games. Supported VITURE, RayNeo, and XREAL connections provide 3DoF; Luma Ultra adds optional experimental 6DoF and stereo-assisted hand/Joy-Con tracking. Model support and SDK requirements differ: see the [smart-glasses support matrix](docs/smart-glasses-support.md) for supported devices, controls, setup, and limitations.

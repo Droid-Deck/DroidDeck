@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcuts_title">Pintasan tombol fisik</string>
+    <string name="shortcuts_hint">Tetapkan tombol per kontroler. Pintasan Steam hanya berlaku dalam sesi Steam. Tombol yang belum ditetapkan tetap berfungsi seperti biasa.</string>
+    <string name="shortcuts_dd_menu">Menu DroidDeck</string>
+    <string name="shortcuts_default">Perilaku bawaan (tanpa perubahan)</string>
+    <string name="shortcuts_assign">Tetapkan tombol</string>
+    <string name="shortcuts_remove">Hapus</string>
+    <string name="shortcuts_capture">Tetapkan: %1$s</string>
+    <string name="shortcuts_press">Tekan dan lepaskan tombol fisik yang diinginkan. Gunakan layar sentuh untuk membatalkan.</string>
+    <string name="shortcuts_release">Lepaskan tombol untuk melanjutkan.</string>
+    <string name="shortcuts_detected">%1$s: %2$s</string>
+    <string name="shortcuts_conflict">Tombol ini sudah ditetapkan untuk: %1$s</string>
+    <string name="shortcuts_replace">Menyimpan akan mengganti pintasan yang menggunakan tombol ini atau tindakan yang sama pada kontroler ini.</string>
+    <string name="shortcuts_save">Simpan pintasan</string>
+    <string name="shortcuts_retry">Coba tombol lain</string>
+    <string name="shortcuts_limitations">Tombol tidak terdeteksi? Android atau firmware dapat mencegat Beranda atau tombol tambahan. Tombol harus mengirim peristiwa berbeda ke DroidDeck. Tombol volume dan sistem tidak dapat ditetapkan.</string>
+    <string name="shortcuts_reset">Reset pintasan fisik</string>
+    <string name="shortcuts_reset_hint">Hapus semua pintasan fisik dan pulihkan perilaku bawaan? Kontrol sentuh dan pengaturan kontroler lainnya tetap disimpan.</string>
+</resources>

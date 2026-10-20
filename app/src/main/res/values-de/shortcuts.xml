@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcuts_title">Physische Tastenkürzel</string>
+    <string name="shortcuts_hint">Tasten pro Controller zuweisen. Steam-Kürzel gelten nur in Steam-Sitzungen. Nicht zugewiesene Tasten behalten ihr Standardverhalten.</string>
+    <string name="shortcuts_dd_menu">DroidDeck-Menü</string>
+    <string name="shortcuts_default">Standardverhalten (keine Änderung)</string>
+    <string name="shortcuts_assign">Taste zuweisen</string>
+    <string name="shortcuts_remove">Entfernen</string>
+    <string name="shortcuts_capture">Zuweisen: %1$s</string>
+    <string name="shortcuts_press">Drücke die gewünschte physische Taste und lasse sie los. Verwende den Touchscreen zum Abbrechen.</string>
+    <string name="shortcuts_release">Lasse die Taste los, um fortzufahren.</string>
+    <string name="shortcuts_detected">%1$s: %2$s</string>
+    <string name="shortcuts_conflict">Diese Taste ist bereits zugewiesen: %1$s</string>
+    <string name="shortcuts_replace">Speichern ersetzt jedes Kürzel mit dieser Taste oder derselben Aktion auf diesem Controller.</string>
+    <string name="shortcuts_save">Kürzel speichern</string>
+    <string name="shortcuts_retry">Andere Taste versuchen</string>
+    <string name="shortcuts_limitations">Keine Taste erkannt? Android oder die Geräte-Firmware kann Home oder Zusatztasten abfangen. Tasten müssen unterschiedliche Ereignisse an DroidDeck senden. Lautstärke- und Systemtasten sind nicht zuweisbar.</string>
+    <string name="shortcuts_reset">Physische Kürzel zurücksetzen</string>
+    <string name="shortcuts_reset_hint">Alle physischen Kürzel entfernen und das Standardverhalten wiederherstellen? Touch-Steuerung und andere Controller-Einstellungen bleiben erhalten.</string>
+</resources>

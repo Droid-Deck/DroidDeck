@@ -72,6 +72,8 @@ import com.droiddeck.launcher.input.ControllerPrefs
 import com.droiddeck.launcher.input.SessionClipboard
 import com.droiddeck.launcher.input.OnScreenControls
 import com.droiddeck.launcher.input.PadBridge
+import com.droiddeck.launcher.input.PhysicalShortcuts
+import com.droiddeck.launcher.input.PhysicalShortcutRouter
 import com.droiddeck.launcher.input.PadMouse
 import com.droiddeck.launcher.input.PadState
 import com.droiddeck.launcher.input.SteamControllerBle
@@ -154,6 +156,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private lateinit var loading: LoadingState
     private lateinit var hud: PerfHud
     private var padBridge: PadBridge? = null
+    private val physicalShortcuts = PhysicalShortcutRouter()
     private var joyConVr: com.droiddeck.launcher.input.JoyConVr? = null
     private var handCamera: com.droiddeck.launcher.handtracking.HandCamera? = null
     private var padMotion: com.droiddeck.launcher.input.PadMotion? = null
@@ -391,6 +394,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             updateHandCamera()
         }
         override fun onInputDeviceRemoved(deviceId: Int) {
+            physicalShortcuts.onDeviceRemoved(deviceId)
             Log.i(TAG, "input device $deviceId disconnected")
             joyConVr?.refresh()
             padBridge?.onDeviceRemoved(deviceId)
@@ -828,6 +832,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     onKeyboardButton = { on -> updateControllerPrefs { ControllerPrefs.setKeyboardButton(this@SessionActivity, on) } },
                     onSteamMenu = if (SessionState.mode == SessionService.MODE_STEAM) ({ sendSteamGuide() }) else null,
                     onQam = if (SessionState.mode == SessionService.MODE_STEAM) ({ triggerSteamQam() }) else null,
+                    onPhysicalShortcutsChanged = { physicalShortcuts.bindings = PhysicalShortcuts.read(this@SessionActivity) },
                     onAchievements = achievementsInFront?.let { { drawerOpen = false; achievementsOpen = true } },
                     achievementsProgress = achievementsInFront?.progress,
                     padType = if (SessionState.mode == SessionService.MODE_STEAM && SessionState.deckPad) padType else null,
@@ -1374,6 +1379,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         steamDownloadsInBackground = SessionPrefs.steamDownloadsInBackground(this)
         oscMode = SessionPrefs.oscMode(this)
         backActionsInverted = SessionPrefs.backActionsInverted(this)
+        physicalShortcuts.bindings = PhysicalShortcuts.read(this)
         lowLatencyController = SessionPrefs.lowLatencyController(this)
         lowLatencyTouch = SessionPrefs.lowLatencyTouch(this)
         padType = SessionPrefs.steamController(this)
@@ -1908,6 +1914,24 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 return super.dispatchKeyEvent(event)
         }
         if (pipUi) return true
+        if (physicalShortcuts.onKey(
+                event,
+                enabled = SessionState.running && !SessionState.suspended &&
+                    (event.deviceId to event.keyCode) !in resumeKeysDown &&
+                    !(::loading.isInitialized && (loading.visible || loading.ended)) &&
+                    !pcKeyboardOpen && !achievementsOpen && !gestureSettingsOpen,
+                steam = SessionState.mode == SessionService.MODE_STEAM,
+            ) { action ->
+                pendingBackAction?.let(uiHandler::removeCallbacks)
+                pendingBackAction = null
+                drawerControllerActive = true
+                Log.i(TAG, "physical shortcut ${action.name} device=${event.deviceId} key=${event.keyCode} scan=${event.scanCode}")
+                when (action) {
+                    PhysicalShortcuts.Action.STEAM -> sendSteamGuide()
+                    PhysicalShortcuts.Action.QAM -> triggerSteamQam()
+                    PhysicalShortcuts.Action.DROIDDECK -> drawerOpen = !drawerOpen
+                }
+            }) return true
         val pad = com.droiddeck.launcher.input.JoyCon.normalize(event)
         if (pad !== event) return dispatchKeyEvent(pad)
         val fromController = PadBridge.isControllerKeyEvent(event)
@@ -2883,6 +2907,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onPause() {
         if (runtimeRemovalBlocked) { super.onPause(); return }
+        physicalShortcuts.clear()
         sessionClipboard.stop()
         if (::touchscreenGestures.isInitialized) touchscreenGestures.cancel()
         if (::touchpad.isInitialized) touchpad.cancel()

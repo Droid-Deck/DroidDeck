@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcuts_title">物理ボタンのショートカット</string>
+    <string name="shortcuts_hint">コントローラーごとにボタンを割り当てます。Steam のショートカットは Steam セッションでのみ有効です。未割り当てのボタンは既定の動作を維持します。</string>
+    <string name="shortcuts_dd_menu">DroidDeck メニュー</string>
+    <string name="shortcuts_default">既定の動作（変更なし）</string>
+    <string name="shortcuts_assign">ボタンを割り当てる</string>
+    <string name="shortcuts_remove">削除</string>
+    <string name="shortcuts_capture">割り当て：%1$s</string>
+    <string name="shortcuts_press">使用したい物理ボタンを押して離してください。キャンセルにはタッチスクリーンを使用してください。</string>
+    <string name="shortcuts_release">ボタンを離して続行してください。</string>
+    <string name="shortcuts_detected">%1$s：%2$s</string>
+    <string name="shortcuts_conflict">このボタンはすでに次の操作に割り当てられています：%1$s</string>
+    <string name="shortcuts_replace">保存すると、このコントローラーで同じボタンまたは同じ操作を使うショートカットが置き換えられます。</string>
+    <string name="shortcuts_save">ショートカットを保存</string>
+    <string name="shortcuts_retry">別のボタンを試す</string>
+    <string name="shortcuts_limitations">ボタンが検出されない場合、Android やファームウェアがホームボタンや追加ボタンを処理している可能性があります。各ボタンは DroidDeck に異なるイベントを送信する必要があります。音量キーやシステムキーは割り当てられません。</string>
+    <string name="shortcuts_reset">物理ショートカットをリセット</string>
+    <string name="shortcuts_reset_hint">すべての物理ショートカットを削除し、既定の動作に戻しますか？タッチ操作とその他のコントローラー設定は維持されます。</string>
+</resources>

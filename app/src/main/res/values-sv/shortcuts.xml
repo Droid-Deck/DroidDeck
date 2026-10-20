@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcuts_title">Genvägar för fysiska knappar</string>
+    <string name="shortcuts_hint">Tilldela knappar per handkontroll. Steam-genvägar gäller bara i Steam-sessioner. Knappar utan tilldelning behåller standardfunktionen.</string>
+    <string name="shortcuts_dd_menu">DroidDeck-meny</string>
+    <string name="shortcuts_default">Standardfunktion (ingen ändring)</string>
+    <string name="shortcuts_assign">Tilldela en knapp</string>
+    <string name="shortcuts_remove">Ta bort</string>
+    <string name="shortcuts_capture">Tilldela: %1$s</string>
+    <string name="shortcuts_press">Tryck och släpp önskad fysisk knapp. Använd pekskärmen för att avbryta.</string>
+    <string name="shortcuts_release">Släpp knappen för att fortsätta.</string>
+    <string name="shortcuts_detected">%1$s: %2$s</string>
+    <string name="shortcuts_conflict">Den här knappen är redan tilldelad: %1$s</string>
+    <string name="shortcuts_replace">När du sparar ersätts varje genväg med den här knappen eller samma åtgärd på den här handkontrollen.</string>
+    <string name="shortcuts_save">Spara genväg</string>
+    <string name="shortcuts_retry">Prova en annan knapp</string>
+    <string name="shortcuts_limitations">Ingen knapp upptäckt? Android eller enhetens firmware kan fånga upp Hem eller extraknappar. Knappar måste skicka olika händelser till DroidDeck. Volym- och systemknappar kan inte tilldelas.</string>
+    <string name="shortcuts_reset">Återställ fysiska genvägar</string>
+    <string name="shortcuts_reset_hint">Ta bort alla fysiska genvägar och återställa standardfunktionen? Pekkontroller och andra handkontrollinställningar behålls.</string>
+</resources>

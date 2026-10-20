@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcuts_title">ทางลัดปุ่มจริง</string>
+    <string name="shortcuts_hint">กำหนดปุ่มแยกตามคอนโทรลเลอร์ ทางลัด Steam ใช้ได้เฉพาะในเซสชัน Steam ปุ่มที่ไม่ได้กำหนดจะยังทำงานตามค่าเริ่มต้น</string>
+    <string name="shortcuts_dd_menu">เมนู DroidDeck</string>
+    <string name="shortcuts_default">การทำงานเริ่มต้น (ไม่เปลี่ยนแปลง)</string>
+    <string name="shortcuts_assign">กำหนดปุ่ม</string>
+    <string name="shortcuts_remove">นำออก</string>
+    <string name="shortcuts_capture">กำหนด: %1$s</string>
+    <string name="shortcuts_press">กดแล้วปล่อยปุ่มจริงที่ต้องการใช้ ใช้หน้าจอสัมผัสเพื่อยกเลิก</string>
+    <string name="shortcuts_release">ปล่อยปุ่มเพื่อดำเนินการต่อ</string>
+    <string name="shortcuts_detected">%1$s: %2$s</string>
+    <string name="shortcuts_conflict">ปุ่มนี้ถูกกำหนดไว้แล้วสำหรับ: %1$s</string>
+    <string name="shortcuts_replace">การบันทึกจะแทนที่ทางลัดที่ใช้ปุ่มนี้หรือการกระทำเดียวกันบนคอนโทรลเลอร์นี้</string>
+    <string name="shortcuts_save">บันทึกทางลัด</string>
+    <string name="shortcuts_retry">ลองปุ่มอื่น</string>
+    <string name="shortcuts_limitations">ตรวจไม่พบปุ่มใช่ไหม Android หรือเฟิร์มแวร์อาจดักจับปุ่มหน้าหลักหรือปุ่มเสริม ปุ่มต้องส่งเหตุการณ์ที่แตกต่างกันมายัง DroidDeck ไม่สามารถกำหนดปุ่มปรับเสียงและปุ่มระบบได้</string>
+    <string name="shortcuts_reset">รีเซ็ตทางลัดปุ่มจริง</string>
+    <string name="shortcuts_reset_hint">นำทางลัดปุ่มจริงทั้งหมดออกและคืนค่าการทำงานเริ่มต้นหรือไม่ การควบคุมแบบสัมผัสและการตั้งค่าคอนโทรลเลอร์อื่นจะยังคงอยู่</string>
+</resources>

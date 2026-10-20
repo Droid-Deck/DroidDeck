@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcuts_title">实体按键快捷操作</string>
+    <string name="shortcuts_hint">为每个控制器分配按键。Steam 快捷操作仅在 Steam 会话中生效。未分配的按键保持默认行为。</string>
+    <string name="shortcuts_dd_menu">DroidDeck 菜单</string>
+    <string name="shortcuts_default">默认行为（未覆盖）</string>
+    <string name="shortcuts_assign">分配按键</string>
+    <string name="shortcuts_remove">移除</string>
+    <string name="shortcuts_capture">分配：%1$s</string>
+    <string name="shortcuts_press">按下并松开要使用的实体按键。请使用触摸屏取消。</string>
+    <string name="shortcuts_release">松开按键以继续。</string>
+    <string name="shortcuts_detected">%1$s：%2$s</string>
+    <string name="shortcuts_conflict">此按键已分配给：%1$s</string>
+    <string name="shortcuts_replace">保存将替换此控制器上使用此按键或相同操作的快捷设置。</string>
+    <string name="shortcuts_save">保存快捷操作</string>
+    <string name="shortcuts_retry">尝试其他按键</string>
+    <string name="shortcuts_limitations">未检测到按键？Android 或设备固件可能会拦截主页键或额外按键。各按键必须向 DroidDeck 发送不同的事件。音量键和系统按键不可分配。</string>
+    <string name="shortcuts_reset">重置实体按键快捷操作</string>
+    <string name="shortcuts_reset_hint">移除所有实体按键快捷操作并恢复默认行为？触摸控制和其他控制器设置将保留。</string>
+</resources>

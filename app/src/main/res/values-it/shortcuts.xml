@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcuts_title">Scorciatoie dei pulsanti fisici</string>
+    <string name="shortcuts_hint">Assegna i pulsanti per controller. Le scorciatoie Steam valgono solo nelle sessioni Steam. I pulsanti non assegnati mantengono il comportamento predefinito.</string>
+    <string name="shortcuts_dd_menu">Menu DroidDeck</string>
+    <string name="shortcuts_default">Comportamento predefinito (nessuna modifica)</string>
+    <string name="shortcuts_assign">Assegna un pulsante</string>
+    <string name="shortcuts_remove">Rimuovi</string>
+    <string name="shortcuts_capture">Assegna: %1$s</string>
+    <string name="shortcuts_press">Premi e rilascia il pulsante fisico desiderato. Usa il touchscreen per annullare.</string>
+    <string name="shortcuts_release">Rilascia il pulsante per continuare.</string>
+    <string name="shortcuts_detected">%1$s: %2$s</string>
+    <string name="shortcuts_conflict">Questo pulsante è già assegnato a: %1$s</string>
+    <string name="shortcuts_replace">Il salvataggio sostituisce qualsiasi scorciatoia con questo pulsante o la stessa azione su questo controller.</string>
+    <string name="shortcuts_save">Salva scorciatoia</string>
+    <string name="shortcuts_retry">Prova un altro pulsante</string>
+    <string name="shortcuts_limitations">Pulsante non rilevato? Android o il firmware possono intercettare Home o i pulsanti aggiuntivi. I pulsanti devono inviare eventi distinti a DroidDeck. I tasti del volume e di sistema non sono assegnabili.</string>
+    <string name="shortcuts_reset">Ripristina scorciatoie fisiche</string>
+    <string name="shortcuts_reset_hint">Rimuovere tutte le scorciatoie fisiche e ripristinare il comportamento predefinito? I controlli touch e le altre impostazioni del controller vengono mantenuti.</string>
+</resources>

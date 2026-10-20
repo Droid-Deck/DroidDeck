@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcuts_title">Действия физических кнопок</string>
+    <string name="shortcuts_hint">Назначайте кнопки для каждого контроллера. Действия Steam работают только в сеансах Steam. Неназначенные кнопки работают как прежде.</string>
+    <string name="shortcuts_dd_menu">Меню DroidDeck</string>
+    <string name="shortcuts_default">Поведение по умолчанию (без изменений)</string>
+    <string name="shortcuts_assign">Назначить кнопку</string>
+    <string name="shortcuts_remove">Удалить</string>
+    <string name="shortcuts_capture">Назначить: %1$s</string>
+    <string name="shortcuts_press">Нажмите и отпустите нужную физическую кнопку. Для отмены используйте сенсорный экран.</string>
+    <string name="shortcuts_release">Отпустите кнопку, чтобы продолжить.</string>
+    <string name="shortcuts_detected">%1$s: %2$s</string>
+    <string name="shortcuts_conflict">Эта кнопка уже назначена для: %1$s</string>
+    <string name="shortcuts_replace">Сохранение заменит любое назначение этой кнопки или того же действия на этом контроллере.</string>
+    <string name="shortcuts_save">Сохранить назначение</string>
+    <string name="shortcuts_retry">Попробовать другую кнопку</string>
+    <string name="shortcuts_limitations">Кнопка не обнаружена? Android или прошивка могут перехватывать Home или дополнительные кнопки. Кнопки должны отправлять разные события в DroidDeck. Кнопки громкости и системные клавиши назначить нельзя.</string>
+    <string name="shortcuts_reset">Сбросить назначения физических кнопок</string>
+    <string name="shortcuts_reset_hint">Удалить все назначения физических кнопок и восстановить поведение по умолчанию? Сенсорное управление и другие настройки контроллера сохранятся.</string>
+</resources>

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcuts_title">Snelkoppelingen voor fysieke knoppen</string>
+    <string name="shortcuts_hint">Wijs knoppen per controller toe. Steam-snelkoppelingen werken alleen in Steam-sessies. Niet-toegewezen knoppen behouden hun standaardgedrag.</string>
+    <string name="shortcuts_dd_menu">DroidDeck-menu</string>
+    <string name="shortcuts_default">Standaardgedrag (geen aanpassing)</string>
+    <string name="shortcuts_assign">Knop toewijzen</string>
+    <string name="shortcuts_remove">Verwijderen</string>
+    <string name="shortcuts_capture">Toewijzen: %1$s</string>
+    <string name="shortcuts_press">Druk op de gewenste fysieke knop en laat los. Gebruik het aanraakscherm om te annuleren.</string>
+    <string name="shortcuts_release">Laat de knop los om door te gaan.</string>
+    <string name="shortcuts_detected">%1$s: %2$s</string>
+    <string name="shortcuts_conflict">Deze knop is al toegewezen aan: %1$s</string>
+    <string name="shortcuts_replace">Opslaan vervangt elke snelkoppeling met deze knop of dezelfde actie op deze controller.</string>
+    <string name="shortcuts_save">Snelkoppeling opslaan</string>
+    <string name="shortcuts_retry">Andere knop proberen</string>
+    <string name="shortcuts_limitations">Geen knop gedetecteerd? Android of de firmware kan Home of extra knoppen onderscheppen. Knoppen moeten verschillende gebeurtenissen naar DroidDeck sturen. Volume- en systeemtoetsen zijn niet toewijsbaar.</string>
+    <string name="shortcuts_reset">Fysieke snelkoppelingen herstellen</string>
+    <string name="shortcuts_reset_hint">Alle fysieke snelkoppelingen verwijderen en het standaardgedrag herstellen? Aanraakbediening en andere controllerinstellingen blijven behouden.</string>
+</resources>

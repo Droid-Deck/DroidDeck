@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcuts_title">اختصارات الأزرار الفعلية</string>
+    <string name="shortcuts_hint">عيّن الأزرار لكل وحدة تحكم. تعمل اختصارات Steam في جلسات Steam فقط. تحتفظ الأزرار غير المعيّنة بسلوكها الافتراضي.</string>
+    <string name="shortcuts_dd_menu">قائمة DroidDeck</string>
+    <string name="shortcuts_default">السلوك الافتراضي (دون تغيير)</string>
+    <string name="shortcuts_assign">تعيين زر</string>
+    <string name="shortcuts_remove">إزالة</string>
+    <string name="shortcuts_capture">تعيين: %1$s</string>
+    <string name="shortcuts_press">اضغط الزر الفعلي المطلوب ثم أفلته. استخدم شاشة اللمس للإلغاء.</string>
+    <string name="shortcuts_release">أفلت الزر للمتابعة.</string>
+    <string name="shortcuts_detected">%1$s: %2$s</string>
+    <string name="shortcuts_conflict">هذا الزر معيّن بالفعل إلى: %1$s</string>
+    <string name="shortcuts_replace">يستبدل الحفظ أي اختصار يستخدم هذا الزر أو الإجراء نفسه على وحدة التحكم هذه.</string>
+    <string name="shortcuts_save">حفظ الاختصار</string>
+    <string name="shortcuts_retry">تجربة زر آخر</string>
+    <string name="shortcuts_limitations">لم يُكتشف الزر؟ قد يعترض Android أو البرنامج الثابت زر الرئيسية أو الأزرار الإضافية. يجب أن ترسل الأزرار أحداثًا مميزة إلى DroidDeck. لا يمكن تعيين مفاتيح الصوت والنظام.</string>
+    <string name="shortcuts_reset">إعادة ضبط الاختصارات الفعلية</string>
+    <string name="shortcuts_reset_hint">هل تريد إزالة جميع الاختصارات الفعلية واستعادة السلوك الافتراضي؟ تُحفظ عناصر التحكم باللمس وإعدادات وحدة التحكم الأخرى.</string>
+</resources>

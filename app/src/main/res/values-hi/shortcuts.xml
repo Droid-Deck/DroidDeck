@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcuts_title">भौतिक बटन शॉर्टकट</string>
+    <string name="shortcuts_hint">हर कंट्रोलर के लिए बटन असाइन करें। Steam शॉर्टकट केवल Steam सत्रों में काम करते हैं। बिना असाइन किए बटन अपना डिफ़ॉल्ट व्यवहार बनाए रखते हैं।</string>
+    <string name="shortcuts_dd_menu">DroidDeck मेनू</string>
+    <string name="shortcuts_default">डिफ़ॉल्ट व्यवहार (कोई बदलाव नहीं)</string>
+    <string name="shortcuts_assign">बटन असाइन करें</string>
+    <string name="shortcuts_remove">हटाएँ</string>
+    <string name="shortcuts_capture">असाइन करें: %1$s</string>
+    <string name="shortcuts_press">मनचाहा भौतिक बटन दबाएँ और छोड़ें। रद्द करने के लिए टचस्क्रीन का उपयोग करें।</string>
+    <string name="shortcuts_release">जारी रखने के लिए बटन छोड़ें।</string>
+    <string name="shortcuts_detected">%1$s: %2$s</string>
+    <string name="shortcuts_conflict">यह बटन पहले से असाइन है: %1$s</string>
+    <string name="shortcuts_replace">सहेजने पर इस कंट्रोलर पर इस बटन या इसी कार्रवाई का उपयोग करने वाला कोई भी शॉर्टकट बदल जाएगा।</string>
+    <string name="shortcuts_save">शॉर्टकट सहेजें</string>
+    <string name="shortcuts_retry">दूसरा बटन आज़माएँ</string>
+    <string name="shortcuts_limitations">बटन नहीं मिला? Android या डिवाइस फ़र्मवेयर होम या अतिरिक्त बटनों को रोक सकता है। बटनों को DroidDeck को अलग-अलग इवेंट भेजने चाहिए। वॉल्यूम और सिस्टम कुंजियाँ असाइन नहीं की जा सकतीं।</string>
+    <string name="shortcuts_reset">भौतिक शॉर्टकट रीसेट करें</string>
+    <string name="shortcuts_reset_hint">सभी भौतिक शॉर्टकट हटाकर डिफ़ॉल्ट व्यवहार बहाल करें? टच कंट्रोल और अन्य कंट्रोलर सेटिंग बनी रहेंगी।</string>
+</resources>
