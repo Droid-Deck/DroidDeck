@@ -624,6 +624,25 @@ class LaunchTest(FexTestCase):
             guest = FEX["guest_environment"](fex, env)
             self.assertEqual(guest["STEAM_COMPAT_DATA_PATH"], short)
 
+    def test_shorten_compat_path_handles_concurrent_file_exists(self):
+        short_base = self.tmp / "c_concurrent"
+        with mock.patch.dict(G, {"COMPAT_SHORT_BASE": str(short_base)}):
+            compat = self.tmp / "compatdata/concurrent_app"
+            orig_symlink = os.symlink
+            called = [0]
+
+            def race_symlink(src, dst):
+                called[0] += 1
+                if called[0] == 1:
+                    orig_symlink(src, dst)
+                    raise FileExistsError(17, "File exists", dst)
+                return orig_symlink(src, dst)
+
+            with mock.patch("os.symlink", side_effect=race_symlink):
+                res = FEX["shorten_compat_path"](str(compat))
+                self.assertTrue(os.path.islink(res))
+                self.assertEqual(os.path.realpath(res), str(compat.resolve()))
+
     def test_game_environment_invalid_config_does_not_skip_anticheat_runtimes(self):
         steam = self.tmp / ".local/share/Steam"
         eac = steam / "steamapps/common/Proton EasyAntiCheat Runtime"

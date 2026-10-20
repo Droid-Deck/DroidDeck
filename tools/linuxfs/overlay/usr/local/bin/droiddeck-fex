@@ -602,17 +602,23 @@ def shorten_compat_path(path):
     os.makedirs(COMPAT_SHORT_BASE, exist_ok=True)
     os.makedirs(real, exist_ok=True)
     short = os.path.join(COMPAT_SHORT_BASE, app_id)
-    if os.path.islink(short):
-        if os.readlink(short) != real:
-            os.unlink(short)
+    try:
+        if os.path.islink(short):
+            if os.readlink(short) != real:
+                with contextlib.suppress(FileNotFoundError):
+                    os.unlink(short)
+                os.symlink(real, short)
+        elif not os.path.lexists(short):
             os.symlink(real, short)
-    elif not os.path.lexists(short):
-        os.symlink(real, short)
-    elif os.path.isdir(short) and not os.listdir(short):
-        os.rmdir(short)
-        os.symlink(real, short)
-    else:
-        raise OSError(f"Short compat path exists and cannot be safely replaced: {short}")
+        elif os.path.isdir(short) and not os.listdir(short):
+            with contextlib.suppress(FileNotFoundError, OSError):
+                os.rmdir(short)
+            os.symlink(real, short)
+        elif not (os.path.islink(short) and os.readlink(short) == real):
+            raise OSError(f"Short compat path exists and cannot be safely replaced: {short}")
+    except FileExistsError:
+        if not (os.path.islink(short) and os.readlink(short) == real):
+            raise
     server_dir = os.path.join(real, "fex-emu", "Server")
     os.makedirs(server_dir, exist_ok=True)
     if os.path.isdir(server_dir):
