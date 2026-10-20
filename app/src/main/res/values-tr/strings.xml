@@ -2706,8 +2706,8 @@
     <string name="boot_movie_source_repo">SteamDeckRepo</string>
     <string name="boot_movie_source_steam">Steam</string>
     <string name="boot_movie_source_pointshop">Puan Mağazası</string>
-    <string name="boot_movie_report">Açılış filmi raporu</string>
-    <string name="boot_movie_report_hint">DroidDeck ve Steam’in açılış filmleri hakkında bildiklerini, hata raporuna ekleyebileceğiniz bir metin dosyasına kaydeder.</string>
+    <string name="boot_movie_report">Açılış videosu raporu</string>
+    <string name="boot_movie_report_hint">DroidDeck ve Steam’in açılış videoları hakkında bildiklerini, hata raporuna ekleyebileceğiniz bir metin dosyasına kaydeder.</string>
     <string name="boot_movie_report_save">Kaydet</string>
     <string name="boot_movie_report_saved">%1$s konumuna kaydedildi</string>
     <string name="boot_movie_report_failed">Rapor kaydedilemedi.</string>

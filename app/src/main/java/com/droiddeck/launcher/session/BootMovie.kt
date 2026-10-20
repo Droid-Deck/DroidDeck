@@ -135,7 +135,7 @@ object BootMovie {
         volume == 0 -> Plan(false, listOf(Step.REMUX_SILENT, Step.TRANSCODE_SILENT), false)
         // Only a length that could not be applied plays as it is; a volume that could not be applied plays no louder.
         volume == 100 -> Plan(false, listOf(Step.REMUX_AUDIO, Step.TRANSCODE_AUDIO), true)
-        else -> Plan(false, listOf(Step.REGAIN, Step.REMUX_SILENT, Step.TRANSCODE_SILENT), false)
+        else -> Plan(false, listOf(Step.REGAIN, Step.REMUX_SILENT, Step.TRANSCODE_AUDIO), false)
     }
 
     /** Frames beyond 1920x1080 (4K and the like) have made Steam crash while it starts, so such a movie is always scaled down. */

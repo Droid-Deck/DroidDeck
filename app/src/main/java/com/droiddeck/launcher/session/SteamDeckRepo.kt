@@ -36,22 +36,25 @@ object SteamDeckRepo {
         object Failed : Page()
     }
 
+    /** The text of [key], empty when it is missing or JSON null, which `optString` would turn into the word "null". */
+    private fun JSONObject.text(key: String): String = if (isNull(key)) "" else optString(key)
+
     fun parse(json: String): List<Post>? {
         val array = runCatching { JSONObject(json).optJSONArray("posts") }.getOrNull() ?: return null
         val out = ArrayList<Post>()
         for (i in 0 until array.length()) {
             val o = array.optJSONObject(i) ?: continue
-            val id = o.optString("id")
-            val video = o.optString("video")
+            val id = o.text("id")
+            val video = o.text("video")
             if (id.isEmpty() || !video.startsWith("https://")) continue
             val devices = o.optJSONArray("devices")?.let { d -> (0 until d.length()).map { d.optString(it) } }.orEmpty()
             out.add(
                 Post(
-                    id = id, title = o.optString("title").ifBlank { id }, content = o.optString("content"),
-                    author = o.optJSONObject("user")?.optString("steam_name").orEmpty(),
-                    thumbnail = o.optString("thumbnail").takeIf { it.startsWith("https://") }.orEmpty(), video = video,
+                    id = id, title = o.text("title").ifBlank { id }, content = o.text("content"),
+                    author = o.optJSONObject("user")?.text("steam_name").orEmpty(),
+                    thumbnail = o.text("thumbnail").takeIf { it.startsWith("https://") }.orEmpty(), video = video,
                     seconds = o.optInt("video_duration"), likes = o.optInt("likes"), downloads = o.optInt("downloads"),
-                    devices = devices, url = o.optString("url"),
+                    devices = devices, url = o.text("url"),
                 ),
             )
         }

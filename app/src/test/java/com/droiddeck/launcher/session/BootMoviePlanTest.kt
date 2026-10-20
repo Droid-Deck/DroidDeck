@@ -32,7 +32,7 @@ class BootMoviePlanTest {
     @Test
     fun partialVolumeDegradesToSilenceNotToFullVolume() {
         val plan = BootMovie.plan(40, 0)
-        assertEquals(listOf(Step.REGAIN, Step.REMUX_SILENT, Step.TRANSCODE_SILENT), plan.steps)
+        assertEquals(listOf(Step.REGAIN, Step.REMUX_SILENT, Step.TRANSCODE_AUDIO), plan.steps)
         assertFalse(plan.passthrough)
         assertFalse(plan.sourceOnFailure)
     }

@@ -49,6 +49,19 @@ class SteamDeckRepoTest {
         assertNull(SteamDeckRepo.readLimited(ByteArray(11).inputStream(), 10))
     }
 
+    @Test fun jsonNullsAreEmptyTextNotTheWordNull() {
+        val posts = SteamDeckRepo.parse(
+            """{"posts":[{"id":"p9","title":null,"content":null,"user":{"steam_name":null},"thumbnail":null,"video":"https://x/v.webm","url":null}]}""",
+        )!!
+        val post = posts.single()
+        assertEquals("p9", post.title)
+        assertEquals("", post.content)
+        assertEquals("", post.author)
+        assertEquals("", post.thumbnail)
+        assertEquals("", post.url)
+        assertTrue(SteamDeckRepo.parse("""{"posts":[{"id":null,"video":"https://x/v.webm"}]}""")!!.isEmpty())
+    }
+
     @Test fun aPageHoldsTwelveMovies() {
         assertEquals(12, SteamDeckRepo.PAGE_SIZE)
     }
