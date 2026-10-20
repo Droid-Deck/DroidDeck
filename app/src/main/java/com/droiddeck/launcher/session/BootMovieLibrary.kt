@@ -327,7 +327,7 @@ object BootMovieLibrary {
                 }
             }
         }
-        if (removed && SessionPrefs.bootMovie(context) == id && file(context, id) == null) BootMovie.select(context, BootMovie.DROIDDECK_30)
+        if (removed && SessionPrefs.bootMovie(context) == id) BootMovie.select(context, BootMovie.DROIDDECK_30)
         return removed
     }
 

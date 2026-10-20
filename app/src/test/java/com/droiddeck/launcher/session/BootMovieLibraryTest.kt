@@ -68,11 +68,11 @@ class BootMovieLibraryTest {
             File(x64, "Intro.webm").also { it.parentFile!!.mkdirs(); it.writeText("movie") }
             movie("Intro.webm")
             assertTrue(BootMovieLibrary.remove(app, "file:Intro.webm"))
-            assertFalse(File(x64, "Intro.webm").exists())
-            assertTrue(File(movies, "Intro.webm").isFile)
+            assertFalse(File(movies, "Intro.webm").exists())
+            assertTrue(File(x64, "Intro.webm").isFile)
             assertTrue(BootMovieLibrary.list(app).any { it.id == "file:Intro.webm" })
             assertTrue(BootMovieLibrary.remove(app, "file:Intro.webm"))
-            assertFalse(File(movies, "Intro.webm").exists())
+            assertFalse(File(x64, "Intro.webm").exists())
         } finally {
             x64.deleteRecursively()
         }
