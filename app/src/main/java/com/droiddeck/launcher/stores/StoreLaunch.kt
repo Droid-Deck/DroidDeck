@@ -2,6 +2,7 @@ package com.droiddeck.launcher.stores
 
 import android.content.Context
 import android.util.Log
+import com.droiddeck.launcher.frontend.AddedGames
 import com.droiddeck.launcher.frontend.Library
 import java.io.File
 
@@ -63,6 +64,14 @@ object StoreLaunch {
     private const val CODE_VAR = "DD_X"
     private const val CLIENT_VAR = "DD_A"
 
+    fun installedGame(context: Context, store: Store, id: String): Library.SteamGame? {
+        val folder = StoreInstallRoot.gameFolders(context).firstOrNull { folder ->
+            StoreGameSidecar.read(folder)?.let { it.store == store && it.id == id && it.isInstalled } == true
+        } ?: return null
+        val game = AddedGames.single(context, folder.path) ?: return null
+        return Library.addedGame(context, game)
+    }
+
     fun refreshLauncher(folder: File, sidecar: StoreGameSidecar) {
         if (sidecar.launcher != LAUNCHER) return
         val file = File(folder, LAUNCHER)
@@ -74,6 +83,10 @@ object StoreLaunch {
     }
 
     fun prepare(context: Context, store: Store, id: String, onReady: () -> Unit) {
+        if (store == Store.XBOX && !com.droiddeck.launcher.stores.xbox.XboxRuntime.authorize(context, id)) {
+            StoresState.problems[Store.XBOX] = "Xbox account is unavailable. Sign in again and retry."
+            return
+        }
         if (store != Store.EPIC) { onReady(); return }
         val app = context.applicationContext
         Thread({

@@ -23,6 +23,7 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.Implementation
 import org.robolectric.annotation.Implements
+import org.robolectric.util.ReflectionHelpers
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], manifest = Config.NONE, shadows = [SessionGestureRoutingTest.CompositorShadow::class])
@@ -31,7 +32,9 @@ class SessionGestureRoutingTest {
     private lateinit var gestures: TouchscreenGestures
     private lateinit var steamTap: ThreeFingerTap
     private lateinit var launcherScroll: ScrollTouchGestures
+    private lateinit var directHold: DirectTouchHold
     private val keys = mutableListOf<Pair<Int, Boolean>>()
+    private val directButtons = mutableListOf<Pair<Int, Boolean>>()
     private val scrollPositions = mutableListOf<Pair<Float, Float>>()
     private val scrollDeltas = mutableListOf<Pair<Float, Float>>()
     private var keyboards = 0
@@ -39,6 +42,7 @@ class SessionGestureRoutingTest {
     @After fun tearDown() {
         if (::gestures.isInitialized) gestures.cancel()
         if (::launcherScroll.isInitialized) launcherScroll.cancel()
+        if (::directHold.isInitialized) directHold.cancel()
         SessionState.mode = SessionService.MODE_STEAM
         SessionState.steamUi = null
         SessionState.suspended = false
@@ -146,6 +150,37 @@ class SessionGestureRoutingTest {
         assertTrue(SessionActivity::class.java.getDeclaredField("gesturePointerReady").apply { isAccessible = true }.getBoolean(activity))
     }
 
+    @Test fun pausingCancelsPendingHoldsInBothTouchModes() {
+        for (mode in listOf(SessionPrefs.TOUCH_GESTURES, SessionPrefs.TOUCH_DIRECT)) {
+            prepare(mode, TouchGestureConfig(longPressEnabled = true, longPressAction = "key_E"))
+            val now = SystemClock.uptimeMillis()
+            val event = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, 400f, 300f, 0)
+            try { assertTrue(activity.onTouchEvent(event)) } finally { event.recycle() }
+            ReflectionHelpers.callInstanceMethod<Unit>(activity, "onPause")
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(700))
+            assertTrue(keys.isEmpty())
+            assertTrue(directButtons.isEmpty())
+        }
+    }
+
+    @Test fun pausingReleasesActiveHoldsInBothTouchModes() {
+        for (mode in listOf(SessionPrefs.TOUCH_GESTURES, SessionPrefs.TOUCH_DIRECT)) {
+            keys.clear()
+            directButtons.clear()
+            prepare(mode, TouchGestureConfig(longPressEnabled = true, longPressAction = "key_E"))
+            val now = SystemClock.uptimeMillis()
+            val event = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, 400f, 300f, 0)
+            try { assertTrue(activity.onTouchEvent(event)) } finally { event.recycle() }
+            val gestureMode = mode == SessionPrefs.TOUCH_GESTURES
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(if (gestureMode) 350 else 500))
+            assertEquals(if (gestureMode) listOf(18 to true) else emptyList(), keys)
+            assertEquals(if (gestureMode) emptyList() else listOf(PointerGestures.BTN_RIGHT to true), directButtons)
+            ReflectionHelpers.callInstanceMethod<Unit>(activity, "onPause")
+            assertEquals(if (gestureMode) listOf(18 to true, 18 to false) else emptyList(), keys)
+            assertEquals(if (gestureMode) emptyList() else listOf(PointerGestures.BTN_RIGHT to true, PointerGestures.BTN_RIGHT to false), directButtons)
+        }
+    }
+
     private fun startLongPress() {
         prepare(SessionPrefs.TOUCH_GESTURES, TouchGestureConfig(longPressEnabled = true, longPressAction = "key_E"))
         val now = SystemClock.uptimeMillis()
@@ -180,6 +215,13 @@ class SessionGestureRoutingTest {
             override fun onWheel(steps: Int) {}
             override fun onLongPress() {}
         }))
+        directHold = DirectTouchHold(8f, object : PointerGestures.Listener {
+            override fun onMove(x: Float, y: Float) {}
+            override fun onButton(button: Int, pressed: Boolean, x: Float, y: Float) { directButtons += button to pressed }
+            override fun onWheel(steps: Int) {}
+            override fun onLongPress() {}
+        }) {}
+        setField("directTouchHold", directHold)
         launcherScroll = ScrollTouchGestures(8f, 50f, object : ScrollTouchGestures.Listener {
             override fun onMove(x: Float, y: Float) { scrollPositions += x to y }
             override fun onButton(button: Int, pressed: Boolean) {}
@@ -218,6 +260,7 @@ class SessionGestureRoutingTest {
         companion object {
             @JvmStatic @Implementation fun __staticInitializer__() {}
             @JvmStatic @Implementation fun nativeSendTouch(action: Int, id: Int, x: Int, y: Int) {}
+            @JvmStatic @Implementation fun nativeSendSceneInput(type: Int, code: Int, value: Int) {}
         }
     }
 }

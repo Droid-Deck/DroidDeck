@@ -119,7 +119,7 @@ object SessionPrefs {
     }
 
     val STORES_SORTS = listOf("lastPlayed", "recentlyInstalled", "titleAsc", "titleDesc", "sizeDesc", "sizeAsc", "releaseDateDesc")
-    val STORES_VIEWS = listOf("cards", "list")
+    val STORES_VIEWS = listOf("cards", "capsules", "list")
 
     const val STORES_OPEN_LIBRARY = "library"
     const val STORES_OPEN_STORE = "store"

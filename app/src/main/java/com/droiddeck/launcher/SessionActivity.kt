@@ -75,6 +75,7 @@ import com.droiddeck.launcher.input.PadBridge
 import com.droiddeck.launcher.input.PadMouse
 import com.droiddeck.launcher.input.PadState
 import com.droiddeck.launcher.input.SteamControllerBle
+import com.droiddeck.launcher.input.DirectTouchHold
 import com.droiddeck.launcher.input.PointerGestures
 import com.droiddeck.launcher.input.SecondScreenDisplay
 import com.droiddeck.launcher.input.SecondScreenDisplays
@@ -189,6 +190,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
     private var watching = true
     private lateinit var touchpad: TouchpadGestures
+    private lateinit var directTouchHold: DirectTouchHold
     private lateinit var threeFingerTap: com.droiddeck.launcher.input.ThreeFingerTap
     private lateinit var touchscreenGestures: TouchscreenGestures
     private var gestureConfig = com.droiddeck.launcher.input.TouchGestureConfig()
@@ -495,6 +497,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         onScreenControls = OnScreenControls(this, bridge, onKeyboard = ::togglePcKeyboard).also { root.addView(it) }
         keyboard = KeyboardHost(this).also { root.addView(it) }
         touchpad = TouchpadGestures(PointerGestures.slop(this), pointerListener)
+        directTouchHold = DirectTouchHold(PointerGestures.slop(this), pointerListener) {
+            WaylandCompositor.nativeSendTouch(3, -1, 0, 0)
+        }
         threeFingerTap = com.droiddeck.launcher.input.ThreeFingerTap(PointerGestures.slop(this) * 2)
         touchscreenGestures = TouchscreenGestures(
             ViewConfiguration.get(this).scaledTouchSlop.toFloat(), gestureOutput,
@@ -1345,6 +1350,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val nextTouchMode = SessionPrefs.touchMode(this)
         if (touchMode != nextTouchMode) {
             if (::touchpad.isInitialized) touchpad.cancel()
+            if (::directTouchHold.isInitialized) directTouchHold.cancel()
             if (::scrollTouch.isInitialized) scrollTouch.cancel()
             if (CompositorHost.isStarted) {
                 WaylandCompositor.nativeSendTouch(3, -1, 0, 0)
@@ -1669,8 +1675,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         glassesScreen?.hz?.takeIf { it > 1f }?.let { return it }
         val display = if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay
         val wanted = window.attributes.preferredDisplayModeId
-        val hz = display?.supportedModes?.firstOrNull { wanted != 0 && it.modeId == wanted }?.refreshRate
-            ?: display?.refreshRate ?: 60f
+        val requested = display?.supportedModes?.firstOrNull { wanted != 0 && it.modeId == wanted }?.refreshRate
+        val running = display?.refreshRate?.takeIf { it > 1f }
+        val hz = listOfNotNull(requested, running).minOrNull() ?: 60f
         val mirrorCap = mirrorRefreshLimit().takeIf { it > 0 }?.toFloat() ?: Float.POSITIVE_INFINITY
         val capped = minOf(hz, PerfMode.peakRefreshCap(this), mirrorCap)
         return if (capped > 1f) capped else 60f
@@ -2397,6 +2404,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (::touchscreenGestures.isInitialized) touchscreenGestures.cancel()
         gesturePointerReady = false
         if (::touchpad.isInitialized) touchpad.cancel()
+        if (::directTouchHold.isInitialized) directTouchHold.cancel()
         if (::scrollTouch.isInitialized) scrollTouch.cancel()
         if (CompositorHost.isStarted) WaylandCompositor.nativeSendTouch(3, -1, 0, 0)
         if (next == SessionPrefs.TOUCH_OFF) cursorVisible = false
@@ -2469,6 +2477,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) ignoreGameTouch = false
             return true
         }
+        if (directTouchHold.onTouch(event)) return true
         fun sendTouch(action: Int, index: Int) {
             val x = event.getX(index).coerceIn(rect.left, rect.right)
             val y = event.getY(index).coerceIn(rect.top, rect.bottom)
@@ -2618,6 +2627,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             controls.visibility = View.GONE
             steamTouchControls?.let { it.releaseAll(); it.visibility = View.GONE }
             com.droiddeck.launcher.input.SteamTouchDevice.current?.plugged = false
+            applyTouchRouting()
             return
         }
         val buttonsOnly = forced == SessionPrefs.OSC_STEAM_QAM
@@ -2630,6 +2640,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (steam == null) {
             steamTouchControls?.let { it.releaseAll(); it.visibility = View.GONE }
             com.droiddeck.launcher.input.SteamTouchDevice.current?.plugged = false
+            applyTouchRouting()
         }
         controls.setButtonsOnly(buttonsOnly)
         val show = when (forced) {
@@ -2692,6 +2703,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             releasePads()
             touchpad.cancel()
             scrollTouch.cancel()
+            directTouchHold.cancel()
             guestKeysDown.toList().forEach { sendGuestKey(it, false) }
             keyboard?.hide()
             sessionClipboard.stop()
@@ -2820,6 +2832,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         sessionClipboard.stop()
         if (::touchscreenGestures.isInitialized) touchscreenGestures.cancel()
         if (::touchpad.isInitialized) touchpad.cancel()
+        if (::directTouchHold.isInitialized) directTouchHold.cancel()
         uiHandler.removeCallbacks(clearRecognizedGesture)
         gestureSettingsOpen = false
         drawerOpen = false

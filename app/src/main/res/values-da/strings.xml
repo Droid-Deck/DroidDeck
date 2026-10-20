@@ -30,7 +30,7 @@
     <string name="frame_gen_title">Billedgenerering</string>
     <string name="frame_gen_hint">Vælg metode til billedgenerering</string>
     <string name="frame_gen_off">Fra</string>
-    <string name="frame_gen_winfg">Win-FG %1$d×</string>
+    <string name="frame_gen_ddfg">DD-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
     <string name="frame_gen_lsfg_adaptive">LSFG Adaptiv %1$d</string>
     <string name="lsfg_needs_steam">Kræver Lossless Scaling på Steam</string>
@@ -527,7 +527,7 @@
     <string name="perf_client_ui">Klientgrænseflade</string>
     <string name="perf_glthread">Threaded GL</string>
     <string name="perf_glthread_hint">Kan gøre Steam-menuer mere lydhøre.</string>
-    <string name="perf_zink">Zink: lazy descriptors</string>
+    <string name="perf_zink">Zink: dovne deskriptorer</string>
     <string name="perf_zink_hint">Anbefalet til drivere uden descriptor buffers.</string>
     <string name="perf_noglerror">Spring GL-fejlkontrol over</string>
     <string name="perf_noglerror_hint">Slår validering af GL fra for hvert kald.</string>
@@ -549,7 +549,7 @@
     <string name="perf_xalia_hint">Deaktiverer Protons gamepad-navigationshjælper, som koster CPU i hvert spil.</string>
     <string name="perf_seccomp">Kør proot uden seccomp</string>
     <string name="perf_seccomp_hint">Kan afhjælpe fejl om manglende systemkald på nogle kerner. Kan reducere ydelsen.</string>
-    <string name="perf_fastpath">proot fast path</string>
+    <string name="perf_fastpath">proot-hurtigvej</string>
     <string name="perf_fastpath_needs_seccomp">Kræver prootets seccomp-filter.</string>
     <string name="perf_fastpath_hint">Hurtigere filopslag og mindre hak. Slå fra, hvis et program ikke kan finde sine filer.</string>
     <string name="perf_identity">Sessionsidentitet</string>
@@ -729,6 +729,9 @@
     <string name="setup_app_scale_default">%1$d%% (standard)</string>
     <string name="setup_theme">Tema</string>
     <string name="setup_theme_hint">Launcherens udseende</string>
+    <string name="setup_launcher_icon">Appikon</string>
+    <string name="setup_launcher_icon_dark">Mørk</string>
+    <string name="setup_launcher_icon_light">Lys</string>
     <string name="setup_home">Brug som startskærm</string>
     <string name="setup_home_on">DroidDeck kan være Home-appen</string>
     <string name="setup_home_off">DroidDeck tilbydes aldrig som Home-app</string>
@@ -942,7 +945,7 @@
     <string name="ctrl_size_hint" formatted="false">100% er standardstørrelsen</string>
     <string name="ctrl_stick_click">Stick-klik</string>
     <string name="ctrl_stick_click_hint">Dobbelttryk og hold en stick nede for L3 eller R3</string>
-    <string name="ctrl_adaptive">Adaptive sticks</string>
+    <string name="ctrl_adaptive">Adaptive styrepinde</string>
     <string name="ctrl_rumble">Spilvibration</string>
     <string name="ctrl_steam_button">Steam-knap</string>
     <string name="ctrl_qam_button">QAM-knap</string>
@@ -1923,7 +1926,6 @@
     <string name="stores_settings_eyebrow">Indstillinger</string>
     <string name="stores_chip_signed_out">(ikke logget ind)</string>
     <string name="stores_tab_store">Butik</string>
-    <string name="stores_tab_installed">Installeret</string>
     <string name="stores_tab_library">Bibliotek</string>
     <string name="stores_tab_all">Alle</string>
     <string name="stores_tab_downloads">Downloads</string>
@@ -1935,10 +1937,8 @@
     <string name="stores_signout_stay">Bliv logget ind</string>
     <string name="stores_signout_go">Log ud</string>
     <string name="stores_search_catalog">Søg i %1$s-kataloget…</string>
-    <string name="stores_search_installed">Søg i installerede spil…</string>
     <string name="stores_search_library">Søg i dit bibliotek…</string>
     <string name="stores_search_open">Søg</string>
-    <string name="stores_installed_empty">Intet installeret</string>
     <string name="stores_library_loading">Indlæser</string>
     <string name="stores_nothing_matches">Ingen spil</string>
     <string name="stores_shelves_loading">Indlæser butikken…</string>
@@ -1957,7 +1957,19 @@
     <string name="stores_view_on">Se på %1$s</string>
     <string name="stores_buy_price">Køb · %1$s</string>
     <string name="stores_installed_chip">Installeret</string>
+    <string name="stores_section_installed">Installeret</string>
+    <string name="stores_section_not_installed">Ikke installeret</string>
     <string name="stores_in_library">I biblioteket</string>
+    <string name="stores_itch_key">API-nøgle</string>
+    <string name="stores_itch_get_key">Hent en nøgle</string>
+    <string name="stores_itch_key_rejected">Nøgle afvist</string>
+    <string name="stores_itch_not_owned">Ikke i dit itch.io-bibliotek</string>
+    <string name="stores_itch_no_upload">Ingen Windows-download til dette spil</string>
+    <string name="stores_itch_no_exe">Der blev ikke fundet et Windows-spil i downloaden</string>
+    <string name="stores_itch_extract_failed">Downloaden kunne ikke udpakkes (kode %1$d)</string>
+    <string name="stores_itch_no_catalog">itch.io svarede ikke</string>
+    <string name="stores_itch_archive">%1$s-arkiver understøttes ikke</string>
+    <string name="stores_itch_download_failed">itch.io svarede HTTP %1$d</string>
     <string name="stores_free">Gratis</string>
     <string name="stores_resume">Genoptag</string>
     <string name="stores_refresh">Opdater</string>
@@ -1971,6 +1983,7 @@
     <string name="stores_sort_release_date">Udgivelsesdato</string>
     <string name="stores_view_list">Listevisning</string>
     <string name="stores_view_cards">Kortvisning</string>
+    <string name="stores_view_capsules">Omslagsvisning</string>
     <string name="stores_show_mature">Vis indhold for voksne</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>

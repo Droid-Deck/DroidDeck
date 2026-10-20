@@ -30,7 +30,7 @@
     <string name="frame_gen_title">Генерація кадрів</string>
     <string name="frame_gen_hint">Виберіть режим генерації кадрів</string>
     <string name="frame_gen_off">Вимк.</string>
-    <string name="frame_gen_winfg">Win-FG %1$d×</string>
+    <string name="frame_gen_ddfg">DD-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
     <string name="frame_gen_lsfg_adaptive">LSFG адаптивний %1$d</string>
     <string name="lsfg_needs_steam">Потрібен Lossless Scaling зі Steam</string>
@@ -735,6 +735,9 @@
     <string name="setup_app_scale_default">%1$d%% (стандартно)</string>
     <string name="setup_theme">Тема</string>
     <string name="setup_theme_hint">Вигляд лаунчера</string>
+    <string name="setup_launcher_icon">Значок застосунку</string>
+    <string name="setup_launcher_icon_dark">Темний</string>
+    <string name="setup_launcher_icon_light">Світлий</string>
     <string name="setup_home">Використовувати як головний екран</string>
     <string name="setup_home_on">DroidDeck може бути додатком головного екрана</string>
     <string name="setup_home_off">DroidDeck ніколи не пропонується як додаток головного екрана</string>
@@ -1965,7 +1968,6 @@
     <string name="stores_settings_eyebrow">Налаштування</string>
     <string name="stores_chip_signed_out">(вхід не виконано)</string>
     <string name="stores_tab_store">Магазин</string>
-    <string name="stores_tab_installed">Встановлені</string>
     <string name="stores_tab_library">Бібліотека</string>
     <string name="stores_tab_all">Усі</string>
     <string name="stores_tab_downloads">Завантаження</string>
@@ -1977,10 +1979,8 @@
     <string name="stores_signout_stay">Не виходити</string>
     <string name="stores_signout_go">Вийти</string>
     <string name="stores_search_catalog">Пошук у каталозі %1$s…</string>
-    <string name="stores_search_installed">Пошук встановлених ігор…</string>
     <string name="stores_search_library">Пошук у вашій бібліотеці…</string>
     <string name="stores_search_open">Пошук</string>
-    <string name="stores_installed_empty">Нічого не встановлено</string>
     <string name="stores_library_loading">Завантаження</string>
     <string name="stores_nothing_matches">Немає ігор</string>
     <string name="stores_shelves_loading">Завантаження магазину…</string>
@@ -1999,7 +1999,19 @@
     <string name="stores_view_on">Переглянути на %1$s</string>
     <string name="stores_buy_price">Купити · %1$s</string>
     <string name="stores_installed_chip">Встановлено</string>
+    <string name="stores_section_installed">Встановлено</string>
+    <string name="stores_section_not_installed">Не встановлено</string>
     <string name="stores_in_library">У бібліотеці</string>
+    <string name="stores_itch_key">Ключ API</string>
+    <string name="stores_itch_get_key">Отримати ключ</string>
+    <string name="stores_itch_key_rejected">Ключ відхилено</string>
+    <string name="stores_itch_not_owned">Немає у вашій бібліотеці itch.io</string>
+    <string name="stores_itch_no_upload">Для цієї гри немає завантаження для Windows</string>
+    <string name="stores_itch_no_exe">У завантаженні не знайдено гри для Windows</string>
+    <string name="stores_itch_extract_failed">Не вдалося розпакувати завантаження (код %1$d)</string>
+    <string name="stores_itch_no_catalog">itch.io не відповів</string>
+    <string name="stores_itch_archive">Архіви %1$s не підтримуються</string>
+    <string name="stores_itch_download_failed">itch.io відповів HTTP %1$d</string>
     <string name="stores_free">Безкоштовно</string>
     <string name="stores_resume">Продовжити</string>
     <string name="stores_refresh">Оновити</string>
@@ -2013,6 +2025,7 @@
     <string name="stores_sort_release_date">Дата виходу</string>
     <string name="stores_view_list">Вигляд списком</string>
     <string name="stores_view_cards">Вигляд картками</string>
+    <string name="stores_view_capsules">Вигляд обкладинок</string>
     <string name="stores_show_mature">Показувати контент для дорослих</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>
