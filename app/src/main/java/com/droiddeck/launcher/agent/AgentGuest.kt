@@ -10,7 +10,6 @@ import androidx.compose.runtime.setValue
 import android.os.FileObserver
 import android.util.Log
 import com.droiddeck.launcher.runtime.LinuxRuntime
-import com.droiddeck.launcher.input.SteamOverlay
 import com.droiddeck.launcher.session.SessionEvents
 import com.droiddeck.launcher.session.SessionState
 import org.json.JSONObject
@@ -67,7 +66,7 @@ object AgentGuest {
     }
 
     private fun recordFocus(snapshot: JSONObject, expectedGeneration: Int) {
-        val overlayVisible = SteamOverlay.hasInput(snapshot)
+        val overlayVisible = hasSteamOverlayInput(snapshot)
         val fields = linkedMapOf<String, Any?>(
             "focusedApp" to snapshot.opt("focusedApp"),
             "focusableApps" to snapshot.optJSONArray("focusableApps")?.toString(),
@@ -88,6 +87,23 @@ object AgentGuest {
             }
         }
         SessionEvents.record("focus.changed", fields + ("seq" to snapshot.optInt("seq")))
+    }
+
+    // Steam's keyboard and menus share Gamescope's interactive overlay protocol.
+    internal fun hasSteamOverlayInput(snapshot: JSONObject?): Boolean {
+        val displays = snapshot?.optJSONObject("displays") ?: return false
+        for (display in displays.keys()) {
+            val windows = displays.optJSONArray(display) ?: continue
+            for (index in 0 until windows.length()) {
+                val window = windows.optJSONObject(index) ?: continue
+                if (window.optString("map") == "viewable" &&
+                    window.optInt("overlay") > 0 && window.optInt("inputFocus") > 0 &&
+                    window.optInt("externalOverlay") == 0 && !window.optBoolean("inputOnly") &&
+                    window.optLong("opacity", 0xffff_ffffL) > 0
+                ) return true
+            }
+        }
+        return false
     }
 
     fun hello(context: Context): JSONObject? {

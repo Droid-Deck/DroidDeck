@@ -2488,7 +2488,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun drawnRect(): android.graphics.RectF? {
         val width = surfaceView.width.takeIf { it > 0 } ?: return null
         val height = surfaceView.height.takeIf { it > 0 } ?: return null
-        topPictureMapped = CompositorHost.isStarted && WaylandCompositor.nativeGamePictureRect(gamePictureBounds)
+        topPictureMapped = !steamOverlayVisible && CompositorHost.isStarted && WaylandCompositor.nativeGamePictureRect(gamePictureBounds)
+        if (steamOverlayVisible) return android.graphics.RectF(0f, 0f, width.toFloat(), height.toFloat())
         if (topPictureMapped) return android.graphics.RectF(
             gamePictureBounds[0], gamePictureBounds[1], gamePictureBounds[2], gamePictureBounds[3])
         val out = SessionState.outputSize
@@ -2505,18 +2506,19 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE)) return onMouse(event)
         if (drawerOpen || androidKeyboardVisible || achievementsOpen || gestureSettingsOpen || pipUi || SessionState.suspended) return true
-        if (!steamOverlayVisible && routedTouchMode == SessionPrefs.TOUCH_GESTURES) {
+        if (steamOverlayVisible) return sendDirectTouch(event, drawnRect() ?: return false)
+        if (routedTouchMode == SessionPrefs.TOUCH_GESTURES) {
             if (event.actionMasked == MotionEvent.ACTION_DOWN) gesturePointerReady = false
             return touchscreenGestures.onTouch(event)
         }
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-            scrollTouchGesture = !steamOverlayVisible && scrollTouchMode()
+            scrollTouchGesture = scrollTouchMode()
             scrollRestX = 0f
             scrollRestY = 0f
         }
         if (scrollTouchGesture) return scrollTouch.onTouch(event)
-        if (!steamOverlayVisible && routedTouchMode == SessionPrefs.TOUCH_OFF) return true
-        if (!steamOverlayVisible && SessionState.mode == SessionService.MODE_STEAM && SessionState.steamUi != "desktop") {
+        if (routedTouchMode == SessionPrefs.TOUCH_OFF) return true
+        if (SessionState.mode == SessionService.MODE_STEAM && SessionState.steamUi != "desktop") {
             val wasActive = threeFingerTap.active
             if (threeFingerTap.onTouch(event)) toggleKeyboard()
             if (threeFingerTap.active && !wasActive) {
@@ -2524,7 +2526,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             }
             if (threeFingerTap.active || wasActive) return true
         }
-        if (!steamOverlayVisible && usingTouchpad()) {
+        if (usingTouchpad()) {
             val rect = drawnRect() ?: return false
             if (touchpad.bounds != rect) {
                 val fresh = touchpad.bounds.width() <= 1f
@@ -2533,17 +2535,20 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             }
             return touchpad.onTouch(event)
         }
-        val rect = if (steamOverlayVisible) android.graphics.RectF(0f, 0f, surfaceView.width.toFloat(), surfaceView.height.toFloat())
-            else drawnRect() ?: return false
+        val rect = drawnRect() ?: return false
         if (event.actionMasked == MotionEvent.ACTION_DOWN)
-            ignoreGameTouch = !steamOverlayVisible && topPictureMapped && !rect.contains(event.x, event.y)
+            ignoreGameTouch = topPictureMapped && !rect.contains(event.x, event.y)
         if (ignoreGameTouch) {
             if (event.actionMasked == MotionEvent.ACTION_DOWN)
                 WaylandCompositor.nativeSendTouch(3, -1, 0, 0)
             if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) ignoreGameTouch = false
             return true
         }
-        if (!steamOverlayVisible && directTouchHold.onTouch(event)) return true
+        if (directTouchHold.onTouch(event)) return true
+        return sendDirectTouch(event, rect)
+    }
+
+    private fun sendDirectTouch(event: MotionEvent, rect: android.graphics.RectF): Boolean {
         fun sendTouch(action: Int, index: Int) {
             val x = event.getX(index).coerceIn(rect.left, rect.right)
             val y = event.getY(index).coerceIn(rect.top, rect.bottom)
