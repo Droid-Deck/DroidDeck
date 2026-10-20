@@ -117,17 +117,24 @@ internal fun PhysicalShortcutsDialog(onDismiss: () -> Unit, onChanged: () -> Uni
                     } else {
                         Text(stringResource(R.string.shortcuts_capture, stringResource(action.label)),
                             style = MaterialTheme.typography.titleMedium)
+                        Text(stringResource(R.string.shortcuts_limitations), style = MaterialTheme.typography.bodySmall)
                         val button = candidate
                         if (button == null) {
                             Text(stringResource(R.string.shortcuts_press))
                         } else {
                             Text(stringResource(R.string.shortcuts_detected, button.name, button.label))
+                            Text(button.diagnostics, style = MaterialTheme.typography.bodySmall)
                             if (listening) {
                                 Text(stringResource(R.string.shortcuts_release))
                             } else {
-                                val conflict = bindings.firstOrNull { it.button.sameInput(button) && it.action != action }
-                                if (conflict != null) {
+                                val conflicts = bindings.filter {
+                                    (it.button.sameInput(button) && it.action != action) ||
+                                        (it.button.device == button.device && it.action == action &&
+                                            !it.button.sameInput(button))
+                                }
+                                for (conflict in conflicts) {
                                     Text(stringResource(R.string.shortcuts_conflict, stringResource(conflict.action.label)))
+                                    Text(stringResource(R.string.shortcuts_detected, conflict.button.name, conflict.button.label))
                                 }
                                 Text(stringResource(R.string.shortcuts_replace))
                                 SecondaryButton(stringResource(R.string.shortcuts_save), modifier = Modifier.testTag("shortcuts-save")) {
@@ -135,13 +142,13 @@ internal fun PhysicalShortcutsDialog(onDismiss: () -> Unit, onChanged: () -> Uni
                                     refresh()
                                     cancelCapture()
                                 }
-                                SecondaryButton(stringResource(R.string.shortcuts_retry)) {
-                                    candidate = null
-                                    listening = true
-                                }
+                            }
+                            SecondaryButton(stringResource(R.string.shortcuts_retry), modifier = Modifier.testTag("shortcuts-retry")) {
+                                candidate = null
+                                capturedDevice = -1
+                                listening = true
                             }
                         }
-                        Text(stringResource(R.string.shortcuts_limitations), style = MaterialTheme.typography.bodySmall)
                         SecondaryButton(stringResource(R.string.common_cancel), modifier = Modifier.testTag("shortcuts-cancel"),
                             onClick = ::cancelCapture)
                     }

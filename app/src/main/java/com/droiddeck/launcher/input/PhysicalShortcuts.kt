@@ -34,7 +34,10 @@ object PhysicalShortcuts {
             device == other.device && keyCode == other.keyCode && scanCode == other.scanCode
 
         val label: String
-            get() = "${KeyEvent.keyCodeToString(keyCode).removePrefix("KEYCODE_")} ($scanCode)"
+            get() = KeyEvent.keyCodeToString(keyCode).removePrefix("KEYCODE_").removePrefix("BUTTON_")
+
+        val diagnostics: String
+            get() = "${KeyEvent.keyCodeToString(keyCode)} ($scanCode)"
     }
 
     data class Binding(val button: Button, val action: Action)
@@ -64,17 +67,21 @@ object PhysicalShortcuts {
             val array = JSONArray(raw)
             buildList {
                 for (i in 0 until array.length()) {
-                    val entry = array.getJSONObject(i)
-                    val action = Action.entries.firstOrNull { it.name == entry.getString("action") }
-                    val code = entry.getInt("keyCode")
-                    val scan = entry.getInt("scanCode")
-                    val device = entry.getString("device")
-                    if (action == null || device.isBlank() || code < 0 || scan < 0) {
-                        Log.w(TAG, "Ignoring invalid shortcut at index $i")
-                        continue
+                    try {
+                        val entry = array.getJSONObject(i)
+                        val action = Action.entries.firstOrNull { it.name == entry.getString("action") }
+                        val code = entry.getInt("keyCode")
+                        val scan = entry.getInt("scanCode")
+                        val device = entry.getString("device")
+                        if (action == null || device.isBlank() || code < 0 || scan < 0) {
+                            Log.w(TAG, "Ignoring invalid shortcut at index $i")
+                            continue
+                        }
+                        val binding = Binding(Button(device, entry.getString("name"), code, scan), action)
+                        if (none { it.button.sameInput(binding.button) }) add(binding)
+                    } catch (e: JSONException) {
+                        Log.w(TAG, "Ignoring malformed shortcut at index $i", e)
                     }
-                    val binding = Binding(Button(device, entry.getString("name"), code, scan), action)
-                    if (none { it.button.sameInput(binding.button) }) add(binding)
                 }
             }
         } catch (e: JSONException) {

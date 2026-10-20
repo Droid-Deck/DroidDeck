@@ -6,6 +6,8 @@ import android.view.InputDevice
 import android.view.KeyCharacterMap
 import android.view.KeyEvent
 import com.droiddeck.launcher.input.PhysicalShortcuts.Action
+import org.json.JSONArray
+import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -177,6 +179,27 @@ class PhysicalShortcutsTest {
     @Test fun malformedPreferencesDoNotCrashInputDispatch() {
         ControllerPrefs.prefs(context).edit().putString("physicalShortcuts", "invalid").commit()
         assertTrue(PhysicalShortcuts.read(context).isEmpty())
+    }
+
+    @Test fun malformedEntriesDoNotDiscardValidAssignmentsWhenSaving() {
+        assign(key(), Action.STEAM)
+        assign(key(KeyEvent.KEYCODE_BUTTON_2), Action.QAM)
+        val entries = JSONArray(ControllerPrefs.prefs(context).getString("physicalShortcuts", null))
+        val damaged = JSONArray().put(entries.getJSONObject(0)).put(JSONObject().put("action", "STEAM"))
+            .put("not an object").put(entries.getJSONObject(1))
+        ControllerPrefs.prefs(context).edit().putString("physicalShortcuts", damaged.toString()).commit()
+        assertEquals(listOf(Action.STEAM, Action.QAM), PhysicalShortcuts.read(context).map { it.action })
+        assign(key(KeyEvent.KEYCODE_BUTTON_3), Action.DROIDDECK)
+        assertEquals(listOf(Action.STEAM, Action.QAM, Action.DROIDDECK),
+            PhysicalShortcuts.read(context).map { it.action })
+    }
+
+    @Test fun buttonSummaryKeepsTechnicalDetailsSeparate() {
+        val select = button(key(KeyEvent.KEYCODE_BUTTON_SELECT, scan = 314))
+        val androidName = KeyEvent.keyCodeToString(KeyEvent.KEYCODE_BUTTON_SELECT)
+        assertEquals(androidName.removePrefix("KEYCODE_").removePrefix("BUTTON_"), select.label)
+        assertEquals("$androidName (314)", select.diagnostics)
+        assertFalse(select.label.contains("(314)"))
     }
 
     private fun assign(event: KeyEvent, action: Action) {

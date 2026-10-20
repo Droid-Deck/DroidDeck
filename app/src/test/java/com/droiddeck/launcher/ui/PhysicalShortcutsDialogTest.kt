@@ -106,6 +106,36 @@ class PhysicalShortcutsDialogTest {
         }
     }
 
+    @Test fun retryRecoversFromAMissingReleaseWithoutSavingTheOldButton() {
+        compose.setContent { DroidDeckTheme { PhysicalShortcutsDialog({}) } }
+        assign(PhysicalShortcuts.Action.STEAM)
+        send(KeyEvent.KEYCODE_F1, KeyEvent.ACTION_DOWN)
+        compose.onNodeWithTag("shortcuts-retry").performScrollTo().performClick()
+        send(KeyEvent.KEYCODE_F1, KeyEvent.ACTION_UP)
+        compose.onNodeWithTag("shortcuts-save").assertDoesNotExist()
+        send(KeyEvent.KEYCODE_F2, KeyEvent.ACTION_DOWN)
+        send(KeyEvent.KEYCODE_F1, KeyEvent.ACTION_UP)
+        compose.onNodeWithTag("shortcuts-save").assertDoesNotExist()
+        send(KeyEvent.KEYCODE_F2, KeyEvent.ACTION_UP)
+        compose.onNodeWithTag("shortcuts-save").performScrollTo().performClick()
+        compose.runOnIdle { assertEquals(KeyEvent.KEYCODE_F2, PhysicalShortcuts.read(context).single().button.keyCode) }
+    }
+
+    @Test fun replacingAnActionsButtonShowsThePreviousButtonBeforeSaving() {
+        val oldButton = requireNotNull(PhysicalShortcuts.button(event(KeyEvent.KEYCODE_F1, KeyEvent.ACTION_DOWN)))
+        PhysicalShortcuts.assign(context, oldButton, PhysicalShortcuts.Action.STEAM)
+        compose.setContent { DroidDeckTheme { PhysicalShortcutsDialog({}) } }
+        assign(PhysicalShortcuts.Action.STEAM)
+        send(KeyEvent.KEYCODE_F2, KeyEvent.ACTION_DOWN)
+        send(KeyEvent.KEYCODE_F2, KeyEvent.ACTION_UP)
+        compose.onNodeWithText(context.getString(R.string.shortcuts_conflict,
+            context.getString(R.string.drawer_steam_menu))).assertExists()
+        compose.onNodeWithText(context.getString(R.string.shortcuts_detected, oldButton.name, oldButton.label)).assertExists()
+        assertEquals(oldButton, PhysicalShortcuts.read(context).single().button)
+        compose.onNodeWithTag("shortcuts-save").performScrollTo().performClick()
+        compose.runOnIdle { assertEquals(KeyEvent.KEYCODE_F2, PhysicalShortcuts.read(context).single().button.keyCode) }
+    }
+
     @Test
     @Config(qualifiers = "de-rDE-w400dp-h850dp-port")
     fun narrowLargeTextKeepsTranslatedCaptureAndSaveReachable() {
