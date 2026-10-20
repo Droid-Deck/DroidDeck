@@ -538,7 +538,7 @@
     <string name="perf_gpuclock_hint">Μόνο Adreno. Λιγότερα κολλήματα, μεγαλύτερη χρήση μπαταρίας και θερμότητα.</string>
     <string name="perf_fixes">Διορθώσεις συνεδρίας</string>
     <string name="perf_sysmem">Turnip: απόδοση sysmem</string>
-    <string name="perf_sysmem_hint">Ταχύτερο για το Steam και τα περισσότερα παιχνίδια. Απαιτείται σε Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">Ταχύτερο για το πρόγραμμα-πελάτη Steam· στα παιχνίδια ο οδηγός επιλέγει σε κάθε πέρασμα απόδοση με πλακίδια ή στη μνήμη συστήματος. Απαιτείται σε Adreno 710/720/722.</string>
     <string name="perf_xalia">Παράβλεψη του βοηθού xalia του Steam</string>
     <string name="perf_fastsync">droiddeck-ntsync (πειραματικό)</string>
     <string name="perf_fastsync_hint">Ένα υποκατάστατο σε επίπεδο χρήστη για το πρόγραμμα οδήγησης ntsync του Linux, για δοκιμές. Όσο είναι ενεργό, το Proton το χρησιμοποιεί αντί για το droiddeck-esync και το droiddeck-fsync. Λειτουργεί με Proton Experimental ARM64, GE-Proton και proton-cachyos. Εφαρμόζεται στην επόμενη συνεδρία.</string>

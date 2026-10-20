@@ -536,7 +536,7 @@
     <string name="perf_gpuclock_hint">Adreno sahaja. Kurang tersekat-sekat, lebih penggunaan bateri dan haba.</string>
     <string name="perf_fixes">Pembetulan sesi</string>
     <string name="perf_sysmem">Turnip: rendering sysmem</string>
-    <string name="perf_sysmem_hint">Lebih pantas untuk Steam dan kebanyakan permainan. Diperlukan pada Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">Lebih pantas untuk klien Steam; dalam permainan, pemacu memilih pemaparan jubin atau memori sistem bagi setiap laluan. Diperlukan pada Adreno 710/720/722.</string>
     <string name="perf_xalia">Langkau pembantu xalia Steam</string>
     <string name="perf_fastsync">droiddeck-ntsync (eksperimen)</string>
     <string name="perf_fastsync_hint">Pengganti ruang pengguna untuk pemacu ntsync Linux, untuk pengujian. Semasa ia hidup, Proton menggunakannya sebagai ganti droiddeck-esync dan droiddeck-fsync. Berfungsi dengan Proton Experimental ARM64, GE-Proton dan proton-cachyos. Berkuat kuasa pada sesi seterusnya.</string>

@@ -542,7 +542,7 @@
     <string name="perf_gpuclock_hint">Jen Adreno. Méně zadrhávání, více spotřeby baterie a tepla.</string>
     <string name="perf_fixes">Opravy relace</string>
     <string name="perf_sysmem">Turnip: vykreslování sysmem</string>
-    <string name="perf_sysmem_hint">Rychlejší pro Steam a většinu her. Vyžadováno na Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">Rychlejší pro klienta Steam; ve hrách ovladač pro každý průchod volí dlaždicové vykreslování, nebo vykreslování v systémové paměti. Vyžadováno na Adreno 710/720/722.</string>
     <string name="perf_xalia">Vynechat Steamova pomocníka xalia</string>
     <string name="perf_fastsync">droiddeck-ntsync (experimentální)</string>
     <string name="perf_fastsync_hint">Uživatelská náhrada linuxového ovladače ntsync, pro testování. Když je zapnuto, Proton ho používá místo droiddeck-esync a droiddeck-fsync. Funguje s Proton Experimental ARM64, GE-Proton a proton-cachyos. Použije se od příští relace.</string>

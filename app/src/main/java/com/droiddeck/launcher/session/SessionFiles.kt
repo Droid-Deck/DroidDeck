@@ -15,6 +15,7 @@ object SessionFiles {
     private const val TAG = "SessionFiles"
     private const val NO_PAD_SWITCH = "Download/droiddeck-no-pad"
     const val DIRECTAUDIO_DIR = "usr/local/lib/directaudio"
+    private const val STAGED_LEDGER = "usr/local/.droiddeck-staged"
     val DIRECTAUDIO_SETS = arrayOf("linux-wine11", "linux-wine11-systhread")
 
     internal val DESKTOP_FILES = arrayOf(
@@ -141,8 +142,10 @@ object SessionFiles {
             runCatching { context.assets.list("linuxfs/$dir")?.contains(asset.substringAfterLast('/')) == true }.getOrDefault(false)
         }
         val all = (if (DesktopCatalog.desktopInstalled(root)) files + DESKTOP_FILES else files) + optional
+        val ledger = StageLedger(File(root, STAGED_LEDGER), apkIdentity(context))
         for ((asset, relative) in all) {
             val target = File(root, relative)
+            if (ledger.current(relative, target)) continue
             val staged = File(target.parentFile, target.name + ".staged")
             var installed = false
             try {
@@ -156,7 +159,7 @@ object SessionFiles {
             } finally {
                 if (!installed) staged.delete()
             }
-            if (!installed) Log.e(TAG, "$relative NOT staged")
+            if (installed) ledger.staged(relative, target) else Log.e(TAG, "$relative NOT staged")
         }
         File(root, "usr/local/bin/bannerlator-steam-compat").delete()
         LegacyNames.migrateRootfs(root)
@@ -169,7 +172,9 @@ object SessionFiles {
             "version.txt",
         )
         for (set in DIRECTAUDIO_SETS) for (relative in directAudio) {
-            val target = File(root, "$DIRECTAUDIO_DIR/$set/lib/wine/$relative")
+            val key = "$DIRECTAUDIO_DIR/$set/lib/wine/$relative"
+            val target = File(root, key)
+            if (ledger.current(key, target)) continue
             val staged = File(target.parentFile, target.name + ".staged")
             var installed = false
             try {
@@ -183,8 +188,9 @@ object SessionFiles {
             } finally {
                 if (!installed) staged.delete()
             }
-            if (!installed) Log.e(TAG, "DirectAudio $set/$relative NOT staged")
+            if (installed) ledger.staged(key, target) else Log.e(TAG, "DirectAudio $set/$relative NOT staged")
         }
+        ledger.save()
         for (old in arrayOf("aarch64-unix", "aarch64-windows", "i386-windows")) File(root, "$DIRECTAUDIO_DIR/lib/wine/$old").deleteRecursively()
         val preload = StringBuilder("/usr/local/lib/libblsession.so\n")
         if (!File(Environment.getExternalStorageDirectory(), NO_PAD_SWITCH).exists()) {
@@ -215,6 +221,43 @@ object SessionFiles {
                 ensureStartupMovieDefault(File(steam, "config/config.vdf"))
             }
         }
+    }
+
+    private fun apkIdentity(context: Context): String {
+        val apk = File(context.applicationInfo.sourceDir)
+        return "${apk.path} ${apk.length()} ${apk.lastModified()}"
+    }
+
+    private class StageLedger(private val file: File, private val identity: String) {
+        private val before: Map<String, String> = FileUtils.readString(file)?.lines()
+            ?.takeIf { it.firstOrNull() == identity }
+            ?.drop(1)?.mapNotNull { line -> line.split('\t').takeIf { it.size == 2 }?.let { it[0] to it[1] } }?.toMap()
+            .orEmpty()
+        private val after = LinkedHashMap<String, String>()
+
+        fun current(relative: String, target: File): Boolean {
+            val mark = mark(target) ?: return false
+            if (before[relative] != mark) return false
+            after[relative] = mark
+            return true
+        }
+
+        fun staged(relative: String, target: File) {
+            mark(target)?.let { after[relative] = it }
+        }
+
+        fun save() {
+            if (after == before) return
+            val text = (listOf(identity) + after.map { (relative, mark) -> "$relative\t$mark" }).joinToString("\n")
+            val staged = File(file.parentFile, file.name + ".staged")
+            if (!FileUtils.writeString(staged, text) || !staged.renameTo(file)) {
+                staged.delete()
+                file.delete()
+            }
+        }
+
+        private fun mark(target: File): String? =
+            if (target.isFile) "${target.length()} ${target.lastModified()} ${target.canExecute()}" else null
     }
 
     private fun stageStartupMovie(source: File, directory: File, name: String): Boolean {

@@ -536,7 +536,7 @@
     <string name="perf_gpuclock_hint">Chỉ dành cho Adreno. Ít giật hơn, dùng nhiều pin và nhiệt hơn.</string>
     <string name="perf_fixes">Các bản sửa phiên</string>
     <string name="perf_sysmem">Turnip: render sysmem</string>
-    <string name="perf_sysmem_hint">Nhanh hơn cho Steam và hầu hết game. Bắt buộc trên Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">Nhanh hơn cho ứng dụng Steam; trong game, trình điều khiển chọn kết xuất theo ô hoặc trong bộ nhớ hệ thống cho từng lượt. Bắt buộc trên Adreno 710/720/722.</string>
     <string name="perf_xalia">Bỏ qua trình trợ giúp xalia của Steam</string>
     <string name="perf_fastsync">droiddeck-ntsync (thử nghiệm)</string>
     <string name="perf_fastsync_hint">Một bản thay thế ở không gian người dùng cho driver ntsync của Linux, dùng để thử nghiệm. Khi đang bật, Proton dùng nó thay cho droiddeck-esync và droiddeck-fsync. Hoạt động với Proton Experimental ARM64, GE-Proton và proton-cachyos. Áp dụng từ phiên sau.</string>

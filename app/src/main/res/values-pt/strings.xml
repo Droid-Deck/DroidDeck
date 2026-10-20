@@ -537,7 +537,7 @@
     <string name="perf_gpuclock_hint">Só em Adreno. Menos engasgos, mais gasto de bateria e mais calor.</string>
     <string name="perf_fixes">Correções da sessão</string>
     <string name="perf_sysmem">Turnip: renderização sysmem</string>
-    <string name="perf_sysmem_hint">Mais rápido para a Steam e a maioria dos jogos. Obrigatório nas Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">Mais rápido para o cliente da Steam; nos jogos, o driver escolhe a cada passagem entre renderização em blocos ou na memória do sistema. Obrigatório nas Adreno 710/720/722.</string>
     <string name="perf_xalia">Pular o assistente xalia da Steam</string>
     <string name="perf_fastsync">droiddeck-ntsync (experimental)</string>
     <string name="perf_fastsync_hint">Um substituto em espaço de usuário para o driver ntsync do Linux, para testes. Enquanto estiver ativado, o Proton o usa no lugar do droiddeck-esync e do droiddeck-fsync. Funciona com o Proton Experimental ARM64, o GE-Proton e o proton-cachyos. Vale a partir da próxima sessão.</string>

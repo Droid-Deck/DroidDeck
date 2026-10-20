@@ -538,7 +538,7 @@
     <string name="perf_gpuclock_hint">Csak Adreno. Kevesebb akadás, nagyobb akkumulátorhasználat és hőtermelés.</string>
     <string name="perf_fixes">Munkamenet-javítások</string>
     <string name="perf_sysmem">Turnip: sysmem renderelés</string>
-    <string name="perf_sysmem_hint">Gyorsabb a Steamhez és a legtöbb játékhoz. Adreno 710/720/722-n szükséges.</string>
+    <string name="perf_sysmem_hint">Gyorsabb a Steam kliensnek; játékokban a meghajtó menetenként választ a csempés és a rendszermemóriás renderelés között. Adreno 710/720/722-n szükséges.</string>
     <string name="perf_xalia">A Steam xalia segítőjének kihagyása</string>
     <string name="perf_fastsync">droiddeck-ntsync (kísérleti)</string>
     <string name="perf_fastsync_hint">A Linux ntsync illesztőprogram felhasználói szintű helyettesítője, teszteléshez. Amíg be van kapcsolva, a Proton ezt használja a droiddeck-esync és a droiddeck-fsync helyett. A Proton Experimental ARM64-gyel, a GE-Protonnal és a proton-cachyosszal működik. A következő munkamenettől érvényes.</string>

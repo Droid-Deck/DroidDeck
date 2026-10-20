@@ -536,7 +536,7 @@
     <string name="perf_gpuclock_hint">仅限 Adreno。卡顿更少，但更耗电、更发热。</string>
     <string name="perf_fixes">会话修复</string>
     <string name="perf_sysmem">Turnip：sysmem 渲染</string>
-    <string name="perf_sysmem_hint">对 Steam 和大多数游戏更快。Adreno 710/720/722 必需。</string>
+    <string name="perf_sysmem_hint">Steam 客户端更快；游戏中驱动会为每个渲染通道选择分块渲染或系统内存渲染。Adreno 710/720/722 必需。</string>
     <string name="perf_xalia">跳过 Steam 的 xalia 助手</string>
     <string name="perf_fastsync">droiddeck-ntsync（实验性）</string>
     <string name="perf_fastsync_hint">Linux ntsync 驱动的用户态替代品，供测试使用。开启时，Proton 使用它代替 droiddeck-esync 和 droiddeck-fsync。适用于 Proton Experimental ARM64、GE-Proton 和 proton-cachyos。将在下次会话生效。</string>

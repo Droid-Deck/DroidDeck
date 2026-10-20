@@ -538,7 +538,7 @@
     <string name="perf_gpuclock_hint">सिर्फ़ Adreno के लिए। कम हिचकोले, लेकिन ज़्यादा बैटरी खर्च और गर्मी।</string>
     <string name="perf_fixes">सेशन फ़िक्स</string>
     <string name="perf_sysmem">Turnip: sysmem रेंडरिंग</string>
-    <string name="perf_sysmem_hint">Steam और ज़्यादातर गेम के लिए तेज़। Adreno 710/720/722 पर ज़रूरी।</string>
+    <string name="perf_sysmem_hint">Steam क्लाइंट के लिए तेज़; गेम में ड्राइवर हर पास के लिए टाइल या सिस्टम मेमोरी रेंडरिंग चुनता है। Adreno 710/720/722 पर ज़रूरी।</string>
     <string name="perf_xalia">Steam के xalia हेल्पर को छोड़ें</string>
     <string name="perf_fastsync">droiddeck-ntsync (एक्सपेरिमेंटल)</string>
     <string name="perf_fastsync_hint">जांच के लिए Linux ntsync ड्राइवर की यूज़रस्पेस जगह लेने वाली चीज़। चालू रहते हुए, Proton इसे droiddeck-esync और droiddeck-fsync के बदले इस्तेमाल करता है। यह Proton Experimental ARM64, GE-Proton और proton-cachyos के साथ काम करता है। अगले सेशन से लागू होता है।</string>

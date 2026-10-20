@@ -7,6 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+GAME_TU_DEBUG = "DROIDDECK_GAME_TU_DEBUG"
 SYNC_KEYS = ("BL_SYNC", "BL_SYNC_FALLBACK", "BL_FSYNC_FIRST", "BL_SYNC_MIN_NOFILE", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC", "PROTON_NO_NTSYNC", "WINEESYNC")
 SEED_REDISTS = "/usr/local/bin/droiddeck-seed-redists"
 PACK_KEYS = ("WINESERVER", "BL_SYNC_PACK", "WINEESYNC", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC")
@@ -153,6 +154,18 @@ def win_components(compat, app_id):
         return ""
 
 
+def game_gpu(env):
+    if GAME_TU_DEBUG not in env:
+        return env
+    result = env.copy()
+    value = result.pop(GAME_TU_DEBUG)
+    if value:
+        result["TU_DEBUG"] = value
+    else:
+        result.pop("TU_DEBUG", None)
+    return result
+
+
 def apply_config(env, config, app_id, fixes=None):
     if config.get("version") != 1:
         raise ValueError("unsupported environment configuration")
@@ -283,7 +296,7 @@ def main():
     command = sys.argv[1:]
     if not command:
         return 2
-    env = os.environ.copy()
+    env = game_gpu(os.environ.copy())
     mic_enabled = env.get("BL_MIC_ENABLED")
     mark_install_scripts(command, env)
     app_id = game_id(env)

@@ -538,7 +538,7 @@
     <string name="perf_gpuclock_hint">Kun Adreno. Færre hak, mere batteribrug og varme.</string>
     <string name="perf_fixes">Sessionsrettelser</string>
     <string name="perf_sysmem">Turnip: sysmem-rendering</string>
-    <string name="perf_sysmem_hint">Hurtigere til Steam og de fleste spil. Påkrævet på Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">Hurtigere til Steam-klienten; i spil vælger driveren flise- eller systemhukommelses-rendering for hvert pass. Påkrævet på Adreno 710/720/722.</string>
     <string name="perf_xalia">Spring Steams xalia-hjælper over</string>
     <string name="perf_fastsync">droiddeck-ntsync (eksperimentel)</string>
     <string name="perf_fastsync_hint">En stand-in til ntsync-driveren i Linux-kernen, i brugerrum, til test. Mens den er til, bruger Proton den i stedet for droiddeck-esync og droiddeck-fsync. Fungerer med Proton Experimental ARM64, GE-Proton og proton-cachyos. Gælder fra næste session.</string>
