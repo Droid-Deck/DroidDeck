@@ -147,6 +147,10 @@
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density"
             android:theme="@style/AppTheme" />
 
+        <activity android:name=".stores.xbox.XboxLoginActivity" android:exported="false"
+            android:process=":xboxlogin" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density"
+            android:theme="@style/AppTheme" />
+
         <activity
             android:name=".stores.StoreLoginActivity"
             android:exported="false"

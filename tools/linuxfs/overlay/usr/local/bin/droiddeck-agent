@@ -532,6 +532,46 @@ def cdp_eval(agent_dir, expression, target=None, await_promise=True, timeout=15)
         ws.close()
 
 
+def steam_idle_inhibit(agent_dir, inhibit):
+    expression = """(async want => {
+        const toggle = () => new Promise(done => {
+            let handle = null;
+            let timer = null;
+            const finish = value => {
+                clearTimeout(timer);
+                handle?.unregister?.();
+                done(value);
+            };
+            timer = setTimeout(() => finish(null), 2500);
+            handle = SteamClient.Console.RegisterForSpewOutput(entry => {
+                const found = /Suspend inhibit: ([01])/.exec(entry?.spew || "");
+                if (found) finish(found[1] === "1");
+            });
+            SteamClient.Console.ExecCommand("toggle_idle_suspend_inhibit 1");
+        });
+        let state = await toggle();
+        if (state === !want) state = await toggle();
+        return state === want;
+    })(%s)""" % ("true" if inhibit else "false")
+    return cdp_eval(agent_dir, expression, timeout=12).get("value") is True
+
+
+def steam_idle_suspend_seconds(agent_dir, vpower=Path("/run/vpower/ac_status")):
+    expression = """(() => {
+        const settings = globalThis.settingsStore?.clientSettings;
+        return settings ? [settings.system_idle_suspend_ac_sec, settings.system_idle_suspend_battery_sec] : null;
+    })()"""
+    seconds = cdp_eval(agent_dir, expression, await_promise=False, timeout=5).get("value")
+    if not isinstance(seconds, list) or len(seconds) != 2:
+        return None
+    try:
+        on_ac = vpower.read_text().strip() != "Disconnected"
+    except OSError:
+        on_ac = True
+    value = seconds[0 if on_ac else 1]
+    return max(0, int(value)) if isinstance(value, (int, float)) else None
+
+
 def steam_selection(agent_dir, timeout=5):
     result = cdp_eval(
         agent_dir,
@@ -923,6 +963,26 @@ def main(argv):
             state = "unknown"
         print(state)
         return {"yes": 0, "no": 5}.get(state, 1)
+    if argv and argv[0] == "--steam-idle-inhibit":
+        if len(argv) != 2 or argv[1] not in ("on", "off"):
+            print("usage: droiddeck-agent --steam-idle-inhibit on|off", file=sys.stderr)
+            return 2
+        try:
+            done = steam_idle_inhibit(Path(base) / "agent", argv[1] == "on")
+        except (AgentError, OSError, ValueError) as error:
+            print("droiddeck-agent: could not reach the client's idle sleep: %s" % error, file=sys.stderr)
+            return 1
+        return 0 if done else 1
+    if argv and argv[0] == "--steam-idle-suspend-seconds":
+        try:
+            seconds = steam_idle_suspend_seconds(Path(base) / "agent")
+        except (AgentError, OSError, ValueError) as error:
+            print("droiddeck-agent: could not read the client's idle sleep: %s" % error, file=sys.stderr)
+            return 1
+        if seconds is None:
+            return 1
+        print(seconds)
+        return 0
     if argv and argv[0] == "--steam-shortcut-state":
         if len(argv) not in (2, 3):
             print("usage: droiddeck-agent --steam-shortcut-state <cgameid> [timeout-seconds]", file=sys.stderr)
