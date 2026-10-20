@@ -113,17 +113,8 @@ internal class SecondScreenControls(
             setTextColor(Color.WHITE)
         }, LinearLayout.LayoutParams(0, -2, 1f))
         val keyboardButton = Button(context).apply {
-            text = context.getString(R.string.second_show_keyboard)
-            setOnClickListener {
-                val host = keyboardHost ?: return@setOnClickListener
-                if (host.shown) {
-                    host.hide()
-                    text = context.getString(R.string.second_show_keyboard)
-                } else {
-                    host.show()
-                    text = context.getString(R.string.second_hide_keyboard)
-                }
-            }
+            text = context.getString(R.string.drawer_android_keyboard)
+            setOnClickListener { keyboardHost?.toggle() }
         }
         controls.addView(keyboardButton)
         controls.addView(Button(context).apply {
@@ -197,9 +188,9 @@ internal class SecondScreenControls(
             }
             keys.addView(button)
         }
-        val ctrl = context.getString(R.string.pckb_key_ctrl)
-        val alt = context.getString(R.string.pckb_key_alt)
-        key(context.getString(R.string.pckb_key_esc), "\u001b")
+        val ctrl = context.getString(R.string.input_key_ctrl)
+        val alt = context.getString(R.string.input_key_alt)
+        key(context.getString(R.string.input_key_esc), "\u001b")
         key(context.getString(R.string.second_key_tab), "\t")
         key(ctrl, "") { button ->
             ctrlActive = !ctrlActive

@@ -1,7 +1,7 @@
 # Android clipboard text
 
 Copy text in an Android app, return to DroidDeck, and paste into Steam with Ctrl+V.
-The session's PC keyboard supports this through its sticky Ctrl key and V.
+Steam's on-screen keyboard provides a Paste button. A physical keyboard can also send Ctrl+V.
 
 Android clipboard reads follow window focus, including the secondary-display presentation.
 The existing Wayland text selection handles native guest clients. Gamescope does not relay
