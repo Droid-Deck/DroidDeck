@@ -303,7 +303,11 @@ class BattleNet(unittest.TestCase):
             os.environ.pop('BL_BATTLENET', None)
             self.assertEqual(store.RAN, store.main([BNET_EXE, '--exec=launch Pro']))
         call.assert_called_once_with([store.BATTLENET, 'launch', 'Pro'])
+        with patch.dict(os.environ, {}, clear=False), patch.object(store.subprocess, 'call', return_value=1):
+            os.environ.pop('BL_BATTLENET', None)
+            self.assertEqual(store.RAN_FAILED, store.main([BNET_EXE, '--exec=launch Pro']))
         self.assertIn('[ $rc -eq 11 ] && exit 0', compat.BL_STORE_SETUP)
+        self.assertIn('[ $rc -eq 12 ] && exit 1', compat.BL_STORE_SETUP)
         self.assertLess(compat.BL_STORE_SETUP.index('droiddeck-store-launch "$@"'), compat.BL_STORE_SETUP.index('[ $rc -eq 11 ] && exit 0'))
 
 

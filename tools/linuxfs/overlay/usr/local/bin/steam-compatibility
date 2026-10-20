@@ -72,6 +72,7 @@ bl_store_launch() {
   rc=$?
   [ $rc -eq 10 ] && BL_STORE_EXIT=1
   [ $rc -eq 11 ] && exit 0
+  [ $rc -eq 12 ] && exit 1
   return 0
 }
 
