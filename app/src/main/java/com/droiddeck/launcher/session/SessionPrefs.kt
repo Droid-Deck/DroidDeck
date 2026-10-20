@@ -168,6 +168,7 @@ object SessionPrefs {
     const val TOUCH_AUTO = "auto"
     const val TOUCH_PAD = "touchpad"
     const val TOUCH_DIRECT = "direct"
+    const val TOUCH_GESTURES = "gestures"
     const val TOUCH_OFF = "off"
 
     fun touchMode(context: Context): String = prefs(context).getString("touch", TOUCH_AUTO) ?: TOUCH_AUTO
@@ -877,6 +878,11 @@ object SessionPrefs {
     }
 
     fun prefMode(mode: String): String = if (mode == SessionService.MODE_RUN) SessionService.MODE_STEAM else mode
+
+    fun displayMode(context: Context, mode: String, program: String?): String =
+        if (mode == SessionService.MODE_RUN && com.droiddeck.launcher.runtime.UserApps.launches(program) &&
+            resolutionChosen(context, SessionService.MODE_DESKTOP)) SessionService.MODE_DESKTOP
+        else prefMode(mode)
 
     fun pipAutoEnter(context: Context): Boolean = prefs(context).getBoolean("pipAutoEnter", false)
 

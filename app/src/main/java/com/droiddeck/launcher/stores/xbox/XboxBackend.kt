@@ -19,12 +19,15 @@ object XboxBackend : StoreBackend {
         context.startActivity(Intent(context, XboxLoginActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
-    @Synchronized override fun signOut(context: Context) {
-        generation++
-        XboxCredentials.invalidate(context)
-        XboxLibraryCache.clear(context)
-        XboxRuntime.stop()
-        access = emptyMap()
+    override fun signOut(context: Context) {
+        XboxCredentials.invalidate(context) {
+            synchronized(this) {
+                generation++
+                access = emptyMap()
+            }
+            XboxLibraryCache.clear(context)
+            XboxRuntime.stop()
+        }
         StoresState.post { packageChoice = null; StoresState.shelves.remove(store); StoresState.found.remove(store) }
     }
 

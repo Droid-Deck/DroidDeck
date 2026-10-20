@@ -961,7 +961,7 @@ private suspend fun <T> CompletableFuture<T>.await(): T =
 @Composable
 private fun SectionLabel(title: String) {
     Text(
-        title.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp,
+        headingUppercase(title), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp,
         color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth().padding(top = 6.dp, start = 2.dp),
     )
 }
@@ -996,6 +996,7 @@ internal fun ModeHeader(
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     var searching by remember { mutableStateOf(query.isNotEmpty()) }
+    var focusOnOpen by remember { mutableStateOf(false) }
     val open by animateFloatAsState(if (searching) 1f else 0f, Motion.sp(0.75f, 420f), label = "searchOpen")
     Column(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(vertical = 4.dp)) {
@@ -1010,11 +1011,11 @@ internal fun ModeHeader(
                     Box(Modifier.width(w).graphicsLayer { alpha = (open * 1.6f).coerceAtMost(1f) }) {
                         AdbTextField(
                             value = query, onValueChange = onQuery, label = "", keyboardType = KeyboardType.Text, imeAction = ImeAction.Search,
-                            placeholder = placeholder, compact = true, focusOnShow = true,
-                            onFocusChange = { focused -> if (!focused && query.isEmpty()) searching = false },
+                            placeholder = placeholder, compact = true, focusOnShow = focusOnOpen,
+                            onFocusChange = { focused -> if (!focused && query.isEmpty()) { searching = false; focusOnOpen = false } },
                         )
                     }
-                } else SearchIcon(stringResource(R.string.stores_search_open)) { searching = true }
+                } else SearchIcon(stringResource(R.string.stores_search_open)) { searching = true; focusOnOpen = true }
             }
             trailing()
         }

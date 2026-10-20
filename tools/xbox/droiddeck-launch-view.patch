@@ -84,3 +84,23 @@
      }
  
      #[test]
+--- a/crates/xodus-cli/src/commands/run.rs
++++ b/crates/xodus-cli/src/commands/run.rs
+@@ -618 +618,17 @@
++    if wine == "droiddeck:prepare" {
++        use std::io::Write;
++        if !materialize_chain { return ExitCode::FAILURE; }
++        let ready = serde_json::json!({
++            "exe": stub_path,
++            "playfab": playfab_auth_header(client, tokens).await,
++        });
++        println!("DROIDDECK_LAUNCH_V1 {}", ready);
++        let _ = std::io::stdout().flush();
++        let mut release = String::new();
++        let _ = std::io::stdin().read_line(&mut release);
++        drop(launch_mirror);
++        cleanup().await;
++        return ExitCode::SUCCESS;
++    }
++
+     let mut command = Command::new(wine);

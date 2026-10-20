@@ -24,16 +24,33 @@ in the build cache and publishes both in CI's `xbox-corresponding-source`
 artifact; distribute corresponding sources with published binaries.
 
 `droiddeck-credentials.patch` replaces Linux Secret Service with a bounded,
-UID-checked Android abstract socket. The Android host encrypts every persistent
+Android abstract socket restricted to the backend process started by the host. The Android host encrypts every persistent
 write using its existing Keystore cipher, verifies backend read-backs, and
 rejects writes when Keystore is unavailable. No token values enter process
 arguments, external storage, application logs or a plaintext credential file.
 Account-generation invalidation prevents a signed-out child's later writes from
-restoring credentials. Each process gets its own unguessable socket name.
+restoring credentials. Each backend gets its own socket. The host checks the peer UID, the PRoot tracer
+owned by its live child, and an executable mapping of the backend file with a matching inode and
+SHA-256 against the APK asset. PRoot's loader can occupy `/proc/<pid>/exe`, so
+authentication checks the mapped backend image instead. A socket name alone grants no credential operations, including to another
+copy of Xodus started by the guest.
+
+Licensed launch-view preparation runs in an Android-owned Xodus child, which
+never starts Wine or a game. Steam and DroidDeck launch paths can request
+preparation for an installed Xbox title during a live session with an Xbox
+account. The reply contains a random launch lease, a materialized executable
+path, a game-service socket and the existing PlayFab game token; it contains no
+account credential endpoint.
+Leases bind product, account and session, expire without heartbeats, and release
+idempotently. Cancellation, session stop and account changes revoke leases;
+closing the child's stdin lets it remove its private view. Suspension preserves
+live leases.
 The Proton initialization and game processes do not inherit the raw credential
 channel or command-file environment variables. The authenticated GDK bridge
 remains available to the game. Like the other stores, games share DroidDeck's
-Linux environment and Android UID; this is not a sandbox against malicious games.
+Linux environment and Android UID. The process checks close the direct
+credential-socket route; they do not isolate writable runtime files, prevent
+same-UID process tampering, or provide a sandbox against malicious games.
 
 Microsoft sign-in uses Nexus's private stdio protocol in an isolated Android
 WebView process. Its page bridge is restricted to the allowed Microsoft/Xbox

@@ -5,6 +5,8 @@ import android.os.Looper
 import android.view.MotionEvent
 import java.time.Duration
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -107,6 +109,96 @@ class TouchpadGesturesTest {
         assertEquals(listOf("left down", "left up"), events)
         advance(200)
         assertEquals(listOf("left down", "left up"), events)
+    }
+
+    @Test fun liftingTheSecondFingerAfterAScrollKeepsTheCursorStill() {
+        touch(MotionEvent.ACTION_DOWN, 0, 1 to (400f to 300f))
+        advance(10)
+        touch(MotionEvent.ACTION_POINTER_DOWN, 1, 1 to (400f to 300f), 2 to (600f to 310f))
+        advance(10)
+        touch(MotionEvent.ACTION_MOVE, 0, 1 to (400f to 600f), 2 to (600f to 610f))
+        assertTrue(events.contains("wheel -8"))
+        advance(10)
+        touch(MotionEvent.ACTION_POINTER_UP, 1, 1 to (400f to 600f), 2 to (600f to 610f))
+        advance(10)
+        val sx = touchpad.x
+        val sy = touchpad.y
+        touch(MotionEvent.ACTION_MOVE, 0, 1 to (401f to 601f))
+        assertEquals(sx, touchpad.x, 0.01f)
+        assertEquals(sy, touchpad.y, 0.01f)
+        assertFalse(events.contains("move"))
+    }
+
+    @Test fun trackingResumesNormallyAfterTheScroll() {
+        touch(MotionEvent.ACTION_DOWN, 0, 1 to (400f to 300f))
+        advance(10)
+        touch(MotionEvent.ACTION_POINTER_DOWN, 1, 1 to (400f to 300f), 2 to (600f to 310f))
+        advance(10)
+        touch(MotionEvent.ACTION_MOVE, 0, 1 to (400f to 600f), 2 to (600f to 610f))
+        advance(10)
+        touch(MotionEvent.ACTION_POINTER_UP, 1, 1 to (400f to 600f), 2 to (600f to 610f))
+        advance(10)
+        val sy = touchpad.y
+        touch(MotionEvent.ACTION_MOVE, 0, 1 to (401f to 621f))
+        val delta = touchpad.y - sy
+        assertTrue(delta in 20f..65f)
+        assertTrue(events.contains("move"))
+    }
+
+    @Test fun liftingTheAnchorFirstAfterAScrollKeepsTheCursorStill() {
+        touch(MotionEvent.ACTION_DOWN, 0, 1 to (400f to 300f))
+        advance(10)
+        touch(MotionEvent.ACTION_POINTER_DOWN, 1, 1 to (400f to 300f), 2 to (600f to 310f))
+        advance(10)
+        touch(MotionEvent.ACTION_MOVE, 0, 1 to (400f to 600f), 2 to (600f to 610f))
+        advance(10)
+        touch(MotionEvent.ACTION_POINTER_UP, 0, 1 to (400f to 600f), 2 to (600f to 610f))
+        advance(10)
+        val sx = touchpad.x
+        val sy = touchpad.y
+        touch(MotionEvent.ACTION_MOVE, 0, 2 to (601f to 611f))
+        assertEquals(sx, touchpad.x, 0.01f)
+        assertEquals(sy, touchpad.y, 0.01f)
+        assertFalse(events.contains("move"))
+    }
+
+    @Test fun twoFingerScrollWithLeadingFingerDoesNotPressLeft() {
+        touch(MotionEvent.ACTION_DOWN, 0, 1 to (400f to 300f))
+        advance(10)
+        touch(MotionEvent.ACTION_POINTER_DOWN, 1, 1 to (400f to 300f), 2 to (600f to 300f))
+        advance(10)
+        touch(MotionEvent.ACTION_MOVE, 0, 1 to (400f to 303f), 2 to (600f to 310f))
+        advance(10)
+        touch(MotionEvent.ACTION_MOVE, 0, 1 to (400f to 340f), 2 to (600f to 350f))
+        advance(10)
+        touch(MotionEvent.ACTION_MOVE, 0, 1 to (400f to 380f), 2 to (600f to 390f))
+        assertFalse(events.contains("left down"))
+        assertTrue(events.any { it.startsWith("wheel ") })
+    }
+
+    @Test fun holdDragStillWorks() {
+        touch(MotionEvent.ACTION_DOWN, 0, 1 to (400f to 300f))
+        advance(10)
+        touch(MotionEvent.ACTION_POINTER_DOWN, 1, 1 to (400f to 300f), 2 to (600f to 300f))
+        advance(10)
+        touch(MotionEvent.ACTION_MOVE, 0, 1 to (400f to 300f), 2 to (620f to 300f))
+        advance(10)
+        touch(MotionEvent.ACTION_MOVE, 0, 1 to (400f to 300f), 2 to (640f to 300f))
+        assertEquals("left down", events.firstOrNull())
+        assertTrue(events.contains("move"))
+        touch(MotionEvent.ACTION_POINTER_UP, 0, 1 to (400f to 300f), 2 to (640f to 300f))
+        assertTrue(events.contains("left up"))
+    }
+
+    @Test fun anchorMovedLocksOutHoldDrag() {
+        touch(MotionEvent.ACTION_DOWN, 0, 1 to (400f to 300f))
+        advance(10)
+        touch(MotionEvent.ACTION_POINTER_DOWN, 1, 1 to (400f to 300f), 2 to (600f to 300f))
+        advance(10)
+        touch(MotionEvent.ACTION_MOVE, 0, 1 to (400f to 309f), 2 to (600f to 302f))
+        advance(10)
+        touch(MotionEvent.ACTION_MOVE, 0, 1 to (400f to 309f), 2 to (640f to 302f))
+        assertFalse(events.contains("left down"))
     }
 
     private fun tap() {

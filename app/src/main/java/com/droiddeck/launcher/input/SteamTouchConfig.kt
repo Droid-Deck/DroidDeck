@@ -358,6 +358,11 @@ object SteamTouchConfig {
         }.sortedBy { it.type }
     }
 
+    fun remapHeld(held: Map<Int, Int?>, next: List<Element>): Map<Int, Element> {
+        val byType = next.associateBy { it.type }
+        return held.mapNotNull { (id, type) -> byType[type]?.let { id to it } }.toMap()
+    }
+
     fun layoutColor(config: Config, actionSet: Int): FloatArray? = config.layouts?.forActionSet(layoutIdOf(actionSet))?.color
 
 

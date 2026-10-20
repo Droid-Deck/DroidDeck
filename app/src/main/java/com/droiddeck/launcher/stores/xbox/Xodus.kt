@@ -13,16 +13,32 @@ internal object Xodus {
     const val DIR = "/usr/local/lib/droiddeck-xbox"
     fun market(): String = java.util.Locale.getDefault().country.uppercase().takeIf { it.matches(Regex("[A-Z]{2}")) } ?: "US"
 
-    class Child(val process: Process, private val credentials: XboxCredentials) : Closeable {
-        val credentialSocket: String get() = credentials.name
+    class Child(val process: Process, private val credentials: XboxCredentials, private val runtimeDirectory: File? = null, private val launchDirectory: File? = null) : Closeable {
         @Synchronized fun send(frame: JSONObject) {
             process.outputStream.write((frame.toString() + "\n").toByteArray())
             process.outputStream.flush()
         }
         override fun close() {
-            process.destroy()
-            if (!process.waitFor(2, TimeUnit.SECONDS)) process.destroyForcibly()
-            credentials.close()
+            try {
+                credentials.close()
+                runCatching { process.outputStream.close() }
+                if (!process.waitFor(2, TimeUnit.SECONDS)) {
+                    credentials.signalBackend(android.system.OsConstants.SIGINT)
+                    if (!process.waitFor(2, TimeUnit.SECONDS)) {
+                        credentials.signalBackend(android.system.OsConstants.SIGKILL)
+                        if (!process.waitFor(1, TimeUnit.SECONDS)) {
+                            val pid = com.droiddeck.launcher.core.HostProcess.pidOf(process)
+                            if (pid > 0) android.os.Process.killProcess(pid)
+                        }
+                    }
+                }
+            } finally {
+                runtimeDirectory?.let { directory ->
+                    File(directory, "xodus.sock").delete()
+                    directory.delete()
+                }
+                launchDirectory?.let(XboxLaunchViews::remove)
+            }
         }
     }
 
@@ -45,19 +61,20 @@ internal object Xodus {
         File(root, "version").writeText(packaged)
     }
 
-    fun start(app: Context, args: List<String>, service: Boolean = false): Child {
+    fun start(app: Context, args: List<String>, service: Boolean = false, runtimeDirectory: File? = null, launchDirectory: File? = null, credentialGeneration: String? = null): Child {
         check(LinuxRuntime.isInstalled(app)) { "Install the Linux runtime before using Xbox." }
         stage(app)
         val binary = "$DIR/${if (service) "xodus-service" else "xodus-cli"}"
         check(File(LinuxRuntime.rootDir(app), binary.removePrefix("/")).isFile) { "The Xbox backend is missing. Update the Linux runtime." }
-        val credentials = XboxCredentials(app)
+        val credentials = XboxCredentials(app, credentialGeneration)
         try {
-            val runtime = File(app.filesDir, "xbox-runtime").apply { mkdirs() }
+            val runtime = (runtimeDirectory ?: File(app.filesDir, "xbox-runtime")).apply { mkdirs() }
             val command = LinuxRuntime.command(app, null, null, Environment.getExternalStorageDirectory(), listOf(
                 "/usr/bin/env", "HOME=/root", "XODUS_LOG=off", "RUST_LOG=off",
                 "XDG_RUNTIME_DIR=${runtime.path}", "DROIDDECK_XBOX_CREDENTIAL_SOCKET=${credentials.name}", binary,
             ) + args)
             val builder = ProcessBuilder(command).directory(LinuxRuntime.rootDir(app))
+            if (launchDirectory != null) builder.environment()["TMPDIR"] = launchDirectory.path
             builder.environment().apply {
                 remove("LD_PRELOAD"); remove("LD_AUDIT"); remove("LD_LIBRARY_PATH")
                 put("PROOT_LOADER", LinuxRuntime.prootLoader(app).path)
@@ -65,12 +82,19 @@ internal object Xodus {
                 if (SessionPrefs.prootNoSeccomp(app)) put("PROOT_NO_SECCOMP", "1")
                 LinuxRuntime.prootLibraryPath(app).takeIf { it.isNotEmpty() }?.let { put("LD_LIBRARY_PATH", it) }
             }
-            return Child(builder.start(), credentials)
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            app.assets.open("linuxfs$binary").use { input ->
+                val buffer = ByteArray(65536)
+                while (true) { val n = input.read(buffer); if (n < 0) break; digest.update(buffer, 0, n) }
+            }
+            val process = builder.start()
+            credentials.bind(process, File(LinuxRuntime.rootDir(app), binary.removePrefix("/")), digest.digest())
+            return Child(process, credentials, runtimeDirectory, launchDirectory)
         } catch (e: Exception) { credentials.close(); throw e }
     }
 
-    fun run(app: Context, args: List<String>, timeout: Long = 90): JSONObject {
-        start(app, args).use { child ->
+    fun run(app: Context, args: List<String>, timeout: Long = 90, credentialGeneration: String? = null): JSONObject {
+        start(app, args, credentialGeneration = credentialGeneration).use { child ->
             val output = java.io.ByteArrayOutputStream()
             var readError: Throwable? = null
             val reader = Thread({

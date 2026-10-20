@@ -48,7 +48,8 @@ class XboxLoginActivity : ComponentActivity() {
         Thread({
             if (closed) return@Thread
             try {
-                Xodus.start(applicationContext, listOf("--external-webview-stdio", "login")).use { process ->
+                val accountGeneration = XboxCredentials.lifecycle(applicationContext) { it }
+                Xodus.start(applicationContext, listOf("--external-webview-stdio", "login"), credentialGeneration = accountGeneration).use { process ->
                     child = process
                     if (closed) return@use
                     Xodus.diagnostics(process)
@@ -99,9 +100,9 @@ class XboxLoginActivity : ComponentActivity() {
                 }
                 child = null
                 if (closed) return@Thread
-                val account = Xodus.run(applicationContext, listOf("account", "--json"))
+                val account = Xodus.run(applicationContext, listOf("account", "--json"), credentialGeneration = accountGeneration)
                 check(account.optBoolean("stored"))
-                XboxCredentials.storage(this) {
+                XboxCredentials.lifecycle(this, accountGeneration) {
                     val record = StoreAccounts.read(this, Store.XBOX) ?: error("Xbox credentials missing")
                     record.put("username", account.getString("username"))
                     StoreAccounts.write(this, Store.XBOX, record)

@@ -338,6 +338,33 @@ class AgentTest(unittest.TestCase):
             with patch.object(agent, "cdp_eval", side_effect=agent.AgentError("NO_DEVTOOLS", "down")):
                 self.assertEqual(1, agent.main(["--steam-asleep"]))
 
+    def test_idle_inhibit_command_reports_whether_steam_reached_the_state(self):
+        with patch.dict(os.environ, {"BL_LAUNCH_DIR": str(self.dir.parent)}):
+            for value, code in ((True, 0), (False, 1), (None, 1)):
+                with self.subTest(value=value), patch.object(agent, "cdp_eval", return_value={"value": value}) as ask:
+                    self.assertEqual(code, agent.main(["--steam-idle-inhibit", "on"]))
+                self.assertIn("toggle_idle_suspend_inhibit 1", ask.call_args.args[1])
+                self.assertTrue(ask.call_args.args[1].rstrip().endswith("(true)"))
+            with patch.object(agent, "cdp_eval", return_value={"value": True}) as ask:
+                self.assertEqual(0, agent.main(["--steam-idle-inhibit", "off"]))
+            self.assertTrue(ask.call_args.args[1].rstrip().endswith("(false)"))
+            with patch.object(agent, "cdp_eval", side_effect=agent.AgentError("NO_DEVTOOLS", "down")):
+                self.assertEqual(1, agent.main(["--steam-idle-inhibit", "on"]))
+            self.assertEqual(2, agent.main(["--steam-idle-inhibit", "maybe"]))
+
+    def test_idle_suspend_seconds_follow_the_power_source(self):
+        vpower = self.dir / "ac_status"
+        with patch.object(agent, "cdp_eval", return_value={"value": [3600, 900]}):
+            vpower.write_text("Connected\n")
+            self.assertEqual(3600, agent.steam_idle_suspend_seconds(self.dir, vpower))
+            vpower.write_text("Disconnected\n")
+            self.assertEqual(900, agent.steam_idle_suspend_seconds(self.dir, vpower))
+        with patch.object(agent, "cdp_eval", return_value={"value": None}):
+            self.assertIsNone(agent.steam_idle_suspend_seconds(self.dir, vpower))
+        with patch.dict(os.environ, {"BL_LAUNCH_DIR": str(self.dir.parent)}), \
+                patch.object(agent, "steam_idle_suspend_seconds", return_value=None):
+            self.assertEqual(1, agent.main(["--steam-idle-suspend-seconds"]))
+
     def test_cdp_exception(self):
         server = FakeDevTools({"result": {"result": {"type": "object"}, "exceptionDetails": {
             "text": "Uncaught", "exception": {"description": "ReferenceError: SteamClient is not defined"}}}})

@@ -43,6 +43,17 @@ class ReadConfigMappingTest(unittest.TestCase):
 
 
 class GameEnvironmentTest(unittest.TestCase):
+    def test_optional_xbox_loader_failure_keeps_stock_launch(self):
+        from unittest.mock import patch
+        for error in (FileNotFoundError('missing'), RuntimeError('module initialization failed')):
+            calls = []
+            with patch.dict(os.environ, {}, clear=True), patch('sys.argv', ['droiddeck-game-env', '/stock', 'run']), \
+                 patch('runpy.run_path', side_effect=error), patch('os.execvpe', side_effect=lambda *args: calls.append(args)), \
+                 patch.dict(MODULE['main'].__globals__, load_sync=lambda: None, select_sync=lambda command, env, sync: (command, env)):
+                MODULE['main']()
+            self.assertEqual(calls[0][0:2], ('/stock', ['/stock', 'run']))
+
+
     def test_directaudio_capture_follows_the_session_microphone_setting(self):
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)

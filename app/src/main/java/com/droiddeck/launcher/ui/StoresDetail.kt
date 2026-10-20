@@ -125,7 +125,8 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
                             ActionChip(stringResource(R.string.stores_in_steam), ok = true)
                             if (store == Store.XBOX) {
                                 SecondaryButton("Update / verify", enabled = download == null && !com.droiddeck.launcher.stores.xbox.XboxRuntime.isActive(id)) {
-                                    com.droiddeck.launcher.stores.xbox.XboxBackend.update(ctx, installed)
+                                    runCatching { com.droiddeck.launcher.stores.xbox.XboxBackend.update(ctx, installed) }
+                                        .onFailure { StoresState.problems[Store.XBOX] = it.message ?: "Close this Xbox game before updating it." }
                                 }
                                 SecondaryButton("Manage content", enabled = download == null) {
                                     com.droiddeck.launcher.stores.xbox.XboxContent.manage(ctx, installed)

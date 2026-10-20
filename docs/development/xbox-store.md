@@ -1,6 +1,6 @@
 # Xbox / PC Game Pass on Thor
 
-Branch: `feat/xbox-store`. This integrates PC Microsoft Store MSIXVC packages,
+This integrates PC Microsoft Store MSIXVC packages,
 not Xbox console emulation or UWP/APPX packages.
 
 ## Testing on Thor
@@ -32,7 +32,13 @@ not Xbox console emulation or UWP/APPX packages.
    of showing the "Steam picks the game up when it next starts" toast.
    A launch taking over 20 seconds should not produce a duplicate Steam launch
    or a "Game already running" dialog while licensing is still preparing it.
-   Steam/session startup uses the selected ARM64 Proton.
+   Steam/session startup uses the selected ARM64 Proton. Launch the installed
+   Xbox game from either DroidDeck or Steam; both paths should prepare the same
+   account-bound game service and licensed view while keeping account credentials
+   inside the Android-owned backend.
+   During preparation, opening the Xbox detail/content UI must remain responsive.
+   Update / verify must report a problem if the game starts after its button was
+   enabled, rather than crashing the app.
    First launch prepares that game's prefix. Check that a window appears, the
    game reaches its menu, controller buttons/axes work, and audio is audible.
    Record the selected Proton, game/version, and any startup failure.
@@ -48,7 +54,14 @@ not Xbox console emulation or UWP/APPX packages.
    it, then relaunch and check that the game recognizes it. An account with no
    such content should get an empty-content message. Base-game uninstall also
    removes its managed content.
-9. Sign out from Xbox. Installed files should remain, account library data should
+9. Stop a game and launch it again. A delayed release from the first launch must
+   not clear the second launch's activity. Suspend/resume while playing; the
+   launch lease should survive suspension. Stop the session during preparation
+   and verify both backend processes exit and the host-owned launch directory
+   under `files/xbox-runtime/views` is removed. A fresh app process recovers
+   abandoned `launch-*` directories there before preparing another game;
+   cleanup must preserve installed game files reached through view symlinks.
+10. Sign out from Xbox. Installed files should remain, account library data should
    clear, and Play/download licensing should require sign-in again.
 
 Do not uninstall DroidDeck or clear application data to troubleshoot this build.
