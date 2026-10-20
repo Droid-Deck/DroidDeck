@@ -316,11 +316,6 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
     var advancedEffectsExpanded by rememberSaveable { mutableStateOf(false) }
     var appToChooseDisplay by remember { mutableStateOf<HomeApp.LaunchableApp?>(null) }
     var confirmStop by remember { mutableStateOf(false) }
-    var shortcutsOpen by remember { mutableStateOf(false) }
-    LaunchedEffect(open) { if (!open) shortcutsOpen = false }
-    if (open && shortcutsOpen) PhysicalShortcutsDialog(
-        onDismiss = { shortcutsOpen = false }, onChanged = a.onPhysicalShortcutsChanged,
-    )
     var sheetCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
     var stopCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
     val pageScroll = remember { SessionDrawerPage.entries.associateWith { ScrollState(0) } }
@@ -497,9 +492,8 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         }
                         SessionDrawerPage.CONTROLLER -> {
                             SettingsGroup(stringResource(R.string.drawer_page_controller)) {
-                                ActionRow(stringResource(R.string.shortcuts_title), stringResource(R.string.shortcuts_hint),
-                                    stringResource(R.string.ctrl_configure), { shortcutsOpen = true },
-                                    modifier = focus.track(page, "physical-shortcuts"))
+                                PhysicalShortcutRows(onChanged = a.onPhysicalShortcutsChanged,
+                                    modifierFor = { focus.track(page, "physical-shortcut-${it.name}") })
                                 a.padType?.let { type ->
                                     ChoiceRow(host, "pad-type", stringResource(R.string.mode_controller), null,
                                         listOf(SessionPrefs.CONTROLLER_DECK to stringResource(R.string.mode_controller_deck),

@@ -10,6 +10,10 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.*
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.Modifier
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.input.ControllerPrefs
 import com.droiddeck.launcher.input.PadBridgeRoutingTest
@@ -46,7 +50,7 @@ class PhysicalShortcutsDialogTest {
 
     @Test fun assignmentRequiresReleaseAndExplicitSave() {
         var changes = 0
-        compose.setContent { DroidDeckTheme { PhysicalShortcutsDialog({}, { changes++ }) } }
+        compose.setContent { DroidDeckTheme { PhysicalShortcutRows(onChanged = { changes++ }) } }
         assign(PhysicalShortcuts.Action.STEAM)
         send(KeyEvent.KEYCODE_F1, KeyEvent.ACTION_DOWN)
         compose.onNodeWithText(context.getString(R.string.shortcuts_release)).assertExists()
@@ -62,16 +66,23 @@ class PhysicalShortcutsDialogTest {
         }
     }
 
+    @Test fun buttonMappingPageOpensPhysicalShortcutAssignments() {
+        compose.setContent {
+            DroidDeckTheme { ControllerMappingPage(emptyMap(), { _, _ -> }, {}, {}) }
+        }
+        compose.onNodeWithTag("shortcuts-assign-STEAM").assertExists()
+        compose.onNodeWithTag("shortcuts-assign-QAM").assertExists()
+        compose.onNodeWithTag("shortcuts-assign-DROIDDECK").assertExists()
+    }
+
     @Test fun backCanBeCapturedWithoutDismissingAndCancelDoesNotSave() {
-        var dismissed = false
-        compose.setContent { DroidDeckTheme { PhysicalShortcutsDialog({ dismissed = true }) } }
+        compose.setContent { DroidDeckTheme { PhysicalShortcutRows() } }
         assign(PhysicalShortcuts.Action.QAM)
         send(KeyEvent.KEYCODE_BACK, KeyEvent.ACTION_DOWN)
         send(KeyEvent.KEYCODE_BACK, KeyEvent.ACTION_UP)
         compose.onNodeWithTag("shortcuts-save").assertExists()
         compose.onNodeWithTag("shortcuts-cancel").performScrollTo().performClick()
         compose.runOnIdle {
-            assertFalse(dismissed)
             assertTrue(PhysicalShortcuts.read(context).isEmpty())
         }
         compose.onNodeWithTag("shortcuts-assign-QAM").assertExists()
@@ -80,7 +91,7 @@ class PhysicalShortcutsDialogTest {
     @Test fun conflictingAssignmentIsNotReplacedUntilSave() {
         PhysicalShortcuts.assign(context, requireNotNull(PhysicalShortcuts.button(event(KeyEvent.KEYCODE_F1, KeyEvent.ACTION_DOWN))),
             PhysicalShortcuts.Action.STEAM)
-        compose.setContent { DroidDeckTheme { PhysicalShortcutsDialog({}) } }
+        compose.setContent { DroidDeckTheme { PhysicalShortcutRows() } }
         assign(PhysicalShortcuts.Action.QAM)
         send(KeyEvent.KEYCODE_F1, KeyEvent.ACTION_DOWN)
         send(KeyEvent.KEYCODE_F1, KeyEvent.ACTION_UP)
@@ -91,23 +102,24 @@ class PhysicalShortcutsDialogTest {
         compose.runOnIdle { assertEquals(PhysicalShortcuts.Action.QAM, PhysicalShortcuts.read(context).single().action) }
     }
 
-    @Test fun resetRequiresConfirmationAndPreservesOtherControllerSettings() {
+    @Test fun removalRestoresDefaultAndPreservesOtherAssignmentsAndControllerSettings() {
         ControllerPrefs.setSelectSteam(context, true)
         PhysicalShortcuts.assign(context, requireNotNull(PhysicalShortcuts.button(event(KeyEvent.KEYCODE_F1, KeyEvent.ACTION_DOWN))),
             PhysicalShortcuts.Action.STEAM)
-        compose.setContent { DroidDeckTheme { PhysicalShortcutsDialog({}) } }
-        compose.onNodeWithTag("shortcuts-reset").performScrollTo().performClick()
-        compose.onNodeWithText(context.getString(R.string.shortcuts_reset_hint)).assertExists()
-        assertFalse(PhysicalShortcuts.read(context).isEmpty())
-        compose.onAllNodesWithText(context.getString(R.string.ctrl_reset)).onLast().performClick()
+        PhysicalShortcuts.assign(context, requireNotNull(PhysicalShortcuts.button(event(KeyEvent.KEYCODE_F2, KeyEvent.ACTION_DOWN))),
+            PhysicalShortcuts.Action.QAM)
+        compose.setContent { DroidDeckTheme { PhysicalShortcutRows() } }
+        assign(PhysicalShortcuts.Action.STEAM)
+        compose.onNodeWithTag("shortcuts-remove").performScrollTo().performClick()
         compose.runOnIdle {
-            assertTrue(PhysicalShortcuts.read(context).isEmpty())
+            assertEquals(PhysicalShortcuts.Action.QAM, PhysicalShortcuts.read(context).single().action)
             assertTrue(ControllerPrefs.read(context).selectSteam)
         }
+        compose.onNodeWithTag("shortcuts-assign-STEAM").assertTextContains(context.getString(R.string.game_settings_default))
     }
 
     @Test fun retryRecoversFromAMissingReleaseWithoutSavingTheOldButton() {
-        compose.setContent { DroidDeckTheme { PhysicalShortcutsDialog({}) } }
+        compose.setContent { DroidDeckTheme { PhysicalShortcutRows() } }
         assign(PhysicalShortcuts.Action.STEAM)
         send(KeyEvent.KEYCODE_F1, KeyEvent.ACTION_DOWN)
         compose.onNodeWithTag("shortcuts-retry").performScrollTo().performClick()
@@ -121,10 +133,27 @@ class PhysicalShortcutsDialogTest {
         compose.runOnIdle { assertEquals(KeyEvent.KEYCODE_F2, PhysicalShortcuts.read(context).single().button.keyCode) }
     }
 
+    @Test fun longControllerNameDoesNotSqueezeTheMenuLabelInANarrowDrawer() {
+        val button = requireNotNull(PhysicalShortcuts.button(event(KeyEvent.KEYCODE_BUTTON_SELECT, KeyEvent.ACTION_DOWN)))
+            .copy(name = "Xbox Wireless Controller with a long device name")
+        PhysicalShortcuts.assign(context, button, PhysicalShortcuts.Action.STEAM)
+        compose.setContent {
+            DroidDeckTheme {
+                Box(Modifier.width(360.dp)) { PhysicalShortcutRows() }
+            }
+        }
+        val control = compose.onNodeWithTag("shortcuts-assign-STEAM").getUnclippedBoundsInRoot()
+        val label = compose.onNodeWithText(context.getString(R.string.drawer_steam_menu)).getUnclippedBoundsInRoot()
+        assertTrue(control.right - control.left < 200.dp)
+        assertTrue("Menu label must not wrap vertically: $label", label.bottom - label.top <= 48.dp)
+        compose.onNodeWithTag("shortcuts-assign-STEAM").assertTextContains(context.getString(R.string.ctrl_custom))
+        compose.onNodeWithText("${button.label} · ${button.name}").assertExists()
+    }
+
     @Test fun replacingAnActionsButtonShowsThePreviousButtonBeforeSaving() {
         val oldButton = requireNotNull(PhysicalShortcuts.button(event(KeyEvent.KEYCODE_F1, KeyEvent.ACTION_DOWN)))
         PhysicalShortcuts.assign(context, oldButton, PhysicalShortcuts.Action.STEAM)
-        compose.setContent { DroidDeckTheme { PhysicalShortcutsDialog({}) } }
+        compose.setContent { DroidDeckTheme { PhysicalShortcutRows() } }
         assign(PhysicalShortcuts.Action.STEAM)
         send(KeyEvent.KEYCODE_F2, KeyEvent.ACTION_DOWN)
         send(KeyEvent.KEYCODE_F2, KeyEvent.ACTION_UP)
@@ -142,11 +171,12 @@ class PhysicalShortcutsDialogTest {
         compose.setContent {
             val density = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale = 1.5f)) {
-                DroidDeckTheme { PhysicalShortcutsDialog({}) }
+                DroidDeckTheme { PhysicalShortcutRows() }
             }
         }
-        compose.onNodeWithText("Physische Tastenkürzel").assertExists()
         assign(PhysicalShortcuts.Action.DROIDDECK)
+        compose.onNodeWithText(context.getString(R.string.shortcuts_capture,
+            context.getString(R.string.shortcuts_dd_menu))).assertExists()
         send(KeyEvent.KEYCODE_F1, KeyEvent.ACTION_DOWN)
         send(KeyEvent.KEYCODE_F1, KeyEvent.ACTION_UP)
         compose.onNodeWithTag("shortcuts-save").performScrollTo().assertIsDisplayed().performClick()
@@ -156,8 +186,7 @@ class PhysicalShortcutsDialogTest {
     @Test
     @Config(qualifiers = "ar-rEG-w400dp-h850dp-port")
     fun rightToLeftDialogKeepsCancelReachable() {
-        compose.setContent { DroidDeckTheme { PhysicalShortcutsDialog({}) } }
-        compose.onNodeWithText("اختصارات الأزرار الفعلية").assertExists()
+        compose.setContent { DroidDeckTheme { PhysicalShortcutRows() } }
         assign(PhysicalShortcuts.Action.QAM)
         compose.onNodeWithTag("shortcuts-cancel").performScrollTo().assertIsDisplayed().performClick()
         compose.onNodeWithTag("shortcuts-assign-QAM").assertExists()
@@ -186,7 +215,7 @@ class PhysicalShortcutsDialogTest {
     }
 
     private fun assign(action: PhysicalShortcuts.Action) {
-        compose.onNodeWithTag("shortcuts-assign-${action.name}").performScrollTo().performClick()
+        compose.onNodeWithTag("shortcuts-assign-${action.name}").performClick()
     }
 
     private fun send(code: Int, action: Int) {

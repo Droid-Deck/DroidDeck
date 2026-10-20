@@ -11,10 +11,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -47,10 +43,6 @@ private fun Swatch(color: Int) {
 
 @Composable
 fun ColumnScope.ControllerRows(host: MenuHost, oscMode: String, c: ControllerPrefs.Settings, a: ControllerActions) {
-    var shortcutsOpen by remember { mutableStateOf(false) }
-    if (shortcutsOpen) PhysicalShortcutsDialog(onDismiss = { shortcutsOpen = false })
-    ActionRow(stringResource(R.string.shortcuts_title), stringResource(R.string.shortcuts_hint),
-        stringResource(R.string.ctrl_configure), { shortcutsOpen = true })
     ChoiceRow(
         host, "controller-osc", stringResource(R.string.mode_osc), stringResource(R.string.ctrl_osc_hint),
         listOf(SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto), SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always), SessionPrefs.OSC_STEAM_TOUCH to stringResource(R.string.osc_steam_touch), SessionPrefs.OSC_STEAM_QAM to stringResource(R.string.mode_osc_qam), SessionPrefs.OSC_NEVER to stringResource(R.string.common_never)),
@@ -101,6 +93,9 @@ fun ControllerMappingPage(mapping: Map<String, String>, onPick: (String, String)
         lede = stringResource(R.string.ctrl_mapping_lede),
         onBack = onBack,
     ) {
+        SettingsGroup(stringResource(R.string.shortcuts_title)) {
+            PhysicalShortcutRows()
+        }
         SettingsGroup(stringResource(R.string.ctrl_onscreen_buttons)) {
             val targets = ControllerPrefs.targets.map { (id, label) -> id to stringResource(label) }
             for ((id, name) in ControllerPrefs.mappable) {

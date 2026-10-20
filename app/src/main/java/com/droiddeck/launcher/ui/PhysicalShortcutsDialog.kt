@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -37,26 +38,55 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.input.PhysicalShortcuts
 
 @Composable
-internal fun PhysicalShortcutsDialog(onDismiss: () -> Unit, onChanged: () -> Unit = {}) {
+internal fun PhysicalShortcutRows(
+    onChanged: () -> Unit = {},
+    modifierFor: (PhysicalShortcuts.Action) -> Modifier = { Modifier },
+) {
     val context = LocalContext.current
     var bindings by remember { mutableStateOf(PhysicalShortcuts.read(context)) }
     var editing by remember { mutableStateOf<PhysicalShortcuts.Action?>(null) }
+    Column {
+        for (action in PhysicalShortcuts.Action.entries) {
+            val assigned = bindings.filter { it.action == action }
+            SettingsRow(
+                stringResource(action.label),
+                assigned.joinToString { "${it.button.label} · ${it.button.name}" }.ifEmpty { null },
+            ) {
+                SecondaryButton(
+                    stringResource(if (assigned.isEmpty()) R.string.game_settings_default else R.string.ctrl_custom),
+                    compact = true,
+                    modifier = modifierFor(action).width(LocalChipMinWidth.current)
+                        .testTag("shortcuts-assign-${action.name}"),
+                ) { editing = action }
+            }
+        }
+    }
+    editing?.let { action ->
+        PhysicalShortcutsDialog(action, onDismiss = { editing = null }, onChanged = {
+            bindings = PhysicalShortcuts.read(context)
+            onChanged()
+        })
+    }
+}
+
+@Composable
+internal fun PhysicalShortcutsDialog(
+    action: PhysicalShortcuts.Action,
+    onDismiss: () -> Unit,
+    onChanged: () -> Unit = {},
+) {
+    val context = LocalContext.current
+    var bindings by remember { mutableStateOf(PhysicalShortcuts.read(context)) }
     var candidate by remember { mutableStateOf<PhysicalShortcuts.Button?>(null) }
-    var listening by remember { mutableStateOf(false) }
+    var listening by remember { mutableStateOf(true) }
     var capturedDevice by remember { mutableStateOf(-1) }
-    var confirmReset by remember { mutableStateOf(false) }
+    var details by remember { mutableStateOf(false) }
     fun refresh() {
         bindings = PhysicalShortcuts.read(context)
         onChanged()
     }
-    fun cancelCapture() {
-        editing = null
-        candidate = null
-        listening = false
-    }
-    val back = { if (editing != null) cancelCapture() else onDismiss() }
     Dialog(
-        onDismissRequest = back,
+        onDismissRequest = onDismiss,
         properties = DialogProperties(dismissOnBackPress = !listening, usePlatformDefaultWidth = false),
     ) {
         CaptureShortcutKeys { event ->
@@ -84,85 +114,62 @@ internal fun PhysicalShortcutsDialog(onDismiss: () -> Unit, onChanged: () -> Uni
                     .heightIn(max = (LocalConfiguration.current.screenHeightDp - 24).dp),
             ) {
                 Column(
-                    Modifier.verticalScroll(rememberScrollState()).padding(18.dp).controllerBack(back),
+                    Modifier.verticalScroll(rememberScrollState()).padding(18.dp).controllerBack(onDismiss),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Text(stringResource(R.string.shortcuts_title), style = MaterialTheme.typography.titleLarge)
-                    Text(stringResource(R.string.shortcuts_hint), style = MaterialTheme.typography.bodyMedium)
-                    val action = editing
-                    if (action == null) {
-                        for (item in PhysicalShortcuts.Action.entries) {
-                            SettingsGroup(stringResource(item.label)) {
-                                val assigned = bindings.filter { it.action == item }
-                                if (assigned.isEmpty()) {
-                                    Text(stringResource(R.string.shortcuts_default), Modifier.padding(12.dp))
-                                }
-                                assigned.forEach { binding ->
-                                    ActionRow(
-                                        binding.button.name, binding.button.label,
-                                        stringResource(R.string.shortcuts_remove),
-                                        { PhysicalShortcuts.remove(context, binding); refresh() },
-                                    )
-                                }
-                                ActionRow(
-                                    stringResource(R.string.shortcuts_assign), null, stringResource(R.string.ctrl_configure),
-                                    { editing = item; candidate = null; listening = true },
-                                    modifier = Modifier.testTag("shortcuts-assign-${item.name}"),
-                                )
-                            }
-                        }
-                        ActionRow(stringResource(R.string.shortcuts_reset), null, stringResource(R.string.ctrl_reset),
-                            { confirmReset = true }, modifier = Modifier.testTag("shortcuts-reset"))
-                        SecondaryButton(stringResource(R.string.common_close), onClick = onDismiss)
+                    Text(stringResource(R.string.shortcuts_capture, stringResource(action.label)),
+                        style = MaterialTheme.typography.titleLarge)
+                    Text(stringResource(R.string.shortcuts_limitations), style = MaterialTheme.typography.bodySmall)
+                    val button = candidate
+                    if (button == null) {
+                        Text(stringResource(R.string.shortcuts_press))
                     } else {
-                        Text(stringResource(R.string.shortcuts_capture, stringResource(action.label)),
-                            style = MaterialTheme.typography.titleMedium)
-                        Text(stringResource(R.string.shortcuts_limitations), style = MaterialTheme.typography.bodySmall)
-                        val button = candidate
-                        if (button == null) {
-                            Text(stringResource(R.string.shortcuts_press))
+                        Text(stringResource(R.string.shortcuts_detected, button.name, button.label))
+                        SecondaryButton(stringResource(R.string.setup_details)) { details = !details }
+                        if (details) Text(button.diagnostics, style = MaterialTheme.typography.bodySmall)
+                        if (listening) {
+                            Text(stringResource(R.string.shortcuts_release))
                         } else {
-                            Text(stringResource(R.string.shortcuts_detected, button.name, button.label))
-                            Text(button.diagnostics, style = MaterialTheme.typography.bodySmall)
-                            if (listening) {
-                                Text(stringResource(R.string.shortcuts_release))
-                            } else {
-                                val conflicts = bindings.filter {
-                                    (it.button.sameInput(button) && it.action != action) ||
-                                        (it.button.device == button.device && it.action == action &&
-                                            !it.button.sameInput(button))
-                                }
-                                for (conflict in conflicts) {
-                                    Text(stringResource(R.string.shortcuts_conflict, stringResource(conflict.action.label)))
-                                    Text(stringResource(R.string.shortcuts_detected, conflict.button.name, conflict.button.label))
-                                }
-                                Text(stringResource(R.string.shortcuts_replace))
-                                SecondaryButton(stringResource(R.string.shortcuts_save), modifier = Modifier.testTag("shortcuts-save")) {
-                                    PhysicalShortcuts.assign(context, button, action)
-                                    refresh()
-                                    cancelCapture()
-                                }
+                            val conflicts = bindings.filter {
+                                (it.button.sameInput(button) && it.action != action) ||
+                                    (it.button.device == button.device && it.action == action &&
+                                        !it.button.sameInput(button))
                             }
-                            SecondaryButton(stringResource(R.string.shortcuts_retry), modifier = Modifier.testTag("shortcuts-retry")) {
-                                candidate = null
-                                capturedDevice = -1
-                                listening = true
+                            for (conflict in conflicts) {
+                                Text(stringResource(R.string.shortcuts_conflict, stringResource(conflict.action.label)))
+                                Text(stringResource(R.string.shortcuts_detected, conflict.button.name, conflict.button.label))
+                            }
+                            Text(stringResource(R.string.shortcuts_replace))
+                            SecondaryButton(stringResource(R.string.shortcuts_save), modifier = Modifier.testTag("shortcuts-save")) {
+                                PhysicalShortcuts.assign(context, button, action)
+                                refresh()
+                                onDismiss()
                             }
                         }
-                        SecondaryButton(stringResource(R.string.common_cancel), modifier = Modifier.testTag("shortcuts-cancel"),
-                            onClick = ::cancelCapture)
+                        SecondaryButton(stringResource(R.string.shortcuts_retry), modifier = Modifier.testTag("shortcuts-retry")) {
+                            candidate = null
+                            capturedDevice = -1
+                            listening = true
+                            details = false
+                        }
                     }
+                    for (binding in bindings.filter { candidate == null && it.action == action }) {
+                        ActionRow(
+                            stringResource(R.string.shortcuts_detected, binding.button.name, binding.button.label),
+                            null, stringResource(R.string.shortcuts_remove), {
+                                PhysicalShortcuts.remove(context, binding)
+                                refresh()
+                                onDismiss()
+                            },
+                            modifier = Modifier.testTag("shortcuts-remove"),
+                        )
+                    }
+                    SecondaryButton(stringResource(R.string.common_cancel), modifier = Modifier.testTag("shortcuts-cancel"),
+                        onClick = onDismiss)
                 }
             }
         }
     }
-    if (confirmReset) ConfirmDialog(
-        title = stringResource(R.string.shortcuts_reset),
-        text = stringResource(R.string.shortcuts_reset_hint),
-        confirm = stringResource(R.string.ctrl_reset),
-        onConfirm = { PhysicalShortcuts.reset(context); refresh(); confirmReset = false },
-        onDismiss = { confirmReset = false },
-    )
 }
 
 @Composable
