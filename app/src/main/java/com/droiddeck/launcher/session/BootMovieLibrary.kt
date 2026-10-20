@@ -71,6 +71,9 @@ object BootMovieLibrary {
         }
     }
 
+    /** Whether [file] sits in the managed (primary) movies folder; only that copy owns the kept library file and the notes. */
+    private fun owns(context: Context, file: File) = file.parentFile?.path == moviesDir(context).path
+
     /** Which custom movies folder a file sits in, so ids can tell same-named files apart. */
     private fun dirTag(context: Context, dir: File?) = if (dir?.path == moviesDir(context).path) "primary" else "x64"
 
@@ -135,20 +138,17 @@ object BootMovieLibrary {
         BootMovie.customName(context)?.let { out.add(Entry(BootMovie.CUSTOM, it, SOURCE_IMPORT, BootMovie.legacyCustomFile(context), removable = true)) }
         restore(context)
         val meta = readMeta(context)
+        val files = customMovieDirs(context).flatMap { dir -> dir.listFiles { f -> isMovie(f) }.orEmpty().toList() }
         val first = HashMap<String, File>()
-        val clash = HashSet<String>()
-        customMovieDirs(context).flatMap { dir -> dir.listFiles { f -> isMovie(f) }.orEmpty().toList() }
-            .filter { f ->
-                val earlier = first.putIfAbsent(f.name, f)
-                // The same movie copied into both folders is one entry; a different file with the same name is its own.
-                (earlier == null || earlier.length() != f.length()).also { if (it && earlier != null) clash.add(f.name) }
-            }.sortedBy { it.name.lowercase() }.forEach { f ->
-            val kept = File(libraryDir(context), f.name)
-            // The notes belong to the movie DroidDeck keeps; a different file of the same name does not inherit them.
-            val info = meta.optJSONObject(f.name)?.takeIf { !kept.isFile || kept.length() == f.length() }
+        val copies = HashMap<String, Int>()
+        files.forEach { first.putIfAbsent(it.name, it); copies.merge(it.name, 1, Int::plus) }
+        // Every file is its own entry, even when another folder holds a same-named (or identical) file.
+        files.sortedBy { it.name.lowercase() }.forEach { f ->
+            // The notes belong to the copy in the managed folder, the one whose library file DroidDeck keeps.
+            val info = if (owns(context, f)) meta.optJSONObject(f.name) else null
             val source = info?.optString("source")?.takeIf { it.isNotEmpty() } ?: SOURCE_STEAM
             var title = info?.optString("title")?.takeIf { it.isNotEmpty() } ?: f.nameWithoutExtension
-            if (f.name in clash) title += " (${dirTag(context, f.parentFile)})"
+            if ((copies[f.name] ?: 0) > 1) title += " (${dirTag(context, f.parentFile)})"
             val id = if (first[f.name] === f) idOf(f.name) else PREFIX + dirTag(context, f.parentFile) + "/" + f.name
             // Everything in Steam's custom movies folder is the person's own (imported, from SteamDeckRepo or put there by hand).
             out.add(Entry(id, title, if (source == SOURCE_STEAM) SOURCE_IMPORT else source, f, removable = true))
@@ -324,23 +324,20 @@ object BootMovieLibrary {
                 if (!id.startsWith(PREFIX)) return false
                 val target = file(context, id) ?: return false
                 val name = target.name
-                val size = target.length()
                 synchronized(lock) {
+                    // Only the selected entry's own file goes. The kept library file and the notes belong to the copy in the
+                    // managed folder, so they go only with that copy; a same-named file in another folder stays untouched.
+                    val owned = owns(context, target)
                     val kept = File(libraryDir(context), name)
-                    // Only this entry's movie goes: its copy in the other folder (same name and size) and, if it is the one
-                    // DroidDeck keeps, the kept file. A different file with the same name stays.
-                    val same = customMovieDirs(context).map { File(it, name) }.filter { it.isFile && it.length() == size }
-                    val ownsKept = kept.isFile && kept.length() == size
-                    val gone = same.all { it.delete() || !it.exists() } && (!ownsKept || kept.delete())
+                    val gone = (!target.exists() || target.delete()) && (!owned || !kept.exists() || kept.delete())
                     if (gone) {
-                        val othersRemain = customMovieDirs(context).any { File(it, name).isFile }
-                        if (ownsKept || !othersRemain) {
+                        if (owned) {
                             editMeta(context) { it.remove(name) != null }
                             File(thumbsDir(context), coverName(name)).delete()
                             thumbsDir(context).listFiles { f -> f.name.startsWith("frame-" + safe(name) + "-") }?.forEach { it.delete() }
                         }
-                        val prefixes = same.map { variantPrefix(it) }
-                        File(context.filesDir, "boot-movie/variants").listFiles { f -> prefixes.any { f.name.startsWith(it) } }?.forEach { it.delete() }
+                        val prefix = variantPrefix(target)
+                        File(context.filesDir, "boot-movie/variants").listFiles { f -> f.name.startsWith(prefix) }?.forEach { it.delete() }
                     }
                     gone
                 }
