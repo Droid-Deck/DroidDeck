@@ -103,6 +103,13 @@ internal fun PhysicalShortcutsDialog(
                 } else if (event.action == KeyEvent.ACTION_UP && event.deviceId == capturedDevice &&
                     candidate?.matches(event) == true) {
                     listening = false
+                    candidate?.let { button ->
+                        if (bindings.none { it.button.sameInput(button) && it.action != action }) {
+                            PhysicalShortcuts.assign(context, button, action)
+                            refresh()
+                            onDismiss()
+                        }
+                    }
                 }
                 true
             }
@@ -131,9 +138,7 @@ internal fun PhysicalShortcutsDialog(
                             Text(stringResource(R.string.shortcuts_release))
                         } else {
                             val conflicts = bindings.filter {
-                                (it.button.sameInput(button) && it.action != action) ||
-                                    (it.button.device == button.device && it.action == action &&
-                                        !it.button.sameInput(button))
+                                it.button.sameInput(button) && it.action != action
                             }
                             for (conflict in conflicts) {
                                 Text(stringResource(R.string.shortcuts_conflict, stringResource(conflict.action.label)))
@@ -156,7 +161,7 @@ internal fun PhysicalShortcutsDialog(
                     for (binding in bindings.filter { candidate == null && it.action == action }) {
                         ActionRow(
                             stringResource(R.string.shortcuts_detected, binding.button.name, binding.button.label),
-                            null, stringResource(R.string.shortcuts_remove), {
+                            null, stringResource(R.string.ctrl_reset), {
                                 PhysicalShortcuts.remove(context, binding)
                                 refresh()
                                 onDismiss()
@@ -164,7 +169,7 @@ internal fun PhysicalShortcutsDialog(
                             modifier = Modifier.testTag("shortcuts-remove"),
                         )
                     }
-                    SecondaryButton(stringResource(R.string.common_cancel), modifier = Modifier.testTag("shortcuts-cancel"),
+                    SecondaryButton(stringResource(R.string.common_close), modifier = Modifier.testTag("shortcuts-cancel"),
                         onClick = onDismiss)
                 }
             }
