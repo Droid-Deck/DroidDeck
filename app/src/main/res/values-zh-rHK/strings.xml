@@ -274,7 +274,7 @@
     <string name="mode_controller_dualsense">DualSense</string>
     <string name="mode_controller_x360">Xbox 360 控制器</string>
     <string name="mode_controller_note">Deck：提供快速存取按鈕和陀螺儀。Xbox 360：按 Guide+A 開啟快速存取。</string>
-    <string name="mode_builtin_pad">內建手把</string>
+    <string name="mode_builtin_pad">內建控制器</string>
     <string name="mode_back">返回</string>
     <string name="back_menu_then_qam">選單 → QAM</string>
     <string name="back_qam_then_menu">QAM → 選單</string>
