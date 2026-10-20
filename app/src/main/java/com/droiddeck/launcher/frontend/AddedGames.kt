@@ -49,7 +49,6 @@ object AddedGames {
     )
     private val WORD = Regex("[A-Z]?[a-z]+|[A-Z]+(?![a-z])|[0-9]+")
 
-    /** Short words like "eac" or "server" only count as whole words, so "Reach.exe" or "Observer.exe" stay. */
     internal fun skipExe(name: String): Boolean {
         if (!name.endsWith(".exe", ignoreCase = true)) return false
         val base = name.dropLast(4)
