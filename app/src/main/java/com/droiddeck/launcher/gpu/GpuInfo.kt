@@ -81,7 +81,9 @@ data class GpuInfo(
                 else -> ""
             }
             val vulkanDevice = VulkanInfo.cachedOrNull()?.get("device")
-            val xclipse = !adreno && isXclipse(vulkanDevice, xclipseRenderNodeUevents())
+            val samsungXclipseHal = Build.MANUFACTURER.equals("samsung", ignoreCase = true) &&
+                File("/vendor/lib64/hw/vulkan.samsung.so").isFile
+            val xclipse = !adreno && isXclipse(vulkanDevice, xclipseRenderNodeUevents(), samsungXclipseHal)
             val family = familyOf(adreno, model, xclipse)
             val samsung = Build.MANUFACTURER.equals("samsung", ignoreCase = true)
             return GpuInfo(
@@ -97,8 +99,13 @@ data class GpuInfo(
             )
         }
 
-        internal fun isXclipse(vulkanDevice: String?, renderNodeUevents: Iterable<String>): Boolean =
+        internal fun isXclipse(
+            vulkanDevice: String?,
+            renderNodeUevents: Iterable<String>,
+            samsungXclipseHal: Boolean = false,
+        ): Boolean =
             vulkanDevice?.contains("xclipse", ignoreCase = true) == true ||
+                samsungXclipseHal ||
                 renderNodeUevents.any { uevent ->
                     uevent.lineSequence().any { it.startsWith("DRIVER=") && it.substringAfter('=').equals("sgpu", ignoreCase = true) }
                 }

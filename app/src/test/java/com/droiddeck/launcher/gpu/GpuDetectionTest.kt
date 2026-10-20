@@ -38,6 +38,7 @@ class GpuDetectionTest {
     @Test fun xclipseDetectionUsesGpuIdentityNotTheSamsungDisplayController() {
         assertTrue(GpuInfo.isXclipse(null, listOf("DRIVER=sgpu\nOF_NAME=sgpu")))
         assertTrue(GpuInfo.isXclipse("Samsung Xclipse 950", emptyList()))
+        assertTrue(GpuInfo.isXclipse(null, emptyList(), samsungXclipseHal = true))
         assertFalse(GpuInfo.isXclipse("Mali-G715", listOf("DRIVER=exynos-drm")))
         assertFalse(GpuInfo.isXclipse(null, emptyList()))
     }
