@@ -302,22 +302,32 @@ object BootMovieLibrary {
                 val name = id.removePrefix(PREFIX)
                 if (name.isEmpty() || name.contains('/') || name.contains('\\') || name in STAGED) return false
                 val copies = customMovieDirs(context).map { File(it, name) }
-                if (readMeta(context).optJSONObject(name) == null && copies.none { it.isFile } && !File(libraryDir(context), name).isFile) return false
+                // A name can exist in more than one client's folder; the entry is the first one found, and only that file is deleted.
+                val target = copies.firstOrNull { it.exists() }
+                val managed = File(libraryDir(context), name)
+                if (readMeta(context).optJSONObject(name) == null && target == null && !managed.isFile) return false
                 synchronized(lock) {
-                    val kept = File(libraryDir(context), name)
-                    val gone = copies.all { !it.exists() || it.delete() } && (!kept.exists() || kept.delete())
+                    val main = File(moviesDir(context), name)
+                    val another = copies.any { it != target && it.exists() }
+                    val ownsRecord = target == null || target.path == main.path || (!another && !managed.isFile)
+                    var gone = target == null || target.delete()
+                    if (gone && ownsRecord) {
+                        gone = !managed.exists() || managed.delete()
+                        if (gone) {
+                            editMeta(context) { it.remove(name) != null }
+                            File(thumbsDir(context), coverName(name)).delete()
+                            thumbsDir(context).listFiles { f -> f.name.startsWith("frame-" + safe(name) + "-") }?.forEach { it.delete() }
+                        }
+                    }
                     if (gone) {
-                        editMeta(context) { it.remove(name) != null }
-                        File(thumbsDir(context), coverName(name)).delete()
-                        thumbsDir(context).listFiles { f -> f.name.startsWith("frame-" + safe(name) + "-") }?.forEach { it.delete() }
-                        val prefixes = copies.map { variantPrefix(it) }
+                        val prefixes = listOfNotNull(target, main.takeIf { ownsRecord }).map { variantPrefix(it) }
                         File(context.filesDir, "boot-movie/variants").listFiles { f -> prefixes.any { f.name.startsWith(it) } }?.forEach { it.delete() }
                     }
                     gone
                 }
             }
         }
-        if (removed && SessionPrefs.bootMovie(context) == id) BootMovie.select(context, BootMovie.DROIDDECK_30)
+        if (removed && SessionPrefs.bootMovie(context) == id && file(context, id) == null) BootMovie.select(context, BootMovie.DROIDDECK_30)
         return removed
     }
 

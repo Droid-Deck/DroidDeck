@@ -61,6 +61,23 @@ class BootMovieLibraryTest {
         }
     }
 
+    @Test fun removingAMovieKeepsTheSameNamedOneInTheOtherSteamFolder() {
+        SessionPrefs.setSteamClientArch(app, "x86_64")
+        val x64 = File(SessionPrefs.steamRoot(app, "x86_64"), "config/uioverrides/movies")
+        try {
+            File(x64, "Intro.webm").also { it.parentFile!!.mkdirs(); it.writeText("movie") }
+            movie("Intro.webm")
+            assertTrue(BootMovieLibrary.remove(app, "file:Intro.webm"))
+            assertFalse(File(x64, "Intro.webm").exists())
+            assertTrue(File(movies, "Intro.webm").isFile)
+            assertTrue(BootMovieLibrary.list(app).any { it.id == "file:Intro.webm" })
+            assertTrue(BootMovieLibrary.remove(app, "file:Intro.webm"))
+            assertFalse(File(movies, "Intro.webm").exists())
+        } finally {
+            x64.deleteRecursively()
+        }
+    }
+
     @Test fun listsTheDroidDeckMoviesAndEveryWebmButNotTheStagedCopies() {
         movie("Intro.webm")
         movie("bigpicture_startup.webm")
