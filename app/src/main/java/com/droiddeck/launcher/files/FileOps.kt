@@ -84,13 +84,19 @@ object FileOps {
         val parent = dst.parentFile
         if (!src.exists() || (parent != null && !parent.exists() && !parent.mkdirs())) return false
         val chunk = 4L * 1024 * 1024
-        val overwrite = Files.exists(dst.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS)
         var staging: File? = null
-        var copied: File? = null
+        var created = false
+        var output: java.nio.channels.FileChannel? = null
         try {
-            val target = if (overwrite && isSymlink(dst)) dst.canonicalFile else dst
+            output = try {
+                java.nio.channels.FileChannel.open(dst.toPath(), java.nio.file.StandardOpenOption.WRITE, java.nio.file.StandardOpenOption.CREATE_NEW)
+                    .also { created = true }
+            } catch (e: java.nio.file.FileAlreadyExistsException) {
+                null
+            }
+            val target = if (!created && isSymlink(dst)) dst.canonicalFile else dst
             var permissions: Set<java.nio.file.attribute.PosixFilePermission>? = null
-            if (overwrite) {
+            if (output == null) {
                 if (isSymlink(target) || target.parentFile?.isDirectory != true) {
                     throw IOException("Destination symlink target is not a writable directory entry: $dst")
                 }
@@ -104,15 +110,14 @@ object FileOps {
                 if (target.exists() && !target.canWrite()) throw IOException("Destination is not writable: $target")
                 val directory = Files.createTempDirectory(checkNotNull(target.absoluteFile.parentFile).toPath(), ".droiddeck-copy-")
                 staging = directory.toFile()
+                output = FileOutputStream(File(staging, "file")).channel
             }
-            val out = staging?.let { File(it, "file") } ?: target
-            copied = out
             FileInputStream(src).channel.use { input ->
-                FileOutputStream(out).channel.use { output ->
+                checkNotNull(output).use { channel ->
                     val size = input.size()
                     var position = 0L
                     while (position < size) {
-                        val transferred = input.transferTo(position, minOf(chunk, size - position), output)
+                        val transferred = input.transferTo(position, minOf(chunk, size - position), channel)
                         if (transferred <= 0) break
                         position += transferred
                         done[0] += transferred
@@ -121,21 +126,23 @@ object FileOps {
                     if (position < size) throw IOException("Incomplete copy: $position/$size bytes")
                 }
             }
-            if (staging != null) {
-                if (permissions != null && Files.getPosixFilePermissions(out.toPath()) != permissions) {
-                    Files.setPosixFilePermissions(out.toPath(), permissions)
+            staging?.let { directory ->
+                val copied = File(directory, "file").toPath()
+                if (permissions != null && Files.getPosixFilePermissions(copied) != permissions) {
+                    Files.setPosixFilePermissions(copied, permissions)
                 }
-                Files.move(out.toPath(), target.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+                Files.move(copied, target.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
             }
             return true
         } catch (e: java.util.concurrent.CancellationException) {
-            if (staging == null) copied?.delete()
+            if (created) dst.delete()
             throw e
         } catch (e: IOException) {
             Log.e(TAG, "Failed to copy file: $src to $dst", e)
-            if (staging == null) copied?.delete()
+            if (created) dst.delete()
             return false
         } finally {
+            output?.close()
             staging?.let { directory ->
                 File(directory, "file").delete()
                 directory.delete()
