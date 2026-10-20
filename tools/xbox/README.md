@@ -5,7 +5,14 @@ service. It does not install the Nexus desktop launcher or x86 Linux Wine.
 `backend.lock.json` pins Xodus, the Nexus commit, Rust, and the ordered patch
 checksums. `runtime.lock.json` pins the Nexus Windows runtime release and each
 extracted PE DLL. `prepare.py` verifies both source revisions and all Nexus patch
-checksums before applying the two local transport/launch patches.
+checksums before applying the local transport, launch and library patches.
+
+`droiddeck-library-subscriptions.patch` queries fresh subscription membership
+alongside product entitlements using the same Store session, account and market.
+Android can validate a Game Pass child's parent plan when that plan is absent
+from the product response. A failed membership query fails the refresh and
+preserves the previous library. Empty membership results add no plan evidence;
+valid plans already present in the product response retain their existing checks.
 
 Build on AArch64 Ubuntu 24.04 with Rust from the lock, a C/C++ compiler, OpenSSL
 development headers, pkg-config, protoc, CMake, Git, Python 3 and xz:
