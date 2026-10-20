@@ -14,12 +14,14 @@ import org.junit.rules.TemporaryFolder
 class SessionSuspendControllerTest {
     @get:Rule val temporary = TemporaryFolder()
 
-    @Test fun partialGroupStopsNeedMoreThanTenPasses() {
+    @Test fun everyWorkerThreadIsStoppedAfterTheRoot() {
         for (count in listOf(17, 68)) {
             val fixture = fixture(count)
             fixture.controller.freeze { assertTrue(it) }
             assertTrue(fixture.game.threads.all { it.state == 't' })
             assertTrue(fixture.signals.count { it.pid == GAME && it.signal == STOP } >= count)
+            assertEquals(ROOT, fixture.signals.first { it.signal == STOP }.pid)
+            assertTrue(fixture.now < 1000)
             assertEquals(1, fixture.audioSuspends)
         }
     }
@@ -35,7 +37,7 @@ class SessionSuspendControllerTest {
         }
         fixture.controller.freeze { assertTrue(it) }
         assertEquals(3, changes)
-        assertTrue(fixture.signals.count { it.pid == GAME && it.signal == STOP } >= 21)
+        assertTrue(fixture.signals.count { it.pid == GAME && it.signal == STOP } >= 17)
     }
 
     @Test fun reusedTidAndNewThreadMustJoinTheStableInventory() {
@@ -277,7 +279,7 @@ class SessionSuspendControllerTest {
         private var continuing = false
         val controller = SessionSuspendController(
             { rootPid }, { helpers }, { audioSuspends++ }, { audioResumes++ },
-            proc, ::signal, ::sleep, { now }, executor,
+            proc, ::signal, ::threadSignal, ::sleep, { now }, executor,
         )
 
         init { sync() }
@@ -294,6 +296,15 @@ class SessionSuspendControllerTest {
             } else if (signal == CONT) {
                 continuing = true
                 if (!(pid == GAME && blockGameContinue)) group.threads.forEach { if (it.state != 'Z') it.state = 'S' }
+            }
+            sync()
+        }
+
+        private fun threadSignal(pid: Int, tid: Int, signal: Int) {
+            signals += SentSignal(pid, signal)
+            val task = groups.first { it.pid == pid }.threads.first { it.tid == tid }
+            if (signal == STOP && task.state !in listOf('T', 't', 'Z', 'X') && !(neverStop && task == game.threads.last())) {
+                task.state = 't'
             }
             sync()
         }

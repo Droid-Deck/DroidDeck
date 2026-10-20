@@ -14,6 +14,7 @@ internal class SessionSuspendController(
     private val resumeAudio: () -> Unit,
     private val procRoot: File = File("/proc"),
     private val signal: (Int, Int) -> Unit = Process::sendSignal,
+    private val threadSignal: (Int, Int, Int) -> Unit = { pid, tid, signal -> ThreadSignals.tgkill(pid, tid, signal) },
     private val sleep: (Long) -> Unit = Thread::sleep,
     private val nowMillis: () -> Long = { System.nanoTime() / 1_000_000 },
     private val executor: ExecutorService = Executors.newSingleThreadExecutor(),
@@ -64,10 +65,9 @@ internal class SessionSuspendController(
                     if (closing || nowMillis() >= deadline) break
                     try {
                         if (readProcess(root.pid)?.started != root.started) break
-                        val includeRoots = pass >= 2
-                        addSnapshot(records, root.pid, helpers, includeRoots)
+                        addSnapshot(records, root.pid, helpers)
                         if (readProcess(root.pid)?.started != root.started) break
-                        stop(records.values.toList(), includeRoots)
+                        stop(records.values.toList())
                         sleep(if (pass == 0) 70L else 35L)
                         if (closing || nowMillis() >= deadline) break
                         val current = stoppedSnapshot(records.values.toList(), root)
@@ -135,7 +135,6 @@ internal class SessionSuspendController(
         records: MutableMap<Pair<Int, Long>, ProcessRecord>,
         root: Int,
         helpers: List<Int>,
-        includeRoots: Boolean,
     ) {
         val processes = readProcesses()
         val byPid = processes.associateBy { it.pid }
@@ -152,11 +151,9 @@ internal class SessionSuspendController(
                 records.putIfAbsent(process.pid to process.started, ProcessRecord(process.pid, process.started, Role.HELPER_CHILD))
             }
         }
-        if (includeRoots) {
-            byPid[root]?.let { records[it.pid to it.started] = ProcessRecord(it.pid, it.started, Role.SESSION_ROOT) }
-            for (helper in liveHelpers) {
-                byPid[helper]?.let { records[it.pid to it.started] = ProcessRecord(it.pid, it.started, Role.HELPER_ROOT) }
-            }
+        byPid[root]?.let { records[it.pid to it.started] = ProcessRecord(it.pid, it.started, Role.SESSION_ROOT) }
+        for (helper in liveHelpers) {
+            byPid[helper]?.let { records[it.pid to it.started] = ProcessRecord(it.pid, it.started, Role.HELPER_ROOT) }
         }
     }
 
@@ -236,14 +233,28 @@ internal class SessionSuspendController(
         return tasks.takeIf { stopped && it.isNotEmpty() }
     }
 
-    private fun stop(records: List<ProcessRecord>, includeRoots: Boolean) {
-        val descendants = records.filter { it.role == Role.SESSION_CHILD || it.role == Role.HELPER_CHILD }
-        val session = records.filter { it.role == Role.SESSION_ROOT }
-        val helpers = records.filter { it.role == Role.HELPER_ROOT }
-        for (record in descendants) send(record, SIGSTOP)
-        if (includeRoots) {
-            for (record in session) send(record, SIGSTOP)
-            for (record in helpers) send(record, SIGSTOP)
+    // PRoot traces every guest. A stop sent while it runs becomes a group stop that it restarts
+    // thread by thread; once it is stopped, each thread that takes a SIGSTOP stays parked in its
+    // signal-delivery stop. So the roots stop first and every guest thread gets its own SIGSTOP.
+    private fun stop(records: List<ProcessRecord>) {
+        for (record in records.filter { it.role == Role.SESSION_ROOT }) send(record, SIGSTOP)
+        for (record in records.filter { it.role == Role.HELPER_ROOT }) send(record, SIGSTOP)
+        for (record in records.filter { it.role == Role.SESSION_CHILD || it.role == Role.HELPER_CHILD }) {
+            stopThreads(record)
+        }
+    }
+
+    private fun stopThreads(record: ProcessRecord) {
+        val current = try { readProcess(record.pid) } catch (_: Exception) { return }
+        if (current == null || current.started != record.started) return
+        for (entry in File(procRoot, "${record.pid}/task").listFiles().orEmpty()) {
+            val tid = entry.name.toIntOrNull() ?: continue
+            val state = try { readStat(File(entry, "stat"))[0].first() } catch (_: IOException) { continue }
+            if (state == 'T' || state == 't' || state == 'Z' || state == 'X') continue
+            try {
+                threadSignal(record.pid, tid, SIGSTOP)
+            } catch (_: Throwable) {
+            }
         }
     }
 
@@ -288,7 +299,12 @@ internal class SessionSuspendController(
     private fun isRunningOrGone(record: ProcessRecord): Boolean {
         val current = try { readProcess(record.pid) } catch (_: Exception) { return false }
         if (current == null || current.started != record.started) return true
-        return current.state != 'T' && current.state != 't'
+        if (current.state == 'T' || current.state == 't') return false
+        // A traced worker in 't' is usually PRoot handling a system call; 'T' is a job-control stop.
+        return File(procRoot, "${record.pid}/task").listFiles().orEmpty().none { entry ->
+            entry.name.toIntOrNull() != null &&
+                try { readStat(File(entry, "stat"))[0].first() == 'T' } catch (_: IOException) { false }
+        }
     }
 
     private companion object {
