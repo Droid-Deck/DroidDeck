@@ -1370,8 +1370,8 @@ class MainActivity : ComponentActivity() {
     override fun onPause() {
         if (!SessionState.running) {
             dualSenseOutputBridge?.stop()
-            dualSenseManager?.stop()
         }
+        dualSenseManager?.stop()
         lastDsState = null
         super.onPause()
     }
@@ -1404,8 +1404,8 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         if (!SessionState.running) {
             dualSenseOutputBridge?.stop()
-            dualSenseManager?.stop()
         }
+        dualSenseManager?.stop()
         dualSenseOutputBridge = null
         dualSenseManager = null
         updates.unregister()

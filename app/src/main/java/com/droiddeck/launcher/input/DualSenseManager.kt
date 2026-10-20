@@ -42,6 +42,8 @@ class DualSenseManager(private val context: Context) {
     @Volatile var cachedPreference: String? = null
         private set
 
+    private var lastPadState: DualSense.State? = null
+
     @Volatile private var running = false
     @Volatile private var stopped = false
     @Volatile private var hasDetached = false
@@ -152,7 +154,8 @@ class DualSenseManager(private val context: Context) {
         stopped = true
         hasDetached = true
         startGeneration++
-        if (activeManager === this) {
+        val wasActiveManager = activeManager === this
+        if (wasActiveManager) {
             activeManager = null
         }
 
@@ -179,7 +182,11 @@ class DualSenseManager(private val context: Context) {
         closeUsbDevice()
 
         activeSources.clear()
-        demoteFromDualSense()
+        if (wasActiveManager) {
+            demoteFromDualSense()
+        } else {
+            isDualSenseActive = false
+        }
 
         try {
             padBinRaf?.close()
@@ -277,10 +284,12 @@ class DualSenseManager(private val context: Context) {
 
             usbReaderThread = Thread({
                 val buffer = ByteArray(DualSense.REPORT_SIZE_INPUT)
-                while (running && usbConnection != null) {
+                while (running && usbConnection === connection && !Thread.currentThread().isInterrupted) {
                     val read = connection.bulkTransfer(epIn, buffer, buffer.size, 1000)
                     if (read == DualSense.REPORT_SIZE_INPUT) {
                         onInputReport(buffer, 0)
+                    } else if (read < 0 && usbConnection !== connection) {
+                        break
                     }
                 }
             }, "dualsense-usb-reader").apply {
@@ -587,6 +596,7 @@ class DualSenseManager(private val context: Context) {
 
     @Synchronized
     fun promoteToDualSense() {
+        activeManager = this
         if (isDualSenseActive) return
         val prev = SessionPrefs.steamController(context)
         cachedPreference = prev
@@ -617,6 +627,7 @@ class DualSenseManager(private val context: Context) {
         btConnectTimestampMs = 0L
         btOutputSeq = 0
         cachedPreference = null
+        lastPadState = null
         osTouch0X = 0
         osTouch0Y = 0
         osTouch0Down = false
@@ -631,6 +642,7 @@ class DualSenseManager(private val context: Context) {
         osR5Down = false
         wirelessAccel.fill(0)
         wirelessGyro.fill(0)
+        FakeInputWriter.writeMotion(0, ShortArray(3), ShortArray(3))
         DeckControls.releaseAll()
         SessionState.padBridge?.releaseAll()
         onActivationChanged?.invoke(false)
@@ -638,6 +650,7 @@ class DualSenseManager(private val context: Context) {
     }
 
     private fun startTcpBridgeClient() {
+        if (!com.droiddeck.launcher.BuildConfig.DEBUG) return
         val gen = startGeneration
         tcpThread = Thread({
             while (running && gen == startGeneration) {
@@ -725,6 +738,8 @@ class DualSenseManager(private val context: Context) {
         // Digital trigger click fallback for DualSense Edge trigger stops
         val lt = if (state.leftTrigger == 0.0f && state.l2Click) 1.0f else state.leftTrigger
         val rt = if (state.rightTrigger == 0.0f && state.r2Click) 1.0f else state.rightTrigger
+        val padChanged = hasPadStateChanged(lastPadState, state)
+        lastPadState = state
 
         SessionState.padBridge?.applyExternal({ padState ->
             padState.leftX = state.leftX
@@ -748,7 +763,7 @@ class DualSenseManager(private val context: Context) {
             padState.press(PadState.L3, state.l3)
             padState.press(PadState.R3, state.r3)
             padState.press(PadState.GUIDE, state.ps)
-        }, true)
+        }, padChanged)
 
         // 2. Call DeckControls.setDualSenseTouch and setDualSenseExtras
         val x0 = DualSense.touchXToPad(state.touch0X)
@@ -796,6 +811,33 @@ class DualSenseManager(private val context: Context) {
 
         // 6. Notify optional UI/activity state listener
         onStateUpdated?.invoke(state)
+    }
+
+    private fun hasPadStateChanged(prev: DualSense.State?, curr: DualSense.State): Boolean {
+        if (prev == null) return true
+        return prev.leftX != curr.leftX ||
+            prev.leftY != curr.leftY ||
+            prev.rightX != curr.rightX ||
+            prev.rightY != curr.rightY ||
+            prev.leftTrigger != curr.leftTrigger ||
+            prev.rightTrigger != curr.rightTrigger ||
+            prev.l2Click != curr.l2Click ||
+            prev.r2Click != curr.r2Click ||
+            prev.dpadUp != curr.dpadUp ||
+            prev.dpadDown != curr.dpadDown ||
+            prev.dpadLeft != curr.dpadLeft ||
+            prev.dpadRight != curr.dpadRight ||
+            prev.square != curr.square ||
+            prev.cross != curr.cross ||
+            prev.circle != curr.circle ||
+            prev.triangle != curr.triangle ||
+            prev.l1 != curr.l1 ||
+            prev.r1 != curr.r1 ||
+            prev.create != curr.create ||
+            prev.options != curr.options ||
+            prev.l3 != curr.l3 ||
+            prev.r3 != curr.r3 ||
+            prev.ps != curr.ps
     }
 
     @Synchronized

@@ -100,6 +100,15 @@ class DualSenseOutputBridge : SessionPart() {
             Log.i(TAG, "dualsense: listening on @$SOCKET_NAME")
         }
 
+        val existingDir = SessionState.fakeInputDir
+        if (existingDir != null) {
+            try {
+                File(existingDir, FILE_NAME).delete()
+            } catch (_: Exception) {
+                // ignore
+            }
+        }
+        lastObservedFileSeq = -1L
         startFileWatcher()
     }
 

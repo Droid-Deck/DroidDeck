@@ -170,7 +170,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun updatePadMotion() {
-        if (resumed && !pipUi && SessionState.deckPad && !SteamControllerBle.connected && !com.droiddeck.launcher.input.DeckControls.externalImuActive) padMotion?.start()
+        if (resumed && !pipUi && SessionState.deckPad && !SteamControllerBle.connected) padMotion?.start()
         else padMotion?.stop()
     }
     private var steamController: SteamControllerBle? = null
@@ -2714,13 +2714,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     override fun onPause() {
         if (runtimeRemovalBlocked) { super.onPause(); return }
         sessionClipboard.stop()
-        dualSenseManager?.stop()
         drawerOpen = false
         pcKeyboardOpen = false
         achievementsOpen = false
         (getSystemService(INPUT_SERVICE) as? InputManager)?.unregisterInputDeviceListener(deviceListener)
         releaseDrawerDirection()
         onScreenControls?.releaseAll()
+        dualSenseManager?.stop()
         if (::scrollTouch.isInitialized) scrollTouch.cancel()
         if (::padMouse.isInitialized) padMouse.reset()
         resumed = false

@@ -321,13 +321,13 @@ public class DualSenseBridge {
                         bool btInit = sw.ElapsedMilliseconds < 3000;
                         byte[] btBuf = WrapUsbOutputToBt78(buf, seq, btInit, outReportLen);
                         seq = (seq + 1) & 0x0F;
-                        if (!WriteFile(writeHandle, btBuf, btBuf.Length, out written, IntPtr.Zero)) {
-                            if (btBuf.Length != 78) {
-                                WriteFile(writeHandle, btBuf, 78, out written, IntPtr.Zero);
-                            }
+                        if (!WriteFile(writeHandle, btBuf, outReportLen, out written, IntPtr.Zero)) {
+                            HidD_SetOutputReport(writeHandle, btBuf, outReportLen);
                         }
                     } else {
-                        WriteFile(writeHandle, buf, 48, out written, IntPtr.Zero);
+                        if (!WriteFile(writeHandle, buf, 48, out written, IntPtr.Zero)) {
+                            HidD_SetOutputReport(writeHandle, buf, 48);
+                        }
                     }
                 }
             } catch {}
@@ -401,11 +401,13 @@ try {
         if ($isBluetooth) {
             $outReportLen = [DualSenseBridge]::GetOutputReportByteLength($handle, 78)
             $btBuf = [DualSenseBridge]::WrapUsbOutputToBt78($testOut, 0, $false, $outReportLen)
-            if (-not [DualSenseBridge]::WriteFile($handle, $btBuf, $btBuf.Length, [ref]$written, [IntPtr]::Zero)) {
-                [DualSenseBridge]::WriteFile($handle, $btBuf, 78, [ref]$written, [IntPtr]::Zero) | Out-Null
+            if (-not [DualSenseBridge]::WriteFile($handle, $btBuf, $outReportLen, [ref]$written, [IntPtr]::Zero)) {
+                [DualSenseBridge]::HidD_SetOutputReport($handle, $btBuf, $outReportLen) | Out-Null
             }
         } else {
-            [DualSenseBridge]::WriteFile($handle, $testOut, 48, [ref]$written, [IntPtr]::Zero) | Out-Null
+            if (-not [DualSenseBridge]::WriteFile($handle, $testOut, 48, [ref]$written, [IntPtr]::Zero)) {
+                [DualSenseBridge]::HidD_SetOutputReport($handle, $testOut, 48) | Out-Null
+            }
         }
         Write-Host "Test output report sent ($transportLabel). Written: $written bytes." -ForegroundColor Green
         $handle.Close()
@@ -420,7 +422,7 @@ try {
     }
     $reverseActive = $true
 
-    $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Any, $Port)
+    $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $Port)
     $listener.Start()
     Write-Host "Host bridge listening on 127.0.0.1:$Port (auto-switching USB & Bluetooth hot-plug enabled)..." -ForegroundColor Green
 
