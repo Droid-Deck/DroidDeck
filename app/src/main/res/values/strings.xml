@@ -2994,7 +2994,7 @@
     <string name="spatial_opencv_load_error">OpenCV could not load</string>
     <string name="setup_group_memory">Memory</string>
     <string name="setup_clear_cached">Clear cached apps before a session</string>
-    <string name="setup_clear_cached_hint">As a session starts, closes the apps Android keeps parked in the background, so the game has more memory. Wireless debugging must be on.</string>
+    <string name="setup_clear_cached_hint">When a session starts, DroidDeck closes the apps Android keeps parked in the background, so the game has more memory. Wireless debugging must be on.</string>
     <string name="setup_clear_cached_unpaired">Needs DroidDeck paired with Wireless debugging (Pair, below).</string>
     <string name="setup_memory_hud">Memory readout</string>
     <string name="setup_memory_hud_hint">Memory and swap in use, on the session screen. Advanced splits it into the game, DroidDeck, Android and the GPU.</string>
@@ -3004,7 +3004,7 @@
     <string name="memory_hud_split">game %1$s · DroidDeck %2$s · Android %3$s GB</string>
     <string name="memory_hud_gpu">GPU %1$s GB</string>
     <string name="setup_bg_limit">Background apps during a session</string>
-    <string name="setup_bg_limit_hint">While a session runs, Android keeps at most this many apps cached and closes the rest, so the game has their memory. Put back as it was when the session ends. Wireless debugging must be on.</string>
+    <string name="setup_bg_limit_hint">While a session runs, Android keeps at most this many apps cached and closes the rest, so the game has their memory. DroidDeck puts the limit back as it was when the session ends. Wireless debugging must be on.</string>
     <string name="setup_bg_limit_4">At most 4</string>
     <string name="setup_bg_limit_1">At most 1</string>
     <string name="setup_bg_limit_0">None</string>
