@@ -71,7 +71,7 @@ jobs:
               notes="DroidDeck add-on pack \`$name\`, built by [Build APK run $BUILD_RUN]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN) from \`$commit\` with tools/packs/build.sh and published by [run $GITHUB_RUN_ID]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID).
 
           Size: $(stat -c %s "$file") bytes. SHA-256: $sha. APKs built in the same run pin this digest."
-              gh release create "$tag" -R "$REPO" --title "$tag" --notes "$notes" "$file" \
+              gh release create "$tag" -R "$REPO" --title "$tag" --notes "$notes" --latest=false "$file" \
                 || echo "::warning::creating $tag failed; checking whether another run published it"
               digest=$(published_digest "$tag" "$name.tar.zst")
             fi
