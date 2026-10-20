@@ -416,6 +416,8 @@ class MainActivity : ComponentActivity() {
     private var androidApps by mutableStateOf<List<HomeApp.LaunchableApp>>(emptyList())
     private var secondScreenDisplays by mutableStateOf<List<SecondScreenDisplay>>(emptyList())
     private lateinit var displayManager: DisplayManager
+    private var dualSenseManager: com.droiddeck.launcher.input.DualSenseManager? = null
+    private var lastDsState: com.droiddeck.launcher.input.DualSense.State? = null
     private val secondScreenDisplayListener = object : DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) = refreshSecondScreenDisplays()
         override fun onDisplayRemoved(displayId: Int) = refreshSecondScreenDisplays()
@@ -763,6 +765,12 @@ class MainActivity : ComponentActivity() {
         storesView = SessionPrefs.storesView(this)
         applyLauncherFullscreen()
         updates.start()
+        if (SessionState.fakeInputDir == null) {
+            SessionState.fakeInputDir = File(filesDir, "fakeinput").apply { mkdirs() }
+        }
+        dualSenseManager = com.droiddeck.launcher.input.DualSenseManager(this).apply {
+            onStateUpdated = { state -> handleLauncherDualSenseInput(state) }
+        }
         setContent {
             DroidDeckTheme(theme, appScale = appScale) {
             com.droiddeck.launcher.ui.FocusGlideHost(androidx.compose.ui.Modifier.fillMaxSize().exposeTestTags()) {
@@ -1300,6 +1308,48 @@ class MainActivity : ComponentActivity() {
         refreshAddedGames()
         if (catalog == null) loadDesktopCatalog()
         if (!busy) Thread({ checkCatalog() }, "catalog").start()
+        if (!SessionState.running) dualSenseManager?.start()
+    }
+
+    private fun handleLauncherDualSenseInput(state: com.droiddeck.launcher.input.DualSense.State) {
+        val prev = lastDsState
+        lastDsState = state
+        if (prev == null) return
+
+        val upNow = state.dpadUp || state.leftY < -0.55f
+        val upPrev = prev.dpadUp || prev.leftY < -0.55f
+        val downNow = state.dpadDown || state.leftY > 0.55f
+        val downPrev = prev.dpadDown || prev.leftY > 0.55f
+        val leftNow = state.dpadLeft || state.leftX < -0.55f
+        val leftPrev = prev.dpadLeft || prev.leftX < -0.55f
+        val rightNow = state.dpadRight || state.rightX < -0.55f && false || state.leftX > 0.55f
+        val rightPrev = prev.dpadRight || prev.leftX > 0.55f
+
+        fun emitTransition(now: Boolean, was: Boolean, keyCode: Int) {
+            if (now != was) {
+                val action = if (now) KeyEvent.ACTION_DOWN else KeyEvent.ACTION_UP
+                ui.post { dispatchKeyEvent(KeyEvent(action, keyCode)) }
+            }
+        }
+
+        emitTransition(upNow, upPrev, KeyEvent.KEYCODE_DPAD_UP)
+        emitTransition(downNow, downPrev, KeyEvent.KEYCODE_DPAD_DOWN)
+        emitTransition(leftNow, leftPrev, KeyEvent.KEYCODE_DPAD_LEFT)
+        emitTransition(rightNow, rightPrev, KeyEvent.KEYCODE_DPAD_RIGHT)
+        emitTransition(state.cross, prev.cross, KeyEvent.KEYCODE_BUTTON_A)
+        emitTransition(state.circle, prev.circle, KeyEvent.KEYCODE_BUTTON_B)
+        emitTransition(state.square, prev.square, KeyEvent.KEYCODE_BUTTON_X)
+        emitTransition(state.triangle, prev.triangle, KeyEvent.KEYCODE_BUTTON_Y)
+        emitTransition(state.l1, prev.l1, KeyEvent.KEYCODE_BUTTON_L1)
+        emitTransition(state.r1, prev.r1, KeyEvent.KEYCODE_BUTTON_R1)
+        emitTransition(state.options, prev.options, KeyEvent.KEYCODE_BUTTON_START)
+        emitTransition(state.create, prev.create, KeyEvent.KEYCODE_BUTTON_SELECT)
+    }
+
+    override fun onPause() {
+        if (!SessionState.running) dualSenseManager?.stop()
+        lastDsState = null
+        super.onPause()
     }
 
     override fun onStart() {
@@ -1328,6 +1378,8 @@ class MainActivity : ComponentActivity() {
         else @Suppress("DEPRECATION") state.getParcelable(key)
 
     override fun onDestroy() {
+        if (!SessionState.running) dualSenseManager?.stop()
+        dualSenseManager = null
         updates.unregister()
         super.onDestroy()
     }

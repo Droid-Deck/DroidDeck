@@ -38,6 +38,8 @@ class DualSenseManager(private val context: Context) {
         private set
     @Volatile private var lastRawHidTimestamp = 0L
 
+    @Volatile var onStateUpdated: ((DualSense.State) -> Unit)? = null
+
     private var tcpThread: Thread? = null
     @Volatile var tcpOutputStream: OutputStream? = null
     private val activeSources = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
@@ -354,6 +356,17 @@ class DualSenseManager(private val context: Context) {
                             activeSources.add("tcp")
                             promoteToDualSense()
 
+                            // Send initial handshake output report (DroidDeck Cyan lightbar + Player 1 LED)
+                            sendOutputReport(
+                                DualSense.buildOutputReport(
+                                    r = 0,
+                                    g = 180,
+                                    b = 255,
+                                    playerLeds = 0x04,
+                                    micLed = 1
+                                )
+                            )
+
                             val input = DataInputStream(socket.getInputStream())
                             val buffer = ByteArray(DualSense.REPORT_SIZE_INPUT)
                             while (running) {
@@ -475,6 +488,9 @@ class DualSenseManager(private val context: Context) {
 
         // 5. Save 64B raw report to ${fakeInputDir}/pad.bin
         writePadBin(data, offset)
+
+        // 6. Notify optional UI/activity state listener
+        onStateUpdated?.invoke(state)
     }
 
     @Synchronized
