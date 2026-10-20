@@ -1033,6 +1033,9 @@
     <string name="games_added">Jogo adicionado</string>
     <string name="games_custom">Jogo personalizado</string>
     <string name="games_store_storage">Armazenamento de jogos</string>
+    <string name="games_uninstall_body">Apaga os arquivos e o remove da Steam.</string>
+    <string name="games_remove_title">Remover %1$s?</string>
+    <string name="games_remove_body">Apaga o atalho. Os arquivos do jogo ficam.</string>
     <string name="gpu_auto_hint">O melhor par para esta GPU, sempre atualizado</string>
     <string name="gpu_manual_hint">Escolha um par você mesmo</string>
     <string name="gpu_checking">Procurando drivers…</string>

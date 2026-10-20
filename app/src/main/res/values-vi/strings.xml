@@ -1032,6 +1032,9 @@
     <string name="games_added">Game đã thêm</string>
     <string name="games_custom">Game tùy chỉnh</string>
     <string name="games_store_storage">Lưu trữ game</string>
+    <string name="games_uninstall_body">Xóa các tệp của nó và gỡ nó khỏi Steam.</string>
+    <string name="games_remove_title">Xóa %1$s?</string>
+    <string name="games_remove_body">Xóa shortcut của nó. Các tệp game vẫn còn.</string>
     <string name="gpu_auto_hint">Cặp tốt nhất cho GPU này, luôn được cập nhật</string>
     <string name="gpu_manual_hint">Tự chọn một cặp</string>
     <string name="gpu_checking">Đang kiểm tra driver…</string>

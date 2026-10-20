@@ -1038,6 +1038,9 @@
     <string name="games_added">जोड़ा गया गेम</string>
     <string name="games_custom">कस्टम गेम</string>
     <string name="games_store_storage">गेम स्टोरेज</string>
+    <string name="games_uninstall_body">इसकी फ़ाइलें हटाता है और इसे Steam से हटा देता है।</string>
+    <string name="games_remove_title">%1$s हटाएं?</string>
+    <string name="games_remove_body">इसका शॉर्टकट हटाता है। गेम की फ़ाइलें बनी रहती हैं।</string>
     <string name="gpu_auto_hint">इस GPU के लिए सबसे बेहतर जोड़ी, हमेशा नवीनतम</string>
     <string name="gpu_manual_hint">खुद एक जोड़ी चुनें</string>
     <string name="gpu_checking">ड्राइवर देखे जा रहे हैं…</string>

@@ -1032,6 +1032,9 @@
     <string name="games_added">Gim ditambahkan</string>
     <string name="games_custom">Gim khusus</string>
     <string name="games_store_storage">Penyimpanan gim</string>
+    <string name="games_uninstall_body">Menghapus filenya dan menghapusnya dari Steam.</string>
+    <string name="games_remove_title">Hapus %1$s?</string>
+    <string name="games_remove_body">Menghapus pintasannya. File game tetap ada.</string>
     <string name="gpu_auto_hint">Pasangan terbaik untuk GPU ini, selalu diperbarui</string>
     <string name="gpu_manual_hint">Pilih pasangan sendiri</string>
     <string name="gpu_checking">Memeriksa driver…</string>

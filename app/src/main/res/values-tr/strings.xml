@@ -1027,6 +1027,9 @@
     <string name="games_added">Eklenen oyun</string>
     <string name="games_custom">Özel oyun</string>
     <string name="games_store_storage">Oyun depolama alanı</string>
+    <string name="games_uninstall_body">Dosyalarını siler ve Steam\'den kaldırır.</string>
+    <string name="games_remove_title">Kaldır: %1$s?</string>
+    <string name="games_remove_body">Kısayolunu siler. Oyun dosyaları kalır.</string>
     <string name="gpu_auto_hint">Bu GPU için en iyi çift, güncel tutulur</string>
     <string name="gpu_manual_hint">Çifti kendiniz seçin</string>
     <string name="gpu_checking">Sürücüler kontrol ediliyor…</string>

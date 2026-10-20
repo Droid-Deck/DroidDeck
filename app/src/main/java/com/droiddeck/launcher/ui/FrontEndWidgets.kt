@@ -185,10 +185,9 @@ internal fun PrimaryButton(
             .graphicsLayer { alpha = if (LaunchOrigin.flooding === placed) 0f else 1f; scaleX = scale; scaleY = scale; shadowElevation = if (enabled) lift.dp.toPx() else 0f; shape = Shape12; clip = false; ambientShadowColor = pal.signal; spotShadowColor = pal.signal }
             .clip(Shape12)
             .background(if (enabled) Brush.linearGradient(listOf(colors.primary, pal.primary2)) else Brush.linearGradient(listOf(colors.surfaceVariant, colors.surfaceVariant)))
-            .shine(hot, 0.45f)
             .then(if (enabled) Modifier else Modifier.border(1.dp, pal.line2, Shape12))
-            .glideBorder(hot, Shape12, pal.signal)
-            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, enabled = enabled) {
+            .then(if (hot) Modifier.border(2.dp, pal.signal, Shape12) else Modifier)
+            .hoverable(src).clickable(interactionSource = src, indication = null, enabled = enabled) {
                 placed[0]?.takeIf { it.isAttached }?.let { LaunchOrigin.mark(it.boundsInRoot(), placed) }
                 onClick()
             }

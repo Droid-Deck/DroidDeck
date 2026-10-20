@@ -1038,6 +1038,9 @@
     <string name="games_added">Προστέθηκε παιχνίδι</string>
     <string name="games_custom">Προσαρμοσμένο παιχνίδι</string>
     <string name="games_store_storage">Αποθήκευση παιχνιδιών</string>
+    <string name="games_uninstall_body">Διαγράφει τα αρχεία του και το αφαιρεί από το Steam.</string>
+    <string name="games_remove_title">Αφαίρεση του %1$s;</string>
+    <string name="games_remove_body">Διαγράφει τη συντόμευση. Τα αρχεία του παιχνιδιού παραμένουν.</string>
     <string name="gpu_auto_hint">Το καλύτερο ζεύγος για αυτή τη GPU, ενημερωμένο</string>
     <string name="gpu_manual_hint">Επιλέξτε ένα ζεύγος εσείς</string>
     <string name="gpu_checking">Έλεγχος για προγράμματα οδήγησης…</string>

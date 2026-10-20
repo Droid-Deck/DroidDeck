@@ -1114,6 +1114,9 @@
     <string name="games_added">已添加游戏</string>
     <string name="games_custom">自定义游戏</string>
     <string name="games_store_storage">游戏存储</string>
+    <string name="games_uninstall_body">删除游戏文件并从 Steam 中移除。</string>
+    <string name="games_remove_title">移除 %1$s？</string>
+    <string name="games_remove_body">删除快捷方式，游戏文件保留。</string>
     <string name="gpu_auto_hint">为此 GPU 挑选的最佳组合，并保持更新</string>
     <string name="gpu_manual_hint">自行挑选驱动组合</string>
     <string name="gpu_checking">正在检查驱动…</string>

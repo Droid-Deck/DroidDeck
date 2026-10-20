@@ -1027,6 +1027,9 @@
     <string name="games_added">Hinzugefügtes Spiel</string>
     <string name="games_custom">Eigenes Spiel</string>
     <string name="games_store_storage">Spielspeicher</string>
+    <string name="games_uninstall_body">Löscht seine Dateien und entfernt es aus Steam.</string>
+    <string name="games_remove_title">%1$s entfernen?</string>
+    <string name="games_remove_body">Löscht die Verknüpfung. Die Spieldateien bleiben.</string>
     <string name="gpu_auto_hint">Das beste Paar für diese GPU, stets aktuell</string>
     <string name="gpu_manual_hint">Wähle selbst ein Paar</string>
     <string name="gpu_checking">Suche nach Treibern…</string>

@@ -1032,6 +1032,9 @@
     <string name="games_added">追加されたゲーム</string>
     <string name="games_custom">カスタムゲーム</string>
     <string name="games_store_storage">ゲームストレージ</string>
+    <string name="games_uninstall_body">ファイルを削除し、Steamからも削除します。</string>
+    <string name="games_remove_title">%1$sを削除しますか？</string>
+    <string name="games_remove_body">ショートカットを削除します。ゲームファイルは残ります。</string>
     <string name="gpu_auto_hint">このGPUに最適なドライバー構成を選択し、最新の状態に保ちます</string>
     <string name="gpu_manual_hint">ドライバー構成を自分で選択する</string>
     <string name="gpu_checking">ドライバーを確認中…</string>

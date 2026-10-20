@@ -1044,6 +1044,9 @@
     <string name="games_added">Joc adăugat</string>
     <string name="games_custom">Joc personalizat</string>
     <string name="games_store_storage">Stocarea jocurilor</string>
+    <string name="games_uninstall_body">Șterge fișierele sale și îl elimină din Steam.</string>
+    <string name="games_remove_title">Elimini %1$s?</string>
+    <string name="games_remove_body">Șterge comanda rapidă. Fișierele jocului rămân.</string>
     <string name="gpu_auto_hint">Cea mai bună pereche pentru acest GPU, păstrată actualizată</string>
     <string name="gpu_manual_hint">Alege o pereche tu însuți</string>
     <string name="gpu_checking">Se verifică driverele…</string>

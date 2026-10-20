@@ -1047,6 +1047,9 @@
     <string name="games_added">Добавленная игра</string>
     <string name="games_custom">Своя игра</string>
     <string name="games_store_storage">Хранилище игр</string>
+    <string name="games_uninstall_body">Удаляет файлы игры и убирает ее из Steam.</string>
+    <string name="games_remove_title">Убрать %1$s?</string>
+    <string name="games_remove_body">Удаляет ярлык. Файлы игры остаются.</string>
     <string name="gpu_auto_hint">Лучшая пара для этого GPU, обновляется автоматически</string>
     <string name="gpu_manual_hint">Выбрать комбинацию драйверов вручную</string>
     <string name="gpu_checking">Проверка драйверов…</string>

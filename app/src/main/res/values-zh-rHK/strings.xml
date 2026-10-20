@@ -1032,6 +1032,9 @@
     <string name="games_added">已新增的遊戲</string>
     <string name="games_custom">自訂遊戲</string>
     <string name="games_store_storage">遊戲儲存位置</string>
+    <string name="games_uninstall_body">刪除遊戲檔案並從 Steam 中移除。</string>
+    <string name="games_remove_title">移除 %1$s？</string>
+    <string name="games_remove_body">刪除捷徑，遊戲檔案保留。</string>
     <string name="gpu_auto_hint">此 GPU 的最佳組合，並會保持最新</string>
     <string name="gpu_manual_hint">自行選擇組合</string>
     <string name="gpu_checking">正在檢查驅動程式…</string>

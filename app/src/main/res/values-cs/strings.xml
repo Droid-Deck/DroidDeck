@@ -1050,6 +1050,9 @@
     <string name="games_added">Přidaná hra</string>
     <string name="games_custom">Vlastní hra</string>
     <string name="games_store_storage">Úložiště her</string>
+    <string name="games_uninstall_body">Smaže její soubory a odebere ji ze Steamu.</string>
+    <string name="games_remove_title">Odebrat %1$s?</string>
+    <string name="games_remove_body">Smaže zástupce. Soubory hry zůstanou.</string>
     <string name="gpu_auto_hint">Nejlepší dvojice pro tento GPU, udržovaná aktuální</string>
     <string name="gpu_manual_hint">Vyberte dvojici sami</string>
     <string name="gpu_checking">Hledání ovladačů…</string>

@@ -1032,6 +1032,9 @@
     <string name="games_added">추가된 게임</string>
     <string name="games_custom">사용자 정의 게임</string>
     <string name="games_store_storage">게임 저장 공간</string>
+    <string name="games_uninstall_body">파일을 삭제하고 Steam에서 제거합니다.</string>
+    <string name="games_remove_title">%1$s을(를) 제거할까요?</string>
+    <string name="games_remove_body">바로 가기를 삭제합니다. 게임 파일은 그대로 남습니다.</string>
     <string name="gpu_auto_hint">이 GPU에 가장 적합한 드라이버 조합을 선택하고 최신 상태로 유지합니다</string>
     <string name="gpu_manual_hint">드라이버 조합을 직접 선택</string>
     <string name="gpu_checking">드라이버 확인 중…</string>

@@ -1041,6 +1041,9 @@
     <string name="games_added">Jeux ajoutés</string>
     <string name="games_custom">Jeu personnalisé</string>
     <string name="games_store_storage">Stockage des jeux</string>
+    <string name="games_uninstall_body">Supprime ses fichiers et le retire de Steam.</string>
+    <string name="games_remove_title">Retirer %1$s ?</string>
+    <string name="games_remove_body">Supprime son raccourci. Les fichiers du jeu restent.</string>
     <string name="gpu_auto_hint">Sélectionne la meilleure combinaison de pilotes pour ce GPU et les maintient à jour</string>
     <string name="gpu_manual_hint">Choisir manuellement la combinaison de pilotes</string>
     <string name="gpu_checking">Vérification des pilotes…</string>

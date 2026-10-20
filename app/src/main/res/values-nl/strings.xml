@@ -1038,6 +1038,9 @@
     <string name="games_added">Toegevoegde game</string>
     <string name="games_custom">Aangepaste game</string>
     <string name="games_store_storage">Opslag voor games</string>
+    <string name="games_uninstall_body">Verwijdert de bestanden en haalt het uit Steam.</string>
+    <string name="games_remove_title">%1$s verwijderen?</string>
+    <string name="games_remove_body">Verwijdert de snelkoppeling. De gamebestanden blijven staan.</string>
     <string name="gpu_auto_hint">Het beste paar voor deze GPU, blijft up-to-date</string>
     <string name="gpu_manual_hint">Kies zelf een paar</string>
     <string name="gpu_checking">Controleren op drivers…</string>

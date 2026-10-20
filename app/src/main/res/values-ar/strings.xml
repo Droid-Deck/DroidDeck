@@ -1062,6 +1062,9 @@
     <string name="games_added">لعبة مُضافة</string>
     <string name="games_custom">لعبة مخصّصة</string>
     <string name="games_store_storage">تخزين الألعاب</string>
+    <string name="games_uninstall_body">يحذف ملفاتها ويزيلها من Steam.</string>
+    <string name="games_remove_title">إزالة %1$s؟</string>
+    <string name="games_remove_body">يحذف الاختصار وتبقى ملفات اللعبة.</string>
     <string name="gpu_auto_hint">أفضل زوج لهذا GPU، يُحافَظ على تحديثه</string>
     <string name="gpu_manual_hint">اختر زوجًا بنفسك</string>
     <string name="gpu_checking">جارٍ البحث عن برامج التشغيل…</string>

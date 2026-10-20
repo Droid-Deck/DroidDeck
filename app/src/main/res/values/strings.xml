@@ -1070,6 +1070,9 @@
     <string name="games_added">Added game</string>
     <string name="games_custom">Custom game</string>
     <string name="games_store_storage">Games storage</string>
+    <string name="games_uninstall_body">Deletes its files and removes it from Steam.</string>
+    <string name="games_remove_title">Remove %1$s?</string>
+    <string name="games_remove_body">Deletes its shortcut. The game files stay.</string>
     <string name="gpu_auto_hint">The best pair for this GPU, kept up to date</string>
     <string name="gpu_manual_hint">Pick a pair yourself</string>
     <string name="gpu_checking">Checking for drivers…</string>

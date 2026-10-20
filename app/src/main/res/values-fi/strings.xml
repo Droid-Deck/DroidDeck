@@ -1038,6 +1038,9 @@
     <string name="games_added">Lisätty peli</string>
     <string name="games_custom">Mukautettu peli</string>
     <string name="games_store_storage">Pelien tallennustila</string>
+    <string name="games_uninstall_body">Poistaa sen tiedostot ja poistaa sen Steamista.</string>
+    <string name="games_remove_title">Poistetaanko %1$s?</string>
+    <string name="games_remove_body">Poistaa pikakuvakkeen. Pelin tiedostot jäävät.</string>
     <string name="gpu_auto_hint">Parhaiten tähän GPU:hun sopiva pari, pidetään ajan tasalla</string>
     <string name="gpu_manual_hint">Valitse pari itse</string>
     <string name="gpu_checking">Tarkistetaan ajureita…</string>
