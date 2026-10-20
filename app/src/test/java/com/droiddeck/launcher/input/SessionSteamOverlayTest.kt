@@ -3,6 +3,7 @@ package com.droiddeck.launcher.input
 import android.app.Application
 import android.os.Looper
 import android.os.SystemClock
+import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.SurfaceView
 import android.view.View
@@ -45,6 +46,7 @@ class SessionSteamOverlayTest {
         SessionPrefs.setOscMode(activity, SessionPrefs.OSC_ALWAYS)
         SessionPrefs.setTouchMode(activity, SessionPrefs.TOUCH_GESTURES)
         CompositorShadow.touches.clear()
+        CompositorShadow.pointer.clear()
         overlay(false)
     }
 
@@ -100,6 +102,26 @@ class SessionSteamOverlayTest {
         assertEquals(SessionPrefs.TOUCH_GESTURES, effectiveTouchMode())
     }
 
+    @Test fun mouseCanReachOverlayOutsideTheGamePictureAndReturnsToGameBounds() {
+        val previousSize = SessionState.outputSize
+        val now = SystemClock.uptimeMillis()
+        val event = MotionEvent.obtain(now, now, MotionEvent.ACTION_HOVER_MOVE, 20f, 500f, 0).apply {
+            source = InputDevice.SOURCE_MOUSE
+        }
+        try {
+            SessionState.outputSize = 800 to 600
+            overlay(true)
+            assertTrue(activity.onTouchEvent(event))
+            assertEquals(listOf(1, 38, 900), CompositorShadow.pointer)
+            overlay(false)
+            assertTrue(activity.onTouchEvent(event))
+            assertEquals(listOf(1, 192, 900), CompositorShadow.pointer)
+        } finally {
+            SessionState.outputSize = previousSize
+            event.recycle()
+        }
+    }
+
     @Test fun openingInputCancelsPendingGameLongPress() {
         val buttons = mutableListOf<Boolean>()
         val hold = DirectTouchHold(8f, object : PointerGestures.Listener {
@@ -130,9 +152,14 @@ class SessionSteamOverlayTest {
     class CompositorShadow {
         companion object {
             val touches = mutableListOf<Int>()
+            val pointer = mutableListOf<Int>()
             @JvmStatic @Implementation fun __staticInitializer__() {}
             @JvmStatic @Implementation fun nativeSendTouch(action: Int, id: Int, x: Int, y: Int) { touches += action }
             @JvmStatic @Implementation fun nativeSendSceneInput(type: Int, code: Int, value: Int) {}
+            @JvmStatic @Implementation fun nativeSendPointer(action: Int, x: Int, y: Int) {
+                pointer.clear()
+                pointer.addAll(listOf(action, x, y))
+            }
         }
     }
 }
