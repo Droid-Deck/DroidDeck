@@ -52,17 +52,17 @@ object FileOps {
             progress?.onProgress(1, 1)
             return true
         }
-        if (!copyWithProgress(src, dst, progress)) return false
+        if (!copyWithProgress(src, dst, progress, isCancelled)) return false
         if (isCancelled()) return false
         return delete(src)
     }
 
-    fun copyWithProgress(src: File, dst: File, progress: ProgressCallback?): Boolean {
+    fun copyWithProgress(src: File, dst: File, progress: ProgressCallback?, isCancelled: () -> Boolean = { false }): Boolean {
         val total = maxOf(totalSize(src), 1L)
-        return copyWithProgress(src, dst, longArrayOf(0), total, progress)
+        return copyWithProgress(src, dst, longArrayOf(0), total, progress, isCancelled)
     }
 
-    private fun copyWithProgress(src: File, dst: File, done: LongArray, total: Long, progress: ProgressCallback?): Boolean {
+    private fun copyWithProgress(src: File, dst: File, done: LongArray, total: Long, progress: ProgressCallback?, isCancelled: () -> Boolean): Boolean {
         if (isSymlink(src)) return true
         if (sameFile(src, dst)) return true
         if (src.isDirectory && isWithin(dst, src)) {
@@ -73,13 +73,14 @@ object FileOps {
             if (!dst.exists() && !dst.mkdirs()) return false
             var allOk = true
             src.list()?.forEach { name ->
-                if (!copyWithProgress(File(src, name), File(dst, name), done, total, progress)) {
+                if (!copyWithProgress(File(src, name), File(dst, name), done, total, progress, isCancelled)) {
                     Log.e(TAG, "Failed to copy: ${File(src, name)}")
                     allOk = false
                 }
             }
             return allOk
         }
+        if (isCancelled()) throw java.util.concurrent.CancellationException("Copy cancelled: $src")
         val parent = dst.parentFile
         if (!src.exists() || (parent != null && !parent.exists() && !parent.mkdirs())) return false
         val chunk = 4L * 1024 * 1024

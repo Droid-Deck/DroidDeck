@@ -23,7 +23,7 @@ class FileOpsCopyTest {
         val src = tmp.newFile("source").apply { writeText("replacement") }
         val dst = tmp.newFile("dest").apply { writeText("original user data") }
         assertThrows(CancellationException::class.java) {
-            FileOps.copyWithProgress(src, dst) { _, _ -> throw CancellationException("cancel") }
+            FileOps.copyWithProgress(src, dst, { _, _ -> throw CancellationException("cancel") })
         }
         assertTrue("original destination was removed", dst.exists())
         assertEquals("original user data", dst.readText())
@@ -35,7 +35,7 @@ class FileOpsCopyTest {
         val src = tmp.newFile("source").apply { writeText("replacement") }
         val dst = File(tmp.root, "dest")
         assertThrows(CancellationException::class.java) {
-            FileOps.copyWithProgress(src, dst) { _, _ -> throw CancellationException("cancel") }
+            FileOps.copyWithProgress(src, dst, { _, _ -> throw CancellationException("cancel") })
         }
         assertFalse(dst.exists())
         assertEquals("replacement", src.readText())
@@ -51,6 +51,18 @@ class FileOpsCopyTest {
         assertTrue("original destination was removed", dst.exists())
         assertEquals("original user data", dst.readText())
         assertEquals("replacement", src.readText())
+    }
+
+    @Test fun cancellingStopsATreeOfEmptyFiles() {
+        val src = tmp.newFolder("source")
+        for (name in listOf("a", "b", "c")) File(src, name).createNewFile()
+        val dst = File(tmp.root, "dest")
+        var checks = 0
+        assertThrows(CancellationException::class.java) {
+            FileOps.copyWithProgress(src, dst, null) { checks++ > 0 }
+        }
+        assertEquals(1, dst.list()!!.size)
+        assertEquals(3, src.list()!!.size)
     }
 
     @Test fun aCompletedCopyReplacesTheDestination() {
@@ -110,7 +122,7 @@ class FileOpsCopyTest {
         val src = tmp.newFile("source")
         val dst = tmp.newFile("dest").apply { writeText("original user data") }
         var callbacks = 0
-        assertTrue(FileOps.copyWithProgress(src, dst) { _, _ -> callbacks++ })
+        assertTrue(FileOps.copyWithProgress(src, dst, { _, _ -> callbacks++ }))
         assertEquals(0, callbacks)
         assertEquals(0L, dst.length())
         assertTrue(src.exists())
