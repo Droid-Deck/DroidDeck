@@ -40,8 +40,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.layout.ContentScale
@@ -628,20 +630,25 @@ private fun SgdbSearchDialog(
         }
     }
     LaunchedEffect(Unit) { search() }
-    val searchRow = remember { FocusRequester() }
     val firstItem = remember { FocusRequester() }
-    var editing by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val leaveField = { focusManager.clearFocus(); keyboardController?.hide() }
     val keyboard = LocalInputModeManager.current.inputMode == InputMode.Keyboard
-    LaunchedEffect(Unit) { if (keyboard) focusSoon { searchRow } }
     LaunchedEffect(picked?.id, matches?.size, images.size, busy) {
         val ready = if (picked != null) images.isNotEmpty() else !matches.isNullOrEmpty()
-        if (keyboard && !busy && ready && !editing) focusSoon { firstItem }
+        if (keyboard && !busy && ready) focusSoon { firstItem }
     }
-    AppDialog(shown, back, "sgdbSearch", wide = false, maxWidth = 460.dp) {
+    AppDialog(shown, back, "sgdbSearch", wide = false, maxWidth = 460.dp, modifier = Modifier.pointerInput(Unit) { detectTapGestures { leaveField() } }) {
         DialogTitleRow(stringResource(R.string.art_sgdb_title, slotName), onClose = { onCloseAll() }, leading = {
             SmallIconButton(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.common_back), colors.onBackground, onClick = back)
         })
-        PickerRow(Icons.Outlined.Search, query.ifBlank { stringResource(R.string.art_sgdb_search_label) }, null, focus = searchRow) { editing = true }
+        androidx.compose.material3.OutlinedTextField(
+            query, { query = it }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+            label = { Text(stringResource(R.string.art_sgdb_search_label)) },
+            keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { leaveField(); search() }),
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
+        )
         val maxHeight = (LocalConfiguration.current.screenHeightDp * 0.6f).dp
         Column(
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -671,27 +678,6 @@ private fun SgdbSearchDialog(
                 if (list.size > 1) PickerRow(null, stringResource(R.string.art_sgdb_other_games), null) { picked = null }
             }
             if (busy) androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 8.dp))
-        }
-    }
-    if (editing) SearchTermDialog(query, onDismiss = { editing = false }) { term -> query = term; search() }
-}
-
-/** The search term in a dialog of its own, so the Android keyboard comes up and a controller can reach every button. */
-@Composable
-private fun SearchTermDialog(initial: String, onDismiss: () -> Unit, onSearch: (String) -> Unit) {
-    val shown = rememberShown(onDismiss)
-    val close = { shown.targetState = false }
-    var text by remember { mutableStateOf(initial) }
-    val submit = { onSearch(text.trim()); close() }
-    AppDialog(shown, close, "sgdbTerm", wide = false, maxWidth = 460.dp) {
-        DialogTitleRow(stringResource(R.string.art_sgdb_search_label), onClose = close)
-        AdbTextField(
-            value = text, onValueChange = { text = it }, label = "", keyboardType = KeyboardType.Text,
-            imeAction = ImeAction.Done, placeholder = stringResource(R.string.art_sgdb_search_label), focusOnShow = true, onDone = { submit() },
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            SecondaryButton(stringResource(R.string.common_cancel), modifier = Modifier.weight(1f), onClick = close)
-            SecondaryButton(stringResource(R.string.art_search_sgdb), modifier = Modifier.weight(1f)) { submit() }
         }
     }
 }
