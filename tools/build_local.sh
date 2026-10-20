@@ -351,6 +351,13 @@ fi
 
 cd "${repo_root}"
 python3 tools/quest/build-driver.py "${NDK}"
+xbox_out="${linuxfs_dir}/usr/local/lib/droiddeck-xbox"
+xbox_key=$(inputs_hash "native-arm64-ubuntu24.04" tools/xbox)
+if ! restore_step xbox "${xbox_key}" "${xbox_out}"; then
+    bash tools/xbox/build-local.sh
+    save_step xbox "${xbox_key}" "${xbox_out}"
+fi
+
 comet_out="${linuxfs_dir}/usr/local/lib/droiddeck-comet"
 comet_key=$(inputs_hash "${image_id}" tools/comet)
 if ! restore_step comet "${comet_key}" "${comet_out}"; then

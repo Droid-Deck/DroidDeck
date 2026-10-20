@@ -77,7 +77,7 @@ class PerfHud(context: Context) {
         val mode = FrameGen.mode(context)
         if (mode.engine == FrameGen.ENGINE_OFF) return fps(base)
         val lsfg = mode.engine == FrameGen.ENGINE_LSFG
-        val name = if (lsfg) "LSFG" else "Win-FG"
+        val name = if (lsfg) "LSFG" else "DD-FG"
         val label = FrameGen.label(context, mode)
         if (lsfg && Lossless.cacheFile(context)?.isFile != true) return context.getString(R.string.hud_fg_needs_lossless, name)
         val stats = try { WaylandCompositor.nativeFrameGenStats() } catch (t: Throwable) { null }

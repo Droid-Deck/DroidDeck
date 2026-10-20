@@ -109,6 +109,7 @@ class MainActivity : ComponentActivity() {
     private var frameGenLabel by mutableStateOf("")
     private var lossless by mutableStateOf(Lossless.State.NONE)
     private var showRemove by mutableStateOf(false)
+    private var showRuntimeActions by mutableStateOf<LinuxRuntimeInstaller.Release?>(null)
     private var pendingSwitch by mutableStateOf<Intent?>(null)
     private var switchingTo: Intent? = null
     private var switchPoll: Runnable? = null
@@ -164,6 +165,7 @@ class MainActivity : ComponentActivity() {
     private var downloadMirror by mutableStateOf("")
     private var downloadPrefix by mutableStateOf("")
     private var animationsEnabled by mutableStateOf(true)
+    private var launcherIcon by mutableStateOf(LauncherIcon.DARK)
     private var gameStoresEnabled by mutableStateOf(true)
     private var gameStoresSpeedTier by mutableStateOf("fast")
     private var storesOpenTab by mutableStateOf(SessionPrefs.STORES_OPEN_LIBRARY)
@@ -484,6 +486,20 @@ class MainActivity : ComponentActivity() {
         pickSaveDir.launch(InAppFilePicker.buildDirIntent(this, getString(R.string.game_file_folder), gameSyncFolder))
     }
 
+    private fun switchLauncherIcon(style: String): Boolean {
+        val before = LauncherIcon.current(this)
+        LauncherIcon.set(this, style)
+        launcherIcon = LauncherIcon.current(this)
+        if (launcherIcon == before) return false
+        // Android finishes activities started through the alias that was just disabled.
+        startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+            .setComponent(LauncherIcon.activity(this))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
+            .putExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV, "setup:launcher"))
+        finishAndRemoveTask()
+        return true
+    }
+
     private fun readGameIntent(request: Intent) {
         request.getStringExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV)?.let { navRequest = it; request.removeExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV) }
         shortcutPicker = request.action == Intent.ACTION_CREATE_SHORTCUT
@@ -739,6 +755,7 @@ class MainActivity : ComponentActivity() {
         downloadPrefix = DownloadSource.custom(this)
         DownloadSource.probe()
         animationsEnabled = SessionPrefs.animationsEnabled(this)
+        launcherIcon = LauncherIcon.current(this)
         gameStoresEnabled = SessionPrefs.gameStoresEnabled(this)
         gameStoresSpeedTier = SessionPrefs.gameStoresSpeedTier(this)
         storesOpenTab = SessionPrefs.storesOpenTab(this)
@@ -799,6 +816,7 @@ class MainActivity : ComponentActivity() {
                         downloadMirror = downloadMirror,
                         downloadPrefix = downloadPrefix,
                         animationsEnabled = animationsEnabled,
+                        launcherIcon = launcherIcon,
                         gameStoresEnabled = gameStoresEnabled,
                         gameStoresSpeedTier = gameStoresSpeedTier,
                         storesOpenTab = storesOpenTab,
@@ -952,6 +970,7 @@ class MainActivity : ComponentActivity() {
                         onPageBack = { showPerformance = false; showComponents = false; showMapping = false },
                         onGameStoresEnabled = { on -> SessionPrefs.setGameStoresEnabled(this, on); gameStoresEnabled = on },
                         onTheme = { id -> SessionPrefs.setTheme(this, id); theme = id },
+                        onLauncherIcon = { style -> switchLauncherIcon(style) },
                         onLanguage = { tag ->
                             if (tag != com.droiddeck.launcher.core.AppLanguage.chosen(this)) {
                                 com.droiddeck.launcher.core.AppLanguage.setChosen(this, tag)
@@ -1104,6 +1123,13 @@ class MainActivity : ComponentActivity() {
                         confirm = androidx.compose.ui.res.stringResource(R.string.drawer_stop),
                         onConfirm = { pendingSwitch = null; startAfterSession(next) },
                         onDismiss = { pendingSwitch = null },
+                    )
+                }
+                showRuntimeActions?.let { release ->
+                    com.droiddeck.launcher.ui.RuntimeActionsDialog(
+                        onRepair = { showRuntimeActions = null; if (!runtimeChangesBlocked()) install(release) },
+                        onRemove = { showRuntimeActions = null; showRemove = true },
+                        onDismiss = { showRuntimeActions = null },
                     )
                 }
                 if (showRemove) ConfirmDialog(
@@ -1262,6 +1288,7 @@ class MainActivity : ComponentActivity() {
         syncLossless()
         updates.onResume()
         drivers.checkOnOpen()
+        resumeInterruptedPackages()
         protons.checkUpdates()
         if (!SessionState.running) Thread({
             val applied = runCatching { ComponentsManager.applyQueued(this) }.getOrDefault(emptyList())
@@ -1515,6 +1542,27 @@ class MainActivity : ComponentActivity() {
             .putExtra(SessionService.EXTRA_PROGRAM, path))
     }
 
+    private fun resumeInterruptedPackages() {
+        if (runtimeChangesBlocked()) return
+        val first = DesktopCatalog.interrupted(this).firstOrNull()
+        if (first == null) {
+            Thread({ DesktopCatalog.pruneDownloads(this) }, "prune-pkg").start()
+            return
+        }
+        pkgId = first.id; pkgStage = getString(R.string.deskpkg_installing, first.name); pkgPercent = -1
+        Thread({
+            val problem = DesktopCatalog.resumeInterrupted(this) { stage, percent ->
+                ui.post { pkgStage = stage; pkgPercent = percent }
+            }
+            ui.post {
+                pkgStage = null; pkgId = null
+                if (problem != null) android.widget.Toast.makeText(this, getString(R.string.main_pkg_problem, first.name, problem), android.widget.Toast.LENGTH_LONG).show()
+                refreshPackages()
+                refresh()
+            }
+        }, "resume-pkg").start()
+    }
+
     private fun installPackage(id: String) {
         val entry = catalog?.firstOrNull { it.id == id } ?: return
         if (busy || LinuxRuntimeInstaller.isBusy() || pkgStage != null || SessionState.running) return
@@ -1668,12 +1716,12 @@ class MainActivity : ComponentActivity() {
                     SessionPrefs.setRunSteamAtStartup(this, on)
                     runSteamAtStartup = on
                 },
-                onBootMovie = { id -> SessionPrefs.setBootMovie(this, id); loadBootMovie() },
+                onBootMovie = { id -> com.droiddeck.launcher.session.BootMovie.select(this, id); loadBootMovie() },
                 onBootMovieSound = { on -> SessionPrefs.setBootMovieSound(this, on); bootMovieSound = on },
                 onImportBootMovie = {
                     pickBootMovie.launch(InAppFilePicker.buildIntent(this, com.droiddeck.launcher.session.BootMovie.PICKER_EXTENSIONS, getString(R.string.boot_movie_pick)))
                 },
-                onRemoveBootMovie = { com.droiddeck.launcher.session.BootMovie.removeCustom(this); loadBootMovie() },
+                onBootMovieChanged = { loadBootMovie() },
                 onDeckyInstall = { release -> decky.installDecky(release) },
                 onDeckyCheck = { decky.refreshDecky() },
                 onDeckyEnabled = { enabled -> DeckyManager.setSupervisorEnabled(this, enabled); decky.deckySupervisor = enabled },
@@ -1961,8 +2009,12 @@ class MainActivity : ComponentActivity() {
     private fun onRuntimeButton() {
         if (runtimeChangesBlocked()) return
         val release = available
-        if (removalPending || installed != null && release?.version == installed) {
+        if (removalPending) {
             showRemove = true
+            return
+        }
+        if (installed != null && release?.version == installed) {
+            showRuntimeActions = release
             return
         }
         if (release == null) {
@@ -2045,7 +2097,7 @@ class MainActivity : ComponentActivity() {
                 com.droiddeck.launcher.core.AppLanguage.setChosen(this, com.droiddeck.launcher.core.AppLanguage.SYSTEM)
                 if (!ok) android.widget.Toast.makeText(this, R.string.setup_reset_settings_partial, android.widget.Toast.LENGTH_LONG).show()
                 com.droiddeck.launcher.ui.Motion.refresh(this)
-                recreate()
+                if (!switchLauncherIcon(LauncherIcon.DARK)) recreate()
             }
         }, "reset-settings").start()
     }

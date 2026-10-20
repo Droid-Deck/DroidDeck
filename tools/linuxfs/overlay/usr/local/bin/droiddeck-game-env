@@ -7,6 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+GAME_TU_DEBUG = "DROIDDECK_GAME_TU_DEBUG"
 SYNC_KEYS = ("BL_SYNC", "BL_SYNC_FALLBACK", "BL_FSYNC_FIRST", "BL_SYNC_MIN_NOFILE", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC", "PROTON_NO_NTSYNC", "WINEESYNC")
 SEED_REDISTS = "/usr/local/bin/droiddeck-seed-redists"
 PACK_KEYS = ("WINESERVER", "BL_SYNC_PACK", "WINEESYNC", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC")
@@ -124,6 +125,12 @@ def godot_sentry(game):
 
 
 @fix
+def deep_rock_gdk_raytracing(game):
+    if game.stem == "fsd-wingdk-shipping" and not any(game.has_arg(arg) for arg in ("-raytracing", "-noraytracing")):
+        return {}, ["-noraytracing", "-ini:Engine:[/Script/Engine.RendererSettings]:r.RayTracing=False"], "Deep Rock Galactic GDK: ray tracing off (D3D12 pipeline creation fails on Thor)"
+
+
+@fix
 def arkham_city_x87(game):
     """Batman: Arkham City (BatmanAC.exe, also started through BmLauncher.exe beside it) leans on x87
     and stops with Unreal's "Fatal error!" right after start when FEX reduces its precision."""
@@ -170,6 +177,18 @@ def win_components(compat, app_id):
     except Exception as error:
         print("droiddeck-game-env: Windows components not applied (%s)" % error, file=sys.stderr)
         return ""
+
+
+def game_gpu(env):
+    if GAME_TU_DEBUG not in env:
+        return env
+    result = env.copy()
+    value = result.pop(GAME_TU_DEBUG)
+    if value:
+        result["TU_DEBUG"] = value
+    else:
+        result.pop("TU_DEBUG", None)
+    return result
 
 
 def apply_config(env, config, app_id, fixes=None):
@@ -359,7 +378,7 @@ def main():
     command = sys.argv[1:]
     if not command:
         return 2
-    env = os.environ.copy()
+    env = game_gpu(os.environ.copy())
     mic_enabled = env.get("BL_MIC_ENABLED")
     mark_install_scripts(command, env)
     app_id = game_id(env)
@@ -393,6 +412,18 @@ def main():
         env["BANNER_AUDIO_DIRECT_MIC"] = "0"
     env = anticheat_runtimes(command, env)
     env = force_ssbs(command, env)
+    try:
+        xbox = runpy.run_path(str(Path(__file__).with_name("droiddeck-xbox")))
+    except Exception as error:
+        print("droiddeck-game-env: Xbox support unavailable (%s); stock launch" % error, file=sys.stderr)
+        xbox = {"launch": lambda command, env: None}
+    try:
+        xbox_result = xbox["launch"](command, env)
+    except (OSError, ValueError, KeyError, RuntimeError) as error:
+        print("droiddeck-game-env: Xbox launch could not start (%s)" % error, file=sys.stderr)
+        return 1
+    if xbox_result is not None:
+        return xbox_result
     sync = load_sync()
     launch, launch_env = select_sync(command, env, sync)
     if launch[0] != command[0]:
