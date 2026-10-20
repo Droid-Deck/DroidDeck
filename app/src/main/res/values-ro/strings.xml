@@ -1158,7 +1158,15 @@
     <string name="pip_title">Imagine în imagine</string>
     <string name="pip_auto">Intră automat în PiP</string>
     <string name="unfolded_controls">Comenzi pe ecranul desfăcut</string>
-    <string name="unfolded_controls_hint">Desfăcut, jocul se află peste trackpadurile și mânerele din spate ale Steam Deck. Împăturit, jocul este pe tot ecranul.</string>
+    <string name="unfolded_controls_hint">Jocul stă deasupra trackpadurilor și mânerelor din spate ale Steam Deck: pe ecranul desfăcut sau deasupra balamalei când e pe jumătate pliat. Altfel, jocul e pe tot ecranul.</string>
+    <string name="deck_controls_when">Afișează comenzile</string>
+    <string name="deck_controls_when_unfolded">Desfăcut</string>
+    <string name="deck_controls_when_half_folded">Pe jumătate pliat</string>
+    <string name="folded_aspect">Formatul jocului</string>
+    <string name="folded_aspect_hint">Cu rezoluția „Urmărește ecranul”, jocul este randat la această dimensiune.</string>
+    <string name="folded_aspect_fill">Umplere</string>
+    <string name="folded_aspect_scope">Cinemascope (2,39:1)</string>
+    <string name="deck_controls_scale">Dimensiunea comenzilor</string>
     <string name="pip_suspended">Suspendat</string>
     <string name="pip_not_ready">Imaginea în imagine este disponibilă odată ce sesiunea este pregătită.</string>
     <string name="pip_permission">Permite imaginea în imagine pentru DroidDeck în setările Android.</string>

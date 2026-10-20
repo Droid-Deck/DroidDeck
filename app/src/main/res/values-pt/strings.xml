@@ -1147,7 +1147,15 @@
     <string name="pip_title">Picture-in-picture</string>
     <string name="pip_auto">Entrar em PiP automaticamente</string>
     <string name="unfolded_controls">Controles com a tela desdobrada</string>
-    <string name="unfolded_controls_hint">Desdobrado, o jogo fica acima dos trackpads e dos botões traseiros do Steam Deck. Dobrado, o jogo fica em tela cheia.</string>
+    <string name="unfolded_controls_hint">O jogo fica acima dos trackpads e das alças traseiras do Steam Deck: na tela desdobrada, ou acima da dobradiça quando meio dobrado. Caso contrário, o jogo fica em tela cheia.</string>
+    <string name="deck_controls_when">Mostrar os controles</string>
+    <string name="deck_controls_when_unfolded">Desdobrado</string>
+    <string name="deck_controls_when_half_folded">Meio dobrado</string>
+    <string name="folded_aspect">Formato do jogo</string>
+    <string name="folded_aspect_hint">Com a resolução \"Seguir a tela\", o jogo é renderizado neste tamanho.</string>
+    <string name="folded_aspect_fill">Preencher</string>
+    <string name="folded_aspect_scope">Cinemascope (2,39:1)</string>
+    <string name="deck_controls_scale">Tamanho dos controles</string>
     <string name="pip_suspended">Suspenso</string>
     <string name="pip_not_ready">O picture-in-picture fica disponível quando a sessão estiver pronta.</string>
     <string name="pip_permission">Permita o picture-in-picture para o DroidDeck nas configurações do Android.</string>

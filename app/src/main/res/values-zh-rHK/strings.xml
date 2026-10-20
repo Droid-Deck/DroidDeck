@@ -1146,7 +1146,15 @@
     <string name="pip_title">畫中畫</string>
     <string name="pip_auto">自動進入畫中畫</string>
     <string name="unfolded_controls">展開螢幕時的控制</string>
-    <string name="unfolded_controls_hint">展開時，遊戲會顯示在 Steam Deck 觸控板和背面握把上方；摺疊時，遊戲會全螢幕顯示。</string>
+    <string name="unfolded_controls_hint">遊戲顯示在 Steam Deck 觸控板和背鍵上方：在展開的螢幕上，或半摺疊時在鉸鏈上方。否則遊戲全螢幕顯示。</string>
+    <string name="deck_controls_when">顯示控制</string>
+    <string name="deck_controls_when_unfolded">展開時</string>
+    <string name="deck_controls_when_half_folded">半摺疊時</string>
+    <string name="folded_aspect">遊戲比例</string>
+    <string name="folded_aspect_hint">使用「跟隨螢幕」解像度時，遊戲以此尺寸渲染。</string>
+    <string name="folded_aspect_fill">填滿</string>
+    <string name="folded_aspect_scope">寬銀幕（2.39:1）</string>
+    <string name="deck_controls_scale">控制大小</string>
     <string name="pip_suspended">已暫停</string>
     <string name="pip_not_ready">會話準備就緒後即可使用畫中畫。</string>
     <string name="pip_permission">請在 Android 設定中允許 DroidDeck 使用畫中畫。</string>

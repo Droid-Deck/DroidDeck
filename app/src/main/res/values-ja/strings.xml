@@ -1146,7 +1146,15 @@
     <string name="pip_title">ピクチャーインピクチャー</string>
     <string name="pip_auto">自動でピクチャーインピクチャー</string>
     <string name="unfolded_controls">開いた状態の画面のコントロール</string>
-    <string name="unfolded_controls_hint">開いた状態では、ゲームがSteam Deckのトラックパッドと背面グリップの上に表示されます。折りたたんだ状態では、ゲームが全画面で表示されます。</string>
+    <string name="unfolded_controls_hint">ゲームは Steam Deck のトラックパッドと背面グリップの上に表示されます。開いた画面、または半分折りたたんだときはヒンジの上です。それ以外ではフルスクリーンになります。</string>
+    <string name="deck_controls_when">コントロールを表示</string>
+    <string name="deck_controls_when_unfolded">開いたとき</string>
+    <string name="deck_controls_when_half_folded">半分折りたたんだとき</string>
+    <string name="folded_aspect">ゲームの形</string>
+    <string name="folded_aspect_hint">「画面に追従」解像度では、ゲームはこのサイズでレンダリングされます。</string>
+    <string name="folded_aspect_fill">フィル</string>
+    <string name="folded_aspect_scope">シネマスコープ（2.39:1）</string>
+    <string name="deck_controls_scale">コントロールのサイズ</string>
     <string name="pip_suspended">一時停止中</string>
     <string name="pip_not_ready">セッションの準備ができたらピクチャーインピクチャーを使用できます。</string>
     <string name="pip_permission">Android設定でDroidDeckのピクチャーインピクチャーを許可してください。</string>

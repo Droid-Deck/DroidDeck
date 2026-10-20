@@ -266,7 +266,9 @@ class DrawerActions(
     val onPipAutoEnter: (Boolean) -> Unit = {},
     val unfoldedControls: Boolean? = null,
     val onUnfoldedControls: (Boolean) -> Unit = {},
-    val foldedAspect: String = com.droiddeck.launcher.session.SessionDisplay.FOLDED_FILL,
+    val deckControlsWhen: String = com.droiddeck.launcher.session.SessionDisplay.CONTROLS_UNFOLDED,
+    val onDeckControlsWhen: (String) -> Unit = {},
+    val foldedAspect: String = com.droiddeck.launcher.session.SessionDisplay.FOLDED_16X9,
     val onFoldedAspect: (String) -> Unit = {},
     val deckControlsScale: Int = 100,
     val onDeckControlsScale: (Int) -> Unit = {},
@@ -539,6 +541,11 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     stringResource(R.string.unfolded_controls_hint), a.unfoldedControls,
                                     chipModifier = focus.track(page, "unfolded-controls"), onChange = a.onUnfoldedControls)
                                 if (a.steam && a.unfoldedControls == true) {
+                                    ChoiceRow(host, "deck-controls-when", stringResource(R.string.deck_controls_when), null,
+                                        listOf(
+                                            com.droiddeck.launcher.session.SessionDisplay.CONTROLS_UNFOLDED to stringResource(R.string.deck_controls_when_unfolded),
+                                            com.droiddeck.launcher.session.SessionDisplay.CONTROLS_HALF_FOLDED to stringResource(R.string.deck_controls_when_half_folded),
+                                        ), a.deckControlsWhen, chipModifier = focus.track(page, "deck-controls-when"), onPick = a.onDeckControlsWhen)
                                     ChoiceRow(host, "folded-aspect", stringResource(R.string.folded_aspect), stringResource(R.string.folded_aspect_hint),
                                         listOf(
                                             com.droiddeck.launcher.session.SessionDisplay.FOLDED_FILL to stringResource(R.string.folded_aspect_fill),

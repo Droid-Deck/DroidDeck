@@ -1152,7 +1152,15 @@
     <string name="pip_title">पिक्चर इन पिक्चर</string>
     <string name="pip_auto">अपने आप PiP में जाएं</string>
     <string name="unfolded_controls">खुली हुई स्क्रीन पर कंट्रोल</string>
-    <string name="unfolded_controls_hint">खुली होने पर, गेम Steam Deck के ट्रैकपैड और पीछे की ग्रिप के ऊपर दिखता है। बंद होने पर, गेम फ़ुल स्क्रीन में रहता है।</string>
+    <string name="unfolded_controls_hint">गेम Steam Deck के ट्रैकपैड और पीछे की ग्रिप के ऊपर दिखता है: खुली हुई स्क्रीन पर, या आधा मोड़ने पर हिंज के ऊपर। नहीं तो गेम फ़ुल स्क्रीन में रहता है।</string>
+    <string name="deck_controls_when">कंट्रोल दिखाएँ</string>
+    <string name="deck_controls_when_unfolded">खुला होने पर</string>
+    <string name="deck_controls_when_half_folded">आधा मुड़ा होने पर</string>
+    <string name="folded_aspect">गेम का आकार</string>
+    <string name="folded_aspect_hint">Follow screen रिज़ॉल्यूशन के साथ गेम इसी आकार में रेंडर होता है।</string>
+    <string name="folded_aspect_fill">भरें</string>
+    <string name="folded_aspect_scope">सिनेमास्कोप (2.39:1)</string>
+    <string name="deck_controls_scale">कंट्रोल का आकार</string>
     <string name="pip_suspended">सस्पेंडेड</string>
     <string name="pip_not_ready">सेशन तैयार होने पर पिक्चर इन पिक्चर उपलब्ध होता है।</string>
     <string name="pip_permission">Android सेटिंग में DroidDeck के लिए पिक्चर इन पिक्चर की अनुमति दें।</string>

@@ -1152,7 +1152,15 @@
     <string name="pip_title">Kuva kuvassa</string>
     <string name="pip_auto">Siirry automaattisesti kuva kuvassa -tilaan</string>
     <string name="unfolded_controls">Ohjaimet avattuna näytöllä</string>
-    <string name="unfolded_controls_hint">Avattuna peli sijaitsee Steam Deckin kosketuslevyjen ja takakahvojen yläpuolella. Taitettuna peli on koko näytön kokoinen.</string>
+    <string name="unfolded_controls_hint">Peli näkyy Steam Deckin kosketuslevyjen ja takakahvojen yläpuolella: avatulla näytöllä tai saranan yläpuolella puoliksi taitettuna. Muuten peli on koko näytöllä.</string>
+    <string name="deck_controls_when">Näytä ohjaimet</string>
+    <string name="deck_controls_when_unfolded">Avattuna</string>
+    <string name="deck_controls_when_half_folded">Puoliksi taitettuna</string>
+    <string name="folded_aspect">Pelin muoto</string>
+    <string name="folded_aspect_hint">Kun resoluutio on ”Seuraa näyttöä”, peli renderöidään tähän kokoon.</string>
+    <string name="folded_aspect_fill">Täytä</string>
+    <string name="folded_aspect_scope">Cinemascope (2,39:1)</string>
+    <string name="deck_controls_scale">Ohjainten koko</string>
     <string name="pip_suspended">Keskeytetty</string>
     <string name="pip_not_ready">Kuva kuvassa -tila on käytettävissä, kun istunto on valmis.</string>
     <string name="pip_permission">Salli kuva kuvassa -tila DroidDeckille Android-asetuksissa.</string>

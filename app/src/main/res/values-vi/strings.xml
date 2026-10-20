@@ -1146,7 +1146,15 @@
     <string name="pip_title">Hình trong hình</string>
     <string name="pip_auto">Tự động vào hình trong hình</string>
     <string name="unfolded_controls">Điều khiển trên màn hình mở</string>
-    <string name="unfolded_controls_hint">Khi mở, game nằm phía trên trackpad và grip phía sau của Steam Deck. Khi gập, game chiếm toàn màn hình.</string>
+    <string name="unfolded_controls_hint">Trò chơi nằm phía trên bàn di chuột và tay cầm sau của Steam Deck: trên màn hình mở, hoặc phía trên bản lề khi gập một nửa. Nếu không, trò chơi ở chế độ toàn màn hình.</string>
+    <string name="deck_controls_when">Hiện điều khiển</string>
+    <string name="deck_controls_when_unfolded">Khi mở</string>
+    <string name="deck_controls_when_half_folded">Khi gập một nửa</string>
+    <string name="folded_aspect">Hình dạng trò chơi</string>
+    <string name="folded_aspect_hint">Với độ phân giải \"Theo màn hình\", trò chơi được kết xuất ở kích thước này.</string>
+    <string name="folded_aspect_fill">Lấp đầy</string>
+    <string name="folded_aspect_scope">Cinemascope (2,39:1)</string>
+    <string name="deck_controls_scale">Kích thước điều khiển</string>
     <string name="pip_suspended">Đã tạm dừng</string>
     <string name="pip_not_ready">Hình trong hình chỉ khả dụng khi phiên đã sẵn sàng.</string>
     <string name="pip_permission">Cho phép hình trong hình cho DroidDeck trong thiết lập Android.</string>

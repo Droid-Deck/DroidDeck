@@ -1154,9 +1154,12 @@
     <string name="game_env_eyebrow">Jeux Proton</string>
     <string name="pip_title">Picture-in-Picture (PiP)</string>
     <string name="pip_auto">Passer automatiquement en PiP</string>
-    <string name="unfolded_controls">Commandes sous la pliure</string>
-    <string name="unfolded_controls_hint">À moitié plié comme un ordinateur portable, le jeu s\'affiche au-dessus de la pliure et les commandes du Steam Deck en dessous. Ouvert à plat ou replié, le jeu est en plein écran.</string>
-    <string name="folded_aspect">Format du jeu à moitié plié</string>
+    <string name="unfolded_controls">Commandes sur l\'écran déplié</string>
+    <string name="unfolded_controls_hint">Le jeu s\'affiche au-dessus des pavés tactiles et des poignées arrière du Steam Deck : sur l\'écran déplié, ou au-dessus de la charnière à moitié plié. Sinon, le jeu est en plein écran.</string>
+    <string name="deck_controls_when">Afficher les commandes</string>
+    <string name="deck_controls_when_unfolded">Déplié</string>
+    <string name="deck_controls_when_half_folded">À moitié plié</string>
+    <string name="folded_aspect">Format du jeu</string>
     <string name="folded_aspect_hint">Avec la résolution « Suivre l\'écran », le jeu est rendu à cette taille.</string>
     <string name="folded_aspect_fill">Remplir</string>
     <string name="folded_aspect_scope">Cinémascope (2,39:1)</string>

@@ -1152,7 +1152,15 @@
     <string name="pip_title">Billede i billede</string>
     <string name="pip_auto">Gå automatisk til billede i billede</string>
     <string name="unfolded_controls">Kontroller på den udfoldede skærm</string>
-    <string name="unfolded_controls_hint">Når skærmen er foldet ud, ligger spillet over Steam Decks trackpads og grebsknapper. Når den er foldet sammen, fylder spillet hele skærmen.</string>
+    <string name="unfolded_controls_hint">Spillet vises over Steam Decks trackpads og bagerste greb: på den udfoldede skærm eller over hængslet, når den er halvt foldet. Ellers er spillet i fuld skærm.</string>
+    <string name="deck_controls_when">Vis kontrollerne</string>
+    <string name="deck_controls_when_unfolded">Udfoldet</string>
+    <string name="deck_controls_when_half_folded">Halvt foldet</string>
+    <string name="folded_aspect">Spilformat</string>
+    <string name="folded_aspect_hint">Med opløsningen \"Følg skærm\" gengives spillet i denne størrelse.</string>
+    <string name="folded_aspect_fill">Udfyld</string>
+    <string name="folded_aspect_scope">Cinemascope (2,39:1)</string>
+    <string name="deck_controls_scale">Kontrollernes størrelse</string>
     <string name="pip_suspended">Sat i bero</string>
     <string name="pip_not_ready">Billede i billede er tilgængeligt, når sessionen er klar.</string>
     <string name="pip_permission">Tillad billede i billede for DroidDeck i Android-indstillingerne.</string>

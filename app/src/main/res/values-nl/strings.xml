@@ -1152,7 +1152,15 @@
     <string name="pip_title">Scherm-in-scherm</string>
     <string name="pip_auto">Automatisch scherm-in-scherm starten</string>
     <string name="unfolded_controls">Bediening op het uitgevouwen scherm</string>
-    <string name="unfolded_controls_hint">Uitgevouwen staat de game boven de Steam Deck-trackpads en achtergrepen. Dichtgevouwen is de game schermvullend.</string>
+    <string name="unfolded_controls_hint">De game staat boven de trackpads en achterste grepen van de Steam Deck: op het uitgevouwen scherm, of boven het scharnier als hij half is gevouwen. Anders is de game schermvullend.</string>
+    <string name="deck_controls_when">Bediening tonen</string>
+    <string name="deck_controls_when_unfolded">Uitgevouwen</string>
+    <string name="deck_controls_when_half_folded">Half gevouwen</string>
+    <string name="folded_aspect">Gamevorm</string>
+    <string name="folded_aspect_hint">Met de resolutie \'Scherm volgen\' wordt de game op dit formaat gerenderd.</string>
+    <string name="folded_aspect_fill">Vullen</string>
+    <string name="folded_aspect_scope">Cinemascope (2,39:1)</string>
+    <string name="deck_controls_scale">Grootte van de bediening</string>
     <string name="pip_suspended">Onderbroken</string>
     <string name="pip_not_ready">Scherm-in-scherm is beschikbaar zodra de sessie klaar is.</string>
     <string name="pip_permission">Sta scherm-in-scherm toe voor DroidDeck in de Android-instellingen.</string>

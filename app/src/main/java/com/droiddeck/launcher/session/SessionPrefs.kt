@@ -923,7 +923,16 @@ object SessionPrefs {
 
     fun foldedAspect(context: Context): String =
         prefs(context).getString("foldedAspect", null)?.takeIf { it in SessionDisplay.FOLDED_ASPECTS }
-            ?: SessionDisplay.FOLDED_FILL
+            ?: SessionDisplay.FOLDED_16X9
+
+    fun deckControlsWhen(context: Context): String =
+        prefs(context).getString("deckControlsWhen", null)
+            ?.takeIf { it == SessionDisplay.CONTROLS_UNFOLDED || it == SessionDisplay.CONTROLS_HALF_FOLDED }
+            ?: SessionDisplay.CONTROLS_UNFOLDED
+
+    fun setDeckControlsWhen(context: Context, mode: String) {
+        prefs(context).edit().putString("deckControlsWhen", mode).apply()
+    }
 
     fun setFoldedAspect(context: Context, aspect: String) {
         prefs(context).edit().putString("foldedAspect", aspect).apply()

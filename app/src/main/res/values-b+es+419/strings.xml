@@ -1214,7 +1214,15 @@
     <string name="pip_title">Imagen en imagen</string>
     <string name="pip_auto">Entrar en PiP automáticamente</string>
     <string name="unfolded_controls">Controles con la pantalla desplegada</string>
-    <string name="unfolded_controls_hint">Desplegado, el juego queda encima de los trackpads y los agarres traseros de Steam Deck. Plegado, el juego ocupa toda la pantalla.</string>
+    <string name="unfolded_controls_hint">El juego se muestra sobre los trackpads y los grips traseros del Steam Deck: con la pantalla desplegada, o sobre la bisagra a medio plegar. Si no, el juego va en pantalla completa.</string>
+    <string name="deck_controls_when">Mostrar los controles</string>
+    <string name="deck_controls_when_unfolded">Desplegado</string>
+    <string name="deck_controls_when_half_folded">A medio plegar</string>
+    <string name="folded_aspect">Formato del juego</string>
+    <string name="folded_aspect_hint">Con la resolución «Seguir la pantalla», el juego se renderiza a este tamaño.</string>
+    <string name="folded_aspect_fill">Llenar</string>
+    <string name="folded_aspect_scope">Cinemascope (2.39:1)</string>
+    <string name="deck_controls_scale">Tamaño de los controles</string>
     <string name="pip_suspended">Suspendida</string>
     <string name="pip_not_ready">Imagen en imagen estará disponible cuando la sesión esté lista.</string>
     <string name="pip_permission">Permite imagen en imagen para DroidDeck en los ajustes de Android.</string>

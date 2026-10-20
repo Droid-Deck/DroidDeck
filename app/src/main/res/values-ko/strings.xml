@@ -1146,7 +1146,15 @@
     <string name="pip_title">PIP (픽처 인 픽처)</string>
     <string name="pip_auto">자동으로 PIP 시작</string>
     <string name="unfolded_controls">펼친 화면의 컨트롤</string>
-    <string name="unfolded_controls_hint">펼치면 게임이 Steam Deck 터치패드와 뒷면 그립 위에 표시됩니다. 접으면 게임이 전체 화면으로 표시됩니다.</string>
+    <string name="unfolded_controls_hint">게임이 Steam Deck 트랙패드와 뒷면 그립 위에 표시됩니다. 펼친 화면에서, 또는 반쯤 접었을 때 힌지 위에 표시됩니다. 그 외에는 전체 화면입니다.</string>
+    <string name="deck_controls_when">컨트롤 표시</string>
+    <string name="deck_controls_when_unfolded">펼쳤을 때</string>
+    <string name="deck_controls_when_half_folded">반쯤 접었을 때</string>
+    <string name="folded_aspect">게임 형태</string>
+    <string name="folded_aspect_hint">\'화면 따라가기\' 해상도에서는 게임이 이 크기로 렌더링됩니다.</string>
+    <string name="folded_aspect_fill">채우기</string>
+    <string name="folded_aspect_scope">시네마스코프(2.39:1)</string>
+    <string name="deck_controls_scale">컨트롤 크기</string>
     <string name="pip_suspended">일시 중지됨</string>
     <string name="pip_not_ready">세션이 준비되면 PIP를 사용할 수 있습니다.</string>
     <string name="pip_permission">Android 설정에서 DroidDeck의 PIP 사용을 허용하세요.</string>

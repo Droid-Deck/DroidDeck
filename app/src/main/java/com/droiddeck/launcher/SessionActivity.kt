@@ -137,7 +137,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var pipUi by mutableStateOf(false)
     private var pipAutoEnter by mutableStateOf(false)
     private var unfoldedControls by mutableStateOf(false)
-    private var foldedAspect by mutableStateOf(com.droiddeck.launcher.session.SessionDisplay.FOLDED_FILL)
+    private var foldedAspect by mutableStateOf(com.droiddeck.launcher.session.SessionDisplay.FOLDED_16X9)
+    private var deckControlsWhen by mutableStateOf(com.droiddeck.launcher.session.SessionDisplay.CONTROLS_UNFOLDED)
     private var deckControlsScale by mutableIntStateOf(100)
     private var picturePosition by mutableStateOf("center")
 
@@ -924,6 +925,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     },
                     unfoldedControls = if (com.droiddeck.launcher.session.SessionDisplay.foldable(this@SessionActivity)) unfoldedControls else null,
                     onUnfoldedControls = ::chooseUnfoldedControls,
+                    deckControlsWhen = deckControlsWhen,
+                    onDeckControlsWhen = ::chooseDeckControlsWhen,
                     foldedAspect = foldedAspect,
                     onFoldedAspect = ::chooseFoldedAspect,
                     deckControlsScale = deckControlsScale,
@@ -1365,6 +1368,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         pipAutoEnter = SessionPrefs.pipAutoEnter(this)
         unfoldedControls = SessionPrefs.unfoldedControls(this)
         foldedAspect = SessionPrefs.foldedAspect(this)
+        deckControlsWhen = SessionPrefs.deckControlsWhen(this)
         deckControlsScale = SessionPrefs.deckControlsScale(this)
         picturePosition = SessionPrefs.picturePosition(this)
         hudOn = SessionPrefs.hudEnabled(this)
@@ -2401,6 +2405,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         applyUnfoldedControls()
     }
 
+    private fun chooseDeckControlsWhen(mode: String) {
+        SessionPrefs.setDeckControlsWhen(this, mode)
+        deckControlsWhen = mode
+        applyUnfoldedControls()
+    }
+
     private fun chooseDeckControlsScale(percent: Int) {
         SessionPrefs.setDeckControlsScale(this, percent)
         deckControlsScale = percent
@@ -2417,26 +2427,31 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val width = sessionRoot.width
         val height = sessionRoot.height
         val display = com.droiddeck.launcher.session.SessionDisplay
+        val halfFolded = deckControlsWhen == display.CONTROLS_HALF_FOLDED
         val origin = IntArray(2).also { sessionRoot.getLocationInWindow(it) }
-        val aboveFold = halfFold?.let { it.top - origin[1] } ?: 0
-        val belowFold = halfFold?.let { height - (it.bottom - origin[1]) } ?: 0
-        val wanted = unfoldedControls && halfFold != null &&
+        val gameSpace = if (halfFolded) halfFold?.let { it.top - origin[1] } ?: 0 else height
+        val controlsHeight = if (halfFolded) halfFold?.let { height - (it.bottom - origin[1]) } ?: 0
+            else height - display.unfoldedGameSize(width, height, foldedAspect).second
+        val wanted = unfoldedControls && display.foldable(this) &&
             !PadBridge.anyControllerConnected() && !SteamControllerBle.connected &&
             SessionState.mode == SessionService.MODE_STEAM && SessionState.deckPad &&
             !pipUi && !isInPictureInPictureMode && width > 0 && height > 0 &&
-            aboveFold >= display.FOLDED_MIN_SIDE && belowFold >= display.FOLDED_MIN_SIDE
+            (if (halfFolded) halfFold != null && gameSpace >= display.FOLDED_MIN_SIDE
+                else resources.configuration.smallestScreenWidthDp >= display.UNFOLDED_MIN_DP) &&
+            controlsHeight >= display.FOLDED_MIN_SIDE
         val params = if (wanted) {
-            val (gameWidth, gameHeight) = display.foldedGameSize(width, aboveFold, foldedAspect)
+            val (gameWidth, gameHeight) = if (halfFolded) display.foldedGameSize(width, gameSpace, foldedAspect)
+                else display.unfoldedGameSize(width, height, foldedAspect)
             FrameLayout.LayoutParams(gameWidth, gameHeight, Gravity.TOP or Gravity.CENTER_HORIZONTAL)
-                .apply { topMargin = (aboveFold - gameHeight) / 2 }
+                .apply { if (halfFolded) topMargin = (gameSpace - gameHeight) / 2 }
         } else {
             FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT, Gravity.TOP)
         }
         val current = surfaceView.layoutParams as FrameLayout.LayoutParams
         if (current.width != params.width || current.height != params.height || current.topMargin != params.topMargin) {
             surfaceView.layoutParams = params
-            Log.i(TAG, if (wanted) "half folded controls: game ${params.width}x${params.height} above the fold, controls ${width}x$belowFold"
-                else "half folded controls: game full screen")
+            Log.i(TAG, if (wanted) "deck controls ($deckControlsWhen): game ${params.width}x${params.height}, controls ${width}x$controlsHeight"
+                else "deck controls: game full screen")
         }
         var panel = unfoldedPanel
         if (!wanted) {
@@ -2450,7 +2465,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             unfoldedPanel = panel
             updateOnScreenControls()
         }
-        panel.layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, belowFold, Gravity.BOTTOM)
+        panel.layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, controlsHeight, Gravity.BOTTOM)
     }
 
     private fun moveSecondScreenPointer(x: Float, y: Float, width: Float, height: Float) {

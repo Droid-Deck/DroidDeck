@@ -1147,7 +1147,15 @@
     <string name="pip_title">Picture in picture</string>
     <string name="pip_auto">Passa automaticamente in PiP</string>
     <string name="unfolded_controls">Controlli sullo schermo aperto</string>
-    <string name="unfolded_controls_hint">Da aperto, il gioco sta sopra i trackpad e le impugnature posteriori di Steam Deck. Da chiuso, il gioco è a schermo intero.</string>
+    <string name="unfolded_controls_hint">Il gioco sta sopra i trackpad e le impugnature posteriori dello Steam Deck: sullo schermo aperto, o sopra la cerniera quando è piegato a metà. Altrimenti il gioco è a schermo intero.</string>
+    <string name="deck_controls_when">Mostra i controlli</string>
+    <string name="deck_controls_when_unfolded">Aperto</string>
+    <string name="deck_controls_when_half_folded">Piegato a metà</string>
+    <string name="folded_aspect">Formato del gioco</string>
+    <string name="folded_aspect_hint">Con la risoluzione «Segui lo schermo», il gioco viene renderizzato a questa dimensione.</string>
+    <string name="folded_aspect_fill">Riempi</string>
+    <string name="folded_aspect_scope">Cinemascope (2,39:1)</string>
+    <string name="deck_controls_scale">Dimensione dei controlli</string>
     <string name="pip_suspended">Sospeso</string>
     <string name="pip_not_ready">Il picture in picture è disponibile quando la sessione è pronta.</string>
     <string name="pip_permission">Consenti il picture in picture per DroidDeck nelle impostazioni di Android.</string>

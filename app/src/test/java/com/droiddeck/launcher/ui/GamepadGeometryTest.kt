@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import com.droiddeck.launcher.session.SessionDisplay
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.ui.GamepadGeometry.Slot
 import org.junit.Assert.assertEquals
@@ -8,22 +9,27 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GamepadGeometryTest {
-    /** The controls take what is below the fold of a phone half folded along its middle. */
-    private data class Panel(val name: String, val width: Int, val height: Int, val density: Float) {
-        val controlsHeight get() = height / 2
-    }
+    private data class Panel(val name: String, val width: Int, val controlsHeight: Int, val density: Float)
 
-    private val panels = listOf(
-        Panel("Fold 8 upright", 1848, 2448, 2.625f),
-        Panel("Fold 8 as a tablet", 2448, 1848, 2.625f),
-        Panel("Fold 7 as a tablet", 2184, 1968, 2.625f),
-        Panel("Pixel Fold upright", 1840, 2208, 2.625f),
-        Panel("Pixel Fold as a tablet", 2208, 1840, 2.625f),
-        Panel("OnePlus Open upright", 2268, 2440, 2.75f),
-        Panel("OnePlus Open as a tablet", 2440, 2268, 2.75f),
-        Panel("Fold 8 upright, large display size", 1848, 2448, 3.5f),
-        Panel("Fold 8 as a tablet, small display size", 2448, 1848, 2.0f),
+    private val screens = listOf(
+        Triple("Fold 8 upright", 1848 to 2448, 2.625f),
+        Triple("Fold 8 as a tablet", 2448 to 1848, 2.625f),
+        Triple("Fold 7 as a tablet", 2184 to 1968, 2.625f),
+        Triple("Pixel Fold upright", 1840 to 2208, 2.625f),
+        Triple("Pixel Fold as a tablet", 2208 to 1840, 2.625f),
+        Triple("OnePlus Open upright", 2268 to 2440, 2.75f),
+        Triple("OnePlus Open as a tablet", 2440 to 2268, 2.75f),
+        Triple("Fold 8 upright, large display size", 1848 to 2448, 3.5f),
+        Triple("Fold 8 as a tablet, small display size", 2448 to 1848, 2.0f),
     )
+
+    private val panels = screens.flatMap { (name, size, density) ->
+        val (w, h) = size
+        listOf(
+            Panel("$name, unfolded", w, h - SessionDisplay.unfoldedGameSize(w, h, SessionDisplay.FOLDED_16X9).second, density),
+            Panel("$name, half folded", w, h / 2, density),
+        )
+    }
 
     private fun boxes(panel: Panel, scale: Float = 1f) =
         GamepadGeometry.layout(panel.width.toFloat(), panel.controlsHeight.toFloat(), panel.density, scale)

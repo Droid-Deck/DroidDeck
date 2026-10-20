@@ -34,6 +34,13 @@ class SessionDisplayTest {
         assertEquals(2560 to 1440, SessionDisplay.resolveChoice(2560 to 1440, SessionDisplay.MATCH_SCREEN))
     }
 
+    @Test fun unfoldedTheGameKeepsItsShapeAcrossTheWidthInAtMostEightyPercent() {
+        assertEquals(2448 to 1376, SessionDisplay.unfoldedGameSize(2448, 1848, SessionDisplay.FOLDED_16X9))
+        assertEquals(1848 to 1038, SessionDisplay.unfoldedGameSize(1848, 2448, SessionDisplay.FOLDED_16X9))
+        assertEquals(1536 to 864, SessionDisplay.unfoldedGameSize(1920, 1080, SessionDisplay.FOLDED_16X9))
+        assertEquals(2184 to 984, SessionDisplay.unfoldedGameSize(2184, 1968, SessionDisplay.FOLDED_FILL))
+    }
+
     @Test fun aHalfFoldedGameTakesTheLargestBoxOfItsShapeAboveTheFold() {
         assertEquals(2184 to 984, SessionDisplay.foldedGameSize(2184, 984, SessionDisplay.FOLDED_FILL))
         assertEquals(1748 to 984, SessionDisplay.foldedGameSize(2184, 984, SessionDisplay.FOLDED_16X9))

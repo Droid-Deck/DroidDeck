@@ -45,6 +45,16 @@ object SessionDisplay {
 
     const val FOLDED_MIN_SIDE = 240
 
+    const val CONTROLS_UNFOLDED = "unfolded"
+    const val CONTROLS_HALF_FOLDED = "halfFolded"
+
+    const val UNFOLDED_MIN_DP = 600
+    const val UNFOLDED_MAX_GAME_SHARE = 0.8f
+
+    fun unfoldedGameSize(width: Int, height: Int, aspect: String): Pair<Int, Int> =
+        if (aspect == FOLDED_FILL) (width and 1.inv()) to (height / 2 and 1.inv())
+        else foldedGameSize(width, (height * UNFOLDED_MAX_GAME_SHARE).toInt(), aspect)
+
     fun foldedGameSize(width: Int, aboveFold: Int, aspect: String): Pair<Int, Int> {
         val ratio = when (aspect) {
             FOLDED_16X9 -> 16f / 9f

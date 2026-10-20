@@ -1152,7 +1152,15 @@
     <string name="pip_title">Kép a képben</string>
     <string name="pip_auto">Automatikus belépés a kép a képben módba</string>
     <string name="unfolded_controls">Vezérlők a kinyitott képernyőn</string>
-    <string name="unfolded_controls_hint">Kinyitva a játék a Steam Deck érintőpadjai és hátsó fogói fölött jelenik meg. Összecsukva a játék teljes képernyős.</string>
+    <string name="unfolded_controls_hint">A játék a Steam Deck érintőpadjai és hátsó markolatai fölött jelenik meg: kinyitott képernyőn, vagy félig összehajtva a zsanér fölött. Különben a játék teljes képernyős.</string>
+    <string name="deck_controls_when">Vezérlők megjelenítése</string>
+    <string name="deck_controls_when_unfolded">Kinyitva</string>
+    <string name="deck_controls_when_half_folded">Félig összehajtva</string>
+    <string name="folded_aspect">Játék formátuma</string>
+    <string name="folded_aspect_hint">A „Képernyő követése” felbontással a játék ebben a méretben renderelődik.</string>
+    <string name="folded_aspect_fill">Kitöltés</string>
+    <string name="folded_aspect_scope">Cinemascope (2,39:1)</string>
+    <string name="deck_controls_scale">Vezérlők mérete</string>
     <string name="pip_suspended">Felfüggesztve</string>
     <string name="pip_not_ready">A kép a képben mód csak a munkamenet elkészülése után érhető el.</string>
     <string name="pip_permission">Engedélyezze a kép a képben módot a DroidDeck számára az Android beállításaiban.</string>

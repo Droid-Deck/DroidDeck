@@ -1147,7 +1147,15 @@
     <string name="pip_title">Ecrã no ecrã</string>
     <string name="pip_auto">Entrar automaticamente em ecrã no ecrã</string>
     <string name="unfolded_controls">Controlos no ecrã desdobrado</string>
-    <string name="unfolded_controls_hint">Desdobrado, o jogo fica acima dos trackpads e das pegas traseiras do Steam Deck. Dobrado, o jogo ocupa o ecrã inteiro.</string>
+    <string name="unfolded_controls_hint">O jogo fica por cima dos trackpads e dos punhos traseiros da Steam Deck: no ecrã desdobrado, ou por cima da dobradiça quando meio dobrado. Caso contrário, o jogo fica em ecrã inteiro.</string>
+    <string name="deck_controls_when">Mostrar os controlos</string>
+    <string name="deck_controls_when_unfolded">Desdobrado</string>
+    <string name="deck_controls_when_half_folded">Meio dobrado</string>
+    <string name="folded_aspect">Formato do jogo</string>
+    <string name="folded_aspect_hint">Com a resolução «Seguir o ecrã», o jogo é renderizado neste tamanho.</string>
+    <string name="folded_aspect_fill">Preencher</string>
+    <string name="folded_aspect_scope">Cinemascope (2,39:1)</string>
+    <string name="deck_controls_scale">Tamanho dos controlos</string>
     <string name="pip_suspended">Suspenso</string>
     <string name="pip_not_ready">O ecrã no ecrã fica disponível quando a sessão estiver pronta.</string>
     <string name="pip_permission">Permita o ecrã no ecrã para o DroidDeck nas definições do Android.</string>

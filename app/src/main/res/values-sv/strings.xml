@@ -1152,7 +1152,15 @@
     <string name="pip_title">Bild-i-bild</string>
     <string name="pip_auto">Öppna bild-i-bild automatiskt</string>
     <string name="unfolded_controls">Kontroller på den uppfällda skärmen</string>
-    <string name="unfolded_controls_hint">Uppfälld ligger spelet ovanför Steam Decks styrplattor och greppknappar. Hopfälld visas spelet i helskärm.</string>
+    <string name="unfolded_controls_hint">Spelet visas ovanför Steam Decks styrplattor och bakre grepp: på den uppfällda skärmen, eller ovanför gångjärnet när den är halvvikt. Annars är spelet i helskärm.</string>
+    <string name="deck_controls_when">Visa kontrollerna</string>
+    <string name="deck_controls_when_unfolded">Uppfälld</string>
+    <string name="deck_controls_when_half_folded">Halvvikt</string>
+    <string name="folded_aspect">Spelformat</string>
+    <string name="folded_aspect_hint">Med upplösningen ”Följ skärmen” renderas spelet i den här storleken.</string>
+    <string name="folded_aspect_fill">Fyll</string>
+    <string name="folded_aspect_scope">Cinemascope (2,39:1)</string>
+    <string name="deck_controls_scale">Kontrollernas storlek</string>
     <string name="pip_suspended">Pausad</string>
     <string name="pip_not_ready">Bild-i-bild blir tillgängligt när sessionen är redo.</string>
     <string name="pip_permission">Tillåt bild-i-bild för DroidDeck i Android-inställningarna.</string>

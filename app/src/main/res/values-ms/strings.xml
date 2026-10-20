@@ -1146,7 +1146,15 @@
     <string name="pip_title">Gambar dalam gambar</string>
     <string name="pip_auto">Masuk ke PiP secara automatik</string>
     <string name="unfolded_controls">Kawalan pada skrin terbuka</string>
-    <string name="unfolded_controls_hint">Terbuka, permainan terletak di atas trackpad dan pemegang belakang Steam Deck. Dilipat, permainan menjadi skrin penuh.</string>
+    <string name="unfolded_controls_hint">Permainan dipaparkan di atas pad sentuh dan pemegang belakang Steam Deck: pada skrin terbuka, atau di atas engsel apabila separuh dilipat. Jika tidak, permainan dalam skrin penuh.</string>
+    <string name="deck_controls_when">Tunjukkan kawalan</string>
+    <string name="deck_controls_when_unfolded">Apabila dibuka</string>
+    <string name="deck_controls_when_half_folded">Apabila separuh dilipat</string>
+    <string name="folded_aspect">Bentuk permainan</string>
+    <string name="folded_aspect_hint">Dengan resolusi \"Ikut skrin\", permainan dipaparkan pada saiz ini.</string>
+    <string name="folded_aspect_fill">Isi</string>
+    <string name="folded_aspect_scope">Cinemascope (2.39:1)</string>
+    <string name="deck_controls_scale">Saiz kawalan</string>
     <string name="pip_suspended">Digantung</string>
     <string name="pip_not_ready">Gambar dalam gambar tersedia sebaik sahaja sesi sedia.</string>
     <string name="pip_permission">Benarkan gambar dalam gambar untuk DroidDeck dalam tetapan Android.</string>

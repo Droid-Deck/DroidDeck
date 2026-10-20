@@ -1141,7 +1141,15 @@
     <string name="pip_title">Pencere içinde pencere</string>
     <string name="pip_auto">Otomatik olarak PiP moduna geç</string>
     <string name="unfolded_controls">Açılmış ekrandaki kontroller</string>
-    <string name="unfolded_controls_hint">Cihaz açıkken oyun, Steam Deck dokunmatik yüzeylerinin ve arka tutamaklarının üstünde durur. Katlıyken oyun tam ekran olur.</string>
+    <string name="unfolded_controls_hint">Oyun, Steam Deck\'in dokunmatik yüzeylerinin ve arka tutamaçlarının üstünde durur: açılmış ekranda ya da yarı katlıyken menteşenin üstünde. Aksi halde oyun tam ekrandır.</string>
+    <string name="deck_controls_when">Kontrolleri göster</string>
+    <string name="deck_controls_when_unfolded">Açıkken</string>
+    <string name="deck_controls_when_half_folded">Yarı katlıyken</string>
+    <string name="folded_aspect">Oyun biçimi</string>
+    <string name="folded_aspect_hint">\"Ekranı takip et\" çözünürlüğünde oyun bu boyutta işlenir.</string>
+    <string name="folded_aspect_fill">Doldur</string>
+    <string name="folded_aspect_scope">Sinemaskop (2,39:1)</string>
+    <string name="deck_controls_scale">Kontrol boyutu</string>
     <string name="pip_suspended">Askıya alındı</string>
     <string name="pip_not_ready">Pencere içinde pencere, oturum hazır olduğunda kullanılabilir.</string>
     <string name="pip_permission">Android ayarlarında DroidDeck için pencere içinde pencereye izin verin.</string>
