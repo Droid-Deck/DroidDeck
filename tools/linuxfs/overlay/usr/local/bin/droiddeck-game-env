@@ -99,6 +99,12 @@ def godot_sentry(game):
 
 
 @fix
+def deep_rock_gdk_raytracing(game):
+    if game.stem == "fsd-wingdk-shipping" and not any(game.has_arg(arg) for arg in ("-raytracing", "-noraytracing")):
+        return {}, ["-noraytracing", "-ini:Engine:[/Script/Engine.RendererSettings]:r.RayTracing=False"], "Deep Rock Galactic GDK: ray tracing off (D3D12 pipeline creation fails on Thor)"
+
+
+@fix
 def arkham_city_x87(game):
     """Batman: Arkham City (BatmanAC.exe, also started through BmLauncher.exe beside it) leans on x87
     and stops with Unreal's "Fatal error!" right after start when FEX reduces its precision."""
@@ -310,6 +316,18 @@ def main():
     if mic_enabled == "0":
         env["BANNER_AUDIO_DIRECT_MIC"] = "0"
     env = force_ssbs(command, env)
+    try:
+        xbox = runpy.run_path(str(Path(__file__).with_name("droiddeck-xbox")))
+    except Exception as error:
+        print("droiddeck-game-env: Xbox support unavailable (%s); stock launch" % error, file=sys.stderr)
+        xbox = {"launch": lambda command, env: None}
+    try:
+        xbox_result = xbox["launch"](command, env)
+    except (OSError, ValueError, KeyError, RuntimeError) as error:
+        print("droiddeck-game-env: Xbox launch could not start (%s)" % error, file=sys.stderr)
+        return 1
+    if xbox_result is not None:
+        return xbox_result
     sync = load_sync()
     launch, launch_env = select_sync(command, env, sync)
     if launch[0] != command[0]:

@@ -67,7 +67,10 @@ object StoreAccounts {
     fun write(context: Context, store: Store, json: JSONObject) {
         unavailable.remove(store)
         val f = credentialsFile(context, store)
-        if (seal(f, json) == null) put(f, json.toString())
+        if (seal(f, json, retry = store == Store.XBOX) == null) {
+            check(store != Store.XBOX) { "Android Keystore is unavailable for Xbox credentials" }
+            put(f, json.toString())
+        }
     }
 
     @Synchronized
@@ -86,18 +89,19 @@ object StoreAccounts {
 
     fun signedInAs(context: Context, store: Store): String? {
         val json = read(context, store) ?: return if (isUnavailable(store)) store.label else null
+        if (store == Store.XBOX) return json.optString("username").takeIf { it.isNotBlank() }
         if (json.optString("access_token", "").isEmpty()) return null
         return json.optString("display_name", "").ifEmpty { json.optString("username", "") }.ifEmpty { store.label }
     }
 
-    private fun seal(f: File, json: JSONObject): File? {
-        if (keystoreFailed) return null
+    private fun seal(f: File, json: JSONObject, retry: Boolean = false): File? {
+        if (keystoreFailed && !retry) return null
         val text = json.toString()
         val envelope = try {
             CredentialCipher.seal(text, keys).also { check(CredentialCipher.open(it, keys) == text) { "check failed" } }
         } catch (e: Exception) {
             keystoreFailed = true
-            Log.w(TAG, "stores: keystore unavailable, credentials stay plain (${e.javaClass.simpleName})")
+            Log.w(TAG, "stores: keystore unavailable (${e.javaClass.simpleName})")
             return null
         }
         put(f, envelope.toString())
