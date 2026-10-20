@@ -594,11 +594,13 @@ object SessionFiles {
   </match>
 </fontconfig>
 """
-            if (!conf.isFile() || FileUtils.readString(conf) != xml) {
-                if (FileUtils.writeString(conf, xml)) {
-                    Log.i(TAG, "wrote CJK fontconfig 99-droiddeck-cjk.conf")
-                } else {
-                    Log.e(TAG, "could not write CJK fontconfig")
+            if ( ! conf.isFile() ||  FileUtils.readString (conf) != xml) {
+                val staged =  File (confDir, conf.name +  " .staged " )
+                如果( FileUtils.writeString (staged, xml) && staged.renameTo(conf)) {
+                    Log.i ( TAG , "写入 CJK 字体配置 99-droiddeck-cjk.conf " )
+                }别的{
+                    阶段性删除()
+                    Log.e ( TAG , "无法写入CJK字体配置" )
                 }
             }
         } catch (e: Exception) {
