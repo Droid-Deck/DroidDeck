@@ -45,7 +45,6 @@ object FileOps {
         return f.length()
     }
 
-    /** isCancelled is checked before anything is moved and before the source is deleted; empty files report no progress. */
     fun moveWithProgress(src: File, dst: File, progress: ProgressCallback?, isCancelled: () -> Boolean = { false }): Boolean {
         if (sameFile(src, dst)) return true
         if (isCancelled()) return false
@@ -84,25 +83,31 @@ object FileOps {
         val parent = dst.parentFile
         if (!src.exists() || (parent != null && !parent.exists() && !parent.mkdirs())) return false
         val chunk = 4L * 1024 * 1024
+        val overwrite = Files.exists(dst.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS)
         var staging: File? = null
+        var copied: File? = null
         try {
-            val target = if (isSymlink(dst)) dst.canonicalFile else dst
-            if (isSymlink(target) || target.parentFile?.isDirectory != true) {
-                throw IOException("Destination symlink target is not a writable directory entry: $dst")
+            val target = if (overwrite && isSymlink(dst)) dst.canonicalFile else dst
+            var permissions: Set<java.nio.file.attribute.PosixFilePermission>? = null
+            if (overwrite) {
+                if (isSymlink(target) || target.parentFile?.isDirectory != true) {
+                    throw IOException("Destination symlink target is not a writable directory entry: $dst")
+                }
+                permissions = try {
+                    Files.getPosixFilePermissions(target.toPath())
+                } catch (e: java.nio.file.NoSuchFileException) {
+                    null
+                } catch (e: UnsupportedOperationException) {
+                    null
+                }
+                if (target.exists() && !target.canWrite()) throw IOException("Destination is not writable: $target")
+                val directory = Files.createTempDirectory(checkNotNull(target.absoluteFile.parentFile).toPath(), ".droiddeck-copy-")
+                staging = directory.toFile()
             }
-            val permissions = try {
-                Files.getPosixFilePermissions(target.toPath())
-            } catch (e: java.nio.file.NoSuchFileException) {
-                null
-            } catch (e: UnsupportedOperationException) {
-                null
-            }
-            if (target.exists() && !target.canWrite()) throw IOException("Destination is not writable: $target")
-            val directory = Files.createTempDirectory(checkNotNull(target.absoluteFile.parentFile).toPath(), ".droiddeck-copy-")
-            staging = directory.toFile()
-            val copied = directory.resolve("file")
+            val out = staging?.let { File(it, "file") } ?: target
+            copied = out
             FileInputStream(src).channel.use { input ->
-                FileOutputStream(copied.toFile()).channel.use { output ->
+                FileOutputStream(out).channel.use { output ->
                     val size = input.size()
                     var position = 0L
                     while (position < size) {
@@ -115,15 +120,19 @@ object FileOps {
                     if (position < size) throw IOException("Incomplete copy: $position/$size bytes")
                 }
             }
-            if (permissions != null && Files.getPosixFilePermissions(copied) != permissions) {
-                Files.setPosixFilePermissions(copied, permissions)
+            if (staging != null) {
+                if (permissions != null && Files.getPosixFilePermissions(out.toPath()) != permissions) {
+                    Files.setPosixFilePermissions(out.toPath(), permissions)
+                }
+                Files.move(out.toPath(), target.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
             }
-            Files.move(copied, target.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
             return true
         } catch (e: java.util.concurrent.CancellationException) {
+            if (staging == null) copied?.delete()
             throw e
         } catch (e: IOException) {
             Log.e(TAG, "Failed to copy file: $src to $dst", e)
+            if (staging == null) copied?.delete()
             return false
         } finally {
             staging?.let { directory ->
