@@ -63,6 +63,7 @@ object FileOps {
     }
 
     private fun copyWithProgress(src: File, dst: File, done: LongArray, total: Long, progress: ProgressCallback?, isCancelled: () -> Boolean): Boolean {
+        if (isCancelled()) throw java.util.concurrent.CancellationException("Copy cancelled: $src")
         if (isSymlink(src)) return true
         if (sameFile(src, dst)) return true
         if (src.isDirectory && isWithin(dst, src)) {
@@ -80,7 +81,6 @@ object FileOps {
             }
             return allOk
         }
-        if (isCancelled()) throw java.util.concurrent.CancellationException("Copy cancelled: $src")
         val parent = dst.parentFile
         if (!src.exists() || (parent != null && !parent.exists() && !parent.mkdirs())) return false
         val chunk = 4L * 1024 * 1024

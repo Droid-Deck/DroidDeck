@@ -59,10 +59,21 @@ class FileOpsCopyTest {
         val dst = File(tmp.root, "dest")
         var checks = 0
         assertThrows(CancellationException::class.java) {
-            FileOps.copyWithProgress(src, dst, null) { checks++ > 0 }
+            FileOps.copyWithProgress(src, dst, null) { checks++ > 1 }
         }
         assertEquals(1, dst.list()!!.size)
         assertEquals(3, src.list()!!.size)
+    }
+
+    @Test fun cancellingStopsATreeOfEmptyFolders() {
+        val src = tmp.newFolder("source")
+        for (name in listOf("a", "b", "c")) File(src, name).mkdir()
+        val dst = File(tmp.root, "dest")
+        var checks = 0
+        assertThrows(CancellationException::class.java) {
+            FileOps.copyWithProgress(src, dst, null) { checks++ > 1 }
+        }
+        assertEquals(1, dst.list()!!.size)
     }
 
     @Test fun aCompletedCopyReplacesTheDestination() {
