@@ -1491,7 +1491,7 @@ class MainActivity : ComponentActivity() {
 
     private fun refreshController() {
         controllerSettings = ControllerPrefs.read(this)
-        steamController = SessionPrefs.steamController(this)
+        steamController = com.droiddeck.launcher.input.DualSenseManager.effectiveSteamController(this)
     }
 
     @Composable
@@ -1903,7 +1903,7 @@ class MainActivity : ComponentActivity() {
         steamClientArch = SessionPrefs.steamClientArch(this)
         steamRepairQueued = SteamRepair.queued(this)
         mangoapp = SessionPrefs.mangoapp(this)
-        steamController = SessionPrefs.steamController(this)
+        steamController = com.droiddeck.launcher.input.DualSenseManager.effectiveSteamController(this)
         runSteamAtStartup = SessionPrefs.runSteamAtStartup(this)
         loadBootMovie()
         hdrOn = SessionPrefs.hdr(this, mode)

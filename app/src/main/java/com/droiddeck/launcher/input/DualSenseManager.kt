@@ -590,7 +590,6 @@ class DualSenseManager(private val context: Context) {
         if (isDualSenseActive) return
         val prev = SessionPrefs.steamController(context)
         cachedPreference = prev
-        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DUALSENSE)
         FakeInputWriter.setPadType(FakeInputWriter.PAD_TYPE_DUALSENSE)
         SteamDeckPad.showPad(FakeInputWriter.PAD_TYPE_DUALSENSE)
         isDualSenseActive = true
@@ -602,8 +601,12 @@ class DualSenseManager(private val context: Context) {
     @Synchronized
     fun demoteFromDualSense() {
         if (!isDualSenseActive) return
-        val restorePref = cachedPreference ?: SessionPrefs.CONTROLLER_DECK
-        SessionPrefs.setSteamController(context, restorePref)
+        val currentPref = SessionPrefs.steamController(context)
+        val restorePref = if (currentPref != SessionPrefs.CONTROLLER_DUALSENSE) {
+            currentPref
+        } else {
+            cachedPreference ?: SessionPrefs.CONTROLLER_DECK
+        }
         val padType = SessionPrefs.padType(restorePref)
         FakeInputWriter.setPadType(padType)
         SteamDeckPad.showPad(padType)
@@ -911,23 +914,23 @@ class DualSenseManager(private val context: Context) {
         }
 
         // 3. DualSense Edge Extra Buttons (L4/R4 Function buttons & L5/R5 Back Paddles)
-        when {
-            keyCode == KeyEvent.KEYCODE_BUTTON_1 || scanCode == 308 -> {
+        when (keyCode) {
+            KeyEvent.KEYCODE_BUTTON_1 -> {
                 osL4Down = down
                 DeckControls.setDualSenseExtras(osMuteDown, osL4Down, osR4Down, osL5Down, osR5Down)
                 return true
             }
-            keyCode == KeyEvent.KEYCODE_BUTTON_2 || scanCode == 309 -> {
+            KeyEvent.KEYCODE_BUTTON_2 -> {
                 osR4Down = down
                 DeckControls.setDualSenseExtras(osMuteDown, osL4Down, osR4Down, osL5Down, osR5Down)
                 return true
             }
-            keyCode == KeyEvent.KEYCODE_BUTTON_3 || scanCode == 306 -> {
+            KeyEvent.KEYCODE_BUTTON_3 -> {
                 osL5Down = down
                 DeckControls.setDualSenseExtras(osMuteDown, osL4Down, osR4Down, osL5Down, osR5Down)
                 return true
             }
-            keyCode == KeyEvent.KEYCODE_BUTTON_4 || scanCode == 307 -> {
+            KeyEvent.KEYCODE_BUTTON_4 -> {
                 osR5Down = down
                 DeckControls.setDualSenseExtras(osMuteDown, osL4Down, osR4Down, osL5Down, osR5Down)
                 return true
@@ -954,5 +957,13 @@ class DualSenseManager(private val context: Context) {
         @JvmStatic
         fun shouldSuppress(device: InputDevice?): Boolean =
             activeManager?.shouldSuppressInputDevice(device) == true
+
+        @JvmStatic
+        fun effectiveSteamController(context: Context): String =
+            if (activeManager?.isDualSenseActive == true) {
+                SessionPrefs.CONTROLLER_DUALSENSE
+            } else {
+                SessionPrefs.steamController(context)
+            }
     }
 }

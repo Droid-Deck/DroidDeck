@@ -365,9 +365,18 @@ class DualSenseOutputBridge : SessionPart() {
 
                     if ((enable1 and 0x10) != 0) {
                         val playerMask = report[44].toInt() and 0x1F
+                        val playerId = when (playerMask) {
+                            0x04 -> 1
+                            0x0A -> 2
+                            0x15 -> 3
+                            0x1B -> 4
+                            0x1F -> 5
+                            0x00 -> 0
+                            else -> playerMask.coerceIn(0, 5)
+                        }
                         val playerLight = lights.firstOrNull { it.type == Light.LIGHT_TYPE_PLAYER_ID }
                         if (playerLight != null) {
-                            reqBuilder.addLight(playerLight, LightState.Builder().setPlayerId(playerMask).build())
+                            reqBuilder.addLight(playerLight, LightState.Builder().setPlayerId(playerId).build())
                             addedAny = true
                         }
                     }

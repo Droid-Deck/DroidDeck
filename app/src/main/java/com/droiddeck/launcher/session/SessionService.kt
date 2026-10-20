@@ -666,8 +666,9 @@ class SessionService : Service() {
             !File(Environment.getExternalStorageDirectory(), NO_DECK_PAD_SWITCH).exists()
         val wantsTouch = wantsDeck && !File(Environment.getExternalStorageDirectory(), NO_STEAM_TOUCH_SWITCH).exists()
         val wantsTriton = wantsDeck && SteamControllerBle.hasPairedController(this)
+        val effectiveController = com.droiddeck.launcher.input.DualSenseManager.effectiveSteamController(this)
         deckBinds = if (wantsDeck) SteamDeckPad.prepare(this, fakeInputDir.parentFile!!.parentFile!!, wantsTouch, wantsTriton,
-            SessionPrefs.padType(SessionPrefs.steamController(this))) else emptyList()
+            SessionPrefs.padType(effectiveController)) else emptyList()
         SessionState.deckPad = deckBinds.isNotEmpty()
         if (wantsDeck && !SessionState.deckPad) Log.w(TAG, "deck pad: not available this session; the pad stays an Xbox 360 controller")
         logControllersAtStart()
@@ -677,7 +678,7 @@ class SessionService : Service() {
             if (SessionState.deckPad) {
                 guest.add("FAKE_EVDEV_DECK=1")
                 if (wantsTriton) guest.add("FAKE_EVDEV_TRITON=1")
-                val padType = SessionPrefs.steamController(this)
+                val padType = effectiveController
                 guest.add("FAKE_EVDEV_PAD_TYPE=$padType")
                 com.droiddeck.launcher.input.FakeInputWriter.setPadType(SessionPrefs.padType(padType))
                 if (wantsTouch) com.droiddeck.launcher.input.SteamTouchDevice.prepare(fakeInputDir)?.let {
@@ -1661,7 +1662,7 @@ class SessionService : Service() {
             pads.add(String.format(java.util.Locale.ROOT, "\"%s\" (%04x:%04x)", d.name, d.vendorId, d.productId))
         }
         Log.i(TAG, "controllers at start: " + (if (pads.isEmpty()) "none" else pads.joinToString(", ")) +
-            "; presented to the guest as " + if (SessionState.deckPad) "switchable, starting as " + SessionPrefs.steamController(this) else "an Xbox 360 controller")
+            "; presented to the guest as " + if (SessionState.deckPad) "switchable, starting as " + com.droiddeck.launcher.input.DualSenseManager.effectiveSteamController(this) else "an Xbox 360 controller")
     }
 
     companion object {

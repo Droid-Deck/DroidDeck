@@ -68,6 +68,27 @@ public class DualSenseBridge {
         public ushort VersionNumber;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    public struct HIDP_CAPS {
+        public ushort Usage;
+        public ushort UsagePage;
+        public ushort InputReportByteLength;
+        public ushort OutputReportByteLength;
+        public ushort FeatureReportByteLength;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 17)]
+        public ushort[] Reserved;
+        public ushort NumberLinkCollectionNodes;
+        public ushort NumberInputButtonCaps;
+        public ushort NumberInputValueCaps;
+        public ushort NumberInputDataIndices;
+        public ushort NumberOutputButtonCaps;
+        public ushort NumberOutputValueCaps;
+        public ushort NumberOutputDataIndices;
+        public ushort NumberFeatureButtonCaps;
+        public ushort NumberFeatureValueCaps;
+        public ushort NumberFeatureDataIndices;
+    }
+
     [DllImport("setupapi.dll", SetLastError = true)]
     public static extern IntPtr SetupDiGetClassDevs(ref Guid classGuid, IntPtr enumerator, IntPtr hwndParent, int flags);
 
@@ -91,6 +112,32 @@ public class DualSenseBridge {
 
     [DllImport("hid.dll", SetLastError = true)]
     public static extern bool HidD_SetOutputReport(SafeFileHandle HidDeviceObject, byte[] ReportBuffer, int ReportBufferLength);
+
+    [DllImport("hid.dll", SetLastError = true)]
+    public static extern bool HidD_GetPreparsedData(SafeFileHandle HidDeviceObject, out IntPtr PreparsedData);
+
+    [DllImport("hid.dll", SetLastError = true)]
+    public static extern bool HidD_FreePreparsedData(IntPtr PreparsedData);
+
+    [DllImport("hid.dll", SetLastError = true)]
+    public static extern int HidP_GetCaps(IntPtr PreparsedData, out HIDP_CAPS Capabilities);
+
+    public static int GetOutputReportByteLength(SafeFileHandle handle, int fallbackLength) {
+        if (handle == null || handle.IsInvalid || handle.IsClosed) return fallbackLength;
+        IntPtr preparsed = IntPtr.Zero;
+        if (!HidD_GetPreparsedData(handle, out preparsed) || preparsed == IntPtr.Zero) {
+            return fallbackLength;
+        }
+        try {
+            HIDP_CAPS caps;
+            if (HidP_GetCaps(preparsed, out caps) == 0x00110000 && caps.OutputReportByteLength > 0) {
+                return (int)caps.OutputReportByteLength;
+            }
+        } finally {
+            HidD_FreePreparsedData(preparsed);
+        }
+        return fallbackLength;
+    }
 
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
     public static extern SafeFileHandle CreateFile(
@@ -142,10 +189,9 @@ public class DualSenseBridge {
         return ~crc;
     }
 
-    public static byte[] WrapUsbOutputToBt78(byte[] usb48, int seq, bool btInitializing) {
-        // Allocate 547 bytes to safely satisfy Windows hidclass.sys OutputReportByteLength (547)
-        // while populating the 78-byte 0x31 Bluetooth report and 0xA2 CRC-32 at bytes 0..77.
-        byte[] bt = new byte[547];
+    public static byte[] WrapUsbOutputToBt78(byte[] usb48, int seq, bool btInitializing, int outputReportLength = 78) {
+        int bufLen = Math.Max(outputReportLength, 78);
+        byte[] bt = new byte[bufLen];
         bt[0] = 0x31;
         bt[1] = (byte)(((seq & 0x0F) << 4) | 0x02);
         Array.Copy(usb48, 1, bt, 2, 47);
@@ -164,8 +210,8 @@ public class DualSenseBridge {
         return bt;
     }
 
-    public static bool NormalizeInputToUsb64(byte[] inBuf, int readBytes, byte[] outUsb64) {
-        if (readBytes >= 64 && inBuf[0] == 0x01) {
+    public static bool NormalizeInputToUsb64(byte[] inBuf, int readBytes, byte[] outUsb64, bool isBluetooth = false) {
+        if (!isBluetooth && readBytes >= 64 && inBuf[0] == 0x01) {
             Array.Copy(inBuf, 0, outUsb64, 0, 64);
             return true;
         }
@@ -259,6 +305,7 @@ public class DualSenseBridge {
         System.Threading.Thread t = new System.Threading.Thread(() => {
             byte[] buf = new byte[48];
             int seq = 0;
+            int outReportLen = GetOutputReportByteLength(writeHandle, isBluetooth ? 78 : 48);
             Stopwatch sw = Stopwatch.StartNew();
             try {
                 while (true) {
@@ -272,10 +319,12 @@ public class DualSenseBridge {
                     int written = 0;
                     if (isBluetooth) {
                         bool btInit = sw.ElapsedMilliseconds < 3000;
-                        byte[] bt547 = WrapUsbOutputToBt78(buf, seq, btInit);
+                        byte[] btBuf = WrapUsbOutputToBt78(buf, seq, btInit, outReportLen);
                         seq = (seq + 1) & 0x0F;
-                        if (!WriteFile(writeHandle, bt547, 547, out written, IntPtr.Zero)) {
-                            WriteFile(writeHandle, bt547, 78, out written, IntPtr.Zero);
+                        if (!WriteFile(writeHandle, btBuf, btBuf.Length, out written, IntPtr.Zero)) {
+                            if (btBuf.Length != 78) {
+                                WriteFile(writeHandle, btBuf, 78, out written, IntPtr.Zero);
+                            }
                         }
                     } else {
                         WriteFile(writeHandle, buf, 48, out written, IntPtr.Zero);
@@ -350,9 +399,10 @@ try {
         $testOut[47] = 255
         $written = 0
         if ($isBluetooth) {
-            $bt547 = [DualSenseBridge]::WrapUsbOutputToBt78($testOut, 0, $false)
-            if (-not [DualSenseBridge]::WriteFile($handle, $bt547, 547, [ref]$written, [IntPtr]::Zero)) {
-                [DualSenseBridge]::WriteFile($handle, $bt547, 78, [ref]$written, [IntPtr]::Zero) | Out-Null
+            $outReportLen = [DualSenseBridge]::GetOutputReportByteLength($handle, 78)
+            $btBuf = [DualSenseBridge]::WrapUsbOutputToBt78($testOut, 0, $false, $outReportLen)
+            if (-not [DualSenseBridge]::WriteFile($handle, $btBuf, $btBuf.Length, [ref]$written, [IntPtr]::Zero)) {
+                [DualSenseBridge]::WriteFile($handle, $btBuf, 78, [ref]$written, [IntPtr]::Zero) | Out-Null
             }
         } else {
             [DualSenseBridge]::WriteFile($handle, $testOut, 48, [ref]$written, [IntPtr]::Zero) | Out-Null
@@ -375,14 +425,14 @@ try {
     Write-Host "Host bridge listening on 127.0.0.1:$Port (auto-switching USB & Bluetooth hot-plug enabled)..." -ForegroundColor Green
 
     while ($true) {
+        if (-not $listener.Pending()) {
+            Start-Sleep -Milliseconds 150
+            continue
+        }
         # Wait for live physical DualSense before accepting TCP client so the Android app only promotes when a DualSense is actually connected
         $path = [DualSenseBridge]::FindDualSensePath()
         if (-not $path) {
             Start-Sleep -Milliseconds 1000
-            continue
-        }
-        if (-not $listener.Pending()) {
-            Start-Sleep -Milliseconds 150
             continue
         }
 
@@ -436,7 +486,7 @@ try {
             while ($client.Connected) {
                 $readBytes = 0
                 if ([DualSenseBridge]::ReadFile($handle, $inBuf, $readLen, [ref]$readBytes, [IntPtr]::Zero)) {
-                    if ([DualSenseBridge]::NormalizeInputToUsb64($inBuf, $readBytes, $usb64)) {
+                    if ([DualSenseBridge]::NormalizeInputToUsb64($inBuf, $readBytes, $usb64, $isBluetooth)) {
                         $stream.Write($usb64, 0, 64)
                     }
                 } else {
