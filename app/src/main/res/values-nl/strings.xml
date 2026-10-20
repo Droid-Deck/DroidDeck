@@ -2909,7 +2909,6 @@
     <string name="spatial_hands_wait_stable">Wachten op stabiele hoofdtracking; reset het trackingcentrum indien aangevraagd.</string>
     <string name="spatial_old_frame">Cameraobservatie is te oud; wachtend op een nieuw paar</string>
     <string name="spatial_fit_ready">Pas %1$.2f px aan. Meet de door u geselecteerde afstand vanaf de linkercamera tot het midden van het kalibratiedoel en valideer vervolgens.</string>
-    <string name="spatial_opencv_error">OpenCV niet beschikbaar: %1$s</string>
     <string name="spatial_restored">%1$d opgeslagen weergaven hersteld. Bereken de kalibratie om het opnieuw te proberen, of start een nieuwe set om meer vast te leggen.</string>
     <string name="spatial_captured">Vastgelegd %1$d / 24 weergaven. Houd het kalibratiedoel vast; verplaats de slimme bril voor de volgende weergave.</string>
     <string name="spatial_capture_corners">Opname afgewezen: %1$d / 12 vereiste hoeken zichtbaar in beide camera\'s. Laat meer van het kalibratiedoel zien, blijf stil staan ​​en probeer het opnieuw.</string>

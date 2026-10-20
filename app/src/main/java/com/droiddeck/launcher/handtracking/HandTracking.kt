@@ -16,9 +16,10 @@ internal object HandTracking {
         val side: String? = null,
         val permitted: Boolean = false,
         val sides: Set<String> = emptySet(),
+        val downloaded: Boolean = false,
     ) {
         val usable: Boolean get() = sides.isNotEmpty()
-        val ready: Boolean get() = enabled && permitted && usable
+        val ready: Boolean get() = enabled && permitted && usable && downloaded
     }
 
     private val state = MutableStateFlow(Settings())
@@ -38,8 +39,11 @@ internal object HandTracking {
             side = prefs.getString(SIDE, null),
             permitted = permitted(context),
             sides = if (supported) TrackingCameras.sides(found) else emptySet(),
+            downloaded = TrackingPack.installed(context),
         )
         state.value = next
+        if (next.enabled && next.usable && !next.downloaded && TrackingPack.refresh(context) == TrackingPack.State.Missing)
+            TrackingPack.ensure(context)
         return next
     }
 
