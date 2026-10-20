@@ -34,5 +34,5 @@ void fge_forget_targets(void) {}
 void fge_telemetry(float *accepted, float *source_rate, float *thermal) {
     *accepted = 0.0f; *source_rate = 0.0f; *thermal = -1.0f;
 }
-const char *fge_engine_name(int kind) { return kind == 1 ? "Win-FG Native" : "LSFG Native"; }
+const char *fge_engine_name(int kind) { return kind == 1 ? "DD-FG Native" : "LSFG Native"; }
 const char *fge_build_info(void) { return "stub"; }

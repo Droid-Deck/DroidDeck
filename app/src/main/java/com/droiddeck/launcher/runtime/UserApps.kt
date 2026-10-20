@@ -71,6 +71,9 @@ object UserApps {
     private fun menuEntry(context: Context, id: String) =
         File(LinuxRuntime.rootDir(context), "usr/local/share/applications/droiddeck-app-$id.desktop")
 
+    fun launches(program: String?): Boolean =
+        program == SCRIPT_LAUNCHER || program == AppImageManager.LAUNCHER || program == FlatpakManager.LAUNCHER
+
     fun list(context: Context): List<App> {
         val scripts = root(context).listFiles()?.filter { File(it, "entry").isFile }?.map { dir ->
             App(

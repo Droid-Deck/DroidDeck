@@ -59,15 +59,21 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.util.Locale
 
 
 internal val Shape14 = RoundedCornerShape(14.dp)
+
+@Composable
+internal fun headingUppercase(text: String): String =
+    text.uppercase(LocalConfiguration.current.locales[0] ?: Locale.ROOT)
 
 @Composable
 internal fun Eyebrow(t: String) {
@@ -76,7 +82,7 @@ internal fun Eyebrow(t: String) {
     LaunchedEffect(Unit) { rule.animateTo(1f, Motion.tw(600, 120)) }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Box(modifier = Modifier.width(18.dp).height(1.5.dp).graphicsLayer { scaleX = rule.value; transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f) }.background(pal.signal))
-        Text(t.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, color = pal.signal)
+        Text(headingUppercase(t), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, color = pal.signal)
     }
 }
 
@@ -88,7 +94,7 @@ internal fun Eyebrow(t: String) {
 internal fun SectionTitle(t: String, detail: String?) {
     val colors = MaterialTheme.colorScheme
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp)) {
-        Text(t.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, color = colors.onSurfaceVariant)
+        Text(headingUppercase(t), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, color = colors.onSurfaceVariant)
         if (detail != null) Text(detail, fontSize = 12.sp, color = colors.onBackground)
         Box(modifier = Modifier.weight(1f).height(1.dp).background(LocalPalette.current.line))
     }

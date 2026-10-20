@@ -290,7 +290,7 @@ public final class WaylandCompositor {
 
     public static native void nativeSendSceneInput(int type, int a, int b);
 
-    public static final int FG_ENGINE_LSFG = 0, FG_ENGINE_WINFG = 1;
+    public static final int FG_ENGINE_LSFG = 0, FG_ENGINE_DDFG = 1;
 
     public static native void nativeSetFrameGenEngine(int kind);
 
@@ -300,7 +300,7 @@ public final class WaylandCompositor {
 
     public static native void nativeSetFrameGenTuning(float flowScale, float refreshHz);
 
-    public static native void nativeSetWinFgTuning(int model, int perfPreset);
+    public static native void nativeSetDdFgTuning(int model, int perfPreset);
 
     public static native int nativeFrameGenProblem();
     public static native String nativeFrameGenCapsReason();

@@ -39,6 +39,11 @@ arm64 client down first.
   standalone launcher honours up to five times, as `steam.sh` does).
 - Before each start `x64_sync_client` brings the client to Valve's current build, downloading only the
   changed parts (9 of 28 on a device). If that fails, the client updates itself.
+- The client is the `steamrt64` platform (`steamrt64/steam`, the manifest it checks for updates), so
+  the install, the sync and the web-helper build check read `steam_client_<channel>_steamrt64`. The
+  `ubuntu12` manifest lags it (device: 1792108788 against 1792192922): an install from it was always
+  one build behind the arm64 client, so the arm64 web helper was never used, and the client updated
+  itself in place at its first start (506 MB) after the helper had already been chosen.
 - `.steam-enable-steamrt64-client` in the client folder opts into the SteamRT3 build
   (`steamrt64/steam`). Without it the client re-executes itself in the scout environment through
   `steam.sh`, whose start-up checks need what proot cannot give; the session stalled before the
@@ -119,6 +124,11 @@ The client's web helper draws its whole UI. There are two:
   backend through FEX's GL thunk to zink and Turnip. On ANGLE's Vulkan backend the x86 compositor
   thread was the bottleneck (16 fps against 60). Never `--in-process-gpu`, the preload's default: a
   GPU crash there took the whole helper down (102 restarts). `BL_X64_CEF_GPU=0` keeps it in software.
+  Its GPU process loads libpci, which exits when `/sys/bus/pci/devices` lists a device whose files
+  the app may not read (a RedMagic's PCIe root ports): every GPU process exited with status 1 in about
+  50 ms, software ones too, until Chromium gave up ("GPU process isn't usable") and the menus stayed
+  blank. `LinuxRuntime` binds an empty folder over `/sys/bus/pci/devices` on such devices; device:
+  0 GPU process exits, ANGLE on zink and Turnip.
 
 The session shim (`preload/net.c`) turns `steamrt64/steamwebhelper.sh`'s exec of `./steamwebhelper`
 into `BL_X64_ARM_WEBHELPER`. Nothing in the client's folder is edited: the client checksums its files
@@ -217,7 +227,7 @@ alone would then read as an installed client.
 
 - **What a session log shows.** `FEX ready (<tag>, <source>)` names the build and where it came from
   (`catalog`, `built-in`, or `kept` when a newer one did not install, with the reason a line above);
-  `x86-64 rootfs:` names the image; `x86-64 client:` the client's ubuntu12 and steamrt64 builds at start
+  `x86-64 rootfs:` names the image; `x86-64 client:` the client's steamrt64 build at start
   (it may update itself after). The rootfs download reports every tenth of its size as a step. When the
   web helper's GPU process keeps exiting until Chromium gives up on the GPU (the menus then never appear),
   one line says so with the exit codes, followed by x86 `glxinfo -B` and `vulkaninfo --summary` through
@@ -301,15 +311,24 @@ alone would then read as an installed client.
   in 51 s.
 - **Sign-in.** Before either client starts, the newer sign-in (`config/loginusers.vdf`, the login token
   in `local.vdf`, `AutoLoginUser` and `RememberPassword` in `registry.vdf`) is copied to the other, so
-  signing in or switching accounts in one counts for both. Steam renews its token every few days and
-  refuses an old copy (a 3-day-old one asked for the password), so the newest is copied at every start,
-  never while either client runs, since each rewrites these files. A client that refused its token
-  rewrites `local.vdf` with an empty `ConnectCache`: newest, but copied over the other it would sign
-  that one out too (seen after the x86 client's "Invalid Password"), so it is never the source. The copy keeps
-  the time stamp, so both match until one client signs in again. The rest of `registry.vdf`
-  (language, skin) stays each client's.
+  signing in or switching accounts in one counts for both; never while either client runs, since each
+  rewrites these files. A client that refused its token rewrites `local.vdf` with an empty
+  `ConnectCache`, so it is never the source. The copy keeps the time stamp, so both match until one
+  client signs in again. The rest of `registry.vdf` (language, skin) stays each client's.
+- **Account IDs.** A client logs on with the token only once it knows the account's SteamID, which it
+  takes from `Accounts` in `config/config.vdf`. The x86 client's `config.vdf` is made by this script
+  without one, so it logged on as `[U:1:0]` with the arm64 token and Steam answered "Invalid Password"
+  (and the client then dropped the token and `AutoLoginUser`): every switch asked for the password.
+  Each start adds the accounts either client knows to the other's `Accounts`, and an `AutoLoginUser` or
+  `RememberPassword` one client has and the other lacks. Device: the x86 client signed in with the
+  arm64 token (`RecvMsgClientLogOnResponse ... 'OK'`).
 - **App side.** The library, art picker, grid sync and boot movie follow the running client, else the
-  selected one; a changed client applies from the next session. Offline Mode is written to both
+  selected one; a changed client applies from the next session. A game is listed once per client: an added game
+  whose folder a Steam install already covers (its `DroidDeck-<appid>` import) is shown as that Steam
+  game only, and a client switch drops the old client's imported entries with its Steam games. In
+  Steam, an import stays one when its ownership cannot be confirmed that session instead of gaining a
+  shortcut beside it, and only the client's own library folders count as an install (the arm64 card
+  library made the x86 client skip a game's import and its shortcut). Offline Mode is written to both
   clients' `loginusers.vdf`; until the x86 client's first start its sign-in is the arm64 one. The log
   redactor learns account names from both clients. The startup movie is staged into the x86 client's
   config only once its first start has created it; `--prepare` links the arm64 `config/uioverrides`
