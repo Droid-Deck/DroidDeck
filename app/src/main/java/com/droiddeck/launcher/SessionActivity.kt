@@ -469,7 +469,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
         val bridge = PadBridge(File(LinuxRuntime.sessionRoot(this), "dev/input"))
         bridge.setSelectSteam(ControllerPrefs.read(this).selectSteam)
-        bridge.setBuiltinPad(SessionPrefs.builtinPad(this))
+        bridge.setBuiltinPad(SessionState.mode != SessionService.MODE_STEAM || SessionPrefs.builtinPad(this))
         padBridge = bridge
         SessionState.padBridge = bridge
         if (Build.VERSION.SDK_INT >= 31) {
