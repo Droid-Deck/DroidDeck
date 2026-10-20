@@ -250,6 +250,14 @@ the prefix's user folder appears, within a minute. Every path logs
   game's prefix (`compatdata/<shortcut appid>/pfx/drive_c/users/steamuser`) or its install folder,
   case-insensitively, and refuses a path that leaves its boundary. A game whose store gives none
   has no cloud saves.
+- **GOG names are location-qualified:** the cloud API lists `saves/user1.dat`, where `saves` is the
+  `name` of the selected `cloudStorage.locations` entry and the folder is that entry's `location`
+  (`.../Hollow Knight Silksong/default`). `GogCloud` strips the location segment for the local path
+  and puts it back for `HEAD`/`GET`/`PUT`; files from other locations are ignored. Builds before
+  this wrote `<location>/...` one folder too deep (`default/saves/user1.dat`); `migrateGogNested`
+  moves those copies up, deletes byte-identical leftovers and rewrites their baseline keys. The
+  migration runs once per game (`cloud_layout_<id>`), so a game that legitimately keeps a folder
+  named like the location is not relocated again; a non-prefixed listing is left unchanged.
 - **The services:** GOG `cloudstorage.gog.com/v1/<user>/<client>` with a token issued to the game's
   own client (the client secret is kept at install; the Galaxy token is the fallback); Epic's
   savesync data storage with signed read and write links (`EpicCloud` → `EpicSaveSync` → the Rust
