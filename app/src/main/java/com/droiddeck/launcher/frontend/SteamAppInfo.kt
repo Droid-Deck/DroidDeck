@@ -153,7 +153,7 @@ object SteamAppInfo {
         return String(bytes, Charsets.UTF_8)
     }
 
-    private fun readMap(b: ByteBuffer, strings: List<String>?): Map<String, Any> {
+    internal fun readMap(b: ByteBuffer, strings: List<String>?): Map<String, Any> {
         val out = LinkedHashMap<String, Any>()
         while (b.hasRemaining()) {
             val type = b.get().toInt() and 0xFF
