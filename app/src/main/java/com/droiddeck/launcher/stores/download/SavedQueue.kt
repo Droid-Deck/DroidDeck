@@ -78,7 +78,7 @@ object SavedQueue {
         put("store", i.store.id); put("id", i.id); put("title", i.title)
         put("image", i.imageUrl ?: ""); put("tall", i.tallImageUrl ?: "")
         put("tags", i.tags); put("developer", i.developer); put("description", i.description)
-        put("size", i.sizeBytes); put("owned", i.owned)
+        put("size", i.sizeBytes); put("owned", i.owned); put("subscription", i.subscription)
         put("extra", JSONObject(i.extra))
     }
 
@@ -89,7 +89,7 @@ object SavedQueue {
             id = o.getString("id"), title = o.getString("title"),
             imageUrl = o.optString("image").ifEmpty { null }, tallImageUrl = o.optString("tall").ifEmpty { null },
             tags = o.optString("tags"), developer = o.optString("developer"), description = o.optString("description"),
-            owned = o.optBoolean("owned", true), sizeBytes = o.optLong("size"),
+            owned = o.optBoolean("owned", true), subscription = o.optBoolean("subscription"), sizeBytes = o.optLong("size"),
             extra = extra?.keys()?.asSequence()?.associateWith { extra.getString(it) } ?: emptyMap(),
         )
     }

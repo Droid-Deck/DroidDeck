@@ -23,7 +23,8 @@ if [[ ! -d "$TOOLCHAIN" && "$NDK_HOST" == linux-aarch64 && -d "$NDK/toolchains/l
   TOOLCHAIN="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
 fi
 CC="$TOOLCHAIN/aarch64-linux-android${API}-clang"
-if [[ ! -x "$CC" ]]; then
+CC28="$TOOLCHAIN/aarch64-linux-android28-clang"
+if [[ ! -x "$CC" || ! -x "$CC28" ]]; then
   echo "Android NDK toolchain not found at $TOOLCHAIN" >&2
   exit 1
 fi
@@ -34,8 +35,8 @@ sed -e 's/@PA_MAJOR@/13/g' -e 's/@PA_MINOR@/0/g' -e 's/@PA_API_VERSION@/12/g' -e
     "$PA_SRC/src/pulse/version.h.in" > "$INC/pulse/version.h"
 cp "$HERE/config.h" "$HERE/ltdl.h" "$INC/"
 build_one() {
-  local src=$1 OUT=$2 extra=$3
-  "$CC" -O2 -shared -fPIC -Wall -Wno-unused-parameter -Wno-error=int-conversion -Wno-visibility -DHAVE_CONFIG_H \
+  local src=$1 OUT=$2 extra=$3 cc=${4:-$CC}
+  "$cc" -O2 -shared -fPIC -Wall -Wno-unused-parameter -Wno-error=int-conversion -Wno-visibility -DHAVE_CONFIG_H \
       -I"$INC" -I"$PA_SRC/src" -I"$HERE" \
       -o "$OUT" "$HERE/$src" \
       -L"$LIBS" -l:libpulsecore-13.0.so -l:libpulsecommon-13.0.so -l:libpulse.so $extra
@@ -54,3 +55,4 @@ build_one() {
   ls -l "$OUT"
 }
 build_one module-aaudio-sink.c "$OUTDIR/module-aaudio-sink.so" -laaudio
+build_one ../directaudio/sink/module-directaudio-native-sink.c "$OUTDIR/module-directaudio-native-sink.so" -laaudio "$CC28"

@@ -11,23 +11,23 @@ add_subdirectory(adrenotools)
 # DXVK's DXBC->SPIR-V translator is zlib licensed (vendored under thirdparty/dxbc).
 add_subdirectory(thirdparty/dxbc)
 
-set(WINFG_UPSTREAM "v0.3.0")
-set(WINFG_CHAIN_SRC
-        framegen/winfg/framegen.cpp
-        framegen/winfg/framegen.hpp
-        framegen/winfg/record_impl.inc
-        framegen/winfg/config.hpp
-        framegen/winfg/embedded_shaders.hpp
-        framegen/winfg/winfg_engine.cpp
+set(DDFG_UPSTREAM "v0.3.0")
+set(DDFG_CHAIN_SRC
+        framegen/ddfg/framegen.cpp
+        framegen/ddfg/framegen.hpp
+        framegen/ddfg/record_impl.inc
+        framegen/ddfg/config.hpp
+        framegen/ddfg/embedded_shaders.hpp
+        framegen/ddfg/ddfg_engine.cpp
 )
-set(WINFG_HASH_INPUT "")
-foreach(f ${WINFG_CHAIN_SRC})
+set(DDFG_HASH_INPUT "")
+foreach(f ${DDFG_CHAIN_SRC})
     file(SHA256 "${CMAKE_CURRENT_SOURCE_DIR}/${f}" _h)
-    string(APPEND WINFG_HASH_INPUT "${_h}")
+    string(APPEND DDFG_HASH_INPUT "${_h}")
 endforeach()
-string(SHA256 WINFG_CHAIN_HASH_FULL "${WINFG_HASH_INPUT}")
-string(SUBSTRING "${WINFG_CHAIN_HASH_FULL}" 0 12 WINFG_CHAIN_HASH)
-message(STATUS "win-fg chain: ${WINFG_UPSTREAM} (src ${WINFG_CHAIN_HASH})")
+string(SHA256 DDFG_CHAIN_HASH_FULL "${DDFG_HASH_INPUT}")
+string(SUBSTRING "${DDFG_CHAIN_HASH_FULL}" 0 12 DDFG_CHAIN_HASH)
+message(STATUS "dd-fg chain: win-fg ${DDFG_UPSTREAM} (src ${DDFG_CHAIN_HASH})")
 
 add_subdirectory(waylandcomp)
 add_subdirectory(questxr)

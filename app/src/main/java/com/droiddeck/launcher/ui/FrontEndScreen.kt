@@ -138,6 +138,7 @@ class FrontEndState(
     val downloadMirror: String = "",
     val downloadPrefix: String = "",
     val animationsEnabled: Boolean = true,
+    val launcherIcon: String = com.droiddeck.launcher.LauncherIcon.DARK,
     val gameStoresEnabled: Boolean = true,
     val gameStoresSpeedTier: String = "fast",
     val storesOpenTab: String = SessionPrefs.STORES_OPEN_LIBRARY,
@@ -205,6 +206,7 @@ class FrontEndActions(
     val onTheme: (String) -> Unit = {},
     val onLanguage: (String) -> Unit = {},
     val onAppScale: (Int) -> Unit = {},
+    val onLauncherIcon: (String) -> Unit = {},
     val onOrientation: (Int) -> Unit = {},
     val onLauncherFullscreen: (Boolean) -> Unit = {},
     val onAnimationsEnabled: (Boolean) -> Unit = {},
@@ -386,6 +388,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         when (target) {
             "stores:downloads" -> { com.droiddeck.launcher.stores.StoresState.openDownloads = true; selected = "stores" }
             "components" -> a.onComponents(true)
+            "setup:launcher" -> { SetupTabs.openLauncher = true; selected = "setup" }
             else -> selected = target
         }
         a.onNavigated()
