@@ -1942,6 +1942,8 @@
     <string name="stores_title">Tiendas</string>
     <string name="stores_settings">Ajustes de las tiendas</string>
     <string name="stores_settings_eyebrow">Ajustes</string>
+    <string name="stores_tabs_arrange">Organizar pestañas</string>
+    <string name="stores_tabs_arrange_done">Listo</string>
     <string name="stores_chip_signed_out">(sin iniciar sesión)</string>
     <string name="stores_tab_store">Tienda</string>
     <string name="stores_tab_library">Biblioteca</string>
@@ -2945,7 +2947,6 @@
     <string name="spatial_hands_wait_stable">Esperando un seguimiento de cabeza estable; restablece el centro de seguimiento si se solicita.</string>
     <string name="spatial_old_frame">La observación con cámara es demasiado antigua; esperando un par nuevo</string>
     <string name="spatial_fit_ready">Ajustar %1$.2f px. Mida la distancia seleccionada desde la cámara izquierda hasta el centro del objetivo de calibración y luego valide.</string>
-    <string name="spatial_opencv_error">OpenCV no disponible: %1$s</string>
     <string name="spatial_restored">%1$d vistas guardadas restauradas. Calcule la calibración para volver a intentarlo o comience un nuevo conjunto para capturar más.</string>
     <string name="spatial_captured">Capturado %1$d / 24 vistas. Mantenga fijo el objetivo de calibración; Mueva las gafas inteligentes para la siguiente vista.</string>
     <string name="spatial_capture_corners">Captura rechazada: %1$d / 12 esquinas requeridas visibles en ambas cámaras. Muestre más del objetivo de calibración, quédese quieto y vuelva a intentarlo.</string>

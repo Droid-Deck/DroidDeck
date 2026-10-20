@@ -1924,6 +1924,8 @@
     <string name="stores_title">स्टोर</string>
     <string name="stores_settings">स्टोर सेटिंग</string>
     <string name="stores_settings_eyebrow">सेटिंग</string>
+    <string name="stores_tabs_arrange">टैब व्यवस्थित करें</string>
+    <string name="stores_tabs_arrange_done">हो गया</string>
     <string name="stores_chip_signed_out">(साइन इन नहीं है)</string>
     <string name="stores_tab_store">स्टोर</string>
     <string name="stores_tab_library">लाइब्रेरी</string>
@@ -2911,7 +2913,6 @@
     <string name="spatial_hands_wait_stable">स्थिर हेड ट्रैकिंग की प्रतीक्षा कर रहा है; अनुरोध किए जाने पर ट्रैकिंग सेंटर को रीसेट करें</string>
     <string name="spatial_old_frame">कैमरा अवलोकन बहुत पुराना है; एक नई जोड़ी का इंतजार है</string>
     <string name="spatial_fit_ready">फ़िट %1$.2f पीएक्स। बाएं कैमरे से अंशांकन लक्ष्य केंद्र तक अपनी चयनित दूरी को मापें, फिर सत्यापित करें।</string>
-    <string name="spatial_opencv_error">OpenCV अनुपलब्ध: %1$s</string>
     <string name="spatial_restored">%1$d सहेजे गए दृश्य पुनर्स्थापित किए गए। पुनः प्रयास करने के लिए अंशांकन की गणना करें, या अधिक कैप्चर करने के लिए एक नया सेट प्रारंभ करें।</string>
     <string name="spatial_captured">कैप्चर किया गया %1$d / 24 बार देखा गया। अंशांकन लक्ष्य निश्चित रखें; अगले दृश्य के लिए स्मार्ट चश्मा हटाएँ।</string>
     <string name="spatial_capture_corners">कैप्चर अस्वीकृत: %1$d / दोनों कैमरों में 12 आवश्यक कोने दिखाई दे रहे हैं। अंशांकन लक्ष्य को और अधिक दिखाएं, स्थिर रखें, फिर पुनः प्रयास करें।</string>

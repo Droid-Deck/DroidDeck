@@ -1942,6 +1942,8 @@
     <string name="stores_title">Boutiques</string>
     <string name="stores_settings">Paramètres des boutiques</string>
     <string name="stores_settings_eyebrow">Paramètres</string>
+    <string name="stores_tabs_arrange">Organiser les onglets</string>
+    <string name="stores_tabs_arrange_done">Terminé</string>
     <string name="stores_chip_signed_out">(non connecté)</string>
     <string name="stores_tab_store">Boutique</string>
     <string name="stores_tab_library">Bibliothèque</string>
@@ -2945,7 +2947,6 @@
     <string name="spatial_hands_wait_stable">Attente d\'un suivi de tête stable ; réinitialisation du centre de suivi si demandé.</string>
     <string name="spatial_old_frame">L\'observation par caméra est trop ancienne ; en attendant une nouvelle paire</string>
     <string name="spatial_fit_ready">Ajuster %1$.2f px. Mesurez la distance sélectionnée entre la caméra gauche et le centre de la cible de calibrage, puis validez.</string>
-    <string name="spatial_opencv_error">OpenCV indisponible : %1$s</string>
     <string name="spatial_restored">%1$d vues enregistrées restaurées. Calculez l’étalonnage pour réessayer ou démarrez un nouvel ensemble pour en capturer davantage.</string>
     <string name="spatial_captured">Capturé %1$d / 24 vues. Gardez la cible d\'étalonnage fixe ; déplacez les lunettes intelligentes pour la vue suivante.</string>
     <string name="spatial_capture_corners">Capture rejetée : %1$d / 12 coins requis visibles dans les deux caméras. Affichez davantage la cible d\'étalonnage, restez immobile, puis réessayez.</string>

@@ -1924,6 +1924,8 @@
     <string name="stores_title">Butikker</string>
     <string name="stores_settings">Butiksindstillinger</string>
     <string name="stores_settings_eyebrow">Indstillinger</string>
+    <string name="stores_tabs_arrange">Arranger faner</string>
+    <string name="stores_tabs_arrange_done">Færdig</string>
     <string name="stores_chip_signed_out">(ikke logget ind)</string>
     <string name="stores_tab_store">Butik</string>
     <string name="stores_tab_library">Bibliotek</string>
@@ -2911,7 +2913,6 @@
     <string name="spatial_hands_wait_stable">Venter på stabil hovedsporing; nulstil sporingscenter, hvis det anmodes om.</string>
     <string name="spatial_old_frame">Kameraobservation er for gammel; venter på et nyt par</string>
     <string name="spatial_fit_ready">Tilpas %1$.2f px. Mål din valgte afstand fra venstre kamera til kalibreringsmålets centrum, og valider derefter.</string>
-    <string name="spatial_opencv_error">OpenCV utilgængelig: %1$s</string>
     <string name="spatial_restored">%1$d gemte visninger gendannet. Beregn kalibrering for at prøve igen, eller start et nyt sæt for at fange mere.</string>
     <string name="spatial_captured">Optaget %1$d / 24 visninger. Hold kalibreringsmålet fast; flyt de smarte briller til næste visning.</string>
     <string name="spatial_capture_corners">Optagelse afvist: %1$d / 12 påkrævede hjørner synlige i begge kameraer. Vis mere af kalibreringsmålet, hold stille, og prøv derefter igen.</string>

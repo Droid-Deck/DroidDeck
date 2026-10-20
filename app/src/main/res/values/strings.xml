@@ -1975,6 +1975,8 @@
     <string name="stores_title">Stores</string>
     <string name="stores_settings">Stores settings</string>
     <string name="stores_settings_eyebrow">Settings</string>
+    <string name="stores_tabs_arrange">Arrange tabs</string>
+    <string name="stores_tabs_arrange_done">Done</string>
     <string name="stores_chip_signed_out">(not signed in)</string>
     <string name="stores_tab_store">Store</string>
     <string name="stores_tab_library">Library</string>
@@ -2539,6 +2541,12 @@
     <string name="hand_camera_placement">Camera placement</string>
     <string name="hand_camera_placement_hint">Check that the camera can see you before you play.</string>
     <string name="hand_camera_check">Check</string>
+    <string name="tracking_pack_title">Hand tracking download</string>
+    <string name="tracking_pack_hint">Hand tracking needs a one-time %1$s download.</string>
+    <string name="tracking_pack_download">Download</string>
+    <string name="tracking_pack_retry">Retry</string>
+    <string name="tracking_pack_downloading">Downloading hand tracking… %1$d%%</string>
+    <string name="tracking_pack_failed">Hand tracking couldn\'t be downloaded. Check your connection and try again.</string>
     <string name="hand_camera_check_title">Camera placement</string>
     <string name="hand_camera_how_rear">Stand the device up 1.5 to 2 metres away at about chest height, with the back camera facing you. Then step into view with your hands out.</string>
     <string name="hand_camera_how_front">Stand the device up 1.5 to 2 metres away at about chest height, with the screen facing you. Then step into view with your hands out.</string>
@@ -2934,7 +2942,6 @@
     <string name="spatial_hands_wait_stable">Waiting for stable head tracking; recenter if requested</string>
     <string name="spatial_old_frame">Camera observation is too old; waiting for a fresh pair</string>
     <string name="spatial_fit_ready">Fit %1$.2f px. Measure your selected distance from the left camera to the board center, then validate.</string>
-    <string name="spatial_opencv_error">OpenCV unavailable: %1$s</string>
     <string name="spatial_restored">%1$d saved views restored. Calculate calibration to retry, or start a new set to capture more.</string>
     <string name="spatial_captured">Captured %1$d / 24 views. Keep the board fixed; move the glasses for the next view.</string>
     <string name="spatial_capture_corners">Capture rejected: %1$d / 12 required corners visible in both cameras. Show more of the board, hold still, then try again.</string>

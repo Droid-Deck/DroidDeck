@@ -1934,6 +1934,8 @@
     <string name="stores_title">Negozi</string>
     <string name="stores_settings">Impostazioni negozi</string>
     <string name="stores_settings_eyebrow">Impostazioni</string>
+    <string name="stores_tabs_arrange">Disponi schede</string>
+    <string name="stores_tabs_arrange_done">Fine</string>
     <string name="stores_chip_signed_out">(accesso non eseguito)</string>
     <string name="stores_tab_store">Negozio</string>
     <string name="stores_tab_library">Libreria</string>
@@ -2943,7 +2945,6 @@
     <string name="spatial_hands_wait_stable">In attesa di un tracciamento stabile della testa; ripristina il centro di tracciamento se richiesto.</string>
     <string name="spatial_old_frame">L’osservazione tramite telecamera è troppo vecchia; in attesa di un nuovo paio</string>
     <string name="spatial_fit_ready">Adatta %1$.2f px. Misura la distanza selezionata dalla telecamera sinistra al centro del target di calibrazione, quindi convalida.</string>
-    <string name="spatial_opencv_error">OpenCV non disponibile: %1$s</string>
     <string name="spatial_restored">%1$d visualizzazioni salvate ripristinate. Calcola la calibrazione per riprovare o avvia un nuovo set per acquisirne di più.</string>
     <string name="spatial_captured">Acquisito %1$d / 24 visualizzazioni. Mantenere fisso il target di calibrazione; sposta gli occhiali intelligenti per la visualizzazione successiva.</string>
     <string name="spatial_capture_corners">Acquisizione rifiutata: %1$d / 12 angoli obbligatori visibili in entrambe le telecamere. Mostra una parte maggiore del target di calibrazione, resta fermo e riprova.</string>

@@ -2008,6 +2008,8 @@
     <string name="stores_title">المتاجر</string>
     <string name="stores_settings">إعدادات المتاجر</string>
     <string name="stores_settings_eyebrow">الإعدادات</string>
+    <string name="stores_tabs_arrange">ترتيب التبويبات</string>
+    <string name="stores_tabs_arrange_done">تم</string>
     <string name="stores_chip_signed_out">(لم يتم تسجيل الدخول)</string>
     <string name="stores_tab_store">المتجر</string>
     <string name="stores_tab_library">المكتبة</string>
@@ -3047,7 +3049,6 @@
     <string name="spatial_hands_wait_stable">جارٍ انتظار استقرار تتبع الرأس؛ أعد ضبط مركز التتبع إذا طُلب منك ذلك.</string>
     <string name="spatial_old_frame">المراقبة بالكاميرات قديمة جدًا؛ في انتظار زوج جديد</string>
     <string name="spatial_fit_ready">تناسب %1$.2f بكسل. قم بقياس المسافة التي حددتها من الكاميرا اليسرى إلى مركز هدف المعايرة، ثم قم بالتحقق من صحتها.</string>
-    <string name="spatial_opencv_error">OpenCV غير متاح: %1$s</string>
     <string name="spatial_restored">تمت استعادة %1$d من المشاهدات المحفوظة. قم بحساب المعايرة لإعادة المحاولة، أو ابدأ مجموعة جديدة لالتقاط المزيد.</string>
     <string name="spatial_captured">ملتقطة %1$d / 24 مشاهدة. حافظ على هدف المعايرة ثابتًا؛ حرك النظارات الذكية للعرض التالي.</string>
     <string name="spatial_capture_corners">رُفض الالتقاط: تظهر %1$d / 12 زاوية مطلوبة في كلتا الكاميرتين. أظهر جزءًا أكبر من لوحة المعايرة، وابقَ ثابتًا ثم حاول مرة أخرى.</string>

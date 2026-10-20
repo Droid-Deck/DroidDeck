@@ -1903,6 +1903,8 @@
     <string name="stores_title">Toko</string>
     <string name="stores_settings">Setelan toko</string>
     <string name="stores_settings_eyebrow">Setelan</string>
+    <string name="stores_tabs_arrange">Atur tab</string>
+    <string name="stores_tabs_arrange_done">Selesai</string>
     <string name="stores_chip_signed_out">(belum masuk)</string>
     <string name="stores_tab_store">Toko</string>
     <string name="stores_tab_library">Pustaka</string>
@@ -2886,7 +2888,6 @@
     <string name="spatial_hands_wait_stable">Menunggu pelacakan kepala yang stabil; reset pusat pelacakan jika diminta</string>
     <string name="spatial_old_frame">Pengamatan kamera terlalu tua; menunggu pasangan baru</string>
     <string name="spatial_fit_ready">Cocok dengan %1$.2f piksel. Ukur jarak yang Anda pilih dari kamera kiri ke pusat target kalibrasi, lalu validasi.</string>
-    <string name="spatial_opencv_error">OpenCV tidak tersedia: %1$s</string>
     <string name="spatial_restored">%1$d tampilan tersimpan dipulihkan. Hitung kalibrasi untuk mencoba ulang, atau mulai rangkaian baru untuk menangkap lebih banyak.</string>
     <string name="spatial_captured">Diambil %1$d / 24 penayangan. Jaga agar target kalibrasi tetap; pindahkan kacamata pintar untuk tampilan selanjutnya.</string>
     <string name="spatial_capture_corners">Pengambilan gambar ditolak: %1$d / 12 sudut yang diperlukan terlihat di kedua kamera. Tampilkan lebih banyak target kalibrasi, diamkan, lalu coba lagi.</string>

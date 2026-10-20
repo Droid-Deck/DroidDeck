@@ -1924,6 +1924,8 @@
     <string name="stores_title">Butiker</string>
     <string name="stores_settings">Butiksinställningar</string>
     <string name="stores_settings_eyebrow">Inställningar</string>
+    <string name="stores_tabs_arrange">Ordna flikar</string>
+    <string name="stores_tabs_arrange_done">Klart</string>
     <string name="stores_chip_signed_out">(inte inloggad)</string>
     <string name="stores_tab_store">Butik</string>
     <string name="stores_tab_library">Bibliotek</string>
@@ -2910,7 +2912,6 @@
     <string name="spatial_hands_wait_stable">Väntar på stabil huvudspårning; återställ spårningscenter om det begärs.</string>
     <string name="spatial_old_frame">Kameraobservation är för gammal; väntar på ett nytt par</string>
     <string name="spatial_fit_ready">Fit %1$.2f px. Mät det valda avståndet från den vänstra kameran till kalibreringsmålets centrum och validera sedan.</string>
-    <string name="spatial_opencv_error">OpenCV inte tillgängligt: %1$s</string>
     <string name="spatial_restored">%1$d sparade vyer återställda. Beräkna kalibreringen för att försöka igen, eller starta en ny uppsättning för att fånga mer.</string>
     <string name="spatial_captured">Fångad %1$d / 24 visningar. Håll kalibreringsmålet fixerat; flytta de smarta glasögonen för nästa vy.</string>
     <string name="spatial_capture_corners">Bilden avvisades: %1$d / 12 nödvändiga hörn synliga i båda kamerorna. Visa mer av kalibreringsmålet, håll stilla och försök sedan igen.</string>

@@ -1966,6 +1966,8 @@
     <string name="stores_title">Obchody</string>
     <string name="stores_settings">Nastavení obchodů</string>
     <string name="stores_settings_eyebrow">Nastavení</string>
+    <string name="stores_tabs_arrange">Uspořádat karty</string>
+    <string name="stores_tabs_arrange_done">Hotovo</string>
     <string name="stores_chip_signed_out">(nepřihlášen)</string>
     <string name="stores_tab_store">Obchod</string>
     <string name="stores_tab_library">Knihovna</string>
@@ -2979,7 +2981,6 @@
     <string name="spatial_hands_wait_stable">Čekání na stabilní sledování hlavy; resetování centra sledování je možné, pokud je požadováno.</string>
     <string name="spatial_old_frame">Pozorování kamerou je příliš staré; čekání na nový pár</string>
     <string name="spatial_fit_ready">Přizpůsobit %1$.2f pixelům. Změřte vybranou vzdálenost od levé kamery ke středu kalibračního cíle a poté potvrďte.</string>
-    <string name="spatial_opencv_error">OpenCV není k dispozici: %1$s</string>
     <string name="spatial_restored">Bylo obnoveno %1$d uložených zobrazení. Vypočítejte kalibraci a zkuste to znovu, nebo spusťte novou sadu a zachyťte více.</string>
     <string name="spatial_captured">Pořízeno %1$d / 24 zobrazení. Udržujte kalibrační cíl pevný; posuňte chytré brýle pro další pohled.</string>
     <string name="spatial_capture_corners">Snímek zamítnut: %1$d / 12 požadovaných rohů viditelných v obou kamerách. Ukažte více z kalibračního cíle, nehýbejte se a zkuste to znovu.</string>

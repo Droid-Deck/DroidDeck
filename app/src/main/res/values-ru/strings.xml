@@ -1963,6 +1963,8 @@
     <string name="stores_title">Магазины</string>
     <string name="stores_settings">Настройки магазинов</string>
     <string name="stores_settings_eyebrow">Настройки</string>
+    <string name="stores_tabs_arrange">Упорядочить вкладки</string>
+    <string name="stores_tabs_arrange_done">Готово</string>
     <string name="stores_chip_signed_out">(вход не выполнен)</string>
     <string name="stores_tab_store">Магазин</string>
     <string name="stores_tab_library">Библиотека</string>
@@ -2976,7 +2978,6 @@
     <string name="spatial_hands_wait_stable">Ожидание стабильного отслеживания головы; сбросьте центр отслеживания, если потребуется.</string>
     <string name="spatial_old_frame">Камера наблюдения устарела; жду новую пару</string>
     <string name="spatial_fit_ready">По размеру %1$.2f пикселей. Измерьте выбранное расстояние от левой камеры до центра калибровочной цели, а затем подтвердите.</string>
-    <string name="spatial_opencv_error">OpenCV недоступен: %1$s</string>
     <string name="spatial_restored">%1$d сохраненные просмотры восстановлены. Рассчитайте калибровку, чтобы повторить попытку, или начните новую настройку, чтобы захватить больше.</string>
     <string name="spatial_captured">Снято %1$d / 24 просмотра. Держите цель калибровки фиксированной; переместите умные очки для следующего просмотра.</string>
     <string name="spatial_capture_corners">Захват отклонен: %1$d / 12 требуемых углов видны в обеих камерах. Покажите больше калибровочной цели, задержитесь и повторите попытку.</string>

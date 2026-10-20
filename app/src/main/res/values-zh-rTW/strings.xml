@@ -1903,6 +1903,8 @@
     <string name="stores_title">遊戲商店</string>
     <string name="stores_settings">遊戲商店設定</string>
     <string name="stores_settings_eyebrow">設定</string>
+    <string name="stores_tabs_arrange">整理分頁</string>
+    <string name="stores_tabs_arrange_done">完成</string>
     <string name="stores_chip_signed_out">（未登入）</string>
     <string name="stores_tab_store">商店</string>
     <string name="stores_tab_library">收藏庫</string>
@@ -2883,7 +2885,6 @@
     <string name="spatial_hands_wait_stable">正在等待穩定的頭部追蹤；如果需要，請重設追蹤中心。</string>
     <string name="spatial_old_frame">相機觀察太舊；等待一雙新的</string>
     <string name="spatial_fit_ready">適合 %1$.2f 像素。測量您選擇的從左側攝影機到校準目標中心的距離，然後進行驗證。</string>
-    <string name="spatial_opencv_error">OpenCV 不可用：%1$s</string>
     <string name="spatial_restored">%1$d 已恢復已儲存的視圖。計算校準以重試，或開始新的一組以捕獲更多。</string>
     <string name="spatial_captured">已捕獲 %1$d / 24 次觀看。保持校準目標固定；移動智慧眼鏡以查看下一個視圖。</string>
     <string name="spatial_capture_corners">捕捉被拒絕：%1$d / 12 個必需的角落在兩個攝影機中均可見。顯示更多校準目標，保持不動，然後重試。</string>

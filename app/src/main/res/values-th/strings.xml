@@ -1903,6 +1903,8 @@
     <string name="stores_title">สโตร์</string>
     <string name="stores_settings">การตั้งค่าสโตร์</string>
     <string name="stores_settings_eyebrow">การตั้งค่า</string>
+    <string name="stores_tabs_arrange">จัดเรียงแท็บ</string>
+    <string name="stores_tabs_arrange_done">เสร็จสิ้น</string>
     <string name="stores_chip_signed_out">(ยังไม่ลงชื่อเข้าใช้)</string>
     <string name="stores_tab_store">สโตร์</string>
     <string name="stores_tab_library">ไลบรารี</string>
@@ -2886,7 +2888,6 @@
     <string name="spatial_hands_wait_stable">กำลังรอการติดตามศีรษะที่เสถียร รีเซ็ตจุดศูนย์กลางการติดตามหากมีการร้องขอ</string>
     <string name="spatial_old_frame">การสังเกตด้วยกล้องเก่าเกินไป รอคู่ใหม่ครับ</string>
     <string name="spatial_fit_ready">พอดี %1$.2f พิกเซล วัดระยะทางที่คุณเลือกจากกล้องด้านซ้ายไปยังศูนย์กลางเป้าหมายการสอบเทียบ จากนั้นตรวจสอบ</string>
-    <string name="spatial_opencv_error">OpenCV ไม่พร้อมใช้งาน: %1$s</string>
     <string name="spatial_captured">ถ่ายแล้ว %1$d / 24 ครั้ง รักษาเป้าหมายการสอบเทียบให้คงที่ เลื่อนแว่นตาอัจฉริยะเพื่อดูมุมมองถัดไป</string>
     <string name="spatial_capture_corners">การจับภาพถูกปฏิเสธ: %1$d / 12 มุมที่ต้องมองเห็นได้ในกล้องทั้งสองตัว แสดงเป้าหมายการสอบเทียบเพิ่มเติม ให้ค้างไว้แล้วลองอีกครั้ง</string>
     <string name="spatial_validation_error">การตรวจสอบระยะทางไม่เสร็จสิ้น: %1$s ลองอีกครั้ง</string>

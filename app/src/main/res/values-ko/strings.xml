@@ -1903,6 +1903,8 @@
     <string name="stores_title">스토어</string>
     <string name="stores_settings">스토어 설정</string>
     <string name="stores_settings_eyebrow">설정</string>
+    <string name="stores_tabs_arrange">탭 정리</string>
+    <string name="stores_tabs_arrange_done">완료</string>
     <string name="stores_chip_signed_out">(로그인 안 됨)</string>
     <string name="stores_tab_store">스토어</string>
     <string name="stores_tab_library">라이브러리</string>
@@ -2815,7 +2817,6 @@
     <string name="spatial_rejected_wrist">스테레오 또는 모션 검사에 의해 손목 위치가 거부됨</string>
     <string name="spatial_inconsistent_palm">스테레오 포인트가 감지되었지만 손바닥 형상이 일치하지 않습니다.</string>
     <string name="spatial_fit_ready">%1$.2f픽셀에 맞춥니다. 왼쪽 카메라에서 보정 대상 중심까지 선택한 거리를 측정한 다음 확인합니다.</string>
-    <string name="spatial_opencv_error">OpenCV를 사용할 수 없습니다: %1$s</string>
     <string name="spatial_restored">%1$d 저장된 뷰가 복원되었습니다. 다시 시도하려면 보정을 계산하고, 더 많은 것을 캡처하려면 새 세트를 시작하세요.</string>
     <string name="spatial_captured">캡쳐 %1$d / 조회수 24입니다. 교정 대상을 고정된 상태로 유지하십시오. 다음 보기를 위해 스마트 안경을 이동하세요.</string>
     <string name="spatial_capture_corners">캡처 거부됨: %1$d / 두 카메라 모두에 12개의 필수 모서리가 표시됩니다. 보정 대상을 더 많이 표시하고 가만히 있다가 다시 시도하세요.</string>

@@ -1913,6 +1913,8 @@
     <string name="stores_title">Mağazalar</string>
     <string name="stores_settings">Mağaza ayarları</string>
     <string name="stores_settings_eyebrow">Ayarlar</string>
+    <string name="stores_tabs_arrange">Sekmeleri düzenle</string>
+    <string name="stores_tabs_arrange_done">Bitti</string>
     <string name="stores_chip_signed_out">(oturum açılmadı)</string>
     <string name="stores_tab_store">Mağaza</string>
     <string name="stores_tab_library">Kütüphane</string>
@@ -2910,7 +2912,6 @@
     <string name="spatial_hands_wait_stable">Sabit kafa izlemesi bekleniyor; istenirse izleme merkezini sıfırlayın</string>
     <string name="spatial_old_frame">Kamera gözlemi çok eski; yeni bir çift bekliyorum</string>
     <string name="spatial_fit_ready">%1$.2f piksele sığdır. Sol kameradan kalibrasyon hedef merkezine kadar seçtiğiniz mesafeyi ölçün ve ardından doğrulayın.</string>
-    <string name="spatial_opencv_error">OpenCV kullanılamıyor: %1$s</string>
     <string name="spatial_restored">%1$d kayıtlı görünüm geri yüklendi. Yeniden denemek için kalibrasyonu hesaplayın veya daha fazlasını yakalamak için yeni bir set başlatın.</string>
     <string name="spatial_captured">Yakalandı %1$d / 24 görüntüleme. Kalibrasyon hedefini sabit tutun; Bir sonraki görünüm için akıllı gözlükleri hareket ettirin.</string>
     <string name="spatial_capture_corners">Yakalama reddedildi: %1$d / 12 gerekli köşe her iki kamerada da görünüyor. Kalibrasyon hedefinin daha fazlasını gösterin, sabit durun ve tekrar deneyin.</string>

@@ -1966,6 +1966,8 @@
     <string name="stores_title">Sklepy</string>
     <string name="stores_settings">Ustawienia sklepów</string>
     <string name="stores_settings_eyebrow">Ustawienia</string>
+    <string name="stores_tabs_arrange">Ułóż karty</string>
+    <string name="stores_tabs_arrange_done">Gotowe</string>
     <string name="stores_chip_signed_out">(niezalogowano)</string>
     <string name="stores_tab_store">Sklep</string>
     <string name="stores_tab_library">Biblioteka</string>
@@ -2976,7 +2978,6 @@
     <string name="spatial_hands_wait_stable">Oczekiwanie na stabilne śledzenie głowy; zresetuj centrum śledzenia, jeśli zostaniesz o to poproszony.</string>
     <string name="spatial_old_frame">Obserwacja kamerą jest zbyt stara; czekam na świeżą parę</string>
     <string name="spatial_fit_ready">Dopasuj %1$.2f pikseli. Zmierz wybraną odległość od lewej kamery do środka celu kalibracji, a następnie zatwierdź.</string>
-    <string name="spatial_opencv_error">OpenCV niedostępne: %1$s</string>
     <string name="spatial_restored">Przywrócono %1$d zapisane widoki. Oblicz kalibrację, aby spróbować ponownie, lub rozpocznij nową serię, aby uchwycić więcej.</string>
     <string name="spatial_captured">Zarejestrowane widoki: %1$d / 24. Utrzymuj cel kalibracji nieruchomo; przesuń inteligentne okulary, aby uzyskać następny widok.</string>
     <string name="spatial_capture_corners">Przechwytywanie odrzucone: %1$d / 12 wymaganych rogów widocznych w obu kamerach. Pokaż więcej celu kalibracji, przytrzymaj nieruchomo i spróbuj ponownie.</string>

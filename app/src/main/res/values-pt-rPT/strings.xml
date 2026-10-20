@@ -1934,6 +1934,8 @@
     <string name="stores_title">Lojas</string>
     <string name="stores_settings">Definições das lojas</string>
     <string name="stores_settings_eyebrow">Definições</string>
+    <string name="stores_tabs_arrange">Organizar separadores</string>
+    <string name="stores_tabs_arrange_done">Concluído</string>
     <string name="stores_chip_signed_out">(sessão não iniciada)</string>
     <string name="stores_tab_store">Loja</string>
     <string name="stores_tab_library">Biblioteca</string>
@@ -2944,7 +2946,6 @@
     <string name="spatial_hands_wait_stable">Aguarda rastreio de cabeça estável; reponha o centro de rastreio se solicitado.</string>
     <string name="spatial_old_frame">A observação da câmara é muito antiga; à espera de um novo par</string>
     <string name="spatial_fit_ready">Ajustar %1$.2f px. Meça a distância selecionada da câmara esquerda até ao centro do alvo de calibração e valide.</string>
-    <string name="spatial_opencv_error">OpenCV indisponível: %1$s</string>
     <string name="spatial_restored">%1$d visualizações guardadas restauradas. Calcule a calibração para tentar novamente ou inicie um novo conjunto para captar mais.</string>
     <string name="spatial_captured">Capturado %1$d/24 visualizações. Mantenha o alvo de calibração fixo; mova os óculos inteligentes para a visualização seguinte.</string>
     <string name="spatial_capture_corners">Captura rejeitada: %1$d/12 cantos necessários visíveis em ambas as câmaras. Mostre mais do alvo de calibração, mantenha-se imóvel e tente novamente.</string>

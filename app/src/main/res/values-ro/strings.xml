@@ -1945,6 +1945,8 @@
     <string name="stores_title">Magazine</string>
     <string name="stores_settings">Setările magazinelor</string>
     <string name="stores_settings_eyebrow">Setări</string>
+    <string name="stores_tabs_arrange">Aranjează filele</string>
+    <string name="stores_tabs_arrange_done">Gata</string>
     <string name="stores_chip_signed_out">(neautentificat)</string>
     <string name="stores_tab_store">Magazin</string>
     <string name="stores_tab_library">Bibliotecă</string>
@@ -2945,7 +2947,6 @@
     <string name="spatial_hands_wait_stable">Se așteaptă o urmărire stabilă a capului; resetează centrul de urmărire dacă este solicitat</string>
     <string name="spatial_old_frame">Observarea camerei este prea veche; așteptând o pereche proaspătă</string>
     <string name="spatial_fit_ready">Eroare de calibrare: %1$.2f px. Măsoară distanța selectată de la camera din stânga la centrul țintei de calibrare, apoi validează.</string>
-    <string name="spatial_opencv_error">OpenCV indisponibil: %1$s</string>
     <string name="spatial_restored">Au fost restaurate %1$d vederi salvate. Calculează calibrarea pentru a reîncerca sau începe un set nou pentru a captura mai multe.</string>
     <string name="spatial_captured">Captură %1$d / 24 de vizualizări. Păstrează ținta de calibrare fixă; mută ochelarii inteligenți pentru următoarea vizualizare.</string>
     <string name="spatial_capture_corners">Captură respinsă: %1$d / 12 colțuri necesare sunt vizibile în ambele camere. Arată o porțiune mai mare din ținta de calibrare, stai nemișcat, apoi încearcă din nou.</string>

@@ -1903,6 +1903,8 @@
     <string name="stores_title">Cửa hàng</string>
     <string name="stores_settings">Thiết lập Stores</string>
     <string name="stores_settings_eyebrow">Thiết lập</string>
+    <string name="stores_tabs_arrange">Sắp xếp thẻ</string>
+    <string name="stores_tabs_arrange_done">Xong</string>
     <string name="stores_chip_signed_out">(chưa đăng nhập)</string>
     <string name="stores_tab_store">Cửa hàng</string>
     <string name="stores_tab_library">Thư viện</string>
@@ -2885,7 +2887,6 @@
     <string name="spatial_hands_wait_stable">Đang chờ theo dõi đầu ổn định; đặt lại trung tâm theo dõi nếu được yêu cầu</string>
     <string name="spatial_old_frame">Camera quan sát quá cũ; đang chờ một cặp mới</string>
     <string name="spatial_fit_ready">Vừa vặn %1$.2f px. Đo khoảng cách đã chọn của bạn từ camera bên trái đến trung tâm mục tiêu hiệu chỉnh, sau đó xác thực.</string>
-    <string name="spatial_opencv_error">OpenCV không có sẵn: %1$s</string>
     <string name="spatial_restored">%1$d lượt xem đã lưu được khôi phục. Tính toán hiệu chuẩn để thử lại hoặc bắt đầu một bộ mới để thu được nhiều dữ liệu hơn.</string>
     <string name="spatial_captured">Đã chụp được %1$d / 24 lượt xem. Giữ mục tiêu hiệu chuẩn cố định; di chuyển kính thông minh để xem tiếp theo.</string>
     <string name="spatial_capture_corners">Ảnh chụp bị từ chối: %1$d / 12 góc bắt buộc hiển thị ở cả hai máy ảnh. Hiển thị thêm mục tiêu hiệu chỉnh, giữ yên rồi thử lại.</string>

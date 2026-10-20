@@ -1913,6 +1913,8 @@
     <string name="stores_title">Stores</string>
     <string name="stores_settings">Store-Einstellungen</string>
     <string name="stores_settings_eyebrow">Einstellungen</string>
+    <string name="stores_tabs_arrange">Tabs anordnen</string>
+    <string name="stores_tabs_arrange_done">Fertig</string>
     <string name="stores_chip_signed_out">(nicht angemeldet)</string>
     <string name="stores_tab_store">Store</string>
     <string name="stores_tab_library">Bibliothek</string>
@@ -2911,7 +2913,6 @@
     <string name="spatial_hands_wait_stable">Warten auf stabiles Head-Tracking; Tracking-Zentrum bei Bedarf zurücksetzen.</string>
     <string name="spatial_old_frame">Kamerabeobachtung ist zu alt; warte auf ein neues Paar</string>
     <string name="spatial_fit_ready">%1$.2f px anpassen. Messen Sie den ausgewählten Abstand von der linken Kamera zum Zentrum des Kalibrierungsziels und bestätigen Sie ihn anschließend.</string>
-    <string name="spatial_opencv_error">OpenCV nicht verfügbar: %1$s</string>
     <string name="spatial_restored">%1$d gespeicherte Ansichten wiederhergestellt. Berechnen Sie die Kalibrierung, um es erneut zu versuchen, oder starten Sie einen neuen Satz, um mehr zu erfassen.</string>
     <string name="spatial_captured">Aufgenommen %1$d / 24 Aufrufe. Halten Sie das Kalibrierungsziel fest; Bewegen Sie die Datenbrille für die nächste Ansicht.</string>
     <string name="spatial_capture_corners">Aufnahme abgelehnt: %1$d / 12 erforderliche Ecken in beiden Kameras sichtbar. Zeigen Sie mehr vom Kalibrierungsziel, halten Sie still und versuchen Sie es dann erneut.</string>

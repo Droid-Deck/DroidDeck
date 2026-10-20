@@ -1924,6 +1924,8 @@
     <string name="stores_title">Магазини</string>
     <string name="stores_settings">Настройки на магазините</string>
     <string name="stores_settings_eyebrow">Настройки</string>
+    <string name="stores_tabs_arrange">Подреждане на раздели</string>
+    <string name="stores_tabs_arrange_done">Готово</string>
     <string name="stores_chip_signed_out">(не е вписан)</string>
     <string name="stores_tab_store">Магазин</string>
     <string name="stores_tab_library">Библиотека</string>
@@ -2911,7 +2913,6 @@
     <string name="spatial_hands_wait_stable">Изчакване на стабилно проследяване на главата; нулиране на центъра за проследяване, ако е поискано.</string>
     <string name="spatial_old_frame">Наблюдението на камерата е твърде старо; в очакване на нов чифт</string>
     <string name="spatial_fit_ready">Побиране на %1$.2f пиксела. Измерете избраното разстояние от лявата камера до центъра на целта за калибриране, след което потвърдете.</string>
-    <string name="spatial_opencv_error">OpenCV не е наличен: %1$s</string>
     <string name="spatial_restored">%1$d запазените изгледи са възстановени. Изчислете калибрирането, за да опитате отново, или започнете нов набор, за да заснемете повече.</string>
     <string name="spatial_captured">Заснето %1$d / 24 прегледа. Дръжте целта за калибриране фиксирана; преместете смарт очилата за следващия изглед.</string>
     <string name="spatial_capture_corners">Заснемането е отхвърлено: %1$d / 12 задължителни ъгъла, видими и в двете камери. Покажете още от целта за калибриране, задръжте неподвижно и опитайте отново.</string>

@@ -1979,6 +1979,8 @@
     <string name="stores_title">游戏商店</string>
     <string name="stores_settings">游戏商店设置</string>
     <string name="stores_settings_eyebrow">设置</string>
+    <string name="stores_tabs_arrange">整理标签</string>
+    <string name="stores_tabs_arrange_done">完成</string>
     <string name="stores_chip_signed_out">（未登录）</string>
     <string name="stores_tab_store">商店</string>
     <string name="stores_tab_library">库</string>
@@ -2883,7 +2885,6 @@
     <string name="spatial_hands_wait_stable">正在等待稳定的头部追踪；如果需要，请重置追踪中心。</string>
     <string name="spatial_old_frame">相机观察太旧；等待一双新的</string>
     <string name="spatial_fit_ready">适合 %1$.2f 像素。测量您选择的从左摄像头到校准目标中心的距离，然后进行验证。</string>
-    <string name="spatial_opencv_error">OpenCV 不可用：%1$s</string>
     <string name="spatial_restored">%1$d 已恢复保存的视图。计算校准以重试，或开始新的一组以捕获更多。</string>
     <string name="spatial_captured">已捕获 %1$d / 24 次观看。保持校准目标固定；移动智能眼镜以查看下一个视图。</string>
     <string name="spatial_capture_corners">捕获被拒绝：%1$d / 12 个必需的角在两个摄像头中均可见。显示更多校准目标，保持不动，然后重试。</string>

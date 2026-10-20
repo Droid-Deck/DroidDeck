@@ -1924,6 +1924,8 @@
     <string name="stores_title">Kaupat</string>
     <string name="stores_settings">Kauppojen asetukset</string>
     <string name="stores_settings_eyebrow">Asetukset</string>
+    <string name="stores_tabs_arrange">Järjestä välilehdet</string>
+    <string name="stores_tabs_arrange_done">Valmis</string>
     <string name="stores_chip_signed_out">(ei kirjautunut)</string>
     <string name="stores_tab_store">Kauppa</string>
     <string name="stores_tab_library">Kirjasto</string>
@@ -2911,7 +2913,6 @@
     <string name="spatial_hands_wait_stable">Odotetaan vakaata pään seurantaa; nollaa seurantakeskus pyydettäessä.</string>
     <string name="spatial_old_frame">Kamerahavainto on liian vanha; uutta paria odotellessa</string>
     <string name="spatial_fit_ready">Sovita %1$.2f px. Mittaa valitsemasi etäisyys vasemmasta kamerasta kalibrointikohteen keskustaan ​​ja vahvista sitten.</string>
-    <string name="spatial_opencv_error">OpenCV ei saatavilla: %1$s</string>
     <string name="spatial_restored">%1$d tallennettua näkymää palautettu. Laske kalibrointi yrittääksesi uudelleen tai aloita uusi sarja, jos haluat ottaa lisää.</string>
     <string name="spatial_captured">Kuvattu %1$d / 24 katselukertaa. Pidä kalibrointitavoite kiinteänä; siirrä älylaseja seuraavaa näkymää varten.</string>
     <string name="spatial_capture_corners">Kuvaus hylätty: %1$d / 12 vaadittua kulmaa näkyvissä molemmissa kameroissa. Näytä lisää kalibrointikohdetta, pidä paikallaan ja yritä sitten uudelleen.</string>
