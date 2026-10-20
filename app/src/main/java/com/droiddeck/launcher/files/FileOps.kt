@@ -100,6 +100,7 @@ object FileOps {
                 if (isSymlink(target) || target.parentFile?.isDirectory != true) {
                     throw IOException("Destination symlink target is not a writable directory entry: $dst")
                 }
+                if (target.isDirectory) throw IOException("Destination is a directory: $target")
                 permissions = try {
                     Files.getPosixFilePermissions(target.toPath())
                 } catch (e: java.nio.file.NoSuchFileException) {
@@ -131,7 +132,7 @@ object FileOps {
                 if (permissions != null && Files.getPosixFilePermissions(copied) != permissions) {
                     Files.setPosixFilePermissions(copied, permissions)
                 }
-                Files.move(copied, target.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+                Files.move(copied, target.toPath(), java.nio.file.StandardCopyOption.ATOMIC_MOVE)
             }
             return true
         } catch (e: java.util.concurrent.CancellationException) {
