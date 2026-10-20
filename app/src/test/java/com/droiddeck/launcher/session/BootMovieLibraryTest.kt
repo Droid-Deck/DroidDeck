@@ -78,6 +78,20 @@ class BootMovieLibraryTest {
         }
     }
 
+    @Test fun aSavedChoiceKeepsMeaningTheSameFileWhicheverClientRuns() {
+        val x64 = File(SessionPrefs.steamRoot(app, "x86_64"), "config/uioverrides/movies")
+        try {
+            File(x64, "Intro.webm").also { it.parentFile!!.mkdirs(); it.writeText("other") }
+            val main = movie("Intro.webm")
+            SessionPrefs.setSteamClientArch(app, "x86_64")
+            assertEquals(main.path, BootMovieLibrary.file(app, "file:Intro.webm")?.path)
+            SessionPrefs.setSteamClientArch(app, "arm64")
+            assertEquals(main.path, BootMovieLibrary.file(app, "file:Intro.webm")?.path)
+        } finally {
+            x64.deleteRecursively()
+        }
+    }
+
     @Test fun listsTheDroidDeckMoviesAndEveryWebmButNotTheStagedCopies() {
         movie("Intro.webm")
         movie("bigpicture_startup.webm")

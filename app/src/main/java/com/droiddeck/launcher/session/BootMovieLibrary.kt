@@ -38,11 +38,11 @@ object BootMovieLibrary {
     internal fun moviesDir(context: Context) = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/config/uioverrides/movies")
 
     /**
-     * The folders whose custom movies are listed, found and removed: the running (else selected) Steam client's own, which is
-     * where a movie put there or picked in that Steam lives, and [moviesDir], where imports are put and managed.
+     * The folders whose custom movies are listed, found and removed: [moviesDir], where imports are put and managed, then the
+     * x86-64 client's. The order never depends on which client is running, so a saved choice keeps meaning the same file.
      */
     internal fun customMovieDirs(context: Context): List<File> =
-        listOf(File(SessionPrefs.activeSteamRoot(context), "config/uioverrides/movies"), moviesDir(context)).distinctBy { it.path }
+        listOf(moviesDir(context), File(SessionPrefs.steamRoot(context, "x86_64"), "config/uioverrides/movies")).distinctBy { it.path }
 
     /** Where imported and installed movies are kept for good; Steam's folder holds a copy, which is put back if it goes missing. */
     internal fun libraryDir(context: Context) = File(context.filesDir, "boot-movie/library")
@@ -302,7 +302,7 @@ object BootMovieLibrary {
                 val name = id.removePrefix(PREFIX)
                 if (name.isEmpty() || name.contains('/') || name.contains('\\') || name in STAGED) return false
                 val copies = customMovieDirs(context).map { File(it, name) }
-                // A name can exist in more than one client's folder; the entry is the first one found, and only that file is deleted.
+                // A name can exist in more than one client's folder; the entry is the first one found (see customMovieDirs), and only that file is deleted.
                 val target = copies.firstOrNull { it.exists() }
                 val managed = File(libraryDir(context), name)
                 if (readMeta(context).optJSONObject(name) == null && target == null && !managed.isFile) return false
