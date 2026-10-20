@@ -1032,6 +1032,9 @@
     <string name="games_added">Permainan ditambah</string>
     <string name="games_custom">Permainan tersuai</string>
     <string name="games_store_storage">Storan permainan</string>
+    <string name="games_uninstall_body">Memadam failnya dan mengalih keluarnya daripada Steam.</string>
+    <string name="games_remove_title">Alih keluar %1$s?</string>
+    <string name="games_remove_body">Memadam pintasannya. Fail permainan kekal.</string>
     <string name="gpu_auto_hint">Pasangan terbaik untuk GPU ini, dikemas kini sentiasa</string>
     <string name="gpu_manual_hint">Pilih pasangan sendiri</string>
     <string name="gpu_checking">Menyemak pemacu…</string>
@@ -1903,6 +1906,8 @@
     <string name="stores_title">Kedai</string>
     <string name="stores_settings">Tetapan kedai</string>
     <string name="stores_settings_eyebrow">Tetapan</string>
+    <string name="stores_tabs_arrange">Susun tab</string>
+    <string name="stores_tabs_arrange_done">Selesai</string>
     <string name="stores_chip_signed_out">(belum log masuk)</string>
     <string name="stores_tab_store">Kedai</string>
     <string name="stores_tab_library">Pustaka</string>
@@ -2884,7 +2889,6 @@
     <string name="spatial_hands_wait_stable">Menunggu penjejakan kepala yang stabil; tetapkan semula pusat penjejakan jika diminta</string>
     <string name="spatial_old_frame">Pemerhatian kamera terlalu lama; menunggu pasangan baru</string>
     <string name="spatial_fit_ready">Muat %1$.2f px. Ukur jarak pilihan anda dari kamera kiri ke pusat sasaran penentukuran, kemudian sahkan.</string>
-    <string name="spatial_opencv_error">OpenCV tidak tersedia: %1$s</string>
     <string name="spatial_restored">%1$d paparan yang disimpan dipulihkan. Kira penentukuran untuk mencuba semula, atau mulakan set baharu untuk menangkap lebih banyak lagi.</string>
     <string name="spatial_captured">Ditangkap %1$d / 24 paparan. Pastikan sasaran penentukuran tetap; alihkan cermin mata pintar untuk paparan seterusnya.</string>
     <string name="spatial_capture_corners">Tangkapan ditolak: %1$d / 12 sudut yang diperlukan kelihatan dalam kedua-dua kamera. Tunjukkan lebih banyak sasaran penentukuran, tahan diam, kemudian cuba lagi.</string>

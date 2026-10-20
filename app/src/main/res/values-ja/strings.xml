@@ -1032,6 +1032,9 @@
     <string name="games_added">追加されたゲーム</string>
     <string name="games_custom">カスタムゲーム</string>
     <string name="games_store_storage">ゲームストレージ</string>
+    <string name="games_uninstall_body">ファイルを削除し、Steamからも削除します。</string>
+    <string name="games_remove_title">%1$sを削除しますか？</string>
+    <string name="games_remove_body">ショートカットを削除します。ゲームファイルは残ります。</string>
     <string name="gpu_auto_hint">このGPUに最適なドライバー構成を選択し、最新の状態に保ちます</string>
     <string name="gpu_manual_hint">ドライバー構成を自分で選択する</string>
     <string name="gpu_checking">ドライバーを確認中…</string>
@@ -1903,6 +1906,8 @@
     <string name="stores_title">ストア</string>
     <string name="stores_settings">ストア設定</string>
     <string name="stores_settings_eyebrow">設定</string>
+    <string name="stores_tabs_arrange">タブを整理</string>
+    <string name="stores_tabs_arrange_done">完了</string>
     <string name="stores_chip_signed_out">（未ログイン）</string>
     <string name="stores_tab_store">ストア</string>
     <string name="stores_tab_library">ライブラリ</string>
@@ -2884,7 +2889,6 @@
     <string name="spatial_hands_wait_stable">安定したヘッドトラッキングを待機中。必要に応じてトラッキングセンターをリセットします。</string>
     <string name="spatial_old_frame">カメラによる観察は古すぎる。新しいペアを待っています</string>
     <string name="spatial_fit_ready">%1$.2f ピクセルにフィットします。左側のカメラからキャリブレーション ターゲットの中心までの選択した距離を測定し、検証します。</string>
-    <string name="spatial_opencv_error">OpenCV は利用できません: %1$s</string>
     <string name="spatial_restored">%1$d 個の保存されたビューが復元されました。キャリブレーションを計算して再試行するか、新しいセットを開始してさらにキャプチャします。</string>
     <string name="spatial_captured">%1$d / 24 ビューをキャプチャしました。キャリブレーションターゲットを固定してください。次のビューのためにスマート グラスを移動します。</string>
     <string name="spatial_capture_corners">キャプチャが拒否されました: %1$d / 12 個の必須コーナーが両方のカメラに表示されます。キャリブレーション ターゲットをさらに表示し、静止してからもう一度試してください。</string>

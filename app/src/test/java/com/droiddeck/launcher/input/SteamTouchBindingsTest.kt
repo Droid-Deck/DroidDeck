@@ -115,4 +115,20 @@ class SteamTouchBindingsTest {
         assertEquals("Jump", SteamTouchBindings.bindingAt(reparsed, ref)!!.label)
         assertNull(SteamTouchBindings.rewrite(config, SteamTouchBindings.Ref("5", "button_a")) { it })
     }
+
+    @Test
+    fun labelsDropQuotesBackslashesCommasAndControls() {
+        assertEquals("a b c d e", SteamTouchBindings.cleanLabel("a\"b\\c,d\n  e"))
+        assertEquals(32, SteamTouchBindings.cleanLabel("x".repeat(40)).length)
+        val b = SteamTouchBindings.Binding("key_press SPACE", "Ju\"mp", "", "", "")
+        assertEquals("Ju mp", SteamTouchBindings.parse(b.compose()).label)
+        val comma = SteamTouchBindings.Binding("key_press SPACE", "Jump,Run", "icon", "#FFFFFF", "")
+        assertEquals(SteamTouchBindings.Binding("key_press SPACE", "Jump Run", "icon", "#FFFFFF", ""), SteamTouchBindings.parse(comma.compose()))
+    }
+
+    @Test
+    fun labelsAreCutAtACharacterBoundary() {
+        val label = SteamTouchBindings.cleanLabel("a".repeat(31) + "🎮" + "b")
+        assertEquals("a".repeat(31) + "🎮", label)
+    }
 }
