@@ -123,6 +123,8 @@ public final class PadBridge {
         systemQamPressed = false;
         qamTapPressed = false;
         qamChordActive = false;
+        chordButtonPressed = false;
+        qamChordGeneration++;
         chordHandler.removeCallbacksAndMessages(null);
         state.clear();
         publish();
