@@ -1,11 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcuts_title">Преки пътища с физически бутони</string>
-    <string name="shortcuts_hint">Задайте бутони за всеки контролер. Преките пътища за Steam важат само в Steam сесии. Незададените бутони запазват стандартното си поведение.</string>
     <string name="shortcuts_dd_menu">Меню на DroidDeck</string>
-    <string name="shortcuts_default">Стандартно поведение (без промяна)</string>
-    <string name="shortcuts_assign">Задаване на бутон</string>
-    <string name="shortcuts_remove">Премахване</string>
     <string name="shortcuts_capture">Задаване: %1$s</string>
     <string name="shortcuts_press">Натиснете и отпуснете желания физически бутон. Използвайте сензорния екран за отказ.</string>
     <string name="shortcuts_release">Отпуснете бутона, за да продължите.</string>
@@ -15,6 +11,4 @@
     <string name="shortcuts_save">Запазване на прекия път</string>
     <string name="shortcuts_retry">Опитайте друг бутон</string>
     <string name="shortcuts_limitations">Бутонът не е открит? Android или фърмуерът може да прихваща Начало или допълнителните бутони. Бутоните трябва да изпращат различни събития към DroidDeck. Бутоните за звук и системните клавиши не могат да се задават.</string>
-    <string name="shortcuts_reset">Нулиране на физическите преки пътища</string>
-    <string name="shortcuts_reset_hint">Да се премахнат ли всички физически преки пътища и да се възстанови стандартното поведение? Сензорното управление и другите настройки на контролера се запазват.</string>
 </resources>

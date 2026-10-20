@@ -1,11 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcuts_title">Pintasan butang fizikal</string>
-    <string name="shortcuts_hint">Tetapkan butang bagi setiap pengawal. Pintasan Steam hanya berfungsi dalam sesi Steam. Butang yang tidak ditetapkan mengekalkan tingkah laku lalai.</string>
     <string name="shortcuts_dd_menu">Menu DroidDeck</string>
-    <string name="shortcuts_default">Tingkah laku lalai (tiada perubahan)</string>
-    <string name="shortcuts_assign">Tetapkan butang</string>
-    <string name="shortcuts_remove">Alih keluar</string>
     <string name="shortcuts_capture">Tetapkan: %1$s</string>
     <string name="shortcuts_press">Tekan dan lepaskan butang fizikal yang dikehendaki. Gunakan skrin sentuh untuk membatalkan.</string>
     <string name="shortcuts_release">Lepaskan butang untuk meneruskan.</string>
@@ -15,6 +11,4 @@
     <string name="shortcuts_save">Simpan pintasan</string>
     <string name="shortcuts_retry">Cuba butang lain</string>
     <string name="shortcuts_limitations">Butang tidak dikesan? Android atau perisian tegar mungkin memintas Utama atau butang tambahan. Butang mesti menghantar peristiwa berbeza kepada DroidDeck. Kekunci kelantangan dan sistem tidak boleh ditetapkan.</string>
-    <string name="shortcuts_reset">Tetapkan semula pintasan fizikal</string>
-    <string name="shortcuts_reset_hint">Alih keluar semua pintasan fizikal dan pulihkan tingkah laku lalai? Kawalan sentuh dan tetapan pengawal lain dikekalkan.</string>
 </resources>

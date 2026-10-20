@@ -1,11 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcuts_title">Atalhos de botões físicos</string>
-    <string name="shortcuts_hint">Atribua botões por comando. Os atalhos Steam funcionam apenas em sessões Steam. Os botões não atribuídos mantêm o comportamento predefinido.</string>
     <string name="shortcuts_dd_menu">Menu do DroidDeck</string>
-    <string name="shortcuts_default">Comportamento predefinido (sem alteração)</string>
-    <string name="shortcuts_assign">Atribuir um botão</string>
-    <string name="shortcuts_remove">Remover</string>
     <string name="shortcuts_capture">Atribuir: %1$s</string>
     <string name="shortcuts_press">Prima e solte o botão físico pretendido. Utilize o ecrã tátil para cancelar.</string>
     <string name="shortcuts_release">Solte o botão para continuar.</string>
@@ -15,6 +11,4 @@
     <string name="shortcuts_save">Guardar atalho</string>
     <string name="shortcuts_retry">Experimentar outro botão</string>
     <string name="shortcuts_limitations">Botão não detetado? O Android ou o firmware pode intercetar Início ou botões adicionais. Os botões têm de enviar eventos distintos ao DroidDeck. As teclas de volume e do sistema não podem ser atribuídas.</string>
-    <string name="shortcuts_reset">Repor atalhos físicos</string>
-    <string name="shortcuts_reset_hint">Remover todos os atalhos físicos e repor o comportamento predefinido? Os controlos táteis e as outras definições do comando são mantidos.</string>
 </resources>

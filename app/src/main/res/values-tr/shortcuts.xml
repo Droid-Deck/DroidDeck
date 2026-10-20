@@ -1,11 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcuts_title">Fiziksel düğme kısayolları</string>
-    <string name="shortcuts_hint">Her kontrolcü için düğme atayın. Steam kısayolları yalnızca Steam oturumlarında çalışır. Atanmayan düğmeler varsayılan davranışlarını korur.</string>
     <string name="shortcuts_dd_menu">DroidDeck menüsü</string>
-    <string name="shortcuts_default">Varsayılan davranış (değişiklik yok)</string>
-    <string name="shortcuts_assign">Düğme ata</string>
-    <string name="shortcuts_remove">Kaldır</string>
     <string name="shortcuts_capture">Ata: %1$s</string>
     <string name="shortcuts_press">İstediğiniz fiziksel düğmeye basıp bırakın. İptal etmek için dokunmatik ekranı kullanın.</string>
     <string name="shortcuts_release">Devam etmek için düğmeyi bırakın.</string>
@@ -15,6 +11,4 @@
     <string name="shortcuts_save">Kısayolu kaydet</string>
     <string name="shortcuts_retry">Başka düğme dene</string>
     <string name="shortcuts_limitations">Düğme algılanmadı mı? Android veya aygıt yazılımı Ana ekran ya da ek düğmeleri yakalıyor olabilir. Düğmeler DroidDeck uygulamasına farklı olaylar göndermelidir. Ses ve sistem tuşları atanamaz.</string>
-    <string name="shortcuts_reset">Fiziksel kısayolları sıfırla</string>
-    <string name="shortcuts_reset_hint">Tüm fiziksel kısayollar kaldırılsın ve varsayılan davranış geri yüklensin mi? Dokunmatik kontroller ve diğer kontrolcü ayarları korunur.</string>
 </resources>

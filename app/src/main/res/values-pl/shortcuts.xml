@@ -1,11 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcuts_title">Skróty przycisków fizycznych</string>
-    <string name="shortcuts_hint">Przypisz przyciski dla każdego kontrolera. Skróty Steam działają tylko w sesjach Steam. Nieprzypisane przyciski zachowują domyślne działanie.</string>
     <string name="shortcuts_dd_menu">Menu DroidDeck</string>
-    <string name="shortcuts_default">Domyślne działanie (bez zmian)</string>
-    <string name="shortcuts_assign">Przypisz przycisk</string>
-    <string name="shortcuts_remove">Usuń</string>
     <string name="shortcuts_capture">Przypisz: %1$s</string>
     <string name="shortcuts_press">Naciśnij i zwolnij wybrany przycisk fizyczny. Użyj ekranu dotykowego, aby anulować.</string>
     <string name="shortcuts_release">Zwolnij przycisk, aby kontynuować.</string>
@@ -15,6 +11,4 @@
     <string name="shortcuts_save">Zapisz skrót</string>
     <string name="shortcuts_retry">Wypróbuj inny przycisk</string>
     <string name="shortcuts_limitations">Nie wykryto przycisku? Android lub oprogramowanie urządzenia może przechwytywać Home lub dodatkowe przyciski. Przyciski muszą wysyłać różne zdarzenia do DroidDeck. Klawiszy głośności i systemowych nie można przypisać.</string>
-    <string name="shortcuts_reset">Resetuj skróty fizyczne</string>
-    <string name="shortcuts_reset_hint">Usunąć wszystkie skróty fizyczne i przywrócić domyślne działanie? Sterowanie dotykowe i inne ustawienia kontrolera zostaną zachowane.</string>
 </resources>

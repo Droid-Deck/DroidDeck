@@ -1,11 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcuts_title">實體按鍵快捷操作</string>
-    <string name="shortcuts_hint">為每個控制器指派按鍵。Steam 快捷操作僅在 Steam 工作階段生效。未指派的按鍵保留預設行為。</string>
     <string name="shortcuts_dd_menu">DroidDeck 選單</string>
-    <string name="shortcuts_default">預設行為（未覆寫）</string>
-    <string name="shortcuts_assign">指派按鍵</string>
-    <string name="shortcuts_remove">移除</string>
     <string name="shortcuts_capture">指派：%1$s</string>
     <string name="shortcuts_press">按下並放開要使用的實體按鍵。請使用觸控螢幕取消。</string>
     <string name="shortcuts_release">放開按鍵以繼續。</string>
@@ -15,6 +11,4 @@
     <string name="shortcuts_save">儲存快捷操作</string>
     <string name="shortcuts_retry">嘗試其他按鍵</string>
     <string name="shortcuts_limitations">未偵測到按鍵？Android 或裝置韌體可能會攔截主畫面鍵或額外按鍵。各按鍵必須向 DroidDeck 傳送不同的事件。音量鍵與系統按鍵不可指派。</string>
-    <string name="shortcuts_reset">重設實體按鍵快捷操作</string>
-    <string name="shortcuts_reset_hint">移除所有實體按鍵快捷操作並恢復預設行為？觸控操作與其他控制器設定將保留。</string>
 </resources>

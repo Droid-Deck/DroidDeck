@@ -1,11 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcuts_title">Fyysisten painikkeiden pikavalinnat</string>
-    <string name="shortcuts_hint">Määritä painikkeet ohjainkohtaisesti. Steam-pikavalinnat toimivat vain Steam-istunnoissa. Määrittämättömät painikkeet säilyttävät oletustoimintansa.</string>
     <string name="shortcuts_dd_menu">DroidDeck-valikko</string>
-    <string name="shortcuts_default">Oletustoiminta (ei muutosta)</string>
-    <string name="shortcuts_assign">Määritä painike</string>
-    <string name="shortcuts_remove">Poista</string>
     <string name="shortcuts_capture">Määritä: %1$s</string>
     <string name="shortcuts_press">Paina haluamaasi fyysistä painiketta ja vapauta se. Peruuta kosketusnäytöllä.</string>
     <string name="shortcuts_release">Jatka vapauttamalla painike.</string>
@@ -15,6 +11,4 @@
     <string name="shortcuts_save">Tallenna pikavalinta</string>
     <string name="shortcuts_retry">Kokeile toista painiketta</string>
     <string name="shortcuts_limitations">Painiketta ei tunnistettu? Android tai laiteohjelmisto saattaa siepata Koti-painikkeen tai lisäpainikkeet. Painikkeiden on lähetettävä eri tapahtumia DroidDeckille. Äänenvoimakkuus- ja järjestelmäpainikkeita ei voi määrittää.</string>
-    <string name="shortcuts_reset">Nollaa fyysiset pikavalinnat</string>
-    <string name="shortcuts_reset_hint">Poistetaanko kaikki fyysiset pikavalinnat ja palautetaanko oletustoiminta? Kosketusohjaimet ja muut ohjainasetukset säilytetään.</string>
 </resources>

@@ -155,7 +155,7 @@ class PhysicalShortcutsTest {
         assign(key(KeyEvent.KEYCODE_BUTTON_2), Action.QAM)
         PhysicalShortcuts.remove(context, PhysicalShortcuts.read(context).first())
         assertEquals(listOf(Action.QAM), PhysicalShortcuts.read(context).map { it.action })
-        PhysicalShortcuts.reset(context)
+        PhysicalShortcuts.remove(context, PhysicalShortcuts.read(context).single())
         assertTrue(PhysicalShortcuts.read(context).isEmpty())
         assertTrue(ControllerPrefs.read(context).selectSteam)
         assertEquals("b", ControllerPrefs.target(context, "a"))

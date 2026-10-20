@@ -1,11 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcuts_title">Phím tắt nút vật lý</string>
-    <string name="shortcuts_hint">Gán nút cho từng tay cầm. Phím tắt Steam chỉ hoạt động trong phiên Steam. Nút chưa được gán vẫn giữ hành vi mặc định.</string>
     <string name="shortcuts_dd_menu">Menu DroidDeck</string>
-    <string name="shortcuts_default">Hành vi mặc định (không thay đổi)</string>
-    <string name="shortcuts_assign">Gán nút</string>
-    <string name="shortcuts_remove">Xóa</string>
     <string name="shortcuts_capture">Gán: %1$s</string>
     <string name="shortcuts_press">Nhấn rồi thả nút vật lý bạn muốn dùng. Dùng màn hình cảm ứng để hủy.</string>
     <string name="shortcuts_release">Thả nút để tiếp tục.</string>
@@ -15,6 +11,4 @@
     <string name="shortcuts_save">Lưu phím tắt</string>
     <string name="shortcuts_retry">Thử nút khác</string>
     <string name="shortcuts_limitations">Không phát hiện nút? Android hoặc phần sụn có thể chặn nút Home hay nút bổ sung. Các nút phải gửi sự kiện khác nhau tới DroidDeck. Không thể gán phím âm lượng và phím hệ thống.</string>
-    <string name="shortcuts_reset">Đặt lại phím tắt vật lý</string>
-    <string name="shortcuts_reset_hint">Xóa tất cả phím tắt vật lý và khôi phục hành vi mặc định? Điều khiển cảm ứng và các cài đặt tay cầm khác được giữ nguyên.</string>
 </resources>

@@ -1,11 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcuts_title">Physical button shortcuts</string>
-    <string name="shortcuts_hint">Assign buttons per controller. Steam shortcuts apply in Steam sessions only. Unassigned buttons keep their default behavior.</string>
     <string name="shortcuts_dd_menu">DroidDeck menu</string>
-    <string name="shortcuts_default">Default behavior (no override)</string>
-    <string name="shortcuts_assign">Assign a button</string>
-    <string name="shortcuts_remove">Remove</string>
     <string name="shortcuts_capture">Assign: %1$s</string>
     <string name="shortcuts_press">Press and release the physical button you want to use. Use the touchscreen to cancel.</string>
     <string name="shortcuts_release">Release the button to continue.</string>
@@ -15,6 +11,4 @@
     <string name="shortcuts_save">Save shortcut</string>
     <string name="shortcuts_retry">Try another button</string>
     <string name="shortcuts_limitations">No button detected? Android or device firmware may intercept Home or extra buttons. Buttons must send distinct events to DroidDeck. Volume and system keys are not assignable.</string>
-    <string name="shortcuts_reset">Reset physical shortcuts</string>
-    <string name="shortcuts_reset_hint">Remove all physical shortcuts and restore default button behavior? Touch controls and other controller settings are kept.</string>
 </resources>

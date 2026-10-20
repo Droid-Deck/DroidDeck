@@ -1,11 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcuts_title">Raccourcis des boutons physiques</string>
-    <string name="shortcuts_hint">Attribuez des boutons par manette. Les raccourcis Steam ne fonctionnent que dans les sessions Steam. Les boutons non attribués conservent leur comportement par défaut.</string>
     <string name="shortcuts_dd_menu">Menu DroidDeck</string>
-    <string name="shortcuts_default">Comportement par défaut (sans modification)</string>
-    <string name="shortcuts_assign">Attribuer un bouton</string>
-    <string name="shortcuts_remove">Supprimer</string>
     <string name="shortcuts_capture">Attribuer : %1$s</string>
     <string name="shortcuts_press">Appuyez puis relâchez le bouton physique souhaité. Utilisez l’écran tactile pour annuler.</string>
     <string name="shortcuts_release">Relâchez le bouton pour continuer.</string>
@@ -15,6 +11,4 @@
     <string name="shortcuts_save">Enregistrer le raccourci</string>
     <string name="shortcuts_retry">Essayer un autre bouton</string>
     <string name="shortcuts_limitations">Bouton non détecté ? Android ou le micrologiciel peut intercepter Accueil ou les boutons supplémentaires. Les boutons doivent envoyer des événements distincts à DroidDeck. Les touches de volume et du système ne sont pas attribuables.</string>
-    <string name="shortcuts_reset">Réinitialiser les raccourcis physiques</string>
-    <string name="shortcuts_reset_hint">Supprimer tous les raccourcis physiques et rétablir le comportement par défaut ? Les commandes tactiles et les autres paramètres de la manette sont conservés.</string>
 </resources>

@@ -1,11 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcuts_title">Συντομεύσεις φυσικών κουμπιών</string>
-    <string name="shortcuts_hint">Αντιστοιχίστε κουμπιά ανά χειριστήριο. Οι συντομεύσεις Steam ισχύουν μόνο σε συνεδρίες Steam. Τα μη αντιστοιχισμένα κουμπιά διατηρούν την προεπιλεγμένη λειτουργία τους.</string>
     <string name="shortcuts_dd_menu">Μενού DroidDeck</string>
-    <string name="shortcuts_default">Προεπιλεγμένη λειτουργία (χωρίς αλλαγή)</string>
-    <string name="shortcuts_assign">Αντιστοίχιση κουμπιού</string>
-    <string name="shortcuts_remove">Αφαίρεση</string>
     <string name="shortcuts_capture">Αντιστοίχιση: %1$s</string>
     <string name="shortcuts_press">Πατήστε και αφήστε το φυσικό κουμπί που θέλετε. Χρησιμοποιήστε την οθόνη αφής για ακύρωση.</string>
     <string name="shortcuts_release">Αφήστε το κουμπί για συνέχεια.</string>
@@ -15,6 +11,4 @@
     <string name="shortcuts_save">Αποθήκευση συντόμευσης</string>
     <string name="shortcuts_retry">Δοκιμή άλλου κουμπιού</string>
     <string name="shortcuts_limitations">Δεν εντοπίστηκε κουμπί; Το Android ή το υλικολογισμικό μπορεί να δεσμεύει την Αρχική οθόνη ή τα επιπλέον κουμπιά. Τα κουμπιά πρέπει να στέλνουν διαφορετικά συμβάντα στο DroidDeck. Τα πλήκτρα έντασης και συστήματος δεν αντιστοιχίζονται.</string>
-    <string name="shortcuts_reset">Επαναφορά φυσικών συντομεύσεων</string>
-    <string name="shortcuts_reset_hint">Αφαίρεση όλων των φυσικών συντομεύσεων και επαναφορά της προεπιλεγμένης λειτουργίας; Τα χειριστήρια αφής και οι άλλες ρυθμίσεις χειριστηρίου διατηρούνται.</string>
 </resources>

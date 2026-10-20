@@ -1,11 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcuts_title">Fizikai gombok parancsikonjai</string>
-    <string name="shortcuts_hint">Gombok hozzárendelése vezérlőnként. A Steam-parancsikonok csak Steam-munkamenetekben működnek. A hozzá nem rendelt gombok megtartják alapértelmezett működésüket.</string>
     <string name="shortcuts_dd_menu">DroidDeck-menü</string>
-    <string name="shortcuts_default">Alapértelmezett működés (nincs módosítás)</string>
-    <string name="shortcuts_assign">Gomb hozzárendelése</string>
-    <string name="shortcuts_remove">Eltávolítás</string>
     <string name="shortcuts_capture">Hozzárendelés: %1$s</string>
     <string name="shortcuts_press">Nyomja meg, majd engedje fel a kívánt fizikai gombot. A megszakításhoz használja az érintőképernyőt.</string>
     <string name="shortcuts_release">A folytatáshoz engedje fel a gombot.</string>
@@ -15,6 +11,4 @@
     <string name="shortcuts_save">Parancsikon mentése</string>
     <string name="shortcuts_retry">Másik gomb kipróbálása</string>
     <string name="shortcuts_limitations">Nem észlelhető a gomb? Az Android vagy a firmware elfoghatja a Kezdőlap vagy a kiegészítő gombok jelét. A gomboknak eltérő eseményeket kell küldeniük a DroidDecknek. A hangerő- és rendszergombok nem rendelhetők hozzá.</string>
-    <string name="shortcuts_reset">Fizikai parancsikonok visszaállítása</string>
-    <string name="shortcuts_reset_hint">Eltávolítja az összes fizikai parancsikont és visszaállítja az alapértelmezett működést? Az érintéses vezérlés és a többi vezérlőbeállítás megmarad.</string>
 </resources>

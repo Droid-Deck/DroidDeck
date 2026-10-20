@@ -110,9 +110,6 @@ object PhysicalShortcuts {
         ControllerPrefs.prefs(context).edit().putString(KEY, array.toString()).apply()
     }
 
-    fun reset(context: Context) {
-        ControllerPrefs.prefs(context).edit().remove(KEY).apply()
-    }
 }
 
 class PhysicalShortcutRouter {

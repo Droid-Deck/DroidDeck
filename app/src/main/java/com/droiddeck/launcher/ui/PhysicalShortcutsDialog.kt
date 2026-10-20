@@ -76,15 +76,11 @@ internal fun PhysicalShortcutsDialog(
     onChanged: () -> Unit = {},
 ) {
     val context = LocalContext.current
-    var bindings by remember { mutableStateOf(PhysicalShortcuts.read(context)) }
+    val bindings = remember { PhysicalShortcuts.read(context) }
     var candidate by remember { mutableStateOf<PhysicalShortcuts.Button?>(null) }
     var listening by remember { mutableStateOf(true) }
     var capturedDevice by remember { mutableStateOf(-1) }
     var details by remember { mutableStateOf(false) }
-    fun refresh() {
-        bindings = PhysicalShortcuts.read(context)
-        onChanged()
-    }
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(dismissOnBackPress = !listening, usePlatformDefaultWidth = false),
@@ -106,7 +102,7 @@ internal fun PhysicalShortcutsDialog(
                     candidate?.let { button ->
                         if (bindings.none { it.button.sameInput(button) && it.action != action }) {
                             PhysicalShortcuts.assign(context, button, action)
-                            refresh()
+                            onChanged()
                             onDismiss()
                         }
                     }
@@ -147,7 +143,7 @@ internal fun PhysicalShortcutsDialog(
                             Text(stringResource(R.string.shortcuts_replace))
                             SecondaryButton(stringResource(R.string.shortcuts_save), modifier = Modifier.testTag("shortcuts-save")) {
                                 PhysicalShortcuts.assign(context, button, action)
-                                refresh()
+                                onChanged()
                                 onDismiss()
                             }
                         }
@@ -163,7 +159,7 @@ internal fun PhysicalShortcutsDialog(
                             stringResource(R.string.shortcuts_detected, binding.button.name, binding.button.label),
                             null, stringResource(R.string.ctrl_reset), {
                                 PhysicalShortcuts.remove(context, binding)
-                                refresh()
+                                onChanged()
                                 onDismiss()
                             },
                             modifier = Modifier.testTag("shortcuts-remove"),
