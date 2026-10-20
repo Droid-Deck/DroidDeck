@@ -921,6 +921,23 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("unfoldedControls", enabled).apply()
     }
 
+    fun foldedAspect(context: Context): String =
+        prefs(context).getString("foldedAspect", null)?.takeIf { it in SessionDisplay.FOLDED_ASPECTS }
+            ?: SessionDisplay.FOLDED_FILL
+
+    fun setFoldedAspect(context: Context, aspect: String) {
+        prefs(context).edit().putString("foldedAspect", aspect).apply()
+    }
+
+    val DECK_CONTROLS_SCALES = listOf(70, 80, 90, 100)
+
+    fun deckControlsScale(context: Context): Int =
+        prefs(context).getInt("deckControlsScale", 100).takeIf { it in DECK_CONTROLS_SCALES } ?: 100
+
+    fun setDeckControlsScale(context: Context, percent: Int) {
+        prefs(context).edit().putInt("deckControlsScale", percent).apply()
+    }
+
     const val SURFACE_STICK = "stick"
     const val SURFACE_TRACKPAD = "trackpad"
 

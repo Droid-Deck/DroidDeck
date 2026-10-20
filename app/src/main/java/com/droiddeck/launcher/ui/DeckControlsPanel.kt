@@ -61,6 +61,10 @@ class DeckControlsPanel(
         super.onDetachedFromWindow()
     }
 
+    fun resized() {
+        content.getChildAt(0)?.requestLayout()
+    }
+
     private fun topBar(): View = LinearLayout(context).apply {
         orientation = HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
@@ -612,7 +616,8 @@ class DeckControlsPanel(
             addView(view)
         }
 
-        private fun boxes(w: Int, h: Int) = GamepadGeometry.layout(w.toFloat(), h.toFloat(), resources.displayMetrics.density)
+        private fun boxes(w: Int, h: Int) = GamepadGeometry.layout(w.toFloat(), h.toFloat(), resources.displayMetrics.density,
+            SessionPrefs.deckControlsScale(context) / 100f)
 
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
             val w = MeasureSpec.getSize(widthMeasureSpec)

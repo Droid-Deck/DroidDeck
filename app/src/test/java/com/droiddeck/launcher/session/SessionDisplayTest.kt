@@ -34,10 +34,12 @@ class SessionDisplayTest {
         assertEquals(2560 to 1440, SessionDisplay.resolveChoice(2560 to 1440, SessionDisplay.MATCH_SCREEN))
     }
 
-    @Test fun unfoldedControlsKeepTheGameSixteenByNineAcrossTheWidth() {
-        assertEquals(1376, SessionDisplay.unfoldedGameHeight(2448, 1848))
-        assertEquals(1038, SessionDisplay.unfoldedGameHeight(1848, 2448))
-        assertEquals(864, SessionDisplay.unfoldedGameHeight(1920, 1080))
+    @Test fun aHalfFoldedGameTakesTheLargestBoxOfItsShapeAboveTheFold() {
+        assertEquals(2184 to 984, SessionDisplay.foldedGameSize(2184, 984, SessionDisplay.FOLDED_FILL))
+        assertEquals(1748 to 984, SessionDisplay.foldedGameSize(2184, 984, SessionDisplay.FOLDED_16X9))
+        assertEquals(1574 to 984, SessionDisplay.foldedGameSize(2184, 984, SessionDisplay.FOLDED_16X10))
+        assertEquals(2184 to 912, SessionDisplay.foldedGameSize(2184, 984, SessionDisplay.FOLDED_SCOPE))
+        assertEquals(1600 to 900, SessionDisplay.foldedGameSize(1600, 1200, SessionDisplay.FOLDED_16X9))
     }
 
 

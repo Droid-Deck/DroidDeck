@@ -34,15 +34,27 @@ object SessionDisplay {
     fun followSize(width: Int, height: Int): Pair<Int, Int>? =
         if (minOf(width, height) < FOLLOW_MIN_SIDE) null else (width and 1.inv()) to (height and 1.inv())
 
-    const val UNFOLDED_MAX_GAME_SHARE = 0.8f
-
     fun foldable(context: Context): Boolean =
         context.packageManager.hasSystemFeature("android.hardware.sensor.hinge_angle")
 
-    const val UNFOLDED_MIN_DP = 600
+    const val FOLDED_FILL = "fill"
+    const val FOLDED_16X9 = "16:9"
+    const val FOLDED_16X10 = "16:10"
+    const val FOLDED_SCOPE = "2.39:1"
+    val FOLDED_ASPECTS = listOf(FOLDED_FILL, FOLDED_16X9, FOLDED_16X10, FOLDED_SCOPE)
 
-    fun unfoldedGameHeight(width: Int, height: Int): Int =
-        minOf(width * 9 / 16, (height * UNFOLDED_MAX_GAME_SHARE).toInt()) and 1.inv()
+    const val FOLDED_MIN_SIDE = 240
+
+    fun foldedGameSize(width: Int, aboveFold: Int, aspect: String): Pair<Int, Int> {
+        val ratio = when (aspect) {
+            FOLDED_16X9 -> 16f / 9f
+            FOLDED_16X10 -> 16f / 10f
+            FOLDED_SCOPE -> 2.39f
+            else -> return (width and 1.inv()) to (aboveFold and 1.inv())
+        }
+        val gameWidth = minOf(width.toFloat(), aboveFold * ratio)
+        return (gameWidth.toInt() and 1.inv()) to ((gameWidth / ratio).toInt() and 1.inv())
+    }
 
 
     fun panelSize(context: Context): Pair<Int, Int> {

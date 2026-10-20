@@ -266,6 +266,10 @@ class DrawerActions(
     val onPipAutoEnter: (Boolean) -> Unit = {},
     val unfoldedControls: Boolean? = null,
     val onUnfoldedControls: (Boolean) -> Unit = {},
+    val foldedAspect: String = com.droiddeck.launcher.session.SessionDisplay.FOLDED_FILL,
+    val onFoldedAspect: (String) -> Unit = {},
+    val deckControlsScale: Int = 100,
+    val onDeckControlsScale: (Int) -> Unit = {},
     val onShareLogs: () -> Unit,
     val onStop: () -> Unit,
     val onStopFrom: ((androidx.compose.ui.geometry.Rect?) -> Unit)? = null,
@@ -534,6 +538,18 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 if (a.steam && a.unfoldedControls != null) ToggleRow(host, "unfolded-controls", stringResource(R.string.unfolded_controls),
                                     stringResource(R.string.unfolded_controls_hint), a.unfoldedControls,
                                     chipModifier = focus.track(page, "unfolded-controls"), onChange = a.onUnfoldedControls)
+                                if (a.steam && a.unfoldedControls == true) {
+                                    ChoiceRow(host, "folded-aspect", stringResource(R.string.folded_aspect), stringResource(R.string.folded_aspect_hint),
+                                        listOf(
+                                            com.droiddeck.launcher.session.SessionDisplay.FOLDED_FILL to stringResource(R.string.folded_aspect_fill),
+                                            com.droiddeck.launcher.session.SessionDisplay.FOLDED_16X9 to "16:9",
+                                            com.droiddeck.launcher.session.SessionDisplay.FOLDED_16X10 to "16:10",
+                                            com.droiddeck.launcher.session.SessionDisplay.FOLDED_SCOPE to stringResource(R.string.folded_aspect_scope),
+                                        ), a.foldedAspect, chipModifier = focus.track(page, "folded-aspect"), onPick = a.onFoldedAspect)
+                                    ChoiceRow(host, "deck-controls-scale", stringResource(R.string.deck_controls_scale), null,
+                                        SessionPrefs.DECK_CONTROLS_SCALES.map { it to "$it %" }, a.deckControlsScale,
+                                        chipModifier = focus.track(page, "deck-controls-scale"), onPick = a.onDeckControlsScale)
+                                }
                             }
                             SettingsGroup(stringResource(R.string.drawer_latency)) {
                                 ToggleRow(host, "low-latency-controller", stringResource(R.string.drawer_low_latency_controller),

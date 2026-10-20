@@ -1154,8 +1154,13 @@
     <string name="game_env_eyebrow">Jeux Proton</string>
     <string name="pip_title">Picture-in-Picture (PiP)</string>
     <string name="pip_auto">Passer automatiquement en PiP</string>
-    <string name="unfolded_controls">Commandes sur l\'écran déplié</string>
-    <string name="unfolded_controls_hint">Déplié, le jeu s\'affiche au-dessus des pavés tactiles et des poignées arrière du Steam Deck. Plié, le jeu est en plein écran.</string>
+    <string name="unfolded_controls">Commandes sous la pliure</string>
+    <string name="unfolded_controls_hint">À moitié plié comme un ordinateur portable, le jeu s\'affiche au-dessus de la pliure et les commandes du Steam Deck en dessous. Ouvert à plat ou replié, le jeu est en plein écran.</string>
+    <string name="folded_aspect">Format du jeu à moitié plié</string>
+    <string name="folded_aspect_hint">Avec la résolution « Suivre l\'écran », le jeu est rendu à cette taille.</string>
+    <string name="folded_aspect_fill">Remplir</string>
+    <string name="folded_aspect_scope">Cinémascope (2,39:1)</string>
+    <string name="deck_controls_scale">Taille des commandes</string>
     <string name="pip_suspended">En pause</string>
     <string name="pip_not_ready">Le mode PiP sera disponible une fois la session prête.</string>
     <string name="pip_permission">Veuillez autoriser DroidDeck à utiliser le mode PiP dans les paramètres Android.</string>

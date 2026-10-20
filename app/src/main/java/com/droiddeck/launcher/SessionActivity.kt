@@ -26,6 +26,10 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.window.java.layout.WindowInfoTrackerCallbackAdapter
+import androidx.window.layout.FoldingFeature
+import androidx.window.layout.WindowInfoTracker
+import androidx.window.layout.WindowLayoutInfo
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.LaunchedEffect
@@ -133,7 +137,24 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var pipUi by mutableStateOf(false)
     private var pipAutoEnter by mutableStateOf(false)
     private var unfoldedControls by mutableStateOf(false)
+    private var foldedAspect by mutableStateOf(com.droiddeck.launcher.session.SessionDisplay.FOLDED_FILL)
+    private var deckControlsScale by mutableIntStateOf(100)
     private var picturePosition by mutableStateOf("center")
+
+    /** The hinge, in window coordinates, while the phone is half folded along a horizontal fold. */
+    private var halfFold: android.graphics.Rect? = null
+    private val foldTracker by lazy { WindowInfoTrackerCallbackAdapter(WindowInfoTracker.getOrCreate(this)) }
+    private val foldListener = androidx.core.util.Consumer<WindowLayoutInfo> { info ->
+        val fold = info.displayFeatures.filterIsInstance<FoldingFeature>().firstOrNull {
+            it.state == FoldingFeature.State.HALF_OPENED && it.orientation == FoldingFeature.Orientation.HORIZONTAL
+        }
+        val bounds = fold?.bounds?.let { android.graphics.Rect(it) }
+        if (bounds != halfFold) {
+            halfFold = bounds
+            Log.i(TAG, if (bounds != null) "fold: half folded, hinge at $bounds" else "fold: not half folded")
+            applyUnfoldedControls()
+        }
+    }
 
     private fun applyGameAlignment() {
         if (!CompositorHost.isStarted) return
@@ -903,6 +924,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     },
                     unfoldedControls = if (com.droiddeck.launcher.session.SessionDisplay.foldable(this@SessionActivity)) unfoldedControls else null,
                     onUnfoldedControls = ::chooseUnfoldedControls,
+                    foldedAspect = foldedAspect,
+                    onFoldedAspect = ::chooseFoldedAspect,
+                    deckControlsScale = deckControlsScale,
+                    onDeckControlsScale = ::chooseDeckControlsScale,
                     onBackground = { drawerOpen = false; pip.background(); moveTaskToBack(true) },
                     onShareLogs = { drawerOpen = false; shareCurrentSessionLogs() },
                     onStop = { drawerOpen = false; SessionService.stop(this@SessionActivity); finish() },
@@ -1339,6 +1364,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun readPrefs() {
         pipAutoEnter = SessionPrefs.pipAutoEnter(this)
         unfoldedControls = SessionPrefs.unfoldedControls(this)
+        foldedAspect = SessionPrefs.foldedAspect(this)
+        deckControlsScale = SessionPrefs.deckControlsScale(this)
         picturePosition = SessionPrefs.picturePosition(this)
         hudOn = SessionPrefs.hudEnabled(this)
         upscaler = SessionPrefs.upscaler(this)
@@ -2368,6 +2395,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         applyUnfoldedControls()
     }
 
+    private fun chooseFoldedAspect(aspect: String) {
+        SessionPrefs.setFoldedAspect(this, aspect)
+        foldedAspect = aspect
+        applyUnfoldedControls()
+    }
+
+    private fun chooseDeckControlsScale(percent: Int) {
+        SessionPrefs.setDeckControlsScale(this, percent)
+        deckControlsScale = percent
+        unfoldedPanel?.resized()
+    }
+
     private fun refreshControls() {
         applyUnfoldedControls()
         updateOnScreenControls()
@@ -2377,18 +2416,27 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (!::sessionRoot.isInitialized) return
         val width = sessionRoot.width
         val height = sessionRoot.height
-        val wanted = unfoldedControls && com.droiddeck.launcher.session.SessionDisplay.foldable(this) &&
+        val display = com.droiddeck.launcher.session.SessionDisplay
+        val origin = IntArray(2).also { sessionRoot.getLocationInWindow(it) }
+        val aboveFold = halfFold?.let { it.top - origin[1] } ?: 0
+        val belowFold = halfFold?.let { height - (it.bottom - origin[1]) } ?: 0
+        val wanted = unfoldedControls && halfFold != null &&
             !PadBridge.anyControllerConnected() && !SteamControllerBle.connected &&
             SessionState.mode == SessionService.MODE_STEAM && SessionState.deckPad &&
             !pipUi && !isInPictureInPictureMode && width > 0 && height > 0 &&
-            resources.configuration.smallestScreenWidthDp >= com.droiddeck.launcher.session.SessionDisplay.UNFOLDED_MIN_DP
-        val gameHeight = if (wanted) com.droiddeck.launcher.session.SessionDisplay.unfoldedGameHeight(width, height)
-            else FrameLayout.LayoutParams.MATCH_PARENT
-        val params = surfaceView.layoutParams as FrameLayout.LayoutParams
-        if (params.height != gameHeight) {
-            surfaceView.layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, gameHeight, Gravity.TOP)
-            Log.i(TAG, if (wanted) "unfolded controls: game ${width}x$gameHeight, controls ${width}x${height - gameHeight}"
-                else "unfolded controls: game full screen")
+            aboveFold >= display.FOLDED_MIN_SIDE && belowFold >= display.FOLDED_MIN_SIDE
+        val params = if (wanted) {
+            val (gameWidth, gameHeight) = display.foldedGameSize(width, aboveFold, foldedAspect)
+            FrameLayout.LayoutParams(gameWidth, gameHeight, Gravity.TOP or Gravity.CENTER_HORIZONTAL)
+                .apply { topMargin = (aboveFold - gameHeight) / 2 }
+        } else {
+            FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT, Gravity.TOP)
+        }
+        val current = surfaceView.layoutParams as FrameLayout.LayoutParams
+        if (current.width != params.width || current.height != params.height || current.topMargin != params.topMargin) {
+            surfaceView.layoutParams = params
+            Log.i(TAG, if (wanted) "half folded controls: game ${params.width}x${params.height} above the fold, controls ${width}x$belowFold"
+                else "half folded controls: game full screen")
         }
         var panel = unfoldedPanel
         if (!wanted) {
@@ -2402,7 +2450,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             unfoldedPanel = panel
             updateOnScreenControls()
         }
-        panel.layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, height - gameHeight, Gravity.BOTTOM)
+        panel.layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, belowFold, Gravity.BOTTOM)
     }
 
     private fun moveSecondScreenPointer(x: Float, y: Float, width: Float, height: Float) {
@@ -2796,6 +2844,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (runtimeRemovalBlocked) return
         started = true
         displayManager.registerDisplayListener(displayListener, Handler(Looper.getMainLooper()))
+        foldTracker.addWindowLayoutInfoListener(this, androidx.core.content.ContextCompat.getMainExecutor(this), foldListener)
         refreshSecondScreenDisplays()
         if (secondScreenMode != SecondScreenMode.NONE && secondScreenPresentation == null) showSecondScreen(secondScreenMode)
         startedScreens++
@@ -2810,6 +2859,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         started = false
         updateHandCamera()
         displayManager.unregisterDisplayListener(displayListener)
+        foldTracker.removeWindowLayoutInfoListener(foldListener)
         closeSecondScreen(reset = false)
         startedScreens = (startedScreens - 1).coerceAtLeast(0)
         updateGlassesScreen()
