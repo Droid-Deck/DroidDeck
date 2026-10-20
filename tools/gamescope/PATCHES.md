@@ -59,3 +59,9 @@ library list, before anything is published.
 
 Sixteen more of Armada's patches are DRM/lease/HDR-on-KMS work for a native display, which this
 app's Wayland-hosted gamescope never reaches, or need a newer gamescope than the runtime has.
+
+- `0116-release-cursor-shm-buffers.patch` - this app: pointer cursor surfaces have no
+  X11/xdg window association, so routing their commits through `g_PendingCommits`
+  retained every old SHM buffer until the surface was destroyed. Ignore cursor-role
+  commits before taking the buffer lock; X11 cursor images still follow the existing
+  MouseCursor path. Window commits awaiting association are unchanged.
