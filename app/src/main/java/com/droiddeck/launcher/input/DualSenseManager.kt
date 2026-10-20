@@ -51,8 +51,11 @@ class DualSenseManager(private val context: Context) {
     @Volatile private var lastRawHidTimestamp = 0L
 
     @Volatile var onStateUpdated: ((DualSense.State) -> Unit)? = null
+    @Volatile var onActivationChanged: ((Boolean) -> Unit)? = null
 
     private var tcpThread: Thread? = null
+    @Volatile private var tcpSocket: Socket? = null
+    @Volatile private var startGeneration: Int = 0
     @Volatile var tcpOutputStream: OutputStream? = null
     private val activeSources = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
 
@@ -122,11 +125,13 @@ class DualSenseManager(private val context: Context) {
         }
     }
 
+    @Synchronized
     fun start() {
         if (running) return
         running = true
         stopped = false
         hasDetached = false
+        startGeneration++
         activeManager = this
 
         val inputManager = context.getSystemService(Context.INPUT_SERVICE) as? InputManager
@@ -146,6 +151,7 @@ class DualSenseManager(private val context: Context) {
         running = false
         stopped = true
         hasDetached = true
+        startGeneration++
         if (activeManager === this) {
             activeManager = null
         }
@@ -160,6 +166,12 @@ class DualSenseManager(private val context: Context) {
         unregisterAllDeviceSensors()
         closeBluetoothHidHost()
 
+        try {
+            tcpSocket?.close()
+        } catch (e: Exception) {
+            // ignore
+        }
+        tcpSocket = null
         tcpThread?.interrupt()
         tcpThread = null
         tcpOutputStream = null
@@ -578,17 +590,20 @@ class DualSenseManager(private val context: Context) {
         if (isDualSenseActive) return
         val prev = SessionPrefs.steamController(context)
         cachedPreference = prev
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DUALSENSE)
         FakeInputWriter.setPadType(FakeInputWriter.PAD_TYPE_DUALSENSE)
         SteamDeckPad.showPad(FakeInputWriter.PAD_TYPE_DUALSENSE)
         isDualSenseActive = true
         DeckControls.externalImuActive = true
-        Log.i(TAG, "DualSense activated as primary controller (cached preference: $prev)")
+        onActivationChanged?.invoke(true)
+        Log.i(TAG, "DualSense activated as primary controller (cached preference: $prev -> dualsense)")
     }
 
     @Synchronized
     fun demoteFromDualSense() {
         if (!isDualSenseActive) return
         val restorePref = cachedPreference ?: SessionPrefs.CONTROLLER_DECK
+        SessionPrefs.setSteamController(context, restorePref)
         val padType = SessionPrefs.padType(restorePref)
         FakeInputWriter.setPadType(padType)
         SteamDeckPad.showPad(padType)
@@ -615,55 +630,66 @@ class DualSenseManager(private val context: Context) {
         wirelessGyro.fill(0)
         DeckControls.releaseAll()
         SessionState.padBridge?.releaseAll()
+        onActivationChanged?.invoke(false)
         Log.i(TAG, "DualSense deactivated, restored preference to: $restorePref (padType: $padType)")
     }
 
     private fun startTcpBridgeClient() {
+        val gen = startGeneration
         tcpThread = Thread({
-            while (running) {
+            while (running && gen == startGeneration) {
                 try {
                     Socket("127.0.0.1", TCP_PORT).use { socket ->
+                        if (!running || gen != startGeneration) return@use
+                        tcpSocket = socket
                         socket.tcpNoDelay = true
                         val out = socket.getOutputStream()
                         tcpOutputStream = out
                         try {
-                            Log.i(TAG, "Connected to DualSense host bridge on 127.0.0.1:$TCP_PORT")
-                            hasDetached = false
-                            activeSources.add("tcp")
-                            promoteToDualSense()
-
-                            // Send initial handshake output report (DroidDeck Cyan lightbar + Player 1 LED)
-                            sendOutputReport(
-                                DualSense.buildOutputReport(
-                                    r = 0,
-                                    g = 180,
-                                    b = 255,
-                                    playerLeds = 0x04,
-                                    micLed = 1
-                                )
-                            )
-
                             val input = DataInputStream(socket.getInputStream())
                             val buffer = ByteArray(DualSense.REPORT_SIZE_INPUT)
-                            while (running) {
+                            var handshakeSent = false
+                            while (running && gen == startGeneration) {
                                 input.readFully(buffer)
+                                if (!handshakeSent) {
+                                    handshakeSent = true
+                                    Log.i(TAG, "Connected to DualSense host bridge on 127.0.0.1:$TCP_PORT")
+                                    hasDetached = false
+                                    activeSources.add("tcp")
+                                    promoteToDualSense()
+                                    // Send initial handshake output report (DroidDeck Cyan lightbar + Player 1 LED)
+                                    sendOutputReport(
+                                        DualSense.buildOutputReport(
+                                            r = 0,
+                                            g = 180,
+                                            b = 255,
+                                            playerLeds = 0x04,
+                                            micLed = 1
+                                        )
+                                    )
+                                }
                                 onInputReport(buffer)
                             }
                         } finally {
-                            tcpOutputStream = null
+                            if (gen == startGeneration) {
+                                tcpOutputStream = null
+                            }
                         }
                     }
                 } catch (e: Exception) {
                     // Host bridge not running or disconnected
                 } finally {
-                    tcpOutputStream = null
-                    activeSources.remove("raw")
-                    if (activeSources.remove("tcp") && activeSources.isEmpty()) {
-                        hasDetached = true
-                        demoteFromDualSense()
+                    if (gen == startGeneration) {
+                        tcpSocket = null
+                        tcpOutputStream = null
+                        activeSources.remove("raw")
+                        if (activeSources.remove("tcp") && activeSources.isEmpty()) {
+                            hasDetached = true
+                            demoteFromDualSense()
+                        }
                     }
                 }
-                if (running) {
+                if (running && gen == startGeneration) {
                     try {
                         Thread.sleep(RECONNECT_DELAY_MS)
                     } catch (e: InterruptedException) {

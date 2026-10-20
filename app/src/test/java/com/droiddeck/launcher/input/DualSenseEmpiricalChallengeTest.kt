@@ -79,11 +79,15 @@ class DualSenseEmpiricalChallengeTest {
 
     @Test
     fun challengeBufferTruncation() {
-        // Buffers shorter than 64 bytes MUST return null without throwing exception
+        // Buffers shorter than 64 bytes (except exact 10-byte BT simple 0x01 report) MUST return null
         for (len in 0..63) {
             val buf = ByteArray(len)
             if (len > 0) buf[0] = DualSense.REPORT_ID_INPUT
-            assertNull("Buffer of length $len must return null", DualSense.parseInputReport(buf))
+            if (len == DualSense.REPORT_SIZE_BT_BASIC_INPUT) {
+                assertNotNull("Buffer of length 10 (BT simple report 0x01) must succeed", DualSense.parseInputReport(buf))
+            } else {
+                assertNull("Buffer of length $len must return null", DualSense.parseInputReport(buf))
+            }
         }
 
         // Buffer of exactly 64 bytes with correct ID must succeed
@@ -107,11 +111,11 @@ class DualSenseEmpiricalChallengeTest {
 
     @Test
     fun challengeInvalidReportIds() {
-        // Only 0x01 is valid for USB input reports
+        // Only 0x01 (64B/10B) and 0x31 (>=78B) are valid input report IDs; 64B with 0x31 is truncated and must return null
         for (id in listOf(0x00, 0x02, 0x03, 0x05, 0x09, 0x20, 0x31, 0x80, 0xFF)) {
             val report = makeReport()
             report[0] = id.toByte()
-            assertNull("Report ID 0x${Integer.toHexString(id)} must return null", DualSense.parseInputReport(report))
+            assertNull("64-byte Report ID 0x${Integer.toHexString(id)} must return null", DualSense.parseInputReport(report))
         }
     }
 

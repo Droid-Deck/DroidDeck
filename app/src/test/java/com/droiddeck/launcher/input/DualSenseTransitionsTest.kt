@@ -153,15 +153,21 @@ class DualSenseTransitionsTest {
         manager.onUsbDeviceAttached(xbox)
         assertFalse(manager.isDualSenseActive)
 
+        var activationCallbackValue: Boolean? = null
+        manager.onActivationChanged = { active -> activationCallbackValue = active }
+
         // 2. DualSense connects second
         val dualSense = usbDevice(pid = DualSense.PRODUCT_DUALSENSE, vid = DualSense.VENDOR_SONY, name = "/dev/bus/usb/001/3")
         manager.onUsbDeviceAttached(dualSense)
 
-        // Verified: DualSense is promoted to slot 0
+        // Verified: DualSense is promoted to slot 0 and system preference switches to dualsense
         assertTrue("DualSense must be active", manager.isDualSenseActive)
+        assertEquals(true, activationCallbackValue)
         assertTrue("externalImuActive must be true", DeckControls.externalImuActive)
         assertEquals("Cached preference must be previous preference (xbox360)",
             SessionPrefs.CONTROLLER_XBOX360, manager.cachedPreference)
+        assertEquals("System steamController preference must automatically switch to dualsense",
+            SessionPrefs.CONTROLLER_DUALSENSE, SessionPrefs.steamController(context))
         assertEquals("Pad type must switch to PAD_TYPE_DUALSENSE",
             FakeInputWriter.PAD_TYPE_DUALSENSE, RecordingWriter.lastPadType)
 
@@ -170,8 +176,11 @@ class DualSenseTransitionsTest {
 
         // Verified: Demotes and restores previous controller preference
         assertFalse("DualSense must be inactive", manager.isDualSenseActive)
+        assertEquals(false, activationCallbackValue)
         assertFalse("externalImuActive must be reset to false", DeckControls.externalImuActive)
         assertNull("cachedPreference must be cleared", manager.cachedPreference)
+        assertEquals("System steamController preference must be restored to xbox360",
+            SessionPrefs.CONTROLLER_XBOX360, SessionPrefs.steamController(context))
         assertEquals("Pad type must be restored to PAD_TYPE_XBOX",
             FakeInputWriter.PAD_TYPE_XBOX, RecordingWriter.lastPadType)
 

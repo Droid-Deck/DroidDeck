@@ -120,7 +120,7 @@ object DualSense {
         val off: Int
         if (reportId == REPORT_ID_INPUT) {
             if (offset > data.size - REPORT_SIZE_INPUT) {
-                if (offset <= data.size - REPORT_SIZE_BT_BASIC_INPUT) {
+                if (data.size - offset == REPORT_SIZE_BT_BASIC_INPUT) {
                     return parseBasicBtInputReport(data, offset)
                 }
                 return null

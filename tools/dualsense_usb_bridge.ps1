@@ -255,7 +255,7 @@ public class DualSenseBridge {
         return bestMatch ?? btMatch;
     }
 
-    public static System.Threading.Thread StartUpstreamBridge(SafeFileHandle handle, System.IO.Stream stream, bool isBluetooth) {
+    public static System.Threading.Thread StartUpstreamBridge(SafeFileHandle writeHandle, System.IO.Stream stream, bool isBluetooth) {
         System.Threading.Thread t = new System.Threading.Thread(() => {
             byte[] buf = new byte[48];
             int seq = 0;
@@ -268,16 +268,17 @@ public class DualSenseBridge {
                         if (n <= 0) return;
                         offset += n;
                     }
+                    if (writeHandle == null || writeHandle.IsInvalid || writeHandle.IsClosed) continue;
                     int written = 0;
                     if (isBluetooth) {
                         bool btInit = sw.ElapsedMilliseconds < 3000;
-                        byte[] bt78 = WrapUsbOutputToBt78(buf, seq, btInit);
+                        byte[] bt547 = WrapUsbOutputToBt78(buf, seq, btInit);
                         seq = (seq + 1) & 0x0F;
-                        if (!WriteFile(handle, bt78, 78, out written, IntPtr.Zero)) {
-                            HidD_SetOutputReport(handle, bt78, 78);
+                        if (!WriteFile(writeHandle, bt547, 547, out written, IntPtr.Zero)) {
+                            WriteFile(writeHandle, bt547, 78, out written, IntPtr.Zero);
                         }
                     } else {
-                        WriteFile(handle, buf, 48, out written, IntPtr.Zero);
+                        WriteFile(writeHandle, buf, 48, out written, IntPtr.Zero);
                     }
                 }
             } catch {}
@@ -303,6 +304,7 @@ if (-not $TestOnly) {
 }
 
 $handle = $null
+$writeHandle = $null
 $listener = $null
 $reverseActive = $false
 
@@ -344,12 +346,14 @@ try {
         $testOut[42] = 0x02
         $testOut[44] = 0x04
         $testOut[45] = 0x00
-        $testOut[46] = 128
+        $testOut[46] = 180
         $testOut[47] = 255
         $written = 0
         if ($isBluetooth) {
-            $bt78 = [DualSenseBridge]::WrapUsbOutputToBt78($testOut, 0, $false)
-            [DualSenseBridge]::WriteFile($handle, $bt78, 78, [ref]$written, [IntPtr]::Zero) | Out-Null
+            $bt547 = [DualSenseBridge]::WrapUsbOutputToBt78($testOut, 0, $false)
+            if (-not [DualSenseBridge]::WriteFile($handle, $bt547, 547, [ref]$written, [IntPtr]::Zero)) {
+                [DualSenseBridge]::WriteFile($handle, $bt547, 78, [ref]$written, [IntPtr]::Zero) | Out-Null
+            }
         } else {
             [DualSenseBridge]::WriteFile($handle, $testOut, 48, [ref]$written, [IntPtr]::Zero) | Out-Null
         }
@@ -371,21 +375,38 @@ try {
     Write-Host "Host bridge listening on 127.0.0.1:$Port (auto-switching USB & Bluetooth hot-plug enabled)..." -ForegroundColor Green
 
     while ($true) {
-        # Dynamically discover and open USB or Bluetooth DualSense (supports hot-switching between USB and Bluetooth)
+        # Wait for live physical DualSense before accepting TCP client so the Android app only promotes when a DualSense is actually connected
         $path = [DualSenseBridge]::FindDualSensePath()
         if (-not $path) {
             Start-Sleep -Milliseconds 1000
             continue
         }
+        if (-not $listener.Pending()) {
+            Start-Sleep -Milliseconds 150
+            continue
+        }
+
+        $client = $listener.AcceptTcpClient()
+        $client.NoDelay = $true
+        $stream = $client.GetStream()
+
+        # Re-verify path right at connection time and open dedicated read + write handles
+        $path = [DualSenseBridge]::FindDualSensePath()
+        if (-not $path) {
+            try { $stream.Close() } catch {}
+            try { $client.Close() } catch {}
+            continue
+        }
         $isBluetooth = [DualSenseBridge]::IsBluetoothPath($path)
         $transportLabel = if ($isBluetooth) { "Bluetooth (0x31 78-byte)" } else { "USB (0x01 64-byte / 0x02 48-byte)" }
 
-        if ($handle -and -not $handle.IsInvalid -and -not $handle.IsClosed) {
-            try { $handle.Close() } catch {}
-        }
         $handle = [DualSenseBridge]::CreateFile($path, 0xC0000000, 3, [IntPtr]::Zero, 3, 0, [IntPtr]::Zero)
+        $writeHandle = [DualSenseBridge]::CreateFile($path, 0xC0000000, 3, [IntPtr]::Zero, 3, 0, [IntPtr]::Zero)
         if ($handle.IsInvalid) {
-            Start-Sleep -Milliseconds 1000
+            if ($writeHandle -and -not $writeHandle.IsInvalid) { try { $writeHandle.Close() } catch {} }
+            try { $stream.Close() } catch {}
+            try { $client.Close() } catch {}
+            Start-Sleep -Milliseconds 500
             continue
         }
 
@@ -395,20 +416,18 @@ try {
         $ok05 = [DualSenseBridge]::HidD_GetFeature($handle, $f05, 41)
         if (-not $ok05) {
             try { $handle.Close() } catch {}
-            Start-Sleep -Milliseconds 1000
+            if ($writeHandle -and -not $writeHandle.IsInvalid) { try { $writeHandle.Close() } catch {} }
+            try { $stream.Close() } catch {}
+            try { $client.Close() } catch {}
+            Start-Sleep -Milliseconds 500
             continue
         }
 
-        Write-Host "Active DualSense [$transportLabel] opened at: $path" -ForegroundColor Cyan
+        Write-Host "Emulator connected to DualSense [$transportLabel] at: $path" -ForegroundColor Green
         $readLen = if ($isBluetooth) { 78 } else { 64 }
 
-        $client = $listener.AcceptTcpClient()
-        $client.NoDelay = $true
-        Write-Host "Emulator connected! Starting bidirectional bridge ($transportLabel)..." -ForegroundColor Green
-        $stream = $client.GetStream()
-
-        # Thread: Upstream (Emulator 48B 0x02 -> Physical Controller WriteFile 48B USB or 78B BT 0x31)
-        $writerThread = [DualSenseBridge]::StartUpstreamBridge($handle, $stream, $isBluetooth)
+        # Thread: Upstream (Emulator 48B 0x02 -> Physical Controller WriteFile on dedicated writeHandle)
+        $writerThread = [DualSenseBridge]::StartUpstreamBridge($writeHandle, $stream, $isBluetooth)
 
         # Main loop: Downstream (Physical Controller ReadFile 64B/78B -> Normalize to 64B 0x01 -> TCP Send to Emulator)
         $inBuf = New-Object byte[] $readLen
@@ -430,6 +449,9 @@ try {
         } finally {
             try { $stream.Close() } catch {}
             try { $client.Close() } catch {}
+            if ($writeHandle -and -not $writeHandle.IsInvalid -and -not $writeHandle.IsClosed) {
+                try { $writeHandle.Close() } catch {}
+            }
             if ($handle -and -not $handle.IsInvalid -and -not $handle.IsClosed) {
                 try { $handle.Close() } catch {}
             }
@@ -444,6 +466,9 @@ try {
         try {
             & $AdbPath -s $DeviceSerial reverse --remove tcp:$Port 2>$null
         } catch {}
+    }
+    if ($writeHandle -and -not $writeHandle.IsInvalid -and -not $writeHandle.IsClosed) {
+        try { $writeHandle.Close() } catch {}
     }
     if ($handle -and -not $handle.IsInvalid -and -not $handle.IsClosed) {
         try { $handle.Close() } catch {}
