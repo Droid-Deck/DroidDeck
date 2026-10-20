@@ -966,6 +966,18 @@ class AppInfoTest(unittest.TestCase):
             self.assertEqual(orig.read_text(), "#!/bin/bash\nupdated FEX tool v2\n")
             self.assertEqual(tool.read_text(), self.COMPAT["VALVE_FEX_WRAPPER_SH"])
 
+            real_open = open
+
+            def open_mock(file, *args, **kwargs):
+                if str(file) == str(tool):
+                    raise OSError("permission denied")
+                return real_open(file, *args, **kwargs)
+
+            with mock.patch("builtins.open", side_effect=open_mock):
+                adopted_err = self.COMPAT["adopt_fex_tool"](str(steam))
+                self.assertEqual(adopted_err, [])
+                self.assertEqual(orig.read_text(), "#!/bin/bash\nupdated FEX tool v2\n")
+
 
 if __name__ == "__main__":
     unittest.main()

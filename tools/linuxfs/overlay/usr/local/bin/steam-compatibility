@@ -661,6 +661,8 @@ def adopt_fex_tool(steam_root):
             with open(target, encoding="utf-8", errors="replace") as f:
                 is_wrapper = f.read(len(VALVE_FEX_WRAPPER_SH) + 1) == VALVE_FEX_WRAPPER_SH
         except OSError:
+            if os.path.isfile(original):
+                continue
             is_wrapper = False
         if not is_wrapper:
             try:
