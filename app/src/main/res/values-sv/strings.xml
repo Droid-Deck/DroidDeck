@@ -570,6 +570,7 @@
     <string name="drawer_page_controls">Kontroller</string>
     <string name="drawer_page_components">Komponenter</string>
     <string name="drawer_page_controller">Handkontroll</string>
+    <string name="drawer_builtin_pad">Inbyggd handkontroll</string>
     <string name="drawer_page_settings">Inställningar</string>
     <string name="drawer_page_desc">%1$s-sidan</string>
     <string name="drawer_steam">Steam</string>

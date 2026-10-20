@@ -578,6 +578,7 @@
     <string name="drawer_page_controls">عناصر التحكم</string>
     <string name="drawer_page_components">المكوّنات</string>
     <string name="drawer_page_controller">وحدة التحكم</string>
+    <string name="drawer_builtin_pad">وحدة تحكم مدمجة</string>
     <string name="drawer_page_settings">الإعدادات</string>
     <string name="drawer_page_desc">صفحة %1$s</string>
     <string name="drawer_steam">Steam</string>

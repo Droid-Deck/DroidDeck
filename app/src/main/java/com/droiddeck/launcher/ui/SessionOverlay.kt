@@ -204,6 +204,8 @@ class DrawerActions(
     val backActionsInverted: Boolean,
     val padType: String? = null,
     val onPadType: (String) -> Unit = {},
+    val builtinPad: Boolean = true,
+    val onBuiltinPad: (Boolean) -> Unit = {},
     val touchMode: String,
     val touchAuto: String,
     val fexPreset: String,
@@ -491,6 +493,8 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         }
                         SessionDrawerPage.CONTROLLER -> {
                             SettingsGroup(stringResource(R.string.drawer_page_controller)) {
+                                ToggleRow(host, "builtin-pad", stringResource(R.string.drawer_builtin_pad), null, a.builtinPad,
+                                    chipModifier = focus.track(page, "builtin-pad"), onChange = a.onBuiltinPad)
                                 a.padType?.let { type ->
                                     ChoiceRow(host, "pad-type", stringResource(R.string.mode_controller), null,
                                         listOf(SessionPrefs.CONTROLLER_DECK to stringResource(R.string.mode_controller_deck),

@@ -567,6 +567,7 @@
     <string name="drawer_page_controls">Steuerung</string>
     <string name="drawer_page_components">Komponenten</string>
     <string name="drawer_page_controller">Controller</string>
+    <string name="drawer_builtin_pad">Integrierter Controller</string>
     <string name="drawer_page_settings">Einstellungen</string>
     <string name="drawer_page_desc">Seite %1$s</string>
     <string name="drawer_steam">Steam</string>

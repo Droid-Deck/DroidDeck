@@ -568,6 +568,7 @@
     <string name="drawer_page_controls">コントロール</string>
     <string name="drawer_page_components">コンポーネント</string>
     <string name="drawer_page_controller">コントローラー</string>
+    <string name="drawer_builtin_pad">内蔵コントローラー</string>
     <string name="drawer_page_settings">設定</string>
     <string name="drawer_page_desc">%1$sページ</string>
     <string name="drawer_steam">Steam</string>

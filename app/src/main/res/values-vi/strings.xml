@@ -568,6 +568,7 @@
     <string name="drawer_page_controls">Điều khiển</string>
     <string name="drawer_page_components">Thành phần</string>
     <string name="drawer_page_controller">Tay cầm</string>
+    <string name="drawer_builtin_pad">Tay cầm tích hợp</string>
     <string name="drawer_page_settings">Thiết lập</string>
     <string name="drawer_page_desc">Trang %1$s</string>
     <string name="drawer_steam">Steam</string>

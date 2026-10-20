@@ -570,6 +570,7 @@
     <string name="drawer_page_controls">Bediening</string>
     <string name="drawer_page_components">Componenten</string>
     <string name="drawer_page_controller">Controller</string>
+    <string name="drawer_builtin_pad">Ingebouwde controller</string>
     <string name="drawer_page_settings">Instellingen</string>
     <string name="drawer_page_desc">%1$s-pagina</string>
     <string name="drawer_steam">Steam</string>

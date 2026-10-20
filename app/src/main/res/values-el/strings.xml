@@ -570,6 +570,7 @@
     <string name="drawer_page_controls">Χειριστήρια</string>
     <string name="drawer_page_components">Στοιχεία</string>
     <string name="drawer_page_controller">Χειριστήριο</string>
+    <string name="drawer_builtin_pad">Ενσωματωμένο χειριστήριο</string>
     <string name="drawer_page_settings">Ρυθμίσεις</string>
     <string name="drawer_page_desc">Σελίδα %1$s</string>
     <string name="drawer_steam">Steam</string>

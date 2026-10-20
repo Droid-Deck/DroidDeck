@@ -570,6 +570,7 @@
     <string name="drawer_page_controls">Ohjaimet</string>
     <string name="drawer_page_components">Komponentit</string>
     <string name="drawer_page_controller">Ohjain</string>
+    <string name="drawer_builtin_pad">Sisäänrakennettu ohjain</string>
     <string name="drawer_page_settings">Asetukset</string>
     <string name="drawer_page_desc">%1$s-sivu</string>
     <string name="drawer_steam">Steam</string>

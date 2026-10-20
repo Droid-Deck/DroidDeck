@@ -568,6 +568,7 @@
     <string name="drawer_page_controls">Kawalan</string>
     <string name="drawer_page_components">Komponen</string>
     <string name="drawer_page_controller">Pengawal</string>
+    <string name="drawer_builtin_pad">Pengawal terbina dalam</string>
     <string name="drawer_page_settings">Tetapan</string>
     <string name="drawer_page_desc">Halaman %1$s</string>
     <string name="drawer_steam">Steam</string>

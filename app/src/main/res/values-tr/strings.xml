@@ -567,6 +567,7 @@
     <string name="drawer_page_controls">Kontroller</string>
     <string name="drawer_page_components">Bileşenler</string>
     <string name="drawer_page_controller">Kumanda</string>
+    <string name="drawer_builtin_pad">Yerleşik denetleyici</string>
     <string name="drawer_page_settings">Ayarlar</string>
     <string name="drawer_page_desc">%1$s sayfası</string>
     <string name="drawer_steam">Steam</string>

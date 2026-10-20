@@ -662,7 +662,7 @@ class SessionService : Service() {
         guest.add("FAKE_EVDEV_IDENTITY=xbox360")
         guest.add("FAKE_EVDEV_VIBRATION=1")
         val uinput = !File(Environment.getExternalStorageDirectory(), NO_UINPUT_SWITCH).exists()
-        val wantsDeck = uinput && SessionState.mode == MODE_STEAM &&
+        val wantsDeck = uinput && SessionPrefs.builtinPad(this) && SessionState.mode == MODE_STEAM &&
             SessionState.steamUi != "desktop" &&
             !File(Environment.getExternalStorageDirectory(), NO_DECK_PAD_SWITCH).exists()
         val wantsTouch = wantsDeck && !File(Environment.getExternalStorageDirectory(), NO_STEAM_TOUCH_SWITCH).exists()

@@ -572,6 +572,7 @@
     <string name="drawer_page_controls">Comenzi</string>
     <string name="drawer_page_components">Componente</string>
     <string name="drawer_page_controller">Controller</string>
+    <string name="drawer_builtin_pad">Controller integrat</string>
     <string name="drawer_page_settings">Setări</string>
     <string name="drawer_page_desc">Pagina %1$s</string>
     <string name="drawer_steam">Steam</string>

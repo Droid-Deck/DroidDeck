@@ -571,6 +571,7 @@
     <string name="drawer_page_controls">Управление</string>
     <string name="drawer_page_components">Компоненты</string>
     <string name="drawer_page_controller">Контроллер</string>
+    <string name="drawer_builtin_pad">Встроенный контроллер</string>
     <string name="drawer_page_settings">Настройки</string>
     <string name="drawer_page_desc">Страница %1$s</string>
     <string name="drawer_steam">Steam</string>

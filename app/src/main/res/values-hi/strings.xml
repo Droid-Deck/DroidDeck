@@ -570,6 +570,7 @@
     <string name="drawer_page_controls">कंट्रोल</string>
     <string name="drawer_page_components">कॉम्पोनेंट</string>
     <string name="drawer_page_controller">कंट्रोलर</string>
+    <string name="drawer_builtin_pad">अंतर्निहित कंट्रोलर</string>
     <string name="drawer_page_settings">सेटिंग</string>
     <string name="drawer_page_desc">%1$s पेज</string>
     <string name="drawer_steam">Steam</string>

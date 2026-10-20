@@ -568,6 +568,7 @@
     <string name="drawer_page_controls">การควบคุม</string>
     <string name="drawer_page_components">Components</string>
     <string name="drawer_page_controller">คอนโทรลเลอร์</string>
+    <string name="drawer_builtin_pad">คอนโทรลเลอร์ในตัว</string>
     <string name="drawer_page_settings">การตั้งค่า</string>
     <string name="drawer_page_desc">หน้า %1$s</string>
     <string name="drawer_steam">Steam</string>

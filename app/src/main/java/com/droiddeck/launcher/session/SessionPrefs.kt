@@ -406,6 +406,9 @@ object SessionPrefs {
     fun steamController(context: Context): String =
         prefs(context).getString("steamController", CONTROLLER_DECK) ?: CONTROLLER_DECK
     fun setSteamController(context: Context, id: String) { prefs(context).edit().putString("steamController", id).apply() }
+
+    fun builtinPad(context: Context): Boolean = prefs(context).getBoolean("builtinPad", true)
+    fun setBuiltinPad(context: Context, on: Boolean) { prefs(context).edit().putBoolean("builtinPad", on).apply() }
     fun padType(id: String): Int = when (id) {
         CONTROLLER_STEAM -> com.droiddeck.launcher.input.FakeInputWriter.PAD_TYPE_STEAM
         CONTROLLER_XBOX360 -> com.droiddeck.launcher.input.FakeInputWriter.PAD_TYPE_XBOX

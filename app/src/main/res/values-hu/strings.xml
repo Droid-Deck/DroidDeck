@@ -570,6 +570,7 @@
     <string name="drawer_page_controls">Vezérlők</string>
     <string name="drawer_page_components">Összetevők</string>
     <string name="drawer_page_controller">Kontroller</string>
+    <string name="drawer_builtin_pad">Beépített vezérlő</string>
     <string name="drawer_page_settings">Beállítások</string>
     <string name="drawer_page_desc">%1$s oldal</string>
     <string name="drawer_steam">Steam</string>

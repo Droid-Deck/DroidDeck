@@ -302,6 +302,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var lowLatencyController by mutableStateOf(false)
     private var lowLatencyTouch by mutableStateOf(false)
     private var padType by mutableStateOf(SessionPrefs.CONTROLLER_DECK)
+    private var builtinPad by mutableStateOf(true)
     private var pcKeyboardOpen by mutableStateOf(false)
     private var achievementsInFront by mutableStateOf<AchievementsInFront?>(null)
     private var achievementsOpen by mutableStateOf(false)
@@ -469,6 +470,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
         val bridge = PadBridge(File(LinuxRuntime.sessionRoot(this), "dev/input"))
         bridge.setSelectSteam(ControllerPrefs.read(this).selectSteam)
+        bridge.setBuiltinPad(SessionPrefs.builtinPad(this))
         padBridge = bridge
         SessionState.padBridge = bridge
         if (Build.VERSION.SDK_INT >= 31) {
@@ -830,6 +832,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     onAchievements = achievementsInFront?.let { { drawerOpen = false; achievementsOpen = true } },
                     achievementsProgress = achievementsInFront?.progress,
                     padType = if (SessionState.mode == SessionService.MODE_STEAM && SessionState.deckPad) padType else null,
+                    builtinPad = builtinPad,
+                    onBuiltinPad = { on ->
+                        SessionPrefs.setBuiltinPad(this@SessionActivity, on)
+                        builtinPad = on
+                        padBridge?.setBuiltinPad(on)
+                        Toast.makeText(this@SessionActivity, R.string.common_applies_next_session, Toast.LENGTH_LONG).show()
+                    },
                     onPadType = { id ->
                         SessionPrefs.setSteamController(this@SessionActivity, id)
                         com.droiddeck.launcher.session.SteamDeckPad.showPad(SessionPrefs.padType(id))
@@ -1375,6 +1384,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         lowLatencyController = SessionPrefs.lowLatencyController(this)
         lowLatencyTouch = SessionPrefs.lowLatencyTouch(this)
         padType = SessionPrefs.steamController(this)
+        builtinPad = SessionPrefs.builtinPad(this)
     }
 
 

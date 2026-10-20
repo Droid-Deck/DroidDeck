@@ -568,6 +568,7 @@
     <string name="drawer_page_controls">控制</string>
     <string name="drawer_page_components">组件</string>
     <string name="drawer_page_controller">手柄</string>
+    <string name="drawer_builtin_pad">内置手柄</string>
     <string name="drawer_page_settings">设置</string>
     <string name="drawer_page_desc">%1$s 页面</string>
     <string name="drawer_steam">Steam</string>
