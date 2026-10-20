@@ -3,12 +3,11 @@
     <string name="shortcuts_title">Genveje til fysiske knapper</string>
     <string name="shortcuts_dd_menu">DroidDeck-menu</string>
     <string name="shortcuts_capture">Tildel: %1$s</string>
-    <string name="shortcuts_press">Tryk og slip den ønskede fysiske knap. Brug berøringsskærmen til at annullere.</string>
+    <string name="shortcuts_press">Tryk på en knap, og slip den. Tildelingen gemmes automatisk.</string>
     <string name="shortcuts_release">Slip knappen for at fortsætte.</string>
     <string name="shortcuts_detected">%1$s: %2$s</string>
     <string name="shortcuts_conflict">Denne knap er allerede tildelt: %1$s</string>
-    <string name="shortcuts_replace">Når du gemmer, erstattes enhver genvej med denne knap eller samme handling på denne controller.</string>
-    <string name="shortcuts_save">Gem genvej</string>
+    <string name="shortcuts_save">Tildel igen</string>
     <string name="shortcuts_retry">Prøv en anden knap</string>
-    <string name="shortcuts_limitations">Ingen knap registreret? Android eller firmwaren kan opfange Hjem eller ekstra knapper. Knapper skal sende forskellige hændelser til DroidDeck. Lydstyrke- og systemtaster kan ikke tildeles.</string>
+    <string name="shortcuts_limitations">Hjem-knappen og visse ekstra knapper er muligvis ikke tilgængelige.</string>
 </resources>

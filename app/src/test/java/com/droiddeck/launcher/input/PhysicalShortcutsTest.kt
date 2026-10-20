@@ -198,7 +198,6 @@ class PhysicalShortcutsTest {
         val select = button(key(KeyEvent.KEYCODE_BUTTON_SELECT, scan = 314))
         val androidName = KeyEvent.keyCodeToString(KeyEvent.KEYCODE_BUTTON_SELECT)
         assertEquals(androidName.removePrefix("KEYCODE_").removePrefix("BUTTON_"), select.label)
-        assertEquals("$androidName (314)", select.diagnostics)
         assertFalse(select.label.contains("(314)"))
     }
 

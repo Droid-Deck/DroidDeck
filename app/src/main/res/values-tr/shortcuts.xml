@@ -3,12 +3,11 @@
     <string name="shortcuts_title">Fiziksel düğme kısayolları</string>
     <string name="shortcuts_dd_menu">DroidDeck menüsü</string>
     <string name="shortcuts_capture">Ata: %1$s</string>
-    <string name="shortcuts_press">İstediğiniz fiziksel düğmeye basıp bırakın. İptal etmek için dokunmatik ekranı kullanın.</string>
+    <string name="shortcuts_press">Bir düğmeye basıp bırakın. Atama otomatik olarak kaydedilir.</string>
     <string name="shortcuts_release">Devam etmek için düğmeyi bırakın.</string>
     <string name="shortcuts_detected">%1$s: %2$s</string>
     <string name="shortcuts_conflict">Bu düğme zaten şuna atanmış: %1$s</string>
-    <string name="shortcuts_replace">Kaydetmek, bu kontrolcüde bu düğmeyi veya aynı eylemi kullanan tüm kısayolların yerini alır.</string>
-    <string name="shortcuts_save">Kısayolu kaydet</string>
+    <string name="shortcuts_save">Yeniden ata</string>
     <string name="shortcuts_retry">Başka düğme dene</string>
-    <string name="shortcuts_limitations">Düğme algılanmadı mı? Android veya aygıt yazılımı Ana ekran ya da ek düğmeleri yakalıyor olabilir. Düğmeler DroidDeck uygulamasına farklı olaylar göndermelidir. Ses ve sistem tuşları atanamaz.</string>
+    <string name="shortcuts_limitations">Ana ekran düğmesi ve bazı ek düğmeler kullanılamayabilir.</string>
 </resources>

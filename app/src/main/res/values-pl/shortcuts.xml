@@ -3,12 +3,11 @@
     <string name="shortcuts_title">Skróty przycisków fizycznych</string>
     <string name="shortcuts_dd_menu">Menu DroidDeck</string>
     <string name="shortcuts_capture">Przypisz: %1$s</string>
-    <string name="shortcuts_press">Naciśnij i zwolnij wybrany przycisk fizyczny. Użyj ekranu dotykowego, aby anulować.</string>
+    <string name="shortcuts_press">Naciśnij i zwolnij przycisk. Przypisanie zostanie zapisane automatycznie.</string>
     <string name="shortcuts_release">Zwolnij przycisk, aby kontynuować.</string>
     <string name="shortcuts_detected">%1$s: %2$s</string>
     <string name="shortcuts_conflict">Ten przycisk jest już przypisany do: %1$s</string>
-    <string name="shortcuts_replace">Zapisanie zastąpi każdy skrót używający tego przycisku lub tej samej akcji na tym kontrolerze.</string>
-    <string name="shortcuts_save">Zapisz skrót</string>
+    <string name="shortcuts_save">Przypisz ponownie</string>
     <string name="shortcuts_retry">Wypróbuj inny przycisk</string>
-    <string name="shortcuts_limitations">Nie wykryto przycisku? Android lub oprogramowanie urządzenia może przechwytywać Home lub dodatkowe przyciski. Przyciski muszą wysyłać różne zdarzenia do DroidDeck. Klawiszy głośności i systemowych nie można przypisać.</string>
+    <string name="shortcuts_limitations">Przycisk Home i niektóre dodatkowe przyciski mogą być niedostępne.</string>
 </resources>

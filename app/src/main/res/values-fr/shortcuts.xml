@@ -3,12 +3,11 @@
     <string name="shortcuts_title">Raccourcis des boutons physiques</string>
     <string name="shortcuts_dd_menu">Menu DroidDeck</string>
     <string name="shortcuts_capture">Attribuer : %1$s</string>
-    <string name="shortcuts_press">Appuyez puis relâchez le bouton physique souhaité. Utilisez l’écran tactile pour annuler.</string>
+    <string name="shortcuts_press">Appuyez sur un bouton puis relâchez-le. L’affectation est enregistrée automatiquement.</string>
     <string name="shortcuts_release">Relâchez le bouton pour continuer.</string>
     <string name="shortcuts_detected">%1$s : %2$s</string>
     <string name="shortcuts_conflict">Ce bouton est déjà attribué à : %1$s</string>
-    <string name="shortcuts_replace">Enregistrer remplace tout raccourci utilisant ce bouton ou la même action sur cette manette.</string>
-    <string name="shortcuts_save">Enregistrer le raccourci</string>
+    <string name="shortcuts_save">Réaffecter</string>
     <string name="shortcuts_retry">Essayer un autre bouton</string>
-    <string name="shortcuts_limitations">Bouton non détecté ? Android ou le micrologiciel peut intercepter Accueil ou les boutons supplémentaires. Les boutons doivent envoyer des événements distincts à DroidDeck. Les touches de volume et du système ne sont pas attribuables.</string>
+    <string name="shortcuts_limitations">Le bouton Accueil et certains boutons supplémentaires peuvent être indisponibles.</string>
 </resources>

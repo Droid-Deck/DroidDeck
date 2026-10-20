@@ -3,12 +3,11 @@
     <string name="shortcuts_title">Дії фізичних кнопок</string>
     <string name="shortcuts_dd_menu">Меню DroidDeck</string>
     <string name="shortcuts_capture">Призначити: %1$s</string>
-    <string name="shortcuts_press">Натисніть і відпустіть потрібну фізичну кнопку. Для скасування використовуйте сенсорний екран.</string>
+    <string name="shortcuts_press">Натисніть і відпустіть кнопку. Призначення збережеться автоматично.</string>
     <string name="shortcuts_release">Відпустіть кнопку, щоб продовжити.</string>
     <string name="shortcuts_detected">%1$s: %2$s</string>
     <string name="shortcuts_conflict">Ця кнопка вже призначена для: %1$s</string>
-    <string name="shortcuts_replace">Збереження замінить будь-яке призначення цієї кнопки або тієї самої дії на цьому контролері.</string>
-    <string name="shortcuts_save">Зберегти призначення</string>
+    <string name="shortcuts_save">Перепризначити</string>
     <string name="shortcuts_retry">Спробувати іншу кнопку</string>
-    <string name="shortcuts_limitations">Кнопку не виявлено? Android або прошивка можуть перехоплювати Home чи додаткові кнопки. Кнопки мають надсилати різні події до DroidDeck. Кнопки гучності та системні клавіші призначити не можна.</string>
+    <string name="shortcuts_limitations">Кнопка «Додому» та деякі додаткові кнопки можуть бути недоступні.</string>
 </resources>

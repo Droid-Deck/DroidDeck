@@ -3,12 +3,11 @@
     <string name="shortcuts_title">物理ボタンのショートカット</string>
     <string name="shortcuts_dd_menu">DroidDeck メニュー</string>
     <string name="shortcuts_capture">割り当て：%1$s</string>
-    <string name="shortcuts_press">使用したい物理ボタンを押して離してください。キャンセルにはタッチスクリーンを使用してください。</string>
+    <string name="shortcuts_press">ボタンを押して離してください。割り当ては自動的に保存されます。</string>
     <string name="shortcuts_release">ボタンを離して続行してください。</string>
     <string name="shortcuts_detected">%1$s：%2$s</string>
     <string name="shortcuts_conflict">このボタンはすでに次の操作に割り当てられています：%1$s</string>
-    <string name="shortcuts_replace">保存すると、このコントローラーで同じボタンまたは同じ操作を使うショートカットが置き換えられます。</string>
-    <string name="shortcuts_save">ショートカットを保存</string>
+    <string name="shortcuts_save">再割り当て</string>
     <string name="shortcuts_retry">別のボタンを試す</string>
-    <string name="shortcuts_limitations">ボタンが検出されない場合、Android やファームウェアがホームボタンや追加ボタンを処理している可能性があります。各ボタンは DroidDeck に異なるイベントを送信する必要があります。音量キーやシステムキーは割り当てられません。</string>
+    <string name="shortcuts_limitations">ホームボタンや一部の追加ボタンは使用できない場合があります。</string>
 </resources>

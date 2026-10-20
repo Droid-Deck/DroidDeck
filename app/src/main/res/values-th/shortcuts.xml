@@ -3,12 +3,11 @@
     <string name="shortcuts_title">ทางลัดปุ่มจริง</string>
     <string name="shortcuts_dd_menu">เมนู DroidDeck</string>
     <string name="shortcuts_capture">กำหนด: %1$s</string>
-    <string name="shortcuts_press">กดแล้วปล่อยปุ่มจริงที่ต้องการใช้ ใช้หน้าจอสัมผัสเพื่อยกเลิก</string>
+    <string name="shortcuts_press">กดปุ่มแล้วปล่อย การกำหนดปุ่มจะบันทึกโดยอัตโนมัติ</string>
     <string name="shortcuts_release">ปล่อยปุ่มเพื่อดำเนินการต่อ</string>
     <string name="shortcuts_detected">%1$s: %2$s</string>
     <string name="shortcuts_conflict">ปุ่มนี้ถูกกำหนดไว้แล้วสำหรับ: %1$s</string>
-    <string name="shortcuts_replace">การบันทึกจะแทนที่ทางลัดที่ใช้ปุ่มนี้หรือการกระทำเดียวกันบนคอนโทรลเลอร์นี้</string>
-    <string name="shortcuts_save">บันทึกทางลัด</string>
+    <string name="shortcuts_save">กำหนดใหม่</string>
     <string name="shortcuts_retry">ลองปุ่มอื่น</string>
-    <string name="shortcuts_limitations">ตรวจไม่พบปุ่มใช่ไหม Android หรือเฟิร์มแวร์อาจดักจับปุ่มหน้าหลักหรือปุ่มเสริม ปุ่มต้องส่งเหตุการณ์ที่แตกต่างกันมายัง DroidDeck ไม่สามารถกำหนดปุ่มปรับเสียงและปุ่มระบบได้</string>
+    <string name="shortcuts_limitations">ปุ่มโฮมและปุ่มพิเศษบางปุ่มอาจไม่พร้อมใช้งาน</string>
 </resources>

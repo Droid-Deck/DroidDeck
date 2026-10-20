@@ -80,7 +80,6 @@ internal fun PhysicalShortcutsDialog(
     var candidate by remember { mutableStateOf<PhysicalShortcuts.Button?>(null) }
     var listening by remember { mutableStateOf(true) }
     var capturedDevice by remember { mutableStateOf(-1) }
-    var details by remember { mutableStateOf(false) }
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(dismissOnBackPress = !listening, usePlatformDefaultWidth = false),
@@ -122,14 +121,11 @@ internal fun PhysicalShortcutsDialog(
                 ) {
                     Text(stringResource(R.string.shortcuts_capture, stringResource(action.label)),
                         style = MaterialTheme.typography.titleLarge)
-                    Text(stringResource(R.string.shortcuts_limitations), style = MaterialTheme.typography.bodySmall)
                     val button = candidate
                     if (button == null) {
                         Text(stringResource(R.string.shortcuts_press))
                     } else {
                         Text(stringResource(R.string.shortcuts_detected, button.name, button.label))
-                        SecondaryButton(stringResource(R.string.setup_details)) { details = !details }
-                        if (details) Text(button.diagnostics, style = MaterialTheme.typography.bodySmall)
                         if (listening) {
                             Text(stringResource(R.string.shortcuts_release))
                         } else {
@@ -138,9 +134,7 @@ internal fun PhysicalShortcutsDialog(
                             }
                             for (conflict in conflicts) {
                                 Text(stringResource(R.string.shortcuts_conflict, stringResource(conflict.action.label)))
-                                Text(stringResource(R.string.shortcuts_detected, conflict.button.name, conflict.button.label))
                             }
-                            Text(stringResource(R.string.shortcuts_replace))
                             SecondaryButton(stringResource(R.string.shortcuts_save), modifier = Modifier.testTag("shortcuts-save")) {
                                 PhysicalShortcuts.assign(context, button, action)
                                 onChanged()
@@ -151,10 +145,10 @@ internal fun PhysicalShortcutsDialog(
                             candidate = null
                             capturedDevice = -1
                             listening = true
-                            details = false
                         }
                     }
-                    for (binding in bindings.filter { candidate == null && it.action == action }) {
+                    Text(stringResource(R.string.shortcuts_limitations), style = MaterialTheme.typography.bodySmall)
+                    for (binding in bindings.filter { it.action == action }) {
                         ActionRow(
                             stringResource(R.string.shortcuts_detected, binding.button.name, binding.button.label),
                             null, stringResource(R.string.ctrl_reset), {

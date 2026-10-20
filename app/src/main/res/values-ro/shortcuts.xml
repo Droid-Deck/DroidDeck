@@ -3,12 +3,11 @@
     <string name="shortcuts_title">Scurtături pentru butoane fizice</string>
     <string name="shortcuts_dd_menu">Meniul DroidDeck</string>
     <string name="shortcuts_capture">Atribuie: %1$s</string>
-    <string name="shortcuts_press">Apasă și eliberează butonul fizic dorit. Folosește ecranul tactil pentru a anula.</string>
+    <string name="shortcuts_press">Apasă și eliberează un buton. Atribuirea se salvează automat.</string>
     <string name="shortcuts_release">Eliberează butonul pentru a continua.</string>
     <string name="shortcuts_detected">%1$s: %2$s</string>
     <string name="shortcuts_conflict">Acest buton este deja atribuit pentru: %1$s</string>
-    <string name="shortcuts_replace">Salvarea înlocuiește orice scurtătură care folosește acest buton sau aceeași acțiune pe acest controler.</string>
-    <string name="shortcuts_save">Salvează scurtătura</string>
+    <string name="shortcuts_save">Reatribuie</string>
     <string name="shortcuts_retry">Încearcă alt buton</string>
-    <string name="shortcuts_limitations">Buton nedetectat? Android sau firmware-ul poate intercepta Acasă sau butoanele suplimentare. Butoanele trebuie să trimită evenimente distincte către DroidDeck. Tastele de volum și de sistem nu pot fi atribuite.</string>
+    <string name="shortcuts_limitations">Butonul Acasă și unele butoane suplimentare pot fi indisponibile.</string>
 </resources>

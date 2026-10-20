@@ -3,12 +3,11 @@
     <string name="shortcuts_title">Συντομεύσεις φυσικών κουμπιών</string>
     <string name="shortcuts_dd_menu">Μενού DroidDeck</string>
     <string name="shortcuts_capture">Αντιστοίχιση: %1$s</string>
-    <string name="shortcuts_press">Πατήστε και αφήστε το φυσικό κουμπί που θέλετε. Χρησιμοποιήστε την οθόνη αφής για ακύρωση.</string>
+    <string name="shortcuts_press">Πατήστε και αφήστε ένα κουμπί. Η αντιστοίχιση αποθηκεύεται αυτόματα.</string>
     <string name="shortcuts_release">Αφήστε το κουμπί για συνέχεια.</string>
     <string name="shortcuts_detected">%1$s: %2$s</string>
     <string name="shortcuts_conflict">Αυτό το κουμπί έχει ήδη αντιστοιχιστεί σε: %1$s</string>
-    <string name="shortcuts_replace">Η αποθήκευση αντικαθιστά κάθε συντόμευση με αυτό το κουμπί ή την ίδια ενέργεια σε αυτό το χειριστήριο.</string>
-    <string name="shortcuts_save">Αποθήκευση συντόμευσης</string>
+    <string name="shortcuts_save">Επαναντιστοίχιση</string>
     <string name="shortcuts_retry">Δοκιμή άλλου κουμπιού</string>
-    <string name="shortcuts_limitations">Δεν εντοπίστηκε κουμπί; Το Android ή το υλικολογισμικό μπορεί να δεσμεύει την Αρχική οθόνη ή τα επιπλέον κουμπιά. Τα κουμπιά πρέπει να στέλνουν διαφορετικά συμβάντα στο DroidDeck. Τα πλήκτρα έντασης και συστήματος δεν αντιστοιχίζονται.</string>
+    <string name="shortcuts_limitations">Το κουμπί Αρχική και ορισμένα επιπλέον κουμπιά ενδέχεται να μην είναι διαθέσιμα.</string>
 </resources>

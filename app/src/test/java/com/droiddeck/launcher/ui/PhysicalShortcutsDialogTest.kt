@@ -133,6 +133,7 @@ class PhysicalShortcutsDialogTest {
             PhysicalShortcuts.Action.QAM)
         compose.setContent { DroidDeckTheme { PhysicalShortcutRows() } }
         assign(PhysicalShortcuts.Action.STEAM)
+        send(KeyEvent.KEYCODE_F3, KeyEvent.ACTION_DOWN)
         compose.onNodeWithTag("shortcuts-remove").performScrollTo().performClick()
         compose.runOnIdle {
             assertEquals(PhysicalShortcuts.Action.QAM, PhysicalShortcuts.read(context).single().action)

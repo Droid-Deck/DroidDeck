@@ -36,8 +36,6 @@ object PhysicalShortcuts {
         val label: String
             get() = KeyEvent.keyCodeToString(keyCode).removePrefix("KEYCODE_").removePrefix("BUTTON_")
 
-        val diagnostics: String
-            get() = "${KeyEvent.keyCodeToString(keyCode)} ($scanCode)"
     }
 
     data class Binding(val button: Button, val action: Action)
