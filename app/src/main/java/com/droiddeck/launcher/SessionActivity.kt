@@ -345,6 +345,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private val cardboardPrefListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (key == SessionPrefs.CARDBOARD_KEY) uiHandler.post { applyCardboard(SessionPrefs.cardboard(this)) }
     }
+    private val shortcutPrefListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == null || key == PhysicalShortcuts.KEY) {
+            physicalShortcuts.bindings = PhysicalShortcuts.read(this)
+        }
+    }
     private var textureAnisotropy by mutableStateOf(0)
     private var textureLodBias by mutableStateOf(TextureFiltering.LOD_BIAS_OFF)
     private var drawerTextureAnisotropy by mutableStateOf<Int?>(null)
@@ -832,7 +837,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     onKeyboardButton = { on -> updateControllerPrefs { ControllerPrefs.setKeyboardButton(this@SessionActivity, on) } },
                     onSteamMenu = if (SessionState.mode == SessionService.MODE_STEAM) ({ sendSteamGuide() }) else null,
                     onQam = if (SessionState.mode == SessionService.MODE_STEAM) ({ triggerSteamQam() }) else null,
-                    onPhysicalShortcutsChanged = { physicalShortcuts.bindings = PhysicalShortcuts.read(this@SessionActivity) },
                     onAchievements = achievementsInFront?.let { { drawerOpen = false; achievementsOpen = true } },
                     achievementsProgress = achievementsInFront?.progress,
                     padType = if (SessionState.mode == SessionService.MODE_STEAM && SessionState.deckPad) padType else null,
@@ -2898,6 +2902,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         updatePointerCapture()
         if (!pipUi) sessionClipboard.start()
         updatePadMotion()
+        ControllerPrefs.prefs(this).registerOnSharedPreferenceChangeListener(shortcutPrefListener)
         readPrefs()
         refreshControls()
         if (::pip.isInitialized) pip.resumed()
@@ -2927,6 +2932,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         updatePadMotion()
         keyboard?.takeIf { it.shown }?.hide()
         SessionPrefs.sessionPrefs(this).unregisterOnSharedPreferenceChangeListener(cardboardPrefListener)
+        ControllerPrefs.prefs(this).unregisterOnSharedPreferenceChangeListener(shortcutPrefListener)
         updateHeadTracker()
         super.onPause()
     }

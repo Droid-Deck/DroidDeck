@@ -7,7 +7,7 @@
     <string name="shortcuts_release">Lepaskan butang untuk meneruskan.</string>
     <string name="shortcuts_detected">%1$s: %2$s</string>
     <string name="shortcuts_conflict">Butang ini sudah ditetapkan kepada: %1$s</string>
-    <string name="shortcuts_save">Tetapkan semula</string>
+    <string name="shortcuts_save">Tukar penetapan</string>
     <string name="shortcuts_retry">Cuba butang lain</string>
     <string name="shortcuts_limitations">Butang Utama dan sesetengah butang tambahan mungkin tidak tersedia.</string>
 </resources>

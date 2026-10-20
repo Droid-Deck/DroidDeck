@@ -11,7 +11,7 @@ import org.json.JSONException
 import org.json.JSONObject
 
 object PhysicalShortcuts {
-    private const val KEY = "physicalShortcuts"
+    internal const val KEY = "physicalShortcuts"
     private const val TAG = "PhysicalShortcuts"
 
     enum class Action(@StringRes val label: Int) {
