@@ -80,6 +80,7 @@ class SessionService : Service() {
     private var nativeSleepToken: String? = null
     private var nativeSleepReady = false
     private var nativeSleepFallback = false
+    private var nativeSleepIdle = false
     private var nativeSleepTimeout: Runnable? = null
     private var suspendOperationPending = false
     private var pipTask = false
@@ -1019,7 +1020,7 @@ class SessionService : Service() {
         screenOn = (getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isInteractive ?: screenOn
         manualPauseRequested = false
         suspendDownloadNow = false
-        if (steamSleepToken == null && (nativeSleepToken == null || nativeSleepFallback)) requestSteamWake()
+        if (steamSleepToken == null && (nativeSleepToken == null || nativeSleepFallback || nativeSleepIdle)) requestSteamWake()
         completeNativeSleep()
         completeSteamSleep()
         suspendAttemptFailed = false
@@ -1219,16 +1220,22 @@ class SessionService : Service() {
         val downloadsBlockingSuspend = steamDownloadsInBackground && SessionState.mode == MODE_STEAM &&
             suspendPolicy != SessionPrefs.SUSPEND_NEVER && hidden && downloadActive && !suspendDownloadNow
         if (downloadsBlockingSuspend) acquireLocks()
-        if (suspendPolicy != SessionPrefs.SUSPEND_NATIVE || !hidden || downloadsBlockingSuspend) {
+        val steamPause = SessionState.mode == MODE_STEAM && !downloadsBlockingSuspend && when (suspendPolicy) {
+            SessionPrefs.SUSPEND_AUTO, SessionPrefs.SUSPEND_NATIVE -> hidden
+            SessionPrefs.SUSPEND_MANUAL -> manualPauseRequested
+            else -> false
+        }
+        if (!steamPause) {
             completeNativeSleep()
         } else if (nativeSleepToken == null && steamSleepToken == null &&
             !SessionState.suspended && !suspendAttemptFailed) {
             prepareNativeSleep()
         }
+        val prepared = SessionState.mode != MODE_STEAM || nativeSleepReady
         val shouldSuspend = steamSleepToken != null || when (suspendPolicy) {
-            SessionPrefs.SUSPEND_AUTO -> hidden && !downloadsBlockingSuspend
+            SessionPrefs.SUSPEND_AUTO -> hidden && prepared && !downloadsBlockingSuspend
             SessionPrefs.SUSPEND_NATIVE -> hidden && nativeSleepReady && !downloadsBlockingSuspend
-            SessionPrefs.SUSPEND_MANUAL -> manualPauseRequested && !downloadsBlockingSuspend
+            SessionPrefs.SUSPEND_MANUAL -> manualPauseRequested && prepared && !downloadsBlockingSuspend
             else -> false
         }
         if (suspendOperationPending || suspendAttemptFailed || shouldSuspend == SessionState.suspended) return
@@ -1296,7 +1303,7 @@ class SessionService : Service() {
 
     private fun resumeSteamSleepOnReturn() {
         if (suspendPolicy in setOf(SessionPrefs.SUSPEND_AUTO, SessionPrefs.SUSPEND_NATIVE) && hasVisibleSurface) {
-            if (steamSleepToken == null && (nativeSleepToken == null || nativeSleepFallback)) requestSteamWake()
+            if (steamSleepToken == null && (nativeSleepToken == null || nativeSleepFallback || nativeSleepIdle)) requestSteamWake()
             completeNativeSleep()
             completeSteamSleep()
         }
@@ -1307,13 +1314,14 @@ class SessionService : Service() {
         nativeSleepToken = token
         nativeSleepReady = false
         nativeSleepFallback = false
+        nativeSleepIdle = suspendPolicy != SessionPrefs.SUSPEND_NATIVE
         val dir = LinuxRuntime.sessionRoot(this)
         runCatching {
             val staged = File(dir, "steam-native-sleep.tmp")
-            staged.writeText("$token\n")
+            staged.writeText(if (nativeSleepIdle) "$token idle\n" else "$token\n")
             check(staged.renameTo(File(dir, "steam-native-sleep")))
         }.onFailure { Log.w(TAG, "could not request Native sleep; using timed pause", it) }
-        SessionEvents.record("steam.native_sleep_requested")
+        SessionEvents.record("steam.native_sleep_requested", mapOf("idle" to nativeSleepIdle))
         val gen = sessionGen
         val timeout = Runnable {
             if (gen != sessionGen || !SessionState.running || nativeSleepToken != token) return@Runnable
@@ -1339,6 +1347,7 @@ class SessionService : Service() {
         nativeSleepToken = null
         nativeSleepReady = false
         nativeSleepFallback = false
+        nativeSleepIdle = false
     }
 
     private fun requestSteamWake() {

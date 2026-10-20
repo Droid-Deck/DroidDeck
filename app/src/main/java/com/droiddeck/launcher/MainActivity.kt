@@ -109,6 +109,7 @@ class MainActivity : ComponentActivity() {
     private var frameGenLabel by mutableStateOf("")
     private var lossless by mutableStateOf(Lossless.State.NONE)
     private var showRemove by mutableStateOf(false)
+    private var showRuntimeActions by mutableStateOf<LinuxRuntimeInstaller.Release?>(null)
     private var pendingSwitch by mutableStateOf<Intent?>(null)
     private var switchingTo: Intent? = null
     private var switchPoll: Runnable? = null
@@ -1124,6 +1125,13 @@ class MainActivity : ComponentActivity() {
                         onDismiss = { pendingSwitch = null },
                     )
                 }
+                showRuntimeActions?.let { release ->
+                    com.droiddeck.launcher.ui.RuntimeActionsDialog(
+                        onRepair = { showRuntimeActions = null; if (!runtimeChangesBlocked()) install(release) },
+                        onRemove = { showRuntimeActions = null; showRemove = true },
+                        onDismiss = { showRuntimeActions = null },
+                    )
+                }
                 if (showRemove) ConfirmDialog(
                     title = androidx.compose.ui.res.stringResource(R.string.main_remove_runtime_title),
                     text = androidx.compose.ui.res.stringResource(R.string.main_remove_runtime_text),
@@ -1280,6 +1288,7 @@ class MainActivity : ComponentActivity() {
         syncLossless()
         updates.onResume()
         drivers.checkOnOpen()
+        resumeInterruptedPackages()
         protons.checkUpdates()
         if (!SessionState.running) Thread({
             val applied = runCatching { ComponentsManager.applyQueued(this) }.getOrDefault(emptyList())
@@ -1531,6 +1540,27 @@ class MainActivity : ComponentActivity() {
         startActivity(Intent(this, SessionActivity::class.java)
             .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_RUN)
             .putExtra(SessionService.EXTRA_PROGRAM, path))
+    }
+
+    private fun resumeInterruptedPackages() {
+        if (runtimeChangesBlocked()) return
+        val first = DesktopCatalog.interrupted(this).firstOrNull()
+        if (first == null) {
+            Thread({ DesktopCatalog.pruneDownloads(this) }, "prune-pkg").start()
+            return
+        }
+        pkgId = first.id; pkgStage = getString(R.string.deskpkg_installing, first.name); pkgPercent = -1
+        Thread({
+            val problem = DesktopCatalog.resumeInterrupted(this) { stage, percent ->
+                ui.post { pkgStage = stage; pkgPercent = percent }
+            }
+            ui.post {
+                pkgStage = null; pkgId = null
+                if (problem != null) android.widget.Toast.makeText(this, getString(R.string.main_pkg_problem, first.name, problem), android.widget.Toast.LENGTH_LONG).show()
+                refreshPackages()
+                refresh()
+            }
+        }, "resume-pkg").start()
     }
 
     private fun installPackage(id: String) {
@@ -1979,8 +2009,12 @@ class MainActivity : ComponentActivity() {
     private fun onRuntimeButton() {
         if (runtimeChangesBlocked()) return
         val release = available
-        if (removalPending || installed != null && release?.version == installed) {
+        if (removalPending) {
             showRemove = true
+            return
+        }
+        if (installed != null && release?.version == installed) {
+            showRuntimeActions = release
             return
         }
         if (release == null) {

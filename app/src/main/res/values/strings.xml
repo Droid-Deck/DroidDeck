@@ -1247,6 +1247,9 @@
     <string name="main_install_anyway">Install anyway</string>
     <string name="main_remove_runtime_title">Remove Linux runtime</string>
     <string name="main_remove_runtime_text">This deletes the runtime, the Steam client inside it, and every game installed there.</string>
+    <string name="runtime_actions_title">Linux runtime</string>
+    <string name="runtime_actions_text">Repair reinstalls the runtime\'s system files and keeps Steam, your games and settings. Extras such as the desktop install again when you next use them. Remove deletes everything.</string>
+    <string name="runtime_repair">Repair runtime</string>
     <string name="main_applied">Applied: %1$s</string>
     <string name="android_app_open_failed_primary">Could not open %1$s on the primary screen</string>
     <string name="android_app_open_failed_on">Could not open %1$s on %2$s</string>
@@ -1376,6 +1379,11 @@
     <string name="session_runtime_catalog_unreachable">Could not reach the runtime catalog. Check the connection and press Play again.</string>
     <string name="session_runtime_install_failed">The Linux runtime did not install. Check the runtime in Setup and press Play again.</string>
     <string name="session_desktop_install_failed">The desktop did not install (%1$s). Check the connection and press Desktop again.</string>
+    <string name="session_package_resume_failed">An install that was interrupted could not be finished (%1$s). Check the connection and space, then try again.</string>
+    <plurals name="session_end_runtime_damaged">
+        <item quantity="one">The Linux runtime is damaged: %1$d library link points to a missing file (%2$s), usually after an install was interrupted. Repair keeps your games and settings.</item>
+        <item quantity="other">The Linux runtime is damaged: %1$d library links point to missing files (%2$s and others), usually after an install was interrupted. Repair keeps your games and settings.</item>
+    </plurals>
     <string name="session_ended_named">%1$s stopped unexpectedly. Share the logs with a bug report, or try again.</string>
     <string name="session_ended_program">The program stopped unexpectedly. Share the logs with a bug report, or try again.</string>
     <string name="session_ended_desktop">The desktop stopped unexpectedly. Share the logs with a bug report, or try again.</string>
