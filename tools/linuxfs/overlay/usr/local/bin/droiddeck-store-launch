@@ -271,6 +271,23 @@ def provision_prefix(compat_data, wait=SERVER_WAIT):
     return state + (" server-running" if busy else "")
 
 
+def create_prefix(compat_data, proton, timeout=120):
+    if not compat_data or not proton or not Path(proton).is_file():
+        return "no-proton"
+    reg = Path(compat_data) / "pfx/user.reg"
+    if reg.is_file():
+        return "present"
+    try:
+        Path(compat_data).mkdir(parents=True, exist_ok=True)
+        subprocess.run([proton, "run", "cmd.exe", "/d", "/c", "exit"], stdin=subprocess.DEVNULL,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return "timeout"
+    except OSError:
+        return "failed"
+    return "created" if reg.is_file() else "failed"
+
+
 CLOUD_TIMEOUT = 15.0
 CLOUD_STORES = ("gog", "epic")
 STORE_GAME = 10
@@ -502,6 +519,10 @@ def main(argv):
     compat_data = os.environ.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
     prefix_id = os.path.basename(compat_data) if compat_data else ""
     launch_dir = os.environ.get("BL_LAUNCH_DIR", "")
+    if launch_dir and cloud_on(sidecar):
+        made = create_prefix(compat_data, os.environ.get("BL_STORE_PROTON", ""))
+        if made != "present":
+            log("cloud %s %s prefix=%s" % (store, game, made))
     if store == "gog":
         prepare_gog(sidecar, compat_data, launch_dir)
         log("gog registry: " + apply_gog_registry(folder, compat_data, os.environ.get("BL_STORE_PROTON", "")))

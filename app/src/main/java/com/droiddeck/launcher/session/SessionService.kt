@@ -22,6 +22,8 @@ import android.os.IBinder
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
+import android.hardware.display.DisplayManager
+import android.view.Display
 import android.util.Log
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.SessionActivity
@@ -76,6 +78,7 @@ class SessionService : Service() {
     private var signInHold = false
     private val hasVisibleSurface get() = sessionHasVisibleSurface(activityVisible || signInHold, screenOn, xrActivityVisible)
     private var screenOn = true
+    private var sessionDisplayId = Display.DEFAULT_DISPLAY
     private var manualPauseRequested = false
     private var steamSleepToken: String? = null
     private var nativeSleepToken: String? = null
@@ -95,8 +98,8 @@ class SessionService : Service() {
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
-                Intent.ACTION_SCREEN_OFF -> screenOn = false
-                Intent.ACTION_SCREEN_ON -> screenOn = true
+                Intent.ACTION_SCREEN_OFF -> screenOn = readScreenOn(false)
+                Intent.ACTION_SCREEN_ON -> screenOn = readScreenOn(true)
                 else -> return
             }
             if (screenOn) resumeSteamSleepOnReturn()
@@ -104,17 +107,49 @@ class SessionService : Service() {
             updateSuspendPolicy()
         }
     }
+    private var displayListenerRegistered = false
+    private val displayListener = object : DisplayManager.DisplayListener {
+        override fun onDisplayAdded(displayId: Int) {}
+        override fun onDisplayRemoved(displayId: Int) {
+            if (displayId != sessionDisplayId) return
+            sessionDisplayId = Display.DEFAULT_DISPLAY
+            refreshScreenOn()
+        }
+        override fun onDisplayChanged(displayId: Int) {
+            if (displayId == sessionDisplayId && displayId != Display.DEFAULT_DISPLAY) refreshScreenOn()
+        }
+    }
+
+    private fun readScreenOn(interactive: Boolean? = null): Boolean {
+        val id = sessionDisplayId
+        val state = if (id == Display.DEFAULT_DISPLAY) null
+            else (getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager)?.getDisplay(id)?.state
+        return sessionScreenOn(id == Display.DEFAULT_DISPLAY,
+            interactive ?: (getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isInteractive ?: true, state)
+    }
+
+    private fun refreshScreenOn() {
+        val on = readScreenOn()
+        if (on == screenOn) return
+        screenOn = on
+        if (on) resumeSteamSleepOnReturn()
+        suspendAttemptFailed = false
+        updateSuspendPolicy()
+    }
     @Volatile private var sessionGen = 0
 
     override fun onCreate() {
         super.onCreate()
-        val power = getSystemService(Context.POWER_SERVICE) as? PowerManager
-        screenOn = power?.isInteractive ?: true
+        screenOn = readScreenOn()
         registerReceiver(screenReceiver, IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_OFF)
             addAction(Intent.ACTION_SCREEN_ON)
         })
         screenReceiverRegistered = true
+        (getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager)?.let {
+            it.registerDisplayListener(displayListener, Handler(Looper.getMainLooper()))
+            displayListenerRegistered = true
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -163,10 +198,17 @@ class SessionService : Service() {
             ACTION_ACTIVITY_VISIBLE -> {
                 if (!SessionState.pipActive) pipTask = false
                 activityVisible = true
+                sessionDisplayId = intent.getIntExtra(EXTRA_DISPLAY_ID, sessionDisplayId)
+                screenOn = readScreenOn()
                 suspendDownloadNow = false
                 resumeSteamSleepOnReturn()
                 suspendAttemptFailed = false
                 updateSuspendPolicy()
+                return START_NOT_STICKY
+            }
+            ACTION_ACTIVITY_DISPLAY -> {
+                sessionDisplayId = intent.getIntExtra(EXTRA_DISPLAY_ID, sessionDisplayId)
+                refreshScreenOn()
                 return START_NOT_STICKY
             }
             ACTION_ACTIVITY_HIDDEN -> {
@@ -232,7 +274,8 @@ class SessionService : Service() {
         activityVisible = true
         xrActivityVisible = false
         signInHold = false
-        screenOn = (getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isInteractive ?: true
+        sessionDisplayId = intent?.getIntExtra(EXTRA_DISPLAY_ID, Display.DEFAULT_DISPLAY) ?: Display.DEFAULT_DISPLAY
+        screenOn = readScreenOn()
         manualPauseRequested = false
         suspendDownloadNow = false
         steamDownloadMonitor.reset()
@@ -1022,7 +1065,7 @@ class SessionService : Service() {
 
     private fun resumeSession(panelVisible: Boolean = true) {
         if (panelVisible) activityVisible = true
-        screenOn = (getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isInteractive ?: screenOn
+        screenOn = readScreenOn()
         manualPauseRequested = false
         suspendDownloadNow = false
         if (steamSleepToken == null && (nativeSleepToken == null || nativeSleepFallback || nativeSleepIdle)) requestSteamWake()
@@ -1248,7 +1291,7 @@ class SessionService : Service() {
         suspendOperationPending = true
         SessionEvents.record(if (shouldSuspend) "session.suspend_requested" else "session.resume_requested", mapOf(
             "policy" to suspendPolicy, "activityVisible" to activityVisible,
-            "screenOn" to screenOn, "steamSleep" to (steamSleepToken != null),
+            "screenOn" to screenOn, "display" to sessionDisplayId, "steamSleep" to (steamSleepToken != null),
             "xrActivityVisible" to xrActivityVisible,
             "nativeSleep" to (nativeSleepToken != null),
         ))
@@ -1512,6 +1555,10 @@ class SessionService : Service() {
             unregisterReceiver(screenReceiver)
             screenReceiverRegistered = false
         }
+        if (displayListenerRegistered) {
+            (getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager)?.unregisterDisplayListener(displayListener)
+            displayListenerRegistered = false
+        }
         super.onDestroy()
     }
 
@@ -1699,6 +1746,8 @@ class SessionService : Service() {
         private const val ACTION_SUSPEND_POLICY_CHANGED = "com.droiddeck.launcher.SUSPEND_POLICY_CHANGED"
         private const val ACTION_ACTIVITY_VISIBLE = "com.droiddeck.launcher.ACTIVITY_VISIBLE"
         private const val ACTION_ACTIVITY_HIDDEN = "com.droiddeck.launcher.ACTIVITY_HIDDEN"
+        private const val ACTION_ACTIVITY_DISPLAY = "com.droiddeck.launcher.ACTIVITY_DISPLAY"
+        private const val EXTRA_DISPLAY_ID = "displayId"
         private const val ACTION_XR_ACTIVITY_VISIBLE = "com.droiddeck.launcher.XR_ACTIVITY_VISIBLE"
         private const val ACTION_XR_ACTIVITY_HIDDEN = "com.droiddeck.launcher.XR_ACTIVITY_HIDDEN"
         private const val ACTION_SIGN_IN_HOLD = "com.droiddeck.launcher.SIGN_IN_HOLD"
@@ -1735,8 +1784,10 @@ class SessionService : Service() {
         fun start(
             context: Context, mode: String = MODE_STEAM, program: String? = null,
             steamUi: String? = null, steamUrl: String? = null, programArgs: Array<String>? = null,
+            displayId: Int = Display.DEFAULT_DISPLAY,
         ) {
             val intent = Intent(context, SessionService::class.java).putExtra(EXTRA_MODE, mode)
+                .putExtra(EXTRA_DISPLAY_ID, displayId)
             if (program != null) intent.putExtra(EXTRA_PROGRAM, program)
             if (programArgs != null) intent.putExtra(EXTRA_PROGRAM_ARGS, programArgs)
             if (steamUi != null) intent.putExtra(EXTRA_STEAM_UI, steamUi)
@@ -1757,10 +1808,15 @@ class SessionService : Service() {
             context.startService(Intent(context, SessionService::class.java).setAction(ACTION_PIP_BEGIN))
         }
 
-        fun setActivityVisible(context: Context, visible: Boolean) {
+        fun setActivityVisible(context: Context, visible: Boolean, displayId: Int = Display.DEFAULT_DISPLAY) {
             if (!SessionState.running) return
             val action = if (visible) ACTION_ACTIVITY_VISIBLE else ACTION_ACTIVITY_HIDDEN
-            context.startService(Intent(context, SessionService::class.java).setAction(action))
+            context.startService(Intent(context, SessionService::class.java).setAction(action).putExtra(EXTRA_DISPLAY_ID, displayId))
+        }
+
+        fun setActivityDisplay(context: Context, displayId: Int) {
+            if (!SessionState.running) return
+            context.startService(Intent(context, SessionService::class.java).setAction(ACTION_ACTIVITY_DISPLAY).putExtra(EXTRA_DISPLAY_ID, displayId))
         }
 
         fun setXrActivityVisible(context: Context, visible: Boolean) {
