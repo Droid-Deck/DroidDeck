@@ -2767,6 +2767,10 @@
     <string name="boot_movie_repo_previous">Înapoi</string>
     <string name="boot_movie_repo_next">Înainte</string>
     <string name="boot_movie_repo_page">Pagina %1$d</string>
+    <string name="boot_movie_repo_clear">Șterge</string>
+    <string name="boot_movie_repo_go_to_page">Mergi la pagina</string>
+    <string name="boot_movie_repo_preview">Previzualizare</string>
+    <string name="boot_movie_repo_preview_failed">Previzualizarea nu a putut fi redată</string>
     <string name="glasses_experimental">Camere Luma Ultra — Experimentale</string>
     <string name="glasses_joycons">Urmărirea poziției Joy-Con</string>
     <string name="glasses_joycons_hint">Folosește camerele ochelarilor inteligenți pentru a poziționa controlerele Joy-Con asociate. Rotirea și comenzile de butoane provin de la controlerele Joy-Con. Poziția este estimată atunci când încheieturile mâinilor sunt ascunse. Înlocuiește controlerele acționate cu mâinile goale și întrerupe urmărirea camerei telefonului. Îndreaptă controlerele Joy-Con înainte atunci când conectezi sau resetezi centrul de urmărire.</string>

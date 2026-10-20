@@ -52,4 +52,28 @@ class SteamDeckRepoTest {
     @Test fun aPageHoldsTwelveMovies() {
         assertEquals(12, SteamDeckRepo.PAGE_SIZE)
     }
+
+    private fun lastPageOf(pages: Int, tail: Int = SteamDeckRepo.PAGE_SIZE) = SteamDeckRepo.lastPage(SteamDeckRepo.Sort.TRENDING, null, "") { p ->
+        when {
+            p < pages -> SteamDeckRepo.PAGE_SIZE
+            p == pages -> tail
+            else -> 0
+        }
+    }
+
+    @Test fun theLastPageIsFoundByAskingForPages() {
+        for (pages in listOf(2, 3, 7, 8, 9, 33, 100, 500)) assertEquals(pages, lastPageOf(pages))
+    }
+
+    @Test fun aShortLastPageEndsTheSearchAtOnce() {
+        assertEquals(1, lastPageOf(1, tail = 5))
+        assertEquals(5, lastPageOf(5, tail = 3))
+        assertEquals(37, lastPageOf(37, tail = 1))
+    }
+
+    @Test fun aSearchWithNothingHasOnePageAndAnUnreachableSiteHasNone() {
+        assertEquals(1, SteamDeckRepo.lastPage(SteamDeckRepo.Sort.TRENDING, null, "x") { 0 })
+        assertNull(SteamDeckRepo.lastPage(SteamDeckRepo.Sort.TRENDING, null, "x") { null })
+        assertNull(SteamDeckRepo.lastPage(SteamDeckRepo.Sort.TRENDING, null, "x") { p -> if (p < 4) SteamDeckRepo.PAGE_SIZE else null })
+    }
 }

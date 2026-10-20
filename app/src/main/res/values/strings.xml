@@ -2809,6 +2809,10 @@
     <string name="boot_movie_repo_previous">Previous</string>
     <string name="boot_movie_repo_next">Next</string>
     <string name="boot_movie_repo_page">Page %1$d</string>
+    <string name="boot_movie_repo_clear">Clear</string>
+    <string name="boot_movie_repo_go_to_page">Go to page</string>
+    <string name="boot_movie_repo_preview">Preview</string>
+    <string name="boot_movie_repo_preview_failed">This preview could not be played</string>
     <string name="glasses_steady_hand_aim">Steady hand aim</string>
     <string name="glasses_steady_hand_aim_hint">Aim from your shoulder through your palm. Turn off for wrist-controlled rotation.</string>
     <string name="spatial_title">Spatial setup</string>

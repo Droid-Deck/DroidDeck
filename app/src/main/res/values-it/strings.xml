@@ -2767,6 +2767,10 @@
     <string name="boot_movie_repo_previous">Precedente</string>
     <string name="boot_movie_repo_next">Successivo</string>
     <string name="boot_movie_repo_page">Pagina %1$d</string>
+    <string name="boot_movie_repo_clear">Cancella</string>
+    <string name="boot_movie_repo_go_to_page">Vai alla pagina</string>
+    <string name="boot_movie_repo_preview">Anteprima</string>
+    <string name="boot_movie_repo_preview_failed">Impossibile riprodurre l\'anteprima</string>
     <string name="glasses_experimental">Fotocamere Luma Ultra — Sperimentale</string>
     <string name="glasses_joycons">Tracciamento della posizione dei Joy-Con</string>
     <string name="glasses_joycons_hint">Utilizza le fotocamere degli occhiali smart per posizionare i controller Joy-Con associati. La rotazione e gli input dei pulsanti provengono dai controller Joy-Con. La posizione viene stimata quando i polsi sono nascosti. Sostituisce i controller utilizzati a mani nude e mette in pausa il tracciamento tramite la fotocamera del telefono. Punta i controller Joy-Con in avanti quando li connetti o reimposti il ​​centro di tracciamento.</string>

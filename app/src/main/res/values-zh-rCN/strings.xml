@@ -2708,6 +2708,10 @@
     <string name="boot_movie_repo_previous">上一页</string>
     <string name="boot_movie_repo_next">下一页</string>
     <string name="boot_movie_repo_page">第 %1$d 页</string>
+    <string name="boot_movie_repo_clear">清除</string>
+    <string name="boot_movie_repo_go_to_page">转到页面</string>
+    <string name="boot_movie_repo_preview">预览</string>
+    <string name="boot_movie_repo_preview_failed">无法播放此预览</string>
     <string name="glasses_experimental">Luma Ultra 摄像头 — 实验性功能</string>
     <string name="glasses_joycons">Joy-Con 位置追踪</string>
     <string name="glasses_joycons_hint">使用智能眼镜摄像头定位已配对的 Joy-Con 控制器。旋转和按键输入来自 Joy-Con 控制器。当您的手腕被遮挡时，系统会估算位置。此功能会取代徒手操作的控制器，并暂停手机摄像头追踪。连接或重置追踪中心时，请将 Joy-Con 控制器指向前方。</string>

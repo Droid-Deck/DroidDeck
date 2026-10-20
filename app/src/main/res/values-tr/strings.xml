@@ -2733,6 +2733,10 @@
     <string name="boot_movie_repo_previous">Önceki</string>
     <string name="boot_movie_repo_next">Sonraki</string>
     <string name="boot_movie_repo_page">Sayfa %1$d</string>
+    <string name="boot_movie_repo_clear">Temizle</string>
+    <string name="boot_movie_repo_go_to_page">Sayfaya git</string>
+    <string name="boot_movie_repo_preview">Önizle</string>
+    <string name="boot_movie_repo_preview_failed">Önizleme oynatılamadı</string>
     <string name="glasses_experimental">Luma Ultra kameralar — Deneysel</string>
     <string name="glasses_joycons">Joy-Con konum takibi</string>
     <string name="glasses_joycons_hint">Eşleştirilmiş Joy-Con kumandalarınızı konumlandırmak için akıllı gözlük kameralarını kullanın. Döndürme ve düğme girişleri Joy-Con kumandalarından gelir. Bilekleriniz gizlendiğinde konum tahmin edilir. Çıplak elle çalıştırılan kumandaların yerini alır ve telefon kamerası izlemesini duraklatır. İzleme merkezini bağlarken veya sıfırlarken Joy-Con kumandalarını ileriye doğru çevirin.</string>

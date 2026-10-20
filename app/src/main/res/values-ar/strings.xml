@@ -2869,6 +2869,10 @@
     <string name="boot_movie_repo_previous">السابق</string>
     <string name="boot_movie_repo_next">التالي</string>
     <string name="boot_movie_repo_page">الصفحة %1$d</string>
+    <string name="boot_movie_repo_clear">مسح</string>
+    <string name="boot_movie_repo_go_to_page">الانتقال إلى صفحة</string>
+    <string name="boot_movie_repo_preview">معاينة</string>
+    <string name="boot_movie_repo_preview_failed">تعذر تشغيل المعاينة</string>
     <string name="glasses_experimental">كاميرات Luma Ultra - تجريبية</string>
     <string name="glasses_joycons">تتبع موضع Joy-Con</string>
     <string name="glasses_joycons_hint">استخدم كاميرات النظارات الذكية لتحديد موضع وحدات تحكم Joy-Con المقترنة. يتم التحكم في الدوران والأزرار من خلال وحدات تحكم Joy-Con. يتم تقدير الموضع عندما تكون معصميك مخفية. يحل هذا محل وحدات التحكم التي يتم تشغيلها باليدين ويوقف تتبع كاميرا الهاتف مؤقتًا. وجّه وحدات تحكم Joy-Con للأمام عند توصيل مركز التتبع أو إعادة ضبطه.</string>

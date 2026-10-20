@@ -2708,6 +2708,10 @@
     <string name="boot_movie_repo_previous">ก่อนหน้า</string>
     <string name="boot_movie_repo_next">ถัดไป</string>
     <string name="boot_movie_repo_page">หน้า %1$d</string>
+    <string name="boot_movie_repo_clear">ล้าง</string>
+    <string name="boot_movie_repo_go_to_page">ไปที่หน้า</string>
+    <string name="boot_movie_repo_preview">ดูตัวอย่าง</string>
+    <string name="boot_movie_repo_preview_failed">เล่นตัวอย่างไม่ได้</string>
     <string name="glasses_experimental">กล้อง Luma Ultra — ทดลอง</string>
     <string name="glasses_joycons">การติดตามตำแหน่ง Joy-Con</string>
     <string name="glasses_joycons_hint">ใช้กล้องของแว่นตาอัจฉริยะเพื่อกำหนดตำแหน่งคอนโทรลเลอร์ Joy-Con ที่จับคู่ไว้ การหมุนและการกดปุ่มจะมาจากคอนโทรลเลอร์ Joy-Con ตำแหน่งจะถูกประมาณเมื่อข้อมือของคุณถูกซ่อนอยู่ แทนที่คอนโทรลเลอร์ที่ใช้งานด้วยมือเปล่าและหยุดการติดตามของกล้องโทรศัพท์ชั่วคราว ชี้คอนโทรลเลอร์ Joy-Con ไปข้างหน้าเมื่อเชื่อมต่อหรือรีเซ็ตศูนย์กลางการติดตาม</string>

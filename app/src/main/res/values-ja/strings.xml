@@ -2708,6 +2708,10 @@
     <string name="boot_movie_repo_previous">前へ</string>
     <string name="boot_movie_repo_next">次へ</string>
     <string name="boot_movie_repo_page">%1$d ページ</string>
+    <string name="boot_movie_repo_clear">クリア</string>
+    <string name="boot_movie_repo_go_to_page">ページへ移動</string>
+    <string name="boot_movie_repo_preview">プレビュー</string>
+    <string name="boot_movie_repo_preview_failed">プレビューを再生できませんでした</string>
     <string name="setup_tab_glasses">スマートグラス</string>
     <string name="setup_glasses_connect">スマートグラスを接続して、ディスプレイと追跡の設定を変更してください。接続を解除しても、保存された設定は保持されます。</string>
     <string name="glasses_vr">VR</string>

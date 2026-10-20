@@ -52,6 +52,27 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.graphics.SurfaceTexture
+import android.media.MediaPlayer
+import android.net.Uri
+import android.view.Surface
+import android.view.TextureView
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.viewinterop.AndroidView
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.session.BootMovie
@@ -228,7 +249,12 @@ private fun InstalledMoviesDialog(a: ModeSettingsActions, onDismiss: () -> Unit)
             onDismiss = { removing = null },
         )
     }
-    AppDialog(shown, close, "boot-movies", wide = false) {
+    val firstRow = remember { FocusRequester() }
+    val inputMode = LocalInputModeManager.current
+    LaunchedEffect(snapshot != null, filter) {
+        if (snapshot != null && inputMode.inputMode == InputMode.Keyboard) focusSoon { firstRow }
+    }
+    AppDialog(shown, close, "boot-movies", wide = false, scrollable = false) {
         val filters = listOf(
             null to stringResource(R.string.store_all),
             BootMovieLibrary.SOURCE_DROIDDECK to movieSourceLabel(BootMovieLibrary.SOURCE_DROIDDECK),
@@ -261,9 +287,9 @@ private fun InstalledMoviesDialog(a: ModeSettingsActions, onDismiss: () -> Unit)
             }
             SmallIconButton(Icons.Filled.Close, stringResource(R.string.common_close), tint = MaterialTheme.colorScheme.error, onClick = close)
         }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().heightIn(max = 460.dp)) {
-            items(snapshot?.entries.orEmpty().filter { filter == null || it.source == filter }, key = { it.id }) { entry ->
-                ListRow(accent = entry.id == selected, tall = true, onClick = { picked = entry.id; a.onBootMovie(entry.id) }) {
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().weight(1f, fill = false)) {
+            itemsIndexed(snapshot?.entries.orEmpty().filter { filter == null || it.source == filter }, key = { _, entry -> entry.id }) { index, entry ->
+                ListRow(accent = entry.id == selected, tall = true, focus = if (index == 0) firstRow else null, onClick = { picked = entry.id; a.onBootMovie(entry.id) }) {
                     MovieCover(entry, Modifier.size(width = 96.dp, height = 54.dp))
                     Column(Modifier.weight(1f)) {
                         Text(entry.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground,
@@ -350,10 +376,12 @@ private fun RepoTab(a: ModeSettingsActions) {
     val scope = rememberCoroutineScope()
     var sort by rememberSaveable { mutableStateOf(SteamDeckRepo.Sort.TRENDING) }
     var device by rememberSaveable { mutableStateOf<String?>(null) }
-    var typed by rememberSaveable { mutableStateOf("") }
     var query by rememberSaveable { mutableStateOf("") }
     var page by rememberSaveable { mutableIntStateOf(1) }
     var retry by remember { mutableIntStateOf(0) }
+    var searching by remember { mutableStateOf(false) }
+    var jumping by remember { mutableStateOf(false) }
+    var previewing by remember { mutableStateOf<SteamDeckRepo.Post?>(null) }
     var installed by remember { mutableStateOf(setOf<String>()) }
     val chosen = rememberMovies(0, a.onBootMovieChanged)?.selected
     val inUse by androidx.compose.runtime.produceState<String?>(null, chosen) {
@@ -361,17 +389,54 @@ private fun RepoTab(a: ModeSettingsActions) {
             chosen?.takeIf { it.startsWith(BootMovieLibrary.PREFIX) }?.let { BootMovieLibrary.repoId(app, it.removePrefix(BootMovieLibrary.PREFIX)) }
         }
     }
-    LaunchedEffect(typed) { delay(400); if (query != typed) { query = typed; page = 1 } }
     LaunchedEffect(progress.size) { installed = withContext(Dispatchers.IO) { BootMovieLibrary.installedRepoIds(app) } }
     val result by androidx.compose.runtime.produceState<SteamDeckRepo.Page?>(null, sort, device, query, page, retry) {
         value = null
         value = withContext(Dispatchers.IO) { SteamDeckRepo.fetch(sort, device, query, page) }
     }
+    val last by androidx.compose.runtime.produceState<Int?>(null, sort, device, query, retry) {
+        value = null
+        value = withContext(Dispatchers.IO) { SteamDeckRepo.lastPage(sort, device, query) }
+    }
+    LaunchedEffect(last) { last?.let { if (page > it) page = it } }
+    val installPost: (SteamDeckRepo.Post) -> Unit = { post ->
+        if (progress.isEmpty()) {
+            progress[post.id] = 0
+            installScope.launch {
+                val outcome = try {
+                    withContext(Dispatchers.IO) { install(app, post) { progress[post.id] = it } }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    app.getString(R.string.boot_movie_repo_download_failed)
+                } finally {
+                    progress.remove(post.id)
+                }
+                Toast.makeText(app, outcome ?: app.getString(R.string.boot_movie_repo_installed, post.title), Toast.LENGTH_LONG).show()
+                a.onBootMovieChanged()
+            }
+        }
+    }
+    val usePost: (SteamDeckRepo.Post) -> Unit = { post ->
+        scope.launch {
+            val name = withContext(Dispatchers.IO) { BootMovieLibrary.nameForRepo(app, post.id) }
+            if (name != null) a.onBootMovie(BootMovieLibrary.idOf(name))
+        }
+    }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp).padding(bottom = 12.dp)) {
-        AdbTextField(
-            value = typed, onValueChange = { typed = it }, label = "", keyboardType = KeyboardType.Text, imeAction = ImeAction.Search,
-            placeholder = stringResource(R.string.boot_movie_repo_search), compact = true,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+            Box(Modifier.weight(1f)) {
+                ListRow(tall = true, onClick = { searching = true }) {
+                    Icon(Icons.Filled.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                    Text(
+                        query.ifEmpty { stringResource(R.string.boot_movie_repo_search) }, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        color = if (query.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+            if (query.isNotEmpty()) SecondaryButton(stringResource(R.string.boot_movie_repo_clear), compact = true) { query = ""; page = 1 }
+        }
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             TabChip(stringResource(R.string.boot_movie_repo_all), device == null) { device = null; page = 1 }
             TabChip(stringResource(R.string.boot_movie_repo_deck), device == "steam_deck") { device = "steam_deck"; page = 1 }
@@ -403,42 +468,31 @@ private fun RepoTab(a: ModeSettingsActions) {
                 r.posts.chunked(2).forEach { row ->
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                         row.forEach { post ->
-                            RepoCard(post, installed = post.id in installed, inUse = post.id == inUse, percent = progress[post.id], busy = progress.isNotEmpty(), modifier = Modifier.weight(1f),
-                                onInstall = {
-                                    if (progress.isEmpty()) {
-                                        progress[post.id] = 0
-                                        installScope.launch {
-                                            val outcome = try {
-                                                withContext(Dispatchers.IO) { install(app, post) { progress[post.id] = it } }
-                                            } catch (e: kotlinx.coroutines.CancellationException) {
-                                                throw e
-                                            } catch (e: Exception) {
-                                                app.getString(R.string.boot_movie_repo_download_failed)
-                                            } finally {
-                                                progress.remove(post.id)
-                                            }
-                                            Toast.makeText(app, outcome ?: app.getString(R.string.boot_movie_repo_installed, post.title), Toast.LENGTH_LONG).show()
-                                            a.onBootMovieChanged()
-                                        }
-                                    }
-                                },
-                                onUse = {
-                                    scope.launch {
-                                        val name = withContext(Dispatchers.IO) { BootMovieLibrary.nameForRepo(app, post.id) }
-                                        if (name != null) a.onBootMovie(BootMovieLibrary.idOf(name))
-                                    }
-                                })
+                            RepoCard(
+                                post, installed = post.id in installed, inUse = post.id == inUse, percent = progress[post.id], busy = progress.isNotEmpty(),
+                                modifier = Modifier.weight(1f), onPreview = { previewing = post }, onInstall = { installPost(post) }, onUse = { usePost(post) },
+                            )
                         }
                         if (row.size == 1) Box(Modifier.weight(1f))
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    SecondaryButton(stringResource(R.string.boot_movie_repo_previous), enabled = page > 1, compact = true) { page-- }
-                    Text(stringResource(R.string.boot_movie_repo_page, page), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-                    SecondaryButton(stringResource(R.string.boot_movie_repo_next), enabled = r.posts.size >= SteamDeckRepo.PAGE_SIZE, compact = true) { page++ }
-                }
+                RepoPager(page, last, hasMore = r.posts.size >= SteamDeckRepo.PAGE_SIZE, onPage = { page = it }, onJump = { jumping = true })
             }
         }
+    }
+    if (searching) TextEntryDialog(
+        stringResource(R.string.boot_movie_repo_search), query, number = false, confirm = stringResource(R.string.stores_search_open),
+        onSubmit = { value -> if (value != query) { query = value; page = 1 } }, onDismiss = { searching = false },
+    )
+    if (jumping) TextEntryDialog(
+        stringResource(R.string.boot_movie_repo_go_to_page), page.toString(), number = true, confirm = stringResource(R.string.common_ok),
+        onSubmit = { value -> value.toIntOrNull()?.let { n -> page = n.coerceIn(1, maxOf(1, last ?: n)) } }, onDismiss = { jumping = false },
+    )
+    previewing?.let { post ->
+        PreviewDialog(
+            post, installed = post.id in installed, inUse = post.id == inUse, percent = progress[post.id], busy = progress.isNotEmpty(),
+            onInstall = { installPost(post) }, onUse = { usePost(post) }, onDismiss = { previewing = null },
+        )
     }
 }
 
@@ -463,30 +517,179 @@ private fun install(app: android.content.Context, post: SteamDeckRepo.Post, onPr
 }
 
 @Composable
-private fun RepoCard(post: SteamDeckRepo.Post, installed: Boolean, inUse: Boolean, percent: Int?, busy: Boolean, modifier: Modifier, onInstall: () -> Unit, onUse: () -> Unit) {
+private fun RepoCard(
+    post: SteamDeckRepo.Post, installed: Boolean, inUse: Boolean, percent: Int?, busy: Boolean, modifier: Modifier,
+    onPreview: () -> Unit, onInstall: () -> Unit, onUse: () -> Unit,
+) {
     val pal = LocalPalette.current
     val colors = MaterialTheme.colorScheme
     val shape = RoundedCornerShape(10.dp)
+    val thumbShape = RoundedCornerShape(7.dp)
+    val src = remember { MutableInteractionSource() }
+    val hot = rememberHot(src)
+    val previewLabel = stringResource(R.string.boot_movie_repo_preview)
     Column(
         verticalArrangement = Arrangement.spacedBy(5.dp),
         modifier = modifier.clip(shape)
             .background(if (inUse) pal.signal.copy(alpha = 0.14f) else colors.surface.copy(alpha = 0.6f))
             .border(if (inUse) 2.dp else 1.dp, if (inUse) pal.signal else pal.line, shape).padding(6.dp),
     ) {
-        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(7.dp)).background(Color(0xFF0E1218))) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(thumbShape).background(Color(0xFF0E1218))
+                .glideBorder(hot, thumbShape, pal.signal)
+                .hoverable(src).clickable(interactionSource = src, indication = androidx.compose.foundation.LocalIndication.current, role = Role.Button, onClick = onPreview)
+                .controllerConfirm(onClick = onPreview)
+                .semantics { contentDescription = previewLabel },
+        ) {
             if (post.thumbnail.isNotEmpty()) AsyncImage(model = post.thumbnail, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            Box(Modifier.size(40.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.55f)), contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(26.dp))
+            }
         }
         Text(post.title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(
-            listOf(post.author, "♥ ${post.likes}", "⇩ ${post.downloads}", if (post.seconds > 0) stringResource(R.string.boot_movie_seconds, post.seconds) else "")
-                .filter { it.isNotEmpty() }.joinToString(" · "),
-            fontSize = 11.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
+        Text(repoInfo(post), fontSize = 11.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        RepoAction(installed, inUse, percent, busy, Modifier.fillMaxWidth(), onInstall, onUse)
+    }
+}
+
+@Composable
+private fun repoInfo(post: SteamDeckRepo.Post): String =
+    listOf(post.author, "♥ ${post.likes}", "⇩ ${post.downloads}", if (post.seconds > 0) stringResource(R.string.boot_movie_seconds, post.seconds) else "")
+        .filter { it.isNotEmpty() }.joinToString(" · ")
+
+@Composable
+private fun RepoAction(installed: Boolean, inUse: Boolean, percent: Int?, busy: Boolean, modifier: Modifier, onInstall: () -> Unit, onUse: () -> Unit) {
+    if (inUse) SecondaryButton(stringResource(R.string.boot_movie_in_use), compact = true, modifier = modifier, onClick = {})
+    else if (installed) SecondaryButton(stringResource(R.string.boot_movie_repo_use), compact = true, modifier = modifier, onClick = onUse)
+    else SecondaryButton(
+        if (percent != null) stringResource(R.string.boot_movie_converting, percent) else stringResource(R.string.boot_movie_repo_install),
+        enabled = !busy, compact = true, modifier = modifier, onClick = onInstall,
+    )
+}
+
+/** A movie from SteamDeckRepo played straight from the site, so it can be checked before it is installed. */
+@Composable
+private fun PreviewDialog(
+    post: SteamDeckRepo.Post, installed: Boolean, inUse: Boolean, percent: Int?, busy: Boolean,
+    onInstall: () -> Unit, onUse: () -> Unit, onDismiss: () -> Unit,
+) {
+    val shown = rememberShown(onDismiss)
+    val close = { shown.targetState = false }
+    val action = remember { FocusRequester() }
+    val inputMode = LocalInputModeManager.current
+    LaunchedEffect(Unit) { if (inputMode.inputMode == InputMode.Keyboard) focusSoon { action } }
+    val maxVideoHeight = (LocalConfiguration.current.screenHeightDp - 200).coerceAtLeast(120).dp
+    AppDialog(shown, close, "boot-movie-preview", wide = false, maxWidth = 620.dp) {
+        DialogTitleRow(post.title, close)
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            MoviePreview(post.video, Modifier.heightIn(max = maxVideoHeight).aspectRatio(16f / 9f))
+        }
+        Text(repoInfo(post), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        RepoAction(installed, inUse, percent, busy, Modifier.fillMaxWidth().focusRequester(action), onInstall, onUse)
+    }
+}
+
+@Composable
+private fun MoviePreview(url: String, modifier: Modifier = Modifier) {
+    val pal = LocalPalette.current
+    val shape = RoundedCornerShape(10.dp)
+    val src = remember { MutableInteractionSource() }
+    val hot = rememberHot(src)
+    var state by remember(url) { mutableIntStateOf(0) }
+    var ratio by remember(url) { mutableFloatStateOf(16f / 9f) }
+    val player = remember(url) { arrayOfNulls<MediaPlayer>(1) }
+    DisposableEffect(url) {
+        onDispose {
+            runCatching { player[0]?.release() }
+            player[0] = null
+        }
+    }
+    val toggle = { runCatching { player[0]?.let { if (it.isPlaying) it.pause() else it.start() } }; Unit }
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier.clip(shape).background(Color.Black)
+            .glideBorder(hot, shape, pal.signal, pal.line)
+            .hoverable(src).clickable(interactionSource = src, indication = null, role = Role.Button, onClick = toggle)
+            .controllerConfirm(onClick = toggle),
+    ) {
+        AndroidView(
+            modifier = Modifier.aspectRatio(ratio),
+            factory = { viewContext ->
+                TextureView(viewContext).apply {
+                    surfaceTextureListener = object : TextureView.SurfaceTextureListener {
+                        override fun onSurfaceTextureAvailable(texture: SurfaceTexture, width: Int, height: Int) {
+                            val mp = MediaPlayer()
+                            player[0] = mp
+                            try {
+                                mp.setDataSource(viewContext, Uri.parse(url), mapOf("User-Agent" to "DroidDeck"))
+                                mp.setSurface(Surface(texture))
+                                mp.isLooping = true
+                                mp.setOnVideoSizeChangedListener { _, w, h -> if (w > 0 && h > 0) ratio = w.toFloat() / h }
+                                mp.setOnPreparedListener { it.start(); state = 1 }
+                                mp.setOnErrorListener { _, _, _ -> state = 2; true }
+                                mp.prepareAsync()
+                            } catch (e: Exception) {
+                                state = 2
+                            }
+                        }
+
+                        override fun onSurfaceTextureSizeChanged(texture: SurfaceTexture, width: Int, height: Int) = Unit
+
+                        override fun onSurfaceTextureDestroyed(texture: SurfaceTexture): Boolean {
+                            runCatching { player[0]?.release() }
+                            player[0] = null
+                            return true
+                        }
+
+                        override fun onSurfaceTextureUpdated(texture: SurfaceTexture) = Unit
+                    }
+                }
+            },
         )
-        if (inUse) SecondaryButton(stringResource(R.string.boot_movie_in_use), compact = true, modifier = Modifier.fillMaxWidth(), onClick = {})
-        else if (installed) SecondaryButton(stringResource(R.string.boot_movie_repo_use), compact = true, modifier = Modifier.fillMaxWidth(), onClick = onUse)
-        else SecondaryButton(
-            if (percent != null) stringResource(R.string.boot_movie_converting, percent) else stringResource(R.string.boot_movie_repo_install),
-            enabled = !busy, compact = true, modifier = Modifier.fillMaxWidth(), onClick = onInstall,
+        if (state == 0) Text(stringResource(R.string.common_working), fontSize = 13.sp, color = Color.White.copy(alpha = 0.8f))
+        if (state == 2) Text(stringResource(R.string.boot_movie_repo_preview_failed), fontSize = 13.sp, color = Color.White.copy(alpha = 0.8f), modifier = Modifier.padding(12.dp))
+    }
+}
+
+/** A dialog with one text box, for a search term or a page number; the Android keyboard comes up with it. */
+@Composable
+private fun TextEntryDialog(
+    title: String, initial: String, number: Boolean, confirm: String, onSubmit: (String) -> Unit, onDismiss: () -> Unit,
+) {
+    val shown = rememberShown(onDismiss)
+    val close = { shown.targetState = false }
+    var text by remember { mutableStateOf(initial) }
+    val submit = { onSubmit(text.trim()); close() }
+    AppDialog(shown, close, "boot-movie-entry", wide = false, maxWidth = 460.dp) {
+        DialogTitleRow(title, close)
+        AdbTextField(
+            value = text, onValueChange = { text = it }, label = "", keyboardType = if (number) KeyboardType.Number else KeyboardType.Text,
+            imeAction = ImeAction.Done, placeholder = title, focusOnShow = true, onDone = { submit() },
         )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            SecondaryButton(stringResource(R.string.common_cancel), modifier = Modifier.weight(1f), onClick = close)
+            SecondaryButton(confirm, modifier = Modifier.weight(1f)) { submit() }
+        }
+    }
+}
+
+/** Page buttons around the current page, which opens a box to type another page into; first and last page show their numbers. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun RepoPager(page: Int, last: Int?, hasMore: Boolean, onPage: (Int) -> Unit, onJump: () -> Unit) {
+    val reach = last ?: if (hasMore) Int.MAX_VALUE else page
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        SecondaryButton(stringResource(R.string.boot_movie_repo_previous), enabled = page > 1, compact = true) { onPage(page - 1) }
+        if (page - 3 > 1) SecondaryButton("1", compact = true) { onPage(1) }
+        for (n in maxOf(1, page - 3) until page) SecondaryButton("$n", compact = true) { onPage(n) }
+        TabChip("$page", true, Modifier.widthIn(min = 52.dp).heightIn(min = 44.dp), onJump)
+        for (n in page + 1..minOf(page + 3, reach)) SecondaryButton("$n", compact = true) { onPage(n) }
+        if (last != null && page + 3 < last) SecondaryButton("$last", compact = true) { onPage(last) }
+        SecondaryButton(stringResource(R.string.boot_movie_repo_next), enabled = page < reach, compact = true) { onPage(page + 1) }
     }
 }

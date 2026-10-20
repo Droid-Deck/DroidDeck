@@ -2708,6 +2708,10 @@
     <string name="boot_movie_repo_previous">上一頁</string>
     <string name="boot_movie_repo_next">下一頁</string>
     <string name="boot_movie_repo_page">第 %1$d 頁</string>
+    <string name="boot_movie_repo_clear">清除</string>
+    <string name="boot_movie_repo_go_to_page">前往頁面</string>
+    <string name="boot_movie_repo_preview">預覽</string>
+    <string name="boot_movie_repo_preview_failed">無法播放此預覽</string>
     <string name="glasses_experimental">Luma Ultra 相機 — 實驗性功能</string>
     <string name="glasses_joycons">Joy-Con 位置追踪</string>
     <string name="glasses_joycons_hint">使用智慧眼鏡攝影機定位已配對的 Joy-Con 控制器。旋轉和按鍵輸入來自 Joy-Con 控制器。當您的手腕被遮住時，系統會估算位置。此功能會取代徒手操作的控制器，並暫停手機相機追蹤。連接或重設追蹤中心時，請將 Joy-Con 控制器指向前方。</string>

@@ -2801,6 +2801,10 @@
     <string name="boot_movie_repo_previous">Назад</string>
     <string name="boot_movie_repo_next">Далее</string>
     <string name="boot_movie_repo_page">Страница %1$d</string>
+    <string name="boot_movie_repo_clear">Очистить</string>
+    <string name="boot_movie_repo_go_to_page">Перейти к странице</string>
+    <string name="boot_movie_repo_preview">Просмотр</string>
+    <string name="boot_movie_repo_preview_failed">Не удалось воспроизвести предпросмотр</string>
     <string name="glasses_experimental">Камеры Luma Ultra — Экспериментальная</string>
     <string name="glasses_joycons">Отслеживание положения Joy-Con</string>
     <string name="glasses_joycons_hint">Используйте камеры умных очков для позиционирования сопряженных контроллеров Joy-Con. Вращение и ввод с кнопок осуществляются с помощью контроллеров Joy-Con. Положение оценивается, когда ваши запястья скрыты. Заменяет контроллеры, управляемые голыми руками, и приостанавливает отслеживание камерой телефона. Направьте контроллеры Joy-Con вперед при подключении или сбросе центра отслеживания.</string>

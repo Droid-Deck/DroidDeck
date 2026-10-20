@@ -2801,6 +2801,10 @@
     <string name="boot_movie_repo_previous">Předchozí</string>
     <string name="boot_movie_repo_next">Další</string>
     <string name="boot_movie_repo_page">Strana %1$d</string>
+    <string name="boot_movie_repo_clear">Vymazat</string>
+    <string name="boot_movie_repo_go_to_page">Přejít na stránku</string>
+    <string name="boot_movie_repo_preview">Náhled</string>
+    <string name="boot_movie_repo_preview_failed">Náhled se nepodařilo přehrát</string>
     <string name="glasses_experimental">Kamery Luma Ultra — Experimentální</string>
     <string name="glasses_joycons">Sledování polohy Joy-Conů</string>
     <string name="glasses_joycons_hint">Použijte kamery chytrých brýlí k umístění spárovaných ovladačů Joy-Con. Otáčení a vstupy tlačítek pocházejí z ovladačů Joy-Con. Poloha se odhaduje, když máte skrytá zápěstí. Nahrazuje ovladače ovládané holýma rukama a pozastavuje sledování fotoaparátem telefonu. Při připojování nebo resetování centra sledování namiřte ovladače Joy-Con dopředu.</string>

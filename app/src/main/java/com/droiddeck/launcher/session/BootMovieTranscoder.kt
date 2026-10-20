@@ -37,9 +37,9 @@ internal object BootMovieTranscoder {
         MediaCodecList(MediaCodecList.REGULAR_CODECS).findDecoderForFormat(format) != null
     }.getOrDefault(false)
 
-    fun transcode(source: File, target: File, keepAudio: Boolean = true, limitUs: Long = Long.MAX_VALUE, onProgress: (Int) -> Unit): Result? {
+    fun transcode(source: File, target: File, keepAudio: Boolean = true, limitUs: Long = Long.MAX_VALUE, gain: Float = 1f, onProgress: (Int) -> Unit): Result? {
         val hadAudio = keepAudio && trackFormat(source, "audio/") != null
-        val audio = if (hadAudio) runCatching { encodeAudio(source, 1f, limitUs) }
+        val audio = if (hadAudio) runCatching { encodeAudio(source, gain, limitUs) }
             .onFailure { Log.w(TAG, "could not convert the audio of ${source.name}", it) }.getOrNull() else null
         val muxedAudio = runCatching { encodeVideo(source, target, audio, limitUs, onProgress) }
             .onFailure { Log.w(TAG, "could not convert ${source.name}", it) }.getOrNull() ?: return null

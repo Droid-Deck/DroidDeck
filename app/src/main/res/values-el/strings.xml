@@ -2733,6 +2733,10 @@
     <string name="boot_movie_repo_previous">Προηγούμενη</string>
     <string name="boot_movie_repo_next">Επόμενη</string>
     <string name="boot_movie_repo_page">Σελίδα %1$d</string>
+    <string name="boot_movie_repo_clear">Εκκαθάριση</string>
+    <string name="boot_movie_repo_go_to_page">Μετάβαση στη σελίδα</string>
+    <string name="boot_movie_repo_preview">Προεπισκόπηση</string>
+    <string name="boot_movie_repo_preview_failed">Η προεπισκόπηση δεν μπόρεσε να αναπαραχθεί</string>
     <string name="glasses_experimental">Κάμερες Luma Ultra — Πειραματικό</string>
     <string name="glasses_joycons">Παρακολούθηση θέσης Joy-Con</string>
     <string name="glasses_joycons_hint">Χρησιμοποιήστε τις κάμερες των έξυπνων γυαλιών για να τοποθετήσετε τα συνδεδεμένα χειριστήρια Joy-Con. Η περιστροφή και οι εντολές κουμπιών προέρχονται από τα χειριστήρια Joy-Con. Η θέση εκτιμάται όταν οι καρποί σας είναι κρυμμένοι. Αντικαθιστά τα χειριστήρια που λειτουργούν με γυμνά χέρια και διακόπτει την παρακολούθηση της κάμερας του τηλεφώνου. Στρέψτε τα χειριστήρια Joy-Con προς τα εμπρός κατά τη σύνδεση ή την επαναφορά του κέντρου παρακολούθησης.</string>

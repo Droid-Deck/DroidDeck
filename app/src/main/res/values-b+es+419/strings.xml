@@ -2709,6 +2709,10 @@
     <string name="boot_movie_repo_previous">Anterior</string>
     <string name="boot_movie_repo_next">Siguiente</string>
     <string name="boot_movie_repo_page">Página %1$d</string>
+    <string name="boot_movie_repo_clear">Borrar</string>
+    <string name="boot_movie_repo_go_to_page">Ir a la página</string>
+    <string name="boot_movie_repo_preview">Vista previa</string>
+    <string name="boot_movie_repo_preview_failed">No se pudo reproducir la vista previa</string>
     <string name="stores_itch_key">Clave de API</string>
     <string name="stores_itch_get_key">Obtener una clave</string>
     <string name="stores_itch_key_rejected">Clave rechazada</string>

@@ -2708,6 +2708,10 @@
     <string name="boot_movie_repo_previous">Sebelumnya</string>
     <string name="boot_movie_repo_next">Seterusnya</string>
     <string name="boot_movie_repo_page">Halaman %1$d</string>
+    <string name="boot_movie_repo_clear">Kosongkan</string>
+    <string name="boot_movie_repo_go_to_page">Pergi ke halaman</string>
+    <string name="boot_movie_repo_preview">Pratonton</string>
+    <string name="boot_movie_repo_preview_failed">Pratonton tidak dapat dimainkan</string>
     <string name="glasses_experimental">Kamera Luma Ultra — Eksperimen</string>
     <string name="glasses_joycons">Penjejakan kedudukan Joy-Con</string>
     <string name="glasses_joycons_hint">Gunakan kamera cermin mata pintar untuk meletakkan pengawal Joy-Con yang dipasangkan. Input putaran dan butang datang daripada pengawal Joy-Con. Kedudukan dianggarkan apabila pergelangan tangan anda tersembunyi. Menggantikan pengawal yang dikendalikan dengan tangan kosong dan menjeda penjejakan kamera telefon. Halakan pengawal Joy-Con ke hadapan semasa menyambung atau menetapkan semula pusat penjejakan.</string>

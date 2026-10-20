@@ -2708,6 +2708,10 @@
     <string name="boot_movie_repo_previous">이전</string>
     <string name="boot_movie_repo_next">다음</string>
     <string name="boot_movie_repo_page">%1$d페이지</string>
+    <string name="boot_movie_repo_clear">지우기</string>
+    <string name="boot_movie_repo_go_to_page">페이지로 이동</string>
+    <string name="boot_movie_repo_preview">미리보기</string>
+    <string name="boot_movie_repo_preview_failed">미리보기를 재생할 수 없습니다</string>
     <string name="glasses_experimental">Luma Ultra 카메라 — 실험적 기능</string>
     <string name="glasses_joycons">Joy-Con 위치 추적</string>
     <string name="glasses_joycons_hint">스마트 안경 카메라를 사용하여 페어링된 Joy-Con 컨트롤러의 위치를 ​​조정합니다. 회전 및 버튼 입력은 Joy-Con 컨트롤러에서 이루어집니다. 손목이 가려진 경우 위치가 추정됩니다. 맨손으로 조작하는 컨트롤러를 대체하며, 휴대폰 카메라 추적이 일시 중지됩니다. 추적 센터를 연결하거나 재설정할 때는 Joy-Con 컨트롤러를 앞쪽으로 향하게 하십시오.</string>

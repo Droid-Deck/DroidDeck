@@ -2708,6 +2708,10 @@
     <string name="boot_movie_repo_previous">Trước</string>
     <string name="boot_movie_repo_next">Tiếp</string>
     <string name="boot_movie_repo_page">Trang %1$d</string>
+    <string name="boot_movie_repo_clear">Xóa</string>
+    <string name="boot_movie_repo_go_to_page">Đến trang</string>
+    <string name="boot_movie_repo_preview">Xem trước</string>
+    <string name="boot_movie_repo_preview_failed">Không thể phát bản xem trước</string>
     <string name="glasses_experimental">Camera Luma Ultra — Thử nghiệm</string>
     <string name="glasses_joycons">Theo dõi vị trí Joy-Con</string>
     <string name="glasses_joycons_hint">Sử dụng camera của kính thông minh để định vị bộ điều khiển Joy-Con đã ghép nối. Xoay và nhập nút đến từ bộ điều khiển Joy-Con. Vị trí được ước tính khi cổ tay của bạn bị che khuất. Thay thế bộ điều khiển được điều khiển bằng tay không và tạm dừng theo dõi bằng camera điện thoại. Hướng bộ điều khiển Joy-Con về phía trước khi kết nối hoặc đặt lại trung tâm theo dõi.</string>

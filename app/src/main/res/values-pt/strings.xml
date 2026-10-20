@@ -2767,6 +2767,10 @@
     <string name="boot_movie_repo_previous">Anterior</string>
     <string name="boot_movie_repo_next">Próxima</string>
     <string name="boot_movie_repo_page">Página %1$d</string>
+    <string name="boot_movie_repo_clear">Limpar</string>
+    <string name="boot_movie_repo_go_to_page">Ir para a página</string>
+    <string name="boot_movie_repo_preview">Pré-visualizar</string>
+    <string name="boot_movie_repo_preview_failed">Não foi possível reproduzir a pré-visualização</string>
     <string name="glasses_experimental">Câmeras Luma Ultra — Experimental</string>
     <string name="glasses_joycons">Rastreamento de posição do Joy-Con</string>
     <string name="glasses_joycons_hint">Use as câmeras dos óculos inteligentes para posicionar seus controles Joy-Con emparelhados. A rotação e os comandos dos botões vêm dos controles Joy-Con. A posição é estimada quando seus pulsos estão escondidos. Substitui os controles operados com as mãos nuas e pausa o rastreamento da câmera do telefone. Aponte os controles Joy-Con para frente ao conectar ou redefinir o centro de rastreamento.</string>

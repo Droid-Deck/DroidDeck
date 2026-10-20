@@ -2733,6 +2733,10 @@
     <string name="boot_movie_repo_previous">Föregående</string>
     <string name="boot_movie_repo_next">Nästa</string>
     <string name="boot_movie_repo_page">Sida %1$d</string>
+    <string name="boot_movie_repo_clear">Rensa</string>
+    <string name="boot_movie_repo_go_to_page">Gå till sida</string>
+    <string name="boot_movie_repo_preview">Förhandsvisa</string>
+    <string name="boot_movie_repo_preview_failed">Förhandsvisningen kunde inte spelas upp</string>
     <string name="glasses_experimental">Luma Ultra-kameror — Experimentell</string>
     <string name="glasses_joycons">Joy-Con-positionsspårning</string>
     <string name="glasses_joycons_hint">Använd smartglasögonens kameror för att placera dina parade Joy-Con-kontroller. Rotation och knappinmatningar kommer från Joy-Con-kontrollerna. Positionen uppskattas när dina handleder är dolda. Ersätter kontroller som manövreras med bara händer och pausar telefonkameran. Rikta Joy-Con-kontrollerna framåt när du ansluter eller återställer spårningscentret.</string>

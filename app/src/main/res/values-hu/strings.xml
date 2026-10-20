@@ -2733,6 +2733,10 @@
     <string name="boot_movie_repo_previous">Előző</string>
     <string name="boot_movie_repo_next">Következő</string>
     <string name="boot_movie_repo_page">%1$d. oldal</string>
+    <string name="boot_movie_repo_clear">Törlés</string>
+    <string name="boot_movie_repo_go_to_page">Ugrás az oldalra</string>
+    <string name="boot_movie_repo_preview">Előnézet</string>
+    <string name="boot_movie_repo_preview_failed">Az előnézetet nem sikerült lejátszani</string>
     <string name="glasses_experimental">Luma Ultra kamerák — Kísérleti</string>
     <string name="glasses_joycons">Joy-Con pozíciókövetés</string>
     <string name="glasses_joycons_hint">Használd az okosszemüveg kameráit a párosított Joy-Con kontrollerek pozicionálásához. A forgatás és a gombbemenetek a Joy-Con kontrollerekről származnak. A pozíció akkor becsült, amikor a csuklód rejtve van. Helyettesíti a puszta kézzel működtetett kontrollereket, és szünetelteti a telefonkamera követést. Irányítsd a Joy-Con kontrollereket előre a követőközpont csatlakoztatásakor vagy visszaállításakor.</string>

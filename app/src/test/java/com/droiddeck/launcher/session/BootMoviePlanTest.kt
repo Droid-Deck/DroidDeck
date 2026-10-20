@@ -36,4 +36,24 @@ class BootMoviePlanTest {
         assertFalse(plan.passthrough)
         assertFalse(plan.sourceOnFailure)
     }
+
+    @Test
+    fun framesBeyondFullHdAreOversizedInEitherOrientation() {
+        assertTrue(BootMovie.oversized(3840, 2160))
+        assertTrue(BootMovie.oversized(2160, 3840))
+        assertFalse(BootMovie.oversized(1920, 1080))
+        assertFalse(BootMovie.oversized(1280, 800))
+        assertFalse(BootMovie.oversized(1080, 1920))
+    }
+
+    @Test
+    fun anOversizedMovieIsAlwaysConvertedAndNeverFallsBackToTheSource() {
+        for (volume in listOf(0, 40, 100)) {
+            val plan = BootMovie.oversizedPlan(volume)
+            assertFalse(plan.passthrough)
+            assertFalse(plan.sourceOnFailure)
+        }
+        assertEquals(listOf(Step.TRANSCODE_SILENT), BootMovie.oversizedPlan(0).steps)
+        assertEquals(listOf(Step.TRANSCODE_AUDIO), BootMovie.oversizedPlan(60).steps)
+    }
 }

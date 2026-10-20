@@ -2801,6 +2801,10 @@
     <string name="boot_movie_repo_previous">Poprzednia</string>
     <string name="boot_movie_repo_next">Następna</string>
     <string name="boot_movie_repo_page">Strona %1$d</string>
+    <string name="boot_movie_repo_clear">Wyczyść</string>
+    <string name="boot_movie_repo_go_to_page">Przejdź do strony</string>
+    <string name="boot_movie_repo_preview">Podgląd</string>
+    <string name="boot_movie_repo_preview_failed">Nie udało się odtworzyć podglądu</string>
     <string name="glasses_experimental">Kamery Luma Ultra — Eksperymentalne</string>
     <string name="glasses_joycons">Śledzenie pozycji Joy-Conów</string>
     <string name="glasses_joycons_hint">Użyj kamer w inteligentnych okularach, aby ustawić sparowane kontrolery Joy-Con. Obrót i sterowanie przyciskami pochodzą z kontrolerów Joy-Con. Pozycja jest szacowana, gdy nadgarstki są ukryte. Zastępuje kontrolery obsługiwane gołymi rękami i wstrzymuje śledzenie kamery telefonu. Skieruj kontrolery Joy-Con do przodu podczas podłączania lub resetowania centrum śledzenia.</string>

@@ -2733,6 +2733,10 @@
     <string name="boot_movie_repo_previous">Zurück</string>
     <string name="boot_movie_repo_next">Weiter</string>
     <string name="boot_movie_repo_page">Seite %1$d</string>
+    <string name="boot_movie_repo_clear">Leeren</string>
+    <string name="boot_movie_repo_go_to_page">Zur Seite</string>
+    <string name="boot_movie_repo_preview">Vorschau</string>
+    <string name="boot_movie_repo_preview_failed">Die Vorschau konnte nicht abgespielt werden</string>
     <string name="glasses_experimental">Luma Ultra-Kameras – Experimentell</string>
     <string name="glasses_joycons">Joy-Con-Positionsverfolgung</string>
     <string name="glasses_joycons_hint">Positionieren Sie Ihre gekoppelten Joy-Con-Controller mithilfe der Kameras Ihrer Smartbrille. Drehung und Tasteneingaben erfolgen über die Joy-Con-Controller. Die Position wird geschätzt, wenn Ihre Handgelenke verdeckt sind. Ersetzt Controller, die mit bloßen Händen bedient werden, und pausiert die Verfolgung per Smartphone-Kamera. Richten Sie die Joy-Con-Controller nach vorn, wenn Sie die Verbindung herstellen oder das Tracking-Center zurücksetzen.</string>

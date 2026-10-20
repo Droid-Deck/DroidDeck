@@ -89,7 +89,7 @@ object BootMovie {
         val volume = if (SessionPrefs.bootMovieSound(context)) SessionPrefs.bootMovieVolume(context) else 0
         val seconds = SessionPrefs.bootMovieSeconds(context)
         val folder = File(dir(context), "variants")
-        val plan = plan(volume, seconds)
+        val plan = if (isOversized(source)) oversizedPlan(volume) else plan(volume, seconds)
         if (plan.passthrough) {
             prune(folder, null)
             return source
@@ -108,7 +108,7 @@ object BootMovie {
                     Step.REMUX_SILENT -> remux(source, staged, audio = false, limitUs)
                     Step.REMUX_AUDIO -> remux(source, staged, audio = true, limitUs)
                     Step.TRANSCODE_SILENT -> transcodeSilent(source, staged, limitUs)
-                    Step.TRANSCODE_AUDIO -> BootMovieTranscoder.transcode(source, staged, limitUs = limitUs) {} != null
+                    Step.TRANSCODE_AUDIO -> BootMovieTranscoder.transcode(source, staged, limitUs = limitUs, gain = volume / 100f) {} != null
                     Step.REGAIN -> BootMovieTranscoder.regain(source, staged, volume / 100f, limitUs)
                 }
             }
@@ -137,6 +137,22 @@ object BootMovie {
         volume == 100 -> Plan(false, listOf(Step.REMUX_AUDIO, Step.TRANSCODE_AUDIO), true)
         else -> Plan(false, listOf(Step.REGAIN, Step.REMUX_SILENT, Step.TRANSCODE_SILENT), false)
     }
+
+    /** Frames beyond 1920x1080 (4K and the like) have made Steam crash while it starts, so such a movie is always scaled down. */
+    internal const val MAX_LONG_SIDE = 1920
+    internal const val MAX_SHORT_SIDE = 1080
+
+    internal fun oversized(width: Int, height: Int) = maxOf(width, height) > MAX_LONG_SIDE || minOf(width, height) > MAX_SHORT_SIDE
+
+    private fun oversized(format: MediaFormat) =
+        format.containsKey(MediaFormat.KEY_WIDTH) && format.containsKey(MediaFormat.KEY_HEIGHT) &&
+            oversized(format.getInteger(MediaFormat.KEY_WIDTH), format.getInteger(MediaFormat.KEY_HEIGHT))
+
+    private fun isOversized(source: File): Boolean = probe(source)?.first?.let { oversized(it) } == true
+
+    /** A movie that is too large never goes out as it is: it is converted at the chosen volume, and plays nothing if that fails. */
+    internal fun oversizedPlan(volume: Int): Plan =
+        Plan(false, listOf(if (volume == 0) Step.TRANSCODE_SILENT else Step.TRANSCODE_AUDIO), false)
 
     private fun transcodeSilent(source: File, target: File, limitUs: Long) =
         BootMovieTranscoder.transcode(source, target, keepAudio = false, limitUs = limitUs) {} != null
@@ -195,7 +211,7 @@ object BootMovie {
         val (format, audio) = probe(file) ?: return Import.Unsupported(null)
         val video = format.getString(MediaFormat.KEY_MIME)
         val audioPlayable = audio == null || audio in AUDIO_CODECS
-        val playable = video in VIDEO_CODECS && file.length() <= MAX_BYTES
+        val playable = video in VIDEO_CODECS && file.length() <= MAX_BYTES && !oversized(format)
         val copy = playable && audioPlayable && isWebm(file)
         val remux = !copy && playable && video in REMUX_CODECS
         if (!copy && !remux) {

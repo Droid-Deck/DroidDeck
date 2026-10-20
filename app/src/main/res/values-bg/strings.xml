@@ -2733,6 +2733,10 @@
     <string name="boot_movie_repo_previous">Назад</string>
     <string name="boot_movie_repo_next">Напред</string>
     <string name="boot_movie_repo_page">Страница %1$d</string>
+    <string name="boot_movie_repo_clear">Изчисти</string>
+    <string name="boot_movie_repo_go_to_page">Към страница</string>
+    <string name="boot_movie_repo_preview">Преглед</string>
+    <string name="boot_movie_repo_preview_failed">Прегледът не можа да бъде пуснат</string>
     <string name="glasses_experimental">Luma Ultra камери — Експериментално</string>
     <string name="glasses_joycons">Проследяване на позицията на Joy-Con</string>
     <string name="glasses_joycons_hint">Използвайте камерите на интелигентните очила, за да позиционирате сдвоените си контролери Joy-Con. Въртенето и натискането на бутоните идват от контролерите Joy-Con. Позицията се оценява, когато китките ви са скрити. Заменя контролерите, управлявани с голи ръце, и поставя на пауза проследяването с камерата на телефона. Насочете контролерите Joy-Con напред, когато свързвате или нулирате центъра за проследяване.</string>

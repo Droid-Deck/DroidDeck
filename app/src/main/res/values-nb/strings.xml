@@ -2733,6 +2733,10 @@
     <string name="boot_movie_repo_previous">Forrige</string>
     <string name="boot_movie_repo_next">Neste</string>
     <string name="boot_movie_repo_page">Side %1$d</string>
+    <string name="boot_movie_repo_clear">Tøm</string>
+    <string name="boot_movie_repo_go_to_page">Gå til side</string>
+    <string name="boot_movie_repo_preview">Forhåndsvis</string>
+    <string name="boot_movie_repo_preview_failed">Forhåndsvisningen kunne ikke spilles av</string>
     <string name="glasses_experimental">Luma Ultra-kameraer – Eksperimentelt</string>
     <string name="glasses_joycons">Joy-Con-posisjonssporing</string>
     <string name="glasses_joycons_hint">Bruk smartbrillenes kameraer til å plassere de parede Joy-Con-kontrollerne. Rotasjon og knappinndata kommer fra Joy-Con-kontrollerne. Posisjonen estimeres når håndleddene dine er skjult. Erstatter kontrollere som betjenes med bare hender og pauser sporing av telefonkamera. Rett Joy-Con-kontrollerne fremover når du kobler til eller tilbakestiller sporingssenteret.</string>

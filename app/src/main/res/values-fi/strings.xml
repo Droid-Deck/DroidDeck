@@ -2733,6 +2733,10 @@
     <string name="boot_movie_repo_previous">Edellinen</string>
     <string name="boot_movie_repo_next">Seuraava</string>
     <string name="boot_movie_repo_page">Sivu %1$d</string>
+    <string name="boot_movie_repo_clear">Tyhjennä</string>
+    <string name="boot_movie_repo_go_to_page">Siirry sivulle</string>
+    <string name="boot_movie_repo_preview">Esikatselu</string>
+    <string name="boot_movie_repo_preview_failed">Esikatselua ei voitu toistaa</string>
     <string name="glasses_experimental">Luma Ultra -kamerat — Kokeellinen</string>
     <string name="glasses_joycons">Joy-Con-paikan seuranta</string>
     <string name="glasses_joycons_hint">Käytä älylasien kameroita pariliitettyjen Joy-Con-ohjainten asemointiin. Kierto- ja painikesyötteet tulevat Joy-Con-ohjaimista. Sijainti arvioidaan, kun ranteesi ovat piilossa. Korvaa paljain käsin käytettävät ohjaimet ja keskeyttää puhelimen kameran seurannan. Osoita Joy-Con-ohjaimet eteenpäin, kun yhdistät tai nollaat seurantakeskuksen.</string>

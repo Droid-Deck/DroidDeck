@@ -2733,6 +2733,10 @@
     <string name="boot_movie_repo_previous">Vorige</string>
     <string name="boot_movie_repo_next">Volgende</string>
     <string name="boot_movie_repo_page">Pagina %1$d</string>
+    <string name="boot_movie_repo_clear">Wissen</string>
+    <string name="boot_movie_repo_go_to_page">Ga naar pagina</string>
+    <string name="boot_movie_repo_preview">Voorbeeld</string>
+    <string name="boot_movie_repo_preview_failed">Het voorbeeld kon niet worden afgespeeld</string>
     <string name="glasses_experimental">Luma Ultra-camera\'s — Experimenteel</string>
     <string name="glasses_joycons">Positietracking van Joy-Con-controllers</string>
     <string name="glasses_joycons_hint">Gebruik de camera\'s van de smartbril om je gekoppelde Joy-Con-controllers te positioneren. Rotatie en knopbediening komen van de Joy-Con-controllers. De positie wordt geschat wanneer je polsen verborgen zijn. Vervangt controllers die met blote handen worden bediend en pauzeert de tracking door de telefooncamera. Richt de Joy-Con-controllers naar voren bij het verbinden of resetten van het trackingcentrum.</string>

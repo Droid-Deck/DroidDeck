@@ -80,6 +80,34 @@ object SteamDeckRepo {
         return result
     }
 
+    /**
+     * The number of the last page for a search, found by asking for pages: the site does not say how many there are, but a
+     * page past the end is empty and the last one is short. Null when the site cannot be reached.
+     */
+    fun lastPage(sort: Sort, device: String?, search: String, cap: Int = 512, count: (Int) -> Int? = { p ->
+        (fetch(sort, device, search, p) as? Page.Ok)?.posts?.size
+    }): Int? {
+        val first = count(1) ?: return null
+        if (first < PAGE_SIZE) return 1
+        var good = 1
+        var bad = -1
+        var probe = 2
+        while (probe <= cap) {
+            val n = count(probe) ?: return null
+            if (n == 0) { bad = probe; break }
+            if (n < PAGE_SIZE) return probe
+            good = probe
+            probe *= 2
+        }
+        if (bad < 0) return good
+        while (bad - good > 1) {
+            val mid = (good + bad) / 2
+            val n = count(mid) ?: return null
+            if (n == 0) bad = mid else if (n < PAGE_SIZE) return mid else good = mid
+        }
+        return good
+    }
+
     /** Reads [input] to its end, or null as soon as it holds more than [limit] bytes, so a huge answer is never kept whole. */
     internal fun readLimited(input: java.io.InputStream, limit: Int): ByteArray? {
         val out = java.io.ByteArrayOutputStream()

@@ -2733,6 +2733,10 @@
     <string name="boot_movie_repo_previous">पिछला</string>
     <string name="boot_movie_repo_next">अगला</string>
     <string name="boot_movie_repo_page">पेज %1$d</string>
+    <string name="boot_movie_repo_clear">साफ़ करें</string>
+    <string name="boot_movie_repo_go_to_page">पृष्ठ पर जाएँ</string>
+    <string name="boot_movie_repo_preview">पूर्वावलोकन</string>
+    <string name="boot_movie_repo_preview_failed">यह पूर्वावलोकन चलाया नहीं जा सका</string>
     <string name="glasses_experimental">Luma Ultra कैमरे — एक्सपेरिमेंटल</string>
     <string name="glasses_joycons">Joy-Con पोजीशन ट्रैकिंग</string>
     <string name="glasses_joycons_hint">अपने पेयर्ड Joy-Con कंट्रोलर्स को सही जगह पर लगाने के लिए स्मार्ट ग्लास के कैमरे का इस्तेमाल करें। रोटेशन और बटन इनपुट Joy-Con कंट्रोलर्स से आते हैं। जब आपकी कलाइयां छिपी होती हैं, तो पोजीशन का अंदाज़ा लगाया जाता है। नंगे हाथों से चलने वाले कंट्रोलर्स को बदलता है और फ़ोन-कैमरा ट्रैकिंग को पॉज़ करता है। ट्रैकिंग सेंटर को कनेक्ट या रीसेट करते समय Joy-Con कंट्रोलर्स को आगे की ओर पॉइंट करें।</string>
