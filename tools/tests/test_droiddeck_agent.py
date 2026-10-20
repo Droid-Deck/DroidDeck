@@ -24,6 +24,68 @@ agent = importlib.util.module_from_spec(spec)
 loader.exec_module(agent)
 
 
+class FocusEventsTest(unittest.TestCase):
+    class Connection:
+        root = 1
+
+        def __init__(self, events):
+            self.events = iter(events)
+            self.s = self
+            self.selected = []
+
+        def atom(self, name):
+            return (agent.FOCUS_PROPS + agent.WINDOW_PROPS).index(name) + 1
+
+        def select(self, window, mask):
+            self.selected.append((window, mask))
+
+        def children(self, window):
+            return [100]
+
+        def settimeout(self, timeout):
+            pass
+
+        def next_event(self):
+            return next(self.events)
+
+    def event(self, kind, value):
+        data = bytearray(32)
+        data[0] = kind
+        struct.pack_into('<I', data, 8, value)
+        return data
+
+    def watch(self, events):
+        connection = self.Connection(events)
+        watcher = agent.FocusWatcher(Path('/unused/focus.json'))
+        watcher.changed = unittest.mock.Mock()
+        with self.assertRaises(StopIteration):
+            watcher.watch(connection)
+        return connection, watcher.changed.set.call_count
+
+    def test_existing_windows_are_watched_for_overlay_property_changes(self):
+        properties = ('STEAM_INPUT_FOCUS', '_NET_WM_WINDOW_OPACITY', 'STEAM_OVERLAY')
+        events = [self.event(28, (agent.FOCUS_PROPS + agent.WINDOW_PROPS).index(name) + 1)
+                  for name in properties]
+        connection, changes = self.watch(events)
+        self.assertIn((1, 0x480000), connection.selected)
+        self.assertIn((100, 0x420000), connection.selected)
+        self.assertEqual(changes, 4)
+
+    def test_new_overlay_windows_are_subscribed_immediately(self):
+        connection, changes = self.watch([self.event(16, 200), self.event(19, 200)])
+        self.assertEqual(connection.selected.count((200, 0x420000)), 1)
+        self.assertEqual(changes, 3)
+
+    def test_unmapping_or_destroying_overlay_wakes_snapshot_refresh(self):
+        connection, changes = self.watch([self.event(18, 100), self.event(17, 100), self.event(16, 100)])
+        self.assertEqual(changes, 4)
+        self.assertEqual(connection.selected.count((100, 0x420000)), 2)
+
+    def test_unrelated_properties_do_not_wake_snapshot_refresh(self):
+        _, changes = self.watch([self.event(28, 0xffffffff)])
+        self.assertEqual(changes, 1)
+
+
 class FakeDevTools(threading.Thread):
     """GET /json lists one target; its WebSocket answers Runtime.evaluate the way Chromium does."""
 
