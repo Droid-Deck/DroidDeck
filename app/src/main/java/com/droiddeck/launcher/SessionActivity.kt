@@ -1569,9 +1569,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (!CompositorHost.isStarted) CompositorHost.displayChoice = SessionPrefs.androidDriver(this)
         val driverId = if (CompositorHost.isStarted) null else turnip.install()
 
+        val frame = holder.surfaceFrame
+        applyGameFollowDivisor(frame.width(), frame.height())
         val previous = SessionState.outputSize
         val live = if (SessionState.followScreen && !isInPictureInPictureMode)
-            com.droiddeck.launcher.session.SessionDisplay.followSize(holder.surfaceFrame.width(), holder.surfaceFrame.height(), SessionState.followDivisor)
+            com.droiddeck.launcher.session.SessionDisplay.followSize(frame.width(), frame.height(), SessionState.followDivisor)
         else null
         val size = live ?: if (SessionState.running) previous else glassesOutputSize() ?: outputSize()
         SessionState.outputSize = size
@@ -1674,8 +1676,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         WaylandCompositor.nativeResizeOutput(size.first, size.second)
     }
 
-    private fun applyGameFollowDivisor() {
-        val window = if (surfaceW > 0) "${surfaceW}x$surfaceH" else null
+    private fun applyGameFollowDivisor(width: Int = surfaceW, height: Int = surfaceH) {
+        val window = if (width > 0) "${width}x$height" else null
         followWindowSize = window
         val divisor = window?.let { SessionPrefs.followDivisor(this, followGame ?: SessionPrefs.FOLLOW_CLIENT, it) } ?: 1f
         followDivisor = divisor
@@ -1684,7 +1686,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             Log.i(TAG, "follow screen: divisor ${SessionState.followDivisor} -> $divisor for ${followGame ?: "the client"} at $window")
             SessionState.followDivisor = divisor
         }
-        if (surfaceW > 0) followWindow(surfaceW, surfaceH)
+        if (width > 0) followWindow(width, height)
     }
 
     private fun chooseFollowDivisor(divisor: Float) {
