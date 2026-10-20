@@ -14,8 +14,12 @@ ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = Path('app/build/runtime-inputs.json')
 PACKS = Path('app/build/packs')
 # Runtime trees shipped as add-on packs (tools/packs/build.sh) rather than inside the APK.
-PACKED = {'assets/linuxfs/usr/local/lib/droiddeck-xbox/': 'xbox', 'assets/linuxfs/usr/local/lib/droiddeck-comet/': 'comet'}
+PACKED = {'assets/linuxfs/usr/local/lib/droiddeck-xbox/': 'xbox', 'assets/linuxfs/usr/local/lib/droiddeck-comet/': 'comet',
+          'assets/directaudio/': 'directaudio'}
+PACKED_FILES = {'lib/arm64-v8a/libproot.so': ('proot', 'libproot.so'),
+                'lib/arm64-v8a/libproot-loader.so': ('proot', 'libproot-loader.so')}
 PACKED_LIBRARIES = ['lib/arm64-v8a/libopencv_java4.so', 'lib/arm64-v8a/libmediapipe_tasks_jni.so']
+PACK_NAMES = ['proot', 'directaudio', 'tracking', 'xbox', 'comet']
 SOURCE_PATHS = ['app/build.gradle', 'app/src/main/cpp/fakeinput_steam.cpp', 'app/src/main/assets/pulseaudio.tzst',
                 'tools/linuxfs', 'tools/proot', 'tools/aaudio-sink', 'tools/directaudio',
                 'tools/gamescope/release.env', 'tools/droiddeck-esync/release.env',
@@ -181,7 +185,7 @@ def pack_digests(root, name):
 
 def check_apk(apk, root=ROOT):
     data = verify(root)
-    packs = {name: pack_digests(root, name) for name in ['tracking', 'xbox', 'comet']}
+    packs = {name: pack_digests(root, name) for name in PACK_NAMES}
     with ZipFile(apk) as package:
         names = set(package.namelist())
         for library in PACKED_LIBRARIES:
@@ -190,6 +194,13 @@ def check_apk(apk, root=ROOT):
             if library.rsplit('/', 1)[1] not in packs['tracking']:
                 raise ValueError('Tracking pack missing ' + library)
         for name, output in data['outputs'].items():
+            if name in PACKED_FILES:
+                pack, rel = PACKED_FILES[name]
+                if name in names:
+                    raise ValueError('APK still carries ' + name + ', which the ' + pack + ' pack provides')
+                if packs[pack].get(rel) != output['sha256']:
+                    raise ValueError('Add-on pack ' + pack + ' is missing or has a stale ' + name)
+                continue
             prefix = next((p for p in PACKED if name.startswith(p)), None)
             if prefix:
                 if name in names:

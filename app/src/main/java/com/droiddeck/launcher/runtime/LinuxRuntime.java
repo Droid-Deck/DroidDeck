@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.runtime;
 
+import com.droiddeck.launcher.core.AddonPack;
 import android.content.Context;
 import android.os.Process;
 import android.system.ErrnoException;
@@ -64,14 +65,12 @@ public final class LinuxRuntime {
     private static final String HOST_DIR = "opt/android-host";
 
     public static File prootBinary(Context context) {
-        File packaged = new File(context.getApplicationInfo().nativeLibraryDir, "libproot.so");
-        if (packaged.isFile()) return packaged;
+        if (AddonPack.PROOT.installed(context)) return AddonPack.PROOT.file(context, "libproot.so");
         return new File(rootDir(context), HOST_DIR + "/proot");
     }
 
     public static File prootLoader(Context context) {
-        File packaged = new File(context.getApplicationInfo().nativeLibraryDir, "libproot-loader.so");
-        if (packaged.isFile()) return packaged;
+        if (AddonPack.PROOT.installed(context)) return AddonPack.PROOT.file(context, "libproot-loader.so");
         return new File(rootDir(context), HOST_DIR + "/loader");
     }
 

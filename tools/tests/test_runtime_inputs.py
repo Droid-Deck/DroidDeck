@@ -44,13 +44,17 @@ class RuntimeInputsTest(unittest.TestCase):
 
     def packs(self):
         self.pack('tracking', {library.rsplit('/', 1)[1]: b'library' for library in runtime.PACKED_LIBRARIES})
+        proot = {}
+        for name, (pack, rel) in runtime.PACKED_FILES.items():
+            proot[rel] = (self.root / runtime.outputs(self.root)[name]).read_bytes()
+        self.pack('proot', proot)
         for prefix, name in runtime.PACKED.items():
             base = self.root / 'app/src/main' / prefix
             self.pack(name, {path.relative_to(base).as_posix(): path.read_bytes() for path in base.rglob('*') if path.is_file()})
 
     @staticmethod
     def in_apk(name):
-        return not any(name.startswith(prefix) for prefix in runtime.PACKED)
+        return name not in runtime.PACKED_FILES and not any(name.startswith(prefix) for prefix in runtime.PACKED)
 
     def audio(self, names):
         stream = io.BytesIO()
@@ -61,6 +65,11 @@ class RuntimeInputsTest(unittest.TestCase):
                 archive.addfile(entry, io.BytesIO(b'x'))
         path = self.root / 'app/build/prepared-assets/pulseaudio.tzst'
         path.write_bytes(subprocess.run(['zstd', '-q', '-c'], input=stream.getvalue(), capture_output=True, check=True).stdout)
+
+    def test_an_apk_still_carrying_proot_is_rejected(self):
+        apk = self.current_apk(self.root / 'bundled.apk', {'lib/arm64-v8a/libproot.so': b'prepared runtime'})
+        with self.assertRaisesRegex(ValueError, 'proot pack provides'):
+            runtime.check_apk(apk, self.root)
 
     def test_missing_proot_cannot_be_attested(self):
         (self.root / 'app/src/main/jniLibs/arm64-v8a/libproot.so').unlink()

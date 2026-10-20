@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Builds the add-on packs the app downloads on first use instead of shipping in the APK:
+#   proot.tar.zst     the patched proot and its loader (built by tools/proot)
+#   directaudio.tar.zst  the Wine DirectAudio drivers (fetched by tools/directaudio/fetch.sh)
 #   tracking.tar.zst  hand-tracking models and the OpenCV/MediaPipe native libraries
 #   xbox.tar.zst      the Xbox backend (built by tools/xbox) for /usr/local/lib/droiddeck-xbox
 #   comet.tar.zst     the GOG Galaxy companion (built by tools/comet) for /usr/local/lib/droiddeck-comet
@@ -79,6 +81,11 @@ unzip -q -j "$work/opencv.aar" jni/arm64-v8a/libopencv_java4.so -d "$work/tracki
 unzip -q -j "$work/tasks-core.aar" jni/arm64-v8a/libmediapipe_tasks_jni.so -d "$work/tracking"
 chmod 0644 "$work/tracking"/*
 
+mkdir "$work/proot"
+install -m755 "$repo/app/src/main/jniLibs/arm64-v8a/libproot.so" "$repo/app/src/main/jniLibs/arm64-v8a/libproot-loader.so" "$work/proot/"
+pack proot "$work/proot" libproot.so libproot-loader.so
+pack directaudio "$repo/app/src/main/assets/directaudio" \
+    linux-wine11/version.txt linux-wine11-systhread/version.txt
 pack tracking "$work/tracking" hand_landmarker.task hand_landmarker_lite.task pose_landmarker_lite.task \
     libopencv_java4.so libmediapipe_tasks_jni.so
 pack xbox "$linuxfs/droiddeck-xbox" version xodus-cli xodus-service

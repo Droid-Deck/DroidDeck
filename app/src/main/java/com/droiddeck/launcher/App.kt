@@ -30,6 +30,10 @@ class App : Application() {
         com.droiddeck.launcher.session.SessionPrefs.settleGpuDriverMode(this)
         com.droiddeck.launcher.update.AppUpdates.init(this)
         com.droiddeck.launcher.core.DownloadSource.init(this)
+        if (com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(this).isDirectory) {
+            com.droiddeck.launcher.core.AddonPack.PROOT.ensure(this)
+            com.droiddeck.launcher.core.AddonPack.DIRECTAUDIO.ensure(this)
+        }
         GpuClockPin.clearLeftover(this)
         com.droiddeck.launcher.glasses.Glasses.init(this)
         com.droiddeck.launcher.glasses.GlassesMenuMirror.initialize(this)

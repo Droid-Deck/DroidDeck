@@ -62,6 +62,7 @@ internal class AddonPack(val name: String, private val sha256: String, val size:
     }
 
     /** Blocks a worker thread until the pack is installed, starting the download if needed. */
+    @JvmOverloads
     fun await(context: Context, running: () -> Boolean = { true }, onState: (State) -> Unit = {}): Boolean {
         if (installed(context)) return true
         ensure(context)
@@ -109,6 +110,12 @@ internal class AddonPack(val name: String, private val sha256: String, val size:
         const val COMPLETE = ".complete"
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+        @JvmField
+        val PROOT = AddonPack("proot", BuildConfig.PACK_PROOT_SHA256, BuildConfig.PACK_PROOT_SIZE,
+            listOf("libproot.so", "libproot-loader.so"))
+        @JvmField
+        val DIRECTAUDIO = AddonPack("directaudio", BuildConfig.PACK_DIRECTAUDIO_SHA256, BuildConfig.PACK_DIRECTAUDIO_SIZE,
+            listOf("linux-wine11/version.txt", "linux-wine11-systhread/version.txt"))
         val TRACKING = AddonPack("tracking", BuildConfig.PACK_TRACKING_SHA256, BuildConfig.PACK_TRACKING_SIZE, listOf(
             "hand_landmarker.task", "hand_landmarker_lite.task", "pose_landmarker_lite.task",
             "libopencv_java4.so", "libmediapipe_tasks_jni.so"))

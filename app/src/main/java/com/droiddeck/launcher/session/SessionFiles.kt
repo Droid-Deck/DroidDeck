@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.session
 
+import com.droiddeck.launcher.core.AddonPack
 import android.content.Context
 import android.os.Environment
 import android.util.Log
@@ -171,7 +172,9 @@ object SessionFiles {
             "i386-windows/winedirectaudio.drv",
             "version.txt",
         )
-        for (set in DIRECTAUDIO_SETS) for (relative in directAudio) {
+        val directAudioPack = AddonPack.DIRECTAUDIO.takeIf { it.installed(context) }?.dir(context)
+        if (directAudioPack == null) Log.w(TAG, "DirectAudio pack is not installed; drivers not staged")
+        if (directAudioPack != null) for (set in DIRECTAUDIO_SETS) for (relative in directAudio) {
             val key = "$DIRECTAUDIO_DIR/$set/lib/wine/$relative"
             val target = File(root, key)
             if (ledger.current(key, target)) continue
@@ -179,7 +182,7 @@ object SessionFiles {
             var installed = false
             try {
                 target.parentFile?.mkdirs()
-                context.assets.open("directaudio/$set/$relative").use { input ->
+                File(directAudioPack, "$set/$relative").inputStream().use { input ->
                     staged.outputStream().use { output -> FileUtils.copy(input, output) }
                 }
                 installed = staged.setReadable(true, false) && staged.renameTo(target)
