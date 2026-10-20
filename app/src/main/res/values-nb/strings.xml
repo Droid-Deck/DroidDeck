@@ -1037,6 +1037,9 @@
     <string name="games_added">Lagt til spill</string>
     <string name="games_custom">Egendefinert spill</string>
     <string name="games_store_storage">Spillagring</string>
+    <string name="games_uninstall_body">Sletter filene og fjerner det fra Steam.</string>
+    <string name="games_remove_title">Fjern %1$s?</string>
+    <string name="games_remove_body">Sletter snarveien. Spillets filer blir liggende.</string>
     <string name="gpu_auto_hint">Det beste paret for denne GPU-en, holdt oppdatert</string>
     <string name="gpu_manual_hint">Velg et par selv</string>
     <string name="gpu_checking">Ser etter drivere…</string>
@@ -1905,6 +1908,8 @@
     <string name="stores_title">Butikker</string>
     <string name="stores_settings">Butikkinnstillinger</string>
     <string name="stores_settings_eyebrow">Innstillinger</string>
+    <string name="stores_tabs_arrange">Ordne faner</string>
+    <string name="stores_tabs_arrange_done">Ferdig</string>
     <string name="stores_chip_signed_out">(ikke innlogget)</string>
     <string name="stores_tab_store">Butikk</string>
     <string name="stores_tab_library">Bibliotek</string>
@@ -2892,7 +2897,6 @@
     <string name="spatial_hands_wait_stable">Venter på stabil hodesporing; tilbakestill sporingssenteret hvis forespurt.</string>
     <string name="spatial_old_frame">Kameraobservasjon er for gammel; venter på et nytt par</string>
     <string name="spatial_fit_ready">Fit %1$.2f px. Mål den valgte avstanden fra venstre kamera til kalibreringsmålsenteret, og valider deretter.</string>
-    <string name="spatial_opencv_error">OpenCV utilgjengelig: %1$s</string>
     <string name="spatial_restored">%1$d lagrede visninger gjenopprettet. Beregn kalibrering for å prøve på nytt, eller start et nytt sett for å fange mer.</string>
     <string name="spatial_captured">Fanget %1$d / 24 visninger. Hold kalibreringsmålet fast; flytt smartbrillene for neste visning.</string>
     <string name="spatial_capture_corners">Opptaket avvist: %1$d / 12 nødvendige hjørner synlige i begge kameraene. Vis mer av kalibreringsmålet, hold stille, og prøv på nytt.</string>

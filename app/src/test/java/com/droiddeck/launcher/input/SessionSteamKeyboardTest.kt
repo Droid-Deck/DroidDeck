@@ -30,9 +30,9 @@ import org.robolectric.util.ReflectionHelpers
 
 @RunWith(RobolectricTestRunner::class)
 @Config(application = Application::class, manifest = Config.NONE, sdk = [33],
-    shadows = [SessionSteamOverlayTest.CompositorShadow::class, SessionKeyboardTest.PadShadow::class])
+    shadows = [SessionSteamKeyboardTest.CompositorShadow::class, SessionKeyboardTest.PadShadow::class])
 @LooperMode(LooperMode.Mode.PAUSED)
-class SessionSteamOverlayTest {
+class SessionSteamKeyboardTest {
     private lateinit var activity: SessionActivity
     private lateinit var controls: OnScreenControls
 
@@ -47,7 +47,7 @@ class SessionSteamOverlayTest {
         SessionPrefs.setTouchMode(activity, SessionPrefs.TOUCH_GESTURES)
         CompositorShadow.touches.clear()
         CompositorShadow.pointer.clear()
-        overlay(false)
+        steamKeyboard(false)
     }
 
     @After fun tearDown() {
@@ -56,35 +56,35 @@ class SessionSteamOverlayTest {
         SessionState.mode = SessionService.MODE_STEAM
     }
 
-    @Test fun controlsHideDuringOverlayAndReturnToTheExistingPreset() {
-        overlay(true)
+    @Test fun controlsHideDuringKeyboardAndReturnToTheExistingPreset() {
+        steamKeyboard(true)
         refreshControls()
         assertEquals(View.GONE, controls.visibility)
-        overlay(false)
+        steamKeyboard(false)
         refreshControls()
         assertEquals(View.VISIBLE, controls.visibility)
         assertEquals(SessionPrefs.OSC_ALWAYS, SessionPrefs.oscMode(activity))
     }
 
-    @Test fun closingOverlayKeepsUserHiddenControlsHidden() {
+    @Test fun closingKeyboardKeepsUserHiddenControlsHidden() {
         SessionPrefs.setOscMode(activity, SessionPrefs.OSC_NEVER)
-        overlay(true)
+        steamKeyboard(true)
         refreshControls()
-        overlay(false)
+        steamKeyboard(false)
         refreshControls()
         assertEquals(View.GONE, controls.visibility)
     }
 
     @Test fun overlayTemporarilyUsesDirectTouchWithoutChangingGamePreferences() {
-        overlay(true)
+        steamKeyboard(true)
         assertEquals(SessionPrefs.TOUCH_DIRECT, effectiveTouchMode())
-        overlay(false)
+        steamKeyboard(false)
         assertEquals(SessionPrefs.TOUCH_GESTURES, effectiveTouchMode())
         assertEquals(SessionPrefs.TOUCH_GESTURES, SessionPrefs.touchMode(activity))
     }
 
     @Test fun overlayReceivesFingerDownAndUpEvenWhenGameTouchIsDisabled() {
-        overlay(true)
+        steamKeyboard(true)
         ReflectionHelpers.setField(activity, "routedTouchMode", SessionPrefs.TOUCH_OFF)
         val now = SystemClock.uptimeMillis()
         for (action in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP)) {
@@ -94,15 +94,15 @@ class SessionSteamOverlayTest {
         assertEquals(listOf(3, 0, 2), CompositorShadow.touches)
     }
 
-    @Test fun nonSteamSessionIgnoresOldSteamOverlayState() {
-        overlay(true)
+    @Test fun nonSteamSessionIgnoresOldSteamKeyboardState() {
+        steamKeyboard(true)
         SessionState.mode = SessionService.MODE_RUN
         refreshControls()
         assertEquals(View.VISIBLE, controls.visibility)
         assertEquals(SessionPrefs.TOUCH_GESTURES, effectiveTouchMode())
     }
 
-    @Test fun mouseCanReachOverlayOutsideTheGamePictureAndReturnsToGameBounds() {
+    @Test fun mouseCanReachKeyboardOutsideTheGamePictureAndReturnsToGameBounds() {
         val previousSize = SessionState.outputSize
         val now = SystemClock.uptimeMillis()
         val event = MotionEvent.obtain(now, now, MotionEvent.ACTION_HOVER_MOVE, 20f, 500f, 0).apply {
@@ -110,10 +110,10 @@ class SessionSteamOverlayTest {
         }
         try {
             SessionState.outputSize = 800 to 600
-            overlay(true)
+            steamKeyboard(true)
             assertTrue(activity.onTouchEvent(event))
             assertEquals(listOf(1, 38, 900), CompositorShadow.pointer)
-            overlay(false)
+            steamKeyboard(false)
             assertTrue(activity.onTouchEvent(event))
             assertEquals(listOf(1, 192, 900), CompositorShadow.pointer)
         } finally {
@@ -134,14 +134,14 @@ class SessionSteamOverlayTest {
         val now = SystemClock.uptimeMillis()
         val event = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, 20f, 500f, 0)
         try { hold.onTouch(event) } finally { event.recycle() }
-        overlay(true)
+        steamKeyboard(true)
         ReflectionHelpers.callInstanceMethod<Unit>(activity, "cancelTouchGestures")
         shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(600))
         assertTrue(buttons.isEmpty())
     }
 
-    private fun overlay(visible: Boolean) {
-        ReflectionHelpers.callInstanceMethod<Unit>(AgentGuest, "setSteamOverlayVisible",
+    private fun steamKeyboard(visible: Boolean) {
+        ReflectionHelpers.callInstanceMethod<Unit>(AgentGuest, "setSteamKeyboard",
             ReflectionHelpers.ClassParameter.from(Boolean::class.javaPrimitiveType!!, visible))
     }
 

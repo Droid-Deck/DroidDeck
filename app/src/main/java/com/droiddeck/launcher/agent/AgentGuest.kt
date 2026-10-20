@@ -20,24 +20,22 @@ object AgentGuest {
     private val main by lazy { Handler(Looper.getMainLooper()) }
     var focusRevision by mutableIntStateOf(0)
         private set
-    var steamOverlayVisible by mutableStateOf(false)
+    var steamKeyboard by mutableStateOf(false)
         private set
     private const val TAG = "AgentGuest"
     private const val POLL_MS = 50L
     private val lock = Any()
     private var observer: FileObserver? = null
     private var lastFocusKey: String? = null
-    private var generation = 0
 
     fun dir(context: Context) = File(LinuxRuntime.sessionRoot(context), "agent")
 
     fun reset(context: Context) {
         synchronized(lock) {
-            val current = ++generation
-            main.post { synchronized(lock) { if (current == generation) steamOverlayVisible = false } }
             observer?.stopWatching()
             observer = null
             lastFocusKey = null
+            main.post { steamKeyboard = false }
             val dir = dir(context)
             dir.deleteRecursively()
             dir.mkdirs()
@@ -48,7 +46,8 @@ object AgentGuest {
                         "hello.json" -> readJson(File(dir, path))?.let {
                             SessionEvents.record("agent.ready", mapOf("pid" to it.optInt("pid"), "focus" to it.optBoolean("focus")))
                         }
-                        "focus.json" -> readJson(File(dir, path))?.let { recordFocus(it, current) }
+                        "focus.json" -> readJson(File(dir, path))?.let(::recordFocus)
+                        "keyboard.json" -> readJson(File(dir, path))?.let { recordKeyboard(this, it) }
                     }
                 }
             }.also { it.startWatching() }
@@ -57,53 +56,36 @@ object AgentGuest {
 
     fun stop() {
         synchronized(lock) {
-            val current = ++generation
-            lastFocusKey = null
-            main.post { synchronized(lock) { if (current == generation) steamOverlayVisible = false } }
             observer?.stopWatching()
             observer = null
+            main.post { steamKeyboard = false }
         }
     }
 
-    private fun recordFocus(snapshot: JSONObject, expectedGeneration: Int) {
-        val overlayVisible = hasSteamOverlayInput(snapshot)
+    private fun recordKeyboard(source: FileObserver, snapshot: JSONObject) {
+        val showing = snapshot.optBoolean("steamKeyboard")
+        synchronized(lock) {
+            if (source !== observer) return
+            main.post {
+                synchronized(lock) { if (source === observer) steamKeyboard = showing }
+            }
+        }
+        SessionEvents.record("keyboard.changed", mapOf("steamKeyboard" to showing, "seq" to snapshot.optInt("seq")))
+    }
+
+    private fun recordFocus(snapshot: JSONObject) {
         val fields = linkedMapOf<String, Any?>(
             "focusedApp" to snapshot.opt("focusedApp"),
             "focusableApps" to snapshot.optJSONArray("focusableApps")?.toString(),
             "baselayerAppIds" to snapshot.optJSONArray("baselayerAppIds")?.toString(),
-            "steamOverlayVisible" to overlayVisible,
         )
         val key = fields.values.joinToString("|")
         synchronized(lock) {
-            if (expectedGeneration != generation) return
             if (key == lastFocusKey) return
             lastFocusKey = key
         }
-        main.post {
-            synchronized(lock) {
-                if (expectedGeneration != generation) return@post
-                steamOverlayVisible = overlayVisible
-                focusRevision++
-            }
-        }
+        main.post { focusRevision++ }
         SessionEvents.record("focus.changed", fields + ("seq" to snapshot.optInt("seq")))
-    }
-
-    // Steam's keyboard and menus share Gamescope's interactive overlay protocol.
-    internal fun hasSteamOverlayInput(snapshot: JSONObject?): Boolean {
-        val displays = snapshot?.optJSONObject("displays") ?: return false
-        for (display in displays.keys()) {
-            val windows = displays.optJSONArray(display) ?: continue
-            for (index in 0 until windows.length()) {
-                val window = windows.optJSONObject(index) ?: continue
-                if (window.optString("map") == "viewable" &&
-                    window.optInt("overlay") > 0 && window.optInt("inputFocus") > 0 &&
-                    window.optInt("externalOverlay") == 0 && !window.optBoolean("inputOnly") &&
-                    window.optLong("opacity", 0xffff_ffffL) > 0
-                ) return true
-            }
-        }
-        return false
     }
 
     fun hello(context: Context): JSONObject? {

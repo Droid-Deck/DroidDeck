@@ -126,6 +126,35 @@ def skip_red_launcher(command):
     return command
 
 
+def offline_without_anticheat(command, env):
+    """Start the configured game executable when the player opts into launching without EAC."""
+    if (env.get("DROIDDECK_ANTICHEAT_OFFLINE") != "1" or len(command) <= 2
+            or command[1] != "waitforexitandrun"
+            or not re.fullmatch(r"start_protected_game(?:_?x64|_?64)?\.exe",
+                                os.path.basename(command[2]), re.IGNORECASE)):
+        return command
+    folder = os.path.dirname(command[2])
+    try:
+        with open(os.path.join(folder, "EasyAntiCheat", "settings.json"), encoding="utf-8-sig") as source:
+            executable = json.load(source).get("executable")
+    except (OSError, ValueError, AttributeError):
+        return command
+    if not isinstance(executable, str) or not executable:
+        return command
+    relative = os.path.normpath(executable.replace("\\", "/"))
+    game = os.path.join(folder, relative)
+    if os.path.isabs(relative) or relative.startswith("..") or not os.path.isfile(game):
+        return command
+    # Resolve symlinks before accepting an executable inside the game directory.
+    root = os.path.realpath(folder)
+    if os.path.commonpath((root, os.path.realpath(game))) != root:
+        return command
+    if os.path.normcase(os.path.abspath(game)) == os.path.normcase(os.path.abspath(command[2])):
+        return command
+    print("droiddeck-game-env: started without Easy Anti-Cheat (offline only)", file=sys.stderr)
+    return command[:2] + [game] + command[3:]
+
+
 def engine_fixes(exe, args):
     """Environment and extra arguments a game needs because of what it is built with."""
     game = Game(exe, args)
@@ -326,6 +355,8 @@ def main():
                 env = apply_config(env, {"version": 1}, app_id, fixes)
         except (OSError, ValueError, TypeError, AttributeError):
             print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
+    if app_id and len(command) > 1 and command[1] == "waitforexitandrun":
+        command = offline_without_anticheat(command, env)
     if mic_enabled == "0":
         env["BANNER_AUDIO_DIRECT_MIC"] = "0"
     env = force_ssbs(command, env)

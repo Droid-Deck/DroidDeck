@@ -165,6 +165,7 @@ class FrontEndActions(
     val onAddedGamesChanged: (folders: List<String>) -> Unit = {},
     val onSteamGameArtChanged: (appId: Int) -> Unit = {},
     val onAddedGameRemoved: (folder: String, appId: Long?, name: String) -> Unit = { _, _, _ -> },
+    val onGameRemoved: (Library.SteamGame) -> Unit = {},
     val onAddedGamesArt: (Boolean) -> Unit = {},
     val onSgdbKey: (String) -> Unit = {},
     val onStopGameFileSync: () -> Unit = {},
