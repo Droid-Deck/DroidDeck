@@ -652,6 +652,31 @@ class LaunchTest(FexTestCase):
         guest = FEX["guest_environment"](fex, {"PATH": "/usr/bin:/bin"})
         self.assertEqual(guest["PATH"], "/opt/fex/bin:/usr/bin:/bin")
 
+    def test_path_deduplication_and_priority_removes_later_occurrences(self):
+        fex = {"portable": True, "server": "/opt/fex/server/FEXServer", "bin": "/opt/fex/bin/FEX"}
+        guest = FEX["guest_environment"](fex, {"PATH": "/usr/bin:/opt/fex/server:/opt/fex/bin:/bin:/opt/fex/server"})
+        self.assertEqual(guest["PATH"], "/opt/fex/server:/opt/fex/bin:/usr/bin:/bin")
+
+    def test_locked_aborts_when_all_lock_paths_fail(self):
+        with mock.patch("builtins.open", side_effect=OSError("Permission denied")):
+            with self.assertRaises(OSError):
+                with FEX["locked"]():
+                    pass
+
+    def test_prepare_aborts_safely_when_lock_fails(self):
+        with mock.patch.dict(G, {"locked": mock.MagicMock(side_effect=OSError("Locked out"))}):
+            fex, said = self.quiet(FEX["prepare"])
+            self.assertIsNone(fex)
+            self.assertIn("could not prepare x86 runtime", said)
+
+    def test_write_config_propagates_oserror_and_aborts_prepare(self):
+        self.fex_tool()
+        self.runtime()
+        with mock.patch.dict(G, {"write_config": mock.MagicMock(side_effect=OSError("Disk full"))}):
+            fex, said = self.quiet(FEX["prepare"])
+            self.assertIsNone(fex)
+            self.assertIn("could not prepare x86 runtime (Disk full)", said)
+
     def test_valve_fex_delegation_passes_guest_environment_and_path(self):
         proton = self.tmp / "Proton/proton"
         proton.parent.mkdir(parents=True)

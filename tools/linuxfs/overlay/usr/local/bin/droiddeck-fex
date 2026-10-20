@@ -12,6 +12,7 @@ import socket
 import struct
 import subprocess
 import sys
+import tempfile
 
 HOME = os.environ.get("HOME") or "/root"
 STEAM_ROOT = os.path.join(HOME, ".local", "share", "Steam")
@@ -75,7 +76,7 @@ def read_text(path):
         return None
 
 
-def write_if_changed(path, data, mode=0o644):
+def write_if_changed(path, data, mode=0o644, raise_on_error=False):
     if isinstance(data, str):
         data = data.encode("utf-8")
     try:
@@ -93,6 +94,8 @@ def write_if_changed(path, data, mode=0o644):
         os.replace(tmp, path)
         return True
     except OSError:
+        if raise_on_error:
+            raise
         return False
 
 
@@ -109,12 +112,17 @@ def copy_if_changed(source, target):
 
 @contextlib.contextmanager
 def locked():
-    try:
-        os.makedirs(STATE, exist_ok=True)
-        handle = open(os.path.join(STATE, "lock"), "w")
-    except OSError:
-        yield
-        return
+    handle = None
+    lock_paths = [os.path.join(STATE, "lock"), os.path.join(tempfile.gettempdir(), "droiddeck-fex.lock")]
+    for path in lock_paths:
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            handle = open(path, "w")
+            break
+        except OSError:
+            continue
+    if handle is None:
+        raise OSError("could not open lock file in %s" % ", ".join(lock_paths))
     with handle:
         fcntl.flock(handle, fcntl.LOCK_EX)
         try:
@@ -356,8 +364,8 @@ def write_config(fex, root):
         config["Config"]["ThunkHostLibs"] = fex["host_thunks"]
         config["Config"]["ThunkGuestLibs"] = fex["guest_thunks"]
         config["ThunksDB"] = dict(THUNKS)
-        write_if_changed(os.path.join(CONFIG_DIR, "ThunksConfig.json"), json.dumps({"ThunksDB": dict(THUNKS)}, indent=2) + "\n")
-    write_if_changed(os.path.join(CONFIG_DIR, "Config.json"), json.dumps(config, indent=2) + "\n")
+        write_if_changed(os.path.join(CONFIG_DIR, "ThunksConfig.json"), json.dumps({"ThunksDB": dict(THUNKS)}, indent=2) + "\n", raise_on_error=True)
+    write_if_changed(os.path.join(CONFIG_DIR, "Config.json"), json.dumps(config, indent=2) + "\n", raise_on_error=True)
 
 
 def link_steam_sdk():
@@ -420,56 +428,60 @@ def describe(fex, platform, graphics=None):
 
 
 def prepare():
-    with locked():
-        fex = fex_install()
-        platform = runtime_platform()
-        status = describe(fex, platform)
-        if not status["ready"]:
-            missing = []
-            tool = app_dir(FEX_APPID)
-            if not fex and tool:
-                say("FEX is installed at %s but holds no FEX or FEXInterpreter in usr/bin, bin or files; it has: %s"
-                    % (tool, ", ".join(sorted(os.listdir(tool))[:20])))
-            if not fex:
-                missing.append("FEX (Steam app %s)" % FEX_APPID)
-            elif not fex["server"]:
-                missing.append("FEXServer beside %s" % fex["bin"])
-            if not platform:
-                missing.append("Steam Linux Runtime 3.0 (sniper, Steam app %s)" % SNIPER_APPID)
-            requested = request_install()
-            say("x86 Linux programs need %s; %s" % (" and ".join(missing),
-                "the Steam client was asked to install it" if requested else "open Steam once and it is installed for you"))
+    try:
+        with locked():
+            fex = fex_install()
+            platform = runtime_platform()
+            status = describe(fex, platform)
+            if not status["ready"]:
+                missing = []
+                tool = app_dir(FEX_APPID)
+                if not fex and tool:
+                    say("FEX is installed at %s but holds no FEX or FEXInterpreter in usr/bin, bin or files; it has: %s"
+                        % (tool, ", ".join(sorted(os.listdir(tool))[:20])))
+                if not fex:
+                    missing.append("FEX (Steam app %s)" % FEX_APPID)
+                elif not fex["server"]:
+                    missing.append("FEXServer beside %s" % fex["bin"])
+                if not platform:
+                    missing.append("Steam Linux Runtime 3.0 (sniper, Steam app %s)" % SNIPER_APPID)
+                requested = request_install()
+                say("x86 Linux programs need %s; %s" % (" and ".join(missing),
+                    "the Steam client was asked to install it" if requested else "open Steam once and it is installed for you"))
+                write_if_changed(STATUS_FILE, json.dumps(status, indent=2) + "\n")
+                return None
+            root = os.path.join(platform, "files")
+            if materialize(platform):
+                say("prepared %s as the x86 runtime" % os.path.basename(platform))
+            install_preloads(root)
+            provider = graphics_platform()
+            if provider and materialize(provider):
+                say("prepared %s for the x86 runtime's C and C++ libraries" % os.path.basename(provider))
+            if not provider:
+                say("Steam Linux Runtime 4.0 (Steam app %s) is not installed yet; x86 games may not find their graphics drivers"
+                    % SLR4_APPID)
+            elif not provides_newer(platform, provider):
+                say("%s has no newer C and C++ libraries than %s" % (os.path.basename(provider), os.path.basename(platform)))
+                provider = None
+            else:
+                if build_rootfs(platform, provider):
+                    say("built the x86 runtime from %s with the C and C++ libraries of %s"
+                        % (os.path.basename(platform), os.path.basename(provider)))
+                root = os.path.join(STATE, "rootfs")
+            write_config(fex, root)
+            fex["rootfs"] = root
+            try:
+                link_steam_sdk()
+            except OSError:
+                pass
+            status = describe(fex, platform, provider)
             write_if_changed(STATUS_FILE, json.dumps(status, indent=2) + "\n")
-            return None
-        root = os.path.join(platform, "files")
-        if materialize(platform):
-            say("prepared %s as the x86 runtime" % os.path.basename(platform))
-        install_preloads(root)
-        provider = graphics_platform()
-        if provider and materialize(provider):
-            say("prepared %s for the x86 runtime's C and C++ libraries" % os.path.basename(provider))
-        if not provider:
-            say("Steam Linux Runtime 4.0 (Steam app %s) is not installed yet; x86 games may not find their graphics drivers"
-                % SLR4_APPID)
-        elif not provides_newer(platform, provider):
-            say("%s has no newer C and C++ libraries than %s" % (os.path.basename(provider), os.path.basename(platform)))
-            provider = None
-        else:
-            if build_rootfs(platform, provider):
-                say("built the x86 runtime from %s with the C and C++ libraries of %s"
-                    % (os.path.basename(platform), os.path.basename(provider)))
-            root = os.path.join(STATE, "rootfs")
-        write_config(fex, root)
-        fex["rootfs"] = root
-        try:
-            link_steam_sdk()
-        except OSError:
-            pass
-        status = describe(fex, platform, provider)
-        write_if_changed(STATUS_FILE, json.dumps(status, indent=2) + "\n")
-        with contextlib.suppress(OSError):
-            os.unlink(WANTED)
-        return fex
+            with contextlib.suppress(OSError):
+                os.unlink(WANTED)
+            return fex
+    except OSError as error:
+        say("could not prepare x86 runtime (%s)" % error)
+        return None
 
 
 def elf_arch(path):
@@ -606,7 +618,9 @@ def guest_environment(fex, env):
         if b_dir not in fex_paths:
             fex_paths.append(b_dir)
     existing_paths = [part for part in (result.get("PATH") or "").split(":") if part]
-    new_paths = [part for part in fex_paths if part not in existing_paths] + existing_paths
+    fex_set = set(fex_paths)
+    cleaned_existing = [part for part in existing_paths if part not in fex_set]
+    new_paths = fex_paths + cleaned_existing
     if new_paths:
         result["PATH"] = ":".join(new_paths)
     preload = [part for part in split_paths(result.get("LD_PRELOAD")) if os.path.exists(part) and not is_arm(part)]
@@ -697,6 +711,8 @@ def game_environment(command=(), env=None):
         say("game settings were not applied (%s)" % error)
         return env
 
+    if "game_gpu" in game_env:
+        env = game_env["game_gpu"](env)
     app = game_env["game_id"](env) or env.get("SteamAppId") or env.get("SteamGameId")
     fixes = {}
     if app and len(command) > 2 and command[1] == "waitforexitandrun":
