@@ -548,6 +548,7 @@ class LaunchTest(FexTestCase):
                 short_unrelated = FEX["shorten_compat_path"](str(unrelated))
                 self.assertNotEqual(short_unrelated, str(unrelated))
                 self.assertTrue(short_unrelated.startswith(str(short_base)))
+                self.assertTrue((unrelated / "fex-emu/Server").is_dir())
 
                 collision_target = self.tmp / "compatdata/collision"
                 collision_short = short_base / "collision"
@@ -645,6 +646,39 @@ class LaunchTest(FexTestCase):
             self.assertEqual(launched[-1][2], "auto")
         finally:
             G["launch"] = old_launch
+
+    def test_fex_directories_prepended_to_path(self):
+        fex = {"portable": True, "server": "/opt/fex/bin/FEXServer", "bin": "/opt/fex/bin/FEX"}
+        guest = FEX["guest_environment"](fex, {"PATH": "/usr/bin:/bin"})
+        self.assertEqual(guest["PATH"], "/opt/fex/bin:/usr/bin:/bin")
+
+    def test_valve_fex_delegation_passes_guest_environment_and_path(self):
+        proton = self.tmp / "Proton/proton"
+        proton.parent.mkdir(parents=True)
+        proton.write_text("#!/usr/bin/python3\n")
+        proton.chmod(0o755)
+
+        orig = self.tmp / "fex-compat-tool.droiddeck-orig"
+        orig.write_text("#!/bin/sh\n")
+        orig.chmod(0o755)
+
+        fake_fex = {
+            "bin": "/opt/fex/bin/FEX",
+            "server": "/opt/fex/bin/FEXServer",
+            "portable": True,
+            "rootfs": "/opt/rootfs",
+            "host_thunks": "/opt/h",
+            "guest_thunks": "/opt/g",
+            "thunks_db": "/opt/db",
+        }
+        with mock.patch.dict(G, {"prepare": lambda: fake_fex}), mock.patch("os.execvpe") as execvpe:
+            FEX["main"](["valve-fex", str(orig), "waitforexitandrun", "--", str(proton), "waitforexitandrun", "Game.exe"])
+            execvpe.assert_called_once()
+            passed_env = execvpe.call_args[0][2]
+            self.assertEqual(passed_env.get("FEX_ROOTFS"), "/opt/rootfs")
+            self.assertEqual(passed_env.get("FEX_PORTABLE"), "1")
+            self.assertTrue(passed_env.get("PATH", "").startswith("/opt/fex/bin"))
+            self.assertEqual(passed_env.get("FEX_THUNKHOSTLIBS"), "/opt/h")
 
     def test_the_runtime_and_thunks_are_passed_to_fex(self):
         fex = {"portable": True, "rootfs": "/rt/files", "host_thunks": "/h", "guest_thunks": "/g", "thunks_db": "/db"}

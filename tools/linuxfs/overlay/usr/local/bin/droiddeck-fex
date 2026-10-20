@@ -84,13 +84,16 @@ def write_if_changed(path, data, mode=0o644):
                 return False
     except OSError:
         pass
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = "%s.%d.tmp" % (path, os.getpid())
-    with open(tmp, "wb") as f:
-        f.write(data)
-    os.chmod(tmp, mode)
-    os.replace(tmp, path)
-    return True
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        tmp = "%s.%d.tmp" % (path, os.getpid())
+        with open(tmp, "wb") as f:
+            f.write(data)
+        os.chmod(tmp, mode)
+        os.replace(tmp, path)
+        return True
+    except OSError:
+        return False
 
 
 def copy_if_changed(source, target):
@@ -106,8 +109,13 @@ def copy_if_changed(source, target):
 
 @contextlib.contextmanager
 def locked():
-    os.makedirs(STATE, exist_ok=True)
-    with open(os.path.join(STATE, "lock"), "w") as handle:
+    try:
+        os.makedirs(STATE, exist_ok=True)
+        handle = open(os.path.join(STATE, "lock"), "w")
+    except OSError:
+        yield
+        return
+    with handle:
         fcntl.flock(handle, fcntl.LOCK_EX)
         try:
             yield
@@ -383,8 +391,11 @@ def steam_running():
 
 
 def request_install():
-    os.makedirs(os.path.dirname(WANTED), exist_ok=True)
-    write_if_changed(WANTED, "1\n")
+    try:
+        os.makedirs(os.path.dirname(WANTED), exist_ok=True)
+        write_if_changed(WANTED, "1\n")
+    except OSError:
+        pass
     if not steam_running():
         return []
     try:
@@ -549,6 +560,7 @@ def shorten_compat_path(path):
     else:
         raise OSError(f"Short compat path exists and cannot be safely replaced: {short}")
     server_dir = os.path.join(real, "fex-emu", "Server")
+    os.makedirs(server_dir, exist_ok=True)
     if os.path.isdir(server_dir):
         for entry in os.listdir(server_dir):
             if entry.endswith(".Socket"):
@@ -586,6 +598,17 @@ def guest_environment(fex, env):
         result["FEX_THUNKHOSTLIBS"] = fex["host_thunks"]
         result["FEX_THUNKGUESTLIBS"] = fex["guest_thunks"]
         result["FEX_THUNKCONFIG"] = os.path.join(CONFIG_DIR, "ThunksConfig.json")
+    fex_paths = []
+    if fex.get("server"):
+        fex_paths.append(os.path.dirname(fex["server"]))
+    if fex.get("bin"):
+        b_dir = os.path.dirname(fex["bin"])
+        if b_dir not in fex_paths:
+            fex_paths.append(b_dir)
+    existing_paths = [part for part in (result.get("PATH") or "").split(":") if part]
+    new_paths = [part for part in fex_paths if part not in existing_paths] + existing_paths
+    if new_paths:
+        result["PATH"] = ":".join(new_paths)
     preload = [part for part in split_paths(result.get("LD_PRELOAD")) if os.path.exists(part) and not is_arm(part)]
     library_path = [part for part in (result.get("LD_LIBRARY_PATH") or "").split(":")
                     if part and "arm64" not in part and "aarch64" not in part]
@@ -656,7 +679,10 @@ def launch(command, env, mode, decide=None):
     if thunks == "on" and x86_64 and os.path.isfile(os.path.join(PRELOADS, "x86_64", VULKAN_PIN)) \
             and vulkan_thunk_loads(fex, folder):
         # Any LD_AUDIT module makes Mono's garbage collector crash under FEX, so the Vulkan thunk is pinned by search path.
-        guest["LD_LIBRARY_PATH"] = ":".join(["/usr/" + VULKAN_PIN_DIR] + split_paths(guest.get("LD_LIBRARY_PATH")))
+        pin_dir = "/usr/" + VULKAN_PIN_DIR
+        cur_paths = split_paths(guest.get("LD_LIBRARY_PATH"))
+        if pin_dir not in cur_paths:
+            guest["LD_LIBRARY_PATH"] = ":".join([pin_dir] + cur_paths)
         thunks = "on, its own Vulkan loader too"
     say("running %s with %s (runtime %s, thunks %s)" % (program, fex["bin"], guest.get("FEX_ROOTFS", "none"), thunks))
     return os.execve(fex["bin"], [fex["bin"], program] + command[1:], guest)
@@ -844,6 +870,16 @@ def main(argv):
             os.environ["STEAM_COMPAT_DATA_PATH"] = shorten_compat_path(os.environ["STEAM_COMPAT_DATA_PATH"])
         env = game_environment(command, dict(os.environ))
         if orig and os.path.isfile(orig) and os.access(orig, os.X_OK):
+            fex = prepare()
+            if fex:
+                env = guest_environment(fex, env)
+                folder = os.path.dirname(command[0]) if command else None
+                if "FEX_THUNKCONFIG" in env and os.path.isfile(os.path.join(PRELOADS, "x86_64", VULKAN_PIN)) \
+                        and vulkan_thunk_loads(fex, folder):
+                    pin_dir = "/usr/" + VULKAN_PIN_DIR
+                    cur_paths = split_paths(env.get("LD_LIBRARY_PATH"))
+                    if pin_dir not in cur_paths:
+                        env["LD_LIBRARY_PATH"] = ":".join([pin_dir] + cur_paths)
             return os.execvpe(orig, [orig, verb, "--"] + command, env)
         is_proton = os.path.basename(command[0]) == "proton" or command[0].endswith("/proton")
         mode = "on" if is_proton else os.environ.get("DROIDDECK_FEX", "auto")
