@@ -658,7 +658,7 @@ private fun SgdbSearchDialog(
             val chosenGame = picked
             val list = matches.orEmpty()
             if (chosenGame == null) {
-                list.forEachIndexed { i, match -> key(match.id) { PickerRow(null, match.name, null, focus = if (i == 0) firstItem else null) { showImages(match) } } }
+                list.forEachIndexed { i, match -> key(match.id) { PickerRow(null, match.name, null, focus = if (i == 0) firstItem else null) { leaveField(); showImages(match) } } }
                 if (matches != null && list.isEmpty() && !busy && status == SteamGridDb.Status.OK) {
                     Text(stringResource(R.string.art_sgdb_none), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(start = 2.dp, top = 4.dp))
                 }
@@ -675,7 +675,7 @@ private fun SgdbSearchDialog(
                 if (images.isEmpty() && !busy && status == SteamGridDb.Status.OK) {
                     Text(stringResource(R.string.art_sgdb_none), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(start = 2.dp, top = 4.dp))
                 }
-                if (list.size > 1) PickerRow(null, stringResource(R.string.art_sgdb_other_games), null) { picked = null }
+                if (list.size > 1) PickerRow(null, stringResource(R.string.art_sgdb_other_games), null) { leaveField(); picked = null }
             }
             if (busy) androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 8.dp))
         }

@@ -559,6 +559,10 @@ private fun repoInfo(post: SteamDeckRepo.Post): String =
     listOf(post.author, "♥ ${post.likes}", "⇩ ${post.downloads}", if (post.seconds > 0) stringResource(R.string.boot_movie_seconds, post.seconds) else "")
         .filter { it.isNotEmpty() }.joinToString(" · ")
 
+private const val AFTER_OPEN = 3
+private const val AFTER_INSTALL = 1
+private const val AFTER_USE = 2
+
 /** Install and Use are different buttons in turn, and the button is disabled while installing; it takes focus back for the controller. */
 @Composable
 private fun RepoAction(
@@ -567,20 +571,25 @@ private fun RepoAction(
 ) {
     val requester = remember { FocusRequester() }
     val focused = remember { booleanArrayOf(false) }
-    var regain by remember { mutableStateOf(takeFocus) }
+    var pending by remember { mutableIntStateOf(if (takeFocus) AFTER_OPEN else 0) }
     val inputMode = LocalInputModeManager.current
-    LaunchedEffect(installed, inUse, busy, percent != null, regain) {
-        if (!regain) return@LaunchedEffect
-        if (inputMode.inputMode != InputMode.Keyboard) { regain = false; return@LaunchedEffect }
+    LaunchedEffect(installed, inUse, busy, percent != null, pending) {
+        if (pending == 0) return@LaunchedEffect
+        if (inputMode.inputMode != InputMode.Keyboard) { pending = 0; return@LaunchedEffect }
         focusWithinFrames({ focused[0] }) { requester }
-        if (focused[0] || installed || inUse) regain = false
+        when (pending) {
+            AFTER_OPEN -> pending = 0
+            AFTER_INSTALL -> if (installed && focused[0]) pending = 0
+            AFTER_USE -> if (inUse && focused[0]) pending = 0
+            else -> Unit
+        }
     }
     val m = modifier.focusRequester(requester).onFocusChanged { focused[0] = it.hasFocus || it.isFocused }
     if (inUse) SecondaryButton(stringResource(R.string.boot_movie_in_use), compact = true, modifier = m, onClick = {})
-    else if (installed) SecondaryButton(stringResource(R.string.boot_movie_repo_use), compact = true, modifier = m, onClick = { regain = true; onUse() })
+    else if (installed) SecondaryButton(stringResource(R.string.boot_movie_repo_use), compact = true, modifier = m, onClick = { pending = AFTER_USE; onUse() })
     else SecondaryButton(
         if (percent != null) stringResource(R.string.boot_movie_converting, percent) else stringResource(R.string.boot_movie_repo_install),
-        enabled = !busy, compact = true, modifier = m, onClick = { regain = true; onInstall() },
+        enabled = !busy, compact = true, modifier = m, onClick = { pending = AFTER_INSTALL; onInstall() },
     )
 }
 
