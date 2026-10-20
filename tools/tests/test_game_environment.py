@@ -259,6 +259,21 @@ class GameEnvironmentTest(unittest.TestCase):
                                             env=env, text=True, capture_output=True, check=True)
                     self.assertEqual(json.loads(result.stdout.strip()),
                                      ["waitforexitandrun", str(expected), "-arg"])
+                    if setting == "1":
+                        self.assertIn("started without Easy Anti-Cheat (offline only)", result.stderr)
+                        self.assertNotIn("Easy Anti-Cheat detected", result.stderr)
+                    else:
+                        self.assertIn("Easy Anti-Cheat detected", result.stderr)
+                        self.assertNotIn("started without Easy Anti-Cheat", result.stderr)
+            (game / "EasyAntiCheat/settings.json").write_text(json.dumps({"executable": "missing.exe"}))
+            config.write_text(json.dumps({"version": 1, "games": {"42": {"DROIDDECK_ANTICHEAT_OFFLINE": "1"}}}))
+            result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"),
+                                     str(proton), "waitforexitandrun", str(bootstrapper), "-arg"],
+                                    env=env, text=True, capture_output=True, check=True)
+            self.assertEqual(json.loads(result.stdout.strip()),
+                             ["waitforexitandrun", str(bootstrapper), "-arg"])
+            self.assertIn("Easy Anti-Cheat detected", result.stderr)
+            self.assertNotIn("started without Easy Anti-Cheat", result.stderr)
 
     def test_deep_rock_gdk_avoids_the_raytracing_pipeline_crash(self):
         game = "/game/FSD/Binaries/WinGDK/FSD-WinGDK-Shipping.exe"
@@ -1218,6 +1233,12 @@ class ForceSsbsTest(unittest.TestCase):
                 got = MODULE["anticheat_runtimes"]([str(x86 / "proton"), "waitforexitandrun", str(exe)], env)
             self.assertEqual(got["PROTON_EAC_RUNTIME"], str(eac))
             self.assertIn("Easy Anti-Cheat runtime ready", err.getvalue())
+
+            err = io.StringIO()
+            with mock.patch("sys.stderr", err):
+                got = MODULE["anticheat_runtimes"]([str(arm / "proton"), "waitforexitandrun", str(exe)], env, eac_offline=True)
+            self.assertEqual(got["PROTON_EAC_RUNTIME"], str(eac))
+            self.assertNotIn("Easy Anti-Cheat detected", err.getvalue())
 
             xdg = root / "xdg"
             xdg_eac = xdg / "Steam/steamapps/common/Proton EasyAntiCheat Runtime"

@@ -385,7 +385,7 @@ def steam_libraries(env):
     return list(dict.fromkeys(found))
 
 
-def anticheat_runtimes(command, env):
+def anticheat_runtimes(command, env, eac_offline=False):
     libraries = None
     for key, folder in ANTICHEAT_RUNTIMES:
         if env.get(key):
@@ -397,7 +397,7 @@ def anticheat_runtimes(command, env):
             if os.path.isdir(candidate):
                 env = dict(env, **{key: candidate})
                 break
-    if len(command) > 2 and command[1] == "waitforexitandrun" and (game_tree_files(command[2]) & EAC_MARKERS):
+    if not eac_offline and len(command) > 2 and command[1] == "waitforexitandrun" and (game_tree_files(command[2]) & EAC_MARKERS):
         eac = env.get("PROTON_EAC_RUNTIME", "")
         proton = os.path.dirname(command[0]) if command else ""
         if not eac or not os.path.isdir(eac):
@@ -443,11 +443,14 @@ def main():
                 env = apply_config(env, {"version": 1}, app_id, fixes)
         except (OSError, ValueError, TypeError, AttributeError):
             print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
+    eac_offline = False
     if app_id and len(command) > 1 and command[1] == "waitforexitandrun":
-        command = offline_without_anticheat(command, env)
+        offline_command = offline_without_anticheat(command, env)
+        eac_offline = offline_command != command
+        command = offline_command
     if mic_enabled == "0":
         env["BANNER_AUDIO_DIRECT_MIC"] = "0"
-    env = anticheat_runtimes(command, env)
+    env = anticheat_runtimes(command, env, eac_offline=eac_offline)
     env = force_ssbs(command, env)
     try:
         xbox = runpy.run_path(str(Path(__file__).with_name("droiddeck-xbox")))
