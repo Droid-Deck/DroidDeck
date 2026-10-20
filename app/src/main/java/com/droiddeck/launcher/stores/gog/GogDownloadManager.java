@@ -3,6 +3,8 @@ package com.droiddeck.launcher.stores.gog;
 import android.content.Context;
 import android.util.Log;
 
+import com.droiddeck.launcher.frontend.AddedGames;
+import com.droiddeck.launcher.runtime.GuestCommand;
 import com.droiddeck.launcher.stores.StoreLog;
 import com.droiddeck.launcher.stores.download.StoreDownloadTier;
 
@@ -22,6 +24,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -409,13 +412,48 @@ public final class GogDownloadManager {
                 if (size <= 0) throw new InstallException("The installer download failed: " + part.filename);
                 total += size;
             }
-            cb.onLog("gog: installer downloaded (" + parts.size() + " file(s)); the game installs itself on first launch");
-            return new Result(parts.get(0).filename, "", total);
+            if (cancelled.get()) return null;
+            cb.onLog("gog: installer downloaded (" + parts.size() + " file(s)); extracting natively");
+            extractInstaller(ctx, installPath, parts.get(0).filename, cb);
+            if (cancelled.get()) return null;
+            String exe = pickExe(installPath, null, game.title);
+            if (exe.isEmpty()) throw new InstallException("The installer was extracted but no game executable was found");
+            for (InstallerPart part : parts) new File(installPath, part.filename).delete();
+            deleteDir(new File(installPath, "tmp"));
+            deleteDir(new File(installPath, "commonappdata"));
+            cb.onLog("gog: installer extracted natively; game exe " + exe);
+            return new Result(exe, "", total);
         } catch (InstallException e) {
             throw e;
         } catch (Exception e) {
             throw new InstallException("Installer download error: " + e.getClass().getSimpleName());
         }
+    }
+
+    /**
+     * GOG's Windows installer is a 32-bit Inno Setup stub. On ARM64 it runs through
+     * Proton/FEX, where its path strings are corrupted before CreateFileW (observed on
+     * Wine 11 + FEX: "Path not found"). Extracting the same files with innoextract in
+     * the Linux guest avoids that path entirely.
+     */
+    private static void extractInstaller(Context ctx, File installPath, String setupName, Callback cb) throws InstallException {
+        String guestDir = AddedGames.INSTANCE.guestPath(ctx, installPath);
+        if (guestDir == null || guestDir.isEmpty()) {
+            throw new InstallException("The game folder is not visible to the Linux session");
+        }
+        String guestSetup = guestDir + "/" + setupName;
+        cb.onProgress("Extracting installer…", 95);
+        int rc;
+        try {
+            rc = GuestCommand.INSTANCE.run(ctx, Arrays.asList(
+                    "/usr/local/bin/droiddeck-innoextract", "--gog", "--silent",
+                    "-d", guestDir, guestSetup),
+                    false, "gog-innoextract", null, null, false,
+                    line -> { cb.onLog("gog innoextract: " + line); return kotlin.Unit.INSTANCE; });
+        } catch (Exception e) {
+            throw new InstallException("The installer could not be extracted: " + e.getClass().getSimpleName());
+        }
+        if (rc != 0) throw new InstallException("The installer could not be extracted (innoextract exit " + rc + ")");
     }
 
     static final class InstallerPart {

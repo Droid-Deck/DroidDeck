@@ -85,7 +85,7 @@ object GogBackend : StoreBackend {
             val result = GogDownloadManager.install(app, game, folder, object : GogDownloadManager.Callback {
                 override fun onProgress(message: String, pct: Int) {
                     when {
-                        message.startsWith("Finishing") -> handle.stage(DownloadStage.INSTALL, message)
+                        message.startsWith("Finishing") || message.startsWith("Extracting") -> handle.stage(DownloadStage.INSTALL, message)
                         message.startsWith("Downloading") || message.startsWith("Verified") || message.startsWith("Resuming") -> {
                             if (!downloading) { downloading = true; handle.stage(DownloadStage.DOWNLOAD, message) } else handle.progress(-1, -1, message)
                         }
