@@ -79,6 +79,7 @@ fetch "https://dl.google.com/dl/android/maven2/com/google/mediapipe/tasks-core/$
     "$MEDIAPIPE_AAR_SHA256" "$work/tasks-core.aar"
 unzip -q -j "$work/opencv.aar" jni/arm64-v8a/libopencv_java4.so -d "$work/tracking"
 unzip -q -j "$work/tasks-core.aar" jni/arm64-v8a/libmediapipe_tasks_jni.so -d "$work/tracking"
+echo "PR pack routing test" > "$work/tracking/PR-TEST"
 chmod 0644 "$work/tracking"/*
 
 mkdir "$work/proot"
