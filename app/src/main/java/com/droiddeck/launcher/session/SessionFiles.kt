@@ -5,6 +5,7 @@ import android.os.Environment
 import android.util.Log
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.FileUtils
+import com.droiddeck.launcher.runtime.BwrapSpawner
 import com.droiddeck.launcher.runtime.DesktopCatalog
 import com.droiddeck.launcher.runtime.LegacyNames
 import com.droiddeck.launcher.runtime.LinuxRuntime
@@ -206,6 +207,13 @@ object SessionFiles {
         }
         if (!FileUtils.writeString(File(etc, "steam-compatibility-label"), context.getString(R.string.steam_compat_label))) {
             Log.e(TAG, "could not write steam-compatibility-label")
+        }
+        val droiddeckEtc = File(etc, "droiddeck").apply { mkdirs() }
+        val stagedSocket = File(droiddeckEtc, "bwrap-socket.staged")
+        if (!FileUtils.writeString(stagedSocket, BwrapSpawner.socket(context) + "\n")
+            || !stagedSocket.renameTo(File(droiddeckEtc, "bwrap-socket"))) {
+            stagedSocket.delete()
+            Log.e(TAG, "could not write bwrap-socket")
         }
 
         val startupMovie = BootMovie.prepare(context)
