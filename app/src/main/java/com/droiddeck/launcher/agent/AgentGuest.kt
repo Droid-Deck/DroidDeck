@@ -5,10 +5,12 @@ import android.os.Handler
 import android.os.Looper
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import android.os.FileObserver
 import android.util.Log
 import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.droiddeck.launcher.input.SteamOverlay
 import com.droiddeck.launcher.session.SessionEvents
 import com.droiddeck.launcher.session.SessionState
 import org.json.JSONObject
@@ -19,16 +21,21 @@ object AgentGuest {
     private val main by lazy { Handler(Looper.getMainLooper()) }
     var focusRevision by mutableIntStateOf(0)
         private set
+    var steamOverlayVisible by mutableStateOf(false)
+        private set
     private const val TAG = "AgentGuest"
     private const val POLL_MS = 50L
     private val lock = Any()
     private var observer: FileObserver? = null
     private var lastFocusKey: String? = null
+    private var generation = 0
 
     fun dir(context: Context) = File(LinuxRuntime.sessionRoot(context), "agent")
 
     fun reset(context: Context) {
         synchronized(lock) {
+            val current = ++generation
+            main.post { synchronized(lock) { if (current == generation) steamOverlayVisible = false } }
             observer?.stopWatching()
             observer = null
             lastFocusKey = null
@@ -42,7 +49,7 @@ object AgentGuest {
                         "hello.json" -> readJson(File(dir, path))?.let {
                             SessionEvents.record("agent.ready", mapOf("pid" to it.optInt("pid"), "focus" to it.optBoolean("focus")))
                         }
-                        "focus.json" -> readJson(File(dir, path))?.let(::recordFocus)
+                        "focus.json" -> readJson(File(dir, path))?.let { recordFocus(it, current) }
                     }
                 }
             }.also { it.startWatching() }
@@ -51,23 +58,35 @@ object AgentGuest {
 
     fun stop() {
         synchronized(lock) {
+            val current = ++generation
+            lastFocusKey = null
+            main.post { synchronized(lock) { if (current == generation) steamOverlayVisible = false } }
             observer?.stopWatching()
             observer = null
         }
     }
 
-    private fun recordFocus(snapshot: JSONObject) {
+    private fun recordFocus(snapshot: JSONObject, expectedGeneration: Int) {
+        val overlayVisible = SteamOverlay.hasInput(snapshot)
         val fields = linkedMapOf<String, Any?>(
             "focusedApp" to snapshot.opt("focusedApp"),
             "focusableApps" to snapshot.optJSONArray("focusableApps")?.toString(),
             "baselayerAppIds" to snapshot.optJSONArray("baselayerAppIds")?.toString(),
+            "steamOverlayVisible" to overlayVisible,
         )
         val key = fields.values.joinToString("|")
         synchronized(lock) {
+            if (expectedGeneration != generation) return
             if (key == lastFocusKey) return
             lastFocusKey = key
         }
-        main.post { focusRevision++ }
+        main.post {
+            synchronized(lock) {
+                if (expectedGeneration != generation) return@post
+                steamOverlayVisible = overlayVisible
+                focusRevision++
+            }
+        }
         SessionEvents.record("focus.changed", fields + ("seq" to snapshot.optInt("seq")))
     }
 

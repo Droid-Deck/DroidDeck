@@ -317,8 +317,7 @@ class VrSceneFocus:
 
 
 class FocusWatcher(threading.Thread):
-    """Rewrites focus.json when gamescope's focus properties change, and every few seconds when
-    the windows do (a window can change without any root property moving)."""
+    """Publish root/window changes, with a periodic rescan for missed events."""
 
     def __init__(self, path):
         super().__init__(daemon=True, name="focus")
@@ -365,19 +364,38 @@ class FocusWatcher(threading.Thread):
 
     def listen(self):
         while True:
+            x = None
             try:
                 x = X(os.environ["DISPLAY"])
-                wanted = {x.atom(name) for name in FOCUS_PROPS}
-                x.select(x.root, 0x400000)
-                x.s.settimeout(None)
-                self.changed.set()
-                while True:
-                    event = x.next_event()
-                    if event[0] & 0x7F == 28 and struct.unpack_from("<I", event, 8)[0] in wanted:
-                        self.changed.set()
+                self.watch(x)
             except OSError as e:
                 log("focus events: %s; reconnecting" % e)
                 time.sleep(2)
+            finally:
+                if x is not None:
+                    x.close()
+
+    def watch(self, x):
+        wanted = {x.atom(name) for name in FOCUS_PROPS + WINDOW_PROPS}
+        x.select(x.root, 0x480000)  # PropertyChangeMask | SubstructureNotifyMask
+        watched = set(x.children(x.root))
+        for window in watched:
+            x.select(window, 0x420000)  # PropertyChangeMask | StructureNotifyMask
+        x.s.settimeout(None)
+        self.changed.set()
+        while True:
+            event = x.next_event()
+            kind = event[0] & 0x7F
+            if kind == 28 and struct.unpack_from("<I", event, 8)[0] in wanted:
+                self.changed.set()
+            elif kind in (16, 17, 18, 19, 21):
+                window = struct.unpack_from("<I", event, 8)[0]
+                if kind == 17:
+                    watched.discard(window)
+                elif kind in (16, 19, 21) and window not in watched:
+                    x.select(window, 0x420000)
+                    watched.add(window)
+                self.changed.set()
 
 
 
