@@ -1921,6 +1921,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (physicalShortcuts.onKey(
                 event,
                 enabled = SessionState.running && !SessionState.suspended &&
+                    !(drawerOpen && event.keyCode == KeyEvent.KEYCODE_BUTTON_A) &&
                     (event.deviceId to event.keyCode) !in resumeKeysDown &&
                     !(::loading.isInitialized && (loading.visible || loading.ended)) &&
                     !pcKeyboardOpen && !achievementsOpen && !gestureSettingsOpen,

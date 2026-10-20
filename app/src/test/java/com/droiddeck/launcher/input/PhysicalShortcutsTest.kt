@@ -67,6 +67,26 @@ class PhysicalShortcutsTest {
         assertTrue(actions.isEmpty())
     }
 
+    @Test fun disabledMappedConfirmLeavesTheWholePressForDrawerNavigation() {
+        assign(key(KeyEvent.KEYCODE_BUTTON_A), Action.DROIDDECK)
+        assertFalse(route(key(KeyEvent.KEYCODE_BUTTON_A), enabled = false))
+        assertFalse(route(key(KeyEvent.KEYCODE_BUTTON_A, repeat = 1), enabled = false))
+        assertFalse(route(key(KeyEvent.KEYCODE_BUTTON_A, KeyEvent.ACTION_UP), enabled = false))
+        assertTrue(actions.isEmpty())
+    }
+
+    @Test fun mappedConfirmOpeningTheDrawerConsumesItsReleaseWithoutStayingHeld() {
+        assign(key(KeyEvent.KEYCODE_BUTTON_A), Action.DROIDDECK)
+        assertTrue(route(key(KeyEvent.KEYCODE_BUTTON_A)))
+        assertTrue(route(key(KeyEvent.KEYCODE_BUTTON_A, repeat = 1), enabled = false))
+        assertTrue(route(key(KeyEvent.KEYCODE_BUTTON_A, KeyEvent.ACTION_UP), enabled = false))
+        assertFalse(route(key(KeyEvent.KEYCODE_BUTTON_A), enabled = false))
+        assertFalse(route(key(KeyEvent.KEYCODE_BUTTON_A, KeyEvent.ACTION_UP), enabled = false))
+        assertTrue(route(key(KeyEvent.KEYCODE_BUTTON_A)))
+        assertTrue(route(key(KeyEvent.KEYCODE_BUTTON_A, KeyEvent.ACTION_UP)))
+        assertEquals(listOf(Action.DROIDDECK, Action.DROIDDECK), actions)
+    }
+
     @Test fun aResumePressKeepsItsRepeatsAndReleaseInTheResumePath() {
         assign(key(), Action.STEAM)
         assertFalse(route(key(), enabled = false))
