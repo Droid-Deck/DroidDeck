@@ -24,7 +24,7 @@ CACHE_DIR = os.path.join(HOME, ".cache", "droiddeck-fex")
 STATUS_FILE = os.path.join(STATE, "status.json")
 WANTED = os.path.join(HOME, ".config", "droiddeck", "fex-wanted")
 GAME_ENVIRONMENT = os.path.join(HOME, ".config", "droiddeck", "game-environment.json")
-COMPAT_SHORT_BASE = "/tmp/c"
+COMPAT_SHORT_BASE = os.environ.get("DROIDDECK_COMPAT_SHORT_BASE") or "/tmp/c"
 BIN_DIR = os.path.dirname(os.path.abspath(__file__))
 PRELOADS = "/usr/local/lib/droiddeck-fex"
 URUNTIME = "/usr/local/lib/droiddeck/uruntime"
@@ -618,7 +618,7 @@ def shorten_compat_path(path):
     if os.path.isdir(server_dir):
         for entry in os.listdir(server_dir):
             if entry.endswith(".Socket"):
-                sock_path = os.path.join(server_dir, entry)
+                sock_path = os.path.join(short, "fex-emu", "Server", entry)
                 if is_stale_socket(sock_path):
                     with contextlib.suppress(OSError):
                         os.unlink(sock_path)

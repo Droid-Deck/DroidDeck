@@ -1208,9 +1208,9 @@ def now_ms():
     return int(time.time() * 1000)
 
 
-def choose_default(steam_default, state, request, catalog, adopt_steam=True, apply_request=True, now=None):
+def choose_default(steam_default, state, request, catalog, adopt_steam=True, apply_request=True, now=None, names=None):
     state = dict(state)
-    names = [t["name"] for t in catalog]
+    names = [t["name"] for t in catalog] if names is None else names
     seq = request.get("seq")
     seq = seq if isinstance(seq, int) else 0
     if apply_request and seq > int(state.get("applied", 0) or 0):
@@ -1366,7 +1366,7 @@ def register_default(config_path, apps=(), protect=(), default=None, catalog=Non
         names = set(t["name"] for t in catalog) | set(state.get("known_tools", ())) | valve_tool_names(steam_root)
         if default is None:
             if settle:
-                default, state = choose_default(current.get("0", ""), state, read_json(state_path("request.json", directory)), catalog)
+                default, state = choose_default(current.get("0", ""), state, read_json(state_path("request.json", directory)), catalog, names=names)
             else:
                 default = state.get("default") if state.get("default") in names else TOOL
         overrides = requested_games(game_requests(directory), catalog)

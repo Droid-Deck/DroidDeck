@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 BIN = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin"
 MODULE = runpy.run_path(str(BIN / "droiddeck-game-env"))
@@ -843,6 +844,12 @@ class ProtonDefaultTest(unittest.TestCase):
             config.write_text(config_text([("0", "proton_experimental")]))
             default = COMPAT["register_default"](str(config), ["10"], catalog=self.CATALOG, directory=tmp)
             self.assertEqual(mapping_of(config.read_text()), {"0": "GE-Proton11-7", "10": "GE-Proton11-7"})
+
+            with mock.patch.dict(COMPAT["main"].__globals__, {"valve_tool_names": lambda root: {"proton_9"}}):
+                config.write_text(config_text([("0", "proton_9"), ("10", "proton_9")]))
+                default = COMPAT["register_default"](str(config), ["10"], catalog=self.CATALOG, directory=tmp, settle=True)
+                self.assertEqual(default, "proton_9")
+                self.assertEqual(mapping_of(config.read_text())["0"], "proton_9")
 
     def test_the_shortcut_writer_keeps_the_chosen_default(self):
         with tempfile.TemporaryDirectory() as tmp:

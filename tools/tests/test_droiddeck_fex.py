@@ -597,8 +597,8 @@ class LaunchTest(FexTestCase):
                 self.assertEqual(os.path.realpath(short), str(compat.resolve()))
                 self.assertFalse(dead_socket.exists())
                 self.assertTrue(os.path.exists(live_socket_path))
-                self.assertTrue(other_file.exists())
-                self.assertLessEqual(len("/data/data/com.droiddeck.launcher/files/rootfs/tmp/c/1808500/fex-emu/Server/10114.FEXServer.Socket"), 108)
+                computed_sock = "/data/data/com.droiddeck.launcher/files/rootfs" + os.path.join(FEX["COMPAT_SHORT_BASE"], "1808500", "fex-emu", "Server", "10114.FEXServer.Socket")
+                self.assertLessEqual(len(computed_sock), 108)
 
                 unrelated = self.tmp / "compatdata_other"
                 unrelated.mkdir(parents=True)
@@ -676,7 +676,13 @@ class LaunchTest(FexTestCase):
             )
             probe.chmod(0o755)
 
-            sub_env = dict(os.environ, STEAM_COMPAT_DATA_PATH=str(self.tmp / "compatdata/1808500"))
+            short_base = self.tmp / "c"
+            sub_env = dict(
+                os.environ,
+                HOME=str(self.home),
+                DROIDDECK_COMPAT_SHORT_BASE=str(short_base),
+                STEAM_COMPAT_DATA_PATH=str(self.tmp / "compatdata/1808500"),
+            )
             res = subprocess.run(
                 [sys.executable, str(BIN / "droiddeck-fex"), "valve-fex", str(probe),
                  "waitforexitandrun", "--", "/runtime/_v2-entry-point", "--verb=waitforexitandrun", "--",
@@ -686,7 +692,7 @@ class LaunchTest(FexTestCase):
             self.assertEqual(res.returncode, 42)
             payload = json.loads(log_file.read_text())
             self.assertEqual(payload["argv"], [str(probe), "waitforexitandrun", "--", str(proton), "waitforexitandrun", "Game.exe"])
-            self.assertTrue(payload["compat"].startswith(G["COMPAT_SHORT_BASE"]))
+            self.assertTrue(payload["compat"].startswith(str(short_base)))
 
             FEX["main"](["steam", "waitforexitandrun", "--", str(proton), "waitforexitandrun", "Game.exe"])
             self.assertEqual(launched[-1][0], [str(proton), "waitforexitandrun", "Game.exe"])
