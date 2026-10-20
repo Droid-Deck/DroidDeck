@@ -63,9 +63,19 @@ jobs:
       artifact: droiddeck-release
     secrets: inherit
 
+  packs:
+    needs: find
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/publish-packs.yml
+    with:
+      run_id: ${{ needs.find.outputs.run_id }}
+    secrets: inherit
+
   publish:
     name: publish the release
-    needs: [find, sign]
+    needs: [find, sign, packs]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

@@ -34,7 +34,7 @@ RUNTIMES = {SNIPER_APPID: ("sniper_platform_", "Steam Linux Runtime 3.0 (sniper"
             SLR4_APPID: ("steamrt4_platform_", "Steam Linux Runtime 4.0 (steamrt4")}
 MARKER = ".droiddeck-fex"
 LAYOUT = 1
-ROOTFS_LAYOUT = 1
+ROOTFS_LAYOUT = 2
 ARCH_DIRS = ("x86_64-linux-gnu", "i386-linux-gnu")
 INTERPRETERS = ("ld-linux-x86-64.so.2", "ld-linux.so.2")
 PROVIDED = frozenset((
@@ -42,6 +42,7 @@ PROVIDED = frozenset((
     "librt.so.1", "libutil.so.1", "libresolv.so.2", "libanl.so.1", "libBrokenLocale.so.1", "libnsl.so.1",
     "libnss_compat.so.2", "libnss_dns.so.2", "libnss_files.so.2", "libnss_hesiod.so.2", "libthread_db.so.1",
     "libmemusage.so", "libpcprofile.so", "libc_malloc_debug.so.0", "gconv", "libstdc++.so.6", "libgcc_s.so.1",
+    "libssl.so.3", "libcrypto.so.3",
 ))
 GLIBC_BUILD = re.compile(r"^(?:ld|lib[A-Za-z_]+)-2\.[0-9]+\.so$|^libSegFault\.so$")
 GUEST_LIBDIRS = (("x86_64", "lib/x86_64-linux-gnu"), ("i386", "lib/i386-linux-gnu"))
@@ -50,6 +51,7 @@ FAULT_REPORT = "libfaultreport.so"
 VULKAN_PIN = "libvulkan-thunk.so"
 VULKAN_PIN_DIR = "lib/x86_64-linux-gnu/droiddeck/vulkan"
 VULKAN_THUNK = "libvulkan-guest.so"
+ASOUND_CONF = "pcm.!default {\n    type pulse\n}\nctl.!default {\n    type pulse\n}\n"
 RUNTIME_LIBRARIES = (("libc.so.6", b"GLIBC_"), ("libstdc++.so.6", b"GLIBCXX_"))
 VERSION_NAME = re.compile(rb"GLIBC(?:XX)?_[0-9][0-9.]*[0-9]")
 BUNDLE_DEPTH = 3
@@ -61,6 +63,8 @@ SCAN_LIMIT = 4000
 MODES = ("auto", "on", "off")
 STEAM_VERBS = ("run", "waitforexitandrun")
 ESCAPE = re.compile(rb"\\([0-7]{3})")
+DEVICE_FONTS = "/usr/local/share/fonts/android"
+FONT_RULES = "/etc/fonts/conf.d/66-droiddeck-device-fonts.conf"
 
 
 def say(message):
@@ -340,6 +344,7 @@ def install_preloads(root):
     if len(shipped.get(FAULT_REPORT, ())) == len(GUEST_LIBDIRS):
         wanted.append(FAULT_REPORT)
     write_if_changed(os.path.join(root, "etc", "ld.so.preload"), "".join("/usr/$LIB/droiddeck/%s\n" % name for name in wanted))
+    write_if_changed(os.path.join(root, "etc", "asound.conf"), ASOUND_CONF)
 
 
 def write_config(fex, root):
@@ -350,6 +355,16 @@ def write_config(fex, root):
         config["ThunksDB"] = dict(THUNKS)
         write_if_changed(os.path.join(CONFIG_DIR, "ThunksConfig.json"), json.dumps({"ThunksDB": dict(THUNKS)}, indent=2) + "\n")
     write_if_changed(os.path.join(CONFIG_DIR, "Config.json"), json.dumps(config, indent=2) + "\n")
+
+
+def install_fonts(root):
+    target = os.path.join(root, FONT_RULES.lstrip("/"))
+    rules = read_text(FONT_RULES) or ""
+    if not os.path.isdir(DEVICE_FONTS) or "<fontconfig>" not in rules:
+        with contextlib.suppress(FileNotFoundError):
+            os.unlink(target)
+        return
+    write_if_changed(target, rules.replace("<fontconfig>", "<fontconfig>\n<dir>%s</dir>" % DEVICE_FONTS, 1))
 
 
 def link_steam_sdk():
@@ -454,6 +469,7 @@ def prepare(app=SNIPER_APPID):
         if materialize(platform):
             say("prepared %s as the x86 runtime" % os.path.basename(platform))
         install_preloads(root)
+        install_fonts(root)
         provider = None
         if app == SNIPER_APPID:
             provider = graphics_platform()
@@ -658,6 +674,7 @@ def launch(command, env, mode, decide=None):
 def game_environment(env):
     try:
         game_env = runpy.run_path(os.path.join(BIN_DIR, "droiddeck-game-env"))
+        env = game_env["game_gpu"](env)
         app = game_env["game_id"](env) or env.get("SteamAppId") or env.get("SteamGameId")
         if not app:
             return env
