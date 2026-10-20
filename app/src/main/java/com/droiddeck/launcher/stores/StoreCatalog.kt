@@ -21,7 +21,9 @@ data class CatalogItem(
     val sizeBytes: Long = 0L,
     val extra: Map<String, String> = emptyMap(),
     val mature: Boolean = false,
+    val subscription: Boolean = false,
 ) {
+    val accessible: Boolean get() = owned || subscription
     val isDiscounted: Boolean get() = discountPercent > 0 && originalPrice.isNotBlank()
     val key: String get() = "${store.id}:$id"
 }
@@ -49,7 +51,9 @@ fun installedCards(store: Store, installed: List<InstalledStoreGame>, library: L
     return installed.filter { it.sidecar.store == store }.map { game ->
         val s = game.sidecar
         byId[s.id] ?: byTitle[s.title.lowercase()]
-            ?: CatalogItem(store, s.id, s.title, imageUrl = s.hero ?: s.cover, tallImageUrl = s.cover ?: s.hero, owned = true)
+            ?: CatalogItem(store, s.id, s.title, imageUrl = s.hero ?: s.cover, tallImageUrl = s.cover ?: s.hero,
+                owned = s.store != Store.XBOX || s.extra["access"] == "owned",
+                subscription = s.store == Store.XBOX && s.extra["access"] == "gamepass")
     }.distinctBy { it.id }.sortedBy { it.title.lowercase() }
 }
 

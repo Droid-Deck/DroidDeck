@@ -291,7 +291,7 @@ def libraries(steam_root):
     except OSError:
         text = ""
     paths = [path.replace("\\\\", "\\") for path in re.findall(r'"path"\s+"((?:[^"\\]|\\.)*)"', text)]
-    return list(dict.fromkeys([Path(steam_root), Path(LIBRARY)] + [Path(path) for path in paths]))
+    return list(dict.fromkeys([Path(steam_root)] + [Path(path) for path in paths]))
 
 
 def ours(manifest, appid):
@@ -309,6 +309,16 @@ def unpark(steamapps):
             manifest.unlink(missing_ok=True)
         elif (steamapps / "common" / f"DroidDeck-{appid}").is_dir():
             os.replace(manifest, live)
+
+
+def seeded(steamapps, game, appid):
+    target = steamapps / "common" / f"DroidDeck-{appid}"
+    manifest = steamapps / f"appmanifest_{appid}.acf"
+    try:
+        return (target.is_symlink() and target.is_dir() and manifest.is_file() and ours(manifest, appid)
+                and os.readlink(target) in (game.get("folder", ""), legacy_path(game.get("folder", ""))))
+    except OSError:
+        return False
 
 
 def park(steamapps):
@@ -428,6 +438,9 @@ def route(steam_root, acct, games):
                     continue
             except OSError as error:
                 print(f"droiddeck-steam-games: import unavailable ({error})")
+        elif isinstance(appid, int) and 0 < appid < 0x80000000 and seeded(steamapps, game, appid):
+            routes[str(game["appid"])] = appid
+            continue
         shortcuts.append(game)
     try:
         park(steamapps)

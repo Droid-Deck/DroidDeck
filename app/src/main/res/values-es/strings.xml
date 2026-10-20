@@ -30,7 +30,7 @@
     <string name="frame_gen_title">Generación de fotogramas</string>
     <string name="frame_gen_hint">Elige el modo de generación de fotogramas</string>
     <string name="frame_gen_off">Desactivada</string>
-    <string name="frame_gen_winfg">Win-FG %1$d×</string>
+    <string name="frame_gen_ddfg">DD-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
     <string name="frame_gen_lsfg_adaptive">LSFG adaptativo %1$d</string>
     <string name="lsfg_needs_steam">Requiere Lossless Scaling en Steam</string>
@@ -729,6 +729,9 @@
     <string name="setup_app_scale_default">%1$d%% (predeterminada)</string>
     <string name="setup_theme">Tema</string>
     <string name="setup_theme_hint">Apariencia del launcher</string>
+    <string name="setup_launcher_icon">Icono de la app</string>
+    <string name="setup_launcher_icon_dark">Oscuro</string>
+    <string name="setup_launcher_icon_light">Claro</string>
     <string name="setup_home">Usar como pantalla de inicio</string>
     <string name="setup_home_on">DroidDeck puede ser la app de inicio</string>
     <string name="setup_home_off">DroidDeck nunca se ofrece como app de inicio</string>
@@ -1941,7 +1944,6 @@
     <string name="stores_settings_eyebrow">Ajustes</string>
     <string name="stores_chip_signed_out">(sin iniciar sesión)</string>
     <string name="stores_tab_store">Tienda</string>
-    <string name="stores_tab_installed">Instalados</string>
     <string name="stores_tab_library">Biblioteca</string>
     <string name="stores_tab_all">Todos</string>
     <string name="stores_tab_downloads">Descargas</string>
@@ -1953,10 +1955,8 @@
     <string name="stores_signout_stay">Mantener la sesión</string>
     <string name="stores_signout_go">Cerrar sesión</string>
     <string name="stores_search_catalog">Buscar en el catálogo de %1$s…</string>
-    <string name="stores_search_installed">Buscar juegos instalados…</string>
     <string name="stores_search_library">Buscar en tu biblioteca…</string>
     <string name="stores_search_open">Buscar</string>
-    <string name="stores_installed_empty">Nada instalado</string>
     <string name="stores_library_loading">Cargando</string>
     <string name="stores_nothing_matches">No hay juegos</string>
     <string name="stores_shelves_loading">Cargando la tienda…</string>
@@ -1975,7 +1975,19 @@
     <string name="stores_view_on">Ver en %1$s</string>
     <string name="stores_buy_price">Comprar · %1$s</string>
     <string name="stores_installed_chip">Instalado</string>
+    <string name="stores_section_installed">Instalado</string>
+    <string name="stores_section_not_installed">No instalada</string>
     <string name="stores_in_library">En la biblioteca</string>
+    <string name="stores_itch_key">Clave de API</string>
+    <string name="stores_itch_get_key">Obtener una clave</string>
+    <string name="stores_itch_key_rejected">Clave rechazada</string>
+    <string name="stores_itch_not_owned">No está en tu biblioteca de itch.io</string>
+    <string name="stores_itch_no_upload">No hay descarga para Windows de este juego</string>
+    <string name="stores_itch_no_exe">No se ha encontrado un juego de Windows en la descarga</string>
+    <string name="stores_itch_extract_failed">No se ha podido extraer la descarga (código %1$d)</string>
+    <string name="stores_itch_no_catalog">itch.io no respondió</string>
+    <string name="stores_itch_archive">Los archivos %1$s no son compatibles</string>
+    <string name="stores_itch_download_failed">itch.io respondió HTTP %1$d</string>
     <string name="stores_free">Gratis</string>
     <string name="stores_resume">Reanudar</string>
     <string name="stores_refresh">Actualizar</string>
@@ -1989,6 +2001,7 @@
     <string name="stores_sort_release_date">Fecha de lanzamiento</string>
     <string name="stores_view_list">Vista de lista</string>
     <string name="stores_view_cards">Vista de tarjetas</string>
+    <string name="stores_view_capsules">Vista de portadas</string>
     <string name="stores_show_mature">Mostrar contenido para adultos</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>
@@ -2613,32 +2626,39 @@
     <string name="storage_play_anyway">Jugar igualmente</string>
     <plurals name="storage_games_installed">
         <item quantity="one">%d instalado</item>
+        <item quantity="many">%d instalados</item>
         <item quantity="other">%d instalados</item>
     </plurals>
     <plurals name="storage_games_on_sd">
         <item quantity="one">%d en la tarjeta SD</item>
+        <item quantity="many">%d en la tarjeta SD</item>
         <item quantity="other">%d en la tarjeta SD</item>
     </plurals>
     <plurals name="storage_tools_count">
         <item quantity="one">%d herramienta</item>
+        <item quantity="many">%d herramientas</item>
         <item quantity="other">%d herramientas</item>
     </plurals>
     <plurals name="storage_item_leftovers_detail">
         <item quantity="one">Carpetas de prefijo vacías y caché de shaders de %d juego</item>
+        <item quantity="many">Carpetas de prefijo vacías y cachés de shaders de %d juegos</item>
         <item quantity="other">Carpetas de prefijo vacías y cachés de shaders de %d juegos</item>
     </plurals>
     <plurals name="storage_item_leftovers_unsure_detail">
         <item quantity="one">El prefijo de %d juego aún contiene archivos, que pueden incluir partidas guardadas locales. Haz una copia antes si las quieres.</item>
+        <item quantity="many">Los prefijos de %d juegos aún contienen archivos, que pueden incluir partidas guardadas locales. Haz una copia antes si las quieres.</item>
         <item quantity="other">Los prefijos de %d juegos aún contienen archivos, que pueden incluir partidas guardadas locales. Haz una copia antes si las quieres.</item>
     </plurals>
     <plurals name="storage_tag_games">
         <item quantity="one">%d juego</item>
+        <item quantity="many">%d juegos</item>
         <item quantity="other">%d juegos</item>
     </plurals>
     <string name="storage_tool_default_proton">Proton predeterminado de DroidDeck</string>
     <string name="storage_tool_proton">Opción Proton 11 de DroidDeck</string>
     <plurals name="storage_tool_custom_games">
         <item quantity="one">Usado por %d juego</item>
+        <item quantity="many">Usado por %d juegos</item>
         <item quantity="other">Usado por %d juegos</item>
     </plurals>
     <string name="storage_legend_components">Componentes</string>
@@ -2682,10 +2702,12 @@
     <string name="storage_flatpak_uninstall_body">Quita la app (%1$s) y cualquier runtime que no use nada más. Sus datos en tu carpeta personal se quedan.</string>
     <plurals name="storage_components_count">
         <item quantity="one">%d paquete</item>
+        <item quantity="many">%d paquetes</item>
         <item quantity="other">%d paquetes</item>
     </plurals>
     <plurals name="storage_desktop_apps">
         <item quantity="one">%d app</item>
+        <item quantity="many">%d apps</item>
         <item quantity="other">%d apps</item>
     </plurals>
     <string name="boot_movie">Vídeo de arranque</string>

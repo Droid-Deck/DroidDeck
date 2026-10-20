@@ -28,6 +28,8 @@ UPOWER_ROOT = "/org/freedesktop/UPower"
 NATIVE_PREPARE_MS = 1500
 AGENT = Path(__file__).resolve().with_name("droiddeck-agent")
 ASLEEP_WAIT = 6
+INHIBIT_WAIT = 12
+RELEASE_RETRIES = 8
 INTROSPECTION = """
 <node>
   <interface name="org.freedesktop.login1.Manager">
@@ -58,8 +60,14 @@ class LoginManager:
         self.native_request = self.directory / "steam-native-sleep"
         self.native_ready = self.directory / "steam-native-ready"
         self.pending = None
+        self.pending_idle = False
+        self.waiting = set()
         self.timeout = None
         self.preparation = None
+        self.inhibited = False
+        self.inhibit_lock = threading.Lock()
+        self.release = None
+        self.generation = 0
         info = Gio.DBusNodeInfo.new_for_xml(INTROSPECTION).interfaces[0]
         self.registration = bus.register_object(ROOT, info, self.method, self.property, None)
         upower_info = Gio.DBusNodeInfo.new_for_xml(UPOWER_INTROSPECTION).interfaces[0]
@@ -89,6 +97,7 @@ class LoginManager:
                 reply.return_dbus_error(NAME + ".OperationInProgress", "The session is already pausing")
                 return
             self.pending = uuid.uuid4().hex
+            self.pending_idle = False
             self.notify(True)
             reply.return_value(None)
             self.bus.flush(None, self.publish_after_flush, self.pending)
@@ -101,7 +110,7 @@ class LoginManager:
             self.resume()
             return
         if self.pending == token:
-            self.publish(self.request)
+            self.hold(token, self.publish, self.request)
 
     def publish(self, request):
         self.check_state()
@@ -119,15 +128,21 @@ class LoginManager:
 
     def prepare_native(self):
         try:
-            token = self.native_request.read_text().strip()
+            words = self.native_request.read_text().split()
             self.native_request.unlink(missing_ok=True)
         except OSError:
             return
-        if not re.fullmatch(r"[a-f0-9]{32}", token) or self.pending is not None:
+        token = words[0] if words else ""
+        if not re.fullmatch(r"[a-f0-9]{32}", token) or words[1:] not in ([], ["idle"]) or self.pending is not None:
             return
         if self.read_state() == token + ":awake":
             return
         self.pending = token
+        self.pending_idle = words[1:] == ["idle"]
+        self.waiting = {"hold"} if self.pending_idle else {"hold", "prepare"}
+        self.hold(token, self.prepared, token, "hold")
+        if self.pending_idle:
+            return
         self.notify(True)
         self.bus.flush(None, self.prepare_after_flush, token)
 
@@ -144,8 +159,71 @@ class LoginManager:
 
     def finish_preparation(self, token):
         self.preparation = None
-        if self.pending == token:
+        self.prepared(token, "prepare")
+        return False
+
+    def prepared(self, token, step):
+        if self.pending != token:
+            return False
+        self.waiting.discard(step)
+        if not self.waiting:
             self.publish(self.native_ready)
+        return False
+
+    def hold(self, token, then, *args):
+        self.cancel_release()
+
+        def work():
+            self.set_inhibit(True)
+            GLib.idle_add(self.after_hold, token, then, args)
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def after_hold(self, token, then, args):
+        if self.pending == token:
+            then(*args)
+        elif self.pending is None:
+            self.release_later()
+        return False
+
+    def set_inhibit(self, inhibit, generation=None):
+        with self.inhibit_lock:
+            if (generation is not None and generation != self.generation) or self.inhibited == inhibit:
+                return
+            if steam_idle_inhibit(inhibit):
+                self.inhibited = inhibit
+                print("== login1: Steam idle sleep " + ("held" if inhibit else "released"), flush=True)
+            else:
+                self.inhibited = None
+
+    def cancel_release(self):
+        self.generation += 1
+        if self.release is not None:
+            GLib.source_remove(self.release)
+            self.release = None
+
+    def release_later(self):
+        self.cancel_release()
+        if self.inhibited is False:
+            return
+        generation = self.generation
+        threading.Thread(target=lambda: GLib.idle_add(self.schedule_release, generation, steam_idle_suspend_seconds()),
+                         daemon=True).start()
+
+    def schedule_release(self, generation, seconds, attempt=0):
+        if generation == self.generation and self.pending is None:
+            self.release = GLib.timeout_add_seconds(seconds or 0, self.release_now, generation, attempt)
+        return False
+
+    def release_now(self, generation, attempt):
+        self.release = None
+
+        def work():
+            self.set_inhibit(False, generation)
+            if self.inhibited is not False and attempt < RELEASE_RETRIES:
+                GLib.idle_add(self.schedule_release, generation, 1 << attempt, attempt + 1)
+
+        threading.Thread(target=work, daemon=True).start()
         return False
 
     def changed(self, monitor, file, other, event):
@@ -178,8 +256,10 @@ class LoginManager:
 
     def woken(self):
         if self.pending is not None:
+            idle = self.pending_idle
             self.resume(force=True)
-            return
+            if not idle:
+                return
         threading.Thread(target=lambda: GLib.idle_add(self.replay_unless_awake, steam_asleep()), daemon=True).start()
 
     def replay_unless_awake(self, asleep):
@@ -195,14 +275,18 @@ class LoginManager:
                 self.notify(True)
                 self.bus.flush(None, self.finish_recovery, None)
             return
+        idle = self.pending_idle
         self.pending = None
+        self.pending_idle = False
         if self.preparation is not None:
             GLib.source_remove(self.preparation)
             self.preparation = None
         if self.timeout is not None:
             GLib.source_remove(self.timeout)
             self.timeout = None
-        self.notify(False)
+        if not idle:
+            self.notify(False)
+        self.release_later()
 
     def finish_recovery(self, connection, result, _data):
         try:
@@ -213,13 +297,26 @@ class LoginManager:
             self.notify(False)
 
 
-def steam_asleep():
+def agent(*args, timeout=ASLEEP_WAIT):
     try:
-        code = subprocess.run([str(AGENT), "--steam-asleep"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                              stderr=subprocess.DEVNULL, timeout=ASLEEP_WAIT).returncode
+        done = subprocess.run([str(AGENT), *args], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                              stderr=subprocess.DEVNULL, text=True, timeout=timeout)
     except (OSError, subprocess.SubprocessError):
-        return None
-    return {0: True, 5: False}.get(code)
+        return None, ""
+    return done.returncode, done.stdout
+
+
+def steam_asleep():
+    return {0: True, 5: False}.get(agent("--steam-asleep")[0])
+
+
+def steam_idle_inhibit(inhibit):
+    return agent("--steam-idle-inhibit", "on" if inhibit else "off", timeout=INHIBIT_WAIT)[0] == 0
+
+
+def steam_idle_suspend_seconds():
+    code, output = agent("--steam-idle-suspend-seconds")
+    return int(output) if code == 0 and output.strip().isdigit() else None
 
 
 def load_netmanager():
