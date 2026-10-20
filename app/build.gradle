@@ -84,9 +84,23 @@ def commitTime = (gitValue(['show', '-s', '--format=%ct', 'HEAD']) ?: '0').with 
 def desktopKde = rootProject.file('tools/desktop-kde/release.env').readLines()
     .findAll { it.contains('=') && !it.startsWith('#') }
     .collectEntries { def kv = it.split('=', 2); [(kv[0].trim()): kv[1].trim()] }
-def trackingPack = rootProject.file('tools/tracking-pack/release.env').readLines()
+def trackingPack = rootProject.file('tools/packs/tracking/release.env').readLines()
     .findAll { it.contains('=') && !it.startsWith('#') }
     .collectEntries { def kv = it.split('=', 2); [(kv[0].trim()): kv[1].trim()] }
+def addonPacks = ['tracking', 'xbox', 'comet'].collectEntries { name ->
+    def pack = file("build/packs/${name}.tar.zst")
+    if (!pack.isFile()) {
+        if (ciBuild) throw new GradleException("Add-on pack ${pack} is missing: run tools/packs/build.sh app/build/packs")
+        return [(name): [sha256: '', size: 0L]]
+    }
+    def digest = java.security.MessageDigest.getInstance('SHA-256')
+    pack.withInputStream { input ->
+        byte[] buffer = new byte[1 << 20]
+        int n
+        while ((n = input.read(buffer)) > 0) digest.update(buffer, 0, n)
+    }
+    [(name): [sha256: digest.digest().encodeHex().toString(), size: pack.length()]]
+}
 def desktopRemovalSources = new groovy.json.JsonSlurper().parse(file('src/main/assets/desktop-removal/sources.json'))
 if (desktopRemovalSources.archives[desktopKde.DESKTOP_KDE_TAG] != desktopKde.DESKTOP_KDE_SHA256) {
     throw new GradleException('Desktop removal inventories do not match the pinned archive')
@@ -122,10 +136,10 @@ android {
         buildConfigField "String", "DESKTOP_KDE_URL", "\"https://github.com/${desktopKde.DESKTOP_KDE_REPO}/releases/download/${desktopKde.DESKTOP_KDE_TAG}/desktop-kde.tar.zst\""
         buildConfigField "String", "DESKTOP_KDE_SHA256", "\"${desktopKde.DESKTOP_KDE_SHA256}\""
         buildConfigField "long", "DESKTOP_KDE_SIZE", "${desktopKde.DESKTOP_KDE_SIZE}L"
-        buildConfigField "String", "TRACKING_PACK_TAG", "\"${trackingPack.TRACKING_PACK_TAG}\""
-        buildConfigField "String", "TRACKING_PACK_URL", "\"https://github.com/${trackingPack.TRACKING_PACK_REPO}/releases/download/${trackingPack.TRACKING_PACK_TAG}/tracking-pack.tar.zst\""
-        buildConfigField "String", "TRACKING_PACK_SHA256", "\"${trackingPack.TRACKING_PACK_SHA256}\""
-        buildConfigField "long", "TRACKING_PACK_SIZE", "${trackingPack.TRACKING_PACK_SIZE}L"
+        addonPacks.each { name, pack ->
+            buildConfigField "String", "PACK_${name.toUpperCase()}_SHA256", "\"${pack.sha256}\""
+            buildConfigField "long", "PACK_${name.toUpperCase()}_SIZE", "${pack.size}L"
+        }
 
         ndk {
             abiFilters 'arm64-v8a'
@@ -179,6 +193,11 @@ android {
         disable 'ExpiredTargetSdkVersion'
     }
 
+    androidResources {
+        // aapt's default ignore list, plus the trees shipped as add-on packs (tools/packs).
+        ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:<dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:<dir>droiddeck-xbox:<dir>droiddeck-comet'
+    }
+
     packagingOptions {
         resources {
             excludes += ['META-INF/versions/9/OSGI-INF/MANIFEST.MF']
@@ -186,7 +205,7 @@ android {
         jniLibs {
             useLegacyPackaging = true
             pickFirsts += ['**/libtermux.so']
-            // Shipped in the tracking pack (tools/tracking-pack) and loaded from there.
+            // Shipped in the tracking pack (tools/packs) and loaded from there.
             excludes += ['**/libopencv_java4.so', '**/libmediapipe_tasks_jni.so']
         }
     }

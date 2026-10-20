@@ -3,8 +3,7 @@
 ## Included
 
 None of these files ship in the APK. The app downloads them on first use as one tracking pack
-(`tracking-pack.tar.zst` on the Droid-Deck/DroidDeck-Components release named in
-`tools/tracking-pack/release.env`), built by `tools/tracking-pack/build.sh` from the pinned sources
+(`tracking.tar.zst`), built in CI by `tools/packs/build.sh` from the pinned sources
 below, together with `libopencv_java4.so` and `libmediapipe_tasks_jni.so` taken unchanged from
 the OpenCV and MediaPipe Maven AARs.
 
@@ -36,7 +35,7 @@ the official `palm_detection_lite.tflite` and `hand_landmark_lite.tflite` assets
 `https://storage.googleapis.com/mediapipe-assets/`. It uses the matching tensor metadata and
 associated labels from the Full task bundle. These models share the MediaPipe hand tracking
 model card and Apache License 2.0. Source checksums and the generated bundle checksum are in
-`tools/tracking-pack/hand_landmarker_lite.provenance.json`; `tools/build_hand_lite.py`
+`tools/packs/tracking/hand_landmarker_lite.provenance.json`; `tools/build_hand_lite.py`
 reproduces the bundle with MediaPipe 0.10.21 metadata tooling.
 
 [CameraX](https://developer.android.com/jetpack/androidx/releases/camera) 1.4.2

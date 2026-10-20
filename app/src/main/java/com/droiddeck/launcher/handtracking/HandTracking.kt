@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.handtracking
 
+import com.droiddeck.launcher.core.AddonPack
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
@@ -42,7 +43,7 @@ internal object HandTracking {
             downloaded = TrackingPack.installed(context),
         )
         state.value = next
-        if (next.enabled && next.usable && !next.downloaded && TrackingPack.refresh(context) == TrackingPack.State.Missing)
+        if (next.enabled && next.usable && !next.downloaded && TrackingPack.refresh(context) == AddonPack.State.Missing)
             TrackingPack.ensure(context)
         return next
     }

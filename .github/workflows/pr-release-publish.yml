@@ -158,8 +158,19 @@ jobs:
     secrets: inherit
     if: ${{ needs.authorize.outputs.skip != 'true' }}
 
+  packs:
+    needs: authorize
+    if: ${{ needs.authorize.outputs.skip != 'true' }}
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/publish-packs.yml
+    with:
+      run_id: ${{ needs.authorize.outputs.run_id }}
+    secrets: inherit
+
   publish:
-    needs: [authorize, sign]
+    needs: [authorize, sign, packs]
     runs-on: ubuntu-24.04
     permissions:
       actions: read

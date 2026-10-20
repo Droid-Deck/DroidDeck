@@ -539,6 +539,9 @@ jobs:
           rustup target add --toolchain 1.90.0 aarch64-unknown-linux-gnu
           RUSTUP_TOOLCHAIN=1.90.0 bash tools/comet/build.sh
 
+      - name: Build the add-on packs
+        run: bash tools/packs/build.sh app/build/packs
+
       - name: Build
         id: build
         env:
@@ -638,6 +641,14 @@ jobs:
         with:
           name: droiddeck-apk
           path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: droiddeck-packs
+          path: app/build/packs/*.tar.zst
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
@@ -744,8 +755,17 @@ jobs:
       variants: ${{ needs.build.outputs.variants }}
     secrets: inherit
 
+  packs:
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/publish-packs.yml
+    secrets: inherit
+
   announce:
-    needs: [build, sign]
+    needs: [build, sign, packs]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10

@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import com.droiddeck.launcher.core.AddonPack
 import android.Manifest
 import android.content.Intent
 import android.net.Uri
@@ -200,9 +201,9 @@ private fun TrackingPackRow() {
     val pack by TrackingPack.state.collectAsState()
     val size = Formatter.formatShortFileSize(context, TrackingPack.size)
     when (val now = pack) {
-        is TrackingPack.State.Downloading -> ActionRow(stringResource(R.string.tracking_pack_title),
+        is AddonPack.State.Downloading -> ActionRow(stringResource(R.string.tracking_pack_title),
             stringResource(R.string.tracking_pack_hint, size), stringResource(R.string.tracking_pack_download), {}, progress = now.progress)
-        TrackingPack.State.Failed -> ActionRow(stringResource(R.string.tracking_pack_title),
+        AddonPack.State.Failed -> ActionRow(stringResource(R.string.tracking_pack_title),
             stringResource(R.string.tracking_pack_failed), stringResource(R.string.tracking_pack_retry), { TrackingPack.ensure(context) })
         else -> ActionRow(stringResource(R.string.tracking_pack_title),
             stringResource(R.string.tracking_pack_hint, size), stringResource(R.string.tracking_pack_download), { TrackingPack.ensure(context) })

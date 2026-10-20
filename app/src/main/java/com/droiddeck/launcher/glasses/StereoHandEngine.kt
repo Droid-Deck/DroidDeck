@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.glasses
 
+import com.droiddeck.launcher.core.AddonPack
 import android.content.Context
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.handtracking.TrackingPack
@@ -326,7 +327,7 @@ internal class StereoHandEngine(private val context: Context, private val token:
     }
     private fun loop() {
         val loaded=TrackingPack.awaitNative(context,{ running }) { state ->
-            if(state is TrackingPack.State.Downloading)
+            if(state is AddonPack.State.Downloading)
                 message=context.getString(R.string.tracking_pack_downloading,(state.progress*100).toInt())
         }
         if(!loaded) { if(running) message=context.getString(R.string.tracking_pack_failed);return }
