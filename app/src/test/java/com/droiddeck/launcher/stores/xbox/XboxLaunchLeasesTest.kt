@@ -9,19 +9,16 @@ class XboxLaunchLeasesTest {
     private val leases = XboxLaunchLeases { time }
     private var closed = 0
     private fun launch(account: String = "account", session: String = "session"): String {
-        leases.authorize("game", account)
         return leases.begin("game", account, session).also { leases.attach(it, Closeable { closed++ }) }
     }
     private fun reap(account: String? = "account", session: String? = "session", suspended: Boolean = false) {
         leases.stale(account, session, suspended).forEach { it.close() }
     }
 
-    @Test fun guestPreparationRequiresAnUnexpiredAccountPermit() {
-        assertThrows(IllegalStateException::class.java) { leases.begin("game", "account", "session") }
-        leases.authorize("game", "account")
-        assertThrows(IllegalStateException::class.java) { leases.begin("game", "other", "session") }
-        leases.authorize("game", "account")
-        time = 180_000
+    @Test fun steamLaunchCanCreateASessionBoundLease() {
+        val token = leases.begin("game", "account", "session")
+        assertTrue(leases.active("game"))
+        assertFalse(leases.renew(token, "game", "account", "other"))
         assertThrows(IllegalStateException::class.java) { leases.begin("game", "account", "session") }
     }
     @Test fun releaseIsIdempotentAndCannotDecrementANewLaunch() {
@@ -65,13 +62,15 @@ class XboxLaunchLeasesTest {
         assertEquals(1, closed)
         assertTrue(leases.active("game"))
     }
-    @Test fun lateBackendCannotAttachAfterStop() {
-        leases.authorize("game", "account")
+    @Test fun stopRemovesLeaseAndRejectsLateAttachment() {
         val token = leases.begin("game", "account", "session")
         leases.clear().forEach { it.close() }
         assertFalse(leases.attach(token, Closeable { closed++ }))
         assertFalse(leases.active("game"))
-        assertThrows(IllegalStateException::class.java) { leases.begin("game", "account", "session") }
+        val next = leases.begin("game", "account", "new-session")
+        assertTrue(leases.active("game"))
+        assertFalse(leases.attach(token, Closeable { closed++ }))
+        assertTrue(leases.attach(next, Closeable { closed++ }))
     }
     @Test fun suspensionKeepsLiveLeasesUntilResume() {
         val token = launch()

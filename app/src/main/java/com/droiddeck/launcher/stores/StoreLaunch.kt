@@ -83,10 +83,6 @@ object StoreLaunch {
     }
 
     fun prepare(context: Context, store: Store, id: String, onReady: () -> Unit) {
-        if (store == Store.XBOX && !com.droiddeck.launcher.stores.xbox.XboxRuntime.authorize(context, id)) {
-            StoresState.problems[Store.XBOX] = "Xbox account is unavailable. Sign in again and retry."
-            return
-        }
         if (store != Store.EPIC) { onReady(); return }
         val app = context.applicationContext
         Thread({

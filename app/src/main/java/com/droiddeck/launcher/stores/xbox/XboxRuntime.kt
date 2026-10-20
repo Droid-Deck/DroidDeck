@@ -16,13 +16,6 @@ internal object XboxRuntime {
     private val views = XboxLaunchViews()
     private val launches = XboxLaunchLeases { android.os.SystemClock.uptimeMillis() }
     fun isActive(id: String): Boolean = launches.active(id)
-    fun authorize(app: Context, id: String): Boolean = runCatching {
-        XboxCredentials.lifecycle(app) {
-            val account = StoreAccounts.signedInAs(app, Store.XBOX) ?: return@lifecycle false
-            launches.authorize(id, account)
-            true
-        }
-    }.getOrDefault(false)
     fun released(token: String) { runCatching { launches.release(token)?.close() } }
     fun renew(app: Context, id: String, token: String): Boolean = launches.renew(token, id,
         StoreAccounts.signedInAs(app, Store.XBOX), SessionState.sessionId.takeIf { SessionState.running })

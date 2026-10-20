@@ -4,16 +4,11 @@ import java.io.Closeable
 import java.util.UUID
 
 internal class XboxLaunchLeases(private val now: () -> Long) {
-    private data class Permit(val account: String, val expires: Long)
     private data class Lease(val id: String, val account: String, val session: String, var expires: Long, var child: Closeable? = null)
-    private val permits = HashMap<String, Permit>()
     private val leases = HashMap<String, Lease>()
 
-    @Synchronized fun authorize(id: String, account: String) { permits[id] = Permit(account, now() + 180_000) }
     @Synchronized fun active(id: String) = leases.values.any { it.id == id }
     @Synchronized fun begin(id: String, account: String, session: String): String {
-        val permit = permits.remove(id)
-        check(permit != null && permit.account == account && permit.expires > now()) { "Start this Xbox game from DroidDeck." }
         check(!active(id)) { "This Xbox game is already starting or running." }
         val token = UUID.randomUUID().toString()
         leases[token] = Lease(id, account, session, now() + 180_000)
@@ -38,7 +33,6 @@ internal class XboxLaunchLeases(private val now: () -> Long) {
         return expired.mapNotNull { leases.remove(it)?.child }
     }
     @Synchronized fun clear(): List<Closeable> {
-        permits.clear()
         return leases.values.mapNotNull { it.child }.also { leases.clear() }
     }
 }

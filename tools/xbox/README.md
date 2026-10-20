@@ -36,15 +36,15 @@ authentication checks the mapped backend image instead. A socket name alone gran
 copy of Xodus started by the guest.
 
 Licensed launch-view preparation runs in an Android-owned Xodus child, which
-never starts Wine or a game. An in-memory, single-use Play authorization is
-required before the guest can request preparation. The reply contains a random
-launch lease, a materialized executable path, a game-service socket and the
-existing PlayFab game token; it contains no account credential endpoint.
+never starts Wine or a game. Steam and DroidDeck launch paths can request
+preparation for an installed Xbox title during a live session with an Xbox
+account. The reply contains a random launch lease, a materialized executable
+path, a game-service socket and the existing PlayFab game token; it contains no
+account credential endpoint.
 Leases bind product, account and session, expire without heartbeats, and release
 idempotently. Cancellation, session stop and account changes revoke leases;
 closing the child's stdin lets it remove its private view. Suspension preserves
-live leases. Launch Xbox games through DroidDeck's Play action; an unsolicited
-launch from inside Steam has no Play authorization.
+live leases.
 The Proton initialization and game processes do not inherit the raw credential
 channel or command-file environment variables. The authenticated GDK bridge
 remains available to the game. Like the other stores, games share DroidDeck's

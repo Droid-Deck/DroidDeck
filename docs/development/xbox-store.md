@@ -32,9 +32,10 @@ not Xbox console emulation or UWP/APPX packages.
    of showing the "Steam picks the game up when it next starts" toast.
    A launch taking over 20 seconds should not produce a duplicate Steam launch
    or a "Game already running" dialog while licensing is still preparing it.
-   Steam/session startup uses the selected ARM64 Proton. Launch through
-   DroidDeck's Play action: it authorizes one account-bound preparation. Direct
-   Steam launches without that authorization fail with a retry-in-DroidDeck error.
+   Steam/session startup uses the selected ARM64 Proton. Launch the installed
+   Xbox game from either DroidDeck or Steam; both paths should prepare the same
+   account-bound game service and licensed view while keeping account credentials
+   inside the Android-owned backend.
    During preparation, opening the Xbox detail/content UI must remain responsive.
    Update / verify must report a problem if the game starts after its button was
    enabled, rather than crashing the app.
