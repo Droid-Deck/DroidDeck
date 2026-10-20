@@ -270,12 +270,6 @@ object StoresState {
             runCatching { CloudSaves.uploadAllDirty(app, "recovery") }
                 .onFailure { Log.w(TAG, "cloud save recovery failed", it) }
         }, "cloud-recovery").start()
-        Thread({
-            runCatching {
-                if (com.droiddeck.launcher.stores.gog.GogComet.enabled(app)) com.droiddeck.launcher.core.AddonPack.COMET.ensure(app)
-                if (StoreAccounts.signedInAs(app, Store.XBOX) != null) com.droiddeck.launcher.core.AddonPack.XBOX.ensure(app)
-            }.onFailure { Log.w(TAG, "add-on pack prefetch failed", it) }
-        }, "addon-packs").start()
     }
 
     internal fun post(block: () -> Unit) = main.post(block)
