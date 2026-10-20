@@ -128,7 +128,10 @@ def skip_red_launcher(command):
 
 def offline_without_anticheat(command, env):
     """Start the configured game executable when the player opts into launching without EAC."""
-    if env.get("DROIDDECK_ANTICHEAT_OFFLINE") != "1" or len(command) <= 2:
+    if (env.get("DROIDDECK_ANTICHEAT_OFFLINE") != "1" or len(command) <= 2
+            or command[1] != "waitforexitandrun"
+            or not re.fullmatch(r"start_protected_game(?:_?x64|_?64)?\.exe",
+                                os.path.basename(command[2]), re.IGNORECASE)):
         return command
     folder = os.path.dirname(command[2])
     try:
@@ -141,6 +144,10 @@ def offline_without_anticheat(command, env):
     relative = os.path.normpath(executable.replace("\\", "/"))
     game = os.path.join(folder, relative)
     if os.path.isabs(relative) or relative.startswith("..") or not os.path.isfile(game):
+        return command
+    # Resolve symlinks before accepting an executable inside the game directory.
+    root = os.path.realpath(folder)
+    if os.path.commonpath((root, os.path.realpath(game))) != root:
         return command
     if os.path.normcase(os.path.abspath(game)) == os.path.normcase(os.path.abspath(command[2])):
         return command

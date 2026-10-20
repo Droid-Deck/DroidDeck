@@ -219,8 +219,45 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual(offline(command, {"DROIDDECK_ANTICHEAT_OFFLINE": "1"}), command)
             (game / "EasyAntiCheat/settings.json").write_text('{ "executable" : "missing.exe" }')
             self.assertEqual(offline(command, {"DROIDDECK_ANTICHEAT_OFFLINE": "1"}), command)
-            plain = ["proton", "waitforexitandrun", str(Path(tmp) / "Other.exe")]
+            (game / "EasyAntiCheat/settings.json").write_text('{ "executable" : "link/escape.exe" }')
+            outside = Path(tmp) / "outside"
+            outside.mkdir()
+            (outside / "escape.exe").touch()
+            (game / "link").symlink_to(outside, target_is_directory=True)
+            self.assertEqual(offline(command, {"DROIDDECK_ANTICHEAT_OFFLINE": "1"}), command)
+            (game / "EasyAntiCheat/settings.json").write_text('{ "executable" : "eldenring.exe" }')
+            plain = ["proton", "waitforexitandrun", str(game / "eldenring.exe")]
             self.assertEqual(offline(plain, {"DROIDDECK_ANTICHEAT_OFFLINE": "1"}), plain)
+            self.assertEqual(offline(["proton", "run", command[2]],
+                                     {"DROIDDECK_ANTICHEAT_OFFLINE": "1"}),
+                             ["proton", "run", command[2]])
+
+    def test_easy_anti_cheat_forwarding_through_entrypoint(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            game = home / "ELDEN RING/Game"
+            (game / "EasyAntiCheat").mkdir(parents=True)
+            bootstrapper = game / "start_protected_game.exe"
+            target = game / "eldenring.exe"
+            bootstrapper.touch()
+            target.touch()
+            (game / "EasyAntiCheat/settings.json").write_text(json.dumps({"executable": "eldenring.exe"}))
+            proton = home / "fake-proton"
+            proton.write_text("#!" + sys.executable + "\nimport json, sys\nprint(json.dumps(sys.argv[1:]))\n")
+            proton.chmod(0o755)
+            config = home / ".config/droiddeck/game-environment.json"
+            config.parent.mkdir(parents=True)
+            env = dict(os.environ, HOME=tmp, STEAM_COMPAT_DATA_PATH="/compatdata/42")
+            env.pop("DROIDDECK_ANTICHEAT_OFFLINE", None)
+            for setting, expected in (("1", target), ("0", bootstrapper), (None, bootstrapper)):
+                with self.subTest(setting=setting):
+                    values = {} if setting is None else {"DROIDDECK_ANTICHEAT_OFFLINE": setting}
+                    config.write_text(json.dumps({"version": 1, "games": {"42": values}}))
+                    result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"),
+                                             str(proton), "waitforexitandrun", str(bootstrapper), "-arg"],
+                                            env=env, text=True, capture_output=True, check=True)
+                    self.assertEqual(json.loads(result.stdout.strip()),
+                                     ["waitforexitandrun", str(expected), "-arg"])
 
     def test_deep_rock_gdk_avoids_the_raytracing_pipeline_crash(self):
         game = "/game/FSD/Binaries/WinGDK/FSD-WinGDK-Shipping.exe"
