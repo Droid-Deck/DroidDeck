@@ -303,6 +303,9 @@ case $mode in
       taskset -cp "$cores" $$ >/dev/null 2>&1 || true
     fi
     python3 /usr/local/bin/droiddeck-pad-defaults 2>&1 || true
+    if [ -n "${GAMESCOPE_WAYLAND_DISPLAY:-}" ]; then
+      export WAYLAND_DISPLAY= XDG_SESSION_TYPE=x11
+    fi
     run_program() {
       local rc=0 child sig forwarded=0
       { trap - INT QUIT; exec "$@"; } <&0 &
