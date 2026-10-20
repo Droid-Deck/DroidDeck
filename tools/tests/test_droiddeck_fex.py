@@ -45,6 +45,8 @@ class FexTestCase(unittest.TestCase):
             "WANTED": str(self.home / ".config/droiddeck/fex-wanted"),
             "PRELOADS": str(self.tmp / "preloads"),
             "HOST_PRELOAD": str(self.tmp / "ld.so.preload"),
+            "DEVICE_FONTS": str(self.tmp / "android-fonts"),
+            "FONT_RULES": str(self.tmp / "66-droiddeck-device-fonts.conf"),
         }
         patcher = mock.patch.dict(G, patches)
         patcher.start()
@@ -127,6 +129,9 @@ class FexTestCase(unittest.TestCase):
         self.write(provided / "gconv/NEW.so", b"new gconv")
         self.write(platform / "files/lib/i386-linux-gnu/libc.so.6", b"GLIBC_2.41")
         self.write(platform / "files/lib/i386-linux-gnu/ld-linux.so.2", b"new ld32")
+        for arch in ("x86_64", "i386"):
+            for name in ("libssl.so.3", "libcrypto.so.3"):
+                self.write(platform / "files/lib" / (arch + "-linux-gnu") / name, arch.encode() + name.encode())
         with gzip.open(platform / "usr-mtree.txt.gz", "wt") as out:
             out.write("#mtree\n. type=dir\n")
         self.write(self.steam / "steamapps/appmanifest_4183110.acf", '"AppState" { "installdir" "SteamLinuxRuntime_4" }')
@@ -261,6 +266,21 @@ class PrepareTest(FexTestCase):
         self.assertEqual((root / "lib/i386-linux-gnu/droiddeck/libfaultreport.so").read_bytes(), b"report32")
         self.assertEqual((root / "etc/ld.so.preload").read_text(), "/usr/$LIB/droiddeck/libfaultreport.so\n")
 
+    def test_device_fonts_reach_the_x86_runtime(self):
+        root = self.tmp / "root"
+        conf = root / str(self.tmp / "66-droiddeck-device-fonts.conf").lstrip("/")
+        rules = '<?xml version="1.0"?><fontconfig>\n<match target="pattern"></match>\n</fontconfig>\n'
+        self.write(self.tmp / "66-droiddeck-device-fonts.conf", rules)
+        FEX["install_fonts"](str(root))
+        self.assertFalse(conf.exists())
+        (self.tmp / "android-fonts").mkdir()
+        FEX["install_fonts"](str(root))
+        self.assertEqual(conf.read_text(), '<?xml version="1.0"?><fontconfig>\n<dir>%s</dir>\n<match target="pattern"></match>\n</fontconfig>\n'
+                         % (self.tmp / "android-fonts"))
+        (self.tmp / "66-droiddeck-device-fonts.conf").unlink()
+        FEX["install_fonts"](str(root))
+        self.assertFalse(conf.exists())
+
     def test_config_turns_thunks_on_only_when_complete(self):
         FEX["write_config"]({"host_thunks": "/h", "guest_thunks": "/g", "thunks_db": "/db"}, "/root")
         config = json.loads((self.home / ".local/share/droiddeck-fex/config/Config.json").read_text())
@@ -333,6 +353,10 @@ class PrepareTest(FexTestCase):
         self.assertEqual((x86 / "ld-linux-x86-64.so.2").read_bytes(), b"new ld")
         self.assertEqual((x86 / "gconv/NEW.so").read_bytes(), b"new gconv")
         self.assertEqual((root / "lib/i386-linux-gnu/libc.so.6").read_bytes(), b"GLIBC_2.41")
+        self.assertEqual((x86 / "libssl.so.3").read_bytes(), b"x86_64libssl.so.3")
+        self.assertEqual((x86 / "libcrypto.so.3").read_bytes(), b"x86_64libcrypto.so.3")
+        self.assertEqual((root / "lib/i386-linux-gnu/libssl.so.3").read_bytes(), b"i386libssl.so.3")
+        self.assertEqual((root / "lib/i386-linux-gnu/libcrypto.so.3").read_bytes(), b"i386libcrypto.so.3")
         self.assertEqual((x86 / "libSDL2-2.0.so.0").read_bytes(), b"sdl")
         self.assertEqual(os.readlink(x86 / "libfoo.so.1"), "libfoo.so.1.2")
         self.assertEqual((x86 / "libfoo.so.1").read_bytes(), b"foo")

@@ -67,6 +67,22 @@ fun ConfirmDialog(title: String, text: String, confirm: String, onConfirm: () ->
 }
 
 @Composable
+fun RuntimeActionsDialog(onRepair: () -> Unit, onRemove: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.runtime_actions_title)) },
+        text = { Text(stringResource(R.string.runtime_actions_text)) },
+        confirmButton = { TextButton(onClick = onRepair) { Text(stringResource(R.string.runtime_repair)) } },
+        dismissButton = {
+            Row {
+                TextButton(onClick = onRemove) { Text(stringResource(R.string.store_remove)) }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
+            }
+        },
+    )
+}
+
+@Composable
 fun ResetSettingsDialog(onConfirm: (gameProfiles: Boolean) -> Unit, onDismiss: () -> Unit) {
     var gameProfiles by remember { mutableStateOf(false) }
     AlertDialog(

@@ -318,6 +318,7 @@ dependencies {
     implementation 'com.termux.termux-app:terminal-view:0.118.0'
     implementation 'androidx.camera:camera-camera2:1.4.2'
     implementation 'androidx.camera:camera-lifecycle:1.4.2'
+    implementation 'androidx.webkit:webkit:1.12.1'
     implementation('com.google.mediapipe:tasks-vision:1.0.0') {
         exclude group: 'com.google.auto.value', module: 'auto-value'
     }

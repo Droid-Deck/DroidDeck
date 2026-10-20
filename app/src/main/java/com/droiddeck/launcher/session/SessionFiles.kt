@@ -66,6 +66,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-desktop-bookmarks" to "usr/local/bin/droiddeck-desktop-bookmarks",
             "usr/local/bin/droiddeck-steam-shim" to "usr/local/bin/droiddeck-steam-shim",
             "usr/local/bin/droiddeck-steam-shortcuts" to "usr/local/bin/droiddeck-steam-shortcuts",
+            "usr/local/bin/droiddeck-xbox" to "usr/local/bin/droiddeck-xbox",
             "usr/local/bin/droiddeck-store-launch" to "usr/local/bin/droiddeck-store-launch",
             "usr/local/bin/droiddeck-epic" to "usr/local/bin/droiddeck-epic",
             "usr/local/bin/droiddeck-epic-steam" to "usr/local/bin/droiddeck-epic-steam",
@@ -133,7 +134,9 @@ object SessionFiles {
             "usr/local/bin/gamescope" to "usr/local/bin/gamescope",
             "usr/local/lib/droiddeck/uruntime" to "usr/local/lib/droiddeck/uruntime",
             "usr/local/share/licenses/uruntime/LICENSE" to "usr/local/share/licenses/uruntime/LICENSE",
-        ) + mangoapp + listOf("comet", "GalaxyCommunication.exe", "update-permissions.exe", "LICENSE", "version").map { "usr/local/lib/droiddeck-comet/$it" to "usr/local/lib/droiddeck-comet/$it" } + msitools.map { it to it } + vr + fexPreloads).filter { (asset, _) ->
+        ) + listOf("xodus-cli", "xodus-service", "LICENSE.xodus", "LICENSE.nexus", "LICENSE.LGPL-2.1", "LICENSE.nghttp2", "backend.lock.json", "runtime.lock.json", "version",
+            "windows/xgameruntime.dll", "windows/winhttp.dll", "windows/windows.web.dll", "windows/twinapi.appcore.dll", "windows/libnghttp2.dll")
+            .map { "usr/local/lib/droiddeck-xbox/$it" to "usr/local/lib/droiddeck-xbox/$it" } + mangoapp + listOf("comet", "GalaxyCommunication.exe", "update-permissions.exe", "LICENSE", "version").map { "usr/local/lib/droiddeck-comet/$it" to "usr/local/lib/droiddeck-comet/$it" } + msitools.map { it to it } + vr + fexPreloads).filter { (asset, _) ->
             val dir = asset.substringBeforeLast('/')
             runCatching { context.assets.list("linuxfs/$dir")?.contains(asset.substringAfterLast('/')) == true }.getOrDefault(false)
         }

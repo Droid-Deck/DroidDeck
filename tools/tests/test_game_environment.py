@@ -43,6 +43,17 @@ class ReadConfigMappingTest(unittest.TestCase):
 
 
 class GameEnvironmentTest(unittest.TestCase):
+    def test_optional_xbox_loader_failure_keeps_stock_launch(self):
+        from unittest.mock import patch
+        for error in (FileNotFoundError('missing'), RuntimeError('module initialization failed')):
+            calls = []
+            with patch.dict(os.environ, {}, clear=True), patch('sys.argv', ['droiddeck-game-env', '/stock', 'run']), \
+                 patch('runpy.run_path', side_effect=error), patch('os.execvpe', side_effect=lambda *args: calls.append(args)), \
+                 patch.dict(MODULE['main'].__globals__, load_sync=lambda: None, select_sync=lambda command, env, sync: (command, env)):
+                MODULE['main']()
+            self.assertEqual(calls[0][0:2], ('/stock', ['/stock', 'run']))
+
+
     def test_directaudio_capture_follows_the_session_microphone_setting(self):
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)
@@ -178,6 +189,17 @@ class GameEnvironmentTest(unittest.TestCase):
             other.mkdir()
             (other / "Other.exe").touch()
             self.assertEqual(MODULE["engine_fixes"](str(other / "Other.exe"), []), ({}, [], []))
+
+    def test_deep_rock_gdk_avoids_the_raytracing_pipeline_crash(self):
+        game = "/game/FSD/Binaries/WinGDK/FSD-WinGDK-Shipping.exe"
+        env, extra, notes = MODULE["engine_fixes"](game, [])
+        self.assertEqual(extra, ["-noraytracing", "-ini:Engine:[/Script/Engine.RendererSettings]:r.RayTracing=False"])
+        self.assertEqual(env, {})
+        self.assertTrue(notes)
+        for choice in ("-raytracing", "-noraytracing"):
+            self.assertEqual(MODULE["engine_fixes"](game, [choice]), ({}, [], []))
+        self.assertEqual(MODULE["engine_fixes"]("/game/FSD-Win64-Shipping.exe", []), ({}, [], []))
+        self.assertEqual(MODULE["engine_fixes"]("/game/Other-WinGDK-Shipping.exe", []), ({}, [], []))
 
     def test_arkham_city_gets_full_x87_precision_over_the_preset(self):
         with tempfile.TemporaryDirectory() as tmp:
