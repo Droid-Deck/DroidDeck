@@ -358,6 +358,12 @@ case $mode in
     esac
     ;;
   steam)
+    if [ -n "${GAMESCOPE_WAYLAND_DISPLAY:-}" ]; then
+      export WAYLAND_DISPLAY= XDG_SESSION_TYPE=x11
+    fi
+    export MOZ_DISABLE_CONTENT_SANDBOX=1 MOZ_DISABLE_GMP_SANDBOX=1 MOZ_DISABLE_RDD_SANDBOX=1
+    export MOZ_DISABLE_SOCKET_PROCESS_SANDBOX=1 MOZ_DISABLE_UTILITY_SANDBOX=1
+    export MOZ_SHM_NO_SEALS=1
     steam_x64=0
     [ "${BL_STEAM_CLIENT_ARCH:-}" = x86_64 ] && steam_x64=1
     steam_cef_gpu=1
