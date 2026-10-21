@@ -7,6 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+GAME_TU_DEBUG = "DROIDDECK_GAME_TU_DEBUG"
 SYNC_KEYS = ("BL_SYNC", "BL_SYNC_FALLBACK", "BL_FSYNC_FIRST", "BL_SYNC_MIN_NOFILE", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC", "PROTON_NO_NTSYNC", "WINEESYNC")
 SEED_REDISTS = "/usr/local/bin/droiddeck-seed-redists"
 PACK_KEYS = ("WINESERVER", "BL_SYNC_PACK", "WINEESYNC", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC")
@@ -99,6 +100,12 @@ def godot_sentry(game):
 
 
 @fix
+def deep_rock_gdk_raytracing(game):
+    if game.stem == "fsd-wingdk-shipping" and not any(game.has_arg(arg) for arg in ("-raytracing", "-noraytracing")):
+        return {}, ["-noraytracing", "-ini:Engine:[/Script/Engine.RendererSettings]:r.RayTracing=False"], "Deep Rock Galactic GDK: ray tracing off (D3D12 pipeline creation fails on Thor)"
+
+
+@fix
 def arkham_city_x87(game):
     """Batman: Arkham City (BatmanAC.exe, also started through BmLauncher.exe beside it) leans on x87
     and stops with Unreal's "Fatal error!" right after start when FEX reduces its precision."""
@@ -117,6 +124,35 @@ def skip_red_launcher(command):
             print("droiddeck-game-env: REDlauncher skipped", file=sys.stderr)
             return command[:2] + [game] + command[3:]
     return command
+
+
+def offline_without_anticheat(command, env):
+    """Start the configured game executable when the player opts into launching without EAC."""
+    if (env.get("DROIDDECK_ANTICHEAT_OFFLINE") != "1" or len(command) <= 2
+            or command[1] != "waitforexitandrun"
+            or not re.fullmatch(r"start_protected_game(?:_?x64|_?64)?\.exe",
+                                os.path.basename(command[2]), re.IGNORECASE)):
+        return command
+    folder = os.path.dirname(command[2])
+    try:
+        with open(os.path.join(folder, "EasyAntiCheat", "settings.json"), encoding="utf-8-sig") as source:
+            executable = json.load(source).get("executable")
+    except (OSError, ValueError, AttributeError):
+        return command
+    if not isinstance(executable, str) or not executable:
+        return command
+    relative = os.path.normpath(executable.replace("\\", "/"))
+    game = os.path.join(folder, relative)
+    if os.path.isabs(relative) or relative.startswith("..") or not os.path.isfile(game):
+        return command
+    # Resolve symlinks before accepting an executable inside the game directory.
+    root = os.path.realpath(folder)
+    if os.path.commonpath((root, os.path.realpath(game))) != root:
+        return command
+    if os.path.normcase(os.path.abspath(game)) == os.path.normcase(os.path.abspath(command[2])):
+        return command
+    print("droiddeck-game-env: started without Easy Anti-Cheat (offline only)", file=sys.stderr)
+    return command[:2] + [game] + command[3:]
 
 
 def engine_fixes(exe, args):
@@ -145,6 +181,18 @@ def win_components(compat, app_id):
     except Exception as error:
         print("droiddeck-game-env: Windows components not applied (%s)" % error, file=sys.stderr)
         return ""
+
+
+def game_gpu(env):
+    if GAME_TU_DEBUG not in env:
+        return env
+    result = env.copy()
+    value = result.pop(GAME_TU_DEBUG)
+    if value:
+        result["TU_DEBUG"] = value
+    else:
+        result.pop("TU_DEBUG", None)
+    return result
 
 
 def apply_config(env, config, app_id, fixes=None):
@@ -277,7 +325,7 @@ def main():
     command = sys.argv[1:]
     if not command:
         return 2
-    env = os.environ.copy()
+    env = game_gpu(os.environ.copy())
     mic_enabled = env.get("BL_MIC_ENABLED")
     mark_install_scripts(command, env)
     app_id = game_id(env)
@@ -307,9 +355,23 @@ def main():
                 env = apply_config(env, {"version": 1}, app_id, fixes)
         except (OSError, ValueError, TypeError, AttributeError):
             print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
+    if app_id and len(command) > 1 and command[1] == "waitforexitandrun":
+        command = offline_without_anticheat(command, env)
     if mic_enabled == "0":
         env["BANNER_AUDIO_DIRECT_MIC"] = "0"
     env = force_ssbs(command, env)
+    try:
+        xbox = runpy.run_path(str(Path(__file__).with_name("droiddeck-xbox")))
+    except Exception as error:
+        print("droiddeck-game-env: Xbox support unavailable (%s); stock launch" % error, file=sys.stderr)
+        xbox = {"launch": lambda command, env: None}
+    try:
+        xbox_result = xbox["launch"](command, env)
+    except (OSError, ValueError, KeyError, RuntimeError) as error:
+        print("droiddeck-game-env: Xbox launch could not start (%s)" % error, file=sys.stderr)
+        return 1
+    if xbox_result is not None:
+        return xbox_result
     sync = load_sync()
     launch, launch_env = select_sync(command, env, sync)
     if launch[0] != command[0]:

@@ -21,7 +21,8 @@ object SettingsReset {
         "noXalia", "fastSync", "fsyncFirst", "syncFallback", "prootNoSeccomp", "prootFastPath",
         "guestHostname", "fexPreset", "forceSsbs", "logs", "storageDiagnostics",
         "upscaler", "upscaleSharpness", "screenEffects", "textureAnisotropy", "textureLodBias",
-        "steamDownloadsInBackground", "steam_offline", "bootMovie", "bootMovieSound",
+        "steamDownloadsInBackground", "steam_offline", "bootMovie", "bootMovieSound", "bootMovieVolume", "bootMovieSeconds",
+        "bootMovieApplyNext", "bootMovieSteamSeen",
         "questDefaultsV1",
     )
 

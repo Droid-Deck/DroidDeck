@@ -243,6 +243,13 @@ bl_vacdiag() {
 """
 
 BL_DIRECTAUDIO_SETUP = """
+bl_is_steam_installscript_target() {
+  local target=${1:-}
+  local steam_root=${STEAM_COMPAT_CLIENT_INSTALL_PATH:-${XDG_DATA_HOME:-$HOME/.local/share}/Steam}
+  local helper="$steam_root/legacycompat/iscriptevaluator.exe"
+  [ -f "$helper" ] && [[ -n "$target" && "$target" -ef "$helper" ]]
+}
+
 bl_directaudio() {
   case "${verb:-}" in
     run|waitforexitandrun|runinprefix) ;;
@@ -251,6 +258,10 @@ bl_directaudio() {
   base=$1
   [ -n "${BL_DIRECTAUDIO:-}" ] || return 0
   [ -d "$BL_DIRECTAUDIO" ] || return 0
+  if bl_is_steam_installscript_target "${2:-}"; then
+    echo "droiddeck-proton: DirectAudio skipped for Steam's install-script evaluator" >&2
+    return 0
+  fi
   version=$("$base/files/bin-arm64/wine" --version 2>/dev/null)
   major=${version#wine-}
   major=${major%%.*}
@@ -338,7 +349,7 @@ for name in %s; do
 done
 if [ -n "$depot" ]; then
   bl_components "$depot"
-  bl_directaudio "$depot"
+  bl_directaudio "$depot" "$@"
   bl_game_cpus
   bl_idtech3 "$@"
   bl_vacdiag "$@"
@@ -393,7 +404,7 @@ if [ -n "${PROOT_FP_KEY:-}" ] && [ -f "$audit" ]; then
   esac
 fi
 bl_components "$here"
-bl_directaudio "$here"
+bl_directaudio "$here" "$@"
 bl_game_cpus
 bl_idtech3 "$@"
 bl_vacdiag "$@"
@@ -901,24 +912,33 @@ def fex_wanted_marker():
     return os.path.join(os.environ.get("HOME", "/root"), ".config", "droiddeck", "fex-wanted")
 
 
-def request_fex(steam_root, asked):
+def request_app(steam_root, app):
     import subprocess
+    client = os.path.join(steam_root, "steamrtarm64", "steam")
+    if not os.access(client, os.X_OK):
+        return []
+    try:
+        process = subprocess.Popen([client, "steam://install/%s" % app], stdout=subprocess.DEVNULL,
+                                   stderr=subprocess.DEVNULL, start_new_session=True)
+    except OSError:
+        return []
+    try:
+        process.wait(timeout=REQUEST_HANDOFF_SECONDS)
+    except subprocess.TimeoutExpired:
+        pass
+    return [app]
+
+
+def request_fex(steam_root, asked):
     client = os.path.join(steam_root, "steamrtarm64", "steam")
     missing = fex_missing(steam_root)
     if not os.access(client, os.X_OK) or any(app in asked for app in missing):
         return []
     for app in missing:
         asked.add(app)
-        try:
-            process = subprocess.Popen([client, "steam://install/%s" % app], stdout=subprocess.DEVNULL,
-                                       stderr=subprocess.DEVNULL, start_new_session=True)
-        except OSError:
-            continue
-        try:
-            process.wait(timeout=REQUEST_HANDOFF_SECONDS)
-        except subprocess.TimeoutExpired:
-            pass
-        return [app]
+        requested = request_app(steam_root, app)
+        if requested:
+            return requested
     return []
 
 

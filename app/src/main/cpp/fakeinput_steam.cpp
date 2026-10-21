@@ -21,6 +21,9 @@
 
 #include <dirent.h>
 #include <dlfcn.h>
+#ifdef __GLIBC__
+#include <gnu/lib-names.h>
+#endif
 #include <fcntl.h>
 #include <linux/input.h>
 #include <linux/joystick.h>
@@ -3577,7 +3580,21 @@ EXPORT int close(int fd) {
 static constexpr int kMaxRingWaitMs = 2;
 static constexpr int kLowLatencyRingWaitUs = 250;
 
-EXPORT ssize_t read(int fd, void *buf, size_t count) {
+static ssize_t copy_input_events(void *buf, const struct input_event *events, size_t count) {
+  size_t bytes = count * sizeof(struct input_event);
+  struct iovec local = {const_cast<struct input_event *>(events), bytes};
+  struct iovec remote = {buf, bytes};
+  ssize_t copied = syscall(SYS_process_vm_writev, getpid(), &local, 1, &remote, 1, 0);
+  if (copied < 0) return -1;
+  if (copied != static_cast<ssize_t>(bytes)) {
+    errno = EFAULT;
+    copied -= copied % sizeof(struct input_event);
+    if (!copied) return -1;
+  }
+  return copied;
+}
+
+static ssize_t read_input(int fd, void *buf, size_t count) {
   if (!watched(fd)) return syscall(SYS_read, fd, buf, count);
   std::unique_lock<std::recursive_mutex> guard(controller_mutex());
   auto controller = controller_map().find(fd);
@@ -3622,42 +3639,44 @@ EXPORT ssize_t read(int fd, void *buf, size_t count) {
           if (events == 0) break;
           const uint8_t *ring_events = reinterpret_cast<const uint8_t *>(fake.ring) +
                                        FAKE_INPUT_RING_HEADER_SIZE;
+          std::vector<struct input_event> input_events(events);
           for (size_t i = 0; i < events; ++i) {
             size_t index = (fake.read_seq + i) % FAKE_INPUT_RING_CAPACITY;
             RingEvent stored;
             memcpy(&stored, ring_events + index * FAKE_INPUT_EVENT_SIZE, FAKE_INPUT_EVENT_SIZE);
-            struct input_event ev = {};
+            struct input_event &ev = input_events[i];
             ev.time.tv_sec = stored.sec;
             ev.time.tv_usec = stored.usec;
             ev.type = stored.type;
             ev.code = stored.code;
             ev.value = stored.value;
             if (ev.type == EV_ABS) ev.code = presented_abs_code(fake, ev.code);
-            memcpy(static_cast<uint8_t *>(buf) + i * sizeof(ev), &ev, sizeof(ev));
           }
           __atomic_thread_fence(__ATOMIC_ACQUIRE);
           if (snap.sequence != __atomic_load_n(&fake.ring->snapshot_seq, __ATOMIC_RELAXED))
             continue;
-          fake.read_seq += events;
-          return static_cast<ssize_t>(events * sizeof(struct input_event));
+          ssize_t copied = copy_input_events(buf, input_events.data(), events);
+          if (copied > 0) fake.read_seq += copied / sizeof(struct input_event);
+          return copied;
         }
       }
 
       size_t events = std::min(requested, fake.keyframe_remaining);
+      struct input_event input_events[kNeutralEventCount] = {};
       struct timeval now = {};
       gettimeofday(&now, nullptr);
       for (size_t i = 0; i < events; ++i) {
-        size_t index = kNeutralEventCount - fake.keyframe_remaining;
-        struct input_event ev = {};
+        size_t index = kNeutralEventCount - fake.keyframe_remaining + i;
+        struct input_event &ev = input_events[i];
         ev.time = now;
         ev.type = kNeutralEvents[index].type;
         ev.code = kNeutralEvents[index].code;
         ev.value = keyframe_value(fake, ev.type, ev.code);
         if (ev.type == EV_ABS) ev.code = presented_abs_code(fake, ev.code);
-        memcpy(static_cast<uint8_t *>(buf) + i * sizeof(ev), &ev, sizeof(ev));
-        --fake.keyframe_remaining;
       }
-      return static_cast<ssize_t>(events * sizeof(struct input_event));
+      ssize_t copied = copy_input_events(buf, input_events, events);
+      if (copied > 0) fake.keyframe_remaining -= copied / sizeof(struct input_event);
+      return copied;
     }
     if (nonblock) {
       errno = EAGAIN;
@@ -3671,6 +3690,52 @@ EXPORT ssize_t read(int fd, void *buf, size_t count) {
     if (low_latency(LATENCY_CONTROLLER)) backoff_ns = kLowLatencyRingWaitUs * 1000;
     else if (backoff_ns < kMaxRingWaitMs * 1000 * 1000) backoff_ns *= 2;
   }
+}
+
+EXPORT ssize_t read(int fd, void *buf, size_t count) {
+  return read_input(fd, buf, count);
+}
+
+EXPORT ssize_t readv(int fd, const struct iovec *iov, int iovcnt) {
+  if (!is_fake_input_fd(fd)) return syscall(SYS_readv, fd, iov, iovcnt);
+  if (iovcnt < 0 || iovcnt > IOV_MAX) {
+    errno = EINVAL;
+    return -1;
+  }
+  if (iovcnt && !iov) {
+    errno = EFAULT;
+    return -1;
+  }
+  std::vector<struct iovec> copied_iov(static_cast<size_t>(iovcnt));
+  if (iovcnt) {
+    size_t bytes = copied_iov.size() * sizeof(struct iovec);
+    struct iovec local = {copied_iov.data(), bytes};
+    struct iovec remote = {const_cast<struct iovec *>(iov), bytes};
+    ssize_t copied = syscall(SYS_process_vm_readv, getpid(), &local, 1, &remote, 1, 0);
+    if (copied != static_cast<ssize_t>(bytes)) {
+      errno = EFAULT;
+      return -1;
+    }
+  }
+  iov = copied_iov.data();
+  size_t size = 0;
+  for (int i = 0; i < iovcnt; ++i) {
+    if (iov[i].iov_len > static_cast<size_t>(SSIZE_MAX) - size) {
+      errno = EINVAL;
+      return -1;
+    }
+    size += iov[i].iov_len;
+  }
+
+  ssize_t total = 0;
+  for (int i = 0; i < iovcnt; ++i) {
+    if (!iov[i].iov_len) continue;
+    ssize_t got = read_input(fd, iov[i].iov_base, iov[i].iov_len);
+    if (got < 0) return total ? total : -1;
+    total += got;
+    if (static_cast<size_t>(got) != iov[i].iov_len) break;
+  }
+  return total;
 }
 
 EXPORT ssize_t write(int fd, const void *buf, size_t count) {
@@ -4103,4 +4168,92 @@ EXPORT int __fxstat64(int version, int fd, struct stat64 *buf) {
   if (!real) return fstat64(fd, buf);
   return fake_stat_fd(fd, buf, [version](int f, struct stat64 *b) { return real(version, f, b); });
 }
+
+#if defined(__x86_64__) || defined(__i386__)
+using dlsym_fn = void *(*)(void *, const char *);
+
+static const char *const interposed_names[] = {
+    "open", "open64", "openat", "openat64", "close", "read", "readv", "write", "writev", "ioctl",
+    "poll", "ppoll", "select", "stat", "stat64", "fstat", "fstat64", "__xstat", "__xstat64",
+    "__fxstat", "__fxstat64", "statx", "statfs", "statfs64", "fstatfs", "fstatfs64", "access",
+    "faccessat", "opendir", "scandir", "inotify_add_watch",
+};
+
+static dlsym_fn next_dlsym() {
+  static const dlsym_fn fn = [] {
+#ifdef __x86_64__
+    const char *base = "GLIBC_2.2.5";
+#else
+    const char *base = "GLIBC_2.0";
+#endif
+    for (const char *version : {base, "GLIBC_2.34"}) {
+      if (auto found = reinterpret_cast<dlsym_fn>(dlvsym(RTLD_NEXT, "dlsym", version))) return found;
+    }
+    return dlsym_fn{};
+  }();
+  return fn;
+}
+
+static void *global_dlsym(void *, const char *name) { return next_dlsym()(RTLD_DEFAULT, name); }
+
+static void *missing_dlsym(void *, const char *) { return nullptr; }
+
+static bool interposed(const char *name) {
+  for (const char *interposed_name : interposed_names) {
+    if (strcmp(interposed_name, name) == 0) return true;
+  }
+  return false;
+}
+
+extern "C" __attribute__((visibility("hidden"), used)) void *fakeinput_dlsym_target(void *handle, const char *name) {
+  dlsym_fn next = next_dlsym();
+  if (!next) return reinterpret_cast<void *>(missing_dlsym);
+  if (handle == RTLD_DEFAULT || handle == RTLD_NEXT || name == nullptr) return reinterpret_cast<void *>(next);
+  static void *const libc = dlopen(LIBC_SO, RTLD_LAZY | RTLD_NOLOAD);
+  if (handle != libc || !interposed(name)) return reinterpret_cast<void *>(next);
+  return reinterpret_cast<void *>(global_dlsym);
+}
+
+#ifdef __x86_64__
+__asm__(".text\n"
+        ".globl dlsym\n"
+        ".type dlsym, @function\n"
+        "dlsym:\n"
+        ".cfi_startproc\n"
+        "pushq %rdi\n"
+        ".cfi_adjust_cfa_offset 8\n"
+        "pushq %rsi\n"
+        ".cfi_adjust_cfa_offset 8\n"
+        "subq $8, %rsp\n"
+        ".cfi_adjust_cfa_offset 8\n"
+        "call fakeinput_dlsym_target\n"
+        "addq $8, %rsp\n"
+        ".cfi_adjust_cfa_offset -8\n"
+        "popq %rsi\n"
+        ".cfi_adjust_cfa_offset -8\n"
+        "popq %rdi\n"
+        ".cfi_adjust_cfa_offset -8\n"
+        "jmp *%rax\n"
+        ".cfi_endproc\n"
+        ".size dlsym, .-dlsym\n");
+#else
+__asm__(".text\n"
+        ".globl dlsym\n"
+        ".type dlsym, @function\n"
+        "dlsym:\n"
+        ".cfi_startproc\n"
+        "subl $12, %esp\n"
+        ".cfi_adjust_cfa_offset 12\n"
+        "movl 20(%esp), %eax\n"
+        "movl %eax, 4(%esp)\n"
+        "movl 16(%esp), %eax\n"
+        "movl %eax, (%esp)\n"
+        "call fakeinput_dlsym_target\n"
+        "addl $12, %esp\n"
+        ".cfi_adjust_cfa_offset -12\n"
+        "jmp *%eax\n"
+        ".cfi_endproc\n"
+        ".size dlsym, .-dlsym\n");
+#endif
+#endif
 #endif

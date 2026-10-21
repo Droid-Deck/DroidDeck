@@ -328,8 +328,8 @@ Neither stabilization nor prediction refreshes camera timestamps or creates gest
 
 Each session writes `events.jsonl` beside its other artifacts: the lifecycle (`session.created`,
 `compositor.started`, `guest.exited`, ...) plus `agent.ready` (the guest agent is up),
-`focus.changed` (the focused app, focusable apps or base-layer order changed) and
-`agent.launch_requested`.
+`focus.changed` (the focused app, focusable apps or base-layer order changed),
+`keyboard.changed` (Steam's on-screen keyboard opened or closed) and `agent.launch_requested`.
 
 ## UI test tags
 
