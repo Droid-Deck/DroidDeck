@@ -101,6 +101,17 @@ class GameEnvironmentTest(unittest.TestCase):
         self.assertEqual(env["REMOVE"], "inherited")
         self.assertEqual(MODULE["apply_config"](env, config, "43")["CUSTOM"], "shared")
 
+    def test_games_get_their_own_turnip_debug_and_a_game_profile_still_wins(self):
+        gpu = MODULE["game_gpu"]
+        self.assertEqual(gpu({"TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": "", "KEEP": "1"}), {"KEEP": "1"})
+        self.assertEqual(gpu({"TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": "sysmem"}), {"TU_DEBUG": "sysmem"})
+        self.assertEqual(gpu({"DROIDDECK_GAME_TU_DEBUG": "nolrz"}), {"TU_DEBUG": "nolrz"})
+        self.assertEqual(gpu({"TU_DEBUG": "sysmem"}), {"TU_DEBUG": "sysmem"})
+        config = {"version": 1, "games": {"42": {"TU_DEBUG": "sysmem"}}}
+        env = gpu({"TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": ""})
+        self.assertEqual(MODULE["apply_config"](env, config, "42")["TU_DEBUG"], "sysmem")
+        self.assertNotIn("TU_DEBUG", MODULE["apply_config"](env, config, "43"))
+
     def test_a_games_wine_sync_choice_also_reaches_its_setup_runs(self):
         env = {"BL_SYNC": "1", "BL_SYNC_FALLBACK": "1", "BL_FSYNC_FIRST": "0", "OTHER": "kept"}
         config = {"version": 1, "games": {"42": {"BL_SYNC": "0", "BL_FSYNC_FIRST": "1", "PROTON_NO_ESYNC": "1", "FEX_TSOENABLED": "1"}}}
@@ -189,6 +200,64 @@ class GameEnvironmentTest(unittest.TestCase):
             other.mkdir()
             (other / "Other.exe").touch()
             self.assertEqual(MODULE["engine_fixes"](str(other / "Other.exe"), []), ({}, [], []))
+
+    def test_easy_anti_cheat_games_start_offline_only_when_opted_in(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            game = Path(tmp) / "ELDEN RING/Game"
+            (game / "EasyAntiCheat").mkdir(parents=True)
+            for name in ("start_protected_game.exe", "eldenring.exe"):
+                (game / name).touch()
+            (game / "EasyAntiCheat/settings.json").write_text('\ufeff{ "executable" : "eldenring.exe" }', encoding="utf-8")
+            command = ["proton", "waitforexitandrun", str(game / "start_protected_game.exe"), "-arg"]
+            offline = MODULE["offline_without_anticheat"]
+            self.assertEqual(offline(command, {}), command)
+            self.assertEqual(offline(command, {"DROIDDECK_ANTICHEAT_OFFLINE": "0"}), command)
+            self.assertEqual(offline(command, {"DROIDDECK_ANTICHEAT_OFFLINE": "1"}),
+                             ["proton", "waitforexitandrun", str(game / "eldenring.exe"), "-arg"])
+            (game / "EasyAntiCheat/settings.json").write_text('{ "executable" : "../../escape.exe" }')
+            (Path(tmp) / "escape.exe").touch()
+            self.assertEqual(offline(command, {"DROIDDECK_ANTICHEAT_OFFLINE": "1"}), command)
+            (game / "EasyAntiCheat/settings.json").write_text('{ "executable" : "missing.exe" }')
+            self.assertEqual(offline(command, {"DROIDDECK_ANTICHEAT_OFFLINE": "1"}), command)
+            (game / "EasyAntiCheat/settings.json").write_text('{ "executable" : "link/escape.exe" }')
+            outside = Path(tmp) / "outside"
+            outside.mkdir()
+            (outside / "escape.exe").touch()
+            (game / "link").symlink_to(outside, target_is_directory=True)
+            self.assertEqual(offline(command, {"DROIDDECK_ANTICHEAT_OFFLINE": "1"}), command)
+            (game / "EasyAntiCheat/settings.json").write_text('{ "executable" : "eldenring.exe" }')
+            plain = ["proton", "waitforexitandrun", str(game / "eldenring.exe")]
+            self.assertEqual(offline(plain, {"DROIDDECK_ANTICHEAT_OFFLINE": "1"}), plain)
+            self.assertEqual(offline(["proton", "run", command[2]],
+                                     {"DROIDDECK_ANTICHEAT_OFFLINE": "1"}),
+                             ["proton", "run", command[2]])
+
+    def test_easy_anti_cheat_forwarding_through_entrypoint(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            game = home / "ELDEN RING/Game"
+            (game / "EasyAntiCheat").mkdir(parents=True)
+            bootstrapper = game / "start_protected_game.exe"
+            target = game / "eldenring.exe"
+            bootstrapper.touch()
+            target.touch()
+            (game / "EasyAntiCheat/settings.json").write_text(json.dumps({"executable": "eldenring.exe"}))
+            proton = home / "fake-proton"
+            proton.write_text("#!" + sys.executable + "\nimport json, sys\nprint(json.dumps(sys.argv[1:]))\n")
+            proton.chmod(0o755)
+            config = home / ".config/droiddeck/game-environment.json"
+            config.parent.mkdir(parents=True)
+            env = dict(os.environ, HOME=tmp, STEAM_COMPAT_DATA_PATH="/compatdata/42")
+            env.pop("DROIDDECK_ANTICHEAT_OFFLINE", None)
+            for setting, expected in (("1", target), ("0", bootstrapper), (None, bootstrapper)):
+                with self.subTest(setting=setting):
+                    values = {} if setting is None else {"DROIDDECK_ANTICHEAT_OFFLINE": setting}
+                    config.write_text(json.dumps({"version": 1, "games": {"42": values}}))
+                    result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"),
+                                             str(proton), "waitforexitandrun", str(bootstrapper), "-arg"],
+                                            env=env, text=True, capture_output=True, check=True)
+                    self.assertEqual(json.loads(result.stdout.strip()),
+                                     ["waitforexitandrun", str(expected), "-arg"])
 
     def test_deep_rock_gdk_avoids_the_raytracing_pipeline_crash(self):
         game = "/game/FSD/Binaries/WinGDK/FSD-WinGDK-Shipping.exe"

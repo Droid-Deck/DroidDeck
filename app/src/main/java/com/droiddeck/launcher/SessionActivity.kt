@@ -623,6 +623,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 onDispose { com.droiddeck.launcher.glasses.GlassesMenuMirror.setSessionMenuVisible(this@SessionActivity, false) }
             }
             androidx.compose.runtime.LaunchedEffect(drawerOpen, pcKeyboardOpen, achievementsOpen, pipUi) { updatePointerCapture() }
+            androidx.compose.runtime.LaunchedEffect(AgentGuest.steamKeyboard) { updateOnScreenControls() }
             androidx.compose.runtime.LaunchedEffect(picturePosition, SessionState.running, pipUi, cardboard.enabled) { applyGameAlignment() }
             DroidDeckTheme {
             if (pipUi) {
@@ -635,7 +636,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 }
             } else {
             com.droiddeck.launcher.ui.FocusGlideHost(androidx.compose.ui.Modifier.fillMaxSize()) {
-                CursorOverlay(cursorPos, cursorVisible, resources.displayMetrics.density,
+                CursorOverlay({ cursorPos }, cursorVisible, resources.displayMetrics.density,
                     cursorImage, cursorHotX, cursorHotY, cursorImageScale)
                 if (hud.text.isNotEmpty()) HudText(hud.text)
                 if (glassesOutputActive && !loading.visible) com.droiddeck.launcher.ui.GlassesPlayingHint(glasses.model)
@@ -735,7 +736,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     achievementsInFront = found
                     if (found == null) achievementsOpen = false
                 }
-                androidx.compose.runtime.LaunchedEffect(pcKeyboardOpen) { if (pcKeyboardOpen) releasePads() }
+                androidx.compose.runtime.LaunchedEffect(pcKeyboardOpen) { if (pcKeyboardOpen) releasePads(); updateOnScreenControls() }
                 LaunchedEffect(pcKeyboardOpen, drawerOpen, achievementsOpen) {
                     if (pcKeyboardOpen || drawerOpen || achievementsOpen) padMouse.reset()
                 }
@@ -834,6 +835,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         SessionPrefs.setSteamController(this@SessionActivity, id)
                         com.droiddeck.launcher.session.SteamDeckPad.showPad(SessionPrefs.padType(id))
                         com.droiddeck.launcher.input.FakeInputWriter.setPadType(SessionPrefs.padType(id))
+                        com.droiddeck.launcher.session.InputSysfsComponent.padTypeChanged(SessionPrefs.padType(id))
                         padType = id
                     },
                     backActionsInverted = backActionsInverted,
@@ -1601,6 +1603,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 intent.getStringExtra(SessionService.EXTRA_STEAM_UI),
                 intent.getStringExtra(SessionService.EXTRA_STEAM_URL),
                 intent.getStringArrayExtra(SessionService.EXTRA_PROGRAM_ARGS),
+                shownOnDisplayId,
             )
         }
         applyFrameGen()
@@ -1651,6 +1654,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
+        if (started) SessionService.setActivityDisplay(this, shownOnDisplayId)
         cancelTouchGestures()
         applyFollowOrientation(newConfig)
         applyUnfoldedControls()
@@ -1875,17 +1879,22 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             var enosys = 0
             var fexMissing = false
             val size = log.length()
-            java.io.RandomAccessFile(log, "r").use { f ->
+            val text = java.io.RandomAccessFile(log, "r").use { f ->
                 val start = maxOf(0L, size - 512L * 1024)
                 f.seek(start)
                 val bytes = ByteArray((size - start).toInt())
                 f.readFully(bytes)
-                String(bytes, Charsets.ISO_8859_1).lineSequence().forEach { line ->
-                    if (line.contains("Function not implemented")) enosys++
-                    if (line.contains(FEX_MISSING)) fexMissing = true
-                }
+                String(bytes, Charsets.ISO_8859_1)
             }
-            if (fexMissing) {
+            text.lineSequence().forEach { line ->
+                if (line.contains("Function not implemented")) enosys++
+                if (line.contains(FEX_MISSING)) fexMissing = true
+            }
+            val steamSetup = com.droiddeck.launcher.session.SteamClientSetupFailure.find(text.lineSequence())
+            if (steamSetup != null) {
+                val message = getString(if (steamSetup.download) R.string.session_end_steam_download else R.string.session_end_steam_setup)
+                EndHint(listOfNotNull(message, steamSetup.curlError).joinToString("\n"))
+            } else if (fexMissing) {
                 val what = com.droiddeck.launcher.frontend.Library.nameForProgram(SessionState.program) ?: getString(R.string.session_end_program)
                 EndHint(getString(R.string.session_end_fex_missing, what), evenOnSuccess = true)
             } else if (enosys >= 8) {
@@ -2274,9 +2283,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         return true
     }
 
+    private val shownOnDisplayId: Int get() =
+        if (Build.VERSION.SDK_INT >= 30) display?.displayId ?: windowManager.defaultDisplay.displayId
+        else windowManager.defaultDisplay.displayId
+
     private fun refreshSecondScreenDisplays() {
         if (!::displayManager.isInitialized) return
-        val primaryId = display?.displayId ?: windowManager.defaultDisplay.displayId
+        val primaryId = shownOnDisplayId
         val candidates = SecondScreenDisplays.available(displayManager, primaryId)
             .filter { glassesScreen == null || it.id != glasses.displayId }
         val oldIds = secondScreenDisplays.map { it.id }.toSet()
@@ -2663,7 +2676,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             ?.let { FileUtils.readString(it)?.trim()?.lowercase() }
             ?: SessionPrefs.oscMode(this)
         val controls = onScreenControls ?: return
-        if (pipUi || unfoldedPanel != null) {
+        if (pipUi || unfoldedPanel != null || pcKeyboardOpen) {
             onScreenButtonsVisible = false
             controls.releaseAll()
             controls.visibility = View.GONE
@@ -2695,24 +2708,28 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 SessionState.mode != SessionService.MODE_DESKTOP
         }
         onScreenButtonsVisible = show
+        val drawn = show && !keyboardCoversPad()
         if (steam != null) {
             if (controls.visibility == View.VISIBLE) { controls.releaseAll(); controls.visibility = View.GONE }
-            if (!show) steam.releaseAll()
-            steam.visibility = if (show) View.VISIBLE else View.GONE
+            if (!drawn) steam.releaseAll()
+            steam.visibility = if (drawn) View.VISIBLE else View.GONE
             com.droiddeck.launcher.input.SteamTouchDevice.current?.plugged = show
             applyTouchRouting()
-            Log.i(TAG, "on-screen controls: Steam's touch controller " + if (show) "shown" else "hidden")
+            Log.i(TAG, "on-screen controls: Steam's touch controller " + if (drawn) "shown" else "hidden")
             return
         }
-        if (show == (controls.visibility == View.VISIBLE)) return
-        if (!show) controls.releaseAll()
-        controls.visibility = if (show) View.VISIBLE else View.GONE
+        if (drawn == (controls.visibility == View.VISIBLE)) return
+        if (!drawn) controls.releaseAll()
+        controls.visibility = if (drawn) View.VISIBLE else View.GONE
         Log.i(TAG, "on-screen controls " + when {
-            !show -> "hidden"
+            !drawn -> "hidden"
             buttonsOnly -> "Steam + QAM"
             else -> "full pad"
         })
     }
+
+    private fun keyboardCoversPad() =
+        SessionState.mode == SessionService.MODE_STEAM && AgentGuest.steamKeyboard
 
     private fun sendGuestKey(code: Int, down: Boolean) {
         if (down && pipUi) return
@@ -2799,7 +2816,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         refreshSecondScreenDisplays()
         if (secondScreenMode != SecondScreenMode.NONE && secondScreenPresentation == null) showSecondScreen(secondScreenMode)
         startedScreens++
-        SessionService.setActivityVisible(this, true)
+        SessionService.setActivityVisible(this, true, shownOnDisplayId)
         Glasses.rescan()
         updateGlassesScreen()
         updateHandCamera()

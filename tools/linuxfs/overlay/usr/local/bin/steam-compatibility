@@ -1042,6 +1042,16 @@ def plan_mapping(current, installed, runnable, default, auto, native=None, picks
     return changes, kept
 
 
+def picked_apps(state):
+    picked = state.get("picked", ())
+    return {app for app in picked if isinstance(app, str)} if isinstance(picked, list) else set()
+
+
+def picked_after(current, changes):
+    return sorted(({app for app, tool in current.items() if tool} - set(changes) |
+                   {app for app, tool in changes.items() if tool}) - {"0"}, key=app_order)
+
+
 def followers(state, current):
     if "auto" in state:
         return state["auto"]
@@ -1287,6 +1297,8 @@ def register_default(config_path, apps=(), protect=(), default=None, catalog=Non
         native = native_targets(steam_root, set(apps) | set(picks) | set(managed) | set(native_choices))
         if linux_tool != FEX_TOOL:
             native = {app: linux_tool if tool == FEX_TOOL else tool for app, tool in native.items()}
+        for app in picked_apps(state) & set(native):
+            current.setdefault(app, "")
         changes, auto = plan_mapping(
             current, apps, names, default, followers(state, current), native, picks,
             overrides, managed, native_choices)
@@ -1297,6 +1309,7 @@ def register_default(config_path, apps=(), protect=(), default=None, catalog=Non
             write_changed(config_path, text)
         state["auto"] = {app: tool for app, tool in auto.items() if tool is not NATIVE_CHOICE}
         state["native_choices"] = sorted(app for app, tool in auto.items() if tool is NATIVE_CHOICE)
+        state["picked"] = picked_after(current, changes)
         state.pop("native", None)
         state["tools"] = catalog
         state.setdefault("default", default)
