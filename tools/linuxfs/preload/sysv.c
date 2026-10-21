@@ -421,7 +421,7 @@ static struct msg_queue *msg_map(int id) {
 static int msg_removed(struct msg_queue *q) { return __atomic_load_n(&q->magic, __ATOMIC_ACQUIRE) != MSG_MAGIC; }
 
 static struct msg_map *msg_get(int id) {
-    struct msg_map *found = NULL, *spare = NULL;
+    struct msg_map *found = NULL, *spare = NULL, *idle = NULL;
     pthread_mutex_lock(&g_lock);
     for (int i = 0; i < MAX_OBJECTS; i++) {
         struct msg_map *e = &g_msgs[i];
@@ -433,7 +433,14 @@ static struct msg_map *msg_get(int id) {
             if (!spare) spare = e;
         } else if (e->id == id && !msg_removed(e->q)) {
             found = e;
+        } else if (!e->refs && !idle) {
+            idle = e;
         }
+    }
+    if (!found && !spare && idle) {
+        munmap(idle->q, sizeof(*idle->q));
+        idle->q = NULL;
+        spare = idle;
     }
     if (!found && spare && (spare->q = msg_map(id))) {
         spare->id = id;

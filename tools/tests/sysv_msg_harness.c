@@ -75,6 +75,13 @@ int main(void) {
     if (msgctl(watched, IPC_RMID, NULL) != 0) { perror("msgctl with a full cache"); return 1; }
     waitpid(blocked, &status, 0);
     if (!WIFEXITED(status) || WEXITSTATUS(status)) { printf("FAIL: waiter not woken with a full cache\n"); return 1; }
+    int extra = msgget(0x5eed0200, IPC_CREAT | 0600);
+    struct note x = {6, "extra"};
+    if (extra < 0 || msgsnd(extra, &x, sizeof(x.text), 0) || msgrcv(extra, &n, sizeof(n.text), 6, 0) < 0 || strcmp(n.text, "extra")) {
+        printf("FAIL: queue past a full cache\n");
+        return 1;
+    }
+    msgctl(extra, IPC_RMID, NULL);
     for (int i = 0; i < 64; i++) msgctl(filler[i], IPC_RMID, NULL);
     printf("PASS: sysv msg\n");
     return 0;
