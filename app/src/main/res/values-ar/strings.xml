@@ -590,6 +590,16 @@
     <string name="drawer_prev_page">الصفحة السابقة</string>
     <string name="drawer_next_page">الصفحة التالية</string>
     <string name="drawer_hud">واجهة الأداء</string>
+    <string name="drawer_hud_fps">معدل الإطارات</string>
+    <string name="drawer_hud_battery">درجة حرارة البطارية</string>
+    <string name="drawer_hud_graph">مخطط الأداء</string>
+    <string name="drawer_hud_color">اللون</string>
+    <string name="drawer_hud_color_mint">نعناعي</string>
+    <string name="drawer_hud_color_white">أبيض</string>
+    <string name="drawer_hud_color_sky">سماوي</string>
+    <string name="drawer_hud_color_amber">كهرماني</string>
+    <string name="drawer_hud_color_violet">بنفسجي</string>
+    <string name="drawer_hud_opacity">العتامة</string>
     <string name="drawer_scaling">وضع التحجيم</string>
     <string name="drawer_scaling_sharpness">حدة التحجيم</string>
     <string name="drawer_effects">مؤثرات الشاشة</string>

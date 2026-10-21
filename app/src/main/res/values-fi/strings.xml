@@ -582,6 +582,16 @@
     <string name="drawer_prev_page">Edellinen sivu</string>
     <string name="drawer_next_page">Seuraava sivu</string>
     <string name="drawer_hud">Suorituskyky-HUD</string>
+    <string name="drawer_hud_fps">Kuvataajuus</string>
+    <string name="drawer_hud_battery">Akun lämpötila</string>
+    <string name="drawer_hud_graph">Suorituskykykäyrä</string>
+    <string name="drawer_hud_color">Väri</string>
+    <string name="drawer_hud_color_mint">Minttu</string>
+    <string name="drawer_hud_color_white">Valkoinen</string>
+    <string name="drawer_hud_color_sky">Taivaansininen</string>
+    <string name="drawer_hud_color_amber">Meripihka</string>
+    <string name="drawer_hud_color_violet">Violetti</string>
+    <string name="drawer_hud_opacity">Peittävyys</string>
     <string name="drawer_scaling">Skaalaustila</string>
     <string name="drawer_scaling_sharpness">Skaalauksen terävyys</string>
     <string name="drawer_effects">Näyttötehosteet</string>

@@ -580,6 +580,16 @@
     <string name="drawer_prev_page">이전 페이지</string>
     <string name="drawer_next_page">다음 페이지</string>
     <string name="drawer_hud">성능 HUD</string>
+    <string name="drawer_hud_fps">프레임 속도</string>
+    <string name="drawer_hud_battery">배터리 온도</string>
+    <string name="drawer_hud_graph">성능 그래프</string>
+    <string name="drawer_hud_color">색상</string>
+    <string name="drawer_hud_color_mint">민트</string>
+    <string name="drawer_hud_color_white">흰색</string>
+    <string name="drawer_hud_color_sky">하늘색</string>
+    <string name="drawer_hud_color_amber">호박색</string>
+    <string name="drawer_hud_color_violet">보라색</string>
+    <string name="drawer_hud_opacity">불투명도</string>
     <string name="drawer_scaling">스케일링 모드</string>
     <string name="drawer_scaling_sharpness">스케일링 선명도</string>
     <string name="drawer_effects">화면 효과</string>

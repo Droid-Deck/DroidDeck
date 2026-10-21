@@ -579,6 +579,16 @@
     <string name="drawer_prev_page">Vorherige Seite</string>
     <string name="drawer_next_page">Nächste Seite</string>
     <string name="drawer_hud">Leistungs-HUD</string>
+    <string name="drawer_hud_fps">Bildrate</string>
+    <string name="drawer_hud_battery">Akkutemperatur</string>
+    <string name="drawer_hud_graph">Leistungsdiagramm</string>
+    <string name="drawer_hud_color">Farbe</string>
+    <string name="drawer_hud_color_mint">Minze</string>
+    <string name="drawer_hud_color_white">Weiß</string>
+    <string name="drawer_hud_color_sky">Himmelblau</string>
+    <string name="drawer_hud_color_amber">Bernstein</string>
+    <string name="drawer_hud_color_violet">Violett</string>
+    <string name="drawer_hud_opacity">Deckkraft</string>
     <string name="drawer_scaling">Skalierungsmodus</string>
     <string name="drawer_scaling_sharpness">Skalierungsschärfe</string>
     <string name="drawer_effects">Bildschirmeffekte</string>

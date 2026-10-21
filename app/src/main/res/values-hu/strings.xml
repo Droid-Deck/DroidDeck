@@ -582,6 +582,16 @@
     <string name="drawer_prev_page">Előző oldal</string>
     <string name="drawer_next_page">Következő oldal</string>
     <string name="drawer_hud">Teljesítmény HUD</string>
+    <string name="drawer_hud_fps">Képkockasebesség</string>
+    <string name="drawer_hud_battery">Akkuhőmérséklet</string>
+    <string name="drawer_hud_graph">Teljesítménygrafikon</string>
+    <string name="drawer_hud_color">Szín</string>
+    <string name="drawer_hud_color_mint">Menta</string>
+    <string name="drawer_hud_color_white">Fehér</string>
+    <string name="drawer_hud_color_sky">Égszínkék</string>
+    <string name="drawer_hud_color_amber">Borostyán</string>
+    <string name="drawer_hud_color_violet">Lila</string>
+    <string name="drawer_hud_opacity">Átlátszatlanság</string>
     <string name="drawer_scaling">Méretezési mód</string>
     <string name="drawer_scaling_sharpness">Méretezési élesség</string>
     <string name="drawer_effects">Képernyőeffektek</string>

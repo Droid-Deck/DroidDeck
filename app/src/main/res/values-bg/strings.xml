@@ -582,6 +582,16 @@
     <string name="drawer_prev_page">Предишна страница</string>
     <string name="drawer_next_page">Следваща страница</string>
     <string name="drawer_hud">HUD за производителност</string>
+    <string name="drawer_hud_fps">Честота на кадрите</string>
+    <string name="drawer_hud_battery">Температура на батерията</string>
+    <string name="drawer_hud_graph">Графика на производителността</string>
+    <string name="drawer_hud_color">Цвят</string>
+    <string name="drawer_hud_color_mint">Мента</string>
+    <string name="drawer_hud_color_white">Бяло</string>
+    <string name="drawer_hud_color_sky">Небесно</string>
+    <string name="drawer_hud_color_amber">Кехлибарено</string>
+    <string name="drawer_hud_color_violet">Виолетово</string>
+    <string name="drawer_hud_opacity">Прозрачност</string>
     <string name="drawer_scaling">Режим на мащабиране</string>
     <string name="drawer_scaling_sharpness">Острота на мащабиране</string>
     <string name="drawer_effects">Ефекти на екрана</string>

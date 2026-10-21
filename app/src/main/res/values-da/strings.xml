@@ -582,6 +582,16 @@
     <string name="drawer_prev_page">Forrige side</string>
     <string name="drawer_next_page">Næste side</string>
     <string name="drawer_hud">Ydelses-HUD</string>
+    <string name="drawer_hud_fps">Billedhastighed</string>
+    <string name="drawer_hud_battery">Batteritemperatur</string>
+    <string name="drawer_hud_graph">Ydelsesgraf</string>
+    <string name="drawer_hud_color">Farve</string>
+    <string name="drawer_hud_color_mint">Mint</string>
+    <string name="drawer_hud_color_white">Hvid</string>
+    <string name="drawer_hud_color_sky">Himmelblå</string>
+    <string name="drawer_hud_color_amber">Ravgul</string>
+    <string name="drawer_hud_color_violet">Violet</string>
+    <string name="drawer_hud_opacity">Gennemsigtighed</string>
     <string name="drawer_scaling">Skaleringstilstand</string>
     <string name="drawer_scaling_sharpness">Skaleringsskarphed</string>
     <string name="drawer_effects">Skærmeffekter</string>
