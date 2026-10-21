@@ -64,7 +64,9 @@ class PerfHud(context: Context) {
             val previous = lastFrameNs.getAndSet(now)
             if (previous == 0L) return
             val ms = ((now - previous) / 1_000_000f).coerceIn(0f, 50f)
-            intervals[graphWrite.getAndIncrement() and (GRAPH - 1)] = ms
+            val slot = graphWrite.get()
+            intervals[slot and (GRAPH - 1)] = ms
+            graphWrite.compareAndSet(slot, slot + 1)
         }
     }
 
@@ -135,6 +137,7 @@ class PerfHud(context: Context) {
 
     private fun clearGraph() {
         lastFrameNs.set(0L)
+        graphWrite.set(0)
         if (graph.isNotEmpty()) graph = FloatArray(0)
     }
 
