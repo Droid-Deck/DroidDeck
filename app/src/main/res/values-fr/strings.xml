@@ -274,7 +274,6 @@
     <string name="mode_controller_dualsense">DualSense</string>
     <string name="mode_controller_x360">Manette Xbox 360</string>
     <string name="mode_controller_note">Deck : bouton d\'accès rapide et gyroscope. Steam Controller : idem, avec détection de la prise en main sur les boutons arrière. DualShock 4 et DualSense : gyroscope, et les trackpads servent de pavé tactile. Xbox 360 : utilisez Guide+A pour ouvrir l\'accès rapide.</string>
-    <string name="mode_builtin_pad">Manette intégrée</string>
     <string name="mode_back">Retour</string>
     <string name="back_menu_then_qam">Menu → QAM</string>
     <string name="back_qam_then_menu">QAM → Menu</string>

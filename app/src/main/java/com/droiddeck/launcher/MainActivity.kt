@@ -122,7 +122,6 @@ class MainActivity : ComponentActivity() {
     private var steamRepairQueued by mutableStateOf(false)
     private var mangoapp by mutableStateOf(true)
     private var steamController by mutableStateOf(SessionPrefs.CONTROLLER_DECK)
-    private var builtinPad by mutableStateOf(true)
     private var showComponents by mutableStateOf(false)
     private var focusComponentsContent by mutableStateOf(true)
     private var componentsGameKey by mutableStateOf<String?>(null)
@@ -1635,7 +1634,6 @@ class MainActivity : ComponentActivity() {
                 steamRepairQueued = steamRepairQueued,
                 mangoapp = mangoapp,
                 steamController = if (mode == SessionService.MODE_STEAM) steamController else null,
-                builtinPad = if (mode == SessionService.MODE_STEAM) builtinPad else null,
                 runSteamAtStartup = mode == SessionService.MODE_STEAM && runSteamAtStartup,
                 bootMovie = if (mode == SessionService.MODE_STEAM) bootMovie else null,
                 bootMovieSound = bootMovieSound,
@@ -1719,7 +1717,6 @@ class MainActivity : ComponentActivity() {
                 onSteamClientArch = { id -> SessionPrefs.setSteamClientArch(this, id); steamClientArch = id; refresh() },
                 onMangoapp = { on -> SessionPrefs.setMangoapp(this, on); mangoapp = on },
                 onSteamController = { id -> SessionPrefs.setSteamController(this, id); steamController = id },
-                onBuiltinPad = { on -> SessionPrefs.setBuiltinPad(this, on); builtinPad = on },
                 onRunSteamAtStartup = { on ->
                     SessionPrefs.setRunSteamAtStartup(this, on)
                     runSteamAtStartup = on
@@ -1885,7 +1882,6 @@ class MainActivity : ComponentActivity() {
         steamRepairQueued = SteamRepair.queued(this)
         mangoapp = SessionPrefs.mangoapp(this)
         steamController = SessionPrefs.steamController(this)
-        builtinPad = SessionPrefs.builtinPad(this)
         runSteamAtStartup = SessionPrefs.runSteamAtStartup(this)
         loadBootMovie()
         hdrOn = SessionPrefs.hdr(this, mode)

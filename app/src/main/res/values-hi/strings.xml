@@ -274,7 +274,6 @@
     <string name="mode_controller_dualsense">DualSense</string>
     <string name="mode_controller_x360">Xbox 360 कंट्रोलर</string>
     <string name="mode_controller_note">Deck: Quick Access बटन और gyro। Steam Controller: वही, साथ में पीछे के बटन पर ग्रिप सेंस। DualShock 4 और DualSense: gyro, और ट्रैकपैड उनके टचपैड के तौर पर। Xbox 360: Guide+A से Quick Access खोलें।</string>
-    <string name="mode_builtin_pad">अंतर्निहित कंट्रोलर</string>
     <string name="mode_back">बैक</string>
     <string name="back_menu_then_qam">मेनू → QAM</string>
     <string name="back_qam_then_menu">QAM → मेनू</string>

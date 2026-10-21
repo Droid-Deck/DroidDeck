@@ -274,7 +274,6 @@
     <string name="mode_controller_dualsense">DualSense</string>
     <string name="mode_controller_x360">Xbox 360-controller</string>
     <string name="mode_controller_note">Deck: knop Snelle toegang en gyro. Steam Controller: hetzelfde, met gripsensor op de achterknoppen. DualShock 4 en DualSense: gyro, en de trackpads als hun touchpad. Xbox 360: open Snelle toegang met Guide+A.</string>
-    <string name="mode_builtin_pad">Ingebouwde controller</string>
     <string name="mode_back">Terug</string>
     <string name="back_menu_then_qam">Menu → QAM</string>
     <string name="back_qam_then_menu">QAM → Menu</string>

@@ -274,7 +274,6 @@
     <string name="mode_controller_dualsense">DualSense</string>
     <string name="mode_controller_x360">Pengawal Xbox 360</string>
     <string name="mode_controller_note">Deck: butang Quick Access dan giro. Steam Controller: sama, dengan grip sense pada butang belakang. DualShock 4 dan DualSense: giro, dan trackpad sebagai pad sentuhnya. Xbox 360: buka Quick Access dengan Guide+A.</string>
-    <string name="mode_builtin_pad">Pengawal terbina dalam</string>
     <string name="mode_back">Kembali</string>
     <string name="back_menu_then_qam">Menu → QAM</string>
     <string name="back_qam_then_menu">QAM → Menu</string>

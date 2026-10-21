@@ -274,7 +274,6 @@
     <string name="mode_controller_dualsense">DualSense</string>
     <string name="mode_controller_x360">Controller Xbox 360</string>
     <string name="mode_controller_note">Deck: butonul Acces rapid și giroscopul. Steam Controller: la fel, cu senzori de strângere pe butoanele din spate. DualShock 4 și DualSense: giroscop, și trackpadurile ca touchpad propriu. Xbox 360: deschide Acces rapid cu Guide+A.</string>
-    <string name="mode_builtin_pad">Controller integrat</string>
     <string name="mode_back">Înapoi</string>
     <string name="back_menu_then_qam">Meniu → QAM</string>
     <string name="back_qam_then_menu">QAM → Meniu</string>

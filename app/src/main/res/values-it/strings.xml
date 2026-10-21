@@ -274,7 +274,6 @@
     <string name="mode_controller_dualsense">DualSense</string>
     <string name="mode_controller_x360">Controller Xbox 360</string>
     <string name="mode_controller_note">Deck: tasto Accesso rapido e giroscopio. Steam Controller: lo stesso, con il rilevamento della presa sui tasti posteriori. DualShock 4 e DualSense: giroscopio, con i trackpad usati come touchpad. Xbox 360: apri Accesso rapido con Guide+A.</string>
-    <string name="mode_builtin_pad">Controller integrato</string>
     <string name="mode_back">Indietro</string>
     <string name="back_menu_then_qam">Menu → QAM</string>
     <string name="back_qam_then_menu">QAM → Menu</string>

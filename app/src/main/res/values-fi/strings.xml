@@ -274,7 +274,6 @@
     <string name="mode_controller_dualsense">DualSense</string>
     <string name="mode_controller_x360">Xbox 360 -ohjain</string>
     <string name="mode_controller_note">Deck: pikavalikkopainike ja gyroskooppi. Steam Controller: samat, ja takapainikkeissa puristustunnistus. DualShock 4 ja DualSense: gyroskooppi, ja kosketuslevyt toimivat kosketuslevynä. Xbox 360: avaa pikavalikko Guide+A:lla.</string>
-    <string name="mode_builtin_pad">Sisäänrakennettu ohjain</string>
     <string name="mode_back">Back</string>
     <string name="back_menu_then_qam">Valikko → QAM</string>
     <string name="back_qam_then_menu">QAM → Valikko</string>

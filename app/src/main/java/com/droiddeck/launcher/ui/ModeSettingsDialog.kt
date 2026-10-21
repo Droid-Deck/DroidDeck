@@ -84,7 +84,6 @@ class ModeSettings(
     val steamRepairQueued: Boolean = false,
     val mangoapp: Boolean = true,
     val steamController: String? = null,
-    val builtinPad: Boolean? = null,
     val unfoldedControls: Boolean? = null,
     val runSteamAtStartup: Boolean = false,
     val bootMovie: String? = null,
@@ -135,7 +134,6 @@ class ModeSettingsActions(
     val onSteamClientArch: (String) -> Unit = {},
     val onMangoapp: (Boolean) -> Unit = {},
     val onSteamController: (String) -> Unit = {},
-    val onBuiltinPad: (Boolean) -> Unit = {},
     val onUnfoldedControls: (Boolean) -> Unit = {},
     val onRunSteamAtStartup: (Boolean) -> Unit = {},
     val onBootMovie: (String) -> Unit = {},
@@ -275,13 +273,11 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                     SessionPrefs.CONTROLLER_DS4 to stringResource(R.string.mode_controller_ds4),
                     SessionPrefs.CONTROLLER_DUALSENSE to stringResource(R.string.mode_controller_dualsense),
                     SessionPrefs.CONTROLLER_XBOX360 to stringResource(R.string.mode_controller_x360),
+                    SessionPrefs.CONTROLLER_NONE to stringResource(R.string.second_mode_none),
                 ), s.steamController,
-                note = stringResource(R.string.mode_controller_note),
+                note = if (s.steamController == SessionPrefs.CONTROLLER_NONE) stringResource(R.string.common_applies_next_session)
+                else stringResource(R.string.mode_controller_note),
                 onPick = a.onSteamController,
-            )
-            if (steam && s.builtinPad != null) ToggleRow(
-                host, "builtin-pad", stringResource(R.string.mode_builtin_pad), null,
-                s.builtinPad, onChange = a.onBuiltinPad,
             )
             if (steam && s.unfoldedControls != null) ToggleRow(
                 host, "unfolded-controls", stringResource(R.string.unfolded_controls),

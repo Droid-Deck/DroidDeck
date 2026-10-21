@@ -274,7 +274,6 @@
     <string name="mode_controller_dualsense">DualSense</string>
     <string name="mode_controller_x360">Контролер Xbox 360</string>
     <string name="mode_controller_note">Deck: бутон Quick Access и гироскоп. Steam Controller: същото, с усещане за захват на задните бутони. DualShock 4 и DualSense: гироскоп, а тракпадовете служат като тъчпад. Xbox 360: отворете Quick Access с Guide+A.</string>
-    <string name="mode_builtin_pad">Вграден контролер</string>
     <string name="mode_back">Back</string>
     <string name="back_menu_then_qam">Меню → QAM</string>
     <string name="back_qam_then_menu">QAM → Меню</string>

@@ -274,7 +274,6 @@
     <string name="mode_controller_dualsense">DualSense</string>
     <string name="mode_controller_x360">Xbox 360 컨트롤러</string>
     <string name="mode_controller_note">Deck: 빠른 액세스 버튼과 자이로스코프를 제공합니다. Xbox 360: Guide+A로 빠른 액세스를 엽니다.</string>
-    <string name="mode_builtin_pad">내장 컨트롤러</string>
     <string name="mode_back">뒤로</string>
     <string name="back_menu_then_qam">메뉴 → QAM</string>
     <string name="back_qam_then_menu">QAM → 메뉴</string>

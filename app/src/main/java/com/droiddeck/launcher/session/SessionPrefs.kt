@@ -27,6 +27,7 @@ object SessionPrefs {
     const val CONTROLLER_STEAM = "steamcontroller"
     const val CONTROLLER_DS4 = "dualshock4"
     const val CONTROLLER_DUALSENSE = "dualsense"
+    const val CONTROLLER_NONE = "none"
     const val OSC_AUTO = "auto"
     const val OSC_ALWAYS = "always"
     const val OSC_STEAM_QAM = "steam-qam"
@@ -421,8 +422,7 @@ object SessionPrefs {
         prefs(context).getString("steamController", CONTROLLER_DECK) ?: CONTROLLER_DECK
     fun setSteamController(context: Context, id: String) { prefs(context).edit().putString("steamController", id).apply() }
 
-    fun builtinPad(context: Context): Boolean = prefs(context).getBoolean("builtinPad", true)
-    fun setBuiltinPad(context: Context, on: Boolean) { prefs(context).edit().putBoolean("builtinPad", on).apply() }
+    fun builtinPad(context: Context): Boolean = steamController(context) != CONTROLLER_NONE
     fun padType(id: String): Int = when (id) {
         CONTROLLER_STEAM -> com.droiddeck.launcher.input.FakeInputWriter.PAD_TYPE_STEAM
         CONTROLLER_XBOX360 -> com.droiddeck.launcher.input.FakeInputWriter.PAD_TYPE_XBOX
