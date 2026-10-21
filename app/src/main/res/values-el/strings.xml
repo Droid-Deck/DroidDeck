@@ -582,6 +582,16 @@
     <string name="drawer_prev_page">Προηγούμενη σελίδα</string>
     <string name="drawer_next_page">Επόμενη σελίδα</string>
     <string name="drawer_hud">HUD απόδοσης</string>
+    <string name="drawer_hud_fps">Ρυθμός καρέ</string>
+    <string name="drawer_hud_battery">Θερμοκρασία μπαταρίας</string>
+    <string name="drawer_hud_graph">Γράφημα απόδοσης</string>
+    <string name="drawer_hud_color">Χρώμα</string>
+    <string name="drawer_hud_color_mint">Μέντα</string>
+    <string name="drawer_hud_color_white">Λευκό</string>
+    <string name="drawer_hud_color_sky">Γαλάζιο</string>
+    <string name="drawer_hud_color_amber">Κεχριμπαρί</string>
+    <string name="drawer_hud_color_violet">Βιολετί</string>
+    <string name="drawer_hud_opacity">Διαφάνεια</string>
     <string name="drawer_scaling">Λειτουργία κλιμάκωσης</string>
     <string name="drawer_scaling_sharpness">Οξύτητα κλιμάκωσης</string>
     <string name="drawer_effects">Εφέ οθόνης</string>

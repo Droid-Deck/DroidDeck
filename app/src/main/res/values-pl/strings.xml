@@ -586,6 +586,16 @@
     <string name="drawer_prev_page">Poprzednia strona</string>
     <string name="drawer_next_page">Następna strona</string>
     <string name="drawer_hud">HUD wydajności</string>
+    <string name="drawer_hud_fps">Liczba klatek</string>
+    <string name="drawer_hud_battery">Temperatura baterii</string>
+    <string name="drawer_hud_graph">Wykres wydajności</string>
+    <string name="drawer_hud_color">Kolor</string>
+    <string name="drawer_hud_color_mint">Mięta</string>
+    <string name="drawer_hud_color_white">Biały</string>
+    <string name="drawer_hud_color_sky">Błękitny</string>
+    <string name="drawer_hud_color_amber">Bursztynowy</string>
+    <string name="drawer_hud_color_violet">Fioletowy</string>
+    <string name="drawer_hud_opacity">Przezroczystość</string>
     <string name="drawer_scaling">Tryb skalowania</string>
     <string name="drawer_scaling_sharpness">Ostrość skalowania</string>
     <string name="drawer_effects">Efekty ekranowe</string>

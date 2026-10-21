@@ -584,6 +584,16 @@
     <string name="drawer_prev_page">Pagina anterioară</string>
     <string name="drawer_next_page">Pagina următoare</string>
     <string name="drawer_hud">HUD de performanță</string>
+    <string name="drawer_hud_fps">Rată de cadre</string>
+    <string name="drawer_hud_battery">Temperatură baterie</string>
+    <string name="drawer_hud_graph">Grafic de performanță</string>
+    <string name="drawer_hud_color">Culoare</string>
+    <string name="drawer_hud_color_mint">Mentă</string>
+    <string name="drawer_hud_color_white">Alb</string>
+    <string name="drawer_hud_color_sky">Cer</string>
+    <string name="drawer_hud_color_amber">Chihlimbariu</string>
+    <string name="drawer_hud_color_violet">Violet</string>
+    <string name="drawer_hud_opacity">Opacitate</string>
     <string name="drawer_scaling">Mod de scalare</string>
     <string name="drawer_scaling_sharpness">Claritatea scalării</string>
     <string name="drawer_effects">Efecte de ecran</string>

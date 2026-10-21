@@ -586,6 +586,16 @@
     <string name="drawer_prev_page">Попередня сторінка</string>
     <string name="drawer_next_page">Наступна сторінка</string>
     <string name="drawer_hud">HUD продуктивності</string>
+    <string name="drawer_hud_fps">Частота кадрів</string>
+    <string name="drawer_hud_battery">Температура батареї</string>
+    <string name="drawer_hud_graph">Графік продуктивності</string>
+    <string name="drawer_hud_color">Колір</string>
+    <string name="drawer_hud_color_mint">М\'ята</string>
+    <string name="drawer_hud_color_white">Білий</string>
+    <string name="drawer_hud_color_sky">Небесний</string>
+    <string name="drawer_hud_color_amber">Бурштиновий</string>
+    <string name="drawer_hud_color_violet">Фіолетовий</string>
+    <string name="drawer_hud_opacity">Непрозорість</string>
     <string name="drawer_scaling">Режим масштабування</string>
     <string name="drawer_scaling_sharpness">Чіткість масштабування</string>
     <string name="drawer_effects">Ефекти екрана</string>

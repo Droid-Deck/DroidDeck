@@ -580,6 +580,16 @@
     <string name="drawer_prev_page">前のページ</string>
     <string name="drawer_next_page">次のページ</string>
     <string name="drawer_hud">パフォーマンスHUD</string>
+    <string name="drawer_hud_fps">フレームレート</string>
+    <string name="drawer_hud_battery">バッテリー温度</string>
+    <string name="drawer_hud_graph">パフォーマンスグラフ</string>
+    <string name="drawer_hud_color">色</string>
+    <string name="drawer_hud_color_mint">ミント</string>
+    <string name="drawer_hud_color_white">ホワイト</string>
+    <string name="drawer_hud_color_sky">スカイ</string>
+    <string name="drawer_hud_color_amber">アンバー</string>
+    <string name="drawer_hud_color_violet">バイオレット</string>
+    <string name="drawer_hud_opacity">不透明度</string>
     <string name="drawer_scaling">スケーリングモード</string>
     <string name="drawer_scaling_sharpness">スケーリングのシャープネス</string>
     <string name="drawer_effects">画面エフェクト</string>

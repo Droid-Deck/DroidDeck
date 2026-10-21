@@ -40,6 +40,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import android.content.Context
@@ -502,7 +508,7 @@ private fun ArtChooserDialog(
         sgdb = found?.sgdb ?: SteamGridDb.Status.SERVER
     }
     val first = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focusWithinFrames({ false }) { first } }
+    LaunchedEffect(options != null) { focusWithinFrames({ false }) { first } }
     val apply: (AddedGameArt.Option) -> Unit = { option ->
         scope.launch {
             val saved = withContext(Dispatchers.IO) { target.set(app, slot, option) }
@@ -624,14 +630,23 @@ private fun SgdbSearchDialog(
         }
     }
     LaunchedEffect(Unit) { search() }
-    AppDialog(shown, back, "sgdbSearch", wide = false, maxWidth = 460.dp) {
+    val firstItem = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val leaveField = { focusManager.clearFocus(); keyboardController?.hide() }
+    val keyboard = LocalInputModeManager.current.inputMode == InputMode.Keyboard
+    LaunchedEffect(picked?.id, matches?.size, images.size, busy) {
+        val ready = if (picked != null) images.isNotEmpty() else !matches.isNullOrEmpty()
+        if (keyboard && !busy && ready) focusSoon { firstItem }
+    }
+    AppDialog(shown, back, "sgdbSearch", wide = false, maxWidth = 460.dp, modifier = Modifier.pointerInput(Unit) { detectTapGestures { leaveField() } }) {
         DialogTitleRow(stringResource(R.string.art_sgdb_title, slotName), onClose = { onCloseAll() }, leading = {
             SmallIconButton(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.common_back), colors.onBackground, onClick = back)
         })
         androidx.compose.material3.OutlinedTextField(
             query, { query = it }, singleLine = true, modifier = Modifier.fillMaxWidth(),
             label = { Text(stringResource(R.string.art_sgdb_search_label)) },
-            keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { search() }),
+            keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { leaveField(); search() }),
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
         )
         val maxHeight = (LocalConfiguration.current.screenHeightDp * 0.6f).dp
@@ -643,24 +658,24 @@ private fun SgdbSearchDialog(
             val chosenGame = picked
             val list = matches.orEmpty()
             if (chosenGame == null) {
-                for (match in list) key(match.id) { PickerRow(null, match.name, null) { showImages(match) } }
+                list.forEachIndexed { i, match -> key(match.id) { PickerRow(null, match.name, null, focus = if (i == 0) firstItem else null) { leaveField(); showImages(match) } } }
                 if (matches != null && list.isEmpty() && !busy && status == SteamGridDb.Status.OK) {
                     Text(stringResource(R.string.art_sgdb_none), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(start = 2.dp, top = 4.dp))
                 }
             } else {
                 Text(chosenGame.name, fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(start = 2.dp, top = 4.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for (option in images) key(option.full) {
+                    images.forEachIndexed { i, option -> key(option.full) {
                         ArtOption(
-                            slot, option, selected = current?.chosen == true && option.full == chosenRef, focus = null,
+                            slot, option, selected = current?.chosen == true && option.full == chosenRef, focus = if (i == 0) firstItem else null,
                             description = "${artSourceLabel(AddedGameArt.SGDB)} $slotName",
                         ) { onPick(option) }
-                    }
+                    } }
                 }
                 if (images.isEmpty() && !busy && status == SteamGridDb.Status.OK) {
                     Text(stringResource(R.string.art_sgdb_none), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(start = 2.dp, top = 4.dp))
                 }
-                if (list.size > 1) PickerRow(null, stringResource(R.string.art_sgdb_other_games), null) { picked = null }
+                if (list.size > 1) PickerRow(null, stringResource(R.string.art_sgdb_other_games), null) { leaveField(); picked = null }
             }
             if (busy) androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 8.dp))
         }

@@ -1,6 +1,9 @@
 package com.droiddeck.launcher.session
 
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
 import android.os.Environment
 import android.os.Handler
 import android.os.Looper
@@ -15,20 +18,34 @@ import com.droiddeck.launcher.wayland.WaylandCompositor
 import java.io.File
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 
 class PerfHud(context: Context) {
     var text by mutableStateOf("")
+        private set
+    var graph by mutableStateOf(FloatArray(0))
         private set
 
     private val context = context.applicationContext
     private val frames = AtomicInteger()
     private var lastTick = 0L
+    private var lastFps = 0f
     private var running = false
     private val handler = Handler(Looper.getMainLooper())
+    private val intervals = FloatArray(GRAPH)
+    private val graphWrite = AtomicInteger()
+    private val lastFrameNs = AtomicLong()
+
+    @Volatile private var showFps = true
+    @Volatile private var showBattery = true
+    @Volatile private var showGraph = true
 
     private val enabled: Boolean
         get() = SessionPrefs.hudEnabled(context)
             && !File(Environment.getExternalStorageDirectory(), "Download/droiddeck-no-hud").exists()
+
+    private val anyPart: Boolean
+        get() = showFps || showBattery || showGraph
 
     var onPresentingWindowChanged: (() -> Unit)? = null
     private var lastWindow: String? = null
@@ -40,7 +57,17 @@ class PerfHud(context: Context) {
                 handler.post { onPresentingWindowChanged?.invoke() }
             }
         }
-        override fun onGameFrame() { frames.incrementAndGet() }
+        override fun onGameFrame() {
+            frames.incrementAndGet()
+            if (!showGraph) return
+            val now = System.nanoTime()
+            val previous = lastFrameNs.getAndSet(now)
+            if (previous == 0L) return
+            val ms = ((now - previous) / 1_000_000f).coerceIn(0f, 50f)
+            val slot = graphWrite.get()
+            intervals[slot and (GRAPH - 1)] = ms
+            graphWrite.compareAndSet(slot, slot + 1)
+        }
     }
 
     private val tick = object : Runnable {
@@ -49,28 +76,82 @@ class PerfHud(context: Context) {
             val now = SystemClock.elapsedRealtime()
             val dt = (now - lastTick).coerceAtLeast(1L) / 1000f
             lastTick = now
-            text = line(frames.getAndSet(0) / dt)
-            handler.postDelayed(this, 1000)
+            lastFps = frames.getAndSet(0) / dt
+            text = readout(lastFps)
+            if (showGraph) publishGraph() else clearGraph()
+            handler.postDelayed(this, TICK_MS)
         }
     }
 
     fun refresh() {
-        if (enabled) start() else stop()
+        readOptions()
+        if (!enabled || !anyPart) {
+            stop()
+            return
+        }
+        if (!running) start() else {
+            if (!showGraph) clearGraph() else publishGraph()
+            text = readout(lastFps)
+        }
     }
 
     fun start() {
-        if (!enabled || running) return
+        readOptions()
+        if (!enabled || !anyPart || running) return
         running = true
         lastTick = SystemClock.elapsedRealtime()
+        lastFrameNs.set(0L)
         frames.set(0)
+        graphWrite.set(0)
         WaylandCompositor.setGameListener(listener)
-        handler.post(tick)
+        handler.postDelayed(tick, TICK_MS)
     }
 
     fun stop() {
         running = false
+        handler.removeCallbacks(tick)
         WaylandCompositor.clearGameListener(listener)
         text = ""
+        graph = FloatArray(0)
+    }
+
+    private fun readOptions() {
+        showFps = SessionPrefs.hudShowFps(context)
+        showBattery = SessionPrefs.hudShowBattery(context)
+        showGraph = SessionPrefs.hudShowGraph(context)
+    }
+
+    private fun readout(fpsValue: Float): String {
+        val parts = ArrayList<String>(2)
+        if (showFps) parts.add(line(fpsValue))
+        if (showBattery) batteryCelsius(readBatteryDeci())?.let { parts.add(it) }
+        return parts.joinToString("\n")
+    }
+
+    private fun readBatteryDeci(): Int {
+        val sticky = runCatching {
+            context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        }.getOrNull() ?: return 0
+        return sticky.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0)
+    }
+
+    private fun clearGraph() {
+        lastFrameNs.set(0L)
+        graphWrite.set(0)
+        if (graph.isNotEmpty()) graph = FloatArray(0)
+    }
+
+    private fun publishGraph() {
+        val count = graphWrite.get()
+        val shown = minOf(count, GRAPH)
+        if (shown < 2) {
+            graph = FloatArray(0)
+            return
+        }
+        val out = FloatArray(shown)
+        val start = count - shown
+        for (i in 0 until shown) out[i] = intervals[(start + i) and (GRAPH - 1)]
+        graph = out
     }
 
     private fun line(base: Float): String {
@@ -91,4 +172,12 @@ class PerfHud(context: Context) {
     }
 
     private fun fps(value: Float) = String.format(Locale.US, "%.0f fps", value)
+
+    companion object {
+        private const val TICK_MS = 1_000L
+        private const val GRAPH = 128
+
+        internal fun batteryCelsius(deci: Int): String? =
+            if (deci <= 0) null else String.format(Locale.US, "%.1f°C", deci / 10f)
+    }
 }

@@ -583,6 +583,16 @@
     <string name="drawer_prev_page">Предыдущая страница</string>
     <string name="drawer_next_page">Следующая страница</string>
     <string name="drawer_hud">HUD производительности</string>
+    <string name="drawer_hud_fps">Частота кадров</string>
+    <string name="drawer_hud_battery">Температура батареи</string>
+    <string name="drawer_hud_graph">График производительности</string>
+    <string name="drawer_hud_color">Цвет</string>
+    <string name="drawer_hud_color_mint">Мята</string>
+    <string name="drawer_hud_color_white">Белый</string>
+    <string name="drawer_hud_color_sky">Небесный</string>
+    <string name="drawer_hud_color_amber">Янтарный</string>
+    <string name="drawer_hud_color_violet">Фиолетовый</string>
+    <string name="drawer_hud_opacity">Непрозрачность</string>
     <string name="drawer_scaling">Режим масштабирования</string>
     <string name="drawer_scaling_sharpness">Резкость масштабирования</string>
     <string name="drawer_effects">Экранные эффекты</string>

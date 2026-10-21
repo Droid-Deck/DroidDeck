@@ -617,9 +617,13 @@ int shm_unlink(const char *name) {
   return r;
 }
 
+int bl_venc_mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off,
+                 void *(*real)(void *, size_t, int, int, int, off_t), void **out) __attribute__((weak, visibility("hidden")));
+
 void *mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off) {
   void *p;
   if (!fs_real_mmap) fs_real_mmap = (void *(*)(void *, size_t, int, int, int, off_t))dlsym(RTLD_NEXT, "mmap");
+  if (bl_venc_mmap && bl_venc_mmap(addr, len, prot, flags, fd, off, fs_real_mmap, &p)) return p;
   p = fs_real_mmap(addr, len, prot, flags, fd, off);
   if (p == MAP_FAILED && bl_noexec_retry(prot, flags, fd)) p = fs_real_mmap(addr, len, prot & ~PROT_EXEC, flags, fd, off);
   if (p != MAP_FAILED && __builtin_expect(fs_fd >= 0, 0)) fs_track(p, len, flags, fd, off);
@@ -629,6 +633,8 @@ void *mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off) {
 void *mmap64(void *addr, size_t len, int prot, int flags, int fd, off64_t off) {
   void *p;
   if (!fs_real_mmap64) fs_real_mmap64 = (void *(*)(void *, size_t, int, int, int, off64_t))dlsym(RTLD_NEXT, "mmap64");
+  if (bl_venc_mmap && bl_venc_mmap(addr, len, prot, flags, fd, off, (void *(*)(void *, size_t, int, int, int, off_t))fs_real_mmap64, &p))
+    return p;
   p = fs_real_mmap64(addr, len, prot, flags, fd, off);
   if (p == MAP_FAILED && bl_noexec_retry(prot, flags, fd)) p = fs_real_mmap64(addr, len, prot & ~PROT_EXEC, flags, fd, off);
   if (p != MAP_FAILED && __builtin_expect(fs_fd >= 0, 0)) fs_track(p, len, flags, fd, off);

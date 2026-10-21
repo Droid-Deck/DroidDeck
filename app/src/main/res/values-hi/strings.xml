@@ -582,6 +582,16 @@
     <string name="drawer_prev_page">पिछला पेज</string>
     <string name="drawer_next_page">अगला पेज</string>
     <string name="drawer_hud">परफ़ॉर्मेंस HUD</string>
+    <string name="drawer_hud_fps">फ़्रेम दर</string>
+    <string name="drawer_hud_battery">बैटरी तापमान</string>
+    <string name="drawer_hud_graph">परफ़ॉर्मेंस ग्राफ़</string>
+    <string name="drawer_hud_color">रंग</string>
+    <string name="drawer_hud_color_mint">मिंट</string>
+    <string name="drawer_hud_color_white">सफ़ेद</string>
+    <string name="drawer_hud_color_sky">स्काई</string>
+    <string name="drawer_hud_color_amber">एम्बर</string>
+    <string name="drawer_hud_color_violet">वायलेट</string>
+    <string name="drawer_hud_opacity">ओपैसिटी</string>
     <string name="drawer_scaling">स्केलिंग मोड</string>
     <string name="drawer_scaling_sharpness">स्केलिंग शार्पनेस</string>
     <string name="drawer_effects">स्क्रीन इफ़ेक्ट</string>

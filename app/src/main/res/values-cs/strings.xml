@@ -586,6 +586,16 @@
     <string name="drawer_prev_page">Předchozí stránka</string>
     <string name="drawer_next_page">Další stránka</string>
     <string name="drawer_hud">HUD výkonu</string>
+    <string name="drawer_hud_fps">Snímková frekvence</string>
+    <string name="drawer_hud_battery">Teplota baterie</string>
+    <string name="drawer_hud_graph">Graf výkonu</string>
+    <string name="drawer_hud_color">Barva</string>
+    <string name="drawer_hud_color_mint">Máta</string>
+    <string name="drawer_hud_color_white">Bílá</string>
+    <string name="drawer_hud_color_sky">Nebeská</string>
+    <string name="drawer_hud_color_amber">Ambrová</string>
+    <string name="drawer_hud_color_violet">Fialová</string>
+    <string name="drawer_hud_opacity">Průhlednost</string>
     <string name="drawer_scaling">Režim škálování</string>
     <string name="drawer_scaling_sharpness">Ostrost škálování</string>
     <string name="drawer_effects">Efekty obrazovky</string>

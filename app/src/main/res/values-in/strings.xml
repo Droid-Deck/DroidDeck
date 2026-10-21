@@ -580,6 +580,16 @@
     <string name="drawer_prev_page">Halaman sebelumnya</string>
     <string name="drawer_next_page">Halaman berikutnya</string>
     <string name="drawer_hud">HUD performa</string>
+    <string name="drawer_hud_fps">Laju bingkai</string>
+    <string name="drawer_hud_battery">Suhu baterai</string>
+    <string name="drawer_hud_graph">Grafik performa</string>
+    <string name="drawer_hud_color">Warna</string>
+    <string name="drawer_hud_color_mint">Mint</string>
+    <string name="drawer_hud_color_white">Putih</string>
+    <string name="drawer_hud_color_sky">Langit</string>
+    <string name="drawer_hud_color_amber">Ambar</string>
+    <string name="drawer_hud_color_violet">Ungu</string>
+    <string name="drawer_hud_opacity">Opasitas</string>
     <string name="drawer_scaling">Mode penskalaan</string>
     <string name="drawer_scaling_sharpness">Ketajaman penskalaan</string>
     <string name="drawer_effects">Efek layar</string>

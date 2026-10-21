@@ -580,6 +580,16 @@
     <string name="drawer_prev_page">Trang trước</string>
     <string name="drawer_next_page">Trang sau</string>
     <string name="drawer_hud">HUD hiệu năng</string>
+    <string name="drawer_hud_fps">Tốc độ khung hình</string>
+    <string name="drawer_hud_battery">Nhiệt độ pin</string>
+    <string name="drawer_hud_graph">Biểu đồ hiệu năng</string>
+    <string name="drawer_hud_color">Màu</string>
+    <string name="drawer_hud_color_mint">Bạc hà</string>
+    <string name="drawer_hud_color_white">Trắng</string>
+    <string name="drawer_hud_color_sky">Xanh da trời</string>
+    <string name="drawer_hud_color_amber">Hổ phách</string>
+    <string name="drawer_hud_color_violet">Tím</string>
+    <string name="drawer_hud_opacity">Độ mờ</string>
     <string name="drawer_scaling">Chế độ chia tỷ lệ</string>
     <string name="drawer_scaling_sharpness">Độ sắc nét khi chia tỷ lệ</string>
     <string name="drawer_effects">Hiệu ứng màn hình</string>
