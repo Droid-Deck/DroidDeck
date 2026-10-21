@@ -579,6 +579,16 @@
     <string name="drawer_prev_page">Önceki sayfa</string>
     <string name="drawer_next_page">Sonraki sayfa</string>
     <string name="drawer_hud">Performans HUD\'u</string>
+    <string name="drawer_hud_fps">Kare hızı</string>
+    <string name="drawer_hud_battery">Pil sıcaklığı</string>
+    <string name="drawer_hud_graph">Performans grafiği</string>
+    <string name="drawer_hud_color">Renk</string>
+    <string name="drawer_hud_color_mint">Nane</string>
+    <string name="drawer_hud_color_white">Beyaz</string>
+    <string name="drawer_hud_color_sky">Gök mavisi</string>
+    <string name="drawer_hud_color_amber">Kehribar</string>
+    <string name="drawer_hud_color_violet">Mor</string>
+    <string name="drawer_hud_opacity">Opaklık</string>
     <string name="drawer_scaling">Ölçekleme modu</string>
     <string name="drawer_scaling_sharpness">Ölçekleme keskinliği</string>
     <string name="drawer_effects">Ekran efektleri</string>

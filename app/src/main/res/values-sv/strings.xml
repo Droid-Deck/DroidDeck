@@ -582,6 +582,16 @@
     <string name="drawer_prev_page">Föregående sida</string>
     <string name="drawer_next_page">Nästa sida</string>
     <string name="drawer_hud">Prestanda-HUD</string>
+    <string name="drawer_hud_fps">Bildfrekvens</string>
+    <string name="drawer_hud_battery">Batteritemperatur</string>
+    <string name="drawer_hud_graph">Prestandagraf</string>
+    <string name="drawer_hud_color">Färg</string>
+    <string name="drawer_hud_color_mint">Mint</string>
+    <string name="drawer_hud_color_white">Vit</string>
+    <string name="drawer_hud_color_sky">Himmelsblå</string>
+    <string name="drawer_hud_color_amber">Amber</string>
+    <string name="drawer_hud_color_violet">Lila</string>
+    <string name="drawer_hud_opacity">Opacitet</string>
     <string name="drawer_scaling">Skalningsläge</string>
     <string name="drawer_scaling_sharpness">Skalningsskärpa</string>
     <string name="drawer_effects">Skärmeffekter</string>

@@ -580,6 +580,16 @@
     <string name="drawer_prev_page">หน้าก่อนหน้า</string>
     <string name="drawer_next_page">หน้าถัดไป</string>
     <string name="drawer_hud">HUD ประสิทธิภาพ</string>
+    <string name="drawer_hud_fps">อัตราเฟรม</string>
+    <string name="drawer_hud_battery">อุณหภูมิแบตเตอรี่</string>
+    <string name="drawer_hud_graph">กราฟประสิทธิภาพ</string>
+    <string name="drawer_hud_color">สี</string>
+    <string name="drawer_hud_color_mint">มิ้นต์</string>
+    <string name="drawer_hud_color_white">ขาว</string>
+    <string name="drawer_hud_color_sky">ฟ้าสดใส</string>
+    <string name="drawer_hud_color_amber">อำพัน</string>
+    <string name="drawer_hud_color_violet">ม่วง</string>
+    <string name="drawer_hud_opacity">ความโปร่งใส</string>
     <string name="drawer_scaling">โหมดการปรับขนาด</string>
     <string name="drawer_scaling_sharpness">ความคมชัดของการปรับขนาด</string>
     <string name="drawer_effects">เอฟเฟกต์หน้าจอ</string>

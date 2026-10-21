@@ -581,6 +581,16 @@
     <string name="drawer_prev_page">Página anterior</string>
     <string name="drawer_next_page">Página seguinte</string>
     <string name="drawer_hud">HUD de desempenho</string>
+    <string name="drawer_hud_fps">Taxa de fotogramas</string>
+    <string name="drawer_hud_battery">Temperatura da bateria</string>
+    <string name="drawer_hud_graph">Gráfico de desempenho</string>
+    <string name="drawer_hud_color">Cor</string>
+    <string name="drawer_hud_color_mint">Menta</string>
+    <string name="drawer_hud_color_white">Branco</string>
+    <string name="drawer_hud_color_sky">Céu</string>
+    <string name="drawer_hud_color_amber">Âmbar</string>
+    <string name="drawer_hud_color_violet">Violeta</string>
+    <string name="drawer_hud_opacity">Opacidade</string>
     <string name="drawer_scaling">Modo de escala</string>
     <string name="drawer_scaling_sharpness">Nitidez da escala</string>
     <string name="drawer_effects">Efeitos de ecrã</string>

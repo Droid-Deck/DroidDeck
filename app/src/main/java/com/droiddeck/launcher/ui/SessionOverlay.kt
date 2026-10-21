@@ -198,6 +198,8 @@ class DrawerActions(
     val hudFps: Boolean = true,
     val hudBattery: Boolean = true,
     val hudGraph: Boolean = true,
+    val hudColor: String = SessionPrefs.HUD_COLOR_MINT,
+    val hudOpacity: Int = SessionPrefs.HUD_OPACITY_DEFAULT,
     val frameGen: FrameGen.Mode,
     val lossless: Lossless.State,
     val oscMode: String,
@@ -228,6 +230,8 @@ class DrawerActions(
     val onHudFps: (Boolean) -> Unit = {},
     val onHudBattery: (Boolean) -> Unit = {},
     val onHudGraph: (Boolean) -> Unit = {},
+    val onHudColor: (String) -> Unit = {},
+    val onHudOpacity: (Int) -> Unit = {},
     val onFrameGenPick: (FrameGen.Mode) -> Unit,
     val onImportLossless: () -> Unit,
     val onKeyboard: () -> Unit,
@@ -475,6 +479,22 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                         chipModifier = focus.track(page, "hud-battery"), onChange = a.onHudBattery)
                                     ToggleRow(host, "hud-graph", stringResource(R.string.drawer_hud_graph), null, a.hudGraph,
                                         chipModifier = focus.track(page, "hud-graph"), onChange = a.onHudGraph)
+                                    ChoiceRow(
+                                        host, "hud-color", stringResource(R.string.drawer_hud_color), null,
+                                        listOf(
+                                            SessionPrefs.HUD_COLOR_MINT to stringResource(R.string.drawer_hud_color_mint),
+                                            "white" to stringResource(R.string.drawer_hud_color_white),
+                                            "sky" to stringResource(R.string.drawer_hud_color_sky),
+                                            "amber" to stringResource(R.string.drawer_hud_color_amber),
+                                            "violet" to stringResource(R.string.drawer_hud_color_violet),
+                                        ),
+                                        a.hudColor, chipModifier = focus.track(page, "hud-color"), onPick = a.onHudColor,
+                                    )
+                                    SliderRow(
+                                        stringResource(R.string.drawer_hud_opacity), null, a.hudOpacity,
+                                        SessionPrefs.HUD_OPACITY_RANGE, step = 10, format = { "$it%" },
+                                        modifier = focus.track(page, "hud-opacity"), onChange = a.onHudOpacity,
+                                    )
                                 }
                                 val fgOpen = host.open == "fg"
                                 val fgLabel = FrameGen.label(LocalContext.current, a.frameGen)

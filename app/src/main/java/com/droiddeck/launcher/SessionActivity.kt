@@ -309,6 +309,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var hudFps by mutableStateOf(true)
     private var hudBattery by mutableStateOf(true)
     private var hudGraph by mutableStateOf(true)
+    private var hudColor by mutableStateOf(SessionPrefs.HUD_COLOR_MINT)
+    private var hudOpacity by mutableStateOf(SessionPrefs.HUD_OPACITY_DEFAULT)
     private var upscaler by mutableStateOf(0)
     private var upscaleSharpness by mutableStateOf(75)
     private var effects by mutableStateOf(ScreenEffects.OFF)
@@ -641,7 +643,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             com.droiddeck.launcher.ui.FocusGlideHost(androidx.compose.ui.Modifier.fillMaxSize()) {
                 CursorOverlay(cursorPos, cursorVisible, resources.displayMetrics.density,
                     cursorImage, cursorHotX, cursorHotY, cursorImageScale)
-                if (hud.text.isNotEmpty() || hud.graph.size >= 2) HudText(hud.text, hud.graph)
+                if (hud.text.isNotEmpty() || hud.graph.size >= 2) HudText(hud.text, hud.graph, hudColor, hudOpacity)
                 if (glassesOutputActive && !loading.visible) com.droiddeck.launcher.ui.GlassesPlayingHint(glasses.model)
                 if (trackingRecovery != null && !drawerOpen && !pcKeyboardOpen && !loading.visible) {
                     androidx.compose.ui.viewinterop.AndroidView(
@@ -758,6 +760,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     hudFps = hudFps,
                     hudBattery = hudBattery,
                     hudGraph = hudGraph,
+                    hudColor = hudColor,
+                    hudOpacity = hudOpacity,
                     upscaler = upscaler, upscaleSharpness = upscaleSharpness,
                     effects = effects,
                     cardboard = cardboard,
@@ -788,6 +792,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     onHudFps = { on -> SessionPrefs.setHudShowFps(this@SessionActivity, on); hudFps = on; hud.refresh() },
                     onHudBattery = { on -> SessionPrefs.setHudShowBattery(this@SessionActivity, on); hudBattery = on; hud.refresh() },
                     onHudGraph = { on -> SessionPrefs.setHudShowGraph(this@SessionActivity, on); hudGraph = on; hud.refresh() },
+                    onHudColor = { color -> SessionPrefs.setHudColor(this@SessionActivity, color); hudColor = color },
+                    onHudOpacity = { percent -> SessionPrefs.setHudOpacity(this@SessionActivity, percent); hudOpacity = percent },
                     onUpscaler = { m ->
                         SessionPrefs.setUpscaler(this@SessionActivity, m); upscaler = m
                         WaylandCompositor.nativeSetUpscaler(m)
@@ -1355,6 +1361,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         hudFps = SessionPrefs.hudShowFps(this)
         hudBattery = SessionPrefs.hudShowBattery(this)
         hudGraph = SessionPrefs.hudShowGraph(this)
+        hudColor = SessionPrefs.hudColor(this)
+        hudOpacity = SessionPrefs.hudOpacity(this)
         upscaler = SessionPrefs.upscaler(this)
         upscaleSharpness = SessionPrefs.upscaleSharpness(this)
         effects = SessionPrefs.screenEffects(this)

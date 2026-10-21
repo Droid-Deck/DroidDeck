@@ -590,6 +590,13 @@
     <string name="drawer_hud_fps">Frame rate</string>
     <string name="drawer_hud_battery">Battery temperature</string>
     <string name="drawer_hud_graph">Performance graph</string>
+    <string name="drawer_hud_color">Color</string>
+    <string name="drawer_hud_color_mint">Mint</string>
+    <string name="drawer_hud_color_white">White</string>
+    <string name="drawer_hud_color_sky">Sky</string>
+    <string name="drawer_hud_color_amber">Amber</string>
+    <string name="drawer_hud_color_violet">Violet</string>
+    <string name="drawer_hud_opacity">Opacity</string>
     <string name="drawer_scaling">Scaling mode</string>
     <string name="drawer_scaling_sharpness">Scaling sharpness</string>
     <string name="drawer_effects">Screen effects</string>

@@ -582,6 +582,16 @@
     <string name="drawer_prev_page">Vorige pagina</string>
     <string name="drawer_next_page">Volgende pagina</string>
     <string name="drawer_hud">Prestatie-HUD</string>
+    <string name="drawer_hud_fps">Beeldsnelheid</string>
+    <string name="drawer_hud_battery">Accutemperatuur</string>
+    <string name="drawer_hud_graph">Prestatiegrafiek</string>
+    <string name="drawer_hud_color">Kleur</string>
+    <string name="drawer_hud_color_mint">Mint</string>
+    <string name="drawer_hud_color_white">Wit</string>
+    <string name="drawer_hud_color_sky">Hemelsblauw</string>
+    <string name="drawer_hud_color_amber">Amber</string>
+    <string name="drawer_hud_color_violet">Violet</string>
+    <string name="drawer_hud_opacity">Transparantie</string>
     <string name="drawer_scaling">Schaalmodus</string>
     <string name="drawer_scaling_sharpness">Schaalscherpte</string>
     <string name="drawer_effects">Schermeffecten</string>

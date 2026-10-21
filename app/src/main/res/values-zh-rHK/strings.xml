@@ -580,6 +580,16 @@
     <string name="drawer_prev_page">上一頁</string>
     <string name="drawer_next_page">下一頁</string>
     <string name="drawer_hud">效能 HUD</string>
+    <string name="drawer_hud_fps">幀率</string>
+    <string name="drawer_hud_battery">電池溫度</string>
+    <string name="drawer_hud_graph">效能圖表</string>
+    <string name="drawer_hud_color">顏色</string>
+    <string name="drawer_hud_color_mint">薄荷綠</string>
+    <string name="drawer_hud_color_white">白色</string>
+    <string name="drawer_hud_color_sky">天藍</string>
+    <string name="drawer_hud_color_amber">琥珀色</string>
+    <string name="drawer_hud_color_violet">紫羅蘭</string>
+    <string name="drawer_hud_opacity">不透明度</string>
     <string name="drawer_scaling">縮放模式</string>
     <string name="drawer_scaling_sharpness">縮放銳利度</string>
     <string name="drawer_effects">畫面效果</string>
