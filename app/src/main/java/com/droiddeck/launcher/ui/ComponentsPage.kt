@@ -1456,8 +1456,9 @@ private fun GetLine(
 }
 
 // Stable | Nightly in the same box as SmallButton: one focus stop, A (or a tap) flips it.
+// compact = the smaller size used in the in-session drawer's menus.
 @Composable
-private fun ChannelToggle(nightly: Boolean, enabled: Boolean, onFlip: () -> Unit) {
+internal fun ChannelToggle(nightly: Boolean, enabled: Boolean, compact: Boolean = false, onFlip: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
@@ -1465,7 +1466,7 @@ private fun ChannelToggle(nightly: Boolean, enabled: Boolean, onFlip: () -> Unit
     val state = stringResource(if (nightly) R.string.comp_channel_nightly else R.string.comp_channel_stable)
     Row(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp),
-        modifier = Modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(10.dp))
+        modifier = Modifier.heightIn(min = if (compact) 32.dp else 44.dp).clip(RoundedCornerShape(10.dp))
             .background(colors.surfaceVariant)
             .glideBorder(hot, RoundedCornerShape(10.dp), colors.onBackground, pal.line2, restWidth = 2.dp)
             .hoverable(src).clickable(interactionSource = src, indication = null, enabled = enabled, role = Role.Switch, onClick = onFlip)
@@ -1475,11 +1476,11 @@ private fun ChannelToggle(nightly: Boolean, enabled: Boolean, onFlip: () -> Unit
     ) {
         for ((label, on) in listOf(R.string.comp_channel_stable to !nightly, R.string.comp_channel_nightly to nightly)) {
             Text(
-                stringResource(label), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
+                stringResource(label), fontSize = if (compact) 12.sp else 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
                 color = if (!enabled) colors.onSurfaceVariant else if (on) (if (hot) pal.onSignal else pal.signal) else colors.onSurfaceVariant,
                 modifier = Modifier.clip(RoundedCornerShape(7.dp))
                     .background(if (on && enabled) (if (hot) pal.signal else pal.signal.copy(alpha = 0.16f)) else Color.Transparent)
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                    .padding(horizontal = if (compact) 8.dp else 10.dp, vertical = if (compact) 3.dp else 6.dp),
             )
         }
     }

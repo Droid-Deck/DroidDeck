@@ -42,6 +42,20 @@ class ComponentDownloadsDrawerTest {
         compose.onNodeWithText("45%").assertExists()
     }
 
+    @Test fun pairedNightlyRidesOnTheStableRowBehindTheSwitch() {
+        val stable = ComponentsManager.CatalogItem("dxvk-3.1.1-linux.wcp", "dxvk", "Dxvk-Linux", "https://github.com/example/s", 100, "sha256:test")
+        val nightly = ComponentsManager.CatalogItem("DD-dxvk-3.1.1+153-nightly.wcp", "dxvk", ComponentsManager.DD_NIGHTLY, "https://github.com/example/n", 100, "sha256:test")
+        val requested = mutableListOf<ComponentsManager.CatalogItem>()
+        show(catalog = listOf(stable, nightly), onDownload = requested::add)
+        compose.onNodeWithTag("cmp-download-dxvk").performClick()
+        compose.onNodeWithText("dxvk-3.1.1-linux").assertExists()
+        compose.onNodeWithText("DD-dxvk-3.1.1+153-nightly").assertDoesNotExist()
+        compose.onNodeWithText(RuntimeEnvironment.getApplication().getString(R.string.comp_channel_nightly)).performClick()
+        compose.onNodeWithText("dxvk-3.1.1-linux").assertDoesNotExist()
+        compose.onNodeWithText("DD-dxvk-3.1.1+153-nightly").performClick()
+        assertEquals(listOf(nightly), requested)
+    }
+
     @Test fun emptyCatalogOffersRefreshAndDisablesVersionChoicesWhileChecking() {
         var refreshes = 0
         show(catalog = emptyList(), checking = false, onRefresh = { refreshes++ })

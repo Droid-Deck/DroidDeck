@@ -110,6 +110,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -1413,6 +1414,7 @@ internal fun ComponentDownloadsDrawerGroup(
 ) {
     val colors = MaterialTheme.colorScheme
     val installed = packages.map { it.file }.toSet()
+    val nightlyPicked = remember { mutableStateMapOf<String, Boolean>() }
     SettingsGroup(stringResource(R.string.drawer_component_downloads)) {
         Text(stringResource(R.string.drawer_component_downloads_hint), fontSize = 12.sp,
             color = colors.onSurfaceVariant, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp))
@@ -1436,8 +1438,14 @@ internal fun ComponentDownloadsDrawerGroup(
                     }
                     AnchoredMenu(open, onDismiss = { if (host.open == key) host.open = null },
                         title = ComponentsManager.LABEL.getValue(comp)) { firstItemFocus ->
-                        val firstAvailable = items.firstOrNull { ComponentsManager.safeName(it.file) !in installed && it.file !in downloads }
-                        items.forEach { item ->
+                        // A nightly paired with a stable build rides on that row behind a Stable/Nightly switch.
+                        val pairs = ComponentsManager.nightlyPairs(items)
+                        val rows = items.filter { it !in pairs.values }
+                        fun shown(row: ComponentsManager.CatalogItem) = pairs[row]?.takeIf { nightlyPicked[row.file] == true } ?: row
+                        val firstAvailable = rows.firstOrNull { shown(it).let { s -> ComponentsManager.safeName(s.file) !in installed && s.file !in downloads } }
+                        rows.forEach { row ->
+                            val item = shown(row)
+                            val nightly = pairs[row]
                             val stored = ComponentsManager.safeName(item.file) in installed
                             val progress = downloads[item.file]
                             MenuItem(item.file.removeSuffix(".wcp"), checked = stored,
@@ -1447,7 +1455,10 @@ internal fun ComponentDownloadsDrawerGroup(
                                     progress != null -> if (progress < 0) stringResource(R.string.wincomp_downloading, item.file.removeSuffix(".wcp")) else "$progress%"
                                     else -> item.release + " · " + stringResource(R.string.common_size_mb, item.size / 1048576.0)
                                 },
-                                focusRequester = if (item == firstAvailable) firstItemFocus else null,
+                                trailing = if (nightly != null) ({
+                                    ChannelToggle(item === nightly, enabled = progress == null, compact = true) { nightlyPicked[row.file] = item !== nightly }
+                                }) else null,
+                                focusRequester = if (row == firstAvailable) firstItemFocus else null,
                             ) {
                                 onDownload(item)
                                 host.open = null
