@@ -128,6 +128,10 @@ object StoresState {
 
     fun installedGame(store: Store, id: String): InstalledStoreGame? = installed.firstOrNull { it.sidecar.store == store && it.sidecar.id == id }
 
+    fun detailItem(store: Store, id: String): CatalogItem? = detailCatalogItem(
+        store, id, library[store].orEmpty(), found[store].orEmpty(), shelves[store],
+    )
+
     fun open(context: Context, store: Store, force: Boolean = false) {
         val backend = backends[store] ?: return
         val app = context.applicationContext

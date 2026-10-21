@@ -51,7 +51,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
-import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreAchievements
 import com.droiddeck.launcher.stores.StoresState
@@ -68,7 +67,7 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
     val narrow = LocalNarrowPane.current
     val stacked = narrow || LocalConfiguration.current.screenWidthDp < 700
     val id = key.substringAfter(':')
-    val item = (StoresState.library[store].orEmpty() + StoresState.shelves[store]?.all.orEmpty()).firstOrNull { it.id == id }
+    val item = StoresState.detailItem(store, id)
     val installed = StoresState.installedGame(store, id)
     val rawDownload = StoresState.download("${store.id}:$id")
     val download = rawDownload?.takeIf { it.isActive }
@@ -93,11 +92,13 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
                 HeroScores(scores, Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 18.dp))
             }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.align(Alignment.BottomStart).padding(horizontal = 22.dp, vertical = 18.dp)) {
+                val passName = item?.includedWith.orEmpty()
                 val state = when {
                     installed != null -> stringResource(R.string.stores_eyebrow_installed) + " · " + com.droiddeck.launcher.stores.StoreInstallRoot.labelFor(ctx, installed.folder)
                     download != null && download.location.isNotBlank() -> stringResource(R.string.stores_eyebrow_library) + " · " + download.location
                     failedDownload != null && failedDownload.location.isNotBlank() -> stringResource(R.string.stores_eyebrow_library) + " · " + failedDownload.location
                     item?.subscription == true -> "PC Game Pass"
+                    passName.isNotBlank() -> "Available with $passName"
                     item?.accessible == true -> stringResource(R.string.stores_eyebrow_library)
                     else -> stringResource(R.string.stores_eyebrow_store)
                 }
@@ -153,11 +154,11 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
                                 com.droiddeck.launcher.stores.download.DownloadQueue.clear(ctx, failedDownload.key)
                             }
                         }
-                        item?.accessible == true && StoresState.isUnfinished(item) -> {
+                        item?.installable == true && StoresState.isUnfinished(item) -> {
                             InstallButton(stringResource(R.string.stores_resume_install), leadOn) { StoresState.requestInstall(ctx, item) }
                             ConfirmButton(stringResource(R.string.stores_dl_clear), stringResource(R.string.stores_dl_cancel_confirm), compact = true) { StoresState.clearUnfinished(ctx, item) }
                         }
-                        item?.accessible == true -> InstallButton(
+                        item?.installable == true -> InstallButton(
                             if (item.sizeBytes > 0) stringResource(R.string.stores_install_size, formatBytes(item.sizeBytes)) else stringResource(R.string.stores_install),
                             leadOn,
                         ) { StoresState.requestInstall(ctx, item) }
@@ -171,7 +172,7 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
     }
     if (StoresMotion.heroLands) hero() else Rise(1) { hero() }
     if (scores != null) Rise(2) {
-        val listed = StoresState.shelves[store]?.all.orEmpty().firstOrNull { it.id == id }
+        val listed = (StoresState.found[store].orEmpty() + StoresState.shelves[store]?.all.orEmpty()).firstOrNull { it.id == id }
         val developer = item?.developer?.ifBlank { null } ?: listed?.developer.orEmpty()
         val publisher = item?.publisher?.ifBlank { null } ?: listed?.publisher.orEmpty()
         val releaseDate = item?.releaseDate?.ifBlank { null } ?: listed?.releaseDate.orEmpty()

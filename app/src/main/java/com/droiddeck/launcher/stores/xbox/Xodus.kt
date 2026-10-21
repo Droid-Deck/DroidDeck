@@ -3,6 +3,7 @@ package com.droiddeck.launcher.stores.xbox
 import android.content.Context
 import android.os.Environment
 import com.droiddeck.launcher.core.AddonPack
+import com.droiddeck.launcher.runtime.LinuxNetworkLinkComponent
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.SessionPrefs
 import org.json.JSONObject
@@ -67,6 +68,7 @@ internal object Xodus {
     fun start(app: Context, args: List<String>, service: Boolean = false, runtimeDirectory: File? = null, launchDirectory: File? = null, credentialGeneration: String? = null): Child {
         check(LinuxRuntime.isInstalled(app)) { "Install the Linux runtime before using Xbox." }
         val pack = stage(app)
+        LinuxNetworkLinkComponent(app, LinuxRuntime.rootDir(app)).publish()
         val binary = "$DIR/${if (service) "xodus-service" else "xodus-cli"}"
         check(File(LinuxRuntime.rootDir(app), binary.removePrefix("/")).isFile) { "The Xbox backend is missing. Update the Linux runtime." }
         val credentials = XboxCredentials(app, credentialGeneration)

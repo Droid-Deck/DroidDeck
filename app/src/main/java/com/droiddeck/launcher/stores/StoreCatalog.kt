@@ -22,8 +22,11 @@ data class CatalogItem(
     val extra: Map<String, String> = emptyMap(),
     val mature: Boolean = false,
     val subscription: Boolean = false,
+    val includedWith: String = "",
 ) {
     val accessible: Boolean get() = owned || subscription
+    /** Licensed now, or a supported package the account's subscription can install. */
+    val installable: Boolean get() = accessible || includedWith.isNotBlank()
     val isDiscounted: Boolean get() = discountPercent > 0 && originalPrice.isNotBlank()
     val key: String get() = "${store.id}:$id"
 }
@@ -85,6 +88,18 @@ internal fun retainCatalogOrder(items: List<CatalogItem>, previous: List<Catalog
     if (previous.any { it.key !in byKey }) return items
     return previous.map { byKey.getValue(it.key) }
 }
+
+/** A detail page opens for search results too; the library wins when it already knows the product. */
+fun detailCatalogItem(
+    store: Store,
+    id: String,
+    library: List<CatalogItem>,
+    found: List<CatalogItem>,
+    shelves: StoreShelves?,
+): CatalogItem? =
+    library.firstOrNull { it.store == store && it.id == id }
+        ?: found.firstOrNull { it.store == store && it.id == id }
+        ?: shelves?.all?.firstOrNull { it.store == store && it.id == id }
 
 fun mergeItems(old: List<CatalogItem>?, new: List<CatalogItem>): List<CatalogItem> {
     if (old.isNullOrEmpty()) return new
