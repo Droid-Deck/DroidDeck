@@ -97,8 +97,9 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
                     installed != null -> stringResource(R.string.stores_eyebrow_installed) + " · " + com.droiddeck.launcher.stores.StoreInstallRoot.labelFor(ctx, installed.folder)
                     download != null && download.location.isNotBlank() -> stringResource(R.string.stores_eyebrow_library) + " · " + download.location
                     failedDownload != null && failedDownload.location.isNotBlank() -> stringResource(R.string.stores_eyebrow_library) + " · " + failedDownload.location
+                    item?.owned == true -> stringResource(R.string.stores_eyebrow_library)
+                    item?.subscription == true -> passName.ifBlank { "PC Game Pass" }
                     passName.isNotBlank() -> "Available with $passName"
-                    item?.subscription == true -> "PC Game Pass"
                     item?.accessible == true -> stringResource(R.string.stores_eyebrow_library)
                     else -> stringResource(R.string.stores_eyebrow_store)
                 }
@@ -158,10 +159,21 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
                             InstallButton(stringResource(R.string.stores_resume_install), leadOn) { StoresState.requestInstall(ctx, item) }
                             ConfirmButton(stringResource(R.string.stores_dl_clear), stringResource(R.string.stores_dl_cancel_confirm), compact = true) { StoresState.clearUnfinished(ctx, item) }
                         }
-                        item?.installable == true -> InstallButton(
-                            if (item.sizeBytes > 0) stringResource(R.string.stores_install_size, formatBytes(item.sizeBytes)) else stringResource(R.string.stores_install),
-                            leadOn,
-                        ) { StoresState.requestInstall(ctx, item) }
+                        item?.installable == true -> {
+                            InstallButton(
+                                if (item.sizeBytes > 0) stringResource(R.string.stores_install_size, formatBytes(item.sizeBytes)) else stringResource(R.string.stores_install),
+                                leadOn,
+                            ) { StoresState.requestInstall(ctx, item) }
+                            if (!item.accessible) {
+                                SecondaryButton(
+                                    when {
+                                        item.isFree -> stringResource(R.string.stores_get_free)
+                                        item.hasPrice && item.finalPrice.isNotBlank() -> stringResource(R.string.stores_buy_price, item.finalPrice)
+                                        else -> stringResource(R.string.stores_view_on, store.shortLabel)
+                                    },
+                                ) { openStoreUrl(ctx, item) }
+                            }
+                        }
                         item != null && item.isFree -> PrimaryButton(stringResource(R.string.stores_get_free), main = true, modifier = leadOn) { openStoreUrl(ctx, item) }
                         item != null -> PrimaryButton(if (item.hasPrice && item.finalPrice.isNotBlank()) stringResource(R.string.stores_buy_price, item.finalPrice) else stringResource(R.string.stores_view_on, store.shortLabel), main = true, modifier = leadOn) { openStoreUrl(ctx, item) }
                     }

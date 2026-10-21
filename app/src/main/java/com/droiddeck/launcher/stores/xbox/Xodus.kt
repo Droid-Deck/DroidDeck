@@ -101,7 +101,7 @@ internal object Xodus {
             credentials.bind(process, File(LinuxRuntime.rootDir(app), binary.removePrefix("/")), digest.digest())
             return Child(process, credentials, runtimeDirectory, launchDirectory, networkLink)
         } catch (e: Exception) {
-            networkLink.stop()
+            runCatching { networkLink.stop() }
             credentials.close()
             throw e
         }
