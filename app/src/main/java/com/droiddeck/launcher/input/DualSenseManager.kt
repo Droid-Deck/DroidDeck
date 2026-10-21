@@ -222,6 +222,7 @@ class DualSenseManager(private val context: Context) {
     }
 
     fun onUsbDeviceAttached(device: UsbDevice) {
+        if (stopped) return
         if (!DualSense.isDualSense(device)) return
         hasDetached = false
         if (DualSense.isEdge(device)) isEdgeConnected = true
@@ -461,6 +462,7 @@ class DualSenseManager(private val context: Context) {
     }
 
     fun onInputDeviceAdded(deviceId: Int) {
+        if (stopped) return
         val dev = getInputDevice(deviceId)
         if (dev != null && DualSense.isDualSense(dev)) {
             hasDetached = false
@@ -596,6 +598,7 @@ class DualSenseManager(private val context: Context) {
 
     @Synchronized
     fun promoteToDualSense() {
+        if (stopped) return
         activeManager = this
         if (isDualSenseActive) return
         val prev = SessionPrefs.steamController(context)

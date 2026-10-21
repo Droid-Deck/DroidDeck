@@ -1134,7 +1134,8 @@ struct DeckHidraw {
   int peer = -1;
   FakeInputRingHeader *ring = nullptr;
   size_t mapping_size = 0;
-  uint8_t pending_feature[64] = {};
+  uint8_t pending_feature = 0;
+  uint8_t sony_feature_buf[64] = {};
   bool touch = false;
   bool triton = false;
   bool emulated = false;
@@ -2530,9 +2531,9 @@ __attribute__((visibility("hidden"))) static int sony_feature(const DeckHidraw &
     put32(reply + 52, 0x0002000A);
     put32(reply + 56, 0x00000006);
   } else if (pad.sony == 5 && id == 0x81) {
-    if (pad.pending_feature[0] == 0x80) {
-      reply[1] = pad.pending_feature[1];
-      reply[2] = pad.pending_feature[2];
+    if (pad.sony_feature_buf[0] == 0x80) {
+      reply[1] = pad.sony_feature_buf[1];
+      reply[2] = pad.sony_feature_buf[2];
       reply[3] = 0x02;
     } else {
       reply[1] = 0x02;
@@ -2633,9 +2634,9 @@ __attribute__((visibility("hidden"))) static int ioctl_sony(DeckHidraw &pad, ioc
   case 0x08: return copy_ioctl_string(op, argp, "5e:43:4b:44:44:02");
   case 0x06: {
     const auto *in = static_cast<const uint8_t *>(argp);
-    size_t sz = std::min<size_t>(_IOC_SIZE(op), sizeof(pad.pending_feature));
+    size_t sz = std::min<size_t>(_IOC_SIZE(op), sizeof(pad.sony_feature_buf));
     if (in && sz > 0) {
-      memcpy(pad.pending_feature, in, sz);
+      memcpy(pad.sony_feature_buf, in, sz);
     }
     return static_cast<int>(_IOC_SIZE(op));
   }

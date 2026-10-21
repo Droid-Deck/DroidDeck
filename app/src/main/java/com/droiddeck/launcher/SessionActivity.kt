@@ -2697,7 +2697,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             ?.registerInputDeviceListener(deviceListener, Handler(Looper.getMainLooper()))
         if (SessionState.guestPid > 1) padBridge?.syncConnectedControllers()
         joyConVr?.refresh()
-        dualSenseManager?.start()
         onScreenControls?.reload()
         controllerSettings = ControllerPrefs.read(this)
         resumed = true
@@ -2720,7 +2719,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         (getSystemService(INPUT_SERVICE) as? InputManager)?.unregisterInputDeviceListener(deviceListener)
         releaseDrawerDirection()
         onScreenControls?.releaseAll()
-        dualSenseManager?.stop()
         if (::scrollTouch.isInitialized) scrollTouch.cancel()
         if (::padMouse.isInitialized) padMouse.reset()
         resumed = false
