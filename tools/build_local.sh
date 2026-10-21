@@ -361,12 +361,20 @@ fi
 
 cd "${repo_root}"
 python3 tools/quest/build-driver.py "${NDK}"
+xbox_out="${linuxfs_dir}/usr/local/lib/droiddeck-xbox"
+xbox_key=$(inputs_hash "native-arm64-ubuntu24.04" tools/xbox)
+if ! restore_step xbox "${xbox_key}" "${xbox_out}"; then
+    bash tools/xbox/build-local.sh
+    save_step xbox "${xbox_key}" "${xbox_out}"
+fi
+
 comet_out="${linuxfs_dir}/usr/local/lib/droiddeck-comet"
 comet_key=$(inputs_hash "${image_id}" tools/comet)
 if ! restore_step comet "${comet_key}" "${comet_out}"; then
     DROIDDECK_BUILD_IMAGE="${image_name}" bash tools/comet/build-local.sh
     save_step comet "${comet_key}" "${comet_out}"
 fi
+bash tools/packs/build.sh app/build/packs
 python3 tools/release/runtime_inputs.py record
 ./gradlew "${gradle_task}" --console=plain -PndkVersion="${ndk_version}" ${gradle_rust_arg}
 python3 tools/release/check_session_assets.py "app/build/outputs/apk/${build_variant}/app-${build_variant}.apk"

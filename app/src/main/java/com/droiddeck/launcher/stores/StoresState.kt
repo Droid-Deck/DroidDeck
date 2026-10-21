@@ -20,6 +20,8 @@ object StoresState {
     private val main = Handler(Looper.getMainLooper())
 
     val accounts = mutableStateMapOf<Store, String>()
+    var accountsLoaded by mutableStateOf(false)
+        private set
 
     val library = mutableStateMapOf<Store, List<CatalogItem>>()
 
@@ -84,11 +86,15 @@ object StoresState {
             val partial = StoreInstallRoot.unfinished(app)
             val version = if (StoresNative.available) StoresNative.version ?: "" else ""
             main.post {
-                accounts.clear()
-                found.forEach { (store, name) -> accounts[store] = name }
-                installed = onDisk
-                unfinished = partial
-                engine = version
+                androidx.compose.runtime.snapshots.Snapshot.withMutableSnapshot {
+                    val restored = found.toMap()
+                    accounts.keys.toList().filter { it !in restored }.forEach { accounts.remove(it) }
+                    accounts.putAll(restored)
+                    installed = onDisk
+                    unfinished = partial
+                    engine = version
+                    accountsLoaded = true
+                }
             }
         }
     }
@@ -162,10 +168,12 @@ object StoresState {
     fun signOut(context: Context, store: Store) {
         val app = context.applicationContext
         background("stores-signout") {
-            backends[store]?.signOut(app)
+            val backend = backends[store]
+            backend?.signOut(app)
             if (store == Store.GOG) com.droiddeck.launcher.stores.gog.GogComet.replaceAccount { StoreAccounts.clear(app, store) }
-            else StoreAccounts.clear(app, store)
+            else if (store != Store.XBOX || backend == null) StoreAccounts.clear(app, store)
             main.post {
+                if (store == Store.XBOX && StoreAccounts.signedInAs(app, store) != null) return@post
                 accounts.remove(store); library.remove(store); status.remove(store); problems.remove(store)
                 logLine("${store.label}: signed out")
             }

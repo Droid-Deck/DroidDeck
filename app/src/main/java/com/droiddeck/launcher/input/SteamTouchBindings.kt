@@ -16,10 +16,13 @@ object SteamTouchBindings {
     const val DEFAULT_FOREGROUND = "#232323"
     const val DEFAULT_BACKGROUND = "#E4E4E4"
 
+    fun cleanLabel(raw: String): String =
+        raw.replace(Regex("""["\\,\p{Cntrl}]"""), " ").replace(Regex("""\s+"""), " ").trim().let { it.take(it.offsetByCodePoints(0, minOf(32, it.codePointCount(0, it.length)))) }
+
     data class Binding(val action: String, val label: String, val icon: String, val foreground: String, val background: String) {
         fun compose(): String =
-            if (icon.isEmpty() && foreground.isEmpty() && background.isEmpty()) "$action, $label, "
-            else "$action, $label, $icon, ${listOf(foreground, background).filter { it.isNotEmpty() }.joinToString(" ")}"
+            if (icon.isEmpty() && foreground.isEmpty() && background.isEmpty()) "$action, ${cleanLabel(label)}, "
+            else "$action, ${cleanLabel(label)}, $icon, ${listOf(foreground, background).filter { it.isNotEmpty() }.joinToString(" ")}"
 
         val hasIcon get() = icon.isNotEmpty()
     }
