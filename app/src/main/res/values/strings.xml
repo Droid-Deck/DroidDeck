@@ -308,6 +308,12 @@
     <string name="mode_decky_current">Up to date · %1$s</string>
     <string name="mode_decky_loader">Loader</string>
     <string name="mode_decky_install_latest">Install latest</string>
+    <string name="decky_channel">Update Channel</string>
+    <string name="decky_channel_hint">Which Decky Loader releases to install. Decky\'s own updater uses the same channel.</string>
+    <string name="decky_channel_stable">Stable</string>
+    <string name="decky_channel_prerelease">Prerelease</string>
+    <string name="decky_channel_testing">Testing</string>
+    <string name="decky_channel_failed">Could not save the Decky update channel</string>
     <string name="mode_decky_on">Starts with Steam. While on, other apps on this device may be able to control Steam.</string>
     <string name="mode_decky_off">Off. Steam\'s remote debugging port stays closed.</string>
     <string name="mode_decky_remove_title">Uninstall Decky Loader?</string>

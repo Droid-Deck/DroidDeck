@@ -11,7 +11,9 @@ import java.io.File
 
 internal class DeckyMenu(private val activity: android.app.Activity, private val ui: android.os.Handler) {
     var deckyInstalled by mutableStateOf<String?>(null)
-    var deckyReleases by mutableStateOf<List<DeckyManager.Release>>(emptyList())
+    var deckyLatest by mutableStateOf<DeckyManager.Release?>(null)
+    var deckyBranch by mutableIntStateOf(DeckyManager.BRANCH_STABLE)
+    private var deckyChannels = DeckyManager.ReleaseChannels(emptyList(), emptyList())
     var deckyChecking by mutableStateOf(false)
     var deckyStage by mutableStateOf<String?>(null)
     var deckyPercent by mutableIntStateOf(-1)
@@ -21,17 +23,31 @@ internal class DeckyMenu(private val activity: android.app.Activity, private val
 
     fun refreshDecky() {
         val request = ++deckyReleaseRequest
+        deckyBranch = DeckyManager.branch(activity)
         deckyChecking = true
         Thread({
             val channels = runCatching { DeckyManager.releaseChannels(activity) }
                 .getOrElse { DeckyManager.ReleaseChannels(emptyList(), emptyList()) }
             ui.post {
                 if (request == deckyReleaseRequest) {
-                    deckyReleases = channels.stable.ifEmpty { channels.prerelease }
+                    deckyChannels = channels
+                    deckyLatest = DeckyManager.latest(channels, deckyBranch)
                     deckyChecking = false
                 }
             }
         }, "decky-releases").start()
+    }
+
+    fun switchDeckyBranch(branch: Int) {
+        if (branch == deckyBranch || deckyStage != null || SessionState.running) return
+        val saved = runCatching { DeckyManager.setBranch(activity, branch) }
+        if (saved.isFailure) {
+            android.widget.Toast.makeText(activity, R.string.decky_channel_failed, android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
+        deckyBranch = branch
+        deckyLatest = DeckyManager.latest(deckyChannels, branch)
+        refreshDecky()
     }
 
     fun installDecky(release: DeckyManager.Release) {

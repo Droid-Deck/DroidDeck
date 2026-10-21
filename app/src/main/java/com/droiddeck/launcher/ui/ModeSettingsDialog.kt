@@ -98,6 +98,7 @@ class ModeSettings(
     val wifiDiscoveryBlocked: Boolean = false,
     val deckyInstalled: String? = null,
     val deckyLatestRelease: DeckyManager.Release? = null,
+    val deckyBranch: Int = DeckyManager.BRANCH_STABLE,
     val deckyChecking: Boolean = false,
     val deckyStage: String? = null,
     val deckyPercent: Int = -1,
@@ -144,6 +145,7 @@ class ModeSettingsActions(
     val onWifiDiscoverySettings: () -> Unit = {},
     val onDeckyInstall: (DeckyManager.Release) -> Unit = {},
     val onDeckyCheck: () -> Unit = {},
+    val onDeckyBranch: (Int) -> Unit = {},
     val onDeckyEnabled: (Boolean) -> Unit = {},
     val onDeckyUninstall: () -> Unit = {},
     val onPickDeckyPluginZip: () -> Unit = {},
@@ -423,6 +425,19 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                     if (s.deckyInstalled != null) DeckyUninstall(enabled = s.deckyStage == null && !s.deckySessionRunning, onUninstall = a.onDeckyUninstall)
                 }
             }
+            ChoiceRow(
+                host, "decky-channel", stringResource(R.string.decky_channel),
+                stringResource(R.string.decky_channel_hint),
+                listOf(
+                    DeckyManager.BRANCH_STABLE to stringResource(R.string.decky_channel_stable),
+                    DeckyManager.BRANCH_PRERELEASE to stringResource(R.string.decky_channel_prerelease),
+                ) + if (s.deckyBranch == DeckyManager.BRANCH_TESTING) listOf(
+                    DeckyManager.BRANCH_TESTING to stringResource(R.string.decky_channel_testing),
+                ) else emptyList(),
+                s.deckyBranch,
+                enabled = s.deckyStage == null && !s.deckySessionRunning,
+                onPick = a.onDeckyBranch,
+            )
             if (s.deckyInstalled != null) ToggleRow(
                 host, "decky-enabled", stringResource(R.string.mode_decky),
                 if (s.deckyEnabled) stringResource(R.string.mode_decky_on)
