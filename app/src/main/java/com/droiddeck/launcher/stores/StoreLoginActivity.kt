@@ -255,6 +255,8 @@ class StoreLoginActivity : ComponentActivity() {
     }
 
     private inner class Client(private val isPopup: Boolean) : WebViewClient() {
+        private var mainFrameUrl: String? = null
+
         override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
             Log.d(TAG, "page[popup=$isPopup]: ${StoreLog.redactUrl(url)}")
             if (url != null && view != null && flow?.isRedirect(url) == true && flow?.readsPage != true) complete(view, url)
@@ -277,10 +279,14 @@ class StoreLoginActivity : ComponentActivity() {
 
         override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
             handler?.cancel()
-            showError(getString(R.string.stores_login_error_ssl))
+            val url = error?.url
+            if (url == null || url == view?.url || url == mainFrameUrl) showError(getString(R.string.stores_login_error_ssl))
         }
 
-        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean = route(view, request.url)
+        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+            if (request.isForMainFrame) mainFrameUrl = request.url.toString()
+            return route(view, request.url)
+        }
 
         @Suppress("DEPRECATION")
         override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean = route(view, Uri.parse(url))
