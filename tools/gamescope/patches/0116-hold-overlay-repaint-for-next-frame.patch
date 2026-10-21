@@ -1,5 +1,5 @@
 diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
-index 214677d..563c0f9 100644
+index 214677d..6c9299d 100644
 --- a/src/steamcompmgr.cpp
 +++ b/src/steamcompmgr.cpp
 @@ -298,6 +298,7 @@ update_runtime_info();
@@ -30,25 +30,35 @@ index 214677d..563c0f9 100644
  				}
  
  				// If this is the main plane, repaint
-@@ -10574,6 +10579,13 @@ steamcompmgr_main(int argc, char **argv)
+@@ -10573,6 +10578,14 @@ steamcompmgr_main(int argc, char **argv)
+ 			hasRepaint = true;
  
  		bool bPainted = false;
- 
++		bool bPaintedOutput = false;
++
 +		static int nHeldExternalOverlayCycles = 0;
 +
 +		if ( !hasRepaintExternalOverlay )
 +			nHeldExternalOverlayCycles = 0;
 +		else if ( vblank && ++nHeldExternalOverlayCycles >= cv_external_overlay_hold_cycles )
 +			hasRepaintNonBasePlane = true;
-+
+ 
  		static int nIgnoredOverlayRepaints = 0;
  
- 		if ( !hasRepaintNonBasePlane )
-@@ -10751,6 +10763,7 @@ steamcompmgr_main(int argc, char **argv)
+@@ -10733,6 +10746,7 @@ steamcompmgr_main(int argc, char **argv)
+ 				paint_all( pPaintFocus, eFlipType == FlipType::Async );
+ 
+ 				bPainted = true;
++				bPaintedOutput = true;
+ 			}
+ 		}
+ 
+@@ -10751,6 +10765,8 @@ steamcompmgr_main(int argc, char **argv)
  
  			hasRepaint = false;
  			hasRepaintNonBasePlane = false;
-+			hasRepaintExternalOverlay = false;
++			if ( bPaintedOutput )
++				hasRepaintExternalOverlay = false;
  			nIgnoredOverlayRepaints = 0;
  
  			{
