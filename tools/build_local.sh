@@ -14,7 +14,7 @@ fi
 sdk_dir=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-"${HOME}/Library/Android/sdk"}}
 java_dir="${JAVA_HOME:-/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home}"
 [[ -x "$java_dir/bin/java" ]] || {
-  mise_java="$(mise which java 2>/dev/null)"
+  mise_java="$(mise -C "${repo_root}" which java 2>/dev/null)"
   if [[ -n "$mise_java" ]]; then
     mise_home="$(dirname "$mise_java")"
     [[ "$mise_home" == */bin ]] && mise_home="$(dirname "$mise_home")"
