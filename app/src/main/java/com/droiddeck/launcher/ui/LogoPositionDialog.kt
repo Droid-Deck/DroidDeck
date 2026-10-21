@@ -145,7 +145,7 @@ internal fun LogoPositionDialog(
     var value by remember { mutableStateOf(start ?: LogoPosition.DEFAULT) }
     val startPin = remember { value.pin }
     val first = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focusWithinFrames({ false }) { first } }
+    LaunchedEffect(Unit) { focusSoon { first } }
     var failed by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     val save: (LogoPosition.Value?) -> Unit = { next ->
