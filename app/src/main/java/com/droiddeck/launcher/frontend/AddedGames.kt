@@ -41,10 +41,20 @@ object AddedGames {
         return SessionPrefs.gameFolderBinds(context).map { (host, guest) -> Root(File(host), guest) }
     }
 
-    private val SKIP = Regex(
-        "(?i)^(unins.*|setup.*|.*redist.*|vcredist.*|dxsetup.*|dxwebsetup.*|.*crash.*|.*report.*|dotnet.*|directx.*|.*prereq.*" +
-            "|.*installer.*|.*uninstall.*|.*updater?.*|.*config(ur.*)?|.*settings.*|.*editor.*|.*server.*|.*benchmark.*|.*helper.*|.*eac.*|.*easyanticheat.*|.*battleye.*)\\.exe$",
+    private val SKIP_PREFIX = Regex("(?i)^(unins|setup|vc_?redist|dxsetup|dxwebsetup|dotnet|directx|easyanticheat|battleye).*")
+    private val SKIP_PART = Regex("(?i)redist|prereq|installer|uninstall|crashreport|crashhandler|crashpad|crashsender|launchhelper")
+    private val SKIP_WORDS = setOf(
+        "eac", "report", "reporter", "editor", "server", "benchmark", "helper",
+        "update", "updater", "config", "configure", "configurator", "configuration", "settings",
     )
+    private val WORD = Regex("[A-Z]?[a-z]+|[A-Z]+(?![a-z])|[0-9]+")
+
+    internal fun skipExe(name: String): Boolean {
+        if (!name.endsWith(".exe", ignoreCase = true)) return false
+        val base = name.dropLast(4)
+        if (SKIP_PREFIX.matches(base) || SKIP_PART.containsMatchIn(base)) return true
+        return WORD.findAll(base).any { it.value.lowercase() in SKIP_WORDS }
+    }
 
     const val GUEST_DIR = "/root/Games"
 
@@ -75,7 +85,7 @@ object AddedGames {
         val key = "${folder.path}|${folder.lastModified()}"
         val now = System.currentTimeMillis()
         ranked[key]?.takeIf { now - it.first < RANK_FRESH_MS }?.let { return it.second }
-        val guessed = GameExePicker.rank(folder) { !SKIP.matches(it.name) }
+        val guessed = GameExePicker.rank(folder) { !skipExe(it.name) }
         val declared = declaredExes(folder)
         val preferred = declared.map { it.path }.toSet()
         val result = if (declared.isEmpty()) guessed else GameExePicker.Ranking(
@@ -128,7 +138,7 @@ object AddedGames {
         val root = runCatching { folder.canonicalPath + File.separator }.getOrNull() ?: return emptyList()
         return names.asSequence()
             .map { File(folder, it.trim().replace('\\', '/').trimStart('/')) }
-            .filter { it.name.endsWith(".exe", ignoreCase = true) && !SKIP.matches(it.name) && it.isFile }
+            .filter { it.name.endsWith(".exe", ignoreCase = true) && !skipExe(it.name) && it.isFile }
             .filter { runCatching { it.canonicalPath.startsWith(root) }.getOrDefault(false) }
             .distinctBy { it.path }
             .toList()
@@ -204,8 +214,10 @@ object AddedGames {
         GamesFolderMigration.run(context)
         val path = canonical(exe)
         fun holds(f: File) = inside(path, canonical(f))
-        AddedExes.list(context).map { File(it.folder) }.firstOrNull(::holds)?.let { return it }
-        SessionPrefs.removedAddedGames(context).map { File(it) }.firstOrNull(::holds)?.let { return it }
+        val entries = AddedExes.list(context)
+        fun owns(f: File) = holds(f) && sameGame(f, currentExe(context, entries, f), exe)
+        entries.map { File(it.folder) }.filter(::owns).maxByOrNull { canonical(it).length }?.let { return it }
+        SessionPrefs.removedAddedGames(context).map { File(it) }.filter(::owns).maxByOrNull { canonical(it).length }?.let { return it }
         StoreInstallRoot.gameFolders(context).firstOrNull(::holds)?.let { return it }
         val dirs = listOfNotNull(
             GameStorage.effective(context)?.let { File(it.path, "steamapps/common") },
@@ -220,6 +232,24 @@ object AddedGames {
         return null
     }
 
+    private fun currentExe(context: Context, entries: List<AddedExes.Entry>, folder: File): File? =
+        SessionPrefs.addedGameExe(context, folder.path).takeIf { it.isNotEmpty() }?.let(::File)
+            ?: entries.firstOrNull { it.folder == folder.path }?.let { File(it.exe) }
+            ?: rank(folder).exes.firstOrNull()
+
+    private fun sameGame(folder: File, current: File?, pick: File): Boolean {
+        val base = canonical(folder)
+        if (current == null || pick.parentFile?.let(::canonical) == base) return true
+        val known = canonical(current)
+        if (!inside(known, base) || known.substringBeforeLast('/') == base) return true
+        val picked = canonical(pick)
+        fun top(p: String) = p.removePrefix("$base/").substringBefore('/')
+        fun stem(p: String) = p.substringAfterLast('/').lowercase().removeSuffix(".exe").replace(EXE_BUILD, "").filter { it.isLetterOrDigit() }
+        return top(known) == top(picked) || stem(known).let { it.isNotEmpty() && it == stem(picked) }
+    }
+
+    private val EXE_BUILD = Regex("([-_. ](x64|x86|win64|win32|64|32|shipping))+$")
+
     fun addExe(context: Context, exe: File): AddResult {
         val app = context.applicationContext
         if (!exe.isFile) return AddResult.NotFound
@@ -228,7 +258,10 @@ object AddedGames {
         if (owner != null && owner.path !in SessionPrefs.removedAddedGames(app)) {
             single(app, owner.path)?.takeIf { canonical(it.exe) == path }?.let { return AddResult.Existing(it) }
         }
-        if (owner == null && guestPath(app, exe) == null) return AddResult.Unreachable
+        if (guestPath(app, exe) == null) {
+            (owner ?: exe.parentFile)?.takeIf { guestPath(app, it) == null }?.let { bindFolder(app, it) }
+            if (guestPath(app, exe) == null) return AddResult.Unreachable
+        }
         val folder = owner ?: exe.parentFile ?: return AddResult.NotFound
         SessionPrefs.setAddedGameRemoved(app, folder.path, false)
         SessionPrefs.setAddedGameExe(app, folder.path, exe.path)
@@ -243,6 +276,8 @@ object AddedGames {
 
     fun addFolder(context: Context, dir: File, onGame: (Game) -> Unit = {}, onChecking: (String?) -> Unit = {}): FolderResult {
         val app = context.applicationContext
+        // Binds are mounted at session start, so a new one reaches the session from the next start.
+        if (guestPath(app, dir) == null) bindFolder(app, dir)
         val removed = SessionPrefs.removedAddedGames(app).toSet()
         val listed = listedFolders(app, removed)
         var already = 0
@@ -264,6 +299,20 @@ object AddedGames {
         AddedGamesPublisher.later(app) { com.droiddeck.launcher.stores.SteamLiveShortcuts.sync(app, added) { true } }
         Log.i(TAG, "added ${added.size} game(s) from ${dir.name}, $already already listed")
         return FolderResult(added, already)
+    }
+
+    @Synchronized
+    internal fun bindFolder(context: Context, dir: File) {
+        if (!dir.isDirectory || !dir.canRead()) return
+        val binds = SessionPrefs.gameFolderBinds(context)
+        if (binds.any { it.first == dir.path }) return
+        val taken = binds.map { it.second }.toSet()
+        val base = GamesFolderMigration.legacyRoots(binds.map { it.first } + dir.path).last().guest
+        var guest = base
+        var n = 2
+        while (guest in taken) guest = "$base-${n++}"
+        SessionPrefs.setGameFolderBinds(context, binds + (dir.path to guest))
+        Log.i(TAG, "games: bound $dir at $guest")
     }
 
     private fun listedFolders(context: Context, removed: Set<String>): List<String> {
