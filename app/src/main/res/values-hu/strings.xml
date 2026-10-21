@@ -176,6 +176,8 @@
     <string name="app_fex_x86">%1$s a FEX-en keresztül</string>
     <string name="app_fex_not_ready">Ez a program %1$s PC-khez készült, és a FEX-en keresztül fut, amely még nincs beállítva. Nyissa meg egyszer a Steamet bejelentkezve: a DroidDeck ekkor letölti a FEX-et és a szükséges Steam Linux Runtime-ot, majd ez megnyílik.</string>
     <string name="session_end_program">Ez a program</string>
+    <string name="session_end_steam_download">A Steam-klienst nem sikerült letölteni. Lehet, hogy a hálózat vagy a VPN blokkolja a Steam szervereit; ellenőrizd a kapcsolatot, és próbáld újra.</string>
+    <string name="session_end_steam_setup">A Steam-klienst nem sikerült beállítani. Ellenőrizd a kapcsolatot és a szabad tárhelyet, majd próbáld újra.</string>
     <string name="session_end_fex_missing">A %1$s x86 PC-khez készült, és a FEX-en keresztül fut, amely még nincs telepítve. Indítsa el egyszer a Steamet bejelentkezve, és hagyja letölteni a FEX-et és a Steam Linux Runtime-ot, majd indítsa el ezt újra.</string>
     <string name="add_app_flatpak_hint">Egy Flathub-alkalmazásazonosító vagy a Flathub-oldala. A Flatpak előbb beállításra kerül, ha még nincs beállítva.</string>
     <string name="add_app_file">Fájl</string>

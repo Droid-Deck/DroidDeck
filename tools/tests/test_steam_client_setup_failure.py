@@ -10,9 +10,10 @@ import unittest
 SESSION = Path(__file__).resolve().parents[1] / 'linuxfs/overlay/usr/local/bin/droiddeck-session'
 SOURCE = SESSION.read_text()
 ARM64_BRANCH = SOURCE.index('    else\n      step "checking the Steam client (first run')
-START = SOURCE.index('    droiddeck-steam-install || {\n', ARM64_BRANCH)
+START = SOURCE.index('    droiddeck-steam-install || steam_setup_failed $?\n', ARM64_BRANCH)
 END = SOURCE.index('    step "Steam client ready"\n', START)
-INSTALL_BLOCK = textwrap.dedent(SOURCE[START:END])
+HELPER = re.search(r'^steam_setup_failed\(\) \{\n.*?^\}\n', SOURCE, re.M | re.S).group()
+INSTALL_BLOCK = HELPER + textwrap.dedent(SOURCE[START:END])
 RUN_GAMESCOPE = re.search(r'^run_gamescope\(\) \(\n.*?^\)\n', SOURCE, re.M | re.S).group()
 MARKER = '== steam: the Steam client could not be set up'
 
