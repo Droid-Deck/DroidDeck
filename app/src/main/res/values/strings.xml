@@ -90,6 +90,7 @@
     <string name="game_env_no_fsync">Set to 1 to keep this game off droiddeck-fsync; it uses droiddeck-esync where a pack exists, otherwise droiddeck-ntsync.</string>
     <string name="game_env_fsync_first">Set to 1 to run this game on droiddeck-fsync, or 0 to put droiddeck-esync first where a pack fits its Proton.</string>
     <string name="game_env_xalia">Set to 0 to disable Proton’s gamepad-navigation helper for this game.</string>
+    <string name="game_env_anticheat_offline">On by default. Starts an Easy Anti-Cheat game without its anti-cheat when the game supports offline play. Turn off to launch through Easy Anti-Cheat as usual. Online modes that require Easy Anti-Cheat remain unavailable.</string>
     <string name="game_env_hud">DXVK overlay for D3D9–11. fps displays frame rate; unset hides it.</string>
     <string name="game_env_dxvk_config">DXVK settings separated by semicolons. Recent builds use dxvk.maxFrameRate for frame limiting; prefer the session frame limiter for ordinary play.</string>
     <string name="game_env_vkd3d_limit">D3D12 frame-rate limit. 0 disables the limit.</string>
@@ -1072,6 +1073,9 @@
     <string name="games_added">Added game</string>
     <string name="games_custom">Custom game</string>
     <string name="games_store_storage">Games storage</string>
+    <string name="games_uninstall_body">Deletes its files and removes it from Steam.</string>
+    <string name="games_remove_title">Remove %1$s?</string>
+    <string name="games_remove_body">Deletes its shortcut. The game files stay.</string>
     <string name="gpu_auto_hint">The best pair for this GPU, kept up to date</string>
     <string name="gpu_manual_hint">Pick a pair yourself</string>
     <string name="gpu_checking">Checking for drivers…</string>
