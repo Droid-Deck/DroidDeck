@@ -1588,9 +1588,9 @@ private:
                 if (fresh) PublishChaperone(xr);
                 DriverPose_t head = GetPose();
                 VRServerDriverHost()->TrackedDevicePoseUpdated(id_, head, sizeof(head));
-                for (int hand = 0; hand < 2; hand++) if (hands_[hand]) {
+                for (int hand = 0; hand < 2; hand++) if (CardboardController *pad = ActiveHand(hand)) {
                     DroidDeckXrHand state = fresh ? xr.hands[hand] : DroidDeckXrHand{};
-                    hands_[hand]->UpdateXr(state, fresh ? xr.predicted_ns : 0);
+                    pad->UpdateXr(state, fresh ? xr.predicted_ns : 0);
                 }
                 VRDriverInput()->UpdateBooleanComponent(proximity_, fresh, 0);
                 std::this_thread::sleep_for(std::chrono::milliseconds(2));
@@ -1632,8 +1632,8 @@ private:
                 const bool optical = !lumaJoyCons && (spatial.flags & DD_SPATIAL_ACTIVE) && (spatial.flags & DD_SPATIAL_HANDS);
                 const uint32_t chord = PAD_L3 | PAD_R3;
                 if (!optical && havePad && (pad.buttons & chord) == chord && (lastPad_.buttons & chord) != chord) {
-                    sticksMoveHands_ = !sticksMoveHands_;
-                    Log("sticks now move %s", sticksMoveHands_ ? "the hands" : "in the game");
+                    sticksMoveHands_.store(!sticksMoveHands_.load());
+                    Log("sticks now move %s", sticksMoveHands_.load() ? "the hands" : "in the game");
                 }
                 const float dt = std::min(std::chrono::duration<float>(now - lastReach_).count(), 0.1f);
                 lastReach_ = now;
@@ -1675,7 +1675,7 @@ private:
                     if (joyCon || bare) wantHand_[side] = true;
                     const bool covered = handControllers_[side] && handControllers_[side]->Update(joyCon, bare, head.qRotation, nowNs,
                         lumaJoyCons ? &spatial : nullptr);
-                    CardboardController *hand = hands_[side];
+                    CardboardController *hand = ActiveHand(side);
                     if (!hand) continue;
                     if (otherControllers_ || covered || bare || lumaJoyCons) {
                         if (!padHandOff_[side]) hand->Disconnect();
@@ -1687,7 +1687,7 @@ private:
                         havePad ? &pad : nullptr, SpatialNow(), spatial.connection, spatial.origin,
                         uint16_t(spatial.input_epochs >> (side*16)),
                         spatial.flags & DD_SPATIAL_STEADY_AIM ? &spatial.head : nullptr);
-                    else hand->Update(head, havePad ? &pad : nullptr, sticksMoveHands_, reach_);
+                    else hand->Update(head, havePad ? &pad : nullptr, sticksMoveHands_.load(), reach_);
                 }
                 if (havePad) lastPad_ = pad;
                 lastSent = now;
@@ -1751,6 +1751,17 @@ private:
 public:
     void SetHands(CardboardController *left, CardboardController *right) { hands_[0] = left; hands_[1] = right; }
     void SetSticksMoveHands(bool on) { sticksMoveHands_ = on; }
+
+    // Called only from the pose thread: a replaced pair is disconnected there, so it never races an update.
+    CardboardController *ActiveHand(int side) {
+        CardboardController *wanted = hands_[side].load();
+        if (wanted != active_[side]) {
+            if (active_[side]) active_[side]->Disconnect();
+            active_[side] = wanted;
+            padHandOff_[side] = false;
+        }
+        return wanted;
+    }
     void SetHandControllers(HandController *left, HandController *right) { handControllers_[0] = left; handControllers_[1] = right; }
     bool WantsHand(int side) const { return wantHand_[side].load(); }
 
@@ -1767,12 +1778,13 @@ private:
     PadState lastPad_;
     VRInputComponentHandle_t proximity_ = 0;
     bool worn_ = true;
-    bool sticksMoveHands_ = false;
+    std::atomic<bool> sticksMoveHands_{false};
     float reach_ = 0.0f;
     std::chrono::steady_clock::time_point lastReach_ = std::chrono::steady_clock::now();
     std::chrono::steady_clock::time_point lastScan_{};
     bool otherControllers_ = false;
-    CardboardController *hands_[2] = {nullptr, nullptr};
+    std::atomic<CardboardController *> hands_[2] = {nullptr, nullptr};
+    CardboardController *active_[2] = {nullptr, nullptr};
     bool padHandOff_[2] = {false, false};
     ShmFile<droiddeck_joycon> joyConFile_{kJoyConPath, DROIDDECK_JOYCON_MAGIC, DROIDDECK_JOYCON_VERSION, "Joy-Con"};
     uint32_t lastJoyConSeq_ = 0;
@@ -1805,16 +1817,8 @@ public:
         Log("DroidDeck Cardboard driver loaded");
         if (!VRServerDriverHost()->TrackedDeviceAdded("droiddeck-cardboard-hmd", TrackedDeviceClass_HMD, &hmd_))
             Log("TrackedDeviceAdded failed");
-        const PadControllerConfig pads = read_pad_controller_config("/run/droiddeck/" DROIDDECK_VR_CONTROLLERS_FILE);
-        Log("game pad hands: %s, sticks start in %s", pad_profile_name(pads.profile), pads.sticksMoveHands ? "the hands" : "the game");
-        hmd_.SetSticksMoveHands(pads.sticksMoveHands);
-        if (pads.profile != PadProfile::Off && VRSettings()->GetBool(kSettingsSection, "gamepadControllers")) {
-            left_.SetProfile(pads.profile);
-            right_.SetProfile(pads.profile);
-            VRServerDriverHost()->TrackedDeviceAdded("droiddeck-pad-left", TrackedDeviceClass_Controller, &left_);
-            VRServerDriverHost()->TrackedDeviceAdded("droiddeck-pad-right", TrackedDeviceClass_Controller, &right_);
-            hmd_.SetHands(&left_, &right_);
-        }
+        padsEnabled_ = VRSettings()->GetBool(kSettingsSection, "gamepadControllers");
+        ApplyPadConfig(true);
         hmd_.SetHandControllers(&handLeft_, &handRight_);
         return VRInitError_None;
     }
@@ -1825,6 +1829,11 @@ public:
     }
     const char *const *GetInterfaceVersions() override { return k_InterfaceVersions; }
     void RunFrame() override {
+        const auto now = std::chrono::steady_clock::now();
+        if (now - lastConfigCheck_ > std::chrono::seconds(1)) {
+            lastConfigCheck_ = now;
+            ApplyPadConfig(false);
+        }
         for (int side = 0; side < 2; side++) {
             if (handAdded_[side] || !hmd_.WantsHand(side)) continue;
             handAdded_[side] = true;
@@ -1846,9 +1855,11 @@ public:
             if (!h.componentHandle) continue;
             if (h.componentHandle == handLeft_.Haptic()) SendRumble(DROIDDECK_JOYCON_RUMBLE_SLOT, h);
             else if (h.componentHandle == handRight_.Haptic()) SendRumble(DROIDDECK_JOYCON_RUMBLE_SLOT + 1, h);
-            else if (h.componentHandle == left_.Haptic() || h.componentHandle == right_.Haptic()) {
-                if (left_.XrMode()) SendHaptic(h.componentHandle == right_.Haptic() ? 1 : 0, h);
+            else for (int p = 0; p < kPadProfiles; p++) {
+                if (!padAdded_[p] || (h.componentHandle != pads_[p][0].Haptic() && h.componentHandle != pads_[p][1].Haptic())) continue;
+                if (pads_[p][0].XrMode()) SendHaptic(h.componentHandle == pads_[p][1].Haptic() ? 1 : 0, h);
                 else SendRumble(0, h);
+                break;
             }
         }
     }
@@ -1895,8 +1906,49 @@ private:
         target.frequency = std::max(pulse.fFrequency, 0.f);
         __atomic_store_n(&haptics_->seq, (sequence | 1u) + 1u, __ATOMIC_RELEASE);
     }
+    // SteamVR fixes a device's input profile when it activates, so each type gets its own pair,
+    // added the first time it is chosen; devices cannot be removed, only disconnected.
+    void ApplyPadConfig(bool initial) {
+        struct stat st{};
+        const char *path = "/run/droiddeck/" DROIDDECK_VR_CONTROLLERS_FILE;
+        const bool exists = stat(path, &st) == 0;
+        const int64_t stamp = exists ? int64_t(st.st_mtim.tv_sec) * 1000000000 + st.st_mtim.tv_nsec : 0;
+        if (!initial && stamp == configStamp_) return;
+        configStamp_ = stamp;
+        const PadControllerConfig pads = read_pad_controller_config(path);
+        if (initial || pads.sticksMoveHands != configSticks_) hmd_.SetSticksMoveHands(pads.sticksMoveHands);
+        configSticks_ = pads.sticksMoveHands;
+        const PadProfile profile = padsEnabled_ ? pads.profile : PadProfile::Off;
+        if (!initial && profile == profile_) return;
+        profile_ = profile;
+        Log("game pad hands: %s, sticks start in %s", pad_profile_name(profile), pads.sticksMoveHands ? "the hands" : "the game");
+        if (profile == PadProfile::Off) { hmd_.SetHands(nullptr, nullptr); return; }
+        const int p = int(profile) - 1;
+        if (!padAdded_[p]) {
+            static const char *const kNames[kPadProfiles][2] = {
+                {"droiddeck-pad-left", "droiddeck-pad-right"},
+                {"droiddeck-pad-touch-left", "droiddeck-pad-touch-right"},
+                {"droiddeck-pad-vive-left", "droiddeck-pad-vive-right"},
+            };
+            for (int side = 0; side < 2; side++) {
+                pads_[p][side].SetProfile(profile);
+                VRServerDriverHost()->TrackedDeviceAdded(kNames[p][side], TrackedDeviceClass_Controller, &pads_[p][side]);
+            }
+            padAdded_[p] = true;
+        }
+        hmd_.SetHands(&pads_[p][0], &pads_[p][1]);
+    }
+
+    static constexpr int kPadProfiles = 3;
     CardboardHmd hmd_;
-    CardboardController left_{false}, right_{true};
+    CardboardController pads_[kPadProfiles][2] = {{CardboardController(false), CardboardController(true)},
+                                                  {CardboardController(false), CardboardController(true)},
+                                                  {CardboardController(false), CardboardController(true)}};
+    bool padAdded_[kPadProfiles] = {false, false, false};
+    bool padsEnabled_ = true, configSticks_ = false;
+    PadProfile profile_ = PadProfile::Off;
+    int64_t configStamp_ = -1;
+    std::chrono::steady_clock::time_point lastConfigCheck_{};
     HandController handLeft_{false}, handRight_{true};
     bool handAdded_[2] = {false, false};
 };

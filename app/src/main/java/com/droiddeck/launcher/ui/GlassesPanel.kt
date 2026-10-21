@@ -83,7 +83,7 @@ internal object GlassesTab {
 }
 
 @Composable
-internal fun VrControllerGroups(host: MenuHost) {
+internal fun VrControllerGroups(host: MenuHost, track: (String) -> Modifier = { Modifier }) {
     val context = androidx.compose.ui.platform.LocalContext.current
     androidx.compose.runtime.LaunchedEffect(Unit) { com.droiddeck.launcher.input.VrControllers.load(context) }
     val c by com.droiddeck.launcher.input.VrControllers.settings.collectAsState()
@@ -95,11 +95,11 @@ internal fun VrControllerGroups(host: MenuHost) {
                 com.droiddeck.launcher.input.VrControllers.Emulate.INDEX -> R.string.vr_controllers_index
                 com.droiddeck.launcher.input.VrControllers.Emulate.TOUCH -> R.string.vr_controllers_touch
                 com.droiddeck.launcher.input.VrControllers.Emulate.VIVE -> R.string.vr_controllers_vive
-            }) }, c.emulate) { com.droiddeck.launcher.input.VrControllers.setEmulate(context, it) }
+            }) }, c.emulate, chipModifier = track("vr-emulate")) { com.droiddeck.launcher.input.VrControllers.setEmulate(context, it) }
         if (c.emulate != com.droiddeck.launcher.input.VrControllers.Emulate.OFF) ChoiceRow(host, "vr-sticks",
             stringResource(R.string.vr_controllers_sticks), stringResource(R.string.vr_controllers_sticks_hint),
             listOf(false to stringResource(R.string.vr_controllers_sticks_game), true to stringResource(R.string.vr_controllers_sticks_hands)),
-            c.sticksMoveHands) { com.droiddeck.launcher.input.VrControllers.setSticksMoveHands(context, it) }
+            c.sticksMoveHands, chipModifier = track("vr-sticks")) { com.droiddeck.launcher.input.VrControllers.setSticksMoveHands(context, it) }
         SettingsRow(stringResource(R.string.vr_controllers_buttons), stringResource(when (c.emulate) {
             com.droiddeck.launcher.input.VrControllers.Emulate.OFF -> R.string.vr_controllers_buttons_off
             com.droiddeck.launcher.input.VrControllers.Emulate.VIVE -> R.string.vr_controllers_buttons_vive

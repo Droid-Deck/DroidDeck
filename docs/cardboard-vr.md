@@ -469,7 +469,10 @@ results, app recovery behavior, and the unverified powered-adapter design.
   the absolute-state snapshot the app already publishes in fake input ring 0
   (`FAKE_EVDEV_MEMFD_PATHS`), so the app needs no new plumbing. **Play SteamVR → Settings → Controllers**
   chooses what they are; the app writes the choice to `/run/droiddeck/droiddeck-vr-controllers`
-  (`emulate=index|touch|vive|off`, `sticks=game|hands`) and the driver reads it when SteamVR starts:
+  (`emulate=index|touch|vive|off`, `sticks=game|hands`). The same choice is in the session menu's glasses page
+  and on the phone while the picture is on the glasses. The driver checks the file every second and switches
+  while SteamVR runs: SteamVR fixes a device's input profile when it activates, so each type gets its own pair
+  of devices, added the first time it is chosen, and the pair it replaces is disconnected:
   - **Valve Index** (default) and **Meta Quest 3** (Touch Plus) are thumbstick controllers with the
     stock input profiles, so games use their own Index or Touch bindings. Triggers are triggers, bumpers
     grip, A/B and X/Y are each hand's face buttons, stick clicks are thumbstick clicks and Guide is system.

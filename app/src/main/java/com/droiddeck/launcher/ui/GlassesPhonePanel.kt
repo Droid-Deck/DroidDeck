@@ -33,6 +33,8 @@ internal class GlassesPhoneActions(
     val onRecenter: (() -> Unit)?,
     val onSteamVrMenu: (() -> Unit)?,
     val onSwitchSticks: (() -> Unit)?,
+    val controllers: String?,
+    val onNextControllers: (() -> Unit)?,
     val onKeyboard: () -> Unit,
     val onSessionMenu: () -> Unit,
     val onStopSteamVr: (() -> Unit)?,
@@ -55,6 +57,8 @@ internal fun GlassesPhonePanel(model: String, status: String?, a: GlassesPhoneAc
                 verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 a.onRecenter?.let { PanelButton(stringResource(R.string.glasses_phone_recenter), "phone-recenter", it) }
                 a.onSteamVrMenu?.let { PanelButton(stringResource(R.string.glasses_phone_steamvr_menu), "phone-steamvr-menu", it) }
+                a.onNextControllers?.let { next -> a.controllers?.let {
+                    PanelButton(stringResource(R.string.glasses_phone_controllers, it), "phone-controllers", next) } }
                 a.onSwitchSticks?.let { PanelButton(stringResource(R.string.glasses_phone_switch_sticks), "phone-switch-sticks", it) }
                 PanelButton(stringResource(R.string.glasses_phone_keyboard), "phone-keyboard", a.onKeyboard)
                 PanelButton(stringResource(R.string.glasses_phone_session_menu), "phone-session-menu", a.onSessionMenu)

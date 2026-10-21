@@ -2518,7 +2518,7 @@
     <string name="vr_controllers_tab">Controllers</string>
     <string name="vr_controllers_group">SteamVR controllers</string>
     <string name="vr_controllers_emulate">Game pad in VR</string>
-    <string name="vr_controllers_emulate_hint">The two VR hands your controller plays as. Takes effect the next time SteamVR starts. Joy-Cons and tracked hands still take over their side.</string>
+    <string name="vr_controllers_emulate_hint">The two VR hands your controller plays as. Changes apply right away, also while SteamVR runs. Joy-Cons and tracked hands still take over their side.</string>
     <string name="vr_controllers_off">Regular game pad</string>
     <string name="vr_controllers_index">Valve Index controllers</string>
     <string name="vr_controllers_touch">Meta Quest 3 controllers</string>
@@ -2551,6 +2551,7 @@
     <string name="glasses_phone_recenter">Recenter</string>
     <string name="glasses_phone_steamvr_menu">SteamVR menu</string>
     <string name="glasses_phone_switch_sticks">Sticks: hands ⇄ game</string>
+    <string name="glasses_phone_controllers">Controllers: %1$s</string>
     <string name="glasses_phone_keyboard">Keyboard</string>
     <string name="glasses_phone_session_menu">Session menu</string>
     <string name="glasses_phone_stop_steamvr">Stop SteamVR</string>

@@ -1032,6 +1032,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             onRecenter = if (headTracking) ({ headTracker?.recenter() }) else null,
             onSteamVrMenu = if (vr && SessionState.mode == SessionService.MODE_STEAM) ({ sendSteamGuide() }) else null,
             onSwitchSticks = if (vr && pads.emulate != com.droiddeck.launcher.input.VrControllers.Emulate.OFF) ({ switchVrSticks() }) else null,
+            controllers = getString(when (pads.emulate) {
+                com.droiddeck.launcher.input.VrControllers.Emulate.OFF -> R.string.vr_controllers_off
+                com.droiddeck.launcher.input.VrControllers.Emulate.INDEX -> R.string.vr_controllers_index
+                com.droiddeck.launcher.input.VrControllers.Emulate.TOUCH -> R.string.vr_controllers_touch
+                com.droiddeck.launcher.input.VrControllers.Emulate.VIVE -> R.string.vr_controllers_vive
+            }),
+            onNextControllers = if (vr) ({
+                val all = com.droiddeck.launcher.input.VrControllers.Emulate.entries
+                com.droiddeck.launcher.input.VrControllers.setEmulate(this, all[(pads.emulate.ordinal + 1) % all.size])
+            }) else null,
             onKeyboard = { keyboard?.toggle() },
             onSessionMenu = { drawerOpen = true },
             onStopSteamVr = if (vr) ({ steamVrAction("stop") }) else null,

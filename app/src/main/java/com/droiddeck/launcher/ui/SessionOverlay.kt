@@ -318,7 +318,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
     val pal = LocalPalette.current
     val host = rememberMenuHost()
     val (glasses, glassesSettings) = rememberGlasses()
-    val glassesPages = glassesTabs(glasses)
+    val glassesPages = glassesTabs(glasses) + (GlassesTab.CONTROLLERS to stringResource(R.string.vr_controllers_tab))
     var selectedGlassesTab by rememberSaveable { mutableStateOf(GlassesTab.DISPLAY) }
     val glassesTab = selectedGlassesTab.takeIf { key -> glassesPages.any { it.first == key } } ?: GlassesTab.DISPLAY
     var androidAppsExpanded by rememberSaveable { mutableStateOf(false) }
@@ -591,7 +591,9 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         SessionDrawerPage.SECOND_SCREEN -> {
                             SecondScreenGroup(host, a) { key -> focus.track(page, key) }
                         }
-                        SessionDrawerPage.GLASSES -> {
+                        SessionDrawerPage.GLASSES -> if (glassesTab == GlassesTab.CONTROLLERS) {
+                            VrControllerGroups(host) { key -> focus.track(page, key) }
+                        } else {
                             GlassesGroups(host, glasses, glassesSettings, { key -> focus.track(page, key) }, onRecenter = a.onGlassesRecenter,
                                 tab = glassesTab, outputActive = a.glassesOutput, steamVrRunning = a.steamVr == SteamVr.Status.RUNNING,
                                 steamVr = { SteamVrRow(a) })
