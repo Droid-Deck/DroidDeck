@@ -58,4 +58,15 @@ class SteamClientSetupFailureTest {
         )!!
         assertNull(failure.curlError)
     }
+
+    @Test fun anArm64SyncErrorIsNotBlamedForTheX64Client() {
+        val failure = find(
+            "== STEP 10:00:00 checking the Steam client's arm64 parts (first run downloads them, ~1-2 min)",
+            "curl: (6) Could not resolve host: client-update.steamstatic.com",
+            "== STEP 10:00:05 could not update the arm64 client's parts; the x86-64 client keeps its own web helper",
+            "== STEP 10:00:05 checking the x86-64 Steam client (FEX, experimental; the first run downloads ~2 GB)",
+            "== steam: the Steam client could not be set up (status 3)",
+        )!!
+        assertNull(failure.curlError)
+    }
 }
