@@ -1232,6 +1232,7 @@ class Session:
         seed_settings()
         install_shims()
         install_preload(files)
+        fex_module()["install_fonts"](files)
         clear_playing()
         sync_installations()
         forget_sign_in()

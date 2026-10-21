@@ -149,6 +149,11 @@ DroidDeck SteamVR session. Library launch diagnostics are in
 logs remain in `vrstartup.log` and Steam's logs directory. It does not intercept
 arbitrary external `steam://` URLs or change VR game launch arguments.
 
+Only VR-only games (`vr_only`) wait for SteamVR and start it. Games where VR is
+optional, such as No Man's Sky, launch normally unless SteamVR is already
+running; before this they started (and if needed downloaded) SteamVR on every
+Play, so they opened in VR without the user asking for it.
+
 Validation: seven bridge/dispatch tests passed under Node/Python, five Android
 SteamVR launch tests passed, shell syntax passed and the debug APK built with
 runtime input verification. The broader Linux compatibility suite cannot run

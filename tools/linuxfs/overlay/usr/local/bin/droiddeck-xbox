@@ -1,0 +1,201 @@
+#!/usr/bin/python3
+"""Licensed Xbox launches through Xodus and the game's selected ARM64 Proton."""
+import hmac
+import json
+import os
+from pathlib import Path
+import runpy
+import secrets
+import shutil
+import socket
+import subprocess
+import sys
+import tempfile
+import threading
+
+BIN = Path(__file__).resolve().parent
+RUNTIME = Path('/usr/local/lib/droiddeck-xbox')
+DLLS = ('xgameruntime.dll', 'winhttp.dll', 'windows.web.dll', 'twinapi.appcore.dll', 'libnghttp2.dll')
+
+
+def bridge(upstream):
+    key = secrets.token_hex(32).encode('ascii')
+    server = socket.socket()
+    server.bind(('127.0.0.1', 0))
+    server.listen(16)
+    clients = set()
+    lock = threading.Lock()
+    stopped = threading.Event()
+
+    def forward(source, target):
+        try:
+            while not stopped.is_set():
+                data = source.recv(65536)
+                if not data:
+                    break
+                target.sendall(data)
+        except OSError:
+            pass
+        finally:
+            try:
+                target.shutdown(socket.SHUT_WR)
+            except OSError:
+                pass
+
+    def connect(client):
+        remote = None
+        try:
+            client.settimeout(10)
+            supplied = b''
+            while len(supplied) < len(key):
+                part = client.recv(len(key) - len(supplied))
+                if not part:
+                    return
+                supplied += part
+            if not hmac.compare_digest(supplied, key):
+                return
+            remote = socket.socket(socket.AF_UNIX)
+            remote.connect(upstream)
+            client.settimeout(None)
+            with lock:
+                clients.add(remote)
+            writer = threading.Thread(target=forward, args=(client, remote), daemon=True)
+            writer.start()
+            forward(remote, client)
+            writer.join(2)
+        except OSError:
+            pass
+        finally:
+            for sock in (client, remote):
+                if sock is not None:
+                    with lock:
+                        clients.discard(sock)
+                    sock.close()
+
+    def accept():
+        while not stopped.is_set():
+            try:
+                client, _ = server.accept()
+            except OSError:
+                break
+            with lock:
+                if len(clients) >= 64:
+                    client.close()
+                    continue
+                clients.add(client)
+            threading.Thread(target=connect, args=(client,), daemon=True).start()
+
+    threading.Thread(target=accept, daemon=True).start()
+
+    def close():
+        stopped.set()
+        server.close()
+        with lock:
+            for client in clients:
+                try:
+                    client.shutdown(socket.SHUT_RDWR)
+                except OSError:
+                    pass
+                client.close()
+            clients.clear()
+
+    return server.getsockname()[1], key.decode('ascii'), close
+
+
+def wine(argv, source_env=None):
+    source_env = os.environ if source_env is None else source_env
+    with open(source_env['DROIDDECK_XBOX_COMMAND_FILE'], encoding='utf-8') as file:
+        command = json.load(file)
+    if len(command) < 3 or command[1] != 'waitforexitandrun' or len(argv) != 1:
+        raise ValueError('Invalid Xbox Proton invocation')
+    env = dict(source_env)
+    env.pop('DROIDDECK_XBOX_CREDENTIAL_SOCKET', None)
+    env.pop('DROIDDECK_XBOX_COMMAND_FILE', None)
+    prefix = Path(source_env['STEAM_COMPAT_DATA_PATH']) / 'pfx'
+    prefix.parent.mkdir(parents=True, exist_ok=True)
+    if not (prefix / 'system.reg').is_file():
+        result = subprocess.run([command[0], 'run', 'cmd', '/c', 'exit', '0'], stdout=sys.stderr, env=env)
+        if result.returncode:
+            return result.returncode
+    system = prefix / 'drive_c/windows/system32'
+    system.mkdir(parents=True, exist_ok=True)
+    for name in DLLS:
+        target = system / name
+        if target.is_symlink():
+            target.unlink()
+        shutil.copyfile(RUNTIME / 'windows' / name, target)
+    overrides = ';'.join(name[:-4] + '=n' for name in DLLS if name != 'libnghttp2.dll')
+    env['WINEDLLOVERRIDES'] = overrides + ';' + env.get('WINEDLLOVERRIDES', '')
+    return subprocess.call([*command[:2], argv[0], *command[3:]], env=env)
+
+
+def renew_lease(ask, channel, product, lease, stopped):
+    while not stopped.wait(15):
+        response = ask(channel, {'op': 'xbox-renew', 'id': product, 'lease': lease}, timeout=10)
+        if response is not None and response.get('ok') is False:
+            return
+
+
+def launch(command, env):
+    if len(command) < 3 or command[1] != 'waitforexitandrun' or env.get('DROIDDECK_XBOX_ACTIVE') == '1':
+        return None
+    try:
+        store = runpy.run_path(str(BIN / 'droiddeck-store-launch'))
+    except Exception as error:
+        print('droiddeck-xbox: store detection unavailable (%s); stock launch' % error, file=sys.stderr)
+        return None
+    found = store['find_store_game'](command[2:])
+    if found is None or found[1].get('store') != 'xbox':
+        return None
+    folder, sidecar = found
+    for name in DLLS:
+        if not (RUNTIME / 'windows' / name).is_file():
+            raise RuntimeError('Xbox Windows runtime is missing; update the Linux runtime')
+    launch_dir = env.get('BL_LAUNCH_DIR')
+    if not launch_dir:
+        raise RuntimeError('No Xbox account channel; start the game from DroidDeck')
+    reply = store['ask'](Path(launch_dir) / 'stores', {'op': 'xbox-prepare', 'id': sidecar['id']}, timeout=190)
+    if not reply or not reply.get('ok'):
+        raise RuntimeError('Xbox account service is unavailable; sign in again and retry')
+    stopped = threading.Event()
+    close = lambda: None
+    try:
+        port, key, close = bridge(reply['socket'])
+
+        threading.Thread(target=renew_lease, args=(store['ask'], Path(launch_dir) / 'stores',
+                         sidecar['id'], reply['lease'], stopped), daemon=True).start()
+        with tempfile.TemporaryDirectory(prefix='droiddeck-xbox-') as temporary:
+            context = Path(temporary) / 'command.json'
+            context.write_text(json.dumps(command), encoding='utf-8')
+            context.chmod(0o600)
+            owned_env = dict(env, DROIDDECK_XBOX_ACTIVE='1', DROIDDECK_XBOX_COMMAND_FILE=str(context),
+                             XODUS_SOCKET=reply['socket'], XODUS_BRIDGE_PORT=str(port), XODUS_BRIDGE_KEY=key,
+                             XODUS_LOG='off', RUST_LOG='off', XODUS_SAVE_SYNC='auto' if sidecar.get('cloud', True) else 'off')
+            owned_env.pop('DROIDDECK_XBOX_CREDENTIAL_SOCKET', None)
+            if reply.get('playfab'):
+                owned_env['XODUS_XSTS_PLAYFAB'] = reply['playfab']
+            content = folder / '.xbox-content'
+            roots = []
+            if content.is_dir():
+                for entry in content.iterdir():
+                    try:
+                        marker = json.loads((entry / '.droiddeck-content.json').read_text())
+                        if marker.get('parent') == sidecar['id'] and marker.get('productId') == entry.name and not entry.is_symlink():
+                            roots.append('Z:' + str(entry).replace('/', '\\'))
+                    except (OSError, ValueError, TypeError):
+                        pass
+            if roots:
+                owned_env['XODUS_CONTENT_ROOTS'] = ';'.join(roots)
+            return wine([reply['exe']], owned_env)
+    finally:
+        stopped.set()
+        close()
+        store['ask'](Path(launch_dir) / 'stores', {'op': 'xbox-released', 'lease': reply['lease']})
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(wine(sys.argv[1:]))
+    except (OSError, ValueError, KeyError, RuntimeError):
+        print('droiddeck-xbox: Xbox launch failed; check your account, runtime and package.', file=sys.stderr)
+        sys.exit(1)

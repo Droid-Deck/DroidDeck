@@ -311,6 +311,24 @@ class ImportsTest(unittest.TestCase):
         self.assertFalse((self.steam / 'steamapps/appmanifest_42.acf').exists())
         self.assertFalse(os.path.lexists(self.steam / 'steamapps/common/DroidDeck-42'))
 
+    def test_imported_game_stays_imported_when_ownership_is_unconfirmed(self):
+        self.snapshot()
+        imports.route(self.steam, self.acct, [self.game])
+        for owned, account in [(False, '123'), (True, '456')]:
+            self.snapshot(owned, account)
+            self.assertEqual(([], {str(self.game['appid']): 42}), imports.route(self.steam, self.acct, [self.game]))
+        self.assertTrue((self.steam / 'steamapps/appmanifest_42.acf').is_file())
+
+    def test_unlisted_card_library_is_not_another_clients_install(self):
+        card = self.root / 'card'
+        (card / 'steamapps').mkdir(parents=True)
+        (card / 'steamapps/appmanifest_42.acf').write_text('the other client installed it here')
+        self.snapshot()
+        with patch.object(imports, 'LIBRARY', str(card)):
+            self.assertEqual(([], {str(self.game['appid']): 42}), imports.route(self.steam, self.acct, [self.game]))
+        self.assertTrue((self.steam / 'steamapps/appmanifest_42.acf').is_file())
+        self.assertEqual(self.folder, (self.steam / 'steamapps/common/DroidDeck-42').resolve())
+
     def test_replaced_game_does_not_inherit_cached_ownership(self):
         self.snapshot()
         self.exe.write_bytes(b'a different game')

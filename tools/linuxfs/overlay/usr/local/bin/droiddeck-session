@@ -129,6 +129,7 @@ export XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
 export XDG_CACHE_HOME=${XDG_CACHE_HOME:-$HOME/.cache}
 mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME"
 rm -f "${XDG_RUNTIME_DIR:-/run/droiddeck}/droiddeck-steamvr/active"
+/usr/local/bin/droiddeck-steamvr unregister >/dev/null 2>&1 || true
 if [ "$mode" = lxqt ] || [ "$mode" = desktop ]; then
   /usr/local/bin/droiddeck-desktop-bookmarks || true
 fi
@@ -302,6 +303,9 @@ case $mode in
       taskset -cp "$cores" $$ >/dev/null 2>&1 || true
     fi
     python3 /usr/local/bin/droiddeck-pad-defaults 2>&1 || true
+    if [ -n "${GAMESCOPE_WAYLAND_DISPLAY:-}" ]; then
+      export WAYLAND_DISPLAY= XDG_SESSION_TYPE=x11
+    fi
     run_program() {
       local rc=0 child sig forwarded=0
       { trap - INT QUIT; exec "$@"; } <&0 &
@@ -330,6 +334,10 @@ case $mode in
       *.appimage)
         export APPIMAGE_EXTRACT_AND_RUN=1
         chmod +x "$target" 2>/dev/null
+        if [ ${#fex[@]} -eq 0 ] && [ -x /usr/local/lib/droiddeck/uruntime ]; then
+          export TARGET_APPIMAGE=$target
+          run_program /usr/local/lib/droiddeck/uruntime "$@"
+        fi
         run_program "${fex[@]}" "$target" "$@"
         ;;
       *.sh)
@@ -593,41 +601,44 @@ case $mode in
       done < <(xprop -spy -root "${atoms[@]}" 2>/dev/null)
     ) &
     steam_hold_launch() {
-      _bl_launch_ready=
+      local game=$1 shortcut= waited=0 status=0
+      _bl_focused() { xprop -root GAMESCOPE_FOCUSED_APP 2>/dev/null | sed -n 's/.*= *//p'; }
+      _bl_starting() { pgrep -f "reaper SteamLaunch AppId=$(((game >> 32) & 0xffffffff))( |$)" >/dev/null 2>&1; }
+      _bl_hand_off() {
+        printf '%s\n' "$game" > "$BL_LAUNCH_DIR/steam-game.tmp" && mv -f "$BL_LAUNCH_DIR/steam-game.tmp" "$BL_LAUNCH_DIR/steam-game"
+      }
       _bl_end=$((SECONDS + 120))
-      until [ "$(xprop -root GAMESCOPE_FOCUSED_APP 2>/dev/null | sed -n 's/.*= *//p')" = 769 ] || [ "$SECONDS" -ge "$_bl_end" ]; do
+      until [ "$(_bl_focused)" = 769 ] || [ "$SECONDS" -ge "$_bl_end" ]; do
         sleep 1
       done
-      # With a large library the overview can stay missing for 30+ minutes while Steam already takes the launch URL.
-      _bl_overview_status=1
-      _bl_overview_tries=0
-      while [ "$_bl_overview_tries" -lt 2 ]; do
-        if /usr/local/bin/droiddeck-agent --wait-steam-shortcut-overview "$1" 45; then
-          _bl_overview_status=0
-        else
-          _bl_overview_status=$?
-        fi
-        if [ "$_bl_overview_status" -ne 1 ]; then
-          break
-        fi
-        _bl_overview_tries=$((_bl_overview_tries + 1))
-        echo "== steam: shortcut overview not ready yet (attempt $_bl_overview_tries of 2)"
-        sleep 2
+      # Shortcut CGameIDs are 64-bit; Steam app ids fit in 32 bits and keep the old short delay.
+      [ "${#game}" -gt 10 ] && shortcut=1
+      [ -n "$shortcut" ] || sleep 4
+      echo "== steam: interface up; launching the requested game $game"
+      _bl_hand_off
+      [ -n "$shortcut" ] || return 0
+      # Steam can drop a shortcut launch it gets before the shortcut's overview exists (large libraries).
+      # A launch can be running before it creates its first window.
+      while [ "$(_bl_focused)" = 769 ] && [ "$waited" -lt 20 ]; do
+        sleep 1
+        waited=$((waited + 1))
       done
-      if [ "$_bl_overview_status" -eq 0 ]; then
-        echo "== steam: shortcut overview ready; launching the requested game $1"
-        _bl_launch_ready=1
-      elif [ "$_bl_overview_status" -eq 3 ]; then
-        echo "== steam: not a shortcut CGameID; keeping the existing launch path"
-        sleep 4
-        _bl_launch_ready=1
-      else
-        echo "== steam: shortcut overview not ready after about 90 s; launching the requested game anyway $1"
-        _bl_launch_ready=1
+      [ "$(_bl_focused)" = 769 ] || return 0
+      if _bl_starting; then
+        echo "== steam: the requested game is already starting; not launching again"
+        return 0
       fi
-      if [ "$_bl_launch_ready" = 1 ]; then
-        echo "== steam: interface up; launching the requested game $1"
-        printf '%s\n' "$1" > "$BL_LAUNCH_DIR/steam-game.tmp" && mv -f "$BL_LAUNCH_DIR/steam-game.tmp" "$BL_LAUNCH_DIR/steam-game"
+      echo "== steam: the game is not in front after about 20 s; waiting for the shortcut overview"
+      /usr/local/bin/droiddeck-agent --wait-steam-shortcut-overview "$game" 45 || status=$?
+      if [ "$status" -eq 3 ]; then
+        echo "== steam: not a shortcut CGameID; not launching again"
+      elif _bl_starting; then
+        echo "== steam: the requested game started while waiting; not launching again"
+      elif [ "$(_bl_focused)" = 769 ]; then
+        echo "== steam: launching the requested game again $game (overview status $status)"
+        _bl_hand_off
+      else
+        echo "== steam: the game took focus while waiting; not launching again"
       fi
     }
     if [ -n "${BL_LAUNCH_DIR:-}" ] && [ -z "${BL_DESKTOP:-}" ]; then

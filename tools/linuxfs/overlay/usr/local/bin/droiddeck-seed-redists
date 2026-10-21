@@ -188,6 +188,7 @@ present() { awk -F'\t' '
   }
 ' - "$1"; }
 
+regs=()
 for reg in "$steam_root"/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
            /mnt/droiddeck-sd/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
            /root/Games/*/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
@@ -195,8 +196,21 @@ for reg in "$steam_root"/steamapps/common/Proton*/files/share/default_pfx*/syste
            "$steam_root"/steamapps/compatdata/*/pfx/system.reg \
            /mnt/droiddeck-sd/steamapps/compatdata/*/pfx/system.reg \
            /root/Games/*/steamapps/compatdata/*/pfx/system.reg; do
-  [ -f "$reg" ] || continue
+  [ -f "$reg" ] && regs+=("$reg")
+done
+declare -A regid=()
+if [ ${#regs[@]} -gt 0 ]; then
+  while IFS=$'\t' read -r id name; do
+    regid[$name]=$id
+  done < <(stat -c $'%i %s %.9Y\t%n' -- "${regs[@]}" 2>/dev/null)
+fi
+
+for reg in "${regs[@]}"; do
   seeded=${reg%/*}/.droiddeck-redists
+  checked=${reg%/*}/.droiddeck-redists-checked
+  id=${regid[$reg]:-}
+  prev=
+  [ -f "$checked" ] && read -r prev <"$checked"
   legacy=${reg%/*}/.bannerlator-redists
   if [ -f "$legacy" ] && [ ! -f "$seeded" ]; then
     mv -f "$legacy" "$seeded"
@@ -210,12 +224,13 @@ for reg in "$steam_root"/steamapps/common/Proton*/files/share/default_pfx*/syste
     if [ -n "${vulkan[$line]:-}" ]; then stale+=("$line"); else kept+=("$line"); fi
   done
   if [ ${#stale[@]} -gt 0 ] && unseed "$reg" "${stale[@]}"; then
+    id=
     had=()
     for line in "${kept[@]}"; do had[$line]=1; done
     printf '%s\n' "${kept[@]}" >"$seeded"
     echo "== took Vulkan runtime markers out of $reg"
   fi
-  if [ ${#had[@]} -gt 0 ]; then
+  if [ ${#had[@]} -gt 0 ] && { [ -z "$id" ] || [ "$id" != "$prev" ]; }; then
     declare -A held=()
     while IFS= read -r line; do [[ $line == *$'\t'* ]] && held[$line]=1; done < <(printf '%s\n' "${!had[@]}" | present "$reg")
     if [ ${#held[@]} -lt ${#had[@]} ]; then
@@ -228,7 +243,11 @@ for reg in "$steam_root"/steamapps/common/Proton*/files/share/default_pfx*/syste
   fi
   missing=()
   for line in "${want[@]}"; do [ -n "${had[$line]:-}" ] || missing+=("$line"); done
-  [ ${#missing[@]} -eq 0 ] && continue
+  if [ ${#missing[@]} -eq 0 ]; then
+    [ -n "$id" ] && [ "$id" != "$prev" ] && printf '%s\n' "$id" >"$checked"
+    continue
+  fi
+  rm -f "$checked"
   dated=$(mktemp) || continue
   touch -r "$reg" "$dated"
   if printf '%s\n' "$(block_for "${missing[@]}")" >>"$reg"; then
