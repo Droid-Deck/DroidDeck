@@ -2054,6 +2054,9 @@
     <string name="cloud_last_sync">Dernière synchro : %1$s</string>
     <string name="cloud_never">Pas encore synchronisé</string>
     <string name="cloud_done">%1$d fichiers</string>
+    <string name="cloud_up_to_date">Déjà à jour</string>
+    <string name="cloud_signed_out">Connectez-vous à la boutique pour synchroniser les sauvegardes</string>
+    <string name="cloud_not_synced">Les sauvegardes n’ont pas été synchronisées</string>
     <string name="stores_eyebrow_installed">installé</string>
     <string name="stores_eyebrow_library">dans votre bibliothèque</string>
     <string name="stores_eyebrow_store">boutique</string>
@@ -2356,7 +2359,7 @@
     <string name="touch_done">Terminé</string>
     <string name="touch_save_failed">Impossible d\'enregistrer la disposition tactile</string>
     <string name="touch_saved">Disposition tactile enregistrée sur Steam</string>
-    <string name="touch_app_id">Appli %1$d</string>
+    <string name="touch_app_id">Appli %1$s</string>
     <string name="touch_label_hint">Libellé (facultatif)</string>
     <string name="touch_icons_missing">Les icônes de Steam n\'ont pas été trouvées</string>
     <plurals name="touch_icons_found">
@@ -2449,6 +2452,15 @@
     <string name="glasses_vr_fov">Champ de vision SteamVR</string>
     <string name="glasses_vr_fov_hint">Plus bas rapproche SteamVR et remplit les lunettes ; plus haut montre davantage autour de vous.</string>
     <string name="glasses_playing">En jeu sur %1$s</string>
+    <string name="glasses_phone_recenter">Recentrer</string>
+    <string name="glasses_phone_steamvr_menu">Menu SteamVR</string>
+    <string name="glasses_phone_switch_sticks">Sticks : mains ⇄ jeu</string>
+    <string name="glasses_phone_controllers">Manettes : %1$s</string>
+    <string name="glasses_phone_keyboard">Clavier</string>
+    <string name="glasses_phone_session_menu">Menu de session</string>
+    <string name="glasses_phone_stop_steamvr">Arrêter SteamVR</string>
+    <string name="glasses_phone_brightness">Luminosité %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Batterie %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Calibrage du suivi</string>
     <string name="glasses_calibration_hint">Réduit la dérive et aligne la référence horizontale.</string>
     <string name="glasses_calibration_saved_hint">Le calibrage enregistré est appliqué à ces lunettes.</string>

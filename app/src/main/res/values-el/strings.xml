@@ -2036,6 +2036,9 @@
     <string name="cloud_last_sync">Τελευταίος συγχρονισμός %1$s</string>
     <string name="cloud_never">Δεν έχει συγχρονιστεί ακόμα</string>
     <string name="cloud_done">%1$d αρχεία</string>
+    <string name="cloud_up_to_date">Ήδη ενημερωμένο</string>
+    <string name="cloud_signed_out">Συνδεθείτε στο κατάστημα για συγχρονισμό αποθηκεύσεων</string>
+    <string name="cloud_not_synced">Οι αποθηκεύσεις δεν συγχρονίστηκαν</string>
     <string name="stores_eyebrow_installed">εγκατεστημένο</string>
     <string name="stores_eyebrow_library">στη βιβλιοθήκη σας</string>
     <string name="stores_eyebrow_store">κατάστημα</string>
@@ -2339,7 +2342,7 @@
     <string name="touch_done">Τέλος</string>
     <string name="touch_save_failed">Δεν ήταν δυνατή η αποθήκευση της διάταξης αφής</string>
     <string name="touch_saved">Η διάταξη αφής αποθηκεύτηκε στο Steam</string>
-    <string name="touch_app_id">Εφαρμογή %1$d</string>
+    <string name="touch_app_id">Εφαρμογή %1$s</string>
     <string name="touch_label_hint">Ετικέτα (προαιρετικό)</string>
     <string name="touch_icons_missing">Τα εικονίδια του Steam δεν βρέθηκαν</string>
     <plurals name="touch_icons_found">
@@ -2430,6 +2433,15 @@
     <string name="glasses_vr_fov">Οπτικό πεδίο SteamVR</string>
     <string name="glasses_vr_fov_hint">Χαμηλότερο: το SteamVR έρχεται πιο κοντά και γεμίζει τα γυαλιά· υψηλότερο: βλέπετε περισσότερα γύρω σας.</string>
     <string name="glasses_playing">Παίζετε στα %1$s</string>
+    <string name="glasses_phone_recenter">Επανακεντράρισμα</string>
+    <string name="glasses_phone_steamvr_menu">Μενού SteamVR</string>
+    <string name="glasses_phone_switch_sticks">Μοχλοί: χέρια ⇄ παιχνίδι</string>
+    <string name="glasses_phone_controllers">Χειριστήρια: %1$s</string>
+    <string name="glasses_phone_keyboard">Πληκτρολόγιο</string>
+    <string name="glasses_phone_session_menu">Μενού συνεδρίας</string>
+    <string name="glasses_phone_stop_steamvr">Διακοπή SteamVR</string>
+    <string name="glasses_phone_brightness">Φωτεινότητα %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Μπαταρία %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Βαθμονόμηση παρακολούθησης</string>
     <string name="glasses_calibration_hint">Μειώνει την ολίσθηση και ευθυγραμμίζει την οριζόντια αναφορά.</string>
     <string name="glasses_calibration_saved_hint">Σε αυτά τα γυαλιά εφαρμόζεται αποθηκευμένη βαθμονόμηση.</string>

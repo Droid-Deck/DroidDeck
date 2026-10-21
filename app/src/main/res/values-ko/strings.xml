@@ -2015,6 +2015,9 @@
     <string name="cloud_last_sync">마지막 동기화 %1$s</string>
     <string name="cloud_never">아직 동기화 안 됨</string>
     <string name="cloud_done">파일 %1$d개</string>
+    <string name="cloud_up_to_date">이미 최신 상태입니다</string>
+    <string name="cloud_signed_out">저장 파일을 동기화하려면 스토어에 로그인하세요</string>
+    <string name="cloud_not_synced">저장 파일이 동기화되지 않았습니다</string>
     <string name="stores_eyebrow_installed">설치됨</string>
     <string name="stores_eyebrow_library">내 라이브러리</string>
     <string name="stores_eyebrow_store">스토어</string>
@@ -2316,7 +2319,7 @@
     <string name="touch_done">완료</string>
     <string name="touch_save_failed">터치 레이아웃을 저장할 수 없습니다</string>
     <string name="touch_saved">터치 레이아웃이 Steam에 저장되었습니다</string>
-    <string name="touch_app_id">앱 %1$d</string>
+    <string name="touch_app_id">앱 %1$s</string>
     <string name="touch_label_hint">라벨(선택 사항)</string>
     <string name="touch_icons_missing">Steam 아이콘을 찾을 수 없습니다</string>
     <plurals name="touch_icons_found">
@@ -2405,6 +2408,15 @@
     <string name="glasses_vr_fov">SteamVR 시야각</string>
     <string name="glasses_vr_fov_hint">낮추면 SteamVR이 가까워져 안경을 가득 채우고, 높이면 주변이 더 넓게 보입니다.</string>
     <string name="glasses_playing">%1$s에서 플레이 중</string>
+    <string name="glasses_phone_recenter">중앙 재설정</string>
+    <string name="glasses_phone_steamvr_menu">SteamVR 메뉴</string>
+    <string name="glasses_phone_switch_sticks">스틱: 손 ⇄ 게임</string>
+    <string name="glasses_phone_controllers">컨트롤러: %1$s</string>
+    <string name="glasses_phone_keyboard">키보드</string>
+    <string name="glasses_phone_session_menu">세션 메뉴</string>
+    <string name="glasses_phone_stop_steamvr">SteamVR 중지</string>
+    <string name="glasses_phone_brightness">밝기 %1$d / %2$d</string>
+    <string name="glasses_phone_battery">배터리 %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">트래킹 보정</string>
     <string name="glasses_calibration_hint">드리프트를 줄이고 수평 기준을 맞춥니다.</string>
     <string name="glasses_calibration_saved_hint">저장된 보정이 이 안경에 적용되어 있습니다.</string>

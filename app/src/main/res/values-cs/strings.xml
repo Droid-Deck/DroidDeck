@@ -2078,6 +2078,9 @@
     <string name="cloud_last_sync">Poslední synchronizace %1$s</string>
     <string name="cloud_never">Ještě nesynchronizováno</string>
     <string name="cloud_done">%1$d souborů</string>
+    <string name="cloud_up_to_date">Už je aktuální</string>
+    <string name="cloud_signed_out">Pro synchronizaci uložených pozic se přihlaste do obchodu</string>
+    <string name="cloud_not_synced">Uložené pozice nebyly synchronizovány</string>
     <string name="stores_eyebrow_installed">nainstalováno</string>
     <string name="stores_eyebrow_library">ve vaší knihovně</string>
     <string name="stores_eyebrow_store">obchod</string>
@@ -2385,7 +2388,7 @@
     <string name="touch_done">Hotovo</string>
     <string name="touch_save_failed">Dotykové rozložení se nepodařilo uložit</string>
     <string name="touch_saved">Dotykové rozložení uloženo ve Steamu</string>
-    <string name="touch_app_id">Aplikace %1$d</string>
+    <string name="touch_app_id">Aplikace %1$s</string>
     <string name="touch_label_hint">Popisek (nepovinné)</string>
     <string name="touch_icons_missing">Ikony Steamu nebyly nalezeny</string>
     <plurals name="touch_icons_found">
@@ -2480,6 +2483,15 @@
     <string name="glasses_vr_fov">Zorné pole SteamVR</string>
     <string name="glasses_vr_fov_hint">Nižší hodnota přiblíží SteamVR a vyplní brýle; vyšší ukáže víc z okolí.</string>
     <string name="glasses_playing">Hraje se na %1$s</string>
+    <string name="glasses_phone_recenter">Znovu vycentrovat</string>
+    <string name="glasses_phone_steamvr_menu">Nabídka SteamVR</string>
+    <string name="glasses_phone_switch_sticks">Páčky: ruce ⇄ hra</string>
+    <string name="glasses_phone_controllers">Ovladače: %1$s</string>
+    <string name="glasses_phone_keyboard">Klávesnice</string>
+    <string name="glasses_phone_session_menu">Nabídka relace</string>
+    <string name="glasses_phone_stop_steamvr">Zastavit SteamVR</string>
+    <string name="glasses_phone_brightness">Jas %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Baterie %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Kalibrace sledování</string>
     <string name="glasses_calibration_hint">Sníží drift a vyrovná vodorovnou referenci.</string>
     <string name="glasses_calibration_saved_hint">Pro tyto brýle se používá uložená kalibrace.</string>

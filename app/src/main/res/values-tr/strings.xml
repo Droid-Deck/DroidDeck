@@ -2025,6 +2025,9 @@
     <string name="cloud_last_sync">Son eşitleme %1$s</string>
     <string name="cloud_never">Henüz eşitlenmedi</string>
     <string name="cloud_done">%1$d dosya</string>
+    <string name="cloud_up_to_date">Zaten güncel</string>
+    <string name="cloud_signed_out">Kayıtları eşitlemek için mağazada oturum açın</string>
+    <string name="cloud_not_synced">Kayıtlar eşitlenmedi</string>
     <string name="stores_eyebrow_installed">yüklü</string>
     <string name="stores_eyebrow_library">kütüphanenizde</string>
     <string name="stores_eyebrow_store">mağaza</string>
@@ -2325,7 +2328,7 @@
     <string name="touch_done">Bitti</string>
     <string name="touch_save_failed">Dokunmatik düzen kaydedilemedi</string>
     <string name="touch_saved">Dokunmatik düzen Steam\'e kaydedildi</string>
-    <string name="touch_app_id">Uygulama %1$d</string>
+    <string name="touch_app_id">Uygulama %1$s</string>
     <string name="touch_label_hint">Etiket (isteğe bağlı)</string>
     <string name="touch_icons_missing">Steam\'in simgeleri bulunamadı</string>
     <plurals name="touch_icons_found">
@@ -2416,6 +2419,15 @@
     <string name="glasses_vr_fov">SteamVR görüş alanı</string>
     <string name="glasses_vr_fov_hint">Düşük değer SteamVR\'ı yaklaştırır ve gözlüğü doldurur; yüksek değer çevrenizi daha çok gösterir.</string>
     <string name="glasses_playing">%1$s ile oynanıyor</string>
+    <string name="glasses_phone_recenter">Yeniden ortala</string>
+    <string name="glasses_phone_steamvr_menu">SteamVR menüsü</string>
+    <string name="glasses_phone_switch_sticks">Çubuklar: eller ⇄ oyun</string>
+    <string name="glasses_phone_controllers">Kumandalar: %1$s</string>
+    <string name="glasses_phone_keyboard">Klavye</string>
+    <string name="glasses_phone_session_menu">Oturum menüsü</string>
+    <string name="glasses_phone_stop_steamvr">SteamVR’ı durdur</string>
+    <string name="glasses_phone_brightness">Parlaklık %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Pil %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Takip kalibrasyonu</string>
     <string name="glasses_calibration_hint">Kaymayı azaltır ve yatay düzlem referansını hizalar.</string>
     <string name="glasses_calibration_saved_hint">Kayıtlı kalibrasyon bu gözlüğe uygulanır.</string>

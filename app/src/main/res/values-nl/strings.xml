@@ -2036,6 +2036,9 @@
     <string name="cloud_last_sync">Laatste synchronisatie %1$s</string>
     <string name="cloud_never">Nog niet gesynchroniseerd</string>
     <string name="cloud_done">%1$d bestanden</string>
+    <string name="cloud_up_to_date">Al up-to-date</string>
+    <string name="cloud_signed_out">Log in bij de winkel om opslagbestanden te synchroniseren</string>
+    <string name="cloud_not_synced">Opslagbestanden zijn niet gesynchroniseerd</string>
     <string name="stores_eyebrow_installed">geïnstalleerd</string>
     <string name="stores_eyebrow_library">in je bibliotheek</string>
     <string name="stores_eyebrow_store">winkel</string>
@@ -2339,7 +2342,7 @@
     <string name="touch_done">Klaar</string>
     <string name="touch_save_failed">De aanraakindeling kon niet worden opgeslagen</string>
     <string name="touch_saved">Aanraakindeling opgeslagen in Steam</string>
-    <string name="touch_app_id">App %1$d</string>
+    <string name="touch_app_id">App %1$s</string>
     <string name="touch_label_hint">Label (optioneel)</string>
     <string name="touch_icons_missing">Steams pictogrammen zijn niet gevonden</string>
     <plurals name="touch_icons_found">
@@ -2430,6 +2433,15 @@
     <string name="glasses_vr_fov">SteamVR-gezichtsveld</string>
     <string name="glasses_vr_fov_hint">Lager brengt SteamVR dichterbij en vult de bril; hoger toont meer om je heen.</string>
     <string name="glasses_playing">Je speelt op %1$s</string>
+    <string name="glasses_phone_recenter">Opnieuw centreren</string>
+    <string name="glasses_phone_steamvr_menu">SteamVR-menu</string>
+    <string name="glasses_phone_switch_sticks">Sticks: handen ⇄ spel</string>
+    <string name="glasses_phone_controllers">Controllers: %1$s</string>
+    <string name="glasses_phone_keyboard">Toetsenbord</string>
+    <string name="glasses_phone_session_menu">Sessiemenu</string>
+    <string name="glasses_phone_stop_steamvr">SteamVR stoppen</string>
+    <string name="glasses_phone_brightness">Helderheid %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Batterij %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Trackingkalibratie</string>
     <string name="glasses_calibration_hint">Vermindert drift en lijnt de horizontale referentie uit.</string>
     <string name="glasses_calibration_saved_hint">De opgeslagen kalibratie wordt op deze bril toegepast.</string>

@@ -412,6 +412,18 @@ class AgentTest(unittest.TestCase):
             with patch.object(agent, "cdp_eval", side_effect=agent.AgentError("NO_DEVTOOLS", "down")):
                 self.assertEqual(1, agent.main(["--steam-asleep"]))
 
+    def test_supports_vr_command_separates_vr_flat_and_unknown_apps(self):
+        with patch.dict(os.environ, {"BL_LAUNCH_DIR": str(self.dir.parent)}):
+            for value, code in ((True, 0), (False, 5), (None, 1)):
+                with self.subTest(value=value), patch.object(agent, "cdp_eval", return_value={"value": value}) as ask:
+                    self.assertEqual(code, agent.main(["--steam-supports-vr", "204360"]))
+                self.assertIn('GetAppOverviewByGameID?.("204360")', ask.call_args.args[1])
+                self.assertIn("vr_supported", ask.call_args.args[1])
+            with patch.object(agent, "cdp_eval", side_effect=agent.AgentError("NO_DEVTOOLS", "down")):
+                self.assertEqual(1, agent.main(["--steam-supports-vr", "204360"]))
+            for bad in ([], ["1;x"], ["-1"], ["1", "2"]):
+                self.assertEqual(2, agent.main(["--steam-supports-vr"] + bad))
+
     def test_idle_inhibit_command_reports_whether_steam_reached_the_state(self):
         with patch.dict(os.environ, {"BL_LAUNCH_DIR": str(self.dir.parent)}):
             for value, code in ((True, 0), (False, 1), (None, 1)):

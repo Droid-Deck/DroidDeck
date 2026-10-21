@@ -2091,6 +2091,9 @@
     <string name="cloud_last_sync">上次同步：%1$s</string>
     <string name="cloud_never">尚未同步</string>
     <string name="cloud_done">%1$d 个文件</string>
+    <string name="cloud_up_to_date">已是最新</string>
+    <string name="cloud_signed_out">登录商店以同步存档</string>
+    <string name="cloud_not_synced">存档未同步</string>
     <string name="stores_eyebrow_installed">已安装</string>
     <string name="stores_eyebrow_library">在你的库中</string>
     <string name="stores_eyebrow_store">商店</string>
@@ -2316,7 +2319,7 @@
     <string name="touch_done">完成</string>
     <string name="touch_save_failed">无法保存触控布局</string>
     <string name="touch_saved">触控布局已保存到 Steam</string>
-    <string name="touch_app_id">应用 %1$d</string>
+    <string name="touch_app_id">应用 %1$s</string>
     <string name="touch_label_hint">标签（可选）</string>
     <string name="touch_icons_missing">未找到 Steam 的图标</string>
     <plurals name="touch_icons_found">
@@ -2405,6 +2408,15 @@
     <string name="glasses_vr_fov">SteamVR 视场角</string>
     <string name="glasses_vr_fov_hint">调低让 SteamVR 更近并填满眼镜；调高可看到更多周围内容。</string>
     <string name="glasses_playing">正在 %1$s 上游玩</string>
+    <string name="glasses_phone_recenter">重新居中</string>
+    <string name="glasses_phone_steamvr_menu">SteamVR 菜单</string>
+    <string name="glasses_phone_switch_sticks">摇杆：双手 ⇄ 游戏</string>
+    <string name="glasses_phone_controllers">控制器：%1$s</string>
+    <string name="glasses_phone_keyboard">键盘</string>
+    <string name="glasses_phone_session_menu">会话菜单</string>
+    <string name="glasses_phone_stop_steamvr">停止 SteamVR</string>
+    <string name="glasses_phone_brightness">亮度 %1$d / %2$d</string>
+    <string name="glasses_phone_battery">电池 %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">追踪校准</string>
     <string name="glasses_calibration_hint">减少漂移并对齐水平基准。</string>
     <string name="glasses_calibration_saved_hint">这副眼镜已应用保存的校准。</string>

@@ -211,7 +211,7 @@ object SteamTouchBindings {
     fun libraryDir(context: Context) = File(SteamTouchConfig.steamRoot(context), "tenfoot/resource/images/library/controller/binding_icons")
 
     fun gameIconsDir(context: Context, appId: Int): File? = try {
-        val manifest = File(SteamTouchConfig.steamRoot(context), "steamapps/appmanifest_$appId.acf")
+        val manifest = File(SteamTouchConfig.steamRoot(context), "steamapps/appmanifest_${SteamTouchConfig.steamId(appId)}.acf")
         val installDir = KeyValues.parse(manifest.readText()).let { it.child("AppState") ?: it }.string("installdir")
         installDir?.let { File(SteamTouchConfig.steamRoot(context), "steamapps/common/$it/TouchMenuIcons") }?.takeIf { it.isDirectory }
     } catch (_: Exception) {

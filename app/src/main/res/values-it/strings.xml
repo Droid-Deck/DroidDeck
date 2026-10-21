@@ -2046,6 +2046,9 @@
     <string name="cloud_last_sync">Ultima sincronizzazione %1$s</string>
     <string name="cloud_never">Non ancora sincronizzato</string>
     <string name="cloud_done">%1$d file</string>
+    <string name="cloud_up_to_date">Già aggiornato</string>
+    <string name="cloud_signed_out">Accedi allo store per sincronizzare i salvataggi</string>
+    <string name="cloud_not_synced">I salvataggi non sono stati sincronizzati</string>
     <string name="stores_eyebrow_installed">installato</string>
     <string name="stores_eyebrow_library">nella tua libreria</string>
     <string name="stores_eyebrow_store">negozio</string>
@@ -2348,7 +2351,7 @@
     <string name="touch_done">Fine</string>
     <string name="touch_save_failed">Impossibile salvare il layout touch</string>
     <string name="touch_saved">Layout touch salvato su Steam</string>
-    <string name="touch_app_id">App %1$d</string>
+    <string name="touch_app_id">App %1$s</string>
     <string name="touch_label_hint">Etichetta (opzionale)</string>
     <string name="touch_icons_missing">Le icone di Steam non sono state trovate</string>
     <plurals name="touch_icons_found">
@@ -2441,6 +2444,15 @@
     <string name="glasses_vr_fov">Campo visivo di SteamVR</string>
     <string name="glasses_vr_fov_hint">Più basso avvicina SteamVR e riempie gli occhiali; più alto mostra di più intorno a te.</string>
     <string name="glasses_playing">Gioco in corso su %1$s</string>
+    <string name="glasses_phone_recenter">Ricentra</string>
+    <string name="glasses_phone_steamvr_menu">Menu di SteamVR</string>
+    <string name="glasses_phone_switch_sticks">Levette: mani ⇄ gioco</string>
+    <string name="glasses_phone_controllers">Controller: %1$s</string>
+    <string name="glasses_phone_keyboard">Tastiera</string>
+    <string name="glasses_phone_session_menu">Menu della sessione</string>
+    <string name="glasses_phone_stop_steamvr">Arresta SteamVR</string>
+    <string name="glasses_phone_brightness">Luminosità %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Batteria %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Calibrazione del tracciamento</string>
     <string name="glasses_calibration_hint">Riduce la deriva e allinea il riferimento orizzontale.</string>
     <string name="glasses_calibration_saved_hint">La calibrazione salvata è applicata a questi occhiali.</string>

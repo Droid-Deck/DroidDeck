@@ -85,6 +85,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-pipewire" to "usr/local/bin/droiddeck-pipewire",
             "usr/local/bin/droiddeck-steamvr-settings" to "usr/local/bin/droiddeck-steamvr-settings",
             "usr/local/bin/droiddeck-steamvr-game" to "usr/local/bin/droiddeck-steamvr-game",
+            "usr/local/bin/droiddeck-steamvr-flat" to "usr/local/bin/droiddeck-steamvr-flat",
             "usr/local/bin/droiddeck-bwrap" to "usr/local/bin/droiddeck-bwrap",
             "usr/local/bin/droiddeck-flatpak" to "usr/local/bin/droiddeck-flatpak",
             "usr/local/bin/droiddeck-flatpak-setup" to "usr/local/bin/droiddeck-flatpak-setup",

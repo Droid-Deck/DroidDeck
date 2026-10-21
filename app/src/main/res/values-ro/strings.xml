@@ -2057,6 +2057,9 @@
     <string name="cloud_last_sync">Ultima sincronizare %1$s</string>
     <string name="cloud_never">Nesincronizat încă</string>
     <string name="cloud_done">%1$d fișiere</string>
+    <string name="cloud_up_to_date">Deja actualizat</string>
+    <string name="cloud_signed_out">Conectează-te la magazin pentru a sincroniza salvările</string>
+    <string name="cloud_not_synced">Salvările nu au fost sincronizate</string>
     <string name="stores_eyebrow_installed">instalat</string>
     <string name="stores_eyebrow_library">în biblioteca ta</string>
     <string name="stores_eyebrow_store">magazin</string>
@@ -2362,7 +2365,7 @@
     <string name="touch_done">Terminat</string>
     <string name="touch_save_failed">Aranjamentul tactil nu a putut fi salvat</string>
     <string name="touch_saved">Aranjamentul tactil a fost salvat în Steam</string>
-    <string name="touch_app_id">Aplicația %1$d</string>
+    <string name="touch_app_id">Aplicația %1$s</string>
     <string name="touch_label_hint">Etichetă (opțional)</string>
     <string name="touch_icons_missing">Pictogramele Steam nu au fost găsite</string>
     <plurals name="touch_icons_found">
@@ -2455,6 +2458,15 @@
     <string name="glasses_vr_fov">Câmp vizual SteamVR</string>
     <string name="glasses_vr_fov_hint">Mai mic aduce SteamVR mai aproape și umple ochelarii; mai mare arată mai mult din jurul tău.</string>
     <string name="glasses_playing">Se joacă pe %1$s</string>
+    <string name="glasses_phone_recenter">Recentrează</string>
+    <string name="glasses_phone_steamvr_menu">Meniu SteamVR</string>
+    <string name="glasses_phone_switch_sticks">Stickuri: mâini ⇄ joc</string>
+    <string name="glasses_phone_controllers">Controlere: %1$s</string>
+    <string name="glasses_phone_keyboard">Tastatură</string>
+    <string name="glasses_phone_session_menu">Meniul sesiunii</string>
+    <string name="glasses_phone_stop_steamvr">Oprește SteamVR</string>
+    <string name="glasses_phone_brightness">Luminozitate %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Baterie %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Calibrarea urmăririi</string>
     <string name="glasses_calibration_hint">Reduce deriva și aliniază referința de nivel.</string>
     <string name="glasses_calibration_saved_hint">Calibrarea salvată se aplică acestor ochelari.</string>

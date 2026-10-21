@@ -2063,6 +2063,9 @@
     <string name="cloud_last_sync">Última sincronización %1$s</string>
     <string name="cloud_never">Aún sin sincronizar</string>
     <string name="cloud_done">%1$d archivos</string>
+    <string name="cloud_up_to_date">Ya está al día</string>
+    <string name="cloud_signed_out">Inicia sesión en la tienda para sincronizar las partidas</string>
+    <string name="cloud_not_synced">No se sincronizaron las partidas</string>
     <string name="stores_eyebrow_installed">instalado</string>
     <string name="stores_eyebrow_library">en tu biblioteca</string>
     <string name="stores_eyebrow_store">tienda</string>
@@ -2468,6 +2471,15 @@
     <string name="glasses_vr_fov">Campo de visión de SteamVR</string>
     <string name="glasses_vr_fov_hint">Más bajo acerca SteamVR y llena las gafas; más alto muestra más a tu alrededor.</string>
     <string name="glasses_playing">Jugando en %1$s</string>
+    <string name="glasses_phone_recenter">Recentrar</string>
+    <string name="glasses_phone_steamvr_menu">Menú de SteamVR</string>
+    <string name="glasses_phone_switch_sticks">Sticks: manos ⇄ juego</string>
+    <string name="glasses_phone_controllers">Controles: %1$s</string>
+    <string name="glasses_phone_keyboard">Teclado</string>
+    <string name="glasses_phone_session_menu">Menú de sesión</string>
+    <string name="glasses_phone_stop_steamvr">Detener SteamVR</string>
+    <string name="glasses_phone_brightness">Brillo %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Batería %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Calibración del seguimiento</string>
     <string name="glasses_calibration_hint">Reduce la deriva y alinea la referencia horizontal.</string>
     <string name="glasses_calibration_saved_hint">Estas gafas usan la calibración guardada.</string>

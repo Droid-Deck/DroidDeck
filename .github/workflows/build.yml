@@ -489,6 +489,8 @@ jobs:
           /tmp/test-xr-tracking
           g++ -std=c++17 -Wall -Wextra -Werror tools/vr/tests/test_xr_touch.cpp -o /tmp/test-xr-touch
           /tmp/test-xr-touch
+          g++ -std=c++17 -Wall -Wextra -Werror tools/vr/tests/test_pad_controller_config.cpp -o /tmp/test-pad-controller-config
+          /tmp/test-pad-controller-config
           g++ -std=c++17 -Wall -Wextra -Werror -pthread tools/vr/tests/test_xr_vsync.cpp -o /tmp/test-xr-vsync
           /tmp/test-xr-vsync
           g++ -std=c++17 -Wall -Wextra -Werror -pthread tools/vr/tests/test_xr_frames.cpp -o /tmp/test-xr-frames

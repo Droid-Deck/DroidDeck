@@ -2078,6 +2078,9 @@
     <string name="cloud_last_sync">Остання синхронізація %1$s</string>
     <string name="cloud_never">Ще не синхронізовано</string>
     <string name="cloud_done">%1$d файлів</string>
+    <string name="cloud_up_to_date">Уже актуально</string>
+    <string name="cloud_signed_out">Увійдіть у магазин, щоб синхронізувати збереження</string>
+    <string name="cloud_not_synced">Збереження не синхронізовано</string>
     <string name="stores_eyebrow_installed">встановлено</string>
     <string name="stores_eyebrow_library">у вашій бібліотеці</string>
     <string name="stores_eyebrow_store">магазин</string>
@@ -2385,7 +2388,7 @@
     <string name="touch_done">Готово</string>
     <string name="touch_save_failed">Не вдалося зберегти сенсорну розкладку</string>
     <string name="touch_saved">Сенсорну розкладку збережено в Steam</string>
-    <string name="touch_app_id">Застосунок %1$d</string>
+    <string name="touch_app_id">Застосунок %1$s</string>
     <string name="touch_label_hint">Підпис (необов\'язково)</string>
     <string name="touch_icons_missing">Значки Steam не знайдено</string>
     <plurals name="touch_icons_found">
@@ -2480,6 +2483,15 @@
     <string name="glasses_vr_fov">Поле зору SteamVR</string>
     <string name="glasses_vr_fov_hint">Нижче значення наближає SteamVR і заповнює окуляри; вище — показує більше навколо вас.</string>
     <string name="glasses_playing">Гра на %1$s</string>
+    <string name="glasses_phone_recenter">Перецентрувати</string>
+    <string name="glasses_phone_steamvr_menu">Меню SteamVR</string>
+    <string name="glasses_phone_switch_sticks">Стіки: руки ⇄ гра</string>
+    <string name="glasses_phone_controllers">Контролери: %1$s</string>
+    <string name="glasses_phone_keyboard">Клавіатура</string>
+    <string name="glasses_phone_session_menu">Меню сеансу</string>
+    <string name="glasses_phone_stop_steamvr">Зупинити SteamVR</string>
+    <string name="glasses_phone_brightness">Яскравість %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Акумулятор %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Калібрування відстеження</string>
     <string name="glasses_calibration_hint">Зменшує дрейф і вирівнює опорний горизонт.</string>
     <string name="glasses_calibration_saved_hint">До цих окулярів застосовано збережене калібрування.</string>
