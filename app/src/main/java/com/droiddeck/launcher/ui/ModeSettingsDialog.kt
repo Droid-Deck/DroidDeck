@@ -14,6 +14,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -98,6 +99,7 @@ class ModeSettings(
     val wifiDiscoveryBlocked: Boolean = false,
     val deckyInstalled: String? = null,
     val deckyLatestRelease: DeckyManager.Release? = null,
+    val deckyBranch: Int = DeckyManager.BRANCH_STABLE,
     val deckyChecking: Boolean = false,
     val deckyStage: String? = null,
     val deckyPercent: Int = -1,
@@ -144,6 +146,7 @@ class ModeSettingsActions(
     val onWifiDiscoverySettings: () -> Unit = {},
     val onDeckyInstall: (DeckyManager.Release) -> Unit = {},
     val onDeckyCheck: () -> Unit = {},
+    val onDeckyBranch: (Int) -> Unit = {},
     val onDeckyEnabled: (Boolean) -> Unit = {},
     val onDeckyUninstall: () -> Unit = {},
     val onPickDeckyPluginZip: () -> Unit = {},
@@ -423,6 +426,19 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                     if (s.deckyInstalled != null) DeckyUninstall(enabled = s.deckyStage == null && !s.deckySessionRunning, onUninstall = a.onDeckyUninstall)
                 }
             }
+            ChoiceRow(
+                host, "decky-channel", stringResource(R.string.decky_channel),
+                stringResource(R.string.decky_channel_hint),
+                listOf(
+                    DeckyManager.BRANCH_STABLE to stringResource(R.string.decky_channel_stable),
+                    DeckyManager.BRANCH_PRERELEASE to stringResource(R.string.decky_channel_prerelease),
+                ) + if (s.deckyBranch == DeckyManager.BRANCH_TESTING) listOf(
+                    DeckyManager.BRANCH_TESTING to stringResource(R.string.decky_channel_testing),
+                ) else emptyList(),
+                s.deckyBranch,
+                enabled = s.deckyStage == null && !s.deckySessionRunning,
+                onPick = a.onDeckyBranch,
+            )
             if (s.deckyInstalled != null) ToggleRow(
                 host, "decky-enabled", stringResource(R.string.mode_decky),
                 if (s.deckyEnabled) stringResource(R.string.mode_decky_on)
@@ -528,6 +544,35 @@ internal fun ProtonOptions(
     ToggleRow(host, "ssbs", stringResource(R.string.force_ssbs_title), stringResource(R.string.force_ssbs_hint), forceSsbs, onChange = onForceSsbs)
     GameEnvironmentRow()
 }
+
+@Composable
+internal fun DeckyZipWarningDialog(onConfirm: () -> Unit, onCancel: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var left by remember { mutableIntStateOf(if (SessionPrefs.deckyZipWarningSeen(context)) 0 else DECKY_ZIP_WARNING_SECONDS) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        while (left > 0) {
+            kotlinx.coroutines.delay(1000L)
+            left--
+        }
+        SessionPrefs.setDeckyZipWarningSeen(context)
+    }
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text(stringResource(R.string.decky_zip_warning_title)) },
+        text = { Text(stringResource(R.string.decky_zip_warning_text)) },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = onConfirm, enabled = left == 0) {
+                Text(
+                    if (left > 0) androidx.compose.ui.res.pluralStringResource(R.plurals.decky_zip_warning_wait, left, left)
+                    else stringResource(R.string.decky_zip_warning_continue),
+                )
+            }
+        },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onCancel) { Text(stringResource(R.string.common_cancel)) } },
+    )
+}
+
+private const val DECKY_ZIP_WARNING_SECONDS = 5
 
 @Composable
 private fun DeckyUninstall(enabled: Boolean, onUninstall: () -> Unit) {

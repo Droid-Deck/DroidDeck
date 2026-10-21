@@ -181,6 +181,8 @@
     <string name="app_fex_x86">%1$s through FEX</string>
     <string name="app_fex_not_ready">This program is built for %1$s PCs and runs through FEX, which is not set up yet. Open Steam once while signed in: DroidDeck has it download FEX and the Steam Linux Runtime it needs, then this opens.</string>
     <string name="session_end_program">This program</string>
+    <string name="session_end_steam_download">Couldn\'t download the Steam client. Your network or VPN may be blocking Steam\'s servers; check the connection and try again.</string>
+    <string name="session_end_steam_setup">Couldn\'t set up the Steam client. Check your connection and free storage, then try again.</string>
     <string name="session_end_fex_missing">%1$s is built for x86 PCs and runs through FEX, which is not installed yet. Start Steam once while signed in and let it download FEX and the Steam Linux Runtime, then start this again.</string>
     <string name="add_app_flatpak_hint">A Flathub app ID or its Flathub page. Flatpak is set up first if it is not yet.</string>
     <string name="add_app_file">File</string>
@@ -306,6 +308,12 @@
     <string name="mode_decky_current">Up to date · %1$s</string>
     <string name="mode_decky_loader">Loader</string>
     <string name="mode_decky_install_latest">Install latest</string>
+    <string name="decky_channel">Update Channel</string>
+    <string name="decky_channel_hint">Which Decky Loader releases to install. Decky\'s own updater uses the same channel.</string>
+    <string name="decky_channel_stable">Stable</string>
+    <string name="decky_channel_prerelease">Prerelease</string>
+    <string name="decky_channel_testing">Testing</string>
+    <string name="decky_channel_failed">Could not save the Decky update channel</string>
     <string name="mode_decky_on">Starts with Steam. While on, other apps on this device may be able to control Steam.</string>
     <string name="mode_decky_off">Off. Steam\'s remote debugging port stays closed.</string>
     <string name="mode_decky_remove_title">Uninstall Decky Loader?</string>
@@ -585,6 +593,16 @@
     <string name="drawer_prev_page">Previous page</string>
     <string name="drawer_next_page">Next page</string>
     <string name="drawer_hud">Performance HUD</string>
+    <string name="drawer_hud_fps">Frame rate</string>
+    <string name="drawer_hud_battery">Battery temperature</string>
+    <string name="drawer_hud_graph">Performance graph</string>
+    <string name="drawer_hud_color">Color</string>
+    <string name="drawer_hud_color_mint">Mint</string>
+    <string name="drawer_hud_color_white">White</string>
+    <string name="drawer_hud_color_sky">Sky</string>
+    <string name="drawer_hud_color_amber">Amber</string>
+    <string name="drawer_hud_color_violet">Violet</string>
+    <string name="drawer_hud_opacity">Opacity</string>
     <string name="drawer_scaling">Scaling mode</string>
     <string name="drawer_scaling_sharpness">Scaling sharpness</string>
     <string name="drawer_effects">Screen effects</string>
@@ -1402,6 +1420,13 @@
     <string name="mode_decky_plugins_hint">Install a plugin ZIP for the next Steam session.</string>
     <string name="mode_decky_plugin_downloading">Downloading…</string>
     <string name="mode_decky_plugin_install_zip">Install from ZIP</string>
+    <string name="decky_zip_warning_title">Third-Party Plugin Installation</string>
+    <string name="decky_zip_warning_text">The Decky Loader team has not reviewed this plugin. It may contain malware, such as software to steal your Steam account or harm your device. By installing this plugin, you agree you have assumed all risks to your device.</string>
+    <string name="decky_zip_warning_continue">Continue</string>
+    <plurals name="decky_zip_warning_wait">
+        <item quantity="one">Please wait %1$d second</item>
+        <item quantity="other">Please wait %1$d seconds</item>
+    </plurals>
     <string name="store_cat_games">Games</string>
     <string name="store_cat_audio_video">Audio &amp; Video</string>
     <string name="store_cat_graphics">Graphics</string>

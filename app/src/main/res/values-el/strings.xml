@@ -176,6 +176,8 @@
     <string name="app_fex_x86">%1$s μέσω FEX</string>
     <string name="app_fex_not_ready">Αυτό το πρόγραμμα είναι χτισμένο για υπολογιστές %1$s και εκτελείται μέσω FEX, το οποίο δεν έχει ρυθμιστεί ακόμα. Ανοίξτε το Steam μία φορά ενώ είστε συνδεδεμένοι: το DroidDeck κάνει λήψη του FEX και του Steam Linux Runtime που χρειάζεται, και μετά αυτό ανοίγει.</string>
     <string name="session_end_program">Αυτό το πρόγραμμα</string>
+    <string name="session_end_steam_download">Δεν ήταν δυνατή η λήψη του πελάτη Steam. Το δίκτυο ή το VPN σας ίσως αποκλείει τους διακομιστές του Steam· ελέγξτε τη σύνδεση και δοκιμάστε ξανά.</string>
+    <string name="session_end_steam_setup">Δεν ήταν δυνατή η ρύθμιση του πελάτη Steam. Ελέγξτε τη σύνδεση και τον ελεύθερο χώρο αποθήκευσης και δοκιμάστε ξανά.</string>
     <string name="session_end_fex_missing">Το %1$s είναι χτισμένο για υπολογιστές x86 και εκτελείται μέσω FEX, το οποίο δεν έχει εγκατασταθεί ακόμα. Εκκινήστε το Steam μία φορά ενώ είστε συνδεδεμένοι και αφήστε το να κάνει λήψη του FEX και του Steam Linux Runtime, μετά εκκινήστε αυτό ξανά.</string>
     <string name="add_app_flatpak_hint">Ένα ID εφαρμογής Flathub ή η σελίδα της στο Flathub. Το Flatpak ρυθμίζεται πρώτα, αν δεν έχει ρυθμιστεί ακόμα.</string>
     <string name="add_app_file">Αρχείο</string>
@@ -580,6 +582,16 @@
     <string name="drawer_prev_page">Προηγούμενη σελίδα</string>
     <string name="drawer_next_page">Επόμενη σελίδα</string>
     <string name="drawer_hud">HUD απόδοσης</string>
+    <string name="drawer_hud_fps">Ρυθμός καρέ</string>
+    <string name="drawer_hud_battery">Θερμοκρασία μπαταρίας</string>
+    <string name="drawer_hud_graph">Γράφημα απόδοσης</string>
+    <string name="drawer_hud_color">Χρώμα</string>
+    <string name="drawer_hud_color_mint">Μέντα</string>
+    <string name="drawer_hud_color_white">Λευκό</string>
+    <string name="drawer_hud_color_sky">Γαλάζιο</string>
+    <string name="drawer_hud_color_amber">Κεχριμπαρί</string>
+    <string name="drawer_hud_color_violet">Βιολετί</string>
+    <string name="drawer_hud_opacity">Διαφάνεια</string>
     <string name="drawer_scaling">Λειτουργία κλιμάκωσης</string>
     <string name="drawer_scaling_sharpness">Οξύτητα κλιμάκωσης</string>
     <string name="drawer_effects">Εφέ οθόνης</string>

@@ -176,6 +176,8 @@
     <string name="app_fex_x86">%1$s через FEX</string>
     <string name="app_fex_not_ready">Цю програму зібрано для ПК з архітектурою %1$s, і вона працює через FEX, який ще не налаштовано. Один раз відкрийте Steam, увійшовши в обліковий запис: DroidDeck завантажить FEX і потрібний йому Steam Linux Runtime, після чого програма відкриється.</string>
     <string name="session_end_program">Ця програма</string>
+    <string name="session_end_steam_download">Не вдалося завантажити клієнт Steam. Можливо, ваша мережа або VPN блокує сервери Steam; перевірте з’єднання та спробуйте ще раз.</string>
+    <string name="session_end_steam_setup">Не вдалося налаштувати клієнт Steam. Перевірте з’єднання та вільне місце, потім спробуйте ще раз.</string>
     <string name="session_end_fex_missing">%1$s зібрано для ПК x86; для запуску потрібен FEX, який ще не встановлено. Один раз запустіть Steam, увійшовши в обліковий запис, дайте йому завантажити FEX і Steam Linux Runtime, а потім запустіть це знову.</string>
     <string name="add_app_flatpak_hint">ID додатка Flathub або його сторінка на Flathub. Якщо Flatpak ще не налаштовано, його буде налаштовано спочатку.</string>
     <string name="add_app_file">Файл</string>
@@ -584,6 +586,16 @@
     <string name="drawer_prev_page">Попередня сторінка</string>
     <string name="drawer_next_page">Наступна сторінка</string>
     <string name="drawer_hud">HUD продуктивності</string>
+    <string name="drawer_hud_fps">Частота кадрів</string>
+    <string name="drawer_hud_battery">Температура батареї</string>
+    <string name="drawer_hud_graph">Графік продуктивності</string>
+    <string name="drawer_hud_color">Колір</string>
+    <string name="drawer_hud_color_mint">М\'ята</string>
+    <string name="drawer_hud_color_white">Білий</string>
+    <string name="drawer_hud_color_sky">Небесний</string>
+    <string name="drawer_hud_color_amber">Бурштиновий</string>
+    <string name="drawer_hud_color_violet">Фіолетовий</string>
+    <string name="drawer_hud_opacity">Непрозорість</string>
     <string name="drawer_scaling">Режим масштабування</string>
     <string name="drawer_scaling_sharpness">Чіткість масштабування</string>
     <string name="drawer_effects">Ефекти екрана</string>

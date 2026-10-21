@@ -19,7 +19,10 @@ import java.io.FileInputStream
  * yet to its pr-N release on DroidDeck-CI. The APK pins the pack's SHA-256, so only the bytes this build
  * was made with install, whichever host serves them.
  */
-internal class AddonPack(val name: String, private val sha256: String, val size: Long, private val required: List<String>) {
+internal class AddonPack(
+    val name: String, private val sha256: String, val size: Long, private val required: List<String>,
+    private val reuseDeviceCopy: Boolean = sha256.isEmpty() && !BuildConfig.CI_BUILD,
+) {
     sealed interface State {
         data object Missing : State
         data class Downloading(val progress: Float) : State
@@ -40,10 +43,20 @@ internal class AddonPack(val name: String, private val sha256: String, val size:
 
     private fun root(context: Context) = File(context.filesDir, "addons/$name")
     /** App-private and written only after the archive matched the pinned digest. */
-    fun dir(context: Context) = File(root(context), sha256)
+    fun dir(context: Context) = File(root(context), version(context))
     fun file(context: Context, relative: String) = File(dir(context), relative)
 
-    fun installed(context: Context): Boolean = available && File(dir(context), COMPLETE).isFile
+    fun installed(context: Context): Boolean = version(context).isNotEmpty() && File(dir(context), COMPLETE).isFile
+
+    // A build made outside CI pins no packs, so it runs the newest one a CI build already verified and installed.
+    private fun version(context: Context): String = if (!reuseDeviceCopy) sha256 else deviceCopy(context).orEmpty()
+
+    private fun deviceCopy(context: Context): String? = root(context).listFiles().orEmpty()
+        .filter { dir ->
+            dir.isDirectory && runCatching { File(dir, COMPLETE).readText().trim() }.getOrNull() == dir.name &&
+                required.all { File(dir, it).isFile }
+        }
+        .maxByOrNull { it.lastModified() }?.name
 
     fun refresh(context: Context): State {
         val now = mutableState.value
@@ -86,7 +99,7 @@ internal class AddonPack(val name: String, private val sha256: String, val size:
 
     private fun install(context: Context): Boolean {
         if (!available) {
-            Log.w(TAG, "$name: this build has no pack")
+            Log.w(TAG, if (reuseDeviceCopy) "$name: this build has no pack and none is installed" else "$name: this build has no pack")
             return false
         }
         val root = root(context).apply { mkdirs() }

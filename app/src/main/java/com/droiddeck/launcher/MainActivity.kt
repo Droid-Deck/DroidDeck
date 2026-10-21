@@ -768,6 +768,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             DroidDeckTheme(theme, appScale = appScale) {
             com.droiddeck.launcher.ui.FocusGlideHost(androidx.compose.ui.Modifier.fillMaxSize().exposeTestTags()) {
+                if (decky.deckyPendingZip != null) com.droiddeck.launcher.ui.DeckyZipWarningDialog(
+                    onConfirm = { decky.confirmPluginZip() }, onCancel = { decky.cancelPluginZip() },
+                )
                 val page: (@Composable () -> Unit)? = when {
                     showPerformance -> { { PerformanceHost() } }
                     showComponents -> { { ComponentsHost() } }
@@ -1646,7 +1649,8 @@ class MainActivity : ComponentActivity() {
                 wifiDiscoveryAsked = wifiDiscoveryAsked,
                 wifiDiscoveryBlocked = wifiDiscoveryBlocked,
                 deckyInstalled = if (mode == SessionService.MODE_STEAM) decky.deckyInstalled else null,
-                deckyLatestRelease = if (mode == SessionService.MODE_STEAM) decky.deckyReleases.firstOrNull() else null,
+                deckyLatestRelease = if (mode == SessionService.MODE_STEAM) decky.deckyLatest else null,
+                deckyBranch = decky.deckyBranch,
                 deckyChecking = decky.deckyChecking, deckyStage = decky.deckyStage, deckyPercent = decky.deckyPercent,
                 deckyDownloadingBinary = decky.deckyDownloadingBinary,
                 deckyEnabled = decky.deckySupervisor, deckySessionRunning = SessionState.running,
@@ -1729,6 +1733,7 @@ class MainActivity : ComponentActivity() {
                 onBootMovieChanged = { loadBootMovie() },
                 onDeckyInstall = { release -> decky.installDecky(release) },
                 onDeckyCheck = { decky.refreshDecky() },
+                onDeckyBranch = { branch -> decky.switchDeckyBranch(branch) },
                 onDeckyEnabled = { enabled -> DeckyManager.setSupervisorEnabled(this, enabled); decky.deckySupervisor = enabled },
                 onDeckyUninstall = {
                     DeckyManager.uninstall(this, wipeData = false)

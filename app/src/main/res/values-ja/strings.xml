@@ -176,6 +176,8 @@
     <string name="app_fex_x86">%1$s（FEX経由）</string>
     <string name="app_fex_not_ready">このプログラムは%1$s PC向けにビルドされており、FEX経由で実行されますが、FEXはまだセットアップされていません。ログインした状態で一度Steamを開いてください。DroidDeckがFEXと必要なSteam Linux Runtimeをダウンロードした後、このプログラムが開きます。</string>
     <string name="session_end_program">このプログラム</string>
+    <string name="session_end_steam_download">Steamクライアントをダウンロードできませんでした。ネットワークまたはVPNがSteamのサーバーをブロックしている可能性があります。接続を確認して、もう一度お試しください。</string>
+    <string name="session_end_steam_setup">Steamクライアントをセットアップできませんでした。接続と空き容量を確認して、もう一度お試しください。</string>
     <string name="session_end_fex_missing">%1$sはx86 PC向けにビルドされており、FEX経由で実行されますが、FEXはまだインストールされていません。ログインした状態で一度Steamを起動し、FEXとSteam Linux Runtimeをダウンロードしてから、もう一度起動してください。</string>
     <string name="add_app_flatpak_hint">FlathubアプリIDまたはそのFlathubページ。Flatpakがまだセットアップされていない場合は、先にセットアップします。</string>
     <string name="add_app_file">ファイル</string>
@@ -578,6 +580,16 @@
     <string name="drawer_prev_page">前のページ</string>
     <string name="drawer_next_page">次のページ</string>
     <string name="drawer_hud">パフォーマンスHUD</string>
+    <string name="drawer_hud_fps">フレームレート</string>
+    <string name="drawer_hud_battery">バッテリー温度</string>
+    <string name="drawer_hud_graph">パフォーマンスグラフ</string>
+    <string name="drawer_hud_color">色</string>
+    <string name="drawer_hud_color_mint">ミント</string>
+    <string name="drawer_hud_color_white">ホワイト</string>
+    <string name="drawer_hud_color_sky">スカイ</string>
+    <string name="drawer_hud_color_amber">アンバー</string>
+    <string name="drawer_hud_color_violet">バイオレット</string>
+    <string name="drawer_hud_opacity">不透明度</string>
     <string name="drawer_scaling">スケーリングモード</string>
     <string name="drawer_scaling_sharpness">スケーリングのシャープネス</string>
     <string name="drawer_effects">画面エフェクト</string>

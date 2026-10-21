@@ -1,0 +1,62 @@
+#!/bin/sh
+# Audio stays on the session's PulseAudio, so WirePlumber runs its upstream video-only profile.
+set -u
+
+bundle=/usr/local/lib/droiddeck-pipewire.tzst
+dir=/usr/local/lib/droiddeck-pipewire
+state=${XDG_RUNTIME_DIR:-/tmp}/droiddeck-pipewire
+
+client_env() {
+    echo "export PIPEWIRE_CONFIG_DIR=$dir/share/pipewire PIPEWIRE_MODULE_DIR=$dir/lib/pipewire-0.3 SPA_PLUGIN_DIR=$dir/lib/spa-0.2"
+}
+
+unpack() {
+    [ -f "$bundle" ] || { echo "droiddeck-pipewire: $bundle is missing" >&2; return 1; }
+    sum=$(cksum < "$bundle")
+    [ "$(cat "$dir/.bundle" 2>/dev/null)" = "$sum" ] && return 0
+    rm -rf "$dir.new" && mkdir -p "$dir.new" &&
+        zstd -dc "$bundle" | tar -xf - -C "$dir.new" &&
+        printf '%s\n' "$sum" > "$dir.new/.bundle" &&
+        rm -rf "$dir" && mv "$dir.new" "$dir" ||
+        { rm -rf "$dir.new"; echo "droiddeck-pipewire: could not unpack $bundle" >&2; return 1; }
+}
+
+stop() {
+    for pid in $(cat "$state/pids" 2>/dev/null); do kill "$pid" 2>/dev/null; done
+    rm -f "$state/pids"
+}
+
+case "${1:-}" in
+env)
+    client_env
+    ;;
+start)
+    unpack || exit 1
+    stop
+    mkdir -p "$state"
+    eval "$(client_env)"
+    export LD_LIBRARY_PATH=$dir/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+    export WIREPLUMBER_MODULE_DIR=$dir/lib/wireplumber-0.5 WIREPLUMBER_CONFIG_DIR=$dir/share/wireplumber \
+        WIREPLUMBER_DATA_DIR=$dir/share/wireplumber
+    socket=${XDG_RUNTIME_DIR:-/tmp}/pipewire-0
+    rm -f "$socket" "$socket.lock" "$socket-manager" "$socket-manager.lock"
+    "$dir/bin/pipewire" < /dev/null &
+    echo $! > "$state/pids"
+    i=0
+    while [ ! -S "$socket" ]; do
+        i=$((i + 1))
+        [ "$i" -le 50 ] || { echo "droiddeck-pipewire: pipewire did not open $socket" >&2; stop; exit 1; }
+        sleep 0.1
+    done
+    "$dir/bin/wireplumber" --profile video-only < /dev/null &
+    echo $! >> "$state/pids"
+    echo "droiddeck-pipewire: pipewire and wireplumber (video-only) up at $socket"
+    ;;
+stop)
+    stop
+    ;;
+*)
+    echo "usage: droiddeck-pipewire env|start|stop" >&2
+    exit 2
+    ;;
+esac

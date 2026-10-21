@@ -176,6 +176,8 @@
     <string name="app_fex_x86">%1$s via FEX</string>
     <string name="app_fex_not_ready">Dit programma is gemaakt voor %1$s-pc’s en draait via FEX, dat nog niet is ingesteld. Open Steam één keer terwijl je bent ingelogd: DroidDeck laat het dan FEX en de benodigde Steam Linux Runtime downloaden. Daarna opent dit.</string>
     <string name="session_end_program">Dit programma</string>
+    <string name="session_end_steam_download">De Steam-client kon niet worden gedownload. Je netwerk of VPN blokkeert mogelijk de servers van Steam; controleer de verbinding en probeer het opnieuw.</string>
+    <string name="session_end_steam_setup">De Steam-client kon niet worden ingesteld. Controleer de verbinding en de vrije opslag en probeer het opnieuw.</string>
     <string name="session_end_fex_missing">%1$s is gemaakt voor x86-pc’s en draait via FEX, dat nog niet is geïnstalleerd. Start Steam één keer terwijl je bent ingelogd en laat het FEX en de Steam Linux Runtime downloaden. Start dit daarna opnieuw.</string>
     <string name="add_app_flatpak_hint">Een Flathub-app-ID of de Flathub-pagina ervan. Flatpak wordt eerst ingesteld als dat nog niet is gebeurd.</string>
     <string name="add_app_file">Bestand</string>
@@ -580,6 +582,16 @@
     <string name="drawer_prev_page">Vorige pagina</string>
     <string name="drawer_next_page">Volgende pagina</string>
     <string name="drawer_hud">Prestatie-HUD</string>
+    <string name="drawer_hud_fps">Beeldsnelheid</string>
+    <string name="drawer_hud_battery">Accutemperatuur</string>
+    <string name="drawer_hud_graph">Prestatiegrafiek</string>
+    <string name="drawer_hud_color">Kleur</string>
+    <string name="drawer_hud_color_mint">Mint</string>
+    <string name="drawer_hud_color_white">Wit</string>
+    <string name="drawer_hud_color_sky">Hemelsblauw</string>
+    <string name="drawer_hud_color_amber">Amber</string>
+    <string name="drawer_hud_color_violet">Violet</string>
+    <string name="drawer_hud_opacity">Transparantie</string>
     <string name="drawer_scaling">Schaalmodus</string>
     <string name="drawer_scaling_sharpness">Schaalscherpte</string>
     <string name="drawer_effects">Schermeffecten</string>
