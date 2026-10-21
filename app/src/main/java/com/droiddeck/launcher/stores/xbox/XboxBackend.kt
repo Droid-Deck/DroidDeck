@@ -54,8 +54,12 @@ object XboxBackend : StoreBackend {
                     }
                 }
                 if (cached != null && !cached.needsRefresh(force)) return@Thread
-                val licenses = XboxCatalog.access(Xodus.run(app, listOf("library", "--json", "--market", market)), account, market)
-                val games = XboxCatalog.products(licenses.keys.toList(), licenses, market).sortedBy { it.title.lowercase() }
+                val response = Xodus.run(app, listOf("library", "--json", "--market", market))
+                val licenses = XboxCatalog.access(response, account, market, report = { StoresState.logLine("Xbox: $it") })
+                val products = XboxCatalog.rawProducts(licenses.keys.toList(), market)
+                val games = products.mapNotNull { XboxCatalog.product(it, licenses) }.sortedBy { it.title.lowercase() }
+                StoresState.logLine("Xbox: library catalog requested=${licenses.size} returned=${products.size} supported=${games.size} " +
+                    "filtered=${products.size - games.size} backend-skipped=${response.optInt("skippedEntitlements")}")
                 synchronized(this) {
                     if (current != generation || StoreAccounts.signedInAs(app, store) != account) return@Thread
                     access = licenses

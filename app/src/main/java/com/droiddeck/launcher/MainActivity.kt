@@ -125,6 +125,7 @@ class MainActivity : ComponentActivity() {
     private var builtinPad by mutableStateOf(true)
     private var showComponents by mutableStateOf(false)
     private var focusComponentsContent by mutableStateOf(true)
+    private var componentsGameKey by mutableStateOf<String?>(null)
     private var showMapping by mutableStateOf(false)
     private var saveBusy: String? = null
     private var onSavePicked: ((File) -> Unit)? = null
@@ -861,6 +862,7 @@ class MainActivity : ComponentActivity() {
                         },
                         onSteamGameArtChanged = { appId -> refreshSteamGameArt(appId) },
                         onAddedGameRemoved = { folder, appId, name -> removeAddedGame(folder, appId, name) },
+                        onGameRemoved = { g -> removeGame(g) },
                         onAddedGamesArt = { on -> SessionPrefs.setAddedGamesArt(this, on); addedGamesArt = on; if (on) refreshAddedGames() },
                         onSgdbKey = { key ->
                             Thread({
@@ -922,6 +924,7 @@ class MainActivity : ComponentActivity() {
                         },
                         onProtons = { openProtons() },
                         onComponents = { focusContent -> openComponents(focusContent) },
+                        onGameComponents = { game -> openComponents(gameKey = game.profileKey) },
                         onComponentsTab = { tab -> openComponents(focusContent = true, tab = tab) },
                         onSaveImport = { sg -> importSaves(sg.name) { GameSaves.game(sg) } },
                         onSaveExport = { sg, layout -> exportSaves(sg.name, layout) { GameSaves.game(sg) } },
@@ -1434,8 +1437,9 @@ class MainActivity : ComponentActivity() {
         )
     }
 
-    private fun openComponents(focusContent: Boolean = true, tab: String? = null) {
+    private fun openComponents(focusContent: Boolean = true, tab: String? = null, gameKey: String? = null) {
         focusComponentsContent = focusContent
+        componentsGameKey = gameKey
         if (tab != null) components.compComp = tab
         showPerformance = false
         showMapping = false
@@ -1484,6 +1488,7 @@ class MainActivity : ComponentActivity() {
             onImport = { pickComponent.launch(InAppFilePicker.buildIntent(this, WCP_EXT, getString(R.string.comp_pick_wcp))) },
             onBack = { if (!com.droiddeck.launcher.ui.Hops.back { showComponents = false }) showComponents = false },
             games = steamGames,
+            initialGameKey = componentsGameKey,
             generalFexPreset = fexPreset,
             onGeneralFexPreset = { id -> SessionPrefs.setFexPreset(this, id); fexPreset = id },
             gpu = drivers.state(),
@@ -1719,12 +1724,12 @@ class MainActivity : ComponentActivity() {
                     SessionPrefs.setRunSteamAtStartup(this, on)
                     runSteamAtStartup = on
                 },
-                onBootMovie = { id -> SessionPrefs.setBootMovie(this, id); loadBootMovie() },
+                onBootMovie = { id -> com.droiddeck.launcher.session.BootMovie.select(this, id); loadBootMovie() },
                 onBootMovieSound = { on -> SessionPrefs.setBootMovieSound(this, on); bootMovieSound = on },
                 onImportBootMovie = {
                     pickBootMovie.launch(InAppFilePicker.buildIntent(this, com.droiddeck.launcher.session.BootMovie.PICKER_EXTENSIONS, getString(R.string.boot_movie_pick)))
                 },
-                onRemoveBootMovie = { com.droiddeck.launcher.session.BootMovie.removeCustom(this); loadBootMovie() },
+                onBootMovieChanged = { loadBootMovie() },
                 onDeckyInstall = { release -> decky.installDecky(release) },
                 onDeckyCheck = { decky.refreshDecky() },
                 onDeckyEnabled = { enabled -> DeckyManager.setSupervisorEnabled(this, enabled); decky.deckySupervisor = enabled },
@@ -1807,6 +1812,30 @@ class MainActivity : ComponentActivity() {
                 steamGames = steamGames.map { if (it.appId == appId && it.library != Library.ADDED) fresh else it }
             }
         }, "steam-art-update").start()
+    }
+
+    private fun removeGame(g: Library.SteamGame) {
+        val folder = g.gameFiles ?: return
+        when (com.droiddeck.launcher.frontend.GameRemoval.kind(g)) {
+            com.droiddeck.launcher.frontend.GameRemoval.Kind.LAUNCHER -> Unit
+            com.droiddeck.launcher.frontend.GameRemoval.Kind.SHORTCUT -> removeAddedGame(folder.path, g.gameId, g.name)
+            com.droiddeck.launcher.frontend.GameRemoval.Kind.STORE -> {
+                val installed = com.droiddeck.launcher.frontend.GameRemoval.storeGame(g)
+                if (installed != null) {
+                    com.droiddeck.launcher.stores.StoresState.uninstall(this, installed) { refreshAddedGames(); refresh() }
+                    return
+                }
+                if (g.library == Library.ADDED) {
+                    removeAddedGame(folder.path, g.gameId, g.name)
+                    return
+                }
+                val target = com.droiddeck.launcher.frontend.GameRemoval.steamFiles(g) ?: return
+                Thread({
+                    com.droiddeck.launcher.frontend.GameRemoval.delete(target)
+                    ui.post { refreshAddedGames(); refresh() }
+                }, "game-remove").start()
+            }
+        }
     }
 
     private fun removeAddedGame(folder: String, appId: Long?, name: String) {

@@ -151,6 +151,7 @@ fun ComponentsPage(
     onImport: () -> Unit,
     onBack: () -> Unit,
     games: List<Library.SteamGame> = emptyList(),
+    initialGameKey: String? = null,
     generalFexPreset: String = "",
     onGeneralFexPreset: (String) -> Unit = {},
     requestInitialFocus: Boolean = true,
@@ -169,7 +170,7 @@ fun ComponentsPage(
     val layer = if (comp in LAYERS) comp else GPU_TAB
     BackHandler(onBack = onBack)
     var scopeMenu by remember { mutableStateOf(false) }
-    var selectedGameKey by remember { mutableStateOf<String?>(null) }
+    var selectedGameKey by remember(initialGameKey) { mutableStateOf(initialGameKey) }
     var fexMenu by remember { mutableStateOf(false) }
     var gameProtonMenu by remember { mutableStateOf(false) }
     var gameProtonId by remember { mutableStateOf<String?>(null) }
