@@ -38,6 +38,7 @@ class StoreLoginActivity : ComponentActivity() {
         const val EXTRA_STORE = "store"
         const val EXTRA_CLIENT_URL = "client_url"
         private const val KEY_STATE = "oauth_state"
+        private const val KEY_SIGN_IN_CLEARED = "sign_in_cleared"
         @Volatile internal var floodColor: Int? = null
         internal const val CHROME_UA = "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.6533.103 Mobile Safari/537.36"
 
@@ -75,6 +76,7 @@ class StoreLoginActivity : ComponentActivity() {
     private var oauthState: String? = null
     private val captured = AtomicBoolean(false)
     private var flooded = false
+    private var signInCleared = false
 
     private fun dp(value: Int): Int = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value.toFloat(), resources.displayMetrics).toInt()
 
@@ -111,8 +113,12 @@ class StoreLoginActivity : ComponentActivity() {
             }
         })
         val start = flow!!.startUrl
-        if (savedInstanceState == null) flow!!.forgetSignIn { if (!isDestroyed) webView.loadUrl(start) }
-        else webView.loadUrl(start)
+        signInCleared = savedInstanceState?.getBoolean(KEY_SIGN_IN_CLEARED) == true
+        if (signInCleared) webView.loadUrl(start)
+        else flow!!.forgetSignIn {
+            signInCleared = true
+            if (!isDestroyed) webView.loadUrl(start)
+        }
     }
 
     private fun newFlow(state: String): Flow? {
@@ -333,6 +339,7 @@ class StoreLoginActivity : ComponentActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         oauthState?.let { outState.putString(KEY_STATE, it) }
+        outState.putBoolean(KEY_SIGN_IN_CLEARED, signInCleared)
     }
 
     override fun onStart() {
