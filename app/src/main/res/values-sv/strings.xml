@@ -2036,6 +2036,9 @@
     <string name="cloud_last_sync">Senast synkad %1$s</string>
     <string name="cloud_never">Inte synkad än</string>
     <string name="cloud_done">%1$d filer</string>
+    <string name="cloud_up_to_date">Redan uppdaterat</string>
+    <string name="cloud_signed_out">Logga in i butiken för att synkronisera sparfiler</string>
+    <string name="cloud_not_synced">Sparfilerna synkroniserades inte</string>
     <string name="stores_eyebrow_installed">installerat</string>
     <string name="stores_eyebrow_library">i ditt bibliotek</string>
     <string name="stores_eyebrow_store">butik</string>
@@ -2339,7 +2342,7 @@
     <string name="touch_done">Klar</string>
     <string name="touch_save_failed">Det gick inte att spara pekskärmslayouten</string>
     <string name="touch_saved">Pekskärmslayout sparad till Steam</string>
-    <string name="touch_app_id">App %1$d</string>
+    <string name="touch_app_id">App %1$s</string>
     <string name="touch_label_hint">Etikett (valfritt)</string>
     <string name="touch_icons_missing">Steams ikoner hittades inte</string>
     <plurals name="touch_icons_found">
@@ -2430,6 +2433,15 @@
     <string name="glasses_vr_fov">SteamVR-synfält</string>
     <string name="glasses_vr_fov_hint">Lägre för SteamVR närmare och fyller glasögonen; högre visar mer runt dig.</string>
     <string name="glasses_playing">Spelar på %1$s</string>
+    <string name="glasses_phone_recenter">Centrera om</string>
+    <string name="glasses_phone_steamvr_menu">SteamVR-meny</string>
+    <string name="glasses_phone_switch_sticks">Spakar: händer ⇄ spel</string>
+    <string name="glasses_phone_controllers">Handkontroller: %1$s</string>
+    <string name="glasses_phone_keyboard">Tangentbord</string>
+    <string name="glasses_phone_session_menu">Sessionsmeny</string>
+    <string name="glasses_phone_stop_steamvr">Stoppa SteamVR</string>
+    <string name="glasses_phone_brightness">Ljusstyrka %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Batteri %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Spårningskalibrering</string>
     <string name="glasses_calibration_hint">Minskar drift och justerar horisontreferensen.</string>
     <string name="glasses_calibration_saved_hint">Sparad kalibrering används för de här glasögonen.</string>

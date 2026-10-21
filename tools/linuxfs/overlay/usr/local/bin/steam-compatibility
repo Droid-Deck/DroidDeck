@@ -74,6 +74,9 @@ bl_store_launch() {
 }
 
 bl_run() {
+  if [ -x /usr/local/bin/droiddeck-steamvr-flat ] && /usr/local/bin/droiddeck-steamvr-flat "${verb:-}"; then
+    set -- /usr/local/bin/droiddeck-steamvr-game "$@"
+  fi
   if [ -n "${BL_STORE_EXIT:-}" ]; then
     "$@"
     rc=$?
@@ -260,6 +263,13 @@ bl_directaudio() {
   [ -d "$BL_DIRECTAUDIO" ] || return 0
   if bl_is_steam_installscript_target "${2:-}"; then
     echo "droiddeck-proton: DirectAudio skipped for Steam's install-script evaluator" >&2
+    return 0
+  fi
+  streamer=$(cat "${XDG_RUNTIME_DIR:-/tmp}/droiddeck-remote-play" 2>/dev/null)
+  if [ -n "$streamer" ] && kill -0 "$streamer" 2>/dev/null; then
+    WINE_AUDIO_DRIVER=pulse
+    export WINE_AUDIO_DRIVER
+    echo "droiddeck-proton: a Remote Play client is connected - game audio goes through PulseAudio so the stream carries it" >&2
     return 0
   fi
   version=$("$base/files/bin-arm64/wine" --version 2>/dev/null)
@@ -456,6 +466,9 @@ verb=$1; shift
 case $verb in
   getcompatpath | getnativepath) printf '%s\\n' "$1"; exit 0 ;;
 esac
+if [ -x /usr/local/bin/droiddeck-steamvr-flat ] && /usr/local/bin/droiddeck-steamvr-flat "$verb"; then
+  exec /usr/local/bin/droiddeck-steamvr-game /usr/local/bin/droiddeck-fex steam "$verb" "$@"
+fi
 exec /usr/local/bin/droiddeck-fex steam "$verb" "$@"
 """
 

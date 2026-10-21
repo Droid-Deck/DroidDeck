@@ -2036,6 +2036,9 @@
     <string name="cloud_last_sync">Viimeisin synkronointi %1$s</string>
     <string name="cloud_never">Ei synkronoitu vielä</string>
     <string name="cloud_done">%1$d tiedostoa</string>
+    <string name="cloud_up_to_date">Jo ajan tasalla</string>
+    <string name="cloud_signed_out">Kirjaudu kauppaan synkronoidaksesi tallennukset</string>
+    <string name="cloud_not_synced">Tallennuksia ei synkronoitu</string>
     <string name="stores_eyebrow_installed">asennettu</string>
     <string name="stores_eyebrow_library">kirjastossasi</string>
     <string name="stores_eyebrow_store">kauppa</string>
@@ -2339,7 +2342,7 @@
     <string name="touch_done">Valmis</string>
     <string name="touch_save_failed">Kosketusasettelua ei voitu tallentaa</string>
     <string name="touch_saved">Kosketusasettelu tallennettu Steamiin</string>
-    <string name="touch_app_id">Sovellus %1$d</string>
+    <string name="touch_app_id">Sovellus %1$s</string>
     <string name="touch_label_hint">Nimike (valinnainen)</string>
     <string name="touch_icons_missing">Steamin kuvakkeita ei löytynyt</string>
     <plurals name="touch_icons_found">
@@ -2430,6 +2433,15 @@
     <string name="glasses_vr_fov">SteamVR:n näkökenttä</string>
     <string name="glasses_vr_fov_hint">Pienempi tuo SteamVR:n lähemmäs ja täyttää lasit; suurempi näyttää enemmän ympäriltäsi.</string>
     <string name="glasses_playing">Pelataan laitteella %1$s</string>
+    <string name="glasses_phone_recenter">Keskitä uudelleen</string>
+    <string name="glasses_phone_steamvr_menu">SteamVR-valikko</string>
+    <string name="glasses_phone_switch_sticks">Sauvat: kädet ⇄ peli</string>
+    <string name="glasses_phone_controllers">Ohjaimet: %1$s</string>
+    <string name="glasses_phone_keyboard">Näppäimistö</string>
+    <string name="glasses_phone_session_menu">Istuntovalikko</string>
+    <string name="glasses_phone_stop_steamvr">Pysäytä SteamVR</string>
+    <string name="glasses_phone_brightness">Kirkkaus %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Akku %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Seurannan kalibrointi</string>
     <string name="glasses_calibration_hint">Vähentää ryömintää ja kohdistaa vaakatason.</string>
     <string name="glasses_calibration_saved_hint">Tallennettu kalibrointi on käytössä näissä laseissa.</string>

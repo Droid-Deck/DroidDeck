@@ -2015,6 +2015,9 @@
     <string name="cloud_last_sync">Sinkronisasi terakhir %1$s</string>
     <string name="cloud_never">Belum disinkronkan</string>
     <string name="cloud_done">%1$d file</string>
+    <string name="cloud_up_to_date">Sudah terbaru</string>
+    <string name="cloud_signed_out">Masuk ke toko untuk menyinkronkan simpanan</string>
+    <string name="cloud_not_synced">Simpanan tidak disinkronkan</string>
     <string name="stores_eyebrow_installed">terinstal</string>
     <string name="stores_eyebrow_library">dalam pustaka Anda</string>
     <string name="stores_eyebrow_store">toko</string>
@@ -2316,7 +2319,7 @@
     <string name="touch_done">Selesai</string>
     <string name="touch_save_failed">Tata letak sentuh tidak dapat disimpan</string>
     <string name="touch_saved">Tata letak sentuh disimpan ke Steam</string>
-    <string name="touch_app_id">App %1$d</string>
+    <string name="touch_app_id">App %1$s</string>
     <string name="touch_label_hint">Label (opsional)</string>
     <string name="touch_icons_missing">Ikon Steam tidak ditemukan</string>
     <plurals name="touch_icons_found">
@@ -2405,6 +2408,15 @@
     <string name="glasses_vr_fov">Bidang pandang SteamVR</string>
     <string name="glasses_vr_fov_hint">Lebih rendah membawa SteamVR lebih dekat dan memenuhi kacamata; lebih tinggi menampilkan lebih banyak di sekitar Anda.</string>
     <string name="glasses_playing">Bermain di %1$s</string>
+    <string name="glasses_phone_recenter">Pusatkan ulang</string>
+    <string name="glasses_phone_steamvr_menu">Menu SteamVR</string>
+    <string name="glasses_phone_switch_sticks">Stik: tangan ⇄ game</string>
+    <string name="glasses_phone_controllers">Kontroler: %1$s</string>
+    <string name="glasses_phone_keyboard">Keyboard</string>
+    <string name="glasses_phone_session_menu">Menu sesi</string>
+    <string name="glasses_phone_stop_steamvr">Hentikan SteamVR</string>
+    <string name="glasses_phone_brightness">Kecerahan %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Baterai %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Kalibrasi pelacakan</string>
     <string name="glasses_calibration_hint">Mengurangi drift dan menyelaraskan acuan horizontal.</string>
     <string name="glasses_calibration_saved_hint">Kalibrasi tersimpan diterapkan ke kacamata ini.</string>

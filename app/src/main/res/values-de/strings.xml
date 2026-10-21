@@ -2025,6 +2025,9 @@
     <string name="cloud_last_sync">Zuletzt synchronisiert %1$s</string>
     <string name="cloud_never">Noch nicht synchronisiert</string>
     <string name="cloud_done">%1$d Dateien</string>
+    <string name="cloud_up_to_date">Bereits aktuell</string>
+    <string name="cloud_signed_out">Im Store anmelden, um Spielstände zu synchronisieren</string>
+    <string name="cloud_not_synced">Spielstände wurden nicht synchronisiert</string>
     <string name="stores_eyebrow_installed">installiert</string>
     <string name="stores_eyebrow_library">in deiner Bibliothek</string>
     <string name="stores_eyebrow_store">Store</string>
@@ -2325,7 +2328,7 @@
     <string name="touch_done">Fertig</string>
     <string name="touch_save_failed">Das Touch-Layout konnte nicht gespeichert werden</string>
     <string name="touch_saved">Touch-Layout in Steam gespeichert</string>
-    <string name="touch_app_id">App %1$d</string>
+    <string name="touch_app_id">App %1$s</string>
     <string name="touch_label_hint">Bezeichnung (optional)</string>
     <string name="touch_icons_missing">Steams Symbole wurden nicht gefunden</string>
     <plurals name="touch_icons_found">
@@ -2416,6 +2419,15 @@
     <string name="glasses_vr_fov">SteamVR-Sichtfeld</string>
     <string name="glasses_vr_fov_hint">Niedriger holt SteamVR näher heran und füllt die Brille; höher zeigt mehr von deiner Umgebung.</string>
     <string name="glasses_playing">Spiel läuft auf %1$s</string>
+    <string name="glasses_phone_recenter">Neu zentrieren</string>
+    <string name="glasses_phone_steamvr_menu">SteamVR-Menü</string>
+    <string name="glasses_phone_switch_sticks">Sticks: Hände ⇄ Spiel</string>
+    <string name="glasses_phone_controllers">Controller: %1$s</string>
+    <string name="glasses_phone_keyboard">Tastatur</string>
+    <string name="glasses_phone_session_menu">Sitzungsmenü</string>
+    <string name="glasses_phone_stop_steamvr">SteamVR beenden</string>
+    <string name="glasses_phone_brightness">Helligkeit %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Akku %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Tracking-Kalibrierung</string>
     <string name="glasses_calibration_hint">Verringert Drift und richtet die waagerechte Referenz aus.</string>
     <string name="glasses_calibration_saved_hint">Für diese Brille wird eine gespeicherte Kalibrierung verwendet.</string>

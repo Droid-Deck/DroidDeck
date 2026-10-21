@@ -2036,6 +2036,9 @@
     <string name="cloud_last_sync">Siste synkronisering %1$s</string>
     <string name="cloud_never">Ikke synkronisert ennå</string>
     <string name="cloud_done">%1$d filer</string>
+    <string name="cloud_up_to_date">Allerede oppdatert</string>
+    <string name="cloud_signed_out">Logg inn i butikken for å synkronisere lagrede spill</string>
+    <string name="cloud_not_synced">Lagrede spill ble ikke synkronisert</string>
     <string name="stores_eyebrow_installed">installert</string>
     <string name="stores_eyebrow_library">i biblioteket ditt</string>
     <string name="stores_eyebrow_store">butikk</string>
@@ -2339,7 +2342,7 @@
     <string name="touch_done">Fullført</string>
     <string name="touch_save_failed">Kunne ikke lagre berøringsoppsettet</string>
     <string name="touch_saved">Berøringsoppsett lagret til Steam</string>
-    <string name="touch_app_id">App %1$d</string>
+    <string name="touch_app_id">App %1$s</string>
     <string name="touch_label_hint">Etikett (valgfritt)</string>
     <string name="touch_icons_missing">Steams ikoner ble ikke funnet</string>
     <plurals name="touch_icons_found">
@@ -2430,6 +2433,15 @@
     <string name="glasses_vr_fov">SteamVR-synsfelt</string>
     <string name="glasses_vr_fov_hint">Lavere bringer SteamVR nærmere og fyller brillene; høyere viser mer rundt deg.</string>
     <string name="glasses_playing">Spiller på %1$s</string>
+    <string name="glasses_phone_recenter">Sentrer på nytt</string>
+    <string name="glasses_phone_steamvr_menu">SteamVR-meny</string>
+    <string name="glasses_phone_switch_sticks">Spaker: hender ⇄ spill</string>
+    <string name="glasses_phone_controllers">Kontrollere: %1$s</string>
+    <string name="glasses_phone_keyboard">Tastatur</string>
+    <string name="glasses_phone_session_menu">Øktmeny</string>
+    <string name="glasses_phone_stop_steamvr">Stopp SteamVR</string>
+    <string name="glasses_phone_brightness">Lysstyrke %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Batteri %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Sporingskalibrering</string>
     <string name="glasses_calibration_hint">Reduserer avdrift og retter inn horisontreferansen.</string>
     <string name="glasses_calibration_saved_hint">Lagret kalibrering brukes for disse brillene.</string>

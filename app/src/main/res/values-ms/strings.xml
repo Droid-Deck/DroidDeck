@@ -2015,6 +2015,9 @@
     <string name="cloud_last_sync">Segerak terakhir %1$s</string>
     <string name="cloud_never">Belum disegerakkan</string>
     <string name="cloud_done">%1$d fail</string>
+    <string name="cloud_up_to_date">Sudah terkini</string>
+    <string name="cloud_signed_out">Log masuk ke kedai untuk menyegerakkan simpanan</string>
+    <string name="cloud_not_synced">Simpanan tidak disegerakkan</string>
     <string name="stores_eyebrow_installed">dipasang</string>
     <string name="stores_eyebrow_library">dalam pustaka anda</string>
     <string name="stores_eyebrow_store">kedai</string>
@@ -2316,7 +2319,7 @@
     <string name="touch_done">Selesai</string>
     <string name="touch_save_failed">Susun atur sentuh tidak dapat disimpan</string>
     <string name="touch_saved">Susun atur sentuh disimpan ke Steam</string>
-    <string name="touch_app_id">Apl %1$d</string>
+    <string name="touch_app_id">Apl %1$s</string>
     <string name="touch_label_hint">Label (pilihan)</string>
     <string name="touch_icons_missing">Ikon Steam tidak dijumpai</string>
     <plurals name="touch_icons_found">
@@ -2405,6 +2408,15 @@
     <string name="glasses_vr_fov">Medan pandangan SteamVR</string>
     <string name="glasses_vr_fov_hint">Lebih rendah mendekatkan SteamVR dan memenuhi cermin mata; lebih tinggi menunjukkan lebih banyak di sekeliling anda.</string>
     <string name="glasses_playing">Bermain pada %1$s</string>
+    <string name="glasses_phone_recenter">Pusatkan semula</string>
+    <string name="glasses_phone_steamvr_menu">Menu SteamVR</string>
+    <string name="glasses_phone_switch_sticks">Kayu bedik: tangan ⇄ permainan</string>
+    <string name="glasses_phone_controllers">Pengawal: %1$s</string>
+    <string name="glasses_phone_keyboard">Papan kekunci</string>
+    <string name="glasses_phone_session_menu">Menu sesi</string>
+    <string name="glasses_phone_stop_steamvr">Hentikan SteamVR</string>
+    <string name="glasses_phone_brightness">Kecerahan %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Bateri %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Penentukuran penjejakan</string>
     <string name="glasses_calibration_hint">Mengurangkan hanyutan dan menjajarkan rujukan mendatar.</string>
     <string name="glasses_calibration_saved_hint">Penentukuran yang disimpan digunakan pada cermin mata ini.</string>

@@ -2015,6 +2015,9 @@
     <string name="cloud_last_sync">最終同期 %1$s</string>
     <string name="cloud_never">未同期</string>
     <string name="cloud_done">%1$d個のファイル</string>
+    <string name="cloud_up_to_date">すでに最新です</string>
+    <string name="cloud_signed_out">セーブを同期するにはストアにサインインしてください</string>
+    <string name="cloud_not_synced">セーブは同期されませんでした</string>
     <string name="stores_eyebrow_installed">インストール済み</string>
     <string name="stores_eyebrow_library">ライブラリ内</string>
     <string name="stores_eyebrow_store">ストア</string>
@@ -2316,7 +2319,7 @@
     <string name="touch_done">完了</string>
     <string name="touch_save_failed">タッチレイアウトを保存できませんでした</string>
     <string name="touch_saved">タッチレイアウトをSteamに保存しました</string>
-    <string name="touch_app_id">アプリ%1$d</string>
+    <string name="touch_app_id">アプリ%1$s</string>
     <string name="touch_label_hint">ラベル（任意）</string>
     <string name="touch_icons_missing">Steamのアイコンが見つかりませんでした</string>
     <plurals name="touch_icons_found">
@@ -2405,6 +2408,15 @@
     <string name="glasses_vr_fov">SteamVR の視野角</string>
     <string name="glasses_vr_fov_hint">小さくすると SteamVR が近くなりグラスいっぱいに広がり、大きくすると周囲が広く見えます。</string>
     <string name="glasses_playing">%1$s でプレイ中</string>
+    <string name="glasses_phone_recenter">中心をリセット</string>
+    <string name="glasses_phone_steamvr_menu">SteamVR メニュー</string>
+    <string name="glasses_phone_switch_sticks">スティック: 手 ⇄ ゲーム</string>
+    <string name="glasses_phone_controllers">コントローラー: %1$s</string>
+    <string name="glasses_phone_keyboard">キーボード</string>
+    <string name="glasses_phone_session_menu">セッションメニュー</string>
+    <string name="glasses_phone_stop_steamvr">SteamVR を停止</string>
+    <string name="glasses_phone_brightness">明るさ %1$d / %2$d</string>
+    <string name="glasses_phone_battery">バッテリー %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">トラッキングのキャリブレーション</string>
     <string name="glasses_calibration_hint">ドリフトを減らし、水平の基準を合わせます。</string>
     <string name="glasses_calibration_saved_hint">保存したキャリブレーションをこのグラスに適用しています。</string>

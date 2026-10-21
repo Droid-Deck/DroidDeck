@@ -2015,6 +2015,9 @@
     <string name="cloud_last_sync">ซิงค์ล่าสุด %1$s</string>
     <string name="cloud_never">ยังไม่ได้ซิงค์</string>
     <string name="cloud_done">%1$d ไฟล์</string>
+    <string name="cloud_up_to_date">อัปเดตแล้ว</string>
+    <string name="cloud_signed_out">ลงชื่อเข้าใช้ร้านค้าเพื่อซิงค์เซฟ</string>
+    <string name="cloud_not_synced">เซฟไม่ได้ซิงค์</string>
     <string name="stores_eyebrow_installed">ติดตั้งแล้ว</string>
     <string name="stores_eyebrow_library">อยู่ในไลบรารีของคุณ</string>
     <string name="stores_eyebrow_store">สโตร์</string>
@@ -2316,7 +2319,7 @@
     <string name="touch_done">เสร็จสิ้น</string>
     <string name="touch_save_failed">ไม่สามารถบันทึกเค้าโครงสัมผัสได้</string>
     <string name="touch_saved">บันทึกเค้าโครงสัมผัสลง Steam แล้ว</string>
-    <string name="touch_app_id">แอป %1$d</string>
+    <string name="touch_app_id">แอป %1$s</string>
     <string name="touch_label_hint">ป้ายชื่อ (ไม่บังคับ)</string>
     <string name="touch_icons_missing">ไม่พบไอคอนของ Steam</string>
     <plurals name="touch_icons_found">
@@ -2405,6 +2408,15 @@
     <string name="glasses_vr_fov">ขอบเขตการมองเห็นของ SteamVR</string>
     <string name="glasses_vr_fov_hint">ค่าต่ำจะดึง SteamVR เข้ามาใกล้และเต็มแว่นตา ค่าสูงจะแสดงสิ่งรอบตัวคุณได้มากขึ้น</string>
     <string name="glasses_playing">กำลังเล่นบน %1$s</string>
+    <string name="glasses_phone_recenter">จัดกึ่งกลางใหม่</string>
+    <string name="glasses_phone_steamvr_menu">เมนู SteamVR</string>
+    <string name="glasses_phone_switch_sticks">สติ๊ก: มือ ⇄ เกม</string>
+    <string name="glasses_phone_controllers">คอนโทรลเลอร์: %1$s</string>
+    <string name="glasses_phone_keyboard">แป้นพิมพ์</string>
+    <string name="glasses_phone_session_menu">เมนูเซสชัน</string>
+    <string name="glasses_phone_stop_steamvr">หยุด SteamVR</string>
+    <string name="glasses_phone_brightness">ความสว่าง %1$d / %2$d</string>
+    <string name="glasses_phone_battery">แบตเตอรี่ %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">การปรับเทียบการติดตาม</string>
     <string name="glasses_calibration_hint">ลดการดริฟต์และปรับแนวระดับอ้างอิงให้ตรง</string>
     <string name="glasses_calibration_saved_hint">ใช้การปรับเทียบที่บันทึกไว้กับแว่นตานี้แล้ว</string>

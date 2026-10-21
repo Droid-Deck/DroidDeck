@@ -2078,6 +2078,9 @@
     <string name="cloud_last_sync">Ostatnia synchronizacja %1$s</string>
     <string name="cloud_never">Jeszcze nie zsynchronizowano</string>
     <string name="cloud_done">%1$d plików</string>
+    <string name="cloud_up_to_date">Już aktualne</string>
+    <string name="cloud_signed_out">Zaloguj się do sklepu, aby synchronizować zapisy</string>
+    <string name="cloud_not_synced">Zapisy nie zostały zsynchronizowane</string>
     <string name="stores_eyebrow_installed">zainstalowana</string>
     <string name="stores_eyebrow_library">w Twojej bibliotece</string>
     <string name="stores_eyebrow_store">sklep</string>
@@ -2388,7 +2391,7 @@
     <string name="touch_done">Gotowe</string>
     <string name="touch_save_failed">Nie udało się zapisać układu dotykowego</string>
     <string name="touch_saved">Układ dotykowy zapisany w Steam</string>
-    <string name="touch_app_id">Aplikacja %1$d</string>
+    <string name="touch_app_id">Aplikacja %1$s</string>
     <string name="touch_label_hint">Etykieta (opcjonalnie)</string>
     <string name="touch_icons_missing">Nie znaleziono ikon Steam</string>
     <plurals name="touch_icons_found">
@@ -2483,6 +2486,15 @@
     <string name="glasses_vr_fov">Pole widzenia SteamVR</string>
     <string name="glasses_vr_fov_hint">Mniejsze przybliża SteamVR i wypełnia okulary; większe pokazuje więcej dookoła.</string>
     <string name="glasses_playing">Grasz na: %1$s</string>
+    <string name="glasses_phone_recenter">Wyśrodkuj ponownie</string>
+    <string name="glasses_phone_steamvr_menu">Menu SteamVR</string>
+    <string name="glasses_phone_switch_sticks">Gałki: dłonie ⇄ gra</string>
+    <string name="glasses_phone_controllers">Kontrolery: %1$s</string>
+    <string name="glasses_phone_keyboard">Klawiatura</string>
+    <string name="glasses_phone_session_menu">Menu sesji</string>
+    <string name="glasses_phone_stop_steamvr">Zatrzymaj SteamVR</string>
+    <string name="glasses_phone_brightness">Jasność %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Bateria %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Kalibracja śledzenia</string>
     <string name="glasses_calibration_hint">Ogranicza dryf i wyrównuje poziom odniesienia.</string>
     <string name="glasses_calibration_saved_hint">Dla tych okularów używana jest zapisana kalibracja.</string>
