@@ -176,6 +176,8 @@
     <string name="app_fex_x86">%1$s μέσω FEX</string>
     <string name="app_fex_not_ready">Αυτό το πρόγραμμα είναι χτισμένο για υπολογιστές %1$s και εκτελείται μέσω FEX, το οποίο δεν έχει ρυθμιστεί ακόμα. Ανοίξτε το Steam μία φορά ενώ είστε συνδεδεμένοι: το DroidDeck κάνει λήψη του FEX και του Steam Linux Runtime που χρειάζεται, και μετά αυτό ανοίγει.</string>
     <string name="session_end_program">Αυτό το πρόγραμμα</string>
+    <string name="session_end_steam_download">Δεν ήταν δυνατή η λήψη του πελάτη Steam. Το δίκτυο ή το VPN σας ίσως αποκλείει τους διακομιστές του Steam· ελέγξτε τη σύνδεση και δοκιμάστε ξανά.</string>
+    <string name="session_end_steam_setup">Δεν ήταν δυνατή η ρύθμιση του πελάτη Steam. Ελέγξτε τη σύνδεση και τον ελεύθερο χώρο αποθήκευσης και δοκιμάστε ξανά.</string>
     <string name="session_end_fex_missing">Το %1$s είναι χτισμένο για υπολογιστές x86 και εκτελείται μέσω FEX, το οποίο δεν έχει εγκατασταθεί ακόμα. Εκκινήστε το Steam μία φορά ενώ είστε συνδεδεμένοι και αφήστε το να κάνει λήψη του FEX και του Steam Linux Runtime, μετά εκκινήστε αυτό ξανά.</string>
     <string name="add_app_flatpak_hint">Ένα ID εφαρμογής Flathub ή η σελίδα της στο Flathub. Το Flatpak ρυθμίζεται πρώτα, αν δεν έχει ρυθμιστεί ακόμα.</string>
     <string name="add_app_file">Αρχείο</string>
@@ -1038,6 +1040,9 @@
     <string name="games_added">Προστέθηκε παιχνίδι</string>
     <string name="games_custom">Προσαρμοσμένο παιχνίδι</string>
     <string name="games_store_storage">Αποθήκευση παιχνιδιών</string>
+    <string name="games_uninstall_body">Διαγράφει τα αρχεία του και το αφαιρεί από το Steam.</string>
+    <string name="games_remove_title">Αφαίρεση του %1$s;</string>
+    <string name="games_remove_body">Διαγράφει τη συντόμευση. Τα αρχεία του παιχνιδιού παραμένουν.</string>
     <string name="gpu_auto_hint">Το καλύτερο ζεύγος για αυτή τη GPU, ενημερωμένο</string>
     <string name="gpu_manual_hint">Επιλέξτε ένα ζεύγος εσείς</string>
     <string name="gpu_checking">Έλεγχος για προγράμματα οδήγησης…</string>

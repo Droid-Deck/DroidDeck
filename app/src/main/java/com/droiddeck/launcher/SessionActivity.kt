@@ -623,7 +623,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 onDispose { com.droiddeck.launcher.glasses.GlassesMenuMirror.setSessionMenuVisible(this@SessionActivity, false) }
             }
             androidx.compose.runtime.LaunchedEffect(drawerOpen, pcKeyboardOpen, achievementsOpen, pipUi) { updatePointerCapture() }
-            androidx.compose.runtime.LaunchedEffect(pcKeyboardOpen, AgentGuest.steamKeyboard) { updateOnScreenControls() }
+            androidx.compose.runtime.LaunchedEffect(AgentGuest.steamKeyboard) { updateOnScreenControls() }
             androidx.compose.runtime.LaunchedEffect(picturePosition, SessionState.running, pipUi, cardboard.enabled) { applyGameAlignment() }
             DroidDeckTheme {
             if (pipUi) {
@@ -636,7 +636,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 }
             } else {
             com.droiddeck.launcher.ui.FocusGlideHost(androidx.compose.ui.Modifier.fillMaxSize()) {
-                CursorOverlay(cursorPos, cursorVisible, resources.displayMetrics.density,
+                CursorOverlay({ cursorPos }, cursorVisible, resources.displayMetrics.density,
                     cursorImage, cursorHotX, cursorHotY, cursorImageScale)
                 if (hud.text.isNotEmpty()) HudText(hud.text)
                 if (glassesOutputActive && !loading.visible) com.droiddeck.launcher.ui.GlassesPlayingHint(glasses.model)
@@ -835,6 +835,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         SessionPrefs.setSteamController(this@SessionActivity, id)
                         com.droiddeck.launcher.session.SteamDeckPad.showPad(SessionPrefs.padType(id))
                         com.droiddeck.launcher.input.FakeInputWriter.setPadType(SessionPrefs.padType(id))
+                        com.droiddeck.launcher.session.InputSysfsComponent.padTypeChanged(SessionPrefs.padType(id))
                         padType = id
                     },
                     backActionsInverted = backActionsInverted,
@@ -1878,17 +1879,22 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             var enosys = 0
             var fexMissing = false
             val size = log.length()
-            java.io.RandomAccessFile(log, "r").use { f ->
+            val text = java.io.RandomAccessFile(log, "r").use { f ->
                 val start = maxOf(0L, size - 512L * 1024)
                 f.seek(start)
                 val bytes = ByteArray((size - start).toInt())
                 f.readFully(bytes)
-                String(bytes, Charsets.ISO_8859_1).lineSequence().forEach { line ->
-                    if (line.contains("Function not implemented")) enosys++
-                    if (line.contains(FEX_MISSING)) fexMissing = true
-                }
+                String(bytes, Charsets.ISO_8859_1)
             }
-            if (fexMissing) {
+            text.lineSequence().forEach { line ->
+                if (line.contains("Function not implemented")) enosys++
+                if (line.contains(FEX_MISSING)) fexMissing = true
+            }
+            val steamSetup = com.droiddeck.launcher.session.SteamClientSetupFailure.find(text.lineSequence())
+            if (steamSetup != null) {
+                val message = getString(if (steamSetup.download) R.string.session_end_steam_download else R.string.session_end_steam_setup)
+                EndHint(listOfNotNull(message, steamSetup.curlError).joinToString("\n"))
+            } else if (fexMissing) {
                 val what = com.droiddeck.launcher.frontend.Library.nameForProgram(SessionState.program) ?: getString(R.string.session_end_program)
                 EndHint(getString(R.string.session_end_fex_missing, what), evenOnSuccess = true)
             } else if (enosys >= 8) {
@@ -2723,7 +2729,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun keyboardCoversPad() =
-        SessionState.mode == SessionService.MODE_STEAM && (pcKeyboardOpen || AgentGuest.steamKeyboard)
+        SessionState.mode == SessionService.MODE_STEAM && AgentGuest.steamKeyboard
 
     private fun sendGuestKey(code: Int, down: Boolean) {
         if (down && pipUi) return

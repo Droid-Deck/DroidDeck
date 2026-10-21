@@ -564,6 +564,8 @@ class Helper:
             prior_native = state.get("native_choices", ())
             native_choices = {app for app in (prior_native if isinstance(prior_native, (list, tuple, set)) else ())
                               if str(app) not in not_games}
+            picked = COMPAT["picked_apps"](state)
+            runnable = {t["name"].lower() for t in live}
             apps = sorted(set(installed) | set(picks) | set(prior_auto) | native_choices, key=COMPAT["app_order"])
             overrides = {
                 app: tool for app, tool in COMPAT["requested_games"](
@@ -591,7 +593,7 @@ class Helper:
                 for app in native_choices:
                     current[app] = ""
                 for app in set(native) - native_choices:
-                    if not current.get(app):
+                    if not current.get(app) and app not in picked:
                         current.pop(app, None)
             else:
                 for app in set(native) | native_choices:
@@ -599,7 +601,8 @@ class Helper:
                         # The client shows an explicit native choice as the tool it inherits, and writes config.vdf late.
                         if raw_mapping[app] == "" or current.get(app) not in self.known:
                             current[app] = raw_mapping[app]
-                    elif app in prior_auto or app in native_choices:
+                    elif app in prior_auto or app in native_choices or app in picked and (
+                            not current.get(app) or COMPAT["unrunnable"](current[app], runnable)):
                         current[app] = ""
                     elif not current.get(app):
                         current.pop(app, None)
@@ -615,6 +618,7 @@ class Helper:
                 auto={app: tool for app, tool in auto.items() if tool is not COMPAT["NATIVE_CHOICE"]},
                 native_choices=sorted(refused_native | {app for app, tool in auto.items() if tool is COMPAT["NATIVE_CHOICE"]}),
                 known_tools=sorted(self.known),
+                picked=COMPAT["picked_after"](current, changes),
                 tools=catalog, live=True)
             state.pop("native", None)
             if waiting:

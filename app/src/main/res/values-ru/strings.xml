@@ -176,6 +176,8 @@
     <string name="app_fex_x86">%1$s через FEX</string>
     <string name="app_fex_not_ready">Эта программа собрана для ПК на %1$s и работает через FEX, который еще не настроен. Откройте Steam один раз, войдя в аккаунт: DroidDeck скачает через него FEX и нужную Steam Linux Runtime, после чего программа откроется.</string>
     <string name="session_end_program">Эта программа</string>
+    <string name="session_end_steam_download">Не удалось скачать клиент Steam. Возможно, ваша сеть или VPN блокирует серверы Steam; проверьте подключение и повторите попытку.</string>
+    <string name="session_end_steam_setup">Не удалось настроить клиент Steam. Проверьте подключение и свободное место, затем повторите попытку.</string>
     <string name="session_end_fex_missing">%1$s — сборка для x86-ПК, которая работает через FEX, а он еще не установлен. Запустите Steam один раз, войдя в аккаунт, и дайте ему скачать FEX и Steam Linux Runtime, затем запустите программу снова.</string>
     <string name="add_app_flatpak_hint">ID приложения Flathub или ссылка на его страницу. Если Flatpak еще не настроен, сначала будет выполнена его настройка.</string>
     <string name="add_app_file">Файл</string>
@@ -1047,6 +1049,9 @@
     <string name="games_added">Добавленная игра</string>
     <string name="games_custom">Своя игра</string>
     <string name="games_store_storage">Хранилище игр</string>
+    <string name="games_uninstall_body">Удаляет файлы игры и убирает ее из Steam.</string>
+    <string name="games_remove_title">Убрать %1$s?</string>
+    <string name="games_remove_body">Удаляет ярлык. Файлы игры остаются.</string>
     <string name="gpu_auto_hint">Лучшая пара для этого GPU, обновляется автоматически</string>
     <string name="gpu_manual_hint">Выбрать комбинацию драйверов вручную</string>
     <string name="gpu_checking">Проверка драйверов…</string>

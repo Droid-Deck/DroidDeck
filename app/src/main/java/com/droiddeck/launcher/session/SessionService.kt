@@ -59,6 +59,7 @@ class SessionService : Service() {
 
     private val components = java.util.concurrent.CopyOnWriteArrayList<SessionPart>()
     private var deckBinds: List<String> = emptyList()
+    private var inputSysfs: InputSysfsComponent? = null
     private val stopLock = Any()
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
@@ -411,6 +412,7 @@ class SessionService : Service() {
         val controllersOn = !File(Environment.getExternalStorageDirectory(), NO_PAD_SWITCH).exists()
         SessionState.deckPad = false
         deckBinds = emptyList()
+        inputSysfs = null
         if (controllersOn) {
             addControllerEnvironment(guest, fakeInputDir, sessionDir)
             SessionState.padBridge?.syncConnectedControllers()
@@ -729,6 +731,7 @@ class SessionService : Service() {
                 val padType = SessionPrefs.steamController(this)
                 guest.add("FAKE_EVDEV_PAD_TYPE=$padType")
                 com.droiddeck.launcher.input.FakeInputWriter.setPadType(SessionPrefs.padType(padType))
+                InputSysfsComponent.padTypeChanged(SessionPrefs.padType(padType))
                 if (wantsTouch) com.droiddeck.launcher.input.SteamTouchDevice.prepare(fakeInputDir)?.let {
                     guest.add("FAKE_TOUCHCTL_RING=" + it.path)
                 }
@@ -742,6 +745,9 @@ class SessionService : Service() {
         if (!SessionState.deckPad) guest.add("SDL_JOYSTICK_HIDAPI=0")
         guest.add("FAKE_EVDEV_LOG=1")
         guest.add("FAKE_EVDEV_LOG_FILE=" + File(sessionDir, "pad.log").path)
+        inputSysfs = InputSysfsComponent(fakeInputDir, File(fakeInputDir.parentFile!!.parentFile!!, "sys/input"),
+            File(LinuxRuntime.rootDir(this), "run/udev/data"), SessionState.deckPad, !uinput && SessionState.mode == MODE_STEAM)
+            .takeIf { it.prepare() }
         SessionState.fakeInputDir = fakeInputDir
     }
 
@@ -756,6 +762,11 @@ class SessionService : Service() {
         val binds = ArrayList<String>()
         if (controllersOn) binds.add(fakeInputDir.path + ":/dev/input")
         if (controllersOn) binds.addAll(deckBinds)
+        if (controllersOn) inputSysfs?.let {
+            it.attach(this)
+            components.add(it)
+            binds.addAll(it.binds())
+        }
         val battery = BatteryComponent(
             File(filesDir, "session/sys/power_supply"),
             File(LinuxRuntime.rootDir(this), "run/vpower"),
