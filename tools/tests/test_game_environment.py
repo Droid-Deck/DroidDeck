@@ -275,6 +275,35 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertIn("Easy Anti-Cheat detected", result.stderr)
             self.assertNotIn("started without Easy Anti-Cheat", result.stderr)
 
+    def test_easy_anti_cheat_replacement_applies_engine_fixes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            game = home / "Arc Raiders"
+            (game / "EasyAntiCheat").mkdir(parents=True)
+            bootstrapper = game / "start_protected_game.exe"
+            target = game / "PioneerGame.exe"
+            bootstrapper.touch()
+            target.touch()
+            (game / "EasyAntiCheat/settings.json").write_text(json.dumps({"executable": "PioneerGame.exe"}))
+            proton = home / "fake-proton"
+            proton.write_text("#!" + sys.executable + "\nimport json, os, sys\nprint(json.dumps({\"argv\": sys.argv[1:], \"env\": dict(os.environ)}))\n")
+            proton.chmod(0o755)
+            config = home / ".config/droiddeck/game-environment.json"
+            config.parent.mkdir(parents=True)
+            config.write_text(json.dumps({"version": 1, "games": {"1808500": {"DROIDDECK_ANTICHEAT_OFFLINE": "1"}}}))
+            env = dict(os.environ, HOME=tmp, STEAM_COMPAT_DATA_PATH="/compatdata/1808500", SteamAppId="1808500")
+            result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"),
+                                     str(proton), "waitforexitandrun", str(bootstrapper), "-arg"],
+                                    env=env, text=True, capture_output=True, check=True)
+            payload = json.loads(result.stdout.strip())
+            self.assertEqual(payload["argv"], [
+                "waitforexitandrun", str(target), "-arg",
+                "-noraytracing", "-ini:Engine:[/Script/Engine.RendererSettings]:r.RayTracing=False"
+            ])
+            self.assertIn("nodxr", payload["env"].get("VKD3D_CONFIG", ""))
+            self.assertIn("started without Easy Anti-Cheat (offline only)", result.stderr)
+            self.assertIn("Arc Raiders: ray tracing off", result.stderr)
+
     def test_deep_rock_gdk_avoids_the_raytracing_pipeline_crash(self):
         game = "/game/FSD/Binaries/WinGDK/FSD-WinGDK-Shipping.exe"
         env, extra, notes = MODULE["engine_fixes"](game, [])

@@ -48,6 +48,7 @@ class FexTestCase(unittest.TestCase):
             "WANTED": str(self.home / ".config/droiddeck/fex-wanted"),
             "PRELOADS": str(self.tmp / "preloads"),
             "HOST_PRELOAD": str(self.tmp / "ld.so.preload"),
+            "GAME_ENVIRONMENT": str(self.home / ".config/droiddeck/game-environment.json"),
             "DEVICE_FONTS": str(self.tmp / "android-fonts"),
             "FONT_RULES": str(self.tmp / "66-droiddeck-device-fonts.conf"),
         }
@@ -760,6 +761,51 @@ class LaunchTest(FexTestCase):
                 "-noraytracing", "-ini:Engine:[/Script/Engine.RendererSettings]:r.RayTracing=False"
             ])
             self.assertIn("nodxr", called_env.get("VKD3D_CONFIG", ""))
+            self.assertIn("Arc Raiders: ray tracing off", err.getvalue())
+
+    def test_fex_applies_engine_fixes_when_offline_anticheat_replaces_executable(self):
+        proton = self.tmp / "Proton/proton"
+        proton.parent.mkdir(parents=True, exist_ok=True)
+        proton.write_text("#!/usr/bin/python3\n")
+        proton.chmod(0o755)
+
+        orig = self.tmp / "fex-compat-tool.droiddeck-orig"
+        orig.write_text("#!/bin/sh\n")
+        orig.chmod(0o755)
+
+        game_dir = self.tmp / "Arc Raiders"
+        (game_dir / "EasyAntiCheat").mkdir(parents=True, exist_ok=True)
+        bootstrapper = game_dir / "start_protected_game.exe"
+        target = game_dir / "PioneerGame.exe"
+        bootstrapper.touch()
+        target.touch()
+        (game_dir / "EasyAntiCheat/settings.json").write_text(json.dumps({"executable": "PioneerGame.exe"}))
+
+        config_path = self.home / ".config/droiddeck/game-environment.json"
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(json.dumps({
+            "version": 1,
+            "games": {"1808500": {"DROIDDECK_ANTICHEAT_OFFLINE": "1"}}
+        }))
+
+        import io
+        err = io.StringIO()
+        with mock.patch("os.execvpe") as execvpe, mock.patch("sys.stderr", err):
+            with mock.patch.dict(os.environ, {"SteamAppId": "1808500"}):
+                FEX["main"]([
+                    "valve-fex", str(orig), "waitforexitandrun", "--",
+                    str(proton), "waitforexitandrun", str(bootstrapper)
+                ])
+            execvpe.assert_called_once()
+            called_argv = execvpe.call_args[0][1]
+            called_env = execvpe.call_args[0][2]
+            self.assertEqual(called_argv, [
+                str(orig), "waitforexitandrun", "--", str(proton), "waitforexitandrun",
+                str(target),
+                "-noraytracing", "-ini:Engine:[/Script/Engine.RendererSettings]:r.RayTracing=False"
+            ])
+            self.assertIn("nodxr", called_env.get("VKD3D_CONFIG", ""))
+            self.assertIn("started without Easy Anti-Cheat (offline only)", err.getvalue())
             self.assertIn("Arc Raiders: ray tracing off", err.getvalue())
 
     def test_fex_directories_prepended_to_path(self):

@@ -424,10 +424,24 @@ def main():
     mic_enabled = env.get("BL_MIC_ENABLED")
     mark_install_scripts(command, env)
     app_id = game_id(env)
+    eac_offline = False
     if app_id:
         waiting = len(command) > 1 and command[1] == "waitforexitandrun"
         fixes = {}
+        path = Path.home() / ".config/droiddeck/game-environment.json"
+        try:
+            with path.open(encoding="utf-8") as source:
+                config = json.load(source)
+        except FileNotFoundError:
+            config = {"version": 1}
+        except (OSError, ValueError, TypeError, AttributeError):
+            print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
+            config = {"version": 1}
         if waiting:
+            env = apply_config(env, config, app_id)
+            offline_command = offline_without_anticheat(command, env)
+            eac_offline = offline_command != command
+            command = offline_command
             command = skip_red_launcher(command)
             fixes, extra, notes = engine_fixes(command[2], command[3:]) if len(command) > 2 else ({}, [], [])
             for note in notes:
@@ -437,24 +451,9 @@ def main():
             if components:
                 own = fixes.get("WINEDLLOVERRIDES")
                 fixes["WINEDLLOVERRIDES"] = components + ";" + own if own else components
-        path = Path.home() / ".config/droiddeck/game-environment.json"
-        try:
-            with path.open(encoding="utf-8") as source:
-                config = json.load(source)
-            if waiting:
-                env = apply_config(env, config, app_id, fixes)
-            else:
-                env = apply_config(env, sync_config(config, app_id), app_id)
-        except FileNotFoundError:
-            if waiting:
-                env = apply_config(env, {"version": 1}, app_id, fixes)
-        except (OSError, ValueError, TypeError, AttributeError):
-            print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
-    eac_offline = False
-    if app_id and len(command) > 1 and command[1] == "waitforexitandrun":
-        offline_command = offline_without_anticheat(command, env)
-        eac_offline = offline_command != command
-        command = offline_command
+            env = apply_config(env, config, app_id, fixes)
+        else:
+            env = apply_config(env, sync_config(config, app_id), app_id)
     if mic_enabled == "0":
         env["BANNER_AUDIO_DIRECT_MIC"] = "0"
     env = anticheat_runtimes(command, env, eac_offline=eac_offline)

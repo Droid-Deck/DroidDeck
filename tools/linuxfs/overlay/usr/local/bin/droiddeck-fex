@@ -806,6 +806,23 @@ def game_environment(command=(), env=None):
     eac_offline = False
     if app and len(command) > 2 and command[1] == "waitforexitandrun":
         try:
+            try:
+                with open(GAME_ENVIRONMENT, encoding="utf-8") as source:
+                    config = json.load(source)
+            except FileNotFoundError:
+                config = {"version": 1}
+            except Exception as error:
+                say("game settings were not applied (%s)" % error)
+                config = {"version": 1}
+            env = game_env["apply_config"](env, config, str(app))
+            if "offline_without_anticheat" in game_env:
+                offline_command = game_env["offline_without_anticheat"](command, env)
+                eac_offline = offline_command != command
+                if eac_offline:
+                    if isinstance(command, list):
+                        command[:] = offline_command
+                    else:
+                        command = list(offline_command)
             if "skip_red_launcher" in game_env and isinstance(command, list):
                 command[:] = game_env["skip_red_launcher"](command)
             fixes, extra, notes = game_env["engine_fixes"](command[2], command[3:])
@@ -817,14 +834,6 @@ def game_environment(command=(), env=None):
             if components:
                 own = fixes.get("WINEDLLOVERRIDES")
                 fixes["WINEDLLOVERRIDES"] = components + ";" + own if own else components
-            try:
-                with open(GAME_ENVIRONMENT, encoding="utf-8") as source:
-                    config = json.load(source)
-            except FileNotFoundError:
-                config = {"version": 1}
-            except Exception as error:
-                say("game settings were not applied (%s)" % error)
-                config = {"version": 1}
             env = game_env["apply_config"](env, config, str(app), fixes)
         except Exception as error:
             say("game settings were not applied (%s)" % error)
@@ -837,12 +846,6 @@ def game_environment(command=(), env=None):
             pass
         except Exception as error:
             say("game settings were not applied (%s)" % error)
-
-    if app and len(command) > 1 and command[1] == "waitforexitandrun" and "offline_without_anticheat" in game_env:
-        offline_command = game_env["offline_without_anticheat"](command, env)
-        eac_offline = offline_command != command
-        if eac_offline and isinstance(command, list):
-            command[:] = offline_command
 
     if command:
         try:
