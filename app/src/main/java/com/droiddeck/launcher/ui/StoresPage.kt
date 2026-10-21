@@ -638,8 +638,8 @@ private fun StoreDot(store: Store, signedIn: Boolean) {
     Box(
         Modifier.size(12.dp)
             .onGloballyPositioned { StoresMotion.dots[store] = it.boundsInRoot() }
-            .pulseRing(StoresMotion.pulses[store] ?: 0, c.dot),
-    ) { Box(Modifier.matchParentSize().clip(CircleShape).background(c.dot).alpha(if (signedIn) 1f else 0.35f)) }
+            .pulseRing(StoresMotion.pulses[store] ?: 0, c.dot)
+            .background(c.dot.copy(alpha = if (signedIn) 1f else 0.35f), CircleShape),
 }
 
 @Composable
