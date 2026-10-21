@@ -30,6 +30,7 @@
 #include "handcam_shm.h"
 #include "hand_skeleton.h"
 #include "index_pose.h"
+#include "pad_controller_config.h"
 #include "joycon_shm.h"
 #include "presenter.h"
 #include "spatial_tracking.h"
@@ -1027,45 +1028,57 @@ public:
         pose_.qWorldFromDriverRotation.w = pose_.qDriverFromHeadRotation.w = pose_.qRotation.w = 1;
     }
 
+    void SetProfile(PadProfile profile) { profile_ = profile; }
+
     EVRInitError Activate(uint32_t id) override {
         id_ = id;
         PropertyContainerHandle_t c = VRProperties()->TrackedDeviceToPropertyContainer(id_);
         XrTrackingFile tracking;
         DroidDeckXrTracking packet{};
         xrMode_ = tracking.Read(&packet) && XrTrackingFile::Fresh(packet);
-        VRProperties()->SetStringProperty(c, Prop_ModelNumber_String, xrMode_ ? "DroidDeck Quest Touch" : "DroidDeck Pad Hand");
-        VRProperties()->SetStringProperty(c, Prop_ManufacturerName_String, xrMode_ ? "Meta" : "DroidDeck");
+        const PadProfile profile = xrMode_ ? PadProfile::Touch : profile_;
+        touch_ = profile == PadProfile::Touch;
+        index_ = profile == PadProfile::Index;
+        const char *model = touch_ ? "DroidDeck Quest Touch" : index_ ? "DroidDeck Index Hand" : "DroidDeck Pad Hand";
+        VRProperties()->SetStringProperty(c, Prop_ModelNumber_String, model);
+        VRProperties()->SetStringProperty(c, Prop_ManufacturerName_String, touch_ ? "Meta" : index_ ? "Valve" : "DroidDeck");
         VRProperties()->SetStringProperty(c, Prop_TrackingSystemName_String, "droiddeck");
-        VRProperties()->SetStringProperty(c, Prop_RenderModelName_String, xrMode_ ?
+        VRProperties()->SetStringProperty(c, Prop_RenderModelName_String, touch_ ?
             (right_ ? "oculus_quest_plus_controller_right" : "oculus_quest_plus_controller_left") :
             (right_ ? "{indexcontroller}valve_controller_knu_1_0_right" : "{indexcontroller}valve_controller_knu_1_0_left"));
-        VRProperties()->SetStringProperty(c, Prop_ControllerType_String, xrMode_ ? "oculus_touch" : "vive_controller");
-        VRProperties()->SetStringProperty(c, Prop_InputProfilePath_String, xrMode_ ?
-            "{oculus}/input/touch_profile.json" : "{htc}/input/vive_controller_profile.json");
+        VRProperties()->SetStringProperty(c, Prop_ControllerType_String, touch_ ? "oculus_touch" : index_ ? "knuckles" : "vive_controller");
+        VRProperties()->SetStringProperty(c, Prop_InputProfilePath_String, touch_ ? "{oculus}/input/touch_profile.json" :
+            index_ ? "{indexcontroller}/input/index_controller_profile.json" : "{htc}/input/vive_controller_profile.json");
         VRProperties()->SetInt32Property(c, Prop_ControllerRoleHint_Int32,
                                          right_ ? TrackedControllerRole_RightHand : TrackedControllerRole_LeftHand);
         VRProperties()->SetInt32Property(c, Prop_DeviceClass_Int32, TrackedDeviceClass_Controller);
         auto in = VRDriverInput();
+        const bool stick = touch_ || index_;
+        const char *stickPath = touch_ ? "/input/joystick" : "/input/thumbstick";
+        const auto path = [](const char *base, const char *leaf) { return std::string(base) + leaf; };
         in->CreateBooleanComponent(c, "/input/system/click", &system_);
-        in->CreateBooleanComponent(c, "/input/application_menu/click", &menu_);
-        in->CreateBooleanComponent(c, "/input/grip/click", &grip_);
+        if (!index_) in->CreateBooleanComponent(c, "/input/application_menu/click", &menu_);
+        in->CreateBooleanComponent(c, stick ? "/input/grip/touch" : "/input/grip/click", &grip_);
         in->CreateBooleanComponent(c, "/input/trigger/click", &triggerClick_);
         in->CreateScalarComponent(c, "/input/trigger/value", &trigger_, VRScalarType_Absolute, VRScalarUnits_NormalizedOneSided);
-        in->CreateScalarComponent(c, xrMode_ ? "/input/joystick/x" : "/input/trackpad/x", &padX_, VRScalarType_Absolute, VRScalarUnits_NormalizedTwoSided);
-        in->CreateScalarComponent(c, xrMode_ ? "/input/joystick/y" : "/input/trackpad/y", &padY_, VRScalarType_Absolute, VRScalarUnits_NormalizedTwoSided);
-        in->CreateBooleanComponent(c, xrMode_ ? "/input/joystick/click" : "/input/trackpad/click", &padClick_);
-        in->CreateBooleanComponent(c, xrMode_ ? "/input/joystick/touch" : "/input/trackpad/touch", &padTouch_);
-        if (xrMode_) {
+        const char *axisBase = stick ? stickPath : "/input/trackpad";
+        in->CreateScalarComponent(c, path(axisBase, "/x").c_str(), &padX_, VRScalarType_Absolute, VRScalarUnits_NormalizedTwoSided);
+        in->CreateScalarComponent(c, path(axisBase, "/y").c_str(), &padY_, VRScalarType_Absolute, VRScalarUnits_NormalizedTwoSided);
+        in->CreateBooleanComponent(c, path(axisBase, "/click").c_str(), &padClick_);
+        in->CreateBooleanComponent(c, path(axisBase, "/touch").c_str(), &padTouch_);
+        if (stick) {
+            const bool letters = touch_ && !right_;
             in->CreateScalarComponent(c, "/input/grip/value", &gripValue_, VRScalarType_Absolute, VRScalarUnits_NormalizedOneSided);
+            if (index_) in->CreateScalarComponent(c, "/input/grip/force", &gripForce_, VRScalarType_Absolute, VRScalarUnits_NormalizedOneSided);
             in->CreateBooleanComponent(c, "/input/trigger/touch", &triggerTouch_);
-            in->CreateBooleanComponent(c, right_ ? "/input/a/click" : "/input/x/click", &primaryClick_);
-            in->CreateBooleanComponent(c, right_ ? "/input/b/click" : "/input/y/click", &secondaryClick_);
-            in->CreateBooleanComponent(c, right_ ? "/input/a/touch" : "/input/x/touch", &primaryTouch_);
-            in->CreateBooleanComponent(c, right_ ? "/input/b/touch" : "/input/y/touch", &secondaryTouch_);
-            in->CreateBooleanComponent(c, "/input/thumbrest/touch", &thumbrestTouch_);
+            in->CreateBooleanComponent(c, letters ? "/input/x/click" : "/input/a/click", &primaryClick_);
+            in->CreateBooleanComponent(c, letters ? "/input/y/click" : "/input/b/click", &secondaryClick_);
+            in->CreateBooleanComponent(c, letters ? "/input/x/touch" : "/input/a/touch", &primaryTouch_);
+            in->CreateBooleanComponent(c, letters ? "/input/y/touch" : "/input/b/touch", &secondaryTouch_);
+            if (touch_) in->CreateBooleanComponent(c, "/input/thumbrest/touch", &thumbrestTouch_);
         }
         in->CreateHapticComponent(c, "/output/haptic", &haptic_);
-        Log("%s hand activated (%s)", right_ ? "right" : "left", xrMode_ ? "Quest Touch" : "game pad");
+        Log("%s hand activated (%s)", right_ ? "right" : "left", xrMode_ ? "Quest Touch" : model);
         return VRInitError_None;
     }
     void Deactivate() override { ClearInputs(); id_ = k_unTrackedDeviceIndexInvalid; }
@@ -1085,11 +1098,14 @@ public:
         if (id_ == k_unTrackedDeviceIndexInvalid) return;
         auto in = VRDriverInput();
         EVRInputError error = VRInputError_None;
-        for (VRInputComponentHandle_t h : {system_, menu_, grip_, triggerClick_, padClick_, padTouch_}) {
+        for (VRInputComponentHandle_t h : {system_, menu_, grip_, triggerClick_, padClick_, padTouch_, triggerTouch_,
+                                           primaryClick_, secondaryClick_, primaryTouch_, secondaryTouch_}) {
+            if (!h) continue;
             const auto result = in->UpdateBooleanComponent(h, false, 0);
             if (result != VRInputError_None) error = result;
         }
-        for (VRInputComponentHandle_t h : {trigger_, padX_, padY_}) {
+        for (VRInputComponentHandle_t h : {trigger_, padX_, padY_, gripValue_, gripForce_}) {
+            if (!h) continue;
             const auto result = in->UpdateScalarComponent(h, 0.0f, 0);
             if (result != VRInputError_None) error = result;
         }
@@ -1186,6 +1202,7 @@ public:
         in->UpdateBooleanComponent(system_, right_ && (b & PAD_GUIDE), 0);
         in->UpdateBooleanComponent(menu_, (b & (right_ ? PAD_START : PAD_SELECT)) != 0, 0);
         const auto gripError = in->UpdateBooleanComponent(grip_, opticalInputs_.grip, 0);
+        if (gripValue_) in->UpdateScalarComponent(gripValue_, opticalInputs_.grip ? 1.0f : 0.0f, 0);
         const auto clickError = in->UpdateBooleanComponent(triggerClick_, opticalInputs_.click, 0);
         const auto triggerError = in->UpdateScalarComponent(trigger_, opticalInputs_.trigger, 0);
         const float x = pad ? pad->axes[right_ ? 2 : 0]/32767.0f : 0;
@@ -1252,15 +1269,33 @@ public:
         const uint32_t b = pad->buttons;
         const float trig = pad->axes[right_ ? 4 : 5] / 255.0f;
         const bool touch = !sticksMoveHands && stickX * stickX + stickY * stickY > 0.01f;
+        const bool grip = (b & (right_ ? PAD_RB : PAD_LB)) != 0;
         in->UpdateBooleanComponent(system_, right_ && (b & PAD_GUIDE), 0);
-        in->UpdateBooleanComponent(menu_, (b & (right_ ? PAD_START : PAD_SELECT)) != 0, 0);
-        in->UpdateBooleanComponent(grip_, (b & (right_ ? PAD_RB : PAD_LB)) != 0, 0);
         in->UpdateScalarComponent(trigger_, trig, 0);
         in->UpdateBooleanComponent(triggerClick_, trig > 0.6f, 0);
         in->UpdateScalarComponent(padX_, touch ? stickX : 0.0f, 0);
         in->UpdateScalarComponent(padY_, touch ? stickY : 0.0f, 0);
-        in->UpdateBooleanComponent(padTouch_, touch || (b & (right_ ? PAD_A : PAD_X)), 0);
-        in->UpdateBooleanComponent(padClick_, (b & (right_ ? (PAD_A | PAD_R3) : PAD_X)) != 0, 0);
+        if (!touch_ && !index_) {
+            in->UpdateBooleanComponent(menu_, (b & (right_ ? PAD_START : PAD_SELECT)) != 0, 0);
+            in->UpdateBooleanComponent(grip_, grip, 0);
+            in->UpdateBooleanComponent(padTouch_, touch || (b & (right_ ? PAD_A : PAD_X)), 0);
+            in->UpdateBooleanComponent(padClick_, (b & (right_ ? (PAD_A | PAD_R3) : PAD_X)) != 0, 0);
+            return;
+        }
+        // Touch and Index: face buttons are their own inputs and the stick is a thumbstick.
+        const bool primary = b & (right_ ? PAD_A : PAD_X), secondary = b & (right_ ? PAD_B : PAD_Y);
+        const bool both = (b & PAD_L3) && (b & PAD_R3);
+        if (menu_) in->UpdateBooleanComponent(menu_, !right_ && (b & (PAD_START | PAD_SELECT)), 0);
+        in->UpdateBooleanComponent(grip_, grip, 0);
+        in->UpdateScalarComponent(gripValue_, grip ? 1.0f : 0.0f, 0);
+        if (gripForce_) in->UpdateScalarComponent(gripForce_, grip ? 1.0f : 0.0f, 0);
+        in->UpdateBooleanComponent(triggerTouch_, trig > 0.05f, 0);
+        in->UpdateBooleanComponent(primaryClick_, primary, 0);
+        in->UpdateBooleanComponent(secondaryClick_, secondary, 0);
+        in->UpdateBooleanComponent(primaryTouch_, primary, 0);
+        in->UpdateBooleanComponent(secondaryTouch_, secondary, 0);
+        in->UpdateBooleanComponent(padTouch_, touch, 0);
+        in->UpdateBooleanComponent(padClick_, !both && (b & (right_ ? PAD_R3 : PAD_L3)), 0);
     }
 
 private:
@@ -1297,14 +1332,15 @@ private:
     static constexpr int16_t kGrabTrigger = 153;
     static constexpr float kStickDeadzone = 0.12f, kHandRangeX = 0.40f, kHandRangeUp = 0.50f, kHandRangeDown = 0.30f, kHandSmoothing = 0.05f, kHandPivot = 0.45f;
     bool right_;
-    bool xrMode_ = false;
+    bool xrMode_ = false, touch_ = false, index_ = false;
+    PadProfile profile_ = PadProfile::Index;
     uint32_t id_ = k_unTrackedDeviceIndexInvalid;
     DriverPose_t pose_ = {};
     float pull_ = 0.0f, handX_ = 0.0f, handY_ = 0.0f;
     std::chrono::steady_clock::time_point lastUpdate_ = std::chrono::steady_clock::now();
     VRInputComponentHandle_t system_ = 0, menu_ = 0, grip_ = 0, triggerClick_ = 0, trigger_ = 0, padX_ = 0, padY_ = 0,
                              padClick_ = 0, padTouch_ = 0, haptic_ = 0;
-    VRInputComponentHandle_t gripValue_ = 0, triggerTouch_ = 0, primaryClick_ = 0, secondaryClick_ = 0,
+    VRInputComponentHandle_t gripValue_ = 0, gripForce_ = 0, triggerTouch_ = 0, primaryClick_ = 0, secondaryClick_ = 0,
                              primaryTouch_ = 0, secondaryTouch_ = 0, thumbrestTouch_ = 0;
 };
 
@@ -1594,7 +1630,8 @@ private:
                 VRServerDriverHost()->TrackedDevicePoseUpdated(id_, head, sizeof(DriverPose_t));
                 const bool lumaJoyCons = (spatial.flags & DD_SPATIAL_ACTIVE) && (spatial.flags & DD_SPATIAL_JOYCONS);
                 const bool optical = !lumaJoyCons && (spatial.flags & DD_SPATIAL_ACTIVE) && (spatial.flags & DD_SPATIAL_HANDS);
-                if (!optical && havePad && (pad.buttons & PAD_L3) && !(lastPad_.buttons & PAD_L3)) {
+                const uint32_t chord = PAD_L3 | PAD_R3;
+                if (!optical && havePad && (pad.buttons & chord) == chord && (lastPad_.buttons & chord) != chord) {
                     sticksMoveHands_ = !sticksMoveHands_;
                     Log("sticks now move %s", sticksMoveHands_ ? "the hands" : "in the game");
                 }
@@ -1713,6 +1750,7 @@ private:
     PropertyContainerHandle_t container_ = k_ulInvalidPropertyContainer;
 public:
     void SetHands(CardboardController *left, CardboardController *right) { hands_[0] = left; hands_[1] = right; }
+    void SetSticksMoveHands(bool on) { sticksMoveHands_ = on; }
     void SetHandControllers(HandController *left, HandController *right) { handControllers_[0] = left; handControllers_[1] = right; }
     bool WantsHand(int side) const { return wantHand_[side].load(); }
 
@@ -1729,7 +1767,7 @@ private:
     PadState lastPad_;
     VRInputComponentHandle_t proximity_ = 0;
     bool worn_ = true;
-    bool sticksMoveHands_ = true;
+    bool sticksMoveHands_ = false;
     float reach_ = 0.0f;
     std::chrono::steady_clock::time_point lastReach_ = std::chrono::steady_clock::now();
     std::chrono::steady_clock::time_point lastScan_{};
@@ -1767,7 +1805,12 @@ public:
         Log("DroidDeck Cardboard driver loaded");
         if (!VRServerDriverHost()->TrackedDeviceAdded("droiddeck-cardboard-hmd", TrackedDeviceClass_HMD, &hmd_))
             Log("TrackedDeviceAdded failed");
-        if (VRSettings()->GetBool(kSettingsSection, "gamepadControllers")) {
+        const PadControllerConfig pads = read_pad_controller_config("/run/droiddeck/" DROIDDECK_VR_CONTROLLERS_FILE);
+        Log("game pad hands: %s, sticks start in %s", pad_profile_name(pads.profile), pads.sticksMoveHands ? "the hands" : "the game");
+        hmd_.SetSticksMoveHands(pads.sticksMoveHands);
+        if (pads.profile != PadProfile::Off && VRSettings()->GetBool(kSettingsSection, "gamepadControllers")) {
+            left_.SetProfile(pads.profile);
+            right_.SetProfile(pads.profile);
             VRServerDriverHost()->TrackedDeviceAdded("droiddeck-pad-left", TrackedDeviceClass_Controller, &left_);
             VRServerDriverHost()->TrackedDeviceAdded("droiddeck-pad-right", TrackedDeviceClass_Controller, &right_);
             hmd_.SetHands(&left_, &right_);
