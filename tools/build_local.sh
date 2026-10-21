@@ -12,7 +12,18 @@ else
     export DROIDDECK_BUILD_TREE_STATE=unknown
 fi
 sdk_dir=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-"${HOME}/Library/Android/sdk"}}
-java_dir=${JAVA_HOME:-"/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home"}
+java_dir="${JAVA_HOME:-/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home}"
+[[ -x "$java_dir/bin/java" ]] || {
+  mise_java="$(mise which java 2>/dev/null)"
+  if [[ -n "$mise_java" ]]; then
+    mise_home="$(dirname "$mise_java")"
+    [[ "$mise_home" == */bin ]] && mise_home="$(dirname "$mise_home")"
+    [[ -x "$mise_home/bin/java" ]] && java_dir="$mise_home"
+  fi
+}
+[[ -x "$java_dir/bin/java" ]] || java_dir="${HOME}/.local/share/mise/installs/java/temurin-17"
+[[ "$java_dir" == */homebrew/* ]] && echo "using homebrew java path: $java_dir"
+[[ "$java_dir" == */mise/* ]] && echo "using mise java path: $java_dir"
 image_name=${DROIDDECK_BUILD_IMAGE:-droiddeck-local-cross:24.04-v3}
 build_variant=${DROIDDECK_BUILD_VARIANT:-release}
 case "$build_variant" in
