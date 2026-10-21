@@ -198,32 +198,35 @@ object StoresState {
         askForNotifications(context)
         if (isUnfinished(item)) { install(context, item); return }
         val targets = StoreInstallRoot.targets(context)
-        if (targets.size > 1) pendingInstall = item else install(context, item, targets.first().root)
+        if (targets.size > 1 || StoreLanguage.selectable(item.store)) pendingInstall = item
+        else install(context, item, targets.first().root)
     }
 
-    fun install(context: Context, item: CatalogItem, root: java.io.File? = null) {
+    fun install(context: Context, item: CatalogItem, root: java.io.File? = null, language: String? = null) {
         val app = context.applicationContext
         val folder = StoreInstallRoot.folderFor(app, item.store, item.id, item.title, root ?: StoreInstallRoot.installRoot(app))
         val target = folder.parentFile!!.parentFile!!
-        val check = StoreInstallRoot.checkStorage(app, item, target)
+        val code = language?.takeIf { it.isNotBlank() } ?: StoreLanguage.preferredCode(app)
+        val tagged = if (StoreLanguage.selectable(item.store)) item.copy(extra = item.extra + (StoreLanguage.EXTRA to code)) else item
+        val check = StoreInstallRoot.checkStorage(app, tagged, target)
         if (!check.enough) {
             val errorMsg = check.errorMessage ?: app.getString(com.droiddeck.launcher.R.string.stores_storage_insufficient, formatBytes(check.requiredBytes), formatBytes(check.availableBytes))
             val entry = com.droiddeck.launcher.stores.download.DownloadEntry(
-                item.store,
-                item.id,
-                item.title,
-                cover = item.imageUrl,
-                bytesTotal = item.sizeBytes,
+                tagged.store,
+                tagged.id,
+                tagged.title,
+                cover = tagged.imageUrl,
+                bytesTotal = tagged.sizeBytes,
                 location = StoreInstallRoot.labelFor(app, folder)
             )
-            com.droiddeck.launcher.stores.download.SavedQueue.remember(app, item, target)
+            com.droiddeck.launcher.stores.download.SavedQueue.remember(app, tagged, target)
             com.droiddeck.launcher.stores.download.DownloadQueue.recordFailed(app, entry, errorMsg) {
-                install(app, item, target)
+                install(app, tagged, target, code)
             }
             return
         }
-        com.droiddeck.launcher.stores.download.SavedQueue.remember(app, item, target)
-        backends[item.store]?.install(app, item, target) ?: logLine("${item.store.label}: this build cannot install yet")
+        com.droiddeck.launcher.stores.download.SavedQueue.remember(app, tagged, target)
+        backends[tagged.store]?.install(app, tagged, target) ?: logLine("${tagged.store.label}: this build cannot install yet")
     }
 
     val uninstalling = mutableStateMapOf<String, Float>()

@@ -2156,6 +2156,9 @@
     <string name="stores_download_manager">Menedżer pobierania</string>
     <string name="stores_parallel">Pobierania naraz</string>
     <string name="stores_install_where">Instaluj w</string>
+    <string name="stores_install_language">Język gry</string>
+    <string name="stores_install_language_hint">GOG i Epic instalują w tym języku. System to język aplikacji.</string>
+    <string name="stores_install_language_system">Systemowy</string>
     <string name="stores_install_title">Zainstaluj %1$s:</string>
     <string name="stores_target_internal">Wewnętrzna</string>
     <string name="stores_target_free">%1$s wolnego miejsca</string>

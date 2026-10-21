@@ -9,6 +9,7 @@ import com.droiddeck.launcher.stores.StoreBackend
 import com.droiddeck.launcher.stores.StoreGameSidecar
 import com.droiddeck.launcher.stores.StoreInstallRoot
 import com.droiddeck.launcher.stores.StoreInstalls
+import com.droiddeck.launcher.stores.StoreLanguage
 import com.droiddeck.launcher.stores.StoreLoginActivity
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.download.DownloadEntry
@@ -82,6 +83,7 @@ object GogBackend : StoreBackend {
             handle.stage(DownloadStage.MANIFEST)
             StoreInstalls.begin(folder, Store.GOG, game.gameId, game.title, item.tallImageUrl ?: item.imageUrl, item.imageUrl)
             var downloading = false
+            val language = item.extra[StoreLanguage.EXTRA] ?: StoreLanguage.preferredCode(app)
             val result = GogDownloadManager.install(app, game, folder, object : GogDownloadManager.Callback {
                 override fun onProgress(message: String, pct: Int) {
                     when {
@@ -99,15 +101,17 @@ object GogBackend : StoreBackend {
                     handle.stage(when (stage) { "check" -> DownloadStage.MANIFEST; "verify" -> DownloadStage.VERIFY; else -> DownloadStage.INSTALL })
                     handle.stageProgress(done, total, items, itemsTotal, bytes = stage == "install")
                 }
-            }, cancelled) ?: return null
+            }, cancelled, language) ?: return null
             if (cancelled.get()) return null
             handle.stage(DownloadStage.INSTALL, app.getString(com.droiddeck.launcher.R.string.stores_registering))
+            val installedLanguage = result.language?.takeIf { it.isNotEmpty() } ?: language
             val sidecar = StoreGameSidecar(
                 Store.GOG, game.gameId, game.title, exe = result.exeRelative.ifEmpty { "" },
                 installVersion = result.buildId, installedAt = System.currentTimeMillis(),
                 cover = item.tallImageUrl ?: item.imageUrl, hero = item.imageUrl,
                 extra = mapOf(com.droiddeck.launcher.frontend.WinCompSources.GOG_DEPENDENCIES to result.dependencies.joinToString(","))
-                    + (if (result.dependenciesRead) mapOf(com.droiddeck.launcher.frontend.WinCompSources.LIST_READ to "1") else emptyMap()),
+                    + (if (result.dependenciesRead) mapOf(com.droiddeck.launcher.frontend.WinCompSources.LIST_READ to "1") else emptyMap())
+                    + mapOf(StoreLanguage.EXTRA to installedLanguage),
             )
             if (sidecar.exe.isEmpty()) handle.log("gog: no exe found in ${folder.name}; pick one in Steam settings › Added games")
             StoreInstalls.complete(app, folder, onStep = { done, steps -> handle.stageProgress(done.toLong(), steps.toLong()) }, sidecar = if (sidecar.exe.isEmpty()) sidecar.copy(exe = "game.exe") else sidecar)

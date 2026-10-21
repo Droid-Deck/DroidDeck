@@ -30,6 +30,7 @@ import androidx.compose.ui.layout.boundsInParent
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.positionInRoot
 import com.droiddeck.launcher.stores.StoreInstallRoot
+import com.droiddeck.launcher.stores.StoreLanguage
 import com.droiddeck.launcher.stores.epic.EpicClient
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -543,7 +544,10 @@ private fun InstallWhere(item: CatalogItem) {
     val ctx = LocalContext.current
     val pal = LocalPalette.current
     val from = remember(item) { StoresMotion.recentInstall() }
-    if (from == null) { InstallWhereDialog(item) { StoresState.pendingInstall = null }; return }
+    if (from == null || StoreLanguage.selectable(item.store)) {
+        InstallWhereDialog(item) { StoresState.pendingInstall = null }
+        return
+    }
     val title = stringResource(R.string.stores_install_title, item.title)
     val internalLabel = stringResource(R.string.stores_target_internal)
     val label = StoresMotion.installLabel

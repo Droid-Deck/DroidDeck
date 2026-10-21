@@ -145,6 +145,13 @@ object SessionPrefs {
         prefs(context).edit().putString("storesInstallTarget", path).apply()
     }
 
+    /** Empty means follow the app/system language for GOG and Epic installs. */
+    fun storesInstallLanguage(context: Context): String = prefs(context).getString("storesInstallLanguage", "") ?: ""
+
+    fun setStoresInstallLanguage(context: Context, code: String) {
+        prefs(context).edit().putString("storesInstallLanguage", code).apply()
+    }
+
     fun gameStoresParallel(context: Context): Int = prefs(context).getInt("gameStoresParallel", 1).coerceIn(1, 3)
 
     fun setGameStoresParallel(context: Context, count: Int) {

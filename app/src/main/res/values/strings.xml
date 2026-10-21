@@ -2190,6 +2190,9 @@
     <string name="stores_download_manager">Download manager</string>
     <string name="stores_parallel">Downloads at a time</string>
     <string name="stores_install_where">Install to</string>
+    <string name="stores_install_language">Game language</string>
+    <string name="stores_install_language_hint">GOG and Epic install this language. System follows the app language.</string>
+    <string name="stores_install_language_system">System</string>
     <string name="stores_install_title">Install %1$s:</string>
     <string name="stores_target_internal">Internal</string>
     <string name="stores_target_free">%1$s free</string>
