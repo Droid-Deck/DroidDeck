@@ -84,6 +84,41 @@ int main(int argc, char **argv) {
 }
 """
 
+COUNTER = r"""
+#define _GNU_SOURCE
+#include <dlfcn.h>
+#include <fcntl.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+static int opens, stats, links;
+
+int openat(int dirfd, const char *path, int flags, ...) {
+  va_list args;
+  va_start(args, flags);
+  mode_t mode = va_arg(args, int);
+  va_end(args);
+  opens++;
+  return ((int (*)(int, const char *, int, ...))dlsym(RTLD_NEXT, "openat"))(dirfd, path, flags, mode);
+}
+
+int fstatat(int dirfd, const char *path, struct stat *st, int flags) {
+  stats++;
+  return ((int (*)(int, const char *, struct stat *, int))dlsym(RTLD_NEXT, "fstatat"))(dirfd, path, st, flags);
+}
+
+ssize_t readlinkat(int dirfd, const char *path, char *buf, size_t size) {
+  links++;
+  return ((ssize_t (*)(int, const char *, char *, size_t))dlsym(RTLD_NEXT, "readlinkat"))(dirfd, path, buf, size);
+}
+
+__attribute__((destructor)) static void report(void) {
+  fprintf(stderr, "calls %d %d %d\n", opens, stats, links);
+}
+"""
+
 O_PATH = getattr(os, "O_PATH", 0o10000000)
 
 # (dirfd: r = the tree, o = "/"), flags, path, expected: a path in the tree, an errno name, or "proc" for a file outside it.
@@ -191,6 +226,20 @@ class Openat2PreloadTest(unittest.TestCase):
         lines = result.stdout.splitlines()
         cls.kernel = labels(lines[1:1 + len(CASES)], cls.trees[0], cls.outside) if lines[0] == "kernel" else None
         cls.preload = labels(lines[-len(every):], cls.trees[1], cls.outside)
+        counter = cls.tmp / "counter.c"
+        counter.write_text(COUNTER)
+        (cls.tmp / "fp").mkdir()
+        subprocess.run(["cc", "-O2", "-Wall", "-Werror", "-fPIC", "-shared", "-o", str(cls.tmp / "fp/libblfastpath.so"),
+                        str(counter), "-ldl"], check=True)
+        tree = cls.tmp / "counted"
+        make_tree(tree, cls.outside)
+        counted = subprocess.run([str(cls.tmp / "openat2"), str(tree), str(tree)], input=cases, capture_output=True,
+                                 text=True, env=dict(os.environ, LD_PRELOAD="%s:%s" % (cls.lib, cls.tmp / "fp/libblfastpath.so")),
+                                 timeout=60)
+        if counted.returncode != 0:
+            raise AssertionError(counted.stdout + counted.stderr)
+        cls.counted = labels(counted.stdout.splitlines()[-len(every):], tree, cls.outside)
+        cls.calls = [int(n) for n in counted.stderr.split("calls ")[-1].split()]
 
     @classmethod
     def tearDownClass(cls):
@@ -204,6 +253,10 @@ class Openat2PreloadTest(unittest.TestCase):
     def test_preload_finishes_a_link_to_a_path_only_outside_the_root_there(self):
         for case, got in zip(HOST_CASES, self.preload[len(CASES):]):
             self.assertEqual(got, case[3], case)
+
+    def test_the_walk_asks_the_fast_path_when_it_is_loaded(self):
+        self.assertEqual(self.counted, self.preload)
+        self.assertTrue(all(n > 0 for n in self.calls), self.calls)
 
     def test_the_kernel_agrees(self):
         if self.kernel is None:
