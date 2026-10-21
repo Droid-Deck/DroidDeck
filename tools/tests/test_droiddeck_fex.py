@@ -733,6 +733,35 @@ class LaunchTest(FexTestCase):
         finally:
             G["launch"] = old_launch
 
+    def test_fex_applies_engine_fixes_arguments_and_env(self):
+        proton = self.tmp / "Proton/proton"
+        proton.parent.mkdir(parents=True)
+        proton.write_text("#!/usr/bin/python3\n")
+        proton.chmod(0o755)
+
+        orig = self.tmp / "fex-compat-tool.droiddeck-orig"
+        orig.write_text("#!/bin/sh\n")
+        orig.chmod(0o755)
+
+        import io
+        err = io.StringIO()
+        with mock.patch("os.execvpe") as execvpe, mock.patch("sys.stderr", err):
+            with mock.patch.dict(os.environ, {"SteamAppId": "1808500"}):
+                FEX["main"]([
+                    "valve-fex", str(orig), "waitforexitandrun", "--",
+                    str(proton), "waitforexitandrun", "/game/Arc Raiders/PioneerGame.exe"
+                ])
+            execvpe.assert_called_once()
+            called_argv = execvpe.call_args[0][1]
+            called_env = execvpe.call_args[0][2]
+            self.assertEqual(called_argv, [
+                str(orig), "waitforexitandrun", "--", str(proton), "waitforexitandrun",
+                "/game/Arc Raiders/PioneerGame.exe",
+                "-noraytracing", "-ini:Engine:[/Script/Engine.RendererSettings]:r.RayTracing=False"
+            ])
+            self.assertIn("nodxr", called_env.get("VKD3D_CONFIG", ""))
+            self.assertIn("Arc Raiders: ray tracing off", err.getvalue())
+
     def test_fex_directories_prepended_to_path(self):
         fex = {"portable": True, "server": "/opt/fex/bin/FEXServer", "bin": "/opt/fex/bin/FEX"}
         guest = FEX["guest_environment"](fex, {"PATH": "/usr/bin:/bin"})

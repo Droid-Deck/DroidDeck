@@ -940,16 +940,29 @@ def is_eac_installed(steam_root, app):
         if not (m and m.group(1)):
             continue
         game_dir = os.path.join(steamapps, "common", m.group(1))
-        if os.path.isdir(os.path.join(game_dir, "EasyAntiCheat")):
-            return True
+        if not os.path.isdir(game_dir):
+            continue
         try:
-            with os.scandir(game_dir) as entries:
-                for entry in entries:
-                    name = entry.name.lower()
-                    if name in EAC_MARKERS:
-                        return True
-                    if entry.is_dir(follow_symlinks=False) and name in ("easyanticheat", "anticheat"):
-                        return True
+            pending = [game_dir]
+            for depth in range(3):
+                next_dirs = []
+                for folder in pending:
+                    try:
+                        with os.scandir(folder) as entries:
+                            for entry in entries:
+                                name = entry.name.lower()
+                                if name in EAC_MARKERS:
+                                    return True
+                                if entry.is_dir(follow_symlinks=False):
+                                    if name in ("easyanticheat", "anticheat"):
+                                        return True
+                                    if depth < 2:
+                                        next_dirs.append(entry.path)
+                    except OSError:
+                        pass
+                pending = next_dirs
+                if not pending:
+                    break
         except OSError:
             pass
     return False

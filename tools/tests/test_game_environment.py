@@ -290,11 +290,18 @@ class GameEnvironmentTest(unittest.TestCase):
         for game in ("/game/Arc Raiders/PioneerGame.exe", "/game/Arc Raiders/PioneerGame-Win64-Shipping.exe"):
             env, extra, notes = MODULE["engine_fixes"](game, [])
             self.assertEqual(extra, ["-noraytracing", "-ini:Engine:[/Script/Engine.RendererSettings]:r.RayTracing=False"])
-            self.assertEqual(env, {})
+            self.assertEqual(env, {"VKD3D_CONFIG": "nodxr"})
             self.assertTrue(notes)
             for choice in ("-raytracing", "-noraytracing"):
                 self.assertEqual(MODULE["engine_fixes"](game, [choice]), ({}, [], []))
         self.assertEqual(MODULE["engine_fixes"]("/game/OtherGame.exe", []), ({}, [], []))
+        config = {"version": 1, "shared": {"VKD3D_CONFIG": "no_upload_hvv"}}
+        merged = MODULE["apply_config"]({}, config, "1808500", {"VKD3D_CONFIG": "nodxr"})
+        self.assertEqual(merged["VKD3D_CONFIG"], "no_upload_hvv,nodxr")
+        config_existing = {"version": 1, "shared": {"VKD3D_CONFIG": "no_upload_hvv,nodxr"}}
+        merged2 = MODULE["apply_config"]({}, config_existing, "1808500", {"VKD3D_CONFIG": "nodxr"})
+        self.assertEqual(merged2["VKD3D_CONFIG"], "no_upload_hvv,nodxr")
+
 
     def test_arkham_city_gets_full_x87_precision_over_the_preset(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -813,7 +820,8 @@ class ProtonDefaultTest(unittest.TestCase):
             common = steam / "steamapps/common/Arc Raiders"
             common.mkdir(parents=True)
             (steam / "steamapps/appmanifest_1808500.acf").write_text('"AppState"\n{\n\t"appid"\t"1808500"\n\t"installdir"\t"Arc Raiders"\n}\n')
-            (common / "start_protected_game.exe").touch()
+            (common / "Installers").mkdir(parents=True)
+            (common / "Installers/AntiCheatInstaller.exe").touch()
 
             globals_ = COMPAT["native_targets"].__globals__
             original_platforms = globals_["appinfo_platforms"]
@@ -830,6 +838,7 @@ class ProtonDefaultTest(unittest.TestCase):
                 self.assertNotIn("1808500", auto)
             finally:
                 globals_["appinfo_platforms"] = original_platforms
+
 
     def test_native_arm64_keeps_explicit_runtime_fex_and_proton_profiles(self):
         fex = COMPAT["FEX_TOOL"]

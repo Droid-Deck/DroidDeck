@@ -803,9 +803,16 @@ def game_environment(command=(), env=None):
         env = game_env["game_gpu"](env)
     app = game_env["game_id"](env) or env.get("SteamAppId") or env.get("SteamGameId")
     fixes = {}
+    eac_offline = False
     if app and len(command) > 2 and command[1] == "waitforexitandrun":
         try:
-            fixes, _, _ = game_env["engine_fixes"](command[2], command[3:])
+            if "skip_red_launcher" in game_env and isinstance(command, list):
+                command[:] = game_env["skip_red_launcher"](command)
+            fixes, extra, notes = game_env["engine_fixes"](command[2], command[3:])
+            for note in notes:
+                print("droiddeck-fex: " + note, file=sys.stderr)
+            if isinstance(command, list):
+                command.extend(extra)
             components = game_env["win_components"](env.get("STEAM_COMPAT_DATA_PATH", ""), app)
             if components:
                 own = fixes.get("WINEDLLOVERRIDES")
@@ -831,9 +838,15 @@ def game_environment(command=(), env=None):
         except Exception as error:
             say("game settings were not applied (%s)" % error)
 
+    if app and len(command) > 1 and command[1] == "waitforexitandrun" and "offline_without_anticheat" in game_env:
+        offline_command = game_env["offline_without_anticheat"](command, env)
+        eac_offline = offline_command != command
+        if eac_offline and isinstance(command, list):
+            command[:] = offline_command
+
     if command:
         try:
-            env = game_env["anticheat_runtimes"](command, env)
+            env = game_env["anticheat_runtimes"](command, env, eac_offline=eac_offline)
             env = game_env["force_ssbs"](command, env)
         except Exception as error:
             say("game settings were not applied (%s)" % error)
