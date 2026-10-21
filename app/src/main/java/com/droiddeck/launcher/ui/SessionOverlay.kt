@@ -195,6 +195,9 @@ class DrawerActions(
     val isHomeApp: Boolean,
     val androidApps: List<HomeApp.LaunchableApp>,
     val hudOn: Boolean,
+    val hudFps: Boolean = true,
+    val hudBattery: Boolean = true,
+    val hudGraph: Boolean = true,
     val frameGen: FrameGen.Mode,
     val lossless: Lossless.State,
     val oscMode: String,
@@ -222,6 +225,9 @@ class DrawerActions(
     val secondScreenDisplays: List<SecondScreenDisplay>,
     val selectedSecondScreenDisplay: Int,
     val onHud: (Boolean) -> Unit,
+    val onHudFps: (Boolean) -> Unit = {},
+    val onHudBattery: (Boolean) -> Unit = {},
+    val onHudGraph: (Boolean) -> Unit = {},
     val onFrameGenPick: (FrameGen.Mode) -> Unit,
     val onImportLossless: () -> Unit,
     val onKeyboard: () -> Unit,
@@ -462,6 +468,14 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                             SettingsGroup(stringResource(R.string.drawer_page_display)) {
                                 ToggleRow(host, "hud", stringResource(R.string.drawer_hud), null, a.hudOn,
                                     chipModifier = focus.track(page, "hud"), onChange = a.onHud)
+                                if (a.hudOn) {
+                                    ToggleRow(host, "hud-fps", stringResource(R.string.drawer_hud_fps), null, a.hudFps,
+                                        chipModifier = focus.track(page, "hud-fps"), onChange = a.onHudFps)
+                                    ToggleRow(host, "hud-battery", stringResource(R.string.drawer_hud_battery), null, a.hudBattery,
+                                        chipModifier = focus.track(page, "hud-battery"), onChange = a.onHudBattery)
+                                    ToggleRow(host, "hud-graph", stringResource(R.string.drawer_hud_graph), null, a.hudGraph,
+                                        chipModifier = focus.track(page, "hud-graph"), onChange = a.onHudGraph)
+                                }
                                 val fgOpen = host.open == "fg"
                                 val fgLabel = FrameGen.label(LocalContext.current, a.frameGen)
                                 SettingsRow(stringResource(R.string.frame_gen_title), null, highlighted = fgOpen) {

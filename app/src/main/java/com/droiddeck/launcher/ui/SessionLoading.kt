@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Icon
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -68,6 +69,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -78,18 +81,45 @@ import androidx.compose.ui.text.style.TextOverflow
 
 
 @Composable
-fun HudText(text: String) {
+fun HudText(text: String, graph: FloatArray = FloatArray(0)) {
+    if (text.isEmpty() && graph.size < 2) return
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopEnd) {
-        Text(
-            text,
-            fontFamily = FontFamily.Monospace,
-            fontSize = 12.sp,
-            color = Color.White,
+        Column(
+            horizontalAlignment = Alignment.End,
             modifier = Modifier
                 .padding(12.dp)
                 .background(Color(0x8C000000))
-                .padding(horizontal = 8.dp, vertical = 3.dp),
-        )
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+        ) {
+            if (text.isNotEmpty()) Text(
+                text,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp,
+                color = Color.White,
+                textAlign = TextAlign.End,
+            )
+            if (graph.size >= 2) {
+                if (text.isNotEmpty()) Spacer(Modifier.height(4.dp))
+                HudGraph(graph)
+            }
+        }
+    }
+}
+
+@Composable
+private fun HudGraph(samples: FloatArray) {
+    Canvas(Modifier.width(132.dp).height(36.dp)) {
+        val maxMs = (samples.maxOrNull() ?: 16.7f).coerceAtLeast(16.7f)
+        val guide = size.height * (1f - (16.7f / maxMs).coerceIn(0f, 1f))
+        drawLine(Color.White.copy(alpha = 0.28f), Offset(0f, guide), Offset(size.width, guide), strokeWidth = 1f)
+        val step = size.width / (samples.size - 1)
+        val path = Path()
+        samples.forEachIndexed { i, ms ->
+            val x = i * step
+            val y = size.height * (1f - (ms / maxMs).coerceIn(0f, 1f))
+            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        }
+        drawPath(path, Color.White, style = Stroke(width = 2f))
     }
 }
 
