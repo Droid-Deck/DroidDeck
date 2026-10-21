@@ -636,7 +636,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 }
             } else {
             com.droiddeck.launcher.ui.FocusGlideHost(androidx.compose.ui.Modifier.fillMaxSize()) {
-                CursorOverlay(cursorPos, cursorVisible, resources.displayMetrics.density,
+                CursorOverlay({ cursorPos }, cursorVisible, resources.displayMetrics.density,
                     cursorImage, cursorHotX, cursorHotY, cursorImageScale)
                 if (hud.text.isNotEmpty()) HudText(hud.text)
                 if (glassesOutputActive && !loading.visible) com.droiddeck.launcher.ui.GlassesPlayingHint(glasses.model)
