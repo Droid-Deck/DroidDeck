@@ -5,6 +5,7 @@ import android.content.res.Configuration
 import android.graphics.Color
 import android.net.Uri
 import android.net.http.SslError
+import android.os.Build
 import android.os.Bundle
 import android.os.Message
 import android.util.Log
@@ -18,6 +19,7 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Button
@@ -40,7 +42,10 @@ class StoreLoginActivity : ComponentActivity() {
         private const val KEY_STATE = "oauth_state"
         private const val KEY_SIGN_IN_CLEARED = "sign_in_cleared"
         @Volatile internal var floodColor: Int? = null
-        internal const val CHROME_UA = "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.6533.103 Mobile Safari/537.36"
+        internal fun chromeUserAgent(webView: String?): String =
+            webView?.replace(Regex(" Build/[^;)]*"), "")?.replace("; wv)", ")")?.replace(" Version/4.0", "")
+                ?.takeIf { "Chrome/" in it }
+                ?: "Mozilla/5.0 (Linux; Android ${Build.VERSION.RELEASE}; ${Build.MODEL}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.6533.103 Mobile Safari/537.36"
 
         fun generateState(): String {
             val bytes = ByteArray(24)
@@ -76,6 +81,7 @@ class StoreLoginActivity : ComponentActivity() {
     private var oauthState: String? = null
     private val captured = AtomicBoolean(false)
     private var flooded = false
+    private val chromeUa by lazy { chromeUserAgent(runCatching { WebSettings.getDefaultUserAgent(this) }.getOrNull()) }
     private var signInCleared = false
 
     private fun dp(value: Int): Int = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value.toFloat(), resources.displayMetrics).toInt()
@@ -123,7 +129,7 @@ class StoreLoginActivity : ComponentActivity() {
 
     private fun newFlow(state: String): Flow? {
         val url = clientUrl
-        if (url != null) return com.droiddeck.launcher.stores.epic.EpicClient.loginFlow(url)
+        if (url != null) return com.droiddeck.launcher.stores.epic.EpicClient.loginFlow(url, chromeUa)
         return store?.let { LoginFlows.forStore(it, state) }
     }
 
@@ -234,7 +240,7 @@ class StoreLoginActivity : ComponentActivity() {
         override fun onCreateWindow(view: WebView?, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message?): Boolean {
             if (resultMsg == null) return false
             dismissPopup()
-            val child = newWebView(CHROME_UA, isPopup = true)
+            val child = newWebView(chromeUa, isPopup = true)
             popupWebView = child
             popupHost.addView(child, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
             popupHost.visibility = View.VISIBLE
@@ -306,8 +312,8 @@ class StoreLoginActivity : ComponentActivity() {
             if (f.isRedirect(url) && !f.readsPage) { complete(view, url); return true }
             if (!isPopup && store == Store.GOG) {
                 if (GogAuth.isGogHost(uri.host) && view.settings.userAgentString != f.userAgent) { view.settings.userAgentString = f.userAgent; return false }
-                if (GogAuth.isIdentityProviderHost(uri.host) && view.settings.userAgentString != CHROME_UA) {
-                    view.settings.userAgentString = CHROME_UA
+                if (GogAuth.isIdentityProviderHost(uri.host) && view.settings.userAgentString != chromeUa) {
+                    view.settings.userAgentString = chromeUa
                     CookieManager.getInstance().setAcceptThirdPartyCookies(view, true)
                     view.loadUrl(url)
                     return true

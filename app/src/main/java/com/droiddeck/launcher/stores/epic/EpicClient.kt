@@ -392,10 +392,10 @@ object EpicClient {
         }
     }
 
-    internal fun loginFlow(url: String): StoreLoginActivity.Flow? {
+    internal fun loginFlow(url: String, browserAgent: String): StoreLoginActivity.Flow? {
         val redirect = redirectOf(url) ?: return null
         val agent = runCatching { EpicNative.call("auth.config")?.optString("webViewUserAgent") }.getOrNull()?.ifEmpty { null }
-        return ClientLogin(url, redirect, agent ?: StoreLoginActivity.CHROME_UA)
+        return ClientLogin(url, redirect, agent ?: browserAgent)
     }
 
     private class ClientLogin(
