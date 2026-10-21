@@ -499,7 +499,9 @@
     <string name="comp_delete_original_title">¿Eliminar este original?</string>
     <string name="comp_delete_original_body">Este original de %1$s es de una versión anterior de %2$s. El original de la versión actual siempre se conserva.</string>
     <string name="comp_nightlies_count">En las Nightlies · %1$d</string>
-    <string name="comp_refresh_to_list">Actualiza para listar los paquetes de las Nightlies.</string>
+    <string name="comp_channel_stable">Estable</string>
+    <string name="comp_channel_nightly">Nocturna</string>
+    <string name="comp_refresh_to_list">Actualiza para listar los paquetes de Nightlies y DroidDeck.</string>
     <string name="comp_nothing_new">Nada nuevo desde la última comprobación.</string>
     <string name="comp_import_wcp">Importar .wcp</string>
     <string name="comp_restore_original">Restaurar el original de este Proton</string>
@@ -1840,7 +1842,8 @@
     <string name="cmgr_original_kept">El original de la versión instalada se conserva: es el camino de vuelta.</string>
     <string name="cmgr_not_stored">No guardado</string>
     <string name="cmgr_deleted_original">Se eliminó el original de %1$s de %2$s.</string>
-    <string name="cmgr_nightlies_only">Las descargas solo proceden de las versiones Nightlies</string>
+    <string name="cmgr_nightlies_only">Las descargas solo proceden de las versiones de Nightlies y DroidDeck</string>
+    <string name="cmgr_nightly_replaced">Falló la descarga: es posible que esta compilación nocturna se haya reemplazado por una más nueva. Actualiza la lista e inténtalo de nuevo.</string>
     <string name="cmgr_list_predates_checksums">Esta lista de paquetes es anterior a las sumas de verificación - actualízala e inténtalo de nuevo</string>
     <string name="cmgr_checksum_mismatch">La suma de verificación no coincide</string>
     <string name="sprefs_upscaler_linear">Lineal</string>

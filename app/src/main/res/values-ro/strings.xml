@@ -506,7 +506,9 @@
     <string name="comp_delete_original_title">Ștergi acest original?</string>
     <string name="comp_delete_original_body">Acest original %1$s este dintr-o versiune anterioară a %2$s. Originalul versiunii curente este păstrat mereu.</string>
     <string name="comp_nightlies_count">Pe versiunile nightly · %1$d</string>
-    <string name="comp_refresh_to_list">Reîmprospătează pentru a lista pachetele de pe versiunile nightly.</string>
+    <string name="comp_channel_stable">Stabilă</string>
+    <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_refresh_to_list">Reîmprospătează pentru a lista pachetele din Nightlies și DroidDeck.</string>
     <string name="comp_nothing_new">Nimic nou de la ultima verificare.</string>
     <string name="comp_import_wcp">Importă .wcp</string>
     <string name="comp_restore_original">Restaurează originalul acestui Proton</string>
@@ -1801,7 +1803,8 @@
     <string name="cmgr_original_kept">Originalul versiunii instalate este păstrat: este calea de revenire.</string>
     <string name="cmgr_not_stored">Nesalvat</string>
     <string name="cmgr_deleted_original">S-a șters originalul %1$s al %2$s.</string>
-    <string name="cmgr_nightlies_only">Descărcările vin doar din versiunile Nightlies</string>
+    <string name="cmgr_nightlies_only">Descărcările vin doar din versiunile Nightlies și DroidDeck</string>
+    <string name="cmgr_nightly_replaced">Descărcarea a eșuat: această versiune nightly poate fi fost înlocuită cu una mai nouă. Reîmprospătează lista și încearcă din nou.</string>
     <string name="cmgr_list_predates_checksums">Această listă de pachete e anterioară sumelor de control - reîmprospătează-o și încearcă din nou</string>
     <string name="cmgr_checksum_mismatch">Sumă de control incorectă</string>
 

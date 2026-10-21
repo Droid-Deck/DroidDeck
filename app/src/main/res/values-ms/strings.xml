@@ -502,7 +502,9 @@
     <string name="comp_delete_original_title">Padam yang asal ini?</string>
     <string name="comp_delete_original_body">%1$s asal ini daripada binaan terdahulu %2$s. Yang asal bagi binaan semasa sentiasa dikekalkan.</string>
     <string name="comp_nightlies_count">Pada Nightlies · %1$d</string>
-    <string name="comp_refresh_to_list">Segarkan semula untuk menyenaraikan pakej pada Nightlies.</string>
+    <string name="comp_channel_stable">Stabil</string>
+    <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_refresh_to_list">Segarkan semula untuk menyenaraikan pakej pada Nightlies dan DroidDeck.</string>
     <string name="comp_nothing_new">Tiada apa-apa yang baharu sejak semakan terakhir.</string>
     <string name="comp_import_wcp">Import .wcp</string>
     <string name="comp_restore_original">Pulihkan yang asal bagi Proton ini</string>
@@ -1759,7 +1761,8 @@
     <string name="cmgr_original_kept">Asal binaan yang dipasang dikekalkan: itulah jalan kembali.</string>
     <string name="cmgr_not_stored">Tidak disimpan</string>
     <string name="cmgr_deleted_original">Asal %1$s bagi %2$s telah dipadam.</string>
-    <string name="cmgr_nightlies_only">Muat turun hanya datang daripada keluaran Nightlies</string>
+    <string name="cmgr_nightlies_only">Muat turun hanya datang daripada keluaran Nightlies dan DroidDeck</string>
+    <string name="cmgr_nightly_replaced">Muat turun gagal: binaan nightly ini mungkin telah diganti dengan yang lebih baharu. Segarkan semula senarai dan cuba lagi.</string>
     <string name="cmgr_list_predates_checksums">Senarai pakej ini mendahului checksum - segarkan dan cuba lagi</string>
     <string name="cmgr_checksum_mismatch">Checksum tidak sepadan</string>
 

@@ -504,7 +504,9 @@
     <string name="comp_delete_original_title">Slet denne original?</string>
     <string name="comp_delete_original_body">Denne original af %1$s er fra en tidligere build af %2$s. Den aktuelle builds original bevares altid.</string>
     <string name="comp_nightlies_count">På Nightlies · %1$d</string>
-    <string name="comp_refresh_to_list">Opdater for at se pakker på Nightlies.</string>
+    <string name="comp_channel_stable">Stabil</string>
+    <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_refresh_to_list">Opdater for at se pakker på Nightlies og DroidDeck.</string>
     <string name="comp_nothing_new">Intet nyt siden sidste kontrol.</string>
     <string name="comp_import_wcp">Importer .wcp</string>
     <string name="comp_restore_original">Gendan denne Protons original</string>
@@ -1780,7 +1782,8 @@
     <string name="cmgr_original_kept">Originalen af den installerede version beholdes: den er vejen tilbage.</string>
     <string name="cmgr_not_stored">Ikke gemt</string>
     <string name="cmgr_deleted_original">Slettede %1$s-originalen af %2$s.</string>
-    <string name="cmgr_nightlies_only">Downloads kommer kun fra Nightlies-udgivelserne</string>
+    <string name="cmgr_nightlies_only">Downloads kommer kun fra Nightlies- og DroidDeck-udgivelserne</string>
+    <string name="cmgr_nightly_replaced">Download mislykkedes: denne nightly kan være erstattet af en nyere build. Opdater listen, og prøv igen.</string>
     <string name="cmgr_list_predates_checksums">Denne pakkeliste er ældre end tjeksummer - opdater den, og forsøg igen</string>
     <string name="cmgr_checksum_mismatch">Tjeksum stemmer ikke</string>
 

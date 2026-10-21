@@ -508,7 +508,9 @@
     <string name="comp_delete_original_title">Usunąć ten oryginał?</string>
     <string name="comp_delete_original_body">Ten oryginał %1$s pochodzi z wcześniejszej wersji %2$s. Oryginał bieżącej wersji jest zawsze zachowywany.</string>
     <string name="comp_nightlies_count">W wersjach nightly · %1$d</string>
-    <string name="comp_refresh_to_list">Odśwież, aby wyświetlić pakiety w wersjach nightly.</string>
+    <string name="comp_channel_stable">Stabilna</string>
+    <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_refresh_to_list">Odśwież, aby wyświetlić pakiety w Nightlies i DroidDeck.</string>
     <string name="comp_nothing_new">Nic nowego od ostatniego sprawdzenia.</string>
     <string name="comp_import_wcp">Importuj .wcp</string>
     <string name="comp_restore_original">Przywróć oryginał tego Proton</string>
@@ -1822,7 +1824,8 @@
     <string name="cmgr_original_kept">Oryginał zainstalowanej wersji zostaje zachowany: to droga powrotu.</string>
     <string name="cmgr_not_stored">Nie przechowywano</string>
     <string name="cmgr_deleted_original">Usunięto oryginał %2$s z %1$s.</string>
-    <string name="cmgr_nightlies_only">Pobieranie odbywa się tylko z wydań Nightlies</string>
+    <string name="cmgr_nightlies_only">Pobieranie odbywa się tylko z wydań Nightlies i DroidDeck</string>
+    <string name="cmgr_nightly_replaced">Pobieranie nie powiodło się: ta wersja nightly mogła zostać zastąpiona nowszą. Odśwież listę i spróbuj ponownie.</string>
     <string name="cmgr_list_predates_checksums">Ta lista pakietów jest starsza niż sumy kontrolne – odśwież ją i spróbuj ponownie</string>
     <string name="cmgr_checksum_mismatch">Niezgodna suma kontrolna</string>
 

@@ -504,7 +504,9 @@
     <string name="comp_delete_original_title">Διαγραφή αυτού του πρωτοτύπου;</string>
     <string name="comp_delete_original_body">Αυτό το πρωτότυπο %1$s είναι από προηγούμενο build του %2$s. Το πρωτότυπο του τρέχοντος build διατηρείται πάντα.</string>
     <string name="comp_nightlies_count">Στα Nightlies · %1$d</string>
-    <string name="comp_refresh_to_list">Ανανεώστε για να εμφανιστούν τα πακέτα στα Nightlies.</string>
+    <string name="comp_channel_stable">Σταθερή</string>
+    <string name="comp_channel_nightly">Νυχτερινή</string>
+    <string name="comp_refresh_to_list">Ανανεώστε για να εμφανιστούν τα πακέτα στα Nightlies και στο DroidDeck.</string>
     <string name="comp_nothing_new">Τίποτα νέο από τον τελευταίο έλεγχο.</string>
     <string name="comp_import_wcp">Εισαγωγή .wcp</string>
     <string name="comp_restore_original">Επαναφορά του πρωτοτύπου αυτού του Proton</string>
@@ -1780,7 +1782,8 @@
     <string name="cmgr_original_kept">Το αρχικό της εγκατεστημένης έκδοσης διατηρείται: είναι ο δρόμος της επιστροφής.</string>
     <string name="cmgr_not_stored">Δεν είναι αποθηκευμένο</string>
     <string name="cmgr_deleted_original">Διαγράφηκε το αρχικό %1$s του %2$s.</string>
-    <string name="cmgr_nightlies_only">Οι λήψεις προέρχονται μόνο από τις κυκλοφορίες Nightlies</string>
+    <string name="cmgr_nightlies_only">Οι λήψεις προέρχονται μόνο από τις κυκλοφορίες Nightlies και DroidDeck</string>
+    <string name="cmgr_nightly_replaced">Η λήψη απέτυχε: αυτή η νυχτερινή έκδοση ίσως αντικαταστάθηκε από νεότερη. Ανανεώστε τη λίστα και δοκιμάστε ξανά.</string>
     <string name="cmgr_list_predates_checksums">Αυτή η λίστα πακέτων προηγείται των αθροισμάτων ελέγχου - ανανεώστε την και δοκιμάστε ξανά</string>
     <string name="cmgr_checksum_mismatch">Αναντιστοιχία αθροίσματος ελέγχου</string>
 

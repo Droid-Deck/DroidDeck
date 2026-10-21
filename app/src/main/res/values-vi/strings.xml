@@ -502,7 +502,9 @@
     <string name="comp_delete_original_title">Xóa bản gốc này?</string>
     <string name="comp_delete_original_body">Bản gốc %1$s này là từ một build trước của %2$s. Bản gốc của build hiện tại luôn được giữ lại.</string>
     <string name="comp_nightlies_count">Trên Nightlies · %1$d</string>
-    <string name="comp_refresh_to_list">Làm mới để liệt kê các gói trên Nightlies.</string>
+    <string name="comp_channel_stable">Ổn định</string>
+    <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_refresh_to_list">Làm mới để liệt kê các gói trên Nightlies và DroidDeck.</string>
     <string name="comp_nothing_new">Không có gì mới từ lần kiểm tra trước.</string>
     <string name="comp_import_wcp">Nhập tệp .wcp</string>
     <string name="comp_restore_original">Khôi phục bản gốc của Proton này</string>
@@ -1759,7 +1761,8 @@
     <string name="cmgr_original_kept">Bản gốc của build đã cài được giữ lại: đó là đường quay về.</string>
     <string name="cmgr_not_stored">Chưa được lưu</string>
     <string name="cmgr_deleted_original">Đã xóa bản gốc %1$s của %2$s.</string>
-    <string name="cmgr_nightlies_only">Lượt tải chỉ đến từ các bản phát hành Nightlies</string>
+    <string name="cmgr_nightlies_only">Lượt tải chỉ đến từ các bản phát hành Nightlies và DroidDeck</string>
+    <string name="cmgr_nightly_replaced">Tải xuống thất bại: bản nightly này có thể đã được thay bằng bản mới hơn. Hãy làm mới danh sách và thử lại.</string>
     <string name="cmgr_list_predates_checksums">Danh sách gói này có trước checksum - hãy làm mới và thử lại</string>
     <string name="cmgr_checksum_mismatch">Checksum không khớp</string>
 

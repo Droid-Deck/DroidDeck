@@ -512,7 +512,9 @@
     <string name="comp_delete_original_title">هل تريد حذف هذه النسخة الأصلية؟</string>
     <string name="comp_delete_original_body">هذه النسخة الأصلية من %1$s تعود إلى إصدار سابق من %2$s. يتم دائمًا الاحتفاظ بالنسخة الأصلية للإصدار الحالي.</string>
     <string name="comp_nightlies_count">في الإصدارات الليلية · %1$d</string>
-    <string name="comp_refresh_to_list">حدّث لعرض الحزم في الإصدارات الليلية.</string>
+    <string name="comp_channel_stable">مستقر</string>
+    <string name="comp_channel_nightly">ليلي</string>
+    <string name="comp_refresh_to_list">حدّث لعرض الحزم في إصدارات Nightlies وDroidDeck.</string>
     <string name="comp_nothing_new">لا جديد منذ آخر فحص.</string>
     <string name="comp_import_wcp">استيراد ملف ‎.wcp</string>
     <string name="comp_restore_original">استعادة النسخة الأصلية لـ Proton هذا</string>
@@ -1864,7 +1866,8 @@
     <string name="cmgr_original_kept">تم الاحتفاظ بأصل النسخة المثبَّتة: فهو طريق العودة.</string>
     <string name="cmgr_not_stored">غير مخزَّن</string>
     <string name="cmgr_deleted_original">تم حذف أصل %2$s من %1$s.</string>
-    <string name="cmgr_nightlies_only">التنزيلات تأتي فقط من إصدارات Nightlies</string>
+    <string name="cmgr_nightlies_only">التنزيلات تأتي فقط من إصدارات Nightlies وDroidDeck</string>
+    <string name="cmgr_nightly_replaced">فشل التنزيل: ربما استُبدل هذا الإصدار الليلي بإصدار أحدث. حدّث القائمة وحاول مرة أخرى.</string>
     <string name="cmgr_list_predates_checksums">قائمة الحزم هذه أقدم من إضافة المجاميع الاختبارية - حدِّثها وحاوِل مرة أخرى</string>
     <string name="cmgr_checksum_mismatch">عدم تطابق المجموع الاختباري</string>
 
