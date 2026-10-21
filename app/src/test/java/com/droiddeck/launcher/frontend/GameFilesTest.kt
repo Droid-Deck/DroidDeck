@@ -145,6 +145,8 @@ class GameFilesTest {
         assertEquals("a".repeat(200) + ".steam", GameFiles.filename(game(name = "a".repeat(300))))
         assertEquals("a".repeat(199) + ".steam", GameFiles.filename(game(name = "a".repeat(199) + " b")))
         assertEquals("Game.steam", GameFiles.filename(game(name = " . ")))
+        assertEquals("Game.steam", GameFiles.filename(game(name = "Game . .")))
+        assertEquals("a".repeat(197) + ".steam", GameFiles.filename(game(name = "a".repeat(197) + " . b")))
     }
 
     @Test fun refusesSymlinksLeavingTheExportFolder() {

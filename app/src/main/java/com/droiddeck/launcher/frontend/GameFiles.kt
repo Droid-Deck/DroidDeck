@@ -59,7 +59,7 @@ object GameFiles {
             if (bytes > MAX_NAME_BYTES) break
             end++
         }
-        val title = String(points, 0, end).trimEnd().trimEnd('.').ifBlank { "Game" }
+        val title = String(points, 0, end).trimEnd { it.isWhitespace() || it == '.' }.ifBlank { "Game" }
         val suffix = if (disambiguate) " (${game.gameIdString})" else ""
         return "$title$suffix.$EXTENSION"
     }
