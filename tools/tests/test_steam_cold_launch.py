@@ -1,4 +1,4 @@
-"""Requested Steam games are handed over as soon as the interface is up; a shortcut is handed over again only if it never took focus."""
+"""Retry a dropped shortcut without duplicating a launch that is still preparing its first window."""
 import os
 from pathlib import Path
 import subprocess
@@ -48,14 +48,21 @@ class SteamColdLaunchTest(unittest.TestCase):
         sleep = self.bin / "sleep"
         sleep.write_text("#!/bin/sh\nprintf '%s\n' \"$@\" >> \"$SLEEP_ARGS\"\n")
         sleep.chmod(0o755)
+        pgrep = self.bin / "pgrep"
+        pgrep.write_text(
+            "#!/bin/sh\n"
+            "printf '%s\\n' \"$@\" > \"$HOME/pgrep-args\"\n"
+            "n=$(cat \"$HOME/pgrep-count\" 2>/dev/null || echo 0); n=$((n + 1)); echo $n > \"$HOME/pgrep-count\"\n"
+            "[ \"$n\" -ge \"${RUNNING_AFTER:-999}\" ]\n")
+        pgrep.chmod(0o755)
         self.block = LAUNCH_BLOCK.replace("/usr/local/bin/droiddeck-agent", str(agent))
 
-    def run_launch(self, target, focus="769", helper_status=0):
+    def run_launch(self, target, focus="769", helper_status=0, running_after=999):
         env = dict(os.environ, HOME=str(self.root), BL_LAUNCH_DIR=str(self.launch_dir),
                    PATH=str(self.bin) + os.pathsep + os.environ["PATH"],
                    AGENT_ARGS=str(self.agent_args), SLEEP_ARGS=str(self.sleep_args),
                    AGENT_COUNT=str(self.agent_count), AGENT_STATUS=str(helper_status),
-                   FOCUS=focus, FOCUS_COUNT=str(self.focus_count))
+                   FOCUS=focus, FOCUS_COUNT=str(self.focus_count), RUNNING_AFTER=str(running_after))
         script = self.block + "\nprintf 'ARG:%s\n' \"$@\"\nwait\n"
         url = target if target.startswith("steam://") else "steam://rungameid/" + target
         result = subprocess.run(["bash", "-c", script, "cold-launch", url],
@@ -84,6 +91,20 @@ class SteamColdLaunchTest(unittest.TestCase):
         result = self.run_launch(SHORTCUT, focus="769", helper_status=1)
         self.assertEqual(2, len(self.hand_offs(result)), result.stdout)
         self.assertIn("overview status 1", result.stdout)
+
+    def test_a_game_still_starting_without_a_window_is_not_launched_twice(self):
+        result = self.run_launch(SHORTCUT, running_after=1)
+        self.assertEqual(1, len(self.hand_offs(result)), result.stdout)
+        self.assertFalse(self.agent_args.exists())
+        self.assertEqual(["-f", "reaper SteamLaunch AppId=3551182975( |$)"],
+                         (self.root / "pgrep-args").read_text().splitlines())
+        self.assertIn("already starting", result.stdout)
+
+    def test_a_game_starting_during_the_overview_wait_is_not_launched_twice(self):
+        result = self.run_launch(SHORTCUT, running_after=2)
+        self.assertEqual(1, len(self.hand_offs(result)), result.stdout)
+        self.assertTrue(self.agent_args.exists())
+        self.assertIn("started while waiting", result.stdout)
 
     def test_a_game_that_takes_focus_during_the_overview_wait_is_not_started_twice(self):
         focus = " ".join(["769"] * 23) + " 4242"

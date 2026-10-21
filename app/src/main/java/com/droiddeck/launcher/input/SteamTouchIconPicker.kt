@@ -84,11 +84,11 @@ class SteamTouchIconPicker(
         updatePreview(preview)
         showPanel(host, title, root, listOf(
             context.getString(R.string.touch_no_icon) to {
-                onPicked(current.copy(label = label.text.toString().replace(",", " ").trim(), icon = "", foreground = "", background = ""))
+                onPicked(current.copy(label = SteamTouchBindings.cleanLabel(label.text.toString()), icon = "", foreground = "", background = ""))
             },
             context.getString(R.string.common_cancel) to {},
             context.getString(R.string.common_use) to {
-                onPicked(current.copy(label = label.text.toString().replace(",", " ").trim(), icon = icon,
+                onPicked(current.copy(label = SteamTouchBindings.cleanLabel(label.text.toString()), icon = icon,
                     foreground = if (icon.isEmpty()) "" else foreground, background = if (icon.isEmpty()) "" else background))
             },
         )) { loader.shutdown() }

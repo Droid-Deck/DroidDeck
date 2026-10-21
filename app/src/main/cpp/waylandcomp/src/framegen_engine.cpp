@@ -12,7 +12,7 @@
 #include "lsfg/lsfg_engine.h"
 #include "lsfg/lsfg_probe.h"
 #include "lsfg/lsfg_vkd.h"
-#include "winfg/winfg_engine.h"
+#include "ddfg/ddfg_engine.h"
 
 #define ELOG(...) __android_log_print(ANDROID_LOG_INFO, "DroidDeckWayland", "framegen: " __VA_ARGS__)
 #define ELOGE(...) __android_log_print(ANDROID_LOG_ERROR, "DroidDeckWayland", "framegen: " __VA_ARGS__)
@@ -30,7 +30,7 @@ uint32_t g_qfam = 0;
 bool g_probed = false, g_ready = false;
 
 std::unique_ptr<lsfg::Engine> g_lsfg;
-std::unique_ptr<winfg::Engine> g_winfg;
+std::unique_ptr<ddfg::Engine> g_ddfg;
 int g_kind = -1;
 char g_build[96] = "";
 
@@ -143,15 +143,15 @@ int fge_start(int kind, const char *cache_path) {
     fge_stop();
     if (!g_ready) return -1;
     if (kind == 1) {
-        auto e = std::make_unique<winfg::Engine>();
+        auto e = std::make_unique<ddfg::Engine>();
         if (!e->init(g_table, g_pd, g_dev, g_qfam, g_queue)) {
-            ELOGE("winfg-native: engine init failed");
+            ELOGE("ddfg-native: engine init failed");
             return -1;
         }
-        g_winfg = std::move(e);
+        g_ddfg = std::move(e);
         g_kind = 1;
-#if defined(WINFG_UPSTREAM) && defined(WINFG_CHAIN_HASH)
-        std::snprintf(g_build, sizeof(g_build), "chain %s, src %s", WINFG_UPSTREAM, WINFG_CHAIN_HASH);
+#if defined(DDFG_UPSTREAM) && defined(DDFG_CHAIN_HASH)
+        std::snprintf(g_build, sizeof(g_build), "chain %s, src %s", DDFG_UPSTREAM, DDFG_CHAIN_HASH);
 #else
         std::snprintf(g_build, sizeof(g_build), "embedded chain");
 #endif
@@ -176,46 +176,46 @@ int fge_start(int kind, const char *cache_path) {
 }
 
 void fge_stop(void) {
-    if ((g_lsfg || g_winfg) && g_table.DeviceWaitIdle && g_dev) g_table.DeviceWaitIdle(g_dev);
+    if ((g_lsfg || g_ddfg) && g_table.DeviceWaitIdle && g_dev) g_table.DeviceWaitIdle(g_dev);
     g_lsfg.reset();
-    g_winfg.reset();
+    g_ddfg.reset();
     g_kind = -1;
 }
 
 int fge_unavailable(void) {
-    if (g_kind == 1) return g_winfg && g_winfg->unavailable() ? 1 : 0;
+    if (g_kind == 1) return g_ddfg && g_ddfg->unavailable() ? 1 : 0;
     return g_lsfg && g_lsfg->unavailable() ? 1 : 0;
 }
 
 void fge_configure(uint32_t multiplier, uint32_t target_fps, float flow_scale, float refresh_hz,
                    int model, int perf_preset) {
     if (multiplier < 2) multiplier = 2;
-    if (g_kind == 1 && g_winfg) g_winfg->configure(multiplier, model, perf_preset, flow_scale);
+    if (g_kind == 1 && g_ddfg) g_ddfg->configure(multiplier, model, perf_preset, flow_scale);
     else if (g_lsfg) g_lsfg->configure(multiplier, target_fps, flow_scale, refresh_hz);
 }
 
 int fge_prepare(uint32_t w, uint32_t h, VkFormat fmt) {
-    if (g_kind == 1) return g_winfg && g_winfg->prepare(w, h, fmt) ? 1 : 0;
+    if (g_kind == 1) return g_ddfg && g_ddfg->prepare(w, h, fmt) ? 1 : 0;
     if (!g_lsfg) return 0;
     g_lsfg->setGuestExtent(w, h);
     return g_lsfg->prepare(w, h, fmt) ? 1 : 0;
 }
 
 uint32_t fge_plan(uint32_t capacity, uint64_t source_frames, float presented_rate) {
-    if (g_kind == 1) return g_winfg ? g_winfg->plan(capacity) : 0;
+    if (g_kind == 1) return g_ddfg ? g_ddfg->plan(capacity) : 0;
     if (!g_lsfg) return 0;
     g_lsfg->setPresentedRate(presented_rate);
     return g_lsfg->plan(capacity, source_frames);
 }
 
 void fge_process(VkCommandBuffer cmd, VkImage source, uint32_t w, uint32_t h, uint32_t gens) {
-    if (g_kind == 1) { if (g_winfg) g_winfg->process(cmd, source, w, h, gens); return; }
+    if (g_kind == 1) { if (g_ddfg) g_ddfg->process(cmd, source, w, h, gens); return; }
     if (g_lsfg) g_lsfg->process(cmd, source, w, h, gens);
 }
 
 void fge_generate(VkCommandBuffer cmd, uint32_t g, uint32_t count, VkImage img, VkImageView view,
                   uint32_t w, uint32_t h) {
-    if (g_kind == 1) { if (g_winfg) g_winfg->generateInto(cmd, g, count, img, view, w, h); return; }
+    if (g_kind == 1) { if (g_ddfg) g_ddfg->generateInto(cmd, g, count, img, view, w, h); return; }
     if (g_lsfg) g_lsfg->generateInto(cmd, g, g, img, view, w, h);
 }
 
@@ -232,7 +232,7 @@ void fge_telemetry(float *accepted, float *source_rate, float *thermal) {
     }
 }
 
-const char *fge_engine_name(int kind) { return kind == 1 ? "Win-FG Native" : "LSFG Native"; }
+const char *fge_engine_name(int kind) { return kind == 1 ? "DD-FG Native" : "LSFG Native"; }
 const char *fge_build_info(void) { return g_build; }
 
 }
