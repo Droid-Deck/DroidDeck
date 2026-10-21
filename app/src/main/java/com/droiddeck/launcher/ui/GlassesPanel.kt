@@ -389,13 +389,3 @@ private fun GlassesRecenterAction(label: String, tag: String, tint: Int, opacity
     }
 }
 
-@Composable
-internal fun GlassesPlayingHint(model: String) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(GlassesIcon, null, tint = Color.White.copy(alpha = 0.35f), modifier = Modifier.size(56.dp))
-            Spacer(Modifier.height(10.dp))
-            Text(stringResource(R.string.glasses_playing, model), color = Color.White.copy(alpha = 0.45f), fontSize = 15.sp)
-        }
-    }
-}

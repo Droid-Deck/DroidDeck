@@ -2548,6 +2548,14 @@
     <string name="glasses_vr_fov">SteamVR field of view</string>
     <string name="glasses_vr_fov_hint">Lower brings SteamVR closer and fills the glasses; higher shows more around you.</string>
     <string name="glasses_playing">Playing on %1$s</string>
+    <string name="glasses_phone_recenter">Recenter</string>
+    <string name="glasses_phone_steamvr_menu">SteamVR menu</string>
+    <string name="glasses_phone_switch_sticks">Sticks: hands ⇄ game</string>
+    <string name="glasses_phone_keyboard">Keyboard</string>
+    <string name="glasses_phone_session_menu">Session menu</string>
+    <string name="glasses_phone_stop_steamvr">Stop SteamVR</string>
+    <string name="glasses_phone_brightness">Brightness %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Battery %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Tracking calibration</string>
     <string name="glasses_calibration_hint">Reduce drift and align the level reference.</string>
     <string name="glasses_calibration_saved_hint">Saved calibration is applied to these glasses.</string>
