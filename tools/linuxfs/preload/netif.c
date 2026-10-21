@@ -511,6 +511,38 @@ static void write_table(FILE *out, const char *table, const struct link *link) {
 static const char *const net_tables[] = { "route", "ipv6_route", "if_inet6", "dev", "arp", "carrier" };
 static long long net_denied_at[sizeof(net_tables) / sizeof(net_tables[0])];
 
+#define CARRIER_SLOTS 8
+
+static struct { char path[64]; long long at; } carrier_denied[CARRIER_SLOTS];
+
+static int denied_recently(int table, const char *path) {
+    if (table != CARRIER_TABLE) return fresh(&net_denied_at[table]);
+    int hit = 0;
+    pthread_mutex_lock(&link_lock);
+    for (int i = 0; i < CARRIER_SLOTS && !hit; i++) {
+        hit = strcmp(carrier_denied[i].path, path) == 0 && fresh(&carrier_denied[i].at);
+    }
+    pthread_mutex_unlock(&link_lock);
+    return hit;
+}
+
+static void remember_denial(int table, const char *path) {
+    if (table != CARRIER_TABLE) {
+        __atomic_store_n(&net_denied_at[table], now_ns(), __ATOMIC_RELAXED);
+        return;
+    }
+    if (strlen(path) >= sizeof(carrier_denied[0].path)) return;
+    pthread_mutex_lock(&link_lock);
+    int slot = 0;
+    for (int i = 0; i < CARRIER_SLOTS; i++) {
+        if (strcmp(carrier_denied[i].path, path) == 0) { slot = i; break; }
+        if (carrier_denied[i].at < carrier_denied[slot].at) slot = i;
+    }
+    snprintf(carrier_denied[slot].path, sizeof(carrier_denied[slot].path), "%s", path);
+    carrier_denied[slot].at = now_ns();
+    pthread_mutex_unlock(&link_lock);
+}
+
 static int denied_table(const char *path) {
     if (strncmp(path, "/proc/net/", 10) == 0) {
         for (int i = 0; i < CARRIER_TABLE; i++) {
@@ -556,12 +588,12 @@ static FILE *open_stream(fopen_fn real, const char *path, const char *mode, cons
     }
     int table = path && mode && mode[0] == 'r' ? denied_table(path) : -1;
     FILE *f;
-    if (table >= 0 && fresh(&net_denied_at[table]) && (f = synthesize(net_tables[table])) != NULL) return f;
+    if (table >= 0 && denied_recently(table, path) && (f = synthesize(net_tables[table])) != NULL) return f;
     f = real(path, mode);
     if (f || table < 0) return f;
     int saved = errno;
     if ((f = synthesize(net_tables[table])) != NULL) {
-        if (saved == EACCES) __atomic_store_n(&net_denied_at[table], now_ns(), __ATOMIC_RELAXED);
+        if (saved == EACCES) remember_denial(table, path);
         return f;
     }
     errno = saved;
