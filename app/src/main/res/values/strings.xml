@@ -1404,6 +1404,13 @@
     <string name="mode_decky_plugins_hint">Install a plugin ZIP for the next Steam session.</string>
     <string name="mode_decky_plugin_downloading">Downloading…</string>
     <string name="mode_decky_plugin_install_zip">Install from ZIP</string>
+    <string name="decky_zip_warning_title">Third-Party Plugin Installation</string>
+    <string name="decky_zip_warning_text">The Decky Loader team has not reviewed this plugin. It may contain malware, such as software to steal your Steam account or harm your device. By installing this plugin, you agree you have assumed all risks to your device.</string>
+    <string name="decky_zip_warning_continue">Continue</string>
+    <plurals name="decky_zip_warning_wait">
+        <item quantity="one">Please wait %1$d second</item>
+        <item quantity="other">Please wait %1$d seconds</item>
+    </plurals>
     <string name="store_cat_games">Games</string>
     <string name="store_cat_audio_video">Audio &amp; Video</string>
     <string name="store_cat_graphics">Graphics</string>

@@ -768,6 +768,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             DroidDeckTheme(theme, appScale = appScale) {
             com.droiddeck.launcher.ui.FocusGlideHost(androidx.compose.ui.Modifier.fillMaxSize().exposeTestTags()) {
+                if (decky.deckyPendingZip != null) com.droiddeck.launcher.ui.DeckyZipWarningDialog(
+                    onConfirm = { decky.confirmPluginZip() }, onCancel = { decky.cancelPluginZip() },
+                )
                 val page: (@Composable () -> Unit)? = when {
                     showPerformance -> { { PerformanceHost() } }
                     showComponents -> { { ComponentsHost() } }

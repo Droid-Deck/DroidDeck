@@ -17,6 +17,7 @@ internal class DeckyMenu(private val activity: android.app.Activity, private val
     var deckyPercent by mutableIntStateOf(-1)
     var deckyDownloadingBinary by mutableStateOf(false)
     var deckySupervisor by mutableStateOf(false)
+    var deckyPendingZip by mutableStateOf<File?>(null)
     var deckyReleaseRequest = 0
 
     fun refreshDecky() {
@@ -49,6 +50,17 @@ internal class DeckyMenu(private val activity: android.app.Activity, private val
     }
 
     fun importPluginZip(archive: File) {
+        if (deckyStage != null || SessionState.running || deckyInstalled == null) return
+        deckyPendingZip = archive
+    }
+
+    fun cancelPluginZip() {
+        deckyPendingZip = null
+    }
+
+    fun confirmPluginZip() {
+        val archive = deckyPendingZip ?: return
+        deckyPendingZip = null
         if (deckyStage != null || SessionState.running || deckyInstalled == null) return
         deckyStage = activity.getString(R.string.decky_plugin_starting); deckyPercent = -1
         Thread({

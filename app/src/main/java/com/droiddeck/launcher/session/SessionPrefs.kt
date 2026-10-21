@@ -21,6 +21,7 @@ object SessionPrefs {
     const val SUSPEND_NEVER = "never"
     private const val LEGACY_SUSPEND_DOWNLOADS = "downloads"
     private const val STEAM_DOWNLOADS_IN_BACKGROUND = "steamDownloadsInBackground"
+    private const val DECKY_ZIP_WARNING_SEEN = "deckyZipWarningSeen"
 
     const val CONTROLLER_DECK = "deck"
     const val CONTROLLER_XBOX360 = "xbox360"
@@ -951,6 +952,12 @@ object SessionPrefs {
             }
             putString(key, normalized)
         }.apply()
+    }
+
+    fun deckyZipWarningSeen(context: Context): Boolean = prefs(context).getBoolean(DECKY_ZIP_WARNING_SEEN, false)
+
+    fun setDeckyZipWarningSeen(context: Context) {
+        prefs(context).edit().putBoolean(DECKY_ZIP_WARNING_SEEN, true).apply()
     }
 
     fun steamDownloadsInBackground(context: Context): Boolean {
