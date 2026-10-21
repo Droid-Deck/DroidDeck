@@ -501,6 +501,8 @@
     <string name="comp_delete_original_title">Bu orijinal silinsin mi?</string>
     <string name="comp_delete_original_body">Bu %1$s orijinali, %2$s sürümünün önceki bir derlemesine ait. Geçerli derlemenin orijinali her zaman saklanır.</string>
     <string name="comp_nightlies_count">Nightlies içinde · %1$d</string>
+    <string name="comp_channel_stable">Kararlı</string>
+    <string name="comp_channel_nightly">Nightly</string>
     <string name="comp_refresh_to_list">Nightlies ve DroidDeck paketlerini listelemek için yenileyin.</string>
     <string name="comp_nothing_new">Son kontrolden beri yeni bir şey yok.</string>
     <string name="comp_import_wcp">.wcp içe aktar</string>

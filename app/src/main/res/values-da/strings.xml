@@ -504,6 +504,8 @@
     <string name="comp_delete_original_title">Slet denne original?</string>
     <string name="comp_delete_original_body">Denne original af %1$s er fra en tidligere build af %2$s. Den aktuelle builds original bevares altid.</string>
     <string name="comp_nightlies_count">På Nightlies · %1$d</string>
+    <string name="comp_channel_stable">Stabil</string>
+    <string name="comp_channel_nightly">Nightly</string>
     <string name="comp_refresh_to_list">Opdater for at se pakker på Nightlies og DroidDeck.</string>
     <string name="comp_nothing_new">Intet nyt siden sidste kontrol.</string>
     <string name="comp_import_wcp">Importer .wcp</string>

@@ -502,6 +502,8 @@
     <string name="comp_delete_original_title">刪除這個原始版本？</string>
     <string name="comp_delete_original_body">這個 %1$s 原始版本來自 %2$s 的較早組建。目前組建的原始版本一律會保留。</string>
     <string name="comp_nightlies_count">Nightlies 中 · %1$d</string>
+    <string name="comp_channel_stable">穩定版</string>
+    <string name="comp_channel_nightly">每夜版</string>
     <string name="comp_refresh_to_list">重新整理以列出 Nightlies 和 DroidDeck 中的套件。</string>
     <string name="comp_nothing_new">自上次檢查以來沒有新內容。</string>
     <string name="comp_import_wcp">匯入 .wcp</string>

@@ -503,6 +503,8 @@
     <string name="comp_delete_original_title">Eliminare questo originale?</string>
     <string name="comp_delete_original_body">Questo originale di %1$s proviene da una build precedente di %2$s. L\'originale della build attuale viene sempre conservato.</string>
     <string name="comp_nightlies_count">Nelle Nightlies · %1$d</string>
+    <string name="comp_channel_stable">Stabile</string>
+    <string name="comp_channel_nightly">Nightly</string>
     <string name="comp_refresh_to_list">Aggiorna per elencare i pacchetti nelle Nightlies e in DroidDeck.</string>
     <string name="comp_nothing_new">Niente di nuovo dall\'ultimo controllo.</string>
     <string name="comp_import_wcp">Importa .wcp</string>

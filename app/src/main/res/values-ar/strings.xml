@@ -512,6 +512,8 @@
     <string name="comp_delete_original_title">هل تريد حذف هذه النسخة الأصلية؟</string>
     <string name="comp_delete_original_body">هذه النسخة الأصلية من %1$s تعود إلى إصدار سابق من %2$s. يتم دائمًا الاحتفاظ بالنسخة الأصلية للإصدار الحالي.</string>
     <string name="comp_nightlies_count">في الإصدارات الليلية · %1$d</string>
+    <string name="comp_channel_stable">مستقر</string>
+    <string name="comp_channel_nightly">ليلي</string>
     <string name="comp_refresh_to_list">حدّث لعرض الحزم في إصدارات Nightlies وDroidDeck.</string>
     <string name="comp_nothing_new">لا جديد منذ آخر فحص.</string>
     <string name="comp_import_wcp">استيراد ملف ‎.wcp</string>

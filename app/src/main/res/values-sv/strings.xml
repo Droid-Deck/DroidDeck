@@ -504,6 +504,8 @@
     <string name="comp_delete_original_title">Ta bort det här originalet?</string>
     <string name="comp_delete_original_body">Det här originalet av %1$s är från ett tidigare bygge av %2$s. Originalet från det aktuella bygget behålls alltid.</string>
     <string name="comp_nightlies_count">I nattbyggena · %1$d</string>
+    <string name="comp_channel_stable">Stabil</string>
+    <string name="comp_channel_nightly">Nattbygge</string>
     <string name="comp_refresh_to_list">Uppdatera för att lista paket i Nightlies och DroidDeck.</string>
     <string name="comp_nothing_new">Inget nytt sedan senaste kontrollen.</string>
     <string name="comp_import_wcp">Importera .wcp</string>

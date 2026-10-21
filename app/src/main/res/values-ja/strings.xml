@@ -502,6 +502,8 @@
     <string name="comp_delete_original_title">この元のバージョンを削除しますか？</string>
     <string name="comp_delete_original_body">この%1$sの元のバージョンは、%2$sの以前のビルドのものです。現在のビルドの元のバージョンは常に保持されます。</string>
     <string name="comp_nightlies_count">Nightlies内 · %1$d</string>
+    <string name="comp_channel_stable">安定版</string>
+    <string name="comp_channel_nightly">ナイトリー</string>
     <string name="comp_refresh_to_list">更新してNightliesとDroidDeckのパッケージを一覧表示します。</string>
     <string name="comp_nothing_new">前回の確認以降、新しいものはありません。</string>
     <string name="comp_import_wcp">.wcpをインポート</string>

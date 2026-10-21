@@ -502,6 +502,8 @@
     <string name="comp_delete_original_title">Xóa bản gốc này?</string>
     <string name="comp_delete_original_body">Bản gốc %1$s này là từ một build trước của %2$s. Bản gốc của build hiện tại luôn được giữ lại.</string>
     <string name="comp_nightlies_count">Trên Nightlies · %1$d</string>
+    <string name="comp_channel_stable">Ổn định</string>
+    <string name="comp_channel_nightly">Nightly</string>
     <string name="comp_refresh_to_list">Làm mới để liệt kê các gói trên Nightlies và DroidDeck.</string>
     <string name="comp_nothing_new">Không có gì mới từ lần kiểm tra trước.</string>
     <string name="comp_import_wcp">Nhập tệp .wcp</string>

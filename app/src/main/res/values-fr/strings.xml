@@ -503,6 +503,8 @@
     <string name="comp_delete_original_title">Supprimer cette version originale ?</string>
     <string name="comp_delete_original_body">Cette version originale de %1$s provient d\'une version antérieure de %2$s. La version originale de la version actuelle sera toujours conservée.</string>
     <string name="comp_nightlies_count">Dans Nightlies · %1$d</string>
+    <string name="comp_channel_stable">Stable</string>
+    <string name="comp_channel_nightly">Nightly</string>
     <string name="comp_refresh_to_list">Actualiser pour lister les paquets dans Nightlies et DroidDeck.</string>
     <string name="comp_nothing_new">Aucun nouvel élément depuis la dernière vérification.</string>
     <string name="comp_import_wcp">Importer .wcp</string>

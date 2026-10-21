@@ -502,6 +502,8 @@
     <string name="comp_delete_original_title">Hapus yang asli ini?</string>
     <string name="comp_delete_original_body">%1$s asli ini berasal dari build %2$s yang lebih lama. Asli build saat ini selalu dipertahankan.</string>
     <string name="comp_nightlies_count">Di Nightlies · %1$d</string>
+    <string name="comp_channel_stable">Stabil</string>
+    <string name="comp_channel_nightly">Nightly</string>
     <string name="comp_refresh_to_list">Segarkan untuk melihat daftar paket di Nightlies dan DroidDeck.</string>
     <string name="comp_nothing_new">Tidak ada yang baru sejak pemeriksaan terakhir.</string>
     <string name="comp_import_wcp">Impor .wcp</string>

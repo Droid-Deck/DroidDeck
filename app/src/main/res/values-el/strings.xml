@@ -504,6 +504,8 @@
     <string name="comp_delete_original_title">Διαγραφή αυτού του πρωτοτύπου;</string>
     <string name="comp_delete_original_body">Αυτό το πρωτότυπο %1$s είναι από προηγούμενο build του %2$s. Το πρωτότυπο του τρέχοντος build διατηρείται πάντα.</string>
     <string name="comp_nightlies_count">Στα Nightlies · %1$d</string>
+    <string name="comp_channel_stable">Σταθερή</string>
+    <string name="comp_channel_nightly">Νυχτερινή</string>
     <string name="comp_refresh_to_list">Ανανεώστε για να εμφανιστούν τα πακέτα στα Nightlies και στο DroidDeck.</string>
     <string name="comp_nothing_new">Τίποτα νέο από τον τελευταίο έλεγχο.</string>
     <string name="comp_import_wcp">Εισαγωγή .wcp</string>

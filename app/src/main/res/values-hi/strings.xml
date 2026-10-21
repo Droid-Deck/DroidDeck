@@ -504,6 +504,8 @@
     <string name="comp_delete_original_title">यह ओरिजिनल हटाएं?</string>
     <string name="comp_delete_original_body">यह %1$s ओरिजिनल %2$s के पहले वाले बिल्ड से है। मौजूदा बिल्ड का ओरिजिनल हमेशा रखा जाता है।</string>
     <string name="comp_nightlies_count">Nightlies पर · %1$d</string>
+    <string name="comp_channel_stable">स्थिर</string>
+    <string name="comp_channel_nightly">नाइटली</string>
     <string name="comp_refresh_to_list">Nightlies और DroidDeck के पैकेज सूचीबद्ध करने के लिए रीफ़्रेश करें।</string>
     <string name="comp_nothing_new">पिछली जांच के बाद कुछ नया नहीं है।</string>
     <string name="comp_import_wcp">.wcp इंपोर्ट करें</string>

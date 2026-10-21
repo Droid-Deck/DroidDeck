@@ -508,6 +508,8 @@
     <string name="comp_delete_original_title">Видалити цей оригінал?</string>
     <string name="comp_delete_original_body">Цей оригінал %1$s походить із попередньої збірки %2$s. Оригінал поточної збірки зберігається завжди.</string>
     <string name="comp_nightlies_count">У нічних збірках · %1$d</string>
+    <string name="comp_channel_stable">Стабільна</string>
+    <string name="comp_channel_nightly">Нічна</string>
     <string name="comp_refresh_to_list">Оновіть, щоб побачити пакети з Nightlies і DroidDeck.</string>
     <string name="comp_nothing_new">Нічого нового з часу останньої перевірки.</string>
     <string name="comp_import_wcp">Імпортувати .wcp</string>

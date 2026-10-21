@@ -502,6 +502,8 @@
     <string name="comp_delete_original_title">이 원본 버전을 삭제하시겠습니까?</string>
     <string name="comp_delete_original_body">이 %1$s 원본 버전은 %2$s의 이전 빌드에서 가져온 것입니다. 현재 빌드의 원본 버전은 항상 유지됩니다.</string>
     <string name="comp_nightlies_count">Nightlies 내 · %1$d</string>
+    <string name="comp_channel_stable">안정판</string>
+    <string name="comp_channel_nightly">나이틀리</string>
     <string name="comp_refresh_to_list">새로 고쳐 Nightlies 및 DroidDeck의 패키지를 나열합니다.</string>
     <string name="comp_nothing_new">마지막 확인 이후 새로운 내용이 없습니다.</string>
     <string name="comp_import_wcp">.wcp 가져오기</string>

@@ -499,6 +499,8 @@
     <string name="comp_delete_original_title">¿Eliminar este original?</string>
     <string name="comp_delete_original_body">Este original de %1$s es de una versión anterior de %2$s. El original de la versión actual siempre se conserva.</string>
     <string name="comp_nightlies_count">En las Nightlies · %1$d</string>
+    <string name="comp_channel_stable">Estable</string>
+    <string name="comp_channel_nightly">Nocturna</string>
     <string name="comp_refresh_to_list">Actualiza para listar los paquetes de Nightlies y DroidDeck.</string>
     <string name="comp_nothing_new">Nada nuevo desde la última comprobación.</string>
     <string name="comp_import_wcp">Importar .wcp</string>

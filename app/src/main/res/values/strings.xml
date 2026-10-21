@@ -515,6 +515,8 @@
     <string name="comp_delete_original_title">Delete this original?</string>
     <string name="comp_delete_original_body">This %1$s original is from an earlier build of %2$s. The current build\'s original is always kept.</string>
     <string name="comp_nightlies_count">On the Nightlies · %1$d</string>
+    <string name="comp_channel_stable">Stable</string>
+    <string name="comp_channel_nightly">Nightly</string>
     <string name="comp_refresh_to_list">Refresh to list packages on the Nightlies and DroidDeck releases.</string>
     <string name="comp_nothing_new">Nothing new since the last check.</string>
     <string name="comp_import_wcp">Import .wcp</string>

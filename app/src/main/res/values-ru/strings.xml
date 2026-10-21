@@ -505,6 +505,8 @@
     <string name="comp_delete_original_title">Удалить оригинальную версию?</string>
     <string name="comp_delete_original_body">Эта оригинальная версия %1$s из более ранней сборки %2$s. Оригинальная версия текущей сборки всегда сохраняется.</string>
     <string name="comp_nightlies_count">В Nightlies · %1$d</string>
+    <string name="comp_channel_stable">Стабильная</string>
+    <string name="comp_channel_nightly">Ночная</string>
     <string name="comp_refresh_to_list">Обновите, чтобы увидеть пакеты в Nightlies и DroidDeck.</string>
     <string name="comp_nothing_new">С момента последней проверки нового нет.</string>
     <string name="comp_import_wcp">Импорт .wcp</string>

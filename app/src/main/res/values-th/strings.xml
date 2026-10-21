@@ -502,6 +502,8 @@
     <string name="comp_delete_original_title">ลบต้นฉบับนี้?</string>
     <string name="comp_delete_original_body">ต้นฉบับ %1$s นี้มาจากบิลด์ก่อนหน้าของ %2$s ต้นฉบับของบิลด์ปัจจุบันจะถูกเก็บไว้เสมอ</string>
     <string name="comp_nightlies_count">ใน Nightlies · %1$d</string>
+    <string name="comp_channel_stable">เสถียร</string>
+    <string name="comp_channel_nightly">Nightly</string>
     <string name="comp_refresh_to_list">รีเฟรชเพื่อแสดงรายการแพ็กเกจใน Nightlies และ DroidDeck</string>
     <string name="comp_nothing_new">ไม่มีอะไรใหม่ตั้งแต่การตรวจสอบครั้งล่าสุด</string>
     <string name="comp_import_wcp">นำเข้า .wcp</string>

@@ -508,6 +508,8 @@
     <string name="comp_delete_original_title">Smazat tento originál?</string>
     <string name="comp_delete_original_body">Tento originál %1$s je z dřívějšího sestavení %2$s. Originál aktuálního sestavení je vždy zachován.</string>
     <string name="comp_nightlies_count">Na Nightlies · %1$d</string>
+    <string name="comp_channel_stable">Stabilní</string>
+    <string name="comp_channel_nightly">Noční</string>
     <string name="comp_refresh_to_list">Obnovte pro zobrazení balíčků na Nightlies a DroidDeck.</string>
     <string name="comp_nothing_new">Od poslední kontroly nic nového.</string>
     <string name="comp_import_wcp">Importovat .wcp</string>

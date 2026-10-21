@@ -504,6 +504,8 @@
     <string name="comp_delete_original_title">Dit origineel verwijderen?</string>
     <string name="comp_delete_original_body">Dit origineel van %1$s komt uit een eerdere build van %2$s. Het origineel van de huidige build wordt altijd bewaard.</string>
     <string name="comp_nightlies_count">In de Nightlies · %1$d</string>
+    <string name="comp_channel_stable">Stabiel</string>
+    <string name="comp_channel_nightly">Nightly</string>
     <string name="comp_refresh_to_list">Vernieuw om de pakketten in de Nightlies en bij DroidDeck te tonen.</string>
     <string name="comp_nothing_new">Niets nieuws sinds de laatste controle.</string>
     <string name="comp_import_wcp">.wcp importeren</string>

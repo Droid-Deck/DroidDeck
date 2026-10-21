@@ -506,6 +506,8 @@
     <string name="comp_delete_original_title">Ștergi acest original?</string>
     <string name="comp_delete_original_body">Acest original %1$s este dintr-o versiune anterioară a %2$s. Originalul versiunii curente este păstrat mereu.</string>
     <string name="comp_nightlies_count">Pe versiunile nightly · %1$d</string>
+    <string name="comp_channel_stable">Stabilă</string>
+    <string name="comp_channel_nightly">Nightly</string>
     <string name="comp_refresh_to_list">Reîmprospătează pentru a lista pachetele din Nightlies și DroidDeck.</string>
     <string name="comp_nothing_new">Nimic nou de la ultima verificare.</string>
     <string name="comp_import_wcp">Importă .wcp</string>

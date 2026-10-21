@@ -504,6 +504,8 @@
     <string name="comp_delete_original_title">Törli ezt az eredetit?</string>
     <string name="comp_delete_original_body">Ez a %1$s eredeti a %2$s egy korábbi buildjéből származik. Az aktuális build eredetije mindig megmarad.</string>
     <string name="comp_nightlies_count">A Nightliesen · %1$d</string>
+    <string name="comp_channel_stable">Stabil</string>
+    <string name="comp_channel_nightly">Nightly</string>
     <string name="comp_refresh_to_list">Frissítsen a Nightlies és a DroidDeck csomagjainak listázásához.</string>
     <string name="comp_nothing_new">Nincs semmi új az utolsó ellenőrzés óta.</string>
     <string name="comp_import_wcp">.wcp importálása</string>
