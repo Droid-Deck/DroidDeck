@@ -1060,6 +1060,17 @@ def main(argv):
             return 3
         print("droiddeck-agent: Steam overview is ready for shortcut app %d" % prepared["appId"])
         return 0
+    if argv and argv[0] == "--steam-vr-only":
+        if len(argv) != 2 or not argv[1].isascii() or not argv[1].isdecimal():
+            print("usage: droiddeck-agent --steam-vr-only <appid>", file=sys.stderr)
+            return 2
+        expression = "(o => o ? o.vr_only === true : null)(window.appStore?.GetAppOverviewByGameID?.(%s))" % json.dumps(argv[1])
+        try:
+            value = cdp_eval(Path(base) / "agent", expression, await_promise=False, timeout=3).get("value")
+        except (AgentError, OSError, ValueError):
+            value = None
+        print({True: "yes", False: "no"}.get(value, "unknown"))
+        return {True: 0, False: 5}.get(value, 1)
     if argv and argv[0] == "--steam-asleep":
         expression = """(() => {
             const store = globalThis.SuspendResumeStore;

@@ -1,0 +1,10 @@
+#!/bin/sh
+# Exit 0 when this game run should open as a SteamVR panel: SteamVR is running and Steam
+# does not list the app as VR-only. Under SteamVR, Steam stacks a flat game's window behind
+# its own, so without the panel the game plays unseen.
+[ "${1:-}" = waitforexitandrun ] || exit 1
+app=${SteamAppId:-}
+case $app in '' | 0 | *[!0-9]*) exit 1 ;; esac
+pgrep -x vrserver >/dev/null 2>&1 || exit 1
+/usr/local/bin/droiddeck-agent --steam-vr-only "$app" >/dev/null 2>&1
+[ $? -eq 5 ]

@@ -195,8 +195,11 @@ rendering changes.
 
 ### Experimental flat games in SteamVR
 
-Start SteamVR first, then add `droiddeck-steamvr-game %command%` to a flat
-game's Steam launch options. Remove that prefix to restore normal panel launch.
+A game Steam does not list as VR-only, launched while SteamVR runs, opens as a
+SteamVR panel automatically: the Proton and FEX launchers ask Steam whether the
+app is VR-only (`droiddeck-agent --steam-vr-only`) and wrap it in
+`droiddeck-steamvr-game` (`droiddeck-steamvr-flat`). Adding
+`droiddeck-steamvr-game %command%` to a game's launch options does the same by hand.
 This runs a nested, unmodified Gamescope OpenVR backend for that game. Gamescope
 owns the GPU overlay, placement and input routing; no CPU screen capture or
 PipeWire service is used. The existing DroidDeck Vulkan synchronization layer
