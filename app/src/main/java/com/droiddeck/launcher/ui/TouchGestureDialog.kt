@@ -91,9 +91,11 @@ fun TouchGestureDialog(game: String?, onDismiss: () -> Unit, onSaved: () -> Unit
         }
         key(tab) {
             Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    GestureFilterChip(!forGame, onClick = { forGame = false }, label = { Text(stringResource(R.string.gesture_defaults)) }, modifier = Modifier.testTag("gesture-scope-default"))
-                    if (targetGame != null) GestureFilterChip(forGame, onClick = { forGame = true }, label = { Text(stringResource(R.string.gesture_game)) }, modifier = Modifier.testTag("gesture-scope-game"))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        GestureFilterChip(!forGame, onClick = { forGame = false }, label = { Text(stringResource(R.string.gesture_defaults)) }, modifier = Modifier.testTag("gesture-scope-default"))
+                        if (targetGame != null) GestureFilterChip(forGame, onClick = { forGame = true }, label = { Text(stringResource(R.string.gesture_game)) }, modifier = Modifier.testTag("gesture-scope-game"))
+                    }
                     if (forGame && gameDraft != null) TextButton(onClick = { gameDraft = null }, modifier = Modifier.testTag("gesture-inherit")) { Text(stringResource(R.string.gesture_use_defaults)) }
                 }
                 when (tab) {
