@@ -2430,6 +2430,15 @@
     <string name="glasses_vr_fov">SteamVR látómező</string>
     <string name="glasses_vr_fov_hint">Kisebb érték közelebb hozza a SteamVR-t és kitölti a szemüveget; nagyobb többet mutat a környezetéből.</string>
     <string name="glasses_playing">Játék ezen: %1$s</string>
+    <string name="glasses_phone_recenter">Középre igazítás</string>
+    <string name="glasses_phone_steamvr_menu">SteamVR menü</string>
+    <string name="glasses_phone_switch_sticks">Karok: kezek ⇄ játék</string>
+    <string name="glasses_phone_controllers">Kontrollerek: %1$s</string>
+    <string name="glasses_phone_keyboard">Billentyűzet</string>
+    <string name="glasses_phone_session_menu">Munkamenet menü</string>
+    <string name="glasses_phone_stop_steamvr">SteamVR leállítása</string>
+    <string name="glasses_phone_brightness">Fényerő %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Akkumulátor %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Követés kalibrálása</string>
     <string name="glasses_calibration_hint">Csökkenti a sodródást, és beállítja a vízszintes referenciát.</string>
     <string name="glasses_calibration_saved_hint">A szemüveg a mentett kalibrációt használja.</string>

@@ -292,6 +292,15 @@ int main() {
         state.buttons = PAD_L3 | PAD_R3;
         pad.Update(head, &state, false, 0);
         assert(value(stick + "/click") == 0);
+        dd_spatial_hand optical{};
+        state = {};
+        state.buttons = PAD_A;
+        pad.UpdateOptical(optical, false, &state, 1000000000, 1, 1);
+        assert(value("/input/a/click") == 1 && value(stick + "/click") == 0 && value(stick + "/touch") == 0);
+        state.buttons = PAD_B | PAD_R3;
+        pad.UpdateOptical(optical, false, &state, 1000000001, 1, 1);
+        assert(value("/input/b/click") == 1 && value("/input/a/click") == 0 && value(stick + "/click") == 1);
+        assert(!padContext.input.values.count(0));
     }
     puts("PASS: game pad hands as Index and Quest Touch thumbstick controllers");
 }

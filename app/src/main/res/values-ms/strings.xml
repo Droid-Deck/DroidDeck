@@ -2405,6 +2405,15 @@
     <string name="glasses_vr_fov">Medan pandangan SteamVR</string>
     <string name="glasses_vr_fov_hint">Lebih rendah mendekatkan SteamVR dan memenuhi cermin mata; lebih tinggi menunjukkan lebih banyak di sekeliling anda.</string>
     <string name="glasses_playing">Bermain pada %1$s</string>
+    <string name="glasses_phone_recenter">Pusatkan semula</string>
+    <string name="glasses_phone_steamvr_menu">Menu SteamVR</string>
+    <string name="glasses_phone_switch_sticks">Kayu bedik: tangan ⇄ permainan</string>
+    <string name="glasses_phone_controllers">Pengawal: %1$s</string>
+    <string name="glasses_phone_keyboard">Papan kekunci</string>
+    <string name="glasses_phone_session_menu">Menu sesi</string>
+    <string name="glasses_phone_stop_steamvr">Hentikan SteamVR</string>
+    <string name="glasses_phone_brightness">Kecerahan %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Bateri %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Penentukuran penjejakan</string>
     <string name="glasses_calibration_hint">Mengurangkan hanyutan dan menjajarkan rujukan mendatar.</string>
     <string name="glasses_calibration_saved_hint">Penentukuran yang disimpan digunakan pada cermin mata ini.</string>

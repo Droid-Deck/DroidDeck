@@ -2480,6 +2480,15 @@
     <string name="glasses_vr_fov">Pole widzenia SteamVR</string>
     <string name="glasses_vr_fov_hint">Mniejsze przybliża SteamVR i wypełnia okulary; większe pokazuje więcej dookoła.</string>
     <string name="glasses_playing">Grasz na: %1$s</string>
+    <string name="glasses_phone_recenter">Wyśrodkuj ponownie</string>
+    <string name="glasses_phone_steamvr_menu">Menu SteamVR</string>
+    <string name="glasses_phone_switch_sticks">Gałki: dłonie ⇄ gra</string>
+    <string name="glasses_phone_controllers">Kontrolery: %1$s</string>
+    <string name="glasses_phone_keyboard">Klawiatura</string>
+    <string name="glasses_phone_session_menu">Menu sesji</string>
+    <string name="glasses_phone_stop_steamvr">Zatrzymaj SteamVR</string>
+    <string name="glasses_phone_brightness">Jasność %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Bateria %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Kalibracja śledzenia</string>
     <string name="glasses_calibration_hint">Ogranicza dryf i wyrównuje poziom odniesienia.</string>
     <string name="glasses_calibration_saved_hint">Dla tych okularów używana jest zapisana kalibracja.</string>

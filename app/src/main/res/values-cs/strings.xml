@@ -2480,6 +2480,15 @@
     <string name="glasses_vr_fov">Zorné pole SteamVR</string>
     <string name="glasses_vr_fov_hint">Nižší hodnota přiblíží SteamVR a vyplní brýle; vyšší ukáže víc z okolí.</string>
     <string name="glasses_playing">Hraje se na %1$s</string>
+    <string name="glasses_phone_recenter">Znovu vycentrovat</string>
+    <string name="glasses_phone_steamvr_menu">Nabídka SteamVR</string>
+    <string name="glasses_phone_switch_sticks">Páčky: ruce ⇄ hra</string>
+    <string name="glasses_phone_controllers">Ovladače: %1$s</string>
+    <string name="glasses_phone_keyboard">Klávesnice</string>
+    <string name="glasses_phone_session_menu">Nabídka relace</string>
+    <string name="glasses_phone_stop_steamvr">Zastavit SteamVR</string>
+    <string name="glasses_phone_brightness">Jas %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Baterie %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Kalibrace sledování</string>
     <string name="glasses_calibration_hint">Sníží drift a vyrovná vodorovnou referenci.</string>
     <string name="glasses_calibration_saved_hint">Pro tyto brýle se používá uložená kalibrace.</string>

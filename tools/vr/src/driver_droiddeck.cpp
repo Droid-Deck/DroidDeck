@@ -1199,17 +1199,14 @@ public:
         p.result = valid ? TrackingResult_Running_OK : TrackingResult_Running_OutOfRange;
         auto in = VRDriverInput();
         const uint32_t b = pad ? pad->buttons : 0;
-        in->UpdateBooleanComponent(system_, right_ && (b & PAD_GUIDE), 0);
-        in->UpdateBooleanComponent(menu_, (b & (right_ ? PAD_START : PAD_SELECT)) != 0, 0);
         const auto gripError = in->UpdateBooleanComponent(grip_, opticalInputs_.grip, 0);
         if (gripValue_) in->UpdateScalarComponent(gripValue_, opticalInputs_.grip ? 1.0f : 0.0f, 0);
         const auto clickError = in->UpdateBooleanComponent(triggerClick_, opticalInputs_.click, 0);
         const auto triggerError = in->UpdateScalarComponent(trigger_, opticalInputs_.trigger, 0);
+        if (triggerTouch_) in->UpdateBooleanComponent(triggerTouch_, opticalInputs_.trigger > 0.05f, 0);
         const float x = pad ? pad->axes[right_ ? 2 : 0]/32767.0f : 0;
         const float y = pad ? -pad->axes[right_ ? 3 : 1]/32767.0f : 0;
-        in->UpdateScalarComponent(padX_, x, 0); in->UpdateScalarComponent(padY_, y, 0);
-        in->UpdateBooleanComponent(padTouch_, x*x+y*y > 0.01f || (b & (right_ ? PAD_A : PAD_X)), 0);
-        in->UpdateBooleanComponent(padClick_, (b & (right_ ? (PAD_A|PAD_R3) : PAD_X)) != 0, 0);
+        UpdatePadButtons(b, x, y, true);
         LogOpticalInputs(hand, inputValid, valid, now, connection, origin, inputEpochs, gripError, clickError, triggerError);
         pose_ = p;
         VRServerDriverHost()->TrackedDevicePoseUpdated(id_, p, sizeof(p));
@@ -1268,16 +1265,26 @@ public:
         auto in = VRDriverInput();
         const uint32_t b = pad->buttons;
         const float trig = pad->axes[right_ ? 4 : 5] / 255.0f;
-        const bool touch = !sticksMoveHands && stickX * stickX + stickY * stickY > 0.01f;
         const bool grip = (b & (right_ ? PAD_RB : PAD_LB)) != 0;
-        in->UpdateBooleanComponent(system_, right_ && (b & PAD_GUIDE), 0);
         in->UpdateScalarComponent(trigger_, trig, 0);
         in->UpdateBooleanComponent(triggerClick_, trig > 0.6f, 0);
+        if (triggerTouch_) in->UpdateBooleanComponent(triggerTouch_, trig > 0.05f, 0);
+        in->UpdateBooleanComponent(grip_, grip, 0);
+        if (gripValue_) in->UpdateScalarComponent(gripValue_, grip ? 1.0f : 0.0f, 0);
+        if (gripForce_) in->UpdateScalarComponent(gripForce_, grip ? 1.0f : 0.0f, 0);
+        UpdatePadButtons(b, stickX, stickY, !sticksMoveHands);
+    }
+
+private:
+    // Face buttons, menus and the stick, for both the game pad and optical hands.
+    void UpdatePadButtons(uint32_t b, float stickX, float stickY, bool stickToGame) {
+        auto in = VRDriverInput();
+        const bool touch = stickToGame && stickX * stickX + stickY * stickY > 0.01f;
+        in->UpdateBooleanComponent(system_, right_ && (b & PAD_GUIDE), 0);
         in->UpdateScalarComponent(padX_, touch ? stickX : 0.0f, 0);
         in->UpdateScalarComponent(padY_, touch ? stickY : 0.0f, 0);
         if (!touch_ && !index_) {
             in->UpdateBooleanComponent(menu_, (b & (right_ ? PAD_START : PAD_SELECT)) != 0, 0);
-            in->UpdateBooleanComponent(grip_, grip, 0);
             in->UpdateBooleanComponent(padTouch_, touch || (b & (right_ ? PAD_A : PAD_X)), 0);
             in->UpdateBooleanComponent(padClick_, (b & (right_ ? (PAD_A | PAD_R3) : PAD_X)) != 0, 0);
             return;
@@ -1286,10 +1293,6 @@ public:
         const bool primary = b & (right_ ? PAD_A : PAD_X), secondary = b & (right_ ? PAD_B : PAD_Y);
         const bool both = (b & PAD_L3) && (b & PAD_R3);
         if (menu_) in->UpdateBooleanComponent(menu_, !right_ && (b & (PAD_START | PAD_SELECT)), 0);
-        in->UpdateBooleanComponent(grip_, grip, 0);
-        in->UpdateScalarComponent(gripValue_, grip ? 1.0f : 0.0f, 0);
-        if (gripForce_) in->UpdateScalarComponent(gripForce_, grip ? 1.0f : 0.0f, 0);
-        in->UpdateBooleanComponent(triggerTouch_, trig > 0.05f, 0);
         in->UpdateBooleanComponent(primaryClick_, primary, 0);
         in->UpdateBooleanComponent(secondaryClick_, secondary, 0);
         in->UpdateBooleanComponent(primaryTouch_, primary, 0);
@@ -1298,7 +1301,6 @@ public:
         in->UpdateBooleanComponent(padClick_, !both && (b & (right_ ? PAD_R3 : PAD_L3)), 0);
     }
 
-private:
     void LogOpticalInputs(const dd_spatial_hand &hand, bool inputValid, bool poseValid, int64_t now,
                           uint64_t connection, uint64_t origin, uint16_t inputEpochs, EVRInputError gripError,
                           EVRInputError clickError, EVRInputError triggerError) {
@@ -1909,13 +1911,10 @@ private:
     // SteamVR fixes a device's input profile when it activates, so each type gets its own pair,
     // added the first time it is chosen; devices cannot be removed, only disconnected.
     void ApplyPadConfig(bool initial) {
-        struct stat st{};
-        const char *path = "/run/droiddeck/" DROIDDECK_VR_CONTROLLERS_FILE;
-        const bool exists = stat(path, &st) == 0;
-        const int64_t stamp = exists ? int64_t(st.st_mtim.tv_sec) * 1000000000 + st.st_mtim.tv_nsec : 0;
-        if (!initial && stamp == configStamp_) return;
-        configStamp_ = stamp;
-        const PadControllerConfig pads = read_pad_controller_config(path);
+        // The file is a few bytes, so compare what it says; two quick writes can share an mtime.
+        const PadControllerConfig pads = read_pad_controller_config("/run/droiddeck/" DROIDDECK_VR_CONTROLLERS_FILE);
+        if (!initial && pads.profile == configProfile_ && pads.sticksMoveHands == configSticks_) return;
+        configProfile_ = pads.profile;
         if (initial || pads.sticksMoveHands != configSticks_) hmd_.SetSticksMoveHands(pads.sticksMoveHands);
         configSticks_ = pads.sticksMoveHands;
         const PadProfile profile = padsEnabled_ ? pads.profile : PadProfile::Off;
@@ -1947,7 +1946,7 @@ private:
     bool padAdded_[kPadProfiles] = {false, false, false};
     bool padsEnabled_ = true, configSticks_ = false;
     PadProfile profile_ = PadProfile::Off;
-    int64_t configStamp_ = -1;
+    PadProfile configProfile_ = PadProfile::Index;
     std::chrono::steady_clock::time_point lastConfigCheck_{};
     HandController handLeft_{false}, handRight_{true};
     bool handAdded_[2] = {false, false};

@@ -2480,6 +2480,15 @@
     <string name="glasses_vr_fov">Поле зору SteamVR</string>
     <string name="glasses_vr_fov_hint">Нижче значення наближає SteamVR і заповнює окуляри; вище — показує більше навколо вас.</string>
     <string name="glasses_playing">Гра на %1$s</string>
+    <string name="glasses_phone_recenter">Перецентрувати</string>
+    <string name="glasses_phone_steamvr_menu">Меню SteamVR</string>
+    <string name="glasses_phone_switch_sticks">Стіки: руки ⇄ гра</string>
+    <string name="glasses_phone_controllers">Контролери: %1$s</string>
+    <string name="glasses_phone_keyboard">Клавіатура</string>
+    <string name="glasses_phone_session_menu">Меню сеансу</string>
+    <string name="glasses_phone_stop_steamvr">Зупинити SteamVR</string>
+    <string name="glasses_phone_brightness">Яскравість %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Акумулятор %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Калібрування відстеження</string>
     <string name="glasses_calibration_hint">Зменшує дрейф і вирівнює опорний горизонт.</string>
     <string name="glasses_calibration_saved_hint">До цих окулярів застосовано збережене калібрування.</string>

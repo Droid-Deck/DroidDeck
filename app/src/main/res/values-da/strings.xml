@@ -2430,6 +2430,15 @@
     <string name="glasses_vr_fov">SteamVR-synsfelt</string>
     <string name="glasses_vr_fov_hint">Lavere bringer SteamVR tættere på og fylder brillen; højere viser mere omkring dig.</string>
     <string name="glasses_playing">Spiller på %1$s</string>
+    <string name="glasses_phone_recenter">Centrér igen</string>
+    <string name="glasses_phone_steamvr_menu">SteamVR-menu</string>
+    <string name="glasses_phone_switch_sticks">Pinde: hænder ⇄ spil</string>
+    <string name="glasses_phone_controllers">Controllere: %1$s</string>
+    <string name="glasses_phone_keyboard">Tastatur</string>
+    <string name="glasses_phone_session_menu">Sessionsmenu</string>
+    <string name="glasses_phone_stop_steamvr">Stop SteamVR</string>
+    <string name="glasses_phone_brightness">Lysstyrke %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Batteri %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Sporingskalibrering</string>
     <string name="glasses_calibration_hint">Mindsker drift og justerer den vandrette reference.</string>
     <string name="glasses_calibration_saved_hint">Gemt kalibrering anvendes på denne brille.</string>

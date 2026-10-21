@@ -2530,6 +2530,15 @@
     <string name="glasses_vr_fov">مجال رؤية SteamVR</string>
     <string name="glasses_vr_fov_hint">القيمة الأقل تقرّب SteamVR وتملأ النظارة؛ والأعلى تُظهر المزيد مما حولك.</string>
     <string name="glasses_playing">جارٍ اللعب على %1$s</string>
+    <string name="glasses_phone_recenter">إعادة التوسيط</string>
+    <string name="glasses_phone_steamvr_menu">قائمة SteamVR</string>
+    <string name="glasses_phone_switch_sticks">العصي: اليدان ⇄ اللعبة</string>
+    <string name="glasses_phone_controllers">وحدات التحكم: %1$s</string>
+    <string name="glasses_phone_keyboard">لوحة المفاتيح</string>
+    <string name="glasses_phone_session_menu">قائمة الجلسة</string>
+    <string name="glasses_phone_stop_steamvr">إيقاف SteamVR</string>
+    <string name="glasses_phone_brightness">السطوع %1$d / %2$d</string>
+    <string name="glasses_phone_battery">البطارية %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">معايرة التتبّع</string>
     <string name="glasses_calibration_hint">يقلّل الانجراف ويضبط المرجع الأفقي.</string>
     <string name="glasses_calibration_saved_hint">تُطبَّق المعايرة المحفوظة على هذه النظارة.</string>

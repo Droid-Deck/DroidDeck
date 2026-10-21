@@ -2430,6 +2430,15 @@
     <string name="glasses_vr_fov">Зрително поле на SteamVR</string>
     <string name="glasses_vr_fov_hint">По-ниско приближава SteamVR и запълва очилата; по-високо показва повече около вас.</string>
     <string name="glasses_playing">Играете на %1$s</string>
+    <string name="glasses_phone_recenter">Центриране отново</string>
+    <string name="glasses_phone_steamvr_menu">Меню на SteamVR</string>
+    <string name="glasses_phone_switch_sticks">Стикове: ръце ⇄ игра</string>
+    <string name="glasses_phone_controllers">Контролери: %1$s</string>
+    <string name="glasses_phone_keyboard">Клавиатура</string>
+    <string name="glasses_phone_session_menu">Меню на сесията</string>
+    <string name="glasses_phone_stop_steamvr">Спиране на SteamVR</string>
+    <string name="glasses_phone_brightness">Яркост %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Батерия %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Калибриране на проследяването</string>
     <string name="glasses_calibration_hint">Намалява дрейфа и подравнява хоризонта.</string>
     <string name="glasses_calibration_saved_hint">За тези очила се прилага запазено калибриране.</string>

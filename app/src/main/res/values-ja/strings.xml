@@ -2405,6 +2405,15 @@
     <string name="glasses_vr_fov">SteamVR の視野角</string>
     <string name="glasses_vr_fov_hint">小さくすると SteamVR が近くなりグラスいっぱいに広がり、大きくすると周囲が広く見えます。</string>
     <string name="glasses_playing">%1$s でプレイ中</string>
+    <string name="glasses_phone_recenter">中心をリセット</string>
+    <string name="glasses_phone_steamvr_menu">SteamVR メニュー</string>
+    <string name="glasses_phone_switch_sticks">スティック: 手 ⇄ ゲーム</string>
+    <string name="glasses_phone_controllers">コントローラー: %1$s</string>
+    <string name="glasses_phone_keyboard">キーボード</string>
+    <string name="glasses_phone_session_menu">セッションメニュー</string>
+    <string name="glasses_phone_stop_steamvr">SteamVR を停止</string>
+    <string name="glasses_phone_brightness">明るさ %1$d / %2$d</string>
+    <string name="glasses_phone_battery">バッテリー %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">トラッキングのキャリブレーション</string>
     <string name="glasses_calibration_hint">ドリフトを減らし、水平の基準を合わせます。</string>
     <string name="glasses_calibration_saved_hint">保存したキャリブレーションをこのグラスに適用しています。</string>

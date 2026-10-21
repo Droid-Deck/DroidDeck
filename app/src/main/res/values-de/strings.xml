@@ -2416,6 +2416,15 @@
     <string name="glasses_vr_fov">SteamVR-Sichtfeld</string>
     <string name="glasses_vr_fov_hint">Niedriger holt SteamVR näher heran und füllt die Brille; höher zeigt mehr von deiner Umgebung.</string>
     <string name="glasses_playing">Spiel läuft auf %1$s</string>
+    <string name="glasses_phone_recenter">Neu zentrieren</string>
+    <string name="glasses_phone_steamvr_menu">SteamVR-Menü</string>
+    <string name="glasses_phone_switch_sticks">Sticks: Hände ⇄ Spiel</string>
+    <string name="glasses_phone_controllers">Controller: %1$s</string>
+    <string name="glasses_phone_keyboard">Tastatur</string>
+    <string name="glasses_phone_session_menu">Sitzungsmenü</string>
+    <string name="glasses_phone_stop_steamvr">SteamVR beenden</string>
+    <string name="glasses_phone_brightness">Helligkeit %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Akku %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Tracking-Kalibrierung</string>
     <string name="glasses_calibration_hint">Verringert Drift und richtet die waagerechte Referenz aus.</string>
     <string name="glasses_calibration_saved_hint">Für diese Brille wird eine gespeicherte Kalibrierung verwendet.</string>

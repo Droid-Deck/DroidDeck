@@ -1068,12 +1068,14 @@ def main(argv):
         expression = ("(o => o ? (o.vr_supported === true || o.vr_only === true) : null)"
                       "(window.appStore?.GetAppOverviewByGameID?.(%s))" % json.dumps(argv[1]))
         value = None
-        for _ in range(2):  # Steam's UI is busiest while a game starts.
+        deadline = time.monotonic() + 12  # Steam's UI is busiest while a game starts.
+        while value is None and time.monotonic() < deadline:
             try:
                 value = cdp_eval(Path(base) / "agent", expression, await_promise=False, timeout=8).get("value")
-                break
             except (AgentError, OSError, ValueError):
                 pass
+            if value is None:
+                time.sleep(0.5)
         print({True: "yes", False: "no"}.get(value, "unknown"))
         return {True: 0, False: 5}.get(value, 1)
     if argv and argv[0] == "--steam-asleep":

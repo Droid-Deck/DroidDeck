@@ -2405,6 +2405,15 @@
     <string name="glasses_vr_fov">SteamVR 視場角</string>
     <string name="glasses_vr_fov_hint">調低令 SteamVR 更近並填滿眼鏡；調高可看到更多周圍內容。</string>
     <string name="glasses_playing">正在 %1$s 上遊玩</string>
+    <string name="glasses_phone_recenter">重新置中</string>
+    <string name="glasses_phone_steamvr_menu">SteamVR 選單</string>
+    <string name="glasses_phone_switch_sticks">搖桿：雙手 ⇄ 遊戲</string>
+    <string name="glasses_phone_controllers">控制器：%1$s</string>
+    <string name="glasses_phone_keyboard">鍵盤</string>
+    <string name="glasses_phone_session_menu">工作階段選單</string>
+    <string name="glasses_phone_stop_steamvr">停止 SteamVR</string>
+    <string name="glasses_phone_brightness">亮度 %1$d / %2$d</string>
+    <string name="glasses_phone_battery">電池 %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">追蹤校準</string>
     <string name="glasses_calibration_hint">減少漂移並對齊水平基準。</string>
     <string name="glasses_calibration_saved_hint">這副眼鏡已套用儲存的校準。</string>

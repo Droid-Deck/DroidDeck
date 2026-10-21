@@ -2430,6 +2430,15 @@
     <string name="glasses_vr_fov">SteamVR-gezichtsveld</string>
     <string name="glasses_vr_fov_hint">Lager brengt SteamVR dichterbij en vult de bril; hoger toont meer om je heen.</string>
     <string name="glasses_playing">Je speelt op %1$s</string>
+    <string name="glasses_phone_recenter">Opnieuw centreren</string>
+    <string name="glasses_phone_steamvr_menu">SteamVR-menu</string>
+    <string name="glasses_phone_switch_sticks">Sticks: handen ⇄ spel</string>
+    <string name="glasses_phone_controllers">Controllers: %1$s</string>
+    <string name="glasses_phone_keyboard">Toetsenbord</string>
+    <string name="glasses_phone_session_menu">Sessiemenu</string>
+    <string name="glasses_phone_stop_steamvr">SteamVR stoppen</string>
+    <string name="glasses_phone_brightness">Helderheid %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Batterij %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Trackingkalibratie</string>
     <string name="glasses_calibration_hint">Vermindert drift en lijnt de horizontale referentie uit.</string>
     <string name="glasses_calibration_saved_hint">De opgeslagen kalibratie wordt op deze bril toegepast.</string>

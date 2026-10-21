@@ -2430,6 +2430,15 @@
     <string name="glasses_vr_fov">SteamVR फ़ील्ड ऑफ़ व्यू</string>
     <string name="glasses_vr_fov_hint">कम करने पर SteamVR पास आता है और चश्मा भर देता है; ज़्यादा करने पर आपके आस-पास ज़्यादा दिखता है।</string>
     <string name="glasses_playing">%1$s पर खेल रहे हैं</string>
+    <string name="glasses_phone_recenter">फिर से केंद्रित करें</string>
+    <string name="glasses_phone_steamvr_menu">SteamVR मेनू</string>
+    <string name="glasses_phone_switch_sticks">स्टिक: हाथ ⇄ गेम</string>
+    <string name="glasses_phone_controllers">कंट्रोलर: %1$s</string>
+    <string name="glasses_phone_keyboard">कीबोर्ड</string>
+    <string name="glasses_phone_session_menu">सत्र मेनू</string>
+    <string name="glasses_phone_stop_steamvr">SteamVR रोकें</string>
+    <string name="glasses_phone_brightness">चमक %1$d / %2$d</string>
+    <string name="glasses_phone_battery">बैटरी %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">ट्रैकिंग कैलिब्रेशन</string>
     <string name="glasses_calibration_hint">ड्रिफ़्ट कम करता है और क्षैतिज संदर्भ को सीध में लाता है।</string>
     <string name="glasses_calibration_saved_hint">इस चश्मे पर सेव किया गया कैलिब्रेशन लागू है।</string>

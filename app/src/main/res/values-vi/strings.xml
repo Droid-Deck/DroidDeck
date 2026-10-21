@@ -2405,6 +2405,15 @@
     <string name="glasses_vr_fov">Trường nhìn của SteamVR</string>
     <string name="glasses_vr_fov_hint">Thấp hơn sẽ đưa SteamVR lại gần và lấp đầy kính; cao hơn cho thấy nhiều hơn xung quanh bạn.</string>
     <string name="glasses_playing">Đang chơi trên %1$s</string>
+    <string name="glasses_phone_recenter">Căn giữa lại</string>
+    <string name="glasses_phone_steamvr_menu">Menu SteamVR</string>
+    <string name="glasses_phone_switch_sticks">Cần: tay ⇄ trò chơi</string>
+    <string name="glasses_phone_controllers">Tay cầm: %1$s</string>
+    <string name="glasses_phone_keyboard">Bàn phím</string>
+    <string name="glasses_phone_session_menu">Menu phiên</string>
+    <string name="glasses_phone_stop_steamvr">Dừng SteamVR</string>
+    <string name="glasses_phone_brightness">Độ sáng %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Pin %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Hiệu chỉnh theo dõi</string>
     <string name="glasses_calibration_hint">Giảm hiện tượng trôi và căn lại mốc thăng bằng.</string>
     <string name="glasses_calibration_saved_hint">Hiệu chỉnh đã lưu đang được áp dụng cho kính này.</string>

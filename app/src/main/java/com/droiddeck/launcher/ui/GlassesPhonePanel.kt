@@ -31,6 +31,7 @@ import com.droiddeck.launcher.R
 /** Actions for the phone while the picture is on the glasses. Null hides the button. */
 internal class GlassesPhoneActions(
     val onRecenter: (() -> Unit)?,
+    val onRecenterJoyCons: (() -> Unit)?,
     val onSteamVrMenu: (() -> Unit)?,
     val onSwitchSticks: (() -> Unit)?,
     val controllers: String?,
@@ -56,6 +57,7 @@ internal fun GlassesPhonePanel(model: String, status: String?, a: GlassesPhoneAc
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
                 verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 a.onRecenter?.let { PanelButton(stringResource(R.string.glasses_phone_recenter), "phone-recenter", it) }
+                a.onRecenterJoyCons?.let { PanelButton(stringResource(R.string.glasses_recenter_joycons_button), "phone-recenter-joycons", it) }
                 a.onSteamVrMenu?.let { PanelButton(stringResource(R.string.glasses_phone_steamvr_menu), "phone-steamvr-menu", it) }
                 a.onNextControllers?.let { next -> a.controllers?.let {
                     PanelButton(stringResource(R.string.glasses_phone_controllers, it), "phone-controllers", next) } }

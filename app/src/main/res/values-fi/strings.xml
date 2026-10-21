@@ -2430,6 +2430,15 @@
     <string name="glasses_vr_fov">SteamVR:n näkökenttä</string>
     <string name="glasses_vr_fov_hint">Pienempi tuo SteamVR:n lähemmäs ja täyttää lasit; suurempi näyttää enemmän ympäriltäsi.</string>
     <string name="glasses_playing">Pelataan laitteella %1$s</string>
+    <string name="glasses_phone_recenter">Keskitä uudelleen</string>
+    <string name="glasses_phone_steamvr_menu">SteamVR-valikko</string>
+    <string name="glasses_phone_switch_sticks">Sauvat: kädet ⇄ peli</string>
+    <string name="glasses_phone_controllers">Ohjaimet: %1$s</string>
+    <string name="glasses_phone_keyboard">Näppäimistö</string>
+    <string name="glasses_phone_session_menu">Istuntovalikko</string>
+    <string name="glasses_phone_stop_steamvr">Pysäytä SteamVR</string>
+    <string name="glasses_phone_brightness">Kirkkaus %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Akku %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Seurannan kalibrointi</string>
     <string name="glasses_calibration_hint">Vähentää ryömintää ja kohdistaa vaakatason.</string>
     <string name="glasses_calibration_saved_hint">Tallennettu kalibrointi on käytössä näissä laseissa.</string>

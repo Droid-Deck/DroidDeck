@@ -2416,6 +2416,15 @@
     <string name="glasses_vr_fov">SteamVR görüş alanı</string>
     <string name="glasses_vr_fov_hint">Düşük değer SteamVR\'ı yaklaştırır ve gözlüğü doldurur; yüksek değer çevrenizi daha çok gösterir.</string>
     <string name="glasses_playing">%1$s ile oynanıyor</string>
+    <string name="glasses_phone_recenter">Yeniden ortala</string>
+    <string name="glasses_phone_steamvr_menu">SteamVR menüsü</string>
+    <string name="glasses_phone_switch_sticks">Çubuklar: eller ⇄ oyun</string>
+    <string name="glasses_phone_controllers">Kumandalar: %1$s</string>
+    <string name="glasses_phone_keyboard">Klavye</string>
+    <string name="glasses_phone_session_menu">Oturum menüsü</string>
+    <string name="glasses_phone_stop_steamvr">SteamVR’ı durdur</string>
+    <string name="glasses_phone_brightness">Parlaklık %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Pil %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Takip kalibrasyonu</string>
     <string name="glasses_calibration_hint">Kaymayı azaltır ve yatay düzlem referansını hizalar.</string>
     <string name="glasses_calibration_saved_hint">Kayıtlı kalibrasyon bu gözlüğe uygulanır.</string>

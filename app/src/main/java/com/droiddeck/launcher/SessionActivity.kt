@@ -1030,6 +1030,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val pads = com.droiddeck.launcher.input.VrControllers.settings.collectAsState().value
         com.droiddeck.launcher.ui.GlassesPhonePanel(glasses.model, battery, com.droiddeck.launcher.ui.GlassesPhoneActions(
             onRecenter = if (headTracking) ({ headTracker?.recenter() }) else null,
+            onRecenterJoyCons = if (vr && glasses.usesSpatialControllers(glassesSettings) && glassesSettings.joyConTracking)
+                joyConVr?.let { { it.recenter() } } else null,
             onSteamVrMenu = if (vr && SessionState.mode == SessionService.MODE_STEAM) ({ sendSteamGuide() }) else null,
             onSwitchSticks = if (vr && pads.emulate != com.droiddeck.launcher.input.VrControllers.Emulate.OFF) ({ switchVrSticks() }) else null,
             controllers = getString(when (pads.emulate) {
