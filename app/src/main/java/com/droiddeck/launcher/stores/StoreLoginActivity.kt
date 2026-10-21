@@ -54,6 +54,7 @@ class StoreLoginActivity : ComponentActivity() {
         fun isRedirect(url: String): Boolean
         fun finish(activity: StoreLoginActivity, view: WebView, url: String): String?
         val readsPage: Boolean get() = false
+        fun forgetSignIn(done: () -> Unit) = done()
     }
 
     private var store: Store? = null
@@ -109,7 +110,9 @@ class StoreLoginActivity : ComponentActivity() {
                 }
             }
         })
-        webView.loadUrl(flow!!.startUrl)
+        val start = flow!!.startUrl
+        if (savedInstanceState == null) flow!!.forgetSignIn { if (!isDestroyed) webView.loadUrl(start) }
+        else webView.loadUrl(start)
     }
 
     private fun newFlow(state: String): Flow? {
