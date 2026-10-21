@@ -195,9 +195,10 @@ rendering changes.
 
 ### Experimental flat games in SteamVR
 
-A game Steam does not list as VR-only, launched while SteamVR runs, opens as a
-SteamVR panel automatically: the Proton and FEX launchers ask Steam whether the
-app is VR-only (`droiddeck-agent --steam-vr-only`) and wrap it in
+A game Steam lists without any VR support, launched while SteamVR runs, opens as
+a SteamVR panel automatically: the Proton and FEX launchers ask Steam whether the
+app supports VR (`droiddeck-agent --steam-supports-vr`; optional-VR games such as
+Thumper launch normally) and wrap it in
 `droiddeck-steamvr-game` (`droiddeck-steamvr-flat`). Adding
 `droiddeck-steamvr-game %command%` to a game's launch options does the same by hand.
 This runs a nested, unmodified Gamescope OpenVR backend for that game. Gamescope
