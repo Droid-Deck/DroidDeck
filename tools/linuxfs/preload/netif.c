@@ -506,19 +506,23 @@ static void write_table(FILE *out, const char *table, const struct link *link) {
     }
 }
 
-static const char *denied_table(const char *path) {
-    static const char *const tables[] = { "route", "ipv6_route", "if_inet6", "dev", "arp" };
+#define CARRIER_TABLE 5
+
+static const char *const net_tables[] = { "route", "ipv6_route", "if_inet6", "dev", "arp", "carrier" };
+static long long net_denied_at[sizeof(net_tables) / sizeof(net_tables[0])];
+
+static int denied_table(const char *path) {
     if (strncmp(path, "/proc/net/", 10) == 0) {
-        for (size_t i = 0; i < sizeof(tables) / sizeof(tables[0]); i++) {
-            if (strcmp(path + 10, tables[i]) == 0) return tables[i];
+        for (int i = 0; i < CARRIER_TABLE; i++) {
+            if (strcmp(path + 10, net_tables[i]) == 0) return i;
         }
-        return NULL;
+        return -1;
     }
     size_t len = strlen(path);
     if (strncmp(path, "/sys/class/net/", 15) == 0 && len > 8 && strcmp(path + len - 8, "/carrier") == 0) {
-        return "carrier";
+        return CARRIER_TABLE;
     }
-    return NULL;
+    return -1;
 }
 
 static FILE *synthesize(const char *table) {
@@ -550,11 +554,16 @@ static FILE *open_stream(fopen_fn real, const char *path, const char *mode, cons
         if (copy == NULL) close(status);
         return copy;
     }
-    FILE *f = real(path, mode);
-    if (f || path == NULL || mode == NULL || mode[0] != 'r') return f;
+    int table = path && mode && mode[0] == 'r' ? denied_table(path) : -1;
+    FILE *f;
+    if (table >= 0 && fresh(&net_denied_at[table]) && (f = synthesize(net_tables[table])) != NULL) return f;
+    f = real(path, mode);
+    if (f || table < 0) return f;
     int saved = errno;
-    const char *table = denied_table(path);
-    if (table && (f = synthesize(table)) != NULL) return f;
+    if ((f = synthesize(net_tables[table])) != NULL) {
+        if (saved == EACCES) __atomic_store_n(&net_denied_at[table], now_ns(), __ATOMIC_RELAXED);
+        return f;
+    }
     errno = saved;
     return NULL;
 }
