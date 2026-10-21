@@ -38,6 +38,7 @@ class StoreLoginActivity : ComponentActivity() {
         const val EXTRA_STORE = "store"
         const val EXTRA_CLIENT_URL = "client_url"
         private const val KEY_STATE = "oauth_state"
+        private const val KEY_SIGN_IN_CLEARED = "sign_in_cleared"
         @Volatile internal var floodColor: Int? = null
         internal const val CHROME_UA = "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.6533.103 Mobile Safari/537.36"
 
@@ -54,6 +55,7 @@ class StoreLoginActivity : ComponentActivity() {
         fun isRedirect(url: String): Boolean
         fun finish(activity: StoreLoginActivity, view: WebView, url: String): String?
         val readsPage: Boolean get() = false
+        fun forgetSignIn(done: () -> Unit) = done()
     }
 
     private var store: Store? = null
@@ -74,6 +76,7 @@ class StoreLoginActivity : ComponentActivity() {
     private var oauthState: String? = null
     private val captured = AtomicBoolean(false)
     private var flooded = false
+    private var signInCleared = false
 
     private fun dp(value: Int): Int = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value.toFloat(), resources.displayMetrics).toInt()
 
@@ -109,7 +112,13 @@ class StoreLoginActivity : ComponentActivity() {
                 }
             }
         })
-        webView.loadUrl(flow!!.startUrl)
+        val start = flow!!.startUrl
+        signInCleared = savedInstanceState?.getBoolean(KEY_SIGN_IN_CLEARED) == true
+        if (signInCleared) webView.loadUrl(start)
+        else flow!!.forgetSignIn {
+            signInCleared = true
+            if (!isDestroyed) webView.loadUrl(start)
+        }
     }
 
     private fun newFlow(state: String): Flow? {
@@ -255,6 +264,8 @@ class StoreLoginActivity : ComponentActivity() {
     }
 
     private inner class Client(private val isPopup: Boolean) : WebViewClient() {
+        private var mainFrameUrl: String? = null
+
         override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
             Log.d(TAG, "page[popup=$isPopup]: ${StoreLog.redactUrl(url)}")
             if (url != null && view != null && flow?.isRedirect(url) == true && flow?.readsPage != true) complete(view, url)
@@ -277,10 +288,14 @@ class StoreLoginActivity : ComponentActivity() {
 
         override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
             handler?.cancel()
-            showError(getString(R.string.stores_login_error_ssl))
+            val url = error?.url
+            if (url == null || url == view?.url || url == mainFrameUrl) showError(getString(R.string.stores_login_error_ssl))
         }
 
-        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean = route(view, request.url)
+        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+            if (request.isForMainFrame) mainFrameUrl = request.url.toString()
+            return route(view, request.url)
+        }
 
         @Suppress("DEPRECATION")
         override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean = route(view, Uri.parse(url))
@@ -330,6 +345,7 @@ class StoreLoginActivity : ComponentActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         oauthState?.let { outState.putString(KEY_STATE, it) }
+        outState.putBoolean(KEY_SIGN_IN_CLEARED, signInCleared)
     }
 
     override fun onStart() {

@@ -176,6 +176,8 @@
     <string name="app_fex_x86">FEX로 실행되는 %1$s</string>
     <string name="app_fex_not_ready">이 프로그램은 %1$s PC용으로 빌드되어 FEX를 통해 실행되지만, FEX가 아직 설정되지 않았습니다. 로그인한 상태로 Steam을 한 번 열면 DroidDeck이 FEX와 필요한 Steam Linux Runtime을 다운로드한 후 이 프로그램을 엽니다.</string>
     <string name="session_end_program">이 프로그램</string>
+    <string name="session_end_steam_download">Steam 클라이언트를 다운로드할 수 없습니다. 네트워크나 VPN이 Steam 서버를 차단하고 있을 수 있습니다. 연결을 확인하고 다시 시도하세요.</string>
+    <string name="session_end_steam_setup">Steam 클라이언트를 설정할 수 없습니다. 연결과 남은 저장 공간을 확인한 뒤 다시 시도하세요.</string>
     <string name="session_end_fex_missing">%1$s은(는) x86 PC용으로 빌드되어 FEX를 통해 실행되지만, FEX가 아직 설치되지 않았습니다. 로그인한 상태로 Steam을 한 번 시작하여 FEX와 Steam Linux Runtime을 다운로드한 후 다시 시작하세요.</string>
     <string name="add_app_flatpak_hint">Flathub 앱 ID 또는 해당 Flathub 페이지입니다. Flatpak이 아직 설정되지 않은 경우 먼저 설정합니다.</string>
     <string name="add_app_file">파일</string>

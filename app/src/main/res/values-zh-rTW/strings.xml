@@ -176,6 +176,8 @@
     <string name="app_fex_x86">透過 FEX 執行 %1$s</string>
     <string name="app_fex_not_ready">此程式是為 %1$s 電腦組建的，需透過 FEX 執行，但 FEX 尚未設定。請在登入狀態下開啟一次 Steam：DroidDeck 會讓它下載 FEX 和所需的 Steam Linux Runtime，之後就能開啟此程式。</string>
     <string name="session_end_program">此程式</string>
+    <string name="session_end_steam_download">無法下載 Steam 用戶端。你的網路或 VPN 可能封鎖了 Steam 的伺服器；請檢查連線後再試一次。</string>
+    <string name="session_end_steam_setup">無法設定 Steam 用戶端。請檢查連線和可用儲存空間，然後再試一次。</string>
     <string name="session_end_fex_missing">%1$s 是為 x86 電腦組建的，需透過 FEX 執行，但 FEX 尚未安裝。請在登入狀態下啟動一次 Steam，讓它下載 FEX 和 Steam Linux Runtime，然後再重新啟動此程式。</string>
     <string name="add_app_flatpak_hint">Flathub 應用程式 ID 或其 Flathub 頁面。如果尚未設定 Flatpak，會先進行設定。</string>
     <string name="add_app_file">檔案</string>

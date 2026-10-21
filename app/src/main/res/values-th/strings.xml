@@ -176,6 +176,8 @@
     <string name="app_fex_x86">%1$s ผ่าน FEX</string>
     <string name="app_fex_not_ready">โปรแกรมนี้สร้างมาสำหรับพีซี %1$s และรันผ่าน FEX ซึ่งยังไม่ได้ตั้งค่า เปิด Steam สักครั้งขณะลงชื่อเข้าใช้: DroidDeck จะดาวน์โหลด FEX และ Steam Linux Runtime ที่จำเป็น จากนั้นโปรแกรมนี้จะเปิดขึ้น</string>
     <string name="session_end_program">โปรแกรมนี้</string>
+    <string name="session_end_steam_download">ดาวน์โหลดไคลเอนต์ Steam ไม่ได้ เครือข่ายหรือ VPN ของคุณอาจบล็อกเซิร์ฟเวอร์ของ Steam ตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง</string>
+    <string name="session_end_steam_setup">ตั้งค่าไคลเอนต์ Steam ไม่ได้ ตรวจสอบการเชื่อมต่อและพื้นที่ว่าง แล้วลองอีกครั้ง</string>
     <string name="session_end_fex_missing">%1$s สร้างมาสำหรับพีซี x86 และรันผ่าน FEX ซึ่งยังไม่ได้ติดตั้ง เริ่ม Steam สักครั้งขณะลงชื่อเข้าใช้และให้ดาวน์โหลด FEX และ Steam Linux Runtime จากนั้นเริ่มโปรแกรมนี้อีกครั้ง</string>
     <string name="add_app_flatpak_hint">รหัสแอป Flathub หรือหน้า Flathub ของมัน จะตั้งค่า Flatpak ก่อนหากยังไม่ได้ตั้งค่า</string>
     <string name="add_app_file">ไฟล์</string>

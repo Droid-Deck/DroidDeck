@@ -176,6 +176,8 @@
     <string name="app_fex_x86">%1$s via FEX</string>
     <string name="app_fex_not_ready">Programmet är byggt för %1$s-datorer och körs via FEX, som inte har konfigurerats än. Öppna Steam en gång medan du är inloggad: DroidDeck låter Steam ladda ned FEX och den Steam Linux Runtime som behövs, sedan öppnas detta.</string>
     <string name="session_end_program">Det här programmet</string>
+    <string name="session_end_steam_download">Det gick inte att ladda ned Steam-klienten. Ditt nätverk eller din VPN kanske blockerar Steams servrar; kontrollera anslutningen och försök igen.</string>
+    <string name="session_end_steam_setup">Det gick inte att konfigurera Steam-klienten. Kontrollera anslutningen och det lediga lagringsutrymmet och försök igen.</string>
     <string name="session_end_fex_missing">%1$s är byggt för x86-datorer och körs via FEX, som inte är installerat än. Starta Steam en gång medan du är inloggad och låt det ladda ned FEX och Steam Linux Runtime. Starta sedan detta igen.</string>
     <string name="add_app_flatpak_hint">Ett app-ID från Flathub eller appens Flathub-sida. Flatpak konfigureras först om det inte redan är gjort.</string>
     <string name="add_app_file">Fil</string>
