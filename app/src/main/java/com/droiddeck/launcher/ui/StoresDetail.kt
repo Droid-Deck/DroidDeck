@@ -97,8 +97,8 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
                     installed != null -> stringResource(R.string.stores_eyebrow_installed) + " · " + com.droiddeck.launcher.stores.StoreInstallRoot.labelFor(ctx, installed.folder)
                     download != null && download.location.isNotBlank() -> stringResource(R.string.stores_eyebrow_library) + " · " + download.location
                     failedDownload != null && failedDownload.location.isNotBlank() -> stringResource(R.string.stores_eyebrow_library) + " · " + failedDownload.location
-                    item?.subscription == true -> "PC Game Pass"
                     passName.isNotBlank() -> "Available with $passName"
+                    item?.subscription == true -> "PC Game Pass"
                     item?.accessible == true -> stringResource(R.string.stores_eyebrow_library)
                     else -> stringResource(R.string.stores_eyebrow_store)
                 }
