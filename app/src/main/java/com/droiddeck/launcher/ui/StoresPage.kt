@@ -201,12 +201,12 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     val colors = MaterialTheme.colorScheme
     val narrow = LocalNarrowPane.current
     val padH = if (narrow) 14.dp else 22.dp
-    var chip by rememberSaveable { mutableStateOf(Store.GOG.id) }
     val tabs = remember {
         androidx.compose.runtime.mutableStateListOf<StoreTab>().apply {
             addAll(arrangeStoreTabs(SessionPrefs.storesTabOrder(ctx), SessionPrefs.storesTabHidden(ctx)))
         }
     }
+    var chip by rememberSaveable { mutableStateOf(tabs.firstOrNull { it.shown }?.store?.id ?: Store.GOG.id) }
     var arranging by remember { mutableStateOf(false) }
     val shownStores = tabs.filter { it.shown }.map { it.store }
     fun commitTabs() {
@@ -640,6 +640,7 @@ private fun StoreDot(store: Store, signedIn: Boolean) {
             .onGloballyPositioned { StoresMotion.dots[store] = it.boundsInRoot() }
             .pulseRing(StoresMotion.pulses[store] ?: 0, c.dot)
             .background(c.dot.copy(alpha = if (signedIn) 1f else 0.35f), CircleShape),
+    )
 }
 
 @Composable
