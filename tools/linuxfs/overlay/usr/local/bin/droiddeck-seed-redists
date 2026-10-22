@@ -96,14 +96,14 @@ done <<<"$pairs"
 want+=("vcrt"$'\t'"$VCRT_MAJOR.$VCRT_MINOR.$VCRT_BUILD")
 
 printf -v now '%(%s)T' -1
-block_for() { printf '%s\n' "$@" | awk -F'\t' -v now="$now" '
+block_for() { printf '%s\n' "$@" | awk -F'\t' -v now="$now" -v hive="$hive" '
   {
     path = $1
-    sub(/^HKEY_LOCAL_MACHINE\\\\/, "", path)
+    sub(/^HKEY_(LOCAL_MACHINE|CURRENT_USER)\\\\/, "", path)
     if (path == $1)
       next
     printf "\n[%s] %d\n\"%s\"=dword:00000001\n", path, now, $2
-    if (substr(path, 1, 10) != "Software\\\\")
+    if (hive != "HKEY_LOCAL_MACHINE" || substr(path, 1, 10) != "Software\\\\")
       next
     printf "\n[%s] %d\n\"%s\"=dword:00000001\n", "Software\\\\Wow6432Node\\\\" substr(path, 11), now, $2
   }
@@ -115,16 +115,17 @@ block_for() { printf '%s\n' "$@" | awk -F'\t' -v now="$now" '
 unseed() {
   local reg=$1 out
   shift
-  out=$(mktemp "${reg%/*}/.system.reg.XXXXXX") || return 1
-  if printf '%s\n' "$@" | awk -F'\t' '
+  [ -w "$reg" ] || return 1
+  out=$(mktemp "${reg%/*}/.${reg##*/}.XXXXXX") || return 1
+  if printf '%s\n' "$@" | awk -F'\t' -v hive="$hive" '
     NR == FNR {
       path = $1
-      sub(/^HKEY_LOCAL_MACHINE\\\\/, "", path)
+      sub(/^HKEY_(LOCAL_MACHINE|CURRENT_USER)\\\\/, "", path)
       if (path == $1)
         next
       path = tolower(path)
       drop["[" path "]" SUBSEP tolower($2)] = 1
-      if (substr(path, 1, 10) == "software\\\\")
+      if (hive == "HKEY_LOCAL_MACHINE" && substr(path, 1, 10) == "software\\\\")
         drop["[software\\\\wow6432node\\\\" substr(path, 11) "]" SUBSEP tolower($2)] = 1
       next
     }
@@ -145,11 +146,11 @@ unseed() {
 
 # The ledger lines whose values the registry still holds, in both views where we wrote both. A Proton
 # update replaces its default_pfx system.reg but not our ledger beside it, and new prefixes copy both.
-present() { awk -F'\t' '
+present() { awk -F'\t' -v hive="$hive" '
   NR == FNR {
     path = $1
     if (path != "vcrt") {
-      sub(/^HKEY_LOCAL_MACHINE\\\\/, "", path)
+      sub(/^HKEY_(LOCAL_MACHINE|CURRENT_USER)\\\\/, "", path)
       if (path == $1)
         next
     }
@@ -163,7 +164,7 @@ present() { awk -F'\t' '
         key[n, ++need[n]] = "[software\\\\wow6432node\\\\" runtime "]" SUBSEP "installed"
       }
     } else {
-      both = substr(path, 1, 10) == "Software\\\\"
+      both = hive == "HKEY_LOCAL_MACHINE" && substr(path, 1, 10) == "Software\\\\"
       path = tolower(path)
       key[n, ++need[n]] = "[" path "]" SUBSEP tolower($2)
       if (both)
@@ -200,60 +201,80 @@ for reg in "$steam_root"/steamapps/common/Proton*/files/share/default_pfx*/syste
 done
 declare -A regid=()
 if [ ${#regs[@]} -gt 0 ]; then
+  users=()
+  for reg in "${regs[@]}"; do users+=("${reg%/*}/user.reg"); done
   while IFS=$'\t' read -r id name; do
     regid[$name]=$id
-  done < <(stat -c $'%i %s %.9Y\t%n' -- "${regs[@]}" 2>/dev/null)
+  done < <(stat -c $'%i %s %.9Y\t%n' -- "${regs[@]}" "${users[@]}" 2>/dev/null)
 fi
 
-for reg in "${regs[@]}"; do
-  seeded=${reg%/*}/.droiddeck-redists
-  checked=${reg%/*}/.droiddeck-redists-checked
-  id=${regid[$reg]:-}
+for system in "${regs[@]}"; do
+  user=${system%/*}/user.reg
+  seeded=${system%/*}/.droiddeck-redists
+  checked=${system%/*}/.droiddeck-redists-checked
+  id="${regid[$system]:-}|${regid[$user]:-missing}"
   prev=
   [ -f "$checked" ] && read -r prev <"$checked"
-  legacy=${reg%/*}/.bannerlator-redists
+  legacy=${system%/*}/.bannerlator-redists
   if [ -f "$legacy" ] && [ ! -f "$seeded" ]; then
     mv -f "$legacy" "$seeded"
   fi
-  declare -A had=()
-  if [ -f "$seeded" ]; then
-    while IFS= read -r line; do [[ $line == *$'\t'* ]] && had[$line]=1; done <"$seeded"
-  fi
-  stale=() kept=()
-  for line in "${!had[@]}"; do
-    if [ -n "${vulkan[$line]:-}" ]; then stale+=("$line"); else kept+=("$line"); fi
-  done
-  if [ ${#stale[@]} -gt 0 ] && unseed "$reg" "${stale[@]}"; then
-    id=
-    had=()
-    for line in "${kept[@]}"; do had[$line]=1; done
-    printf '%s\n' "${kept[@]}" >"$seeded"
-    echo "== took Vulkan runtime markers out of $reg"
-  fi
-  if [ ${#had[@]} -gt 0 ] && { [ -z "$id" ] || [ "$id" != "$prev" ]; }; then
-    declare -A held=()
-    while IFS= read -r line; do [[ $line == *$'\t'* ]] && held[$line]=1; done < <(printf '%s\n' "${!had[@]}" | present "$reg")
-    if [ ${#held[@]} -lt ${#had[@]} ]; then
-      echo "== $((${#had[@]} - ${#held[@]})) recorded redist markers are gone from $reg"
-      had=()
-      for line in "${!held[@]}"; do had[$line]=1; done
-      printf '%s\n' "${!had[@]}" >"$seeded"
+  for reg in "$system" "$user"; do
+    hive=HKEY_LOCAL_MACHINE
+    [ "$reg" == "$user" ] && hive=HKEY_CURRENT_USER
+    declare -A had=()
+    other=()
+    if [ -f "$seeded" ]; then
+      while IFS= read -r line; do
+        [[ $line == *$'\t'* ]] || continue
+        if [[ $line == "$hive\\"* ]] || { [ "$reg" == "$system" ] && [[ $line == vcrt$'\t'* ]]; }; then
+          had[$line]=1
+        else
+          other+=("$line")
+        fi
+      done <"$seeded"
     fi
-    unset held
-  fi
-  missing=()
-  for line in "${want[@]}"; do [ -n "${had[$line]:-}" ] || missing+=("$line"); done
-  if [ ${#missing[@]} -eq 0 ]; then
-    [ -n "$id" ] && [ "$id" != "$prev" ] && printf '%s\n' "$id" >"$checked"
-    continue
-  fi
-  rm -f "$checked"
-  dated=$(mktemp) || continue
-  touch -r "$reg" "$dated"
-  if printf '%s\n' "$(block_for "${missing[@]}")" >>"$reg"; then
-    printf '%s\n' "${!had[@]}" "${missing[@]}" >"$seeded"
-    echo "== seeded redist markers into $reg"
-  fi
-  touch -r "$dated" "$reg"
-  rm -f "$dated"
+    stale=() kept=()
+    for line in "${!had[@]}"; do
+      if [ -n "${vulkan[$line]:-}" ]; then stale+=("$line"); else kept+=("$line"); fi
+    done
+    if [ ${#stale[@]} -gt 0 ] && unseed "$reg" "${stale[@]}"; then
+      id=
+      had=()
+      for line in "${kept[@]}"; do had[$line]=1; done
+      printf '%s\n' "${other[@]}" "${kept[@]}" >"$seeded"
+      echo "== took Vulkan runtime markers out of $reg"
+    fi
+    if [ ${#had[@]} -gt 0 ] && { [ -z "$id" ] || [ "$id" != "$prev" ]; }; then
+      declare -A held=()
+      while IFS= read -r line; do [[ $line == *$'\t'* ]] && held[$line]=1; done < <([ -f "$reg" ] && printf '%s\n' "${!had[@]}" | present "$reg")
+      if [ ${#held[@]} -lt ${#had[@]} ]; then
+        echo "== $((${#had[@]} - ${#held[@]})) recorded redist markers are gone from $reg"
+        had=()
+        for line in "${!held[@]}"; do had[$line]=1; done
+        printf '%s\n' "${other[@]}" "${!had[@]}" >"$seeded"
+      fi
+      unset held
+    fi
+    missing=()
+    for line in "${want[@]}"; do
+      [[ $line == "$hive\\"* ]] || { [ "$reg" == "$system" ] && [[ $line == vcrt$'\t'* ]]; } || continue
+      [ -n "${had[$line]:-}" ] || missing+=("$line")
+    done
+    if [ ${#missing[@]} -eq 0 ]; then
+      [ -n "$id" ] && [ "$id" != "$prev" ] && printf '%s\n' "$id" >"$checked"
+      continue
+    fi
+    [ -f "$reg" ] && [ -w "$reg" ] || continue
+    rm -f "$checked"
+    dated=$(mktemp) || continue
+    touch -r "$reg" "$dated"
+    if printf '%s\n' "$(block_for "${missing[@]}")" >>"$reg"; then
+      printf '%s\n' "${other[@]}" "${!had[@]}" "${missing[@]}" >"$seeded"
+      id=
+      echo "== seeded redist markers into $reg"
+    fi
+    touch -r "$dated" "$reg"
+    rm -f "$dated"
+  done
 done

@@ -8,6 +8,7 @@ object SocNames {
         "SM8350" to "Snapdragon 888", "SM8450" to "Snapdragon 8 Gen 1", "SM8475" to "Snapdragon 8+ Gen 1",
         "SM8550" to "Snapdragon 8 Gen 2", "QCS8550" to "Snapdragon 8 Gen 2", "SM8650" to "Snapdragon 8 Gen 3",
         "SM8750" to "Snapdragon 8 Elite", "SM8850" to "Snapdragon 8 Elite Gen 5",
+        "SM8975" to "Snapdragon 8 Elite Extreme Gen 6",
         "SM7325" to "Snapdragon 778G", "SM7450" to "Snapdragon 7 Gen 1", "SM7550" to "Snapdragon 7 Gen 3",
         "SM6375" to "Snapdragon 695",
     )
@@ -15,7 +16,7 @@ object SocNames {
     private val PLATFORMS = mapOf(
         "msmnile" to "Snapdragon 855/860", "kona" to "Snapdragon 865/870", "lahaina" to "Snapdragon 888",
         "taro" to "Snapdragon 8 Gen 1", "cape" to "Snapdragon 8+ Gen 1", "kalama" to "Snapdragon 8 Gen 2",
-        "pineapple" to "Snapdragon 8 Gen 3", "sun" to "Snapdragon 8 Elite", "canoe" to "Snapdragon 8 Elite Gen 5",
+        "pineapple" to "Snapdragon 8 Gen 3", "sun" to "Snapdragon 8 Elite",
     )
 
     fun model(prop: (String) -> String = GpuInfo::systemProperty): String {
@@ -25,8 +26,10 @@ object SocNames {
             .firstOrNull { it.isNotEmpty() && !Regex("(?i)^msm_\\d").containsMatchIn(it) }.orEmpty()
     }
 
+    internal fun normalizedModel(model: String): String = model.trim().uppercase().removePrefix("QTI ").trim()
+
     fun name(model: String, platform: String = GpuInfo.systemProperty("ro.board.platform")): String? {
-        val key = model.trim().uppercase()
+        val key = normalizedModel(model)
         return MODELS[key]
             ?: MODELS[key.substringBefore('-')]
             ?: PLATFORMS[platform.trim().lowercase()]?.let { "$it family" }
