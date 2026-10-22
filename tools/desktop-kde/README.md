@@ -20,7 +20,7 @@ At run time the desktop is started by `tools/linuxfs/desktop/droiddeck-desktop` 
 at every session): Plasma's own `startplasma-wayland`, with KWin nested in the app's compositor
 through `kwin_wayland_wrapper`. The package's `kwin-compositor` marker selects OpenGL through
 Zink for KWin 6.8, which removed QPainter. Older packages retain their software compositor.
-On Android the wrapper explicitly selects the KGSL render node; the nested backend can use it
+On Android the launcher explicitly selects the KGSL render node; the nested backend can use it
 when the host's dmabuf feedback cannot name a DRM device. Games and emulators from the menu go
 through `droiddeck-gpu`, and Steam goes back to the app as a Steam session.
 

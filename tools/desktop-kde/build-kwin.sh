@@ -62,7 +62,8 @@ sudo cp "$work/root/build/out/bin/kwin_wayland" "$out/kwin_wayland"
 sudo cp "$work/root/build/out/bin/libkwin.so.$version" "$out/libkwin.so.$version"
 sudo chown "$(id -u):$(id -g)" "$out/kwin_wayland" "$out/libkwin.so.$version"
 strip --strip-unneeded "$out/kwin_wayland" "$out/libkwin.so.$version"
-if readelf -d "$out/kwin_wayland" "$out/libkwin.so.$version" | grep -Eq '\((RPATH|RUNPATH)\)'; then
+readelf -d "$out/kwin_wayland" "$out/libkwin.so.$version" > "$work/dynamic-tags.txt"
+if grep -Eq '\((RPATH|RUNPATH)\)' "$work/dynamic-tags.txt"; then
     echo 'KWin artifacts must not contain build-directory runtime search paths' >&2
     exit 1
 fi
