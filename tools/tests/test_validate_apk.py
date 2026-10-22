@@ -21,12 +21,16 @@ class ValidateApkTest(unittest.TestCase):
         subprocess.run(["git", "init", "-q", self.root], check=True)
         self.git("config", "user.name", "Human Developer")
         self.git("config", "user.email", "human@example.org")
+        self.git("commit", "--allow-empty", "-qm", "Baseline")
+        self.git("update-ref", "refs/remotes/origin/main", "HEAD")
         self.statuses = []
 
     def git(self, *args):
         return subprocess.check_output(["git", "-C", self.root, *args], text=True).strip()
 
-    def validate(self, message="Source change", body="", result="success", stale=False, completed=False):
+    def validate(self, message="Source change", body="", result="success", stale=False, completed=False, filename="source.kt"):
+        (self.root / filename).write_text(message)
+        self.git("add", filename)
         self.git("commit", "--allow-empty", "-qm", message)
         sha = self.git("rev-parse", "HEAD")
         pr = {"number": 1, "state": "open", "head": {"sha": sha}, "user": {"login": "human", "type": "User"},
@@ -87,3 +91,17 @@ class ValidateApkTest(unittest.TestCase):
     def test_superseded_build_cannot_replace_current_status(self):
         self.validate(stale=True, completed=True)
         self.assertEqual(self.statuses, [])
+
+    def test_documentation_passes_without_waiting_for_a_skipped_build(self):
+        self.validate(filename="README.md", result="pending")
+        self.assertEqual(self.statuses[-1]["state"], "success")
+
+    def test_renaming_code_to_documentation_still_requires_compilation(self):
+        (self.root / "source.kt").write_text("source")
+        self.git("add", "source.kt")
+        self.git("commit", "-qm", "Add source")
+        self.git("update-ref", "refs/remotes/origin/main", "HEAD")
+        self.git("mv", "source.kt", "README.md")
+        self.git("commit", "-qm", "Rename source")
+        with contextlib.chdir(self.root):
+            self.assertFalse(validate_apk.documentation_only(self.git("rev-parse", "HEAD")))

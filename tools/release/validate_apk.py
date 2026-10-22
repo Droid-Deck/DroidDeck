@@ -28,6 +28,12 @@ def fetch_source(ref, sha):
         raise RuntimeError("Pull request changed while validating")
 
 
+def documentation_only(sha):
+    base = subprocess.check_output(["git", "merge-base", "origin/main", sha], text=True).strip()
+    paths = subprocess.check_output(["git", "diff", "--no-renames", "--name-only", "-z", base, sha]).split(b"\0")
+    return all(path.endswith(b".md") or path in (b"LICENSE", b".gitignore") for path in paths if path)
+
+
 def main():
     with open(os.environ["GITHUB_EVENT_PATH"], encoding="utf-8") as source:
         event = json.load(source)
@@ -73,6 +79,10 @@ def main():
         if errors:
             raise RuntimeError("\n".join(errors))
         print(f"Source and metadata validated for {len(commits)} commits")
+        if pr and documentation_only(sha):
+            state = "success"
+            description = "Source validated; no APK source changes"
+            return
         query = urlencode({"head_sha": sha, "event": source_event, "per_page": 20})
         runs = api(f"repos/{repo}/actions/workflows/build.yml/runs?{query}")["workflow_runs"]
         runs = [item for item in runs if item["head_sha"] == sha]
