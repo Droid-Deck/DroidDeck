@@ -1184,8 +1184,9 @@ struct TritonSharedData {
   uint32_t input_length;
   uint8_t input[64];
   uint64_t output_seq;
-  uint32_t output_feature;
-  uint32_t output_length;
+  uint16_t output_feature;
+  uint16_t output_length;
+  uint32_t output_ack;
   uint8_t output[64];
   uint64_t get_request;
   uint64_t get_reply;
@@ -1202,6 +1203,8 @@ static_assert(offsetof(TritonSharedData, report_id) == 16, "Triton report ID off
 static_assert(offsetof(TritonSharedData, input) == 24, "Triton input offset");
 static_assert(offsetof(TritonSharedData, output_seq) == 88, "Triton output sequence offset");
 static_assert(offsetof(TritonSharedData, output_feature) == 96, "Triton output feature offset");
+static_assert(offsetof(TritonSharedData, output_length) == 98, "Triton output length offset");
+static_assert(offsetof(TritonSharedData, output_ack) == 100, "Triton output ack offset");
 static_assert(offsetof(TritonSharedData, output) == 104, "Triton output offset");
 static_assert(offsetof(TritonSharedData, get_request) == 168, "Triton feature request offset");
 static_assert(offsetof(TritonSharedData, get_reply) == 176, "Triton feature reply offset");
@@ -1219,6 +1222,8 @@ static constexpr int TRITON_REPORT_ID_BYTES = 1;
 static constexpr int TRITON_STATE_BYTES = 45;
 static constexpr int TRITON_REPORT_INTERVAL_US = 4000;
 static constexpr int TRITON_FEATURE_TIMEOUT_MS = 500;
+// The app clears output_length once it has taken a report; a writer waits this long for that before overwriting.
+static constexpr int TRITON_OUTPUT_TIMEOUT_MS = 50;
 static constexpr const char *TRITON_NAME = "Steam Controller";
 static constexpr const char *TRITON_SERIAL = "DROIDDECKSC01";
 static const uint8_t kTritonReportDescriptor[] = {
@@ -2574,11 +2579,21 @@ __attribute__((visibility("hidden"))) static void triton_queue_output(DeckHidraw
   if (!data || !size || size > 64 || triton.mapping_size < TRITON_SHARED_OFFSET + TRITON_SHARED_BLOCK_SIZE) return;
   auto *shared = reinterpret_cast<TritonSharedData *>(reinterpret_cast<uint8_t *>(triton.ring) + TRITON_SHARED_OFFSET);
   if (__atomic_load_n(&shared->magic, __ATOMIC_ACQUIRE) != TRITON_SHARED_MAGIC) return;
+  static std::mutex one_at_a_time;
+  std::lock_guard<std::mutex> guard(one_at_a_time);
+  for (int waited = 0;
+       static_cast<uint32_t>(__atomic_load_n(&shared->output_seq, __ATOMIC_ACQUIRE)) !=
+           __atomic_load_n(&shared->output_ack, __ATOMIC_ACQUIRE) &&
+       __atomic_load_n(&shared->connected, __ATOMIC_ACQUIRE) != 0 && waited < TRITON_OUTPUT_TIMEOUT_MS * 4;
+       waited++) {
+    struct timespec interval = {0, 250 * 1000L};
+    nanosleep(&interval, nullptr);
+  }
   uint64_t seq = __atomic_load_n(&shared->output_seq, __ATOMIC_RELAXED);
   if (seq & 1) seq++;
   __atomic_store_n(&shared->output_seq, seq + 1, __ATOMIC_RELEASE);
   shared->output_feature = feature ? 1 : 0;
-  shared->output_length = static_cast<uint32_t>(size);
+  shared->output_length = static_cast<uint16_t>(size);
   memcpy(shared->output, data, size);
   if (size < sizeof(shared->output)) memset(shared->output + size, 0, sizeof(shared->output) - size);
   __atomic_thread_fence(__ATOMIC_RELEASE);

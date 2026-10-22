@@ -176,6 +176,8 @@
     <string name="app_fex_x86">FEX के ज़रिए %1$s</string>
     <string name="app_fex_not_ready">यह प्रोग्राम %1$s पीसी के लिए बना है और FEX के ज़रिए चलता है, जो अभी सेट नहीं है। साइन इन रहते हुए Steam एक बार खोलें: DroidDeck इससे FEX और ज़रूरी Steam Linux Runtime डाउनलोड करवा लेगा, फिर यह खुल जाएगा।</string>
     <string name="session_end_program">यह प्रोग्राम</string>
+    <string name="session_end_steam_download">Steam क्लाइंट डाउनलोड नहीं हो सका। हो सकता है आपका नेटवर्क या VPN Steam के सर्वर ब्लॉक कर रहा हो; कनेक्शन जांचें और फिर से कोशिश करें।</string>
+    <string name="session_end_steam_setup">Steam क्लाइंट सेट अप नहीं हो सका। कनेक्शन और खाली स्टोरेज जांचें, फिर से कोशिश करें।</string>
     <string name="session_end_fex_missing">%1$s x86 पीसी के लिए बना है और FEX के ज़रिए चलता है, जो अभी इंस्टॉल नहीं है। साइन इन रहते हुए Steam एक बार शुरू करें और इसे FEX और Steam Linux Runtime डाउनलोड करने दें, फिर इसे फिर से शुरू करें।</string>
     <string name="add_app_flatpak_hint">एक Flathub ऐप ID या उसका Flathub पेज। अगर Flatpak अभी सेट नहीं है, तो पहले वह सेट होगा।</string>
     <string name="add_app_file">फ़ाइल</string>
@@ -502,7 +504,9 @@
     <string name="comp_delete_original_title">यह ओरिजिनल हटाएं?</string>
     <string name="comp_delete_original_body">यह %1$s ओरिजिनल %2$s के पहले वाले बिल्ड से है। मौजूदा बिल्ड का ओरिजिनल हमेशा रखा जाता है।</string>
     <string name="comp_nightlies_count">Nightlies पर · %1$d</string>
-    <string name="comp_refresh_to_list">Nightlies के पैकेज सूचीबद्ध करने के लिए रीफ़्रेश करें।</string>
+    <string name="comp_channel_stable">स्थिर</string>
+    <string name="comp_channel_nightly">नाइटली</string>
+    <string name="comp_refresh_to_list">Nightlies और DroidDeck के पैकेज सूचीबद्ध करने के लिए रीफ़्रेश करें।</string>
     <string name="comp_nothing_new">पिछली जांच के बाद कुछ नया नहीं है।</string>
     <string name="comp_import_wcp">.wcp इंपोर्ट करें</string>
     <string name="comp_restore_original">इस Proton का ओरिजिनल वापस लाएं</string>
@@ -580,6 +584,16 @@
     <string name="drawer_prev_page">पिछला पेज</string>
     <string name="drawer_next_page">अगला पेज</string>
     <string name="drawer_hud">परफ़ॉर्मेंस HUD</string>
+    <string name="drawer_hud_fps">फ़्रेम दर</string>
+    <string name="drawer_hud_battery">बैटरी तापमान</string>
+    <string name="drawer_hud_graph">परफ़ॉर्मेंस ग्राफ़</string>
+    <string name="drawer_hud_color">रंग</string>
+    <string name="drawer_hud_color_mint">मिंट</string>
+    <string name="drawer_hud_color_white">सफ़ेद</string>
+    <string name="drawer_hud_color_sky">स्काई</string>
+    <string name="drawer_hud_color_amber">एम्बर</string>
+    <string name="drawer_hud_color_violet">वायलेट</string>
+    <string name="drawer_hud_opacity">ओपैसिटी</string>
     <string name="drawer_scaling">स्केलिंग मोड</string>
     <string name="drawer_scaling_sharpness">स्केलिंग शार्पनेस</string>
     <string name="drawer_effects">स्क्रीन इफ़ेक्ट</string>
@@ -1771,7 +1785,8 @@
     <string name="cmgr_original_kept">इंस्टॉल किए बिल्ड का ओरिजिनल रखा गया है: यह वापस जाने का रास्ता है।</string>
     <string name="cmgr_not_stored">सेव नहीं है</string>
     <string name="cmgr_deleted_original">%2$s का %1$s ओरिजिनल हटाया गया।</string>
-    <string name="cmgr_nightlies_only">डाउनलोड सिर्फ़ Nightlies रिलीज़ से आते हैं</string>
+    <string name="cmgr_nightlies_only">डाउनलोड सिर्फ़ Nightlies और DroidDeck रिलीज़ से आते हैं</string>
+    <string name="cmgr_nightly_replaced">डाउनलोड विफल: हो सकता है यह नाइटली बिल्ड किसी नए बिल्ड से बदल दिया गया हो। सूची रीफ़्रेश करें और फिर से कोशिश करें।</string>
     <string name="cmgr_list_predates_checksums">यह पैकेज लिस्ट चेकसम से पुरानी है - इसे रीफ़्रेश करें और फिर कोशिश करें</string>
     <string name="cmgr_checksum_mismatch">चेकसम मेल नहीं खाया</string>
 
@@ -2027,6 +2042,9 @@
     <string name="cloud_last_sync">आख़िरी सिंक %1$s</string>
     <string name="cloud_never">अभी सिंक नहीं हुआ</string>
     <string name="cloud_done">%1$d फ़ाइलें</string>
+    <string name="cloud_up_to_date">पहले से अप टू डेट</string>
+    <string name="cloud_signed_out">सेव सिंक करने के लिए स्टोर में साइन इन करें</string>
+    <string name="cloud_not_synced">सेव सिंक नहीं हुए</string>
     <string name="stores_eyebrow_installed">इंस्टॉल है</string>
     <string name="stores_eyebrow_library">आपकी लाइब्रेरी में</string>
     <string name="stores_eyebrow_store">स्टोर</string>
@@ -2330,7 +2348,7 @@
     <string name="touch_done">हो गया</string>
     <string name="touch_save_failed">टच लेआउट सेव नहीं हो सका</string>
     <string name="touch_saved">टच लेआउट Steam में सेव हो गया</string>
-    <string name="touch_app_id">ऐप %1$d</string>
+    <string name="touch_app_id">ऐप %1$s</string>
     <string name="touch_label_hint">लेबल (वैकल्पिक)</string>
     <string name="touch_icons_missing">Steam के आइकॉन नहीं मिले</string>
     <plurals name="touch_icons_found">
@@ -2421,6 +2439,15 @@
     <string name="glasses_vr_fov">SteamVR फ़ील्ड ऑफ़ व्यू</string>
     <string name="glasses_vr_fov_hint">कम करने पर SteamVR पास आता है और चश्मा भर देता है; ज़्यादा करने पर आपके आस-पास ज़्यादा दिखता है।</string>
     <string name="glasses_playing">%1$s पर खेल रहे हैं</string>
+    <string name="glasses_phone_recenter">फिर से केंद्रित करें</string>
+    <string name="glasses_phone_steamvr_menu">SteamVR मेनू</string>
+    <string name="glasses_phone_switch_sticks">स्टिक: हाथ ⇄ गेम</string>
+    <string name="glasses_phone_controllers">कंट्रोलर: %1$s</string>
+    <string name="glasses_phone_keyboard">कीबोर्ड</string>
+    <string name="glasses_phone_session_menu">सत्र मेनू</string>
+    <string name="glasses_phone_stop_steamvr">SteamVR रोकें</string>
+    <string name="glasses_phone_brightness">चमक %1$d / %2$d</string>
+    <string name="glasses_phone_battery">बैटरी %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">ट्रैकिंग कैलिब्रेशन</string>
     <string name="glasses_calibration_hint">ड्रिफ़्ट कम करता है और क्षैतिज संदर्भ को सीध में लाता है।</string>
     <string name="glasses_calibration_saved_hint">इस चश्मे पर सेव किया गया कैलिब्रेशन लागू है।</string>

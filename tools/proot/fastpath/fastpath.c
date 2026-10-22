@@ -141,12 +141,18 @@ static int traced_by_match(const char *key) {
   return found;
 }
 
+static long init_sys(long nr, long a, long b, long c) {
+  static long (*real_syscall)(long, ...);
+  if (!real_syscall) real_syscall = (long (*)(long, ...))dlsym(RTLD_NEXT, "syscall");
+  return real_syscall(nr, a, b, c);
+}
+
 static int program_32bit(const char *prog, int scripts) {
   char head[256];
-  long fd = syscall(SYS_openat, AT_FDCWD, prog, O_RDONLY | O_CLOEXEC);
+  long fd = init_sys(SYS_openat, AT_FDCWD, (long)prog, O_RDONLY | O_CLOEXEC);
   if (fd < 0) return 1;
-  long n = syscall(SYS_read, fd, head, sizeof head - 1);
-  syscall(SYS_close, fd);
+  long n = init_sys(SYS_read, fd, (long)head, sizeof head - 1);
+  init_sys(SYS_close, fd, 0, 0);
   if (n < 0) return 1;
   head[n] = 0;
   if (n >= 2 && head[0] == '#' && head[1] == '!') {
@@ -166,10 +172,10 @@ static int fex_runs_32bit(void) {
   if (strcmp(program_invocation_short_name, "FEX") != 0 && strcmp(program_invocation_short_name, "FEXInterpreter") != 0)
     return 0;
   char args[PATH_MAX + 64];
-  long fd = syscall(SYS_openat, AT_FDCWD, "/proc/self/cmdline", O_RDONLY | O_CLOEXEC);
+  long fd = init_sys(SYS_openat, AT_FDCWD, (long)"/proc/self/cmdline", O_RDONLY | O_CLOEXEC);
   if (fd < 0) return 1;
-  long n = syscall(SYS_read, fd, args, sizeof args - 1);
-  syscall(SYS_close, fd);
+  long n = init_sys(SYS_read, fd, (long)args, sizeof args - 1);
+  init_sys(SYS_close, fd, 0, 0);
   if (n <= 0) return 1;
   args[n] = 0;
   const char *prog = args + strlen(args) + 1;

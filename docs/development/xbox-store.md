@@ -18,6 +18,12 @@ not Xbox console emulation or UWP/APPX packages.
    scoped to account and market; on later starts, snapshots older than 15 minutes
    refresh quietly in the background. Refresh checks immediately.
    Downloading and launching still perform Microsoft licensing.
+   A detail page can be opened from a store search result that is not in the
+   library; it keeps the catalog metadata and, when the product's eligibility
+   affirmations name a plan that includes PC games (PC Game Pass, Ultimate,
+   Premium, Essential or Starter Edition), offers Install even before the title
+   is in the entitlement list. The retired console-only plan does not offer a
+   Windows install, and Microsoft licensing still decides at download time.
 3. Start with a small licensed title such as LIMBO. Search `LIMBO` if needed;
    the verified US Product ID is `9PNG83MDD6SH`. Install through the normal store
    download queue. If an offer contains several PC base packages, choose the

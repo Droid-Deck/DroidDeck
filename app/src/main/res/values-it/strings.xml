@@ -176,6 +176,8 @@
     <string name="app_fex_x86">%1$s tramite FEX</string>
     <string name="app_fex_not_ready">Questo programma è compilato per PC %1$s e viene eseguito tramite FEX, che non è ancora configurato. Apri Steam una volta dopo aver eseguito l\'accesso: DroidDeck gli farà scaricare FEX e lo Steam Linux Runtime necessario, poi il programma si aprirà.</string>
     <string name="session_end_program">Questo programma</string>
+    <string name="session_end_steam_download">Impossibile scaricare il client Steam. La rete o la VPN potrebbe bloccare i server di Steam; controlla la connessione e riprova.</string>
+    <string name="session_end_steam_setup">Impossibile configurare il client Steam. Controlla la connessione e lo spazio libero, poi riprova.</string>
     <string name="session_end_fex_missing">%1$s è compilato per PC x86 e viene eseguito tramite FEX, che non è ancora installato. Avvia Steam una volta dopo aver eseguito l\'accesso e lascia che scarichi FEX e lo Steam Linux Runtime, poi riavvia il programma.</string>
     <string name="add_app_flatpak_hint">Un ID app di Flathub o la sua pagina su Flathub. Se manca, Flatpak viene prima configurato.</string>
     <string name="add_app_file">File</string>
@@ -501,7 +503,9 @@
     <string name="comp_delete_original_title">Eliminare questo originale?</string>
     <string name="comp_delete_original_body">Questo originale di %1$s proviene da una build precedente di %2$s. L\'originale della build attuale viene sempre conservato.</string>
     <string name="comp_nightlies_count">Nelle Nightlies · %1$d</string>
-    <string name="comp_refresh_to_list">Aggiorna per elencare i pacchetti nelle Nightlies.</string>
+    <string name="comp_channel_stable">Stabile</string>
+    <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_refresh_to_list">Aggiorna per elencare i pacchetti nelle Nightlies e in DroidDeck.</string>
     <string name="comp_nothing_new">Niente di nuovo dall\'ultimo controllo.</string>
     <string name="comp_import_wcp">Importa .wcp</string>
     <string name="comp_restore_original">Ripristina l\'originale di questo Proton</string>
@@ -579,6 +583,16 @@
     <string name="drawer_prev_page">Pagina precedente</string>
     <string name="drawer_next_page">Pagina successiva</string>
     <string name="drawer_hud">HUD prestazioni</string>
+    <string name="drawer_hud_fps">Frequenza fotogrammi</string>
+    <string name="drawer_hud_battery">Temperatura batteria</string>
+    <string name="drawer_hud_graph">Grafico prestazioni</string>
+    <string name="drawer_hud_color">Colore</string>
+    <string name="drawer_hud_color_mint">Menta</string>
+    <string name="drawer_hud_color_white">Bianco</string>
+    <string name="drawer_hud_color_sky">Cielo</string>
+    <string name="drawer_hud_color_amber">Ambra</string>
+    <string name="drawer_hud_color_violet">Viola</string>
+    <string name="drawer_hud_opacity">Opacità</string>
     <string name="drawer_scaling">Modalità di ridimensionamento</string>
     <string name="drawer_scaling_sharpness">Nitidezza del ridimensionamento</string>
     <string name="drawer_effects">Effetti schermo</string>
@@ -1781,7 +1795,8 @@
     <string name="cmgr_original_kept">L\'originale della build installata viene conservato: serve per tornare indietro.</string>
     <string name="cmgr_not_stored">Non salvato</string>
     <string name="cmgr_deleted_original">Originale %1$s di %2$s eliminato.</string>
-    <string name="cmgr_nightlies_only">I download provengono solo dalle release Nightly</string>
+    <string name="cmgr_nightlies_only">I download provengono solo dalle release Nightly e DroidDeck</string>
+    <string name="cmgr_nightly_replaced">Download non riuscito: questa build nightly potrebbe essere stata sostituita da una più recente. Aggiorna l’elenco e riprova.</string>
     <string name="cmgr_list_predates_checksums">Questo elenco di pacchetti è anteriore ai checksum - aggiornalo e riprova</string>
     <string name="cmgr_checksum_mismatch">Checksum non corrispondente</string>
 
@@ -2037,6 +2052,9 @@
     <string name="cloud_last_sync">Ultima sincronizzazione %1$s</string>
     <string name="cloud_never">Non ancora sincronizzato</string>
     <string name="cloud_done">%1$d file</string>
+    <string name="cloud_up_to_date">Già aggiornato</string>
+    <string name="cloud_signed_out">Accedi allo store per sincronizzare i salvataggi</string>
+    <string name="cloud_not_synced">I salvataggi non sono stati sincronizzati</string>
     <string name="stores_eyebrow_installed">installato</string>
     <string name="stores_eyebrow_library">nella tua libreria</string>
     <string name="stores_eyebrow_store">negozio</string>
@@ -2339,7 +2357,7 @@
     <string name="touch_done">Fine</string>
     <string name="touch_save_failed">Impossibile salvare il layout touch</string>
     <string name="touch_saved">Layout touch salvato su Steam</string>
-    <string name="touch_app_id">App %1$d</string>
+    <string name="touch_app_id">App %1$s</string>
     <string name="touch_label_hint">Etichetta (opzionale)</string>
     <string name="touch_icons_missing">Le icone di Steam non sono state trovate</string>
     <plurals name="touch_icons_found">
@@ -2432,6 +2450,15 @@
     <string name="glasses_vr_fov">Campo visivo di SteamVR</string>
     <string name="glasses_vr_fov_hint">Più basso avvicina SteamVR e riempie gli occhiali; più alto mostra di più intorno a te.</string>
     <string name="glasses_playing">Gioco in corso su %1$s</string>
+    <string name="glasses_phone_recenter">Ricentra</string>
+    <string name="glasses_phone_steamvr_menu">Menu di SteamVR</string>
+    <string name="glasses_phone_switch_sticks">Levette: mani ⇄ gioco</string>
+    <string name="glasses_phone_controllers">Controller: %1$s</string>
+    <string name="glasses_phone_keyboard">Tastiera</string>
+    <string name="glasses_phone_session_menu">Menu della sessione</string>
+    <string name="glasses_phone_stop_steamvr">Arresta SteamVR</string>
+    <string name="glasses_phone_brightness">Luminosità %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Batteria %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Calibrazione del tracciamento</string>
     <string name="glasses_calibration_hint">Riduce la deriva e allinea il riferimento orizzontale.</string>
     <string name="glasses_calibration_saved_hint">La calibrazione salvata è applicata a questi occhiali.</string>

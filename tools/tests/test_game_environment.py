@@ -4,6 +4,7 @@ import os
 import shutil
 from pathlib import Path
 import runpy
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -93,6 +94,73 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual(len(calls), 1)
             self.assertEqual(calls[0][0][1], str(root))
             self.assertEqual(calls[0][1]["DROIDDECK_SEED_SCRIPTS"], str(script))
+
+    SCRIPT = ('"evaluatorscript" { "0" { "appid" "228980" "compat_installscript" { "run process" { '
+              '"x64 14.28.29334.0" { "hasrunkey" "HKEY_LOCAL_MACHINE\\\\Software\\\\Valve\\\\Steam\\\\Apps\\\\CommonRedist\\\\vcredist\\\\2019" '
+              '"process 1" "%INSTALLDIR%\\\\x64.cmd" "requirement_os" { "Is64BitWindows" "1" } } '
+              '"Setup" { "process 1" "%INSTALLDIR%\\\\setup.exe" } } } } }')
+    REDIST = "[Software\\\\Wow6432Node\\\\Valve\\\\Steam\\\\Apps\\\\CommonRedist\\\\vcredist\\\\2019] 1\n\"x64 14.28.29334.0\"=dword:00000001\n"
+    SETUP = "[Software\\\\Valve\\\\Steam\\\\Apps\\\\228980] 1\n\"Setup\"=dword:00000001\n"
+
+    def test_install_script_run_keys_default_to_the_app_key(self):
+        keys = MODULE["run_keys"](MODULE["read_vdf"](self.SCRIPT))
+        self.assertEqual(keys, {
+            ("hkey_local_machine\\software\\valve\\steam\\apps\\commonredist\\vcredist\\2019", "x64 14.28.29334.0"),
+            ("hkey_local_machine\\software\\valve\\steam\\apps\\228980", "setup"),
+        })
+        with self.assertRaises(ValueError):
+            MODULE["read_vdf"]('"a" { "b" }')
+
+    def test_install_scripts_count_as_done_only_when_recorded_and_still_marked(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            script = Path(tmp) / "evaluatorscript_1.vdf"
+            script.write_text(self.SCRIPT)
+            prefix = Path(tmp) / "compat/pfx"
+            env = {"STEAM_COMPAT_DATA_PATH": str(prefix.parent)}
+            done = MODULE["install_scripts_done"]
+            self.assertFalse(done([str(script)], env))
+            prefix.mkdir(parents=True)
+            MODULE["record_install_scripts"](MODULE["scripts_digest"]([str(script)]), env)
+            self.assertFalse(done([str(script)], env))
+            (prefix / "system.reg").write_text(self.REDIST)
+            self.assertFalse(done([str(script)], env))
+            (prefix / "system.reg").write_text(self.REDIST + self.SETUP)
+            self.assertTrue(done([str(script)], env))
+            script.write_text(self.SCRIPT.replace("x64.cmd", "x64-update.cmd"))
+            self.assertFalse(done([str(script)], env))
+            script.write_text('"InstallScript" { "Registry" { "HKEY_LOCAL_MACHINE\\\\Software\\\\Game" { "string" { "Path" "%INSTALLDIR%" } } } }')
+            MODULE["record_install_scripts"](MODULE["scripts_digest"]([str(script)]), env)
+            self.assertFalse(done([str(script)], env))
+
+    def test_the_evaluator_is_skipped_once_it_finished_the_same_scripts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "legacycompat").mkdir()
+            evaluator = root / "legacycompat/iscriptevaluator.exe"
+            evaluator.write_bytes(b"evaluator")
+            script = root / "legacycompat/evaluatorscript_1.vdf"
+            prefix = root / "compatdata/1/pfx"
+            prefix.mkdir(parents=True)
+            (prefix / "system.reg").write_text(self.REDIST + self.SETUP)
+            runs = root / "runs"
+            proton = root / "proton"
+            proton.write_text("#!/bin/sh\necho run >> %s\nexit ${EXIT_CODE:-0}\n" % shlex.quote(str(runs)))
+            proton.chmod(0o755)
+
+            def evaluate(exit_code="0"):
+                script.write_text(self.SCRIPT if exit_code != "changed" else self.SCRIPT.replace("setup.exe", "setup-update.exe"))
+                env = dict(os.environ, HOME=tmp, STEAM_COMPAT_CLIENT_INSTALL_PATH=str(root),
+                           STEAM_COMPAT_DATA_PATH=str(prefix.parent), EXIT_CODE="0" if exit_code == "changed" else exit_code)
+                result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(proton), "run",
+                                         str(evaluator), "legacycompat\\evaluatorscript_1.vdf"],
+                                        env=env, text=True, capture_output=True)
+                return result.returncode, len(runs.read_text().splitlines()) if runs.exists() else 0
+
+            self.assertEqual(evaluate("3"), (3, 1))
+            self.assertFalse((prefix / ".droiddeck-install-scripts").exists())
+            self.assertEqual(evaluate(), (0, 2))
+            self.assertEqual(evaluate(), (0, 2))
+            self.assertEqual(evaluate("changed"), (0, 3))
 
     def test_profile_precedence_and_unset(self):
         env = {"KEEP": "inherited", "REMOVE": "inherited", "CUSTOM": "launch option"}

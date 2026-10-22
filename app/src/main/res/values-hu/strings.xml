@@ -176,6 +176,8 @@
     <string name="app_fex_x86">%1$s a FEX-en keresztül</string>
     <string name="app_fex_not_ready">Ez a program %1$s PC-khez készült, és a FEX-en keresztül fut, amely még nincs beállítva. Nyissa meg egyszer a Steamet bejelentkezve: a DroidDeck ekkor letölti a FEX-et és a szükséges Steam Linux Runtime-ot, majd ez megnyílik.</string>
     <string name="session_end_program">Ez a program</string>
+    <string name="session_end_steam_download">A Steam-klienst nem sikerült letölteni. Lehet, hogy a hálózat vagy a VPN blokkolja a Steam szervereit; ellenőrizd a kapcsolatot, és próbáld újra.</string>
+    <string name="session_end_steam_setup">A Steam-klienst nem sikerült beállítani. Ellenőrizd a kapcsolatot és a szabad tárhelyet, majd próbáld újra.</string>
     <string name="session_end_fex_missing">A %1$s x86 PC-khez készült, és a FEX-en keresztül fut, amely még nincs telepítve. Indítsa el egyszer a Steamet bejelentkezve, és hagyja letölteni a FEX-et és a Steam Linux Runtime-ot, majd indítsa el ezt újra.</string>
     <string name="add_app_flatpak_hint">Egy Flathub-alkalmazásazonosító vagy a Flathub-oldala. A Flatpak előbb beállításra kerül, ha még nincs beállítva.</string>
     <string name="add_app_file">Fájl</string>
@@ -502,7 +504,9 @@
     <string name="comp_delete_original_title">Törli ezt az eredetit?</string>
     <string name="comp_delete_original_body">Ez a %1$s eredeti a %2$s egy korábbi buildjéből származik. Az aktuális build eredetije mindig megmarad.</string>
     <string name="comp_nightlies_count">A Nightliesen · %1$d</string>
-    <string name="comp_refresh_to_list">Frissítsen a Nightliesen lévő csomagok listázásához.</string>
+    <string name="comp_channel_stable">Stabil</string>
+    <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_refresh_to_list">Frissítsen a Nightlies és a DroidDeck csomagjainak listázásához.</string>
     <string name="comp_nothing_new">Nincs semmi új az utolsó ellenőrzés óta.</string>
     <string name="comp_import_wcp">.wcp importálása</string>
     <string name="comp_restore_original">Ennek a Protonnak az eredetijének visszaállítása</string>
@@ -580,6 +584,16 @@
     <string name="drawer_prev_page">Előző oldal</string>
     <string name="drawer_next_page">Következő oldal</string>
     <string name="drawer_hud">Teljesítmény HUD</string>
+    <string name="drawer_hud_fps">Képkockasebesség</string>
+    <string name="drawer_hud_battery">Akkuhőmérséklet</string>
+    <string name="drawer_hud_graph">Teljesítménygrafikon</string>
+    <string name="drawer_hud_color">Szín</string>
+    <string name="drawer_hud_color_mint">Menta</string>
+    <string name="drawer_hud_color_white">Fehér</string>
+    <string name="drawer_hud_color_sky">Égszínkék</string>
+    <string name="drawer_hud_color_amber">Borostyán</string>
+    <string name="drawer_hud_color_violet">Lila</string>
+    <string name="drawer_hud_opacity">Átlátszatlanság</string>
     <string name="drawer_scaling">Méretezési mód</string>
     <string name="drawer_scaling_sharpness">Méretezési élesség</string>
     <string name="drawer_effects">Képernyőeffektek</string>
@@ -1771,7 +1785,8 @@
     <string name="cmgr_original_kept">A telepített build eredetije megmarad: ez a visszaút.</string>
     <string name="cmgr_not_stored">Nincs tárolva</string>
     <string name="cmgr_deleted_original">A %2$s %1$s eredetije törölve.</string>
-    <string name="cmgr_nightlies_only">A letöltések csak a Nightlies kiadásokból érkeznek</string>
+    <string name="cmgr_nightlies_only">A letöltések csak a Nightlies és a DroidDeck kiadásokból érkeznek</string>
+    <string name="cmgr_nightly_replaced">A letöltés sikertelen: lehet, hogy ezt a nightly buildet egy újabb váltotta. Frissítse a listát, és próbálja újra.</string>
     <string name="cmgr_list_predates_checksums">Ez a csomaglista régebbi, mint az ellenőrzőösszegek – frissítse, és próbálja újra</string>
     <string name="cmgr_checksum_mismatch">Az ellenőrzőösszeg nem egyezik</string>
 
@@ -2027,6 +2042,9 @@
     <string name="cloud_last_sync">Utolsó szinkronizálás: %1$s</string>
     <string name="cloud_never">Még nincs szinkronizálva</string>
     <string name="cloud_done">%1$d fájl</string>
+    <string name="cloud_up_to_date">Már naprakész</string>
+    <string name="cloud_signed_out">Jelentkezz be az áruházba a mentések szinkronizálásához</string>
+    <string name="cloud_not_synced">A mentések nem lettek szinkronizálva</string>
     <string name="stores_eyebrow_installed">telepítve</string>
     <string name="stores_eyebrow_library">a könyvtárában</string>
     <string name="stores_eyebrow_store">áruház</string>
@@ -2330,7 +2348,7 @@
     <string name="touch_done">Kész</string>
     <string name="touch_save_failed">Az érintőelrendezést nem sikerült elmenteni</string>
     <string name="touch_saved">Az érintőelrendezés elmentve a Steambe</string>
-    <string name="touch_app_id">%1$d. alkalmazás</string>
+    <string name="touch_app_id">%1$s. alkalmazás</string>
     <string name="touch_label_hint">Felirat (nem kötelező)</string>
     <string name="touch_icons_missing">A Steam ikonjai nem találhatók</string>
     <plurals name="touch_icons_found">
@@ -2421,6 +2439,15 @@
     <string name="glasses_vr_fov">SteamVR látómező</string>
     <string name="glasses_vr_fov_hint">Kisebb érték közelebb hozza a SteamVR-t és kitölti a szemüveget; nagyobb többet mutat a környezetéből.</string>
     <string name="glasses_playing">Játék ezen: %1$s</string>
+    <string name="glasses_phone_recenter">Középre igazítás</string>
+    <string name="glasses_phone_steamvr_menu">SteamVR menü</string>
+    <string name="glasses_phone_switch_sticks">Karok: kezek ⇄ játék</string>
+    <string name="glasses_phone_controllers">Kontrollerek: %1$s</string>
+    <string name="glasses_phone_keyboard">Billentyűzet</string>
+    <string name="glasses_phone_session_menu">Munkamenet menü</string>
+    <string name="glasses_phone_stop_steamvr">SteamVR leállítása</string>
+    <string name="glasses_phone_brightness">Fényerő %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Akkumulátor %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Követés kalibrálása</string>
     <string name="glasses_calibration_hint">Csökkenti a sodródást, és beállítja a vízszintes referenciát.</string>
     <string name="glasses_calibration_saved_hint">A szemüveg a mentett kalibrációt használja.</string>

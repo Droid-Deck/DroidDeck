@@ -72,6 +72,7 @@ class SessionService : Service() {
     private val steamDownloadMonitor = SteamDownloadMonitor()
     private var downloadMonitorTask: Runnable? = null
     private var downloadActive = false
+    @Volatile private var steamLibraryMounts = emptyMap<String, File>()
     private var suspendDownloadNow = false
     private var suspendPolicy = SessionPrefs.SUSPEND_MANUAL
     private var steamDownloadsInBackground = false
@@ -93,6 +94,8 @@ class SessionService : Service() {
     private var suspendAttemptFailed = false
     private var pendingSteamGameId: String? = null
     private var pendingSteamGameGeneration = -1
+    // Bumped to cancel a running game-exit watch (a new launch, or the session ending).
+    @Volatile private var gameExitWatchToken = 0
     private val flushSteamGame = object : Runnable {
         override fun run() = flushQueuedSteamGame()
     }
@@ -310,6 +313,8 @@ class SessionService : Service() {
         val gen = ++sessionGen
         cancelQueuedSteamGame(clearMailbox = false)
         clearSteamGameMailbox()
+        if (SessionState.mode == MODE_STEAM) SessionState.steamUrl
+            ?.takeIf { it.startsWith(GAME_URL_PREFIX) }?.let { watchGameExit(it.removePrefix(GAME_URL_PREFIX), gen) }
         acquireLocks()
         Thread({
             OrphanReaper.reap("session starting")
@@ -420,6 +425,13 @@ class SessionService : Service() {
 
         val pulse = startAudio(guest, sessionDir)
         prep("audio")
+        if (steamHere) {
+            val encoder = VideoEncodeBridge(File(filesDir, "venc/venc.sock"))
+            encoder.attach(this)
+            components.add(encoder)
+            guest.add("BL_VENC_SOCKET=" + encoder.socket.absolutePath)
+            prep("video encoder")
+        }
 
         guest.add("BL_WIDTH=" + size.first)
         guest.add("BL_HEIGHT=" + size.second)
@@ -735,17 +747,23 @@ class SessionService : Service() {
 
     private fun addControllerEnvironment(guest: MutableList<String>, fakeInputDir: File, sessionDir: File) {
         FakeInputWriter.prepareRingSlots(fakeInputDir, 4)
+        val builtinPad = SessionPrefs.builtinPad(this)
+        val hiddenPad = SessionState.mode == MODE_STEAM && !builtinPad &&
+            !com.droiddeck.launcher.input.PadBridge.anyControllerConnected()
+        com.droiddeck.launcher.input.PadBridge.setFirstSlot(if (hiddenPad) 1 else 0)
         fakeInputDir.listFiles()?.forEach { file ->
             val node = Regex("event(\\d+)").matchEntire(file.name)?.groupValues?.get(1)?.toIntOrNull()
-            if (file.name.startsWith(".uinput-") || (node != null && node >= FIRST_VIRTUAL_PAD)) file.delete()
+            if (file.name.startsWith(".uinput-") || (node != null && node >= FIRST_VIRTUAL_PAD) ||
+                (hiddenPad && node == 0)) file.delete()
         }
         guest.add("FAKE_EVDEV_DIR=" + fakeInputDir.path)
         val rings = FakeInputWriter.getRingEnv(fakeInputDir)
-        if (!rings.isNullOrEmpty()) guest.add("FAKE_EVDEV_MEMFD_PATHS=$rings")
+        val presented = if (hiddenPad) rings?.split(';')?.filterNot { it.startsWith("0=") }?.joinToString(";") else rings
+        if (!presented.isNullOrEmpty()) guest.add("FAKE_EVDEV_MEMFD_PATHS=$presented")
         guest.add("FAKE_EVDEV_IDENTITY=xbox360")
         guest.add("FAKE_EVDEV_VIBRATION=1")
         val uinput = !File(Environment.getExternalStorageDirectory(), NO_UINPUT_SWITCH).exists()
-        val wantsDeck = uinput && SessionState.mode == MODE_STEAM &&
+        val wantsDeck = uinput && builtinPad && SessionState.mode == MODE_STEAM &&
             SessionState.steamUi != "desktop" &&
             !File(Environment.getExternalStorageDirectory(), NO_DECK_PAD_SWITCH).exists()
         val wantsTouch = wantsDeck && !File(Environment.getExternalStorageDirectory(), NO_STEAM_TOUCH_SWITCH).exists()
@@ -835,6 +853,7 @@ class SessionService : Service() {
         File(home, "Storage").mkdirs()
         binds.add(Environment.getExternalStorageDirectory().path + ":/root/Storage")
         val library = GameStorage.effective(this)
+        steamLibraryMounts = emptyMap()
         var storageDiagnosticLibrary: File? = null
         if (library != null) {
             val problem = GameStorage.prepare(this, library.path)
@@ -846,6 +865,7 @@ class SessionService : Service() {
                     val content = SecondaryLibrary.contentPath(configured)
                     binds.addAll(SecondaryLibrary.binds(filesDir, configured, content = content))
                     storageDiagnosticLibrary = content
+                    steamLibraryMounts = SecondaryLibrary.CARD_GUESTS.associateWith { content }
                     val route = if (content === configured) "configured" else "verified-native"
                     Log.i(TAG, "game storage: ${content.path} ($route) -> /mnt/droiddeck-sd (\"${library.label}\"); prefixes and native tools private")
                 } catch (e: Exception) {
@@ -1104,7 +1124,69 @@ class SessionService : Service() {
         pendingSteamGameId = null
         pendingSteamGameGeneration = -1
         SessionEvents.record("steam.game_launch_requested", mapOf("gameId" to gameId, "generation" to gen))
+        watchGameExit(gameId, gen)
         Log.i(TAG, "queued Steam game $gameId for the running client")
+    }
+
+    /**
+     * A game launched from the front end (the Games tab, or another launcher's link): once it has
+     * started and then been gone for [GAME_EXIT_GRACE_MS], ask the client to exit through the
+     * session script's steam-stop request. The client quits cleanly, finishing its cloud sync, so
+     * the session ends on its own and the activity returns to where the launch came from instead
+     * of leaving the player in Big Picture. The grace covers launchers that restart the game.
+     */
+    private fun watchGameExit(gameId: String, gen: Int) {
+        if (!SessionPrefs.returnAfterGame(this)) return
+        val token = ++gameExitWatchToken
+        Thread({
+            val startBy = android.os.SystemClock.elapsedRealtime() + GAME_START_TIMEOUT_MS
+            var seen = false
+            var goneSince = 0L
+            while (token == gameExitWatchToken && gen == sessionGen && SessionState.running && !SessionState.stopRequested) {
+                val now = android.os.SystemClock.elapsedRealtime()
+                if (steamGameRunning()) {
+                    if (!seen) Log.i(TAG, "game $gameId started; returning to the launcher when it closes")
+                    seen = true
+                    goneSince = 0L
+                } else if (!seen) {
+                    // Never started (an install, an update or a failed launch): leave the session be.
+                    if (now > startBy) {
+                        Log.i(TAG, "game $gameId did not start; not watching for its exit")
+                        return@Thread
+                    }
+                } else if (goneSince == 0L) {
+                    goneSince = now
+                } else if (now - goneSince >= GAME_EXIT_GRACE_MS) {
+                    mainHandler.post { returnAfterGame(gameId, gen, token) }
+                    return@Thread
+                }
+                try { Thread.sleep(GAME_EXIT_POLL_MS) } catch (e: InterruptedException) { return@Thread }
+            }
+        }, "game-exit-watch").start()
+    }
+
+    private fun returnAfterGame(gameId: String, gen: Int, token: Int) {
+        if (token != gameExitWatchToken || gen != sessionGen || !SessionState.running ||
+            SessionState.stopRequested || SessionState.mode != MODE_STEAM || !SessionPrefs.returnAfterGame(this)) return
+        val written = runCatching { File(LinuxRuntime.sessionRoot(this), "steam-stop").writeText("") }
+            .onFailure { Log.w(TAG, "could not ask the client to exit after game $gameId", it) }.isSuccess
+        if (!written) return
+        SessionEvents.record("steam.return_after_game", mapOf("gameId" to gameId))
+        Log.i(TAG, "game $gameId closed: asking the client to exit and returning to the launcher")
+    }
+
+    /** A Steam game is running: the client runs each one under its reaper, and Proton's script
+     *  waits on the game with waitforexitandrun. Read from the command lines, as ComponentsManager does. */
+    private fun steamGameRunning(): Boolean {
+        val procs = File("/proc").listFiles() ?: return false
+        for (p in procs) {
+            if (!p.name.all(Char::isDigit)) continue
+            val cmd = runCatching { File(p, "cmdline").readBytes() }.getOrNull() ?: continue
+            if (cmd.isEmpty()) continue
+            val text = String(cmd).replace('\u0000', ' ')
+            if (text.contains("SteamLaunch AppId=") || text.contains("waitforexitandrun")) return true
+        }
+        return false
     }
 
     private fun resumeSession(panelVisible: Boolean = true) {
@@ -1304,13 +1386,13 @@ class SessionService : Service() {
 
     private fun updateSuspendPolicy() {
         if (!SessionState.running) return
-        if (suspendPolicy == SessionPrefs.SUSPEND_MANUAL && !hasVisibleSurface) {
-            manualPauseRequested = true
-        }
-        val controller = suspendController ?: return
         val hidden = !hasVisibleSurface
         val downloadsBlockingSuspend = steamDownloadsInBackground && SessionState.mode == MODE_STEAM &&
             suspendPolicy != SessionPrefs.SUSPEND_NEVER && hidden && downloadActive && !suspendDownloadNow
+        if (suspendPolicy == SessionPrefs.SUSPEND_MANUAL && hidden && !downloadsBlockingSuspend) {
+            manualPauseRequested = true
+        }
+        val controller = suspendController ?: return
         if (downloadsBlockingSuspend) acquireLocks()
         val steamPause = SessionState.mode == MODE_STEAM && !downloadsBlockingSuspend && when (suspendPolicy) {
             SessionPrefs.SUSPEND_AUTO, SessionPrefs.SUSPEND_NATIVE -> hidden
@@ -1506,6 +1588,7 @@ class SessionService : Service() {
 
     private fun stopSession(status: Int) {
         cancelQueuedSteamGame()
+        gameExitWatchToken++
         completeNativeSleep()
         val (ended, endedArch) = synchronized(stopLock) {
             if (!SessionState.running) return
@@ -1580,7 +1663,6 @@ class SessionService : Service() {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        if (rootIntent?.component?.className == com.droiddeck.launcher.ui.SecondScreenActivity::class.java.name) return
         if (pipTask || xrActivityVisible) {
             Log.i(TAG, "panel task dismissed - retaining the session under its active surface policy")
             activityVisible = false
@@ -1745,6 +1827,7 @@ class SessionService : Service() {
                     LinuxRuntime.rootDir(this@SessionService),
                     receivedBytes = TrafficStats.getUidRxBytes(android.os.Process.myUid()),
                     client = SessionState.steamClientArch,
+                    mounts = steamLibraryMounts,
                 )
                 if (wasActive != downloadActive) refreshNotification()
                 updateSuspendPolicy()
@@ -1763,7 +1846,9 @@ class SessionService : Service() {
             pads.add(String.format(java.util.Locale.ROOT, "\"%s\" (%04x:%04x)", d.name, d.vendorId, d.productId))
         }
         Log.i(TAG, "controllers at start: " + (if (pads.isEmpty()) "none" else pads.joinToString(", ")) +
-            "; presented to the guest as " + if (SessionState.deckPad) "switchable, starting as " + SessionPrefs.steamController(this) else "an Xbox 360 controller")
+            "; presented to the guest as " + if (SessionState.deckPad) "switchable, starting as " + SessionPrefs.steamController(this)
+            else if (SessionState.mode == MODE_STEAM && !SessionPrefs.builtinPad(this)) "one per connected controller, no built-in pad"
+            else "an Xbox 360 controller")
     }
 
     companion object {
@@ -1808,6 +1893,12 @@ class SessionService : Service() {
         private const val GAME_LAUNCH_RETRY_MS = 250L
         private const val DOWNLOAD_POLL_MS = 2_000L
         private const val STEAM_GAME_REQUEST = "steam-game"
+        private const val GAME_URL_PREFIX = "steam://rungameid/"
+        /** How long a front-end launch may take to start (downloads, first-run installs) before the exit watch gives up. */
+        private const val GAME_START_TIMEOUT_MS = 20 * 60_000L
+        /** How long the game must stay gone before the client is asked to exit: launchers restart games. */
+        private const val GAME_EXIT_GRACE_MS = 10_000L
+        private const val GAME_EXIT_POLL_MS = 2_000L
         private const val NO_PAD_SWITCH = "Download/droiddeck-no-pad"
         private const val NO_UINPUT_SWITCH = "Download/droiddeck-no-uinput"
         private const val NO_DECK_PAD_SWITCH = "Download/droiddeck-no-deck-pad"

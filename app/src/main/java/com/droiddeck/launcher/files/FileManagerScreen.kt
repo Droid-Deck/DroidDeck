@@ -228,7 +228,7 @@ fun FileManagerScreen(
 
     fun uniqueDestination(dir: File, name: String): File {
         var candidate = File(dir, name)
-        if (!candidate.exists()) return candidate
+        if (!java.nio.file.Files.exists(candidate.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS)) return candidate
         val dot = name.lastIndexOf('.')
         val base = if (dot > 0) name.substring(0, dot) else name
         val ext = if (dot > 0) name.substring(dot) else ""
@@ -236,7 +236,7 @@ fun FileManagerScreen(
         do {
             candidate = File(dir, "$base ($i)$ext")
             i++
-        } while (candidate.exists())
+        } while (java.nio.file.Files.exists(candidate.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS))
         return candidate
     }
 
@@ -287,7 +287,7 @@ fun FileManagerScreen(
                 }
 
                 var dst = File(dstDir, src.name)
-                if (dst.exists()) {
+                if (java.nio.file.Files.exists(dst.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
                     val choice = applyToAll ?: askConflict(src)?.also {
                         if (conflictApplyToAll) applyToAll = it
                     } ?: run { skipped++; null } ?: continue
