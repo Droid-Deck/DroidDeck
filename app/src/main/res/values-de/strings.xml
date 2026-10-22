@@ -176,6 +176,8 @@
     <string name="app_fex_x86">%1$s über FEX</string>
     <string name="app_fex_not_ready">Dieses Programm ist für %1$s-PCs gebaut und läuft über FEX, das noch nicht eingerichtet ist. Öffne Steam einmal, während du angemeldet bist: DroidDeck lässt es FEX und die nötige Steam Linux Runtime herunterladen, danach lässt sich das Programm öffnen.</string>
     <string name="session_end_program">Dieses Programm</string>
+    <string name="session_end_steam_download">Der Steam-Client konnte nicht heruntergeladen werden. Dein Netzwerk oder VPN blockiert möglicherweise die Server von Steam; prüfe die Verbindung und versuche es erneut.</string>
+    <string name="session_end_steam_setup">Der Steam-Client konnte nicht eingerichtet werden. Prüfe die Verbindung und den freien Speicher und versuche es erneut.</string>
     <string name="session_end_fex_missing">%1$s ist für x86-PCs gebaut und läuft über FEX, das noch nicht installiert ist. Starte Steam einmal, während du angemeldet bist, und lass es FEX und die Steam Linux Runtime herunterladen. Starte es danach erneut.</string>
     <string name="add_app_flatpak_hint">Eine Flathub-App-ID oder ihre Flathub-Seite. Flatpak wird zuerst eingerichtet, falls noch nicht geschehen.</string>
     <string name="add_app_file">Datei</string>
@@ -499,7 +501,9 @@
     <string name="comp_delete_original_title">Dieses Original löschen?</string>
     <string name="comp_delete_original_body">Dieses %1$s-Original stammt aus einem früheren Build von %2$s. Das Original des aktuellen Builds wird immer behalten.</string>
     <string name="comp_nightlies_count">In den Nightlies · %1$d</string>
-    <string name="comp_refresh_to_list">Aktualisiere, um die Pakete in den Nightlies aufzulisten.</string>
+    <string name="comp_channel_stable">Stabil</string>
+    <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_refresh_to_list">Aktualisiere, um die Pakete in den Nightlies und bei DroidDeck aufzulisten.</string>
     <string name="comp_nothing_new">Nichts Neues seit der letzten Prüfung.</string>
     <string name="comp_import_wcp">.wcp importieren</string>
     <string name="comp_restore_original">Original dieses Protons wiederherstellen</string>
@@ -577,6 +581,16 @@
     <string name="drawer_prev_page">Vorherige Seite</string>
     <string name="drawer_next_page">Nächste Seite</string>
     <string name="drawer_hud">Leistungs-HUD</string>
+    <string name="drawer_hud_fps">Bildrate</string>
+    <string name="drawer_hud_battery">Akkutemperatur</string>
+    <string name="drawer_hud_graph">Leistungsdiagramm</string>
+    <string name="drawer_hud_color">Farbe</string>
+    <string name="drawer_hud_color_mint">Minze</string>
+    <string name="drawer_hud_color_white">Weiß</string>
+    <string name="drawer_hud_color_sky">Himmelblau</string>
+    <string name="drawer_hud_color_amber">Bernstein</string>
+    <string name="drawer_hud_color_violet">Violett</string>
+    <string name="drawer_hud_opacity">Deckkraft</string>
     <string name="drawer_scaling">Skalierungsmodus</string>
     <string name="drawer_scaling_sharpness">Skalierungsschärfe</string>
     <string name="drawer_effects">Bildschirmeffekte</string>
@@ -1027,6 +1041,9 @@
     <string name="games_added">Hinzugefügtes Spiel</string>
     <string name="games_custom">Eigenes Spiel</string>
     <string name="games_store_storage">Spielspeicher</string>
+    <string name="games_uninstall_body">Löscht seine Dateien und entfernt es aus Steam.</string>
+    <string name="games_remove_title">%1$s entfernen?</string>
+    <string name="games_remove_body">Löscht die Verknüpfung. Die Spieldateien bleiben.</string>
     <string name="gpu_auto_hint">Das beste Paar für diese GPU, stets aktuell</string>
     <string name="gpu_manual_hint">Wähle selbst ein Paar</string>
     <string name="gpu_checking">Suche nach Treibern…</string>
@@ -1762,7 +1779,8 @@
     <string name="cmgr_original_kept">Das Original des installierten Builds bleibt erhalten: Es ist der Weg zurück.</string>
     <string name="cmgr_not_stored">Nicht gespeichert</string>
     <string name="cmgr_deleted_original">Das %1$s-Original von %2$s wurde gelöscht.</string>
-    <string name="cmgr_nightlies_only">Downloads kommen nur aus den Nightlies-Releases</string>
+    <string name="cmgr_nightlies_only">Downloads kommen nur aus den Nightlies- und DroidDeck-Releases</string>
+    <string name="cmgr_nightly_replaced">Download fehlgeschlagen: Dieser Nightly-Build wurde vielleicht durch einen neueren ersetzt. Aktualisiere die Liste und versuche es erneut.</string>
     <string name="cmgr_list_predates_checksums">Diese Paketliste stammt aus der Zeit vor Prüfsummen - aktualisiere sie und versuche es erneut</string>
     <string name="cmgr_checksum_mismatch">Prüfsumme stimmt nicht überein</string>
 
@@ -2026,6 +2044,9 @@
     <string name="cloud_last_sync">Zuletzt synchronisiert %1$s</string>
     <string name="cloud_never">Noch nicht synchronisiert</string>
     <string name="cloud_done">%1$d Dateien</string>
+    <string name="cloud_up_to_date">Bereits aktuell</string>
+    <string name="cloud_signed_out">Im Store anmelden, um Spielstände zu synchronisieren</string>
+    <string name="cloud_not_synced">Spielstände wurden nicht synchronisiert</string>
     <string name="stores_eyebrow_installed">installiert</string>
     <string name="stores_eyebrow_library">in deiner Bibliothek</string>
     <string name="stores_eyebrow_store">Store</string>
@@ -2326,7 +2347,7 @@
     <string name="touch_done">Fertig</string>
     <string name="touch_save_failed">Das Touch-Layout konnte nicht gespeichert werden</string>
     <string name="touch_saved">Touch-Layout in Steam gespeichert</string>
-    <string name="touch_app_id">App %1$d</string>
+    <string name="touch_app_id">App %1$s</string>
     <string name="touch_label_hint">Bezeichnung (optional)</string>
     <string name="touch_icons_missing">Steams Symbole wurden nicht gefunden</string>
     <plurals name="touch_icons_found">
@@ -2417,6 +2438,15 @@
     <string name="glasses_vr_fov">SteamVR-Sichtfeld</string>
     <string name="glasses_vr_fov_hint">Niedriger holt SteamVR näher heran und füllt die Brille; höher zeigt mehr von deiner Umgebung.</string>
     <string name="glasses_playing">Spiel läuft auf %1$s</string>
+    <string name="glasses_phone_recenter">Neu zentrieren</string>
+    <string name="glasses_phone_steamvr_menu">SteamVR-Menü</string>
+    <string name="glasses_phone_switch_sticks">Sticks: Hände ⇄ Spiel</string>
+    <string name="glasses_phone_controllers">Controller: %1$s</string>
+    <string name="glasses_phone_keyboard">Tastatur</string>
+    <string name="glasses_phone_session_menu">Sitzungsmenü</string>
+    <string name="glasses_phone_stop_steamvr">SteamVR beenden</string>
+    <string name="glasses_phone_brightness">Helligkeit %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Akku %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Tracking-Kalibrierung</string>
     <string name="glasses_calibration_hint">Verringert Drift und richtet die waagerechte Referenz aus.</string>
     <string name="glasses_calibration_saved_hint">Für diese Brille wird eine gespeicherte Kalibrierung verwendet.</string>

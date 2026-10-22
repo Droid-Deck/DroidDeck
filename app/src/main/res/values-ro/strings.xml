@@ -176,6 +176,8 @@
     <string name="app_fex_x86">%1$s prin FEX</string>
     <string name="app_fex_not_ready">Acest program este compilat pentru PC-uri %1$s și rulează prin FEX, care nu este încă configurat. Deschide Steam o dată, fiind autentificat: DroidDeck îl pune să descarce FEX și Steam Linux Runtime de care are nevoie, apoi acesta se deschide.</string>
     <string name="session_end_program">Acest program</string>
+    <string name="session_end_steam_download">Clientul Steam nu a putut fi descărcat. Rețeaua sau VPN-ul tău poate bloca serverele Steam; verifică conexiunea și încearcă din nou.</string>
+    <string name="session_end_steam_setup">Clientul Steam nu a putut fi configurat. Verifică conexiunea și spațiul liber, apoi încearcă din nou.</string>
     <string name="session_end_fex_missing">%1$s este compilat pentru PC-uri x86 și rulează prin FEX, care nu este încă instalat. Pornește Steam o dată, fiind autentificat, și lasă-l să descarce FEX și Steam Linux Runtime, apoi pornește din nou acesta.</string>
     <string name="add_app_flatpak_hint">Un ID de aplicație Flathub sau pagina sa Flathub. Flatpak este configurat mai întâi, dacă nu este deja.</string>
     <string name="add_app_file">Fișier</string>
@@ -504,7 +506,9 @@
     <string name="comp_delete_original_title">Ștergi acest original?</string>
     <string name="comp_delete_original_body">Acest original %1$s este dintr-o versiune anterioară a %2$s. Originalul versiunii curente este păstrat mereu.</string>
     <string name="comp_nightlies_count">Pe versiunile nightly · %1$d</string>
-    <string name="comp_refresh_to_list">Reîmprospătează pentru a lista pachetele de pe versiunile nightly.</string>
+    <string name="comp_channel_stable">Stabilă</string>
+    <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_refresh_to_list">Reîmprospătează pentru a lista pachetele din Nightlies și DroidDeck.</string>
     <string name="comp_nothing_new">Nimic nou de la ultima verificare.</string>
     <string name="comp_import_wcp">Importă .wcp</string>
     <string name="comp_restore_original">Restaurează originalul acestui Proton</string>
@@ -582,6 +586,16 @@
     <string name="drawer_prev_page">Pagina anterioară</string>
     <string name="drawer_next_page">Pagina următoare</string>
     <string name="drawer_hud">HUD de performanță</string>
+    <string name="drawer_hud_fps">Rată de cadre</string>
+    <string name="drawer_hud_battery">Temperatură baterie</string>
+    <string name="drawer_hud_graph">Grafic de performanță</string>
+    <string name="drawer_hud_color">Culoare</string>
+    <string name="drawer_hud_color_mint">Mentă</string>
+    <string name="drawer_hud_color_white">Alb</string>
+    <string name="drawer_hud_color_sky">Cer</string>
+    <string name="drawer_hud_color_amber">Chihlimbariu</string>
+    <string name="drawer_hud_color_violet">Violet</string>
+    <string name="drawer_hud_opacity">Opacitate</string>
     <string name="drawer_scaling">Mod de scalare</string>
     <string name="drawer_scaling_sharpness">Claritatea scalării</string>
     <string name="drawer_effects">Efecte de ecran</string>
@@ -1044,6 +1058,9 @@
     <string name="games_added">Joc adăugat</string>
     <string name="games_custom">Joc personalizat</string>
     <string name="games_store_storage">Stocarea jocurilor</string>
+    <string name="games_uninstall_body">Șterge fișierele sale și îl elimină din Steam.</string>
+    <string name="games_remove_title">Elimini %1$s?</string>
+    <string name="games_remove_body">Șterge comanda rapidă. Fișierele jocului rămân.</string>
     <string name="gpu_auto_hint">Cea mai bună pereche pentru acest GPU, păstrată actualizată</string>
     <string name="gpu_manual_hint">Alege o pereche tu însuți</string>
     <string name="gpu_checking">Se verifică driverele…</string>
@@ -1794,7 +1811,8 @@
     <string name="cmgr_original_kept">Originalul versiunii instalate este păstrat: este calea de revenire.</string>
     <string name="cmgr_not_stored">Nesalvat</string>
     <string name="cmgr_deleted_original">S-a șters originalul %1$s al %2$s.</string>
-    <string name="cmgr_nightlies_only">Descărcările vin doar din versiunile Nightlies</string>
+    <string name="cmgr_nightlies_only">Descărcările vin doar din versiunile Nightlies și DroidDeck</string>
+    <string name="cmgr_nightly_replaced">Descărcarea a eșuat: această versiune nightly poate fi fost înlocuită cu una mai nouă. Reîmprospătează lista și încearcă din nou.</string>
     <string name="cmgr_list_predates_checksums">Această listă de pachete e anterioară sumelor de control - reîmprospătează-o și încearcă din nou</string>
     <string name="cmgr_checksum_mismatch">Sumă de control incorectă</string>
 
@@ -2058,6 +2076,9 @@
     <string name="cloud_last_sync">Ultima sincronizare %1$s</string>
     <string name="cloud_never">Nesincronizat încă</string>
     <string name="cloud_done">%1$d fișiere</string>
+    <string name="cloud_up_to_date">Deja actualizat</string>
+    <string name="cloud_signed_out">Conectează-te la magazin pentru a sincroniza salvările</string>
+    <string name="cloud_not_synced">Salvările nu au fost sincronizate</string>
     <string name="stores_eyebrow_installed">instalat</string>
     <string name="stores_eyebrow_library">în biblioteca ta</string>
     <string name="stores_eyebrow_store">magazin</string>
@@ -2363,7 +2384,7 @@
     <string name="touch_done">Terminat</string>
     <string name="touch_save_failed">Aranjamentul tactil nu a putut fi salvat</string>
     <string name="touch_saved">Aranjamentul tactil a fost salvat în Steam</string>
-    <string name="touch_app_id">Aplicația %1$d</string>
+    <string name="touch_app_id">Aplicația %1$s</string>
     <string name="touch_label_hint">Etichetă (opțional)</string>
     <string name="touch_icons_missing">Pictogramele Steam nu au fost găsite</string>
     <plurals name="touch_icons_found">
@@ -2456,6 +2477,15 @@
     <string name="glasses_vr_fov">Câmp vizual SteamVR</string>
     <string name="glasses_vr_fov_hint">Mai mic aduce SteamVR mai aproape și umple ochelarii; mai mare arată mai mult din jurul tău.</string>
     <string name="glasses_playing">Se joacă pe %1$s</string>
+    <string name="glasses_phone_recenter">Recentrează</string>
+    <string name="glasses_phone_steamvr_menu">Meniu SteamVR</string>
+    <string name="glasses_phone_switch_sticks">Stickuri: mâini ⇄ joc</string>
+    <string name="glasses_phone_controllers">Controlere: %1$s</string>
+    <string name="glasses_phone_keyboard">Tastatură</string>
+    <string name="glasses_phone_session_menu">Meniul sesiunii</string>
+    <string name="glasses_phone_stop_steamvr">Oprește SteamVR</string>
+    <string name="glasses_phone_brightness">Luminozitate %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Baterie %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Calibrarea urmăririi</string>
     <string name="glasses_calibration_hint">Reduce deriva și aliniază referința de nivel.</string>
     <string name="glasses_calibration_saved_hint">Calibrarea salvată se aplică acestor ochelari.</string>

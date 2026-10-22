@@ -303,7 +303,7 @@ internal fun SessionAchievementsPanel(label: String, state: AchievementsState, t
     val slide = remember { MutableTransitionState(false).apply { targetState = true } }
     BoxWithConstraints(
         Modifier.fillMaxSize().background(veil)
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClose),
+            .tapOutside(onClose),
         contentAlignment = Alignment.CenterEnd,
     ) {
         val short = maxHeight < 440.dp
@@ -312,7 +312,7 @@ internal fun SessionAchievementsPanel(label: String, state: AchievementsState, t
             (if (floating) Modifier.padding(12.dp).fillMaxHeight().width(minOf(420.dp, maxWidth * 0.92f)).clip(RoundedCornerShape(20.dp))
                 .background(pal.background).border(1.dp, pal.line2, RoundedCornerShape(20.dp))
             else Modifier.fillMaxHeight().width(minOf(420.dp, maxWidth * 0.92f)).background(pal.background.copy(alpha = 0.97f)))
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
+                .blockTouches()
                 .controllerBack(onClose)
                 .then(if (kinds.isEmpty()) Modifier else Modifier.bumpers({ pick = (pick + kinds.size - 1) % kinds.size }, { pick = (pick + 1) % kinds.size }))
                 .padding(if (short) 12.dp else 16.dp),

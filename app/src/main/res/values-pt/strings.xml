@@ -176,6 +176,8 @@
     <string name="app_fex_x86">%1$s pelo FEX</string>
     <string name="app_fex_not_ready">Este programa é feito para PCs %1$s e roda pelo FEX, que ainda não está configurado. Abra a Steam uma vez com a sessão iniciada: o DroidDeck faz com que ela baixe o FEX e o Steam Linux Runtime necessários, e então isto abre.</string>
     <string name="session_end_program">Este programa</string>
+    <string name="session_end_steam_download">Não foi possível baixar o cliente Steam. Sua rede ou VPN pode estar bloqueando os servidores da Steam; verifique a conexão e tente novamente.</string>
+    <string name="session_end_steam_setup">Não foi possível configurar o cliente Steam. Verifique a conexão e o espaço livre e tente novamente.</string>
     <string name="session_end_fex_missing">%1$s é feito para PCs x86 e roda pelo FEX, que ainda não está instalado. Abra a Steam uma vez com a sessão iniciada e deixe-a baixar o FEX e o Steam Linux Runtime; depois, abra isto de novo.</string>
     <string name="add_app_flatpak_hint">Um ID de app do Flathub ou a página dele no Flathub. O Flatpak é configurado antes, se ainda não estiver.</string>
     <string name="add_app_file">Arquivo</string>
@@ -501,7 +503,9 @@
     <string name="comp_delete_original_title">Excluir este original?</string>
     <string name="comp_delete_original_body">Este %1$s original é de uma versão anterior de %2$s. O original da versão atual é sempre mantido.</string>
     <string name="comp_nightlies_count">Nas Nightlies · %1$d</string>
-    <string name="comp_refresh_to_list">Atualize para listar os pacotes nas Nightlies.</string>
+    <string name="comp_channel_stable">Estável</string>
+    <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_refresh_to_list">Atualize para listar os pacotes nas Nightlies e no DroidDeck.</string>
     <string name="comp_nothing_new">Nada novo desde a última verificação.</string>
     <string name="comp_import_wcp">Importar .wcp</string>
     <string name="comp_restore_original">Restaurar o original deste Proton</string>
@@ -579,6 +583,16 @@
     <string name="drawer_prev_page">Página anterior</string>
     <string name="drawer_next_page">Próxima página</string>
     <string name="drawer_hud">HUD de desempenho</string>
+    <string name="drawer_hud_fps">Taxa de quadros</string>
+    <string name="drawer_hud_battery">Temperatura da bateria</string>
+    <string name="drawer_hud_graph">Gráfico de desempenho</string>
+    <string name="drawer_hud_color">Cor</string>
+    <string name="drawer_hud_color_mint">Menta</string>
+    <string name="drawer_hud_color_white">Branco</string>
+    <string name="drawer_hud_color_sky">Céu</string>
+    <string name="drawer_hud_color_amber">Âmbar</string>
+    <string name="drawer_hud_color_violet">Violeta</string>
+    <string name="drawer_hud_opacity">Opacidade</string>
     <string name="drawer_scaling">Modo de escala</string>
     <string name="drawer_scaling_sharpness">Nitidez da escala</string>
     <string name="drawer_effects">Efeitos de tela</string>
@@ -1033,6 +1047,9 @@
     <string name="games_added">Jogo adicionado</string>
     <string name="games_custom">Jogo personalizado</string>
     <string name="games_store_storage">Armazenamento de jogos</string>
+    <string name="games_uninstall_body">Apaga os arquivos e o remove da Steam.</string>
+    <string name="games_remove_title">Remover %1$s?</string>
+    <string name="games_remove_body">Apaga o atalho. Os arquivos do jogo ficam.</string>
     <string name="gpu_auto_hint">O melhor par para esta GPU, sempre atualizado</string>
     <string name="gpu_manual_hint">Escolha um par você mesmo</string>
     <string name="gpu_checking">Procurando drivers…</string>
@@ -1783,7 +1800,8 @@
     <string name="cmgr_original_kept">O original da versão instalada é mantido: é o caminho de volta.</string>
     <string name="cmgr_not_stored">Não armazenado</string>
     <string name="cmgr_deleted_original">Original do %1$s de %2$s excluído.</string>
-    <string name="cmgr_nightlies_only">Os downloads vêm só das versões Nightlies</string>
+    <string name="cmgr_nightlies_only">Os downloads vêm só das versões Nightlies e DroidDeck</string>
+    <string name="cmgr_nightly_replaced">Falha no download: esta versão nightly pode ter sido substituída por uma mais nova. Atualize a lista e tente de novo.</string>
     <string name="cmgr_list_predates_checksums">Esta lista de pacotes é anterior às somas de verificação - atualize-a e tente de novo</string>
     <string name="cmgr_checksum_mismatch">A soma de verificação não confere</string>
 
@@ -2047,6 +2065,9 @@
     <string name="cloud_last_sync">Última sincronização: %1$s</string>
     <string name="cloud_never">Ainda não sincronizado</string>
     <string name="cloud_done">%1$d arquivos</string>
+    <string name="cloud_up_to_date">Já está atualizado</string>
+    <string name="cloud_signed_out">Entre na loja para sincronizar os saves</string>
+    <string name="cloud_not_synced">Os saves não foram sincronizados</string>
     <string name="stores_eyebrow_installed">instalado</string>
     <string name="stores_eyebrow_library">na sua biblioteca</string>
     <string name="stores_eyebrow_store">loja</string>
@@ -2349,7 +2370,7 @@
     <string name="touch_done">Concluído</string>
     <string name="touch_save_failed">Não foi possível salvar o layout de toque</string>
     <string name="touch_saved">Layout de toque salvo na Steam</string>
-    <string name="touch_app_id">App %1$d</string>
+    <string name="touch_app_id">App %1$s</string>
     <string name="touch_label_hint">Rótulo (opcional)</string>
     <string name="touch_icons_missing">Os ícones da Steam não foram encontrados</string>
     <plurals name="touch_icons_found">
@@ -2442,6 +2463,15 @@
     <string name="glasses_vr_fov">Campo de visão do SteamVR</string>
     <string name="glasses_vr_fov_hint">Menor aproxima o SteamVR e preenche os óculos; maior mostra mais ao seu redor.</string>
     <string name="glasses_playing">Jogando em %1$s</string>
+    <string name="glasses_phone_recenter">Recentralizar</string>
+    <string name="glasses_phone_steamvr_menu">Menu do SteamVR</string>
+    <string name="glasses_phone_switch_sticks">Analógicos: mãos ⇄ jogo</string>
+    <string name="glasses_phone_controllers">Controles: %1$s</string>
+    <string name="glasses_phone_keyboard">Teclado</string>
+    <string name="glasses_phone_session_menu">Menu da sessão</string>
+    <string name="glasses_phone_stop_steamvr">Parar o SteamVR</string>
+    <string name="glasses_phone_brightness">Brilho %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Bateria %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Calibração do rastreamento</string>
     <string name="glasses_calibration_hint">Reduz a deriva e alinha a referência de nível.</string>
     <string name="glasses_calibration_saved_hint">A calibração salva é aplicada a estes óculos.</string>

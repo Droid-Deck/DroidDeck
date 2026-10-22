@@ -176,6 +176,8 @@
     <string name="app_fex_x86">%1$s через FEX</string>
     <string name="app_fex_not_ready">Эта программа собрана для ПК на %1$s и работает через FEX, который еще не настроен. Откройте Steam один раз, войдя в аккаунт: DroidDeck скачает через него FEX и нужную Steam Linux Runtime, после чего программа откроется.</string>
     <string name="session_end_program">Эта программа</string>
+    <string name="session_end_steam_download">Не удалось скачать клиент Steam. Возможно, ваша сеть или VPN блокирует серверы Steam; проверьте подключение и повторите попытку.</string>
+    <string name="session_end_steam_setup">Не удалось настроить клиент Steam. Проверьте подключение и свободное место, затем повторите попытку.</string>
     <string name="session_end_fex_missing">%1$s — сборка для x86-ПК, которая работает через FEX, а он еще не установлен. Запустите Steam один раз, войдя в аккаунт, и дайте ему скачать FEX и Steam Linux Runtime, затем запустите программу снова.</string>
     <string name="add_app_flatpak_hint">ID приложения Flathub или ссылка на его страницу. Если Flatpak еще не настроен, сначала будет выполнена его настройка.</string>
     <string name="add_app_file">Файл</string>
@@ -305,6 +307,8 @@
     <string name="mode_client">Клиент</string>
     <string name="mode_mangoapp">Оверлей производительности</string>
     <string name="mode_mangoapp_hint">Отключите, если игры вылетают или показывают черный экран в режиме Deck. Вступит в силу в следующей сессии.</string>
+    <string name="mode_return_after_game">Возвращаться в DroidDeck после игры</string>
+    <string name="mode_return_after_game_hint">Когда игра, запущенная из DroidDeck или другого лаунчера, закрывается, Steam корректно завершает работу (сначала синхронизирует облачные сохранения), и вы возвращаетесь туда. Выкл.: остаётесь в Steam.</string>
     <string name="mode_steam_repair">Восстановить клиент Steam</string>
     <string name="mode_steam_repair_hint">При следующем запуске Steam клиент будет скачан заново. Используйте, если Steam зависает на экране загрузки. Игры, вход и настройки сохраняются.</string>
     <string name="mode_steam_repair_queued">Клиент Steam будет скачан заново при следующем запуске Steam.</string>
@@ -503,7 +507,9 @@
     <string name="comp_delete_original_title">Удалить оригинальную версию?</string>
     <string name="comp_delete_original_body">Эта оригинальная версия %1$s из более ранней сборки %2$s. Оригинальная версия текущей сборки всегда сохраняется.</string>
     <string name="comp_nightlies_count">В Nightlies · %1$d</string>
-    <string name="comp_refresh_to_list">Обновите, чтобы увидеть пакеты в Nightlies.</string>
+    <string name="comp_channel_stable">Стабильная</string>
+    <string name="comp_channel_nightly">Ночная</string>
+    <string name="comp_refresh_to_list">Обновите, чтобы увидеть пакеты в Nightlies и DroidDeck.</string>
     <string name="comp_nothing_new">С момента последней проверки нового нет.</string>
     <string name="comp_import_wcp">Импорт .wcp</string>
     <string name="comp_restore_original">Восстановить оригинальные файлы этого Proton</string>
@@ -581,6 +587,16 @@
     <string name="drawer_prev_page">Предыдущая страница</string>
     <string name="drawer_next_page">Следующая страница</string>
     <string name="drawer_hud">HUD производительности</string>
+    <string name="drawer_hud_fps">Частота кадров</string>
+    <string name="drawer_hud_battery">Температура батареи</string>
+    <string name="drawer_hud_graph">График производительности</string>
+    <string name="drawer_hud_color">Цвет</string>
+    <string name="drawer_hud_color_mint">Мята</string>
+    <string name="drawer_hud_color_white">Белый</string>
+    <string name="drawer_hud_color_sky">Небесный</string>
+    <string name="drawer_hud_color_amber">Янтарный</string>
+    <string name="drawer_hud_color_violet">Фиолетовый</string>
+    <string name="drawer_hud_opacity">Непрозрачность</string>
     <string name="drawer_scaling">Режим масштабирования</string>
     <string name="drawer_scaling_sharpness">Резкость масштабирования</string>
     <string name="drawer_effects">Экранные эффекты</string>
@@ -1047,6 +1063,9 @@
     <string name="games_added">Добавленная игра</string>
     <string name="games_custom">Своя игра</string>
     <string name="games_store_storage">Хранилище игр</string>
+    <string name="games_uninstall_body">Удаляет файлы игры и убирает ее из Steam.</string>
+    <string name="games_remove_title">Убрать %1$s?</string>
+    <string name="games_remove_body">Удаляет ярлык. Файлы игры остаются.</string>
     <string name="gpu_auto_hint">Лучшая пара для этого GPU, обновляется автоматически</string>
     <string name="gpu_manual_hint">Выбрать комбинацию драйверов вручную</string>
     <string name="gpu_checking">Проверка драйверов…</string>
@@ -1812,7 +1831,8 @@
     <string name="cmgr_original_kept">Оригинал установленной сборки сохраняется: через него можно вернуться.</string>
     <string name="cmgr_not_stored">Не сохранено</string>
     <string name="cmgr_deleted_original">Удален оригинал %2$s из сборки %1$s.</string>
-    <string name="cmgr_nightlies_only">Загрузки доступны только из выпусков Nightlies</string>
+    <string name="cmgr_nightlies_only">Загрузки доступны только из выпусков Nightlies и DroidDeck</string>
+    <string name="cmgr_nightly_replaced">Не удалось загрузить: возможно, эта ночная сборка заменена более новой. Обновите список и повторите попытку.</string>
     <string name="cmgr_list_predates_checksums">Этот список пакетов создан до появления контрольных сумм — обновите его и повторите попытку</string>
     <string name="cmgr_checksum_mismatch">Контрольная сумма не совпадает</string>
 
@@ -2076,6 +2096,9 @@
     <string name="cloud_last_sync">Последняя синхронизация: %1$s</string>
     <string name="cloud_never">Еще не синхронизировано</string>
     <string name="cloud_done">Файлов: %1$d</string>
+    <string name="cloud_up_to_date">Уже актуально</string>
+    <string name="cloud_signed_out">Войдите в магазин, чтобы синхронизировать сохранения</string>
+    <string name="cloud_not_synced">Сохранения не синхронизированы</string>
     <string name="stores_eyebrow_installed">установлено</string>
     <string name="stores_eyebrow_library">в вашей библиотеке</string>
     <string name="stores_eyebrow_store">магазин</string>
@@ -2380,7 +2403,7 @@
     <string name="touch_done">Готово</string>
     <string name="touch_save_failed">Не удалось сохранить сенсорную раскладку</string>
     <string name="touch_saved">Сенсорная раскладка сохранена в Steam</string>
-    <string name="touch_app_id">Приложение %1$d</string>
+    <string name="touch_app_id">Приложение %1$s</string>
     <string name="touch_label_hint">Подпись (необязательно)</string>
     <string name="touch_icons_missing">Значки Steam не найдены</string>
     <plurals name="touch_icons_found">
@@ -2475,6 +2498,15 @@
     <string name="glasses_vr_fov">Поле зрения SteamVR</string>
     <string name="glasses_vr_fov_hint">Меньше — SteamVR ближе и заполняет очки; больше — шире обзор вокруг.</string>
     <string name="glasses_playing">Игра на %1$s</string>
+    <string name="glasses_phone_recenter">Перецентрировать</string>
+    <string name="glasses_phone_steamvr_menu">Меню SteamVR</string>
+    <string name="glasses_phone_switch_sticks">Стики: руки ⇄ игра</string>
+    <string name="glasses_phone_controllers">Контроллеры: %1$s</string>
+    <string name="glasses_phone_keyboard">Клавиатура</string>
+    <string name="glasses_phone_session_menu">Меню сеанса</string>
+    <string name="glasses_phone_stop_steamvr">Остановить SteamVR</string>
+    <string name="glasses_phone_brightness">Яркость %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Батарея %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Калибровка отслеживания</string>
     <string name="glasses_calibration_hint">Уменьшает дрейф и выравнивает опорный горизонт.</string>
     <string name="glasses_calibration_saved_hint">Для этих очков применяется сохранённая калибровка.</string>

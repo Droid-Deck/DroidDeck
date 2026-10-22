@@ -369,7 +369,9 @@ object WinComponents {
             val archiveName = archive.optString("name")
             val url = c.snapshot.substringBeforeLast('/') + "/" + archiveName
             val file = File(work, "${c.name}.files.tar.xz")
-            if (!Downloader.downloadFile(url, file, false) { f -> onProgress(Progress(c.name, archiveName, Phase.DOWNLOAD, if (f < 0) -1 else Math.round(f * 100f))) }) {
+            // The snapshot came straight from github.com, so its digest may vouch for a mirror's copy of the archive.
+            val sha = archive.optString("sha256").takeIf { it.matches(Regex("(?i)[0-9a-f]{64}")) }
+            if (!Downloader.downloadFile(url, file, false, sha) { f -> onProgress(Progress(c.name, archiveName, Phase.DOWNLOAD, if (f < 0) -1 else Math.round(f * 100f))) }) {
                 return null to "download failed: $archiveName"
             }
             archive.optString("sha256").takeIf { it.length == 64 }?.let { sha ->

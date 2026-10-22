@@ -226,6 +226,43 @@ class CloudHooks(unittest.TestCase):
             self.assertEqual(store.CLOUD_TIMEOUT, asked[1][1])
             self.assertEqual('cloud-up', asked[2][0]['op'])
 
+    def test_a_first_launch_creates_the_prefix_before_the_cloud_download(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='epic', ident='fa4240e5')
+            sidecar = json.loads((folder / store.SIDECAR).read_text())
+            sidecar['epic'] = {'eos': False, 'offline': True}
+            (folder / store.SIDECAR).write_text(json.dumps(sidecar))
+            proton = Path(root) / 'proton'
+            proton.write_text('selected Proton')
+            compat = Path(root) / 'compatdata/1'
+            order = []
+
+            def run(argv, **kwargs):
+                order.append(argv)
+                (compat / 'pfx').mkdir(parents=True)
+                (compat / 'pfx/user.reg').write_text('WINE REGISTRY Version 2\n')
+                return __import__('subprocess').CompletedProcess(argv, 0)
+
+            env = {'BL_LAUNCH_DIR': root, 'STEAM_COMPAT_DATA_PATH': str(compat), 'BL_STORE_PROTON': str(proton)}
+            with patch.dict(os.environ, env), patch.object(store.subprocess, 'run', side_effect=run), \
+                    patch.object(store, 'ask', side_effect=lambda channel, request, timeout=5.0: order.append(request) or {'result': 'ok'}):
+                self.assertEqual(store.STORE_GAME, store.main([str(folder / store.LAUNCHER)]))
+                self.assertEqual([str(proton), 'run', 'cmd.exe', '/d', '/c', 'exit'], order[0])
+                self.assertEqual({'op': 'cloud-down', 'store': 'epic', 'id': 'fa4240e5'}, order[-1])
+                self.assertEqual('present', store.create_prefix(str(compat), str(proton)))
+                self.assertEqual(2, len(order))
+
+    def test_a_prefix_that_is_not_made_leaves_the_deferred_download(self):
+        with tempfile.TemporaryDirectory() as root:
+            proton = Path(root) / 'proton'
+            proton.write_text('selected Proton')
+            with patch.object(store.subprocess, 'run', return_value=__import__('subprocess').CompletedProcess([], 1)):
+                self.assertEqual('failed', store.create_prefix(root + '/compatdata/1', str(proton)))
+            with patch.object(store.subprocess, 'run', side_effect=__import__('subprocess').TimeoutExpired('proton', 1)):
+                self.assertEqual('timeout', store.create_prefix(root + '/compatdata/1', str(proton)))
+            self.assertEqual('no-proton', store.create_prefix(root + '/compatdata/1', root + '/missing'))
+            self.assertEqual('no-proton', store.create_prefix('', str(proton)))
+
     def test_cloud_off_or_amazon_runs_proton_as_before(self):
         with tempfile.TemporaryDirectory() as root:
             folder = game(root, store_id='gog', ident='1')
