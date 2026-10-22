@@ -4,6 +4,7 @@ import android.os.Environment
 import com.droiddeck.launcher.session.SessionPrefs
 import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -84,12 +85,141 @@ class AddedExesTest {
         assertEquals(listOf(File(games, "Example").path), AddedExes.list(app).map { it.folder })
     }
 
-    @Test fun anExeTheSessionCannotSeeIsNotAdded() {
+    @Test fun aGameInsideAFolderAddedAsOneGameIsAddedOnItsOwn() {
+        noGamesFolders()
+        val held = onStorage("Download/ADM/Death Stranding/ds.exe")
+        val pick = onStorage("Download/ADM/Pro Evolution Soccer 2017/PES2017.exe")
+        val container = held.parentFile!!.parentFile!!
+        AddedExes.put(app, AddedExes.Entry(container.path, held.path, picked = false))
+        val added = AddedGames.addExe(app, pick)
+        assertTrue(added is AddedGames.AddResult.Added)
+        assertEquals(pick.parentFile!!.path, (added as AddedGames.AddResult.Added).game.folder.path)
+        assertEquals(setOf(held.path, pick.path), AddedGames.scan(app).map { it.exe.path }.toSet())
+    }
+
+    @Test fun aRemovedFolderGameDoesNotComeBackForAnotherGame() {
+        noGamesFolders()
+        val held = onStorage("Download/ADM/Death Stranding/ds.exe")
+        val pick = onStorage("Download/ADM/Blur Game/Blur.exe")
+        val container = held.parentFile!!.parentFile!!
+        AddedExes.put(app, AddedExes.Entry(container.path, held.path, picked = false))
+        SessionPrefs.setAddedGameName(app, container.path, "Death Stranding Directors Cut")
+        AddedGames.remove(app, container)
+        val added = AddedGames.addExe(app, pick)
+        assertTrue(added is AddedGames.AddResult.Added)
+        assertEquals("Blur Game", (added as AddedGames.AddResult.Added).game.name)
+        assertTrue(container.path in SessionPrefs.removedAddedGames(app))
+        assertEquals(listOf(pick.path), AddedGames.scan(app).map { it.exe.path })
+    }
+
+    @Test fun anotherBuildOfTheSameExeInASiblingFolderSwitchesTheGame() {
+        noGamesFolders()
+        val held = onStorage("Games2/Oddworld/x64/Oddworld.exe")
+        val other = onStorage("Games2/Oddworld/x86/Oddworld.exe")
+        val folder = held.parentFile!!.parentFile!!
+        AddedExes.put(app, AddedExes.Entry(folder.path, held.path, picked = false))
+        val switched = AddedGames.addExe(app, other)
+        assertTrue(switched is AddedGames.AddResult.Switched)
+        assertEquals(folder.path, (switched as AddedGames.AddResult.Switched).game.folder.path)
+        assertEquals(listOf(other.path), AddedGames.scan(app).map { it.exe.path })
+    }
+
+    @Test fun aDifferentGameWithANumberedNameIsNotTakenAsAnotherBuild() {
+        noGamesFolders()
+        val held = onStorage("Games2/id/Doom/Doom.exe")
+        val pick = onStorage("Games2/id/Doom64/Doom64.exe")
+        AddedExes.put(app, AddedExes.Entry(held.parentFile!!.parentFile!!.path, held.path, picked = false))
+        assertTrue(AddedGames.addExe(app, pick) is AddedGames.AddResult.Added)
+        assertEquals(2, AddedGames.scan(app).size)
+    }
+
+    @Test fun anExeTheSessionCannotSeeBindsItsFolderAndIsAdded() {
+        noGamesFolders()
+        val outside = exe(File(tmp.newFolder("card"), "Hades/Hades.exe"))
+        assertNull(AddedGames.guestPath(app, outside))
+        val game = (AddedGames.addExe(app, outside) as AddedGames.AddResult.Added).game
+        assertEquals(listOf(outside.parent to "${AddedGames.GUEST_DIR}/Hades"), SessionPrefs.gameFolderBinds(app))
+        assertEquals("${AddedGames.GUEST_DIR}/Hades/Hades.exe", game.guestExe)
+        assertTrue(AddedGames.addExe(app, outside) is AddedGames.AddResult.Existing)
+        assertEquals(1, SessionPrefs.gameFolderBinds(app).size)
+    }
+
+    @Test fun anotherExeOfAGameTheSessionCannotSeeBindsTheGameFolder() {
+        noGamesFolders()
+        val held = exe(File(tmp.newFolder("card"), "Hades/Hades.exe"))
+        val pick = exe(File(held.parentFile, "x64/Hades.exe"))
+        AddedExes.put(app, AddedExes.Entry(held.parent!!, held.path, picked = false))
+        val switched = AddedGames.addExe(app, pick) as AddedGames.AddResult.Switched
+        assertEquals(listOf(held.parent to "${AddedGames.GUEST_DIR}/Hades"), SessionPrefs.gameFolderBinds(app))
+        assertEquals("${AddedGames.GUEST_DIR}/Hades/x64/Hades.exe", switched.game.guestExe)
+    }
+
+    @Test fun aGameFolderTheSessionAlreadySeesIsNotBoundAgain() {
+        noGamesFolders()
+        val held = onStorage("Games2/Hades/Hades.exe")
+        onStorage("Games2/Hades/x64/Hades.exe")
+        AddedExes.put(app, AddedExes.Entry(held.parent!!, held.path, picked = false))
+        val alias = File(tmp.root, "alias").toPath()
+        java.nio.file.Files.createSymbolicLink(alias, held.parentFile!!.parentFile!!.toPath())
+        assertEquals(AddedGames.AddResult.Unreachable, AddedGames.addExe(app, File(alias.toFile(), "Hades/x64/Hades.exe")))
+        assertEquals(0, SessionPrefs.gameFolderBinds(app).size)
+    }
+
+    @Test fun anExeInAFolderTheAppCannotReadIsNotAdded() {
         noGamesFolders()
         val outside = exe(File(tmp.newFolder("elsewhere"), "Game/Game.exe"))
-        assertEquals(AddedGames.AddResult.Unreachable, AddedGames.addExe(app, outside))
+        outside.parentFile!!.setReadable(false)
+        try {
+            assertEquals(AddedGames.AddResult.Unreachable, AddedGames.addExe(app, outside))
+        } finally {
+            outside.parentFile!!.setReadable(true)
+        }
         assertEquals(0, AddedExes.list(app).size)
-        assertEquals(0, AddedGames.scan(app).size)
+        assertEquals(0, SessionPrefs.gameFolderBinds(app).size)
+    }
+
+    @Test fun addingAFolderTheSessionCannotSeeBindsItAndAddsItsGames() {
+        noGamesFolders()
+        val games = File(tmp.newFolder("card"), "Winlator/Games")
+        exe(File(games, "Alpha/Alpha.exe"))
+        exe(File(games, "Beta/Beta.exe"))
+        File(games, "steamapps").mkdirs()
+        assertNull(AddedGames.guestPath(app, games))
+
+        val result = AddedGames.addFolder(app, games)
+        assertEquals(listOf("Alpha", "Beta"), result.added.map { it.name })
+        assertEquals(listOf(games.path to "${AddedGames.GUEST_DIR}/Games"), SessionPrefs.gameFolderBinds(app))
+        assertEquals("${AddedGames.GUEST_DIR}/Games/Alpha/Alpha.exe", result.added.first().guestExe)
+
+        val again = AddedGames.addFolder(app, games)
+        assertEquals(0, again.added.size)
+        assertEquals(2, again.already)
+        assertEquals(1, SessionPrefs.gameFolderBinds(app).size)
+    }
+
+    @Test fun aSecondFolderWithTheSameNameGetsItsOwnGuestPath() {
+        noGamesFolders()
+        val first = File(tmp.newFolder("a"), "Games").apply { exe(File(this, "One/One.exe")) }
+        val second = File(tmp.newFolder("b"), "Games").apply { exe(File(this, "Two/Two.exe")) }
+        AddedGames.addFolder(app, first)
+        AddedGames.addFolder(app, second)
+        val guests = SessionPrefs.gameFolderBinds(app).map { it.second }
+        assertEquals(2, guests.toSet().size)
+        assertEquals("${AddedGames.GUEST_DIR}/Games", guests.first())
+    }
+
+    @Test fun aGuestPathAlreadyTakenIsNeverReused() {
+        noGamesFolders()
+        val a = File(tmp.newFolder("a"), "Games").apply { mkdirs() }
+        val b = File(tmp.newFolder("b"), "Games").apply { mkdirs() }
+        val c = File(tmp.newFolder("c"), "Games").apply { exe(File(this, "Three/Three.exe")) }
+        val clash = GamesFolderMigration.legacyRoots(listOf(a.path, b.path, c.path)).last().guest
+        SessionPrefs.setGameFolderBinds(app, listOf(a.path to "${AddedGames.GUEST_DIR}/Games", b.path to clash))
+        AddedGames.addFolder(app, c)
+        val guests = SessionPrefs.gameFolderBinds(app).map { it.second }
+        assertEquals(3, guests.size)
+        assertEquals(3, guests.toSet().size)
+        assertEquals("$clash-2", guests.last())
     }
 
     @Test fun aRemovedSingleExeGameStaysOffUntilPickedAgain() {

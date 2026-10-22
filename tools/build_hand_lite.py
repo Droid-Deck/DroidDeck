@@ -61,9 +61,9 @@ def build(full, lite, palm, output):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--full', type=Path, default=Path('app/src/main/assets/models/hand_landmarker.task'))
+    parser.add_argument('--full', type=Path, required=True)
     parser.add_argument('--lite', type=Path, required=True, help='Pinned hand_landmark_lite.tflite from storage.googleapis.com/mediapipe-assets/')
     parser.add_argument('--palm', type=Path, required=True, help='Pinned palm_detection_lite.tflite from storage.googleapis.com/mediapipe-assets/')
-    parser.add_argument('--output', type=Path, default=Path('app/src/main/assets/models/hand_landmarker_lite.task'))
+    parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
     build(args.full, args.lite, args.palm, args.output)

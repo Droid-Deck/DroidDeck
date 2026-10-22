@@ -29,7 +29,64 @@ env:
   PRELOAD_CACHE_VERSION: v6
 
 jobs:
+  xbox:
+    name: Xbox ARM64 backend
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    outputs:
+      base-sha: ${{ steps.merge.outputs.base-sha }}
+      tree-sha: ${{ steps.source.outputs.tree-sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Pin and merge the APK source
+        id: merge
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          echo "base-sha=$(git rev-parse origin/main)" >> "$GITHUB_OUTPUT"
+          git config user.name "ci"
+          git config user.email "ci@users.noreply.github.com"
+          git merge --no-ff --no-edit origin/main
+      - name: Record backend source tree
+        id: source
+        run: echo "tree-sha=$(git rev-parse 'HEAD^{tree}')" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        id: xbox-cache
+        with:
+          path: |
+            app/src/main/assets/linuxfs/usr/local/lib/droiddeck-xbox
+            app/build/xbox/xodus-droiddeck-source.tar.xz
+            app/build/xbox/runtime/*-source.tar.xz
+          key: xbox-arm64-${{ hashFiles('tools/xbox/**') }}
+      - name: Build Xbox backend
+        if: steps.xbox-cache.outputs.cache-hit != 'true'
+        run: |
+          rustup toolchain install 1.99.0 --profile minimal
+          sudo apt-get update -qq
+          sudo apt-get install -y build-essential pkg-config libssl-dev protobuf-compiler cmake xz-utils
+          bash tools/xbox/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xbox-arm64
+          path: app/src/main/assets/linuxfs/usr/local/lib/droiddeck-xbox
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xbox-corresponding-source
+          path: |
+            app/build/xbox/xodus-droiddeck-source.tar.xz
+            app/build/xbox/runtime/*-source.tar.xz
+          if-no-files-found: error
+          retention-days: 14
+
   build:
+    needs: xbox
     name: Build APK
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     runs-on: ubuntu-24.04
@@ -41,6 +98,7 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Check co-authors
         if: github.event_name == 'pull_request'
@@ -86,14 +144,17 @@ jobs:
 
       - name: Merge onto main, or say what conflicts
         if: github.event_name == 'pull_request'
+        env:
+          BUILD_BASE_SHA: ${{ needs.xbox.outputs.base-sha }}
         run: |
           set -uo pipefail
           git config user.name "ci"
           git config user.email "ci@users.noreply.github.com"
           git fetch --no-tags origin main
-          BASE=$(git rev-parse --short origin/main)
+          git fetch --no-tags origin "$BUILD_BASE_SHA"
+          BASE=$(git rev-parse --short FETCH_HEAD)
           HEAD=$(git rev-parse --short HEAD)
-          if git merge --no-ff --no-edit origin/main >/tmp/merge.out 2>&1; then
+          if git merge --no-ff --no-edit FETCH_HEAD >/tmp/merge.out 2>&1; then
             {
               echo "###  Mergeable"
               echo
@@ -140,6 +201,11 @@ jobs:
           echo "::error::the pull request conflicts with main: $(echo $FILES | tr '\n' ' ')"
           exit 1
 
+      - name: Verify backend and APK source match
+        env:
+          XBOX_SOURCE_TREE: ${{ needs.xbox.outputs.tree-sha }}
+        run: test "$(git rev-parse 'HEAD^{tree}')" = "$XBOX_SOURCE_TREE"
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -184,15 +250,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: app/src/main/assets/linuxfs
-          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'app/src/main/cpp/adrenotools/src/hook/kgsl.h', 'tools/quest/*', 'tools/linuxfs/preload/*.c', 'tools/linuxfs/build-x86-preloads.sh', 'tools/linuxfs/fex/*', 'tools/linuxfs/clipboard/*.c', 'tools/linuxfs/ssbs/*.c', 'tools/proot/fastpath/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/linuxfs/uruntime.env', 'tools/linuxfs/licenses/*', 'tools/mangoapp/*', 'tools/msitools/**', 'tools/comet/**', 'tools/linuxfs/debian-image.env', 'tools/vr/**') }}
+          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'app/src/main/cpp/adrenotools/src/hook/kgsl.h', 'tools/quest/*', 'tools/linuxfs/preload/*.c', 'tools/linuxfs/build-x86-preloads.sh', 'tools/linuxfs/fex/*', 'tools/linuxfs/clipboard/*.c', 'tools/linuxfs/ssbs/*.c', 'tools/proot/fastpath/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/linuxfs/uruntime.env', 'tools/linuxfs/licenses/*', 'tools/mangoapp/*', 'tools/msitools/**', 'tools/comet/**', 'tools/xbox/**', 'tools/linuxfs/debian-image.env', 'tools/vr/**') }}
 
       - name: Build libfakeinput.so and libblsession.so (glibc aarch64)
         if: steps.preloads.outputs.cache-hit != 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          sudo apt-get update -qq
+          sudo apt-get -o Dir::Etc::sourcelist=sources.list.d/ubuntu.sources \
+            -o Dir::Etc::sourceparts=- -o Acquire::Retries=3 update -qq
           sudo apt-get install -y -qq gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libvulkan1 mesa-vulkan-drivers >/dev/null
           D=app/src/main/assets/linuxfs
           mkdir -p "$D"
@@ -225,7 +290,7 @@ jobs:
           done
           if [ -f tools/gamescope/release.env ]; then
             . tools/gamescope/release.env
-            gh release download "${GAMESCOPE_TAG}" -R "${GAMESCOPE_REPO:-${GITHUB_REPOSITORY}}" -p gamescope.tzst -O gamescope.tzst
+            curl -fsSL --retry 3 -o gamescope.tzst "https://github.com/${GAMESCOPE_REPO:-${GITHUB_REPOSITORY}}/releases/download/${GAMESCOPE_TAG}/gamescope.tzst"
             echo "${GAMESCOPE_SHA256}  gamescope.tzst" | sha256sum -c -
             tar --use-compress-program=unzstd -xf gamescope.tzst -C "$D"
             test -f "$D/usr/local/bin/gamescope"
@@ -256,6 +321,17 @@ jobs:
           install -Dm644 tools/mangoapp/mangoapp "$D/usr/local/bin/mangoapp"
           rm -rf mango-pkgs
           ls -l "$M"
+          mkdir -p pw-pkgs
+          grep -v '^#' tools/pipewire/packages.txt | while read -r sum url; do
+            [ -n "$url" ] || continue
+            curl -fsSL --retry 3 -o pw-pkgs/pkg.tar.zst "$url"
+            echo "$sum  pw-pkgs/pkg.tar.zst" | sha256sum -c -
+            tar --use-compress-program=unzstd -xf pw-pkgs/pkg.tar.zst -C pw-pkgs
+            rm pw-pkgs/pkg.tar.zst
+          done
+          tools/pipewire/assemble.sh pw-pkgs "$D/usr/local/lib/droiddeck-pipewire.tzst"
+          rm -rf pw-pkgs
+          ls -l "$D/usr/local/lib/droiddeck-pipewire.tzst"
           T="$D/usr/local/lib/droiddeck-msitools"
           mkdir -p "$T" msi-pkgs
           grep -v '^#' tools/msitools/packages.txt | while read -r sum url; do
@@ -328,18 +404,17 @@ jobs:
           ls -l app/src/main/assets/linuxfs/x86_64 app/src/main/assets/linuxfs/i386
 
       - name: Bundle the droiddeck-esync packs
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           if [ -f tools/droiddeck-esync/release.env ]; then
             . tools/droiddeck-esync/release.env
-            gh release download "$SYNC_BUNDLE_TAG" -R "$SYNC_BUNDLE_REPO" -p "$SYNC_BUNDLE_ASSET" -O sync-bundle.tzst
+            release_url="https://github.com/${SYNC_BUNDLE_REPO}/releases/download/${SYNC_BUNDLE_TAG}"
+            curl -fsSL --retry 3 -o sync-bundle.tzst "$release_url/$SYNC_BUNDLE_ASSET"
             echo "$SYNC_BUNDLE_SHA256  sync-bundle.tzst" | sha256sum -c -
             mkdir -p app/src/main/assets/droiddeck-esync
             tar --use-compress-program=unzstd -xf sync-bundle.tzst -C app/src/main/assets/droiddeck-esync
             rm sync-bundle.tzst
-            gh release download "$SYNC_BUNDLE_TAG" -R "$SYNC_BUNDLE_REPO" -p index.json -O sync-index.json
+            curl -fsSL --retry 3 -o sync-index.json "$release_url/index.json"
             revoked=$(python3 -c 'import json, sys; print(" ".join(p["id"] for p in json.load(open(sys.argv[1]))["packs"] if p.get("revoked") is True))' sync-index.json)
             for id in $revoked; do
               if [ -e "app/src/main/assets/droiddeck-esync/packs/$id.tzst" ]; then
@@ -414,6 +489,8 @@ jobs:
           /tmp/test-xr-tracking
           g++ -std=c++17 -Wall -Wextra -Werror tools/vr/tests/test_xr_touch.cpp -o /tmp/test-xr-touch
           /tmp/test-xr-touch
+          g++ -std=c++17 -Wall -Wextra -Werror tools/vr/tests/test_pad_controller_config.cpp -o /tmp/test-pad-controller-config
+          /tmp/test-pad-controller-config
           g++ -std=c++17 -Wall -Wextra -Werror -pthread tools/vr/tests/test_xr_vsync.cpp -o /tmp/test-xr-vsync
           /tmp/test-xr-vsync
           g++ -std=c++17 -Wall -Wextra -Werror -pthread tools/vr/tests/test_xr_frames.cpp -o /tmp/test-xr-frames
@@ -463,12 +540,20 @@ jobs:
           restore-keys: |
             cxx-${{ env.NDK_VERSION }}-
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: xbox-arm64
+          path: app/src/main/assets/linuxfs/usr/local/lib/droiddeck-xbox
+
       - name: Build GOG Galaxy companion
         if: steps.preloads.outputs.cache-hit != 'true'
         run: |
           rustup toolchain install 1.90.0 --profile minimal
           rustup target add --toolchain 1.90.0 aarch64-unknown-linux-gnu
           RUSTUP_TOOLCHAIN=1.90.0 bash tools/comet/build.sh
+
+      - name: Build the add-on packs
+        run: bash tools/packs/build.sh app/build/packs
 
       - name: Build
         id: build
@@ -507,6 +592,11 @@ jobs:
           name: stores-cargo-lock
           path: app/src/main/rust/stores/Cargo.lock
           if-no-files-found: ignore
+
+      - name: Install Python test dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq python3-yaml
 
       - name: Steam import and game environment tests
         run: python3 -m unittest discover -s tools/tests -p 'test_*.py'
@@ -564,6 +654,14 @@ jobs:
         with:
           name: droiddeck-apk
           path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: droiddeck-packs
+          path: app/build/packs/*.tar.zst
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
@@ -670,8 +768,17 @@ jobs:
       variants: ${{ needs.build.outputs.variants }}
     secrets: inherit
 
+  packs:
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/publish-packs.yml
+    secrets: inherit
+
   announce:
-    needs: [build, sign]
+    needs: [build, sign, packs]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10

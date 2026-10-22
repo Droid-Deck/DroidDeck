@@ -57,7 +57,8 @@ object SelfInstaller {
         }
         @Suppress("DEPRECATION")
         val flags = if (Build.VERSION.SDK_INT >= 28) {
-            PackageManager.GET_SIGNING_CERTIFICATES
+            // Android 9 and 10 only collect an archive's certificates when GET_SIGNATURES is set.
+            PackageManager.GET_SIGNING_CERTIFICATES or PackageManager.GET_SIGNATURES
         } else {
             PackageManager.GET_SIGNATURES
         }
@@ -75,15 +76,18 @@ object SelfInstaller {
             throw IOException(context.getString(R.string.selfinst_downgrade, code, BuildConfig.VERSION_CODE))
         }
 
-        if (Build.VERSION.SDK_INT >= 28) {
-            val signing = info.signingInfo ?: throw IOException(context.getString(R.string.selfinst_no_signing))
-            val digests = signing.apkContentsSigners.orEmpty().map { cert ->
-                MessageDigest.getInstance("SHA-256").digest(cert.toByteArray())
-                    .joinToString("") { "%02x".format(it) }
-            }
-            if (digests.none { it.equals(BuildConfig.RELEASE_SIGNER, ignoreCase = true) }) {
-                throw IOException(context.getString(R.string.selfinst_wrong_signer))
-            }
+        val digests = archiveSignerDigests(info)
+        if (digests.isEmpty()) throw IOException(context.getString(R.string.selfinst_no_signing))
+        if (digests.none { it.equals(BuildConfig.RELEASE_SIGNER, ignoreCase = true) }) {
+            throw IOException(context.getString(R.string.selfinst_wrong_signer))
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    internal fun archiveSignerDigests(info: android.content.pm.PackageInfo): List<String> {
+        val certs = (if (Build.VERSION.SDK_INT >= 28) info.signingInfo?.apkContentsSigners else null) ?: info.signatures
+        return certs.orEmpty().map { cert ->
+            MessageDigest.getInstance("SHA-256").digest(cert.toByteArray()).joinToString("") { "%02x".format(it) }
         }
     }
 

@@ -38,6 +38,7 @@ class TouchpadGestures(
     private var moverLastX = 0f
     private var moverLastY = 0f
     private var holdDrag = false
+    private var scrollLocked = false
     private var clicked = 0
     private val longPress = Runnable {
         held = true
@@ -67,6 +68,7 @@ class TouchpadGestures(
         dragging = false
         held = false
         holdDrag = false
+        scrollLocked = false
         anchorId = -1
         moverId = -1
         lastTapAt = 0L
@@ -84,7 +86,7 @@ class TouchpadGestures(
                 lastX = event.x; lastY = event.y
                 downAt = event.eventTime
                 travelled = 0f; held = false; twoFingers = false; scrolled = false; secondWasTap = false
-                anchorId = event.getPointerId(0); moverId = -1; holdDrag = false
+                anchorId = event.getPointerId(0); moverId = -1; holdDrag = false; scrollLocked = false
                 if (event.eventTime - lastTapAt < DOUBLE_TAP_MS) {
                     dragging = true
                     listener.onButton(PointerGestures.BTN_LEFT, true, x, y)
@@ -117,10 +119,12 @@ class TouchpadGestures(
                 val mi = if (moverId == -1) -1 else event.findPointerIndex(moverId)
                 if (ai >= 0 && mi >= 0) {
                     val mx = event.getX(mi); val my = event.getY(mi)
-                    if (!holdDrag && !scrolled) {
+                    if (!holdDrag && !scrolled && !scrollLocked) {
                         val anchorMoved = abs(event.getX(ai) - anchorStartX) + abs(event.getY(ai) - anchorStartY)
                         val moverMoved = abs(mx - moverStartX) + abs(my - moverStartY)
-                        if (moverMoved > slopPx && anchorMoved < slopPx) {
+                        if (anchorMoved >= slopPx) {
+                            scrollLocked = true
+                        } else if (moverMoved > slopPx * HOLD_DRAG_MOVER_SLOPS && anchorMoved < slopPx * HOLD_DRAG_ANCHOR_SLOPS) {
                             holdDrag = true
                             secondWasTap = false
                             if (!dragging) {
@@ -186,9 +190,9 @@ class TouchpadGestures(
                 if (gone == moverId) moverId = -1
                 if (gone == anchorId) {
                     anchorId = event.getPointerId(if (event.actionIndex == 0) 1 else 0)
-                    event.findPointerIndex(anchorId).takeIf { it >= 0 }?.let {
-                        lastX = event.getX(it); lastY = event.getY(it)
-                    }
+                }
+                event.findPointerIndex(anchorId).takeIf { it >= 0 && it != event.actionIndex }?.let {
+                    lastX = event.getX(it); lastY = event.getY(it)
                 }
                 if (twoFingers && secondWasTap && event.eventTime - secondDownAt < TAP_MS && !scrolled) {
                     click(PointerGestures.BTN_RIGHT)
@@ -212,7 +216,7 @@ class TouchpadGestures(
                     }
                 }
                 dragging = false; held = false; twoFingers = false
-                holdDrag = false; anchorId = -1; moverId = -1
+                holdDrag = false; scrollLocked = false; anchorId = -1; moverId = -1
                 return true
             }
         }
@@ -225,5 +229,7 @@ class TouchpadGestures(
         private const val CLICK_MS = 50L
         private const val DOUBLE_TAP_MS = 300L
         private const val SCROLL_STEP_PX = 36f
+        private const val HOLD_DRAG_MOVER_SLOPS = 2f
+        private const val HOLD_DRAG_ANCHOR_SLOPS = 0.5f
     }
 }

@@ -6,14 +6,14 @@
 #endif
 #include <vulkan/vulkan.h>
 
-enum { VKP_FG_ENGINE_LSFG = 0, VKP_FG_ENGINE_WINFG = 1 };
+enum { VKP_FG_ENGINE_LSFG = 0, VKP_FG_ENGINE_DDFG = 1 };
 #define VKP_FG_MAX_GENERATIONS 3
 
 void vkp_framegen_set_engine(int kind);
 void vkp_framegen_set_armed(int armed, int multiplier, int target_fps);
 void vkp_framegen_set_lsfg_cache_path(const char *path);
 void vkp_framegen_set_tuning(float flow_scale, float refresh_hz);
-void vkp_framegen_set_winfg_tuning(int model, int perf_preset);
+void vkp_framegen_set_ddfg_tuning(int model, int perf_preset);
 int vkp_framegen_problem(void);
 const char *vkp_framegen_caps_reason(void);
 void vkp_framegen_stats(float out[6]);
