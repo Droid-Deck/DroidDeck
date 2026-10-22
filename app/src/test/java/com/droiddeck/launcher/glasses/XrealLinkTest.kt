@@ -94,6 +94,28 @@ class XrealLinkTest {
         assertFalse(link.send(VitureProtocol.MSG_IMU, byteArrayOf(1)))
     }
 
+    @Test fun oneRejects1sModesAndUnvalidatedControlsBeforeWriting() {
+        val channels = Channels()
+        val listener = Listener()
+        val link = XrealLink(object : XrealConnector {
+            override fun connect() = channels
+            override fun close() = channels.close()
+        }, listener, XrealModel.ONE)
+        try {
+            assertTrue(listener.ready.await(2, TimeUnit.SECONDS))
+            assertEquals(VitureProtocol.MSG_GET_DISPLAY to 2, listener.values.poll(2, TimeUnit.SECONDS))
+            channels.wrote.clear()
+            assertFalse(link.send(VitureProtocol.MSG_DISPLAY, byteArrayOf(29)))
+            assertFalse(link.send(VitureProtocol.MSG_BRIGHTNESS, byteArrayOf(5)))
+            assertFalse(link.send(VitureProtocol.MSG_FILM, byteArrayOf(1)))
+            assertNull(channels.wrote.poll())
+            assertTrue(link.send(VitureProtocol.MSG_IMU, byteArrayOf(1)))
+            channels.reports.add(XrealProtocolTest.frame(XrealProtocol.REPORT, XrealProtocolTest.sensor()))
+            assertNotNull(listener.poses.poll(2, TimeUnit.SECONDS))
+        } finally { link.close() }
+        assertTrue(channels.closed.await(1, TimeUnit.SECONDS))
+    }
+
     @Test fun failedControlReadDisconnectsWithoutPublishingRequestedBrightness() {
         val channels = Channels()
         val listener = Listener()
