@@ -1440,7 +1440,7 @@ internal fun ComponentDownloadsDrawerGroup(
                     }
                     AnchoredMenu(open, onDismiss = { if (host.open == key) host.open = null },
                         title = ComponentsManager.LABEL.getValue(comp)) { firstItemFocus ->
-                        // A nightly paired with a stable build rides on that row behind a Stable/Nightly switch.
+                        // A nightly paired with a stable build rides on that row; Stable/Nightly tabs beside the row pick which one.
                         val pairs = ComponentsManager.nightlyPairs(items)
                         val rows = items.filter { it !in pairs.values }
                         fun shown(row: ComponentsManager.CatalogItem) = pairs[row]?.takeIf { nightlyPicked[row.file] == true } ?: row
@@ -1450,20 +1450,30 @@ internal fun ComponentDownloadsDrawerGroup(
                             val nightly = pairs[row]
                             val stored = ComponentsManager.safeName(item.file) in installed
                             val progress = downloads[item.file]
-                            MenuItem(item.file.removeSuffix(".wcp"), checked = stored,
-                                enabled = !stored && progress == null,
-                                detail = when {
-                                    stored -> stringResource(R.string.wincomp_downloaded)
-                                    progress != null -> if (progress < 0) stringResource(R.string.wincomp_downloading, item.file.removeSuffix(".wcp")) else "$progress%"
-                                    else -> item.release + " · " + stringResource(R.string.common_size_mb, item.size / 1048576.0)
-                                },
-                                trailing = if (nightly != null) ({
-                                    ChannelToggle(item === nightly, enabled = progress == null, compact = true) { nightlyPicked[row.file] = item !== nightly }
-                                }) else null,
-                                focusRequester = if (row == firstAvailable) firstItemFocus else null,
-                            ) {
-                                onDownload(item)
-                                host.open = null
+                            val choose = @Composable { rowModifier: Modifier ->
+                                MenuItem(item.file.removeSuffix(".wcp"), checked = stored,
+                                    enabled = !stored && progress == null,
+                                    detail = when {
+                                        stored -> stringResource(R.string.wincomp_downloaded)
+                                        progress != null -> if (progress < 0) stringResource(R.string.wincomp_downloading, item.file.removeSuffix(".wcp")) else "$progress%"
+                                        else -> item.release + " · " + stringResource(R.string.common_size_mb, item.size / 1048576.0)
+                                    },
+                                    focusRequester = if (row == firstAvailable) firstItemFocus else null,
+                                    modifier = rowModifier,
+                                ) {
+                                    onDownload(item)
+                                    host.open = null
+                                }
+                            }
+                            if (nightly == null) choose(Modifier)
+                            else Row(verticalAlignment = Alignment.CenterVertically) {
+                                choose(Modifier.weight(1f))
+                                TabStrip(
+                                    listOf(stringResource(R.string.comp_channel_stable), stringResource(R.string.comp_channel_nightly)),
+                                    selected = if (item === nightly) 1 else 0,
+                                    onSelect = { nightlyPicked[row.file] = it == 1 },
+                                    bumpers = false, compact = true, modifier = Modifier.padding(start = 6.dp, end = 4.dp),
+                                )
                             }
                         }
                     }

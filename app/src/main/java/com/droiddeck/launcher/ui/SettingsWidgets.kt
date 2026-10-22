@@ -157,6 +157,7 @@ internal fun Modifier.bumpers(onPrevious: () -> Unit, onNext: () -> Unit): Modif
 internal fun TabStrip(
     tabs: List<String>, selected: Int, onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier, focusRequesters: List<FocusRequester>? = null,
+    bumpers: Boolean = true, compact: Boolean = false,
 ) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -164,9 +165,9 @@ internal fun TabStrip(
     val scroll = rememberScrollState()
     var tight by remember(tabs) { mutableStateOf(false) }
     LaunchedEffect(scroll.maxValue) { if (scroll.maxValue in 1 until Int.MAX_VALUE) tight = true }
-    val tabPadding = if (tight) 10.dp else 16.dp
+    val tabPadding = if (compact) 10.dp else if (tight) 10.dp else 16.dp
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = modifier) {
-        BumperKey("LB", stringResource(R.string.widgets_prev_tab)) { onSelect((selected + tabs.size - 1) % tabs.size) }
+        if (bumpers) BumperKey("LB", stringResource(R.string.widgets_prev_tab)) { onSelect((selected + tabs.size - 1) % tabs.size) }
         Row(
             modifier = Modifier.weight(1f, fill = false).clip(shape).background(colors.surfaceVariant).border(1.dp, pal.line2, shape)
                 .horizontalScroll(scroll).padding(3.dp),
@@ -180,7 +181,7 @@ internal fun TabStrip(
                 val reveal = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
                 if (on) LaunchedEffect(Unit) { reveal.bringIntoView() }
                 Text(
-                    label, fontSize = 14.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold, maxLines = 1,
+                    label, fontSize = if (compact) 12.sp else 14.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold, maxLines = 1,
                     color = if (on) pal.onSignal else if (hot) colors.onBackground else colors.onSurfaceVariant,
                     modifier = Modifier
                         .bringIntoViewRequester(reveal)
@@ -191,11 +192,11 @@ internal fun TabStrip(
                         .glideBorder(hot, tabShape, if (on) colors.onBackground else pal.signal)
                         .hoverable(src).clickable(interactionSource = src, indication = null, role = Role.Tab, onClick = pick)
                         .controllerConfirm(onClick = pick)
-                        .padding(horizontal = tabPadding, vertical = 12.dp),
+                        .padding(horizontal = tabPadding, vertical = if (compact) 6.dp else 12.dp),
                 )
             }
         }
-        BumperKey("RB", stringResource(R.string.widgets_next_tab)) { onSelect((selected + 1) % tabs.size) }
+        if (bumpers) BumperKey("RB", stringResource(R.string.widgets_next_tab)) { onSelect((selected + 1) % tabs.size) }
     }
 }
 
