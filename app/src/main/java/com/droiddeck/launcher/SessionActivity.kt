@@ -1922,6 +1922,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 event,
                 enabled = SessionState.running && !SessionState.suspended &&
                     !(drawerOpen && event.keyCode == KeyEvent.KEYCODE_BUTTON_A) &&
+                    !(drawerOpen && PhysicalShortcuts.isDrawerNavigationKey(event)) &&
                     (event.deviceId to event.keyCode) !in resumeKeysDown &&
                     !(::loading.isInitialized && (loading.visible || loading.ended)) &&
                     !pcKeyboardOpen && !achievementsOpen && !gestureSettingsOpen,

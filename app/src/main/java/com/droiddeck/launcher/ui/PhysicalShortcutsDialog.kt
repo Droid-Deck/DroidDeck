@@ -85,7 +85,12 @@ internal fun PhysicalShortcutsDialog(
         properties = DialogProperties(dismissOnBackPress = !listening, usePlatformDefaultWidth = false),
     ) {
         CaptureShortcutKeys { event ->
-            if (!listening || PhysicalShortcuts.isVolumeKey(event)) {
+            if (listening && event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0 &&
+                (event.keyCode == KeyEvent.KEYCODE_BACK || event.keyCode == KeyEvent.KEYCODE_BUTTON_B)) {
+                listening = false
+                onDismiss()
+                true
+            } else if (!listening || PhysicalShortcuts.isVolumeKey(event)) {
                 false
             } else {
                 if (candidate == null && event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
@@ -129,10 +134,11 @@ internal fun PhysicalShortcutsDialog(
                         if (listening) {
                             Text(stringResource(R.string.shortcuts_release))
                         } else {
-                            val conflicts = bindings.filter {
-                                it.button.sameInput(button) && it.action != action
+                            val replacements = bindings.filter {
+                                it.button.sameInput(button) || (it.button.device == button.device && it.action == action)
                             }
-                            for (conflict in conflicts) {
+                            for (conflict in replacements) {
+                                Text("${conflict.button.label} · ${conflict.button.name}")
                                 Text(stringResource(R.string.shortcuts_conflict, stringResource(conflict.action.label)))
                             }
                             SecondaryButton(stringResource(R.string.shortcuts_save), modifier = Modifier.testTag("shortcuts-save")) {

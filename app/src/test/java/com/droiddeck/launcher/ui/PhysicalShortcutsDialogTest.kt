@@ -75,25 +75,23 @@ class PhysicalShortcutsDialogTest {
         compose.onNodeWithTag("shortcuts-assign-DROIDDECK").assertExists()
     }
 
-    @Test fun backCanBeCapturedWithoutDismissingAndCancelDoesNotSave() {
+    @Test fun backCancelsCaptureWithoutSaving() {
         compose.setContent { DroidDeckTheme { PhysicalShortcutRows() } }
         assign(PhysicalShortcuts.Action.QAM)
         send(KeyEvent.KEYCODE_BACK, KeyEvent.ACTION_DOWN)
-        compose.onNodeWithText(context.getString(R.string.shortcuts_release)).assertExists()
-        compose.onNodeWithTag("shortcuts-cancel").performScrollTo().performClick()
+        compose.onNodeWithTag("shortcuts-cancel").assertDoesNotExist()
         compose.runOnIdle {
             assertTrue(PhysicalShortcuts.read(context).isEmpty())
         }
         compose.onNodeWithTag("shortcuts-assign-QAM").assertExists()
     }
 
-    @Test fun backAssignmentSavesOnReleaseWithoutNavigatingAwayFromSettings() {
+    @Test fun controllerBCancelsCaptureWithoutSaving() {
         compose.setContent { DroidDeckTheme { PhysicalShortcutRows() } }
         assign(PhysicalShortcuts.Action.QAM)
-        send(KeyEvent.KEYCODE_BACK, KeyEvent.ACTION_DOWN)
-        send(KeyEvent.KEYCODE_BACK, KeyEvent.ACTION_UP)
+        send(KeyEvent.KEYCODE_BUTTON_B, KeyEvent.ACTION_DOWN)
         compose.onNodeWithTag("shortcuts-assign-QAM").assertExists()
-        assertEquals(KeyEvent.KEYCODE_BACK, PhysicalShortcuts.read(context).single().button.keyCode)
+        assertTrue(PhysicalShortcuts.read(context).isEmpty())
     }
 
     @Test fun closingConflictKeepsBothPreviousAssignments() {
@@ -120,6 +118,7 @@ class PhysicalShortcutsDialogTest {
         send(KeyEvent.KEYCODE_F1, KeyEvent.ACTION_UP)
         compose.onNodeWithText(context.getString(R.string.shortcuts_conflict,
             context.getString(R.string.drawer_steam_menu))).assertExists()
+        compose.onNodeWithText("F1 · Retroid extra buttons").assertExists()
         assertEquals(PhysicalShortcuts.Action.STEAM, PhysicalShortcuts.read(context).single().action)
         compose.onNodeWithTag("shortcuts-save").performScrollTo().performClick()
         compose.runOnIdle { assertEquals(PhysicalShortcuts.Action.QAM, PhysicalShortcuts.read(context).single().action) }
@@ -154,6 +153,7 @@ class PhysicalShortcutsDialogTest {
         compose.onNodeWithTag("shortcuts-save").assertDoesNotExist()
         send(KeyEvent.KEYCODE_F2, KeyEvent.ACTION_UP)
         compose.onNodeWithTag("shortcuts-save").assertDoesNotExist()
+        compose.onNodeWithText("F1 · Retroid extra buttons").assertExists()
         compose.runOnIdle { assertEquals(KeyEvent.KEYCODE_F2, PhysicalShortcuts.read(context).single().button.keyCode) }
     }
 

@@ -48,6 +48,12 @@ object PhysicalShortcuts {
         else -> false
     }
 
+    fun isDrawerNavigationKey(event: KeyEvent): Boolean = when (event.keyCode) {
+        KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN,
+        KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> true
+        else -> false
+    }
+
     fun button(event: KeyEvent): Button? {
         val device = event.device ?: return null
         if (device.isVirtual || isVolumeKey(event)) return null

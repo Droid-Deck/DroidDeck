@@ -168,6 +168,14 @@ class PhysicalShortcutsTest {
         assertNotNull(PhysicalShortcuts.button(key(KeyEvent.KEYCODE_UNKNOWN, scan = 700)))
     }
 
+    @Test fun drawerDirectionalKeysRemainAvailableForNavigation() {
+        for (code in listOf(KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN,
+                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT)) {
+            assertTrue(PhysicalShortcuts.isDrawerNavigationKey(key(code)))
+        }
+        assertFalse(PhysicalShortcuts.isDrawerNavigationKey(key(KeyEvent.KEYCODE_BUTTON_A)))
+    }
+
     @Test fun resetAndRemovalPreserveOtherControllerSettings() {
         ControllerPrefs.setSelectSteam(context, true)
         ControllerPrefs.setTarget(context, "a", "b")
