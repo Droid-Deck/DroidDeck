@@ -16,7 +16,7 @@ object SocNames {
     private val PLATFORMS = mapOf(
         "msmnile" to "Snapdragon 855/860", "kona" to "Snapdragon 865/870", "lahaina" to "Snapdragon 888",
         "taro" to "Snapdragon 8 Gen 1", "cape" to "Snapdragon 8+ Gen 1", "kalama" to "Snapdragon 8 Gen 2",
-        "pineapple" to "Snapdragon 8 Gen 3", "sun" to "Snapdragon 8 Elite",
+        "pineapple" to "Snapdragon 8 Gen 3", "sun" to "Snapdragon 8 Elite", "canoe" to "Snapdragon 8 Elite Gen 5",
     )
 
     fun model(prop: (String) -> String = GpuInfo::systemProperty): String {
@@ -31,7 +31,8 @@ object SocNames {
     fun name(model: String, platform: String = GpuInfo.systemProperty("ro.board.platform")): String? {
         val key = normalizedModel(model)
         return MODELS[key]
-            ?: MODELS[key.substringBefore('-')]
+            // Samsung's "for Galaxy" parts only add -AC; other suffixes are different chips.
+            ?: key.removeSuffix("-AC").takeIf { it != key }?.let { MODELS[it] }
             ?: PLATFORMS[platform.trim().lowercase()]?.let { "$it family" }
     }
 
