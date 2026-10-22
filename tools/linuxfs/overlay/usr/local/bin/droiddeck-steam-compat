@@ -542,7 +542,11 @@ class Helper:
             page.call("Runtime.addBinding", {"name": BINDING})
             page.call("Runtime.addBinding", {"name": VR_BINDING})
             page.evaluate(VR_JS)
-            page.evaluate(TOUR_JS)
+            try:
+                page.evaluate(TOUR_JS)
+            except RuntimeError:
+                # The optional tour setting must not block the compat bridge.
+                pass
             if not self.steamos:
                 page.call("Runtime.addBinding", {"name": SWITCH_BINDING})
                 page.evaluate(SWITCH_JS)
