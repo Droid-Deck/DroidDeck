@@ -340,12 +340,12 @@ private fun importImage(context: Context, uri: Uri, codes: List<Int>): String? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
         val source = maxOf(bounds.outWidth, bounds.outHeight)
-        if (source <= 0) return null
+        if (source <= 0) return@runCatching null
         var sample = 1
         while (source / (sample * 2) >= longest) sample *= 2
         val bitmap = context.contentResolver.openInputStream(uri)?.use {
             BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample })
-        } ?: return null
+        } ?: return@runCatching null
         val scale = longest.toFloat() / maxOf(bitmap.width, bitmap.height)
         val scaled = if (scale < 1f) {
             Bitmap.createScaledBitmap(
@@ -357,9 +357,12 @@ private fun importImage(context: Context, uri: Uri, codes: List<Int>): String? {
         } else {
             bitmap
         }
-        File(dir, name).outputStream().use { scaled.compress(Bitmap.CompressFormat.PNG, 100, it) }
-        if (scaled !== bitmap) bitmap.recycle()
-        scaled.recycle()
-        name
-    }.getOrNull()
+        try {
+            val saved = File(dir, name).outputStream().use { scaled.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            if (saved) name else null
+        } finally {
+            if (scaled !== bitmap) bitmap.recycle()
+            scaled.recycle()
+        }
+    }.getOrNull().also { if (it == null) File(dir, name).delete() }
 }

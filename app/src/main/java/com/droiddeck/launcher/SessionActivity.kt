@@ -513,13 +513,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         onScreenControls = OnScreenControls(this, bridge, onKeyboard = ::togglePcKeyboard).also { root.addView(it) }
         screenKeysShown = com.droiddeck.launcher.input.ControllerPrefs.screenKeysShown(this)
-        screenKeys = ScreenKeys(this) { code, down -> if (CompositorHost.isStarted) sendGuestKey(code, down) }.also {
-            it.onAdd = { screenKeyPickerOpen = true }
-            it.onSelect = { codes -> screenKeyEdit = screenKeys?.stateOf(codes) }
-            it.onEditingChanged = { if (!it) screenKeyEdit = null }
-            it.steamStyle = { steamTouchControls?.style }
-            it.visibility = if (screenKeysShown) View.VISIBLE else View.GONE
-            root.addView(it)
+        screenKeys = ScreenKeys(this) { code, down -> if (CompositorHost.isStarted) sendGuestKey(code, down) }.also { keys ->
+            keys.onTouchMiss = { event ->
+                event.offsetLocation(keys.left - surfaceView.left.toFloat(), keys.top - surfaceView.top.toFloat())
+                onTouchEvent(event)
+            }
+            keys.onAdd = { screenKeyPickerOpen = true }
+            keys.onSelect = { codes -> screenKeyEdit = screenKeys?.stateOf(codes) }
+            keys.onEditingChanged = { if (!it) screenKeyEdit = null }
+            keys.steamStyle = { steamTouchControls?.style }
+            keys.visibility = if (screenKeysShown) View.VISIBLE else View.GONE
+            root.addView(keys)
         }
         keyboard = KeyboardHost(this).also { root.addView(it) }
         touchpad = TouchpadGestures(PointerGestures.slop(this), pointerListener)

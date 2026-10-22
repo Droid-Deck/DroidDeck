@@ -47,6 +47,7 @@ class ScreenKeys(context: Context, private val sendKey: (Int, Boolean) -> Unit) 
     private val stickEntries = HashMap<Int, Entry>()
     private val stickCodes = HashMap<Int, List<Int>>()
     private val held = HashMap<Int, Int>()
+    private var forwardedPointerBits = 0
     private var addX = -1f
     private var addY = -1f
     private var pressX = 0f
@@ -80,6 +81,7 @@ class ScreenKeys(context: Context, private val sendKey: (Int, Boolean) -> Unit) 
     var onAdd: (() -> Unit)? = null
     var onSelect: ((List<Int>) -> Unit)? = null
     var onEditingChanged: ((Boolean) -> Unit)? = null
+    var onTouchMiss: ((MotionEvent) -> Unit)? = null
 
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
@@ -800,7 +802,13 @@ class ScreenKeys(context: Context, private val sendKey: (Int, Boolean) -> Unit) 
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                 val index = event.actionIndex
-                val entry = entryAt(event.getX(index), event.getY(index)) ?: return false
+                val entry = entryAt(event.getX(index), event.getY(index))
+                if (entry == null) {
+                    if (event.actionMasked == MotionEvent.ACTION_DOWN) return false
+                    forwardedPointerBits = forwardedPointerBits or (1 shl event.getPointerId(index))
+                    forwardPointers(event, forwardedPointerBits)
+                    return true
+                }
                 if (entry.shape == SCREEN_KEY_DPAD) {
                     val arm = armOf(entry, event.getX(index), event.getY(index))
                     val code = entry.codes.getOrNull(arm) ?: 0
@@ -841,6 +849,7 @@ class ScreenKeys(context: Context, private val sendKey: (Int, Boolean) -> Unit) 
             }
 
             MotionEvent.ACTION_MOVE -> {
+                if (forwardedPointerBits != 0) forwardPointers(event, forwardedPointerBits)
                 if (stickEntries.isEmpty()) return true
                 repeat(event.pointerCount) { index ->
                     val pid = event.getPointerId(index)
@@ -861,6 +870,13 @@ class ScreenKeys(context: Context, private val sendKey: (Int, Boolean) -> Unit) 
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
                 val pid = event.getPointerId(event.actionIndex)
+                if (forwardedPointerBits and (1 shl pid) != 0) {
+                    forwardPointers(event, forwardedPointerBits)
+                    forwardedPointerBits = forwardedPointerBits and (1 shl pid).inv()
+                    if (stickCodes.containsKey(pid) || dpadDown.containsKey(pid)) return true
+                    down.remove(pid)?.let(::release)
+                    return true
+                }
                 if (stickCodes.containsKey(pid)) {
                     stickCodes.remove(pid)?.forEach { if (it != 0) releaseKey(it) }
                     stickEntries.remove(pid)?.armed = -1
@@ -880,6 +896,8 @@ class ScreenKeys(context: Context, private val sendKey: (Int, Boolean) -> Unit) 
             }
 
             MotionEvent.ACTION_CANCEL -> {
+                if (forwardedPointerBits != 0) forwardPointers(event, forwardedPointerBits)
+                forwardedPointerBits = 0
                 stickCodes.values.flatten().forEach { if (it != 0) releaseKey(it) }
                 stickCodes.clear()
                 stickEntries.clear()
@@ -893,6 +911,15 @@ class ScreenKeys(context: Context, private val sendKey: (Int, Boolean) -> Unit) 
             }
         }
         return true
+    }
+
+    private fun forwardPointers(event: MotionEvent, pointerIdBits: Int) {
+        val split = event.split(pointerIdBits)
+        try {
+            onTouchMiss?.invoke(split)
+        } finally {
+            split.recycle()
+        }
     }
 
     private fun editTouch(event: MotionEvent): Boolean {
@@ -1020,6 +1047,7 @@ class ScreenKeys(context: Context, private val sendKey: (Int, Boolean) -> Unit) 
     )
 
     fun load(raw: String) {
+        releaseAll()
         entries.clear()
         ControllerPrefs.decodeScreenKeys(raw).forEach { entries += entryOf(it) }
         entries.forEach { measure(it) }
