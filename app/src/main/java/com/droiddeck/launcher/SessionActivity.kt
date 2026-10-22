@@ -112,7 +112,7 @@ import com.droiddeck.launcher.ui.HudText
 import com.droiddeck.launcher.ui.LoadingOverlay
 import com.droiddeck.launcher.ui.SessionDrawer
 import com.droiddeck.launcher.ui.SessionPausedOverlay
-import com.droiddeck.launcher.ui.SecondScreenWindow
+import com.droiddeck.launcher.ui.SecondScreenPresentation
 import com.droiddeck.launcher.ui.DroidDeckTheme
 import com.droiddeck.launcher.wayland.CompositorHost
 import com.droiddeck.launcher.wayland.WaylandCompositor
@@ -367,7 +367,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var selectedSecondScreenDisplay by mutableStateOf(SessionState.secondScreenDisplay)
     private var started = false
     private lateinit var displayManager: DisplayManager
-    private var secondScreenPresentation: SecondScreenWindow? = null
+    private var secondScreenPresentation: SecondScreenPresentation? = null
     private val displayListener = object : DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) = refreshSecondScreenDisplays()
         override fun onDisplayRemoved(displayId: Int) = refreshSecondScreenDisplays()
@@ -2408,7 +2408,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         var presentation = secondScreenPresentation
         if (presentation?.display?.displayId != target.displayId) {
             presentation?.closeControls()
-            presentation = SecondScreenWindow(
+            presentation = SecondScreenPresentation(
                 this, target,
                 sendPointer = ::moveSecondScreenPointer,
                 sendButton = { button, pressed ->
