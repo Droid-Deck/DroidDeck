@@ -60,6 +60,9 @@ clear_stale_tmp() {
   return 0
 }
 [ -z "${BL_INSIDE:-}" ] && clear_stale_tmp
+if [ -z "${BL_INSIDE:-}" ]; then
+  if [ "${BL_ZRAM:-0}" = 1 ]; then printf 0 > /tmp/.bl-zram; else rm -f /tmp/.bl-zram; fi
+fi
 
 steam_update_stuck() {
   [ "$1" -lt 60 ] || steam_updates=0
@@ -441,7 +444,6 @@ case $mode in
       step "client cores: $BL_CLIENT_CPUS"
     fi
     if [ "${BL_ZRAM:-0}" = 1 ]; then
-      printf 0 > /tmp/.bl-zram
       step "zRAM compression: on"
       (
         bl_zram_scan() {
@@ -490,8 +492,6 @@ case $mode in
           nap 5
         done
       ) &
-    else
-      rm -f /tmp/.bl-zram
     fi
     if [ "${BL_LAUNCHER_CORES:-1}" != 0 ] && [ -n "${BL_LAUNCH_DIR:-}" ] && [ -z "${BL_DESKTOP:-}" ] \
        && [ "${BL_STEAM_UI:-}" != desktop ] && [ -x /usr/local/bin/droiddeck-launcher-cores ]; then

@@ -287,9 +287,6 @@
     <string name="mode_suspend_steam_note">自動では一時停止し、表示すると再開します。ネイティブでは先にSteamをスリープに備えさせます。手動では「再開」をタップするまで待機します。「しない」では実行し続けます。</string>
     <string name="mode_background_downloads">ダウンロードを継続</string>
     <string name="mode_background_downloads_hint">Steamがダウンロード中は、バックグラウンドでの一時停止を遅らせます。</string>
-    <string name="mode_zram">zRAM 圧縮</string>
-    <string name="mode_zram_hint">ゲームの実行中、Steam クライアントのメモリがデバイスの zram に圧縮され、ゲーム用のメモリが増えます。次回 Steam を起動したときに反映されます。</string>
-    <string name="mode_zram_unsupported">使用できません：このデバイスに zram もしくは swap がないか、カーネルが 5.4 未満です。</string>
     <string name="mode_suspend_note">自動ではバックグラウンドで一時停止し、表示すると再開します。手動では「再開」をタップするまで待機します。「しない」では実行し続けます。</string>
     <string name="mode_startup">起動</string>
     <string name="mode_steam_startup">DroidDeck起動時にSteamを起動</string>

@@ -2564,9 +2564,6 @@
     <string name="storage_tool_x64_client">Lo usa el cliente de Steam x86-64</string>
     <string name="storage_uninstall_in_x64">Esta copia está en el cliente de Steam x86-64. Elige x86-64 en Cliente de Steam y desinstálala aquí.</string>
     <string name="storage_uninstall_in_arm64">Esta copia está en el cliente de Steam ARM64. Elige ARM64 en Cliente de Steam y desinstálala aquí.</string>
-    <string name="mode_zram">Compresión zRAM</string>
-    <string name="mode_zram_hint">Mientras se ejecuta un juego, la memoria del cliente de Steam se comprime en la zram del dispositivo, lo que deja más RAM para el juego. Se aplica la próxima vez que se inicie Steam.</string>
-    <string name="mode_zram_unsupported">No disponible: este dispositivo no tiene swap activo, o su kernel es anterior a la 5.4.</string>
     <string name="stores_storage_insufficient">No hay suficiente espacio libre: se necesitan %1$s y solo hay %2$s libres</string>
     <string name="stores_storage_low">Espacio insuficiente (%1$s libres, se necesitan %2$s)</string>
     <string name="stores_target_free_unknown">Espacio libre desconocido</string>
