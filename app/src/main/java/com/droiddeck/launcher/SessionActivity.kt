@@ -2749,6 +2749,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (!PadBridge.isFromController(d)) return
         Log.i(TAG, String.format(java.util.Locale.ROOT, "controller %s: \"%s\" (%04x:%04x, id %d, sources 0x%x)",
             what, d.name, d.vendorId, d.productId, d.id, d.sources))
+        if (what == "connected") Log.i(TAG, "controller \"${d.name}\" reports ${com.droiddeck.launcher.input.ControllerProfiles.describe(d)}")
     }
 
     private fun steamTouch(): com.droiddeck.launcher.input.SteamTouchControls? {
@@ -3002,6 +3003,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         joyConVr?.refresh()
         onScreenControls?.reload()
         controllerSettings = ControllerPrefs.read(this)
+        com.droiddeck.launcher.input.ControllerProfiles.reload(this)
+        if (PadBridge.anyControllerConnected()) Thread { com.droiddeck.launcher.input.ControllerProfiles.exportReport(this) }.start()
         resumed = true
         updatePointerCapture()
         if (!pipUi) sessionClipboard.start()

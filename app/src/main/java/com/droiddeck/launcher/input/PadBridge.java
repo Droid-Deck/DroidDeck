@@ -16,7 +16,6 @@ import java.util.concurrent.atomic.AtomicIntegerArray;
 public final class PadBridge {
     private static final String TAG = "PadBridge";
     public static final int SLOTS = 4;
-    private static final float DEAD_ZONE = 0.12f;
     private static final int[] JOYSTICK_AXES = {
             MotionEvent.AXIS_X, MotionEvent.AXIS_Y, MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ,
             MotionEvent.AXIS_RX, MotionEvent.AXIS_RY,
@@ -289,7 +288,8 @@ public final class PadBridge {
         if (side >= 0 && partners[slot] != NO_CONTROLLER && JoyCon.isRail(side, event.getScanCode())) return true;
         PadState pad = stateFor(slot);
         boolean pressed = event.getAction() == KeyEvent.ACTION_DOWN;
-        switch (event.getKeyCode()) {
+        // A profile can have a pad's button count as another (ControllerProfiles).
+        switch (ControllerProfiles.resolve(event.getDevice()).key(event.getKeyCode())) {
             case KeyEvent.KEYCODE_BUTTON_A: pad.press(0, pressed); break;
             case KeyEvent.KEYCODE_BUTTON_B: pad.press(1, pressed); break;
             case KeyEvent.KEYCODE_BUTTON_X: pad.press(2, pressed); break;
@@ -338,12 +338,13 @@ public final class PadBridge {
         noteDevice(event.getDevice(), slot);
         statAxes++;
         scheduleStats();
+        float deadZone = ControllerProfiles.resolve(event.getDevice()).getDeadZone();
         InputDevice device = event.getDevice();
         int side = JoyCon.side(device);
         if (side >= 0) {
             int[] stick = JoyCon.stickAxes(side, device, event.getSource());
-            float x = axis(event, stick[0]);
-            float y = axis(event, stick[1]);
+            float x = axis(event, stick[0], deadZone);
+            float y = axis(event, stick[1], deadZone);
             if (side == JoyCon.LEFT) {
                 pad.leftX = x;
                 pad.leftY = y;
@@ -355,11 +356,21 @@ public final class PadBridge {
             publish(slot);
             return true;
         }
-        pad.leftX = axis(event, MotionEvent.AXIS_X);
-        pad.leftY = axis(event, MotionEvent.AXIS_Y);
+        // Each stick's dead zone is a circle round its centre, so a stick held well over to one
+        // side still answers small movements on the other axis.
+        float lx = event.getAxisValue(MotionEvent.AXIS_X);
+        // Android's Y axis grows downwards and evdev's ABS_Y does too, so no flip here: what the
+        // pad reports as "down" is what the client is told.
+        float ly = event.getAxisValue(MotionEvent.AXIS_Y);
         boolean wired = wiredXboxLayout(event);
-        pad.rightX = rightX(event, wired);
-        pad.rightY = rightY(event, wired);
+        float rx = rightX(event, wired);
+        float ry = rightY(event, wired);
+        boolean leftCentred = ControllerProfiles.inDeadZone(lx, ly, deadZone);
+        boolean rightCentred = ControllerProfiles.inDeadZone(rx, ry, deadZone);
+        pad.leftX = leftCentred ? 0f : lx;
+        pad.leftY = leftCentred ? 0f : ly;
+        pad.rightX = rightCentred ? 0f : rx;
+        pad.rightY = rightCentred ? 0f : ry;
         int source = event.getSource();
         float lt = 0f;
         float rt = 0f;
@@ -469,6 +480,7 @@ public final class PadBridge {
     }
 
     public synchronized void onDeviceRemoved(int deviceId) {
+        ControllerProfiles.forget(deviceId);
         for (int slot = 0; slot < SLOTS; slot++) {
             if (owners[slot] == deviceId || partners[slot] == deviceId) leave(slot, deviceId);
         }
@@ -634,6 +646,9 @@ public final class PadBridge {
             Log.i(TAG, String.format(java.util.Locale.ROOT, "first input from \"%s\" (%04x:%04x, id %d, sources 0x%x); slot %d, ring %s, deck pad %b",
                     device.getName(), device.getVendorId(), device.getProductId(), device.getId(), device.getSources(),
                     slot, open ? "open" : "not open yet", SessionState.getDeckPad()));
+            ControllerProfile profile = ControllerProfiles.resolve(device).getProfile();
+            Log.i(TAG, profile != null ? "profile \"" + profile.getName() + "\" applies to \"" + device.getName() + "\""
+                    : "no profile for \"" + device.getName() + "\"; global dead zone");
         }
     }
 
@@ -701,11 +716,11 @@ public final class PadBridge {
     }
 
     public static float rightX(MotionEvent event, boolean wired) {
-        return axis(event, wired ? MotionEvent.AXIS_RX : MotionEvent.AXIS_Z);
+        return event.getAxisValue(wired ? MotionEvent.AXIS_RX : MotionEvent.AXIS_Z);
     }
 
     public static float rightY(MotionEvent event, boolean wired) {
-        return axis(event, wired ? MotionEvent.AXIS_RY : MotionEvent.AXIS_RZ);
+        return event.getAxisValue(wired ? MotionEvent.AXIS_RY : MotionEvent.AXIS_RZ);
     }
 
     public static float leftTrigger(MotionEvent event, boolean wired) {
@@ -720,8 +735,8 @@ public final class PadBridge {
         return value != 0f ? value : event.getAxisValue(MotionEvent.AXIS_GAS);
     }
 
-    private static float axis(MotionEvent event, int axis) {
+    private static float axis(MotionEvent event, int axis, float deadZone) {
         float value = event.getAxisValue(axis);
-        return Math.abs(value) < DEAD_ZONE ? 0f : value;
+        return Math.abs(value) < deadZone ? 0f : value;
     }
 }

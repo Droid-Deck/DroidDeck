@@ -998,6 +998,8 @@
     <string name="ctrl_stick_click_hint">Double-tap and hold a stick for L3 or R3</string>
     <string name="ctrl_adaptive">Adaptive sticks</string>
     <string name="ctrl_rumble">Game vibration</string>
+    <string name="ctrl_dead_zone">Stick dead zone</string>
+    <string name="ctrl_dead_zone_hint">How far a controller stick must move before a game sees it. Lower it if sticks feel sluggish, raise it if they drift</string>
     <string name="ctrl_steam_button">Steam button</string>
     <string name="ctrl_qam_button">QAM button</string>
     <string name="ctrl_keyboard_button">Keyboard button</string>
@@ -1016,6 +1018,12 @@
     <string name="ctrl_mapping_default">Every button sends its own input</string>
     <string name="ctrl_mapping_count">%1$d of %2$d buttons remapped</string>
     <string name="ctrl_configure">Configure</string>
+    <string name="ctrl_report">Controller report</string>
+    <string name="ctrl_report_hint">Saves what the connected controllers report to Downloads, to share when one misbehaves</string>
+    <string name="ctrl_report_export">Export</string>
+    <string name="ctrl_report_saved">Saved to %1$s</string>
+    <string name="ctrl_report_none">No controller is connected</string>
+    <string name="ctrl_report_failed">Could not write the report</string>
     <string name="ctrl_reset_all">Reset controller</string>
     <string name="ctrl_reset_all_hint">Restores all controller settings and the layout</string>
     <string name="ctrl_mapping_lede">What each on-screen button sends to the game. Hidden removes the button.</string>

@@ -25,6 +25,7 @@ class ControllerActions(
     val onStickClick: (Boolean) -> Unit,
     val onAdaptiveSticks: (Boolean) -> Unit,
     val onRumble: (Boolean) -> Unit,
+    val onDeadZone: (Int) -> Unit,
     val onSteamButton: (Boolean) -> Unit,
     val onQamButton: (Boolean) -> Unit,
     val onKeyboardButton: (Boolean) -> Unit,
@@ -33,6 +34,7 @@ class ControllerActions(
     val onEditLayout: () -> Unit,
     val onResetLayout: () -> Unit,
     val onMapping: () -> Unit,
+    val onExportReport: () -> Unit,
     val onResetAll: () -> Unit,
 )
 
@@ -69,6 +71,7 @@ fun ColumnScope.ControllerRows(host: MenuHost, oscMode: String, c: ControllerPre
     ToggleRow(host, "controller-stick-click", stringResource(R.string.ctrl_stick_click), stringResource(R.string.ctrl_stick_click_hint), c.stickClick, onChange = a.onStickClick)
     ToggleRow(host, "controller-adaptive", stringResource(R.string.ctrl_adaptive), stringResource(R.string.ctrl_adaptive_hint), c.adaptiveSticks, onChange = a.onAdaptiveSticks)
     ToggleRow(host, "controller-rumble", stringResource(R.string.ctrl_rumble), null, c.rumble, onChange = a.onRumble)
+    ChoiceRow(host, "controller-dead-zone", stringResource(R.string.ctrl_dead_zone), stringResource(R.string.ctrl_dead_zone_hint), ControllerPrefs.deadZones.map { it to stringResource(R.string.ctrl_percent, it) }, c.deadZone, onPick = a.onDeadZone)
     ToggleRow(host, "controller-steam", stringResource(R.string.ctrl_steam_button), null, c.steamButton, onChange = a.onSteamButton)
     ToggleRow(host, "controller-qam", stringResource(R.string.ctrl_qam_button), null, c.qamButton, onChange = a.onQamButton)
     ToggleRow(host, "controller-keyboard", stringResource(R.string.ctrl_keyboard_button), null, c.keyboardButton, onChange = a.onKeyboardButton)
@@ -82,6 +85,7 @@ fun ColumnScope.ControllerRows(host: MenuHost, oscMode: String, c: ControllerPre
     }
     val remapped = c.mapping.count { (id, target) -> id != target }
     ActionRow(stringResource(R.string.ctrl_mapping), if (remapped == 0) stringResource(R.string.ctrl_mapping_default) else stringResource(R.string.ctrl_mapping_count, remapped, c.mapping.size), stringResource(R.string.ctrl_configure), a.onMapping)
+    ActionRow(stringResource(R.string.ctrl_report), stringResource(R.string.ctrl_report_hint), stringResource(R.string.ctrl_report_export), a.onExportReport)
     ActionRow(stringResource(R.string.ctrl_reset_all), stringResource(R.string.ctrl_reset_all_hint), stringResource(R.string.ctrl_reset), a.onResetAll)
 }
 
