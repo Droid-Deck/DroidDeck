@@ -16,7 +16,7 @@ import com.droiddeck.launcher.session.SessionPrefs
 internal class TrackingRecoveryView(context: Context) : View(context) {
     private var recovery: TrackingRecovery? = null
     private var stereo = false
-    private var palette = Themes.byId(SessionPrefs.theme(context))
+    private var palette = Themes.current(context)
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private var blocks = emptyList<StaticLayout>()
 
@@ -26,7 +26,7 @@ internal class TrackingRecoveryView(context: Context) : View(context) {
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_YES
     }
 
-    fun update(state: TrackingRecovery?, stereo: Boolean, palette: Palette = Themes.byId(SessionPrefs.theme(context))) {
+    fun update(state: TrackingRecovery?, stereo: Boolean, palette: Palette = Themes.current(context)) {
         if (recovery == state && this.stereo == stereo && this.palette == palette) return
         recovery = state
         this.stereo = stereo
