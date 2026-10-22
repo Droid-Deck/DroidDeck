@@ -1418,6 +1418,14 @@
     <string name="theme_icon_blue_detail">Fundal negru, text alb, albastrul pentru tot ce este selectat, focalizat sau apăsat.</string>
     <string name="theme_electric">Bleumarin electric</string>
     <string name="theme_electric_detail">Albastrul mai strălucitor, pe suprafețe care tind spre bleumarin în loc de gri.</string>
+    <string name="theme_gradient">Gradient</string>
+    <string name="theme_gradient_detail">Culorile tale primară și secundară, combinate pe butoane și evidențieri.</string>
+    <string name="theme_gradient_primary">Primară</string>
+    <string name="theme_gradient_secondary">Secundară</string>
+    <string name="theme_color_hue">Nuanță</string>
+    <string name="theme_color_saturation">Saturație</string>
+    <string name="theme_color_brightness">Luminozitate</string>
+    <string name="theme_color_hex">Culoare hex</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>
@@ -2524,6 +2532,7 @@
     <string name="glasses_xreal_network_missing">Se așteaptă conexiunea USB Ethernet a ochelarilor. Este posibil ca acest telefon să nu o expună aplicațiilor.</string>
     <string name="glasses_xreal_connection_failed">Conexiunea XREAL a fost întreruptă sau a returnat un răspuns neacceptat. Se reîncearcă…</string>
     <string name="glasses_xreal_experimental">Suport experimental pentru 1S. Folosește modul Follow și dezactivează stabilizarea din meniul ochelarilor. Direcțiile de urmărire și modurile de afișare trebuie încă testate pe dispozitiv.</string>
+    <string name="glasses_pro2_experimental">Urmărire experimentală a mișcărilor capului pentru Pro 2. Reglarea luminozității și a volumului și schimbarea modului de afișare nu sunt încă acceptate.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Mod Cardboard</string>
     <string name="cardboard_mode_hint">Imagini pentru ochiul stâng și cel drept, pentru un vizor VR pentru telefon.</string>

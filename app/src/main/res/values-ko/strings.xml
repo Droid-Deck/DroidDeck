@@ -1392,6 +1392,14 @@
     <string name="theme_icon_blue_detail">검은색 배경에 흰색 글자, 선택·포커스·누름 상태에는 파란색을 사용합니다.</string>
     <string name="theme_electric">일렉트릭 네이비</string>
     <string name="theme_electric_detail">회색 대신 네이비 톤의 화면에 더 밝은 파란색을 사용합니다.</string>
+    <string name="theme_gradient">그라데이션</string>
+    <string name="theme_gradient_detail">직접 고른 기본색과 보조색이 버튼과 강조 표시에 섞여 적용됩니다.</string>
+    <string name="theme_gradient_primary">기본색</string>
+    <string name="theme_gradient_secondary">보조색</string>
+    <string name="theme_color_hue">색조</string>
+    <string name="theme_color_saturation">채도</string>
+    <string name="theme_color_brightness">명도</string>
+    <string name="theme_color_hex">16진수 색상</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>
@@ -2476,6 +2484,7 @@
     <string name="glasses_xreal_network_missing">안경의 USB Ethernet 연결을 기다리는 중입니다. 이 휴대폰은 앱에 이 연결을 제공하지 않을 수 있습니다.</string>
     <string name="glasses_xreal_connection_failed">XREAL 연결이 중단되었거나 지원되지 않는 응답을 받았습니다. 다시 시도하는 중…</string>
     <string name="glasses_xreal_experimental">1S 지원은 실험 단계입니다. 안경 메뉴에서 Follow 모드를 사용하고 안정화를 끄세요. 트래킹 방향과 디스플레이 모드는 아직 기기에서 테스트가 필요합니다.</string>
+    <string name="glasses_pro2_experimental">Pro 2 헤드 트래킹은 실험 단계입니다. 밝기와 음량 조절 및 디스플레이 모드 전환은 아직 지원되지 않습니다.</string>
     <string name="stores_fact_developer">개발사</string>
     <string name="stores_fact_publisher">배급사</string>
     <string name="stores_fact_released">출시일</string>

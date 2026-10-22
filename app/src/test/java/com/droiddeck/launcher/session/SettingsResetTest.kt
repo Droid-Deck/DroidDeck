@@ -27,6 +27,7 @@ class SettingsResetTest {
 
     @Test fun settingsGoBackToTheirDefaults() {
         SessionPrefs.setTheme(app, "ocean")
+        SessionPrefs.setUnfoldedControlsWithController(app, true)
         SessionPrefs.setNoXalia(app, false)
         SessionPrefs.setFpsLimit(app, SessionService.MODE_STEAM, 30)
         SessionPrefs.setHdr(app, SessionService.MODE_DESKTOP, true)
@@ -45,6 +46,7 @@ class SettingsResetTest {
         assertTrue(SettingsReset.resetAll(app, gameProfiles = false))
 
         assertEquals("graphite", SessionPrefs.theme(app))
+        assertFalse(SessionPrefs.unfoldedControlsWithController(app))
         assertTrue(SessionPrefs.noXalia(app))
         assertEquals(0, SessionPrefs.fpsLimit(app, SessionService.MODE_STEAM))
         assertFalse(SessionPrefs.hdr(app, SessionService.MODE_DESKTOP))
