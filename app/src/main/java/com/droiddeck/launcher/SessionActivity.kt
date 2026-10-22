@@ -1801,6 +1801,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         return if (capped > 1f) capped else 60f
     }
 
+    private fun activeRefreshHz(): Float = activeOutputDisplay()?.let(::activeRefreshHz) ?: refreshHz()
+
     private fun mirrorRefreshLimit(): Int =
         GlassesRendering.mirrorRefreshLimit(glassesSettings, glasses, glassesScreen != null)
 
@@ -1818,7 +1820,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
     }
 
-    private fun applyFrameGen(hz: Float = refreshHz()) {
+    private fun applyFrameGen(hz: Float = activeRefreshHz()) {
         Thread({
             val problem = FrameGen.apply(this, hz)
             val state = Lossless.state(this)
@@ -3153,7 +3155,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         updateHeadTracker()
     }
 
-    private fun pushCardboard(c: Cardboard, hz: Float = refreshHz()) {
+    private fun pushCardboard(c: Cardboard, hz: Float = activeRefreshHz()) {
         val fov = when {
             c.viewer != Cardboard.Viewer.VITURE.id -> 0f
             c.source == Cardboard.SOURCE_SBS -> glassesSettings.vrFovDeg.toFloat()
