@@ -126,7 +126,11 @@ object SteamTouchConfig {
         }
     }
 
-    private val DEFAULT_SET = setOf(DPAD, A, B, X, Y, SELECT, START)
+    private val DEFAULT_SET = setOf(
+        JOYSTICK_LEFT, JOYSTICK_LEFT_BUTTON, JOYSTICK_RIGHT, JOYSTICK_RIGHT_BUTTON,
+        DPAD, A, B, X, Y, SELECT, START,
+        BUMPER_LEFT, BUMPER_RIGHT, TRIGGER_LEFT, TRIGGER_RIGHT,
+    )
     private val ALWAYS = setOf(STEAM, THUMB, KEYBOARD)
 
     fun steamId(appId: Int): String = Integer.toUnsignedString(appId)

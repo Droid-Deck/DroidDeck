@@ -10,11 +10,34 @@ import java.time.Instant
 internal object XboxCatalog {
     private val productId = Regex("[A-Z0-9]{12}")
     private val plans = setOf("CFQ7TTC0KGQ8", "CFQ7TTC0KHS0", "CFQ7TTC0P85B", "CFQ7TTC0K5DJ", "CFQ7TTC0K6L8", "CFQ7TTC10QFD")
+    /** Plans that include PC games; the retired console-only plan must not offer a Windows install. */
+    private val pcPlans = mapOf(
+        "CFQ7TTC0KGQ8" to "PC Game Pass",
+        "CFQ7TTC0KHS0" to "Game Pass Ultimate",
+        "CFQ7TTC0P85B" to "Xbox Game Pass Premium",
+        "CFQ7TTC0K5DJ" to "Xbox Game Pass Essential",
+        "CFQ7TTC10QFD" to "Xbox Game Pass (Starter Edition)",
+    )
 
-    fun access(json: JSONObject, account: String, market: String, now: Instant = Instant.now()): Map<String, String> {
+    fun access(json: JSONObject, account: String, market: String, now: Instant = Instant.now(), report: (String) -> Unit = {}): Map<String, String> {
         require(json.getInt("schema") == 1 && json.getString("account") == account && json.getString("market") == market)
         val age = java.time.Duration.between(timestamp(json.getString("checkedAt")), now).seconds
         require(age in -60..299)
+        val memberships: Set<String>? = if (json.has("subscriptions")) {
+            val subscriptions = json.getJSONArray("subscriptions")
+            require(subscriptions.length() <= plans.size)
+            val seen = HashSet<String>()
+            buildSet {
+                for (i in 0 until subscriptions.length()) {
+                    val row = subscriptions.getJSONObject(i)
+                    val id = row.getString("productId")
+                    require(id in plans && seen.add(id))
+                    val status = row.getString("status")
+                    val expiry = timestamp(row.getString("endDate"))
+                    if (status == "Active" && expiry.isAfter(now)) add(id)
+                }
+            }
+        } else null
         val array = json.getJSONArray("entitlements")
         require(array.length() <= 10_000)
         val rows = LinkedHashMap<String, JSONObject>()
@@ -30,6 +53,7 @@ internal object XboxCatalog {
         }
         fun active(row: JSONObject) = row.getString("status") == "Active" && !row.getBoolean("isTrial") && !row.getBoolean("special") &&
             row.getString("sharingSource") == "None" && timestamp(row.getString("endDate")).isAfter(now)
+        fun activePlan(id: String) = rows[id]?.let(::active) ?: (id in memberships.orEmpty())
         fun kind(id: String, visited: Set<String> = emptySet()): String? {
             if (id in blocked || id in visited || visited.size >= 16) return null
             val row = rows[id] ?: return null
@@ -37,10 +61,14 @@ internal object XboxCatalog {
             val parent = row.optString("satisfiedByProductId").takeUnless { it.isBlank() || it == "null" }
             if (parent == null) return if (id in plans) null else "owned"
             if (parent in blocked) return null
-            if (parent in plans) return if (rows[parent]?.let(::active) == true) "gamepass" else null
+            if (parent in plans) return if (parent in pcPlans && activePlan(parent)) "gamepass" else null
             return kind(parent, visited + id)
         }
-        return rows.keys.mapNotNull { id -> kind(id)?.let { id to it } }.toMap()
+        val result = rows.keys.mapNotNull { id -> kind(id)?.let { id to it } }.toMap()
+        val missingPlan = rows.values.count { row -> row.optString("satisfiedByProductId").let { it in plans && !activePlan(it) } }
+        report("library entitlements=${array.length()} invalid=${array.length() - rows.size} restricted=${rows.values.count { !active(it) }} " +
+            "unverified-plan=$missingPlan owned=${result.values.count { it == "owned" }} gamepass=${result.values.count { it == "gamepass" }}")
+        return result
     }
 
     private fun timestamp(value: String): Instant = java.time.OffsetDateTime.parse(value).toInstant()
@@ -90,9 +118,12 @@ internal object XboxCatalog {
             }
         }
         val kind = access[id]
+        val includedWith = objects(localized.optJSONObject("EligibilityProperties")?.optJSONArray("Affirmations"))
+            .mapNotNull { pcPlans[it.optString("AffirmationProductId")] }
+            .firstOrNull().orEmpty()
         return CatalogItem(Store.XBOX, id, title, image("SuperHeroArt", "Hero", "BoxArt"),
             tallImageUrl = image("TitledPoster", "Poster", "BoxArt"),
-            owned = kind == "owned", subscription = kind == "gamepass",
+            owned = kind == "owned", subscription = kind == "gamepass", includedWith = includedWith,
             storeUrl = "https://www.xbox.com/games/store/$id",
             publisher = localized.optString("PublisherName"), developer = localized.optString("DeveloperName"),
             description = localized.optString("ProductDescription"),

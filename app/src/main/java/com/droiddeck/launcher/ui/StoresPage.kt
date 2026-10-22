@@ -10,6 +10,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Animatable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.outlined.Folder
@@ -24,10 +25,12 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.layout.boundsInParent
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.positionInRoot
 import com.droiddeck.launcher.stores.StoreInstallRoot
+import com.droiddeck.launcher.stores.StoreLanguage
 import com.droiddeck.launcher.stores.epic.EpicClient
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -37,6 +40,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import android.view.KeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.draw.drawWithContent
@@ -65,6 +69,8 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import kotlin.math.roundToInt
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -116,6 +122,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -137,7 +144,9 @@ import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.Store
+import com.droiddeck.launcher.stores.StoreTab
 import com.droiddeck.launcher.stores.StoresState
+import com.droiddeck.launcher.stores.arrangeStoreTabs
 import com.droiddeck.launcher.stores.download.DownloadStage
 import com.droiddeck.launcher.stores.download.DownloadState
 import com.droiddeck.launcher.stores.formatBytes
@@ -193,13 +202,54 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     val colors = MaterialTheme.colorScheme
     val narrow = LocalNarrowPane.current
     val padH = if (narrow) 14.dp else 22.dp
-    var chip by rememberSaveable { mutableStateOf(Store.GOG.id) }
+    val tabs = remember {
+        androidx.compose.runtime.mutableStateListOf<StoreTab>().apply {
+            addAll(arrangeStoreTabs(SessionPrefs.storesTabOrder(ctx), SessionPrefs.storesTabHidden(ctx)))
+        }
+    }
+    var chip by rememberSaveable { mutableStateOf(tabs.firstOrNull { it.shown }?.store?.id ?: Store.GOG.id) }
+    var arranging by remember { mutableStateOf(false) }
+    val shownStores = tabs.filter { it.shown }.map { it.store }
+    fun commitTabs() {
+        SessionPrefs.setStoresTabOrder(ctx, tabs.map { it.store.id })
+        SessionPrefs.setStoresTabHidden(ctx, tabs.filterNot { it.shown }.map { it.store.id }.toSet())
+    }
+    fun shiftTab(store: Store, delta: Int) {
+        val from = tabs.indexOfFirst { it.store == store }
+        val to = from + delta
+        if (from < 0 || to !in tabs.indices) return
+        tabs.add(to, tabs.removeAt(from))
+        commitTabs()
+    }
+    fun moveTab(store: Store, to: Int) {
+        val from = tabs.indexOfFirst { it.store == store }
+        if (from < 0) return
+        val target = to.coerceIn(0, tabs.lastIndex)
+        if (target == from) return
+        tabs.add(target, tabs.removeAt(from))
+        commitTabs()
+    }
+    fun toggleTab(store: Store) {
+        val i = tabs.indexOfFirst { it.store == store }
+        if (i < 0) return
+        val show = !tabs[i].shown
+        if (!show && tabs.count { it.shown } <= 1) return
+        tabs[i] = tabs[i].copy(shown = show)
+        commitTabs()
+    }
+    LaunchedEffect(tabs.map { it.store to it.shown }, chip) {
+        val picked = Store.byId(chip) ?: return@LaunchedEffect
+        if (tabs.none { it.store == picked && it.shown }) chip = tabs.firstOrNull { it.shown }?.store?.id ?: chip
+    }
     var tab by rememberSaveable { mutableStateOf(if (SessionPrefs.storesOpenTab(ctx) == SessionPrefs.STORES_OPEN_STORE) "store" else "library") }
     var query by rememberSaveable { mutableStateOf("") }
     var openGame by rememberSaveable { mutableStateOf<String?>(null) }
     val liveState = androidx.compose.runtime.rememberUpdatedState(s)
     LaunchedEffect(StoresState.openDownloads) { if (StoresState.openDownloads) { chip = DOWNLOADS; StoresState.openDownloads = false } }
     val store = Store.byId(chip)
+    LaunchedEffect(tabs.toList()) {
+        if (chip != DOWNLOADS && Store.byId(chip) !in shownStores) chip = shownStores.firstOrNull()?.id ?: DOWNLOADS
+    }
     val shownTab = tabFor(store, tab)
     val pane = PaneKey(
         chip, if (store == null) "" else shownTab,
@@ -246,7 +296,8 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     }
     val pal = LocalPalette.current
     fun cycleStore(step: Int) {
-        val ids = Store.entries.map { it.id }
+        val ids = tabs.filter { it.shown }.map { it.store.id }
+        if (ids.isEmpty()) return
         val at = ids.indexOf(chip)
         pickChip(ids[if (at < 0) (if (step > 0) 0 else ids.size - 1) else (at + step + ids.size) % ids.size])
     }
@@ -254,6 +305,16 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
         if (chip != st.id) pickChip(st.id) else move("first")
     }
     BackHandler(enabled = openGame != null) { closeGame() }
+    BackHandler(enabled = arranging) { arranging = false }
+    LaunchedEffect(arranging) {
+        val focus = ff ?: return@LaunchedEffect
+        if (!arranging || inputMode.inputMode != androidx.compose.ui.input.InputMode.Keyboard) return@LaunchedEffect
+        repeat(45) {
+            androidx.compose.runtime.withFrameNanos { }
+            val req = tabs.firstOrNull()?.let { focus.items["storechip:${it.store.id}"] } ?: return@repeat
+            if (runCatching { req.requestFocus() }.isSuccess) return@LaunchedEffect
+        }
+    }
     val scroll = rememberScrollState()
     val detailScroll = rememberScrollState()
     LaunchedEffect(chip, tab) { scroll.scrollTo(0); grid.scrollToItem(0) }
@@ -329,14 +390,32 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     Column(
         modifier = Modifier.fillMaxSize().padding(horizontal = padH, vertical = if (narrow) 10.dp else 14.dp)
             .bumpers(
-                onPrevious = { if (openGame == null) cycleStore(-1) },
-                onNext = { if (openGame == null) cycleStore(1) },
+                onPrevious = {
+                    val picked = Store.byId(focusedChip)
+                    if (arranging) { if (picked != null) shiftTab(picked, -1) }
+                    else if (openGame == null) cycleStore(-1)
+                },
+                onNext = {
+                    val picked = Store.byId(focusedChip)
+                    if (arranging) { if (picked != null) shiftTab(picked, 1) }
+                    else if (openGame == null) cycleStore(1)
+                },
             ),
     ) {
         Box(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
             StoreTheme(Store.byId(focusedChip ?: chip)) {
-                Rise(0) { StoreChips(chip, focusedChip, s.storeDownloadsActive, onStore = { st, _ -> openModes(st) }, onDownloads = { if (chip != DOWNLOADS) pickChip(DOWNLOADS) else move("first") },
-                    onFocusChip = { focusedChip = it }, onSettings = { at -> if (at != null) StoresMotion.ask(storesSettingsStep(at, liveState, a, pal.signal)) }) }
+                Rise(0) {
+                    StoreChips(
+                        chip, focusedChip, s.storeDownloadsActive, tabs, arranging,
+                        onStore = { st -> openModes(st) },
+                        onDownloads = { if (chip != DOWNLOADS) pickChip(DOWNLOADS) else move("first") },
+                        onFocusChip = { focusedChip = it },
+                        onArrangeDone = { arranging = false },
+                        onMoveTab = { st, to -> moveTab(st, to) },
+                        onToggleTab = { toggleTab(it) },
+                        onSettings = { at -> if (at != null) StoresMotion.ask(storesSettingsStep(at, liveState, a, pal.signal) { arranging = true }) },
+                    )
+                }
             }
         }
         val fade = with(androidx.compose.ui.platform.LocalDensity.current) { 14.dp.toPx() }
@@ -465,7 +544,10 @@ private fun InstallWhere(item: CatalogItem) {
     val ctx = LocalContext.current
     val pal = LocalPalette.current
     val from = remember(item) { StoresMotion.recentInstall() }
-    if (from == null) { InstallWhereDialog(item) { StoresState.pendingInstall = null }; return }
+    if (from == null || StoreLanguage.selectable(item.store)) {
+        InstallWhereDialog(item) { StoresState.pendingInstall = null }
+        return
+    }
     val title = stringResource(R.string.stores_install_title, item.title)
     val internalLabel = stringResource(R.string.stores_target_internal)
     val label = StoresMotion.installLabel
@@ -547,55 +629,149 @@ private fun SignInFloodLayer(hostAt: Offset) {
 }
 
 
+private class ChipDrag {
+    var store by mutableStateOf<Store?>(null)
+    var from by mutableIntStateOf(-1)
+    var target by mutableIntStateOf(-1)
+    var x by mutableFloatStateOf(0f)
+}
+
+@Composable
+private fun StoreDot(store: Store, signedIn: Boolean) {
+    val c = sourceColours(store.id)
+    Box(
+        Modifier.size(12.dp)
+            .onGloballyPositioned { StoresMotion.dots[store] = it.boundsInRoot() }
+            .pulseRing(StoresMotion.pulses[store] ?: 0, c.dot)
+            .background(c.dot.copy(alpha = if (signedIn) 1f else 0.35f), CircleShape),
+    )
+}
+
+@Composable
+private fun RowScope.ArrangeStoreChip(
+    tab: StoreTab, index: Int, last: Int, gapPx: Float, drag: ChipDrag,
+    onFocusChip: (String?) -> Unit, onMoveTab: (Store, Int) -> Unit, onToggleTab: (Store) -> Unit,
+) {
+    val store = tab.store
+    val box = remember(store) { mutableFloatStateOf(0f) }
+    val pitch = box.floatValue + gapPx
+    val held = drag.store == store
+    val lift by animateFloatAsState(if (held) 1f else 0f, Motion.sp(0.7f, Spring.StiffnessMediumLow), label = "chipLift")
+    val shift by animateFloatAsState(
+        when {
+            drag.store == null || held -> 0f
+            drag.from < index && drag.target >= index -> -pitch
+            drag.from > index && drag.target <= index -> pitch
+            else -> 0f
+        },
+        Motion.sp(0.6f, Spring.StiffnessMediumLow), label = "chipShift",
+    )
+    val pill = remember { RoundedCornerShape(99.dp) }
+    val signedIn = StoresState.isSignedIn(store) && StoresState.expired[store] != true
+    fun reset() {
+        drag.store = null
+        drag.from = -1
+        drag.target = -1
+        drag.x = 0f
+    }
+    fun commit() {
+        val from = drag.from
+        val to = drag.target
+        reset()
+        if (from >= 0 && to >= 0 && to != from) onMoveTab(store, to)
+    }
+    StoreChip(
+        label = store.shortLabel, on = false, under = false, key = store.id, mark = sourceColours(store.id).dot, lift = lift,
+        modifier = Modifier.weight(1f)
+            .zIndex(if (held) 2f else 0f)
+            .onSizeChanged { box.floatValue = it.width.toFloat() }
+            .graphicsLayer {
+                translationX = if (held) drag.x else shift
+                shadowElevation = 14.dp.toPx() * lift
+                shape = pill
+                clip = false
+            }
+            .pointerInput(store, index) {
+                detectDragGestures(
+                    onDragStart = {
+                        drag.store = store
+                        drag.from = index
+                        drag.target = index
+                        drag.x = 0f
+                    },
+                    onDragEnd = { commit() },
+                    onDragCancel = { reset() },
+                ) { change, amount ->
+                    change.consume()
+                    val step = box.floatValue + gapPx
+                    if (step <= 0f) return@detectDragGestures
+                    drag.x = (drag.x + amount.x).coerceIn(-drag.from * step, (last - drag.from) * step)
+                    drag.target = (drag.from + (drag.x / step).roundToInt()).coerceIn(0, last)
+                }
+            }
+            .alpha(if (tab.shown) 1f else 0.32f),
+        lead = { StoreDot(store, signedIn) },
+        onFocused = onFocusChip,
+    ) { onToggleTab(store) }
+}
+
 @Composable
 private fun StoreChips(
-    selected: String, focused: String?, active: Int, onStore: (Store, Rect?) -> Unit, onDownloads: () -> Unit, onSettings: (Rect?) -> Unit,
-    onFocusChip: (String?) -> Unit,
+    selected: String, focused: String?, active: Int, tabs: List<StoreTab>, arranging: Boolean,
+    onStore: (Store) -> Unit, onDownloads: () -> Unit, onSettings: (Rect?) -> Unit, onFocusChip: (String?) -> Unit,
+    onArrangeDone: () -> Unit, onMoveTab: (Store, Int) -> Unit, onToggleTab: (Store) -> Unit,
 ) {
     val pal = LocalPalette.current
-    val keys = Store.entries.map { it.id } + DOWNLOADS
+    val keys = tabs.filter { it.shown }.map { it.store.id } + DOWNLOADS
     val bounds = remember { androidx.compose.runtime.mutableStateMapOf<String, Rect>() }
     val rootBounds = remember { HashMap<String, Rect>() }
     val highlighted = focused ?: selected
     val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current.inputMode
-    val fillShown = inputMode != androidx.compose.ui.input.InputMode.Keyboard
+    val fillShown = inputMode != androidx.compose.ui.input.InputMode.Keyboard && !arranging
     val tint = androidx.compose.animation.animateColorAsState(
         Store.byId(highlighted)?.let { sourceColours(it.id).dot } ?: pal.signal, Motion.tw(160), label = "chipTint",
     )
+    val gap = 8.dp
+    val gapPx = with(androidx.compose.ui.platform.LocalDensity.current) { gap.toPx() }
+    val drag = remember { ChipDrag() }
     Box(Modifier.fillMaxWidth()) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            for (store in Store.entries) {
-                val signedIn = StoresState.isSignedIn(store) && StoresState.expired[store] != true
-                StoreChip(
-                    label = store.shortLabel, on = selected == store.id, under = fillShown && highlighted == store.id, key = store.id, mark = sourceColours(store.id).dot,
-                    modifier = Modifier.weight(1f).onGloballyPositioned { bounds[store.id] = it.boundsInParent(); rootBounds[store.id] = it.boundsInRoot() },
-                    lead = {
-                        val c = sourceColours(store.id)
-                        Box(
-                            Modifier.size(12.dp)
-                                .onGloballyPositioned { StoresMotion.dots[store] = it.boundsInRoot() }
-                                .pulseRing(StoresMotion.pulses[store] ?: 0, c.dot)
-                                .background(c.dot.copy(alpha = if (signedIn) 1f else 0.35f), CircleShape),
-                        )
-                    },
-                    description = store.label + if (signedIn || !StoresState.accountsLoaded) "" else " " + stringResource(R.string.stores_chip_signed_out),
-                    onFocused = onFocusChip,
-                ) { onStore(store, rootBounds[store.id]) }
+        Row(horizontalArrangement = Arrangement.spacedBy(gap), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            for (tab in tabs) {
+                val store = tab.store
+                if (arranging) {
+                    val index = tabs.indexOfFirst { it.store == store }
+                    key(store) { ArrangeStoreChip(tab, index, tabs.lastIndex, gapPx, drag, onFocusChip, onMoveTab, onToggleTab) }
+                } else if (tab.shown) {
+                    val signedIn = StoresState.isSignedIn(store) && StoresState.expired[store] != true
+                    key(store) {
+                        StoreChip(
+                            label = store.shortLabel, on = selected == store.id, under = fillShown && highlighted == store.id, key = store.id, mark = sourceColours(store.id).dot,
+                            modifier = Modifier.weight(1f).onGloballyPositioned { bounds[store.id] = it.boundsInParent(); rootBounds[store.id] = it.boundsInRoot() },
+                            lead = { StoreDot(store, signedIn) },
+                            description = store.label + if (signedIn || !StoresState.accountsLoaded) "" else " " + stringResource(R.string.stores_chip_signed_out),
+                            onFocused = onFocusChip,
+                        ) { onStore(store) }
+                    }
+                }
             }
-            StoreChip(
-                label = null, on = selected == DOWNLOADS, under = fillShown && highlighted == DOWNLOADS, key = DOWNLOADS, mark = pal.signal,
-                modifier = Modifier.onGloballyPositioned {
-                    bounds[DOWNLOADS] = it.boundsInParent()
-                    StoresMotion.downloadsChip = it.boundsInRoot()
-                },
-                lead = { Icon(Icons.Outlined.Download, null, modifier = Modifier.size(18.dp)) },
-                trail = if (active > 0) { { CountPill(active) } } else null,
-                description = stringResource(R.string.stores_tab_downloads),
-                onFocused = onFocusChip,
-            ) { onDownloads() }
-            var cogAt by remember { mutableStateOf<Rect?>(null) }
-            Box(Modifier.onGloballyPositioned { cogAt = it.boundsInRoot() }) {
-                IconChip(Icons.Filled.Settings, stringResource(R.string.stores_settings)) { onSettings(cogAt) }
+            if (arranging) {
+                IconChip(Icons.Filled.Check, stringResource(R.string.stores_tabs_arrange_done)) { onArrangeDone() }
+            } else {
+                StoreChip(
+                    label = null, on = selected == DOWNLOADS, under = fillShown && highlighted == DOWNLOADS, key = DOWNLOADS, mark = pal.signal,
+                    modifier = Modifier.onGloballyPositioned {
+                        bounds[DOWNLOADS] = it.boundsInParent()
+                        StoresMotion.downloadsChip = it.boundsInRoot()
+                    },
+                    lead = { Icon(Icons.Outlined.Download, null, modifier = Modifier.size(18.dp)) },
+                    trail = if (active > 0) { { CountPill(active) } } else null,
+                    description = stringResource(R.string.stores_tab_downloads),
+                    onFocused = onFocusChip,
+                ) { onDownloads() }
+                var cogAt by remember { mutableStateOf<Rect?>(null) }
+                Box(Modifier.onGloballyPositioned { cogAt = it.boundsInRoot() }) {
+                    IconChip(Icons.Filled.Settings, stringResource(R.string.stores_settings)) { onSettings(cogAt) }
+                }
             }
         }
         ChipGlide(keys.indexOf(highlighted), bounds[highlighted], tint, visible = fillShown)
@@ -605,7 +781,7 @@ private fun StoreChips(
 @Composable
 private fun StoreChip(
     label: String?, on: Boolean, under: Boolean, key: String, mark: Color, modifier: Modifier, lead: @Composable () -> Unit,
-    trail: (@Composable () -> Unit)? = null, description: String? = null,
+    trail: (@Composable () -> Unit)? = null, description: String? = null, lift: Float = 0f,
     onFocused: (String?) -> Unit = {}, onClick: () -> Unit,
 ) {
     val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current
@@ -630,10 +806,10 @@ private fun StoreChip(
                 if (f.isFocused && inputMode.inputMode == androidx.compose.ui.input.InputMode.Keyboard) onFocused(key)
                 else if (!f.isFocused) onFocused(null)
             }
-            .heightIn(min = 44.dp).graphicsLayer { scaleX = scale; scaleY = scale }.clip(shape)
-            .background(if (under) Color.Transparent else colors.surface)
+            .heightIn(min = 44.dp).graphicsLayer { scaleX = scale * (1f + 0.08f * lift); scaleY = scale * (1f + 0.08f * lift) }.clip(shape)
+            .background(if (under) Color.Transparent else lerp(colors.surface, pal.signal, 0.18f * lift))
             .shownBar(on, mark)
-            .glideBorder(hot, shape, pal.signal, if (under) Color.Transparent else pal.line)
+            .glideBorder(hot, shape, pal.signal, if (under) Color.Transparent else lerp(pal.line, pal.signal, lift))
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Tab, onClick = onClick)
             .controllerConfirm(onClick = onClick)
             .then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier)
@@ -835,8 +1011,11 @@ private fun Storefront(
     val density = androidx.compose.ui.platform.LocalDensity.current
     val focus = LocalFrontFocus.current
     val scope = rememberCoroutineScope()
-    val headerItems = 1 + (if (sizeSortPending) 1 else 0) +
-        (if (StoresState.status[store] != null) 1 else 0) + (if (StoresState.problems[store] != null) 1 else 0)
+    // A bar only where the tab has nothing else on it: shelves, the shelf of owned games, or a grid still loading.
+    val gridEmpty = if (showGrid) visible.isEmpty() else (shelves == null || shelves.isEmpty) && library.isEmpty()
+    val barLine = StoresState.status[store]?.takeIf { gridEmpty && syncCount(it) != null }
+    val headerItems = 1 + (if (sizeSortPending) 1 else 0) + (if (barLine != null) 1 else 0) +
+        (if (StoresState.problems[store] != null) 1 else 0)
     val listMode = s.storesView == "list" && tab == "library"
     val capsules = s.storesView == "capsules" && tab == "library"
     val tileWidth = if (capsules) CapsuleWidth else CardWidth
@@ -919,7 +1098,7 @@ private fun Storefront(
                 Text(stringResource(R.string.store_section_loading), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        StoresState.status[store]?.let { line -> item(key = "sync", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { SyncBar(line) } } }
+        barLine?.let { line -> item(key = "sync", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { SyncBar(line) } } }
         StoresState.problems[store]?.let { line -> item(key = "problem", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { Box(Modifier.padding(bottom = 8.dp)) { Note(line) } } } }
         when (tab) {
             "library" -> if (!loaded) Unit
@@ -1308,21 +1487,34 @@ private fun GameCard(
     }
 }
 
+private fun syncCount(line: String): Pair<Int, Int>? {
+    val match = Regex("(\\d+)\\s*/\\s*(\\d+)").find(line) ?: return null
+    val done = match.groupValues[1].toIntOrNull() ?: return null
+    val total = match.groupValues[2].toIntOrNull()?.takeIf { it > 0 } ?: return null
+    return done to total
+}
+
 @Composable
 private fun SyncBar(line: String) {
-    val count = Regex("(\\d+)\\s*/\\s*(\\d+)").find(line)
-    val done = count?.groupValues?.get(1)?.toIntOrNull()
-    val total = count?.groupValues?.get(2)?.toIntOrNull()?.takeIf { it > 0 }
+    val count = syncCount(line) ?: return
+    val done = count.first
+    val total = count.second
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
-        Box(Modifier.weight(1f)) {
-            if (done != null && total != null) androidx.compose.material3.LinearProgressIndicator(progress = { (done.toFloat() / total).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(3.dp))
-            else androidx.compose.material3.LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(3.dp))
-        }
-        if (done != null && total != null) Text("$done/$total", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+        Box(Modifier.weight(1f)) { androidx.compose.material3.LinearProgressIndicator(progress = { (done.toFloat() / total).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(3.dp)) }
+        Text("$done/$total", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
     }
 }
 
 private val CardStrip = 26.dp
+
+@Composable
+internal fun cardArtRequest(url: String?, cover: String?): coil.request.ImageRequest? {
+    val ctx = LocalContext.current
+    val under = cover?.takeIf { it != url }
+    return remember(url, under) {
+        url?.let { coil.request.ImageRequest.Builder(ctx).data(it).apply { if (under != null) placeholderMemoryCacheKey(under) }.build() }
+    }
+}
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -1331,26 +1523,27 @@ private fun CardFace(
     marker: @Composable () -> Unit,
 ) {
     val url = if (capsule) item.tallImageUrl ?: item.imageUrl else item.imageUrl ?: item.tallImageUrl
+    val art = cardArtRequest(url, item.tallImageUrl)
     val blurs = android.os.Build.VERSION.SDK_INT >= 31
     var landscape by remember(url) { mutableStateOf(false) }
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val total = if (capsule) maxWidth * 7f / 5f + CardStrip else maxWidth * 9f / 16f + CardStrip
         Box(Modifier.fillMaxWidth().height(total).background(Color(0xFF101318)).then(if (url == null) Modifier.background(artBrush(hueOf(item.title))) else Modifier)) {
-            if (url != null && capsule && landscape) {
+            if (art != null && capsule && landscape) {
                 // Stores without portrait covers (itch) would lose most of the art to a portrait crop.
-                AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize().blur(24.dp))
+                AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize().blur(24.dp))
                 Spacer(Modifier.matchParentSize().background(Color.Black.copy(alpha = if (blurs) 0.35f else 0.7f)))
-                AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.matchParentSize().padding(bottom = CardStrip))
-            } else if (url != null) AsyncImage(
-                model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize(),
+                AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.matchParentSize().padding(bottom = CardStrip))
+            } else if (art != null) AsyncImage(
+                model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize(),
                 onSuccess = { r ->
-                    val art = r.result.drawable
-                    if (capsule && art.intrinsicWidth > 0 && art.intrinsicHeight > 0) landscape = art.intrinsicWidth > art.intrinsicHeight * 0.95f
+                    val drawn = r.result.drawable
+                    if (capsule && drawn.intrinsicWidth > 0 && drawn.intrinsicHeight > 0) landscape = drawn.intrinsicWidth > drawn.intrinsicHeight * 0.95f
                 },
             )
             Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(CardStrip).clipToBounds()) {
-                if (url != null) AsyncImage(
-                    model = url, contentDescription = null, contentScale = ContentScale.Crop,
+                if (art != null) AsyncImage(
+                    model = art, contentDescription = null, contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxWidth().wrapContentHeight(Alignment.Bottom, unbounded = true).height(total).blur(24.dp),
                 )
                 Spacer(Modifier.matchParentSize().background(Color.Black.copy(alpha = if (blurs) 0.45f else 0.7f)))
@@ -1403,9 +1596,10 @@ private fun CardMarker(item: CatalogItem, installed: Boolean, download: com.droi
 @Composable
 internal fun CardArt(item: CatalogItem, modifier: Modifier) {
     val url = item.imageUrl ?: item.tallImageUrl
+    val art = cardArtRequest(url, item.tallImageUrl)
     val colors = MaterialTheme.colorScheme
     Box(modifier.background(colors.surfaceVariant).then(if (url == null) Modifier.background(artBrush(hueOf(item.title))) else Modifier)) {
-        if (url != null) AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+        if (art != null) AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
         else Text(item.title, fontSize = 10.sp, fontWeight = FontWeight.Black, color = Color.White, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.align(Alignment.BottomStart).padding(6.dp))
         Spacer(Modifier.matchParentSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(0.6f to Color.Transparent, 1f to colors.surface.copy(alpha = 0.85f))))
     }

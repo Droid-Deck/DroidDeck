@@ -195,6 +195,11 @@ class DrawerActions(
     val isHomeApp: Boolean,
     val androidApps: List<HomeApp.LaunchableApp>,
     val hudOn: Boolean,
+    val hudFps: Boolean = true,
+    val hudBattery: Boolean = true,
+    val hudGraph: Boolean = true,
+    val hudColor: String = SessionPrefs.HUD_COLOR_MINT,
+    val hudOpacity: Int = SessionPrefs.HUD_OPACITY_DEFAULT,
     val frameGen: FrameGen.Mode,
     val lossless: Lossless.State,
     val oscMode: String,
@@ -222,6 +227,11 @@ class DrawerActions(
     val secondScreenDisplays: List<SecondScreenDisplay>,
     val selectedSecondScreenDisplay: Int,
     val onHud: (Boolean) -> Unit,
+    val onHudFps: (Boolean) -> Unit = {},
+    val onHudBattery: (Boolean) -> Unit = {},
+    val onHudGraph: (Boolean) -> Unit = {},
+    val onHudColor: (String) -> Unit = {},
+    val onHudOpacity: (Int) -> Unit = {},
     val onFrameGenPick: (FrameGen.Mode) -> Unit,
     val onImportLossless: () -> Unit,
     val onKeyboard: () -> Unit,
@@ -308,7 +318,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
     val pal = LocalPalette.current
     val host = rememberMenuHost()
     val (glasses, glassesSettings) = rememberGlasses()
-    val glassesPages = glassesTabs(glasses)
+    val glassesPages = glassesTabs(glasses) + (GlassesTab.CONTROLLERS to stringResource(R.string.vr_controllers_tab))
     var selectedGlassesTab by rememberSaveable { mutableStateOf(GlassesTab.DISPLAY) }
     val glassesTab = selectedGlassesTab.takeIf { key -> glassesPages.any { it.first == key } } ?: GlassesTab.DISPLAY
     var androidAppsExpanded by rememberSaveable { mutableStateOf(false) }
@@ -462,6 +472,30 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                             SettingsGroup(stringResource(R.string.drawer_page_display)) {
                                 ToggleRow(host, "hud", stringResource(R.string.drawer_hud), null, a.hudOn,
                                     chipModifier = focus.track(page, "hud"), onChange = a.onHud)
+                                if (a.hudOn) {
+                                    ToggleRow(host, "hud-fps", stringResource(R.string.drawer_hud_fps), null, a.hudFps,
+                                        chipModifier = focus.track(page, "hud-fps"), onChange = a.onHudFps)
+                                    ToggleRow(host, "hud-battery", stringResource(R.string.drawer_hud_battery), null, a.hudBattery,
+                                        chipModifier = focus.track(page, "hud-battery"), onChange = a.onHudBattery)
+                                    ToggleRow(host, "hud-graph", stringResource(R.string.drawer_hud_graph), null, a.hudGraph,
+                                        chipModifier = focus.track(page, "hud-graph"), onChange = a.onHudGraph)
+                                    ChoiceRow(
+                                        host, "hud-color", stringResource(R.string.drawer_hud_color), null,
+                                        listOf(
+                                            SessionPrefs.HUD_COLOR_MINT to stringResource(R.string.drawer_hud_color_mint),
+                                            "white" to stringResource(R.string.drawer_hud_color_white),
+                                            "sky" to stringResource(R.string.drawer_hud_color_sky),
+                                            "amber" to stringResource(R.string.drawer_hud_color_amber),
+                                            "violet" to stringResource(R.string.drawer_hud_color_violet),
+                                        ),
+                                        a.hudColor, chipModifier = focus.track(page, "hud-color"), onPick = a.onHudColor,
+                                    )
+                                    SliderRow(
+                                        stringResource(R.string.drawer_hud_opacity), null, a.hudOpacity,
+                                        SessionPrefs.HUD_OPACITY_RANGE, step = 10, format = { "$it%" },
+                                        modifier = focus.track(page, "hud-opacity"), onChange = a.onHudOpacity,
+                                    )
+                                }
                                 val fgOpen = host.open == "fg"
                                 val fgLabel = FrameGen.label(LocalContext.current, a.frameGen)
                                 SettingsRow(stringResource(R.string.frame_gen_title), null, highlighted = fgOpen) {
@@ -557,7 +591,9 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         SessionDrawerPage.SECOND_SCREEN -> {
                             SecondScreenGroup(host, a) { key -> focus.track(page, key) }
                         }
-                        SessionDrawerPage.GLASSES -> {
+                        SessionDrawerPage.GLASSES -> if (glassesTab == GlassesTab.CONTROLLERS) {
+                            VrControllerGroups(host) { key -> focus.track(page, key) }
+                        } else {
                             GlassesGroups(host, glasses, glassesSettings, { key -> focus.track(page, key) }, onRecenter = a.onGlassesRecenter,
                                 tab = glassesTab, outputActive = a.glassesOutput, steamVrRunning = a.steamVr == SteamVr.Status.RUNNING,
                                 steamVr = { SteamVrRow(a) })

@@ -321,6 +321,17 @@ jobs:
           install -Dm644 tools/mangoapp/mangoapp "$D/usr/local/bin/mangoapp"
           rm -rf mango-pkgs
           ls -l "$M"
+          mkdir -p pw-pkgs
+          grep -v '^#' tools/pipewire/packages.txt | while read -r sum url; do
+            [ -n "$url" ] || continue
+            curl -fsSL --retry 3 -o pw-pkgs/pkg.tar.zst "$url"
+            echo "$sum  pw-pkgs/pkg.tar.zst" | sha256sum -c -
+            tar --use-compress-program=unzstd -xf pw-pkgs/pkg.tar.zst -C pw-pkgs
+            rm pw-pkgs/pkg.tar.zst
+          done
+          tools/pipewire/assemble.sh pw-pkgs "$D/usr/local/lib/droiddeck-pipewire.tzst"
+          rm -rf pw-pkgs
+          ls -l "$D/usr/local/lib/droiddeck-pipewire.tzst"
           T="$D/usr/local/lib/droiddeck-msitools"
           mkdir -p "$T" msi-pkgs
           grep -v '^#' tools/msitools/packages.txt | while read -r sum url; do
@@ -478,6 +489,8 @@ jobs:
           /tmp/test-xr-tracking
           g++ -std=c++17 -Wall -Wextra -Werror tools/vr/tests/test_xr_touch.cpp -o /tmp/test-xr-touch
           /tmp/test-xr-touch
+          g++ -std=c++17 -Wall -Wextra -Werror tools/vr/tests/test_pad_controller_config.cpp -o /tmp/test-pad-controller-config
+          /tmp/test-pad-controller-config
           g++ -std=c++17 -Wall -Wextra -Werror -pthread tools/vr/tests/test_xr_vsync.cpp -o /tmp/test-xr-vsync
           /tmp/test-xr-vsync
           g++ -std=c++17 -Wall -Wextra -Werror -pthread tools/vr/tests/test_xr_frames.cpp -o /tmp/test-xr-frames
@@ -538,6 +551,9 @@ jobs:
           rustup toolchain install 1.90.0 --profile minimal
           rustup target add --toolchain 1.90.0 aarch64-unknown-linux-gnu
           RUSTUP_TOOLCHAIN=1.90.0 bash tools/comet/build.sh
+
+      - name: Build the add-on packs
+        run: bash tools/packs/build.sh app/build/packs
 
       - name: Build
         id: build
@@ -638,6 +654,14 @@ jobs:
         with:
           name: droiddeck-apk
           path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: droiddeck-packs
+          path: app/build/packs/*.tar.zst
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
@@ -744,8 +768,17 @@ jobs:
       variants: ${{ needs.build.outputs.variants }}
     secrets: inherit
 
+  packs:
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/publish-packs.yml
+    secrets: inherit
+
   announce:
-    needs: [build, sign]
+    needs: [build, sign, packs]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10

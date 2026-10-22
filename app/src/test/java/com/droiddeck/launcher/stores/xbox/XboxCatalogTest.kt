@@ -19,6 +19,55 @@ class XboxCatalogTest {
     private fun envelope(vararg rows: JSONObject) = JSONObject().put("schema", 1).put("account", "test@example.test")
         .put("market", "US").put("checkedAt", now.toString()).put("entitlements", JSONArray(rows.toList()))
     private fun access(vararg rows: JSONObject) = XboxCatalog.access(envelope(*rows), "test@example.test", "US", now)
+    private fun membership(id: String = plan) = JSONObject().put("productId", id).put("status", "Active").put("endDate", "2099-01-01T00:00:00Z")
+    private fun withMembership(json: JSONObject, vararg plans: JSONObject) = json.put("subscriptions", JSONArray(plans.toList()))
+
+    @Test fun separateMembershipRestoresSubscriptionChildrenWithoutInventingOwnership() {
+        val json = withMembership(envelope(row(game), row(parent, plan)), membership())
+        assertEquals(mapOf(game to "owned", parent to "gamepass"), XboxCatalog.access(json, "test@example.test", "US", now))
+        assertTrue(XboxCatalog.access(withMembership(envelope(), membership()), "test@example.test", "US", now).isEmpty())
+        assertEquals(mapOf(game to "gamepass", parent to "gamepass"), XboxCatalog.access(
+            withMembership(envelope(row(game, parent), row(parent, plan)), membership()), "test@example.test", "US", now))
+    }
+
+    @Test fun separateMembershipPreservesProductRestrictionsAndExistingPlanEvidence() {
+        for (member in listOf(membership().put("status", "Expired"), membership().put("endDate", now.toString()))) {
+            assertTrue(XboxCatalog.access(withMembership(envelope(row(game, plan)), member), "test@example.test", "US", now).isEmpty())
+        }
+        assertEquals(mapOf(game to "gamepass"), XboxCatalog.access(
+            withMembership(envelope(row(game, plan), row(plan))), "test@example.test", "US", now))
+        for ((key, value) in listOf("status" to "Expired", "isTrial" to true, "special" to true,
+            "sharingSource" to "Family", "endDate" to now.toString())) {
+            for (rows in listOf(arrayOf(row(game, plan).put(key, value)), arrayOf(row(game, plan), row(plan).put(key, value)))) {
+                assertTrue(XboxCatalog.access(withMembership(envelope(*rows), membership()), "test@example.test", "US", now).isEmpty())
+            }
+        }
+    }
+
+    @Test fun malformedMembershipFailsTheRefreshInsteadOfBecomingAnEmptySuccessfulLibrary() {
+        for (json in listOf(
+            withMembership(envelope(row(game, plan)), membership().put("endDate", "invalid")),
+            withMembership(envelope(row(game, plan)), membership(), membership()),
+            withMembership(envelope(row(game, plan)), membership().put("productId", game)),
+            envelope(row(game, plan)).put("subscriptions", JSONObject.NULL),
+        )) {
+            assertThrows(Exception::class.java) { XboxCatalog.access(json, "test@example.test", "US", now) }
+        }
+    }
+
+    @Test fun membershipCannotCrossAccountMarketOrFreshnessBoundaries() {
+        for ((key, value) in listOf("account" to "other@example.test", "market" to "GB", "checkedAt" to "2020-01-01T00:00:00Z")) {
+            val json = withMembership(envelope(row(game, plan)).put(key, value), membership())
+            assertThrows(IllegalArgumentException::class.java) { XboxCatalog.access(json, "test@example.test", "US", now) }
+        }
+    }
+
+    @Test fun libraryDiagnosticsContainCountsWithoutAccountOrProductIdentifiers() {
+        val lines = mutableListOf<String>()
+        XboxCatalog.access(envelope(row(game), row(parent, plan)), "test@example.test", "US", now, lines::add)
+        assertEquals(listOf("library entitlements=2 invalid=0 restricted=0 unverified-plan=1 owned=1 gamepass=0"), lines)
+        assertFalse(lines.single().contains(game) || lines.single().contains(parent) || lines.single().contains("@"))
+    }
 
     @Test fun purchasedAndSubscriptionAccessRemainDistinct() {
         assertEquals(mapOf(game to "owned", parent to "gamepass"), access(row(game), row(parent, plan), row(plan)))
@@ -32,6 +81,16 @@ class XboxCatalogTest {
             assertTrue(access(row(game, plan), row(plan).put(key, value)).isEmpty())
         }
         assertEquals(mapOf(game to "gamepass", parent to "gamepass"), access(row(game, parent), row(parent, plan), row(plan)))
+    }
+
+    @Test fun onlyPcPlansGrantSubscriptionAccess() {
+        for (pc in listOf("CFQ7TTC0KGQ8", "CFQ7TTC0KHS0", "CFQ7TTC0P85B", "CFQ7TTC0K5DJ", "CFQ7TTC10QFD")) {
+            assertEquals(mapOf(game to "gamepass"), access(row(game, pc), row(pc)))
+        }
+        val console = "CFQ7TTC0K6L8"
+        assertTrue(access(row(game, console), row(console)).isEmpty())
+        assertTrue(XboxCatalog.access(withMembership(envelope(row(game, console)), membership(console)),
+            "test@example.test", "US", now).isEmpty())
     }
 
     @Test fun backendRfc3339OffsetsAndNanosecondsAreAccepted() {
@@ -69,6 +128,29 @@ class XboxCatalogTest {
         val card = com.droiddeck.launcher.stores.installedCards(com.droiddeck.launcher.stores.Store.XBOX,
             listOf(com.droiddeck.launcher.stores.InstalledStoreGame(sidecar, java.io.File("/synthetic-game"))), emptyList()).single()
         assertFalse(card.owned); assertTrue(card.subscription)
+    }
+
+    @Test fun pcSubscriptionAffirmationsOfferAnInstallWithoutClaimingOwnership() {
+        fun offer(vararg affirmations: String) = JSONObject().put("ProductId", game).put("ProductType", "Game")
+            .put("LocalizedProperties", JSONArray().put(JSONObject().put("ProductTitle", "A Pass game")
+                .put("EligibilityProperties", JSONObject().put("Affirmations", JSONArray(affirmations.map {
+                    JSONObject().put("AffirmationProductId", it)
+                })))))
+            .put("DisplaySkuAvailabilities", JSONArray().put(JSONObject().put("Sku", JSONObject().put("Properties", JSONObject()
+                .put("Packages", JSONArray().put(JSONObject().put("PackageFormat", "MSIXVC").put("PlatformDependencies",
+                    JSONArray().put(JSONObject().put("PlatformName", "Windows.Desktop")))))))))
+
+        val pc = XboxCatalog.product(offer("CFQ7TTC0KGQ8"), emptyMap())!!
+        assertEquals("PC Game Pass", pc.includedWith)
+        assertFalse(pc.accessible); assertTrue(pc.installable)
+
+        assertEquals("Game Pass Ultimate", XboxCatalog.product(offer("CFQ7TTC0KHS0"), emptyMap())!!.includedWith)
+        assertEquals("Xbox Game Pass Premium", XboxCatalog.product(offer("CFQ7TTC0P85B"), emptyMap())!!.includedWith)
+        assertEquals("Xbox Game Pass Essential", XboxCatalog.product(offer("CFQ7TTC0K5DJ"), emptyMap())!!.includedWith)
+        assertEquals("Xbox Game Pass (Starter Edition)", XboxCatalog.product(offer("CFQ7TTC10QFD"), emptyMap())!!.includedWith)
+        val console = XboxCatalog.product(offer("CFQ7TTC0K6L8"), emptyMap())!!
+        assertEquals("", console.includedWith); assertFalse(console.installable)
+        assertFalse(XboxCatalog.product(offer(), emptyMap())!!.installable)
     }
 
     @Test fun consoleAndUwpOffersAreFilteredOut() {

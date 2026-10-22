@@ -176,6 +176,27 @@ jobs:
           pattern: droiddeck-pr-signed-*
           merge-multiple: true
           path: signed
+      - name: The add-on packs main has not published
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ needs.authorize.outputs.run_id }}
+        run: |
+          set -euo pipefail
+          gh run download "$RUN" -R "$GITHUB_REPOSITORY" -n droiddeck-packs -D packs
+          mkdir -p pr-packs
+          for file in packs/*.tar.zst; do
+            name=$(basename "$file" .tar.zst)
+            sha=$(sha256sum "$file" | cut -d' ' -f1)
+            tag="pack-$name-${sha:0:16}"
+            digest=$({ gh api "repos/Droid-Deck/DroidDeck-Components/releases/tags/$tag" 2>/dev/null || echo '{}'; } |
+              jq -r --arg n "$name.tar.zst" '.assets // [] | .[] | select(.name == $n) | .digest // empty')
+            if [ "$digest" = "sha256:$sha" ]; then
+              echo "$name: served from DroidDeck-Components $tag"
+            else
+              cp "$file" "pr-packs/$tag.tar.zst"
+              echo "$name: attached to the PR release as $tag.tar.zst"
+            fi
+          done
       - name: Describe the change
         env:
           GH_TOKEN: ${{ github.token }}
@@ -233,6 +254,7 @@ jobs:
             first=true
           fi
           echo "first=$first" >> "$GITHUB_OUTPUT"
+          cp pr-packs/* signed/ 2>/dev/null || true
           gh release upload "$tag" signed/* -R "$repo" --clobber
           gh release edit "$tag" -R "$repo" --title "PR #$PR_NUMBER" --notes "$notes" --prerelease
           keep=$(cd signed && ls | jq -R . | jq -sc .)

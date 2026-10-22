@@ -99,7 +99,10 @@ object StoreSizes {
             val json = EpicApiClient.getManifestApiJson(token, ns, catalogItemId, item.id) ?: return 0L
             val bytes = EpicDownloadManager.downloadManifest(json, EpicDownloadManager.parseCdnUrls(json)) ?: return 0L
             val manifest = EpicDownloadManager.parseManifest(bytes) ?: return 0L
-            EpicDownloadManager.resolveInstallFiles(manifest, EpicInstallTags.tagsForDevice()).sumOf { it.fileSize() }
+            EpicDownloadManager.resolveInstallFiles(
+                manifest,
+                EpicInstallTags.tagsFor(StoreLanguage.localeFor(null, context)),
+            ).sumOf { it.fileSize() }
         }
         Store.AMAZON -> {
             val token = AmazonCredentialStore.getValidAccessToken(context) ?: return 0L

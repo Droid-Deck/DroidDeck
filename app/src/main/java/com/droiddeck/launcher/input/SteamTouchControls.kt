@@ -301,9 +301,8 @@ class SteamTouchControls(
                 }
             }
             SteamTouchConfig.STEAM -> {
-                if (pressed) canvas.drawCircle(x, y, r, fill)
-                canvas.drawCircle(x, y, r, stroke)
-                drawMark(canvas, x, y, r * 0.5f, if (pressed) Color.argb(alpha, 23, 26, 33) else ink, alpha)
+                if (isSelected) canvas.drawCircle(x, y, r, stroke)
+                drawMark(canvas, x, y, r * 0.5f, if (pressed) accent else ink, alpha)
             }
             SteamTouchConfig.SELECT, SteamTouchConfig.START -> {
                 val binding = visuals[e.type]?.firstOrNull()?.binding

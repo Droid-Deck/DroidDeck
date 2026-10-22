@@ -99,7 +99,8 @@ public class FakeInputWriter {
     private static final int TRITON_REPORT_OFFSET = TRITON_OFFSET + 24;
     private static final int TRITON_OUTPUT_SEQ_OFFSET = TRITON_OFFSET + 88;
     private static final int TRITON_OUTPUT_FEATURE_OFFSET = TRITON_OFFSET + 96;
-    private static final int TRITON_OUTPUT_LENGTH_OFFSET = TRITON_OFFSET + 100;
+    private static final int TRITON_OUTPUT_LENGTH_OFFSET = TRITON_OFFSET + 98;
+    private static final int TRITON_OUTPUT_ACK_OFFSET = TRITON_OFFSET + 100;
     private static final int TRITON_OUTPUT_OFFSET = TRITON_OFFSET + 104;
     private static final int TRITON_GET_REQUEST_OFFSET = TRITON_OFFSET + 168;
     private static final int TRITON_GET_REPLY_OFFSET = TRITON_OFFSET + 176;
@@ -229,8 +230,9 @@ public class FakeInputWriter {
         data.putInt(TRITON_REPORT_ID_OFFSET, 0);
         data.putInt(TRITON_REPORT_LENGTH_OFFSET, 0);
         data.putLong(TRITON_OUTPUT_SEQ_OFFSET, 0L);
-        data.putInt(TRITON_OUTPUT_FEATURE_OFFSET, 0);
-        data.putInt(TRITON_OUTPUT_LENGTH_OFFSET, 0);
+        data.putShort(TRITON_OUTPUT_FEATURE_OFFSET, (short) 0);
+        data.putShort(TRITON_OUTPUT_LENGTH_OFFSET, (short) 0);
+        data.putInt(TRITON_OUTPUT_ACK_OFFSET, 0);
         data.putLong(TRITON_GET_REQUEST_OFFSET, 0L);
         data.putLong(TRITON_GET_REPLY_OFFSET, 0L);
     }
@@ -587,14 +589,18 @@ public class FakeInputWriter {
             nativeStoreFence();
             long seq = ring.getLong(TRITON_OUTPUT_SEQ_OFFSET);
             if ((seq & 1) != 0 || seq <= lastSequence) return null;
-            int length = ring.getInt(TRITON_OUTPUT_LENGTH_OFFSET);
+            int length = ring.getShort(TRITON_OUTPUT_LENGTH_OFFSET) & 0xffff;
             if (length <= 0 || length > TRITON_REPORT_MAX) return null;
             byte[] output = new byte[9 + length];
             ByteBuffer.wrap(output).order(ByteOrder.LITTLE_ENDIAN).putLong(seq);
-            output[8] = (byte) (ring.getInt(TRITON_OUTPUT_FEATURE_OFFSET) != 0 ? 1 : 0);
+            output[8] = (byte) (ring.getShort(TRITON_OUTPUT_FEATURE_OFFSET) != 0 ? 1 : 0);
             for (int i = 0; i < length; i++) output[9 + i] = ring.get(TRITON_OUTPUT_OFFSET + i);
             nativeStoreFence();
-            return seq == ring.getLong(TRITON_OUTPUT_SEQ_OFFSET) ? output : null;
+            if (seq != ring.getLong(TRITON_OUTPUT_SEQ_OFFSET)) return null;
+            // Acknowledge the exact report sequence taken so a concurrent timeout overwrite cannot lose its length.
+            ring.putInt(TRITON_OUTPUT_ACK_OFFSET, (int) seq);
+            nativeStoreFence();
+            return output;
         }
     }
 
