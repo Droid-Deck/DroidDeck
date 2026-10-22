@@ -25,7 +25,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,8 +45,12 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.StoreInstallRoot
+import com.droiddeck.launcher.stores.StoreLanguage
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.formatBytes
+import com.droiddeck.launcher.stores.gog.GogDownloadManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 internal fun InstallWhereDialog(item: CatalogItem, onDismiss: () -> Unit) {
@@ -55,7 +62,19 @@ internal fun InstallWhereDialog(item: CatalogItem, onDismiss: () -> Unit) {
     val remembered = remember { SessionPrefs.storesInstallTarget(ctx) }
     val defaultIndex = targets.indexOfFirst { it.root.absolutePath == remembered }.coerceAtLeast(0)
     val focus = remember { List(targets.size) { FocusRequester() } }
+    val askLanguage = StoreLanguage.selectable(item.store)
+    val preferredLanguage = StoreLanguage.preferredCode(ctx)
+    var languages by remember { mutableStateOf(StoreLanguage.fallbackList(item.store)) }
+    var chosen by remember(preferredLanguage) { mutableStateOf(StoreLanguage.pick(languages, preferredLanguage)) }
+    var menuOpen by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { focusWithinFrames({ false }) { focus[defaultIndex] } }
+    LaunchedEffect(item.key) {
+        if (item.store != com.droiddeck.launcher.stores.Store.GOG) return@LaunchedEffect
+        val listed = withContext(Dispatchers.IO) { GogDownloadManager.listLanguages(ctx, item.id) }
+        if (listed.isEmpty()) return@LaunchedEffect
+        languages = listed
+        chosen = StoreLanguage.pick(listed, chosen)
+    }
     AppDialog(shown, close, "installWhere", wide = false, maxWidth = if (targets.size > 2) 600.dp else 440.dp) {
         Rise(0) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
@@ -65,11 +84,27 @@ internal fun InstallWhereDialog(item: CatalogItem, onDismiss: () -> Unit) {
                 )
                 Text(
                     stringResource(R.string.common_cancel), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant,
-                    modifier = Modifier.clip(Shape12).clickable(role = Role.Button, onClick = close).padding(horizontal = 10.dp, vertical = 6.dp),
+                    modifier = Modifier.clip(Shape12).clickable(role = Role.Button, onClick = close).controllerConfirm(onClick = close).padding(horizontal = 10.dp, vertical = 6.dp),
                 )
             }
         }
-        Rise(1) {
+        if (askLanguage) Rise(1) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.stores_install_language), fontSize = 13.sp, color = colors.onSurfaceVariant)
+                Box(Modifier.weight(1f)) {
+                    ValueChip(StoreLanguage.displayName(chosen).ifEmpty { chosen }, menuOpen, modifier = Modifier.fillMaxWidth()) { menuOpen = !menuOpen }
+                    AnchoredMenu(menuOpen, { menuOpen = false }, title = stringResource(R.string.stores_install_language), compact = true) { first ->
+                        languages.forEachIndexed { i, code ->
+                            MenuItem(StoreLanguage.displayName(code).ifEmpty { code }, checked = code == chosen, focusRequester = if (i == 0) first else null) {
+                                chosen = code
+                                menuOpen = false
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Rise(if (askLanguage) 2 else 1) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 targets.forEachIndexed { i, t ->
                     val needed = com.droiddeck.launcher.stores.StoreInstallRoot.estimatedBytesNeeded(item)
@@ -89,7 +124,7 @@ internal fun InstallWhereDialog(item: CatalogItem, onDismiss: () -> Unit) {
                         warning = isLow, modifier = Modifier.weight(1f),
                     ) {
                         SessionPrefs.setStoresInstallTarget(ctx, t.root.absolutePath)
-                        StoresState.install(ctx, item, t.root)
+                        StoresState.install(ctx, item, t.root, if (askLanguage) chosen else null)
                         close()
                     }
                 }

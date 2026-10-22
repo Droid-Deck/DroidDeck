@@ -176,6 +176,8 @@
     <string name="app_fex_x86">%1$s，透過 FEX</string>
     <string name="app_fex_not_ready">此程式是為 %1$s 電腦而設，需透過 FEX 執行，但 FEX 尚未設定。請在登入狀態下開啟一次 Steam：DroidDeck 會讓它下載 FEX 及所需的 Steam Linux Runtime，之後便會開啟此程式。</string>
     <string name="session_end_program">此程式</string>
+    <string name="session_end_steam_download">無法下載 Steam 用戶端。你的網絡或 VPN 可能封鎖了 Steam 的伺服器；請檢查連線後再試。</string>
+    <string name="session_end_steam_setup">無法設定 Steam 用戶端。請檢查連線和可用儲存空間，然後再試。</string>
     <string name="session_end_fex_missing">%1$s 是為 x86 電腦而設，需透過 FEX 執行，但 FEX 尚未安裝。請在登入狀態下啟動一次 Steam，讓它下載 FEX 和 Steam Linux Runtime，然後再啟動此程式。</string>
     <string name="add_app_flatpak_hint">Flathub 應用程式 ID 或其 Flathub 頁面。如尚未設定 Flatpak，會先進行設定。</string>
     <string name="add_app_file">檔案</string>
@@ -308,6 +310,8 @@
     <string name="mode_client">用戶端</string>
     <string name="mode_mangoapp">效能疊加層</string>
     <string name="mode_mangoapp_hint">如果在 Deck 模式下遊戲當機或黑畫面，請關閉此項。下次會話生效。</string>
+    <string name="mode_return_after_game">遊戲結束後返回 DroidDeck</string>
+    <string name="mode_return_after_game_hint">從 DroidDeck 或其他啟動器啟動的遊戲關閉後，Steam 會正常退出（先完成雲端存檔同步），並返回啟動位置。關閉：留在 Steam 中。</string>
     <string name="mode_steam_repair">修復 Steam 用戶端</string>
     <string name="mode_steam_repair_hint">下次啟動 Steam 時重新下載 Steam 用戶端。如果 Steam 一直停留在載入畫面，請使用此功能。遊戲、登入資料和設定都會保留。</string>
     <string name="mode_steam_repair_queued">下次啟動 Steam 時會重新下載 Steam 用戶端。</string>
@@ -500,7 +504,9 @@
     <string name="comp_delete_original_title">刪除此原始版本？</string>
     <string name="comp_delete_original_body">此 %1$s 原始版本來自 %2$s 的較早版本。目前版本的原始版本一定會保留。</string>
     <string name="comp_nightlies_count">Nightlies · %1$d</string>
-    <string name="comp_refresh_to_list">重新整理以列出 Nightlies 中的軟件包。</string>
+    <string name="comp_channel_stable">穩定版</string>
+    <string name="comp_channel_nightly">每夜版</string>
+    <string name="comp_refresh_to_list">重新整理以列出 Nightlies 及 DroidDeck 中的軟件包。</string>
     <string name="comp_nothing_new">自上次檢查以來沒有新內容。</string>
     <string name="comp_import_wcp">匯入 .wcp</string>
     <string name="comp_restore_original">還原此 Proton 的原始版本</string>
@@ -578,6 +584,16 @@
     <string name="drawer_prev_page">上一頁</string>
     <string name="drawer_next_page">下一頁</string>
     <string name="drawer_hud">效能 HUD</string>
+    <string name="drawer_hud_fps">幀率</string>
+    <string name="drawer_hud_battery">電池溫度</string>
+    <string name="drawer_hud_graph">效能圖表</string>
+    <string name="drawer_hud_color">顏色</string>
+    <string name="drawer_hud_color_mint">薄荷綠</string>
+    <string name="drawer_hud_color_white">白色</string>
+    <string name="drawer_hud_color_sky">天藍</string>
+    <string name="drawer_hud_color_amber">琥珀色</string>
+    <string name="drawer_hud_color_violet">紫羅蘭</string>
+    <string name="drawer_hud_opacity">不透明度</string>
     <string name="drawer_scaling">縮放模式</string>
     <string name="drawer_scaling_sharpness">縮放銳利度</string>
     <string name="drawer_effects">畫面效果</string>
@@ -1747,7 +1763,8 @@
     <string name="cmgr_original_kept">已安裝版本的原始版本會保留，以便還原。</string>
     <string name="cmgr_not_stored">未儲存</string>
     <string name="cmgr_deleted_original">已刪除 %2$s 的 %1$s 原始版本。</string>
-    <string name="cmgr_nightlies_only">只會從 Nightlies 發佈版本下載</string>
+    <string name="cmgr_nightlies_only">只會從 Nightlies 及 DroidDeck 發佈版本下載</string>
+    <string name="cmgr_nightly_replaced">下載失敗：此每夜版本可能已被較新的版本取代。請重新整理清單後再試。</string>
     <string name="cmgr_list_predates_checksums">此軟件包清單早於校驗和推出 - 請重新整理後再試一次</string>
     <string name="cmgr_checksum_mismatch">校驗和不符</string>
 
@@ -1784,6 +1801,7 @@
     <string name="gpuinfo_not_adreno">不是 Adreno GPU</string>
     <string name="gpuinfo_supported">受支援</string>
     <string name="gpuinfo_experimental">實驗性：其驅動程式為測試版本</string>
+    <string name="gpuinfo_a850_experimental">Adreno 850 實驗性支援：需要相容的實驗版顯示驅動程式及遊戲驅動程式；尚未在此裝置上驗證</string>
     <string name="gpuinfo_below_tested">低於已測試的硬件（Adreno 725 或更新）：可能無法執行</string>
     <string name="gpuinfo_unsupported">不受支援：DroidDeck 需要 Adreno (Snapdragon) GPU</string>
 
@@ -2003,6 +2021,9 @@
     <string name="cloud_last_sync">上次同步：%1$s</string>
     <string name="cloud_never">尚未同步</string>
     <string name="cloud_done">%1$d 個檔案</string>
+    <string name="cloud_up_to_date">已是最新</string>
+    <string name="cloud_signed_out">登入商店以同步存檔</string>
+    <string name="cloud_not_synced">存檔未同步</string>
     <string name="stores_eyebrow_installed">已安裝</string>
     <string name="stores_eyebrow_library">在你的收藏庫中</string>
     <string name="stores_eyebrow_store">商店</string>
@@ -2304,7 +2325,7 @@
     <string name="touch_done">完成</string>
     <string name="touch_save_failed">無法儲存觸控佈局</string>
     <string name="touch_saved">觸控佈局已儲存至 Steam</string>
-    <string name="touch_app_id">應用程式 %1$d</string>
+    <string name="touch_app_id">應用程式 %1$s</string>
     <string name="touch_label_hint">標籤（選用）</string>
     <string name="touch_icons_missing">找不到 Steam 的圖示</string>
     <plurals name="touch_icons_found">
@@ -2393,6 +2414,15 @@
     <string name="glasses_vr_fov">SteamVR 視場角</string>
     <string name="glasses_vr_fov_hint">調低令 SteamVR 更近並填滿眼鏡；調高可看到更多周圍內容。</string>
     <string name="glasses_playing">正在 %1$s 上遊玩</string>
+    <string name="glasses_phone_recenter">重新置中</string>
+    <string name="glasses_phone_steamvr_menu">SteamVR 選單</string>
+    <string name="glasses_phone_switch_sticks">搖桿：雙手 ⇄ 遊戲</string>
+    <string name="glasses_phone_controllers">控制器：%1$s</string>
+    <string name="glasses_phone_keyboard">鍵盤</string>
+    <string name="glasses_phone_session_menu">工作階段選單</string>
+    <string name="glasses_phone_stop_steamvr">停止 SteamVR</string>
+    <string name="glasses_phone_brightness">亮度 %1$d / %2$d</string>
+    <string name="glasses_phone_battery">電池 %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">追蹤校準</string>
     <string name="glasses_calibration_hint">減少漂移並對齊水平基準。</string>
     <string name="glasses_calibration_saved_hint">這副眼鏡已套用儲存的校準。</string>

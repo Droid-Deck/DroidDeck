@@ -22,6 +22,7 @@ object DeckyManager {
     private const val RELEASES = "https://api.github.com/repos/$REPOSITORY/releases?per_page=30"
     private const val PATH = "root/homebrew/services/PluginLoader"
     private const val VERSION = "root/homebrew/services/.droiddeck-decky-version"
+    private const val SETTINGS = "root/homebrew/settings/loader.json"
     // droiddeck-session reads the marker from the root of the client it runs.
     private val CEF_REMOTE_DEBUG_MARKERS = listOf(
         "root/.local/share/Steam/.cef-enable-remote-debugging",
@@ -32,7 +33,34 @@ object DeckyManager {
         private set
 
     data class Release(val tag: String, val prerelease: Boolean, val asset: String, val url: String, val digest: String?, val shaUrl: String?, val size: Long, val machine: Int)
-    data class ReleaseChannels(val stable: List<Release>, val prerelease: List<Release>)
+    data class ReleaseChannels(val stable: List<Release>, val prerelease: List<Release>, val all: List<Release> = stable + prerelease)
+
+    const val BRANCH_STABLE = 0
+    const val BRANCH_PRERELEASE = 1
+    const val BRANCH_TESTING = 2
+
+    private fun settingsFile(context: Context) = File(LinuxRuntime.rootDir(context), SETTINGS)
+
+    fun branch(context: Context): Int {
+        val saved = runCatching { JSONObject(settingsFile(context).readText()).optInt("branch", -1) }.getOrDefault(-1)
+        if (saved >= 0) return saved
+        val version = File(LinuxRuntime.rootDir(context), VERSION).takeIf { it.isFile }?.readText()?.trim().orEmpty()
+        return if (version.startsWith("v") && "-pre" in version) BRANCH_PRERELEASE else BRANCH_STABLE
+    }
+
+    fun setBranch(context: Context, branch: Int) {
+        val file = settingsFile(context)
+        val settings = runCatching { JSONObject(file.readText()) }.getOrDefault(JSONObject())
+        settings.put("branch", branch)
+        file.parentFile?.mkdirs()
+        val staged = File(file.parentFile, "${file.name}.tmp")
+        staged.writeText(settings.toString(4))
+        check(staged.renameTo(file)) { "cannot write ${file.path}" }
+    }
+
+    // Mirrors Decky's updater: Stable takes the newest non-prerelease tag, Prerelease the newest tag of either kind.
+    fun latest(channels: ReleaseChannels, branch: Int): Release? =
+        if (branch == BRANCH_STABLE) channels.stable.firstOrNull() else channels.all.firstOrNull()
 
     fun installed(context: Context): String? {
         val loader = loader(context)
@@ -74,17 +102,13 @@ object DeckyManager {
         }
     }
 
-    fun releases(context: Context, prerelease: Boolean): List<Release> {
-        val channels = releaseChannels(context)
-        return if (prerelease) channels.prerelease else channels.stable
-    }
-
     fun releaseChannels(context: Context): ReleaseChannels {
         val body = Downloader.downloadString(RELEASES) ?: return ReleaseChannels(emptyList(), emptyList())
         return try {
             val array = JSONArray(body)
             val stable = mutableListOf<Release>()
             val prerelease = mutableListOf<Release>()
+            val all = mutableListOf<Release>()
             for (i in 0 until array.length()) {
                 val release = array.getJSONObject(i)
                 if (release.optBoolean("draft", false)) continue
@@ -105,9 +129,11 @@ object DeckyManager {
                 val size = binary.optLong("size", 0)
                 if (size <= 0) continue
                 val row = Release(release.optString("tag_name", "unknown"), isPrerelease, name, url, digest, checksum, size, if (name == "PluginLoader-arm64") 183 else 62)
-                (if (isPrerelease) prerelease else stable).add(row)
+                if (!row.tag.startsWith("v")) continue
+                all.add(row)
+                (if (isPrerelease || "-pre" in row.tag) prerelease else stable).add(row)
             }
-            ReleaseChannels(stable, prerelease)
+            ReleaseChannels(stable, prerelease, all)
         } catch (e: Exception) { Log.w(TAG, "release metadata", e); ReleaseChannels(emptyList(), emptyList()) }
     }
 

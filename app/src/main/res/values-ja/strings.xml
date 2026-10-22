@@ -176,6 +176,8 @@
     <string name="app_fex_x86">%1$s（FEX経由）</string>
     <string name="app_fex_not_ready">このプログラムは%1$s PC向けにビルドされており、FEX経由で実行されますが、FEXはまだセットアップされていません。ログインした状態で一度Steamを開いてください。DroidDeckがFEXと必要なSteam Linux Runtimeをダウンロードした後、このプログラムが開きます。</string>
     <string name="session_end_program">このプログラム</string>
+    <string name="session_end_steam_download">Steamクライアントをダウンロードできませんでした。ネットワークまたはVPNがSteamのサーバーをブロックしている可能性があります。接続を確認して、もう一度お試しください。</string>
+    <string name="session_end_steam_setup">Steamクライアントをセットアップできませんでした。接続と空き容量を確認して、もう一度お試しください。</string>
     <string name="session_end_fex_missing">%1$sはx86 PC向けにビルドされており、FEX経由で実行されますが、FEXはまだインストールされていません。ログインした状態で一度Steamを起動し、FEXとSteam Linux Runtimeをダウンロードしてから、もう一度起動してください。</string>
     <string name="add_app_flatpak_hint">FlathubアプリIDまたはそのFlathubページ。Flatpakがまだセットアップされていない場合は、先にセットアップします。</string>
     <string name="add_app_file">ファイル</string>
@@ -308,6 +310,8 @@
     <string name="mode_client">クライアント</string>
     <string name="mode_mangoapp">パフォーマンスオーバーレイ</string>
     <string name="mode_mangoapp_hint">Deckモードでゲームがクラッシュしたり画面が真っ暗になる場合は、これをオフにしてください。次回のセッションで有効になります。</string>
+    <string name="mode_return_after_game">ゲーム終了後にDroidDeckへ戻る</string>
+    <string name="mode_return_after_game_hint">DroidDeckや他のランチャーから起動したゲームを閉じると、Steamが正しく終了し（クラウドセーブの同期を先に完了）、起動元に戻ります。オフ：Steamに留まります。</string>
     <string name="mode_steam_repair">Steamクライアントを修復</string>
     <string name="mode_steam_repair_hint">次回Steamの起動時にSteamクライアントを再ダウンロードします。Steamが読み込み画面のまま進まない場合に使用してください。ゲーム、ログイン情報、設定は保持されます。</string>
     <string name="mode_steam_repair_queued">次回Steamの起動時にSteamクライアントを再ダウンロードします。</string>
@@ -500,7 +504,9 @@
     <string name="comp_delete_original_title">この元のバージョンを削除しますか？</string>
     <string name="comp_delete_original_body">この%1$sの元のバージョンは、%2$sの以前のビルドのものです。現在のビルドの元のバージョンは常に保持されます。</string>
     <string name="comp_nightlies_count">Nightlies内 · %1$d</string>
-    <string name="comp_refresh_to_list">更新してNightliesのパッケージを一覧表示します。</string>
+    <string name="comp_channel_stable">安定版</string>
+    <string name="comp_channel_nightly">ナイトリー</string>
+    <string name="comp_refresh_to_list">更新してNightliesとDroidDeckのパッケージを一覧表示します。</string>
     <string name="comp_nothing_new">前回の確認以降、新しいものはありません。</string>
     <string name="comp_import_wcp">.wcpをインポート</string>
     <string name="comp_restore_original">このProtonの元のファイルを復元</string>
@@ -578,6 +584,16 @@
     <string name="drawer_prev_page">前のページ</string>
     <string name="drawer_next_page">次のページ</string>
     <string name="drawer_hud">パフォーマンスHUD</string>
+    <string name="drawer_hud_fps">フレームレート</string>
+    <string name="drawer_hud_battery">バッテリー温度</string>
+    <string name="drawer_hud_graph">パフォーマンスグラフ</string>
+    <string name="drawer_hud_color">色</string>
+    <string name="drawer_hud_color_mint">ミント</string>
+    <string name="drawer_hud_color_white">ホワイト</string>
+    <string name="drawer_hud_color_sky">スカイ</string>
+    <string name="drawer_hud_color_amber">アンバー</string>
+    <string name="drawer_hud_color_violet">バイオレット</string>
+    <string name="drawer_hud_opacity">不透明度</string>
     <string name="drawer_scaling">スケーリングモード</string>
     <string name="drawer_scaling_sharpness">スケーリングのシャープネス</string>
     <string name="drawer_effects">画面エフェクト</string>
@@ -1747,7 +1763,8 @@
     <string name="cmgr_original_kept">インストール済みビルドの元のファイルは、元に戻すために保持されます。</string>
     <string name="cmgr_not_stored">保存されていません</string>
     <string name="cmgr_deleted_original">%2$sの%1$s版の元のファイルを削除しました。</string>
-    <string name="cmgr_nightlies_only">ダウンロードはNightliesのリリースからのみ行われます</string>
+    <string name="cmgr_nightlies_only">ダウンロードはNightliesとDroidDeckのリリースからのみ行われます</string>
+    <string name="cmgr_nightly_replaced">ダウンロードに失敗しました：このナイトリービルドは新しいビルドに置き換えられた可能性があります。一覧を更新してもう一度お試しください。</string>
     <string name="cmgr_list_predates_checksums">このパッケージ一覧はチェックサム導入前のものです。更新してからもう一度お試しください</string>
     <string name="cmgr_checksum_mismatch">チェックサムが一致しません</string>
 
@@ -2003,6 +2020,9 @@
     <string name="cloud_last_sync">最終同期 %1$s</string>
     <string name="cloud_never">未同期</string>
     <string name="cloud_done">%1$d個のファイル</string>
+    <string name="cloud_up_to_date">すでに最新です</string>
+    <string name="cloud_signed_out">セーブを同期するにはストアにサインインしてください</string>
+    <string name="cloud_not_synced">セーブは同期されませんでした</string>
     <string name="stores_eyebrow_installed">インストール済み</string>
     <string name="stores_eyebrow_library">ライブラリ内</string>
     <string name="stores_eyebrow_store">ストア</string>
@@ -2304,7 +2324,7 @@
     <string name="touch_done">完了</string>
     <string name="touch_save_failed">タッチレイアウトを保存できませんでした</string>
     <string name="touch_saved">タッチレイアウトをSteamに保存しました</string>
-    <string name="touch_app_id">アプリ%1$d</string>
+    <string name="touch_app_id">アプリ%1$s</string>
     <string name="touch_label_hint">ラベル（任意）</string>
     <string name="touch_icons_missing">Steamのアイコンが見つかりませんでした</string>
     <plurals name="touch_icons_found">
@@ -2393,6 +2413,15 @@
     <string name="glasses_vr_fov">SteamVR の視野角</string>
     <string name="glasses_vr_fov_hint">小さくすると SteamVR が近くなりグラスいっぱいに広がり、大きくすると周囲が広く見えます。</string>
     <string name="glasses_playing">%1$s でプレイ中</string>
+    <string name="glasses_phone_recenter">中心をリセット</string>
+    <string name="glasses_phone_steamvr_menu">SteamVR メニュー</string>
+    <string name="glasses_phone_switch_sticks">スティック: 手 ⇄ ゲーム</string>
+    <string name="glasses_phone_controllers">コントローラー: %1$s</string>
+    <string name="glasses_phone_keyboard">キーボード</string>
+    <string name="glasses_phone_session_menu">セッションメニュー</string>
+    <string name="glasses_phone_stop_steamvr">SteamVR を停止</string>
+    <string name="glasses_phone_brightness">明るさ %1$d / %2$d</string>
+    <string name="glasses_phone_battery">バッテリー %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">トラッキングのキャリブレーション</string>
     <string name="glasses_calibration_hint">ドリフトを減らし、水平の基準を合わせます。</string>
     <string name="glasses_calibration_saved_hint">保存したキャリブレーションをこのグラスに適用しています。</string>

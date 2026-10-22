@@ -79,6 +79,33 @@ internal object GlassesTab {
     const val VR = "vr"
     const val HARDWARE = "hardware"
     const val TRACKING = "tracking"
+    const val CONTROLLERS = "controllers"
+}
+
+@Composable
+internal fun VrControllerGroups(host: MenuHost, track: (String) -> Modifier = { Modifier }) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    androidx.compose.runtime.LaunchedEffect(Unit) { com.droiddeck.launcher.input.VrControllers.load(context) }
+    val c by com.droiddeck.launcher.input.VrControllers.settings.collectAsState()
+    val emulate = com.droiddeck.launcher.input.VrControllers.Emulate.entries
+    SettingsGroup(stringResource(R.string.vr_controllers_group)) {
+        ChoiceRow(host, "vr-emulate", stringResource(R.string.vr_controllers_emulate), stringResource(R.string.vr_controllers_emulate_hint),
+            emulate.map { it to stringResource(when (it) {
+                com.droiddeck.launcher.input.VrControllers.Emulate.OFF -> R.string.vr_controllers_off
+                com.droiddeck.launcher.input.VrControllers.Emulate.INDEX -> R.string.vr_controllers_index
+                com.droiddeck.launcher.input.VrControllers.Emulate.TOUCH -> R.string.vr_controllers_touch
+                com.droiddeck.launcher.input.VrControllers.Emulate.VIVE -> R.string.vr_controllers_vive
+            }) }, c.emulate, chipModifier = track("vr-emulate")) { com.droiddeck.launcher.input.VrControllers.setEmulate(context, it) }
+        if (c.emulate != com.droiddeck.launcher.input.VrControllers.Emulate.OFF) ChoiceRow(host, "vr-sticks",
+            stringResource(R.string.vr_controllers_sticks), stringResource(R.string.vr_controllers_sticks_hint),
+            listOf(false to stringResource(R.string.vr_controllers_sticks_game), true to stringResource(R.string.vr_controllers_sticks_hands)),
+            c.sticksMoveHands, chipModifier = track("vr-sticks")) { com.droiddeck.launcher.input.VrControllers.setSticksMoveHands(context, it) }
+        SettingsRow(stringResource(R.string.vr_controllers_buttons), stringResource(when (c.emulate) {
+            com.droiddeck.launcher.input.VrControllers.Emulate.OFF -> R.string.vr_controllers_buttons_off
+            com.droiddeck.launcher.input.VrControllers.Emulate.VIVE -> R.string.vr_controllers_buttons_vive
+            else -> R.string.vr_controllers_buttons_stick
+        }), hintLines = 6) {}
+    }
 }
 
 @Composable
@@ -362,13 +389,3 @@ private fun GlassesRecenterAction(label: String, tag: String, tint: Int, opacity
     }
 }
 
-@Composable
-internal fun GlassesPlayingHint(model: String) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(GlassesIcon, null, tint = Color.White.copy(alpha = 0.35f), modifier = Modifier.size(56.dp))
-            Spacer(Modifier.height(10.dp))
-            Text(stringResource(R.string.glasses_playing, model), color = Color.White.copy(alpha = 0.45f), fontSize = 15.sp)
-        }
-    }
-}

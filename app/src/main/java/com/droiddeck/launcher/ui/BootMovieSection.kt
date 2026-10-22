@@ -69,6 +69,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalInputModeManager
@@ -558,13 +559,37 @@ private fun repoInfo(post: SteamDeckRepo.Post): String =
     listOf(post.author, "♥ ${post.likes}", "⇩ ${post.downloads}", if (post.seconds > 0) stringResource(R.string.boot_movie_seconds, post.seconds) else "")
         .filter { it.isNotEmpty() }.joinToString(" · ")
 
+private const val AFTER_OPEN = 3
+private const val AFTER_INSTALL = 1
+private const val AFTER_USE = 2
+
+/** Install and Use are different buttons in turn, and the button is disabled while installing; it takes focus back for the controller. */
 @Composable
-private fun RepoAction(installed: Boolean, inUse: Boolean, percent: Int?, busy: Boolean, modifier: Modifier, onInstall: () -> Unit, onUse: () -> Unit) {
-    if (inUse) SecondaryButton(stringResource(R.string.boot_movie_in_use), compact = true, modifier = modifier, onClick = {})
-    else if (installed) SecondaryButton(stringResource(R.string.boot_movie_repo_use), compact = true, modifier = modifier, onClick = onUse)
+private fun RepoAction(
+    installed: Boolean, inUse: Boolean, percent: Int?, busy: Boolean, modifier: Modifier, onInstall: () -> Unit, onUse: () -> Unit,
+    takeFocus: Boolean = false,
+) {
+    val requester = remember { FocusRequester() }
+    val focused = remember { booleanArrayOf(false) }
+    var pending by remember { mutableIntStateOf(if (takeFocus) AFTER_OPEN else 0) }
+    val inputMode = LocalInputModeManager.current
+    LaunchedEffect(installed, inUse, busy, percent != null, pending) {
+        if (pending == 0) return@LaunchedEffect
+        if (inputMode.inputMode != InputMode.Keyboard) { pending = 0; return@LaunchedEffect }
+        focusWithinFrames({ focused[0] }) { requester }
+        when (pending) {
+            AFTER_OPEN -> pending = 0
+            AFTER_INSTALL -> if (installed && focused[0]) pending = 0
+            AFTER_USE -> if (inUse && focused[0]) pending = 0
+            else -> Unit
+        }
+    }
+    val m = modifier.focusRequester(requester).onFocusChanged { focused[0] = it.hasFocus || it.isFocused }
+    if (inUse) SecondaryButton(stringResource(R.string.boot_movie_in_use), compact = true, modifier = m, onClick = {})
+    else if (installed) SecondaryButton(stringResource(R.string.boot_movie_repo_use), compact = true, modifier = m, onClick = { pending = AFTER_USE; onUse() })
     else SecondaryButton(
         if (percent != null) stringResource(R.string.boot_movie_converting, percent) else stringResource(R.string.boot_movie_repo_install),
-        enabled = !busy, compact = true, modifier = modifier, onClick = onInstall,
+        enabled = !busy, compact = true, modifier = m, onClick = { pending = AFTER_INSTALL; onInstall() },
     )
 }
 
@@ -576,9 +601,6 @@ private fun PreviewDialog(
 ) {
     val shown = rememberShown(onDismiss)
     val close = { shown.targetState = false }
-    val action = remember { FocusRequester() }
-    val inputMode = LocalInputModeManager.current
-    LaunchedEffect(Unit) { if (inputMode.inputMode == InputMode.Keyboard) focusSoon { action } }
     val maxVideoHeight = (LocalConfiguration.current.screenHeightDp - 200).coerceAtLeast(120).dp
     AppDialog(shown, close, "boot-movie-preview", wide = false, maxWidth = 620.dp) {
         DialogTitleRow(post.title, close)
@@ -586,7 +608,7 @@ private fun PreviewDialog(
             MoviePreview(post.video, Modifier.heightIn(max = maxVideoHeight).aspectRatio(16f / 9f))
         }
         Text(repoInfo(post), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        RepoAction(installed, inUse, percent, busy, Modifier.fillMaxWidth().focusRequester(action), onInstall, onUse)
+        RepoAction(installed, inUse, percent, busy, Modifier.fillMaxWidth(), onInstall, onUse, takeFocus = true)
     }
 }
 

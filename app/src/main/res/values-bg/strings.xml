@@ -176,6 +176,8 @@
     <string name="app_fex_x86">%1$s през FEX</string>
     <string name="app_fex_not_ready">Тази програма е компилирана за %1$s компютри и се стартира през FEX, който още не е настроен. Отворете Steam веднъж, докато сте влезли: DroidDeck ще изтегли FEX и необходимата Steam Linux Runtime, след което тя ще се отвори.</string>
     <string name="session_end_program">Тази програма</string>
+    <string name="session_end_steam_download">Клиентът на Steam не можа да бъде изтеглен. Мрежата или VPN връзката ви може да блокира сървърите на Steam; проверете връзката и опитайте отново.</string>
+    <string name="session_end_steam_setup">Клиентът на Steam не можа да бъде настроен. Проверете връзката и свободното място, след което опитайте отново.</string>
     <string name="session_end_fex_missing">%1$s е компилирана за x86 компютри и се стартира през FEX, който още не е инсталиран. Стартирайте Steam веднъж, докато сте влезли, и го оставете да изтегли FEX и Steam Linux Runtime, след което стартирайте отново.</string>
     <string name="add_app_flatpak_hint">ID на приложение в Flathub или страницата му в Flathub. Flatpak се настройва първо, ако още не е.</string>
     <string name="add_app_file">Файл</string>
@@ -502,7 +504,9 @@
     <string name="comp_delete_original_title">Изтриване на този оригинал?</string>
     <string name="comp_delete_original_body">Този оригинал на %1$s е от по-стара версия на %2$s. Оригиналът на текущата версия винаги се запазва.</string>
     <string name="comp_nightlies_count">В Nightlies · %1$d</string>
-    <string name="comp_refresh_to_list">Обновете, за да видите пакетите в Nightlies.</string>
+    <string name="comp_channel_stable">Стабилна</string>
+    <string name="comp_channel_nightly">Нощна</string>
+    <string name="comp_refresh_to_list">Обновете, за да видите пакетите в Nightlies и DroidDeck.</string>
     <string name="comp_nothing_new">Нищо ново от последната проверка.</string>
     <string name="comp_import_wcp">Импортиране на .wcp</string>
     <string name="comp_restore_original">Възстановяване на оригинала на този Proton</string>
@@ -580,6 +584,16 @@
     <string name="drawer_prev_page">Предишна страница</string>
     <string name="drawer_next_page">Следваща страница</string>
     <string name="drawer_hud">HUD за производителност</string>
+    <string name="drawer_hud_fps">Честота на кадрите</string>
+    <string name="drawer_hud_battery">Температура на батерията</string>
+    <string name="drawer_hud_graph">Графика на производителността</string>
+    <string name="drawer_hud_color">Цвят</string>
+    <string name="drawer_hud_color_mint">Мента</string>
+    <string name="drawer_hud_color_white">Бяло</string>
+    <string name="drawer_hud_color_sky">Небесно</string>
+    <string name="drawer_hud_color_amber">Кехлибарено</string>
+    <string name="drawer_hud_color_violet">Виолетово</string>
+    <string name="drawer_hud_opacity">Прозрачност</string>
     <string name="drawer_scaling">Режим на мащабиране</string>
     <string name="drawer_scaling_sharpness">Острота на мащабиране</string>
     <string name="drawer_effects">Ефекти на екрана</string>
@@ -1768,7 +1782,8 @@
     <string name="cmgr_original_kept">Оригиналът на инсталираната версия е запазен: той е пътят назад.</string>
     <string name="cmgr_not_stored">Не е запазен</string>
     <string name="cmgr_deleted_original">Изтрит е оригиналът %1$s на %2$s.</string>
-    <string name="cmgr_nightlies_only">Изтеглянията идват само от версиите Nightlies</string>
+    <string name="cmgr_nightlies_only">Изтеглянията идват само от версиите на Nightlies и DroidDeck</string>
+    <string name="cmgr_nightly_replaced">Изтеглянето не бе успешно: тази нощна версия може да е заменена с по-нова. Обновете списъка и опитайте отново.</string>
     <string name="cmgr_list_predates_checksums">Този списък с пакети е отпреди въвеждането на контролни суми - обнови го и опитай отново</string>
     <string name="cmgr_checksum_mismatch">Несъответствие в контролната сума</string>
 
@@ -2024,6 +2039,9 @@
     <string name="cloud_last_sync">Последна синхронизация %1$s</string>
     <string name="cloud_never">Още не е синхронизирано</string>
     <string name="cloud_done">%1$d файла</string>
+    <string name="cloud_up_to_date">Вече е актуално</string>
+    <string name="cloud_signed_out">Влезте в магазина, за да синхронизирате записите</string>
+    <string name="cloud_not_synced">Записите не бяха синхронизирани</string>
     <string name="stores_eyebrow_installed">инсталирана</string>
     <string name="stores_eyebrow_library">в библиотеката ти</string>
     <string name="stores_eyebrow_store">магазин</string>
@@ -2327,7 +2345,7 @@
     <string name="touch_done">Готово</string>
     <string name="touch_save_failed">Сензорното разположение не можа да се запази</string>
     <string name="touch_saved">Сензорното разположение е запазено в Steam</string>
-    <string name="touch_app_id">Приложение %1$d</string>
+    <string name="touch_app_id">Приложение %1$s</string>
     <string name="touch_label_hint">Етикет (незадължително)</string>
     <string name="touch_icons_missing">Иконите на Steam не бяха намерени</string>
     <plurals name="touch_icons_found">
@@ -2418,6 +2436,15 @@
     <string name="glasses_vr_fov">Зрително поле на SteamVR</string>
     <string name="glasses_vr_fov_hint">По-ниско приближава SteamVR и запълва очилата; по-високо показва повече около вас.</string>
     <string name="glasses_playing">Играете на %1$s</string>
+    <string name="glasses_phone_recenter">Центриране отново</string>
+    <string name="glasses_phone_steamvr_menu">Меню на SteamVR</string>
+    <string name="glasses_phone_switch_sticks">Стикове: ръце ⇄ игра</string>
+    <string name="glasses_phone_controllers">Контролери: %1$s</string>
+    <string name="glasses_phone_keyboard">Клавиатура</string>
+    <string name="glasses_phone_session_menu">Меню на сесията</string>
+    <string name="glasses_phone_stop_steamvr">Спиране на SteamVR</string>
+    <string name="glasses_phone_brightness">Яркост %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Батерия %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Калибриране на проследяването</string>
     <string name="glasses_calibration_hint">Намалява дрейфа и подравнява хоризонта.</string>
     <string name="glasses_calibration_saved_hint">За тези очила се прилага запазено калибриране.</string>

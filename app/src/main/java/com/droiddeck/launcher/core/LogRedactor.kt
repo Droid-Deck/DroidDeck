@@ -2,14 +2,51 @@ package com.droiddeck.launcher.core
 
 object LogRedactor {
     private val EMAIL = Regex("[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}")
+    private val HIDL_SHARED_LIBRARY = Regex(
+        "(?:android\\.(?:hardware|frameworks|hidl|system)|vendor\\.[A-Za-z0-9_]+\\.hardware)" +
+            "(?:\\.[A-Za-z0-9_]+)+@[0-9]+\\.[0-9]+(?:-[A-Za-z0-9_]+)*\\.so"
+    )
+    private val hidlMatcher = object : ThreadLocal<java.util.regex.Matcher>() {
+        override fun initialValue(): java.util.regex.Matcher = HIDL_SHARED_LIBRARY.toPattern().matcher("")
+    }
+
+    private fun isHidlLoaderDiagnostic(input: String, match: MatchResult): Boolean {
+        val matcher = hidlMatcher.get()!!
+        val isLibrary = try { matcher.reset(match.value).matches() } finally { matcher.reset("") }
+        if (!isLibrary) return false
+        val start = match.range.first
+        val end = match.range.last + 1
+        val prefix = "library \""
+        val suffix = "\" not found"
+        val earliestQuote = (start - 4096).coerceAtLeast(0)
+        var quote = start - 1
+        while (quote >= earliestQuote && input[quote] != '"') {
+            val char = input[quote]
+            if (!char.isLetterOrDigit() && char !in "/._-") return false
+            quote--
+        }
+        if (quote < earliestQuote) return false
+        val pathStart = quote + 1
+        if (pathStart < start && (input[start - 1] != '/' ||
+                !(input.regionMatches(pathStart, "/vendor/", 0, 8) ||
+                    input.regionMatches(pathStart, "/system/", 0, 8)))) return false
+        val prefixStart = quote - prefix.length + 1
+        val suffixEnd = end + suffix.length
+        return prefixStart >= 0 && suffixEnd <= input.length &&
+            input.regionMatches(prefixStart, prefix, 0, prefix.length, ignoreCase = true) &&
+            input.regionMatches(end, suffix, 0, suffix.length, ignoreCase = true) &&
+            (prefixStart == 0 || !(input[prefixStart - 1].isLetterOrDigit() || input[prefixStart - 1] == '_')) &&
+            (suffixEnd == input.length || !(input[suffixEnd].isLetterOrDigit() || input[suffixEnd] == '_'))
+    }
+
     private val JWT_LABELLED = Regex("(?i)(\\bJWT[\\s=:]+)(\\d{8,})")
     private val JWT_BASE64 = Regex("ey[A-Za-z0-9_\\-]{6,}\\.[A-Za-z0-9_\\-]{6,}\\.[A-Za-z0-9_\\-]{6,}")
     private val GUID = Regex("\\b[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\\b")
     private val SECRET_KV = Regex(
-        "(?i)\\b(access[_-]?token|refresh[_-]?token|auth[_-]?token|authtoken|token|authcode|" +
+        "(?i)(\\b(?:access[_-]?token|refresh[_-]?token|auth[_-]?token|authtoken|token|authcode|" +
             "auth[_-]?ticket|ticket|sessionid|steamloginsecure|webapikey|api[_-]?key|" +
-            "machine[_-]?auth(?:[_-]?token)?|machineauth|password|passwd|pwd|secret)" +
-            "(\\s*[=:]\\s*|=)([^\\s\"'<>&;,]{4,})"
+            "machine[_-]?auth(?:[_-]?token)?|machineauth|password|passwd|pwd|secret)[\"']?\\s*[=:]\\s*)" +
+            "(?:([\"'])((?:\\\\.|(?!\\2)[^\\\\\\r\\n]){4,})\\2|([^\\s\"'<>&;,]{4,}))"
     )
     private val GUARD_CODE = Regex(
         "(?i)((?:steam\\s*)?guard\\s*code[\\s:=]*|two[\\s-]?factor[\\s:=]*|2fa[\\s:=]*)([A-Za-z0-9]{5})"
@@ -291,7 +328,7 @@ object LogRedactor {
             if (out.has("jwt")) out.set(JWT_LABELLED.replace(out.text) { "${it.groupValues[1]}<redacted:jwt>" })
             if ("ey" in out.text) out.set(JWT_BASE64.replace(out.text, "<redacted:jwt>"))
             if (out.has("token", "auth", "ticket", "sessionid", "steamloginsecure", "api", "machine", "pass", "pwd", "secret")) {
-                out.set(SECRET_KV.replace(out.text) { "${it.groupValues[1]}${it.groupValues[2]}<redacted:token>" })
+                out.set(SECRET_KV.replace(out.text) { "${it.groupValues[1]}${it.groupValues[2]}<redacted:token>${it.groupValues[2]}" })
             }
             if (out.has("guard", "factor", "2fa")) out.set(GUARD_CODE.replace(out.text) { "${it.groupValues[1]}<redacted:code>" })
             if (out.hasRun(32, ::isHex)) out.set(WEBAPI_KEY.replace(out.text, "<redacted:key>"))
@@ -309,7 +346,9 @@ object LogRedactor {
             }
             if (out.has("login")) out.set(LOGIN_KV.replace(out.text) { "${it.groupValues[1]}${it.groupValues[2]}${quoted(it.groupValues[3])}" })
             for (r in accounts) if (r.needs == null || out.has(r.needs)) out.set(r.regex.replace(out.text, "<redacted:account>"))
-            if ('@' in out.text) out.set(EMAIL.replace(out.text, "<redacted:email>"))
+            if ('@' in out.text) out.set(EMAIL.replace(out.text) { m ->
+                m.value.takeIf { isHidlLoaderDiagnostic(out.text, m) } ?: "<redacted:email>"
+            })
             if (out.has("jwt", "token", "ticket", "sessionid", "steamloginsecure", "machineauth")) {
                 out.set(RESIDUAL.replace(out.text) { "${it.groupValues[1]}=<redacted:token>" })
             }
