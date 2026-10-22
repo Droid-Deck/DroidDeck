@@ -86,6 +86,11 @@ import com.droiddeck.launcher.R
 private enum class CheckState { OK, WARN, BUSY }
 
 private const val STORAGE_TAB = 3
+private const val LAUNCHER_TAB = 2
+
+internal object SetupTabs {
+    var openLauncher = false
+}
 private const val GLASSES_TAB = 5
 
 @Composable
@@ -177,7 +182,8 @@ internal fun SetupPanel(
         onSave = { a.onDownloadPrefix(it); editDownloadPrefix = false },
     )
     val tabs = listOf(stringResource(R.string.setup_tab_overview), stringResource(R.string.setup_tab_controller), stringResource(R.string.setup_tab_launcher), stringResource(R.string.setup_tab_storage), stringResource(R.string.setup_tab_diagnostics), stringResource(R.string.setup_tab_glasses))
-    var tab by rememberSaveable { mutableStateOf(0) }
+    var tab by rememberSaveable { mutableStateOf(if (SetupTabs.openLauncher) LAUNCHER_TAB else 0) }
+    SetupTabs.openLauncher = false
     val chipFocus = remember { List(tabs.size) { FocusRequester() } }
     var tabTurned by remember { mutableStateOf(false) }
     val pick: (Int) -> Unit = { i -> tab = i; tabTurned = true }
@@ -353,6 +359,7 @@ internal fun SetupPanel(
                                         }
                                     }
                                 }
+                                if (s.theme == Themes.GRADIENT) GradientColorRows()
                                 ChoiceRow(
                                     host, "app-scale", stringResource(R.string.setup_app_scale), stringResource(R.string.setup_app_scale_hint),
                                     com.droiddeck.launcher.core.AppUiPrefs.scales.map { percent ->
@@ -361,6 +368,11 @@ internal fun SetupPanel(
                                             else R.string.ctrl_percent, percent,
                                         )
                                     }, s.appScale, onPick = a.onAppScale,
+                                )
+                                ChoiceRow(
+                                    host, "launcher-icon", stringResource(R.string.setup_launcher_icon), null,
+                                    com.droiddeck.launcher.LauncherIcon.options.map { (style, label) -> style to stringResource(label) },
+                                    s.launcherIcon, onPick = a.onLauncherIcon,
                                 )
                                 ToggleRow(host, "launcher-animations", stringResource(R.string.setup_animations), null,
                                     s.animationsEnabled, onChange = a.onAnimationsEnabled)
@@ -512,8 +524,9 @@ internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost
             val back = stringResource(R.string.hop_from_games)
             SettingCard(stringResource(R.string.setup_card_components), stringResource(R.string.setup_card_components_hint), "card:components", m.hopSource("card:components")) {
                 val at = Hops.sources["card:components"]
-                if (at == null) a.onComponents(true)
-                else Hops.go(HopOrigin("games", HOP_SURFACE_GAMES, null, "card:components", at, back, dest = "components", page = "components")) { a.onComponents(true) }
+                val open = { if (game == null) a.onComponents(true) else a.onGameComponents(game) }
+                if (at == null) open()
+                else Hops.go(HopOrigin("games", HOP_SURFACE_GAMES, null, "card:components", at, back, dest = "components", page = "components"), open)
             }
         }
         add { m ->
@@ -776,5 +789,23 @@ private fun LanguageRow(host: MenuHost, chosen: String, onPick: (String) -> Unit
                 }
             }
         }
+    }
+}
+
+/** The two colours of the Gradient theme, each a small square that opens the colour picker. */
+@Composable
+private fun GradientColorRows() {
+    val ctx = androidx.compose.ui.platform.LocalContext.current.applicationContext
+    val (primary, secondary) = Themes.gradientColors
+    var picking by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    val primaryLabel = stringResource(R.string.theme_gradient_primary)
+    val secondaryLabel = stringResource(R.string.theme_gradient_secondary)
+    SettingsRow(primaryLabel, null) { ColorCube(androidx.compose.ui.graphics.Color(primary), primaryLabel) { picking = 1 } }
+    SettingsRow(secondaryLabel, null) { ColorCube(androidx.compose.ui.graphics.Color(secondary), secondaryLabel) { picking = 2 } }
+    if (picking != 0) ColorPickerDialog(
+        if (picking == 1) primaryLabel else secondaryLabel, if (picking == 1) primary else secondary,
+        onDismiss = { picking = 0 },
+    ) { argb ->
+        if (picking == 1) Themes.setGradient(ctx, argb, secondary) else Themes.setGradient(ctx, primary, argb)
     }
 }

@@ -131,7 +131,7 @@ private fun GameTile(t: Tile, wide: Boolean, square: Boolean, src: MutableIntera
             .background(colors.surface)
             .glideBorder(hot, Shape12, pal.signal, hotWidth = 2.5.dp)
             .alpha(if (t.dim && !hot) 0.55f else 1f)
-            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, onClick = t.onClick),
+            .hoverable(src).clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = src, indication = LocalIndication.current, onClick = t.onClick),
     ) {
         Box(modifier = Modifier.fillMaxWidth().shine(hot)) {
             Art(t.art, t.iconRes, t.title, Modifier.fillMaxWidth(), wide, t.iconBitmap)

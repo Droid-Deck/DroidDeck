@@ -12,8 +12,8 @@ internal object GlassesRendering {
     fun refreshRates(settings: GlassesSettings, state: GlassesState): List<Int> = buildList {
         if (native30HzAvailable(settings, state)) add(30)
         add(60)
-        if (!state.sbs || state.sbs90) add(90)
-        if (!state.sbs) add(120)
+        if (state.sbs) { if (state.sbs90) add(90) }
+        else addAll(state.rates2d.filter { it > 60 })
     }
 
     fun outputHz(settings: GlassesSettings, state: GlassesState): Int {
@@ -21,6 +21,7 @@ internal object GlassesRendering {
         return when {
             requested == 30 -> if (native30HzAvailable(settings, state)) 30 else 60
             state.sbs && !state.sbs90 -> 60
+            !state.sbs && requested !in state.rates2d -> state.rates2d.filter { it <= requested }.maxOrNull() ?: 60
             else -> requested
         }
     }

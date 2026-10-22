@@ -200,6 +200,7 @@ object DeviceReport {
         h("Drivers")
         val gpu = com.droiddeck.launcher.gpu.GpuInfo.detect()
         k("GPU", "${gpu.name} · ${gpu.family.label} · ${gpu.supportText}" + if (gpu.oneUi8Gen2) " · One UI 8 Gen 2" else "")
+        if (gpu.model == 740) k("TP UBWC hint", com.droiddeck.launcher.gpu.TpUbwcHint.forThisDevice() ?: "driver default")
         k("Driver mode", SessionPrefs.gpuDriverMode(context) +
             (com.droiddeck.launcher.gpu.DriverPairs.recommendedKey(gpu, com.droiddeck.launcher.gpu.DriverPairs.from(
                 com.droiddeck.launcher.gpu.TurnipReleases.cached(context)), com.droiddeck.launcher.gpu.TurnipReleases.autoPicks(context),
@@ -224,6 +225,9 @@ object DeviceReport {
         k("Installed version", LinuxRuntimeInstaller.installedVersion(context))
         k("Runtime ready", LinuxRuntime.isInstalled(context))
         k("Desktop installed", DesktopCatalog.desktopInstalled(context))
+        k("Interrupted installs", DesktopCatalog.interrupted(context).joinToString { "${it.id} ${it.version}" }.ifEmpty { "none" })
+        val broken = runCatching { com.droiddeck.launcher.runtime.RuntimeHealth.brokenLibraryLinks(context) }.getOrDefault(emptyList())
+        k("Broken library links", if (broken.isEmpty()) "none" else "${broken.size}: ${broken.take(8).joinToString()}")
         k("Runtime root", LinuxRuntime.rootDir(context).path)
 
         h("Settings in effect")
@@ -248,6 +252,7 @@ object DeviceReport {
         k("Guest host name", SessionPrefs.guestHostname(context))
         k("DirectAudio for games", SessionPrefs.directAudio(context))
         k("Stretch 16:9 to panel", SessionPrefs.stretch16x9(context))
+        k("Return to launcher after a game", SessionPrefs.returnAfterGame(context))
         k("Microphone", SessionPrefs.micEnabled(context))
         k("On-screen controls", SessionPrefs.oscMode(context))
         k("Touch mode", SessionPrefs.touchMode(context))

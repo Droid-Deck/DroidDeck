@@ -781,17 +781,18 @@ private fun GameDataView(report: StorageReport, sessionRunning: Boolean, onBack:
 }
 
 @Composable
-private fun ComponentsView(report: StorageReport, sessionRunning: Boolean, onBack: () -> Unit) {
+internal fun ComponentsView(report: StorageReport, sessionRunning: Boolean, onBack: () -> Unit) {
     val ctx = LocalContext.current
     val pal = LocalPalette.current
     val colors = MaterialTheme.colorScheme
     val busy = sessionRunning || StorageState.cleaning
     var confirm by remember { mutableStateOf<ComponentUsage?>(null) }
+    var confirmAll by remember { mutableStateOf(false) }
     val unused = report.unusedComponents
     SubHeader(stringResource(R.string.storage_components),
         stringResource(R.string.storage_tools_detail, gb(report.components.sumOf { it.bytes }), gb(unused.sumOf { it.bytes })), onBack) {
         if (unused.isNotEmpty()) PrimaryButton(stringResource(R.string.storage_remove_unused, gb(unused.sumOf { it.bytes })), compact = true, enabled = !busy) {
-            StorageState.clean(ctx, setOf(CleanItem.UNUSED_COMPONENTS)) { }
+            confirmAll = true
         }
     }
     ActionStatus()
@@ -823,6 +824,19 @@ private fun ComponentsView(report: StorageReport, sessionRunning: Boolean, onBac
         ConfirmDialog(stringResource(R.string.storage_remove_title, componentLabel(c)),
             stringResource(if (c.packageFile != null) R.string.storage_component_confirm else R.string.storage_original_confirm, gb(c.bytes)),
             stringResource(R.string.storage_remove), onConfirm = { StorageState.removeComponent(ctx, c) }, onDismiss = { confirm = null })
+    }
+    if (confirmAll) {
+        val total = gb(unused.sumOf { it.bytes })
+        val lines = unused.map { "• " + componentLabel(it) + "  " + gb(it.bytes) }.joinToString("\n")
+        val warning = stringResource(
+            if (unused.any { it.packageFile != null }) R.string.storage_component_confirm else R.string.storage_original_confirm, total)
+        ConfirmDialog(
+            stringResource(R.string.storage_remove_unused, total),
+            lines + "\n\n" + warning,
+            stringResource(R.string.storage_remove),
+            onConfirm = { StorageState.clean(ctx, setOf(CleanItem.UNUSED_COMPONENTS)) { } },
+            onDismiss = { confirmAll = false },
+        )
     }
 }
 

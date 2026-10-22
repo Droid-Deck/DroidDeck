@@ -84,6 +84,23 @@ def commitTime = (gitValue(['show', '-s', '--format=%ct', 'HEAD']) ?: '0').with 
 def desktopKde = rootProject.file('tools/desktop-kde/release.env').readLines()
     .findAll { it.contains('=') && !it.startsWith('#') }
     .collectEntries { def kv = it.split('=', 2); [(kv[0].trim()): kv[1].trim()] }
+def trackingPack = rootProject.file('tools/packs/tracking/release.env').readLines()
+    .findAll { it.contains('=') && !it.startsWith('#') }
+    .collectEntries { def kv = it.split('=', 2); [(kv[0].trim()): kv[1].trim()] }
+def addonPacks = ['proot', 'directaudio', 'tracking', 'xbox', 'comet'].collectEntries { name ->
+    def pack = file("build/packs/${name}.tar.zst")
+    if (!pack.isFile()) {
+        if (ciBuild) throw new GradleException("Add-on pack ${pack} is missing: run tools/packs/build.sh app/build/packs")
+        return [(name): [sha256: '', size: 0L]]
+    }
+    def digest = java.security.MessageDigest.getInstance('SHA-256')
+    pack.withInputStream { input ->
+        byte[] buffer = new byte[1 << 20]
+        int n
+        while ((n = input.read(buffer)) > 0) digest.update(buffer, 0, n)
+    }
+    [(name): [sha256: digest.digest().encodeHex().toString(), size: pack.length()]]
+}
 def desktopRemovalSources = new groovy.json.JsonSlurper().parse(file('src/main/assets/desktop-removal/sources.json'))
 if (desktopRemovalSources.archives[desktopKde.DESKTOP_KDE_TAG] != desktopKde.DESKTOP_KDE_SHA256) {
     throw new GradleException('Desktop removal inventories do not match the pinned archive')
@@ -119,6 +136,10 @@ android {
         buildConfigField "String", "DESKTOP_KDE_URL", "\"https://github.com/${desktopKde.DESKTOP_KDE_REPO}/releases/download/${desktopKde.DESKTOP_KDE_TAG}/desktop-kde.tar.zst\""
         buildConfigField "String", "DESKTOP_KDE_SHA256", "\"${desktopKde.DESKTOP_KDE_SHA256}\""
         buildConfigField "long", "DESKTOP_KDE_SIZE", "${desktopKde.DESKTOP_KDE_SIZE}L"
+        addonPacks.each { name, pack ->
+            buildConfigField "String", "PACK_${name.toUpperCase()}_SHA256", "\"${pack.sha256}\""
+            buildConfigField "long", "PACK_${name.toUpperCase()}_SIZE", "${pack.size}L"
+        }
 
         ndk {
             abiFilters 'arm64-v8a'
@@ -172,6 +193,11 @@ android {
         disable 'ExpiredTargetSdkVersion'
     }
 
+    androidResources {
+        // aapt's default ignore list, plus the trees shipped as add-on packs (tools/packs).
+        ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:<dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:<dir>droiddeck-xbox:<dir>droiddeck-comet:<dir>directaudio'
+    }
+
     packagingOptions {
         resources {
             excludes += ['META-INF/versions/9/OSGI-INF/MANIFEST.MF']
@@ -179,6 +205,8 @@ android {
         jniLibs {
             useLegacyPackaging = true
             pickFirsts += ['**/libtermux.so']
+            // Shipped in the proot and tracking packs (tools/packs) and run or loaded from there.
+            excludes += ['**/libproot.so', '**/libproot-loader.so', '**/libopencv_java4.so', '**/libmediapipe_tasks_jni.so']
         }
     }
 
@@ -192,6 +220,8 @@ android {
         unitTests.returnDefaultValues = true
         unitTests.includeAndroidResources = true
         unitTests.all {
+            // Robolectric keeps a sandbox per SDK level the tests ask for; seven no longer fit in Gradle's default 512 MB.
+            maxHeapSize = '2g'
             def logTarget = providers.systemProperty('robolectric.logging').orNull
             if (logTarget != null) systemProperty 'robolectric.logging', logTarget
         }
@@ -282,22 +312,8 @@ def buildRustStores = tasks.register('buildRustStores', Exec) {
 if (!skipRust) android.sourceSets.main.jniLibs.srcDir(rustJniLibsDir)
 tasks.named('preBuild').configure { dependsOn(buildRustStores) }
 
-def verifyHandModel = tasks.register('verifyHandModel') {
-    def models = ['hand_landmarker.task': 'fbc2a30080c3c557093b5ddfc334698132eb341044ccee322ccf8bcf3607cde1',
-                  'hand_landmarker_lite.task': '173c0f47ecee7e935bd4a1e93aa580756b4180c1307c07d709313e82c28672c8']
-        .collectEntries { name, hash -> [(file("src/main/assets/models/$name")): hash] }
-    inputs.files(models.keySet())
-    doLast {
-        models.each { model, expected ->
-            def actual = java.security.MessageDigest.getInstance('SHA-256').digest(model.bytes).encodeHex().toString()
-            if (actual != expected) throw new GradleException("Hand Landmarker model checksum mismatch: ${model.name}")
-        }
-    }
-}
-tasks.named('preBuild').configure { dependsOn(verifyHandModel) }
-
 dependencies {
-    implementation 'org.opencv:opencv:4.13.0'
+    implementation "org.opencv:opencv:${trackingPack.OPENCV_VERSION}"
     implementation 'org.khronos.openxr:openxr_loader_for_android:1.1.49'
     implementation 'com.github.luben:zstd-jni:1.5.7-4@aar'
     implementation 'org.apache.commons:commons-compress:1.27.1'
@@ -316,7 +332,8 @@ dependencies {
     implementation 'com.termux.termux-app:terminal-view:0.118.0'
     implementation 'androidx.camera:camera-camera2:1.4.2'
     implementation 'androidx.camera:camera-lifecycle:1.4.2'
-    implementation('com.google.mediapipe:tasks-vision:1.0.0') {
+    implementation 'androidx.webkit:webkit:1.12.1'
+    implementation("com.google.mediapipe:tasks-vision:${trackingPack.MEDIAPIPE_VERSION}") {
         exclude group: 'com.google.auto.value', module: 'auto-value'
     }
 
