@@ -91,6 +91,25 @@ public final class RuntimeFileTree {
             java.util.Collections.addAll(paths, "opt/appimages/" + n,
                     "usr/share/applications/droiddeck-" + id + ".desktop", ".droiddeck-pkg-" + id);
         }
+        for (String n : children(new File(tree, "usr/share/applications"))) {
+            if (!n.startsWith("droiddeck-") || !n.endsWith(".desktop")) continue;
+            String id = n.substring("droiddeck-".length(), n.length() - ".desktop".length());
+            if (!Files.exists(new File(tree, "opt/appimages/" + id + ".AppImage").toPath(), LinkOption.NOFOLLOW_LINKS))
+                paths.add("usr/share/applications/" + n);
+        }
+        for (String n : children(tree)) {
+            if (!n.startsWith(".droiddeck-pkg-")) continue;
+            String id = n.substring(".droiddeck-pkg-".length());
+            boolean hasMenu = Files.exists(new File(tree, "usr/share/applications/droiddeck-" + id + ".desktop").toPath(), LinkOption.NOFOLLOW_LINKS);
+            if (hasMenu && !Files.exists(new File(tree, "opt/appimages/" + id + ".AppImage").toPath(), LinkOption.NOFOLLOW_LINKS))
+                paths.add(n);
+        }
+        return paths;
+    }
+
+    static java.util.List<String> existingUserPaths(File from, File to) throws IOException {
+        java.util.List<String> paths = new java.util.ArrayList<>();
+        for (String rel : userPaths(from, to)) if (exists(safePath(from, rel).toPath())) paths.add(rel);
         return paths;
     }
 
@@ -128,12 +147,16 @@ public final class RuntimeFileTree {
      * Returns the moved paths.
      */
     static java.util.List<String> carryUserData(File from, File to, boolean onlyMissing) throws IOException {
+        return carryUserData(from, to, onlyMissing, userPaths(from, to));
+    }
+
+    static java.util.List<String> carryUserData(File from, File to, boolean onlyMissing, java.util.List<String> paths) throws IOException {
         java.util.List<String> moved = new java.util.ArrayList<>();
         try {
-            for (String rel : userPaths(from, to)) {
-                File src = new File(from, rel);
+            for (String rel : paths) {
+                File src = safePath(from, rel);
                 if (!exists(src.toPath())) continue;
-                File dst = new File(to, rel);
+                File dst = safePath(to, rel);
                 if (onlyMissing && exists(dst.toPath())) continue;
                 move(from, to, rel);
                 moved.add(rel);
@@ -159,8 +182,8 @@ public final class RuntimeFileTree {
     }
 
     private static void move(File from, File to, String rel) throws IOException {
-        File src = new File(from, rel);
-        File dst = new File(to, rel);
+        File src = safePath(from, rel);
+        File dst = safePath(to, rel);
         File parent = src.getParentFile();
         if (parent != null) makeWritable(parent);
         java.util.List<File> made = new java.util.ArrayList<>();
@@ -175,6 +198,38 @@ public final class RuntimeFileTree {
         }
         delete(dst, null);
         if (!src.renameTo(dst)) throw new IOException("Cannot carry " + rel + " across the update");
+    }
+
+    static void recoverCarriedPaths(File staging, File target, java.util.List<String> paths) throws IOException {
+        for (String rel : paths) {
+            File src = safePath(staging, rel);
+            if (!exists(src.toPath())) continue;
+            File dst = safePath(target, rel);
+            if (exists(dst.toPath())) delete(src, null);
+            else move(staging, target, rel);
+        }
+    }
+
+    static boolean hasPaths(File tree, java.util.List<String> paths) throws IOException {
+        for (String rel : paths) if (exists(safePath(tree, rel).toPath())) return true;
+        return false;
+    }
+
+    private static File safePath(File tree, String rel) throws IOException {
+        Path relative = java.nio.file.Paths.get(rel);
+        if (relative.isAbsolute() || relative.getNameCount() == 0) throw new IOException("Invalid runtime path: " + rel);
+        for (Path part : relative) if (part.toString().equals("..")) throw new IOException("Invalid runtime path: " + rel);
+        Path current = tree.toPath();
+        for (int i = 0; i < relative.getNameCount() - 1; i++) {
+            current = current.resolve(relative.getName(i));
+            try {
+                BasicFileAttributes attrs = Files.readAttributes(current, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+                if (!attrs.isDirectory()) throw new IOException("Runtime path has a non-directory parent: " + current);
+            } catch (NoSuchFileException ignored) {
+                break;
+            }
+        }
+        return tree.toPath().resolve(relative).toFile();
     }
 
     static void carryHome(File old, File staging) throws IOException {

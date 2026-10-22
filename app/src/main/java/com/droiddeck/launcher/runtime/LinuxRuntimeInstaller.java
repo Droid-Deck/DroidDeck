@@ -299,15 +299,23 @@ public final class LinuxRuntimeInstaller {
                 discard(staging, null);
                 return false;
             }
+            java.util.List<String> carryPaths = root.isDirectory()
+                    ? RuntimeFileTree.existingUserPaths(root, staging) : java.util.Collections.emptyList();
             if (root.isDirectory() && !root.renameTo(old)) {
                 RuntimeFileTree.delete(staging, null);
                 return false;
             }
-            FileUtils.writeString(new File(staging, CARRY_MARKER), "1");
+            File carryMarker = new File(staging, CARRY_MARKER);
+            if (!FileUtils.writeString(carryMarker, String.join("\n", carryPaths))) {
+                if (old.isDirectory() && !old.renameTo(root))
+                    Log.w(TAG, "could not restore the previous runtime; retained at " + old);
+                discard(staging, null);
+                return false;
+            }
 
             java.util.List<String> carried;
             try {
-                carried = RuntimeFileTree.carryUserData(old, staging, false);
+                carried = RuntimeFileTree.carryUserData(old, staging, false, carryPaths);
             } catch (IOException e) {
                 Log.w(TAG, "could not carry user data across the update; rolling back", e);
                 if (old.isDirectory() && !old.renameTo(root))
@@ -350,8 +358,19 @@ public final class LinuxRuntimeInstaller {
             if (!old.renameTo(root)) throw new IOException("Cannot restore the previous runtime at " + old);
             Log.w(TAG, "restored the previous runtime after an interrupted update");
         }
-        if (!RuntimeFileTree.exists(new File(staging, CARRY_MARKER).toPath())) return;
+        File marker = new File(staging, CARRY_MARKER);
+        if (!RuntimeFileTree.exists(marker.toPath())) return;
         File target = root.isDirectory() ? root : old;
+        String markerContent = FileUtils.readString(marker);
+        if (markerContent != null && !markerContent.equals("1")) {
+            java.util.List<String> intended = new java.util.ArrayList<>();
+            for (String rel : markerContent.split("\\n")) if (!rel.isEmpty()) intended.add(rel);
+            if (target.isDirectory()) RuntimeFileTree.recoverCarriedPaths(staging, target, intended);
+            if (staging.isDirectory() && RuntimeFileTree.hasPaths(staging, intended))
+                throw new IOException("User data still needs recovery from " + staging);
+            marker.delete();
+            return;
+        }
         File stagedHome = new File(staging, USER_DATA);
         File home = new File(target, USER_DATA);
         if (target.isDirectory() && stagedHome.isDirectory() && (!RuntimeFileTree.exists(home.toPath()) || isEmptyDir(home))) {

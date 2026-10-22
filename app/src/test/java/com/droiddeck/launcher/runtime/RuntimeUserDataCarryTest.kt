@@ -169,6 +169,47 @@ class RuntimeUserDataCarryTest {
         assertEquals("only surviving user data", File(staging, "root/save.dat").readText())
     }
 
+    @Test fun markedButNotYetMovedShippedHomeDoesNotBlockTheNextInstall() {
+        val root = File(tmp.root, "runtime")
+        val old = tmp.newFolder("runtime.old")
+        val staging = tmp.newFolder("runtime.new")
+        put(old, "root/save.dat", "user data")
+        put(staging, LinuxRuntimeInstaller.CARRY_MARKER, "root")
+        put(staging, "root/.bashrc", "shipped default")
+
+        LinuxRuntimeInstaller.recoverInterruptedSwap(root, staging, old)
+
+        assertEquals("user data", File(root, "root/save.dat").readText())
+        assertFalse("the untouched shipped home should be discarded", File(staging, "root").exists())
+        assertFalse(File(staging, LinuxRuntimeInstaller.CARRY_MARKER).exists())
+    }
+
+    @Test fun recoveryMovesOnlyAnIntendedPathThatWasAlreadyCarried() {
+        val root = File(tmp.root, "runtime")
+        val old = tmp.newFolder("runtime.old")
+        val staging = tmp.newFolder("runtime.new")
+        put(staging, LinuxRuntimeInstaller.CARRY_MARKER, "root")
+        put(staging, "root/save.dat", "moved user data")
+
+        LinuxRuntimeInstaller.recoverInterruptedSwap(root, staging, old)
+
+        assertEquals("moved user data", File(root, "root/save.dat").readText())
+        assertFalse(File(staging, LinuxRuntimeInstaller.CARRY_MARKER).exists())
+    }
+
+    @Test fun aSymlinkedParentCannotRedirectAUserDataMoveOutsideTheRuntime() {
+        val old = tmp.newFolder("old")
+        val staging = tmp.newFolder("staging")
+        val outside = tmp.newFolder("outside")
+        put(outside, "save.dat", "outside data")
+        Files.createSymbolicLink(File(old, "root").toPath(), outside.toPath())
+
+        assertThrows(IOException::class.java) { RuntimeFileTree.carryUserData(old, staging, false) }
+
+        assertEquals("outside data", File(outside, "save.dat").readText())
+        assertFalse(File(staging, "root/save.dat").exists())
+    }
+
     @Test fun anInaccessibleLiveHomeIsNeverTreatedAsMissing() {
         assumeTrue(Files.getFileStore(tmp.root.toPath()).supportsFileAttributeView("posix"))
         val root = tmp.newFolder("runtime")
