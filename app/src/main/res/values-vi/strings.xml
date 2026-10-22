@@ -287,9 +287,6 @@
     <string name="mode_suspend_steam_note">Tự động tạm dừng và tiếp tục khi được hiển thị lại. Gốc chuẩn bị Steam để ngủ trước. Thủ công chờ nhấn Tiếp tục. Không bao giờ giữ nó luôn chạy.</string>
     <string name="mode_background_downloads">Giữ tải xuống tiếp tục chạy</string>
     <string name="mode_background_downloads_hint">Trì hoãn tạm dừng nền khi Steam đang tải xuống.</string>
-    <string name="mode_zram">Nén zRAM</string>
-    <string name="mode_zram_hint">Khi chơi, bộ nhớ của ứng dụng Steam được nén vào zram của thiết bị để game có thêm RAM. Áp dụng từ lần khởi động Steam tiếp theo.</string>
-    <string name="mode_zram_unsupported">Không khả dụng: thiết bị không có zram hoặc swap, hoặc nhân cũ hơn 5.4.</string>
     <string name="mode_suspend_note">Tự động tạm dừng ở nền và tiếp tục khi hiển thị lại. Thủ công chờ nhấn Tiếp tục. Không bao giờ giữ nó luôn chạy.</string>
     <string name="mode_startup">Khởi động</string>
     <string name="mode_steam_startup">Khởi động Steam cùng DroidDeck</string>
