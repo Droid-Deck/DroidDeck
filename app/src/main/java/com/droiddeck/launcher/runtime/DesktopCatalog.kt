@@ -118,7 +118,8 @@ object DesktopCatalog {
 
     fun desktopPresent(context: Context): Boolean {
         val root = LinuxRuntime.rootDir(context)
-        return File(root, DesktopRemoval.PENDING).exists() || marker(context, DESKTOP_ID).exists()
+        return File(root, DesktopRemoval.PENDING).exists() || marker(context, DESKTOP_ID).exists() ||
+            journal(root, DESKTOP_ID).exists()
     }
 
     fun desktopSize(context: Context): Long = DesktopRemoval.installedSize(context)
@@ -126,8 +127,21 @@ object DesktopCatalog {
     fun cleanLegacy(context: Context, listener: LinuxRuntimeInstaller.ProgressListener? = null) =
         DesktopRemoval.cleanLegacy(context, listener)
 
-    fun removeDesktop(context: Context, listener: LinuxRuntimeInstaller.ProgressListener): String? =
+    fun removeDesktop(context: Context, listener: LinuxRuntimeInstaller.ProgressListener): String? = synchronized(installLock) {
         DesktopRemoval.remove(context, listener)
+    }
+
+    internal fun discardDesktopInstall(context: Context) {
+        val entry = interrupted(context).firstOrNull { it.id == DESKTOP_ID }
+        val journal = journal(LinuxRuntime.rootDir(context), DESKTOP_ID)
+        entry?.let {
+            val download = downloadFile(context, it)
+            for (file in listOf(download, File(download.path + ".resume.properties"))) {
+                check(!file.exists() || file.delete()) { "Could not remove desktop download ${file.name}" }
+            }
+        }
+        check(!journal.exists() || journal.delete()) { "Could not clear desktop installation" }
+    }
 
     fun install(context: Context, entry: Entry, listener: LinuxRuntimeInstaller.ProgressListener?): String? = synchronized(installLock) {
         installLocked(context, entry, listener)
