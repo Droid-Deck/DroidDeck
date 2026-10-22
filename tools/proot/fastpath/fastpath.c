@@ -835,6 +835,10 @@ int __fxstat(int ver, int fd, struct stat *st) {
 }
 int __fxstat64(int ver, int fd, struct stat64 *st) { return __fxstat(ver, fd, (struct stat *)st); }
 
+#ifndef STATX__RESERVED
+#define STATX__RESERVED 0x80000000U
+#endif
+
 static int statx_missing;
 
 static unsigned int dev_major(unsigned long long dev) {
@@ -891,7 +895,12 @@ int statx(int dirfd, const char *path, int flags, unsigned mask, struct statx *o
   REAL(statx, int (*)(int, const char *, int, unsigned, struct statx *));
   struct res r;
   long rs;
-  if (!path || !out) { errno = EFAULT; return -1; }
+  if (mask & STATX__RESERVED) { errno = EINVAL; return -1; }
+  if (!out) { errno = EFAULT; return -1; }
+  if (!path) {
+    if (!(flags & AT_EMPTY_PATH)) { errno = EFAULT; return -1; }
+    return real_statx ? real_statx(dirfd, path, flags, mask, out) : ret(sc(SYS_statx, dirfd, (long)path, flags, mask, (long)out));
+  }
   if ((flags & AT_EMPTY_PATH) && !path[0] && fp_ready()) {
     hits++;
     return ret(statx_call(dirfd, "", flags, mask, out));
