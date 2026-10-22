@@ -23,7 +23,8 @@ DRM device - so games and emulators from the menu go through `droiddeck-gpu`, an
 to the app as a Steam session.
 
 `build-kwin.sh` builds KWin 6.8.0's Wayland executable and library on a native ARM64 runner, using a disposable
-Arch Linux ARM chroot with every build package signature-checked. The KDE source tarball is pinned
+Arch Linux ARM chroot with every build package signature-checked. It matches the current KWin package
+in Arch Linux ARM even when that repository trails KDE's latest release. The source tarball is pinned
 by SHA-256 from KDE's official source inventory; `patches/0001-respect-nested-desktop-scale.patch`
 lets Display Settings control the inner desktop scale independently of the outer window size.
 It keeps layer sizes, pointer/touch coordinates and the cursor in the same physical pixels.
