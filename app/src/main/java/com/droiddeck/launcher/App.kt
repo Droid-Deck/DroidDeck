@@ -16,6 +16,7 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        com.droiddeck.launcher.ui.Themes.loadGradient(this)
         // Helper processes must not initialize the main USB provider or guest graphics context.
         val process = if (android.os.Build.VERSION.SDK_INT >= 28) Application.getProcessName()
             else (getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager)

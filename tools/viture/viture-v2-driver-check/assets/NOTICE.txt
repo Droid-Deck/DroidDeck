@@ -1,0 +1,12 @@
+The VITURE v2 protocol in the packaged production DroidDeck driver is adapted from
+elasticjava/viture-v2, copyright (c) 2026 Holger Bartnick, under the MIT license.
+Pinned upstream commit: ece8c30485f7d357fefa362ae74f3eabac9b3899.
+See LICENSE.viture-v2 in these APK assets for the complete license.
+
+The APK packages actual compiled DroidDeck VitureV2Link, VitureV2Protocol, and
+GlassesLink classes and the Kotlin standard library 2.1.0. Kotlin is copyright
+JetBrains and contributors and distributed under Apache License 2.0:
+https://www.apache.org/licenses/LICENSE-2.0
+See LICENSE.kotlin-Apache-2.0 in these APK assets for the complete license terms.
+
+No vendor SDK or vendor native libraries are included.

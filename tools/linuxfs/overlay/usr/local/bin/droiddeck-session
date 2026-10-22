@@ -3,7 +3,7 @@ set -u
 export HOME=${HOME:-/root}
 mode=${1:-desktop}
 shift || true
-step() { echo "== STEP $(date -u +%H:%M:%S) $*"; }
+step() { echo "== STEP $(date -u +%H:%M:%S.%3N) $*"; }
 steam_setup_failed() {
   echo "== steam: the Steam client could not be set up (status $1)"
   [ -z "${BL_STEAM_EXIT_FILE:-}" ] || printf '%s\n' "$1" > "$BL_STEAM_EXIT_FILE"

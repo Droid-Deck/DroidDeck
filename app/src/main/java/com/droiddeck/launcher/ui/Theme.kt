@@ -6,6 +6,10 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import android.content.Context
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
@@ -29,6 +33,30 @@ object Themes {
     const val PAPER = "paper"
     const val ICON_BLUE = "blue"
     const val ELECTRIC = "electric"
+    const val GRADIENT = "gradient"
+
+    const val DEFAULT_PRIMARY = 0xFF8B5CF6.toInt()
+    const val DEFAULT_SECONDARY = 0xFF22D3EE.toInt()
+
+    /** The two colours of the custom Gradient theme: primary, then secondary. Changing them restyles the app at once. */
+    var gradientColors by mutableStateOf(DEFAULT_PRIMARY to DEFAULT_SECONDARY)
+        private set
+
+    fun loadGradient(context: Context) {
+        gradientColors = SessionPrefs.gradientColors(context)
+    }
+
+    fun setGradient(context: Context, primary: Int, secondary: Int) {
+        SessionPrefs.setGradientColors(context, primary, secondary)
+        gradientColors = primary to secondary
+    }
+
+    /** The theme the person chose, with the custom colours read first; for code that is not in a composition. */
+    fun current(context: Context): Palette {
+        val id = SessionPrefs.theme(context)
+        if (id == GRADIENT) loadGradient(context)
+        return byId(id)
+    }
 
     val all: List<Palette> = listOf(
         Palette(
@@ -59,9 +87,13 @@ object Themes {
             primary = Color(0xFF2E86FF), primary2 = Color(0xFF2684FF), onPrimary = Color(0xFF03111F), signal = Color(0xFF2E86FF),
             good = Color(0xFF4CD37F),
         ),
+        ThemeColors.palette(DEFAULT_PRIMARY, DEFAULT_SECONDARY, R.string.theme_gradient, R.string.theme_gradient_detail),
     )
 
-    fun byId(id: String): Palette = all.firstOrNull { it.id == id } ?: all[0]
+    fun byId(id: String): Palette {
+        if (id == GRADIENT) return ThemeColors.palette(gradientColors.first, gradientColors.second, R.string.theme_gradient, R.string.theme_gradient_detail)
+        return all.firstOrNull { it.id == id } ?: all[0]
+    }
 }
 
 val LocalPalette = staticCompositionLocalOf { Themes.byId(Themes.GRAPHITE) }

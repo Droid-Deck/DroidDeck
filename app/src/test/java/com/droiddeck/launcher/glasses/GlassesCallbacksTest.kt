@@ -13,6 +13,11 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.LooperMode
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.TimeUnit
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], manifest = Config.NONE)
@@ -230,6 +235,97 @@ class GlassesCallbacksTest {
         } finally {
             field("link").set(null, null)
             field("sink").set(null, null)
+        }
+    }
+
+    @Test fun pro2CallbacksUseSharedPoseAndRejectThePreviousConnection() {
+        fun v2(gen: Long) = Glasses::class.java.getDeclaredMethod("v2Listener", Long::class.javaPrimitiveType)
+            .apply { isAccessible = true }.invoke(Glasses, gen) as VitureV2Link.Listener
+        var delivered: FloatArray? = null
+        var timestamp = 0L
+        field("sink").set(null, Glasses.PoseSink { x, y, z, w, time ->
+            delivered = floatArrayOf(x, y, z, w)
+            timestamp = time
+        })
+        try {
+            val q = floatArrayOf(0f, 0f, 0.6f, 0.8f)
+            v2(0).onPose(ByteArray(24), q, 100)
+            assertEquals(null, delivered)
+            v2(1).onPose(ByteArray(24), q, 101)
+            org.junit.Assert.assertArrayEquals(q, delivered, 0f)
+            assertEquals(101L, timestamp)
+            assertEquals(1L, field("imuPackets").getLong(null))
+            v2(1).onValue(VitureProtocol.MSG_GET_DISPLAY, 0x32)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertFalse(Glasses.state.value.sbs)
+            v2(1).onValue(VitureProtocol.MSG_GET_BRIGHTNESS, 8)
+            v2(1).onReady()
+            v2(1).onTracking(true)
+            v2(1).onLost()
+            generation(2)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(2, Glasses.state.value.brightness)
+            assertTrue(Glasses.state.value.connected)
+            assertFalse(Glasses.state.value.supportsScreen3dof)
+            assertFalse(Glasses.state.value.tracking)
+        } finally { field("sink").set(null, null) }
+    }
+
+    @Test fun pro2DemandEndingBeforeTheFirstRestartPoseStillStopsTheStream() {
+        val writes = LinkedBlockingQueue<ByteArray>()
+        val incoming = LinkedBlockingQueue<VitureV2Link.Received>()
+        val firstPose = CountDownLatch(1)
+        val firstRead = CountDownLatch(1)
+        val delegate = Glasses::class.java.getDeclaredMethod("v2Listener", Long::class.javaPrimitiveType)
+            .apply { isAccessible = true }.invoke(Glasses, 1L) as VitureV2Link.Listener
+        val listener = object : VitureV2Link.Listener by delegate {
+            override fun onPose(raw: ByteArray, q: FloatArray, timeNs: Long) {
+                delegate.onPose(raw, q, timeNs)
+                firstPose.countDown()
+            }
+        }
+        val transport = object : VitureV2Link.Transport {
+            override fun write(packet: ByteArray): Boolean { writes += packet; return true }
+            override fun read(timeoutMs: Long): VitureV2Link.Received? {
+                firstRead.countDown()
+                return incoming.poll(timeoutMs, TimeUnit.MILLISECONDS)
+            }
+            override fun close() {}
+        }
+        fun expectStream(stream: Int) = org.junit.Assert.assertArrayEquals(
+            VitureV2Protocol.imuControl(stream), writes.poll(2, TimeUnit.SECONDS))
+        fun updateImu() = Glasses::class.java.getDeclaredMethod("updateImu")
+            .apply { isAccessible = true }.invoke(Glasses)
+        val link = VitureV2Link(transport, listener)
+        field("link").set(null, link)
+        field("sink").set(null, null)
+        try {
+            expectStream(VitureV2Protocol.STREAM_POSE)
+            assertTrue("Bootstrap write did not complete", firstRead.await(2, TimeUnit.SECONDS))
+            val payload = ByteBuffer.allocate(24).order(ByteOrder.LITTLE_ENDIAN)
+                .putInt(0).putInt(1).putFloat(1f).putFloat(0f).putFloat(0f).putFloat(0f).array()
+            incoming += VitureV2Link.Received(VitureV2Protocol.packet(VitureV2Protocol.EVENT_POSE, payload), System.nanoTime())
+            assertTrue(firstPose.await(2, TimeUnit.SECONDS))
+            shadowOf(Looper.getMainLooper()).idle()
+            expectStream(VitureV2Protocol.STREAM_OFF)
+            assertTrue(Glasses.state.value.supportsScreen3dof)
+            assertFalse(Glasses.state.value.tracking)
+
+            field("sink").set(null, Glasses.PoseSink { _, _, _, _, _ -> })
+            updateImu()
+            assertFalse(Glasses.state.value.tracking)
+            field("sink").set(null, null)
+            updateImu()
+            expectStream(VitureV2Protocol.STREAM_POSE)
+            expectStream(VitureV2Protocol.STREAM_OFF)
+            assertFalse(link.trackingActive)
+            assertFalse(Glasses.state.value.tracking)
+        } finally {
+            generation(2)
+            link.close()
+            field("link").set(null, null)
+            field("sink").set(null, null)
+            shadowOf(Looper.getMainLooper()).idle()
         }
     }
 }

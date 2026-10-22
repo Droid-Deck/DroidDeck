@@ -100,17 +100,22 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Check co-authors
-        if: github.event_name == 'pull_request'
+      - name: Check human authorship
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
         run: |
           set -euo pipefail
-          git fetch --no-tags origin main
-          base=$(git merge-base origin/main HEAD)
-          messages=$(git log --format=%B "$base..HEAD")
-          messages+=$'\n'"$(jq -r '.pull_request.title, (.pull_request.body // "")' "$GITHUB_EVENT_PATH")"
-          if grep -Eiq '^[[:space:]]*Co-authored-by:.*(Claude|Anthropic|OpenAI|ChatGPT|GPT|Copilot|Cursor|Gemini|Codex|Devin|Windsurf|Codeium|Amazon Q|Tabnine|Cody|\[bot\])' <<<"$messages"; then
-            echo "::error::AI and bot identities cannot be co-authors; remove the Co-authored-by trailer."
-            exit 1
+          if [ "$EVENT_NAME" = pull_request ]; then
+            git fetch --no-tags origin main
+            base=$(git merge-base origin/main HEAD)
+            checker="$RUNNER_TEMP/droiddeck-check-authorship.py"
+            git show origin/main:tools/release/check_authorship.py > "$checker"
+            python3 "$checker" "$base..HEAD" --event "$GITHUB_EVENT_PATH"
+          elif [ "$EVENT_NAME" = push ] && [ "$BEFORE" != 0000000000000000000000000000000000000000 ]; then
+            python3 tools/release/check_authorship.py "$BEFORE..HEAD"
+          else
+            python3 tools/release/check_authorship.py HEAD
           fi
 
       - name: The packages a signed build ships as

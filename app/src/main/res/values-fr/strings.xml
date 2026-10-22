@@ -1417,6 +1417,14 @@
     <string name="theme_icon_blue_detail">Fond noir, texte blanc, et le bleu pour tout élément sélectionné, ciblé ou pressé.</string>
     <string name="theme_electric">Marine électrique</string>
     <string name="theme_electric_detail">Un bleu plus vif, sur des surfaces qui tirent vers le marine plutôt que vers le gris.</string>
+    <string name="theme_gradient">Dégradé</string>
+    <string name="theme_gradient_detail">Vos propres couleurs primaire et secondaire, fondues sur les boutons et les éléments en surbrillance.</string>
+    <string name="theme_gradient_primary">Primaire</string>
+    <string name="theme_gradient_secondary">Secondaire</string>
+    <string name="theme_color_hue">Teinte</string>
+    <string name="theme_color_saturation">Saturation</string>
+    <string name="theme_color_brightness">Luminosité</string>
+    <string name="theme_color_hex">Couleur hex</string>
     <string name="pckb_key_esc">Échap</string>
     <string name="pckb_key_ins">Inser</string>
     <string name="pckb_key_del">Suppr</string>
@@ -2520,6 +2528,7 @@
     <string name="glasses_xreal_network_missing">En attente de la connexion Ethernet USB des lunettes. Ce téléphone ne la rend peut-être pas accessible aux applications.</string>
     <string name="glasses_xreal_connection_failed">La connexion XREAL a été interrompue ou a renvoyé une réponse non prise en charge. Nouvelle tentative…</string>
     <string name="glasses_xreal_experimental">Prise en charge expérimentale des 1S. Utilisez le mode Follow et désactivez la stabilisation dans le menu des lunettes. Le sens du suivi et les modes d\'affichage restent à tester sur l\'appareil.</string>
+    <string name="glasses_pro2_experimental">Suivi expérimental des mouvements de la tête pour Pro 2. Le réglage de la luminosité et du volume ainsi que le changement de mode d\'affichage ne sont pas encore pris en charge.</string>
     <string name="stores_fact_developer">Développeur</string>
     <string name="stores_fact_publisher">Éditeur</string>
     <string name="stores_fact_released">Sortie</string>
