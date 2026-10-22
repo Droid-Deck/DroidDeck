@@ -2662,6 +2662,7 @@ static uint32_t triton_fw_timestamp() {
       std::string path(exe, static_cast<size_t>(n));
       size_t bin = path.rfind('/');
       size_t root = bin == std::string::npos || bin == 0 ? std::string::npos : path.rfind('/', bin - 1);
+      if (bin != std::string::npos && bin > 0) roots.push_back(path.substr(0, bin));
       if (root != std::string::npos) roots.push_back(path.substr(0, root));
     }
     if (const char *home = getenv("HOME")) roots.push_back(std::string(home) + "/.local/share/Steam");
