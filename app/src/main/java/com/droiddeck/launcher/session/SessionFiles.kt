@@ -583,32 +583,42 @@ object SessionFiles {
     <edit name="family" mode="prepend" binding="strong"><string>Noto Serif CJK JP</string></edit>
   </match>
   <match target="pattern">
-    <test name="lang" compare="contains"><string>zh-cn</string></test>
+    <test name="lang" compare="eq"><string>zh</string></test>
     <test name="family" qual="any"><string>sans-serif</string></test>
     <edit name="family" mode="prepend" binding="strong"><string>Noto Sans CJK SC</string></edit>
   </match>
   <match target="pattern">
-    <test name="lang" compare="contains"><string>zh-cn</string></test>
+    <test name="lang" compare="eq"><string>zh</string></test>
     <test name="family" qual="any"><string>serif</string></test>
     <edit name="family" mode="prepend" binding="strong"><string>Noto Serif CJK SC</string></edit>
   </match>
   <match target="pattern">
-    <test name="lang" compare="contains"><string>zh-tw</string></test>
+    <test name="lang" compare="eq"><string>zh-cn</string></test>
+    <test name="family" qual="any"><string>sans-serif</string></test>
+    <edit name="family" mode="prepend" binding="strong"><string>Noto Sans CJK SC</string></edit>
+  </match>
+  <match target="pattern">
+    <test name="lang" compare="eq"><string>zh-cn</string></test>
+    <test name="family" qual="any"><string>serif</string></test>
+    <edit name="family" mode="prepend" binding="strong"><string>Noto Serif CJK SC</string></edit>
+  </match>
+  <match target="pattern">
+    <test name="lang" compare="eq"><string>zh-tw</string></test>
     <test name="family" qual="any"><string>sans-serif</string></test>
     <edit name="family" mode="prepend" binding="strong"><string>Noto Sans CJK TC</string></edit>
   </match>
   <match target="pattern">
-    <test name="lang" compare="contains"><string>zh-tw</string></test>
+    <test name="lang" compare="eq"><string>zh-tw</string></test>
     <test name="family" qual="any"><string>serif</string></test>
     <edit name="family" mode="prepend" binding="strong"><string>Noto Serif CJK TC</string></edit>
   </match>
   <match target="pattern">
-    <test name="lang" compare="contains"><string>zh-hk</string></test>
+    <test name="lang" compare="eq"><string>zh-hk</string></test>
     <test name="family" qual="any"><string>sans-serif</string></test>
     <edit name="family" mode="prepend" binding="strong"><string>Noto Sans CJK TC</string></edit>
   </match>
   <match target="pattern">
-    <test name="lang" compare="contains"><string>zh-hk</string></test>
+    <test name="lang" compare="eq"><string>zh-hk</string></test>
     <test name="family" qual="any"><string>serif</string></test>
     <edit name="family" mode="prepend" binding="strong"><string>Noto Serif CJK TC</string></edit>
   </match>
