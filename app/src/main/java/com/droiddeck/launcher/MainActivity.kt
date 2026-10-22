@@ -471,7 +471,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startSessionActivity(intent: Intent, gameLinkRequest: Intent? = null): Boolean {
-        if ((!SessionState.running && !sessionLaunchAllowed()) || flood != null) return false
+        if ((SessionLaunchGate.shouldCheckBusyState(intent, SessionState.running) && !sessionLaunchAllowed()) || flood != null) return false
         val from = com.droiddeck.launcher.ui.LaunchOrigin.take()
         if (from != null && !SessionState.running && com.droiddeck.launcher.ui.Motion.scale != 0f) {
             flood = PendingFlood(from, intent, gameLinkRequest)
