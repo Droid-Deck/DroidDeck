@@ -26,10 +26,13 @@ def main():
         if BOT.search(identity):
             print("Bot commit author is forbidden: " + identity.strip(), file=sys.stderr)
             return 1
-        for line in Path(args[0]).read_text(encoding="utf-8").splitlines():
-            if COAUTHOR.match(line) and BOT.search(line):
-                print("Bot co-author trailer is forbidden: " + line, file=sys.stderr)
-                return 1
+        message = Path(args[0])
+        original = message.read_text(encoding="utf-8")
+        cleaned = "".join(line for line in original.splitlines(keepends=True)
+                          if not (COAUTHOR.match(line) and BOT.search(line)))
+        if cleaned != original:
+            message.write_text(cleaned, encoding="utf-8")
+            print("Removed bot co-author trailers; human credits preserved.", file=sys.stderr)
     legacy = Path(__file__).with_name("legacy-" + hook)
     if legacy.exists() and os.access(legacy, os.X_OK):
         return subprocess.run([str(legacy), *args], input=payload).returncode
