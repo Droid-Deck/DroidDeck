@@ -221,7 +221,7 @@ fun LoadingOverlay(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.background)
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
+            .blockTouches(),
     ) {
         CapsuleWall(games, driftMs = 65_000, modifier = Modifier.alpha(0.3f))
         Box(
@@ -350,7 +350,6 @@ private fun CancelHint(onCancel: () -> Unit, modifier: Modifier = Modifier) {
 fun SessionPausedOverlay(title: String = stringResource(R.string.load_steam_paused), onResume: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    val interactionSource = remember { MutableInteractionSource() }
     val resumeFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) {
         androidx.compose.runtime.withFrameNanos { }
@@ -360,7 +359,7 @@ fun SessionPausedOverlay(title: String = stringResource(R.string.load_steam_paus
         modifier = Modifier
             .fillMaxSize()
             .background(pal.background.copy(alpha = 0.94f))
-            .clickable(interactionSource = interactionSource, indication = null) {},
+            .blockTouches(),
         contentAlignment = Alignment.Center,
     ) {
         Column(

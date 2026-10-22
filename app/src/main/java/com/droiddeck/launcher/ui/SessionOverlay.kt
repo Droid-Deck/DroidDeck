@@ -103,6 +103,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
@@ -110,6 +111,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -383,10 +385,15 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
             focus.request(first)
         }
     }
-    if (open || veil > 0.01f) Box(
-        modifier = Modifier.fillMaxSize()
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { host.open = null; a.onClose() },
-    )
+    if (open || veil > 0.01f) {
+        val closeLabel = stringResource(R.string.common_close)
+        Box(
+            modifier = Modifier.fillMaxSize()
+                .focusProperties { canFocus = false }
+                .semantics { contentDescription = closeLabel }
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClickLabel = closeLabel) { host.open = null; a.onClose() },
+        )
+    }
     androidx.compose.foundation.layout.BoxWithConstraints(modifier = Modifier.fillMaxSize().exposeTestTags(), contentAlignment = Alignment.CenterEnd) {
         val short = maxHeight < 440.dp
         val sheetWidth = minOf(360.dp, maxWidth * 0.92f)
@@ -400,7 +407,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                 modifier = Modifier
                     .fillMaxSize()
                     .background(pal.background.copy(alpha = 0.97f))
-                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
+                    .blockTouches()
                     .focusGroup()
                     .controllerBack {
                         if (host.open != null) host.open = null else a.onClose()
@@ -1415,6 +1422,7 @@ internal fun ComponentDownloadsDrawerGroup(
 ) {
     val colors = MaterialTheme.colorScheme
     val installed = packages.map { it.file }.toSet()
+    val nightlyPicked = remember { mutableStateMapOf<String, Boolean>() }
     SettingsGroup(stringResource(R.string.drawer_component_downloads)) {
         Text(stringResource(R.string.drawer_component_downloads_hint), fontSize = 12.sp,
             color = colors.onSurfaceVariant, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp))
@@ -1438,21 +1446,40 @@ internal fun ComponentDownloadsDrawerGroup(
                     }
                     AnchoredMenu(open, onDismiss = { if (host.open == key) host.open = null },
                         title = ComponentsManager.LABEL.getValue(comp)) { firstItemFocus ->
-                        val firstAvailable = items.firstOrNull { ComponentsManager.safeName(it.file) !in installed && it.file !in downloads }
-                        items.forEach { item ->
+                        // A nightly paired with a stable build rides on that row; Stable/Nightly tabs beside the row pick which one.
+                        val pairs = ComponentsManager.nightlyPairs(items)
+                        val rows = items.filter { it !in pairs.values }
+                        fun shown(row: ComponentsManager.CatalogItem) = pairs[row]?.takeIf { nightlyPicked[row.file] == true } ?: row
+                        val firstAvailable = rows.firstOrNull { shown(it).let { s -> ComponentsManager.safeName(s.file) !in installed && s.file !in downloads } }
+                        rows.forEach { row ->
+                            val item = shown(row)
+                            val nightly = pairs[row]
                             val stored = ComponentsManager.safeName(item.file) in installed
                             val progress = downloads[item.file]
-                            MenuItem(item.file.removeSuffix(".wcp"), checked = stored,
-                                enabled = !stored && progress == null,
-                                detail = when {
-                                    stored -> stringResource(R.string.wincomp_downloaded)
-                                    progress != null -> if (progress < 0) stringResource(R.string.wincomp_downloading, item.file.removeSuffix(".wcp")) else "$progress%"
-                                    else -> item.release + " · " + stringResource(R.string.common_size_mb, item.size / 1048576.0)
-                                },
-                                focusRequester = if (item == firstAvailable) firstItemFocus else null,
-                            ) {
-                                onDownload(item)
-                                host.open = null
+                            val choose = @Composable { rowModifier: Modifier ->
+                                MenuItem(item.file.removeSuffix(".wcp"), checked = stored,
+                                    enabled = !stored && progress == null,
+                                    detail = when {
+                                        stored -> stringResource(R.string.wincomp_downloaded)
+                                        progress != null -> if (progress < 0) stringResource(R.string.wincomp_downloading, item.file.removeSuffix(".wcp")) else "$progress%"
+                                        else -> item.release + " · " + stringResource(R.string.common_size_mb, item.size / 1048576.0)
+                                    },
+                                    focusRequester = if (row == firstAvailable) firstItemFocus else null,
+                                    modifier = rowModifier,
+                                ) {
+                                    onDownload(item)
+                                    host.open = null
+                                }
+                            }
+                            if (nightly == null) choose(Modifier)
+                            else Row(verticalAlignment = Alignment.CenterVertically) {
+                                choose(Modifier.weight(1f))
+                                TabStrip(
+                                    listOf(stringResource(R.string.comp_channel_stable), stringResource(R.string.comp_channel_nightly)),
+                                    selected = if (item === nightly) 1 else 0,
+                                    onSelect = { nightlyPicked[row.file] = it == 1 },
+                                    bumpers = false, compact = true, modifier = Modifier.padding(start = 6.dp, end = 4.dp),
+                                )
                             }
                         }
                     }

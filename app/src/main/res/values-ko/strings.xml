@@ -504,7 +504,9 @@
     <string name="comp_delete_original_title">이 원본 버전을 삭제하시겠습니까?</string>
     <string name="comp_delete_original_body">이 %1$s 원본 버전은 %2$s의 이전 빌드에서 가져온 것입니다. 현재 빌드의 원본 버전은 항상 유지됩니다.</string>
     <string name="comp_nightlies_count">Nightlies 내 · %1$d</string>
-    <string name="comp_refresh_to_list">새로 고쳐 Nightlies의 패키지를 나열합니다.</string>
+    <string name="comp_channel_stable">안정판</string>
+    <string name="comp_channel_nightly">나이틀리</string>
+    <string name="comp_refresh_to_list">새로 고쳐 Nightlies 및 DroidDeck의 패키지를 나열합니다.</string>
     <string name="comp_nothing_new">마지막 확인 이후 새로운 내용이 없습니다.</string>
     <string name="comp_import_wcp">.wcp 가져오기</string>
     <string name="comp_restore_original">이 Proton의 원본 파일 복원</string>
@@ -1761,7 +1763,8 @@
     <string name="cmgr_original_kept">설치된 빌드의 원본은 되돌리기 위해 유지됩니다.</string>
     <string name="cmgr_not_stored">저장되지 않음</string>
     <string name="cmgr_deleted_original">%2$s의 %1$s 원본을 삭제했습니다.</string>
-    <string name="cmgr_nightlies_only">Nightlies 릴리스에서만 다운로드할 수 있습니다</string>
+    <string name="cmgr_nightlies_only">Nightlies 및 DroidDeck 릴리스에서만 다운로드할 수 있습니다</string>
+    <string name="cmgr_nightly_replaced">다운로드 실패: 이 나이틀리 빌드가 더 새로운 빌드로 교체되었을 수 있습니다. 목록을 새로 고친 후 다시 시도하세요.</string>
     <string name="cmgr_list_predates_checksums">이 패키지 목록은 체크섬 도입 이전의 것입니다. 새로 고친 후 다시 시도하세요</string>
     <string name="cmgr_checksum_mismatch">체크섬 불일치</string>
 

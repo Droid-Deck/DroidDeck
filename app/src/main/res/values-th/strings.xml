@@ -502,7 +502,9 @@
     <string name="comp_delete_original_title">ลบต้นฉบับนี้?</string>
     <string name="comp_delete_original_body">ต้นฉบับ %1$s นี้มาจากบิลด์ก่อนหน้าของ %2$s ต้นฉบับของบิลด์ปัจจุบันจะถูกเก็บไว้เสมอ</string>
     <string name="comp_nightlies_count">ใน Nightlies · %1$d</string>
-    <string name="comp_refresh_to_list">รีเฟรชเพื่อแสดงรายการแพ็กเกจใน Nightlies</string>
+    <string name="comp_channel_stable">เสถียร</string>
+    <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_refresh_to_list">รีเฟรชเพื่อแสดงรายการแพ็กเกจใน Nightlies และ DroidDeck</string>
     <string name="comp_nothing_new">ไม่มีอะไรใหม่ตั้งแต่การตรวจสอบครั้งล่าสุด</string>
     <string name="comp_import_wcp">นำเข้า .wcp</string>
     <string name="comp_restore_original">คืนค่าต้นฉบับของ Proton นี้</string>
@@ -1759,7 +1761,8 @@
     <string name="cmgr_original_kept">ต้นฉบับของบิลด์ที่ติดตั้งไว้ถูกเก็บไว้: นี่คือทางกลับ</string>
     <string name="cmgr_not_stored">ไม่ได้บันทึกไว้</string>
     <string name="cmgr_deleted_original">ลบต้นฉบับ %1$s ของ %2$s แล้ว</string>
-    <string name="cmgr_nightlies_only">การดาวน์โหลดมาจากรุ่นที่เผยแพร่ใน Nightlies เท่านั้น</string>
+    <string name="cmgr_nightlies_only">การดาวน์โหลดมาจากรุ่นที่เผยแพร่ใน Nightlies และ DroidDeck เท่านั้น</string>
+    <string name="cmgr_nightly_replaced">ดาวน์โหลดไม่สำเร็จ: บิลด์ nightly นี้อาจถูกแทนที่ด้วยบิลด์ที่ใหม่กว่า รีเฟรชรายการแล้วลองอีกครั้ง</string>
     <string name="cmgr_list_predates_checksums">รายการแพ็กเกจนี้เก่ากว่าระบบค่าตรวจสอบ - รีเฟรชแล้วลองใหม่</string>
     <string name="cmgr_checksum_mismatch">ค่าตรวจสอบไม่ตรงกัน</string>
 

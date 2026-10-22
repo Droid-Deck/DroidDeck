@@ -508,7 +508,9 @@
     <string name="comp_delete_original_title">Smazat tento originál?</string>
     <string name="comp_delete_original_body">Tento originál %1$s je z dřívějšího sestavení %2$s. Originál aktuálního sestavení je vždy zachován.</string>
     <string name="comp_nightlies_count">Na Nightlies · %1$d</string>
-    <string name="comp_refresh_to_list">Obnovte pro zobrazení balíčků na Nightlies.</string>
+    <string name="comp_channel_stable">Stabilní</string>
+    <string name="comp_channel_nightly">Noční</string>
+    <string name="comp_refresh_to_list">Obnovte pro zobrazení balíčků na Nightlies a DroidDeck.</string>
     <string name="comp_nothing_new">Od poslední kontroly nic nového.</string>
     <string name="comp_import_wcp">Importovat .wcp</string>
     <string name="comp_restore_original">Obnovit originál tohoto Protonu</string>
@@ -1822,7 +1824,8 @@
     <string name="cmgr_original_kept">Původní verze nainstalovaného sestavení je zachována: je to cesta zpět.</string>
     <string name="cmgr_not_stored">Není uloženo</string>
     <string name="cmgr_deleted_original">Odstraněna původní verze %2$s z %1$s.</string>
-    <string name="cmgr_nightlies_only">Stahování pochází jen z vydání Nightlies</string>
+    <string name="cmgr_nightlies_only">Stahování pochází jen z vydání Nightlies a DroidDeck</string>
+    <string name="cmgr_nightly_replaced">Stažení selhalo: tento noční build mohl být nahrazen novějším. Obnovte seznam a zkuste to znovu.</string>
     <string name="cmgr_list_predates_checksums">Tento seznam balíčků předchází kontrolním součtům - obnovte ho a zkuste to znovu</string>
     <string name="cmgr_checksum_mismatch">Neshoda kontrolního součtu</string>
 

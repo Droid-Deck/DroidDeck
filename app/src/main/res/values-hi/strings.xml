@@ -504,7 +504,9 @@
     <string name="comp_delete_original_title">यह ओरिजिनल हटाएं?</string>
     <string name="comp_delete_original_body">यह %1$s ओरिजिनल %2$s के पहले वाले बिल्ड से है। मौजूदा बिल्ड का ओरिजिनल हमेशा रखा जाता है।</string>
     <string name="comp_nightlies_count">Nightlies पर · %1$d</string>
-    <string name="comp_refresh_to_list">Nightlies के पैकेज सूचीबद्ध करने के लिए रीफ़्रेश करें।</string>
+    <string name="comp_channel_stable">स्थिर</string>
+    <string name="comp_channel_nightly">नाइटली</string>
+    <string name="comp_refresh_to_list">Nightlies और DroidDeck के पैकेज सूचीबद्ध करने के लिए रीफ़्रेश करें।</string>
     <string name="comp_nothing_new">पिछली जांच के बाद कुछ नया नहीं है।</string>
     <string name="comp_import_wcp">.wcp इंपोर्ट करें</string>
     <string name="comp_restore_original">इस Proton का ओरिजिनल वापस लाएं</string>
@@ -1780,7 +1782,8 @@
     <string name="cmgr_original_kept">इंस्टॉल किए बिल्ड का ओरिजिनल रखा गया है: यह वापस जाने का रास्ता है।</string>
     <string name="cmgr_not_stored">सेव नहीं है</string>
     <string name="cmgr_deleted_original">%2$s का %1$s ओरिजिनल हटाया गया।</string>
-    <string name="cmgr_nightlies_only">डाउनलोड सिर्फ़ Nightlies रिलीज़ से आते हैं</string>
+    <string name="cmgr_nightlies_only">डाउनलोड सिर्फ़ Nightlies और DroidDeck रिलीज़ से आते हैं</string>
+    <string name="cmgr_nightly_replaced">डाउनलोड विफल: हो सकता है यह नाइटली बिल्ड किसी नए बिल्ड से बदल दिया गया हो। सूची रीफ़्रेश करें और फिर से कोशिश करें।</string>
     <string name="cmgr_list_predates_checksums">यह पैकेज लिस्ट चेकसम से पुरानी है - इसे रीफ़्रेश करें और फिर कोशिश करें</string>
     <string name="cmgr_checksum_mismatch">चेकसम मेल नहीं खाया</string>
 

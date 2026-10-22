@@ -504,7 +504,9 @@
     <string name="comp_delete_original_title">Dit origineel verwijderen?</string>
     <string name="comp_delete_original_body">Dit origineel van %1$s komt uit een eerdere build van %2$s. Het origineel van de huidige build wordt altijd bewaard.</string>
     <string name="comp_nightlies_count">In de Nightlies · %1$d</string>
-    <string name="comp_refresh_to_list">Vernieuw om de pakketten in de Nightlies te tonen.</string>
+    <string name="comp_channel_stable">Stabiel</string>
+    <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_refresh_to_list">Vernieuw om de pakketten in de Nightlies en bij DroidDeck te tonen.</string>
     <string name="comp_nothing_new">Niets nieuws sinds de laatste controle.</string>
     <string name="comp_import_wcp">.wcp importeren</string>
     <string name="comp_restore_original">Origineel van deze Proton herstellen</string>
@@ -1780,7 +1782,8 @@
     <string name="cmgr_original_kept">Het origineel van de geïnstalleerde build wordt bewaard: dat is de weg terug.</string>
     <string name="cmgr_not_stored">Niet opgeslagen</string>
     <string name="cmgr_deleted_original">Het %1$s-origineel van %2$s is verwijderd.</string>
-    <string name="cmgr_nightlies_only">Downloads komen alleen van de Nightlies-releases</string>
+    <string name="cmgr_nightlies_only">Downloads komen alleen van de Nightlies- en DroidDeck-releases</string>
+    <string name="cmgr_nightly_replaced">Download mislukt: deze nightly is mogelijk vervangen door een nieuwere build. Vernieuw de lijst en probeer het opnieuw.</string>
     <string name="cmgr_list_predates_checksums">Deze pakketlijst is ouder dan de checksums - vernieuw de lijst en probeer het opnieuw</string>
     <string name="cmgr_checksum_mismatch">Checksum komt niet overeen</string>
 

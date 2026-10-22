@@ -505,7 +505,9 @@
     <string name="comp_delete_original_title">Supprimer cette version originale ?</string>
     <string name="comp_delete_original_body">Cette version originale de %1$s provient d\'une version antérieure de %2$s. La version originale de la version actuelle sera toujours conservée.</string>
     <string name="comp_nightlies_count">Dans Nightlies · %1$d</string>
-    <string name="comp_refresh_to_list">Actualiser pour lister les paquets dans Nightlies.</string>
+    <string name="comp_channel_stable">Stable</string>
+    <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_refresh_to_list">Actualiser pour lister les paquets dans Nightlies et DroidDeck.</string>
     <string name="comp_nothing_new">Aucun nouvel élément depuis la dernière vérification.</string>
     <string name="comp_import_wcp">Importer .wcp</string>
     <string name="comp_restore_original">Restaurer les fichiers originaux de ce Proton</string>
@@ -1800,7 +1802,8 @@
     <string name="cmgr_original_kept">L\'original de la version installée est conservé : c\'est le moyen d\'y revenir.</string>
     <string name="cmgr_not_stored">Non enregistré</string>
     <string name="cmgr_deleted_original">Original %1$s de %2$s supprimé.</string>
-    <string name="cmgr_nightlies_only">Les téléchargements proviennent uniquement des versions Nightlies</string>
+    <string name="cmgr_nightlies_only">Les téléchargements proviennent uniquement des versions Nightlies et DroidDeck</string>
+    <string name="cmgr_nightly_replaced">Échec du téléchargement : cette version nightly a peut-être été remplacée par une plus récente. Actualisez la liste et réessayez.</string>
     <string name="cmgr_list_predates_checksums">Cette liste de paquets est antérieure aux sommes de contrôle - actualisez-la et réessayez</string>
     <string name="cmgr_checksum_mismatch">Somme de contrôle incorrecte</string>
 

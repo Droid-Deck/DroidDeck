@@ -503,7 +503,9 @@
     <string name="comp_delete_original_title">Eliminar este original?</string>
     <string name="comp_delete_original_body">Este original de %1$s é de uma versão anterior de %2$s. O original da versão atual é sempre mantido.</string>
     <string name="comp_nightlies_count">Nas Nightlies · %1$d</string>
-    <string name="comp_refresh_to_list">Atualize para listar os pacotes nas Nightlies.</string>
+    <string name="comp_channel_stable">Estável</string>
+    <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_refresh_to_list">Atualize para listar os pacotes nas Nightlies e no DroidDeck.</string>
     <string name="comp_nothing_new">Nada de novo desde a última verificação.</string>
     <string name="comp_import_wcp">Importar .wcp</string>
     <string name="comp_restore_original">Restaurar o original deste Proton</string>
@@ -1790,7 +1792,8 @@
     <string name="cmgr_original_kept">O original da versão instalada é mantido: é o caminho de volta.</string>
     <string name="cmgr_not_stored">Não guardado</string>
     <string name="cmgr_deleted_original">Original de %1$s de %2$s eliminado.</string>
-    <string name="cmgr_nightlies_only">As transferências vêm apenas das versões Nightlies</string>
+    <string name="cmgr_nightlies_only">As transferências vêm apenas das versões Nightlies e DroidDeck</string>
+    <string name="cmgr_nightly_replaced">A transferência falhou: esta versão nightly pode ter sido substituída por uma mais recente. Atualize a lista e tente novamente.</string>
     <string name="cmgr_list_predates_checksums">Esta lista de pacotes é anterior às somas de verificação - atualize-a e tente novamente</string>
     <string name="cmgr_checksum_mismatch">A soma de verificação não corresponde</string>
 
