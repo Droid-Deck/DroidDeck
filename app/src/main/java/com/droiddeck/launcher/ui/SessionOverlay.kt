@@ -405,7 +405,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                 ) {
                     Text(a.title ?: if (a.steam) stringResource(R.string.drawer_steam) else stringResource(R.string.drawer_desktop), fontSize = if (short) 18.sp else 20.sp, fontWeight = FontWeight.Bold,
                         color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                    if (a.onSteamMenu != null && a.onQam != null) {
+                    if (a.steam && a.onSteamMenu != null && a.onQam != null) {
                         val qamInteraction = remember { MutableInteractionSource() }
                         var qamStartedOnPress by remember { mutableStateOf(false) }
                         LaunchedEffect(qamInteraction) {
