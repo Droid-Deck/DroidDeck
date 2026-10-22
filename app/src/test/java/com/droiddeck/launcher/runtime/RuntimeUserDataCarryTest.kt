@@ -201,13 +201,13 @@ class RuntimeUserDataCarryTest {
         val old = tmp.newFolder("old")
         val staging = tmp.newFolder("staging")
         val outside = tmp.newFolder("outside")
-        put(outside, "save.dat", "outside data")
-        Files.createSymbolicLink(File(old, "root").toPath(), outside.toPath())
+        put(outside, "droiddeck-apps/game/run.sh", "outside data")
+        Files.createSymbolicLink(File(old, "opt").toPath(), outside.toPath())
 
         assertThrows(IOException::class.java) { RuntimeFileTree.carryUserData(old, staging, false) }
 
-        assertEquals("outside data", File(outside, "save.dat").readText())
-        assertFalse(File(staging, "root/save.dat").exists())
+        assertEquals("outside data", File(outside, "droiddeck-apps/game/run.sh").readText())
+        assertFalse(File(staging, "opt/droiddeck-apps").exists())
     }
 
     @Test fun anInaccessibleLiveHomeIsNeverTreatedAsMissing() {

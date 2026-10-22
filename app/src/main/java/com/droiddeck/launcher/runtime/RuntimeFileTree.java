@@ -94,14 +94,14 @@ public final class RuntimeFileTree {
         for (String n : children(new File(tree, "usr/share/applications"))) {
             if (!n.startsWith("droiddeck-") || !n.endsWith(".desktop")) continue;
             String id = n.substring("droiddeck-".length(), n.length() - ".desktop".length());
-            if (!Files.exists(new File(tree, "opt/appimages/" + id + ".AppImage").toPath(), LinkOption.NOFOLLOW_LINKS))
+            if (!exists(new File(tree, "opt/appimages/" + id + ".AppImage").toPath()))
                 paths.add("usr/share/applications/" + n);
         }
         for (String n : children(tree)) {
             if (!n.startsWith(".droiddeck-pkg-")) continue;
             String id = n.substring(".droiddeck-pkg-".length());
-            boolean hasMenu = Files.exists(new File(tree, "usr/share/applications/droiddeck-" + id + ".desktop").toPath(), LinkOption.NOFOLLOW_LINKS);
-            if (hasMenu && !Files.exists(new File(tree, "opt/appimages/" + id + ".AppImage").toPath(), LinkOption.NOFOLLOW_LINKS))
+            boolean hasMenu = exists(new File(tree, "usr/share/applications/droiddeck-" + id + ".desktop").toPath());
+            if (hasMenu && !exists(new File(tree, "opt/appimages/" + id + ".AppImage").toPath()))
                 paths.add(n);
         }
         return paths;
