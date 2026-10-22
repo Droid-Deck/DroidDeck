@@ -5,12 +5,10 @@ import android.util.Log
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreAccounts
 import com.droiddeck.launcher.stores.StoresState
-import java.util.concurrent.atomic.AtomicBoolean
-
 /** Keeps the account's Xbox gamertag in its record so the Stores page can show it instead of the sign-in email. */
 internal object XboxGamertag {
     private const val TAG = "XboxGamertag"
-    private val tried = AtomicBoolean(false)
+    private val triedGeneration = java.util.concurrent.atomic.AtomicReference<String?>(null)
 
     internal fun valid(value: String): Boolean = value.isNotEmpty() && value.length <= 64 && value.none { it.isISOControl() }
 
@@ -32,8 +30,17 @@ internal object XboxGamertag {
 
     /** Accounts signed in before the gamertag was kept get it once per app start. */
     fun ensure(app: Context) {
+        val generation = XboxCredentials.lifecycle(app) { it }
         if (!StoreAccounts.read(app, Store.XBOX)?.optString("gamertag").isNullOrBlank()) return
-        if (!tried.compareAndSet(false, true)) return
-        if (refresh(app)) StoresState.refresh(app)
+        if (!shouldTryRefresh(generation)) return
+        if (refresh(app, generation)) StoresState.refresh(app)
+    }
+
+    internal fun shouldTryRefresh(generation: String): Boolean {
+        while (true) {
+            val previous = triedGeneration.get()
+            if (previous == generation) return false
+            if (triedGeneration.compareAndSet(previous, generation)) return true
+        }
     }
 }

@@ -142,6 +142,14 @@ class StoreAccountsCipherTest {
         assertEquals("n•••", StoreAccounts.maskEmail("nickname"))
     }
 
+    @Test fun xboxDisplayNameDoesNotRevealEmailWhenCredentialsAreTemporarilyUnavailable() {
+        StoreAccounts.write(app, Store.XBOX, JSONObject().put("username", "player@example.test"))
+        StoreAccounts.keys = Flaky(key, 1) { java.security.ProviderException("busy") }
+        assertEquals(Store.XBOX.label, StoreAccounts.displayName(app, Store.XBOX))
+        assertTrue(StoreAccounts.isUnavailable(Store.XBOX))
+        assertTrue(file(Store.XBOX).exists())
+    }
+
     @Test fun signOutRemovesTheFile() {
         StoreAccounts.write(app, Store.GOG, creds)
         StoreAccounts.clear(app, Store.GOG)

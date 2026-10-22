@@ -21,4 +21,13 @@ class XboxSignInMessagesTest {
         assertFalse(XboxGamertag.valid("a\nb"))
         assertFalse(XboxGamertag.valid("x".repeat(65)))
     }
+
+    @Test fun gamertagRefreshIsOncePerAccountGeneration() {
+        val first = "account-generation-one-${System.nanoTime()}"
+        val second = "account-generation-two-${System.nanoTime()}"
+        assertTrue(XboxGamertag.shouldTryRefresh(first))
+        assertFalse(XboxGamertag.shouldTryRefresh(first))
+        assertTrue(XboxGamertag.shouldTryRefresh(second))
+        assertFalse(XboxGamertag.shouldTryRefresh(second))
+    }
 }

@@ -96,9 +96,9 @@ object StoreAccounts {
 
     /** The name the Stores page shows. Xbox shows the gamertag, else the sign-in email with its name part masked. */
     fun displayName(context: Context, store: Store): String? {
-        val signedIn = signedInAs(context, store) ?: return null
-        if (store != Store.XBOX) return signedIn
-        val json = read(context, store) ?: return signedIn
+        if (store != Store.XBOX) return signedInAs(context, store)
+        val json = read(context, store) ?: return if (isUnavailable(store)) store.label else null
+        val signedIn = json.optString("username").takeIf { it.isNotBlank() } ?: return null
         json.optString("gamertag").takeIf { it.isNotBlank() }?.let { return it }
         return maskEmail(signedIn)
     }
