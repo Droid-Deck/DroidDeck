@@ -230,11 +230,22 @@ def without_pack(chosen_env, env):
 LOCALE_STAMP = Path("/usr/lib/locale/.droiddeck-locale")
 
 
+def locale_present(name):
+    try:
+        available = subprocess.run(["locale", "-a"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                   text=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    normalize = lambda value: value.strip().lower().replace("utf8", "utf-8")
+    wanted = normalize(name)
+    return available.returncode == 0 and wanted in {normalize(line) for line in available.stdout.splitlines()}
+
+
 def ensure_locale(name):
     """The locale's glibc data, built from the rootfs' own i18n sources the first time it is asked
     for: the rootfs ships only C.utf8, and Proton's own shell and Python need the locale to exist."""
     stamp = LOCALE_STAMP / name
-    if stamp.exists():
+    if stamp.exists() and locale_present(name):
         return True
     language, _, encoding = name.partition(".")
     if "@" in encoding:
@@ -246,6 +257,8 @@ def ensure_locale(name):
     except (OSError, subprocess.SubprocessError):
         return False
     if built.returncode != 0:
+        return False
+    if not locale_present(name):
         return False
     try:
         stamp.parent.mkdir(parents=True, exist_ok=True)
