@@ -7,6 +7,7 @@ import tempfile
 import unittest
 
 PRELOAD = Path(__file__).resolve().parents[1] / "linuxfs/preload"
+FASTPATH = Path(__file__).resolve().parents[1] / "proot/fastpath/fastpath.c"
 
 # Opens each "<dirfd>\t<flags>\t<path>" case with openat2(RESOLVE_IN_ROOT) as FEX does: first through the kernel's own
 # openat2 on argv[1] when it has one, then, with openat2 failing ENOSYS as under proot, through the preload on argv[2].
@@ -267,6 +268,17 @@ class Openat2PreloadTest(unittest.TestCase):
         cls.raw = subprocess.run([str(cls.tmp / "raw_open"), str(tree / "etc/hostname"), str(tree / "missing")],
                                  capture_output=True, text=True, timeout=60,
                                  env=dict(os.environ, LD_PRELOAD="%s:%s" % (cls.lib, cls.tmp / "fp/libblfastpath.so")))
+        (cls.tmp / "real").mkdir()
+        subprocess.run(["cc", "-O2", "-Wall", "-Werror", "-fPIC", "-shared", "-pthread", "-o",
+                        str(cls.tmp / "real/libblfastpath.so"), str(FASTPATH), "-ldl"], check=True)
+        shutil.copy(cls.tmp / "raw_open", cls.tmp / "FEX")
+        try:
+            cls.fex = subprocess.run([str(cls.tmp / "FEX"), str(tree / "etc/hostname"), str(tree / "missing")],
+                                     capture_output=True, text=True, timeout=20,
+                                     env=dict(os.environ, PROOT_FP_ROOT="/", PROOT_FP_KEY="test",
+                                              LD_PRELOAD="%s:%s" % (cls.lib, cls.tmp / "real/libblfastpath.so")))
+        except subprocess.TimeoutExpired:
+            cls.fex = None
 
     @classmethod
     def tearDownClass(cls):
@@ -289,6 +301,11 @@ class Openat2PreloadTest(unittest.TestCase):
         self.assertEqual(self.raw.returncode, 0, self.raw.stderr)
         self.assertEqual(self.raw.stdout, "inside\n")
         self.assertEqual(self.raw.stderr.split("calls ")[-1].split(), ["2", "0", "0"])
+
+    def test_a_first_raw_openat_in_fex_does_not_wait_on_the_fast_path_starting(self):
+        self.assertIsNotNone(self.fex, "hung")
+        self.assertEqual(self.fex.returncode, 0, self.fex.stderr)
+        self.assertEqual(self.fex.stdout, "inside\n")
 
     def test_the_kernel_agrees(self):
         if self.kernel is None:
