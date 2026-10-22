@@ -809,6 +809,7 @@ class ScreenKeys(context: Context, private val sendKey: (Int, Boolean) -> Unit) 
                     forwardPointers(event, forwardedPointerBits)
                     return true
                 }
+                if (forwardedPointerBits != 0) forwardPointers(event, forwardedPointerBits)
                 if (entry.shape == SCREEN_KEY_DPAD) {
                     val arm = armOf(entry, event.getX(index), event.getY(index))
                     val code = entry.codes.getOrNull(arm) ?: 0
@@ -877,6 +878,7 @@ class ScreenKeys(context: Context, private val sendKey: (Int, Boolean) -> Unit) 
                     down.remove(pid)?.let(::release)
                     return true
                 }
+                if (forwardedPointerBits != 0) forwardPointers(event, forwardedPointerBits)
                 if (stickCodes.containsKey(pid)) {
                     stickCodes.remove(pid)?.forEach { if (it != 0) releaseKey(it) }
                     stickEntries.remove(pid)?.armed = -1
@@ -914,7 +916,35 @@ class ScreenKeys(context: Context, private val sendKey: (Int, Boolean) -> Unit) 
     }
 
     private fun forwardPointers(event: MotionEvent, pointerIdBits: Int) {
-        val split = event.split(pointerIdBits)
+        val indices = (0 until event.pointerCount).filter { index ->
+            pointerIdBits and (1 shl event.getPointerId(index)) != 0
+        }
+        if (indices.isEmpty()) return
+        val actionIndex = indices.indexOf(event.actionIndex)
+        val action = when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> if (actionIndex >= 0) MotionEvent.ACTION_DOWN else MotionEvent.ACTION_MOVE
+            MotionEvent.ACTION_POINTER_DOWN -> if (actionIndex >= 0) {
+                if (indices.size == 1) MotionEvent.ACTION_DOWN
+                else MotionEvent.ACTION_POINTER_DOWN or (actionIndex shl MotionEvent.ACTION_POINTER_INDEX_SHIFT)
+            } else MotionEvent.ACTION_MOVE
+            MotionEvent.ACTION_UP -> if (actionIndex >= 0) MotionEvent.ACTION_UP else MotionEvent.ACTION_MOVE
+            MotionEvent.ACTION_POINTER_UP -> if (actionIndex >= 0) {
+                if (indices.size == 1) MotionEvent.ACTION_UP
+                else MotionEvent.ACTION_POINTER_UP or (actionIndex shl MotionEvent.ACTION_POINTER_INDEX_SHIFT)
+            } else MotionEvent.ACTION_MOVE
+            else -> event.action
+        }
+        val properties = Array(indices.size) { MotionEvent.PointerProperties() }
+        val coordinates = Array(indices.size) { MotionEvent.PointerCoords() }
+        indices.forEachIndexed { target, source ->
+            event.getPointerProperties(source, properties[target])
+            event.getPointerCoords(source, coordinates[target])
+        }
+        val split = MotionEvent.obtain(
+            event.downTime, event.eventTime, action, indices.size, properties, coordinates,
+            event.metaState, event.buttonState, event.xPrecision, event.yPrecision,
+            event.deviceId, event.edgeFlags, event.source, event.flags,
+        )
         try {
             onTouchMiss?.invoke(split)
         } finally {

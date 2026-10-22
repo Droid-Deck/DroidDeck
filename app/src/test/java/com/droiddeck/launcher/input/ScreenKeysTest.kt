@@ -26,8 +26,8 @@ class ScreenKeysTest {
         val keys = ScreenKeys(context) { code, down -> sent += code to down }
         keys.layout(0, 0, 1000, 600)
         keys.add(listOf(KeyEvent.KEYCODE_W))
-        val forwarded = mutableListOf<Int>()
-        keys.onTouchMiss = { forwarded += it.actionMasked }
+        val forwarded = mutableListOf<Pair<Int, Int>>()
+        keys.onTouchMiss = { forwarded += it.actionMasked to it.getPointerId(0) }
 
         send(keys, MotionEvent.ACTION_DOWN, listOf(0), listOf(300f), listOf(372f))
         send(keys, MotionEvent.ACTION_POINTER_DOWN or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT), listOf(0, 1), listOf(300f, 900f), listOf(372f, 550f))
@@ -35,7 +35,14 @@ class ScreenKeysTest {
         send(keys, MotionEvent.ACTION_POINTER_UP or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT), listOf(0, 1), listOf(310f, 880f), listOf(372f, 530f))
         send(keys, MotionEvent.ACTION_UP, listOf(0), listOf(310f), listOf(372f))
 
-        assertEquals(listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE, MotionEvent.ACTION_UP), forwarded)
+        assertEquals(
+            listOf(
+                MotionEvent.ACTION_DOWN to 1,
+                MotionEvent.ACTION_MOVE to 1,
+                MotionEvent.ACTION_UP to 1,
+            ),
+            forwarded,
+        )
         assertEquals(listOf(KeyEvent.KEYCODE_W to true, KeyEvent.KEYCODE_W to false), sent)
     }
 
