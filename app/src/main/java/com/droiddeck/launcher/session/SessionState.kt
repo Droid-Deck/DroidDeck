@@ -42,6 +42,8 @@ object SessionState {
     @Volatile
     var running = false
     @Volatile
+    var activityDisplayId = 0
+    @Volatile
     var runtimeDriver: String? = null
     @Volatile
     var stopping = false

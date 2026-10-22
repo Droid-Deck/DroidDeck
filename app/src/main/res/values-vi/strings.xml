@@ -1390,6 +1390,14 @@
     <string name="theme_icon_blue_detail">Nền đen, chữ trắng, xanh cho mọi thứ được chọn, lấy nét hoặc nhấn.</string>
     <string name="theme_electric">Xanh điện navy</string>
     <string name="theme_electric_detail">Màu xanh sáng hơn, trên các bề mặt nghiêng về navy thay vì xám.</string>
+    <string name="theme_gradient">Chuyển màu</string>
+    <string name="theme_gradient_detail">Màu chính và màu phụ do bạn chọn, hòa trộn trên các nút và phần nổi bật.</string>
+    <string name="theme_gradient_primary">Chính</string>
+    <string name="theme_gradient_secondary">Phụ</string>
+    <string name="theme_color_hue">Sắc độ</string>
+    <string name="theme_color_saturation">Độ bão hòa</string>
+    <string name="theme_color_brightness">Độ sáng</string>
+    <string name="theme_color_hex">Màu hex</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>
@@ -2474,6 +2482,7 @@
     <string name="glasses_xreal_network_missing">Đang chờ kết nối USB Ethernet của kính. Điện thoại này có thể không cho ứng dụng truy cập kết nối đó.</string>
     <string name="glasses_xreal_connection_failed">Kết nối XREAL bị gián đoạn hoặc trả về phản hồi không được hỗ trợ. Đang thử lại…</string>
     <string name="glasses_xreal_experimental">Hỗ trợ 1S thử nghiệm. Dùng chế độ Follow và tắt ổn định hình ảnh trong menu của kính. Hướng theo dõi và các chế độ hiển thị vẫn cần thử nghiệm trên thiết bị.</string>
+    <string name="glasses_pro2_experimental">Theo dõi chuyển động đầu thử nghiệm cho Pro 2. Chưa hỗ trợ điều chỉnh độ sáng, âm lượng và chuyển chế độ hiển thị.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Chế độ Cardboard</string>
     <string name="cardboard_mode_hint">Hình cho mắt trái và mắt phải dành cho kính VR điện thoại.</string>
